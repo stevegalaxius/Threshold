@@ -34,15 +34,25 @@ local function takeAmmo(e, id)
 	return true
 end
 
--- Fire direction: toward the aim point if it's within the weapon's gimbal
--- angle of the nose, otherwise as close to it as the gimbal allows.
-local function fireAngle(e, wx, wy, w)
-	local nose = e.body:getAngle()
-	local want = atan2(e.intent.aimY - wy, e.intent.aimX - wx)
-	local g = rad(w.gimbal or 8)
-	local off = Ship.wrapAngle(want - nose)
-	off = max(-g, min(g, off))
-	return nose + off
+-- Where each weapon points, as an angle off the nose (slot.aim). How it
+-- follows the aim point depends on how the hull mounts its weapons:
+--   fixed   bolted to the nose: always fires straight ahead (small hulls)
+--   gimbal  swings toward the aim point, but only within the weapon's
+--           gimbal angle of the nose (medium hulls)
+--   turret  rotates all the way around at the hull's turretTurn speed, so
+--           it can fire in any direction while the hull points elsewhere
+--           (heavy hulls)
+local function aimSlot(e, slot, dt)
+	if slot.mount == "fixed" then slot.aim = 0; return end
+	local wx, wy = Ship.hardpoint(e, slot.slot)
+	local want = Ship.wrapAngle(atan2(e.intent.aimY - wy, e.intent.aimX - wx) - e.body:getAngle())
+	if slot.mount == "turret" then
+		local step = rad(e.hull.turretTurn or 180) * dt
+		slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, Ship.wrapAngle(want - slot.aim))))
+	else
+		local g = rad(slot.w.gimbal or 8)
+		slot.aim = max(-g, min(g, want))
+	end
 end
 
 local function nearestTargetTo(game, x, y, team, maxDist)
@@ -61,7 +71,7 @@ local function fire(game, e, slot, dt)
 	local w = slot.w
 	local mult = e.stats.mult
 	local wx, wy = Ship.hardpoint(e, slot.slot)
-	local angle = fireAngle(e, wx, wy, w)
+	local angle = e.body:getAngle() + slot.aim
 	local dx, dy = cos(angle), sin(angle)
 
 	if w.kind == "laser" then
@@ -139,6 +149,7 @@ function Weapons.update(game, e, dt)
 	local it = e.intent
 	for _, slot in ipairs(e.weapons) do
 		slot.cooldown = max(0, slot.cooldown - dt)
+		aimSlot(e, slot, dt)
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
 		-- AI only fires a weapon when the target is roughly in its range.
 		if wants and it.targetDist and it.targetDist > (slot.w.range or 0) * 1.05 then wants = false end

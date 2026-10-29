@@ -83,6 +83,7 @@ function Ship.refit(e)
 				slot = slot, module = m, w = m.weapon,
 				group = (slot.family == "secondary") and "secondary" or "primary",
 				ammo = data.ammoFor(m), cooldown = 0,
+				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
 		end
 	end
@@ -142,8 +143,8 @@ function Ship.fly(e, dt)
 
 	-- Thrust is relative to the nose. The main engine only pushes forward.
 	-- Reverse and sideways thrust come from maneuvering thrusters
-	-- (sideThrust): light hulls have plenty, heavy hulls barely any, so a
-	-- heavy ship has to turn to where it wants to go.
+	-- (sideThrust), which every playable hull has plenty of, so strafing
+	-- and backing off stay lively; heavier hulls just respond slower.
 	local fwd = max(-1, min(1, it.thrust or 0))
 	local side = max(-1, min(1, it.strafe or 0))
 	local a = b:getAngle()

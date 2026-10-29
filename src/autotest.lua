@@ -169,7 +169,7 @@ function A.update(game, dt)
 	if t >= 24 then once("shot_arty", function() shot("04_artillery") end) end
 	if t >= 27 then once("ram_setup", function()
 		local b = game.player
-		log("Bastion shells left: %d (started 30), mass now %.1f t; parked target at 1430 px: %s, armor %.0f/%.0f",
+		log("Bastion shells left: %d (started 60), mass now %.1f t; parked target at 1430 px: %s, armor %.0f/%.0f",
 			b.cargo.shell_l or 0, b.body:getMass(), A.artyTarget.dead and "destroyed" or "alive", A.artyTarget.armor, A.artyTarget.stats.armor)
 		if not A.artyTarget.dead then game:remove(A.artyTarget) end
 		local x, y = b.body:getPosition()

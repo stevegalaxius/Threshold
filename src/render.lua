@@ -117,6 +117,7 @@ local function drawAsteroid(e)
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
+local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 
 local function drawShip(game, e)
 	local x, y = e.body:getPosition()
@@ -159,18 +160,35 @@ local function drawShip(game, e)
 		puff(R * 0.8, R * 0.35, 1, 0, e.retroBurn)
 	end
 
-	-- weapon barrels
-	for _, w in ipairs(e.weapons) do
+	-- Weapon barrels, each rotated to where its mount points it (slot.aim).
+	-- Fixed and gimballed guns sit under the hull; turrets sit on top of it.
+	local function barrel(w)
 		local s = w.slot
 		local len = BARREL[w.module.size] or 8
 		local thick = (w.module.size == "L") and 5 or ((w.module.size == "M") and 4 or 3)
+		if w.mount == "turret" then len, thick = len * 1.5, thick + 1 end
+		lg.push()
+		lg.translate(s.x or 0, s.y or 0)
+		lg.rotate(w.aim or 0)
 		lg.setColor(0.75, 0.78, 0.82)
 		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
 		if w.group == "secondary" then
-			lg.rectangle("fill", s.x - 4, s.y - 4, 8, 8)
+			lg.rectangle("fill", -4, -4, 8, 8)
 		else
-			lg.rectangle("fill", s.x, s.y - thick / 2, len, thick)
+			lg.rectangle("fill", 0, -thick / 2, len, thick)
 		end
+		if w.mount == "turret" then
+			local r = TURRET[w.module.size] or 5
+			lg.setColor(dark)
+			lg.circle("fill", 0, 0, r)
+			lg.setColor(col)
+			lg.setLineWidth(1.5)
+			lg.circle("line", 0, 0, r)
+		end
+		lg.pop()
+	end
+	for _, w in ipairs(e.weapons) do
+		if w.mount ~= "turret" then barrel(w) end
 	end
 	lg.setColor(dark)
 	lg.polygon("fill", hull.shape)
@@ -180,6 +198,9 @@ local function drawShip(game, e)
 	if e.flash > 0 then
 		lg.setColor(1, 1, 1, 0.8)
 		lg.polygon("fill", hull.shape)
+	end
+	for _, w in ipairs(e.weapons) do
+		if w.mount == "turret" then barrel(w) end
 	end
 	lg.pop()
 

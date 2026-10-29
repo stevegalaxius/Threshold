@@ -11,6 +11,11 @@
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
 	  radius collision radius in pixels
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
+	  mount  how the hull carries its weapons, which sets how each class feels:
+	         fixed   guns point straight down the nose; you aim with the ship
+	         gimbal  guns swing a few degrees toward the cursor (default)
+	         turret  guns rotate all the way around, turretTurn degrees/second
+	         A slot can override it with its own mount.
 
 	Slots: family is primary, secondary, engine, reactor, armor or utility;
 	size is S, M or L, and a module only fits a slot of its own family and
@@ -21,8 +26,8 @@
 ]]
 
 hull {
-	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light",
-	mass = 50, armor = 80, turn = 500, sideThrust = 240, hold = 24, drag = 0.14, radius = 16,
+	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light", mount = "fixed",
+	mass = 50, armor = 80, turn = 500, sideThrust = 340, hold = 24, drag = 0.14, radius = 16,
 	shape = { 20,0, 4,-7, -6,-14, -14,-12, -10,0, -14,12, -6,14, 4,7 },
 	slots = {
 		{ family = "primary",   size = "S", x = 6,   y = -9 },
@@ -40,14 +45,14 @@ hull {
 }
 
 hull {
-	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium",
-	mass = 130, armor = 140, turn = 1500, sideThrust = 200, hold = 40, drag = 0.36, radius = 24,
-	shape = { 26,-8, 26,8, 12,18, -16,20, -24,10, -24,-10, -16,-20, 12,-18 },
+	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
+	mass = 200, armor = 200, turn = 3500, sideThrust = 600, hold = 50, drag = 0.5, radius = 34,
+	shape = { 37,-11, 37,11, 17,26, -23,28, -34,14, -34,-14, -23,-28, 17,-26 },
 	slots = {
-		{ family = "primary",   size = "M", x = 14,  y = -14 },
-		{ family = "primary",   size = "M", x = 14,  y = 14 },
-		{ family = "secondary", size = "S", x = 4,   y = 0 },
-		{ family = "engine",    size = "M", x = -24, y = 0 },
+		{ family = "primary",   size = "M", x = 20,  y = -20 },
+		{ family = "primary",   size = "M", x = 20,  y = 20 },
+		{ family = "secondary", size = "S", x = 6,   y = 0 },
+		{ family = "engine",    size = "M", x = -34, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "armor",     size = "M" },
 		{ family = "armor",     size = "M" },
@@ -59,24 +64,31 @@ hull {
 	price = 38000,
 }
 
+-- Battleship: huge, slow to turn, and every gun is on a turret, so it can
+-- fight in every direction at once while the hull lumbers along.
 hull {
-	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy",
-	mass = 300, armor = 260, turn = 4500, sideThrust = 220, hold = 80, drag = 1.0, radius = 34,
-	shape = { 38,0, 24,-20, -6,-30, -30,-26, -36,0, -30,26, -6,30, 24,20 },
+	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150,
+	mass = 600, armor = 500, turn = 10000, sideThrust = 1100, hold = 120, drag = 1.6, radius = 62,
+	shape = { 72,0, 54,-26, 16,-46, -34,-50, -62,-36, -68,0, -62,36, -34,50, 16,46, 54,26 },
 	slots = {
-		{ family = "primary",   size = "L", x = 30,  y = 0 },
-		{ family = "primary",   size = "M", x = 12,  y = -24 },
-		{ family = "primary",   size = "M", x = 12,  y = 24 },
-		{ family = "secondary", size = "M", x = -4,  y = 0 },
-		{ family = "engine",    size = "L", x = -36, y = 0 },
+		{ family = "primary",   size = "L", x = 40,  y = 0 },
+		{ family = "primary",   size = "L", x = -30, y = 0 },
+		{ family = "primary",   size = "M", x = 14,  y = -32 },
+		{ family = "primary",   size = "M", x = 14,  y = 32 },
+		{ family = "primary",   size = "M", x = -26, y = -36 },
+		{ family = "primary",   size = "M", x = -26, y = 36 },
+		{ family = "secondary", size = "M", x = 6,   y = 0 },
+		{ family = "engine",    size = "L", x = -66, y = 0 },
 		{ family = "reactor",   size = "M" },
+		{ family = "armor",     size = "L" },
 		{ family = "armor",     size = "L" },
 		{ family = "armor",     size = "L" },
 		{ family = "utility",   size = "M" },
 	},
 	bonuses = { missileDamage = 1.15, hold = 1.3 },
-	loadout = { "long_tom", "rk7_chaingun", "rk7_chaingun", "hornet_pod", "cinder_drive", "kiln_reactor", "bulwark_plate", "bulwark_plate", "hold_pod_m" },
-	cargo = { shell_l = 30, rounds_m = 600, missile_m = 6 },
+	loadout = { "long_tom", "long_tom", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "hornet_pod",
+		"cinder_drive", "kiln_reactor", "bulwark_plate", "bulwark_plate", "bulwark_plate", "hold_pod_m" },
+	cargo = { shell_l = 60, rounds_m = 1000, missile_m = 8 },
 	price = 95000,
 }
 
@@ -85,7 +97,7 @@ hull {
 -- Basic enemy: no maneuvering thrusters, so it flies in straight lines and
 -- has to turn around after it overshoots.
 hull {
-	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false,
+	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 30, armor = 10, turn = 160, sideThrust = 0, hold = 8, drag = 0.14, radius = 13,
 	shape = { 15,0, -9,-11, -5,0, -9,11 },
 	slots = {
@@ -100,7 +112,7 @@ hull {
 
 -- Harasser: tiny, twitchy, strong side thrusters. Hard to hit on purpose.
 hull {
-	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false,
+	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 24, armor = 30, turn = 220, sideThrust = 320, hold = 6, drag = 0.12, radius = 11,
 	shape = { 14,0, 2,-5, -8,-10, -5,0, -8,10, 2,5 },
 	slots = {

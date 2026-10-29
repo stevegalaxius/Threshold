@@ -21,6 +21,7 @@ local data = {
 local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, armor = true, utility = true }
 local SIZES = { S = 1, M = 2, L = 3 }
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true }
+local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
 local currentFile = "?"
@@ -52,7 +53,10 @@ function api.hull(def)
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots", "shape" }) do need(def, f, "hull") end
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
+	def.mount = def.mount or "gimbal"
+	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do
+		if slot.mount and not MOUNTS[slot.mount] then fail(("hull '%s' slot %d has unknown mount '%s'"):format(def.id, i, tostring(slot.mount))) end
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M or L)"):format(def.id, i, tostring(slot.size))) end
 	end
