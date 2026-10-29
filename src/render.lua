@@ -1,0 +1,303 @@
+--[[
+	Draws the world. All placeholder art: ships are their hull outlines,
+	asteroids are polygons. The real look (photo collage and drawn art,
+	nearest-neighbor scaled) replaces this later without touching the game
+	code, since nothing here affects the simulation.
+]]
+
+local data = require("src.data")
+
+local Render = {}
+
+local lg = love.graphics
+local cos, sin, floor, max, min, pi, sqrt = math.cos, math.sin, math.floor, math.max, math.min, math.pi, math.sqrt
+
+local COLORS = {
+	space = { 0.02, 0.035, 0.06 },
+	grid = { 0.35, 0.75, 0.85, 0.06 },
+	edge = { 0.4, 0.9, 1.0, 0.35 },
+	player = { 0.55, 0.9, 0.95 },
+	playerDark = { 0.12, 0.28, 0.34 },
+	enemy = { 0.95, 0.5, 0.32 },
+	enemyDark = { 0.32, 0.12, 0.08 },
+	flame = { 0.55, 0.85, 1.0 },
+	enemyFlame = { 1.0, 0.6, 0.25 },
+	gun = { 1.0, 0.92, 0.55 },
+	artillery = { 1.0, 0.6, 0.25 },
+	missile = { 1.0, 0.95, 0.9 },
+	laser = { 0.6, 1.0, 1.0 },
+	ammo = { 1.0, 0.78, 0.25 },
+	salvage = { 0.45, 0.95, 0.85 },
+}
+Render.COLORS = COLORS
+
+-- Starfield: three parallax layers of fixed random stars, tiled.
+local TILE = 1024
+local layers
+local function buildStars()
+	layers = {}
+	local rng = love.math.newRandomGenerator(7)
+	for li, depth in ipairs({ 0.15, 0.35, 0.6 }) do
+		local stars = {}
+		for _ = 1, 140 do
+			table.insert(stars, { rng:random() * TILE, rng:random() * TILE, 0.25 + rng:random() * 0.5 * li / 3 })
+		end
+		layers[li] = { depth = depth, stars = stars, size = li }
+	end
+end
+
+function Render.background(cam)
+	if not layers then buildStars() end
+	local w, h = lg.getDimensions()
+	lg.clear(COLORS.space)
+	for _, layer in ipairs(layers) do
+		local ox = -(cam.x * layer.depth) % TILE
+		local oy = -(cam.y * layer.depth) % TILE
+		for tx = -1, floor(w / TILE) + 1 do
+			for ty = -1, floor(h / TILE) + 1 do
+				for _, s in ipairs(layer.stars) do
+					local x, y = s[1] + ox + tx * TILE, s[2] + oy + ty * TILE
+					if x >= 0 and x <= w and y >= 0 and y <= h then
+						lg.setColor(0.7, 0.9, 1, s[3])
+						lg.rectangle("fill", floor(x), floor(y), layer.size, layer.size)
+					end
+				end
+			end
+		end
+	end
+end
+
+local function drawGrid(game)
+	local cam = game.camera
+	local w, h = lg.getDimensions()
+	local x1, y1 = cam:toWorld(0, 0)
+	local x2, y2 = cam:toWorld(w, h)
+	local step = 256
+	lg.setColor(COLORS.grid)
+	lg.setLineWidth(1)
+	for x = floor(x1 / step) * step, x2, step do lg.line(x, y1, x, y2) end
+	for y = floor(y1 / step) * step, y2, step do lg.line(x1, y, x2, y) end
+
+	-- Arena edge
+	lg.setColor(COLORS.edge)
+	local R, n = game.arenaRadius, 180
+	for i = 0, n - 1, 2 do
+		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
+		lg.line(cos(a1) * R, sin(a1) * R, cos(a2) * R, sin(a2) * R)
+	end
+end
+
+local function drawAsteroid(e)
+	local x, y = e.body:getPosition()
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	local s = e.shade
+	if e.verts then
+		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
+		lg.polygon("fill", e.verts)
+		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
+		lg.setLineWidth(2)
+		lg.polygon("line", e.verts)
+	else
+		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
+		lg.circle("fill", 0, 0, e.radius * 0.9)
+		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
+		lg.circle("line", 0, 0, e.radius * 0.9)
+	end
+	lg.pop()
+end
+
+local BARREL = { S = 7, M = 10, L = 16 }
+
+local function drawShip(game, e)
+	local x, y = e.body:getPosition()
+	local a = e.body:getAngle()
+	local hull = e.hull
+	local col = e.isPlayer and COLORS.player or COLORS.enemy
+	local dark = e.isPlayer and COLORS.playerDark or COLORS.enemyDark
+
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(a)
+
+	-- Everything below is in the ship's own frame: +x is the nose, +y its right side.
+	local fc = e.isPlayer and COLORS.flame or COLORS.enemyFlame
+	local R = hull.radius
+	if e.mainBurn > 0.05 then
+		local len = R * (0.6 + e.mainBurn * 0.9) * (0.85 + love.math.random() * 0.3)
+		if e.boostFlash and e.boostFlash > 0 then len = len * 2.2 end
+		local bx, wdt = -R * 0.75, R * 0.35
+		lg.setColor(fc[1], fc[2], fc[3], 0.35)
+		lg.polygon("fill", bx, -wdt * 1.4, bx, wdt * 1.4, bx - len * 1.3, 0)
+		lg.setColor(fc[1], fc[2], fc[3], 0.9)
+		lg.polygon("fill", bx, -wdt, bx, wdt, bx - len, 0)
+	end
+	-- Maneuvering thrusters: small puffs on the side opposite the push.
+	local function puff(px, py, dx, dy, k)
+		local len = R * 0.45 * k * (0.8 + love.math.random() * 0.4)
+		local qx, qy = -dy * 3, dx * 3
+		lg.setColor(1, 1, 1, 0.75)
+		lg.polygon("fill", px + qx, py + qy, px - qx, py - qy, px + dx * len, py + dy * len)
+	end
+	if math.abs(e.sideBurn) > 0.05 then
+		local s = e.sideBurn > 0 and -1 or 1          -- pushing right fires the left-side jets
+		local k = math.abs(e.sideBurn)
+		puff(R * 0.35, s * R * 0.75, 0, s, k)
+		puff(-R * 0.45, s * R * 0.75, 0, s, k)
+	end
+	if e.retroBurn > 0.05 then
+		puff(R * 0.8, -R * 0.35, 1, 0, e.retroBurn)
+		puff(R * 0.8, R * 0.35, 1, 0, e.retroBurn)
+	end
+
+	-- weapon barrels
+	for _, w in ipairs(e.weapons) do
+		local s = w.slot
+		local len = BARREL[w.module.size] or 8
+		local thick = (w.module.size == "L") and 5 or ((w.module.size == "M") and 4 or 3)
+		lg.setColor(0.75, 0.78, 0.82)
+		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
+		if w.group == "secondary" then
+			lg.rectangle("fill", s.x - 4, s.y - 4, 8, 8)
+		else
+			lg.rectangle("fill", s.x, s.y - thick / 2, len, thick)
+		end
+	end
+	lg.setColor(dark)
+	lg.polygon("fill", hull.shape)
+	lg.setColor(col)
+	lg.setLineWidth(2)
+	lg.polygon("line", hull.shape)
+	if e.flash > 0 then
+		lg.setColor(1, 1, 1, 0.8)
+		lg.polygon("fill", hull.shape)
+	end
+	lg.pop()
+
+	-- Armor bar for damaged enemies
+	if not e.isPlayer and e.armor < e.stats.armor then
+		local wdt = hull.radius * 2
+		local fr = e.armor / e.stats.armor
+		lg.setColor(0, 0, 0, 0.6)
+		lg.rectangle("fill", x - wdt / 2, y - hull.radius - 12, wdt, 4)
+		lg.setColor(COLORS.enemy)
+		lg.rectangle("fill", x - wdt / 2, y - hull.radius - 12, wdt * fr, 4)
+	end
+end
+
+local function drawBeams(game)
+	for _, e in ipairs(game.entities) do
+		if e.kind == "ship" then
+			for _, w in ipairs(e.weapons) do
+				local b = w.beam
+				if b and game.time - b[5] < 0.05 then
+					local c = COLORS.laser
+					lg.setColor(c[1], c[2], c[3], 0.25)
+					lg.setLineWidth(7)
+					lg.line(b[1], b[2], b[3], b[4])
+					lg.setColor(1, 1, 1, 0.95)
+					lg.setLineWidth(2)
+					lg.line(b[1], b[2], b[3], b[4])
+					lg.setColor(c[1], c[2], c[3], 0.6)
+					lg.circle("fill", b[3], b[4], 5 + love.math.random() * 3)
+				end
+			end
+		end
+	end
+end
+
+local SHELL = { S = 3, M = 4, L = 6 }
+
+local function drawProjectiles(game)
+	lg.setLineWidth(2)
+	for _, p in ipairs(game.projectiles) do
+		if p.kind == "gun" then
+			lg.setColor(COLORS.gun)
+			lg.line(p.x - p.vx * 0.014, p.y - p.vy * 0.014, p.x, p.y)
+		elseif p.kind == "artillery" then
+			lg.setColor(COLORS.artillery)
+			lg.circle("fill", p.x, p.y, SHELL[p.size] or 4)
+			lg.setColor(1, 0.9, 0.7, 0.5)
+			lg.line(p.x - p.vx * 0.012, p.y - p.vy * 0.012, p.x, p.y)
+		elseif p.kind == "missile" then
+			local a = math.atan2(p.vy, p.vx)
+			lg.setColor(1, 0.7, 0.3, 0.6)
+			lg.line(p.x, p.y, p.x - cos(a) * 22, p.y - sin(a) * 22)
+			lg.setColor(COLORS.missile)
+			lg.circle("fill", p.x, p.y, 3)
+		end
+	end
+end
+
+local function drawPickups(game)
+	for _, k in ipairs(game.pickups) do
+		local item = data.items[k.item]
+		local c = (item.kind == "ammo") and COLORS.ammo or COLORS.salvage
+		local blink = (k.life < 8 and floor(k.life * 6) % 2 == 0) and 0.35 or 1
+		lg.push()
+		lg.translate(k.x, k.y)
+		lg.rotate(k.spin)
+		lg.setColor(c[1], c[2], c[3], 0.25 * blink)
+		lg.rectangle("fill", -8, -8, 16, 16)
+		lg.setColor(c[1], c[2], c[3], blink)
+		lg.setLineWidth(2)
+		lg.rectangle("line", -5, -5, 10, 10)
+		lg.pop()
+	end
+end
+
+local function drawEffects(game)
+	for _, fx in ipairs(game.effects) do
+		local k = fx.t / fx.life
+		if fx.kind == "spark" then
+			local c = fx.color or { 1, 0.8, 0.5 }
+			lg.setColor(c[1], c[2], c[3], 1 - k)
+			lg.rectangle("fill", floor(fx.x), floor(fx.y), 2, 2)
+		elseif fx.kind == "explosion" then
+			lg.setColor(1, 0.75, 0.4, (1 - k) * 0.25)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
+			lg.setColor(1, 0.85, 0.6, 1 - k)
+			lg.setLineWidth(3 * (1 - k) + 1)
+			lg.circle("line", fx.x, fx.y, fx.r * (0.4 + k * 0.8))
+		elseif fx.kind == "muzzle" then
+			lg.setColor(1, 0.95, 0.7, 1 - k)
+			lg.circle("fill", fx.x + cos(fx.a) * 4, fx.y + sin(fx.a) * 4, 3 * fx.size + 2)
+		end
+	end
+end
+
+-- Faint ring at the reach of the player's longest weapon, so artillery range is readable.
+local function drawRange(game)
+	local p = game.player
+	if not p or p.dead then return end
+	local reach = 0
+	for _, w in ipairs(p.weapons) do
+		if w.group == "primary" then reach = max(reach, w.w.range or 0) end
+	end
+	if reach <= 0 then return end
+	local x, y = p.body:getPosition()
+	lg.setColor(0.6, 0.95, 1, 0.07)
+	lg.setLineWidth(1)
+	lg.circle("line", x, y, reach, 96)
+end
+
+function Render.world(game)
+	Render.background(game.camera)
+	game.camera:apply()
+	drawGrid(game)
+	drawRange(game)
+	drawPickups(game)
+	for _, e in ipairs(game.entities) do
+		if e.kind == "asteroid" then drawAsteroid(e) end
+	end
+	drawProjectiles(game)
+	for _, e in ipairs(game.entities) do
+		if e.kind == "ship" then drawShip(game, e) end
+	end
+	drawBeams(game)
+	drawEffects(game)
+	game.camera:release()
+end
+
+return Render
