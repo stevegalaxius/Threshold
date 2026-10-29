@@ -31,7 +31,9 @@ local COLORS = {
 }
 Render.COLORS = COLORS
 
--- Starfield: three parallax layers of fixed random stars, tiled.
+-- Starfield: three parallax layers of fixed random stars, tiled. Each layer
+-- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers
+-- barely react to the wheel while near ones follow the world closely.
 local TILE = 1024
 local layers
 local function buildStars()
@@ -49,17 +51,23 @@ end
 function Render.background(cam)
 	if not layers then buildStars() end
 	local w, h = lg.getDimensions()
+	local hw, hh = w / 2, h / 2
 	lg.clear(COLORS.space)
 	for _, layer in ipairs(layers) do
-		local ox = -(cam.x * layer.depth) % TILE
-		local oy = -(cam.y * layer.depth) % TILE
-		for tx = -1, floor(w / TILE) + 1 do
-			for ty = -1, floor(h / TILE) + 1 do
+		local scale = cam.zoom ^ layer.depth
+		local cx, cy = cam.x * layer.depth, cam.y * layer.depth
+		local size = max(1, layer.size * scale)
+		-- Range of tiles covering the screen, in this layer's coordinates.
+		local tx1, tx2 = floor((cx - hw / scale) / TILE), floor((cx + hw / scale) / TILE)
+		local ty1, ty2 = floor((cy - hh / scale) / TILE), floor((cy + hh / scale) / TILE)
+		for tx = tx1, tx2 do
+			for ty = ty1, ty2 do
 				for _, s in ipairs(layer.stars) do
-					local x, y = s[1] + ox + tx * TILE, s[2] + oy + ty * TILE
+					local x = hw + (s[1] + tx * TILE - cx) * scale
+					local y = hh + (s[2] + ty * TILE - cy) * scale
 					if x >= 0 and x <= w and y >= 0 and y <= h then
 						lg.setColor(0.7, 0.9, 1, s[3])
-						lg.rectangle("fill", floor(x), floor(y), layer.size, layer.size)
+						lg.rectangle("fill", floor(x), floor(y), size, size)
 					end
 				end
 			end
