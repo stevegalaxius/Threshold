@@ -115,13 +115,15 @@ function AI.think(game, e, dt)
 	it.thrust, it.strafe = Ship.toLocal(e, nmx * th, nmy * th)
 	if burning and ai.style == "kite" and dist < r * 0.5 then it.boost = true end
 
-	-- Fire in bursts, only when not turning away and roughly facing the target.
+	-- Fire in bursts, only when not turning away and roughly facing the
+	-- target (turrets don't need to face it).
 	local burstOn, burstOff = ai.burstOn or 1.0, ai.burstOff or 1.4
 	e.burstClock = ((e.burstClock or random() * (burstOn + burstOff)) + dt) % (burstOn + burstOff)
 	local a = e.body:getAngle()
 	local fx, fy = cos(a), sin(a)
 	local ax, ay = norm(aimX - x, aimY - y)
-	it.firePrimary = not burning and e.burstClock < burstOn and (fx * ax + fy * ay) > 0.95
+	local facing = e.hull.mount == "turret" or (fx * ax + fy * ay) > 0.95
+	it.firePrimary = not burning and e.burstClock < burstOn and facing
 end
 
 return AI
