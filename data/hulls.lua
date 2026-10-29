@@ -8,6 +8,8 @@
 	  sideThrust  kN of maneuvering thrusters, used for strafing and reverse.
 	              The main engine only pushes forward, so this is what lets a
 	              ship move sideways while keeping its guns on target.
+	  turnSpeed  optional cap on spin speed in degrees/second, so a heavy hull
+	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
 	  radius collision radius in pixels
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
@@ -46,7 +48,7 @@ hull {
 
 hull {
 	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
-	mass = 200, armor = 200, turn = 3500, sideThrust = 600, hold = 50, drag = 0.5, radius = 34,
+	mass = 200, armor = 200, turn = 3500, turnSpeed = 200, sideThrust = 600, hold = 50, drag = 0.5, radius = 34,
 	shape = { 37,-11, 37,11, 17,26, -23,28, -34,14, -34,-14, -23,-28, 17,-26 },
 	slots = {
 		{ family = "primary",   size = "M", x = 20,  y = -20 },
@@ -68,7 +70,7 @@ hull {
 -- fight in every direction at once while the hull lumbers along.
 hull {
 	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150,
-	mass = 600, armor = 500, turn = 10000, sideThrust = 1100, hold = 120, drag = 1.6, radius = 62,
+	mass = 600, armor = 500, turn = 3200, turnSpeed = 50, sideThrust = 1100, hold = 120, drag = 1.6, radius = 62,
 	shape = { 72,0, 54,-26, 16,-46, -34,-50, -62,-36, -68,0, -62,36, -34,50, 16,46, 54,26 },
 	slots = {
 		{ family = "primary",   size = "L", x = 40,  y = 0 },

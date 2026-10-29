@@ -140,6 +140,7 @@ local function readout(game)
 		("Acceleration     %.0f px/s2"):format(perf.accel),
 		("Top speed        %.0f px/s"):format(perf.topSpeed),
 		("Turn accel       %.1f rad/s2"):format(perf.turnAccel),
+		("Max turn speed   %.0f deg/s"):format(perf.turnSpeed),
 		("Side accel       %.0f px/s2  (maneuvering thrusters)"):format(perf.sideAccel),
 		("Thrust           %.0f kN main, %.0f kN side/retro"):format(s.thrust, s.sideThrust),
 		("Armor            %.0f"):format(s.armor),

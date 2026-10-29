@@ -14,7 +14,7 @@ local T = require("src.tuning")
 
 local Ship = {}
 
-local sqrt, atan2, cos, sin, abs, max, min, pi = math.sqrt, math.atan2, math.cos, math.sin, math.abs, math.max, math.min, math.pi
+local sqrt, atan2, cos, sin, abs, max, min, pi, rad = math.sqrt, math.atan2, math.cos, math.sin, math.abs, math.max, math.min, math.pi, math.rad
 
 local function copy(t)
 	local out = {}
@@ -179,14 +179,20 @@ function Ship.fly(e, dt)
 
 	-- Turning: a controller that tries to point the nose at the aim point,
 	-- limited by the torque the hull and engine can produce. Heavy ships
-	-- (more rotational inertia) turn slower with the same thrusters.
+	-- (more rotational inertia) turn slower with the same thrusters. The
+	-- spin is capped by the hull's turnSpeed, and the controller starts
+	-- braking early enough that the torque it has can stop the spin right
+	-- on target, so heavy hulls ease in instead of overshooting.
 	local x, y = b:getPosition()
 	local desired = atan2(it.aimY - y, it.aimX - x)
 	local diff = wrapAngle(desired - a)
-	local targetW = max(-T.maxTurnRate, min(T.maxTurnRate, diff * T.aimGain))
-	local w = b:getAngularVelocity()
-	local torque = (targetW - w) * b:getInertia() * T.turnResponse
+	local inertia = b:getInertia()
 	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale
+	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+	local brake = sqrt(2 * 0.8 * maxTorque / inertia * abs(diff))
+	local targetW = min(cap, abs(diff) * T.aimGain, brake) * (diff < 0 and -1 or 1)
+	local w = b:getAngularVelocity()
+	local torque = (targetW - w) * inertia * T.turnResponse
 	b:applyTorque(max(-maxTorque, min(maxTorque, torque)))
 
 	e.flash = max(0, e.flash - dt)
@@ -212,6 +218,7 @@ function Ship.performance(e)
 		topSpeed = sqrt(thrust / k),
 		sideAccel = e.stats.sideThrust * T.FORCE_PER_KN * T.thrustScale * T.sideScale / m,
 		turnAccel = e.stats.turn * T.TORQUE_PER_TURN * T.turnScale / e.body:getInertia(),
+		turnSpeed = math.deg(min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)),
 	}
 end
 
