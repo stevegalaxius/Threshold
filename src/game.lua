@@ -483,9 +483,9 @@ function Game:reap()
 		local e = self.entities[i]
 		if e.dead and e.kind == "asteroid" then
 			table.remove(self.entities, i)
+			self:breakAsteroid(e)          -- reads the body, so before destroying it
 			e.body:destroy()
 			e.removed = true
-			self:breakAsteroid(e)
 		elseif e.dead and e.kind == "husk" then
 			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
