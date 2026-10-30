@@ -56,9 +56,12 @@ Fields.planet = {
 		local R = 7500
 		game:spawnPlanet(0, 0, R, 580, 0.1)
 		-- Two wheel stations out past the belt.
-		-- Both ride slow tracks around the planet at their altitude.
-		game:setOrbit(game:spawnWheelStation(10500, -10700, 900, 120, 0.05), 0, 0, 90)
-		game:setOrbit(game:spawnWheelStation(-12000, 9000, 900, 120, -0.05), 0, 0, 90)
+		-- Both ride a track around the planet at opposite ends, moving at
+		-- the current's speed at that altitude (what a free station drifts at).
+		local sd = 15000
+		local sa = -0.8
+		game:setOrbit(game:spawnWheelStation(cos(sa) * sd, sin(sa) * sd, 900, 120, 0.05), 0, 0, game:currentSpeed(sd))
+		game:setOrbit(game:spawnWheelStation(-cos(sa) * sd, -sin(sa) * sd, 900, 120, -0.05), 0, 0, game:currentSpeed(sd))
 		-- A belt of rocks already circling with the current.
 		local placed = 0
 		for _ = 1, 2000 do
