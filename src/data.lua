@@ -4,7 +4,7 @@
 	Every hull, module, ammo type, salvage item and enemy is defined in a
 	plain Lua file under data/, or under mods/<modname>/data/. Those files
 	run in a sandbox: all they can do is call the registration functions
-	below (hull, module, ammo, salvage, enemy) and use basic math, string
+	below (hull, module, ammo, salvage, container, enemy, market) and use basic math, string
 	and table helpers. They cannot touch files, globals or game state.
 
 	The base game loads its own content through exactly the same path a mod
@@ -13,7 +13,7 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {},
 	-- definition order, so menus list things the way the data files do
 	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
 }
@@ -98,6 +98,26 @@ function api.salvage(def)
 	def.kind = "salvage"
 end
 
+-- A container: an item you can stow in a hold when it's empty, and a
+-- floating box with a grid of its own (grid = { w, h }) when it isn't.
+-- fill lists what a loaded one can turn up: { item, min, max, chance }.
+function api.container(def)
+	register("items", "container", def)
+	for _, f in ipairs({ "volume", "mass", "price", "w", "h", "grid", "hp", "body" }) do need(def, f, "container") end
+	def.kind, def.stack = "container", 1
+	def.fill = def.fill or {}
+end
+
+-- A station's market: what it sells (data/markets.lua). Keyed by station
+-- name; a later one for the same station replaces it.
+function api.market(def)
+	if type(def) ~= "table" then fail("market expects a table, like market { station = ..., sells = { ... } }") end
+	if type(def.station) ~= "string" then fail("market is missing 'station'") end
+	if type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells'"):format(def.station)) end
+	def.source = currentFile
+	data.markets[def.station] = def
+end
+
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
@@ -168,6 +188,13 @@ function data.modulesFor(slot)
 end
 
 local function crossCheck()
+	for name, mk in pairs(data.markets) do
+		for _, e in ipairs(mk.sells) do
+			if not data.items[e[1]] then
+				error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)
+			end
+		end
+	end
 	local function checkLoadout(owner, hull, loadout)
 		for i, slot in ipairs(hull.slots) do
 			local id = loadout and loadout[i]
@@ -182,8 +209,35 @@ local function crossCheck()
 		end
 	end
 	for id, h in pairs(data.hulls) do checkLoadout("hull '" .. id .. "'", h, h.loadout) end
+	-- Grid shapes: whole cells, and a stack can't hold more than its cells.
+	for id, item in pairs(data.items) do
+		if item.w or item.h or item.stack then
+			local w, h, stack = item.w or 0, item.h or 0, item.stack or 1
+			for _, v in ipairs({ w, h, stack }) do
+				if v < 1 or v % 1 ~= 0 then
+					error(("item '%s': w, h and stack must be whole numbers of 1 or more"):format(id), 0)
+				end
+			end
+			if w * h < item.volume * stack - 1e-6 then
+				error(("item '%s': a stack of %d is %.2f m3 but its %d x %d cells only hold %d"):format(
+					id, stack, item.volume * stack, w, h, w * h), 0)
+			end
+		end
+	end
+	for id, item in pairs(data.items) do
+		if item.kind == "container" then
+			for _, f in ipairs(item.fill) do
+				if not data.items[f[1]] then error(("container '%s' fills with unknown item '%s'"):format(id, tostring(f[1])), 0) end
+			end
+		end
+	end
 	for id, e in pairs(data.enemies) do
 		local h = data.hulls[e.hull]
+		for _, c in ipairs(e.containers and { e.containers[1] } or {}) do
+			if not data.items[c] or data.items[c].kind ~= "container" then
+				error(("enemy '%s' carries unknown container '%s'"):format(id, tostring(c)), 0)
+			end
+		end
 		if not h then error(("enemy '%s' uses unknown hull '%s'"):format(id, e.hull), 0) end
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end
@@ -212,6 +266,27 @@ local function addCrates()
 	end
 end
 
+-- Every module is also an item, so spares can sit in a hold, in station
+-- storage or in a husk. Its shape comes from its size (S 2 x 1, M 2 x 2,
+-- L 3 x 2, any 2 x 1), its volume matches the shape and its mass is the
+-- module's own. Module items stay out of data.list.items so they don't
+-- show up in ammo lists.
+local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
+local function addModuleItems()
+	for _, id in ipairs(data.list.modules) do
+		local m = data.modules[id]
+		local existing = data.items[id]
+		if existing and existing.kind ~= "module" then
+			error(("module '%s' has the same id as an item"):format(id), 0)
+		end
+		local shape = MODULE_SHAPES[m.size]
+		data.items[id] = {
+			id = id, kind = "module", module = id, name = m.name, maker = m.maker, size = m.size,
+			w = shape[1], h = shape[2], stack = 1, volume = shape[1] * shape[2], mass = m.mass, price = m.price or 0,
+		}
+	end
+end
+
 function data.load()
 	loadFolder("data")
 	if love.filesystem.getInfo("mods", "directory") then
@@ -223,6 +298,7 @@ function data.load()
 		end
 	end
 	addCrates()
+	addModuleItems()
 	crossCheck()
 end
 

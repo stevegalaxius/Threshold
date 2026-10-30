@@ -25,6 +25,7 @@ local COLORS = {
 	laser = { 0.6, 1.0, 1.0 },
 	ammo = { 1.0, 0.78, 0.25 },
 	salvage = { 0.45, 0.95, 0.85 },
+	container = { 0.95, 0.55, 0.2 },
 }
 Render.COLORS = COLORS
 
@@ -330,6 +331,28 @@ local function drawBuoy(game, e)
 	lg.circle("fill", x, y, r * 0.4)
 end
 
+-- Jump gates: a slowly turning ring of segments with a glow in the
+-- middle. Fly into the middle to travel.
+local function drawGate(game, e)
+	local x, y = e.body:getPosition()
+	local r = e.radius
+	local a0 = e.spin + game.time * 0.4
+	lg.setColor(0.4, 0.8, 1, 0.08)
+	lg.circle("fill", x, y, r)
+	lg.setLineWidth(outline(4))
+	local n = 12
+	for i = 0, n - 1 do
+		local a1 = a0 + i / n * pi * 2
+		local a2 = a1 + pi * 2 / n * 0.6
+		lg.setColor(0.55, 0.85, 1, 0.8)
+		lg.arc("line", "open", x, y, r + 22, a1, a2, 6)
+	end
+	lg.setLineWidth(outline(1.5))
+	local pulse = (game.time * 0.7 + e.spin) % 1
+	lg.setColor(0.55, 0.9, 1, 0.5 * (1 - pulse))
+	lg.circle("line", x, y, r * pulse, 48)
+end
+
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
 
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
@@ -345,7 +368,7 @@ local function drawPlanet(game, e)
 	for k = 1, 4 do
 		local rr = R + k * 1500
 		local n = floor(pi * rr / 900) * 2
-		local turn = dir * game.time * 300 / rr
+		local turn = dir * game.time * 150 / rr
 		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
 		for i = 0, n - 1, 2 do
 			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
@@ -422,6 +445,16 @@ local function drawShip(game, e)
 		puff(e.noseX * 0.4, s * R * 0.75, 0, s, k)
 		puff(e.tailX * 0.5, s * R * 0.75, 0, s, k)
 	end
+	if math.abs(e.turnBurn or 0) > 0.05 then      -- jets helping a big hull turn
+		local s = e.turnBurn > 0 and -1 or 1
+		local k = math.abs(e.turnBurn)
+		puff(e.noseX * 0.6, s * R * 0.75, 0, s, k)
+		puff(e.tailX * 0.6, -s * R * 0.75, 0, -s, k)
+	end
+	if (e.foreBurn or 0) > 0.05 then                 -- jets standing in for the engine
+		puff(e.tailX * 0.8, -R * 0.3, -1, 0, e.foreBurn)
+		puff(e.tailX * 0.8, R * 0.3, -1, 0, e.foreBurn)
+	end
 	if e.retroBurn > 0.05 then
 		puff(e.noseX * 0.6, -R * 0.35, 1, 0, e.retroBurn)
 		puff(e.noseX * 0.6, R * 0.35, 1, 0, e.retroBurn)
@@ -497,6 +530,10 @@ local function drawTractor(game)
 	lg.setLineWidth(1)
 	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)
 	local k = p.tractorTarget
+	if not k and p.towTarget and not p.towTarget.removed then
+		local tx, ty = p.towTarget.body:getPosition()
+		k = { x = tx, y = ty }
+	end
 	if k then
 		lg.setColor(c[1], c[2], c[3], 0.25)
 		lg.setLineWidth(6)
@@ -505,6 +542,39 @@ local function drawTractor(game)
 		lg.setLineWidth(1.5)
 		lg.line(x, y, k.x, k.y)
 	end
+end
+
+-- Cargo containers: a corrugated box, brighter when it has cargo in it.
+local function drawContainer(game, e)
+	local x, y = e.body:getPosition()
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	local c = COLORS.container
+	local full = next(e.loot) ~= nil
+	local w, h = e.w, e.h
+	lg.setColor(c[1] * 0.18, c[2] * 0.18, c[3] * 0.18)
+	lg.rectangle("fill", -w / 2, -h / 2, w, h)
+	lg.setColor(c[1], c[2], c[3], full and 0.9 or 0.45)
+	lg.setLineWidth(outline(1.5))
+	lg.rectangle("line", -w / 2, -h / 2, w, h)
+	lg.setLineWidth(outline(1))
+	lg.setColor(c[1], c[2], c[3], full and 0.45 or 0.2)
+	for i = 1, 5 do
+		local lx = -w / 2 + w * i / 6
+		lg.line(lx, -h / 2 + 3, lx, h / 2 - 3)
+	end
+	lg.pop()
+end
+
+-- What a tap of the tractor key would open: a ring around it.
+local function drawLootHover(game)
+	local e = game.hoverLoot
+	if not e or e.removed then return end
+	local x, y = e.body:getPosition()
+	lg.setColor(1, 1, 1, 0.55)
+	lg.setLineWidth(outline(1.5))
+	lg.circle("line", x, y, e.radius + 8, 48)
 end
 
 -- Husks: the dead ship's outline, burnt dark, with a faint glow of its
@@ -669,8 +739,11 @@ function Render.world(game)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then drawStation(game, e)
 		elseif e.kind == "buoy" then drawBuoy(game, e)
-		elseif e.kind == "husk" then drawHusk(game, e) end
+		elseif e.kind == "gate" then drawGate(game, e)
+		elseif e.kind == "husk" then drawHusk(game, e)
+		elseif e.kind == "container" then drawContainer(game, e) end
 	end
+	drawLootHover(game)
 	drawTractor(game)
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do

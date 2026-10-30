@@ -174,5 +174,5 @@ module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective"
 
 -- Maneuvering thrusters (shared "any" slot) ----------------------------------------
 
-module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 340, price = 3800 }
-module { id = "aux_thrusters_m", name = "Side Jets XL", maker = "Halcyon Arms", family = "thruster", size = "any", mass = 10, powerDraw = 4, sideThrust = 650, price = 9500 }
+module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800 }
+module { id = "aux_thrusters_m", name = "Side Jets XL", maker = "Halcyon Arms", family = "thruster", size = "any", mass = 10, powerDraw = 4, sideThrust = 780, price = 9500 }

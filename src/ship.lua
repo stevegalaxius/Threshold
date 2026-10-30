@@ -11,6 +11,8 @@
 local data = require("src.data")
 local stats = require("src.stats")
 local T = require("src.tuning")
+local Hold = require("src.inventory.hold")
+local Shapes = require("src.inventory.shapes")
 
 local Ship = {}
 
@@ -40,6 +42,11 @@ end
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
 	opts.color    paint { r, g, b } (defaults to the enemy definition's color)
+	opts.grid     true for a grid hold (the player): items take shapes on a
+	              grid of 1 m3 cells. Other ships just count volume.
+	opts.hold     an existing grid hold to carry (a ship coming out of a
+	              hangar or a save keeps its hold exactly as it was)
+	opts.armor    armor to start with (defaults to full)
 ]]
 function Ship.new(game, opts)
 	local hull = assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -48,6 +55,8 @@ function Ship.new(game, opts)
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
 		cargo = copy(opts.cargo or hull.cargo),
+		gridHold = opts.grid or opts.hold ~= nil,
+		hold = opts.hold,
 		intent = Ship.emptyIntent(),
 		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false,
 		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
@@ -80,10 +89,21 @@ function Ship.new(game, opts)
 	body:setAngularDamping(0)
 	e.body = body
 
+	if e.hold then e.cargo = Hold.totals(e.hold) end
 	Ship.refit(e)
-	e.armor = e.stats.armor
+	e.armor = min(opts.armor or e.stats.armor, e.stats.armor)
 	e.power = e.stats.powerCap
 	return e
+end
+
+-- Everything that makes this ship this ship, to park it in a hangar or
+-- carry it to another level: hull, modules, hold (the hold itself, not a
+-- copy), armor and paint. Game:spawnPlayer turns one back into a ship.
+function Ship.record(e)
+	return {
+		hull = e.hull.id, loadout = copy(e.loadout), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
+		armor = e.armor, color = e.color and copy(e.color) or nil,
+	}
 end
 
 -- Rebuild stats and weapon list after the hull's modules change.
@@ -122,13 +142,58 @@ function Ship.refit(e)
 
 	if e.armor then e.armor = min(e.armor, e.stats.armor) end
 	if e.power then e.power = min(e.power, e.stats.powerCap) end
+	if e.gridHold then Ship.layoutHold(e) end
 	Ship.updateMass(e)
 end
 
+-- The grids a ship's hold is made of: the hull's main hold (hull.holdGrid
+-- = { w, h }, or a shape picked from its size), then one grid per fitted
+-- module with hold space (Cargo Pods), in slot order.
+function Ship.holdLayout(e)
+	local layout, pods = {}, 0
+	for i in ipairs(e.hull.slots) do
+		local m = e.loadout[i] and data.modules[e.loadout[i]]
+		if m and (m.hold or 0) > 0 then
+			pods = pods + m.hold
+			local w, h = Shapes.gridFor(m.hold)
+			table.insert(layout, { key = "slot" .. i, name = m.name, w = w, h = h })
+		end
+	end
+	local g = e.hull.holdGrid
+	local w, h
+	if g then w, h = g[1], g[2] else w, h = Shapes.gridFor(e.stats.hold - pods) end
+	table.insert(layout, 1, { key = "hull", name = "Main hold", w = w, h = h })
+	return layout
+end
+
+-- Build the grid hold, or rebuild it after a refit. Grids that didn't
+-- change keep their layout; anything that no longer fits is set aside in
+-- e.holdOverflow (only the debug panel can cause that for now; the station
+-- screen will send it to storage).
+function Ship.layoutHold(e)
+	local left
+	if e.hold then
+		e.hold, left = Hold.relayout(e.hold, Ship.holdLayout(e))
+	else
+		e.hold = Hold.new(Ship.holdLayout(e))
+		left = Hold.fill(e.hold, e.cargo)
+	end
+	e.holdOverflow = e.holdOverflow or {}
+	for id, n in pairs(left) do e.holdOverflow[id] = (e.holdOverflow[id] or 0) + n end
+	e.cargo = Hold.totals(e.hold)
+end
+
 -- Body mass = dry mass + whatever's in the hold. Called whenever the hold changes.
+-- A grid hold first catches up with any change made to e.cargo (weapons
+-- firing, the debug panel), and then counts cells instead of volume.
 function Ship.updateMass(e)
+	if e.hold then Hold.sync(e.hold, e.cargo) end
 	local volume, cargoMass = stats.cargo(e.cargo)
 	e.holdUsed = volume
+	if e.hold then
+		e.holdUsed, e.holdCap = Hold.cells(e.hold)
+		cargoMass = cargoMass + Hold.innerMass(e.hold, data.items)   -- what loaded containers carry
+	end
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.radius
@@ -136,25 +201,64 @@ function Ship.updateMass(e)
 	e.massDirty = false
 end
 
-function Ship.holdFree(e)
-	return e.stats.hold - e.holdUsed
+-- Why this ship can't leave a station, or nil if it can: it needs a
+-- reactor, and an engine or maneuvering thrusters to move with.
+function Ship.launchProblem(e)
+	local has = {}
+	for i in ipairs(e.hull.slots) do
+		local m = e.loadout[i] and data.modules[e.loadout[i]]
+		if m then has[m.family] = true end
+	end
+	if not has.reactor then return "no reactor" end
+	if not has.engine and not has.thruster then return "no engine or thrusters" end
+	return nil
 end
 
--- How many of an item fit in the hold right now.
-function Ship.canFit(e, itemId)
+-- Hold size in cubic metres (for a grid hold, its cells).
+function Ship.holdCapacity(e)
+	return e.holdCap or e.stats.hold
+end
+
+function Ship.holdFree(e)
+	return Ship.holdCapacity(e) - e.holdUsed
+end
+
+-- How many of an item fit in the hold right now (up to `upTo`).
+function Ship.canFit(e, itemId, upTo)
 	local item = data.items[itemId]
 	if not item then return 0 end
-	return math.floor(Ship.holdFree(e) / item.volume + 1e-6)
+	if e.hold then return Hold.room(e.hold, itemId, upTo or 100000) end
+	local n = math.floor(Ship.holdFree(e) / item.volume + 1e-6)
+	return upTo and min(n, upTo) or n
 end
 
--- Add items to the hold; returns how many actually fit.
+-- Add items to the hold; returns how many actually fit. In a grid hold
+-- they top up partial stacks, then go in the first space that fits.
 function Ship.addCargo(e, itemId, count)
-	local n = min(count, Ship.canFit(e, itemId))
-	if n > 0 then
+	if not data.items[itemId] or count <= 0 then return 0 end
+	local n
+	if e.hold then
+		Hold.sync(e.hold, e.cargo)
+		n = Hold.add(e.hold, itemId, count)
+		e.cargo[itemId] = Hold.count(e.hold, itemId)
+	else
+		n = Ship.canFit(e, itemId, count)
 		e.cargo[itemId] = (e.cargo[itemId] or 0) + n
-		Ship.updateMass(e)
 	end
+	if n > 0 then Ship.updateMass(e) end
 	return n
+end
+
+-- Scoop a floating container into the hold, cargo and all. Returns true
+-- if there was room.
+function Ship.stowContainer(e, box)
+	if not e.hold then return false end
+	Hold.sync(e.hold, e.cargo)
+	local s = { id = box.item, n = 1, inner = next(box.loot) and box.hold or nil }
+	if not Hold.placeStack(e.hold, s) then return false end
+	e.cargo = Hold.totals(e.hold)
+	Ship.updateMass(e)
+	return true
 end
 
 -- Distance from a world point to the ship's hull edge (0 or less = inside).
@@ -229,13 +333,19 @@ function Ship.fly(e, dt)
 	local retro = s.retroThrust * T.sideScale
 	local aux = s.sideThrust * T.sideScale
 	local scale = T.FORCE_PER_KN * T.thrustScale
-	local f = (e.spool * s.thrust * (burner and T.boostThrust or 1) + min(0, fwd) * retro) * scale
+	-- Maneuvering thrusters push forward too, but only matter when they
+	-- out-push the main engine (no engine fitted, or a very weak one).
+	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
+	local jets = max(0, fwd) * aux
+	local f = (max(engine, jets) + min(0, fwd) * retro) * scale
 	local l = side * aux * scale
 	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
-	e.mainBurn = e.spool
+	e.mainBurn = s.thrust > 0 and e.spool or 0
+	e.foreBurn = jets > engine and max(0, fwd) or 0
 	e.retroBurn = retro > 0 and max(0, -fwd) or 0
 	e.sideBurn = aux > 0 and side or 0
+	e.turnBurn = (aux > 0 and e.hull.helm == "turn") and steer or 0
 
 	-- Quadratic drag gives a natural top speed (no hard cap):
 	-- top speed = sqrt(thrust / drag). Drag is measured against the space
@@ -262,9 +372,16 @@ function Ship.fly(e, dt)
 	-- on target, so heavy hulls ease in instead of overshooting.
 	-- With helm = "turn", A/D set the spin directly and the hull holds its
 	-- heading when they're released.
+	-- On a turn-helm hull the side jets can't strafe, so they help it turn:
+	-- their thrust at the hull's edge adds torque and lifts the spin cap.
 	local inertia = b:getInertia()
 	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale
 	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+	if e.hull.helm == "turn" and aux > 0 then
+		local jet = aux * scale * e.hull.radius
+		cap = cap * (1 + min(0.5, 0.5 * jet / max(maxTorque, 1)))
+		maxTorque = maxTorque + jet
+	end
 	local targetW
 	if e.hull.helm == "turn" then
 		targetW = steer * cap
@@ -292,15 +409,24 @@ end
 -- Rough performance numbers for the debug readout.
 function Ship.performance(e)
 	local m = e.body:getMass()
-	local thrust = e.stats.thrust * T.FORCE_PER_KN * T.thrustScale
+	local thrust = max(e.stats.thrust, e.stats.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale
 	local k = e.hull.drag * T.dragScale
+	local aux = e.stats.sideThrust * T.FORCE_PER_KN * T.thrustScale * T.sideScale
+	local torque = e.stats.turn * T.TORQUE_PER_TURN * T.turnScale
+	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+	local turnHelm = e.hull.helm == "turn"
+	if turnHelm and aux > 0 then                 -- same as in Ship.fly
+		local jet = aux * e.hull.radius
+		cap = cap * (1 + min(0.5, 0.5 * jet / max(torque, 1)))
+		torque = torque + jet
+	end
 	return {
 		mass = m,
 		accel = thrust / m,
 		topSpeed = sqrt(thrust / k),
-		sideAccel = e.stats.sideThrust * T.FORCE_PER_KN * T.thrustScale * T.sideScale / m,
-		turnAccel = e.stats.turn * T.TORQUE_PER_TURN * T.turnScale / e.body:getInertia(),
-		turnSpeed = math.deg(min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)),
+		sideAccel = turnHelm and 0 or aux / m,
+		turnAccel = torque / e.body:getInertia(),
+		turnSpeed = math.deg(cap),
 	}
 end
 

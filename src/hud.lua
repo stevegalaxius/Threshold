@@ -1,5 +1,5 @@
 --[[
-	Heads-up display: armor, power, weapons with ammo counts, hold, wave
+	Heads-up display: armor, power, weapons with ammo counts, hold, kills
 	info, pickup messages, off-screen enemy markers and the aim reticle.
 	Styled as worn Y2K glass panels; placeholder until the real UI pass.
 ]]
@@ -121,11 +121,20 @@ local function drawStatus(game)
 		end
 	end
 	ly = ly + 4
-	bar(x + 12, ly, pw - 24, 14, p.holdUsed / max(0.01, s.hold), { 0.9, 0.75, 0.4 }, "HOLD", ("%.1f / %.0f m3"):format(p.holdUsed, s.hold))
+	local cap = p.holdCap or s.hold
+	bar(x + 12, ly, pw - 24, 14, p.holdUsed / max(0.01, cap), { 0.9, 0.75, 0.4 }, "HOLD",
+		(p.hold and "%d / %d m3" or "%.1f / %.0f m3"):format(p.holdUsed, cap))
 	lg.setFont(font(12))
 	lg.setColor(DIM)
 	lg.print(("salvage %d  (worth %d cr)"):format(salvageCount, salvageValue), x + 14, ly + 20)
 	lg.printf(("%.0f t"):format(p.body:getMass()), x, ly + 20, pw - 14, "right")
+end
+
+-- 12450 -> "12,450 cr"
+function HUD.credits(n)
+	local s = tostring(floor(math.abs(n)))
+	s = s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	return (n < 0 and "-" or "") .. s .. " cr"
 end
 
 local function drawTopBar(game)
@@ -135,16 +144,15 @@ local function drawTopBar(game)
 		local vx, vy = p.body:getLinearVelocity()
 		speed = sqrt(vx * vx + vy * vy)
 	end
-	local status = ("WAVE %d    KILLS %d    SPEED %d"):format(game.wave, game.kills, floor(speed))
-	if not game.wavesOn then status = status .. "    (waves off)" end
-	panel(16, 12, 330, 32)
+	local status = ("KILLS %d    SPEED %d    %s"):format(game.kills, floor(speed), HUD.credits(game.universe.credits))
+	panel(16, 12, 380, 32)
 	lg.setFont(font(14))
 	lg.setColor(INK)
 	lg.print(status, 28, 20)
 	if game.field then
 		lg.setFont(font(12))
 		lg.setColor(DIM)
-		lg.print(game.field.name .. "   (F2 next field)", 28, 50)
+		lg.print(game.field.name, 28, 50)
 	end
 end
 
@@ -153,9 +161,12 @@ local HELP = {
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB auxiliary",
 	"Q auxiliary ammo size   E tractor beam",
+	"tap E open wreck/container   hold E tow",
+	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
-	"F2 next playing field",
+	"fly into a gate to travel   F2 skip to next level",
+	"F5 save   F9 load (docking autosaves)",
 	"H hide help   Esc quit",
 }
 
@@ -169,12 +180,14 @@ local function drawHelp()
 	for i, line in ipairs(HELP) do lg.print(line, w - pw - 4, 12 + 8 + (i - 1) * 16) end
 end
 
-local function drawToasts(game)
+-- y: where the list starts (default near the top; screens over the
+-- game pass a spot that doesn't cover them)
+local function drawToasts(game, y)
 	local w = lg.getWidth()
-	local y = 70
+	y = y or 70
 	for _, t in ipairs(game.toasts) do
 		local a = min(1, (t.life - t.t) * 3)
-		if t.text:match("^WAVE") then
+		if t.big then
 			lg.setFont(font(28))
 			lg.setColor(AQUA[1], AQUA[2], AQUA[3], a)
 			lg.printf(t.text, 0, y, w, "center")
@@ -194,8 +207,34 @@ local function drawOffscreen(game)
 	local cam = game.camera
 	local w, h = lg.getDimensions()
 	local cx, cy = w / 2, h / 2
+	-- where you can go: gates and stations, labelled at the edge of the
+	-- screen when they're off it, or under them when they're on it
+	lg.setFont(font(12))
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead then
+		if game.state ~= "docked" and (e.kind == "gate" or (e.kind == "station" and e.dock)) then
+			local label = e.kind == "gate" and ("Gate to " .. e.name) or e.name
+			local sx, sy = cam:toScreen(e.body:getPosition())
+			local col = e.kind == "gate" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
+			if sx < 0 or sx > w or sy < 0 or sy > h then
+				local a = atan2(sy - cy, sx - cx)
+				local m = 40
+				local tx = cos(a) > 0 and (w - m - cx) / cos(a) or (m - cx) / cos(a)
+				local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
+				local t = min(math.abs(tx), math.abs(ty))
+				local ax, ay = cx + cos(a) * t, cy + sin(a) * t
+				lg.setColor(col[1], col[2], col[3], 0.8)
+				lg.circle("line", ax, ay, 6)
+				local fw = lg.getFont():getWidth(label)
+				lg.print(label, math.max(4, min(w - fw - 4, ax - fw / 2)), ay + (ay > cy and -24 or 10))
+			else
+				local r = (e.radius or e.ringR or 0) * cam.zoom
+				lg.setColor(col[1], col[2], col[3], 0.8)
+				lg.printf(label, sx - 150, sy + r + 10, 300, "center")
+			end
+		end
+	end
+	for _, e in ipairs(game.entities) do
+		if e.kind == "ship" and e.team == 2 and not e.dead and e.aggro then
 			local sx, sy = cam:toScreen(e.body:getPosition())
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)
@@ -237,39 +276,85 @@ local function drawDeath(game)
 	lg.printf("SHIP LOST", 0, h * 0.36, w, "center")
 	lg.setFont(font(16))
 	lg.setColor(INK[1], INK[2], INK[3], a)
-	lg.printf(("You ejected in a pod. Hull, modules and hold are gone.\nWaves survived: %d    Kills: %d"):format(max(0, game.wave - 1), game.kills), 0, h * 0.36 + 56, w, "center")
+	local home = game:homeStation()
+	lg.printf(("You ejected in a pod. Hull, modules and hold are in the wreck.\nKills: %d"):format(game.kills), 0, h * 0.36 + 56, w, "center")
 	lg.setColor(DIM[1], DIM[2], DIM[3], a)
-	lg.printf("Press R (or Start) to launch a new ship", 0, h * 0.36 + 110, w, "center")
+	lg.printf(home and ("Press R (or Start) to take a new ship at %s"):format(home.name) or "Press R (or Start) to launch a new ship",
+		0, h * 0.36 + 110, w, "center")
 end
 
--- Placeholder station screen while docked; the real station GUI goes here.
-local function drawDocked(game)
-	if game.state ~= "docked" then return end
-	local w, h = lg.getDimensions()
-	lg.setColor(0, 0, 0, 0.5)
-	lg.rectangle("fill", 0, 0, w, h)
-	local pw, ph = 420, 170
-	local x, y = (w - pw) / 2, h * 0.32
+-- Read-only view of the player's grid hold (debug panel: Show hold grid).
+-- A first look at the packing; the real inventory screen comes later.
+local KIND_COLOR = {
+	gun = { 0.45, 0.75, 1 }, artillery = { 1, 0.55, 0.4 }, missile = { 0.4, 0.9, 0.65 },
+	torpedo = { 0.95, 0.8, 0.35 }, drone = { 0.8, 0.55, 1 }, crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
+	module = { 0.95, 0.95, 0.95 }, container = { 0.95, 0.55, 0.2 },
+}
+
+local function itemColor(item)
+	if item.kind == "ammo" then return KIND_COLOR[item.family] or INK end
+	return KIND_COLOR[item.kind] or INK
+end
+
+local function drawHoldGrid(game)
+	local p = game.player
+	if not (T.dev.showHold and p and not p.dead and p.hold) then return end
+	local sh = lg.getHeight()
+	local grids = p.hold.grids
+	-- One cell size for every grid, small enough that they all fit stacked.
+	local rows, cols = 0, 0
+	for _, g in ipairs(grids) do rows, cols = rows + g.h, max(cols, g.w) end
+	local cs = floor(min(18, (sh - 360 - #grids * 22) / rows, 330 / cols))
+	local pw = cols * cs + 24
+	local ph = rows * cs + #grids * 22 + 20
+	local x, y = 16, 84
 	panel(x, y, pw, ph)
-	lg.setFont(font(28))
-	lg.setColor(INK)
-	lg.printf("DOCKED", x, y + 22, pw, "center")
-	lg.setFont(font(14))
-	lg.setColor(DIM)
-	lg.printf("Wheel station\nStation services coming soon", x, y + 70, pw, "center")
-	lg.setColor(INK)
-	lg.printf("Press E, Enter or (A) to launch", x, y + 124, pw, "center")
+	local gy = y + 10
+	for _, g in ipairs(grids) do
+		lg.setFont(font(12))
+		lg.setColor(DIM)
+		lg.print(("%s  %d x %d"):format(g.name, g.w, g.h), x + 12, gy)
+		gy = gy + 18
+		local gx = x + 12
+		lg.setColor(AQUA[1], AQUA[2], AQUA[3], 0.12)
+		for cy = 0, g.h - 1 do
+			for cx = 0, g.w - 1 do lg.rectangle("line", gx + cx * cs + 0.5, gy + cy * cs + 0.5, cs - 1, cs - 1) end
+		end
+		lg.setFont(font(9))
+		for _, s in ipairs(g.stacks) do
+			local item = data.items[s.id]
+			local c = itemColor(item)
+			local rx, ry, rw, rh = gx + s.x * cs + 1, gy + s.y * cs + 1, s.w * cs - 2, s.h * cs - 2
+			lg.setColor(c[1], c[2], c[3], 0.3)
+			lg.rectangle("fill", rx, ry, rw, rh, 2, 2)
+			lg.setColor(c[1], c[2], c[3], 0.9)
+			lg.rectangle("line", rx + 0.5, ry + 0.5, rw - 1, rh - 1, 2, 2)
+			if cs >= 14 and s.n > 1 then
+				lg.setColor(INK)
+				lg.printf(s.n, rx, ry + rh - 11, rw - 2, "right")
+			end
+		end
+		gy = gy + g.h * cs + 4
+	end
 end
 
-function HUD.draw(game, aimX, aimY)
+-- Shared with the cargo screen (src/ui/cargo.lua) so it looks the same.
+HUD.panel, HUD.font, HUD.itemColor = panel, font, itemColor
+HUD.AQUA, HUD.INK, HUD.DIM, HUD.WARN = AQUA, INK, DIM, WARN
+
+-- uiOpen: the cargo screen is up, so no aim reticle.
+function HUD.draw(game, aimX, aimY, uiOpen)
 	drawOffscreen(game)
+	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
+	drawDeath(game)
+	if uiOpen then return end            -- the cargo screen covers the rest; main draws toasts on top of it
 	drawStatus(game)
 	drawHelp()
 	drawToasts(game)
-	drawDeath(game)
-	drawDocked(game)
-	if game.state ~= "docked" then drawReticle(game, aimX, aimY) end
+	drawReticle(game, aimX, aimY)
 end
+
+HUD.drawToasts = drawToasts
 
 return HUD

@@ -16,6 +16,7 @@ local Input = require("src.input")
 local Render = require("src.render")
 local HUD = require("src.hud")
 local Debug = require("src.debugui")
+local Cargo = require("src.ui.cargo")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -31,7 +32,19 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	love.mouse.setVisible(false)
-	if autotest then autotest.start(game) end
+	if autotest then
+		autotest.start(game)
+	elseif require("src.save").newest() then
+		game:loadFrom()                    -- carry on from the latest save
+	end
+end
+
+-- Closing the game saves it (unless you're dead or it's the autotest).
+function love.quit()
+	if not autotest and game and game.player and not game.player.dead then
+		Cargo.clearTrade(game)          -- goods out on the trade grid go home first
+		game:autosave()
+	end
 end
 
 function love.update(dt)
@@ -42,7 +55,15 @@ function love.update(dt)
 	if autotest then
 		intent = autotest.intent(game, dt)
 	else
-		intent = Input.read(game, Debug.blocksMouse(), Debug.blocksKeyboard())
+		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game), Debug.blocksKeyboard())
+		-- With the cargo screen up the mouse is busy, so hold the aim
+		-- straight ahead instead of chasing the cursor.
+		local p = game.player
+		if Cargo.isOpen(game) and p and not p.dead then
+			local x, y = p.body:getPosition()
+			local a = p.body:getAngle()
+			intent.aimX, intent.aimY = x + math.cos(a) * 700, y + math.sin(a) * 700
+		end
 	end
 	lastIntent = intent
 	game:setPlayerIntent(intent)
@@ -53,28 +74,29 @@ function love.update(dt)
 		accumulator = accumulator - STEP
 	end
 	game:frame(dt, intent.aimX, intent.aimY)
-	love.mouse.setVisible(Debug.blocksMouse())
+	Cargo.update(game)
+	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game))
 
 	if autotest then autotest.update(game, dt) end
 end
 
 function love.draw()
 	Render.world(game)
-	HUD.draw(game, lastIntent.aimX, lastIntent.aimY)
+	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
+	if Cargo.isOpen(game) then
+		Cargo.draw(game)
+		HUD.drawToasts(game, Cargo.toastY(game))
+	end
 	Debug.draw()
 end
 
 local function relaunch()
-	if game.state == "dead" then
-		game:clearEnemies()
-		game.pickups = {}
-		game.wave, game.kills, game.waveTimer = 0, 0, 2.5
-		game:spawnPlayer()
-	end
+	if game.state == "dead" then game:respawn() end
 end
 
 function love.keypressed(key)
 	if Debug.blocksKeyboard() then return end
+	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then love.event.quit()
 	elseif key == "f1" then Debug.toggle()
@@ -82,6 +104,8 @@ function love.keypressed(key)
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
 	elseif key == "f2" then game:nextField()
+	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
+	elseif key == "f9" then Cargo.close(game); game:loadFrom()
 	end
 end
 
@@ -91,6 +115,16 @@ function love.gamepadpressed(_, button)
 	elseif button == "y" then game:cycleAux()
 	elseif button == "back" then Debug.toggle()
 	end
+end
+
+function love.mousepressed(x, y, button)
+	if Debug.blocksMouse() then return end
+	Cargo.mousepressed(game, x, y, button)
+end
+
+function love.mousereleased(x, y, button)
+	if Debug.blocksMouse() then return end
+	Cargo.mousereleased(game, x, y, button)
 end
 
 function love.wheelmoved(_, y)

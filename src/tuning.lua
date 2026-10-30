@@ -9,7 +9,7 @@ local T = {}
 T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
 	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1,    precision = 2 },
-	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 1,    precision = 2 },
+	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.5,    precision = 2 },
 	{ key = "linearDamping",  label = "Linear damping (drift)", min = 0,   max = 2,    value = 0.04, precision = 2 },
 	{ key = "massScale",      label = "Mass",                   min = 0.25, max = 3,   value = 1,    precision = 2 },
 	{ key = "turnScale",      label = "Turn torque",            min = 0.1, max = 3,    value = 1,    precision = 2 },
@@ -34,6 +34,7 @@ T.specs = {
 	{ key = "enemyDamage",    label = "Enemy damage",           min = 0,   max = 2,    value = 0.7,  precision = 2 },
 	{ key = "camLead",        label = "Camera lead",            min = 0,   max = 0.6,  value = 0.3,  precision = 2 },
 	{ key = "shake",          label = "Screenshake",            min = 0,   max = 2,    value = 1,    precision = 2 },
+	{ key = "sellRate",       label = "Market: sell price (x list)", min = 0, max = 1, value = 0.5, precision = 2 },
 	{ key = "timeScale",      label = "Game speed",             min = 0.1, max = 2,    value = 1,    precision = 2 },
 }
 
@@ -47,7 +48,44 @@ end
 T.FORCE_PER_KN = 100      -- 1 kN of engine thrust = this much force in pixel units
 T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 
+-- Share of a dead ship's fitted modules that survive in its husk.
+T.moduleSalvage = 0.5
+
+-- Station storage grid, in 1 m3 cells (every station has its own).
+T.storageW, T.storageH = 16, 12
+
+-- Looting and towing. A tap of the tractor key (shorter than tapTime
+-- seconds) on a wreck or container opens it; holding it tows a container
+-- on a towLength pixel line, and you can't fly faster than towSpeed.
+T.tapTime = 0.25
+T.towLength, T.towSpeed = 70, 220
+T.towStiffness, T.towDamping = 15, 6
+-- Loose loaded containers drifting in each field.
+T.fieldContainers = 6
+
+-- The ship you're given when you start out or lose yours.
+T.starterHull = "halcyon_wisp"
+-- Level enemies leave you alone until you come this close (or shoot them).
+T.aggroRange = 2600
+-- Jump gates: how close to a gate's centre takes you through, and how long
+-- after arriving before a gate will take you again.
+T.gateRadius, T.gateCooldown = 150, 4
+
+-- Hangar bays: cells across and down, and how many pixels of hull length
+-- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
+T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20
+
+-- Markets (src/market.lua, data/markets.lua). Credits you start with; the
+-- trade grid and a station's shelf, in cells; how long something you sold
+-- stays for sale before it's sold on; and how long one more stack takes to
+-- come in, by kind (seconds of game time).
+T.startCredits = 5000
+T.tradeW, T.tradeH = 10, 8
+T.marketW, T.marketH = 12, 10
+T.resaleTime = 600
+T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
+
 -- Developer cheats, toggled from the debug panel.
-T.dev = { god = false, infiniteAmmo = false }
+T.dev = { god = false, infiniteAmmo = false, showHold = false }
 
 return T

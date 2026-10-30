@@ -15,6 +15,8 @@
 	  middle btn auxiliary launcher  right bumper   auxiliary launcher
 	  Q         auxiliary ammo size  Y              auxiliary ammo size
 	  E (hold)  tractor beam: reels in the pickup under the cursor   X
+	  E (tap)   open the wreck or container under the cursor;
+	            holding it on a container tows it
 	  Shift     afterburner          A              afterburner
 ]]
 

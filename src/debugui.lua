@@ -52,6 +52,24 @@ local function shipSection(game)
 	local current = data.hulls[game.playerHull]
 	combo("dbg_hull", current.name, opts, function(id) game:spawnPlayer(id) end)
 	if Slab.Button("Relaunch ship") then game:spawnPlayer() end
+	-- Docked: put a new ship in this station's hangar (until there's a market).
+	local st = p and p.dockState and p.dockState.done and p.dockState.station
+	if st then
+		Slab.Text("Park a new ship here (" .. st.name .. ")")
+		for _, o in ipairs(opts) do
+			if Slab.Button("Park a new " .. data.hulls[o.value].name, { W = 300 }) then game:addToHangar(st, o.value) end
+		end
+	end
+	if Slab.Button("+10,000 credits") then game.universe.credits = game.universe.credits + 10000 end
+	Slab.Separator()
+	Slab.Text("Save / load (F5 / F9)")
+	if Slab.Button("Save") then game:saveTo("quick") end
+	Slab.SameLine()
+	if Slab.Button("Load") then game:loadFrom("quick") end
+	Slab.SameLine()
+	if Slab.Button("New game") then game:newGame() end
+	Slab.SameLine()
+	if Slab.Button("Load autosave") then game:loadFrom("auto") end
 
 	Slab.Text("Paint")
 	local paints = {}
@@ -107,12 +125,12 @@ local function shipSection(game)
 	end
 	Slab.SameLine()
 	if Slab.Button("Repair") then p.armor = p.stats.armor end
+	if p.hold and Slab.CheckBox(T.dev.showHold, "Show hold grid") then T.dev.showHold = not T.dev.showHold end
 end
 
 local function cheats(game)
 	if Slab.CheckBox(T.dev.god, "God mode") then T.dev.god = not T.dev.god end
 	if Slab.CheckBox(T.dev.infiniteAmmo, "Infinite ammo") then T.dev.infiniteAmmo = not T.dev.infiniteAmmo end
-	if Slab.CheckBox(game.wavesOn, "Waves") then game.wavesOn = not game.wavesOn end
 end
 
 local function tuningSection()
@@ -137,11 +155,6 @@ local function spawnSection(game)
 			game:spawnEnemy(id, x, y)
 		end
 	end
-	if Slab.Button("Next wave now") then
-		game.wave = game.wave + 1
-		game:spawnWave(game.wave)
-	end
-	Slab.SameLine()
 	if Slab.Button("Clear enemies") then game:clearEnemies() end
 	if Slab.Button("Spawn 5 asteroids") then
 		for _ = 1, 5 do
@@ -166,7 +179,7 @@ local function readout(game)
 		("Thrust           %.0f kN main, %.0f side, %.0f retro"):format(s.thrust, s.sideThrust, s.retroThrust),
 		("Armor            %.0f"):format(s.armor),
 		("Power            %.0f out, %.0f draw, %.0f stored"):format(s.powerOut, s.powerDraw, s.powerCap),
-		("Hold             %.1f / %.0f m3"):format(p.holdUsed, s.hold),
+		("Hold             %.1f / %.0f m3"):format(p.holdUsed, Ship.holdCapacity(p)),
 		("Hardest impact   %.0f px/s  (ram above %.0f)"):format(game.stats.maxImpactSpeed, T.ramSpeed),
 	}
 	for _, l in ipairs(lines) do Slab.Text(l) end

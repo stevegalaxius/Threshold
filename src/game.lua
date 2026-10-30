@@ -3,8 +3,11 @@
 	and asteroids), and lists of projectiles, pickups and effects. Systems
 	are just functions that loop over those lists each step.
 
-	This is the "instance" layer from the design doc in miniature: a
-	generated space you fight in. Docking, stations and saving come later.
+	This is the "instance" layer from the design doc in miniature: the
+	level you're in (a playing field from src/fields.lua), rebuilt fresh
+	each time you arrive. What lasts between levels (station storage,
+	hangars, where you respawn) is the universe, in src/world.lua, which
+	also has travel and save/load.
 ]]
 
 local data = require("src.data")
@@ -15,6 +18,8 @@ local AI = require("src.ai")
 local Camera = require("src.camera")
 local events = require("src.events")
 local Fields = require("src.fields")
+local Hold = require("src.inventory.hold")
+local Shapes = require("src.inventory.shapes")
 
 local Game = {}
 Game.__index = Game
@@ -41,40 +46,46 @@ function Game.new(opts)
 
 	self.playerHull = opts.hull or "halcyon_wisp"
 	self.playerColor = { 0.55, 0.9, 0.95 }
-	self.wave = 0
-	self.waveTimer = 2.5
-	self.wavesOn = opts.waves ~= false
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
+	self:newUniverse()
 
-	self:loadField(opts.field or "asteroids")
+	self:loadField(opts.field or Fields.start)
 	return self
 end
 
--- Clear the arena and build a playing field (src/fields.lua) in it, then
--- launch the player.
-function Game:loadField(id)
+-- Clear the arena and build a level (a playing field, src/fields.lua) in
+-- it: its contents, its jump gates and its enemies. Then the player:
+--   opts.player  a ship record to fly in (Ship.record), or a fresh one
+--   opts.at      where: { station = key } docked there, { gate = fieldId }
+--                coming out of the gate from that level, { x, y, angle,
+--                vx, vy }, or the field's spawn point
+function Game:loadField(id, opts)
+	opts = opts or {}
 	for _, e in ipairs(self.entities) do
 		if not e.removed then e.body:destroy(); e.removed = true end
 	end
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
-	self.wave, self.waveTimer, self.kills = 0, 2.5, 0
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
 	self.well = nil
+	self.stationCount = 0
 	self.field.build(self)
-	self:spawnPlayer()
-	self:toast(self.field.name:upper(), 2)
+	self:spawnGates()
+	self:spawnFieldEnemies()
+	self:placePlayer(opts.player, opts.at)
+	self:toast(self.field.name:upper(), 2, nil, true)
 end
 
 -- F2: the next playing field.
 function Game:nextField()
 	local i = 1
 	for j, id in ipairs(Fields.list) do if id == self.fieldId then i = j end end
-	self:loadField(Fields.list[i % #Fields.list + 1])
+	local p = self.player
+	self:loadField(Fields.list[i % #Fields.list + 1], { player = p and not p.dead and Ship.record(p) or nil })
 end
 
 function Game:nextId()
@@ -84,11 +95,17 @@ end
 
 -- Spawning -------------------------------------------------------------------
 
+-- A new player ship at the field's spawn point. hullId can instead be a
+-- ship record (Ship.record) to bring back a parked or saved ship.
 function Game:spawnPlayer(hullId, loadout, cargo)
 	if self.player and not self.player.removed then self:remove(self.player) end
-	self.playerHull = hullId or self.playerHull
+	local rec = type(hullId) == "table" and hullId or { hull = hullId, loadout = loadout, cargo = cargo }
+	if not data.hulls[rec.hull or self.playerHull] then rec = { hull = T.starterHull } end
+	self.playerHull = rec.hull or self.playerHull
+	if rec.color then self.playerColor = rec.color end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor })
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+		team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p
@@ -97,7 +114,10 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	return p
 end
 
-function Game:spawnEnemy(id, x, y)
+-- opts.idle: it minds its own business until the player comes close or
+-- shoots it (enemies placed by a level); otherwise it comes straight for
+-- the player.
+function Game:spawnEnemy(id, x, y, opts)
 	local def = assert(data.enemies[id], "unknown enemy " .. tostring(id))
 	local angle = 0
 	if self.player and not self.player.dead then
@@ -105,6 +125,7 @@ function Game:spawnEnemy(id, x, y)
 		angle = math.atan2(py - y, px - x)
 	end
 	local e = Ship.new(self, { hull = def.hull, loadout = def.loadout, cargo = def.cargo, team = def.team or 2, x = x, y = y, angle = angle, enemy = def })
+	e.aggro = not (opts and opts.idle)
 	table.insert(self.entities, e)
 	return e
 end
@@ -293,6 +314,16 @@ function Game:applyCurrent(dt)
 				ax, ay = dx / r * c, dy / r * c
 			else
 				ax, ay = self:currentAt(x, y, vx, vy, true)
+				-- Box2D's damping slows against the world; push back so it
+				-- only slows wrecks and containers relative to the current
+				-- (otherwise they'd sit still while everything else turns).
+				local d = b:getLinearDamping()
+				if d > 0 then
+					local dx, dy = self.well.x - x, self.well.y - y
+					local r = max(sqrt(dx * dx + dy * dy), 1)
+					local f = self:currentSpeed(r)
+					ax, ay = ax + dy / r * f * d, ay - dx / r * f * d
+				end
 				if e.orbitR then
 					-- steer a newly arrived rock into its lane: a damped
 					-- spring on its distance from the planet
@@ -327,7 +358,7 @@ function Game:updateAtmosphere(dt)
 	for _, e in ipairs(self.entities) do
 		local b = e.body
 		e.reentry = nil
-		if not e.removed and not e.dockState and b:getType() == "dynamic" and (e.kind == "ship" or e.kind == "asteroid" or e.kind == "husk") then
+		if not e.removed and not e.dockState and b:getType() == "dynamic" and (e.kind == "ship" or e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") then
 			local x, y = b:getPosition()
 			local dx, dy = w.x - x, w.y - y
 			local r = sqrt(dx * dx + dy * dy)
@@ -385,7 +416,7 @@ function Game:planetImpacts()
 			self:spark(x, y, 10, { 1, 0.6, 0.3 })
 			self:remove(o)
 			self:spawnInfallingAsteroid(radius)
-		elseif o.kind == "husk" then
+		elseif o.kind == "husk" or o.kind == "container" then
 			self:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
 			self:remove(o)
 		end
@@ -422,8 +453,15 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
 	local hub = R * 0.2
+	-- key: which station this is, for the universe (storage, hangar,
+	-- respawn); the same field always builds its stations in the same order
+	self.stationCount = (self.stationCount or 0) + 1
+	local n = self.stationCount
+	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		ringR = R, tube = tube, hub = hub, spokes = 4 }
+		ringR = R, tube = tube, hub = hub, spokes = 4,
+		key = ("%s/%d"):format(self.fieldId or "?", n),
+		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
 	-- The dock: a square module on the outside of the ring (along the
 	-- station's +x axis). x1..x2 is its extent out from the centre, hw its
 	-- half-width. Ships that fly into the capture zone in front of its
@@ -567,6 +605,7 @@ function Game:updateDockedShip(e, dt)
 			ds.phase, ds.done, ds.t = "done", true, 0
 			if e == self.player then
 				self.state = "docked"
+				self:playerDocked(st)
 			else
 				ds.stay = 30 + random() * 60
 			end
@@ -604,6 +643,8 @@ end
 function Game:undock()
 	local p = self.player
 	if not p or not p.dockState or not p.dockState.done then return end
+	local missing = Ship.launchProblem(p)
+	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
 	self:toast("LAUNCHED", 1)
@@ -676,7 +717,12 @@ function Game:spawnAsteroids(n, minD)
 	end
 end
 
-function Game:spawnPickup(x, y, item, count)
+-- inner: what a loaded container carries (its hold).
+function Game:spawnPickup(x, y, item, count, inner)
+	if data.items[item].kind == "container" then          -- a stowed container floats out as itself
+		for _ = 1, count do self:spawnContainer(x + (random() - 0.5) * 40, y + (random() - 0.5) * 40, item, false, inner) end
+		return
+	end
 	local a = random() * pi * 2
 	local s = 40 + random() * 120
 	table.insert(self.pickups, {
@@ -685,54 +731,161 @@ function Game:spawnPickup(x, y, item, count)
 	})
 end
 
+-- Push something out of the player's hold: it floats out behind the ship
+-- as an ordinary pickup (the tractor beam can reel it back in).
+function Game:eject(e, id, count, inner)
+	local x, y = e.body:getPosition()
+	local a = e.body:getAngle()
+	local vx, vy = e.body:getLinearVelocity()
+	local c, s = cos(a), sin(a)
+	local back = e.tailX - 24
+	local side = (random() - 0.5) * e.hull.radius
+	if data.items[id].kind == "container" then
+		local back2 = e.tailX - 40
+		for _ = 1, count do
+			local box = self:spawnContainer(x + c * back2 - s * side, y + s * back2 + c * side, id, false, inner)
+			box.body:setLinearVelocity(vx - c * 60, vy - s * 60)
+		end
+		self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
+		events.emit("eject", e, id, count)
+		return
+	end
+	table.insert(self.pickups, {
+		x = x + c * back - s * side, y = y + s * back + c * side,
+		vx = vx - c * 90 + (random() - 0.5) * 30, vy = vy - s * 90 + (random() - 0.5) * 30,
+		item = id, count = count, spin = random() * pi * 2,
+	})
+	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
+	events.emit("eject", e, id, count)
+end
+
+-- A cargo container floating in space: a box with a grid hold of its own.
+-- loaded fills it from the item's fill table; inner is a hold it already
+-- carries (one that was stowed or packed into a wreck). Like a husk it
+-- soaks damage until it breaks, and then spills what it held.
+function Game:spawnContainer(x, y, id, loaded, inner)
+	id = id or "cargo_container"
+	local item = data.items[id]
+	local w, h = item.body[1], item.body[2]
+	local body = love.physics.newBody(self.world, x, y, "dynamic")
+	local hold = inner or Hold.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
+	local e = {
+		kind = "container", id = self:nextId(), team = 0, item = id, body = body, hold = hold,
+		w = w, h = h, radius = sqrt(w * w + h * h) / 2, halfLength = w / 2, hp = item.hp,
+	}
+	if loaded then
+		local counts = {}
+		for _, f in ipairs(item.fill) do
+			if random() < (f[4] or 1) then counts[f[1]] = (counts[f[1]] or 0) + random(f[2], f[3]) end
+		end
+		Hold.fill(hold, counts, { random = random })
+	end
+	e.loot = Hold.totals(hold)
+	local f = love.physics.newFixture(body, love.physics.newRectangleShape(w, h), 1)
+	f:setRestitution(0.2)
+	f:setFriction(0.5)
+	f:setUserData(e)
+	body:setUserData(e)
+	body:setAngle(random() * pi * 2)
+	body:setAngularVelocity((random() - 0.5) * 0.5)
+	body:setLinearDamping(0.1)
+	body:setAngularDamping(0.2)
+	self:containerMass(e)
+	table.insert(self.entities, e)
+	return e
+end
+
+-- A container weighs its own mass plus what's in it.
+function Game:containerMass(e)
+	local m = data.items[e.item].mass
+	for id, n in pairs(e.loot) do m = m + data.items[id].mass * n end
+	m = m * T.massScale
+	e.body:setMassData(0, 0, m, m * (e.w * e.w + e.h * e.h) / 12)
+	e.massDirty = nil
+end
+
+-- A few loaded containers drifting loose somewhere in the field.
+function Game:spawnContainers(n, minD)
+	minD = minD or 600
+	for _ = 1, n * 10 do
+		if n <= 0 then break end
+		local a = random() * pi * 2
+		local d = minD + random() * (self.arenaRadius - minD - 300)
+		local x, y = cos(a) * d, sin(a) * d
+		if self:isClear(x, y, 80) then self:spawnContainer(x, y, nil, true); n = n - 1 end
+	end
+end
+
+-- Towing: a line from the player's ship to the container it holds with
+-- the tractor beam. Slack up to towLength from the hull; past that it
+-- pulls both ways (so a full container drags on you), and the ship can't
+-- go faster than towSpeed. A container your hold has room for is reeled
+-- in and stowed instead, cargo and all.
+function Game:updateTow(dt)
+	for _, e in ipairs(self.entities) do
+		if e.kind == "container" and e.massDirty then self:containerMass(e) end
+	end
+	local p = self.player
+	local c = p and not p.dead and p.towTarget
+	if not c then return end
+	if c.removed or c.dead or p.dockState then p.towTarget = nil return end
+	local px, py = p.body:getPosition()
+	local cx, cy = c.body:getPosition()
+	local dx, dy = px - cx, py - cy
+	local d = max(sqrt(dx * dx + dy * dy), 1)
+	local nx, ny = dx / d, dy / d
+	local edge = Ship.distanceTo(p, cx, cy) - c.radius
+	if edge > Ship.tractorRange(p) * 1.3 then
+		p.towTarget = nil
+		self:toast("TOW LOST", 1.2)
+		return
+	end
+	local pvx, pvy = p.body:getLinearVelocity()
+	local cvx, cvy = c.body:getLinearVelocity()
+	if c.stow then
+		-- reel it in like a pickup
+		local want = min(300, d * 3)
+		local blend = min(1, dt * 6)
+		c.body:setLinearVelocity(cvx + (pvx + nx * want - cvx) * blend, cvy + (pvy + ny * want - cvy) * blend)
+		if edge < 10 then
+			if Ship.stowContainer(p, c) then
+				self:toast("+1 " .. data.items[c.item].name, 1.4, "pickup")
+				events.emit("pickup", p, c.item, 1)
+				self:remove(c)
+			end
+			p.towTarget = nil
+		end
+		return
+	end
+	local slack = T.towLength
+	if edge > slack then
+		local closing = (pvx - cvx) * nx + (pvy - cvy) * ny   -- how fast the ship pulls away
+		local mc, mp = c.body:getMass(), p.body:getMass()
+		local mu = mc * mp / (mc + mp)
+		local f = (T.towStiffness * (edge - slack) + T.towDamping * max(0, closing)) * mu
+		c.body:applyForce(nx * f, ny * f)
+		p.body:applyForce(-nx * f, -ny * f)
+	end
+	local sp = sqrt(pvx * pvx + pvy * pvy)
+	if sp > T.towSpeed then
+		local k = (sp - T.towSpeed) * p.body:getMass() * 30
+		p.body:applyForce(-pvx / sp * k, -pvy / sp * k)
+	end
+end
+
+-- Each station keeps its own storage: a big grid you can leave cargo in
+-- while docked there. It lives in the universe, so it's still there when
+-- you come back to the level (and in the save).
+function Game:stationStorage(st)
+	return self:stationRecord(st).storage
+end
+
 function Game:enemyCount()
 	local n = 0
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and e.team == 2 and not e.dead and not e.fleeing then n = n + 1 end
 	end
 	return n
-end
-
--- Waves: when the arena is clear, the next, bigger wave arrives.
-local WAVE_POOL = {
-	{ id = "swarmer",     from = 1, weight = 3 },
-	{ id = "gunner",      from = 2, weight = 2 },
-	{ id = "interceptor", from = 3, weight = 1.2 },
-	{ id = "brawler",     from = 4, weight = 1.2 },
-	{ id = "sniper",      from = 5, weight = 1 },
-}
-
-function Game:spawnWave(n)
-	local pool, total = {}, 0
-	for _, entry in ipairs(WAVE_POOL) do
-		if n >= entry.from and data.enemies[entry.id] then
-			table.insert(pool, entry); total = total + entry.weight
-		end
-	end
-	local count = min(1 + n, 9)
-	for _ = 1, count do
-		local roll = random() * total
-		local pick = pool[1]
-		for _, entry in ipairs(pool) do
-			roll = roll - entry.weight
-			if roll <= 0 then pick = entry; break end
-		end
-		local x, y = self:spawnPoint(1500, 2000)
-		self:spawnEnemy(pick.id, x, y)
-	end
-	self:toast("WAVE " .. n, 2)
-end
-
-function Game:updateWaves(dt)
-	if not self.wavesOn or self.state ~= "playing" then return end
-	if self:enemyCount() == 0 then
-		self.waveTimer = self.waveTimer - dt
-		if self.waveTimer <= 0 then
-			self.wave = self.wave + 1
-			self:spawnWave(self.wave)
-			self.waveTimer = 4
-		end
-	end
 end
 
 -- Simulation -----------------------------------------------------------------
@@ -745,6 +898,7 @@ end
 
 function Game:step(dt)
 	self.time = self.time + dt
+	if self.universe then self.universe.clock = self.universe.clock + dt end
 
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead then
@@ -766,14 +920,20 @@ function Game:step(dt)
 	self:applyCurrent(dt)
 	self:updateAtmosphere(dt)
 	self:updateOrbits(dt)
+	self:updateTow(dt)
 	self.world:update(dt)
 	self:planetImpacts()
 	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
+	self:updateGates(dt)
 	self:reap()
-	self:updateWaves(dt)
+	if self.pendingJump then
+		local to = self.pendingJump
+		self.pendingJump = nil
+		self:travel(to)
+	end
 end
 
 -- Soft arena edge: the further past it, the harder you're pushed back.
@@ -826,7 +986,7 @@ function Game:resolveContacts()
 			local base = c.imp * T.ramDamageScale * (1 - T.ramSpeed / impactSpeed)
 			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
 			local function hit(o, other)
-				local mult = (o.kind == "asteroid" or o.kind == "husk") and T.asteroidImpact or ramMult(other)
+				local mult = (o.kind == "asteroid" or o.kind == "husk" or o.kind == "container") and T.asteroidImpact or ramMult(other)
 				self:damage(o, base * mult, other, "ram")
 			end
 			hit(c.a, c.b)
@@ -855,10 +1015,10 @@ end
 
 -- cause: gun, artillery, laser, missile, splash or ram (passed on to listeners)
 function Game:damage(e, amount, source, cause)
-	-- Asteroids and husks don't flinch: they soak damage until they break
+	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
-	if e and (e.kind == "asteroid" or e.kind == "husk") and not e.dead and amount > 0 then
+	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
 		return
@@ -917,11 +1077,15 @@ end
 -- is collected by flying over it. Holding the tractor beam key with the
 -- cursor on a pickup within tractor range locks onto it and reels it in;
 -- it goes into the hold when it reaches the hull.
+--
+-- With the cursor on a husk or a container in range instead, a tap of the
+-- key opens it (game.openLoot, which the cargo screen picks up), and
+-- holding it on a container tows it (updateTow).
 function Game:updatePickups(dt)
 	local p = self.player
-	local alive = p and not p.dead
+	local alive = p and not p.dead and not p.dockState
 	local list = self.pickups
-	self.hoverPickup = nil
+	self.hoverPickup, self.hoverLoot = nil, nil
 
 	if alive then
 		local range = Ship.tractorRange(p)
@@ -934,11 +1098,44 @@ function Game:updatePickups(dt)
 			if d < bestD and Ship.distanceTo(p, k.x, k.y) < range then best, bestD = k, d end
 		end
 		self.hoverPickup = best
+		if not best then
+			local lootD = math.huge
+			for _, e in ipairs(self.entities) do
+				if (e.kind == "husk" or e.kind == "container") and not e.dead then
+					local ex, ey = e.body:getPosition()
+					local d = sqrt((ex - it.aimX) ^ 2 + (ey - it.aimY) ^ 2)
+					if d < e.radius + grab and d < lootD and Ship.distanceTo(p, ex, ey) - e.radius < range then
+						self.hoverLoot, lootD = e, d
+					end
+				end
+			end
+		end
 		if not it.tractor then
 			p.tractorTarget = nil
-		elseif not p.tractorTarget then
+		elseif not p.tractorTarget and not p.towTarget then
 			p.tractorTarget = best
 		end
+
+		-- Tap to open, hold to tow.
+		local pressed, released = it.tractor and not p.tractorHeld, p.tractorHeld and not it.tractor
+		p.tractorHeld = it.tractor
+		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil } end
+		local press = p.tractorPress
+		local e = press and press.loot
+		if e and (e.removed or e.dead) then
+			p.tractorPress, e = nil, nil
+		end
+		if e then
+			local held = self.time - press.t
+			if it.tractor and held >= T.tapTime and e.kind == "container" and p.towTarget ~= e then
+				p.towTarget = e
+				e.stow = Ship.canFit(p, e.item, 1) >= 1
+				if not e.stow then self:toast("TOO BIG FOR YOUR HOLD: TOWING", 1.4) end
+			elseif released and (held < T.tapTime or e.kind == "husk") then
+				self.openLoot = e
+			end
+		end
+		if released then p.tractorPress, p.towTarget = nil, nil end
 	end
 
 	local target = alive and p.tractorTarget
@@ -946,8 +1143,17 @@ function Game:updatePickups(dt)
 	while i <= #list do
 		local k = list[i]
 		k.spin = k.spin + dt * 1.5
+		-- slow down relative to the current (around a planet they drift
+		-- with it like everything else)
 		local damp = exp(-dt * 1.5)
-		k.vx, k.vy = k.vx * damp, k.vy * damp
+		local fx, fy = 0, 0
+		if self.well then
+			local dx, dy = self.well.x - k.x, self.well.y - k.y
+			local r = max(sqrt(dx * dx + dy * dy), 1)
+			local f = self:currentSpeed(r)
+			fx, fy = dy / r * f, -dx / r * f
+		end
+		k.vx, k.vy = fx + (k.vx - fx) * damp, fy + (k.vy - fy) * damp
 		local remove = false
 		if k == target then
 			local px, py = p.body:getPosition()
@@ -1026,15 +1232,16 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
-		elseif e.dead and e.kind == "husk" then
+		elseif e.dead and (e.kind == "husk" or e.kind == "container") then
 			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
 			e.body:destroy()
 			e.removed = true
 			self:explode(x, y, e.halfLength, 0, 0)
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
-			for id, count in pairs(e.loot) do
-				if count > 0 then self:spawnPickup(x, y, id, count) end
+			-- one pickup per stack, so a burst husk scatters what it held
+			for _, g in ipairs(e.hold.grids) do
+				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
 		elseif e.dead then
 			local x, y = e.body:getPosition()
@@ -1065,8 +1272,8 @@ function Game:reap()
 	end
 end
 
--- What a dead ship leaves behind: its whole hold (nothing is lost) plus
--- the salvage its enemy definition rolls.
+-- What a dead ship leaves behind: its whole hold (nothing is lost), the
+-- modules that survived, and the salvage its enemy definition rolls.
 local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
@@ -1076,6 +1283,11 @@ local function lootOf(e)
 		local into = (item and item.kind == "ammo") and item.crate or id
 		if count > 0 then loot[into] = (loot[into] or 0) + count end
 	end
+	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
+	for i in ipairs(e.hull.slots) do
+		local id = e.loadout[i]
+		if id and data.items[id] and random() < T.moduleSalvage then loot[id] = (loot[id] or 0) + 1 end
+	end
 	local s = e.def and e.def.salvage or { 0, 0 }
 	for _ = 1, random(s[1], s[2]) do
 		local id = random() < 0.2 and "salvage_kit" or "scrap"
@@ -1084,16 +1296,48 @@ local function lootOf(e)
 	return loot
 end
 
+-- A ship that carries its cargo in containers (enemy containers =
+-- { item, min, max }, like a Hauler) packs its loot into them: at least
+-- min, more as needed up to max, and anything left over stays loose.
+local function intoContainers(ship, loot)
+	local cs = ship.def and ship.def.containers
+	if not cs then return loot, {} end
+	local item = data.items[cs[1]]
+	local stacks = {}
+	for k = 1, cs[3] do
+		if k > cs[2] and not next(loot) then break end
+		local inner = Hold.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
+		loot = Hold.fill(inner, loot)
+		table.insert(stacks, { id = cs[1], n = 1, inner = next(Hold.totals(inner)) and inner or nil })
+	end
+	return loot, stacks
+end
+
+-- A husk's hold: one grid the size of the ship's main hold, loosely packed
+-- (it's wreckage), growing if it has to so nothing is lost.
+local function huskHold(ship)
+	local gw, gh
+	if ship.hold then
+		gw, gh = ship.hold.grids[1].w, ship.hold.grids[1].h
+	else
+		gw, gh = Shapes.gridFor(ship.stats.hold)
+	end
+	local loose, stacks = intoContainers(ship, lootOf(ship))
+	return Hold.pack(loose, gw, gh, ship.hull.name .. " husk", random, stacks)
+end
+
 -- A burnt-out wreck in the dead ship's shape. It drifts and tumbles, holds
--- the ship's loot (for the inventory system to open later), and can be
--- shot apart, which spills the loot as pickups.
+-- the ship's loot in a grid hold (to be opened with the tractor beam once
+-- the loot window exists), and can be shot apart, which spills the loot as
+-- pickups.
 function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	local hull = ship.hull
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
+	local hold = huskHold(ship)
 	local h = {
 		kind = "husk", id = self:nextId(), team = 0, hull = hull, color = ship.color,
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
-		radius = ship.halfLength, body = body, loot = lootOf(ship),
+		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
 	}
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
@@ -1163,11 +1407,12 @@ function Game:cycleAux()
 	if id then self:toast("AUX: " .. data.items[id].name:upper(), 1.2) end
 end
 
-function Game:toast(text, duration, style)
+-- big: a headline (arriving in a level)
+function Game:toast(text, duration, style, big)
 	for _, t in ipairs(self.toasts) do
 		if t.text == text then t.t = 0; t.life = duration or 1.5; return end
 	end
-	table.insert(self.toasts, { text = text, t = 0, life = duration or 1.5, style = style })
+	table.insert(self.toasts, { text = text, t = 0, life = duration or 1.5, style = style, big = big })
 	if #self.toasts > 5 then table.remove(self.toasts, 1) end
 end
 
@@ -1206,5 +1451,8 @@ function Game:frame(dt, aimX, aimY)
 		self.camera:follow(self.deathX, self.deathY, self.deathX, self.deathY, dt)
 	end
 end
+
+require("src.world")(Game)
+require("src.market")(Game)
 
 return Game

@@ -1,7 +1,13 @@
 --[[
-	Playing fields: what the arena is filled with. Each field has a name,
-	where the player launches from, and a build function that places
-	everything. Switch fields from the debug panel (F1) or with F2.
+	Playing fields, which are the game's levels: what the arena is filled
+	with. Each field has a name, where the player launches from, and a build
+	function that places everything. Optional:
+	  enemies   { { enemy id, count }, ... } placed around the level; they
+	            leave you alone until you come close (T.aggroRange)
+	  stations  names for its stations, in the order build makes them
+	Levels are joined by jump gates (Fields.links, two-way). Fly through a
+	gate to travel. F2 (or the debug panel) still jumps straight to the
+	next field for testing.
 
 	  asteroids  open space with a scattering of breakable rocks
 	  giant      one huge asteroid in the middle, far too big to damage,
@@ -10,18 +16,40 @@
 	             and an outer ring with gaps to fly through
 ]]
 
+local T = require("src.tuning")
+
 local Fields = {}
 
 local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
 
 Fields.list = { "asteroids", "giant", "station", "planet", "bigplanet" }
+Fields.start = "asteroids"
+
+-- Jump gate routes between levels; each pair works both ways.
+Fields.links = {
+	{ "asteroids", "station" },
+	{ "station", "giant" },
+	{ "station", "planet" },
+	{ "planet", "bigplanet" },
+}
+
+-- The levels a level has gates to, in a fixed order.
+function Fields.linksOf(id)
+	local out = {}
+	for _, l in ipairs(Fields.links) do
+		if l[1] == id then table.insert(out, l[2]) elseif l[2] == id then table.insert(out, l[1]) end
+	end
+	return out
+end
 
 Fields.asteroids = {
 	name = "Asteroid field",
 	spawn = { 0, 0 },
 	radius = 10000,
+	enemies = { { "swarmer", 4 }, { "gunner", 2 }, { "interceptor", 2 } },
 	build = function(game)
 		game:spawnAsteroids(220)
+		game:spawnContainers(T.fieldContainers)
 	end,
 }
 
@@ -29,9 +57,11 @@ Fields.giant = {
 	name = "Giant asteroid",
 	spawn = { 0, 2600 },
 	radius = 10000,
+	enemies = { { "gunner", 3 }, { "brawler", 2 }, { "sniper", 1 } },
 	build = function(game)
 		game:spawnGiantAsteroid(0, 0, 1800)
 		game:spawnAsteroids(110)
+		game:spawnContainers(T.fieldContainers, 2200)
 	end,
 }
 
@@ -39,23 +69,28 @@ Fields.station = {
 	name = "Space station",
 	spawn = { 0, 2600 },
 	radius = 9000,
+	stations = { "Hub Station" },
+	enemies = { { "swarmer", 2 } },
 	build = function(game)
 		game:spawnWheelStation(0, 0, 1400, 160, 0.04)
 		-- A thin scattering of rocks well outside.
 		game:spawnAsteroids(70, 2200)
+		game:spawnContainers(T.fieldContainers, 2200)
 	end,
 }
 
 -- A planet field. R is the planet's radius; the belt, station track and
 -- arena edge keep the same distances from its surface whatever its size.
-local function planetField(name, R, rocks, scattered)
+local function planetField(name, R, rocks, scattered, stations, enemies)
 	return {
 		name = name,
+		stations = stations,
+		enemies = enemies,
 		spawn = { 0, R + 6700 },
 		radius = R + 16500,
 		rockDrag = 0,
 		build = function(game)
-			game:spawnPlanet(0, 0, R, 580, 0.1)
+			game:spawnPlanet(0, 0, R, 290, 0.1)
 			-- Two wheel stations out past the belt.
 			-- Both ride a track around the planet at opposite ends, moving at
 			-- the current's speed at that altitude (what a free station drifts at).
@@ -99,13 +134,16 @@ local function planetField(name, R, rocks, scattered)
 				end
 			end
 			game:spawnAsteroids(scattered, R + 7500)
+			game:spawnContainers(T.fieldContainers, R + 7500)
 		end,
 	}
 end
 
 -- 15000 px across: too big to see whole even zoomed all the way out.
-Fields.planet = planetField("Planet", 7500, 180, 80)
+Fields.planet = planetField("Planet", 7500, 180, 80, { "Station Alpha", "Station Beta" },
+	{ { "gunner", 2 }, { "interceptor", 2 } })
 -- Twice the size: 30000 px across.
-Fields.bigplanet = planetField("Giant planet", 15000, 320, 140)
+Fields.bigplanet = planetField("Giant planet", 15000, 320, 140, { "Orbital One", "Orbital Two" },
+	{ { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } })
 
 return Fields
