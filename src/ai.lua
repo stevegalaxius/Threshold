@@ -36,7 +36,8 @@ end
 -- too close, push away from that point, harder the sooner and closer it
 -- is. Returns the push and how urgent the worst one is (0..1).
 local HORIZON = 1.6
-local function avoidCollisions(game, e, target, x, y, vx, vy)
+local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
+	local HORIZON = horizon or HORIZON
 	local px, py, worst = 0, 0, 0
 	local speed = sqrt(vx * vx + vy * vy)
 	for _, o in ipairs(game.entities) do
@@ -110,13 +111,32 @@ local function trade(game, e, dt)
 		local stop = route[e.routeIndex]
 		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
 		local sx, sy = stopPoint(stop)
-		local ux, uy, d = norm(sx - x, sy - y)
+		local _, _, d = norm(sx - x, sy - y)
+		-- Around a planet, follow the arc of the track instead of cutting
+		-- the chord (which would run through the rock belt): aim a little
+		-- way ahead along the circle until the stop is close.
+		local hx, hy = sx, sy
+		local w = game.well
+		if w then
+			local rs = sqrt((sx - w.x) ^ 2 + (sy - w.y) ^ 2)
+			local am = atan2(y - w.y, x - w.x)
+			local gap = wrap(atan2(sy - w.y, sx - w.x) - am)
+			local stepA = 0.2
+			if math.abs(gap) > stepA then
+				local ah = am + (gap > 0 and stepA or -stepA)
+				hx, hy = w.x + cos(ah) * rs, w.y + sin(ah) * rs
+			end
+		end
+		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock then e.routeIndex = e.routeIndex % #route + 1 end
-		-- steer around things on the way, then head for the stop
-		local avx, avy = avoidCollisions(game, e, nil, x, y, vx, vy)
-		local mx, my = norm(ux + avx, uy + avy)
+		-- Steer around things on the way, then head for the stop. A hauler
+		-- turns slowly and coasts far, so it looks much further ahead than
+		-- a fighter, lets avoidance outweigh the route, and brakes hard
+		-- (retro thrusters) when something is close and dead ahead.
+		local avx, avy, danger = avoidCollisions(game, e, nil, x, y, vx, vy, ai.horizon or 4.5)
+		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
 		local a = e.body:getAngle()
 		local diff = wrap(atan2(my, mx) - a)
 		it.strafe = max(-1, min(1, diff * 2.5))
@@ -124,6 +144,10 @@ local function trade(game, e, dt)
 		it.thrust = facing > 0.6 and ai.throttle * facing or 0
 		-- slow for the turn into each stop
 		if d < 900 and facing < 0.9 then it.thrust = it.thrust * 0.4 end
+		-- ease off while dodging; stand on the brakes if it's urgent and
+		-- the way is still blocked
+		if danger > 0.2 then it.thrust = it.thrust * (1 - danger) end
+		if danger > 0.55 and facing < 0.95 then it.thrust = -1 end
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
