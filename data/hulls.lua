@@ -109,7 +109,7 @@ hull {
 -- straight line, but it comes about very slowly. Flown by neutral traders.
 hull {
 	id = "ferrous_freighter", name = "Hauler", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 120, helm = "turn",
-	mass = 620, armor = 900, turn = 2600, turnSpeed = 30, retroThrust = 700, spoolTime = 0.6, hold = 400, drag = 0.55, radius = 62,
+	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62,
 	shape = { 138,-34, 128,-58, -124,-60, -138,-46, -138,46, -124,60, 128,58, 138,34 },
 	slots = {
 		{ family = "primary",   size = "M", x = 70,  y = 0 },
