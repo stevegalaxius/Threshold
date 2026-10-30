@@ -629,6 +629,8 @@ function A.update(game, dt)
 		log("market: %s at %s, %s; trade grid %s; you get %d, you pay %d, problem %s; station goods kept off your hold %s",
 			game.player.dockState.station.name, game.fieldId, require("src.hud").credits(A.credits0), table.concat(owners, ", "),
 			get, pay, tostring(game:tradeProblem(A.st, Cargo.trade)), tostring(still == 1))
+		local sx, sy = at(shelf, shelf.g.stacks[1].x, shelf.g.stacks[1].y)
+		love.mouse.setPosition(sx, sy)            -- (hover for the tooltip)
 		shot("15_market")
 	end) end
 	if t >= 35.91 then once("market_trade", function()

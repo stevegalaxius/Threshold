@@ -851,8 +851,8 @@ end
 
 -- Drawing ------------------------------------------------------------------
 
--- tag (at the market): { text = its price, color, frame = draw a frame in
--- that color (whose it is, on the trade grid) }; the price replaces the name.
+-- tag (at the market): { color, frame = draw a frame in that color (whose
+-- it is, on the trade grid) }. Prices are in the tooltip.
 local function drawStack(item, n, x, y, w, h, cs, alpha, tag)
 	local c = HUD.itemColor(item)
 	lg.setColor(c[1], c[2], c[3], 0.32 * alpha)
@@ -864,14 +864,7 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag)
 		lg.setFont(HUD.font(cs >= 24 and 11 or 9))
 		lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
 		if n > 1 then lg.printf(n, x, y + h - (cs >= 24 and 16 or 13), w - 5, "right") end
-		if tag then
-			local sx, sy, sw2, sh2 = lg.getScissor()
-			lg.intersectScissor(x + 2, y + 2, w - 4, h - 4)
-			lg.setFont(HUD.font(w >= 28 and 10 or 8))
-			lg.setColor(tag.color[1], tag.color[2], tag.color[3], alpha)
-			lg.print(tag.text, x + 3, y + 2)
-			lg.setScissor(sx, sy, sw2, sh2)
-		elseif w >= cs * 2 and cs >= 22 then
+		if w >= cs * 2 and cs >= 22 then
 			-- clipped to the stack, so a long name on a 1-cell-tall stack doesn't spill
 			local sx, sy, sw2, sh2 = lg.getScissor()
 			lg.intersectScissor(x + 2, y + 2, w - 4, h - (n > 1 and 14 or 4))
@@ -889,19 +882,12 @@ end
 
 local MINE, THEIRS = { 0.45, 1, 0.55 }, { 1, 0.72, 0.28 }
 
--- A price short enough for a cell: 150, 3.2k, 38k.
-local function shortPrice(v)
-	if v < 1000 then return tostring(v) end
-	if v < 10000 then return ("%.1fk"):format(v / 1000) end
-	return ("%dk"):format(floor(v / 1000))
-end
-
 -- At the market: what a stack on show is worth to you, and how to draw it.
 local function marketTag(side, s, owner)
 	owner = owner or (side.market and "station") or s.owner or "player"
 	local station = owner == "station"
 	local v = station and Game.buyPrice(s) or Game.sellPrice(s)
-	return { text = shortPrice(v), color = station and THEIRS or MINE, frame = side.trade, value = v, station = station }
+	return { color = station and THEIRS or MINE, frame = side.trade, value = v, station = station }
 end
 
 local function clock(t)
@@ -909,12 +895,16 @@ local function clock(t)
 	return ("%d:%02d"):format(floor(t / 60), t % 60)
 end
 
-local function tooltip(item, n, mx, my, hint)
+local PRICE = { 0.45, 1, 0.55 }
+
+-- price: a line in green under the stats (at the market).
+local function tooltip(item, n, mx, my, hint, price)
 	local _, _, cap = Shapes.of(item.id)
 	local lines = {
 		item.name .. (item.maker and ("  \194\183  " .. item.maker) or ""),
 		("%d / %d per stack    %.2f m3    %.2f t"):format(n, cap, item.volume * n, item.mass * n),
 	}
+	if price then table.insert(lines, price) end
 	if hint then table.insert(lines, hint) end
 	local f = HUD.font(12)
 	lg.setFont(f)
@@ -929,7 +919,7 @@ local function tooltip(item, n, mx, my, hint)
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
 	lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1, 6, 6)
 	for i, l in ipairs(lines) do
-		lg.setColor(i == 1 and HUD.INK or HUD.DIM)
+		lg.setColor(i == 1 and HUD.INK or (price and i == 3) and PRICE or HUD.DIM)
 		lg.print(l, x + 10, y + 6 + (i - 1) * 16)
 	end
 end
@@ -1293,21 +1283,16 @@ function Cargo.draw(game)
 		local s = r and Grid.at(r.g, cx, cy)
 		if s then
 			local item = data.items[s.id]
-			local hint2
+			local hint2, price
 			if market then
 				local tg = marketTag(r.side, s)
-				if tg.station then
-					hint2 = "Buy for " .. HUD.credits(tg.value)
-					if s.resale then
-						hint2 = hint2 .. ("   resale, sold on in %s"):format(clock(s.resale - game.universe.clock))
-					elseif r.side.market then
-						local t = game:restockIn(r.side.station, s.id)
-						if t then hint2 = hint2 .. ("   more in %s"):format(clock(t)) end
-					end
-				else
-					hint2 = "Sells for " .. HUD.credits(tg.value)
+				price = (tg.station and "Buy for " or "Sells for ") .. HUD.credits(tg.value) .. (s.inner and " (with its contents)" or "")
+				if s.resale then
+					hint2 = ("Resale: sold on in %s"):format(clock(s.resale - game.universe.clock))
+				elseif tg.station and r.side.market then
+					local t = game:restockIn(r.side.station, s.id)
+					if t then hint2 = ("More in %s"):format(clock(t)) end
 				end
-				if s.inner then hint2 = hint2 .. " (with its contents)" end
 			elseif docked and item.kind == "module" then hint2 = "Drag onto a slot or double-click to fit"
 			elseif docked and item.kind == "crate" then hint2 = "Right-click: unbox into loose rounds"
 			elseif item.kind == "container" and s.inner then
@@ -1316,7 +1301,7 @@ function Cargo.draw(game)
 				hint2 = ("Loaded: %d items, %.1f t   Double-click to open"):format(k, m)
 			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
 			elseif not docked then hint2 = "Right-click: eject" end
-			tooltip(item, s.n, mx, my, hint2)
+			tooltip(item, s.n, mx, my, hint2, price)
 		end
 	end
 end
