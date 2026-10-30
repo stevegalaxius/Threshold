@@ -147,7 +147,7 @@ local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB auxiliary",
-	"Q auxiliary ammo size",
+	"Q auxiliary ammo size   E tractor beam",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
 	"H hide help   Esc quit",

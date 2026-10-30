@@ -6,6 +6,7 @@
 ]]
 
 local data = require("src.data")
+local Ship = require("src.ship")
 
 local Render = {}
 
@@ -222,6 +223,48 @@ local function drawShip(game, e)
 	end
 end
 
+-- Tractor beam: a soft line to whatever it's reeling in, and its reach
+-- while the key is held.
+local function drawTractor(game)
+	local p = game.player
+	if not p or p.dead or not p.intent.tractor then return end
+	local x, y = p.body:getPosition()
+	local c = COLORS.laser
+	lg.setColor(c[1], c[2], c[3], 0.08)
+	lg.setLineWidth(1)
+	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)
+	local k = p.tractorTarget
+	if k then
+		lg.setColor(c[1], c[2], c[3], 0.25)
+		lg.setLineWidth(6)
+		lg.line(x, y, k.x, k.y)
+		lg.setColor(c[1], c[2], c[3], 0.7)
+		lg.setLineWidth(1.5)
+		lg.line(x, y, k.x, k.y)
+	end
+end
+
+-- Husks: the dead ship's outline, burnt dark, with a faint glow of its
+-- paint and the odd flicker of fire.
+local function drawHusk(game, h)
+	local x, y = h.body:getPosition()
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(h.body:getAngle())
+	local c = h.color
+	lg.setColor(0.06, 0.06, 0.07)
+	lg.polygon("fill", h.hull.shape)
+	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35)
+	lg.setLineWidth(2)
+	lg.polygon("line", h.hull.shape)
+	local f = sin(game.time * 7 + h.flicker) * sin(game.time * 3.1 + h.flicker * 2)
+	if f > 0.6 then
+		lg.setColor(1, 0.55, 0.2, (f - 0.6) * 2)
+		lg.circle("fill", h.tailX * 0.3, 0, 3)
+	end
+	lg.pop()
+end
+
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then
@@ -290,8 +333,13 @@ end
 local function drawPickups(game)
 	for _, k in ipairs(game.pickups) do
 		local item = data.items[k.item]
-		local c = (item.kind == "ammo") and COLORS.ammo or COLORS.salvage
-		local blink = (k.life < 8 and floor(k.life * 6) % 2 == 0) and 0.35 or 1
+		local c = (item.kind == "salvage") and COLORS.salvage or COLORS.ammo
+		local blink = 1
+		if k == game.hoverPickup then
+			lg.setColor(1, 1, 1, 0.6)
+			lg.setLineWidth(1.5)
+			lg.circle("line", k.x, k.y, 16)
+		end
 		lg.push()
 		lg.translate(k.x, k.y)
 		lg.rotate(k.spin)
@@ -349,8 +397,9 @@ function Render.world(game)
 	drawRange(game)
 	drawPickups(game)
 	for _, e in ipairs(game.entities) do
-		if e.kind == "asteroid" then drawAsteroid(e) end
+		if e.kind == "asteroid" then drawAsteroid(e) elseif e.kind == "husk" then drawHusk(game, e) end
 	end
+	drawTractor(game)
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then drawShip(game, e) end

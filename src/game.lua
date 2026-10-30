@@ -166,7 +166,7 @@ function Game:spawnPickup(x, y, item, count)
 	local s = 40 + random() * 120
 	table.insert(self.pickups, {
 		x = x, y = y, vx = cos(a) * s, vy = sin(a) * s,
-		item = item, count = count, life = 60, spin = random() * pi * 2, rejectUntil = 0,
+		item = item, count = count, spin = random() * pi * 2,
 	})
 end
 
@@ -296,7 +296,7 @@ function Game:resolveContacts()
 			local base = c.imp * T.ramDamageScale * (1 - T.ramSpeed / impactSpeed)
 			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
 			local function hit(o, other)
-				local mult = (o.kind == "asteroid") and T.asteroidImpact or ramMult(other)
+				local mult = (o.kind == "asteroid" or o.kind == "husk") and T.asteroidImpact or ramMult(other)
 				self:damage(o, base * mult, other, "ram")
 			end
 			hit(c.a, c.b)
@@ -324,8 +324,9 @@ end
 
 -- cause: gun, artillery, laser, missile, splash or ram (passed on to listeners)
 function Game:damage(e, amount, source, cause)
-	-- Asteroids don't flinch: they soak damage until they break apart (in reap).
-	if e and e.kind == "asteroid" and not e.dead and amount > 0 then
+	-- Asteroids and husks don't flinch: they soak damage until they break
+	-- apart (in reap).
+	if e and (e.kind == "asteroid" or e.kind == "husk") and not e.dead and amount > 0 then
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
 		return
@@ -378,31 +379,54 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 	end
 end
 
+-- Pickups float where they were dropped until someone takes them; nothing
+-- is collected by flying over it. Holding the tractor beam key with the
+-- cursor on a pickup within tractor range locks onto it and reels it in;
+-- it goes into the hold when it reaches the hull.
 function Game:updatePickups(dt)
 	local p = self.player
 	local alive = p and not p.dead
-	local px, py, pull
-	if alive then
-		px, py = p.body:getPosition()
-		pull = 80 + (p.stats.tractorRange or 0)
-	end
 	local list = self.pickups
+	self.hoverPickup = nil
+
+	if alive then
+		local range = Ship.tractorRange(p)
+		local it = p.intent
+		-- What's under the cursor (a little slack, wider when zoomed out).
+		local grab = 28 / self.camera.zoom
+		local best, bestD = nil, grab * grab
+		for _, k in ipairs(list) do
+			local d = (k.x - it.aimX) ^ 2 + (k.y - it.aimY) ^ 2
+			if d < bestD and Ship.distanceTo(p, k.x, k.y) < range then best, bestD = k, d end
+		end
+		self.hoverPickup = best
+		if not it.tractor then
+			p.tractorTarget = nil
+		elseif not p.tractorTarget then
+			p.tractorTarget = best
+		end
+	end
+
+	local target = alive and p.tractorTarget
 	local i = 1
 	while i <= #list do
 		local k = list[i]
-		k.life = k.life - dt
 		k.spin = k.spin + dt * 1.5
 		local damp = exp(-dt * 1.5)
 		k.vx, k.vy = k.vx * damp, k.vy * damp
-		local remove = k.life <= 0
-		if alive and not remove and self.time >= k.rejectUntil then
+		local remove = false
+		if k == target then
+			local px, py = p.body:getPosition()
+			local pvx, pvy = p.body:getLinearVelocity()
 			local dx, dy = px - k.x, py - k.y
-			local d = sqrt(dx * dx + dy * dy)
-			if d < pull and d > 0 then
-				local a = 700 + (p.stats.tractorRange or 0) * 3
-				k.vx, k.vy = k.vx + dx / d * a * dt, k.vy + dy / d * a * dt
-			end
-			if Ship.distanceTo(p, k.x, k.y) < 10 then
+			local d = max(sqrt(dx * dx + dy * dy), 1)
+			-- Reel in: steer toward the ship, matching its velocity.
+			local want = min(600, d * 4)
+			local tvx, tvy = pvx + dx / d * want, pvy + dy / d * want
+			local blend = min(1, dt * 8)
+			k.vx, k.vy = k.vx + (tvx - k.vx) * blend, k.vy + (tvy - k.vy) * blend
+			local edge = Ship.distanceTo(p, k.x, k.y)
+			if edge < 12 then
 				local item = data.items[k.item]
 				local got = Ship.addCargo(p, k.item, k.count)
 				if got > 0 then
@@ -414,9 +438,11 @@ function Game:updatePickups(dt)
 					remove = true
 				else
 					self:toast("HOLD FULL", 1.2)
-					k.rejectUntil = self.time + 2.5
-					k.vx, k.vy = -dx / d * 160, -dy / d * 160
+					k.vx, k.vy = -dx / d * 160 + pvx, -dy / d * 160 + pvy
 				end
+				p.tractorTarget = nil
+			elseif edge > Ship.tractorRange(p) * 1.3 then
+				p.tractorTarget = nil
 			end
 		end
 		k.x, k.y = k.x + k.vx * dt, k.y + k.vy * dt
@@ -448,7 +474,8 @@ function Game:breakAsteroid(e)
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
 end
 
--- Remove dead ships: explode, drop what they carried, count the kill.
+-- Remove the dead. Ships explode and (unless they're drones) leave a husk
+-- holding everything they carried; a destroyed husk bursts into pickups.
 -- Broken asteroids split apart.
 function Game:reap()
 	local i = 1
@@ -459,14 +486,24 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			self:breakAsteroid(e)
+		elseif e.dead and e.kind == "husk" then
+			table.remove(self.entities, i)
+			local x, y = e.body:getPosition()
+			e.body:destroy()
+			e.removed = true
+			self:explode(x, y, e.halfLength, 0, 0)
+			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
+			for id, count in pairs(e.loot) do
+				if count > 0 then self:spawnPickup(x, y, id, count) end
+			end
 		elseif e.dead then
 			local x, y = e.body:getPosition()
+			local a = e.body:getAngle()
+			local vx, vy = e.body:getLinearVelocity()
+			local w = e.body:getAngularVelocity()
 			self:explode(x, y, e.halfLength * 1.6, 0, 3000)
 			self:spark(x, y, 24, { 1, 0.6, 0.3 })
-			if e.def and not e.drone then
-				self.kills = self.kills + 1
-				self:dropLoot(e, x, y)
-			end
+			if e.def and not e.drone then self.kills = self.kills + 1 end
 			events.emit("kill", e, e.lastHitBy)
 			if e.isPlayer then
 				self.state = "dead"
@@ -478,25 +515,63 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
+			if not e.drone then self:spawnHusk(e, x, y, a, vx, vy, w) end
 		else
 			i = i + 1
 		end
 	end
 end
 
-function Game:dropLoot(e, x, y)
-	local def = e.def
+-- What a dead ship leaves behind: its whole hold (nothing is lost) plus
+-- the salvage its enemy definition rolls.
+local function lootOf(e)
+	local loot = {}
 	for id, count in pairs(e.cargo) do
 		local item = data.items[id]
-		if item and item.kind == "ammo" and count > 0 then
-			local n = floor(count * (def.ammoDrop or 0.3) * (0.6 + random() * 0.4))
-			if n > 0 then self:spawnPickup(x, y, id, n) end
-		end
+		-- Loose ammo is boxed up: crates are cargo to sell or use back at a
+		-- station, not something the guns can draw from mid-fight.
+		local into = (item and item.kind == "ammo") and item.crate or id
+		if count > 0 then loot[into] = (loot[into] or 0) + count end
 	end
-	local s = def.salvage or { 0, 0 }
+	local s = e.def and e.def.salvage or { 0, 0 }
 	for _ = 1, random(s[1], s[2]) do
-		self:spawnPickup(x, y, random() < 0.2 and "salvage_kit" or "scrap", 1)
+		local id = random() < 0.2 and "salvage_kit" or "scrap"
+		loot[id] = (loot[id] or 0) + 1
 	end
+	return loot
+end
+
+-- A burnt-out wreck in the dead ship's shape. It drifts and tumbles, holds
+-- the ship's loot (for the inventory system to open later), and can be
+-- shot apart, which spills the loot as pickups.
+function Game:spawnHusk(ship, x, y, a, vx, vy, w)
+	local hull = ship.hull
+	local body = love.physics.newBody(self.world, x, y, "dynamic")
+	local h = {
+		kind = "husk", id = self:nextId(), team = 0, hull = hull, color = ship.color,
+		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
+		radius = ship.halfLength, body = body, loot = lootOf(ship),
+		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
+	}
+	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
+	local n = math.ceil((s2 - s1) / r) + 1
+	for k = 0, n - 1 do
+		local cx = (n > 1) and (s1 + (s2 - s1) * k / (n - 1)) or s1
+		local f = love.physics.newFixture(body, love.physics.newCircleShape(cx, 0, r), 1)
+		f:setRestitution(0.2)
+		f:setFriction(0.5)
+		f:setUserData(h)
+	end
+	local m = ship.stats.mass * T.massScale * 0.7
+	body:setMassData(0, 0, m, m * r * r * 0.5)
+	body:setAngle(a)
+	body:setLinearVelocity(vx * 0.6, vy * 0.6)
+	body:setAngularVelocity(w * 0.5 + (random() - 0.5) * 0.8)
+	body:setLinearDamping(0.15)
+	body:setAngularDamping(0.1)
+	body:setUserData(h)
+	table.insert(self.entities, h)
+	return h
 end
 
 function Game:remove(e)

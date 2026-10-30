@@ -31,7 +31,7 @@ function Ship.emptyIntent()
 	-- thrust: -1..1 along the nose (forward is the main engine, back is retro thrusters)
 	-- strafe: -1..1 to the ship's right (maneuvering thrusters, or turning
 	--         right on a hull with helm = "turn")
-	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false }
+	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, tractor = false }
 end
 
 --[[ Ship.new(game, opts)
@@ -154,6 +154,12 @@ function Ship.distanceTo(e, px, py)
 	local lx, ly = dx * cos(a) + dy * sin(a), -dx * sin(a) + dy * cos(a)
 	local sx = max(e.spine[1], min(e.spine[2], lx))
 	return sqrt((lx - sx) ^ 2 + ly * ly) - e.hull.radius
+end
+
+-- How far the tractor beam reaches from the hull: every ship has a basic
+-- one, and a tractor module (tractorRange) extends it.
+function Ship.tractorRange(e)
+	return T.tractorBase + (e.stats.tractorRange or 0)
 end
 
 -- World position of a slot's hardpoint.

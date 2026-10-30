@@ -194,6 +194,23 @@ local function crossCheck()
 	end
 end
 
+-- Every ammo type gets a matching crate item: the same rounds boxed up as
+-- cargo. Looted ammo arrives as crates, which weapons can't fire from;
+-- they're for selling or restocking at a station.
+local function addCrates()
+	for _, id in ipairs(data.list.items) do
+		local a = data.items[id]
+		if a.kind == "ammo" and not a.crate then
+			local cid = id .. "_crate"
+			a.crate = cid
+			data.items[cid] = {
+				id = cid, kind = "crate", ammo = id, name = a.name .. " (crate)", maker = a.maker,
+				volume = a.volume, mass = a.mass, price = a.price,
+			}
+		end
+	end
+end
+
 function data.load()
 	loadFolder("data")
 	if love.filesystem.getInfo("mods", "directory") then
@@ -204,6 +221,7 @@ function data.load()
 			if love.filesystem.getInfo(folder, "directory") then loadFolder(folder) end
 		end
 	end
+	addCrates()
 	crossCheck()
 end
 

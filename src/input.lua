@@ -14,6 +14,7 @@
 	  right btn secondary weapons    left trigger   secondary weapons
 	  middle btn auxiliary launcher  right bumper   auxiliary launcher
 	  Q         auxiliary ammo size  Y              auxiliary ammo size
+	  E (hold)  tractor beam: reels in the pickup under the cursor   X
 	  Shift     afterburner          A              afterburner
 ]]
 
@@ -37,7 +38,7 @@ end
 
 -- uiBlocksMouse: true while the pointer is over the debug panel.
 function Input.read(game, uiBlocksMouse, keyboardBlocked)
-	local intent = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false }
+	local intent = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, tractor = false }
 	local p = game.player
 	local px, py = 0, 0
 	if p and not p.dead then px, py = p.body:getPosition() end
@@ -50,6 +51,7 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 		if k("d") or k("right") then intent.strafe = intent.strafe + 1 end
 		if k("a") or k("left") then intent.strafe = intent.strafe - 1 end
 		intent.boost = k("lshift") or k("rshift") or k("space")
+		intent.tractor = k("e")
 	end
 	if not uiBlocksMouse then
 		intent.firePrimary = love.mouse.isDown(1)
@@ -77,6 +79,7 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 			intent.firePrimary = intent.firePrimary or rt
 			intent.fireSecondary = intent.fireSecondary or lt
 			intent.fireAux = intent.fireAux or rb
+			intent.tractor = intent.tractor or j:isGamepadDown("x")
 			intent.boost = intent.boost or j:isGamepadDown("a")
 		end
 	end
