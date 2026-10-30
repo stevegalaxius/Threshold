@@ -31,6 +31,7 @@ file) onto `love.exe`.
 - Box2D flight: thrust and torque only, with quadratic drag giving a natural top speed instead of a hard cap.
 - Thrust is relative to the nose, and the main engine only pushes forward. Reverse and sideways movement come from maneuvering thrusters (the hull's `sideThrust`). Light hulls have plenty, so they can strafe with their guns on target. Heavy hulls barely have any, so they turn and burn. The Side Jets utility modules add more.
 - Mass is hull + modules + whatever's in the hold. Firing ammo makes you lighter; picking up loot makes you heavier.
+- Your hold is a grid of 1 m3 cells (Wisp 6 x 4, Bastion 12 x 10, Hauler 20 x 20), and each Cargo Pod adds a small grid of its own. Items take shapes on it (rounds 1 x 1 in stacks of 50, missiles 2 or 3 cells long, crates 2 x 2), so a hold can fill up before its raw volume does. Turn on "Show hold grid" in the debug panel to see the packing.
 - Three hulls (Wisp, Anvil, Bastion) with slot layouts and hull bonuses, plus 20 catalog modules with strict size matching.
 - Fast projectiles: guns reach about 1,000 px and artillery 2,000 to 3,000 px. Lasers run on power instead of ammo, and missiles are guided. Artillery shells and missiles have a proximity fuse, so they burst near an enemy, on contact, or at the end of their range. Every round is an item in the hold.
 - Knockback, recoil and ram damage. Ram damage scales with impact force, so heavy ships hit harder.
@@ -41,7 +42,7 @@ file) onto `love.exe`.
 
 ## The debug panel (F1)
 
-- Ship, modules and hold: swap hulls, refit any slot, add ammo, repair.
+- Ship, modules and hold: swap hulls, refit any slot, add ammo, repair, show the hold grid.
 - Handling readout: acceleration, top speed, turn rate, mass, and the hardest impact so far.
 - Flight tuning: every handling knob as a live slider. When something feels right, copy the number into `src/tuning.lua`.
 - Spawn and arena: spawn any enemy, start a wave, clear the field.
@@ -64,6 +65,7 @@ src/hud.lua       HUD
 src/debugui.lua   debug panel (Slab)
 src/input.lua     keyboard, mouse and gamepad
 src/tuning.lua    flight-feel knobs
+src/inventory/    grid hold: item shapes, grids, holds
 src/events.lua    event bus (fire, hit, kill, pickup, death, ram): the future modding API
 src/autotest.lua  scripted smoke test
 lib/Slab          Slab UI library (MIT)

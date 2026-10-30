@@ -121,7 +121,9 @@ local function drawStatus(game)
 		end
 	end
 	ly = ly + 4
-	bar(x + 12, ly, pw - 24, 14, p.holdUsed / max(0.01, s.hold), { 0.9, 0.75, 0.4 }, "HOLD", ("%.1f / %.0f m3"):format(p.holdUsed, s.hold))
+	local cap = p.holdCap or s.hold
+	bar(x + 12, ly, pw - 24, 14, p.holdUsed / max(0.01, cap), { 0.9, 0.75, 0.4 }, "HOLD",
+		(p.hold and "%d / %d m3" or "%.1f / %.0f m3"):format(p.holdUsed, cap))
 	lg.setFont(font(12))
 	lg.setColor(DIM)
 	lg.print(("salvage %d  (worth %d cr)"):format(salvageCount, salvageValue), x + 14, ly + 20)
@@ -261,8 +263,63 @@ local function drawDocked(game)
 	lg.printf("Press E, Enter or (A) to launch", x, y + 124, pw, "center")
 end
 
+-- Read-only view of the player's grid hold (debug panel: Show hold grid).
+-- A first look at the packing; the real inventory screen comes later.
+local KIND_COLOR = {
+	gun = { 0.45, 0.75, 1 }, artillery = { 1, 0.55, 0.4 }, missile = { 0.4, 0.9, 0.65 },
+	torpedo = { 0.95, 0.8, 0.35 }, drone = { 0.8, 0.55, 1 }, crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
+}
+
+local function itemColor(item)
+	if item.kind == "ammo" then return KIND_COLOR[item.family] or INK end
+	return KIND_COLOR[item.kind] or INK
+end
+
+local function drawHoldGrid(game)
+	local p = game.player
+	if not (T.dev.showHold and p and not p.dead and p.hold) then return end
+	local sh = lg.getHeight()
+	local grids = p.hold.grids
+	-- One cell size for every grid, small enough that they all fit stacked.
+	local rows, cols = 0, 0
+	for _, g in ipairs(grids) do rows, cols = rows + g.h, max(cols, g.w) end
+	local cs = floor(min(18, (sh - 360 - #grids * 22) / rows, 330 / cols))
+	local pw = cols * cs + 24
+	local ph = rows * cs + #grids * 22 + 20
+	local x, y = 16, 84
+	panel(x, y, pw, ph)
+	local gy = y + 10
+	for _, g in ipairs(grids) do
+		lg.setFont(font(12))
+		lg.setColor(DIM)
+		lg.print(("%s  %d x %d"):format(g.name, g.w, g.h), x + 12, gy)
+		gy = gy + 18
+		local gx = x + 12
+		lg.setColor(AQUA[1], AQUA[2], AQUA[3], 0.12)
+		for cy = 0, g.h - 1 do
+			for cx = 0, g.w - 1 do lg.rectangle("line", gx + cx * cs + 0.5, gy + cy * cs + 0.5, cs - 1, cs - 1) end
+		end
+		lg.setFont(font(9))
+		for _, s in ipairs(g.stacks) do
+			local item = data.items[s.id]
+			local c = itemColor(item)
+			local rx, ry, rw, rh = gx + s.x * cs + 1, gy + s.y * cs + 1, s.w * cs - 2, s.h * cs - 2
+			lg.setColor(c[1], c[2], c[3], 0.3)
+			lg.rectangle("fill", rx, ry, rw, rh, 2, 2)
+			lg.setColor(c[1], c[2], c[3], 0.9)
+			lg.rectangle("line", rx + 0.5, ry + 0.5, rw - 1, rh - 1, 2, 2)
+			if cs >= 14 and s.n > 1 then
+				lg.setColor(INK)
+				lg.printf(s.n, rx, ry + rh - 11, rw - 2, "right")
+			end
+		end
+		gy = gy + g.h * cs + 4
+	end
+end
+
 function HUD.draw(game, aimX, aimY)
 	drawOffscreen(game)
+	drawHoldGrid(game)
 	drawTopBar(game)
 	drawStatus(game)
 	drawHelp()

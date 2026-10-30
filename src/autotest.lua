@@ -152,7 +152,7 @@ function A.update(game, dt)
 		if p and not p.dead then
 			log("phase B kills %d", game.kills - (A.killsAtB or 0))
 			log("after fight: armor %.0f/%.0f, rounds %d, missiles %d, hold %.1f/%.0f, kills %d, pickups on field %d",
-				p.armor, p.stats.armor, p.cargo.rounds_s or 0, p.cargo.missile_s or 0, p.holdUsed, p.stats.hold, game.kills, #game.pickups)
+				p.armor, p.stats.armor, p.cargo.rounds_s or 0, p.cargo.missile_s or 0, p.holdUsed, Ship.holdCapacity(p), game.kills, #game.pickups)
 			for id, n in pairs(p.cargo) do log("  hold: %s x%d", id, n) end
 		else
 			log("player died during the fight (kills %d)", game.kills)
@@ -201,6 +201,21 @@ function A.update(game, dt)
 		log("lasers: target %s (armor %.0f/%.0f), power %.0f -> %.0f",
 			d.dead and "destroyed" or "alive", d.armor, d.stats.armor, A.powerBefore, w.power)
 		log("pickups: hold %.2f -> %.2f m3, scrap %d, light rounds %d", A.holdBefore, w.holdUsed, w.cargo.scrap or 0, w.cargo.rounds_s or 0)
+		-- Grid hold: layout, adding until it's full, and husk holds.
+		for _, g in ipairs(w.hold.grids) do log("grid: %s %d x %d, %d stacks", g.name, g.w, g.h, #g.stacks) end
+		local got = Ship.addCargo(w, "scrap", 3)
+		log("grid: +%d scrap, hold %d / %d m3", got, w.holdUsed, Ship.holdCapacity(w))
+		got = Ship.addCargo(w, "rounds_s", 100000)
+		log("grid: filled with %d light rounds, hold %d / %d m3, missiles %d, mass %.1f t", got, w.holdUsed, Ship.holdCapacity(w), w.cargo.missile_s or 0, w.body:getMass())
+		log("grid: room for %d more scrap", Ship.canFit(w, "scrap"))
+		for _, e in ipairs(game.entities) do
+			if e.kind == "husk" then
+				local n, parts = 0, {}
+				for id, c in pairs(e.loot) do n = n + 1; table.insert(parts, id .. " x" .. c) end
+				log("husk: %s, %d x %d grid, %s", e.hold.grids[1].name, e.hold.grids[1].w, e.hold.grids[1].h, table.concat(parts, ", "))
+			end
+		end
+		T.dev.showHold = true
 		shot("06_lasers")
 	end) end
 	if t >= 34 then once("quit", function()

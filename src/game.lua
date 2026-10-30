@@ -15,6 +15,8 @@ local AI = require("src.ai")
 local Camera = require("src.camera")
 local events = require("src.events")
 local Fields = require("src.fields")
+local Hold = require("src.inventory.hold")
+local Shapes = require("src.inventory.shapes")
 
 local Game = {}
 Game.__index = Game
@@ -88,7 +90,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	if self.player and not self.player.removed then self:remove(self.player) end
 	self.playerHull = hullId or self.playerHull
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor })
+	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p
@@ -1033,8 +1035,9 @@ function Game:reap()
 			e.removed = true
 			self:explode(x, y, e.halfLength, 0, 0)
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
-			for id, count in pairs(e.loot) do
-				if count > 0 then self:spawnPickup(x, y, id, count) end
+			-- one pickup per stack, so a burst husk scatters what it held
+			for _, g in ipairs(e.hold.grids) do
+				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n) end
 			end
 		elseif e.dead then
 			local x, y = e.body:getPosition()
@@ -1084,16 +1087,30 @@ local function lootOf(e)
 	return loot
 end
 
+-- A husk's hold: one grid the size of the ship's main hold, loosely packed
+-- (it's wreckage), growing if it has to so nothing is lost.
+local function huskHold(ship)
+	local gw, gh
+	if ship.hold then
+		gw, gh = ship.hold.grids[1].w, ship.hold.grids[1].h
+	else
+		gw, gh = Shapes.gridFor(ship.stats.hold)
+	end
+	return Hold.pack(lootOf(ship), gw, gh, ship.hull.name .. " husk", random)
+end
+
 -- A burnt-out wreck in the dead ship's shape. It drifts and tumbles, holds
--- the ship's loot (for the inventory system to open later), and can be
--- shot apart, which spills the loot as pickups.
+-- the ship's loot in a grid hold (to be opened with the tractor beam once
+-- the loot window exists), and can be shot apart, which spills the loot as
+-- pickups.
 function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	local hull = ship.hull
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
+	local hold = huskHold(ship)
 	local h = {
 		kind = "husk", id = self:nextId(), team = 0, hull = hull, color = ship.color,
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
-		radius = ship.halfLength, body = body, loot = lootOf(ship),
+		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
 	}
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius

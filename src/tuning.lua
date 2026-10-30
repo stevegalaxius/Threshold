@@ -48,6 +48,6 @@ T.FORCE_PER_KN = 100      -- 1 kN of engine thrust = this much force in pixel un
 T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 
 -- Developer cheats, toggled from the debug panel.
-T.dev = { god = false, infiniteAmmo = false }
+T.dev = { god = false, infiniteAmmo = false, showHold = false }
 
 return T

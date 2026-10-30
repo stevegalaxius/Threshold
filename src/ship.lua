@@ -11,6 +11,8 @@
 local data = require("src.data")
 local stats = require("src.stats")
 local T = require("src.tuning")
+local Hold = require("src.inventory.hold")
+local Shapes = require("src.inventory.shapes")
 
 local Ship = {}
 
@@ -40,6 +42,8 @@ end
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
 	opts.color    paint { r, g, b } (defaults to the enemy definition's color)
+	opts.grid     true for a grid hold (the player): items take shapes on a
+	              grid of 1 m3 cells. Other ships just count volume.
 ]]
 function Ship.new(game, opts)
 	local hull = assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -48,6 +52,7 @@ function Ship.new(game, opts)
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
 		cargo = copy(opts.cargo or hull.cargo),
+		gridHold = opts.grid or false,
 		intent = Ship.emptyIntent(),
 		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false,
 		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
@@ -122,13 +127,55 @@ function Ship.refit(e)
 
 	if e.armor then e.armor = min(e.armor, e.stats.armor) end
 	if e.power then e.power = min(e.power, e.stats.powerCap) end
+	if e.gridHold then Ship.layoutHold(e) end
 	Ship.updateMass(e)
 end
 
+-- The grids a ship's hold is made of: the hull's main hold (hull.holdGrid
+-- = { w, h }, or a shape picked from its size), then one grid per fitted
+-- module with hold space (Cargo Pods), in slot order.
+function Ship.holdLayout(e)
+	local layout, pods = {}, 0
+	for i in ipairs(e.hull.slots) do
+		local m = e.loadout[i] and data.modules[e.loadout[i]]
+		if m and (m.hold or 0) > 0 then
+			pods = pods + m.hold
+			local w, h = Shapes.gridFor(m.hold)
+			table.insert(layout, { key = "slot" .. i, name = m.name, w = w, h = h })
+		end
+	end
+	local g = e.hull.holdGrid
+	local w, h
+	if g then w, h = g[1], g[2] else w, h = Shapes.gridFor(e.stats.hold - pods) end
+	table.insert(layout, 1, { key = "hull", name = "Main hold", w = w, h = h })
+	return layout
+end
+
+-- Build the grid hold, or rebuild it after a refit. Grids that didn't
+-- change keep their layout; anything that no longer fits is set aside in
+-- e.holdOverflow (only the debug panel can cause that for now; the station
+-- screen will send it to storage).
+function Ship.layoutHold(e)
+	local left
+	if e.hold then
+		e.hold, left = Hold.relayout(e.hold, Ship.holdLayout(e))
+	else
+		e.hold = Hold.new(Ship.holdLayout(e))
+		left = Hold.fill(e.hold, e.cargo)
+	end
+	e.holdOverflow = e.holdOverflow or {}
+	for id, n in pairs(left) do e.holdOverflow[id] = (e.holdOverflow[id] or 0) + n end
+	e.cargo = Hold.totals(e.hold)
+end
+
 -- Body mass = dry mass + whatever's in the hold. Called whenever the hold changes.
+-- A grid hold first catches up with any change made to e.cargo (weapons
+-- firing, the debug panel), and then counts cells instead of volume.
 function Ship.updateMass(e)
+	if e.hold then Hold.sync(e.hold, e.cargo) end
 	local volume, cargoMass = stats.cargo(e.cargo)
 	e.holdUsed = volume
+	if e.hold then e.holdUsed, e.holdCap = Hold.cells(e.hold) end
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.radius
@@ -136,24 +183,38 @@ function Ship.updateMass(e)
 	e.massDirty = false
 end
 
-function Ship.holdFree(e)
-	return e.stats.hold - e.holdUsed
+-- Hold size in cubic metres (for a grid hold, its cells).
+function Ship.holdCapacity(e)
+	return e.holdCap or e.stats.hold
 end
 
--- How many of an item fit in the hold right now.
-function Ship.canFit(e, itemId)
+function Ship.holdFree(e)
+	return Ship.holdCapacity(e) - e.holdUsed
+end
+
+-- How many of an item fit in the hold right now (up to `upTo`).
+function Ship.canFit(e, itemId, upTo)
 	local item = data.items[itemId]
 	if not item then return 0 end
-	return math.floor(Ship.holdFree(e) / item.volume + 1e-6)
+	if e.hold then return Hold.room(e.hold, itemId, upTo or 100000) end
+	local n = math.floor(Ship.holdFree(e) / item.volume + 1e-6)
+	return upTo and min(n, upTo) or n
 end
 
--- Add items to the hold; returns how many actually fit.
+-- Add items to the hold; returns how many actually fit. In a grid hold
+-- they top up partial stacks, then go in the first space that fits.
 function Ship.addCargo(e, itemId, count)
-	local n = min(count, Ship.canFit(e, itemId))
-	if n > 0 then
+	if not data.items[itemId] or count <= 0 then return 0 end
+	local n
+	if e.hold then
+		Hold.sync(e.hold, e.cargo)
+		n = Hold.add(e.hold, itemId, count)
+		e.cargo[itemId] = Hold.count(e.hold, itemId)
+	else
+		n = Ship.canFit(e, itemId, count)
 		e.cargo[itemId] = (e.cargo[itemId] or 0) + n
-		Ship.updateMass(e)
 	end
+	if n > 0 then Ship.updateMass(e) end
 	return n
 end
 

@@ -182,6 +182,21 @@ local function crossCheck()
 		end
 	end
 	for id, h in pairs(data.hulls) do checkLoadout("hull '" .. id .. "'", h, h.loadout) end
+	-- Grid shapes: whole cells, and a stack can't hold more than its cells.
+	for id, item in pairs(data.items) do
+		if item.w or item.h or item.stack then
+			local w, h, stack = item.w or 0, item.h or 0, item.stack or 1
+			for _, v in ipairs({ w, h, stack }) do
+				if v < 1 or v % 1 ~= 0 then
+					error(("item '%s': w, h and stack must be whole numbers of 1 or more"):format(id), 0)
+				end
+			end
+			if w * h < item.volume * stack - 1e-6 then
+				error(("item '%s': a stack of %d is %.2f m3 but its %d x %d cells only hold %d"):format(
+					id, stack, item.volume * stack, w, h, w * h), 0)
+			end
+		end
+	end
 	for id, e in pairs(data.enemies) do
 		local h = data.hulls[e.hull]
 		if not h then error(("enemy '%s' uses unknown hull '%s'"):format(id, e.hull), 0) end

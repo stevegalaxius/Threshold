@@ -107,6 +107,7 @@ local function shipSection(game)
 	end
 	Slab.SameLine()
 	if Slab.Button("Repair") then p.armor = p.stats.armor end
+	if p.hold and Slab.CheckBox(T.dev.showHold, "Show hold grid") then T.dev.showHold = not T.dev.showHold end
 end
 
 local function cheats(game)
@@ -166,7 +167,7 @@ local function readout(game)
 		("Thrust           %.0f kN main, %.0f side, %.0f retro"):format(s.thrust, s.sideThrust, s.retroThrust),
 		("Armor            %.0f"):format(s.armor),
 		("Power            %.0f out, %.0f draw, %.0f stored"):format(s.powerOut, s.powerDraw, s.powerCap),
-		("Hold             %.1f / %.0f m3"):format(p.holdUsed, s.hold),
+		("Hold             %.1f / %.0f m3"):format(p.holdUsed, Ship.holdCapacity(p)),
 		("Hardest impact   %.0f px/s  (ram above %.0f)"):format(game.stats.maxImpactSpeed, T.ramSpeed),
 	}
 	for _, l in ipairs(lines) do Slab.Text(l) end
