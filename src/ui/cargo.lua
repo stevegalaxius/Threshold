@@ -735,7 +735,8 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	end
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
-	if button == 2 and (r.side.entity or r.side.innerOf or r.side.trade or r.side.market) then
+	local atMarket = Cargo.tab == "market" and game.state == "docked"
+	if button == 2 and (r.side.entity or r.side.innerOf or atMarket) then
 		quickMove(game, L, r, s)                   -- right-click loot: take it; at the market: across
 	elseif button == 2 then
 		if game.state == "docked" then

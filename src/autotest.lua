@@ -607,7 +607,7 @@ function A.update(game, dt)
 		for _, s in ipairs(mine.g.stacks) do if s.id == "salvage_kit" then kit = s end end
 		local function at(gr, cx, cy) return gr.x + (cx + 0.5) * L.cs, gr.y + (cy + 0.5) * L.cs end
 		local kx, ky = at(mine, kit.x, kit.y)
-		Cargo.mousepressed(game, kx, ky, 1, { ctrl = true })
+		Cargo.mousepressed(game, kx, ky, 2)       -- right-click: onto the trade grid
 		-- drag the shelf's first stack onto the trade grid
 		local want = shelf.g.stacks[1]
 		A.boughtId, A.credits0 = want.id, game.universe.credits
