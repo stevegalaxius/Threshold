@@ -515,7 +515,7 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
-			if not e.drone then self:spawnHusk(e, x, y, a, vx, vy, w) end
+			if not e.drone and not e.isPlayer then self:spawnHusk(e, x, y, a, vx, vy, w) end
 		else
 			i = i + 1
 		end
