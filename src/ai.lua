@@ -87,11 +87,11 @@ end
 local atan2 = math.atan2 or math.atan
 local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
 
--- Where a route stop is right now: just off a station's dock door, or on a
--- buoy.
+-- Where a route stop is right now: on a station's runway, or on a buoy.
 local function stopPoint(stop)
 	if stop.dock then
-		return stop.body:getWorldPoint(stop.dock.x2 + 700, 0)
+		-- out on the runway, where the station's tractor picks it up
+		return stop.body:getWorldPoint(stop.dock.x2 + stop.dock.runway * 0.6, 0)
 	end
 	return stop.body:getPosition()
 end
@@ -111,7 +111,9 @@ local function trade(game, e, dt)
 		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
 		local sx, sy = stopPoint(stop)
 		local ux, uy, d = norm(sx - x, sy - y)
-		if d < 450 then e.routeIndex = e.routeIndex % #route + 1 end
+		-- buoys are passed by; stations are docked at (Game:updateDocking
+		-- catches it on the runway and moves it on after it launches)
+		if d < 450 and not stop.dock then e.routeIndex = e.routeIndex % #route + 1 end
 		-- steer around things on the way, then head for the stop
 		local avx, avy = avoidCollisions(game, e, nil, x, y, vx, vy)
 		local mx, my = norm(ux + avx, uy + avy)

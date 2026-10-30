@@ -213,7 +213,10 @@ local function drawStation(game, e)
 		lg.setLineWidth(outline(2))
 		lg.rectangle("line", x1, -hw, x2 - x1, hw * 2)
 		-- the door: hazard-striped, lit while a ship is coming in
-		local busy = game.player and game.player.dockState and game.player.dockState.station == e
+		local busy = false
+		for _, o in ipairs(game.entities) do
+			if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
+		end
 		local dw = hw * 0.7
 		lg.setColor(0.09, 0.1, 0.13)
 		lg.rectangle("fill", x2 - d.wall, -dw, d.wall, dw * 2)

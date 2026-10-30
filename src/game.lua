@@ -361,78 +361,144 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	return e
 end
 
--- Docking. Flying the player into the capture zone in front of a
--- station's dock door pulls the ship in: it stops colliding and is drawn
--- in over DOCK_TIME, then the game sits in state "docked" (the HUD shows
--- the station screen) until Game:undock() launches it back out.
-local DOCK_TIME = 1.4
+-- Docking. A ship that flies into the tractor zone along a station's
+-- runway lights is caught: its own controls cut out and the beam eases it
+-- onto the runway's centre line, matches it to the station's motion,
+-- turns its nose to the door and draws it in, gently at first and firmer
+-- as it gets close ("tractor"). At the door it stops colliding and slides
+-- inside over PULL_TIME ("pull"), and then it's docked ("done"). The
+-- player gets the station screen (state "docked") until Game:undock();
+-- traders stay a while (ds.stay seconds) and then launch on their own.
+local PULL_TIME = 2.2
 
-function Game:inCaptureZone(st, x, y)
+-- Station-local position of a point, and whether it's in the tractor zone
+-- (over the runway, in front of the door).
+function Game:inTractorZone(st, x, y)
 	local d = st.dock
 	if not d then return false end
 	local lx, ly = st.body:getLocalPoint(x, y)
-	return lx > d.x2 and lx < d.x2 + d.capture and math.abs(ly) < d.hw
+	return lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3, lx, ly
+end
+
+function Game:beginDocking(e, st)
+	e.dockState = { station = st, phase = "tractor", t = 0 }
+	e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
+	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireAux = false, false, false
+	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
 function Game:updateDocking(dt)
-	local p = self.player
-	if not p or p.dead then return end
-	p.dockCooldown = max(0, (p.dockCooldown or 0) - dt)
-	if p.dockState or p.dockCooldown > 0 then return end
-	local x, y = p.body:getPosition()
-	for _, st in ipairs(self.entities) do
-		if st.kind == "station" and self:inCaptureZone(st, x, y) then
-			local lx, ly = st.body:getLocalPoint(x, y)
-			p.dockState = { station = st, t = 0, lx = lx, ly = ly, la = p.body:getAngle() - st.body:getAngle() }
-			p.body:setActive(false)
-			p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
-			self:toast("DOCKING", 1.2)
-			return
+	for _, e in ipairs(self.entities) do
+		if e.kind == "ship" and not e.dead and not e.dockState then
+			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
+			local trader = e.def and e.def.ai.style == "trader"
+			if (e == self.player or trader) and e.dockCooldown == 0 then
+				local x, y = e.body:getPosition()
+				for _, st in ipairs(self.entities) do
+					-- traders only dock where their route says to
+					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
+						and self:inTractorZone(st, x, y) then
+						self:beginDocking(e, st)
+						break
+					end
+				end
+			end
 		end
 	end
 end
 
--- Move a docking ship along its pull-in path (or hold it inside).
+local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
+
+-- One step of a docking ship: tractor it in, pull it inside, or wait.
 function Game:updateDockedShip(e, dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.station.dock
+	local b, sb = e.body, st.body
 	ds.t = ds.t + dt
-	local f = min(1, ds.t / DOCK_TIME)
-	f = f * f * (3 - 2 * f)
-	local tx = (d.x1 + d.x2) / 2 + d.hw * 0.15
-	-- nose turns to point into the dock (local -x), the short way round
-	local da = (pi - ds.la + pi) % (2 * pi) - pi
-	local lx, ly = ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f)
-	e.body:setPosition(st.body:getWorldPoint(lx, ly))
-	e.body:setAngle(st.body:getAngle() + ds.la + da * f)
-	e.body:setLinearVelocity(0, 0)
-	e.body:setAngularVelocity(0)
-	if f >= 1 and not ds.done then
-		ds.done = true
-		if e == self.player then
-			self.state = "docked"
+
+	if ds.phase == "tractor" then
+		local x, y = b:getPosition()
+		local lx, ly = sb:getLocalPoint(x, y)
+		local doorX = d.x2 + e.halfLength + 40
+		-- grip grows over the first second and as the ship nears the door
+		local near = 1 - max(0, min(1, (lx - doorX) / d.runway))
+		local grip = min(1, ds.t / 1.0) * (0.35 + 0.65 * near)
+		-- wanted velocity, in the station's frame: onto the centre line and
+		-- in toward the door, slowing as it arrives
+		local gap = lx - doorX
+		local inward = -min(260, gap > 0 and max(50, gap * 0.6) or gap * 0.6)
+		local across = -ly * 0.8
+		local wx, wy = sb:getWorldVector(inward, across)
+		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
+		local vx, vy = b:getLinearVelocity()
+		local k = 2.2 * grip
+		local m = b:getMass()
+		b:applyForce((svx + wx - vx) * k * m, (svy + wy - vy) * k * m)
+		-- nose toward the door
+		local want = sb:getAngle() + pi
+		local turn = wrapAngle(want - b:getAngle()) * 1.4 * grip + sb:getAngularVelocity()
+		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
+		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 then
+			ds.phase, ds.t = "pull", 0
+			ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - sb:getAngle()
+			b:setActive(false)
+		end
+		return
+	end
+
+	if ds.phase == "pull" then
+		local f = min(1, ds.t / PULL_TIME)
+		f = f * f * (3 - 2 * f)
+		local tx = (d.x1 + d.x2) / 2
+		local da = wrapAngle(pi - ds.la)
+		b:setPosition(sb:getWorldPoint(ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f)))
+		b:setAngle(sb:getAngle() + ds.la + da * f)
+		b:setLinearVelocity(0, 0)
+		b:setAngularVelocity(0)
+		if f >= 1 then
+			ds.phase, ds.done, ds.t = "done", true, 0
+			if e == self.player then
+				self.state = "docked"
+			else
+				ds.stay = 30 + random() * 60
+			end
 			events.emit("dock", e, st)
 		end
+		return
 	end
+
+	-- docked: ride along inside
+	b:setPosition(sb:getWorldPoint((d.x1 + d.x2) / 2, 0))
+	if ds.stay and ds.t >= ds.stay then self:undockShip(e) end
 end
 
--- Launch the player back out of the dock they're in.
+-- Launch a docked ship back out of the door.
+function Game:undockShip(e)
+	local ds = e.dockState
+	if not ds or not ds.done then return end
+	local st, d = ds.station, ds.station.dock
+	local sb = st.body
+	local wx, wy = sb:getWorldPoint(d.x2 + e.halfLength + 60, 0)
+	local ox, oy = sb:getWorldVector(1, 0)
+	local svx, svy = sb:getLinearVelocityFromWorldPoint(wx, wy)
+	e.body:setPosition(wx, wy)
+	e.body:setAngle(sb:getAngle())
+	e.body:setActive(true)
+	e.body:setLinearVelocity(svx + ox * 260, svy + oy * 260)
+	e.body:setAngularVelocity(sb:getAngularVelocity())
+	e.dockState = nil
+	e.dockCooldown = 4
+	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
+	events.emit("undock", e, st)
+end
+
+-- The player's launch button on the station screen.
 function Game:undock()
 	local p = self.player
 	if not p or not p.dockState or not p.dockState.done then return end
-	local st, d = p.dockState.station, p.dockState.station.dock
-	local wx, wy = st.body:getWorldPoint(d.x2 + 120, 0)
-	local ox, oy = st.body:getWorldVector(1, 0)
-	local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)
-	p.body:setPosition(wx, wy)
-	p.body:setAngle(st.body:getAngle())
-	p.body:setActive(true)
-	p.body:setLinearVelocity(svx + ox * 260, svy + oy * 260)
-	p.dockState = nil
-	p.dockCooldown = 3
+	self:undockShip(p)
 	self.state = "playing"
 	self:toast("LAUNCHED", 1)
-	events.emit("undock", p, st)
 end
 
 -- A navigation buoy: a marker that nothing collides with (it has no
