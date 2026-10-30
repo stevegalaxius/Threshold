@@ -26,7 +26,7 @@
 ammo { id = "rounds_s",  name = "Light rounds",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3,
 	shot = { damage = 10.8, speed = 2600, range = 1000, knockback = 250 } }
 ammo { id = "rounds_m",  name = "Heavy rounds",  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6,
-	shot = { damage = 20, speed = 2800, range = 1150, knockback = 400 } }
+	shot = { damage = 36, speed = 2800, range = 1150, knockback = 400 } }
 
 ammo { id = "shell_s",   name = "Pip shells",    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25,
 	shot = { damage = 45, splash = 60, speed = 1800, range = 2000, knockback = 6000 } }

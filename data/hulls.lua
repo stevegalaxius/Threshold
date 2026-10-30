@@ -74,7 +74,7 @@ hull {
 		{ family = "utility",   size = "any" },
 		{ family = "thruster",  size = "any" },
 	},
-	loadout = { "rk7_chaingun", "rk7_chaingun", "thumper_m", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters_m" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "thumper_m", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters_m" },
 	cargo = { rounds_m = 500, shell_m = 20, missile_m = 4, missile_s = 6 },
 	price = 38000,
 }
@@ -98,7 +98,7 @@ hull {
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
 	},
-	loadout = { "long_tom", "long_tom", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "trident_bay",
+	loadout = { "long_tom", "long_tom", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "trident_bay",
 		"cinder_drive", "kiln_reactor", "hold_pod_m" },
 	cargo = { shell_l = 60, rounds_m = 1000, missile_l = 6, missile_m = 6 },
 	price = 95000,
@@ -159,7 +159,7 @@ hull {
 		{ family = "engine",  size = "M", x = -16, y = 0 },
 		{ family = "reactor", size = "M" },
 	},
-	loadout = { "rk7_chaingun", "mule_engine", "kiln_reactor" },
+	loadout = { "rk7_autocannon", "mule_engine", "kiln_reactor" },
 	cargo = {},
 }
 
@@ -173,6 +173,6 @@ hull {
 		{ family = "engine",  size = "M", x = -34, y = 0 },
 		{ family = "reactor", size = "M" },
 	},
-	loadout = { "rk7_chaingun", "rk7_chaingun", "mule_engine", "kiln_reactor" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "mule_engine", "kiln_reactor" },
 	cargo = {},
 }

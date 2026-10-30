@@ -39,7 +39,7 @@ module {
 }
 
 module {
-	id = "rk7_chaingun", name = "RK-7 Chaingun", maker = "Brute Industries", family = "weapon", size = "M",
+	id = "rk7_autocannon", name = "RK-7 Autocannon", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
 	weapon = { kind = "gun", fireRate = 150 / 60, spread = 2.5, gimbal = 10, recoil = 70 },
 }
