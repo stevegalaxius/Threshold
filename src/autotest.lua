@@ -750,11 +750,14 @@ function A.update(game, dt)
 		log("travel: in field %s (%s -> %s, %.2f AU, %.0f px long), at %.0f, %.0f doing %.0f px/s, credits %d -> %d, %d things in the lane",
 			game.fieldId, game.trip.from, game.trip.to, game.trip.au, game.trip.length, x, y, vx, A.credits1, game.universe.credits, n)
 		shot("14_lane")
+	end) end
+	if t >= 38.36 then once("travel_skip", function()
+		local p = game.player
 		-- skip to the far end
 		A.laneBuff = p.laneBuff
 		p.body:setPosition(game:fromLane(game.lane.half - 300, -1000))
 	end) end
-	if t >= 38.4 then once("travel_arrive", function()
+	if t >= 38.45 then once("travel_arrive", function()
 		local p = game.player
 		local vx, vy = p.body:getLinearVelocity()
 		local ladder = 0

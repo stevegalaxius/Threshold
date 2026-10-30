@@ -143,6 +143,20 @@ local function tuningSection()
 	if Slab.Button("Reset to defaults") then T.reset() end
 end
 
+local function laneSection(game)
+	for _, s in ipairs(T.laneSpecs) do
+		Slab.Text(s.label)
+		if Slab.InputNumberSlider("lane_" .. s.key, T[s.key], s.min, s.max, { W = 300, Precision = s.precision }) then
+			T[s.key] = Slab.GetInputNumber()
+		end
+	end
+	if Slab.Button("Reset lane to defaults") then T.resetLane() end
+	if Fields.orbits[game.fieldId] and game.player and not game.player.dead then
+		local to = game.fieldId == "mars" and "earth" or "mars"
+		if Slab.Button("Straight into a lane to " .. Fields[to].name) then game:launchTrip(to) end
+	end
+end
+
 local function spawnSection(game)
 	Slab.Text("Playing field")
 	local fopts = {}
@@ -207,6 +221,7 @@ function Debug.update(dt, game)
 	section("dbg_ship", "Ship, modules and hold", shipSection, game)
 	section("dbg_readout", "Handling readout", readout, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)
+	section("dbg_lane", "Transit lane", laneSection, game)
 	section("dbg_spawn", "Spawn and arena", spawnSection, game)
 	Slab.EndWindow()
 end

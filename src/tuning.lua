@@ -86,17 +86,13 @@ T.yearLength = 1800
 -- median a lane runs, how soft the median is, the current's speed and
 -- grip, how far around you things are kept, and how much there is.
 -- laneDerelict: the chance, each time something would spawn, of a derelict.
-T.laneBase, T.lanePerAU = 20000, 17000
+-- The rest (traffic, buff, speeds) are live sliders in the debug panel:
+-- T.laneSpecs below.
+T.laneBase = 20000
 T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
-T.laneFlow, T.laneSwirl = 1800, 0.6
+T.laneSwirl = 0.6
 T.laneReach = 12000
-T.laneTraffic, T.laneRocks, T.laneDerelict = 3, 4, 0.12
--- traffic cruises at this range of the current's speed, slow to fast
-T.laneSpeedMin, T.laneSpeedMax = 0.5, 1.5
--- The lane buff: thrust multiplier, with the afterburner, and drag
--- multiplier, for every ship inside the lane.
-T.laneThrust, T.laneBoostThrust, T.laneDrag = 2, 4, 0.25
 
 -- Gas giants: how far below the cloud tops you can go before the crush
 -- starts, how much deeper it reaches full strength, its damage per
@@ -120,5 +116,31 @@ T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
+
+-- Transit lane knobs, shown as sliders in the debug panel's Transit lane
+-- section. laneRamp: how far past the lane's edge the buff and the
+-- current fade out. laneVeer: chance per second that a traveller drifts
+-- across into the other side.
+T.laneSpecs = {
+	{ key = "laneTraffic",     label = "Travellers (most at once)",     min = 0,    max = 12,    value = 3,     precision = 0 },
+	{ key = "laneSpawnEvery",  label = "Seconds between arrivals",      min = 0.2,  max = 5,     value = 1.2,   precision = 1 },
+	{ key = "laneSpeedMin",    label = "Slowest traveller (x current)", min = 0.1,  max = 2,     value = 0.5,   precision = 2 },
+	{ key = "laneSpeedMax",    label = "Fastest traveller (x current)", min = 0.1,  max = 3,     value = 1.5,   precision = 2 },
+	{ key = "laneVeer",        label = "Veer chance per second",        min = 0,    max = 0.5,   value = 0.04,  precision = 2 },
+	{ key = "laneRocks",       label = "Rocks in the lane",             min = 0,    max = 15,    value = 4,     precision = 0 },
+	{ key = "laneOffroad",     label = "Rocks off-road",                min = 0,    max = 60,    value = 24,    precision = 0 },
+	{ key = "laneDerelict",    label = "Derelict chance",               min = 0,    max = 1,     value = 0.12,  precision = 2 },
+	{ key = "laneFlow",        label = "Current speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
+	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 2,     precision = 2 },
+	{ key = "laneBoostThrust", label = "Lane buff: afterburner x",      min = 1,    max = 10,    value = 4,     precision = 2 },
+	{ key = "laneDrag",        label = "Lane buff: drag x",             min = 0.05, max = 1,     value = 0.25,  precision = 2 },
+	{ key = "laneRamp",        label = "Off-road falloff (px)",         min = 0,    max = 8000,  value = 3000,  precision = 0 },
+	{ key = "lanePerAU",       label = "Lane length per AU (px)",       min = 2000, max = 40000, value = 17000, precision = 0 },
+}
+for _, s in ipairs(T.laneSpecs) do T[s.key] = s.value end
+
+function T.resetLane()
+	for _, s in ipairs(T.laneSpecs) do T[s.key] = s.value end
+end
 
 return T

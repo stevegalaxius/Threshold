@@ -357,36 +357,35 @@ local function drawDriver(game, e)
 	end
 end
 
--- The transit lane: faint edges and a dashed median, following its arc.
+-- The transit lane: a faint glow under its arc, fading out past its
+-- edges the way the buff does, so the road reads without markings.
 local function drawLane(game)
 	local lane = game.lane
 	local p = game.player
 	local ps = p and not p.dead and game:toLane(p.body:getPosition()) or 0
 	local W = T.laneWidth
-	local s1, s2 = max(-lane.half, ps - 6000), min(lane.half, ps + 6000)
-	local step = 300
-	lg.setLineWidth(outline(2))
-	for _, n in ipairs({ -W, W }) do
-		lg.setColor(0.55, 0.85, 1, 0.18)
-		local pts = {}
-		for s = s1, s2, step do
-			local x, y = game:fromLane(s, n)
-			pts[#pts + 1] = x
-			pts[#pts + 1] = y
-		end
-		if #pts >= 4 then lg.line(pts) end
+	local s1, s2 = max(-lane.half, ps - 7000), min(lane.half, ps + 7000)
+	local pts = {}
+	for s = s1, s2, 300 do
+		local x, y = game:fromLane(s, 0)
+		pts[#pts + 1] = x
+		pts[#pts + 1] = y
 	end
-	lg.setColor(1, 0.8, 0.35, 0.3)
-	for s = math.floor(s1 / 800) * 800, s2, 800 do
-		local x1, y1 = game:fromLane(s, 0)
-		local x2, y2 = game:fromLane(s + 400, 0)
-		lg.line(x1, y1, x2, y2)
+	if #pts < 4 then return end
+	lg.setBlendMode("add")
+	local bands = 6
+	for k = bands, 1, -1 do
+		local half = W + T.laneRamp * (k - 1) / bands
+		lg.setColor(0.35, 0.6, 0.9, k == 1 and 0.05 or 0.018)
+		lg.setLineWidth(half * 2)
+		lg.line(pts)
 	end
+	lg.setBlendMode("alpha")
 	-- the far end
 	if lane.half - ps < 8000 then
 		local x1, y1 = game:fromLane(lane.half, -W)
-		local x2, y2 = game:fromLane(lane.half, 0)
-		lg.setColor(0.6, 0.95, 1, 0.6)
+		local x2, y2 = game:fromLane(lane.half, W)
+		lg.setColor(0.6, 0.95, 1, 0.5)
 		lg.setLineWidth(outline(4))
 		lg.line(x1, y1, x2, y2)
 	end
@@ -399,7 +398,7 @@ local function drawLaneBuff(e)
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
 	local hot = e.afterburn and 1 or 0
-	local flick = 0.85 + love.math.random() * 0.3
+	local flick = (0.85 + love.math.random() * 0.3) * e.laneBuff
 	lg.setBlendMode("add")
 	for k = 3, 1, -1 do
 		lg.setColor(0.45 + hot * 0.5, 0.85, 1 - hot * 0.4, (0.1 + 0.08 * hot) * (1.4 - k * 0.3))

@@ -209,7 +209,16 @@ end
 -- The lane's current at offset n: outbound below the median, oncoming
 -- above it, easing through zero across the median.
 function Game:laneFlow(n)
-	return T.laneFlow * max(-1, min(1, -n / T.laneMedian))
+	return T.laneFlow * max(-1, min(1, -n / T.laneMedian)) * self:laneStrength(n)
+end
+
+-- How much of the lane there is at offset n: full inside it, fading out
+-- over T.laneRamp past its edge (the buff and the current alike).
+function Game:laneStrength(n)
+	local out = abs(n) - T.laneWidth
+	if out <= 0 then return 1 end
+	if T.laneRamp <= 0 then return 0 end
+	return max(0, 1 - out / T.laneRamp)
 end
 
 function Game:buildLane()
@@ -260,19 +269,33 @@ function Game:updateLane(dt)
 			if e.kind == "ship" then
 				-- in the lane: the buff (thrust up, drag down); traffic also
 				-- rides the current and is held on the curve
-				e.laneBuff = abs(n) < W or nil
+				local k = self:laneStrength(n)
+				e.laneBuff = k > 0 and k or nil
 				if e.lane then
 					local v = f * (e.cruiseSpeed or 1)
 					e.flowX, e.flowY = tx * v, ty * v
 					local c = (vx * tx + vy * ty) ^ 2 / lane.R
 					b:applyForce(sin(phi) * -c * m, cos(phi) * c * m)
+					-- now and then a traveller drifts across into the other side
+					if e.cruise and not e.veer and random() < T.laneVeer * dt then
+						e.veer = { t = 3 + random() * 3, dir = n > 0 and -1 or 1 }
+					end
+					if e.veer then
+						e.veer.t = e.veer.t - dt
+						local push = e.veer.dir * 260 * m
+						b:applyForce(-sin(phi) * push, cos(phi) * push)
+						if e.veer.t <= 0 then e.veer = nil end
+					end
 				end
-			else
-				local c = (vx * tx + vy * ty) ^ 2 / lane.R
-				b:applyForce(((tx * f - vx) * T.laneSwirl - sin(phi) * c) * m, ((ty * f - vy) * T.laneSwirl + cos(phi) * c) * m)
+			elseif e.lane ~= "offroad" then
+				-- carried along the lane; anything drifting across keeps drifting
+				local va = vx * tx + vy * ty
+				local c = va * va / lane.R
+				local a = (f - va) * T.laneSwirl
+				b:applyForce((tx * a - sin(phi) * c) * m, (ty * a + cos(phi) * c) * m)
 			end
 			-- soft walls well outside the lane, and the near end
-			local over = abs(n) - W * 1.6
+			local over = abs(n) - (W + T.laneRamp + 2500)
 			if over > 0 then
 				local k = (n > 0 and 1 or -1) * over * m * 4
 				b:applyForce(sin(phi) * k, -cos(phi) * k)
@@ -283,21 +306,31 @@ function Game:updateLane(dt)
 	if not p or p.dead then return end
 	local ps = self:toLane(p.body:getPosition())
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
-	local traffic, rocks, gone = 0, 0, {}
+	-- off-road rocks, scattered either side all along: a field to fill
+	-- once, then topped up at the edge of reach as you go
+	if not lane.filled then
+		lane.filled = true
+		for _ = 1, T.laneOffroad * 2 do self:spawnOffroadRock(ps + (random() * 2 - 1) * T.laneReach, ps) end
+	end
+	local traffic, rocks, offroad, gone = 0, 0, 0, {}
 	for _, e in ipairs(self.entities) do
 		if not e.removed and e ~= p and e.body:getType() == "dynamic" then
 			local s = self:toLane(e.body:getPosition())
 			if abs(s - ps) > T.laneReach * 1.2 then
 				table.insert(gone, e)
 			elseif e.lane == "traffic" then traffic = traffic + 1
-			elseif e.lane == "rock" then rocks = rocks + 1 end
+			elseif e.lane == "rock" then rocks = rocks + 1
+			elseif e.lane == "offroad" then offroad = offroad + 1 end
 		end
 	end
 	for _, e in ipairs(gone) do self:remove(e) end
+	if offroad < T.laneOffroad * 2 then
+		self:spawnOffroadRock(ps + (random() < 0.7 and 1 or -1) * T.laneReach * (0.8 + random() * 0.2), ps)
+	end
 	-- new arrivals, well out of sight ahead or behind
 	lane.spawnT = lane.spawnT - dt
 	if lane.spawnT > 0 then return end
-	lane.spawnT = 1.2
+	lane.spawnT = T.laneSpawnEvery
 	local side = random() < 0.5 and -1 or 1
 	local n = side * (0.15 + random() * 0.75) * W
 	-- oncoming traffic shows up ahead; outbound mostly from behind
@@ -329,7 +362,9 @@ function Game:updateLane(dt)
 			if self:isClear(rx, ry, 150) then
 				local e = self:spawnAsteroid(rx, ry, 25 + random() ^ 2 * (k == 1 and 140 or 50))
 				e.lane = "rock"
-				e.body:setLinearVelocity(vx, vy)
+				-- some of it is debris drifting across the lanes
+				local across = random() < 0.35 and (n > 0 and -1 or 1) * (120 + random() * 200) or 0
+				e.body:setLinearVelocity(vx - sin(phi) * across, vy + cos(phi) * across)
 			end
 		end
 	elseif random() < T.laneDerelict then
@@ -344,6 +379,21 @@ function Game:updateLane(dt)
 			if e then e.body:setLinearVelocity(vx, vy) end
 		end
 	end
+end
+
+-- A rock off the road at distance s along the lane, either side, out of
+-- sight of the player at ps. Off-road rocks just sit there.
+function Game:spawnOffroadRock(s, ps)
+	local lane = self.lane
+	if s < -lane.half or s > lane.half or abs(s - ps) < 2500 then return end
+	local side = random() < 0.5 and -1 or 1
+	local n = side * (T.laneWidth + 200 + random() * (T.laneRamp + 2000))
+	local x, y = self:fromLane(s, n)
+	if not self:isClear(x, y, 200) then return end
+	local e = self:spawnAsteroid(x, y, 30 + random() ^ 2 * 160)
+	e.lane = "offroad"
+	e.body:setLinearVelocity(0, 0)
+	return e
 end
 
 -- Traffic just rides the current, nose along the lane.
