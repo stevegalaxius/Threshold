@@ -123,6 +123,12 @@ local function fire(game, e, slot, dt)
 	local spread = rad(w.spread or 0)
 	angle = angle + (random() * 2 - 1) * spread
 	dx, dy = cos(angle), sin(angle)
+	-- Multi-barrel mounts take turns, each barrel offset across the line of fire.
+	if (w.barrels or 1) > 1 then
+		slot.barrel = (slot.barrel or 0) % w.barrels + 1
+		local off = (slot.barrel - (w.barrels + 1) / 2) * (w.barrelGap or 8)
+		wx, wy = wx - dy * off, wy + dx * off
+	end
 	local svx, svy = e.body:getLinearVelocity()
 
 	-- Drone bays launch a ship, not a projectile.

@@ -216,7 +216,11 @@ local function drawShip(game, e)
 		if w.group == "auxiliary" then
 			lg.rectangle("fill", -4, -4, 8, 8)
 		else
-			lg.rectangle("fill", 0, -thick / 2, len, thick)
+			local n, gap = w.w.barrels or 1, w.w.barrelGap or 8
+			for b = 1, n do
+				local off = (b - (n + 1) / 2) * gap
+				lg.rectangle("fill", 0, off - thick / 2, len, thick)
+			end
 		end
 		if w.mount == "turret" then
 			local r = TURRET[w.module.size] or 5

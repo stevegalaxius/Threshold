@@ -142,7 +142,8 @@ function data.ammoOptions(module)
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
 		if item.kind == "ammo" and item.family == w.kind then
-			local fits = item.size == module.size
+			-- a gun's caliber is its size unless it says otherwise (twin mounts)
+			local fits = item.size == (w.caliber or module.size)
 			if module.family == "auxiliary" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end

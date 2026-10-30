@@ -26,6 +26,8 @@
 	              knockback, pulse (seconds the flash shows) and
 	              powerPerShot themselves.
 	  fireRate    shots per second           spread    random spread in degrees
+	  caliber     ammo size a gun fires, if not its own (twin mounts)
+	  barrels     barrels that take turns firing; barrelGap = spacing
 	  gimbal      degrees it can aim off the nose
 	  recoil      push back on the shooter
 ]]
@@ -42,6 +44,14 @@ module {
 	id = "rk7_autocannon", name = "RK-7 Autocannon", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
 	weapon = { kind = "gun", fireRate = 150 / 60, spread = 2.5, gimbal = 10, recoil = 70 },
+}
+
+-- Two RK-7 actions on one large mount, firing the same heavy rounds. The
+-- barrels alternate, so it's two autocannons' worth of fire from one slot.
+module {
+	id = "rk14_twin", name = "RK-14 Twin Autocannon", maker = "Brute Industries", family = "weapon", size = "L",
+	mass = 24, powerDraw = 4, price = 15000,
+	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 300 / 60, spread = 2.5, gimbal = 10, recoil = 70 },
 }
 
 -- Weapons: artillery (slow, long range, high damage, splash) -----------------
@@ -77,6 +87,12 @@ module {
 	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 12, price = 14000,
 	weapon = { kind = "laser", fireRate = 0.9, damage = 65, powerPerShot = 45, pulse = 0.14, range = 900, gimbal = 12, knockback = 3000 },
+}
+
+module {
+	id = "sunder_beam", name = "Sunder Beam", maker = "Nova Syndicate", family = "weapon", size = "L",
+	mass = 30, price = 38000,
+	weapon = { kind = "laser", fireRate = 0.6, damage = 160, powerPerShot = 90, pulse = 0.2, range = 1150, gimbal = 10, knockback = 8000 },
 }
 
 -- Auxiliary launchers -------------------------------------------------------------
