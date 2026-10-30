@@ -679,7 +679,13 @@ function A.update(game, dt)
 		resale = nil
 		for _, s in ipairs(mk.hold.grids[1].stacks) do if s.resale then resale = s end end
 		log("market: 2000 s later -> %s stock %d -> %d, resale %s", A.boughtId, stockAfter, stock(A.boughtId), resale and "still there" or "sold on")
-		-- a loaded container sells with what's in it; Clear sends it home
+		-- a loaded container sells with what's in it; Clear sends it home.
+		-- (storage is behind the left panel's Storage tab)
+		L = Cargo.layout(game)
+		local pk = L.sides[1].picks[2]
+		Cargo.mousepressed(game, pk.x + 4, pk.y + 4, 1)
+		L = Cargo.layout(game)
+		log("market: left panel tabs -> showing %s (%d panels)", L.sides[1].title, #L.sides)
 		local storage = game:stationStorage(A.st)
 		local inner = Hold.new({ { key = "main", name = "Container", w = 8, h = 4 } })
 		Hold.add(inner, "rounds_s_crate", 50)
@@ -708,6 +714,8 @@ function A.update(game, dt)
 			end
 		end
 		local onTable = #Cargo.trade.grids[1].stacks
+		shot("16_market_storage")
+		Cargo.marketLeft = "hold"
 		Cargo.tab = "cargo"
 		Cargo.update(game)
 		local state = game:saveState()

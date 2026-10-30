@@ -49,7 +49,7 @@ local Hangar = require("src.ui.hangar")
 local stats = require("src.stats")
 local T = require("src.tuning")
 
-local Cargo = { open = false, loot = nil, tab = "cargo", other = nil, filter = "all" }
+local Cargo = { open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
@@ -81,7 +81,10 @@ local function sides(game)
 		local st = p.dockState.station
 		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
 		if Cargo.tab == "market" then
-			-- the market: the trade grid, then the station's shelf
+			-- the market: your hold or storage (one at a time, picked with the
+			-- panel's own tabs), the trade grid, then the station's shelf
+			if Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
+			list[1].pick = true
 			Cargo.tradeStation = st
 			table.insert(list, { title = "Trade", hold = tradeHold(), trade = true, station = st })
 			table.insert(list, { title = st.name, hold = game:stationMarket(st).hold, market = true, station = st })
@@ -223,6 +226,13 @@ local function layout(game)
 			local by = y + side.ph - PAD - 26
 			side.clear = { x = x + PAD, y = by, w = 70, h = 26 }
 			side.complete = { x = x + side.pw - PAD - 150, y = by, w = 150, h = 26 }
+		end
+		if side.pick then
+			-- the market's left panel: Hold / Storage tabs in place of the title
+			side.picks = {
+				{ id = "hold", label = "Your hold", x = x + PAD, y = y + 10, w = 96, h = 24 },
+				{ id = "storage", label = "Storage", x = x + PAD + 100, y = y + 10, w = 84, h = 24 },
+			}
 		end
 		if side.market then
 			-- filter buttons along the grid's label row
@@ -727,6 +737,9 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		for _, f in ipairs(side.filters or {}) do
 			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id return true end
 		end
+		for _, pk in ipairs(side.picks or {}) do
+			if button == 1 and inRect(pk, mx, my) then Cargo.marketLeft = pk.id return true end
+		end
 		if button == 1 and side.target and inRect(side.target, mx, my) then
 			Cargo.target = targetKey(side)
 			return true
@@ -1180,15 +1193,29 @@ function Cargo.draw(game)
 
 	for _, side in ipairs(L.sides) do
 		HUD.panel(side.x, side.y, side.pw, side.ph)
-		lg.setFont(HUD.font(16))
-		lg.setColor(HUD.INK)
-		lg.print(side.title, side.x + PAD, side.y + 12)
+		if side.picks then
+			for _, pk in ipairs(side.picks) do
+				local on = Cargo.marketLeft == pk.id
+				lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.4 or (not Cargo.hand and inRect(pk, mx, my) and 0.22 or 0.1))
+				lg.rectangle("fill", pk.x, pk.y, pk.w, pk.h, 5, 5)
+				lg.setFont(HUD.font(14))
+				lg.setColor(on and HUD.INK or HUD.DIM)
+				lg.printf(pk.label, pk.x, pk.y + 4, pk.w, "center")
+			end
+		else
+			lg.setFont(HUD.font(16))
+			lg.setColor(HUD.INK)
+			lg.print(side.title, side.x + PAD, side.y + 12)
+		end
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
 		lg.setColor(HUD.DIM)
 		if side.market then
 			lg.setColor(HUD.INK)
 			lg.printf(HUD.credits(game.universe.credits), side.x, side.y + 16, side.pw - PAD, "right")
+		elseif side.picks then
+			-- (the tabs take the title's place: the fill goes on the grid's label row)
+			lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + HEAD + 1, side.pw - PAD, "right")
 		elseif not side.trade then
 			lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 16,
 				side.pw - PAD - (side.close and 176 or (side.take or side.switch) and 148 or 66), "right")
