@@ -319,7 +319,7 @@ end
 -- heat damage and glow (e.reentry, 0..1, plus the direction of travel for
 -- the flame); rocks just glow. Deeper means thicker. Rocks that drifted
 -- back out of a re-entry respawn as usual only if they hit the ground.
-local REENTRY_DRAG, REENTRY_SINK, REENTRY_HEAT = 1.6, 60, 6
+local REENTRY_DRAG, REENTRY_SINK, REENTRY_HEAT = 0.7, 70, 6
 
 function Game:updateAtmosphere(dt)
 	local w = self.well
@@ -343,7 +343,8 @@ function Game:updateAtmosphere(dt)
 				local k = REENTRY_DRAG * depth
 				b:applyForce((-rvx * k + nx * REENTRY_SINK * depth) * m, (-rvy * k + ny * REENTRY_SINK * depth) * m)
 				local rs = sqrt(rvx * rvx + rvy * rvy)
-				local heat = depth * min(1, rs / 400)
+				-- the glow builds as soon as you're in, and with speed
+				local heat = min(1, depth * 1.6) * (0.45 + 0.55 * min(1, rs / 300))
 				if heat > 0.05 then
 					e.reentry, e.reentryX, e.reentryY = heat, rvx / max(rs, 1), rvy / max(rs, 1)
 					if e.kind == "ship" then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
@@ -803,6 +804,10 @@ end
 
 function Game:resolveContacts()
 	for key, c in pairs(self.contacts) do
+		-- (skip anything removed this step, e.g. a rock that hit a planet)
+		if c.a.removed or c.b.removed then
+			self.contacts[key] = nil
+		else
 		-- Impulse / reduced mass is roughly the impact speed. Slow bumps and
 		-- scrapes (below ramSpeed) do nothing; harder hits scale with impulse,
 		-- so heavy ships hit harder.
@@ -827,6 +832,7 @@ function Game:resolveContacts()
 			events.emit("ram", c.a, c.b, base)
 		end
 		self.contacts[key] = nil
+		end
 	end
 end
 

@@ -119,18 +119,24 @@ local function drawReentry(e, size)
 	local x, y = e.body:getPosition()
 	local dx, dy = e.reentryX, e.reentryY
 	local flick = 0.85 + love.math.random() * 0.3
-	for k = 3, 1, -1 do
-		local r = size * (0.7 + k * 0.35) * flick
-		lg.setColor(1, 0.45 + k * 0.12, 0.15 + k * 0.1, 0.18 * h)
-		lg.circle("fill", x + dx * size * 0.35, y + dy * size * 0.35, r)
+	lg.setBlendMode("add")
+	for k = 4, 1, -1 do
+		local r = size * (0.6 + k * 0.3 + h * 0.5) * flick
+		lg.setColor(1, 0.35 + k * 0.12, 0.1 + k * 0.08, (0.12 + 0.2 * h) * (1.2 - k * 0.2))
+		lg.circle("fill", x + dx * size * 0.4, y + dy * size * 0.4, r)
 	end
-	-- streaks trailing behind
-	lg.setLineWidth(max(2, size * 0.12))
-	lg.setColor(1, 0.6, 0.25, 0.45 * h)
-	for k = -1, 1 do
-		local ox, oy = -dy * k * size * 0.5, dx * k * size * 0.5
-		lg.line(x + ox, y + oy, x + ox - dx * size * (2 + 2 * h), y + oy - dy * size * (2 + 2 * h))
+	-- white-hot core on the leading edge
+	lg.setColor(1, 0.95, 0.8, 0.6 * h * flick)
+	lg.circle("fill", x + dx * size * 0.8, y + dy * size * 0.8, size * (0.25 + 0.3 * h))
+	-- flames streaming behind
+	lg.setLineWidth(max(2, size * 0.18))
+	for k = -2, 2 do
+		local ox, oy = -dy * k * size * 0.3, dx * k * size * 0.3
+		local len = size * (2.5 + 4 * h) * (1 - math.abs(k) * 0.18) * flick
+		lg.setColor(1, 0.55, 0.2, (0.25 + 0.4 * h) * (1 - math.abs(k) * 0.25))
+		lg.line(x + ox, y + oy, x + ox - dx * len, y + oy - dy * len)
 	end
+	lg.setBlendMode("alpha")
 end
 
 local function drawAsteroid(e)
