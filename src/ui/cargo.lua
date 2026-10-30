@@ -6,6 +6,9 @@
 	            storage on the right. E, Enter or (A) launches.
 	  in space  Tab opens and closes it (Esc closes too). Just your hold.
 	            The game keeps running, and you can still fly with the keys.
+	  looting   a tap of E on a wreck or container in range opens it next
+	            to your hold. Take All, Ctrl-click or right-click takes;
+	            it closes when you drift out of range.
 
 	Mouse:
 	  drag            pick up a stack and drop it somewhere else; dropping
@@ -31,7 +34,7 @@ local HUD = require("src.hud")
 local stats = require("src.stats")
 local T = require("src.tuning")
 
-local Cargo = { open = false }
+local Cargo = { open = false, loot = nil }
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
@@ -51,6 +54,9 @@ local function sides(game)
 	local list = { { title = "Your hold \194\183 " .. p.hull.name, hold = p.hold, ship = p } }
 	if game.state == "docked" and p.dockState then
 		table.insert(list, { title = "Station storage", hold = game:stationStorage(p.dockState.station), storage = true })
+	elseif Cargo.loot then
+		local e = Cargo.loot
+		table.insert(list, { title = e.kind == "husk" and "Wreck" or "Container", hold = e.hold, entity = e })
 	end
 	return list
 end
@@ -109,6 +115,7 @@ local function layout(game)
 	for _, side in ipairs(list) do
 		side.x, side.y, side.pw, side.ph = x, y, side.w + PAD * 2, ph
 		side.sort = { x = x + side.pw - PAD - 56, y = y + 12, w = 56, h = 22 }
+		if side.entity then side.take = { x = side.sort.x - 82, y = y + 12, w = 76, h = 22 } end
 		local gx, gy = x + PAD, y + HEAD + 18
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
@@ -145,6 +152,9 @@ local function changed(side)
 	if side and side.ship then
 		side.ship.cargo = Hold.totals(side.ship.hold)    -- a refit can swap the hold table
 		Ship.updateMass(side.ship)
+	elseif side and side.entity then
+		side.entity.loot = Hold.totals(side.hold)
+		side.entity.massDirty = true                     -- the game reweighs containers
 	end
 end
 
@@ -204,12 +214,40 @@ end
 
 function Cargo.close(game)
 	finish(game, layout(game))
-	Cargo.open = false
+	Cargo.open, Cargo.loot = false, nil
+end
+
+-- Open a wreck or container next to your hold.
+function Cargo.openLoot(game, e)
+	if Cargo.hand then finish(game, layout(game)) end
+	Cargo.open, Cargo.loot = true, e
+end
+
+-- Is the thing being looted still there and in reach?
+local function lootInReach(game)
+	local e, p = Cargo.loot, game.player
+	if not e or e.removed or e.dead or not p or p.dead or game.state == "docked" then return false end
+	local x, y = e.body:getPosition()
+	return Ship.distanceTo(p, x, y) - e.radius < Ship.tractorRange(p) * 1.3
 end
 
 -- Called every frame: tidy up if the screen went away under us (undocked,
 -- died) while something was in hand.
 function Cargo.update(game)
+	if game.openLoot then
+		Cargo.openLoot(game, game.openLoot)
+		game.openLoot = nil
+	end
+	if Cargo.loot and not lootInReach(game) then
+		local h, p = Cargo.hand, game.player
+		if h and h.side.entity and Cargo.loot.removed and p and p.hold then
+			-- it blew up while you held something from it: that goes to your hold
+			h.from = { grid = p.hold.grids[1], hold = p.hold, x = -1, y = -1 }
+		end
+		local docked = game.state == "docked"
+		if not docked and Cargo.loot.removed then game:toast("IT'S GONE", 1.2) end
+		if docked then finish(game, nil); Cargo.loot = nil else Cargo.close(game) end
+	end
 	if Cargo.hand and not Cargo.isOpen(game) then
 		local h = Cargo.hand
 		returnHand(game)
@@ -224,6 +262,12 @@ local function inRect(r, x, y)
 	return x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
 end
 
+local function playerSideOf(L)
+	for _, side in ipairs(L.sides) do
+		if side.ship then return side end
+	end
+end
+
 -- Ctrl-click: send a stack to the other side.
 local function quickMove(game, L, r, s)
 	local other
@@ -236,6 +280,23 @@ local function quickMove(game, L, r, s)
 	s.n = s.n - k
 	if s.n <= 0 then Grid.remove(r.g, s) end
 	changed(r.side); changed(other)
+end
+
+-- Take All: everything that fits goes into your hold.
+local function takeAll(game, L, side)
+	local mine = playerSideOf(L)
+	if not mine then return end
+	local full = false
+	for _, g in ipairs(side.hold.grids) do
+		for i = #g.stacks, 1, -1 do
+			local s = g.stacks[i]
+			local k = Hold.add(mine.hold, s.id, s.n)
+			s.n = s.n - k
+			if s.n <= 0 then Grid.remove(g, s) else full = true end
+		end
+	end
+	if full then game:toast("HOLD FULL", 1.2) end
+	changed(side); changed(mine)
 end
 
 -- Right-click on a crate at a station: unbox as many rounds as fit.
@@ -363,6 +424,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			changed(side)
 			return true
 		end
+		if button == 1 and side.take and inRect(side.take, mx, my) then
+			takeAll(game, L, side)
+			return true
+		end
 	end
 	local er = slotAt(L, mx, my)
 	if er and button == 1 then takeFromSlot(game, L, er) return true end
@@ -382,7 +447,9 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	end
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
-	if button == 2 then
+	if button == 2 and r.side.entity then
+		quickMove(game, L, r, s)                   -- right-click loot: take it
+	elseif button == 2 then
 		if game.state == "docked" then
 			unbox(game, r, s)
 		else
@@ -448,7 +515,7 @@ function Cargo.mousereleased(game, mx, my, button)
 		Cargo.hand = nil
 		Grid.place(r.g, { id = h.id, n = h.n, x = x, y = y, w = h.w, h = h.h, rot = h.rot })
 		changed(r.side); changed(h.side)
-	elseif not r and not overPanel(L, mx, my) and game.state ~= "docked" then
+	elseif not r and not overPanel(L, mx, my) and game.state ~= "docked" and h.side.ship then
 		Cargo.hand = nil
 		game:eject(h.side.ship, h.id, h.n)
 		changed(h.side)
@@ -468,6 +535,7 @@ function Cargo.keypressed(game, key)
 		return true
 	end
 	if key == "escape" and game.state ~= "docked" then Cargo.close(game); return true end
+	if key == "e" and Cargo.loot then Cargo.close(game); return true end
 	return false
 end
 
@@ -677,13 +745,21 @@ function Cargo.draw(game)
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
 		lg.setColor(HUD.DIM)
-		lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 16, side.pw - PAD - 66, "right")
+		lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 16, side.pw - PAD - (side.take and 148 or 66), "right")
 		local b = side.sort
 		local hot = not Cargo.hand and inRect(b, mx, my)
 		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], hot and 0.35 or 0.15)
 		lg.rectangle("fill", b.x, b.y, b.w, b.h, 5, 5)
 		lg.setColor(HUD.INK)
 		lg.printf("Sort", b.x, b.y + 4, b.w, "center")
+		local t = side.take
+		if t then
+			local hotT = not Cargo.hand and inRect(t, mx, my)
+			lg.setColor(0.3, 1, 0.5, hotT and 0.4 or 0.18)
+			lg.rectangle("fill", t.x, t.y, t.w, t.h, 5, 5)
+			lg.setColor(HUD.INK)
+			lg.printf("Take All", t.x, t.y + 4, t.w, "center")
+		end
 	end
 
 	for _, r in ipairs(L.grids) do
@@ -711,6 +787,7 @@ function Cargo.draw(game)
 		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click move across   Drag or double-click a module to fit it   Right-click unbox a crate   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
+		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
 	end
 	local problem = docked and Ship.launchProblem(p)
 	if problem then
@@ -766,6 +843,7 @@ function Cargo.draw(game)
 			local hint2
 			if docked and item.kind == "module" then hint2 = "Drag onto a slot or double-click to fit"
 			elseif docked and item.kind == "crate" then hint2 = "Right-click: unbox into loose rounds"
+			elseif r.side.entity then hint2 = "Right-click: take"
 			elseif not docked then hint2 = "Right-click: eject" end
 			tooltip(item, s.n, mx, my, hint2)
 		end

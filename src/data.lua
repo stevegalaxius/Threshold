@@ -98,6 +98,16 @@ function api.salvage(def)
 	def.kind = "salvage"
 end
 
+-- A container: an item you can stow in a hold when it's empty, and a
+-- floating box with a grid of its own (grid = { w, h }) when it isn't.
+-- fill lists what a loaded one can turn up: { item, min, max, chance }.
+function api.container(def)
+	register("items", "container", def)
+	for _, f in ipairs({ "volume", "mass", "price", "w", "h", "grid", "hp", "body" }) do need(def, f, "container") end
+	def.kind, def.stack = "container", 1
+	def.fill = def.fill or {}
+end
+
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
@@ -197,8 +207,20 @@ local function crossCheck()
 			end
 		end
 	end
+	for id, item in pairs(data.items) do
+		if item.kind == "container" then
+			for _, f in ipairs(item.fill) do
+				if not data.items[f[1]] then error(("container '%s' fills with unknown item '%s'"):format(id, tostring(f[1])), 0) end
+			end
+		end
+	end
 	for id, e in pairs(data.enemies) do
 		local h = data.hulls[e.hull]
+		for _, c in ipairs(e.containers and { e.containers[1] } or {}) do
+			if not data.items[c] or data.items[c].kind ~= "container" then
+				error(("enemy '%s' carries unknown container '%s'"):format(id, tostring(c)), 0)
+			end
+		end
 		if not h then error(("enemy '%s' uses unknown hull '%s'"):format(id, e.hull), 0) end
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end

@@ -1,5 +1,5 @@
 --[[
-	Hold items: ammo and salvage. Everything you carry takes hold volume
+	Hold items: ammo, salvage and containers. Everything you carry takes hold volume
 	(cubic metres) and adds mass (tonnes), so a hold full of shells makes
 	the ship sluggish. Prices are what markets charge (not used yet in the
 	flight toy, but they're the numbers the economy will be tuned with).
@@ -64,3 +64,15 @@ ammo { id = "drone_l", name = "Warden drone",  maker = "Nova Syndicate", family 
 
 salvage { id = "scrap",       name = "Scrap metal",      volume = 0.5, mass = 0.4, price = 60, w = 1, h = 1, stack = 2 }
 salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 0.3, price = 260, w = 1, h = 1, stack = 1 }
+
+-- Standard cargo container. Empty, it's an 8 x 5 item, too big for a
+-- Wisp's hold and only just fits an Anvil's. Out in space it's a box with
+-- an 8 x 4 grid inside: tap E on it to open it, hold E to tow it (or stow
+-- it, if it's empty and your hold has room). body is its size in pixels.
+container { id = "cargo_container", name = "Cargo container", maker = "Ferrous Collective",
+	volume = 40, mass = 4, price = 1200, w = 8, h = 5, grid = { 8, 4 }, hp = 90, body = { 46, 28 },
+	fill = {
+		{ "rounds_s_crate", 20, 120, 0.6 }, { "rounds_m_crate", 20, 80, 0.5 },
+		{ "shell_s_crate", 4, 18, 0.35 }, { "missile_s_crate", 2, 8, 0.3 },
+		{ "scrap", 2, 12, 0.7 }, { "salvage_kit", 1, 4, 0.4 },
+	} }

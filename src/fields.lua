@@ -10,6 +10,8 @@
 	             and an outer ring with gaps to fly through
 ]]
 
+local T = require("src.tuning")
+
 local Fields = {}
 
 local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
@@ -22,6 +24,7 @@ Fields.asteroids = {
 	radius = 10000,
 	build = function(game)
 		game:spawnAsteroids(220)
+		game:spawnContainers(T.fieldContainers)
 	end,
 }
 
@@ -32,6 +35,7 @@ Fields.giant = {
 	build = function(game)
 		game:spawnGiantAsteroid(0, 0, 1800)
 		game:spawnAsteroids(110)
+		game:spawnContainers(T.fieldContainers, 2200)
 	end,
 }
 
@@ -43,6 +47,7 @@ Fields.station = {
 		game:spawnWheelStation(0, 0, 1400, 160, 0.04)
 		-- A thin scattering of rocks well outside.
 		game:spawnAsteroids(70, 2200)
+		game:spawnContainers(T.fieldContainers, 2200)
 	end,
 }
 
@@ -99,6 +104,7 @@ local function planetField(name, R, rocks, scattered)
 				end
 			end
 			game:spawnAsteroids(scattered, R + 7500)
+			game:spawnContainers(T.fieldContainers, R + 7500)
 		end,
 	}
 end

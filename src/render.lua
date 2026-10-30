@@ -25,6 +25,7 @@ local COLORS = {
 	laser = { 0.6, 1.0, 1.0 },
 	ammo = { 1.0, 0.78, 0.25 },
 	salvage = { 0.45, 0.95, 0.85 },
+	container = { 0.95, 0.55, 0.2 },
 }
 Render.COLORS = COLORS
 
@@ -501,6 +502,10 @@ local function drawTractor(game)
 	lg.setLineWidth(1)
 	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)
 	local k = p.tractorTarget
+	if not k and p.towTarget and not p.towTarget.removed then
+		local tx, ty = p.towTarget.body:getPosition()
+		k = { x = tx, y = ty }
+	end
 	if k then
 		lg.setColor(c[1], c[2], c[3], 0.25)
 		lg.setLineWidth(6)
@@ -509,6 +514,39 @@ local function drawTractor(game)
 		lg.setLineWidth(1.5)
 		lg.line(x, y, k.x, k.y)
 	end
+end
+
+-- Cargo containers: a corrugated box, brighter when it has cargo in it.
+local function drawContainer(game, e)
+	local x, y = e.body:getPosition()
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	local c = COLORS.container
+	local full = next(e.loot) ~= nil
+	local w, h = e.w, e.h
+	lg.setColor(c[1] * 0.18, c[2] * 0.18, c[3] * 0.18)
+	lg.rectangle("fill", -w / 2, -h / 2, w, h)
+	lg.setColor(c[1], c[2], c[3], full and 0.9 or 0.45)
+	lg.setLineWidth(outline(1.5))
+	lg.rectangle("line", -w / 2, -h / 2, w, h)
+	lg.setLineWidth(outline(1))
+	lg.setColor(c[1], c[2], c[3], full and 0.45 or 0.2)
+	for i = 1, 5 do
+		local lx = -w / 2 + w * i / 6
+		lg.line(lx, -h / 2 + 3, lx, h / 2 - 3)
+	end
+	lg.pop()
+end
+
+-- What a tap of the tractor key would open: a ring around it.
+local function drawLootHover(game)
+	local e = game.hoverLoot
+	if not e or e.removed then return end
+	local x, y = e.body:getPosition()
+	lg.setColor(1, 1, 1, 0.55)
+	lg.setLineWidth(outline(1.5))
+	lg.circle("line", x, y, e.radius + 8, 48)
 end
 
 -- Husks: the dead ship's outline, burnt dark, with a faint glow of its
@@ -673,8 +711,10 @@ function Render.world(game)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then drawStation(game, e)
 		elseif e.kind == "buoy" then drawBuoy(game, e)
-		elseif e.kind == "husk" then drawHusk(game, e) end
+		elseif e.kind == "husk" then drawHusk(game, e)
+		elseif e.kind == "container" then drawContainer(game, e) end
 	end
+	drawLootHover(game)
 	drawTractor(game)
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do

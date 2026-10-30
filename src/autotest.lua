@@ -103,6 +103,12 @@ function A.intent(game, dt)
 		-- lasers at the drone straight "up"
 		it.aimX, it.aimY = px, py - 220
 		it.firePrimary = t > 31.4
+	elseif A.tow and not A.tow.removed then
+		-- hold the tractor on a container and fly away with it
+		it.aimX, it.aimY = A.tow.body:getPosition()
+		if game.time > A.towFrom + 0.3 then it.aimX, it.aimY = px + math.cos(p.body:getAngle()) * 300, py + math.sin(p.body:getAngle()) * 300 end
+		it.tractor = true
+		it.thrust = game.time > A.towFrom + 0.3 and 1 or 0
 	end
 	return it
 end
@@ -351,7 +357,89 @@ function A.update(game, dt)
 		shot("08_cargo_station")
 	end) end
 	if t >= 33.9 then once("cargo_done", function() game:undock() end) end
-	if t >= 34 then once("quit", function()
+	-- Looting: tap E on a container, Take All, tow one, shoot one, sink a Hauler.
+	if t >= 33.95 then once("loot_open", function()
+		local Cargo = require("src.ui.cargo")
+		local w = game.player
+		local px, py = w.body:getPosition()
+		local a = w.body:getAngle()
+		local c = game:spawnContainer(px + math.cos(a) * 110, py + math.sin(a) * 110, nil, true)
+		c.body:setLinearVelocity(w.body:getLinearVelocity())
+		A.lootBox = c
+		local n, parts = 0, {}
+		for id, k in pairs(c.loot) do n = n + 1; table.insert(parts, id .. " x" .. k) end
+		local cx, cy = c.body:getPosition()
+		w.intent.aimX, w.intent.aimY = cx, cy
+		w.intent.tractor = true
+		game:updatePickups(0)
+		w.intent.tractor = false
+		game:updatePickups(0)
+		Cargo.update(game)
+		local L = Cargo.layout(game)
+		log("loot: tapped E on a container (%s) -> window %s, %d sides, loot side %s",
+			table.concat(parts, ", "), tostring(Cargo.isOpen(game)), L and #L.sides or 0, L and L.sides[2] and L.sides[2].title or "none")
+		shot("09_loot")
+	end) end
+	if t >= 34.05 then once("loot_take", function()
+		local Cargo = require("src.ui.cargo")
+		local w = game.player
+		local L = Cargo.layout(game)
+		local side = L.sides[2]
+		local before = w.holdUsed
+		Cargo.mousepressed(game, side.take.x + 4, side.take.y + 4, 1)
+		local left = 0
+		for _, k in pairs(A.lootBox.loot) do left = left + k end
+		log("loot: Take All, hold %d -> %d / %d m3, left in the container %d items, container mass %.1f t",
+			before, w.holdUsed, Ship.holdCapacity(w), left, A.lootBox.body:getMass())
+		Cargo.close(game)
+		-- Wisp can't stow a container; an Anvil-sized hold (10 x 5) can.
+		local Hold = require("src.inventory.hold")
+		log("loot: room for a container: Wisp %d, 10 x 5 hold %d", Ship.canFit(w, "cargo_container", 1),
+			Hold.room(Hold.new({ { key = "hull", name = "x", w = 10, h = 5 } }), "cargo_container", 1))
+		-- reopen it, then fly out of range: it should close itself
+		game.openLoot = A.lootBox
+		Cargo.update(game)
+		local x, y = A.lootBox.body:getPosition()
+		A.lootBox.body:setPosition(x + 5000, y)
+		Cargo.update(game)
+		log("loot: moved the container away -> window open %s", tostring(Cargo.isOpen(game)))
+		-- tow a loaded one
+		local px, py = w.body:getPosition()
+		local a = w.body:getAngle()
+		A.tow = game:spawnContainer(px - math.cos(a) * 120, py - math.sin(a) * 120, nil, true)
+		A.tow.body:setLinearVelocity(w.body:getLinearVelocity())
+		A.towFrom = game.time
+	end) end
+	if t >= 35.3 then once("tow", function()
+		local w = game.player
+		local cx, cy = A.tow.body:getPosition()
+		local vx, vy = w.body:getLinearVelocity()
+		log("tow: towing %s, line %.0f px from the hull (slack %d), ship speed %.0f px/s (tow limit %d), container mass %.1f t",
+			tostring(w.towTarget == A.tow), Ship.distanceTo(w, cx, cy) - A.tow.radius, T.towLength, math.sqrt(vx * vx + vy * vy), T.towSpeed, A.tow.body:getMass())
+		shot("10_tow")
+		A.tow, A.towFrom = nil, nil
+		-- shoot it apart, eject a container, sink a Hauler
+		A.pickupsBefore = #game.pickups
+		local px, py = w.body:getPosition()
+		local box = game:spawnContainer(px + 400, py + 400, nil, true)
+		A.boxStacks = 0
+		for _, g in ipairs(box.hold.grids) do A.boxStacks = A.boxStacks + #g.stacks end
+		game:damage(box, 1e6)
+		local boxes = 0
+		for _, e in ipairs(game.entities) do if e.kind == "container" then boxes = boxes + 1 end end
+		A.boxesBefore = boxes
+		game:eject(w, "cargo_container", 1)
+		for _, e in ipairs(game.entities) do
+			if e.kind == "ship" and e.def and e.def.id == "freighter" then game:damage(e, 1e9); break end
+		end
+	end) end
+	if t >= 35.4 then once("spill", function()
+		local boxes = 0
+		for _, e in ipairs(game.entities) do if e.kind == "container" then boxes = boxes + 1 end end
+		log("loot: shot a loaded container with %d stacks -> pickups %d -> %d; containers %d -> %d after one ejected, the shot one gone and a Hauler sunk",
+			A.boxStacks, A.pickupsBefore, #game.pickups, A.boxesBefore, boxes)
+	end) end
+	if t >= 35.55 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
 	end) end

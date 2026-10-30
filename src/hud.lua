@@ -155,6 +155,7 @@ local HELP = {
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB auxiliary",
 	"Q auxiliary ammo size   E tractor beam",
+	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",

@@ -53,6 +53,15 @@ T.moduleSalvage = 0.5
 -- Station storage grid, in 1 m3 cells (every station has its own).
 T.storageW, T.storageH = 16, 12
 
+-- Looting and towing. A tap of the tractor key (shorter than tapTime
+-- seconds) on a wreck or container opens it; holding it tows a container
+-- on a towLength pixel line, and you can't fly faster than towSpeed.
+T.tapTime = 0.25
+T.towLength, T.towSpeed = 70, 220
+T.towStiffness, T.towDamping = 15, 6
+-- Loose loaded containers drifting in each field.
+T.fieldContainers = 6
+
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
 
