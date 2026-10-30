@@ -55,7 +55,7 @@ local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
 
 local GAP, PAD, HEAD = 16, 14, 40
-local tabRects, drawTabs, sendHome, drawTrade
+local tabRects, drawTabs, sendHome, drawTrade, targetKey
 
 -- Is the screen up?
 function Cargo.isOpen(game)
@@ -241,6 +241,10 @@ local function layout(game)
 			side.switch = { x = side.sort.x - 70, y = y + 12, w = 64, h = 22, label = side.parked and "Next" or "Ships" }
 		end
 		if side.parked then side.close = { x = side.switch.x - 28, y = y + 12, w = 22, h = 22 } end
+		-- with a parked ship open: which panel right-click sends things to
+		if targetKey(side) and Cargo.other and Cargo.tab == "cargo" then
+			side.target = { x = x + side.pw - PAD - 64, y = y + HEAD - 2, w = 64, h = 17 }
+		end
 		local gx, gy = x + PAD, y + HEAD + 18
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
@@ -253,6 +257,11 @@ local function layout(game)
 	end
 	L.bottom = y + ph
 	return L
+end
+
+-- The panels right-click can target: "hold", "storage" or "parked".
+function targetKey(side)
+	return side.ship and "hold" or side.storage and "storage" or side.parked and "parked" or nil
 end
 
 -- Which grid cell is under a screen point.
@@ -502,6 +511,24 @@ end
 
 -- Ctrl-click: send a stack to the other side.
 local function quickMove(game, L, r, s)
+	-- a parked ship's hold is open: right-click / Ctrl-click sends to the
+	-- target panel (Cargo.target; the parked ship to start with), and from
+	-- the target to your hold (or from your hold to storage)
+	local from = targetKey(r.side)
+	if from and r.side.target then
+		local tgt = Cargo.target or "parked"
+		local want = from ~= tgt and tgt or (tgt == "hold" and "storage" or "hold")
+		for _, sd in ipairs(L.sides) do
+			if targetKey(sd) == want then
+				local k = moveInto(sd.hold, s)
+				if k == 0 then game:toast("NO ROOM", 1) return end
+				s.n = s.n - k
+				if s.n <= 0 then Grid.remove(r.g, s) end
+				changed(r.side); changed(sd)
+				return
+			end
+		end
+	end
 	if Cargo.tab == "market" and game.state == "docked" then
 		if r.side.trade then
 			Grid.remove(r.g, s)
@@ -699,6 +726,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		end
 		for _, f in ipairs(side.filters or {}) do
 			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id return true end
+		end
+		if button == 1 and side.target and inRect(side.target, mx, my) then
+			Cargo.target = targetKey(side)
+			return true
 		end
 		if button == 1 and side.sort and inRect(side.sort, mx, my) then
 			if not Hold.sort(side.hold) then game:toast("CAN'T SORT: IT WOULDN'T ALL FIT", 1.4) end
@@ -1171,6 +1202,21 @@ function Cargo.draw(game)
 			lg.printf("Sort", b.x, b.y + 4, b.w, "center")
 		end
 		if side.trade then drawTrade(game, L, side, mx, my) end
+		local tg = side.target
+		if tg then
+			local on = (Cargo.target or "parked") == targetKey(side)
+			lg.setColor(0.3, 1, 0.5, on and 0.4 or (not Cargo.hand and inRect(tg, mx, my) and 0.22 or 0.08))
+			lg.rectangle("fill", tg.x, tg.y, tg.w, tg.h, 4, 4)
+			lg.setFont(HUD.font(11))
+			lg.setColor(on and HUD.INK or HUD.DIM)
+			lg.printf("Target", tg.x, tg.y + 2, tg.w, "center")
+			if on then
+				lg.setColor(0.3, 1, 0.5, 0.6)
+				lg.setLineWidth(2)
+				lg.rectangle("line", side.x + 1, side.y + 1, side.pw - 2, side.ph - 2, 10, 10)
+				lg.setLineWidth(1)
+			end
+		end
 		for _, f in ipairs(side.filters or {}) do
 			local on = Cargo.filter == f.id
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.4 or (inRect(f, mx, my) and 0.25 or 0.1))

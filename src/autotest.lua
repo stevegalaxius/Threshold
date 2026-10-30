@@ -562,6 +562,21 @@ function A.update(game, dt)
 		log("hangar: Cargo on the parked Anvil -> tab %s, panels: %s; ctrl-click moved %s: Anvil hold %d -> %d m3",
 			Cargo.tab, table.concat(titles, " | "), st.id, before, (Hold.cells(rec.hold)))
 		A.parkedCells = Hold.cells(rec.hold)
+		-- switch the right-click target to storage
+		L = Cargo.layout(game)
+		local storageSide
+		for _, sd in ipairs(L.sides) do if sd.storage then storageSide = sd end end
+		Cargo.mousepressed(game, storageSide.target.x + 4, storageSide.target.y + 4, 1)
+		local storage = game:stationStorage(A.st)
+		local s0 = Hold.cells(storage)
+		r, st = nil, nil
+		for _, gr in ipairs(L.grids) do
+			if gr.side.ship and not st then r, st = gr, gr.g.stacks[1] end
+		end
+		Cargo.mousepressed(game, r.x + (st.x + 0.5) * L.cs, r.y + (st.y + 0.5) * L.cs, 2)
+		local s1, a1 = Hold.cells(storage), Hold.cells(rec.hold)
+		log("hangar: target -> %s; right-click from your hold: storage %d -> %d m3, Anvil hold %d -> %d m3",
+			tostring(Cargo.target), s0, s1, A.parkedCells, a1)
 		shot("13_parked_cargo")
 	end) end
 	if t >= 35.85 then once("hangar_fly", function()
