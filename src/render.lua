@@ -422,6 +422,10 @@ local function drawShip(game, e)
 		puff(e.noseX * 0.4, s * R * 0.75, 0, s, k)
 		puff(e.tailX * 0.5, s * R * 0.75, 0, s, k)
 	end
+	if (e.foreBurn or 0) > 0.05 then                 -- jets standing in for the engine
+		puff(e.tailX * 0.8, -R * 0.3, -1, 0, e.foreBurn)
+		puff(e.tailX * 0.8, R * 0.3, -1, 0, e.foreBurn)
+	end
 	if e.retroBurn > 0.05 then
 		puff(e.noseX * 0.6, -R * 0.35, 1, 0, e.retroBurn)
 		puff(e.noseX * 0.6, R * 0.35, 1, 0, e.retroBurn)

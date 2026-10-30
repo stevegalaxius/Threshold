@@ -324,8 +324,12 @@ function A.update(game, dt)
 		Cargo.mousereleased(game, tx, ty, 1)
 		game:undock()
 		log("equip: thrusters out too: launch problem %s, undock -> state %s", tostring(Ship.launchProblem(w)), game.state)
-		Cargo.quickFit(game, ex, ey)
-		Cargo.quickFit(game, tx, ty)
+		local function dbl(x, y)                   -- a real double-click: press, release, press
+			Cargo.mousepressed(game, x, y, 1); Cargo.mousereleased(game, x, y, 1)
+			Cargo.mousepressed(game, x, y, 1); Cargo.mousereleased(game, x, y, 1)
+		end
+		dbl(ex, ey)
+		dbl(tx, ty)
 		log("equip: double-click refit, engine %s, thruster %s, thrust %.0f, launch problem: %s", tostring(w.loadout[eng.i]),
 			tostring(w.loadout[thr.i]), w.stats.thrust, tostring(Ship.launchProblem(w)))
 		local util = slotRow("utility")

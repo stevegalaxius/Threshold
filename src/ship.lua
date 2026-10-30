@@ -303,11 +303,16 @@ function Ship.fly(e, dt)
 	local retro = s.retroThrust * T.sideScale
 	local aux = s.sideThrust * T.sideScale
 	local scale = T.FORCE_PER_KN * T.thrustScale
-	local f = (e.spool * s.thrust * (burner and T.boostThrust or 1) + min(0, fwd) * retro) * scale
+	-- Maneuvering thrusters push forward too, but only matter when they
+	-- out-push the main engine (no engine fitted, or a very weak one).
+	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
+	local jets = max(0, fwd) * aux
+	local f = (max(engine, jets) + min(0, fwd) * retro) * scale
 	local l = side * aux * scale
 	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
-	e.mainBurn = e.spool
+	e.mainBurn = s.thrust > 0 and e.spool or 0
+	e.foreBurn = jets > engine and max(0, fwd) or 0
 	e.retroBurn = retro > 0 and max(0, -fwd) or 0
 	e.sideBurn = aux > 0 and side or 0
 
@@ -366,7 +371,7 @@ end
 -- Rough performance numbers for the debug readout.
 function Ship.performance(e)
 	local m = e.body:getMass()
-	local thrust = e.stats.thrust * T.FORCE_PER_KN * T.thrustScale
+	local thrust = max(e.stats.thrust, e.stats.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale
 	local k = e.hull.drag * T.dragScale
 	return {
 		mass = m,

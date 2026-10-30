@@ -371,8 +371,11 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	if not s then return true end
 	-- double-click a module to fit it
 	local now = love.timer.getTime()
-	local double = Cargo.lastClick and Cargo.lastClick.s == s and now - Cargo.lastClick.t < 0.35
-	Cargo.lastClick = { s = s, t = now }
+	-- (the first click picks the stack up and puts it back as a new one,
+	-- so match by place and item, not by the stack itself)
+	local c = Cargo.lastClick
+	local double = c and c.g == r.g and c.x == s.x and c.y == s.y and c.id == s.id and now - c.t < 0.35
+	Cargo.lastClick = { g = r.g, x = s.x, y = s.y, id = s.id, t = now }
 	if button == 1 and double and data.items[s.id].kind == "module" then
 		if game.state == "docked" then quickFit(game, L, r, s) else game:toast("DOCK AT A STATION TO REFIT", 1.4) end
 		return true
@@ -523,7 +526,7 @@ end
 local function handling(hull, loadout, cargoMass)
 	local s = stats.compute(hull, loadout)
 	local m = (s.mass + cargoMass) * T.massScale
-	local thrust = s.thrust * T.FORCE_PER_KN * T.thrustScale
+	local thrust = math.max(s.thrust, s.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale   -- jets stand in for a missing engine
 	return {
 		{ "Top speed", math.sqrt(thrust / (hull.drag * T.dragScale)), "%.0f px/s" },
 		{ "Acceleration", thrust / m, "%.0f px/s2" },
