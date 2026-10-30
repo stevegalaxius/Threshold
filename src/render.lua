@@ -111,7 +111,30 @@ local function drawGrid(game)
 	end
 end
 
+-- Re-entry glow: a hot plasma sheath on the leading side of anything
+-- ploughing through the atmosphere (e.reentry, set by Game:updateAtmosphere).
+local function drawReentry(e, size)
+	local h = e.reentry
+	if not h then return end
+	local x, y = e.body:getPosition()
+	local dx, dy = e.reentryX, e.reentryY
+	local flick = 0.85 + love.math.random() * 0.3
+	for k = 3, 1, -1 do
+		local r = size * (0.7 + k * 0.35) * flick
+		lg.setColor(1, 0.45 + k * 0.12, 0.15 + k * 0.1, 0.18 * h)
+		lg.circle("fill", x + dx * size * 0.35, y + dy * size * 0.35, r)
+	end
+	-- streaks trailing behind
+	lg.setLineWidth(max(2, size * 0.12))
+	lg.setColor(1, 0.6, 0.25, 0.45 * h)
+	for k = -1, 1 do
+		local ox, oy = -dy * k * size * 0.5, dx * k * size * 0.5
+		lg.line(x + ox, y + oy, x + ox - dx * size * (2 + 2 * h), y + oy - dy * size * (2 + 2 * h))
+	end
+end
+
 local function drawAsteroid(e)
+	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
 	lg.push()
 	lg.translate(x, y)
@@ -342,6 +365,7 @@ local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 
 local function drawShip(game, e)
 	if e.dockState and e.dockState.done then return end
+	drawReentry(e, e.halfLength)
 	local x, y = e.body:getPosition()
 	local a = e.body:getAngle()
 	local hull = e.hull

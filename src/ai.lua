@@ -45,6 +45,8 @@ local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
 			local orad = (o.kind == "ship") and o.halfLength or o.radius
+			-- keep out of a planet's atmosphere, not just off its surface
+			if o.kind == "planet" and game.well and game.well.atmo then orad = orad + game.well.atmo end
 			local clear = e.halfLength + orad + 50
 			local rx, ry = ox - x, oy - y
 			local reach = clear + (speed + 400) * HORIZON

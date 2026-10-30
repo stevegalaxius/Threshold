@@ -239,7 +239,8 @@ function Game:spawnPlanet(x, y, radius, flow, swirl)
 	f:setUserData(e)
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl }
+	-- atmo: how deep the atmosphere (the haze drawn round it) reaches
+	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, atmo = 840, planet = e }
 	return e
 end
 
@@ -292,6 +293,16 @@ function Game:applyCurrent(dt)
 				ax, ay = dx / r * c, dy / r * c
 			else
 				ax, ay = self:currentAt(x, y, vx, vy, true)
+				if e.orbitR then
+					-- steer a newly arrived rock into its lane: a damped
+					-- spring on its distance from the planet
+					local dx, dy = self.well.x - x, self.well.y - y
+					local r = max(sqrt(dx * dx + dy * dy), 1)
+					local nx, ny = dx / r, dy / r
+					local vr = -(vx * nx + vy * ny)          -- outward speed
+					local s = (r - e.orbitR) * 0.004 + vr * 0.13
+					ax, ay = ax + nx * s, ay + ny * s
+				end
 			end
 			local m = b:getMass()
 			b:applyForce(ax * m, ay * m)
@@ -300,6 +311,98 @@ function Game:applyCurrent(dt)
 	for _, p in ipairs(self.pickups) do
 		local ax, ay = self:currentAt(p.x, p.y, p.vx, p.vy, true)
 		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
+	end
+end
+
+-- Re-entry. Inside the planet's atmosphere things are dragged against the
+-- current, sink toward the surface, and heat up with speed: ships take
+-- heat damage and glow (e.reentry, 0..1, plus the direction of travel for
+-- the flame); rocks just glow. Deeper means thicker. Rocks that drifted
+-- back out of a re-entry respawn as usual only if they hit the ground.
+local REENTRY_DRAG, REENTRY_SINK, REENTRY_HEAT = 1.6, 60, 6
+
+function Game:updateAtmosphere(dt)
+	local w = self.well
+	if not w or not w.atmo then return end
+	for _, e in ipairs(self.entities) do
+		local b = e.body
+		e.reentry = nil
+		if not e.removed and not e.dockState and b:getType() == "dynamic" and (e.kind == "ship" or e.kind == "asteroid" or e.kind == "husk") then
+			local x, y = b:getPosition()
+			local dx, dy = w.x - x, w.y - y
+			local r = sqrt(dx * dx + dy * dy)
+			local depth = 1 - (r - w.radius) / w.atmo
+			if depth > 0 and r > 1 then
+				depth = min(1, depth)
+				local nx, ny = dx / r, dy / r
+				-- drag against the air, which moves with the current
+				local f = self:currentSpeed(r)
+				local vx, vy = b:getLinearVelocity()
+				local rvx, rvy = vx - ny * f, vy + nx * f
+				local m = b:getMass()
+				local k = REENTRY_DRAG * depth
+				b:applyForce((-rvx * k + nx * REENTRY_SINK * depth) * m, (-rvy * k + ny * REENTRY_SINK * depth) * m)
+				local rs = sqrt(rvx * rvx + rvy * rvy)
+				local heat = depth * min(1, rs / 400)
+				if heat > 0.05 then
+					e.reentry, e.reentryX, e.reentryY = heat, rvx / max(rs, 1), rvy / max(rs, 1)
+					if e.kind == "ship" then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
+				end
+			end
+		end
+	end
+end
+
+-- Hitting the planet itself: ships crash, wrecks burn up, and rocks
+-- shatter and are replaced by a new one falling in from the edge of the
+-- map onto an orbit.
+function Game:planetImpacts()
+	local w = self.well
+	if not w or not w.planet or w.planet.removed then return end
+	local hit = {}
+	for _, c in ipairs(w.planet.body:getContacts()) do
+		if c:isTouching() then
+			local fa, fb = c:getFixtures()
+			for _, f in ipairs({ fa, fb }) do
+				local o = f:getUserData()
+				if o and o ~= w.planet and not o.dead and not o.removed then hit[o] = true end
+			end
+		end
+	end
+	for o in pairs(hit) do
+		local x, y = o.body:getPosition()
+		if o.kind == "ship" and not o.dockState then
+			self:damage(o, 1e9, nil, "crash")
+			if o == self.player then self:toast("CRASHED", 2) end
+		elseif o.kind == "asteroid" then
+			local radius = o.radius
+			self:addEffect({ kind = "explosion", x = x, y = y, r = radius * 1.4, life = 0.5, t = 0, dust = true })
+			self:spark(x, y, 10, { 1, 0.6, 0.3 })
+			self:remove(o)
+			self:spawnInfallingAsteroid(radius)
+		elseif o.kind == "husk" then
+			self:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
+			self:remove(o)
+		end
+	end
+end
+
+-- A rock arriving from the edge of the map: it comes in moving with the
+-- current and is steered into a lane in the belt (e.orbitR, see
+-- applyCurrent), where it settles into orbit.
+function Game:spawnInfallingAsteroid(radius)
+	local w = self.well
+	local Rm = self.arenaRadius - 400
+	for _ = 1, 20 do
+		local a = random() * pi * 2
+		local x, y = w.x + cos(a) * Rm, w.y + sin(a) * Rm
+		if self:isClear(x, y, radius + 80) then
+			local e = self:spawnAsteroid(x, y, radius)
+			local f = self:currentSpeed(Rm)
+			e.body:setLinearVelocity(-sin(a) * f - cos(a) * 250, cos(a) * f - sin(a) * 250)
+			e.orbitR = w.radius + 1500 + random() * 4500
+			return e
+		end
 	end
 end
 
@@ -656,8 +759,10 @@ function Game:step(dt)
 
 	self:applyBoundary()
 	self:applyCurrent(dt)
+	self:updateAtmosphere(dt)
 	self:updateOrbits(dt)
 	self.world:update(dt)
+	self:planetImpacts()
 	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
