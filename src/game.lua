@@ -181,7 +181,7 @@ end
 -- Is a circle at (x, y) clear of asteroids and structures (by margin)?
 function Game:isClear(x, y, margin)
 	for _, o in ipairs(self.entities) do
-		if o.kind == "asteroid" or o.kind == "structure" or o.kind == "planet" then
+		if o.kind == "asteroid" or o.kind == "structure" or o.kind == "planet" or o.kind == "station" then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)
 			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + margin) ^ 2 then return false end
@@ -282,6 +282,44 @@ function Game:applyGravity(dt)
 		local ax, ay = self:gravityAt(p.x, p.y, p.vx, p.vy, true)
 		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
 	end
+end
+
+-- A wheel station (the classic 2001 shape): a round ring joined to a
+-- central hub by spokes, turning slowly. R is the ring's centre line, tube
+-- its thickness. The ring collides as many short pieces, but is drawn as a
+-- smooth circle. Indestructible, and kinematic so it turns without being
+-- pushed around.
+function Game:spawnWheelStation(x, y, R, tube, spin)
+	local body = love.physics.newBody(self.world, x, y, "kinematic")
+	body:setAngle(random() * pi * 2)
+	body:setAngularVelocity(spin or 0.04)
+	local hub = R * 0.2
+	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
+		ringR = R, tube = tube, hub = hub, spokes = 4, radius = R + tube / 2 }
+	local function add(shape)
+		local f = love.physics.newFixture(body, shape)
+		f:setFriction(0.5)
+		f:setRestitution(0.1)
+		f:setUserData(e)
+	end
+	local ri, ro, n = R - tube / 2, R + tube / 2, 72
+	for i = 0, n - 1 do
+		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
+		add(love.physics.newPolygonShape(cos(a1) * ri, sin(a1) * ri, cos(a1) * ro, sin(a1) * ro,
+			cos(a2) * ro, sin(a2) * ro, cos(a2) * ri, sin(a2) * ri))
+	end
+	add(love.physics.newCircleShape(hub))
+	local sw = tube * 0.22
+	for k = 0, e.spokes - 1 do
+		local a = k / e.spokes * pi * 2
+		local c, s = cos(a), sin(a)
+		local px, py = -s * sw, c * sw
+		add(love.physics.newPolygonShape(c * hub + px, s * hub + py, c * ri + px, s * ri + py,
+			c * ri - px, s * ri - py, c * hub - px, s * hub - py))
+	end
+	body:setUserData(e)
+	table.insert(self.entities, e)
+	return e
 end
 
 -- A static, indestructible piece of station: one convex polygon (world
