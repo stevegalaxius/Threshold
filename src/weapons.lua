@@ -203,6 +203,12 @@ function Weapons.update(game, e, dt)
 			or (slot.group == "auxiliary" and it.fireAux)
 		-- AI only fires a weapon when the target is roughly in its range.
 		if wants and it.targetDist and it.targetDist > Weapons.range(slot) * 1.05 then wants = false end
+		-- When the trigger goes down, delay each identical weapon by its
+		-- share of the fire interval so they ripple instead of volleying.
+		if wants and not slot.firing and slot.cooldown == 0 and slot.w.fireRate then
+			slot.cooldown = (slot.stagger or 0) / slot.w.fireRate
+		end
+		slot.firing = wants
 		if wants then fire(game, e, slot, dt) end
 	end
 	if e.massDirty then Ship.updateMass(e) end

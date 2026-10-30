@@ -107,6 +107,18 @@ function Ship.refit(e)
 			})
 		end
 	end
+	-- Stagger: identical weapons in the same fire group take turns instead of
+	-- firing in unison (see Weapons.update).
+	local count, seen = {}, {}
+	for _, w in ipairs(e.weapons) do
+		local key = w.group .. ":" .. w.module.id
+		count[key] = (count[key] or 0) + 1
+	end
+	for _, w in ipairs(e.weapons) do
+		local key = w.group .. ":" .. w.module.id
+		seen[key] = (seen[key] or 0) + 1
+		w.stagger = (seen[key] - 1) / count[key]
+	end
 
 	if e.armor then e.armor = min(e.armor, e.stats.armor) end
 	if e.power then e.power = min(e.power, e.stats.powerCap) end
