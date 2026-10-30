@@ -305,6 +305,7 @@ function Game:damage(e, amount, source, cause)
 	if e.isPlayer and T.dev.god then return end
 	e.armor = e.armor - amount
 	e.lastHitBy = source
+	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
 	if e.armor <= 0 then
