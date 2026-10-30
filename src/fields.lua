@@ -10,6 +10,8 @@
 	             and an outer ring with gaps to fly through
 ]]
 
+local T = require("src.tuning")
+
 local Fields = {}
 
 local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
@@ -56,9 +58,15 @@ Fields.planet = {
 		local R = 7500
 		game:spawnPlanet(0, 0, R, 45, 0.1)
 		-- Two wheel stations out past the belt.
-		-- They ride slow tracks around the planet at their altitude.
+		-- The first rides a slow track around the planet at its altitude.
 		game:setOrbit(game:spawnWheelStation(10500, -10700, 900, 120, 0.05), 0, 0, 90)
-		game:setOrbit(game:spawnWheelStation(-12000, 9000, 900, 120, -0.05), 0, 0, 90)
+		-- The second is simulated: launched at orbital speed, then left to
+		-- gravity, the well's current and whatever runs into it.
+		local sx, sy = -12000, 9000
+		local st = game:spawnWheelStation(sx, sy, 900, 120, -0.05, true)
+		local d = math.sqrt(sx * sx + sy * sy)
+		local v = math.sqrt(game.well.gm * T.gravityScale / d)
+		st.body:setLinearVelocity(-sy / d * v, sx / d * v)
 		-- A belt of rocks already in orbit, going the way the well turns.
 		local w = game.well
 		local placed = 0

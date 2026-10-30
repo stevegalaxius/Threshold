@@ -288,9 +288,10 @@ end
 -- central hub by spokes, turning slowly. R is the ring's centre line, tube
 -- its thickness. The ring collides as many short pieces, but is drawn as a
 -- smooth circle. Indestructible, and kinematic so it turns without being
--- pushed around.
-function Game:spawnWheelStation(x, y, R, tube, spin)
-	local body = love.physics.newBody(self.world, x, y, "kinematic")
+-- pushed around, unless simulated: then it's a very heavy dynamic body that
+-- gravity and collisions act on like anything else.
+function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
+	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
 	local hub = R * 0.2
@@ -316,6 +317,14 @@ function Game:spawnWheelStation(x, y, R, tube, spin)
 		local px, py = -s * sw, c * sw
 		add(love.physics.newPolygonShape(c * hub + px, s * hub + py, c * ri + px, s * ri + py,
 			c * ri - px, s * ri - py, c * hub - px, s * hub - py))
+	end
+	if simulated then
+		-- hundreds of times a battleship's mass, and no drag
+		local m = 300000
+		body:setMassData(0, 0, m, m * R * R)
+		body:setLinearDamping(0)
+		body:setAngularDamping(0)
+		body:setAngularVelocity(spin or 0.04)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
