@@ -63,6 +63,8 @@ function Game:loadField(id)
 	self.wave, self.waveTimer, self.kills = 0, 2.5, 0
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
+	self.arenaRadius = self.field.radius or 10000
+	self.well = nil
 	self.field.build(self)
 	self:spawnPlayer()
 	self:toast(self.field.name:upper(), 2)
@@ -163,7 +165,8 @@ function Game:spawnAsteroid(x, y, radius)
 	fixture:setFriction(0.5)
 	local m = 0.12 * radius * radius
 	body:setMassData(0, 0, m, m * radius * radius * 0.5)
-	body:setLinearDamping(0.25)
+	-- rocks around a planet keep their orbits, so no drag there
+	body:setLinearDamping(self.field and self.field.rockDrag or 0.25)
 	body:setAngularDamping(0.2)
 	body:setAngularVelocity((random() - 0.5) * 0.6)
 	body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
@@ -178,7 +181,7 @@ end
 -- Is a circle at (x, y) clear of asteroids and structures (by margin)?
 function Game:isClear(x, y, margin)
 	for _, o in ipairs(self.entities) do
-		if o.kind == "asteroid" or o.kind == "structure" then
+		if o.kind == "asteroid" or o.kind == "structure" or o.kind == "planet" then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)
 			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + margin) ^ 2 then return false end
@@ -187,7 +190,6 @@ function Game:isClear(x, y, margin)
 	return true
 end
 
--- Scatter n breakable asteroids, no closer than minD to the centre.
 -- One enormous rock, far too big to damage: a static body built from a
 -- fan of triangles around a lumpy outline.
 function Game:spawnGiantAsteroid(x, y, radius)
@@ -219,6 +221,69 @@ function Game:spawnGiantAsteroid(x, y, radius)
 	return e
 end
 
+-- A planet: a static, indestructible disc at the centre of a gravity well.
+-- g is the pull at the surface in px/s^2 (falling off with 1/r^2). The
+-- well turns: swirl is how hard it drags things toward circling at orbital
+-- speed (per second), so loose rocks settle into orbit and ships feel a
+-- current around the planet.
+function Game:spawnPlanet(x, y, radius, g, swirl)
+	local body = love.physics.newBody(self.world, x, y, "static")
+	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
+		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
+	local f = love.physics.newFixture(body, love.physics.newCircleShape(radius))
+	f:setFriction(0.6)
+	f:setRestitution(0.1)
+	f:setUserData(e)
+	body:setUserData(e)
+	table.insert(self.entities, e)
+	self.well = { x = x, y = y, radius = radius, gm = g * radius * radius, swirl = swirl }
+	return e
+end
+
+-- Acceleration from the gravity well on something at (x, y) moving at
+-- (vx, vy): the pull toward the centre, plus (if withSwirl) the drag of
+-- the turning well toward orbital speed.
+function Game:gravityAt(x, y, vx, vy, withSwirl)
+	local w = self.well
+	if not w then return 0, 0 end
+	local dx, dy = w.x - x, w.y - y
+	local r = max(sqrt(dx * dx + dy * dy), w.radius)
+	local g = T.gravityScale
+	local nx, ny = dx / r, dy / r
+	local a = w.gm / (r * r) * g
+	local ax, ay = nx * a, ny * a
+	if withSwirl then
+		-- tangent pointing the way the well turns (clockwise on screen)
+		local tx, ty = ny, -nx
+		local orbit = sqrt(w.gm * g / r)
+		local s = (orbit - (vx * tx + vy * ty)) * w.swirl
+		ax, ay = ax + tx * s, ay + ty * s
+	end
+	return ax, ay
+end
+
+function Game:applyGravity(dt)
+	if not self.well then return end
+	for _, e in ipairs(self.entities) do
+		local b = e.body
+		if not e.removed and b:getType() == "dynamic" then
+			local x, y = b:getPosition()
+			local vx, vy = b:getLinearVelocity()
+			local ax, ay = self:gravityAt(x, y, vx, vy, true)
+			local m = b:getMass()
+			b:applyForce(ax * m, ay * m)
+		end
+	end
+	for _, p in ipairs(self.projectiles) do
+		local ax, ay = self:gravityAt(p.x, p.y)
+		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
+	end
+	for _, p in ipairs(self.pickups) do
+		local ax, ay = self:gravityAt(p.x, p.y, p.vx, p.vy, true)
+		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
+	end
+end
+
 -- A static, indestructible piece of station: one convex polygon (world
 -- coordinates, up to 8 points). Each piece is its own entity, so the AI
 -- steers around pieces rather than the whole station.
@@ -240,6 +305,7 @@ function Game:addStructure(verts, opts)
 	return e
 end
 
+-- Scatter n breakable asteroids, no closer than minD to the centre.
 function Game:spawnAsteroids(n, minD)
 	minD = minD or 450
 	local placed = 0
@@ -336,6 +402,7 @@ function Game:step(dt)
 	end
 
 	self:applyBoundary()
+	self:applyGravity(dt)
 	self.world:update(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)

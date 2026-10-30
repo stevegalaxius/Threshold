@@ -104,7 +104,7 @@ local function drawGrid(game)
 
 	-- Arena edge
 	lg.setColor(COLORS.edge)
-	local R, n = game.arenaRadius, 180
+	local R, n = game.arenaRadius, 360
 	for i = 0, n - 1, 2 do
 		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
 		lg.line(cos(a1) * R, sin(a1) * R, cos(a2) * R, sin(a2) * R)
@@ -155,6 +155,42 @@ local function drawStructure(game, e)
 		lg.setColor(e.role == "ring" and { 1, 0.35, 0.3 } or { 0.5, 0.9, 1 })
 		for i = 1, #e.verts, 2 do lg.circle("fill", e.verts[i], e.verts[i + 1], r) end
 	end
+end
+
+-- The planet, with a hazy atmosphere and dashed rings that turn with the
+-- gravity well so you can see which way it drags you.
+local function drawPlanet(game, e)
+	local x, y = e.body:getPosition()
+	local R, c = e.radius, e.hue
+	local w = game.well
+	local dir = (w and w.swirl or 0) >= 0 and 1 or -1
+	lg.setLineWidth(outline(2))
+	for k = 1, 4 do
+		local rr = R * (1.3 + k * 0.55)
+		local n = 24 + k * 8
+		local turn = dir * game.time * 0.25 / k
+		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
+		for i = 0, n - 1, 2 do
+			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
+			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
+		end
+	end
+	for k = 6, 1, -1 do
+		lg.setColor(c[1], c[2], c[3], 0.05)
+		lg.circle("fill", x, y, R * (1 + k * 0.035))
+	end
+	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.4)
+	lg.circle("fill", x, y, R)
+	-- bands
+	lg.setColor(c[1] * 0.45, c[2] * 0.45, c[3] * 0.5)
+	for k = -2, 2 do
+		local by = y + k * R * 0.3
+		local hw = sqrt(max(0, R * R - (k * R * 0.3) ^ 2)) * 0.96
+		lg.rectangle("fill", x - hw, by - R * 0.05, hw * 2, R * 0.1)
+	end
+	lg.setColor(c[1], c[2], c[3], 0.9)
+	lg.setLineWidth(outline(3))
+	lg.circle("line", x, y, R)
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
@@ -440,6 +476,7 @@ function Render.world(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" then drawAsteroid(e)
 		elseif e.kind == "structure" then drawStructure(game, e)
+		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e) end
 	end
 	drawTractor(game)

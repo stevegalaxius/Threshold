@@ -14,22 +14,24 @@ local Fields = {}
 
 local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
 
-Fields.list = { "asteroids", "giant", "station" }
+Fields.list = { "asteroids", "giant", "station", "planet" }
 
 Fields.asteroids = {
 	name = "Asteroid field",
 	spawn = { 0, 0 },
+	radius = 10000,
 	build = function(game)
-		game:spawnAsteroids(60)
+		game:spawnAsteroids(220)
 	end,
 }
 
 Fields.giant = {
 	name = "Giant asteroid",
-	spawn = { 0, 1700 },
+	spawn = { 0, 2600 },
+	radius = 10000,
 	build = function(game)
-		game:spawnGiantAsteroid(0, 0, 1100)
-		game:spawnAsteroids(25)
+		game:spawnGiantAsteroid(0, 0, 1800)
+		game:spawnAsteroids(110)
 	end,
 }
 
@@ -54,6 +56,7 @@ end
 Fields.station = {
 	name = "Space station",
 	spawn = { 0, 1500 },
+	radius = 9000,
 	build = function(game)
 		-- Hub
 		game:addStructure(ngon(0, 0, 230, 8, pi / 8), { role = "hub" })
@@ -79,7 +82,35 @@ Fields.station = {
 			end
 		end
 		-- A thin scattering of rocks well outside.
-		game:spawnAsteroids(15, 1500)
+		game:spawnAsteroids(70, 1500)
+	end,
+}
+
+Fields.planet = {
+	name = "Planet",
+	spawn = { 0, 3400 },
+	radius = 12000,
+	rockDrag = 0,
+	build = function(game)
+		local R = 1400
+		game:spawnPlanet(0, 0, R, 150, 0.15)
+		-- A belt of rocks already in orbit, going the way the well turns.
+		local w = game.well
+		local placed = 0
+		for _ = 1, 900 do
+			if placed >= 90 then break end
+			local radius = 24 + random() ^ 2 * 80
+			local a = random() * pi * 2
+			local d = R * 2 + random() * R * 2.2
+			local x, y = cos(a) * d, sin(a) * d
+			if game:isClear(x, y, radius + 60) then
+				local e = game:spawnAsteroid(x, y, radius)
+				local v = math.sqrt(w.gm / d)
+				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				placed = placed + 1
+			end
+		end
+		game:spawnAsteroids(40, R * 5)
 	end,
 }
 
