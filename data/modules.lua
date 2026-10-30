@@ -31,7 +31,7 @@
 module {
 	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "primary", size = "S",
 	mass = 4, powerDraw = 1, price = 2200,
-	weapon = { kind = "gun", fireRate = 9, damage = 3, speed = 2600, range = 1000, spread = 2, gimbal = 10, knockback = 250, recoil = 40 },
+	weapon = { kind = "gun", fireRate = 450 / 60, damage = 3.6, speed = 2600, range = 1000, spread = 2, gimbal = 10, knockback = 250, recoil = 40 },
 }
 
 module {
