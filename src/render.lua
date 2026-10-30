@@ -113,7 +113,7 @@ local function drawAsteroid(e)
 		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
 		lg.polygon("fill", e.verts)
 		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
-		lg.setLineWidth(2)
+		lg.setLineWidth(outline(2))
 		lg.polygon("line", e.verts)
 	else
 		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
@@ -122,6 +122,13 @@ local function drawAsteroid(e)
 		lg.circle("line", 0, 0, e.radius * 0.9)
 	end
 	lg.pop()
+end
+
+-- Outlines are drawn in world units, so they'd thin to nothing zoomed out.
+-- outline(w) keeps a line at least about w * 0.7 screen pixels wide.
+local screenPx = 1
+local function outline(w)
+	return max(w, w * 0.7 * screenPx)
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
@@ -190,7 +197,7 @@ local function drawShip(game, e)
 			lg.setColor(dark)
 			lg.circle("fill", 0, 0, r)
 			lg.setColor(col)
-			lg.setLineWidth(1.5)
+			lg.setLineWidth(outline(1.5))
 			lg.circle("line", 0, 0, r)
 		end
 		lg.pop()
@@ -201,7 +208,7 @@ local function drawShip(game, e)
 	lg.setColor(dark)
 	lg.polygon("fill", hull.shape)
 	lg.setColor(col)
-	lg.setLineWidth(2)
+	lg.setLineWidth(outline(2))
 	lg.polygon("line", hull.shape)
 	if e.flash > 0 then
 		lg.setColor(1, 1, 1, 0.8)
@@ -255,7 +262,7 @@ local function drawHusk(game, h)
 	lg.setColor(0.06, 0.06, 0.07)
 	lg.polygon("fill", h.hull.shape)
 	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35)
-	lg.setLineWidth(2)
+	lg.setLineWidth(outline(2))
 	lg.polygon("line", h.hull.shape)
 	local f = sin(game.time * 7 + h.flicker) * sin(game.time * 3.1 + h.flicker * 2)
 	if f > 0.6 then
@@ -337,7 +344,7 @@ local function drawPickups(game)
 		local blink = 1
 		if k == game.hoverPickup then
 			lg.setColor(1, 1, 1, 0.6)
-			lg.setLineWidth(1.5)
+			lg.setLineWidth(outline(1.5))
 			lg.circle("line", k.x, k.y, 16)
 		end
 		lg.push()
@@ -346,7 +353,7 @@ local function drawPickups(game)
 		lg.setColor(c[1], c[2], c[3], 0.25 * blink)
 		lg.rectangle("fill", -8, -8, 16, 16)
 		lg.setColor(c[1], c[2], c[3], blink)
-		lg.setLineWidth(2)
+		lg.setLineWidth(outline(2))
 		lg.rectangle("line", -5, -5, 10, 10)
 		lg.pop()
 	end
@@ -391,6 +398,7 @@ local function drawRange(game)
 end
 
 function Render.world(game)
+	screenPx = 1 / game.camera.zoom
 	Render.background(game.camera)
 	game.camera:apply()
 	drawGrid(game)

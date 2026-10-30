@@ -148,7 +148,7 @@ local function fire(game, e, slot, dt)
 		p.life = ws.range / ws.speed
 		p.damage = ws.damage * mult.primaryDamage
 		p.burst = true
-		p.fuse = (ws.splash or 40) * 0.5
+		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
 	elseif w.kind == "missile" then
 		p.vx, p.vy = svx + dx * ws.speed * 0.4, svy + dy * ws.speed * 0.4
 		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate

@@ -15,7 +15,9 @@
 	  range      pixels (shots expire there)
 	  accel, turnRate   missiles only: acceleration and turn (rad/s)
 	Artillery and missiles burst on contact, at the end of their range, or
-	when they pass within half their splash radius of an enemy. Torpedoes
+	when they pass close to an enemy: missiles within half their splash
+	radius, shells within fuse pixels (default: the "Artillery proximity
+	fuse" tuning share of their splash radius). Torpedoes
 	are unguided and only burst on contact or at the end of their range.
 	Drones aren't shots: their shot table names the hull that launches
 	(hull), its gun ammo (cargo) and how many seconds it fights (life).
