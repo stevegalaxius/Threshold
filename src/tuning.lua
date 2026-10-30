@@ -81,20 +81,25 @@ T.driverFare, T.driverFarePerAU = 100, 60
 -- their real years relative to it).
 T.yearLength = 1800
 
--- The transit lane: length (base + per AU of distance), how far each side
--- of the median a lane runs, how soft the median is, the current's speed
--- and grip, how far around you things are kept, and how much there is.
+-- The transit lane: length (base + per AU of distance), the radius of its
+-- arc (at least; long lanes bend more gently), how far each side of the
+-- median a lane runs, how soft the median is, the current's speed and
+-- grip, how far around you things are kept, and how much there is.
 -- laneDerelict: the chance, each time something would spawn, of a derelict.
-T.laneBase, T.lanePerAU = 20000, 22000
+T.laneBase, T.lanePerAU = 20000, 13000
+T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
-T.laneFlow, T.laneSwirl = 1100, 0.6
-T.laneReach = 9000
-T.laneTraffic, T.laneRocks, T.laneDerelict = 10, 10, 0.04
+T.laneFlow, T.laneSwirl = 1800, 0.6
+T.laneReach = 12000
+T.laneTraffic, T.laneRocks, T.laneDerelict = 5, 5, 0.12
+-- The lane buff: thrust multiplier, with the afterburner, and drag
+-- multiplier, for every ship inside the lane.
+T.laneThrust, T.laneBoostThrust, T.laneDrag = 3, 6, 0.12
 
 -- Gas giants: how far below the cloud tops you can go before the crush
 -- starts, how much deeper it reaches full strength, its damage per
 -- second there, and its drag.
-T.crushStart = 15000
+T.crushStart = 2000
 T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
 
 -- Hangar bays: cells across and down, and how many pixels of hull length

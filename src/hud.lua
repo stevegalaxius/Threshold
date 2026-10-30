@@ -349,8 +349,8 @@ local function drawTrip(game)
 	local trip, lane, p = game.trip, game.lane, game.player
 	if not trip or not lane or not p or p.dead then return end
 	local w = lg.getWidth()
-	local x = p.body:getPosition()
-	local frac = math.max(0, math.min(1, (x + lane.half) / (lane.half * 2)))
+	local s = game:toLane(p.body:getPosition())
+	local frac = math.max(0, math.min(1, (s + lane.half) / (lane.half * 2)))
 	local bw = 360
 	lg.setFont(font(13))
 	lg.setColor(AQUA)

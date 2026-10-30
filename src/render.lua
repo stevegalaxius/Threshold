@@ -357,41 +357,58 @@ local function drawDriver(game, e)
 	end
 end
 
--- The transit lane: its walls, a dashed median, and chevrons drifting
--- the way each side flows.
+-- The transit lane: faint edges and a dashed median, following its arc.
 local function drawLane(game)
 	local lane = game.lane
-	local cam = game.camera
-	local w, h = lg.getDimensions()
-	local x1 = cam:toWorld(0, 0)
-	local x2 = cam:toWorld(w, h)
-	x1, x2 = max(x1, -lane.half), min(x2, lane.half)
+	local p = game.player
+	local ps = p and not p.dead and game:toLane(p.body:getPosition()) or 0
 	local W = T.laneWidth
-	lg.setLineWidth(outline(3))
-	lg.setColor(0.55, 0.85, 1, 0.35)
-	lg.line(x1, -W, x2, -W)
-	lg.line(x1, W, x2, W)
-	lg.setColor(1, 0.8, 0.35, 0.5)
-	local dash = 600
-	for x = floor(x1 / dash) * dash, x2, dash do lg.line(x, 0, x + dash / 2, 0) end
-	-- chevrons
-	local step = 1200
-	local shift = (game.time * T.laneFlow) % step
+	local s1, s2 = max(-lane.half, ps - 6000), min(lane.half, ps + 6000)
+	local step = 300
 	lg.setLineWidth(outline(2))
-	for _, s in ipairs({ -1, 1 }) do
-		local dir = -s
-		for x = floor(x1 / step) * step - step, x2 + step, step do
-			local cx = x + dir * shift
-			for _, yy in ipairs({ s * W * 0.2, s * W * 0.5, s * W * 0.8 }) do
-				lg.setColor(0.55, 0.85, 1, 0.25)
-				lg.line(cx - dir * 80, yy - 80, cx + dir * 40, yy, cx - dir * 80, yy + 80)
-			end
+	for _, n in ipairs({ -W, W }) do
+		lg.setColor(0.55, 0.85, 1, 0.18)
+		local pts = {}
+		for s = s1, s2, step do
+			local x, y = game:fromLane(s, n)
+			pts[#pts + 1] = x
+			pts[#pts + 1] = y
 		end
+		if #pts >= 4 then lg.line(pts) end
+	end
+	lg.setColor(1, 0.8, 0.35, 0.3)
+	for s = math.floor(s1 / 800) * 800, s2, 800 do
+		local x1, y1 = game:fromLane(s, 0)
+		local x2, y2 = game:fromLane(s + 400, 0)
+		lg.line(x1, y1, x2, y2)
 	end
 	-- the far end
-	lg.setColor(0.6, 0.95, 1, 0.6)
-	lg.setLineWidth(outline(4))
-	lg.line(lane.half, -W, lane.half, 0)
+	if lane.half - ps < 8000 then
+		local x1, y1 = game:fromLane(lane.half, -W)
+		local x2, y2 = game:fromLane(lane.half, 0)
+		lg.setColor(0.6, 0.95, 1, 0.6)
+		lg.setLineWidth(outline(4))
+		lg.line(x1, y1, x2, y2)
+	end
+end
+
+-- The lane buff: a crackling outline round any ship inside a transit
+-- lane, flaring with the afterburner.
+local function drawLaneBuff(e)
+	if not e.laneBuff or (e.dockState and e.dockState.done) then return end
+	local x, y = e.body:getPosition()
+	local size = e.halfLength
+	local hot = e.afterburn and 1 or 0
+	local flick = 0.85 + love.math.random() * 0.3
+	lg.setBlendMode("add")
+	for k = 3, 1, -1 do
+		lg.setColor(0.45 + hot * 0.5, 0.85, 1 - hot * 0.4, (0.1 + 0.08 * hot) * (1.4 - k * 0.3))
+		lg.circle("fill", x, y, size * (1 + k * 0.35 + hot * 0.4) * flick)
+	end
+	lg.setColor(0.8 + hot * 0.2, 0.95, 1, 0.5 + 0.3 * hot)
+	lg.setLineWidth(max(1.5, size * 0.06))
+	lg.circle("line", x, y, size * (1.15 + hot * 0.25) * flick, 24)
+	lg.setBlendMode("alpha")
 end
 
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
@@ -462,6 +479,7 @@ local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 local function drawShip(game, e)
 	if e.dockState and e.dockState.done then return end
 	drawReentry(e, e.halfLength)
+	drawLaneBuff(e)
 	local x, y = e.body:getPosition()
 	local a = e.body:getAngle()
 	local hull = e.hull

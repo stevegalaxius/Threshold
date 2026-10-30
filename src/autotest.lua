@@ -751,14 +751,15 @@ function A.update(game, dt)
 			game.fieldId, game.trip.from, game.trip.to, game.trip.au, game.trip.length, x, y, vx, A.credits1, game.universe.credits, n)
 		shot("14_lane")
 		-- skip to the far end
-		p.body:setPosition(game.lane.half - 300, y)
+		A.laneBuff = p.laneBuff
+		p.body:setPosition(game:fromLane(game.lane.half - 300, -1000))
 	end) end
 	if t >= 38.4 then once("travel_arrive", function()
 		local p = game.player
 		local vx, vy = p.body:getLinearVelocity()
 		local ladder = 0
 		for _, e in ipairs(game.entities) do if e.role == "ladder" or e.role == "tether" then ladder = ladder + 1 end end
-		log("travel: arrived in %s at %.0f px/s, %d Heaven-Ladder pieces", game.fieldId, math.sqrt(vx * vx + vy * vy), ladder)
+		log("travel: lane buff was %s; arrived in %s at %.0f px/s, %d Heaven-Ladder pieces", tostring(A.laneBuff), game.fieldId, math.sqrt(vx * vx + vy * vy), ladder)
 		shot("15_mars")
 		-- Jupiter: sink the ship below the cloud tops and watch the crush
 		local Ship = require("src.ship")

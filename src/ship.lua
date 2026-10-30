@@ -337,8 +337,11 @@ function Ship.fly(e, dt)
 	-- out-push the main engine (no engine fitted, or a very weak one).
 	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
 	local jets = max(0, fwd) * aux
-	local f = (max(engine, jets) + min(0, fwd) * retro) * scale
-	local l = side * aux * scale
+	-- in a transit lane (e.laneBuff, src/transit.lua) every thruster hits
+	-- far harder, and the afterburner harder still
+	local buff = e.laneBuff and (burner and T.laneBoostThrust or T.laneThrust) or 1
+	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
+	local l = side * aux * scale * buff
 	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = s.thrust > 0 and e.spool or 0
@@ -354,7 +357,7 @@ function Ship.fly(e, dt)
 	local vx, vy = b:getLinearVelocity()
 	vx, vy = vx - (e.flowX or 0), vy - (e.flowY or 0)
 	local speed = sqrt(vx * vx + vy * vy)
-	local k = e.hull.drag * T.dragScale
+	local k = e.hull.drag * T.dragScale * (e.laneBuff and T.laneDrag or 1)
 	b:applyForce(-k * speed * vx, -k * speed * vy)
 	b:setLinearDamping(T.linearDamping)
 	-- Box2D's damping slows against the world; push back so it, too, only
