@@ -157,19 +157,30 @@ end
 function Game:arrive()
 	local p, trip = self.player, self.trip
 	if not p or p.dead or not trip then return end
+	-- keep your heading and velocity relative to the lane: along it
+	-- becomes in from the driver
+	local x, y = p.body:getPosition()
+	local _, _, phi = self:toLane(x, y)
+	local vx, vy = p.body:getLinearVelocity()
+	local tx, ty = cos(phi), sin(phi)
+	local exit = { along = vx * tx + vy * ty, across = -vx * ty + vy * tx, turn = p.body:getAngle() - phi }
 	self.trip = nil
-	self:loadField(trip.to, { player = Ship.record(p), at = { driver = trip.from } })
+	self:loadField(trip.to, { player = Ship.record(p), at = { driver = trip.from, exit = exit } })
 end
 
--- Out of this planet's driver heading inward at the driver's exit speed.
-function Game:placeAtDriver(p)
+-- Out of this planet's driver heading inward, at the driver's exit speed,
+-- or as you left the lane (exit = { along, across, turn }).
+function Game:placeAtDriver(p, exit)
 	local g = self:findDriver()
 	if not g then return false end
 	local gx, gy = g.body:getPosition()
 	local ix, iy = -cos(g.angle), -sin(g.angle)
+	local a = math.atan2(iy, ix)
+	local along, across, turn = T.driverExitSpeed, 0, 0
+	if exit then along, across, turn = exit.along, exit.across, exit.turn end
 	p.body:setPosition(gx + ix * (T.driverRadius + 300), gy + iy * (T.driverRadius + 300))
-	p.body:setAngle(math.atan2(iy, ix))
-	p.body:setLinearVelocity(ix * T.driverExitSpeed, iy * T.driverExitSpeed)
+	p.body:setAngle(a + turn)
+	p.body:setLinearVelocity(ix * along - iy * across, iy * along + ix * across)
 	p.driverCooldown = T.driverCooldown
 	self.camera.x, self.camera.y = p.body:getPosition()
 	return true

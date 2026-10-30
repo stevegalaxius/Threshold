@@ -104,7 +104,7 @@ function Game:placePlayer(rec, at)
 		local st = self:findStation(at.station)
 		if st and st.dock then self:dockInstantly(p, st) return p end
 	end
-	if at.driver and self:placeAtDriver(p) then return p end
+	if at.driver and self:placeAtDriver(p, at.exit) then return p end
 	if at.x then
 		p.body:setPosition(at.x, at.y)
 		p.body:setAngle(at.angle or 0)
