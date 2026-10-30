@@ -60,7 +60,7 @@ local function planetField(name, R, rocks, scattered)
 		radius = R + 16500,
 		rockDrag = 0,
 		build = function(game)
-			game:spawnPlanet(0, 0, R, 580, 0.1)
+			game:spawnPlanet(0, 0, R, 290, 0.1)
 			-- Two wheel stations out past the belt.
 			-- Both ride a track around the planet at opposite ends, moving at
 			-- the current's speed at that altitude (what a free station drifts at).

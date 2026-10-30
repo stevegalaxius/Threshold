@@ -15,7 +15,8 @@
 	              ramp-up makes heavy hulls feel heavy (default 0, instant)
 	  helm   how A/D steer it: "strafe" (default) fires the side thrusters,
 	         "turn" rotates the hull instead and the mouse only aims the
-	         guns. Battleships use "turn": no thruster slot, no strafing.
+	         guns. Battleships use "turn": they never strafe, and the side
+	         jets in their thruster slot add turning torque instead.
 	  turnSpeed  optional cap on spin speed in degrees/second, so a heavy hull
 	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
@@ -80,8 +81,8 @@ hull {
 }
 
 -- Battleship: huge, slow to turn, and every gun is on a turret, so it can
--- fight in every direction at once while the hull lumbers along. No
--- thruster slot: it can't strafe, and A/D turn the hull instead.
+-- fight in every direction at once while the hull lumbers along. It can't
+-- strafe: A/D turn the hull, and side jets help it turn.
 hull {
 	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
 	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
@@ -97,9 +98,10 @@ hull {
 		{ family = "engine",    size = "L", x = -132, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
+		{ family = "thruster",  size = "any" },
 	},
 	loadout = { "long_tom", "long_tom", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "trident_bay",
-		"cinder_drive", "kiln_reactor", "hold_pod_m" },
+		"cinder_drive", "kiln_reactor", "hold_pod_m", "aux_thrusters_m" },
 	cargo = { shell_l = 60, rounds_m = 1000, missile_l = 6, missile_m = 6 },
 	price = 95000,
 }
@@ -118,8 +120,9 @@ hull {
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
 		{ family = "utility",   size = "any" },
+		{ family = "thruster",  size = "any" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "kiln_reactor", "hold_pod_m", "hold_pod_m" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "kiln_reactor", "hold_pod_m", "hold_pod_m", "aux_thrusters_m" },
 	cargo = { rounds_m = 600 },
 	price = 70000,
 }

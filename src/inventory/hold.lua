@@ -11,6 +11,10 @@
 	first space that fits, trying each grid unrotated before rotated.
 	Taking empties the smallest stacks first, so firing frees whole cells
 	instead of thinning every stack.
+
+	A stack can carry a hold of its own (stack.inner): a loaded cargo
+	container. Those are never split up or rebuilt from counts; sorting and
+	relayouts move the stack itself (placeStack), so what's inside stays.
 ]]
 
 local Grid = require("src.inventory.grid")
@@ -88,6 +92,42 @@ local function findSpot(h, w, ht, rand)
 	return nil
 end
 
+-- Put an existing stack (one that carries something, like a loaded
+-- container) in the first space that fits, keeping the stack table.
+-- Returns true if it went in.
+function Hold.placeStack(h, s, rand)
+	local w, ht = Shapes.of(s.id)
+	local g, x, y, fw, fh, rot = findSpot(h, w, ht, rand)
+	if not g then return false end
+	s.x, s.y, s.w, s.h, s.rot = x, y, fw, fh, rot
+	Grid.place(g, s)
+	return true
+end
+
+-- Mass of whatever loaded containers in the hold carry.
+function Hold.innerMass(h, items)
+	local m = 0
+	for _, g in ipairs(h.grids) do
+		for _, s in ipairs(g.stacks) do
+			if s.inner then
+				for id, n in pairs(Hold.totals(s.inner)) do m = m + items[id].mass * n end
+			end
+		end
+	end
+	return m
+end
+
+-- Stacks that carry something, and the counts of everything else.
+local function split(h)
+	local carried, counts = {}, {}
+	for _, g in ipairs(h.grids) do
+		for _, s in ipairs(g.stacks) do
+			if s.inner then table.insert(carried, s) else counts[s.id] = (counts[s.id] or 0) + s.n end
+		end
+	end
+	return carried, counts
+end
+
 -- Add up to n of an item; returns how many went in.
 -- opts.random: a random(a, b) function, to scatter stacks loosely.
 function Hold.add(h, id, n, opts)
@@ -122,7 +162,11 @@ function Hold.take(h, id, n)
 			if s.id == id then table.insert(list, { g = g, s = s }) end
 		end
 	end
-	table.sort(list, function(a, b) return a.s.n < b.s.n end)
+	-- smallest first, and loaded containers last of all
+	table.sort(list, function(a, b)
+		if (a.s.inner ~= nil) ~= (b.s.inner ~= nil) then return b.s.inner ~= nil end
+		return a.s.n < b.s.n
+	end)
 	local left = n
 	for _, e in ipairs(list) do
 		if left <= 0 then break end
@@ -187,7 +231,7 @@ function Hold.clone(h)
 		local cg = Grid.new(g.w, g.h, g.name)
 		cg.key = g.key
 		for _, s in ipairs(g.stacks) do
-			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot })
+			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner })
 		end
 		table.insert(c.grids, cg)
 	end
@@ -206,7 +250,18 @@ function Hold.sort(h)
 	local layout = {}
 	for _, g in ipairs(h.grids) do table.insert(layout, { key = g.key, name = g.name, w = g.w, h = g.h }) end
 	local n = Hold.new(layout)
-	if next(Hold.fill(n, Hold.totals(h))) then return false end
+	local carried, counts = split(h)
+	local saved = {}
+	for _, s in ipairs(carried) do saved[s] = { s.x, s.y, s.w, s.h, s.rot } end
+	local ok = true
+	for _, s in ipairs(carried) do
+		if not Hold.placeStack(n, s) then ok = false end
+	end
+	if ok and next(Hold.fill(n, counts)) then ok = false end
+	if not ok then
+		for s, v in pairs(saved) do s.x, s.y, s.w, s.h, s.rot = v[1], v[2], v[3], v[4], v[5] end
+		return false
+	end
 	h.grids = n.grids
 	return true
 end
@@ -227,21 +282,34 @@ function Hold.relayout(h, layout)
 		end
 	end
 	for _, o in pairs(old) do
-		for _, s in ipairs(o.stacks) do moved[s.id] = (moved[s.id] or 0) + s.n end
+		for _, s in ipairs(o.stacks) do
+			-- (a loaded container that no longer fits anywhere is counted as
+			-- an empty one in the overflow)
+			if not (s.inner and Hold.placeStack(nh, s)) then moved[s.id] = (moved[s.id] or 0) + s.n end
+		end
 	end
 	return nh, Hold.fill(nh, moved)
 end
 
 -- A single loosely packed grid for counts (a husk's wreckage). It starts
 -- w x h and grows downward until everything is in, so nothing is lost.
-function Hold.pack(counts, w, h, name, random)
+-- stacks: ready-made stacks (loaded containers) to put in first.
+function Hold.pack(counts, w, h, name, random, stacks)
 	local ids = packingOrder(counts)
 	for _, id in ipairs(ids) do
 		local sw, sh = Shapes.of(id)
 		w = math.max(w, min(sw, sh))         -- wide enough for everything, rotated if need be
 	end
+	for _, s in ipairs(stacks or {}) do
+		local sw, sh = Shapes.of(s.id)
+		w = math.max(w, min(sw, sh))
+	end
 	local hold = Hold.new({ { key = "main", name = name, w = w, h = h } })
 	local g = hold.grids[1]
+	for _, s in ipairs(stacks or {}) do
+		local sw, sh = Shapes.of(s.id)
+		while not Hold.placeStack(hold, s, random) do Grid.addRows(g, math.max(sw, sh)) end
+	end
 	for _, id in ipairs(ids) do
 		local sw, sh = Shapes.of(id)
 		local left = counts[id] - Hold.add(hold, id, counts[id], { random = random })

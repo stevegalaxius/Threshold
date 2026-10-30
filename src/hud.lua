@@ -251,7 +251,7 @@ end
 local KIND_COLOR = {
 	gun = { 0.45, 0.75, 1 }, artillery = { 1, 0.55, 0.4 }, missile = { 0.4, 0.9, 0.65 },
 	torpedo = { 0.95, 0.8, 0.35 }, drone = { 0.8, 0.55, 1 }, crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
-	module = { 0.95, 0.95, 0.95 },
+	module = { 0.95, 0.95, 0.95 }, container = { 0.95, 0.55, 0.2 },
 }
 
 local function itemColor(item)

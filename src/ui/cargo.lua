@@ -10,6 +10,10 @@
 	            to your hold. Take All, Ctrl-click or right-click takes;
 	            it closes when you drift out of range.
 
+	A loaded cargo container in any hold (a Hauler's wreck packs its cargo
+	in them) opens with a double-click as one more panel. A ship with room
+	can move the whole container across instead.
+
 	Mouse:
 	  drag            pick up a stack and drop it somewhere else; dropping
 	                  on a part-full stack of the same item tops it up
@@ -58,6 +62,23 @@ local function sides(game)
 		local e = Cargo.loot
 		table.insert(list, { title = e.kind == "husk" and "Wreck" or "Container", hold = e.hold, entity = e })
 	end
+	-- an opened container, if it's still in one of the holds on show
+	-- (Cargo.inner is the container's own hold: the stack table holding it
+	-- changes whenever it's picked up and put down)
+	local c = Cargo.inner
+	if c then
+		local parent
+		for _, side in ipairs(list) do
+			for _, g in ipairs(side.hold.grids) do
+				for _, st in ipairs(g.stacks) do if st.inner == c then parent = side end end
+			end
+		end
+		if parent then
+			table.insert(list, { title = "Container", hold = c, innerOf = c, parent = parent })
+		elseif not (Cargo.hand and Cargo.hand.inner == c) then
+			Cargo.inner = nil
+		end
+	end
 	return list
 end
 
@@ -71,7 +92,10 @@ local function layout(game)
 	local list = sides(game)
 	if #list == 0 then return nil end
 	local p = game.player
-	local eh = HEAD + HULL_H + #p.hull.slots * ROW + PAD
+	-- in space the equipment panel is only a readout; with three holds up
+	-- it makes way for them
+	local showEquip = game.state == "docked" or #list < 3
+	local eh = showEquip and (HEAD + HULL_H + #p.hull.slots * ROW + PAD) or 0
 	local function size(side, cs)
 		local g1 = side.hold.grids[1]
 		local w, rowW, rowH = g1.w * cs, 0, 0
@@ -81,10 +105,10 @@ local function layout(game)
 			rowH = max(rowH, g.h * cs)
 		end
 		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0)
-		return max(w, rowW, 300), h
+		return max(w, rowW, side.innerOf and 380 or side.entity and 340 or 300), h
 	end
 	local function measure(cs)
-		local tw, th = EW + GAP, 0
+		local tw, th = showEquip and (EW + GAP) or 0, 0
 		for i, side in ipairs(list) do
 			local w, h = size(side, cs)
 			tw, th = tw + w + PAD * 2 + (i > 1 and GAP or 0), max(th, h)
@@ -104,18 +128,23 @@ local function layout(game)
 	local y = max(56, floor((sh - ph - 50) / 2))
 
 	-- Equipment: the hull outline with numbered hardpoints, then a row per slot.
-	local E = { x = x, y = y, pw = EW, ph = ph, slots = {} }
+	local E = { x = x, y = y, pw = EW, ph = ph, slots = {}, hidden = not showEquip }
 	E.hull = { x = x + PAD, y = y + HEAD, w = EW - PAD * 2, h = HULL_H - 16 }
-	for i, slot in ipairs(p.hull.slots) do
-		table.insert(E.slots, { i = i, slot = slot, x = x + PAD, y = y + HEAD + HULL_H + (i - 1) * ROW, w = EW - PAD * 2, h = ROW - 4 })
+	if showEquip then
+		for i, slot in ipairs(p.hull.slots) do
+			table.insert(E.slots, { i = i, slot = slot, x = x + PAD, y = y + HEAD + HULL_H + (i - 1) * ROW, w = EW - PAD * 2, h = ROW - 4 })
+		end
+		x = x + EW + GAP
+	else
+		E.pw, E.ph = 0, 0
 	end
 	L.equip = E
-	x = x + EW + GAP
 
 	for _, side in ipairs(list) do
 		side.x, side.y, side.pw, side.ph = x, y, side.w + PAD * 2, ph
 		side.sort = { x = x + side.pw - PAD - 56, y = y + 12, w = 56, h = 22 }
-		if side.entity then side.take = { x = side.sort.x - 82, y = y + 12, w = 76, h = 22 } end
+		if side.entity or side.innerOf then side.take = { x = side.sort.x - 82, y = y + 12, w = 76, h = 22 } end
+		if side.innerOf then side.close = { x = side.take.x - 28, y = y + 12, w = 22, h = 22 } end
 		local gx, gy = x + PAD, y + HEAD + 18
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
@@ -148,14 +177,27 @@ local function overPanel(L, mx, my)
 end
 
 -- After any change to a ship's hold: the cargo counts, mass and HUD follow.
-local function changed(side)
+local changed
+function changed(side)
 	if side and side.ship then
 		side.ship.cargo = Hold.totals(side.ship.hold)    -- a refit can swap the hold table
 		Ship.updateMass(side.ship)
 	elseif side and side.entity then
 		side.entity.loot = Hold.totals(side.hold)
 		side.entity.massDirty = true                     -- the game reweighs containers
+	elseif side and side.parent then
+		changed(side.parent)                             -- what a container holds weighs on its hold
 	end
+end
+
+-- Move a whole stack into a hold; returns how many went in. A loaded
+-- container goes as itself (the same stack, so its cargo comes along).
+local function moveInto(hold, s)
+	if s.inner then
+		local copy = { id = s.id, n = s.n, inner = s.inner }
+		return Hold.placeStack(hold, copy) and s.n or 0
+	end
+	return Hold.add(hold, s.id, s.n)
 end
 
 local function sideOf(L, hold)
@@ -185,16 +227,16 @@ local function returnHand(game)
 	end
 	local fw, fh = h.w0, h.h0
 	if Grid.isFree(f.grid, f.x, f.y, fw, fh) then
-		Grid.place(f.grid, { id = h.id, n = h.n, x = f.x, y = f.y, w = fw, h = fh, rot = h.rot0 })
+		Grid.place(f.grid, { id = h.id, n = h.n, x = f.x, y = f.y, w = fw, h = fh, rot = h.rot0, inner = h.inner })
 		return
 	end
 	local hold = (h.side and h.side.ship) and h.side.ship.hold or f.hold
-	local left = h.n - Hold.add(hold, h.id, h.n)
+	local left = h.n - moveInto(hold, h)
 	local p = game.player
 	if left > 0 and p and p.dockState and p.dockState.done then
-		left = left - Hold.add(game:stationStorage(p.dockState.station), h.id, left)
+		left = left - moveInto(game:stationStorage(p.dockState.station), { id = h.id, n = left, inner = h.inner })
 	end
-	if left > 0 and p and not p.dead then game:eject(p, h.id, left) end
+	if left > 0 and p and not p.dead then game:eject(p, h.id, left, h.inner) end
 end
 
 local function finish(game, L)
@@ -270,12 +312,12 @@ end
 
 -- Ctrl-click: send a stack to the other side.
 local function quickMove(game, L, r, s)
-	local other
-	for _, side in ipairs(L.sides) do
-		if side ~= r.side then other = side end
-	end
-	if not other then return end
-	local k = Hold.add(other.hold, s.id, s.n)
+	-- from your hold to the last panel (an open container, the wreck or
+	-- storage); from anywhere else to your hold
+	local other = r.side.ship and L.sides[#L.sides] or playerSideOf(L)
+	if not other or other == r.side then return end
+	if s.inner == other.hold then return end            -- not into itself
+	local k = moveInto(other.hold, s)
 	if k == 0 then game:toast("NO ROOM", 1) return end
 	s.n = s.n - k
 	if s.n <= 0 then Grid.remove(r.g, s) end
@@ -290,7 +332,7 @@ local function takeAll(game, L, side)
 	for _, g in ipairs(side.hold.grids) do
 		for i = #g.stacks, 1, -1 do
 			local s = g.stacks[i]
-			local k = Hold.add(mine.hold, s.id, s.n)
+			local k = moveInto(mine.hold, s)
 			s.n = s.n - k
 			if s.n <= 0 then Grid.remove(g, s) else full = true end
 		end
@@ -424,6 +466,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			changed(side)
 			return true
 		end
+		if button == 1 and side.close and inRect(side.close, mx, my) then
+			Cargo.inner = nil
+			return true
+		end
 		if button == 1 and side.take and inRect(side.take, mx, my) then
 			takeAll(game, L, side)
 			return true
@@ -441,13 +487,17 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local c = Cargo.lastClick
 	local double = c and c.g == r.g and c.x == s.x and c.y == s.y and c.id == s.id and now - c.t < 0.35
 	Cargo.lastClick = { g = r.g, x = s.x, y = s.y, id = s.id, t = now }
+	if button == 1 and double and data.items[s.id].kind == "container" then
+		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
+		return true
+	end
 	if button == 1 and double and data.items[s.id].kind == "module" then
 		if game.state == "docked" then quickFit(game, L, r, s) else game:toast("DOCK AT A STATION TO REFIT", 1.4) end
 		return true
 	end
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
-	if button == 2 and r.side.entity then
+	if button == 2 and (r.side.entity or r.side.innerOf) then
 		quickMove(game, L, r, s)                   -- right-click loot: take it
 	elseif button == 2 then
 		if game.state == "docked" then
@@ -455,7 +505,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		else
 			Grid.remove(r.g, s)
 			changed(r.side)
-			game:eject(r.side.ship, s.id, s.n)
+			game:eject(r.side.ship, s.id, s.n, s.inner)
 		end
 	elseif button == 1 and ctrl then
 		quickMove(game, L, r, s)
@@ -463,7 +513,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		local take = s.n
 		if shift and s.n > 1 then take = floor(s.n / 2) end
 		local hand = {
-			id = s.id, n = take, w = s.w, h = s.h, rot = s.rot, w0 = s.w, h0 = s.h, rot0 = s.rot,
+			id = s.id, n = take, w = s.w, h = s.h, rot = s.rot, w0 = s.w, h0 = s.h, rot0 = s.rot, inner = s.inner,
 			dx = cx - s.x, dy = cy - s.y, side = r.side,
 			from = { grid = r.g, hold = r.side.hold, x = s.x, y = s.y },
 		}
@@ -486,6 +536,7 @@ local function dropSpot(L, mx, my)
 	local r, cx, cy = cellAt(L, mx, my)
 	if not r then return nil end
 	local x, y = cx - h.dx, cy - h.dy
+	if h.inner and r.side.hold == h.inner then return r, x, y, "blocked" end   -- not into itself
 	local target = Grid.at(r.g, cx, cy)
 	local _, _, cap = Shapes.of(h.id)
 	if target and target.id == h.id and target.n < cap then
@@ -513,11 +564,11 @@ function Cargo.mousereleased(game, mx, my, button)
 		changed(r.side); changed(h.side)
 	elseif how == "place" then
 		Cargo.hand = nil
-		Grid.place(r.g, { id = h.id, n = h.n, x = x, y = y, w = h.w, h = h.h, rot = h.rot })
+		Grid.place(r.g, { id = h.id, n = h.n, x = x, y = y, w = h.w, h = h.h, rot = h.rot, inner = h.inner })
 		changed(r.side); changed(h.side)
 	elseif not r and not overPanel(L, mx, my) and game.state ~= "docked" and h.side.ship then
 		Cargo.hand = nil
-		game:eject(h.side.ship, h.id, h.n)
+		game:eject(h.side.ship, h.id, h.n, h.inner)
 		changed(h.side)
 	else
 		finish(game, L)
@@ -552,7 +603,7 @@ local function drawStack(item, n, x, y, w, h, cs, alpha)
 		lg.setFont(HUD.font(cs >= 24 and 11 or 9))
 		lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
 		if n > 1 then lg.printf(n, x, y + h - (cs >= 24 and 16 or 13), w - 5, "right") end
-		if w >= cs * 2 then
+		if w >= cs * 2 and cs >= 22 then
 			lg.printf(item.name, x + 5, y + 4, w - 10, "left")
 		end
 	end
@@ -640,6 +691,7 @@ end
 
 local function drawEquipment(game, L, mx, my)
 	local p, E, h = game.player, L.equip, Cargo.hand
+	if E.hidden then return end
 	local docked = game.state == "docked"
 	HUD.panel(E.x, E.y, E.pw, E.ph)
 	lg.setFont(HUD.font(16))
@@ -745,7 +797,7 @@ function Cargo.draw(game)
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
 		lg.setColor(HUD.DIM)
-		lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 16, side.pw - PAD - (side.take and 148 or 66), "right")
+		lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 16, side.pw - PAD - (side.close and 176 or side.take and 148 or 66), "right")
 		local b = side.sort
 		local hot = not Cargo.hand and inRect(b, mx, my)
 		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], hot and 0.35 or 0.15)
@@ -759,6 +811,13 @@ function Cargo.draw(game)
 			lg.rectangle("fill", t.x, t.y, t.w, t.h, 5, 5)
 			lg.setColor(HUD.INK)
 			lg.printf("Take All", t.x, t.y + 4, t.w, "center")
+		end
+		local cl = side.close
+		if cl then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], (not Cargo.hand and inRect(cl, mx, my)) and 0.35 or 0.15)
+			lg.rectangle("fill", cl.x, cl.y, cl.w, cl.h, 5, 5)
+			lg.setColor(HUD.INK)
+			lg.printf("x", cl.x, cl.y + 4, cl.w, "center")
 		end
 	end
 
@@ -843,7 +902,11 @@ function Cargo.draw(game)
 			local hint2
 			if docked and item.kind == "module" then hint2 = "Drag onto a slot or double-click to fit"
 			elseif docked and item.kind == "crate" then hint2 = "Right-click: unbox into loose rounds"
-			elseif r.side.entity then hint2 = "Right-click: take"
+			elseif item.kind == "container" and s.inner then
+				local k, m = 0, 0
+				for id, n in pairs(Hold.totals(s.inner)) do k, m = k + n, m + data.items[id].mass * n end
+				hint2 = ("Loaded: %d items, %.1f t   Double-click to open"):format(k, m)
+			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
 			elseif not docked then hint2 = "Right-click: eject" end
 			tooltip(item, s.n, mx, my, hint2)
 		end

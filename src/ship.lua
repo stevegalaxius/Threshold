@@ -175,7 +175,10 @@ function Ship.updateMass(e)
 	if e.hold then Hold.sync(e.hold, e.cargo) end
 	local volume, cargoMass = stats.cargo(e.cargo)
 	e.holdUsed = volume
-	if e.hold then e.holdUsed, e.holdCap = Hold.cells(e.hold) end
+	if e.hold then
+		e.holdUsed, e.holdCap = Hold.cells(e.hold)
+		cargoMass = cargoMass + Hold.innerMass(e.hold, data.items)   -- what loaded containers carry
+	end
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.radius
@@ -229,6 +232,18 @@ function Ship.addCargo(e, itemId, count)
 	end
 	if n > 0 then Ship.updateMass(e) end
 	return n
+end
+
+-- Scoop a floating container into the hold, cargo and all. Returns true
+-- if there was room.
+function Ship.stowContainer(e, box)
+	if not e.hold then return false end
+	Hold.sync(e.hold, e.cargo)
+	local s = { id = box.item, n = 1, inner = next(box.loot) and box.hold or nil }
+	if not Hold.placeStack(e.hold, s) then return false end
+	e.cargo = Hold.totals(e.hold)
+	Ship.updateMass(e)
+	return true
 end
 
 -- Distance from a world point to the ship's hull edge (0 or less = inside).
@@ -315,6 +330,7 @@ function Ship.fly(e, dt)
 	e.foreBurn = jets > engine and max(0, fwd) or 0
 	e.retroBurn = retro > 0 and max(0, -fwd) or 0
 	e.sideBurn = aux > 0 and side or 0
+	e.turnBurn = (aux > 0 and e.hull.helm == "turn") and steer or 0
 
 	-- Quadratic drag gives a natural top speed (no hard cap):
 	-- top speed = sqrt(thrust / drag). Drag is measured against the space
@@ -341,9 +357,16 @@ function Ship.fly(e, dt)
 	-- on target, so heavy hulls ease in instead of overshooting.
 	-- With helm = "turn", A/D set the spin directly and the hull holds its
 	-- heading when they're released.
+	-- On a turn-helm hull the side jets can't strafe, so they help it turn:
+	-- their thrust at the hull's edge adds torque and lifts the spin cap.
 	local inertia = b:getInertia()
 	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale
 	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+	if e.hull.helm == "turn" and aux > 0 then
+		local jet = aux * scale * e.hull.radius
+		cap = cap * (1 + min(0.5, 0.5 * jet / max(maxTorque, 1)))
+		maxTorque = maxTorque + jet
+	end
 	local targetW
 	if e.hull.helm == "turn" then
 		targetW = steer * cap
@@ -373,13 +396,22 @@ function Ship.performance(e)
 	local m = e.body:getMass()
 	local thrust = max(e.stats.thrust, e.stats.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale
 	local k = e.hull.drag * T.dragScale
+	local aux = e.stats.sideThrust * T.FORCE_PER_KN * T.thrustScale * T.sideScale
+	local torque = e.stats.turn * T.TORQUE_PER_TURN * T.turnScale
+	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+	local turnHelm = e.hull.helm == "turn"
+	if turnHelm and aux > 0 then                 -- same as in Ship.fly
+		local jet = aux * e.hull.radius
+		cap = cap * (1 + min(0.5, 0.5 * jet / max(torque, 1)))
+		torque = torque + jet
+	end
 	return {
 		mass = m,
 		accel = thrust / m,
 		topSpeed = sqrt(thrust / k),
-		sideAccel = e.stats.sideThrust * T.FORCE_PER_KN * T.thrustScale * T.sideScale / m,
-		turnAccel = e.stats.turn * T.TORQUE_PER_TURN * T.turnScale / e.body:getInertia(),
-		turnSpeed = math.deg(min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)),
+		sideAccel = turnHelm and 0 or aux / m,
+		turnAccel = torque / e.body:getInertia(),
+		turnSpeed = math.deg(cap),
 	}
 end
 

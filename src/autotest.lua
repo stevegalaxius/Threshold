@@ -430,16 +430,76 @@ function A.update(game, dt)
 		A.boxesBefore = boxes
 		game:eject(w, "cargo_container", 1)
 		for _, e in ipairs(game.entities) do
-			if e.kind == "ship" and e.def and e.def.id == "freighter" then game:damage(e, 1e9); break end
+			if e.kind == "ship" and e.def and e.def.id == "freighter" then
+				game:damage(e, 1e9)
+				break
+			end
 		end
 	end) end
 	if t >= 35.4 then once("spill", function()
+		local Cargo = require("src.ui.cargo")
+		local Hold = require("src.inventory.hold")
 		local boxes = 0
 		for _, e in ipairs(game.entities) do if e.kind == "container" then boxes = boxes + 1 end end
-		log("loot: shot a loaded container with %d stacks -> pickups %d -> %d; containers %d -> %d after one ejected, the shot one gone and a Hauler sunk",
+		log("loot: shot a loaded container with %d stacks -> pickups %d -> %d; containers %d -> %d after one ejected and the shot one gone",
 			A.boxStacks, A.pickupsBefore, #game.pickups, A.boxesBefore, boxes)
+		-- The Hauler's wreck: its cargo is packed in containers.
+		local husk
+		for _, e in ipairs(game.entities) do
+			if e.kind == "husk" and e.hull.id == "ferrous_freighter" then husk = e end
+		end
+		local packed, loose, inside = 0, 0, 0
+		for _, g in ipairs(husk.hold.grids) do
+			for _, st in ipairs(g.stacks) do
+				if st.inner then
+					packed = packed + 1
+					for _, n in pairs(Hold.totals(st.inner)) do inside = inside + n end
+				else
+					loose = loose + 1
+				end
+			end
+		end
+		log("hauler: wreck holds %d loaded containers (%d items inside) and %d loose stacks", packed, inside, loose)
+		-- bring the wreck alongside, open it, double-click a container, take a stack out of it
+		local w = game.player
+		local px, py = w.body:getPosition()
+		husk.body:setPosition(px + 260, py + 120)
+		husk.body:setLinearVelocity(w.body:getLinearVelocity())
+		Cargo.openLoot(game, husk)
+		local L = Cargo.layout(game)
+		local cs = L.cs
+		local box
+		for _, r in ipairs(L.grids) do
+			if r.side.entity == husk then
+				for _, st in ipairs(r.g.stacks) do if st.inner and not box then box = { r = r, s = st } end end
+			end
+		end
+		local bx, by = box.r.x + (box.s.x + 0.5) * cs, box.r.y + (box.s.y + 0.5) * cs
+		for _ = 1, 2 do Cargo.mousepressed(game, bx, by, 1); Cargo.mousereleased(game, bx, by, 1) end
+		L = Cargo.layout(game)
+		log("hauler: double-clicked a container -> %d panels, last %s, equipment %s", #L.sides, L.sides[#L.sides].title,
+			L.equip.hidden and "hidden" or "shown")
+		local inner = L.sides[#L.sides]
+		local before = w.holdUsed
+		local r
+		for _, gr in ipairs(L.grids) do if gr.side == inner then r = gr end end
+		local st = r.g.stacks[1]
+		for _, x in ipairs(r.g.stacks) do if x.w * x.h < st.w * st.h then st = x end end
+		local id, n = st.id, st.n
+		Cargo.mousepressed(game, r.x + (st.x + 0.5) * cs, r.y + (st.y + 0.5) * cs, 2)
+		log("hauler: right-clicked %s x%d out of the container -> hold %d -> %d m3, ship mass %.1f t", id, n, before, w.holdUsed, w.body:getMass())
+		shot("11_hauler_wreck")
+		-- a bigger ship scoops the whole container, cargo and all
+		local big = Hold.new({ { key = "hull", name = "Main hold", w = 10, h = 5 } })
+		local copy = { id = box.s.id, n = 1, inner = box.s.inner }
+		local ok = Hold.placeStack(big, copy)
+		local sorted = Hold.sort(big)
+		local s2 = big.grids[1].stacks[1]
+		log("hauler: 10 x 5 hold took the loaded container %s, sort kept its cargo %s, contents %.1f t",
+			tostring(ok), tostring(sorted and s2 and s2.inner == box.s.inner), Hold.innerMass(big, require("src.data").items))
 	end) end
-	if t >= 35.55 then once("quit", function()
+	if t >= 35.5 then once("hauler_close", function() require("src.ui.cargo").close(game) end) end
+	if t >= 35.6 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
 	end) end

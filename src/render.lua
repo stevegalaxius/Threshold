@@ -346,7 +346,7 @@ local function drawPlanet(game, e)
 	for k = 1, 4 do
 		local rr = R + k * 1500
 		local n = floor(pi * rr / 900) * 2
-		local turn = dir * game.time * 300 / rr
+		local turn = dir * game.time * 150 / rr
 		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
 		for i = 0, n - 1, 2 do
 			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
@@ -422,6 +422,12 @@ local function drawShip(game, e)
 		local k = math.abs(e.sideBurn)
 		puff(e.noseX * 0.4, s * R * 0.75, 0, s, k)
 		puff(e.tailX * 0.5, s * R * 0.75, 0, s, k)
+	end
+	if math.abs(e.turnBurn or 0) > 0.05 then      -- jets helping a big hull turn
+		local s = e.turnBurn > 0 and -1 or 1
+		local k = math.abs(e.turnBurn)
+		puff(e.noseX * 0.6, s * R * 0.75, 0, s, k)
+		puff(e.tailX * 0.6, -s * R * 0.75, 0, -s, k)
 	end
 	if (e.foreBurn or 0) > 0.05 then                 -- jets standing in for the engine
 		puff(e.tailX * 0.8, -R * 0.3, -1, 0, e.foreBurn)

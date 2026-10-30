@@ -62,7 +62,7 @@ enemy {
 enemy {
 	id = "freighter", team = 3, color = { 0.78, 0.8, 0.72 }, name = "Hauler", hull = "ferrous_freighter",
 	cargo = { rounds_m = 600, scrap = 30, salvage_kit = 15 },
-	containers = { "cargo_container", 1, 2 },   -- loaded containers it drops when destroyed
+	containers = { "cargo_container", 1, 4 },   -- its cargo is packed in these; the wreck keeps them
 	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
 	salvage = { 4, 8 },
 }

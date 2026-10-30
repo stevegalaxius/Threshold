@@ -9,7 +9,7 @@ local T = {}
 T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
 	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1,    precision = 2 },
-	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 1,    precision = 2 },
+	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.5,    precision = 2 },
 	{ key = "linearDamping",  label = "Linear damping (drift)", min = 0,   max = 2,    value = 0.04, precision = 2 },
 	{ key = "massScale",      label = "Mass",                   min = 0.25, max = 3,   value = 1,    precision = 2 },
 	{ key = "turnScale",      label = "Turn torque",            min = 0.1, max = 3,    value = 1,    precision = 2 },
