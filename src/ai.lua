@@ -40,6 +40,7 @@ local function avoidCollisions(game, e, target, x, y, vx, vy)
 	for _, o in ipairs(game.entities) do
 		if o ~= e and o ~= target and not o.dead then
 			local ox, oy = o.body:getPosition()
+			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
 			local orad = (o.kind == "ship") and o.halfLength or o.radius
 			local clear = e.halfLength + orad + 50
 			local rx, ry = ox - x, oy - y

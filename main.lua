@@ -80,6 +80,7 @@ function love.keypressed(key)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
+	elseif key == "f2" then game:nextField()
 	end
 end
 

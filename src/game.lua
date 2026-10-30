@@ -14,6 +14,7 @@ local Weapons = require("src.weapons")
 local AI = require("src.ai")
 local Camera = require("src.camera")
 local events = require("src.events")
+local Fields = require("src.fields")
 
 local Game = {}
 Game.__index = Game
@@ -47,9 +48,31 @@ function Game.new(opts)
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
 
-	self:spawnAsteroids(60)
-	self:spawnPlayer()
+	self:loadField(opts.field or "asteroids")
 	return self
+end
+
+-- Clear the arena and build a playing field (src/fields.lua) in it, then
+-- launch the player.
+function Game:loadField(id)
+	for _, e in ipairs(self.entities) do
+		if not e.removed then e.body:destroy(); e.removed = true end
+	end
+	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
+	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
+	self.wave, self.waveTimer, self.kills = 0, 2.5, 0
+	self.fieldId = id
+	self.field = assert(Fields[id], "unknown field " .. tostring(id))
+	self.field.build(self)
+	self:spawnPlayer()
+	self:toast(self.field.name:upper(), 2)
+end
+
+-- F2: the next playing field.
+function Game:nextField()
+	local i = 1
+	for j, id in ipairs(Fields.list) do if id == self.fieldId then i = j end end
+	self:loadField(Fields.list[i % #Fields.list + 1])
 end
 
 function Game:nextId()
@@ -62,12 +85,13 @@ end
 function Game:spawnPlayer(hullId, loadout, cargo)
 	if self.player and not self.player.removed then self:remove(self.player) end
 	self.playerHull = hullId or self.playerHull
-	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = 0, y = 0, angle = -pi / 2, color = self.playerColor })
+	local sx, sy = self.field.spawn[1], self.field.spawn[2]
+	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p
 	self.state = "playing"
-	self.camera.x, self.camera.y = 0, 0
+	self.camera.x, self.camera.y = sx, sy
 	return p
 end
 
@@ -116,7 +140,7 @@ function Game:spawnPoint(minD, maxD)
 		local a = random() * pi * 2
 		local d = minD + random() * (maxD - minD)
 		local x, y = cx + cos(a) * d, cy + sin(a) * d
-		if x * x + y * y < (self.arenaRadius - 200) ^ 2 then return x, y end
+		if x * x + y * y < (self.arenaRadius - 200) ^ 2 and self:isClear(x, y, 150) then return x, y end
 	end
 	local a = random() * pi * 2
 	return cos(a) * (self.arenaRadius - 300), sin(a) * (self.arenaRadius - 300)
@@ -151,22 +175,81 @@ function Game:spawnAsteroid(x, y, radius)
 	return e
 end
 
-function Game:spawnAsteroids(n)
+-- Is a circle at (x, y) clear of asteroids and structures (by margin)?
+function Game:isClear(x, y, margin)
+	for _, o in ipairs(self.entities) do
+		if o.kind == "asteroid" or o.kind == "structure" then
+			local ox, oy = o.body:getPosition()
+			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)
+			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + margin) ^ 2 then return false end
+		end
+	end
+	return true
+end
+
+-- Scatter n breakable asteroids, no closer than minD to the centre.
+-- One enormous rock, far too big to damage: a static body built from a
+-- fan of triangles around a lumpy outline.
+function Game:spawnGiantAsteroid(x, y, radius)
+	local n = 28
+	local outline = {}
+	for j = 0, n - 1 do
+		local ang = j / n * pi * 2
+		local rr = radius * (0.88 + 0.12 * random())
+		table.insert(outline, cos(ang) * rr)
+		table.insert(outline, sin(ang) * rr)
+	end
+	local body = love.physics.newBody(self.world, x, y, "static")
+	local e = { kind = "asteroid", giant = true, invulnerable = true, id = self:nextId(), team = 0, radius = radius,
+		outline = outline, tris = love.math.triangulate(outline), body = body, shade = 0.6, craters = {} }
+	for _ = 1, 9 do
+		local a, d = random() * pi * 2, random() * radius * 0.6
+		table.insert(e.craters, { cos(a) * d, sin(a) * d, radius * (0.06 + random() * 0.1) })
+	end
+	for j = 0, n - 1 do
+		local k = (j + 1) % n
+		local f = love.physics.newFixture(body, love.physics.newPolygonShape(0, 0,
+			outline[j * 2 + 1], outline[j * 2 + 2], outline[k * 2 + 1], outline[k * 2 + 2]))
+		f:setFriction(0.6)
+		f:setRestitution(0.15)
+		f:setUserData(e)
+	end
+	body:setUserData(e)
+	table.insert(self.entities, e)
+	return e
+end
+
+-- A static, indestructible piece of station: one convex polygon (world
+-- coordinates, up to 8 points). Each piece is its own entity, so the AI
+-- steers around pieces rather than the whole station.
+function Game:addStructure(verts, opts)
+	local cx, cy = 0, 0
+	local n = #verts / 2
+	for i = 1, #verts, 2 do cx, cy = cx + verts[i] / n, cy + verts[i + 1] / n end
+	local r = 0
+	for i = 1, #verts, 2 do r = max(r, sqrt((verts[i] - cx) ^ 2 + (verts[i + 1] - cy) ^ 2)) end
+	local body = love.physics.newBody(self.world, 0, 0, "static")
+	local e = { kind = "structure", invulnerable = true, id = self:nextId(), team = 0, verts = verts,
+		cx = cx, cy = cy, radius = r, role = opts and opts.role, body = body, blink = random() * 10 }
+	local f = love.physics.newFixture(body, love.physics.newPolygonShape(verts))
+	f:setFriction(0.5)
+	f:setRestitution(0.1)
+	f:setUserData(e)
+	body:setUserData(e)
+	table.insert(self.entities, e)
+	return e
+end
+
+function Game:spawnAsteroids(n, minD)
+	minD = minD or 450
 	local placed = 0
 	for _ = 1, n * 10 do
 		if placed >= n then break end
 		local radius = 28 + random() ^ 2 * 100
 		local a = random() * pi * 2
-		local d = 450 + random() * (self.arenaRadius - 600)
+		local d = minD + random() * (self.arenaRadius - minD - 150)
 		local x, y = cos(a) * d, sin(a) * d
-		local clear = true
-		for _, o in ipairs(self.entities) do
-			if o.kind == "asteroid" then
-				local ox, oy = o.body:getPosition()
-				if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + radius + 60) ^ 2 then clear = false; break end
-			end
-		end
-		if clear then self:spawnAsteroid(x, y, radius); placed = placed + 1 end
+		if self:isClear(x, y, radius + 60) then self:spawnAsteroid(x, y, radius); placed = placed + 1 end
 	end
 end
 
@@ -297,7 +380,9 @@ function Game:resolveContacts()
 		-- scrapes (below ramSpeed) do nothing; harder hits scale with impulse,
 		-- so heavy ships hit harder.
 		local ma, mb = c.a.body:getMass(), c.b.body:getMass()
-		local mu = ma * mb / (ma + mb)
+		-- Against something immovable (a station, the giant asteroid) the
+		-- reduced mass is just the moving body's own.
+		local mu = (ma == 0 or mb == 0) and max(ma, mb) or ma * mb / (ma + mb)
 		local impactSpeed = c.imp / max(mu, 1e-6)
 		if impactSpeed > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = impactSpeed end
 		if c.imp > self.stats.maxImpulse then self.stats.maxImpulse = c.imp end
@@ -335,6 +420,7 @@ end
 function Game:damage(e, amount, source, cause)
 	-- Asteroids and husks don't flinch: they soak damage until they break
 	-- apart (in reap).
+	if e and e.invulnerable then return end
 	if e and (e.kind == "asteroid" or e.kind == "husk") and not e.dead and amount > 0 then
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end

@@ -9,6 +9,7 @@ local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
 local Render = require("src.render")
+local Fields = require("src.fields")
 
 local Debug = { visible = false }
 
@@ -125,6 +126,10 @@ local function tuningSection()
 end
 
 local function spawnSection(game)
+	Slab.Text("Playing field")
+	local fopts = {}
+	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
+	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) game:loadField(id) end)
 	for _, id in ipairs(data.list.enemies) do
 		local def = data.enemies[id]
 		if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then

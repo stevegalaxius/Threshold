@@ -141,6 +141,11 @@ local function drawTopBar(game)
 	lg.setFont(font(14))
 	lg.setColor(INK)
 	lg.print(status, 28, 20)
+	if game.field then
+		lg.setFont(font(12))
+		lg.setColor(DIM)
+		lg.print(game.field.name .. "   (F2 next field)", 28, 50)
+	end
 end
 
 local HELP = {
@@ -150,6 +155,7 @@ local HELP = {
 	"Q auxiliary ammo size   E tractor beam",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
+	"F2 next playing field",
 	"H hide help   Esc quit",
 }
 

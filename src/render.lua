@@ -117,7 +117,16 @@ local function drawAsteroid(e)
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
 	local s = e.shade
-	if e.verts then
+	if e.giant then
+		lg.setColor(0.2 * s, 0.19 * s, 0.21 * s)
+		for _, t in ipairs(e.tris) do lg.polygon("fill", t) end
+		-- a few craters so it reads as rock at any zoom
+		lg.setColor(0.15 * s, 0.14 * s, 0.16 * s)
+		for _, c in ipairs(e.craters) do lg.circle("fill", c[1], c[2], c[3]) end
+		lg.setColor(0.6 * s, 0.58 * s, 0.62 * s)
+		lg.setLineWidth(outline(3))
+		lg.polygon("line", e.outline)
+	elseif e.verts then
 		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
 		lg.polygon("fill", e.verts)
 		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
@@ -130,6 +139,22 @@ local function drawAsteroid(e)
 		lg.circle("line", 0, 0, e.radius * 0.9)
 	end
 	lg.pop()
+end
+
+local function drawStructure(game, e)
+	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or { 0.16, 0.18, 0.22 }
+	lg.setColor(fill)
+	lg.polygon("fill", e.verts)
+	lg.setColor(0.5, 0.58, 0.68)
+	lg.setLineWidth(outline(2))
+	lg.polygon("line", e.verts)
+	-- running lights on every corner, blinking out of step
+	local on = ((game.time + e.blink) % 1.6) < 0.25
+	if on then
+		local r = max(4, 3 * screenPx)
+		lg.setColor(e.role == "ring" and { 1, 0.35, 0.3 } or { 0.5, 0.9, 1 })
+		for i = 1, #e.verts, 2 do lg.circle("fill", e.verts[i], e.verts[i + 1], r) end
+	end
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
@@ -406,7 +431,9 @@ function Render.world(game)
 	drawRange(game)
 	drawPickups(game)
 	for _, e in ipairs(game.entities) do
-		if e.kind == "asteroid" then drawAsteroid(e) elseif e.kind == "husk" then drawHusk(game, e) end
+		if e.kind == "asteroid" then drawAsteroid(e)
+		elseif e.kind == "structure" then drawStructure(game, e)
+		elseif e.kind == "husk" then drawHusk(game, e) end
 	end
 	drawTractor(game)
 	drawProjectiles(game)
