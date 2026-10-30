@@ -1,6 +1,8 @@
 --[[
 	Hulls. A hull is a fixed, branded product: it sets the slot layout,
-	base stats and two or three bonuses that multiply specific stats.
+	base stats and optional bonuses that multiply specific stats
+	(bonuses = { armor = 1.2, ... }; see src/stats.lua). No hull uses
+	bonuses while the base ship classes are being worked out.
 
 	Units used everywhere in data/:
 	  mass   tonnes          thrust  kN (engines)
@@ -47,7 +49,6 @@ hull {
 		{ family = "utility",   size = "S" },
 		{ family = "thruster",  size = "any" },
 	},
-	bonuses = { primaryFireRate = 1.15, hullMass = 0.85 },
 	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "thin_plate", "hold_pod_s", "aux_thrusters" },
 	cargo = { rounds_s = 400, missile_s = 4 },
 	price = 14000,
@@ -68,7 +69,6 @@ hull {
 		{ family = "utility",   size = "S" },
 		{ family = "thruster",  size = "any" },
 	},
-	bonuses = { armor = 1.2, ramDamage = 1.25 },
 	loadout = { "rk7_chaingun", "rk7_chaingun", "sparrow_rack", "mule_engine", "kiln_reactor", "slab_plate", "slab_plate", "tug_beam", "aux_thrusters_m" },
 	cargo = { rounds_m = 500, missile_s = 6 },
 	price = 38000,
@@ -96,7 +96,6 @@ hull {
 		{ family = "armor",     size = "L" },
 		{ family = "utility",   size = "M" },
 	},
-	bonuses = { missileDamage = 1.15, hold = 1.3 },
 	loadout = { "long_tom", "long_tom", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "hornet_pod",
 		"cinder_drive", "kiln_reactor", "bulwark_plate", "bulwark_plate", "bulwark_plate", "hold_pod_m" },
 	cargo = { shell_l = 60, rounds_m = 1000, missile_m = 8 },
