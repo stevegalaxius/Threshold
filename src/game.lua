@@ -515,7 +515,10 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
-			if not e.drone and not e.isPlayer then self:spawnHusk(e, x, y, a, vx, vy, w) end
+			if not e.drone then
+				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
+				if e.isPlayer then self.playerHusk = husk end
+			end
 		else
 			i = i + 1
 		end
@@ -655,6 +658,10 @@ function Game:frame(dt, aimX, aimY)
 	if p and not p.dead then
 		local x, y = p.body:getPosition()
 		self.camera:follow(x, y, aimX or x, aimY or y, dt)
+	elseif self.playerHusk and not self.playerHusk.removed then
+		-- Death screen: watch your own wreck drift.
+		local hx, hy = self.playerHusk.body:getPosition()
+		self.camera:follow(hx, hy, hx, hy, dt)
 	elseif self.deathX then
 		self.camera:follow(self.deathX, self.deathY, self.deathX, self.deathY, dt)
 	end
