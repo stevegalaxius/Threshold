@@ -251,7 +251,8 @@ function Game:updateLane(dt)
 				-- rides the current and is held on the curve
 				e.laneBuff = abs(n) < W or nil
 				if e.lane then
-					e.flowX, e.flowY = tx * f, ty * f
+					local v = f * (e.cruiseSpeed or 1)
+					e.flowX, e.flowY = tx * v, ty * v
 					local c = (vx * tx + vy * ty) ^ 2 / lane.R
 					b:applyForce(sin(phi) * -c * m, cos(phi) * c * m)
 				end
@@ -285,7 +286,7 @@ function Game:updateLane(dt)
 	-- new arrivals, well out of sight ahead or behind
 	lane.spawnT = lane.spawnT - dt
 	if lane.spawnT > 0 then return end
-	lane.spawnT = 0.6
+	lane.spawnT = 1.2
 	local side = random() < 0.5 and -1 or 1
 	local n = side * (0.15 + random() * 0.75) * W
 	-- oncoming traffic shows up ahead; outbound mostly from behind
@@ -301,8 +302,9 @@ function Game:updateLane(dt)
 		local t = pick(LANE_TRAFFIC)
 		local e = self:spawnEnemy(t[1], x, y)
 		e.lane = "traffic"
+		e.cruiseSpeed = T.laneSpeedMin + random() * (T.laneSpeedMax - T.laneSpeedMin)
 		e.body:setAngle(f > 0 and phi or phi + pi)
-		e.body:setLinearVelocity(vx, vy)
+		e.body:setLinearVelocity(vx * e.cruiseSpeed, vy * e.cruiseSpeed)
 		if t.raider then
 			e.aggro = false     -- they find you when you come close
 		else

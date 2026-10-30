@@ -86,15 +86,17 @@ T.yearLength = 1800
 -- median a lane runs, how soft the median is, the current's speed and
 -- grip, how far around you things are kept, and how much there is.
 -- laneDerelict: the chance, each time something would spawn, of a derelict.
-T.laneBase, T.lanePerAU = 20000, 13000
+T.laneBase, T.lanePerAU = 20000, 17000
 T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
 T.laneFlow, T.laneSwirl = 1800, 0.6
 T.laneReach = 12000
-T.laneTraffic, T.laneRocks, T.laneDerelict = 5, 5, 0.12
+T.laneTraffic, T.laneRocks, T.laneDerelict = 3, 4, 0.12
+-- traffic cruises at this range of the current's speed, slow to fast
+T.laneSpeedMin, T.laneSpeedMax = 0.5, 1.5
 -- The lane buff: thrust multiplier, with the afterburner, and drag
 -- multiplier, for every ship inside the lane.
-T.laneThrust, T.laneBoostThrust, T.laneDrag = 3, 6, 0.12
+T.laneThrust, T.laneBoostThrust, T.laneDrag = 2, 4, 0.25
 
 -- Gas giants: how far below the cloud tops you can go before the crush
 -- starts, how much deeper it reaches full strength, its damage per
