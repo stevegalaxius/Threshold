@@ -314,11 +314,13 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	local hub = R * 0.2
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
 		ringR = R, tube = tube, hub = hub, spokes = 4 }
-	-- The dock: a square bay on the outside of the ring (along the
-	-- station's +x axis), open to space at the far end. x1..x2 is its
-	-- length out from the centre, hw its half-width, wall its thickness.
-	local D = max(420, tube * 2.6)
-	local dock = { x1 = R + tube / 2 - tube * 0.3, x2 = R + tube / 2 + D, hw = D / 2, wall = 30, runway = 1400 }
+	-- The dock: a square module on the outside of the ring (along the
+	-- station's +x axis). x1..x2 is its extent out from the centre, hw its
+	-- half-width. Ships that fly into the capture zone in front of its
+	-- door are pulled inside (see Game:updateDocking).
+	local D = max(300, tube * 2)
+	local dock = { x1 = R + tube / 2 - tube * 0.3, x2 = R + tube / 2 + D, hw = D / 2, wall = 24,
+		runway = 600, capture = 260 }
 	e.dock = dock
 	e.radius = dock.x2
 	local function add(shape)
@@ -342,12 +344,8 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 		add(love.physics.newPolygonShape(c * hub + px, s * hub + py, c * ri + px, s * ri + py,
 			c * ri - px, s * ri - py, c * hub - px, s * hub - py))
 	end
-	-- dock walls: back wall against the ring, and the two sides
-	local x1, x2, hw, wl = dock.x1, dock.x2, dock.hw, dock.wall
-	local xb = R + tube / 2 + wl
-	add(love.physics.newPolygonShape(x1, -hw, xb, -hw, xb, hw, x1, hw))
-	add(love.physics.newPolygonShape(x1, hw - wl, x2, hw - wl, x2, hw, x1, hw))
-	add(love.physics.newPolygonShape(x1, -hw, x2, -hw, x2, -hw + wl, x1, -hw + wl))
+	-- the dock module is solid; ships only get inside by being pulled in
+	add(love.physics.newPolygonShape(dock.x1, -dock.hw, dock.x2, -dock.hw, dock.x2, dock.hw, dock.x1, dock.hw))
 	if simulated then
 		-- hundreds of times a battleship's mass, and no drag
 		local m = 300000
@@ -361,28 +359,78 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	return e
 end
 
--- Is a point inside a station's docking bay?
-function Game:inDock(st, x, y)
+-- Docking. Flying the player into the capture zone in front of a
+-- station's dock door pulls the ship in: it stops colliding and is drawn
+-- in over DOCK_TIME, then the game sits in state "docked" (the HUD shows
+-- the station screen) until Game:undock() launches it back out.
+local DOCK_TIME = 1.4
+
+function Game:inCaptureZone(st, x, y)
 	local d = st.dock
 	if not d then return false end
 	local lx, ly = st.body:getLocalPoint(x, y)
-	return lx > st.ringR + st.tube / 2 + d.wall and lx < d.x2 and math.abs(ly) < d.hw - d.wall
+	return lx > d.x2 and lx < d.x2 + d.capture and math.abs(ly) < d.hw
 end
 
--- Notice the player flying into (or out of) a station's dock.
-function Game:updateDocking()
+function Game:updateDocking(dt)
 	local p = self.player
 	if not p or p.dead then return end
+	p.dockCooldown = max(0, (p.dockCooldown or 0) - dt)
+	if p.dockState or p.dockCooldown > 0 then return end
 	local x, y = p.body:getPosition()
-	local at
-	for _, e in ipairs(self.entities) do
-		if e.kind == "station" and self:inDock(e, x, y) then at = e; break end
+	for _, st in ipairs(self.entities) do
+		if st.kind == "station" and self:inCaptureZone(st, x, y) then
+			local lx, ly = st.body:getLocalPoint(x, y)
+			p.dockState = { station = st, t = 0, lx = lx, ly = ly, la = p.body:getAngle() - st.body:getAngle() }
+			p.body:setActive(false)
+			p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
+			self:toast("DOCKING", 1.2)
+			return
+		end
 	end
-	if at ~= p.dockedAt then
-		p.dockedAt = at
-		if at then self:toast("DOCKED", 1.5) else self:toast("UNDOCKED", 1) end
-		events.emit("dock", p, at)
+end
+
+-- Move a docking ship along its pull-in path (or hold it inside).
+function Game:updateDockedShip(e, dt)
+	local ds = e.dockState
+	local st, d = ds.station, ds.station.dock
+	ds.t = ds.t + dt
+	local f = min(1, ds.t / DOCK_TIME)
+	f = f * f * (3 - 2 * f)
+	local tx = (d.x1 + d.x2) / 2 + d.hw * 0.15
+	-- nose turns to point into the dock (local -x), the short way round
+	local da = (pi - ds.la + pi) % (2 * pi) - pi
+	local lx, ly = ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f)
+	e.body:setPosition(st.body:getWorldPoint(lx, ly))
+	e.body:setAngle(st.body:getAngle() + ds.la + da * f)
+	e.body:setLinearVelocity(0, 0)
+	e.body:setAngularVelocity(0)
+	if f >= 1 and not ds.done then
+		ds.done = true
+		if e == self.player then
+			self.state = "docked"
+			events.emit("dock", e, st)
+		end
 	end
+end
+
+-- Launch the player back out of the dock they're in.
+function Game:undock()
+	local p = self.player
+	if not p or not p.dockState or not p.dockState.done then return end
+	local st, d = p.dockState.station, p.dockState.station.dock
+	local wx, wy = st.body:getWorldPoint(d.x2 + 120, 0)
+	local ox, oy = st.body:getWorldVector(1, 0)
+	local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)
+	p.body:setPosition(wx, wy)
+	p.body:setAngle(st.body:getAngle())
+	p.body:setActive(true)
+	p.body:setLinearVelocity(svx + ox * 260, svy + oy * 260)
+	p.dockState = nil
+	p.dockCooldown = 3
+	self.state = "playing"
+	self:toast("LAUNCHED", 1)
+	events.emit("undock", p, st)
 end
 
 -- Put a kinematic body (a station) on a fixed circular track around
@@ -505,7 +553,7 @@ end
 
 function Game:setPlayerIntent(intent)
 	local p = self.player
-	if not p or p.dead then return end
+	if not p or p.dead or p.dockState then return end
 	for k, v in pairs(intent) do p.intent[k] = v end
 end
 
@@ -518,9 +566,13 @@ function Game:step(dt)
 				e.life = e.life - dt
 				if e.life <= 0 then e.dead = true end
 			end
-			if e.def then AI.think(self, e, dt) end
-			Ship.fly(e, dt)
-			Weapons.update(self, e, dt)
+			if e.dockState then
+				self:updateDockedShip(e, dt)
+			else
+				if e.def then AI.think(self, e, dt) end
+				Ship.fly(e, dt)
+				Weapons.update(self, e, dt)
+			end
 		end
 	end
 
@@ -528,7 +580,7 @@ function Game:step(dt)
 	self:applyCurrent(dt)
 	self:updateOrbits(dt)
 	self.world:update(dt)
-	self:updateDocking()
+	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
@@ -612,7 +664,7 @@ end
 function Game:damage(e, amount, source, cause)
 	-- Asteroids and husks don't flinch: they soak damage until they break
 	-- apart (in reap).
-	if e and e.invulnerable then return end
+	if e and (e.invulnerable or e.dockState) then return end
 	if e and (e.kind == "asteroid" or e.kind == "husk") and not e.dead and amount > 0 then
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end

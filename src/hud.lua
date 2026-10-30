@@ -242,6 +242,25 @@ local function drawDeath(game)
 	lg.printf("Press R (or Start) to launch a new ship", 0, h * 0.36 + 110, w, "center")
 end
 
+-- Placeholder station screen while docked; the real station GUI goes here.
+local function drawDocked(game)
+	if game.state ~= "docked" then return end
+	local w, h = lg.getDimensions()
+	lg.setColor(0, 0, 0, 0.5)
+	lg.rectangle("fill", 0, 0, w, h)
+	local pw, ph = 420, 170
+	local x, y = (w - pw) / 2, h * 0.32
+	panel(x, y, pw, ph)
+	lg.setFont(font(28))
+	lg.setColor(INK)
+	lg.printf("DOCKED", x, y + 22, pw, "center")
+	lg.setFont(font(14))
+	lg.setColor(DIM)
+	lg.printf("Wheel station\nStation services coming soon", x, y + 70, pw, "center")
+	lg.setColor(INK)
+	lg.printf("Press E, Enter or (A) to launch", x, y + 124, pw, "center")
+end
+
 function HUD.draw(game, aimX, aimY)
 	drawOffscreen(game)
 	drawTopBar(game)
@@ -249,7 +268,8 @@ function HUD.draw(game, aimX, aimY)
 	drawHelp()
 	drawToasts(game)
 	drawDeath(game)
-	drawReticle(game, aimX, aimY)
+	drawDocked(game)
+	if game.state ~= "docked" then drawReticle(game, aimX, aimY) end
 end
 
 return HUD

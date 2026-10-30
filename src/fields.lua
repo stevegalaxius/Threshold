@@ -56,15 +56,9 @@ Fields.planet = {
 		local R = 7500
 		game:spawnPlanet(0, 0, R, 580, 0.1)
 		-- Two wheel stations out past the belt.
-		-- The first rides a slow track around the planet at its altitude.
+		-- Both ride slow tracks around the planet at their altitude.
 		game:setOrbit(game:spawnWheelStation(10500, -10700, 900, 120, 0.05), 0, 0, 90)
-		-- The second is simulated: launched at the current's speed, then
-		-- left to the current and whatever runs into it.
-		local sx, sy = -12000, 9000
-		local st = game:spawnWheelStation(sx, sy, 900, 120, -0.05, true)
-		local d = math.sqrt(sx * sx + sy * sy)
-		local v = game:currentSpeed(d)
-		st.body:setLinearVelocity(-sy / d * v, sx / d * v)
+		game:setOrbit(game:spawnWheelStation(-12000, 9000, 900, 120, -0.05), 0, 0, 90)
 		-- A belt of rocks already circling with the current.
 		local placed = 0
 		for _ = 1, 2000 do
