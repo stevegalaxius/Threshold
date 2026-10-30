@@ -157,8 +157,6 @@ local function drawStructure(game, e)
 	end
 end
 
--- The planet, with a hazy atmosphere and dashed rings that turn with the
--- gravity well so you can see which way it drags you.
 -- A wheel station: smooth ring, spokes and hub, with lit windows along
 -- the ring that turn with it.
 local function drawStation(game, e)
@@ -225,6 +223,9 @@ local function drawStation(game, e)
 end
 
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
+
+-- The planet, with a hazy atmosphere and dashed rings that turn with the
+-- planet's field so you can see which way it drags you.
 
 local function drawPlanet(game, e)
 	local x, y = e.body:getPosition()

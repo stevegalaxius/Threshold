@@ -10,8 +10,6 @@
 	             and an outer ring with gaps to fly through
 ]]
 
-local T = require("src.tuning")
-
 local Fields = {}
 
 local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
@@ -56,19 +54,18 @@ Fields.planet = {
 	build = function(game)
 		-- 15000 px across: too big to see whole even zoomed all the way out.
 		local R = 7500
-		game:spawnPlanet(0, 0, R, 45, 0.1)
+		game:spawnPlanet(0, 0, R, 580, 0.1)
 		-- Two wheel stations out past the belt.
 		-- The first rides a slow track around the planet at its altitude.
 		game:setOrbit(game:spawnWheelStation(10500, -10700, 900, 120, 0.05), 0, 0, 90)
-		-- The second is simulated: launched at orbital speed, then left to
-		-- gravity, the well's current and whatever runs into it.
+		-- The second is simulated: launched at the current's speed, then
+		-- left to the current and whatever runs into it.
 		local sx, sy = -12000, 9000
 		local st = game:spawnWheelStation(sx, sy, 900, 120, -0.05, true)
 		local d = math.sqrt(sx * sx + sy * sy)
-		local v = math.sqrt(game.well.gm * T.gravityScale / d)
+		local v = game:currentSpeed(d)
 		st.body:setLinearVelocity(-sy / d * v, sx / d * v)
-		-- A belt of rocks already in orbit, going the way the well turns.
-		local w = game.well
+		-- A belt of rocks already circling with the current.
 		local placed = 0
 		for _ = 1, 2000 do
 			if placed >= 180 then break end
@@ -78,7 +75,7 @@ Fields.planet = {
 			local x, y = cos(a) * d, sin(a) * d
 			if game:isClear(x, y, radius + 60) then
 				local e = game:spawnAsteroid(x, y, radius)
-				local v = math.sqrt(w.gm / d)
+				local v = game:currentSpeed(d)
 				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
 				placed = placed + 1
 			end

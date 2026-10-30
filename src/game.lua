@@ -221,12 +221,13 @@ function Game:spawnGiantAsteroid(x, y, radius)
 	return e
 end
 
--- A planet: a static, indestructible disc at the centre of a gravity well.
--- g is the pull at the surface in px/s^2 (falling off with 1/r^2). The
--- well turns: swirl is how hard it drags things toward circling at orbital
--- speed (per second), so loose rocks settle into orbit and ships feel a
--- current around the planet.
-function Game:spawnPlanet(x, y, radius, g, swirl)
+-- A planet: a static, indestructible disc in a turning field. There's no
+-- gravity: nothing is pulled in. The field is a current circling the
+-- planet (clockwise on screen) at flow px/s at the surface, slowing with
+-- distance (as 1/sqrt(r)). swirl is how hard it drags things toward the
+-- current's speed (per second). Loose things (rocks, wrecks, loot) are also
+-- held in their lane while they circle, so the belt doesn't fling outward.
+function Game:spawnPlanet(x, y, radius, flow, swirl)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
 		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
@@ -236,50 +237,52 @@ function Game:spawnPlanet(x, y, radius, g, swirl)
 	f:setUserData(e)
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	self.well = { x = x, y = y, radius = radius, gm = g * radius * radius, swirl = swirl }
+	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl }
 	return e
 end
 
--- Acceleration from the gravity well on something at (x, y) moving at
--- (vx, vy): the pull toward the centre, plus (if withSwirl) the drag of
--- the turning well toward orbital speed.
-function Game:gravityAt(x, y, vx, vy, withSwirl)
+-- How fast the field's current runs at distance r from the planet.
+function Game:currentSpeed(r)
+	local w = self.well
+	if not w then return 0 end
+	return w.flow * sqrt(w.radius / max(r, w.radius)) * T.currentScale
+end
+
+-- Acceleration from the turning field on something at (x, y) moving at
+-- (vx, vy): a drag along the tangent toward the current's speed, and, if
+-- hold, just enough pull inward to keep whatever it's circling at on a
+-- circle (zero for something not moving around the planet).
+function Game:currentAt(x, y, vx, vy, hold)
 	local w = self.well
 	if not w then return 0, 0 end
 	local dx, dy = w.x - x, w.y - y
-	local r = max(sqrt(dx * dx + dy * dy), w.radius)
-	local g = T.gravityScale
+	local r = max(sqrt(dx * dx + dy * dy), 1)
 	local nx, ny = dx / r, dy / r
-	local a = w.gm / (r * r) * g
-	local ax, ay = nx * a, ny * a
-	if withSwirl then
-		-- tangent pointing the way the well turns (clockwise on screen)
-		local tx, ty = ny, -nx
-		local orbit = sqrt(w.gm * g / r)
-		local s = (orbit - (vx * tx + vy * ty)) * w.swirl
-		ax, ay = ax + tx * s, ay + ty * s
+	local tx, ty = ny, -nx                     -- clockwise on screen
+	local vt = vx * tx + vy * ty
+	local s = (self:currentSpeed(r) - vt) * w.swirl
+	local ax, ay = tx * s, ty * s
+	if hold then
+		local c = vt * vt / r
+		ax, ay = ax + nx * c, ay + ny * c
 	end
 	return ax, ay
 end
 
-function Game:applyGravity(dt)
+function Game:applyCurrent(dt)
 	if not self.well then return end
 	for _, e in ipairs(self.entities) do
 		local b = e.body
 		if not e.removed and b:getType() == "dynamic" then
 			local x, y = b:getPosition()
 			local vx, vy = b:getLinearVelocity()
-			local ax, ay = self:gravityAt(x, y, vx, vy, true)
+			local ax, ay = self:currentAt(x, y, vx, vy, e.kind ~= "ship")
 			local m = b:getMass()
 			b:applyForce(ax * m, ay * m)
 		end
 	end
-	for _, p in ipairs(self.projectiles) do
-		local ax, ay = self:gravityAt(p.x, p.y)
-		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
-	end
 	for _, p in ipairs(self.pickups) do
-		local ax, ay = self:gravityAt(p.x, p.y, p.vx, p.vy, true)
+		local ax, ay = self:currentAt(p.x, p.y, p.vx, p.vy, true)
 		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
 	end
 end
@@ -471,7 +474,7 @@ function Game:step(dt)
 	end
 
 	self:applyBoundary()
-	self:applyGravity(dt)
+	self:applyCurrent(dt)
 	self:updateOrbits(dt)
 	self.world:update(dt)
 	self:resolveContacts()
