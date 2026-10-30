@@ -28,6 +28,14 @@ local COLORS = {
 }
 Render.COLORS = COLORS
 
+-- Outlines are drawn in world units, so they'd thin to nothing zoomed out.
+-- outline(w) keeps a line at least about w * 0.7 screen pixels wide.
+local screenPx = 1
+local function outline(w)
+	return max(w, w * 0.7 * screenPx)
+end
+
+
 -- Paint jobs the player can pick from (debug panel for now). Enemies get
 -- their color from data/enemies.lua.
 Render.PAINTS = {
@@ -122,13 +130,6 @@ local function drawAsteroid(e)
 		lg.circle("line", 0, 0, e.radius * 0.9)
 	end
 	lg.pop()
-end
-
--- Outlines are drawn in world units, so they'd thin to nothing zoomed out.
--- outline(w) keeps a line at least about w * 0.7 screen pixels wide.
-local screenPx = 1
-local function outline(w)
-	return max(w, w * 0.7 * screenPx)
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
