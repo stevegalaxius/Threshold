@@ -323,8 +323,8 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local ex, ey = e.body:getPosition()
 			local dx, dy = ex - x, ey - y
 			local d = sqrt(dx * dx + dy * dy)
-			local r = (e.kind == "ship") and e.hull.radius or e.radius
-			local fall = 1 - max(0, min(1, (d - r) / radius))
+			local edge = (e.kind == "ship") and Ship.distanceTo(e, x, y) or (d - e.radius)
+			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
 			if fall > 0 then
 				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash") end
@@ -369,7 +369,7 @@ function Game:updatePickups(dt)
 				local a = 700 + (p.stats.tractorRange or 0) * 3
 				k.vx, k.vy = k.vx + dx / d * a * dt, k.vy + dy / d * a * dt
 			end
-			if d < p.hull.radius + 10 then
+			if Ship.distanceTo(p, k.x, k.y) < 10 then
 				local item = data.items[k.item]
 				local got = Ship.addCargo(p, k.item, k.count)
 				if got > 0 then
@@ -402,7 +402,7 @@ function Game:reap()
 		local e = self.entities[i]
 		if e.dead then
 			local x, y = e.body:getPosition()
-			self:explode(x, y, e.hull.radius * 2.2, 0, 3000)
+			self:explode(x, y, e.halfLength * 1.6, 0, 3000)
 			self:spark(x, y, 24, { 1, 0.6, 0.3 })
 			if e.def then
 				self.kills = self.kills + 1

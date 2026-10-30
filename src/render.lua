@@ -136,7 +136,7 @@ local function drawShip(game, e)
 	if e.mainBurn > 0.05 then
 		local len = R * (0.6 + e.mainBurn * 0.9) * (0.85 + love.math.random() * 0.3)
 		if e.boostFlash and e.boostFlash > 0 then len = len * 2.2 end
-		local bx, wdt = -R * 0.75, R * 0.35
+		local bx, wdt = e.tailX * 0.85, R * 0.35
 		lg.setColor(fc[1], fc[2], fc[3], 0.35)
 		lg.polygon("fill", bx, -wdt * 1.4, bx, wdt * 1.4, bx - len * 1.3, 0)
 		lg.setColor(fc[1], fc[2], fc[3], 0.9)
@@ -152,12 +152,12 @@ local function drawShip(game, e)
 	if math.abs(e.sideBurn) > 0.05 then
 		local s = e.sideBurn > 0 and -1 or 1          -- pushing right fires the left-side jets
 		local k = math.abs(e.sideBurn)
-		puff(R * 0.35, s * R * 0.75, 0, s, k)
-		puff(-R * 0.45, s * R * 0.75, 0, s, k)
+		puff(e.noseX * 0.4, s * R * 0.75, 0, s, k)
+		puff(e.tailX * 0.5, s * R * 0.75, 0, s, k)
 	end
 	if e.retroBurn > 0.05 then
-		puff(R * 0.8, -R * 0.35, 1, 0, e.retroBurn)
-		puff(R * 0.8, R * 0.35, 1, 0, e.retroBurn)
+		puff(e.noseX * 0.6, -R * 0.35, 1, 0, e.retroBurn)
+		puff(e.noseX * 0.6, R * 0.35, 1, 0, e.retroBurn)
 	end
 
 	-- Weapon barrels, each rotated to where its mount points it (slot.aim).
@@ -238,23 +238,27 @@ end
 
 local SHELL = { S = 3, M = 4, L = 6 }
 
+-- Shots keep a minimum on-screen size, so they stay visible zoomed out.
 local function drawProjectiles(game)
-	lg.setLineWidth(2)
+	local zoom = game.camera.zoom
+	local px = 1 / zoom                            -- one screen pixel in world units
+	local trail = max(1, 0.7 / zoom)
+	lg.setLineWidth(max(2, 2 * px))
 	for _, p in ipairs(game.projectiles) do
 		if p.kind == "gun" then
 			lg.setColor(COLORS.gun)
-			lg.line(p.x - p.vx * 0.014, p.y - p.vy * 0.014, p.x, p.y)
+			lg.line(p.x - p.vx * 0.014 * trail, p.y - p.vy * 0.014 * trail, p.x, p.y)
 		elseif p.kind == "artillery" then
 			lg.setColor(COLORS.artillery)
-			lg.circle("fill", p.x, p.y, SHELL[p.size] or 4)
+			lg.circle("fill", p.x, p.y, max(SHELL[p.size] or 4, 3 * px))
 			lg.setColor(1, 0.9, 0.7, 0.5)
-			lg.line(p.x - p.vx * 0.012, p.y - p.vy * 0.012, p.x, p.y)
+			lg.line(p.x - p.vx * 0.012 * trail, p.y - p.vy * 0.012 * trail, p.x, p.y)
 		elseif p.kind == "missile" then
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
-			lg.line(p.x, p.y, p.x - cos(a) * 22, p.y - sin(a) * 22)
+			lg.line(p.x, p.y, p.x - cos(a) * 22 * trail, p.y - sin(a) * 22 * trail)
 			lg.setColor(COLORS.missile)
-			lg.circle("fill", p.x, p.y, 3)
+			lg.circle("fill", p.x, p.y, max(3, 2.5 * px))
 		end
 	end
 end

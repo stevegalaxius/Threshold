@@ -168,9 +168,7 @@ end
 local function fuseTarget(game, p)
 	for _, o in ipairs(game.entities) do
 		if o.kind == "ship" and not o.dead and o.team ~= p.team then
-			local ox, oy = o.body:getPosition()
-			local r = o.hull.radius + p.fuse
-			if (ox - p.x) ^ 2 + (oy - p.y) ^ 2 < r * r then return o end
+			if Ship.distanceTo(o, p.x, p.y) < p.fuse then return o end
 		end
 	end
 end

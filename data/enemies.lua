@@ -16,7 +16,7 @@
 enemy {
 	id = "swarmer", name = "Scrap Drone", hull = "scrap_drone",
 	cargo = { rounds_s = 150 },
-	ai = { style = "rush", range = 300, accuracy = 0.35, throttle = 0.6, ram = true, burstOn = 0.8, burstOff = 1.8 },
+	ai = { style = "rush", range = 350, accuracy = 0.35, throttle = 0.6, burstOn = 0.8, burstOff = 1.8 },
 	salvage = { 1, 2 }, ammoDrop = 0.5,
 }
 

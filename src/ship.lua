@@ -51,15 +51,32 @@ function Ship.new(game, opts)
 		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, boostCooldown = 0,
 	}
 
+	-- Collision: hulls are long and narrow, so the body is a row of circles
+	-- (radius = half the hull's width) along its spine, from tail to nose.
+	local r = hull.radius
+	local noseX, tailX = 0, 0
+	for i = 1, #hull.shape, 2 do
+		noseX, tailX = max(noseX, hull.shape[i]), min(tailX, hull.shape[i])
+	end
+	local s1, s2 = tailX + r, noseX - r
+	if s2 < s1 then s1, s2 = (s1 + s2) / 2, (s1 + s2) / 2 end
+	e.spine = { s1, s2 }
+	e.noseX, e.tailX = noseX, tailX
+	e.halfLength = max(noseX, -tailX)
+
 	local body = love.physics.newBody(game.world, opts.x or 0, opts.y or 0, "dynamic")
-	local fixture = love.physics.newFixture(body, love.physics.newCircleShape(hull.radius), 1)
-	fixture:setRestitution(0.35)
-	fixture:setFriction(0.3)
-	fixture:setUserData(e)
+	local n = math.ceil((s2 - s1) / r) + 1
+	for i = 0, n - 1 do
+		local cx = (n > 1) and (s1 + (s2 - s1) * i / (n - 1)) or s1
+		local fixture = love.physics.newFixture(body, love.physics.newCircleShape(cx, 0, r), 1)
+		fixture:setRestitution(0.35)
+		fixture:setFriction(0.3)
+		fixture:setUserData(e)
+	end
 	body:setUserData(e)
 	body:setAngle(opts.angle or 0)
 	body:setAngularDamping(0)
-	e.body, e.fixture = body, fixture
+	e.body = body
 
 	Ship.refit(e)
 	e.armor = e.stats.armor
@@ -124,6 +141,17 @@ function Ship.addCargo(e, itemId, count)
 		Ship.updateMass(e)
 	end
 	return n
+end
+
+-- Distance from a world point to the ship's hull edge (0 or less = inside).
+-- Measured to the hull's spine, so it's right along a long ship's length.
+function Ship.distanceTo(e, px, py)
+	local x, y = e.body:getPosition()
+	local a = e.body:getAngle()
+	local dx, dy = px - x, py - y
+	local lx, ly = dx * cos(a) + dy * sin(a), -dx * sin(a) + dy * cos(a)
+	local sx = max(e.spine[1], min(e.spine[2], lx))
+	return sqrt((lx - sx) ^ 2 + ly * ly) - e.hull.radius
 end
 
 -- World position of a slot's hardpoint.

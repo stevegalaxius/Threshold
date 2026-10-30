@@ -38,12 +38,12 @@
 hull {
 	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light", mount = "fixed",
 	mass = 50, armor = 80, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
-	shape = { 20,0, 4,-7, -6,-14, -14,-12, -10,0, -14,12, -6,14, 4,7 },
+	shape = { 40,0, 8,-7, -12,-14, -28,-12, -20,0, -28,12, -12,14, 8,7 },
 	slots = {
-		{ family = "primary",   size = "S", x = 6,   y = -9 },
-		{ family = "primary",   size = "S", x = 6,   y = 9 },
-		{ family = "secondary", size = "S", x = -2,  y = 0 },
-		{ family = "engine",    size = "S", x = -13, y = 0 },
+		{ family = "primary",   size = "S", x = 12,   y = -9 },
+		{ family = "primary",   size = "S", x = 12,   y = 9 },
+		{ family = "secondary", size = "S", x = -4,  y = 0 },
+		{ family = "engine",    size = "S", x = -26, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "armor",     size = "S" },
 		{ family = "utility",   size = "S" },
@@ -57,12 +57,12 @@ hull {
 hull {
 	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
 	mass = 200, armor = 200, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34,
-	shape = { 37,-11, 37,11, 17,26, -23,28, -34,14, -34,-14, -23,-28, 17,-26 },
+	shape = { 74,-11, 74,11, 34,26, -46,28, -68,14, -68,-14, -46,-28, 34,-26 },
 	slots = {
-		{ family = "primary",   size = "M", x = 20,  y = -20 },
-		{ family = "primary",   size = "M", x = 20,  y = 20 },
-		{ family = "secondary", size = "S", x = 6,   y = 0 },
-		{ family = "engine",    size = "M", x = -34, y = 0 },
+		{ family = "primary",   size = "M", x = 40,  y = -20 },
+		{ family = "primary",   size = "M", x = 40,  y = 20 },
+		{ family = "secondary", size = "S", x = 12,   y = 0 },
+		{ family = "engine",    size = "M", x = -68, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "armor",     size = "M" },
 		{ family = "armor",     size = "M" },
@@ -80,16 +80,16 @@ hull {
 hull {
 	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
 	mass = 600, armor = 500, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
-	shape = { 72,0, 54,-26, 16,-46, -34,-50, -62,-36, -68,0, -62,36, -34,50, 16,46, 54,26 },
+	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
-		{ family = "primary",   size = "L", x = 40,  y = 0 },
-		{ family = "primary",   size = "L", x = -30, y = 0 },
-		{ family = "primary",   size = "M", x = 14,  y = -32 },
-		{ family = "primary",   size = "M", x = 14,  y = 32 },
-		{ family = "primary",   size = "M", x = -26, y = -36 },
-		{ family = "primary",   size = "M", x = -26, y = 36 },
-		{ family = "secondary", size = "M", x = 6,   y = 0 },
-		{ family = "engine",    size = "L", x = -66, y = 0 },
+		{ family = "primary",   size = "L", x = 80,  y = 0 },
+		{ family = "primary",   size = "L", x = -60, y = 0 },
+		{ family = "primary",   size = "M", x = 28,  y = -32 },
+		{ family = "primary",   size = "M", x = 28,  y = 32 },
+		{ family = "primary",   size = "M", x = -52, y = -36 },
+		{ family = "primary",   size = "M", x = -52, y = 36 },
+		{ family = "secondary", size = "M", x = 12,   y = 0 },
+		{ family = "engine",    size = "L", x = -132, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "armor",     size = "L" },
 		{ family = "armor",     size = "L" },
@@ -104,15 +104,15 @@ hull {
 
 -- Enemy-only hulls.
 
--- Basic enemy: no maneuvering thrusters, so it flies in straight lines and
--- has to turn around after it overshoots.
+-- Basic enemy: no side thrusters and only weak retro thrusters, so it flies
+-- in straight lines and swings wide when it overshoots.
 hull {
 	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 30, armor = 10, turn = 160, sideThrust = 0, retroThrust = 0, hold = 8, drag = 0.14, radius = 13,
-	shape = { 15,0, -9,-11, -5,0, -9,11 },
+	mass = 30, armor = 10, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
+	shape = { 30,0, -18,-11, -10,0, -18,11 },
 	slots = {
-		{ family = "primary", size = "S", x = 4,  y = 0 },
-		{ family = "engine",  size = "S", x = -8, y = 0 },
+		{ family = "primary", size = "S", x = 8,  y = 0 },
+		{ family = "engine",  size = "S", x = -16, y = 0 },
 		{ family = "reactor", size = "S" },
 		{ family = "armor",   size = "S" },
 	},
@@ -124,10 +124,10 @@ hull {
 hull {
 	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
-	shape = { 14,0, 2,-5, -8,-10, -5,0, -8,10, 2,5 },
+	shape = { 28,0, 4,-5, -16,-10, -10,0, -16,10, 4,5 },
 	slots = {
-		{ family = "primary", size = "S", x = 5,  y = 0 },
-		{ family = "engine",  size = "S", x = -7, y = 0 },
+		{ family = "primary", size = "S", x = 10,  y = 0 },
+		{ family = "engine",  size = "S", x = -14, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
 	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },

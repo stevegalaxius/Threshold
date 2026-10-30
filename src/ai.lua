@@ -15,6 +15,7 @@
 ]]
 
 local Ship = require("src.ship")
+local T = require("src.tuning")
 
 local AI = {}
 
@@ -81,12 +82,25 @@ function AI.think(game, e, dt)
 		mx, my = -uy * e.orbitDir * 0.35 + ux * err, ux * e.orbitDir * 0.35 + uy * err
 	end
 
+	-- Don't fly into the target: if it's closing faster than it can stop
+	-- before reaching its preferred range, brake by pushing away. Only
+	-- ships with ram = true are allowed to plough on in.
+	if not ai.ram then
+		local closing = (vx - tvx) * ux + (vy - tvy) * uy
+		if closing > 0 then
+			local s = e.stats
+			local brakeForce = max(s.retroThrust, s.sideThrust, s.thrust * 0.5) * T.FORCE_PER_KN * T.thrustScale
+			local stopDist = closing * closing / (2 * max(brakeForce / e.body:getMass(), 1))
+			if stopDist > dist - r * 0.8 then mx, my = mx - ux * 1.5, my - uy * 1.5 end
+		end
+	end
+
 	-- Keep some distance from other AI ships so they don't clump.
 	for _, o in ipairs(game.entities) do
 		if o ~= e and o.kind == "ship" and o.team == e.team and not o.dead then
 			local ox, oy = o.body:getPosition()
 			local sx, sy, d = norm(x - ox, y - oy)
-			local keep = (e.hull.radius + o.hull.radius) * 2.5
+			local keep = (e.halfLength + o.halfLength) * 1.6
 			if d > 0 and d < keep then
 				local push = (keep - d) / keep
 				mx, my = mx + sx * push * 1.5, my + sy * push * 1.5
