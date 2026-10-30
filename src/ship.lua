@@ -238,12 +238,21 @@ function Ship.fly(e, dt)
 	e.sideBurn = aux > 0 and side or 0
 
 	-- Quadratic drag gives a natural top speed (no hard cap):
-	-- top speed = sqrt(thrust / drag).
+	-- top speed = sqrt(thrust / drag). Drag is measured against the space
+	-- the ship is in, so inside a planet's turning field (flowX/flowY, set
+	-- by Game:applyCurrent) an idle ship drifts along with the current.
 	local vx, vy = b:getLinearVelocity()
+	vx, vy = vx - (e.flowX or 0), vy - (e.flowY or 0)
 	local speed = sqrt(vx * vx + vy * vy)
 	local k = e.hull.drag * T.dragScale
 	b:applyForce(-k * speed * vx, -k * speed * vy)
 	b:setLinearDamping(T.linearDamping)
+	-- Box2D's damping slows against the world; push back so it, too, only
+	-- slows the ship relative to the current.
+	if e.flowX then
+		local m = b:getMass() * T.linearDamping
+		b:applyForce(e.flowX * m, e.flowY * m)
+	end
 
 	-- Turning: a controller that tries to point the nose at the aim point,
 	-- limited by the torque the hull and engine can produce. Heavy ships

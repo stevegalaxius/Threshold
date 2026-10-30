@@ -276,7 +276,21 @@ function Game:applyCurrent(dt)
 		if not e.removed and b:getType() == "dynamic" then
 			local x, y = b:getPosition()
 			local vx, vy = b:getLinearVelocity()
-			local ax, ay = self:currentAt(x, y, vx, vy, e.kind ~= "ship")
+			local ax, ay
+			if e.kind == "ship" then
+				-- Ships ride the current through their own drag (see
+				-- Ship.fly), and are held on the curve as they go round.
+				local dx, dy = self.well.x - x, self.well.y - y
+				local r = max(sqrt(dx * dx + dy * dy), 1)
+				local tx, ty = dy / r, -dx / r
+				local f = self:currentSpeed(r)
+				e.flowX, e.flowY = tx * f, ty * f
+				local vt = vx * tx + vy * ty
+				local c = max(0, vt) * max(0, vt) / r
+				ax, ay = dx / r * c, dy / r * c
+			else
+				ax, ay = self:currentAt(x, y, vx, vy, true)
+			end
 			local m = b:getMass()
 			b:applyForce(ax * m, ay * m)
 		end
