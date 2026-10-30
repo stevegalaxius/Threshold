@@ -257,15 +257,15 @@ local SHELL = { S = 3, M = 4, L = 6 }
 local function drawProjectiles(game)
 	local zoom = game.camera.zoom
 	local px = 1 / zoom                            -- one screen pixel in world units
-	local trail = max(1, 0.7 / zoom)
-	lg.setLineWidth(max(2, 2 * px))
+	local trail = max(1, 0.45 / zoom)
+	lg.setLineWidth(max(2, 1.2 * px))
 	for _, p in ipairs(game.projectiles) do
 		if p.kind == "gun" then
 			lg.setColor(COLORS.gun)
 			lg.line(p.x - p.vx * 0.014 * trail, p.y - p.vy * 0.014 * trail, p.x, p.y)
 		elseif p.kind == "artillery" then
 			lg.setColor(COLORS.artillery)
-			lg.circle("fill", p.x, p.y, max(SHELL[p.size] or 4, 3 * px))
+			lg.circle("fill", p.x, p.y, max(SHELL[p.size] or 4, 2 * px))
 			lg.setColor(1, 0.9, 0.7, 0.5)
 			lg.line(p.x - p.vx * 0.012 * trail, p.y - p.vy * 0.012 * trail, p.x, p.y)
 		elseif p.kind == "missile" then
@@ -273,7 +273,7 @@ local function drawProjectiles(game)
 			lg.setColor(1, 0.7, 0.3, 0.6)
 			lg.line(p.x, p.y, p.x - cos(a) * 22 * trail, p.y - sin(a) * 22 * trail)
 			lg.setColor(COLORS.missile)
-			lg.circle("fill", p.x, p.y, max(3, 2.5 * px))
+			lg.circle("fill", p.x, p.y, max(3, 1.6 * px))
 		end
 	end
 end
