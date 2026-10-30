@@ -56,8 +56,9 @@ Fields.planet = {
 		local R = 7500
 		game:spawnPlanet(0, 0, R, 45, 0.1)
 		-- Two wheel stations out past the belt.
-		game:spawnWheelStation(10500, -10700, 900, 120, 0.05)
-		game:spawnWheelStation(-12000, 9000, 900, 120, -0.05)
+		-- They ride slow tracks around the planet at their altitude.
+		game:setOrbit(game:spawnWheelStation(10500, -10700, 900, 120, 0.05), 0, 0, 90)
+		game:setOrbit(game:spawnWheelStation(-12000, 9000, 900, 120, -0.05), 0, 0, 90)
 		-- A belt of rocks already in orbit, going the way the well turns.
 		local w = game.well
 		local placed = 0

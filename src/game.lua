@@ -322,6 +322,28 @@ function Game:spawnWheelStation(x, y, R, tube, spin)
 	return e
 end
 
+-- Put a kinematic body (a station) on a fixed circular track around
+-- (cx, cy), moving at speed px/s (positive is clockwise on screen, the way
+-- the planet's well turns). Not simulated: it just follows the track.
+function Game:setOrbit(e, cx, cy, speed)
+	local x, y = e.body:getPosition()
+	local r = sqrt((x - cx) ^ 2 + (y - cy) ^ 2)
+	e.orbit = { cx = cx, cy = cy, r = r, angle = math.atan2(y - cy, x - cx), rate = speed / r }
+end
+
+function Game:updateOrbits(dt)
+	for _, e in ipairs(self.entities) do
+		local o = e.orbit
+		if o and not e.removed then
+			o.angle = o.angle + o.rate * dt
+			local tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
+			local x, y = e.body:getPosition()
+			-- velocity that lands it exactly on the track this step
+			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+		end
+	end
+end
+
 -- A static, indestructible piece of station: one convex polygon (world
 -- coordinates, up to 8 points). Each piece is its own entity, so the AI
 -- steers around pieces rather than the whole station.
@@ -441,6 +463,7 @@ function Game:step(dt)
 
 	self:applyBoundary()
 	self:applyGravity(dt)
+	self:updateOrbits(dt)
 	self.world:update(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
