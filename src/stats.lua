@@ -15,7 +15,7 @@ local data = require("src.data")
 local stats = {}
 
 -- Stats that come straight from summing fields.
-local SUMMED = { "thrust", "sideThrust", "retroThrust", "turn", "armor", "hold", "powerOut", "powerCap", "powerDraw", "burnPower", "jetPower", "tractorRange" }
+local SUMMED = { "thrust", "sideThrust", "retroThrust", "turn", "armor", "hold", "powerOut", "powerCap", "powerDraw", "tractorRange" }
 
 function stats.compute(hull, loadout)
 	local s = { mass = hull.mass * (hull.bonuses.hullMass or 1) }

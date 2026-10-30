@@ -49,7 +49,7 @@ function Ship.new(game, opts)
 		loadout = copy(opts.loadout or hull.loadout),
 		cargo = copy(opts.cargo or hull.cargo),
 		intent = Ship.emptyIntent(),
-		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false, onReserve = false,
+		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false,
 		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
 	}
 
@@ -168,8 +168,12 @@ end
 function Ship.fly(e, dt)
 	local b, s, it = e.body, e.stats, e.intent
 
-	-- Power: reactor output minus passive draw refills the capacitor.
-	e.power = min(s.powerCap, e.power + s.powerNet * dt)
+	-- Power: reactor output minus passive draw refills the capacitor, but
+	-- only at thrustRecharge of that rate while any thruster is firing.
+	local moving = (it.thrust or 0) ~= 0 or (it.strafe or 0) ~= 0 or it.boost
+	local net = s.powerNet
+	if net > 0 and moving then net = net * T.thrustRecharge end
+	e.power = min(s.powerCap, e.power + net * dt)
 	if e.power < 0 then e.power = 0 end
 
 	-- Thrust is relative to the nose. The main engine only pushes forward,
@@ -182,25 +186,16 @@ function Ship.fly(e, dt)
 	local steer = 0
 	if e.hull.helm == "turn" then steer, side = side, 0 end
 
-	-- Thrusters run on power. Above the reserve (powerReserve of capacity)
-	-- they push at full strength and drain power. Once power falls to the
-	-- reserve they drop to lowPowerThrust and stop draining, until the
-	-- reactor refills past the reserve plus a margin. The afterburner
-	-- ignores the reserve: full power plus extra main thrust, draining fast
-	-- until the capacitor is empty, then it's locked out until power is
-	-- back above the reserve.
-	local reserve = s.powerCap * T.powerReserve
-	if e.power <= 0 then e.burnerLocked = true elseif e.power > reserve then e.burnerLocked = false end
-	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
-	if burner then
-		fwd = 1
-		e.onReserve = false
-	elseif e.power <= reserve then
-		e.onReserve = true
-	elseif e.power >= reserve + s.powerCap * 0.2 then
-		e.onReserve = false
+	-- Afterburner: full main engine plus extra thrust, draining power fast
+	-- until the capacitor is empty; then it's locked out until power is
+	-- back above boostRelight of capacity.
+	if e.power <= 0 then
+		e.burnerLocked = true
+	elseif e.power > s.powerCap * T.boostRelight then
+		e.burnerLocked = false
 	end
-	local eff = e.onReserve and T.lowPowerThrust or 1
+	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
+	if burner then fwd = 1 end
 	e.afterburn = burner
 	local main = max(0, fwd)
 	local spoolTime = e.hull.spoolTime or 0
@@ -216,13 +211,9 @@ function Ship.fly(e, dt)
 	local retro = s.retroThrust * T.sideScale
 	local aux = s.sideThrust * T.sideScale
 	local scale = T.FORCE_PER_KN * T.thrustScale
-	local f = (e.spool * s.thrust * (burner and T.boostThrust or 1) + min(0, fwd) * retro) * eff * scale
-	local l = side * aux * eff * scale
-	if not e.onReserve then
-		local drain = (e.spool * s.burnPower + max(0, -fwd) * s.burnPower * 0.4 + abs(side) * s.jetPower) * T.thrustPowerScale
-		if burner then drain = drain + s.powerCap * T.boostDrain end
-		e.power = max(0, e.power - drain * dt)
-	end
+	local f = (e.spool * s.thrust * (burner and T.boostThrust or 1) + min(0, fwd) * retro) * scale
+	local l = side * aux * scale
+	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = e.spool
 	e.retroBurn = retro > 0 and max(0, -fwd) or 0
