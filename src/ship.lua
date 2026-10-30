@@ -29,7 +29,8 @@ Ship.wrapAngle = wrapAngle
 
 function Ship.emptyIntent()
 	-- thrust: -1..1 along the nose (forward is the main engine, back is retro thrusters)
-	-- strafe: -1..1 to the ship's right (maneuvering thrusters)
+	-- strafe: -1..1 to the ship's right (maneuvering thrusters, or turning
+	--         right on a hull with helm = "turn")
 	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, boost = false }
 end
 
@@ -47,7 +48,7 @@ function Ship.new(game, opts)
 		loadout = copy(opts.loadout or hull.loadout),
 		cargo = copy(opts.cargo or hull.cargo),
 		intent = Ship.emptyIntent(),
-		flash = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, boostCooldown = 0,
+		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, boostCooldown = 0,
 	}
 
 	local body = love.physics.newBody(game.world, opts.x or 0, opts.y or 0, "dynamic")
@@ -141,22 +142,34 @@ function Ship.fly(e, dt)
 	e.power = min(s.powerCap, e.power + s.powerNet * dt)
 	if e.power < 0 then e.power = 0 end
 
-	-- Thrust is relative to the nose. The main engine only pushes forward.
-	-- Reverse and sideways thrust come from maneuvering thrusters
-	-- (sideThrust), which every playable hull has plenty of, so strafing
-	-- and backing off stay lively; heavier hulls just respond slower.
+	-- Thrust is relative to the nose. The main engine only pushes forward,
+	-- and spools up over the hull's spoolTime (winding down twice as fast),
+	-- which makes heavy hulls feel heavy. Reverse comes from built-in retro
+	-- thrusters (retroThrust), sideways only from maneuvering thrusters
+	-- (sideThrust). On a hull with helm = "turn", A/D turn the hull instead.
 	local fwd = max(-1, min(1, it.thrust or 0))
 	local side = max(-1, min(1, it.strafe or 0))
+	local steer = 0
+	if e.hull.helm == "turn" then steer, side = side, 0 end
+	local main = max(0, fwd)
+	local spoolTime = e.hull.spoolTime or 0
+	if spoolTime > 0 then
+		local step = dt / spoolTime
+		e.spool = e.spool + max(-2 * step, min(step, main - e.spool))
+	else
+		e.spool = main
+	end
 	local a = b:getAngle()
 	local fx, fy = cos(a), sin(a)
 	local rx, ry = -fy, fx                         -- the ship's right-hand side
+	local retro = s.retroThrust * T.sideScale
 	local aux = s.sideThrust * T.sideScale
 	local scale = T.FORCE_PER_KN * T.thrustScale
-	local f = (fwd > 0 and fwd * s.thrust or fwd * aux) * scale
+	local f = (e.spool * s.thrust + min(0, fwd) * retro) * scale
 	local l = side * aux * scale
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
-	e.mainBurn = max(0, fwd)
-	e.retroBurn = aux > 0 and max(0, -fwd) or 0
+	e.mainBurn = e.spool
+	e.retroBurn = retro > 0 and max(0, -fwd) or 0
 	e.sideBurn = aux > 0 and side or 0
 
 	-- Quadratic drag gives a natural top speed (no hard cap):
@@ -183,14 +196,20 @@ function Ship.fly(e, dt)
 	-- spin is capped by the hull's turnSpeed, and the controller starts
 	-- braking early enough that the torque it has can stop the spin right
 	-- on target, so heavy hulls ease in instead of overshooting.
-	local x, y = b:getPosition()
-	local desired = atan2(it.aimY - y, it.aimX - x)
-	local diff = wrapAngle(desired - a)
+	-- With helm = "turn", A/D set the spin directly and the hull holds its
+	-- heading when they're released.
 	local inertia = b:getInertia()
 	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale
 	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
-	local brake = sqrt(2 * 0.8 * maxTorque / inertia * abs(diff))
-	local targetW = min(cap, abs(diff) * T.aimGain, brake) * (diff < 0 and -1 or 1)
+	local targetW
+	if e.hull.helm == "turn" then
+		targetW = steer * cap
+	else
+		local x, y = b:getPosition()
+		local diff = wrapAngle(atan2(it.aimY - y, it.aimX - x) - a)
+		local brake = sqrt(2 * 0.8 * maxTorque / inertia * abs(diff))
+		targetW = min(cap, abs(diff) * T.aimGain, brake) * (diff < 0 and -1 or 1)
+	end
 	local w = b:getAngularVelocity()
 	local torque = (targetW - w) * inertia * T.turnResponse
 	b:applyTorque(max(-maxTorque, min(maxTorque, torque)))

@@ -2,11 +2,13 @@
 	Player controls -> intent. Keyboard + mouse and gamepad both work, and
 	whichever you touched last is the one that aims.
 
-	Thrust is relative to where the ship points, which is always at your aim.
+	Thrust is relative to where the ship points, which is at your aim, except
+	on a battleship (helm = "turn"), where A/D turn the hull and the mouse
+	only aims the turrets.
 
 	Keyboard/mouse                 Gamepad
 	  W / S     main engine / retro  left stick up/down
-	  A / D     side thrusters       left stick left/right
+	  A / D     side thrusters (battleship: turn)  left stick left/right
 	  mouse     aim                  right stick    aim
 	  left btn  primary weapons      right trigger  primary weapons
 	  right btn missiles             left trigger / right bumper  missiles

@@ -18,8 +18,8 @@ local data = {
 	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
 }
 
-local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, armor = true, utility = true }
-local SIZES = { S = 1, M = 2, L = 3 }
+local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, armor = true, utility = true, thruster = true }
+local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
@@ -54,11 +54,12 @@ function api.hull(def)
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
+	if def.helm and def.helm ~= "strafe" and def.helm ~= "turn" then fail(("hull '%s' has unknown helm '%s' (use strafe or turn)"):format(def.id, tostring(def.helm))) end
 	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do
 		if slot.mount and not MOUNTS[slot.mount] then fail(("hull '%s' slot %d has unknown mount '%s'"):format(def.id, i, tostring(slot.mount))) end
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
-		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M or L)"):format(def.id, i, tostring(slot.size))) end
+		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
 end
 

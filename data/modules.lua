@@ -5,7 +5,9 @@
 
 	Stat fields by family:
 	  engine   thrust (kN), turn
-	  utility  sideThrust (kN) for auxiliary maneuvering thrusters
+	  thruster sideThrust (kN) for maneuvering thrusters: the only way a ship
+	           can strafe. Thruster slots are size "any", shared by every
+	           hull that has one, and battleships have none.
 	  reactor  powerOut (per second), powerCap (stored power)
 	  armor    armor (hit points)
 	  utility  hold (cubic metres), tractorRange (pixels)
@@ -108,6 +110,9 @@ module { id = "bulwark_plate", name = "Bulwark Plate", maker = "Ferrous Collecti
 
 module { id = "hold_pod_s", name = "Cargo Pod",     maker = "Ferrous Collective", family = "utility", size = "S", mass = 2, hold = 12, price = 1200 }
 module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",       family = "utility", size = "S", mass = 3, powerDraw = 2, tractorRange = 220, price = 3500 }
-module { id = "aux_thrusters",   name = "Side Jets",     maker = "Halcyon Arms",       family = "utility", size = "S", mass = 4,  powerDraw = 2, sideThrust = 160, price = 3800 }
-module { id = "aux_thrusters_m", name = "Side Jets XL",  maker = "Halcyon Arms",       family = "utility", size = "M", mass = 10, powerDraw = 4, sideThrust = 420, price = 9500 }
 module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective", family = "utility", size = "M", mass = 5, hold = 30, price = 4000 }
+
+-- Maneuvering thrusters (shared "any" slot) ----------------------------------------
+
+module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 340, price = 3800 }
+module { id = "aux_thrusters_m", name = "Side Jets XL", maker = "Halcyon Arms", family = "thruster", size = "any", mass = 10, powerDraw = 4, sideThrust = 650, price = 9500 }

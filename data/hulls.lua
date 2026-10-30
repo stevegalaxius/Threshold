@@ -5,9 +5,15 @@
 	Units used everywhere in data/:
 	  mass   tonnes          thrust  kN (engines)
 	  armor  hit points      turn    turning torque (bigger = snappier)
-	  sideThrust  kN of maneuvering thrusters, used for strafing and reverse.
-	              The main engine only pushes forward, so this is what lets a
-	              ship move sideways while keeping its guns on target.
+	  retroThrust kN of built-in reverse thrusters (the main engine only
+	              pushes forward)
+	  sideThrust  kN of built-in side thrusters. Playable hulls have none:
+	              strafing comes from a module in their thruster slot.
+	  spoolTime   seconds for the main engine to reach full thrust; a slight
+	              ramp-up makes heavy hulls feel heavy (default 0, instant)
+	  helm   how A/D steer it: "strafe" (default) fires the side thrusters,
+	         "turn" rotates the hull instead and the mouse only aims the
+	         guns. Battleships use "turn": no thruster slot, no strafing.
 	  turnSpeed  optional cap on spin speed in degrees/second, so a heavy hull
 	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
@@ -29,7 +35,7 @@
 
 hull {
 	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light", mount = "fixed",
-	mass = 50, armor = 80, turn = 500, sideThrust = 340, hold = 24, drag = 0.14, radius = 16,
+	mass = 50, armor = 80, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
 	shape = { 20,0, 4,-7, -6,-14, -14,-12, -10,0, -14,12, -6,14, 4,7 },
 	slots = {
 		{ family = "primary",   size = "S", x = 6,   y = -9 },
@@ -39,16 +45,17 @@ hull {
 		{ family = "reactor",   size = "S" },
 		{ family = "armor",     size = "S" },
 		{ family = "utility",   size = "S" },
+		{ family = "thruster",  size = "any" },
 	},
 	bonuses = { primaryFireRate = 1.15, hullMass = 0.85 },
-	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "thin_plate", "hold_pod_s" },
+	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "thin_plate", "hold_pod_s", "aux_thrusters" },
 	cargo = { rounds_s = 400, missile_s = 4 },
 	price = 14000,
 }
 
 hull {
 	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
-	mass = 200, armor = 200, turn = 3500, turnSpeed = 200, sideThrust = 600, hold = 50, drag = 0.5, radius = 34,
+	mass = 200, armor = 200, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34,
 	shape = { 37,-11, 37,11, 17,26, -23,28, -34,14, -34,-14, -23,-28, 17,-26 },
 	slots = {
 		{ family = "primary",   size = "M", x = 20,  y = -20 },
@@ -59,18 +66,20 @@ hull {
 		{ family = "armor",     size = "M" },
 		{ family = "armor",     size = "M" },
 		{ family = "utility",   size = "S" },
+		{ family = "thruster",  size = "any" },
 	},
 	bonuses = { armor = 1.2, ramDamage = 1.25 },
-	loadout = { "rk7_chaingun", "rk7_chaingun", "sparrow_rack", "mule_engine", "kiln_reactor", "slab_plate", "slab_plate", "tug_beam" },
+	loadout = { "rk7_chaingun", "rk7_chaingun", "sparrow_rack", "mule_engine", "kiln_reactor", "slab_plate", "slab_plate", "tug_beam", "aux_thrusters_m" },
 	cargo = { rounds_m = 500, missile_s = 6 },
 	price = 38000,
 }
 
 -- Battleship: huge, slow to turn, and every gun is on a turret, so it can
--- fight in every direction at once while the hull lumbers along.
+-- fight in every direction at once while the hull lumbers along. No
+-- thruster slot: it can't strafe, and A/D turn the hull instead.
 hull {
-	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150,
-	mass = 600, armor = 500, turn = 3200, turnSpeed = 50, sideThrust = 1100, hold = 120, drag = 1.6, radius = 62,
+	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
+	mass = 600, armor = 500, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
 	shape = { 72,0, 54,-26, 16,-46, -34,-50, -62,-36, -68,0, -62,36, -34,50, 16,46, 54,26 },
 	slots = {
 		{ family = "primary",   size = "L", x = 40,  y = 0 },
@@ -100,7 +109,7 @@ hull {
 -- has to turn around after it overshoots.
 hull {
 	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 30, armor = 10, turn = 160, sideThrust = 0, hold = 8, drag = 0.14, radius = 13,
+	mass = 30, armor = 10, turn = 160, sideThrust = 0, retroThrust = 0, hold = 8, drag = 0.14, radius = 13,
 	shape = { 15,0, -9,-11, -5,0, -9,11 },
 	slots = {
 		{ family = "primary", size = "S", x = 4,  y = 0 },
@@ -115,7 +124,7 @@ hull {
 -- Harasser: tiny, twitchy, strong side thrusters. Hard to hit on purpose.
 hull {
 	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 24, armor = 30, turn = 220, sideThrust = 320, hold = 6, drag = 0.12, radius = 11,
+	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
 	shape = { 14,0, 2,-5, -8,-10, -5,0, -8,10, 2,5 },
 	slots = {
 		{ family = "primary", size = "S", x = 5,  y = 0 },
