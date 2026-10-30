@@ -60,8 +60,28 @@ Fields.planet = {
 		-- the current's speed at that altitude (what a free station drifts at).
 		local sd = 15000
 		local sa = -0.8
-		game:setOrbit(game:spawnWheelStation(cos(sa) * sd, sin(sa) * sd, 900, 120, 0.05), 0, 0, game:currentSpeed(sd))
-		game:setOrbit(game:spawnWheelStation(-cos(sa) * sd, -sin(sa) * sd, 900, 120, -0.05), 0, 0, game:currentSpeed(sd))
+		local speed = game:currentSpeed(sd)
+		local stA = game:spawnWheelStation(cos(sa) * sd, sin(sa) * sd, 900, 120, 0.05)
+		local stB = game:spawnWheelStation(-cos(sa) * sd, -sin(sa) * sd, 900, 120, -0.05)
+		game:setOrbit(stA, 0, 0, speed)
+		game:setOrbit(stB, 0, 0, speed)
+		-- Buoys on the same track at the two Lagrange-style points halfway
+		-- between the stations, a quarter turn from each.
+		local b1 = game:spawnBuoy(cos(sa + pi / 2) * sd, sin(sa + pi / 2) * sd)
+		local b2 = game:spawnBuoy(cos(sa - pi / 2) * sd, sin(sa - pi / 2) * sd)
+		game:setOrbit(b1, 0, 0, speed)
+		game:setOrbit(b2, 0, 0, speed)
+		-- Neutral freighters hauling the loop: station, buoy, station, buoy.
+		local route = { stA, b1, stB, b2 }
+		-- They start on the track between stops, heading for the next one.
+		for k = 1, 3 do
+			local a = sa + pi / 4 + (k - 1) * pi / 2
+			local f = game:spawnEnemy("freighter", cos(a) * sd, sin(a) * sd)
+			f.route = route
+			f.routeIndex = k % #route + 1
+			f.body:setAngle(a + pi / 2)
+			f.body:setLinearVelocity(-sin(a) * speed, cos(a) * speed)
+		end
 		-- A belt of rocks already circling with the current.
 		local placed = 0
 		for _ = 1, 2000 do

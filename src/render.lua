@@ -266,6 +266,23 @@ local function drawStation(game, e)
 	lg.pop()
 end
 
+-- A navigation buoy: a small beacon with a slow pulse ring.
+local function drawBuoy(game, e)
+	local x, y = e.body:getPosition()
+	local px = screenPx
+	local r = max(14, 5 * px)
+	local t = (game.time * 0.5 + e.blink) % 1
+	lg.setColor(1, 0.75, 0.25, 0.35 * (1 - t))
+	lg.setLineWidth(outline(2))
+	lg.circle("line", x, y, r * (1.5 + t * 6))
+	lg.setColor(0.2, 0.22, 0.26)
+	lg.circle("fill", x, y, r, 6)
+	lg.setColor(0.6, 0.66, 0.74)
+	lg.circle("line", x, y, r, 6)
+	lg.setColor(1, 0.75, 0.25, t < 0.15 and 1 or 0.4)
+	lg.circle("fill", x, y, r * 0.4)
+end
+
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
 
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
@@ -603,6 +620,7 @@ function Render.world(game)
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then drawStation(game, e)
+		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e) end
 	end
 	drawTractor(game)

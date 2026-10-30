@@ -104,6 +104,26 @@ hull {
 	price = 95000,
 }
 
+-- Freighter: battleship-sized but boxy, nearly all cargo bay. Two medium
+-- turrets to see off pirates, a big engine and low drag so it's quick in a
+-- straight line, but it comes about very slowly. Flown by neutral traders.
+hull {
+	id = "ferrous_freighter", name = "Hauler", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 120, helm = "turn",
+	mass = 620, armor = 900, turn = 2600, turnSpeed = 30, retroThrust = 700, spoolTime = 0.6, hold = 400, drag = 0.55, radius = 62,
+	shape = { 138,-34, 128,-58, -124,-60, -138,-46, -138,46, -124,60, 128,58, 138,34 },
+	slots = {
+		{ family = "primary",   size = "M", x = 70,  y = 0 },
+		{ family = "primary",   size = "M", x = -70, y = 0 },
+		{ family = "engine",    size = "L", x = -136, y = 0 },
+		{ family = "reactor",   size = "M" },
+		{ family = "utility",   size = "any" },
+		{ family = "utility",   size = "any" },
+	},
+	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "kiln_reactor", "hold_pod_m", "hold_pod_m" },
+	cargo = { rounds_m = 600 },
+	price = 70000,
+}
+
 -- Enemy-only hulls.
 
 -- Basic enemy: no side thrusters and only weak retro thrusters, so it flies

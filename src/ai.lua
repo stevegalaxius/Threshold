@@ -12,6 +12,8 @@
 	  rush   close in; with ram = true it keeps pushing into you
 	  orbit  circle the target at its preferred range
 	  kite   hold long range and back off when you get close
+	  trader neutral hauler: flies its route (e.route, a list of stations
+	         and buoys) and only fires back at whoever attacked it
 ]]
 
 local Ship = require("src.ship")
@@ -38,7 +40,7 @@ local function avoidCollisions(game, e, target, x, y, vx, vy)
 	local px, py, worst = 0, 0, 0
 	local speed = sqrt(vx * vx + vy * vy)
 	for _, o in ipairs(game.entities) do
-		if o ~= e and o ~= target and not o.dead then
+		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy" then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
 			local orad = (o.kind == "ship") and o.halfLength or o.radius
@@ -73,7 +75,7 @@ local function pickTarget(game, e, x, y)
 	if not e.drone then return game.player end
 	local best, bestD = nil, 3000 * 3000
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= e.team then
+		if o.kind == "ship" and not o.dead and o.team ~= e.team and o.team ~= 3 then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
 			if d < bestD then best, bestD = o, d end
@@ -82,11 +84,72 @@ local function pickTarget(game, e, x, y)
 	return best
 end
 
+local atan2 = math.atan2 or math.atan
+local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
+
+-- Where a route stop is right now: just off a station's dock door, or on a
+-- buoy.
+local function stopPoint(stop)
+	if stop.dock then
+		return stop.body:getWorldPoint(stop.dock.x2 + 700, 0)
+	end
+	return stop.body:getPosition()
+end
+
+-- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
+-- strafe intent turns the hull), easing off when it isn't facing where
+-- it's going. Its turrets track and fire on whoever last attacked it,
+-- while they're in range and alive; otherwise it doesn't shoot.
+local function trade(game, e, dt)
+	local it, ai = e.intent, e.def.ai
+	local x, y = e.body:getPosition()
+	local vx, vy = e.body:getLinearVelocity()
+	local route = e.route
+	if route and #route > 0 then
+		e.routeIndex = e.routeIndex or 1
+		local stop = route[e.routeIndex]
+		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
+		local sx, sy = stopPoint(stop)
+		local ux, uy, d = norm(sx - x, sy - y)
+		if d < 450 then e.routeIndex = e.routeIndex % #route + 1 end
+		-- steer around things on the way, then head for the stop
+		local avx, avy = avoidCollisions(game, e, nil, x, y, vx, vy)
+		local mx, my = norm(ux + avx, uy + avy)
+		local a = e.body:getAngle()
+		local diff = wrap(atan2(my, mx) - a)
+		it.strafe = max(-1, min(1, diff * 2.5))
+		local facing = cos(diff)
+		it.thrust = facing > 0.6 and ai.throttle * facing or 0
+		-- slow for the turn into each stop
+		if d < 900 and facing < 0.9 then it.thrust = it.thrust * 0.4 end
+	end
+	local foe = e.aggressor
+	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
+	if foe then
+		local fx, fy = foe.body:getPosition()
+		local fvx, fvy = foe.body:getLinearVelocity()
+		local _, _, dist = norm(fx - x, fy - y)
+		local slot = e.weapons[1]
+		local shotSpeed = (slot and slot.ammo and data.items[slot.ammo].shot.speed) or 3000
+		local lead = dist / shotSpeed * ai.accuracy
+		it.aimX, it.aimY = fx + (fvx - vx) * lead, fy + (fvy - vy) * lead
+		local burstOn, burstOff = ai.burstOn or 1.0, ai.burstOff or 1.4
+		e.burstClock = ((e.burstClock or 0) + dt) % (burstOn + burstOff)
+		it.firePrimary = dist < ai.range and e.burstClock < burstOn
+		it.targetDist = dist
+	else
+		local a = e.body:getAngle()
+		it.aimX, it.aimY = x + cos(a) * 300, y + sin(a) * 300
+		it.targetDist = nil
+	end
+end
+
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireAux, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
+	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()
 	local target = pickTarget(game, e, x, y)

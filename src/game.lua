@@ -104,7 +104,7 @@ function Game:spawnEnemy(id, x, y)
 		local px, py = self.player.body:getPosition()
 		angle = math.atan2(py - y, px - x)
 	end
-	local e = Ship.new(self, { hull = def.hull, loadout = def.loadout, cargo = def.cargo, team = 2, x = x, y = y, angle = angle, enemy = def })
+	local e = Ship.new(self, { hull = def.hull, loadout = def.loadout, cargo = def.cargo, team = def.team or 2, x = x, y = y, angle = angle, enemy = def })
 	table.insert(self.entities, e)
 	return e
 end
@@ -181,10 +181,12 @@ end
 -- Is a circle at (x, y) clear of asteroids and structures (by margin)?
 function Game:isClear(x, y, margin)
 	for _, o in ipairs(self.entities) do
-		if o.kind == "asteroid" or o.kind == "structure" or o.kind == "planet" or o.kind == "station" then
+		local kind = o.kind
+		if kind == "asteroid" or kind == "structure" or kind == "planet" or kind == "station" or kind == "ship" then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)
-			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + margin) ^ 2 then return false end
+			local r = (kind == "ship") and o.halfLength or o.radius
+			if (ox - x) ^ 2 + (oy - y) ^ 2 < (r + margin) ^ 2 then return false end
 		end
 	end
 	return true
@@ -433,6 +435,16 @@ function Game:undock()
 	events.emit("undock", p, st)
 end
 
+-- A navigation buoy: a marker that nothing collides with (it has no
+-- fixtures), usually set on a track with setOrbit.
+function Game:spawnBuoy(x, y)
+	local body = love.physics.newBody(self.world, x, y, "kinematic")
+	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
+	body:setUserData(e)
+	table.insert(self.entities, e)
+	return e
+end
+
 -- Put a kinematic body (a station) on a fixed circular track around
 -- (cx, cy), moving at speed px/s (positive is clockwise on screen, the way
 -- the planet's well turns). Not simulated: it just follows the track.
@@ -676,6 +688,8 @@ function Game:damage(e, amount, source, cause)
 	if e.isPlayer and T.dev.god then return end
 	e.armor = e.armor - amount
 	e.lastHitBy = source
+	-- a neutral that gets shot remembers who did it, and shoots back
+	if e.team == 3 and source and source.kind == "ship" and source.team ~= 3 then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
