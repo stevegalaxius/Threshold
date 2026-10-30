@@ -2,14 +2,19 @@
 	Player controls -> intent. Keyboard + mouse and gamepad both work, and
 	whichever you touched last is the one that aims.
 
-	Thrust is relative to where the ship points, which is always at your aim.
+	Thrust is relative to where the ship points, which is at your aim, except
+	on a battleship (helm = "turn"), where A/D turn the hull and the mouse
+	only aims the turrets.
 
 	Keyboard/mouse                 Gamepad
 	  W / S     main engine / retro  left stick up/down
-	  A / D     side thrusters       left stick left/right
+	  A / D     side thrusters (battleship: turn)  left stick left/right
 	  mouse     aim                  right stick    aim
 	  left btn  primary weapons      right trigger  primary weapons
-	  right btn missiles             left trigger / right bumper  missiles
+	  right btn secondary weapons    left trigger   secondary weapons
+	  middle btn auxiliary launcher  right bumper   auxiliary launcher
+	  Q         auxiliary ammo size  Y              auxiliary ammo size
+	  E (hold)  tractor beam: reels in the pickup under the cursor   X
 	  Shift     afterburner          A              afterburner
 ]]
 
@@ -33,7 +38,7 @@ end
 
 -- uiBlocksMouse: true while the pointer is over the debug panel.
 function Input.read(game, uiBlocksMouse, keyboardBlocked)
-	local intent = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, boost = false }
+	local intent = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, tractor = false }
 	local p = game.player
 	local px, py = 0, 0
 	if p and not p.dead then px, py = p.body:getPosition() end
@@ -46,10 +51,12 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 		if k("d") or k("right") then intent.strafe = intent.strafe + 1 end
 		if k("a") or k("left") then intent.strafe = intent.strafe - 1 end
 		intent.boost = k("lshift") or k("rshift") or k("space")
+		intent.tractor = k("e")
 	end
 	if not uiBlocksMouse then
 		intent.firePrimary = love.mouse.isDown(1)
 		intent.fireSecondary = love.mouse.isDown(2)
+		intent.fireAux = love.mouse.isDown(3)
 	end
 	if intent.thrust ~= 0 or intent.strafe ~= 0 or intent.firePrimary then Input.device = "kbm" end
 
@@ -59,8 +66,9 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 		local mx, my = stick(j, "leftx", "lefty")
 		local ax, ay, al = stick(j, "rightx", "righty")
 		local rt = j:getGamepadAxis("triggerright") > 0.3
-		local lt = j:getGamepadAxis("triggerleft") > 0.3 or j:isGamepadDown("rightshoulder")
-		if mx ~= 0 or my ~= 0 or al > 0 or rt or lt then Input.device = "pad" end
+		local lt = j:getGamepadAxis("triggerleft") > 0.3
+		local rb = j:isGamepadDown("rightshoulder")
+		if mx ~= 0 or my ~= 0 or al > 0 or rt or lt or rb then Input.device = "pad" end
 		if Input.device == "pad" then
 			intent.thrust = intent.thrust - my
 			intent.strafe = intent.strafe + mx
@@ -70,6 +78,8 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 			end
 			intent.firePrimary = intent.firePrimary or rt
 			intent.fireSecondary = intent.fireSecondary or lt
+			intent.fireAux = intent.fireAux or rb
+			intent.tractor = intent.tractor or j:isGamepadDown("x")
 			intent.boost = intent.boost or j:isGamepadDown("a")
 		end
 	end

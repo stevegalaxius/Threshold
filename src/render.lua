@@ -6,6 +6,7 @@
 ]]
 
 local data = require("src.data")
+local Ship = require("src.ship")
 
 local Render = {}
 
@@ -16,10 +17,6 @@ local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
 	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
-	player = { 0.55, 0.9, 0.95 },
-	playerDark = { 0.12, 0.28, 0.34 },
-	enemy = { 0.95, 0.5, 0.32 },
-	enemyDark = { 0.32, 0.12, 0.08 },
 	flame = { 0.55, 0.85, 1.0 },
 	enemyFlame = { 1.0, 0.6, 0.25 },
 	gun = { 1.0, 0.92, 0.55 },
@@ -30,6 +27,25 @@ local COLORS = {
 	salvage = { 0.45, 0.95, 0.85 },
 }
 Render.COLORS = COLORS
+
+-- Outlines are drawn in world units, so they'd thin to nothing zoomed out.
+-- outline(w) keeps a line at least about w * 0.7 screen pixels wide.
+local screenPx = 1
+local function outline(w)
+	return max(w, w * 0.7 * screenPx)
+end
+
+
+-- Paint jobs the player can pick from (debug panel for now). Enemies get
+-- their color from data/enemies.lua.
+Render.PAINTS = {
+	{ name = "Glacier",  color = { 0.55, 0.9, 0.95 } },
+	{ name = "Signal",   color = { 1.0, 0.85, 0.35 } },
+	{ name = "Bone",     color = { 0.9, 0.88, 0.8 } },
+	{ name = "Moss",     color = { 0.55, 0.85, 0.45 } },
+	{ name = "Orchid",   color = { 0.85, 0.55, 0.95 } },
+	{ name = "Ember",    color = { 1.0, 0.45, 0.3 } },
+}
 
 -- Starfield: three parallax layers of fixed random stars, tiled. Each layer
 -- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers
@@ -88,24 +104,62 @@ local function drawGrid(game)
 
 	-- Arena edge
 	lg.setColor(COLORS.edge)
-	local R, n = game.arenaRadius, 180
+	local R, n = game.arenaRadius, 360
 	for i = 0, n - 1, 2 do
 		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
 		lg.line(cos(a1) * R, sin(a1) * R, cos(a2) * R, sin(a2) * R)
 	end
 end
 
+-- Re-entry glow: a hot plasma sheath on the leading side of anything
+-- ploughing through the atmosphere (e.reentry, set by Game:updateAtmosphere).
+local function drawReentry(e, size)
+	local h = e.reentry
+	if not h then return end
+	local x, y = e.body:getPosition()
+	local dx, dy = e.reentryX, e.reentryY
+	local flick = 0.85 + love.math.random() * 0.3
+	lg.setBlendMode("add")
+	for k = 4, 1, -1 do
+		local r = size * (0.6 + k * 0.3 + h * 0.5) * flick
+		lg.setColor(1, 0.35 + k * 0.12, 0.1 + k * 0.08, (0.12 + 0.2 * h) * (1.2 - k * 0.2))
+		lg.circle("fill", x + dx * size * 0.4, y + dy * size * 0.4, r)
+	end
+	-- white-hot core on the leading edge
+	lg.setColor(1, 0.95, 0.8, 0.6 * h * flick)
+	lg.circle("fill", x + dx * size * 0.8, y + dy * size * 0.8, size * (0.25 + 0.3 * h))
+	-- flames streaming behind
+	lg.setLineWidth(max(2, size * 0.18))
+	for k = -2, 2 do
+		local ox, oy = -dy * k * size * 0.3, dx * k * size * 0.3
+		local len = size * (2.5 + 4 * h) * (1 - math.abs(k) * 0.18) * flick
+		lg.setColor(1, 0.55, 0.2, (0.25 + 0.4 * h) * (1 - math.abs(k) * 0.25))
+		lg.line(x + ox, y + oy, x + ox - dx * len, y + oy - dy * len)
+	end
+	lg.setBlendMode("alpha")
+end
+
 local function drawAsteroid(e)
+	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
 	local s = e.shade
-	if e.verts then
+	if e.giant then
+		lg.setColor(0.2 * s, 0.19 * s, 0.21 * s)
+		for _, t in ipairs(e.tris) do lg.polygon("fill", t) end
+		-- a few craters so it reads as rock at any zoom
+		lg.setColor(0.15 * s, 0.14 * s, 0.16 * s)
+		for _, c in ipairs(e.craters) do lg.circle("fill", c[1], c[2], c[3]) end
+		lg.setColor(0.6 * s, 0.58 * s, 0.62 * s)
+		lg.setLineWidth(outline(3))
+		lg.polygon("line", e.outline)
+	elseif e.verts then
 		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
 		lg.polygon("fill", e.verts)
 		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
-		lg.setLineWidth(2)
+		lg.setLineWidth(outline(2))
 		lg.polygon("line", e.verts)
 	else
 		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
@@ -114,17 +168,230 @@ local function drawAsteroid(e)
 		lg.circle("line", 0, 0, e.radius * 0.9)
 	end
 	lg.pop()
+	-- heated rock: glowing orange over its whole face
+	if e.reentry then
+		lg.setBlendMode("add")
+		lg.setColor(1, 0.45, 0.15, 0.45 * e.reentry)
+		if e.verts then
+			lg.push()
+			lg.translate(x, y)
+			lg.rotate(e.body:getAngle())
+			lg.polygon("fill", e.verts)
+			lg.pop()
+		else
+			lg.circle("fill", x, y, e.radius * 0.9)
+		end
+		lg.setBlendMode("alpha")
+	end
+end
+
+local function drawStructure(game, e)
+	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or { 0.16, 0.18, 0.22 }
+	lg.setColor(fill)
+	lg.polygon("fill", e.verts)
+	lg.setColor(0.5, 0.58, 0.68)
+	lg.setLineWidth(outline(2))
+	lg.polygon("line", e.verts)
+	-- running lights on every corner, blinking out of step
+	local on = ((game.time + e.blink) % 1.6) < 0.25
+	if on then
+		local r = max(4, 3 * screenPx)
+		lg.setColor(e.role == "ring" and { 1, 0.35, 0.3 } or { 0.5, 0.9, 1 })
+		for i = 1, #e.verts, 2 do lg.circle("fill", e.verts[i], e.verts[i + 1], r) end
+	end
+end
+
+-- A wheel station: smooth ring, spokes and hub, with lit windows along
+-- the ring that turn with it.
+local function drawStation(game, e)
+	local x, y = e.body:getPosition()
+	local R, tube, hub = e.ringR, e.tube, e.hub
+	local ri, ro = R - tube / 2, R + tube / 2
+	local seg = 512
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	-- spokes under the ring
+	local sw = tube * 0.22
+	for k = 0, e.spokes - 1 do
+		lg.push()
+		lg.rotate(k / e.spokes * pi * 2)
+		lg.setColor(0.17, 0.19, 0.23)
+		lg.rectangle("fill", hub * 0.9, -sw, ri - hub * 0.9 + 4, sw * 2)
+		lg.setColor(0.5, 0.58, 0.68)
+		lg.setLineWidth(outline(1.5))
+		lg.rectangle("line", hub * 0.9, -sw, ri - hub * 0.9 + 4, sw * 2)
+		lg.pop()
+	end
+	-- the ring, as one thick smooth stroke
+	lg.setColor(0.2, 0.23, 0.28)
+	lg.setLineWidth(tube)
+	lg.circle("line", 0, 0, R, seg)
+	-- a darker band down the middle of the ring
+	lg.setColor(0.15, 0.17, 0.21)
+	lg.setLineWidth(tube * 0.35)
+	lg.circle("line", 0, 0, R, seg)
+	lg.setColor(0.55, 0.63, 0.74)
+	lg.setLineWidth(outline(2))
+	lg.circle("line", 0, 0, ro, seg)
+	lg.circle("line", 0, 0, ri, seg)
+	-- windows along the ring's outer and inner faces
+	lg.setColor(1, 0.86, 0.55, 0.85)
+	local wr = max(tube * 0.05, 2 * screenPx)
+	local nw = floor(R / 14)
+	for i = 0, nw - 1 do
+		local a = i / nw * pi * 2
+		local c, s = cos(a), sin(a)
+		if i % 7 ~= 3 then
+			lg.circle("fill", c * (ro - tube * 0.16), s * (ro - tube * 0.16), wr)
+			lg.circle("fill", c * (ri + tube * 0.16), s * (ri + tube * 0.16), wr)
+		end
+	end
+	-- the dock: a square module on the outside of the ring, door facing out
+	local d = e.dock
+	if d then
+		local x1, x2, hw = d.x1, d.x2, d.hw
+		lg.setColor(0.2, 0.23, 0.28)
+		lg.rectangle("fill", x1, -hw, x2 - x1, hw * 2)
+		lg.setColor(0.55, 0.63, 0.74)
+		lg.setLineWidth(outline(2))
+		lg.rectangle("line", x1, -hw, x2 - x1, hw * 2)
+		-- the door: hazard-striped, lit while a ship is coming in
+		local busy = false
+		for _, o in ipairs(game.entities) do
+			if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
+		end
+		local dw = hw * 0.7
+		lg.setColor(0.09, 0.1, 0.13)
+		lg.rectangle("fill", x2 - d.wall, -dw, d.wall, dw * 2)
+		lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+		for k = -3, 2 do
+			local y0 = dw * k / 3
+			lg.rectangle("fill", x2 - d.wall, y0, d.wall, dw / 6)
+		end
+		-- Runway lights: two rows running out from the door, plus a centre
+		-- line of strobes chasing in toward it. Lights only: nothing out
+		-- there collides.
+		local lr = max(5, 3 * screenPx)
+		local step = 80
+		local n = floor(d.runway / step)
+		for i = 0, n do
+			local lx = x2 + 30 + i * step
+			local fade = 1 - i / (n + 1) * 0.6
+			lg.setColor(0.35, 1, 0.5, 0.75 * fade)
+			lg.circle("fill", lx, dw, lr)
+			lg.circle("fill", lx, -dw, lr)
+			local phase = (game.time * 1.6 + i / n) % 1
+			if phase < 0.12 then
+				lg.setColor(1, 1, 1, fade)
+				lg.circle("fill", lx, 0, lr * 1.8)
+			else
+				lg.setColor(1, 1, 1, 0.12 * fade)
+				lg.circle("fill", lx, 0, lr)
+			end
+		end
+		lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
+		lg.circle("fill", x2, hw, lr * 1.4)
+		lg.circle("fill", x2, -hw, lr * 1.4)
+	end
+	-- hub
+	lg.setColor(0.22, 0.25, 0.31)
+	lg.circle("fill", 0, 0, hub, 96)
+	lg.setColor(0.55, 0.63, 0.74)
+	lg.setLineWidth(outline(2))
+	lg.circle("line", 0, 0, hub, 96)
+	lg.circle("line", 0, 0, hub * 0.45, 64)
+	-- blinking beacons on the rim
+	if (game.time % 1.6) < 0.25 then
+		lg.setColor(1, 0.35, 0.3)
+		local br = max(tube * 0.08, 4 * screenPx)
+		for k = 0, 3 do
+			local a = (k + 0.5) / 4 * pi * 2
+			lg.circle("fill", cos(a) * ro, sin(a) * ro, br)
+		end
+	end
+	lg.pop()
+end
+
+-- A navigation buoy: a small beacon with a slow pulse ring.
+local function drawBuoy(game, e)
+	local x, y = e.body:getPosition()
+	local px = screenPx
+	local r = max(14, 5 * px)
+	local t = (game.time * 0.5 + e.blink) % 1
+	lg.setColor(1, 0.75, 0.25, 0.35 * (1 - t))
+	lg.setLineWidth(outline(2))
+	lg.circle("line", x, y, r * (1.5 + t * 6))
+	lg.setColor(0.2, 0.22, 0.26)
+	lg.circle("fill", x, y, r, 6)
+	lg.setColor(0.6, 0.66, 0.74)
+	lg.circle("line", x, y, r, 6)
+	lg.setColor(1, 0.75, 0.25, t < 0.15 and 1 or 0.4)
+	lg.circle("fill", x, y, r * 0.4)
+end
+
+local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
+
+-- The planet, with a hazy atmosphere and dashed rings that turn with the
+-- planet's field so you can see which way it drags you.
+
+local function drawPlanet(game, e)
+	local x, y = e.body:getPosition()
+	local R, c = e.radius, e.hue
+	local w = game.well
+	local dir = (w and w.swirl or 0) >= 0 and 1 or -1
+	-- dashed rings that drift the way the well turns
+	lg.setLineWidth(outline(2))
+	for k = 1, 4 do
+		local rr = R + k * 1500
+		local n = floor(pi * rr / 900) * 2
+		local turn = dir * game.time * 300 / rr
+		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
+		for i = 0, n - 1, 2 do
+			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
+			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
+		end
+	end
+	-- atmosphere haze
+	for k = 6, 1, -1 do
+		lg.setColor(c[1], c[2], c[3], 0.05)
+		lg.circle("fill", x, y, R + k * 140, PLANET_SEGMENTS)
+	end
+	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.4)
+	lg.circle("fill", x, y, R, PLANET_SEGMENTS)
+	-- cloud bands, clipped to the disc
+	lg.setColor(c[1] * 0.45, c[2] * 0.45, c[3] * 0.5)
+	for k = -2, 2 do
+		local y1, y2 = k * R * 0.3 - R * 0.05, k * R * 0.3 + R * 0.05
+		local pts = {}
+		for i = 0, 32 do
+			local yy = y1 + (y2 - y1) * i / 32
+			pts[#pts + 1] = x + sqrt(max(0, R * R - yy * yy)) * 0.98
+			pts[#pts + 1] = y + yy
+		end
+		for i = 32, 0, -1 do
+			local yy = y1 + (y2 - y1) * i / 32
+			pts[#pts + 1] = x - sqrt(max(0, R * R - yy * yy)) * 0.98
+			pts[#pts + 1] = y + yy
+		end
+		for _, t in ipairs(love.math.triangulate(pts)) do lg.polygon("fill", t) end
+	end
+	lg.setColor(c[1], c[2], c[3], 0.9)
+	lg.setLineWidth(outline(3))
+	lg.circle("line", x, y, R, PLANET_SEGMENTS)
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
 local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 
 local function drawShip(game, e)
+	if e.dockState and e.dockState.done then return end
+	drawReentry(e, e.halfLength)
 	local x, y = e.body:getPosition()
 	local a = e.body:getAngle()
 	local hull = e.hull
-	local col = e.isPlayer and COLORS.player or COLORS.enemy
-	local dark = e.isPlayer and COLORS.playerDark or COLORS.enemyDark
+	local col = e.color
+	local dark = { col[1] * 0.22, col[2] * 0.22, col[3] * 0.22 }
 
 	lg.push()
 	lg.translate(x, y)
@@ -135,8 +402,8 @@ local function drawShip(game, e)
 	local R = hull.radius
 	if e.mainBurn > 0.05 then
 		local len = R * (0.6 + e.mainBurn * 0.9) * (0.85 + love.math.random() * 0.3)
-		if e.boostFlash and e.boostFlash > 0 then len = len * 2.2 end
-		local bx, wdt = -R * 0.75, R * 0.35
+		if e.afterburn then len = len * 2.2 end
+		local bx, wdt = e.tailX * 0.85, R * 0.35
 		lg.setColor(fc[1], fc[2], fc[3], 0.35)
 		lg.polygon("fill", bx, -wdt * 1.4, bx, wdt * 1.4, bx - len * 1.3, 0)
 		lg.setColor(fc[1], fc[2], fc[3], 0.9)
@@ -152,12 +419,12 @@ local function drawShip(game, e)
 	if math.abs(e.sideBurn) > 0.05 then
 		local s = e.sideBurn > 0 and -1 or 1          -- pushing right fires the left-side jets
 		local k = math.abs(e.sideBurn)
-		puff(R * 0.35, s * R * 0.75, 0, s, k)
-		puff(-R * 0.45, s * R * 0.75, 0, s, k)
+		puff(e.noseX * 0.4, s * R * 0.75, 0, s, k)
+		puff(e.tailX * 0.5, s * R * 0.75, 0, s, k)
 	end
 	if e.retroBurn > 0.05 then
-		puff(R * 0.8, -R * 0.35, 1, 0, e.retroBurn)
-		puff(R * 0.8, R * 0.35, 1, 0, e.retroBurn)
+		puff(e.noseX * 0.6, -R * 0.35, 1, 0, e.retroBurn)
+		puff(e.noseX * 0.6, R * 0.35, 1, 0, e.retroBurn)
 	end
 
 	-- Weapon barrels, each rotated to where its mount points it (slot.aim).
@@ -172,17 +439,21 @@ local function drawShip(game, e)
 		lg.rotate(w.aim or 0)
 		lg.setColor(0.75, 0.78, 0.82)
 		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
-		if w.group == "secondary" then
+		if w.group == "auxiliary" then
 			lg.rectangle("fill", -4, -4, 8, 8)
 		else
-			lg.rectangle("fill", 0, -thick / 2, len, thick)
+			local n, gap = w.w.barrels or 1, w.w.barrelGap or 8
+			for b = 1, n do
+				local off = (b - (n + 1) / 2) * gap
+				lg.rectangle("fill", 0, off - thick / 2, len, thick)
+			end
 		end
 		if w.mount == "turret" then
 			local r = TURRET[w.module.size] or 5
 			lg.setColor(dark)
 			lg.circle("fill", 0, 0, r)
 			lg.setColor(col)
-			lg.setLineWidth(1.5)
+			lg.setLineWidth(outline(1.5))
 			lg.circle("line", 0, 0, r)
 		end
 		lg.pop()
@@ -193,7 +464,7 @@ local function drawShip(game, e)
 	lg.setColor(dark)
 	lg.polygon("fill", hull.shape)
 	lg.setColor(col)
-	lg.setLineWidth(2)
+	lg.setLineWidth(outline(2))
 	lg.polygon("line", hull.shape)
 	if e.flash > 0 then
 		lg.setColor(1, 1, 1, 0.8)
@@ -210,26 +481,76 @@ local function drawShip(game, e)
 		local fr = e.armor / e.stats.armor
 		lg.setColor(0, 0, 0, 0.6)
 		lg.rectangle("fill", x - wdt / 2, y - hull.radius - 12, wdt, 4)
-		lg.setColor(COLORS.enemy)
+		lg.setColor(e.color)
 		lg.rectangle("fill", x - wdt / 2, y - hull.radius - 12, wdt * fr, 4)
 	end
+end
+
+-- Tractor beam: a soft line to whatever it's reeling in, and its reach
+-- while the key is held.
+local function drawTractor(game)
+	local p = game.player
+	if not p or p.dead or not p.intent.tractor then return end
+	local x, y = p.body:getPosition()
+	local c = COLORS.laser
+	lg.setColor(c[1], c[2], c[3], 0.08)
+	lg.setLineWidth(1)
+	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)
+	local k = p.tractorTarget
+	if k then
+		lg.setColor(c[1], c[2], c[3], 0.25)
+		lg.setLineWidth(6)
+		lg.line(x, y, k.x, k.y)
+		lg.setColor(c[1], c[2], c[3], 0.7)
+		lg.setLineWidth(1.5)
+		lg.line(x, y, k.x, k.y)
+	end
+end
+
+-- Husks: the dead ship's outline, burnt dark, with a faint glow of its
+-- paint and the odd flicker of fire.
+local function drawHusk(game, h)
+	local x, y = h.body:getPosition()
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(h.body:getAngle())
+	local c = h.color
+	lg.setColor(0.06, 0.06, 0.07)
+	lg.polygon("fill", h.hull.shape)
+	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35)
+	lg.setLineWidth(outline(2))
+	lg.polygon("line", h.hull.shape)
+	local f = sin(game.time * 7 + h.flicker) * sin(game.time * 3.1 + h.flicker * 2)
+	if f > 0.6 then
+		lg.setColor(1, 0.55, 0.2, (f - 0.6) * 2)
+		lg.circle("fill", h.tailX * 0.3, 0, 3)
+	end
+	lg.pop()
 end
 
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then
 			for _, w in ipairs(e.weapons) do
+				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam
-				if b and game.time - b[5] < 0.05 then
+				local age = b and (game.time - b[5])
+				if b and age < b[6] then
+					local k = 1 - age / b[6]
 					local c = COLORS.laser
-					lg.setColor(c[1], c[2], c[3], 0.25)
-					lg.setLineWidth(7)
+					local px = 1 / game.camera.zoom
+					lg.setBlendMode("add")
+					lg.setColor(c[1], c[2], c[3], 0.35 * k)
+					lg.setLineWidth(max(18, 10 * px))
 					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(1, 1, 1, 0.95)
-					lg.setLineWidth(2)
+					lg.setColor(c[1], c[2], c[3], 0.7 * k)
+					lg.setLineWidth(max(8, 4 * px))
 					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(c[1], c[2], c[3], 0.6)
-					lg.circle("fill", b[3], b[4], 5 + love.math.random() * 3)
+					lg.setColor(1, 1, 1, k)
+					lg.setLineWidth(max(3, 2 * px))
+					lg.line(b[1], b[2], b[3], b[4])
+					lg.circle("fill", b[3], b[4], (8 + love.math.random() * 4) * k)
+					lg.setBlendMode("alpha")
 				end
 			end
 		end
@@ -237,24 +558,40 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
+local TORPEDO = { S = 4, M = 6, L = 9 }
 
+-- Shots keep a minimum on-screen size, so they stay visible zoomed out.
 local function drawProjectiles(game)
-	lg.setLineWidth(2)
+	local zoom = game.camera.zoom
+	local px = 1 / zoom                            -- one screen pixel in world units
+	local trail = 1
+	lg.setLineWidth(max(1.5, 0.9 * px))
 	for _, p in ipairs(game.projectiles) do
 		if p.kind == "gun" then
-			lg.setColor(COLORS.gun)
-			lg.line(p.x - p.vx * 0.014, p.y - p.vy * 0.014, p.x, p.y)
+			-- rounds fade out as they lose punch over their range
+			local c = COLORS.gun
+			local fade = p.maxLife and (0.15 + 0.85 * max(0, p.life / p.maxLife)) or 1
+			lg.setColor(c[1], c[2], c[3], (c[4] or 1) * fade)
+			lg.line(p.x - p.vx * 0.014 * trail, p.y - p.vy * 0.014 * trail, p.x, p.y)
 		elseif p.kind == "artillery" then
 			lg.setColor(COLORS.artillery)
-			lg.circle("fill", p.x, p.y, SHELL[p.size] or 4)
+			lg.circle("fill", p.x, p.y, max(SHELL[p.size] or 4, 1.3 * px))
 			lg.setColor(1, 0.9, 0.7, 0.5)
-			lg.line(p.x - p.vx * 0.012, p.y - p.vy * 0.012, p.x, p.y)
+			lg.line(p.x - p.vx * 0.012 * trail, p.y - p.vy * 0.012 * trail, p.x, p.y)
+		elseif p.kind == "torpedo" then
+			local r = max(TORPEDO[p.size] or 5, 1.8 * px)
+			lg.setColor(1, 0.35, 0.2, 0.35)
+			lg.circle("fill", p.x, p.y, r * 2.2)
+			lg.setColor(1, 0.55, 0.3, 0.7)
+			lg.line(p.x - p.vx * 0.03 * trail, p.y - p.vy * 0.03 * trail, p.x, p.y)
+			lg.setColor(1, 0.9, 0.75)
+			lg.circle("fill", p.x, p.y, r)
 		elseif p.kind == "missile" then
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
-			lg.line(p.x, p.y, p.x - cos(a) * 22, p.y - sin(a) * 22)
+			lg.line(p.x, p.y, p.x - cos(a) * 22 * trail, p.y - sin(a) * 22 * trail)
 			lg.setColor(COLORS.missile)
-			lg.circle("fill", p.x, p.y, 3)
+			lg.circle("fill", p.x, p.y, max(3, 1.2 * px))
 		end
 	end
 end
@@ -262,15 +599,20 @@ end
 local function drawPickups(game)
 	for _, k in ipairs(game.pickups) do
 		local item = data.items[k.item]
-		local c = (item.kind == "ammo") and COLORS.ammo or COLORS.salvage
-		local blink = (k.life < 8 and floor(k.life * 6) % 2 == 0) and 0.35 or 1
+		local c = (item.kind == "salvage") and COLORS.salvage or COLORS.ammo
+		local blink = 1
+		if k == game.hoverPickup then
+			lg.setColor(1, 1, 1, 0.6)
+			lg.setLineWidth(outline(1.5))
+			lg.circle("line", k.x, k.y, 16)
+		end
 		lg.push()
 		lg.translate(k.x, k.y)
 		lg.rotate(k.spin)
 		lg.setColor(c[1], c[2], c[3], 0.25 * blink)
 		lg.rectangle("fill", -8, -8, 16, 16)
 		lg.setColor(c[1], c[2], c[3], blink)
-		lg.setLineWidth(2)
+		lg.setLineWidth(outline(2))
 		lg.rectangle("line", -5, -5, 10, 10)
 		lg.pop()
 	end
@@ -283,6 +625,9 @@ local function drawEffects(game)
 			local c = fx.color or { 1, 0.8, 0.5 }
 			lg.setColor(c[1], c[2], c[3], 1 - k)
 			lg.rectangle("fill", floor(fx.x), floor(fx.y), 2, 2)
+		elseif fx.kind == "explosion" and fx.dust then
+			lg.setColor(0.6, 0.6, 0.65, (1 - k) * 0.35)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.5 + k * 0.8))
 		elseif fx.kind == "explosion" then
 			lg.setColor(1, 0.75, 0.4, (1 - k) * 0.25)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
@@ -302,7 +647,7 @@ local function drawRange(game)
 	if not p or p.dead then return end
 	local reach = 0
 	for _, w in ipairs(p.weapons) do
-		if w.group == "primary" then reach = max(reach, w.w.range or 0) end
+		if w.group ~= "auxiliary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
 	local x, y = p.body:getPosition()
@@ -312,14 +657,21 @@ local function drawRange(game)
 end
 
 function Render.world(game)
+	screenPx = 1 / game.camera.zoom
 	Render.background(game.camera)
 	game.camera:apply()
 	drawGrid(game)
 	drawRange(game)
 	drawPickups(game)
 	for _, e in ipairs(game.entities) do
-		if e.kind == "asteroid" then drawAsteroid(e) end
+		if e.kind == "asteroid" then drawAsteroid(e)
+		elseif e.kind == "structure" then drawStructure(game, e)
+		elseif e.kind == "planet" then drawPlanet(game, e)
+		elseif e.kind == "station" then drawStation(game, e)
+		elseif e.kind == "buoy" then drawBuoy(game, e)
+		elseif e.kind == "husk" then drawHusk(game, e) end
 	end
+	drawTractor(game)
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then drawShip(game, e) end

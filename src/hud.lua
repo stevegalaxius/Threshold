@@ -7,6 +7,7 @@
 local data = require("src.data")
 local Input = require("src.input")
 local Render = require("src.render")
+local T = require("src.tuning")
 
 local HUD = { showHelp = true }
 
@@ -66,7 +67,8 @@ local function weaponLines(p)
 		line.n = line.n + 1
 		line.starved = line.starved or w.starved
 	end
-	table.sort(lines, function(a, b) return (a.group == "primary") and b.group ~= "primary" end)
+	local ORDER = { primary = 1, secondary = 2, auxiliary = 3 }
+	table.sort(lines, function(a, b) return ORDER[a.group] < ORDER[b.group] end)
 	return lines
 end
 
@@ -82,13 +84,19 @@ local function drawStatus(game)
 	local s = p.stats
 	local lowArmor = p.armor / s.armor < 0.3
 	bar(x + 12, y + 12, pw - 24, 18, p.armor / s.armor, lowArmor and WARN or { 0.4, 0.85, 0.95 }, "ARMOR", ("%d / %d"):format(floor(p.armor + 0.5), floor(s.armor + 0.5)))
-	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), { 0.55, 0.75, 1.0 }, "POWER", ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
+	local powerLabel = p.afterburn and "AFTERBURNER" or (p.burnerLocked and "POWER  (afterburner cooling)" or "POWER")
+	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), p.burnerLocked and { 1.0, 0.7, 0.35 } or { 0.55, 0.75, 1.0 }, powerLabel, ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
+	-- tick where the afterburner relights after running dry
+	lg.setColor(1, 1, 1, 0.5)
+	local rx = x + 12 + (pw - 24) * T.boostRelight
+	lg.line(rx, y + 33, rx, y + 49)
 
 	lg.setFont(font(12))
 	local ly = y + 56
 	for _, line in ipairs(lines) do
-		local label = (line.n > 1 and (line.n .. "x ") or "") .. line.name
-		lg.setColor(line.group == "secondary" and { 1, 0.85, 0.7 } or INK)
+		local tag = ({ primary = "LMB", secondary = "RMB", auxiliary = "MMB" })[line.group] or ""
+		local label = tag .. "  " .. (line.n > 1 and (line.n .. "x ") or "") .. line.name
+		lg.setColor(line.group == "auxiliary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
 		lg.print(label, x + 14, ly)
 		local right, col
 		if line.kind == "laser" then
@@ -133,14 +141,21 @@ local function drawTopBar(game)
 	lg.setFont(font(14))
 	lg.setColor(INK)
 	lg.print(status, 28, 20)
+	if game.field then
+		lg.setFont(font(12))
+		lg.setColor(DIM)
+		lg.print(game.field.name .. "   (F2 next field)", 28, 50)
+	end
 end
 
 local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
-	"LMB fire   RMB missile",
+	"LMB primary   RMB secondary   MMB auxiliary",
+	"Q auxiliary ammo size   E tractor beam",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
+	"F2 next playing field",
 	"H hide help   Esc quit",
 }
 
@@ -189,7 +204,7 @@ local function drawOffscreen(game)
 				local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
 				local t = min(math.abs(tx), math.abs(ty))
 				local ax, ay = cx + cos(a) * t, cy + sin(a) * t
-				lg.setColor(Render.COLORS.enemy[1], Render.COLORS.enemy[2], Render.COLORS.enemy[3], 0.85)
+				lg.setColor(e.color[1], e.color[2], e.color[3], 0.85)
 				lg.polygon("fill",
 					ax + cos(a) * 10, ay + sin(a) * 10,
 					ax + cos(a + 2.4) * 8, ay + sin(a + 2.4) * 8,
@@ -227,6 +242,25 @@ local function drawDeath(game)
 	lg.printf("Press R (or Start) to launch a new ship", 0, h * 0.36 + 110, w, "center")
 end
 
+-- Placeholder station screen while docked; the real station GUI goes here.
+local function drawDocked(game)
+	if game.state ~= "docked" then return end
+	local w, h = lg.getDimensions()
+	lg.setColor(0, 0, 0, 0.5)
+	lg.rectangle("fill", 0, 0, w, h)
+	local pw, ph = 420, 170
+	local x, y = (w - pw) / 2, h * 0.32
+	panel(x, y, pw, ph)
+	lg.setFont(font(28))
+	lg.setColor(INK)
+	lg.printf("DOCKED", x, y + 22, pw, "center")
+	lg.setFont(font(14))
+	lg.setColor(DIM)
+	lg.printf("Wheel station\nStation services coming soon", x, y + 70, pw, "center")
+	lg.setColor(INK)
+	lg.printf("Press E, Enter or (A) to launch", x, y + 124, pw, "center")
+end
+
 function HUD.draw(game, aimX, aimY)
 	drawOffscreen(game)
 	drawTopBar(game)
@@ -234,7 +268,8 @@ function HUD.draw(game, aimX, aimY)
 	drawHelp()
 	drawToasts(game)
 	drawDeath(game)
-	drawReticle(game, aimX, aimY)
+	drawDocked(game)
+	if game.state ~= "docked" then drawReticle(game, aimX, aimY) end
 end
 
 return HUD

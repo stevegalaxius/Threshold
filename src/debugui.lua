@@ -8,6 +8,8 @@ local Slab = require("lib.Slab")
 local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local Render = require("src.render")
+local Fields = require("src.fields")
 
 local Debug = { visible = false }
 
@@ -51,6 +53,19 @@ local function shipSection(game)
 	combo("dbg_hull", current.name, opts, function(id) game:spawnPlayer(id) end)
 	if Slab.Button("Relaunch ship") then game:spawnPlayer() end
 
+	Slab.Text("Paint")
+	local paints = {}
+	local paintName = "(custom)"
+	for _, pt in ipairs(Render.PAINTS) do
+		table.insert(paints, { label = pt.name, value = pt.color })
+		local c = game.playerColor
+		if pt.color[1] == c[1] and pt.color[2] == c[2] and pt.color[3] == c[3] then paintName = pt.name end
+	end
+	combo("dbg_paint", paintName, paints, function(c)
+		game.playerColor = c
+		if p then p.color = c end
+	end)
+
 	if not p or p.dead then return end
 	Slab.Separator()
 	Slab.Text("Modules (strict size matching)")
@@ -71,17 +86,19 @@ local function shipSection(game)
 	Slab.Text("Hold")
 	local ammoSeen = {}
 	for _, w in ipairs(p.weapons) do
-		if w.ammo and not ammoSeen[w.ammo] then
-			ammoSeen[w.ammo] = true
-			local item = data.items[w.ammo]
-			Slab.Text(("%s: %d"):format(item.name, p.cargo[w.ammo] or 0))
-			Slab.PushID(w.ammo)
-			if Slab.Button("+10") then Ship.addCargo(p, w.ammo, 10) end
-			Slab.SameLine()
-			if Slab.Button("+100") then Ship.addCargo(p, w.ammo, 100) end
-			Slab.SameLine()
-			if Slab.Button("Fill") then Ship.addCargo(p, w.ammo, 100000) end
-			Slab.PopID()
+		for _, ammo in ipairs(w.ammoOptions) do
+			if not ammoSeen[ammo] then
+				ammoSeen[ammo] = true
+				local item = data.items[ammo]
+				Slab.Text(("%s: %d"):format(item.name, p.cargo[ammo] or 0))
+				Slab.PushID(ammo)
+				if Slab.Button("+10") then Ship.addCargo(p, ammo, 10) end
+				Slab.SameLine()
+				if Slab.Button("+100") then Ship.addCargo(p, ammo, 100) end
+				Slab.SameLine()
+				if Slab.Button("Fill") then Ship.addCargo(p, ammo, 100000) end
+				Slab.PopID()
+			end
 		end
 	end
 	if Slab.Button("Empty hold") then
@@ -109,6 +126,10 @@ local function tuningSection()
 end
 
 local function spawnSection(game)
+	Slab.Text("Playing field")
+	local fopts = {}
+	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
+	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) game:loadField(id) end)
 	for _, id in ipairs(data.list.enemies) do
 		local def = data.enemies[id]
 		if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then
@@ -140,8 +161,9 @@ local function readout(game)
 		("Acceleration     %.0f px/s2"):format(perf.accel),
 		("Top speed        %.0f px/s"):format(perf.topSpeed),
 		("Turn accel       %.1f rad/s2"):format(perf.turnAccel),
+		("Max turn speed   %.0f deg/s"):format(perf.turnSpeed),
 		("Side accel       %.0f px/s2  (maneuvering thrusters)"):format(perf.sideAccel),
-		("Thrust           %.0f kN main, %.0f kN side/retro"):format(s.thrust, s.sideThrust),
+		("Thrust           %.0f kN main, %.0f side, %.0f retro"):format(s.thrust, s.sideThrust, s.retroThrust),
 		("Armor            %.0f"):format(s.armor),
 		("Power            %.0f out, %.0f draw, %.0f stored"):format(s.powerOut, s.powerDraw, s.powerCap),
 		("Hold             %.1f / %.0f m3"):format(p.holdUsed, s.hold),

@@ -75,15 +75,20 @@ end
 
 function love.keypressed(key)
 	if Debug.blocksKeyboard() then return end
+	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then love.event.quit()
 	elseif key == "f1" then Debug.toggle()
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
+	elseif key == "q" then game:cycleAux()
+	elseif key == "f2" then game:nextField()
 	end
 end
 
 function love.gamepadpressed(_, button)
+	if game.state == "docked" and button == "a" then game:undock(); return end
 	if button == "start" then relaunch()
+	elseif button == "y" then game:cycleAux()
 	elseif button == "back" then Debug.toggle()
 	end
 end

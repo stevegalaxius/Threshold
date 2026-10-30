@@ -12,9 +12,13 @@
 	  rush   close in; with ram = true it keeps pushing into you
 	  orbit  circle the target at its preferred range
 	  kite   hold long range and back off when you get close
+	  trader neutral hauler: flies its route (e.route, a list of stations
+	         and buoys) and only fires back at whoever attacked it
 ]]
 
 local Ship = require("src.ship")
+local T = require("src.tuning")
+local data = require("src.data")
 
 local AI = {}
 
@@ -26,22 +30,198 @@ local function norm(x, y)
 	return x / l, y / l, l
 end
 
+-- Look ahead for collisions: for every ship and asteroid nearby (except the
+-- target, which the braking below handles), find where it will be at the
+-- moment of closest approach over the next couple of seconds. If that's
+-- too close, push away from that point, harder the sooner and closer it
+-- is. Returns the push and how urgent the worst one is (0..1).
+local HORIZON = 1.6
+local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
+	local HORIZON = horizon or HORIZON
+	local px, py, worst = 0, 0, 0
+	local speed = sqrt(vx * vx + vy * vy)
+	for _, o in ipairs(game.entities) do
+		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy" then
+			local ox, oy = o.body:getPosition()
+			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
+			local orad = (o.kind == "ship") and o.halfLength or o.radius
+			-- keep out of a planet's atmosphere, not just off its surface
+			if o.kind == "planet" and game.well and game.well.atmo then orad = orad + game.well.atmo end
+			local clear = e.halfLength + orad + 50
+			local rx, ry = ox - x, oy - y
+			local reach = clear + (speed + 400) * HORIZON
+			if rx * rx + ry * ry < reach * reach then
+				local ovx, ovy = o.body:getLinearVelocity()
+				local dvx, dvy = ovx - vx, ovy - vy
+				local dv2 = dvx * dvx + dvy * dvy
+				local t = (dv2 > 1e-6) and max(0, -(rx * dvx + ry * dvy) / dv2) or 0
+				if t < HORIZON then
+					local cx, cy = rx + dvx * t, ry + dvy * t
+					local miss = sqrt(cx * cx + cy * cy)
+					if miss < clear then
+						local urgency = (1 - miss / clear) * 0.5 + (1 - t / HORIZON) * 0.5
+						local nx, ny, l = norm(-cx, -cy)
+						if l == 0 then nx, ny = norm(-ry, rx) end
+						px, py = px + nx * urgency * 3, py + ny * urgency * 3
+						worst = max(worst, urgency)
+					end
+				end
+			end
+		end
+	end
+	return px, py, worst
+end
+
+-- Who an AI ship fights: enemies go for the player; drones go for the
+-- nearest ship on another team.
+local function pickTarget(game, e, x, y)
+	if not e.drone then return game.player end
+	local best, bestD = nil, 3000 * 3000
+	for _, o in ipairs(game.entities) do
+		if o.kind == "ship" and not o.dead and o.team ~= e.team and o.team ~= 3 then
+			local ox, oy = o.body:getPosition()
+			local d = (ox - x) ^ 2 + (oy - y) ^ 2
+			if d < bestD then best, bestD = o, d end
+		end
+	end
+	return best
+end
+
+local atan2 = math.atan2 or math.atan
+local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
+
+-- Where a route stop is right now: on a station's runway, or on a buoy.
+local function stopPoint(stop)
+	if stop.dock then
+		-- out on the runway, where the station's tractor picks it up
+		return stop.body:getWorldPoint(stop.dock.x2 + stop.dock.runway * 0.6, 0)
+	end
+	return stop.body:getPosition()
+end
+
+-- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
+-- strafe intent turns the hull), easing off when it isn't facing where
+-- it's going. Its turrets track and fire on whoever last attacked it,
+-- while they're in range and alive; otherwise it doesn't shoot.
+local function trade(game, e, dt)
+	local it, ai = e.intent, e.def.ai
+	local x, y = e.body:getPosition()
+	local vx, vy = e.body:getLinearVelocity()
+	local route = e.route
+	if route and #route > 0 then
+		e.routeIndex = e.routeIndex or 1
+		local stop = route[e.routeIndex]
+		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
+		local sx, sy = stopPoint(stop)
+		local _, _, d = norm(sx - x, sy - y)
+		-- Around a planet, follow the arc of the track instead of cutting
+		-- the chord (which would run through the rock belt): aim a little
+		-- way ahead along the circle until the stop is close.
+		local hx, hy = sx, sy
+		local w = game.well
+		if w then
+			local rs = sqrt((sx - w.x) ^ 2 + (sy - w.y) ^ 2)
+			local am = atan2(y - w.y, x - w.x)
+			local gap = wrap(atan2(sy - w.y, sx - w.x) - am)
+			local stepA = 0.2
+			if math.abs(gap) > stepA then
+				local ah = am + (gap > 0 and stepA or -stepA)
+				hx, hy = w.x + cos(ah) * rs, w.y + sin(ah) * rs
+			end
+		end
+		local ux, uy = norm(hx - x, hy - y)
+		-- buoys are passed by; stations are docked at (Game:updateDocking
+		-- catches it on the runway and moves it on after it launches)
+		if d < 450 and not stop.dock then e.routeIndex = e.routeIndex % #route + 1 end
+		-- Steer around things on the way, then head for the stop. A hauler
+		-- turns slowly and coasts far, so it looks much further ahead than
+		-- a fighter, lets avoidance outweigh the route, and brakes hard
+		-- (retro thrusters) when something is close and dead ahead.
+		local avx, avy, danger = avoidCollisions(game, e, nil, x, y, vx, vy, ai.horizon or 4.5)
+		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
+		local a = e.body:getAngle()
+		local diff = wrap(atan2(my, mx) - a)
+		it.strafe = max(-1, min(1, diff * 2.5))
+		local facing = cos(diff)
+		it.thrust = facing > 0.6 and ai.throttle * facing or 0
+		-- slow for the turn into each stop
+		if d < 900 and facing < 0.9 then it.thrust = it.thrust * 0.4 end
+		-- ease off while dodging; stand on the brakes if it's urgent and
+		-- the way is still blocked
+		if danger > 0.2 then it.thrust = it.thrust * (1 - danger) end
+		if danger > 0.55 and facing < 0.95 then it.thrust = -1 end
+	end
+	local foe = e.aggressor
+	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
+	if foe then
+		local fx, fy = foe.body:getPosition()
+		local fvx, fvy = foe.body:getLinearVelocity()
+		local _, _, dist = norm(fx - x, fy - y)
+		local slot = e.weapons[1]
+		local shotSpeed = (slot and slot.ammo and data.items[slot.ammo].shot.speed) or 3000
+		local lead = dist / shotSpeed * ai.accuracy
+		it.aimX, it.aimY = fx + (fvx - vx) * lead, fy + (fvy - vy) * lead
+		local burstOn, burstOff = ai.burstOn or 1.0, ai.burstOff or 1.4
+		e.burstClock = ((e.burstClock or 0) + dt) % (burstOn + burstOff)
+		it.firePrimary = dist < ai.range and e.burstClock < burstOn
+		it.targetDist = dist
+	else
+		local a = e.body:getAngle()
+		it.aimX, it.aimY = x + cos(a) * 300, y + sin(a) * 300
+		it.targetDist = nil
+	end
+end
+
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
-	it.firePrimary, it.fireSecondary, it.boost = false, false, false
+	it.firePrimary, it.fireSecondary, it.fireAux, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
+	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()
-	local target = game.player
+	local target = pickTarget(game, e, x, y)
 	if not target or target.dead then
 		it.targetDist = nil
 		local a = e.body:getAngle()
 		it.aimX, it.aimY = x + cos(a) * 100, y + sin(a) * 100
+		-- A drone with nothing to fight stays near whoever launched it.
+		local o = e.owner
+		if o and not o.dead then
+			local ox, oy = o.body:getPosition()
+			local mx, my, d = norm(ox - x, oy - y)
+			if d > 350 then
+				it.aimX, it.aimY = ox, oy
+				it.thrust, it.strafe = Ship.toLocal(e, mx * 0.8, my * 0.8)
+			end
+		end
 		return
 	end
 
 	local vx, vy = e.body:getLinearVelocity()
+
+	-- Bail out: an enemy down to 10% armor gives up and runs for the edge
+	-- of the arena, afterburner lit, and leaves (Game:reap lets it go once
+	-- it's well outside). It doesn't fire while running.
+	if not e.drone and (e.fleeing or e.armor <= e.stats.armor * 0.1) then
+		if not e.fleeing then
+			e.fleeing = true
+			game:toast(((e.def.name or "ENEMY") .. " is running"):upper(), 1.5)
+		end
+		local tx, ty = target.body:getPosition()
+		local ox, oy, od = norm(x, y)
+		if od == 0 then ox, oy = 1, 0 end
+		local ax, ay = norm(x - tx, y - ty)
+		local mx, my = ox * 0.7 + ax * 0.5, oy * 0.7 + ay * 0.5
+		local avx, avy = avoidCollisions(game, e, nil, x, y, vx, vy)
+		local nmx, nmy = norm(mx + avx, my + avy)
+		it.aimX, it.aimY = x + nmx * 400, y + nmy * 400
+		it.thrust, it.strafe = Ship.toLocal(e, nmx, nmy)
+		it.boost = true
+		it.targetDist = nil
+		return
+	end
+
 	local tx, ty = target.body:getPosition()
 	local tvx, tvy = target.body:getLinearVelocity()
 	local ux, uy, dist = norm(tx - x, ty - y)
@@ -49,8 +229,8 @@ function AI.think(game, e, dt)
 	-- Lead the target using the first weapon's shot speed. Shots inherit the
 	-- shooter's velocity, so lead with relative velocity. Low accuracy
 	-- under-leads and wobbles more.
-	local w = e.weapons[1] and e.weapons[1].w
-	local shotSpeed = (w and w.speed) or 3000
+	local slot = e.weapons[1]
+	local shotSpeed = (slot and slot.ammo and data.items[slot.ammo].shot.speed) or 3000
 	local lead = dist / shotSpeed * ai.accuracy
 	e.jitterTimer = (e.jitterTimer or 0) - dt
 	if e.jitterTimer <= 0 then
@@ -62,31 +242,68 @@ function AI.think(game, e, dt)
 	local aimY = ty + (tvy - vy) * lead + (e.jitterY or 0)
 	it.targetDist = dist
 
+	-- Self-preservation: a badly damaged ship backs off to well past its
+	-- preferred range and fights from there.
+	local hurt = e.armor < e.stats.armor * 0.35
+	local style = hurt and "kite" or ai.style
+
 	-- Where it wants to go, in world space.
-	local r = ai.range
+	local r = hurt and ai.range * 1.8 or ai.range
 	local mx, my = 0, 0
 	e.orbitDir = e.orbitDir or ((random() < 0.5) and -1 or 1)
-	if ai.style == "rush" then
+	if style == "rush" then
 		if ai.ram or dist > r then
 			mx, my = ux, uy
 		else
 			mx, my = -uy * e.orbitDir * 0.8, ux * e.orbitDir * 0.8
 			if dist < r * 0.6 then mx, my = mx - ux * 0.8, my - uy * 0.8 end
 		end
-	elseif ai.style == "orbit" then
+	elseif style == "orbit" then
 		local err = max(-1, min(1, (dist - r) / 200))
 		mx, my = -uy * e.orbitDir * 0.85 + ux * err, ux * e.orbitDir * 0.85 + uy * err
-	elseif ai.style == "kite" then
+	elseif style == "kite" then
 		local err = max(-1, min(1, (dist - r) / 300))
 		mx, my = -uy * e.orbitDir * 0.35 + ux * err, ux * e.orbitDir * 0.35 + uy * err
 	end
+
+	-- Don't fly into the target: if it's closing faster than it can stop
+	-- before reaching its preferred range, brake by pushing away. Only
+	-- ships with ram = true are allowed to plough on in.
+	if not ai.ram then
+		local closing = (vx - tvx) * ux + (vy - tvy) * uy
+		if closing > 0 then
+			local s = e.stats
+			local brakeForce = max(s.retroThrust, s.sideThrust, s.thrust * 0.5) * T.FORCE_PER_KN * T.thrustScale
+			local stopDist = closing * closing / (2 * max(brakeForce / e.body:getMass(), 1))
+			if stopDist > dist - r * 0.8 then mx, my = mx - ux * 1.5, my - uy * 1.5 end
+		end
+	end
+
+	-- Jink: after being hit, or while the target is pointing right at it,
+	-- throw in sideways dodges that flip direction every half second or so.
+	local ta = target.body:getAngle()
+	local aimedAt = (cos(ta) * -ux + sin(ta) * -uy) > 0.97 and dist < 1500
+	local recentlyHit = e.lastHitTime and game.time - e.lastHitTime < 1.5
+	e.jinkTimer = (e.jinkTimer or 0) - dt
+	if e.jinkTimer <= 0 then
+		e.jinkTimer = 0.35 + random() * 0.5
+		e.jinkDir = (random() < 0.5) and -1 or 1
+	end
+	if aimedAt or recentlyHit then
+		local j = hurt and 1.0 or 0.6
+		mx, my = mx - uy * e.jinkDir * j, my + ux * e.jinkDir * j
+	end
+
+	-- Steer clear of asteroids and other ships it's about to hit.
+	local avx, avy, danger = avoidCollisions(game, e, target, x, y, vx, vy)
+	mx, my = mx + avx, my + avy
 
 	-- Keep some distance from other AI ships so they don't clump.
 	for _, o in ipairs(game.entities) do
 		if o ~= e and o.kind == "ship" and o.team == e.team and not o.dead then
 			local ox, oy = o.body:getPosition()
 			local sx, sy, d = norm(x - ox, y - oy)
-			local keep = (e.hull.radius + o.hull.radius) * 2.5
+			local keep = (e.halfLength + o.halfLength) * 1.6
 			if d > 0 and d < keep then
 				local push = (keep - d) / keep
 				mx, my = mx + sx * push * 1.5, my + sy * push * 1.5
@@ -104,16 +321,17 @@ function AI.think(game, e, dt)
 	local weak = e.stats.sideThrust < e.stats.thrust * 0.35
 	local relocating = dist > r * 1.5 or dist < r * 0.55
 	local along = nmx * ux + nmy * uy
-	local burning = weak and ml > 0.2 and relocating and along < 0.6
+	local burning = weak and ml > 0.2 and (relocating or danger > 0.4) and along < 0.6
 	if burning then
 		it.aimX, it.aimY = x + nmx * 300, y + nmy * 300
 	else
 		it.aimX, it.aimY = aimX, aimY
 	end
 
-	local th = ai.throttle * ml
+	-- Avoiding a crash or running hurt: full throttle.
+	local th = ((danger > 0.3 or hurt) and 1 or ai.throttle) * ml
 	it.thrust, it.strafe = Ship.toLocal(e, nmx * th, nmy * th)
-	if burning and ai.style == "kite" and dist < r * 0.5 then it.boost = true end
+	if burning and style == "kite" and dist < r * 0.5 then it.boost = true end
 
 	-- Fire in bursts, only when not turning away and roughly facing the
 	-- target (turrets don't need to face it).
@@ -124,6 +342,7 @@ function AI.think(game, e, dt)
 	local ax, ay = norm(aimX - x, aimY - y)
 	local facing = e.hull.mount == "turret" or (fx * ax + fy * ay) > 0.95
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
+	it.fireSecondary = it.firePrimary
 end
 
 return AI

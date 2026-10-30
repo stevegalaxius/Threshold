@@ -49,7 +49,7 @@ function Camera:toScreen(wx, wy)
 end
 
 function Camera:zoomBy(f)
-	self.zoom = math.max(0.3, math.min(1.6, self.zoom * f))
+	self.zoom = math.max(0.12, math.min(1.6, self.zoom * f))
 end
 
 return Camera

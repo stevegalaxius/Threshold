@@ -5,8 +5,11 @@
 	  artillery  slow fire, long range, big damage and splash. Shells burst
 	             on contact, when they pass near an enemy (proximity fuse),
 	             or at the end of their range. Uses ammo.
-	  laser      continuous beam, no ammo, drains power while firing.
-	  missile    secondary weapon, guided, splash. Expensive ammo.
+	  laser      pulse laser: a brief, instant-hit flash about once a second.
+	             No ammo; each pulse takes a chunk of power.
+	  missile    auxiliary, guided, splash. Expensive ammo.
+	  torpedo    auxiliary, unguided, slow, enormous damage and splash.
+	  drone      auxiliary: launches an armed drone that fights for a while.
 
 	Every shot of a gun, artillery piece or missile launcher takes one round
 	out of the hold, and the ship gets lighter as it does.
@@ -75,26 +78,37 @@ local function fire(game, e, slot, dt)
 	local dx, dy = cos(angle), sin(angle)
 
 	if w.kind == "laser" then
-		local cost = w.powerPerSec * dt
-		if e.power < cost then slot.beam = nil; slot.starved = true; return end
+		-- One pulse: hits instantly along the beam, then the beam lingers
+		-- on screen for w.pulse seconds.
+		if slot.cooldown > 0 then return end
+		if e.power < w.powerPerShot then slot.starved = true; return end
 		slot.starved = false
-		e.power = e.power - cost
+		e.power = e.power - w.powerPerShot
+		slot.cooldown = 1 / w.fireRate
 		local ex, ey = wx + dx * w.range, wy + dy * w.range
 		local hit = game:raycast(wx, wy, ex, ey, e.team)
 		if hit then
 			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * mult.primaryDamage * dt, e, "laser")
-			local k = (w.knockback or 0) * T.knockbackScale * dt
-			hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y)
-			if random() < dt * 30 then game:spark(hit.x, hit.y, 1, { 0.6, 1, 1 }) end
+			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser")
+			local k = (w.knockback or 0) * T.knockbackScale
+			if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
+			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
 		end
-		slot.beam = { wx, wy, ex, ey, game.time }
+		slot.beam = { wx, wy, ex, ey, game.time, w.pulse or 0.12 }
+		game:muzzle(wx, wy, angle, 1.0)
+		events.emit("fire", e, slot)
 		return
 	end
 
 	-- Everything else fires one round per shot.
 	if slot.cooldown > 0 then return end
-	local rate = w.fireRate * (slot.group == "primary" and mult.primaryFireRate or 1)
+	local rate = w.fireRate * (slot.group ~= "auxiliary" and mult.primaryFireRate or 1)
+	-- Out of the selected ammo: fall back to another size this weapon can fire.
+	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
+		for _, id in ipairs(slot.ammoOptions) do
+			if (e.cargo[id] or 0) > 0 then slot.ammo = id; break end
+		end
+	end
 	if not takeAmmo(e, slot.ammo) then
 		slot.empty = true
 		slot.cooldown = 0.3
@@ -104,45 +118,87 @@ local function fire(game, e, slot, dt)
 	slot.empty = false
 	slot.cooldown = 1 / rate
 
+	-- The round sets the damage and flight; the weapon only how it's fired.
+	local ws = data.items[slot.ammo].shot
 	local spread = rad(w.spread or 0)
 	angle = angle + (random() * 2 - 1) * spread
 	dx, dy = cos(angle), sin(angle)
+	-- Multi-barrel mounts take turns, each barrel offset across the line of fire.
+	if (w.barrels or 1) > 1 then
+		slot.barrel = (slot.barrel or 0) % w.barrels + 1
+		local off = (slot.barrel - (w.barrels + 1) / 2) * (w.barrelGap or 8)
+		wx, wy = wx - dy * off, wy + dx * off
+	end
 	local svx, svy = e.body:getLinearVelocity()
+
+	-- Drone bays launch a ship, not a projectile.
+	if w.kind == "drone" then
+		game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
+		game:muzzle(wx, wy, angle, 1.2)
+		events.emit("fire", e, slot)
+		return
+	end
 
 	local p = {
 		kind = w.kind, team = e.team, owner = e,
 		x = wx, y = wy, px = wx, py = wy,
-		vx = svx + dx * w.speed, vy = svy + dy * w.speed,
-		damage = w.damage, splash = w.splash, knockback = (w.knockback or 0),
-		size = slot.module.size,
+		vx = svx + dx * ws.speed, vy = svy + dy * ws.speed,
+		damage = ws.damage, splash = ws.splash, knockback = (ws.knockback or 0),
+		size = data.items[slot.ammo].size,
 	}
 
 	if w.kind == "gun" then
-		p.life = w.range / w.speed
-		p.damage = w.damage * mult.primaryDamage
+		p.life = ws.range / ws.speed
+		p.maxLife = p.life
+		p.damage = ws.damage * mult.primaryDamage
 	elseif w.kind == "artillery" then
-		p.life = w.range / w.speed
-		p.damage = w.damage * mult.primaryDamage
+		p.life = ws.range / ws.speed
+		p.damage = ws.damage * mult.primaryDamage
 		p.burst = true
-		p.fuse = (w.splash or 40) * 0.5
+		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
 	elseif w.kind == "missile" then
-		p.vx, p.vy = svx + dx * w.speed * 0.4, svy + dy * w.speed * 0.4
-		p.maxSpeed, p.accel, p.turnRate = w.speed, w.accel, w.turnRate
-		p.life = w.range / w.speed * 1.3
-		p.damage = w.damage * mult.missileDamage
+		p.vx, p.vy = svx + dx * ws.speed * 0.4, svy + dy * ws.speed * 0.4
+		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
+		p.life = ws.range / ws.speed * 1.3
+		p.damage = ws.damage * mult.missileDamage
 		p.target = nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
-		p.fuse = (w.splash or 40) * 0.5
+		p.fuse = (ws.splash or 40) * 0.5
+	elseif w.kind == "torpedo" then
+		-- Unguided: flies straight and bursts on contact or at the end of its range.
+		p.life = ws.range / ws.speed
+		p.burst = true
 	end
 
 	table.insert(game.projectiles, p)
 
 	local r = (w.recoil or 0) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
-	if w.kind == "artillery" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
+	if w.kind == "artillery" or w.kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
 	if e.isPlayer and w.kind == "artillery" then game:shake(0.18) end
 	events.emit("fire", e, slot)
+end
+
+-- How far a weapon reaches with what it's loaded with.
+function Weapons.range(slot)
+	if slot.ammo then return data.items[slot.ammo].shot.range end
+	return slot.w.range or 0
+end
+
+-- Switch every weapon in a group to the next ammo size it can fire.
+-- Returns the newly selected ammo id (of the first launcher that changed).
+function Weapons.cycleAmmo(e, group)
+	local picked
+	for _, slot in ipairs(e.weapons) do
+		if slot.group == group and #slot.ammoOptions > 1 then
+			local i = 1
+			for j, id in ipairs(slot.ammoOptions) do if id == slot.ammo then i = j end end
+			slot.ammo = slot.ammoOptions[i % #slot.ammoOptions + 1]
+			picked = picked or slot.ammo
+		end
+	end
+	return picked
 end
 
 function Weapons.update(game, e, dt)
@@ -151,13 +207,16 @@ function Weapons.update(game, e, dt)
 		slot.cooldown = max(0, slot.cooldown - dt)
 		aimSlot(e, slot, dt)
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
+			or (slot.group == "auxiliary" and it.fireAux)
 		-- AI only fires a weapon when the target is roughly in its range.
-		if wants and it.targetDist and it.targetDist > (slot.w.range or 0) * 1.05 then wants = false end
-		if wants then
-			fire(game, e, slot, dt)
-		elseif slot.w.kind == "laser" then
-			slot.beam = nil
+		if wants and it.targetDist and it.targetDist > Weapons.range(slot) * 1.05 then wants = false end
+		-- When the trigger goes down, delay each identical weapon by its
+		-- share of the fire interval so they ripple instead of volleying.
+		if wants and not slot.firing and slot.cooldown == 0 and slot.w.fireRate then
+			slot.cooldown = (slot.stagger or 0) / slot.w.fireRate
 		end
+		slot.firing = wants
+		if wants then fire(game, e, slot, dt) end
 	end
 	if e.massDirty then Ship.updateMass(e) end
 end
@@ -168,9 +227,7 @@ end
 local function fuseTarget(game, p)
 	for _, o in ipairs(game.entities) do
 		if o.kind == "ship" and not o.dead and o.team ~= p.team then
-			local ox, oy = o.body:getPosition()
-			local r = o.hull.radius + p.fuse
-			if (ox - p.x) ^ 2 + (oy - p.y) ^ 2 < r * r then return o end
+			if Ship.distanceTo(o, p.x, p.y) < p.fuse then return o end
 		end
 	end
 end
@@ -210,8 +267,11 @@ function Weapons.updateProjectiles(game, dt)
 			if p.burst then
 				game:explode(p.x, p.y, p.splash, p.damage, k, p.owner, hit.entity, p.kind)
 			else
-				game:damage(hit.entity, p.damage, p.owner, p.kind)
-				hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.x, hit.y)
+				local dmg = p.damage
+				-- gun rounds lose punch the further they've flown
+				if p.maxLife then dmg = dmg * (1 - T.gunFalloff * (1 - p.life / p.maxLife)) end
+				game:damage(hit.entity, dmg, p.owner, p.kind)
+				if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.x, hit.y) end
 				game:spark(hit.x, hit.y, 4, { 1, 0.85, 0.5 })
 			end
 			done = true

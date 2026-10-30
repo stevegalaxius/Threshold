@@ -18,11 +18,23 @@ local data = {
 	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
 }
 
-local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, armor = true, utility = true }
-local SIZES = { S = 1, M = 2, L = 3 }
-local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true }
+-- Slot families. primary / secondary are fire groups for guns (left and
+-- right mouse button); auxiliary holds a launcher (middle mouse button).
+local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+-- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
+-- secondary slot; every other family fits the slot of the same name.
+local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
+local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
+
+-- Does a module fit a hull slot?
+function data.fits(slot, m)
+	if m.size ~= slot.size then return false end
+	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
+	return m.family == slot.family
+end
 
 local currentFile = "?"
 
@@ -54,18 +66,19 @@ function api.hull(def)
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
+	if def.helm and def.helm ~= "strafe" and def.helm ~= "turn" then fail(("hull '%s' has unknown helm '%s' (use strafe or turn)"):format(def.id, tostring(def.helm))) end
 	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do
 		if slot.mount and not MOUNTS[slot.mount] then fail(("hull '%s' slot %d has unknown mount '%s'"):format(def.id, i, tostring(slot.mount))) end
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
-		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M or L)"):format(def.id, i, tostring(slot.size))) end
+		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
 end
 
 function api.module(def)
 	register("modules", "module", def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
-	if not FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
+	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
@@ -75,6 +88,7 @@ end
 function api.ammo(def)
 	register("items", "ammo", def)
 	need(def, "family", "ammo"); need(def, "size", "ammo"); need(def, "volume", "ammo"); need(def, "mass", "ammo")
+	need(def, "shot", "ammo")
 	def.kind = "ammo"
 end
 
@@ -118,23 +132,37 @@ local function loadFolder(folder)
 	end
 end
 
--- Find the ammo a weapon module fires: same family as the weapon kind, same size.
-function data.ammoFor(module)
+-- Every ammo a weapon module can fire, biggest first: same family as the
+-- weapon kind, and the same caliber (guns, artillery) or the same size or
+-- smaller (auxiliary launchers: missiles, torpedoes, drones).
+function data.ammoOptions(module)
 	local w = module.weapon
-	if not w or w.kind == "laser" then return nil end
+	local out = {}
+	if not w or w.kind == "laser" then return out end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
-		if item.kind == "ammo" and item.family == w.kind and item.size == module.size then return id end
+		if item.kind == "ammo" and item.family == w.kind then
+			-- a gun's caliber is its size unless it says otherwise (twin mounts)
+			local fits = item.size == (w.caliber or module.size)
+			if module.family == "auxiliary" then fits = SIZES[item.size] <= SIZES[module.size] end
+			if fits then table.insert(out, id) end
+		end
 	end
-	return nil
+	table.sort(out, function(a, b) return SIZES[data.items[a].size] > SIZES[data.items[b].size] end)
+	return out
 end
 
--- Modules that fit a slot: same family, same size (size matching is strict).
+-- The ammo a weapon fires by default (its biggest option).
+function data.ammoFor(module)
+	return data.ammoOptions(module)[1]
+end
+
+-- Modules that fit a slot (size matching is strict).
 function data.modulesFor(slot)
 	local out = {}
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]
-		if m.family == slot.family and m.size == slot.size then table.insert(out, id) end
+		if data.fits(slot, m) then table.insert(out, id) end
 	end
 	return out
 end
@@ -146,7 +174,7 @@ local function crossCheck()
 			if id and id ~= false then
 				local m = data.modules[id]
 				if not m then error(("%s: loadout slot %d uses unknown module '%s'"):format(owner, i, id), 0) end
-				if m.family ~= slot.family or m.size ~= slot.size then
+				if not data.fits(slot, m) then
 					error(("%s: module '%s' (%s %s) doesn't fit slot %d (%s %s)"):format(
 						owner, id, m.family, m.size, i, slot.family, slot.size), 0)
 				end
@@ -167,6 +195,23 @@ local function crossCheck()
 	end
 end
 
+-- Every ammo type gets a matching crate item: the same rounds boxed up as
+-- cargo. Looted ammo arrives as crates, which weapons can't fire from;
+-- they're for selling or restocking at a station.
+local function addCrates()
+	for _, id in ipairs(data.list.items) do
+		local a = data.items[id]
+		if a.kind == "ammo" and not a.crate then
+			local cid = id .. "_crate"
+			a.crate = cid
+			data.items[cid] = {
+				id = cid, kind = "crate", ammo = id, name = a.name .. " (crate)", maker = a.maker,
+				volume = a.volume, mass = a.mass, price = a.price,
+			}
+		end
+	end
+end
+
 function data.load()
 	loadFolder("data")
 	if love.filesystem.getInfo("mods", "directory") then
@@ -177,6 +222,7 @@ function data.load()
 			if love.filesystem.getInfo(folder, "directory") then loadFolder(folder) end
 		end
 	end
+	addCrates()
 	crossCheck()
 end
 
