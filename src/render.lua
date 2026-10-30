@@ -159,38 +159,52 @@ end
 
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
 -- gravity well so you can see which way it drags you.
+local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
+
 local function drawPlanet(game, e)
 	local x, y = e.body:getPosition()
 	local R, c = e.radius, e.hue
 	local w = game.well
 	local dir = (w and w.swirl or 0) >= 0 and 1 or -1
+	-- dashed rings that drift the way the well turns
 	lg.setLineWidth(outline(2))
 	for k = 1, 4 do
-		local rr = R * (1.3 + k * 0.55)
-		local n = 24 + k * 8
-		local turn = dir * game.time * 0.25 / k
+		local rr = R + k * 1500
+		local n = floor(pi * rr / 900) * 2
+		local turn = dir * game.time * 300 / rr
 		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
 		for i = 0, n - 1, 2 do
 			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
 			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
 		end
 	end
+	-- atmosphere haze
 	for k = 6, 1, -1 do
 		lg.setColor(c[1], c[2], c[3], 0.05)
-		lg.circle("fill", x, y, R * (1 + k * 0.035))
+		lg.circle("fill", x, y, R + k * 140, PLANET_SEGMENTS)
 	end
 	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.4)
-	lg.circle("fill", x, y, R)
-	-- bands
+	lg.circle("fill", x, y, R, PLANET_SEGMENTS)
+	-- cloud bands, clipped to the disc
 	lg.setColor(c[1] * 0.45, c[2] * 0.45, c[3] * 0.5)
 	for k = -2, 2 do
-		local by = y + k * R * 0.3
-		local hw = sqrt(max(0, R * R - (k * R * 0.3) ^ 2)) * 0.96
-		lg.rectangle("fill", x - hw, by - R * 0.05, hw * 2, R * 0.1)
+		local y1, y2 = k * R * 0.3 - R * 0.05, k * R * 0.3 + R * 0.05
+		local pts = {}
+		for i = 0, 32 do
+			local yy = y1 + (y2 - y1) * i / 32
+			pts[#pts + 1] = x + sqrt(max(0, R * R - yy * yy)) * 0.98
+			pts[#pts + 1] = y + yy
+		end
+		for i = 32, 0, -1 do
+			local yy = y1 + (y2 - y1) * i / 32
+			pts[#pts + 1] = x - sqrt(max(0, R * R - yy * yy)) * 0.98
+			pts[#pts + 1] = y + yy
+		end
+		for _, t in ipairs(love.math.triangulate(pts)) do lg.polygon("fill", t) end
 	end
 	lg.setColor(c[1], c[2], c[3], 0.9)
 	lg.setLineWidth(outline(3))
-	lg.circle("line", x, y, R)
+	lg.circle("line", x, y, R, PLANET_SEGMENTS)
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }

@@ -88,21 +88,21 @@ Fields.station = {
 
 Fields.planet = {
 	name = "Planet",
-	spawn = { 0, 9000 },
-	radius = 16000,
+	spawn = { 0, 14200 },
+	radius = 24000,
 	rockDrag = 0,
 	build = function(game)
-		-- 5000 px across.
-		local R = 2500
-		game:spawnPlanet(0, 0, R, 110, 0.15)
+		-- 15000 px across: too big to see whole even zoomed all the way out.
+		local R = 7500
+		game:spawnPlanet(0, 0, R, 45, 0.1)
 		-- A belt of rocks already in orbit, going the way the well turns.
 		local w = game.well
 		local placed = 0
-		for _ = 1, 900 do
-			if placed >= 90 then break end
+		for _ = 1, 2000 do
+			if placed >= 180 then break end
 			local radius = 24 + random() ^ 2 * 80
 			local a = random() * pi * 2
-			local d = R * 1.6 + random() * R * 1.5
+			local d = R + 1500 + random() * 4500
 			local x, y = cos(a) * d, sin(a) * d
 			if game:isClear(x, y, radius + 60) then
 				local e = game:spawnAsteroid(x, y, radius)
@@ -111,7 +111,7 @@ Fields.planet = {
 				placed = placed + 1
 			end
 		end
-		game:spawnAsteroids(60, R * 4)
+		game:spawnAsteroids(80, R + 7500)
 	end,
 }
 
