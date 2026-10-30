@@ -17,8 +17,9 @@
 
 	Weapon fields:
 	  kind        gun, artillery, laser or missile. Guns, artillery and
-	              missiles fire ammo of their own kind in their own size or
-	              smaller, and the ammo sets damage, speed, range, splash
+	              missiles fire ammo of their own kind (guns and artillery
+	              in their exact caliber, launchers their size or smaller),
+	              and the ammo sets damage, speed, range, splash
 	              and knockback (data/items.lua). Lasers use no ammo: they
 	              carry damage (per second), range and knockback themselves
 	              and drain powerPerSec.

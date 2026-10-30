@@ -5,8 +5,8 @@
 	flight toy, but they're the numbers the economy will be tuned with).
 
 	Ammo: family (gun, artillery or missile) and size (S, M or L) decide
-	which weapons can fire it: a weapon fires its own family in its own
-	size or smaller. The damage is in the ammo, not the weapon (the weapon
+	which weapons can fire it: guns and artillery only take their own
+	caliber, missile launchers take missiles of their size or smaller. The damage is in the ammo, not the weapon (the weapon
 	only sets fire rate, accuracy, gimbal and recoil), so the shot table
 	holds everything about the projectile:
 	  damage     per hit                    splash     blast radius (pixels)

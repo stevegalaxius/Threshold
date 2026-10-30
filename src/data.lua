@@ -121,7 +121,8 @@ local function loadFolder(folder)
 end
 
 -- Every ammo a weapon module can fire, biggest first: same family as the
--- weapon kind, same size or smaller.
+-- weapon kind, and the same caliber (guns, artillery) or the same size or
+-- smaller (missile launchers).
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
@@ -129,7 +130,9 @@ function data.ammoOptions(module)
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
 		if item.kind == "ammo" and item.family == w.kind then
-			if SIZES[item.size] <= SIZES[module.size] then table.insert(out, id) end
+			local fits = item.size == module.size
+			if w.kind == "missile" then fits = SIZES[item.size] <= SIZES[module.size] end
+			if fits then table.insert(out, id) end
 		end
 	end
 	table.sort(out, function(a, b) return SIZES[data.items[a].size] > SIZES[data.items[b].size] end)
