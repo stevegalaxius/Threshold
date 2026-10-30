@@ -107,6 +107,29 @@ function AI.think(game, e, dt)
 	end
 
 	local vx, vy = e.body:getLinearVelocity()
+
+	-- Bail out: an enemy down to 10% armor gives up and runs for the edge
+	-- of the arena, afterburner lit, and leaves (Game:reap lets it go once
+	-- it's well outside). It doesn't fire while running.
+	if not e.drone and (e.fleeing or e.armor <= e.stats.armor * 0.1) then
+		if not e.fleeing then
+			e.fleeing = true
+			game:toast(((e.def.name or "ENEMY") .. " is running"):upper(), 1.5)
+		end
+		local tx, ty = target.body:getPosition()
+		local ox, oy, od = norm(x, y)
+		if od == 0 then ox, oy = 1, 0 end
+		local ax, ay = norm(x - tx, y - ty)
+		local mx, my = ox * 0.7 + ax * 0.5, oy * 0.7 + ay * 0.5
+		local avx, avy = avoidCollisions(game, e, nil, x, y, vx, vy)
+		local nmx, nmy = norm(mx + avx, my + avy)
+		it.aimX, it.aimY = x + nmx * 400, y + nmy * 400
+		it.thrust, it.strafe = Ship.toLocal(e, nmx, nmy)
+		it.boost = true
+		it.targetDist = nil
+		return
+	end
+
 	local tx, ty = target.body:getPosition()
 	local tvx, tvy = target.body:getLinearVelocity()
 	local ux, uy, dist = norm(tx - x, ty - y)

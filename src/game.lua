@@ -173,7 +173,7 @@ end
 function Game:enemyCount()
 	local n = 0
 	for _, e in ipairs(self.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead then n = n + 1 end
+		if e.kind == "ship" and e.team == 2 and not e.dead and not e.fleeing then n = n + 1 end
 	end
 	return n
 end
@@ -259,7 +259,7 @@ function Game:applyBoundary()
 		local b = e.body
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
-		if d > R then
+		if d > R and not e.fleeing then
 			local over = d - R
 			local f = over * b:getMass() * 6
 			b:applyForce(-x / d * f, -y / d * f)
@@ -486,6 +486,12 @@ function Game:reap()
 			self:breakAsteroid(e)          -- reads the body, so before destroying it
 			e.body:destroy()
 			e.removed = true
+		elseif e.fleeing and not e.dead and e.body:getX() ^ 2 + e.body:getY() ^ 2 > (self.arenaRadius + 600) ^ 2 then
+			-- A fleeing enemy that made it well past the edge is gone for good.
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
+			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
 		elseif e.dead and e.kind == "husk" then
 			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
