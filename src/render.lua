@@ -226,17 +226,25 @@ local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then
 			for _, w in ipairs(e.weapons) do
+				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam
-				if b and game.time - b[5] < 0.05 then
+				local age = b and (game.time - b[5])
+				if b and age < b[6] then
+					local k = 1 - age / b[6]
 					local c = COLORS.laser
-					lg.setColor(c[1], c[2], c[3], 0.25)
-					lg.setLineWidth(7)
+					local px = 1 / game.camera.zoom
+					lg.setBlendMode("add")
+					lg.setColor(c[1], c[2], c[3], 0.35 * k)
+					lg.setLineWidth(max(18, 10 * px))
 					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(1, 1, 1, 0.95)
-					lg.setLineWidth(2)
+					lg.setColor(c[1], c[2], c[3], 0.7 * k)
+					lg.setLineWidth(max(8, 4 * px))
 					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(c[1], c[2], c[3], 0.6)
-					lg.circle("fill", b[3], b[4], 5 + love.math.random() * 3)
+					lg.setColor(1, 1, 1, k)
+					lg.setLineWidth(max(3, 2 * px))
+					lg.line(b[1], b[2], b[3], b[4])
+					lg.circle("fill", b[3], b[4], (8 + love.math.random() * 4) * k)
+					lg.setBlendMode("alpha")
 				end
 			end
 		end

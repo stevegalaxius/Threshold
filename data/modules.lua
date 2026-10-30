@@ -20,9 +20,10 @@
 	              missiles fire ammo of their own kind (guns and artillery
 	              in their exact caliber, launchers their size or smaller),
 	              and the ammo sets damage, speed, range, splash
-	              and knockback (data/items.lua). Lasers use no ammo: they
-	              carry damage (per second), range and knockback themselves
-	              and drain powerPerSec.
+	              and knockback (data/items.lua). Lasers are pulse lasers
+	              with no ammo: they carry damage (per pulse), range,
+	              knockback, pulse (seconds the flash shows) and
+	              powerPerShot themselves.
 	  fireRate    shots per second           spread    random spread in degrees
 	  gimbal      degrees it can aim off the nose
 	  recoil      push back on the shooter
@@ -63,18 +64,18 @@ module {
 	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoil = 12000 },
 }
 
--- Primary: lasers (no ammo, heavy power draw) ---------------------------------
+-- Primary: pulse lasers (no ammo, a chunk of power per pulse) -----------------
 
 module {
 	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "primary", size = "S",
 	mass = 5, price = 5200,
-	weapon = { kind = "laser", damage = 26, powerPerSec = 22, range = 750, gimbal = 12, knockback = 60 },
+	weapon = { kind = "laser", fireRate = 1.0, damage = 30, powerPerShot = 20, pulse = 0.12, range = 750, gimbal = 12, knockback = 1500 },
 }
 
 module {
 	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "primary", size = "M",
 	mass = 12, price = 14000,
-	weapon = { kind = "laser", damage = 55, powerPerSec = 48, range = 900, gimbal = 12, knockback = 120 },
+	weapon = { kind = "laser", fireRate = 0.9, damage = 65, powerPerShot = 45, pulse = 0.14, range = 900, gimbal = 12, knockback = 3000 },
 }
 
 -- Secondary: missile launchers ---------------------------------------------------

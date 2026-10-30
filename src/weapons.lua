@@ -5,7 +5,8 @@
 	  artillery  slow fire, long range, big damage and splash. Shells burst
 	             on contact, when they pass near an enemy (proximity fuse),
 	             or at the end of their range. Uses ammo.
-	  laser      continuous beam, no ammo, drains power while firing.
+	  laser      pulse laser: a brief, instant-hit flash about once a second.
+	             No ammo; each pulse takes a chunk of power.
 	  missile    secondary weapon, guided, splash. Expensive ammo.
 
 	Every shot of a gun, artillery piece or missile launcher takes one round
@@ -75,20 +76,25 @@ local function fire(game, e, slot, dt)
 	local dx, dy = cos(angle), sin(angle)
 
 	if w.kind == "laser" then
-		local cost = w.powerPerSec * dt
-		if e.power < cost then slot.beam = nil; slot.starved = true; return end
+		-- One pulse: hits instantly along the beam, then the beam lingers
+		-- on screen for w.pulse seconds.
+		if slot.cooldown > 0 then return end
+		if e.power < w.powerPerShot then slot.starved = true; return end
 		slot.starved = false
-		e.power = e.power - cost
+		e.power = e.power - w.powerPerShot
+		slot.cooldown = 1 / w.fireRate
 		local ex, ey = wx + dx * w.range, wy + dy * w.range
 		local hit = game:raycast(wx, wy, ex, ey, e.team)
 		if hit then
 			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * mult.primaryDamage * dt, e, "laser")
-			local k = (w.knockback or 0) * T.knockbackScale * dt
+			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser")
+			local k = (w.knockback or 0) * T.knockbackScale
 			hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y)
-			if random() < dt * 30 then game:spark(hit.x, hit.y, 1, { 0.6, 1, 1 }) end
+			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
 		end
-		slot.beam = { wx, wy, ex, ey, game.time }
+		slot.beam = { wx, wy, ex, ey, game.time, w.pulse or 0.12 }
+		game:muzzle(wx, wy, angle, 1.0)
+		events.emit("fire", e, slot)
 		return
 	end
 
@@ -182,11 +188,7 @@ function Weapons.update(game, e, dt)
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
 		-- AI only fires a weapon when the target is roughly in its range.
 		if wants and it.targetDist and it.targetDist > Weapons.range(slot) * 1.05 then wants = false end
-		if wants then
-			fire(game, e, slot, dt)
-		elseif slot.w.kind == "laser" then
-			slot.beam = nil
-		end
+		if wants then fire(game, e, slot, dt) end
 	end
 	if e.massDirty then Ship.updateMass(e) end
 end
