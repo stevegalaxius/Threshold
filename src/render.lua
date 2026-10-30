@@ -342,7 +342,10 @@ local function drawProjectiles(game)
 	lg.setLineWidth(max(1.5, 0.9 * px))
 	for _, p in ipairs(game.projectiles) do
 		if p.kind == "gun" then
-			lg.setColor(COLORS.gun)
+			-- rounds fade out as they lose punch over their range
+			local c = COLORS.gun
+			local fade = p.maxLife and (0.15 + 0.85 * max(0, p.life / p.maxLife)) or 1
+			lg.setColor(c[1], c[2], c[3], (c[4] or 1) * fade)
 			lg.line(p.x - p.vx * 0.014 * trail, p.y - p.vy * 0.014 * trail, p.x, p.y)
 		elseif p.kind == "artillery" then
 			lg.setColor(COLORS.artillery)

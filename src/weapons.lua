@@ -149,6 +149,7 @@ local function fire(game, e, slot, dt)
 
 	if w.kind == "gun" then
 		p.life = ws.range / ws.speed
+		p.maxLife = p.life
 		p.damage = ws.damage * mult.primaryDamage
 	elseif w.kind == "artillery" then
 		p.life = ws.range / ws.speed
@@ -266,7 +267,10 @@ function Weapons.updateProjectiles(game, dt)
 			if p.burst then
 				game:explode(p.x, p.y, p.splash, p.damage, k, p.owner, hit.entity, p.kind)
 			else
-				game:damage(hit.entity, p.damage, p.owner, p.kind)
+				local dmg = p.damage
+				-- gun rounds lose punch the further they've flown
+				if p.maxLife then dmg = dmg * (1 - T.gunFalloff * (1 - p.life / p.maxLife)) end
+				game:damage(hit.entity, dmg, p.owner, p.kind)
 				if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.x, hit.y) end
 				game:spark(hit.x, hit.y, 4, { 1, 0.85, 0.5 })
 			end

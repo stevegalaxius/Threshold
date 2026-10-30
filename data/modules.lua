@@ -80,19 +80,19 @@ module {
 module {
 	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 5, price = 5200,
-	weapon = { kind = "laser", fireRate = 1.0, damage = 30, powerPerShot = 20, pulse = 0.12, range = 750, gimbal = 12, knockback = 1500 },
+	weapon = { kind = "laser", fireRate = 1.6, damage = 30, powerPerShot = 20, pulse = 0.12, range = 1400, gimbal = 12, knockback = 1500 },
 }
 
 module {
 	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 12, price = 14000,
-	weapon = { kind = "laser", fireRate = 0.9, damage = 65, powerPerShot = 45, pulse = 0.14, range = 900, gimbal = 12, knockback = 3000 },
+	weapon = { kind = "laser", fireRate = 1.4, damage = 65, powerPerShot = 45, pulse = 0.14, range = 1700, gimbal = 12, knockback = 3000 },
 }
 
 module {
 	id = "sunder_beam", name = "Sunder Beam", maker = "Nova Syndicate", family = "weapon", size = "L",
 	mass = 30, price = 38000,
-	weapon = { kind = "laser", fireRate = 0.6, damage = 160, powerPerShot = 90, pulse = 0.2, range = 1150, gimbal = 10, knockback = 8000 },
+	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 2100, gimbal = 10, knockback = 8000 },
 }
 
 -- Auxiliary launchers -------------------------------------------------------------
