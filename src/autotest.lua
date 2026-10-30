@@ -755,7 +755,38 @@ function A.update(game, dt)
 		local st = p.dockState and p.dockState.station
 		log("respawn: state %s -> %s, field %s, docked at %s, flying %s", state, game.state, game.fieldId, st and st.name or "-", p.hull.name)
 	end) end
-	if t >= 36.25 then once("quit", function()
+	if t >= 36.2 then once("drone_launch", function()
+		-- a drone with nothing to shoot flies home and docks in the hold
+		local Hold = require("src.inventory.hold")
+		local T = require("src.tuning")
+		game:clearEnemies()
+		game:undock()
+		local p = game.player
+		local x, y = p.body:getPosition()
+		A.drone = game:launchDrone(p, data.items.drone_s, x + 300, y, 0)
+		A.drone.idleTime = T.droneRecall - 0.5
+		A.droneHold = Hold.count(p.hold, "drone_s")
+	end) end
+	if t >= 39.2 then once("drone_check", function()
+		local Hold = require("src.inventory.hold")
+		local p = game.player
+		-- a missile with no target, launched at rest relative to the current,
+		-- keeps pace with it
+		local Weapons = require("src.weapons")
+		local x, y = p.body:getPosition()
+		local fx, fy = game:flowAt(x, y)
+		local m = { kind = "missile", team = p.team, owner = p, x = x, y = y - 400, px = x, py = y - 400,
+			vx = fx + 1, vy = fy, maxSpeed = 1, accel = 0, turnRate = 0, life = 5, damage = 0, knockback = 0, burst = true, splash = 1 }
+		table.insert(game.projectiles, m)
+		Weapons.updateProjectiles(game, 0.5)
+		local gx, gy = game:flowAt(m.x, m.y)
+		log("missile: current here %.0f px/s; a slow missile's speed after 0.5 s %.0f px/s (current there %.0f)",
+			math.sqrt(fx * fx + fy * fy), math.sqrt(m.vx ^ 2 + m.vy ^ 2), math.sqrt(gx * gx + gy * gy))
+		for i, q in ipairs(game.projectiles) do if q == m then table.remove(game.projectiles, i) break end end
+		log("drone: launched 300 px out, idle -> recalled %s, removed %s, hold drones %d -> %d",
+			tostring(A.drone.recalled), tostring(A.drone.removed), A.droneHold, Hold.count(p.hold, "drone_s"))
+	end) end
+	if t >= 39.3 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
 	end) end

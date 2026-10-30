@@ -139,7 +139,7 @@ function Game:launchDrone(owner, item, x, y, angle)
 		hull = shot.hull, cargo = shot.cargo, team = owner.team, x = x, y = y, angle = angle,
 		color = owner.color, enemy = { id = item.id, ai = DRONE_AI },
 	})
-	d.drone, d.owner, d.life = true, owner, shot.life
+	d.drone, d.owner, d.life, d.droneItem = true, owner, shot.life, item.id
 	-- A ship never collides with its own drones (or they with each other):
 	-- Box2D skips contacts between fixtures sharing a negative group index.
 	-- (Group indexes are 16-bit, so hand them out from a small counter.)
@@ -153,6 +153,25 @@ function Game:launchDrone(owner, item, x, y, angle)
 	d.body:setLinearVelocity(vx + cos(angle) * shot.speed, vy + sin(angle) * shot.speed)
 	table.insert(self.entities, d)
 	return d
+end
+
+-- A drone that's done fighting docks with its launcher and goes back in
+-- its hold, ready to launch again. With no room it keeps trying (and
+-- fights on until its life runs out).
+function Game:recallDrone(d)
+	local o = d.owner
+	if d.recalled or not o or o.dead or not o.hold then return end
+	if Hold.add(o.hold, d.droneItem, 1) == 0 then
+		if o == self.player and (d.noRoomToast or 0) <= self.time then
+			self:toast("NO ROOM IN THE HOLD FOR A DRONE", 1.4)
+			d.noRoomToast = self.time + 5
+		end
+		return
+	end
+	o.cargo = Hold.totals(o.hold)
+	Ship.updateMass(o)
+	d.recalled = true                  -- Game:reap takes it out of the level
+	if o == self.player then self:toast(data.items[d.droneItem].name .. " docked", 1, "pickup") end
 end
 
 -- A point a given distance from the player, kept inside the arena.
@@ -270,6 +289,16 @@ function Game:currentSpeed(r)
 	local w = self.well
 	if not w then return 0 end
 	return w.flow * sqrt(w.radius / max(r, w.radius)) * T.currentScale
+end
+
+-- The current's velocity at (x, y): along the tangent, clockwise on screen.
+function Game:flowAt(x, y)
+	local w = self.well
+	if not w then return 0, 0 end
+	local dx, dy = w.x - x, w.y - y
+	local r = max(sqrt(dx * dx + dy * dy), 1)
+	local f = self:currentSpeed(r)
+	return dy / r * f, -dx / r * f
 end
 
 -- Acceleration from the turning field on something at (x, y) moving at
@@ -1232,6 +1261,11 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
+		elseif e.recalled then
+			-- a drone back in its launcher's hold
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
 		elseif e.dead and (e.kind == "husk" or e.kind == "container") then
 			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
