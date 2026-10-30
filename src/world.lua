@@ -13,8 +13,12 @@
 	  travel    jump gates, one per route in Fields.links. Fly into one and
 	            you come out of the matching gate in the other level, in the
 	            same ship with the same hold.
-	  hangar    every station can keep ships for you. Docked, you can fly
-	            any of them out; the one you came in is parked in its place.
+	  hangar    every station has a hangar bay: a grid (T.hangarW x
+	            T.hangarH cells) where each ship takes a footprint the size
+	            of its hull. The ship you're docked in has a spot too
+	            (player.bay). Fly any parked ship out, and the one you came
+	            in stays parked where it was. Each record keeps its spot in
+	            rec.bay = { x, y, rot }.
 	  respawn   lose your ship and you get a starter ship docked at home
 	            (any level), or at the start if you've never docked.
 	  saving    Game:saveState() is one plain table of all of the above plus
@@ -31,6 +35,7 @@ local Ship = require("src.ship")
 local Fields = require("src.fields")
 local Hold = require("src.inventory.hold")
 local Save = require("src.save")
+local Grid = require("src.inventory.grid")
 local events = require("src.events")
 
 local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
@@ -69,6 +74,7 @@ end
 -- Called when the player finishes docking: this is home now, and the game
 -- autosaves.
 function Game:playerDocked(st)
+	self:givePlayerBay(st)
 	self.universe.home = { field = self.fieldId, key = st.key, name = st.name }
 	self:autosave()
 end
@@ -85,6 +91,7 @@ function Game:dockInstantly(e, st)
 	if e == self.player then
 		self.state = "docked"
 		self.camera.x, self.camera.y = e.body:getPosition()
+		self:givePlayerBay(st)
 	end
 end
 
@@ -196,29 +203,108 @@ end
 -- Hangar ----------------------------------------------------------------------
 
 function Game:hangar(st)
-	return self:stationRecord(st).hangar
+	local list = self:stationRecord(st).hangar
+	-- ships parked before bays had spots (older saves) get one now
+	for _, rec in ipairs(list) do
+		if not rec.bay then rec.bay = self:hangarFit(st, rec.hull, rec) or { x = 0, y = 0, rot = false } end
+	end
+	return list
+end
+
+-- A hull's footprint in a hangar bay, in cells: its length and width over
+-- T.hangarCell pixels (hull.hangar = { w, h } overrides). Rotated, it's
+-- the other way round.
+function Game.hangarFootprint(hullId, rot)
+	local hull = data.hulls[hullId]
+	local w, h
+	if hull.hangar then
+		w, h = hull.hangar[1], hull.hangar[2]
+	else
+		local nx, tx, wy = 0, 0, 0
+		for i = 1, #hull.shape, 2 do
+			nx, tx = max(nx, hull.shape[i]), math.min(tx, hull.shape[i])
+			wy = max(wy, math.abs(hull.shape[i + 1]))
+		end
+		w, h = math.ceil((nx - tx) / T.hangarCell), math.ceil(wy * 2 / T.hangarCell)
+	end
+	if rot then w, h = h, w end
+	return w, h
+end
+
+-- The station's bay as a grid of everything parked in it (and the ship
+-- you're docked in), leaving out `ignore` (a record, or the player).
+function Game:hangarGrid(st, ignore)
+	local g = Grid.new(T.hangarW, T.hangarH, "Hangar bay")
+	local function put(owner, hullId, bay)
+		if owner == ignore or not bay then return end
+		local w, h = Game.hangarFootprint(hullId, bay.rot)
+		if Grid.isFree(g, bay.x, bay.y, w, h) then Grid.place(g, { x = bay.x, y = bay.y, w = w, h = h, owner = owner }) end
+	end
+	for _, rec in ipairs(self:stationRecord(st).hangar) do put(rec, rec.hull, rec.bay) end
+	local p = self.player
+	if p and not p.dead and p.dockState and p.dockState.station == st then put(p, p.hull.id, p.bay) end
+	return g
+end
+
+-- The first free spot for a hull (unrotated first), or nil if it's full.
+function Game:hangarFit(st, hullId, ignore)
+	local g = self:hangarGrid(st, ignore)
+	for _, rot in ipairs({ false, true }) do
+		local w, h = Game.hangarFootprint(hullId, rot)
+		local x, y = Grid.firstFit(g, w, h)
+		if x then return { x = x, y = y, rot = rot } end
+	end
+end
+
+-- Can this ship (a record, or the player) sit at bay?
+function Game:hangarFree(st, owner, hullId, bay)
+	local w, h = Game.hangarFootprint(hullId, bay.rot)
+	return Grid.isFree(self:hangarGrid(st, owner), bay.x, bay.y, w, h)
+end
+
+-- The ship you're docked in takes a spot in the bay (if it hasn't one
+-- here already). A full bay leaves it on the landing pad: docked, but
+-- not on the grid.
+function Game:givePlayerBay(st)
+	local p = self.player
+	if p.bayStation == st.key and p.bay and self:hangarFree(st, p, p.hull.id, p.bay) then return end
+	p.bayStation = st.key
+	p.bay = self:hangarFit(st, p.hull.id, p)
 end
 
 -- A brand-new ship of a hull, parked in this station's hangar (the debug
--- panel's way of getting ships until there's a market).
+-- panel's way of getting ships until there's a market). nil if the bay
+-- has no room for it.
 function Game:addToHangar(st, hullId)
+	local bay = self:hangarFit(st, hullId)
+	if not bay then self:toast("NO ROOM IN THE HANGAR", 1.4) return nil end
 	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = self.playerColor })
 	local rec = Ship.record(e)
 	e.body:destroy()
+	rec.bay = bay
 	table.insert(self:hangar(st), rec)
 	return rec
 end
 
--- Fly parked ship i out of this station; the one you're in takes its place.
+-- Fly parked ship i out of this station. The one you're in stays parked
+-- where it was (or, if it was on the landing pad, goes to the first spot
+-- the departing ship leaves room for).
 function Game:flyFromHangar(i)
 	local p = self.player
 	local st = p and p.dockState and p.dockState.done and p.dockState.station
 	if not st then return false end
 	local list = self:hangar(st)
-	local rec = table.remove(list, i)
+	local rec = list[i]
 	if not rec then return false end
-	table.insert(list, i, Ship.record(p))
+	local old = Ship.record(p)
+	old.bay = p.bay
+	if not old.bay then
+		old.bay = self:hangarFit(st, old.hull, rec)
+		if not old.bay then self:toast("NO ROOM TO PARK YOUR SHIP", 1.4) return false end
+	end
+	list[i] = old
 	local ship = self:spawnPlayer(rec)
+	ship.bay, ship.bayStation = rec.bay, st.key
 	self:dockInstantly(ship, st)
 	events.emit("swapship", ship, st)
 	return true
@@ -245,7 +331,7 @@ end
 
 local function saveShip(rec)
 	return {
-		hull = rec.hull, loadout = rec.loadout, armor = rec.armor, color = rec.color,
+		hull = rec.hull, loadout = rec.loadout, armor = rec.armor, color = rec.color, bay = rec.bay,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
 	}
 end
@@ -255,7 +341,7 @@ local function known(id) return data.items[id] ~= nil end
 local function loadShip(t)
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
 	return {
-		hull = t.hull, loadout = t.loadout, armor = t.armor, color = t.color,
+		hull = t.hull, loadout = t.loadout, armor = t.armor, color = t.color, bay = t.bay,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
 	}
 end
@@ -273,7 +359,7 @@ function Game:saveState()
 	if p and not p.dead then
 		local where
 		if p.dockState and p.dockState.station then
-			where = { station = p.dockState.station.key }
+			where = { station = p.dockState.station.key, bay = p.bay }
 		else
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()
@@ -300,6 +386,9 @@ function Game:loadState(state)
 	local field = Fields[state.field] and state.field or Fields.start
 	local pl = state.player
 	self:loadField(field, { player = pl and loadShip(pl.ship), at = pl and pl.at })
+	local p = self.player
+	local st = p and p.dockState and p.dockState.station
+	if st and pl.at.bay and self:hangarFree(st, p, p.hull.id, pl.at.bay) then p.bay = pl.at.bay end
 	if not pl then self.state = "dead" end
 end
 
@@ -310,12 +399,24 @@ function Game:saveTo(slot)
 	return ok
 end
 
+-- slot nil: whichever save is newest (F5's or the autosave).
 function Game:loadFrom(slot)
+	slot = slot or Save.newest()
+	if not slot then self:toast("NO SAVE YET", 1.4) return false end
 	local state, err = Save.read(slot)
 	if not state then self:toast(("CAN'T LOAD: %s"):format(tostring(err):upper()), 2) return false end
 	self:loadState(state)
 	self:toast("GAME LOADED", 1.2, "pickup")
 	return true
+end
+
+-- Start over: no saves, an empty universe, the first level.
+function Game:newGame()
+	Save.delete("quick")
+	Save.delete("auto")
+	self:newUniverse()
+	self.kills = 0
+	self:loadField(Fields.start)
 end
 
 function Game:autosave()

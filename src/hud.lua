@@ -173,9 +173,11 @@ local function drawHelp()
 	for i, line in ipairs(HELP) do lg.print(line, w - pw - 4, 12 + 8 + (i - 1) * 16) end
 end
 
-local function drawToasts(game)
+-- y: where the list starts (default near the top; screens over the
+-- game pass a spot that doesn't cover them)
+local function drawToasts(game, y)
 	local w = lg.getWidth()
-	local y = 70
+	y = y or 70
 	for _, t in ipairs(game.toasts) do
 		local a = min(1, (t.life - t.t) * 3)
 		if t.big then

@@ -47,7 +47,7 @@ local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
 
 local GAP, PAD, HEAD = 16, 14, 40
-local tabRects
+local tabRects, drawTabs
 
 -- Is the screen up?
 function Cargo.isOpen(game)
@@ -139,7 +139,7 @@ local function layout(game)
 	local tw, ph = measure(cs)
 	for _, side in ipairs(list) do side.w, side.h = size(side, cs) end
 	local x = floor((sw - tw) / 2)
-	local y = max(56, floor((sh - ph - 50) / 2))
+	local y = max(80, floor((sh - ph - 50) / 2))
 
 	-- Equipment: the hull outline with numbered hardpoints, then a row per slot.
 	local E = { x = x, y = y, pw = EW, ph = ph, slots = {}, hidden = not showEquip }
@@ -319,14 +319,27 @@ local function inRect(r, x, y)
 	return x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
 end
 
--- The station screen's tabs, top centre.
+-- The station screen's tabs: folder tabs on top of the window, centred
+-- over it. The window is the panels of whichever tab is showing.
 local TABS = { { id = "cargo", label = "Cargo" }, { id = "hangar", label = "Hangar" } }
-function tabRects()
-	local sw = lg.getWidth()
-	local out, w = {}, 110
-	local x = floor((sw - #TABS * (w + 6)) / 2)
+function tabRects(game)
+	local left, right, top
+	if Cargo.tab == "hangar" then
+		local H = Hangar.layout(game)
+		if H then left, right, top = H.x, H.x + H.w, H.y end
+	else
+		local L = layout(game)
+		if L then
+			local last = L.sides[#L.sides]
+			left = L.equip.hidden and L.sides[1].x or L.equip.x
+			right, top = last.x + last.pw, L.sides[1].y
+		end
+	end
+	if not left then return {} end
+	local out, w, h = {}, 110, 28
+	local x = floor((left + right - #TABS * (w + 4)) / 2)
 	for i, t in ipairs(TABS) do
-		out[i] = { id = t.id, label = t.label, x = x + (i - 1) * (w + 6), y = 14, w = w, h = 28 }
+		out[i] = { id = t.id, label = t.label, x = x + (i - 1) * (w + 4), y = top - h, w = w, h = h }
 	end
 	return out
 end
@@ -485,11 +498,11 @@ end
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
 	if game.state == "docked" and not Cargo.hand then
-		for _, t in ipairs(tabRects()) do
-			if button == 1 and inRect(t, mx, my) then Cargo.tab = t.id return true end
+		for _, t in ipairs(tabRects(game)) do
+			if button == 1 and inRect(t, mx, my) then Cargo.tab = t.id; Hangar.cancel() return true end
 		end
 		if Cargo.tab == "hangar" then
-			local act = Hangar.mousepressed(game, mx, my)
+			local act = Hangar.mousepressed(game, mx, my, button)
 			if act and act.fly then
 				Cargo.other = nil
 				game:flyFromHangar(act.fly)
@@ -597,6 +610,10 @@ end
 
 function Cargo.mousereleased(game, mx, my, button)
 	if not Cargo.isOpen(game) then return false end
+	if game.state == "docked" and Cargo.tab == "hangar" then
+		if button == 1 then Hangar.mousereleased(game, mx, my) end
+		return true
+	end
 	local h = Cargo.hand
 	if button ~= 1 or not h then return true end
 	local L = layout(game)
@@ -628,9 +645,10 @@ end
 
 function Cargo.keypressed(game, key)
 	if key == "tab" and game.state == "docked" then
-		if not Cargo.hand then Cargo.tab = Cargo.tab == "cargo" and "hangar" or "cargo" end
+		if not Cargo.hand then Cargo.tab = Cargo.tab == "cargo" and "hangar" or "cargo"; Hangar.cancel() end
 		return true
 	end
+	if game.state == "docked" and Cargo.tab == "hangar" and Hangar.keypressed(game, key) then return true end
 	if key == "tab" then Cargo.toggle(game); return true end
 	if not Cargo.isOpen(game) then return false end
 	if key == "r" and Cargo.hand then
@@ -829,6 +847,22 @@ local function drawEquipment(game, L, mx, my)
 	end
 end
 
+-- Folder tabs sitting on the top edge of the window.
+function drawTabs(game, mx, my)
+	lg.setFont(HUD.font(14))
+	for _, t in ipairs(tabRects(game)) do
+		local on = Cargo.tab == t.id
+		lg.setColor(0.02, 0.06, 0.09, 0.92)
+		lg.rectangle("fill", t.x, t.y, t.w, t.h + 6, 6, 6)
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.4 or (inRect(t, mx, my) and 0.22 or 0.1))
+		lg.rectangle("fill", t.x, t.y, t.w, t.h + 6, 6, 6)
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.8 or 0.35)
+		lg.rectangle("line", t.x + 0.5, t.y + 0.5, t.w - 1, t.h + 5, 6, 6)
+		lg.setColor(on and HUD.INK or HUD.DIM)
+		lg.printf(t.label, t.x, t.y + 6, t.w, "center")
+	end
+end
+
 function Cargo.draw(game)
 	if not Cargo.isOpen(game) then return end
 	local L = layout(game)
@@ -842,20 +876,14 @@ function Cargo.draw(game)
 	lg.rectangle("fill", 0, 0, sw, sh)
 
 	if docked then
-		lg.setFont(HUD.font(14))
-		for _, t in ipairs(tabRects()) do
-			local on = Cargo.tab == t.id
-			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.45 or (inRect(t, mx, my) and 0.25 or 0.12))
-			lg.rectangle("fill", t.x, t.y, t.w, t.h, 6, 6)
-			lg.setColor(on and HUD.INK or HUD.DIM)
-			lg.printf(t.label, t.x, t.y + 6, t.w, "center")
-		end
+		drawTabs(game, mx, my)
 		if Cargo.tab == "hangar" then
 			Hangar.draw(game, mx, my)
 			lg.setFont(HUD.font(13))
 			lg.setColor(HUD.DIM)
-			lg.printf("Fly swaps ships (yours is parked here)   Cargo opens its hold next to yours   Tab switch tabs   E, Enter or (A) launch",
-				0, sh - 40, sw, "center")
+			local H = Hangar.layout(game)
+			lg.printf("Click a ship to select   Drag to move, R rotate   Double-click or Fly to swap ships   Cargo opens its hold   Tab switch tabs   E launch",
+				0, H and (H.y + H.h + 12) or (sh - 40), sw, "center")
 			return
 		end
 	end

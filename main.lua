@@ -32,7 +32,16 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	love.mouse.setVisible(false)
-	if autotest then autotest.start(game) end
+	if autotest then
+		autotest.start(game)
+	elseif require("src.save").newest() then
+		game:loadFrom()                    -- carry on from the latest save
+	end
+end
+
+-- Closing the game saves it (unless you're dead or it's the autotest).
+function love.quit()
+	if not autotest and game and game.player and not game.player.dead then game:autosave() end
 end
 
 function love.update(dt)
@@ -73,7 +82,7 @@ function love.draw()
 	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
 	if Cargo.isOpen(game) then
 		Cargo.draw(game)
-		HUD.drawToasts(game)
+		HUD.drawToasts(game, love.graphics.getHeight() - 110)
 	end
 	Debug.draw()
 end
@@ -93,7 +102,7 @@ function love.keypressed(key)
 	elseif key == "q" then game:cycleAux()
 	elseif key == "f2" then game:nextField()
 	elseif key == "f5" then game:saveTo("quick")
-	elseif key == "f9" then Cargo.close(game); game:loadFrom("quick")
+	elseif key == "f9" then Cargo.close(game); game:loadFrom()
 	end
 end
 

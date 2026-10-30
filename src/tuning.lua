@@ -70,6 +70,10 @@ T.aggroRange = 2600
 -- after arriving before a gate will take you again.
 T.gateRadius, T.gateCooldown = 150, 4
 
+-- Hangar bays: cells across and down, and how many pixels of hull length
+-- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
+T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20
+
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
 

@@ -108,8 +108,23 @@ function Save.read(slot)
 	return Save.upgrade(state)
 end
 
+function Save.delete(slot)
+	love.filesystem.remove(fileName(slot))
+end
+
 function Save.exists(slot)
 	return love.filesystem.getInfo(fileName(slot)) ~= nil
+end
+
+-- The most recently written of the player's saves (F5's "quick" and the
+-- "auto" save), or nil if there are none.
+function Save.newest()
+	local best, bestT
+	for _, slot in ipairs({ "quick", "auto" }) do
+		local info = love.filesystem.getInfo(fileName(slot))
+		if info and (not bestT or (info.modtime or 0) > bestT) then best, bestT = slot, info.modtime or 0 end
+	end
+	return best
 end
 
 return Save

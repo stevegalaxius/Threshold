@@ -66,6 +66,8 @@ local function shipSection(game)
 	Slab.SameLine()
 	if Slab.Button("Load") then game:loadFrom("quick") end
 	Slab.SameLine()
+	if Slab.Button("New game") then game:newGame() end
+	Slab.SameLine()
 	if Slab.Button("Load autosave") then game:loadFrom("auto") end
 
 	Slab.Text("Paint")

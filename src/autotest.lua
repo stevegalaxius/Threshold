@@ -513,6 +513,7 @@ function A.update(game, dt)
 		Cargo.tab = "hangar"
 		log("hangar: docked at %s (%s), home %s, hangar has %d ship(s): %s", st.name, st.key, game:homeStation().key,
 			#game:hangar(st), game:hangar(st)[1].hull)
+		game:addToHangar(st, "ferrous_bastion")
 		shot("12_hangar")
 	end) end
 	if t >= 35.75 then once("hangar_cargo", function()
@@ -520,11 +521,33 @@ function A.update(game, dt)
 		local Hangar = require("src.ui.hangar")
 		local Hold = require("src.inventory.hold")
 		local w = game.player
-		local row = Hangar.layout(game).rows[1]
-		Cargo.mousepressed(game, row.cargo.x + 4, row.cargo.y + 4, 1)
+		local H = Hangar.layout(game)
+		local rec = game:hangar(A.st)[1]
+		local ship
+		for _, s in ipairs(H.ships) do if s.owner == rec then ship = s end end
+		-- drag the Anvil onto the Bastion (refused), then down 6 rows; then the Cargo button
+		local x0, y0 = ship.x + 4, ship.y + 4
+		local bx, by = rec.bay.x, rec.bay.y
+		Cargo.mousepressed(game, x0, y0, 1)
+		Cargo.mousereleased(game, x0 + 4 * H.cs, y0, 1)
+		local blocked = rec.bay.x == bx
+		Hangar.lastClick = nil                   -- (two quick clicks would be a double-click: fly)
+		Cargo.mousepressed(game, x0, y0, 1)
+		Cargo.mousereleased(game, x0, y0 + 6 * H.cs, 1)
+		local T = require("src.tuning")
+		local aw, ah = game.hangarFootprint("brute_anvil")
+		local ww, wh = game.hangarFootprint("halcyon_wisp")
+		local bw, bh = game.hangarFootprint("ferrous_bastion")
+		log("hangar: bay %d x %d; footprints Wisp %d x %d, Anvil %d x %d, Bastion %d x %d; Wisp (flying) at %d,%d",
+			T.hangarW, T.hangarH, ww, wh, aw, ah, bw, bh, game.player.bay.x, game.player.bay.y)
+		log("hangar: dragging the Anvil onto the Bastion refused %s; dragged down from %d,%d to %d,%d",
+			tostring(blocked), bx, by, rec.bay.x, rec.bay.y)
+		shot("12b_hangar_moved")
+		H = Hangar.layout(game)
+		Hangar.sel = rec
+		Cargo.mousepressed(game, H.cargo.x + 4, H.cargo.y + 4, 1)
 		local L = Cargo.layout(game)
 		local right = L.sides[#L.sides]
-		local rec = game:hangar(A.st)[1]
 		local before = Hold.cells(rec.hold)
 		local r, st
 		for _, gr in ipairs(L.grids) do
@@ -543,8 +566,8 @@ function A.update(game, dt)
 		local Save = require("src.save")
 		Cargo.tab = "hangar"
 		local wispCells = Hold.cells(game.player.hold)
-		local row = Hangar.layout(game).rows[1]
-		Cargo.mousepressed(game, row.fly.x + 4, row.fly.y + 4, 1)
+		local H = Hangar.layout(game)
+		Cargo.mousepressed(game, H.fly.x + 4, H.fly.y + 4, 1)
 		local p = game.player
 		local parked = game:hangar(A.st)[1]
 		log("hangar: Fly -> flying %s (hold %d m3, docked %s), parked now %s (hold %d m3, was %d)", p.hull.name, (Hold.cells(p.hold)),
