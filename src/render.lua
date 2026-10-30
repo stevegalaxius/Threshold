@@ -7,6 +7,7 @@
 
 local data = require("src.data")
 local Ship = require("src.ship")
+local T = require("src.tuning")
 
 local Render = {}
 
@@ -187,7 +188,7 @@ local function drawAsteroid(e)
 end
 
 local function drawStructure(game, e)
-	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or { 0.16, 0.18, 0.22 }
+	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or (e.role == "ladder" or e.role == "tether") and { 0.26, 0.17, 0.13 } or { 0.16, 0.18, 0.22 }
 	lg.setColor(fill)
 	lg.polygon("fill", e.verts)
 	lg.setColor(0.5, 0.58, 0.68)
@@ -331,26 +332,66 @@ local function drawBuoy(game, e)
 	lg.circle("fill", x, y, r * 0.4)
 end
 
--- Jump gates: a slowly turning ring of segments with a glow in the
--- middle. Fly into the middle to travel.
-local function drawGate(game, e)
+-- Mass drivers: a capture ring at the breech and a rail running outward,
+-- with lights chasing along it in the direction it fires.
+local function drawDriver(game, e)
 	local x, y = e.body:getPosition()
 	local r = e.radius
-	local a0 = e.spin + game.time * 0.4
+	local dx, dy = cos(e.angle), sin(e.angle)
+	local nx, ny = -dy, dx
+	local len, hw = 1400, 90
 	lg.setColor(0.4, 0.8, 1, 0.08)
 	lg.circle("fill", x, y, r)
-	lg.setLineWidth(outline(4))
-	local n = 12
-	for i = 0, n - 1 do
-		local a1 = a0 + i / n * pi * 2
-		local a2 = a1 + pi * 2 / n * 0.6
-		lg.setColor(0.55, 0.85, 1, 0.8)
-		lg.arc("line", "open", x, y, r + 22, a1, a2, 6)
+	lg.setLineWidth(outline(3))
+	lg.setColor(0.55, 0.85, 1, 0.8)
+	lg.circle("line", x, y, r + 20, 64)
+	for _, s in ipairs({ -1, 1 }) do
+		lg.line(x - dx * 600 + nx * hw * s, y - dy * 600 + ny * hw * s, x + dx * len + nx * hw * s, y + dy * len + ny * hw * s)
 	end
-	lg.setLineWidth(outline(1.5))
-	local pulse = (game.time * 0.7 + e.spin) % 1
-	lg.setColor(0.55, 0.9, 1, 0.5 * (1 - pulse))
-	lg.circle("line", x, y, r * pulse, 48)
+	local n = 10
+	for i = 0, n - 1 do
+		local k = (i / n + game.time * 0.8) % 1
+		local px, py = x + dx * (-600 + k * (len + 600)), y + dy * (-600 + k * (len + 600))
+		lg.setColor(0.6, 0.95, 1, 0.8 * (1 - k))
+		lg.circle("fill", px, py, 14)
+	end
+end
+
+-- The transit lane: its walls, a dashed median, and chevrons drifting
+-- the way each side flows.
+local function drawLane(game)
+	local lane = game.lane
+	local cam = game.camera
+	local w, h = lg.getDimensions()
+	local x1 = cam:toWorld(0, 0)
+	local x2 = cam:toWorld(w, h)
+	x1, x2 = max(x1, -lane.half), min(x2, lane.half)
+	local W = T.laneWidth
+	lg.setLineWidth(outline(3))
+	lg.setColor(0.55, 0.85, 1, 0.35)
+	lg.line(x1, -W, x2, -W)
+	lg.line(x1, W, x2, W)
+	lg.setColor(1, 0.8, 0.35, 0.5)
+	local dash = 600
+	for x = floor(x1 / dash) * dash, x2, dash do lg.line(x, 0, x + dash / 2, 0) end
+	-- chevrons
+	local step = 1200
+	local shift = (game.time * T.laneFlow) % step
+	lg.setLineWidth(outline(2))
+	for _, s in ipairs({ -1, 1 }) do
+		local dir = -s
+		for x = floor(x1 / step) * step - step, x2 + step, step do
+			local cx = x + dir * shift
+			for _, yy in ipairs({ s * W * 0.2, s * W * 0.5, s * W * 0.8 }) do
+				lg.setColor(0.55, 0.85, 1, 0.25)
+				lg.line(cx - dir * 80, yy - 80, cx + dir * 40, yy, cx - dir * 80, yy + 80)
+			end
+		end
+	end
+	-- the far end
+	lg.setColor(0.6, 0.95, 1, 0.6)
+	lg.setLineWidth(outline(4))
+	lg.line(lane.half, -W, lane.half, 0)
 end
 
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
@@ -374,6 +415,17 @@ local function drawPlanet(game, e)
 			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
 			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
 		end
+	end
+	if e.gas then
+		-- a gas giant: see-through bands thickening toward the middle
+		for k = 1, 12 do
+			lg.setColor(c[1], c[2], c[3], 0.045)
+			lg.circle("fill", x, y, R * (1 - (k - 1) / 13), PLANET_SEGMENTS)
+		end
+		lg.setColor(c[1], c[2], c[3], 0.5)
+		lg.setLineWidth(outline(3))
+		lg.circle("line", x, y, R, PLANET_SEGMENTS)
+		return
 	end
 	-- atmosphere haze
 	for k = 6, 1, -1 do
@@ -731,6 +783,7 @@ function Render.world(game)
 	Render.background(game.camera)
 	game.camera:apply()
 	drawGrid(game)
+	if game.lane then drawLane(game) end
 	drawRange(game)
 	drawPickups(game)
 	for _, e in ipairs(game.entities) do
@@ -739,7 +792,7 @@ function Render.world(game)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then drawStation(game, e)
 		elseif e.kind == "buoy" then drawBuoy(game, e)
-		elseif e.kind == "gate" then drawGate(game, e)
+		elseif e.kind == "driver" then drawDriver(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end
 	end

@@ -8,6 +8,7 @@ local data = require("src.data")
 local Input = require("src.input")
 local Render = require("src.render")
 local T = require("src.tuning")
+local Fields = require("src.fields")
 
 local HUD = { showHelp = true }
 
@@ -165,7 +166,7 @@ local HELP = {
 	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
-	"fly into a gate to travel   F2 skip to next level",
+	"fly into a mass driver to travel   F2 skip to next level",
 	"F5 save   F9 load (docking autosaves)",
 	"H hide help   Esc quit",
 }
@@ -207,14 +208,14 @@ local function drawOffscreen(game)
 	local cam = game.camera
 	local w, h = lg.getDimensions()
 	local cx, cy = w / 2, h / 2
-	-- where you can go: gates and stations, labelled at the edge of the
-	-- screen when they're off it, or under them when they're on it
+	-- where you can go: mass drivers and stations, labelled at the edge
+	-- of the screen when they're off it, or under them when they're on it
 	lg.setFont(font(12))
 	for _, e in ipairs(game.entities) do
-		if game.state ~= "docked" and (e.kind == "gate" or (e.kind == "station" and e.dock)) then
-			local label = e.kind == "gate" and ("Gate to " .. e.name) or e.name
+		if game.state ~= "docked" and (e.kind == "driver" or (e.kind == "station" and e.dock)) then
+			local label = e.kind == "driver" and ("Driver to %s  %d cr"):format(e.name, game:driverFare(e.to)) or e.name
 			local sx, sy = cam:toScreen(e.body:getPosition())
-			local col = e.kind == "gate" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
+			local col = e.kind == "driver" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)
 				local m = 40
@@ -343,8 +344,23 @@ HUD.panel, HUD.font, HUD.itemColor = panel, font, itemColor
 HUD.AQUA, HUD.INK, HUD.DIM, HUD.WARN = AQUA, INK, DIM, WARN
 
 -- uiOpen: the cargo screen is up, so no aim reticle.
+-- In a transit lane: where you're headed and how far is left.
+local function drawTrip(game)
+	local trip, lane, p = game.trip, game.lane, game.player
+	if not trip or not lane or not p or p.dead then return end
+	local w = lg.getWidth()
+	local x = p.body:getPosition()
+	local frac = math.max(0, math.min(1, (x + lane.half) / (lane.half * 2)))
+	local bw = 360
+	lg.setFont(font(13))
+	lg.setColor(AQUA)
+	lg.printf(("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au), w / 2 - bw, 52, bw * 2, "center")
+	bar(w / 2 - bw / 2, 72, bw, 14, frac, AQUA, "", ("%d%%"):format(floor(frac * 100)))
+end
+
 function HUD.draw(game, aimX, aimY, uiOpen)
 	drawOffscreen(game)
+	drawTrip(game)
 	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
 	drawDeath(game)

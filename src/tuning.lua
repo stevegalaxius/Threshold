@@ -67,9 +67,33 @@ T.fieldContainers = 6
 T.starterHull = "halcyon_wisp"
 -- Level enemies leave you alone until you come this close (or shoot them).
 T.aggroRange = 2600
--- Jump gates: how close to a gate's centre takes you through, and how long
--- after arriving before a gate will take you again.
-T.gateRadius, T.gateCooldown = 150, 4
+-- Mass drivers (src/transit.lua): the capture ring's radius, seconds to
+-- line up and to fire, the speed you leave and arrive at, how long after
+-- arriving before a driver will take you again, and the fare in credits
+-- (a base plus a little per AU).
+T.driverRadius = 260
+T.driverAlign, T.driverFire = 1.2, 0.8
+T.driverExitSpeed = 2600
+T.driverCooldown = 6
+T.driverFare, T.driverFarePerAU = 100, 60
+
+-- Orbits: seconds of game clock for Earth's year (the other planets keep
+-- their real years relative to it).
+T.yearLength = 1800
+
+-- The transit lane: length (base + per AU of distance), how far each side
+-- of the median a lane runs, how soft the median is, the current's speed
+-- and grip, how far around you things are kept, and how much there is.
+-- laneDerelict: the chance, each time something would spawn, of a derelict.
+T.laneBase, T.lanePerAU = 20000, 22000
+T.laneWidth, T.laneMedian = 2400, 400
+T.laneFlow, T.laneSwirl = 1100, 0.6
+T.laneReach = 9000
+T.laneTraffic, T.laneRocks, T.laneDerelict = 10, 10, 0.04
+
+-- Gas giants: how deep below the cloud tops the crush reaches full
+-- strength, its damage per second there, and its drag.
+T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).

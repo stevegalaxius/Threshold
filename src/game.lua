@@ -56,10 +56,10 @@ function Game.new(opts)
 end
 
 -- Clear the arena and build a level (a playing field, src/fields.lua) in
--- it: its contents, its jump gates and its enemies. Then the player:
+-- it: its contents, its mass drivers and its enemies. Then the player:
 --   opts.player  a ship record to fly in (Ship.record), or a fresh one
---   opts.at      where: { station = key } docked there, { gate = fieldId }
---                coming out of the gate from that level, { x, y, angle,
+--   opts.at      where: { station = key } docked there, { driver = fieldId }
+--                coming out of the driver from that planet, { x, y, angle,
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
@@ -71,10 +71,11 @@ function Game:loadField(id, opts)
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
-	self.well = nil
+	self.well, self.lane = nil, nil
+	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
 	self.field.build(self)
-	self:spawnGates()
+	self:spawnDrivers()
 	self:spawnFieldEnemies()
 	self:placePlayer(opts.player, opts.at)
 	self:toast(self.field.name:upper(), 2, nil, true)
@@ -892,7 +893,7 @@ end
 
 function Game:setPlayerIntent(intent)
 	local p = self.player
-	if not p or p.dead or p.dockState then return end
+	if not p or p.dead or p.dockState or p.launch then return end
 	for k, v in pairs(intent) do p.intent[k] = v end
 end
 
@@ -909,7 +910,7 @@ function Game:step(dt)
 			if e.dockState then
 				self:updateDockedShip(e, dt)
 			else
-				if e.def then AI.think(self, e, dt) end
+				if e.cruise then self:cruise(e) elseif e.def then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
 				Weapons.update(self, e, dt)
 			end
@@ -918,7 +919,10 @@ function Game:step(dt)
 
 	self:applyBoundary()
 	self:applyCurrent(dt)
+	self:updateLane(dt)
 	self:updateAtmosphere(dt)
+	self:updateCrush(dt)
+	self:updateDrivers(dt)
 	self:updateOrbits(dt)
 	self:updateTow(dt)
 	self.world:update(dt)
@@ -927,12 +931,14 @@ function Game:step(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
-	self:updateGates(dt)
 	self:reap()
-	if self.pendingJump then
-		local to = self.pendingJump
-		self.pendingJump = nil
-		self:travel(to)
+	if self.pendingTrip then
+		local to = self.pendingTrip
+		self.pendingTrip = nil
+		self:launchTrip(to)
+	elseif self.pendingArrive then
+		self.pendingArrive = nil
+		self:arrive()
 	end
 end
 
@@ -1453,6 +1459,7 @@ function Game:frame(dt, aimX, aimY)
 end
 
 require("src.world")(Game)
+require("src.transit")(Game)
 require("src.market")(Game)
 
 return Game

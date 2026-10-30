@@ -259,8 +259,8 @@ function A.update(game, dt)
 		local Grid = require("src.inventory.grid")
 		local Hold = require("src.inventory.hold")
 		Cargo.toggle(game)
-		-- A real wheel station (planet field), with the Wisp parked inside.
-		game:loadField("planet")
+		-- A real wheel station (Mars), with the Wisp parked inside.
+		game:loadField("mars")
 		local w = game.player
 		local st
 		for _, e in ipairs(game.entities) do if e.kind == "station" and e.dock then st = e end end
@@ -726,36 +726,61 @@ function A.update(game, dt)
 		A.holdBefore = Hold.cells(p.hold)
 	end) end
 	if t >= 35.95 then once("travel", function()
+		-- Earth, into the capture ring of the driver to Mars.
+		local Ship = require("src.ship")
+		game:loadField("earth", { player = Ship.record(game.player) })
 		local p = game.player
-		for _, g in ipairs(game.entities) do
-			if g.kind == "gate" and g.to == "station" then
-				p.body:setPosition(g.body:getPosition())
-				p.jumpCooldown = 0
-			end
-		end
+		A.credits1 = game.universe.credits
+		local g = game:findDriver("mars")
+		p.body:setPosition(g.body:getPosition())
+		p.body:setLinearVelocity(0, 0)
+		local ladder = 0
+		log("travel: earth has drivers to %s; fare to mars %d cr", (function()
+			local t = {}
+			for _, e in ipairs(game.entities) do if e.kind == "driver" then table.insert(t, e.to) end end
+			return table.concat(t, ", ")
+		end)(), game:driverFare("mars"))
 	end) end
-	if t >= 36.05 then once("travel_check", function()
-		local Hold = require("src.inventory.hold")
+	if t >= 38.3 then once("travel_lane", function()
 		local p = game.player
-		local gate
-		for _, g in ipairs(game.entities) do if g.kind == "gate" and g.to == "planet" then gate = g end end
-		local px, py = p.body:getPosition()
-		local gx, gy = gate.body:getPosition()
-		local gates = {}
-		for _, g in ipairs(game.entities) do if g.kind == "gate" then table.insert(gates, g.to) end end
-		log("travel: jumped -> field %s (gates to %s), %.0f px from the gate back to planet, flying %s, hold %d -> %d m3",
-			game.fieldId, table.concat(gates, ", "), math.sqrt((px - gx) ^ 2 + (py - gy) ^ 2), p.hull.name, A.holdBefore, (Hold.cells(p.hold)))
-		shot("14_travel")
-		game:damage(p, 1e9)
+		local x, y = p.body:getPosition()
+		local vx = p.body:getLinearVelocity()
+		local n = 0
+		for _, e in ipairs(game.entities) do if e.lane then n = n + 1 end end
+		log("travel: in field %s (%s -> %s, %.2f AU, %.0f px long), at %.0f, %.0f doing %.0f px/s, credits %d -> %d, %d things in the lane",
+			game.fieldId, game.trip.from, game.trip.to, game.trip.au, game.trip.length, x, y, vx, A.credits1, game.universe.credits, n)
+		shot("14_lane")
+		-- skip to the far end
+		p.body:setPosition(game.lane.half - 300, y)
 	end) end
-	if t >= 36.15 then once("respawn", function()
+	if t >= 38.4 then once("travel_arrive", function()
+		local p = game.player
+		local vx, vy = p.body:getLinearVelocity()
+		local ladder = 0
+		for _, e in ipairs(game.entities) do if e.role == "ladder" or e.role == "tether" then ladder = ladder + 1 end end
+		log("travel: arrived in %s at %.0f px/s, %d Heaven-Ladder pieces", game.fieldId, math.sqrt(vx * vx + vy * vy), ladder)
+		shot("15_mars")
+		-- Jupiter: sink the ship below the cloud tops and watch the crush
+		local Ship = require("src.ship")
+		game:loadField("jupiter", { player = Ship.record(p) })
+		local q = game.player
+		q.body:setPosition(0, game.well.radius - 5000)
+		A.armor0 = q.armor
+	end) end
+	if t >= 38.9 then once("crush", function()
+		local q = game.player
+		log("crush: jupiter radius %.0f, armor %.1f -> %.1f after 0.5 s inside", game.well.radius, A.armor0 or -1, q.dead and 0 or q.armor)
+		shot("16_jupiter")
+		game:damage(q, 1e9)
+	end) end
+	if t >= 39.0 then once("respawn", function()
 		local state = game.state
 		game:respawn()
 		local p = game.player
 		local st = p.dockState and p.dockState.station
 		log("respawn: state %s -> %s, field %s, docked at %s, flying %s", state, game.state, game.fieldId, st and st.name or "-", p.hull.name)
 	end) end
-	if t >= 36.25 then once("quit", function()
+	if t >= 39.1 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
 	end) end
