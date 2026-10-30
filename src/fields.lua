@@ -92,8 +92,10 @@ Fields.planet = {
 	radius = 12000,
 	rockDrag = 0,
 	build = function(game)
-		local R = 1400
-		game:spawnPlanet(0, 0, R, 150, 0.15)
+		-- 2000 px across. Surface pull is set so the well reaches as far
+		-- out as it did with the bigger 2800 px planet.
+		local R = 1000
+		game:spawnPlanet(0, 0, R, 294, 0.15)
 		-- A belt of rocks already in orbit, going the way the well turns.
 		local w = game.well
 		local placed = 0
@@ -101,7 +103,7 @@ Fields.planet = {
 			if placed >= 90 then break end
 			local radius = 24 + random() ^ 2 * 80
 			local a = random() * pi * 2
-			local d = R * 2 + random() * R * 2.2
+			local d = R * 2.6 + random() * R * 3.2
 			local x, y = cos(a) * d, sin(a) * d
 			if game:isClear(x, y, radius + 60) then
 				local e = game:spawnAsteroid(x, y, radius)
