@@ -554,8 +554,10 @@ function A.update(game, dt)
 			if gr.side.ship and not st then r, st = gr, gr.g.stacks[1] end
 		end
 		Cargo.mousepressed(game, r.x + (st.x + 0.5) * L.cs, r.y + (st.y + 0.5) * L.cs, 1, { ctrl = true })
-		log("hangar: Cargo on the parked Anvil -> tab %s, right panel %q, ctrl-click moved %s: Anvil hold %d -> %d m3",
-			Cargo.tab, right.title, st.id, before, (Hold.cells(rec.hold)))
+		local titles = {}
+		for _, sd in ipairs(L.sides) do table.insert(titles, sd.title) end
+		log("hangar: Cargo on the parked Anvil -> tab %s, panels: %s; ctrl-click moved %s: Anvil hold %d -> %d m3",
+			Cargo.tab, table.concat(titles, " | "), st.id, before, (Hold.cells(rec.hold)))
 		A.parkedCells = Hold.cells(rec.hold)
 		shot("13_parked_cargo")
 	end) end

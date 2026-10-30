@@ -3,8 +3,8 @@
 	hand. Two ways in:
 
 	  docked    opens by itself, with two tabs (Tab switches): Cargo, your
-	            hold next to this station's storage (or a parked ship's
-	            hold: Switch cycles through them), and Hangar
+	            hold next to this station's storage, plus a parked ship's
+	            hold after it if you open one (Ships / Next / x), and Hangar
 	            (src/ui/hangar.lua). E, Enter or (A) launches.
 	  in space  Tab opens and closes it (Esc closes too). Just your hold.
 	            The game keeps running, and you can still fly with the keys.
@@ -61,8 +61,9 @@ local function sides(game)
 	if not p or p.dead or not p.hold then return {} end
 	local list = { { title = "Your hold \194\183 " .. p.hull.name, hold = p.hold, ship = p } }
 	if game.state == "docked" and p.dockState then
-		-- station storage, or a parked ship's hold (Cargo.other)
+		-- station storage, then a parked ship's hold if one is open (Cargo.other)
 		local st = p.dockState.station
+		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
 		local rec = Cargo.other
 		local parked = false
 		for _, r in ipairs(game:hangar(st)) do if r == rec and r.hold then parked = true end end
@@ -70,7 +71,6 @@ local function sides(game)
 			table.insert(list, { title = "Parked " .. data.hulls[rec.hull].name, hold = rec.hold, parked = rec, station = st })
 		else
 			Cargo.other = nil
-			table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
 		end
 	elseif Cargo.loot then
 		local e = Cargo.loot
@@ -108,7 +108,7 @@ local function layout(game)
 	local p = game.player
 	-- in space the equipment panel is only a readout; with three holds up
 	-- it makes way for them
-	local showEquip = game.state == "docked" or #list < 3
+	local showEquip = #list < 3
 	local eh = showEquip and (HEAD + HULL_H + #p.hull.slots * ROW + PAD) or 0
 	local function size(side, cs)
 		local g1 = side.hold.grids[1]
@@ -119,7 +119,7 @@ local function layout(game)
 			rowH = max(rowH, g.h * cs)
 		end
 		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0)
-		return max(w, rowW, side.innerOf and 380 or (side.entity or side.station) and 340 or 300), h
+		return max(w, rowW, (side.innerOf or side.parked) and 380 or (side.entity or side.station) and 340 or 300), h
 	end
 	local function measure(cs)
 		local tw, th = showEquip and (EW + GAP) or 0, 0
@@ -159,7 +159,11 @@ local function layout(game)
 		side.sort = { x = x + side.pw - PAD - 56, y = y + 12, w = 56, h = 22 }
 		if side.entity or side.innerOf then side.take = { x = side.sort.x - 82, y = y + 12, w = 76, h = 22 } end
 		if side.innerOf then side.close = { x = side.take.x - 28, y = y + 12, w = 22, h = 22 } end
-		if side.station and #game:hangar(side.station) > 0 then side.switch = { x = side.sort.x - 70, y = y + 12, w = 64, h = 22 } end
+		-- storage: open a parked ship's hold; a parked ship: the next one, or close
+		if (side.parked or (side.storage and not Cargo.other)) and #game:hangar(side.station) > 0 then
+			side.switch = { x = side.sort.x - 70, y = y + 12, w = 64, h = 22, label = side.parked and "Next" or "Ships" }
+		end
+		if side.parked then side.close = { x = side.switch.x - 28, y = y + 12, w = 22, h = 22 } end
 		local gx, gy = x + PAD, y + HEAD + 18
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
@@ -517,10 +521,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	if Cargo.hand then return true end
 	for _, side in ipairs(L.sides) do
 		if button == 1 and side.switch and inRect(side.switch, mx, my) then
-			-- storage, then each parked ship in turn
+			-- each parked ship in turn
 			local list = game:hangar(side.station)
 			local nextRec = list[1]
-			for i, r in ipairs(list) do if r == Cargo.other then nextRec = list[i + 1] end end
+			for i, r in ipairs(list) do if r == Cargo.other then nextRec = list[i + 1] or list[1] end end
 			Cargo.other = nextRec
 			return true
 		end
@@ -530,7 +534,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			return true
 		end
 		if button == 1 and side.close and inRect(side.close, mx, my) then
-			Cargo.inner = nil
+			if side.parked then Cargo.other = nil else Cargo.inner = nil end
 			return true
 		end
 		if button == 1 and side.take and inRect(side.take, mx, my) then
@@ -676,7 +680,11 @@ local function drawStack(item, n, x, y, w, h, cs, alpha)
 		lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
 		if n > 1 then lg.printf(n, x, y + h - (cs >= 24 and 16 or 13), w - 5, "right") end
 		if w >= cs * 2 and cs >= 22 then
+			-- clipped to the stack, so a long name on a 1-cell-tall stack doesn't spill
+			local sx, sy, sw2, sh2 = lg.getScissor()
+			lg.intersectScissor(x + 2, y + 2, w - 4, h - (n > 1 and 14 or 4))
 			lg.printf(item.name, x + 5, y + 4, w - 10, "left")
+			lg.setScissor(sx, sy, sw2, sh2)
 		end
 	end
 end
@@ -919,7 +927,7 @@ function Cargo.draw(game)
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], (not Cargo.hand and inRect(swr, mx, my)) and 0.35 or 0.15)
 			lg.rectangle("fill", swr.x, swr.y, swr.w, swr.h, 5, 5)
 			lg.setColor(HUD.INK)
-			lg.printf("Switch", swr.x, swr.y + 4, swr.w, "center")
+			lg.printf(swr.label, swr.x, swr.y + 4, swr.w, "center")
 		end
 		local cl = side.close
 		if cl then
