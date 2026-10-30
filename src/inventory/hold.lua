@@ -199,6 +199,18 @@ function Hold.room(h, id, n)
 	return Hold.add(Hold.clone(h), id, n)
 end
 
+-- Repack the hold neatly (biggest items first, grouped by type). If the
+-- tidy version wouldn't fit everything it leaves the hold as it was and
+-- returns false.
+function Hold.sort(h)
+	local layout = {}
+	for _, g in ipairs(h.grids) do table.insert(layout, { key = g.key, name = g.name, w = g.w, h = g.h }) end
+	local n = Hold.new(layout)
+	if next(Hold.fill(n, Hold.totals(h))) then return false end
+	h.grids = n.grids
+	return true
+end
+
 -- A new hold for a changed layout. Grids whose key and size didn't change
 -- come across untouched; the stacks from the rest are packed back in.
 -- Returns the new hold and a { id = count } of whatever didn't fit.

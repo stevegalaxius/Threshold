@@ -687,6 +687,33 @@ function Game:spawnPickup(x, y, item, count)
 	})
 end
 
+-- Push something out of the player's hold: it floats out behind the ship
+-- as an ordinary pickup (the tractor beam can reel it back in).
+function Game:eject(e, id, count)
+	local x, y = e.body:getPosition()
+	local a = e.body:getAngle()
+	local vx, vy = e.body:getLinearVelocity()
+	local c, s = cos(a), sin(a)
+	local back = e.tailX - 24
+	local side = (random() - 0.5) * e.hull.radius
+	table.insert(self.pickups, {
+		x = x + c * back - s * side, y = y + s * back + c * side,
+		vx = vx - c * 90 + (random() - 0.5) * 30, vy = vy - s * 90 + (random() - 0.5) * 30,
+		item = id, count = count, spin = random() * pi * 2,
+	})
+	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
+	events.emit("eject", e, id, count)
+end
+
+-- Each station keeps its own storage: a big grid you can leave cargo in
+-- while docked there.
+function Game:stationStorage(st)
+	if not st.storage then
+		st.storage = Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } })
+	end
+	return st.storage
+end
+
 function Game:enemyCount()
 	local n = 0
 	for _, e in ipairs(self.entities) do

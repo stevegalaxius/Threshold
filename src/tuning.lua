@@ -47,6 +47,9 @@ end
 T.FORCE_PER_KN = 100      -- 1 kN of engine thrust = this much force in pixel units
 T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 
+-- Station storage grid, in 1 m3 cells (every station has its own).
+T.storageW, T.storageH = 16, 12
+
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
 

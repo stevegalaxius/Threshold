@@ -6,7 +6,7 @@
 	    events.on("kill", function(victim, killer) ... end)
 	    events.emit("kill", victim, killer)
 
-	Events emitted so far: fire, hit, kill, pickup, death.
+	Events emitted so far: fire, hit, kill, pickup, eject, death.
 	Keep this list small and stable: it's going to be the modding API.
 ]]
 

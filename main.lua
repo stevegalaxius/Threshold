@@ -16,6 +16,7 @@ local Input = require("src.input")
 local Render = require("src.render")
 local HUD = require("src.hud")
 local Debug = require("src.debugui")
+local Cargo = require("src.ui.cargo")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -42,7 +43,15 @@ function love.update(dt)
 	if autotest then
 		intent = autotest.intent(game, dt)
 	else
-		intent = Input.read(game, Debug.blocksMouse(), Debug.blocksKeyboard())
+		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game), Debug.blocksKeyboard())
+		-- With the cargo screen up the mouse is busy, so hold the aim
+		-- straight ahead instead of chasing the cursor.
+		local p = game.player
+		if Cargo.isOpen(game) and p and not p.dead then
+			local x, y = p.body:getPosition()
+			local a = p.body:getAngle()
+			intent.aimX, intent.aimY = x + math.cos(a) * 700, y + math.sin(a) * 700
+		end
 	end
 	lastIntent = intent
 	game:setPlayerIntent(intent)
@@ -53,14 +62,16 @@ function love.update(dt)
 		accumulator = accumulator - STEP
 	end
 	game:frame(dt, intent.aimX, intent.aimY)
-	love.mouse.setVisible(Debug.blocksMouse())
+	Cargo.update(game)
+	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game))
 
 	if autotest then autotest.update(game, dt) end
 end
 
 function love.draw()
 	Render.world(game)
-	HUD.draw(game, lastIntent.aimX, lastIntent.aimY)
+	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
+	Cargo.draw(game)
 	Debug.draw()
 end
 
@@ -75,6 +86,7 @@ end
 
 function love.keypressed(key)
 	if Debug.blocksKeyboard() then return end
+	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then love.event.quit()
 	elseif key == "f1" then Debug.toggle()
@@ -91,6 +103,16 @@ function love.gamepadpressed(_, button)
 	elseif button == "y" then game:cycleAux()
 	elseif button == "back" then Debug.toggle()
 	end
+end
+
+function love.mousepressed(x, y, button)
+	if Debug.blocksMouse() then return end
+	Cargo.mousepressed(game, x, y, button)
+end
+
+function love.mousereleased(x, y, button)
+	if Debug.blocksMouse() then return end
+	Cargo.mousereleased(game, x, y, button)
 end
 
 function love.wheelmoved(_, y)

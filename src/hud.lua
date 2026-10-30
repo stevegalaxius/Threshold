@@ -155,6 +155,7 @@ local HELP = {
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB auxiliary",
 	"Q auxiliary ammo size   E tractor beam",
+	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
 	"F2 next playing field",
@@ -244,25 +245,6 @@ local function drawDeath(game)
 	lg.printf("Press R (or Start) to launch a new ship", 0, h * 0.36 + 110, w, "center")
 end
 
--- Placeholder station screen while docked; the real station GUI goes here.
-local function drawDocked(game)
-	if game.state ~= "docked" then return end
-	local w, h = lg.getDimensions()
-	lg.setColor(0, 0, 0, 0.5)
-	lg.rectangle("fill", 0, 0, w, h)
-	local pw, ph = 420, 170
-	local x, y = (w - pw) / 2, h * 0.32
-	panel(x, y, pw, ph)
-	lg.setFont(font(28))
-	lg.setColor(INK)
-	lg.printf("DOCKED", x, y + 22, pw, "center")
-	lg.setFont(font(14))
-	lg.setColor(DIM)
-	lg.printf("Wheel station\nStation services coming soon", x, y + 70, pw, "center")
-	lg.setColor(INK)
-	lg.printf("Press E, Enter or (A) to launch", x, y + 124, pw, "center")
-end
-
 -- Read-only view of the player's grid hold (debug panel: Show hold grid).
 -- A first look at the packing; the real inventory screen comes later.
 local KIND_COLOR = {
@@ -317,16 +299,20 @@ local function drawHoldGrid(game)
 	end
 end
 
-function HUD.draw(game, aimX, aimY)
+-- Shared with the cargo screen (src/ui/cargo.lua) so it looks the same.
+HUD.panel, HUD.font, HUD.itemColor = panel, font, itemColor
+HUD.AQUA, HUD.INK, HUD.DIM, HUD.WARN = AQUA, INK, DIM, WARN
+
+-- uiOpen: the cargo screen is up, so no aim reticle.
+function HUD.draw(game, aimX, aimY, uiOpen)
 	drawOffscreen(game)
-	drawHoldGrid(game)
+	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
 	drawStatus(game)
 	drawHelp()
 	drawToasts(game)
 	drawDeath(game)
-	drawDocked(game)
-	if game.state ~= "docked" then drawReticle(game, aimX, aimY) end
+	if not uiOpen then drawReticle(game, aimX, aimY) end
 end
 
 return HUD

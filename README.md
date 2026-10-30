@@ -20,6 +20,7 @@ file) onto `love.exe`.
 | Aim (the ship turns to face it) | Mouse | Right stick |
 | Primary weapons | Left button | Right trigger |
 | Missiles | Right button | Left trigger or right bumper |
+| Cargo hold (drag items, R rotate, right-click eject) | Tab | |
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
@@ -31,7 +32,7 @@ file) onto `love.exe`.
 - Box2D flight: thrust and torque only, with quadratic drag giving a natural top speed instead of a hard cap.
 - Thrust is relative to the nose, and the main engine only pushes forward. Reverse and sideways movement come from maneuvering thrusters (the hull's `sideThrust`). Light hulls have plenty, so they can strafe with their guns on target. Heavy hulls barely have any, so they turn and burn. The Side Jets utility modules add more.
 - Mass is hull + modules + whatever's in the hold. Firing ammo makes you lighter; picking up loot makes you heavier.
-- Your hold is a grid of 1 m3 cells (Wisp 6 x 4, Bastion 12 x 10, Hauler 20 x 20), and each Cargo Pod adds a small grid of its own. Items take shapes on it (rounds 1 x 1 in stacks of 50, missiles 2 or 3 cells long, crates 2 x 2), so a hold can fill up before its raw volume does. Turn on "Show hold grid" in the debug panel to see the packing.
+- Your hold is a grid of 1 m3 cells (Wisp 6 x 4, Bastion 12 x 10, Hauler 20 x 20), and each Cargo Pod adds a small grid of its own. Items take shapes on it (rounds 1 x 1 in stacks of 50, missiles 2 or 3 cells long, crates 2 x 2), so a hold can fill up before its raw volume does. Press Tab to open it: drag stacks around, R rotates while dragging, Shift-drag splits a stack, and right-clicking a stack (or dragging it out of the window) ejects it behind the ship. Docked at a station, the same screen opens next to that station's storage: Ctrl-click moves a stack across and right-clicking an ammo crate unboxes it into loose rounds.
 - Three hulls (Wisp, Anvil, Bastion) with slot layouts and hull bonuses, plus 20 catalog modules with strict size matching.
 - Fast projectiles: guns reach about 1,000 px and artillery 2,000 to 3,000 px. Lasers run on power instead of ammo, and missiles are guided. Artillery shells and missiles have a proximity fuse, so they burst near an enemy, on contact, or at the end of their range. Every round is an item in the hold.
 - Knockback, recoil and ram damage. Ram damage scales with impact force, so heavy ships hit harder.

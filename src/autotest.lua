@@ -218,6 +218,89 @@ function A.update(game, dt)
 		T.dev.showHold = true
 		shot("06_lasers")
 	end) end
+	-- Cargo screen: eject, split, drag out, then a (pretend) station.
+	if t >= 33.3 then once("cargo_space", function()
+		local Cargo = require("src.ui.cargo")
+		local Grid = require("src.inventory.grid")
+		local w = game.player
+		T.dev.showHold = false
+		Cargo.toggle(game)
+		local L = Cargo.layout(game)
+		local cs = L.cs
+		local function at(r, cx, cy) return r.x + (cx + 0.5) * cs, r.y + (cy + 0.5) * cs end
+		local main = L.grids[1]
+		local g = main.g
+		local pickups = #game.pickups
+		local s = Grid.at(g, g.w - 1, g.h - 1)
+		local mx, my = at(main, g.w - 1, g.h - 1)
+		Cargo.mousepressed(game, mx, my, 2)
+		log("cargo: right-click ejected %s x%d, pickups %d -> %d, hold %d / %d", s.id, s.n, pickups, #game.pickups, w.holdUsed, Ship.holdCapacity(w))
+		local src = Grid.at(g, g.w - 1, g.h - 2)
+		local before = src.n
+		local sx, sy = at(main, g.w - 1, g.h - 2)
+		Cargo.mousepressed(game, sx, sy, 1, { shift = true })
+		Cargo.mousereleased(game, mx, my, 1)
+		local moved = Grid.at(g, g.w - 1, g.h - 1)
+		log("cargo: shift-drag split %s %d -> %d + %d, hold %d / %d, light rounds %d", src.id, before, src.n, moved and moved.n or 0, w.holdUsed, Ship.holdCapacity(w), w.cargo.rounds_s or 0)
+		Cargo.mousepressed(game, mx, my, 1)
+		Cargo.mousereleased(game, 4, 4, 1)
+		log("cargo: dragged out to eject, pickups %d, light rounds %d, hold %d / %d", #game.pickups, w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
+		shot("07_cargo_space")
+	end) end
+	if t >= 33.6 then once("cargo_station", function()
+		local Cargo = require("src.ui.cargo")
+		local Grid = require("src.inventory.grid")
+		local Hold = require("src.inventory.hold")
+		Cargo.toggle(game)
+		-- A real wheel station (planet field), with the Wisp parked inside.
+		game:loadField("planet")
+		local w = game.player
+		local st
+		for _, e in ipairs(game.entities) do if e.kind == "station" and e.dock then st = e end end
+		w.dockState = { done = true, phase = "done", t = 0, station = st }
+		game.state = "docked"
+		local storage = game:stationStorage(st)
+		Hold.add(storage, "rounds_s_crate", 120)
+		local L = Cargo.layout(game)
+		local cs = L.cs
+		local function at(r, s) return r.x + (s.x + 0.5) * cs, r.y + (s.y + 0.5) * cs end
+		local function find(side, id)
+			for _, r in ipairs(Cargo.layout(game).grids) do
+				if (side == "ship") == (r.side.ship ~= nil) then
+					for _, s in ipairs(r.g.stacks) do if s.id == id then return r, s end end
+				end
+			end
+		end
+		local r, s = find("ship", "rounds_s")
+		local x, y = at(r, s)
+		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
+		log("cargo: ctrl-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
+		r, s = find("storage", "rounds_s_crate")
+		x, y = at(r, s)
+		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
+		log("cargo: crate to hold: hold crates %d, storage crates %d", w.cargo.rounds_s_crate or 0, Hold.count(storage, "rounds_s_crate"))
+		local before = w.cargo.rounds_s or 0
+		r, s = find("ship", "rounds_s_crate")
+		if r then
+			x, y = at(r, s)
+			Cargo.mousepressed(game, x, y, 2)
+		end
+		log("cargo: unboxed, light rounds %d -> %d, crates left %d, hold %d / %d", before, w.cargo.rounds_s or 0, w.cargo.rounds_s_crate or 0, w.holdUsed, Ship.holdCapacity(w))
+		r, s = find("ship", "missile_s")
+		x, y = at(r, s)
+		local tx, ty
+		for _, gr in ipairs(Cargo.layout(game).grids) do
+			if gr.side.ship and gr.g.key ~= "hull" then tx, ty = gr.x + 0.5 * cs, gr.y + 0.5 * cs end
+		end
+		Cargo.mousepressed(game, x, y, 1)
+		Cargo.keypressed(game, "r")
+		Cargo.mousereleased(game, tx, ty, 1)
+		local pod = w.hold.grids[2]
+		local ps = Grid.at(pod, 0, 0)
+		log("cargo: dragged + rotated a missile stack into the pod: %s %d x %d, missiles %d", ps and ps.id or "nothing", ps and ps.w or 0, ps and ps.h or 0, w.cargo.missile_s or 0)
+		shot("08_cargo_station")
+	end) end
+	if t >= 33.9 then once("cargo_done", function() game:undock() end) end
 	if t >= 34 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
