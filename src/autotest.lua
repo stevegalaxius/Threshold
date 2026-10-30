@@ -35,7 +35,8 @@ function A.start(game)
 		if e.isPlayer then A.taken[cause] = (A.taken[cause] or 0) + amount
 		elseif source and source.isPlayer then A.dealt[cause] = (A.dealt[cause] or 0) + amount end
 	end)
-	game.wavesOn = false
+	game:clearEnemies()                -- the level's own enemies; the test brings its own
+	game.autosaveOff = true
 	-- clear a lane to the right so the acceleration test doesn't hit a rock
 	for i = #game.entities, 1, -1 do
 		local e = game.entities[i]
@@ -499,7 +500,104 @@ function A.update(game, dt)
 			tostring(ok), tostring(sorted and s2 and s2.inner == box.s.inner), Hold.innerMass(big, require("src.data").items))
 	end) end
 	if t >= 35.5 then once("hauler_close", function() require("src.ui.cargo").close(game) end) end
-	if t >= 35.6 then once("quit", function()
+	-- Hangar, parked cargo, swapping ships, save/load, travel, respawn.
+	if t >= 35.65 then once("hangar", function()
+		local Cargo = require("src.ui.cargo")
+		local w = game.player
+		local st
+		for _, e in ipairs(game.entities) do if e.kind == "station" and e.dock and not st then st = e end end
+		A.st = st
+		game:dockInstantly(w, st)
+		game:playerDocked(st)
+		game:addToHangar(st, "brute_anvil")
+		Cargo.tab = "hangar"
+		log("hangar: docked at %s (%s), home %s, hangar has %d ship(s): %s", st.name, st.key, game:homeStation().key,
+			#game:hangar(st), game:hangar(st)[1].hull)
+		shot("12_hangar")
+	end) end
+	if t >= 35.75 then once("hangar_cargo", function()
+		local Cargo = require("src.ui.cargo")
+		local Hangar = require("src.ui.hangar")
+		local Hold = require("src.inventory.hold")
+		local w = game.player
+		local row = Hangar.layout(game).rows[1]
+		Cargo.mousepressed(game, row.cargo.x + 4, row.cargo.y + 4, 1)
+		local L = Cargo.layout(game)
+		local right = L.sides[#L.sides]
+		local rec = game:hangar(A.st)[1]
+		local before = Hold.cells(rec.hold)
+		local r, st
+		for _, gr in ipairs(L.grids) do
+			if gr.side.ship and not st then r, st = gr, gr.g.stacks[1] end
+		end
+		Cargo.mousepressed(game, r.x + (st.x + 0.5) * L.cs, r.y + (st.y + 0.5) * L.cs, 1, { ctrl = true })
+		log("hangar: Cargo on the parked Anvil -> tab %s, right panel %q, ctrl-click moved %s: Anvil hold %d -> %d m3",
+			Cargo.tab, right.title, st.id, before, (Hold.cells(rec.hold)))
+		A.parkedCells = Hold.cells(rec.hold)
+		shot("13_parked_cargo")
+	end) end
+	if t >= 35.85 then once("hangar_fly", function()
+		local Cargo = require("src.ui.cargo")
+		local Hangar = require("src.ui.hangar")
+		local Hold = require("src.inventory.hold")
+		local Save = require("src.save")
+		Cargo.tab = "hangar"
+		local wispCells = Hold.cells(game.player.hold)
+		local row = Hangar.layout(game).rows[1]
+		Cargo.mousepressed(game, row.fly.x + 4, row.fly.y + 4, 1)
+		local p = game.player
+		local parked = game:hangar(A.st)[1]
+		log("hangar: Fly -> flying %s (hold %d m3, docked %s), parked now %s (hold %d m3, was %d)", p.hull.name, (Hold.cells(p.hold)),
+			tostring(p.dockState ~= nil), parked.hull, (Hold.cells(parked.hold)), wispCells)
+		-- save, mess things up, load
+		local state = game:saveState()
+		local text = Save.encode(state)
+		local back = Save.decode(text)
+		log("save: %d bytes, round trip %s", #text, tostring(back and Save.encode(back) == text))
+		Save.write("autotest", state)
+		Hold.add(game:stationStorage(A.st), "scrap", 2)
+		game:spawnPlayer("ferrous_bastion")
+		game:loadFrom("autotest")
+		p = game.player
+		local st = p.dockState and p.dockState.station
+		log("save: loaded -> field %s, flying %s (hold %d m3), docked at %s, hangar %d (%s, hold %d m3), storage scrap %d",
+			game.fieldId, p.hull.name, (Hold.cells(p.hold)), st and st.name or "-", #game:hangar(st), game:hangar(st)[1].hull,
+			(Hold.cells(game:hangar(st)[1].hold)), Hold.count(game:stationStorage(st), "scrap"))
+		Cargo.tab = "cargo"
+		game:undock()
+		A.holdBefore = Hold.cells(p.hold)
+	end) end
+	if t >= 35.95 then once("travel", function()
+		local p = game.player
+		for _, g in ipairs(game.entities) do
+			if g.kind == "gate" and g.to == "station" then
+				p.body:setPosition(g.body:getPosition())
+				p.jumpCooldown = 0
+			end
+		end
+	end) end
+	if t >= 36.05 then once("travel_check", function()
+		local Hold = require("src.inventory.hold")
+		local p = game.player
+		local gate
+		for _, g in ipairs(game.entities) do if g.kind == "gate" and g.to == "planet" then gate = g end end
+		local px, py = p.body:getPosition()
+		local gx, gy = gate.body:getPosition()
+		local gates = {}
+		for _, g in ipairs(game.entities) do if g.kind == "gate" then table.insert(gates, g.to) end end
+		log("travel: jumped -> field %s (gates to %s), %.0f px from the gate back to planet, flying %s, hold %d -> %d m3",
+			game.fieldId, table.concat(gates, ", "), math.sqrt((px - gx) ^ 2 + (py - gy) ^ 2), p.hull.name, A.holdBefore, (Hold.cells(p.hold)))
+		shot("14_travel")
+		game:damage(p, 1e9)
+	end) end
+	if t >= 36.15 then once("respawn", function()
+		local state = game.state
+		game:respawn()
+		local p = game.player
+		local st = p.dockState and p.dockState.station
+		log("respawn: state %s -> %s, field %s, docked at %s, flying %s", state, game.state, game.fieldId, st and st.name or "-", p.hull.name)
+	end) end
+	if t >= 36.25 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
 	end) end

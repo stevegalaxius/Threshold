@@ -44,6 +44,9 @@ end
 	opts.color    paint { r, g, b } (defaults to the enemy definition's color)
 	opts.grid     true for a grid hold (the player): items take shapes on a
 	              grid of 1 m3 cells. Other ships just count volume.
+	opts.hold     an existing grid hold to carry (a ship coming out of a
+	              hangar or a save keeps its hold exactly as it was)
+	opts.armor    armor to start with (defaults to full)
 ]]
 function Ship.new(game, opts)
 	local hull = assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -52,7 +55,8 @@ function Ship.new(game, opts)
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
 		cargo = copy(opts.cargo or hull.cargo),
-		gridHold = opts.grid or false,
+		gridHold = opts.grid or opts.hold ~= nil,
+		hold = opts.hold,
 		intent = Ship.emptyIntent(),
 		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false,
 		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
@@ -85,10 +89,21 @@ function Ship.new(game, opts)
 	body:setAngularDamping(0)
 	e.body = body
 
+	if e.hold then e.cargo = Hold.totals(e.hold) end
 	Ship.refit(e)
-	e.armor = e.stats.armor
+	e.armor = min(opts.armor or e.stats.armor, e.stats.armor)
 	e.power = e.stats.powerCap
 	return e
+end
+
+-- Everything that makes this ship this ship, to park it in a hangar or
+-- carry it to another level: hull, modules, hold (the hold itself, not a
+-- copy), armor and paint. Game:spawnPlayer turns one back into a ship.
+function Ship.record(e)
+	return {
+		hull = e.hull.id, loadout = copy(e.loadout), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
+		armor = e.armor, color = e.color and copy(e.color) or nil,
+	}
 end
 
 -- Rebuild stats and weapon list after the hull's modules change.

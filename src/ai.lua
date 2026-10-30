@@ -75,7 +75,16 @@ end
 -- Who an AI ship fights: enemies go for the player; drones go for the
 -- nearest ship on another team.
 local function pickTarget(game, e, x, y)
-	if not e.drone then return game.player end
+	if not e.drone then
+		local p = game.player
+		if not p or p.dead or p.dockState then return nil end
+		-- an idle enemy wakes up when the player comes close or shoots it
+		if not e.aggro then
+			local px, py = p.body:getPosition()
+			if (px - x) ^ 2 + (py - y) ^ 2 < T.aggroRange ^ 2 or e.lastHitTime then e.aggro = true else return nil end
+		end
+		return p
+	end
 	local best, bestD = nil, 3000 * 3000
 	for _, o in ipairs(game.entities) do
 		if o.kind == "ship" and not o.dead and o.team ~= e.team and o.team ~= 3 then

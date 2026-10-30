@@ -3,8 +3,11 @@
 	and asteroids), and lists of projectiles, pickups and effects. Systems
 	are just functions that loop over those lists each step.
 
-	This is the "instance" layer from the design doc in miniature: a
-	generated space you fight in. Docking, stations and saving come later.
+	This is the "instance" layer from the design doc in miniature: the
+	level you're in (a playing field from src/fields.lua), rebuilt fresh
+	each time you arrive. What lasts between levels (station storage,
+	hangars, where you respawn) is the universe, in src/world.lua, which
+	also has travel and save/load.
 ]]
 
 local data = require("src.data")
@@ -43,40 +46,46 @@ function Game.new(opts)
 
 	self.playerHull = opts.hull or "halcyon_wisp"
 	self.playerColor = { 0.55, 0.9, 0.95 }
-	self.wave = 0
-	self.waveTimer = 2.5
-	self.wavesOn = opts.waves ~= false
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
+	self:newUniverse()
 
-	self:loadField(opts.field or "asteroids")
+	self:loadField(opts.field or Fields.start)
 	return self
 end
 
--- Clear the arena and build a playing field (src/fields.lua) in it, then
--- launch the player.
-function Game:loadField(id)
+-- Clear the arena and build a level (a playing field, src/fields.lua) in
+-- it: its contents, its jump gates and its enemies. Then the player:
+--   opts.player  a ship record to fly in (Ship.record), or a fresh one
+--   opts.at      where: { station = key } docked there, { gate = fieldId }
+--                coming out of the gate from that level, { x, y, angle,
+--                vx, vy }, or the field's spawn point
+function Game:loadField(id, opts)
+	opts = opts or {}
 	for _, e in ipairs(self.entities) do
 		if not e.removed then e.body:destroy(); e.removed = true end
 	end
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
-	self.wave, self.waveTimer, self.kills = 0, 2.5, 0
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
 	self.well = nil
+	self.stationCount = 0
 	self.field.build(self)
-	self:spawnPlayer()
-	self:toast(self.field.name:upper(), 2)
+	self:spawnGates()
+	self:spawnFieldEnemies()
+	self:placePlayer(opts.player, opts.at)
+	self:toast(self.field.name:upper(), 2, nil, true)
 end
 
 -- F2: the next playing field.
 function Game:nextField()
 	local i = 1
 	for j, id in ipairs(Fields.list) do if id == self.fieldId then i = j end end
-	self:loadField(Fields.list[i % #Fields.list + 1])
+	local p = self.player
+	self:loadField(Fields.list[i % #Fields.list + 1], { player = p and not p.dead and Ship.record(p) or nil })
 end
 
 function Game:nextId()
@@ -86,11 +95,17 @@ end
 
 -- Spawning -------------------------------------------------------------------
 
+-- A new player ship at the field's spawn point. hullId can instead be a
+-- ship record (Ship.record) to bring back a parked or saved ship.
 function Game:spawnPlayer(hullId, loadout, cargo)
 	if self.player and not self.player.removed then self:remove(self.player) end
-	self.playerHull = hullId or self.playerHull
+	local rec = type(hullId) == "table" and hullId or { hull = hullId, loadout = loadout, cargo = cargo }
+	if not data.hulls[rec.hull or self.playerHull] then rec = { hull = T.starterHull } end
+	self.playerHull = rec.hull or self.playerHull
+	if rec.color then self.playerColor = rec.color end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+		team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p
@@ -99,7 +114,10 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	return p
 end
 
-function Game:spawnEnemy(id, x, y)
+-- opts.idle: it minds its own business until the player comes close or
+-- shoots it (enemies placed by a level); otherwise it comes straight for
+-- the player.
+function Game:spawnEnemy(id, x, y, opts)
 	local def = assert(data.enemies[id], "unknown enemy " .. tostring(id))
 	local angle = 0
 	if self.player and not self.player.dead then
@@ -107,6 +125,7 @@ function Game:spawnEnemy(id, x, y)
 		angle = math.atan2(py - y, px - x)
 	end
 	local e = Ship.new(self, { hull = def.hull, loadout = def.loadout, cargo = def.cargo, team = def.team or 2, x = x, y = y, angle = angle, enemy = def })
+	e.aggro = not (opts and opts.idle)
 	table.insert(self.entities, e)
 	return e
 end
@@ -434,8 +453,15 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
 	local hub = R * 0.2
+	-- key: which station this is, for the universe (storage, hangar,
+	-- respawn); the same field always builds its stations in the same order
+	self.stationCount = (self.stationCount or 0) + 1
+	local n = self.stationCount
+	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		ringR = R, tube = tube, hub = hub, spokes = 4 }
+		ringR = R, tube = tube, hub = hub, spokes = 4,
+		key = ("%s/%d"):format(self.fieldId or "?", n),
+		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
 	-- The dock: a square module on the outside of the ring (along the
 	-- station's +x axis). x1..x2 is its extent out from the centre, hw its
 	-- half-width. Ships that fly into the capture zone in front of its
@@ -579,6 +605,7 @@ function Game:updateDockedShip(e, dt)
 			ds.phase, ds.done, ds.t = "done", true, 0
 			if e == self.player then
 				self.state = "docked"
+				self:playerDocked(st)
 			else
 				ds.stay = 30 + random() * 60
 			end
@@ -847,12 +874,10 @@ function Game:updateTow(dt)
 end
 
 -- Each station keeps its own storage: a big grid you can leave cargo in
--- while docked there.
+-- while docked there. It lives in the universe, so it's still there when
+-- you come back to the level (and in the save).
 function Game:stationStorage(st)
-	if not st.storage then
-		st.storage = Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } })
-	end
-	return st.storage
+	return self:stationRecord(st).storage
 end
 
 function Game:enemyCount()
@@ -861,48 +886,6 @@ function Game:enemyCount()
 		if e.kind == "ship" and e.team == 2 and not e.dead and not e.fleeing then n = n + 1 end
 	end
 	return n
-end
-
--- Waves: when the arena is clear, the next, bigger wave arrives.
-local WAVE_POOL = {
-	{ id = "swarmer",     from = 1, weight = 3 },
-	{ id = "gunner",      from = 2, weight = 2 },
-	{ id = "interceptor", from = 3, weight = 1.2 },
-	{ id = "brawler",     from = 4, weight = 1.2 },
-	{ id = "sniper",      from = 5, weight = 1 },
-}
-
-function Game:spawnWave(n)
-	local pool, total = {}, 0
-	for _, entry in ipairs(WAVE_POOL) do
-		if n >= entry.from and data.enemies[entry.id] then
-			table.insert(pool, entry); total = total + entry.weight
-		end
-	end
-	local count = min(1 + n, 9)
-	for _ = 1, count do
-		local roll = random() * total
-		local pick = pool[1]
-		for _, entry in ipairs(pool) do
-			roll = roll - entry.weight
-			if roll <= 0 then pick = entry; break end
-		end
-		local x, y = self:spawnPoint(1500, 2000)
-		self:spawnEnemy(pick.id, x, y)
-	end
-	self:toast("WAVE " .. n, 2)
-end
-
-function Game:updateWaves(dt)
-	if not self.wavesOn or self.state ~= "playing" then return end
-	if self:enemyCount() == 0 then
-		self.waveTimer = self.waveTimer - dt
-		if self.waveTimer <= 0 then
-			self.wave = self.wave + 1
-			self:spawnWave(self.wave)
-			self.waveTimer = 4
-		end
-	end
 end
 
 -- Simulation -----------------------------------------------------------------
@@ -943,8 +926,13 @@ function Game:step(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
+	self:updateGates(dt)
 	self:reap()
-	self:updateWaves(dt)
+	if self.pendingJump then
+		local to = self.pendingJump
+		self.pendingJump = nil
+		self:travel(to)
+	end
 end
 
 -- Soft arena edge: the further past it, the harder you're pushed back.
@@ -1418,11 +1406,12 @@ function Game:cycleAux()
 	if id then self:toast("AUX: " .. data.items[id].name:upper(), 1.2) end
 end
 
-function Game:toast(text, duration, style)
+-- big: a headline (arriving in a level)
+function Game:toast(text, duration, style, big)
 	for _, t in ipairs(self.toasts) do
 		if t.text == text then t.t = 0; t.life = duration or 1.5; return end
 	end
-	table.insert(self.toasts, { text = text, t = 0, life = duration or 1.5, style = style })
+	table.insert(self.toasts, { text = text, t = 0, life = duration or 1.5, style = style, big = big })
 	if #self.toasts > 5 then table.remove(self.toasts, 1) end
 end
 
@@ -1461,5 +1450,7 @@ function Game:frame(dt, aimX, aimY)
 		self.camera:follow(self.deathX, self.deathY, self.deathX, self.deathY, dt)
 	end
 end
+
+require("src.world")(Game)
 
 return Game

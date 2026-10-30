@@ -1,0 +1,326 @@
+--[[
+	The universe: everything that lasts while levels come and go, and the
+	game's way between them.
+
+	  universe  game.universe = { stations = { [key] = { storage, hangar } },
+	            home = { field, key } }. A station's key is "<field>/<n>"
+	            (src/game.lua, spawnWheelStation), so the same station gets
+	            the same record every visit. home is where you last docked.
+	  levels    each playing field (src/fields.lua) is a level. Its contents
+	            are rebuilt fresh on every visit; only the universe lasts.
+	            Saving what's floating in a level (wrecks, containers) can
+	            come later: it would go in the universe the same way.
+	  travel    jump gates, one per route in Fields.links. Fly into one and
+	            you come out of the matching gate in the other level, in the
+	            same ship with the same hold.
+	  hangar    every station can keep ships for you. Docked, you can fly
+	            any of them out; the one you came in is parked in its place.
+	  respawn   lose your ship and you get a starter ship docked at home
+	            (any level), or at the start if you've never docked.
+	  saving    Game:saveState() is one plain table of all of the above plus
+	            your ship and where it is; Game:loadState() puts it back.
+	            src/save.lua writes and reads it. F5 saves, F9 loads, and
+	            docking autosaves.
+
+	Added to Game by src/game.lua: require("src.world")(Game).
+]]
+
+local data = require("src.data")
+local T = require("src.tuning")
+local Ship = require("src.ship")
+local Fields = require("src.fields")
+local Hold = require("src.inventory.hold")
+local Save = require("src.save")
+local events = require("src.events")
+
+local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
+
+return function(Game)
+
+function Game:newUniverse()
+	self.universe = { stations = {}, home = nil }
+end
+
+-- The lasting record for a station: its storage and its hangar.
+function Game:stationRecord(st)
+	local u = self.universe.stations
+	local r = u[st.key]
+	if not r then
+		r = {
+			storage = Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
+			hangar = {},
+		}
+		u[st.key] = r
+	end
+	return r
+end
+
+function Game:findStation(key)
+	for _, e in ipairs(self.entities) do
+		if e.kind == "station" and e.key == key then return e end
+	end
+end
+
+-- Where you'd respawn: { field, key, name }, or nil.
+function Game:homeStation()
+	return self.universe.home
+end
+
+-- Called when the player finishes docking: this is home now, and the game
+-- autosaves.
+function Game:playerDocked(st)
+	self.universe.home = { field = self.fieldId, key = st.key, name = st.name }
+	self:autosave()
+end
+
+-- Put a ship straight into a station's dock, already inside.
+function Game:dockInstantly(e, st)
+	local d = st.dock
+	e.dockState = { station = st, phase = "done", done = true, t = 0 }
+	e.body:setActive(false)
+	e.body:setPosition(st.body:getWorldPoint((d.x1 + d.x2) / 2, 0))
+	e.body:setAngle(st.body:getAngle() + pi)
+	e.body:setLinearVelocity(0, 0)
+	e.body:setAngularVelocity(0)
+	if e == self.player then
+		self.state = "docked"
+		self.camera.x, self.camera.y = e.body:getPosition()
+	end
+end
+
+-- Spawn the player in a level that's already built (see Game:loadField
+-- for rec and at).
+function Game:placePlayer(rec, at)
+	local p = self:spawnPlayer(rec)
+	at = at or {}
+	if at.station then
+		local st = self:findStation(at.station)
+		if st and st.dock then self:dockInstantly(p, st) return p end
+	end
+	if at.gate then
+		for _, g in ipairs(self.entities) do
+			if g.kind == "gate" and g.to == at.gate then
+				-- out of the gate, heading in toward the middle of the level
+				local gx, gy = g.body:getPosition()
+				local d = max(sqrt(gx * gx + gy * gy), 1)
+				local ix, iy = -gx / d, -gy / d
+				p.body:setPosition(gx + ix * (T.gateRadius + 260), gy + iy * (T.gateRadius + 260))
+				p.body:setAngle(math.atan2(iy, ix))
+				p.body:setLinearVelocity(ix * 200, iy * 200)
+				p.jumpCooldown = T.gateCooldown
+				self.camera.x, self.camera.y = p.body:getPosition()
+				return p
+			end
+		end
+	end
+	if at.x then
+		p.body:setPosition(at.x, at.y)
+		p.body:setAngle(at.angle or 0)
+		p.body:setLinearVelocity(at.vx or 0, at.vy or 0)
+		self.camera.x, self.camera.y = at.x, at.y
+	end
+	return p
+end
+
+-- Levels ----------------------------------------------------------------------
+
+-- A jump gate for each route out of this level, spaced evenly around the
+-- edge. Rocks in the way are cleared. Gates are markers with no
+-- collision; Game:updateGates does the rest.
+function Game:spawnGates()
+	local links = Fields.linksOf(self.fieldId)
+	for i, to in ipairs(links) do
+		local a = -pi / 2 + (i - 1) / #links * pi * 2 + 0.6
+		local d = self.arenaRadius - 1800
+		local x, y = cos(a) * d, sin(a) * d
+		for k = #self.entities, 1, -1 do
+			local o = self.entities[k]
+			if o.kind == "asteroid" then
+				local ox, oy = o.body:getPosition()
+				if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.gateRadius + 400) ^ 2 then self:remove(o) end
+			end
+		end
+		local body = love.physics.newBody(self.world, x, y, "static")
+		local g = { kind = "gate", invulnerable = true, id = self:nextId(), team = 0, body = body,
+			radius = T.gateRadius, to = to, name = Fields[to].name, spin = love.math.random() * pi * 2 }
+		body:setUserData(g)
+		table.insert(self.entities, g)
+	end
+end
+
+-- The level's enemies, scattered away from where the player arrives.
+function Game:spawnFieldEnemies()
+	local sx, sy = self.field.spawn[1], self.field.spawn[2]
+	for _, group in ipairs(self.field.enemies or {}) do
+		for _ = 1, group[2] do
+			for _ = 1, 20 do
+				local a = love.math.random() * pi * 2
+				local d = 1500 + love.math.random() * (self.arenaRadius - 2500)
+				local x, y = cos(a) * d, sin(a) * d
+				if (x - sx) ^ 2 + (y - sy) ^ 2 > (T.aggroRange + 800) ^ 2 and self:isClear(x, y, 150) then
+					self:spawnEnemy(group[1], x, y, { idle = true })
+					break
+				end
+			end
+		end
+	end
+end
+
+function Game:updateGates(dt)
+	local p = self.player
+	if not p or p.dead or p.dockState then return end
+	p.jumpCooldown = max(0, (p.jumpCooldown or 0) - dt)
+	if p.jumpCooldown > 0 then return end
+	local px, py = p.body:getPosition()
+	for _, g in ipairs(self.entities) do
+		if g.kind == "gate" then
+			local gx, gy = g.body:getPosition()
+			if (px - gx) ^ 2 + (py - gy) ^ 2 < g.radius ^ 2 then
+				self.pendingJump = g.to       -- travel after this step, not in the middle of it
+				return
+			end
+		end
+	end
+end
+
+-- Jump to another level in the ship you're flying.
+function Game:travel(to)
+	local p = self.player
+	if not p or p.dead then return end
+	local from = self.fieldId
+	local rec = Ship.record(p)
+	self:loadField(to, { player = rec, at = { gate = from } })
+	events.emit("travel", from, to)
+end
+
+-- Hangar ----------------------------------------------------------------------
+
+function Game:hangar(st)
+	return self:stationRecord(st).hangar
+end
+
+-- A brand-new ship of a hull, parked in this station's hangar (the debug
+-- panel's way of getting ships until there's a market).
+function Game:addToHangar(st, hullId)
+	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = self.playerColor })
+	local rec = Ship.record(e)
+	e.body:destroy()
+	table.insert(self:hangar(st), rec)
+	return rec
+end
+
+-- Fly parked ship i out of this station; the one you're in takes its place.
+function Game:flyFromHangar(i)
+	local p = self.player
+	local st = p and p.dockState and p.dockState.done and p.dockState.station
+	if not st then return false end
+	local list = self:hangar(st)
+	local rec = table.remove(list, i)
+	if not rec then return false end
+	table.insert(list, i, Ship.record(p))
+	local ship = self:spawnPlayer(rec)
+	self:dockInstantly(ship, st)
+	events.emit("swapship", ship, st)
+	return true
+end
+
+-- Respawn ---------------------------------------------------------------------
+
+-- After losing your ship: a starter ship, docked at the station you last
+-- docked at (travelling there if it's in another level), or at the
+-- level's start if you never docked anywhere.
+function Game:respawn()
+	if self.state ~= "dead" then return end
+	local rec = { hull = T.starterHull }
+	local home = self.universe.home
+	if home and home.field ~= self.fieldId then
+		self:loadField(home.field, { player = rec, at = { station = home.key } })
+	else
+		self:placePlayer(rec, home and { station = home.key })
+	end
+	if home then self:toast(("NEW SHIP AT %s"):format(home.name:upper()), 2) end
+end
+
+-- Saving ----------------------------------------------------------------------
+
+local function saveShip(rec)
+	return {
+		hull = rec.hull, loadout = rec.loadout, armor = rec.armor, color = rec.color,
+		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
+	}
+end
+
+local function known(id) return data.items[id] ~= nil end
+
+local function loadShip(t)
+	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
+	return {
+		hull = t.hull, loadout = t.loadout, armor = t.armor, color = t.color,
+		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
+	}
+end
+
+-- The whole game as one plain table (see src/save.lua).
+function Game:saveState()
+	local stations = {}
+	for key, r in pairs(self.universe.stations) do
+		local hangar = {}
+		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar }
+	end
+	local state = { field = self.fieldId, kills = self.kills, home = self.universe.home, stations = stations }
+	local p = self.player
+	if p and not p.dead then
+		local where
+		if p.dockState and p.dockState.station then
+			where = { station = p.dockState.station.key }
+		else
+			local x, y = p.body:getPosition()
+			local vx, vy = p.body:getLinearVelocity()
+			where = { x = x, y = y, angle = p.body:getAngle(), vx = vx, vy = vy }
+		end
+		state.player = { ship = saveShip(Ship.record(p)), at = where }
+	end
+	return state
+end
+
+function Game:loadState(state)
+	self:newUniverse()
+	for key, r in pairs(state.stations or {}) do
+		local hangar = {}
+		for _, t in ipairs(r.hangar or {}) do table.insert(hangar, loadShip(t)) end
+		self.universe.stations[key] = {
+			storage = r.storage and Hold.deserialize(r.storage, known)
+				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
+			hangar = hangar,
+		}
+	end
+	self.universe.home = state.home
+	self.kills = state.kills or 0
+	local field = Fields[state.field] and state.field or Fields.start
+	local pl = state.player
+	self:loadField(field, { player = pl and loadShip(pl.ship), at = pl and pl.at })
+	if not pl then self.state = "dead" end
+end
+
+function Game:saveTo(slot)
+	local ok, err = Save.write(slot, self:saveState())
+	if ok then self:toast(slot == "auto" and "AUTOSAVED" or "GAME SAVED", 1.2, "pickup")
+	else self:toast("SAVE FAILED: " .. tostring(err), 2) end
+	return ok
+end
+
+function Game:loadFrom(slot)
+	local state, err = Save.read(slot)
+	if not state then self:toast(("CAN'T LOAD: %s"):format(tostring(err):upper()), 2) return false end
+	self:loadState(state)
+	self:toast("GAME LOADED", 1.2, "pickup")
+	return true
+end
+
+function Game:autosave()
+	if self.autosaveOff then return end
+	self:saveTo("auto")
+end
+
+end

@@ -79,12 +79,7 @@ function love.draw()
 end
 
 local function relaunch()
-	if game.state == "dead" then
-		game:clearEnemies()
-		game.pickups = {}
-		game.wave, game.kills, game.waveTimer = 0, 0, 2.5
-		game:spawnPlayer()
-	end
+	if game.state == "dead" then game:respawn() end
 end
 
 function love.keypressed(key)
@@ -97,6 +92,8 @@ function love.keypressed(key)
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
 	elseif key == "f2" then game:nextField()
+	elseif key == "f5" then game:saveTo("quick")
+	elseif key == "f9" then Cargo.close(game); game:loadFrom("quick")
 	end
 end
 

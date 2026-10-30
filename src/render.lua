@@ -331,6 +331,28 @@ local function drawBuoy(game, e)
 	lg.circle("fill", x, y, r * 0.4)
 end
 
+-- Jump gates: a slowly turning ring of segments with a glow in the
+-- middle. Fly into the middle to travel.
+local function drawGate(game, e)
+	local x, y = e.body:getPosition()
+	local r = e.radius
+	local a0 = e.spin + game.time * 0.4
+	lg.setColor(0.4, 0.8, 1, 0.08)
+	lg.circle("fill", x, y, r)
+	lg.setLineWidth(outline(4))
+	local n = 12
+	for i = 0, n - 1 do
+		local a1 = a0 + i / n * pi * 2
+		local a2 = a1 + pi * 2 / n * 0.6
+		lg.setColor(0.55, 0.85, 1, 0.8)
+		lg.arc("line", "open", x, y, r + 22, a1, a2, 6)
+	end
+	lg.setLineWidth(outline(1.5))
+	local pulse = (game.time * 0.7 + e.spin) % 1
+	lg.setColor(0.55, 0.9, 1, 0.5 * (1 - pulse))
+	lg.circle("line", x, y, r * pulse, 48)
+end
+
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
 
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
@@ -717,6 +739,7 @@ function Render.world(game)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then drawStation(game, e)
 		elseif e.kind == "buoy" then drawBuoy(game, e)
+		elseif e.kind == "gate" then drawGate(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end
 	end

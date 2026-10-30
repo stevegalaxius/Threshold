@@ -1,5 +1,5 @@
 --[[
-	Heads-up display: armor, power, weapons with ammo counts, hold, wave
+	Heads-up display: armor, power, weapons with ammo counts, hold, kills
 	info, pickup messages, off-screen enemy markers and the aim reticle.
 	Styled as worn Y2K glass panels; placeholder until the real UI pass.
 ]]
@@ -137,8 +137,7 @@ local function drawTopBar(game)
 		local vx, vy = p.body:getLinearVelocity()
 		speed = sqrt(vx * vx + vy * vy)
 	end
-	local status = ("WAVE %d    KILLS %d    SPEED %d"):format(game.wave, game.kills, floor(speed))
-	if not game.wavesOn then status = status .. "    (waves off)" end
+	local status = ("KILLS %d    SPEED %d"):format(game.kills, floor(speed))
 	panel(16, 12, 330, 32)
 	lg.setFont(font(14))
 	lg.setColor(INK)
@@ -146,7 +145,7 @@ local function drawTopBar(game)
 	if game.field then
 		lg.setFont(font(12))
 		lg.setColor(DIM)
-		lg.print(game.field.name .. "   (F2 next field)", 28, 50)
+		lg.print(game.field.name, 28, 50)
 	end
 end
 
@@ -159,7 +158,8 @@ local HELP = {
 	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
-	"F2 next playing field",
+	"fly into a gate to travel   F2 skip to next level",
+	"F5 save   F9 load (docking autosaves)",
 	"H hide help   Esc quit",
 }
 
@@ -178,7 +178,7 @@ local function drawToasts(game)
 	local y = 70
 	for _, t in ipairs(game.toasts) do
 		local a = min(1, (t.life - t.t) * 3)
-		if t.text:match("^WAVE") then
+		if t.big then
 			lg.setFont(font(28))
 			lg.setColor(AQUA[1], AQUA[2], AQUA[3], a)
 			lg.printf(t.text, 0, y, w, "center")
@@ -198,8 +198,34 @@ local function drawOffscreen(game)
 	local cam = game.camera
 	local w, h = lg.getDimensions()
 	local cx, cy = w / 2, h / 2
+	-- where you can go: gates and stations, labelled at the edge of the
+	-- screen when they're off it, or under them when they're on it
+	lg.setFont(font(12))
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead then
+		if game.state ~= "docked" and (e.kind == "gate" or (e.kind == "station" and e.dock)) then
+			local label = e.kind == "gate" and ("Gate to " .. e.name) or e.name
+			local sx, sy = cam:toScreen(e.body:getPosition())
+			local col = e.kind == "gate" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
+			if sx < 0 or sx > w or sy < 0 or sy > h then
+				local a = atan2(sy - cy, sx - cx)
+				local m = 40
+				local tx = cos(a) > 0 and (w - m - cx) / cos(a) or (m - cx) / cos(a)
+				local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
+				local t = min(math.abs(tx), math.abs(ty))
+				local ax, ay = cx + cos(a) * t, cy + sin(a) * t
+				lg.setColor(col[1], col[2], col[3], 0.8)
+				lg.circle("line", ax, ay, 6)
+				local fw = lg.getFont():getWidth(label)
+				lg.print(label, math.max(4, min(w - fw - 4, ax - fw / 2)), ay + (ay > cy and -24 or 10))
+			else
+				local r = (e.radius or e.ringR or 0) * cam.zoom
+				lg.setColor(col[1], col[2], col[3], 0.8)
+				lg.printf(label, sx - 150, sy + r + 10, 300, "center")
+			end
+		end
+	end
+	for _, e in ipairs(game.entities) do
+		if e.kind == "ship" and e.team == 2 and not e.dead and e.aggro then
 			local sx, sy = cam:toScreen(e.body:getPosition())
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)
@@ -241,9 +267,11 @@ local function drawDeath(game)
 	lg.printf("SHIP LOST", 0, h * 0.36, w, "center")
 	lg.setFont(font(16))
 	lg.setColor(INK[1], INK[2], INK[3], a)
-	lg.printf(("You ejected in a pod. Hull, modules and hold are gone.\nWaves survived: %d    Kills: %d"):format(max(0, game.wave - 1), game.kills), 0, h * 0.36 + 56, w, "center")
+	local home = game:homeStation()
+	lg.printf(("You ejected in a pod. Hull, modules and hold are in the wreck.\nKills: %d"):format(game.kills), 0, h * 0.36 + 56, w, "center")
 	lg.setColor(DIM[1], DIM[2], DIM[3], a)
-	lg.printf("Press R (or Start) to launch a new ship", 0, h * 0.36 + 110, w, "center")
+	lg.printf(home and ("Press R (or Start) to take a new ship at %s"):format(home.name) or "Press R (or Start) to launch a new ship",
+		0, h * 0.36 + 110, w, "center")
 end
 
 -- Read-only view of the player's grid hold (debug panel: Show hold grid).

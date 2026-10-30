@@ -62,6 +62,14 @@ T.towStiffness, T.towDamping = 15, 6
 -- Loose loaded containers drifting in each field.
 T.fieldContainers = 6
 
+-- The ship you're given when you start out or lose yours.
+T.starterHull = "halcyon_wisp"
+-- Level enemies leave you alone until you come this close (or shoot them).
+T.aggroRange = 2600
+-- Jump gates: how close to a gate's centre takes you through, and how long
+-- after arriving before a gate will take you again.
+T.gateRadius, T.gateCooldown = 150, 4
+
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
 

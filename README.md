@@ -25,7 +25,9 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
-| New ship after death | R | Start |
+| Station screen: switch Cargo / Hangar tabs | Tab (docked) | |
+| Save / load (docking also autosaves) | F5 / F9 | |
+| New ship after death (at the last station you docked at) | R | Start |
 | Hide help / quit | H / Esc | |
 
 ## What's in it
@@ -39,18 +41,22 @@ file) onto `love.exe`.
 - Three hulls (Wisp, Anvil, Bastion) with slot layouts and hull bonuses, plus 20 catalog modules with strict size matching.
 - Fast projectiles: guns reach about 1,000 px and artillery 2,000 to 3,000 px. Lasers run on power instead of ammo, and missiles are guided. Artillery shells and missiles have a proximity fuse, so they burst near an enemy, on contact, or at the end of their range. Every round is an item in the hold.
 - Knockback, recoil and ram damage. Ram damage scales with impact force, so heavy ships hit harder.
-- Five enemy types built from the same parts and flight code as you. The basic Scrap Drone has no side thrusters, so it flies straight at you and is easy to hit. The Dart harasser (from wave 3) is the twitchy, hard-to-hit one. Waves start at two drones and grow.
+- Five enemy types built from the same parts and flight code as you. The basic Scrap Drone has no side thrusters, so it flies straight at you and is easy to hit. The Dart harasser is the twitchy, hard-to-hit one. Each level has its own enemies scattered around it; they leave you alone until you come within about 2,600 px or shoot them.
 - An Enemy damage slider (default 0.7) in the debug panel is the quick difficulty knob.
 - Wrecks drop part of their ammo plus salvage, and a full hold leaves loot behind.
-- Death ends the ship. Press R to launch a new one; the economy that makes this permanent comes later.
+- Levels: the playing fields are levels joined by jump gates (asteroid field and giant asteroid to the space station, the station to the planet, the planet to the giant planet). Fly into a gate's centre to travel; you arrive at the matching gate in the other level in the same ship. Each level is rebuilt fresh on arrival, but station storage and hangars last.
+- Hangar: docked, press Tab (or click Hangar) to see the ships parked at that station. Fly swaps you into one and parks the ship you came in. Cargo opens a parked ship's hold next to yours, and Switch on the right-hand panel cycles between storage and parked ships. For now new ships come from the debug panel's "Park a new ..." buttons.
+- Death ends the ship. Press R for a starter Wisp docked at the last station you docked at (in whatever level it is), or at the start if you never docked. Your wreck stays where you died with everything you had.
+- Saving: F5 saves, F9 loads, and docking autosaves. Saves hold the universe (every station's storage and hangar, your home station), your ship with its hold, and where it is. They're plain Lua tables in LÖVE's save folder, versioned so later builds can upgrade them.
 
 ## The debug panel (F1)
 
 - Ship, modules and hold: swap hulls, refit any slot, add ammo, repair, show the hold grid.
 - Handling readout: acceleration, top speed, turn rate, mass, and the hardest impact so far.
 - Flight tuning: every handling knob as a live slider. When something feels right, copy the number into `src/tuning.lua`.
-- Spawn and arena: spawn any enemy, start a wave, clear the field.
-- Also: god mode, infinite ammo, and toggling waves.
+- Spawn and arena: spawn any enemy (these come straight for you), clear enemies, jump to any level.
+- Docked: park a new ship of any hull in this station's hangar. Save, load and load the autosave.
+- Also: god mode and infinite ammo.
 
 ## Where things live
 
@@ -63,7 +69,11 @@ src/stats.lua     hull + modules -> final stats
 src/ship.lua      ship bodies and flight (player and AI share it)
 src/weapons.lua   firing, ammo use, projectiles
 src/ai.lua        enemy behaviour (fills the same intent the player's controls do)
-src/game.lua      the arena: world, collisions, explosions, pickups, waves
+src/game.lua      the level: world, collisions, explosions, pickups, docking
+src/world.lua     the universe: station storage, hangars, travel, respawn, save state
+src/fields.lua    the levels and the jump gate routes between them
+src/save.lua      save files (plain Lua tables, sandboxed on load)
+src/ui/           cargo screen, hangar tab
 src/render.lua    placeholder drawing
 src/hud.lua       HUD
 src/debugui.lua   debug panel (Slab)
@@ -105,6 +115,6 @@ after changing data or flight code.
 
 ## Known gaps (on purpose for this milestone)
 
-- No stations, docking, economy, saving or sector map yet. Those are M4 and M5.
+- No economy or market yet, and levels don't remember what's floating in them (wrecks, containers) when you leave.
 - The art is placeholder outlines, and there's no audio.
 - Field repair items aren't in yet, pending their design.
