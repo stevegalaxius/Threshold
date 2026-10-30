@@ -130,6 +130,13 @@ local function drawStatus(game)
 	lg.printf(("%.0f t"):format(p.body:getMass()), x, ly + 20, pw - 14, "right")
 end
 
+-- 12450 -> "12,450 cr"
+function HUD.credits(n)
+	local s = tostring(floor(math.abs(n)))
+	s = s:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	return (n < 0 and "-" or "") .. s .. " cr"
+end
+
 local function drawTopBar(game)
 	local p = game.player
 	local speed = 0
@@ -137,8 +144,8 @@ local function drawTopBar(game)
 		local vx, vy = p.body:getLinearVelocity()
 		speed = sqrt(vx * vx + vy * vy)
 	end
-	local status = ("KILLS %d    SPEED %d"):format(game.kills, floor(speed))
-	panel(16, 12, 330, 32)
+	local status = ("KILLS %d    SPEED %d    %s"):format(game.kills, floor(speed), HUD.credits(game.universe.credits))
+	panel(16, 12, 380, 32)
 	lg.setFont(font(14))
 	lg.setColor(INK)
 	lg.print(status, 28, 20)

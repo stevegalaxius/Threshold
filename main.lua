@@ -41,7 +41,10 @@ end
 
 -- Closing the game saves it (unless you're dead or it's the autotest).
 function love.quit()
-	if not autotest and game and game.player and not game.player.dead then game:autosave() end
+	if not autotest and game and game.player and not game.player.dead then
+		Cargo.clearTrade(game)          -- goods out on the trade grid go home first
+		game:autosave()
+	end
 end
 
 function love.update(dt)
@@ -82,7 +85,7 @@ function love.draw()
 	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
 	if Cargo.isOpen(game) then
 		Cargo.draw(game)
-		HUD.drawToasts(game, love.graphics.getHeight() - 110)
+		HUD.drawToasts(game, Cargo.toastY(game))
 	end
 	Debug.draw()
 end
@@ -101,7 +104,7 @@ function love.keypressed(key)
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
 	elseif key == "f2" then game:nextField()
-	elseif key == "f5" then game:saveTo("quick")
+	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
 	end
 end

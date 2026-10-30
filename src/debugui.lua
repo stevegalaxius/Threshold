@@ -60,6 +60,7 @@ local function shipSection(game)
 			if Slab.Button("Park a new " .. data.hulls[o.value].name, { W = 300 }) then game:addToHangar(st, o.value) end
 		end
 	end
+	if Slab.Button("+10,000 credits") then game.universe.credits = game.universe.credits + 10000 end
 	Slab.Separator()
 	Slab.Text("Save / load (F5 / F9)")
 	if Slab.Button("Save") then game:saveTo("quick") end

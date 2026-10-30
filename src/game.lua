@@ -898,6 +898,7 @@ end
 
 function Game:step(dt)
 	self.time = self.time + dt
+	if self.universe then self.universe.clock = self.universe.clock + dt end
 
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead then
@@ -1452,5 +1453,6 @@ function Game:frame(dt, aimX, aimY)
 end
 
 require("src.world")(Game)
+require("src.market")(Game)
 
 return Game

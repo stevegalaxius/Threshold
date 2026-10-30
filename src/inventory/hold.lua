@@ -231,7 +231,7 @@ function Hold.clone(h)
 		local cg = Grid.new(g.w, g.h, g.name)
 		cg.key = g.key
 		for _, s in ipairs(g.stacks) do
-			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner })
+			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner, resale = s.resale })
 		end
 		table.insert(c.grids, cg)
 	end
@@ -240,40 +240,7 @@ end
 
 -- How many of an item would go in right now.
 function Hold.room(h, id, n)
-	-- Plain tables for a save file, and back. Stacks keep their places, and a
--- loaded container's own hold comes along. On loading, stacks of items
--- that no longer exist (a mod was removed) are dropped; known tells
--- whether an id exists.
-function Hold.serialize(h)
-	local out = { grids = {} }
-	for _, g in ipairs(h.grids) do
-		local sg = { key = g.key, name = g.name, w = g.w, h = g.h, stacks = {} }
-		for _, s in ipairs(g.stacks) do
-			table.insert(sg.stacks, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or nil,
-				inner = s.inner and Hold.serialize(s.inner) or nil })
-		end
-		table.insert(out.grids, sg)
-	end
-	return out
-end
-
-function Hold.deserialize(t, known)
-	local h = { grids = {} }
-	for _, sg in ipairs(t.grids or {}) do
-		local g = Grid.new(sg.w, sg.h, sg.name)
-		g.key = sg.key
-		for _, s in ipairs(sg.stacks or {}) do
-			if (not known or known(s.id)) and Grid.isFree(g, s.x, s.y, s.w, s.h) then
-				Grid.place(g, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
-					inner = s.inner and Hold.deserialize(s.inner, known) or nil })
-			end
-		end
-		table.insert(h.grids, g)
-	end
-	return h
-end
-
-return Hold.add(Hold.clone(h), id, n)
+	return Hold.add(Hold.clone(h), id, n)
 end
 
 -- Repack the hold neatly (biggest items first, grouped by type). If the
@@ -355,7 +322,8 @@ function Hold.pack(counts, w, h, name, random, stacks)
 end
 
 -- Plain tables for a save file, and back. Stacks keep their places, and a
--- loaded container's own hold comes along. On loading, stacks of items
+-- loaded container's own hold comes along, and so does a market shelf's
+-- resale time (src/market.lua). On loading, stacks of items
 -- that no longer exist (a mod was removed) are dropped; known tells
 -- whether an id exists.
 function Hold.serialize(h)
@@ -364,7 +332,7 @@ function Hold.serialize(h)
 		local sg = { key = g.key, name = g.name, w = g.w, h = g.h, stacks = {} }
 		for _, s in ipairs(g.stacks) do
 			table.insert(sg.stacks, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or nil,
-				inner = s.inner and Hold.serialize(s.inner) or nil })
+				inner = s.inner and Hold.serialize(s.inner) or nil, resale = s.resale })
 		end
 		table.insert(out.grids, sg)
 	end
@@ -379,7 +347,7 @@ function Hold.deserialize(t, known)
 		for _, s in ipairs(sg.stacks or {}) do
 			if (not known or known(s.id)) and Grid.isFree(g, s.x, s.y, s.w, s.h) then
 				Grid.place(g, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
-					inner = s.inner and Hold.deserialize(s.inner, known) or nil })
+					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale })
 			end
 		end
 		table.insert(h.grids, g)

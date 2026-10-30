@@ -588,7 +588,112 @@ function A.update(game, dt)
 		log("save: loaded -> field %s, flying %s (hold %d m3), docked at %s, hangar %d (%s, hold %d m3), storage scrap %d",
 			game.fieldId, p.hull.name, (Hold.cells(p.hold)), st and st.name or "-", #game:hangar(st), game:hangar(st)[1].hull,
 			(Hold.cells(game:hangar(st)[1].hold)), Hold.count(game:stationStorage(st), "scrap"))
+	end) end
+	if t >= 35.89 then once("market", function()
+		local Cargo = require("src.ui.cargo")
+		local Hold = require("src.inventory.hold")
+		local p = game.player
+		Cargo.tab = "market"
+		Cargo.update(game)
+		Hold.add(p.hold, "salvage_kit", 1)
+		local L = Cargo.layout(game)
+		local mine, trade, shelf
+		for _, gr in ipairs(L.grids) do
+			if gr.side.ship and not mine then mine = gr end
+			if gr.side.trade then trade = gr end
+			if gr.side.market then shelf = gr end
+		end
+		local kit
+		for _, s in ipairs(mine.g.stacks) do if s.id == "salvage_kit" then kit = s end end
+		local function at(gr, cx, cy) return gr.x + (cx + 0.5) * L.cs, gr.y + (cy + 0.5) * L.cs end
+		local kx, ky = at(mine, kit.x, kit.y)
+		Cargo.mousepressed(game, kx, ky, 1, { ctrl = true })
+		-- drag the shelf's first stack onto the trade grid
+		local want = shelf.g.stacks[1]
+		A.boughtId, A.credits0 = want.id, game.universe.credits
+		local wx, wy = at(shelf, want.x, want.y)
+		Cargo.mousepressed(game, wx, wy, 1)
+		local hx, hy = at(trade, 4, 3)
+		Cargo.mousereleased(game, hx, hy, 1)
+		local owners = {}
+		for _, s in ipairs(trade.g.stacks) do table.insert(owners, s.id .. ":" .. tostring(s.owner)) end
+		local get, pay = game.tradeTotals(Cargo.trade)
+		-- a station stack can't go into your hold
+		local back = trade.g.stacks[#trade.g.stacks]
+		local bx, by = at(trade, back.x, back.y)
+		Cargo.mousepressed(game, bx, by, 1)
+		local mx, my = at(mine, mine.g.w - 1, mine.g.h - 1)
+		Cargo.mousereleased(game, mx, my, 1)
+		local still = 0
+		for _, s in ipairs(trade.g.stacks) do if s.owner == "station" then still = still + 1 end end
+		log("market: %s at %s, %s; trade grid %s; you get %d, you pay %d, problem %s; station goods kept off your hold %s",
+			game.player.dockState.station.name, game.fieldId, require("src.hud").credits(A.credits0), table.concat(owners, ", "),
+			get, pay, tostring(game:tradeProblem(A.st, Cargo.trade)), tostring(still == 1))
+		shot("15_market")
+	end) end
+	if t >= 35.91 then once("market_trade", function()
+		local Cargo = require("src.ui.cargo")
+		local Hold = require("src.inventory.hold")
+		local p = game.player
+		local L = Cargo.layout(game)
+		local tside
+		for _, sd in ipairs(L.sides) do if sd.trade then tside = sd end end
+		local c = tside.complete
+		Cargo.mousepressed(game, c.x + 4, c.y + 4, 1)
+		local u = game.universe
+		local mk = game:stationMarket(A.st)
+		local resale
+		for _, s in ipairs(mk.hold.grids[1].stacks) do if s.resale then resale = s end end
+		local function stock(id)
+			local n = 0
+			for _, s in ipairs(mk.hold.grids[1].stacks) do if s.id == id and not s.resale then n = n + s.n end end
+			return n
+		end
+		local stockAfter = stock(A.boughtId)
+		log("market: completed -> credits %d -> %d, hold has %s x%d, trade grid empty %s, shelf resale %s (sold on in %.0f s)",
+			A.credits0, u.credits, A.boughtId, Hold.count(p.hold, A.boughtId) + Hold.count(game:stationStorage(A.st), A.boughtId),
+			tostring(#Cargo.trade.grids[1].stacks == 0), resale and resale.id or "none", resale and (resale.resale - u.clock) or 0)
+		Cargo.update(game)                       -- (the restock timer starts)
+		u.clock = u.clock + 2000
+		Cargo.update(game)
+		resale = nil
+		for _, s in ipairs(mk.hold.grids[1].stacks) do if s.resale then resale = s end end
+		log("market: 2000 s later -> %s stock %d -> %d, resale %s", A.boughtId, stockAfter, stock(A.boughtId), resale and "still there" or "sold on")
+		-- a loaded container sells with what's in it; Clear sends it home
+		local storage = game:stationStorage(A.st)
+		local inner = Hold.new({ { key = "main", name = "Container", w = 8, h = 4 } })
+		Hold.add(inner, "rounds_s_crate", 50)
+		Hold.placeStack(storage, { id = "cargo_container", n = 1, inner = inner })
+		L = Cargo.layout(game)
+		for _, gr in ipairs(L.grids) do
+			if gr.side.storage then
+				for _, s in ipairs(gr.g.stacks) do
+					if s.id == "cargo_container" then
+						Cargo.mousepressed(game, gr.x + (s.x + 0.5) * L.cs, gr.y + (s.y + 0.5) * L.cs, 1, { ctrl = true })
+					end
+				end
+			end
+		end
+		local get = game.tradeTotals(Cargo.trade)
+		Cargo.clearTrade(game)
+		local home = false
+		for _, s in ipairs(storage.grids[1].stacks) do if s.inner == inner then home = true end end
+		log("market: loaded container (50 light rounds) sells for %d; Clear sent it home with its cargo %s", get, tostring(home))
+		-- leaving the tab sends goods home too
+		L = Cargo.layout(game)
+		for _, gr in ipairs(L.grids) do
+			if gr.side.storage then
+				local s = gr.g.stacks[1]
+				Cargo.mousepressed(game, gr.x + (s.x + 0.5) * L.cs, gr.y + (s.y + 0.5) * L.cs, 1, { ctrl = true })
+			end
+		end
+		local onTable = #Cargo.trade.grids[1].stacks
 		Cargo.tab = "cargo"
+		Cargo.update(game)
+		local state = game:saveState()
+		local sk = state.stations[A.st.key]
+		log("market: left the tab with %d stack(s) on the grid -> %d left; save has credits %d, clock %.0f, shelf %s",
+			onTable, #Cargo.trade.grids[1].stacks, state.credits, state.clock, tostring(sk.market ~= nil))
 		game:undock()
 		A.holdBefore = Hold.cells(p.hold)
 	end) end

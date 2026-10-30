@@ -25,7 +25,7 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
-| Station screen: switch Cargo / Hangar tabs | Tab (docked) | |
+| Station screen: cycle Cargo / Hangar / Market tabs | Tab (docked) | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
 | New ship after death (at the last station you docked at) | R | Start |
 | Hide help / quit | H / Esc | |
@@ -45,9 +45,10 @@ file) onto `love.exe`.
 - An Enemy damage slider (default 0.7) in the debug panel is the quick difficulty knob.
 - Wrecks drop part of their ammo plus salvage, and a full hold leaves loot behind.
 - Levels: the playing fields are levels joined by jump gates (asteroid field and giant asteroid to the space station, the station to the planet, the planet to the giant planet). Fly into a gate's centre to travel; you arrive at the matching gate in the other level in the same ship. Each level is rebuilt fresh on arrival, but station storage and hangars last.
-- Hangar: docked, press Tab (or click the Hangar tab on top of the window). Each station's hangar bay is a 30 x 14 grid, and every ship takes a footprint the size of its hull (Wisp 4 x 2, Anvil 8 x 3, Bastion 14 x 5, Hauler 14 x 6), including the one you're docked in, so a bay only holds so many. Click a ship to select it, drag to move it (R rotates), and double-click or press Fly to swap into it; the ship you came in stays parked where it was. Cargo opens the Cargo tab with three panels: your hold, then station storage, then the parked ship's hold. Ships on the storage panel opens the first parked ship, Next cycles through them and x closes it. The equipment panel hides while three panels are open, so close the parked panel to refit. For now new ships come from the debug panel's "Park a new ..." buttons.
+- Hangar: docked, press Tab (or click the Hangar tab on top of the window). Each station's hangar bay is a 30 x 14 grid, and every ship takes a footprint the size of its hull (Wisp 4 x 2, Anvil 8 x 3, Bastion 14 x 5, Hauler 14 x 6), including the one you're docked in, so a bay only holds so many. Click a ship to select it, drag to move it (R rotates), and double-click or press Fly to swap into it; the ship you came in stays parked where it was. Cargo opens the Cargo tab with three panels: your hold, then station storage, then the parked ship's hold. Ships on the storage panel opens the first parked ship, Next cycles through them and x closes it. The equipment panel hides while three panels are open, so close the parked panel to refit. For now new ships come from the debug panel's "Park a new ..." buttons; buying ships in the hangar comes next.
+- Market: docked, the Market tab shows your hold with station storage under it, a shared trade grid in the middle and the station's shelf on the right. You start with 5,000 cr. Put your goods and the station's on the trade grid (drag, or Ctrl-click / right-click to move a stack across); green frames are yours, amber the station's, and each stack shows its price. The totals show what you get, what you pay and your balance after, and Complete trade settles it all at once. Bought goods go into your hold first, then storage. Leave the tab (or launch) and everything on the grid goes home. Buying costs the list price and selling pays 50% of it (a loaded container sells with everything in it). Each station sells its own catalogue (data/markets.lua), restocking each item a stack at a time on its own timer, and anything you sell stays on its shelf, where you can buy it back, for 10 minutes before it's sold on. The filters on the shelf (Ammo, Weapons, Modules, Misc) dim the rest.
 - Death ends the ship. Press R for a starter Wisp docked at the last station you docked at (in whatever level it is), or at the start if you never docked. Your wreck stays where you died with everything you had.
-- Saving: the game picks up from your latest save when it starts. Docking and quitting autosave, F5 saves, and F9 loads whichever save is newest. The debug panel has New game. Saves hold the universe (every station's storage and hangar, your home station), your ship with its hold, and where it is. They're plain Lua tables in LÖVE's save folder, versioned so later builds can upgrade them.
+- Saving: the game picks up from your latest save when it starts. Docking and quitting autosave, F5 saves, and F9 loads whichever save is newest. The debug panel has New game. Saves hold the universe (every station's storage, hangar and market shelf, your home station, your credits and the game clock), your ship with its hold, and where it is. They're plain Lua tables in LÖVE's save folder, versioned so later builds can upgrade them.
 
 ## The debug panel (F1)
 
@@ -55,7 +56,7 @@ file) onto `love.exe`.
 - Handling readout: acceleration, top speed, turn rate, mass, and the hardest impact so far.
 - Flight tuning: every handling knob as a live slider. When something feels right, copy the number into `src/tuning.lua`.
 - Spawn and arena: spawn any enemy (these come straight for you), clear enemies, jump to any level.
-- Docked: park a new ship of any hull in this station's hangar. Save, load and load the autosave.
+- Docked: park a new ship of any hull in this station's hangar. +10,000 credits. Save, load and load the autosave.
 - Also: god mode and infinite ammo.
 
 ## Where things live
@@ -63,7 +64,7 @@ file) onto `love.exe`.
 ```
 main.lua          LÖVE callbacks, fixed 120 Hz simulation step
 conf.lua          window settings
-data/             ALL content: hulls, modules, ammo/salvage, enemies
+data/             ALL content: hulls, modules, ammo/salvage, enemies, station markets
 src/data.lua      sandboxed loader for data/ and mods/
 src/stats.lua     hull + modules -> final stats
 src/ship.lua      ship bodies and flight (player and AI share it)
@@ -71,9 +72,10 @@ src/weapons.lua   firing, ammo use, projectiles
 src/ai.lua        enemy behaviour (fills the same intent the player's controls do)
 src/game.lua      the level: world, collisions, explosions, pickups, docking
 src/world.lua     the universe: station storage, hangars, travel, respawn, save state
+src/market.lua    credits, station shelves and their timers, settling a trade
 src/fields.lua    the levels and the jump gate routes between them
 src/save.lua      save files (plain Lua tables, sandboxed on load)
-src/ui/           cargo screen, hangar tab
+src/ui/           cargo screen (with the market tab), hangar tab
 src/render.lua    placeholder drawing
 src/hud.lua       HUD
 src/debugui.lua   debug panel (Slab)

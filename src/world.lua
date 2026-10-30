@@ -2,8 +2,9 @@
 	The universe: everything that lasts while levels come and go, and the
 	game's way between them.
 
-	  universe  game.universe = { stations = { [key] = { storage, hangar } },
-	            home = { field, key } }. A station's key is "<field>/<n>"
+	  universe  game.universe = { stations = { [key] = { storage, hangar,
+	            market } }, home = { field, key }, credits, clock } (markets
+	            and credits: src/market.lua). A station's key is "<field>/<n>"
 	            (src/game.lua, spawnWheelStation), so the same station gets
 	            the same record every visit. home is where you last docked.
 	  levels    each playing field (src/fields.lua) is a level. Its contents
@@ -43,7 +44,7 @@ local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
 return function(Game)
 
 function Game:newUniverse()
-	self.universe = { stations = {}, home = nil }
+	self.universe = { stations = {}, home = nil, credits = T.startCredits, clock = 0 }
 end
 
 -- The lasting record for a station: its storage and its hangar.
@@ -352,9 +353,12 @@ function Game:saveState()
 	for key, r in pairs(self.universe.stations) do
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar }
+		local market = r.market and { hold = Hold.serialize(r.market.hold), next = r.market.next }
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, market = market }
 	end
-	local state = { field = self.fieldId, kills = self.kills, home = self.universe.home, stations = stations }
+	local u = self.universe
+	local state = { field = self.fieldId, kills = self.kills, home = u.home, stations = stations,
+		credits = u.credits, clock = u.clock }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -379,9 +383,12 @@ function Game:loadState(state)
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
 			hangar = hangar,
+			market = r.market and { hold = Hold.deserialize(r.market.hold, known), next = r.market.next or {} },
 		}
 	end
 	self.universe.home = state.home
+	self.universe.credits = state.credits or T.startCredits
+	self.universe.clock = state.clock or 0
 	self.kills = state.kills or 0
 	local field = Fields[state.field] and state.field or Fields.start
 	local pl = state.player

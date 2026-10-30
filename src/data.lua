@@ -4,7 +4,7 @@
 	Every hull, module, ammo type, salvage item and enemy is defined in a
 	plain Lua file under data/, or under mods/<modname>/data/. Those files
 	run in a sandbox: all they can do is call the registration functions
-	below (hull, module, ammo, salvage, enemy) and use basic math, string
+	below (hull, module, ammo, salvage, container, enemy, market) and use basic math, string
 	and table helpers. They cannot touch files, globals or game state.
 
 	The base game loads its own content through exactly the same path a mod
@@ -13,7 +13,7 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {},
 	-- definition order, so menus list things the way the data files do
 	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
 }
@@ -108,6 +108,16 @@ function api.container(def)
 	def.fill = def.fill or {}
 end
 
+-- A station's market: what it sells (data/markets.lua). Keyed by station
+-- name; a later one for the same station replaces it.
+function api.market(def)
+	if type(def) ~= "table" then fail("market expects a table, like market { station = ..., sells = { ... } }") end
+	if type(def.station) ~= "string" then fail("market is missing 'station'") end
+	if type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells'"):format(def.station)) end
+	def.source = currentFile
+	data.markets[def.station] = def
+end
+
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
@@ -178,6 +188,13 @@ function data.modulesFor(slot)
 end
 
 local function crossCheck()
+	for name, mk in pairs(data.markets) do
+		for _, e in ipairs(mk.sells) do
+			if not data.items[e[1]] then
+				error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)
+			end
+		end
+	end
 	local function checkLoadout(owner, hull, loadout)
 		for i, slot in ipairs(hull.slots) do
 			local id = loadout and loadout[i]

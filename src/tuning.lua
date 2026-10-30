@@ -34,6 +34,7 @@ T.specs = {
 	{ key = "enemyDamage",    label = "Enemy damage",           min = 0,   max = 2,    value = 0.7,  precision = 2 },
 	{ key = "camLead",        label = "Camera lead",            min = 0,   max = 0.6,  value = 0.3,  precision = 2 },
 	{ key = "shake",          label = "Screenshake",            min = 0,   max = 2,    value = 1,    precision = 2 },
+	{ key = "sellRate",       label = "Market: sell price (x list)", min = 0, max = 1, value = 0.5, precision = 2 },
 	{ key = "timeScale",      label = "Game speed",             min = 0.1, max = 2,    value = 1,    precision = 2 },
 }
 
@@ -73,6 +74,16 @@ T.gateRadius, T.gateCooldown = 150, 4
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
 T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20
+
+-- Markets (src/market.lua, data/markets.lua). Credits you start with; the
+-- trade grid and a station's shelf, in cells; how long something you sold
+-- stays for sale before it's sold on; and how long one more stack takes to
+-- come in, by kind (seconds of game time).
+T.startCredits = 5000
+T.tradeW, T.tradeH = 10, 8
+T.marketW, T.marketH = 12, 10
+T.resaleTime = 600
+T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
