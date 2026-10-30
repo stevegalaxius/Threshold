@@ -37,7 +37,7 @@ module {
 module {
 	id = "rk7_chaingun", name = "RK-7 Chaingun", maker = "Brute Industries", family = "primary", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
-	weapon = { kind = "gun", fireRate = 10, damage = 5, speed = 2800, range = 1150, spread = 2.5, gimbal = 10, knockback = 400, recoil = 70 },
+	weapon = { kind = "gun", fireRate = 400 / 60, damage = 7.5, speed = 2800, range = 1150, spread = 2.5, gimbal = 10, knockback = 400, recoil = 70 },
 }
 
 -- Primary: artillery (slow, long range, high damage, splash) -----------------
