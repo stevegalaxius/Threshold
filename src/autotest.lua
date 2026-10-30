@@ -280,8 +280,8 @@ function A.update(game, dt)
 		end
 		local r, s = find("ship", "rounds_s")
 		local x, y = at(r, s)
-		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
-		log("cargo: ctrl-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
+		Cargo.mousepressed(game, x, y, 2)
+		log("cargo: right-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
 		r, s = find("storage", "rounds_s_crate")
 		x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
@@ -290,7 +290,10 @@ function A.update(game, dt)
 		r, s = find("ship", "rounds_s_crate")
 		if r then
 			x, y = at(r, s)
-			Cargo.mousepressed(game, x, y, 2)
+			Cargo.lastClick = nil
+			Cargo.mousepressed(game, x, y, 1)      -- double-click
+			Cargo.mousereleased(game, x, y, 1)
+			Cargo.mousepressed(game, x, y, 1)
 		end
 		log("cargo: unboxed, light rounds %d -> %d, crates left %d, hold %d / %d", before, w.cargo.rounds_s or 0, w.cargo.rounds_s_crate or 0, w.holdUsed, Ship.holdCapacity(w))
 		r, s = find("ship", "missile_s")

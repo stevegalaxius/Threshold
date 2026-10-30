@@ -27,8 +27,10 @@
 	  R (dragging)    rotate
 	  Shift-drag      take half the stack
 	  Ctrl-click      quick move to the other side (docked)
-	  right-click     in space: eject the stack out behind the ship
-	                  docked: unbox an ammo crate into loose rounds
+	  right-click     quick move to the other panel, like Ctrl-click; in
+	                  space with just your hold up: eject the stack out
+	                  behind the ship
+	  double-click    docked: unbox an ammo crate into loose rounds
 	  drop outside    in space: eject it
 	  Sort            tidy a hold (biggest items first, grouped by type)
 
@@ -538,7 +540,7 @@ local function takeAll(game, L, side)
 	changed(side); changed(mine)
 end
 
--- Right-click on a crate at a station: unbox as many rounds as fit.
+-- Double-click on a crate at a station: unbox as many rounds as fit.
 local function unbox(game, r, s)
 	local item = data.items[s.id]
 	if item.kind ~= "crate" then return end
@@ -729,6 +731,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
 		return true
 	end
+	if button == 1 and double and data.items[s.id].kind == "crate" and game.state == "docked" then
+		unbox(game, r, s)
+		return true
+	end
 	if button == 1 and double and data.items[s.id].kind == "module" then
 		if game.state == "docked" then quickFit(game, L, r, s) else game:toast("DOCK AT A STATION TO REFIT", 1.4) end
 		return true
@@ -736,16 +742,12 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
 	local atMarket = Cargo.tab == "market" and game.state == "docked"
-	if button == 2 and (r.side.entity or r.side.innerOf or atMarket) then
-		quickMove(game, L, r, s)                   -- right-click loot: take it; at the market: across
-	elseif button == 2 then
-		if game.state == "docked" then
-			unbox(game, r, s)
-		else
-			Grid.remove(r.g, s)
-			changed(r.side)
-			game:eject(r.side.ship, s.id, s.n, s.inner)
-		end
+	if button == 2 and (#L.sides > 1 or atMarket) then
+		quickMove(game, L, r, s)                   -- right-click: to the other panel
+	elseif button == 2 and game.state ~= "docked" then
+		Grid.remove(r.g, s)                        -- just your hold, in space: eject it
+		changed(r.side)
+		game:eject(r.side.ship, s.id, s.n, s.inner)
 	elseif button == 1 and ctrl then
 		quickMove(game, L, r, s)
 	elseif button == 1 then
@@ -1227,7 +1229,7 @@ function Cargo.draw(game)
 	if market then
 		hint = "Drag goods onto the trade grid   Ctrl-click or right-click move across   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
 	elseif docked then
-		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click move across   Drag or double-click a module to fit it   Right-click unbox a crate   E, Enter or (A) launch"
+		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   Double-click unbox a crate   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
 		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
@@ -1295,13 +1297,13 @@ function Cargo.draw(game)
 					if t then hint2 = ("More in %s"):format(clock(t)) end
 				end
 			elseif docked and item.kind == "module" then hint2 = "Drag onto a slot or double-click to fit"
-			elseif docked and item.kind == "crate" then hint2 = "Right-click: unbox into loose rounds"
+			elseif docked and item.kind == "crate" then hint2 = "Double-click: unbox into loose rounds"
 			elseif item.kind == "container" and s.inner then
 				local k, m = 0, 0
 				for id, n in pairs(Hold.totals(s.inner)) do k, m = k + n, m + data.items[id].mass * n end
 				hint2 = ("Loaded: %d items, %.1f t   Double-click to open"):format(k, m)
 			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
-			elseif not docked then hint2 = "Right-click: eject" end
+			elseif not docked and #L.sides == 1 then hint2 = "Right-click: eject" end
 			tooltip(item, s.n, mx, my, hint2, price)
 		end
 	end
