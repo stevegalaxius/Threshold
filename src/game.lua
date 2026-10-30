@@ -313,7 +313,14 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	body:setAngularVelocity(spin or 0.04)
 	local hub = R * 0.2
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		ringR = R, tube = tube, hub = hub, spokes = 4, radius = R + tube / 2 }
+		ringR = R, tube = tube, hub = hub, spokes = 4 }
+	-- The dock: a square bay on the outside of the ring (along the
+	-- station's +x axis), open to space at the far end. x1..x2 is its
+	-- length out from the centre, hw its half-width, wall its thickness.
+	local D = max(420, tube * 2.6)
+	local dock = { x1 = R + tube / 2 - tube * 0.3, x2 = R + tube / 2 + D, hw = D / 2, wall = 30, runway = 1400 }
+	e.dock = dock
+	e.radius = dock.x2
 	local function add(shape)
 		local f = love.physics.newFixture(body, shape)
 		f:setFriction(0.5)
@@ -335,6 +342,12 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 		add(love.physics.newPolygonShape(c * hub + px, s * hub + py, c * ri + px, s * ri + py,
 			c * ri - px, s * ri - py, c * hub - px, s * hub - py))
 	end
+	-- dock walls: back wall against the ring, and the two sides
+	local x1, x2, hw, wl = dock.x1, dock.x2, dock.hw, dock.wall
+	local xb = R + tube / 2 + wl
+	add(love.physics.newPolygonShape(x1, -hw, xb, -hw, xb, hw, x1, hw))
+	add(love.physics.newPolygonShape(x1, hw - wl, x2, hw - wl, x2, hw, x1, hw))
+	add(love.physics.newPolygonShape(x1, -hw, x2, -hw, x2, -hw + wl, x1, -hw + wl))
 	if simulated then
 		-- hundreds of times a battleship's mass, and no drag
 		local m = 300000
@@ -346,6 +359,30 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	return e
+end
+
+-- Is a point inside a station's docking bay?
+function Game:inDock(st, x, y)
+	local d = st.dock
+	if not d then return false end
+	local lx, ly = st.body:getLocalPoint(x, y)
+	return lx > st.ringR + st.tube / 2 + d.wall and lx < d.x2 and math.abs(ly) < d.hw - d.wall
+end
+
+-- Notice the player flying into (or out of) a station's dock.
+function Game:updateDocking()
+	local p = self.player
+	if not p or p.dead then return end
+	local x, y = p.body:getPosition()
+	local at
+	for _, e in ipairs(self.entities) do
+		if e.kind == "station" and self:inDock(e, x, y) then at = e; break end
+	end
+	if at ~= p.dockedAt then
+		p.dockedAt = at
+		if at then self:toast("DOCKED", 1.5) else self:toast("UNDOCKED", 1) end
+		events.emit("dock", p, at)
+	end
 end
 
 -- Put a kinematic body (a station) on a fixed circular track around
@@ -491,6 +528,7 @@ function Game:step(dt)
 	self:applyCurrent(dt)
 	self:updateOrbits(dt)
 	self.world:update(dt)
+	self:updateDocking()
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)

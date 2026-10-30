@@ -203,6 +203,55 @@ local function drawStation(game, e)
 			lg.circle("fill", c * (ri + tube * 0.16), s * (ri + tube * 0.16), wr)
 		end
 	end
+	-- the dock: a square bay on the outside of the ring
+	local d = e.dock
+	if d then
+		local x1, x2, hw, wl = d.x1, d.x2, d.hw, d.wall
+		local xb = ro + wl
+		lg.setColor(0.09, 0.1, 0.13)
+		lg.rectangle("fill", xb, -hw + wl, x2 - xb, (hw - wl) * 2)
+		lg.setColor(0.2, 0.23, 0.28)
+		lg.rectangle("fill", x1, -hw, xb - x1, hw * 2)
+		lg.rectangle("fill", x1, hw - wl, x2 - x1, wl)
+		lg.rectangle("fill", x1, -hw, x2 - x1, wl)
+		lg.setColor(0.55, 0.63, 0.74)
+		lg.setLineWidth(outline(2))
+		lg.line(x2, -hw, x1, -hw)
+		lg.line(x2, hw, x1, hw)
+		lg.line(x2, -hw + wl, xb, -hw + wl, xb, hw - wl, x2, hw - wl)
+		lg.line(x2, -hw, x2, -hw + wl)
+		lg.line(x2, hw, x2, hw - wl)
+		-- landing marks on the bay floor
+		lg.setColor(0.95, 0.75, 0.25, 0.5)
+		local cx = (xb + x2) / 2
+		lg.rectangle("line", cx - hw * 0.35, -hw * 0.35, hw * 0.7, hw * 0.7)
+		-- Runway lights: two rows running out from the mouth, plus a
+		-- centre line of strobes chasing in toward the bay. Lights only;
+		-- nothing out there collides.
+		local lr = max(5, 3 * screenPx)
+		local step, n = 100, floor(d.runway / 100)
+		local ly = hw - wl / 2
+		for i = 0, n do
+			local lx = x2 + 20 + i * step
+			local fade = 1 - i / (n + 1) * 0.6
+			lg.setColor(0.35, 1, 0.5, 0.75 * fade)
+			lg.circle("fill", lx, ly, lr)
+			lg.circle("fill", lx, -ly, lr)
+			-- the chase: one bright flash per light, racing inward
+			local phase = (game.time * 1.6 + i / n) % 1
+			if phase < 0.08 then
+				lg.setColor(1, 1, 1, fade)
+				lg.circle("fill", lx, 0, lr * 1.8)
+			else
+				lg.setColor(1, 1, 1, 0.12 * fade)
+				lg.circle("fill", lx, 0, lr)
+			end
+		end
+		-- steady amber lamps at the corners of the mouth
+		lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
+		lg.circle("fill", x2, hw, lr * 1.4)
+		lg.circle("fill", x2, -hw, lr * 1.4)
+	end
 	-- hub
 	lg.setColor(0.22, 0.25, 0.31)
 	lg.circle("fill", 0, 0, hub, 96)
