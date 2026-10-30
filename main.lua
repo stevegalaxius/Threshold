@@ -79,11 +79,13 @@ function love.keypressed(key)
 	elseif key == "f1" then Debug.toggle()
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
+	elseif key == "q" then game:cycleMissiles()
 	end
 end
 
 function love.gamepadpressed(_, button)
 	if button == "start" then relaunch()
+	elseif button == "y" then game:cycleMissiles()
 	elseif button == "back" then Debug.toggle()
 	end
 end

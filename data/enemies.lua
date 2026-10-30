@@ -23,7 +23,7 @@ enemy {
 
 enemy {
 	id = "gunner", color = { 0.95, 0.8, 0.3 }, name = "Raider Wisp", hull = "halcyon_wisp",
-	loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", "thin_plate", false, "aux_thrusters" },
+	loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", false, "aux_thrusters" },
 	cargo = { rounds_s = 300 },
 	ai = { style = "orbit", range = 600, accuracy = 0.55, throttle = 0.75 },
 	salvage = { 2, 3 }, ammoDrop = 0.4,
@@ -31,7 +31,7 @@ enemy {
 
 enemy {
 	id = "brawler", color = { 0.95, 0.3, 0.3 }, name = "Raider Anvil", hull = "brute_anvil",
-	loadout = { "rk7_chaingun", "rk7_chaingun", false, "mule_engine", "kiln_reactor", "slab_plate", "slab_plate", false, "aux_thrusters_m" },
+	loadout = { "rk7_chaingun", "rk7_chaingun", false, "mule_engine", "kiln_reactor", false, "aux_thrusters_m" },
 	cargo = { rounds_m = 300 },
 	ai = { style = "rush", range = 500, accuracy = 0.55, throttle = 0.85 },
 	salvage = { 3, 5 }, ammoDrop = 0.4,
@@ -39,7 +39,7 @@ enemy {
 
 enemy {
 	id = "sniper", color = { 0.75, 0.45, 0.95 }, name = "Raider Mortar", hull = "brute_anvil",
-	loadout = { "thumper_m", "rk7_chaingun", false, "mule_engine", "kiln_reactor", "slab_plate", false, false, "aux_thrusters_m" },
+	loadout = { "thumper_m", "rk7_chaingun", false, "mule_engine", "kiln_reactor", false, "aux_thrusters_m" },
 	cargo = { shell_m = 24, rounds_m = 150 },
 	ai = { style = "kite", range = 1500, accuracy = 0.6, throttle = 0.7, burstOn = 2, burstOff = 2 },
 	salvage = { 3, 5 }, ammoDrop = 0.5,

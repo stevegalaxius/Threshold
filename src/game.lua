@@ -479,6 +479,14 @@ function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
+-- Q: switch the player's missile launchers to the next missile size.
+function Game:cycleMissiles()
+	local p = self.player
+	if not p or p.dead then return end
+	local id = Weapons.cycleAmmo(p, "secondary")
+	if id then self:toast("MISSILES: " .. data.items[id].name:upper(), 1.2) end
+end
+
 function Game:toast(text, duration, style)
 	for _, t in ipairs(self.toasts) do
 		if t.text == text then t.t = 0; t.life = duration or 1.5; return end

@@ -144,7 +144,7 @@ end
 local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
-	"LMB fire   RMB missile",
+	"LMB fire   RMB missile   Q missile size",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
 	"H hide help   Esc quit",

@@ -16,6 +16,7 @@
 
 local Ship = require("src.ship")
 local T = require("src.tuning")
+local data = require("src.data")
 
 local AI = {}
 
@@ -50,8 +51,8 @@ function AI.think(game, e, dt)
 	-- Lead the target using the first weapon's shot speed. Shots inherit the
 	-- shooter's velocity, so lead with relative velocity. Low accuracy
 	-- under-leads and wobbles more.
-	local w = e.weapons[1] and e.weapons[1].w
-	local shotSpeed = (w and w.speed) or 3000
+	local slot = e.weapons[1]
+	local shotSpeed = (slot and slot.ammo and data.items[slot.ammo].shot.speed) or 3000
 	local lead = dist / shotSpeed * ai.accuracy
 	e.jitterTimer = (e.jitterTimer or 0) - dt
 	if e.jitterTimer <= 0 then

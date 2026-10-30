@@ -27,9 +27,13 @@
 	         turret  guns rotate all the way around, turretTurn degrees/second
 	         A slot can override it with its own mount.
 
-	Slots: family is primary, secondary, engine, reactor, armor or utility;
-	size is S, M or L, and a module only fits a slot of its own family and
-	size. Slots with x,y are drawn on the hull (weapons fire from there).
+	armor is part of the hull itself, not a module.
+
+	Slots: family is primary, secondary, engine, reactor, utility or
+	thruster; size is S, M or L, and a module only fits a slot of its own
+	family and size. Utility and thruster slots are size "any": shared
+	slots every class has alike. Slots with x,y are drawn on the hull
+	(weapons fire from there).
 
 	loadout lists the module id fitted to each slot, in slot order
 	(false = empty). cargo is what's in the hold when you take the hull out.
@@ -37,7 +41,7 @@
 
 hull {
 	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light", mount = "fixed",
-	mass = 50, armor = 80, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
+	mass = 58, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
 	shape = { 40,0, 8,-7, -12,-14, -28,-12, -20,0, -28,12, -12,14, 8,7 },
 	slots = {
 		{ family = "primary",   size = "S", x = 12,   y = -9 },
@@ -45,32 +49,29 @@ hull {
 		{ family = "secondary", size = "S", x = -4,  y = 0 },
 		{ family = "engine",    size = "S", x = -26, y = 0 },
 		{ family = "reactor",   size = "S" },
-		{ family = "armor",     size = "S" },
-		{ family = "utility",   size = "S" },
+		{ family = "utility",   size = "any" },
 		{ family = "thruster",  size = "any" },
 	},
-	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "thin_plate", "hold_pod_s", "aux_thrusters" },
+	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "hold_pod_s", "aux_thrusters" },
 	cargo = { rounds_s = 400, missile_s = 4 },
 	price = 14000,
 }
 
 hull {
 	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
-	mass = 200, armor = 200, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34,
+	mass = 240, armor = 380, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34,
 	shape = { 74,-11, 74,11, 34,26, -46,28, -68,14, -68,-14, -46,-28, 34,-26 },
 	slots = {
 		{ family = "primary",   size = "M", x = 40,  y = -20 },
 		{ family = "primary",   size = "M", x = 40,  y = 20 },
-		{ family = "secondary", size = "S", x = 12,   y = 0 },
+		{ family = "secondary", size = "M", x = 12,  y = 0 },
 		{ family = "engine",    size = "M", x = -68, y = 0 },
 		{ family = "reactor",   size = "M" },
-		{ family = "armor",     size = "M" },
-		{ family = "armor",     size = "M" },
-		{ family = "utility",   size = "S" },
+		{ family = "utility",   size = "any" },
 		{ family = "thruster",  size = "any" },
 	},
-	loadout = { "rk7_chaingun", "rk7_chaingun", "sparrow_rack", "mule_engine", "kiln_reactor", "slab_plate", "slab_plate", "tug_beam", "aux_thrusters_m" },
-	cargo = { rounds_m = 500, missile_s = 6 },
+	loadout = { "rk7_chaingun", "rk7_chaingun", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters_m" },
+	cargo = { rounds_m = 500, missile_m = 4, missile_s = 6 },
 	price = 38000,
 }
 
@@ -79,7 +80,7 @@ hull {
 -- thruster slot: it can't strafe, and A/D turn the hull instead.
 hull {
 	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
-	mass = 600, armor = 500, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
+	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
 	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
 		{ family = "primary",   size = "L", x = 80,  y = 0 },
@@ -88,17 +89,14 @@ hull {
 		{ family = "primary",   size = "M", x = 28,  y = 32 },
 		{ family = "primary",   size = "M", x = -52, y = -36 },
 		{ family = "primary",   size = "M", x = -52, y = 36 },
-		{ family = "secondary", size = "M", x = 12,   y = 0 },
+		{ family = "secondary", size = "L", x = 12,  y = 0 },
 		{ family = "engine",    size = "L", x = -132, y = 0 },
 		{ family = "reactor",   size = "M" },
-		{ family = "armor",     size = "L" },
-		{ family = "armor",     size = "L" },
-		{ family = "armor",     size = "L" },
-		{ family = "utility",   size = "M" },
+		{ family = "utility",   size = "any" },
 	},
-	loadout = { "long_tom", "long_tom", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "hornet_pod",
-		"cinder_drive", "kiln_reactor", "bulwark_plate", "bulwark_plate", "bulwark_plate", "hold_pod_m" },
-	cargo = { shell_l = 60, rounds_m = 1000, missile_m = 8 },
+	loadout = { "long_tom", "long_tom", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "rk7_chaingun", "trident_bay",
+		"cinder_drive", "kiln_reactor", "hold_pod_m" },
+	cargo = { shell_l = 60, rounds_m = 1000, missile_l = 6, missile_m = 6 },
 	price = 95000,
 }
 
@@ -108,15 +106,14 @@ hull {
 -- in straight lines and swings wide when it overshoots.
 hull {
 	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 30, armor = 10, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
+	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
 	shape = { 30,0, -18,-11, -10,0, -18,11 },
 	slots = {
 		{ family = "primary", size = "S", x = 8,  y = 0 },
 		{ family = "engine",  size = "S", x = -16, y = 0 },
 		{ family = "reactor", size = "S" },
-		{ family = "armor",   size = "S" },
 	},
-	loadout = { "px2_autogun", "flit_engine", "ember_reactor", "thin_plate" },
+	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },
 	cargo = { rounds_s = 150 },
 }
 

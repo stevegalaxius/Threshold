@@ -313,7 +313,7 @@ local function drawRange(game)
 	if not p or p.dead then return end
 	local reach = 0
 	for _, w in ipairs(p.weapons) do
-		if w.group == "primary" then reach = max(reach, w.w.range or 0) end
+		if w.group == "primary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
 	local x, y = p.body:getPosition()

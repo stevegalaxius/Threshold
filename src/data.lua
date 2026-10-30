@@ -18,7 +18,7 @@ local data = {
 	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
 }
 
-local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, armor = true, utility = true, thruster = true }
+local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, utility = true, thruster = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
@@ -76,6 +76,7 @@ end
 function api.ammo(def)
 	register("items", "ammo", def)
 	need(def, "family", "ammo"); need(def, "size", "ammo"); need(def, "volume", "ammo"); need(def, "mass", "ammo")
+	need(def, "shot", "ammo")
 	def.kind = "ammo"
 end
 
@@ -119,15 +120,25 @@ local function loadFolder(folder)
 	end
 end
 
--- Find the ammo a weapon module fires: same family as the weapon kind, same size.
-function data.ammoFor(module)
+-- Every ammo a weapon module can fire, biggest first: same family as the
+-- weapon kind, same size or smaller.
+function data.ammoOptions(module)
 	local w = module.weapon
-	if not w or w.kind == "laser" then return nil end
+	local out = {}
+	if not w or w.kind == "laser" then return out end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
-		if item.kind == "ammo" and item.family == w.kind and item.size == module.size then return id end
+		if item.kind == "ammo" and item.family == w.kind then
+			if SIZES[item.size] <= SIZES[module.size] then table.insert(out, id) end
+		end
 	end
-	return nil
+	table.sort(out, function(a, b) return SIZES[data.items[a].size] > SIZES[data.items[b].size] end)
+	return out
+end
+
+-- The ammo a weapon fires by default (its biggest option).
+function data.ammoFor(module)
+	return data.ammoOptions(module)[1]
 end
 
 -- Modules that fit a slot: same family, same size (size matching is strict).

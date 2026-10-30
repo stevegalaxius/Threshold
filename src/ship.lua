@@ -102,7 +102,7 @@ function Ship.refit(e)
 			table.insert(e.weapons, {
 				slot = slot, module = m, w = m.weapon,
 				group = (slot.family == "secondary") and "secondary" or "primary",
-				ammo = data.ammoFor(m), cooldown = 0,
+				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
 		end

@@ -85,17 +85,19 @@ local function shipSection(game)
 	Slab.Text("Hold")
 	local ammoSeen = {}
 	for _, w in ipairs(p.weapons) do
-		if w.ammo and not ammoSeen[w.ammo] then
-			ammoSeen[w.ammo] = true
-			local item = data.items[w.ammo]
-			Slab.Text(("%s: %d"):format(item.name, p.cargo[w.ammo] or 0))
-			Slab.PushID(w.ammo)
-			if Slab.Button("+10") then Ship.addCargo(p, w.ammo, 10) end
-			Slab.SameLine()
-			if Slab.Button("+100") then Ship.addCargo(p, w.ammo, 100) end
-			Slab.SameLine()
-			if Slab.Button("Fill") then Ship.addCargo(p, w.ammo, 100000) end
-			Slab.PopID()
+		for _, ammo in ipairs(w.ammoOptions) do
+			if not ammoSeen[ammo] then
+				ammoSeen[ammo] = true
+				local item = data.items[ammo]
+				Slab.Text(("%s: %d"):format(item.name, p.cargo[ammo] or 0))
+				Slab.PushID(ammo)
+				if Slab.Button("+10") then Ship.addCargo(p, ammo, 10) end
+				Slab.SameLine()
+				if Slab.Button("+100") then Ship.addCargo(p, ammo, 100) end
+				Slab.SameLine()
+				if Slab.Button("Fill") then Ship.addCargo(p, ammo, 100000) end
+				Slab.PopID()
+			end
 		end
 	end
 	if Slab.Button("Empty hold") then
