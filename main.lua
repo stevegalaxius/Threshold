@@ -71,7 +71,10 @@ end
 function love.draw()
 	Render.world(game)
 	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
-	Cargo.draw(game)
+	if Cargo.isOpen(game) then
+		Cargo.draw(game)
+		HUD.drawToasts(game)
+	end
 	Debug.draw()
 end
 

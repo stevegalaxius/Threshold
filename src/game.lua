@@ -606,6 +606,8 @@ end
 function Game:undock()
 	local p = self.player
 	if not p or not p.dockState or not p.dockState.done then return end
+	local missing = Ship.launchProblem(p)
+	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
 	self:toast("LAUNCHED", 1)
@@ -1095,8 +1097,8 @@ function Game:reap()
 	end
 end
 
--- What a dead ship leaves behind: its whole hold (nothing is lost) plus
--- the salvage its enemy definition rolls.
+-- What a dead ship leaves behind: its whole hold (nothing is lost), the
+-- modules that survived, and the salvage its enemy definition rolls.
 local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
@@ -1105,6 +1107,11 @@ local function lootOf(e)
 		-- station, not something the guns can draw from mid-fight.
 		local into = (item and item.kind == "ammo") and item.crate or id
 		if count > 0 then loot[into] = (loot[into] or 0) + count end
+	end
+	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
+	for i in ipairs(e.hull.slots) do
+		local id = e.loadout[i]
+		if id and data.items[id] and random() < T.moduleSalvage then loot[id] = (loot[id] or 0) + 1 end
 	end
 	local s = e.def and e.def.salvage or { 0, 0 }
 	for _ = 1, random(s[1], s[2]) do

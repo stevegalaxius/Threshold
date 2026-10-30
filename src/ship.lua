@@ -183,6 +183,19 @@ function Ship.updateMass(e)
 	e.massDirty = false
 end
 
+-- Why this ship can't leave a station, or nil if it can: it needs a
+-- reactor, and an engine or maneuvering thrusters to move with.
+function Ship.launchProblem(e)
+	local has = {}
+	for i in ipairs(e.hull.slots) do
+		local m = e.loadout[i] and data.modules[e.loadout[i]]
+		if m then has[m.family] = true end
+	end
+	if not has.reactor then return "no reactor" end
+	if not has.engine and not has.thruster then return "no engine or thrusters" end
+	return nil
+end
+
 -- Hold size in cubic metres (for a grid hold, its cells).
 function Ship.holdCapacity(e)
 	return e.holdCap or e.stats.hold

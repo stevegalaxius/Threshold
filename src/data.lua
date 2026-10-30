@@ -227,6 +227,27 @@ local function addCrates()
 	end
 end
 
+-- Every module is also an item, so spares can sit in a hold, in station
+-- storage or in a husk. Its shape comes from its size (S 2 x 1, M 2 x 2,
+-- L 3 x 2, any 2 x 1), its volume matches the shape and its mass is the
+-- module's own. Module items stay out of data.list.items so they don't
+-- show up in ammo lists.
+local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
+local function addModuleItems()
+	for _, id in ipairs(data.list.modules) do
+		local m = data.modules[id]
+		local existing = data.items[id]
+		if existing and existing.kind ~= "module" then
+			error(("module '%s' has the same id as an item"):format(id), 0)
+		end
+		local shape = MODULE_SHAPES[m.size]
+		data.items[id] = {
+			id = id, kind = "module", module = id, name = m.name, maker = m.maker, size = m.size,
+			w = shape[1], h = shape[2], stack = 1, volume = shape[1] * shape[2], mass = m.mass, price = m.price or 0,
+		}
+	end
+end
+
 function data.load()
 	loadFolder("data")
 	if love.filesystem.getInfo("mods", "directory") then
@@ -238,6 +259,7 @@ function data.load()
 		end
 	end
 	addCrates()
+	addModuleItems()
 	crossCheck()
 end
 

@@ -250,6 +250,7 @@ end
 local KIND_COLOR = {
 	gun = { 0.45, 0.75, 1 }, artillery = { 1, 0.55, 0.4 }, missile = { 0.4, 0.9, 0.65 },
 	torpedo = { 0.95, 0.8, 0.35 }, drone = { 0.8, 0.55, 1 }, crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
+	module = { 0.95, 0.95, 0.95 },
 }
 
 local function itemColor(item)
@@ -308,11 +309,14 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 	drawOffscreen(game)
 	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
+	drawDeath(game)
+	if uiOpen then return end            -- the cargo screen covers the rest; main draws toasts on top of it
 	drawStatus(game)
 	drawHelp()
 	drawToasts(game)
-	drawDeath(game)
-	if not uiOpen then drawReticle(game, aimX, aimY) end
+	drawReticle(game, aimX, aimY)
 end
+
+HUD.drawToasts = drawToasts
 
 return HUD

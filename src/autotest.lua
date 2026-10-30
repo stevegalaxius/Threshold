@@ -298,6 +298,52 @@ function A.update(game, dt)
 		local pod = w.hold.grids[2]
 		local ps = Grid.at(pod, 0, 0)
 		log("cargo: dragged + rotated a missile stack into the pod: %s %d x %d, missiles %d", ps and ps.id or "nothing", ps and ps.w or 0, ps and ps.h or 0, w.cargo.missile_s or 0)
+		-- Equipment: unfit the engine into the hold, try to launch, refit it
+		-- with a double-click, and check a full Cargo Pod can't come out.
+		L = Cargo.layout(game)
+		local function slotRow(family)
+			for _, er in ipairs(L.equip.slots) do if er.slot.family == family then return er end end
+		end
+		local function freeSpot()
+			local main = Cargo.layout(game).grids[1]
+			for cy = 0, main.g.h - 1 do
+				for cx = 0, main.g.w - 2 do
+					if Grid.isFree(main.g, cx, cy, 2, 1) then return main.x + (cx + 0.5) * cs, main.y + (cy + 0.5) * cs end
+				end
+			end
+		end
+		local eng, thr = slotRow("engine"), slotRow("thruster")
+		local engineId, thrusterId = w.loadout[eng.i], w.loadout[thr.i]
+		local ex, ey = freeSpot()
+		Cargo.mousepressed(game, eng.x + 10, eng.y + 10, 1)
+		Cargo.mousereleased(game, ex, ey, 1)
+		log("equip: unfitted %s, slot now %s, in hold %d, thrust %.0f, launch problem: %s (thrusters count)", engineId, tostring(w.loadout[eng.i]),
+			w.cargo[engineId] or 0, w.stats.thrust, tostring(Ship.launchProblem(w)))
+		local tx, ty = freeSpot()
+		Cargo.mousepressed(game, thr.x + 10, thr.y + 10, 1)
+		Cargo.mousereleased(game, tx, ty, 1)
+		game:undock()
+		log("equip: thrusters out too: launch problem %s, undock -> state %s", tostring(Ship.launchProblem(w)), game.state)
+		Cargo.quickFit(game, ex, ey)
+		Cargo.quickFit(game, tx, ty)
+		log("equip: double-click refit, engine %s, thruster %s, thrust %.0f, launch problem: %s", tostring(w.loadout[eng.i]),
+			tostring(w.loadout[thr.i]), w.stats.thrust, tostring(Ship.launchProblem(w)))
+		local util = slotRow("utility")
+		Hold.add(w.hold, "scrap", 1)
+		local podGrid = w.hold.grids[2]
+		local podHas = #podGrid.stacks
+		Cargo.mousepressed(game, util.x + 10, util.y + 10, 1)
+		log("equip: tried to pull a Cargo Pod holding %d stacks -> slot %s, hand %s", podHas, tostring(w.loadout[util.i]), tostring(Cargo.hand and Cargo.hand.id))
+		-- grab a spare module from storage and drag it over the slot it fits
+		Hold.add(storage, "glint_laser", 1)
+		L = Cargo.layout(game)
+		r, s = find("storage", "glint_laser")
+		x, y = at(r, s)
+		Cargo.mousepressed(game, x, y, 1)
+		local prim = slotRow("primary")
+		Cargo.mousereleased(game, prim.x + 10, prim.y + 10, 1)
+		log("equip: dragged glint_laser from storage onto slot %d -> %s, old module now in hold %d / storage %d",
+			prim.i, tostring(w.loadout[prim.i]), w.cargo.px2_autogun or 0, Hold.count(storage, "px2_autogun"))
 		shot("08_cargo_station")
 	end) end
 	if t >= 33.9 then once("cargo_done", function() game:undock() end) end
