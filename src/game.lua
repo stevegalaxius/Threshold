@@ -95,8 +95,13 @@ function Game:launchDrone(owner, item, x, y, angle)
 	d.drone, d.owner, d.life = true, owner, shot.life
 	-- A ship never collides with its own drones (or they with each other):
 	-- Box2D skips contacts between fixtures sharing a negative group index.
-	for _, f in ipairs(owner.body:getFixtures()) do f:setGroupIndex(-owner.id) end
-	for _, f in ipairs(d.body:getFixtures()) do f:setGroupIndex(-owner.id) end
+	-- (Group indexes are 16-bit, so hand them out from a small counter.)
+	if not owner.collisionGroup then
+		self.groupCounter = (self.groupCounter or 0) % 30000 + 1
+		owner.collisionGroup = -self.groupCounter
+		for _, f in ipairs(owner.body:getFixtures()) do f:setGroupIndex(owner.collisionGroup) end
+	end
+	for _, f in ipairs(d.body:getFixtures()) do f:setGroupIndex(owner.collisionGroup) end
 	local vx, vy = owner.body:getLinearVelocity()
 	d.body:setLinearVelocity(vx + cos(angle) * shot.speed, vy + sin(angle) * shot.speed)
 	table.insert(self.entities, d)
