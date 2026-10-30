@@ -16,10 +16,6 @@ local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
 	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
-	player = { 0.55, 0.9, 0.95 },
-	playerDark = { 0.12, 0.28, 0.34 },
-	enemy = { 0.95, 0.5, 0.32 },
-	enemyDark = { 0.32, 0.12, 0.08 },
 	flame = { 0.55, 0.85, 1.0 },
 	enemyFlame = { 1.0, 0.6, 0.25 },
 	gun = { 1.0, 0.92, 0.55 },
@@ -30,6 +26,17 @@ local COLORS = {
 	salvage = { 0.45, 0.95, 0.85 },
 }
 Render.COLORS = COLORS
+
+-- Paint jobs the player can pick from (debug panel for now). Enemies get
+-- their color from data/enemies.lua.
+Render.PAINTS = {
+	{ name = "Glacier",  color = { 0.55, 0.9, 0.95 } },
+	{ name = "Signal",   color = { 1.0, 0.85, 0.35 } },
+	{ name = "Bone",     color = { 0.9, 0.88, 0.8 } },
+	{ name = "Moss",     color = { 0.55, 0.85, 0.45 } },
+	{ name = "Orchid",   color = { 0.85, 0.55, 0.95 } },
+	{ name = "Ember",    color = { 1.0, 0.45, 0.3 } },
+}
 
 -- Starfield: three parallax layers of fixed random stars, tiled. Each layer
 -- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers
@@ -123,8 +130,8 @@ local function drawShip(game, e)
 	local x, y = e.body:getPosition()
 	local a = e.body:getAngle()
 	local hull = e.hull
-	local col = e.isPlayer and COLORS.player or COLORS.enemy
-	local dark = e.isPlayer and COLORS.playerDark or COLORS.enemyDark
+	local col = e.color
+	local dark = { col[1] * 0.22, col[2] * 0.22, col[3] * 0.22 }
 
 	lg.push()
 	lg.translate(x, y)
@@ -135,7 +142,7 @@ local function drawShip(game, e)
 	local R = hull.radius
 	if e.mainBurn > 0.05 then
 		local len = R * (0.6 + e.mainBurn * 0.9) * (0.85 + love.math.random() * 0.3)
-		if e.boostFlash and e.boostFlash > 0 then len = len * 2.2 end
+		if e.afterburn then len = len * 2.2 end
 		local bx, wdt = e.tailX * 0.85, R * 0.35
 		lg.setColor(fc[1], fc[2], fc[3], 0.35)
 		lg.polygon("fill", bx, -wdt * 1.4, bx, wdt * 1.4, bx - len * 1.3, 0)
@@ -210,7 +217,7 @@ local function drawShip(game, e)
 		local fr = e.armor / e.stats.armor
 		lg.setColor(0, 0, 0, 0.6)
 		lg.rectangle("fill", x - wdt / 2, y - hull.radius - 12, wdt, 4)
-		lg.setColor(COLORS.enemy)
+		lg.setColor(e.color)
 		lg.rectangle("fill", x - wdt / 2, y - hull.radius - 12, wdt * fr, 4)
 	end
 end

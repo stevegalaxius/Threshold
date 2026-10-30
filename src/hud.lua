@@ -7,6 +7,7 @@
 local data = require("src.data")
 local Input = require("src.input")
 local Render = require("src.render")
+local T = require("src.tuning")
 
 local HUD = { showHelp = true }
 
@@ -82,7 +83,12 @@ local function drawStatus(game)
 	local s = p.stats
 	local lowArmor = p.armor / s.armor < 0.3
 	bar(x + 12, y + 12, pw - 24, 18, p.armor / s.armor, lowArmor and WARN or { 0.4, 0.85, 0.95 }, "ARMOR", ("%d / %d"):format(floor(p.armor + 0.5), floor(s.armor + 0.5)))
-	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), { 0.55, 0.75, 1.0 }, "POWER", ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
+	local powerLabel = p.afterburn and "AFTERBURNER" or (p.onReserve and "RESERVE" or "POWER")
+	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), p.onReserve and { 1.0, 0.7, 0.35 } or { 0.55, 0.75, 1.0 }, powerLabel, ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
+	-- tick where the reserve starts: thrusters stop draining power below it
+	lg.setColor(1, 1, 1, 0.5)
+	local rx = x + 12 + (pw - 24) * T.powerReserve
+	lg.line(rx, y + 33, rx, y + 49)
 
 	lg.setFont(font(12))
 	local ly = y + 56
@@ -189,7 +195,7 @@ local function drawOffscreen(game)
 				local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
 				local t = min(math.abs(tx), math.abs(ty))
 				local ax, ay = cx + cos(a) * t, cy + sin(a) * t
-				lg.setColor(Render.COLORS.enemy[1], Render.COLORS.enemy[2], Render.COLORS.enemy[3], 0.85)
+				lg.setColor(e.color[1], e.color[2], e.color[3], 0.85)
 				lg.polygon("fill",
 					ax + cos(a) * 10, ay + sin(a) * 10,
 					ax + cos(a + 2.4) * 8, ay + sin(a + 2.4) * 8,

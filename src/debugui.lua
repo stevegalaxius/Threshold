@@ -8,6 +8,7 @@ local Slab = require("lib.Slab")
 local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local Render = require("src.render")
 
 local Debug = { visible = false }
 
@@ -50,6 +51,19 @@ local function shipSection(game)
 	local current = data.hulls[game.playerHull]
 	combo("dbg_hull", current.name, opts, function(id) game:spawnPlayer(id) end)
 	if Slab.Button("Relaunch ship") then game:spawnPlayer() end
+
+	Slab.Text("Paint")
+	local paints = {}
+	local paintName = "(custom)"
+	for _, pt in ipairs(Render.PAINTS) do
+		table.insert(paints, { label = pt.name, value = pt.color })
+		local c = game.playerColor
+		if pt.color[1] == c[1] and pt.color[2] == c[2] and pt.color[3] == c[3] then paintName = pt.name end
+	end
+	combo("dbg_paint", paintName, paints, function(c)
+		game.playerColor = c
+		if p then p.color = c end
+	end)
 
 	if not p or p.dead then return end
 	Slab.Separator()

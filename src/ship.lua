@@ -39,6 +39,7 @@ end
 	opts.loadout  module ids by slot (defaults to the hull's loadout)
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
+	opts.color    paint { r, g, b } (defaults to the enemy definition's color)
 ]]
 function Ship.new(game, opts)
 	local hull = assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -48,7 +49,8 @@ function Ship.new(game, opts)
 		loadout = copy(opts.loadout or hull.loadout),
 		cargo = copy(opts.cargo or hull.cargo),
 		intent = Ship.emptyIntent(),
-		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, boostCooldown = 0,
+		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false, onReserve = false,
+		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
 	}
 
 	-- Collision: hulls are long and narrow, so the body is a row of circles
@@ -179,6 +181,27 @@ function Ship.fly(e, dt)
 	local side = max(-1, min(1, it.strafe or 0))
 	local steer = 0
 	if e.hull.helm == "turn" then steer, side = side, 0 end
+
+	-- Thrusters run on power. Above the reserve (powerReserve of capacity)
+	-- they push at full strength and drain power. Once power falls to the
+	-- reserve they drop to lowPowerThrust and stop draining, until the
+	-- reactor refills past the reserve plus a margin. The afterburner
+	-- ignores the reserve: full power plus extra main thrust, draining fast
+	-- until the capacitor is empty, then it's locked out until power is
+	-- back above the reserve.
+	local reserve = s.powerCap * T.powerReserve
+	if e.power <= 0 then e.burnerLocked = true elseif e.power > reserve then e.burnerLocked = false end
+	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
+	if burner then
+		fwd = 1
+		e.onReserve = false
+	elseif e.power <= reserve then
+		e.onReserve = true
+	elseif e.power >= reserve + s.powerCap * 0.2 then
+		e.onReserve = false
+	end
+	local eff = e.onReserve and T.lowPowerThrust or 1
+	e.afterburn = burner
 	local main = max(0, fwd)
 	local spoolTime = e.hull.spoolTime or 0
 	if spoolTime > 0 then
@@ -193,8 +216,13 @@ function Ship.fly(e, dt)
 	local retro = s.retroThrust * T.sideScale
 	local aux = s.sideThrust * T.sideScale
 	local scale = T.FORCE_PER_KN * T.thrustScale
-	local f = (e.spool * s.thrust + min(0, fwd) * retro) * scale
-	local l = side * aux * scale
+	local f = (e.spool * s.thrust * (burner and T.boostThrust or 1) + min(0, fwd) * retro) * eff * scale
+	local l = side * aux * eff * scale
+	if not e.onReserve then
+		local drain = (e.spool * s.burnPower + max(0, -fwd) * s.burnPower * 0.4 + abs(side) * s.jetPower) * T.thrustPowerScale
+		if burner then drain = drain + s.powerCap * T.boostDrain end
+		e.power = max(0, e.power - drain * dt)
+	end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = e.spool
 	e.retroBurn = retro > 0 and max(0, -fwd) or 0
@@ -207,16 +235,6 @@ function Ship.fly(e, dt)
 	local k = e.hull.drag * T.dragScale
 	b:applyForce(-k * speed * vx, -k * speed * vy)
 	b:setLinearDamping(T.linearDamping)
-
-	-- Afterburner: an instant forward kick from the main engine, paid for with stored power.
-	e.boostCooldown = max(0, e.boostCooldown - dt)
-	if it.boost and e.boostCooldown == 0 and e.power >= T.boostCost then
-		local m = b:getMass()
-		b:applyLinearImpulse(fx * m * T.boostSpeed, fy * m * T.boostSpeed)
-		e.power = e.power - T.boostCost
-		e.boostCooldown = 1.0
-		e.boostFlash = 0.25
-	end
 
 	-- Turning: a controller that tries to point the nose at the aim point,
 	-- limited by the torque the hull and engine can produce. Heavy ships
@@ -243,7 +261,6 @@ function Ship.fly(e, dt)
 	b:applyTorque(max(-maxTorque, min(maxTorque, torque)))
 
 	e.flash = max(0, e.flash - dt)
-	if e.boostFlash then e.boostFlash = max(0, e.boostFlash - dt) end
 end
 
 -- Convert a world-space direction someone wants to move in into this ship's

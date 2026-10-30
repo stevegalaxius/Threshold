@@ -39,6 +39,7 @@ function Game.new(opts)
 	self.camera = Camera.new()
 
 	self.playerHull = opts.hull or "halcyon_wisp"
+	self.playerColor = { 0.55, 0.9, 0.95 }
 	self.wave = 0
 	self.waveTimer = 2.5
 	self.wavesOn = opts.waves ~= false
@@ -61,7 +62,7 @@ end
 function Game:spawnPlayer(hullId, loadout, cargo)
 	if self.player and not self.player.removed then self:remove(self.player) end
 	self.playerHull = hullId or self.playerHull
-	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = 0, y = 0, angle = -pi / 2 })
+	local p = Ship.new(self, { hull = self.playerHull, loadout = loadout, cargo = cargo, team = 1, x = 0, y = 0, angle = -pi / 2, color = self.playerColor })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p

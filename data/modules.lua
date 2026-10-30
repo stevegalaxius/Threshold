@@ -4,8 +4,10 @@
 	powerDraw that is taken out of the reactor's output all the time.
 
 	Stat fields by family:
-	  engine   thrust (kN), turn
-	  thruster sideThrust (kN) for maneuvering thrusters: the only way a ship
+	  engine   thrust (kN), turn, burnPower (power/second at full throttle;
+	           retro thrusters burn 40% of it at full reverse)
+	  thruster sideThrust (kN) and jetPower (power/second at full strafe) for
+	           maneuvering thrusters: the only way a ship
 	           can strafe. Thruster slots are size "any", shared by every
 	           hull that has one, and battleships have none.
 	  reactor  powerOut (per second), powerCap (stored power)
@@ -37,7 +39,7 @@ module {
 module {
 	id = "rk7_chaingun", name = "RK-7 Chaingun", maker = "Brute Industries", family = "primary", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
-	weapon = { kind = "gun", fireRate = 400 / 60, damage = 7.5, speed = 2800, range = 1150, spread = 2.5, gimbal = 10, knockback = 400, recoil = 70 },
+	weapon = { kind = "gun", fireRate = 150 / 60, damage = 20, speed = 2800, range = 1150, spread = 2.5, gimbal = 10, knockback = 400, recoil = 70 },
 }
 
 -- Primary: artillery (slow, long range, high damage, splash) -----------------
@@ -91,9 +93,9 @@ module {
 
 -- Engines -----------------------------------------------------------------------
 
-module { id = "flit_engine",  name = "Flit Engine",  maker = "Halcyon Arms",       family = "engine", size = "S", mass = 6,  powerDraw = 2, thrust = 420,  turn = 250,  price = 3000 }
-module { id = "mule_engine",  name = "Mule Engine",  maker = "Brute Industries",   family = "engine", size = "M", mass = 16, powerDraw = 4, thrust = 900,  turn = 800,  price = 9000 }
-module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate",     family = "engine", size = "L", mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000 }
+module { id = "flit_engine",  name = "Flit Engine",  maker = "Halcyon Arms",       family = "engine", size = "S", mass = 6,  powerDraw = 2, thrust = 420,  turn = 250,  burnPower = 26,  price = 3000 }
+module { id = "mule_engine",  name = "Mule Engine",  maker = "Brute Industries",   family = "engine", size = "M", mass = 16, powerDraw = 4, thrust = 900,  turn = 800,  burnPower = 50,  price = 9000 }
+module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate",     family = "engine", size = "L", mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, burnPower = 46, price = 26000 }
 
 -- Reactors ----------------------------------------------------------------------
 
@@ -114,5 +116,5 @@ module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective"
 
 -- Maneuvering thrusters (shared "any" slot) ----------------------------------------
 
-module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 340, price = 3800 }
-module { id = "aux_thrusters_m", name = "Side Jets XL", maker = "Halcyon Arms", family = "thruster", size = "any", mass = 10, powerDraw = 4, sideThrust = 650, price = 9500 }
+module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 340, jetPower = 8,  price = 3800 }
+module { id = "aux_thrusters_m", name = "Side Jets XL", maker = "Halcyon Arms", family = "thruster", size = "any", mass = 10, powerDraw = 4, sideThrust = 650, jetPower = 14, price = 9500 }
