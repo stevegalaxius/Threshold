@@ -346,7 +346,11 @@ function Game:updateAtmosphere(dt)
 				-- the glow builds as soon as you're in, and with speed
 				local heat = min(1, depth * 1.6) * (0.45 + 0.55 * min(1, rs / 300))
 				if heat > 0.05 then
-					e.reentry, e.reentryX, e.reentryY = heat, rvx / max(rs, 1), rvy / max(rs, 1)
+					-- flame direction: the way it moves through the air, or
+					-- straight down for something just sinking in it
+					local fx, fy = rvx / max(rs, 1), rvy / max(rs, 1)
+					if rs < 60 then fx, fy = nx, ny end
+					e.reentry, e.reentryX, e.reentryY = heat, fx, fy
 					if e.kind == "ship" then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
 				end
 			end

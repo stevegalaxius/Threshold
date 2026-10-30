@@ -168,6 +168,21 @@ local function drawAsteroid(e)
 		lg.circle("line", 0, 0, e.radius * 0.9)
 	end
 	lg.pop()
+	-- heated rock: glowing orange over its whole face
+	if e.reentry then
+		lg.setBlendMode("add")
+		lg.setColor(1, 0.45, 0.15, 0.45 * e.reentry)
+		if e.verts then
+			lg.push()
+			lg.translate(x, y)
+			lg.rotate(e.body:getAngle())
+			lg.polygon("fill", e.verts)
+			lg.pop()
+		else
+			lg.circle("fill", x, y, e.radius * 0.9)
+		end
+		lg.setBlendMode("alpha")
+	end
 end
 
 local function drawStructure(game, e)
