@@ -91,8 +91,10 @@ T.laneFlow, T.laneSwirl = 1100, 0.6
 T.laneReach = 9000
 T.laneTraffic, T.laneRocks, T.laneDerelict = 10, 10, 0.04
 
--- Gas giants: how deep below the cloud tops the crush reaches full
--- strength, its damage per second there, and its drag.
+-- Gas giants: how far below the cloud tops you can go before the crush
+-- starts, how much deeper it reaches full strength, its damage per
+-- second there, and its drag.
+T.crushStart = 15000
 T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
 
 -- Hangar bays: cells across and down, and how many pixels of hull length

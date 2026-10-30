@@ -17,6 +17,7 @@ local Render = require("src.render")
 local HUD = require("src.hud")
 local Debug = require("src.debugui")
 local Cargo = require("src.ui.cargo")
+local Orrery = require("src.ui.orrery")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -55,7 +56,7 @@ function love.update(dt)
 	if autotest then
 		intent = autotest.intent(game, dt)
 	else
-		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game), Debug.blocksKeyboard())
+		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game), Debug.blocksKeyboard())
 		-- With the cargo screen up the mouse is busy, so hold the aim
 		-- straight ahead instead of chasing the cursor.
 		local p = game.player
@@ -75,7 +76,7 @@ function love.update(dt)
 	end
 	game:frame(dt, intent.aimX, intent.aimY)
 	Cargo.update(game)
-	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game))
+	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game))
 
 	if autotest then autotest.update(game, dt) end
 end
@@ -87,6 +88,7 @@ function love.draw()
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
 	end
+	Orrery.draw(game)
 	Debug.draw()
 end
 
@@ -96,6 +98,7 @@ end
 
 function love.keypressed(key)
 	if Debug.blocksKeyboard() then return end
+	if Orrery.keypressed(game, key) then return end
 	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then love.event.quit()
@@ -119,6 +122,7 @@ end
 
 function love.mousepressed(x, y, button)
 	if Debug.blocksMouse() then return end
+	if Orrery.mousepressed(game, x, y, button) then return end
 	Cargo.mousepressed(game, x, y, button)
 end
 

@@ -213,7 +213,7 @@ local function drawOffscreen(game)
 	lg.setFont(font(12))
 	for _, e in ipairs(game.entities) do
 		if game.state ~= "docked" and (e.kind == "driver" or (e.kind == "station" and e.dock)) then
-			local label = e.kind == "driver" and ("Driver to %s  %d cr"):format(e.name, game:driverFare(e.to)) or e.name
+			local label = e.kind == "driver" and "Mass driver" or e.name
 			local sx, sy = cam:toScreen(e.body:getPosition())
 			local col = e.kind == "driver" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
 			if sx < 0 or sx > w or sy < 0 or sy > h then

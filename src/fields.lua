@@ -5,9 +5,9 @@
 	  enemies   { { enemy id, count }, ... } placed around the level; they
 	            leave you alone until you come close (T.aggroRange)
 	  stations  names for its stations, in the order build makes them
-	Planets are joined by mass drivers (Fields.links, two-way). Fly into
-	one and it locks on like a station dock, lines you up and fires you
-	into a transit lane (the "lane" field) toward the other planet; you
+	Every planet map has a mass driver. Fly into it, pick a planet on its
+	orrery, and it fires you into a transit lane (the "lane" field) toward
+	that planet; you
 	come out the far end at the other planet's driver, still moving fast.
 	F2 (or the debug panel) still jumps straight to the next field for
 	testing.
@@ -39,13 +39,6 @@ local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
 Fields.list = { "earth", "venus", "mars", "jupiter", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
--- Mass driver routes between planets; each pair works both ways.
-Fields.links = {
-	{ "earth", "venus" },
-	{ "earth", "mars" },
-	{ "earth", "jupiter" },
-}
-
 -- Orbits: distance from the Sun in AU and year length in Earth years.
 Fields.orbits = {
 	venus = { au = 0.72, year = 0.615, phase = 2.1 },
@@ -66,15 +59,6 @@ function Fields.distance(a, b, clock)
 	local ax, ay = Fields.orbitPos(a, clock)
 	local bx, by = Fields.orbitPos(b, clock)
 	return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
-end
-
--- The levels a level has gates to, in a fixed order.
-function Fields.linksOf(id)
-	local out = {}
-	for _, l in ipairs(Fields.links) do
-		if l[1] == id then table.insert(out, l[2]) elseif l[2] == id then table.insert(out, l[1]) end
-	end
-	return out
 end
 
 Fields.asteroids = {

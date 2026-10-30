@@ -1,11 +1,12 @@
 --[[
 	Getting between planets, and the planets that need more than a disc.
 
-	  drivers   a small mass driver at the edge of a planet map for each
-	            route out of it (Fields.links). Fly into its capture ring
-	            and, if you can pay the fare, it locks on like a station
-	            dock, lines you up on its rail and fires you off. Short of
-	            credits, it tells you so and lets you go.
+	  drivers   a small mass driver at the edge of each planet map. Fly
+	            into its capture ring and it holds you at the breech and
+	            opens its targeting window (src/ui/orrery.lua): the planets
+	            where they are now, with the distance and fare to each.
+	            Pick one and pay, and it lines you up on its rail and fires
+	            you off; back out and it lets you go.
 	  lane      the transit lane (the "lane" field): one long straight
 	            corridor with a current running both ways, outbound below
 	            the median and oncoming above it, like a highway. Nothing
@@ -40,44 +41,67 @@ function Game:driverFare(to)
 	return math.floor((T.driverFare + T.driverFarePerAU * au) / 10 + 0.5) * 10
 end
 
--- A driver for each route out of this planet, spaced around the edge and
--- pointing outward. Markers only: nothing collides with them.
+-- One driver per planet map, at the edge of the map and pointing
+-- outward. A marker only: nothing collides with it.
 function Game:spawnDrivers()
-	local links = Fields.linksOf(self.fieldId)
-	for i, to in ipairs(links) do
-		local a = -pi / 2 + (i - 1) / #links * pi * 2 + 0.6
-		local d = self.arenaRadius - 2400
-		local x, y = cos(a) * d, sin(a) * d
-		for k = #self.entities, 1, -1 do
-			local o = self.entities[k]
-			if o.kind == "asteroid" then
-				local ox, oy = o.body:getPosition()
-				if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.driverRadius + 1200) ^ 2 then self:remove(o) end
-			end
+	if not Fields.orbits[self.fieldId] then return end
+	local a = -pi / 2 + 0.6
+	local d = self.arenaRadius - 2400
+	local x, y = cos(a) * d, sin(a) * d
+	for k = #self.entities, 1, -1 do
+		local o = self.entities[k]
+		if o.kind == "asteroid" then
+			local ox, oy = o.body:getPosition()
+			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.driverRadius + 1200) ^ 2 then self:remove(o) end
 		end
-		local body = love.physics.newBody(self.world, x, y, "static")
-		local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body,
-			radius = T.driverRadius, to = to, name = Fields[to].name, angle = a }
-		body:setUserData(g)
-		table.insert(self.entities, g)
 	end
+	local body = love.physics.newBody(self.world, x, y, "static")
+	local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body,
+		radius = T.driverRadius, name = "Mass driver", angle = a }
+	body:setUserData(g)
+	table.insert(self.entities, g)
 end
 
-function Game:findDriver(to)
+function Game:findDriver()
 	for _, g in ipairs(self.entities) do
-		if g.kind == "driver" and g.to == to then return g end
+		if g.kind == "driver" then return g end
 	end
 end
 
--- Catch the player in a driver's ring, then run the launch: line up on
--- the rail, then fire outward. p.launch = { driver, t } while it runs.
+-- Pay the fare to planet `to` and start the launch (from the driver's
+-- targeting window, src/ui/orrery.lua).
+function Game:fireDriver(to)
+	local menu, p = self.driverMenu, self.player
+	if not menu or not p or p.dead then return false end
+	local fare = self:driverFare(to)
+	if self.universe.credits < fare then
+		self:toast(("PASSAGE TO %s IS %d CR"):format(Fields[to].name:upper(), fare), 2)
+		return false
+	end
+	self.universe.credits = self.universe.credits - fare
+	self.driverMenu = nil
+	p.launch = { driver = menu.driver, to = to, t = 0 }
+	self:toast(("FIRING FOR %s  -%d CR"):format(Fields[to].name:upper(), fare), 1.6)
+	return true
+end
+
+-- Back out of the targeting window: you drift free of the ring.
+function Game:closeDriverMenu()
+	local p = self.player
+	self.driverMenu = nil
+	if p then p.driverCooldown = T.driverCooldown end
+end
+
+-- Catch the player in the driver's ring and hold them at the breech while
+-- the targeting window is up; then run the launch: line up on the rail
+-- and fire outward. p.launch = { driver, to, t } while it runs.
 function Game:updateDrivers(dt)
 	local p = self.player
-	if not p or p.dead or p.dockState then return end
+	if not p or p.dead or p.dockState then self.driverMenu = nil return end
 	local L = p.launch
-	if L then
-		L.t = L.t + dt
-		local g = L.driver
+	local menu = self.driverMenu
+	if L or menu then
+		local g = (L or menu).driver
 		local gx, gy = g.body:getPosition()
 		local x, y = p.body:getPosition()
 		local dx, dy = cos(g.angle), sin(g.angle)
@@ -87,36 +111,28 @@ function Game:updateDrivers(dt)
 		local diff = (g.angle - a + pi) % (2 * pi) - pi
 		p.body:setAngle(a + diff * min(1, dt * 4))
 		p.body:setAngularVelocity(0)
-		if L.t < T.driverAlign then
+		if menu or L.t < T.driverAlign then
+			if L then L.t = L.t + dt end
 			-- reel in to the breech at the rail's inner end
 			local bx, by = gx - dx * 500, gy - dy * 500
 			p.body:setLinearVelocity((bx - x) * 3, (by - y) * 3)
 		else
+			L.t = L.t + dt
 			local s = T.driverExitSpeed * min(1, (L.t - T.driverAlign) / T.driverFire)
 			p.body:setLinearVelocity(dx * s, dy * s)
-			if L.t >= T.driverAlign + T.driverFire then self.pendingTrip = g.to end
+			if L.t >= T.driverAlign + T.driverFire then self.pendingTrip = L.to end
 		end
 		return
 	end
 	p.driverCooldown = max(0, (p.driverCooldown or 0) - dt)
 	if p.driverCooldown > 0 then return end
+	local g = self:findDriver()
+	if not g then return end
 	local x, y = p.body:getPosition()
-	for _, g in ipairs(self.entities) do
-		if g.kind == "driver" then
-			local gx, gy = g.body:getPosition()
-			if (x - gx) ^ 2 + (y - gy) ^ 2 < g.radius ^ 2 then
-				local fare = self:driverFare(g.to)
-				if self.universe.credits < fare then
-					self:toast(("PASSAGE TO %s IS %d CR"):format(g.name:upper(), fare), 2)
-					p.driverCooldown = 3
-				else
-					self.universe.credits = self.universe.credits - fare
-					p.launch = { driver = g, t = 0 }
-					self:toast(("DRIVER LOCK  -%d CR"):format(fare), 1.6)
-				end
-				return
-			end
-		end
+	local gx, gy = g.body:getPosition()
+	if (x - gx) ^ 2 + (y - gy) ^ 2 < g.radius ^ 2 then
+		self.driverMenu = { driver = g }
+		self:toast("DRIVER LOCK", 1.2)
 	end
 end
 
@@ -142,9 +158,9 @@ function Game:arrive()
 	self:loadField(trip.to, { player = Ship.record(p), at = { driver = trip.from } })
 end
 
--- Out of driver `from` heading inward at the driver's exit speed.
-function Game:placeAtDriver(p, from)
-	local g = self:findDriver(from)
+-- Out of this planet's driver heading inward at the driver's exit speed.
+function Game:placeAtDriver(p)
+	local g = self:findDriver()
 	if not g then return false end
 	local gx, gy = g.body:getPosition()
 	local ix, iy = -cos(g.angle), -sin(g.angle)
@@ -270,7 +286,14 @@ function Game:updateCrush(dt)
 		if not e.removed and not e.dead and b:getType() == "dynamic" then
 			local x, y = b:getPosition()
 			local r = sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
-			local depth = (w.radius - r) / T.crushDepth
+			local depth = (w.radius - T.crushStart - r) / T.crushDepth
+			if r < w.radius then
+				-- thickening air all the way down, crushing past crushStart
+				local thick = min(1, (w.radius - r) / (T.crushStart + T.crushDepth))
+				local vx, vy = b:getLinearVelocity()
+				local m = b:getMass()
+				b:applyForce(-vx * T.crushDrag * 0.3 * thick * m, -vy * T.crushDrag * 0.3 * thick * m)
+			end
 			if depth > 0 then
 				depth = min(1, depth)
 				local vx, vy = b:getLinearVelocity()

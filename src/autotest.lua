@@ -731,16 +731,16 @@ function A.update(game, dt)
 		game:loadField("earth", { player = Ship.record(game.player) })
 		local p = game.player
 		A.credits1 = game.universe.credits
-		local g = game:findDriver("mars")
+		local g = game:findDriver()
 		p.body:setPosition(g.body:getPosition())
 		p.body:setLinearVelocity(0, 0)
-		local ladder = 0
-		log("travel: earth has drivers to %s; fare to mars %d cr", (function()
-			local t = {}
-			for _, e in ipairs(game.entities) do if e.kind == "driver" then table.insert(t, e.to) end end
-			return table.concat(t, ", ")
-		end)(), game:driverFare("mars"))
 	end) end
+	if t >= 36.1 then once("travel_pick", function()
+		log("travel: driver window open %s; fares venus %d, mars %d, jupiter %d cr", tostring(game.driverMenu ~= nil),
+			game:driverFare("venus"), game:driverFare("mars"), game:driverFare("jupiter"))
+		shot("13b_orrery")
+	end) end
+	if t >= 36.2 then once("travel_fire", function() game:fireDriver("mars") end) end
 	if t >= 38.3 then once("travel_lane", function()
 		local p = game.player
 		local x, y = p.body:getPosition()
@@ -764,7 +764,7 @@ function A.update(game, dt)
 		local Ship = require("src.ship")
 		game:loadField("jupiter", { player = Ship.record(p) })
 		local q = game.player
-		q.body:setPosition(0, game.well.radius - 5000)
+		q.body:setPosition(0, game.well.radius - T.crushStart - 4000)
 		A.armor0 = q.armor
 	end) end
 	if t >= 38.9 then once("crush", function()
