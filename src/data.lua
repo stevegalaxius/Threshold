@@ -18,11 +18,23 @@ local data = {
 	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
 }
 
-local FAMILIES = { primary = true, secondary = true, engine = true, reactor = true, utility = true, thruster = true }
+-- Slot families. primary / secondary are fire groups for guns (left and
+-- right mouse button); auxiliary holds a launcher (middle mouse button).
+local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+-- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
+-- secondary slot; every other family fits the slot of the same name.
+local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
-local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true }
+local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
+
+-- Does a module fit a hull slot?
+function data.fits(slot, m)
+	if m.size ~= slot.size then return false end
+	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
+	return m.family == slot.family
+end
 
 local currentFile = "?"
 
@@ -66,7 +78,7 @@ end
 function api.module(def)
 	register("modules", "module", def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
-	if not FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
+	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
@@ -122,7 +134,7 @@ end
 
 -- Every ammo a weapon module can fire, biggest first: same family as the
 -- weapon kind, and the same caliber (guns, artillery) or the same size or
--- smaller (missile launchers).
+-- smaller (auxiliary launchers: missiles, torpedoes, drones).
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
@@ -131,7 +143,7 @@ function data.ammoOptions(module)
 		local item = data.items[id]
 		if item.kind == "ammo" and item.family == w.kind then
 			local fits = item.size == module.size
-			if w.kind == "missile" then fits = SIZES[item.size] <= SIZES[module.size] end
+			if module.family == "auxiliary" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end
 	end
@@ -144,12 +156,12 @@ function data.ammoFor(module)
 	return data.ammoOptions(module)[1]
 end
 
--- Modules that fit a slot: same family, same size (size matching is strict).
+-- Modules that fit a slot (size matching is strict).
 function data.modulesFor(slot)
 	local out = {}
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]
-		if m.family == slot.family and m.size == slot.size then table.insert(out, id) end
+		if data.fits(slot, m) then table.insert(out, id) end
 	end
 	return out
 end
@@ -161,7 +173,7 @@ local function crossCheck()
 			if id and id ~= false then
 				local m = data.modules[id]
 				if not m then error(("%s: loadout slot %d uses unknown module '%s'"):format(owner, i, id), 0) end
-				if m.family ~= slot.family or m.size ~= slot.size then
+				if not data.fits(slot, m) then
 					error(("%s: module '%s' (%s %s) doesn't fit slot %d (%s %s)"):format(
 						owner, id, m.family, m.size, i, slot.family, slot.size), 0)
 				end

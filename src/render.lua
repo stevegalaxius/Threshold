@@ -179,7 +179,7 @@ local function drawShip(game, e)
 		lg.rotate(w.aim or 0)
 		lg.setColor(0.75, 0.78, 0.82)
 		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
-		if w.group == "secondary" then
+		if w.group == "auxiliary" then
 			lg.rectangle("fill", -4, -4, 8, 8)
 		else
 			lg.rectangle("fill", 0, -thick / 2, len, thick)
@@ -252,6 +252,7 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
+local TORPEDO = { S = 4, M = 6, L = 9 }
 
 -- Shots keep a minimum on-screen size, so they stay visible zoomed out.
 local function drawProjectiles(game)
@@ -268,6 +269,14 @@ local function drawProjectiles(game)
 			lg.circle("fill", p.x, p.y, max(SHELL[p.size] or 4, 2 * px))
 			lg.setColor(1, 0.9, 0.7, 0.5)
 			lg.line(p.x - p.vx * 0.012 * trail, p.y - p.vy * 0.012 * trail, p.x, p.y)
+		elseif p.kind == "torpedo" then
+			local r = max(TORPEDO[p.size] or 5, 2.5 * px)
+			lg.setColor(1, 0.35, 0.2, 0.35)
+			lg.circle("fill", p.x, p.y, r * 2.2)
+			lg.setColor(1, 0.55, 0.3, 0.7)
+			lg.line(p.x - p.vx * 0.03 * trail, p.y - p.vy * 0.03 * trail, p.x, p.y)
+			lg.setColor(1, 0.9, 0.75)
+			lg.circle("fill", p.x, p.y, r)
 		elseif p.kind == "missile" then
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
@@ -302,6 +311,9 @@ local function drawEffects(game)
 			local c = fx.color or { 1, 0.8, 0.5 }
 			lg.setColor(c[1], c[2], c[3], 1 - k)
 			lg.rectangle("fill", floor(fx.x), floor(fx.y), 2, 2)
+		elseif fx.kind == "explosion" and fx.dust then
+			lg.setColor(0.6, 0.6, 0.65, (1 - k) * 0.35)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.5 + k * 0.8))
 		elseif fx.kind == "explosion" then
 			lg.setColor(1, 0.75, 0.4, (1 - k) * 0.25)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
@@ -321,7 +333,7 @@ local function drawRange(game)
 	if not p or p.dead then return end
 	local reach = 0
 	for _, w in ipairs(p.weapons) do
-		if w.group == "primary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
+		if w.group ~= "auxiliary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
 	local x, y = p.body:getPosition()

@@ -83,6 +83,22 @@ function Game:spawnEnemy(id, x, y)
 	return e
 end
 
+-- A drone from a drone bay: a small AI ship on the launcher's side, in the
+-- launcher's paint, that fights until its life runs out or it's destroyed.
+local DRONE_AI = { style = "orbit", range = 450, accuracy = 0.6, throttle = 0.9, burstOn = 1.2, burstOff = 0.8 }
+function Game:launchDrone(owner, item, x, y, angle)
+	local shot = item.shot
+	local d = Ship.new(self, {
+		hull = shot.hull, cargo = shot.cargo, team = owner.team, x = x, y = y, angle = angle,
+		color = owner.color, enemy = { id = item.id, ai = DRONE_AI },
+	})
+	d.drone, d.owner, d.life = true, owner, shot.life
+	local vx, vy = owner.body:getLinearVelocity()
+	d.body:setLinearVelocity(vx + cos(angle) * shot.speed, vy + sin(angle) * shot.speed)
+	table.insert(self.entities, d)
+	return d
+end
+
 -- A point a given distance from the player, kept inside the arena.
 function Game:spawnPoint(minD, maxD)
 	local cx, cy = 0, 0
@@ -118,7 +134,8 @@ function Game:spawnAsteroid(x, y, radius)
 	body:setAngularDamping(0.2)
 	body:setAngularVelocity((random() - 0.5) * 0.6)
 	body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
-	local e = { kind = "asteroid", id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture, shade = 0.55 + random() * 0.25 }
+	local e = { kind = "asteroid", id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture, shade = 0.55 + random() * 0.25,
+		hp = radius * radius * T.asteroidToughness }
 	fixture:setUserData(e)
 	body:setUserData(e)
 	table.insert(self.entities, e)
@@ -216,6 +233,10 @@ function Game:step(dt)
 
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead then
+			if e.life then
+				e.life = e.life - dt
+				if e.life <= 0 then e.dead = true end
+			end
 			if e.def then AI.think(self, e, dt) end
 			Ship.fly(e, dt)
 			Weapons.update(self, e, dt)
@@ -274,8 +295,12 @@ function Game:resolveContacts()
 		if impactSpeed > T.ramSpeed and c.x then
 			local base = c.imp * T.ramDamageScale * (1 - T.ramSpeed / impactSpeed)
 			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
-			if c.a.kind == "ship" then self:damage(c.a, base * ramMult(c.b), c.b, "ram") end
-			if c.b.kind == "ship" then self:damage(c.b, base * ramMult(c.a), c.a, "ram") end
+			local function hit(o, other)
+				local mult = (o.kind == "asteroid") and T.asteroidImpact or ramMult(other)
+				self:damage(o, base * mult, other, "ram")
+			end
+			hit(c.a, c.b)
+			hit(c.b, c.a)
 			self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
 			if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
 			events.emit("ram", c.a, c.b, base)
@@ -299,6 +324,12 @@ end
 
 -- cause: gun, artillery, laser, missile, splash or ram (passed on to listeners)
 function Game:damage(e, amount, source, cause)
+	-- Asteroids don't flinch: they soak damage until they break apart (in reap).
+	if e and e.kind == "asteroid" and not e.dead and amount > 0 then
+		e.hp = e.hp - amount
+		if e.hp <= 0 then e.dead = true end
+		return
+	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
 	if source and source.def then amount = amount * T.enemyDamage end   -- difficulty knob
 	e.flash = 0.08
@@ -330,7 +361,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			if e == direct then fall = 1 end
 			if fall > 0 then
 				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash") end
-				if d > 1 then
+				if d > 1 and e.kind == "ship" then
 					local k = knockback * fall
 					e.body:applyLinearImpulse(dx / d * k, dy / d * k)
 				end
@@ -397,16 +428,42 @@ function Game:updatePickups(dt)
 	end
 end
 
+-- An asteroid that took too much damage splits into two to four smaller
+-- rocks flying apart; pieces too small to matter just crumble to dust.
+function Game:breakAsteroid(e)
+	local x, y = e.body:getPosition()
+	local vx, vy = e.body:getLinearVelocity()
+	local n = random(2, 4)
+	local spin = random() * pi * 2
+	for k = 1, n do
+		local r = e.radius * sqrt(1 / n) * (0.75 + random() * 0.25)
+		if r >= 14 then
+			local a = spin + k / n * pi * 2 + (random() - 0.5) * 0.6
+			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r)
+			local s = 40 + random() * 90
+			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
+		end
+	end
+	self:spark(x, y, 8 + floor(e.radius / 4), { 0.65, 0.65, 0.7 })
+	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
+end
+
 -- Remove dead ships: explode, drop what they carried, count the kill.
+-- Broken asteroids split apart.
 function Game:reap()
 	local i = 1
 	while i <= #self.entities do
 		local e = self.entities[i]
-		if e.dead then
+		if e.dead and e.kind == "asteroid" then
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
+			self:breakAsteroid(e)
+		elseif e.dead then
 			local x, y = e.body:getPosition()
 			self:explode(x, y, e.halfLength * 1.6, 0, 3000)
 			self:spark(x, y, 24, { 1, 0.6, 0.3 })
-			if e.def then
+			if e.def and not e.drone then
 				self.kills = self.kills + 1
 				self:dropLoot(e, x, y)
 			end
@@ -480,12 +537,12 @@ function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
--- Q: switch the player's missile launchers to the next missile size.
-function Game:cycleMissiles()
+-- Q: switch the player's auxiliary launcher to the next size it can fire.
+function Game:cycleAux()
 	local p = self.player
 	if not p or p.dead then return end
-	local id = Weapons.cycleAmmo(p, "secondary")
-	if id then self:toast("MISSILES: " .. data.items[id].name:upper(), 1.2) end
+	local id = Weapons.cycleAmmo(p, "auxiliary")
+	if id then self:toast("AUX: " .. data.items[id].name:upper(), 1.2) end
 end
 
 function Game:toast(text, duration, style)

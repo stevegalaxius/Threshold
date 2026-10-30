@@ -11,14 +11,17 @@
 	  reactor  powerOut (per second), powerCap (stored power)
 	  utility  hold (cubic metres), tractorRange (pixels). Utility modules are
 	           size "any" and fit any hull's utility slot.
-	  primary / secondary: a weapon table
+	  weapon   (guns, artillery, lasers) fits a hull's primary or secondary
+	           slot; which one decides the mouse button that fires it.
+	  auxiliary (missile, torpedo and drone launchers) fits the auxiliary
+	           slot and fires on the middle mouse button.
 
 	Weapon fields:
-	  kind        gun, artillery, laser or missile. Guns, artillery and
-	              missiles fire ammo of their own kind (guns and artillery
-	              in their exact caliber, launchers their size or smaller),
-	              and the ammo sets damage, speed, range, splash
-	              and knockback (data/items.lua). Lasers are pulse lasers
+	  kind        gun, artillery or laser (weapon family); missile, torpedo
+	              or drone (auxiliary family). Each fires ammo of its own
+	              kind: guns and artillery in their exact caliber, auxiliary
+	              launchers their size or smaller. The ammo sets damage,
+	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
 	              knockback, pulse (seconds the flash shows) and
 	              powerPerShot themselves.
@@ -27,74 +30,112 @@
 	  recoil      push back on the shooter
 ]]
 
--- Primary: guns (fast, short range, no splash) ------------------------------
+-- Weapons: guns (fast, short range, no splash) --------------------------------
 
 module {
-	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "primary", size = "S",
+	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 4, powerDraw = 1, price = 2200,
 	weapon = { kind = "gun", fireRate = 150 / 60, spread = 2, gimbal = 10, recoil = 40 },
 }
 
 module {
-	id = "rk7_chaingun", name = "RK-7 Chaingun", maker = "Brute Industries", family = "primary", size = "M",
+	id = "rk7_chaingun", name = "RK-7 Chaingun", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
 	weapon = { kind = "gun", fireRate = 150 / 60, spread = 2.5, gimbal = 10, recoil = 70 },
 }
 
--- Primary: artillery (slow, long range, high damage, splash) -----------------
+-- Weapons: artillery (slow, long range, high damage, splash) -----------------
 -- Shells fly their full range and burst on contact, near an enemy, or at the end of their range.
 
 module {
-	id = "pip_mortar", name = "Pip Mortar", maker = "Ferrous Collective", family = "primary", size = "S",
+	id = "pip_mortar", name = "Pip Mortar", maker = "Ferrous Collective", family = "weapon", size = "S",
 	mass = 6, powerDraw = 1, price = 3400,
 	weapon = { kind = "artillery", fireRate = 1.2, spread = 1, gimbal = 6, recoil = 1500 },
 }
 
 module {
-	id = "thumper_m", name = "Thumper", maker = "Brute Industries", family = "primary", size = "M",
+	id = "thumper_m", name = "Thumper", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 16, powerDraw = 2, price = 9000,
 	weapon = { kind = "artillery", fireRate = 0.8, spread = 1, gimbal = 6, recoil = 4000 },
 }
 
 module {
-	id = "long_tom", name = "Long Tom", maker = "Ferrous Collective", family = "primary", size = "L",
+	id = "long_tom", name = "Long Tom", maker = "Ferrous Collective", family = "weapon", size = "L",
 	mass = 34, powerDraw = 3, price = 24000,
 	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoil = 12000 },
 }
 
--- Primary: pulse lasers (no ammo, a chunk of power per pulse) -----------------
+-- Weapons: pulse lasers (no ammo, a chunk of power per pulse) -----------------
 
 module {
-	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "primary", size = "S",
+	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 5, price = 5200,
 	weapon = { kind = "laser", fireRate = 1.0, damage = 30, powerPerShot = 20, pulse = 0.12, range = 750, gimbal = 12, knockback = 1500 },
 }
 
 module {
-	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "primary", size = "M",
+	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 12, price = 14000,
 	weapon = { kind = "laser", fireRate = 0.9, damage = 65, powerPerShot = 45, pulse = 0.14, range = 900, gimbal = 12, knockback = 3000 },
 }
 
--- Secondary: missile launchers ---------------------------------------------------
--- Q switches which missile size the launchers fire.
+-- Auxiliary launchers -------------------------------------------------------------
+-- Missiles (guided), torpedoes (unguided, huge damage) and drone bays (launch
+-- an armed drone that fights for you for a while). Each fires its own kind
+-- in its size or smaller; Q switches the size.
 
 module {
-	id = "sparrow_rack", name = "Sparrow Rack", maker = "Halcyon Arms", family = "secondary", size = "S",
+	id = "sparrow_rack", name = "Sparrow Rack", maker = "Halcyon Arms", family = "auxiliary", size = "S",
 	mass = 3, price = 4000,
 	weapon = { kind = "missile", fireRate = 1.5, recoil = 300 },
 }
 
 module {
-	id = "hornet_pod", name = "Hornet Pod", maker = "Nova Syndicate", family = "secondary", size = "M",
+	id = "hornet_pod", name = "Hornet Pod", maker = "Nova Syndicate", family = "auxiliary", size = "M",
 	mass = 8, price = 11000,
 	weapon = { kind = "missile", fireRate = 1.0, recoil = 800 },
 }
 
 module {
-	id = "trident_bay", name = "Trident Bay", maker = "Ferrous Collective", family = "secondary", size = "L",
+	id = "trident_bay", name = "Trident Bay", maker = "Ferrous Collective", family = "auxiliary", size = "L",
 	mass = 18, price = 26000,
 	weapon = { kind = "missile", fireRate = 0.7, recoil = 1600 },
+}
+
+module {
+	id = "maul_tube", name = "Maul Tube", maker = "Brute Industries", family = "auxiliary", size = "S",
+	mass = 5, price = 5000,
+	weapon = { kind = "torpedo", fireRate = 0.5, recoil = 600 },
+}
+
+module {
+	id = "breaker_tube", name = "Breaker Tube", maker = "Brute Industries", family = "auxiliary", size = "M",
+	mass = 12, price = 14000,
+	weapon = { kind = "torpedo", fireRate = 0.35, recoil = 1500 },
+}
+
+module {
+	id = "leviathan_tube", name = "Leviathan Tube", maker = "Ferrous Collective", family = "auxiliary", size = "L",
+	mass = 26, price = 32000,
+	weapon = { kind = "torpedo", fireRate = 0.25, recoil = 4000 },
+}
+
+module {
+	id = "wasp_bay", name = "Wasp Bay", maker = "Nova Syndicate", family = "auxiliary", size = "S",
+	mass = 6, price = 7000,
+	weapon = { kind = "drone", fireRate = 0.4, recoil = 100 },
+}
+
+module {
+	id = "hive_bay", name = "Hive Bay", maker = "Nova Syndicate", family = "auxiliary", size = "M",
+	mass = 14, price = 18000,
+	weapon = { kind = "drone", fireRate = 0.3, recoil = 200 },
+}
+
+module {
+	id = "carrier_deck", name = "Carrier Deck", maker = "Nova Syndicate", family = "auxiliary", size = "L",
+	mass = 30, price = 40000,
+	weapon = { kind = "drone", fireRate = 0.2, recoil = 400 },
 }
 
 -- Engines -----------------------------------------------------------------------

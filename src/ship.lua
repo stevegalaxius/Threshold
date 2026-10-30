@@ -31,7 +31,7 @@ function Ship.emptyIntent()
 	-- thrust: -1..1 along the nose (forward is the main engine, back is retro thrusters)
 	-- strafe: -1..1 to the ship's right (maneuvering thrusters, or turning
 	--         right on a hull with helm = "turn")
-	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, boost = false }
+	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false }
 end
 
 --[[ Ship.new(game, opts)
@@ -91,7 +91,7 @@ function Ship.refit(e)
 	local hull = e.hull
 	for i, slot in ipairs(hull.slots) do
 		local m = e.loadout[i] and data.modules[e.loadout[i]]
-		if not m or m.family ~= slot.family or m.size ~= slot.size then e.loadout[i] = false end
+		if not m or not data.fits(slot, m) then e.loadout[i] = false end
 	end
 
 	e.stats = stats.compute(hull, e.loadout)
@@ -101,7 +101,7 @@ function Ship.refit(e)
 		if m and m.weapon then
 			table.insert(e.weapons, {
 				slot = slot, module = m, w = m.weapon,
-				group = (slot.family == "secondary") and "secondary" or "primary",
+				group = slot.family,              -- primary, secondary or auxiliary
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})

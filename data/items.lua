@@ -4,7 +4,8 @@
 	the ship sluggish. Prices are what markets charge (not used yet in the
 	flight toy, but they're the numbers the economy will be tuned with).
 
-	Ammo: family (gun, artillery or missile) and size (S, M or L) decide
+	Ammo: family (gun, artillery, missile, torpedo or drone) and size (S, M
+	or L) decide
 	which weapons can fire it: guns and artillery only take their own
 	caliber, missile launchers take missiles of their size or smaller. The damage is in the ammo, not the weapon (the weapon
 	only sets fire rate, accuracy, gimbal and recoil), so the shot table
@@ -14,7 +15,10 @@
 	  range      pixels (shots expire there)
 	  accel, turnRate   missiles only: acceleration and turn (rad/s)
 	Artillery and missiles burst on contact, at the end of their range, or
-	when they pass within half their splash radius of an enemy.
+	when they pass within half their splash radius of an enemy. Torpedoes
+	are unguided and only burst on contact or at the end of their range.
+	Drones aren't shots: their shot table names the hull that launches
+	(hull), its gun ammo (cargo) and how many seconds it fights (life).
 ]]
 
 ammo { id = "rounds_s",  name = "Light rounds",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3,
@@ -35,6 +39,20 @@ ammo { id = "missile_m", name = "Hornet missile",  maker = "Nova Syndicate",   f
 	shot = { damage = 140, splash = 70, speed = 1000, range = 3000, knockback = 10000, accel = 1800, turnRate = 4 } }
 ammo { id = "missile_l", name = "Longbow missile", maker = "Ferrous Collective", family = "missile", size = "L", volume = 3.00, mass = 2.50, price = 2000,
 	shot = { damage = 260, splash = 110, speed = 900, range = 3400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
+
+ammo { id = "torp_s", name = "Maul torpedo",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600,
+	shot = { damage = 220, splash = 80, speed = 750, range = 2400, knockback = 15000 } }
+ammo { id = "torp_m", name = "Breaker torpedo",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400,
+	shot = { damage = 500, splash = 130, speed = 650, range = 2800, knockback = 35000 } }
+ammo { id = "torp_l", name = "Leviathan torpedo", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 3200,
+	shot = { damage = 1100, splash = 210, speed = 550, range = 3200, knockback = 80000 } }
+
+ammo { id = "drone_s", name = "Wasp drone",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500,
+	shot = { hull = "wasp_drone", cargo = { rounds_s = 150 }, life = 25, speed = 300, range = 1500 } }
+ammo { id = "drone_m", name = "Hive drone",    maker = "Nova Syndicate", family = "drone", size = "M", volume = 8, mass = 7, price = 6000,
+	shot = { hull = "hive_drone", cargo = { rounds_m = 200 }, life = 30, speed = 250, range = 1800 } }
+ammo { id = "drone_l", name = "Warden drone",  maker = "Nova Syndicate", family = "drone", size = "L", volume = 16, mass = 14, price = 14000,
+	shot = { hull = "warden_drone", cargo = { rounds_m = 300 }, life = 40, speed = 200, range = 2000 } }
 
 salvage { id = "scrap",       name = "Scrap metal",      volume = 0.5, mass = 0.4, price = 60 }
 salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 0.3, price = 260 }

@@ -67,7 +67,7 @@ end
 function A.intent(game, dt)
 	local t = game.time
 	local p = game.player
-	local it = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, boost = false, aimX = 0, aimY = 0 }
+	local it = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, aimX = 0, aimY = 0 }
 	if not p or p.dead then return it end
 	local px, py = p.body:getPosition()
 	it.aimX, it.aimY = px + 300, py
@@ -88,7 +88,7 @@ function A.intent(game, dt)
 			local err = math.max(-1, math.min(1, (d - 600) / 200))
 			it.thrust, it.strafe = Ship.toLocal(p, -dy / d * 0.8 + dx / d * err, dx / d * 0.8 + dy / d * err)
 			it.firePrimary = d < 950
-			it.fireSecondary = (math.floor(t * 2) % 7 == 0)
+			it.fireAux = (math.floor(t * 2) % 7 == 0)
 			it.boost = (math.floor(t) % 5 == 0)
 		end
 	elseif t < 27 then

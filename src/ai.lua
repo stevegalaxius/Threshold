@@ -66,18 +66,43 @@ local function avoidCollisions(game, e, target, x, y, vx, vy)
 	return px, py, worst
 end
 
+-- Who an AI ship fights: enemies go for the player; drones go for the
+-- nearest ship on another team.
+local function pickTarget(game, e, x, y)
+	if not e.drone then return game.player end
+	local best, bestD = nil, 3000 * 3000
+	for _, o in ipairs(game.entities) do
+		if o.kind == "ship" and not o.dead and o.team ~= e.team then
+			local ox, oy = o.body:getPosition()
+			local d = (ox - x) ^ 2 + (oy - y) ^ 2
+			if d < bestD then best, bestD = o, d end
+		end
+	end
+	return best
+end
+
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
-	it.firePrimary, it.fireSecondary, it.boost = false, false, false
+	it.firePrimary, it.fireSecondary, it.fireAux, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
 
 	local x, y = e.body:getPosition()
-	local target = game.player
+	local target = pickTarget(game, e, x, y)
 	if not target or target.dead then
 		it.targetDist = nil
 		local a = e.body:getAngle()
 		it.aimX, it.aimY = x + cos(a) * 100, y + sin(a) * 100
+		-- A drone with nothing to fight stays near whoever launched it.
+		local o = e.owner
+		if o and not o.dead then
+			local ox, oy = o.body:getPosition()
+			local mx, my, d = norm(ox - x, oy - y)
+			if d > 350 then
+				it.aimX, it.aimY = ox, oy
+				it.thrust, it.strafe = Ship.toLocal(e, mx * 0.8, my * 0.8)
+			end
+		end
 		return
 	end
 
@@ -202,6 +227,7 @@ function AI.think(game, e, dt)
 	local ax, ay = norm(aimX - x, aimY - y)
 	local facing = e.hull.mount == "turret" or (fx * ax + fy * ay) > 0.95
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
+	it.fireSecondary = it.firePrimary
 end
 
 return AI

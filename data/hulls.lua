@@ -29,9 +29,12 @@
 
 	armor is part of the hull itself, not a module.
 
-	Slots: family is primary, secondary, engine, reactor, utility or
-	thruster; size is S, M or L, and a module only fits a slot of its own
-	family and size. Utility and thruster slots are size "any": shared
+	Slots: family is primary, secondary, auxiliary, engine, reactor,
+	utility or thruster; size is S, M or L. Primary and secondary slots
+	take weapons (guns, artillery, lasers) and are the two fire groups: left
+	and right mouse button. The auxiliary slot takes a launcher (missiles,
+	torpedoes, drones) on the middle mouse button. Everything else takes a
+	module of its own family. Sizes must match. Utility and thruster slots are size "any": shared
 	slots every class has alike. Slots with x,y are drawn on the hull
 	(weapons fire from there).
 
@@ -46,7 +49,7 @@ hull {
 	slots = {
 		{ family = "primary",   size = "S", x = 12,   y = -9 },
 		{ family = "primary",   size = "S", x = 12,   y = 9 },
-		{ family = "secondary", size = "S", x = -4,  y = 0 },
+		{ family = "auxiliary", size = "S", x = -4,  y = 0 },
 		{ family = "engine",    size = "S", x = -26, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "utility",   size = "any" },
@@ -64,14 +67,15 @@ hull {
 	slots = {
 		{ family = "primary",   size = "M", x = 40,  y = -20 },
 		{ family = "primary",   size = "M", x = 40,  y = 20 },
-		{ family = "secondary", size = "M", x = 12,  y = 0 },
+		{ family = "secondary", size = "M", x = 60,  y = 0 },
+		{ family = "auxiliary", size = "M", x = 12,  y = 0 },
 		{ family = "engine",    size = "M", x = -68, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
 		{ family = "thruster",  size = "any" },
 	},
-	loadout = { "rk7_chaingun", "rk7_chaingun", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters_m" },
-	cargo = { rounds_m = 500, missile_m = 4, missile_s = 6 },
+	loadout = { "rk7_chaingun", "rk7_chaingun", "thumper_m", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters_m" },
+	cargo = { rounds_m = 500, shell_m = 20, missile_m = 4, missile_s = 6 },
 	price = 38000,
 }
 
@@ -83,13 +87,13 @@ hull {
 	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
 	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
-		{ family = "primary",   size = "L", x = 80,  y = 0 },
-		{ family = "primary",   size = "L", x = -60, y = 0 },
+		{ family = "secondary", size = "L", x = 80,  y = 0 },
+		{ family = "secondary", size = "L", x = -60, y = 0 },
 		{ family = "primary",   size = "M", x = 28,  y = -32 },
 		{ family = "primary",   size = "M", x = 28,  y = 32 },
 		{ family = "primary",   size = "M", x = -52, y = -36 },
 		{ family = "primary",   size = "M", x = -52, y = 36 },
-		{ family = "secondary", size = "L", x = 12,  y = 0 },
+		{ family = "auxiliary", size = "L", x = 12,  y = 0 },
 		{ family = "engine",    size = "L", x = -132, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
@@ -129,4 +133,46 @@ hull {
 	},
 	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },
 	cargo = { rounds_s = 200 },
+}
+
+-- Drones: launched from drone bays, fight on the launcher's side for a while.
+
+hull {
+	id = "wasp_drone", name = "Wasp", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
+	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8,
+	shape = { 22,0, 2,-4, -12,-8, -8,0, -12,8, 2,4 },
+	slots = {
+		{ family = "primary", size = "S", x = 8,  y = 0 },
+		{ family = "engine",  size = "S", x = -10, y = 0 },
+		{ family = "reactor", size = "S" },
+	},
+	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },
+	cargo = {},
+}
+
+hull {
+	id = "hive_drone", name = "Hive", maker = "Nova Syndicate", class = "drone", playable = false, mount = "gimbal",
+	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14,
+	shape = { 34,0, 6,-9, -20,-14, -14,0, -20,14, 6,9 },
+	slots = {
+		{ family = "primary", size = "M", x = 12, y = 0 },
+		{ family = "engine",  size = "M", x = -16, y = 0 },
+		{ family = "reactor", size = "M" },
+	},
+	loadout = { "rk7_chaingun", "mule_engine", "kiln_reactor" },
+	cargo = {},
+}
+
+hull {
+	id = "warden_drone", name = "Warden", maker = "Nova Syndicate", class = "drone", playable = false, mount = "turret", turretTurn = 200,
+	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20,
+	shape = { 48,0, 20,-16, -26,-20, -36,0, -26,20, 20,16 },
+	slots = {
+		{ family = "primary", size = "M", x = 14, y = -8 },
+		{ family = "primary", size = "M", x = 14, y = 8 },
+		{ family = "engine",  size = "M", x = -34, y = 0 },
+		{ family = "reactor", size = "M" },
+	},
+	loadout = { "rk7_chaingun", "rk7_chaingun", "mule_engine", "kiln_reactor" },
+	cargo = {},
 }

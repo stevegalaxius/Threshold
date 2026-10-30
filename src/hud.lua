@@ -67,7 +67,8 @@ local function weaponLines(p)
 		line.n = line.n + 1
 		line.starved = line.starved or w.starved
 	end
-	table.sort(lines, function(a, b) return (a.group == "primary") and b.group ~= "primary" end)
+	local ORDER = { primary = 1, secondary = 2, auxiliary = 3 }
+	table.sort(lines, function(a, b) return ORDER[a.group] < ORDER[b.group] end)
 	return lines
 end
 
@@ -93,8 +94,9 @@ local function drawStatus(game)
 	lg.setFont(font(12))
 	local ly = y + 56
 	for _, line in ipairs(lines) do
-		local label = (line.n > 1 and (line.n .. "x ") or "") .. line.name
-		lg.setColor(line.group == "secondary" and { 1, 0.85, 0.7 } or INK)
+		local tag = ({ primary = "LMB", secondary = "RMB", auxiliary = "MMB" })[line.group] or ""
+		local label = tag .. "  " .. (line.n > 1 and (line.n .. "x ") or "") .. line.name
+		lg.setColor(line.group == "auxiliary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
 		lg.print(label, x + 14, ly)
 		local right, col
 		if line.kind == "laser" then
@@ -144,7 +146,8 @@ end
 local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
-	"LMB fire   RMB missile   Q missile size",
+	"LMB primary   RMB secondary   MMB auxiliary",
+	"Q auxiliary ammo size",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
 	"H hide help   Esc quit",
