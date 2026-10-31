@@ -161,7 +161,7 @@ local function fire(game, e, slot, dt)
 		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
 		p.life = ws.range / ws.speed * 1.3
 		p.damage = ws.damage * mult.missileDamage
-		p.target = nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
+		p.target = (e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5

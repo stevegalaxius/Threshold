@@ -9,6 +9,8 @@
 	           can strafe. Thruster slots are size "any", shared by every
 	           hull that has one, and battleships have none.
 	  reactor  powerOut (per second), powerCap (stored power)
+	  computer universal (size "any"), one per hull. computer = "nav",
+	           "ordnance" or "radar" (radarRange px); see src/computers.lua.
 	  utility  hold (cubic metres), tractorRange (pixels). Utility modules are
 	           size "any" and fit any hull's utility slot.
 	  weapon   (guns, artillery, lasers) fits a hull's primary or secondary
@@ -179,3 +181,8 @@ module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective"
 -- fitted in (S as listed, M and L stronger, heavier and hungrier).
 module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800,
 	bySlot = { S = 1, M = 1.9, L = 3.5, any = 1 } }
+
+-- Computers: one universal slot on every playable hull (src/computers.lua).
+module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav",      price = 2500 }
+module { id = "fire_computer", name = "Ordnance Computer", maker = "Concord Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", price = 6000 }
+module { id = "radar_suite",   name = "Radar Suite",       maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "radar", radarRange = 4000, price = 9000 }

@@ -122,6 +122,8 @@ function love.keypressed(key)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
+	elseif key == "t" and lastIntent then game:radarLock(lastIntent.aimX or 0, lastIntent.aimY or 0)
+	elseif key == "g" then game:toggleDroneControl()
 	elseif key == "f2" then game:nextField()
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()

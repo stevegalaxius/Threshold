@@ -10,6 +10,7 @@ T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
 	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1,    precision = 2 },
 	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.08,   precision = 2 },
+	{ key = "droneRecall",    label = "Drone: idle secs before docking", min = 2, max = 30, value = 10, precision = 0 },
 	{ key = "aiCruise",       label = "AI: fighting speed (px/s)", min = 100, max = 2500, value = 750, precision = 0 },
 	{ key = "traderCruise",   label = "AI: trader cruise (px/s)", min = 100, max = 2500, value = 600, precision = 0 },
 	{ key = "aiResponse",     label = "AI: speed error for full thrust", min = 20, max = 800, value = 200, precision = 0 },

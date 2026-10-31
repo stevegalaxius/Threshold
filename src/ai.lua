@@ -234,12 +234,21 @@ function AI.think(game, e, dt)
 
 	local x, y = e.body:getPosition()
 	local target = pickTarget(game, e, x, y)
+	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil
 		local a = e.body:getAngle()
 		it.aimX, it.aimY = x + cos(a) * 100, y + sin(a) * 100
-		-- A drone with nothing to fight stays near whoever launched it.
+		-- A drone with nothing to fight stays near whoever launched it,
+		-- and after T.droneRecall seconds of that, docks back into its hold.
 		local o = e.owner
+		if e.drone then
+			e.idleTime = (e.idleTime or 0) + dt
+			if e.idleTime >= T.droneRecall and o and not o.dead then
+				local ox, oy = o.body:getPosition()
+				if (ox - x) ^ 2 + (oy - y) ^ 2 < 500 ^ 2 then e.recalled = true end
+			end
+		end
 		if o and not o.dead then
 			local ox, oy = o.body:getPosition()
 			local mx, my, d = norm(ox - x, oy - y)

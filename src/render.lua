@@ -923,6 +923,7 @@ function Render.world(game)
 	end
 	drawBeams(game)
 	drawEffects(game)
+	game:drawComputers(screenPx)
 	game.camera:release()
 end
 

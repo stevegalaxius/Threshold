@@ -141,7 +141,8 @@ function Game:launchDrone(owner, item, x, y, angle)
 		hull = shot.hull, cargo = shot.cargo, team = owner.team, x = x, y = y, angle = angle,
 		color = owner.color, enemy = { id = item.id, ai = DRONE_AI },
 	})
-	d.drone, d.owner, d.life = true, owner, shot.life
+	-- drones never expire: they come home once there's nothing to fight
+	d.drone, d.owner, d.itemId = true, owner, item.id
 	-- A ship never collides with its own drones (or they with each other):
 	-- Box2D skips contacts between fixtures sharing a negative group index.
 	-- (Group indexes are 16-bit, so hand them out from a small counter.)
@@ -918,6 +919,19 @@ end
 function Game:setPlayerIntent(intent)
 	local p = self.player
 	if not p or p.dead or p.dockState or p.launch then return end
+	local d = self:pilotedShip()
+	if d ~= p then
+		-- flying a drone: it gets the stick, your ship holds still
+		for k, v in pairs(intent) do d.intent[k] = v end
+		d.intent.targetDist = nil
+		local x, y = p.body:getPosition()
+		local a = p.body:getAngle()
+		for k, v in pairs(intent) do p.intent[k] = v end
+		p.intent.thrust, p.intent.strafe, p.intent.boost, p.intent.tractor = 0, 0, false, false
+		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+		p.intent.aimX, p.intent.aimY = x + cos(a) * 700, y + sin(a) * 700
+		return
+	end
 	for k, v in pairs(intent) do p.intent[k] = v end
 end
 
@@ -935,7 +949,7 @@ function Game:step(dt)
 			if e.dockState then
 				self:updateDockedShip(e, dt)
 			else
-				if e.cruise then self:cruise(e) elseif e.def then AI.think(self, e, dt) end
+				if e.cruise then self:cruise(e) elseif e.def and not e.piloted then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
 				Weapons.update(self, e, dt)
 			end
@@ -1291,6 +1305,15 @@ function Game:reap()
 			for _, g in ipairs(e.hold.grids) do
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
+		elseif e.recalled then
+			-- a drone back in its bay: into the owner's hold as ammo again
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
+			local o = e.owner
+			if o and not o.dead and e.itemId and Ship.addCargo(o, e.itemId, 1) > 0 then
+				if o.isPlayer then self:toast("Drone returned", 1.2) end
+			end
 		elseif e.dead then
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
@@ -1618,7 +1641,8 @@ function Game:frame(dt, aimX, aimY)
 
 	local p = self.player
 	if p and not p.dead then
-		local x, y = p.body:getPosition()
+		self:updateComputers()
+		local x, y = self:pilotedShip().body:getPosition()
 		if p.catching then
 			-- coming in hot: look down the line at the rings ahead
 			local vx, vy = p.body:getLinearVelocity()
@@ -1638,6 +1662,7 @@ end
 
 require("src.world")(Game)
 require("src.transit")(Game)
+require("src.computers")(Game)
 require("src.market")(Game)
 
 return Game

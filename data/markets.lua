@@ -37,5 +37,5 @@ market { station = "Orbital One", sells = {   -- heavy weapons
 market { station = "Orbital Two", sells = {   -- capital gear
 	{ "missile_l", 2 }, { "trident_bay", 1 }, { "torp_m", 2 }, { "breaker_tube", 1 },
 	{ "torp_l", 1 }, { "leviathan_tube", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
-	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_m", 1 }, { "forge_reactor", 1 },
+	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_m", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "radar_suite", 1 },
 } }

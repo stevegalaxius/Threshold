@@ -20,10 +20,10 @@ local data = {
 
 -- Slot families. primary / secondary are fire groups for guns (left and
 -- right mouse button); auxiliary holds a launcher (middle mouse button).
-local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
 -- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
 -- secondary slot; every other family fits the slot of the same name.
-local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
