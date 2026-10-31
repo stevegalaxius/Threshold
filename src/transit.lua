@@ -498,22 +498,30 @@ end
 
 -- The transit lane -----------------------------------------------------------
 
--- The lane is a slight arc: a circle of radius lane.R round (0, lane.R),
--- passing through the origin heading +x and bending down the screen. In
--- lane coordinates s is the distance along it and n the offset from its
--- median (negative: the outbound side). Holding a straight line drifts
--- you across it.
+-- The lane is a slight S: two arcs of radius lane.R meeting at the
+-- origin, heading +x there. The near half (s < 0) is a circle round
+-- (0, R) and the far half (s > 0) one round (0, -R), so it bends one way
+-- and then back, and leaves heading the same way it came in. In lane
+-- coordinates s is the distance along it and n the offset from its median
+-- (negative: the outbound side). Holding a straight line drifts you
+-- across it.
 --
--- The whole thing is then turned by lane.rot, so the lane leaves in the
--- direction the driver fired you. toLane's phi is the world direction of
--- the lane at that point.
+-- The whole thing is then turned by lane.rot so both ends lie along the
+-- real bearing between the planets (the way the driver fired you, and
+-- the way you come in at the other end). toLane's phi is the world
+-- direction of the lane at that point.
 function Game:toLane(x, y)
 	local R, r = self.lane.R, self.lane.rot or 0
 	local c, s = cos(-r), sin(-r)
 	x, y = x * c - y * s, x * s + y * c
-	local dx, dy = x, y - R
-	local phi = math.atan2(dx, -dy)
-	return phi * R, R - sqrt(dx * dx + dy * dy), phi + r
+	if x < 0 then
+		local dx, dy = x, y - R
+		local phi = math.atan2(dx, -dy)
+		return phi * R, R - sqrt(dx * dx + dy * dy), phi + r
+	end
+	local dx, dy = x, y + R
+	local psi = math.atan2(dx, dy)
+	return psi * R, sqrt(dx * dx + dy * dy) - R, -psi + r
 end
 
 -- Where the destination planet's centre sits, in the lane's coordinates:
@@ -531,14 +539,19 @@ end
 function Game:fromLane(s, n)
 	local R, r = self.lane.R, self.lane.rot or 0
 	local phi = s / R
-	local x, y = sin(phi) * (R - n), R - cos(phi) * (R - n)
+	local x, y
+	if s < 0 then
+		x, y = sin(phi) * (R - n), R - cos(phi) * (R - n)
+	else
+		x, y = sin(phi) * (R + n), -R + cos(phi) * (R + n)
+	end
 	local c, si = cos(r), sin(r)
 	return x * c - y * si, x * si + y * c
 end
 
 -- The lane's world direction at distance s along it.
 function Game:laneHeading(s)
-	return s / self.lane.R + (self.lane.rot or 0)
+	return -math.abs(s) / self.lane.R + (self.lane.rot or 0)
 end
 
 -- The lane's current at offset n: outbound below the median, oncoming
