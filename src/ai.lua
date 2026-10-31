@@ -99,6 +99,25 @@ end
 local atan2 = math.atan2 or math.atan
 local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
 
+-- Velocity control. With little drag a ship coasts a long way, so heading
+-- for where it wants to be overshoots and swings back and forth. Instead
+-- an AI works out the velocity it wants and thrusts along the difference
+-- between that and the velocity it has: full thrust when it's aiResponse
+-- px/s or more off, easing in as it gets close.
+local function steerVelocity(wvx, wvy, vx, vy)
+	local nx, ny, l = norm(wvx - vx, wvy - vy)
+	local k = min(1, l / T.aiResponse)
+	return nx * k, ny * k, l
+end
+
+-- How hard a ship can slow down along a line: its retro thrusters, or
+-- whatever it has when it turns round to use the main engine.
+local function brakeAccel(e)
+	local s = e.stats
+	local f = max(s.retroThrust * T.sideScale, s.sideThrust * T.sideScale, s.thrust * 0.5) * T.FORCE_PER_KN * T.thrustScale
+	return max(f / e.body:getMass(), 1)
+end
+
 -- Where a route stop is right now: on a station's runway, or on a buoy.
 local function stopPoint(stop)
 	if stop.dock then
@@ -142,23 +161,45 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock then e.routeIndex = e.routeIndex % #route + 1 end
-		-- Steer around things on the way, then head for the stop. A hauler
-		-- turns slowly and coasts far, so it looks much further ahead than
-		-- a fighter, lets avoidance outweigh the route, and brakes hard
-		-- (retro thrusters) when something is close and dead ahead.
+		-- The speed it wants: its cruise, but no faster than it can shed
+		-- before the stop (down to a crawl for a station's runway, or a
+		-- steady pass at a buoy). Measured against the planet's current,
+		-- which is what the stations and buoys ride.
+		local cruise = ai.cruise or T.traderCruise
+		local pass = stop.dock and 60 or cruise * 0.6
+		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
+		-- Steer around things on the way. A hauler turns slowly and coasts
+		-- far, so it looks much further ahead than a fighter, lets avoidance
+		-- outweigh the route, and slows down while something's in the way.
 		local avx, avy, danger = avoidCollisions(game, e, nil, x, y, vx, vy, ai.horizon or 4.5)
 		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
+		want = want * (1 - danger * 0.6)
+		local fx0, fy0 = e.flowX or 0, e.flowY or 0
+		local sx, sy, err = steerVelocity(fx0 + mx * want, fy0 + my * want, vx, vy)
 		local a = e.body:getAngle()
-		local diff = wrap(atan2(my, mx) - a)
-		it.strafe = max(-1, min(1, diff * 2.5))
-		local facing = cos(diff)
-		it.thrust = facing > 0.6 and ai.throttle * facing or 0
-		-- slow for the turn into each stop
-		if d < 900 and facing < 0.9 then it.thrust = it.thrust * 0.4 end
-		-- ease off while dodging; stand on the brakes if it's urgent and
-		-- the way is still blocked
-		if danger > 0.2 then it.thrust = it.thrust * (1 - danger) end
-		if danger > 0.55 and facing < 0.95 then it.thrust = -1 end
+		local nx, ny = cos(a), sin(a)
+		if e.hull.helm == "turn" then
+			-- Turn the hull toward the correction it needs, unless that's
+			-- mostly backwards: then keep pointing down the route and use
+			-- the retro thrusters.
+			local backing = (sx * nx + sy * ny) < -0.3 * min(1, err / T.aiResponse)
+			local hx2, hy2 = sx, sy
+			if backing or err < 40 then hx2, hy2 = mx, my end
+			local diff = wrap(atan2(hy2, hx2) - a)
+			it.strafe = max(-1, min(1, diff * 2.5))
+			local facing = cos(diff)
+			if backing then
+				it.thrust = -min(1, err / T.aiResponse)
+			else
+				it.thrust = facing > 0.6 and ai.throttle * facing * min(1, err / T.aiResponse) or 0
+			end
+		else
+			-- a nimbler hull points down the route (or at whoever's shooting
+			-- at it) and uses every thruster to match the velocity it wants
+			local tx, ty = Ship.toLocal(e, sx * ai.throttle, sy * ai.throttle)
+			it.thrust, it.strafe = tx, ty
+			e.routeAimX, e.routeAimY = x + mx * 300, y + my * 300
+		end
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
@@ -174,6 +215,9 @@ local function trade(game, e, dt)
 		e.burstClock = ((e.burstClock or 0) + dt) % (burstOn + burstOff)
 		it.firePrimary = dist < ai.range and e.burstClock < burstOn
 		it.targetDist = dist
+	elseif e.hull.helm ~= "turn" and e.routeAimX then
+		it.aimX, it.aimY = e.routeAimX, e.routeAimY
+		it.targetDist = nil
 	else
 		local a = e.body:getAngle()
 		it.aimX, it.aimY = x + cos(a) * 300, y + sin(a) * 300
@@ -190,19 +234,30 @@ function AI.think(game, e, dt)
 
 	local x, y = e.body:getPosition()
 	local target = pickTarget(game, e, x, y)
+	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil
 		local a = e.body:getAngle()
 		it.aimX, it.aimY = x + cos(a) * 100, y + sin(a) * 100
-		-- A drone with nothing to fight stays near whoever launched it.
+		-- A drone with nothing to fight stays near whoever launched it,
+		-- and after T.droneRecall seconds of that, docks back into its hold.
 		local o = e.owner
+		if e.drone then
+			e.idleTime = (e.idleTime or 0) + dt
+			if e.idleTime >= T.droneRecall and o and not o.dead then
+				local ox, oy = o.body:getPosition()
+				if (ox - x) ^ 2 + (oy - y) ^ 2 < 500 ^ 2 then e.recalled = true end
+			end
+		end
 		if o and not o.dead then
 			local ox, oy = o.body:getPosition()
 			local mx, my, d = norm(ox - x, oy - y)
-			if d > 350 then
-				it.aimX, it.aimY = ox, oy
-				it.thrust, it.strafe = Ship.toLocal(e, mx * 0.8, my * 0.8)
-			end
+			local ovx, ovy = o.body:getLinearVelocity()
+			local vx, vy = e.body:getLinearVelocity()
+			local want = d > 350 and min(T.aiCruise, (d - 350) * 2) or 0
+			local sx, sy = steerVelocity(ovx + mx * want, ovy + my * want, vx, vy)
+			if d > 350 then it.aimX, it.aimY = ox, oy end
+			it.thrust, it.strafe = Ship.toLocal(e, sx * 0.8, sy * 0.8)
 		end
 		return
 	end
@@ -322,7 +377,13 @@ function AI.think(game, e, dt)
 
 	if random() < dt * 0.15 then e.orbitDir = -e.orbitDir end
 
-	local nmx, nmy, ml = norm(mx, my)
+	-- Turn that wish into a velocity relative to the target (so it keeps
+	-- pace with a moving one) and steer to match it; avoidance and keeping
+	-- apart ask for a little extra speed on top.
+	local wl = sqrt(mx * mx + my * my)
+	local cruise = (ai.cruise or T.aiCruise) * (hurt and 1.3 or 1)
+	if wl > 1 then mx, my = mx / wl * min(wl, 1.6), my / wl * min(wl, 1.6) end
+	local nmx, nmy, ml = norm(steerVelocity(tvx + mx * cruise, tvy + my * cruise, vx, vy))
 	ml = min(1, ml)
 
 	-- Turn and burn: a ship with weak side thrusters that needs to get

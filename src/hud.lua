@@ -8,6 +8,7 @@ local data = require("src.data")
 local Input = require("src.input")
 local Render = require("src.render")
 local T = require("src.tuning")
+local Fields = require("src.fields")
 
 local HUD = { showHelp = true }
 
@@ -161,13 +162,14 @@ local HELP = {
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB auxiliary",
 	"Q auxiliary ammo size   E tractor beam",
+	"T radar lock   G fly a drone (radar suite)",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
-	"fly into a gate to travel   F2 skip to next level",
+	"fly into a mass driver to travel   F2 skip to next level",
 	"F5 save   F9 load (docking autosaves)",
-	"H hide help   Esc quit",
+	"H hide help   Esc pause",
 }
 
 local function drawHelp()
@@ -207,14 +209,15 @@ local function drawOffscreen(game)
 	local cam = game.camera
 	local w, h = lg.getDimensions()
 	local cx, cy = w / 2, h / 2
-	-- where you can go: gates and stations, labelled at the edge of the
-	-- screen when they're off it, or under them when they're on it
+	-- where you can go: mass drivers and stations, labelled at the edge
+	-- of the screen when they're off it, or under them when they're on it
 	lg.setFont(font(12))
 	for _, e in ipairs(game.entities) do
-		if game.state ~= "docked" and (e.kind == "gate" or (e.kind == "station" and e.dock)) then
-			local label = e.kind == "gate" and ("Gate to " .. e.name) or e.name
+		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
+		if game.state ~= "docked" and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
+			local label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and "Mass driver" or e.name
 			local sx, sy = cam:toScreen(e.body:getPosition())
-			local col = e.kind == "gate" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
+			local col = e.kind == "driver" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)
 				local m = 40
@@ -343,8 +346,43 @@ HUD.panel, HUD.font, HUD.itemColor = panel, font, itemColor
 HUD.AQUA, HUD.INK, HUD.DIM, HUD.WARN = AQUA, INK, DIM, WARN
 
 -- uiOpen: the cargo screen is up, so no aim reticle.
+-- In a transit lane: where you're headed and how far is left.
+local function drawTrip(game)
+	local trip, lane, p = game.trip, game.lane, game.player
+	if not trip or not lane or not p or p.dead then return end
+	local w = lg.getWidth()
+	local s = game:toLane(p.body:getPosition())
+	local frac = math.max(0, math.min(1, (s + lane.half) / (lane.half * 2)))
+	local bw = 360
+	lg.setFont(font(13))
+	lg.setColor(AQUA)
+	lg.printf(("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au), w / 2 - bw, 52, bw * 2, "center")
+	bar(w / 2 - bw / 2, 72, bw, 14, frac, AQUA, "", ("%d%%"):format(floor(frac * 100)))
+end
+
+-- Inbound to a catcher: your speed against the fastest the driver will
+-- catch, and how many braking rings are left.
+local function drawCatch(game)
+	local p = game.player
+	if not p or p.dead or not p.catching then return end
+	local w, h = lg.getDimensions()
+	local vx, vy = p.body:getLinearVelocity()
+	local speed = sqrt(vx * vx + vy * vy)
+	local left = 0
+	for _, e in ipairs(game.entities) do if e.kind == "catchring" and not e.passed then left = left + 1 end end
+	local ok = speed <= T.catchBaySpeed
+	lg.setFont(font(15))
+	lg.setColor(ok and { 0.5, 1, 0.6 } or WARN)
+	lg.printf(("INBOUND  %d px/s   catch at %d or less"):format(speed, T.catchBaySpeed), 0, h - 150, w, "center")
+	lg.setFont(font(12))
+	lg.setColor(DIM)
+	lg.printf(("%d braking ring%s ahead"):format(left, left == 1 and "" or "s"), 0, h - 128, w, "center")
+end
+
 function HUD.draw(game, aimX, aimY, uiOpen)
 	drawOffscreen(game)
+	drawTrip(game)
+	drawCatch(game)
 	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
 	drawDeath(game)

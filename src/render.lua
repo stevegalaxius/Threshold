@@ -7,6 +7,8 @@
 
 local data = require("src.data")
 local Ship = require("src.ship")
+local T = require("src.tuning")
+local HullShape = require("src.hullshape")
 
 local Render = {}
 
@@ -187,7 +189,7 @@ local function drawAsteroid(e)
 end
 
 local function drawStructure(game, e)
-	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or { 0.16, 0.18, 0.22 }
+	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or (e.role == "ladder" or e.role == "tether") and { 0.26, 0.17, 0.13 } or { 0.16, 0.18, 0.22 }
 	lg.setColor(fill)
 	lg.polygon("fill", e.verts)
 	lg.setColor(0.5, 0.58, 0.68)
@@ -331,26 +333,164 @@ local function drawBuoy(game, e)
 	lg.circle("fill", x, y, r * 0.4)
 end
 
--- Jump gates: a slowly turning ring of segments with a glow in the
--- middle. Fly into the middle to travel.
-local function drawGate(game, e)
+-- Mass drivers: a capture ring at the breech and a rail running outward,
+-- with lights chasing along it in the direction it fires.
+local function drawDriver(game, e)
 	local x, y = e.body:getPosition()
-	local r = e.radius
-	local a0 = e.spin + game.time * 0.4
-	lg.setColor(0.4, 0.8, 1, 0.08)
-	lg.circle("fill", x, y, r)
-	lg.setLineWidth(outline(4))
-	local n = 12
-	for i = 0, n - 1 do
-		local a1 = a0 + i / n * pi * 2
-		local a2 = a1 + pi * 2 / n * 0.6
-		lg.setColor(0.55, 0.85, 1, 0.8)
-		lg.arc("line", "open", x, y, r + 22, a1, a2, 6)
+	local p = game.player
+	local busy = p and not p.dead and ((p.driverTractor and p.driverTractor.driver == e) or p.launch
+		or (game.driverMenu and game.driverMenu.driver == e))
+	local len, hw = T.driverBarrel, 80
+	local lr = max(5, 3 * screenPx)
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.angle)
+	-- the barrel: a long armoured rail running out from the breech
+	lg.setColor(0.2, 0.23, 0.28)
+	lg.rectangle("fill", 0, -hw, len, hw * 2)
+	lg.setColor(0.55, 0.63, 0.74)
+	lg.setLineWidth(outline(2))
+	lg.rectangle("line", 0, -hw, len, hw * 2)
+	for k = 1, 6 do
+		local cx = len * k / 7
+		lg.line(cx, -hw, cx, hw)
 	end
-	lg.setLineWidth(outline(1.5))
-	local pulse = (game.time * 0.7 + e.spin) % 1
-	lg.setColor(0.55, 0.9, 1, 0.5 * (1 - pulse))
-	lg.circle("line", x, y, r * pulse, 48)
+	-- coils lighting up down the barrel, faster while it's firing
+	local rate = p and p.launch and 3 or 0.8
+	for i = 0, 9 do
+		local k = (i / 10 + game.time * rate) % 1
+		lg.setColor(0.6, 0.95, 1, 0.8 * (1 - k))
+		lg.rectangle("fill", k * len - 8, -hw + 10, 16, hw * 2 - 20)
+	end
+	-- the breech: hazard-striped, lit green while it has you
+	local dw, wall = hw * 1.3, 60
+	lg.setColor(0.09, 0.1, 0.13)
+	lg.rectangle("fill", -wall, -dw, wall, dw * 2)
+	lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+	for k = -3, 2 do
+		lg.rectangle("fill", -wall, dw * k / 3, wall, dw / 6)
+	end
+	-- runway lights back along the approach, strobes chasing in to the breech
+	local rw = 90
+	local step = 75
+	local n = floor(T.driverZone / step)
+	for i = 0, n do
+		local lx = -wall - 30 - i * step
+		local fade = 1 - i / (n + 1) * 0.6
+		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
+		lg.circle("fill", lx, rw, lr)
+		lg.circle("fill", lx, -rw, lr)
+		local phase = (game.time * 1.6 + i / n) % 1
+		if phase < 0.12 then
+			lg.setColor(1, 1, 1, fade)
+			lg.circle("fill", lx, 0, lr * 1.8)
+		else
+			lg.setColor(1, 1, 1, 0.12 * fade)
+			lg.circle("fill", lx, 0, lr)
+		end
+	end
+	lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
+	lg.circle("fill", -wall, dw, lr * 1.4)
+	lg.circle("fill", -wall, -dw, lr * 1.4)
+	lg.circle("fill", len, hw, lr * 1.4)
+	lg.circle("fill", len, -hw, lr * 1.4)
+	lg.pop()
+end
+
+-- The transit lane: a faint glow under its arc, fading out past its
+-- edges the way the buff does, so the road reads without markings.
+local function drawLane(game)
+	local lane = game.lane
+	-- the stretch the camera can see, with room to spare, so the glow never
+	-- ends on screen
+	local cam = game.camera
+	local cs = game:toLane(cam.x, cam.y)
+	local w, h = lg.getDimensions()
+	local view = sqrt(w * w + h * h) / cam.zoom + T.laneWidth * 2
+	local W = T.laneWidth
+	local s1, s2 = max(-lane.half, cs - view), min(lane.half, cs + view)
+	local pts = {}
+	for s = s1, s2, 300 do
+		local x, y = game:fromLane(s, 0)
+		pts[#pts + 1] = x
+		pts[#pts + 1] = y
+	end
+	if #pts < 4 then return end
+	-- the road fades out over its last stretch as the planet comes up
+	local fade = max(0, min(1, (lane.half - cs) / 15000))
+	lg.setBlendMode("add")
+	local bands = 6
+	for k = bands, 1, -1 do
+		local half = W + T.laneRamp * (k - 1) / bands
+		lg.setColor(0.35, 0.6, 0.9, (k == 1 and 0.05 or 0.018) * fade)
+		lg.setLineWidth(half * 2)
+		lg.line(pts)
+	end
+	lg.setBlendMode("alpha")
+	-- the far end
+	if lane.half - cs < view then
+		local x1, y1 = game:fromLane(lane.half, -W)
+		local x2, y2 = game:fromLane(lane.half, W)
+		lg.setColor(0.6, 0.95, 1, 0.5 * fade)
+		lg.setLineWidth(outline(4))
+		lg.line(x1, y1, x2, y2)
+	end
+end
+
+-- Catch rings: a lit hoop for each braking ring, the next one brightest,
+-- passed ones dimmed, joined by a faint guide line in to the driver. The
+-- player's predicted path runs from the nose while inbound.
+local function drawCatchRing(game, e)
+	local x, y = e.body:getPosition()
+	local p = game.player
+	local inbound = p and not p.dead and p.catching
+	local nextRing = inbound and game:nextCatchRing()
+	local col = e.passed and { 0.4, 0.9, 0.5, 0.35 } or (e == nextRing and { 0.6, 1, 1, 0.95 } or { 0.55, 0.85, 1, 0.5 })
+	local pulse = (e == nextRing) and (0.5 + 0.5 * sin(game.time * 6)) or 0
+	lg.setColor(col[1], col[2], col[3], 0.06 + 0.06 * pulse)
+	lg.circle("fill", x, y, e.radius)
+	lg.setColor(col)
+	lg.setLineWidth(outline(4 + 3 * pulse))
+	lg.circle("line", x, y, e.radius, 64)
+	-- the guide line toward the driver
+	local dx, dy = cos(e.angle), sin(e.angle)
+	lg.setColor(0.55, 0.85, 1, 0.12)
+	lg.setLineWidth(outline(2))
+	local reach = T.catchSpacing - e.radius
+	lg.line(x - dx * e.radius, y - dy * e.radius, x - dx * reach, y - dy * reach)
+end
+
+local function drawPredicted(game)
+	local p = game.player
+	if not p or p.dead or not p.catching then return end
+	local x, y = p.body:getPosition()
+	local vx, vy = p.body:getLinearVelocity()
+	lg.setColor(1, 0.85, 0.4, 0.45)
+	lg.setLineWidth(outline(2))
+	local n = 20
+	for i = 0, n - 1, 2 do
+		local t1, t2 = i / n * 3, (i + 1) / n * 3
+		lg.line(x + vx * t1, y + vy * t1, x + vx * t2, y + vy * t2)
+	end
+end
+
+-- The lane buff: a crackling outline round any ship inside a transit
+-- lane.
+local function drawLaneBuff(e)
+	if not e.laneBuff or (e.dockState and e.dockState.done) then return end
+	local x, y = e.body:getPosition()
+	local size = e.halfLength
+	local hot = 0
+	local flick = (0.85 + love.math.random() * 0.3) * e.laneBuff
+	lg.setBlendMode("add")
+	for k = 3, 1, -1 do
+		lg.setColor(0.45 + hot * 0.5, 0.85, 1 - hot * 0.4, (0.1 + 0.08 * hot) * (1.4 - k * 0.3))
+		lg.circle("fill", x, y, size * (1 + k * 0.35 + hot * 0.4) * flick)
+	end
+	lg.setColor(0.8 + hot * 0.2, 0.95, 1, 0.5 + 0.3 * hot)
+	lg.setLineWidth(max(1.5, size * 0.06))
+	lg.circle("line", x, y, size * (1.15 + hot * 0.25) * flick, 24)
+	lg.setBlendMode("alpha")
 end
 
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
@@ -374,6 +514,17 @@ local function drawPlanet(game, e)
 			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
 			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
 		end
+	end
+	if e.gas then
+		-- a gas giant: see-through bands thickening toward the middle
+		for k = 1, 12 do
+			lg.setColor(c[1], c[2], c[3], 0.045)
+			lg.circle("fill", x, y, R * (1 - (k - 1) / 13), PLANET_SEGMENTS)
+		end
+		lg.setColor(c[1], c[2], c[3], 0.5)
+		lg.setLineWidth(outline(3))
+		lg.circle("line", x, y, R, PLANET_SEGMENTS)
+		return
 	end
 	-- atmosphere haze
 	for k = 6, 1, -1 do
@@ -410,6 +561,7 @@ local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 local function drawShip(game, e)
 	if e.dockState and e.dockState.done then return end
 	drawReentry(e, e.halfLength)
+	drawLaneBuff(e)
 	local x, y = e.body:getPosition()
 	local a = e.body:getAngle()
 	local hull = e.hull
@@ -494,14 +646,10 @@ local function drawShip(game, e)
 	for _, w in ipairs(e.weapons) do
 		if w.mount ~= "turret" then barrel(w) end
 	end
-	lg.setColor(dark)
-	lg.polygon("fill", hull.shape)
-	lg.setColor(col)
-	lg.setLineWidth(outline(2))
-	lg.polygon("line", hull.shape)
+	HullShape.draw(hull, col, function(c) return { c[1] * 0.22, c[2] * 0.22, c[3] * 0.22 } end,
+		function(c) return c end, outline(2))
 	if e.flash > 0 then
-		lg.setColor(1, 1, 1, 0.8)
-		lg.polygon("fill", hull.shape)
+		HullShape.draw(hull, col, function() return { 1, 1, 1, 0.8 } end)
 	end
 	for _, w in ipairs(e.weapons) do
 		if w.mount == "turret" then barrel(w) end
@@ -520,12 +668,25 @@ local function drawShip(game, e)
 end
 
 -- Tractor beam: a soft line to whatever it's reeling in, and its reach
--- while the key is held.
+-- while the key is held; a fainter one to a wreck you're looting.
 local function drawTractor(game)
 	local p = game.player
-	if not p or p.dead or not p.intent.tractor then return end
+	if not p or p.dead then return end
 	local x, y = p.body:getPosition()
 	local c = COLORS.laser
+	local held = game.looting
+	if held and not held.removed and not p.intent.tractor then
+		-- holding what you're looting: a fainter beam
+		local tx, ty = held.body:getPosition()
+		lg.setColor(c[1], c[2], c[3], 0.15)
+		lg.setLineWidth(5)
+		lg.line(x, y, tx, ty)
+		lg.setColor(c[1], c[2], c[3], 0.45)
+		lg.setLineWidth(1)
+		lg.line(x, y, tx, ty)
+		return
+	end
+	if not p.intent.tractor then return end
 	lg.setColor(c[1], c[2], c[3], 0.08)
 	lg.setLineWidth(1)
 	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)
@@ -584,16 +745,14 @@ local function drawHusk(game, h)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(h.body:getAngle())
-	local c = h.color
-	lg.setColor(0.06, 0.06, 0.07)
-	lg.polygon("fill", h.hull.shape)
-	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35)
-	lg.setLineWidth(outline(2))
-	lg.polygon("line", h.hull.shape)
+	-- a whole wreck, or one part broken off (drawn about its own centre)
+	HullShape.draw(h.hull, h.color, function() return { 0.06, 0.06, 0.07 } end,
+		function(c) return { c[1] * 0.35, c[2] * 0.35, c[3] * 0.35 } end, outline(2),
+		h.part or h.partsLeft, h.part and h.part.cx, h.part and h.part.cy)
 	local f = sin(game.time * 7 + h.flicker) * sin(game.time * 3.1 + h.flicker * 2)
 	if f > 0.6 then
 		lg.setColor(1, 0.55, 0.2, (f - 0.6) * 2)
-		lg.circle("fill", h.tailX * 0.3, 0, 3)
+		lg.circle("fill", h.part and 0 or h.tailX * 0.3, 0, 3)
 	end
 	lg.pop()
 end
@@ -731,7 +890,19 @@ function Render.world(game)
 	Render.background(game.camera)
 	game.camera:apply()
 	drawGrid(game)
+	if game.lane then
+		-- the planet you're heading for, where it'll be when you arrive
+		if game.trip then
+			local px, py, F = game:laneDestination()
+			if F.planetR then
+				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas,
+					body = { getPosition = function() return px, py end } })
+			end
+		end
+		drawLane(game)
+	end
 	drawRange(game)
+	drawPredicted(game)
 	drawPickups(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" then drawAsteroid(e)
@@ -739,7 +910,8 @@ function Render.world(game)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then drawStation(game, e)
 		elseif e.kind == "buoy" then drawBuoy(game, e)
-		elseif e.kind == "gate" then drawGate(game, e)
+		elseif e.kind == "driver" then drawDriver(game, e)
+		elseif e.kind == "catchring" then drawCatchRing(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end
 	end
@@ -751,7 +923,10 @@ function Render.world(game)
 	end
 	drawBeams(game)
 	drawEffects(game)
+	game:drawComputers(screenPx)
 	game.camera:release()
 end
+
+Render.ship = drawShip
 
 return Render

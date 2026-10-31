@@ -19,6 +19,7 @@ local Camera = require("src.camera")
 local events = require("src.events")
 local Fields = require("src.fields")
 local Hold = require("src.inventory.hold")
+local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 
 local Game = {}
@@ -56,10 +57,10 @@ function Game.new(opts)
 end
 
 -- Clear the arena and build a level (a playing field, src/fields.lua) in
--- it: its contents, its jump gates and its enemies. Then the player:
+-- it: its contents, its mass drivers and its enemies. Then the player:
 --   opts.player  a ship record to fly in (Ship.record), or a fresh one
---   opts.at      where: { station = key } docked there, { gate = fieldId }
---                coming out of the gate from that level, { x, y, angle,
+--   opts.at      where: { station = key } docked there, { driver = fieldId }
+--                coming out of the driver from that planet, { x, y, angle,
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
@@ -71,10 +72,11 @@ function Game:loadField(id, opts)
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
-	self.well = nil
+	self.well, self.lane, self.driverMenu = nil, nil, nil
+	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
 	self.field.build(self)
-	self:spawnGates()
+	self:spawnDrivers()
 	self:spawnFieldEnemies()
 	self:placePlayer(opts.player, opts.at)
 	self:toast(self.field.name:upper(), 2, nil, true)
@@ -139,7 +141,8 @@ function Game:launchDrone(owner, item, x, y, angle)
 		hull = shot.hull, cargo = shot.cargo, team = owner.team, x = x, y = y, angle = angle,
 		color = owner.color, enemy = { id = item.id, ai = DRONE_AI },
 	})
-	d.drone, d.owner, d.life = true, owner, shot.life
+	-- drones never expire: they come home once there's nothing to fight
+	d.drone, d.owner, d.itemId = true, owner, item.id
 	-- A ship never collides with its own drones (or they with each other):
 	-- Box2D skips contacts between fixtures sharing a negative group index.
 	-- (Group indexes are 16-bit, so hand them out from a small counter.)
@@ -816,6 +819,29 @@ function Game:spawnContainers(n, minD)
 	end
 end
 
+-- Looting: while a wreck or container is open in the cargo screen
+-- (game.looting, set by the cargo screen), the tractor beam tries to keep
+-- it in reach. It matches your velocity and, past lootHoldAt of the beam's
+-- range, closes back in; the pull has a limit (lootHoldAccel), so a heavy
+-- burn can still leave it behind and close the window.
+function Game:updateLootHold(dt)
+	local p, e = self.player, self.looting
+	if not e or e.removed or e.dead or not p or p.dead or p.dockState then return end
+	local px, py = p.body:getPosition()
+	local ex, ey = e.body:getPosition()
+	local dx, dy = px - ex, py - ey
+	local d = max(sqrt(dx * dx + dy * dy), 1)
+	local edge = Ship.distanceTo(p, ex, ey) - e.radius
+	local want = max(0, edge - Ship.tractorRange(p) * T.lootHoldAt) * 2
+	local pvx, pvy = p.body:getLinearVelocity()
+	local evx, evy = e.body:getLinearVelocity()
+	local ax, ay = (pvx + dx / d * want - evx) * 4, (pvy + dy / d * want - evy) * 4
+	local a = sqrt(ax * ax + ay * ay)
+	if a > T.lootHoldAccel then ax, ay = ax / a * T.lootHoldAccel, ay / a * T.lootHoldAccel end
+	local m = e.body:getMass()
+	e.body:applyForce(ax * m, ay * m)
+end
+
 -- Towing: a line from the player's ship to the container it holds with
 -- the tractor beam. Slack up to towLength from the hull; past that it
 -- pulls both ways (so a full container drags on you), and the ship can't
@@ -892,11 +918,25 @@ end
 
 function Game:setPlayerIntent(intent)
 	local p = self.player
-	if not p or p.dead or p.dockState then return end
+	if not p or p.dead or p.dockState or p.launch then return end
+	local d = self:pilotedShip()
+	if d ~= p then
+		-- flying a drone: it gets the stick, your ship holds still
+		for k, v in pairs(intent) do d.intent[k] = v end
+		d.intent.targetDist = nil
+		local x, y = p.body:getPosition()
+		local a = p.body:getAngle()
+		for k, v in pairs(intent) do p.intent[k] = v end
+		p.intent.thrust, p.intent.strafe, p.intent.boost, p.intent.tractor = 0, 0, false, false
+		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+		p.intent.aimX, p.intent.aimY = x + cos(a) * 700, y + sin(a) * 700
+		return
+	end
 	for k, v in pairs(intent) do p.intent[k] = v end
 end
 
 function Game:step(dt)
+	if self.flight then self:updateFlight(dt) return end
 	self.time = self.time + dt
 	if self.universe then self.universe.clock = self.universe.clock + dt end
 
@@ -909,7 +949,7 @@ function Game:step(dt)
 			if e.dockState then
 				self:updateDockedShip(e, dt)
 			else
-				if e.def then AI.think(self, e, dt) end
+				if e.cruise then self:cruise(e) elseif e.def and not e.piloted then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
 				Weapons.update(self, e, dt)
 			end
@@ -918,21 +958,30 @@ function Game:step(dt)
 
 	self:applyBoundary()
 	self:applyCurrent(dt)
+	self:updateLane(dt)
 	self:updateAtmosphere(dt)
+	self:updateCrush(dt)
+	self:updateDrivers(dt)
+	self:updateCatch(dt)
 	self:updateOrbits(dt)
 	self:updateTow(dt)
+	self:updateLootHold(dt)
 	self.world:update(dt)
 	self:planetImpacts()
 	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
-	self:updateGates(dt)
 	self:reap()
-	if self.pendingJump then
-		local to = self.pendingJump
-		self.pendingJump = nil
-		self:travel(to)
+	if self.pendingFlight then
+		local to = self.pendingFlight
+		self.pendingFlight = nil
+		-- the highway, or the warp trip and the catch (debug panel picks)
+		if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
+	elseif self.pendingArrive then
+		local back = self.pendingArrive == "back"
+		self.pendingArrive = nil
+		self:arrive(back)
 	end
 end
 
@@ -943,9 +992,11 @@ function Game:applyBoundary()
 		local b = e.body
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
-		if d > R and not e.fleeing then
+		-- only what people built is turned back (rocks drift on out), and
+		-- gently, like a nudge from traffic control
+		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch then
 			local over = d - R
-			local f = over * b:getMass() * 6
+			local f = min(over, 1500) * b:getMass() * 1.2
 			b:applyForce(-x / d * f, -y / d * f)
 		end
 	end
@@ -973,7 +1024,7 @@ function Game:resolveContacts()
 			self.contacts[key] = nil
 		else
 		-- Impulse / reduced mass is roughly the impact speed. Slow bumps and
-		-- scrapes (below ramSpeed) do nothing; harder hits scale with impulse,
+		-- scrapes (below the hull's ramSpeed) do nothing; harder hits scale with impulse,
 		-- so heavy ships hit harder.
 		local ma, mb = c.a.body:getMass(), c.b.body:getMass()
 		-- Against something immovable (a station, the giant asteroid) the
@@ -982,15 +1033,23 @@ function Game:resolveContacts()
 		local impactSpeed = c.imp / max(mu, 1e-6)
 		if impactSpeed > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = impactSpeed end
 		if c.imp > self.stats.maxImpulse then self.stats.maxImpulse = c.imp end
-		if impactSpeed > T.ramSpeed and c.x then
-			local base = c.imp * T.ramDamageScale * (1 - T.ramSpeed / impactSpeed)
+		-- Each side has its own toughness: a hull's ramSpeed (light hulls
+		-- crumple at a nudge, battleships shrug off bumps), T.ramSpeed for
+		-- everything else, all scaled by the debug slider.
+		local function threshold(o)
+			return (o.kind == "ship" and o.hull.ramSpeed or T.ramSpeed) * T.ramSpeedScale
+		end
+		local ta, tb = threshold(c.a), threshold(c.b)
+		if impactSpeed > min(ta, tb) and c.x then
 			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
-			local function hit(o, other)
+			local function hit(o, other, thr)
+				if impactSpeed <= thr then return 0 end
+				local base = c.imp * T.ramDamageScale * (1 - thr / impactSpeed)
 				local mult = (o.kind == "asteroid" or o.kind == "husk" or o.kind == "container") and T.asteroidImpact or ramMult(other)
-				self:damage(o, base * mult, other, "ram")
+				self:damage(o, base * mult, other, "ram", c.x, c.y)
+				return base
 			end
-			hit(c.a, c.b)
-			hit(c.b, c.a)
+			local base = max(hit(c.a, c.b, ta), hit(c.b, c.a, tb))
 			self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
 			if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
 			events.emit("ram", c.a, c.b, base)
@@ -1014,10 +1073,13 @@ function Game:raycast(x1, y1, x2, y2, ignoreTeam)
 end
 
 -- cause: gun, artillery, laser, missile, splash or ram (passed on to listeners)
-function Game:damage(e, amount, source, cause)
+-- hx, hy: where it hit, when that's known (a wreck built in parts takes
+-- it on the part that was hit).
+function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
+	if e and e.kind == "husk" and e.pieces and not e.dead and amount > 0 and self:damagePiece(e, amount, hx, hy) then return end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
@@ -1055,7 +1117,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
 			if fall > 0 then
-				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash") end
+				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash", x, y) end
 				if d > 1 and e.kind == "ship" then
 					local k = knockback * fall
 					e.body:applyLinearImpulse(dx / d * k, dy / d * k)
@@ -1243,6 +1305,15 @@ function Game:reap()
 			for _, g in ipairs(e.hold.grids) do
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
+		elseif e.recalled then
+			-- a drone back in its bay: into the owner's hold as ammo again
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
+			local o = e.owner
+			if o and not o.dead and e.itemId and Ship.addCargo(o, e.itemId, 1) > 0 then
+				if o.isPlayer then self:toast("Drone returned", 1.2) end
+			end
 		elseif e.dead then
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
@@ -1341,13 +1412,17 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
 	}
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
-	local n = math.ceil((s2 - s1) / r) + 1
-	for k = 0, n - 1 do
-		local cx = (n > 1) and (s1 + (s2 - s1) * k / (n - 1)) or s1
-		local f = love.physics.newFixture(body, love.physics.newCircleShape(cx, 0, r), 1)
-		f:setRestitution(0.2)
-		f:setFriction(0.5)
-		f:setUserData(h)
+	if #hull.parts > 1 then
+		self:breakablePieces(h, ship)
+	else
+		local n = math.ceil((s2 - s1) / r) + 1
+		for k = 0, n - 1 do
+			local cx = (n > 1) and (s1 + (s2 - s1) * k / (n - 1)) or s1
+			local f = love.physics.newFixture(body, love.physics.newCircleShape(cx, 0, r), 1)
+			f:setRestitution(0.2)
+			f:setFriction(0.5)
+			f:setUserData(h)
+		end
 	end
 	local m = ship.stats.mass * T.massScale * 0.7
 	body:setMassData(0, 0, m, m * r * r * 0.5)
@@ -1359,6 +1434,131 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	body:setUserData(h)
 	table.insert(self.entities, h)
 	return h
+end
+
+-- A wreck of a hull built in parts stays whole, but each part outside the
+-- biggest (the core) can be shot off. Every part collides in its own
+-- shape and holds a share of the loot, weighted by its size (the
+-- wreck's hold has it all until then; containers go whole).
+-- When a part's share of the wreck's toughness is used up it breaks away
+-- as its own small wreck, taking what's left of its share with it.
+local function partFixtures(body, part, h, ox, oy)
+	local list = {}
+	for _, t in ipairs(part.tris) do
+		local pts = { t[1] - ox, t[2] - oy, t[3] - ox, t[4] - oy, t[5] - ox, t[6] - oy }
+		local tri = math.abs((pts[3] - pts[1]) * (pts[6] - pts[2]) - (pts[5] - pts[1]) * (pts[4] - pts[2]))
+		if tri > 4 then
+			local f = love.physics.newFixture(body, love.physics.newPolygonShape(pts), 1)
+			f:setRestitution(0.2)
+			f:setFriction(0.5)
+			f:setUserData(h)
+			table.insert(list, f)
+		end
+	end
+	return list
+end
+
+function Game:breakablePieces(h, ship)
+	local hull = ship.hull
+	local total, core = 0, nil
+	for _, part in ipairs(hull.parts) do
+		total = total + part.area
+		if not core or part.area > core.area then core = part end
+	end
+	h.pieces, h.armorBase = {}, ship.stats.armor * T.huskToughness
+	for _, part in ipairs(hull.parts) do
+		local piece = { part = part, core = part == core, frac = part.area / total, share = {} }
+		piece.hp = h.armorBase * piece.frac
+		piece.fixtures = partFixtures(h.body, part, h, 0, 0)
+		table.insert(h.pieces, piece)
+	end
+	-- share the loot out: loose items unit by unit, containers whole
+	for id, n in pairs(Hold.totals(h.hold)) do
+		for _ = 1, n do
+			local r, pick = random() * total, h.pieces[#h.pieces]
+			for _, pc in ipairs(h.pieces) do
+				r = r - pc.part.area
+				if r <= 0 then pick = pc break end
+			end
+			if not pick.core then pick.share[id] = (pick.share[id] or 0) + 1 end
+		end
+	end
+end
+
+-- Damage on a wreck in parts: the part nearest the hit (or any, if we
+-- don't know where) takes it. Returns true if a breakable part took it;
+-- hits on the core fall through to the wreck as a whole.
+function Game:damagePiece(h, amount, hx, hy)
+	local piece
+	if hx then
+		local lx, ly = h.body:getLocalPoint(hx, hy)
+		local best = math.huge
+		for _, pc in ipairs(h.pieces) do
+			local d = (lx - pc.part.cx) ^ 2 + (ly - pc.part.cy) ^ 2
+			if d < best then best, piece = d, pc end
+		end
+	else
+		piece = h.pieces[random(1, #h.pieces)]
+	end
+	if not piece or piece.core then return false end
+	piece.hp = piece.hp - amount
+	if piece.hp <= 0 then self:breakOff(h, piece) end
+	return true
+end
+
+function Game:breakOff(h, piece)
+	local part = piece.part
+	for i, pc in ipairs(h.pieces) do if pc == piece then table.remove(h.pieces, i) break end end
+	for _, f in ipairs(piece.fixtures) do f:destroy() end
+	h.partsLeft = {}
+	for _, pc in ipairs(h.pieces) do table.insert(h.partsLeft, pc.part) end
+	-- what's left of its share leaves with it
+	local taken, stacks = {}, {}
+	for id, n in pairs(piece.share) do
+		if data.items[id].kind == "container" then
+			-- containers go whole, cargo and all
+			for _, g in ipairs(h.hold.grids) do
+				for k = #g.stacks, 1, -1 do
+					local s = g.stacks[k]
+					if n > 0 and s.id == id then
+						Grid.remove(g, s)
+						table.insert(stacks, { id = s.id, n = 1, inner = s.inner })
+						n = n - 1
+					end
+				end
+			end
+		else
+			local got = Hold.take(h.hold, id, n)
+			if got > 0 then taken[id] = got end
+		end
+	end
+	h.loot = Hold.totals(h.hold)
+	local x, y = h.body:getWorldPoint(part.cx, part.cy)
+	local vx, vy = h.body:getLinearVelocityFromWorldPoint(x, y)
+	local hx, hy = h.body:getPosition()
+	local ox, oy = x - hx, y - hy
+	local ol = max(sqrt(ox * ox + oy * oy), 1)
+	local kick = 80 + random() * 120
+	local body = love.physics.newBody(self.world, x, y, "dynamic")
+	local bits = {
+		kind = "husk", id = self:nextId(), team = 0, hull = h.hull, part = part, color = h.color,
+		noseX = part.reach, tailX = -part.reach, halfLength = part.reach, radius = part.reach, body = body,
+		hold = Hold.pack(taken, 4, 3, h.hull.name .. " wreckage", random, stacks), hp = h.armorBase * piece.frac * 0.5,
+		flicker = random() * 10,
+	}
+	bits.loot = Hold.totals(bits.hold)
+	partFixtures(body, part, bits, part.cx, part.cy)
+	local m = max(1, h.body:getMass() * piece.frac)
+	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)
+	body:setAngle(h.body:getAngle())
+	body:setLinearVelocity(vx + ox / ol * kick, vy + oy / ol * kick)
+	body:setAngularVelocity(h.body:getAngularVelocity() + (random() - 0.5) * 2)
+	body:setLinearDamping(0.15)
+	body:setAngularDamping(0.1)
+	body:setUserData(bits)
+	table.insert(self.entities, bits)
+	self:spark(x, y, 16, { 1, 0.6, 0.3 })
+	self:explode(x, y, part.reach * 0.6, 0, 0)
 end
 
 function Game:remove(e)
@@ -1441,8 +1641,16 @@ function Game:frame(dt, aimX, aimY)
 
 	local p = self.player
 	if p and not p.dead then
-		local x, y = p.body:getPosition()
-		self.camera:follow(x, y, aimX or x, aimY or y, dt)
+		self:updateComputers()
+		local x, y = self:pilotedShip().body:getPosition()
+		if p.catching then
+			-- coming in hot: look down the line at the rings ahead
+			local vx, vy = p.body:getLinearVelocity()
+			x, y = x + vx * 0.25, y + vy * 0.25
+			self.camera:follow(x, y, x, y, dt)
+		else
+			self.camera:follow(x, y, aimX or x, aimY or y, dt)
+		end
 	elseif self.playerHusk and not self.playerHusk.removed then
 		-- Death screen: watch your own wreck drift.
 		local hx, hy = self.playerHusk.body:getPosition()
@@ -1453,6 +1661,8 @@ function Game:frame(dt, aimX, aimY)
 end
 
 require("src.world")(Game)
+require("src.transit")(Game)
+require("src.computers")(Game)
 require("src.market")(Game)
 
 return Game

@@ -20,10 +20,10 @@ local data = {
 
 -- Slot families. primary / secondary are fire groups for guns (left and
 -- right mouse button); auxiliary holds a launcher (middle mouse button).
-local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
 -- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
 -- secondary slot; every other family fits the slot of the same name.
-local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true }
+local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
@@ -31,7 +31,8 @@ data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
 -- Does a module fit a hull slot?
 function data.fits(slot, m)
-	if m.size ~= slot.size then return false end
+	-- a module sized "any" fits a slot of any size (side jets scale to it)
+	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
 	return m.family == slot.family
 end
@@ -58,11 +59,16 @@ end
 
 -- The functions data files are allowed to call ---------------------------
 
+local HullShape = require("src.hullshape")
+
 local api = {}
 
 function api.hull(def)
 	register("hulls", "hull", def)
-	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots", "shape" }) do need(def, f, "hull") end
+	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots" }) do need(def, f, "hull") end
+	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
+	local ok, err = pcall(HullShape.prepare, def)
+	if not ok then fail(err) end
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"

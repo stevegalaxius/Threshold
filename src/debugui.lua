@@ -143,6 +143,39 @@ local function tuningSection()
 	if Slab.Button("Reset to defaults") then T.reset() end
 end
 
+local function flightSection(game)
+	for _, s in ipairs(T.flightSpecs) do
+		Slab.Text(s.label)
+		if Slab.InputNumberSlider("flight_" .. s.key, T[s.key], s.min, s.max, { W = 300, Precision = s.precision }) then
+			T[s.key] = Slab.GetInputNumber()
+		end
+	end
+	if Slab.Button("Reset flight and catch") then T.resetFlight() end
+	if Fields.orbits[game.fieldId] and game.player and not game.player.dead then
+		if Slab.Button("Arrive here again (try the catch)") then
+			local Ship = require("src.ship")
+			game:loadField(game.fieldId, { player = Ship.record(game.player), at = { catch = true } })
+		end
+	end
+end
+
+local function laneSection(game)
+	for _, s in ipairs(T.laneSpecs) do
+		Slab.Text(s.label)
+		if Slab.InputNumberSlider("lane_" .. s.key, T[s.key], s.min, s.max, { W = 300, Precision = s.precision }) then
+			T[s.key] = Slab.GetInputNumber()
+		end
+	end
+	if Slab.Button("Reset lane to defaults") then T.resetLane() end
+	if Fields.orbits[game.fieldId] and game.player and not game.player.dead then
+		local to = game.fieldId == "mars" and "earth" or "mars"
+		if Slab.Button("Straight into a lane to " .. Fields[to].name) then game:launchTrip(to) end
+	end
+	if Slab.Button(T.travelMode == "lane" and "Drivers send you: highway (switch to warp + catch)" or "Drivers send you: warp + catch (switch to highway)") then
+		T.travelMode = T.travelMode == "lane" and "flight" or "lane"
+	end
+end
+
 local function spawnSection(game)
 	Slab.Text("Playing field")
 	local fopts = {}
@@ -180,7 +213,7 @@ local function readout(game)
 		("Armor            %.0f"):format(s.armor),
 		("Power            %.0f out, %.0f draw, %.0f stored"):format(s.powerOut, s.powerDraw, s.powerCap),
 		("Hold             %.1f / %.0f m3"):format(p.holdUsed, Ship.holdCapacity(p)),
-		("Hardest impact   %.0f px/s  (ram above %.0f)"):format(game.stats.maxImpactSpeed, T.ramSpeed),
+		("Hardest impact   %.0f px/s  (you take damage above %.0f)"):format(game.stats.maxImpactSpeed, (game.player and game.player.hull.ramSpeed or T.ramSpeed) * T.ramSpeedScale),
 	}
 	for _, l in ipairs(lines) do Slab.Text(l) end
 	if Slab.Button("Reset impact meter") then game.stats.maxImpulse, game.stats.maxImpactSpeed = 0, 0 end
@@ -207,6 +240,8 @@ function Debug.update(dt, game)
 	section("dbg_ship", "Ship, modules and hold", shipSection, game)
 	section("dbg_readout", "Handling readout", readout, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)
+	section("dbg_flight", "Flight and catch", flightSection, game)
+	section("dbg_lane", "Transit lane (highway)", laneSection, game)
 	section("dbg_spawn", "Spawn and arena", spawnSection, game)
 	Slab.EndWindow()
 end
