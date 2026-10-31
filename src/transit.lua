@@ -810,26 +810,29 @@ end
 -- angle a round the planet, with its docking tunnel just under the tops.
 -- It doesn't turn or drift. You dock by flying into either end of the
 -- tunnel (dock.both); the clamp is in the middle.
-function Game:spawnCloudCity(a)
+function Game:spawnCloudCity(a, k)
 	local w = self.well
+	k = k or 1                               -- size: Olympus is twice Herschel
 	local S = CITY_S
-	local tunnelTop = -CITY_TUNNEL * S
+	local tunnelTop = -CITY_TUNNEL * S * k
 	local r = w.radius - 60 + tunnelTop      -- the tunnel's top 60 px under the cloud tops
 	local body = love.physics.newBody(self.world, w.x + cos(a) * r, w.y + sin(a) * r, "static")
 	body:setAngle(a + pi / 2)                -- local -y points out to space
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
-	local half = 112 * S
+	local half = 112 * S * k
 	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
 		key = ("%s/%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or "Cloud city", radius = half, parts = {},
-		cloudY = tunnelTop - 60, tunnel = CITY_TUNNEL * S, half = half }
-	e.dock = { x1 = -40, x2 = 40, hw = CITY_TUNNEL * S, wall = 24, runway = half - 40 + 600, capture = 260, both = true }
+		cloudY = (tunnelTop - 60) / k, scale = k, half = half }
+	e.dock = { x1 = -40, x2 = 40, hw = CITY_TUNNEL * S * k, wall = 24, runway = half - 40 + 600, capture = 260, both = true }
 	for _, p in ipairs(CITY_PARTS) do
 		local v = cityPart(p)
 		table.insert(e.parts, { verts = v, role = p.role, y = (p[1] + p[2]) / 2 * S })
-		local f = love.physics.newFixture(body, love.physics.newPolygonShape(v))
+		local pv = {}
+		for i, c in ipairs(v) do pv[i] = c * k end
+		local f = love.physics.newFixture(body, love.physics.newPolygonShape(pv))
 		f:setFriction(0.5)
 		f:setRestitution(0.1)
 		f:setUserData(e)

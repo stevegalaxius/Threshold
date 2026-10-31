@@ -196,7 +196,7 @@ local function planetField(o)
 			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue) or game:spawnPlanet(0, 0, R, 290, 0.1)
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = { beltIn, beltOut } end
-			if o.city then game:spawnCloudCity(-pi / 2 + 0.35) end
+			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale) end
 			if o.extra then o.extra(game, R) end
 			if o.stations then
 				-- Two wheel stations out past the belt.
@@ -280,7 +280,7 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000,
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
 	density = 0.08, mix = MIX.giant, belt = 0.3, beltIn = 0.2, beltOut = 0.4,
-	city = "Olympus",
+	city = "Olympus", cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },

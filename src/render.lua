@@ -362,7 +362,11 @@ local function drawCity(game, e)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
-	local T2, half = e.tunnel, e.half
+	-- drawn at Herschel's size and scaled up (Olympus is twice as big)
+	local k = e.scale or 1
+	lg.scale(k)
+	local px = screenPx / k
+	local T2, half = 24 * 8, 112 * 8
 	for _, p in ipairs(e.parts) do
 		lg.setColor(0.2, 0.23, 0.28)
 		lg.polygon("fill", p.verts)
@@ -374,7 +378,7 @@ local function drawCity(game, e)
 			lg.rectangle("fill", -1570, 560, 3140, 80)
 		end
 		lg.setColor(0.55, 0.63, 0.74)
-		lg.setLineWidth(outline(2))
+		lg.setLineWidth(max(2 / k, 1.4 * px))
 		lg.polygon("line", p.verts)
 	end
 	-- the tunnel: dark inside, hazard-striped mouths, the clamp in the middle
@@ -396,7 +400,7 @@ local function drawCity(game, e)
 	lg.setColor(0.4, 1, 0.55, 0.9)
 	lg.rectangle("fill", -144, T2 - 48, 288, 32)
 	-- runway lights into both mouths, chasing inward
-	local lr = max(5, 3 * screenPx)
+	local lr = max(5, 3 * px)
 	for i = 0, 6 do
 		local fade = 1 - i / 7 * 0.6
 		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
@@ -408,7 +412,7 @@ local function drawCity(game, e)
 	end
 	-- windows: the roof, two rows on the deck, the collar, pairs down the stalk
 	lg.setColor(1, 0.86, 0.55, 0.85)
-	local wr = max(16, 2 * screenPx)
+	local wr = max(16, 2 * px)
 	local function row(yy, hw, skip)
 		local i = 0
 		for xx = -hw, hw, 112 do
@@ -420,7 +424,7 @@ local function drawCity(game, e)
 	for yy = 1328, 4600, 240 do lg.circle("fill", -144, yy, wr); lg.circle("fill", 144, yy, wr) end
 	-- the beacon on the mast
 	lg.setColor(1, 0.35, 0.3)
-	lg.circle("fill", 0, -1552, max(24, 4 * screenPx))
+	lg.circle("fill", 0, -1552, max(24, 4 * px))
 	-- the haze: everything below the cloud tops fades into the planet
 	for _, p in ipairs(e.parts) do
 		local depth = (p.y - e.cloudY) / 3000
