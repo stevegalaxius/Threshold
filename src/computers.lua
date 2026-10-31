@@ -2,8 +2,9 @@
 	Ship computers: modules in the "computer" slot every playable hull has.
 	A module's `computer` field says which one it is:
 
-	  nav       draws your velocity vector and where you'll be in 1, 2 and
-	            3 seconds if you let go of the stick.
+	  nav       warns of a collision: when your course (velocity relative
+	            to it) runs you into something within T.navLookahead seconds,
+	            the dashed line along your velocity fades in, bright orange.
 	  ordnance  puts a lead pip on the target (your radar lock, or the
 	            hostile nearest the cursor): shoot the pip and your primary
 	            rounds meet the target.
@@ -17,6 +18,7 @@
 ]]
 
 local data = require("src.data")
+local T = require("src.tuning")
 local Weapons = require("src.weapons")
 
 local sqrt, max, cos, sin = math.sqrt, math.max, math.cos, math.sin
@@ -87,10 +89,41 @@ function Game:toggleDroneControl()
 	best.piloted, self.piloting = true, best
 end
 
--- Each frame: drop a lock that's dead or out of radar range.
-function Game:updateComputers()
+-- Is ship e on course to hit something within `ahead` seconds?
+local SOLID = { asteroid = true, planet = true, station = true, structure = true, ship = true, husk = true, container = true }
+local function collisionCourse(game, e, ahead)
+	local x, y = e.body:getPosition()
+	local vx, vy = e.body:getLinearVelocity()
+	local me = (e.halfLength or 20) * 0.8
+	for _, o in ipairs(game.entities) do
+		if o ~= e and SOLID[o.kind] and not o.dead and not o.removed and not o.gas
+			and not (o.drone and o.owner == e) and o.body then
+			local ox, oy = o.body:getPosition()
+			local ovx, ovy = o.body:getLinearVelocity()
+			local rx, ry, rvx, rvy = ox - x, oy - y, ovx - vx, ovy - vy
+			local reach = (o.radius or o.halfLength or 20) + me
+			local closing = -(rx * rvx + ry * rvy)
+			if closing > 0 then
+				local v2 = rvx * rvx + rvy * rvy
+				local t = math.min(closing / v2, ahead)
+				local cx, cy = rx + rvx * t, ry + rvy * t
+				if cx * cx + cy * cy < reach * reach then return true end
+			end
+		end
+	end
+	return false
+end
+
+-- Each frame: the nav warning, and drop a lock that's dead or out of
+-- radar range.
+function Game:updateComputers(dt)
 	local p = self.player
 	if not p or p.dead then return end
+	local ship = self:pilotedShip()
+	local want = (self:computer(p, "nav") and not ship.catching and not ship.dockState
+		and collisionCourse(self, ship, T.navLookahead)) and 1 or 0
+	local warn = p.navWarn or 0
+	p.navWarn = warn + math.max(-dt * 2, math.min(dt * 5, want - warn))
 	local t, radar = p.lock, self:computer(p, "radar")
 	if t and (t.dead or not radar) then p.lock = nil
 	elseif t then
@@ -133,13 +166,17 @@ function Game:drawComputers(px)
 	local ship = self:pilotedShip()
 	local x, y = ship.body:getPosition()
 
-	if self:computer(p, "nav") then
+	-- nav: the mass driver's dashed course line, only while a collision's coming
+	local warn = p.navWarn or 0
+	if warn > 0.01 then
 		local vx, vy = ship.body:getLinearVelocity()
-		lg.setLineWidth(max(1.5, 1.5 * px))
-		lg.setColor(0.45, 1, 0.7, 0.55)
-		lg.line(x, y, x + vx, y + vy)
-		for s = 1, 3 do
-			lg.circle("line", x + vx * s, y + vy * s, (4 + s * 2) * px)
+		local ahead = T.navLookahead
+		lg.setColor(1, 0.55, 0.1, 0.85 * warn)
+		lg.setLineWidth(max(2, 2 * px))
+		local n = 20
+		for i = 0, n - 1, 2 do
+			local t1, t2 = i / n * ahead, (i + 1) / n * ahead
+			lg.line(x + vx * t1, y + vy * t1, x + vx * t2, y + vy * t2)
 		end
 	end
 

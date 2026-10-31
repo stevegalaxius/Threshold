@@ -1641,7 +1641,7 @@ function Game:frame(dt, aimX, aimY)
 
 	local p = self.player
 	if p and not p.dead then
-		self:updateComputers()
+		self:updateComputers(dt)
 		local x, y = self:pilotedShip().body:getPosition()
 		if p.catching then
 			-- coming in hot: look down the line at the rings ahead
