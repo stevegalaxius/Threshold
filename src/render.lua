@@ -584,15 +584,6 @@ local function drawPlanet(game, e)
 			lg.setColor(c[1], c[2], c[3], 0.045)
 			lg.circle("fill", x, y, R * (1 - (k - 1) / 13), PLANET_SEGMENTS)
 		end
-		-- the cloud deck: a lighter, calmer band below the upper air, and
-		-- a hard line where the crush begins
-		local d1, d2 = R - T.gasAtmo, R - T.gasAtmo - T.gasDeck
-		lg.setLineWidth(d1 - d2)
-		lg.setColor(min(1, c[1] * 1.2), min(1, c[2] * 1.2), min(1, c[3] * 1.2), 0.08)
-		lg.circle("line", x, y, (d1 + d2) / 2, PLANET_SEGMENTS)
-		lg.setLineWidth(outline(2))
-		lg.setColor(1, 0.4, 0.3, 0.35)
-		lg.circle("line", x, y, d2, PLANET_SEGMENTS)
 		lg.setColor(c[1], c[2], c[3], 0.5)
 		lg.setLineWidth(outline(3))
 		lg.circle("line", x, y, R, PLANET_SEGMENTS)

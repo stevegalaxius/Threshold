@@ -20,9 +20,8 @@
 	  mercury, venus, earth, mars, belt (Ceres)
 	                       planet maps (Mars has the Heaven-Ladder)
 	  jupiter, saturn, uranus, neptune
-	                       gas giants: rings, then the atmosphere, a calm
-	                       cloud deck (Jupiter's Olympus and Uranus's
-	                       Herschel float there) and the crush below it
+	                       gas giants with rings (Jupiter's Olympus and
+	                       Uranus's Herschel float in the cloud tops)
 	  lane                 the transit lane between two planets
 	The old levels below stay as instance maps for missions later; for now
 	they're reached from the debug panel.
@@ -153,8 +152,8 @@ Fields.mixes = MIX
 --   beltMix            the belt's own mix (default: rock round a rocky
 --                      planet, the map's mix round a gas giant)
 --   stations           names for its orbital stations (none if nil)
---   city               a cloud city's name: a station floating on a gas
---                      giant's cloud deck (it's station 1)
+--   city               a cloud city's name: a station floating in a gas
+--                      giant's cloud tops, above the crush (station 1)
 --   enemies            { { enemy id, count }, ... }
 --   gas                a gas giant (see Game:spawnGasGiant)
 --   extra(game, R)     more to build once the planet is in
@@ -192,8 +191,8 @@ local function planetField(o)
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = { beltIn, beltOut } end
 			if o.city then
-				-- floating on the cloud deck, riding the current round
-				local cd = R - T.gasAtmo - T.gasDeck / 2
+				-- floating in the cloud tops, above the crush, riding the current round
+				local cd = R - T.crushStart * 0.3
 				local st = game:spawnWheelStation(cd, 0, 1100, 140, 0.03)
 				st.city = true
 				game:setOrbit(st, 0, 0, game:currentSpeed(cd) * 0.5)
