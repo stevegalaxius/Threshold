@@ -259,8 +259,8 @@ function A.update(game, dt)
 		local Grid = require("src.inventory.grid")
 		local Hold = require("src.inventory.hold")
 		Cargo.toggle(game)
-		-- A real wheel station (planet field), with the Wisp parked inside.
-		game:loadField("planet")
+		-- A real wheel station (Mars), with the Wisp parked inside.
+		game:loadField("mars")
 		local w = game.player
 		local st
 		for _, e in ipairs(game.entities) do if e.kind == "station" and e.dock then st = e end end
@@ -383,6 +383,15 @@ function A.update(game, dt)
 		log("loot: tapped E on a container (%s) -> window %s, %d sides, loot side %s",
 			table.concat(parts, ", "), tostring(Cargo.isOpen(game)), L and #L.sides or 0, L and L.sides[2] and L.sides[2].title or "none")
 		shot("09_loot")
+		-- shove it away: the beam should hold it in reach while the window's open
+		local vx, vy = w.body:getLinearVelocity()
+		c.body:setLinearVelocity(vx + math.cos(a) * 400, vy + math.sin(a) * 400)
+		local t0 = game.time
+		for _ = 1, 240 do game:step(1 / 120); Cargo.update(game) end
+		game.time = t0      -- keep the rest of the script on schedule
+		local cx2, cy2 = c.body:getPosition()
+		log("loot: shoved it off at 400 px/s -> 2 s later %.0f px from the hull (beam range %d), window open %s",
+			Ship.distanceTo(w, cx2, cy2) - c.radius, Ship.tractorRange(w), tostring(Cargo.isOpen(game)))
 	end) end
 	if t >= 34.05 then once("loot_take", function()
 		local Cargo = require("src.ui.cargo")
@@ -726,36 +735,159 @@ function A.update(game, dt)
 		A.holdBefore = Hold.cells(p.hold)
 	end) end
 	if t >= 35.95 then once("travel", function()
+		-- Earth, into the capture ring of the driver to Mars.
+		local Ship = require("src.ship")
+		game:loadField("earth", { player = Ship.record(game.player) })
 		local p = game.player
-		for _, g in ipairs(game.entities) do
-			if g.kind == "gate" and g.to == "station" then
-				p.body:setPosition(g.body:getPosition())
-				p.jumpCooldown = 0
+		A.credits1 = game.universe.credits
+		local g = game:findDriver()
+		local gx, gy = game:driverBreech(g)
+		local dx, dy = math.cos(g.angle), math.sin(g.angle)
+		-- come up the approach at a given speed and see what the beam does
+		local function approach(speed)
+			p.driverTractor, p.driverCooldown, game.driverMenu = nil, 0, nil
+			-- the driver rides a track round the planet: come at it where it is now,
+			-- moving with it
+			gx, gy = g.body:getPosition()
+			dx, dy = math.cos(g.angle), math.sin(g.angle)
+			local gvx, gvy = g.body:getLinearVelocity()
+			p.body:setPosition(gx - dx * 3000, gy - dy * 3000)
+			p.body:setAngle(g.angle)
+			p.body:setLinearVelocity(gvx + dx * speed, gvy + dy * speed)
+			p.body:setAngularVelocity(0)
+			local t0, got, overshot = game.time, nil, false
+			for i = 1, 120 * 20 do
+				p.intent.thrust = 0
+				game:step(1 / 120)
+				if game.driverMenu then got = i / 120 break end
+				if p.driverCooldown and p.driverCooldown > 0 then overshot = true break end
+			end
+			game.time = t0
+			return got, overshot
+		end
+		local got, over = approach(2400)
+		log("travel: up the approach at 2400 px/s -> locked %s, overshot %s", tostring(got ~= nil), tostring(over))
+		got, over = approach(500)
+		log("travel: up the approach at 500 px/s -> locked after %.1f s, overshot %s", got or -1, tostring(over))
+		game.camera.x, game.camera.y = p.body:getPosition()
+		game.camera.zoom = 0.25
+	end) end
+	if t >= 36.1 then once("travel_pick", function()
+		log("travel: driver window open %s; fares venus %d, mars %d, jupiter %d cr", tostring(game.driverMenu ~= nil),
+			game:driverFare("venus"), game:driverFare("mars"), game:driverFare("jupiter"))
+		shot("13b_orrery")
+	end) end
+	if t >= 36.2 then once("travel_fire", function()
+		game:fireDriver("mars")
+		-- the barrel swings round to Mars's bearing before it fires: run
+		-- the launch through here
+		local Fields = require("src.fields")
+		local g, p = game:findDriver(), game.player
+		local c = game.universe.clock
+		local ax, ay = Fields.orbitPos("earth", c)
+		local bx, by = Fields.orbitPos("mars", c)
+		local want = math.atan2(by - ay, bx - ax)
+		local t0, steps, err = game.time, 0, nil
+		while p.launch and steps < 120 * 12 do
+			game:step(1 / 120)
+			steps = steps + 1
+			if p.launch and p.launch.t > T.driverAlign and not err then
+				err = math.abs((g.angle - want + math.pi) % (2 * math.pi) - math.pi)
 			end
 		end
+		game.time = t0
+		log("travel: barrel off Mars's bearing by %.3f rad when it fired, launch took %.1f s", err or -1, steps / 120)
 	end) end
-	if t >= 36.05 then once("travel_check", function()
-		local Hold = require("src.inventory.hold")
+	if t >= 38.9 then once("travel_flight", function()
+		local f = game.flight or game.lastFlight
+		log("travel: fired by the driver -> now in %s (%s)", game.fieldId, game.trip and ("lane to " .. game.trip.to) or "no lane")
+		log("travel: flying now %s, clock %.0f; in flight %s (or done), %s -> %s, %.2f AU, %.1f s of trip view", tostring(game.flight ~= nil), game.universe.clock, tostring(f ~= nil), f and f.from or "-", f and f.to or "-", f and f.au or 0, f and f.dur or 0)
+		shot("14_flight")
+		A.clock0 = game.universe.clock
+	end) end
+	if t >= 42.45 then once("flight_view", function()
+		-- hold a trip view open for a frame to see it drawn
+		-- (it ends a step later and lands you at Mars's catcher again)
+		game.flight = { from = "earth", to = "mars", au = 0.96, t = 2, dur = 2.01, ship = require("src.ship").record(game.player) }
+		shot("14_flight")
+	end) end
+	if t >= 42.5 then once("catch_arrive", function()
 		local p = game.player
-		local gate
-		for _, g in ipairs(game.entities) do if g.kind == "gate" and g.to == "planet" then gate = g end end
+		local g = game:findDriver()
 		local px, py = p.body:getPosition()
-		local gx, gy = gate.body:getPosition()
-		local gates = {}
-		for _, g in ipairs(game.entities) do if g.kind == "gate" then table.insert(gates, g.to) end end
-		log("travel: jumped -> field %s (gates to %s), %.0f px from the gate back to planet, flying %s, hold %d -> %d m3",
-			game.fieldId, table.concat(gates, ", "), math.sqrt((px - gx) ^ 2 + (py - gy) ^ 2), p.hull.name, A.holdBefore, (Hold.cells(p.hold)))
-		shot("14_travel")
-		game:damage(p, 1e9)
+		local gx, gy = game:driverBreech(g)
+		local vx, vy = p.body:getLinearVelocity()
+		local rings = 0
+		for _, e in ipairs(game.entities) do if e.kind == "catchring" then rings = rings + 1 end end
+		log("catch: arrived in %s, catching %s, %.0f px from the driver at %.0f px/s, %d rings, clock +%.0f",
+			game.fieldId, tostring(p.catching), math.sqrt((px - gx) ^ 2 + (py - gy) ^ 2), math.sqrt(vx * vx + vy * vy), rings, game.universe.clock - (A.clock0 or 0))
+		shot("15_catch")
+		-- thread every ring: put the ship just short of each in turn
+		A.ringQueue = {}
+		for _, e in ipairs(game.entities) do if e.kind == "catchring" then table.insert(A.ringQueue, e) end end
+		table.sort(A.ringQueue, function(a, b) return a.index > b.index end)
 	end) end
-	if t >= 36.15 then once("respawn", function()
+	for k = 1, 8 do
+		if t >= 42.55 + k * 0.05 then once("catch_ring" .. k, function()
+			local e = A.ringQueue and A.ringQueue[k]
+			if not e then return end
+			local p = game.player
+			p.body:setPosition(e.body:getPosition())
+		end) end
+	end
+	if t >= 43.0 then once("catch_bay", function()
+		local p = game.player
+		local vx, vy = p.body:getLinearVelocity()
+		A.bayIn = math.sqrt(vx * vx + vy * vy)
+		local g = game:findDriver()
+		-- into the bay mouth (not on top of the driver's own hull)
+		local gx, gy = game:driverBreech(g)
+		local r = g.radius + 60
+		p.body:setPosition(gx + math.cos(g.angle) * r, gy + math.sin(g.angle) * r)
+	end) end
+	if t >= 43.1 then once("catch_done", function()
+		local p = game.player
+		local vx, vy = p.body:getLinearVelocity()
+		vx, vy = vx - (p.flowX or 0), vy - (p.flowY or 0)
+		log("catch: through every ring at %.0f px/s into the bay -> catching %s, now %.0f px/s against the current, %d of %d rings passed",
+			A.bayIn or 0, tostring(p.catching), math.sqrt(vx * vx + vy * vy), (function()
+				local n = 0
+				for _, e in ipairs(game.entities) do if e.kind == "catchring" and e.passed then n = n + 1 end end
+				return n
+			end)(), A.ringQueue and #A.ringQueue or 0)
+		local Ship = require("src.ship")
+		game:loadField("jupiter", { player = Ship.record(p) })
+		local q = game.player
+		q.body:setPosition(0, game.well.radius - T.crushStart - 4000)
+		A.armor0 = q.armor
+	end) end
+	if t >= 43.6 then once("crush", function()
+		local q = game.player
+		log("crush: jupiter radius %.0f, armor %.1f -> %.1f after 0.5 s inside", game.well.radius, A.armor0 or -1, q.dead and 0 or q.armor)
+		shot("16_jupiter")
+		game:damage(q, 1e9)
+	end) end
+	if t >= 43.7 then once("respawn", function()
 		local state = game.state
 		game:respawn()
 		local p = game.player
 		local st = p.dockState and p.dockState.station
 		log("respawn: state %s -> %s, field %s, docked at %s, flying %s", state, game.state, game.fieldId, st and st.name or "-", p.hull.name)
 	end) end
-	if t >= 36.25 then once("quit", function()
+	if t >= 43.75 then once("pause", function()
+		local Pause = require("src.ui.pause")
+		love.keypressed("escape")
+		A.pauseAt, A.pauseWall = game.time, love.timer.getTime()
+		log("pause: Esc -> paused %s", tostring(Pause.isOpen()))
+		shot("17_pause")
+	end) end
+	if A.pauseWall and love.timer.getTime() > A.pauseWall + 0.3 then once("unpause", function()
+		local Pause = require("src.ui.pause")
+		log("pause: 0.3 s later game time moved %.3f s", game.time - A.pauseAt)
+		love.keypressed("escape")
+		log("pause: Esc again -> paused %s", tostring(Pause.isOpen()))
+	end) end
+	if t >= 43.8 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
 	end) end

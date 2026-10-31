@@ -26,6 +26,9 @@ local events = require("src.events")
 
 local Weapons = {}
 
+-- How much of a drone bay's control budget a drone of each size uses.
+local DRONE_CONTROL = { S = 1, M = 2, L = 4 }
+
 local sqrt, cos, sin, atan2, rad, max, min, random = math.sqrt, math.cos, math.sin, math.atan2, math.rad, math.max, math.min, love.math.random
 
 local function takeAmmo(e, id)
@@ -89,7 +92,7 @@ local function fire(game, e, slot, dt)
 		local hit = game:raycast(wx, wy, ex, ey, e.team)
 		if hit then
 			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser")
+			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser", hit.x, hit.y)
 			local k = (w.knockback or 0) * T.knockbackScale
 			if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
 			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
@@ -102,6 +105,22 @@ local function fire(game, e, slot, dt)
 
 	-- Everything else fires one round per shot.
 	if slot.cooldown > 0 then return end
+	-- A drone bay controls only so many drones at once: its `control`
+	-- budget, which each drone in the air uses its size's worth of.
+	if w.kind == "drone" then
+		local used = 0
+		for _, d in ipairs(game.entities) do
+			if d.drone and d.owner == e and d.bay == slot.slot and not d.dead then used = used + d.control end
+		end
+		local cost = DRONE_CONTROL[data.items[slot.ammo].size]
+		if used + cost > (w.control or 1) then
+			slot.cooldown = 0.3
+			if e.isPlayer and not slot.fullWarned then game:toast("DRONE BAY AT CAPACITY", 1.2) end
+			slot.fullWarned = true
+			return
+		end
+		slot.fullWarned = false
+	end
 	local rate = w.fireRate * (slot.group ~= "auxiliary" and mult.primaryFireRate or 1)
 	-- Out of the selected ammo: fall back to another size this weapon can fire.
 	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
@@ -133,7 +152,8 @@ local function fire(game, e, slot, dt)
 
 	-- Drone bays launch a ship, not a projectile.
 	if w.kind == "drone" then
-		game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
+		local d = game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
+		d.bay, d.control = slot.slot, DRONE_CONTROL[data.items[slot.ammo].size]
 		game:muzzle(wx, wy, angle, 1.2)
 		events.emit("fire", e, slot)
 		return
@@ -161,7 +181,7 @@ local function fire(game, e, slot, dt)
 		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
 		p.life = ws.range / ws.speed * 1.3
 		p.damage = ws.damage * mult.missileDamage
-		p.target = nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
+		p.target = (e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5
@@ -270,7 +290,7 @@ function Weapons.updateProjectiles(game, dt)
 				local dmg = p.damage
 				-- gun rounds lose punch the further they've flown
 				if p.maxLife then dmg = dmg * (1 - T.gunFalloff * (1 - p.life / p.maxLife)) end
-				game:damage(hit.entity, dmg, p.owner, p.kind)
+				game:damage(hit.entity, dmg, p.owner, p.kind, hit.x, hit.y)
 				if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.x, hit.y) end
 				game:spark(hit.x, hit.y, 4, { 1, 0.85, 0.5 })
 			end

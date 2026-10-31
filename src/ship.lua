@@ -317,6 +317,9 @@ function Ship.fly(e, dt)
 		e.burnerLocked = false
 	end
 	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
+		-- the lane's buff replaces it, except on heavies, which need the
+		-- extra push to get anywhere on the road
+		and (not e.laneBuff or e.hull.class == "heavy")
 	if burner then fwd = 1 end
 	e.afterburn = burner
 	local main = max(0, fwd)
@@ -337,8 +340,11 @@ function Ship.fly(e, dt)
 	-- out-push the main engine (no engine fitted, or a very weak one).
 	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
 	local jets = max(0, fwd) * aux
-	local f = (max(engine, jets) + min(0, fwd) * retro) * scale
-	local l = side * aux * scale
+	-- in a transit lane (e.laneBuff, src/transit.lua) every thruster hits
+	-- far harder (the afterburner gets no extra on top)
+	local buff = e.laneBuff and 1 + (T.laneThrust - 1) * e.laneBuff or 1
+	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
+	local l = side * aux * scale * buff
 	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = s.thrust > 0 and e.spool or 0
@@ -354,7 +360,8 @@ function Ship.fly(e, dt)
 	local vx, vy = b:getLinearVelocity()
 	vx, vy = vx - (e.flowX or 0), vy - (e.flowY or 0)
 	local speed = sqrt(vx * vx + vy * vy)
-	local k = e.hull.drag * T.dragScale
+	local k = e.hull.drag * T.dragScale * (e.laneBuff and 1 + (T.laneDrag - 1) * e.laneBuff or 1)
+	if e.coasting then k = 0 end                   -- just fired from a mass driver
 	b:applyForce(-k * speed * vx, -k * speed * vy)
 	b:setLinearDamping(T.linearDamping)
 	-- Box2D's damping slows against the world; push back so it, too, only

@@ -188,7 +188,7 @@ function Game:completeTrade(st, trade)
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do
 		-- (no room on the shelf: it's sold on straight away)
-		Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, resale = u.clock + T.resaleTime })
+		Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime })
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end

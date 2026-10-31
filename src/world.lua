@@ -11,9 +11,8 @@
 	            are rebuilt fresh on every visit; only the universe lasts.
 	            Saving what's floating in a level (wrecks, containers) can
 	            come later: it would go in the universe the same way.
-	  travel    jump gates, one per route in Fields.links. Fly into one and
-	            you come out of the matching gate in the other level, in the
-	            same ship with the same hold.
+	  travel    mass drivers and the transit lane between planets: see
+	            src/transit.lua.
 	  hangar    every station has a hangar bay: a grid (T.hangarW x
 	            T.hangarH cells) where each ship takes a footprint the size
 	            of its hull. The ship you're docked in has a spot too
@@ -105,22 +104,8 @@ function Game:placePlayer(rec, at)
 		local st = self:findStation(at.station)
 		if st and st.dock then self:dockInstantly(p, st) return p end
 	end
-	if at.gate then
-		for _, g in ipairs(self.entities) do
-			if g.kind == "gate" and g.to == at.gate then
-				-- out of the gate, heading in toward the middle of the level
-				local gx, gy = g.body:getPosition()
-				local d = max(sqrt(gx * gx + gy * gy), 1)
-				local ix, iy = -gx / d, -gy / d
-				p.body:setPosition(gx + ix * (T.gateRadius + 260), gy + iy * (T.gateRadius + 260))
-				p.body:setAngle(math.atan2(iy, ix))
-				p.body:setLinearVelocity(ix * 200, iy * 200)
-				p.jumpCooldown = T.gateCooldown
-				self.camera.x, self.camera.y = p.body:getPosition()
-				return p
-			end
-		end
-	end
+	if at.driver and self:placeAtDriver(p, at.exit) then return p end
+	if at.catch and self:placeForCatch(p) then return p end
 	if at.x then
 		p.body:setPosition(at.x, at.y)
 		p.body:setAngle(at.angle or 0)
@@ -131,30 +116,6 @@ function Game:placePlayer(rec, at)
 end
 
 -- Levels ----------------------------------------------------------------------
-
--- A jump gate for each route out of this level, spaced evenly around the
--- edge. Rocks in the way are cleared. Gates are markers with no
--- collision; Game:updateGates does the rest.
-function Game:spawnGates()
-	local links = Fields.linksOf(self.fieldId)
-	for i, to in ipairs(links) do
-		local a = -pi / 2 + (i - 1) / #links * pi * 2 + 0.6
-		local d = self.arenaRadius - 1800
-		local x, y = cos(a) * d, sin(a) * d
-		for k = #self.entities, 1, -1 do
-			local o = self.entities[k]
-			if o.kind == "asteroid" then
-				local ox, oy = o.body:getPosition()
-				if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.gateRadius + 400) ^ 2 then self:remove(o) end
-			end
-		end
-		local body = love.physics.newBody(self.world, x, y, "static")
-		local g = { kind = "gate", invulnerable = true, id = self:nextId(), team = 0, body = body,
-			radius = T.gateRadius, to = to, name = Fields[to].name, spin = love.math.random() * pi * 2 }
-		body:setUserData(g)
-		table.insert(self.entities, g)
-	end
-end
 
 -- The level's enemies, scattered away from where the player arrives.
 function Game:spawnFieldEnemies()
@@ -172,33 +133,6 @@ function Game:spawnFieldEnemies()
 			end
 		end
 	end
-end
-
-function Game:updateGates(dt)
-	local p = self.player
-	if not p or p.dead or p.dockState then return end
-	p.jumpCooldown = max(0, (p.jumpCooldown or 0) - dt)
-	if p.jumpCooldown > 0 then return end
-	local px, py = p.body:getPosition()
-	for _, g in ipairs(self.entities) do
-		if g.kind == "gate" then
-			local gx, gy = g.body:getPosition()
-			if (px - gx) ^ 2 + (py - gy) ^ 2 < g.radius ^ 2 then
-				self.pendingJump = g.to       -- travel after this step, not in the middle of it
-				return
-			end
-		end
-	end
-end
-
--- Jump to another level in the ship you're flying.
-function Game:travel(to)
-	local p = self.player
-	if not p or p.dead then return end
-	local from = self.fieldId
-	local rec = Ship.record(p)
-	self:loadField(to, { player = rec, at = { gate = from } })
-	events.emit("travel", from, to)
 end
 
 -- Hangar ----------------------------------------------------------------------
@@ -357,7 +291,9 @@ function Game:saveState()
 		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, market = market }
 	end
 	local u = self.universe
-	local state = { field = self.fieldId, kills = self.kills, home = u.home, stations = stations,
+	-- saved mid-transit: you'll be at the far end's driver when you load
+	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
+	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock }
 	local p = self.player
 	if p and not p.dead then
@@ -368,6 +304,8 @@ function Game:saveState()
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()
 			where = { x = x, y = y, angle = p.body:getAngle(), vx = vx, vy = vy }
+			if self.trip then where = { driver = self.trip.from, exit = self:laneExit() } end
+			if self.flight or p.catching then where = { catch = true } end
 		end
 		state.player = { ship = saveShip(Ship.record(p)), at = where }
 	end
