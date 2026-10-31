@@ -54,8 +54,9 @@ end
 -- outward. A marker only: nothing collides with it.
 function Game:spawnDrivers()
 	if not Fields.orbits[self.fieldId] then return end
+	-- right at the edge of the map, barrel pointing out of it
 	local a = -pi / 2 + 0.6
-	local d = self.arenaRadius - 2400
+	local d = self.arenaRadius - T.driverBarrel - 100
 	local x, y = cos(a) * d, sin(a) * d
 	for k = #self.entities, 1, -1 do
 		local o = self.entities[k]
@@ -136,8 +137,12 @@ function Game:updateDrivers(dt)
 			p.body:setLinearVelocity((gx - x) * 3, (gy - y) * 3)
 		else
 			L.t = L.t + dt
-			local s = T.driverExitSpeed * min(1, (L.t - T.driverAlign) / T.driverFire)
+			-- down the barrel, harder and harder, engine lit
+			local u = min(1, (L.t - T.driverAlign) / T.driverFire)
+			local s = T.driverExitSpeed * u * u
 			p.body:setLinearVelocity(dx * s, dy * s)
+			p.intent.thrust, p.intent.boost = 1, true
+			self:shake(0.08 * u)
 			if L.t >= T.driverAlign + T.driverFire then self.pendingFlight = L.to end
 		end
 		return
@@ -307,7 +312,7 @@ function Game:updateCatch(dt)
 	local vx, vy = p.body:getLinearVelocity()
 	local speed = sqrt(vx * vx + vy * vy)
 	local d2 = (x - gx) ^ 2 + (y - gy) ^ 2
-	if d2 < (g.radius + 120) ^ 2 then
+	if d2 < (g.radius + 300) ^ 2 then
 		p.catching = nil
 		if speed <= T.catchBaySpeed then
 			-- caught: matched to the current, like any ship idling here

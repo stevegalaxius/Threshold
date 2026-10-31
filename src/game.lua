@@ -975,9 +975,11 @@ function Game:applyBoundary()
 		local b = e.body
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
-		if d > R and not e.fleeing and not e.catching then
+		-- only what people built is turned back (rocks drift on out), and
+		-- gently, like a nudge from traffic control
+		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch then
 			local over = d - R
-			local f = over * b:getMass() * 6
+			local f = min(over, 1500) * b:getMass() * 1.2
 			b:applyForce(-x / d * f, -y / d * f)
 		end
 	end

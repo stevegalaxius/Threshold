@@ -339,7 +339,7 @@ local function drawDriver(game, e)
 	local p = game.player
 	local busy = p and not p.dead and ((p.driverTractor and p.driverTractor.driver == e) or p.launch
 		or (game.driverMenu and game.driverMenu.driver == e))
-	local len, hw = 1400, 110
+	local len, hw = T.driverBarrel, 80
 	local lr = max(5, 3 * screenPx)
 	lg.push()
 	lg.translate(x, y)
@@ -370,8 +370,8 @@ local function drawDriver(game, e)
 		lg.rectangle("fill", -wall, dw * k / 3, wall, dw / 6)
 	end
 	-- runway lights back along the approach, strobes chasing in to the breech
-	local rw = 260
-	local step = 140
+	local rw = 180
+	local step = 120
 	local n = floor(T.driverZone / step)
 	for i = 0, n do
 		local lx = -wall - 30 - i * step
@@ -914,5 +914,7 @@ function Render.world(game)
 	drawEffects(game)
 	game.camera:release()
 end
+
+Render.ship = drawShip
 
 return Render

@@ -81,11 +81,12 @@ T.driverRadius = 260
 -- The approach behind the breech where its tractor takes you (length and
 -- half-width), how fast it reels you in, and the most it can slow you
 -- (px/s^2): come in faster than it can stop and you overshoot.
-T.driverZone, T.driverZoneWidth = 4500, 700
+T.driverZone, T.driverZoneWidth = 3000, 500
+T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
 T.driverGrip = 320
-T.driverAlign, T.driverFire = 1.2, 0.8
-T.driverExitSpeed = 2600
+T.driverAlign, T.driverFire = 1.2, 1.4
+T.driverExitSpeed = 4500
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 
@@ -140,14 +141,14 @@ T.flightSpecs = {
 	{ key = "flightPerAU",     label = "Trip view: seconds per AU",      min = 0,    max = 5,     value = 1,     precision = 1 },
 	{ key = "flightClockPerAU", label = "Game clock per AU (s)",         min = 0,    max = 1200,  value = 120,   precision = 0 },
 	{ key = "catchSpeed",      label = "Arrival speed (px/s)",           min = 500,  max = 6000,  value = 2500,  precision = 0 },
-	{ key = "catchRings",      label = "Braking rings",                  min = 1,    max = 8,     value = 4,     precision = 0 },
+	{ key = "catchRings",      label = "Braking rings",                  min = 1,    max = 8,     value = 2,     precision = 0 },
 	{ key = "catchSpacing",    label = "Ring spacing (px)",              min = 800,  max = 6000,  value = 2500,  precision = 0 },
-	{ key = "catchRingRadius", label = "Ring radius (px)",               min = 100,  max = 1000,  value = 380,   precision = 0 },
-	{ key = "catchBrake",      label = "Speed taken per ring",           min = 0,    max = 0.9,   value = 0.35,  precision = 2 },
-	{ key = "catchBaySpeed",   label = "Fastest catch (px/s)",           min = 100,  max = 2000,  value = 700,   precision = 0 },
+	{ key = "catchRingRadius", label = "Ring radius (px)",               min = 100,  max = 1000,  value = 550,   precision = 0 },
+	{ key = "catchBrake",      label = "Speed taken per ring",           min = 0,    max = 0.9,   value = 0.5,  precision = 2 },
+	{ key = "catchBaySpeed",   label = "Fastest catch (px/s)",           min = 100,  max = 2000,  value = 900,   precision = 0 },
 	{ key = "catchApproach",   label = "Start beyond last ring (px)",    min = 1000, max = 20000, value = 8000,  precision = 0 },
-	{ key = "catchOffset",     label = "Start off the line (px)",        min = 0,    max = 4000,  value = 1200,  precision = 0 },
-	{ key = "catchDrift",      label = "Planet current push while inbound", min = 0, max = 2,     value = 0.25,  precision = 2 },
+	{ key = "catchOffset",     label = "Start off the line (px)",        min = 0,    max = 4000,  value = 600,  precision = 0 },
+	{ key = "catchDrift",      label = "Planet current push while inbound", min = 0, max = 2,     value = 0.12,  precision = 2 },
 }
 for _, s in ipairs(T.flightSpecs) do T[s.key] = s.value end
 
