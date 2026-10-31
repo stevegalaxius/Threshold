@@ -782,6 +782,63 @@ function Game:spawnGasGiant(x, y, radius, flow, swirl, hue)
 	return e
 end
 
+-- Cloud cities -----------------------------------------------------------------
+
+-- Olympus's shape, from the top down: a mast and its collar, the roof, the
+-- docking tunnel, the deck, a collar and the stalk hanging into the clouds.
+-- Each part is { top, bottom, half-width, top chamfer, bottom chamfer } in
+-- city units, with y = 0 the tunnel's centre line and -y up (out to space).
+local CITY_S = 8
+local CITY_PARTS = {
+	{ -194, -64, 5, 0, 0, role = "mast" },
+	{ -66, -44, 24, 12, 0 },
+	{ -46, -24, 112, 20, 0, role = "roof" },
+	{ 24, 44, 112, 0, 0, role = "floor" },
+	{ 42, 108, 210, 40, 70, role = "deck" },
+	{ 106, 148, 80, 0, 50, role = "collar" },
+	{ 146, 596, 30, 0, 0, role = "stalk" },
+}
+local CITY_TUNNEL = 24          -- half-height of the tunnel, in the same units
+
+local function cityPart(p)
+	local S = CITY_S
+	local y1, y2, w, ct, cb = p[1] * S, p[2] * S, p[3] * S, p[4] * S, p[5] * S
+	return { -w + ct, y1, w - ct, y1, w, y1 + ct * 0.6, w, y2 - cb * 0.6, w - cb, y2, -w + cb, y2, -w, y2 - cb * 0.6, -w, y1 + ct * 0.6 }
+end
+
+-- A cloud city: a fixed platform hanging in a gas giant's cloud tops, at
+-- angle a round the planet, with its docking tunnel just under the tops.
+-- It doesn't turn or drift. You dock by flying into either end of the
+-- tunnel (dock.both); the clamp is in the middle.
+function Game:spawnCloudCity(a)
+	local w = self.well
+	local S = CITY_S
+	local tunnelTop = -CITY_TUNNEL * S
+	local r = w.radius - 60 + tunnelTop      -- the tunnel's top 60 px under the cloud tops
+	local body = love.physics.newBody(self.world, w.x + cos(a) * r, w.y + sin(a) * r, "static")
+	body:setAngle(a + pi / 2)                -- local -y points out to space
+	self.stationCount = (self.stationCount or 0) + 1
+	local n = self.stationCount
+	local names = self.field and self.field.stations
+	local half = 112 * S
+	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
+		key = ("%s/%d"):format(self.fieldId or "?", n),
+		name = names and names[n] or "Cloud city", radius = half, parts = {},
+		cloudY = tunnelTop - 60, tunnel = CITY_TUNNEL * S, half = half }
+	e.dock = { x1 = -40, x2 = 40, hw = CITY_TUNNEL * S, wall = 24, runway = half - 40 + 600, capture = 260, both = true }
+	for _, p in ipairs(CITY_PARTS) do
+		local v = cityPart(p)
+		table.insert(e.parts, { verts = v, role = p.role, y = (p[1] + p[2]) / 2 * S })
+		local f = love.physics.newFixture(body, love.physics.newPolygonShape(v))
+		f:setFriction(0.5)
+		f:setRestitution(0.1)
+		f:setUserData(e)
+	end
+	body:setUserData(e)
+	table.insert(self.entities, e)
+	return e
+end
+
 function Game:updateCrush(dt)
 	local w = self.well
 	if not w or not w.gas then return end

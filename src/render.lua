@@ -352,6 +352,86 @@ local function drawStation(game, e)
 end
 
 -- A navigation buoy: a small beacon with a slow pulse ring.
+-- A cloud city: fixed parts drawn in the wheel stations' colours, sinking
+-- into the planet's haze below the cloud tops; the docking tunnel through
+-- the middle, lit at both ends.
+local function drawCity(game, e)
+	local x, y = e.body:getPosition()
+	local w = game.well
+	local c = w and w.planet and w.planet.hue or { 0.85, 0.65, 0.45 }
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	local T2, half = e.tunnel, e.half
+	for _, p in ipairs(e.parts) do
+		lg.setColor(0.2, 0.23, 0.28)
+		lg.polygon("fill", p.verts)
+		if p.role == "stalk" then
+			lg.setColor(0.15, 0.17, 0.21)
+			lg.rectangle("fill", -72, p.verts[2] + 16, 144, p.verts[10] - p.verts[2] - 32)
+		elseif p.role == "deck" then
+			lg.setColor(0.15, 0.17, 0.21)
+			lg.rectangle("fill", -1570, 560, 3140, 80)
+		end
+		lg.setColor(0.55, 0.63, 0.74)
+		lg.setLineWidth(outline(2))
+		lg.polygon("line", p.verts)
+	end
+	-- the tunnel: dark inside, hazard-striped mouths, the clamp in the middle
+	lg.setColor(0.07, 0.08, 0.1)
+	lg.rectangle("fill", -half, -T2, half * 2, T2 * 2)
+	lg.setColor(0.55, 0.63, 0.74)
+	lg.line(-half, -T2, half, -T2)
+	lg.line(-half, T2, half, T2)
+	local busy = false
+	for _, o in ipairs(game.entities) do
+		if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
+	end
+	lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+	for _, s in ipairs({ -1, 1 }) do
+		for k = 0, 3 do
+			lg.rectangle("fill", s * half - (s > 0 and 48 or 0), -T2 + 32 + k * 88, 48, 40)
+		end
+	end
+	lg.setColor(0.4, 1, 0.55, 0.9)
+	lg.rectangle("fill", -144, T2 - 48, 288, 32)
+	-- runway lights into both mouths, chasing inward
+	local lr = max(5, 3 * screenPx)
+	for i = 0, 6 do
+		local fade = 1 - i / 7 * 0.6
+		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
+		for _, s in ipairs({ -1, 1 }) do
+			local lx = s * (half + 180 + i * 270)
+			lg.circle("fill", lx, -T2 + 24, lr)
+			lg.circle("fill", lx, T2 - 24, lr)
+		end
+	end
+	-- windows: the roof, two rows on the deck, the collar, pairs down the stalk
+	lg.setColor(1, 0.86, 0.55, 0.85)
+	local wr = max(16, 2 * screenPx)
+	local function row(yy, hw, skip)
+		local i = 0
+		for xx = -hw, hw, 112 do
+			if i % 7 ~= skip then lg.circle("fill", xx, yy, wr) end
+			i = i + 1
+		end
+	end
+	row(-288, 720, 3); row(448, 1360, 2); row(736, 1200, 5); row(992, 480, 1)
+	for yy = 1328, 4600, 240 do lg.circle("fill", -144, yy, wr); lg.circle("fill", 144, yy, wr) end
+	-- the beacon on the mast
+	lg.setColor(1, 0.35, 0.3)
+	lg.circle("fill", 0, -1552, max(24, 4 * screenPx))
+	-- the haze: everything below the cloud tops fades into the planet
+	for _, p in ipairs(e.parts) do
+		local depth = (p.y - e.cloudY) / 3000
+		if depth > 0 then
+			lg.setColor(c[1], c[2], c[3], min(0.75, depth * 0.45))
+			lg.polygon("fill", p.verts)
+		end
+	end
+	lg.pop()
+end
+
 local function drawBuoy(game, e)
 	local x, y = e.body:getPosition()
 	local px = screenPx
@@ -971,7 +1051,7 @@ function Render.world(game)
 		if e.kind == "asteroid" then drawAsteroid(e)
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
-		elseif e.kind == "station" then drawStation(game, e)
+		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
 		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "driver" then drawDriver(game, e)
 		elseif e.kind == "catchring" then drawCatchRing(game, e)

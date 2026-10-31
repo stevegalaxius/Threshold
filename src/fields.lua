@@ -196,13 +196,7 @@ local function planetField(o)
 			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue) or game:spawnPlanet(0, 0, R, 290, 0.1)
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = { beltIn, beltOut } end
-			if o.city then
-				-- floating in the cloud tops, above the crush, riding the current round
-				local cd = R - T.crushStart * 0.3
-				local st = game:spawnWheelStation(cd, 0, 1100, 140, 0.03)
-				st.city = true
-				game:setOrbit(st, 0, 0, game:currentSpeed(cd) * 0.5)
-			end
+			if o.city then game:spawnCloudCity(-pi / 2 + 0.35) end
 			if o.extra then o.extra(game, R) end
 			if o.stations then
 				-- Two wheel stations out past the belt.
