@@ -817,6 +817,29 @@ function Game:spawnContainers(n, minD)
 	end
 end
 
+-- Looting: while a wreck or container is open in the cargo screen
+-- (game.looting, set by the cargo screen), the tractor beam tries to keep
+-- it in reach. It matches your velocity and, past lootHoldAt of the beam's
+-- range, closes back in; the pull has a limit (lootHoldAccel), so a heavy
+-- burn can still leave it behind and close the window.
+function Game:updateLootHold(dt)
+	local p, e = self.player, self.looting
+	if not e or e.removed or e.dead or not p or p.dead or p.dockState then return end
+	local px, py = p.body:getPosition()
+	local ex, ey = e.body:getPosition()
+	local dx, dy = px - ex, py - ey
+	local d = max(sqrt(dx * dx + dy * dy), 1)
+	local edge = Ship.distanceTo(p, ex, ey) - e.radius
+	local want = max(0, edge - Ship.tractorRange(p) * T.lootHoldAt) * 2
+	local pvx, pvy = p.body:getLinearVelocity()
+	local evx, evy = e.body:getLinearVelocity()
+	local ax, ay = (pvx + dx / d * want - evx) * 4, (pvy + dy / d * want - evy) * 4
+	local a = sqrt(ax * ax + ay * ay)
+	if a > T.lootHoldAccel then ax, ay = ax / a * T.lootHoldAccel, ay / a * T.lootHoldAccel end
+	local m = e.body:getMass()
+	e.body:applyForce(ax * m, ay * m)
+end
+
 -- Towing: a line from the player's ship to the container it holds with
 -- the tractor beam. Slack up to towLength from the hull; past that it
 -- pulls both ways (so a full container drags on you), and the ship can't
@@ -927,6 +950,7 @@ function Game:step(dt)
 	self:updateCatch(dt)
 	self:updateOrbits(dt)
 	self:updateTow(dt)
+	self:updateLootHold(dt)
 	self.world:update(dt)
 	self:planetImpacts()
 	self:updateDocking(dt)

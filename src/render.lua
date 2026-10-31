@@ -626,12 +626,25 @@ local function drawShip(game, e)
 end
 
 -- Tractor beam: a soft line to whatever it's reeling in, and its reach
--- while the key is held.
+-- while the key is held; a fainter one to a wreck you're looting.
 local function drawTractor(game)
 	local p = game.player
-	if not p or p.dead or not p.intent.tractor then return end
+	if not p or p.dead then return end
 	local x, y = p.body:getPosition()
 	local c = COLORS.laser
+	local held = game.looting
+	if held and not held.removed and not p.intent.tractor then
+		-- holding what you're looting: a fainter beam
+		local tx, ty = held.body:getPosition()
+		lg.setColor(c[1], c[2], c[3], 0.15)
+		lg.setLineWidth(5)
+		lg.line(x, y, tx, ty)
+		lg.setColor(c[1], c[2], c[3], 0.45)
+		lg.setLineWidth(1)
+		lg.line(x, y, tx, ty)
+		return
+	end
+	if not p.intent.tractor then return end
 	lg.setColor(c[1], c[2], c[3], 0.08)
 	lg.setLineWidth(1)
 	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)

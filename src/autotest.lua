@@ -383,6 +383,15 @@ function A.update(game, dt)
 		log("loot: tapped E on a container (%s) -> window %s, %d sides, loot side %s",
 			table.concat(parts, ", "), tostring(Cargo.isOpen(game)), L and #L.sides or 0, L and L.sides[2] and L.sides[2].title or "none")
 		shot("09_loot")
+		-- shove it away: the beam should hold it in reach while the window's open
+		local vx, vy = w.body:getLinearVelocity()
+		c.body:setLinearVelocity(vx + math.cos(a) * 400, vy + math.sin(a) * 400)
+		local t0 = game.time
+		for _ = 1, 240 do game:step(1 / 120); Cargo.update(game) end
+		game.time = t0      -- keep the rest of the script on schedule
+		local cx2, cy2 = c.body:getPosition()
+		log("loot: shoved it off at 400 px/s -> 2 s later %.0f px from the hull (beam range %d), window open %s",
+			Ship.distanceTo(w, cx2, cy2) - c.radius, Ship.tractorRange(w), tostring(Cargo.isOpen(game)))
 	end) end
 	if t >= 34.05 then once("loot_take", function()
 		local Cargo = require("src.ui.cargo")

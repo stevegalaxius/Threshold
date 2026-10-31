@@ -15,7 +15,8 @@
 	            The game keeps running, and you can still fly with the keys.
 	  looting   a tap of E on a wreck or container in range opens it next
 	            to your hold. Take All, Ctrl-click or right-click takes;
-	            it closes when you drift out of range.
+	            your tractor beam tries to keep it in reach, and the
+	            window closes if it slips out of range anyway.
 
 	A loaded cargo container in any hold (a Hauler's wreck packs its cargo
 	in them) opens with a double-click as one more panel. A ship with room
@@ -467,6 +468,7 @@ function Cargo.update(game)
 		if not docked and Cargo.loot.removed then game:toast("IT'S GONE", 1.2) end
 		if docked then finish(game, nil); Cargo.loot = nil else Cargo.close(game) end
 	end
+	game.looting = Cargo.loot      -- the tractor beam holds it in reach (Game:updateLootHold)
 	if Cargo.hand and not Cargo.isOpen(game) then
 		local h = Cargo.hand
 		returnHand(game)
