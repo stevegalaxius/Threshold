@@ -84,7 +84,7 @@ hull {
 -- fight in every direction at once while the hull lumbers along. It can't
 -- strafe: A/D turn the hull, and side jets help it turn.
 hull {
-	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
+	id = "ferrous_bastion", name = "Bastion", maker = "Concord Military", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
 	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
 	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
@@ -126,31 +126,28 @@ hull {
 	cargo = { rounds_m = 600 },
 	price = 70000,
 }
-
--- Light freighter: a courier's ship. Fast in a straight line, nimble enough
--- to dodge, but fragile and with only a token gun. One small turret so it can
--- swat a lone pirate while running; the hold is the point. Flown by
--- independent traders and smugglers.
+-- Light freighter: a courier's ship. Quick in a straight line and nimble
+-- enough to dodge, but fragile and with only a token gun. One small turret
+-- so it can swat a lone pirate while running; the hold is the point.
 hull {
 	id = "ferrous_runner", name = "Runner", maker = "Ferrous Collective", class = "light", mount = "turret", turretTurn = 180,
 	mass = 120, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24,
 	shape = { 58,-8, 52,-20, -34,-22, -46,-14, -46,14, -34,22, 52,20, 58,8 },
 	slots = {
 		{ family = "primary",   size = "S", x = 30,  y = 0 },
-		{ family = "engine",    size = "M", x = -44, y = 0 },
+		{ family = "engine",    size = "S", x = -44, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "utility",   size = "any" },
 		{ family = "thruster",  size = "any" },
 	},
-	loadout = { "px2_autogun", "mule_engine", "ember_reactor", "hold_pod_s", "aux_thrusters" },
+	loadout = { "px2_autogun", "flit_engine", "ember_reactor", "hold_pod_s", "aux_thrusters" },
 	cargo = { rounds_s = 300 },
 	price = 22000,
 }
 
 -- Medium freighter: the workhorse between the Runner and the Hauler. Two
 -- small turrets and a launcher for defence, a decent hold and a medium
--- engine. Slow to turn but steady; the natural step up for a trader who
--- wants to survive a fight without paying battleship money.
+-- engine. Slow to turn but steady.
 hull {
 	id = "ferrous_mule", name = "Packhorse", maker = "Ferrous Collective", class = "medium", mount = "turret", turretTurn = 140,
 	mass = 420, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44,
