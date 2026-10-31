@@ -24,6 +24,11 @@
 	  ramSpeed  impact speed (px/s) below which a bump does it no harm;
 	            low is fragile, high shrugs off collisions
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
+	  parts  instead of shape: a list of polygons, { shape = {...}, shade = 0.6,
+	         tint = { r, g, b } }, drawn in order and coloured apart from the
+	         hull (shade multiplies its colour, tint is added). On death each
+	         part breaks off as its own wreck with a share of the loot. See
+	         the Hauler, and src/hullshape.lua.
 	  mount  how the hull carries its weapons, which sets how each class feels:
 	         fixed   guns point straight down the nose; you aim with the ship
 	         gimbal  guns swing a few degrees toward the cursor (default)
@@ -116,7 +121,15 @@ hull {
 	id = "ferrous_freighter", name = "Hauler", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 120, helm = "turn",
 	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62,
 	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62, ramSpeed = 200,
-	shape = { 138,-34, 128,-58, -124,-60, -138,-46, -138,46, -124,60, 128,58, 138,34 },
+	-- built in parts: they're tinted apart, and break off separately when
+	-- it dies (src/hullshape.lua)
+	parts = {
+		{ shape = { 100,-48, 100,48, -96,48, -96,-48 } },                                   -- cargo spine
+		{ shape = { 92,-60, 92,-36, -88,-36, -88,-60 }, tint = { 0.12, 0.06, -0.12 } },    -- port container rack
+		{ shape = { 92,36, 92,60, -88,60, -88,36 }, tint = { 0.12, 0.06, -0.12 } },        -- starboard container rack
+		{ shape = { 138,-30, 128,-44, 100,-44, 100,44, 128,44, 138,30 }, shade = 1.15 },   -- bridge
+		{ shape = { -96,-44, -96,44, -128,52, -140,40, -140,-40, -128,-52 }, shade = 0.6 }, -- engine block
+	},
 	slots = {
 		{ family = "primary",   size = "M", x = 70,  y = 0 },
 		{ family = "primary",   size = "M", x = -70, y = 0 },

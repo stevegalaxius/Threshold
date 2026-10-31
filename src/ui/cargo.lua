@@ -44,6 +44,7 @@ local Ship = require("src.ship")
 local Grid = require("src.inventory.grid")
 local Hold = require("src.inventory.hold")
 local Shapes = require("src.inventory.shapes")
+local HullShape = require("src.hullshape")
 local HUD = require("src.hud")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
@@ -1052,18 +1053,13 @@ local function drawEquipment(game, L, mx, my)
 	local hb = E.hull
 	local sc = min((hb.w - 20) / (x2 - x1), (hb.h - 10) / (y2 - y1))
 	local ox, oy = hb.x + hb.w / 2 - (x1 + x2) / 2 * sc, hb.y + hb.h / 2 - (y1 + y2) / 2 * sc
-	local pts = {}
-	for k = 1, #shape, 2 do
-		table.insert(pts, ox + shape[k] * sc)
-		table.insert(pts, oy + shape[k + 1] * sc)
-	end
 	local c = p.color
-	lg.setColor(c[1], c[2], c[3], 0.12)
-	local ok, tris = pcall(love.math.triangulate, pts)
-	if ok then for _, t in ipairs(tris) do lg.polygon("fill", t) end end
-	lg.setColor(c[1], c[2], c[3], 0.8)
-	lg.setLineWidth(1.5)
-	lg.polygon("line", pts)
+	lg.push()
+	lg.translate(ox, oy)
+	lg.scale(sc)
+	HullShape.draw(p.hull, c, function(pc) return { pc[1], pc[2], pc[3], 0.12 } end,
+		function(pc) return { pc[1], pc[2], pc[3], 0.8 } end, 1.5 / sc)
+	lg.pop()
 	lg.setLineWidth(1)
 
 	local hm = h and data.modules[h.id]
