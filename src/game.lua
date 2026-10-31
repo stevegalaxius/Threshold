@@ -1677,6 +1677,10 @@ function Game:frame(dt, aimX, aimY)
 	if self.cineZoom then
 		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * 6))
 	end
+	if p and p.laneFade then
+		p.laneFade = p.laneFade - dt / 1.5
+		if p.laneFade <= 0 then p.laneFade = nil end
+	end
 	if self.flash then
 		self.flash.t = self.flash.t + dt
 		if self.flash.t >= self.flash.life then self.flash = nil end

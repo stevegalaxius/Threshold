@@ -100,7 +100,12 @@ T.laneEntrySpeed = 2600
 -- After the barrel: T.driverCoast seconds climbing to driverCoastSpeed with
 -- the camera pulling out to cineZoom; then into the lane on a run-up of
 -- laneRunup px short of its mouth, braking to laneEntrySpeed.
-T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 30000
+T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 20000
+-- share of the driver's speed you still have as you enter the lane
+T.laneKeep = 0.8
+-- seconds over which lane drag comes back after you enter, so the kick
+-- carries you a good way down the road
+T.laneCarryTime = 20
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 

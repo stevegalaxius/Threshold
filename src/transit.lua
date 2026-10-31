@@ -523,6 +523,8 @@ function Game:placeAtDriver(p, exit)
 		p.body:setPosition(x, y)
 		p.body:setAngle(exit.angle)
 		p.body:setLinearVelocity(exit.vx, exit.vy)
+		-- the lane's glow and streaks fade off you instead of blinking out
+		p.laneFade = 1
 	else
 		p.body:setPosition(gx + ix * (T.driverRadius + 300), gy + iy * (T.driverRadius + 300))
 		p.body:setAngle(a)
@@ -709,7 +711,10 @@ function Game:updateLane(dt)
 		local tx, ty = cos(R.h), sin(R.h)
 		local x, y = p.body:getPosition()
 		local u = max(0, min(1, ((x - R.x) * tx + (y - R.y) * ty) / T.laneRunup))
-		local sp = R.speed + (T.laneEntrySpeed - R.speed) * u * u
+		-- easing off only a little: you hit the lane still carrying most of
+		-- the driver's kick
+		local keep = max(T.laneEntrySpeed, R.speed * T.laneKeep)
+		local sp = R.speed + (keep - R.speed) * u * u
 		local it = p.intent
 		it.thrust, it.strafe, it.boost = 0, 0, false
 		it.firePrimary, it.fireSecondary, it.fireAux = false, false, false
@@ -720,10 +725,24 @@ function Game:updateLane(dt)
 		-- left where it is
 		if u >= 1 then
 			p.runup = nil
+			p.laneCarry = { speed = sp, t = 0 }
 			self.cineZoom, self.savedZoom = nil, nil
 			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return
+	end
+	-- fresh onto the highway, the driver's kick bleeds off slowly: your
+	-- speed can't drop below a floor that eases down from the entry speed
+	-- over T.laneCarryTime (steer all you like, it only keeps the pace)
+	local C = p.laneCarry
+	if C then
+		C.t = C.t + dt
+		local u = C.t / T.laneCarryTime
+		local floor = C.speed * (1 - u * u)
+		local vx, vy = p.body:getLinearVelocity()
+		local sp = sqrt(vx * vx + vy * vy)
+		if sp > 1 and sp < floor then p.body:setLinearVelocity(vx / sp * floor, vy / sp * floor) end
+		if u >= 1 or p.intent.thrust < 0 then p.laneCarry = nil end
 	end
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
 	-- turned round and flew back out the near end: home again

@@ -477,11 +477,12 @@ end
 -- The lane buff: a crackling outline round any ship inside a transit
 -- lane.
 local function drawLaneBuff(e)
-	if not e.laneBuff or (e.dockState and e.dockState.done) then return end
+	local buff = e.laneBuff or e.laneFade
+	if not buff or buff <= 0 or (e.dockState and e.dockState.done) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
 	local hot = 0
-	local flick = (0.85 + love.math.random() * 0.3) * e.laneBuff
+	local flick = (0.85 + love.math.random() * 0.3) * buff
 	lg.setBlendMode("add")
 	for k = 3, 1, -1 do
 		lg.setColor(0.45 + hot * 0.5, 0.85, 1 - hot * 0.4, (0.1 + 0.08 * hot) * (1.4 - k * 0.3))
@@ -501,7 +502,7 @@ local function drawLaneBuff(e)
 		for k = -2, 2 do
 			local ox, oy = -dy * k * size * 0.35, dx * k * size * 0.35
 			local len = size * (2 + 4 * h) * (1 - math.abs(k) * 0.18) * flick
-			lg.setColor(0.5, 0.85, 1, (0.18 + 0.25 * h) * (1 - math.abs(k) * 0.25) * e.laneBuff)
+			lg.setColor(0.5, 0.85, 1, (0.18 + 0.25 * h) * (1 - math.abs(k) * 0.25) * buff)
 			lg.line(x + ox, y + oy, x + ox - dx * len, y + oy - dy * len)
 		end
 	end
