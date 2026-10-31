@@ -190,30 +190,88 @@ function Game:spawnPoint(minD, maxD)
 	return cos(a) * (self.arenaRadius - 300), sin(a) * (self.arenaRadius - 300)
 end
 
-function Game:spawnAsteroid(x, y, radius)
+-- Debris kinds (see Fields.mixes): shade/colour, how tough per px^2, and
+-- what they break into.
+local DEBRIS = {
+	rock = { fill = { 0.24, 0.24, 0.27 }, line = { 0.6, 0.62, 0.68 }, tough = 1, breaks = "rock" },
+	ice = { fill = { 0.42, 0.55, 0.62 }, line = { 0.8, 0.92, 1 }, tough = 0.6, breaks = "ice" },
+	junk = { fill = { 0.3, 0.27, 0.24 }, line = { 0.7, 0.62, 0.5 }, tough = 0.8, breaks = "junk" },
+	sat = { fill = { 0.32, 0.33, 0.36 }, line = { 0.78, 0.8, 0.85 }, tough = 0.7, breaks = "junk" },
+}
+Game.DEBRIS = DEBRIS
+
+-- A random kind from a mix of weights ({ rock = 5, ice = 2, ... }).
+function Game:pickDebris(mix)
+	mix = mix or (self.field and self.field.mix) or { rock = 1 }
+	local total = 0
+	for _, w in pairs(mix) do total = total + w end
+	local r = random() * total
+	for _, k in ipairs({ "rock", "ice", "junk", "sat" }) do
+		local w = mix[k]
+		if w then
+			if r < w then return k end
+			r = r - w
+		end
+	end
+	return "rock"
+end
+
+-- A typical size for a piece of debris of this kind.
+function Game:debrisSize(kind)
+	if kind == "sat" then return 22 + random() * 26 end
+	if kind == "junk" then return 18 + random() ^ 2 * 50 end
+	return 24 + random() ^ 2 * 80
+end
+
+-- A breakable piece of debris: rock, ice, junk or a satellite. They all
+-- fly, collide and break the same way; only the look, the shape and how
+-- tough they are differ.
+function Game:spawnDebris(kind, x, y, radius)
+	return self:spawnAsteroid(x, y, radius, kind)
+end
+
+function Game:spawnAsteroid(x, y, radius, kind)
+	kind = kind or "rock"
+	local D = DEBRIS[kind] or DEBRIS.rock
 	local verts = {}
-	for j = 0, 7 do
-		local ang = j / 8 * pi * 2 + (random() - 0.5) * 0.35
-		local rr = radius * (0.82 + 0.18 * random())
-		table.insert(verts, cos(ang) * rr)
-		table.insert(verts, sin(ang) * rr)
+	if kind == "sat" then
+		-- a boxy bus (the panels are drawn, not collided)
+		local h = radius * 0.45
+		verts = { -h, -h, h, -h, h, h, -h, h }
+	elseif kind == "junk" then
+		-- jagged, flat scraps
+		local n = random(4, 6)
+		for j = 0, n - 1 do
+			local ang = j / n * pi * 2 + (random() - 0.5) * 0.5
+			local rr = radius * (0.5 + 0.5 * random()) * (j % 2 == 0 and 1 or 0.7)
+			table.insert(verts, cos(ang) * rr)
+			table.insert(verts, sin(ang) * rr)
+		end
+	else
+		for j = 0, 7 do
+			local ang = j / 8 * pi * 2 + (random() - 0.5) * 0.35
+			local rr = radius * ((kind == "ice" and 0.7 or 0.82) + (kind == "ice" and 0.3 or 0.18) * random())
+			table.insert(verts, cos(ang) * rr)
+			table.insert(verts, sin(ang) * rr)
+		end
 	end
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
 	local shape
 	if love.math.isConvex(verts) then shape = love.physics.newPolygonShape(verts)
 	else shape = love.physics.newCircleShape(radius * 0.9); verts = nil end
 	local fixture = love.physics.newFixture(body, shape, 1)
-	fixture:setRestitution(0.2)
-	fixture:setFriction(0.5)
-	local m = 0.12 * radius * radius
+	fixture:setRestitution(kind == "ice" and 0.1 or 0.2)
+	fixture:setFriction(kind == "ice" and 0.1 or 0.5)
+	local m = 0.12 * radius * radius * (kind == "ice" and 0.6 or 1)
 	body:setMassData(0, 0, m, m * radius * radius * 0.5)
 	-- rocks around a planet keep their orbits, so no drag there
 	body:setLinearDamping(self.field and self.field.rockDrag or 0.25)
 	body:setAngularDamping(0.2)
-	body:setAngularVelocity((random() - 0.5) * 0.6)
+	body:setAngularVelocity((random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
 	body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
-	local e = { kind = "asteroid", id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture, shade = 0.55 + random() * 0.25,
-		hp = radius * radius * T.asteroidToughness }
+	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture,
+		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
+		hp = radius * radius * T.asteroidToughness * D.tough }
 	fixture:setUserData(e)
 	body:setUserData(e)
 	table.insert(self.entities, e)
@@ -436,7 +494,7 @@ function Game:planetImpacts()
 			self:addEffect({ kind = "explosion", x = x, y = y, r = radius * 1.4, life = 0.5, t = 0, dust = true })
 			self:spark(x, y, 10, { 1, 0.6, 0.3 })
 			self:remove(o)
-			self:spawnInfallingAsteroid(radius)
+			self:spawnInfallingAsteroid(radius, o.debris)
 		elseif o.kind == "husk" or o.kind == "container" then
 			self:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
 			self:remove(o)
@@ -447,14 +505,14 @@ end
 -- A rock arriving from the edge of the map: it comes in moving with the
 -- current and is steered into a lane in the belt (e.orbitR, see
 -- applyCurrent), where it settles into orbit.
-function Game:spawnInfallingAsteroid(radius)
+function Game:spawnInfallingAsteroid(radius, kind)
 	local w = self.well
 	local Rm = self.arenaRadius - 400
 	for _ = 1, 20 do
 		local a = random() * pi * 2
 		local x, y = w.x + cos(a) * Rm, w.y + sin(a) * Rm
 		if self:isClear(x, y, radius + 80) then
-			local e = self:spawnAsteroid(x, y, radius)
+			local e = self:spawnAsteroid(x, y, radius, kind)
 			local f = self:currentSpeed(Rm)
 			e.body:setLinearVelocity(-sin(a) * f - cos(a) * 250, cos(a) * f - sin(a) * 250)
 			e.orbitR = w.radius + 1500 + random() * 4500
@@ -747,11 +805,12 @@ function Game:spawnAsteroids(n, minD)
 	local placed = 0
 	for _ = 1, n * 10 do
 		if placed >= n then break end
-		local radius = 28 + random() ^ 2 * 100
+		local kind = self:pickDebris()
+		local radius = kind == "rock" and 28 + random() ^ 2 * 100 or self:debrisSize(kind)
 		local a = random() * pi * 2
 		local d = minD + random() * (self.arenaRadius - minD - 150)
 		local x, y = cos(a) * d, sin(a) * d
-		if self:isClear(x, y, radius + 60) then self:spawnAsteroid(x, y, radius); placed = placed + 1 end
+		if self:isClear(x, y, radius + 60) then self:spawnAsteroid(x, y, radius, kind); placed = placed + 1 end
 	end
 end
 
@@ -1304,12 +1363,13 @@ function Game:breakAsteroid(e)
 		local r = e.radius * sqrt(1 / n) * (0.75 + random() * 0.25)
 		if r >= 14 then
 			local a = spin + k / n * pi * 2 + (random() - 0.5) * 0.6
-			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r)
+			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r,
+				(DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks)
 			local s = 40 + random() * 90
 			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
 		end
 	end
-	self:spark(x, y, 8 + floor(e.radius / 4), { 0.65, 0.65, 0.7 })
+	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
 end
 

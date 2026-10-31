@@ -17,8 +17,12 @@
 	game clock for Earth. That only sets the distance between two planets,
 	which sets how long the transit lane between them is.
 
-	  earth, venus, mars   planet maps (Mars has the Heaven-Ladder)
-	  jupiter              a gas giant: no surface, a crushing gradient
+	  mercury, venus, earth, mars, belt (Ceres)
+	                       planet maps (Mars has the Heaven-Ladder)
+	  jupiter, saturn, uranus, neptune
+	                       gas giants: rings, then the atmosphere, a calm
+	                       cloud deck (Jupiter's Olympus and Uranus's
+	                       Herschel float there) and the crush below it
 	  lane                 the transit lane between two planets
 	The old levels below stay as instance maps for missions later; for now
 	they're reached from the debug panel.
@@ -34,18 +38,42 @@ local T = require("src.tuning")
 
 local Fields = {}
 
-local cos, sin, pi, random = math.cos, math.sin, math.pi, love.math.random
+local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "earth", "venus", "mars", "jupiter", "asteroids", "giant", "station" }
+Fields.list = { "mercury", "venus", "earth", "mars", "belt", "jupiter", "saturn", "uranus", "neptune",
+	"asteroids", "giant", "station" }
 Fields.start = "earth"
 
--- Orbits: distance from the Sun in AU and year length in Earth years.
+-- Orbits: distance from the Sun in AU, year length in Earth years, where
+-- it starts, and its dot colour on the orrery and the trip view.
 Fields.orbits = {
-	venus = { au = 0.72, year = 0.615, phase = 2.1 },
-	earth = { au = 1.0, year = 1.0, phase = 0 },
-	mars = { au = 1.52, year = 1.88, phase = 4.0 },
-	jupiter = { au = 5.2, year = 11.86, phase = 1.2 },
+	mercury = { au = 0.39, year = 0.24, phase = 5.2, color = { 0.75, 0.7, 0.65 } },
+	venus = { au = 0.72, year = 0.615, phase = 2.1, color = { 0.95, 0.85, 0.55 } },
+	earth = { au = 1.0, year = 1.0, phase = 0, color = { 0.45, 0.75, 1 } },
+	mars = { au = 1.52, year = 1.88, phase = 4.0, color = { 1, 0.5, 0.35 } },
+	belt = { au = 2.77, year = 4.6, phase = 3.0, color = { 0.65, 0.6, 0.55 } },
+	jupiter = { au = 5.2, year = 11.86, phase = 1.2, color = { 0.9, 0.7, 0.5 } },
+	saturn = { au = 9.54, year = 29.46, phase = 0.5, color = { 0.95, 0.85, 0.6 } },
+	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
+	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 }
+
+-- Where an orbit of au goes on a map of the system, as a fraction of its
+-- radius: squashed (power 0.4) so Mercury and Neptune both fit.
+function Fields.mapScale(au)
+	local maxAU = 0
+	for _, o in pairs(Fields.orbits) do maxAU = math.max(maxAU, o.au) end
+	return (au / maxAU) ^ 0.4
+end
+
+-- How long a lane is for a trip of au: full length per AU out to
+-- T.laneFarAU, then each AU past that counts for only T.laneFarScale of
+-- one, so the outer planets are a longer trip but not minutes of road.
+function Fields.laneLength(au)
+	local eff = au
+	if au > T.laneFarAU then eff = T.laneFarAU + (au - T.laneFarAU) * T.laneFarScale end
+	return T.laneBase + T.lanePerAU * eff
+end
 
 -- Where a planet is around the Sun at this clock, in AU.
 function Fields.orbitPos(id, clock)
@@ -98,30 +126,79 @@ Fields.station = {
 	end,
 }
 
--- A planet field. R is the planet's radius; the belt, station track and
--- arena edge keep the same distances from its surface whatever its size.
--- o.gas: a gas giant (no surface, see Game:spawnGasGiant); o.extra(game, R):
--- more to build once the planet is in; o.edge: arena edge past the surface.
-local function planetField(name, R, rocks, scattered, stations, enemies, o)
-	o = o or {}
+-- Debris: what you hit in space. Each planet map has a mix (weights for
+-- the kinds below), so the inner worlds are mostly junk and satellites and
+-- the outer reaches mostly rock and ice. See Game:spawnDebris.
+--   rock   plain asteroids        ice   ice asteroids (pale, brittle)
+--   junk   dead hardware          sat   working satellites (blinking)
+local MIX = {
+	inner = { junk = 5, sat = 4, rock = 1 },
+	mars = { junk = 3, sat = 2, rock = 5 },
+	belt = { rock = 9, ice = 1 },
+	giant = { rock = 5, ice = 4, junk = 1 },
+	ice = { ice = 8, rock = 2 },
+}
+Fields.mixes = MIX
+
+-- A planet field, from a table of settings (all distances in px):
+--   name, R            name and planet radius
+--   depth              open space past the surface: the arena edge is at
+--                      R + depth. This, not R, is how roomy the map is.
+--   density            loose debris per million px^2 of open space past
+--                      the station track
+--   mix                debris weights (see MIX above)
+--   belt               belt (or, round a gas giant, ring) density per
+--                      million px^2; beltIn/beltOut: its band above the
+--                      surface (default 3000..5500)
+--   beltMix            the belt's own mix (default mix)
+--   stations           names for its orbital stations (none if nil)
+--   city               a cloud city's name: a station floating on a gas
+--                      giant's cloud deck (it's station 1)
+--   enemies            { { enemy id, count }, ... }
+--   gas                a gas giant (see Game:spawnGasGiant)
+--   extra(game, R)     more to build once the planet is in
+local function planetField(o)
+	local name, R = o.name, o.R
+	local depth = o.depth or 35000
+	local edge = R + depth
+	local beltIn, beltOut = R + (o.beltIn or 3000), R + (o.beltOut or 5500)
+	local looseIn = R + 9500                -- loose debris starts past the station track
+	local area = function(r1, r2) return pi * (r2 * r2 - r1 * r1) / 1e6 end
+	local rocks = floor((o.belt or 0) * area(beltIn, beltOut))
+	local scattered = floor((o.density or 0) * area(looseIn, edge))
 	-- the planet's colour, the same every visit (so it can be drawn ahead
 	-- of you on the highway before you arrive)
 	local rng = love.math.newRandomGenerator(#name * 7919 + R)
 	local hue = { 0.35 + rng:random() * 0.2, 0.45 + rng:random() * 0.2, 0.7 + rng:random() * 0.2 }
-	if o.gas then hue = { 0.85, 0.65, 0.45 } end   -- as Game:spawnGasGiant paints it
+	if o.hue then hue = o.hue end
+	local stations = o.stations
+	if o.city then
+		stations = { o.city }
+		for _, n in ipairs(o.stations or {}) do table.insert(stations, n) end
+	end
 	return {
 		name = name,
 		planetR = R, gas = o.gas, hue = hue,
+		mix = o.mix or MIX.inner,
+		rings = o.gas and { beltIn, beltOut } or nil,
 		stations = stations,
-		enemies = enemies,
+		enemies = o.enemies,
 		spawn = { 0, R + 6700 },
-		radius = R + (o.edge or 16500),
+		radius = edge,
 		rockDrag = 0,
 		build = function(game)
-			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1) or game:spawnPlanet(0, 0, R, 290, 0.1)
+			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue) or game:spawnPlanet(0, 0, R, 290, 0.1)
 			if not o.gas then planet.hue = hue end
+			if o.gas then planet.rings = { beltIn, beltOut } end
+			if o.city then
+				-- floating on the cloud deck, riding the current round
+				local cd = R - T.gasAtmo - T.gasDeck / 2
+				local st = game:spawnWheelStation(cd, 0, 1100, 140, 0.03)
+				st.city = true
+				game:setOrbit(st, 0, 0, game:currentSpeed(cd) * 0.5)
+			end
 			if o.extra then o.extra(game, R) end
-			if stations then
+			if o.stations then
 				-- Two wheel stations out past the belt.
 				-- Both ride a track around the planet at opposite ends, moving at
 				-- the current's speed at that altitude (what a free station drifts at).
@@ -152,40 +229,72 @@ local function planetField(name, R, rocks, scattered, stations, enemies, o)
 					f.body:setLinearVelocity(-sin(a) * speed, cos(a) * speed)
 				end
 			end
-			-- A belt of rocks already circling with the current.
+			-- A belt (or ring) of debris already circling with the current.
+			local beltMix = o.beltMix or o.mix
 			local placed = 0
 			for _ = 1, rocks * 12 do
 				if placed >= rocks then break end
-				local radius = 24 + random() ^ 2 * 80
+				local kind = game:pickDebris(beltMix)
+				local radius = game:debrisSize(kind)
 				local a = random() * pi * 2
-				local d = R + 3000 + random() * 2500   -- a clear gap above the air, and below the stations
+				local d = beltIn + random() * (beltOut - beltIn)
 				local x, y = cos(a) * d, sin(a) * d
 				if game:isClear(x, y, radius + 60) then
-					local e = game:spawnAsteroid(x, y, radius)
+					local e = game:spawnDebris(kind, x, y, radius)
 					local v = game:currentSpeed(d)
 					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
 					placed = placed + 1
 				end
 			end
-			game:spawnAsteroids(scattered, R + 9500)    -- loose rocks start well past the station track
+			game:spawnAsteroids(scattered, looseIn)
 			game:spawnContainers(T.fieldContainers, R + 7500)
 		end,
 	}
 end
 
--- Sizes keep roughly the real ratios to Earth (Mars 0.53, Venus 0.95).
-Fields.earth = planetField("Earth", 15000, 320, 140, { "Orbital One", "Orbital Two" },
-	{ { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } })
-Fields.venus = planetField("Venus", 14300, 300, 120, { "Hub Station", "Cloudline Station" },
-	{ { "gunner", 2 }, { "swarmer", 3 } })
-Fields.mars = planetField("Mars", 7500, 180, 80, { "Station Alpha", "Station Beta" },
-	{ { "gunner", 2 }, { "interceptor", 2 } },
-	{ extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end, edge = 24000 })
--- Barebones, to try the scale: a gas giant much bigger than Earth with no
--- stations yet, meant to be big enough to get lost in.
-Fields.jupiter = planetField("Jupiter", 45000, 600, 260, nil,
-	{ { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } },
-	{ gas = true, edge = 18000 })
+-- Each planet's map. Planet sizes are as set; how roomy a map is comes
+-- from depth, and its character from density, mix and belt.
+Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 30000,
+	density = 0.03, mix = { junk = 3, sat = 2, rock = 5 }, belt = 0.6,
+	stations = { "Terminator Station", "Dawnline Station" },
+	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
+Fields.venus = planetField({ name = "Venus", R = 14300, depth = 35000,
+	density = 0.05, mix = MIX.inner, belt = 1,
+	stations = { "Hub Station", "Cloudline Station" },
+	enemies = { { "gunner", 2 }, { "swarmer", 3 } } })
+Fields.earth = planetField({ name = "Earth", R = 15000, depth = 35000,
+	density = 0.05, mix = MIX.inner, belt = 1, beltMix = { junk = 6, sat = 4 },
+	stations = { "Orbital One", "Orbital Two" },
+	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
+Fields.mars = planetField({ name = "Mars", R = 7500, depth = 32000,
+	density = 0.04, mix = MIX.mars, belt = 1,
+	stations = { "Station Alpha", "Station Beta" },
+	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
+	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
+-- The asteroid belt: Ceres in the middle and rock everywhere.
+Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 40000,
+	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 1500, beltOut = 6000,
+	stations = { "Ceres Dock", "Piazzi Station" },
+	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
+Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 25000, gas = true,
+	hue = { 0.85, 0.65, 0.45 },
+	density = 0.04, mix = MIX.giant, belt = 0.3, beltIn = 2500, beltOut = 4500,
+	city = "Olympus",
+	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
+Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 25000, gas = true,
+	hue = { 0.9, 0.8, 0.55 },
+	density = 0.04, mix = { ice = 6, rock = 4 }, belt = 0.8, beltIn = 1800, beltOut = 6500,
+	stations = { "Cassini Gate", "Enceladus Station" },
+	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
+Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 30000, gas = true,
+	hue = { 0.55, 0.85, 0.9 },
+	density = 0.05, mix = MIX.ice, belt = 0.4, beltIn = 2500, beltOut = 4000,
+	city = "Herschel",
+	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
+Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 30000, gas = true,
+	hue = { 0.35, 0.5, 0.95 },
+	density = 0.06, mix = { ice = 9, rock = 1 }, belt = 0.3, beltIn = 2500, beltOut = 3800,
+	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).
 Fields.lane = {

@@ -446,7 +446,7 @@ function Game:launchTrip(to)
 	local ax, ay = Fields.orbitPos(from, clock)
 	local bx, by = Fields.orbitPos(to, clock)
 	local bearing = math.atan2(by - ay, bx - ax)
-	local half = (T.laneBase + T.lanePerAU * au) / 2
+	local half = Fields.laneLength(au) / 2
 	local Rc = max(T.laneArc, half * 2 * 0.9)
 	self.trip = { from = from, to = to, au = au, length = half * 2, rot = bearing - (-half / Rc) }
 	-- you come in on a run-up short of the lane's mouth, still at the
@@ -612,7 +612,7 @@ function Game:buildLane()
 	if not self.trip then
 		-- reached from the debug panel: a lane from Earth to Mars
 		local au = Fields.distance("earth", "mars", self.universe.clock)
-		self.trip = { from = "earth", to = "mars", au = au, length = T.laneBase + T.lanePerAU * au }
+		self.trip = { from = "earth", to = "mars", au = au, length = Fields.laneLength(au) }
 	end
 	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9), rot = self.trip.rot or 0 }
 	self.arenaRadius = 1e7
@@ -630,6 +630,9 @@ function Game:populateLane()
 	local W = T.laneWidth
 	local s1, s2 = -lane.half + 3000, lane.half - 3000
 	local span = max(0, s2 - s1)
+	-- what's on the road: the mix where you're headed
+	local dest = Fields[trip.to]
+	local mix = dest and dest.mix
 	local function at(s, n, r)
 		local x, y = self:fromLane(s, n)
 		if self:isClear(x, y, r) then return x, y end
@@ -643,7 +646,7 @@ function Game:populateLane()
 			local r = 25 + rng:random() ^ 2 * (k == 1 and 140 or 50)
 			local x, y = at(s + (k - 1) * 260, n + (rng:random() - 0.5) * 400, r + 60)
 			if x then
-				local e = self:spawnAsteroid(x, y, r)
+				local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix))
 				e.lane = "rock"
 				local _, _, phi = self:toLane(x, y)
 				e.body:setLinearVelocity(-sin(phi) * across, cos(phi) * across)
@@ -657,7 +660,7 @@ function Game:populateLane()
 		local r = 30 + rng:random() ^ 2 * 160
 		local x, y = at(s, n, r + 40)
 		if x then
-			local e = self:spawnAsteroid(x, y, r)
+			local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix))
 			e.lane = "offroad"
 			e.body:setLinearVelocity(0, 0)
 		end
@@ -768,11 +771,12 @@ end
 -- Gas giants -----------------------------------------------------------------
 
 -- A gas giant: the same turning field as a planet, but nothing solid at
--- the middle. Inside its radius the crush builds with depth.
-function Game:spawnGasGiant(x, y, radius, flow, swirl)
+-- the middle. Under the cloud tops: the upper atmosphere (thickening air),
+-- the calm cloud deck, then the crush (see T.gasAtmo).
+function Game:spawnGasGiant(x, y, radius, flow, swirl, hue)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", gas = true, invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
-		hue = { 0.85, 0.65, 0.45 } }
+		hue = hue or { 0.85, 0.65, 0.45 } }
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, gas = true, planet = e }
@@ -788,12 +792,16 @@ function Game:updateCrush(dt)
 			local x, y = b:getPosition()
 			local r = sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
 			local depth = (w.radius - T.crushStart - r) / T.crushDepth
-			if r < w.radius then
-				-- thickening air all the way down, crushing past crushStart
-				local thick = min(1, (w.radius - r) / (T.crushStart + T.crushDepth))
+			if r < w.radius and not e.orbit then
+				-- thickening air through the upper atmosphere, easing off on
+				-- the cloud deck; past it the crush (below) takes over
+				local down = w.radius - r
+				local drag
+				if down < T.gasAtmo then drag = T.gasAtmoDrag * down / T.gasAtmo
+				else drag = T.gasDeckDrag + (T.gasAtmoDrag - T.gasDeckDrag) * max(0, 1 - (down - T.gasAtmo) / 1000) end
 				local vx, vy = b:getLinearVelocity()
 				local m = b:getMass()
-				b:applyForce(-vx * T.crushDrag * 0.3 * thick * m, -vy * T.crushDrag * 0.3 * thick * m)
+				b:applyForce(-vx * T.crushDrag * drag * m, -vy * T.crushDrag * drag * m)
 			end
 			if depth > 0 then
 				depth = min(1, depth)

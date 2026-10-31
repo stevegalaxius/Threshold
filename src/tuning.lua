@@ -121,11 +121,18 @@ T.yearLength = 1800
 T.laneBase = 20000
 T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
+-- Past laneFarAU, each extra AU of a trip adds only laneFarScale of an
+-- AU of lane, so Neptune is a long haul but not minutes of road.
+T.laneFarAU, T.laneFarScale = 5, 0.25
 
--- Gas giants: how far below the cloud tops you can go before the crush
--- starts, how much deeper it reaches full strength, its damage per
--- second there, and its drag.
-T.crushStart = 2000
+-- Gas giants, in layers below the cloud tops (the planet's radius):
+-- gasAtmo of upper atmosphere, where the air thickens (drag up to
+-- gasAtmoDrag), then gasDeck of calm cloud deck (drag gasDeckDrag), where
+-- the cloud cities float. Below the deck the crush builds to full strength
+-- over crushDepth: damage per second there, and its drag.
+T.gasAtmo, T.gasDeck = 4000, 5000
+T.gasAtmoDrag, T.gasDeckDrag = 0.3, 0.1
+T.crushStart = T.gasAtmo + T.gasDeck
 T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
 
 -- Hangar bays: cells across and down, and how many pixels of hull length

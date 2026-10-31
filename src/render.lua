@@ -142,6 +142,8 @@ local function drawReentry(e, size)
 	lg.setBlendMode("alpha")
 end
 
+local ROCK_FILL, ROCK_LINE = { 0.24, 0.24, 0.27 }, { 0.6, 0.62, 0.68 }
+
 local function drawAsteroid(e)
 	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
@@ -158,17 +160,39 @@ local function drawAsteroid(e)
 		lg.setColor(0.6 * s, 0.58 * s, 0.62 * s)
 		lg.setLineWidth(outline(3))
 		lg.polygon("line", e.outline)
-	elseif e.verts then
-		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
-		lg.polygon("fill", e.verts)
-		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
-		lg.setLineWidth(outline(2))
-		lg.polygon("line", e.verts)
 	else
-		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
-		lg.circle("fill", 0, 0, e.radius * 0.9)
-		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
-		lg.circle("line", 0, 0, e.radius * 0.9)
+		local f, l = e.fill or ROCK_FILL, e.line or ROCK_LINE
+		if e.debris == "sat" then
+			-- solar panels either side of the bus, and a blinking light
+			local r = e.radius
+			lg.setColor(0.15 * s, 0.25 * s, 0.5 * s)
+			lg.rectangle("fill", -r, -r * 0.18, r * 0.5, r * 0.36)
+			lg.rectangle("fill", r * 0.5, -r * 0.18, r * 0.5, r * 0.36)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.setLineWidth(outline(1))
+			lg.rectangle("line", -r, -r * 0.18, r * 0.5, r * 0.36)
+			lg.rectangle("line", r * 0.5, -r * 0.18, r * 0.5, r * 0.36)
+		end
+		if e.verts then
+			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+			lg.polygon("fill", e.verts)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.setLineWidth(outline(2))
+			lg.polygon("line", e.verts)
+		else
+			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+			lg.circle("fill", 0, 0, e.radius * 0.9)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.circle("line", 0, 0, e.radius * 0.9)
+		end
+		if e.debris == "sat" and (e.blink + love.timer.getTime()) % 1.5 < 0.2 then
+			lg.setColor(0.4, 1, 0.5)
+			lg.circle("fill", 0, 0, max(3, e.radius * 0.12))
+		elseif e.debris == "ice" then
+			-- a frost glint across the face
+			lg.setColor(1, 1, 1, 0.18)
+			lg.circle("fill", -e.radius * 0.25, -e.radius * 0.25, e.radius * 0.3)
+		end
 	end
 	lg.pop()
 	-- heated rock: glowing orange over its whole face
@@ -532,11 +556,32 @@ local function drawPlanet(game, e)
 		end
 	end
 	if e.gas then
+		-- its rings: a faint band where the ring debris circles
+		local rings = e.rings
+		if rings then
+			local mid, wdt = (rings[1] + rings[2]) / 2, rings[2] - rings[1]
+			lg.setLineWidth(wdt)
+			lg.setColor(c[1], c[2], c[3], 0.06)
+			lg.circle("line", x, y, mid, PLANET_SEGMENTS)
+			lg.setLineWidth(outline(1))
+			lg.setColor(c[1], c[2], c[3], 0.25)
+			lg.circle("line", x, y, rings[1], PLANET_SEGMENTS)
+			lg.circle("line", x, y, rings[2], PLANET_SEGMENTS)
+		end
 		-- a gas giant: see-through bands thickening toward the middle
 		for k = 1, 12 do
 			lg.setColor(c[1], c[2], c[3], 0.045)
 			lg.circle("fill", x, y, R * (1 - (k - 1) / 13), PLANET_SEGMENTS)
 		end
+		-- the cloud deck: a lighter, calmer band below the upper air, and
+		-- a hard line where the crush begins
+		local d1, d2 = R - T.gasAtmo, R - T.gasAtmo - T.gasDeck
+		lg.setLineWidth(d1 - d2)
+		lg.setColor(min(1, c[1] * 1.2), min(1, c[2] * 1.2), min(1, c[3] * 1.2), 0.08)
+		lg.circle("line", x, y, (d1 + d2) / 2, PLANET_SEGMENTS)
+		lg.setLineWidth(outline(2))
+		lg.setColor(1, 0.4, 0.3, 0.35)
+		lg.circle("line", x, y, d2, PLANET_SEGMENTS)
 		lg.setColor(c[1], c[2], c[3], 0.5)
 		lg.setLineWidth(outline(3))
 		lg.circle("line", x, y, R, PLANET_SEGMENTS)
@@ -911,7 +956,7 @@ function Render.world(game)
 		if game.trip then
 			local px, py, F = game:laneDestination()
 			if F.planetR then
-				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas,
+				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
 					body = { getPosition = function() return px, py end } })
 			end
 		end
