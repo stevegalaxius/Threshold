@@ -28,6 +28,8 @@
 	              with no ammo: they carry damage (per pulse), range,
 	              knockback, pulse (seconds the flash shows) and
 	              powerPerShot themselves.
+	  control     drone bays: how many drones it flies at once, counted by
+	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
 	  fireRate    shots per second           spread    random spread in degrees
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
 	  barrels     barrels that take turns firing; barrelGap = spacing
@@ -142,19 +144,19 @@ module {
 module {
 	id = "wasp_bay", name = "Wasp Bay", maker = "Nova Syndicate", family = "auxiliary", size = "S",
 	mass = 6, price = 7000,
-	weapon = { kind = "drone", fireRate = 0.4, recoil = 100 },
+	weapon = { kind = "drone", fireRate = 0.4, recoil = 100, control = 1 },
 }
 
 module {
 	id = "hive_bay", name = "Hive Bay", maker = "Nova Syndicate", family = "auxiliary", size = "M",
 	mass = 14, price = 18000,
-	weapon = { kind = "drone", fireRate = 0.3, recoil = 200 },
+	weapon = { kind = "drone", fireRate = 0.3, recoil = 200, control = 2 },
 }
 
 module {
 	id = "carrier_deck", name = "Carrier Deck", maker = "Nova Syndicate", family = "auxiliary", size = "L",
 	mass = 30, price = 40000,
-	weapon = { kind = "drone", fireRate = 0.2, recoil = 400 },
+	weapon = { kind = "drone", fireRate = 0.2, recoil = 400, control = 4 },
 }
 
 -- Engines -----------------------------------------------------------------------

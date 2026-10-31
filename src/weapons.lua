@@ -26,6 +26,9 @@ local events = require("src.events")
 
 local Weapons = {}
 
+-- How much of a drone bay's control budget a drone of each size uses.
+local DRONE_CONTROL = { S = 1, M = 2, L = 4 }
+
 local sqrt, cos, sin, atan2, rad, max, min, random = math.sqrt, math.cos, math.sin, math.atan2, math.rad, math.max, math.min, love.math.random
 
 local function takeAmmo(e, id)
@@ -102,6 +105,22 @@ local function fire(game, e, slot, dt)
 
 	-- Everything else fires one round per shot.
 	if slot.cooldown > 0 then return end
+	-- A drone bay controls only so many drones at once: its `control`
+	-- budget, which each drone in the air uses its size's worth of.
+	if w.kind == "drone" then
+		local used = 0
+		for _, d in ipairs(game.entities) do
+			if d.drone and d.owner == e and d.bay == slot.slot and not d.dead then used = used + d.control end
+		end
+		local cost = DRONE_CONTROL[data.items[slot.ammo].size]
+		if used + cost > (w.control or 1) then
+			slot.cooldown = 0.3
+			if e.isPlayer and not slot.fullWarned then game:toast("DRONE BAY AT CAPACITY", 1.2) end
+			slot.fullWarned = true
+			return
+		end
+		slot.fullWarned = false
+	end
 	local rate = w.fireRate * (slot.group ~= "auxiliary" and mult.primaryFireRate or 1)
 	-- Out of the selected ammo: fall back to another size this weapon can fire.
 	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
@@ -133,7 +152,8 @@ local function fire(game, e, slot, dt)
 
 	-- Drone bays launch a ship, not a projectile.
 	if w.kind == "drone" then
-		game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
+		local d = game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
+		d.bay, d.control = slot.slot, DRONE_CONTROL[data.items[slot.ammo].size]
 		game:muzzle(wx, wy, angle, 1.2)
 		events.emit("fire", e, slot)
 		return
