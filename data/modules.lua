@@ -164,6 +164,7 @@ module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate",  
 
 module { id = "ember_reactor", name = "Ember Reactor", maker = "Halcyon Arms",       family = "reactor", size = "S", mass = 5,  powerOut = 20, powerCap = 60,  price = 2500 }
 module { id = "kiln_reactor",  name = "Kiln Reactor",  maker = "Ferrous Collective", family = "reactor", size = "M", mass = 14, powerOut = 40, powerCap = 140, price = 8000 }
+module { id = "forge_reactor", name = "Forge Reactor", maker = "Concord Military",   family = "reactor", size = "L", mass = 32, powerOut = 75, powerCap = 280, price = 21000 }
 
 
 -- Utility -----------------------------------------------------------------------
@@ -174,5 +175,7 @@ module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective"
 
 -- Maneuvering thrusters (shared "any" slot) ----------------------------------------
 
-module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800 }
-module { id = "aux_thrusters_m", name = "Side Jets XL", maker = "Halcyon Arms", family = "thruster", size = "any", mass = 10, powerDraw = 4, sideThrust = 780, price = 9500 }
+-- One set of side jets for every hull: it scales to the thruster slot it's
+-- fitted in (S as listed, M and L stronger, heavier and hungrier).
+module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800,
+	bySlot = { S = 1, M = 1.9, L = 3.5, any = 1 } }

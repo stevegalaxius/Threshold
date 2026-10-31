@@ -35,7 +35,7 @@ enemy {
 
 enemy {
 	id = "brawler", color = { 0.95, 0.3, 0.3 }, name = "Raider Anvil", hull = "brute_anvil",
-	loadout = { "rk7_autocannon", "rk7_autocannon", false, false, "mule_engine", "kiln_reactor", false, "aux_thrusters_m" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", false, false, "mule_engine", "kiln_reactor", false, "aux_thrusters" },
 	cargo = { rounds_m = 300 },
 	ai = { style = "rush", range = 500, accuracy = 0.55, throttle = 0.85 },
 	salvage = { 3, 5 },
@@ -43,7 +43,7 @@ enemy {
 
 enemy {
 	id = "sniper", color = { 0.75, 0.45, 0.95 }, name = "Raider Mortar", hull = "brute_anvil",
-	loadout = { "rk7_autocannon", false, "thumper_m", false, "mule_engine", "kiln_reactor", false, "aux_thrusters_m" },
+	loadout = { "rk7_autocannon", false, "thumper_m", false, "mule_engine", "kiln_reactor", false, "aux_thrusters" },
 	cargo = { shell_m = 24, rounds_m = 150 },
 	ai = { style = "kite", range = 1500, accuracy = 0.6, throttle = 0.7, burstOn = 2, burstOff = 2 },
 	salvage = { 3, 5 },

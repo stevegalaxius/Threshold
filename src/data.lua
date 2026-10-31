@@ -31,7 +31,8 @@ data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
 -- Does a module fit a hull slot?
 function data.fits(slot, m)
-	if m.size ~= slot.size then return false end
+	-- a module sized "any" fits a slot of any size (side jets scale to it)
+	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
 	return m.family == slot.family
 end
