@@ -30,30 +30,30 @@
 ]]
 
 ammo { id = "rounds_s",  name = "Light rounds",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3, w = 1, h = 1, stack = 50,
-	shot = { damage = 10.8, speed = 4600, range = 4600, knockback = 250 } }
+	shot = { damage = 10.8, speed = 4600, range = 8600, knockback = 250 } }
 ammo { id = "rounds_m",  name = "Heavy rounds",  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
-	shot = { damage = 36, speed = 4800, range = 4800, knockback = 400 } }
+	shot = { damage = 36, speed = 4800, range = 9800, knockback = 400 } }
 
 ammo { id = "shell_s",   name = "Pip shells",    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25, w = 1, h = 1, stack = 6,
-	shot = { damage = 45, splash = 60, speed = 4800, range = 5000, knockback = 6000 } }
+	shot = { damage = 45, splash = 60, speed = 4800, range = 9000, knockback = 6000 } }
 ammo { id = "shell_m",   name = "Field shells",  maker = "Brute Industries",   family = "artillery", size = "M", volume = 0.30, mass = 0.25, price = 50, w = 1, h = 1, stack = 3,
-	shot = { damage = 90, splash = 90, speed = 4700, range = 5400, knockback = 12000 } }
+	shot = { damage = 90, splash = 90, speed = 4700, range = 10400, knockback = 12000 } }
 ammo { id = "shell_l",   name = "Siege shells",  maker = "Ferrous Collective", family = "artillery", size = "L", volume = 0.60, mass = 0.50, price = 110, w = 2, h = 1, stack = 3,
-	shot = { damage = 180, splash = 130, speed = 1900, range = 3000, knockback = 26000 } }
+	shot = { damage = 180, splash = 130, speed = 1900, range = 13000, knockback = 26000 } }
 
 ammo { id = "missile_s", name = "Sparrow missile", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.80, mass = 0.60, price = 400, w = 2, h = 1, stack = 2,
-	shot = { damage = 70, splash = 45, speed = 6100, range = 2600, knockback = 5000, accel = 2200, turnRate = 5 } }
+	shot = { damage = 70, splash = 45, speed = 6100, range = 12600, knockback = 5000, accel = 2200, turnRate = 5 } }
 ammo { id = "missile_m", name = "Hornet missile",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 1.50, mass = 1.20, price = 900, w = 3, h = 1, stack = 2,
-	shot = { damage = 140, splash = 70, speed = 5000, range = 3000, knockback = 10000, accel = 1800, turnRate = 4 } }
+	shot = { damage = 140, splash = 70, speed = 5000, range = 13000, knockback = 10000, accel = 1800, turnRate = 4 } }
 ammo { id = "missile_l", name = "Longbow missile", maker = "Ferrous Collective", family = "missile", size = "L", volume = 3.00, mass = 2.50, price = 2000, w = 3, h = 1, stack = 1,
-	shot = { damage = 260, splash = 110, speed = 3900, range = 3400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
+	shot = { damage = 260, splash = 110, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
 
 ammo { id = "torp_s", name = "Maul torpedo",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
-	shot = { damage = 220, splash = 80, speed = 4750, range = 2400, knockback = 15000 } }
+	shot = { damage = 220, splash = 80, speed = 4750, range = 12400, knockback = 15000 } }
 ammo { id = "torp_m", name = "Breaker torpedo",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400, w = 3, h = 1, stack = 1,
-	shot = { damage = 500, splash = 130, speed = 3650, range = 2800, knockback = 35000 } }
+	shot = { damage = 500, splash = 130, speed = 3650, range = 12800, knockback = 35000 } }
 ammo { id = "torp_l", name = "Leviathan torpedo", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 3200, w = 5, h = 1, stack = 1,
-	shot = { damage = 1100, splash = 210, speed = 2550, range = 3200, knockback = 80000 } }
+	shot = { damage = 1100, splash = 210, speed = 2550, range = 13200, knockback = 80000 } }
 
 ammo { id = "drone_s", name = "Wasp drone",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500, w = 2, h = 2, stack = 1,
 	shot = { hull = "wasp_drone", cargo = { rounds_s = 150 }, life = 25, speed = 300, range = 1500 } }
