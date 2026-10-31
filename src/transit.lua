@@ -374,7 +374,9 @@ end
 
 -- What turns up in the lane, with weights. cruise: rides the current.
 local LANE_TRAFFIC = {
-	{ "freighter", 5 },
+	{ "freighter", 2 },
+	{ "packhorse_trader", 2 },
+	{ "runner_trader", 2 },
 	{ "gunner", 2, neutral = true },       -- couriers and private craft
 	{ "brawler", 1, neutral = true },
 	{ "interceptor", 1, neutral = true },

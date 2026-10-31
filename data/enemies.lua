@@ -66,3 +66,21 @@ enemy {
 	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
 	salvage = { 4, 8 },
 }
+
+-- A courier in a Runner: small hold, quick, and it runs rather than fights.
+enemy {
+	id = "runner_trader", team = 3, color = { 0.8, 0.82, 0.7 }, name = "Runner", hull = "ferrous_runner",
+	cargo = { rounds_s = 200, salvage_kit = 4 },
+	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 900, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
+	salvage = { 1, 3 },
+}
+
+-- The everyday trader in a Packhorse: a fair hold and enough guns to
+-- make a lone pirate think twice.
+enemy {
+	id = "packhorse_trader", team = 3, color = { 0.76, 0.8, 0.74 }, name = "Packhorse", hull = "ferrous_mule",
+	cargo = { rounds_m = 300, scrap = 15, salvage_kit = 8 },
+	containers = { "cargo_container", 0, 2 },
+	ai = { style = "trader", range = 1200, accuracy = 0.55, throttle = 0.9, cruise = 700, horizon = 3.5, burstOn = 1.2, burstOff = 0.9 },
+	salvage = { 2, 5 },
+}
