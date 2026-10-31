@@ -130,6 +130,25 @@ end
 -- Catch the player in the driver's ring and hold them at the breech while
 -- the targeting window is up; then run the launch: line up on the rail
 -- and fire outward. p.launch = { driver, to, t } while it runs.
+-- How far along the ray from (x, y) heading (dx, dy) to the first
+-- planet, station or structure it would hit (math.huge if none).
+function Game:solidAhead(x, y, dx, dy)
+	local best = math.huge
+	for _, e in ipairs(self.entities) do
+		if (e.kind == "planet" and not e.gas) or e.kind == "station" or e.kind == "structure" or (e.kind == "asteroid" and e.giant) then
+			local ex, ey = e.body:getPosition()
+			local r = e.radius or 500
+			local rx, ry = ex - x, ey - y
+			local along = rx * dx + ry * dy
+			if along > 0 then
+				local off2 = rx * rx + ry * ry - along * along
+				if off2 < r * r then best = min(best, along - sqrt(r * r - off2)) end
+			end
+		end
+	end
+	return best
+end
+
 -- Which way the barrel should point: at the destination while a launch
 -- is on, otherwise straight out from the planet.
 local function barrelTarget(game, g, p)
@@ -191,6 +210,12 @@ function Game:updateDrivers(dt)
 		else
 			L.t = L.t + dt
 			if not self.savedZoom then self.savedZoom = self.camera.zoom end
+			-- once it fires, the ship passes through whatever's in the way
+			-- (the bearing can point back across the map)
+			if not L.ghost then
+				L.ghost = true
+				for _, f in ipairs(p.body:getFixtures()) do f:setSensor(true) end
+			end
 			local ft = L.t - T.driverAlign
 			local s
 			if ft < T.driverFire then
@@ -206,7 +231,9 @@ function Game:updateDrivers(dt)
 				-- (only ever out: if you're already wider, it leaves you be)
 				local wide = math.min(self.savedZoom, T.cineZoom)
 				self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
-				if u >= 1 then
+				-- the bearing can point back across the map: cut to the lane
+				-- early rather than fly into the planet (or a station)
+				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
 					self.pendingFlight = L.to
 					self.flash = { t = 0, life = 0.5 }
 				end

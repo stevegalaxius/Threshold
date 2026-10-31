@@ -338,8 +338,7 @@ end
 local function drawDriver(game, e)
 	local x, y = game:driverBreech(e)
 	local p = game.player
-	local busy = p and not p.dead and ((p.driverTractor and p.driverTractor.driver == e) or p.launch
-		or (game.driverMenu and game.driverMenu.driver == e))
+	local busy = p and not p.dead and (p.launch or (game.driverMenu and game.driverMenu.driver == e))
 	local len, hw = T.driverBarrel, 80
 	local lr = max(5, 3 * screenPx)
 	lg.push()
@@ -491,6 +490,21 @@ local function drawLaneBuff(e)
 	lg.setColor(0.8 + hot * 0.2, 0.95, 1, 0.5 + 0.3 * hot)
 	lg.setLineWidth(max(1.5, size * 0.06))
 	lg.circle("line", x, y, size * (1.15 + hot * 0.25) * flick, 24)
+	-- streaks trailing behind, like re-entry flames but cold blue, longer
+	-- the faster you go
+	local vx, vy = e.body:getLinearVelocity()
+	local sp = sqrt(vx * vx + vy * vy)
+	if sp > 200 then
+		local dx, dy = vx / sp, vy / sp
+		local h = min(1.5, sp / T.laneEntrySpeed)
+		lg.setLineWidth(max(2, size * 0.14))
+		for k = -2, 2 do
+			local ox, oy = -dy * k * size * 0.35, dx * k * size * 0.35
+			local len = size * (2 + 4 * h) * (1 - math.abs(k) * 0.18) * flick
+			lg.setColor(0.5, 0.85, 1, (0.18 + 0.25 * h) * (1 - math.abs(k) * 0.25) * e.laneBuff)
+			lg.line(x + ox, y + oy, x + ox - dx * len, y + oy - dy * len)
+		end
+	end
 	lg.setBlendMode("alpha")
 end
 
