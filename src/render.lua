@@ -336,7 +336,7 @@ end
 -- Mass drivers: a capture ring at the breech and a rail running outward,
 -- with lights chasing along it in the direction it fires.
 local function drawDriver(game, e)
-	local x, y = e.body:getPosition()
+	local x, y = game:driverBreech(e)
 	local p = game.player
 	local busy = p and not p.dead and ((p.driverTractor and p.driverTractor.driver == e) or p.launch
 		or (game.driverMenu and game.driverMenu.driver == e))
@@ -370,11 +370,12 @@ local function drawDriver(game, e)
 	for k = -3, 2 do
 		lg.rectangle("fill", -wall, dw * k / 3, wall, dw / 6)
 	end
-	-- runway lights back along the approach, strobes chasing in to the breech
+	-- runway lights back along the approach, strobes chasing in to the
+	-- breech; off while someone's in it (the gun swings, they'd only mislead)
 	local rw = 90
 	local step = 75
 	local n = floor(T.driverZone / step)
-	for i = 0, n do
+	for i = 0, busy and -1 or n do
 		local lx = -wall - 30 - i * step
 		local fade = 1 - i / (n + 1) * 0.6
 		lg.setColor(0.35, 1, 0.5, 0.75 * fade)

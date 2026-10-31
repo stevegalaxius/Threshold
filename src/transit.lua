@@ -61,7 +61,7 @@ function Game:spawnDrivers()
 	local d = self.arenaRadius - T.driverBarrel - 100
 	local speed = self:currentSpeed(d) * T.driverOrbitScale
 	local a = -pi / 2 + 0.6 + (self.universe and self.universe.clock or 0) * speed / d
-	local x, y = cos(a) * d, sin(a) * d
+	local x, y = cos(a) * (d + T.driverBarrel / 2), sin(a) * (d + T.driverBarrel / 2)
 	for k = #self.entities, 1, -1 do
 		local o = self.entities[k]
 		if o.kind == "asteroid" then
@@ -78,10 +78,19 @@ function Game:spawnDrivers()
 	self:spawnCatchRings()
 end
 
+-- The breech: where you're held. The body sits at the gun's middle, the
+-- axis it turns on, half a barrel up from the breech.
+local function breech(g)
+	local gx, gy = g.body:getPosition()
+	local h = T.driverBarrel / 2
+	return gx - cos(g.angle) * h, gy - sin(g.angle) * h
+end
+function Game:driverBreech(g) return breech(g) end
+
 -- A point in a driver's frame: lx along the barrel (the breech at 0, the
 -- approach behind it negative), ly across it.
 local function driverLocal(g, x, y)
-	local gx, gy = g.body:getPosition()
+	local gx, gy = breech(g)
 	local dx, dy = cos(g.angle), sin(g.angle)
 	local rx, ry = x - gx, y - gy
 	return rx * dx + ry * dy, -rx * dy + ry * dx
@@ -158,7 +167,7 @@ function Game:updateDrivers(dt)
 	local menu = self.driverMenu
 	if L or menu then
 		local g = (L or menu).driver
-		local gx, gy = g.body:getPosition()
+		local gx, gy = breech(g)
 		local x, y = p.body:getPosition()
 		local dx, dy = cos(g.angle), sin(g.angle)
 		p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
@@ -170,9 +179,14 @@ function Game:updateDrivers(dt)
 		if menu or L.t < T.driverAlign or (g.aimLeft or 0) > 0.002 then
 			-- the clock waits for the barrel to come round
 			if L and (g.aimLeft or 0) <= 0.002 then L.t = L.t + dt end
-			-- held in the breech, riding along with the driver
+			-- held in the breech, riding along as the gun travels and turns
 			local gvx, gvy = g.body:getLinearVelocity()
-			p.body:setLinearVelocity(gvx + (gx - x) * 3, gvy + (gy - y) * 3)
+			if L and (x - gx) ^ 2 + (y - gy) ^ 2 < 300 ^ 2 then
+				p.body:setPosition(gx, gy)
+				p.body:setLinearVelocity(gvx, gvy)
+			else
+				p.body:setLinearVelocity(gvx + (gx - x) * 3, gvy + (gy - y) * 3)
+			end
 		else
 			L.t = L.t + dt
 			if not self.savedZoom then self.savedZoom = self.camera.zoom end
@@ -287,7 +301,7 @@ end
 function Game:placeForCatch(p)
 	local g = self:findDriver()
 	if not g then return false end
-	local gx, gy = g.body:getPosition()
+	local gx, gy = breech(g)
 	local ox, oy = cos(g.angle), sin(g.angle)
 	local d = math.floor(T.catchRings + 0.5) * T.catchSpacing + T.catchApproach
 	local off = (random() * 2 - 1) * T.catchOffset
@@ -310,7 +324,7 @@ end
 function Game:spawnCatchRings()
 	local g = self:findDriver()
 	if not g then return end
-	local gx, gy = g.body:getPosition()
+	local gx, gy = breech(g)
 	local ox, oy = cos(g.angle), sin(g.angle)
 	for k = 1, math.floor(T.catchRings + 0.5) do
 		local d = k * T.catchSpacing
@@ -363,7 +377,7 @@ function Game:updateCatch(dt)
 	end
 	local g = self:findDriver()
 	if not g then p.catching = nil return end
-	local gx, gy = g.body:getPosition()
+	local gx, gy = breech(g)
 	local vx, vy = p.body:getLinearVelocity()
 	local speed = sqrt(vx * vx + vy * vy)
 	local d2 = (x - gx) ^ 2 + (y - gy) ^ 2
@@ -440,17 +454,6 @@ function Game:arrive(back)
 		local px, py = p.body:getPosition()
 		local cx, cy = self:laneDestination()
 		exit.ox, exit.oy = px - cx, py - cy
-		-- turn it all so the lane's end lines up with the real bearing from
-		-- the planet you left (the way its driver fired you): you come in
-		-- from that side of the map
-		local clock = self.universe.clock
-		local ax, ay = Fields.orbitPos(from, clock)
-		local bx, by = Fields.orbitPos(to, clock)
-		local r = math.atan2(by - ay, bx - ax) - self:laneHeading(self.lane.half)
-		local c, s = cos(r), sin(r)
-		exit.ox, exit.oy = exit.ox * c - exit.oy * s, exit.ox * s + exit.oy * c
-		exit.vx, exit.vy = vx * c - vy * s, vx * s + vy * c
-		exit.angle = exit.angle + r
 	end
 	self.trip = nil
 	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })
@@ -462,7 +465,7 @@ end
 function Game:placeAtDriver(p, exit)
 	local g = self:findDriver()
 	if not g then return false end
-	local gx, gy = g.body:getPosition()
+	local gx, gy = breech(g)
 	local ix, iy = -cos(g.angle), -sin(g.angle)
 	local a = math.atan2(iy, ix)
 	if exit then
@@ -667,8 +670,7 @@ function Game:updateLane(dt)
 		self.cineZoom = T.cineZoom + (back - T.cineZoom) * u ^ 3
 		if u >= 1 then
 			p.runup = nil
-			self.cineZoom, self.savedZoom = nil, nil
-			self.camera.zoom = back
+			self.cineRelease = true
 			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return

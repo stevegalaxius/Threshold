@@ -741,7 +741,7 @@ function A.update(game, dt)
 		local p = game.player
 		A.credits1 = game.universe.credits
 		local g = game:findDriver()
-		local gx, gy = g.body:getPosition()
+		local gx, gy = game:driverBreech(g)
 		local dx, dy = math.cos(g.angle), math.sin(g.angle)
 		-- come up the approach at a given speed and see what the beam does
 		local function approach(speed)
@@ -815,7 +815,7 @@ function A.update(game, dt)
 		local p = game.player
 		local g = game:findDriver()
 		local px, py = p.body:getPosition()
-		local gx, gy = g.body:getPosition()
+		local gx, gy = game:driverBreech(g)
 		local vx, vy = p.body:getLinearVelocity()
 		local rings = 0
 		for _, e in ipairs(game.entities) do if e.kind == "catchring" then rings = rings + 1 end end
@@ -841,7 +841,7 @@ function A.update(game, dt)
 		A.bayIn = math.sqrt(vx * vx + vy * vy)
 		local g = game:findDriver()
 		-- into the bay mouth (not on top of the driver's own hull)
-		local gx, gy = g.body:getPosition()
+		local gx, gy = game:driverBreech(g)
 		local r = g.radius + 60
 		p.body:setPosition(gx + math.cos(g.angle) * r, gy + math.sin(g.angle) * r)
 	end) end
