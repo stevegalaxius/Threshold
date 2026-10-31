@@ -336,25 +336,64 @@ end
 -- with lights chasing along it in the direction it fires.
 local function drawDriver(game, e)
 	local x, y = e.body:getPosition()
-	local r = e.radius
-	local dx, dy = cos(e.angle), sin(e.angle)
-	local nx, ny = -dy, dx
-	local len, hw = 1400, 90
-	lg.setColor(0.4, 0.8, 1, 0.08)
-	lg.circle("fill", x, y, r)
-	lg.setLineWidth(outline(3))
-	lg.setColor(0.55, 0.85, 1, 0.8)
-	lg.circle("line", x, y, r + 20, 64)
-	for _, s in ipairs({ -1, 1 }) do
-		lg.line(x - dx * 600 + nx * hw * s, y - dy * 600 + ny * hw * s, x + dx * len + nx * hw * s, y + dy * len + ny * hw * s)
+	local p = game.player
+	local busy = p and not p.dead and ((p.driverTractor and p.driverTractor.driver == e) or p.launch
+		or (game.driverMenu and game.driverMenu.driver == e))
+	local len, hw = 1400, 110
+	local lr = max(5, 3 * screenPx)
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.angle)
+	-- the barrel: a long armoured rail running out from the breech
+	lg.setColor(0.2, 0.23, 0.28)
+	lg.rectangle("fill", 0, -hw, len, hw * 2)
+	lg.setColor(0.55, 0.63, 0.74)
+	lg.setLineWidth(outline(2))
+	lg.rectangle("line", 0, -hw, len, hw * 2)
+	for k = 1, 6 do
+		local cx = len * k / 7
+		lg.line(cx, -hw, cx, hw)
 	end
-	local n = 10
-	for i = 0, n - 1 do
-		local k = (i / n + game.time * 0.8) % 1
-		local px, py = x + dx * (-600 + k * (len + 600)), y + dy * (-600 + k * (len + 600))
+	-- coils lighting up down the barrel, faster while it's firing
+	local rate = p and p.launch and 3 or 0.8
+	for i = 0, 9 do
+		local k = (i / 10 + game.time * rate) % 1
 		lg.setColor(0.6, 0.95, 1, 0.8 * (1 - k))
-		lg.circle("fill", px, py, 14)
+		lg.rectangle("fill", k * len - 8, -hw + 10, 16, hw * 2 - 20)
 	end
+	-- the breech: hazard-striped, lit green while it has you
+	local dw, wall = hw * 1.3, 60
+	lg.setColor(0.09, 0.1, 0.13)
+	lg.rectangle("fill", -wall, -dw, wall, dw * 2)
+	lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+	for k = -3, 2 do
+		lg.rectangle("fill", -wall, dw * k / 3, wall, dw / 6)
+	end
+	-- runway lights back along the approach, strobes chasing in to the breech
+	local rw = 260
+	local step = 140
+	local n = floor(T.driverZone / step)
+	for i = 0, n do
+		local lx = -wall - 30 - i * step
+		local fade = 1 - i / (n + 1) * 0.6
+		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
+		lg.circle("fill", lx, rw, lr)
+		lg.circle("fill", lx, -rw, lr)
+		local phase = (game.time * 1.6 + i / n) % 1
+		if phase < 0.12 then
+			lg.setColor(1, 1, 1, fade)
+			lg.circle("fill", lx, 0, lr * 1.8)
+		else
+			lg.setColor(1, 1, 1, 0.12 * fade)
+			lg.circle("fill", lx, 0, lr)
+		end
+	end
+	lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
+	lg.circle("fill", -wall, dw, lr * 1.4)
+	lg.circle("fill", -wall, -dw, lr * 1.4)
+	lg.circle("fill", len, hw, lr * 1.4)
+	lg.circle("fill", len, -hw, lr * 1.4)
+	lg.pop()
 end
 
 -- The transit lane: a faint glow under its arc, fading out past its

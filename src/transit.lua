@@ -72,6 +72,15 @@ function Game:spawnDrivers()
 	self:spawnCatchRings()
 end
 
+-- A point in a driver's frame: lx along the barrel (the breech at 0, the
+-- approach behind it negative), ly across it.
+local function driverLocal(g, x, y)
+	local gx, gy = g.body:getPosition()
+	local dx, dy = cos(g.angle), sin(g.angle)
+	local rx, ry = x - gx, y - gy
+	return rx * dx + ry * dy, -rx * dy + ry * dx
+end
+
 function Game:findDriver()
 	for _, g in ipairs(self.entities) do
 		if g.kind == "driver" then return g end
@@ -123,9 +132,8 @@ function Game:updateDrivers(dt)
 		p.body:setAngularVelocity(0)
 		if menu or L.t < T.driverAlign then
 			if L then L.t = L.t + dt end
-			-- reel in to the breech at the rail's inner end
-			local bx, by = gx - dx * 500, gy - dy * 500
-			p.body:setLinearVelocity((bx - x) * 3, (by - y) * 3)
+			-- held in the breech
+			p.body:setLinearVelocity((gx - x) * 3, (gy - y) * 3)
 		else
 			L.t = L.t + dt
 			local s = T.driverExitSpeed * min(1, (L.t - T.driverAlign) / T.driverFire)
@@ -134,16 +142,62 @@ function Game:updateDrivers(dt)
 		end
 		return
 	end
+	if p.driverTractor then return self:updateDriverTractor(p, dt) end
 	p.driverCooldown = max(0, (p.driverCooldown or 0) - dt)
 	if p.driverCooldown > 0 then return end
 	local g = self:findDriver()
 	if not g then return end
+	local lx, ly = driverLocal(g, p.body:getPosition())
+	if lx < 0 and lx > -T.driverZone and math.abs(ly) < T.driverZoneWidth then
+		p.driverTractor = { driver = g, t = 0 }
+		self:toast("TRACTOR LOCK", 1.4)
+	end
+end
+
+-- The approach, like a station's runway: fly into the zone behind the
+-- breech and the beam takes over, easing you onto the centre line, nose
+-- along the barrel, and drawing you in, gently at first and firmer near
+-- the breech. Its grip has a limit (driverGrip, px/s^2), so come in too
+-- fast and you sail straight through the breech and out the far side.
+function Game:updateDriverTractor(p, dt)
+	local tr = p.driverTractor
+	local g = tr.driver
+	tr.t = tr.t + dt
 	local x, y = p.body:getPosition()
-	local gx, gy = g.body:getPosition()
-	if (x - gx) ^ 2 + (y - gy) ^ 2 < g.radius ^ 2 then
+	local lx, ly = driverLocal(g, x, y)
+	local dx, dy = cos(g.angle), sin(g.angle)
+	local nx, ny = -dy, dx
+	p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
+	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+	if lx > 150 or math.abs(ly) > T.driverZoneWidth * 1.5 or lx < -T.driverZone * 1.2 then
+		-- overshot the breech, or slid out of the beam
+		p.driverTractor = nil
+		p.driverCooldown = 3
+		self:toast(lx > 150 and "OVERSHOT THE BREECH: TOO FAST" or "TRACTOR LOST", 1.8)
+		return
+	end
+	local vx, vy = p.body:getLinearVelocity()
+	if lx > -120 and math.abs(ly) < 120 and vx * vx + vy * vy < 250 ^ 2 then
+		p.driverTractor = nil
 		self.driverMenu = { driver = g }
 		self:toast("DRIVER LOCK", 1.2)
+		return
 	end
+	local near = 1 - max(0, min(1, -lx / T.driverZone))
+	local grip = min(1, tr.t / 1.0) * (0.35 + 0.65 * near)
+	local gap = -lx
+	local inward = min(T.driverReel, max(60, gap * 0.6))
+	local wx, wy = dx * inward - nx * ly * 0.8, dy * inward - ny * ly * 0.8
+	local ax, ay = (wx - vx) * 2.2 * grip, (wy - vy) * 2.2 * grip
+	local a = math.sqrt(ax * ax + ay * ay)
+	local cap = T.driverGrip * (0.5 + 0.5 * grip)
+	if a > cap then ax, ay = ax / a * cap, ay / a * cap end
+	local m = p.body:getMass()
+	p.body:applyForce(ax * m, ay * m)
+	-- nose down the barrel
+	local turn = ((g.angle - p.body:getAngle() + pi) % (2 * pi) - pi) * 1.4 * grip
+	local w = p.body:getAngularVelocity()
+	p.body:setAngularVelocity(w + (turn - w) * min(1, 3 * dt))
 end
 
 -- In flight to planet `to`: the trip is the transit view, game.flight =

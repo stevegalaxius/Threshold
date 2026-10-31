@@ -741,8 +741,31 @@ function A.update(game, dt)
 		local p = game.player
 		A.credits1 = game.universe.credits
 		local g = game:findDriver()
-		p.body:setPosition(g.body:getPosition())
-		p.body:setLinearVelocity(0, 0)
+		local gx, gy = g.body:getPosition()
+		local dx, dy = math.cos(g.angle), math.sin(g.angle)
+		-- come up the approach at a given speed and see what the beam does
+		local function approach(speed)
+			p.driverTractor, p.driverCooldown, game.driverMenu = nil, 0, nil
+			p.body:setPosition(gx - dx * 3000, gy - dy * 3000)
+			p.body:setAngle(g.angle)
+			p.body:setLinearVelocity(dx * speed, dy * speed)
+			p.body:setAngularVelocity(0)
+			local t0, got, overshot = game.time, nil, false
+			for i = 1, 120 * 20 do
+				p.intent.thrust = 0
+				game:step(1 / 120)
+				if game.driverMenu then got = i / 120 break end
+				if p.driverCooldown and p.driverCooldown > 0 then overshot = true break end
+			end
+			game.time = t0
+			return got, overshot
+		end
+		local got, over = approach(2400)
+		log("travel: up the approach at 2400 px/s -> locked %s, overshot %s", tostring(got ~= nil), tostring(over))
+		got, over = approach(500)
+		log("travel: up the approach at 500 px/s -> locked after %.1f s, overshot %s", got or -1, tostring(over))
+		game.camera.x, game.camera.y = p.body:getPosition()
+		game.camera.zoom = 0.25
 	end) end
 	if t >= 36.1 then once("travel_pick", function()
 		log("travel: driver window open %s; fares venus %d, mars %d, jupiter %d cr", tostring(game.driverMenu ~= nil),
