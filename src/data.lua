@@ -58,11 +58,16 @@ end
 
 -- The functions data files are allowed to call ---------------------------
 
+local HullShape = require("src.hullshape")
+
 local api = {}
 
 function api.hull(def)
 	register("hulls", "hull", def)
-	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots", "shape" }) do need(def, f, "hull") end
+	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots" }) do need(def, f, "hull") end
+	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
+	local ok, err = pcall(HullShape.prepare, def)
+	if not ok then fail(err) end
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"

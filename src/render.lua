@@ -8,6 +8,7 @@
 local data = require("src.data")
 local Ship = require("src.ship")
 local T = require("src.tuning")
+local HullShape = require("src.hullshape")
 
 local Render = {}
 
@@ -643,14 +644,10 @@ local function drawShip(game, e)
 	for _, w in ipairs(e.weapons) do
 		if w.mount ~= "turret" then barrel(w) end
 	end
-	lg.setColor(dark)
-	lg.polygon("fill", hull.shape)
-	lg.setColor(col)
-	lg.setLineWidth(outline(2))
-	lg.polygon("line", hull.shape)
+	HullShape.draw(hull, col, function(c) return { c[1] * 0.22, c[2] * 0.22, c[3] * 0.22 } end,
+		function(c) return c end, outline(2))
 	if e.flash > 0 then
-		lg.setColor(1, 1, 1, 0.8)
-		lg.polygon("fill", hull.shape)
+		HullShape.draw(hull, col, function() return { 1, 1, 1, 0.8 } end)
 	end
 	for _, w in ipairs(e.weapons) do
 		if w.mount == "turret" then barrel(w) end
@@ -746,16 +743,14 @@ local function drawHusk(game, h)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(h.body:getAngle())
-	local c = h.color
-	lg.setColor(0.06, 0.06, 0.07)
-	lg.polygon("fill", h.hull.shape)
-	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.35)
-	lg.setLineWidth(outline(2))
-	lg.polygon("line", h.hull.shape)
+	-- a whole wreck, or one part broken off (drawn about its own centre)
+	HullShape.draw(h.hull, h.color, function() return { 0.06, 0.06, 0.07 } end,
+		function(c) return { c[1] * 0.35, c[2] * 0.35, c[3] * 0.35 } end, outline(2),
+		h.part, h.part and h.part.cx, h.part and h.part.cy)
 	local f = sin(game.time * 7 + h.flicker) * sin(game.time * 3.1 + h.flicker * 2)
 	if f > 0.6 then
 		lg.setColor(1, 0.55, 0.2, (f - 0.6) * 2)
-		lg.circle("fill", h.tailX * 0.3, 0, 3)
+		lg.circle("fill", h.part and 0 or h.tailX * 0.3, 0, 3)
 	end
 	lg.pop()
 end

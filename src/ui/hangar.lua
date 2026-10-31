@@ -16,6 +16,7 @@
 	owns the tabs and acts on Fly and Cargo.
 ]]
 
+local HullShape = require("src.hullshape")
 local data = require("src.data")
 local stats = require("src.stats")
 local Hold = require("src.inventory.hold")
@@ -116,12 +117,8 @@ local function drawHull(hull, x, y, w, h, rot, col, alpha)
 	if rot then lg.rotate(math.pi / 2) end
 	lg.scale(sc)
 	lg.translate(-(nx + tx) / 2, 0)
-	lg.setColor(col[1], col[2], col[3], 0.18 * alpha)
-	local ok, tris = pcall(love.math.triangulate, hull.shape)
-	if ok then for _, t in ipairs(tris) do lg.polygon("fill", t) end end
-	lg.setColor(col[1], col[2], col[3], 0.9 * alpha)
-	lg.setLineWidth(1.5 / sc)
-	lg.polygon("line", hull.shape)
+	HullShape.draw(hull, col, function(c) return { c[1], c[2], c[3], 0.18 * alpha } end,
+		function(c) return { c[1], c[2], c[3], 0.9 * alpha } end, 1.5 / sc)
 	lg.pop()
 	lg.setLineWidth(1)
 end

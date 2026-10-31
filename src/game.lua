@@ -1376,6 +1376,7 @@ end
 -- pickups.
 function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	local hull = ship.hull
+	if #hull.parts > 1 then return self:spawnWreckParts(ship, x, y, a, vx, vy, w) end
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
 	local hold = huskHold(ship)
 	local h = {
@@ -1403,6 +1404,76 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	body:setUserData(h)
 	table.insert(self.entities, h)
 	return h
+end
+
+-- A hull built from several parts breaks apart: each part tumbles off as
+-- its own wreck, flung out from the middle, its weight and its share of
+-- the loot going by its size. Loose loot is shared unit by unit, cargo
+-- containers go whole to one part or another. Returns the biggest piece.
+function Game:spawnWreckParts(ship, x, y, a, vx, vy, w)
+	local hull = ship.hull
+	local total = 0
+	for _, part in ipairs(hull.parts) do total = total + part.area end
+	local function pickPart()
+		local r = random() * total
+		for i, part in ipairs(hull.parts) do
+			r = r - part.area
+			if r <= 0 then return i end
+		end
+		return #hull.parts
+	end
+	local loose, stacks = intoContainers(ship, lootOf(ship))
+	local shares = {}
+	for i = 1, #hull.parts do shares[i] = { loose = {}, stacks = {} } end
+	for id, n in pairs(loose) do
+		for _ = 1, n do
+			local sh = shares[pickPart()].loose
+			sh[id] = (sh[id] or 0) + 1
+		end
+	end
+	for _, st in ipairs(stacks) do table.insert(shares[pickPart()].stacks, st) end
+	local gw, gh
+	if ship.hold then gw, gh = ship.hold.grids[1].w, ship.hold.grids[1].h else gw, gh = Shapes.gridFor(ship.stats.hold) end
+	local ca, sa = cos(a), sin(a)
+	local biggest
+	for i, part in ipairs(hull.parts) do
+		local frac = part.area / total
+		local px, py = x + part.cx * ca - part.cy * sa, y + part.cx * sa + part.cy * ca
+		local body = love.physics.newBody(self.world, px, py, "dynamic")
+		local hold = Hold.pack(shares[i].loose, max(2, math.ceil(gw * sqrt(frac))), max(2, math.ceil(gh * sqrt(frac))),
+			hull.name .. " wreckage", random, shares[i].stacks)
+		local h = {
+			kind = "husk", id = self:nextId(), team = 0, hull = hull, part = part, color = ship.color,
+			noseX = part.reach, tailX = -part.reach, halfLength = part.reach,
+			radius = part.reach, body = body, hold = hold, loot = Hold.totals(hold),
+			hp = ship.stats.armor * T.huskToughness * frac, flicker = random() * 10,
+		}
+		for _, t in ipairs(part.tris) do
+			local pts = { t[1] - part.cx, t[2] - part.cy, t[3] - part.cx, t[4] - part.cy, t[5] - part.cx, t[6] - part.cy }
+			local tri = math.abs((pts[3] - pts[1]) * (pts[6] - pts[2]) - (pts[5] - pts[1]) * (pts[4] - pts[2]))
+			if tri > 4 then
+				local f = love.physics.newFixture(body, love.physics.newPolygonShape(pts), 1)
+				f:setRestitution(0.2)
+				f:setFriction(0.5)
+				f:setUserData(h)
+			end
+		end
+		local m = max(1, ship.stats.mass * T.massScale * 0.7 * frac)
+		body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)
+		body:setAngle(a)
+		-- flung out from the middle, plus the spin it had
+		local ox, oy = px - x, py - y
+		local ol = max(sqrt(ox * ox + oy * oy), 1)
+		local kick = 60 + random() * 140
+		body:setLinearVelocity(vx * 0.6 + ox / ol * kick - w * oy, vy * 0.6 + oy / ol * kick + w * ox)
+		body:setAngularVelocity(w * 0.5 + (random() - 0.5) * 2)
+		body:setLinearDamping(0.15)
+		body:setAngularDamping(0.1)
+		body:setUserData(h)
+		table.insert(self.entities, h)
+		if not biggest or part.area > biggest.part.area then biggest = h end
+	end
+	return biggest
 end
 
 function Game:remove(e)
