@@ -89,7 +89,7 @@ local function fire(game, e, slot, dt)
 		local hit = game:raycast(wx, wy, ex, ey, e.team)
 		if hit then
 			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser")
+			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser", hit.x, hit.y)
 			local k = (w.knockback or 0) * T.knockbackScale
 			if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
 			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
@@ -270,7 +270,7 @@ function Weapons.updateProjectiles(game, dt)
 				local dmg = p.damage
 				-- gun rounds lose punch the further they've flown
 				if p.maxLife then dmg = dmg * (1 - T.gunFalloff * (1 - p.life / p.maxLife)) end
-				game:damage(hit.entity, dmg, p.owner, p.kind)
+				game:damage(hit.entity, dmg, p.owner, p.kind, hit.x, hit.y)
 				if hit.entity.kind == "ship" then hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.x, hit.y) end
 				game:spark(hit.x, hit.y, 4, { 1, 0.85, 0.5 })
 			end

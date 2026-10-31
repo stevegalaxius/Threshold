@@ -26,8 +26,8 @@
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
 	  parts  instead of shape: a list of polygons, { shape = {...}, shade = 0.6,
 	         tint = { r, g, b } }, drawn in order and coloured apart from the
-	         hull (shade multiplies its colour, tint is added). On death each
-	         part breaks off as its own wreck with a share of the loot. See
+	         hull (shade multiplies its colour, tint is added). The wreck stays
+	         whole; shoot a part off and it drifts away with its share of the loot. See
 	         the Hauler, and src/hullshape.lua.
 	  mount  how the hull carries its weapons, which sets how each class feels:
 	         fixed   guns point straight down the nose; you aim with the ship

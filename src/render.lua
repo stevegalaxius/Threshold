@@ -746,7 +746,7 @@ local function drawHusk(game, h)
 	-- a whole wreck, or one part broken off (drawn about its own centre)
 	HullShape.draw(h.hull, h.color, function() return { 0.06, 0.06, 0.07 } end,
 		function(c) return { c[1] * 0.35, c[2] * 0.35, c[3] * 0.35 } end, outline(2),
-		h.part, h.part and h.part.cx, h.part and h.part.cy)
+		h.part or h.partsLeft, h.part and h.part.cx, h.part and h.part.cy)
 	local f = sin(game.time * 7 + h.flicker) * sin(game.time * 3.1 + h.flicker * 2)
 	if f > 0.6 then
 		lg.setColor(1, 0.55, 0.2, (f - 0.6) * 2)

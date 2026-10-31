@@ -10,8 +10,8 @@
 	  }
 
 	shade multiplies the ship's colour, tint is added to it (after shade).
-	When the ship dies, each part breaks off as its own wreck and the loot
-	is shared out between them by size (Game:spawnHusk).
+	The wreck stays whole, but the parts besides the biggest can be shot
+	off, each taking its share of the loot (Game:breakablePieces).
 
 	HullShape.prepare fills in, for every part: tris (for filling a concave
 	outline), cx/cy (its centre), area and reach (furthest point from the
@@ -65,12 +65,13 @@ function HullShape.color(part, col)
 	return { max(0, min(1, r)), max(0, min(1, g)), max(0, min(1, b)) }
 end
 
--- Draw parts (all of the hull's, or just `only`), offset by -ox,-oy.
+-- Draw parts (all of the hull's, or just `only`: one part or a list of
+-- them), offset by -ox,-oy.
 -- fill(partColour) and line(partColour) return the colour to use, or nil
 -- to skip that pass; lineWidth is for the outline.
 function HullShape.draw(hull, col, fill, line, lineWidth, only, ox, oy)
 	local lg = love.graphics
-	local list = only and { only } or hull.parts
+	local list = only and (only.shape and { only } or only) or hull.parts
 	if ox then lg.push(); lg.translate(-ox, -oy) end
 	-- part by part, so a later part sits on top of the ones before it
 	if lineWidth then lg.setLineWidth(lineWidth) end
