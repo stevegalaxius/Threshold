@@ -148,7 +148,8 @@ Fields.mixes = MIX
 --   mix                debris weights (see MIX above)
 --   belt               belt (or, round a gas giant, ring) density per
 --                      million px^2; beltIn/beltOut: its band above the
---                      surface (default 3000..5500)
+--                      surface, as fractions of depth (default 0.18..0.3)
+--   track              the station track, as a fraction of depth (0.45)
 --   beltMix            the belt's own mix (default: rock round a rocky
 --                      planet, the map's mix round a gas giant)
 --   stations           names for its orbital stations (none if nil)
@@ -161,8 +162,12 @@ local function planetField(o)
 	local name, R = o.name, o.R
 	local depth = o.depth or 35000
 	local edge = R + depth
-	local beltIn, beltOut = R + (o.beltIn or 3000), R + (o.beltOut or 5500)
-	local looseIn = R + 9500                -- loose debris starts past the station track
+	-- Everything is laid out as fractions of the open space (depth), so a
+	-- roomier map spreads its belt and stations out instead of leaving
+	-- the extra room empty at the edge.
+	local beltIn, beltOut = R + depth * (o.beltIn or 0.18), R + depth * (o.beltOut or 0.3)
+	local sd = R + depth * (o.track or 0.45)  -- the station track
+	local looseIn = sd + 2000                 -- loose debris starts past the station track
 	local area = function(r1, r2) return pi * (r2 * r2 - r1 * r1) / 1e6 end
 	local rocks = floor((o.belt or 0) * area(beltIn, beltOut))
 	local scattered = floor((o.density or 0) * area(looseIn, edge))
@@ -183,7 +188,8 @@ local function planetField(o)
 		rings = o.gas and { beltIn, beltOut } or nil,
 		stations = stations,
 		enemies = o.enemies,
-		spawn = { 0, R + 6700 },
+		spawn = { 0, sd - 800 },
+		belt = { beltIn, beltOut },
 		radius = edge,
 		rockDrag = 0,
 		build = function(game)
@@ -202,7 +208,6 @@ local function planetField(o)
 				-- Two wheel stations out past the belt.
 				-- Both ride a track around the planet at opposite ends, moving at
 				-- the current's speed at that altitude (what a free station drifts at).
-				local sd = R + 7500
 				local sa = -0.8
 				local speed = game:currentSpeed(sd)
 				local stA = game:spawnWheelStation(cos(sa) * sd, sin(sa) * sd, 900, 120, 0.05)
@@ -249,53 +254,53 @@ local function planetField(o)
 				end
 			end
 			game:spawnAsteroids(scattered, looseIn)
-			game:spawnContainers(T.fieldContainers, R + 7500)
+			game:spawnContainers(T.fieldContainers, sd)
 		end,
 	}
 end
 
 -- Each planet's map. Planet sizes are as set; how roomy a map is comes
 -- from depth, and its character from density, mix and belt.
-Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 20000,
+Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 15000,
 	density = 0.07, mix = { junk = 3, sat = 2, rock = 5 }, belt = 1.1,
 	stations = { "Terminator Station", "Dawnline Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
-Fields.venus = planetField({ name = "Venus", R = 14300, depth = 24000,
+Fields.venus = planetField({ name = "Venus", R = 14300, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
 	stations = { "Hub Station", "Cloudline Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 3 } } })
-Fields.earth = planetField({ name = "Earth", R = 15000, depth = 24000,
+Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
 	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
-Fields.mars = planetField({ name = "Mars", R = 7500, depth = 24000,
+Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
 	density = 0.05, mix = MIX.mars, belt = 1.1,
 	stations = { "Station Alpha", "Station Beta" },
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
-Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 26000,
-	density = 0.3, mix = MIX.belt, belt = 2.5, beltIn = 1500, beltOut = 6000,
+Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000,
+	density = 0.3, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
-Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 20000, gas = true,
+Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 16000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
-	density = 0.08, mix = MIX.giant, belt = 0.3, beltIn = 2500, beltOut = 4500,
+	density = 0.08, mix = MIX.giant, belt = 0.3, beltIn = 0.15, beltOut = 0.25,
 	city = "Olympus",
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
-Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 20000, gas = true,
+Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 16000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
-	density = 0.08, mix = { ice = 6, rock = 4 }, belt = 0.8, beltIn = 1800, beltOut = 6500,
+	density = 0.08, mix = { ice = 6, rock = 4 }, belt = 0.8, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Cassini Gate", "Enceladus Station" },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
-Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 22000, gas = true,
+Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 16000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
-	density = 0.09, mix = MIX.ice, belt = 0.4, beltIn = 2500, beltOut = 4000,
+	density = 0.09, mix = MIX.ice, belt = 0.4, beltIn = 0.15, beltOut = 0.22,
 	city = "Herschel",
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
-Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 22000, gas = true,
+Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 16000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
-	density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.3, beltIn = 2500, beltOut = 3800,
+	density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.3, beltIn = 0.15, beltOut = 0.21,
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).

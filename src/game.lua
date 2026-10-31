@@ -541,7 +541,9 @@ function Game:spawnInfallingAsteroid(radius, kind)
 			local e = self:spawnAsteroid(x, y, radius, kind)
 			local f = self:currentSpeed(Rm)
 			e.body:setLinearVelocity(-sin(a) * f - cos(a) * 250, cos(a) * f - sin(a) * 250)
-			e.orbitR = w.radius + 1500 + random() * 4500
+			-- settles into the map's belt
+			local band = self.field and self.field.belt or { w.radius + 1500, w.radius + 6000 }
+			e.orbitR = band[1] + random() * (band[2] - band[1])
 			return e
 		end
 	end
