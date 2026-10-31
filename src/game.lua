@@ -1669,20 +1669,13 @@ end
 function Game:frame(dt, aimX, aimY)
 	-- the launch and the lane's run-up take the zoom for a while
 	local p = self.player
-	if self.cineZoom and not self.cineRelease and (not p or p.dead or not (p.launch or p.runup)) then
-		-- whatever was running it is over (died, or a load)
-		self.cineRelease = true
-	end
-	if self.cineRelease then
-		-- ease back to the zoom you had, then let go of it
-		self.cineZoom = self.savedZoom or self.camera.zoom
-		if math.abs(self.camera.zoom - self.cineZoom) < 0.002 then
-			self.camera.zoom = self.cineZoom
-			self.cineZoom, self.savedZoom, self.cineRelease = nil, nil, nil
-		end
+	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
+		-- whatever was running it is over (died, or a load): the zoom stays
+		-- where it is, and it's yours again
+		self.cineZoom, self.savedZoom = nil, nil
 	end
 	if self.cineZoom then
-		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * (self.cineRelease and 2.5 or 6)))
+		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * 6))
 	end
 	if self.flash then
 		self.flash.t = self.flash.t + dt

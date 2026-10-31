@@ -203,7 +203,9 @@ function Game:updateDrivers(dt)
 				-- wide so everything falls away behind you
 				local u = min(1, (ft - T.driverFire) / T.driverCoast)
 				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
-				self.cineZoom = self.savedZoom + (T.cineZoom - self.savedZoom) * (1 - (1 - u) ^ 2)
+				-- (only ever out: if you're already wider, it leaves you be)
+				local wide = math.min(self.savedZoom, T.cineZoom)
+				self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
 				if u >= 1 then
 					self.pendingFlight = L.to
 					self.flash = { t = 0, life = 0.5 }
@@ -687,11 +689,11 @@ function Game:updateLane(dt)
 		p.body:setLinearVelocity(tx * sp, ty * sp)
 		p.body:setAngle(R.h)
 		p.body:setAngularVelocity(0)
-		local back = self.savedZoom or 0.7
-		self.cineZoom = T.cineZoom + (back - T.cineZoom) * u ^ 3
+		-- the zoom stays wide; once you're in the lane it's yours again,
+		-- left where it is
 		if u >= 1 then
 			p.runup = nil
-			self.cineRelease = true
+			self.cineZoom, self.savedZoom = nil, nil
 			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return
