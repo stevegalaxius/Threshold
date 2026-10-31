@@ -50,13 +50,17 @@ function Game:driverFare(to)
 	return math.floor((T.driverFare + T.driverFarePerAU * au) / 10 + 0.5) * 10
 end
 
--- One driver per planet map, at the edge of the map and pointing
--- outward. A marker only: nothing collides with it.
+-- One driver per planet map, at the edge of the map, riding a slow track
+-- round the planet like the stations do (where it is on the track follows
+-- the universe clock, so it's the same after a save). Its barrel points
+-- outward until you buy a passage; then it swings round to the bearing of
+-- the planet you're going to (Fields.orbitPos), so the lane leaves the
+-- way the trip really goes. A marker only: nothing collides with it.
 function Game:spawnDrivers()
 	if not Fields.orbits[self.fieldId] then return end
-	-- right at the edge of the map, barrel pointing out of it
-	local a = -pi / 2 + 0.6
 	local d = self.arenaRadius - T.driverBarrel - 100
+	local speed = self:currentSpeed(d) * T.driverOrbitScale
+	local a = -pi / 2 + 0.6 + (self.universe and self.universe.clock or 0) * speed / d
 	local x, y = cos(a) * d, sin(a) * d
 	for k = #self.entities, 1, -1 do
 		local o = self.entities[k]
@@ -65,11 +69,12 @@ function Game:spawnDrivers()
 			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.driverRadius + 1200) ^ 2 then self:remove(o) end
 		end
 	end
-	local body = love.physics.newBody(self.world, x, y, "static")
+	local body = love.physics.newBody(self.world, x, y, "kinematic")
 	local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body,
 		radius = T.driverRadius, name = "Mass driver", angle = a }
 	body:setUserData(g)
 	table.insert(self.entities, g)
+	self:setOrbit(g, 0, 0, speed)
 	self:spawnCatchRings()
 end
 
@@ -115,7 +120,38 @@ end
 -- Catch the player in the driver's ring and hold them at the breech while
 -- the targeting window is up; then run the launch: line up on the rail
 -- and fire outward. p.launch = { driver, to, t } while it runs.
+-- Which way the barrel should point: at the destination while a launch
+-- is on, otherwise straight out from the planet.
+local function barrelTarget(game, g, p)
+	local L = p and p.launch
+	if L and L.driver == g then
+		local clock = game.universe and game.universe.clock or 0
+		local ax, ay = Fields.orbitPos(game.fieldId, clock)
+		local bx, by = Fields.orbitPos(L.to, clock)
+		return math.atan2(by - ay, bx - ax)
+	end
+	if g.orbit then return g.orbit.angle end
+	return g.angle
+end
+
+-- Swing every driver's barrel toward where it should point, at
+-- T.driverSlew rad/s. Returns how far the player's launch driver still has
+-- to turn.
+function Game:aimDrivers(dt)
+	local p = self.player
+	for _, g in ipairs(self.entities) do
+		if g.kind == "driver" then
+			local want = barrelTarget(self, g, p)
+			local diff = (want - g.angle + pi) % (2 * pi) - pi
+			local step = T.driverSlew * dt
+			g.angle = g.angle + max(-step, min(step, diff))
+			g.aimLeft = math.abs(diff) - math.min(math.abs(diff), step)
+		end
+	end
+end
+
 function Game:updateDrivers(dt)
+	self:aimDrivers(dt)
 	local p = self.player
 	if not p or p.dead or p.dockState then self.driverMenu = nil return end
 	local L = p.launch
@@ -131,10 +167,12 @@ function Game:updateDrivers(dt)
 		local diff = (g.angle - a + pi) % (2 * pi) - pi
 		p.body:setAngle(a + diff * min(1, dt * 4))
 		p.body:setAngularVelocity(0)
-		if menu or L.t < T.driverAlign then
-			if L then L.t = L.t + dt end
-			-- held in the breech
-			p.body:setLinearVelocity((gx - x) * 3, (gy - y) * 3)
+		if menu or L.t < T.driverAlign or (g.aimLeft or 0) > 0.002 then
+			-- the clock waits for the barrel to come round
+			if L and (g.aimLeft or 0) <= 0.002 then L.t = L.t + dt end
+			-- held in the breech, riding along with the driver
+			local gvx, gvy = g.body:getLinearVelocity()
+			p.body:setLinearVelocity(gvx + (gx - x) * 3, gvy + (gy - y) * 3)
 		else
 			L.t = L.t + dt
 			-- down the barrel, harder and harder, engine lit
@@ -181,7 +219,10 @@ function Game:updateDriverTractor(p, dt)
 		self:toast(lx > 150 and "OVERSHOT THE BREECH: TOO FAST" or "TRACTOR LOST", 1.8)
 		return
 	end
+	-- velocity relative to the driver, which rides its track round the planet
 	local vx, vy = p.body:getLinearVelocity()
+	local gvx, gvy = g.body:getLinearVelocity()
+	vx, vy = vx - gvx, vy - gvy
 	if lx > -120 and math.abs(ly) < 120 and vx * vx + vy * vy < 250 ^ 2 then
 		p.driverTractor = nil
 		self.driverMenu = { driver = g }
@@ -368,6 +409,17 @@ function Game:arrive(back)
 		local px, py = p.body:getPosition()
 		local cx, cy = self:laneDestination()
 		exit.ox, exit.oy = px - cx, py - cy
+		-- turn it all so the lane's end lines up with the real bearing from
+		-- the planet you left (the way its driver fired you): you come in
+		-- from that side of the map
+		local clock = self.universe.clock
+		local ax, ay = Fields.orbitPos(from, clock)
+		local bx, by = Fields.orbitPos(to, clock)
+		local r = math.atan2(by - ay, bx - ax) - self.lane.half / self.lane.R
+		local c, s = cos(r), sin(r)
+		exit.ox, exit.oy = exit.ox * c - exit.oy * s, exit.ox * s + exit.oy * c
+		exit.vx, exit.vy = vx * c - vy * s, vx * s + vy * c
+		exit.angle = exit.angle + r
 	end
 	self.trip = nil
 	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })

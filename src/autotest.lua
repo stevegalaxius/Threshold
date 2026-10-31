@@ -746,9 +746,14 @@ function A.update(game, dt)
 		-- come up the approach at a given speed and see what the beam does
 		local function approach(speed)
 			p.driverTractor, p.driverCooldown, game.driverMenu = nil, 0, nil
+			-- the driver rides a track round the planet: come at it where it is now,
+			-- moving with it
+			gx, gy = g.body:getPosition()
+			dx, dy = math.cos(g.angle), math.sin(g.angle)
+			local gvx, gvy = g.body:getLinearVelocity()
 			p.body:setPosition(gx - dx * 3000, gy - dy * 3000)
 			p.body:setAngle(g.angle)
-			p.body:setLinearVelocity(dx * speed, dy * speed)
+			p.body:setLinearVelocity(gvx + dx * speed, gvy + dy * speed)
 			p.body:setAngularVelocity(0)
 			local t0, got, overshot = game.time, nil, false
 			for i = 1, 120 * 20 do
@@ -772,7 +777,27 @@ function A.update(game, dt)
 			game:driverFare("venus"), game:driverFare("mars"), game:driverFare("jupiter"))
 		shot("13b_orrery")
 	end) end
-	if t >= 36.2 then once("travel_fire", function() game:fireDriver("mars") end) end
+	if t >= 36.2 then once("travel_fire", function()
+		game:fireDriver("mars")
+		-- the barrel swings round to Mars's bearing before it fires: run
+		-- the launch through here
+		local Fields = require("src.fields")
+		local g, p = game:findDriver(), game.player
+		local c = game.universe.clock
+		local ax, ay = Fields.orbitPos("earth", c)
+		local bx, by = Fields.orbitPos("mars", c)
+		local want = math.atan2(by - ay, bx - ax)
+		local t0, steps, err = game.time, 0, nil
+		while p.launch and steps < 120 * 12 do
+			game:step(1 / 120)
+			steps = steps + 1
+			if p.launch and p.launch.t > T.driverAlign and not err then
+				err = math.abs((g.angle - want + math.pi) % (2 * math.pi) - math.pi)
+			end
+		end
+		game.time = t0
+		log("travel: barrel off Mars's bearing by %.3f rad when it fired, launch took %.1f s", err or -1, steps / 120)
+	end) end
 	if t >= 38.9 then once("travel_flight", function()
 		local f = game.flight or game.lastFlight
 		log("travel: fired by the driver -> now in %s (%s)", game.fieldId, game.trip and ("lane to " .. game.trip.to) or "no lane")

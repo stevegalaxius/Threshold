@@ -89,6 +89,9 @@ T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
 T.driverGrip = 320
 T.driverAlign, T.driverFire = 1.2, 1.4
+-- how fast a driver's barrel swings round to its firing bearing (rad/s),
+-- and its speed round the planet as a share of the current there
+T.driverSlew, T.driverOrbitScale = 0.6, 1
 T.driverExitSpeed = 4500
 -- How a driver sends you: "lane" (the highway) or "flight" (the warp
 -- trip and the catch at the other end). Switchable in the debug panel.
