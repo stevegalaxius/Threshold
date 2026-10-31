@@ -75,7 +75,8 @@ function Game:spawnDrivers()
 	body:setUserData(g)
 	table.insert(self.entities, g)
 	self:setOrbit(g, 0, 0, speed)
-	self:spawnCatchRings()
+	-- the braking rings are only for the warp-and-catch way of travelling
+	if T.travelMode == "flight" then self:spawnCatchRings() end
 end
 
 -- The breech: where you're held. The body sits at the gun's middle, the
@@ -301,6 +302,7 @@ end
 function Game:placeForCatch(p)
 	local g = self:findDriver()
 	if not g then return false end
+	if not self:nextCatchRing() then self:spawnCatchRings() end
 	local gx, gy = breech(g)
 	local ox, oy = cos(g.angle), sin(g.angle)
 	local d = math.floor(T.catchRings + 0.5) * T.catchSpacing + T.catchApproach
@@ -445,18 +447,24 @@ function Game:arrive(back)
 	if not p or p.dead or not trip then return end
 	local to, from = trip.to, trip.from
 	if back then to, from = from, to end
+	local exit = self:laneExit(back)
+	self.trip = nil
+	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })
+end
+
+-- How you come out of the lane: pointing and moving exactly as you were on
+-- screen, and where you were relative to the planet drawn ahead at the end
+-- of the lane (Game:laneDestination). Saving mid-trip uses it too.
+function Game:laneExit(back)
+	local p = self.player
 	local vx, vy = p.body:getLinearVelocity()
-	-- you come out pointing and moving exactly as you were on screen, not
-	-- lined up with the driver, and where you were relative to the planet
-	-- drawn ahead at the end of the lane (Game:laneDestination)
 	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy }
 	if not back then
 		local px, py = p.body:getPosition()
 		local cx, cy = self:laneDestination()
 		exit.ox, exit.oy = px - cx, py - cy
 	end
-	self.trip = nil
-	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })
+	return exit
 end
 
 -- Out of this planet's driver heading inward, at the driver's exit speed,

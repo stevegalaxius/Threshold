@@ -549,7 +549,11 @@ end
 
 function Game:beginDocking(e, st)
 	e.dockState = { station = st, phase = "tractor", t = 0 }
-	e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
+	-- the player keeps the stick while the beam works (like a mass
+	-- driver's): it can be fought, overshot or slid out of
+	if e ~= self.player then
+		e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
+	end
 	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireAux = false, false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
@@ -600,12 +604,25 @@ function Game:updateDockedShip(e, dt)
 		local vx, vy = b:getLinearVelocity()
 		local k = 2.2 * grip
 		local m = b:getMass()
-		b:applyForce((svx + wx - vx) * k * m, (svy + wy - vy) * k * m)
+		local ax, ay = (svx + wx - vx) * k, (svy + wy - vy) * k
+		if e == self.player then
+			-- the player's beam has a limited grip, like a mass driver's
+			local a = sqrt(ax * ax + ay * ay)
+			local cap = T.driverGrip * (0.5 + 0.5 * grip)
+			if a > cap then ax, ay = ax / a * cap, ay / a * cap end
+			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > d.hw * 2 then
+				e.dockState, e.dockCooldown = nil, 3
+				self:toast("TRACTOR LOST", 1.4)
+				return
+			end
+		end
+		b:applyForce(ax * m, ay * m)
 		-- nose toward the door
 		local want = sb:getAngle() + pi
 		local turn = wrapAngle(want - b:getAngle()) * 1.4 * grip + sb:getAngularVelocity()
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
-		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 then
+		local rvx, rvy = vx - svx, vy - svy
+		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			ds.phase, ds.t = "pull", 0
 			ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - sb:getAngle()
 			b:setActive(false)
@@ -936,7 +953,7 @@ end
 
 function Game:setPlayerIntent(intent)
 	local p = self.player
-	if not p or p.dead or p.dockState or p.launch then return end
+	if not p or p.dead or (p.dockState and p.dockState.phase ~= "tractor") or p.launch then return end
 	local d = self:pilotedShip()
 	if d ~= p then
 		-- flying a drone: it gets the stick, your ship holds still
@@ -965,6 +982,8 @@ function Game:step(dt)
 				if e.life <= 0 then e.dead = true end
 			end
 			if e.dockState then
+				-- the player flies on under the beam until it's pulled inside
+				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
 			else
 				if e.cruise then self:cruise(e) elseif e.def and not e.piloted then AI.think(self, e, dt) end

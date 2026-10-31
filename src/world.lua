@@ -304,7 +304,7 @@ function Game:saveState()
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()
 			where = { x = x, y = y, angle = p.body:getAngle(), vx = vx, vy = vy }
-			if self.trip then where = { driver = self.trip.from } end
+			if self.trip then where = { driver = self.trip.from, exit = self:laneExit() } end
 			if self.flight or p.catching then where = { catch = true } end
 		end
 		state.player = { ship = saveShip(Ship.record(p)), at = where }
