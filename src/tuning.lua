@@ -87,6 +87,10 @@ T.driverReel = 450
 T.driverGrip = 320
 T.driverAlign, T.driverFire = 1.2, 1.4
 T.driverExitSpeed = 4500
+-- How a driver sends you: "lane" (the highway) or "flight" (the warp
+-- trip and the catch at the other end). Switchable in the debug panel.
+T.travelMode = "lane"
+T.laneEntrySpeed = 2600
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 

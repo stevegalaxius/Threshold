@@ -775,6 +775,7 @@ function A.update(game, dt)
 	if t >= 36.2 then once("travel_fire", function() game:fireDriver("mars") end) end
 	if t >= 38.9 then once("travel_flight", function()
 		local f = game.flight or game.lastFlight
+		log("travel: fired by the driver -> now in %s (%s)", game.fieldId, game.trip and ("lane to " .. game.trip.to) or "no lane")
 		log("travel: flying now %s, clock %.0f; in flight %s (or done), %s -> %s, %.2f AU, %.1f s of trip view", tostring(game.flight ~= nil), game.universe.clock, tostring(f ~= nil), f and f.from or "-", f and f.to or "-", f and f.au or 0, f and f.dur or 0)
 		shot("14_flight")
 		A.clock0 = game.universe.clock

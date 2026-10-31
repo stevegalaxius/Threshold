@@ -171,6 +171,9 @@ local function laneSection(game)
 		local to = game.fieldId == "mars" and "earth" or "mars"
 		if Slab.Button("Straight into a lane to " .. Fields[to].name) then game:launchTrip(to) end
 	end
+	if Slab.Button(T.travelMode == "lane" and "Drivers send you: highway (switch to warp + catch)" or "Drivers send you: warp + catch (switch to highway)") then
+		T.travelMode = T.travelMode == "lane" and "flight" or "lane"
+	end
 end
 
 local function spawnSection(game)
@@ -238,7 +241,7 @@ function Debug.update(dt, game)
 	section("dbg_readout", "Handling readout", readout, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)
 	section("dbg_flight", "Flight and catch", flightSection, game)
-	section("dbg_lane", "Race track (old transit lane)", laneSection, game)
+	section("dbg_lane", "Transit lane (highway)", laneSection, game)
 	section("dbg_spawn", "Spawn and arena", spawnSection, game)
 	Slab.EndWindow()
 end

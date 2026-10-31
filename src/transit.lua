@@ -335,8 +335,7 @@ function Game:updateCatch(dt)
 	end
 end
 
--- Into the transit lane toward planet `to`, in the ship you're flying
--- (the old transit lane, kept as a race track for later).
+-- Into the transit lane toward planet `to`, in the ship you're flying.
 function Game:launchTrip(to)
 	local p = self.player
 	if not p or p.dead then return end
@@ -348,7 +347,7 @@ function Game:launchTrip(to)
 	local phi = s0 / Rc
 	local x, y = sin(phi) * (Rc - n0), Rc - cos(phi) * (Rc - n0)
 	self:loadField("lane", { player = Ship.record(p),
-		at = { x = x, y = y, angle = phi, vx = cos(phi) * T.driverExitSpeed, vy = sin(phi) * T.driverExitSpeed } })
+		at = { x = x, y = y, angle = phi, vx = cos(phi) * T.laneEntrySpeed, vy = sin(phi) * T.laneEntrySpeed } })
 	self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
 	events.emit("travel", from, to)
 end
@@ -376,7 +375,7 @@ function Game:placeAtDriver(p, exit)
 	local gx, gy = g.body:getPosition()
 	local ix, iy = -cos(g.angle), -sin(g.angle)
 	local a = math.atan2(iy, ix)
-	local along, across, turn = T.driverExitSpeed, 0, 0
+	local along, across, turn = T.laneEntrySpeed, 0, 0
 	if exit then along, across, turn = exit.along, exit.across, exit.turn end
 	p.body:setPosition(gx + ix * (T.driverRadius + 300), gy + iy * (T.driverRadius + 300))
 	p.body:setAngle(a + turn)
