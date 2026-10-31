@@ -964,8 +964,9 @@ function Game:step(dt)
 		-- the highway, or the warp trip and the catch (debug panel picks)
 		if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
 	elseif self.pendingArrive then
+		local back = self.pendingArrive == "back"
 		self.pendingArrive = nil
-		self:arrive()
+		self:arrive(back)
 	end
 end
 

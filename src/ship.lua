@@ -338,8 +338,8 @@ function Ship.fly(e, dt)
 	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
 	local jets = max(0, fwd) * aux
 	-- in a transit lane (e.laneBuff, src/transit.lua) every thruster hits
-	-- far harder, and the afterburner harder still
-	local buff = e.laneBuff and 1 + ((burner and T.laneBoostThrust or T.laneThrust) - 1) * e.laneBuff or 1
+	-- far harder (the afterburner gets no extra on top)
+	local buff = e.laneBuff and 1 + (T.laneThrust - 1) * e.laneBuff or 1
 	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
 	local l = side * aux * scale * buff
 	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end

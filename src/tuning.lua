@@ -108,7 +108,6 @@ T.yearLength = 1800
 T.laneBase = 20000
 T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
-T.laneSwirl = 0.6
 T.laneReach = 12000
 
 -- Gas giants: how far below the cloud tops you can go before the crush
@@ -173,12 +172,11 @@ T.laneSpecs = {
 	{ key = "laneRocks",       label = "Rocks in the lane",             min = 0,    max = 15,    value = 4,     precision = 0 },
 	{ key = "laneOffroad",     label = "Rocks off-road",                min = 0,    max = 60,    value = 24,    precision = 0 },
 	{ key = "laneDerelict",    label = "Derelict chance",               min = 0,    max = 1,     value = 0.12,  precision = 2 },
-	{ key = "laneFlow",        label = "Current speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
+	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
 	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 2,     precision = 2 },
-	{ key = "laneBoostThrust", label = "Lane buff: afterburner x",      min = 1,    max = 10,    value = 4,     precision = 2 },
 	{ key = "laneDrag",        label = "Lane buff: drag x",             min = 0.05, max = 1,     value = 0.25,  precision = 2 },
 	{ key = "laneRamp",        label = "Off-road falloff (px)",         min = 0,    max = 8000,  value = 3000,  precision = 0 },
-	{ key = "lanePerAU",       label = "Lane length per AU (px)",       min = 2000, max = 40000, value = 17000, precision = 0 },
+	{ key = "lanePerAU",       label = "Lane length per AU (px)",       min = 2000, max = 100000, value = 50000, precision = 0 },
 }
 for _, s in ipairs(T.laneSpecs) do T[s.key] = s.value end
 

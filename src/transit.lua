@@ -353,9 +353,12 @@ function Game:launchTrip(to)
 end
 
 -- Out of the far end of the lane at the other planet's driver, moving fast.
-function Game:arrive()
+-- back: you turned round, so you come out of your own planet's driver.
+function Game:arrive(back)
 	local p, trip = self.player, self.trip
 	if not p or p.dead or not trip then return end
+	local to, from = trip.to, trip.from
+	if back then to, from = from, to end
 	-- keep your heading and velocity relative to the lane: along it
 	-- becomes in from the driver
 	local x, y = p.body:getPosition()
@@ -363,8 +366,9 @@ function Game:arrive()
 	local vx, vy = p.body:getLinearVelocity()
 	local tx, ty = cos(phi), sin(phi)
 	local exit = { along = vx * tx + vy * ty, across = -vx * ty + vy * tx, turn = p.body:getAngle() - phi }
+	if back then exit.along, exit.across, exit.turn = -exit.along, -exit.across, exit.turn + pi end
 	self.trip = nil
-	self:loadField(trip.to, { player = Ship.record(p), at = { driver = trip.from, exit = exit } })
+	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })
 end
 
 -- Out of this planet's driver heading inward, at the driver's exit speed,
@@ -473,8 +477,6 @@ function Game:updateLane(dt)
 				local k = self:laneStrength(n)
 				e.laneBuff = k > 0 and k or nil
 				if e.lane then
-					local v = f * (e.cruiseSpeed or 1)
-					e.flowX, e.flowY = tx * v, ty * v
 					local c = (vx * tx + vy * ty) ^ 2 / lane.R
 					b:applyForce(sin(phi) * -c * m, cos(phi) * c * m)
 					-- now and then a traveller drifts across into the other side
@@ -488,12 +490,6 @@ function Game:updateLane(dt)
 						if e.veer.t <= 0 then e.veer = nil end
 					end
 				end
-			elseif e.lane ~= "offroad" then
-				-- carried along the lane; anything drifting across keeps drifting
-				local va = vx * tx + vy * ty
-				local c = va * va / lane.R
-				local a = (f - va) * T.laneSwirl
-				b:applyForce((tx * a - sin(phi) * c) * m, (ty * a + cos(phi) * c) * m)
 			end
 			-- soft walls well outside the lane, and the near end
 			local over = abs(n) - (W + T.laneRamp + 2500)
@@ -501,12 +497,14 @@ function Game:updateLane(dt)
 				local k = (n > 0 and 1 or -1) * over * m * 4
 				b:applyForce(sin(phi) * k, -cos(phi) * k)
 			end
-			if s < -lane.half then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
+			if s < -lane.half and e ~= p then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
 		end
 	end
 	if not p or p.dead then return end
 	local ps = self:toLane(p.body:getPosition())
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
+	-- turned round and flew back out the near end: home again
+	if ps < -lane.half - 200 then self.pendingArrive = "back" end
 	-- off-road rocks, scattered either side all along: a field to fill
 	-- once, then topped up at the edge of reach as you go
 	if not lane.filled then
@@ -565,7 +563,7 @@ function Game:updateLane(dt)
 				e.lane = "rock"
 				-- some of it is debris drifting across the lanes
 				local across = random() < 0.35 and (n > 0 and -1 or 1) * (120 + random() * 200) or 0
-				e.body:setLinearVelocity(vx - sin(phi) * across, vy + cos(phi) * across)
+				e.body:setLinearVelocity(-sin(phi) * across, cos(phi) * across)
 			end
 		end
 	elseif random() < T.laneDerelict then
@@ -573,11 +571,10 @@ function Game:updateLane(dt)
 		-- lost container
 		if random() < 0.6 then
 			local e = self:spawnEnemy("freighter", x, y)
-			e.body:setLinearVelocity(vx, vy)
 			self:damage(e, 1e9, nil, "derelict")
 		else
 			local e = self:spawnContainer(x, y, "cargo_container", true)
-			if e then e.body:setLinearVelocity(vx, vy) end
+			if e then e.body:setLinearVelocity(0, 0) end
 		end
 	end
 end
@@ -597,14 +594,20 @@ function Game:spawnOffroadRock(s, ps)
 	return e
 end
 
--- Traffic just rides the current, nose along the lane.
+-- Traffic flies its own side of the lane at its own speed, nose along
+-- the lane: thrusting (and side-jetting) to match the velocity it wants.
 function Game:cruise(e)
 	local x, y = e.body:getPosition()
 	local _, n, phi = self:toLane(x, y)
-	local d = self:laneFlow(n) >= 0 and 1000 or -1000
+	local dir = self:laneFlow(n) >= 0 and 1 or -1
+	local tx, ty = cos(phi) * dir, sin(phi) * dir
+	local want = T.laneFlow * (e.cruiseSpeed or 1)
+	local vx, vy = e.body:getLinearVelocity()
+	local ex, ey = tx * want - vx, ty * want - vy
 	local it = e.intent
-	it.thrust, it.strafe = 0, 0
-	it.aimX, it.aimY = x + cos(phi) * d, y + sin(phi) * d
+	it.aimX, it.aimY = x + tx * 1000, y + ty * 1000
+	local th, st = Ship.toLocal(e, ex / 200, ey / 200)
+	it.thrust, it.strafe = max(-1, min(1, th)), max(-1, min(1, st))
 end
 
 -- Gas giants -----------------------------------------------------------------
