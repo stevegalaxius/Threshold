@@ -368,18 +368,27 @@ function Game:arrive(back)
 end
 
 -- Out of this planet's driver heading inward, at the driver's exit speed,
--- or as you left the lane (exit = { angle, vx, vy }).
+-- or, off the highway (exit = { angle, vx, vy }), in from the map's edge
+-- on course for the planet.
 function Game:placeAtDriver(p, exit)
 	local g = self:findDriver()
 	if not g then return false end
 	local gx, gy = g.body:getPosition()
 	local ix, iy = -cos(g.angle), -sin(g.angle)
 	local a = math.atan2(iy, ix)
-	p.body:setPosition(gx + ix * (T.driverRadius + 300), gy + iy * (T.driverRadius + 300))
 	if exit then
+		-- off the highway: not at the driver, but in from the edge of the
+		-- map on whichever side lines your course up on the planet, so
+		-- you arrive flying the way you were, straight at it
+		local sp = sqrt(exit.vx ^ 2 + exit.vy ^ 2)
+		local dx, dy = exit.vx / max(sp, 1), exit.vy / max(sp, 1)
+		if sp < 50 then dx, dy = cos(exit.angle), sin(exit.angle) end
+		local d = self.arenaRadius - 1500
+		p.body:setPosition(-dx * d, -dy * d)
 		p.body:setAngle(exit.angle)
 		p.body:setLinearVelocity(exit.vx, exit.vy)
 	else
+		p.body:setPosition(gx + ix * (T.driverRadius + 300), gy + iy * (T.driverRadius + 300))
 		p.body:setAngle(a)
 		p.body:setLinearVelocity(ix * T.laneEntrySpeed, iy * T.laneEntrySpeed)
 	end
