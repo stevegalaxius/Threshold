@@ -179,7 +179,7 @@ T.laneSpecs = {
 	{ key = "laneOffroad",     label = "Rocks off-road (per 10k px)",   min = 0,    max = 60,    value = 12,    precision = 0 },
 	{ key = "laneDerelicts",   label = "Derelicts (per 100k px)",       min = 0,    max = 10,    value = 1,     precision = 1 },
 	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
-	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 2,     precision = 2 },
+	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 3,     precision = 2 },
 	{ key = "laneDrag",        label = "Lane buff: drag x",             min = 0.05, max = 1,     value = 0.25,  precision = 2 },
 	{ key = "laneRamp",        label = "Off-road falloff (px)",         min = 0,    max = 8000,  value = 3000,  precision = 0 },
 	{ key = "lanePerAU",       label = "Lane length per AU (px)",       min = 2000, max = 100000, value = 50000, precision = 0 },
