@@ -162,7 +162,7 @@ local HELP = {
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB auxiliary",
 	"Q auxiliary ammo size   E tractor beam",
-	"T radar lock   G fly a drone (radar suite)",
+	"G fly a drone (drone uplink)",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold",
 	"Shift afterburner",

@@ -5,14 +5,16 @@
 	  nav       warns of a collision: when your course (velocity relative
 	            to it) runs you into something within T.navLookahead seconds,
 	            the dashed line along your velocity fades in, bright orange.
-	  ordnance  puts a lead pip on the target (your radar lock, or the
+	  ordnance  puts a lead pip on the target (the guidance lock, or the
 	            hostile nearest the cursor): shoot the pip and your primary
 	            rounds meet the target.
-	  radar     radarRange px. T locks the hostile nearest the cursor and
-	            your missiles fly at the lock instead of picking their own
-	            target; T on empty space clears it. G takes the controls of
-	            your nearest drone (your ship holds still), G again hands
-	            them back.
+	  guidance  missile guidance, radarRange px. Locks on by itself to the
+	            hostile in range closest to where you're aiming (within
+	            T.guidanceCone degrees), marked with faint brackets, and every
+	            missile you fire goes after that one ship.
+	  drone     drone uplink, uplinkRange px. G takes the controls of your
+	            nearest drone (your ship holds still), G again hands them
+	            back.
 
 	Game:computer(e, kind) is the fitted module of that kind, or nil.
 ]]
@@ -55,15 +57,38 @@ function Game:pilotedShip()
 	return d or self.player
 end
 
--- T: lock the hostile nearest the cursor, or clear the lock.
-function Game:radarLock(aimX, aimY)
-	local p = self.player
-	if not p or p.dead then return end
-	local radar = self:computer(p, "radar")
-	if not radar then self:toast("No radar computer fitted") return end
-	local t = hostileNear(self, p, aimX, aimY, 400, p, radar.radarRange)
-	p.lock = t
-	if t then self:toast("Locked: " .. (t.def and t.def.name or "contact")) end
+-- Missile guidance: the hostile in range nearest your aim line. The
+-- current lock is kept while it's still in a wider cone, so it doesn't
+-- flicker between two ships side by side.
+local function pickLock(game, p, range)
+	local x, y = p.body:getPosition()
+	local ax, ay = p.intent.aimX, p.intent.aimY
+	if not ax then return nil end
+	local aim = math.atan2(ay - y, ax - x)
+	local cone = math.rad(T.guidanceCone)
+	local function off(o)
+		local ox, oy = o.body:getPosition()
+		if (ox - x) ^ 2 + (oy - y) ^ 2 > range * range then return nil end
+		return math.abs((math.atan2(oy - y, ox - x) - aim + math.pi) % (2 * math.pi) - math.pi)
+	end
+	local cur = p.lock
+	if cur and not cur.dead then
+		local d = off(cur)
+		if d and d < cone * 1.5 then
+			-- only switch for something clearly closer to the aim
+			cone = d * 0.6
+		end
+	end
+	local best, bd = nil, cone
+	for _, o in ipairs(game.entities) do
+		if o.kind == "ship" and not o.dead and o.team ~= p.team and o.team ~= 0 then
+			local d = off(o)
+			if d and d < bd then best, bd = o, d end
+		end
+	end
+	if best then return best end
+	if cur and not cur.dead and off(cur) and off(cur) < math.rad(T.guidanceCone) * 1.5 then return cur end
+	return nil
 end
 
 -- G: take over the nearest of your drones, or hand the controls back.
@@ -74,18 +99,18 @@ function Game:toggleDroneControl()
 		self.piloting.piloted, self.piloting = nil, nil
 		return
 	end
-	local radar = self:computer(p, "radar")
-	if not radar then self:toast("No radar computer fitted") return end
+	local uplink = self:computer(p, "drone")
+	if not uplink then self:toast("No drone uplink fitted") return end
 	local x, y = p.body:getPosition()
 	local best, bd
 	for _, o in ipairs(self.entities) do
 		if o.drone and o.owner == p and not o.dead then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
-			if d <= radar.radarRange ^ 2 and (not bd or d < bd) then best, bd = o, d end
+			if d <= uplink.uplinkRange ^ 2 and (not bd or d < bd) then best, bd = o, d end
 		end
 	end
-	if not best then self:toast("No drone in radar range") return end
+	if not best then self:toast("No drone in uplink range") return end
 	best.piloted, self.piloting = true, best
 end
 
@@ -124,14 +149,9 @@ function Game:updateComputers(dt)
 		and collisionCourse(self, ship, T.navLookahead)) and 1 or 0
 	local warn = p.navWarn or 0
 	p.navWarn = warn + math.max(-dt * 2, math.min(dt * 5, want - warn))
-	local t, radar = p.lock, self:computer(p, "radar")
-	if t and (t.dead or not radar) then p.lock = nil
-	elseif t then
-		local x, y = p.body:getPosition()
-		local tx, ty = t.body:getPosition()
-		if (tx - x) ^ 2 + (ty - y) ^ 2 > (radar.radarRange * 1.1) ^ 2 then p.lock = nil end
-	end
-	if self.piloting and (not radar or self.piloting.dead) then
+	local guidance = self:computer(p, "guidance")
+	p.lock = guidance and pickLock(self, p, guidance.radarRange) or nil
+	if self.piloting and (not self:computer(p, "drone") or self.piloting.dead) then
 		if self.piloting.piloted then self.piloting.piloted = nil end
 		self.piloting = nil
 	end
@@ -180,20 +200,14 @@ function Game:drawComputers(px)
 		end
 	end
 
-	local radar = self:computer(p, "radar")
-	if radar and self.piloting == nil then
-		lg.setColor(0.4, 0.9, 0.65, 0.07)
-		lg.setLineWidth(max(1, px))
-		lg.circle("line", x, y, radar.radarRange, 128)
-	end
-
 	local lock = p.lock
 	if lock and not lock.dead then
 		local tx, ty = lock.body:getPosition()
-		local r = (lock.halfLength or 30) + 14 * px
-		local c = 10 * px
-		lg.setColor(1, 0.35, 0.3, 0.9)
-		lg.setLineWidth(max(2, 2 * px))
+		-- quiet: thin corner ticks, just a hint of who a missile would chase
+		local r = (lock.halfLength or 30) + 12 * px
+		local c = 6 * px
+		lg.setColor(1, 0.45, 0.4, 0.35)
+		lg.setLineWidth(max(1, px))
 		for _, s in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
 			local cx, cy = tx + s[1] * r, ty + s[2] * r
 			lg.line(cx, cy, cx - s[1] * c, cy)

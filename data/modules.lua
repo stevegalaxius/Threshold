@@ -10,7 +10,8 @@
 	           hull that has one, and battleships have none.
 	  reactor  powerOut (per second), powerCap (stored power)
 	  computer universal (size "any"), one per hull. computer = "nav",
-	           "ordnance" or "radar" (radarRange px); see src/computers.lua.
+	           "ordnance", "guidance" (radarRange px) or "drone" (uplinkRange
+	           px); see src/computers.lua.
 	  utility  hold (cubic metres), tractorRange (pixels). Utility modules are
 	           size "any" and fit any hull's utility slot.
 	  weapon   (guns, artillery, lasers) fits a hull's primary or secondary
@@ -185,4 +186,5 @@ module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", 
 -- Computers: one universal slot on every playable hull (src/computers.lua).
 module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav",      price = 2500 }
 module { id = "fire_computer", name = "Ordnance Computer", maker = "Concord Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", price = 6000 }
-module { id = "radar_suite",   name = "Radar Suite",       maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "radar", radarRange = 4000, price = 9000 }
+module { id = "guidance_computer", name = "Missile Guidance", maker = "Concord Military", family = "computer", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, price = 7000 }
+module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, price = 9000 }
