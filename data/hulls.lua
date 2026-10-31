@@ -238,7 +238,7 @@ hull {
 		{ family = "engine",  size = "S", x = -10, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },
+	loadout = { "glint_laser", "flit_engine", "ember_reactor" },
 	cargo = {},
 }
 
@@ -252,7 +252,7 @@ hull {
 		{ family = "engine",  size = "M", x = -16, y = 0 },
 		{ family = "reactor", size = "M" },
 	},
-	loadout = { "rk7_autocannon", "mule_engine", "kiln_reactor" },
+	loadout = { "lumen_lance", "mule_engine", "kiln_reactor" },
 	cargo = {},
 }
 
@@ -265,8 +265,8 @@ hull {
 		{ family = "primary", size = "M", x = 14, y = -8 },
 		{ family = "primary", size = "M", x = 14, y = 8 },
 		{ family = "engine",  size = "M", x = -34, y = 0 },
-		{ family = "reactor", size = "M" },
+		{ family = "reactor", size = "L" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "mule_engine", "kiln_reactor" },
+	loadout = { "lumen_lance", "lumen_lance", "mule_engine", "forge_reactor" },
 	cargo = {},
 }

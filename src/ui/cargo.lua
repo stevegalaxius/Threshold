@@ -332,7 +332,7 @@ function sendHome(game, s)
 	if not st then return end
 	if s.owner == "station" then
 		local shelf = game:stationMarket(st).hold
-		local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale }
+		local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, wear = s.wear }
 		while not Hold.placeStack(shelf, c) do Grid.addRows(shelf.grids[1], 1) end
 		return
 	end
@@ -376,7 +376,7 @@ end
 local function toTrade(L, r, s)
 	local trade
 	for _, side in ipairs(L.sides) do if side.trade then trade = side end end
-	local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, owner = r.side.market and "station" or "player" }
+	local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, wear = s.wear, owner = r.side.market and "station" or "player" }
 	if not Hold.placeStack(trade.hold, c) then return false end
 	Grid.remove(r.g, s)
 	changed(r.side)
@@ -405,7 +405,7 @@ local function returnHand(game)
 	local fw, fh = h.w0, h.h0
 	if Grid.isFree(f.grid, f.x, f.y, fw, fh) then
 		Grid.place(f.grid, { id = h.id, n = h.n, x = f.x, y = f.y, w = fw, h = fh, rot = h.rot0, inner = h.inner,
-			owner = h.side.trade and h.owner or nil, resale = h.resale })
+			owner = h.side.trade and h.owner or nil, resale = h.resale, wear = h.wear })
 		return
 	end
 	if h.side.trade or h.side.market then sendHome(game, h) return end

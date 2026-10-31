@@ -20,7 +20,9 @@
 	fuse" tuning share of their splash radius). Torpedoes
 	are unguided and only burst on contact or at the end of their range.
 	Drones aren't shots: their shot table names the hull that launches
-	(hull), its gun ammo (cargo) and how many seconds it fights (life).
+	(hull). Drones fly lasers, so they need no ammo, and they don't
+	expire: they dock back into the hold once there's nothing to fight,
+	keeping whatever damage they took (the stack's wear).
 
 	Grid shape: the hold is a grid of 1 m3 cells, and w x h is how many
 	cells a stack of the item covers (it can be rotated), with up to stack
@@ -56,11 +58,11 @@ ammo { id = "torp_l", name = "Leviathan torpedo", maker = "Ferrous Collective", 
 	shot = { damage = 1100, splash = 210, speed = 2550, range = 13200, knockback = 80000 } }
 
 ammo { id = "drone_s", name = "Wasp drone",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500, w = 2, h = 2, stack = 1,
-	shot = { hull = "wasp_drone", cargo = { rounds_s = 150 }, life = 25, speed = 300, range = 1500 } }
+	shot = { hull = "wasp_drone", speed = 300, range = 1500 } }
 ammo { id = "drone_m", name = "Hive drone",    maker = "Nova Syndicate", family = "drone", size = "M", volume = 8, mass = 7, price = 6000, w = 3, h = 3, stack = 1,
-	shot = { hull = "hive_drone", cargo = { rounds_m = 200 }, life = 30, speed = 250, range = 1800 } }
+	shot = { hull = "hive_drone", speed = 250, range = 1800 } }
 ammo { id = "drone_l", name = "Warden drone",  maker = "Nova Syndicate", family = "drone", size = "L", volume = 16, mass = 14, price = 14000, w = 4, h = 4, stack = 1,
-	shot = { hull = "warden_drone", cargo = { rounds_m = 300 }, life = 40, speed = 200, range = 2000 } }
+	shot = { hull = "warden_drone", speed = 200, range = 2000 } }
 
 salvage { id = "scrap",       name = "Scrap metal",      volume = 0.5, mass = 0.4, price = 60, w = 1, h = 1, stack = 2 }
 salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 0.3, price = 260, w = 1, h = 1, stack = 1 }

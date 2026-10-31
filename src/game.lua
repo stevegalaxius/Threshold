@@ -135,14 +135,32 @@ end
 -- A drone from a drone bay: a small AI ship on the launcher's side, in the
 -- launcher's paint, that fights until its life runs out or it's destroyed.
 local DRONE_AI = { style = "orbit", range = 450, accuracy = 0.6, throttle = 0.9, burstOn = 1.2, burstOff = 0.8 }
+-- The drone comes out of the least worn stack in the hold, and carries
+-- its wear (the share of armour it had lost) back in when it docks.
 function Game:launchDrone(owner, item, x, y, angle)
 	local shot = item.shot
+	local wear = 0
+	if owner.hold then
+		-- the count already went down (Weapons took the ammo); take that stack
+		local bestG, bestS
+		for _, g in ipairs(owner.hold.grids) do
+			for _, s in ipairs(g.stacks) do
+				if s.id == item.id and not s.inner and (not bestS or (s.wear or 0) < (bestS.wear or 0)) then bestG, bestS = g, s end
+			end
+		end
+		if bestS then
+			wear = bestS.wear or 0
+			bestS.n = bestS.n - 1
+			if bestS.n <= 0 then Grid.remove(bestG, bestS) end
+		end
+	end
 	local d = Ship.new(self, {
 		hull = shot.hull, cargo = shot.cargo, team = owner.team, x = x, y = y, angle = angle,
 		color = owner.color, enemy = { id = item.id, ai = DRONE_AI },
 	})
 	-- drones never expire: they come home once there's nothing to fight
 	d.drone, d.owner, d.itemId = true, owner, item.id
+	d.armor = d.stats.armor * (1 - wear)
 	-- A ship never collides with its own drones (or they with each other):
 	-- Box2D skips contacts between fixtures sharing a negative group index.
 	-- (Group indexes are 16-bit, so hand them out from a small counter.)
@@ -1306,13 +1324,25 @@ function Game:reap()
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
 		elseif e.recalled then
-			-- a drone back in its bay: into the owner's hold as ammo again
+			-- a drone back in its bay: into the owner's hold, wear and all
 			table.remove(self.entities, i)
+			local x, y = e.body:getPosition()
 			e.body:destroy()
 			e.removed = true
 			local o = e.owner
-			if o and not o.dead and e.itemId and Ship.addCargo(o, e.itemId, 1) > 0 then
-				if o.isPlayer then self:toast("Drone returned", 1.2) end
+			if o and not o.dead and e.itemId then
+				local wear = 1 - e.armor / e.stats.armor
+				local s = { id = e.itemId, n = 1, wear = wear > 0.005 and wear or nil }
+				if not o.hold then
+					o.cargo[e.itemId] = (o.cargo[e.itemId] or 0) + 1
+				elseif Hold.placeStack(o.hold, s) then
+					o.cargo[e.itemId] = (o.cargo[e.itemId] or 0) + 1
+					Ship.updateMass(o)
+					if o.isPlayer then self:toast("Drone returned", 1.2) end
+				else
+					self:spawnPickup(x, y, e.itemId, 1)
+					if o.isPlayer then self:toast("No room for the drone", 1.2) end
+				end
 			end
 		elseif e.dead then
 			local x, y = e.body:getPosition()
