@@ -132,7 +132,7 @@ Fields.station = {
 --   rock   plain asteroids        ice   ice asteroids (pale, brittle)
 --   junk   dead hardware          sat   working satellites (blinking)
 local MIX = {
-	inner = { junk = 5, sat = 4, rock = 1 },
+	inner = { junk = 4, sat = 2, rock = 4 },
 	mars = { junk = 3, sat = 2, rock = 5 },
 	belt = { rock = 9, ice = 1 },
 	giant = { rock = 5, ice = 4, junk = 1 },
@@ -263,7 +263,7 @@ Fields.venus = planetField({ name = "Venus", R = 14300, depth = 35000,
 	stations = { "Hub Station", "Cloudline Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 3 } } })
 Fields.earth = planetField({ name = "Earth", R = 15000, depth = 35000,
-	density = 0.05, mix = MIX.inner, belt = 1, beltMix = { junk = 6, sat = 4 },
+	density = 0.05, mix = MIX.inner, belt = 1, beltMix = { junk = 5, sat = 3, rock = 2 },
 	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
 Fields.mars = planetField({ name = "Mars", R = 7500, depth = 32000,

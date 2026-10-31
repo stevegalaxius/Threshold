@@ -200,6 +200,15 @@ local DEBRIS = {
 }
 Game.DEBRIS = DEBRIS
 
+-- Each piece gets its own tint so a field isn't one flat colour: junk
+-- runs from bare grey metal to rust and old paint, rock and ice vary a
+-- little.
+local function tint(c, kind)
+	local j = kind == "junk" and 0.3 or 0.12
+	local warm = (random() - 0.5) * j
+	return { min(1, c[1] * (1 + warm)), c[2], min(1, c[3] * (1 - warm)) }
+end
+
 -- A random kind from a mix of weights ({ rock = 5, ice = 2, ... }).
 function Game:pickDebris(mix)
 	mix = mix or (self.field and self.field.mix) or { rock = 1 }
@@ -218,9 +227,12 @@ end
 
 -- A typical size for a piece of debris of this kind.
 function Game:debrisSize(kind)
-	if kind == "sat" then return 22 + random() * 26 end
-	if kind == "junk" then return 18 + random() ^ 2 * 50 end
-	return 24 + random() ^ 2 * 80
+	if kind == "sat" then
+		-- mostly small birds, now and then a big platform
+		return random() < 0.15 and 60 + random() * 60 or 20 + random() * 35
+	end
+	if kind == "junk" then return 16 + random() ^ 2.5 * 130 end   -- scraps, and the odd wrecked hulk
+	return 28 + random() ^ 2 * 100
 end
 
 -- A breakable piece of debris: rock, ice, junk or a satellite. They all
@@ -270,7 +282,7 @@ function Game:spawnAsteroid(x, y, radius, kind)
 	body:setAngularVelocity((random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
 	body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
 	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture,
-		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
+		shade = 0.55 + random() * 0.35, fill = tint(D.fill, kind), line = tint(D.line, kind), blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
 	fixture:setUserData(e)
 	body:setUserData(e)
