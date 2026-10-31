@@ -21,6 +21,8 @@
 	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
 	  radius collision radius in pixels
+	  ramSpeed  impact speed (px/s) below which a bump does it no harm;
+	            low is fragile, high shrugs off collisions
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
 	  mount  how the hull carries its weapons, which sets how each class feels:
 	         fixed   guns point straight down the nose; you aim with the ship
@@ -45,7 +47,7 @@
 
 hull {
 	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light", mount = "fixed",
-	mass = 58, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
+	mass = 58, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16, ramSpeed = 100,
 	shape = { 40,0, 8,-7, -12,-14, -28,-12, -20,0, -28,12, -12,14, 8,7 },
 	slots = {
 		{ family = "primary",   size = "S", x = 12,   y = -9 },
@@ -63,7 +65,7 @@ hull {
 
 hull {
 	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
-	mass = 240, armor = 380, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34,
+	mass = 240, armor = 380, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34, ramSpeed = 170,
 	shape = { 74,-11, 74,11, 34,26, -46,28, -68,14, -68,-14, -46,-28, 34,-26 },
 	slots = {
 		{ family = "primary",   size = "M", x = 40,  y = -20 },
@@ -85,7 +87,7 @@ hull {
 -- strafe: A/D turn the hull, and side jets help it turn.
 hull {
 	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
-	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
+	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62, ramSpeed = 250,
 	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
 		{ family = "secondary", size = "L", x = 80,  y = 0 },
@@ -111,7 +113,7 @@ hull {
 -- straight line, but it comes about very slowly. Flown by neutral traders.
 hull {
 	id = "ferrous_freighter", name = "Hauler", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 120, helm = "turn",
-	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62,
+	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62, ramSpeed = 200,
 	shape = { 138,-34, 128,-58, -124,-60, -138,-46, -138,46, -124,60, 128,58, 138,34 },
 	slots = {
 		{ family = "primary",   size = "M", x = 70,  y = 0 },
@@ -133,7 +135,7 @@ hull {
 -- independent traders and smugglers.
 hull {
 	id = "ferrous_runner", name = "Runner", maker = "Ferrous Collective", class = "light", mount = "turret", turretTurn = 180,
-	mass = 120, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24,
+	mass = 120, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24, ramSpeed = 110,
 	shape = { 58,-8, 52,-20, -34,-22, -46,-14, -46,14, -34,22, 52,20, 58,8 },
 	slots = {
 		{ family = "primary",   size = "S", x = 30,  y = 0 },
@@ -153,7 +155,7 @@ hull {
 -- wants to survive a fight without paying battleship money.
 hull {
 	id = "ferrous_mule", name = "Packhorse", maker = "Ferrous Collective", class = "medium", mount = "turret", turretTurn = 140,
-	mass = 420, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44,
+	mass = 420, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44, ramSpeed = 180,
 	shape = { 96,-24, 88,-40, -78,-42, -92,-30, -92,30, -78,42, 88,40, 96,24 },
 	slots = {
 		{ family = "primary",   size = "M", x = 44,  y = -18 },
@@ -176,7 +178,7 @@ hull {
 -- in straight lines and swings wide when it overshoots.
 hull {
 	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
+	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13, ramSpeed = 100,
 	shape = { 30,0, -18,-11, -10,0, -18,11 },
 	slots = {
 		{ family = "primary", size = "S", x = 8,  y = 0 },
@@ -190,7 +192,7 @@ hull {
 -- Harasser: tiny, twitchy, strong side thrusters. Hard to hit on purpose.
 hull {
 	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
+	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11, ramSpeed = 90,
 	shape = { 28,0, 4,-5, -16,-10, -10,0, -16,10, 4,5 },
 	slots = {
 		{ family = "primary", size = "S", x = 10,  y = 0 },
@@ -205,7 +207,7 @@ hull {
 
 hull {
 	id = "wasp_drone", name = "Wasp", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
-	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8,
+	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8, ramSpeed = 80,
 	shape = { 22,0, 2,-4, -12,-8, -8,0, -12,8, 2,4 },
 	slots = {
 		{ family = "primary", size = "S", x = 8,  y = 0 },
@@ -218,7 +220,7 @@ hull {
 
 hull {
 	id = "hive_drone", name = "Hive", maker = "Nova Syndicate", class = "drone", playable = false, mount = "gimbal",
-	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14,
+	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14, ramSpeed = 100,
 	shape = { 34,0, 6,-9, -20,-14, -14,0, -20,14, 6,9 },
 	slots = {
 		{ family = "primary", size = "M", x = 12, y = 0 },
@@ -231,7 +233,7 @@ hull {
 
 hull {
 	id = "warden_drone", name = "Warden", maker = "Nova Syndicate", class = "drone", playable = false, mount = "turret", turretTurn = 200,
-	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20,
+	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20, ramSpeed = 150,
 	shape = { 48,0, 20,-16, -26,-20, -36,0, -26,20, 20,16 },
 	slots = {
 		{ family = "primary", size = "M", x = 14, y = -8 },

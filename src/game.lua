@@ -1005,7 +1005,7 @@ function Game:resolveContacts()
 			self.contacts[key] = nil
 		else
 		-- Impulse / reduced mass is roughly the impact speed. Slow bumps and
-		-- scrapes (below ramSpeed) do nothing; harder hits scale with impulse,
+		-- scrapes (below the hull's ramSpeed) do nothing; harder hits scale with impulse,
 		-- so heavy ships hit harder.
 		local ma, mb = c.a.body:getMass(), c.b.body:getMass()
 		-- Against something immovable (a station, the giant asteroid) the
@@ -1014,15 +1014,23 @@ function Game:resolveContacts()
 		local impactSpeed = c.imp / max(mu, 1e-6)
 		if impactSpeed > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = impactSpeed end
 		if c.imp > self.stats.maxImpulse then self.stats.maxImpulse = c.imp end
-		if impactSpeed > T.ramSpeed and c.x then
-			local base = c.imp * T.ramDamageScale * (1 - T.ramSpeed / impactSpeed)
+		-- Each side has its own toughness: a hull's ramSpeed (light hulls
+		-- crumple at a nudge, battleships shrug off bumps), T.ramSpeed for
+		-- everything else, all scaled by the debug slider.
+		local function threshold(o)
+			return (o.kind == "ship" and o.hull.ramSpeed or T.ramSpeed) * T.ramSpeedScale
+		end
+		local ta, tb = threshold(c.a), threshold(c.b)
+		if impactSpeed > min(ta, tb) and c.x then
 			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
-			local function hit(o, other)
+			local function hit(o, other, thr)
+				if impactSpeed <= thr then return 0 end
+				local base = c.imp * T.ramDamageScale * (1 - thr / impactSpeed)
 				local mult = (o.kind == "asteroid" or o.kind == "husk" or o.kind == "container") and T.asteroidImpact or ramMult(other)
 				self:damage(o, base * mult, other, "ram")
+				return base
 			end
-			hit(c.a, c.b)
-			hit(c.b, c.a)
+			local base = max(hit(c.a, c.b, ta), hit(c.b, c.a, tb))
 			self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
 			if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
 			events.emit("ram", c.a, c.b, base)
