@@ -105,6 +105,7 @@ function Game:placePlayer(rec, at)
 		if st and st.dock then self:dockInstantly(p, st) return p end
 	end
 	if at.driver and self:placeAtDriver(p, at.exit) then return p end
+	if at.catch and self:placeForCatch(p) then return p end
 	if at.x then
 		p.body:setPosition(at.x, at.y)
 		p.body:setAngle(at.angle or 0)
@@ -291,7 +292,7 @@ function Game:saveState()
 	end
 	local u = self.universe
 	-- saved mid-transit: you'll be at the far end's driver when you load
-	local field = self.trip and self.trip.to or self.fieldId
+	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock }
 	local p = self.player
@@ -304,6 +305,7 @@ function Game:saveState()
 			local vx, vy = p.body:getLinearVelocity()
 			where = { x = x, y = y, angle = p.body:getAngle(), vx = vx, vy = vy }
 			if self.trip then where = { driver = self.trip.from } end
+			if self.flight or p.catching then where = { catch = true } end
 		end
 		state.player = { ship = saveShip(Ship.record(p)), at = where }
 	end

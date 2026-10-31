@@ -117,6 +117,32 @@ T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 -- Developer cheats, toggled from the debug panel.
 T.dev = { god = false, infiniteAmmo = false, showHold = false }
 
+-- Flight and the catch (src/transit.lua), sliders in the debug panel's
+-- Flight and catch section. flight*: seconds the trip view lasts (base
+-- plus per AU) and game-clock seconds that pass per AU. catch*: how many
+-- braking rings, how far apart and how big, the share of speed each one
+-- takes, the fastest the driver will catch you at, how fast you arrive,
+-- how far beyond the last ring you start, and how far off the line.
+T.flightSpecs = {
+	{ key = "flightBase",      label = "Trip view: seconds",             min = 0,    max = 15,    value = 3,     precision = 1 },
+	{ key = "flightPerAU",     label = "Trip view: seconds per AU",      min = 0,    max = 5,     value = 1,     precision = 1 },
+	{ key = "flightClockPerAU", label = "Game clock per AU (s)",         min = 0,    max = 1200,  value = 120,   precision = 0 },
+	{ key = "catchSpeed",      label = "Arrival speed (px/s)",           min = 500,  max = 6000,  value = 2500,  precision = 0 },
+	{ key = "catchRings",      label = "Braking rings",                  min = 1,    max = 8,     value = 4,     precision = 0 },
+	{ key = "catchSpacing",    label = "Ring spacing (px)",              min = 800,  max = 6000,  value = 2500,  precision = 0 },
+	{ key = "catchRingRadius", label = "Ring radius (px)",               min = 100,  max = 1000,  value = 380,   precision = 0 },
+	{ key = "catchBrake",      label = "Speed taken per ring",           min = 0,    max = 0.9,   value = 0.35,  precision = 2 },
+	{ key = "catchBaySpeed",   label = "Fastest catch (px/s)",           min = 100,  max = 2000,  value = 700,   precision = 0 },
+	{ key = "catchApproach",   label = "Start beyond last ring (px)",    min = 1000, max = 20000, value = 8000,  precision = 0 },
+	{ key = "catchOffset",     label = "Start off the line (px)",        min = 0,    max = 4000,  value = 1200,  precision = 0 },
+	{ key = "catchDrift",      label = "Planet current push while inbound", min = 0, max = 2,     value = 0.25,  precision = 2 },
+}
+for _, s in ipairs(T.flightSpecs) do T[s.key] = s.value end
+
+function T.resetFlight()
+	for _, s in ipairs(T.flightSpecs) do T[s.key] = s.value end
+end
+
 -- Transit lane knobs, shown as sliders in the debug panel's Transit lane
 -- section. laneRamp: how far past the lane's edge the buff and the
 -- current fade out. laneVeer: chance per second that a traveller drifts

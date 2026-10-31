@@ -71,7 +71,7 @@ function Game:loadField(id, opts)
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
-	self.well, self.lane = nil, nil
+	self.well, self.lane, self.driverMenu = nil, nil, nil
 	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
 	self.field.build(self)
@@ -898,6 +898,7 @@ function Game:setPlayerIntent(intent)
 end
 
 function Game:step(dt)
+	if self.flight then self:updateFlight(dt) return end
 	self.time = self.time + dt
 	if self.universe then self.universe.clock = self.universe.clock + dt end
 
@@ -923,6 +924,7 @@ function Game:step(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)
 	self:updateDrivers(dt)
+	self:updateCatch(dt)
 	self:updateOrbits(dt)
 	self:updateTow(dt)
 	self.world:update(dt)
@@ -932,10 +934,10 @@ function Game:step(dt)
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
-	if self.pendingTrip then
-		local to = self.pendingTrip
-		self.pendingTrip = nil
-		self:launchTrip(to)
+	if self.pendingFlight then
+		local to = self.pendingFlight
+		self.pendingFlight = nil
+		self:beginFlight(to)
 	elseif self.pendingArrive then
 		self.pendingArrive = nil
 		self:arrive()
@@ -949,7 +951,7 @@ function Game:applyBoundary()
 		local b = e.body
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
-		if d > R and not e.fleeing then
+		if d > R and not e.fleeing and not e.catching then
 			local over = d - R
 			local f = over * b:getMass() * 6
 			b:applyForce(-x / d * f, -y / d * f)
@@ -1448,7 +1450,14 @@ function Game:frame(dt, aimX, aimY)
 	local p = self.player
 	if p and not p.dead then
 		local x, y = p.body:getPosition()
-		self.camera:follow(x, y, aimX or x, aimY or y, dt)
+		if p.catching then
+			-- coming in hot: look down the line at the rings ahead
+			local vx, vy = p.body:getLinearVelocity()
+			x, y = x + vx * 0.25, y + vy * 0.25
+			self.camera:follow(x, y, x, y, dt)
+		else
+			self.camera:follow(x, y, aimX or x, aimY or y, dt)
+		end
 	elseif self.playerHusk and not self.playerHusk.removed then
 		-- Death screen: watch your own wreck drift.
 		local hx, hy = self.playerHusk.body:getPosition()

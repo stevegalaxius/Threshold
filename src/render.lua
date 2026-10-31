@@ -391,6 +391,43 @@ local function drawLane(game)
 	end
 end
 
+-- Catch rings: a lit hoop for each braking ring, the next one brightest,
+-- passed ones dimmed, joined by a faint guide line in to the driver. The
+-- player's predicted path runs from the nose while inbound.
+local function drawCatchRing(game, e)
+	local x, y = e.body:getPosition()
+	local p = game.player
+	local inbound = p and not p.dead and p.catching
+	local nextRing = inbound and game:nextCatchRing()
+	local col = e.passed and { 0.4, 0.9, 0.5, 0.35 } or (e == nextRing and { 0.6, 1, 1, 0.95 } or { 0.55, 0.85, 1, 0.5 })
+	local pulse = (e == nextRing) and (0.5 + 0.5 * sin(game.time * 6)) or 0
+	lg.setColor(col[1], col[2], col[3], 0.06 + 0.06 * pulse)
+	lg.circle("fill", x, y, e.radius)
+	lg.setColor(col)
+	lg.setLineWidth(outline(4 + 3 * pulse))
+	lg.circle("line", x, y, e.radius, 64)
+	-- the guide line toward the driver
+	local dx, dy = cos(e.angle), sin(e.angle)
+	lg.setColor(0.55, 0.85, 1, 0.12)
+	lg.setLineWidth(outline(2))
+	local reach = T.catchSpacing - e.radius
+	lg.line(x - dx * e.radius, y - dy * e.radius, x - dx * reach, y - dy * reach)
+end
+
+local function drawPredicted(game)
+	local p = game.player
+	if not p or p.dead or not p.catching then return end
+	local x, y = p.body:getPosition()
+	local vx, vy = p.body:getLinearVelocity()
+	lg.setColor(1, 0.85, 0.4, 0.45)
+	lg.setLineWidth(outline(2))
+	local n = 20
+	for i = 0, n - 1, 2 do
+		local t1, t2 = i / n * 3, (i + 1) / n * 3
+		lg.line(x + vx * t1, y + vy * t1, x + vx * t2, y + vy * t2)
+	end
+end
+
 -- The lane buff: a crackling outline round any ship inside a transit
 -- lane, flaring with the afterburner.
 local function drawLaneBuff(e)
@@ -802,6 +839,7 @@ function Render.world(game)
 	drawGrid(game)
 	if game.lane then drawLane(game) end
 	drawRange(game)
+	drawPredicted(game)
 	drawPickups(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" then drawAsteroid(e)
@@ -810,6 +848,7 @@ function Render.world(game)
 		elseif e.kind == "station" then drawStation(game, e)
 		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "driver" then drawDriver(game, e)
+		elseif e.kind == "catchring" then drawCatchRing(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end
 	end

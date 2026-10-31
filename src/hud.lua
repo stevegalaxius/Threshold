@@ -212,8 +212,9 @@ local function drawOffscreen(game)
 	-- of the screen when they're off it, or under them when they're on it
 	lg.setFont(font(12))
 	for _, e in ipairs(game.entities) do
-		if game.state ~= "docked" and (e.kind == "driver" or (e.kind == "station" and e.dock)) then
-			local label = e.kind == "driver" and "Mass driver" or e.name
+		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
+		if game.state ~= "docked" and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
+			local label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and "Mass driver" or e.name
 			local sx, sy = cam:toScreen(e.body:getPosition())
 			local col = e.kind == "driver" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
 			if sx < 0 or sx > w or sy < 0 or sy > h then
@@ -358,9 +359,29 @@ local function drawTrip(game)
 	bar(w / 2 - bw / 2, 72, bw, 14, frac, AQUA, "", ("%d%%"):format(floor(frac * 100)))
 end
 
+-- Inbound to a catcher: your speed against the fastest the driver will
+-- catch, and how many braking rings are left.
+local function drawCatch(game)
+	local p = game.player
+	if not p or p.dead or not p.catching then return end
+	local w, h = lg.getDimensions()
+	local vx, vy = p.body:getLinearVelocity()
+	local speed = sqrt(vx * vx + vy * vy)
+	local left = 0
+	for _, e in ipairs(game.entities) do if e.kind == "catchring" and not e.passed then left = left + 1 end end
+	local ok = speed <= T.catchBaySpeed
+	lg.setFont(font(15))
+	lg.setColor(ok and { 0.5, 1, 0.6 } or WARN)
+	lg.printf(("INBOUND  %d px/s   catch at %d or less"):format(speed, T.catchBaySpeed), 0, h - 150, w, "center")
+	lg.setFont(font(12))
+	lg.setColor(DIM)
+	lg.printf(("%d braking ring%s ahead"):format(left, left == 1 and "" or "s"), 0, h - 128, w, "center")
+end
+
 function HUD.draw(game, aimX, aimY, uiOpen)
 	drawOffscreen(game)
 	drawTrip(game)
+	drawCatch(game)
 	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
 	drawDeath(game)

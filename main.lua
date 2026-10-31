@@ -18,6 +18,7 @@ local HUD = require("src.hud")
 local Debug = require("src.debugui")
 local Cargo = require("src.ui.cargo")
 local Orrery = require("src.ui.orrery")
+local TransitView = require("src.ui.transitview")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -82,6 +83,12 @@ function love.update(dt)
 end
 
 function love.draw()
+	if TransitView.isOpen(game) then
+		TransitView.draw(game)
+		HUD.drawToasts(game, 130)
+		Debug.draw()
+		return
+	end
 	Render.world(game)
 	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
 	if Cargo.isOpen(game) then

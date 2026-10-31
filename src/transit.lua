@@ -7,7 +7,16 @@
 	            where they are now, with the distance and fare to each.
 	            Pick one and pay, and it lines you up on its rail and fires
 	            you off; back out and it lets you go.
-	  lane      the transit lane (the "lane" field): one long straight
+	  flight    once fired, you're a projectile: the trip is a short view of
+	            the orrery with your dot arcing to the target (src/ui/
+	            transitview.lua) while the game clock runs on, then you
+	            arrive far out from the destination's driver, still fast.
+	  catch     the destination's driver catches you: a line of braking
+	            rings leads in to it, each one bleeding off part of your
+	            speed. Reach the driver slow enough and it holds you; too
+	            fast and you shoot past into the planet map on your own.
+	  lane      the old transit lane, kept as a race track for later (the
+	            "lane" field, from the debug panel): one long
 	            corridor with a current running both ways, outbound below
 	            the median and oncoming above it, like a highway. Nothing
 	            stops you drifting into the oncoming side. Haulers cruise
@@ -60,6 +69,7 @@ function Game:spawnDrivers()
 		radius = T.driverRadius, name = "Mass driver", angle = a }
 	body:setUserData(g)
 	table.insert(self.entities, g)
+	self:spawnCatchRings()
 end
 
 function Game:findDriver()
@@ -120,7 +130,7 @@ function Game:updateDrivers(dt)
 			L.t = L.t + dt
 			local s = T.driverExitSpeed * min(1, (L.t - T.driverAlign) / T.driverFire)
 			p.body:setLinearVelocity(dx * s, dy * s)
-			if L.t >= T.driverAlign + T.driverFire then self.pendingTrip = L.to end
+			if L.t >= T.driverAlign + T.driverFire then self.pendingFlight = L.to end
 		end
 		return
 	end
@@ -136,7 +146,138 @@ function Game:updateDrivers(dt)
 	end
 end
 
--- Into the transit lane toward planet `to`, in the ship you're flying.
+-- In flight to planet `to`: the trip is the transit view, game.flight =
+-- { from, to, au, t, dur }, while the world waits. Game:step runs it.
+function Game:beginFlight(to)
+	local p = self.player
+	if not p or p.dead then return end
+	local from = self.fieldId
+	local au = Fields.distance(from, to, self.universe.clock)
+	p.launch = nil
+	self.flight = { from = from, to = to, au = au, t = 0, dur = T.flightBase + T.flightPerAU * au,
+		ship = Ship.record(p) }
+	events.emit("travel", from, to)
+end
+
+function Game:updateFlight(dt)
+	local f = self.flight
+	f.t = f.t + dt
+	if f.t < f.dur then return end
+	self.flight, self.lastFlight = nil, f
+	self.universe.clock = self.universe.clock + T.flightClockPerAU * f.au
+	self:loadField(f.to, { player = f.ship, at = { catch = true } })
+end
+
+-- Arriving: far out along the driver's rail, beyond the last ring, coming
+-- in fast and roughly lined up, with a little error to correct.
+function Game:placeForCatch(p)
+	local g = self:findDriver()
+	if not g then return false end
+	local gx, gy = g.body:getPosition()
+	local ox, oy = cos(g.angle), sin(g.angle)
+	local d = math.floor(T.catchRings + 0.5) * T.catchSpacing + T.catchApproach
+	local off = (random() * 2 - 1) * T.catchOffset
+	local x, y = gx + ox * d - oy * off, gy + oy * d + ox * off
+	local err = (random() * 2 - 1) * 0.04
+	local ia = g.angle + pi + err
+	p.body:setPosition(x, y)
+	self.camera.x, self.camera.y = x, y
+	p.body:setAngle(ia)
+	p.body:setLinearVelocity(cos(ia) * T.catchSpeed, sin(ia) * T.catchSpeed)
+	p.catching, p.coasting = true, true
+	p.driverCooldown = 0
+	for _, e in ipairs(self.entities) do if e.kind == "catchring" then e.passed = nil end end
+	self.camera.x, self.camera.y = x, y
+	self:toast(("INBOUND  %s CATCHER"):format(self.field.name:upper()), 2.5)
+	return true
+end
+
+-- The braking rings out along the driver's rail, nearest first.
+function Game:spawnCatchRings()
+	local g = self:findDriver()
+	if not g then return end
+	local gx, gy = g.body:getPosition()
+	local ox, oy = cos(g.angle), sin(g.angle)
+	for k = 1, math.floor(T.catchRings + 0.5) do
+		local d = k * T.catchSpacing
+		local body = love.physics.newBody(self.world, gx + ox * d, gy + oy * d, "static")
+		local e = { kind = "catchring", invulnerable = true, id = self:nextId(), team = 0, body = body,
+			radius = T.catchRingRadius, index = k, angle = g.angle }
+		body:setUserData(e)
+		table.insert(self.entities, e)
+	end
+end
+
+-- The next ring you'll come to on the way in (the furthest out not yet
+-- passed), or nil.
+function Game:nextCatchRing()
+	local best
+	for _, e in ipairs(self.entities) do
+		if e.kind == "catchring" and not e.passed and (not best or e.index > best.index) then best = e end
+	end
+	return best
+end
+
+-- Through a ring: it bleeds off speed. Into the driver: caught if slow
+-- enough, else you're through and on your own.
+function Game:updateCatch(dt)
+	local p = self.player
+	if not p or p.dead then return end
+	if p.coasting then
+		-- a projectile: no drag (Ship.fly) until you're down to catching
+		-- speed, but the planet's current still pushes you off your line
+		local vx, vy = p.body:getLinearVelocity()
+		if not p.catching and vx * vx + vy * vy < T.catchBaySpeed ^ 2 then p.coasting = nil end
+		local m = p.body:getMass()
+		p.body:applyForce((p.flowX or 0) * T.catchDrift * m, (p.flowY or 0) * T.catchDrift * m)
+	end
+	if not p.catching then return end
+	local x, y = p.body:getPosition()
+	for _, e in ipairs(self.entities) do
+		if e.kind == "catchring" and not e.passed then
+			local ex, ey = e.body:getPosition()
+			if (x - ex) ^ 2 + (y - ey) ^ 2 < e.radius ^ 2 then
+				e.passed = true
+				local vx, vy = p.body:getLinearVelocity()
+				local k = 1 - T.catchBrake
+				p.body:setLinearVelocity(vx * k, vy * k)
+				self:spark(x, y, 14, { 0.6, 0.95, 1 })
+				self:shake(6)
+				self:toast(("BRAKE %d  %d px/s"):format(e.index, sqrt(vx * vx + vy * vy) * k), 1.2)
+			end
+		end
+	end
+	local g = self:findDriver()
+	if not g then p.catching = nil return end
+	local gx, gy = g.body:getPosition()
+	local vx, vy = p.body:getLinearVelocity()
+	local speed = sqrt(vx * vx + vy * vy)
+	local d2 = (x - gx) ^ 2 + (y - gy) ^ 2
+	if d2 < (g.radius + 120) ^ 2 then
+		p.catching = nil
+		if speed <= T.catchBaySpeed then
+			-- caught: matched to the current, like any ship idling here
+			p.coasting = nil
+			p.body:setLinearVelocity(p.flowX or 0, p.flowY or 0)
+			p.driverCooldown = T.driverCooldown
+			self:toast("CAUGHT", 2, "pickup", true)
+		else
+			p.driverCooldown = T.driverCooldown
+			self:toast(("MISSED THE CATCH  %d px/s"):format(speed), 2.5)
+			self:shake(10)
+		end
+	else
+		-- went wide: once you're inside the driver, you're on your own
+		local ox, oy = cos(g.angle), sin(g.angle)
+		if (x - gx) * ox + (y - gy) * oy < -1500 then
+			p.catching = nil
+			self:toast("MISSED THE CATCH", 2.5)
+		end
+	end
+end
+
+-- Into the transit lane toward planet `to`, in the ship you're flying
+-- (the old transit lane, kept as a race track for later).
 function Game:launchTrip(to)
 	local p = self.player
 	if not p or p.dead then return end
