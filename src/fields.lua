@@ -134,9 +134,11 @@ local function planetField(name, R, rocks, scattered, stations, enemies, o)
 				-- Neutral freighters hauling the loop: station, buoy, station, buoy.
 				local route = { stA, b1, stB, b2 }
 				-- They start on the track between stops, heading for the next one.
+				-- One of each size: a Hauler, a Packhorse and a Runner.
+				local kinds = { "freighter", "packhorse_trader", "runner_trader" }
 				for k = 1, 3 do
 					local a = sa + pi / 4 + (k - 1) * pi / 2
-					local f = game:spawnEnemy("freighter", cos(a) * sd, sin(a) * sd)
+					local f = game:spawnEnemy(kinds[k], cos(a) * sd, sin(a) * sd)
 					f.route = route
 					f.routeIndex = k % #route + 1
 					f.body:setAngle(a + pi / 2)
