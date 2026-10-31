@@ -87,13 +87,8 @@ hull {
 -- fight in every direction at once while the hull lumbers along. It can't
 -- strafe: A/D turn the hull, and side jets help it turn.
 hull {
-<<<<<<< HEAD
 	id = "ferrous_bastion", name = "Bastion", maker = "Concord Military", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
-	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62,
-=======
-	id = "ferrous_bastion", name = "Bastion", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
 	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62, ramSpeed = 250,
->>>>>>> 15207d08b557cd9eb511e94c686cfbd9b488b3bd
 	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
 		{ family = "secondary", size = "L", x = 80,  y = 0 },
