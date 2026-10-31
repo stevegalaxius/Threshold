@@ -400,10 +400,14 @@ end
 -- edges the way the buff does, so the road reads without markings.
 local function drawLane(game)
 	local lane = game.lane
-	local p = game.player
-	local ps = p and not p.dead and game:toLane(p.body:getPosition()) or 0
+	-- the stretch the camera can see, with room to spare, so the glow never
+	-- ends on screen
+	local cam = game.camera
+	local cs = game:toLane(cam.x, cam.y)
+	local w, h = lg.getDimensions()
+	local view = sqrt(w * w + h * h) / cam.zoom + T.laneWidth * 2
 	local W = T.laneWidth
-	local s1, s2 = max(-lane.half, ps - 7000), min(lane.half, ps + 7000)
+	local s1, s2 = max(-lane.half, cs - view), min(lane.half, cs + view)
 	local pts = {}
 	for s = s1, s2, 300 do
 		local x, y = game:fromLane(s, 0)
@@ -421,7 +425,7 @@ local function drawLane(game)
 	end
 	lg.setBlendMode("alpha")
 	-- the far end
-	if lane.half - ps < 8000 then
+	if lane.half - cs < view then
 		local x1, y1 = game:fromLane(lane.half, -W)
 		local x2, y2 = game:fromLane(lane.half, W)
 		lg.setColor(0.6, 0.95, 1, 0.5)

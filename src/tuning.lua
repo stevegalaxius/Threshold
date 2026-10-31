@@ -100,15 +100,12 @@ T.yearLength = 1800
 
 -- The transit lane: length (base + per AU of distance), the radius of its
 -- arc (at least; long lanes bend more gently), how far each side of the
--- median a lane runs, how soft the median is, the current's speed and
--- grip, how far around you things are kept, and how much there is.
--- laneDerelict: the chance, each time something would spawn, of a derelict.
--- The rest (traffic, buff, speeds) are live sliders in the debug panel:
--- T.laneSpecs below.
+-- median a lane runs and how soft the median is. The rest (buff, how
+-- much is on the road) are live sliders in the debug panel: T.laneSpecs
+-- below.
 T.laneBase = 20000
 T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
-T.laneReach = 12000
 
 -- Gas giants: how far below the cloud tops you can go before the crush
 -- starts, how much deeper it reaches full strength, its damage per
@@ -161,17 +158,11 @@ end
 
 -- Transit lane knobs, shown as sliders in the debug panel's Transit lane
 -- section. laneRamp: how far past the lane's edge the buff and the
--- current fade out. laneVeer: chance per second that a traveller drifts
--- across into the other side.
+-- current fade out. Rocks and derelicts are laid out when you enter.
 T.laneSpecs = {
-	{ key = "laneTraffic",     label = "Travellers (most at once)",     min = 0,    max = 12,    value = 3,     precision = 0 },
-	{ key = "laneSpawnEvery",  label = "Seconds between arrivals",      min = 0.2,  max = 5,     value = 1.2,   precision = 1 },
-	{ key = "laneSpeedMin",    label = "Slowest traveller (x current)", min = 0.1,  max = 2,     value = 0.5,   precision = 2 },
-	{ key = "laneSpeedMax",    label = "Fastest traveller (x current)", min = 0.1,  max = 3,     value = 1.5,   precision = 2 },
-	{ key = "laneVeer",        label = "Veer chance per second",        min = 0,    max = 0.5,   value = 0.04,  precision = 2 },
-	{ key = "laneRocks",       label = "Rocks in the lane",             min = 0,    max = 15,    value = 4,     precision = 0 },
-	{ key = "laneOffroad",     label = "Rocks off-road",                min = 0,    max = 60,    value = 24,    precision = 0 },
-	{ key = "laneDerelict",    label = "Derelict chance",               min = 0,    max = 1,     value = 0.12,  precision = 2 },
+	{ key = "laneRocks",       label = "Rocks on the road (per 10k px)", min = 0,  max = 15,    value = 4,     precision = 0 },
+	{ key = "laneOffroad",     label = "Rocks off-road (per 10k px)",   min = 0,    max = 60,    value = 12,    precision = 0 },
+	{ key = "laneDerelicts",   label = "Derelicts (per 100k px)",       min = 0,    max = 10,    value = 2,     precision = 1 },
 	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
 	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 2,     precision = 2 },
 	{ key = "laneDrag",        label = "Lane buff: drag x",             min = 0.05, max = 1,     value = 0.25,  precision = 2 },

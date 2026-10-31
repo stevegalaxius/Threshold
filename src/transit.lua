@@ -38,7 +38,7 @@ local Ship = require("src.ship")
 local Fields = require("src.fields")
 local events = require("src.events")
 
-local sqrt, cos, sin, pi, max, min, abs, random = math.sqrt, math.cos, math.sin, math.pi, math.max, math.min, math.abs, love.math.random
+local sqrt, cos, sin, pi, max, min, abs, random, floor = math.sqrt, math.cos, math.sin, math.pi, math.max, math.min, math.abs, love.math.random, math.floor
 
 return function(Game)
 
@@ -430,34 +430,72 @@ function Game:buildLane()
 		local au = Fields.distance("earth", "mars", self.universe.clock)
 		self.trip = { from = "earth", to = "mars", au = au, length = T.laneBase + T.lanePerAU * au }
 	end
-	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9), spawnT = 0 }
+	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9) }
 	self.arenaRadius = 1e7
+	self:populateLane()
 end
 
--- What turns up in the lane, with weights. cruise: rides the current.
-local LANE_TRAFFIC = {
-	{ "freighter", 2 },
-	{ "packhorse_trader", 2 },
-	{ "runner_trader", 2 },
-	{ "gunner", 2, neutral = true },       -- couriers and private craft
-	{ "brawler", 1, neutral = true },
-	{ "interceptor", 1, neutral = true },
-	{ "gunner", 0.4, raider = true },      -- raiders working the lane
-}
-
-local function pick(list)
-	local total = 0
-	for _, t in ipairs(list) do total = total + t[2] end
-	local r = random() * total
-	for _, t in ipairs(list) do
-		r = r - t[2]
-		if r <= 0 then return t end
+-- Everything on the road, laid out once when you enter and left alone
+-- until you leave: no pop-in, nothing invented as you go. The layout is
+-- seeded by the route, so Earth to Mars always has its rocks in the same
+-- places. Rocks on the road (some drifting across it), rocks off-road,
+-- and now and then a derelict hauler or a lost container. The first and
+-- last few thousand px stay clear for the drivers.
+function Game:populateLane()
+	local lane, trip = self.lane, self.trip
+	local seed = 0
+	for c in (trip.from .. ">" .. trip.to):gmatch(".") do seed = (seed * 31 + c:byte()) % 2147483647 end
+	local rng = love.math.newRandomGenerator(seed)
+	local W = T.laneWidth
+	local s1, s2 = -lane.half + 3000, lane.half - 3000
+	local span = max(0, s2 - s1)
+	local function at(s, n, r)
+		local x, y = self:fromLane(s, n)
+		if self:isClear(x, y, r) then return x, y end
 	end
-	return list[1]
+	-- on the road
+	for _ = 1, floor(span / 10000 * T.laneRocks) do
+		local s, n = s1 + rng:random() * span, (rng:random() * 2 - 1) * W * 0.9
+		local cluster = rng:random() < 0.25 and 3 or 1
+		local across = rng:random() < 0.35 and (n > 0 and -1 or 1) * (120 + rng:random() * 200) or 0
+		for k = 1, cluster do
+			local r = 25 + rng:random() ^ 2 * (k == 1 and 140 or 50)
+			local x, y = at(s + (k - 1) * 260, n + (rng:random() - 0.5) * 400, r + 60)
+			if x then
+				local e = self:spawnAsteroid(x, y, r)
+				e.lane = "rock"
+				local _, _, phi = self:toLane(x, y)
+				e.body:setLinearVelocity(-sin(phi) * across, cos(phi) * across)
+			end
+		end
+	end
+	-- off the road, either side
+	for _ = 1, floor(span / 10000 * T.laneOffroad) do
+		local side = rng:random() < 0.5 and -1 or 1
+		local s, n = s1 + rng:random() * span, side * (W + 200 + rng:random() * (T.laneRamp + 2000))
+		local r = 30 + rng:random() ^ 2 * 160
+		local x, y = at(s, n, r + 40)
+		if x then
+			local e = self:spawnAsteroid(x, y, r)
+			e.lane = "offroad"
+			e.body:setLinearVelocity(0, 0)
+		end
+	end
+	-- derelicts
+	for _ = 1, floor(span / 100000 * T.laneDerelicts + rng:random()) do
+		local x, y = at(s1 + rng:random() * span, (rng:random() * 2 - 1) * W * 0.8, 400)
+		if x then
+			if rng:random() < 0.6 then
+				local e = self:spawnEnemy("freighter", x, y)
+				self:damage(e, 1e9, nil, "derelict")
+			else
+				local e = self:spawnContainer(x, y, "cargo_container", true)
+				if e then e.body:setLinearVelocity(0, 0) end
+			end
+		end
+	end
 end
 
--- The current, the walls, the lane buff, and what turns up: kept going
--- around the player, cleared away once it falls far behind or ahead.
 function Game:updateLane(dt)
 	local lane, p = self.lane, self.player
 	if not lane then return end
@@ -466,30 +504,13 @@ function Game:updateLane(dt)
 		local b = e.body
 		if not e.removed and b:getType() == "dynamic" then
 			local x, y = b:getPosition()
-			local vx, vy = b:getLinearVelocity()
 			local s, n, phi = self:toLane(x, y)
 			local tx, ty = cos(phi), sin(phi)
-			local f = self:laneFlow(n)
 			local m = b:getMass()
 			if e.kind == "ship" then
-				-- in the lane: the buff (thrust up, drag down); traffic also
-				-- rides the current and is held on the curve
+				-- in the lane: the buff (thrust up, drag down)
 				local k = self:laneStrength(n)
 				e.laneBuff = k > 0 and k or nil
-				if e.lane then
-					local c = (vx * tx + vy * ty) ^ 2 / lane.R
-					b:applyForce(sin(phi) * -c * m, cos(phi) * c * m)
-					-- now and then a traveller drifts across into the other side
-					if e.cruise and not e.veer and random() < T.laneVeer * dt then
-						e.veer = { t = 3 + random() * 3, dir = n > 0 and -1 or 1 }
-					end
-					if e.veer then
-						e.veer.t = e.veer.t - dt
-						local push = e.veer.dir * 260 * m
-						b:applyForce(-sin(phi) * push, cos(phi) * push)
-						if e.veer.t <= 0 then e.veer = nil end
-					end
-				end
 			end
 			-- soft walls well outside the lane, and the near end
 			local over = abs(n) - (W + T.laneRamp + 2500)
@@ -505,93 +526,6 @@ function Game:updateLane(dt)
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
 	-- turned round and flew back out the near end: home again
 	if ps < -lane.half - 200 then self.pendingArrive = "back" end
-	-- off-road rocks, scattered either side all along: a field to fill
-	-- once, then topped up at the edge of reach as you go
-	if not lane.filled then
-		lane.filled = true
-		for _ = 1, T.laneOffroad * 2 do self:spawnOffroadRock(ps + (random() * 2 - 1) * T.laneReach, ps) end
-	end
-	local traffic, rocks, offroad, gone = 0, 0, 0, {}
-	for _, e in ipairs(self.entities) do
-		if not e.removed and e ~= p and e.body:getType() == "dynamic" then
-			local s = self:toLane(e.body:getPosition())
-			if abs(s - ps) > T.laneReach * 1.2 then
-				table.insert(gone, e)
-			elseif e.lane == "traffic" then traffic = traffic + 1
-			elseif e.lane == "rock" then rocks = rocks + 1
-			elseif e.lane == "offroad" then offroad = offroad + 1 end
-		end
-	end
-	for _, e in ipairs(gone) do self:remove(e) end
-	if offroad < T.laneOffroad * 2 then
-		self:spawnOffroadRock(ps + (random() < 0.7 and 1 or -1) * T.laneReach * (0.8 + random() * 0.2), ps)
-	end
-	-- new arrivals, well out of sight ahead or behind
-	lane.spawnT = lane.spawnT - dt
-	if lane.spawnT > 0 then return end
-	lane.spawnT = T.laneSpawnEvery
-	local side = random() < 0.5 and -1 or 1
-	local n = side * (0.15 + random() * 0.75) * W
-	-- oncoming traffic shows up ahead; outbound mostly from behind
-	local ahead = side > 0 or random() < 0.4
-	local s = ps + (ahead and 1 or -1) * T.laneReach * (0.75 + random() * 0.25)
-	if s < -lane.half + 500 or s > lane.half - 500 then return end
-	local x, y = self:fromLane(s, n)
-	if not self:isClear(x, y, 400) then return end
-	local _, _, phi = self:toLane(x, y)
-	local f = self:laneFlow(n)
-	local vx, vy = cos(phi) * f, sin(phi) * f
-	if traffic < T.laneTraffic then
-		local t = pick(LANE_TRAFFIC)
-		local e = self:spawnEnemy(t[1], x, y)
-		e.lane = "traffic"
-		e.cruiseSpeed = T.laneSpeedMin + random() * (T.laneSpeedMax - T.laneSpeedMin)
-		e.body:setAngle(f > 0 and phi or phi + pi)
-		e.body:setLinearVelocity(vx * e.cruiseSpeed, vy * e.cruiseSpeed)
-		if t.raider then
-			e.aggro = false     -- they find you when you come close
-		else
-			e.cruise = true
-			if t.neutral then e.team = 3 end
-		end
-	elseif rocks < T.laneRocks and random() < 0.6 then
-		-- a rock, or now and then a little cluster of them
-		for k = 1, random() < 0.25 and 3 or 1 do
-			local rx, ry = self:fromLane(s + (k - 1) * 260, n + (random() - 0.5) * 400)
-			if self:isClear(rx, ry, 150) then
-				local e = self:spawnAsteroid(rx, ry, 25 + random() ^ 2 * (k == 1 and 140 or 50))
-				e.lane = "rock"
-				-- some of it is debris drifting across the lanes
-				local across = random() < 0.35 and (n > 0 and -1 or 1) * (120 + random() * 200) or 0
-				e.body:setLinearVelocity(-sin(phi) * across, cos(phi) * across)
-			end
-		end
-	elseif random() < T.laneDerelict then
-		-- a derelict: a hauler that didn't make it, hold and all, or a
-		-- lost container
-		if random() < 0.6 then
-			local e = self:spawnEnemy("freighter", x, y)
-			self:damage(e, 1e9, nil, "derelict")
-		else
-			local e = self:spawnContainer(x, y, "cargo_container", true)
-			if e then e.body:setLinearVelocity(0, 0) end
-		end
-	end
-end
-
--- A rock off the road at distance s along the lane, either side, out of
--- sight of the player at ps. Off-road rocks just sit there.
-function Game:spawnOffroadRock(s, ps)
-	local lane = self.lane
-	if s < -lane.half or s > lane.half or abs(s - ps) < 2500 then return end
-	local side = random() < 0.5 and -1 or 1
-	local n = side * (T.laneWidth + 200 + random() * (T.laneRamp + 2000))
-	local x, y = self:fromLane(s, n)
-	if not self:isClear(x, y, 200) then return end
-	local e = self:spawnAsteroid(x, y, 30 + random() ^ 2 * 160)
-	e.lane = "offroad"
-	e.body:setLinearVelocity(0, 0)
-	return e
 end
 
 -- Traffic flies its own side of the lane at its own speed, nose along
