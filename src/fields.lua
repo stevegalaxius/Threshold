@@ -151,7 +151,7 @@ local function planetField(name, R, rocks, scattered, stations, enemies, o)
 				if placed >= rocks then break end
 				local radius = 24 + random() ^ 2 * 80
 				local a = random() * pi * 2
-				local d = R + 1500 + random() * 4500
+				local d = R + 3000 + random() * 2500   -- a clear gap above the air, and below the stations
 				local x, y = cos(a) * d, sin(a) * d
 				if game:isClear(x, y, radius + 60) then
 					local e = game:spawnAsteroid(x, y, radius)
@@ -160,7 +160,7 @@ local function planetField(name, R, rocks, scattered, stations, enemies, o)
 					placed = placed + 1
 				end
 			end
-			game:spawnAsteroids(scattered, R + 7500)
+			game:spawnAsteroids(scattered, R + 9500)    -- loose rocks start well past the station track
 			game:spawnContainers(T.fieldContainers, R + 7500)
 		end,
 	}
@@ -173,12 +173,12 @@ Fields.venus = planetField("Venus", 14300, 300, 120, { "Hub Station", "Cloudline
 	{ { "gunner", 2 }, { "swarmer", 3 } })
 Fields.mars = planetField("Mars", 7500, 180, 80, { "Station Alpha", "Station Beta" },
 	{ { "gunner", 2 }, { "interceptor", 2 } },
-	{ extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
+	{ extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end, edge = 24000 })
 -- Barebones, to try the scale: a gas giant much bigger than Earth with no
 -- stations yet, meant to be big enough to get lost in.
 Fields.jupiter = planetField("Jupiter", 45000, 600, 260, nil,
 	{ { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } },
-	{ gas = true, edge = 30000 })
+	{ gas = true, edge = 18000 })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).
 Fields.lane = {

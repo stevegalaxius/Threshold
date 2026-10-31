@@ -35,6 +35,12 @@ function HullShape.prepare(def)
 		if type(s) ~= "table" or #s < 6 or #s % 2 ~= 0 then
 			error(("hull '%s' part %d needs a shape of at least 3 x,y pairs"):format(def.id, i), 0)
 		end
+		-- an outline that repeats its first point to close itself is fine
+		if #s >= 8 and s[#s - 1] == s[1] and s[#s] == s[2] then
+			local trimmed = {}
+			for k = 1, #s - 2 do trimmed[k] = s[k] end
+			s, part.shape = trimmed, trimmed
+		end
 		local ok, tris = pcall(love.math.triangulate, s)
 		if not ok then error(("hull '%s' part %d: its outline crosses itself"):format(def.id, i), 0) end
 		part.tris = tris
