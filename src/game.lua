@@ -200,6 +200,29 @@ local DEBRIS = {
 }
 Game.DEBRIS = DEBRIS
 
+-- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
+-- same kind of list, counter-clockwise (monotone chain).
+local function convexHull(v)
+	local pts = {}
+	for i = 1, #v, 2 do pts[#pts + 1] = { v[i], v[i + 1] } end
+	table.sort(pts, function(a, b) return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]) end)
+	local function cross(o, a, b) return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1]) end
+	local lower, upper = {}, {}
+	for _, p in ipairs(pts) do
+		while #lower >= 2 and cross(lower[#lower - 1], lower[#lower], p) <= 0 do table.remove(lower) end
+		lower[#lower + 1] = p
+	end
+	for i = #pts, 1, -1 do
+		local p = pts[i]
+		while #upper >= 2 and cross(upper[#upper - 1], upper[#upper], p) <= 0 do table.remove(upper) end
+		upper[#upper + 1] = p
+	end
+	local out = {}
+	for i = 1, #lower - 1 do out[#out + 1] = lower[i][1]; out[#out + 1] = lower[i][2] end
+	for i = 1, #upper - 1 do out[#out + 1] = upper[i][1]; out[#out + 1] = upper[i][2] end
+	return out
+end
+
 -- Each piece gets its own tint so a field isn't one flat colour: junk
 -- runs from bare grey metal to rust and old paint, rock and ice vary a
 -- little.
@@ -267,11 +290,11 @@ function Game:spawnAsteroid(x, y, radius, kind)
 			table.insert(verts, sin(ang) * rr)
 		end
 	end
+	-- jagged outlines can come out concave: keep their convex hull, so
+	-- every piece is a polygon (never a plain circle)
+	if not love.math.isConvex(verts) then verts = convexHull(verts) end
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
-	local shape
-	if love.math.isConvex(verts) then shape = love.physics.newPolygonShape(verts)
-	else shape = love.physics.newCircleShape(radius * 0.9); verts = nil end
-	local fixture = love.physics.newFixture(body, shape, 1)
+	local fixture = love.physics.newFixture(body, love.physics.newPolygonShape(verts), 1)
 	fixture:setRestitution(kind == "ice" and 0.1 or 0.2)
 	fixture:setFriction(kind == "ice" and 0.1 or 0.5)
 	local m = 0.12 * radius * radius * (kind == "ice" and 0.6 or 1)
