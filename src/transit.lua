@@ -436,16 +436,13 @@ function Game:buildLane()
 end
 
 -- Everything on the road, laid out once when you enter and left alone
--- until you leave: no pop-in, nothing invented as you go. The layout is
--- seeded by the route, so Earth to Mars always has its rocks in the same
--- places. Rocks on the road (some drifting across it), rocks off-road,
+-- until you leave: no pop-in, nothing invented as you go. A fresh layout
+-- every trip (the planets have moved since the last one). Rocks on the road (some drifting across it), rocks off-road,
 -- and now and then a derelict hauler or a lost container. The first and
 -- last few thousand px stay clear for the drivers.
 function Game:populateLane()
 	local lane, trip = self.lane, self.trip
-	local seed = 0
-	for c in (trip.from .. ">" .. trip.to):gmatch(".") do seed = (seed * 31 + c:byte()) % 2147483647 end
-	local rng = love.math.newRandomGenerator(seed)
+	local rng = love.math.newRandomGenerator(random(1, 2147483646))
 	local W = T.laneWidth
 	local s1, s2 = -lane.half + 3000, lane.half - 3000
 	local span = max(0, s2 - s1)
