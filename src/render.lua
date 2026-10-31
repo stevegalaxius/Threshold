@@ -370,8 +370,8 @@ local function drawDriver(game, e)
 		lg.rectangle("fill", -wall, dw * k / 3, wall, dw / 6)
 	end
 	-- runway lights back along the approach, strobes chasing in to the breech
-	local rw = 180
-	local step = 120
+	local rw = 90
+	local step = 75
 	local n = floor(T.driverZone / step)
 	for i = 0, n do
 		local lx = -wall - 30 - i * step
@@ -468,12 +468,12 @@ local function drawPredicted(game)
 end
 
 -- The lane buff: a crackling outline round any ship inside a transit
--- lane, flaring with the afterburner.
+-- lane.
 local function drawLaneBuff(e)
 	if not e.laneBuff or (e.dockState and e.dockState.done) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
-	local hot = e.afterburn and 1 or 0
+	local hot = 0
 	local flick = (0.85 + love.math.random() * 0.3) * e.laneBuff
 	lg.setBlendMode("add")
 	for k = 3, 1, -1 do

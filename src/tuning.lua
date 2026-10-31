@@ -81,7 +81,7 @@ T.driverRadius = 260
 -- The approach behind the breech where its tractor takes you (length and
 -- half-width), how fast it reels you in, and the most it can slow you
 -- (px/s^2): come in faster than it can stop and you overshoot.
-T.driverZone, T.driverZoneWidth = 3000, 500
+T.driverZone, T.driverZoneWidth = 1500, 250
 T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
 T.driverGrip = 320

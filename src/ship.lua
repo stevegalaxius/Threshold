@@ -317,6 +317,7 @@ function Ship.fly(e, dt)
 		e.burnerLocked = false
 	end
 	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
+		and not e.laneBuff                         -- the lane's buff replaces it
 	if burner then fwd = 1 end
 	e.afterburn = burner
 	local main = max(0, fwd)
