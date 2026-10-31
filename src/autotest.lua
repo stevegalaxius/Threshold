@@ -825,6 +825,19 @@ function A.update(game, dt)
 		local st = p.dockState and p.dockState.station
 		log("respawn: state %s -> %s, field %s, docked at %s, flying %s", state, game.state, game.fieldId, st and st.name or "-", p.hull.name)
 	end) end
+	if t >= 43.75 then once("pause", function()
+		local Pause = require("src.ui.pause")
+		love.keypressed("escape")
+		A.pauseAt, A.pauseWall = game.time, love.timer.getTime()
+		log("pause: Esc -> paused %s", tostring(Pause.isOpen()))
+		shot("17_pause")
+	end) end
+	if A.pauseWall and love.timer.getTime() > A.pauseWall + 0.3 then once("unpause", function()
+		local Pause = require("src.ui.pause")
+		log("pause: 0.3 s later game time moved %.3f s", game.time - A.pauseAt)
+		love.keypressed("escape")
+		log("pause: Esc again -> paused %s", tostring(Pause.isOpen()))
+	end) end
 	if t >= 43.8 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()

@@ -168,7 +168,7 @@ local HELP = {
 	"wheel zoom   F1 debug panel",
 	"fly into a mass driver to travel   F2 skip to next level",
 	"F5 save   F9 load (docking autosaves)",
-	"H hide help   Esc quit",
+	"H hide help   Esc pause",
 }
 
 local function drawHelp()

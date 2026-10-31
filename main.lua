@@ -19,6 +19,7 @@ local Debug = require("src.debugui")
 local Cargo = require("src.ui.cargo")
 local Orrery = require("src.ui.orrery")
 local TransitView = require("src.ui.transitview")
+local Pause = require("src.ui.pause")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -52,6 +53,11 @@ end
 function love.update(dt)
 	dt = math.min(dt, 1 / 15)
 	Debug.update(dt, game)
+	if Pause.isOpen() then
+		love.mouse.setVisible(true)
+		if autotest then autotest.update(game, dt) end
+		return
+	end
 
 	local intent
 	if autotest then
@@ -86,6 +92,7 @@ function love.draw()
 	if TransitView.isOpen(game) then
 		TransitView.draw(game)
 		HUD.drawToasts(game, 130)
+		Pause.draw(game)
 		Debug.draw()
 		return
 	end
@@ -96,6 +103,7 @@ function love.draw()
 		HUD.drawToasts(game, Cargo.toastY(game))
 	end
 	Orrery.draw(game)
+	Pause.draw(game)
 	Debug.draw()
 end
 
@@ -105,10 +113,11 @@ end
 
 function love.keypressed(key)
 	if Debug.blocksKeyboard() then return end
+	if Pause.keypressed(game, key) then return end
 	if Orrery.keypressed(game, key) then return end
 	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
-	if key == "escape" then love.event.quit()
+	if key == "escape" then Pause.toggle(game)
 	elseif key == "f1" then Debug.toggle()
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
@@ -120,6 +129,8 @@ function love.keypressed(key)
 end
 
 function love.gamepadpressed(_, button)
+	if button == "start" and game.state ~= "dead" then Pause.toggle(game) return end
+	if Pause.isOpen() then return end
 	if game.state == "docked" and button == "a" then game:undock(); return end
 	if button == "start" then relaunch()
 	elseif button == "y" then game:cycleAux()
@@ -129,6 +140,7 @@ end
 
 function love.mousepressed(x, y, button)
 	if Debug.blocksMouse() then return end
+	if Pause.mousepressed(game, x, y, button) then return end
 	if Orrery.mousepressed(game, x, y, button) then return end
 	Cargo.mousepressed(game, x, y, button)
 end
@@ -140,5 +152,6 @@ end
 
 function love.wheelmoved(_, y)
 	if Debug.blocksMouse() then return end
+	if Pause.isOpen() then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
 end

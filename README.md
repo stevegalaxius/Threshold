@@ -28,7 +28,8 @@ file) onto `love.exe`.
 | Station screen: cycle Cargo / Hangar / Market tabs | Tab (docked) | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
 | New ship after death (at the last station you docked at) | R | Start |
-| Hide help / quit | H / Esc | |
+| Hide help | H | |
+| Pause menu (resume, save, load, quit) | Esc | Start |
 
 ## What's in it
 
@@ -77,7 +78,7 @@ src/market.lua    credits, station shelves and their timers, settling a trade
 src/fields.lua    the planet maps and the planets' orbits
 src/transit.lua   mass drivers, the flight and catch, the old lane, gas giants, the Heaven-Ladder
 src/save.lua      save files (plain Lua tables, sandboxed on load)
-src/ui/           cargo screen (with the market tab), hangar tab, mass driver orrery, in-flight view
+src/ui/           cargo screen (with the market tab), hangar tab, mass driver orrery, in-flight view, pause menu
 src/render.lua    placeholder drawing
 src/hud.lua       HUD
 src/debugui.lua   debug panel (Slab)
