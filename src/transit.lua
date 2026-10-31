@@ -175,13 +175,27 @@ function Game:updateDrivers(dt)
 			p.body:setLinearVelocity(gvx + (gx - x) * 3, gvy + (gy - y) * 3)
 		else
 			L.t = L.t + dt
-			-- down the barrel, harder and harder, engine lit
-			local u = min(1, (L.t - T.driverAlign) / T.driverFire)
-			local s = T.driverExitSpeed * u * u
+			if not self.savedZoom then self.savedZoom = self.camera.zoom end
+			local ft = L.t - T.driverAlign
+			local s
+			if ft < T.driverFire then
+				-- down the barrel, harder and harder, engine lit
+				local u = ft / T.driverFire
+				s = T.driverExitSpeed * u * u
+				self:shake(0.08 * u)
+			else
+				-- out of the muzzle and still climbing, the camera pulling
+				-- wide so everything falls away behind you
+				local u = min(1, (ft - T.driverFire) / T.driverCoast)
+				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
+				self.cineZoom = self.savedZoom + (T.cineZoom - self.savedZoom) * (1 - (1 - u) ^ 2)
+				if u >= 1 then
+					self.pendingFlight = L.to
+					self.flash = { t = 0, life = 0.5 }
+				end
+			end
 			p.body:setLinearVelocity(dx * s, dy * s)
 			p.intent.thrust, p.intent.boost = 1, true
-			self:shake(0.08 * u)
-			if L.t >= T.driverAlign + T.driverFire then self.pendingFlight = L.to end
 		end
 		return
 	end
@@ -382,13 +396,30 @@ function Game:launchTrip(to)
 	if not p or p.dead then return end
 	local from = self.fieldId
 	local au = Fields.distance(from, to, self.universe.clock)
-	self.trip = { from = from, to = to, au = au, length = T.laneBase + T.lanePerAU * au }
-	local Rc = max(T.laneArc, self.trip.length * 0.9)
-	local s0, n0 = -self.trip.length / 2 + 600, -T.laneWidth / 2
-	local phi = s0 / Rc
-	local x, y = sin(phi) * (Rc - n0), Rc - cos(phi) * (Rc - n0)
-	self:loadField("lane", { player = Ship.record(p),
-		at = { x = x, y = y, angle = phi, vx = cos(phi) * T.laneEntrySpeed, vy = sin(phi) * T.laneEntrySpeed } })
+	-- the lane leaves along the bearing the driver fired you on
+	local clock = self.universe.clock
+	local ax, ay = Fields.orbitPos(from, clock)
+	local bx, by = Fields.orbitPos(to, clock)
+	local bearing = math.atan2(by - ay, bx - ax)
+	local half = (T.laneBase + T.lanePerAU * au) / 2
+	local Rc = max(T.laneArc, half * 2 * 0.9)
+	self.trip = { from = from, to = to, au = au, length = half * 2, rot = bearing - (-half / Rc) }
+	-- you come in on a run-up short of the lane's mouth, still at the
+	-- driver's speed, and slow to the lane's as you reach it
+	local p0 = self.player
+	local vx, vy = p0.body:getLinearVelocity()
+	local speed = max(T.laneEntrySpeed, sqrt(vx * vx + vy * vy))
+	self:loadField("lane", { player = Ship.record(p) })
+	-- a straight run in along the bearing (the lane's heading at its mouth)
+	local mx, my = self:fromLane(-half, -T.laneWidth / 2)
+	local h = self:laneHeading(-half)
+	local x, y = mx - cos(h) * T.laneRunup, my - sin(h) * T.laneRunup
+	p = self.player
+	p.body:setPosition(x, y)
+	p.body:setAngle(h)
+	p.body:setLinearVelocity(cos(h) * speed, sin(h) * speed)
+	p.runup = { speed = speed, x = x, y = y, h = h }
+	self.camera.x, self.camera.y = x, y
 	self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
 	events.emit("travel", from, to)
 end
@@ -415,7 +446,7 @@ function Game:arrive(back)
 		local clock = self.universe.clock
 		local ax, ay = Fields.orbitPos(from, clock)
 		local bx, by = Fields.orbitPos(to, clock)
-		local r = math.atan2(by - ay, bx - ax) - self.lane.half / self.lane.R
+		local r = math.atan2(by - ay, bx - ax) - self:laneHeading(self.lane.half)
 		local c, s = cos(r), sin(r)
 		exit.ox, exit.oy = exit.ox * c - exit.oy * s, exit.ox * s + exit.oy * c
 		exit.vx, exit.vy = vx * c - vy * s, vx * s + vy * c
@@ -469,11 +500,17 @@ end
 -- lane coordinates s is the distance along it and n the offset from its
 -- median (negative: the outbound side). Holding a straight line drifts
 -- you across it.
+--
+-- The whole thing is then turned by lane.rot, so the lane leaves in the
+-- direction the driver fired you. toLane's phi is the world direction of
+-- the lane at that point.
 function Game:toLane(x, y)
-	local R = self.lane.R
+	local R, r = self.lane.R, self.lane.rot or 0
+	local c, s = cos(-r), sin(-r)
+	x, y = x * c - y * s, x * s + y * c
 	local dx, dy = x, y - R
 	local phi = math.atan2(dx, -dy)
-	return phi * R, R - sqrt(dx * dx + dy * dy), phi
+	return phi * R, R - sqrt(dx * dx + dy * dy), phi + r
 end
 
 -- Where the destination planet's centre sits, in the lane's coordinates:
@@ -483,15 +520,22 @@ end
 function Game:laneDestination()
 	local lane, F = self.lane, Fields[self.trip.to]
 	local ex, ey = self:fromLane(lane.half, 0)
-	local phi = lane.half / lane.R
+	local phi = self:laneHeading(lane.half)
 	local d = F.radius - 1500
 	return ex + cos(phi) * d, ey + sin(phi) * d, F
 end
 
 function Game:fromLane(s, n)
-	local R = self.lane.R
+	local R, r = self.lane.R, self.lane.rot or 0
 	local phi = s / R
-	return sin(phi) * (R - n), R - cos(phi) * (R - n)
+	local x, y = sin(phi) * (R - n), R - cos(phi) * (R - n)
+	local c, si = cos(r), sin(r)
+	return x * c - y * si, x * si + y * c
+end
+
+-- The lane's world direction at distance s along it.
+function Game:laneHeading(s)
+	return s / self.lane.R + (self.lane.rot or 0)
 end
 
 -- The lane's current at offset n: outbound below the median, oncoming
@@ -515,7 +559,7 @@ function Game:buildLane()
 		local au = Fields.distance("earth", "mars", self.universe.clock)
 		self.trip = { from = "earth", to = "mars", au = au, length = T.laneBase + T.lanePerAU * au }
 	end
-	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9) }
+	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9), rot = self.trip.rot or 0 }
 	self.arenaRadius = 1e7
 	self:populateLane()
 end
@@ -604,7 +648,31 @@ function Game:updateLane(dt)
 		end
 	end
 	if not p or p.dead then return end
-	local ps = self:toLane(p.body:getPosition())
+	local ps, pn, ph = self:toLane(p.body:getPosition())
+	local R = p.runup
+	if R then
+		-- the run-up: held on the line into the mouth, braking from the
+		-- driver's speed to the lane's, the camera wide so you see it coming
+		local tx, ty = cos(R.h), sin(R.h)
+		local x, y = p.body:getPosition()
+		local u = max(0, min(1, ((x - R.x) * tx + (y - R.y) * ty) / T.laneRunup))
+		local sp = R.speed + (T.laneEntrySpeed - R.speed) * u * u
+		local it = p.intent
+		it.thrust, it.strafe, it.boost = 0, 0, false
+		it.firePrimary, it.fireSecondary, it.fireAux = false, false, false
+		p.body:setLinearVelocity(tx * sp, ty * sp)
+		p.body:setAngle(R.h)
+		p.body:setAngularVelocity(0)
+		local back = self.savedZoom or 0.7
+		self.cineZoom = T.cineZoom + (back - T.cineZoom) * u ^ 3
+		if u >= 1 then
+			p.runup = nil
+			self.cineZoom, self.savedZoom = nil, nil
+			self.camera.zoom = back
+			self:toast("ON THE HIGHWAY", 1.5)
+		end
+		return
+	end
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
 	-- turned round and flew back out the near end: home again
 	if ps < -lane.half - 200 then self.pendingArrive = "back" end

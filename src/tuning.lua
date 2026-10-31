@@ -97,6 +97,10 @@ T.driverExitSpeed = 4500
 -- trip and the catch at the other end). Switchable in the debug panel.
 T.travelMode = "lane"
 T.laneEntrySpeed = 2600
+-- After the barrel: T.driverCoast seconds climbing to driverCoastSpeed with
+-- the camera pulling out to cineZoom; then into the lane on a run-up of
+-- laneRunup px short of its mouth, braking to laneEntrySpeed.
+T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 30000
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 

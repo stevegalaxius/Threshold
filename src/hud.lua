@@ -380,6 +380,12 @@ local function drawCatch(game)
 end
 
 function HUD.draw(game, aimX, aimY, uiOpen)
+	if game.flash then
+		-- the cut into the lane, hidden in a flash off the driver
+		local a = 1 - game.flash.t / game.flash.life
+		lg.setColor(0.85, 0.95, 1, 0.8 * a * a)
+		lg.rectangle("fill", 0, 0, lg.getDimensions())
+	end
 	drawOffscreen(game)
 	drawTrip(game)
 	drawCatch(game)

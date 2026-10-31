@@ -1648,6 +1648,20 @@ end
 
 -- Per-frame update for things that aren't simulation: effects, camera, toasts.
 function Game:frame(dt, aimX, aimY)
+	-- the launch and the lane's run-up take the zoom for a while
+	local p = self.player
+	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
+		-- whatever was running it is over (died, or a load): hand it back
+		self.camera.zoom = self.savedZoom or self.camera.zoom
+		self.cineZoom, self.savedZoom = nil, nil
+	end
+	if self.cineZoom then
+		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * 6))
+	end
+	if self.flash then
+		self.flash.t = self.flash.t + dt
+		if self.flash.t >= self.flash.life then self.flash = nil end
+	end
 	local i = 1
 	while i <= #self.effects do
 		local fx = self.effects[i]
@@ -1669,7 +1683,7 @@ function Game:frame(dt, aimX, aimY)
 		if t.t >= t.life then table.remove(self.toasts, j) end
 	end
 
-	local p = self.player
+	p = self.player
 	if p and not p.dead then
 		self:updateComputers(dt)
 		local x, y = self:pilotedShip().body:getPosition()
