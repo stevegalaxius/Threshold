@@ -195,8 +195,8 @@ end
 local DEBRIS = {
 	rock = { fill = { 0.24, 0.24, 0.27 }, line = { 0.6, 0.62, 0.68 }, tough = 1, breaks = "rock" },
 	ice = { fill = { 0.42, 0.55, 0.62 }, line = { 0.8, 0.92, 1 }, tough = 0.6, breaks = "ice" },
-	junk = { fill = { 0.3, 0.27, 0.24 }, line = { 0.7, 0.62, 0.5 }, tough = 0.8, breaks = "junk" },
-	sat = { fill = { 0.32, 0.33, 0.36 }, line = { 0.78, 0.8, 0.85 }, tough = 0.7, breaks = "junk" },
+	junk = { fill = { 0.25, 0.27, 0.31 }, line = { 0.66, 0.71, 0.78 }, tough = 0.8, breaks = "junk" },
+	sat = { fill = { 0.3, 0.31, 0.34 }, line = { 0.8, 0.83, 0.88 }, tough = 0.7 },   -- bursts, no pieces
 }
 Game.DEBRIS = DEBRIS
 
@@ -1383,14 +1383,14 @@ end
 function Game:breakAsteroid(e)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
-	local n = random(2, 4)
+	local breaks = (DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks
+	local n = breaks and random(2, 4) or 0
 	local spin = random() * pi * 2
 	for k = 1, n do
 		local r = e.radius * sqrt(1 / n) * (0.75 + random() * 0.25)
 		if r >= 14 then
 			local a = spin + k / n * pi * 2 + (random() - 0.5) * 0.6
-			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r,
-				(DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks)
+			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r, breaks)
 			local s = 40 + random() * 90
 			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
 		end

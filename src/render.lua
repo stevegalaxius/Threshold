@@ -163,15 +163,26 @@ local function drawAsteroid(e)
 	else
 		local f, l = e.fill or ROCK_FILL, e.line or ROCK_LINE
 		if e.debris == "sat" then
-			-- solar panels either side of the bus, and a blinking light
+			-- a boom out to two long solar wings, each split into cells
 			local r = e.radius
-			lg.setColor(0.15 * s, 0.25 * s, 0.5 * s)
-			lg.rectangle("fill", -r, -r * 0.18, r * 0.5, r * 0.36)
-			lg.rectangle("fill", r * 0.5, -r * 0.18, r * 0.5, r * 0.36)
-			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			local h, w0, w1 = r * 0.16, r * 0.55, r * 1.25
 			lg.setLineWidth(outline(1))
-			lg.rectangle("line", -r, -r * 0.18, r * 0.5, r * 0.36)
-			lg.rectangle("line", r * 0.5, -r * 0.18, r * 0.5, r * 0.36)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s, 0.8)
+			lg.line(-w1, 0, w1, 0)
+			for side = -1, 1, 2 do
+				local x0 = side > 0 and w0 or -w1
+				lg.setColor(0.12, 0.2, 0.42)
+				lg.rectangle("fill", x0, -h, w1 - w0, h * 2)
+				lg.setColor(0.35, 0.5, 0.8, 0.7)
+				for k = 1, 3 do
+					local cx = x0 + (w1 - w0) * k / 4
+					lg.line(cx, -h, cx, h)
+				end
+				lg.rectangle("line", x0, -h, w1 - w0, h * 2)
+			end
+			-- a dish on the bus
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.arc("line", "open", 0, -r * 0.45, r * 0.22, 0.2, pi - 0.2)
 		end
 		if e.verts then
 			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
