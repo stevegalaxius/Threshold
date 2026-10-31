@@ -104,15 +104,22 @@ Fields.station = {
 -- more to build once the planet is in; o.edge: arena edge past the surface.
 local function planetField(name, R, rocks, scattered, stations, enemies, o)
 	o = o or {}
+	-- the planet's colour, the same every visit (so it can be drawn ahead
+	-- of you on the highway before you arrive)
+	local rng = love.math.newRandomGenerator(#name * 7919 + R)
+	local hue = { 0.35 + rng:random() * 0.2, 0.45 + rng:random() * 0.2, 0.7 + rng:random() * 0.2 }
+	if o.gas then hue = { 0.85, 0.65, 0.45 } end   -- as Game:spawnGasGiant paints it
 	return {
 		name = name,
+		planetR = R, gas = o.gas, hue = hue,
 		stations = stations,
 		enemies = enemies,
 		spawn = { 0, R + 6700 },
 		radius = R + (o.edge or 16500),
 		rockDrag = 0,
 		build = function(game)
-			if o.gas then game:spawnGasGiant(0, 0, R, 290, 0.1) else game:spawnPlanet(0, 0, R, 290, 0.1) end
+			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1) or game:spawnPlanet(0, 0, R, 290, 0.1)
+			if not o.gas then planet.hue = hue end
 			if o.extra then o.extra(game, R) end
 			if stations then
 				-- Two wheel stations out past the belt.

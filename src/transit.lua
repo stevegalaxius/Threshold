@@ -361,8 +361,14 @@ function Game:arrive(back)
 	if back then to, from = from, to end
 	local vx, vy = p.body:getLinearVelocity()
 	-- you come out pointing and moving exactly as you were on screen, not
-	-- lined up with the driver
+	-- lined up with the driver, and where you were relative to the planet
+	-- drawn ahead at the end of the lane (Game:laneDestination)
 	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy }
+	if not back then
+		local px, py = p.body:getPosition()
+		local cx, cy = self:laneDestination()
+		exit.ox, exit.oy = px - cx, py - cy
+	end
 	self.trip = nil
 	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })
 end
@@ -380,11 +386,18 @@ function Game:placeAtDriver(p, exit)
 		-- off the highway: not at the driver, but in from the edge of the
 		-- map on whichever side lines your course up on the planet, so
 		-- you arrive flying the way you were, straight at it
-		local sp = sqrt(exit.vx ^ 2 + exit.vy ^ 2)
-		local dx, dy = exit.vx / max(sp, 1), exit.vy / max(sp, 1)
-		if sp < 50 then dx, dy = cos(exit.angle), sin(exit.angle) end
 		local d = self.arenaRadius - 1500
-		p.body:setPosition(-dx * d, -dy * d)
+		local x, y = exit.ox, exit.oy
+		if not x then
+			local sp = sqrt(exit.vx ^ 2 + exit.vy ^ 2)
+			local dx, dy = exit.vx / max(sp, 1), exit.vy / max(sp, 1)
+			if sp < 50 then dx, dy = cos(exit.angle), sin(exit.angle) end
+			x, y = -dx * d, -dy * d
+		end
+		local r = sqrt(x * x + y * y)
+		local lim = self.arenaRadius - 200
+		if r > lim then x, y = x / r * lim, y / r * lim end
+		p.body:setPosition(x, y)
 		p.body:setAngle(exit.angle)
 		p.body:setLinearVelocity(exit.vx, exit.vy)
 	else
@@ -409,6 +422,18 @@ function Game:toLane(x, y)
 	local dx, dy = x, y - R
 	local phi = math.atan2(dx, -dy)
 	return phi * R, R - sqrt(dx * dx + dy * dy), phi
+end
+
+-- Where the destination planet's centre sits, in the lane's coordinates:
+-- straight on past the end of the lane by as far as you'll arrive from
+-- it. It's drawn there as you come in, and you arrive where you were
+-- relative to it, so the swap doesn't show.
+function Game:laneDestination()
+	local lane, F = self.lane, Fields[self.trip.to]
+	local ex, ey = self:fromLane(lane.half, 0)
+	local phi = lane.half / lane.R
+	local d = F.radius - 1500
+	return ex + cos(phi) * d, ey + sin(phi) * d, F
 end
 
 function Game:fromLane(s, n)

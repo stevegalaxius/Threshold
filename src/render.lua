@@ -416,11 +416,13 @@ local function drawLane(game)
 		pts[#pts + 1] = y
 	end
 	if #pts < 4 then return end
+	-- the road fades out over its last stretch as the planet comes up
+	local fade = max(0, min(1, (lane.half - cs) / 15000))
 	lg.setBlendMode("add")
 	local bands = 6
 	for k = bands, 1, -1 do
 		local half = W + T.laneRamp * (k - 1) / bands
-		lg.setColor(0.35, 0.6, 0.9, k == 1 and 0.05 or 0.018)
+		lg.setColor(0.35, 0.6, 0.9, (k == 1 and 0.05 or 0.018) * fade)
 		lg.setLineWidth(half * 2)
 		lg.line(pts)
 	end
@@ -429,7 +431,7 @@ local function drawLane(game)
 	if lane.half - cs < view then
 		local x1, y1 = game:fromLane(lane.half, -W)
 		local x2, y2 = game:fromLane(lane.half, W)
-		lg.setColor(0.6, 0.95, 1, 0.5)
+		lg.setColor(0.6, 0.95, 1, 0.5 * fade)
 		lg.setLineWidth(outline(4))
 		lg.line(x1, y1, x2, y2)
 	end
@@ -888,7 +890,17 @@ function Render.world(game)
 	Render.background(game.camera)
 	game.camera:apply()
 	drawGrid(game)
-	if game.lane then drawLane(game) end
+	if game.lane then
+		-- the planet you're heading for, where it'll be when you arrive
+		if game.trip then
+			local px, py, F = game:laneDestination()
+			if F.planetR then
+				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas,
+					body = { getPosition = function() return px, py end } })
+			end
+		end
+		drawLane(game)
+	end
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
