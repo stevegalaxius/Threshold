@@ -150,9 +150,9 @@ local function designWindow(E, Editor)
 		end
 		local mopts = {}
 		for _, m in ipairs({ "fixed", "gimbal", "turret" }) do table.insert(mopts, { label = m, value = m }) end
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "fixed: guns point down the nose, you aim with the ship.\ngimbal: guns swing a few degrees toward the cursor.\nturret: guns rotate all the way round at the turret speed.\nA slot can't override this here yet." })
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "fixed: guns point down the nose, you aim with the ship.\ngimbal: guns swing a few degrees toward the cursor.\nturret: guns rotate all the way round at the turret speed.\nThis is the default; each weapon slot can set its own in the Slots list." })
 		Slab.SameLine()
-		Slab.Text("mount"); Slab.SameLine()
+		Slab.Text("default mount"); Slab.SameLine()
 		combo("yard_mount", E.stat("mount") or "gimbal", mopts, function(m) E.pushUndo(); d.stats.mount = m end, 120)
 		local hopts = { { label = "strafe", value = "strafe" }, { label = "turn", value = "turn" } }
 		Slab.Button("?", { W = 18, H = 18, Tooltip = "strafe: A/D slide sideways on the side thrusters.\nturn: A/D rotate the hull and the mouse only aims the guns (battleships)." })
@@ -180,6 +180,13 @@ local function designWindow(E, Editor)
 			local sopts = {}
 			for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
 			combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+			if slot.family == "primary" or slot.family == "secondary" or slot.family == "auxiliary" then
+				-- weapon slots can mount differently from the hull's default
+				Slab.SameLine()
+				local mo = { { label = "(hull)", value = false } }
+				for _, m in ipairs({ "fixed", "gimbal", "turret" }) do table.insert(mo, { label = m, value = m }) end
+				combo("yard_slotmount" .. i, slot.mount or "(hull)", mo, function(m) E.pushUndo(); slot.mount = m or nil end, 70)
+			end
 			Slab.SameLine()
 			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
 				E.pushUndo()
