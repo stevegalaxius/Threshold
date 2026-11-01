@@ -15,9 +15,7 @@ local TransitView = {}
 local lg = love.graphics
 local cos, sin, sqrt, pi, max, min = math.cos, math.sin, math.sqrt, math.pi, math.max, math.min
 
-local COLORS = {
-	venus = { 0.95, 0.85, 0.55 }, earth = { 0.45, 0.75, 1 }, mars = { 1, 0.5, 0.35 }, jupiter = { 0.9, 0.7, 0.5 },
-}
+local function color(id) return Fields.orbits[id] and Fields.orbits[id].color end
 
 -- Warp streaks: each one a lane across the screen, its own speed and
 -- length, streaming back past the ship.
@@ -84,7 +82,7 @@ function TransitView.draw(game)
 	local function at(id, clock)
 		local px, py = Fields.orbitPos(id, clock)
 		local a = math.atan2(py, px)
-		local r = R * sqrt(Fields.orbits[id].au / maxAU)
+		local r = R * Fields.mapScale(Fields.orbits[id].au)
 		return ox + cos(a) * r, oy + sin(a) * r, r
 	end
 	local clock = game.universe.clock + T_clock(f, k)
@@ -93,7 +91,7 @@ function TransitView.draw(game)
 		lg.setColor(0.55, 0.7, 0.78, 0.3)
 		lg.setLineWidth(1)
 		lg.circle("line", ox, oy, r, 72)
-		local c = COLORS[id] or { 1, 1, 1 }
+		local c = color(id) or { 1, 1, 1 }
 		lg.setColor(c)
 		lg.circle("fill", x, y, 5)
 	end

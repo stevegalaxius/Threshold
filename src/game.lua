@@ -67,6 +67,10 @@ function Game:loadField(id, opts)
 	for _, e in ipairs(self.entities) do
 		if not e.removed then e.body:destroy(); e.removed = true end
 	end
+	for _, e in ipairs(self.sleepers or {}) do
+		if not e.removed then e.body:destroy(); e.removed = true end
+	end
+	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
@@ -190,35 +194,207 @@ function Game:spawnPoint(minD, maxD)
 	return cos(a) * (self.arenaRadius - 300), sin(a) * (self.arenaRadius - 300)
 end
 
-function Game:spawnAsteroid(x, y, radius)
-	local verts = {}
-	for j = 0, 7 do
-		local ang = j / 8 * pi * 2 + (random() - 0.5) * 0.35
-		local rr = radius * (0.82 + 0.18 * random())
-		table.insert(verts, cos(ang) * rr)
-		table.insert(verts, sin(ang) * rr)
+-- What a sleeping piece of debris has instead of a body: just enough for
+-- drawing it (and for anything that asks where it is).
+local Ghost = {}
+Ghost.__index = Ghost
+function Ghost:getPosition() return self.x, self.y end
+function Ghost:setPosition(x, y) self.x, self.y = x, y end
+function Ghost:getAngle() return self.a end
+function Ghost:getLinearVelocity() return 0, 0 end
+function Ghost:destroy() end
+
+-- Sleeping debris. Around a planet, every loose rock, ice chunk and piece
+-- of junk just circles with the current, so the ones far from the player
+-- don't need simulating: they're taken out of the world (their bodies
+-- switched off, out of self.entities) and kept as an orbit (radius, angle
+-- at a time, turn rate), and put back, exactly where that orbit has
+-- carried them, when the player comes near. Far from the player is past
+-- T.sleepFar; they wake inside T.sleepNear. Checked every T.sleepEvery
+-- steps.
+function Game:sleeperPos(e)
+	local o = e.sleep
+	local w = self.well
+	local a = o.a + o.rate * (self.time - o.t)
+	return w.x + cos(a) * o.r, w.y + sin(a) * o.r, a
+end
+
+function Game:updateSleepers()
+	local w = self.well
+	if not w or self.lane then return end
+	self.sleepTick = (self.sleepTick or 0) + 1
+	if self.sleepTick <= T.sleepEvery then return end
+	self.sleepTick = 0
+	local p = self.player
+	local px, py
+	if p and not p.dead then px, py = p.body:getPosition() else px, py = self.camera.x, self.camera.y end
+	local far2, near2 = T.sleepFar ^ 2, T.sleepNear ^ 2
+	-- wake the ones the player is coming up on
+	local sl, keep = self.sleepers, {}
+	for _, e in ipairs(sl) do
+		if not e.removed then
+			local x, y, a = self:sleeperPos(e)
+			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
+				local o = e.sleep
+				e.sleep = nil
+				self:debrisBody(e, x, y, e.body.a, o.spin)
+				local v = o.rate * o.r
+				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				table.insert(self.entities, e)
+			else
+				keep[#keep + 1] = e
+			end
+		end
 	end
+	self.sleepers = keep
+	-- and put the far ones to sleep
+	local awake = {}
+	for _, e in ipairs(self.entities) do
+		local slept = false
+		if e.kind == "asteroid" and not e.giant and not e.dead and not e.removed and not e.reentry then
+			local b = e.body
+			local x, y = b:getPosition()
+			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
+				local dx, dy = x - w.x, y - w.y
+				local r2 = dx * dx + dy * dy
+				local vx, vy = b:getLinearVelocity()
+				e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1),
+					spin = b:getAngularVelocity() }
+				-- out of the physics world entirely (an inactive body still
+				-- costs Box2D a little every step, and there are thousands)
+				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
+				b:destroy()
+				keep[#keep + 1] = e
+				slept = true
+			end
+		end
+		if not slept then awake[#awake + 1] = e end
+	end
+	self.entities = awake
+end
+
+-- Debris kinds (see Fields.mixes): shade/colour, how tough per px^2, and
+-- what they break into.
+local DEBRIS = {
+	rock = { fill = { 0.24, 0.24, 0.27 }, line = { 0.6, 0.62, 0.68 }, tough = 1, breaks = "rock" },
+	ice = { fill = { 0.42, 0.55, 0.62 }, line = { 0.8, 0.92, 1 }, tough = 0.6, breaks = "ice" },
+	junk = { fill = { 0.25, 0.27, 0.31 }, line = { 0.66, 0.71, 0.78 }, tough = 0.8, breaks = "junk" },
+	sat = { fill = { 0.3, 0.31, 0.34 }, line = { 0.8, 0.83, 0.88 }, tough = 0.7 },   -- bursts, no pieces
+}
+Game.DEBRIS = DEBRIS
+
+-- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
+-- same kind of list, counter-clockwise (monotone chain).
+local function convexHull(v)
+	local pts = {}
+	for i = 1, #v, 2 do pts[#pts + 1] = { v[i], v[i + 1] } end
+	table.sort(pts, function(a, b) return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]) end)
+	local function cross(o, a, b) return (a[1] - o[1]) * (b[2] - o[2]) - (a[2] - o[2]) * (b[1] - o[1]) end
+	local lower, upper = {}, {}
+	for _, p in ipairs(pts) do
+		while #lower >= 2 and cross(lower[#lower - 1], lower[#lower], p) <= 0 do table.remove(lower) end
+		lower[#lower + 1] = p
+	end
+	for i = #pts, 1, -1 do
+		local p = pts[i]
+		while #upper >= 2 and cross(upper[#upper - 1], upper[#upper], p) <= 0 do table.remove(upper) end
+		upper[#upper + 1] = p
+	end
+	local out = {}
+	for i = 1, #lower - 1 do out[#out + 1] = lower[i][1]; out[#out + 1] = lower[i][2] end
+	for i = 1, #upper - 1 do out[#out + 1] = upper[i][1]; out[#out + 1] = upper[i][2] end
+	return out
+end
+
+-- A random kind from a mix of weights ({ rock = 5, ice = 2, ... }).
+function Game:pickDebris(mix)
+	mix = mix or (self.field and self.field.mix) or { rock = 1 }
+	local total = 0
+	for _, w in pairs(mix) do total = total + w end
+	local r = random() * total
+	for _, k in ipairs({ "rock", "ice", "junk", "sat" }) do
+		local w = mix[k]
+		if w then
+			if r < w then return k end
+			r = r - w
+		end
+	end
+	return "rock"
+end
+
+-- A typical size for a piece of debris of this kind.
+function Game:debrisSize(kind)
+	if kind == "sat" then
+		-- mostly small birds, now and then a big platform
+		return random() < 0.15 and 60 + random() * 60 or 20 + random() * 35
+	end
+	if kind == "junk" then return 16 + random() ^ 2.5 * 130 end   -- scraps, and the odd wrecked hulk
+	return 28 + random() ^ 2 * 100
+end
+
+-- A breakable piece of debris: rock, ice, junk or a satellite. They all
+-- fly, collide and break the same way; only the look, the shape and how
+-- tough they are differ.
+function Game:spawnDebris(kind, x, y, radius)
+	return self:spawnAsteroid(x, y, radius, kind)
+end
+
+function Game:spawnAsteroid(x, y, radius, kind)
+	kind = kind or "rock"
+	local D = DEBRIS[kind] or DEBRIS.rock
+	local verts = {}
+	if kind == "sat" then
+		-- a boxy bus (the panels are drawn, not collided)
+		local h = radius * 0.45
+		verts = { -h, -h, h, -h, h, h, -h, h }
+	elseif kind == "junk" then
+		-- jagged, flat scraps
+		local n = random(4, 6)
+		for j = 0, n - 1 do
+			local ang = j / n * pi * 2 + (random() - 0.5) * 0.5
+			local rr = radius * (0.5 + 0.5 * random()) * (j % 2 == 0 and 1 or 0.7)
+			table.insert(verts, cos(ang) * rr)
+			table.insert(verts, sin(ang) * rr)
+		end
+	else
+		for j = 0, 7 do
+			local ang = j / 8 * pi * 2 + (random() - 0.5) * 0.35
+			local rr = radius * ((kind == "ice" and 0.7 or 0.82) + (kind == "ice" and 0.3 or 0.18) * random())
+			table.insert(verts, cos(ang) * rr)
+			table.insert(verts, sin(ang) * rr)
+		end
+	end
+	-- jagged outlines can come out concave: keep their convex hull, so
+	-- every piece is a polygon (never a plain circle)
+	if not love.math.isConvex(verts) then verts = convexHull(verts) end
+	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts,
+		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
+		hp = radius * radius * T.asteroidToughness * D.tough }
+	self:debrisBody(e, x, y, random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
+	e.body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
+	table.insert(self.entities, e)
+	return e
+end
+
+-- The physics body for a piece of debris (made again when it wakes).
+function Game:debrisBody(e, x, y, angle, spin)
+	local kind, radius = e.debris, e.radius
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
-	local shape
-	if love.math.isConvex(verts) then shape = love.physics.newPolygonShape(verts)
-	else shape = love.physics.newCircleShape(radius * 0.9); verts = nil end
-	local fixture = love.physics.newFixture(body, shape, 1)
-	fixture:setRestitution(0.2)
-	fixture:setFriction(0.5)
-	local m = 0.12 * radius * radius
+	body:setAngle(angle or 0)
+	local fixture = love.physics.newFixture(body, love.physics.newPolygonShape(e.verts), 1)
+	fixture:setRestitution(kind == "ice" and 0.1 or 0.2)
+	fixture:setFriction(kind == "ice" and 0.1 or 0.5)
+	local m = 0.12 * radius * radius * (kind == "ice" and 0.6 or 1)
 	body:setMassData(0, 0, m, m * radius * radius * 0.5)
 	-- rocks around a planet keep their orbits, so no drag there
 	body:setLinearDamping(self.field and self.field.rockDrag or 0.25)
 	body:setAngularDamping(0.2)
-	body:setAngularVelocity((random() - 0.5) * 0.6)
-	body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
-	local e = { kind = "asteroid", id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture, shade = 0.55 + random() * 0.25,
-		hp = radius * radius * T.asteroidToughness }
+	body:setAngularVelocity(spin or 0)
 	fixture:setUserData(e)
 	body:setUserData(e)
-	table.insert(self.entities, e)
-	return e
+	e.body, e.fixture = body, fixture
 end
+
 
 -- Is a circle at (x, y) clear of asteroids and structures (by margin)?
 function Game:isClear(x, y, margin)
@@ -436,7 +612,7 @@ function Game:planetImpacts()
 			self:addEffect({ kind = "explosion", x = x, y = y, r = radius * 1.4, life = 0.5, t = 0, dust = true })
 			self:spark(x, y, 10, { 1, 0.6, 0.3 })
 			self:remove(o)
-			self:spawnInfallingAsteroid(radius)
+			self:spawnInfallingAsteroid(radius, o.debris)
 		elseif o.kind == "husk" or o.kind == "container" then
 			self:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
 			self:remove(o)
@@ -447,17 +623,19 @@ end
 -- A rock arriving from the edge of the map: it comes in moving with the
 -- current and is steered into a lane in the belt (e.orbitR, see
 -- applyCurrent), where it settles into orbit.
-function Game:spawnInfallingAsteroid(radius)
+function Game:spawnInfallingAsteroid(radius, kind)
 	local w = self.well
 	local Rm = self.arenaRadius - 400
 	for _ = 1, 20 do
 		local a = random() * pi * 2
 		local x, y = w.x + cos(a) * Rm, w.y + sin(a) * Rm
 		if self:isClear(x, y, radius + 80) then
-			local e = self:spawnAsteroid(x, y, radius)
+			local e = self:spawnAsteroid(x, y, radius, kind)
 			local f = self:currentSpeed(Rm)
 			e.body:setLinearVelocity(-sin(a) * f - cos(a) * 250, cos(a) * f - sin(a) * 250)
-			e.orbitR = w.radius + 1500 + random() * 4500
+			-- settles into the map's belt
+			local band = self.field and self.field.belt or { w.radius + 1500, w.radius + 6000 }
+			e.orbitR = band[1] + random() * (band[2] - band[1])
 			return e
 		end
 	end
@@ -538,17 +716,31 @@ end
 -- traders stay a while (ds.stay seconds) and then launch on their own.
 local PULL_TIME = 2.2
 
+-- A dock's frame: station-local coordinates with +x out of the door. A dock
+-- with d.both (a cloud city's tunnel) opens both ways along x, and side -1
+-- is the frame mirrored, for the far end.
+local function dockLocal(st, side, x, y)
+	local lx, ly = st.body:getLocalPoint(x, y)
+	return lx * side, ly * side
+end
+local function dockWorld(st, side, lx, ly) return st.body:getWorldPoint(lx * side, ly * side) end
+local function dockVector(st, side, vx, vy) return st.body:getWorldVector(vx * side, vy * side) end
+local function dockAngle(st, side) return st.body:getAngle() + (side < 0 and pi or 0) end
+Game.dockWorld, Game.dockAngle = dockWorld, dockAngle
+
 -- Station-local position of a point, and whether it's in the tractor zone
--- (over the runway, in front of the door).
+-- (over the runway, in front of the door), and from which side.
 function Game:inTractorZone(st, x, y)
 	local d = st.dock
 	if not d then return false end
 	local lx, ly = st.body:getLocalPoint(x, y)
-	return lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3, lx, ly
+	local side = (d.both and lx < 0) and -1 or 1
+	lx, ly = lx * side, ly * side
+	return lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3, lx, ly, side
 end
 
-function Game:beginDocking(e, st)
-	e.dockState = { station = st, phase = "tractor", t = 0 }
+function Game:beginDocking(e, st, side)
+	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1 }
 	-- the player keeps the stick while the beam works (like a mass
 	-- driver's): it can be fought, overshot or slid out of
 	if e ~= self.player then
@@ -567,10 +759,12 @@ function Game:updateDocking(dt)
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
-					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
-						and self:inTractorZone(st, x, y) then
-						self:beginDocking(e, st)
-						break
+					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st)) then
+						local inZone, _, _, side = self:inTractorZone(st, x, y)
+						if inZone then
+							self:beginDocking(e, st, side)
+							break
+						end
 					end
 				end
 			end
@@ -585,11 +779,12 @@ function Game:updateDockedShip(e, dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.station.dock
 	local b, sb = e.body, st.body
+	local side = ds.side or 1
 	ds.t = ds.t + dt
 
 	if ds.phase == "tractor" then
 		local x, y = b:getPosition()
-		local lx, ly = sb:getLocalPoint(x, y)
+		local lx, ly = dockLocal(st, side, x, y)
 		local doorX = d.x2 + e.halfLength + 40
 		-- grip grows over the first second and as the ship nears the door
 		local near = 1 - max(0, min(1, (lx - doorX) / d.runway))
@@ -599,7 +794,7 @@ function Game:updateDockedShip(e, dt)
 		local gap = lx - doorX
 		local inward = -min(260, gap > 0 and max(50, gap * 0.6) or gap * 0.6)
 		local across = -ly * 0.8
-		local wx, wy = sb:getWorldVector(inward, across)
+		local wx, wy = dockVector(st, side, inward, across)
 		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
 		local vx, vy = b:getLinearVelocity()
 		local k = 2.2 * grip
@@ -618,13 +813,13 @@ function Game:updateDockedShip(e, dt)
 		end
 		b:applyForce(ax * m, ay * m)
 		-- nose toward the door
-		local want = sb:getAngle() + pi
+		local want = dockAngle(st, side) + pi
 		local turn = wrapAngle(want - b:getAngle()) * 1.4 * grip + sb:getAngularVelocity()
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			ds.phase, ds.t = "pull", 0
-			ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - sb:getAngle()
+			ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side)
 			b:setActive(false)
 		end
 		return
@@ -635,8 +830,8 @@ function Game:updateDockedShip(e, dt)
 		f = f * f * (3 - 2 * f)
 		local tx = (d.x1 + d.x2) / 2
 		local da = wrapAngle(pi - ds.la)
-		b:setPosition(sb:getWorldPoint(ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f)))
-		b:setAngle(sb:getAngle() + ds.la + da * f)
+		b:setPosition(dockWorld(st, side, ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f)))
+		b:setAngle(dockAngle(st, side) + ds.la + da * f)
 		b:setLinearVelocity(0, 0)
 		b:setAngularVelocity(0)
 		if f >= 1 then
@@ -653,7 +848,7 @@ function Game:updateDockedShip(e, dt)
 	end
 
 	-- docked: ride along inside
-	b:setPosition(sb:getWorldPoint((d.x1 + d.x2) / 2, 0))
+	b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0))
 	if ds.stay and ds.t >= ds.stay then self:undockShip(e) end
 end
 
@@ -663,11 +858,12 @@ function Game:undockShip(e)
 	if not ds or not ds.done then return end
 	local st, d = ds.station, ds.station.dock
 	local sb = st.body
-	local wx, wy = sb:getWorldPoint(d.x2 + e.halfLength + 60, 0)
-	local ox, oy = sb:getWorldVector(1, 0)
+	local side = ds.side or 1
+	local wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0)
+	local ox, oy = dockVector(st, side, 1, 0)
 	local svx, svy = sb:getLinearVelocityFromWorldPoint(wx, wy)
 	e.body:setPosition(wx, wy)
-	e.body:setAngle(sb:getAngle())
+	e.body:setAngle(dockAngle(st, side))
 	e.body:setActive(true)
 	e.body:setLinearVelocity(svx + ox * 260, svy + oy * 260)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
@@ -747,11 +943,12 @@ function Game:spawnAsteroids(n, minD)
 	local placed = 0
 	for _ = 1, n * 10 do
 		if placed >= n then break end
-		local radius = 28 + random() ^ 2 * 100
+		local kind = self:pickDebris()
+		local radius = kind == "rock" and 28 + random() ^ 2 * 100 or self:debrisSize(kind)
 		local a = random() * pi * 2
 		local d = minD + random() * (self.arenaRadius - minD - 150)
 		local x, y = cos(a) * d, sin(a) * d
-		if self:isClear(x, y, radius + 60) then self:spawnAsteroid(x, y, radius); placed = placed + 1 end
+		if self:isClear(x, y, radius + 60) then self:spawnAsteroid(x, y, radius, kind); placed = placed + 1 end
 	end
 end
 
@@ -993,6 +1190,7 @@ function Game:step(dt)
 		end
 	end
 
+	self:updateSleepers()
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:updateLane(dt)
@@ -1001,6 +1199,7 @@ function Game:step(dt)
 	self:updateDrivers(dt)
 	self:updateCatch(dt)
 	self:updateOrbits(dt)
+	self:updateCities(dt)
 	self:updateTow(dt)
 	self:updateLootHold(dt)
 	self.world:update(dt)
@@ -1298,18 +1497,19 @@ end
 function Game:breakAsteroid(e)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
-	local n = random(2, 4)
+	local breaks = (DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks
+	local n = breaks and random(2, 4) or 0
 	local spin = random() * pi * 2
 	for k = 1, n do
 		local r = e.radius * sqrt(1 / n) * (0.75 + random() * 0.25)
 		if r >= 14 then
 			local a = spin + k / n * pi * 2 + (random() - 0.5) * 0.6
-			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r)
+			local rock = self:spawnAsteroid(x + cos(a) * e.radius * 0.45, y + sin(a) * e.radius * 0.45, r, breaks)
 			local s = 40 + random() * 90
 			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
 		end
 	end
-	self:spark(x, y, 8 + floor(e.radius / 4), { 0.65, 0.65, 0.7 })
+	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
 end
 

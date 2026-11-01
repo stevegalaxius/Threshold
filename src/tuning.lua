@@ -121,12 +121,25 @@ T.yearLength = 1800
 T.laneBase = 20000
 T.laneArc = 60000
 T.laneWidth, T.laneMedian = 2400, 400
+-- Past laneFarAU, each extra AU of a trip adds only laneFarScale of an
+-- AU of lane, so Neptune is a long haul but not minutes of road.
+T.laneFarAU, T.laneFarScale = 5, 0.25
 
 -- Gas giants: how far below the cloud tops you can go before the crush
 -- starts, how much deeper it reaches full strength, its damage per
 -- second there, and its drag.
 T.crushStart = 2000
 T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
+
+-- Cloud cities drift round their spot: this far across (px, each way),
+-- and over these periods (s) across and up and down (the up and down
+-- range is the layer between the cloud tops and the crush).
+T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
+
+-- Sleeping debris (Game:updateSleepers): rocks further than sleepFar
+-- from the player stop being simulated and just follow their orbit, and
+-- wake inside sleepNear; checked every sleepEvery steps.
+T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).

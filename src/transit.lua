@@ -446,7 +446,7 @@ function Game:launchTrip(to)
 	local ax, ay = Fields.orbitPos(from, clock)
 	local bx, by = Fields.orbitPos(to, clock)
 	local bearing = math.atan2(by - ay, bx - ax)
-	local half = (T.laneBase + T.lanePerAU * au) / 2
+	local half = Fields.laneLength(au) / 2
 	local Rc = max(T.laneArc, half * 2 * 0.9)
 	self.trip = { from = from, to = to, au = au, length = half * 2, rot = bearing - (-half / Rc) }
 	-- you come in on a run-up short of the lane's mouth, still at the
@@ -523,6 +523,28 @@ function Game:placeAtDriver(p, exit)
 		p.body:setPosition(x, y)
 		p.body:setAngle(exit.angle)
 		p.body:setLinearVelocity(exit.vx, exit.vy)
+		local sp = sqrt(exit.vx ^ 2 + exit.vy ^ 2)
+		local fx, fy = cos(exit.angle), sin(exit.angle)
+		if sp > 50 then fx, fy = exit.vx / sp, exit.vy / sp end
+		-- a station can't be swept, so slide the run sideways off one
+		for _ = 1, 4 do
+			local hit
+			for _, e in ipairs(self.entities) do
+				if e.kind == "station" then
+					local sx, sy = e.body:getPosition()
+					local dx, dy = sx - x, sy - y
+					local along, across = dx * fx + dy * fy, dx * fy - dy * fx
+					local need = (e.radius or 1000) + 900
+					if along > 0 and along < 14000 and math.abs(across) < need then
+						hit = (across >= 0 and -1 or 1) * (need - math.abs(across) + 200)
+						break
+					end
+				end
+			end
+			if not hit then break end
+			x, y = x + fy * hit, y - fx * hit
+		end
+		p.body:setPosition(x, y)
 		-- the lane's glow and streaks fade off you instead of blinking out
 		p.laneFade = 1
 	else
@@ -612,7 +634,7 @@ function Game:buildLane()
 	if not self.trip then
 		-- reached from the debug panel: a lane from Earth to Mars
 		local au = Fields.distance("earth", "mars", self.universe.clock)
-		self.trip = { from = "earth", to = "mars", au = au, length = T.laneBase + T.lanePerAU * au }
+		self.trip = { from = "earth", to = "mars", au = au, length = Fields.laneLength(au) }
 	end
 	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9), rot = self.trip.rot or 0 }
 	self.arenaRadius = 1e7
@@ -630,6 +652,9 @@ function Game:populateLane()
 	local W = T.laneWidth
 	local s1, s2 = -lane.half + 3000, lane.half - 3000
 	local span = max(0, s2 - s1)
+	-- what's on the road: the mix where you're headed
+	local dest = Fields[trip.to]
+	local mix = dest and dest.mix
 	local function at(s, n, r)
 		local x, y = self:fromLane(s, n)
 		if self:isClear(x, y, r) then return x, y end
@@ -643,7 +668,7 @@ function Game:populateLane()
 			local r = 25 + rng:random() ^ 2 * (k == 1 and 140 or 50)
 			local x, y = at(s + (k - 1) * 260, n + (rng:random() - 0.5) * 400, r + 60)
 			if x then
-				local e = self:spawnAsteroid(x, y, r)
+				local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix))
 				e.lane = "rock"
 				local _, _, phi = self:toLane(x, y)
 				e.body:setLinearVelocity(-sin(phi) * across, cos(phi) * across)
@@ -657,7 +682,7 @@ function Game:populateLane()
 		local r = 30 + rng:random() ^ 2 * 160
 		local x, y = at(s, n, r + 40)
 		if x then
-			local e = self:spawnAsteroid(x, y, r)
+			local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix))
 			e.lane = "offroad"
 			e.body:setLinearVelocity(0, 0)
 		end
@@ -769,13 +794,131 @@ end
 
 -- A gas giant: the same turning field as a planet, but nothing solid at
 -- the middle. Inside its radius the crush builds with depth.
-function Game:spawnGasGiant(x, y, radius, flow, swirl)
+function Game:spawnGasGiant(x, y, radius, flow, swirl, hue)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", gas = true, invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
-		hue = { 0.85, 0.65, 0.45 } }
+		hue = hue or { 0.85, 0.65, 0.45 } }
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, gas = true, planet = e }
+	-- the crush starts at the first band drawn inside the cloud tops
+	-- (the bands step in by 1/13 of the radius; see drawPlanet)
+	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, gas = true, planet = e, crushStart = radius / 13 }
+	return e
+end
+
+-- Cloud cities -----------------------------------------------------------------
+
+local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
+
+-- Where a cloud city's drift has it now, and the angle round the planet.
+function Game:cityTarget(e)
+	local w, d, t = self.well, e.drift, self.time
+	local rr = d.r + d.up * sin(t / d.upPeriod * pi * 2 + d.phase)
+	local aa = d.a + d.across * sin(t / d.acrossPeriod * pi * 2 + d.phase * 0.7) / d.r
+	return w.x + cos(aa) * rr, w.y + sin(aa) * rr, aa
+end
+
+-- Move each cloud city along its drift: a slow loop round its spot, set as
+-- a velocity so ships docking with it ride along.
+function Game:updateCities(dt)
+	local w = self.well
+	if not w then return end
+	for _, e in ipairs(self.entities) do
+		local d = e.drift
+		if d and not e.removed then
+			local tx, ty, aa = self:cityTarget(e)
+			local x, y = e.body:getPosition()
+			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+			e.body:setAngularVelocity(wrapAngle(aa + pi / 2 - e.body:getAngle()) / dt)
+		end
+	end
+end
+
+-- A cloud city's shape, from the top down: a mast and its collar, the
+-- superstructure, the docking tunnel, the deck, a collar and the stalk
+-- hanging into the clouds. y = 0 is the tunnel's centre line and -y is up
+-- (out to space). The tunnel is the same size on every city (it's the
+-- hangar, sized for ships); size k grows everything around it, so a big
+-- city is more deck, more decks above and a taller spire, not a scaled-up
+-- small one.
+local CITY_TUNNEL, CITY_HALF = 192, 896   -- tunnel half-height and half-length
+
+-- One part: top, bottom, half-width and top/bottom chamfers, as an
+-- 8-point convex outline.
+local function cityPart(y1, y2, w, ct, cb, role)
+	return { verts = { -w + ct, y1, w - ct, y1, w, y1 + ct * 0.6, w, y2 - cb * 0.6, w - cb, y2, -w + cb, y2, -w, y2 - cb * 0.6, -w, y1 + ct * 0.6 },
+		y1 = y1, y2 = y2, w = w, ct = ct, cb = cb, role = role }
+end
+
+local function cityParts(k)
+	local parts = {}
+	local function add(...) parts[#parts + 1] = cityPart(...) end
+	local T, H = CITY_TUNNEL, CITY_HALF
+	-- over the tunnel: the roof (overhanging the mouths on a big city),
+	-- then more levels stepping in
+	local roofW = H + 560 * (k - 1)
+	local top = -T - 176 * k
+	add(top, -T, roofW, 160 * k, 0, "roof")
+	local levelW = roofW
+	for i = 1, 2 * (k - 1) do
+		levelW = levelW * 0.72
+		local h = 288
+		add(top - h, top + 8, levelW, 100, 0, "level")
+		top = top - h
+	end
+	-- the spire: a collar and a mast
+	add(top - 176, top + 16, 192, 96, 0, "collar")
+	local mast = 1040 * k
+	add(top - 176 - mast, top - 160, 40, 0, 0, "mast")
+	-- under the tunnel: its floor, the deck, a collar and the stalk
+	add(T, T + 160, H, 0, 0, "floor")
+	local d1 = T + 144
+	local d2 = d1 + 528 * k
+	add(d1, d2, 1680 * k, 320 * k, 560 * k, "deck")
+	local c2 = d2 + 336 * k
+	add(d2 - 16, c2, 640 * k, 0, 400 * k, "collar")
+	add(c2 - 16, c2 + 3600 * k, 240 * k, 0, 0, "stalk")
+	return parts, top - 176 - mast
+end
+
+-- A cloud city: a fixed platform hanging in a gas giant's cloud tops, at
+-- angle a round the planet, with its docking tunnel just under the tops.
+-- It doesn't turn or drift. You dock by flying into either end of the
+-- tunnel (dock.both); the clamp is in the middle. k: size (1 or 2).
+function Game:spawnCloudCity(a, k)
+	k = k or 1
+	local w = self.well
+	local TH, H = CITY_TUNNEL, CITY_HALF
+	-- It floats in the layer between the cloud tops and the crush, drifting
+	-- slowly round a fixed spot: across (along the clouds) and up and down,
+	-- never above the tops or into the crush. See Game:updateCities.
+	local top, bottom = w.radius - 60 - TH, w.radius - w.crushStart + TH + 100
+	local mid = (top + bottom) / 2
+	local r = mid
+	local body = love.physics.newBody(self.world, w.x + cos(a) * r, w.y + sin(a) * r, "kinematic")
+	body:setAngle(a + pi / 2)                -- local -y points out to space
+	self.stationCount = (self.stationCount or 0) + 1
+	local n = self.stationCount
+	local names = self.field and self.field.stations
+	local parts, tip = cityParts(k)
+	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
+		key = ("%s/%d"):format(self.fieldId or "?", n),
+		name = names and names[n] or "Cloud city", radius = 1680 * k, parts = parts, tip = tip,
+		cloudY = -TH - 60, tunnel = TH, half = H,
+		drift = { a = a, r = mid, up = max(0, (top - bottom) / 2 * 0.85), across = T.cityDriftAcross,
+			upPeriod = T.cityDriftUp, acrossPeriod = T.cityDriftAcrossPeriod, phase = random() * pi * 2 } }
+	e.dock = { x1 = -40, x2 = 40, hw = TH, wall = 24, runway = H - 40 + 600, capture = 260, both = true }
+	local sx, sy, sa = self:cityTarget(e)
+	body:setPosition(sx, sy)
+	body:setAngle(sa + pi / 2)
+	for _, p in ipairs(parts) do
+		local f = love.physics.newFixture(body, love.physics.newPolygonShape(p.verts))
+		f:setFriction(0.5)
+		f:setRestitution(0.1)
+		f:setUserData(e)
+	end
+	body:setUserData(e)
+	table.insert(self.entities, e)
 	return e
 end
 
@@ -787,10 +930,11 @@ function Game:updateCrush(dt)
 		if not e.removed and not e.dead and b:getType() == "dynamic" then
 			local x, y = b:getPosition()
 			local r = sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
-			local depth = (w.radius - T.crushStart - r) / T.crushDepth
+			local cs = w.crushStart or T.crushStart
+			local depth = (w.radius - cs - r) / T.crushDepth
 			if r < w.radius then
 				-- thickening air all the way down, crushing past crushStart
-				local thick = min(1, (w.radius - r) / (T.crushStart + T.crushDepth))
+				local thick = min(1, (w.radius - r) / (cs + T.crushDepth))
 				local vx, vy = b:getLinearVelocity()
 				local m = b:getMass()
 				b:applyForce(-vx * T.crushDrag * 0.3 * thick * m, -vy * T.crushDrag * 0.3 * thick * m)

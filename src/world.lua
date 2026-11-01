@@ -84,8 +84,8 @@ function Game:dockInstantly(e, st)
 	local d = st.dock
 	e.dockState = { station = st, phase = "done", done = true, t = 0 }
 	e.body:setActive(false)
-	e.body:setPosition(st.body:getWorldPoint((d.x1 + d.x2) / 2, 0))
-	e.body:setAngle(st.body:getAngle() + pi)
+	e.body:setPosition(self.dockWorld(st, 1, (d.x1 + d.x2) / 2, 0))
+	e.body:setAngle(self.dockAngle(st, 1) + pi)
 	e.body:setLinearVelocity(0, 0)
 	e.body:setAngularVelocity(0)
 	if e == self.player then

@@ -142,9 +142,43 @@ local function drawReentry(e, size)
 	lg.setBlendMode("alpha")
 end
 
+local ROCK_FILL, ROCK_LINE = { 0.24, 0.24, 0.27 }, { 0.6, 0.62, 0.68 }
+
+-- Debris is drawn as two filled polygons, the outline as the same shape a
+-- little bigger underneath in the line colour: filled polygons batch into
+-- a single draw call however many there are, where outlines (lines) are
+-- built shape by shape on the CPU.
+local polyA, polyB = {}, {}
 local function drawAsteroid(e)
 	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
+	if not e.giant and e.verts and e.debris ~= "sat" and not e.reentry then
+		local s, a = e.shade, e.body:getAngle()
+		local f, l = e.fill or ROCK_FILL, e.line or ROCK_LINE
+		local k = 1 + outline(2) / (e.radius * 0.8)
+		local c, sn = cos(a), sin(a)
+		local v = e.verts
+		local n = #v
+		for i = 1, n, 2 do
+			local vx, vy = v[i], v[i + 1]
+			local rx, ry = vx * c - vy * sn, vx * sn + vy * c
+			polyA[i], polyA[i + 1] = x + rx * k, y + ry * k
+			polyB[i], polyB[i + 1] = x + rx, y + ry
+		end
+		for i = n + 1, #polyA do polyA[i], polyB[i] = nil, nil end
+		lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+		lg.polygon("fill", polyA)
+		lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+		lg.polygon("fill", polyB)
+		if e.debris == "ice" then
+			-- a frost glint across the face
+			local ox, oy = -e.radius * 0.25, -e.radius * 0.25
+			local c, sn = cos(a), sin(a)
+			lg.setColor(1, 1, 1, 0.18)
+			lg.circle("fill", x + ox * c - oy * sn, y + ox * sn + oy * c, e.radius * 0.3, 12)
+		end
+		return
+	end
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
@@ -158,17 +192,50 @@ local function drawAsteroid(e)
 		lg.setColor(0.6 * s, 0.58 * s, 0.62 * s)
 		lg.setLineWidth(outline(3))
 		lg.polygon("line", e.outline)
-	elseif e.verts then
-		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
-		lg.polygon("fill", e.verts)
-		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
-		lg.setLineWidth(outline(2))
-		lg.polygon("line", e.verts)
 	else
-		lg.setColor(0.24 * s, 0.24 * s, 0.27 * s)
-		lg.circle("fill", 0, 0, e.radius * 0.9)
-		lg.setColor(0.6 * s, 0.62 * s, 0.68 * s)
-		lg.circle("line", 0, 0, e.radius * 0.9)
+		local f, l = e.fill or ROCK_FILL, e.line or ROCK_LINE
+		if e.debris == "sat" then
+			-- a boom out to two long solar wings, each split into cells
+			local r = e.radius
+			local h, w0, w1 = r * 0.16, r * 0.55, r * 1.25
+			lg.setLineWidth(outline(1))
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s, 0.8)
+			lg.line(-w1, 0, w1, 0)
+			for side = -1, 1, 2 do
+				local x0 = side > 0 and w0 or -w1
+				lg.setColor(0.12, 0.2, 0.42)
+				lg.rectangle("fill", x0, -h, w1 - w0, h * 2)
+				lg.setColor(0.35, 0.5, 0.8, 0.7)
+				for k = 1, 3 do
+					local cx = x0 + (w1 - w0) * k / 4
+					lg.line(cx, -h, cx, h)
+				end
+				lg.rectangle("line", x0, -h, w1 - w0, h * 2)
+			end
+			-- a dish on the bus
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.arc("line", "open", 0, -r * 0.45, r * 0.22, 0.2, pi - 0.2)
+		end
+		if e.verts then
+			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+			lg.polygon("fill", e.verts)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.setLineWidth(outline(2))
+			lg.polygon("line", e.verts)
+		else
+			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+			lg.circle("fill", 0, 0, e.radius * 0.9)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.circle("line", 0, 0, e.radius * 0.9)
+		end
+		if e.debris == "sat" and (e.blink + love.timer.getTime()) % 1.5 < 0.2 then
+			lg.setColor(0.4, 1, 0.5)
+			lg.circle("fill", 0, 0, max(3, e.radius * 0.12))
+		elseif e.debris == "ice" then
+			-- a frost glint across the face
+			lg.setColor(1, 1, 1, 0.18)
+			lg.circle("fill", -e.radius * 0.25, -e.radius * 0.25, e.radius * 0.3)
+		end
 	end
 	lg.pop()
 	-- heated rock: glowing orange over its whole face
@@ -317,6 +384,96 @@ local function drawStation(game, e)
 end
 
 -- A navigation buoy: a small beacon with a slow pulse ring.
+-- A cloud city: fixed parts drawn in the wheel stations' colours, sinking
+-- into the planet's haze below the cloud tops; the docking tunnel through
+-- the middle, lit at both ends. Windows and lights are the same size on
+-- every city, so a bigger one just has more of them.
+local function drawCity(game, e)
+	local x, y = e.body:getPosition()
+	local w = game.well
+	local c = w and w.planet and w.planet.hue or { 0.85, 0.65, 0.45 }
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	local T2, half = e.tunnel, e.half
+	for _, p in ipairs(e.parts) do
+		lg.setColor(0.2, 0.23, 0.28)
+		lg.polygon("fill", p.verts)
+		lg.setColor(0.15, 0.17, 0.21)
+		if p.role == "stalk" then
+			lg.rectangle("fill", -p.w * 0.3, p.y1 + 16, p.w * 0.6, p.y2 - p.y1 - 32)
+		elseif p.role == "deck" then
+			lg.rectangle("fill", -(p.w - p.ct * 0.5), (p.y1 + p.y2) / 2 - 40, (p.w - p.ct * 0.5) * 2, 80)
+		end
+		lg.setColor(0.55, 0.63, 0.74)
+		lg.setLineWidth(outline(2))
+		lg.polygon("line", p.verts)
+	end
+	-- the tunnel: dark inside, hazard-striped mouths, the clamp in the middle
+	lg.setColor(0.07, 0.08, 0.1)
+	lg.rectangle("fill", -half, -T2, half * 2, T2 * 2)
+	lg.setColor(0.55, 0.63, 0.74)
+	lg.line(-half, -T2, half, -T2)
+	lg.line(-half, T2, half, T2)
+	local busy = false
+	for _, o in ipairs(game.entities) do
+		if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
+	end
+	lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+	for _, s in ipairs({ -1, 1 }) do
+		for k = 0, 3 do
+			lg.rectangle("fill", s * half - (s > 0 and 48 or 0), -T2 + 32 + k * 88, 48, 40)
+		end
+	end
+	lg.setColor(0.4, 1, 0.55, 0.9)
+	lg.rectangle("fill", -144, T2 - 48, 288, 32)
+	-- runway lights into both mouths, chasing inward
+	local lr = max(5, 3 * screenPx)
+	for i = 0, 6 do
+		local fade = 1 - i / 7 * 0.6
+		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
+		for _, s in ipairs({ -1, 1 }) do
+			local lx = s * (half + 180 + i * 270)
+			lg.circle("fill", lx, -T2 + 24, lr)
+			lg.circle("fill", lx, T2 - 24, lr)
+		end
+	end
+	-- windows: rows across each part at a fixed spacing, pairs down the stalk
+	lg.setColor(1, 0.86, 0.55, 0.85)
+	local wr = max(16, 2 * screenPx)
+	for _, p in ipairs(e.parts) do
+		if p.role == "stalk" then
+			for yy = p.y1 + 160, p.y2 - 120, 240 do
+				lg.circle("fill", -p.w * 0.6, yy, wr)
+				lg.circle("fill", p.w * 0.6, yy, wr)
+			end
+		elseif p.role ~= "mast" and p.role ~= "floor" then
+			local i = 0
+			for yy = p.y1 + 112, p.y2 - 96, 288 do
+				local hw = p.w - max(p.ct, p.cb) - 80
+				local j = 0
+				for xx = -hw, hw, 112 do
+					if (j + i * 3) % 7 ~= 3 then lg.circle("fill", xx, yy, wr) end
+					j = j + 1
+				end
+				i = i + 1
+			end
+		end
+	end
+	-- the beacon on the mast
+	lg.setColor(1, 0.35, 0.3)
+	lg.circle("fill", 0, e.tip, max(24, 4 * screenPx))
+	-- the haze: everything below the cloud tops fades into the planet
+	for _, p in ipairs(e.parts) do
+		local depth = ((p.y1 + p.y2) / 2 - e.cloudY) / 3000
+		if depth > 0 then
+			lg.setColor(c[1], c[2], c[3], min(0.75, depth * 0.45))
+			lg.polygon("fill", p.verts)
+		end
+	end
+	lg.pop()
+end
+
 local function drawBuoy(game, e)
 	local x, y = e.body:getPosition()
 	local px = screenPx
@@ -511,6 +668,39 @@ end
 
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
 
+-- Discs and annuli that size, made once into meshes (a 2048-sided shape
+-- rebuilt every frame is expensive; a mesh is drawn in one call).
+local meshes = {}
+local function annulus(r1, r2)
+	local key = r1 .. ":" .. r2
+	local m = meshes[key]
+	if not m then
+		local v = {}
+		for i = 0, PLANET_SEGMENTS do
+			local a = i / PLANET_SEGMENTS * pi * 2
+			v[#v + 1] = { cos(a) * r2, sin(a) * r2 }
+			v[#v + 1] = { cos(a) * r1, sin(a) * r1 }
+		end
+		m = lg.newMesh(v, "strip", "static")
+		meshes[key] = m
+	end
+	return m
+end
+local function disc(r)
+	local key = "d" .. r
+	local m = meshes[key]
+	if not m then
+		local v = { { 0, 0 } }
+		for i = 0, PLANET_SEGMENTS do
+			local a = i / PLANET_SEGMENTS * pi * 2
+			v[#v + 1] = { cos(a) * r, sin(a) * r }
+		end
+		m = lg.newMesh(v, "fan", "static")
+		meshes[key] = m
+	end
+	return m
+end
+
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
 -- planet's field so you can see which way it drags you.
 
@@ -532,10 +722,15 @@ local function drawPlanet(game, e)
 		end
 	end
 	if e.gas then
+		-- its rings: a faint band for each, brighter where it's denser
+		for _, band in ipairs(e.rings or {}) do
+			lg.setColor(0.85, 0.9, 0.95, min(0.12, 0.03 + band[3] * 0.08))
+			lg.draw(annulus(band[1], band[2]), x, y)
+		end
 		-- a gas giant: see-through bands thickening toward the middle
 		for k = 1, 12 do
 			lg.setColor(c[1], c[2], c[3], 0.045)
-			lg.circle("fill", x, y, R * (1 - (k - 1) / 13), PLANET_SEGMENTS)
+			lg.draw(disc(floor(R * (1 - (k - 1) / 13))), x, y)
 		end
 		lg.setColor(c[1], c[2], c[3], 0.5)
 		lg.setLineWidth(outline(3))
@@ -545,10 +740,10 @@ local function drawPlanet(game, e)
 	-- atmosphere haze
 	for k = 6, 1, -1 do
 		lg.setColor(c[1], c[2], c[3], 0.05)
-		lg.circle("fill", x, y, R + k * 140, PLANET_SEGMENTS)
+		lg.draw(disc(floor(R + k * 140)), x, y)
 	end
 	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.4)
-	lg.circle("fill", x, y, R, PLANET_SEGMENTS)
+	lg.draw(disc(floor(R)), x, y)
 	-- cloud bands, clipped to the disc
 	lg.setColor(c[1] * 0.45, c[2] * 0.45, c[3] * 0.5)
 	for k = -2, 2 do
@@ -911,7 +1106,7 @@ function Render.world(game)
 		if game.trip then
 			local px, py, F = game:laneDestination()
 			if F.planetR then
-				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas,
+				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
 					body = { getPosition = function() return px, py end } })
 			end
 		end
@@ -920,16 +1115,53 @@ function Render.world(game)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
+	-- only what's on screen (with a margin for big things)
+	local cam = game.camera
+	local sw, sh = lg.getDimensions()
+	local hw, hh = sw / 2 / cam.zoom + 300, sh / 2 / cam.zoom + 300
+	local cx, cy = cam.x, cam.y
+	-- sleeping debris: where its orbit has carried it
+	-- debris too small to see as a shape on screen is drawn as one batch of
+	-- points instead (a ring zoomed out is thousands of them)
+	local dots, dotR = {}, 2.5 / cam.zoom
+	local function debris(e, x, y)
+		if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
+			if e.radius < dotR and not e.reentry then
+				dots[#dots + 1] = x; dots[#dots + 1] = y
+			else
+				e.body:setPosition(x, y)
+				drawAsteroid(e)
+			end
+		end
+	end
+	for _, e in ipairs(game.sleepers or {}) do
+		local x, y = game:sleeperPos(e)
+		debris(e, x, y)
+	end
 	for _, e in ipairs(game.entities) do
-		if e.kind == "asteroid" then drawAsteroid(e)
+		if e.kind == "asteroid" and not e.giant and e.line then
+			local x, y = e.body:getPosition()
+			if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
+				if e.radius < dotR and not e.reentry then
+					dots[#dots + 1] = x; dots[#dots + 1] = y
+				else
+					drawAsteroid(e)
+				end
+			end
+		elseif e.kind == "asteroid" then drawAsteroid(e)
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
-		elseif e.kind == "station" then drawStation(game, e)
+		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
 		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "driver" then drawDriver(game, e)
 		elseif e.kind == "catchring" then drawCatchRing(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end
+	end
+	if #dots > 0 then
+		lg.setColor(0.62, 0.7, 0.76)
+		lg.setPointSize(2)
+		lg.points(dots)
 	end
 	drawLootHover(game)
 	drawTractor(game)
