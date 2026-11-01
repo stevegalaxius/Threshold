@@ -82,7 +82,8 @@ local function turretCombo(id, current, pick)
 	for _, mid in ipairs(data.list.modules) do
 		local m = data.modules[mid]
 		if m.weapon and m.weapon.kind ~= "drone" then
-			table.insert(opts, { label = ("%s (%s %s)"):format(m.name, m.size, m.weapon.kind), value = mid })
+			local kind = m.weapon.kind == "missile" and "missile, homing" or m.weapon.kind == "torpedo" and "torpedo, unguided" or m.weapon.kind
+			table.insert(opts, { label = ("%s (%s %s)"):format(m.name, m.size, kind), value = mid })
 		end
 	end
 	local m = data.modules[current]
