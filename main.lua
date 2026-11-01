@@ -20,12 +20,67 @@ local Cargo = require("src.ui.cargo")
 local Orrery = require("src.ui.orrery")
 local TransitView = require("src.ui.transitview")
 local Pause = require("src.ui.pause")
+local Editor = require("src.editor")
 
 local STEP = 1 / 120
 local accumulator = 0
 local game
 local autotest
 local lastIntent = { aimX = 0, aimY = 0 }
+
+--[[
+	Render interpolation. Physics steps at a fixed 120 Hz, so a frame can
+	land 1 or 2 steps after the last one and a moving ship jumps unevenly
+	against the smooth camera (a one-pixel shimmer when zoomed in). Each
+	frame, bodies are put where they'd be between their last two steps
+	(alpha = leftover time / STEP) for the camera and drawing, then put
+	back exactly before the next physics step.
+]]
+-- Each remember is numbered, so a body that only joined during the step
+-- (sleeping debris woken as the player comes near, still carrying the
+-- position it was remembered at before it slept) isn't drawn between that
+-- stale spot and where it really is.
+local lerpTick = 0
+local function remember(g)
+	lerpTick = lerpTick + 1
+	for _, e in ipairs(g.entities) do
+		local b = e.body
+		if b and not b:isDestroyed() then
+			e.lerpX, e.lerpY = b:getPosition()
+			e.lerpA = b:getAngle()
+			e.lerpTick = lerpTick
+		else
+			e.lerpX = nil
+		end
+	end
+end
+
+local function interpolate(g, alpha)
+	for _, e in ipairs(g.entities) do
+		local b = e.body
+		if e.lerpX and e.lerpTick == lerpTick and b and not b:isDestroyed() then
+			local x, y = b:getPosition()
+			local a = b:getAngle()
+			e.realX, e.realY, e.realA = x, y, a
+			local da = (a - e.lerpA + math.pi) % (2 * math.pi) - math.pi
+			b:setTransform(e.lerpX + (x - e.lerpX) * alpha, e.lerpY + (y - e.lerpY) * alpha, a - da * (1 - alpha))
+			e.shownX, e.shownY = b:getPosition()
+		else
+			e.realX = nil
+		end
+	end
+end
+
+local function restore(g)
+	for _, e in ipairs(g.entities) do
+		if e.realX and e.body and not e.body:isDestroyed() then
+			-- unless something moved it since (a teleport, a respawn)
+			local x, y = e.body:getPosition()
+			if x == e.shownX and y == e.shownY then e.body:setTransform(e.realX, e.realY, e.realA) end
+		end
+		e.realX = nil
+	end
+end
 
 function love.load(args)
 	data.load()
@@ -53,6 +108,12 @@ end
 function love.update(dt)
 	dt = math.min(dt, 1 / 15)
 	Debug.update(dt, game)
+	if Editor.isOpen() then
+		-- the Shipyard pauses the game while it's up
+		Editor.update(dt)
+		love.mouse.setVisible(true)
+		return
+	end
 	if Pause.isOpen() then
 		love.mouse.setVisible(true)
 		if autotest then autotest.update(game, dt) end
@@ -76,11 +137,14 @@ function love.update(dt)
 	lastIntent = intent
 	game:setPlayerIntent(intent)
 
+	restore(game)
 	accumulator = accumulator + dt * T.timeScale
 	while accumulator >= STEP do
+		remember(game)
 		game:step(STEP)
 		accumulator = accumulator - STEP
 	end
+	interpolate(game, accumulator / STEP)
 	game:frame(dt, intent.aimX, intent.aimY)
 	Cargo.update(game)
 	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game))
@@ -89,6 +153,11 @@ function love.update(dt)
 end
 
 function love.draw()
+	if Editor.isOpen() then
+		Editor.draw()
+		Debug.draw()
+		return
+	end
 	if TransitView.isOpen(game) then
 		TransitView.draw(game)
 		HUD.drawToasts(game, 130)
@@ -112,6 +181,7 @@ local function relaunch()
 end
 
 function love.keypressed(key)
+	if Editor.keypressed(key) then return end
 	if Debug.blocksKeyboard() then return end
 	if Pause.keypressed(game, key) then return end
 	if Orrery.keypressed(game, key) then return end
@@ -123,7 +193,8 @@ function love.keypressed(key)
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
 	elseif key == "g" then game:toggleDroneControl()
-	elseif key == "f2" then game:nextField()
+	elseif key == "f2" then Editor.toggle(game)
+	elseif key == "f3" then game:nextField()
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
 	end
@@ -131,7 +202,7 @@ end
 
 function love.gamepadpressed(_, button)
 	if button == "start" and game.state ~= "dead" then Pause.toggle(game) return end
-	if Pause.isOpen() then return end
+	if Pause.isOpen() or Editor.isOpen() then return end
 	if game.state == "docked" and button == "a" then game:undock(); return end
 	if button == "start" then relaunch()
 	elseif button == "y" then game:cycleAux()
@@ -140,6 +211,7 @@ function love.gamepadpressed(_, button)
 end
 
 function love.mousepressed(x, y, button)
+	if Editor.mousepressed(x, y, button) then return end
 	if Debug.blocksMouse() then return end
 	if Pause.mousepressed(game, x, y, button) then return end
 	if Orrery.mousepressed(game, x, y, button) then return end
@@ -147,11 +219,13 @@ function love.mousepressed(x, y, button)
 end
 
 function love.mousereleased(x, y, button)
+	if Editor.mousereleased(x, y, button) then return end
 	if Debug.blocksMouse() then return end
 	Cargo.mousereleased(game, x, y, button)
 end
 
-function love.wheelmoved(_, y)
+function love.wheelmoved(x, y)
+	if Editor.wheelmoved(x, y) then return end
 	if Debug.blocksMouse() then return end
 	if Pause.isOpen() then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end

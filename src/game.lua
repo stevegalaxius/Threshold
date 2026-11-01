@@ -13,6 +13,8 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local HullShape = require("src.hullshape")
+local Stations = require("src.stations")
 local Weapons = require("src.weapons")
 local AI = require("src.ai")
 local Camera = require("src.camera")
@@ -83,6 +85,11 @@ function Game:loadField(id, opts)
 	self:spawnDrivers()
 	self:spawnFieldEnemies()
 	self:placePlayer(opts.player, opts.at)
+	-- the new level's name replaces any still showing (the game builds
+	-- Earth before loading the save, which flashed EARTH wherever you were)
+	for i = #self.toasts, 1, -1 do
+		if self.toasts[i].big then table.remove(self.toasts, i) end
+	end
 	self:toast(self.field.name:upper(), 2, nil, true)
 end
 
@@ -648,51 +655,59 @@ end
 -- pushed around, unless simulated: then it's a very heavy dynamic body that
 -- gravity and collisions act on like anything else.
 function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
+	-- the wheel's layout as parts (src/stations.lua); a station { } with
+	-- the same id in data or mods replaces it
+	local id = Stations.ringId(R, tube)
+	if not data.stations[id] then
+		local _, err = data.defineStation(Stations.ring(R, tube))
+		if err then error(err, 0) end
+	end
+	return self:spawnStation(id, x, y, spin, simulated)
+end
+
+-- A station from its definition (data.stations): every colliding part
+-- is solid, and the part tagged dock is the docking module.
+function Game:spawnStation(id, x, y, spin, simulated)
+	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
-	local hub = R * 0.2
 	-- key: which station this is, for the universe (storage, hangar,
 	-- respawn); the same field always builds its stations in the same order
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		ringR = R, tube = tube, hub = hub, spokes = 4,
+		def = def,
 		key = ("%s/%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
-	-- The dock: a square module on the outside of the ring (along the
-	-- station's +x axis). x1..x2 is its extent out from the centre, hw its
-	-- half-width. Ships that fly into the capture zone in front of its
-	-- door are pulled inside (see Game:updateDocking).
-	local D = max(300, tube * 2)
-	local dock = { x1 = R + tube / 2 - tube * 0.3, x2 = R + tube / 2 + D, hw = D / 2, wall = 24,
-		runway = 600, capture = 260 }
-	e.dock = dock
-	e.radius = dock.x2
-	local function add(shape)
-		local f = love.physics.newFixture(body, shape)
-		f:setFriction(0.5)
-		f:setRestitution(0.1)
-		f:setUserData(e)
+	-- The dock (see Game:updateDocking): x1..x2 its extent out from the
+	-- centre along +x, hw its half-width. Ships that fly into the capture
+	-- zone in front of its door are pulled inside.
+	e.docks = {}
+	for _, d in ipairs(def.docks) do
+		local copy = {}
+		for k, v in pairs(d) do copy[k] = v end
+		table.insert(e.docks, copy)
 	end
-	local ri, ro, n = R - tube / 2, R + tube / 2, 72
-	for i = 0, n - 1 do
-		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
-		add(love.physics.newPolygonShape(cos(a1) * ri, sin(a1) * ri, cos(a1) * ro, sin(a1) * ro,
-			cos(a2) * ro, sin(a2) * ro, cos(a2) * ri, sin(a2) * ri))
+	e.dock = e.docks[1]
+	e.radius = def.radius
+	-- the dock module is solid too; ships only get inside by being pulled in
+	for _, part in ipairs(def.parts) do
+		if part.collide ~= false then
+			for _, t in ipairs(part.tris) do
+				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+				if a2 > 4 then
+					local f = love.physics.newFixture(body, love.physics.newPolygonShape(t))
+					f:setFriction(0.5)
+					f:setRestitution(0.1)
+					f:setUserData(e)
+				end
+			end
+		end
 	end
-	add(love.physics.newCircleShape(hub))
-	local sw = tube * 0.22
-	for k = 0, e.spokes - 1 do
-		local a = k / e.spokes * pi * 2
-		local c, s = cos(a), sin(a)
-		local px, py = -s * sw, c * sw
-		add(love.physics.newPolygonShape(c * hub + px, s * hub + py, c * ri + px, s * ri + py,
-			c * ri - px, s * ri - py, c * hub - px, s * hub - py))
-	end
-	-- the dock module is solid; ships only get inside by being pulled in
-	add(love.physics.newPolygonShape(dock.x1, -dock.hw, dock.x2, -dock.hw, dock.x2, dock.hw, dock.x1, dock.hw))
+	self:armStation(e)
+	local R = def.radius
 	if simulated then
 		-- hundreds of times a battleship's mass, and no drag
 		local m = 300000
@@ -704,6 +719,115 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	return e
+end
+
+-- Station turrets (def.turrets): each fires its weapon module like a
+-- ship's turret, with endless ammo and power, at whatever
+-- Game:stationHostile says. The station itself is the gun's owner, so it
+-- carries the few fields Weapons.fire reads off a ship.
+local STATION_MULT = { primaryFireRate = 1, primaryDamage = 1, missileDamage = 1, ramDamage = 1 }
+local ENDLESS = { __index = function() return math.huge end }
+local GRUDGE_TIME = 30        -- seconds a station stays angry at whoever shot it
+local RETARGET = 0.4          -- seconds between each turret's target checks
+local STATION_DRONE_REACH = 5000   -- how near a target a station's drone bays launch at
+Game.STATION_DRONE_REACH = STATION_DRONE_REACH
+
+function Game:armStation(e)
+	local list = {}
+	for _, t in ipairs(e.def.turrets or {}) do
+		local m = data.modules[t.module]
+		if m and m.weapon then
+			-- missile, torpedo and drone launchers are fixed bays: they
+			-- point one way (heading, or straight out from the centre);
+			-- missiles curve round to the target, drones fly off to it
+			local bay = m.family == "auxiliary"
+			local out = (t.x == 0 and t.y == 0) and 0 or math.atan2(t.y, t.x)
+			table.insert(list, { slot = { x = t.x, y = t.y }, module = m, w = m.weapon,
+				group = bay and "auxiliary" or "primary",
+				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m),
+				cooldown = random() * 0.5, think = random() * RETARGET,
+				mount = bay and "bay" or "turret", turn = math.rad(t.turn or 90),
+				aim = bay and (t.heading and math.rad(t.heading) or out) or random() * pi * 2 })
+		end
+	end
+	if #list == 0 then return end
+	e.weapons = list
+	e.stats = { mult = STATION_MULT }
+	e.cargo = setmetatable({}, ENDLESS)
+	e.power = math.huge
+	e.intent = Ship.emptyIntent()
+	e.color = e.color or e.def.color        -- its drones' paint
+	e.grudge = e.grudge or setmetatable({}, { __mode = "k" })
+end
+
+-- Would this station shoot at o? For now: hostile ships (team 2, and
+-- their drones), and anyone who has shot the station lately. The
+-- reputation and AI system will replace this.
+function Game:stationHostile(st, o)
+	if o.kind ~= "ship" or o.dead or o.removed or o.dockState then return false end
+	local g = st.grudge and st.grudge[o]
+	if g and self.time - g < GRUDGE_TIME then return true end
+	return o.team == 2
+end
+
+function Game:updateStationGuns(dt)
+	for _, st in ipairs(self.entities) do
+		if st.kind == "station" and st.weapons and not st.removed then
+			local sa = st.body:getAngle()
+			for _, slot in ipairs(st.weapons) do
+				slot.cooldown = max(0, slot.cooldown - dt)
+				local wx, wy = Ship.hardpoint(st, slot.slot)
+				-- (a drone's "range" is how far it flies on launch; a drone
+				-- bay launches at anything inside STATION_DRONE_REACH)
+				local range = slot.w.kind == "drone" and STATION_DRONE_REACH or Weapons.range(slot)
+				-- now and then, the nearest hostile in reach
+				slot.think = slot.think - dt
+				local tg = slot.target
+				if slot.think <= 0 or (tg and (tg.dead or tg.removed or tg.dockState)) then
+					slot.think = RETARGET
+					tg = nil
+					local best = range * range
+					for _, o in ipairs(self.entities) do
+						if o.kind == "ship" and self:stationHostile(st, o) then
+							local ox, oy = o.body:getPosition()
+							local d = (ox - wx) ^ 2 + (oy - wy) ^ 2
+							if d < best then tg, best = o, d end
+						end
+					end
+					slot.target = tg
+				end
+				if tg then
+					-- lead the target by the shot's flight time (lasers hit
+					-- at once; missiles steer themselves)
+					local tx, ty = tg.body:getPosition()
+					local kind = slot.w.kind
+					if kind ~= "laser" and kind ~= "missile" and slot.ammo then
+						local speed = data.items[slot.ammo].shot.speed
+						local vx, vy = tg.body:getLinearVelocity()
+						local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)
+						local t = sqrt((tx - wx) ^ 2 + (ty - wy) ^ 2) / max(1, speed)
+						tx, ty = tx + (vx - svx) * t, ty + (vy - svy) * t
+					end
+					local want = Ship.wrapAngle(math.atan2(ty - wy, tx - wx) - sa)
+					local err = Ship.wrapAngle(want - slot.aim)
+					local cone = 0.06
+					if slot.mount == "bay" then
+						-- fixed: missiles launch whichever way the target is
+						-- (they steer); torpedoes only down the bay's line
+						cone = (kind == "missile" or kind == "drone") and math.huge or 0.15
+					else
+						local step = slot.turn * dt
+						slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, err)))
+					end
+					if math.abs(err) < cone then
+						st.intent.aimX, st.intent.aimY = tx, ty
+						st.lock = tg
+						Weapons.fire(self, st, slot, dt)
+					end
+				end
+			end
+		end
+	end
 end
 
 -- Docking. A ship that flies into the tractor zone along a station's
@@ -719,28 +843,55 @@ local PULL_TIME = 2.2
 -- A dock's frame: station-local coordinates with +x out of the door. A dock
 -- with d.both (a cloud city's tunnel) opens both ways along x, and side -1
 -- is the frame mirrored, for the far end.
-local function dockLocal(st, side, x, y)
+-- A station can have several docks; each sits in its own frame, turned by
+-- d.a and shifted d.xc along and d.yc across (all 0 for a dock along the
+-- station's +x). A tunnel (d.both) is centred on its frame, so its far
+-- end is the same frame mirrored (side -1).
+-- d defaults to the station's first dock.
+local function dockLocal(st, side, x, y, d)
+	d = d or st.dock
 	local lx, ly = st.body:getLocalPoint(x, y)
-	return lx * side, ly * side
+	local a = d.a or 0
+	local c, s = cos(a), sin(a)
+	local rx, ry = lx * c + ly * s - (d.xc or 0), -lx * s + ly * c - (d.yc or 0)
+	return rx * side, ry * side
 end
-local function dockWorld(st, side, lx, ly) return st.body:getWorldPoint(lx * side, ly * side) end
-local function dockVector(st, side, vx, vy) return st.body:getWorldVector(vx * side, vy * side) end
-local function dockAngle(st, side) return st.body:getAngle() + (side < 0 and pi or 0) end
-Game.dockWorld, Game.dockAngle = dockWorld, dockAngle
+local function dockWorld(st, side, lx, ly, d)
+	d = d or st.dock
+	local a = d.a or 0
+	local c, s = cos(a), sin(a)
+	local rx, ry = lx * side + (d.xc or 0), ly * side + (d.yc or 0)
+	return st.body:getWorldPoint(rx * c - ry * s, rx * s + ry * c)
+end
+local function dockVector(st, side, vx, vy, d)
+	d = d or st.dock
+	local a = d.a or 0
+	local c, s = cos(a), sin(a)
+	vx, vy = vx * side, vy * side
+	return st.body:getWorldVector(vx * c - vy * s, vx * s + vy * c)
+end
+local function dockAngle(st, side, d)
+	d = d or st.dock
+	return st.body:getAngle() + (d.a or 0) + (side < 0 and pi or 0)
+end
+Game.dockWorld, Game.dockAngle, Game.dockLocal = dockWorld, dockAngle, dockLocal
 
 -- Station-local position of a point, and whether it's in the tractor zone
 -- (over the runway, in front of the door), and from which side.
 function Game:inTractorZone(st, x, y)
-	local d = st.dock
-	if not d then return false end
-	local lx, ly = st.body:getLocalPoint(x, y)
-	local side = (d.both and lx < 0) and -1 or 1
-	lx, ly = lx * side, ly * side
-	return lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3, lx, ly, side
+	for _, d in ipairs(st.docks or { st.dock }) do
+		local lx, ly = dockLocal(st, 1, x, y, d)
+		local side = (d.both and lx < 0) and -1 or 1
+		lx, ly = lx * side, ly * side
+		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3 then
+			return true, lx, ly, side, d
+		end
+	end
+	return false
 end
 
-function Game:beginDocking(e, st, side)
-	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1 }
+function Game:beginDocking(e, st, side, dock)
+	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1, dock = dock or st.dock }
 	-- the player keeps the stick while the beam works (like a mass
 	-- driver's): it can be fought, overshot or slid out of
 	if e ~= self.player then
@@ -760,9 +911,9 @@ function Game:updateDocking(dt)
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
 					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st)) then
-						local inZone, _, _, side = self:inTractorZone(st, x, y)
+						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
 						if inZone then
-							self:beginDocking(e, st, side)
+							self:beginDocking(e, st, side, dock)
 							break
 						end
 					end
@@ -774,17 +925,45 @@ end
 
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
--- One step of a docking ship: tractor it in, pull it inside, or wait.
+-- A free berth at the station that the ship fits on, or nil (no berths,
+-- all taken, or all too small): then it goes inside.
+function Game:freeBerth(st, e)
+	local berths = st.def and st.def.berths
+	if not berths or #berths == 0 then return nil end
+	local taken = {}
+	for _, o in ipairs(self.entities) do
+		local ods = o ~= e and not o.dead and not o.removed and o.dockState
+		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
+	end
+	for i, b in ipairs(berths) do
+		if not taken[i] and (e.halfLength or 0) <= b.size then return i end
+	end
+	return nil
+end
+
+function Game:finishDocking(e, ds, st)
+	ds.phase, ds.done, ds.t = "done", true, 0
+	if e == self.player then
+		self.state = "docked"
+		self:playerDocked(st)
+	else
+		ds.stay = 30 + random() * 60
+	end
+	events.emit("dock", e, st)
+end
+
+-- One step of a docking ship: tractor it in, pull it inside (or over to a
+-- berth), or wait.
 function Game:updateDockedShip(e, dt)
 	local ds = e.dockState
-	local st, d = ds.station, ds.station.dock
+	local st, d = ds.station, ds.dock or ds.station.dock
 	local b, sb = e.body, st.body
 	local side = ds.side or 1
 	ds.t = ds.t + dt
 
 	if ds.phase == "tractor" then
 		local x, y = b:getPosition()
-		local lx, ly = dockLocal(st, side, x, y)
+		local lx, ly = dockLocal(st, side, x, y, d)
 		local doorX = d.x2 + e.halfLength + 40
 		-- grip grows over the first second and as the ship nears the door
 		local near = 1 - max(0, min(1, (lx - doorX) / d.runway))
@@ -794,7 +973,7 @@ function Game:updateDockedShip(e, dt)
 		local gap = lx - doorX
 		local inward = -min(260, gap > 0 and max(50, gap * 0.6) or gap * 0.6)
 		local across = -ly * 0.8
-		local wx, wy = dockVector(st, side, inward, across)
+		local wx, wy = dockVector(st, side, inward, across, d)
 		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
 		local vx, vy = b:getLinearVelocity()
 		local k = 2.2 * grip
@@ -813,15 +992,38 @@ function Game:updateDockedShip(e, dt)
 		end
 		b:applyForce(ax * m, ay * m)
 		-- nose toward the door
-		local want = dockAngle(st, side) + pi
+		local want = dockAngle(st, side, d) + pi
 		local turn = wrapAngle(want - b:getAngle()) * 1.4 * grip + sb:getAngularVelocity()
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
-			ds.phase, ds.t = "pull", 0
-			ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side)
+			local berth = self:freeBerth(st, e)
+			if berth then
+				-- a free berth outside: glide over and park there, in view
+				local bd = st.def.berths[berth]
+				ds.phase, ds.t, ds.berth = "taxi", 0, berth
+				ds.lx, ds.ly = sb:getLocalPoint(x, y)
+				ds.la = b:getAngle() - sb:getAngle()
+				ds.dur = max(1.5, min(8, sqrt((bd.x - ds.lx) ^ 2 + (bd.y - ds.ly) ^ 2) / 220))
+			else
+				ds.phase, ds.t = "pull", 0
+				ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side, d)
+			end
 			b:setActive(false)
 		end
+		return
+	end
+
+	if ds.phase == "taxi" then
+		local bd = st.def.berths[ds.berth]
+		local f = min(1, ds.t / ds.dur)
+		f = f * f * (3 - 2 * f)
+		local ba = math.rad(bd.heading)
+		b:setPosition(sb:getWorldPoint(ds.lx + (bd.x - ds.lx) * f, ds.ly + (bd.y - ds.ly) * f))
+		b:setAngle(sb:getAngle() + ds.la + wrapAngle(ba - ds.la) * f)
+		b:setLinearVelocity(0, 0)
+		b:setAngularVelocity(0)
+		if f >= 1 then self:finishDocking(e, ds, st) end
 		return
 	end
 
@@ -830,25 +1032,22 @@ function Game:updateDockedShip(e, dt)
 		f = f * f * (3 - 2 * f)
 		local tx = (d.x1 + d.x2) / 2
 		local da = wrapAngle(pi - ds.la)
-		b:setPosition(dockWorld(st, side, ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f)))
-		b:setAngle(dockAngle(st, side) + ds.la + da * f)
+		b:setPosition(dockWorld(st, side, ds.lx + (tx - ds.lx) * f, ds.ly * (1 - f), d))
+		b:setAngle(dockAngle(st, side, d) + ds.la + da * f)
 		b:setLinearVelocity(0, 0)
 		b:setAngularVelocity(0)
-		if f >= 1 then
-			ds.phase, ds.done, ds.t = "done", true, 0
-			if e == self.player then
-				self.state = "docked"
-				self:playerDocked(st)
-			else
-				ds.stay = 30 + random() * 60
-			end
-			events.emit("dock", e, st)
-		end
+		if f >= 1 then self:finishDocking(e, ds, st) end
 		return
 	end
 
-	-- docked: ride along inside
-	b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0))
+	-- docked: ride along, parked on a berth or inside
+	if ds.berth then
+		local bd = st.def.berths[ds.berth]
+		b:setPosition(sb:getWorldPoint(bd.x, bd.y))
+		b:setAngle(sb:getAngle() + math.rad(bd.heading))
+	else
+		b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
+	end
 	if ds.stay and ds.t >= ds.stay then self:undockShip(e) end
 end
 
@@ -856,16 +1055,26 @@ end
 function Game:undockShip(e)
 	local ds = e.dockState
 	if not ds or not ds.done then return end
-	local st, d = ds.station, ds.station.dock
+	local st, d = ds.station, ds.dock or ds.station.dock
 	local sb = st.body
 	local side = ds.side or 1
-	local wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0)
-	local ox, oy = dockVector(st, side, 1, 0)
+	local wx, wy, wa, ox, oy, speed
+	local bd = ds.berth and st.def.berths[ds.berth]
+	if bd then
+		-- off the berth, nose first, gently
+		wx, wy = sb:getWorldPoint(bd.x, bd.y)
+		wa = sb:getAngle() + math.rad(bd.heading)
+		ox, oy, speed = cos(wa), sin(wa), 140
+	else
+		wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
+		ox, oy = dockVector(st, side, 1, 0, d)
+		wa, speed = dockAngle(st, side, d), 260
+	end
 	local svx, svy = sb:getLinearVelocityFromWorldPoint(wx, wy)
 	e.body:setPosition(wx, wy)
-	e.body:setAngle(dockAngle(st, side))
+	e.body:setAngle(wa)
 	e.body:setActive(true)
-	e.body:setLinearVelocity(svx + ox * 260, svy + oy * 260)
+	e.body:setLinearVelocity(svx + ox * speed, svy + oy * speed)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
 	e.dockCooldown = 4
@@ -1190,6 +1399,7 @@ function Game:step(dt)
 		end
 	end
 
+	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:applyBoundary()
 	self:applyCurrent(dt)
@@ -1312,6 +1522,8 @@ end
 -- hx, hy: where it hit, when that's known (a wreck built in parts takes
 -- it on the part that was hit).
 function Game:damage(e, amount, source, cause, hx, hy)
+	-- a station remembers who shot it (and its turrets answer)
+	if e and e.grudge and source and source.kind == "ship" and amount > 0 then e.grudge[source] = self.time end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
@@ -1604,9 +1816,15 @@ local function lootOf(e)
 		if count > 0 then loot[into] = (loot[into] or 0) + count end
 	end
 	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
+	-- Remembered by slot, so a wreck in parts can put each one in the part
+	-- its slot sits on (Game:breakablePieces).
+	e.salvagedSlots = {}
 	for i in ipairs(e.hull.slots) do
 		local id = e.loadout[i]
-		if id and data.items[id] and random() < T.moduleSalvage then loot[id] = (loot[id] or 0) + 1 end
+		if id and data.items[id] and random() < T.moduleSalvage then
+			loot[id] = (loot[id] or 0) + 1
+			e.salvagedSlots[i] = id
+		end
 	end
 	local s = e.def and e.def.salvage or { 0, 0 }
 	for _ = 1, random(s[1], s[2]) do
@@ -1685,6 +1903,35 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	return h
 end
 
+-- A placed wreck or prop (data.wrecks): rolls its loot table, then becomes
+-- a husk like a dead ship's, so it drifts, loots and breaks apart the same.
+function Game:spawnWreck(id, x, y, a, vx, vy)
+	local def = data.wrecks[id]
+	if not def then return nil end
+	local cargo = {}
+	for _, l in ipairs(def.loot) do
+		local item, lo, hi, chance = l[1], l[2] or 1, l[3] or l[2] or 1, l[4] or 1
+		if data.items[item] and random() < chance then
+			cargo[item] = (cargo[item] or 0) + random(lo, math.max(lo, hi))
+		end
+	end
+	-- a stand-in for the ship a husk normally comes from
+	local noseX, tailX = 0, 0
+	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end
+	local r = def.radius
+	local s1, s2 = tailX + r, noseX - r
+	if s2 < s1 then s1, s2 = (s1 + s2) / 2, (s1 + s2) / 2 end
+	local ghost = {
+		hull = def, color = def.color or { 0.7, 0.72, 0.75 }, spine = { s1, s2 },
+		noseX = noseX, tailX = tailX, halfLength = max(noseX, -tailX),
+		stats = { armor = def.armor / T.huskToughness, hold = def.hold, mass = def.mass },
+		cargo = cargo, loadout = {},
+	}
+	local h = self:spawnHusk(ghost, x, y, a or random() * pi * 2, (vx or 0) / 0.6, (vy or 0) / 0.6, (random() - 0.5) * 0.2)
+	h.placed = def.kind
+	return h
+end
+
 -- A wreck of a hull built in parts stays whole, but each part outside the
 -- biggest (the core) can be shot off. Every part collides in its own
 -- shape and holds a share of the loot, weighted by its size (the
@@ -1693,6 +1940,7 @@ end
 -- as its own small wreck, taking what's left of its share with it.
 local function partFixtures(body, part, h, ox, oy)
 	local list = {}
+	if part.collide == false then return list end
 	for _, t in ipairs(part.tris) do
 		local pts = { t[1] - ox, t[2] - oy, t[3] - ox, t[4] - oy, t[5] - ox, t[6] - oy }
 		local tri = math.abs((pts[3] - pts[1]) * (pts[6] - pts[2]) - (pts[5] - pts[1]) * (pts[4] - pts[2]))
@@ -1709,27 +1957,66 @@ end
 
 function Game:breakablePieces(h, ship)
 	local hull = ship.hull
-	local total, core = 0, nil
+	-- the core: a part tagged core, else the biggest one that collides.
+	-- Loot goes to the parts tagged cargo, or to every part if none is.
+	local total, core, tagged = 0, nil, nil
 	for _, part in ipairs(hull.parts) do
 		total = total + part.area
-		if not core or part.area > core.area then core = part end
+		if part.core then tagged = tagged or part end
+		if part.collide ~= false and (not core or part.area > core.area) then core = part end
+	end
+	core = tagged or core
+	local anyCargo = false
+	for _, part in ipairs(hull.parts) do
+		if part.cargo then anyCargo = true end
+	end
+	local function carries(part)
+		return part.collide ~= false and (part.cargo or not anyCargo)
 	end
 	h.pieces, h.armorBase = {}, ship.stats.armor * T.huskToughness
+	local lootTotal = 0
 	for _, part in ipairs(hull.parts) do
-		local piece = { part = part, core = part == core, frac = part.area / total, share = {} }
-		piece.hp = h.armorBase * piece.frac
+		-- parts that never break off count as the core
+		local fixed = part == core or part.breakable == false or part.collide == false
+		local piece = { part = part, core = fixed, frac = part.area / total, share = {} }
+		piece.hp = h.armorBase * piece.frac * (part.armor or 1)
 		piece.fixtures = partFixtures(h.body, part, h, 0, 0)
 		table.insert(h.pieces, piece)
+		if carries(part) then lootTotal = lootTotal + part.area end
 	end
-	-- share the loot out: loose items unit by unit, containers whole
-	for id, n in pairs(Hold.totals(h.hold)) do
-		for _ = 1, n do
-			local r, pick = random() * total, h.pieces[#h.pieces]
-			for _, pc in ipairs(h.pieces) do
-				r = r - pc.part.area
-				if r <= 0 then pick = pc break end
+	-- mass tag: a part's share of the wreck's weight, when it breaks away
+	local massTotal = 0
+	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
+	for _, pc in ipairs(h.pieces) do pc.massFrac = pc.part.area * (pc.part.mass or 1) / max(massTotal, 1) end
+	-- fitted modules that survived go to the part their slot sits on (the
+	-- topmost one under the hardpoint); unplaced slots stay with the core
+	local reserved = {}
+	for i, id in pairs(ship.salvagedSlots or {}) do
+		local slot = hull.slots[i]
+		local owner
+		if slot and slot.x then
+			for k = #h.pieces, 1, -1 do
+				local pc = h.pieces[k]
+				if pc.part.collide ~= false and HullShape.contains(pc.part, slot.x, slot.y or 0) then owner = pc break end
 			end
-			if not pick.core then pick.share[id] = (pick.share[id] or 0) + 1 end
+		end
+		reserved[id] = (reserved[id] or 0) + 1
+		if owner and not owner.core then owner.share[id] = (owner.share[id] or 0) + 1 end
+	end
+	-- share the rest out: loose items unit by unit, containers whole
+	if lootTotal > 0 then
+		for id, n in pairs(Hold.totals(h.hold)) do
+			for _ = 1, n - (reserved[id] or 0) do
+				local r, pick = random() * lootTotal, nil
+				for _, pc in ipairs(h.pieces) do
+					if carries(pc.part) then
+						pick = pc
+						r = r - pc.part.area
+						if r <= 0 then break end
+					end
+				end
+				if pick and not pick.core then pick.share[id] = (pick.share[id] or 0) + 1 end
+			end
 		end
 	end
 end
@@ -1743,7 +2030,7 @@ function Game:damagePiece(h, amount, hx, hy)
 		local lx, ly = h.body:getLocalPoint(hx, hy)
 		local best = math.huge
 		for _, pc in ipairs(h.pieces) do
-			local d = (lx - pc.part.cx) ^ 2 + (ly - pc.part.cy) ^ 2
+			local d = pc.part.collide == false and math.huge or (lx - pc.part.cx) ^ 2 + (ly - pc.part.cy) ^ 2
 			if d < best then best, piece = d, pc end
 		end
 	else
@@ -1783,6 +2070,14 @@ function Game:breakOff(h, piece)
 	end
 	h.loot = Hold.totals(h.hold)
 	local x, y = h.body:getWorldPoint(part.cx, part.cy)
+	if part.explode then
+		-- this part bursts instead of drifting off: its share scatters
+		for id, n in pairs(taken) do self:spawnPickup(x, y, id, n) end
+		for _, st in ipairs(stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
+		self:spark(x, y, 28, { 1, 0.7, 0.35 })
+		self:explode(x, y, part.reach * 1.2, 0, 0)
+		return
+	end
 	local vx, vy = h.body:getLinearVelocityFromWorldPoint(x, y)
 	local hx, hy = h.body:getPosition()
 	local ox, oy = x - hx, y - hy
@@ -1797,7 +2092,7 @@ function Game:breakOff(h, piece)
 	}
 	bits.loot = Hold.totals(bits.hold)
 	partFixtures(body, part, bits, part.cx, part.cy)
-	local m = max(1, h.body:getMass() * piece.frac)
+	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))
 	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)
 	body:setAngle(h.body:getAngle())
 	body:setLinearVelocity(vx + ox / ol * kick, vy + oy / ol * kick)

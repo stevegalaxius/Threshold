@@ -180,10 +180,12 @@ module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective"
 
 -- Maneuvering thrusters (shared "any" slot) ----------------------------------------
 
--- One set of side jets for every hull: it scales to the thruster slot it's
--- fitted in (S as listed, M and L stronger, heavier and hungrier).
+-- One set of side jets for every hull: it scales with the hull's mass
+-- (as listed on a 58 t hull like the Wisp; stronger, heavier and hungrier
+-- on heavier hulls). The exponent keeps the Wisp at 1x and the Anvil
+-- (240 t) at the 1.9x it had as an M slot.
 module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800,
-	bySlot = { S = 1, M = 1.9, L = 3.5, any = 1 } }
+	byMass = { ref = 58, exp = 0.452 } }
 
 -- Computers: one universal slot on every playable hull (src/computers.lua).
 module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav",      price = 2500 }

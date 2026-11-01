@@ -42,7 +42,8 @@ local ScrollPad = 3
 local ScrollBarSize = 10
 local WheelX = 0
 local WheelY = 0
-local WheelSpeed = 3
+-- Threshold: wheel speed is in content pixels per notch (was scrollbar pixels)
+local WheelSpeed = 48
 local HotInstance = nil
 local WheelInstance = nil
 local ScrollInstance = nil
@@ -127,15 +128,19 @@ local function UpdateScrollBars(instance, isObstructed, forceShowX, forceShowY)
 
 	if not isObstructed and Contains(instance, x, y) or (instance.HoverScrollX or instance.HoverScrollY) then
 		if WheelInstance == instance then
+			-- Threshold: the wheel scrolls the content by WheelSpeed pixels a
+			-- notch, so convert to scrollbar units (ScrollPos runs 0..bar size)
+			local rangeX = max(instance.ContentW - instance.W, 1)
+			local rangeY = max(instance.ContentH - instance.H, 1)
 			if WheelX ~= 0 then
-				instance.ScrollPosX = max(instance.ScrollPosX + WheelX, 0)
+				instance.ScrollPosX = max(instance.ScrollPosX + WheelX * xSize / rangeX, 0)
 				instance.IsScrollingX = true
 				isMouseReleased = true
 				WheelX = 0
 			end
 
 			if WheelY ~= 0 then
-				instance.ScrollPosY = max(instance.ScrollPosY - WheelY, 0)
+				instance.ScrollPosY = max(instance.ScrollPosY - WheelY * ySize / rangeY, 0)
 				instance.IsScrollingY = true
 				isMouseReleased = true
 				WheelY = 0
@@ -508,9 +513,19 @@ function Region.GetScrollBarSize()
 	return ScrollBarSize
 end
 
+-- Threshold: several wheel events in one frame add up instead of the last
+-- one winning
 function Region.WheelMoved(x, y)
-	WheelX = x * WheelSpeed
-	WheelY = y * WheelSpeed
+	WheelX = WheelX + x * WheelSpeed
+	WheelY = WheelY + y * WheelSpeed
+end
+
+-- Threshold: a wheel turn no region claimed this frame is dropped, so it
+-- can't linger and scroll whatever panel the mouse moves over later
+function Region.DropUnclaimedWheel()
+	if WheelInstance == nil then
+		WheelX, WheelY = 0, 0
+	end
 end
 
 function Region.GetWheelDelta()

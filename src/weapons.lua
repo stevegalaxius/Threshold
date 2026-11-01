@@ -200,6 +200,8 @@ local function fire(game, e, slot, dt)
 	events.emit("fire", e, slot)
 end
 
+Weapons.fire = fire
+
 -- How far a weapon reaches with what it's loaded with.
 function Weapons.range(slot)
 	if slot.ammo then return data.items[slot.ammo].shot.range end
@@ -245,6 +247,12 @@ end
 
 -- Proximity fuse: the first enemy ship within fuse range of the shell.
 local function fuseTarget(game, p)
+	-- a guided missile only bursts early beside its own target
+	local t = p.kind == "missile" and p.target
+	if t then
+		if not t.dead and Ship.distanceTo(t, p.x, p.y) < p.fuse then return t end
+		return nil
+	end
 	for _, o in ipairs(game.entities) do
 		if o.kind == "ship" and not o.dead and o.team ~= p.team then
 			if Ship.distanceTo(o, p.x, p.y) < p.fuse then return o end
@@ -252,14 +260,47 @@ local function fuseTarget(game, p)
 	end
 end
 
-local function steerMissile(p, dt)
+-- Missiles steer round ships that aren't their target: any ship ahead
+-- within a short look-ahead, whose hull (plus a margin) the missile's line
+-- would pass through, pushes the wanted heading away from it, harder the
+-- closer it is. (The ship that fired it is left alone for a moment, so
+-- the missile can clear its own launcher.)
+local AVOID_MARGIN = 60
+local function avoidance(game, p, t, hx, hy, speed)
+	local look = speed * 0.6 + 200
+	local ax, ay = 0, 0
+	for _, o in ipairs(game.entities) do
+		if o.kind == "ship" and o ~= t and not o.dead and not o.dockState and (o ~= p.owner or (p.age or 0) > 0.6) then
+			local ox, oy = o.body:getPosition()
+			local dx, dy = ox - p.x, oy - p.y
+			local ahead = dx * hx + dy * hy
+			if ahead > 0 and ahead < look then
+				local side = dx * -hy + dy * hx            -- + means it's to the left
+				local clear = (o.halfLength or 20) + AVOID_MARGIN
+				if math.abs(side) < clear then
+					local k = (1 - ahead / look) * (1 - math.abs(side) / clear)
+					local s = side >= 0 and -1 or 1          -- swerve the other way
+					ax, ay = ax + -hy * s * k * 2, ay + hx * s * k * 2
+				end
+			end
+		end
+	end
+	return ax, ay
+end
+
+local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end
+	p.age = (p.age or 0) + dt
 	local speed = sqrt(p.vx * p.vx + p.vy * p.vy)
 	local heading = atan2(p.vy, p.vx)
 	if t then
 		local tx, ty = t.body:getPosition()
-		local want = atan2(ty - p.y, tx - p.x)
+		local wx, wy = tx - p.x, ty - p.y
+		local wl = sqrt(wx * wx + wy * wy)
+		if wl > 0 then wx, wy = wx / wl, wy / wl end
+		local ax, ay = avoidance(game, p, t, cos(heading), sin(heading), speed)
+		local want = atan2(wy + ay, wx + ax)
 		local diff = Ship.wrapAngle(want - heading)
 		local turn = p.turnRate * dt
 		heading = heading + max(-turn, min(turn, diff))
@@ -274,7 +315,7 @@ function Weapons.updateProjectiles(game, dt)
 	local i = 1
 	while i <= #list do
 		local p = list[i]
-		if p.kind == "missile" then steerMissile(p, dt) end
+		if p.kind == "missile" then steerMissile(game, p, dt) end
 		p.px, p.py = p.x, p.y
 		local nx, ny = p.x + p.vx * dt, p.y + p.vy * dt
 		local hit = game:raycast(p.x, p.y, nx, ny, p.team)
