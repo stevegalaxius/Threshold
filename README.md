@@ -54,6 +54,19 @@ file) onto `love.exe`.
 - Death ends the ship. Press R for a starter Wisp docked at the last station you docked at (in whatever level it is), or at the start if you never docked. Your wreck stays where you died with everything you had.
 - Saving: the game picks up from your latest save when it starts. Docking and quitting autosave, F5 saves, and F9 loads whichever save is newest. The debug panel has New game. Saves hold the universe (every station's storage, hangar and market shelf, your home station, your credits and the game clock), your ship with its hold, and where it is. They're plain Lua tables in LÖVE's save folder, versioned so later builds can upgrade them.
 
+## Close-surface flight
+
+Every planet and moon gently pulls ships inward near its surface, even when
+stationary. The pull builds smoothly with proximity and follows rocky outlines.
+Its reach is capped at 2,200 pixels on large worlds and half the radius on small
+moons. Gas giants pull 1.5 times harder around and below the cloud tops, so a
+cloud-city approach needs altitude control. Once fully docked, the station holds
+the ship. Existing atmospheric heating and gas pressure hazards still apply.
+
+F1 exposes **Surface inward pull**, **Surface pull reach**, and **Cloud-top pull
+multiplier**. Defaults are 35 px/s² at the surface, 2,200 pixels maximum reach,
+and 1.5 times strength for gas giants.
+
 ## The debug panel (F1)
 
 - Ship, modules and hold: swap hulls, refit any slot, add ammo, repair, show the hold grid.

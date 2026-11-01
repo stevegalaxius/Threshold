@@ -490,8 +490,8 @@ function Game:spawnGiantAsteroid(x, y, radius)
 	return e
 end
 
--- A planet: a static, indestructible disc in a turning field. There's no
--- gravity: nothing is pulled in. The field is a current circling the
+-- A planet: a static, indestructible disc in a turning field. Ships also
+-- feel a gentle inward pull close to the surface. The current circles the
 -- planet (clockwise on screen) at flow px/s at the surface, slowing with
 -- distance (as 1/sqrt(r)). swirl is how hard it drags things toward the
 -- current's speed (per second). Loose things (rocks, wrecks, loot) are also
@@ -609,6 +609,53 @@ function Game:applyCurrent(dt)
 	for _, p in ipairs(self.pickups) do
 		local ax, ay = self:currentAt(p.x, p.y, p.vx, p.vy, true)
 		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
+	end
+end
+
+-- A shallow gravity band for ship handling, separate from the current's
+-- speed-dependent orbit holding. Small moons have proportionally short
+-- bands; large worlds share a capped reach. Rocky altitude follows the
+-- actual outline so the pull does not start at an invisible circular surface.
+function Game:surfacePullAt(x, y)
+	local w = self.well
+	if not w then return 0, 0 end
+	local dx, dy = x - w.x, y - w.y
+	local r = sqrt(dx * dx + dy * dy)
+	if r < 1 then return 0, 0 end
+	local reach = min(T.surfacePullRange, w.radius * 0.5)
+	local surface = w.radius
+	local rock = w.planet and w.planet.rock
+	if rock then
+		local nx, ny = dx / r, dy / r
+		local outline = rock.outline
+		for i = 1, #outline, 2 do
+			local j = (i + 1) % #outline + 1
+			local ax, ay = outline[i], outline[i + 1]
+			local ex, ey = outline[j] - ax, outline[j + 1] - ay
+			local cross = nx * ey - ny * ex
+			if math.abs(cross) > 0.000001 then
+				local distance = (ax * ey - ay * ex) / cross
+				local along = (ax * ny - ay * nx) / cross
+				if distance > 0 and along >= 0 and along <= 1 then surface = distance; break end
+			end
+		end
+	end
+	local u = max(0, min(1, 1 - (r - surface) / reach))
+	local pull = T.surfacePull * (w.gas and T.gasPullScale or 1) * u * u * (3 - 2 * u)
+	return -dx / r * pull, -dy / r * pull
+end
+
+function Game:applySurfacePull()
+	for _, e in ipairs(self.entities) do
+		-- Docked ships ride the station. The tractor approach remains exposed
+		-- until it has actually brought the ship inside or onto its berth.
+		if e.kind == "ship" and not e.dead and not e.removed
+			and (not e.dockState or e.dockState.phase == "tractor")
+			and not e.launch and not e.departure and not e.runup then
+			local b = e.body
+			local ax, ay = self:surfacePullAt(b:getPosition())
+			b:applyForce(ax * b:getMass(), ay * b:getMass())
+		end
 	end
 end
 
@@ -1466,6 +1513,7 @@ function Game:step(dt)
 	self:updateSleepers()
 	self:applyBoundary()
 	self:applyCurrent(dt)
+	self:applySurfacePull()
 	self:updateLane(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)
