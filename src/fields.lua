@@ -443,7 +443,7 @@ Fields.enceladus = planetField({ name = "Enceladus", R = 2600, depth = 13000, pa
 	belt = 0.7, beltMix = { ice = 1 },
 	stations = { "Tiger Stripe Laboratory", "South Pole Port" },
 	enemies = { { "interceptor", 2 } } })
-Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000,
+Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000, rocky = true, lumpy = 0.05,
 	hue = { 0.65, 0.52, 0.45 }, density = 0.06, mix = { ice = 8, rock = 2 },
 	belt = 0.35, beltMix = { ice = 1 },
 	stations = { "Tombaugh Station", "Sputnik Port" },
