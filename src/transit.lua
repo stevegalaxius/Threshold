@@ -438,17 +438,24 @@ function Game:updateCatch(dt)
 end
 
 -- Into the transit lane toward planet `to`, in the ship you're flying.
-function Game:launchTrip(to)
+-- moon: a short hop between a planet and its moon (src/moons.lua), left
+-- off the edge of the map: { bearing, length } instead of the orbits'.
+function Game:launchTrip(to, moon)
 	local p = self.player
 	if not p or p.dead then return end
 	local from = self.fieldId
-	local au = Fields.distance(from, to, self.universe.clock)
-	-- the lane leaves along the bearing the driver fired you on
-	local clock = self.universe.clock
-	local ax, ay = Fields.orbitPos(from, clock)
-	local bx, by = Fields.orbitPos(to, clock)
-	local bearing = math.atan2(by - ay, bx - ax)
-	local half = Fields.laneLength(au) / 2
+	local au, bearing, half
+	if moon then
+		au, bearing, half = 0, moon.bearing, moon.length / 2
+	else
+		au = Fields.distance(from, to, self.universe.clock)
+		-- the lane leaves along the bearing the driver fired you on
+		local clock = self.universe.clock
+		local ax, ay = Fields.orbitPos(from, clock)
+		local bx, by = Fields.orbitPos(to, clock)
+		bearing = math.atan2(by - ay, bx - ax)
+		half = Fields.laneLength(au) / 2
+	end
 	local Rc = max(T.laneArc, half * 2 * 0.9)
 	self.trip = { from = from, to = to, au = au, length = half * 2, rot = bearing - (-half / Rc) }
 	-- you come in on a run-up short of the lane's mouth, still at the
@@ -467,7 +474,11 @@ function Game:launchTrip(to)
 	p.body:setLinearVelocity(cos(h) * speed, sin(h) * speed)
 	p.runup = { speed = speed, x = x, y = y, h = h }
 	self.camera.x, self.camera.y = x, y
-	self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
+	if moon then
+		self:toast(("%s TO %s"):format(Fields[from].name:upper(), Fields[to].name:upper()), 3)
+	else
+		self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
+	end
 	events.emit("travel", from, to)
 end
 
@@ -503,10 +514,8 @@ end
 -- on course for the planet.
 function Game:placeAtDriver(p, exit)
 	local g = self:findDriver()
-	if not g then return false end
-	local gx, gy = breech(g)
-	local ix, iy = -cos(g.angle), -sin(g.angle)
-	local a = math.atan2(iy, ix)
+	-- off the highway needs no driver (moons have none)
+	if not g and not exit then return false end
 	if exit then
 		-- off the highway: not at the driver, but in from the edge of the
 		-- map on whichever side lines your course up on the planet, so
@@ -550,6 +559,9 @@ function Game:placeAtDriver(p, exit)
 		-- the lane's glow and streaks fade off you instead of blinking out
 		p.laneFade = 1
 	else
+		local gx, gy = breech(g)
+		local ix, iy = -cos(g.angle), -sin(g.angle)
+		local a = math.atan2(iy, ix)
 		p.body:setPosition(gx + ix * (T.driverRadius + 300), gy + iy * (T.driverRadius + 300))
 		p.body:setAngle(a)
 		p.body:setLinearVelocity(ix * T.laneEntrySpeed, iy * T.laneEntrySpeed)

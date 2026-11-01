@@ -906,22 +906,29 @@ function A.update(game, dt)
 	if t >= 43.78 then once("moons", function()
 		local Fields = require("src.fields")
 		local function stepN(n) for _ = 1, n do game:step(1 / 60) end end
+		-- off the map's edge through the on-ramp toward `to`, then fly the
+		-- highway to its far end
 		local function through(to)
 			local p = game.player
 			for _, g in ipairs(game.moonGates or {}) do
 				if g.to == to then
-					p.body:setPosition(g.x, g.y)
+					local d = game.arenaRadius - 300
+					p.body:setPosition(math.cos(g.a) * d, math.sin(g.a) * d)
 					p.body:setLinearVelocity(math.cos(g.a) * 800, math.sin(g.a) * 800)
 					stepN(2)
-					return true
+					return game.lane ~= nil
 				end
 			end
 		end
 		local function across()
-			local c, p = game.crossing, game.player
-			if not c then return end
-			p.body:setPosition(c.half - 50, 0)
-			p.body:setLinearVelocity(900, 0)
+			local lane = game.lane
+			if not lane then return end
+			local p = game.player
+			p.runup, p.laneCarry = nil, nil
+			local x, y = game:fromLane(lane.half - 300, -T.laneWidth / 2)
+			local h = game:laneHeading(lane.half)
+			p.body:setPosition(x, y)
+			p.body:setLinearVelocity(math.cos(h) * 900, math.sin(h) * 900)
 			stepN(10)
 		end
 		local ids = {}
@@ -933,7 +940,7 @@ function A.update(game, dt)
 			game:loadField(m.parent, { player = Ship.record(game.player) })
 			game.state = "playing"
 			local ok1 = through(id)
-			local mid = game.fieldId
+			local mid = game.fieldId .. (game.lane and (" " .. math.floor(game.lane.half * 2) .. " px") or "")
 			across()
 			local inMoon = game.fieldId
 			local st
@@ -949,12 +956,17 @@ function A.update(game, dt)
 			through(m.parent)
 			local back = game.fieldId
 			across()
-			log("moon %s: gate %s -> %s -> %s, station %s, back out -> %s -> %s",
+			log("moon %s: on-ramp %s -> %s -> %s, station %s, back out -> %s -> %s",
 				id, tostring(ok1), mid, inMoon, docked, back, game.fieldId)
 		end
-		game:loadField("luna", { player = Ship.record(game.player) })
-		game.camera.zoom = 0.02
-		shot("18_luna")
+		game:loadField("earth", { player = Ship.record(game.player) })
+		for _, g in ipairs(game.moonGates) do
+			local d = game.arenaRadius - 3000
+			game.player.body:setPosition(math.cos(g.a) * d, math.sin(g.a) * d)
+			game.camera.x, game.camera.y = math.cos(g.a) * d, math.sin(g.a) * d
+		end
+		game.camera.zoom = 0.06
+		shot("18_luna_ramp")
 	end) end
 	if t >= 43.8 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)

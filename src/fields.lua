@@ -58,14 +58,14 @@ Fields.orbits = {
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 }
 
--- Moons: each is its own small map, reached by flying out of its
--- planet's map through the moon's gate on the edge (src/moons.lua), not
+-- Moons: each is its own small map, reached by flying off the edge of
+-- its planet's map toward it, onto a short highway (src/moons.lua), not
 -- by mass driver. A moon has no orbit round the Sun of its own: for
 -- anything at AU scale it sits on its planet.
 --   parent   the planet it circles
 --   period   its month, in Earth years (the same game clock as the planets)
 --   phase    where it starts round the planet
---   gap      how long the crossing from planet to moon is, in px
+--   gap      how long the highway from planet to moon is, in px
 -- A new moon is one line here plus its map (planetField, below, with
 -- parent = its planet).
 Fields.moons = {
@@ -428,16 +428,6 @@ Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent =
 	hue = { 0.75, 0.8, 0.85 }, density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.8,
 	stations = { "Cipango Station", "Voyager Station" },
 	enemies = { { "interceptor", 3 }, { "sniper", 1 } } })
-
--- The crossing between a planet and one of its moons: built from
--- game.crossing (see Game:beginCrossing in src/moons.lua).
-Fields.crossing = {
-	name = "Crossing",
-	transit = true,
-	spawn = { 0, 0 },
-	radius = 30000,
-	build = function(game) game:buildCrossing() end,
-}
 
 -- The transit lane: built from game.trip (see Game:launchTrip).
 Fields.lane = {

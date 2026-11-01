@@ -1083,22 +1083,26 @@ local function drawFieldWorld(game, F, px, py)
 		body = { getPosition = function() return px, py end } })
 end
 
--- The gates out to moons (src/moons.lua): a dashed ring with an arrow
--- pointing out of the map.
+-- The on-ramps to the moons' highways (src/moons.lua): a bright stretch
+-- of the map's edge with chevrons pointing out.
 local function drawMoonGates(game)
+	local R = game.arenaRadius
 	for _, g in ipairs(game.moonGates or {}) do
-		local r = g.radius
-		lg.setColor(0.75, 1, 0.7, 0.55)
-		lg.setLineWidth(outline(3))
-		local n = 24
-		for i = 0, n - 1, 2 do
-			local a1, a2 = game.time * 0.3 + i / n * pi * 2, game.time * 0.3 + (i + 1) / n * pi * 2
-			lg.line(g.x + cos(a1) * r, g.y + sin(a1) * r, g.x + cos(a2) * r, g.y + sin(a2) * r)
+		lg.setColor(0.75, 1, 0.7, 0.6)
+		lg.setLineWidth(outline(4))
+		local pts = {}
+		for i = 0, 24 do
+			local a = g.a - g.half + 2 * g.half * i / 24
+			pts[#pts + 1] = cos(a) * R; pts[#pts + 1] = sin(a) * R
 		end
-		local a = g.a
-		lg.polygon("line", g.x + cos(a) * r * 0.5, g.y + sin(a) * r * 0.5,
-			g.x + cos(a + 2.5) * r * 0.35, g.y + sin(a + 2.5) * r * 0.35,
-			g.x + cos(a - 2.5) * r * 0.35, g.y + sin(a - 2.5) * r * 0.35)
+		lg.line(pts)
+		local ox, oy, tx, ty = cos(g.a), sin(g.a), -sin(g.a), cos(g.a)
+		for k = 0, 3 do
+			local d = R - 2400 + k * 600 + (game.time * 600) % 600
+			local w = 700
+			lg.setColor(0.75, 1, 0.7, 0.15 + k * 0.1)
+			lg.line(ox * d + tx * w, oy * d + ty * w, ox * (d + 350), oy * (d + 350), ox * d - tx * w, oy * d - ty * w)
+		end
 	end
 end
 
@@ -1114,13 +1118,6 @@ function Render.world(game)
 			drawFieldWorld(game, F, px, py)
 		end
 		drawLane(game)
-	end
-	if game.fieldId == "crossing" then
-		local a, b = game:crossingEnds()
-		if a then
-			drawFieldWorld(game, a.F, a.x, a.y)
-			drawFieldWorld(game, b.F, b.x, b.y)
-		end
 	end
 	drawMoonGates(game)
 	drawRange(game)

@@ -209,13 +209,8 @@ function T.resetLane()
 end
 
 
--- Moons (src/moons.lua). Gates sit gateInset in from a map's edge and
--- catch you within gateRadius; you come in through one gateArrive inside
--- it. The crossing keeps your speed (at least crossingMinSpeed), has
--- crossingDebris pieces per 1000 px within crossingSpread of its line,
--- and draws the two worlds crossingView past its ends.
-T.gateInset, T.gateRadius, T.gateArrive = 2500, 1200, 3000
-T.crossingDefault, T.crossingMinSpeed, T.crossingMargin = 30000, 400, 8000
-T.crossingDebris, T.crossingSpread, T.crossingView = 1.5, 5000, 3000
+-- Moons (src/moons.lua): an on-ramp to the highway is rampWidth px of the
+-- map's edge, and takes you once you're within rampInset of the edge.
+T.rampInset, T.rampWidth = 600, 6000
 
 return T
