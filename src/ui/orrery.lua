@@ -48,7 +48,7 @@ local function layout(game)
 		local a = math.atan2(py, px)
 		local r = R * Fields.mapScale(au)
 		local item = { id = id, r = r, dx = cx + cos(a) * r, dy = cy + sin(a) * r, here = id == game.fieldId,
-			row = { x = x + 500, y = y + 70 + (i - 1) * rowH, w = 240, h = rowH - 6 }, key = tostring(i) }
+			row = { x = x + 500, y = y + 70 + (i - 1) * rowH, w = 240, h = rowH - 6 }, key = tostring(i % 10) }
 		if not item.here then
 			item.au = Fields.distance(game.fieldId, id, clock)
 			item.fare = game:driverFare(id)

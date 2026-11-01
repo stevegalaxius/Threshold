@@ -39,7 +39,7 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "mars", "belt", "jupiter", "saturn", "uranus", "neptune",
+Fields.list = { "mercury", "venus", "earth", "mars", "belt", "ring", "jupiter", "saturn", "uranus", "neptune",
 	"asteroids", "giant", "station" }
 Fields.start = "earth"
 
@@ -51,6 +51,7 @@ Fields.orbits = {
 	earth = { au = 1.0, year = 1.0, phase = 0, color = { 0.45, 0.75, 1 } },
 	mars = { au = 1.52, year = 1.88, phase = 4.0, color = { 1, 0.5, 0.35 } },
 	belt = { au = 2.77, year = 4.6, phase = 3.0, color = { 0.65, 0.6, 0.55 } },
+	ring = { au = 2.77, year = 4.6, phase = 3.0 + math.pi, color = { 0.8, 0.75, 0.6 } },   -- across the Sun from Ceres
 	jupiter = { au = 5.2, year = 11.86, phase = 1.2, color = { 0.9, 0.7, 0.5 } },
 	saturn = { au = 9.54, year = 29.46, phase = 0.5, color = { 0.95, 0.85, 0.6 } },
 	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
@@ -270,6 +271,31 @@ local function planetField(o)
 		end,
 	}
 end
+
+-- Ring Station: the belt's other stop, across the Sun from Ceres. No
+-- planet: a giant wheel station in the middle of thick rock, with a clear
+-- space round it kept by traffic control.
+Fields.ring = {
+	name = "Ring Station",
+	spawn = { 0, 5200 },
+	radius = 26000,
+	mix = MIX.belt,
+	stations = { "Ring Station" },
+	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "gunner", 2 } },
+	build = function(game)
+		game:spawnWheelStation(0, 0, 3000, 300, 0.02)
+		-- a few huge rocks, too big to break, out in the field
+		for k = 0, 3 do
+			local a = k / 4 * pi * 2 + 0.4
+			local d = 11000 + (k % 2) * 5000
+			game:spawnGiantAsteroid(cos(a) * d, sin(a) * d, 900 + (k % 3) * 400)
+		end
+		-- thick rock from the clear zone out to the edge
+		local area = pi * (26000 ^ 2 - 6500 ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.35), 6500)
+		game:spawnContainers(T.fieldContainers, 4500)
+	end,
+}
 
 -- Each planet's map. Planet sizes are as set; how roomy a map is comes
 -- from depth, and its character from density, mix and belt.
