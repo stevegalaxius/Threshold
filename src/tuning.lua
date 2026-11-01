@@ -215,5 +215,9 @@ end
 -- ahead of you.
 T.departArc, T.departInset, T.departTime = 9000, 300, 2.5
 T.rampLead = 1500
+-- Past a map's edge (Game:applyBoundary): outward speed bleeds away at up
+-- to edgeBrake per second, reaching full strength edgeSoft px out, and a
+-- drift of edgeDrift px/s^2 carries you slowly back in.
+T.edgeBrake, T.edgeSoft, T.edgeDrift = 1.5, 3000, 40
 
 return T

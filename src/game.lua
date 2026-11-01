@@ -1462,12 +1462,19 @@ function Game:applyBoundary()
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
 		-- only what people built is turned back (rocks drift on out), and
-		-- gently, like a nudge from traffic control
+		-- gently: past the edge your outward speed bleeds away (harder the
+		-- further out) and you drift slowly back in, rather than being
+		-- sprung back. Heading out a way to a moon, it lets you go.
 		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch
 			and not (e.isPlayer and self:onMoonRoad(x, y)) then
-			local over = d - R
-			local f = min(over, 1500) * b:getMass() * 1.2
-			b:applyForce(-x / d * f, -y / d * f)
+			local nx, ny = x / d, y / d
+			local vx, vy = b:getLinearVelocity()
+			local out = vx * nx + vy * ny
+			local m = b:getMass()
+			local k = min(1, (d - R) / T.edgeSoft)
+			local f = -T.edgeDrift * m
+			if out > 0 then f = f - out * T.edgeBrake * k * m end
+			b:applyForce(nx * f, ny * f)
 		end
 	end
 end

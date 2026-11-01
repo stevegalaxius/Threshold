@@ -106,13 +106,33 @@ local function drawGrid(game)
 	for x = floor(x1 / step) * step, x2, step do lg.line(x, y1, x, y2) end
 	for y = floor(y1 / step) * step, y2, step do lg.line(x1, y, x2, y) end
 
-	-- Arena edge: not on a planet's map, which just opens out into space
-	if game.field and game.field.planetR then return end
-	lg.setColor(COLORS.edge)
+	-- Arena edge: a faint dashed line where the map ends (past it, you
+	-- slow down and drift back: Game:applyBoundary)
+	local c = COLORS.edge
+	lg.setColor(c[1], c[2], c[3], c[4] * 0.6)
 	local R, n = game.arenaRadius, 360
 	for i = 0, n - 1, 2 do
 		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
 		lg.line(cos(a1) * R, sin(a1) * R, cos(a2) * R, sin(a2) * R)
+	end
+	-- the ways out to moons (src/moons.lua): a solid, brighter stretch of
+	-- it, with ticks pointing out. Cross it heading out and you're off.
+	local arc = T.departArc / 2 / R
+	for _, g in ipairs(game.moonGates or {}) do
+		local pts = {}
+		for i = 0, 32 do
+			local a = g.a - arc + 2 * arc * i / 32
+			pts[#pts + 1] = cos(a) * R; pts[#pts + 1] = sin(a) * R
+		end
+		lg.setColor(0.6, 0.9, 1, 0.55)
+		lg.setLineWidth(outline(3))
+		lg.line(pts)
+		lg.setColor(0.6, 0.9, 1, 0.3)
+		for i = 0, 8 do
+			local a = g.a - arc + 2 * arc * i / 8
+			lg.line(cos(a) * R, sin(a) * R, cos(a) * (R + 500), sin(a) * (R + 500))
+		end
+		lg.setLineWidth(1)
 	end
 end
 
