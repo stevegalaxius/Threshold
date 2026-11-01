@@ -145,7 +145,7 @@ local function designWindow(E, Editor)
 		local tags = (p.mirror and " [mirror]" or "") .. (i == E.coreIndex and " [core]" or "") .. (E.errors[i] and " [!]" or "")
 		local label = (selected and "> " or "  ") .. (p.name or ("part " .. i)) .. tags
 		local color = E.errors[i] and { 1, 0.45, 0.45 } or selected and { 1, 0.85, 0.3 } or (p.hidden and { 0.5, 0.5, 0.5 } or nil)
-		if Slab.TextSelectable(label, { IsSelected = selected, Color = color }) then E.sel, E.vsel = i, nil end
+		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then E.sel, E.vsel = i, nil end
 		Slab.PopID()
 	end
 	Slab.EndWindow()
