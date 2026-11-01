@@ -248,7 +248,8 @@ function HullShape.drawLights(hull, time, px, only, ox, oy, state)
 			local b = HullShape.brightness(l, time, state)
 			if b > 0 then
 				local c = HullShape.lightColor(l)
-				local size = l.size or 1.2
+				-- nav lights default bigger in ship units, so they grow as you zoom in
+				local size = l.size or (l.kind == "nav" and 3 or 1.2)
 				if l.kind == "nav" then
 					local core = max(size * 0.6, 0.65 * px)
 					lg.setBlendMode("add")

@@ -312,7 +312,7 @@ local function partWindow(E)
 			end
 		end
 		Slab.Text("size (px)")
-		slider(E, "yard_lsize" .. i, light.size or 1.2, 0.5, 6, function(v) light.size = v end, 1)
+		slider(E, "yard_lsize" .. i, light.size or (light.kind == "nav" and 3 or 1.2), 0.5, 6, function(v) light.size = v end, 1)
 		if light.kind == "strobe" then
 			Slab.Text("flashes per second")
 			slider(E, "yard_lrate" .. i, light.rate or 1, 0.1, 4, function(v) light.rate = v end)
