@@ -16,11 +16,18 @@ local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", 
 
 -- Hull stats the design can set over its base hull (see data/hulls.lua).
 local STATS = {
-	{ "mass", "mass (t)" }, { "armor", "armor" }, { "hold", "hold (m3)" },
-	{ "drag", "drag" }, { "radius", "radius (px)" }, { "turn", "turn torque" },
-	{ "turnSpeed", "turn cap (deg/s)" }, { "retroThrust", "retro (kN)" },
-	{ "spoolTime", "spool (s)" }, { "ramSpeed", "ram speed" }, { "turretTurn", "turret (deg/s)" },
-	{ "price", "price" },
+	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn." },
+	{ "armor", "armor", "Hit points of the hull itself." },
+	{ "hold", "hold (m3)", "Cargo space in cubic metres." },
+	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster." },
+	{ "radius", "radius (px)", "Collision and targeting size: the faint circle on the canvas. Keep it about the size of the hull." },
+	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier." },
+	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque." },
+	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward)." },
+	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant." },
+	{ "ramSpeed", "ram speed", "Impact speed (px/s) below which a bump does no harm. Low = fragile." },
+	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret." },
+	{ "price", "price", "Credits to buy it." },
 }
 local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
 local SIZES = { "S", "M", "L", "any" }
@@ -124,7 +131,9 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	if Slab.BeginTree("yard_stats", { Label = "Hull stats (blank = base hull's)" }) then
 		for _, st in ipairs(STATS) do
-			local key, label = st[1], st[2]
+			local key, label, help = st[1], st[2], st[3]
+			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
+			Slab.SameLine()
 			local own = d.stats[key]
 			local v = E.stat(key)
 			Slab.Text(label .. (own ~= nil and " *" or ""))
@@ -140,9 +149,13 @@ local function designWindow(E, Editor)
 		end
 		local mopts = {}
 		for _, m in ipairs({ "fixed", "gimbal", "turret" }) do table.insert(mopts, { label = m, value = m }) end
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "fixed: guns point down the nose, you aim with the ship.\ngimbal: guns swing a few degrees toward the cursor.\nturret: guns rotate all the way round at the turret speed.\nA slot can't override this here yet." })
+		Slab.SameLine()
 		Slab.Text("mount"); Slab.SameLine()
 		combo("yard_mount", E.stat("mount") or "gimbal", mopts, function(m) E.pushUndo(); d.stats.mount = m end, 120)
 		local hopts = { { label = "strafe", value = "strafe" }, { label = "turn", value = "turn" } }
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "strafe: A/D slide sideways on the side thrusters.\nturn: A/D rotate the hull and the mouse only aims the guns (battleships)." })
+		Slab.SameLine()
 		Slab.Text("helm"); Slab.SameLine()
 		combo("yard_helm", E.stat("helm") or "strafe", hopts, function(m) E.pushUndo(); d.stats.helm = m end, 120)
 		Slab.Text("class"); Slab.SameLine()
@@ -161,11 +174,11 @@ local function designWindow(E, Editor)
 			Slab.SameLine()
 			local fopts = {}
 			for _, f in ipairs(FAMILIES) do table.insert(fopts, { label = f, value = f }) end
-			combo("fam", slot.family, fopts, function(f) E.pushUndo(); slot.family = f end, 95)
+			combo("yard_slotfam" .. i, slot.family, fopts, function(f) E.pushUndo(); slot.family = f end, 95)
 			Slab.SameLine()
 			local sopts = {}
 			for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
-			combo("size", slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+			combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
 			Slab.SameLine()
 			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
 				E.pushUndo()
