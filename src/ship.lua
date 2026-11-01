@@ -325,15 +325,13 @@ function Ship.fly(e, dt)
 	local steer = 0
 	if e.hull.helm == "turn" then steer, side = side, 0 end
 
-	-- Afterburner: full main engine plus extra thrust, draining power fast
-	-- until the capacitor is empty; then it's locked out until power is
-	-- back above boostRelight of capacity.
-	if e.power <= 0 then
-		e.burnerLocked = true
-	elseif e.power > s.powerCap * T.boostRelight then
-		e.burnerLocked = false
-	end
-	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
+	-- Afterburner: full main engine plus extra thrust, draining power fast.
+	-- Once the capacitor runs dry it drops to reserve: boostReserve of its
+	-- thrust with no drain, until power is back above boostRelight of
+	-- capacity. (The empty check comes after the drain below: the reactor
+	-- tops power up first every step, so it's never 0 up here.)
+	if e.burnerLocked and e.power > s.powerCap * T.boostRelight then e.burnerLocked = false end
+	local burner = it.boost and s.thrust > 0
 		-- the lane's buff replaces it, except on heavies, which need the
 		-- extra push to get anywhere on the road
 		and (not e.laneBuff or e.hull.class == "heavy")
@@ -355,14 +353,18 @@ function Ship.fly(e, dt)
 	local scale = T.FORCE_PER_KN * T.thrustScale
 	-- Maneuvering thrusters push forward too, but only matter when they
 	-- out-push the main engine (no engine fitted, or a very weak one).
-	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
+	local boost = burner and (e.burnerLocked and 1 + (T.boostThrust - 1) * T.boostReserve or T.boostThrust) or 1
+	local engine = e.spool * s.thrust * boost
 	local jets = max(0, fwd) * aux
 	-- in a transit lane (e.laneBuff, src/transit.lua) every thruster hits
 	-- far harder (the afterburner gets no extra on top)
 	local buff = e.laneBuff and 1 + (T.laneThrust - 1) * e.laneBuff or 1
 	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
 	local l = side * aux * scale * buff
-	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
+	if burner and not e.burnerLocked then
+		e.power = max(0, e.power - s.powerCap * T.boostDrain * dt)
+		if e.power <= 0 then e.burnerLocked = true end
+	end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = s.thrust > 0 and e.spool or 0
 	e.foreBurn = jets > engine and max(0, fwd) or 0

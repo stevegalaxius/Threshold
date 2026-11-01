@@ -85,6 +85,11 @@ function Game:loadField(id, opts)
 	self:spawnDrivers()
 	self:spawnFieldEnemies()
 	self:placePlayer(opts.player, opts.at)
+	-- the new level's name replaces any still showing (the game builds
+	-- Earth before loading the save, which flashed EARTH wherever you were)
+	for i = #self.toasts, 1, -1 do
+		if self.toasts[i].big then table.remove(self.toasts, i) end
+	end
 	self:toast(self.field.name:upper(), 2, nil, true)
 end
 
