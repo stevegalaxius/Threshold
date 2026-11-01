@@ -344,6 +344,11 @@ end
 
 local function crossCheck()
 	for name, mk in pairs(data.markets) do
+		for _, id in ipairs(mk.ships or {}) do
+			if not data.hulls[id] or data.hulls[id].playable == false then
+				error(("%s: market '%s' sells unknown or unplayable ship '%s'"):format(mk.source, name, tostring(id)), 0)
+			end
+		end
 		for _, e in ipairs(mk.sells) do
 			if not data.items[e[1]] then
 				error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)

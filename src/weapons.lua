@@ -260,6 +260,8 @@ local function fuseTarget(game, p)
 	end
 end
 
+-- Missiles fly through the planet's current like ships do: their own speed
+-- and heading are relative to it, and the current carries them along.
 -- Missiles steer round ships that aren't their target: any ship ahead
 -- within a short look-ahead, whose hull (plus a margin) the missile's line
 -- would pass through, pushes the wanted heading away from it, harder the
@@ -288,8 +290,6 @@ local function avoidance(game, p, t, hx, hy, speed)
 	return ax, ay
 end
 
--- Missiles fly through the planet's current like ships do: their own speed
--- and heading are relative to it, and the current carries them along.
 local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end

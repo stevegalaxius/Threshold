@@ -7,7 +7,8 @@
 	    events.emit("kill", victim, killer)
 
 	Events emitted so far: fire, hit, kill, pickup, eject, death, dock,
-	undock, travel (from, to), swapship (ship, station).
+	undock, travel (from, to), swapship (ship, station), buyship and sellship (record,
+	station).
 	Keep this list small and stable: it's going to be the modding API.
 ]]
 

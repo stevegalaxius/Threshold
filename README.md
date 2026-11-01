@@ -26,6 +26,7 @@ file) onto `love.exe`.
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
 | Station screen: cycle Cargo / Hangar / Market tabs | Tab (docked) | |
+| Buy a ship (shipyard list, with your own ship selected) / sell a parked ship | Hangar tab buttons | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
 | New ship after death (at the last station you docked at) | R | Start |
 | Hide help | H | |
