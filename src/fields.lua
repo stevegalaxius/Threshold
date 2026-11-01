@@ -150,8 +150,10 @@ Fields.mixes = MIX
 --                      million px^2; beltIn/beltOut: its band above the
 --                      surface, as fractions of depth (default 0.25..0.38)
 --   track              the station track, as a fraction of depth (0.55)
---   beltMix            the belt's own mix (default: rock round a rocky
---                      planet, the map's mix round a gas giant)
+--   beltMix            the belt's own mix (default rock)
+--   rings              a gas giant's rings, instead of a belt: bands
+--                      { inner, outer (fractions of depth), density =,
+--                      big = chance of a large chunk }, all small ice
 --   stations           names for its orbital stations (none if nil)
 --   city               a cloud city's name: a station floating in a gas
 --                      giant's cloud tops, above the crush (station 1)
@@ -169,7 +171,20 @@ local function planetField(o)
 	local sd = R + depth * (o.track or 0.55)  -- the station track
 	local looseIn = sd + 2000                 -- loose debris starts past the station track
 	local area = function(r1, r2) return pi * (r2 * r2 - r1 * r1) / 1e6 end
-	local rocks = floor((o.belt or 0) * area(beltIn, beltOut))
+	-- The belt, or a gas giant's rings: bands of { inner, outer, how many
+	-- per million px^2, mix, size(game) for each piece }. Rings are all ice
+	-- and mostly small chunks; o.rings lists them as fractions of depth,
+	-- with big: the chance of an occasional large chunk.
+	local bands = {}
+	if o.gas then
+		for _, rb in ipairs(o.rings or {}) do
+			local big = rb.big or 0
+			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], rb.density, { ice = 1 },
+				size = function() return random() < big and 50 + random() * 50 or 10 + random() ^ 2 * 16 end })
+		end
+	else
+		bands[1] = { beltIn, beltOut, o.belt or 0, o.beltMix or { rock = 1 } }
+	end
 	local scattered = floor((o.density or 0) * area(looseIn, edge))
 	-- the planet's colour, the same every visit (so it can be drawn ahead
 	-- of you on the highway before you arrive)
@@ -185,7 +200,7 @@ local function planetField(o)
 		name = name,
 		planetR = R, gas = o.gas, hue = hue,
 		mix = o.mix or MIX.inner,
-		rings = o.gas and { beltIn, beltOut } or nil,
+		rings = o.gas and bands or nil,
 		stations = stations,
 		enemies = o.enemies,
 		spawn = { 0, sd - 800 },
@@ -195,7 +210,7 @@ local function planetField(o)
 		build = function(game)
 			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue) or game:spawnPlanet(0, 0, R, 290, 0.1)
 			if not o.gas then planet.hue = hue end
-			if o.gas then planet.rings = { beltIn, beltOut } end
+			if o.gas then planet.rings = bands end
 			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale) end
 			if o.extra then o.extra(game, R) end
 			if o.stations then
@@ -228,23 +243,24 @@ local function planetField(o)
 					f.body:setLinearVelocity(-sin(a) * speed, cos(a) * speed)
 				end
 			end
-			-- A belt (or ring) of debris already circling with the current.
-			-- a rocky planet's belt is rock (it should read as an asteroid
-			-- belt); a gas giant's rings take its own mix
-			local beltMix = o.beltMix or (o.gas and o.mix) or { rock = 1 }
-			local placed = 0
-			for _ = 1, rocks * 12 do
-				if placed >= rocks then break end
-				local kind = game:pickDebris(beltMix)
-				local radius = game:debrisSize(kind)
-				local a = random() * pi * 2
-				local d = beltIn + random() * (beltOut - beltIn)
-				local x, y = cos(a) * d, sin(a) * d
-				if game:isClear(x, y, radius + 60) then
-					local e = game:spawnDebris(kind, x, y, radius)
-					local v = game:currentSpeed(d)
-					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
-					placed = placed + 1
+			-- The belt (or rings), already circling with the current.
+			for _, band in ipairs(bands) do
+				local b1, b2 = band[1], band[2]
+				local n = floor(band[3] * area(b1, b2))
+				local placed = 0
+				for _ = 1, n * 12 do
+					if placed >= n then break end
+					local kind = game:pickDebris(band[4])
+					local radius = band.size and band.size() or game:debrisSize(kind)
+					local a = random() * pi * 2
+					local d = b1 + random() * (b2 - b1)
+					local x, y = cos(a) * d, sin(a) * d
+					if game:isClear(x, y, radius + 40) then
+						local e = game:spawnDebris(kind, x, y, radius)
+						local v = game:currentSpeed(d)
+						e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+						placed = placed + 1
+					end
 				end
 			end
 			game:spawnAsteroids(scattered, looseIn)
@@ -279,22 +295,25 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000,
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
-	density = 0.08, mix = MIX.giant, belt = 0.3, beltIn = 0.2, beltOut = 0.4,
+	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 0.3 } },
 	city = "Olympus", cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
-	density = 0.08, mix = { ice = 6, rock = 4 }, belt = 0.3, beltIn = 0.15, beltOut = 0.6, track = 0.75,
+	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.75,
+	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
+	-- division, then the A ring (medium)
+	rings = { { 0.15, 0.25, density = 0.1 }, { 0.25, 0.42, density = 0.6, big = 0.04 }, { 0.46, 0.6, density = 0.25 } },
 	stations = { "Cassini Gate", "Enceladus Station" },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
-	density = 0.09, mix = MIX.ice, belt = 0.4, beltIn = 0.25, beltOut = 0.4,
+	density = 0.09, mix = MIX.ice, rings = { { 0.25, 0.4, density = 0.4 } },
 	city = "Herschel",
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
-	density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.3, beltIn = 0.25, beltOut = 0.38,
+	density = 0.09, mix = { ice = 9, rock = 1 }, rings = { { 0.25, 0.38, density = 0.3 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).

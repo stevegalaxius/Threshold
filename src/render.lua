@@ -657,17 +657,12 @@ local function drawPlanet(game, e)
 		end
 	end
 	if e.gas then
-		-- its rings: a faint band where the ring debris circles
-		local rings = e.rings
-		if rings then
-			local mid, wdt = (rings[1] + rings[2]) / 2, rings[2] - rings[1]
+		-- its rings: a faint band for each, brighter where it's denser
+		for _, band in ipairs(e.rings or {}) do
+			local mid, wdt = (band[1] + band[2]) / 2, band[2] - band[1]
 			lg.setLineWidth(wdt)
-			lg.setColor(c[1], c[2], c[3], 0.06)
+			lg.setColor(0.85, 0.9, 0.95, min(0.12, 0.03 + band[3] * 0.08))
 			lg.circle("line", x, y, mid, PLANET_SEGMENTS)
-			lg.setLineWidth(outline(1))
-			lg.setColor(c[1], c[2], c[3], 0.25)
-			lg.circle("line", x, y, rings[1], PLANET_SEGMENTS)
-			lg.circle("line", x, y, rings[2], PLANET_SEGMENTS)
 		end
 		-- a gas giant: see-through bands thickening toward the middle
 		for k = 1, 12 do
