@@ -1463,7 +1463,8 @@ function Game:applyBoundary()
 		local d = sqrt(x * x + y * y)
 		-- only what people built is turned back (rocks drift on out), and
 		-- gently, like a nudge from traffic control
-		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch then
+		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch
+			and not (e.isPlayer and self:onMoonRoad(x, y)) then
 			local over = d - R
 			local f = min(over, 1500) * b:getMass() * 1.2
 			b:applyForce(-x / d * f, -y / d * f)
@@ -2187,7 +2188,7 @@ end
 function Game:frame(dt, aimX, aimY)
 	-- the launch and the lane's run-up take the zoom for a while
 	local p = self.player
-	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
+	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup or p.departure)) then
 		-- whatever was running it is over (died, or a load): the zoom stays
 		-- where it is, and it's yours again
 		self.cineZoom, self.savedZoom = nil, nil

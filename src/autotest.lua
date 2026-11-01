@@ -912,10 +912,10 @@ function A.update(game, dt)
 			local p = game.player
 			for _, g in ipairs(game.moonGates or {}) do
 				if g.to == to then
-					local d = game.arenaRadius - 300
+					local d = game.arenaRadius - 100
 					p.body:setPosition(math.cos(g.a) * d, math.sin(g.a) * d)
 					p.body:setLinearVelocity(math.cos(g.a) * 800, math.sin(g.a) * 800)
-					stepN(2)
+					stepN(os.getenv("MOONSHOT") == "depart" and 90 or math.ceil(T.departTime * 60) + 4)
 					return game.lane ~= nil
 				end
 			end
@@ -964,20 +964,23 @@ function A.update(game, dt)
 		game:loadField("earth", { player = Ship.record(game.player) })
 		game.state = "playing"
 		through("luna")
-		stepN(20)
 		local p = game.player
 		game.camera.x, game.camera.y = p.body:getPosition()
-		game.camera.zoom = os.getenv("MOONSHOT") == "luna" and 0.03 or 0.05
+		if os.getenv("MOONSHOT") ~= "depart" then game.camera.zoom = os.getenv("MOONSHOT") == "luna" and 0.03 or 0.05 end
 		if os.getenv("MOONSHOT") == "luna" then
 			game:loadField("luna", { player = Ship.record(p) })
 			game.camera.x, game.camera.y = 0, 0
 		end
 		do
 			local q = game.player
-			local ps, pn, ph = game:toLane(q.body:getPosition())
 			local vx, vy = q.body:getLinearVelocity()
-			log("handoff: on the highway in %s, %.0f px/s, %.0f px along (mouth at %.0f), %.0f off the median, lane heading %.2f, flying %.2f",
-				game.fieldId, speed(q), ps, -game.lane.half, pn, ph, math.atan2(vy, vx))
+			if game.lane then
+				local ps, pn, ph = game:toLane(q.body:getPosition())
+				log("handoff: in transit in %s, %.0f px/s, %.0f px along (mouth at %.0f), %.0f off the median, lane heading %.2f, flying %.2f",
+					game.fieldId, speed(q), ps, -game.lane.half, pn, ph, math.atan2(vy, vx))
+			else
+				log("departure: still in %s at %.0f px/s, zoom %.3f", game.fieldId, speed(q), game.camera.zoom)
+			end
 		end
 		shot("18_moon_handoff")
 	end) end

@@ -209,9 +209,11 @@ function T.resetLane()
 end
 
 
--- Moons (src/moons.lua): an on-ramp to the highway is rampWidth px of the
--- map's edge, and takes you once you're within rampInset of the edge.
--- Taking one, the lane's mouth is rampLead px ahead of where you left.
-T.rampInset, T.rampWidth, T.rampLead = 600, 6000, 1500
+-- Moons (src/moons.lua): the way out toward a moon is departArc px of the
+-- map's edge; within departInset of the edge, heading out, the departure
+-- starts and takes departTime seconds. Into a lane, its mouth is rampLead
+-- ahead of you.
+T.departArc, T.departInset, T.departTime = 9000, 300, 2.5
+T.rampLead = 1500
 
 return T

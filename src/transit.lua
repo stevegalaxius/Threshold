@@ -456,8 +456,8 @@ function Game:launchTrip(to, moon)
 		bearing = math.atan2(by - ay, bx - ax)
 		half = Fields.laneLength(au) / 2
 	end
-	local Rc = max(T.laneArc, half * 2 * 0.9)
-	self.trip = { from = from, to = to, au = au, length = half * 2, rot = bearing - (-half / Rc) }
+	local _, rot = Game.laneShape(half * 2, bearing)
+	self.trip = { from = from, to = to, au = au, length = half * 2, rot = rot }
 	-- No run-up and no cut. The planet you left is drawn behind the lane's
 	-- mouth (trip.origin, src/render.lua), and you carry on from exactly
 	-- where you were relative to it, at the same speed and heading, a
@@ -510,6 +510,7 @@ function Game:laneExit(back)
 		-- back off a moon trip: where you are relative to the planet drawn
 		-- behind the mouth
 		exit.ox, exit.oy = px - self.trip.origin.x, py - self.trip.origin.y
+		exit.free = true   -- put back exactly there, even past the map's edge
 	end
 	return exit
 end
@@ -535,7 +536,7 @@ function Game:placeAtDriver(p, exit)
 		end
 		local r = sqrt(x * x + y * y)
 		local lim = self.arenaRadius - 200
-		if r > lim then x, y = x / r * lim, y / r * lim end
+		if r > lim and not exit.free then x, y = x / r * lim, y / r * lim end
 		p.body:setPosition(x, y)
 		p.body:setAngle(exit.angle)
 		p.body:setLinearVelocity(exit.vx, exit.vy)
@@ -616,8 +617,10 @@ function Game:laneDestination()
 	return ex + cos(phi) * d, ey + sin(phi) * d, F
 end
 
-function Game:fromLane(s, n)
-	local R, r = self.lane.R, self.lane.rot or 0
+-- A lane's point at (s, n) for a lane of arc radius R turned by r, in its
+-- own coordinates (Game:fromLane for the lane you're on; src/moons.lua
+-- uses it to draw a moon's highway out past a planet map's edge).
+local function laneXY(R, r, s, n)
 	local phi = s / R
 	local x, y
 	if s < 0 then
@@ -627,6 +630,17 @@ function Game:fromLane(s, n)
 	end
 	local c, si = cos(r), sin(r)
 	return x * c - y * si, x * si + y * c
+end
+Game.laneXY = laneXY
+
+function Game:fromLane(s, n)
+	return laneXY(self.lane.R, self.lane.rot or 0, s, n)
+end
+
+-- The arc radius and turn of a lane `length` long leaving along bearing.
+function Game.laneShape(length, bearing)
+	local Rc = max(T.laneArc, length * 0.9)
+	return Rc, bearing + length / 2 / Rc
 end
 
 -- The lane's world direction at distance s along it.
@@ -771,7 +785,6 @@ function Game:updateLane(dt)
 			p.runup = nil
 			p.laneCarry = { speed = sp, t = 0 }
 			self.cineZoom, self.savedZoom = nil, nil
-			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return
 	end

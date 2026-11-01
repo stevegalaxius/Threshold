@@ -240,9 +240,9 @@ local function drawOffscreen(game)
 		end
 	end
 	-- the ways out to moons (or back to the planet): src/moons.lua
-	if game.state ~= "docked" then
+	if game.state ~= "docked" and not (game.player and game.player.departure) then
 		for _, g in ipairs(game.moonGates or {}) do
-			mark(g.label, g.x, g.y, g.radius, { 0.75, 1, 0.7 })
+			mark(g.label, g.x, g.y, 0, { 0.6, 0.85, 1 })
 		end
 	end
 	for _, e in ipairs(game.entities) do
@@ -365,8 +365,8 @@ local function drawTrip(game)
 	local bw = 360
 	lg.setFont(font(13))
 	lg.setColor(AQUA)
-	local label = trip.origin and ("HIGHWAY TO %s"):format(Fields[trip.to].name:upper())
-		or ("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au)
+	local label = trip.au > 0 and ("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au)
+		or ("TRANSIT TO %s"):format(Fields[trip.to].name:upper())
 	lg.printf(label, w / 2 - bw, 52, bw * 2, "center")
 	bar(w / 2 - bw / 2, 72, bw, 14, frac, AQUA, "", ("%d%%"):format(floor(frac * 100)))
 end

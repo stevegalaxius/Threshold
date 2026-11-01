@@ -106,7 +106,8 @@ local function drawGrid(game)
 	for x = floor(x1 / step) * step, x2, step do lg.line(x, y1, x, y2) end
 	for y = floor(y1 / step) * step, y2, step do lg.line(x1, y, x2, y) end
 
-	-- Arena edge
+	-- Arena edge: not on a planet's map, which just opens out into space
+	if game.field and game.field.planetR then return end
 	lg.setColor(COLORS.edge)
 	local R, n = game.arenaRadius, 360
 	for i = 0, n - 1, 2 do
@@ -1087,29 +1088,6 @@ local function drawFieldWorld(game, F, px, py)
 		body = { getPosition = function() return px, py end } })
 end
 
--- The on-ramps to the moons' highways (src/moons.lua): a bright stretch
--- of the map's edge with chevrons pointing out.
-local function drawMoonGates(game)
-	local R = game.arenaRadius
-	for _, g in ipairs(game.moonGates or {}) do
-		lg.setColor(0.75, 1, 0.7, 0.6)
-		lg.setLineWidth(outline(4))
-		local pts = {}
-		for i = 0, 24 do
-			local a = g.a - g.half + 2 * g.half * i / 24
-			pts[#pts + 1] = cos(a) * R; pts[#pts + 1] = sin(a) * R
-		end
-		lg.line(pts)
-		local ox, oy, tx, ty = cos(g.a), sin(g.a), -sin(g.a), cos(g.a)
-		for k = 0, 3 do
-			local d = R - 2400 + k * 600 + (game.time * 600) % 600
-			local w = 700
-			lg.setColor(0.75, 1, 0.7, 0.15 + k * 0.1)
-			lg.line(ox * d + tx * w, oy * d + ty * w, ox * (d + 350), oy * (d + 350), ox * d - tx * w, oy * d - ty * w)
-		end
-	end
-end
-
 function Render.world(game)
 	screenPx = 1 / game.camera.zoom
 	Render.background(game.camera)
@@ -1126,7 +1104,6 @@ function Render.world(game)
 		end
 		drawLane(game)
 	end
-	drawMoonGates(game)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)

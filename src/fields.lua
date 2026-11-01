@@ -438,7 +438,7 @@ Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent =
 
 -- The transit lane: built from game.trip (see Game:launchTrip).
 Fields.lane = {
-	name = "Transit lane",
+	name = "In transit",
 	spawn = { 0, 0 },
 	radius = 1e6,
 	transit = true,
