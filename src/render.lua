@@ -144,9 +144,41 @@ end
 
 local ROCK_FILL, ROCK_LINE = { 0.24, 0.24, 0.27 }, { 0.6, 0.62, 0.68 }
 
+-- Debris is drawn as two filled polygons, the outline as the same shape a
+-- little bigger underneath in the line colour: filled polygons batch into
+-- a single draw call however many there are, where outlines (lines) are
+-- built shape by shape on the CPU.
+local polyA, polyB = {}, {}
 local function drawAsteroid(e)
 	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
+	if not e.giant and e.verts and e.debris ~= "sat" and not e.reentry then
+		local s, a = e.shade, e.body:getAngle()
+		local f, l = e.fill or ROCK_FILL, e.line or ROCK_LINE
+		local k = 1 + outline(2) / (e.radius * 0.8)
+		local c, sn = cos(a), sin(a)
+		local v = e.verts
+		local n = #v
+		for i = 1, n, 2 do
+			local vx, vy = v[i], v[i + 1]
+			local rx, ry = vx * c - vy * sn, vx * sn + vy * c
+			polyA[i], polyA[i + 1] = x + rx * k, y + ry * k
+			polyB[i], polyB[i + 1] = x + rx, y + ry
+		end
+		for i = n + 1, #polyA do polyA[i], polyB[i] = nil, nil end
+		lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+		lg.polygon("fill", polyA)
+		lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+		lg.polygon("fill", polyB)
+		if e.debris == "ice" then
+			-- a frost glint across the face
+			local ox, oy = -e.radius * 0.25, -e.radius * 0.25
+			local c, sn = cos(a), sin(a)
+			lg.setColor(1, 1, 1, 0.18)
+			lg.circle("fill", x + ox * c - oy * sn, y + ox * sn + oy * c, e.radius * 0.3, 12)
+		end
+		return
+	end
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
@@ -636,6 +668,39 @@ end
 
 local PLANET_SEGMENTS = 2048   -- big planets need a smooth edge up close
 
+-- Discs and annuli that size, made once into meshes (a 2048-sided shape
+-- rebuilt every frame is expensive; a mesh is drawn in one call).
+local meshes = {}
+local function annulus(r1, r2)
+	local key = r1 .. ":" .. r2
+	local m = meshes[key]
+	if not m then
+		local v = {}
+		for i = 0, PLANET_SEGMENTS do
+			local a = i / PLANET_SEGMENTS * pi * 2
+			v[#v + 1] = { cos(a) * r2, sin(a) * r2 }
+			v[#v + 1] = { cos(a) * r1, sin(a) * r1 }
+		end
+		m = lg.newMesh(v, "strip", "static")
+		meshes[key] = m
+	end
+	return m
+end
+local function disc(r)
+	local key = "d" .. r
+	local m = meshes[key]
+	if not m then
+		local v = { { 0, 0 } }
+		for i = 0, PLANET_SEGMENTS do
+			local a = i / PLANET_SEGMENTS * pi * 2
+			v[#v + 1] = { cos(a) * r, sin(a) * r }
+		end
+		m = lg.newMesh(v, "fan", "static")
+		meshes[key] = m
+	end
+	return m
+end
+
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
 -- planet's field so you can see which way it drags you.
 
@@ -659,15 +724,13 @@ local function drawPlanet(game, e)
 	if e.gas then
 		-- its rings: a faint band for each, brighter where it's denser
 		for _, band in ipairs(e.rings or {}) do
-			local mid, wdt = (band[1] + band[2]) / 2, band[2] - band[1]
-			lg.setLineWidth(wdt)
 			lg.setColor(0.85, 0.9, 0.95, min(0.12, 0.03 + band[3] * 0.08))
-			lg.circle("line", x, y, mid, PLANET_SEGMENTS)
+			lg.draw(annulus(band[1], band[2]), x, y)
 		end
 		-- a gas giant: see-through bands thickening toward the middle
 		for k = 1, 12 do
 			lg.setColor(c[1], c[2], c[3], 0.045)
-			lg.circle("fill", x, y, R * (1 - (k - 1) / 13), PLANET_SEGMENTS)
+			lg.draw(disc(floor(R * (1 - (k - 1) / 13))), x, y)
 		end
 		lg.setColor(c[1], c[2], c[3], 0.5)
 		lg.setLineWidth(outline(3))
@@ -677,10 +740,10 @@ local function drawPlanet(game, e)
 	-- atmosphere haze
 	for k = 6, 1, -1 do
 		lg.setColor(c[1], c[2], c[3], 0.05)
-		lg.circle("fill", x, y, R + k * 140, PLANET_SEGMENTS)
+		lg.draw(disc(floor(R + k * 140)), x, y)
 	end
 	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.4)
-	lg.circle("fill", x, y, R, PLANET_SEGMENTS)
+	lg.draw(disc(floor(R)), x, y)
 	-- cloud bands, clipped to the disc
 	lg.setColor(c[1] * 0.45, c[2] * 0.45, c[3] * 0.5)
 	for k = -2, 2 do
