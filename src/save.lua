@@ -12,7 +12,7 @@
 	one per slot: save_<slot>.lua.
 ]]
 
-local Save = { VERSION = 1 }
+local Save = { VERSION = 2 }
 
 local function isIdent(k)
 	return type(k) == "string" and k:match("^[%a_][%w_]*$") ~= nil
@@ -85,9 +85,11 @@ function Save.decode(src)
 end
 
 -- Bring an older save up to the current version. Each step upgrades one
--- version; none are needed yet.
+-- version. Version 2 adds selected world-object snapshots.
 function Save.upgrade(state)
 	if (state.version or 0) > Save.VERSION then return nil, "made by a newer version of the game" end
+	state.areas = state.areas or {}
+	state.nextObjectId = state.nextObjectId or 0
 	state.version = Save.VERSION
 	return state
 end

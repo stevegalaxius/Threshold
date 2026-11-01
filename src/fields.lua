@@ -329,7 +329,7 @@ local function planetField(o)
 					local x, y = cos(a) * d, sin(a) * d
 					-- ring ice is packed too densely to check every placement
 					-- against every other piece; they're tiny, so let them be
-					if band.size or game:isClear(x, y, radius + 40) then
+					if (band.size or game:isClear(x, y, radius + 40)) and game:areaObjectClear(x, y, radius + 40) then
 						local e = game:spawnDebris(kind, x, y, radius)
 						local v = game:currentSpeed(d)
 						e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)

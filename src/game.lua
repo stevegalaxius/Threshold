@@ -3,11 +3,10 @@
 	and asteroids), and lists of projectiles, pickups and effects. Systems
 	are just functions that loop over those lists each step.
 
-	This is the "instance" layer from the design doc in miniature: the
-	level you're in (a playing field from src/fields.lua), rebuilt fresh
-	each time you arrive. What lasts between levels (station storage,
-	hangars, where you respawn) is the universe, in src/world.lua, which
-	also has travel and save/load.
+	This is the loaded instance layer. Scenery and ships are rebuilt on
+	arrival; selected world objects are restored from src/persistence.lua.
+	The universe in src/world.lua keeps those records alongside station
+	storage, hangars, home, travel and save state.
 ]]
 
 local data = require("src.data")
@@ -23,6 +22,7 @@ local Fields = require("src.fields")
 local Hold = require("src.inventory.hold")
 local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
+local Persistence = require("src.persistence")
 
 local Game = {}
 Game.__index = Game
@@ -79,6 +79,7 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	if not opts.skipCapture then self:captureArea() end
 	-- Dispose unused approach worlds once; a turnaround preview may also be
 	-- the retained departure scene. The adopted world must stay alive.
 	local disposed = {}
@@ -121,9 +122,12 @@ function Game:loadField(id, opts)
 			self[key] = scene[key]
 		end
 	else
+		self.restoringArea = self.universe.areas and self.universe.areas[id]
 		self.field.build(self)
 		self:spawnDrivers()
 		self:spawnMoonGates()
+		self:restoreArea(self.restoringArea)
+		self.restoringArea = nil
 		self:spawnFieldEnemies()
 	end
 	self:placePlayer(opts.player, opts.at)
@@ -447,6 +451,7 @@ end
 
 -- Is a circle at (x, y) clear of asteroids and structures (by margin)?
 function Game:isClear(x, y, margin)
+	if not self:areaObjectClear(x, y, margin) then return false end
 	for _, o in ipairs(self.entities) do
 		local kind = o.kind
 		if kind == "asteroid" or kind == "structure" or kind == "planet" or kind == "station" or kind == "ship" then
@@ -2112,6 +2117,46 @@ local function partFixtures(body, part, h, ox, oy)
 	return list
 end
 
+-- Restore exact wreck state without rolling loot or choosing new part shares.
+function Game:restoreHusk(r, hull, hold)
+	local body = love.physics.newBody(self.world, r.x, r.y, "dynamic")
+	local h = { kind = "husk", id = self:nextId(), team = 0, hull = hull, body = body,
+		hold = hold, loot = Hold.totals(hold), color = r.color, spine = r.spine,
+		noseX = r.noseX, tailX = r.tailX, halfLength = r.halfLength, radius = r.radius,
+		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase }
+	if r.part then
+		h.part = hull.parts[r.part]
+		if not h.part then body:destroy(); return nil end
+		partFixtures(body, h.part, h, h.part.cx, h.part.cy)
+	elseif r.pieces then
+		h.pieces, h.partsLeft = {}, {}
+		for _, saved in ipairs(r.pieces) do
+			local part = hull.parts[saved.part]
+			if part then
+				local pc = { part = part, core = saved.core, hp = saved.hp, frac = saved.frac,
+					massFrac = saved.massFrac, share = {} }
+				for id, n in pairs(saved.share or {}) do if data.items[id] then pc.share[id] = n end end
+				pc.fixtures = partFixtures(body, part, h, 0, 0)
+				h.pieces[#h.pieces + 1] = pc
+				h.partsLeft[#h.partsLeft + 1] = part
+			end
+		end
+	else
+		local s1, s2 = r.spine[1], r.spine[2]
+		local n = math.ceil((s2 - s1) / hull.radius) + 1
+		for k = 0, n - 1 do
+			local x = n > 1 and (s1 + (s2 - s1) * k / (n - 1)) or s1
+			local f = love.physics.newFixture(body, love.physics.newCircleShape(x, 0, hull.radius), 1)
+			f:setRestitution(0.2)
+			f:setFriction(0.5)
+			f:setUserData(h)
+		end
+	end
+	body:setUserData(h)
+	table.insert(self.entities, h)
+	return h
+end
+
 function Game:breakablePieces(h, ship)
 	local hull = ship.hull
 	-- the core: a part tagged core, else the biggest one that collides.
@@ -2379,6 +2424,7 @@ function Game:frame(dt, aimX, aimY)
 	end
 end
 
+Persistence.install(Game)
 require("src.world")(Game)
 require("src.transit")(Game)
 require("src.moons")(Game)
