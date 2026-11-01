@@ -16,18 +16,18 @@ local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", 
 
 -- Hull stats the design can set over its base hull (see data/hulls.lua).
 local STATS = {
-	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn." },
-	{ "armor", "armor", "Hit points of the hull itself." },
-	{ "hold", "hold (m3)", "Cargo space in cubic metres." },
-	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster." },
-	{ "radius", "radius (px)", "Collision and targeting size: the faint circle on the canvas. Keep it about the size of the hull." },
-	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier." },
-	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque." },
-	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward)." },
-	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant." },
-	{ "ramSpeed", "ram speed", "Impact speed (px/s) below which a bump does no harm. Low = fragile." },
-	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret." },
-	{ "price", "price", "Credits to buy it." },
+	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn.", 1, 5000, 5, 0 },
+	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
+	{ "hold", "hold (m3)", "Cargo space in cubic metres.", 0, 1000, 1, 0 },
+	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
+	{ "radius", "radius (px)", "Collision and targeting size: the faint circle on the canvas. Keep it about the size of the hull.", 4, 400, 1, 0 },
+	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier.", 0, 20000, 50, 0 },
+	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque.", 10, 720, 5, 0 },
+	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward).", 0, 3000, 10, 0 },
+	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
+	{ "ramSpeed", "ram speed", "Impact speed (px/s) below which a bump does no harm. Low = fragile.", 20, 500, 5, 0 },
+	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
+	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
 local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
 local SIZES = { "S", "M", "L", "any" }
@@ -138,7 +138,9 @@ local function designWindow(E, Editor)
 			local v = E.stat(key)
 			Slab.Text(label .. (own ~= nil and " *" or ""))
 			Slab.SameLine({ Pad = 4 })
-			if Slab.Input("yard_stat_" .. key, { Text = v ~= nil and tostring(v) or "", NumbersOnly = true, ReturnOnText = false, W = 90 }) then
+			-- drag sideways or type; each stat has a sensible range and step
+			local lo, hi, step, prec = st[4], st[5], st[6], st[7]
+			if Slab.InputNumberDrag("yard_stat_" .. key, v or lo, lo, hi, step, { W = 90, Precision = prec }) then
 				E.pushUndo()
 				d.stats[key] = Slab.GetInputNumber()
 			end
