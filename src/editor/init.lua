@@ -266,6 +266,33 @@ function E.symmetrizeSelected()
 	E.vsel = nil
 end
 
+-- The editor's tabs: each category keeps its own design and undo history.
+local function categoryOf(kind)
+	if kind == "wreck" or kind == "prop" then return "wreck" end
+	if kind == "station" then return "station" end
+	return "hull"
+end
+E.byCategory = {}
+
+function E.category()
+	return categoryOf(E.design and E.design.kind)
+end
+
+function E.switchCategory(cat)
+	E.byCategory[E.category()] = { design = E.design, undo = E.undo, redo = E.redo, view = { x = E.view.x, y = E.view.y, zoom = E.view.zoom } }
+	local saved = E.byCategory[cat]
+	E.sel, E.vsel, E.lsel, E.slotSel, E.drawing = nil, nil, nil, nil, nil
+	if saved then
+		E.design, E.undo, E.redo = saved.design, saved.undo, saved.redo
+		E.view.x, E.view.y, E.view.zoom = saved.view.x, saved.view.y, saved.view.zoom
+	else
+		E.newDesign(cat)
+		E.view.x, E.view.y = 0, 0
+		E.view.zoom = cat == "station" and 0.25 or 3
+	end
+	if E.tool == "light" and cat ~= "station" and E.lightKind == "window" then E.lightKind = "nav" end
+end
+
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
 function E.isPlaced()
 	return E.design.kind == "wreck" or E.design.kind == "prop" or E.design.kind == "station"

@@ -63,6 +63,12 @@ local function check(E, value, label, onChange)
 	end
 end
 
+local CATEGORIES = {
+	{ "hull", "Ships", "Hulls you can fly" },
+	{ "wreck", "Wrecks", "Derelicts and props placed in the world" },
+	{ "station", "Stations", "Station layouts" },
+}
+
 -- Wreck and prop settings, in place of hull stats and slots.
 local WRECK_STATS = {
 	{ "armor", "armor", 10, 20000, 10, 0, "How much damage it soaks before it bursts (its parts share it)." },
@@ -142,25 +148,39 @@ local function designWindow(E, Editor)
 	for _, id in ipairs(data.list.hulls) do
 		table.insert(opts, { label = data.hulls[id].name .. "  (" .. id .. ")", value = id })
 	end
-	local openOpts = {}
-	for _, o in ipairs(opts) do table.insert(openOpts, o) end
-	for _, id in ipairs(data.list.wrecks) do
-		local w = data.wrecks[id]
-		table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+	-- one tab per category, each with its own design, list and new buttons
+	local cat = E.category()
+	for i, t in ipairs(CATEGORIES) do
+		if i > 1 then Slab.SameLine() end
+		local on = cat == t[1]
+		if Slab.Button(on and ("[ " .. t[2] .. " ]") or t[2], { W = 92, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
 	end
-	for _, id in ipairs(data.list.stations) do
-		table.insert(openOpts, { label = ("%s  (station, %s)"):format(data.stations[id].name, id), value = id })
+	Slab.Separator()
+	local openOpts = {}
+	if cat == "hull" then
+		openOpts = opts
+	elseif cat == "wreck" then
+		for _, id in ipairs(data.list.wrecks) do
+			local w = data.wrecks[id]
+			table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+		end
+	else
+		for _, id in ipairs(data.list.stations) do
+			table.insert(openOpts, { label = ("%s  (%s)"):format(data.stations[id].name, id), value = id })
+		end
 	end
 	Slab.Text("Start from")
-	combo("yard_open", "Edit an existing one...", openOpts, function(id) E.openHull(id) end, 280)
+	combo("yard_open_" .. cat, "Edit an existing one...", openOpts, function(id) E.openHull(id) end, 280)
 	Slab.Text("or new:"); Slab.SameLine()
-	if Slab.Button("Hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
-	Slab.SameLine()
-	if Slab.Button("Wreck", { Tooltip = "A derelict to place in the world, with a loot table" }) then E.newDesign("wreck") end
-	Slab.SameLine()
-	if Slab.Button("Prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
-	Slab.SameLine()
-	if Slab.Button("Station", { Tooltip = "A station layout: needs one part marked as the docking module" }) then E.newDesign("station") end
+	if cat == "hull" then
+		if Slab.Button("Hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
+	elseif cat == "wreck" then
+		if Slab.Button("Wreck", { Tooltip = "A derelict with a loot table" }) then E.newDesign("wreck") end
+		Slab.SameLine()
+		if Slab.Button("Prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
+	else
+		if Slab.Button("Station", { Tooltip = "A station layout: needs one part marked as the docking module" }) then E.newDesign("station") end
+	end
 	Slab.Text("Opening one loads its shape and settings.", { Color = { 0.6, 0.6, 0.6 } })
 	Slab.Text("Export with the same id to replace it.", { Color = { 0.6, 0.6, 0.6 } })
 
@@ -209,7 +229,8 @@ local function designWindow(E, Editor)
 	combo("yard_grid", E.grid .. " px", gopts, function(g) E.grid = g end, 120)
 
 	Slab.Separator()
-	Slab.Text("Preview: how the canvas shows the ship")
+	if Slab.BeginTree("yard_previewtree", { Label = "Preview" }) then
+	Slab.Text("How the canvas shows the design")
 	Slab.Text("view"); Slab.SameLine()
 	local popts = {}
 	for _, k in ipairs({ "normal", "wreck", "collision", "break" }) do table.insert(popts, { label = PREVIEWS[k], value = k }) end
@@ -226,6 +247,8 @@ local function designWindow(E, Editor)
 	Slab.SameLine()
 	if Slab.Button("Hit") then E.previewFlash = 0.35 end
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
+	Slab.EndTree()
+	end
 
 	Slab.Separator()
 	if not E.isPlaced() then
