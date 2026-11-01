@@ -354,7 +354,8 @@ end
 -- A navigation buoy: a small beacon with a slow pulse ring.
 -- A cloud city: fixed parts drawn in the wheel stations' colours, sinking
 -- into the planet's haze below the cloud tops; the docking tunnel through
--- the middle, lit at both ends.
+-- the middle, lit at both ends. Windows and lights are the same size on
+-- every city, so a bigger one just has more of them.
 local function drawCity(game, e)
 	local x, y = e.body:getPosition()
 	local w = game.well
@@ -362,23 +363,18 @@ local function drawCity(game, e)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
-	-- drawn at Herschel's size and scaled up (Olympus is twice as big)
-	local k = e.scale or 1
-	lg.scale(k)
-	local px = screenPx / k
-	local T2, half = 24 * 8, 112 * 8
+	local T2, half = e.tunnel, e.half
 	for _, p in ipairs(e.parts) do
 		lg.setColor(0.2, 0.23, 0.28)
 		lg.polygon("fill", p.verts)
+		lg.setColor(0.15, 0.17, 0.21)
 		if p.role == "stalk" then
-			lg.setColor(0.15, 0.17, 0.21)
-			lg.rectangle("fill", -72, p.verts[2] + 16, 144, p.verts[10] - p.verts[2] - 32)
+			lg.rectangle("fill", -p.w * 0.3, p.y1 + 16, p.w * 0.6, p.y2 - p.y1 - 32)
 		elseif p.role == "deck" then
-			lg.setColor(0.15, 0.17, 0.21)
-			lg.rectangle("fill", -1570, 560, 3140, 80)
+			lg.rectangle("fill", -(p.w - p.ct * 0.5), (p.y1 + p.y2) / 2 - 40, (p.w - p.ct * 0.5) * 2, 80)
 		end
 		lg.setColor(0.55, 0.63, 0.74)
-		lg.setLineWidth(max(2 / k, 1.4 * px))
+		lg.setLineWidth(outline(2))
 		lg.polygon("line", p.verts)
 	end
 	-- the tunnel: dark inside, hazard-striped mouths, the clamp in the middle
@@ -400,7 +396,7 @@ local function drawCity(game, e)
 	lg.setColor(0.4, 1, 0.55, 0.9)
 	lg.rectangle("fill", -144, T2 - 48, 288, 32)
 	-- runway lights into both mouths, chasing inward
-	local lr = max(5, 3 * px)
+	local lr = max(5, 3 * screenPx)
 	for i = 0, 6 do
 		local fade = 1 - i / 7 * 0.6
 		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
@@ -410,24 +406,34 @@ local function drawCity(game, e)
 			lg.circle("fill", lx, T2 - 24, lr)
 		end
 	end
-	-- windows: the roof, two rows on the deck, the collar, pairs down the stalk
+	-- windows: rows across each part at a fixed spacing, pairs down the stalk
 	lg.setColor(1, 0.86, 0.55, 0.85)
-	local wr = max(16, 2 * px)
-	local function row(yy, hw, skip)
-		local i = 0
-		for xx = -hw, hw, 112 do
-			if i % 7 ~= skip then lg.circle("fill", xx, yy, wr) end
-			i = i + 1
+	local wr = max(16, 2 * screenPx)
+	for _, p in ipairs(e.parts) do
+		if p.role == "stalk" then
+			for yy = p.y1 + 160, p.y2 - 120, 240 do
+				lg.circle("fill", -p.w * 0.6, yy, wr)
+				lg.circle("fill", p.w * 0.6, yy, wr)
+			end
+		elseif p.role ~= "mast" and p.role ~= "floor" then
+			local i = 0
+			for yy = p.y1 + 112, p.y2 - 96, 288 do
+				local hw = p.w - max(p.ct, p.cb) - 80
+				local j = 0
+				for xx = -hw, hw, 112 do
+					if (j + i * 3) % 7 ~= 3 then lg.circle("fill", xx, yy, wr) end
+					j = j + 1
+				end
+				i = i + 1
+			end
 		end
 	end
-	row(-288, 720, 3); row(448, 1360, 2); row(736, 1200, 5); row(992, 480, 1)
-	for yy = 1328, 4600, 240 do lg.circle("fill", -144, yy, wr); lg.circle("fill", 144, yy, wr) end
 	-- the beacon on the mast
 	lg.setColor(1, 0.35, 0.3)
-	lg.circle("fill", 0, -1552, max(24, 4 * px))
+	lg.circle("fill", 0, e.tip, max(24, 4 * screenPx))
 	-- the haze: everything below the cloud tops fades into the planet
 	for _, p in ipairs(e.parts) do
-		local depth = (p.y - e.cloudY) / 3000
+		local depth = ((p.y1 + p.y2) / 2 - e.cloudY) / 3000
 		if depth > 0 then
 			lg.setColor(c[1], c[2], c[3], min(0.75, depth * 0.45))
 			lg.polygon("fill", p.verts)

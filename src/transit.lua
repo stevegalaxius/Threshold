@@ -784,55 +784,75 @@ end
 
 -- Cloud cities -----------------------------------------------------------------
 
--- Olympus's shape, from the top down: a mast and its collar, the roof, the
--- docking tunnel, the deck, a collar and the stalk hanging into the clouds.
--- Each part is { top, bottom, half-width, top chamfer, bottom chamfer } in
--- city units, with y = 0 the tunnel's centre line and -y up (out to space).
-local CITY_S = 8
-local CITY_PARTS = {
-	{ -194, -64, 5, 0, 0, role = "mast" },
-	{ -66, -44, 24, 12, 0 },
-	{ -46, -24, 112, 20, 0, role = "roof" },
-	{ 24, 44, 112, 0, 0, role = "floor" },
-	{ 42, 108, 210, 40, 70, role = "deck" },
-	{ 106, 148, 80, 0, 50, role = "collar" },
-	{ 146, 596, 30, 0, 0, role = "stalk" },
-}
-local CITY_TUNNEL = 24          -- half-height of the tunnel, in the same units
+-- A cloud city's shape, from the top down: a mast and its collar, the
+-- superstructure, the docking tunnel, the deck, a collar and the stalk
+-- hanging into the clouds. y = 0 is the tunnel's centre line and -y is up
+-- (out to space). The tunnel is the same size on every city (it's the
+-- hangar, sized for ships); size k grows everything around it, so a big
+-- city is more deck, more decks above and a taller spire, not a scaled-up
+-- small one.
+local CITY_TUNNEL, CITY_HALF = 192, 896   -- tunnel half-height and half-length
 
-local function cityPart(p)
-	local S = CITY_S
-	local y1, y2, w, ct, cb = p[1] * S, p[2] * S, p[3] * S, p[4] * S, p[5] * S
-	return { -w + ct, y1, w - ct, y1, w, y1 + ct * 0.6, w, y2 - cb * 0.6, w - cb, y2, -w + cb, y2, -w, y2 - cb * 0.6, -w, y1 + ct * 0.6 }
+-- One part: top, bottom, half-width and top/bottom chamfers, as an
+-- 8-point convex outline.
+local function cityPart(y1, y2, w, ct, cb, role)
+	return { verts = { -w + ct, y1, w - ct, y1, w, y1 + ct * 0.6, w, y2 - cb * 0.6, w - cb, y2, -w + cb, y2, -w, y2 - cb * 0.6, -w, y1 + ct * 0.6 },
+		y1 = y1, y2 = y2, w = w, ct = ct, cb = cb, role = role }
+end
+
+local function cityParts(k)
+	local parts = {}
+	local function add(...) parts[#parts + 1] = cityPart(...) end
+	local T, H = CITY_TUNNEL, CITY_HALF
+	-- over the tunnel: the roof (overhanging the mouths on a big city),
+	-- then more levels stepping in
+	local roofW = H + 560 * (k - 1)
+	local top = -T - 176 * k
+	add(top, -T, roofW, 160 * k, 0, "roof")
+	local levelW = roofW
+	for i = 1, 2 * (k - 1) do
+		levelW = levelW * 0.72
+		local h = 288
+		add(top - h, top + 8, levelW, 100, 0, "level")
+		top = top - h
+	end
+	-- the spire: a collar and a mast
+	add(top - 176, top + 16, 192, 96, 0, "collar")
+	local mast = 1040 * k
+	add(top - 176 - mast, top - 160, 40, 0, 0, "mast")
+	-- under the tunnel: its floor, the deck, a collar and the stalk
+	add(T, T + 160, H, 0, 0, "floor")
+	local d1 = T + 144
+	local d2 = d1 + 528 * k
+	add(d1, d2, 1680 * k, 320 * k, 560 * k, "deck")
+	local c2 = d2 + 336 * k
+	add(d2 - 16, c2, 640 * k, 0, 400 * k, "collar")
+	add(c2 - 16, c2 + 3600 * k, 240 * k, 0, 0, "stalk")
+	return parts, top - 176 - mast
 end
 
 -- A cloud city: a fixed platform hanging in a gas giant's cloud tops, at
 -- angle a round the planet, with its docking tunnel just under the tops.
 -- It doesn't turn or drift. You dock by flying into either end of the
--- tunnel (dock.both); the clamp is in the middle.
+-- tunnel (dock.both); the clamp is in the middle. k: size (1 or 2).
 function Game:spawnCloudCity(a, k)
+	k = k or 1
 	local w = self.well
-	k = k or 1                               -- size: Olympus is twice Herschel
-	local S = CITY_S
-	local tunnelTop = -CITY_TUNNEL * S * k
-	local r = w.radius - 60 + tunnelTop      -- the tunnel's top 60 px under the cloud tops
+	local T, H = CITY_TUNNEL, CITY_HALF
+	local r = w.radius - 60 - T              -- the tunnel's top 60 px under the cloud tops
 	local body = love.physics.newBody(self.world, w.x + cos(a) * r, w.y + sin(a) * r, "static")
 	body:setAngle(a + pi / 2)                -- local -y points out to space
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
-	local half = 112 * S * k
+	local parts, tip = cityParts(k)
 	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
 		key = ("%s/%d"):format(self.fieldId or "?", n),
-		name = names and names[n] or "Cloud city", radius = half, parts = {},
-		cloudY = (tunnelTop - 60) / k, scale = k, half = half }
-	e.dock = { x1 = -40, x2 = 40, hw = CITY_TUNNEL * S * k, wall = 24, runway = half - 40 + 600, capture = 260, both = true }
-	for _, p in ipairs(CITY_PARTS) do
-		local v = cityPart(p)
-		table.insert(e.parts, { verts = v, role = p.role, y = (p[1] + p[2]) / 2 * S })
-		local pv = {}
-		for i, c in ipairs(v) do pv[i] = c * k end
-		local f = love.physics.newFixture(body, love.physics.newPolygonShape(pv))
+		name = names and names[n] or "Cloud city", radius = 1680 * k, parts = parts, tip = tip,
+		cloudY = -T - 60, tunnel = T, half = H }
+	e.dock = { x1 = -40, x2 = 40, hw = T, wall = 24, runway = H - 40 + 600, capture = 260, both = true }
+	for _, p in ipairs(parts) do
+		local f = love.physics.newFixture(body, love.physics.newPolygonShape(p.verts))
 		f:setFriction(0.5)
 		f:setRestitution(0.1)
 		f:setUserData(e)
