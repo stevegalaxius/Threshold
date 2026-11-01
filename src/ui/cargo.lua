@@ -15,7 +15,8 @@
 	            The game keeps running, and you can still fly with the keys.
 	  looting   a tap of E on a wreck or container in range opens it next
 	            to your hold. Take All, Ctrl-click or right-click takes;
-	            it closes when you drift out of range.
+	            your tractor beam tries to keep it in reach, and the
+	            window closes if it slips out of range anyway.
 
 	A loaded cargo container in any hold (a Hauler's wreck packs its cargo
 	in them) opens with a double-click as one more panel. A ship with room
@@ -43,6 +44,7 @@ local Ship = require("src.ship")
 local Grid = require("src.inventory.grid")
 local Hold = require("src.inventory.hold")
 local Shapes = require("src.inventory.shapes")
+local HullShape = require("src.hullshape")
 local HUD = require("src.hud")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
@@ -330,7 +332,7 @@ function sendHome(game, s)
 	if not st then return end
 	if s.owner == "station" then
 		local shelf = game:stationMarket(st).hold
-		local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale }
+		local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, wear = s.wear }
 		while not Hold.placeStack(shelf, c) do Grid.addRows(shelf.grids[1], 1) end
 		return
 	end
@@ -374,7 +376,7 @@ end
 local function toTrade(L, r, s)
 	local trade
 	for _, side in ipairs(L.sides) do if side.trade then trade = side end end
-	local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, owner = r.side.market and "station" or "player" }
+	local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, wear = s.wear, owner = r.side.market and "station" or "player" }
 	if not Hold.placeStack(trade.hold, c) then return false end
 	Grid.remove(r.g, s)
 	changed(r.side)
@@ -403,7 +405,7 @@ local function returnHand(game)
 	local fw, fh = h.w0, h.h0
 	if Grid.isFree(f.grid, f.x, f.y, fw, fh) then
 		Grid.place(f.grid, { id = h.id, n = h.n, x = f.x, y = f.y, w = fw, h = fh, rot = h.rot0, inner = h.inner,
-			owner = h.side.trade and h.owner or nil, resale = h.resale })
+			owner = h.side.trade and h.owner or nil, resale = h.resale, wear = h.wear })
 		return
 	end
 	if h.side.trade or h.side.market then sendHome(game, h) return end
@@ -467,6 +469,7 @@ function Cargo.update(game)
 		if not docked and Cargo.loot.removed then game:toast("IT'S GONE", 1.2) end
 		if docked then finish(game, nil); Cargo.loot = nil else Cargo.close(game) end
 	end
+	game.looting = Cargo.loot      -- the tractor beam holds it in reach (Game:updateLootHold)
 	if Cargo.hand and not Cargo.isOpen(game) then
 		local h = Cargo.hand
 		returnHand(game)
@@ -972,7 +975,7 @@ local function tooltip(item, n, mx, my, hint, price)
 end
 
 local SLOT_LABEL = { primary = "PRIMARY", secondary = "SECONDARY", auxiliary = "AUXILIARY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "UTILITY", thruster = "THRUSTER" }
+	reactor = "REACTOR", utility = "UTILITY", thruster = "THRUSTER", computer = "COMPUTER" }
 
 local function slotLabel(slot)
 	return SLOT_LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
@@ -1050,18 +1053,13 @@ local function drawEquipment(game, L, mx, my)
 	local hb = E.hull
 	local sc = min((hb.w - 20) / (x2 - x1), (hb.h - 10) / (y2 - y1))
 	local ox, oy = hb.x + hb.w / 2 - (x1 + x2) / 2 * sc, hb.y + hb.h / 2 - (y1 + y2) / 2 * sc
-	local pts = {}
-	for k = 1, #shape, 2 do
-		table.insert(pts, ox + shape[k] * sc)
-		table.insert(pts, oy + shape[k + 1] * sc)
-	end
 	local c = p.color
-	lg.setColor(c[1], c[2], c[3], 0.12)
-	local ok, tris = pcall(love.math.triangulate, pts)
-	if ok then for _, t in ipairs(tris) do lg.polygon("fill", t) end end
-	lg.setColor(c[1], c[2], c[3], 0.8)
-	lg.setLineWidth(1.5)
-	lg.polygon("line", pts)
+	lg.push()
+	lg.translate(ox, oy)
+	lg.scale(sc)
+	HullShape.draw(p.hull, c, function(pc) return { pc[1], pc[2], pc[3], 0.12 } end,
+		function(pc) return { pc[1], pc[2], pc[3], 0.8 } end, 1.5 / sc)
+	lg.pop()
 	lg.setLineWidth(1)
 
 	local hm = h and data.modules[h.id]

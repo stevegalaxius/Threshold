@@ -24,8 +24,10 @@ function stats.compute(hull, loadout)
 	for i in ipairs(hull.slots) do
 		local m = loadout[i] and data.modules[loadout[i]]
 		if m then
-			s.mass = s.mass + m.mass
-			for _, k in ipairs(SUMMED) do s[k] = s[k] + (m[k] or 0) end
+			-- a module with bySlot scales to the slot it's in (side jets)
+			local k = m.bySlot and m.bySlot[hull.slots[i].size] or 1
+			s.mass = s.mass + m.mass * k
+			for _, f in ipairs(SUMMED) do s[f] = s[f] + (m[f] or 0) * k end
 		end
 	end
 

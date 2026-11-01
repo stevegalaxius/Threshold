@@ -35,7 +35,7 @@ enemy {
 
 enemy {
 	id = "brawler", color = { 0.95, 0.3, 0.3 }, name = "Raider Anvil", hull = "brute_anvil",
-	loadout = { "rk7_autocannon", "rk7_autocannon", false, false, "mule_engine", "kiln_reactor", false, "aux_thrusters_m" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", false, false, "mule_engine", "kiln_reactor", false, "aux_thrusters" },
 	cargo = { rounds_m = 300 },
 	ai = { style = "rush", range = 500, accuracy = 0.55, throttle = 0.85 },
 	salvage = { 3, 5 },
@@ -43,7 +43,7 @@ enemy {
 
 enemy {
 	id = "sniper", color = { 0.75, 0.45, 0.95 }, name = "Raider Mortar", hull = "brute_anvil",
-	loadout = { "rk7_autocannon", false, "thumper_m", false, "mule_engine", "kiln_reactor", false, "aux_thrusters_m" },
+	loadout = { "rk7_autocannon", false, "thumper_m", false, "mule_engine", "kiln_reactor", false, "aux_thrusters" },
 	cargo = { shell_m = 24, rounds_m = 150 },
 	ai = { style = "kite", range = 1500, accuracy = 0.6, throttle = 0.7, burstOn = 2, burstOff = 2 },
 	salvage = { 3, 5 },
@@ -65,4 +65,22 @@ enemy {
 	containers = { "cargo_container", 1, 4 },   -- its cargo is packed in these; the wreck keeps them
 	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
 	salvage = { 4, 8 },
+}
+
+-- A courier in a Runner: small hold, quick, and it runs rather than fights.
+enemy {
+	id = "runner_trader", team = 3, color = { 0.8, 0.82, 0.7 }, name = "Runner", hull = "ferrous_runner",
+	cargo = { rounds_s = 200, salvage_kit = 4 },
+	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 900, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
+	salvage = { 1, 3 },
+}
+
+-- The everyday trader in a Packhorse: a fair hold and enough guns to
+-- make a lone pirate think twice.
+enemy {
+	id = "packhorse_trader", team = 3, color = { 0.76, 0.8, 0.74 }, name = "Packhorse", hull = "ferrous_mule",
+	cargo = { rounds_m = 300, scrap = 15, salvage_kit = 8 },
+	containers = { "cargo_container", 0, 2 },
+	ai = { style = "trader", range = 1200, accuracy = 0.55, throttle = 0.9, cruise = 700, horizon = 3.5, burstOn = 1.2, burstOff = 0.9 },
+	salvage = { 2, 5 },
 }

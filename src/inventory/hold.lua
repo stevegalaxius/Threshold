@@ -12,6 +12,9 @@
 	Taking empties the smallest stacks first, so firing frees whole cells
 	instead of thinning every stack.
 
+	A stack can carry wear (0..1): the share of armour a docked drone had
+	lost. Taking prefers unworn stacks.
+
 	A stack can carry a hold of its own (stack.inner): a loaded cargo
 	container. Those are never split up or rebuilt from counts; sorting and
 	relayouts move the stack itself (placeStack), so what's inside stays.
@@ -165,6 +168,7 @@ function Hold.take(h, id, n)
 	-- smallest first, and loaded containers last of all
 	table.sort(list, function(a, b)
 		if (a.s.inner ~= nil) ~= (b.s.inner ~= nil) then return b.s.inner ~= nil end
+		if (a.s.wear or 0) ~= (b.s.wear or 0) then return (a.s.wear or 0) < (b.s.wear or 0) end
 		return a.s.n < b.s.n
 	end)
 	local left = n
@@ -231,7 +235,7 @@ function Hold.clone(h)
 		local cg = Grid.new(g.w, g.h, g.name)
 		cg.key = g.key
 		for _, s in ipairs(g.stacks) do
-			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner, resale = s.resale })
+			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner, resale = s.resale, wear = s.wear })
 		end
 		table.insert(c.grids, cg)
 	end
@@ -332,7 +336,7 @@ function Hold.serialize(h)
 		local sg = { key = g.key, name = g.name, w = g.w, h = g.h, stacks = {} }
 		for _, s in ipairs(g.stacks) do
 			table.insert(sg.stacks, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or nil,
-				inner = s.inner and Hold.serialize(s.inner) or nil, resale = s.resale })
+				inner = s.inner and Hold.serialize(s.inner) or nil, resale = s.resale, wear = s.wear })
 		end
 		table.insert(out.grids, sg)
 	end
@@ -347,7 +351,7 @@ function Hold.deserialize(t, known)
 		for _, s in ipairs(sg.stacks or {}) do
 			if (not known or known(s.id)) and Grid.isFree(g, s.x, s.y, s.w, s.h) then
 				Grid.place(g, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
-					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale })
+					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear })
 			end
 		end
 		table.insert(h.grids, g)
