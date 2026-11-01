@@ -113,8 +113,10 @@ local function designWindow(E, Editor)
 	end
 	if E.tool == "light" then
 		Slab.Text("Click a part for one light, drag for a row", { Color = { 0.6, 0.6, 0.6 } })
-		local kopts = { { label = "window (steady)", value = "window" }, { label = "nav (blinking)", value = "nav" } }
-		combo("yard_lightkind", E.lightKind == "nav" and "nav (blinking)" or "window (steady)", kopts, function(k) E.lightKind = k end, 160)
+		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
+		local kopts = {}
+		for _, k in ipairs({ "window", "nav", "strobe" }) do table.insert(kopts, { label = names[k], value = k }) end
+		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
 	end
@@ -135,6 +137,10 @@ local function designWindow(E, Editor)
 		if pt.color == E.paint then current = pt.name end
 	end
 	combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
+	Slab.Text("Pretend damage (windows go out)")
+	if Slab.InputNumberSlider("yard_pdamage", E.previewDamage, 0, 1, { W = 160, Precision = 2 }) then E.previewDamage = Slab.GetInputNumber() end
+	Slab.SameLine()
+	if Slab.Button("Hit") then E.previewFlash = 0.35 end
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
 
 	Slab.Separator()
@@ -283,27 +289,31 @@ local function partWindow(E)
 	local light = E.lsel and p.lights and p.lights[E.lsel]
 	if light then
 		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
-		local kopts = { { label = "window", value = "window" }, { label = "nav", value = "nav" } }
+		local kopts = { { label = "window", value = "window" }, { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
 		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
 			E.pushUndo()
 			light.kind = k
-			if k == "nav" then light.rate, light.phase = light.rate or 1, light.phase or 0 end
+			if k == "strobe" then light.rate = light.rate or 1 end
 		end, 120)
-		local def = light.kind == "nav" and HullShape.NAV or HullShape.WINDOW
-		local c = light.color or def
-		for ci, name in ipairs({ "r", "g", "b" }) do
-			Slab.Text(name); Slab.SameLine()
-			slider(E, "yard_lc" .. name .. i, c[ci], 0, 1, function(v)
-				light.color = light.color or { def[1], def[2], def[3] }
-				light.color[ci] = v
-			end)
+		local auto = light.color == nil
+		check(E, auto, light.kind == "nav" and "Auto colour (red port, green starboard)" or "Auto colour", function(on)
+			if on then light.color = nil else
+				local c = HullShape.lightColor(light)
+				light.color = { c[1], c[2], c[3] }
+			end
+		end)
+		if light.color then
+			for ci, name in ipairs({ "r", "g", "b" }) do
+				Slab.Text(name); Slab.SameLine()
+				slider(E, "yard_lc" .. name .. i, light.color[ci], 0, 1, function(v) light.color[ci] = v end)
+			end
 		end
 		Slab.Text("size (px)")
-		slider(E, "yard_lsize" .. i, light.size or (light.kind == "nav" and 2.5 or 1.5), 0.5, 8, function(v) light.size = v end, 1)
-		if light.kind == "nav" then
-			Slab.Text("blinks per second")
+		slider(E, "yard_lsize" .. i, light.size or 1.2, 0.5, 6, function(v) light.size = v end, 1)
+		if light.kind == "strobe" then
+			Slab.Text("flashes per second")
 			slider(E, "yard_lrate" .. i, light.rate or 1, 0.1, 4, function(v) light.rate = v end)
-			Slab.Text("phase (offset between lights)")
+			Slab.Text("phase (offset between strobes)")
 			slider(E, "yard_lphase" .. i, light.phase or 0, 0, 1, function(v) light.phase = v end)
 		end
 		if Slab.Button("Delete light") then E.deleteSelected() end

@@ -34,9 +34,12 @@
 	             away as a small wreck
 	  lights     lights placed on the part, in ship space, that go with it
 	             when it breaks off and go dark on a wreck:
-	               { x, y, kind = "window" | "nav", color = { r, g, b },
-	                 size = px, rate = blinks/s, phase = 0..1 }
-	             windows glow steadily, nav lights blink
+	               { x, y, kind = "window" | "nav" | "strobe",
+	                 color = { r, g, b }, size = px, rate = flashes/s,
+	                 phase = 0..1 }
+	             windows flicker on and off now and then and go out as the
+	             ship is damaged; nav lights are steady, red to port and
+	             green to starboard; strobes double-flash white
 	  role       free tag for later systems: engine, cockpit, weapon, dock,
 	             light, antenna, rack, ...
 
@@ -177,34 +180,84 @@ function HullShape.contains(part, x, y)
 end
 
 HullShape.WINDOW = { 1, 0.86, 0.55 }
-HullShape.NAV = { 1, 0.3, 0.25 }
+HullShape.PORT = { 1, 0.15, 0.12 }       -- nav lights: red to port (y < 0)
+HullShape.STARBOARD = { 0.15, 1, 0.3 }   -- green to starboard (y > 0)
+HullShape.STROBE = { 1, 1, 1 }
 
--- Is a light lit at `time`? Windows always; nav lights blink (lit for a
--- quarter of each cycle).
-function HullShape.lit(l, time)
-	if l.kind ~= "nav" then return true end
-	return ((time or 0) * (l.rate or 1) + (l.phase or 0)) % 1 < 0.25
+-- A steady 0..1 number per light, from where it sits.
+local function hash(l)
+	local v = math.sin(l.x * 12.9898 + l.y * 78.233) * 43758.5453
+	return v - math.floor(v)
+end
+
+-- A light's default colour: windows warm (some cooler), nav lights by
+-- side (white on the spine), strobes white.
+function HullShape.lightColor(l)
+	if l.color then return l.color end
+	if l.kind == "nav" then
+		if l.y < -0.5 then return HullShape.PORT elseif l.y > 0.5 then return HullShape.STARBOARD end
+		return HullShape.STROBE
+	elseif l.kind == "strobe" then
+		return HullShape.STROBE
+	end
+	local h = hash(l)
+	if h > 0.8 then return { 0.75, 0.9, 1 } end      -- the odd cabin in cold light
+	return HullShape.WINDOW
+end
+
+-- How bright a light is at `time` (0 = off), for a ship in state
+-- { damage = 0..1, flash = >0 just after a hit }.
+--   window  people inside: each one now and then goes dark for a while
+--           and comes back; they stutter when the ship's hit and go out
+--           one by one as it's damaged
+--   nav     steady running light
+--   strobe  a sharp double flash, rate times a second
+function HullShape.brightness(l, time, state)
+	time = time or 0
+	local damage = state and state.damage or 0
+	local flash = state and state.flash or 0
+	local h = hash(l)
+	if l.kind == "strobe" then
+		local t = (time * (l.rate or 1) + (l.phase or h)) % 1
+		return (t < 0.04 or (t > 0.1 and t < 0.14)) and 1 or 0
+	end
+	if l.kind == "nav" then
+		if flash > 0 and math.sin(time * 70 + h * 40) > 0.3 then return 0.2 end
+		return 1
+	end
+	-- windows
+	if h < damage * 1.1 then return 0 end               -- this deck's lost power
+	if flash > 0 and math.sin(time * 55 + h * 90) > 0 then return 0 end
+	local period = 9 + h * 25
+	local t = (time / period + h * 7) % 1
+	if t < 0.12 then return 0 end                       -- someone turned the light off
+	return 0.75 + 0.25 * math.sin(time * 0.7 + h * 20) ^ 2
 end
 
 -- Draw the lights on parts (all of the hull's, or `only`), offset like
 -- HullShape.draw. minSize keeps them visible when zoomed far out.
-function HullShape.drawLights(hull, time, minSize, only, ox, oy)
+function HullShape.drawLights(hull, time, minSize, only, ox, oy, state)
 	local lg = love.graphics
 	local list = only and (only.shape and { only } or only) or hull.parts
 	if ox then lg.push(); lg.translate(-ox, -oy) end
 	for _, part in ipairs(list) do
 		for _, l in ipairs(part.lights or {}) do
-			if HullShape.lit(l, time) then
-				local c = l.color or (l.kind == "nav" and HullShape.NAV or HullShape.WINDOW)
-				local r = max(l.size or (l.kind == "nav" and 2.5 or 1.5), minSize or 0)
-				if l.kind == "nav" then
+			local b = HullShape.brightness(l, time, state)
+			if b > 0 then
+				local c = HullShape.lightColor(l)
+				local r = max(l.size or 1.2, minSize or 0)
+				if l.kind == "nav" or l.kind == "strobe" then
+					-- a pinpoint with a small soft halo
 					lg.setBlendMode("add")
-					lg.setColor(c[1], c[2], c[3], 0.35)
-					lg.circle("fill", l.x, l.y, r * 2.5)
+					lg.setColor(c[1], c[2], c[3], (l.kind == "strobe" and 0.45 or 0.22) * b)
+					lg.circle("fill", l.x, l.y, r * (l.kind == "strobe" and 3 or 2))
 					lg.setBlendMode("alpha")
+					lg.setColor(c[1] * 0.4 + 0.6, c[2] * 0.4 + 0.6, c[3] * 0.4 + 0.6, b)
+					lg.circle("fill", l.x, l.y, r * 0.7)
+				else
+					lg.setColor(c[1], c[2], c[3], 0.9 * b)
+					lg.rectangle("fill", l.x - r * 0.6, l.y - r * 0.6, r * 1.2, r * 1.2)
 				end
-				lg.setColor(c[1], c[2], c[3], 0.9)
-				lg.circle("fill", l.x, l.y, r)
 			end
 		end
 	end

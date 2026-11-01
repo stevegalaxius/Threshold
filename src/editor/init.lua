@@ -32,6 +32,8 @@ local E = {
 	mirrorNew = false,       -- new parts get a mirror twin
 	lightKind = "window",    -- what the light tool places
 	lightSpacing = 6,        -- px between lights in a dragged row
+	previewDamage = 0,       -- pretend damage, to see the windows go out
+	previewFlash = 0,        -- pretend hit (seconds left)
 	lsel = nil,              -- selected light (index into the selected part's lights)
 	view = { x = 0, y = 0, zoom = 3 },
 	snap = true, grid = 4,
@@ -324,6 +326,7 @@ function Editor.update(dt)
 	local mx, my = love.mouse.getPosition()
 	Canvas.mousemoved(E, mx, my)
 	E.messageT = math.max(0, E.messageT - dt)
+	E.previewFlash = math.max(0, E.previewFlash - dt)
 	E.autosaveT = E.autosaveT + dt
 	if E.dirty and E.autosaveT > 5 then
 		E.autosaveT, E.dirty = 0, false

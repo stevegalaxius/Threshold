@@ -168,7 +168,7 @@ end
 -- A new light like the light tool's settings.
 local function newLight(E, x, y)
 	local l = { x = x, y = y, kind = E.lightKind }
-	if E.lightKind == "nav" then l.rate, l.phase = 1, 0 end
+	if E.lightKind == "strobe" then l.rate = 1 end
 	return l
 end
 
@@ -454,7 +454,8 @@ function Canvas.draw(E)
 					end
 				end
 				if q.lights and E.preview ~= "wreck" and E.preview ~= "break" then
-					HullShape.drawLights(nil, love.timer.getTime(), 1.2 / v.zoom, q)
+					HullShape.drawLights(nil, love.timer.getTime(), 1.2 / v.zoom, q, nil, nil,
+						{ damage = E.previewDamage, flash = E.previewFlash })
 				end
 				if moved then lg.pop() end
 			end
