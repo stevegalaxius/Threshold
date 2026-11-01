@@ -36,6 +36,7 @@
 local T = require("src.tuning")
 local Ship = require("src.ship")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 local events = require("src.events")
 local data = require("src.data")
 local Stations = require("src.stations")
@@ -62,8 +63,7 @@ function Game:spawnDrivers()
 	if not Fields.orbits[self.fieldId] then return end
 	local d = self.arenaRadius - T.driverBarrel - 100
 	local speed = self:currentSpeed(d) * T.driverOrbitScale
-	local a = -pi / 2 + 0.6 + (self.universe and self.universe.clock or 0) * speed / d
-	local x, y = cos(a) * (d + T.driverBarrel / 2), sin(a) * (d + T.driverBarrel / 2)
+	local x, y, a = Locations.position(self.field.driverId, self.universe.clock)
 	for k = #self.entities, 1, -1 do
 		local o = self.entities[k]
 		if o.kind == "asteroid" then
@@ -76,6 +76,7 @@ function Game:spawnDrivers()
 		radius = T.driverRadius, name = "Mass driver", angle = a }
 	body:setUserData(g)
 	table.insert(self.entities, g)
+	self:bindLocation(g, self.field.driverId)
 	self:setOrbit(g, 0, 0, speed)
 	-- the braking rings are only for the warp-and-catch way of travelling
 	if T.travelMode == "flight" then self:spawnCatchRings() end
@@ -923,7 +924,8 @@ local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
 -- Where a cloud city's drift has it now, and the angle round the planet.
 function Game:cityTarget(e)
-	local w, d, t = self.well, e.drift, self.time
+	if e.locationId then return Locations.position(e.locationId, self.universe.clock) end
+	local w, d, t = self.well, e.drift, self.universe.clock
 	local rr = d.r + d.up * sin(t / d.upPeriod * pi * 2 + d.phase)
 	local aa = d.a + d.across * sin(t / d.acrossPeriod * pi * 2 + d.phase * 0.7) / d.r
 	return w.x + cos(aa) * rr, w.y + sin(aa) * rr, aa
@@ -949,7 +951,7 @@ end
 -- angle a round the planet, with its docking tunnel just under the tops.
 -- It doesn't turn or drift. You dock by flying into either end of the
 -- tunnel (dock.both); the clamp is in the middle. k: size (1 or 2).
-function Game:spawnCloudCity(a, k)
+function Game:spawnCloudCity(a, k, locationId)
 	k = k or 1
 	local w = self.well
 	local TH = Stations.CITY_TUNNEL
@@ -973,7 +975,7 @@ function Game:spawnCloudCity(a, k)
 	end
 	local def = data.stations[id]
 	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
-		def = def, key = ("%s/%d"):format(self.fieldId or "?", n),
+		def = def, key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n), locationId = locationId,
 		name = names and names[n] or "Cloud city", radius = 1680 * k,
 		cloudY = def.haze or (-TH - 60),
 		drift = { a = a, r = mid, up = max(0, (top - bottom) / 2 * 0.85), across = T.cityDriftAcross,
@@ -986,6 +988,10 @@ function Game:spawnCloudCity(a, k)
 	end
 	e.dock = e.docks[1]
 	self:armStation(e)
+	if locationId then
+		local location = Locations.get(locationId)
+		e.key, e.name = location.id, location.name
+	end
 	local sx, sy, sa = self:cityTarget(e)
 	body:setPosition(sx, sy)
 	body:setAngle(sa + pi / 2)
@@ -1004,6 +1010,7 @@ function Game:spawnCloudCity(a, k)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
+	if locationId then self:bindLocation(e, locationId) end
 	return e
 end
 

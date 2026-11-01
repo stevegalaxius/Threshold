@@ -10,6 +10,7 @@ local T = require("src.tuning")
 local Ship = require("src.ship")
 local Render = require("src.render")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 
 local Debug = { visible = false }
 
@@ -249,6 +250,15 @@ local function section(id, label, fn, ...)
 	end
 end
 
+local function locationSection(game)
+	Slab.Text(("Universe clock: %.1f"):format(game.universe.clock))
+	for _, place in ipairs(Locations.list(game.fieldId)) do
+		local x, y = Locations.position(place.id, game.universe.clock)
+		Slab.Text(place.id)
+		Slab.Text(("  %s: %.0f, %.0f"):format(place.kind, x, y))
+	end
+end
+
 function Debug.update(dt, game)
 	Slab.Update(dt)
 	if not Debug.visible then return end
@@ -265,6 +275,7 @@ function Debug.update(dt, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)
 	section("dbg_flight", "Flight and catch", flightSection, game)
 	section("dbg_lane", "Transit lane (highway)", laneSection, game)
+	section("dbg_locations", "Location IDs and positions", locationSection, game)
 	section("dbg_spawn", "Spawn and arena", spawnSection, game)
 	Slab.EndWindow()
 end

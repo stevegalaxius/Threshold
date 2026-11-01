@@ -36,6 +36,7 @@ local Shapes = require("src.inventory.shapes")
 local Ship = require("src.ship")
 local T = require("src.tuning")
 local events = require("src.events")
+local Locations = require("src.locations")
 
 local floor, min = math.floor, math.min
 
@@ -79,6 +80,11 @@ local function stockCount(hold, id)
 	return n
 end
 
+function Game.marketDefinition(st)
+	local place = st.locationId and Locations.get(st.locationId)
+	return (place and data.markets[place.marketId or place.id]) or data.markets[st.name]
+end
+
 function Game.newShelf()
 	return Hold.new({ { key = "market", name = "For sale", w = T.marketW, h = T.marketH } })
 end
@@ -88,7 +94,7 @@ function Game:stationMarket(st)
 	local r = self:stationRecord(st)
 	if not r.market then
 		r.market = { hold = Game.newShelf(), next = {} }
-		local mk = data.markets[st.name]
+		local mk = Game.marketDefinition(st)
 		for _, e in ipairs(mk and mk.sells or {}) do
 			local _, _, cap = Shapes.of(e[1])
 			for _ = 1, e[2] do Hold.placeStack(r.market.hold, { id = e[1], n = cap }) end
@@ -109,7 +115,7 @@ function Game:marketTick(st, away)
 			if s.resale and s.resale <= now then Grid.remove(g, s) end
 		end
 	end
-	local cat = data.markets[st.name]
+	local cat = Game.marketDefinition(st)
 	for _, e in ipairs(cat and cat.sells or {}) do
 		local id = e[1]
 		local _, _, cap = Shapes.of(id)
@@ -247,7 +253,7 @@ function Game.shipSellPrice(rec) return floor(Game.shipValue(rec) * T.sellRate) 
 
 -- The hull ids this station's shipyard sells (may be empty).
 function Game.shipyard(st)
-	local mk = data.markets[st.name]
+	local mk = Game.marketDefinition(st)
 	return mk and mk.ships or {}
 end
 

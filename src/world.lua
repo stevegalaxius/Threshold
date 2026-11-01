@@ -4,9 +4,8 @@
 
 	  universe  game.universe = { stations = { [key] = { storage, hangar,
 	            market } }, home = { field, key }, credits, clock } (markets
-	            and credits: src/market.lua). A station's key is "<field>/<n>"
-	            (src/game.lua, spawnWheelStation), so the same station gets
-	            the same record every visit. home is where you last docked.
+	            and credits: src/market.lua). Authored station keys are stable location IDs
+	            (src/locations.lua), independent of display name and spawn order. home is where you last docked.
 	  levels    each named field keeps selected world objects in universe.areas
 	            (src/persistence.lua). Wrecks, containers and loose cargo follow
 	            the orbital current while unloaded. Scenery and NPCs still regenerate on visits;

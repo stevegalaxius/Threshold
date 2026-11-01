@@ -1,10 +1,10 @@
 --[[
-	Station markets: what each station sells, by station name (the names in
+	Station markets: what each station sells, by stable location ID (declared in
 	src/fields.lua). Every station sells its own things; none repeats
 	another's. Every station buys anything.
 
-	market { station = <name>, sells = { entries } }. A mod can replace a
-	station's whole list by naming the same station.
+	market { location = <stable id>, station = <display label>, sells = { entries } }. A mod can replace a
+	station's whole list by using the same location ID.
 
 	Each entry: { item id, max [, restock seconds] }.
 	  max      how much the station keeps on its shelf, in stacks (a stack
@@ -21,89 +21,89 @@
 	seconds, then it's sold on.
 ]]
 
-market { station = "Hub Station", ships = { "halcyon_wisp", "ferrous_runner" }, sells = {   -- general store
+market { location = "venus/hub_station", station = "Hub Station", ships = { "halcyon_wisp", "ferrous_runner" }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "px2_autogun", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "aux_thrusters", 1 }, { "cargo_container", 2 },
 } }
-market { station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
+market { location = "mars/station_alpha", station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "pip_mortar", 2 }, { "thumper_m", 1 },
 	{ "torp_s", 3 }, { "maul_tube", 1 }, { "mule_engine", 1 },
 } }
-market { station = "Station Beta", sells = {   -- missiles and drones
+market { location = "mars/station_beta", station = "Station Beta", sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "sparrow_rack", 2 }, { "hornet_pod", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 },
 } }
-market { station = "Orbital One", sells = {   -- heavy weapons
+market { location = "earth/orbital_one", station = "Orbital One", sells = {   -- heavy weapons
 	{ "rk7_autocannon", 2 }, { "rk14_twin", 1 }, { "long_tom", 1 }, { "shell_l", 4 },
 	{ "glint_laser", 2 }, { "lumen_lance", 1 }, { "sunder_beam", 1 },
 } }
-market { station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
+market { location = "earth/orbital_two", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "trident_bay", 1 }, { "torp_m", 2 }, { "breaker_tube", 1 },
 	{ "torp_l", 1 }, { "leviathan_tube", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_m", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 
 -- Moon stations. Each sells its own few things.
-market { station = "Tranquility Dock", sells = {   -- miners' supply
+market { location = "luna/tranquility_dock", station = "Tranquility Dock", sells = {   -- miners' supply
 	{ "rounds_s", 6 }, { "shell_s", 4 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
 } }
-market { station = "Shackleton Station", sells = {   -- polar depot
+market { location = "luna/shackleton_station", station = "Shackleton Station", sells = {   -- polar depot
 	{ "cargo_container", 3 }, { "aux_thrusters", 1 }, { "nav_computer", 1 },
 } }
-market { station = "Conamara Station", sells = {   -- ice haulers
+market { location = "europa/conamara_station", station = "Conamara Station", sells = {   -- ice haulers
 	{ "hold_pod_m", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
 } }
-market { station = "Pwyll Station", sells = {
+market { location = "europa/pwyll_station", station = "Pwyll Station", sells = {
 	{ "glint_laser", 1 }, { "missile_s", 4 }, { "sparrow_rack", 1 },
 } }
-market { station = "Galileo Regio", sells = {   -- Jovian Accord yard
+market { location = "ganymede/galileo_regio", station = "Galileo Regio", sells = {   -- Jovian Accord yard
 	{ "rk7_autocannon", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
 } }
-market { station = "Uruk Station", sells = {
+market { location = "ganymede/uruk_station", station = "Uruk Station", sells = {
 	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "ember_reactor", 1 },
 } }
-market { station = "Kraken Station", sells = {   -- Caliphate refinery
+market { location = "titan/kraken_station", station = "Kraken Station", sells = {   -- Caliphate refinery
 	{ "kiln_reactor", 1 }, { "torp_s", 3 }, { "maul_tube", 1 },
 } }
-market { station = "Huygens Station", sells = {
+market { location = "titan/huygens_station", station = "Huygens Station", sells = {
 	{ "missile_m", 3 }, { "hornet_pod", 1 }, { "fire_computer", 1 },
 } }
-market { station = "Cipango Station", sells = {   -- frontier outpost
+market { location = "triton/cipango_station", station = "Cipango Station", sells = {   -- frontier outpost
 	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "flit_engine", 1 },
 } }
-market { station = "Voyager Station", sells = {
+market { location = "triton/voyager_station", station = "Voyager Station", sells = {
 	{ "lumen_lance", 1 }, { "guidance_computer", 1 }, { "drone_m", 1 },
 } }
 
 -- Expanded destinations: modest working catalogues using existing equipment.
-market { station = "Pele Works", sells = {
+market { location = "io/pele_works", station = "Pele Works", sells = {
 	{ "kiln_reactor", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
 } }
-market { station = "Loki Laboratory", sells = {
+market { location = "io/loki_laboratory", station = "Loki Laboratory", sells = {
 	{ "glint_laser", 1 }, { "ember_reactor", 1 }, { "nav_computer", 1 },
 } }
-market { station = "Valhalla Port", sells = {
+market { location = "callisto/valhalla_port", station = "Valhalla Port", sells = {
 	{ "hold_pod_m", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
 } }
-market { station = "Asgard Station", sells = {
+market { location = "callisto/asgard_station", station = "Asgard Station", sells = {
 	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "tug_beam", 1 },
 } }
-market { station = "Tiger Stripe Laboratory", sells = {
+market { location = "enceladus/tiger_stripe_laboratory", station = "Tiger Stripe Laboratory", sells = {
 	{ "guidance_computer", 1 }, { "glint_laser", 1 }, { "ember_reactor", 1 },
 } }
-market { station = "South Pole Port", sells = {
+market { location = "enceladus/south_pole_port", station = "South Pole Port", sells = {
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "flit_engine", 1 },
 } }
-market { station = "Tombaugh Station", sells = {
+market { location = "pluto/tombaugh_station", station = "Tombaugh Station", sells = {
 	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "nav_computer", 1 },
 } }
-market { station = "Sputnik Port", sells = {
+market { location = "pluto/sputnik_port", station = "Sputnik Port", sells = {
 	{ "missile_s", 4 }, { "sparrow_rack", 1 }, { "aux_thrusters", 1 },
 } }
 
-market { station = "Gertrude Port", sells = {
+market { location = "titania/gertrude_port", station = "Gertrude Port", sells = {
 	{ "cargo_container", 3 }, { "hold_pod_s", 2 }, { "rounds_s", 4 },
 } }
-market { station = "Messina Research Station", sells = {
+market { location = "titania/messina_research_station", station = "Messina Research Station", sells = {
 	{ "nav_computer", 1 }, { "glint_laser", 1 }, { "guidance_computer", 1 },
 } }

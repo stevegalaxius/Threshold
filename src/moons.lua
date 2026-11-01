@@ -21,6 +21,7 @@
 
 local T = require("src.tuning")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 
 local sqrt, cos, sin, pi, abs = math.sqrt, math.cos, math.sin, math.pi, math.abs
 
@@ -34,7 +35,7 @@ function Game:spawnMoonGates()
 	local id, F = self.fieldId, self.field
 	if not F.planetR then return end
 	local function add(to, angle, m)
-		table.insert(self.moonGates, { to = to, label = Fields[to].name, angle = angle, length = m.gap })
+		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, angle = angle, length = m.gap })
 	end
 	for _, m in ipairs(Fields.moonsOf(id)) do
 		add(m, function(clock) return Fields.moonAngle(m, clock) end, Fields.moons[m])
@@ -48,10 +49,8 @@ end
 
 function Game:placeMoonGates()
 	local clock = self.universe and self.universe.clock or 0
-	local R = self.arenaRadius
 	for _, g in ipairs(self.moonGates or {}) do
-		local a = g.angle(clock)
-		g.a, g.x, g.y = a, cos(a) * R, sin(a) * R
+		g.x, g.y, g.a = Locations.position(g.locationId, clock)
 	end
 end
 
