@@ -271,6 +271,9 @@ local function drawStructure(game, e)
 	end
 end
 
+local BARREL = { S = 7, M = 10, L = 16 }
+local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
+
 -- A wheel station: smooth ring, spokes and hub, with lit windows along
 -- the ring that turn with it.
 local function drawStation(game, e)
@@ -283,6 +286,33 @@ local function drawStation(game, e)
 	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
 		function(c) return c end, outline(2))
 	HullShape.drawLights(e.def, game.time, screenPx)
+	-- turrets: a base and barrels, turned to where each is aiming (twice a
+	-- ship mount's size, and never smaller than a few pixels)
+	for _, w in ipairs(e.weapons or {}) do
+		local sz = w.module.size
+		local r = max((TURRET[sz] or 5) * 2, 4 * screenPx)
+		local len = max((BARREL[sz] or 8) * 3, 7 * screenPx)
+		local thick = max(((sz == "L") and 5 or (sz == "M") and 4 or 3) * 2, 2 * screenPx)
+		lg.push()
+		lg.translate(w.slot.x, w.slot.y)
+		lg.rotate(w.aim or 0)
+		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
+		if w.group == "auxiliary" then
+			lg.rectangle("fill", -r * 0.2, -r * 0.8, r * 1.6, r * 1.6)
+		else
+			local n, gap = w.w.barrels or 1, (w.w.barrelGap or 8) * 2
+			for b = 1, n do
+				local off = (b - (n + 1) / 2) * gap
+				lg.rectangle("fill", 0, off - thick / 2, len, thick)
+			end
+		end
+		lg.setColor(col[1] * 0.3, col[2] * 0.3, col[3] * 0.3)
+		lg.circle("fill", 0, 0, r)
+		lg.setColor(w.target and { 1, 0.4, 0.35 } or col)
+		lg.setLineWidth(outline(1.5))
+		lg.circle("line", 0, 0, r)
+		lg.pop()
+	end
 	-- berths: a pad outline with corner ticks, lit green while taken
 	local berths = e.def.berths
 	if berths and #berths > 0 then
@@ -678,8 +708,6 @@ local function drawPlanet(game, e)
 	lg.circle("line", x, y, R, PLANET_SEGMENTS)
 end
 
-local BARREL = { S = 7, M = 10, L = 16 }
-local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 
 local function drawShip(game, e)
 	-- inside a station: not drawn (parked on a berth: drawn)
@@ -885,7 +913,7 @@ end
 
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" then
+		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
 				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam

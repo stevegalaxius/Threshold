@@ -7,6 +7,7 @@
 ]]
 
 local HullShape = require("src.hullshape")
+local data = require("src.data")
 
 local Canvas = {}
 
@@ -198,6 +199,17 @@ function Canvas.berthAt(E, sx, sy)
 	return best
 end
 
+-- The turret under a screen point (stations).
+function Canvas.turretAt(E, sx, sy)
+	local best, bd
+	for i, t in ipairs(E.design.turrets or {}) do
+		local tx, ty = Canvas.toScreen(E, t.x, t.y)
+		local d = sqrt((tx - sx) ^ 2 + (ty - sy) ^ 2)
+		if d <= 10 and (not bd or d < bd) then best, bd = i, d end
+	end
+	return best
+end
+
 -- Heading (whole degrees) from a berth's spot toward a point; with no
 -- drag, out from the station's centre.
 local function berthHeading(x1, y1, x2, y2)
@@ -230,6 +242,16 @@ function Canvas.mousepressed(E, sx, sy, button)
 		E.drag = { kind = "erase" }
 		Canvas.eraseLights(E, sx, sy, E.eraseRadius)
 		return
+	end
+	if button == 2 and E.tool == "turret" then
+		local i = Canvas.turretAt(E, sx, sy)
+		if i then
+			E.pushUndo()
+			table.remove(E.design.turrets, i)
+			if #E.design.turrets == 0 then E.design.turrets = nil end
+			E.tsel = nil
+			return
+		end
 	end
 	if button == 2 and E.tool == "berth" then
 		local i = Canvas.berthAt(E, sx, sy)
@@ -282,6 +304,15 @@ function Canvas.mousepressed(E, sx, sy, button)
 		return
 	end
 
+	if E.tool == "turret" then
+		local px, py = Canvas.snap(E, wx, wy)
+		E.pushUndo()
+		E.design.turrets = E.design.turrets or {}
+		table.insert(E.design.turrets, { x = px, y = py, module = E.turretModule })
+		E.tsel, E.bsel = #E.design.turrets, nil
+		return
+	end
+
 	if E.tool == "berth" then
 		local px, py = Canvas.snap(E, wx, wy)
 		E.drag = { kind = "berth", x1 = px, y1 = py, x2 = px, y2 = py }
@@ -296,6 +327,15 @@ function Canvas.mousepressed(E, sx, sy, button)
 
 	-- select tool: a vertex of the selected part, an edge (double click
 	-- inserts a point), a part, or nothing
+	local ti = Canvas.turretAt(E, sx, sy)
+	if ti then
+		E.tsel, E.bsel, E.lsel, E.vsel = ti, nil, nil, nil
+		local t = E.design.turrets[ti]
+		local px, py = Canvas.snap(E, wx, wy)
+		E.drag = { kind = "turretmove", i = ti, ox = t.x - px, oy = t.y - py, pushed = false }
+		return
+	end
+	E.tsel = nil
 	local bi = Canvas.berthAt(E, sx, sy)
 	if bi then
 		E.bsel, E.lsel, E.vsel = bi, nil, nil
@@ -364,6 +404,13 @@ function Canvas.mousemoved(E, sx, sy)
 	local px, py = Canvas.snap(E, wx, wy)
 	if d.kind == "rect" or d.kind == "lights" or d.kind == "berth" then
 		d.x2, d.y2 = px, py
+	elseif d.kind == "turretmove" then
+		local t = E.design.turrets and E.design.turrets[d.i]
+		local nx, ny = px + d.ox, py + d.oy
+		if t and (t.x ~= nx or t.y ~= ny) then
+			if not d.pushed then E.pushUndo(); d.pushed = true end
+			t.x, t.y = nx, ny
+		end
 	elseif d.kind == "berthmove" then
 		local b = E.design.berths and E.design.berths[d.i]
 		local nx, ny = px + d.ox, py + d.oy
@@ -579,6 +626,20 @@ function Canvas.draw(E)
 			pad(b.x, b.y, b.heading or 0, b.size or 80, E.bsel == i, E.bsel == i and 1 or 0.7)
 			local cx, cy = Canvas.toScreen(E, b.x, b.y)
 			lg.print("B" .. i, cx + 6, cy + 4)
+		end
+		-- turrets: a ring and a barrel, red for missiles and torpedoes
+		for i, t in ipairs(E.design.turrets or {}) do
+			local cx, cy = Canvas.toScreen(E, t.x, t.y)
+			local m = data.modules[t.module]
+			local aux = m and m.family == "auxiliary"
+			local c = aux and { 1, 0.5, 0.4 } or { 0.6, 0.85, 1 }
+			local sel = E.tsel == i
+			local r = max(6, ({ S = 8, M = 12, L = 18 })[m and m.size or "M"] * v.zoom)
+			lg.setColor(c[1], c[2], c[3], sel and 1 or 0.8)
+			lg.setLineWidth(sel and 2.5 or 1.5)
+			lg.circle("line", cx, cy, r)
+			lg.line(cx, cy, cx + r * 1.8, cy)
+			lg.print("T" .. i, cx + 6, cy + 4)
 		end
 		if E.drag and E.drag.kind == "berth" then
 			local d = E.drag

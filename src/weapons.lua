@@ -200,6 +200,8 @@ local function fire(game, e, slot, dt)
 	events.emit("fire", e, slot)
 end
 
+Weapons.fire = fire
+
 -- How far a weapon reaches with what it's loaded with.
 function Weapons.range(slot)
 	if slot.ammo then return data.items[slot.ammo].shot.range end

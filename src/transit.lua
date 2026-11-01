@@ -854,6 +854,7 @@ function Game:spawnCloudCity(a, k)
 		table.insert(e.docks, c)
 	end
 	e.dock = e.docks[1]
+	self:armStation(e)
 	local sx, sy, sa = self:cityTarget(e)
 	body:setPosition(sx, sy)
 	body:setAngle(sa + pi / 2)

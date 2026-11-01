@@ -40,6 +40,8 @@ local E = {
 	lsel = nil,              -- selected light (index into the selected part's lights)
 	bsel = nil,              -- selected berth (index into design.berths; stations)
 	berthSize = 80,          -- size for new berths
+	tsel = nil,              -- selected turret (index into design.turrets; stations)
+	turretModule = "rk7_autocannon",   -- weapon for new turrets
 	view = { x = 0, y = 0, zoom = 3 },
 	snap = true, grid = 4,
 	preview = "normal",
@@ -82,7 +84,7 @@ function E.undoStep()
 	if not s then return end
 	table.insert(E.redo, snapshot())
 	E.design = s
-	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel = nil
+	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel = nil, nil
 end
 
 function E.redoStep()
@@ -90,7 +92,7 @@ function E.redoStep()
 	if not s then return end
 	table.insert(E.undo, snapshot())
 	E.design = s
-	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel = nil
+	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel = nil, nil
 end
 
 -- Fly with another hull's stats and slots (dropping the design's own).
@@ -124,14 +126,14 @@ function E.newDesign(kind)
 	E.design = { id = "new_" .. kind, name = "New " .. kind, base = data.list.hulls[1], parts = {}, kind = kind ~= "hull" and kind or nil,
 		loot = kind == "wreck" and {} or nil }
 	setBase(E.design.base)
-	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel = nil
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
 end
 
 function E.openHull(id)
 	if data.stations[id] and not data.hulls[id] then
 		E.design = Export.fromStation(id)
 		setBase(E.design.base, true)
-		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel = nil
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
 		E.view.zoom = math.min(E.view.zoom, 0.3)
 		say("Opened " .. data.stations[id].name)
 		return
@@ -139,13 +141,13 @@ function E.openHull(id)
 	if data.wrecks[id] and not data.hulls[id] then
 		E.design = Export.fromWreck(id)
 		setBase(E.design.base, true)
-		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel = nil
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
 		say("Opened " .. data.wrecks[id].name)
 		return
 	end
 	E.design = Export.fromHull(id)
 	setBase(id, true)
-	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel = nil
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
 	say("Opened " .. data.hulls[id].name)
 end
 
@@ -170,11 +172,18 @@ function E.finishDrawing()
 end
 
 function E.deleteSelected()
+	if E.tsel and E.design.turrets and E.design.turrets[E.tsel] then
+		E.pushUndo()
+		table.remove(E.design.turrets, E.tsel)
+		if #E.design.turrets == 0 then E.design.turrets = nil end
+		E.tsel = nil
+		return
+	end
 	if E.bsel and E.design.berths and E.design.berths[E.bsel] then
 		E.pushUndo()
 		table.remove(E.design.berths, E.bsel)
 		if #E.design.berths == 0 then E.design.berths = nil end
-		E.bsel = nil
+		E.bsel, E.tsel = nil, nil
 		return
 	end
 	if not E.sel then return end
@@ -193,7 +202,7 @@ function E.deleteSelected()
 	else
 		E.pushUndo()
 		table.remove(E.design.parts, E.sel)
-		E.sel, E.vsel = nil, nil; E.bsel = nil
+		E.sel, E.vsel = nil, nil; E.bsel, E.tsel = nil, nil
 	end
 end
 
@@ -290,7 +299,7 @@ end
 function E.switchCategory(cat)
 	E.byCategory[E.category()] = { design = E.design, undo = E.undo, redo = E.redo, view = { x = E.view.x, y = E.view.y, zoom = E.view.zoom } }
 	local saved = E.byCategory[cat]
-	E.sel, E.vsel, E.lsel, E.slotSel, E.drawing = nil, nil, nil, nil, nil; E.bsel = nil
+	E.sel, E.vsel, E.lsel, E.slotSel, E.drawing = nil, nil, nil, nil, nil; E.bsel, E.tsel = nil, nil
 	if saved then
 		E.design, E.undo, E.redo = saved.design, saved.undo, saved.redo
 		E.view.x, E.view.y, E.view.zoom = saved.view.x, saved.view.y, saved.view.zoom
@@ -300,7 +309,7 @@ function E.switchCategory(cat)
 		E.view.zoom = cat == "station" and 0.25 or 3
 	end
 	if E.tool == "light" and cat ~= "station" and E.lightKind == "window" then E.lightKind = "nav" end
-	if E.tool == "berth" and cat ~= "station" then E.tool = "select" end
+	if (E.tool == "berth" or E.tool == "turret") and cat ~= "station" then E.tool = "select" end
 end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
@@ -478,7 +487,7 @@ function Editor.keypressed(key)
 		p.mirror = not p.mirror or nil
 	elseif key == "return" or key == "kpenter" then E.finishDrawing()
 	elseif key == "escape" then
-		if E.drawing then E.drawing = nil else E.sel, E.vsel, E.bsel = nil, nil, nil end
+		if E.drawing then E.drawing = nil else E.sel, E.vsel, E.bsel, E.tsel = nil, nil, nil, nil end
 	elseif key == "delete" or key == "backspace" then E.deleteSelected()
 	end
 	return true

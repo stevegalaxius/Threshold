@@ -76,6 +76,19 @@ local WRECK_STATS = {
 	{ "mass", "mass (t)", 1, 100000, 10, 0, "How hard it is to push around." },
 }
 
+-- A combo of the weapon modules a station turret can mount.
+local function turretCombo(id, current, pick)
+	local opts = {}
+	for _, mid in ipairs(data.list.modules) do
+		local m = data.modules[mid]
+		if m.weapon and m.weapon.kind ~= "drone" then
+			table.insert(opts, { label = ("%s (%s %s)"):format(m.name, m.size, m.weapon.kind), value = mid })
+		end
+	end
+	local m = data.modules[current]
+	combo(id, m and m.name or tostring(current), opts, pick, 200)
+end
+
 local function placedSections(E, d)
 	d.stats = d.stats or {}
 	if d.kind == "station" then
@@ -87,6 +100,21 @@ local function placedSections(E, d)
 		Slab.Text(docks >= 1 and ("Docks: %d"):format(docks) or "No dock yet (needs at least 1)", { Color = docks >= 1 and { 0.5, 1, 0.6 } or { 1, 0.5, 0.4 } })
 		Slab.Text("Export with id ring_<R>_<tube> or city_<k>", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Separator()
+		local turrets = d.turrets or {}
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Turrets fire any weapon module (guns, artillery, lasers, missiles, torpedoes)\nwith endless ammo and power. For now they shoot hostile ships and anyone\nwho shoots the station (for 30 s); reputation will decide this later.\nTurn: how fast the turret swings, degrees a second." })
+		Slab.SameLine()
+		Slab.Text(#turrets > 0 and ("Turrets: %d"):format(#turrets) or "Turrets: none")
+		local t = E.tsel and turrets[E.tsel]
+		if t then
+			Slab.Text(("Turret %d"):format(E.tsel), { Color = { 0.6, 0.85, 1 } })
+			turretCombo("yard_turretmod", t.module, function(id) E.pushUndo(); t.module = id end)
+			Slab.Text("turn"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_turretturn", t.turn or 90, 5, 360, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_turretturn"); t.turn = Slab.GetInputNumber()
+			end
+			if Slab.Button("Remove turret") then E.deleteSelected() end
+		end
 		Slab.Separator()
 		local berths = d.berths or {}
 		Slab.Button("?", { W = 18, H = 18, Tooltip = "Berths are parking spots outside the station.\nA ship that docks takes a free berth it fits on and parks there, in view.\nWhen every berth is taken (or there are none), it goes inside through the dock.\nSize is the longest ship half-length that fits." })
@@ -225,7 +253,10 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	Slab.Text("Tool")
 	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Rect (B)" }, { "light", "Lights (L)" } }
-	if E.design.kind == "station" then table.insert(tools, { "berth", "Berths" }) end
+	if E.design.kind == "station" then
+		table.insert(tools, { "berth", "Berths" })
+		table.insert(tools, { "turret", "Turrets" })
+	end
 	local current = 1
 	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
 	for i, t in ipairs(tools) do
@@ -245,6 +276,12 @@ local function designWindow(E, Editor)
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
+	end
+	if E.tool == "turret" then
+		Slab.Text("Click to place a turret; right click removes", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Select tool (V) picks one to move or change", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("weapon for new turrets")
+		turretCombo("yard_turretnew", E.turretModule, function(id) E.turretModule = id end)
 	end
 	if E.tool == "berth" then
 		Slab.Text("Click to place a berth; drag to aim its nose", { Color = { 0.6, 0.6, 0.6 } })

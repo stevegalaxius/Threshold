@@ -706,6 +706,7 @@ function Game:spawnStation(id, x, y, spin, simulated)
 			end
 		end
 	end
+	self:armStation(e)
 	local R = def.radius
 	if simulated then
 		-- hundreds of times a battleship's mass, and no drag
@@ -718,6 +719,98 @@ function Game:spawnStation(id, x, y, spin, simulated)
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	return e
+end
+
+-- Station turrets (def.turrets): each fires its weapon module like a
+-- ship's turret, with endless ammo and power, at whatever
+-- Game:stationHostile says. The station itself is the gun's owner, so it
+-- carries the few fields Weapons.fire reads off a ship.
+local STATION_MULT = { primaryFireRate = 1, primaryDamage = 1, missileDamage = 1, ramDamage = 1 }
+local ENDLESS = { __index = function() return math.huge end }
+local GRUDGE_TIME = 30        -- seconds a station stays angry at whoever shot it
+local RETARGET = 0.4          -- seconds between each turret's target checks
+
+function Game:armStation(e)
+	local list = {}
+	for _, t in ipairs(e.def.turrets or {}) do
+		local m = data.modules[t.module]
+		if m and m.weapon and m.weapon.kind ~= "drone" then
+			table.insert(list, { slot = { x = t.x, y = t.y }, module = m, w = m.weapon,
+				group = m.family == "auxiliary" and "auxiliary" or "primary",
+				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m),
+				cooldown = random() * 0.5, think = random() * RETARGET,
+				mount = "turret", aim = random() * pi * 2, turn = math.rad(t.turn or 90) })
+		end
+	end
+	if #list == 0 then return end
+	e.weapons = list
+	e.stats = { mult = STATION_MULT }
+	e.cargo = setmetatable({}, ENDLESS)
+	e.power = math.huge
+	e.intent = Ship.emptyIntent()
+	e.grudge = e.grudge or setmetatable({}, { __mode = "k" })
+end
+
+-- Would this station shoot at o? For now: hostile ships (team 2, and
+-- their drones), and anyone who has shot the station lately. The
+-- reputation and AI system will replace this.
+function Game:stationHostile(st, o)
+	if o.kind ~= "ship" or o.dead or o.removed or o.dockState then return false end
+	local g = st.grudge and st.grudge[o]
+	if g and self.time - g < GRUDGE_TIME then return true end
+	return o.team == 2
+end
+
+function Game:updateStationGuns(dt)
+	for _, st in ipairs(self.entities) do
+		if st.kind == "station" and st.weapons and not st.removed then
+			local sa = st.body:getAngle()
+			for _, slot in ipairs(st.weapons) do
+				slot.cooldown = max(0, slot.cooldown - dt)
+				local wx, wy = Ship.hardpoint(st, slot.slot)
+				local range = Weapons.range(slot)
+				-- now and then, the nearest hostile in reach
+				slot.think = slot.think - dt
+				local tg = slot.target
+				if slot.think <= 0 or (tg and (tg.dead or tg.removed or tg.dockState)) then
+					slot.think = RETARGET
+					tg = nil
+					local best = range * range
+					for _, o in ipairs(self.entities) do
+						if o.kind == "ship" and self:stationHostile(st, o) then
+							local ox, oy = o.body:getPosition()
+							local d = (ox - wx) ^ 2 + (oy - wy) ^ 2
+							if d < best then tg, best = o, d end
+						end
+					end
+					slot.target = tg
+				end
+				if tg then
+					-- lead the target by the shot's flight time (lasers hit
+					-- at once; missiles steer themselves)
+					local tx, ty = tg.body:getPosition()
+					local kind = slot.w.kind
+					if kind ~= "laser" and kind ~= "missile" and slot.ammo then
+						local speed = data.items[slot.ammo].shot.speed
+						local vx, vy = tg.body:getLinearVelocity()
+						local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)
+						local t = sqrt((tx - wx) ^ 2 + (ty - wy) ^ 2) / max(1, speed)
+						tx, ty = tx + (vx - svx) * t, ty + (vy - svy) * t
+					end
+					local want = Ship.wrapAngle(math.atan2(ty - wy, tx - wx) - sa)
+					local err = Ship.wrapAngle(want - slot.aim)
+					local step = slot.turn * dt
+					slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, err)))
+					local cone = kind == "missile" and 0.45 or 0.06
+					if math.abs(err) < cone then
+						st.intent.aimX, st.intent.aimY = tx, ty
+						st.lock = tg
+						Weapons.fire(self, st, slot, dt)
+					end
+				end
+			end
+		end
+	end
 end
 
 -- Docking. A ship that flies into the tractor zone along a station's
@@ -1289,6 +1382,7 @@ function Game:step(dt)
 		end
 	end
 
+	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:applyBoundary()
 	self:applyCurrent(dt)
@@ -1411,6 +1505,8 @@ end
 -- hx, hy: where it hit, when that's known (a wreck built in parts takes
 -- it on the part that was hit).
 function Game:damage(e, amount, source, cause, hx, hy)
+	-- a station remembers who shot it (and its turrets answer)
+	if e and e.grudge and source and source.kind == "ship" and amount > 0 then e.grudge[source] = self.time end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end

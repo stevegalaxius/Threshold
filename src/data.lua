@@ -184,6 +184,18 @@ function api.station(def)
 	-- parked ship faces), size (the longest ship half-length that fits) }.
 	-- Arriving ships take a free one that fits; the rest go inside.
 	if def.berths ~= nil and type(def.berths) ~= "table" then fail(("station '%s': berths should be a list"):format(def.id)) end
+	-- turrets: { x, y, module (a weapon module id; no drone bays), turn
+	-- (degrees a second, default 90) }. They fire the module's weapon with
+	-- endless ammo at whatever Game:stationHostile picks.
+	if def.turrets ~= nil and type(def.turrets) ~= "table" then fail(("station '%s': turrets should be a list"):format(def.id)) end
+	for j, t in ipairs(def.turrets or {}) do
+		if type(t.x) ~= "number" or type(t.y) ~= "number" then fail(("station '%s': turret %d needs x and y"):format(def.id, j)) end
+		local m = data.modules[t.module]
+		if not (m and m.weapon) or m.weapon.kind == "drone" then
+			fail(("station '%s': turret %d: '%s' isn't a weapon module (drone bays don't fit)"):format(def.id, j, tostring(t.module)))
+		end
+		t.turn = t.turn or 90
+	end
 	for j, b in ipairs(def.berths or {}) do
 		if type(b.x) ~= "number" or type(b.y) ~= "number" then fail(("station '%s': berth %d needs x and y"):format(def.id, j)) end
 		b.heading = b.heading or 0
