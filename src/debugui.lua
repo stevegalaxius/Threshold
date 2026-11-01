@@ -282,7 +282,8 @@ local function graphSection(game)
  if demo and demo.graph.area == game.fieldId then
   Slab.Text(("Travel: %.1f / %.1f seconds"):format(math.min(game.universe.clock-demo.started,demo.route.duration),demo.route.duration))
  end
- Slab.Text("Blue: graph. Gold: route and test marker.")
+ if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
+ Slab.Text("M: map. Blue: graph. Gold: route marker.")
 end
 
 local function locationSection(game)

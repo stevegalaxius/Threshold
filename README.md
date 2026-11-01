@@ -201,11 +201,27 @@ The existing `love . --autotest` also exercises all moon round trips.
 - The art is placeholder outlines, and there's no audio.
 - Field repair items aren't in yet, pending their design.
 
+## Local map
+
+Press **M** to see the current region: planet, stations, trade buoys, mass driver,
+moon departure gates, and your ship. Numbered markers match the location list;
+click a marker or list entry to select it and see its distance. Loaded ships,
+wrecks, and cargo appear as smaller contacts. Transit lanes show both exits.
+
+Drag to pan, scroll to zoom, **Home** to fit the whole region, and **P** to center
+on your ship. **M** or **Esc** closes the map. The map has its own camera and
+blocks flight controls while open; the simulation continues running.
+
+`love . --maptest` checks fitting and coordinate transforms across every region,
+selection, zoom, pan, camera isolation, closing, and transit, and saves example
+map screenshots in the game's save directory.
+
 ## Local travel graph prototype
 
 Open **F1 → Local travel graph prototype**, select two destinations, and click
 **Run route demo**. Blue lines show the local graph; gold shows the chosen route
-and an animated marker. Zoom out to see the network. This does not change NPCs.
+and an animated marker. Press **M** (or **Open local map** in the debug panel)
+to see the entire network on the regional map. This does not change NPCs.
 
 `src/travelgraph.lua` builds a small graph from stable location IDs without
 loading the area's physics. Station endpoints follow their real docking

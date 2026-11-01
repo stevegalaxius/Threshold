@@ -164,7 +164,7 @@ local HELP = {
 	"Q auxiliary ammo size   E tractor beam",
 	"G fly a drone (drone uplink)",
 	"tap E open wreck/container   hold E tow",
-	"Tab cargo hold",
+	"Tab cargo hold   M local map",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
 	"fly into a mass driver to travel   F3 skip to next level   F2 shipyard",
