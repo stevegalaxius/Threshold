@@ -83,6 +83,7 @@ function Game:loadField(id, opts)
 	self.stationCount = 0
 	self.field.build(self)
 	self:spawnDrivers()
+	self:spawnMoonGates()
 	self:spawnFieldEnemies()
 	self:placePlayer(opts.player, opts.at)
 	-- the new level's name replaces any still showing (the game builds
@@ -454,18 +455,29 @@ end
 -- distance (as 1/sqrt(r)). swirl is how hard it drags things toward the
 -- current's speed (per second). Loose things (rocks, wrecks, loot) are also
 -- held in their lane while they circle, so the belt doesn't fling outward.
-function Game:spawnPlanet(x, y, radius, flow, swirl)
+--
+-- rocky: an airless rock (small moons, Ceres) instead of a smooth world:
+-- a lumpy cratered outline (src/fields.lua, Fields.rockShape) that it
+-- also collides as, and no atmosphere.
+function Game:spawnPlanet(x, y, radius, flow, swirl, rocky)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
 		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
-	local f = love.physics.newFixture(body, love.physics.newCircleShape(radius))
+	local shape
+	if rocky then
+		e.rock = rocky
+		shape = love.physics.newChainShape(true, rocky.outline)
+	else
+		shape = love.physics.newCircleShape(radius)
+	end
+	local f = love.physics.newFixture(body, shape)
 	f:setFriction(0.6)
 	f:setRestitution(0.1)
 	f:setUserData(e)
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	-- atmo: how deep the atmosphere (the haze drawn round it) reaches
-	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, atmo = 840, planet = e }
+	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, atmo = not rocky and 840 or nil, planet = e }
 	return e
 end
 
@@ -1408,6 +1420,7 @@ function Game:step(dt)
 	self:updateCrush(dt)
 	self:updateDrivers(dt)
 	self:updateCatch(dt)
+	self:updateMoonGates(dt)
 	self:updateOrbits(dt)
 	self:updateCities(dt)
 	self:updateTow(dt)
@@ -2224,6 +2237,7 @@ end
 
 require("src.world")(Game)
 require("src.transit")(Game)
+require("src.moons")(Game)
 require("src.computers")(Game)
 require("src.market")(Game)
 

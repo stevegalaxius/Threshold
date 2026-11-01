@@ -887,6 +887,61 @@ function A.update(game, dt)
 		love.keypressed("escape")
 		log("pause: Esc again -> paused %s", tostring(Pause.isOpen()))
 	end) end
+	-- Moons: out through each planet's gate, across, into the moon's map,
+	-- dock if it has a station, and back out through its gate home.
+	if t >= 43.78 then once("moons", function()
+		local Fields = require("src.fields")
+		local function stepN(n) for _ = 1, n do game:step(1 / 60) end end
+		local function through(to)
+			local p = game.player
+			for _, g in ipairs(game.moonGates or {}) do
+				if g.to == to then
+					p.body:setPosition(g.x, g.y)
+					p.body:setLinearVelocity(math.cos(g.a) * 800, math.sin(g.a) * 800)
+					stepN(2)
+					return true
+				end
+			end
+		end
+		local function across()
+			local c, p = game.crossing, game.player
+			if not c then return end
+			p.body:setPosition(c.half - 50, 0)
+			p.body:setLinearVelocity(900, 0)
+			stepN(10)
+		end
+		local ids = {}
+		for id in pairs(Fields.moons) do table.insert(ids, id) end
+		table.sort(ids)
+		for _, id in ipairs(ids) do
+			local m = Fields.moons[id]
+			game:respawn()
+			game:loadField(m.parent, { player = Ship.record(game.player) })
+			game.state = "playing"
+			local ok1 = through(id)
+			local mid = game.fieldId
+			across()
+			local inMoon = game.fieldId
+			local st
+			for _, e in ipairs(game.entities) do if e.kind == "station" and e.dock then st = e break end end
+			local docked = "no station"
+			if st then
+				game:dockInstantly(game.player, st)
+				docked = st.name .. (game.player.dockState and " (docked)" or " (FAILED)")
+				game:undock()
+				stepN(30)
+			end
+			game.state = "playing"
+			through(m.parent)
+			local back = game.fieldId
+			across()
+			log("moon %s: gate %s -> %s -> %s, station %s, back out -> %s -> %s",
+				id, tostring(ok1), mid, inMoon, docked, back, game.fieldId)
+		end
+		game:loadField("luna", { player = Ship.record(game.player) })
+		game.camera.zoom = 0.02
+		shot("18_luna")
+	end) end
 	if t >= 43.8 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()

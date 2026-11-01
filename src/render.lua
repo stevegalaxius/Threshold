@@ -9,6 +9,7 @@ local data = require("src.data")
 local Ship = require("src.ship")
 local T = require("src.tuning")
 local HullShape = require("src.hullshape")
+local Fields = require("src.fields")
 
 local Render = {}
 
@@ -676,6 +677,27 @@ local function drawPlanet(game, e)
 			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
 		end
 	end
+	if e.rock then
+		-- an airless rock: lumpy, cratered, no haze
+		local rk = e.rock
+		if not rk.tris then rk.tris = love.math.triangulate(rk.outline) end
+		lg.push()
+		lg.translate(x, y)
+		lg.setColor(c[1] * 0.4, c[2] * 0.4, c[3] * 0.4)
+		for _, t in ipairs(rk.tris) do lg.polygon("fill", t) end
+		for _, cr in ipairs(rk.craters) do
+			lg.setColor(c[1] * 0.3, c[2] * 0.3, c[3] * 0.3)
+			lg.circle("fill", cr[1], cr[2], cr[3], 32)
+			lg.setColor(c[1] * 0.55, c[2] * 0.55, c[3] * 0.55)
+			lg.setLineWidth(outline(2))
+			lg.circle("line", cr[1], cr[2], cr[3], 32)
+		end
+		lg.setColor(c[1], c[2], c[3], 0.9)
+		lg.setLineWidth(outline(3))
+		lg.polygon("line", rk.outline)
+		lg.pop()
+		return
+	end
 	if e.gas then
 		-- its rings: a faint band for each, brighter where it's denser
 		for _, band in ipairs(e.rings or {}) do
@@ -1052,6 +1074,34 @@ local function drawRange(game)
 	lg.circle("line", x, y, reach, 96)
 end
 
+-- A field's world drawn at (px, py), as seen from outside its map.
+local function drawFieldWorld(game, F, px, py)
+	if not F or not F.planetR then return end
+	if F.rocky and not F.rockShape then F.rockShape = Fields.rockShape(F.name, F.planetR) end
+	drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
+		rock = F.rocky and F.rockShape or nil,
+		body = { getPosition = function() return px, py end } })
+end
+
+-- The gates out to moons (src/moons.lua): a dashed ring with an arrow
+-- pointing out of the map.
+local function drawMoonGates(game)
+	for _, g in ipairs(game.moonGates or {}) do
+		local r = g.radius
+		lg.setColor(0.75, 1, 0.7, 0.55)
+		lg.setLineWidth(outline(3))
+		local n = 24
+		for i = 0, n - 1, 2 do
+			local a1, a2 = game.time * 0.3 + i / n * pi * 2, game.time * 0.3 + (i + 1) / n * pi * 2
+			lg.line(g.x + cos(a1) * r, g.y + sin(a1) * r, g.x + cos(a2) * r, g.y + sin(a2) * r)
+		end
+		local a = g.a
+		lg.polygon("line", g.x + cos(a) * r * 0.5, g.y + sin(a) * r * 0.5,
+			g.x + cos(a + 2.5) * r * 0.35, g.y + sin(a + 2.5) * r * 0.35,
+			g.x + cos(a - 2.5) * r * 0.35, g.y + sin(a - 2.5) * r * 0.35)
+	end
+end
+
 function Render.world(game)
 	screenPx = 1 / game.camera.zoom
 	Render.background(game.camera)
@@ -1061,13 +1111,18 @@ function Render.world(game)
 		-- the planet you're heading for, where it'll be when you arrive
 		if game.trip then
 			local px, py, F = game:laneDestination()
-			if F.planetR then
-				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
-					body = { getPosition = function() return px, py end } })
-			end
+			drawFieldWorld(game, F, px, py)
 		end
 		drawLane(game)
 	end
+	if game.fieldId == "crossing" then
+		local a, b = game:crossingEnds()
+		if a then
+			drawFieldWorld(game, a.F, a.x, a.y)
+			drawFieldWorld(game, b.F, b.x, b.y)
+		end
+	end
+	drawMoonGates(game)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
