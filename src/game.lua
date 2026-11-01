@@ -19,6 +19,7 @@ local AI = require("src.ai")
 local Camera = require("src.camera")
 local events = require("src.events")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 local Hold = require("src.inventory.hold")
 local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
@@ -130,6 +131,7 @@ function Game:loadField(id, opts)
 		self.restoringArea = nil
 		self:spawnFieldEnemies()
 	end
+	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
 	-- the new level's name replaces any still showing (the game builds
 	-- Earth before loading the save, which flashed EARTH wherever you were)
@@ -769,7 +771,7 @@ end
 -- smooth circle. Indestructible, and kinematic so it turns without being
 -- pushed around, unless simulated: then it's a very heavy dynamic body that
 -- gravity and collisions act on like anything else.
-function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
+function Game:spawnWheelStation(x, y, R, tube, spin, simulated, locationId)
 	-- the wheel's layout as parts (src/stations.lua); a station { } with
 	-- the same id in data or mods replaces it
 	local id = Stations.ringId(R, tube)
@@ -777,24 +779,24 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 		local _, err = data.defineStation(Stations.ring(R, tube))
 		if err then error(err, 0) end
 	end
-	return self:spawnStation(id, x, y, spin, simulated)
+	return self:spawnStation(id, x, y, spin, simulated, locationId)
 end
 
 -- A station from its definition (data.stations): every colliding part
 -- is solid, and the part tagged dock is the docking module.
-function Game:spawnStation(id, x, y, spin, simulated)
+function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
-	-- key: which station this is, for the universe (storage, hangar,
-	-- respawn); the same field always builds its stations in the same order
+	-- Authored stations receive an explicit location ID below. Runtime
+	-- editor/debug stations have temporary keys and are not catalogue entries.
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
 		def = def,
-		key = ("%s/%d"):format(self.fieldId or "?", n),
+		key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
 	-- The dock (see Game:updateDocking): x1..x2 its extent out from the
 	-- centre along +x, hw its half-width. Ships that fly into the capture
@@ -833,6 +835,7 @@ function Game:spawnStation(id, x, y, spin, simulated)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
+	if locationId then self:bindLocation(e, locationId) end
 	return e
 end
 
@@ -1246,11 +1249,12 @@ end
 
 -- A navigation buoy: a marker that nothing collides with (it has no
 -- fixtures), usually set on a track with setOrbit.
-function Game:spawnBuoy(x, y)
+function Game:spawnBuoy(x, y, locationId)
 	local body = love.physics.newBody(self.world, x, y, "kinematic")
 	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
 	body:setUserData(e)
 	table.insert(self.entities, e)
+	if locationId then self:bindLocation(e, locationId) end
 	return e
 end
 
@@ -1267,8 +1271,18 @@ function Game:updateOrbits(dt)
 	for _, e in ipairs(self.entities) do
 		local o = e.orbit
 		if o and not e.removed then
-			o.angle = o.angle + o.rate * dt
-			local tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
+			local tx, ty
+			if e.locationId then
+				tx, ty, o.angle = Locations.position(e.locationId, self.universe.clock)
+				if e.kind == "station" then
+					local want = Locations.heading(e.locationId, self.universe.clock)
+					local diff = (want - e.body:getAngle() + pi) % (2 * pi) - pi
+					e.body:setAngularVelocity(diff / dt)
+				end
+			else
+				o.angle = o.angle + o.rate * dt
+				tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
+			end
 			local x, y = e.body:getPosition()
 			-- velocity that lands it exactly on the track this step
 			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
@@ -2424,6 +2438,7 @@ function Game:frame(dt, aimX, aimY)
 	end
 end
 
+Locations.install(Game)
 Persistence.install(Game)
 require("src.world")(Game)
 require("src.transit")(Game)

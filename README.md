@@ -54,6 +54,28 @@ file) onto `love.exe`.
 - Death ends the ship. Press R for a starter Wisp docked at the last station you docked at (in whatever level it is), or at the start if you never docked. Your wreck stays where you died with everything you had.
 - Saving: the game picks up from your latest save when it starts. Docking and quitting autosave, F5 saves, and F9 loads whichever save is newest. The debug panel has New game. Saves hold the universe (every station's storage, hangar and market shelf, named-area wrecks and cargo, your home station, your credits and the game clock), your ship with its hold, and where it is. They're plain Lua tables in LÖVE's save folder, versioned so later builds can upgrade them.
 
+## Stable locations
+
+Authored stations, trade buoys, mass drivers and moon departure points have
+explicit IDs such as `earth/orbital_one` and `mars/to_deimos`. These identify
+places independently of their display names, construction order and physics
+bodies. `src/locations.lua` provides `get(id)`, `list(area)`, `position(id, clock)`,
+`heading(id, clock)` and `velocity(id, clock)` without loading an area.
+
+Loaded bodies follow those same clock-based motion rules, including station
+orbits and cloud-city drift. Retained highway views also stay synchronized.
+`game:locationEntity(id)` finds the physical representation if that area is
+loaded. F1's **Location IDs and positions** section lists the local catalogue.
+
+Station storage, hangars and home/save references now use location IDs. Markets
+can declare a `location` ID, independently of their display label. Runtime/debug
+stations remain temporary and are not catalogue entries. Start a new game when
+switching to this build: old numbered station references are not migrated.
+
+This catalogue does not yet assign NPCs, offer smart-terrain jobs or plan routes.
+`love . --locationtest` checks all existing regions, live/unloaded position
+agreement, stable save references, display renames and construction reordering.
+
 ## Area-object persistence
 
 Wrecks (including detached parts and placed derelicts), cargo containers, and
@@ -69,8 +91,8 @@ and background asteroid populations are not persistent in this first step.
 Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
 
-Save version 2 adds optional area snapshots; existing version 1 saves still
-load. `love . --persisttest` runs the focused round-trip, loot, wreck damage,
+Save version 2 adds optional area snapshots. Older object snapshots can load,
+but old numbered station references are not migrated by the location catalogue. `love . --persisttest` runs the focused round-trip, loot, wreck damage,
 moon-travel and save-compatibility checks.
 
 ## Close-surface flight
