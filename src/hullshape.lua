@@ -250,10 +250,10 @@ function HullShape.drawLights(hull, time, px, only, ox, oy, state)
 				local c = HullShape.lightColor(l)
 				local size = l.size or 1.2
 				if l.kind == "nav" then
-					local core = max(size * 0.6, 1.3 * px)
+					local core = max(size * 0.6, 0.65 * px)
 					lg.setBlendMode("add")
 					lg.setColor(c[1], c[2], c[3], 0.35 * b)
-					lg.circle("fill", l.x, l.y, max(size * 1.8, 3.5 * px))
+					lg.circle("fill", l.x, l.y, max(size * 1.8, 1.75 * px))
 					lg.setBlendMode("alpha")
 					lg.setColor(c[1] * 0.7 + 0.3, c[2] * 0.7 + 0.3, c[3] * 0.7 + 0.3, b)
 					lg.circle("fill", l.x, l.y, core)

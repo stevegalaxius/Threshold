@@ -28,6 +28,53 @@ local game
 local autotest
 local lastIntent = { aimX = 0, aimY = 0 }
 
+--[[
+	Render interpolation. Physics steps at a fixed 120 Hz, so a frame can
+	land 1 or 2 steps after the last one and a moving ship jumps unevenly
+	against the smooth camera (a one-pixel shimmer when zoomed in). Each
+	frame, bodies are put where they'd be between their last two steps
+	(alpha = leftover time / STEP) for the camera and drawing, then put
+	back exactly before the next physics step.
+]]
+local function remember(g)
+	for _, e in ipairs(g.entities) do
+		local b = e.body
+		if b and not b:isDestroyed() then
+			e.lerpX, e.lerpY = b:getPosition()
+			e.lerpA = b:getAngle()
+		else
+			e.lerpX = nil
+		end
+	end
+end
+
+local function interpolate(g, alpha)
+	for _, e in ipairs(g.entities) do
+		local b = e.body
+		if e.lerpX and b and not b:isDestroyed() then
+			local x, y = b:getPosition()
+			local a = b:getAngle()
+			e.realX, e.realY, e.realA = x, y, a
+			local da = (a - e.lerpA + math.pi) % (2 * math.pi) - math.pi
+			b:setTransform(e.lerpX + (x - e.lerpX) * alpha, e.lerpY + (y - e.lerpY) * alpha, a - da * (1 - alpha))
+			e.shownX, e.shownY = b:getPosition()
+		else
+			e.realX = nil
+		end
+	end
+end
+
+local function restore(g)
+	for _, e in ipairs(g.entities) do
+		if e.realX and e.body and not e.body:isDestroyed() then
+			-- unless something moved it since (a teleport, a respawn)
+			local x, y = e.body:getPosition()
+			if x == e.shownX and y == e.shownY then e.body:setTransform(e.realX, e.realY, e.realA) end
+		end
+		e.realX = nil
+	end
+end
+
 function love.load(args)
 	data.load()
 	for _, a in ipairs(args or {}) do
@@ -83,11 +130,14 @@ function love.update(dt)
 	lastIntent = intent
 	game:setPlayerIntent(intent)
 
+	restore(game)
 	accumulator = accumulator + dt * T.timeScale
 	while accumulator >= STEP do
+		remember(game)
 		game:step(STEP)
 		accumulator = accumulator - STEP
 	end
+	interpolate(game, accumulator / STEP)
 	game:frame(dt, intent.aimX, intent.aimY)
 	Cargo.update(game)
 	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game))
