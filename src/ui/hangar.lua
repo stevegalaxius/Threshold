@@ -10,6 +10,9 @@
 	  Fly           the same, for the selected ship
 	  Cargo         the Cargo tab, with that ship's hold where station
 	                storage usually is
+	  Sell          sell the selected parked ship (src/market.lua)
+	  Shipyard      with your own ship selected, the station's ships for
+	                sale are listed in the side panel; Buy parks one here
 
 	Bays are per station and last between levels (src/world.lua). This
 	only draws and reports clicks; the cargo screen (src/ui/cargo.lua)
@@ -65,6 +68,15 @@ local function layout(game)
 	local ix, iw = L.info.x + PAD, IW - PAD * 2
 	L.fly = { x = ix, y = L.info.y + L.info.h - 44, w = floor(iw / 2) - 4, h = 30 }
 	L.cargo = { x = ix + floor(iw / 2) + 4, y = L.fly.y, w = floor(iw / 2) - 4, h = 30 }
+	L.sell = { x = ix, y = L.fly.y - 38, w = iw, h = 30 }
+	-- the shipyard: one row per hull for sale, under the ship's details
+	L.yard = {}
+	for k, id in ipairs(game.shipyard(st)) do
+		local ry = L.info.y + 236 + (k - 1) * 30
+		if ry + 26 > L.sell.y - 8 then break end
+		table.insert(L.yard, { hull = id, x = ix, y = ry, w = iw, h = 26,
+			buy = { x = ix + iw - 64, y = ry, w = 64, h = 26 } })
+	end
 	return L
 end
 
@@ -218,10 +230,27 @@ function Hangar.draw(game, mx, my)
 		lg.print(l, I.x + PAD, I.y + 136 + (k - 1) * 18)
 	end
 	lg.setColor(HUD.DIM)
-	if flying and not p.bay then
-		lg.printf("On the landing pad: the bay is full.", I.x + PAD, L.fly.y - 44, I.w - PAD * 2)
-	elseif flying then
-		lg.printf("The ship you're in. Pick a parked ship to fly or open its hold.", I.x + PAD, L.fly.y - 44, I.w - PAD * 2)
+	lg.setFont(HUD.font(12))
+	lg.print(("Credits  %d"):format(game:credits()), I.x + PAD, I.y + 214)
+	if flying then
+		local note = not p.bay and "On the landing pad: the bay is full." or "The ship you're in. Pick a parked ship to fly, open or sell."
+		lg.printf(note, I.x + PAD, L.sell.y, I.w - PAD * 2)
+		-- the shipyard
+		if #L.yard == 0 then
+			lg.setColor(HUD.DIM)
+			lg.print("No shipyard here.", I.x + PAD, I.y + 236)
+		end
+		for _, r in ipairs(L.yard) do
+			local hl = data.hulls[r.hull]
+			lg.setColor(HUD.INK)
+			lg.print(hl.name, r.x, r.y + 6)
+			lg.setColor(HUD.DIM)
+			lg.print(("%d cr"):format(hl.price or 0), r.x + 80, r.y + 6)
+			button(r.buy, "Buy", not h and inRect(r.buy, mx, my), { 0.3, 1, 0.5 }, game:shipBuyProblem(L.station, r.hull) == nil)
+		end
+	else
+		lg.setFont(HUD.font(13))
+		button(L.sell, ("Sell  %d cr"):format(game.shipSellPrice(owner)), not h and inRect(L.sell, mx, my), { 1, 0.6, 0.3 }, true)
 	end
 	lg.setFont(HUD.font(13))
 	button(L.fly, "Fly", not h and inRect(L.fly, mx, my), { 0.3, 1, 0.5 }, not flying)
@@ -237,6 +266,12 @@ function Hangar.mousepressed(game, mx, my, button)
 	local parked = sel and sel.owner ~= game.player and sel.i
 	if inRect(L.fly, mx, my) then return parked and { fly = sel.i } or nil end
 	if inRect(L.cargo, mx, my) then return parked and { cargo = sel.owner } or nil end
+	if parked and inRect(L.sell, mx, my) then return { sell = sel.i } end
+	if not parked then
+		for _, r in ipairs(L.yard) do
+			if inRect(r.buy, mx, my) then return { buy = r.hull } end
+		end
+	end
 	local s = shipAt(L, mx, my)
 	if not s then return nil end
 	local now = love.timer.getTime()

@@ -20,7 +20,9 @@
 	  turnSpeed  optional cap on spin speed in degrees/second, so a heavy hull
 	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
-	  radius collision radius in pixels
+	  radius optional: half the hull's width (worked out from the shape if left
+	         out). Ships collide in their drawn shape; radius sets the spine,
+	         distances to the hull and thruster size
 	  ramSpeed  impact speed (px/s) below which a bump does it no harm;
 	            low is fragile, high shrugs off collisions
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
@@ -62,7 +64,7 @@ hull {
 		{ family = "engine",    size = "S", x = -26, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "S" },
+		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "hold_pod_s", "aux_thrusters", "nav_computer" },
@@ -82,7 +84,7 @@ hull {
 		{ family = "engine",    size = "M", x = -68, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "M" },
+		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "rk7_autocannon", "rk7_autocannon", "thumper_m", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters", "nav_computer" },
@@ -108,7 +110,7 @@ hull {
 		{ family = "engine",    size = "L", x = -132, y = 0 },
 		{ family = "reactor",   size = "L" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "L" },
+		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "long_tom", "long_tom", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "trident_bay",
@@ -140,7 +142,7 @@ hull {
 		{ family = "reactor",   size = "L" },
 		{ family = "utility",   size = "any" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "L" },
+		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "forge_reactor", "hold_pod_m", "hold_pod_m", "aux_thrusters", "nav_computer" },
@@ -160,7 +162,7 @@ hull {
 		{ family = "engine",    size = "S", x = -44, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "S" },
+		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "px2_autogun", "flit_engine", "ember_reactor", "hold_pod_s", "aux_thrusters", "nav_computer" },
@@ -184,7 +186,7 @@ hull {
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "M" },
+		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "rk7_autocannon", "rk7_autocannon", "hornet_pod", "mule_engine", "kiln_reactor", "hold_pod_m", "hold_pod_s", "aux_thrusters", "nav_computer" },

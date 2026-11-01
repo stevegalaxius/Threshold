@@ -443,6 +443,7 @@ function Slab.Draw()
 	local StatHandle = Stats.Begin('Draw', 'Slab')
 
 	Window.Validate()
+	Region.DropUnclaimedWheel()   -- Threshold
 
 	local MovingInstance = Window.GetMovingInstance()
 	if MovingInstance ~= nil then

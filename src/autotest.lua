@@ -521,6 +521,20 @@ function A.update(game, dt)
 		A.st = st
 		game:dockInstantly(w, st)
 		game:playerDocked(st)
+		-- the ship market: buy a Wisp (credits topped up), then sell it back
+		local orig = game:credits()
+		game.universe.credits = 20000
+		local c0 = game:credits()
+		local bought, why = game:buyShip(st, "halcyon_wisp")
+		local c1 = game:credits()
+		local i = #game:hangar(st)
+		local paid = game:sellShip(st, i)
+		log("shipmarket: bought Wisp %s (%s) %d -> %d cr; sold for %s -> %d cr; hangar %d; shipyard here: %s",
+			tostring(bought ~= nil), tostring(why), c0, c1, tostring(paid), game:credits(), #game:hangar(st),
+			table.concat(game.shipyard(st), ","))
+		game.universe.credits = 0
+		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, "halcyon_wisp")))
+		game.universe.credits = orig
 		game:addToHangar(st, "brute_anvil")
 		Cargo.tab = "hangar"
 		log("hangar: docked at %s (%s), home %s, hangar has %d ship(s): %s", st.name, st.key, game:homeStation().key,

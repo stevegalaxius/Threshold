@@ -85,7 +85,7 @@ local function drawStatus(game)
 	local s = p.stats
 	local lowArmor = p.armor / s.armor < 0.3
 	bar(x + 12, y + 12, pw - 24, 18, p.armor / s.armor, lowArmor and WARN or { 0.4, 0.85, 0.95 }, "ARMOR", ("%d / %d"):format(floor(p.armor + 0.5), floor(s.armor + 0.5)))
-	local powerLabel = p.afterburn and "AFTERBURNER" or (p.burnerLocked and "POWER  (afterburner cooling)" or "POWER")
+	local powerLabel = p.afterburn and (p.burnerLocked and "AFTERBURNER  (reserve)" or "AFTERBURNER") or (p.burnerLocked and "POWER  (afterburner on reserve)" or "POWER")
 	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), p.burnerLocked and { 1.0, 0.7, 0.35 } or { 0.55, 0.75, 1.0 }, powerLabel, ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
 	-- tick where the afterburner relights after running dry
 	lg.setColor(1, 1, 1, 0.5)
@@ -167,7 +167,7 @@ local HELP = {
 	"Tab cargo hold",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
-	"fly into a mass driver to travel   F2 skip to next level",
+	"fly into a mass driver to travel   F3 skip to next level   F2 shipyard",
 	"F5 save   F9 load (docking autosaves)",
 	"H hide help   Esc pause",
 }
