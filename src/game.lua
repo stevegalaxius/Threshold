@@ -735,11 +735,17 @@ function Game:armStation(e)
 	for _, t in ipairs(e.def.turrets or {}) do
 		local m = data.modules[t.module]
 		if m and m.weapon and m.weapon.kind ~= "drone" then
+			-- missile and torpedo launchers are fixed bays: they point one
+			-- way (heading, or straight out from the centre) and the
+			-- missiles curve round to the target
+			local bay = m.family == "auxiliary"
+			local out = (t.x == 0 and t.y == 0) and 0 or math.atan2(t.y, t.x)
 			table.insert(list, { slot = { x = t.x, y = t.y }, module = m, w = m.weapon,
-				group = m.family == "auxiliary" and "auxiliary" or "primary",
+				group = bay and "auxiliary" or "primary",
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m),
 				cooldown = random() * 0.5, think = random() * RETARGET,
-				mount = "turret", aim = random() * pi * 2, turn = math.rad(t.turn or 90) })
+				mount = bay and "bay" or "turret", turn = math.rad(t.turn or 90),
+				aim = bay and (t.heading and math.rad(t.heading) or out) or random() * pi * 2 })
 		end
 	end
 	if #list == 0 then return end
@@ -799,9 +805,15 @@ function Game:updateStationGuns(dt)
 					end
 					local want = Ship.wrapAngle(math.atan2(ty - wy, tx - wx) - sa)
 					local err = Ship.wrapAngle(want - slot.aim)
-					local step = slot.turn * dt
-					slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, err)))
-					local cone = kind == "missile" and 0.45 or 0.06
+					local cone = 0.06
+					if slot.mount == "bay" then
+						-- fixed: missiles launch whichever way the target is
+						-- (they steer); torpedoes only down the bay's line
+						cone = kind == "missile" and math.huge or 0.15
+					else
+						local step = slot.turn * dt
+						slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, err)))
+					end
 					if math.abs(err) < cone then
 						st.intent.aimX, st.intent.aimY = tx, ty
 						st.lock = tg

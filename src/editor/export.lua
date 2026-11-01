@@ -159,7 +159,7 @@ function Export.stationDef(design)
 	if design.turrets and #design.turrets > 0 then
 		def.turrets = {}
 		for _, t in ipairs(design.turrets) do
-			table.insert(def.turrets, { x = t.x, y = t.y, module = t.module, turn = (t.turn or 90) ~= 90 and t.turn or nil })
+			table.insert(def.turrets, { x = t.x, y = t.y, module = t.module, turn = (t.turn or 90) ~= 90 and t.turn or nil, heading = t.heading })
 		end
 	end
 	if design.berths and #design.berths > 0 then

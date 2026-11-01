@@ -308,7 +308,10 @@ function Canvas.mousepressed(E, sx, sy, button)
 		local px, py = Canvas.snap(E, wx, wy)
 		E.pushUndo()
 		E.design.turrets = E.design.turrets or {}
-		table.insert(E.design.turrets, { x = px, y = py, module = E.turretModule })
+		local t = { x = px, y = py, module = E.turretModule }
+		local m = data.modules[t.module]
+		if m and m.family == "auxiliary" then t.heading = berthHeading(px, py, px, py) end
+		table.insert(E.design.turrets, t)
 		E.tsel, E.bsel = #E.design.turrets, nil
 		return
 	end
@@ -637,8 +640,17 @@ function Canvas.draw(E)
 			local r = max(6, ({ S = 8, M = 12, L = 18 })[m and m.size or "M"] * v.zoom)
 			lg.setColor(c[1], c[2], c[3], sel and 1 or 0.8)
 			lg.setLineWidth(sel and 2.5 or 1.5)
-			lg.circle("line", cx, cy, r)
-			lg.line(cx, cy, cx + r * 1.8, cy)
+			if aux then
+				-- a fixed bay: a box and an arrow along its heading
+				local a = math.rad(t.heading or (t.x == 0 and t.y == 0 and 0 or math.deg(math.atan2(t.y, t.x))))
+				local c2, s2 = math.cos(a), math.sin(a)
+				lg.rectangle("line", cx - r, cy - r, r * 2, r * 2)
+				lg.line(cx, cy, cx + c2 * r * 2.4, cy + s2 * r * 2.4)
+				lg.circle("fill", cx + c2 * r * 2.4, cy + s2 * r * 2.4, 3)
+			else
+				lg.circle("line", cx, cy, r)
+				lg.line(cx, cy, cx + r * 1.8, cy)
+			end
 			lg.print("T" .. i, cx + 6, cy + 4)
 		end
 		if E.drag and E.drag.kind == "berth" then

@@ -297,7 +297,9 @@ local function drawStation(game, e)
 		lg.translate(w.slot.x, w.slot.y)
 		lg.rotate(w.aim or 0)
 		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
-		if w.group == "auxiliary" then
+		if w.mount == "bay" then
+			-- (drawn below)
+		elseif w.group == "auxiliary" then
 			lg.rectangle("fill", -r * 0.2, -r * 0.8, r * 1.6, r * 1.6)
 		else
 			local n, gap = w.w.barrels or 1, (w.w.barrelGap or 8) * 2
@@ -306,11 +308,22 @@ local function drawStation(game, e)
 				lg.rectangle("fill", 0, off - thick / 2, len, thick)
 			end
 		end
-		lg.setColor(col[1] * 0.3, col[2] * 0.3, col[3] * 0.3)
-		lg.circle("fill", 0, 0, r)
-		lg.setColor(w.target and { 1, 0.4, 0.35 } or col)
-		lg.setLineWidth(outline(1.5))
-		lg.circle("line", 0, 0, r)
+		if w.mount == "bay" then
+			-- a fixed launch bay: a box with its mouth along the heading,
+			-- lit red while it has a target
+			lg.setColor(col[1] * 0.3, col[2] * 0.3, col[3] * 0.3)
+			lg.rectangle("fill", -r * 1.4, -r, r * 2.8, r * 2)
+			lg.setColor(w.target and { 1, 0.4, 0.35 } or col)
+			lg.setLineWidth(outline(1.5))
+			lg.rectangle("line", -r * 1.4, -r, r * 2.8, r * 2)
+			lg.rectangle("fill", r * 1.1, -r * 0.6, r * 0.3, r * 1.2)
+		else
+			lg.setColor(col[1] * 0.3, col[2] * 0.3, col[3] * 0.3)
+			lg.circle("fill", 0, 0, r)
+			lg.setColor(w.target and { 1, 0.4, 0.35 } or col)
+			lg.setLineWidth(outline(1.5))
+			lg.circle("line", 0, 0, r)
+		end
 		lg.pop()
 	end
 	-- berths: a pad outline with corner ticks, lit green while taken

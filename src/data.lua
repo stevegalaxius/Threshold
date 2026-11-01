@@ -195,6 +195,7 @@ function api.station(def)
 			fail(("station '%s': turret %d: '%s' isn't a weapon module (drone bays don't fit)"):format(def.id, j, tostring(t.module)))
 		end
 		t.turn = t.turn or 90
+		if t.heading ~= nil and type(t.heading) ~= "number" then fail(("station '%s': turret %d heading should be a number"):format(def.id, j)) end
 	end
 	for j, b in ipairs(def.berths or {}) do
 		if type(b.x) ~= "number" or type(b.y) ~= "number" then fail(("station '%s': berth %d needs x and y"):format(def.id, j)) end

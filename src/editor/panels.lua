@@ -102,16 +102,27 @@ local function placedSections(E, d)
 		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Separator()
 		local turrets = d.turrets or {}
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "Turrets fire any weapon module (guns, artillery, lasers, missiles, torpedoes)\nwith endless ammo and power. For now they shoot hostile ships and anyone\nwho shoots the station (for 30 s); reputation will decide this later.\nTurn: how fast the turret swings, degrees a second." })
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Turrets fire any weapon module (guns, artillery, lasers, missiles, torpedoes)\nwith endless ammo and power. For now they shoot hostile ships and anyone\nwho shoots the station (for 30 s); reputation will decide this later.\nTurn: how fast the turret swings, degrees a second.\nMissile and torpedo launchers are fixed bays with a heading instead." })
 		Slab.SameLine()
 		Slab.Text(#turrets > 0 and ("Turrets: %d"):format(#turrets) or "Turrets: none")
 		local t = E.tsel and turrets[E.tsel]
 		if t then
 			Slab.Text(("Turret %d"):format(E.tsel), { Color = { 0.6, 0.85, 1 } })
 			turretCombo("yard_turretmod", t.module, function(id) E.pushUndo(); t.module = id end)
-			Slab.Text("turn"); Slab.SameLine({ Pad = 4 })
-			if Slab.InputNumberDrag("yard_turretturn", t.turn or 90, 5, 360, 1, { W = 70 }) then
-				E.pushUndoCoalesced("yard_turretturn"); t.turn = Slab.GetInputNumber()
+			local m = data.modules[t.module]
+			if m and m.family == "auxiliary" then
+				Slab.Text("fixed bay: missiles curve to the target,", { Color = { 0.6, 0.6, 0.6 } })
+				Slab.Text("torpedoes only fire down its line", { Color = { 0.6, 0.6, 0.6 } })
+				Slab.Text("heading"); Slab.SameLine({ Pad = 4 })
+				local out = (t.x == 0 and t.y == 0) and 0 or math.floor(math.deg(math.atan2(t.y, t.x)) + 0.5) % 360
+				if Slab.InputNumberDrag("yard_turrethead", t.heading or out, 0, 359, 1, { W = 70 }) then
+					E.pushUndoCoalesced("yard_turrethead"); t.heading = Slab.GetInputNumber()
+				end
+			else
+				Slab.Text("turn"); Slab.SameLine({ Pad = 4 })
+				if Slab.InputNumberDrag("yard_turretturn", t.turn or 90, 5, 360, 1, { W = 70 }) then
+					E.pushUndoCoalesced("yard_turretturn"); t.turn = Slab.GetInputNumber()
+				end
 			end
 			if Slab.Button("Remove turret") then E.deleteSelected() end
 		end
