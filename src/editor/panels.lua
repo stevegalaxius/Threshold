@@ -123,19 +123,29 @@ local function designWindow(E, Editor)
 	end
 	E.coreIndex = tagged or biggest
 	E.totalArea = total
-	Slab.Text(("Parts (%d)   top of the list draws first"):format(#d.parts))
+	Slab.Text(("Parts (%d), drawn top to bottom"):format(#d.parts))
+	Slab.Text("click a name to select it", { Color = { 0.6, 0.6, 0.6 } })
 	for i, p in ipairs(d.parts) do
 		Slab.PushID("yard_part" .. i)
-		local label = ("%s%s%s%s"):format(p.name or ("part " .. i), p.mirror and "  [mirror]" or "",
-			i == E.coreIndex and "  [core]" or "", E.errors[i] and "  [!]" or "")
-		if Slab.TextSelectable(label, { IsSelected = E.sel == i }) then E.sel, E.vsel = i, nil end
-		if Slab.Button("^", { W = 22 }) then E.movePart(i, -1) end
+		local selected = E.sel == i
+		-- one row per part: order, visibility and lock as small toggles,
+		-- then the name, highlighted when selected
+		if Slab.Button("^", { W = 18, H = 18 }) then E.movePart(i, -1) end
 		Slab.SameLine()
-		if Slab.Button("v", { W = 22 }) then E.movePart(i, 1) end
+		if Slab.Button("v", { W = 18, H = 18 }) then E.movePart(i, 1) end
 		Slab.SameLine()
-		if Slab.CheckBox(p.hidden, "hide") then p.hidden = not p.hidden or nil end
+		if Slab.Button(p.hidden and "-" or "o", { W = 18, H = 18, Tooltip = p.hidden and "Hidden: click to show" or "Visible: click to hide" }) then
+			p.hidden = not p.hidden or nil
+		end
 		Slab.SameLine()
-		if Slab.CheckBox(p.locked, "lock") then p.locked = not p.locked or nil end
+		if Slab.Button(p.locked and "L" or " ", { W = 18, H = 18, Tooltip = p.locked and "Locked: click to unlock" or "Click to lock (can't be picked on the canvas)" }) then
+			p.locked = not p.locked or nil
+		end
+		Slab.SameLine()
+		local tags = (p.mirror and " [mirror]" or "") .. (i == E.coreIndex and " [core]" or "") .. (E.errors[i] and " [!]" or "")
+		local label = (selected and "> " or "  ") .. (p.name or ("part " .. i)) .. tags
+		local color = E.errors[i] and { 1, 0.45, 0.45 } or selected and { 1, 0.85, 0.3 } or (p.hidden and { 0.5, 0.5, 0.5 } or nil)
+		if Slab.TextSelectable(label, { IsSelected = selected, Color = color }) then E.sel, E.vsel = i, nil end
 		Slab.PopID()
 	end
 	Slab.EndWindow()

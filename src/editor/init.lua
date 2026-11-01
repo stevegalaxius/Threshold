@@ -105,7 +105,12 @@ end
 
 function E.addPart(shape)
 	E.pushUndo()
-	local part = { name = "part " .. (#E.design.parts + 1), shape = shape, mirror = E.mirrorNew or nil }
+	-- a name no other part has
+	local used = {}
+	for _, q in ipairs(E.design.parts) do if q.name then used[q.name] = true end end
+	local n = #E.design.parts + 1
+	while used["part " .. n] do n = n + 1 end
+	local part = { name = "part " .. n, shape = shape, mirror = E.mirrorNew or nil }
 	table.insert(E.design.parts, part)
 	E.sel, E.vsel = #E.design.parts, nil
 	return part
