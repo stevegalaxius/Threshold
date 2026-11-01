@@ -151,6 +151,10 @@ T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20
 -- stays for sale before it's sold on; and how long one more stack takes to
 -- come in, by kind (seconds of game time).
 T.startCredits = 5000
+
+-- How far the camera zooms out (mouse wheel), as a scale.
+T.minZoom = 0.17
+
 T.tradeW, T.tradeH = 10, 8
 T.marketW, T.marketH = 12, 10
 T.resaleTime = 600

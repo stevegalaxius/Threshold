@@ -288,12 +288,16 @@ local function avoidance(game, p, t, hx, hy, speed)
 	return ax, ay
 end
 
+-- Missiles fly through the planet's current like ships do: their own speed
+-- and heading are relative to it, and the current carries them along.
 local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end
 	p.age = (p.age or 0) + dt
-	local speed = sqrt(p.vx * p.vx + p.vy * p.vy)
-	local heading = atan2(p.vy, p.vx)
+	local fx, fy = game:flowAt(p.x, p.y)
+	local rvx, rvy = p.vx - fx, p.vy - fy
+	local speed = sqrt(rvx * rvx + rvy * rvy)
+	local heading = atan2(rvy, rvx)
 	if t then
 		local tx, ty = t.body:getPosition()
 		local wx, wy = tx - p.x, ty - p.y
@@ -306,7 +310,7 @@ local function steerMissile(game, p, dt)
 		heading = heading + max(-turn, min(turn, diff))
 	end
 	speed = min(p.maxSpeed, speed + p.accel * dt)
-	p.vx, p.vy = cos(heading) * speed, sin(heading) * speed
+	p.vx, p.vy = cos(heading) * speed + fx, sin(heading) * speed + fy
 	p.trailTimer = (p.trailTimer or 0) - dt
 end
 

@@ -488,6 +488,16 @@ function Game:currentSpeed(r)
 	return w.flow * sqrt(w.radius / max(r, w.radius)) * T.currentScale
 end
 
+-- The current's velocity at (x, y): along the tangent, clockwise on screen.
+function Game:flowAt(x, y)
+	local w = self.well
+	if not w then return 0, 0 end
+	local dx, dy = w.x - x, w.y - y
+	local r = max(sqrt(dx * dx + dy * dy), 1)
+	local f = self:currentSpeed(r)
+	return dy / r * f, -dx / r * f
+end
+
 -- Acceleration from the turning field on something at (x, y) moving at
 -- (vx, vy): a drag along the tangent toward the current's speed, and, if
 -- hold, just enough pull inward to keep whatever it's circling at on a
