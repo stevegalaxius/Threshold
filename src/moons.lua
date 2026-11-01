@@ -8,8 +8,8 @@
 	            edge as the moon orbits. A moon's map has one, back toward
 	            its planet. The map's edge lets you through there.
 	  departure fly out past the edge there and it plays like a mass
-	            driver's coast: you swing onto the bearing and climb to
-	            cruising speed while the camera pulls wide, then you're in
+	            driver's coast: you swing onto the bearing at your own
+	            speed while the camera pulls wide, then you're in
 	            transit (Game:launchTrip, a short lane, the moon's gap). You
 	            come out of it into the moon's map flying as you were.
 
@@ -68,8 +68,8 @@ end
 function Game:onMoonRoad(x, y) return self:moonGateAt(x, y) ~= nil end
 
 -- Flying out past the edge toward a moon starts the departure, which
--- plays like a mass driver's coast: the ship swings onto the bearing and
--- climbs to cruising speed while the camera pulls wide and the planet
+-- plays like a mass driver's coast: the ship swings onto the bearing at
+-- the speed it was going while the camera pulls wide and the planet
 -- falls away behind, then it's into transit (Game:launchTrip, placed so
 -- nothing on screen jumps).
 function Game:updateMoonGates(dt)
@@ -99,12 +99,13 @@ function Game:updateDeparture(p, dt)
 	local b = math.atan2(y, x)
 	D.bearing = b
 	local it = p.intent
-	it.thrust, it.strafe, it.boost = 1, 0, true
+	it.thrust, it.strafe, it.boost = 0, 0, false
 	it.firePrimary, it.fireSecondary, it.fireAux = false, false, false
 	local a = p.body:getAngle()
 	p.body:setAngle(a + ((b - a + pi) % (2 * pi) - pi) * math.min(1, dt * 3))
 	p.body:setAngularVelocity(0)
-	local s = D.speed0 + (T.driverCoastSpeed - D.speed0) * u * u
+	-- your own speed, just turned onto the bearing: no kick
+	local s = D.speed0
 	p.body:setLinearVelocity(cos(b) * s, sin(b) * s)
 	if not D.ghost then
 		D.ghost = true
