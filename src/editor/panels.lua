@@ -10,7 +10,6 @@ local HullShape = require("src.hullshape")
 
 local Panels = {}
 
-local ROLES = { "", "engine", "cockpit", "weapon", "dock", "light", "antenna", "rack", "armor", "sensor" }
 local LAYERS = { "hull", "detail", "glow" }
 local GRIDS = { 1, 2, 4, 8, 16 }
 local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", ["break"] = "Break apart" }
@@ -365,24 +364,20 @@ local function partWindow(E)
 
 	Slab.Separator()
 	Slab.Text("Wreck")
-	check(E, p.mirror == true, "Mirror twin across the spine (M)", function(on) p.mirror = on or nil end)
 	check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
 	Slab.Text("  (no part tagged: every part carries)", { Color = { 0.6, 0.6, 0.6 } })
 	check(E, p.core == true, "Core (stays when the rest is shot off)", function(on) p.core = on or nil end)
 	check(E, p.breakable ~= false, "Can be shot off", function(on) p.breakable = (not on) and false or nil end)
-	check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) p.collide = (not on) and false or nil end)
 	check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
 	Slab.Text("Mass multiplier (when it breaks away)")
 	slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)
 	Slab.Text("Armour multiplier")
 	slider(E, "yard_armor" .. i, p.armor or 1, 0.1, 5, function(v) p.armor = v end)
-	Slab.Text("Role")
-	local ropts = {}
-	for _, r in ipairs(ROLES) do table.insert(ropts, { label = r == "" and "(none)" or r, value = r }) end
-	combo("yard_role" .. i, (p.role and p.role ~= "") and p.role or "(none)", ropts, function(r) E.pushUndo(); p.role = r ~= "" and r or nil end, 140)
 
 	Slab.Separator()
 	Slab.Text("Shape")
+	check(E, p.mirror == true, "Mirror copy on the other side (M)", function(on) p.mirror = on or nil end)
+	check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) p.collide = (not on) and false or nil end)
 	if Slab.Button("Flip nose-tail") then E.transformSelected(function(x, y) return -x, y end, true) end
 	Slab.SameLine()
 	if Slab.Button("Flip sides") then E.transformSelected(function(x, y) return x, -y end, true) end
