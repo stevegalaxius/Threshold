@@ -154,7 +154,8 @@ end
 
 -- A station layout for a design (design.kind "station").
 function Export.stationDef(design)
-	local def = { id = design.id, name = design.name, kind = "station", parts = {} }
+	local def = { id = design.id, name = design.name, kind = "station", parts = {},
+		color = design.color and copy(design.color), haze = design.haze }
 	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
 	return def
 end
@@ -234,7 +235,8 @@ end
 -- A design from a loaded station layout.
 function Export.fromStation(id)
 	local st = data.stations[id]
-	local design = { id = id, name = st.name, kind = "station", base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
+	local design = { id = id, name = st.name, kind = "station", base = data.list.hulls[1], parts = {}, slots = {}, stats = {},
+		color = st.color and copy(st.color), haze = st.haze }
 	for _, part in ipairs(st.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end
@@ -244,7 +246,7 @@ end
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots,
-		kind = design.kind, loot = design.loot }
+		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

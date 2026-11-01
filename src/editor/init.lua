@@ -362,6 +362,9 @@ function Editor.open(game)
 	for _, rt in ipairs({ { 900, 120 }, { 1400, 160 }, { 3000, 300 } }) do
 		if not data.stations[Stations.ringId(rt[1], rt[2])] then data.defineStation(Stations.ring(rt[1], rt[2])) end
 	end
+	for k = 1, 2 do
+		if not data.stations[Stations.cityId(k)] then data.defineStation(Stations.city(k)) end
+	end
 	if not E.design then
 		local saved = Export.loadAutosave()
 		if saved then

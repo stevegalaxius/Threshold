@@ -92,4 +92,118 @@ function Stations.ring(R, tube)
 	}
 end
 
+-- Cloud cities -----------------------------------------------------------
+
+Stations.CITY_TUNNEL, Stations.CITY_HALF = 192, 896   -- tunnel half-height and half-length
+local CITY_TUNNEL, CITY_HALF = Stations.CITY_TUNNEL, Stations.CITY_HALF
+
+local function cityPart(y1, y2, w, ct, cb, role)
+	return { verts = { -w + ct, y1, w - ct, y1, w, y1 + ct * 0.6, w, y2 - cb * 0.6, w - cb, y2, -w + cb, y2, -w, y2 - cb * 0.6, -w, y1 + ct * 0.6 },
+		y1 = y1, y2 = y2, w = w, ct = ct, cb = cb, role = role }
+end
+
+local function cityParts(k)
+	local parts = {}
+	local function add(...) parts[#parts + 1] = cityPart(...) end
+	local T, H = CITY_TUNNEL, CITY_HALF
+	-- over the tunnel: the roof (overhanging the mouths on a big city),
+	-- then more levels stepping in
+	local roofW = H + 560 * (k - 1)
+	local top = -T - 176 * k
+	add(top, -T, roofW, 160 * k, 0, "roof")
+	local levelW = roofW
+	for i = 1, 2 * (k - 1) do
+		levelW = levelW * 0.72
+		local h = 288
+		add(top - h, top + 8, levelW, 100, 0, "level")
+		top = top - h
+	end
+	-- the spire: a collar and a mast
+	add(top - 176, top + 16, 192, 96, 0, "collar")
+	local mast = 1040 * k
+	add(top - 176 - mast, top - 160, 40, 0, 0, "mast")
+	-- under the tunnel: its floor, the deck, a collar and the stalk
+	add(T, T + 160, H, 0, 0, "floor")
+	local d1 = T + 144
+	local d2 = d1 + 528 * k
+	add(d1, d2, 1680 * k, 320 * k, 560 * k, "deck")
+	local c2 = d2 + 336 * k
+	add(d2 - 16, c2, 640 * k, 0, 400 * k, "collar")
+	add(c2 - 16, c2 + 3600 * k, 240 * k, 0, 0, "stalk")
+	return parts, top - 176 - mast
+end
+
+
+-- A cloud city as a station layout: its decks and spire as parts, the
+-- tunnel through the middle as a dock open at both ends (the clamp in the
+-- middle, nothing solid in the way), windows as lights, and a beacon on
+-- the mast. k: size (1 or 2). Game:spawnCloudCity asks for "city_<k>".
+function Stations.cityId(k) return ("city_%d"):format(k) end
+
+local function round2(v) return floor(v + 0.5) end
+
+function Stations.city(k)
+	local raw, tip = cityParts(k)
+	local T, H = CITY_TUNNEL, CITY_HALF
+	local parts = {}
+	-- the tunnel's dark inside, behind everything
+	table.insert(parts, { name = "tunnel", shape = { -H, -T, H, -T, H, T, -H, T }, shade = 0.35, layer = "detail", collide = false })
+	for i, p in ipairs(raw) do
+		-- an unchamfered corner repeats a point; drop the repeats so the
+		-- outline triangulates
+		local shape = {}
+		local v = p.verts
+		for j = 1, #v, 2 do
+			local x, y = round2(v[j]), round2(v[j + 1])
+			local n = #shape
+			if n == 0 or shape[n - 1] ~= x or shape[n] ~= y then
+				table.insert(shape, x); table.insert(shape, y)
+			end
+		end
+		while #shape > 6 and shape[1] == shape[#shape - 1] and shape[2] == shape[#shape] do
+			table.remove(shape); table.remove(shape)
+		end
+		local part = { name = p.role .. " " .. i, shape = shape }
+		-- windows: rows across each part at a fixed spacing, pairs down the stalk
+		local lights = {}
+		if p.role == "stalk" then
+			for yy = p.y1 + 160, p.y2 - 120, 240 do
+				table.insert(lights, { x = round2(-p.w * 0.6), y = round2(yy), kind = "window", size = 16 })
+				table.insert(lights, { x = round2(p.w * 0.6), y = round2(yy), kind = "window", size = 16 })
+			end
+		elseif p.role ~= "mast" and p.role ~= "floor" then
+			local row = 0
+			for yy = p.y1 + 112, p.y2 - 96, 288 do
+				local hw = p.w - max(p.ct, p.cb) - 80
+				local j = 0
+				for xx = -hw, hw, 112 do
+					if (j + row * 3) % 7 ~= 3 then table.insert(lights, { x = round2(xx), y = round2(yy), kind = "window", size = 16 }) end
+					j = j + 1
+				end
+				row = row + 1
+			end
+		end
+		if #lights > 0 then part.lights = lights end
+		table.insert(parts, part)
+		-- darker bands: down the stalk, across the deck
+		if p.role == "stalk" then
+			table.insert(parts, { name = "stalk band", layer = "detail", collide = false, shade = 0.75, shape = {
+				round2(-p.w * 0.3), round2(p.y1 + 16), round2(p.w * 0.3), round2(p.y1 + 16), round2(p.w * 0.3), round2(p.y2 - 16), round2(-p.w * 0.3), round2(p.y2 - 16) } })
+		elseif p.role == "deck" then
+			local w2 = p.w - p.ct * 0.5
+			local yc = (p.y1 + p.y2) / 2
+			table.insert(parts, { name = "deck band", layer = "detail", collide = false, shade = 0.75, shape = {
+				round2(-w2), round2(yc - 40), round2(w2), round2(yc - 40), round2(w2), round2(yc + 40), round2(-w2), round2(yc + 40) } })
+		end
+	end
+	-- the clamp: the dock, a tunnel open at both ends, nothing solid
+	table.insert(parts, { name = "clamp", dock = true, dockBoth = true, dockRunway = H - 40 + 600, collide = false,
+		layer = "detail", shade = 0.5, shape = { -40, -T, 40, -T, 40, T, -40, T } })
+	-- the beacon on the mast
+	table.insert(parts, { name = "beacon", layer = "detail", collide = false, shape = { -8, round2(tip) - 8, 8, round2(tip) - 8, 8, round2(tip) + 8, -8, round2(tip) + 8 },
+		lights = { { x = 0, y = round2(tip), kind = "nav", color = { 1, 0.35, 0.3 }, size = 24 } } })
+	return { id = Stations.cityId(k), name = ("Cloud city (size %d)"):format(k), parts = parts, color = { 0.55, 0.63, 0.74 },
+		haze = -T - 60 }
+end
+
 return Stations
