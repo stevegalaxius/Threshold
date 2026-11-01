@@ -116,7 +116,7 @@ local function designWindow(E, Editor)
 		Slab.Text("Right drag erases lights", { Color = { 0.6, 0.6, 0.6 } })
 		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
 		local kopts = {}
-		for _, k in ipairs({ "window", "nav", "strobe" }) do table.insert(kopts, { label = names[k], value = k }) end
+		for _, k in ipairs({ "nav", "strobe" }) do table.insert(kopts, { label = names[k], value = k }) end
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
@@ -292,7 +292,7 @@ local function partWindow(E)
 	local light = E.lsel and p.lights and p.lights[E.lsel]
 	if light then
 		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
-		local kopts = { { label = "window", value = "window" }, { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
+		local kopts = { { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
 		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
 			E.pushUndo()
 			light.kind = k
