@@ -32,6 +32,11 @@
 	             breaks away (heavy engine blocks, light fins)
 	  explode    true: bursts into pickups when shot off instead of drifting
 	             away as a small wreck
+	  lights     lights placed on the part, in ship space, that go with it
+	             when it breaks off and go dark on a wreck:
+	               { x, y, kind = "window" | "nav", color = { r, g, b },
+	                 size = px, rate = blinks/s, phase = 0..1 }
+	             windows glow steadily, nav lights blink
 	  role       free tag for later systems: engine, cockpit, weapon, dock,
 	             light, antenna, rack, ...
 
@@ -76,6 +81,15 @@ local function reflect(part)
 		table.insert(out, s[k]); table.insert(out, -s[k + 1])
 	end
 	twin.shape, twin.mirror, twin.twin = out, nil, true
+	if part.lights then
+		twin.lights = {}
+		for _, l in ipairs(part.lights) do
+			local m = {}
+			for k, v in pairs(l) do m[k] = v end
+			m.y = -(l.y or 0)
+			table.insert(twin.lights, m)
+		end
+	end
 	return twin
 end
 
@@ -144,6 +158,54 @@ function HullShape.draw(hull, col, fill, line, lineWidth, only, ox, oy)
 		if l then
 			lg.setColor(l)
 			lg.polygon("line", part.shape)
+		end
+	end
+	if ox then lg.pop() end
+end
+
+-- Is x,y inside a part's outline?
+function HullShape.contains(part, x, y)
+	local s = part.shape
+	local hit, n = false, #s
+	local jx, jy = s[n - 1], s[n]
+	for k = 1, n, 2 do
+		local ix, iy = s[k], s[k + 1]
+		if (iy > y) ~= (jy > y) and x < (jx - ix) * (y - iy) / (jy - iy) + ix then hit = not hit end
+		jx, jy = ix, iy
+	end
+	return hit
+end
+
+HullShape.WINDOW = { 1, 0.86, 0.55 }
+HullShape.NAV = { 1, 0.3, 0.25 }
+
+-- Is a light lit at `time`? Windows always; nav lights blink (lit for a
+-- quarter of each cycle).
+function HullShape.lit(l, time)
+	if l.kind ~= "nav" then return true end
+	return ((time or 0) * (l.rate or 1) + (l.phase or 0)) % 1 < 0.25
+end
+
+-- Draw the lights on parts (all of the hull's, or `only`), offset like
+-- HullShape.draw. minSize keeps them visible when zoomed far out.
+function HullShape.drawLights(hull, time, minSize, only, ox, oy)
+	local lg = love.graphics
+	local list = only and (only.shape and { only } or only) or hull.parts
+	if ox then lg.push(); lg.translate(-ox, -oy) end
+	for _, part in ipairs(list) do
+		for _, l in ipairs(part.lights or {}) do
+			if HullShape.lit(l, time) then
+				local c = l.color or (l.kind == "nav" and HullShape.NAV or HullShape.WINDOW)
+				local r = max(l.size or (l.kind == "nav" and 2.5 or 1.5), minSize or 0)
+				if l.kind == "nav" then
+					lg.setBlendMode("add")
+					lg.setColor(c[1], c[2], c[3], 0.35)
+					lg.circle("fill", l.x, l.y, r * 2.5)
+					lg.setBlendMode("alpha")
+				end
+				lg.setColor(c[1], c[2], c[3], 0.9)
+				lg.circle("fill", l.x, l.y, r)
+			end
 		end
 	end
 	if ox then lg.pop() end

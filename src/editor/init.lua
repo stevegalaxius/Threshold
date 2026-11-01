@@ -8,7 +8,7 @@
 	rest of the screen is the canvas (src/editor/canvas.lua).
 
 	Keys (when no text box has focus):
-	  V select   P draw polygon   B rectangle
+	  V select   P draw polygon   B rectangle   L lights (click one, drag a row)
 	  Enter      finish the outline being drawn   Esc  drop it
 	  Delete     remove the selected point, or the selected part
 	  Ctrl+D     duplicate the part     M  toggle its mirror twin
@@ -30,6 +30,9 @@ local E = {
 	tool = "select",
 	drawing = nil,
 	mirrorNew = false,       -- new parts get a mirror twin
+	lightKind = "window",    -- what the light tool places
+	lightSpacing = 6,        -- px between lights in a dragged row
+	lsel = nil,              -- selected light (index into the selected part's lights)
 	view = { x = 0, y = 0, zoom = 3 },
 	snap = true, grid = 4,
 	preview = "normal",
@@ -145,6 +148,13 @@ end
 function E.deleteSelected()
 	if not E.sel then return end
 	local p = E.design.parts[E.sel]
+	if E.lsel and p.lights and p.lights[E.lsel] then
+		E.pushUndo()
+		table.remove(p.lights, E.lsel)
+		if #p.lights == 0 then p.lights = nil end
+		E.lsel = nil
+		return
+	end
 	if E.vsel and #p.shape > 6 then
 		E.pushUndo()
 		table.remove(p.shape, E.vsel); table.remove(p.shape, E.vsel)
@@ -161,6 +171,7 @@ function E.duplicateSelected()
 	E.pushUndo()
 	local p = Export.copy(E.design.parts[E.sel])
 	for k = 1, #p.shape, 2 do p.shape[k], p.shape[k + 1] = p.shape[k] + E.grid * 2, p.shape[k + 1] + E.grid * 2 end
+	for _, l in ipairs(p.lights or {}) do l.x, l.y = l.x + E.grid * 2, l.y + E.grid * 2 end
 	p.name = (p.name or "part") .. " copy"
 	table.insert(E.design.parts, E.sel + 1, p)
 	E.sel = E.sel + 1
@@ -192,6 +203,10 @@ function E.transformSelected(fn, reverse)
 		out = r
 	end
 	p.shape = out
+	for _, l in ipairs(p.lights or {}) do
+		local x, y = fn(l.x, l.y)
+		l.x, l.y = math.floor(x + 0.5), math.floor(y + 0.5)
+	end
 	E.vsel = nil
 end
 
@@ -358,6 +373,7 @@ function Editor.keypressed(key)
 	elseif key == "v" then E.tool = "select"; E.drawing = nil
 	elseif key == "p" then E.tool = "draw"
 	elseif key == "b" then E.tool = "rect"; E.drawing = nil
+	elseif key == "l" then E.tool = "light"; E.drawing = nil
 	elseif key == "g" then E.snap = not E.snap
 	elseif key == "m" and E.sel then
 		E.pushUndo()

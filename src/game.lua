@@ -13,6 +13,7 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local HullShape = require("src.hullshape")
 local Weapons = require("src.weapons")
 local AI = require("src.ai")
 local Camera = require("src.camera")
@@ -1604,9 +1605,15 @@ local function lootOf(e)
 		if count > 0 then loot[into] = (loot[into] or 0) + count end
 	end
 	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
+	-- Remembered by slot, so a wreck in parts can put each one in the part
+	-- its slot sits on (Game:breakablePieces).
+	e.salvagedSlots = {}
 	for i in ipairs(e.hull.slots) do
 		local id = e.loadout[i]
-		if id and data.items[id] and random() < T.moduleSalvage then loot[id] = (loot[id] or 0) + 1 end
+		if id and data.items[id] and random() < T.moduleSalvage then
+			loot[id] = (loot[id] or 0) + 1
+			e.salvagedSlots[i] = id
+		end
 	end
 	local s = e.def and e.def.salvage or { 0, 0 }
 	for _ = 1, random(s[1], s[2]) do
@@ -1741,10 +1748,25 @@ function Game:breakablePieces(h, ship)
 	local massTotal = 0
 	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
 	for _, pc in ipairs(h.pieces) do pc.massFrac = pc.part.area * (pc.part.mass or 1) / max(massTotal, 1) end
-	-- share the loot out: loose items unit by unit, containers whole
+	-- fitted modules that survived go to the part their slot sits on (the
+	-- topmost one under the hardpoint); unplaced slots stay with the core
+	local reserved = {}
+	for i, id in pairs(ship.salvagedSlots or {}) do
+		local slot = hull.slots[i]
+		local owner
+		if slot and slot.x then
+			for k = #h.pieces, 1, -1 do
+				local pc = h.pieces[k]
+				if pc.part.collide ~= false and HullShape.contains(pc.part, slot.x, slot.y or 0) then owner = pc break end
+			end
+		end
+		reserved[id] = (reserved[id] or 0) + 1
+		if owner and not owner.core then owner.share[id] = (owner.share[id] or 0) + 1 end
+	end
+	-- share the rest out: loose items unit by unit, containers whole
 	if lootTotal > 0 then
 		for id, n in pairs(Hold.totals(h.hold)) do
-			for _ = 1, n do
+			for _ = 1, n - (reserved[id] or 0) do
 				local r, pick = random() * lootTotal, nil
 				for _, pc in ipairs(h.pieces) do
 					if carries(pc.part) then

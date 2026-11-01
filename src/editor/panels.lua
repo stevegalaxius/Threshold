@@ -6,6 +6,7 @@
 local Slab = require("lib.Slab")
 local data = require("src.data")
 local Canvas = require("src.editor.canvas")
+local HullShape = require("src.hullshape")
 
 local Panels = {}
 
@@ -101,12 +102,21 @@ local function designWindow(E, Editor)
 
 	Slab.Separator()
 	Slab.Text("Tool")
-	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Rect (B)" } }
+	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Rect (B)" }, { "light", "Lights (L)" } }
+	local current = 1
+	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
 	for i, t in ipairs(tools) do
-		if Slab.RadioButton(t[2], { Index = i, SelectedIndex = (E.tool == "select" and 1 or E.tool == "draw" and 2 or 3) }) then
+		if Slab.RadioButton(t[2], { Index = i, SelectedIndex = current }) then
 			E.tool = t[1]
 			if t[1] ~= "draw" then E.drawing = nil end
 		end
+	end
+	if E.tool == "light" then
+		Slab.Text("Click a part for one light, drag for a row", { Color = { 0.6, 0.6, 0.6 } })
+		local kopts = { { label = "window (steady)", value = "window" }, { label = "nav (blinking)", value = "nav" } }
+		combo("yard_lightkind", E.lightKind == "nav" and "nav (blinking)" or "window (steady)", kopts, function(k) E.lightKind = k end, 160)
+		Slab.Text("row spacing (px)")
+		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
 	end
 	if Slab.CheckBox(E.mirrorNew, "New parts get a mirror twin") then E.mirrorNew = not E.mirrorNew end
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
@@ -253,7 +263,7 @@ local function designWindow(E, Editor)
 		local tags = (p.mirror and " [mirror]" or "") .. (i == E.coreIndex and " [core]" or "") .. (E.errors[i] and " [!]" or "")
 		local label = (selected and "> " or "  ") .. (p.name or ("part " .. i)) .. tags
 		local color = E.errors[i] and { 1, 0.45, 0.45 } or selected and { 1, 0.85, 0.3 } or (p.hidden and { 0.5, 0.5, 0.5 } or nil)
-		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then E.sel, E.vsel = i, nil end
+		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then E.sel, E.vsel, E.lsel = i, nil, nil end
 		Slab.PopID()
 	end
 	Slab.EndWindow()
@@ -270,6 +280,37 @@ local function partWindow(E)
 		AutoSizeWindow = false, AllowResize = true,
 	})
 	local i = E.sel
+	local light = E.lsel and p.lights and p.lights[E.lsel]
+	if light then
+		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
+		local kopts = { { label = "window", value = "window" }, { label = "nav", value = "nav" } }
+		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
+			E.pushUndo()
+			light.kind = k
+			if k == "nav" then light.rate, light.phase = light.rate or 1, light.phase or 0 end
+		end, 120)
+		local def = light.kind == "nav" and HullShape.NAV or HullShape.WINDOW
+		local c = light.color or def
+		for ci, name in ipairs({ "r", "g", "b" }) do
+			Slab.Text(name); Slab.SameLine()
+			slider(E, "yard_lc" .. name .. i, c[ci], 0, 1, function(v)
+				light.color = light.color or { def[1], def[2], def[3] }
+				light.color[ci] = v
+			end)
+		end
+		Slab.Text("size (px)")
+		slider(E, "yard_lsize" .. i, light.size or (light.kind == "nav" and 2.5 or 1.5), 0.5, 8, function(v) light.size = v end, 1)
+		if light.kind == "nav" then
+			Slab.Text("blinks per second")
+			slider(E, "yard_lrate" .. i, light.rate or 1, 0.1, 4, function(v) light.rate = v end)
+			Slab.Text("phase (offset between lights)")
+			slider(E, "yard_lphase" .. i, light.phase or 0, 0, 1, function(v) light.phase = v end)
+		end
+		if Slab.Button("Delete light") then E.deleteSelected() end
+		Slab.SameLine()
+		if Slab.Button("Back to the part") then E.lsel = nil end
+		Slab.Separator()
+	end
 	if E.errors[i] then Slab.Text("! " .. E.errors[i], { Color = { 1, 0.4, 0.4 } }) end
 	local a = Canvas.area(p.shape) * (p.mirror and 2 or 1)
 	Slab.Text(("%d points   area %d px2"):format(#p.shape / 2, a))

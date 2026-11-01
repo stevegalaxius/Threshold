@@ -76,6 +76,13 @@ function api.hull(def)
 		if part.armor ~= nil and type(part.armor) ~= "number" then bad("armor should be a number") end
 		if part.shade ~= nil and type(part.shade) ~= "number" then bad("shade should be a number") end
 		if part.mass ~= nil and type(part.mass) ~= "number" then bad("mass should be a number") end
+		if part.lights ~= nil then
+			if type(part.lights) ~= "table" then bad("lights should be a list") end
+			for j, l in ipairs(part.lights) do
+				if type(l.x) ~= "number" or type(l.y) ~= "number" then bad(("light %d needs x and y"):format(j)) end
+				if l.kind ~= nil and l.kind ~= "window" and l.kind ~= "nav" then bad(("light %d has unknown kind '%s' (use window or nav)"):format(j, tostring(l.kind))) end
+			end
+		end
 	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end

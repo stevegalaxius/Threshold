@@ -150,6 +150,28 @@ function Canvas.edgeAt(E, sx, sy)
 	return nil
 end
 
+-- The light near a screen point: part index and light index.
+function Canvas.lightAt(E, sx, sy)
+	local parts = E.design.parts
+	for i = #parts, 1, -1 do
+		local p = parts[i]
+		if not p.hidden and not p.locked then
+			for j, l in ipairs(p.lights or {}) do
+				local x, y = Canvas.toScreen(E, l.x, l.y)
+				if (x - sx) ^ 2 + (y - sy) ^ 2 <= 36 then return i, j end
+			end
+		end
+	end
+	return nil
+end
+
+-- A new light like the light tool's settings.
+local function newLight(E, x, y)
+	local l = { x = x, y = y, kind = E.lightKind }
+	if E.lightKind == "nav" then l.rate, l.phase = 1, 0 end
+	return l
+end
+
 -- Mouse tools ---------------------------------------------------------------
 
 function Canvas.mousepressed(E, sx, sy, button)
@@ -184,6 +206,23 @@ function Canvas.mousepressed(E, sx, sy, button)
 		return
 	end
 
+	if E.tool == "light" then
+		local px, py = Canvas.snap(E, wx, wy)
+		-- the part under the click; on a mirror twin, place on its source
+		-- part at the reflected spot (the twin gets the mirror image)
+		local parts, hit, flip = E.design.parts, nil, false
+		for i = #parts, 1, -1 do
+			local p = parts[i]
+			if not p.hidden and not p.locked then
+				if inside(p.shape, px, py) then hit = i break end
+				if p.mirror and inside(Canvas.reflected(p.shape), px, py) then hit, flip = i, true break end
+			end
+		end
+		if not hit then E.say("Lights go on a part: click on one") return end
+		E.drag = { kind = "lights", part = hit, flip = flip, x1 = px, y1 = py, x2 = px, y2 = py }
+		return
+	end
+
 	if E.tool == "rect" then
 		local px, py = Canvas.snap(E, wx, wy)
 		E.drag = { kind = "rect", x1 = px, y1 = py, x2 = px, y2 = py }
@@ -192,6 +231,13 @@ function Canvas.mousepressed(E, sx, sy, button)
 
 	-- select tool: a vertex of the selected part, an edge (double click
 	-- inserts a point), a part, or nothing
+	local li, lj = Canvas.lightAt(E, sx, sy)
+	if li then
+		E.sel, E.vsel, E.lsel = li, nil, lj
+		E.drag = { kind = "light", i = li, j = lj, pushed = false }
+		return
+	end
+	E.lsel = nil
 	local si = E.showSlots ~= false and Canvas.slotAt(E, sx, sy)
 	if si then
 		E.slotSel = si
@@ -238,8 +284,14 @@ function Canvas.mousemoved(E, sx, sy)
 	end
 	local wx, wy = Canvas.toWorld(E, sx, sy)
 	local px, py = Canvas.snap(E, wx, wy)
-	if d.kind == "rect" then
+	if d.kind == "rect" or d.kind == "lights" then
 		d.x2, d.y2 = px, py
+	elseif d.kind == "light" then
+		local l = E.design.parts[d.i].lights[d.j]
+		if l and (l.x ~= px or l.y ~= py) then
+			if not d.pushed then E.pushUndo(); d.pushed = true end
+			l.x, l.y = px, py
+		end
 	elseif d.kind == "vertex" then
 		local s = E.design.parts[E.sel].shape
 		if s[d.k] ~= px or s[d.k + 1] ~= py then
@@ -258,6 +310,7 @@ function Canvas.mousemoved(E, sx, sy)
 			if not d.pushed then E.pushUndo(); d.pushed = true end
 			local s = E.design.parts[E.sel].shape
 			for k = 1, #s, 2 do s[k], s[k + 1] = s[k] + dx, s[k + 1] + dy end
+			for _, l in ipairs(E.design.parts[E.sel].lights or {}) do l.x, l.y = l.x + dx, l.y + dy end
 			d.lx, d.ly = px, py
 		end
 	end
@@ -266,6 +319,26 @@ end
 function Canvas.mousereleased(E, sx, sy, button)
 	local d = E.drag
 	E.drag = nil
+	if d and d.kind == "lights" then
+		-- a click places one light; a drag places a row along it
+		local pts = {}
+		local dx, dy = d.x2 - d.x1, d.y2 - d.y1
+		local len = sqrt(dx * dx + dy * dy)
+		if len < E.lightSpacing * 0.5 then
+			pts[1] = { d.x1, d.y1 }
+		else
+			local n = floor(len / E.lightSpacing + 0.5)
+			for k = 0, n do pts[#pts + 1] = { d.x1 + dx * k / n, d.y1 + dy * k / n } end
+		end
+		E.pushUndo()
+		local p = E.design.parts[d.part]
+		p.lights = p.lights or {}
+		for _, q in ipairs(pts) do
+			table.insert(p.lights, newLight(E, floor(q[1] + 0.5), floor((d.flip and -q[2] or q[2]) + 0.5)))
+		end
+		E.sel, E.lsel = d.part, #p.lights
+		return
+	end
 	if d and d.kind == "rect" then
 		local x1, x2 = min(d.x1, d.x2), max(d.x1, d.x2)
 		local y1, y2 = min(d.y1, d.y2), max(d.y1, d.y2)
@@ -333,6 +406,15 @@ function Canvas.draw(E)
 				local twin = {}
 				for k, x in pairs(p) do twin[k] = x end
 				twin.shape = Canvas.reflected(p.shape)
+				if p.lights then
+					twin.lights = {}
+					for _, l in ipairs(p.lights) do
+						local m = {}
+						for k2, x2 in pairs(l) do m[k2] = x2 end
+						m.y = -l.y
+						table.insert(twin.lights, m)
+					end
+				end
 				table.insert(list, twin)
 			end
 			for _, q in ipairs(list) do
@@ -370,6 +452,9 @@ function Canvas.draw(E)
 						lg.setLineWidth(1 / v.zoom)
 						for _, t in ipairs(tris) do lg.polygon("line", t) end
 					end
+				end
+				if q.lights and E.preview ~= "wreck" and E.preview ~= "break" then
+					HullShape.drawLights(nil, love.timer.getTime(), 1.2 / v.zoom, q)
 				end
 				if moved then lg.pop() end
 			end
@@ -441,6 +526,24 @@ function Canvas.draw(E)
 		local bx, by = Canvas.toScreen(E, d.x2, d.y2)
 		lg.setColor(0.5, 1, 0.6)
 		lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
+	end
+
+	-- the selected light, and the row being placed
+	local sp = E.sel and E.design.parts[E.sel]
+	local sl = sp and E.lsel and sp.lights and sp.lights[E.lsel]
+	if sl then
+		local lx, ly = Canvas.toScreen(E, sl.x, sl.y)
+		lg.setColor(1, 1, 1)
+		lg.setLineWidth(1.5)
+		lg.circle("line", lx, ly, 7)
+	end
+	if E.drag and E.drag.kind == "lights" then
+		local d = E.drag
+		local ax, ay = Canvas.toScreen(E, d.x1, d.y1)
+		local bx, by = Canvas.toScreen(E, d.x2, d.y2)
+		lg.setColor(1, 0.86, 0.55, 0.8)
+		lg.setLineWidth(1)
+		lg.line(ax, ay, bx, by)
 	end
 
 	-- the cursor's position in ship space

@@ -859,6 +859,7 @@ local function drawShip(game, e)
 	end
 	HullShape.draw(hull, col, function(c) return { c[1] * 0.22, c[2] * 0.22, c[3] * 0.22 } end,
 		function(c) return c end, outline(2))
+	HullShape.drawLights(hull, game.time, screenPx * 0.8)
 	if e.flash > 0 then
 		HullShape.draw(hull, col, function() return { 1, 1, 1, 0.8 } end)
 	end
