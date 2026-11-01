@@ -151,18 +151,38 @@ function Canvas.edgeAt(E, sx, sy)
 end
 
 -- The light near a screen point: part index and light index.
-function Canvas.lightAt(E, sx, sy)
+-- The nearest one within LIGHT_PX, so a tight row is still pickable.
+local LIGHT_PX = 10
+function Canvas.lightAt(E, sx, sy, radius)
 	local parts = E.design.parts
+	local best, bi, bj = (radius or LIGHT_PX) ^ 2, nil, nil
 	for i = #parts, 1, -1 do
 		local p = parts[i]
 		if not p.hidden and not p.locked then
 			for j, l in ipairs(p.lights or {}) do
 				local x, y = Canvas.toScreen(E, l.x, l.y)
-				if (x - sx) ^ 2 + (y - sy) ^ 2 <= 36 then return i, j end
+				local d = (x - sx) ^ 2 + (y - sy) ^ 2
+				if d <= best then best, bi, bj = d, i, j end
 			end
 		end
 	end
-	return nil
+	return bi, bj
+end
+
+-- Remove every light within `radius` screen px of a point (the eraser).
+function Canvas.eraseLights(E, sx, sy, radius)
+	local gone = false
+	for _, p in ipairs(E.design.parts) do
+		if p.lights and not p.hidden and not p.locked then
+			for j = #p.lights, 1, -1 do
+				local x, y = Canvas.toScreen(E, p.lights[j].x, p.lights[j].y)
+				if (x - sx) ^ 2 + (y - sy) ^ 2 <= radius ^ 2 then table.remove(p.lights, j); gone = true end
+			end
+			if #p.lights == 0 then p.lights = nil end
+		end
+	end
+	if gone then E.lsel = nil end
+	return gone
 end
 
 -- A new light like the light tool's settings.
@@ -180,6 +200,13 @@ function Canvas.mousepressed(E, sx, sy, button)
 		-- right click while drawing takes the last point back
 		table.remove(E.drawing); table.remove(E.drawing)
 		if #E.drawing == 0 then E.drawing = nil end
+		return
+	end
+	if button == 2 and E.tool == "light" then
+		-- right drag with the light tool erases lights under the cursor
+		E.pushUndo()
+		E.drag = { kind = "erase" }
+		Canvas.eraseLights(E, sx, sy, E.eraseRadius)
 		return
 	end
 	if button == 2 or button == 3 then
@@ -207,6 +234,13 @@ function Canvas.mousepressed(E, sx, sy, button)
 	end
 
 	if E.tool == "light" then
+		-- clicking an existing light selects it (to move or delete it)
+		local li, lj = Canvas.lightAt(E, sx, sy)
+		if li then
+			E.sel, E.vsel, E.lsel = li, nil, lj
+			E.drag = { kind = "light", i = li, j = lj, pushed = false }
+			return
+		end
 		local px, py = Canvas.snap(E, wx, wy)
 		-- the part under the click; on a mirror twin, place on its source
 		-- part at the reflected spot (the twin gets the mirror image)
@@ -277,6 +311,10 @@ end
 function Canvas.mousemoved(E, sx, sy)
 	local d = E.drag
 	if not d then return end
+	if d.kind == "erase" then
+		Canvas.eraseLights(E, sx, sy, E.eraseRadius)
+		return
+	end
 	if d.kind == "pan" then
 		E.view.x = d.vx - (sx - d.sx) / E.view.zoom
 		E.view.y = d.vy - (sy - d.sy) / E.view.zoom
@@ -527,6 +565,23 @@ function Canvas.draw(E)
 		local bx, by = Canvas.toScreen(E, d.x2, d.y2)
 		lg.setColor(0.5, 1, 0.6)
 		lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
+	end
+
+	-- the light under the mouse, and the eraser's reach
+	if E.tool == "light" or E.tool == "select" then
+		local hi, hj = Canvas.lightAt(E, mx, my)
+		if hi then
+			local l = E.design.parts[hi].lights[hj]
+			local lx, ly = Canvas.toScreen(E, l.x, l.y)
+			lg.setColor(1, 1, 1, 0.6)
+			lg.setLineWidth(1)
+			lg.circle("line", lx, ly, 5)
+		end
+	end
+	if E.tool == "light" then
+		lg.setColor(1, 0.4, 0.4, (E.drag and E.drag.kind == "erase") and 0.7 or 0.2)
+		lg.setLineWidth(1)
+		lg.circle("line", mx, my, E.eraseRadius)
 	end
 
 	-- the selected light, and the row being placed

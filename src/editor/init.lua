@@ -8,7 +8,9 @@
 	rest of the screen is the canvas (src/editor/canvas.lua).
 
 	Keys (when no text box has focus):
-	  V select   P draw polygon   B rectangle   L lights (click one, drag a row)
+	  V select   P draw polygon   B rectangle
+	  L lights: click a part for one, drag for a row, click a light to pick
+	    it, right drag to erase
 	  Enter      finish the outline being drawn   Esc  drop it
 	  Delete     remove the selected point, or the selected part
 	  Ctrl+D     duplicate the part     M  toggle its mirror twin
@@ -32,6 +34,7 @@ local E = {
 	mirrorNew = false,       -- new parts get a mirror twin
 	lightKind = "window",    -- what the light tool places
 	lightSpacing = 6,        -- px between lights in a dragged row
+	eraseRadius = 12,        -- screen px the light eraser (right drag) reaches
 	previewDamage = 0,       -- pretend damage, to see the windows go out
 	previewFlash = 0,        -- pretend hit (seconds left)
 	lsel = nil,              -- selected light (index into the selected part's lights)

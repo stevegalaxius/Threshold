@@ -112,7 +112,9 @@ local function designWindow(E, Editor)
 		end
 	end
 	if E.tool == "light" then
-		Slab.Text("Click a part for one light, drag for a row", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Left: click a part for one light, drag a row", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Click a light to pick it, Delete removes it", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Right drag erases lights", { Color = { 0.6, 0.6, 0.6 } })
 		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
 		local kopts = {}
 		for _, k in ipairs({ "window", "nav", "strobe" }) do table.insert(kopts, { label = names[k], value = k }) end
@@ -321,6 +323,7 @@ local function partWindow(E)
 		if Slab.Button("Delete light") then E.deleteSelected() end
 		Slab.SameLine()
 		if Slab.Button("Back to the part") then E.lsel = nil end
+		if Slab.Button("Remove all lights on this part") then E.pushUndo(); p.lights = nil; E.lsel = nil end
 		Slab.Separator()
 	end
 	if E.errors[i] then Slab.Text("! " .. E.errors[i], { Color = { 1, 0.4, 0.4 } }) end
