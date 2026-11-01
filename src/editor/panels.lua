@@ -31,8 +31,7 @@ local STATS = {
 local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
--- Thruster slots do have a size: it scales the side jets (bySlot).
-local SIZELESS = { utility = true, computer = true }
+local SIZELESS = { utility = true, computer = true, thruster = true }
 
 local function combo(id, selected, options, onPick, w)
 	if Slab.BeginComboBox(id, { Selected = selected, W = w or 200 }) then
