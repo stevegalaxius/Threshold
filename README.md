@@ -200,3 +200,26 @@ The existing `love . --autotest` also exercises all moon round trips.
 - NPC populations and background asteroids still regenerate; highway debris is transient.
 - The art is placeholder outlines, and there's no audio.
 - Field repair items aren't in yet, pending their design.
+
+## Local travel graph prototype
+
+Open **F1 → Local travel graph prototype**, select two destinations, and click
+**Run route demo**. Blue lines show the local graph; gold shows the chosen route
+and an animated marker. Zoom out to see the network. This does not change NPCs.
+
+`src/travelgraph.lua` builds a small graph from stable location IDs without
+loading the area's physics. Station endpoints follow their real docking
+corridors, including both entrances of cloud cities. Navigation edges curve
+around the planet; the final approach follows the runway. Positions track the
+universe clock, so moving locations remain attached to their endpoints.
+
+Routes are plain Lua records containing edges and travel durations. Sampling
+elapsed travel returns position, velocity, heading, and arrival status for a
+future online handoff. Durations and graph connectivity are fixed when a route
+is planned; sampling follows moving endpoints. This is a coarse local travel
+prototype: it does not avoid individual asteroids or other traffic, simulate
+offline collisions, persist NPCs, or implement inter-area journeys.
+
+`love . --graphtest` checks routes in every region, solid-planet clearance,
+arrival at moving destinations, real docking transforms, route serialization,
+and graph construction without creating physics bodies.

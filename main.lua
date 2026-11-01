@@ -90,9 +90,9 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	for _, a in ipairs(args or {}) do
-		if a == "--worldtest" or a == "--persisttest" or a == "--locationtest" then
+		if a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" then
 			game.autosaveOff = true
-			local suite = a == "--locationtest" and "tests.locations"
+			local suite = a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
 				or a == "--persisttest" and "tests.persistence" or "tests.world_expansion"
 			local ok, err = xpcall(function() require(suite)(game) end, debug.traceback)
 			if not ok then print(err) end

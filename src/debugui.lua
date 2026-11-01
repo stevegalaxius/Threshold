@@ -250,6 +250,41 @@ local function section(id, label, fn, ...)
 	end
 end
 
+local function graphSection(game)
+ local G = require("src.travelgraph")
+ local visible = game.travelGraphView and game.travelGraphView.area == game.fieldId
+ if Slab.CheckBox(visible or false, "Show local travel graph") then
+  game.travelGraphView = not visible and G.build(game.fieldId, game.universe.clock) or nil
+ end
+ local opts = {}
+ for _, place in ipairs(Locations.list(game.fieldId)) do
+  opts[#opts+1] = {label=place.name, value=place.id}
+ end
+ if #opts == 0 then Slab.Text("No authored destinations here."); return end
+ if not Locations.byId[game.graphFrom] or Locations.byId[game.graphFrom].area ~= game.fieldId then
+  game.graphFrom, game.graphTo = opts[1].value, (opts[2] or opts[1]).value
+ end
+ Slab.Text("From")
+ combo("graph_from", Locations.get(game.graphFrom).name, opts, function(id) game.graphFrom=id end)
+ Slab.Text("To")
+ combo("graph_to", Locations.get(game.graphTo).name, opts, function(id) game.graphTo=id end)
+ if Slab.Button("Run route demo") then
+  local graph = G.build(game.fieldId, game.universe.clock)
+  local route,err = G.route(graph,game.graphFrom,game.graphTo,game.universe.clock)
+  game.graphError=err
+  if route then
+   game.travelGraphView=graph
+   game.travelGraphDemo={graph=graph, route=route, started=game.universe.clock}
+  end
+ end
+ if game.graphError then Slab.Text(game.graphError) end
+ local demo=game.travelGraphDemo
+ if demo and demo.graph.area == game.fieldId then
+  Slab.Text(("Travel: %.1f / %.1f seconds"):format(math.min(game.universe.clock-demo.started,demo.route.duration),demo.route.duration))
+ end
+ Slab.Text("Blue: graph. Gold: route and test marker.")
+end
+
 local function locationSection(game)
 	Slab.Text(("Universe clock: %.1f"):format(game.universe.clock))
 	for _, place in ipairs(Locations.list(game.fieldId)) do
@@ -275,6 +310,7 @@ function Debug.update(dt, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)
 	section("dbg_flight", "Flight and catch", flightSection, game)
 	section("dbg_lane", "Transit lane (highway)", laneSection, game)
+	section("dbg_graph", "Local travel graph prototype", graphSection, game)
 	section("dbg_locations", "Location IDs and positions", locationSection, game)
 	section("dbg_spawn", "Spawn and arena", spawnSection, game)
 	Slab.EndWindow()

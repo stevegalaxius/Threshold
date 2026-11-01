@@ -1210,6 +1210,7 @@ function Render.world(game, overlay)
 	drawBeams(game)
 	drawEffects(game)
 	game:drawComputers(screenPx)
+	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
 end
 

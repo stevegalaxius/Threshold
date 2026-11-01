@@ -270,7 +270,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, city = o.city,
+		stationTrack = sd, city = o.city, cityScale = o.cityScale or 1,
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -520,6 +520,10 @@ for _, area in ipairs(Fields.list) do
 			motion, spin = { type = "fixed", x = 0, y = 0 }, area == "ring" and 0.02 or 0.04
 		end
 		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
+		F.locations[#F.locations].layout = F.city and i == 1
+			and { city = F.cityScale }
+			or { radius = area == "ring" and 3000 or area == "station" and 1400 or 900,
+				tube = area == "ring" and 300 or area == "station" and 160 or 120 }
 	end
 	if F.stationTrack and #F.stationIds > (F.city and 1 or 0) then
 		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
