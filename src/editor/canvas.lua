@@ -50,7 +50,10 @@ end
 
 function Canvas.snap(E, x, y)
 	if not E.snap or love.keyboard.isDown("lalt", "ralt") then return floor(x + 0.5), floor(y + 0.5) end
+	-- the grid as drawn: zoomed out, its lines double up until they're
+	-- far enough apart to see, and snapping follows what you see
 	local g = E.grid
+	while g * E.view.zoom < 6 do g = g * 2 end
 	return floor(x / g + 0.5) * g, floor(y / g + 0.5) * g
 end
 

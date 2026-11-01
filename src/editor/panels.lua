@@ -81,8 +81,9 @@ local function turretCombo(id, current, pick)
 	local opts = {}
 	for _, mid in ipairs(data.list.modules) do
 		local m = data.modules[mid]
-		if m.weapon and m.weapon.kind ~= "drone" then
-			local kind = m.weapon.kind == "missile" and "missile, homing" or m.weapon.kind == "torpedo" and "torpedo, unguided" or m.weapon.kind
+		if m.weapon then
+			local kind = m.weapon.kind == "missile" and "missile, homing" or m.weapon.kind == "torpedo" and "torpedo, unguided"
+				or m.weapon.kind == "drone" and "drone bay" or m.weapon.kind
 			table.insert(opts, { label = ("%s (%s %s)"):format(m.name, m.size, kind), value = mid })
 		end
 	end
@@ -103,7 +104,7 @@ local function placedSections(E, d)
 		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Separator()
 		local turrets = d.turrets or {}
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "Turrets fire any weapon module (guns, artillery, lasers, missiles, torpedoes)\nwith endless ammo and power. For now they shoot hostile ships and anyone\nwho shoots the station (for 30 s); reputation will decide this later.\nTurn: how fast the turret swings, degrees a second.\nMissile and torpedo launchers are fixed bays with a heading instead." })
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Turrets fire any weapon module (guns, artillery, lasers, missiles, torpedoes, drones)\nwith endless ammo and power. For now they shoot hostile ships and anyone\nwho shoots the station (for 30 s); reputation will decide this later.\nTurn: how fast the turret swings, degrees a second.\nMissile, torpedo and drone launchers are fixed bays with a heading instead." })
 		Slab.SameLine()
 		Slab.Text(#turrets > 0 and ("Turrets: %d"):format(#turrets) or "Turrets: none")
 		local t = E.tsel and turrets[E.tsel]
@@ -113,7 +114,8 @@ local function placedSections(E, d)
 			local m = data.modules[t.module]
 			if m and m.family == "auxiliary" then
 				Slab.Text("fixed bay: missiles curve to the target,", { Color = { 0.6, 0.6, 0.6 } })
-				Slab.Text("torpedoes only fire down its line", { Color = { 0.6, 0.6, 0.6 } })
+				Slab.Text("drones fly off to it, torpedoes only", { Color = { 0.6, 0.6, 0.6 } })
+				Slab.Text("fire down its line", { Color = { 0.6, 0.6, 0.6 } })
 				Slab.Text("heading"); Slab.SameLine({ Pad = 4 })
 				local out = (t.x == 0 and t.y == 0) and 0 or math.floor(math.deg(math.atan2(t.y, t.x)) + 0.5) % 360
 				if Slab.InputNumberDrag("yard_turrethead", t.heading or out, 0, 359, 1, { W = 70 }) then

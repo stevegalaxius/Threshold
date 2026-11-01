@@ -86,8 +86,10 @@ local function pickTarget(game, e, x, y)
 		return p
 	end
 	local best, bestD = nil, 3000 * 3000
+	-- a station's drones go for whatever the station would shoot
+	local st = e.owner and e.owner.kind == "station" and e.owner
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= e.team and o.team ~= 3 then
+		if o.kind == "ship" and not o.dead and (st and game:stationHostile(st, o) or not st and o.team ~= e.team and o.team ~= 3) then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
 			if d < bestD then best, bestD = o, d end
@@ -249,7 +251,8 @@ function AI.think(game, e, dt)
 			e.idleTime = (e.idleTime or 0) + dt
 			if e.idleTime >= T.droneRecall and o and not o.dead then
 				local ox, oy = o.body:getPosition()
-				if (ox - x) ^ 2 + (oy - y) ^ 2 < 500 ^ 2 then e.recalled = true end
+				local home = 500 + (o.kind == "station" and o.radius or 0)
+				if (ox - x) ^ 2 + (oy - y) ^ 2 < home ^ 2 then e.recalled = true end
 			end
 		end
 		if o and not o.dead then
@@ -257,9 +260,11 @@ function AI.think(game, e, dt)
 			local mx, my, d = norm(ox - x, oy - y)
 			local ovx, ovy = o.body:getLinearVelocity()
 			local vx, vy = e.body:getLinearVelocity()
-			local want = d > 350 and min(T.aiCruise, (d - 350) * 2) or 0
+			-- (round a station, out past its rim)
+			local keep = 350 + (o.kind == "station" and (o.radius or 0) or 0)
+			local want = d > keep and min(T.aiCruise, (d - keep) * 2) or 0
 			local sx, sy = steerVelocity(ovx + mx * want, ovy + my * want, vx, vy)
-			if d > 350 then it.aimX, it.aimY = ox, oy end
+			if d > keep then it.aimX, it.aimY = ox, oy end
 			it.thrust, it.strafe = Ship.toLocal(e, sx * 0.8, sy * 0.8)
 		end
 		return
