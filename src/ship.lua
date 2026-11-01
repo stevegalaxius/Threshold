@@ -62,8 +62,8 @@ function Ship.new(game, opts)
 		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
 	}
 
-	-- Collision: hulls are long and narrow, so the body is a row of circles
-	-- (radius = half the hull's width) along its spine, from tail to nose.
+	-- The spine: the line through the hull's middle, tail to nose, inset by
+	-- its radius (half its width). Distances to the hull are measured to it.
 	local r = hull.radius
 	local noseX, tailX = 0, 0
 	for i = 1, #hull.shape, 2 do
@@ -76,10 +76,27 @@ function Ship.new(game, opts)
 	e.halfLength = max(noseX, -tailX)
 
 	local body = love.physics.newBody(game.world, opts.x or 0, opts.y or 0, "dynamic")
-	local n = math.ceil((s2 - s1) / r) + 1
-	for i = 0, n - 1 do
-		local cx = (n > 1) and (s1 + (s2 - s1) * i / (n - 1)) or s1
-		local fixture = love.physics.newFixture(body, love.physics.newCircleShape(cx, 0, r), 1)
+	-- the body collides in the hull's drawn shape: every triangle of every
+	-- part (parts tagged collide = false are drawn only). Mass is set from
+	-- the stats in Ship.updateMass, so the fixtures' density doesn't matter.
+	local made = 0
+	for _, part in ipairs(hull.parts) do
+		if part.collide ~= false then
+			for _, t in ipairs(part.tris) do
+				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+				if a2 > 4 then   -- Box2D refuses slivers
+					local fixture = love.physics.newFixture(body, love.physics.newPolygonShape(t), 1)
+					fixture:setRestitution(0.35)
+					fixture:setFriction(0.3)
+					fixture:setUserData(e)
+					made = made + 1
+				end
+			end
+		end
+	end
+	if made == 0 then
+		-- a hull too small or thin for polygons: a circle of its radius
+		local fixture = love.physics.newFixture(body, love.physics.newCircleShape(0, 0, r), 1)
 		fixture:setRestitution(0.35)
 		fixture:setFriction(0.3)
 		fixture:setUserData(e)
@@ -308,15 +325,13 @@ function Ship.fly(e, dt)
 	local steer = 0
 	if e.hull.helm == "turn" then steer, side = side, 0 end
 
-	-- Afterburner: full main engine plus extra thrust, draining power fast
-	-- until the capacitor is empty; then it's locked out until power is
-	-- back above boostRelight of capacity.
-	if e.power <= 0 then
-		e.burnerLocked = true
-	elseif e.power > s.powerCap * T.boostRelight then
-		e.burnerLocked = false
-	end
-	local burner = it.boost and not e.burnerLocked and e.power > 0 and s.thrust > 0
+	-- Afterburner: full main engine plus extra thrust, draining power fast.
+	-- Once the capacitor runs dry it drops to reserve: boostReserve of its
+	-- thrust with no drain, until power is back above boostRelight of
+	-- capacity. (The empty check comes after the drain below: the reactor
+	-- tops power up first every step, so it's never 0 up here.)
+	if e.burnerLocked and e.power > s.powerCap * T.boostRelight then e.burnerLocked = false end
+	local burner = it.boost and s.thrust > 0
 		-- the lane's buff replaces it, except on heavies, which need the
 		-- extra push to get anywhere on the road
 		and (not e.laneBuff or e.hull.class == "heavy")
@@ -338,14 +353,18 @@ function Ship.fly(e, dt)
 	local scale = T.FORCE_PER_KN * T.thrustScale
 	-- Maneuvering thrusters push forward too, but only matter when they
 	-- out-push the main engine (no engine fitted, or a very weak one).
-	local engine = e.spool * s.thrust * (burner and T.boostThrust or 1)
+	local boost = burner and (e.burnerLocked and 1 + (T.boostThrust - 1) * T.boostReserve or T.boostThrust) or 1
+	local engine = e.spool * s.thrust * boost
 	local jets = max(0, fwd) * aux
 	-- in a transit lane (e.laneBuff, src/transit.lua) every thruster hits
 	-- far harder (the afterburner gets no extra on top)
 	local buff = e.laneBuff and 1 + (T.laneThrust - 1) * e.laneBuff or 1
 	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
 	local l = side * aux * scale * buff
-	if burner then e.power = max(0, e.power - s.powerCap * T.boostDrain * dt) end
+	if burner and not e.burnerLocked then
+		e.power = max(0, e.power - s.powerCap * T.boostDrain * dt)
+		if e.power <= 0 then e.burnerLocked = true end
+	end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = s.thrust > 0 and e.spool or 0
 	e.foreBurn = jets > engine and max(0, fwd) or 0

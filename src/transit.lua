@@ -37,6 +37,8 @@ local T = require("src.tuning")
 local Ship = require("src.ship")
 local Fields = require("src.fields")
 local events = require("src.events")
+local data = require("src.data")
+local Stations = require("src.stations")
 
 local sqrt, cos, sin, pi, max, min, abs, random, floor = math.sqrt, math.cos, math.sin, math.pi, math.max, math.min, math.abs, love.math.random, math.floor
 
@@ -834,53 +836,6 @@ function Game:updateCities(dt)
 	end
 end
 
--- A cloud city's shape, from the top down: a mast and its collar, the
--- superstructure, the docking tunnel, the deck, a collar and the stalk
--- hanging into the clouds. y = 0 is the tunnel's centre line and -y is up
--- (out to space). The tunnel is the same size on every city (it's the
--- hangar, sized for ships); size k grows everything around it, so a big
--- city is more deck, more decks above and a taller spire, not a scaled-up
--- small one.
-local CITY_TUNNEL, CITY_HALF = 192, 896   -- tunnel half-height and half-length
-
--- One part: top, bottom, half-width and top/bottom chamfers, as an
--- 8-point convex outline.
-local function cityPart(y1, y2, w, ct, cb, role)
-	return { verts = { -w + ct, y1, w - ct, y1, w, y1 + ct * 0.6, w, y2 - cb * 0.6, w - cb, y2, -w + cb, y2, -w, y2 - cb * 0.6, -w, y1 + ct * 0.6 },
-		y1 = y1, y2 = y2, w = w, ct = ct, cb = cb, role = role }
-end
-
-local function cityParts(k)
-	local parts = {}
-	local function add(...) parts[#parts + 1] = cityPart(...) end
-	local T, H = CITY_TUNNEL, CITY_HALF
-	-- over the tunnel: the roof (overhanging the mouths on a big city),
-	-- then more levels stepping in
-	local roofW = H + 560 * (k - 1)
-	local top = -T - 176 * k
-	add(top, -T, roofW, 160 * k, 0, "roof")
-	local levelW = roofW
-	for i = 1, 2 * (k - 1) do
-		levelW = levelW * 0.72
-		local h = 288
-		add(top - h, top + 8, levelW, 100, 0, "level")
-		top = top - h
-	end
-	-- the spire: a collar and a mast
-	add(top - 176, top + 16, 192, 96, 0, "collar")
-	local mast = 1040 * k
-	add(top - 176 - mast, top - 160, 40, 0, 0, "mast")
-	-- under the tunnel: its floor, the deck, a collar and the stalk
-	add(T, T + 160, H, 0, 0, "floor")
-	local d1 = T + 144
-	local d2 = d1 + 528 * k
-	add(d1, d2, 1680 * k, 320 * k, 560 * k, "deck")
-	local c2 = d2 + 336 * k
-	add(d2 - 16, c2, 640 * k, 0, 400 * k, "collar")
-	add(c2 - 16, c2 + 3600 * k, 240 * k, 0, 0, "stalk")
-	return parts, top - 176 - mast
-end
-
 -- A cloud city: a fixed platform hanging in a gas giant's cloud tops, at
 -- angle a round the planet, with its docking tunnel just under the tops.
 -- It doesn't turn or drift. You dock by flying into either end of the
@@ -888,7 +843,7 @@ end
 function Game:spawnCloudCity(a, k)
 	k = k or 1
 	local w = self.well
-	local TH, H = CITY_TUNNEL, CITY_HALF
+	local TH = Stations.CITY_TUNNEL
 	-- It floats in the layer between the cloud tops and the crush, drifting
 	-- slowly round a fixed spot: across (along the clouds) and up and down,
 	-- never above the tops or into the crush. See Game:updateCities.
@@ -900,22 +855,43 @@ function Game:spawnCloudCity(a, k)
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
-	local parts, tip = cityParts(k)
+	-- the layout (src/stations.lua): a station { } with this id in the
+	-- data or the mods folder (say, from the Shipyard) replaces it
+	local id = Stations.cityId(k)
+	if not data.stations[id] then
+		local _, err = data.defineStation(Stations.city(k))
+		if err then error(err) end
+	end
+	local def = data.stations[id]
 	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
-		key = ("%s/%d"):format(self.fieldId or "?", n),
-		name = names and names[n] or "Cloud city", radius = 1680 * k, parts = parts, tip = tip,
-		cloudY = -TH - 60, tunnel = TH, half = H,
+		def = def, key = ("%s/%d"):format(self.fieldId or "?", n),
+		name = names and names[n] or "Cloud city", radius = 1680 * k,
+		cloudY = def.haze or (-TH - 60),
 		drift = { a = a, r = mid, up = max(0, (top - bottom) / 2 * 0.85), across = T.cityDriftAcross,
 			upPeriod = T.cityDriftUp, acrossPeriod = T.cityDriftAcrossPeriod, phase = random() * pi * 2 } }
-	e.dock = { x1 = -40, x2 = 40, hw = TH, wall = 24, runway = H - 40 + 600, capture = 260, both = true }
+	e.docks = {}
+	for _, d in ipairs(def.docks) do
+		local c = {}
+		for kk, v in pairs(d) do c[kk] = v end
+		table.insert(e.docks, c)
+	end
+	e.dock = e.docks[1]
+	self:armStation(e)
 	local sx, sy, sa = self:cityTarget(e)
 	body:setPosition(sx, sy)
 	body:setAngle(sa + pi / 2)
-	for _, p in ipairs(parts) do
-		local f = love.physics.newFixture(body, love.physics.newPolygonShape(p.verts))
-		f:setFriction(0.5)
-		f:setRestitution(0.1)
-		f:setUserData(e)
+	for _, part in ipairs(def.parts) do
+		if part.collide ~= false then
+			for _, t in ipairs(part.tris) do
+				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+				if a2 > 4 then
+					local f = love.physics.newFixture(body, love.physics.newPolygonShape(t))
+					f:setFriction(0.5)
+					f:setRestitution(0.1)
+					f:setUserData(e)
+				end
+			end
+		end
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)

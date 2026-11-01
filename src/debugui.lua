@@ -189,6 +189,29 @@ local function spawnSection(game)
 		end
 	end
 	if Slab.Button("Clear enemies") then game:clearEnemies() end
+	-- station turrets: make every armed station angry at you (as if you'd
+	-- shot it), or forgive you
+	if game.player and not game.player.dead then
+		if Slab.Button("Stations hate me (30 s)") then
+			for _, st in ipairs(game.entities) do
+				if st.grudge then st.grudge[game.player] = game.time end
+			end
+		end
+		Slab.SameLine()
+		if Slab.Button("Forgive me") then
+			for _, st in ipairs(game.entities) do
+				if st.grudge then st.grudge[game.player] = nil end
+			end
+		end
+	end
+	-- wrecks and props from data/ or the Shipyard (data.wrecks)
+	for _, id in ipairs(data.list.wrecks) do
+		local def = data.wrecks[id]
+		if Slab.Button(("Spawn %s %s"):format(def.kind, def.name), { W = 300 }) then
+			local x, y = game:spawnPoint(600, 900)
+			game:spawnWreck(id, x, y)
+		end
+	end
 	if Slab.Button("Spawn 5 asteroids") then
 		for _ = 1, 5 do
 			local x, y = game:spawnPoint(300, 700)

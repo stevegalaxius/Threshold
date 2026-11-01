@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {} },
 }
 
 -- Slot families. primary / secondary are fire groups for guns (left and
@@ -65,10 +65,34 @@ local api = {}
 
 function api.hull(def)
 	register("hulls", "hull", def)
-	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots" }) do need(def, f, "hull") end
+	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
+	local LAYERS = { hull = true, detail = true, glow = true }
+	for i, part in ipairs(def.parts or {}) do
+		local function bad(what) fail(("hull '%s' part %d: %s"):format(def.id, i, what)) end
+		if part.layer ~= nil and not LAYERS[part.layer] then bad("unknown layer '" .. tostring(part.layer) .. "' (use hull, detail or glow)") end
+		if part.color ~= nil and (type(part.color) ~= "table" or #part.color < 3) then bad("color should be { r, g, b }") end
+		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
+		if part.armor ~= nil and type(part.armor) ~= "number" then bad("armor should be a number") end
+		if part.shade ~= nil and type(part.shade) ~= "number" then bad("shade should be a number") end
+		if part.mass ~= nil and type(part.mass) ~= "number" then bad("mass should be a number") end
+		if part.lights ~= nil then
+			if type(part.lights) ~= "table" then bad("lights should be a list") end
+			for j, l in ipairs(part.lights) do
+				if type(l.x) ~= "number" or type(l.y) ~= "number" then bad(("light %d needs x and y"):format(j)) end
+				if l.kind ~= nil and l.kind ~= "window" and l.kind ~= "nav" and l.kind ~= "strobe" then bad(("light %d has unknown kind '%s' (use window, nav or strobe)"):format(j, tostring(l.kind))) end
+			end
+		end
+	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
+	-- radius: half the hull's width, unless it says. Ships collide in their
+	-- drawn shape; radius is for the spine, distances and thruster size.
+	if not def.radius then
+		local w = 0
+		for k = 2, #def.shape, 2 do w = math.max(w, math.abs(def.shape[k])) end
+		def.radius = math.max(4, math.floor(w + 0.5))
+	end
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
@@ -79,6 +103,120 @@ function api.hull(def)
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
+end
+
+-- A wreck: a derelict built from parts, placed in the world rather than
+-- left by a ship. It drifts, can be looted, and breaks apart part by part
+-- like a ship's wreck (src/game.lua, Game:spawnWreck).
+--   parts   as for hulls (src/hullshape.lua)
+--   armor   toughness (default 200)    hold  m3 for its loot (default 20)
+--   mass    tonnes (default 100)
+--   loot    what it can turn up: { { item, min, max, chance }, ... }
+-- A prop is the same with no loot: debris, beacons, scenery.
+local function wreckLike(kind, def)
+	register("wrecks", kind, def)
+	if not def.parts then fail(("%s '%s' needs parts"):format(kind, def.id)) end
+	local ok, err = pcall(HullShape.prepare, def)
+	if not ok then fail(err) end
+	def.kind = kind
+	def.armor, def.hold, def.mass = def.armor or 200, def.hold or 20, def.mass or 100
+	def.loot = def.loot or {}
+	def.slots = {}
+	for i, l in ipairs(def.loot) do
+		if type(l) ~= "table" or type(l[1]) ~= "string" then fail(("%s '%s' loot %d should be { item, min, max, chance }"):format(kind, def.id, i)) end
+	end
+	-- radius: half its width, as for hulls
+	local w = 0
+	for k = 2, #def.shape, 2 do w = math.max(w, math.abs(def.shape[k])) end
+	def.radius = def.radius or math.max(4, math.floor(w + 0.5))
+end
+
+function api.wreck(def) wreckLike("wreck", def) end
+function api.prop(def) def.loot = {}; wreckLike("prop", def) end
+
+-- A wreck or prop made at runtime (the Shipyard's test spawn).
+function data.defineWreck(def)
+	local was = currentFile
+	currentFile = "shipyard"
+	local ok, err = pcall(def.kind == "prop" and api.prop or api.wreck, def)
+	currentFile = was
+	if not ok then return nil, err end
+	return def
+end
+
+-- A station layout (src/stations.lua has the format and the generated
+-- wheels). One part says dock = true: its box is the docking module, door
+-- at its +x end.
+function api.station(def)
+	if not def.name then def.name = def.id end
+	register("stations", "station", def)
+	if not def.parts then fail(("station '%s' needs parts"):format(def.id)) end
+	local ok, err = pcall(HullShape.prepare, def)
+	if not ok then fail(err) end
+	-- every part tagged dock is a docking module. Its frame points from the
+	-- station's centre out through the part (or along +x for a part on the
+	-- centre); the door is the far end. dockBoth: a tunnel open at both
+	-- ends, centred on its frame.
+	def.docks = {}
+	for _, part in ipairs(def.parts) do
+		if part.dock then
+			local a = (math.abs(part.cx) + math.abs(part.cy) < 1) and 0 or math.atan2(part.cy, part.cx)
+			local c, sn = math.cos(a), math.sin(a)
+			local x1, x2, y1, y2 = math.huge, -math.huge, math.huge, -math.huge
+			local s = part.shape
+			for k = 1, #s, 2 do
+				local rx, ry = s[k] * c + s[k + 1] * sn, -s[k] * sn + s[k + 1] * c
+				x1, x2 = math.min(x1, rx), math.max(x2, rx)
+				y1, y2 = math.min(y1, ry), math.max(y2, ry)
+			end
+			local d = { a = a, yc = (y1 + y2) / 2, x1 = x1, x2 = x2, hw = (y2 - y1) / 2,
+				wall = 24, runway = part.dockRunway or 600, capture = part.dockCapture or 260 }
+			if part.dockBoth then
+				d.both = true
+				d.xc = (x1 + x2) / 2
+				d.x1, d.x2 = x1 - d.xc, x2 - d.xc
+			end
+			table.insert(def.docks, d)
+		end
+	end
+	if #def.docks == 0 then fail(("station '%s' needs a part with dock = true"):format(def.id)) end
+	-- berths: parking spots outside, { x, y, heading (degrees, the way the
+	-- parked ship faces), size (the longest ship half-length that fits) }.
+	-- Arriving ships take a free one that fits; the rest go inside.
+	if def.berths ~= nil and type(def.berths) ~= "table" then fail(("station '%s': berths should be a list"):format(def.id)) end
+	-- turrets: { x, y, module (a weapon module id), turn
+	-- (degrees a second, default 90) }. They fire the module's weapon with
+	-- endless ammo at whatever Game:stationHostile picks.
+	if def.turrets ~= nil and type(def.turrets) ~= "table" then fail(("station '%s': turrets should be a list"):format(def.id)) end
+	for j, t in ipairs(def.turrets or {}) do
+		if type(t.x) ~= "number" or type(t.y) ~= "number" then fail(("station '%s': turret %d needs x and y"):format(def.id, j)) end
+		local m = data.modules[t.module]
+		if not (m and m.weapon) then
+			fail(("station '%s': turret %d: '%s' isn't a weapon module"):format(def.id, j, tostring(t.module)))
+		end
+		t.turn = t.turn or 90
+		if t.heading ~= nil and type(t.heading) ~= "number" then fail(("station '%s': turret %d heading should be a number"):format(def.id, j)) end
+	end
+	for j, b in ipairs(def.berths or {}) do
+		if type(b.x) ~= "number" or type(b.y) ~= "number" then fail(("station '%s': berth %d needs x and y"):format(def.id, j)) end
+		b.heading = b.heading or 0
+		b.size = b.size or 80
+		if type(b.heading) ~= "number" or type(b.size) ~= "number" then fail(("station '%s': berth %d heading and size should be numbers"):format(def.id, j)) end
+	end
+	def.dock = def.docks[1]
+	local reach = 0
+	for k = 1, #def.shape, 2 do reach = math.max(reach, math.sqrt(def.shape[k] ^ 2 + def.shape[k + 1] ^ 2)) end
+	def.radius = reach
+	def.slots = {}
+end
+
+function data.defineStation(def)
+	local was = currentFile
+	currentFile = "stations"
+	local ok, err = pcall(api.station, def)
+	currentFile = was
+	if not ok then return nil, err end
+	return def
 end
 
 function api.module(def)
@@ -127,6 +265,17 @@ end
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
+end
+
+-- A hull made at runtime (the F2 editor's test flight). Errors come back
+-- as nil, message instead of being thrown.
+function data.defineHull(def)
+	local was = currentFile
+	currentFile = "shipyard"
+	local ok, err = pcall(api.hull, def)
+	currentFile = was
+	if not ok then return nil, err end
+	return def
 end
 
 -- Loading ------------------------------------------------------------------

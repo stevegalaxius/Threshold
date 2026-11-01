@@ -271,72 +271,111 @@ local function drawStructure(game, e)
 	end
 end
 
+local BARREL = { S = 7, M = 10, L = 16 }
+local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
+
 -- A wheel station: smooth ring, spokes and hub, with lit windows along
 -- the ring that turn with it.
 local function drawStation(game, e)
 	local x, y = e.body:getPosition()
-	local R, tube, hub = e.ringR, e.tube, e.hub
-	local ri, ro = R - tube / 2, R + tube / 2
-	local seg = 512
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
-	-- spokes under the ring
-	local sw = tube * 0.22
-	for k = 0, e.spokes - 1 do
+	-- the layout's parts (src/stations.lua), then their windows and beacons
+	local col = e.def.color or { 0.55, 0.63, 0.74 }
+	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
+		function(c) return c end, outline(2))
+	HullShape.drawLights(e.def, game.time, screenPx)
+	-- turrets: a base and barrels, turned to where each is aiming (twice a
+	-- ship mount's size, and never smaller than a few pixels)
+	for _, w in ipairs(e.weapons or {}) do
+		local sz = w.module.size
+		local r = max((TURRET[sz] or 5) * 2, 4 * screenPx)
+		local len = max((BARREL[sz] or 8) * 3, 7 * screenPx)
+		local thick = max(((sz == "L") and 5 or (sz == "M") and 4 or 3) * 2, 2 * screenPx)
 		lg.push()
-		lg.rotate(k / e.spokes * pi * 2)
-		lg.setColor(0.17, 0.19, 0.23)
-		lg.rectangle("fill", hub * 0.9, -sw, ri - hub * 0.9 + 4, sw * 2)
-		lg.setColor(0.5, 0.58, 0.68)
-		lg.setLineWidth(outline(1.5))
-		lg.rectangle("line", hub * 0.9, -sw, ri - hub * 0.9 + 4, sw * 2)
+		lg.translate(w.slot.x, w.slot.y)
+		lg.rotate(w.aim or 0)
+		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
+		if w.mount == "bay" then
+			-- (drawn below)
+		elseif w.group == "auxiliary" then
+			lg.rectangle("fill", -r * 0.2, -r * 0.8, r * 1.6, r * 1.6)
+		else
+			local n, gap = w.w.barrels or 1, (w.w.barrelGap or 8) * 2
+			for b = 1, n do
+				local off = (b - (n + 1) / 2) * gap
+				lg.rectangle("fill", 0, off - thick / 2, len, thick)
+			end
+		end
+		if w.mount == "bay" then
+			-- a fixed launch bay: a box with its mouth along the heading,
+			-- lit red while it has a target
+			lg.setColor(col[1] * 0.3, col[2] * 0.3, col[3] * 0.3)
+			lg.rectangle("fill", -r * 1.4, -r, r * 2.8, r * 2)
+			lg.setColor(w.target and { 1, 0.4, 0.35 } or col)
+			lg.setLineWidth(outline(1.5))
+			lg.rectangle("line", -r * 1.4, -r, r * 2.8, r * 2)
+			lg.rectangle("fill", r * 1.1, -r * 0.6, r * 0.3, r * 1.2)
+		else
+			lg.setColor(col[1] * 0.3, col[2] * 0.3, col[3] * 0.3)
+			lg.circle("fill", 0, 0, r)
+			lg.setColor(w.target and { 1, 0.4, 0.35 } or col)
+			lg.setLineWidth(outline(1.5))
+			lg.circle("line", 0, 0, r)
+		end
 		lg.pop()
 	end
-	-- the ring, as one thick smooth stroke
-	lg.setColor(0.2, 0.23, 0.28)
-	lg.setLineWidth(tube)
-	lg.circle("line", 0, 0, R, seg)
-	-- a darker band down the middle of the ring
-	lg.setColor(0.15, 0.17, 0.21)
-	lg.setLineWidth(tube * 0.35)
-	lg.circle("line", 0, 0, R, seg)
-	lg.setColor(0.55, 0.63, 0.74)
-	lg.setLineWidth(outline(2))
-	lg.circle("line", 0, 0, ro, seg)
-	lg.circle("line", 0, 0, ri, seg)
-	-- windows along the ring's outer and inner faces
-	lg.setColor(1, 0.86, 0.55, 0.85)
-	local wr = max(tube * 0.05, 2 * screenPx)
-	local nw = floor(R / 14)
-	for i = 0, nw - 1 do
-		local a = i / nw * pi * 2
-		local c, s = cos(a), sin(a)
-		if i % 7 ~= 3 then
-			lg.circle("fill", c * (ro - tube * 0.16), s * (ro - tube * 0.16), wr)
-			lg.circle("fill", c * (ri + tube * 0.16), s * (ri + tube * 0.16), wr)
+	-- berths: a pad outline with corner ticks, lit green while taken
+	local berths = e.def.berths
+	if berths and #berths > 0 then
+		local taken = {}
+		for _, o in ipairs(game.entities) do
+			local ds = o.dockState
+			if ds and ds.station == e and ds.berth then taken[ds.berth] = true end
+		end
+		lg.setLineWidth(outline(1.5))
+		for i, b in ipairs(berths) do
+			lg.push()
+			lg.translate(b.x, b.y)
+			lg.rotate(math.rad(b.heading))
+			local L, W = b.size, b.size * 0.55
+			lg.setColor(0.95, 0.75, 0.25, 0.35)
+			lg.rectangle("line", -L, -W, L * 2, W * 2)
+			local t = min(L, W) * 0.3
+			lg.setColor(0.95, 0.75, 0.25, 0.8)
+			for _, c in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
+				local cx, cy = c[1] * L, c[2] * W
+				lg.line(cx - c[1] * t, cy, cx, cy, cx, cy - c[2] * t)
+			end
+			-- the light at the nose end: green when taken, amber when free
+			lg.setColor(taken[i] and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+			lg.circle("fill", L, 0, max(4, 2.5 * screenPx))
+			lg.pop()
 		end
 	end
-	-- the dock: a square module on the outside of the ring, door facing out
-	local d = e.dock
-	if d then
-		local x1, x2, hw = d.x1, d.x2, d.hw
-		lg.setColor(0.2, 0.23, 0.28)
-		lg.rectangle("fill", x1, -hw, x2 - x1, hw * 2)
-		lg.setColor(0.55, 0.63, 0.74)
-		lg.setLineWidth(outline(2))
-		lg.rectangle("line", x1, -hw, x2 - x1, hw * 2)
-		-- the door: hazard-striped, lit while a ship is coming in
-		local busy = false
-		for _, o in ipairs(game.entities) do
-			if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
-		end
+	-- each dock's door and runway, in the dock's own frame (a tunnel gets
+	-- both ends)
+	local busy = false
+	for _, o in ipairs(game.entities) do
+		if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
+	end
+	for _, d in ipairs(e.docks or { e.dock }) do
+	for _, side in ipairs(d.both and { 1, -1 } or { 1 }) do
+		lg.push()
+		lg.rotate(d.a or 0)
+		lg.translate(d.xc or 0, d.yc or 0)
+		lg.scale(side, side)
+		local x2, hw = d.x2, d.hw
+		-- the door: hazard-striped, lit while a ship is coming in. The
+		-- stripes sit centred in six equal bands, so the far end of a
+		-- tunnel (this frame turned half round) lines up with the near one.
 		local dw = hw * 0.7
 		lg.setColor(0.09, 0.1, 0.13)
 		lg.rectangle("fill", x2 - d.wall, -dw, d.wall, dw * 2)
 		lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
 		for k = -3, 2 do
-			local y0 = dw * k / 3
+			local y0 = dw * k / 3 + dw / 12
 			lg.rectangle("fill", x2 - d.wall, y0, d.wall, dw / 6)
 		end
 		-- Runway lights: two rows running out from the door, plus a centre
@@ -363,117 +402,33 @@ local function drawStation(game, e)
 		lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
 		lg.circle("fill", x2, hw, lr * 1.4)
 		lg.circle("fill", x2, -hw, lr * 1.4)
+		lg.pop()
 	end
-	-- hub
-	lg.setColor(0.22, 0.25, 0.31)
-	lg.circle("fill", 0, 0, hub, 96)
-	lg.setColor(0.55, 0.63, 0.74)
-	lg.setLineWidth(outline(2))
-	lg.circle("line", 0, 0, hub, 96)
-	lg.circle("line", 0, 0, hub * 0.45, 64)
-	-- blinking beacons on the rim
-	if (game.time % 1.6) < 0.25 then
-		lg.setColor(1, 0.35, 0.3)
-		local br = max(tube * 0.08, 4 * screenPx)
-		for k = 0, 3 do
-			local a = (k + 0.5) / 4 * pi * 2
-			lg.circle("fill", cos(a) * ro, sin(a) * ro, br)
+	end
+	lg.pop()
+end
+
+-- A cloud city: a station layout (src/stations.lua) like any other, then
+-- the haze: every part below the cloud tops fades into the planet.
+local function drawCity(game, e)
+	drawStation(game, e)
+	local w = game.well
+	local c = w and w.planet and w.planet.hue or { 0.85, 0.65, 0.45 }
+	local x, y = e.body:getPosition()
+	lg.push()
+	lg.translate(x, y)
+	lg.rotate(e.body:getAngle())
+	for _, p in ipairs(e.def.parts) do
+		local depth = (p.cy - e.cloudY) / 3000
+		if depth > 0 and p.tris and (p.layer or "hull") == "hull" then
+			lg.setColor(c[1], c[2], c[3], min(0.75, depth * 0.45))
+			for _, t in ipairs(p.tris) do lg.polygon("fill", t) end
 		end
 	end
 	lg.pop()
 end
 
 -- A navigation buoy: a small beacon with a slow pulse ring.
--- A cloud city: fixed parts drawn in the wheel stations' colours, sinking
--- into the planet's haze below the cloud tops; the docking tunnel through
--- the middle, lit at both ends. Windows and lights are the same size on
--- every city, so a bigger one just has more of them.
-local function drawCity(game, e)
-	local x, y = e.body:getPosition()
-	local w = game.well
-	local c = w and w.planet and w.planet.hue or { 0.85, 0.65, 0.45 }
-	lg.push()
-	lg.translate(x, y)
-	lg.rotate(e.body:getAngle())
-	local T2, half = e.tunnel, e.half
-	for _, p in ipairs(e.parts) do
-		lg.setColor(0.2, 0.23, 0.28)
-		lg.polygon("fill", p.verts)
-		lg.setColor(0.15, 0.17, 0.21)
-		if p.role == "stalk" then
-			lg.rectangle("fill", -p.w * 0.3, p.y1 + 16, p.w * 0.6, p.y2 - p.y1 - 32)
-		elseif p.role == "deck" then
-			lg.rectangle("fill", -(p.w - p.ct * 0.5), (p.y1 + p.y2) / 2 - 40, (p.w - p.ct * 0.5) * 2, 80)
-		end
-		lg.setColor(0.55, 0.63, 0.74)
-		lg.setLineWidth(outline(2))
-		lg.polygon("line", p.verts)
-	end
-	-- the tunnel: dark inside, hazard-striped mouths, the clamp in the middle
-	lg.setColor(0.07, 0.08, 0.1)
-	lg.rectangle("fill", -half, -T2, half * 2, T2 * 2)
-	lg.setColor(0.55, 0.63, 0.74)
-	lg.line(-half, -T2, half, -T2)
-	lg.line(-half, T2, half, T2)
-	local busy = false
-	for _, o in ipairs(game.entities) do
-		if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
-	end
-	lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
-	for _, s in ipairs({ -1, 1 }) do
-		for k = 0, 3 do
-			lg.rectangle("fill", s * half - (s > 0 and 48 or 0), -T2 + 32 + k * 88, 48, 40)
-		end
-	end
-	lg.setColor(0.4, 1, 0.55, 0.9)
-	lg.rectangle("fill", -144, T2 - 48, 288, 32)
-	-- runway lights into both mouths, chasing inward
-	local lr = max(5, 3 * screenPx)
-	for i = 0, 6 do
-		local fade = 1 - i / 7 * 0.6
-		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
-		for _, s in ipairs({ -1, 1 }) do
-			local lx = s * (half + 180 + i * 270)
-			lg.circle("fill", lx, -T2 + 24, lr)
-			lg.circle("fill", lx, T2 - 24, lr)
-		end
-	end
-	-- windows: rows across each part at a fixed spacing, pairs down the stalk
-	lg.setColor(1, 0.86, 0.55, 0.85)
-	local wr = max(16, 2 * screenPx)
-	for _, p in ipairs(e.parts) do
-		if p.role == "stalk" then
-			for yy = p.y1 + 160, p.y2 - 120, 240 do
-				lg.circle("fill", -p.w * 0.6, yy, wr)
-				lg.circle("fill", p.w * 0.6, yy, wr)
-			end
-		elseif p.role ~= "mast" and p.role ~= "floor" then
-			local i = 0
-			for yy = p.y1 + 112, p.y2 - 96, 288 do
-				local hw = p.w - max(p.ct, p.cb) - 80
-				local j = 0
-				for xx = -hw, hw, 112 do
-					if (j + i * 3) % 7 ~= 3 then lg.circle("fill", xx, yy, wr) end
-					j = j + 1
-				end
-				i = i + 1
-			end
-		end
-	end
-	-- the beacon on the mast
-	lg.setColor(1, 0.35, 0.3)
-	lg.circle("fill", 0, e.tip, max(24, 4 * screenPx))
-	-- the haze: everything below the cloud tops fades into the planet
-	for _, p in ipairs(e.parts) do
-		local depth = ((p.y1 + p.y2) / 2 - e.cloudY) / 3000
-		if depth > 0 then
-			lg.setColor(c[1], c[2], c[3], min(0.75, depth * 0.45))
-			lg.polygon("fill", p.verts)
-		end
-	end
-	lg.pop()
-end
-
 local function drawBuoy(game, e)
 	local x, y = e.body:getPosition()
 	local px = screenPx
@@ -635,7 +590,7 @@ end
 -- lane.
 local function drawLaneBuff(e)
 	local buff = e.laneBuff or e.laneFade
-	if not buff or buff <= 0 or (e.dockState and e.dockState.done) then return end
+	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
 	local hot = 0
@@ -766,11 +721,10 @@ local function drawPlanet(game, e)
 	lg.circle("line", x, y, R, PLANET_SEGMENTS)
 end
 
-local BARREL = { S = 7, M = 10, L = 16 }
-local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 
 local function drawShip(game, e)
-	if e.dockState and e.dockState.done then return end
+	-- inside a station: not drawn (parked on a berth: drawn)
+	if e.dockState and e.dockState.done and not e.dockState.berth then return end
 	drawReentry(e, e.halfLength)
 	drawLaneBuff(e)
 	local x, y = e.body:getPosition()
@@ -859,6 +813,8 @@ local function drawShip(game, e)
 	end
 	HullShape.draw(hull, col, function(c) return { c[1] * 0.22, c[2] * 0.22, c[3] * 0.22 } end,
 		function(c) return c end, outline(2))
+	HullShape.drawLights(hull, game.time, screenPx, nil, nil, nil,
+		{ damage = 1 - (e.armor or e.stats.armor) / math.max(e.stats.armor, 1), flash = e.flash })
 	if e.flash > 0 then
 		HullShape.draw(hull, col, function() return { 1, 1, 1, 0.8 } end)
 	end
@@ -970,7 +926,7 @@ end
 
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" then
+		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
 				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam

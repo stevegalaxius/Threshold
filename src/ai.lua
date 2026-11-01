@@ -85,9 +85,13 @@ local function pickTarget(game, e, x, y)
 		end
 		return p
 	end
-	local best, bestD = nil, 3000 * 3000
+	-- a station's drones go for whatever the station would shoot, and
+	-- look as far as its drone bays launch at
+	local st = e.owner and e.owner.kind == "station" and e.owner
+	local reach = st and (game.STATION_DRONE_REACH or 5000) + 1000 or 3000
+	local best, bestD = nil, reach * reach
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= e.team and o.team ~= 3 then
+		if o.kind == "ship" and not o.dead and (st and game:stationHostile(st, o) or not st and o.team ~= e.team and o.team ~= 3) then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
 			if d < bestD then best, bestD = o, d end
@@ -122,7 +126,10 @@ end
 local function stopPoint(stop)
 	if stop.dock then
 		-- out on the runway, where the station's tractor picks it up
-		return stop.body:getWorldPoint(stop.dock.x2 + stop.dock.runway * 0.6, 0)
+		local d = stop.dock
+		local a, lx = d.a or 0, d.x2 + d.runway * 0.6 + (d.xc or 0)
+		local ly = d.yc or 0
+		return stop.body:getWorldPoint(lx * math.cos(a) - ly * math.sin(a), lx * math.sin(a) + ly * math.cos(a))
 	end
 	return stop.body:getPosition()
 end
@@ -246,7 +253,8 @@ function AI.think(game, e, dt)
 			e.idleTime = (e.idleTime or 0) + dt
 			if e.idleTime >= T.droneRecall and o and not o.dead then
 				local ox, oy = o.body:getPosition()
-				if (ox - x) ^ 2 + (oy - y) ^ 2 < 500 ^ 2 then e.recalled = true end
+				local home = 500 + (o.kind == "station" and o.radius or 0)
+				if (ox - x) ^ 2 + (oy - y) ^ 2 < home ^ 2 then e.recalled = true end
 			end
 		end
 		if o and not o.dead then
@@ -254,9 +262,11 @@ function AI.think(game, e, dt)
 			local mx, my, d = norm(ox - x, oy - y)
 			local ovx, ovy = o.body:getLinearVelocity()
 			local vx, vy = e.body:getLinearVelocity()
-			local want = d > 350 and min(T.aiCruise, (d - 350) * 2) or 0
+			-- (round a station, out past its rim)
+			local keep = 350 + (o.kind == "station" and (o.radius or 0) or 0)
+			local want = d > keep and min(T.aiCruise, (d - keep) * 2) or 0
 			local sx, sy = steerVelocity(ovx + mx * want, ovy + my * want, vx, vy)
-			if d > 350 then it.aimX, it.aimY = ox, oy end
+			if d > keep then it.aimX, it.aimY = ox, oy end
 			it.thrust, it.strafe = Ship.toLocal(e, sx * 0.8, sy * 0.8)
 		end
 		return
