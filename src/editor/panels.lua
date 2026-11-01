@@ -63,6 +63,60 @@ local function check(E, value, label, onChange)
 	end
 end
 
+-- Wreck and prop settings, in place of hull stats and slots.
+local WRECK_STATS = {
+	{ "armor", "armor", 10, 20000, 10, 0, "How much damage it soaks before it bursts (its parts share it)." },
+	{ "hold", "hold (m3)", 1, 1000, 1, 0, "Room for its loot." },
+	{ "mass", "mass (t)", 1, 100000, 10, 0, "How hard it is to push around." },
+}
+
+local function placedSections(E, d)
+	d.stats = d.stats or {}
+	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then
+		for _, st in ipairs(WRECK_STATS) do
+			local key, label, lo, hi, step, prec, help = unpack(st)
+			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
+			Slab.SameLine()
+			Slab.Text(label)
+			Slab.SameLine({ Pad = 4 })
+			local def = key == "armor" and 200 or key == "hold" and 20 or 100
+			if Slab.InputNumberDrag("yard_w_" .. key, d.stats[key] or def, lo, hi, step, { W = 90, Precision = prec }) then
+				E.pushUndoCoalesced("yard_w_" .. key)
+				d.stats[key] = Slab.GetInputNumber()
+			end
+		end
+		Slab.EndTree()
+	end
+	if d.kind ~= "wreck" then return end
+	d.loot = d.loot or {}
+	if Slab.BeginTree("yard_loot", { Label = ("Loot table (%d)"):format(#d.loot) }) then
+		Slab.Text("item, min, max, chance (0-1) per spawn", { Color = { 0.6, 0.6, 0.6 } })
+		local items = {}
+		for _, id in ipairs(data.list.items) do table.insert(items, { label = data.items[id].name, value = id }) end
+		local remove
+		for i, l in ipairs(d.loot) do
+			Slab.PushID("yard_loot" .. i)
+			local it = data.items[l[1]]
+			combo("yard_lootitem" .. i, it and it.name or tostring(l[1]), items, function(id) E.pushUndo(); l[1] = id end, 130)
+			Slab.SameLine()
+			if Slab.InputNumberDrag("yard_lootmin" .. i, l[2] or 1, 0, 999, 1, { W = 34 }) then E.pushUndoCoalesced("lmin" .. i); l[2] = Slab.GetInputNumber() end
+			Slab.SameLine()
+			if Slab.InputNumberDrag("yard_lootmax" .. i, l[3] or l[2] or 1, 0, 999, 1, { W = 34 }) then E.pushUndoCoalesced("lmax" .. i); l[3] = Slab.GetInputNumber() end
+			Slab.SameLine()
+			if Slab.InputNumberDrag("yard_lootch" .. i, l[4] or 1, 0, 1, 0.05, { W = 40, Precision = 2 }) then E.pushUndoCoalesced("lch" .. i); l[4] = Slab.GetInputNumber() end
+			Slab.SameLine()
+			if Slab.Button("x", { W = 18, H = 18 }) then remove = i end
+			Slab.PopID()
+		end
+		if remove then E.pushUndo(); table.remove(d.loot, remove) end
+		if Slab.Button("Add loot") then
+			E.pushUndo()
+			table.insert(d.loot, { data.list.items[1], 1, 3, 1 })
+		end
+		Slab.EndTree()
+	end
+end
+
 -- Left: the design ------------------------------------------------------
 
 local function designWindow(E, Editor)
@@ -77,20 +131,30 @@ local function designWindow(E, Editor)
 	for _, id in ipairs(data.list.hulls) do
 		table.insert(opts, { label = data.hulls[id].name .. "  (" .. id .. ")", value = id })
 	end
+	local openOpts = {}
+	for _, o in ipairs(opts) do table.insert(openOpts, o) end
+	for _, id in ipairs(data.list.wrecks) do
+		local w = data.wrecks[id]
+		table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+	end
 	Slab.Text("Start from")
-	combo("yard_open", "Edit an existing hull...", opts, function(id) E.openHull(id) end, 220)
+	combo("yard_open", "Edit an existing one...", openOpts, function(id) E.openHull(id) end, 280)
+	Slab.Text("or new:"); Slab.SameLine()
+	if Slab.Button("Hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
 	Slab.SameLine()
-	if Slab.Button("Blank", { Tooltip = "A new empty design" }) then E.newDesign() end
-	Slab.Text("Opening a hull loads its shape, stats and slots.", { Color = { 0.6, 0.6, 0.6 } })
+	if Slab.Button("Wreck", { Tooltip = "A derelict to place in the world, with a loot table" }) then E.newDesign("wreck") end
+	Slab.SameLine()
+	if Slab.Button("Prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
+	Slab.Text("Opening one loads its shape and settings.", { Color = { 0.6, 0.6, 0.6 } })
 	Slab.Text("Export with the same id to replace it.", { Color = { 0.6, 0.6, 0.6 } })
 
 	Slab.Separator()
-	Slab.Text("This design")
+	Slab.Text(("This design: a %s"):format(d.kind or "hull"))
 	Slab.Text("id"); Slab.SameLine()
 	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
-	if Slab.Button("Test fly") then E.testFly() end
+	if Slab.Button(E.isPlaced() and "Spawn ahead of me" or "Test fly") then E.testFly() end
 	Slab.SameLine()
 	if Slab.Button("Export") then E.export() end
 	Slab.SameLine()
@@ -147,6 +211,7 @@ local function designWindow(E, Editor)
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
 
 	Slab.Separator()
+	if not E.isPlaced() then
 	if Slab.BeginTree("yard_stats", { Label = "Hull stats" }) then
 		local base = data.hulls[d.base]
 		Slab.Text("Unchanged stats come from")
@@ -235,6 +300,9 @@ local function designWindow(E, Editor)
 		Slab.Text("Modules that no longer fit a slot are", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("left empty when you test fly.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.EndTree()
+	end
+	else
+		placedSections(E, d)
 	end
 
 	Slab.Separator()

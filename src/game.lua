@@ -1692,6 +1692,35 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w)
 	return h
 end
 
+-- A placed wreck or prop (data.wrecks): rolls its loot table, then becomes
+-- a husk like a dead ship's, so it drifts, loots and breaks apart the same.
+function Game:spawnWreck(id, x, y, a, vx, vy)
+	local def = data.wrecks[id]
+	if not def then return nil end
+	local cargo = {}
+	for _, l in ipairs(def.loot) do
+		local item, lo, hi, chance = l[1], l[2] or 1, l[3] or l[2] or 1, l[4] or 1
+		if data.items[item] and random() < chance then
+			cargo[item] = (cargo[item] or 0) + random(lo, math.max(lo, hi))
+		end
+	end
+	-- a stand-in for the ship a husk normally comes from
+	local noseX, tailX = 0, 0
+	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end
+	local r = def.radius
+	local s1, s2 = tailX + r, noseX - r
+	if s2 < s1 then s1, s2 = (s1 + s2) / 2, (s1 + s2) / 2 end
+	local ghost = {
+		hull = def, color = def.color or { 0.7, 0.72, 0.75 }, spine = { s1, s2 },
+		noseX = noseX, tailX = tailX, halfLength = max(noseX, -tailX),
+		stats = { armor = def.armor / T.huskToughness, hold = def.hold, mass = def.mass },
+		cargo = cargo, loadout = {},
+	}
+	local h = self:spawnHusk(ghost, x, y, a or random() * pi * 2, (vx or 0) / 0.6, (vy or 0) / 0.6, (random() - 0.5) * 0.2)
+	h.placed = def.kind
+	return h
+end
+
 -- A wreck of a hull built in parts stays whole, but each part outside the
 -- biggest (the core) can be shot off. Every part collides in its own
 -- shape and holds a share of the loot, weighted by its size (the

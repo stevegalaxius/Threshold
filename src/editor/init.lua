@@ -117,13 +117,22 @@ function E.radius()
 end
 E.setBase = setBase
 
-function E.newDesign()
-	E.design = { id = "new_hull", name = "New hull", base = data.list.hulls[1], parts = {} }
+function E.newDesign(kind)
+	kind = kind or "hull"
+	E.design = { id = "new_" .. kind, name = "New " .. kind, base = data.list.hulls[1], parts = {}, kind = kind ~= "hull" and kind or nil,
+		loot = kind == "wreck" and {} or nil }
 	setBase(E.design.base)
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}
 end
 
 function E.openHull(id)
+	if data.wrecks[id] and not data.hulls[id] then
+		E.design = Export.fromWreck(id)
+		setBase(E.design.base, true)
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}
+		say("Opened " .. data.wrecks[id].name)
+		return
+	end
 	E.design = Export.fromHull(id)
 	setBase(id, true)
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}
@@ -249,10 +258,21 @@ function E.symmetrizeSelected()
 	E.vsel = nil
 end
 
+-- Is the design a wreck or prop (placed in the world) rather than a hull?
+function E.isPlaced()
+	return E.design.kind == "wreck" or E.design.kind == "prop"
+end
+
+-- Register the design with the game now: nil, error if it doesn't load.
+function E.define()
+	local def = Export.def(E.design)
+	if E.isPlaced() then return data.defineWreck(def) end
+	return data.defineHull(def)
+end
+
 function E.export()
 	local ok, err = pcall(function()
-		local def = Export.hullDef(E.design)
-		local good, msg = data.defineHull(def)
+		local good, msg = E.define()
 		if not good then error(msg, 0) end
 	end)
 	if not ok then say("Not exported: " .. tostring(err)) return end
@@ -262,16 +282,28 @@ end
 
 function E.copySource()
 	love.system.setClipboardText(Export.source(E.design))
-	say("Copied the hull { } source to the clipboard")
+	say(("Copied the %s { } source to the clipboard"):format(E.isPlaced() and E.design.kind or "hull"))
 end
 
--- Register the design as a hull right now and launch it.
+-- Register the design right now and try it: fly a hull, or drop a wreck
+-- or prop just ahead of you.
 function E.testFly()
-	local def = Export.hullDef(E.design)
-	local good, err = data.defineHull(def)
-	if not good then say("Can't fly it: " .. tostring(err)) return end
+	local def, err = E.define()
+	if not def then say("Can't use it: " .. tostring(err)) return end
 	local game = Editor.game
 	if not game then return end
+	if E.isPlaced() then
+		local p = game.player
+		if not p or p.dead then say("Need a live ship to spawn it next to") return end
+		Editor.close()
+		local x, y = p.body:getPosition()
+		local a = p.body:getAngle()
+		local d = (p.halfLength or 40) + def.radius * 2 + 120
+		local vx, vy = p.body:getLinearVelocity()
+		game:spawnWreck(def.id, x + math.cos(a) * d, y + math.sin(a) * d, nil, vx, vy)
+		say(("Spawned %s ahead of you (F2 to go back)"):format(def.name))
+		return
+	end
 	Editor.close()
 	if game.state == "dead" then game:respawn() end
 	game:spawnPlayer(def.id)

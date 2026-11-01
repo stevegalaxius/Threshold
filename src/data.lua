@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {} },
 }
 
 -- Slot families. primary / secondary are fire groups for guns (left and
@@ -103,6 +103,45 @@ function api.hull(def)
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
+end
+
+-- A wreck: a derelict built from parts, placed in the world rather than
+-- left by a ship. It drifts, can be looted, and breaks apart part by part
+-- like a ship's wreck (src/game.lua, Game:spawnWreck).
+--   parts   as for hulls (src/hullshape.lua)
+--   armor   toughness (default 200)    hold  m3 for its loot (default 20)
+--   mass    tonnes (default 100)
+--   loot    what it can turn up: { { item, min, max, chance }, ... }
+-- A prop is the same with no loot: debris, beacons, scenery.
+local function wreckLike(kind, def)
+	register("wrecks", kind, def)
+	if not def.parts then fail(("%s '%s' needs parts"):format(kind, def.id)) end
+	local ok, err = pcall(HullShape.prepare, def)
+	if not ok then fail(err) end
+	def.kind = kind
+	def.armor, def.hold, def.mass = def.armor or 200, def.hold or 20, def.mass or 100
+	def.loot = def.loot or {}
+	def.slots = {}
+	for i, l in ipairs(def.loot) do
+		if type(l) ~= "table" or type(l[1]) ~= "string" then fail(("%s '%s' loot %d should be { item, min, max, chance }"):format(kind, def.id, i)) end
+	end
+	-- radius: half its width, as for hulls
+	local w = 0
+	for k = 2, #def.shape, 2 do w = math.max(w, math.abs(def.shape[k])) end
+	def.radius = def.radius or math.max(4, math.floor(w + 0.5))
+end
+
+function api.wreck(def) wreckLike("wreck", def) end
+function api.prop(def) def.loot = {}; wreckLike("prop", def) end
+
+-- A wreck or prop made at runtime (the Shipyard's test spawn).
+function data.defineWreck(def)
+	local was = currentFile
+	currentFile = "shipyard"
+	local ok, err = pcall(def.kind == "prop" and api.prop or api.wreck, def)
+	currentFile = was
+	if not ok then return nil, err end
+	return def
 end
 
 function api.module(def)

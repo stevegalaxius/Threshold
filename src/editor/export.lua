@@ -138,6 +138,23 @@ function Export.hullDef(design)
 	return def
 end
 
+-- A wreck or prop definition for a design (design.kind "wreck" / "prop").
+function Export.wreckDef(design)
+	local st = design.stats or {}
+	local def = { id = design.id, name = design.name, kind = design.kind,
+		armor = st.armor or 200, hold = st.hold or 20, mass = st.mass or 100 }
+	if design.kind == "wreck" then def.loot = copy(design.loot or {}) end
+	def.parts = {}
+	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
+	return def
+end
+
+-- The definition for whatever kind the design is.
+function Export.def(design)
+	if design.kind == "wreck" or design.kind == "prop" then return Export.wreckDef(design) end
+	return Export.hullDef(design)
+end
+
 local function partLine(part, indent)
 	local p = Export.cleanPart(part)
 	local items = {}
@@ -150,13 +167,14 @@ end
 -- The design as a data file: hull { ... } with one part per line and the
 -- part's name first, so it survives a re-import.
 function Export.source(design)
-	local def = Export.hullDef(design)
+	local def = Export.def(design)
+	local kind = (design.kind == "wreck" or design.kind == "prop") and design.kind or "hull"
 	local keys = {}
-	for k in pairs(def) do if k ~= "parts" and k ~= "id" and k ~= "name" then table.insert(keys, k) end end
+	for k in pairs(def) do if k ~= "parts" and k ~= "id" and k ~= "name" and k ~= "kind" then table.insert(keys, k) end end
 	table.sort(keys)
 	local out = {
-		"-- Made in the Shipyard (F2). Base hull: " .. tostring(design.base),
-		"hull {",
+		kind == "hull" and ("-- Made in the Shipyard (F2). Base hull: " .. tostring(design.base)) or "-- Made in the Shipyard (F2).",
+		kind .. " {",
 		("\tid = %q, name = %q,"):format(def.id, def.name),
 	}
 	for _, k in ipairs(keys) do
@@ -191,9 +209,21 @@ function Export.fromHull(id)
 end
 
 -- Autosave: the design (with editor-only fields) as a plain Lua table.
+-- A design from a loaded wreck or prop.
+function Export.fromWreck(id)
+	local w = data.wrecks[id]
+	local design = { id = id, name = w.name, kind = w.kind, base = data.list.hulls[1], parts = {}, slots = {},
+		stats = { armor = w.armor, hold = w.hold, mass = w.mass }, loot = copy(w.loot or {}) }
+	for _, part in ipairs(w.parts) do
+		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
+	end
+	return design
+end
+
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
-	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots }
+	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots,
+		kind = design.kind, loot = design.loot }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

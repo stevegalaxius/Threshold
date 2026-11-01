@@ -189,6 +189,14 @@ local function spawnSection(game)
 		end
 	end
 	if Slab.Button("Clear enemies") then game:clearEnemies() end
+	-- wrecks and props from data/ or the Shipyard (data.wrecks)
+	for _, id in ipairs(data.list.wrecks) do
+		local def = data.wrecks[id]
+		if Slab.Button(("Spawn %s %s"):format(def.kind, def.name), { W = 300 }) then
+			local x, y = game:spawnPoint(600, 900)
+			game:spawnWreck(id, x, y)
+		end
+	end
 	if Slab.Button("Spawn 5 asteroids") then
 		for _ = 1, 5 do
 			local x, y = game:spawnPoint(300, 700)
