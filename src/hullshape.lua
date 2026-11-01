@@ -231,6 +231,88 @@ function HullShape.brightness(l, time, state)
 end
 
 -- Draw the lights on parts (all of the hull's, or `only`), offset like
+-- HullShape.draw. px is how big one screen pixel is in ship units, so
+-- each kind can hold its own on screen:
+--   nav lights keep a few pixels and a coloured halo however far out you
+--     zoom, so you can always tell which way your ship is pointing
+--   windows keep about a pixel
+--   strobes are true to size: flavour up close, fading out zoomed out
+function HullShape.drawLights(hull, time, px, only, ox, oy, state)
+	local lg = love.graphics
+	px = px or 0
+	local list = only and (only.shape and { only } or only) or hull.parts
+	if ox then lg.push(); lg.translate(-ox, -oy) end
+	for _, part in ipairs(list) do
+		for _, l in ipairs(part.lights or {}) do
+			local b = HullShape.brightness(l, time, state)
+			if b > 0 then
+				local c = HullShape.lightColor(l)
+				local size = l.size or 1.2
+				if l.kind == "nav" then
+					local core = max(size * 0.7, 2.2 * px)
+					lg.setBlendMode("add")
+					lg.setColor(c[1], c[2], c[3], 0.4 * b)
+					lg.circle("fill", l.x, l.y, max(size * 2, 7 * px))
+					lg.setBlendMode("alpha")
+					lg.setColor(c[1] * 0.7 + 0.3, c[2] * 0.7 + 0.3, c[3] * 0.7 + 0.3, b)
+					lg.circle("fill", l.x, l.y, core)
+				elseif l.kind == "strobe" then
+					local fade = px > 0 and min(1, size / (1.5 * px)) or 1
+					if fade > 0.05 then
+						lg.setBlendMode("add")
+						lg.setColor(c[1], c[2], c[3], 0.45 * b * fade)
+						lg.circle("fill", l.x, l.y, size * 3)
+						lg.setBlendMode("alpha")
+						lg.setColor(1, 1, 1, b * fade)
+						lg.circle("fill", l.x, l.y, size * 0.7)
+					end
+				else
+					local w = max(size, 0.8 * px)
+					lg.setColor(c[1], c[2], c[3], 0.9 * b)
+					lg.rectangle("fill", l.x - w * 0.6, l.y - w * 0.6, w * 1.2, w * 1.2)
+				end
+			end
+		end
+	end
+	if ox then lg.pop() end
+end
+
+return HullShape.PORT elseif l.y > 0.5 then return HullShape.STARBOARD end
+		return HullShape.STROBE
+	elseif l.kind == "strobe" then
+		return HullShape.STROBE
+	end
+	local h = hash(l)
+	if h > 0.8 then return { 0.75, 0.9, 1 } end      -- the odd cabin in cold light
+	return HullShape.WINDOW
+end
+
+-- How bright a light is at `time` (0 = off), for a ship in state
+-- { damage = 0..1, flash = >0 just after a hit }.
+--   window  steady; they stutter when the ship's hit and go out one by
+--           one as it's damaged
+--   nav     steady running light
+--   strobe  a sharp double flash, rate times a second
+function HullShape.brightness(l, time, state)
+	time = time or 0
+	local damage = state and state.damage or 0
+	local flash = state and state.flash or 0
+	local h = hash(l)
+	if l.kind == "strobe" then
+		local t = (time * (l.rate or 1) + (l.phase or h)) % 1
+		return (t < 0.04 or (t > 0.1 and t < 0.14)) and 1 or 0
+	end
+	if l.kind == "nav" then
+		if flash > 0 and math.sin(time * 70 + h * 40) > 0.3 then return 0.2 end
+		return 1
+	end
+	-- windows
+	if h < damage * 1.1 then return 0 end               -- this deck's lost power
+	if flash > 0 and math.sin(time * 55 + h * 90) > 0 then return 0 end
+	return 1
+end
+
+-- Draw the lights on parts (all of the hull's, or `only`), offset like
 -- HullShape.draw. minSize keeps them visible when zoomed far out.
 function HullShape.drawLights(hull, time, minSize, only, ox, oy, state)
 	local lg = love.graphics

@@ -234,13 +234,6 @@ function Canvas.mousepressed(E, sx, sy, button)
 	end
 
 	if E.tool == "light" then
-		-- clicking an existing light selects it (to move or delete it)
-		local li, lj = Canvas.lightAt(E, sx, sy)
-		if li then
-			E.sel, E.vsel, E.lsel = li, nil, lj
-			E.drag = { kind = "light", i = li, j = lj, pushed = false }
-			return
-		end
 		local px, py = Canvas.snap(E, wx, wy)
 		-- the part under the click; on a mirror twin, place on its source
 		-- part at the reflected spot (the twin gets the mirror image)
@@ -374,7 +367,6 @@ function Canvas.mousereleased(E, sx, sy, button)
 		for _, q in ipairs(pts) do
 			table.insert(p.lights, newLight(E, floor(q[1] + 0.5), floor((d.flip and -q[2] or q[2]) + 0.5)))
 		end
-		E.sel, E.lsel = d.part, #p.lights
 		return
 	end
 	if d and d.kind == "rect" then
@@ -492,7 +484,7 @@ function Canvas.draw(E)
 					end
 				end
 				if q.lights and E.preview ~= "wreck" and E.preview ~= "break" then
-					HullShape.drawLights(nil, love.timer.getTime(), 1.2 / v.zoom, q, nil, nil,
+					HullShape.drawLights(nil, love.timer.getTime(), 1 / v.zoom, q, nil, nil,
 						{ damage = E.previewDamage, flash = E.previewFlash })
 				end
 				if moved then lg.pop() end
@@ -516,16 +508,19 @@ function Canvas.draw(E)
 
 	-- selection: outline, vertices, centre
 	local p = E.sel and E.design.parts[E.sel]
+	-- (handles only with the select tool; other tools just show a faint outline)
 	if p and not p.hidden then
+		local editing = E.tool == "select"
 		local pts = {}
 		for k = 1, #p.shape, 2 do
 			local sx, sy = Canvas.toScreen(E, p.shape[k], p.shape[k + 1])
 			table.insert(pts, sx); table.insert(pts, sy)
 		end
-		lg.setLineWidth(2)
-		lg.setColor(E.errors[E.sel] and { 1, 0.3, 0.3 } or { 1, 0.85, 0.3 })
+		lg.setLineWidth(editing and 2 or 1)
+		local oc = E.errors[E.sel] and { 1, 0.3, 0.3 } or { 1, 0.85, 0.3 }
+		lg.setColor(oc[1], oc[2], oc[3], editing and 1 or 0.35)
 		if #pts >= 6 then lg.polygon("line", pts) end
-		for k = 1, #pts, 2 do
+		for k = 1, editing and #pts or 0, 2 do
 			local big = k == E.vsel
 			lg.setColor(big and { 1, 1, 1 } or { 1, 0.85, 0.3 })
 			lg.rectangle(big and "fill" or "line", pts[k] - 4, pts[k + 1] - 4, 8, 8)
@@ -568,7 +563,7 @@ function Canvas.draw(E)
 	end
 
 	-- the light under the mouse, and the eraser's reach
-	if E.tool == "light" or E.tool == "select" then
+	if E.tool == "select" then
 		local hi, hj = Canvas.lightAt(E, mx, my)
 		if hi then
 			local l = E.design.parts[hi].lights[hj]

@@ -112,7 +112,7 @@ local function designWindow(E, Editor)
 	end
 	if E.tool == "light" then
 		Slab.Text("Left: click a part for one light, drag a row", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text("Click a light to pick it, Delete removes it", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Select tool (V) picks a light to edit or move", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("Right drag erases lights", { Color = { 0.6, 0.6, 0.6 } })
 		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
 		local kopts = {}

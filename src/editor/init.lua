@@ -139,7 +139,7 @@ function E.addPart(shape)
 	while used["part " .. n] do n = n + 1 end
 	local part = { name = "part " .. n, shape = shape, mirror = E.mirrorNew or nil }
 	table.insert(E.design.parts, part)
-	E.sel, E.vsel = #E.design.parts, nil
+	-- only the select tool changes the selection
 	return part
 end
 

@@ -859,7 +859,7 @@ local function drawShip(game, e)
 	end
 	HullShape.draw(hull, col, function(c) return { c[1] * 0.22, c[2] * 0.22, c[3] * 0.22 } end,
 		function(c) return c end, outline(2))
-	HullShape.drawLights(hull, game.time, screenPx * 0.8, nil, nil, nil,
+	HullShape.drawLights(hull, game.time, screenPx, nil, nil, nil,
 		{ damage = 1 - (e.armor or e.stats.armor) / math.max(e.stats.armor, 1), flash = e.flash })
 	if e.flash > 0 then
 		HullShape.draw(hull, col, function() return { 1, 1, 1, 0.8 } end)
