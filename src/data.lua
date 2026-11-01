@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {} },
 }
 
 -- Slot families. primary / secondary are fire groups for guns (left and
@@ -139,6 +139,46 @@ function data.defineWreck(def)
 	local was = currentFile
 	currentFile = "shipyard"
 	local ok, err = pcall(def.kind == "prop" and api.prop or api.wreck, def)
+	currentFile = was
+	if not ok then return nil, err end
+	return def
+end
+
+-- A station layout (src/stations.lua has the format and the generated
+-- wheels). One part says dock = true: its box is the docking module, door
+-- at its +x end.
+function api.station(def)
+	if not def.name then def.name = def.id end
+	register("stations", "station", def)
+	if not def.parts then fail(("station '%s' needs parts"):format(def.id)) end
+	local ok, err = pcall(HullShape.prepare, def)
+	if not ok then fail(err) end
+	local dockPart
+	for _, part in ipairs(def.parts) do
+		if part.dock and not part.twin then
+			if dockPart then fail(("station '%s' has more than one dock part"):format(def.id)) end
+			dockPart = part
+		end
+	end
+	if not dockPart then fail(("station '%s' needs a part with dock = true"):format(def.id)) end
+	local x1, x2, hw = math.huge, -math.huge, 0
+	local s = dockPart.shape
+	for k = 1, #s, 2 do
+		x1, x2 = math.min(x1, s[k]), math.max(x2, s[k])
+		hw = math.max(hw, math.abs(s[k + 1]))
+	end
+	local o = def.dock or {}
+	def.dock = { x1 = x1, x2 = x2, hw = hw, wall = o.wall or 24, runway = o.runway or 600, capture = o.capture or 260 }
+	local reach = 0
+	for k = 1, #def.shape, 2 do reach = math.max(reach, math.sqrt(def.shape[k] ^ 2 + def.shape[k + 1] ^ 2)) end
+	def.radius = reach
+	def.slots = {}
+end
+
+function data.defineStation(def)
+	local was = currentFile
+	currentFile = "stations"
+	local ok, err = pcall(api.station, def)
 	currentFile = was
 	if not ok then return nil, err end
 	return def

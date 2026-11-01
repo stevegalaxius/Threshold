@@ -126,6 +126,14 @@ function E.newDesign(kind)
 end
 
 function E.openHull(id)
+	if data.stations[id] and not data.hulls[id] then
+		E.design = Export.fromStation(id)
+		setBase(E.design.base, true)
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}
+		E.view.zoom = math.min(E.view.zoom, 0.3)
+		say("Opened " .. data.stations[id].name)
+		return
+	end
 	if data.wrecks[id] and not data.hulls[id] then
 		E.design = Export.fromWreck(id)
 		setBase(E.design.base, true)
@@ -260,12 +268,13 @@ end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
 function E.isPlaced()
-	return E.design.kind == "wreck" or E.design.kind == "prop"
+	return E.design.kind == "wreck" or E.design.kind == "prop" or E.design.kind == "station"
 end
 
 -- Register the design with the game now: nil, error if it doesn't load.
 function E.define()
 	local def = Export.def(E.design)
+	if E.design.kind == "station" then return data.defineStation(def) end
 	if E.isPlaced() then return data.defineWreck(def) end
 	return data.defineHull(def)
 end
@@ -300,7 +309,12 @@ function E.testFly()
 		local a = p.body:getAngle()
 		local d = (p.halfLength or 40) + def.radius * 2 + 120
 		local vx, vy = p.body:getLinearVelocity()
-		game:spawnWreck(def.id, x + math.cos(a) * d, y + math.sin(a) * d, nil, vx, vy)
+		if E.design.kind == "station" then
+			d = (p.halfLength or 40) + def.radius + 300
+			game:spawnStation(def.id, x + math.cos(a) * d, y + math.sin(a) * d, 0)
+		else
+			game:spawnWreck(def.id, x + math.cos(a) * d, y + math.sin(a) * d, nil, vx, vy)
+		end
 		say(("Spawned %s ahead of you (F2 to go back)"):format(def.name))
 		return
 	end
@@ -316,6 +330,11 @@ function Editor.isOpen() return E.isOpenFlag end
 
 function Editor.open(game)
 	Editor.game = game
+	-- the generated wheel layouts, so they can be opened and redrawn
+	local Stations = require("src.stations")
+	for _, rt in ipairs({ { 900, 120 }, { 1400, 160 }, { 3000, 300 } }) do
+		if not data.stations[Stations.ringId(rt[1], rt[2])] then data.defineStation(Stations.ring(rt[1], rt[2])) end
+	end
 	if not E.design then
 		local saved = Export.loadAutosave()
 		if saved then

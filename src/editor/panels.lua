@@ -72,6 +72,17 @@ local WRECK_STATS = {
 
 local function placedSections(E, d)
 	d.stats = d.stats or {}
+	if d.kind == "station" then
+		local docks = 0
+		for _, p in ipairs(d.parts) do if p.dock then docks = docks + 1 end end
+		Slab.Text("Station layout", { Color = { 0.8, 0.85, 1 } })
+		Slab.Text("Mark exactly one part as the docking module:", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("its door is the part's +x end, facing out.", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text(docks == 1 and "Dock: ok" or ("Dock parts: %d (needs 1)"):format(docks), { Color = docks == 1 and { 0.5, 1, 0.6 } or { 1, 0.5, 0.4 } })
+		Slab.Text("Export with id ring_<R>_<tube> to replace", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("that wheel in the game (e.g. ring_1400_160).", { Color = { 0.6, 0.6, 0.6 } })
+		return
+	end
 	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then
 		for _, st in ipairs(WRECK_STATS) do
 			local key, label, lo, hi, step, prec, help = unpack(st)
@@ -137,6 +148,9 @@ local function designWindow(E, Editor)
 		local w = data.wrecks[id]
 		table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
 	end
+	for _, id in ipairs(data.list.stations) do
+		table.insert(openOpts, { label = ("%s  (station, %s)"):format(data.stations[id].name, id), value = id })
+	end
 	Slab.Text("Start from")
 	combo("yard_open", "Edit an existing one...", openOpts, function(id) E.openHull(id) end, 280)
 	Slab.Text("or new:"); Slab.SameLine()
@@ -145,6 +159,8 @@ local function designWindow(E, Editor)
 	if Slab.Button("Wreck", { Tooltip = "A derelict to place in the world, with a loot table" }) then E.newDesign("wreck") end
 	Slab.SameLine()
 	if Slab.Button("Prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
+	Slab.SameLine()
+	if Slab.Button("Station", { Tooltip = "A station layout: needs one part marked as the docking module" }) then E.newDesign("station") end
 	Slab.Text("Opening one loads its shape and settings.", { Color = { 0.6, 0.6, 0.6 } })
 	Slab.Text("Export with the same id to replace it.", { Color = { 0.6, 0.6, 0.6 } })
 
@@ -180,7 +196,8 @@ local function designWindow(E, Editor)
 		Slab.Text("Right drag erases lights", { Color = { 0.6, 0.6, 0.6 } })
 		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
 		local kopts = {}
-		for _, k in ipairs({ "nav", "strobe" }) do table.insert(kopts, { label = names[k], value = k }) end
+		local kinds = E.design.kind == "station" and { "window", "nav", "strobe" } or { "nav", "strobe" }
+		for _, k in ipairs(kinds) do table.insert(kopts, { label = names[k], value = k }) end
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
@@ -361,6 +378,7 @@ local function partWindow(E)
 	if light then
 		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
 		local kopts = { { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
+		if E.design.kind == "station" then table.insert(kopts, 1, { label = "window", value = "window" }) end
 		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
 			E.pushUndo()
 			light.kind = k
@@ -430,17 +448,23 @@ local function partWindow(E)
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
 	combo("yard_layer" .. i, p.layer or "hull", lopts, function(l) E.pushUndo(); p.layer = l ~= "hull" and l or nil end, 140)
 
-	Slab.Separator()
-	Slab.Text("Wreck")
-	check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
-	Slab.Text("  (no part tagged: every part carries)", { Color = { 0.6, 0.6, 0.6 } })
-	check(E, p.core == true, "Core (stays when the rest is shot off)", function(on) p.core = on or nil end)
-	check(E, p.breakable ~= false, "Can be shot off", function(on) p.breakable = (not on) and false or nil end)
-	check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
-	Slab.Text("Mass multiplier (when it breaks away)")
-	slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)
-	Slab.Text("Armour multiplier")
-	slider(E, "yard_armor" .. i, p.armor or 1, 0.1, 5, function(v) p.armor = v end)
+	if E.design.kind == "station" then
+		Slab.Separator()
+		check(E, p.dock == true, "Docking module (door at its +x end)", function(on) p.dock = on or nil end)
+	end
+	if E.design.kind ~= "station" then
+		Slab.Separator()
+		Slab.Text("Wreck")
+		check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
+		Slab.Text("  (no part tagged: every part carries)", { Color = { 0.6, 0.6, 0.6 } })
+		check(E, p.core == true, "Core (stays when the rest is shot off)", function(on) p.core = on or nil end)
+		check(E, p.breakable ~= false, "Can be shot off", function(on) p.breakable = (not on) and false or nil end)
+		check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
+		Slab.Text("Mass multiplier (when it breaks away)")
+		slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)
+		Slab.Text("Armour multiplier")
+		slider(E, "yard_armor" .. i, p.armor or 1, 0.1, 5, function(v) p.armor = v end)
+	end
 
 	Slab.Separator()
 	Slab.Text("Shape")

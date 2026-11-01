@@ -275,57 +275,18 @@ end
 -- the ring that turn with it.
 local function drawStation(game, e)
 	local x, y = e.body:getPosition()
-	local R, tube, hub = e.ringR, e.tube, e.hub
-	local ri, ro = R - tube / 2, R + tube / 2
-	local seg = 512
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(e.body:getAngle())
-	-- spokes under the ring
-	local sw = tube * 0.22
-	for k = 0, e.spokes - 1 do
-		lg.push()
-		lg.rotate(k / e.spokes * pi * 2)
-		lg.setColor(0.17, 0.19, 0.23)
-		lg.rectangle("fill", hub * 0.9, -sw, ri - hub * 0.9 + 4, sw * 2)
-		lg.setColor(0.5, 0.58, 0.68)
-		lg.setLineWidth(outline(1.5))
-		lg.rectangle("line", hub * 0.9, -sw, ri - hub * 0.9 + 4, sw * 2)
-		lg.pop()
-	end
-	-- the ring, as one thick smooth stroke
-	lg.setColor(0.2, 0.23, 0.28)
-	lg.setLineWidth(tube)
-	lg.circle("line", 0, 0, R, seg)
-	-- a darker band down the middle of the ring
-	lg.setColor(0.15, 0.17, 0.21)
-	lg.setLineWidth(tube * 0.35)
-	lg.circle("line", 0, 0, R, seg)
-	lg.setColor(0.55, 0.63, 0.74)
-	lg.setLineWidth(outline(2))
-	lg.circle("line", 0, 0, ro, seg)
-	lg.circle("line", 0, 0, ri, seg)
-	-- windows along the ring's outer and inner faces
-	lg.setColor(1, 0.86, 0.55, 0.85)
-	local wr = max(tube * 0.05, 2 * screenPx)
-	local nw = floor(R / 14)
-	for i = 0, nw - 1 do
-		local a = i / nw * pi * 2
-		local c, s = cos(a), sin(a)
-		if i % 7 ~= 3 then
-			lg.circle("fill", c * (ro - tube * 0.16), s * (ro - tube * 0.16), wr)
-			lg.circle("fill", c * (ri + tube * 0.16), s * (ri + tube * 0.16), wr)
-		end
-	end
+	-- the layout's parts (src/stations.lua), then their windows and beacons
+	local col = e.def.color or { 0.55, 0.63, 0.74 }
+	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
+		function(c) return c end, outline(2))
+	HullShape.drawLights(e.def, game.time, screenPx)
 	-- the dock: a square module on the outside of the ring, door facing out
 	local d = e.dock
 	if d then
 		local x1, x2, hw = d.x1, d.x2, d.hw
-		lg.setColor(0.2, 0.23, 0.28)
-		lg.rectangle("fill", x1, -hw, x2 - x1, hw * 2)
-		lg.setColor(0.55, 0.63, 0.74)
-		lg.setLineWidth(outline(2))
-		lg.rectangle("line", x1, -hw, x2 - x1, hw * 2)
 		-- the door: hazard-striped, lit while a ship is coming in
 		local busy = false
 		for _, o in ipairs(game.entities) do
@@ -363,22 +324,6 @@ local function drawStation(game, e)
 		lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
 		lg.circle("fill", x2, hw, lr * 1.4)
 		lg.circle("fill", x2, -hw, lr * 1.4)
-	end
-	-- hub
-	lg.setColor(0.22, 0.25, 0.31)
-	lg.circle("fill", 0, 0, hub, 96)
-	lg.setColor(0.55, 0.63, 0.74)
-	lg.setLineWidth(outline(2))
-	lg.circle("line", 0, 0, hub, 96)
-	lg.circle("line", 0, 0, hub * 0.45, 64)
-	-- blinking beacons on the rim
-	if (game.time % 1.6) < 0.25 then
-		lg.setColor(1, 0.35, 0.3)
-		local br = max(tube * 0.08, 4 * screenPx)
-		for k = 0, 3 do
-			local a = (k + 0.5) / 4 * pi * 2
-			lg.circle("fill", cos(a) * ro, sin(a) * ro, br)
-		end
 	end
 	lg.pop()
 end

@@ -14,6 +14,7 @@ local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
 local HullShape = require("src.hullshape")
+local Stations = require("src.stations")
 local Weapons = require("src.weapons")
 local AI = require("src.ai")
 local Camera = require("src.camera")
@@ -649,51 +650,53 @@ end
 -- pushed around, unless simulated: then it's a very heavy dynamic body that
 -- gravity and collisions act on like anything else.
 function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
+	-- the wheel's layout as parts (src/stations.lua); a station { } with
+	-- the same id in data or mods replaces it
+	local id = Stations.ringId(R, tube)
+	if not data.stations[id] then
+		local _, err = data.defineStation(Stations.ring(R, tube))
+		if err then error(err, 0) end
+	end
+	return self:spawnStation(id, x, y, spin, simulated)
+end
+
+-- A station from its definition (data.stations): every colliding part
+-- is solid, and the part tagged dock is the docking module.
+function Game:spawnStation(id, x, y, spin, simulated)
+	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
-	local hub = R * 0.2
 	-- key: which station this is, for the universe (storage, hangar,
 	-- respawn); the same field always builds its stations in the same order
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		ringR = R, tube = tube, hub = hub, spokes = 4,
+		def = def,
 		key = ("%s/%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
-	-- The dock: a square module on the outside of the ring (along the
-	-- station's +x axis). x1..x2 is its extent out from the centre, hw its
-	-- half-width. Ships that fly into the capture zone in front of its
-	-- door are pulled inside (see Game:updateDocking).
-	local D = max(300, tube * 2)
-	local dock = { x1 = R + tube / 2 - tube * 0.3, x2 = R + tube / 2 + D, hw = D / 2, wall = 24,
-		runway = 600, capture = 260 }
-	e.dock = dock
-	e.radius = dock.x2
-	local function add(shape)
-		local f = love.physics.newFixture(body, shape)
-		f:setFriction(0.5)
-		f:setRestitution(0.1)
-		f:setUserData(e)
+	-- The dock (see Game:updateDocking): x1..x2 its extent out from the
+	-- centre along +x, hw its half-width. Ships that fly into the capture
+	-- zone in front of its door are pulled inside.
+	local d = def.dock
+	e.dock = { x1 = d.x1, x2 = d.x2, hw = d.hw, wall = d.wall, runway = d.runway, capture = d.capture }
+	e.radius = def.radius
+	-- the dock module is solid too; ships only get inside by being pulled in
+	for _, part in ipairs(def.parts) do
+		if part.collide ~= false then
+			for _, t in ipairs(part.tris) do
+				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+				if a2 > 4 then
+					local f = love.physics.newFixture(body, love.physics.newPolygonShape(t))
+					f:setFriction(0.5)
+					f:setRestitution(0.1)
+					f:setUserData(e)
+				end
+			end
+		end
 	end
-	local ri, ro, n = R - tube / 2, R + tube / 2, 72
-	for i = 0, n - 1 do
-		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
-		add(love.physics.newPolygonShape(cos(a1) * ri, sin(a1) * ri, cos(a1) * ro, sin(a1) * ro,
-			cos(a2) * ro, sin(a2) * ro, cos(a2) * ri, sin(a2) * ri))
-	end
-	add(love.physics.newCircleShape(hub))
-	local sw = tube * 0.22
-	for k = 0, e.spokes - 1 do
-		local a = k / e.spokes * pi * 2
-		local c, s = cos(a), sin(a)
-		local px, py = -s * sw, c * sw
-		add(love.physics.newPolygonShape(c * hub + px, s * hub + py, c * ri + px, s * ri + py,
-			c * ri - px, s * ri - py, c * hub - px, s * hub - py))
-	end
-	-- the dock module is solid; ships only get inside by being pulled in
-	add(love.physics.newPolygonShape(dock.x1, -dock.hw, dock.x2, -dock.hw, dock.x2, dock.hw, dock.x1, dock.hw))
+	local R = def.radius
 	if simulated then
 		-- hundreds of times a battleship's mass, and no drag
 		local m = 300000

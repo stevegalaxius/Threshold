@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "role" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "role" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -97,6 +97,7 @@ function Export.cleanPart(part, editor)
 	if out.armor == 1 then out.armor = nil end
 	if out.mass == 1 then out.mass = nil end
 	if out.explode == false then out.explode = nil end
+	if out.dock == false then out.dock = nil end
 	if out.layer == "hull" then out.layer = nil end
 	if out.collide == true then out.collide = nil end
 	if out.breakable == true then out.breakable = nil end
@@ -149,8 +150,16 @@ function Export.wreckDef(design)
 	return def
 end
 
+-- A station layout for a design (design.kind "station").
+function Export.stationDef(design)
+	local def = { id = design.id, name = design.name, kind = "station", parts = {} }
+	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
+	return def
+end
+
 -- The definition for whatever kind the design is.
 function Export.def(design)
+	if design.kind == "station" then return Export.stationDef(design) end
 	if design.kind == "wreck" or design.kind == "prop" then return Export.wreckDef(design) end
 	return Export.hullDef(design)
 end
@@ -168,7 +177,7 @@ end
 -- part's name first, so it survives a re-import.
 function Export.source(design)
 	local def = Export.def(design)
-	local kind = (design.kind == "wreck" or design.kind == "prop") and design.kind or "hull"
+	local kind = (design.kind == "wreck" or design.kind == "prop" or design.kind == "station") and design.kind or "hull"
 	local keys = {}
 	for k in pairs(def) do if k ~= "parts" and k ~= "id" and k ~= "name" and k ~= "kind" then table.insert(keys, k) end end
 	table.sort(keys)
@@ -215,6 +224,16 @@ function Export.fromWreck(id)
 	local design = { id = id, name = w.name, kind = w.kind, base = data.list.hulls[1], parts = {}, slots = {},
 		stats = { armor = w.armor, hold = w.hold, mass = w.mass }, loot = copy(w.loot or {}) }
 	for _, part in ipairs(w.parts) do
+		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
+	end
+	return design
+end
+
+-- A design from a loaded station layout.
+function Export.fromStation(id)
+	local st = data.stations[id]
+	local design = { id = id, name = st.name, kind = "station", base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
+	for _, part in ipairs(st.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end
 	return design
