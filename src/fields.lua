@@ -180,7 +180,7 @@ local function planetField(o)
 		for _, rb in ipairs(o.rings or {}) do
 			local big = rb.big or 0
 			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], rb.density, { ice = 1 },
-				size = function() return random() < big and 50 + random() * 50 or 10 + random() ^ 2 * 16 end })
+				size = function() return random() < big and 60 + random() * 60 or 10 + random() ^ 3 * 60 end })
 		end
 	else
 		bands[1] = { beltIn, beltOut, o.belt or 0, o.beltMix or { rock = 1 } }
@@ -305,7 +305,7 @@ Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = t
 	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.75,
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
-	rings = { { 0.15, 0.25, density = 1 }, { 0.25, 0.42, density = 6, big = 0.01 }, { 0.46, 0.6, density = 3 } },
+	rings = { { 0.15, 0.25, density = 1 }, { 0.25, 0.42, density = 6, big = 0.03 }, { 0.46, 0.6, density = 3 } },
 	stations = { "Cassini Gate", "Enceladus Station" },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
