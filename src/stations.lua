@@ -92,55 +92,6 @@ function Stations.ring(R, tube)
 	}
 end
 
--- A strip-mined moon, made from the editor's ordinary polygons, detail
--- layers, relative shading and lights. The terraced cut opens to +x;
--- ships use its recessed tractor dock, with no projecting docking arms.
-function Stations.mine(id, name, R)
-	local parts = {}
-	local function polygon(name, points, shade, detail)
-		local shape = {}
-		for i, v in ipairs(points) do shape[i] = round(v * R) end
-		local p = { name = name, shape = shape, shade = shade,
-			layer = detail and "detail" or nil }
-		if detail then p.collide = false end
-		parts[#parts + 1] = p
-		return p
-	end
-	local function box(name, x1, y1, x2, y2, shade, detail)
-		return polygon(name, { x1, y1, x2, y1, x2, y2, x1, y2 }, shade, detail)
-	end
-	polygon("excavated moon", {
-		-1.05, -0.18, -0.86, -0.63, -0.35, -0.84, 0.15, -0.78,
-		0.55, -0.65, 0.91, -0.4, 0.65, -0.4, 0.65, -0.25,
-		0.4, -0.25, 0.4, -0.15, 0.1, -0.15, 0.1, 0.15,
-		0.4, 0.15, 0.4, 0.25, 0.65, 0.25, 0.65, 0.4, 0.9, 0.4,
-		0.6, 0.69, 0.1, 0.81, -0.5, 0.74, -0.95, 0.35,
-	}, 0.65)
-	-- Broad excavation benches remain legible when zoomed out.
-	for k = 1, 3 do
-		local y = 0.28 + k * 0.12
-		box("upper cut " .. k, -0.6, -y - 0.035, 0.52 - k * 0.06, -y, 0.45, true)
-		box("lower cut " .. k, -0.6, y, 0.52 - k * 0.06, y + 0.035, 0.45, true)
-	end
-	-- Hard-edged processing modules and visible scaffold diagonals.
-	for k = 0, 5 do
-		local x = -0.73 + k * 0.24
-		box("container " .. k, x, -0.89, x + 0.18, -0.73, k % 2 == 0 and 1 or 0.85)
-		box("service frame " .. k, x, -0.98, x + 0.025, -0.61, 0.55)
-		polygon("diagonal " .. k, { x, -0.98, x + 0.025, -0.98,
-			x + 0.18, -0.73, x + 0.155, -0.73 }, 0.7, true)
-	end
-	box("processing spine", -0.82, -0.73, 0.76, -0.68, 0.8)
-	local dock = box("tractor dock", 0.1, -0.13, 0.28, 0.13, 1.1)
-	dock.dock = true
-	dock.lights = {
-		{ x = round(R * 0.26), y = round(-R * 0.12), kind = "strobe", size = 14 },
-		{ x = round(R * 0.26), y = round(R * 0.12), kind = "strobe", size = 14 },
-	}
-	return { id = id, name = name .. " Strip Mine", parts = parts,
-		color = { 0.55, 0.63, 0.74 } }
-end
-
 -- Cloud cities -----------------------------------------------------------
 
 Stations.CITY_TUNNEL, Stations.CITY_HALF = 192, 896   -- tunnel half-height and half-length

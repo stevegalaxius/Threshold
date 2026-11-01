@@ -76,12 +76,6 @@ market { station = "Voyager Station", sells = {
 } }
 
 -- Expanded destinations: modest working catalogues using existing equipment.
-market { station = "Phobos Strip Mine", ships = { "ferrous_freighter" }, sells = {
-	{ "tug_beam", 2 }, { "cargo_container", 4 }, { "hold_pod_m", 2 }, { "rounds_m", 4 },
-} }
-market { station = "Deimos Strip Mine", ships = { "ferrous_runner" }, sells = {
-	{ "hold_pod_s", 2 }, { "aux_thrusters", 2 }, { "mule_engine", 1 }, { "cargo_container", 4 },
-} }
 market { station = "Pele Works", sells = {
 	{ "kiln_reactor", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
 } }

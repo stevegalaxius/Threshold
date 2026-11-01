@@ -1105,17 +1105,6 @@ end
 -- A field's world drawn at (px, py), as seen from outside its map.
 local function drawFieldWorld(game, F, px, py)
 	if not F or not F.planetR then return end
-	if F.stationLayout then
-		local def = F.stationLayout()
-		lg.push()
-		lg.translate(px, py)
-		local col = def.color or { 0.55, 0.63, 0.74 }
-		HullShape.draw(def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
-			function(c) return c end, outline(2))
-		HullShape.drawLights(def, 0, screenPx)
-		lg.pop()
-		return
-	end
 	if F.rocky and not F.rockShape then F.rockShape = Fields.rockShape(F.name, F.planetR, F.lumpy, F.maria) end
 	drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
 		rock = F.rocky and F.rockShape or nil,

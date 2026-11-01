@@ -34,8 +34,6 @@
 ]]
 
 local T = require("src.tuning")
-local Stations = require("src.stations")
-local data = require("src.data")
 
 local Fields = {}
 
@@ -420,46 +418,16 @@ Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas =
 	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
--- The moons' maps (see Fields.moons). Small Martian moons are mined-out
--- station bodies; the larger moons use the existing planetary field builder.
+-- The moons' maps (see Fields.moons). Airless bodies retain their rocky
+-- silhouettes; infrastructure can be added separately without replacing them.
 Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true, lumpy = 0, maria = 6, parent = "earth",
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
--- Entire small moons converted into strip mines. A shared station layout
--- keeps the excavated rock, scaffolding, containers and tractor dock editable.
-local function miningMoon(name, R, depth)
-	local id = "mine_" .. name:lower()
-	local function layout()
-		if not data.stations[id] then
-			local _, err = data.defineStation(Stations.mine(id, name, R))
-			if err then error(err, 0) end
-		end
-		return data.stations[id]
-	end
-	return {
-		name = name, parent = "mars", planetR = R, rocky = true,
-		hue = { 0.5, 0.42, 0.38 }, radius = R + depth,
-		spawn = { R + 1800, 0 }, stations = { name .. " Strip Mine" },
-		stationLayout = layout,
-		mix = { rock = 6, junk = 4 },
-		build = function(game)
-			layout()
-			local st = game:spawnStation(id, 0, 0, 0)
-			st.body:setAngle(0)
-			st.body:setAngularVelocity(0)
-			game:spawnAsteroids(55, R + 2500)
-			game:spawnContainers(5, R + 2500)
-			local buoy = game:spawnBuoy(R + 4400, 0)
-			for k, kind in ipairs({ "freighter", "packhorse_trader", "runner_trader" }) do
-				local f = game:spawnEnemy(kind, R + 1800 + k * 400, 800)
-				f.route, f.routeIndex = { st, buoy }, 1
-			end
-		end,
-	}
-end
-Fields.phobos = miningMoon("Phobos", 3400, 11000)
-Fields.deimos = miningMoon("Deimos", 2400, 10000)
+Fields.phobos = planetField({ name = "Phobos", R = 1400, depth = 9000, rocky = true, parent = "mars",
+	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
+Fields.deimos = planetField({ name = "Deimos", R = 800, depth = 9000, rocky = true, parent = "mars",
+	hue = { 0.55, 0.48, 0.42 }, density = 0.1, mix = { rock = 1 }, belt = 1.0, beltIn = 0.15, beltOut = 0.4 })
 Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter",
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
 	stations = { "Pele Works", "Loki Laboratory" },

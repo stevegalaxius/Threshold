@@ -9,7 +9,6 @@ return function(game)
 	local Fields = require("src.fields")
 	local Game = require("src.game")
 	local Ship = require("src.ship")
-	local Export = require("src.editor.export")
 	local Render = require("src.render")
 	game:loadField("mars")
 	game.autosaveOff = true
@@ -33,25 +32,20 @@ return function(game)
 		check(game.fieldId == id, "wrong arrival field for " .. id)
 		local st
 		for _, e in ipairs(game.entities) do if e.kind == "station" then st = e break end end
-		check(st ~= nil, "missing destination station for " .. id)
-		check(data.markets[st.name] ~= nil, "missing market for " .. st.name)
 		if id == "phobos" or id == "deimos" then
-			local design = Export.fromStation(st.def.id)
-			check(design.kind == "station" and #design.parts > 20, "mine should open as editable parts")
-			local def, problem = data.defineStation(Export.stationDef(design))
-			check(def and #def.docks == 1, problem or "mine export lost its tractor dock")
-			local d = st.dock
-			local x, y = game.dockWorld(st, 1, d.x2 + d.capture / 2, 0)
-			game.player.body:setPosition(x, y)
-			game.player.body:setLinearVelocity(0, 0)
-			game:updateDocking(1 / 60)
-			check(game.player.dockState ~= nil, "mine tractor failed to capture")
+			check(st == nil, "Martian moon body was replaced by a station")
+			check(game.well and game.well.planet.kind == "planet" and game.well.planet.rock,
+				"Martian moon lost its rocky body")
+			check(game.well.radius == (id == "phobos" and 1400 or 800), "incorrect Martian moon size")
+		else
+			check(st ~= nil, "missing destination station for " .. id)
+			check(data.markets[st.name] ~= nil, "missing market for " .. st.name)
+			game:dockInstantly(game.player, st)
+			local saved = game:saveState()
+			game:loadState(saved)
+			check(game.fieldId == id and game.player.dockState ~= nil, "docked save/load failed for " .. id)
+			game:undock()
 		end
-		game:dockInstantly(game.player, st)
-		local saved = game:saveState()
-		game:loadState(saved)
-		check(game.fieldId == id and game.player.dockState ~= nil, "docked save/load failed for " .. id)
-		game:undock()
 		local back = game.moonGates[1]
 		check(back and back.to == moon.parent, "missing return gate for " .. id)
 		game:launchTrip(back.to, { bearing = back.a, length = back.length })
@@ -75,6 +69,6 @@ return function(game)
 	love.graphics.setCanvas(canvas)
 	Render.world(game)
 	love.graphics.setCanvas()
-	canvas:newImageData():encode("png", "phobos-strip-mine.png")
+	canvas:newImageData():encode("png", "phobos-rocky-moon.png")
 	print(("world expansion: %d checks passed"):format(checks))
 end

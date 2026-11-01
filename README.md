@@ -127,16 +127,14 @@ Titania uses Uranus's, and Deimos joins Phobos at Mars. Fly through the marked d
 parent map's edge to reach a moon, and use the moon's return arc to come back.
 Pluto is a mass-driver destination (the `-` shortcut in the target window).
 
-Phobos and Deimos are large strip-mining stations with recessed tractor docks,
-processing containers, scaffolding, local haulers and supply markets. Their
-`mine_phobos` and `mine_deimos` layouts can be opened and exported in the F2
-Shipyard after visiting their maps. Mars keeps the Heaven-Ladder and its existing
-stations, with nine local traders and much less rock debris.
+Phobos and Deimos retain their irregular rocky moon bodies (radii 1,400 and
+800 pixels). Mars keeps the Heaven-Ladder and its existing stations, with nine
+local traders and much less rock debris.
 
 `love . --worldtest` runs targeted checks for the expanded destinations: highway
-arrival and return, mine editor export, tractor capture, docked save/load, and
+arrival and return, rocky moon bodies and sizes, docked save/load, and
 Pluto's targeting shortcut. It exits with a failing status on an assertion and
-writes `phobos-strip-mine.png` to the game's save directory for visual inspection.
+writes `phobos-rocky-moon.png` to the game's save directory for visual inspection.
 It also runs highway handoff regressions: immediate turnarounds preserve the
 original scene, and arrivals reuse the visible approach scene without moving
 the camera or changing ship motion. Comparison screenshots are saved as
