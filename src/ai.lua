@@ -122,7 +122,10 @@ end
 local function stopPoint(stop)
 	if stop.dock then
 		-- out on the runway, where the station's tractor picks it up
-		return stop.body:getWorldPoint(stop.dock.x2 + stop.dock.runway * 0.6, 0)
+		local d = stop.dock
+		local a, lx = d.a or 0, d.x2 + d.runway * 0.6 + (d.xc or 0)
+		local ly = d.yc or 0
+		return stop.body:getWorldPoint(lx * math.cos(a) - ly * math.sin(a), lx * math.sin(a) + ly * math.cos(a))
 	end
 	return stop.body:getPosition()
 end

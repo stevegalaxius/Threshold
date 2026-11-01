@@ -283,15 +283,20 @@ local function drawStation(game, e)
 	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
 		function(c) return c end, outline(2))
 	HullShape.drawLights(e.def, game.time, screenPx)
-	-- the dock: a square module on the outside of the ring, door facing out
-	local d = e.dock
-	if d then
-		local x1, x2, hw = d.x1, d.x2, d.hw
+	-- each dock's door and runway, in the dock's own frame (a tunnel gets
+	-- both ends)
+	local busy = false
+	for _, o in ipairs(game.entities) do
+		if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
+	end
+	for _, d in ipairs(e.docks or { e.dock }) do
+	for _, side in ipairs(d.both and { 1, -1 } or { 1 }) do
+		lg.push()
+		lg.rotate(d.a or 0)
+		lg.translate(d.xc or 0, d.yc or 0)
+		lg.scale(side, side)
+		local x2, hw = d.x2, d.hw
 		-- the door: hazard-striped, lit while a ship is coming in
-		local busy = false
-		for _, o in ipairs(game.entities) do
-			if o.dockState and o.dockState.station == e and not o.dockState.done then busy = true end
-		end
 		local dw = hw * 0.7
 		lg.setColor(0.09, 0.1, 0.13)
 		lg.rectangle("fill", x2 - d.wall, -dw, d.wall, dw * 2)
@@ -324,6 +329,8 @@ local function drawStation(game, e)
 		lg.setColor(1, 0.7, 0.2, (game.time % 0.8) < 0.4 and 1 or 0.35)
 		lg.circle("fill", x2, hw, lr * 1.4)
 		lg.circle("fill", x2, -hw, lr * 1.4)
+		lg.pop()
+	end
 	end
 	lg.pop()
 end

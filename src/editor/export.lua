@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "role" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "role" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -98,6 +98,8 @@ function Export.cleanPart(part, editor)
 	if out.mass == 1 then out.mass = nil end
 	if out.explode == false then out.explode = nil end
 	if out.dock == false then out.dock = nil end
+	if not out.dock then out.dockBoth, out.dockRunway = nil, nil end
+	if out.dockBoth == false then out.dockBoth = nil end
 	if out.layer == "hull" then out.layer = nil end
 	if out.collide == true then out.collide = nil end
 	if out.breakable == true then out.breakable = nil end

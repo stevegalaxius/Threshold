@@ -82,9 +82,9 @@ local function placedSections(E, d)
 		local docks = 0
 		for _, p in ipairs(d.parts) do if p.dock then docks = docks + 1 end end
 		Slab.Text("Station layout", { Color = { 0.8, 0.85, 1 } })
-		Slab.Text("Mark exactly one part as the docking module:", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text("its door is the part's +x end, facing out.", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text(docks == 1 and "Dock: ok" or ("Dock parts: %d (needs 1)"):format(docks), { Color = docks == 1 and { 0.5, 1, 0.6 } or { 1, 0.5, 0.4 } })
+		Slab.Text("Mark one or more parts as docking modules;", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("each door faces out from the centre.", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text(docks >= 1 and ("Docks: %d"):format(docks) or "No dock yet (needs at least 1)", { Color = docks >= 1 and { 0.5, 1, 0.6 } or { 1, 0.5, 0.4 } })
 		Slab.Text("Export with id ring_<R>_<tube> to replace", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("that wheel in the game (e.g. ring_1400_160).", { Color = { 0.6, 0.6, 0.6 } })
 		return
@@ -473,7 +473,14 @@ local function partWindow(E)
 
 	if E.design.kind == "station" then
 		Slab.Separator()
-		check(E, p.dock == true, "Docking module (door at its +x end)", function(on) p.dock = on or nil end)
+		check(E, p.dock == true, "Docking module", function(on) p.dock = on or nil end)
+		if p.dock then
+			Slab.Text("Door faces out from the station's centre,", { Color = { 0.6, 0.6, 0.6 } })
+			Slab.Text("through this part.", { Color = { 0.6, 0.6, 0.6 } })
+			check(E, p.dockBoth == true, "Tunnel (open at both ends)", function(on) p.dockBoth = on or nil end)
+			Slab.Text("runway length (px)")
+			slider(E, "yard_drun" .. i, p.dockRunway or 600, 100, 3000, function(v) p.dockRunway = math.floor(v + 0.5) end, 0)
+		end
 	end
 	if E.design.kind ~= "station" then
 		Slab.Separator()
