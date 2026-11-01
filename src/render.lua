@@ -294,8 +294,8 @@ local function drawOrbitalRing(game, e)
 		-- An inset running track and transverse ribs show the direction
 		-- of the belt even when its overall silhouette is nearly circular.
 		lg.setColor(0.13, 0.15, 0.18)
-		lg.line(c * (e.ringRadius - 190), sn * (e.ringRadius - 190),
-			c * (e.ringRadius + 190), sn * (e.ringRadius + 190))
+		lg.line(c * (e.ringRadius - e.ringWidth * 0.34), sn * (e.ringRadius - e.ringWidth * 0.34),
+			c * (e.ringRadius + e.ringWidth * 0.34), sn * (e.ringRadius + e.ringWidth * 0.34))
 		if panel.beacon then
 			lg.setColor(1, 0.55, 0.25)
 			lg.circle("fill", c * e.ringRadius, sn * e.ringRadius, max(10, 2 * screenPx))

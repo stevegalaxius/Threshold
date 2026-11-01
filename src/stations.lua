@@ -98,12 +98,21 @@ end
 -- Only the common geometric primitives are shared between the manufacturers.
 local function elevatorLayout(id, name, surface, terminal, angles, industrial)
 	local parts, tracks = {}, {}
+	local scale = industrial and 0.35 or 0.24
+	local function transverse(y)
+		local a = math.abs(y)
+		return a <= 225 and y or (y < 0 and -1 or 1) * (225 + (a - 225) * scale)
+	end
 	local function part(label, points, shade, angle, detail, tint)
 		local shape = {}
 		local c, s = cos(angle), sin(angle)
+		local compact = label:find("terminal") or label:find("hangar") or label:find("container")
+			or label:find("outer frame") or label:find("tractor dock") or label:find("counterweight") or label:find("inset band")
 		for i = 1, #points, 2 do
-			shape[#shape + 1] = round(points[i] * c - points[i + 1] * s)
-			shape[#shape + 1] = round(points[i] * s + points[i + 1] * c)
+			local x, y = points[i], transverse(points[i + 1])
+			if compact then x = terminal + (x - terminal) * scale end
+			shape[#shape + 1] = round(x * c - y * s)
+			shape[#shape + 1] = round(x * s + y * c)
 		end
 		local p = { name = label, shape = shape, shade = shade, tint = tint }
 		if detail then p.layer, p.collide = "detail", false end
@@ -115,7 +124,7 @@ local function elevatorLayout(id, name, surface, terminal, angles, industrial)
 	end
 	for n, angle in ipairs(angles) do
 		local prefix = "elevator " .. n .. " "
-		local bottom, top = surface - 80, terminal - 480
+		local bottom, top = surface - 80, terminal - 480 * scale
 		if industrial then
 			-- Two heavy rails with visible cross bracing and open space between.
 			for _, side in ipairs({ -1, 1 }) do
@@ -167,7 +176,7 @@ local function elevatorLayout(id, name, surface, terminal, angles, industrial)
 		dock.dock, dock.dockRunway = true, 1100
 		dock.lights = {}
 		for _, side in ipairs({ -1, 1 }) do
-			local x, y = terminal + 490, side * 215
+			local x, y = terminal + 490 * scale, side * 215
 			dock.lights[#dock.lights + 1] = { x = round(x * cos(angle) - y * sin(angle)),
 				y = round(x * sin(angle) + y * cos(angle)), kind = "nav", size = 12 }
 		end
@@ -177,11 +186,11 @@ local function elevatorLayout(id, name, surface, terminal, angles, industrial)
 end
 
 function Stations.heavenLadder(surface, ringRadius)
-	return elevatorLayout("heaven_ladder", "Heaven-Ladder", surface, ringRadius + 1150, { 0, pi }, true)
+	return elevatorLayout("heaven_ladder", "Heaven-Ladder", surface, ringRadius + 500, { 0, pi }, true)
 end
 
 function Stations.mercuryElevator(surface)
-	return elevatorLayout("mercury_elevator", "Mercury Elevator", surface, surface + 3100, { -pi / 2 }, false)
+	return elevatorLayout("mercury_elevator", "Mercury Elevator", surface, surface + 800, { -pi / 2 }, false)
 end
 
 -- Cloud cities -----------------------------------------------------------

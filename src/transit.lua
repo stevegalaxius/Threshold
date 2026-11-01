@@ -1048,7 +1048,7 @@ end
 -- The moving belt is a separate kinematic body, mechanically beneath the
 -- fixed elevator bridges. Wide gaps allow flights inside the ring as well.
 function Game:spawnHeavenLadder(cx, cy, R)
-	local width, gaps, gapWidth = 560, 8, 1500
+	local width, gaps, gapWidth = 260, 8, 900
 	local body = love.physics.newBody(self.world, cx, cy, "kinematic")
 	local direction = self.well.swirl >= 0 and -1 or 1
 	local spin = direction * T.ladderSpin

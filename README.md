@@ -56,7 +56,7 @@ file) onto `love.exe`.
 
 ## Surface elevators and the Heaven-Ladder
 
-Mars's Heaven-Ladder has a 560-pixel-thick moving belt rotating against the
+Mars's Heaven-Ladder has a 260-pixel-thick moving belt rotating against the
 planetary current, with eight broad passage gaps. Two fixed, exposed-truss
 surface elevators bridge over the belt to large outward-facing terminals.
 Both terminals are one station: storage, market, hangar and services are shared.

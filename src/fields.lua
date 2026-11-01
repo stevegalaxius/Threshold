@@ -389,7 +389,7 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
 	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
 	stations = { "Station Alpha", "Station Beta", "Heaven-Ladder" },
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
-	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 3000) end })
+	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, lumpy = 0.15,
 	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
