@@ -284,7 +284,6 @@ local function planetField(o)
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = bands end
 			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale) end
-			if o.extra then o.extra(game, R) end
 			if o.stations then
 				-- Two wheel stations out past the belt.
 				-- Both ride a track around the planet at opposite ends, moving at
@@ -315,6 +314,8 @@ local function planetField(o)
 					f.body:setLinearVelocity(-sin(a) * speed, cos(a) * speed)
 				end
 			end
+			-- Append unique stations after existing ones to preserve save keys.
+			if o.extra then o.extra(game, R) end
 			-- The belt (or rings), already circling with the current.
 			for _, band in ipairs(bands) do
 				local b1, b2 = band[1], band[2]
@@ -372,8 +373,9 @@ Fields.ring = {
 -- from depth, and its character from density, mix and belt.
 Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 15000,
 	density = 0.07, mix = { junk = 3, sat = 2, rock = 5 }, belt = 1.1,
-	stations = { "Terminator Station", "Dawnline Station" },
-	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
+	stations = { "Terminator Station", "Dawnline Station", "Mercury Elevator" },
+	enemies = { { "gunner", 2 }, { "swarmer", 2 } },
+	extra = function(game) game:spawnMercuryElevator() end })
 Fields.venus = planetField({ name = "Venus", R = 14300, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
 	stations = { "Hub Station", "Cloudline Station" },
@@ -385,9 +387,9 @@ Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
 	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
 	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
-	stations = { "Station Alpha", "Station Beta" },
+	stations = { "Station Alpha", "Station Beta", "Heaven-Ladder" },
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
-	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
+	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 3000) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, lumpy = 0.15,
 	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,

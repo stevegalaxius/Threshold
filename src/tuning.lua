@@ -212,6 +212,9 @@ function T.resetLane()
 end
 
 
+-- Heaven-Ladder: belt rotation is opposite to the planetary current.
+T.ladderSpin = 0.025
+
 -- Moons (src/moons.lua): the way out toward a moon is departArc px of the
 -- map's edge; within departInset of the edge, heading out, the departure
 -- starts and takes departTime seconds. Into a lane, its mouth is rampLead

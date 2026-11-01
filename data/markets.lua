@@ -107,3 +107,12 @@ market { station = "Gertrude Port", sells = {
 market { station = "Messina Research Station", sells = {
 	{ "nav_computer", 1 }, { "glint_laser", 1 }, { "guidance_computer", 1 },
 } }
+
+-- Both Heaven-Ladder terminals share this one market and station record.
+market { station = "Heaven-Ladder", ships = { "brute_anvil", "ferrous_freighter" }, sells = {
+	{ "cargo_container", 4 }, { "hold_pod_m", 2 }, { "mule_engine", 2 },
+	{ "tug_beam", 2 }, { "shell_s", 4 }, { "rounds_m", 4 },
+} }
+market { station = "Mercury Elevator", sells = {
+	{ "cargo_container", 3 }, { "hold_pod_s", 2 }, { "nav_computer", 1 }, { "ember_reactor", 1 },
+} }

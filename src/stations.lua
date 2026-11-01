@@ -4,8 +4,8 @@
 
 	A station definition (data.stations, from station { } in data files or
 	made here) is:
-	  parts  polygons as for hulls; exactly one part says dock = true. Its
-	         box is the docking module: the door is its +x end, facing out.
+	  parts  polygons as for hulls; one or more parts say dock = true. Each
+	         box is a docking module: its door faces out from the station centre.
 	  dock   optional overrides for the dock: wall, runway, capture
 	  color  outline colour (fill is a darker shade of it)
 
@@ -90,6 +90,98 @@ function Stations.ring(R, tube)
 		id = Stations.ringId(R, tube), name = ("Ring station %d"):format(R),
 		parts = parts, color = { 0.55, 0.63, 0.74 },
 	}
+end
+
+-- Surface elevators ------------------------------------------------------
+-- Fixed terminals use normal station parts/docks. Mars has exposed gantries
+-- and repeated containers; Mercury uses a separate enclosed, tapered design.
+-- Only the common geometric primitives are shared between the manufacturers.
+local function elevatorLayout(id, name, surface, terminal, angles, industrial)
+	local parts, tracks = {}, {}
+	local function part(label, points, shade, angle, detail, tint)
+		local shape = {}
+		local c, s = cos(angle), sin(angle)
+		for i = 1, #points, 2 do
+			shape[#shape + 1] = round(points[i] * c - points[i + 1] * s)
+			shape[#shape + 1] = round(points[i] * s + points[i + 1] * c)
+		end
+		local p = { name = label, shape = shape, shade = shade, tint = tint }
+		if detail then p.layer, p.collide = "detail", false end
+		parts[#parts + 1] = p
+		return p
+	end
+	local function box(label, x1, y1, x2, y2, shade, angle, detail, tint)
+		return part(label, { x1, y1, x2, y1, x2, y2, x1, y2 }, shade, angle, detail, tint)
+	end
+	for n, angle in ipairs(angles) do
+		local prefix = "elevator " .. n .. " "
+		local bottom, top = surface - 80, terminal - 480
+		if industrial then
+			-- Two heavy rails with visible cross bracing and open space between.
+			for _, side in ipairs({ -1, 1 }) do
+				box(prefix .. "rail", bottom, side * 145 - 36, top, side * 145 + 36, 0.65, angle)
+			end
+			for x = bottom, top - 200, 300 do
+				box(prefix .. "cross member", x, -180, x + 42, 180, 0.8, angle)
+				part(prefix .. "diagonal", { x, -145, x + 30, -145, x + 280, 145, x + 250, 145 }, 0.75, angle)
+			end
+			box(prefix .. "surface footing", surface - 140, -320, surface + 150, 320, 0.9, angle)
+			-- Broad framed terminal, with container banks flanking the hangar.
+			box(prefix .. "terminal back", terminal - 480, -740, terminal - 260, 740, 0.7, angle)
+			for _, side in ipairs({ -1, 1 }) do
+				local y1, y2 = side == 1 and 245 or -740, side == 1 and 740 or -245
+				box(prefix .. "hangar deck", terminal - 320, y1, terminal + 560, y2, 0.95, angle)
+				for k = 0, 3 do
+					box(prefix .. "container " .. k, terminal - 250 + k * 195,
+						y1 + 65, terminal - 90 + k * 195, y2 - 65, 0.8 + (k % 2) * 0.15,
+						angle, true, { 0.025, -0.005, -0.02 })
+				end
+				box(prefix .. "outer frame", terminal - 420, side * 750 - 35, terminal + 620, side * 750 + 35, 0.65, angle)
+			end
+		else
+			-- Mercury: enclosed blade, inset service channel, swept shoulders.
+			part(prefix .. "spine", { bottom, -190, top, -95, top, 95, bottom, 190 }, 0.95, angle)
+			box(prefix .. "recess", bottom + 140, -48, top, 48, 0.6, angle, true)
+			part(prefix .. "surface plinth", { surface - 160, -400, surface + 100, -250,
+				surface + 100, 250, surface - 160, 400 }, 1.05, angle)
+			for _, side in ipairs({ -1, 1 }) do
+				local points = { terminal - 520, side * 240, terminal + 500, side * 240,
+					terminal + 420, side * 460, terminal - 100, side * 720, terminal - 680, side * 370 }
+				part(prefix .. "swept terminal", points, 1.05, angle)
+				box(prefix .. "inset band", terminal - 180, side * 460 - 32,
+					terminal + 300, side * 460 + 32, 0.78, angle, true, { -0.01, 0.01, 0.025 })
+			end
+			box(prefix .. "terminal back", terminal - 550, -260, terminal - 310, 260, 0.8, angle)
+			-- An offset pair of spars leaves the outward dock approach open.
+			for _, side in ipairs({ -1, 1 }) do
+				box(prefix .. "counterweight spar", terminal + 150, side * 650 - 30,
+					terminal + 2100, side * 650 + 30, 0.75, angle)
+				part(prefix .. "counterweight", { terminal + 1900, side * 440,
+					terminal + 2550, side * 570, terminal + 2550, side * 770,
+					terminal + 1900, side * 900 }, 0.9, angle)
+			end
+		end
+		-- The dock is a recessed floor between solid shoulders; its door
+		-- faces away from the planet. No docking arms are required.
+		local dock = box(prefix .. "tractor dock", terminal - 300, -225, terminal + 500, 225, 0.45, angle, true)
+		dock.dock, dock.dockRunway = true, 1100
+		dock.lights = {}
+		for _, side in ipairs({ -1, 1 }) do
+			local x, y = terminal + 490, side * 215
+			dock.lights[#dock.lights + 1] = { x = round(x * cos(angle) - y * sin(angle)),
+				y = round(x * sin(angle) + y * cos(angle)), kind = "nav", size = 12 }
+		end
+		tracks[#tracks + 1] = { angle = angle, lower = surface + 160, upper = top, industrial = industrial }
+	end
+	return { id = id, name = name, parts = parts, color = { 0.55, 0.63, 0.74 }, elevatorTracks = tracks }
+end
+
+function Stations.heavenLadder(surface, ringRadius)
+	return elevatorLayout("heaven_ladder", "Heaven-Ladder", surface, ringRadius + 1150, { 0, pi }, true)
+end
+
+function Stations.mercuryElevator(surface)
+	return elevatorLayout("mercury_elevator", "Mercury Elevator", surface, surface + 3100, { -pi / 2 }, false)
 end
 
 -- Cloud cities -----------------------------------------------------------

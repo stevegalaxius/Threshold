@@ -27,8 +27,9 @@
 	            going fast.
 	  gas giant a planet with no surface: you can fly into it, and the
 	            deeper you go the harder it crushes your hull.
-	  ladder    the Heaven-Ladder: an orbital ring round Mars with gaps to
-	            fly through, held up by space elevators down to the surface.
+	  ladder    the Heaven-Ladder: a thick counter-rotating belt round Mars
+	            beneath two fixed elevator terminals sharing one station.
+	  elevator  Mercury has a separate standalone surface elevator design.
 
 	Added to Game by src/game.lua: require("src.transit")(Game).
 ]]
@@ -1044,46 +1045,65 @@ end
 
 -- The Heaven-Ladder ----------------------------------------------------------
 
--- An orbital ring of radius R round (cx, cy), cut by gaps to fly through,
--- with four space elevators running from it down to the surface.
+-- The moving belt is a separate kinematic body, mechanically beneath the
+-- fixed elevator bridges. Wide gaps allow flights inside the ring as well.
 function Game:spawnHeavenLadder(cx, cy, R)
-	local w = self.well
-	local surface = w and w.radius or R - 1000
-	local thick, gaps, gapW = 50, 8, 700
-	local gapA = gapW / R
-	for i = 0, gaps - 1 do
-		local a1 = (i + 0.5) / gaps * pi * 2 + gapA / 2
-		local a2 = (i + 1.5) / gaps * pi * 2 - gapA / 2
-		local n = math.ceil((a2 - a1) * R / 400)
+	local width, gaps, gapWidth = 560, 8, 1500
+	local body = love.physics.newBody(self.world, cx, cy, "kinematic")
+	local direction = self.well.swirl >= 0 and -1 or 1
+	local spin = direction * T.ladderSpin
+	body:setAngle(self.universe.clock * spin)
+	body:setAngularVelocity(spin)
+	local ring = { kind = "structure", role = "orbital_ring", invulnerable = true,
+		id = self:nextId(), team = 0, body = body, radius = R + width / 2,
+		ringRadius = R, ringWidth = width, panels = {} }
+	local inner, outer = R - width / 2, R + width / 2
+	local gap = gapWidth / R
+	for sector = 0, gaps - 1 do
+		local a1, a2 = sector / gaps * pi * 2 + gap / 2, (sector + 1) / gaps * pi * 2 - gap / 2
+		local n = math.ceil((a2 - a1) * R / 300)
 		for k = 0, n - 1 do
-			local b1, b2 = a1 + (a2 - a1) * k / n, a1 + (a2 - a1) * (k + 1) / n
-			self:addStructure({
-				cx + cos(b1) * (R - thick), cy + sin(b1) * (R - thick),
-				cx + cos(b2) * (R - thick), cy + sin(b2) * (R - thick),
-				cx + cos(b2) * (R + thick), cy + sin(b2) * (R + thick),
-				cx + cos(b1) * (R + thick), cy + sin(b1) * (R + thick),
-			}, { role = "ladder" })
+			local a, b = a1 + (a2 - a1) * k / n, a1 + (a2 - a1) * (k + 1) / n
+			local verts = { cos(a) * inner, sin(a) * inner, cos(b) * inner, sin(b) * inner,
+				cos(b) * outer, sin(b) * outer, cos(a) * outer, sin(a) * outer }
+			local f = love.physics.newFixture(body, love.physics.newPolygonShape(verts))
+			f:setUserData(ring)
+			f:setFriction(0.5)
+			f:setRestitution(0.1)
+			ring.panels[#ring.panels + 1] = { shape = verts, angle = (a + b) / 2, shade = k % 3 == 0 and 1 or 0.8,
+				beacon = k == 0 or k == n - 1 }
 		end
 	end
-	-- the elevators, at the middle of every other arc
-	for i = 0, 3 do
-		local a = (i * 2 + 1) / gaps * pi * 2
-		local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
-		local tw = 24
-		self:addStructure({
-			cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
-			cx + ux * (R - thick) + nx * tw, cy + uy * (R - thick) + ny * tw,
-			cx + ux * (R - thick) - nx * tw, cy + uy * (R - thick) - ny * tw,
-			cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
-		}, { role = "tether" })
-		local hw = 140
-		self:addStructure({
-			cx + ux * (R - 120) + nx * hw, cy + uy * (R - 120) + ny * hw,
-			cx + ux * (R + 120) + nx * hw, cy + uy * (R + 120) + ny * hw,
-			cx + ux * (R + 120) - nx * hw, cy + uy * (R + 120) - ny * hw,
-			cx + ux * (R - 120) - nx * hw, cy + uy * (R - 120) - ny * hw,
-		}, { role = "hub" })
+	body:setUserData(ring)
+	table.insert(self.entities, ring)
+	local def = data.stations.heaven_ladder
+	if not def then
+		local err
+		def, err = data.defineStation(Stations.heavenLadder(self.well.radius, R))
+		if not def then error(err, 0) end
 	end
+	local st = self:spawnStation(def.id, cx, cy, 0)
+	st.body:setAngle(0)
+	st.body:setAngularVelocity(0)
+	st.elevatorTracks = Stations.heavenLadder(self.well.radius, R).elevatorTracks
+	st.ring = ring
+	st.portNames = { "East terminal", "West terminal" }
+	return st
+end
+
+function Game:spawnMercuryElevator()
+	local def = data.stations.mercury_elevator
+	if not def then
+		local err
+		def, err = data.defineStation(Stations.mercuryElevator(self.well.radius))
+		if not def then error(err, 0) end
+	end
+	local st = self:spawnStation(def.id, self.well.x, self.well.y, 0)
+	st.body:setAngle(0)
+	st.body:setAngularVelocity(0)
+	st.elevatorTracks = Stations.mercuryElevator(self.well.radius).elevatorTracks
+	st.portNames = { "Elevator dock" }
+	return st
 end
 
 end
