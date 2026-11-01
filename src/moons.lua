@@ -7,7 +7,7 @@
 	            now (Fields.moonAngle), so it slides round the edge as the
 	            moon orbits. A moon's map has one, back toward its planet.
 	            Fly off the edge of the map through one and you're on the
-	            highway (src/transit.lua, Game:launchTrip): the same run-up,
+	            highway (src/transit.lua, Game:launchTrip): the same handoff,
 	            lane and arrival as a mass driver trip, only short (the
 	            moon's gap), with the moon drawn ahead at the end. You come
 	            off it in from the moon's map edge, flying as you were.

@@ -49,7 +49,7 @@ function TransitView.draw(game)
 	local warp = min(1, f.t / 1.0) * min(1, (f.dur - f.t) / 0.5 + 0.15)
 	warp = max(0, warp)
 	local p = game.player
-	local heading = p and p.body:getAngle() or 0
+	local heading = p and not p.removed and p.body:getAngle() or 0
 	local hx, hy = cos(heading), sin(heading)
 	local nx, ny = -hy, hx
 	local span = sqrt(w * w + h * h) * 0.6

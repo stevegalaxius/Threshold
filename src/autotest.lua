@@ -972,7 +972,13 @@ function A.update(game, dt)
 			game:loadField("luna", { player = Ship.record(p) })
 			game.camera.x, game.camera.y = 0, 0
 		end
-		log("handoff: on the highway in %s, %.0f px/s", game.fieldId, speed(game.player))
+		do
+			local q = game.player
+			local ps, pn, ph = game:toLane(q.body:getPosition())
+			local vx, vy = q.body:getLinearVelocity()
+			log("handoff: on the highway in %s, %.0f px/s, %.0f px along (mouth at %.0f), %.0f off the median, lane heading %.2f, flying %.2f",
+				game.fieldId, speed(q), ps, -game.lane.half, pn, ph, math.atan2(vy, vx))
+		end
 		shot("18_moon_handoff")
 	end) end
 	if t >= 43.8 then once("quit", function()
