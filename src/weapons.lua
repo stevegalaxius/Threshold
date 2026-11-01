@@ -252,11 +252,15 @@ local function fuseTarget(game, p)
 	end
 end
 
-local function steerMissile(p, dt)
+-- Missiles fly through the planet's current like ships do: their own speed
+-- and heading are relative to it, and the current carries them along.
+local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end
-	local speed = sqrt(p.vx * p.vx + p.vy * p.vy)
-	local heading = atan2(p.vy, p.vx)
+	local fx, fy = game:flowAt(p.x, p.y)
+	local rvx, rvy = p.vx - fx, p.vy - fy
+	local speed = sqrt(rvx * rvx + rvy * rvy)
+	local heading = atan2(rvy, rvx)
 	if t then
 		local tx, ty = t.body:getPosition()
 		local want = atan2(ty - p.y, tx - p.x)
@@ -265,7 +269,7 @@ local function steerMissile(p, dt)
 		heading = heading + max(-turn, min(turn, diff))
 	end
 	speed = min(p.maxSpeed, speed + p.accel * dt)
-	p.vx, p.vy = cos(heading) * speed, sin(heading) * speed
+	p.vx, p.vy = cos(heading) * speed + fx, sin(heading) * speed + fy
 	p.trailTimer = (p.trailTimer or 0) - dt
 end
 
@@ -274,7 +278,7 @@ function Weapons.updateProjectiles(game, dt)
 	local i = 1
 	while i <= #list do
 		local p = list[i]
-		if p.kind == "missile" then steerMissile(p, dt) end
+		if p.kind == "missile" then steerMissile(game, p, dt) end
 		p.px, p.py = p.x, p.y
 		local nx, ny = p.x + p.vx * dt, p.y + p.vy * dt
 		local hit = game:raycast(p.x, p.y, nx, ny, p.team)
