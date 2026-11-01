@@ -54,6 +54,19 @@ file) onto `love.exe`.
 - Death ends the ship. Press R for a starter Wisp docked at the last station you docked at (in whatever level it is), or at the start if you never docked. Your wreck stays where you died with everything you had.
 - Saving: the game picks up from your latest save when it starts. Docking and quitting autosave, F5 saves, and F9 loads whichever save is newest. The debug panel has New game. Saves hold the universe (every station's storage, hangar and market shelf, your home station, your credits and the game clock), your ship with its hold, and where it is. They're plain Lua tables in LÖVE's save folder, versioned so later builds can upgrade them.
 
+## Close-surface flight
+
+Every planet and moon gently pulls ships inward near its surface, even when
+stationary. The pull builds smoothly with proximity and follows rocky outlines.
+Its reach is capped at 2,200 pixels on large worlds and half the radius on small
+moons. Gas giants pull 4 times harder around and below the cloud tops, so a
+cloud-city approach needs altitude control. Once fully docked, the station holds
+the ship. Existing atmospheric heating and gas pressure hazards still apply.
+
+F1 exposes **Surface inward pull**, **Surface pull reach**, and **Cloud-top pull
+multiplier**. Defaults are 35 px/s² at the surface, 2,200 pixels maximum reach,
+and 4 times strength for gas giants.
+
 ## The debug panel (F1)
 
 - Ship, modules and hold: swap hulls, refit any slot, add ammo, repair, show the hold grid.
@@ -119,6 +132,27 @@ so they can only define content.
 `love . --autotest` flies a scripted run. It prints handling numbers and a
 damage breakdown, saves screenshots to the save folder, then quits. Run it
 after changing data or flight code.
+
+## Expanded destinations
+
+Io and Callisto use Jupiter's existing moon highways; Enceladus uses Saturn's,
+Titania uses Uranus's, and Deimos joins Phobos at Mars. Fly through the marked departure arc at the
+parent map's edge to reach a moon, and use the moon's return arc to come back.
+Pluto is a mass-driver destination (the `-` shortcut in the target window).
+
+Phobos and Deimos retain their irregular rocky moon bodies (radii 1,400 and
+800 pixels). Mars keeps the Heaven-Ladder and its existing stations, with nine
+local traders and much less rock debris.
+
+`love . --worldtest` runs targeted checks for the expanded destinations: highway
+arrival and return, rocky moon bodies and sizes, docked save/load, and
+Pluto's targeting shortcut. It exits with a failing status on an assertion and
+writes `phobos-rocky-moon.png` to the game's save directory for visual inspection.
+It also runs highway handoff regressions: immediate turnarounds preserve the
+original scene, and arrivals reuse the visible approach scene without moving
+the camera or changing ship motion. Comparison screenshots are saved as
+`turnaround-before.png`, `turnaround-highway.png`, and `turnaround-after.png`.
+The existing `love . --autotest` also exercises all moon round trips.
 
 ## Known gaps (on purpose for this milestone)
 

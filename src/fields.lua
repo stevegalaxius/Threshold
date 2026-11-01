@@ -39,8 +39,8 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "belt", "ring", "jupiter", "europa", "ganymede",
-	"saturn", "titan", "uranus", "neptune", "triton", "asteroids", "giant", "station" }
+Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "jupiter", "io", "europa", "ganymede", "callisto",
+	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
 -- Orbits: distance from the Sun in AU, year length in Earth years, where
@@ -56,6 +56,7 @@ Fields.orbits = {
 	saturn = { au = 9.54, year = 29.46, phase = 0.5, color = { 0.95, 0.85, 0.6 } },
 	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
+	pluto = { au = 39.48, year = 248, phase = 3.8, color = { 0.75, 0.65, 0.6 } },
 }
 
 -- Moons: each is its own small map, reached by flying off the edge of
@@ -71,9 +72,14 @@ Fields.orbits = {
 Fields.moons = {
 	luna = { parent = "earth", period = 0.075, phase = 1.0, gap = 30000, color = { 0.8, 0.8, 0.78 } },
 	phobos = { parent = "mars", period = 0.02, phase = 2.5, gap = 14000, color = { 0.65, 0.55, 0.5 } },
+	deimos = { parent = "mars", period = 0.04, phase = 5.0, gap = 20000, color = { 0.7, 0.6, 0.5 } },
+	io = { parent = "jupiter", period = 0.025, phase = 1.8, gap = 22000, color = { 0.95, 0.8, 0.35 } },
+	callisto = { parent = "jupiter", period = 0.2, phase = 5.2, gap = 54000, color = { 0.6, 0.57, 0.52 } },
+	enceladus = { parent = "saturn", period = 0.03, phase = 1.6, gap = 24000, color = { 0.7, 0.88, 0.95 } },
 	europa = { parent = "jupiter", period = 0.05, phase = 0.3, gap = 30000, color = { 0.9, 0.85, 0.75 } },
 	ganymede = { parent = "jupiter", period = 0.1, phase = 3.6, gap = 42000, color = { 0.7, 0.68, 0.62 } },
 	titan = { parent = "saturn", period = 0.15, phase = 4.4, gap = 40000, color = { 0.95, 0.7, 0.35 } },
+	titania = { parent = "uranus", period = 0.09, phase = 2.0, gap = 30000, color = { 0.7, 0.72, 0.75 } },
 	triton = { parent = "neptune", period = 0.1, phase = 5.5, gap = 32000, color = { 0.8, 0.85, 0.9 } },
 }
 
@@ -298,11 +304,11 @@ local function planetField(o)
 				-- Neutral freighters hauling the loop: station, buoy, station, buoy.
 				local route = { stA, b1, stB, b2 }
 				-- They start on the track between stops, heading for the next one.
-				-- One of each size: a Hauler, a Packhorse and a Runner.
+				-- Repeated Hauler, Packhorse and Runner traffic; Mars has more.
 				local kinds = { "freighter", "packhorse_trader", "runner_trader" }
-				for k = 1, 3 do
-					local a = sa + pi / 4 + (k - 1) * pi / 2
-					local f = game:spawnEnemy(kinds[k], cos(a) * sd, sin(a) * sd)
+				for k = 1, (o.traders or 3) do
+					local a = sa + pi / 4 + (k - 1) * pi * 2 / ((o.traders or 3) + 1)
+					local f = game:spawnEnemy(kinds[(k - 1) % #kinds + 1], cos(a) * sd, sin(a) * sd)
 					f.route = route
 					f.routeIndex = k % #route + 1
 					f.body:setAngle(a + pi / 2)
@@ -377,7 +383,8 @@ Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
 Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
-	density = 0.05, mix = MIX.mars, belt = 1.1,
+	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
+	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
 	stations = { "Station Alpha", "Station Beta" },
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
@@ -411,14 +418,34 @@ Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas =
 	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
--- The moons' maps (see Fields.moons). Luna and Phobos are airless rocks
--- (rocky), like Ceres. Phobos is just the rock and its debris.
+-- The moons' maps (see Fields.moons). Airless bodies retain their rocky
+-- silhouettes; infrastructure can be added separately without replacing them.
 Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true, lumpy = 0, maria = 6, parent = "earth",
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
 Fields.phobos = planetField({ name = "Phobos", R = 1400, depth = 9000, rocky = true, parent = "mars",
 	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
+Fields.deimos = planetField({ name = "Deimos", R = 800, depth = 9000, rocky = true, parent = "mars",
+	hue = { 0.55, 0.48, 0.42 }, density = 0.1, mix = { rock = 1 }, belt = 1.0, beltIn = 0.15, beltOut = 0.4 })
+Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter",
+	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
+	stations = { "Pele Works", "Loki Laboratory" },
+	enemies = { { "gunner", 2 }, { "interceptor", 1 } } })
+Fields.callisto = planetField({ name = "Callisto", R = 6000, depth = 16000, parent = "jupiter", rocky = true, lumpy = 0.1,
+	hue = { 0.48, 0.45, 0.42 }, density = 0.08, mix = { rock = 6, ice = 3, junk = 1 }, belt = 0.4,
+	stations = { "Valhalla Port", "Asgard Station" },
+	enemies = { { "swarmer", 2 }, { "gunner", 2 } } })
+Fields.enceladus = planetField({ name = "Enceladus", R = 2600, depth = 13000, parent = "saturn",
+	hue = { 0.72, 0.85, 0.9 }, density = 0.09, mix = { ice = 9, junk = 1 },
+	belt = 0.7, beltMix = { ice = 1 },
+	stations = { "Tiger Stripe Laboratory", "South Pole Port" },
+	enemies = { { "interceptor", 2 } } })
+Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000,
+	hue = { 0.65, 0.52, 0.45 }, density = 0.06, mix = { ice = 8, rock = 2 },
+	belt = 0.35, beltMix = { ice = 1 },
+	stations = { "Tombaugh Station", "Sputnik Port" },
+	enemies = { { "sniper", 1 }, { "interceptor", 2 } } })
 Fields.europa = planetField({ name = "Europa", R = 3800, depth = 15000, parent = "jupiter",
 	hue = { 0.85, 0.8, 0.7 }, density = 0.08, mix = { ice = 8, rock = 2 }, belt = 0.8,
 	stations = { "Conamara Station", "Pwyll Station" },
@@ -431,6 +458,11 @@ Fields.titan = planetField({ name = "Titan", R = 6000, depth = 17000, parent = "
 	hue = { 0.9, 0.62, 0.3 }, density = 0.07, mix = { ice = 6, rock = 4 }, belt = 0.7,
 	stations = { "Kraken Station", "Huygens Station" },
 	enemies = { { "gunner", 2 }, { "sniper", 2 } } })
+Fields.titania = planetField({ name = "Titania", R = 2000, depth = 14000, parent = "uranus", rocky = true, lumpy = 0.08,
+	hue = { 0.62, 0.64, 0.67 }, density = 0.07, mix = { ice = 6, rock = 3, junk = 1 },
+	belt = 0.45, beltMix = { ice = 7, rock = 3 },
+	stations = { "Gertrude Port", "Messina Research Station" },
+	enemies = { { "interceptor", 2 }, { "gunner", 1 } } })
 Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent = "neptune",
 	hue = { 0.75, 0.8, 0.85 }, density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.8,
 	stations = { "Cipango Station", "Voyager Station" },

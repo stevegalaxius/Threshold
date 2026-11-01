@@ -75,7 +75,7 @@ function Render.background(cam)
 	lg.clear(COLORS.space)
 	for _, layer in ipairs(layers) do
 		local scale = cam.zoom ^ layer.depth
-		local cx, cy = cam.x * layer.depth, cam.y * layer.depth
+		local cx, cy = (cam.x + (cam.backgroundX or 0)) * layer.depth, (cam.y + (cam.backgroundY or 0)) * layer.depth
 		local size = max(1, layer.size * scale)
 		-- Range of tiles covering the screen, in this layer's coordinates.
 		local tx1, tx2 = floor((cx - hw / scale) / TILE), floor((cx + hw / scale) / TILE)
@@ -103,8 +103,9 @@ local function drawGrid(game)
 	local step = 256
 	lg.setColor(COLORS.grid)
 	lg.setLineWidth(1)
-	for x = floor(x1 / step) * step, x2, step do lg.line(x, y1, x, y2) end
-	for y = floor(y1 / step) * step, y2, step do lg.line(x1, y, x2, y) end
+	local bx, by = cam.backgroundX or 0, cam.backgroundY or 0
+	for x = floor((x1 + bx) / step) * step - bx, x2, step do lg.line(x, y1, x, y2) end
+	for y = floor((y1 + by) / step) * step - by, y2, step do lg.line(x1, y, x2, y) end
 
 	-- Arena edge: a faint dashed line where the map ends (past it, you
 	-- slow down and drift back: Game:applyBoundary)
@@ -1110,20 +1111,41 @@ local function drawFieldWorld(game, F, px, py)
 		body = { getPosition = function() return px, py end } })
 end
 
-function Render.world(game)
+function Render.world(game, overlay)
 	screenPx = 1 / game.camera.zoom
-	Render.background(game.camera)
+	if not overlay then
+		Render.background(game.camera)
+		game.camera:apply()
+		drawGrid(game)
+		game.camera:release()
+	end
+	local preview = game.arrivalPreview
+	if preview then
+		local scene = preview.game
+		scene.camera.x, scene.camera.y = game.camera.x - preview.x, game.camera.y - preview.y
+		scene.camera.zoom = game.camera.zoom
+		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
+		Render.world(scene, true)
+	end
+	local trip = game.trip
+	if trip and trip.originScene and (not preview or not preview.back) then
+		local scene, o = trip.originScene, trip.origin
+		scene.time = game.time
+		scene.camera.x, scene.camera.y = game.camera.x - o.x, game.camera.y - o.y
+		scene.camera.zoom = game.camera.zoom
+		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
+		Render.world(scene, true)
+	end
 	game.camera:apply()
-	drawGrid(game)
 	if game.lane then
 		-- the planet you're heading for, where it'll be when you arrive
 		-- (moon trips only: a mass driver's lane shows no planets)
 		if game.trip and game.trip.moon then
 			local px, py, F = game:laneDestination()
-			drawFieldWorld(game, F, px, py)
+			if not preview or preview.back then drawFieldWorld(game, F, px, py) end
 			-- the one you left off the edge of (a moon trip)
 			local o = game.trip.origin
-			if o then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
+			if o and not game.trip.originScene and (not preview or not preview.back) then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
 		end
 		drawLane(game)
 	end

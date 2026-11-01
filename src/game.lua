@@ -52,10 +52,23 @@ function Game.new(opts)
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
-	self:newUniverse()
+	if opts.universe then self.universe = opts.universe else self:newUniverse() end
 
 	self:loadField(opts.field or Fields.start)
 	return self
+end
+
+-- Keep the field's bodies for the moon-road view and an immediate return.
+function Game:retainField()
+	local scene = setmetatable({}, Game)
+	for k, v in pairs(self) do scene[k] = v end
+	scene.camera = Camera.new()
+	for k, v in pairs(self.camera) do scene.camera[k] = v end
+	scene.trip, scene.arrivalPreview, scene.contacts = nil, nil, {}
+	scene.autosaveOff = true
+	scene:remove(self.player)
+	scene.player = nil
+	return scene
 end
 
 -- Clear the arena and build a level (a playing field, src/fields.lua) in
@@ -66,11 +79,28 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
-	for _, e in ipairs(self.entities) do
-		if not e.removed then e.body:destroy(); e.removed = true end
+	-- Dispose unused approach worlds once; a turnaround preview may also be
+	-- the retained departure scene. The adopted world must stay alive.
+	local disposed = {}
+	local function release(scene)
+		if scene and scene ~= opts.prepared and not disposed[scene.world] then
+			scene.world:destroy()
+			disposed[scene.world] = true
+		end
 	end
-	for _, e in ipairs(self.sleepers or {}) do
-		if not e.removed then e.body:destroy(); e.removed = true end
+	release(self.arrivalPreview and self.arrivalPreview.game)
+	if not opts.retain then release(self.trip and self.trip.originScene) end
+	self.arrivalPreview = nil
+	if opts.retain then
+		self.world = love.physics.newWorld(0, 0, true)
+		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+	else
+		for _, e in ipairs(self.entities) do
+			if not e.removed then e.body:destroy(); e.removed = true end
+		end
+		for _, e in ipairs(self.sleepers or {}) do
+			if not e.removed then e.body:destroy(); e.removed = true end
+		end
 	end
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
@@ -81,10 +111,21 @@ function Game:loadField(id, opts)
 	self.well, self.lane, self.driverMenu = nil, nil, nil
 	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
-	self.field.build(self)
-	self:spawnDrivers()
-	self:spawnMoonGates()
-	self:spawnFieldEnemies()
+	if opts.prepared then
+		local scene = opts.prepared
+		self.world:destroy()
+		self.world = scene.world
+		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
+			"contacts", "well", "moonGates", "stationCount", "idCounter" }) do
+			self[key] = scene[key]
+		end
+	else
+		self.field.build(self)
+		self:spawnDrivers()
+		self:spawnMoonGates()
+		self:spawnFieldEnemies()
+	end
 	self:placePlayer(opts.player, opts.at)
 	-- the new level's name replaces any still showing (the game builds
 	-- Earth before loading the save, which flashed EARTH wherever you were)
@@ -449,8 +490,8 @@ function Game:spawnGiantAsteroid(x, y, radius)
 	return e
 end
 
--- A planet: a static, indestructible disc in a turning field. There's no
--- gravity: nothing is pulled in. The field is a current circling the
+-- A planet: a static, indestructible disc in a turning field. Ships also
+-- feel a gentle inward pull close to the surface. The current circles the
 -- planet (clockwise on screen) at flow px/s at the surface, slowing with
 -- distance (as 1/sqrt(r)). swirl is how hard it drags things toward the
 -- current's speed (per second). Loose things (rocks, wrecks, loot) are also
@@ -568,6 +609,53 @@ function Game:applyCurrent(dt)
 	for _, p in ipairs(self.pickups) do
 		local ax, ay = self:currentAt(p.x, p.y, p.vx, p.vy, true)
 		p.vx, p.vy = p.vx + ax * dt, p.vy + ay * dt
+	end
+end
+
+-- A shallow gravity band for ship handling, separate from the current's
+-- speed-dependent orbit holding. Small moons have proportionally short
+-- bands; large worlds share a capped reach. Rocky altitude follows the
+-- actual outline so the pull does not start at an invisible circular surface.
+function Game:surfacePullAt(x, y)
+	local w = self.well
+	if not w then return 0, 0 end
+	local dx, dy = x - w.x, y - w.y
+	local r = sqrt(dx * dx + dy * dy)
+	if r < 1 then return 0, 0 end
+	local reach = min(T.surfacePullRange, w.radius * 0.5)
+	local surface = w.radius
+	local rock = w.planet and w.planet.rock
+	if rock then
+		local nx, ny = dx / r, dy / r
+		local outline = rock.outline
+		for i = 1, #outline, 2 do
+			local j = (i + 1) % #outline + 1
+			local ax, ay = outline[i], outline[i + 1]
+			local ex, ey = outline[j] - ax, outline[j + 1] - ay
+			local cross = nx * ey - ny * ex
+			if math.abs(cross) > 0.000001 then
+				local distance = (ax * ey - ay * ex) / cross
+				local along = (ax * ny - ay * nx) / cross
+				if distance > 0 and along >= 0 and along <= 1 then surface = distance; break end
+			end
+		end
+	end
+	local u = max(0, min(1, 1 - (r - surface) / reach))
+	local pull = T.surfacePull * (w.gas and T.gasPullScale or 1) * u * u * (3 - 2 * u)
+	return -dx / r * pull, -dy / r * pull
+end
+
+function Game:applySurfacePull()
+	for _, e in ipairs(self.entities) do
+		-- Docked ships ride the station. The tractor approach remains exposed
+		-- until it has actually brought the ship inside or onto its berth.
+		if e.kind == "ship" and not e.dead and not e.removed
+			and (not e.dockState or e.dockState.phase == "tractor")
+			and not e.launch and not e.departure and not e.runup then
+			local b = e.body
+			local ax, ay = self:surfacePullAt(b:getPosition())
+			b:applyForce(ax * b:getMass(), ay * b:getMass())
+		end
 	end
 end
 
@@ -1006,6 +1094,12 @@ function Game:updateDockedShip(e, dt)
 			local a = sqrt(ax * ax + ay * ay)
 			local cap = T.driverGrip * (0.5 + 0.5 * grip)
 			if a > cap then ax, ay = ax / a * cap, ay / a * cap end
+			if st.city then
+				-- Once locked, the tractor supports the added surface gravity.
+				-- The pilot still handles the unassisted approach to the beam.
+				local gx, gy = self:surfacePullAt(x, y)
+				ax, ay = ax - gx, ay - gy
+			end
 			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > d.hw * 2 then
 				e.dockState, e.dockCooldown = nil, 3
 				self:toast("TRACTOR LOST", 1.4)
@@ -1100,8 +1194,38 @@ function Game:undockShip(e)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
 	e.dockCooldown = 4
+	if st.city and not bd and e == self.player then
+		e.dockExit = { station = st, dock = d, side = side, t = 0 }
+	end
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
 	events.emit("undock", e, st)
+end
+
+-- Cloud-city departure: keep the ship supported and guide it outward
+-- along the runway, then release once clear. Flight controls remain live.
+function Game:updateDockExits(dt)
+	local e = self.player
+	local assist = e and e.dockExit
+	if not assist then return end
+	local st, d, side = assist.station, assist.dock, assist.side
+	assist.t = assist.t + dt
+	if e.dead or st.removed or assist.t > 10 then e.dockExit = nil; return end
+	local b = e.body
+	local x, y = b:getPosition()
+	local lx, ly = dockLocal(st, side, x, y, d)
+	if lx > d.x2 + d.runway + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
+		e.dockExit, e.dockCooldown = nil, 2
+		return
+	end
+	e.dockCooldown = max(e.dockCooldown or 0, 0.5)
+	local wx, wy = dockVector(st, side, 260, -ly * 0.8, d)
+	local svx, svy = st.body:getLinearVelocityFromWorldPoint(x, y)
+	local vx, vy = b:getLinearVelocity()
+	local ax, ay = (svx + wx - vx) * 2.2, (svy + wy - vy) * 2.2
+	local a = sqrt(ax * ax + ay * ay)
+	if a > T.driverGrip then ax, ay = ax / a * T.driverGrip, ay / a * T.driverGrip end
+	local gx, gy = self:surfacePullAt(x, y)
+	b:applyForce((ax - gx) * b:getMass(), (ay - gy) * b:getMass())
 end
 
 -- The player's launch button on the station screen.
@@ -1425,6 +1549,8 @@ function Game:step(dt)
 	self:updateSleepers()
 	self:applyBoundary()
 	self:applyCurrent(dt)
+	self:applySurfacePull()
+	self:updateDockExits(dt)
 	self:updateLane(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)

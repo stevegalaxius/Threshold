@@ -43,7 +43,7 @@ market { station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighte
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_m", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 
--- Moon stations (Phobos has none). Each sells its own few things.
+-- Moon stations. Each sells its own few things.
 market { station = "Tranquility Dock", sells = {   -- miners' supply
 	{ "rounds_s", 6 }, { "shell_s", 4 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
 } }
@@ -73,4 +73,37 @@ market { station = "Cipango Station", sells = {   -- frontier outpost
 } }
 market { station = "Voyager Station", sells = {
 	{ "lumen_lance", 1 }, { "guidance_computer", 1 }, { "drone_m", 1 },
+} }
+
+-- Expanded destinations: modest working catalogues using existing equipment.
+market { station = "Pele Works", sells = {
+	{ "kiln_reactor", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
+} }
+market { station = "Loki Laboratory", sells = {
+	{ "glint_laser", 1 }, { "ember_reactor", 1 }, { "nav_computer", 1 },
+} }
+market { station = "Valhalla Port", sells = {
+	{ "hold_pod_m", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
+} }
+market { station = "Asgard Station", sells = {
+	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "tug_beam", 1 },
+} }
+market { station = "Tiger Stripe Laboratory", sells = {
+	{ "guidance_computer", 1 }, { "glint_laser", 1 }, { "ember_reactor", 1 },
+} }
+market { station = "South Pole Port", sells = {
+	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "flit_engine", 1 },
+} }
+market { station = "Tombaugh Station", sells = {
+	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "nav_computer", 1 },
+} }
+market { station = "Sputnik Port", sells = {
+	{ "missile_s", 4 }, { "sparrow_rack", 1 }, { "aux_thrusters", 1 },
+} }
+
+market { station = "Gertrude Port", sells = {
+	{ "cargo_container", 3 }, { "hold_pod_s", 2 }, { "rounds_s", 4 },
+} }
+market { station = "Messina Research Station", sells = {
+	{ "nav_computer", 1 }, { "glint_laser", 1 }, { "guidance_computer", 1 },
 } }

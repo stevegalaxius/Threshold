@@ -467,7 +467,11 @@ function Game:launchTrip(to, moon)
 		-- where you were relative to it, at the same speed and heading.
 		local ox, oy, angle = p0.body:getX(), p0.body:getY(), p0.body:getAngle()
 		local spin = p0.body:getAngularVelocity()
-		self:loadField("lane", { player = Ship.record(p), quiet = true })
+		local record = Ship.record(p)
+		local camX, camY = self.camera.x, self.camera.y
+		local origin = self:retainField()
+		self.trip.originScene = origin
+		self:loadField("lane", { player = record, quiet = true, retain = true })
 		local mx, my = self:fromLane(-half, -T.laneWidth / 4)
 		local px, py = mx - cos(bearing) * T.rampLead, my - sin(bearing) * T.rampLead
 		self.trip.origin = { x = px - ox, y = py - oy }
@@ -476,7 +480,9 @@ function Game:launchTrip(to, moon)
 		p.body:setAngle(angle)
 		p.body:setAngularVelocity(spin)
 		p.body:setLinearVelocity(vx, vy)
-		self.camera.x, self.camera.y = px, py
+		self.camera.x, self.camera.y = camX + px - ox, camY + py - oy
+		self.camera.backgroundX = (origin.camera.backgroundX or 0) - self.trip.origin.x
+		self.camera.backgroundY = (origin.camera.backgroundY or 0) - self.trip.origin.y
 		events.emit("travel", from, to)
 		return
 	end
@@ -498,6 +504,37 @@ function Game:launchTrip(to, moon)
 	events.emit("travel", from, to)
 end
 
+-- Prepare the actual destination before its map edge enters the view.
+-- It is drawn in lane coordinates, then adopted rather than rebuilt on exit.
+function Game:prepareArrival(back)
+	local cached = self.arrivalPreview
+	if cached and cached.back == (not not back) then return cached end
+	if cached and cached.game ~= self.trip.originScene then cached.game.world:destroy() end
+	local to = back and self.trip.from or self.trip.to
+	local scene = back and self.trip.originScene
+	if not scene then
+		scene = Game.new({ field = to, universe = self.universe })
+		scene.autosaveOff = true
+		scene:remove(scene.player)
+		scene.player = nil
+	end
+	scene.time = self.time
+	local x, y
+	if back and self.trip.origin then
+		x, y = self.trip.origin.x, self.trip.origin.y
+	elseif back then
+		local ex, ey = self:fromLane(-self.lane.half, 0)
+		local a = self:laneHeading(-self.lane.half)
+		local d = Fields[to].radius - 1500
+		x, y = ex - cos(a) * d, ey - sin(a) * d
+	else
+		x, y = self:laneDestination()
+	end
+	cached = { game = scene, back = not not back, x = x, y = y }
+	self.arrivalPreview = cached
+	return cached
+end
+
 -- Out of the far end of the lane at the other planet's driver, moving fast.
 -- back: you turned round, so you come out of your own planet's driver.
 function Game:arrive(back)
@@ -505,9 +542,16 @@ function Game:arrive(back)
 	if not p or p.dead or not trip then return end
 	local to, from = trip.to, trip.from
 	if back then to, from = from, to end
+	local preview = self:prepareArrival(back)
 	local exit = self:laneExit(back)
-	self.trip = nil
-	self:loadField(to, { player = Ship.record(p), at = { driver = from, exit = exit } })
+	exit.free, exit.continuous = true, true
+	local cx, cy = self.camera.x - preview.x, self.camera.y - preview.y
+	local ship = Ship.record(p)
+	local bx = (self.camera.backgroundX or 0) + preview.x
+	local by = (self.camera.backgroundY or 0) + preview.y
+	self:loadField(to, { player = ship, at = { driver = from, exit = exit }, prepared = preview.game })
+	self.camera.x, self.camera.y = cx, cy
+	self.camera.backgroundX, self.camera.backgroundY = bx, by
 end
 
 -- How you come out of the lane: pointing and moving exactly as you were on
@@ -516,11 +560,14 @@ end
 function Game:laneExit(back)
 	local p = self.player
 	local vx, vy = p.body:getLinearVelocity()
-	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy, moon = self.trip and self.trip.moon }
+	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy, spin = p.body:getAngularVelocity(), moon = self.trip and self.trip.moon }
 	local px, py = p.body:getPosition()
 	if not back then
 		local cx, cy = self:laneDestination()
 		exit.ox, exit.oy = px - cx, py - cy
+	elseif self.arrivalPreview and self.arrivalPreview.back then
+		exit.ox, exit.oy = px - self.arrivalPreview.x, py - self.arrivalPreview.y
+		exit.free = true
 	elseif self.trip and self.trip.origin then
 		-- back off a moon trip: where you are relative to the planet drawn
 		-- behind the mouth
@@ -555,11 +602,12 @@ function Game:placeAtDriver(p, exit)
 		p.body:setPosition(x, y)
 		p.body:setAngle(exit.angle)
 		p.body:setLinearVelocity(exit.vx, exit.vy)
+		p.body:setAngularVelocity(exit.spin or 0)
 		local sp = sqrt(exit.vx ^ 2 + exit.vy ^ 2)
 		local fx, fy = cos(exit.angle), sin(exit.angle)
 		if sp > 50 then fx, fy = exit.vx / sp, exit.vy / sp end
 		-- a station can't be swept, so slide the run sideways off one
-		for _ = 1, 4 do
+		for _ = 1, (exit.continuous and 0 or 4) do
 			local hit
 			for _, e in ipairs(self.entities) do
 				if e.kind == "station" then
@@ -779,6 +827,14 @@ function Game:updateLane(dt)
 	end
 	if not p or p.dead then return end
 	local ps, pn, ph = self:toLane(p.body:getPosition())
+	local w, h = love.graphics.getDimensions()
+	local approach = sqrt(w * w + h * h) / (2 * self.camera.zoom) + 4000
+	if ps >= 0 and ps > lane.half - approach then
+		self:prepareArrival(false)
+	elseif ps < 0 and ps < -lane.half + approach and p.laneEntered then
+		self:prepareArrival(true)
+	end
+	if self.arrivalPreview then self.arrivalPreview.game.time = self.time end
 	local R = p.runup
 	if R then
 		-- the run-up: held on the line into the mouth, braking from the
@@ -823,7 +879,9 @@ function Game:updateLane(dt)
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
 	-- turned round and flew back out the near end: home again (off a
 	-- map's edge you start short of the mouth, so only once you're in)
-	if ps < -lane.half - 200 and (p.laneEntered or not self.trip.origin) then self.pendingArrive = "back" end
+	local vx, vy = p.body:getLinearVelocity()
+	local reversing = vx * cos(ph) + vy * sin(ph) < 0
+	if ps < -lane.half - 200 and (p.laneEntered or not self.trip.origin or reversing) then self.pendingArrive = "back" end
 end
 
 -- Traffic flies its own side of the lane at its own speed, nose along
