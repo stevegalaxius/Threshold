@@ -71,33 +71,31 @@ local function designWindow(E, Editor)
 	})
 	local d = E.design
 
-	Slab.Text("Design")
-	Slab.Text("id"); Slab.SameLine()
-	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
-	Slab.Text("name"); Slab.SameLine()
-	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
 	local opts = {}
 	for _, id in ipairs(data.list.hulls) do
 		table.insert(opts, { label = data.hulls[id].name .. "  (" .. id .. ")", value = id })
 	end
-	Slab.Text("Flies with the stats and slots of")
-	local base = data.hulls[d.base]
-	combo("yard_base", base and base.name or "?", opts, function(id) E.pushUndo(); E.setBase(id) end, 280)
-
-	if Slab.Button("New") then E.newDesign() end
+	Slab.Text("Start from")
+	combo("yard_open", "Edit an existing hull...", opts, function(id) E.openHull(id) end, 220)
 	Slab.SameLine()
+	if Slab.Button("Blank", { Tooltip = "A new empty design" }) then E.newDesign() end
+	Slab.Text("Opening a hull loads its shape, stats and slots.", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("Export with the same id to replace it.", { Color = { 0.6, 0.6, 0.6 } })
+
+	Slab.Separator()
+	Slab.Text("This design")
+	Slab.Text("id"); Slab.SameLine()
+	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
+	Slab.Text("name"); Slab.SameLine()
+	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
 	if Slab.Button("Test fly") then E.testFly() end
 	Slab.SameLine()
 	if Slab.Button("Export") then E.export() end
 	Slab.SameLine()
-	if Slab.Button("Copy") then E.copySource() end
-	Slab.Text("Open a hull")
-	combo("yard_open", "(pick one)", opts, function(id) E.openHull(id) end, 280)
+	if Slab.Button("Copy source") then E.copySource() end
 	if Slab.Button("Undo") then E.undoStep() end
 	Slab.SameLine()
 	if Slab.Button("Redo") then E.redoStep() end
-	Slab.SameLine()
-	Slab.Text(("%d / %d"):format(#E.undo, #E.redo))
 
 	Slab.Separator()
 	Slab.Text("Tool")
@@ -128,7 +126,11 @@ local function designWindow(E, Editor)
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
 
 	Slab.Separator()
-	if Slab.BeginTree("yard_stats", { Label = "Hull stats (blank = base hull's)" }) then
+	if Slab.BeginTree("yard_stats", { Label = "Hull stats" }) then
+		local base = data.hulls[d.base]
+		Slab.Text("Unchanged stats come from")
+		combo("yard_base", base and base.name or "?", opts, function(id) E.pushUndo(); E.setBase(id) end, 200)
+		Slab.Text("Picking one resets stats and slots, keeps the shape.", { Color = { 0.6, 0.6, 0.6 } })
 		for _, st in ipairs(STATS) do
 			local key, label, help = st[1], st[2], st[3]
 			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
