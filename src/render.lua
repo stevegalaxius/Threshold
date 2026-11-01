@@ -535,6 +535,8 @@ end
 -- edges the way the buff does, so the road reads without markings.
 local function drawLane(game)
 	local lane = game.lane
+	-- a moon trip is just open space: no road drawn
+	if game.trip and game.trip.moon then return end
 	-- the stretch the camera can see, with room to spare, so the glow never
 	-- ends on screen
 	local cam = game.camera

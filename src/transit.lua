@@ -478,7 +478,7 @@ function Game:launchTrip(to, moon)
 	p.body:setAngle(angle)
 	p.body:setAngularVelocity(spin)
 	p.body:setLinearVelocity(vx, vy)
-	p.laneCarry = { speed = sqrt(vx * vx + vy * vy), t = 0 }
+	if not moon then p.laneCarry = { speed = sqrt(vx * vx + vy * vy), t = 0 } end
 	self.camera.x, self.camera.y = px, py
 	events.emit("travel", from, to)
 end
@@ -752,9 +752,10 @@ function Game:updateLane(dt)
 				-- (not on a moon trip: just your own ship in open space)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 			end
-			-- soft walls well outside the lane, and the near end
+			-- soft walls well outside the lane, and the near end (not on
+			-- a moon trip: that's open space, flown like anywhere else)
 			local over = abs(n) - (W + T.laneRamp + 2500)
-			if over > 0 then
+			if over > 0 and not (self.trip and self.trip.moon) then
 				local k = (n > 0 and 1 or -1) * over * m * 4
 				b:applyForce(sin(phi) * k, -cos(phi) * k)
 			end
