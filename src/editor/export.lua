@@ -156,6 +156,12 @@ end
 function Export.stationDef(design)
 	local def = { id = design.id, name = design.name, kind = "station", parts = {},
 		color = design.color and copy(design.color), haze = design.haze }
+	if design.berths and #design.berths > 0 then
+		def.berths = {}
+		for _, b in ipairs(design.berths) do
+			table.insert(def.berths, { x = b.x, y = b.y, heading = (b.heading or 0) ~= 0 and b.heading or nil, size = (b.size or 80) ~= 80 and b.size or nil })
+		end
+	end
 	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
 	return def
 end
@@ -236,7 +242,7 @@ end
 function Export.fromStation(id)
 	local st = data.stations[id]
 	local design = { id = id, name = st.name, kind = "station", base = data.list.hulls[1], parts = {}, slots = {}, stats = {},
-		color = st.color and copy(st.color), haze = st.haze }
+		color = st.color and copy(st.color), haze = st.haze, berths = st.berths and copy(st.berths) }
 	for _, part in ipairs(st.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end
@@ -246,7 +252,7 @@ end
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots,
-		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze }
+		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze, berths = design.berths }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

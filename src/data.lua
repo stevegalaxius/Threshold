@@ -180,6 +180,16 @@ function api.station(def)
 		end
 	end
 	if #def.docks == 0 then fail(("station '%s' needs a part with dock = true"):format(def.id)) end
+	-- berths: parking spots outside, { x, y, heading (degrees, the way the
+	-- parked ship faces), size (the longest ship half-length that fits) }.
+	-- Arriving ships take a free one that fits; the rest go inside.
+	if def.berths ~= nil and type(def.berths) ~= "table" then fail(("station '%s': berths should be a list"):format(def.id)) end
+	for j, b in ipairs(def.berths or {}) do
+		if type(b.x) ~= "number" or type(b.y) ~= "number" then fail(("station '%s': berth %d needs x and y"):format(def.id, j)) end
+		b.heading = b.heading or 0
+		b.size = b.size or 80
+		if type(b.heading) ~= "number" or type(b.size) ~= "number" then fail(("station '%s': berth %d heading and size should be numbers"):format(def.id, j)) end
+	end
 	def.dock = def.docks[1]
 	local reach = 0
 	for k = 1, #def.shape, 2 do reach = math.max(reach, math.sqrt(def.shape[k] ^ 2 + def.shape[k + 1] ^ 2)) end

@@ -185,6 +185,28 @@ function Canvas.eraseLights(E, sx, sy, radius)
 	return gone
 end
 
+-- The berth under a screen point (stations): within its pad, or 10 px of
+-- its centre when zoomed out.
+function Canvas.berthAt(E, sx, sy)
+	local best, bd
+	for i, b in ipairs(E.design.berths or {}) do
+		local bx, by = Canvas.toScreen(E, b.x, b.y)
+		local d = sqrt((bx - sx) ^ 2 + (by - sy) ^ 2)
+		local reach = max(10, b.size * 0.5 * E.view.zoom)
+		if d <= reach and (not bd or d < bd) then best, bd = i, d end
+	end
+	return best
+end
+
+-- Heading (whole degrees) from a berth's spot toward a point; with no
+-- drag, out from the station's centre.
+local function berthHeading(x1, y1, x2, y2)
+	local dx, dy = x2 - x1, y2 - y1
+	if dx * dx + dy * dy < 16 then dx, dy = x1, y1 end
+	if dx == 0 and dy == 0 then return 0 end
+	return floor(math.deg(math.atan2(dy, dx)) + 0.5) % 360
+end
+
 -- A new light like the light tool's settings.
 local function newLight(E, x, y)
 	local l = { x = x, y = y, kind = E.lightKind }
@@ -208,6 +230,16 @@ function Canvas.mousepressed(E, sx, sy, button)
 		E.drag = { kind = "erase" }
 		Canvas.eraseLights(E, sx, sy, E.eraseRadius)
 		return
+	end
+	if button == 2 and E.tool == "berth" then
+		local i = Canvas.berthAt(E, sx, sy)
+		if i then
+			E.pushUndo()
+			table.remove(E.design.berths, i)
+			if #E.design.berths == 0 then E.design.berths = nil end
+			E.bsel = nil
+			return
+		end
 	end
 	if button == 2 or button == 3 then
 		E.drag = { kind = "pan", sx = sx, sy = sy, vx = E.view.x, vy = E.view.y }
@@ -250,6 +282,12 @@ function Canvas.mousepressed(E, sx, sy, button)
 		return
 	end
 
+	if E.tool == "berth" then
+		local px, py = Canvas.snap(E, wx, wy)
+		E.drag = { kind = "berth", x1 = px, y1 = py, x2 = px, y2 = py }
+		return
+	end
+
 	if E.tool == "rect" then
 		local px, py = Canvas.snap(E, wx, wy)
 		E.drag = { kind = "rect", x1 = px, y1 = py, x2 = px, y2 = py }
@@ -258,6 +296,15 @@ function Canvas.mousepressed(E, sx, sy, button)
 
 	-- select tool: a vertex of the selected part, an edge (double click
 	-- inserts a point), a part, or nothing
+	local bi = Canvas.berthAt(E, sx, sy)
+	if bi then
+		E.bsel, E.lsel, E.vsel = bi, nil, nil
+		local b = E.design.berths[bi]
+		local px, py = Canvas.snap(E, wx, wy)
+		E.drag = { kind = "berthmove", i = bi, ox = b.x - px, oy = b.y - py, pushed = false }
+		return
+	end
+	E.bsel = nil
 	local li, lj = Canvas.lightAt(E, sx, sy)
 	if li then
 		E.sel, E.vsel, E.lsel = li, nil, lj
@@ -315,8 +362,15 @@ function Canvas.mousemoved(E, sx, sy)
 	end
 	local wx, wy = Canvas.toWorld(E, sx, sy)
 	local px, py = Canvas.snap(E, wx, wy)
-	if d.kind == "rect" or d.kind == "lights" then
+	if d.kind == "rect" or d.kind == "lights" or d.kind == "berth" then
 		d.x2, d.y2 = px, py
+	elseif d.kind == "berthmove" then
+		local b = E.design.berths and E.design.berths[d.i]
+		local nx, ny = px + d.ox, py + d.oy
+		if b and (b.x ~= nx or b.y ~= ny) then
+			if not d.pushed then E.pushUndo(); d.pushed = true end
+			b.x, b.y = nx, ny
+		end
 	elseif d.kind == "light" then
 		local l = E.design.parts[d.i].lights[d.j]
 		if l and (l.x ~= px or l.y ~= py) then
@@ -367,6 +421,13 @@ function Canvas.mousereleased(E, sx, sy, button)
 		for _, q in ipairs(pts) do
 			table.insert(p.lights, newLight(E, floor(q[1] + 0.5), floor((d.flip and -q[2] or q[2]) + 0.5)))
 		end
+		return
+	end
+	if d and d.kind == "berth" then
+		E.pushUndo()
+		E.design.berths = E.design.berths or {}
+		table.insert(E.design.berths, { x = d.x1, y = d.y1, heading = berthHeading(d.x1, d.y1, d.x2, d.y2), size = E.berthSize })
+		E.bsel = #E.design.berths
 		return
 	end
 	if d and d.kind == "rect" then
@@ -493,6 +554,37 @@ function Canvas.draw(E)
 	end
 
 	lg.pop()
+
+	-- berths: a pad the size of the biggest ship that fits, nose arrow
+	-- showing which way it parks
+	local function pad(x, y, heading, size, sel, alpha)
+		local cx, cy = Canvas.toScreen(E, x, y)
+		local a = math.rad(heading)
+		local c, sn = math.cos(a), math.sin(a)
+		local L, W = size * v.zoom, size * 0.55 * v.zoom
+		local function pt(u, w) return cx + u * c - w * sn, cy + u * sn + w * c end
+		local x1, y1 = pt(-L, -W); local x2, y2 = pt(L, -W); local x3, y3 = pt(L, W); local x4, y4 = pt(-L, W)
+		lg.setColor(0.95, 0.75, 0.25, alpha)
+		lg.setLineWidth(sel and 2.5 or 1.5)
+		lg.polygon("line", x1, y1, x2, y2, x3, y3, x4, y4)
+		local ax, ay = pt(max(L, 8) + 10, 0)
+		local bx, by = pt(L * 0.3, 0)
+		lg.line(bx, by, ax, ay)
+		local hx, hy = pt(max(L, 8) + 2, -5); local kx, ky = pt(max(L, 8) + 2, 5)
+		lg.line(hx, hy, ax, ay, kx, ky)
+		lg.circle("fill", cx, cy, sel and 4 or 3)
+	end
+	if E.design.kind == "station" then
+		for i, b in ipairs(E.design.berths or {}) do
+			pad(b.x, b.y, b.heading or 0, b.size or 80, E.bsel == i, E.bsel == i and 1 or 0.7)
+			local cx, cy = Canvas.toScreen(E, b.x, b.y)
+			lg.print("B" .. i, cx + 6, cy + 4)
+		end
+		if E.drag and E.drag.kind == "berth" then
+			local d = E.drag
+			pad(d.x1, d.y1, berthHeading(d.x1, d.y1, d.x2, d.y2), E.berthSize, true, 0.5)
+		end
+	end
 
 	-- slot hardpoints: where guns fire from and engines burn
 	for i, slot in ipairs(E.design.slots or {}) do

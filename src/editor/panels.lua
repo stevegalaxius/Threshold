@@ -85,8 +85,31 @@ local function placedSections(E, d)
 		Slab.Text("Mark one or more parts as docking modules;", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("each door faces out from the centre.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text(docks >= 1 and ("Docks: %d"):format(docks) or "No dock yet (needs at least 1)", { Color = docks >= 1 and { 0.5, 1, 0.6 } or { 1, 0.5, 0.4 } })
-		Slab.Text("Export with id ring_<R>_<tube> to replace", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text("that wheel in the game (e.g. ring_1400_160).", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Export with id ring_<R>_<tube> or city_<k>", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Separator()
+		local berths = d.berths or {}
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Berths are parking spots outside the station.\nA ship that docks takes a free berth it fits on and parks there, in view.\nWhen every berth is taken (or there are none), it goes inside through the dock.\nSize is the longest ship half-length that fits." })
+		Slab.SameLine()
+		Slab.Text(#berths > 0 and ("Berths: %d"):format(#berths) or "Berths: none (every ship goes inside)")
+		local b = E.bsel and berths[E.bsel]
+		if b then
+			Slab.Text(("Berth %d"):format(E.bsel), { Color = { 0.95, 0.75, 0.25 } })
+			Slab.Text("heading"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_berthheading", b.heading or 0, 0, 359, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_berthheading"); b.heading = Slab.GetInputNumber()
+			end
+			Slab.SameLine()
+			Slab.Text("size"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_berthsz", b.size or 80, 20, 400, 2, { W = 70 }) then
+				E.pushUndoCoalesced("yard_berthsz"); b.size = Slab.GetInputNumber()
+			end
+			if Slab.Button("Remove berth") then E.deleteSelected() end
+		elseif #berths > 0 then
+			Slab.Text("Select tool: click a berth to edit or move it", { Color = { 0.6, 0.6, 0.6 } })
+		else
+			Slab.Text("Use the Berths tool to place some", { Color = { 0.6, 0.6, 0.6 } })
+		end
 		return
 	end
 	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then
@@ -202,6 +225,7 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	Slab.Text("Tool")
 	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Rect (B)" }, { "light", "Lights (L)" } }
+	if E.design.kind == "station" then table.insert(tools, { "berth", "Berths" }) end
 	local current = 1
 	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
 	for i, t in ipairs(tools) do
@@ -221,6 +245,13 @@ local function designWindow(E, Editor)
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
+	end
+	if E.tool == "berth" then
+		Slab.Text("Click to place a berth; drag to aim its nose", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("(no drag: it faces out from the centre)", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Right click a berth to remove it", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("size for new berths")
+		if Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
 	end
 	if Slab.CheckBox(E.mirrorNew, "New parts get a mirror twin") then E.mirrorNew = not E.mirrorNew end
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end

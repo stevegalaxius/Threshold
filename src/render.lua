@@ -283,6 +283,34 @@ local function drawStation(game, e)
 	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
 		function(c) return c end, outline(2))
 	HullShape.drawLights(e.def, game.time, screenPx)
+	-- berths: a pad outline with corner ticks, lit green while taken
+	local berths = e.def.berths
+	if berths and #berths > 0 then
+		local taken = {}
+		for _, o in ipairs(game.entities) do
+			local ds = o.dockState
+			if ds and ds.station == e and ds.berth then taken[ds.berth] = true end
+		end
+		lg.setLineWidth(outline(1.5))
+		for i, b in ipairs(berths) do
+			lg.push()
+			lg.translate(b.x, b.y)
+			lg.rotate(math.rad(b.heading))
+			local L, W = b.size, b.size * 0.55
+			lg.setColor(0.95, 0.75, 0.25, 0.35)
+			lg.rectangle("line", -L, -W, L * 2, W * 2)
+			local t = min(L, W) * 0.3
+			lg.setColor(0.95, 0.75, 0.25, 0.8)
+			for _, c in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
+				local cx, cy = c[1] * L, c[2] * W
+				lg.line(cx - c[1] * t, cy, cx, cy, cx, cy - c[2] * t)
+			end
+			-- the light at the nose end: green when taken, amber when free
+			lg.setColor(taken[i] and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+			lg.circle("fill", L, 0, max(4, 2.5 * screenPx))
+			lg.pop()
+		end
+	end
 	-- each dock's door and runway, in the dock's own frame (a tunnel gets
 	-- both ends)
 	local busy = false
@@ -517,7 +545,7 @@ end
 -- lane.
 local function drawLaneBuff(e)
 	local buff = e.laneBuff or e.laneFade
-	if not buff or buff <= 0 or (e.dockState and e.dockState.done) then return end
+	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
 	local hot = 0
@@ -652,7 +680,8 @@ local BARREL = { S = 7, M = 10, L = 16 }
 local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 
 local function drawShip(game, e)
-	if e.dockState and e.dockState.done then return end
+	-- inside a station: not drawn (parked on a berth: drawn)
+	if e.dockState and e.dockState.done and not e.dockState.berth then return end
 	drawReentry(e, e.halfLength)
 	drawLaneBuff(e)
 	local x, y = e.body:getPosition()

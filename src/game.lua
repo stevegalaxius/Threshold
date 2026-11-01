@@ -810,7 +810,35 @@ end
 
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
--- One step of a docking ship: tractor it in, pull it inside, or wait.
+-- A free berth at the station that the ship fits on, or nil (no berths,
+-- all taken, or all too small): then it goes inside.
+function Game:freeBerth(st, e)
+	local berths = st.def and st.def.berths
+	if not berths or #berths == 0 then return nil end
+	local taken = {}
+	for _, o in ipairs(self.entities) do
+		local ods = o ~= e and not o.dead and not o.removed and o.dockState
+		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
+	end
+	for i, b in ipairs(berths) do
+		if not taken[i] and (e.halfLength or 0) <= b.size then return i end
+	end
+	return nil
+end
+
+function Game:finishDocking(e, ds, st)
+	ds.phase, ds.done, ds.t = "done", true, 0
+	if e == self.player then
+		self.state = "docked"
+		self:playerDocked(st)
+	else
+		ds.stay = 30 + random() * 60
+	end
+	events.emit("dock", e, st)
+end
+
+-- One step of a docking ship: tractor it in, pull it inside (or over to a
+-- berth), or wait.
 function Game:updateDockedShip(e, dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.dock or ds.station.dock
@@ -854,10 +882,33 @@ function Game:updateDockedShip(e, dt)
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
-			ds.phase, ds.t = "pull", 0
-			ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side, d)
+			local berth = self:freeBerth(st, e)
+			if berth then
+				-- a free berth outside: glide over and park there, in view
+				local bd = st.def.berths[berth]
+				ds.phase, ds.t, ds.berth = "taxi", 0, berth
+				ds.lx, ds.ly = sb:getLocalPoint(x, y)
+				ds.la = b:getAngle() - sb:getAngle()
+				ds.dur = max(1.5, min(8, sqrt((bd.x - ds.lx) ^ 2 + (bd.y - ds.ly) ^ 2) / 220))
+			else
+				ds.phase, ds.t = "pull", 0
+				ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side, d)
+			end
 			b:setActive(false)
 		end
+		return
+	end
+
+	if ds.phase == "taxi" then
+		local bd = st.def.berths[ds.berth]
+		local f = min(1, ds.t / ds.dur)
+		f = f * f * (3 - 2 * f)
+		local ba = math.rad(bd.heading)
+		b:setPosition(sb:getWorldPoint(ds.lx + (bd.x - ds.lx) * f, ds.ly + (bd.y - ds.ly) * f))
+		b:setAngle(sb:getAngle() + ds.la + wrapAngle(ba - ds.la) * f)
+		b:setLinearVelocity(0, 0)
+		b:setAngularVelocity(0)
+		if f >= 1 then self:finishDocking(e, ds, st) end
 		return
 	end
 
@@ -870,21 +921,18 @@ function Game:updateDockedShip(e, dt)
 		b:setAngle(dockAngle(st, side, d) + ds.la + da * f)
 		b:setLinearVelocity(0, 0)
 		b:setAngularVelocity(0)
-		if f >= 1 then
-			ds.phase, ds.done, ds.t = "done", true, 0
-			if e == self.player then
-				self.state = "docked"
-				self:playerDocked(st)
-			else
-				ds.stay = 30 + random() * 60
-			end
-			events.emit("dock", e, st)
-		end
+		if f >= 1 then self:finishDocking(e, ds, st) end
 		return
 	end
 
-	-- docked: ride along inside
-	b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
+	-- docked: ride along, parked on a berth or inside
+	if ds.berth then
+		local bd = st.def.berths[ds.berth]
+		b:setPosition(sb:getWorldPoint(bd.x, bd.y))
+		b:setAngle(sb:getAngle() + math.rad(bd.heading))
+	else
+		b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
+	end
 	if ds.stay and ds.t >= ds.stay then self:undockShip(e) end
 end
 
@@ -895,13 +943,23 @@ function Game:undockShip(e)
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local sb = st.body
 	local side = ds.side or 1
-	local wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
-	local ox, oy = dockVector(st, side, 1, 0, d)
+	local wx, wy, wa, ox, oy, speed
+	local bd = ds.berth and st.def.berths[ds.berth]
+	if bd then
+		-- off the berth, nose first, gently
+		wx, wy = sb:getWorldPoint(bd.x, bd.y)
+		wa = sb:getAngle() + math.rad(bd.heading)
+		ox, oy, speed = cos(wa), sin(wa), 140
+	else
+		wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
+		ox, oy = dockVector(st, side, 1, 0, d)
+		wa, speed = dockAngle(st, side, d), 260
+	end
 	local svx, svy = sb:getLinearVelocityFromWorldPoint(wx, wy)
 	e.body:setPosition(wx, wy)
-	e.body:setAngle(dockAngle(st, side, d))
+	e.body:setAngle(wa)
 	e.body:setActive(true)
-	e.body:setLinearVelocity(svx + ox * 260, svy + oy * 260)
+	e.body:setLinearVelocity(svx + ox * speed, svy + oy * speed)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
 	e.dockCooldown = 4
