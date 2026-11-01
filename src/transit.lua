@@ -499,31 +499,6 @@ end
 -- Out of this planet's driver heading inward, at the driver's exit speed,
 -- or, off the highway (exit = { angle, vx, vy }), in from the map's edge
 -- on course for the planet.
--- Sweep loose debris out of a strip ahead of (x, y) along (fx, fy), so a
--- ship coming off the highway at speed has a clear run to slow down in.
-function Game:clearCorridor(x, y, fx, fy, len, half)
-	local function inside(ex, ey, r)
-		local dx, dy = ex - x, ey - y
-		local along = dx * fx + dy * fy
-		local across = math.abs(dx * fy - dy * fx)
-		return along > -half and along < len and across < half + r
-	end
-	for i = #self.entities, 1, -1 do
-		local e = self.entities[i]
-		if e.kind == "asteroid" and not e.giant and not e.removed then
-			local ex, ey = e.body:getPosition()
-			if inside(ex, ey, e.radius or 0) then self:remove(e) end
-		end
-	end
-	local keep = {}
-	for _, e in ipairs(self.sleepers or {}) do
-		local ex, ey = self:sleeperPos(e)
-		if e.removed or inside(ex, ey, e.radius or 0) then e.removed = true
-		else keep[#keep + 1] = e end
-	end
-	self.sleepers = keep
-end
-
 function Game:placeAtDriver(p, exit)
 	local g = self:findDriver()
 	if not g then return false end
@@ -559,8 +534,8 @@ function Game:placeAtDriver(p, exit)
 					local sx, sy = e.body:getPosition()
 					local dx, dy = sx - x, sy - y
 					local along, across = dx * fx + dy * fy, dx * fy - dy * fx
-					local need = (e.radius or 1000) + T.arrivalClearWidth
-					if along > 0 and along < T.arrivalClearLength and math.abs(across) < need then
+					local need = (e.radius or 1000) + 600
+					if along > 0 and along < T.arrivalWakeTime * sp and math.abs(across) < need then
 						hit = (across >= 0 and -1 or 1) * (need - math.abs(across) + 200)
 						break
 					end
@@ -570,7 +545,6 @@ function Game:placeAtDriver(p, exit)
 			x, y = x + fy * hit, y - fx * hit
 		end
 		p.body:setPosition(x, y)
-		self:clearCorridor(x, y, fx, fy, T.arrivalClearLength, T.arrivalClearWidth)
 		-- the lane's glow and streaks fade off you instead of blinking out
 		p.laneFade = 1
 	else

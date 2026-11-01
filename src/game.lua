@@ -1810,6 +1810,44 @@ function Game:breakOff(h, piece)
 	self:explode(x, y, part.reach * 0.6, 0, 0)
 end
 
+-- Coming off the highway, the lane's glow shoves loose debris aside like a
+-- boat's bow instead of the ship ramming it, fading out with the glow.
+function Game:bowWave(p, dt)
+	local x, y = p.body:getPosition()
+	local vx, vy = p.body:getLinearVelocity()
+	local sp = sqrt(vx * vx + vy * vy)
+	if sp < 100 then return end
+	local fx, fy = vx / sp, vy / sp
+	local ahead = T.arrivalWakeAhead * sp + 400
+	local half = T.arrivalWakeWidth
+	local cx, cy = x + fx * ahead / 2, y + fy * ahead / 2
+	local ext = ahead / 2 + half
+	local seen = {}
+	self.world:queryBoundingBox(cx - ext, cy - ext, cx + ext, cy + ext, function(f)
+		local e = f:getUserData()
+		if e and not seen[e] and e.kind == "asteroid" and not e.giant and not e.removed then
+			seen[e] = true
+			local ex, ey = e.body:getPosition()
+			local dx, dy = ex - x, ey - y
+			local along, across = dx * fx + dy * fy, dx * fy - dy * fx
+			local r = e.radius or 0
+			if along > -r and along < ahead and math.abs(across) < half + r then
+				local side = across >= 0 and 1 or -1
+				-- out of the way: sideways at a good share of your speed, and
+				-- carried along a little so it slides past instead of meeting you
+				local ox, oy = e.body:getLinearVelocity()
+				local want = side * sp * T.arrivalWakePush * p.laneFade
+				local cur = ox * fy - oy * fx
+				if cur * side < want * side then
+					local dv = want - cur
+					e.body:setLinearVelocity(ox + fy * dv, oy - fx * dv)
+				end
+			end
+		end
+		return true
+	end)
+end
+
 function Game:remove(e)
 	for i, o in ipairs(self.entities) do
 		if o == e then table.remove(self.entities, i); break end
@@ -1877,8 +1915,9 @@ function Game:frame(dt, aimX, aimY)
 	if self.cineZoom then
 		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * 6))
 	end
-	if p and p.laneFade then
-		p.laneFade = p.laneFade - dt / 1.5
+	if p and p.laneFade and not p.dead then
+		self:bowWave(p, dt)
+		p.laneFade = p.laneFade - dt / T.arrivalWakeTime
 		if p.laneFade <= 0 then p.laneFade = nil end
 	end
 	if self.flash then
