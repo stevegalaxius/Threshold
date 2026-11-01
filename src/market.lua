@@ -19,6 +19,12 @@
 	  trading   the market tab (src/ui/cargo.lua) has one shared trade
 	            grid. Its stacks carry owner = "player" or "station";
 	            Game:completeTrade settles the lot.
+	  ships     a station's shipyard (data/markets.lua ships = { hull ids })
+	            sells new ships at the hull's list price, parked straight
+	            into the hangar (Game:buyShip). Any parked ship can be sold
+	            from the hangar for T.sellRate of what it's worth: its hull,
+	            its fitted modules over or under the stock fit, and its
+	            hold (Game:shipValue, Game:sellShip).
 
 	Added to Game by src/game.lua: require("src.market")(Game).
 ]]
@@ -29,6 +35,7 @@ local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 local Ship = require("src.ship")
 local T = require("src.tuning")
+local events = require("src.events")
 
 local floor, min = math.floor, math.min
 
@@ -197,6 +204,85 @@ function Game:completeTrade(st, trade)
 	p.cargo = Hold.totals(p.hold)
 	Ship.updateMass(p)
 	return true, get - pay
+end
+
+-- Ships ----------------------------------------------------------------------
+
+-- What's in a ship's hold at list price: a Hold, or a plain { id = n }
+-- cargo table (ships that never had a grid hold).
+local function holdValue(rec)
+	local v = 0
+	if rec.hold then
+		for _, g in ipairs(rec.hold.grids) do
+			for _, s in ipairs(g.stacks) do v = v + Game.stackValue(s.id, s.n, s.inner) end
+		end
+	elseif rec.cargo then
+		for id, n in pairs(rec.cargo) do
+			if data.items[id] then v = v + (data.items[id].price or 0) * n end
+		end
+	end
+	return v
+end
+
+local function fitValue(hull, loadout)
+	local v = 0
+	for i in ipairs(hull.slots) do
+		local id = loadout and loadout[i]
+		local m = id and data.modules[id]
+		if m then v = v + (m.price or 0) end
+	end
+	return v
+end
+
+-- A ship record at list price: the hull's price (which buys it with its
+-- stock fit), plus or minus what its fit is worth over the stock fit,
+-- plus its hold.
+function Game.shipValue(rec)
+	local hull = data.hulls[rec.hull]
+	local v = (hull.price or 0) + fitValue(hull, rec.loadout or hull.loadout) - fitValue(hull, hull.loadout)
+	return math.max(0, v) + holdValue(rec)
+end
+
+function Game.shipSellPrice(rec) return floor(Game.shipValue(rec) * T.sellRate) end
+
+-- The hull ids this station's shipyard sells (may be empty).
+function Game.shipyard(st)
+	local mk = data.markets[st.name]
+	return mk and mk.ships or {}
+end
+
+-- Why this ship can't be bought here, or nil if it can.
+function Game:shipBuyProblem(st, hullId)
+	local hull = data.hulls[hullId]
+	if not hull then return "UNKNOWN SHIP" end
+	if self.universe.credits < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
+	if not self:hangarFit(st, hullId) then return "NO ROOM IN THE HANGAR" end
+	return nil
+end
+
+-- Buy a new ship of a hull: paid for and parked in this station's hangar.
+-- Returns the record, or nil and why not (then nothing changes).
+function Game:buyShip(st, hullId)
+	local problem = self:shipBuyProblem(st, hullId)
+	if problem then return nil, problem end
+	local rec = self:addToHangar(st, hullId)
+	if not rec then return nil, "NO ROOM IN THE HANGAR" end
+	self.universe.credits = self.universe.credits - (data.hulls[hullId].price or 0)
+	events.emit("buyship", rec, st)
+	return rec
+end
+
+-- Sell parked ship i (the one you're flying can't be sold). Its hold goes
+-- with it. Returns the credits paid, or nil and why not.
+function Game:sellShip(st, i)
+	local list = self:hangar(st)
+	local rec = list[i]
+	if not rec then return nil, "NO SUCH SHIP" end
+	local paid = Game.shipSellPrice(rec)
+	table.remove(list, i)
+	self.universe.credits = self.universe.credits + paid
+	events.emit("sellship", rec, st)
+	return paid
 end
 
 end

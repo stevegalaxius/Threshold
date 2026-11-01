@@ -707,6 +707,18 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 				game:flyFromHangar(act.fly)
 			elseif act and act.cargo then
 				Cargo.other, Cargo.tab = act.cargo, "cargo"
+			elseif act and act.sell then
+				local st = game.player.dockState.station
+				local rec = game:hangar(st)[act.sell]
+				local paid, why = game:sellShip(st, act.sell)
+				if paid then
+					if Cargo.other == rec then Cargo.other = nil end
+					game:toast(("SOLD FOR %d CR"):format(paid), 1.4)
+				else game:toast(why, 1.4) end
+			elseif act and act.buy then
+				local rec, why = game:buyShip(game.player.dockState.station, act.buy)
+				if rec then Hangar.sel = rec; game:toast("SHIP PARKED IN THE HANGAR", 1.4)
+				else game:toast(why, 1.4) end
 			end
 			return true
 		end
@@ -1181,7 +1193,7 @@ function Cargo.draw(game)
 			lg.setFont(HUD.font(13))
 			lg.setColor(HUD.DIM)
 			local H = Hangar.layout(game)
-			lg.printf("Click a ship to select   Drag to move, R rotate   Double-click or Fly to swap ships   Cargo opens its hold   Tab switch tabs   E launch",
+			lg.printf("Click a ship to select   Drag to move, R rotate   Double-click or Fly to swap ships   Cargo opens its hold   Sell / Buy trade ships   Tab switch tabs   E launch",
 				0, H and (H.y + H.h + 12) or (sh - 40), sw, "center")
 			return
 		end
