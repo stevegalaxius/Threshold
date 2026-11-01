@@ -131,6 +131,11 @@ T.laneFarAU, T.laneFarScale = 5, 0.25
 T.crushStart = 2000
 T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
 
+-- Sleeping debris (Game:updateSleepers): rocks further than sleepFar
+-- from the player stop being simulated and just follow their orbit, and
+-- wake inside sleepNear; checked every sleepEvery steps.
+T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
 T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20

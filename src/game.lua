@@ -67,6 +67,10 @@ function Game:loadField(id, opts)
 	for _, e in ipairs(self.entities) do
 		if not e.removed then e.body:destroy(); e.removed = true end
 	end
+	for _, e in ipairs(self.sleepers or {}) do
+		if not e.removed then e.body:destroy(); e.removed = true end
+	end
+	self.sleepers, self.sleepTick = {}, 0
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
@@ -188,6 +192,75 @@ function Game:spawnPoint(minD, maxD)
 	end
 	local a = random() * pi * 2
 	return cos(a) * (self.arenaRadius - 300), sin(a) * (self.arenaRadius - 300)
+end
+
+-- Sleeping debris. Around a planet, every loose rock, ice chunk and piece
+-- of junk just circles with the current, so the ones far from the player
+-- don't need simulating: they're taken out of the world (their bodies
+-- switched off, out of self.entities) and kept as an orbit (radius, angle
+-- at a time, turn rate), and put back, exactly where that orbit has
+-- carried them, when the player comes near. Far from the player is past
+-- T.sleepFar; they wake inside T.sleepNear. Checked every T.sleepEvery
+-- steps.
+function Game:sleeperPos(e)
+	local o = e.sleep
+	local w = self.well
+	local a = o.a + o.rate * (self.time - o.t)
+	return w.x + cos(a) * o.r, w.y + sin(a) * o.r, a
+end
+
+function Game:updateSleepers()
+	local w = self.well
+	if not w or self.lane then return end
+	self.sleepTick = (self.sleepTick or 0) + 1
+	if self.sleepTick < T.sleepEvery then return end
+	self.sleepTick = 0
+	local p = self.player
+	local px, py
+	if p and not p.dead then px, py = p.body:getPosition() else px, py = self.camera.x, self.camera.y end
+	local far2, near2 = T.sleepFar ^ 2, T.sleepNear ^ 2
+	-- wake the ones the player is coming up on
+	local sl, keep = self.sleepers, {}
+	for _, e in ipairs(sl) do
+		if not e.removed then
+			local x, y, a = self:sleeperPos(e)
+			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
+				local o = e.sleep
+				e.sleep = nil
+				local b = e.body
+				b:setPosition(x, y)
+				b:setActive(true)
+				local v = o.rate * o.r
+				b:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				table.insert(self.entities, e)
+			else
+				keep[#keep + 1] = e
+			end
+		end
+	end
+	self.sleepers = keep
+	-- and put the far ones to sleep
+	local ents, i = self.entities, 1
+	while i <= #ents do
+		local e = ents[i]
+		if e.kind == "asteroid" and not e.giant and not e.dead and not e.removed and not e.reentry then
+			local b = e.body
+			local x, y = b:getPosition()
+			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
+				local dx, dy = x - w.x, y - w.y
+				local r2 = dx * dx + dy * dy
+				local vx, vy = b:getLinearVelocity()
+				e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1) }
+				b:setActive(false)
+				table.insert(self.sleepers, e)
+				table.remove(ents, i)
+			else
+				i = i + 1
+			end
+		else
+			i = i + 1
+		end
+	end
 end
 
 -- Debris kinds (see Fields.mixes): shade/colour, how tough per px^2, and
@@ -1098,6 +1171,7 @@ function Game:step(dt)
 		end
 	end
 
+	self:updateSleepers()
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:updateLane(dt)

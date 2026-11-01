@@ -1052,8 +1052,23 @@ function Render.world(game)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
+	-- only what's on screen (with a margin for big things)
+	local cam = game.camera
+	local sw, sh = lg.getDimensions()
+	local hw, hh = sw / 2 / cam.zoom + 300, sh / 2 / cam.zoom + 300
+	local cx, cy = cam.x, cam.y
+	-- sleeping debris: where its orbit has carried it
+	for _, e in ipairs(game.sleepers or {}) do
+		local x, y = game:sleeperPos(e)
+		if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
+			e.body:setPosition(x, y)
+			drawAsteroid(e)
+		end
+	end
 	for _, e in ipairs(game.entities) do
-		if e.kind == "asteroid" then drawAsteroid(e)
+		if e.kind == "asteroid" then
+			local x, y = e.body:getPosition()
+			if e.giant or (math.abs(x - cx) < hw and math.abs(y - cy) < hh) then drawAsteroid(e) end
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
