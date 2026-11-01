@@ -458,28 +458,43 @@ function Game:launchTrip(to, moon)
 	end
 	local _, rot = Game.laneShape(half * 2, bearing)
 	self.trip = { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil }
-	-- No run-up and no cut. The planet you left is drawn behind the lane's
-	-- mouth (trip.origin, src/render.lua), and you carry on from exactly
-	-- where you were relative to it, at the same speed and heading, a
-	-- little short of the mouth. Off a driver you keep its kick for a
-	-- while (laneCarry); off a map's edge, your own speed.
 	local p0 = self.player
 	local vx, vy = p0.body:getLinearVelocity()
+	if moon then
+		-- off a map's edge toward a moon (src/moons.lua): no run-up and no
+		-- cut. The planet you left is drawn behind the lane's mouth
+		-- (trip.origin, src/render.lua), and you carry on from exactly
+		-- where you were relative to it, at the same speed and heading.
+		local ox, oy, angle = p0.body:getX(), p0.body:getY(), p0.body:getAngle()
+		local spin = p0.body:getAngularVelocity()
+		self:loadField("lane", { player = Ship.record(p), quiet = true })
+		local mx, my = self:fromLane(-half, -T.laneWidth / 4)
+		local px, py = mx - cos(bearing) * T.rampLead, my - sin(bearing) * T.rampLead
+		self.trip.origin = { x = px - ox, y = py - oy }
+		p = self.player
+		p.body:setPosition(px, py)
+		p.body:setAngle(angle)
+		p.body:setAngularVelocity(spin)
+		p.body:setLinearVelocity(vx, vy)
+		self.camera.x, self.camera.y = px, py
+		events.emit("travel", from, to)
+		return
+	end
+	-- you come in on a run-up short of the lane's mouth, still at the
+	-- driver's speed, and slow to the lane's as you reach it
 	local speed = max(T.laneEntrySpeed, sqrt(vx * vx + vy * vy))
-	local ox, oy, angle = p0.body:getX(), p0.body:getY(), p0.body:getAngle()
-	local spin = p0.body:getAngularVelocity()
-	self:loadField("lane", { player = Ship.record(p), quiet = true })
-	local mx, my = self:fromLane(-half, -T.laneWidth / 4)
-	local px, py = mx - cos(bearing) * T.rampLead, my - sin(bearing) * T.rampLead
-	local cx, cy = px - ox, py - oy
-	self.trip.origin = { x = cx, y = cy }
+	self:loadField("lane", { player = Ship.record(p) })
+	-- a straight run in along the bearing (the lane's heading at its mouth)
+	local mx, my = self:fromLane(-half, -T.laneWidth / 2)
+	local h = self:laneHeading(-half)
+	local x, y = mx - cos(h) * T.laneRunup, my - sin(h) * T.laneRunup
 	p = self.player
-	p.body:setPosition(px, py)
-	p.body:setAngle(angle)
-	p.body:setAngularVelocity(spin)
-	p.body:setLinearVelocity(vx, vy)
-	if not moon then p.laneCarry = { speed = sqrt(vx * vx + vy * vy), t = 0 } end
-	self.camera.x, self.camera.y = px, py
+	p.body:setPosition(x, y)
+	p.body:setAngle(h)
+	p.body:setLinearVelocity(cos(h) * speed, sin(h) * speed)
+	p.runup = { speed = speed, x = x, y = y, h = h }
+	self.camera.x, self.camera.y = x, y
+	self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
 	events.emit("travel", from, to)
 end
 
@@ -787,6 +802,7 @@ function Game:updateLane(dt)
 			p.runup = nil
 			p.laneCarry = { speed = sp, t = 0 }
 			self.cineZoom, self.savedZoom = nil, nil
+			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return
 	end
