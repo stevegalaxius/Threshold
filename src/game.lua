@@ -1194,8 +1194,38 @@ function Game:undockShip(e)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
 	e.dockCooldown = 4
+	if st.city and not bd and e == self.player then
+		e.dockExit = { station = st, dock = d, side = side, t = 0 }
+	end
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
 	events.emit("undock", e, st)
+end
+
+-- Cloud-city departure: keep the ship supported and guide it outward
+-- along the runway, then release once clear. Flight controls remain live.
+function Game:updateDockExits(dt)
+	local e = self.player
+	local assist = e and e.dockExit
+	if not assist then return end
+	local st, d, side = assist.station, assist.dock, assist.side
+	assist.t = assist.t + dt
+	if e.dead or st.removed or assist.t > 10 then e.dockExit = nil; return end
+	local b = e.body
+	local x, y = b:getPosition()
+	local lx, ly = dockLocal(st, side, x, y, d)
+	if lx > d.x2 + d.runway + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
+		e.dockExit, e.dockCooldown = nil, 2
+		return
+	end
+	e.dockCooldown = max(e.dockCooldown or 0, 0.5)
+	local wx, wy = dockVector(st, side, 260, -ly * 0.8, d)
+	local svx, svy = st.body:getLinearVelocityFromWorldPoint(x, y)
+	local vx, vy = b:getLinearVelocity()
+	local ax, ay = (svx + wx - vx) * 2.2, (svy + wy - vy) * 2.2
+	local a = sqrt(ax * ax + ay * ay)
+	if a > T.driverGrip then ax, ay = ax / a * T.driverGrip, ay / a * T.driverGrip end
+	local gx, gy = self:surfacePullAt(x, y)
+	b:applyForce((ax - gx) * b:getMass(), (ay - gy) * b:getMass())
 end
 
 -- The player's launch button on the station screen.
@@ -1520,6 +1550,7 @@ function Game:step(dt)
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:applySurfacePull()
+	self:updateDockExits(dt)
 	self:updateLane(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)
