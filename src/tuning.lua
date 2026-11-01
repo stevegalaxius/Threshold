@@ -34,7 +34,7 @@ T.specs = {
 	{ key = "thrustRecharge", label = "Power recharge while thrusting", min = 0, max = 1, value = 0.35, precision = 2 },
 	{ key = "surfacePull", label = "Surface inward pull (px/s2)", min = 0, max = 100, value = 35, precision = 0 },
 	{ key = "surfacePullRange", label = "Surface pull reach (px)", min = 200, max = 5000, value = 2200, precision = 0 },
-	{ key = "gasPullScale", label = "Cloud-top pull multiplier", min = 0, max = 3, value = 1.5, precision = 2 },
+	{ key = "gasPullScale", label = "Cloud-top pull multiplier", min = 0, max = 8, value = 4, precision = 2 },
 	{ key = "currentScale",   label = "Planet current speed",   min = 0,   max = 3,    value = 1,    precision = 2 },
 	{ key = "gunFalloff",     label = "Gun rounds: damage lost at max range", min = 0, max = 1, value = 0.6, precision = 2 },
 	{ key = "artilleryFuse",  label = "Artillery proximity fuse (x splash)", min = 0, max = 1, value = 0.2, precision = 2 },

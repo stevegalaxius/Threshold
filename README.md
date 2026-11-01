@@ -59,13 +59,13 @@ file) onto `love.exe`.
 Every planet and moon gently pulls ships inward near its surface, even when
 stationary. The pull builds smoothly with proximity and follows rocky outlines.
 Its reach is capped at 2,200 pixels on large worlds and half the radius on small
-moons. Gas giants pull 1.5 times harder around and below the cloud tops, so a
+moons. Gas giants pull 4 times harder around and below the cloud tops, so a
 cloud-city approach needs altitude control. Once fully docked, the station holds
 the ship. Existing atmospheric heating and gas pressure hazards still apply.
 
 F1 exposes **Surface inward pull**, **Surface pull reach**, and **Cloud-top pull
 multiplier**. Defaults are 35 px/s² at the surface, 2,200 pixels maximum reach,
-and 1.5 times strength for gas giants.
+and 4 times strength for gas giants.
 
 ## The debug panel (F1)
 
