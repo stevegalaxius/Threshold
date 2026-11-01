@@ -463,7 +463,26 @@ function Game:launchTrip(to, moon)
 	local p0 = self.player
 	local vx, vy = p0.body:getLinearVelocity()
 	local speed = max(T.laneEntrySpeed, sqrt(vx * vx + vy * vy))
-	self:loadField("lane", { player = Ship.record(p) })
+	local ox, oy, angle = p0.body:getX(), p0.body:getY(), p0.body:getAngle()
+	self:loadField("lane", { player = Ship.record(p), quiet = moon ~= nil })
+	if moon then
+		-- off a map's edge: no run-up and no cut. The planet you left is
+		-- drawn just behind the lane's mouth (Game:laneOrigin), and you
+		-- carry on from exactly where you were relative to it, at the same
+		-- speed and heading, straight into the lane.
+		local mx, my = self:fromLane(-half, 0)
+		local d = sqrt(ox * ox + oy * oy) + T.rampLead
+		local cx, cy = mx - cos(bearing) * d, my - sin(bearing) * d
+		self.trip.origin = { x = cx, y = cy }
+		p = self.player
+		p.body:setPosition(cx + ox, cy + oy)
+		p.body:setAngle(angle)
+		p.body:setLinearVelocity(vx, vy)
+		p.laneCarry = { speed = speed, t = 0 }
+		self.camera.x, self.camera.y = cx + ox, cy + oy
+		events.emit("travel", from, to)
+		return
+	end
 	-- a straight run in along the bearing (the lane's heading at its mouth)
 	local mx, my = self:fromLane(-half, -T.laneWidth / 2)
 	local h = self:laneHeading(-half)
@@ -474,11 +493,7 @@ function Game:launchTrip(to, moon)
 	p.body:setLinearVelocity(cos(h) * speed, sin(h) * speed)
 	p.runup = { speed = speed, x = x, y = y, h = h }
 	self.camera.x, self.camera.y = x, y
-	if moon then
-		self:toast(("%s TO %s"):format(Fields[from].name:upper(), Fields[to].name:upper()), 3)
-	else
-		self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
-	end
+	self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
 	events.emit("travel", from, to)
 end
 
@@ -501,10 +516,14 @@ function Game:laneExit(back)
 	local p = self.player
 	local vx, vy = p.body:getLinearVelocity()
 	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy }
+	local px, py = p.body:getPosition()
 	if not back then
-		local px, py = p.body:getPosition()
 		local cx, cy = self:laneDestination()
 		exit.ox, exit.oy = px - cx, py - cy
+	elseif self.trip and self.trip.origin then
+		-- back off a moon trip: where you are relative to the planet drawn
+		-- behind the mouth
+		exit.ox, exit.oy = px - self.trip.origin.x, py - self.trip.origin.y
 	end
 	return exit
 end
@@ -783,9 +802,11 @@ function Game:updateLane(dt)
 		if sp > 1 and sp < floor then p.body:setLinearVelocity(vx / sp * floor, vy / sp * floor) end
 		if u >= 1 or p.intent.thrust < 0 then p.laneCarry = nil end
 	end
+	if ps > -lane.half then p.laneEntered = true end
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
-	-- turned round and flew back out the near end: home again
-	if ps < -lane.half - 200 then self.pendingArrive = "back" end
+	-- turned round and flew back out the near end: home again (off a
+	-- map's edge you start short of the mouth, so only once you're in)
+	if ps < -lane.half - 200 and (p.laneEntered or not self.trip.origin) then self.pendingArrive = "back" end
 end
 
 -- Traffic flies its own side of the lane at its own speed, nose along

@@ -685,6 +685,10 @@ local function drawPlanet(game, e)
 		lg.translate(x, y)
 		lg.setColor(c[1] * 0.4, c[2] * 0.4, c[3] * 0.4)
 		for _, t in ipairs(rk.tris) do lg.polygon("fill", t) end
+		for _, m in ipairs(rk.maria or {}) do
+			lg.setColor(c[1] * 0.27, c[2] * 0.27, c[3] * 0.28)
+			lg.circle("fill", m[1], m[2], m[3], 48)
+		end
 		for _, cr in ipairs(rk.craters) do
 			lg.setColor(c[1] * 0.3, c[2] * 0.3, c[3] * 0.3)
 			lg.circle("fill", cr[1], cr[2], cr[3], 32)
@@ -1077,7 +1081,7 @@ end
 -- A field's world drawn at (px, py), as seen from outside its map.
 local function drawFieldWorld(game, F, px, py)
 	if not F or not F.planetR then return end
-	if F.rocky and not F.rockShape then F.rockShape = Fields.rockShape(F.name, F.planetR) end
+	if F.rocky and not F.rockShape then F.rockShape = Fields.rockShape(F.name, F.planetR, F.lumpy, F.maria) end
 	drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
 		rock = F.rocky and F.rockShape or nil,
 		body = { getPosition = function() return px, py end } })
@@ -1116,6 +1120,9 @@ function Render.world(game)
 		if game.trip then
 			local px, py, F = game:laneDestination()
 			drawFieldWorld(game, F, px, py)
+			-- the one you left off the edge of (a moon trip)
+			local o = game.trip.origin
+			if o then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
 		end
 		drawLane(game)
 	end

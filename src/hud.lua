@@ -365,7 +365,9 @@ local function drawTrip(game)
 	local bw = 360
 	lg.setFont(font(13))
 	lg.setColor(AQUA)
-	lg.printf(("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au), w / 2 - bw, 52, bw * 2, "center")
+	local label = trip.origin and ("HIGHWAY TO %s"):format(Fields[trip.to].name:upper())
+		or ("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au)
+	lg.printf(label, w / 2 - bw, 52, bw * 2, "center")
 	bar(w / 2 - bw / 2, 72, bw, 14, frac, AQUA, "", ("%d%%"):format(floor(frac * 100)))
 end
 

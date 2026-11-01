@@ -91,7 +91,7 @@ function Game:loadField(id, opts)
 	for i = #self.toasts, 1, -1 do
 		if self.toasts[i].big then table.remove(self.toasts, i) end
 	end
-	self:toast(self.field.name:upper(), 2, nil, true)
+	if not opts.quiet then self:toast(self.field.name:upper(), 2, nil, true) end
 end
 
 -- F2: the next playing field.

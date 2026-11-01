@@ -959,14 +959,21 @@ function A.update(game, dt)
 			log("moon %s: on-ramp %s -> %s -> %s, station %s, back out -> %s -> %s",
 				id, tostring(ok1), mid, inMoon, docked, back, game.fieldId)
 		end
+		-- the handoff: off Earth's edge onto the highway to Luna, a moment in
+		game:respawn()
 		game:loadField("earth", { player = Ship.record(game.player) })
-		for _, g in ipairs(game.moonGates) do
-			local d = game.arenaRadius - 3000
-			game.player.body:setPosition(math.cos(g.a) * d, math.sin(g.a) * d)
-			game.camera.x, game.camera.y = math.cos(g.a) * d, math.sin(g.a) * d
+		game.state = "playing"
+		through("luna")
+		stepN(20)
+		local p = game.player
+		game.camera.x, game.camera.y = p.body:getPosition()
+		game.camera.zoom = os.getenv("MOONSHOT") == "luna" and 0.03 or 0.05
+		if os.getenv("MOONSHOT") == "luna" then
+			game:loadField("luna", { player = Ship.record(p) })
+			game.camera.x, game.camera.y = 0, 0
 		end
-		game.camera.zoom = 0.06
-		shot("18_luna_ramp")
+		log("handoff: on the highway in %s, %.0f px/s", game.fieldId, speed(game.player))
+		shot("18_moon_handoff")
 	end) end
 	if t >= 43.8 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)

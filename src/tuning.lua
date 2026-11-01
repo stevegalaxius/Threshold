@@ -112,7 +112,7 @@ T.driverFare, T.driverFarePerAU = 100, 60
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).
-T.yearLength = 1800
+T.yearLength = 3600
 
 -- The transit lane: length (base + per AU of distance), the radius of its
 -- arc (at least; long lanes bend more gently), how far each side of the
@@ -211,6 +211,7 @@ end
 
 -- Moons (src/moons.lua): an on-ramp to the highway is rampWidth px of the
 -- map's edge, and takes you once you're within rampInset of the edge.
-T.rampInset, T.rampWidth = 600, 6000
+-- Taking one, the lane's mouth is rampLead px ahead of where you left.
+T.rampInset, T.rampWidth, T.rampLead = 600, 6000, 1500
 
 return T

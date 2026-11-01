@@ -91,18 +91,20 @@ function Fields.moonAngle(id, clock)
 	return m.phase + clock / (T.yearLength * m.period) * pi * 2
 end
 
--- An airless rock's outline: lumpy, the same every visit, with a few
--- craters (drawn, not collided). Points are local to its centre.
-function Fields.rockShape(name, R)
+-- An airless rock's outline, the same every visit, with craters (drawn,
+-- not collided). Points are local to its centre. lumpy: 0 is a round
+-- world (Luna), 1 a potato (Phobos). maria: dark lava plains, as on Luna.
+function Fields.rockShape(name, R, lumpy, maria)
+	lumpy = lumpy or 1
 	local rng = love.math.newRandomGenerator(#name * 104729 + floor(R))
 	local n = 96
 	-- a few broad lumps plus a little roughness
 	local waves = {}
-	for k = 1, 4 do waves[k] = { f = k + 1, a = rng:random() * 0.07 / k * 2, p = rng:random() * pi * 2 } end
+	for k = 1, 4 do waves[k] = { f = k + 1, a = rng:random() * 0.07 / k * 2 * lumpy, p = rng:random() * pi * 2 } end
 	local outline = {}
 	for i = 0, n - 1 do
 		local a = i / n * pi * 2
-		local r = 1 + (rng:random() - 0.5) * 0.015
+		local r = 1 + (rng:random() - 0.5) * 0.015 * math.max(lumpy, 0.2)
 		for _, w in ipairs(waves) do r = r + w.a * sin(w.f * a + w.p) end
 		outline[#outline + 1] = cos(a) * R * r
 		outline[#outline + 1] = sin(a) * R * r
@@ -112,7 +114,12 @@ function Fields.rockShape(name, R)
 		local a, d = rng:random() * pi * 2, math.sqrt(rng:random()) * R * 0.8
 		craters[#craters + 1] = { cos(a) * d, sin(a) * d, R * (0.04 + rng:random() * 0.12) }
 	end
-	return { outline = outline, craters = craters }
+	local plains = {}
+	for _ = 1, maria or 0 do
+		local a, d = rng:random() * pi * 2, math.sqrt(rng:random()) * R * 0.55
+		plains[#plains + 1] = { cos(a) * d, sin(a) * d, R * (0.15 + rng:random() * 0.2) }
+	end
+	return { outline = outline, craters = craters, maria = plains }
 end
 
 -- Where an orbit of au goes on a map of the system, as a fraction of its
@@ -256,7 +263,7 @@ local function planetField(o)
 	end
 	return {
 		name = name,
-		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, parent = o.parent,
+		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
 		stations = stations,
@@ -267,7 +274,7 @@ local function planetField(o)
 		rockDrag = 0,
 		build = function(game)
 			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue)
-				or game:spawnPlanet(0, 0, R, 290, 0.1, o.rocky and Fields.rockShape(name, R))
+				or game:spawnPlanet(0, 0, R, 290, 0.1, o.rocky and Fields.rockShape(name, R, o.lumpy, o.maria))
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = bands end
 			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale) end
@@ -375,7 +382,7 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
-Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true,
+Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, lumpy = 0.15,
 	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
@@ -406,7 +413,7 @@ Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas =
 
 -- The moons' maps (see Fields.moons). Luna and Phobos are airless rocks
 -- (rocky), like Ceres. Phobos is just the rock and its debris.
-Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true, parent = "earth",
+Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true, lumpy = 0, maria = 6, parent = "earth",
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
