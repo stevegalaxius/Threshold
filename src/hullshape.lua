@@ -28,6 +28,10 @@
 	  core       true: this part is the wreck's core instead of the biggest
 	  breakable  false: never shoots off; stays with the core
 	  armor      multiplier on the part's share of the wreck's toughness
+	  mass       multiplier on the part's share of the wreck's weight when it
+	             breaks away (heavy engine blocks, light fins)
+	  explode    true: bursts into pickups when shot off instead of drifting
+	             away as a small wreck
 	  role       free tag for later systems: engine, cockpit, weapon, dock,
 	             light, antenna, rack, ...
 

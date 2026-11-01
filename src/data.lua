@@ -75,6 +75,7 @@ function api.hull(def)
 		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
 		if part.armor ~= nil and type(part.armor) ~= "number" then bad("armor should be a number") end
 		if part.shade ~= nil and type(part.shade) ~= "number" then bad("shade should be a number") end
+		if part.mass ~= nil and type(part.mass) ~= "number" then bad("mass should be a number") end
 	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end

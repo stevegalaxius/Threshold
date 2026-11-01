@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "role" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "role" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -95,6 +95,8 @@ function Export.cleanPart(part, editor)
 	-- defaults stay out of the file
 	if out.shade == 1 then out.shade = nil end
 	if out.armor == 1 then out.armor = nil end
+	if out.mass == 1 then out.mass = nil end
+	if out.explode == false then out.explode = nil end
 	if out.layer == "hull" then out.layer = nil end
 	if out.collide == true then out.collide = nil end
 	if out.breakable == true then out.breakable = nil end
@@ -117,6 +119,19 @@ function Export.hullDef(design)
 		end
 	end
 	def.id, def.name = design.id, design.name
+	-- the design's own stats and slots win over the base hull's
+	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
+	if design.slots then
+		def.slots = copy(design.slots)
+		-- keep the base loadout only where it still fits the slot
+		local loadout = {}
+		for i, slot in ipairs(def.slots) do
+			local id = def.loadout and def.loadout[i]
+			local m = id and data.modules[id]
+			loadout[i] = (m and data.fits(slot, m)) and id or false
+		end
+		def.loadout = loadout
+	end
 	def.parts = {}
 	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
 	return def
@@ -167,7 +182,7 @@ end
 -- they mirror keeps mirror = true) and minus everything prepare added.
 function Export.fromHull(id)
 	local hull = data.hulls[id]
-	local design = { id = id, name = hull.name, base = id, parts = {} }
+	local design = { id = id, name = hull.name, base = id, parts = {}, stats = {}, slots = copy(hull.slots) }
 	for _, part in ipairs(hull.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end
@@ -177,7 +192,7 @@ end
 -- Autosave: the design (with editor-only fields) as a plain Lua table.
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
-	local d = { id = design.id, name = design.name, base = design.base, parts = {} }
+	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

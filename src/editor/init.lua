@@ -83,10 +83,29 @@ function E.redoStep()
 	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil
 end
 
-local function setBase(id)
+-- Fly with another hull's stats and slots (dropping the design's own).
+local function setBase(id, keep)
 	E.design.base = id
 	local h = data.hulls[id]
-	E.baseRadius = h and h.radius
+	if not keep then
+		E.design.stats = {}
+		E.design.slots = h and Export.copy(h.slots) or {}
+	end
+	E.design.stats = E.design.stats or {}
+	E.design.slots = E.design.slots or (h and Export.copy(h.slots)) or {}
+	E.slotSel = nil
+end
+
+-- A stat as the design flies it: its own value, else the base hull's.
+function E.stat(key)
+	local v = E.design.stats[key]
+	if v ~= nil then return v end
+	local h = data.hulls[E.design.base]
+	return h and h[key]
+end
+
+function E.radius()
+	return E.stat("radius")
 end
 E.setBase = setBase
 
@@ -98,7 +117,7 @@ end
 
 function E.openHull(id)
 	E.design = Export.fromHull(id)
-	setBase(id)
+	setBase(id, true)
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}
 	say("Opened " .. data.hulls[id].name)
 end
@@ -249,7 +268,7 @@ function Editor.open(game)
 		local saved = Export.loadAutosave()
 		if saved then
 			E.design = saved
-			setBase(saved.base)
+			setBase(saved.base, true)
 			say("Restored the last design from the autosave")
 		elseif game and game.playerHull and data.hulls[game.playerHull] then
 			E.openHull(game.playerHull)

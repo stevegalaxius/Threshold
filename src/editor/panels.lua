@@ -12,7 +12,18 @@ local Panels = {}
 local ROLES = { "", "engine", "cockpit", "weapon", "dock", "light", "antenna", "rack", "armor", "sensor" }
 local LAYERS = { "hull", "detail", "glow" }
 local GRIDS = { 1, 2, 4, 8, 16 }
-local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision" }
+local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", ["break"] = "Break apart" }
+
+-- Hull stats the design can set over its base hull (see data/hulls.lua).
+local STATS = {
+	{ "mass", "mass (t)" }, { "armor", "armor" }, { "hold", "hold (m3)" },
+	{ "drag", "drag" }, { "radius", "radius (px)" }, { "turn", "turn torque" },
+	{ "turnSpeed", "turn cap (deg/s)" }, { "retroThrust", "retro (kN)" },
+	{ "spoolTime", "spool (s)" }, { "ramSpeed", "ram speed" }, { "turretTurn", "turret (deg/s)" },
+	{ "price", "price" },
+}
+local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
+local SIZES = { "S", "M", "L", "any" }
 
 local function combo(id, selected, options, onPick, w)
 	if Slab.BeginComboBox(id, { Selected = selected, W = w or 200 }) then
@@ -100,7 +111,7 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	Slab.Text("Preview")
 	local popts = {}
-	for _, k in ipairs({ "normal", "wreck", "collision" }) do table.insert(popts, { label = PREVIEWS[k], value = k }) end
+	for _, k in ipairs({ "normal", "wreck", "collision", "break" }) do table.insert(popts, { label = PREVIEWS[k], value = k }) end
 	combo("yard_preview", PREVIEWS[E.preview], popts, function(k) E.preview = k end, 140)
 	local paints, current = {}, "(custom)"
 	for _, pt in ipairs(Editor.PAINTS) do
@@ -109,6 +120,71 @@ local function designWindow(E, Editor)
 	end
 	combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
+
+	Slab.Separator()
+	if Slab.BeginTree("yard_stats", { Label = "Hull stats (blank = base hull's)" }) then
+		for _, st in ipairs(STATS) do
+			local key, label = st[1], st[2]
+			local own = d.stats[key]
+			local v = E.stat(key)
+			Slab.Text(label .. (own ~= nil and " *" or ""))
+			Slab.SameLine({ Pad = 4 })
+			if Slab.Input("yard_stat_" .. key, { Text = v ~= nil and tostring(v) or "", NumbersOnly = true, ReturnOnText = false, W = 90 }) then
+				E.pushUndo()
+				d.stats[key] = Slab.GetInputNumber()
+			end
+			if own ~= nil then
+				Slab.SameLine()
+				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's value" }) then E.pushUndo(); d.stats[key] = nil end
+			end
+		end
+		local mopts = {}
+		for _, m in ipairs({ "fixed", "gimbal", "turret" }) do table.insert(mopts, { label = m, value = m }) end
+		Slab.Text("mount"); Slab.SameLine()
+		combo("yard_mount", E.stat("mount") or "gimbal", mopts, function(m) E.pushUndo(); d.stats.mount = m end, 120)
+		local hopts = { { label = "strafe", value = "strafe" }, { label = "turn", value = "turn" } }
+		Slab.Text("helm"); Slab.SameLine()
+		combo("yard_helm", E.stat("helm") or "strafe", hopts, function(m) E.pushUndo(); d.stats.helm = m end, 120)
+		Slab.Text("class"); Slab.SameLine()
+		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
+		Slab.Text("maker"); Slab.SameLine()
+		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
+		Slab.EndTree()
+	end
+	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
+		local remove
+		for i, slot in ipairs(d.slots) do
+			Slab.PushID("yard_slot" .. i)
+			local selected = E.slotSel == i
+			local c = Canvas.SLOT_COLORS[slot.family]
+			if Slab.TextSelectable(("%s%d."):format(selected and ">" or " ", i), { IsSelectableTextOnly = true, Color = c }) then E.slotSel = i end
+			Slab.SameLine()
+			local fopts = {}
+			for _, f in ipairs(FAMILIES) do table.insert(fopts, { label = f, value = f }) end
+			combo("fam", slot.family, fopts, function(f) E.pushUndo(); slot.family = f end, 95)
+			Slab.SameLine()
+			local sopts = {}
+			for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
+			combo("size", slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+			Slab.SameLine()
+			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
+				E.pushUndo()
+				if slot.x then slot.x, slot.y = nil, nil else slot.x, slot.y = 0, 0 end
+			end
+			Slab.SameLine()
+			if Slab.Button("x", { W = 18, H = 18, Tooltip = "Remove this slot" }) then remove = i end
+			Slab.PopID()
+		end
+		if remove then E.pushUndo(); table.remove(d.slots, remove); E.slotSel = nil end
+		if Slab.Button("Add slot") then
+			E.pushUndo()
+			table.insert(d.slots, { family = "primary", size = "S", x = 0, y = 0 })
+			E.slotSel = #d.slots
+		end
+		Slab.Text("Modules that no longer fit a slot are", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("left empty when you test fly.", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.EndTree()
+	end
 
 	Slab.Separator()
 	-- the wreck's numbers: share of the area, and which part is the core
@@ -207,6 +283,9 @@ local function partWindow(E)
 	check(E, p.core == true, "Core (stays when the rest is shot off)", function(on) p.core = on or nil end)
 	check(E, p.breakable ~= false, "Can be shot off", function(on) p.breakable = (not on) and false or nil end)
 	check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) p.collide = (not on) and false or nil end)
+	check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
+	Slab.Text("Mass multiplier (when it breaks away)")
+	slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)
 	Slab.Text("Armour multiplier")
 	slider(E, "yard_armor" .. i, p.armor or 1, 0.1, 5, function(v) p.armor = v end)
 	Slab.Text("Role")

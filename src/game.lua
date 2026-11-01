@@ -1737,6 +1737,10 @@ function Game:breakablePieces(h, ship)
 		table.insert(h.pieces, piece)
 		if carries(part) then lootTotal = lootTotal + part.area end
 	end
+	-- mass tag: a part's share of the wreck's weight, when it breaks away
+	local massTotal = 0
+	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
+	for _, pc in ipairs(h.pieces) do pc.massFrac = pc.part.area * (pc.part.mass or 1) / max(massTotal, 1) end
 	-- share the loot out: loose items unit by unit, containers whole
 	if lootTotal > 0 then
 		for id, n in pairs(Hold.totals(h.hold)) do
@@ -1804,6 +1808,14 @@ function Game:breakOff(h, piece)
 	end
 	h.loot = Hold.totals(h.hold)
 	local x, y = h.body:getWorldPoint(part.cx, part.cy)
+	if part.explode then
+		-- this part bursts instead of drifting off: its share scatters
+		for id, n in pairs(taken) do self:spawnPickup(x, y, id, n) end
+		for _, st in ipairs(stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
+		self:spark(x, y, 28, { 1, 0.7, 0.35 })
+		self:explode(x, y, part.reach * 1.2, 0, 0)
+		return
+	end
 	local vx, vy = h.body:getLinearVelocityFromWorldPoint(x, y)
 	local hx, hy = h.body:getPosition()
 	local ox, oy = x - hx, y - hy
@@ -1818,7 +1830,7 @@ function Game:breakOff(h, piece)
 	}
 	bits.loot = Hold.totals(bits.hold)
 	partFixtures(body, part, bits, part.cx, part.cy)
-	local m = max(1, h.body:getMass() * piece.frac)
+	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))
 	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)
 	body:setAngle(h.body:getAngle())
 	body:setLinearVelocity(vx + ox / ol * kick, vy + oy / ol * kick)

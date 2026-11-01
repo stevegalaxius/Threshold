@@ -15,6 +15,25 @@ local abs, floor, max, min, sqrt = math.abs, math.floor, math.max, math.min, mat
 
 local VERTEX_PX = 8      -- how close the mouse has to be to grab a vertex
 local EDGE_PX = 6        -- or an edge, to insert a point on it
+local SLOT_PX = 7        -- radius of a slot's hardpoint marker
+
+local SLOT_COLORS = {
+	primary = { 1, 0.45, 0.35 }, secondary = { 1, 0.7, 0.3 }, auxiliary = { 0.9, 0.5, 1 },
+	engine = { 0.4, 0.8, 1 }, reactor = { 0.5, 1, 0.5 }, utility = { 0.8, 0.8, 0.8 },
+	thruster = { 0.4, 1, 0.9 }, computer = { 0.8, 0.8, 1 },
+}
+Canvas.SLOT_COLORS = SLOT_COLORS
+
+-- The placed slot under a screen point.
+function Canvas.slotAt(E, sx, sy)
+	for i, slot in ipairs(E.design.slots or {}) do
+		if slot.x then
+			local x, y = Canvas.toScreen(E, slot.x, slot.y or 0)
+			if (x - sx) ^ 2 + (y - sy) ^ 2 <= (SLOT_PX + 3) ^ 2 then return i end
+		end
+	end
+	return nil
+end
 
 -- View transform ----------------------------------------------------------
 
@@ -173,6 +192,12 @@ function Canvas.mousepressed(E, sx, sy, button)
 
 	-- select tool: a vertex of the selected part, an edge (double click
 	-- inserts a point), a part, or nothing
+	local si = E.showSlots ~= false and Canvas.slotAt(E, sx, sy)
+	if si then
+		E.slotSel = si
+		E.drag = { kind = "slot", i = si, pushed = false }
+		return
+	end
 	local k = Canvas.vertexAt(E, sx, sy)
 	if k then
 		E.vsel = k
@@ -220,6 +245,12 @@ function Canvas.mousemoved(E, sx, sy)
 		if s[d.k] ~= px or s[d.k + 1] ~= py then
 			if not d.pushed then E.pushUndo(); d.pushed = true end
 			s[d.k], s[d.k + 1] = px, py
+		end
+	elseif d.kind == "slot" then
+		local slot = E.design.slots[d.i]
+		if slot and (slot.x ~= px or slot.y ~= py) then
+			if not d.pushed then E.pushUndo(); d.pushed = true end
+			slot.x, slot.y = px, py
 		end
 	elseif d.kind == "part" then
 		local dx, dy = px - d.lx, py - d.ly
@@ -289,6 +320,12 @@ function Canvas.draw(E)
 	E.errors = {}
 	-- each part on its own, so a broken one shows red without hiding the rest
 	local col = E.paint
+	-- break-apart preview: parts that can be shot off drift out from the
+	-- core and back
+	local corePart = E.coreIndex and E.design.parts[E.coreIndex]
+	local ccx, ccy = 0, 0
+	if corePart and #corePart.shape >= 2 then ccx, ccy = Canvas.centre(corePart.shape) end
+	local spread = (1 - math.cos(love.timer.getTime() * 1.6)) * 0.5 * 40
 	for i, p in ipairs(E.design.parts) do
 		if not p.hidden then
 			local list = { p }
@@ -299,6 +336,14 @@ function Canvas.draw(E)
 				table.insert(list, twin)
 			end
 			for _, q in ipairs(list) do
+				local moved = E.preview == "break" and i ~= E.coreIndex and q.breakable ~= false and q.collide ~= false and #q.shape >= 2
+				if moved then
+					local qx, qy = Canvas.centre(q.shape)
+					local dx, dy = qx - ccx, qy - ccy
+					local l = math.max(sqrt(dx * dx + dy * dy), 1)
+					lg.push()
+					lg.translate(dx / l * spread, dy / l * spread)
+				end
 				local s, tris = HullShape.check(q.shape)
 				if not s then
 					E.errors[i] = tris
@@ -306,7 +351,7 @@ function Canvas.draw(E)
 					if #q.shape >= 6 then lg.polygon("line", q.shape) end
 				else
 					local pc = HullShape.color(q, col)
-					local wreck = E.preview == "wreck"
+					local wreck = E.preview == "wreck" or E.preview == "break"
 					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * 0.22, pc[2] * 0.22, pc[3] * 0.22 }
 					if q.layer == "glow" then fillCol = wreck and { 0.05, 0.05, 0.05 } or pc end
 					if q.layer == "detail" then fillCol = wreck and fillCol or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
@@ -326,17 +371,31 @@ function Canvas.draw(E)
 						for _, t in ipairs(tris) do lg.polygon("line", t) end
 					end
 				end
+				if moved then lg.pop() end
 			end
 		end
 	end
 
-	-- the collision radius of the base hull
-	if E.baseRadius then
+	-- the hull's collision radius
+	local radius = E.radius()
+	if radius then
 		lg.setColor(1, 1, 1, 0.12)
 		lg.setLineWidth(1 / v.zoom)
-		lg.circle("line", 0, 0, E.baseRadius, 64)
+		lg.circle("line", 0, 0, radius, 64)
 	end
 	lg.pop()
+
+	-- slot hardpoints: where guns fire from and engines burn
+	for i, slot in ipairs(E.design.slots or {}) do
+		if slot.x then
+			local sx, sy = Canvas.toScreen(E, slot.x, slot.y or 0)
+			local c = SLOT_COLORS[slot.family] or { 1, 1, 1 }
+			lg.setColor(c[1], c[2], c[3], E.slotSel == i and 1 or 0.75)
+			lg.setLineWidth(E.slotSel == i and 2.5 or 1.5)
+			lg.circle("line", sx, sy, SLOT_PX)
+			lg.print(("%d%s"):format(i, slot.family:sub(1, 1):upper()), sx + SLOT_PX + 2, sy - 7)
+		end
+	end
 
 	-- selection: outline, vertices, centre
 	local p = E.sel and E.design.parts[E.sel]
