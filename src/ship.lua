@@ -62,8 +62,8 @@ function Ship.new(game, opts)
 		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
 	}
 
-	-- Collision: hulls are long and narrow, so the body is a row of circles
-	-- (radius = half the hull's width) along its spine, from tail to nose.
+	-- The spine: the line through the hull's middle, tail to nose, inset by
+	-- its radius (half its width). Distances to the hull are measured to it.
 	local r = hull.radius
 	local noseX, tailX = 0, 0
 	for i = 1, #hull.shape, 2 do
@@ -76,10 +76,27 @@ function Ship.new(game, opts)
 	e.halfLength = max(noseX, -tailX)
 
 	local body = love.physics.newBody(game.world, opts.x or 0, opts.y or 0, "dynamic")
-	local n = math.ceil((s2 - s1) / r) + 1
-	for i = 0, n - 1 do
-		local cx = (n > 1) and (s1 + (s2 - s1) * i / (n - 1)) or s1
-		local fixture = love.physics.newFixture(body, love.physics.newCircleShape(cx, 0, r), 1)
+	-- the body collides in the hull's drawn shape: every triangle of every
+	-- part (parts tagged collide = false are drawn only). Mass is set from
+	-- the stats in Ship.updateMass, so the fixtures' density doesn't matter.
+	local made = 0
+	for _, part in ipairs(hull.parts) do
+		if part.collide ~= false then
+			for _, t in ipairs(part.tris) do
+				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+				if a2 > 4 then   -- Box2D refuses slivers
+					local fixture = love.physics.newFixture(body, love.physics.newPolygonShape(t), 1)
+					fixture:setRestitution(0.35)
+					fixture:setFriction(0.3)
+					fixture:setUserData(e)
+					made = made + 1
+				end
+			end
+		end
+	end
+	if made == 0 then
+		-- a hull too small or thin for polygons: a circle of its radius
+		local fixture = love.physics.newFixture(body, love.physics.newCircleShape(0, 0, r), 1)
 		fixture:setRestitution(0.35)
 		fixture:setFriction(0.3)
 		fixture:setUserData(e)

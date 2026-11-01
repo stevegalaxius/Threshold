@@ -119,6 +119,7 @@ function Export.hullDef(design)
 		end
 	end
 	def.id, def.name = design.id, design.name
+	def.radius = nil   -- worked out from the shape (src/data.lua)
 	-- the design's own stats and slots win over the base hull's
 	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
 	if design.slots then

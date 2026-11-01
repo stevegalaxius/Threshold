@@ -65,7 +65,7 @@ local api = {}
 
 function api.hull(def)
 	register("hulls", "hull", def)
-	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots" }) do need(def, f, "hull") end
+	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
 	local LAYERS = { hull = true, detail = true, glow = true }
 	for i, part in ipairs(def.parts or {}) do
@@ -79,6 +79,13 @@ function api.hull(def)
 	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
+	-- radius: half the hull's width, unless it says. Ships collide in their
+	-- drawn shape; radius is for the spine, distances and thruster size.
+	if not def.radius then
+		local w = 0
+		for k = 2, #def.shape, 2 do w = math.max(w, math.abs(def.shape[k])) end
+		def.radius = math.max(4, math.floor(w + 0.5))
+	end
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"

@@ -20,7 +20,9 @@
 	  turnSpeed  optional cap on spin speed in degrees/second, so a heavy hull
 	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
-	  radius collision radius in pixels
+	  radius optional: half the hull's width (worked out from the shape if left
+	         out). Ships collide in their drawn shape; radius sets the spine,
+	         distances to the hull and thruster size
 	  ramSpeed  impact speed (px/s) below which a bump does it no harm;
 	            low is fragile, high shrugs off collisions
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x

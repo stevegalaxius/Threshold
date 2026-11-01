@@ -20,7 +20,6 @@ local STATS = {
 	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
 	{ "hold", "hold (m3)", "Cargo space in cubic metres.", 0, 1000, 1, 0 },
 	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
-	{ "radius", "radius (px)", "Half the hull's width. The live ship collides as a row of circles this size along its spine, nose to tail (the blue circles on the canvas). Fit them to the hull's width.", 4, 400, 1, 0 },
 	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier.", 0, 20000, 50, 0 },
 	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque.", 10, 720, 5, 0 },
 	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward).", 0, 3000, 10, 0 },

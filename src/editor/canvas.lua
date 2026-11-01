@@ -376,26 +376,6 @@ function Canvas.draw(E)
 		end
 	end
 
-	-- the live ship's collision body, built the way Ship.new builds it: a
-	-- row of circles of the hull's radius along the spine, tail to nose
-	local r = E.radius()
-	if r and r > 0 then
-		local noseX, tailX = 0, 0
-		for _, p in ipairs(E.design.parts) do
-			if not p.hidden then
-				for k = 1, #p.shape, 2 do noseX, tailX = max(noseX, p.shape[k]), min(tailX, p.shape[k]) end
-			end
-		end
-		local s1, s2 = tailX + r, noseX - r
-		if s2 < s1 then s1, s2 = (s1 + s2) / 2, (s1 + s2) / 2 end
-		local n = math.ceil((s2 - s1) / r) + 1
-		lg.setColor(0.6, 0.85, 1, E.preview == "collision" and 0.5 or 0.15)
-		lg.setLineWidth(1 / v.zoom)
-		for k = 0, n - 1 do
-			local cx = (n > 1) and (s1 + (s2 - s1) * k / (n - 1)) or s1
-			lg.circle("line", cx, 0, r, 48)
-		end
-	end
 	lg.pop()
 
 	-- slot hardpoints: where guns fire from and engines burn
