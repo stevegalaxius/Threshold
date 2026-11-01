@@ -1094,6 +1094,12 @@ function Game:updateDockedShip(e, dt)
 			local a = sqrt(ax * ax + ay * ay)
 			local cap = T.driverGrip * (0.5 + 0.5 * grip)
 			if a > cap then ax, ay = ax / a * cap, ay / a * cap end
+			if st.city then
+				-- Once locked, the tractor supports the added surface gravity.
+				-- The pilot still handles the unassisted approach to the beam.
+				local gx, gy = self:surfacePullAt(x, y)
+				ax, ay = ax - gx, ay - gy
+			end
 			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > d.hw * 2 then
 				e.dockState, e.dockCooldown = nil, 3
 				self:toast("TRACTOR LOST", 1.4)
