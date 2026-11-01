@@ -137,6 +137,10 @@ stations, with nine local traders and much less rock debris.
 arrival and return, mine editor export, tractor capture, docked save/load, and
 Pluto's targeting shortcut. It exits with a failing status on an assertion and
 writes `phobos-strip-mine.png` to the game's save directory for visual inspection.
+It also runs highway handoff regressions: immediate turnarounds preserve the
+original scene, and arrivals reuse the visible approach scene without moving
+the camera or changing ship motion. Comparison screenshots are saved as
+`turnaround-before.png`, `turnaround-highway.png`, and `turnaround-after.png`.
 The existing `love . --autotest` also exercises all moon round trips.
 
 ## Known gaps (on purpose for this milestone)

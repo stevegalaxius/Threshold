@@ -68,6 +68,7 @@ return function(game)
 	game:arrive(false)
 	check(game.fieldId == "pluto" and game:findDriver(), "Pluto is not reachable by mass driver highway")
 	check(Fields.orbits.pluto and not Fields.moons.pluto, "Pluto must be a planetary destination")
+	require("tests.highway_handoff")(game)
 	game:loadField("phobos", { player = Ship.record(game.player) })
 	game.camera.x, game.camera.y, game.camera.zoom = 0, 0, 0.09
 	local canvas = love.graphics.newCanvas(1280, 720)

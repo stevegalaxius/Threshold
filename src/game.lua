@@ -52,10 +52,23 @@ function Game.new(opts)
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
-	self:newUniverse()
+	if opts.universe then self.universe = opts.universe else self:newUniverse() end
 
 	self:loadField(opts.field or Fields.start)
 	return self
+end
+
+-- Keep the field's bodies for the moon-road view and an immediate return.
+function Game:retainField()
+	local scene = setmetatable({}, Game)
+	for k, v in pairs(self) do scene[k] = v end
+	scene.camera = Camera.new()
+	for k, v in pairs(self.camera) do scene.camera[k] = v end
+	scene.trip, scene.arrivalPreview, scene.contacts = nil, nil, {}
+	scene.autosaveOff = true
+	scene:remove(self.player)
+	scene.player = nil
+	return scene
 end
 
 -- Clear the arena and build a level (a playing field, src/fields.lua) in
@@ -66,11 +79,28 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
-	for _, e in ipairs(self.entities) do
-		if not e.removed then e.body:destroy(); e.removed = true end
+	-- Dispose unused approach worlds once; a turnaround preview may also be
+	-- the retained departure scene. The adopted world must stay alive.
+	local disposed = {}
+	local function release(scene)
+		if scene and scene ~= opts.prepared and not disposed[scene.world] then
+			scene.world:destroy()
+			disposed[scene.world] = true
+		end
 	end
-	for _, e in ipairs(self.sleepers or {}) do
-		if not e.removed then e.body:destroy(); e.removed = true end
+	release(self.arrivalPreview and self.arrivalPreview.game)
+	if not opts.retain then release(self.trip and self.trip.originScene) end
+	self.arrivalPreview = nil
+	if opts.retain then
+		self.world = love.physics.newWorld(0, 0, true)
+		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+	else
+		for _, e in ipairs(self.entities) do
+			if not e.removed then e.body:destroy(); e.removed = true end
+		end
+		for _, e in ipairs(self.sleepers or {}) do
+			if not e.removed then e.body:destroy(); e.removed = true end
+		end
 	end
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
@@ -81,10 +111,21 @@ function Game:loadField(id, opts)
 	self.well, self.lane, self.driverMenu = nil, nil, nil
 	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
-	self.field.build(self)
-	self:spawnDrivers()
-	self:spawnMoonGates()
-	self:spawnFieldEnemies()
+	if opts.prepared then
+		local scene = opts.prepared
+		self.world:destroy()
+		self.world = scene.world
+		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
+			"contacts", "well", "moonGates", "stationCount", "idCounter" }) do
+			self[key] = scene[key]
+		end
+	else
+		self.field.build(self)
+		self:spawnDrivers()
+		self:spawnMoonGates()
+		self:spawnFieldEnemies()
+	end
 	self:placePlayer(opts.player, opts.at)
 	-- the new level's name replaces any still showing (the game builds
 	-- Earth before loading the save, which flashed EARTH wherever you were)
