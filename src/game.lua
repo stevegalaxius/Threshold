@@ -83,6 +83,7 @@ function Game:loadField(id, opts)
 	self.stationCount = 0
 	self.field.build(self)
 	self:spawnDrivers()
+	self:spawnMoonGates()
 	self:spawnFieldEnemies()
 	self:placePlayer(opts.player, opts.at)
 	-- the new level's name replaces any still showing (the game builds
@@ -90,7 +91,7 @@ function Game:loadField(id, opts)
 	for i = #self.toasts, 1, -1 do
 		if self.toasts[i].big then table.remove(self.toasts, i) end
 	end
-	self:toast(self.field.name:upper(), 2, nil, true)
+	if not opts.quiet then self:toast(self.field.name:upper(), 2, nil, true) end
 end
 
 -- F2: the next playing field.
@@ -454,18 +455,29 @@ end
 -- distance (as 1/sqrt(r)). swirl is how hard it drags things toward the
 -- current's speed (per second). Loose things (rocks, wrecks, loot) are also
 -- held in their lane while they circle, so the belt doesn't fling outward.
-function Game:spawnPlanet(x, y, radius, flow, swirl)
+--
+-- rocky: an airless rock (small moons, Ceres) instead of a smooth world:
+-- a lumpy cratered outline (src/fields.lua, Fields.rockShape) that it
+-- also collides as, and no atmosphere.
+function Game:spawnPlanet(x, y, radius, flow, swirl, rocky)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
 		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
-	local f = love.physics.newFixture(body, love.physics.newCircleShape(radius))
+	local shape
+	if rocky then
+		e.rock = rocky
+		shape = love.physics.newChainShape(true, rocky.outline)
+	else
+		shape = love.physics.newCircleShape(radius)
+	end
+	local f = love.physics.newFixture(body, shape)
 	f:setFriction(0.6)
 	f:setRestitution(0.1)
 	f:setUserData(e)
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	-- atmo: how deep the atmosphere (the haze drawn round it) reaches
-	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, atmo = 840, planet = e }
+	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, atmo = not rocky and 840 or nil, planet = e }
 	return e
 end
 
@@ -1418,6 +1430,7 @@ function Game:step(dt)
 	self:updateCrush(dt)
 	self:updateDrivers(dt)
 	self:updateCatch(dt)
+	self:updateMoonGates(dt)
 	self:updateOrbits(dt)
 	self:updateCities(dt)
 	self:updateTow(dt)
@@ -1449,11 +1462,19 @@ function Game:applyBoundary()
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
 		-- only what people built is turned back (rocks drift on out), and
-		-- gently, like a nudge from traffic control
-		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch then
-			local over = d - R
-			local f = min(over, 1500) * b:getMass() * 1.2
-			b:applyForce(-x / d * f, -y / d * f)
+		-- gently: past the edge your outward speed bleeds away (harder the
+		-- further out) and you drift slowly back in, rather than being
+		-- sprung back. Heading out a way to a moon, it lets you go.
+		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch
+			and not (e.isPlayer and self:onMoonRoad(x, y)) then
+			local nx, ny = x / d, y / d
+			local vx, vy = b:getLinearVelocity()
+			local out = vx * nx + vy * ny
+			local m = b:getMass()
+			local k = min(1, (d - R) / T.edgeSoft)
+			local f = -T.edgeDrift * m
+			if out > 0 then f = f - out * T.edgeBrake * k * m end
+			b:applyForce(nx * f, ny * f)
 		end
 	end
 end
@@ -2174,7 +2195,7 @@ end
 function Game:frame(dt, aimX, aimY)
 	-- the launch and the lane's run-up take the zoom for a while
 	local p = self.player
-	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
+	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup or p.departure)) then
 		-- whatever was running it is over (died, or a load): the zoom stays
 		-- where it is, and it's yours again
 		self.cineZoom, self.savedZoom = nil, nil
@@ -2234,6 +2255,7 @@ end
 
 require("src.world")(Game)
 require("src.transit")(Game)
+require("src.moons")(Game)
 require("src.computers")(Game)
 require("src.market")(Game)
 

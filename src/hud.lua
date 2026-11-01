@@ -212,28 +212,37 @@ local function drawOffscreen(game)
 	-- where you can go: mass drivers and stations, labelled at the edge
 	-- of the screen when they're off it, or under them when they're on it
 	lg.setFont(font(12))
+	local function mark(label, wx, wy, radius, col)
+		local sx, sy = cam:toScreen(wx, wy)
+		if sx < 0 or sx > w or sy < 0 or sy > h then
+			local a = atan2(sy - cy, sx - cx)
+			local m = 40
+			local tx = cos(a) > 0 and (w - m - cx) / cos(a) or (m - cx) / cos(a)
+			local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
+			local t = min(math.abs(tx), math.abs(ty))
+			local ax, ay = cx + cos(a) * t, cy + sin(a) * t
+			lg.setColor(col[1], col[2], col[3], 0.8)
+			lg.circle("line", ax, ay, 6)
+			local fw = lg.getFont():getWidth(label)
+			lg.print(label, math.max(4, min(w - fw - 4, ax - fw / 2)), ay + (ay > cy and -24 or 10))
+		else
+			local r = radius * cam.zoom
+			lg.setColor(col[1], col[2], col[3], 0.8)
+			lg.printf(label, sx - 150, sy + r + 10, 300, "center")
+		end
+	end
 	for _, e in ipairs(game.entities) do
 		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
 		if game.state ~= "docked" and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
 			local label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and "Mass driver" or e.name
-			local sx, sy = cam:toScreen(e.body:getPosition())
-			local col = e.kind == "driver" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 }
-			if sx < 0 or sx > w or sy < 0 or sy > h then
-				local a = atan2(sy - cy, sx - cx)
-				local m = 40
-				local tx = cos(a) > 0 and (w - m - cx) / cos(a) or (m - cx) / cos(a)
-				local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
-				local t = min(math.abs(tx), math.abs(ty))
-				local ax, ay = cx + cos(a) * t, cy + sin(a) * t
-				lg.setColor(col[1], col[2], col[3], 0.8)
-				lg.circle("line", ax, ay, 6)
-				local fw = lg.getFont():getWidth(label)
-				lg.print(label, math.max(4, min(w - fw - 4, ax - fw / 2)), ay + (ay > cy and -24 or 10))
-			else
-				local r = (e.radius or e.ringR or 0) * cam.zoom
-				lg.setColor(col[1], col[2], col[3], 0.8)
-				lg.printf(label, sx - 150, sy + r + 10, 300, "center")
-			end
+			local x, y = e.body:getPosition()
+			mark(label, x, y, e.radius or e.ringR or 0, e.kind == "driver" and { 0.55, 0.85, 1 } or { 1, 0.8, 0.45 })
+		end
+	end
+	-- the ways out to moons (or back to the planet): src/moons.lua
+	if game.state ~= "docked" and not (game.player and game.player.departure) then
+		for _, g in ipairs(game.moonGates or {}) do
+			mark(g.label, g.x, g.y, 0, { 0.6, 0.85, 1 })
 		end
 	end
 	for _, e in ipairs(game.entities) do
@@ -356,7 +365,9 @@ local function drawTrip(game)
 	local bw = 360
 	lg.setFont(font(13))
 	lg.setColor(AQUA)
-	lg.printf(("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au), w / 2 - bw, 52, bw * 2, "center")
+	local label = trip.au > 0 and ("TRANSIT TO %s   %.2f AU"):format(Fields[trip.to].name:upper(), trip.au)
+		or ("TRANSIT TO %s"):format(Fields[trip.to].name:upper())
+	lg.printf(label, w / 2 - bw, 52, bw * 2, "center")
 	bar(w / 2 - bw / 2, 72, bw, 14, frac, AQUA, "", ("%d%%"):format(floor(frac * 100)))
 end
 

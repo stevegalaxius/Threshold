@@ -9,6 +9,7 @@ local data = require("src.data")
 local Ship = require("src.ship")
 local T = require("src.tuning")
 local HullShape = require("src.hullshape")
+local Fields = require("src.fields")
 
 local Render = {}
 
@@ -105,12 +106,33 @@ local function drawGrid(game)
 	for x = floor(x1 / step) * step, x2, step do lg.line(x, y1, x, y2) end
 	for y = floor(y1 / step) * step, y2, step do lg.line(x1, y, x2, y) end
 
-	-- Arena edge
-	lg.setColor(COLORS.edge)
+	-- Arena edge: a faint dashed line where the map ends (past it, you
+	-- slow down and drift back: Game:applyBoundary)
+	local c = COLORS.edge
+	lg.setColor(c[1], c[2], c[3], c[4] * 0.6)
 	local R, n = game.arenaRadius, 360
 	for i = 0, n - 1, 2 do
 		local a1, a2 = i / n * pi * 2, (i + 1) / n * pi * 2
 		lg.line(cos(a1) * R, sin(a1) * R, cos(a2) * R, sin(a2) * R)
+	end
+	-- the ways out to moons (src/moons.lua): a solid, brighter stretch of
+	-- it, with ticks pointing out. Cross it heading out and you're off.
+	local arc = T.departArc / 2 / R
+	for _, g in ipairs(game.moonGates or {}) do
+		local pts = {}
+		for i = 0, 32 do
+			local a = g.a - arc + 2 * arc * i / 32
+			pts[#pts + 1] = cos(a) * R; pts[#pts + 1] = sin(a) * R
+		end
+		lg.setColor(0.6, 0.9, 1, 0.55)
+		lg.setLineWidth(outline(3))
+		lg.line(pts)
+		lg.setColor(0.6, 0.9, 1, 0.3)
+		for i = 0, 8 do
+			local a = g.a - arc + 2 * arc * i / 8
+			lg.line(cos(a) * R, sin(a) * R, cos(a) * (R + 500), sin(a) * (R + 500))
+		end
+		lg.setLineWidth(1)
 	end
 end
 
@@ -513,6 +535,8 @@ end
 -- edges the way the buff does, so the road reads without markings.
 local function drawLane(game)
 	local lane = game.lane
+	-- a moon trip is just open space: no road drawn
+	if game.trip and game.trip.moon then return end
 	-- the stretch the camera can see, with room to spare, so the glow never
 	-- ends on screen
 	local cam = game.camera
@@ -675,6 +699,31 @@ local function drawPlanet(game, e)
 			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
 			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
 		end
+	end
+	if e.rock then
+		-- an airless rock: lumpy, cratered, no haze
+		local rk = e.rock
+		if not rk.tris then rk.tris = love.math.triangulate(rk.outline) end
+		lg.push()
+		lg.translate(x, y)
+		lg.setColor(c[1] * 0.4, c[2] * 0.4, c[3] * 0.4)
+		for _, t in ipairs(rk.tris) do lg.polygon("fill", t) end
+		for _, m in ipairs(rk.maria or {}) do
+			lg.setColor(c[1] * 0.27, c[2] * 0.27, c[3] * 0.28)
+			lg.circle("fill", m[1], m[2], m[3], 48)
+		end
+		for _, cr in ipairs(rk.craters) do
+			lg.setColor(c[1] * 0.3, c[2] * 0.3, c[3] * 0.3)
+			lg.circle("fill", cr[1], cr[2], cr[3], 32)
+			lg.setColor(c[1] * 0.55, c[2] * 0.55, c[3] * 0.55)
+			lg.setLineWidth(outline(2))
+			lg.circle("line", cr[1], cr[2], cr[3], 32)
+		end
+		lg.setColor(c[1], c[2], c[3], 0.9)
+		lg.setLineWidth(outline(3))
+		lg.polygon("line", rk.outline)
+		lg.pop()
+		return
 	end
 	if e.gas then
 		-- its rings: a faint band for each, brighter where it's denser
@@ -1052,6 +1101,15 @@ local function drawRange(game)
 	lg.circle("line", x, y, reach, 96)
 end
 
+-- A field's world drawn at (px, py), as seen from outside its map.
+local function drawFieldWorld(game, F, px, py)
+	if not F or not F.planetR then return end
+	if F.rocky and not F.rockShape then F.rockShape = Fields.rockShape(F.name, F.planetR, F.lumpy, F.maria) end
+	drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
+		rock = F.rocky and F.rockShape or nil,
+		body = { getPosition = function() return px, py end } })
+end
+
 function Render.world(game)
 	screenPx = 1 / game.camera.zoom
 	Render.background(game.camera)
@@ -1059,12 +1117,13 @@ function Render.world(game)
 	drawGrid(game)
 	if game.lane then
 		-- the planet you're heading for, where it'll be when you arrive
-		if game.trip then
+		-- (moon trips only: a mass driver's lane shows no planets)
+		if game.trip and game.trip.moon then
 			local px, py, F = game:laneDestination()
-			if F.planetR then
-				drawPlanet(game, { radius = F.planetR, hue = F.hue or { 0.9, 0.7, 0.5 }, gas = F.gas, rings = F.rings,
-					body = { getPosition = function() return px, py end } })
-			end
+			drawFieldWorld(game, F, px, py)
+			-- the one you left off the edge of (a moon trip)
+			local o = game.trip.origin
+			if o then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
 		end
 		drawLane(game)
 	end

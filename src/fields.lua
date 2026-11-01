@@ -39,8 +39,8 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "mars", "belt", "ring", "jupiter", "saturn", "uranus", "neptune",
-	"asteroids", "giant", "station" }
+Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "belt", "ring", "jupiter", "europa", "ganymede",
+	"saturn", "titan", "uranus", "neptune", "triton", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
 -- Orbits: distance from the Sun in AU, year length in Earth years, where
@@ -57,6 +57,70 @@ Fields.orbits = {
 	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 }
+
+-- Moons: each is its own small map, reached by flying off the edge of
+-- its planet's map toward it, onto a short highway (src/moons.lua), not
+-- by mass driver. A moon has no orbit round the Sun of its own: for
+-- anything at AU scale it sits on its planet.
+--   parent   the planet it circles
+--   period   its month, in Earth years (the same game clock as the planets)
+--   phase    where it starts round the planet
+--   gap      how long the highway from planet to moon is, in px
+-- A new moon is one line here plus its map (planetField, below, with
+-- parent = its planet).
+Fields.moons = {
+	luna = { parent = "earth", period = 0.075, phase = 1.0, gap = 30000, color = { 0.8, 0.8, 0.78 } },
+	phobos = { parent = "mars", period = 0.02, phase = 2.5, gap = 14000, color = { 0.65, 0.55, 0.5 } },
+	europa = { parent = "jupiter", period = 0.05, phase = 0.3, gap = 30000, color = { 0.9, 0.85, 0.75 } },
+	ganymede = { parent = "jupiter", period = 0.1, phase = 3.6, gap = 42000, color = { 0.7, 0.68, 0.62 } },
+	titan = { parent = "saturn", period = 0.15, phase = 4.4, gap = 40000, color = { 0.95, 0.7, 0.35 } },
+	triton = { parent = "neptune", period = 0.1, phase = 5.5, gap = 32000, color = { 0.8, 0.85, 0.9 } },
+}
+
+-- The moons of a planet, in a fixed order.
+function Fields.moonsOf(planet)
+	local out = {}
+	for id, m in pairs(Fields.moons) do if m.parent == planet then table.insert(out, id) end end
+	table.sort(out)
+	return out
+end
+
+-- Which way a moon lies from its planet at this clock (radians).
+function Fields.moonAngle(id, clock)
+	local m = Fields.moons[id]
+	return m.phase + clock / (T.yearLength * m.period) * pi * 2
+end
+
+-- An airless rock's outline, the same every visit, with craters (drawn,
+-- not collided). Points are local to its centre. lumpy: 0 is a round
+-- world (Luna), 1 a potato (Phobos). maria: dark lava plains, as on Luna.
+function Fields.rockShape(name, R, lumpy, maria)
+	lumpy = lumpy or 1
+	local rng = love.math.newRandomGenerator(#name * 104729 + floor(R))
+	local n = 96
+	-- a few broad lumps plus a little roughness
+	local waves = {}
+	for k = 1, 4 do waves[k] = { f = k + 1, a = rng:random() * 0.07 / k * 2 * lumpy, p = rng:random() * pi * 2 } end
+	local outline = {}
+	for i = 0, n - 1 do
+		local a = i / n * pi * 2
+		local r = 1 + (rng:random() - 0.5) * 0.015 * math.max(lumpy, 0.2)
+		for _, w in ipairs(waves) do r = r + w.a * sin(w.f * a + w.p) end
+		outline[#outline + 1] = cos(a) * R * r
+		outline[#outline + 1] = sin(a) * R * r
+	end
+	local craters = {}
+	for _ = 1, 14 do
+		local a, d = rng:random() * pi * 2, math.sqrt(rng:random()) * R * 0.8
+		craters[#craters + 1] = { cos(a) * d, sin(a) * d, R * (0.04 + rng:random() * 0.12) }
+	end
+	local plains = {}
+	for _ = 1, maria or 0 do
+		local a, d = rng:random() * pi * 2, math.sqrt(rng:random()) * R * 0.55
+		plains[#plains + 1] = { cos(a) * d, sin(a) * d, R * (0.15 + rng:random() * 0.2) }
+	end
+	return { outline = outline, craters = craters, maria = plains }
+end
 
 -- Where an orbit of au goes on a map of the system, as a fraction of its
 -- radius: squashed (power 0.4) so Mercury and Neptune both fit.
@@ -199,7 +263,7 @@ local function planetField(o)
 	end
 	return {
 		name = name,
-		planetR = R, gas = o.gas, hue = hue,
+		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
 		stations = stations,
@@ -209,7 +273,8 @@ local function planetField(o)
 		radius = edge,
 		rockDrag = 0,
 		build = function(game)
-			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue) or game:spawnPlanet(0, 0, R, 290, 0.1)
+			local planet = o.gas and game:spawnGasGiant(0, 0, R, 290, 0.1, hue)
+				or game:spawnPlanet(0, 0, R, 290, 0.1, o.rocky and Fields.rockShape(name, R, o.lumpy, o.maria))
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = bands end
 			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale) end
@@ -317,7 +382,7 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
-Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000,
+Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, lumpy = 0.15,
 	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
@@ -346,9 +411,34 @@ Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas =
 	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
+-- The moons' maps (see Fields.moons). Luna and Phobos are airless rocks
+-- (rocky), like Ceres. Phobos is just the rock and its debris.
+Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true, lumpy = 0, maria = 6, parent = "earth",
+	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
+	stations = { "Tranquility Dock", "Shackleton Station" },
+	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
+Fields.phobos = planetField({ name = "Phobos", R = 1400, depth = 9000, rocky = true, parent = "mars",
+	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
+Fields.europa = planetField({ name = "Europa", R = 3800, depth = 15000, parent = "jupiter",
+	hue = { 0.85, 0.8, 0.7 }, density = 0.08, mix = { ice = 8, rock = 2 }, belt = 0.8,
+	stations = { "Conamara Station", "Pwyll Station" },
+	enemies = { { "interceptor", 2 }, { "sniper", 1 } } })
+Fields.ganymede = planetField({ name = "Ganymede", R = 6000, depth = 17000, parent = "jupiter",
+	hue = { 0.6, 0.58, 0.55 }, density = 0.08, mix = { ice = 5, rock = 5 }, belt = 0.8,
+	stations = { "Galileo Regio", "Uruk Station" },
+	enemies = { { "brawler", 2 }, { "gunner", 2 } } })
+Fields.titan = planetField({ name = "Titan", R = 6000, depth = 17000, parent = "saturn",
+	hue = { 0.9, 0.62, 0.3 }, density = 0.07, mix = { ice = 6, rock = 4 }, belt = 0.7,
+	stations = { "Kraken Station", "Huygens Station" },
+	enemies = { { "gunner", 2 }, { "sniper", 2 } } })
+Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent = "neptune",
+	hue = { 0.75, 0.8, 0.85 }, density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.8,
+	stations = { "Cipango Station", "Voyager Station" },
+	enemies = { { "interceptor", 3 }, { "sniper", 1 } } })
+
 -- The transit lane: built from game.trip (see Game:launchTrip).
 Fields.lane = {
-	name = "Transit lane",
+	name = "In transit",
 	spawn = { 0, 0 },
 	radius = 1e6,
 	transit = true,

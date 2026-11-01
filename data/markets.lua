@@ -42,3 +42,35 @@ market { station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighte
 	{ "torp_l", 1 }, { "leviathan_tube", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_m", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
+
+-- Moon stations (Phobos has none). Each sells its own few things.
+market { station = "Tranquility Dock", sells = {   -- miners' supply
+	{ "rounds_s", 6 }, { "shell_s", 4 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
+} }
+market { station = "Shackleton Station", sells = {   -- polar depot
+	{ "cargo_container", 3 }, { "aux_thrusters", 1 }, { "nav_computer", 1 },
+} }
+market { station = "Conamara Station", sells = {   -- ice haulers
+	{ "hold_pod_m", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
+} }
+market { station = "Pwyll Station", sells = {
+	{ "glint_laser", 1 }, { "missile_s", 4 }, { "sparrow_rack", 1 },
+} }
+market { station = "Galileo Regio", sells = {   -- Jovian Accord yard
+	{ "rk7_autocannon", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
+} }
+market { station = "Uruk Station", sells = {
+	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "ember_reactor", 1 },
+} }
+market { station = "Kraken Station", sells = {   -- Caliphate refinery
+	{ "kiln_reactor", 1 }, { "torp_s", 3 }, { "maul_tube", 1 },
+} }
+market { station = "Huygens Station", sells = {
+	{ "missile_m", 3 }, { "hornet_pod", 1 }, { "fire_computer", 1 },
+} }
+market { station = "Cipango Station", sells = {   -- frontier outpost
+	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "flit_engine", 1 },
+} }
+market { station = "Voyager Station", sells = {
+	{ "lumen_lance", 1 }, { "guidance_computer", 1 }, { "drone_m", 1 },
+} }

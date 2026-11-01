@@ -901,6 +901,89 @@ function A.update(game, dt)
 		love.keypressed("escape")
 		log("pause: Esc again -> paused %s", tostring(Pause.isOpen()))
 	end) end
+	-- Moons: out through each planet's gate, across, into the moon's map,
+	-- dock if it has a station, and back out through its gate home.
+	if t >= 43.78 then once("moons", function()
+		local Fields = require("src.fields")
+		local function stepN(n) for _ = 1, n do game:step(1 / 60) end end
+		-- off the map's edge through the on-ramp toward `to`, then fly the
+		-- highway to its far end
+		local function through(to)
+			local p = game.player
+			for _, g in ipairs(game.moonGates or {}) do
+				if g.to == to then
+					local d = game.arenaRadius - 100
+					p.body:setPosition(math.cos(g.a) * d, math.sin(g.a) * d)
+					p.body:setLinearVelocity(math.cos(g.a) * 800, math.sin(g.a) * 800)
+					stepN(os.getenv("MOONSHOT") == "depart" and 90 or math.ceil(T.departTime * 60) + 4)
+					return game.lane ~= nil
+				end
+			end
+		end
+		local function across()
+			local lane = game.lane
+			if not lane then return end
+			local p = game.player
+			p.runup, p.laneCarry = nil, nil
+			local x, y = game:fromLane(lane.half - 300, -T.laneWidth / 2)
+			local h = game:laneHeading(lane.half)
+			p.body:setPosition(x, y)
+			p.body:setLinearVelocity(math.cos(h) * 900, math.sin(h) * 900)
+			stepN(10)
+		end
+		local ids = {}
+		for id in pairs(Fields.moons) do table.insert(ids, id) end
+		table.sort(ids)
+		for _, id in ipairs(ids) do
+			local m = Fields.moons[id]
+			game:respawn()
+			game:loadField(m.parent, { player = Ship.record(game.player) })
+			game.state = "playing"
+			local ok1 = through(id)
+			local mid = game.fieldId .. (game.lane and (" " .. math.floor(game.lane.half * 2) .. " px") or "")
+			across()
+			local inMoon = game.fieldId
+			local st
+			for _, e in ipairs(game.entities) do if e.kind == "station" and e.dock then st = e break end end
+			local docked = "no station"
+			if st then
+				game:dockInstantly(game.player, st)
+				docked = st.name .. (game.player.dockState and " (docked)" or " (FAILED)")
+				game:undock()
+				stepN(30)
+			end
+			game.state = "playing"
+			through(m.parent)
+			local back = game.fieldId
+			across()
+			log("moon %s: on-ramp %s -> %s -> %s, station %s, back out -> %s -> %s",
+				id, tostring(ok1), mid, inMoon, docked, back, game.fieldId)
+		end
+		-- the handoff: off Earth's edge onto the highway to Luna, a moment in
+		game:respawn()
+		game:loadField("earth", { player = Ship.record(game.player) })
+		game.state = "playing"
+		through("luna")
+		local p = game.player
+		game.camera.x, game.camera.y = p.body:getPosition()
+		if os.getenv("MOONSHOT") ~= "depart" then game.camera.zoom = os.getenv("MOONSHOT") == "luna" and 0.03 or 0.05 end
+		if os.getenv("MOONSHOT") == "luna" then
+			game:loadField("luna", { player = Ship.record(p) })
+			game.camera.x, game.camera.y = 0, 0
+		end
+		do
+			local q = game.player
+			local vx, vy = q.body:getLinearVelocity()
+			if game.lane then
+				local ps, pn, ph = game:toLane(q.body:getPosition())
+				log("handoff: in transit in %s, %.0f px/s, %.0f px along (mouth at %.0f), %.0f off the median, lane heading %.2f, flying %.2f",
+					game.fieldId, speed(q), ps, -game.lane.half, pn, ph, math.atan2(vy, vx))
+			else
+				log("departure: still in %s at %.0f px/s, zoom %.3f", game.fieldId, speed(q), game.camera.zoom)
+			end
+		end
+		shot("18_moon_handoff")
+	end) end
 	if t >= 43.8 then once("quit", function()
 		log("done: %d entities, %d projectiles, %d effects", #game.entities, #game.projectiles, #game.effects)
 		love.event.quit()
