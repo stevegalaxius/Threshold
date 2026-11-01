@@ -106,3 +106,10 @@ market { station = "Tombaugh Station", sells = {
 market { station = "Sputnik Port", sells = {
 	{ "missile_s", 4 }, { "sparrow_rack", 1 }, { "aux_thrusters", 1 },
 } }
+
+market { station = "Gertrude Port", sells = {
+	{ "cargo_container", 3 }, { "hold_pod_s", 2 }, { "rounds_s", 4 },
+} }
+market { station = "Messina Research Station", sells = {
+	{ "nav_computer", 1 }, { "glint_laser", 1 }, { "guidance_computer", 1 },
+} }

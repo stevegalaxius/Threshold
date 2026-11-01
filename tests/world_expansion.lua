@@ -20,7 +20,7 @@ return function(game)
 	end
 	check(traders == 9, "Mars should have nine local traders")
 	check(rocks < 20, "Mars should have sparse rocks")
-	for _, id in ipairs({ "phobos", "deimos", "io", "callisto", "enceladus" }) do
+	for _, id in ipairs({ "phobos", "deimos", "io", "callisto", "enceladus", "titania" }) do
 		local moon = Fields.moons[id]
 		game:loadField(moon.parent)
 		local gate

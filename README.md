@@ -123,7 +123,7 @@ after changing data or flight code.
 ## Expanded destinations
 
 Io and Callisto use Jupiter's existing moon highways; Enceladus uses Saturn's,
-and Deimos joins Phobos at Mars. Fly through the marked departure arc at the
+Titania uses Uranus's, and Deimos joins Phobos at Mars. Fly through the marked departure arc at the
 parent map's edge to reach a moon, and use the moon's return arc to come back.
 Pluto is a mass-driver destination (the `-` shortcut in the target window).
 

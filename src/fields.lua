@@ -42,7 +42,7 @@ local Fields = {}
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
 Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "jupiter", "io", "europa", "ganymede", "callisto",
-	"saturn", "enceladus", "titan", "uranus", "neptune", "triton", "pluto", "asteroids", "giant", "station" }
+	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
 -- Orbits: distance from the Sun in AU, year length in Earth years, where
@@ -81,6 +81,7 @@ Fields.moons = {
 	europa = { parent = "jupiter", period = 0.05, phase = 0.3, gap = 30000, color = { 0.9, 0.85, 0.75 } },
 	ganymede = { parent = "jupiter", period = 0.1, phase = 3.6, gap = 42000, color = { 0.7, 0.68, 0.62 } },
 	titan = { parent = "saturn", period = 0.15, phase = 4.4, gap = 40000, color = { 0.95, 0.7, 0.35 } },
+	titania = { parent = "uranus", period = 0.09, phase = 2.0, gap = 30000, color = { 0.7, 0.72, 0.75 } },
 	triton = { parent = "neptune", period = 0.1, phase = 5.5, gap = 32000, color = { 0.8, 0.85, 0.9 } },
 }
 
@@ -489,6 +490,11 @@ Fields.titan = planetField({ name = "Titan", R = 6000, depth = 17000, parent = "
 	hue = { 0.9, 0.62, 0.3 }, density = 0.07, mix = { ice = 6, rock = 4 }, belt = 0.7,
 	stations = { "Kraken Station", "Huygens Station" },
 	enemies = { { "gunner", 2 }, { "sniper", 2 } } })
+Fields.titania = planetField({ name = "Titania", R = 2000, depth = 14000, parent = "uranus", rocky = true, lumpy = 0.08,
+	hue = { 0.62, 0.64, 0.67 }, density = 0.07, mix = { ice = 6, rock = 3, junk = 1 },
+	belt = 0.45, beltMix = { ice = 7, rock = 3 },
+	stations = { "Gertrude Port", "Messina Research Station" },
+	enemies = { { "interceptor", 2 }, { "gunner", 1 } } })
 Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent = "neptune",
 	hue = { 0.75, 0.8, 0.85 }, density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.8,
 	stations = { "Cipango Station", "Voyager Station" },
