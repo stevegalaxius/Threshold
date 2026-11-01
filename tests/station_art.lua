@@ -99,8 +99,8 @@ return function(game)
 	end
 	local angle = st.ring.body:getAngle()
 	local spin = st.ring.body:getAngularVelocity()
-	game.world:update(1 / 120)
-	check(math.abs(st.ring.body:getAngle() - angle - spin / 120) < 0.001, "belt collision body is not rotating with the art")
+	for _ = 1, 120 do game:step(1 / 120) end
+	check(math.abs(st.ring.body:getAngle() - angle - spin) < 0.001, "belt collision body is not rotating with the art")
 	check(math.abs(st.body:getAngle()) < 0.001, "fixed dock rotated with the belt")
 	capture("mars-ring-overview", 0, 0, 0.027)
 	local d = st.docks[1]
@@ -112,7 +112,7 @@ return function(game)
 	check(st.key == "mercury/3", "Mercury station save keys shifted")
 	check(#st.elevatorTracks == 1 and not st.ring, "Mercury should have a standalone elevator")
 	check(st.body:getAngularVelocity() == 0, "Mercury elevator must stay anchored")
-	check(st.def.id ~= layout.id and #st.def.parts ~= #layout.parts, "Mercury reused Mars's art")
+	check(st.def.id ~= layout.id and st.def.parts[1].shape[2] ~= layout.parts[1].shape[2], "Mercury reused Mars's art")
 	local ringCount = 0
 	for _, e in ipairs(game.entities) do if e.panels then ringCount = ringCount + 1 end end
 	check(ringCount == 0, "Mercury acquired an orbital ring")

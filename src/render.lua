@@ -282,24 +282,14 @@ local function drawOrbitalRing(game, e)
 	local x, y = e.body:getPosition()
 	lg.push()
 	lg.translate(x, y)
-	lg.rotate(e.body:getAngle())
+	-- Retained highway scenes do not advance physics, but the belt still turns.
+	lg.rotate(game.universe.clock * e.spin)
 	lg.setLineWidth(outline(1.5))
-	for _, panel in ipairs(e.panels) do
-		local s = panel.shade
-		lg.setColor(0.22 * s, 0.25 * s, 0.29 * s)
-		lg.polygon("fill", panel.shape)
-		lg.setColor(0.46, 0.52, 0.6)
-		lg.polygon("line", panel.shape)
-		local c, sn = cos(panel.angle), sin(panel.angle)
-		-- An inset running track and transverse ribs show the direction
-		-- of the belt even when its overall silhouette is nearly circular.
-		lg.setColor(0.13, 0.15, 0.18)
-		lg.line(c * (e.ringRadius - e.ringWidth * 0.34), sn * (e.ringRadius - e.ringWidth * 0.34),
-			c * (e.ringRadius + e.ringWidth * 0.34), sn * (e.ringRadius + e.ringWidth * 0.34))
-		if panel.beacon then
-			lg.setColor(1, 0.55, 0.25)
-			lg.circle("fill", c * e.ringRadius, sn * e.ringRadius, max(10, 2 * screenPx))
-		end
+	for _, arc in ipairs(e.arcs) do
+		lg.setColor(0.26, 0.17, 0.13)
+		for _, tri in ipairs(arc.tris) do lg.polygon("fill", tri) end
+		lg.setColor(0.5, 0.58, 0.68)
+		lg.polygon("line", arc.outline)
 	end
 	lg.pop()
 end
@@ -336,25 +326,6 @@ local function drawStation(game, e)
 	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
 		function(c) return c end, outline(2))
 	HullShape.drawLights(e.def, game.time, screenPx)
-	-- Cargo elevator cars move on the fixed rails, independently of the belt.
-	for i, track in ipairs(e.elevatorTracks or {}) do
-		lg.push()
-		lg.rotate(track.angle)
-		for lane = 0, 1 do
-			local u = (game.universe.clock / 45 + lane * 0.5 + i * 0.2) % 1
-			if lane == 1 then u = 1 - u end
-			local x = track.lower + (track.upper - track.lower) * u
-			local y = lane == 0 and -75 or 75
-			lg.setColor(col[1] * 0.8, col[2] * 0.8, col[3] * 0.8)
-			lg.rectangle("fill", x - 65, y - 40, 130, 80)
-			lg.setColor(col)
-			lg.setLineWidth(outline(1.5))
-			lg.rectangle("line", x - 65, y - 40, 130, 80)
-			lg.setColor(0.8, 0.9, 1)
-			lg.rectangle("fill", x - 35, y - 10, 70, 20)
-		end
-		lg.pop()
-	end
 	-- turrets: a base and barrels, turned to where each is aiming (twice a
 	-- ship mount's size, and never smaller than a few pixels)
 	for _, w in ipairs(e.weapons or {}) do

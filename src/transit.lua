@@ -1056,11 +1056,23 @@ function Game:spawnHeavenLadder(cx, cy, R)
 	body:setAngularVelocity(spin)
 	local ring = { kind = "structure", role = "orbital_ring", invulnerable = true,
 		id = self:nextId(), team = 0, body = body, radius = R + width / 2,
-		ringRadius = R, ringWidth = width, panels = {} }
+		ringRadius = R, ringWidth = width, spin = spin, panels = {}, arcs = {} }
 	local inner, outer = R - width / 2, R + width / 2
 	local gap = gapWidth / R
 	for sector = 0, gaps - 1 do
 		local a1, a2 = sector / gaps * pi * 2 + gap / 2, (sector + 1) / gaps * pi * 2 - gap / 2
+		-- Smooth visible arc; the small polygons below are physics only.
+		local outline = {}
+		local samples = 48
+		for k = 0, samples do
+			local a = a1 + (a2 - a1) * k / samples
+			outline[#outline + 1], outline[#outline + 2] = cos(a) * outer, sin(a) * outer
+		end
+		for k = samples, 0, -1 do
+			local a = a1 + (a2 - a1) * k / samples
+			outline[#outline + 1], outline[#outline + 2] = cos(a) * inner, sin(a) * inner
+		end
+		ring.arcs[#ring.arcs + 1] = { outline = outline, tris = love.math.triangulate(outline) }
 		local n = math.ceil((a2 - a1) * R / 300)
 		for k = 0, n - 1 do
 			local a, b = a1 + (a2 - a1) * k / n, a1 + (a2 - a1) * (k + 1) / n
@@ -1070,7 +1082,7 @@ function Game:spawnHeavenLadder(cx, cy, R)
 			f:setUserData(ring)
 			f:setFriction(0.5)
 			f:setRestitution(0.1)
-			ring.panels[#ring.panels + 1] = { shape = verts, angle = (a + b) / 2, shade = k % 3 == 0 and 1 or 0.8,
+			ring.panels[#ring.panels + 1] = { shape = verts, angle = (a + b) / 2,
 				beacon = k == 0 or k == n - 1 }
 		end
 	end

@@ -57,16 +57,15 @@ file) onto `love.exe`.
 ## Surface elevators and the Heaven-Ladder
 
 Mars's Heaven-Ladder has a 260-pixel-thick moving belt rotating against the
-planetary current, with eight broad passage gaps. Two fixed, exposed-truss
-surface elevators bridge over the belt to large outward-facing terminals.
+planetary current, with eight broad passage gaps. Two fixed
+surface elevators bridge over the belt to compact outward-facing terminals.
 Both terminals are one station: storage, market, hangar and services are shared.
 Save/load, respawn and hangar swaps preserve the terminal you used. The HUD
 marks the eastern and western approaches separately.
 
-Mercury has a standalone elevator from a different manufacturer: an enclosed,
-tapered spine, swept terminal and forked counterweight, without an orbital ring.
-The two designs use relative component shading/tint with a neutral base colour.
-Cargo cars move along their rails. The stationary layouts use ordinary station
+Mercury has a standalone elevator from a different manufacturer: a narrow tether
+and a small tapered terminal, without an orbital ring. Both designs use the
+original world geometry's plain fills and thin outlines. The stationary layouts use ordinary station
 parts and can be opened in F2 as `heaven_ladder` and `mercury_elevator` after
 visiting their maps; the moving Martian belt is bespoke geometry.
 

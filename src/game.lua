@@ -1261,6 +1261,11 @@ end
 function Game:updateOrbits(dt)
 	for _, e in ipairs(self.entities) do
 		local o = e.orbit
+		if e.role == "orbital_ring" and not e.removed then
+			-- Match the clock-driven art after a retained scene is resumed.
+			e.body:setAngle((self.universe.clock - dt) * e.spin)
+			e.body:setAngularVelocity(e.spin)
+		end
 		if o and not e.removed then
 			o.angle = o.angle + o.rate * dt
 			local tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r

@@ -92,95 +92,44 @@ function Stations.ring(R, tube)
 	}
 end
 
--- Surface elevators ------------------------------------------------------
--- Fixed terminals use normal station parts/docks. Mars has exposed gantries
--- and repeated containers; Mercury uses a separate enclosed, tapered design.
--- Only the common geometric primitives are shared between the manufacturers.
+-- Surface elevators: the same simple filled shapes and thin outlines as
+-- the original world geometry. Layouts differ by silhouette, not ornament.
 local function elevatorLayout(id, name, surface, terminal, angles, industrial)
 	local parts, tracks = {}, {}
-	local scale = industrial and 0.35 or 0.24
-	local function transverse(y)
-		local a = math.abs(y)
-		return a <= 225 and y or (y < 0 and -1 or 1) * (225 + (a - 225) * scale)
-	end
-	local function part(label, points, shade, angle, detail, tint)
-		local shape = {}
-		local c, s = cos(angle), sin(angle)
-		local compact = label:find("terminal") or label:find("hangar") or label:find("container")
-			or label:find("outer frame") or label:find("tractor dock") or label:find("counterweight") or label:find("inset band")
-		for i = 1, #points, 2 do
-			local x, y = points[i], transverse(points[i + 1])
-			if compact then x = terminal + (x - terminal) * scale end
-			shape[#shape + 1] = round(x * c - y * s)
-			shape[#shape + 1] = round(x * s + y * c)
+	for i, angle in ipairs(angles) do
+		local function shape(label, points, shade, detail)
+			local verts = {}
+			local c, s = cos(angle), sin(angle)
+			for k = 1, #points, 2 do
+				verts[#verts + 1] = round(points[k] * c - points[k + 1] * s)
+				verts[#verts + 1] = round(points[k] * s + points[k + 1] * c)
+			end
+			local p = { name = label .. " " .. i, shape = verts, shade = shade or 1 }
+			if detail then p.layer, p.collide = "detail", false end
+			parts[#parts + 1] = p
+			return p
 		end
-		local p = { name = label, shape = shape, shade = shade, tint = tint }
-		if detail then p.layer, p.collide = "detail", false end
-		parts[#parts + 1] = p
-		return p
-	end
-	local function box(label, x1, y1, x2, y2, shade, angle, detail, tint)
-		return part(label, { x1, y1, x2, y1, x2, y2, x1, y2 }, shade, angle, detail, tint)
-	end
-	for n, angle in ipairs(angles) do
-		local prefix = "elevator " .. n .. " "
-		local bottom, top = surface - 80, terminal - 480 * scale
+		local function box(label, x1, y1, x2, y2, shade, detail)
+			return shape(label, { x1, y1, x2, y1, x2, y2, x1, y2 }, shade, detail)
+		end
 		if industrial then
-			-- Two heavy rails with visible cross bracing and open space between.
-			for _, side in ipairs({ -1, 1 }) do
-				box(prefix .. "rail", bottom, side * 145 - 36, top, side * 145 + 36, 0.65, angle)
-			end
-			for x = bottom, top - 200, 300 do
-				box(prefix .. "cross member", x, -180, x + 42, 180, 0.8, angle)
-				part(prefix .. "diagonal", { x, -145, x + 30, -145, x + 280, 145, x + 250, 145 }, 0.75, angle)
-			end
-			box(prefix .. "surface footing", surface - 140, -320, surface + 150, 320, 0.9, angle)
-			-- Broad framed terminal, with container banks flanking the hangar.
-			box(prefix .. "terminal back", terminal - 480, -740, terminal - 260, 740, 0.7, angle)
-			for _, side in ipairs({ -1, 1 }) do
-				local y1, y2 = side == 1 and 245 or -740, side == 1 and 740 or -245
-				box(prefix .. "hangar deck", terminal - 320, y1, terminal + 560, y2, 0.95, angle)
-				for k = 0, 3 do
-					box(prefix .. "container " .. k, terminal - 250 + k * 195,
-						y1 + 65, terminal - 90 + k * 195, y2 - 65, 0.8 + (k % 2) * 0.15,
-						angle, true, { 0.025, -0.005, -0.02 })
-				end
-				box(prefix .. "outer frame", terminal - 420, side * 750 - 35, terminal + 620, side * 750 + 35, 0.65, angle)
-			end
+			-- Mars: a straight, substantial tether and rectangular terminal.
+			box("tether", surface - 30, -45, terminal - 130, 45, 0.8)
+			box("terminal back", terminal - 150, -300, terminal - 85, 300)
+			box("upper dock", terminal - 100, -300, terminal + 180, -180)
+			box("lower dock", terminal - 100, 180, terminal + 180, 300)
 		else
-			-- Mercury: enclosed blade, inset service channel, swept shoulders.
-			part(prefix .. "spine", { bottom, -190, top, -95, top, 95, bottom, 190 }, 0.95, angle)
-			box(prefix .. "recess", bottom + 140, -48, top, 48, 0.6, angle, true)
-			part(prefix .. "surface plinth", { surface - 160, -400, surface + 100, -250,
-				surface + 100, 250, surface - 160, 400 }, 1.05, angle)
-			for _, side in ipairs({ -1, 1 }) do
-				local points = { terminal - 520, side * 240, terminal + 500, side * 240,
-					terminal + 420, side * 460, terminal - 100, side * 720, terminal - 680, side * 370 }
-				part(prefix .. "swept terminal", points, 1.05, angle)
-				box(prefix .. "inset band", terminal - 180, side * 460 - 32,
-					terminal + 300, side * 460 + 32, 0.78, angle, true, { -0.01, 0.01, 0.025 })
-			end
-			box(prefix .. "terminal back", terminal - 550, -260, terminal - 310, 260, 0.8, angle)
-			-- An offset pair of spars leaves the outward dock approach open.
-			for _, side in ipairs({ -1, 1 }) do
-				box(prefix .. "counterweight spar", terminal + 150, side * 650 - 30,
-					terminal + 2100, side * 650 + 30, 0.75, angle)
-				part(prefix .. "counterweight", { terminal + 1900, side * 440,
-					terminal + 2550, side * 570, terminal + 2550, side * 770,
-					terminal + 1900, side * 900 }, 0.9, angle)
-			end
+			-- Mercury: a narrow cable and a small tapered terminal.
+			box("tether", surface - 30, -24, terminal - 140, 24, 0.8)
+			box("terminal back", terminal - 150, -200, terminal - 85, 200)
+			shape("upper dock", { terminal - 150, -200, terminal - 10, -280,
+				terminal + 180, -210, terminal + 180, -180, terminal - 85, -180 })
+			shape("lower dock", { terminal - 150, 200, terminal - 10, 280,
+				terminal + 180, 210, terminal + 180, 180, terminal - 85, 180 })
 		end
-		-- The dock is a recessed floor between solid shoulders; its door
-		-- faces away from the planet. No docking arms are required.
-		local dock = box(prefix .. "tractor dock", terminal - 300, -225, terminal + 500, 225, 0.45, angle, true)
-		dock.dock, dock.dockRunway = true, 1100
-		dock.lights = {}
-		for _, side in ipairs({ -1, 1 }) do
-			local x, y = terminal + 490 * scale, side * 215
-			dock.lights[#dock.lights + 1] = { x = round(x * cos(angle) - y * sin(angle)),
-				y = round(x * sin(angle) + y * cos(angle)), kind = "nav", size = 12 }
-		end
-		tracks[#tracks + 1] = { angle = angle, lower = surface + 160, upper = top, industrial = industrial }
+		local dock = box("dock", terminal - 85, -175, terminal + 180, 175, 0.5, true)
+		dock.dock, dock.dockRunway = true, 800
+		tracks[#tracks + 1] = { angle = angle, lower = surface + 80, upper = terminal - 150 }
 	end
 	return { id = id, name = name, parts = parts, color = { 0.55, 0.63, 0.74 }, elevatorTracks = tracks }
 end
