@@ -231,7 +231,7 @@ end
 
 -- Mouse tools ---------------------------------------------------------------
 
-function Canvas.mousepressed(E, sx, sy, button)
+local function pressed(E, sx, sy, button)
 	local wx, wy = Canvas.toWorld(E, sx, sy)
 	if button == 2 and E.tool == "draw" and E.drawing then
 		-- right click while drawing takes the last point back
@@ -394,9 +394,24 @@ function Canvas.mousepressed(E, sx, sy, button)
 	end
 end
 
+-- Moving drags (a light, point, slot, part, berth or turret) only start
+-- once the mouse has gone a few pixels from where it was pressed, so a
+-- click that only means to select never nudges anything.
+local MOVES = { light = true, vertex = true, slot = true, part = true, berthmove = true, turretmove = true }
+local DRAG_PX = 4
+
+function Canvas.mousepressed(E, sx, sy, button)
+	pressed(E, sx, sy, button)
+	if E.drag then E.drag.sx0, E.drag.sy0 = sx, sy end
+end
+
 function Canvas.mousemoved(E, sx, sy)
 	local d = E.drag
 	if not d then return end
+	if MOVES[d.kind] and not d.moving then
+		if (sx - d.sx0) ^ 2 + (sy - d.sy0) ^ 2 < DRAG_PX ^ 2 then return end
+		d.moving = true
+	end
 	if d.kind == "erase" then
 		Canvas.eraseLights(E, sx, sy, E.eraseRadius)
 		return
