@@ -315,8 +315,9 @@ Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = t
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
-	density = 0.09, mix = { ice = 9, rock = 1 }, -- four thin, dense rings, well out from the planet
-	rings = { { 0.45, 0.48, density = 6 }, { 0.56, 0.59, density = 6 }, { 0.67, 0.70, density = 6 }, { 0.78, 0.81, density = 6 } },
+	density = 0.09, mix = { ice = 9, rock = 1 }, -- four dense rings, well out from the planet, in pairs: a wider ring
+	-- then a thin one just outside it, twice
+	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).
