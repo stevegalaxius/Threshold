@@ -29,7 +29,10 @@ local STATS = {
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
 local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
-local SIZES = { "S", "M", "L", "any" }
+local SIZES = { "S", "M", "L" }
+-- Families with no sizes: their slots are always "any" (data/hulls.lua).
+-- Thruster slots do have a size: it scales the side jets (bySlot).
+local SIZELESS = { utility = true, computer = true }
 
 local function combo(id, selected, options, onPick, w)
 	if Slab.BeginComboBox(id, { Selected = selected, W = w or 200 }) then
@@ -177,11 +180,18 @@ local function designWindow(E, Editor)
 			Slab.SameLine()
 			local fopts = {}
 			for _, f in ipairs(FAMILIES) do table.insert(fopts, { label = f, value = f }) end
-			combo("yard_slotfam" .. i, slot.family, fopts, function(f) E.pushUndo(); slot.family = f end, 95)
-			Slab.SameLine()
-			local sopts = {}
-			for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
-			combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+			combo("yard_slotfam" .. i, slot.family, fopts, function(f)
+				E.pushUndo()
+				slot.family = f
+				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end
+				if f ~= "primary" and f ~= "secondary" and f ~= "auxiliary" then slot.mount = nil end
+			end, 95)
+			if not SIZELESS[slot.family] then
+				Slab.SameLine()
+				local sopts = {}
+				for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
+				combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+			end
 			if slot.family == "primary" or slot.family == "secondary" or slot.family == "auxiliary" then
 				-- weapon slots can mount differently from the hull's default
 				Slab.SameLine()
