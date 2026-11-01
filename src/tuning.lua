@@ -131,6 +131,11 @@ T.laneFarAU, T.laneFarScale = 5, 0.25
 T.crushStart = 2000
 T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
 
+-- Cloud cities drift round their spot: this far across (px, each way),
+-- and over these periods (s) across and up and down (the up and down
+-- range is the layer between the cloud tops and the crush).
+T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
+
 -- Sleeping debris (Game:updateSleepers): rocks further than sleepFar
 -- from the player stop being simulated and just follow their orbit, and
 -- wake inside sleepNear; checked every sleepEvery steps.

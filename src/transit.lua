@@ -778,11 +778,39 @@ function Game:spawnGasGiant(x, y, radius, flow, swirl, hue)
 		hue = hue or { 0.85, 0.65, 0.45 } }
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, gas = true, planet = e }
+	-- the crush starts at the first band drawn inside the cloud tops
+	-- (the bands step in by 1/13 of the radius; see drawPlanet)
+	self.well = { x = x, y = y, radius = radius, flow = flow, swirl = swirl, gas = true, planet = e, crushStart = radius / 13 }
 	return e
 end
 
 -- Cloud cities -----------------------------------------------------------------
+
+local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
+
+-- Where a cloud city's drift has it now, and the angle round the planet.
+function Game:cityTarget(e)
+	local w, d, t = self.well, e.drift, self.time
+	local rr = d.r + d.up * sin(t / d.upPeriod * pi * 2 + d.phase)
+	local aa = d.a + d.across * sin(t / d.acrossPeriod * pi * 2 + d.phase * 0.7) / d.r
+	return w.x + cos(aa) * rr, w.y + sin(aa) * rr, aa
+end
+
+-- Move each cloud city along its drift: a slow loop round its spot, set as
+-- a velocity so ships docking with it ride along.
+function Game:updateCities(dt)
+	local w = self.well
+	if not w then return end
+	for _, e in ipairs(self.entities) do
+		local d = e.drift
+		if d and not e.removed then
+			local tx, ty, aa = self:cityTarget(e)
+			local x, y = e.body:getPosition()
+			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+			e.body:setAngularVelocity(wrapAngle(aa + pi / 2 - e.body:getAngle()) / dt)
+		end
+	end
+end
 
 -- A cloud city's shape, from the top down: a mast and its collar, the
 -- superstructure, the docking tunnel, the deck, a collar and the stalk
@@ -838,9 +866,14 @@ end
 function Game:spawnCloudCity(a, k)
 	k = k or 1
 	local w = self.well
-	local T, H = CITY_TUNNEL, CITY_HALF
-	local r = w.radius - 60 - T              -- the tunnel's top 60 px under the cloud tops
-	local body = love.physics.newBody(self.world, w.x + cos(a) * r, w.y + sin(a) * r, "static")
+	local TH, H = CITY_TUNNEL, CITY_HALF
+	-- It floats in the layer between the cloud tops and the crush, drifting
+	-- slowly round a fixed spot: across (along the clouds) and up and down,
+	-- never above the tops or into the crush. See Game:updateCities.
+	local top, bottom = w.radius - 60 - TH, w.radius - w.crushStart + TH + 100
+	local mid = (top + bottom) / 2
+	local r = mid
+	local body = love.physics.newBody(self.world, w.x + cos(a) * r, w.y + sin(a) * r, "kinematic")
 	body:setAngle(a + pi / 2)                -- local -y points out to space
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
@@ -849,8 +882,13 @@ function Game:spawnCloudCity(a, k)
 	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
 		key = ("%s/%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or "Cloud city", radius = 1680 * k, parts = parts, tip = tip,
-		cloudY = -T - 60, tunnel = T, half = H }
-	e.dock = { x1 = -40, x2 = 40, hw = T, wall = 24, runway = H - 40 + 600, capture = 260, both = true }
+		cloudY = -TH - 60, tunnel = TH, half = H,
+		drift = { a = a, r = mid, up = max(0, (top - bottom) / 2 * 0.85), across = T.cityDriftAcross,
+			upPeriod = T.cityDriftUp, acrossPeriod = T.cityDriftAcrossPeriod, phase = random() * pi * 2 } }
+	e.dock = { x1 = -40, x2 = 40, hw = TH, wall = 24, runway = H - 40 + 600, capture = 260, both = true }
+	local sx, sy, sa = self:cityTarget(e)
+	body:setPosition(sx, sy)
+	body:setAngle(sa + pi / 2)
 	for _, p in ipairs(parts) do
 		local f = love.physics.newFixture(body, love.physics.newPolygonShape(p.verts))
 		f:setFriction(0.5)
@@ -870,10 +908,11 @@ function Game:updateCrush(dt)
 		if not e.removed and not e.dead and b:getType() == "dynamic" then
 			local x, y = b:getPosition()
 			local r = sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
-			local depth = (w.radius - T.crushStart - r) / T.crushDepth
+			local cs = w.crushStart or T.crushStart
+			local depth = (w.radius - cs - r) / T.crushDepth
 			if r < w.radius then
 				-- thickening air all the way down, crushing past crushStart
-				local thick = min(1, (w.radius - r) / (T.crushStart + T.crushDepth))
+				local thick = min(1, (w.radius - r) / (cs + T.crushDepth))
 				local vx, vy = b:getLinearVelocity()
 				local m = b:getMass()
 				b:applyForce(-vx * T.crushDrag * 0.3 * thick * m, -vy * T.crushDrag * 0.3 * thick * m)

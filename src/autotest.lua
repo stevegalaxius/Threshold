@@ -858,7 +858,7 @@ function A.update(game, dt)
 		local Ship = require("src.ship")
 		game:loadField("jupiter", { player = Ship.record(p) })
 		local q = game.player
-		q.body:setPosition(0, game.well.radius - T.crushStart - 4000)
+		q.body:setPosition(0, game.well.radius - (game.well.crushStart or T.crushStart) - 4000)
 		A.armor0 = q.armor
 	end) end
 	if t >= 43.6 then once("crush", function()
