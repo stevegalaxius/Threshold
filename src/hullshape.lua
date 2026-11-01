@@ -233,10 +233,11 @@ end
 -- Draw the lights on parts (all of the hull's, or `only`), offset like
 -- HullShape.draw. px is how big one screen pixel is in ship units, so
 -- each kind can hold its own on screen:
---   nav lights keep a few pixels and a coloured halo however far out you
---     zoom, so you can always tell which way your ship is pointing
+--   nav lights keep a small core and halo however far out you zoom, so
+--     you can always tell which way your ship is pointing
 --   windows keep about a pixel
---   strobes are true to size: flavour up close, fading out zoomed out
+--   strobes keep a pixel-sized flash; their flare is true to size, so it
+--     shows up close and shrinks away zoomed out
 function HullShape.drawLights(hull, time, px, only, ox, oy, state)
 	local lg = love.graphics
 	px = px or 0
@@ -249,23 +250,22 @@ function HullShape.drawLights(hull, time, px, only, ox, oy, state)
 				local c = HullShape.lightColor(l)
 				local size = l.size or 1.2
 				if l.kind == "nav" then
-					local core = max(size * 0.7, 2.2 * px)
+					local core = max(size * 0.6, 1.3 * px)
 					lg.setBlendMode("add")
-					lg.setColor(c[1], c[2], c[3], 0.4 * b)
-					lg.circle("fill", l.x, l.y, max(size * 2, 7 * px))
+					lg.setColor(c[1], c[2], c[3], 0.35 * b)
+					lg.circle("fill", l.x, l.y, max(size * 1.8, 3.5 * px))
 					lg.setBlendMode("alpha")
 					lg.setColor(c[1] * 0.7 + 0.3, c[2] * 0.7 + 0.3, c[3] * 0.7 + 0.3, b)
 					lg.circle("fill", l.x, l.y, core)
 				elseif l.kind == "strobe" then
-					local fade = px > 0 and min(1, size / (1.5 * px)) or 1
-					if fade > 0.05 then
-						lg.setBlendMode("add")
-						lg.setColor(c[1], c[2], c[3], 0.45 * b * fade)
-						lg.circle("fill", l.x, l.y, size * 3)
-						lg.setBlendMode("alpha")
-						lg.setColor(1, 1, 1, b * fade)
-						lg.circle("fill", l.x, l.y, size * 0.7)
-					end
+					-- always a visible pip; the flare only when close enough
+					local fade = px > 0 and min(1, 0.5 + size / (3 * px)) or 1
+					lg.setBlendMode("add")
+					lg.setColor(c[1], c[2], c[3], 0.5 * b * fade)
+					lg.circle("fill", l.x, l.y, size * 3)
+					lg.setBlendMode("alpha")
+					lg.setColor(1, 1, 1, b * fade)
+					lg.circle("fill", l.x, l.y, max(size * 0.7, 0.9 * px))
 				else
 					local w = max(size, 0.8 * px)
 					lg.setColor(c[1], c[2], c[3], 0.9 * b)
