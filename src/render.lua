@@ -1117,7 +1117,8 @@ function Render.world(game)
 	drawGrid(game)
 	if game.lane then
 		-- the planet you're heading for, where it'll be when you arrive
-		if game.trip then
+		-- (moon trips only: a mass driver's lane shows no planets)
+		if game.trip and game.trip.moon then
 			local px, py, F = game:laneDestination()
 			drawFieldWorld(game, F, px, py)
 			-- the one you left off the edge of (a moon trip)
