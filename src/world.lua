@@ -8,8 +8,8 @@
 	            (src/game.lua, spawnWheelStation), so the same station gets
 	            the same record every visit. home is where you last docked.
 	  levels    each named field keeps selected world objects in universe.areas
-	            (src/persistence.lua). Wrecks, containers and loose cargo pause
-	            while unloaded. Scenery and NPCs still regenerate on visits;
+	            (src/persistence.lua). Wrecks, containers and loose cargo follow
+	            the orbital current while unloaded. Scenery and NPCs still regenerate on visits;
 	            transit lanes remain temporary.
 	  travel    mass drivers and the transit lane between planets: see
 	            src/transit.lua.
@@ -285,7 +285,10 @@ end
 -- The whole game as one plain table (see src/save.lua).
 function Game:saveState()
 	self:captureArea()
-	if self.trip and self.trip.originScene then self.trip.originScene:captureArea() end
+	if self.trip and self.trip.originScene then
+		self.trip.originScene:syncAreaMotion()
+		self.trip.originScene:captureArea()
+	end
 	local stations = {}
 	for key, r in pairs(self.universe.stations) do
 		local hangar = {}

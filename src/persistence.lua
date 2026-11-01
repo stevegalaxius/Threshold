@@ -1,6 +1,6 @@
 -- Selected world objects survive named-area unloads as plain records.
 -- This is not an NPC registry or an offline simulation: unloaded objects
--- pause, and generated scenery/ships remain disposable. Empty snapshots
+-- follow the orbital current, and generated scenery/ships remain disposable. Empty snapshots
 -- are meaningful, so collected containers do not refill on the next visit.
 local data = require("src.data")
 local Hold = require("src.inventory.hold")
@@ -27,13 +27,36 @@ local function identify(game, object)
 	return object.persistenceId
 end
 
+local function orbit(game, x, y)
+	local w = game.well
+	if not w then return end
+	local r = math.sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
+	if r < 1 then return end
+	return { x = w.x, y = w.y, rate = game:currentSpeed(r) / r }
+end
+
+-- Lightweight orbital catch-up, not an offline physics simulation. Keep
+-- altitude constant, rotate drift velocity with the orbit, and retain loot.
+local function advanced(game, r, elapsed)
+	local motion = r.orbit or orbit(game, r.x, r.y)
+	if not motion or elapsed <= 0 then return r end
+	local out = {}
+	for k, v in pairs(r) do out[k] = v end
+	local a = (motion.rate * elapsed) % (math.pi * 2)
+	local c, s = math.cos(a), math.sin(a)
+	local x, y = r.x - motion.x, r.y - motion.y
+	out.x, out.y = motion.x + x * c - y * s, motion.y + x * s + y * c
+	out.vx, out.vy = r.vx * c - r.vy * s, r.vx * s + r.vy * c
+	return out
+end
+
 local function record(game, e)
 	local body = e.body
 	local x, y = body:getPosition()
 	local vx, vy = body:getLinearVelocity()
 	local mx, my, mass, inertia = body:getMassData()
 	local r = { kind = e.kind, id = identify(game, e), x = x, y = y, vx = vx, vy = vy,
-		angle = body:getAngle(), spin = body:getAngularVelocity(),
+		angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
 		mass = { mx, my, mass, inertia }, linearDamping = body:getLinearDamping(),
 		angularDamping = body:getAngularDamping(), hp = e.hp, radius = e.radius,
 		hold = Hold.serialize(e.hold) }
@@ -58,7 +81,7 @@ end
 
 local function pickupRecord(game, p)
 	return { id = identify(game, p), item = p.item, count = p.count,
-		x = p.x, y = p.y, vx = p.vx, vy = p.vy, spin = p.spin }
+		x = p.x, y = p.y, vx = p.vx, vy = p.vy, spin = p.spin, orbit = orbit(game, p.x, p.y) }
 end
 
 function P.install(Game)
@@ -82,13 +105,42 @@ function P.install(Game)
 	function Game:areaObjectClear(x, y, margin)
 		local area = self.restoringArea
 		if not area then return true end
-		for _, r in ipairs(area.objects) do
+		for _, saved in ipairs(area.objects) do
+			local r = advanced(self, saved, math.max(0, self.universe.clock - area.capturedAt))
 			if (r.x - x) ^ 2 + (r.y - y) ^ 2 < ((r.radius or 100) + margin) ^ 2 then return false end
 		end
-		for _, r in ipairs(area.pickups) do
+		for _, saved in ipairs(area.pickups) do
+			local r = advanced(self, saved, math.max(0, self.universe.clock - area.capturedAt))
 			if (r.x - x) ^ 2 + (r.y - y) ^ 2 < (20 + margin) ^ 2 then return false end
 		end
 		return true
+	end
+
+	-- Highway views retain a frozen physics scene. Catch up its selected
+	-- objects too, so turning back does not restore yesterday's positions.
+	function Game:syncAreaMotion()
+		local area = self.universe.areas and self.universe.areas[self.fieldId]
+		if not area then return end
+		local records = {}
+		for _, r in ipairs(area.objects) do records[r.id] = r end
+		local elapsed = math.max(0, self.universe.clock - area.capturedAt)
+		for _, e in ipairs(self.entities) do
+			local saved = records[e.persistenceId]
+			if saved and not e.dead and not e.removed then
+				local r = advanced(self, saved, elapsed)
+				e.body:setPosition(r.x, r.y)
+				e.body:setLinearVelocity(r.vx, r.vy)
+			end
+		end
+		records = {}
+		for _, r in ipairs(area.pickups) do records[r.id] = r end
+		for _, p in ipairs(self.pickups) do
+			local saved = records[p.persistenceId]
+			if saved then
+				local r = advanced(self, saved, elapsed)
+				p.x, p.y, p.vx, p.vy = r.x, r.y, r.vx, r.vy
+			end
+		end
 	end
 
 	function Game:restoreArea(snapshot)
@@ -98,7 +150,8 @@ function P.install(Game)
 			if selected(self.entities[i]) then self:remove(self.entities[i]) end
 		end
 		self.pickups = {}
-		for _, r in ipairs(snapshot.objects or {}) do
+		for _, saved in ipairs(snapshot.objects or {}) do
+			local r = advanced(self, saved, math.max(0, self.universe.clock - snapshot.capturedAt))
 			local e
 			local hold = Hold.deserialize(r.hold, known)
 			if r.kind == "container" and known(r.item) then
@@ -119,7 +172,8 @@ function P.install(Game)
 				b:setAngularDamping(r.angularDamping)
 			end
 		end
-		for _, r in ipairs(snapshot.pickups or {}) do
+		for _, saved in ipairs(snapshot.pickups or {}) do
+			local r = advanced(self, saved, math.max(0, self.universe.clock - snapshot.capturedAt))
 			if known(r.item) and r.count > 0 then
 				self.pickups[#self.pickups + 1] = { persistenceId = r.id, item = r.item, count = r.count,
 					x = r.x, y = r.y, vx = r.vx, vy = r.vy, spin = r.spin }

@@ -1112,6 +1112,7 @@ local function drawFieldWorld(game, F, px, py)
 end
 
 function Render.world(game, overlay)
+	if overlay then game:syncAreaMotion() end
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
 		Render.background(game.camera)

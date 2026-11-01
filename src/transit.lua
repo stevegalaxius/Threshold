@@ -543,6 +543,7 @@ function Game:arrive(back)
 	local to, from = trip.to, trip.from
 	if back then to, from = from, to end
 	local preview = self:prepareArrival(back)
+	preview.game:syncAreaMotion()
 	local exit = self:laneExit(back)
 	exit.free, exit.continuous = true, true
 	local cx, cy = self.camera.x - preview.x, self.camera.y - preview.y

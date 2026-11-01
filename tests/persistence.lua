@@ -131,6 +131,28 @@ return function(game)
 	for _, p in ipairs(game.pickups) do if p.persistenceId == id and p.count == 5 then found = found + 1 end end
 	check(found == 1, "moon round trip lost or duplicated dropped cargo")
 	check(game.universe.areas.lane == nil, "transient lanes were accidentally cached as a single area")
+	-- Unloaded planetary objects follow the same current as sleeping debris.
+	game:loadField("earth")
+	local orbitBox = game:spawnContainer(22000, 0, "cargo_container", false)
+	game:captureArea()
+	local orbitId = orbitBox.persistenceId
+	local expected = game:currentSpeed(22000) / 22000 * 120
+	game:loadField("giant")
+	game.universe.clock = game.universe.clock + 120
+	game:loadField("earth")
+	local moved = find(orbitId)
+	local ox, oy = moved.body:getPosition()
+	check(near(ox, 22000 * math.cos(expected)) and near(oy, 22000 * math.sin(expected)),
+		"planetary cargo stayed frozen instead of following the current")
+	check(math.abs(math.sqrt(ox * ox + oy * oy) - 22000) < 0.01, "orbital catch-up changed altitude")
+	-- Retained scenes must move objects too, including an immediate turnback.
+	game:launchTrip("luna", { bearing = 0, length = Fields.moons.luna.gap })
+	game.universe.clock = game.universe.clock + 60
+	game:arrive(true)
+	moved = find(orbitId)
+	ox, oy = moved.body:getPosition()
+	check(near(ox, 22000 * math.cos(expected * 1.5)) and near(oy, 22000 * math.sin(expected * 1.5)),
+		"retained source scene ignored elapsed orbital time")
 	-- Old saves start with no snapshots; loading them cannot retain current clutter.
 	local old = { version = 1, field = "asteroids", stations = {}, clock = 0, credits = 5000 }
 	check(next(Save.upgrade(old).areas) == nil, "old save migration needs optional area data")

@@ -62,7 +62,9 @@ position, motion, damage, part damage, remaining loot and nested cargo are
 stored as plain records under `universe.areas`. Collected and destroyed objects
 stay gone; an emptied area does not regenerate its cargo containers.
 
-Unloaded objects pause and resume when you return. NPCs, projectiles, effects,
+Around planets and moons, unloaded objects advance along the orbital current
+using elapsed game time, at constant altitude. Other areas retain their saved
+positions. This is a lightweight motion approximation, not offline physics. NPCs, projectiles, effects,
 and background asteroid populations are not persistent in this first step.
 Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
