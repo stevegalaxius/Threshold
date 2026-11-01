@@ -255,7 +255,9 @@ local function planetField(o)
 					local a = random() * pi * 2
 					local d = b1 + random() * (b2 - b1)
 					local x, y = cos(a) * d, sin(a) * d
-					if game:isClear(x, y, radius + 40) then
+					-- ring ice is packed too densely to check every placement
+					-- against every other piece; they're tiny, so let them be
+					if band.size or game:isClear(x, y, radius + 40) then
 						local e = game:spawnDebris(kind, x, y, radius)
 						local v = game:currentSpeed(d)
 						e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
@@ -295,7 +297,7 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000,
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
-	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 0.3 } },
+	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 1.5 } },
 	city = "Olympus", cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
@@ -303,17 +305,17 @@ Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = t
 	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.75,
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
-	rings = { { 0.15, 0.25, density = 0.1 }, { 0.25, 0.42, density = 0.6, big = 0.04 }, { 0.46, 0.6, density = 0.25 } },
+	rings = { { 0.15, 0.25, density = 1 }, { 0.25, 0.42, density = 6, big = 0.01 }, { 0.46, 0.6, density = 3 } },
 	stations = { "Cassini Gate", "Enceladus Station" },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
-	density = 0.09, mix = MIX.ice, rings = { { 0.25, 0.4, density = 0.4 } },
+	density = 0.09, mix = MIX.ice, rings = { { 0.25, 0.4, density = 2 } },
 	city = "Herschel",
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
-	density = 0.09, mix = { ice = 9, rock = 1 }, rings = { { 0.25, 0.38, density = 0.3 } },
+	density = 0.09, mix = { ice = 9, rock = 1 }, rings = { { 0.25, 0.38, density = 1.5 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).

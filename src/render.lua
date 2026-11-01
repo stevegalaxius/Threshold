@@ -1058,17 +1058,34 @@ function Render.world(game)
 	local hw, hh = sw / 2 / cam.zoom + 300, sh / 2 / cam.zoom + 300
 	local cx, cy = cam.x, cam.y
 	-- sleeping debris: where its orbit has carried it
-	for _, e in ipairs(game.sleepers or {}) do
-		local x, y = game:sleeperPos(e)
+	-- debris too small to see as a shape on screen is drawn as one batch of
+	-- points instead (a ring zoomed out is thousands of them)
+	local dots, dotR = {}, 2.5 / cam.zoom
+	local function debris(e, x, y)
 		if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
-			e.body:setPosition(x, y)
-			drawAsteroid(e)
+			if e.radius < dotR and not e.reentry then
+				dots[#dots + 1] = x; dots[#dots + 1] = y
+			else
+				e.body:setPosition(x, y)
+				drawAsteroid(e)
+			end
 		end
 	end
+	for _, e in ipairs(game.sleepers or {}) do
+		local x, y = game:sleeperPos(e)
+		debris(e, x, y)
+	end
 	for _, e in ipairs(game.entities) do
-		if e.kind == "asteroid" then
+		if e.kind == "asteroid" and not e.giant and e.line then
 			local x, y = e.body:getPosition()
-			if e.giant or (math.abs(x - cx) < hw and math.abs(y - cy) < hh) then drawAsteroid(e) end
+			if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
+				if e.radius < dotR and not e.reentry then
+					dots[#dots + 1] = x; dots[#dots + 1] = y
+				else
+					drawAsteroid(e)
+				end
+			end
+		elseif e.kind == "asteroid" then drawAsteroid(e)
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
@@ -1077,6 +1094,11 @@ function Render.world(game)
 		elseif e.kind == "catchring" then drawCatchRing(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end
+	end
+	if #dots > 0 then
+		lg.setColor(0.62, 0.7, 0.76)
+		lg.setPointSize(2)
+		lg.points(dots)
 	end
 	drawLootHover(game)
 	drawTractor(game)

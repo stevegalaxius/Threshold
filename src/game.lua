@@ -70,7 +70,7 @@ function Game:loadField(id, opts)
 	for _, e in ipairs(self.sleepers or {}) do
 		if not e.removed then e.body:destroy(); e.removed = true end
 	end
-	self.sleepers, self.sleepTick = {}, 0
+	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
@@ -194,6 +194,16 @@ function Game:spawnPoint(minD, maxD)
 	return cos(a) * (self.arenaRadius - 300), sin(a) * (self.arenaRadius - 300)
 end
 
+-- What a sleeping piece of debris has instead of a body: just enough for
+-- drawing it (and for anything that asks where it is).
+local Ghost = {}
+Ghost.__index = Ghost
+function Ghost:getPosition() return self.x, self.y end
+function Ghost:setPosition(x, y) self.x, self.y = x, y end
+function Ghost:getAngle() return self.a end
+function Ghost:getLinearVelocity() return 0, 0 end
+function Ghost:destroy() end
+
 -- Sleeping debris. Around a planet, every loose rock, ice chunk and piece
 -- of junk just circles with the current, so the ones far from the player
 -- don't need simulating: they're taken out of the world (their bodies
@@ -213,7 +223,7 @@ function Game:updateSleepers()
 	local w = self.well
 	if not w or self.lane then return end
 	self.sleepTick = (self.sleepTick or 0) + 1
-	if self.sleepTick < T.sleepEvery then return end
+	if self.sleepTick <= T.sleepEvery then return end
 	self.sleepTick = 0
 	local p = self.player
 	local px, py
@@ -227,11 +237,9 @@ function Game:updateSleepers()
 			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
 				local o = e.sleep
 				e.sleep = nil
-				local b = e.body
-				b:setPosition(x, y)
-				b:setActive(true)
+				self:debrisBody(e, x, y, e.body.a, o.spin)
 				local v = o.rate * o.r
-				b:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
 				table.insert(self.entities, e)
 			else
 				keep[#keep + 1] = e
@@ -240,9 +248,9 @@ function Game:updateSleepers()
 	end
 	self.sleepers = keep
 	-- and put the far ones to sleep
-	local ents, i = self.entities, 1
-	while i <= #ents do
-		local e = ents[i]
+	local awake = {}
+	for _, e in ipairs(self.entities) do
+		local slept = false
 		if e.kind == "asteroid" and not e.giant and not e.dead and not e.removed and not e.reentry then
 			local b = e.body
 			local x, y = b:getPosition()
@@ -250,17 +258,19 @@ function Game:updateSleepers()
 				local dx, dy = x - w.x, y - w.y
 				local r2 = dx * dx + dy * dy
 				local vx, vy = b:getLinearVelocity()
-				e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1) }
-				b:setActive(false)
-				table.insert(self.sleepers, e)
-				table.remove(ents, i)
-			else
-				i = i + 1
+				e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1),
+					spin = b:getAngularVelocity() }
+				-- out of the physics world entirely (an inactive body still
+				-- costs Box2D a little every step, and there are thousands)
+				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
+				b:destroy()
+				keep[#keep + 1] = e
+				slept = true
 			end
-		else
-			i = i + 1
 		end
+		if not slept then awake[#awake + 1] = e end
 	end
+	self.entities = awake
 end
 
 -- Debris kinds (see Fields.mixes): shade/colour, how tough per px^2, and
@@ -357,8 +367,21 @@ function Game:spawnAsteroid(x, y, radius, kind)
 	-- jagged outlines can come out concave: keep their convex hull, so
 	-- every piece is a polygon (never a plain circle)
 	if not love.math.isConvex(verts) then verts = convexHull(verts) end
+	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts,
+		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
+		hp = radius * radius * T.asteroidToughness * D.tough }
+	self:debrisBody(e, x, y, random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
+	e.body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
+	table.insert(self.entities, e)
+	return e
+end
+
+-- The physics body for a piece of debris (made again when it wakes).
+function Game:debrisBody(e, x, y, angle, spin)
+	local kind, radius = e.debris, e.radius
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
-	local fixture = love.physics.newFixture(body, love.physics.newPolygonShape(verts), 1)
+	body:setAngle(angle or 0)
+	local fixture = love.physics.newFixture(body, love.physics.newPolygonShape(e.verts), 1)
 	fixture:setRestitution(kind == "ice" and 0.1 or 0.2)
 	fixture:setFriction(kind == "ice" and 0.1 or 0.5)
 	local m = 0.12 * radius * radius * (kind == "ice" and 0.6 or 1)
@@ -366,16 +389,12 @@ function Game:spawnAsteroid(x, y, radius, kind)
 	-- rocks around a planet keep their orbits, so no drag there
 	body:setLinearDamping(self.field and self.field.rockDrag or 0.25)
 	body:setAngularDamping(0.2)
-	body:setAngularVelocity((random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
-	body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
-	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts, body = body, fixture = fixture,
-		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
-		hp = radius * radius * T.asteroidToughness * D.tough }
+	body:setAngularVelocity(spin or 0)
 	fixture:setUserData(e)
 	body:setUserData(e)
-	table.insert(self.entities, e)
-	return e
+	e.body, e.fixture = body, fixture
 end
+
 
 -- Is a circle at (x, y) clear of asteroids and structures (by margin)?
 function Game:isClear(x, y, margin)
