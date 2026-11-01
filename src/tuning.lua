@@ -112,7 +112,7 @@ T.driverFare, T.driverFarePerAU = 100, 60
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).
-T.yearLength = 3600
+T.yearLength = 7200
 
 -- The transit lane: length (base + per AU of distance), the radius of its
 -- arc (at least; long lanes bend more gently), how far each side of the
