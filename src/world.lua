@@ -7,10 +7,10 @@
 	            and credits: src/market.lua). A station's key is "<field>/<n>"
 	            (src/game.lua, spawnWheelStation), so the same station gets
 	            the same record every visit. home is where you last docked.
-	  levels    each playing field (src/fields.lua) is a level. Its contents
-	            are rebuilt fresh on every visit; only the universe lasts.
-	            Saving what's floating in a level (wrecks, containers) can
-	            come later: it would go in the universe the same way.
+	  levels    each named field keeps selected world objects in universe.areas
+	            (src/persistence.lua). Wrecks, containers and loose cargo pause
+	            while unloaded. Scenery and NPCs still regenerate on visits;
+	            transit lanes remain temporary.
 	  travel    mass drivers and the transit lane between planets: see
 	            src/transit.lua.
 	  hangar    every station has a hangar bay: a grid (T.hangarW x
@@ -36,6 +36,7 @@ local Fields = require("src.fields")
 local Hold = require("src.inventory.hold")
 local Save = require("src.save")
 local Grid = require("src.inventory.grid")
+local Persistence = require("src.persistence")
 local events = require("src.events")
 
 local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
@@ -43,7 +44,7 @@ local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
 return function(Game)
 
 function Game:newUniverse()
-	self.universe = { stations = {}, home = nil, credits = T.startCredits, clock = 0 }
+	self.universe = { stations = {}, areas = {}, nextObjectId = 0, home = nil, credits = T.startCredits, clock = 0 }
 end
 
 -- The lasting record for a station: its storage and its hangar.
@@ -283,6 +284,8 @@ end
 
 -- The whole game as one plain table (see src/save.lua).
 function Game:saveState()
+	self:captureArea()
+	if self.trip and self.trip.originScene then self.trip.originScene:captureArea() end
 	local stations = {}
 	for key, r in pairs(self.universe.stations) do
 		local hangar = {}
@@ -294,7 +297,7 @@ function Game:saveState()
 	-- saved mid-transit: you'll be at the far end's driver when you load
 	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
-		credits = u.credits, clock = u.clock }
+		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -314,6 +317,8 @@ end
 
 function Game:loadState(state)
 	self:newUniverse()
+	self.universe.areas = Persistence.copy(state.areas or {})
+	self.universe.nextObjectId = state.nextObjectId or 0
 	for key, r in pairs(state.stations or {}) do
 		local hangar = {}
 		for _, t in ipairs(r.hangar or {}) do table.insert(hangar, loadShip(t)) end
@@ -330,7 +335,7 @@ function Game:loadState(state)
 	self.kills = state.kills or 0
 	local field = Fields[state.field] and state.field or Fields.start
 	local pl = state.player
-	self:loadField(field, { player = pl and loadShip(pl.ship), at = pl and pl.at })
+	self:loadField(field, { player = pl and loadShip(pl.ship), at = pl and pl.at, skipCapture = true })
 	local p = self.player
 	local st = p and p.dockState and p.dockState.station
 	if st and pl.at.bay and self:hangarFree(st, p, p.hull.id, pl.at.bay) then p.bay = pl.at.bay end
@@ -361,7 +366,7 @@ function Game:newGame()
 	Save.delete("auto")
 	self:newUniverse()
 	self.kills = 0
-	self:loadField(Fields.start)
+	self:loadField(Fields.start, { skipCapture = true })
 end
 
 function Game:autosave()
