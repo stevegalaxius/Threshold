@@ -1693,6 +1693,7 @@ end
 -- as its own small wreck, taking what's left of its share with it.
 local function partFixtures(body, part, h, ox, oy)
 	local list = {}
+	if part.collide == false then return list end
 	for _, t in ipairs(part.tris) do
 		local pts = { t[1] - ox, t[2] - oy, t[3] - ox, t[4] - oy, t[5] - ox, t[6] - oy }
 		local tri = math.abs((pts[3] - pts[1]) * (pts[6] - pts[2]) - (pts[5] - pts[1]) * (pts[4] - pts[2]))
@@ -1709,27 +1710,47 @@ end
 
 function Game:breakablePieces(h, ship)
 	local hull = ship.hull
-	local total, core = 0, nil
+	-- the core: a part tagged core, else the biggest one that collides.
+	-- Loot goes to the parts tagged cargo, or to every part if none is.
+	local total, core, tagged = 0, nil, nil
 	for _, part in ipairs(hull.parts) do
 		total = total + part.area
-		if not core or part.area > core.area then core = part end
+		if part.core then tagged = tagged or part end
+		if part.collide ~= false and (not core or part.area > core.area) then core = part end
+	end
+	core = tagged or core
+	local anyCargo = false
+	for _, part in ipairs(hull.parts) do
+		if part.cargo then anyCargo = true end
+	end
+	local function carries(part)
+		return part.collide ~= false and (part.cargo or not anyCargo)
 	end
 	h.pieces, h.armorBase = {}, ship.stats.armor * T.huskToughness
+	local lootTotal = 0
 	for _, part in ipairs(hull.parts) do
-		local piece = { part = part, core = part == core, frac = part.area / total, share = {} }
-		piece.hp = h.armorBase * piece.frac
+		-- parts that never break off count as the core
+		local fixed = part == core or part.breakable == false or part.collide == false
+		local piece = { part = part, core = fixed, frac = part.area / total, share = {} }
+		piece.hp = h.armorBase * piece.frac * (part.armor or 1)
 		piece.fixtures = partFixtures(h.body, part, h, 0, 0)
 		table.insert(h.pieces, piece)
+		if carries(part) then lootTotal = lootTotal + part.area end
 	end
 	-- share the loot out: loose items unit by unit, containers whole
-	for id, n in pairs(Hold.totals(h.hold)) do
-		for _ = 1, n do
-			local r, pick = random() * total, h.pieces[#h.pieces]
-			for _, pc in ipairs(h.pieces) do
-				r = r - pc.part.area
-				if r <= 0 then pick = pc break end
+	if lootTotal > 0 then
+		for id, n in pairs(Hold.totals(h.hold)) do
+			for _ = 1, n do
+				local r, pick = random() * lootTotal, nil
+				for _, pc in ipairs(h.pieces) do
+					if carries(pc.part) then
+						pick = pc
+						r = r - pc.part.area
+						if r <= 0 then break end
+					end
+				end
+				if pick and not pick.core then pick.share[id] = (pick.share[id] or 0) + 1 end
 			end
-			if not pick.core then pick.share[id] = (pick.share[id] or 0) + 1 end
 		end
 	end
 end
@@ -1743,7 +1764,7 @@ function Game:damagePiece(h, amount, hx, hy)
 		local lx, ly = h.body:getLocalPoint(hx, hy)
 		local best = math.huge
 		for _, pc in ipairs(h.pieces) do
-			local d = (lx - pc.part.cx) ^ 2 + (ly - pc.part.cy) ^ 2
+			local d = pc.part.collide == false and math.huge or (lx - pc.part.cx) ^ 2 + (ly - pc.part.cy) ^ 2
 			if d < best then best, piece = d, pc end
 		end
 	else

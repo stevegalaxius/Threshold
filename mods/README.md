@@ -16,3 +16,7 @@ the base game.
 
 Mods can also go in the game's save folder under `mods/`, so players don't
 need to touch the game files.
+
+The Shipyard (F2 in game) exports the hulls you draw to
+`mods/shipyard/data/<id>.lua` in the save folder, in this same format. See
+`src/editor/init.lua` for its controls.

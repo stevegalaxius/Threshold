@@ -67,6 +67,15 @@ function api.hull(def)
 	register("hulls", "hull", def)
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "radius", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
+	local LAYERS = { hull = true, detail = true, glow = true }
+	for i, part in ipairs(def.parts or {}) do
+		local function bad(what) fail(("hull '%s' part %d: %s"):format(def.id, i, what)) end
+		if part.layer ~= nil and not LAYERS[part.layer] then bad("unknown layer '" .. tostring(part.layer) .. "' (use hull, detail or glow)") end
+		if part.color ~= nil and (type(part.color) ~= "table" or #part.color < 3) then bad("color should be { r, g, b }") end
+		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
+		if part.armor ~= nil and type(part.armor) ~= "number" then bad("armor should be a number") end
+		if part.shade ~= nil and type(part.shade) ~= "number" then bad("shade should be a number") end
+	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
 	def.turn = def.turn or 0
@@ -127,6 +136,17 @@ end
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
+end
+
+-- A hull made at runtime (the F2 editor's test flight). Errors come back
+-- as nil, message instead of being thrown.
+function data.defineHull(def)
+	local was = currentFile
+	currentFile = "shipyard"
+	local ok, err = pcall(api.hull, def)
+	currentFile = was
+	if not ok then return nil, err end
+	return def
 end
 
 -- Loading ------------------------------------------------------------------

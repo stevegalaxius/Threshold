@@ -20,6 +20,7 @@ local Cargo = require("src.ui.cargo")
 local Orrery = require("src.ui.orrery")
 local TransitView = require("src.ui.transitview")
 local Pause = require("src.ui.pause")
+local Editor = require("src.editor")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -53,6 +54,12 @@ end
 function love.update(dt)
 	dt = math.min(dt, 1 / 15)
 	Debug.update(dt, game)
+	if Editor.isOpen() then
+		-- the Shipyard pauses the game while it's up
+		Editor.update(dt)
+		love.mouse.setVisible(true)
+		return
+	end
 	if Pause.isOpen() then
 		love.mouse.setVisible(true)
 		if autotest then autotest.update(game, dt) end
@@ -89,6 +96,11 @@ function love.update(dt)
 end
 
 function love.draw()
+	if Editor.isOpen() then
+		Editor.draw()
+		Debug.draw()
+		return
+	end
 	if TransitView.isOpen(game) then
 		TransitView.draw(game)
 		HUD.drawToasts(game, 130)
@@ -112,6 +124,7 @@ local function relaunch()
 end
 
 function love.keypressed(key)
+	if Editor.keypressed(key) then return end
 	if Debug.blocksKeyboard() then return end
 	if Pause.keypressed(game, key) then return end
 	if Orrery.keypressed(game, key) then return end
@@ -123,7 +136,8 @@ function love.keypressed(key)
 	elseif key == "r" then relaunch()
 	elseif key == "q" then game:cycleAux()
 	elseif key == "g" then game:toggleDroneControl()
-	elseif key == "f2" then game:nextField()
+	elseif key == "f2" then Editor.toggle(game)
+	elseif key == "f3" then game:nextField()
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
 	end
@@ -131,7 +145,7 @@ end
 
 function love.gamepadpressed(_, button)
 	if button == "start" and game.state ~= "dead" then Pause.toggle(game) return end
-	if Pause.isOpen() then return end
+	if Pause.isOpen() or Editor.isOpen() then return end
 	if game.state == "docked" and button == "a" then game:undock(); return end
 	if button == "start" then relaunch()
 	elseif button == "y" then game:cycleAux()
@@ -140,6 +154,7 @@ function love.gamepadpressed(_, button)
 end
 
 function love.mousepressed(x, y, button)
+	if Editor.mousepressed(x, y, button) then return end
 	if Debug.blocksMouse() then return end
 	if Pause.mousepressed(game, x, y, button) then return end
 	if Orrery.mousepressed(game, x, y, button) then return end
@@ -147,11 +162,13 @@ function love.mousepressed(x, y, button)
 end
 
 function love.mousereleased(x, y, button)
+	if Editor.mousereleased(x, y, button) then return end
 	if Debug.blocksMouse() then return end
 	Cargo.mousereleased(game, x, y, button)
 end
 
-function love.wheelmoved(_, y)
+function love.wheelmoved(x, y)
+	if Editor.wheelmoved(x, y) then return end
 	if Debug.blocksMouse() then return end
 	if Pause.isOpen() then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
