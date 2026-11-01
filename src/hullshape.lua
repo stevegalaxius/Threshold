@@ -37,8 +37,8 @@
 	               { x, y, kind = "window" | "nav" | "strobe",
 	                 color = { r, g, b }, size = px, rate = flashes/s,
 	                 phase = 0..1 }
-	             windows flicker on and off now and then and go out as the
-	             ship is damaged; nav lights are steady, red to port and
+	             windows stutter when the ship is hit and go out one by one
+	             as it's damaged; nav lights are steady, red to port and
 	             green to starboard; strobes double-flash white
 	  role       free tag for later systems: engine, cockpit, weapon, dock,
 	             light, antenna, rack, ...
@@ -207,9 +207,8 @@ end
 
 -- How bright a light is at `time` (0 = off), for a ship in state
 -- { damage = 0..1, flash = >0 just after a hit }.
---   window  people inside: each one now and then goes dark for a while
---           and comes back; they stutter when the ship's hit and go out
---           one by one as it's damaged
+--   window  steady; they stutter when the ship's hit and go out one by
+--           one as it's damaged
 --   nav     steady running light
 --   strobe  a sharp double flash, rate times a second
 function HullShape.brightness(l, time, state)
@@ -228,10 +227,7 @@ function HullShape.brightness(l, time, state)
 	-- windows
 	if h < damage * 1.1 then return 0 end               -- this deck's lost power
 	if flash > 0 and math.sin(time * 55 + h * 90) > 0 then return 0 end
-	local period = 9 + h * 25
-	local t = (time / period + h * 7) % 1
-	if t < 0.12 then return 0 end                       -- someone turned the light off
-	return 0.75 + 0.25 * math.sin(time * 0.7 + h * 20) ^ 2
+	return 1
 end
 
 -- Draw the lights on parts (all of the hull's, or `only`), offset like

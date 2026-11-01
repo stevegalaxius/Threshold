@@ -127,7 +127,8 @@ local function designWindow(E, Editor)
 	combo("yard_grid", E.grid .. " px", gopts, function(g) E.grid = g end, 120)
 
 	Slab.Separator()
-	Slab.Text("Preview")
+	Slab.Text("Preview: how the canvas shows the ship")
+	Slab.Text("view"); Slab.SameLine()
 	local popts = {}
 	for _, k in ipairs({ "normal", "wreck", "collision", "break" }) do table.insert(popts, { label = PREVIEWS[k], value = k }) end
 	combo("yard_preview", PREVIEWS[E.preview], popts, function(k) E.preview = k end, 140)
@@ -136,6 +137,7 @@ local function designWindow(E, Editor)
 		table.insert(paints, { label = pt.name, value = pt.color })
 		if pt.color == E.paint then current = pt.name end
 	end
+	Slab.Text("paint"); Slab.SameLine()
 	combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
 	Slab.Text("Pretend damage (windows go out)")
 	if Slab.InputNumberSlider("yard_pdamage", E.previewDamage, 0, 1, { W = 160, Precision = 2 }) then E.previewDamage = Slab.GetInputNumber() end
