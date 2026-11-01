@@ -85,9 +85,11 @@ local function pickTarget(game, e, x, y)
 		end
 		return p
 	end
-	local best, bestD = nil, 3000 * 3000
-	-- a station's drones go for whatever the station would shoot
+	-- a station's drones go for whatever the station would shoot, and
+	-- look as far as its drone bays launch at
 	local st = e.owner and e.owner.kind == "station" and e.owner
+	local reach = st and (game.STATION_DRONE_REACH or 5000) + 1000 or 3000
+	local best, bestD = nil, reach * reach
 	for _, o in ipairs(game.entities) do
 		if o.kind == "ship" and not o.dead and (st and game:stationHostile(st, o) or not st and o.team ~= e.team and o.team ~= 3) then
 			local ox, oy = o.body:getPosition()

@@ -729,6 +729,8 @@ local STATION_MULT = { primaryFireRate = 1, primaryDamage = 1, missileDamage = 1
 local ENDLESS = { __index = function() return math.huge end }
 local GRUDGE_TIME = 30        -- seconds a station stays angry at whoever shot it
 local RETARGET = 0.4          -- seconds between each turret's target checks
+local STATION_DRONE_REACH = 5000   -- how near a target a station's drone bays launch at
+Game.STATION_DRONE_REACH = STATION_DRONE_REACH
 
 function Game:armStation(e)
 	local list = {}
@@ -775,7 +777,9 @@ function Game:updateStationGuns(dt)
 			for _, slot in ipairs(st.weapons) do
 				slot.cooldown = max(0, slot.cooldown - dt)
 				local wx, wy = Ship.hardpoint(st, slot.slot)
-				local range = Weapons.range(slot)
+				-- (a drone's "range" is how far it flies on launch; a drone
+				-- bay launches at anything inside STATION_DRONE_REACH)
+				local range = slot.w.kind == "drone" and STATION_DRONE_REACH or Weapons.range(slot)
 				-- now and then, the nearest hostile in reach
 				slot.think = slot.think - dt
 				local tg = slot.target
