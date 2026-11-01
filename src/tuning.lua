@@ -172,7 +172,7 @@ T.dev = { god = false, infiniteAmmo = false, showHold = false }
 T.flightSpecs = {
 	{ key = "flightBase",      label = "Trip view: seconds",             min = 0,    max = 15,    value = 3,     precision = 1 },
 	{ key = "flightPerAU",     label = "Trip view: seconds per AU",      min = 0,    max = 5,     value = 1,     precision = 1 },
-	{ key = "flightClockPerAU", label = "Game clock per AU (s)",         min = 0,    max = 1200,  value = 120,   precision = 0 },
+	{ key = "flightClockPerAU", label = "Game clock per AU (s)",         min = 0,    max = 1200,  value = 0,     precision = 0 },
 	{ key = "catchSpeed",      label = "Arrival speed (px/s)",           min = 500,  max = 6000,  value = 2500,  precision = 0 },
 	{ key = "catchRings",      label = "Braking rings",                  min = 1,    max = 8,     value = 2,     precision = 0 },
 	{ key = "catchSpacing",    label = "Ring spacing (px)",              min = 800,  max = 6000,  value = 2500,  precision = 0 },
