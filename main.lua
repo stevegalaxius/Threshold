@@ -36,12 +36,19 @@ local lastIntent = { aimX = 0, aimY = 0 }
 	(alpha = leftover time / STEP) for the camera and drawing, then put
 	back exactly before the next physics step.
 ]]
+-- Each remember is numbered, so a body that only joined during the step
+-- (sleeping debris woken as the player comes near, still carrying the
+-- position it was remembered at before it slept) isn't drawn between that
+-- stale spot and where it really is.
+local lerpTick = 0
 local function remember(g)
+	lerpTick = lerpTick + 1
 	for _, e in ipairs(g.entities) do
 		local b = e.body
 		if b and not b:isDestroyed() then
 			e.lerpX, e.lerpY = b:getPosition()
 			e.lerpA = b:getAngle()
+			e.lerpTick = lerpTick
 		else
 			e.lerpX = nil
 		end
@@ -51,7 +58,7 @@ end
 local function interpolate(g, alpha)
 	for _, e in ipairs(g.entities) do
 		local b = e.body
-		if e.lerpX and b and not b:isDestroyed() then
+		if e.lerpX and e.lerpTick == lerpTick and b and not b:isDestroyed() then
 			local x, y = b:getPosition()
 			local a = b:getAngle()
 			e.realX, e.realY, e.realA = x, y, a

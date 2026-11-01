@@ -324,13 +324,15 @@ local function drawStation(game, e)
 		lg.translate(d.xc or 0, d.yc or 0)
 		lg.scale(side, side)
 		local x2, hw = d.x2, d.hw
-		-- the door: hazard-striped, lit while a ship is coming in
+		-- the door: hazard-striped, lit while a ship is coming in. The
+		-- stripes sit centred in six equal bands, so the far end of a
+		-- tunnel (this frame turned half round) lines up with the near one.
 		local dw = hw * 0.7
 		lg.setColor(0.09, 0.1, 0.13)
 		lg.rectangle("fill", x2 - d.wall, -dw, d.wall, dw * 2)
 		lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
 		for k = -3, 2 do
-			local y0 = dw * k / 3
+			local y0 = dw * k / 3 + dw / 12
 			lg.rectangle("fill", x2 - d.wall, y0, d.wall, dw / 6)
 		end
 		-- Runway lights: two rows running out from the door, plus a centre
