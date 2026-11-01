@@ -89,6 +89,14 @@ function love.load(args)
 	end
 	Debug.init()
 	game = Game.new()
+	for _, a in ipairs(args or {}) do
+		if a == "--worldtest" then
+			local ok, err = xpcall(function() require("tests.world_expansion")(game) end, debug.traceback)
+			if not ok then print(err) end
+			love.event.quit(ok and 0 or 1)
+			return
+		end
+	end
 	love.mouse.setVisible(false)
 	if autotest then
 		autotest.start(game)

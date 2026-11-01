@@ -120,6 +120,25 @@ so they can only define content.
 damage breakdown, saves screenshots to the save folder, then quits. Run it
 after changing data or flight code.
 
+## Expanded destinations
+
+Io and Callisto use Jupiter's existing moon highways; Enceladus uses Saturn's,
+and Deimos joins Phobos at Mars. Fly through the marked departure arc at the
+parent map's edge to reach a moon, and use the moon's return arc to come back.
+Pluto is a mass-driver destination (the `-` shortcut in the target window).
+
+Phobos and Deimos are large strip-mining stations with recessed tractor docks,
+processing containers, scaffolding, local haulers and supply markets. Their
+`mine_phobos` and `mine_deimos` layouts can be opened and exported in the F2
+Shipyard after visiting their maps. Mars keeps the Heaven-Ladder and its existing
+stations, with nine local traders and much less rock debris.
+
+`love . --worldtest` runs targeted checks for the expanded destinations: highway
+arrival and return, mine editor export, tractor capture, docked save/load, and
+Pluto's targeting shortcut. It exits with a failing status on an assertion and
+writes `phobos-strip-mine.png` to the game's save directory for visual inspection.
+The existing `love . --autotest` also exercises all moon round trips.
+
 ## Known gaps (on purpose for this milestone)
 
 - No economy or market yet, and levels don't remember what's floating in them (wrecks, containers) when you leave.
