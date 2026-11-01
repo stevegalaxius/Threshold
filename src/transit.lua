@@ -457,7 +457,7 @@ function Game:launchTrip(to, moon)
 		half = Fields.laneLength(au) / 2
 	end
 	local _, rot = Game.laneShape(half * 2, bearing)
-	self.trip = { from = from, to = to, au = au, length = half * 2, rot = rot }
+	self.trip = { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil }
 	-- No run-up and no cut. The planet you left is drawn behind the lane's
 	-- mouth (trip.origin, src/render.lua), and you carry on from exactly
 	-- where you were relative to it, at the same speed and heading, a
@@ -501,7 +501,7 @@ end
 function Game:laneExit(back)
 	local p = self.player
 	local vx, vy = p.body:getLinearVelocity()
-	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy }
+	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy, moon = self.trip and self.trip.moon }
 	local px, py = p.body:getPosition()
 	if not back then
 		local cx, cy = self:laneDestination()
@@ -563,7 +563,7 @@ function Game:placeAtDriver(p, exit)
 		end
 		p.body:setPosition(x, y)
 		-- the lane's glow and streaks fade off you instead of blinking out
-		p.laneFade = 1
+		if not exit.moon then p.laneFade = 1 end
 	else
 		local gx, gy = breech(g)
 		local ix, iy = -cos(g.angle), -sin(g.angle)
@@ -749,7 +749,8 @@ function Game:updateLane(dt)
 			if e.kind == "ship" then
 				-- in the lane: the buff (thrust up, drag down)
 				local k = self:laneStrength(n)
-				e.laneBuff = k > 0 and k or nil
+				-- (not on a moon trip: just your own ship in open space)
+				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 			end
 			-- soft walls well outside the lane, and the near end
 			local over = abs(n) - (W + T.laneRamp + 2500)
