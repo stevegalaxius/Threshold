@@ -534,8 +534,8 @@ function Game:placeAtDriver(p, exit)
 					local sx, sy = e.body:getPosition()
 					local dx, dy = sx - x, sy - y
 					local along, across = dx * fx + dy * fy, dx * fy - dy * fx
-					local need = (e.radius or 1000) + 600
-					if along > 0 and along < T.arrivalWakeTime * sp and math.abs(across) < need then
+					local need = (e.radius or 1000) + 900
+					if along > 0 and along < 14000 and math.abs(across) < need then
 						hit = (across >= 0 and -1 or 1) * (need - math.abs(across) + 200)
 						break
 					end

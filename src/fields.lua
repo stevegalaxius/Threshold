@@ -292,7 +292,7 @@ Fields.ring = {
 		end
 		-- thick rock from the clear zone out to the edge
 		local area = pi * (26000 ^ 2 - 6500 ^ 2) / 1e6
-		game:spawnAsteroids(floor(area * 0.35), 6500)
+		game:spawnAsteroids(floor(area * 0.18), 6500)
 		game:spawnContainers(T.fieldContainers, 4500)
 	end,
 }
@@ -318,7 +318,7 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000,
-	density = 0.3, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
+	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,

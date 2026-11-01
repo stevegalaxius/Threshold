@@ -140,10 +140,6 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- from the player stop being simulated and just follow their orbit, and
 -- wake inside sleepNear; checked every sleepEvery steps.
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
--- Coming off the highway, the lane glow pushes loose debris aside: it lasts
--- arrivalWakeTime s, reaches arrivalWakeAhead s of travel ahead, is
--- arrivalWakeWidth half-wide, and shoves at arrivalWakePush x your speed.
-T.arrivalWakeTime, T.arrivalWakeAhead, T.arrivalWakeWidth, T.arrivalWakePush = 3, 0.5, 260, 0.5
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
