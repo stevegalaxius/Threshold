@@ -410,3 +410,21 @@ Both get the blue transit glow and immunity to damage and weapon knockback
 while captured, held or being fired off. Losing the beam or cancelling the
 targeting menu releases that protection. NPC launch phases survive save/load.
 Run `love . --drivertest` and `love . --tasktest` for these launch regressions.
+
+
+## NPC traffic debugging
+
+Press **F4**, or use **F1 > A-Life records and connections > NPC traffic monitor**.
+The live route board groups directed journeys and shows each NPC progressing
+from departure to arrival. Click a marker for identity, role, task, cargo,
+online/offline state, launch phase, departure/arrival clock and ETA. Hover for
+quick details; click again to cycle stacked markers.
+
+**Tab** toggles moon routes, the wheel scrolls routes or the inspector, and
+**Space** freezes/resumes the displayed snapshot. Freezing the view does not
+pause or advance the game. The header identifies an already-paused simulation.
+**Escape/F4** closes it. The monitor is a debug schematic, not a gameplay map or
+a claim about physical solar-system positions. It reads existing records without
+advancing remote NPCs, spawning bodies or teleporting the player. Arrival timers
+that have expired but await a simulation tick are marked as pending.
+Run `love . --traffictest` for diagnostic data and UI regression checks.

@@ -258,6 +258,7 @@ local function graphSection(game)
  end
  local graph=G.build(game.fieldId)
  Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
+ if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
  if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
  for id,r in pairs(game.universe.npcs or {}) do
   if r.area==game.fieldId then
@@ -286,7 +287,7 @@ end
 
 function Debug.update(dt, game)
 	Slab.Update(dt)
-	if not Debug.visible then return end
+	if not Debug.visible or game.npcTraffic then return end
 	local h = love.graphics.getHeight()
 	Slab.BeginWindow("dbg_window", {
 		Title = "Debug  (F1 hides)", X = love.graphics.getWidth() - 380, Y = 140,

@@ -19,6 +19,7 @@ local Debug = require("src.debugui")
 local Cargo = require("src.ui.cargo")
 local Orrery = require("src.ui.orrery")
 local LocalMap = require("src.ui.localmap")
+local Traffic=require("src.ui.npc_traffic")
 local TransitView = require("src.ui.transitview")
 local Pause = require("src.ui.pause")
 local Editor = require("src.editor")
@@ -91,9 +92,9 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	for _, a in ipairs(args or {}) do
-		if a == "--drivertest" or a == "--moonboundarytest" or a == "--hullthrusttest" or a == "--computervarianttest" or a == "--ordnancetest" or a == "--exhausttest" or a == "--enginetest" or a == "--tasktest" or a == "--debugtraveltest" or a == "--marsjobtest" or a == "--editortest" or a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" or a == "--maptest" or a == "--alifetest" or a == "--tradertest" or a == "--navtest" or a == "--idletest" or a == "--navcomputertest" then
+		if a == "--traffictest" or a == "--drivertest" or a == "--moonboundarytest" or a == "--hullthrusttest" or a == "--computervarianttest" or a == "--ordnancetest" or a == "--exhausttest" or a == "--enginetest" or a == "--tasktest" or a == "--debugtraveltest" or a == "--marsjobtest" or a == "--editortest" or a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" or a == "--maptest" or a == "--alifetest" or a == "--tradertest" or a == "--navtest" or a == "--idletest" or a == "--navcomputertest" then
 			game.autosaveOff = true
-			local suite = a == "--drivertest" and "tests.driver_launch" or a == "--moonboundarytest" and "tests.moon_boundary" or a == "--hullthrusttest" and "tests.hull_thrust" or a == "--computervarianttest" and "tests.computer_variants" or a == "--ordnancetest" and "tests.ordnance_computer" or a == "--exhausttest" and "tests.exhaust_damage" or a == "--enginetest" and "tests.engine_visual" or a == "--tasktest" and "tests.tasks" or a == "--debugtraveltest" and "tests.debug_travel" or a == "--marsjobtest" and "tests.mars_jobs" or a == "--editortest" and "tests.editor_loadout" or a == "--navcomputertest" and "tests.navigation_computer" or a == "--idletest" and "tests.highway_idle" or a == "--navtest" and "tests.trader_navigation" or a == "--tradertest" and "tests.trader_travel" or a == "--alifetest" and "tests.alife" or a == "--maptest" and "tests.localmap" or a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
+			local suite = a == "--traffictest" and "tests.npc_traffic" or a == "--drivertest" and "tests.driver_launch" or a == "--moonboundarytest" and "tests.moon_boundary" or a == "--hullthrusttest" and "tests.hull_thrust" or a == "--computervarianttest" and "tests.computer_variants" or a == "--ordnancetest" and "tests.ordnance_computer" or a == "--exhausttest" and "tests.exhaust_damage" or a == "--enginetest" and "tests.engine_visual" or a == "--tasktest" and "tests.tasks" or a == "--debugtraveltest" and "tests.debug_travel" or a == "--marsjobtest" and "tests.mars_jobs" or a == "--editortest" and "tests.editor_loadout" or a == "--navcomputertest" and "tests.navigation_computer" or a == "--idletest" and "tests.highway_idle" or a == "--navtest" and "tests.trader_navigation" or a == "--tradertest" and "tests.trader_travel" or a == "--alifetest" and "tests.alife" or a == "--maptest" and "tests.localmap" or a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
 				or a == "--persisttest" and "tests.persistence" or "tests.world_expansion"
 			local ok, err = xpcall(function() require(suite)(game) end, debug.traceback)
 			if not ok then print(err) end
@@ -137,11 +138,11 @@ function love.update(dt)
 	if autotest then
 		intent = autotest.intent(game, dt)
 	else
-		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game), Debug.blocksKeyboard() or LocalMap.isOpen(game))
+		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game), Debug.blocksKeyboard() or LocalMap.isOpen(game) or Traffic.isOpen(game))
 		-- With the cargo screen up the mouse is busy, so hold the aim
 		-- straight ahead instead of chasing the cursor.
 		local p = game.player
-		if (Cargo.isOpen(game) or LocalMap.isOpen(game)) and p and not p.dead then
+		if (Cargo.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game)) and p and not p.dead then
 			local x, y = p.body:getPosition()
 			local a = p.body:getAngle()
 			intent.aimX, intent.aimY = x + math.cos(a) * 700, y + math.sin(a) * 700
@@ -160,12 +161,13 @@ function love.update(dt)
 	interpolate(game, accumulator / STEP)
 	game:frame(dt, intent.aimX, intent.aimY)
 	Cargo.update(game)
-	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game))
+	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game))
 
 	if autotest then autotest.update(game, dt) end
 end
 
 function love.draw()
+	if Traffic.isOpen(game) then Traffic.draw(game);return end
 	if Editor.isOpen() then
 		Editor.draw()
 		Debug.draw()
@@ -200,6 +202,8 @@ local function relaunch()
 end
 
 function love.keypressed(key)
+	if key=="f4" then Traffic.toggle(game);return end
+	if Traffic.keypressed(game,key) then return end
 	if Editor.keypressed(key) then return end
 	if Debug.blocksKeyboard() then return end
 	if Pause.keypressed(game, key) then return end
@@ -223,7 +227,7 @@ end
 
 function love.gamepadpressed(_, button)
 	if button == "start" and game.state ~= "dead" then Pause.toggle(game) return end
-	if Pause.isOpen() or Editor.isOpen() or LocalMap.isOpen(game) then return end
+	if Pause.isOpen() or Editor.isOpen() or LocalMap.isOpen(game) or Traffic.isOpen(game) then return end
 	if game.state == "docked" and button == "a" then game:undock(); return end
 	if button == "start" then relaunch()
 	elseif button == "y" then game:cycleAux()
@@ -232,6 +236,7 @@ function love.gamepadpressed(_, button)
 end
 
 function love.mousepressed(x, y, button)
+	if Traffic.mousepressed(game,x,y,button) then return end
 	if Editor.mousepressed(x, y, button) then return end
 	if Debug.blocksMouse() then return end
 	if Pause.mousepressed(game, x, y, button) then return end
@@ -241,6 +246,7 @@ function love.mousepressed(x, y, button)
 end
 
 function love.mousereleased(x, y, button)
+	if Traffic.isOpen(game) then return end
 	if Editor.mousereleased(x, y, button) then return end
 	if Debug.blocksMouse() then return end
 	if LocalMap.mousereleased(game) then return end
@@ -248,6 +254,7 @@ function love.mousereleased(x, y, button)
 end
 
 function love.wheelmoved(x, y)
+	if Traffic.wheelmoved(game,y) then return end
 	if Editor.wheelmoved(x, y) then return end
 	if Debug.blocksMouse() then return end
 	if Pause.isOpen() then return end
