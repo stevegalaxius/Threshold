@@ -45,7 +45,7 @@ function Exhaust.update(game,dt)
    for _,nozzle in ipairs(Engine.emitters(source)) do
     local damage=(nozzle.effect.damage or 0)*source.mainBurn*dt
     if damage>0 then
-     local x,y,w,length=Engine.geometry(nozzle,source.mainBurn,source.afterburn,game.time,true)
+     local x,y,w,length=Engine.geometry(nozzle,source.mainBurn,Engine.boostLevel(source),game.time,true)
      local triangle={source.body:getWorldPoints(x,y-w,x,y+w,x-length,y)}
      local minx,miny,maxx,maxy=math.huge,math.huge,-math.huge,-math.huge
      for i=1,6,2 do

@@ -29,7 +29,7 @@ T.specs = {
 	{ key = "ramDamageScale", label = "Ram damage",             min = 0,   max = 0.003, value = 0.0005, precision = 5 },
 	{ key = "boostThrust",    label = "Afterburner thrust (x main)", min = 1, max = 6, value = 3,  precision = 2 },
 	{ key = "boostDrain",     label = "Afterburner drain (capacity/s)", min = 0, max = 2, value = 0.15, precision = 2 },
-	{ key = "boostRelight",   label = "Afterburner relights at (capacity)", min = 0, max = 1, value = 0.3, precision = 2 },
+	{ key = "boostRelight",   label = "Afterburner capacitor reserve (capacity)", min = 0, max = 1, value = 0.3, precision = 2 },
 	{ key = "boostReserve",   label = "Afterburner on reserve (share of its extra thrust)", min = 0, max = 1, value = 0.75, precision = 2 },
 	{ key = "thrustRecharge", label = "Power recharge while thrusting", min = 0, max = 1, value = 0.35, precision = 2 },
 	{ key = "surfacePull", label = "Surface inward pull (px/s2)", min = 0, max = 100, value = 35, precision = 0 },

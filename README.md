@@ -539,3 +539,11 @@ incomplete designs, preview cleanup, and the actual F1 key handler.
 death and stale-body cleanup, plus distance culling/rematerialization. Online
 ownership ends before a body is destroyed; ordinary culling preserves the record
 and its duty instead of marking the ship gone.
+
+Afterburner reserve protects the configured capacitor floor (30% by default).
+Holding boost stays at reduced output once that floor is reached, without
+cycling to empty and back. Release boost to recharge and rearm full output.
+Weapons and passive power deficits can still use charge below the reserve.
+Engine plumes interpolate between normal, reserve and full boost; their damage
+bounds use the same geometry. `love . --afterburntest` checks reserve stability,
+rearming, energy accounting, actual thrust and corresponding flame sizes.
