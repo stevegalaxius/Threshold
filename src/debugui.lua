@@ -231,6 +231,7 @@ local function readout(game)
 		("Mass             %.0f t  (dry %.0f + hold %.0f)"):format(perf.mass, s.mass * T.massScale, p.cargoMass * T.massScale),
 		("Acceleration     %.0f px/s2"):format(perf.accel),
 		("Top speed        %.0f px/s"):format(perf.topSpeed),
+		("Max afterburner  %.0f px/s (full power)"):format(perf.afterburnTopSpeed),
 		("Turn accel       %.1f rad/s2"):format(perf.turnAccel),
 		("Max turn speed   %.0f deg/s"):format(perf.turnSpeed),
 		("Side accel       %.0f px/s2  (maneuvering thrusters)"):format(perf.sideAccel),

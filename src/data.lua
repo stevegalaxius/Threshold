@@ -63,8 +63,9 @@ local HullShape = require("src.hullshape")
 
 local api = {}
 
-function api.hull(def)
-	register("hulls", "hull", def)
+local function prepareHull(def)
+	if type(def) ~= "table" then fail("hull expects a table") end
+	need(def, "id", "hull"); need(def, "name", "hull")
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
 	local LAYERS = { hull = true, detail = true, glow = true }
@@ -103,6 +104,18 @@ function api.hull(def)
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
+end
+
+function api.hull(def)
+	prepareHull(def)
+	return register("hulls", "hull", def)
+end
+
+-- Validate and prepare an isolated preview without replacing a catalogue hull.
+function data.prepareHull(def)
+	local ok, err = pcall(prepareHull, def)
+	if not ok then return nil, err end
+	return def
 end
 
 -- A wreck: a derelict built from parts, placed in the world rather than

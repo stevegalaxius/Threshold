@@ -518,3 +518,19 @@ event director remain future work.
 Run `love . --securitytest` for role-specific autonomous duties, population
 identity, target selection, physical combat and navigation, save/load, offline
 ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
+
+## Shipyard comparison
+
+In F2, click **Compare ships** to open a movable, resizable comparison window.
+The left column follows the current unsaved design; the right column selects a
+ship from the hull list. Both use their fitted default modules and cargo, with
+an option to empty both holds. Invalid or unfinished designs show an explanation
+while the reference ship remains available. Preview ships live in a separate
+physics world and do not replace the live ship or registered hull definitions.
+
+The window includes the F1 handling numbers, power, armor, hold capacity and
+maximum afterburner speed. The same afterburner maximum now appears in F1; it is
+the full-power speed relative to the local current before capacitor reserve mode.
+F1 can toggle the debug panel while the editor or its text inputs have focus.
+Run `love . --comparetest` for handling parity, live edits, empty holds,
+incomplete designs, preview cleanup, and the actual F1 key handler.

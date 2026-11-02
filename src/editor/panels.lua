@@ -264,6 +264,11 @@ local function designWindow(E, Editor)
 	if Slab.Button("Undo") then E.undoStep() end
 	Slab.SameLine()
 	if Slab.Button("Redo") then E.redoStep() end
+	if not E.isPlaced() and Slab.Button("Compare ships") then
+		local comparison=require("src.editor.comparison")
+		comparison.open=not comparison.open
+		if not comparison.open then comparison.clear() end
+	end
 
 	Slab.Separator()
 	Slab.Text("Tool")
@@ -650,6 +655,7 @@ end
 function Panels.update(E, Editor)
 	designWindow(E, Editor)
 	partWindow(E)
+	require("src.editor.comparison").update(E)
 end
 
 return Panels

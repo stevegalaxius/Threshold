@@ -416,6 +416,7 @@ function Editor.open(game)
 end
 
 function Editor.close()
+	require("src.editor.comparison").clear()
 	if E.design then Export.autosave(E.design) end
 	E.isOpenFlag = false
 	E.drag, E.drawing = nil, nil

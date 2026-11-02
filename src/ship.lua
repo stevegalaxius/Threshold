@@ -37,7 +37,7 @@ function Ship.emptyIntent()
 end
 
 --[[ Ship.new(game, opts)
-	opts.hull     hull id
+	opts.hull     hull id, or a prepared hull table for an isolated preview
 	opts.loadout  module ids by slot (defaults to the hull's loadout)
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
@@ -49,7 +49,7 @@ end
 	opts.armor    armor to start with (defaults to full)
 ]]
 function Ship.new(game, opts)
-	local hull = assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
+	local hull = type(opts.hull)=="table" and opts.hull or assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
 	local e = {
 		kind = "ship", id = game:nextId(), team = opts.team or 2,
 		hull = hull, def = opts.enemy,
@@ -450,6 +450,8 @@ function Ship.performance(e)
 		mass = m,
 		accel = thrust / m,
 		topSpeed = sqrt(thrust / k),
+		-- Full-capacitor maximum; reserve mode has a lower thrust multiplier.
+		afterburnTopSpeed = sqrt(max(e.stats.thrust * T.boostThrust, e.stats.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale / k),
 		sideAccel = turnHelm and 0 or aux / m,
 		turnAccel = torque / e.body:getInertia(),
 		turnSpeed = math.deg(cap),
