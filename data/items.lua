@@ -78,3 +78,5 @@ container { id = "cargo_container", name = "Cargo container", maker = "Ferrous C
 		{ "shell_s_crate", 4, 18, 0.35 }, { "missile_s_crate", 2, 8, 0.3 },
 		{ "scrap", 2, 12, 0.7 }, { "salvage_kit", 1, 4, 0.4 },
 	} }
+
+salvage { id = "martian_ore", name = "Martian ore", volume = 1, mass = 1, price = 30, w = 1, h = 1, stack = 1 }

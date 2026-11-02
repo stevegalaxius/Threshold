@@ -291,3 +291,9 @@ and a larger X with a ring marks the obstacle surface. The warning clears
 immediately when danger passes.
 `love . --navcomputertest` checks warning lifetime, direction, near misses,
 stationary motion, incoming hazards, docking/catching, and removing the module.
+
+### Mars mining slice
+
+Phobos and Deimos have permanent surface mining stations, retaining their rocky moon bodies. Mars traders reserve ore-hauling jobs at station departure instead of continuing fixed trading loops. Each mine produces one unit of Martian ore per 12 seconds, stores up to 80 units, and permits two reserved pickups. Haulers carry up to 10 units, constrained by cargo space, and deliver them to their Mars station. Unassigned traders wait docked; dead or escaped traders release reservations. Mine stocks, assignments, cargo, and delivery totals persist through saves and offline travel. Combat NPCs are unchanged.
+
+The travel-graph debug overlay shows pickup/delivery assignments and waiting traders. Existing saved Mars traders adopt jobs at their next Mars docking departure. Run `love . --marsjobtest` for the production/reservation/delivery and physical mine-docking checks. Delivered ore is recorded as station supply; industrial consumption and player job contracts are not implemented yet.

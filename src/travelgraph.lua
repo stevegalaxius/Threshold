@@ -168,6 +168,8 @@ function G.draw(game,px)
    lg.circle('fill',x,y,4*px)
    lg.push(); lg.translate(x+8*px,y+5*px); lg.scale(px)
    lg.print(id..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
+   if r.job then lg.print(r.job.phase..' '..r.job.amount..' ore / '..r.job.mine,0,14)
+   elseif r.jobStatus then lg.print(r.jobStatus,0,14) end
    lg.pop()
   end
  end

@@ -36,7 +36,7 @@ return function(game)
 		local st
 		for _, e in ipairs(game.entities) do if e.kind == "station" then st = e break end end
 		if id == "phobos" or id == "deimos" then
-			check(st == nil, "Martian moon body was replaced by a station")
+			check(st and st.surfaceMine and st.locationId == id .. "/strip_mine", "Martian moon is missing its surface mine")
 			check(game.well and game.well.planet.kind == "planet" and game.well.planet.rock,
 				"Martian moon lost its rocky body")
 			check(game.well.radius == (id == "phobos" and 1400 or 800), "incorrect Martian moon size")

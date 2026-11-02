@@ -1182,7 +1182,7 @@ function Game:updateDockedShip(e, dt)
 	else
 		b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
 	end
-	if ds.stay and ds.t >= ds.stay then self:undockShip(e) end
+	if ds.stay and ds.t >= ds.stay and (not e.alifeId or self:traderCanDepart(e,ds.station)) then self:undockShip(e) end
 end
 
 -- Launch a docked ship back out of the door.

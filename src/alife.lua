@@ -37,8 +37,8 @@ local function start(r,clock,index)
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
 end
 
-local function roundTrip(home,to,clock)
- local a,b=Fields[home].stationIds[1],Fields[to].stationIds[1]
+local function roundTrip(home,to,clock,homeStation)
+ local a,b=homeStation or Fields[home].stationIds[1],Fields[to].stationIds[1]
  if not a or not b then return end
  local out,back=home..'/to_'..to,to..'/to_'..home
  if not L.byId[out] or not L.byId[back] then return end
@@ -70,12 +70,15 @@ local function neighbours(area)
 end
 
 -- Plan the next journey when leaving either trading destination.
-local function adoptTrip(r,station,clock)
- if r.tripDestination and (station==Fields[r.home].stationIds[1]
+local function adoptTrip(r,station,clock,u)
+ if r.home=='mars' and u then
+  if not require('src.jobs').depart(u,r,station,clock) then return false end
+ end
+ if r.tripDestination and (station==(r.tradeHome or Fields[r.home].stationIds[1])
   or station==Fields[r.tripDestination].stationIds[1]) then
   -- Plan at departure: buoys orbit while moon exits stay fixed. Existing saves
   -- pick up the new connections here without moving ships already in flight.
-  local route=roundTrip(r.home,r.tripDestination,clock)
+  local route=roundTrip(r.home,r.tripDestination,clock,r.tradeHome)
   if not route then return false end
   r.tripRoute=route
   r.route=copy(route); r.onRoundTrip=true
@@ -114,6 +117,10 @@ function A.seed(game)
     start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
     local elapsed=(r.arrive-r.depart)*i/(f.alifeTraders+1)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
+    if area=='mars' then
+     r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil
+     r.index=i%2==0 and 3 or 1;r.state='docked';r.untilTime=u.clock+i*2
+    end
     u.npcs[id]=r
    end
   end
@@ -137,11 +144,11 @@ end
 
 local function dockingStop(r,id)
  if L.get(id).kind~='station' then return false end
- return not r.onRoundTrip or id==Fields[r.home].stationIds[1]
+ return not r.onRoundTrip or id==(r.tradeHome or Fields[r.home].stationIds[1])
   or id==Fields[r.tripDestination].stationIds[1]
 end
 
-function A.advance(r,clock)
+function A.advance(r,clock,u)
  if r.state=='dead' or r.state=='escaped' then return end
  -- Complete elapsed activities using their event times, not frame steps.
  while true do
@@ -154,7 +161,8 @@ function A.advance(r,clock)
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
    if clock<r.untilTime then return end
-   adoptTrip(r,r.route[r.index],r.untilTime)
+   local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)
+   if r.home=='mars' and u and not adopted then r.untilTime=clock+10;return end
    start(r,r.untilTime,r.index%#r.route+1)
   else return end
  end
@@ -451,9 +459,20 @@ function A.wake(game,r)
 end
 
 function A.install(Game)
+ function Game:traderCanDepart(e,station)
+  local r=self.universe.npcs[e.alifeId]
+  if not r or r.home~='mars' then return true end
+  A.capture(self,e,false)
+  local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
+  if not ok then return false end
+  e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
+  e.jobPrepared=true
+  return true
+ end
  function Game:traderUndocked(e,station)
   local r=self.universe.npcs[e.alifeId]
-  if adoptTrip(r,station.locationId,self.universe.clock) then
+  if e.jobPrepared or adoptTrip(r,station.locationId,self.universe.clock,self.universe) then
+   e.jobPrepared=nil
    start(r,self.universe.clock,r.index%#r.route+1)
    bindRoute(self,e,r)
   end
@@ -520,7 +539,7 @@ function A.install(Game)
   for id,r in pairs(records) do
    if not self.alifeOnline[id] then
     local localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock) end
+    if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock,self.universe) end
     local lane=A.laneSample(self,r,clock)
     local egress=A.egressSample(self,r,clock)
     localArea=r.area==self.fieldId and not self.lane and not self.flight

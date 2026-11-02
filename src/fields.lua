@@ -270,7 +270,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, city = o.city, alifeTraders = o.stations and (o.traders or 3),
+		stationTrack = not o.surfaceMine and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -287,7 +287,10 @@ local function planetField(o)
 			if o.gas then planet.rings = bands end
 			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale, field.stationIds[1]) end
 			if o.extra then o.extra(game, R) end
-			if o.stations then
+			if o.surfaceMine then
+				local mine=game:spawnStation('zhuhai_strip_mine',0,0,0,false,field.stationIds[1])
+				mine.surfaceMine=true
+			elseif o.stations then
 				-- Two wheel stations out past the belt.
 				-- Both ride a track around the planet at opposite ends, moving at
 				-- the current's speed at that altitude (what a free station drifts at).
@@ -415,9 +418,9 @@ Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
-Fields.phobos = planetField({ name = "Phobos", R = 1400, depth = 9000, rocky = true, parent = "mars",
+Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, parent = "mars",
 	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
-Fields.deimos = planetField({ name = "Deimos", R = 800, depth = 9000, rocky = true, parent = "mars",
+Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, parent = "mars",
 	hue = { 0.55, 0.48, 0.42 }, density = 0.1, mix = { rock = 1 }, belt = 1.0, beltIn = 0.15, beltOut = 0.4 })
 Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter",
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
@@ -471,6 +474,7 @@ Fields.lane = {
 -- Stable authored station IDs. Display names may change without changing
 -- these references. Factory calls pass these IDs explicitly to each body.
 local stationIds = {
+	phobos = { "strip_mine" }, deimos = { "strip_mine" },
 	mercury = { "terminator_station", "dawnline_station" },
 	venus = { "hub_station", "cloudline_station" }, earth = { "orbital_one", "orbital_two" },
 	mars = { "station_alpha", "station_beta" }, belt = { "ceres_dock", "piazzi_station" },
@@ -493,7 +497,14 @@ for _, area in ipairs(Fields.list) do
 	end
 	for i, id in ipairs(stationIds[area] or {}) do
 		local motion, spin
-		if F.city and i == 1 then
+		if F.surfaceMine then
+			local outline=Fields.rockShape(F.name,F.planetR,F.lumpy,F.maria).outline
+			local x,y=0,math.huge
+			for j=1,#outline,2 do
+				if outline[j+1]<y then x,y=outline[j],outline[j+1] end
+			end
+			motion,spin={type="fixed",x=x,y=y-100},0
+		elseif F.city and i == 1 then
 			local tunnel = require("src.stations").CITY_TUNNEL
 			local top, bottom = F.planetR - 60 - tunnel, F.planetR - F.planetR / 13 + tunnel + 100
 			motion = { type = "cloud", a = -pi / 2 + 0.35, r = (top + bottom) / 2,

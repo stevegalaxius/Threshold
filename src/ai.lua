@@ -42,7 +42,7 @@ local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
 	local speed = sqrt(vx * vx + vy * vy)
 	for _, o in ipairs(game.entities) do
 		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy"
-			and not (o.kind == "planet" and target and target.city and game.well and game.well.gas) then
+			and not (o.kind == "planet" and target and ((target.city and game.well and game.well.gas) or (target.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(target.body:getY(),target.body:getX())))<.25))) then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
 			local orad = (o.kind == "ship") and o.halfLength or o.radius
@@ -229,7 +229,7 @@ local function trade(game, e, dt)
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
 		-- outweigh the route, and slows down while something's in the way.
-		local avx, avy, danger = avoidCollisions(game, e, stop.city and stop or nil, x, y, vx, vy, ai.horizon or 4.5)
+		local avx, avy, danger = avoidCollisions(game, e, (stop.city or stop.surfaceMine) and stop or nil, x, y, vx, vy, ai.horizon or 4.5)
 		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
