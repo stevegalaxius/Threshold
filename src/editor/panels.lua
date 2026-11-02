@@ -376,9 +376,14 @@ local function designWindow(E, Editor)
 		Slab.EndTree()
 	end
 	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
+		d.loadout = d.loadout or require("src.editor.export").hullDef(d).loadout or {}
 		local remove
 		for i, slot in ipairs(d.slots) do
 			Slab.PushID("yard_slot" .. i)
+			local function clearInvalidDefault()
+				local m = data.modules[d.loadout[i]]
+				if not m or not data.fits(slot, m) then d.loadout[i] = false end
+			end
 			local selected = E.slotSel == i
 			local c = Canvas.SLOT_COLORS[slot.family]
 			if Slab.TextSelectable(("%s%d."):format(selected and ">" or " ", i), { IsSelectableTextOnly = true, Color = c }) then E.slotSel = i end
@@ -390,12 +395,13 @@ local function designWindow(E, Editor)
 				slot.family = f
 				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end
 				if f ~= "primary" and f ~= "secondary" and f ~= "auxiliary" then slot.mount = nil end
+				clearInvalidDefault()
 			end, 95)
 			if not SIZELESS[slot.family] then
 				Slab.SameLine()
 				local sopts = {}
 				for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
-				combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+				combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s; clearInvalidDefault() end, 50)
 			end
 			if slot.family == "primary" or slot.family == "secondary" or slot.family == "auxiliary" then
 				-- weapon slots can mount differently from the hull's default
@@ -411,12 +417,22 @@ local function designWindow(E, Editor)
 			end
 			Slab.SameLine()
 			if Slab.Button("x", { W = 18, H = 18, Tooltip = "Remove this slot" }) then remove = i end
+			local options = { { label = "(empty)", value = false } }
+			for _, id in ipairs(data.list.modules) do
+				local m = data.modules[id]
+				if data.fits(slot, m) then table.insert(options, { label = m.name, value = id }) end
+			end
+			local current = data.modules[d.loadout[i]]
+			Slab.Text("Default item"); Slab.SameLine()
+			combo("yard_slotdefault" .. i, current and current.name or "(empty)", options,
+				function(id) E.pushUndo(); d.loadout[i] = id end, 220)
 			Slab.PopID()
 		end
-		if remove then E.pushUndo(); table.remove(d.slots, remove); E.slotSel = nil end
+		if remove then E.pushUndo(); table.remove(d.loadout, remove); table.remove(d.slots, remove); E.slotSel = nil end
 		if Slab.Button("Add slot") then
 			E.pushUndo()
 			table.insert(d.slots, { family = "primary", size = "S", x = 0, y = 0 })
+			d.loadout[#d.slots] = false
 			E.slotSel = #d.slots
 		end
 		Slab.Text("Modules that no longer fit a slot are", { Color = { 0.6, 0.6, 0.6 } })

@@ -102,9 +102,11 @@ local function setBase(id, keep)
 	if not keep then
 		E.design.stats = {}
 		E.design.slots = h and Export.copy(h.slots) or {}
+		E.design.loadout = h and Export.copy(h.loadout or {}) or {}
 	end
 	E.design.stats = E.design.stats or {}
 	E.design.slots = E.design.slots or (h and Export.copy(h.slots)) or {}
+	E.design.loadout = E.design.loadout or Export.hullDef(E.design).loadout or {}
 	E.slotSel = nil
 end
 
