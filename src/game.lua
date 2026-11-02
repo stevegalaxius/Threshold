@@ -799,7 +799,7 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
-	body:setAngularVelocity(spin or 0.04)
+	body:setAngularVelocity(def.rotors and 0 or spin or 0.04)
 	-- Authored stations receive an explicit location ID below. Runtime
 	-- editor/debug stations have temporary keys and are not catalogue entries.
 	self.stationCount = (self.stationCount or 0) + 1
@@ -821,8 +821,35 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	e.dock = e.docks[1]
 	e.radius = def.radius
 	-- the dock module is solid too; ships only get inside by being pulled in
+	local function solid(b, part, ox, oy)
+		for _, t in ipairs(part.tris) do
+			local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+			if a2 > 4 then
+				local f = love.physics.newFixture(b, love.physics.newPolygonShape(
+					t[1] - ox, t[2] - oy, t[3] - ox, t[4] - oy, t[5] - ox, t[6] - oy))
+				f:setFriction(0.5)
+				f:setRestitution(0.1)
+				f:setUserData(e)
+			end
+		end
+	end
+	-- rotors (def.rotors): their parts on kinematic bodies of their own,
+	-- pivoting on the core; Game:updateRotors keeps them turning
+	if def.rotorParts then
+		e.rotors = {}
+		for name, r in pairs(def.rotors) do
+			local px, py = r.x or 0, r.y or 0
+			local rb = love.physics.newBody(self.world, body:getWorldPoint(px, py))
+			rb:setType("kinematic")
+			rb:setUserData(e)
+			for _, part in ipairs(def.rotorParts[name]) do
+				if part.collide ~= false then solid(rb, part, px, py) end
+			end
+			table.insert(e.rotors, { name = name, body = rb, x = px, y = py, spin = r.spin or spin or 0.04, fixed = r.spin ~= nil, phase = random() * pi * 2 })
+		end
+	end
 	for _, part in ipairs(def.parts) do
-		if part.collide ~= false then
+		if part.collide ~= false and not part.rotor then
 			for _, t in ipairs(part.tris) do
 				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
 				if a2 > 4 then
@@ -842,12 +869,31 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 		body:setMassData(0, 0, m, m * R * R)
 		body:setLinearDamping(0)
 		body:setAngularDamping(0)
-		body:setAngularVelocity(spin or 0.04)
+		body:setAngularVelocity(def.rotors and 0 or spin or 0.04)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	if locationId then self:bindLocation(e, locationId) end
 	return e
+end
+
+-- Turn every station's rotors: each pivot rides the core, and its angle
+-- comes from the clock, so it needs nothing saved.
+function Game:updateRotors()
+	local clock = self.universe and self.universe.clock or self.time
+	for _, e in ipairs(self.entities) do
+		if e.rotors and not e.removed then
+			local b = e.body
+			local a, av = b:getAngle(), b:getAngularVelocity()
+			for _, r in ipairs(e.rotors) do
+				local x, y = b:getWorldPoint(r.x, r.y)
+				r.body:setPosition(x, y)
+				r.body:setAngle(a + r.phase + r.spin * clock)
+				r.body:setLinearVelocity(b:getLinearVelocityFromWorldPoint(x, y))
+				r.body:setAngularVelocity(av + r.spin)
+			end
+		end
+	end
 end
 
 -- Station turrets (def.turrets): each fires its weapon module like a
@@ -1596,6 +1642,7 @@ function Game:step(dt)
 		end
 	end
 
+	self:updateRotors()
 	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:updateALife()
