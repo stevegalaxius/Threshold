@@ -370,7 +370,7 @@ Fields.ring = {
 
 -- Each planet's map. Planet sizes are as set; how roomy a map is comes
 -- from depth, and its character from density, mix and belt.
-Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 15000,
+Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 15000, rocky = true, lumpy = 0,
 	density = 0.07, mix = { junk = 3, sat = 2, rock = 5 }, belt = 1.1,
 	stations = { "Terminator Station", "Dawnline Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
@@ -428,29 +428,29 @@ Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, stations = { 
 	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
 Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, parent = "mars",
 	hue = { 0.55, 0.48, 0.42 }, density = 0.1, mix = { rock = 1 }, belt = 1.0, beltIn = 0.15, beltOut = 0.4 })
-Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter",
+Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
 	stations = { "Pele Works", "Loki Laboratory" },
 	enemies = { { "gunner", 2 }, { "interceptor", 1 } } })
-Fields.callisto = planetField({ name = "Callisto", R = 6000, depth = 16000, parent = "jupiter", rocky = true, lumpy = 0.1,
+Fields.callisto = planetField({ name = "Callisto", R = 6000, depth = 16000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.48, 0.45, 0.42 }, density = 0.08, mix = { rock = 6, ice = 3, junk = 1 }, belt = 0.4,
 	stations = { "Valhalla Port", "Asgard Station" },
 	enemies = { { "swarmer", 2 }, { "gunner", 2 } } })
-Fields.enceladus = planetField({ name = "Enceladus", R = 2600, depth = 13000, parent = "saturn",
+Fields.enceladus = planetField({ name = "Enceladus", R = 2600, depth = 13000, parent = "saturn", rocky = true, lumpy = 0,
 	hue = { 0.72, 0.85, 0.9 }, density = 0.09, mix = { ice = 9, junk = 1 },
 	belt = 0.7, beltMix = { ice = 1 },
 	stations = { "Tiger Stripe Laboratory", "South Pole Port" },
 	enemies = { { "interceptor", 2 } } })
-Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000,
+Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000, rocky = true, lumpy = 0,
 	hue = { 0.65, 0.52, 0.45 }, density = 0.06, mix = { ice = 8, rock = 2 },
 	belt = 0.35, beltMix = { ice = 1 },
 	stations = { "Tombaugh Station", "Sputnik Port" },
 	enemies = { { "sniper", 1 }, { "interceptor", 2 } } })
-Fields.europa = planetField({ name = "Europa", R = 3800, depth = 15000, parent = "jupiter",
+Fields.europa = planetField({ name = "Europa", R = 3800, depth = 15000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.8, 0.7 }, density = 0.08, mix = { ice = 8, rock = 2 }, belt = 0.8,
 	stations = { "Conamara Station", "Pwyll Station" },
 	enemies = { { "interceptor", 2 }, { "sniper", 1 } } })
-Fields.ganymede = planetField({ name = "Ganymede", R = 6000, depth = 17000, parent = "jupiter",
+Fields.ganymede = planetField({ name = "Ganymede", R = 6000, depth = 17000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.6, 0.58, 0.55 }, density = 0.08, mix = { ice = 5, rock = 5 }, belt = 0.8,
 	stations = { "Galileo Regio", "Uruk Station" },
 	enemies = { { "brawler", 2 }, { "gunner", 2 } } })
@@ -458,12 +458,12 @@ Fields.titan = planetField({ name = "Titan", R = 6000, depth = 17000, parent = "
 	hue = { 0.9, 0.62, 0.3 }, density = 0.07, mix = { ice = 6, rock = 4 }, belt = 0.7,
 	stations = { "Kraken Station", "Huygens Station" },
 	enemies = { { "gunner", 2 }, { "sniper", 2 } } })
-Fields.titania = planetField({ name = "Titania", R = 2000, depth = 14000, parent = "uranus", rocky = true, lumpy = 0.08,
+Fields.titania = planetField({ name = "Titania", R = 2000, depth = 14000, parent = "uranus", rocky = true, lumpy = 0,
 	hue = { 0.62, 0.64, 0.67 }, density = 0.07, mix = { ice = 6, rock = 3, junk = 1 },
 	belt = 0.45, beltMix = { ice = 7, rock = 3 },
 	stations = { "Gertrude Port", "Messina Research Station" },
 	enemies = { { "interceptor", 2 }, { "gunner", 1 } } })
-Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent = "neptune",
+Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent = "neptune", rocky = true, lumpy = 0,
 	hue = { 0.75, 0.8, 0.85 }, density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.8,
 	stations = { "Cipango Station", "Voyager Station" },
 	enemies = { { "interceptor", 3 }, { "sniper", 1 } } })

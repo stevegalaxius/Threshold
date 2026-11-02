@@ -480,3 +480,9 @@ ship does not fit, it uses the nearest suitable free berth or the station
 interior. Saves retain the player's berth, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
 save/load, and size-based fallback.
+
+Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
+use the Moon's round rocky surface treatment: cratered terrain in each world's
+own colors, without atmospheric haze or cloud bands. They also use the existing
+airless surface collision and gravity behavior. Titan retains its atmosphere;
+Phobos and Deimos retain their irregular outlines.
