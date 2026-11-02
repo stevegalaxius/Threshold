@@ -224,8 +224,9 @@ population. Cargo, loadout, armor, paint, journey, and docking waits survive
 area changes and save/load. Dead traders stay dead and use normal wreck creation.
 Mars retains its nine traders; other populated regions retain their three.
 
-Highway exits have a dashed boundary and a destination label at the actual
-region handoff line, including moon roads.
+Highway previews draw the same circular map edge and departure arcs as local
+space. Region labels are attached to fixed points on that edge, with no
+camera-following badges or separate straight imitation of the boundary.
 
 One in three traders takes a repeating planet/moon round trip where both ends
 have stations (10 itineraries in the current world). Others keep their existing

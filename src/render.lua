@@ -106,6 +106,13 @@ local function drawGrid(game)
 	for x = floor((x1 + bx) / step) * step - bx, x2, step do lg.line(x, y1, x, y2) end
 	for y = floor((y1 + by) / step) * step - by, y2, step do lg.line(x1, y, x2, y) end
 
+end
+
+local function drawLocalBoundary(game, labelAngle)
+	if game.lane then return end
+	lg.push("all")
+	lg.setLineWidth(1)
+
 	-- Arena edge: a faint dashed line where the map ends (past it, you
 	-- slow down and drift back: Game:applyBoundary)
 	local c = COLORS.edge
@@ -134,6 +141,21 @@ local function drawGrid(game)
 		end
 		lg.setLineWidth(1)
 	end
+
+	if labelAngle then
+		-- The label belongs to this map edge, never to the camera.
+		local x,y=cos(labelAngle)*game.arenaRadius,sin(labelAngle)*game.arenaRadius
+		lg.push();lg.translate(x,y);lg.scale(screenPx)
+		lg.setColor(.6,.9,1,.55);lg.setLineWidth(1)
+		lg.line(0,0,cos(labelAngle)*22,sin(labelAngle)*22)
+		lg.translate(cos(labelAngle)*22,sin(labelAngle)*22)
+		local tx,ty,align=-125,sin(labelAngle)>0 and 0 or -18,"center"
+		if cos(labelAngle)>.4 then tx,ty,align=0,-8,"left"
+		elseif cos(labelAngle)<-.4 then tx,ty,align=-250,-8,"right" end
+		lg.printf(game.field.name:upper().." / LOCAL SPACE",tx,ty,250,align)
+		lg.pop()
+	end
+	lg.pop()
 end
 
 -- Re-entry glow: a hot plasma sheath on the leading side of anything
@@ -577,35 +599,6 @@ local function drawLane(game)
 		lg.setLineWidth(outline(4))
 		lg.line(x1, y1, x2, y2)
 	end
-end
-
--- Mark the actual simulation handoff planes, including open-space moon roads.
-local function drawRegionBoundaries(game, px)
- if not game.lane or not game.trip then return end
- local extent=T.laneWidth+T.laneRamp
- lg.push("all")
- lg.setLineWidth(2*px)
- for _,exit in ipairs({{game.lane.half-400,game.trip.to},{-game.lane.half-200,game.trip.from}}) do
-  local s,id=exit[1],exit[2]
-  lg.setColor(.6,.95,1,.8)
-  for n=-extent,extent,90*px do
-   local x,y=game:fromLane(s,n)
-   local xx,yy=game:fromLane(s,math.min(extent,n+45*px))
-   lg.line(x,y,xx,yy)
-  end
-  for _,n in ipairs({-extent,extent}) do
-   local x,y=game:fromLane(s,n)
-   lg.circle("fill",x,y,5*px)
-  end
-  local _,viewN=game:toLane(game.camera.x,game.camera.y)
-  local x,y=game:fromLane(s,max(-extent,min(extent,viewN)))
-  lg.push(); lg.translate(x,y); lg.scale(px)
-  lg.setColor(.015,.035,.055,.85); lg.rectangle("fill",-130,-36,260,27)
-  lg.setColor(.65,1,1,1)
-  lg.printf(Fields[id].name:upper().." / LOCAL SPACE",-125,-31,250,"center")
-  lg.pop()
- end
- lg.pop()
 end
 
 -- Catch rings: a lit hoop for each braking ring, the next one brightest,
@@ -1110,7 +1103,7 @@ local function drawFieldWorld(game, F, px, py)
 		body = { getPosition = function() return px, py end } })
 end
 
-function Render.world(game, overlay)
+function Render.world(game, overlay, boundaryAngle)
 	local restorePreview = overlay and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
@@ -1125,7 +1118,9 @@ function Render.world(game, overlay)
 		scene.camera.x, scene.camera.y = game.camera.x - preview.x, game.camera.y - preview.y
 		scene.camera.zoom = game.camera.zoom
 		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		Render.world(scene, true)
+		local mouth=preview.back and -game.lane.half or game.lane.half
+		local ex,ey=game:fromLane(mouth,0)
+		Render.world(scene, true, math.atan2(ey-preview.y,ex-preview.x))
 	end
 	local trip = game.trip
 	if trip and trip.originScene and (not preview or not preview.back) then
@@ -1134,9 +1129,11 @@ function Render.world(game, overlay)
 		scene.camera.x, scene.camera.y = game.camera.x - o.x, game.camera.y - o.y
 		scene.camera.zoom = game.camera.zoom
 		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		Render.world(scene, true)
+		local ex,ey=game:fromLane(-game.lane.half,0)
+		Render.world(scene, true, math.atan2(ey-o.y,ex-o.x))
 	end
 	game.camera:apply()
+	drawLocalBoundary(game,boundaryAngle)
 	if game.lane then
 		-- the planet you're heading for, where it'll be when you arrive
 		-- (moon trips only: a mass driver's lane shows no planets)
@@ -1209,7 +1206,6 @@ function Render.world(game, overlay)
 	drawBeams(game)
 	drawEffects(game)
 	game:drawComputers(screenPx)
-	drawRegionBoundaries(game, screenPx)
 	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
 	if restorePreview then restorePreview() end

@@ -70,6 +70,43 @@ return function(game)
 		game:updateLane(1 / 120)
 		local preview = game.arrivalPreview
 		check(preview ~= nil, "arrival scene not prepared before exit")
+		-- Local-space labels must stay on their map edge as the camera pans.
+		local function boundarySample()
+			local printf,line=love.graphics.printf,love.graphics.line
+			local label,circleLines=nil,0
+			game.camera.ox,game.camera.oy=0,0
+			love.graphics.printf=function(text,...)
+				if text==Fields[target].name:upper().." / LOCAL SPACE" then
+					local sx,sy=love.graphics.transformPoint(0,0)
+					local wx,wy=game.camera:toWorld(sx,sy);label={wx,wy}
+				end
+				return printf(text,...)
+			end
+			love.graphics.line=function(...)
+				local v={...}
+				if #v==4 and type(v[1])=="number" then
+					local onCircle=true
+					for j=1,4,2 do
+						local sx,sy=love.graphics.transformPoint(v[j],v[j+1])
+						local wx,wy=game.camera:toWorld(sx,sy)
+						if math.abs(math.sqrt((wx-preview.x)^2+(wy-preview.y)^2)-Fields[target].radius)>.1 then onCircle=false end
+					end
+					if onCircle then circleLines=circleLines+1 end
+				end
+				return line(...)
+			end
+			local ok,err=pcall(function() Render.world(game) end)
+			love.graphics.printf,love.graphics.line=printf,line
+			assert(ok,err)
+			return label,circleLines
+		end
+		local label,circleLines=boundarySample()
+		check(label and circleLines>=180,"highway preview did not draw the actual circular local boundary")
+		local cx,cy=game.camera.x,game.camera.y
+		game.camera.x,game.camera.y=cx+600,cy+900
+		local moved=boundarySample()
+		check(moved and near(label[1],moved[1]) and near(label[2],moved[2]),"local-space label slid along boundary while camera panned")
+		game.camera.x,game.camera.y=cx,cy
 		local world, entities = preview.game.world, preview.game.entities
 		local departureWorld = game.trip.originScene and game.trip.originScene.world
 		local marker = entities[1]
