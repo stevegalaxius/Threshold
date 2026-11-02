@@ -42,6 +42,17 @@ return function(game)
  for _,record in pairs(game.universe.npcs) do
   if record.home=='earth' and record.onRoundTrip then original=record; break end
  end
+ -- Existing moon traders replan at home departure using that departure time,
+ -- including offline departures processed later in a catch-up tick.
+ local replanClock=10000
+ local replanned=require('src.persistence').copy(original)
+ replanned.route={Fields.earth.stationIds[1],'earth/to_luna','luna/to_earth',Fields.luna.stationIds[1],'luna/to_earth','earth/to_luna'}
+ replanned.state,replanned.index,replanned.untilTime='docked',1,replanClock
+ local planned=A.roundTrip('earth','luna',replanClock)
+ A.advance(replanned,replanClock)
+ check(table.concat(replanned.route,',')==table.concat(planned,','),'existing moon trader did not replan at departure')
+ check(replanned.state=='travel' and replanned.index==2,'replanning failed to start the first leg')
+ check(replanned.id==original.id and replanned.ship.armor==original.ship.armor,'replanning replaced the trader')
  local probe=require('src.persistence').copy(original)
  local oldRoute={}
  for i,stop in ipairs(probe.route) do

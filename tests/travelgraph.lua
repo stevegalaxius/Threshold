@@ -28,9 +28,25 @@ return function(game)
  end
  check(game.world:getBodyCount()==bodies and game.fieldId==field,'offline graph loaded physics')
  local graph=G.build('earth')
- check(#graph.order==6 and #graph.edges==6,'Earth should contain only six actual places and six declared links')
+ check(#graph.order==6 and #graph.edges==8,'Earth should contain six actual places and eight declared links')
  local route=assert(G.route(graph,Fields.earth.stationIds[1],Fields.earth.stationIds[2],500))
  check(#route.legs==2,'station journey did not use existing buoy itinerary')
+ -- Both direct departures and buoy routes must win in appropriate orbital
+ -- configurations; adding links that the planner never uses fixes nothing.
+ local viaBuoy,direct=false,false
+ for clock=0,20000,100 do
+  local home,gate=Fields.earth.stationIds[1],'earth/to_luna'
+  local trip=assert(G.route(graph,home,gate,clock))
+  local baseline=G.length(graph,{from=home,to=gate},clock)/600
+  check(trip.duration<=baseline+.001,'buoy routing made the trip longer')
+  if #trip.legs==1 then direct=true else
+   for _,leg in ipairs(trip.legs) do
+    if L.get(leg.edge.to).kind=='buoy' then viaBuoy=true end
+   end
+  end
+ end
+ check(viaBuoy,'moon routing never uses trade buoys')
+ check(direct,'moon routing forces unnecessary buoy detours')
  local Save=require('src.save')
  local decoded=assert(Save.decode(Save.encode(route)))
  check(decoded.finish==route.finish and #decoded.legs==#route.legs,'route not serializable')

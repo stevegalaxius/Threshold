@@ -543,7 +543,12 @@ for _, area in ipairs(Fields.list) do
  end
  link(F.driverId,F.stationIds[1])
  for _,place in ipairs(F.locations) do
-  if place.kind=='moon_gate' then link(place.id,F.stationIds[1]) end
+  if place.kind=='moon_gate' then
+   -- Leave the trade corridor at either existing buoy, or directly from home
+   -- when that is shorter. These are alternatives, not mandatory detours.
+   link(place.id,F.stationIds[1])
+   for _,buoy in ipairs(F.buoyIds) do link(place.id,buoy) end
+  end
  end
 
 end

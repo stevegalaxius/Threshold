@@ -70,9 +70,14 @@ local function neighbours(area)
 end
 
 -- A local trader can adopt its moon itinerary on departure from its home dock.
-local function adoptTrip(r,station)
- if r.tripRoute and not r.onRoundTrip and station==r.tripRoute[1] then
-  r.route=copy(r.tripRoute); r.index=1; r.onRoundTrip=true
+local function adoptTrip(r,station,clock)
+ if r.tripDestination and station==Fields[r.home].stationIds[1] then
+  -- Plan at departure: buoys orbit while moon exits stay fixed. Existing saves
+  -- pick up the new connections here without moving ships already in flight.
+  local route=roundTrip(r.home,r.tripDestination,clock)
+  if not route then return false end
+  r.tripRoute=route
+  r.route=copy(route); r.index=1; r.onRoundTrip=true
   return true
  end
 end
@@ -141,7 +146,7 @@ function A.advance(r,clock)
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
    if clock<r.untilTime then return end
-   adoptTrip(r,r.route[r.index])
+   adoptTrip(r,r.route[r.index],r.untilTime)
    start(r,r.untilTime,r.index%#r.route+1)
   else return end
  end
@@ -429,7 +434,7 @@ end
 function A.install(Game)
  function Game:traderUndocked(e,station)
   local r=self.universe.npcs[e.alifeId]
-  if adoptTrip(r,station.locationId) then
+  if adoptTrip(r,station.locationId,self.universe.clock) then
    start(r,self.universe.clock,2)
    bindRoute(self,e,r)
   end
