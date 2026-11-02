@@ -285,5 +285,7 @@ contact is predicted within its lookahead (default two seconds). It fades in
 briefly and clears immediately when the course is safe; reversing does not
 leave a stale warning. Moving hazards are evaluated relative to the ship, and
 the line follows the earliest predicted contact rather than an arbitrary object.
+During the final half second before impact, an X marks the actual obstacle
+surface where the warning line ends; it clears immediately when danger passes.
 `love . --navcomputertest` checks warning lifetime, direction, near misses,
 stationary motion, incoming hazards, docking/catching, and removing the module.
