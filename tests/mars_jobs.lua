@@ -48,6 +48,8 @@ return function(game)
   r.pose={x=x,y=y,a=st.dock.a+math.pi,vx=0,vy=0,w=0,clock=u.clock}
   local e=A.wake(game,r)
   game.player.body:setPosition(x+3000,y)
+  require('src.ai').think(game,e,1/120)
+  check(e.intent.thrust==e.intent.thrust,area..': mining approach produced invalid steering')
   game:beginDocking(e,st,1)
   for _=1,2400 do
    game:step(1/120)

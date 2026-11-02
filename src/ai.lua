@@ -24,6 +24,9 @@ local AI = {}
 
 local sqrt, cos, sin, max, min, random = math.sqrt, math.cos, math.sin, math.max, math.min, love.math.random
 
+local atan2 = math.atan2 or math.atan
+local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
+
 local function norm(x, y)
 	local l = sqrt(x * x + y * y)
 	if l < 1e-6 then return 0, 0, 0 end
@@ -101,8 +104,6 @@ local function pickTarget(game, e, x, y)
 	return best
 end
 
-local atan2 = math.atan2 or math.atan
-local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
 
 -- Velocity control. With little drag a ship coasts a long way, so heading
 -- for where it wants to be overshoots and swings back and forth. Instead
