@@ -216,7 +216,7 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = ai.cruise or T.traderCruise
-		local pass = stop.dock and 60 or cruise * 0.6
+		local pass = (stop.dock or stop.inspection) and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
@@ -227,7 +227,7 @@ local function trade(game, e, dt)
 			-- Do not carry unrelated orbital drift into the launch.
 			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
-		if stop.dock then
+		if stop.dock or stop.inspection then
 			-- Final approach is relative to the moving dock, not the orbital
 			-- current. In particular, a surface mine has no sideways motion.
 			local blend = max(0, min(1, 1 - (d - 600) / 1800))

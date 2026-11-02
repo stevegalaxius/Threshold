@@ -249,7 +249,7 @@ function S.capture(game,e,r,remote)
    r.offset={x=x-bx,y=y-by,progress=p}
   end
  elseif not remote then
-  local x,y=e.body:getPosition();local bx,by=L.position(r.node,clock)
+  local x,y=e.body:getPosition();local bx,by=L.inspectionPosition(r.node,clock)
   r.offset={x=x-bx,y=y-by}
  end
  r.fleeing=e.fleeing or nil
@@ -299,8 +299,13 @@ function S.hold(game,e,AI)
  local vx,vy=L.velocity(r.node,game.universe.clock)
  local station=game:locationEntity(r.node)
  if station and station.kind=='station' then
-  tx,ty=AI.stopPoint(station)
-  vx,vy=station.body:getLinearVelocityFromWorldPoint(tx,ty)
+  if station.city then
+   tx,ty=L.inspectionPosition(r.node,game.universe.clock)
+   vx,vy=L.inspectionVelocity(r.node,game.universe.clock)
+  else
+   tx,ty=AI.stopPoint(station)
+   vx,vy=station.body:getLinearVelocityFromWorldPoint(tx,ty)
+  end
  end
  -- Distinct holding offsets keep ships assigned to the same place from
  -- continually pushing toward the exact same point. These are not graph nodes.
