@@ -42,6 +42,24 @@ function L.position(id, clock)
 	return (m.cx or 0) + cos(a) * m.radius, (m.cy or 0) + sin(a) * m.radius, a
 end
 
+-- Non-docking visits to cloud cities stay above the gravity band. Follow the
+-- city's bearing rather than its runway, which is intentionally below it.
+function L.inspectionPosition(id,clock)
+ local place=L.get(id)
+ local x,y=L.position(id,clock)
+ if place.motion.type=='cloud' then
+  local radius=math.sqrt(x*x+y*y)
+  local safe=Fields[place.area].planetR+T.surfacePullRange+1000
+  return x/radius*safe,y/radius*safe
+ end
+ return x,y
+end
+function L.inspectionVelocity(id,clock)
+ local x1,y1=L.inspectionPosition(id,clock-.01)
+ local x2,y2=L.inspectionPosition(id,clock+.01)
+ return (x2-x1)/.02,(y2-y1)/.02
+end
+
 function L.heading(id, clock)
 	local location = L.get(id)
 	if location.motion.type == "cloud" then

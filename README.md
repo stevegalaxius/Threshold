@@ -567,3 +567,33 @@ individual enemy buttons appear only in instance maps. Spawn interval, cap and
 warp-effect duration are defined alongside A-Life settings in `src/tuning.lua`.
 Run `love . --piratespawntest` for replacements, caps, debug arrivals, remote
 simulation, saved timers and instance-only legacy spawning.
+
+
+## NPC local navigation
+
+NPCs sweep their hull clearance against nearby collision fixtures and moving
+traffic before choosing a local heading. They prefer clear detours, keep a
+consistent passing side, and can turn back out of concave obstacles. Waiting
+patrols and pirates use separate holding positions around a shared buoy. The
+authored travel graph and planetary routes still determine their destinations.
+
+Traders, security ships and highway traffic use their fitted afterburners when
+aligned with a clear route and sufficiently far from their stopping point.
+Obstacle avoidance, final approaches and braking disable boost; ordinary engine
+power and capacitor reserve rules apply. Low-altitude departures climb out of
+the gravity band before resuming their orbital route. Cloud-city NPCs receive
+the existing runway support until clear of the structure, including across an
+immediate save/load.
+
+Steering decisions are cached for 0.2 seconds while the route remains stable,
+and geometry queries use the physics broad phase. Clearance, refresh interval,
+boost cruise multiplier and stopping margin live in `src/tuning.lua`.
+Run `love . --localnavtest` for physical hauler tests around a wall, inside a
+concave pocket, in head-on and crossing traffic, and for safe boost activation.
+`love . --olympustest` checks city arrival, supported departure and restoration.
+
+Cloud-city inspection visits use a point above the gravity band, following the
+city's bearing. Non-docking patrols approach and hold there instead of trying to
+reach the docking runway below their avoidance boundary. Remote materialization
+and saved inspection offsets use the same point. Run `love . --patrolnavtest`
+for Olympus patrol arrival, holding, restoration and the next autonomous duty.

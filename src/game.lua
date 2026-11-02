@@ -116,6 +116,7 @@ function Game:loadField(id, opts)
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
+	if self.travelGraphView then self.travelGraphView = require("src.travelgraph").build(id) end
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
 	self.well, self.lane, self.driverMenu = nil, nil, nil
@@ -1216,7 +1217,7 @@ function Game:undockShip(e)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
 	e.dockCooldown = 4
-	if st.city and not bd and e == self.player then
+	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
@@ -1226,17 +1227,17 @@ end
 
 -- Cloud-city departure: keep the ship supported and guide it outward
 -- along the runway, then release once clear. Flight controls remain live.
-function Game:updateDockExits(dt)
-	local e = self.player
+local function updateDockExit(self, e, dt)
 	local assist = e and e.dockExit
 	if not assist then return end
 	local st, d, side = assist.station, assist.dock, assist.side
 	assist.t = assist.t + dt
-	if e.dead or st.removed or assist.t > 10 then e.dockExit = nil; return end
+	if e.dead or st.removed or assist.t > (e.isPlayer and 10 or 22) then e.dockExit = nil; return end
 	local b = e.body
 	local x, y = b:getPosition()
 	local lx, ly = dockLocal(st, side, x, y, d)
-	if lx > d.x2 + d.runway + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
+	local clearance=e.isPlayer and d.runway or max(d.runway,st.radius)
+	if lx > d.x2 + clearance + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
 		e.dockExit, e.dockCooldown = nil, 2
 		return
 	end
@@ -1249,6 +1250,10 @@ function Game:updateDockExits(dt)
 	if a > T.driverGrip then ax, ay = ax / a * T.driverGrip, ay / a * T.driverGrip end
 	local gx, gy = self:surfacePullAt(x, y)
 	b:applyForce((ax - gx) * b:getMass(), (ay - gy) * b:getMass())
+end
+
+function Game:updateDockExits(dt)
+ for _,e in ipairs(self.entities) do if e.dockExit then updateDockExit(self,e,dt) end end
 end
 
 -- The player's launch button on the station screen.
@@ -1571,6 +1576,14 @@ function Game:step(dt)
 				-- the player flies on under the beam until it's pulled inside
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
+			elseif e.dockExit and not e.isPlayer then
+				-- Follow the supported city runway until the entire hull is clear.
+				local a=dockAngle(e.dockExit.station,e.dockExit.side,e.dockExit.dock)
+				local x,y=e.body:getPosition()
+				e.intent.thrust,e.intent.strafe,e.intent.boost=0,0,false
+				e.intent.aimX,e.intent.aimY=x+cos(a)*300,y+sin(a)*300
+				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireAux=false,false,false
+				Ship.fly(e,dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
