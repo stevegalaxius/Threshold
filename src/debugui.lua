@@ -181,7 +181,7 @@ local function spawnSection(game)
 	Slab.Text("Playing field")
 	local fopts = {}
 	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
-	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) game:loadField(id) end)
+	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) require("src.debugtravel").go(game,id) end)
 	for _, id in ipairs(data.list.enemies) do
 		local def = data.enemies[id]
 		if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then
@@ -295,6 +295,7 @@ function Debug.update(dt, game)
 	Slab.Text(("FPS %d    ships+rocks %d    shots %d"):format(love.timer.getFPS(), #game.entities, #game.projectiles))
 	cheats(game)
 	Slab.Separator()
+	section("dbg_travel", "Teleport and destinations", function(g) require("src.debugtravel").panel(g,Slab) end, game)
 	section("dbg_ship", "Ship, modules and hold", shipSection, game)
 	section("dbg_readout", "Handling readout", readout, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)

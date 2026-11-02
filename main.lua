@@ -91,9 +91,9 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	for _, a in ipairs(args or {}) do
-		if a == "--marsjobtest" or a == "--editortest" or a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" or a == "--maptest" or a == "--alifetest" or a == "--tradertest" or a == "--navtest" or a == "--idletest" or a == "--navcomputertest" then
+		if a == "--debugtraveltest" or a == "--marsjobtest" or a == "--editortest" or a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" or a == "--maptest" or a == "--alifetest" or a == "--tradertest" or a == "--navtest" or a == "--idletest" or a == "--navcomputertest" then
 			game.autosaveOff = true
-			local suite = a == "--marsjobtest" and "tests.mars_jobs" or a == "--editortest" and "tests.editor_loadout" or a == "--navcomputertest" and "tests.navigation_computer" or a == "--idletest" and "tests.highway_idle" or a == "--navtest" and "tests.trader_navigation" or a == "--tradertest" and "tests.trader_travel" or a == "--alifetest" and "tests.alife" or a == "--maptest" and "tests.localmap" or a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
+			local suite = a == "--debugtraveltest" and "tests.debug_travel" or a == "--marsjobtest" and "tests.mars_jobs" or a == "--editortest" and "tests.editor_loadout" or a == "--navcomputertest" and "tests.navigation_computer" or a == "--idletest" and "tests.highway_idle" or a == "--navtest" and "tests.trader_navigation" or a == "--tradertest" and "tests.trader_travel" or a == "--alifetest" and "tests.alife" or a == "--maptest" and "tests.localmap" or a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
 				or a == "--persisttest" and "tests.persistence" or "tests.world_expansion"
 			local ok, err = xpcall(function() require(suite)(game) end, debug.traceback)
 			if not ok then print(err) end
