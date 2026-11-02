@@ -82,13 +82,27 @@ function Game:playerDocked(st)
 	self:autosave()
 end
 
--- Put a ship straight into a station's dock, already inside.
-function Game:dockInstantly(e, st)
-	local d = st.dock
-	e.dockState = { station = st, phase = "done", done = true, t = 0 }
+-- Restore a completed dock, including its exterior berth when supplied.
+function Game:dockInstantly(e, st, placement)
+	placement = placement or {}
+	local d = placement.dock or (st.docks or {})[placement.dockIndex] or st.dock
+	local side = placement.side or 1
+	local berth
+	local previous = st.def and st.def.berths and st.def.berths[placement.berth]
+	if previous then
+		e.body:setPosition(st.body:getWorldPoint(previous.x, previous.y))
+		berth = self:freeBerth(st, e)
+	end
+	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth }
 	e.body:setActive(false)
-	e.body:setPosition(self.dockWorld(st, 1, (d.x1 + d.x2) / 2, 0))
-	e.body:setAngle(self.dockAngle(st, 1) + pi)
+	if berth then
+		local b = st.def.berths[berth]
+		e.body:setPosition(st.body:getWorldPoint(b.x, b.y))
+		e.body:setAngle(st.body:getAngle() + math.rad(b.heading))
+	else
+		e.body:setPosition(self.dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
+		e.body:setAngle(self.dockAngle(st, side, d) + pi)
+	end
 	e.body:setLinearVelocity(0, 0)
 	e.body:setAngularVelocity(0)
 	if e == self.player then
@@ -105,7 +119,7 @@ function Game:placePlayer(rec, at)
 	at = at or {}
 	if at.station then
 		local st = self:findStation(at.station)
-		if st and st.dock then self:dockInstantly(p, st) return p end
+		if st and st.dock then self:dockInstantly(p, st, at) return p end
 	end
 	if at.driver and self:placeAtDriver(p, at.exit) then return p end
 	if at.catch and self:placeForCatch(p) then return p end
@@ -234,6 +248,7 @@ function Game:flyFromHangar(i)
 	local list = self:hangar(st)
 	local rec = list[i]
 	if not rec then return false end
+	local placement = p.dockState
 	local old = Ship.record(p)
 	old.bay = p.bay
 	if not old.bay then
@@ -243,7 +258,7 @@ function Game:flyFromHangar(i)
 	list[i] = old
 	local ship = self:spawnPlayer(rec)
 	ship.bay, ship.bayStation = rec.bay, st.key
-	self:dockInstantly(ship, st)
+	self:dockInstantly(ship, st, placement)
 	events.emit("swapship", ship, st)
 	return true
 end
@@ -309,7 +324,10 @@ function Game:saveState()
 	if p and not p.dead then
 		local where
 		if p.dockState and p.dockState.station then
-			where = { station = p.dockState.station.key, bay = p.bay }
+			local ds = p.dockState
+			local dockIndex
+			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
+			where = { station = ds.station.key, bay = p.bay, berth = ds.berth, side = ds.side, dockIndex = dockIndex }
 		else
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()

@@ -473,3 +473,10 @@ the buoy approach without teleporting their ships.
 `love . --olympustest` checks orbital positions, routes at different phases,
 saved-route repair, and a physical visitor docking at Olympus and climbing back
 out to its buoy.
+
+Docking uses the nearest unoccupied exterior berth that fits the ship. Switching
+ships while berthed preserves that placement and docking entrance. If the new
+ship does not fit, it uses the nearest suitable free berth or the station
+interior. Saves retain the player's berth, entrance and docking side.
+`love . --berthtest` checks berth selection, taxi placement, ship switching,
+save/load, and size-based fallback.

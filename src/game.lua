@@ -1054,7 +1054,7 @@ end
 
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
--- A free berth at the station that the ship fits on, or nil (no berths,
+-- The nearest free berth at the station that the ship fits on, or nil (no berths,
 -- all taken, or all too small): then it goes inside.
 function Game:freeBerth(st, e)
 	local berths = st.def and st.def.berths
@@ -1064,10 +1064,15 @@ function Game:freeBerth(st, e)
 		local ods = o ~= e and not o.dead and not o.removed and o.dockState
 		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
 	end
+	local x, y = st.body:getLocalPoint(e.body:getPosition())
+	local best, distance = nil, math.huge
 	for i, b in ipairs(berths) do
-		if not taken[i] and (e.halfLength or 0) <= b.size then return i end
+		if not taken[i] and (e.halfLength or 0) <= b.size then
+			local d = (b.x - x)^2 + (b.y - y)^2
+			if d < distance then best, distance = i, d end
+		end
 	end
-	return nil
+	return best
 end
 
 function Game:finishDocking(e, ds, st)
