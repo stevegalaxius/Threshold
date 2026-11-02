@@ -160,6 +160,7 @@ function Fields.distance(a, b, clock)
 end
 
 Fields.asteroids = {
+	instance = true,
 	name = "Asteroid field",
 	spawn = { 0, 0 },
 	radius = 10000,
@@ -171,6 +172,7 @@ Fields.asteroids = {
 }
 
 Fields.giant = {
+	instance = true,
 	name = "Giant asteroid",
 	spawn = { 0, 2600 },
 	radius = 10000,
@@ -183,6 +185,7 @@ Fields.giant = {
 }
 
 Fields.station = {
+	instance = true,
 	name = "Space station",
 	spawn = { 0, 2600 },
 	radius = 9000,

@@ -183,11 +183,23 @@ local function spawnSection(game)
 	local fopts = {}
 	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
 	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) require("src.debugtravel").go(game,id) end)
-	for _, id in ipairs(data.list.enemies) do
-		local def = data.enemies[id]
-		if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then
-			local x, y = game:spawnPoint(900, 1300)
-			game:spawnEnemy(id, x, y)
+	local security=require('src.security')
+	if Slab.Button('Warp in pirate (A-Life)',{W=300}) then
+		local r,err=security.spawnPirate(game,game.fieldId,true)
+		game:toast(r and ('PIRATE ARRIVING: '..r.id) or err,2)
+	end
+	local timer=game.universe.pirateSpawns and game.universe.pirateSpawns[game.fieldId]
+	if timer then
+		Slab.Text(('Pirates: %d / %d; next arrival check in %.0fs'):format(
+			security.pirateCount(game.universe,game.fieldId),T.piratePopulationCap,math.max(0,timer.nextAt-game.universe.clock)))
+	end
+	if game.field.instance then
+		for _, id in ipairs(data.list.enemies) do
+			local def = data.enemies[id]
+			if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then
+				local x, y = game:spawnPoint(900, 1300)
+				game:spawnEnemy(id, x, y)
+			end
 		end
 	end
 	if Slab.Button("Clear enemies") then game:clearEnemies() end

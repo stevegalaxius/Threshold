@@ -493,8 +493,9 @@ Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
 
 The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies
-on those planets; instance maps and other regions keep their existing encounters.
-Dead ships are not replenished on region loads. Roles remain fixed.
+on those planets. Legacy authored pilots are restricted to the Asteroid field,
+Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
+seeded once and pirate reinforcements follow the saved arrival schedule below.
 
 Patrols choose inspection duties through the shared task board and visit existing
 stations and buoys. Pirates choose buoy raids and relocation duties, preferring
@@ -547,3 +548,22 @@ Weapons and passive power deficits can still use charge below the reserve.
 Engine plumes interpolate between normal, reserve and full boost; their damage
 bounds use the same geometry. `love . --afterburntest` checks reserve stability,
 rearming, energy accounting, actual thrust and corresponding flame sizes.
+
+
+## Pirate warp-ins
+
+Pirates check for reinforcements every 3–5 minutes of game time in regions with
+trade buoys or a mass driver. Automatic arrivals stop at two living pirates per
+region; dead or escaped pirates are replaced by new identities on later checks.
+An overdue region gets at most one arrival per check, without a catch-up swarm.
+Schedules survive saves and visiting another region. Remote arrivals are plain
+A-Life records; visible arrivals produce a short blue warp flash and enter normal
+raid duties. Existing ship counts include pirates added through debug controls.
+
+Use **F1 > Spawn and arena > Warp in pirate (A-Life)** for an immediate arrival
+near the player. This debug action bypasses the automatic cap. The panel shows
+the region's pirate count and time until the next reinforcement check. The old
+individual enemy buttons appear only in instance maps. Spawn interval, cap and
+warp-effect duration are defined alongside A-Life settings in `src/tuning.lua`.
+Run `love . --piratespawntest` for replacements, caps, debug arrivals, remote
+simulation, saved timers and instance-only legacy spawning.

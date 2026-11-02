@@ -587,6 +587,11 @@ function A.wake(game,r)
  end
 
  game.alifeOnline[r.id]=e
+ if r.warpUntil and game.universe.clock<r.warpUntil then
+  local x,y=e.body:getPosition()
+  game:addEffect({kind='warp_in',x=x,y=y,r=e.halfLength*2+60,
+   t=game.universe.clock-r.spawnedAt,life=r.warpUntil-r.spawnedAt})
+ end
  r.pose,r.savedOnline=nil,nil
  return e
 end
@@ -634,6 +639,7 @@ function A.install(Game)
   local clock=self.universe.clock
   if not force and clock<(self.alifeNext or 0) then return end
   self.alifeNext=clock+T.alifeLocalTick
+  Security.updateSpawns(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
   local px,py

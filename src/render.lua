@@ -1059,7 +1059,17 @@ end
 local function drawEffects(game)
 	for _, fx in ipairs(game.effects) do
 		local k = fx.t / fx.life
-		if fx.kind == "spark" then
+		if fx.kind == "warp_in" then
+			lg.push('all')
+			lg.setBlendMode('add')
+			local radius=fx.r*(.2+k*2)
+			lg.setColor(.25,.7,1,(1-k)*.8)
+			lg.setLineWidth(outline(3))
+			lg.circle('line',fx.x,fx.y,radius,48)
+			lg.setColor(.7,.9,1,(1-k)^2*.7)
+			lg.circle('fill',fx.x,fx.y,fx.r*(1-k),32)
+			lg.pop()
+		elseif fx.kind == "spark" then
 			local c = fx.color or { 1, 0.8, 0.5 }
 			lg.setColor(c[1], c[2], c[3], 1 - k)
 			lg.rectangle("fill", floor(fx.x), floor(fx.y), 2, 2)

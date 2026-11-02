@@ -136,7 +136,7 @@ end
 
 -- The level's enemies, scattered away from where the player arrives.
 function Game:spawnFieldEnemies()
-	if self.field.alifeSecurity then return end
+	if not self.field.instance then return end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
 	for _, group in ipairs(self.field.enemies or {}) do
 		for _ = 1, group[2] do
@@ -321,6 +321,7 @@ function Game:saveState()
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
+		pirateSpawns = Persistence.copy(u.pirateSpawns),
 		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
 	local p = self.player
 	if p and not p.dead then
@@ -348,6 +349,7 @@ function Game:loadState(state)
 	self.universe.nextObjectId = state.nextObjectId or 0
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext
+	self.universe.pirateSpawns = Persistence.copy(state.pirateSpawns)
 	self.universe.jobs = Persistence.copy(state.jobs)
 	self.universe.tasks = Persistence.copy(state.tasks)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
