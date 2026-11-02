@@ -49,6 +49,9 @@ return function(game)
  check(e.alifeEgress,'powered trader did not reach the stationary exit in 200 seconds')
  check(not earlyEdge,'trader went to the map perimeter before traversing the route')
  local x0,y0=e.body:getPosition()
+ local vx,vy=e.body:getLinearVelocity()
+ check((vx*x0+vy*y0)/math.sqrt((vx*vx+vy*vy)*(x0*x0+y0*y0))>.9,
+  'Earth trader reached the exit sideways')
  -- Chasing/attacking the departing trader must not remove its movement AI.
  game:damage(e,1,game.player,'navigation-test')
  local powered=false

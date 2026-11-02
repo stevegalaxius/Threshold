@@ -358,6 +358,7 @@ end
 
 local function bindRoute(game,e,r)
  e.routeIndex=r.index; e.route={}
+ e.travelGraph=graph(r.area)
  for _,id in ipairs(r.route) do
   local place=L.get(id)
   local stop=place.area==game.fieldId and game:locationEntity(id)

@@ -65,6 +65,19 @@ return function(game)
   game:updateDockedShip(e,100)
   check(not e.dockState and r.job.phase=='delivery',area..': pickup failed to launch')
   check(e.cargo.martian_ore==10 and r.ship.cargo.martian_ore==10,area..': physical cargo differs from job')
+  game.updateMoonGates=function(self) self:placeMoonGates() end
+  for _=1,24000 do
+   local x,y=e.body:getPosition()
+   game.player.body:setPosition(x+3000,y)
+   game.player.body:setLinearVelocity(0,0)
+   game:step(1/120)
+   if e.alifeEgress or e.dead then break end
+  end
+  check(e.alifeEgress and not e.dead,area..': loaded trader failed to depart')
+  local x,y=e.body:getPosition()
+  local vx,vy=e.body:getLinearVelocity()
+  check((vx*x+vy*y)/math.sqrt((vx*vx+vy*vy)*(x*x+y*y))>.9,
+   area..': loaded trader reached the exit sideways')
  end
  print(('MARS JOBS TEST PASSED (%d checks)'):format(checks))
 end

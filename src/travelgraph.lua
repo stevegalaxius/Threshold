@@ -15,7 +15,15 @@ function G.point(graph, edge, progress, clock)
  local xx, yy = G.position(graph, edge.to, clock)
  -- The coarse route goes around the planet instead of cutting across it.
  local r, rr = sqrt(x*x+y*y), sqrt(xx*xx+yy*yy)
- local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*progress
+ local turn = progress
+ -- Finish turning early: the final approach to a fixed gate is radial,
+ -- rather than a spiral that reaches the boundary almost sideways.
+ if L.get(edge.to).kind == 'moon_gate' then
+  turn = 1 - (1-progress)^3
+ elseif L.get(edge.from).kind == 'moon_gate' then
+  turn = progress^3
+ end
+ local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*turn
  r = r + (rr-r)*progress
  return cos(a)*r, sin(a)*r
 end
@@ -50,6 +58,22 @@ function G.transit(from,to)
 end
 
 function G.length(graph,edge,clock)
+ if L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate' then
+  -- Integrate speed along the polar curve without sampling NPC positions:
+  -- remote simulation only needs a duration, not a flight-path pose.
+  local x,y=G.position(graph,edge.from,clock)
+  local xx,yy=G.position(graph,edge.to,clock)
+  local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
+  local angle=delta(atan2(y,x),atan2(yy,xx))
+  local outgoing=L.get(edge.to).kind=='moon_gate'
+  local length=0
+  for i=1,64 do
+   local p=(i-.5)/64
+   local turnRate=3*(outgoing and (1-p)^2 or p^2)
+   length=length+sqrt((rr-r)^2+((r+(rr-r)*p)*angle*turnRate)^2)/64
+  end
+  return length
+ end
  local x,y=G.position(graph,edge.from,clock)
  local xx,yy=G.position(graph,edge.to,clock)
  local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
@@ -63,7 +87,10 @@ function G.project(graph,edge,x,y,clock)
  local bx,by=G.position(graph,edge.to,clock)
  local angle=delta(atan2(ay,ax),atan2(by,bx))
  local p
- if math.abs(angle)>.001 then
+ local ar,br=sqrt(ax*ax+ay*ay),sqrt(bx*bx+by*by)
+ if (L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate') and math.abs(br-ar)>1 then
+  p=(sqrt(x*x+y*y)-ar)/(br-ar)
+ elseif math.abs(angle)>.001 then
   p=delta(atan2(ay,ax),atan2(y,x))/angle
  else
   local dx,dy=bx-ax,by-ay

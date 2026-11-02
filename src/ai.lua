@@ -197,7 +197,18 @@ local function trade(game, e, dt)
 		-- way ahead along the circle until the stop is close.
 		local hx, hy = sx, sy
 		local w = game.well
-		if w then
+		local gateApproach = e.alifeId and stop.kind == "moon_gate" and e.travelGraph
+		if gateApproach then
+			local G = require("src.travelgraph")
+			local previous = route[(e.routeIndex-2)%#route+1]
+			local edge = {from=previous.locationId, to=stop.locationId}
+			local clock = game.universe.clock
+			local p = G.project(e.travelGraph, edge, x, y, clock)
+			local look = math.max(500, math.sqrt(vx*vx+vy*vy)*1.5)
+			local ahead = math.min(1, p + look/math.max(1,G.length(e.travelGraph,edge,clock)))
+			hx,hy = G.point(e.travelGraph,edge,ahead,clock)
+			if ahead == 1 then hx,hy = sx,sy end
+		elseif w then
 			local rs = sqrt((sx - w.x) ^ 2 + (sy - w.y) ^ 2)
 			local am = atan2(y - w.y, x - w.x)
 			local gap = wrap(atan2(sy - w.y, sx - w.x) - am)
@@ -234,6 +245,11 @@ local function trade(game, e, dt)
 		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
+		if gateApproach then
+			-- A fixed exit has no orbital velocity. Counter the current rather
+			-- than carrying its sideways drift into the lane.
+			fx0, fy0 = 0, 0
+		end
 		if stop.dock then
 			-- Final approach is relative to the moving dock, not the orbital
 			-- current. In particular, a surface mine has no sideways motion.
