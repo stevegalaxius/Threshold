@@ -80,13 +80,39 @@ function Map.toWorld(game,x,y)
  local v=viewport(); local m=game.localMap; local s=m.base*m.zoom
  return m.x+(x-v.x-v.w/2)/s,m.y+(y-v.y-v.h/2)/s
 end
+local function destinations() return require('src.debugtravel').areas() end
+local function destinationRows()
+ return math.max(1,math.min(10,math.floor((lg.getHeight()-100)/24)))
+end
+local function drawDestinationDropdown(game)
+ local m=game.localMap
+ HUD.panel(24,52,280,26)
+ lg.setFont(HUD.font(12));lg.setColor(HUD.AQUA)
+ lg.print('Teleport to map...',32,59)
+ lg.print(m.destinationOpen and '^' or 'v',284,59)
+ if not m.destinationOpen then return end
+ local list=destinations();local rows=math.min(destinationRows(),#list)
+ local offset=m.destinationOffset or 0
+ HUD.panel(24,80,280,rows*24+22)
+ local mx,my=love.mouse.getPosition()
+ for row=1,rows do
+  local id=list[offset+row];local y=80+(row-1)*24
+  if mx>=24 and mx<=304 and my>=y and my<y+24 then
+   lg.setColor(.15,.28,.33);lg.rectangle('fill',26,y+1,276,23)
+  end
+  lg.setColor(id==game.fieldId and HUD.AQUA or HUD.INK)
+  lg.print(Fields[id].name,32,y+5)
+ end
+ lg.setColor(HUD.DIM);lg.print('Scroll for more destinations',32,80+rows*24+3)
+end
 function Map.keypressed(game,key)
  if key=='m' then
   if Map.isOpen(game) then game.localMap=nil else Map.open(game) end
   return true
  end
  if not Map.isOpen(game) then return false end
- if key=='escape' then game.localMap=nil
+ if key=='escape' then
+  if game.localMap.destinationOpen then game.localMap.destinationOpen=false else game.localMap=nil end
 
  elseif key=='home' then Map.fit(game)
  elseif key=='p' then game.localMap.x,game.localMap.y=playerPos(game)
@@ -96,6 +122,11 @@ end
 local function inside(v,x,y) return x>=v.x and y>=v.y and x<=v.x+v.w and y<=v.y+v.h end
 function Map.wheelmoved(game,y)
  if not Map.isOpen(game) then return false end
+ if game.localMap.destinationOpen then
+  local m=game.localMap
+  m.destinationOffset=math.max(0,math.min(math.max(0,#destinations()-destinationRows()),math.floor((m.destinationOffset or 0)-y)))
+  return true
+ end
  local mx,my=love.mouse.getPosition()
  if inside(viewport(),mx,my) then
   local x,y0=Map.toWorld(game,mx,my)
@@ -109,6 +140,18 @@ end
 function Map.mousepressed(game,x,y,button)
  if not Map.isOpen(game) then return false end
  local v,w=viewport(); local m=game.localMap
+ if button==1 and x>=24 and x<=304 and y>=52 and y<=78 then
+  m.destinationOpen=not m.destinationOpen;m.drag=nil;return true
+ end
+ if m.destinationOpen then
+  if button==1 and x>=24 and x<=304 and y>=80 and y<80+destinationRows()*24 then
+   local row=math.floor((y-80)/24)+1
+   local id=destinations()[(m.destinationOffset or 0)+row]
+   if id then require('src.debugtravel').go(game,id);Map.open(game);return true end
+  end
+  m.destinationOpen=false
+  return true
+ end
  if button==1 then
   if x>w-100 and y<65 then game.localMap=nil; return true end
   for i,p in ipairs(Map.places(game)) do
@@ -146,7 +189,7 @@ function Map.draw(game)
  lg.print('M / Esc  close',w-110,30)
  lg.print('Drag to pan   /   Wheel to zoom   /   Home fit region   /   P center on ship',24,h-33)
  lg.print('Live map',w-90,h-33)
- lg.print('Debug: right-click map to teleport',24,60)
+ lg.print('Debug: right-click map to teleport',320,60)
  lg.setColor(.3,.55,.65,.3); lg.rectangle('line',v.x,v.y,v.w,v.h)
  lg.setScissor(v.x,v.y,v.w,v.h)
  local cx,cy=Map.toScreen(game,0,0)
@@ -239,6 +282,7 @@ function Map.draw(game)
   end
  end
  lg.setColor(HUD.DIM); lg.print('Nearby: ships / wrecks / cargo',w-280,h-65)
+ drawDestinationDropdown(game)
  lg.pop()
 end
 return Map
