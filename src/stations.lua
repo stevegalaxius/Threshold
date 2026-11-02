@@ -4,9 +4,9 @@
 
 	A station definition (data.stations, from station { } in data files or
 	made here) is:
-	  parts  polygons as for hulls; exactly one part says dock = true. Its
-	         box is the docking module: the door is its +x end, facing out.
-	  dock   optional overrides for the dock: wall, runway, capture
+	  parts  polygons as for hulls; one or more parts say dock = true. By default the
+	         door faces outward; part-level dock fields customize its frame.
+	  dockHeading/dockX/dockY and other part fields override automatic geometry
 	  color  outline colour (fill is a darker shade of it)
 
 	Stations.ring builds the classic wheel: a ring of arc segments, four

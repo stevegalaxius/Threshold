@@ -84,6 +84,8 @@ local function reflect(part)
 		table.insert(out, s[k]); table.insert(out, -s[k + 1])
 	end
 	twin.shape, twin.mirror, twin.twin = out, nil, true
+ if part.dockHeading~=nil then twin.dockHeading=-part.dockHeading end
+ if part.dockY~=nil then twin.dockY=-part.dockY end
 	if part.lights then
 		twin.lights = {}
 		for _, l in ipairs(part.lights) do

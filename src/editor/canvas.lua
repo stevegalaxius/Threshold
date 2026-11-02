@@ -464,6 +464,8 @@ function Canvas.mousemoved(E, sx, sy)
 			local s = E.design.parts[E.sel].shape
 			for k = 1, #s, 2 do s[k], s[k + 1] = s[k] + dx, s[k + 1] + dy end
 			for _, l in ipairs(E.design.parts[E.sel].lights or {}) do l.x, l.y = l.x + dx, l.y + dy end
+			local p=E.design.parts[E.sel]
+			if p.dockX~=nil then p.dockX,p.dockY=p.dockX+dx,p.dockY+dy end
 			d.lx, d.ly = px, py
 		end
 	end
@@ -697,6 +699,44 @@ function Canvas.draw(E)
 		if E.drag and E.drag.kind == "berth" then
 			local d = E.drag
 			pad(d.x1, d.y1, berthHeading(d.x1, d.y1, d.x2, d.y2), E.berthSize, true, 0.5)
+		end
+	end
+
+	-- Preview the actual door, interior and tractor corridor for every dock.
+	if E.design.kind=="station" then
+		local Dock=require("src.dock_geometry")
+		local previewParts={}
+		for i,p in ipairs(E.design.parts) do
+		 previewParts[#previewParts+1]={index=i,part=p}
+		 if p.mirror then
+		  local twin={}
+		  for k,v in pairs(p) do twin[k]=v end
+		  twin.shape=Canvas.reflected(p.shape)
+		  if p.dockHeading~=nil then twin.dockHeading=-p.dockHeading end
+		  if p.dockY~=nil then twin.dockY=-p.dockY end
+		  previewParts[#previewParts+1]={index=i,part=twin}
+		 end
+		end
+		for _,entry in ipairs(previewParts) do
+		 local i,p=entry.index,entry.part
+		 if p.dock and not p.hidden then
+		  local ok,d=pcall(Dock.build,p)
+		  if ok then
+		   for _,side in ipairs(d.both and {1,-1} or {1}) do
+		    local function point(x,y) return Canvas.toScreen(E,Dock.point(d,x,y,side)) end
+		    local pts={}
+		    for _,v in ipairs({{d.x2,-d.capture},{d.x2+d.runway,-d.capture},{d.x2+d.runway,d.capture},{d.x2,d.capture}}) do
+		     local x,y=point(v[1],v[2]);pts[#pts+1]=x;pts[#pts+1]=y
+		    end
+		    lg.setColor(.25,1,.65,i==E.sel and .14 or .06);lg.polygon("fill",pts)
+		    lg.setColor(.35,1,.7,.7);lg.setLineWidth(1);lg.polygon("line",pts)
+		    local x,y=point(d.x2,-d.hw);local xx,yy=point(d.x2,d.hw)
+		    lg.setColor(1,.75,.3,1);lg.setLineWidth(3);lg.line(x,y,xx,yy)
+		    x,y=point(d.x1,0);xx,yy=point(d.x2+d.runway,0)
+		    lg.setLineWidth(1);lg.line(x,y,xx,yy)
+		   end
+		  end
+		 end
 		end
 	end
 

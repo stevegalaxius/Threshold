@@ -428,3 +428,22 @@ a claim about physical solar-system positions. It reads existing records without
 advancing remote NPCs, spawning bodies or teleporting the player. Arrival timers
 that have expired but await a simulation tick are marked as pending.
 Run `love . --traffictest` for diagnostic data and UI regression checks.
+
+
+## Custom station docks
+
+In the station editor, select a docking part and disable **Auto direction from
+station center** to set its heading independently of the station shape.
+Enable **Custom entrance position** to place the door in station-local X/Y
+coordinates. Opening width, interior depth, runway length, tractor half-width,
+door-frame thickness, and a second tunnel opening are configurable per dock.
+Headings use local +X = 0 degrees and +Y = 90 degrees. Other station parts retain
+their authored collision shapes; the preview helps keep the approach clear.
+
+The canvas previews the actual runtime geometry: amber door/centerline, green
+tractor footprint. Custom entrance points follow whole-part drags and duplicate
+offsets; mirrors reflect both heading and entrance position. All settings survive
+export, reopen and autosave. Automatic geometry remains available for ring
+stations. Data fields: `dockHeading`, `dockX`, `dockY`, `dockWidth`,
+`dockDepth`, `dockRunway`, `dockCapture` (tractor half-width), `dockWall`,
+and `dockBoth`. Run `love . --dockeditortest` for editor/runtime regressions.

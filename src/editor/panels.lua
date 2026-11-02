@@ -571,11 +571,36 @@ local function partWindow(E)
 		Slab.Separator()
 		check(E, p.dock == true, "Docking module", function(on) p.dock = on or nil end)
 		if p.dock then
-			Slab.Text("Door faces out from the station's centre,", { Color = { 0.6, 0.6, 0.6 } })
-			Slab.Text("through this part.", { Color = { 0.6, 0.6, 0.6 } })
+			local ok,d=pcall(require("src.dock_geometry").build,p)
+			if not ok then Slab.Text(tostring(d));d={a=0,x2=0,yc=0,hw=100,x1=-200,runway=600,capture=260,wall=24} end
+			check(E,p.dockHeading==nil,"Auto direction from station center",function(on)
+			 p.dockHeading=not on and math.deg(d.a) or nil
+			end)
+			if p.dockHeading~=nil then
+			 Slab.Text("Entrance heading (degrees)")
+			 slider(E,"yard_dheading"..i,p.dockHeading,-180,180,function(v)p.dockHeading=v end,1)
+			end
+			check(E,p.dockX~=nil,"Custom entrance position",function(on)
+			 if on then p.dockX,p.dockY=require("src.dock_geometry").point(d,d.x2,0)
+			 else p.dockX,p.dockY=nil,nil end
+			end)
+			if p.dockX~=nil then
+			 Slab.Text("Entrance X / Y (station coordinates)")
+			 slider(E,"yard_dx"..i,p.dockX,-20000,20000,function(v)p.dockX=v end,0)
+			 slider(E,"yard_dy"..i,p.dockY,-20000,20000,function(v)p.dockY=v end,0)
+			end
+			check(E,p.dockWidth~=nil,"Custom opening width",function(on)p.dockWidth=on and d.hw*2 or nil end)
+			if p.dockWidth then slider(E,"yard_dwidth"..i,p.dockWidth,20,5000,function(v)p.dockWidth=v end,0) end
+			check(E,p.dockDepth~=nil,"Custom interior depth",function(on)p.dockDepth=on and d.x2-d.x1 or nil end)
+			if p.dockDepth then slider(E,"yard_ddepth"..i,p.dockDepth,20,5000,function(v)p.dockDepth=v end,0) end
 			check(E, p.dockBoth == true, "Tunnel (open at both ends)", function(on) p.dockBoth = on or nil end)
-			Slab.Text("runway length (px)")
-			slider(E, "yard_drun" .. i, p.dockRunway or 600, 100, 3000, function(v) p.dockRunway = math.floor(v + 0.5) end, 0)
+			Slab.Text("Runway length (px)")
+			slider(E, "yard_drun" .. i, p.dockRunway or 600, 100, 5000, function(v) p.dockRunway = math.floor(v + 0.5) end, 0)
+			check(E,p.dockCapture~=nil,"Custom tractor half-width",function(on)p.dockCapture=on and d.capture or nil end)
+			if p.dockCapture then slider(E,"yard_dcapture"..i,p.dockCapture,20,5000,function(v)p.dockCapture=v end,0) end
+			Slab.Text("Door frame thickness (px)")
+			slider(E,"yard_dwall"..i,p.dockWall or 24,1,200,function(v)p.dockWall=v end,0)
+
 		end
 	end
 	if E.design.kind ~= "station" then

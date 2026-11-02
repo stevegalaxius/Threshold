@@ -226,6 +226,7 @@ function E.duplicateSelected()
 	local p = Export.copy(E.design.parts[E.sel])
 	for k = 1, #p.shape, 2 do p.shape[k], p.shape[k + 1] = p.shape[k] + E.grid * 2, p.shape[k + 1] + E.grid * 2 end
 	for _, l in ipairs(p.lights or {}) do l.x, l.y = l.x + E.grid * 2, l.y + E.grid * 2 end
+	if p.dockX~=nil then p.dockX,p.dockY=p.dockX+E.grid*2,p.dockY+E.grid*2 end
 	p.name = (p.name or "part") .. " copy"
 	table.insert(E.design.parts, E.sel + 1, p)
 	E.sel = E.sel + 1

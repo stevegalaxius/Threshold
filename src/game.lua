@@ -1011,7 +1011,7 @@ function Game:inTractorZone(st, x, y)
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
-		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3 then
+		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < (d.capture or d.hw*1.3) then
 			return true, lx, ly, side, d
 		end
 	end
@@ -1118,7 +1118,7 @@ function Game:updateDockedShip(e, dt)
 				local gx, gy = self:surfacePullAt(x, y)
 				ax, ay = ax - gx, ay - gy
 			end
-			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > d.hw * 2 then
+			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2,(d.capture or d.hw*1.3)*1.5) then
 				e.dockState, e.dockCooldown = nil, 3
 				self:toast("TRACTOR LOST", 1.4)
 				return

@@ -154,28 +154,14 @@ function api.station(def)
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
 	-- every part tagged dock is a docking module. Its frame points from the
-	-- station's centre out through the part (or along +x for a part on the
-	-- centre); the door is the far end. dockBoth: a tunnel open at both
-	-- ends, centred on its frame.
+	-- station's centre out through the part by default; authored heading,
+	-- entrance and dimensions override that geometry for any station shape.
+	-- dockBoth opens both ends of the same frame.
 	def.docks = {}
 	for _, part in ipairs(def.parts) do
 		if part.dock then
-			local a = (math.abs(part.cx) + math.abs(part.cy) < 1) and 0 or math.atan2(part.cy, part.cx)
-			local c, sn = math.cos(a), math.sin(a)
-			local x1, x2, y1, y2 = math.huge, -math.huge, math.huge, -math.huge
-			local s = part.shape
-			for k = 1, #s, 2 do
-				local rx, ry = s[k] * c + s[k + 1] * sn, -s[k] * sn + s[k + 1] * c
-				x1, x2 = math.min(x1, rx), math.max(x2, rx)
-				y1, y2 = math.min(y1, ry), math.max(y2, ry)
-			end
-			local d = { a = a, yc = (y1 + y2) / 2, x1 = x1, x2 = x2, hw = (y2 - y1) / 2,
-				wall = 24, runway = part.dockRunway or 600, capture = part.dockCapture or 260 }
-			if part.dockBoth then
-				d.both = true
-				d.xc = (x1 + x2) / 2
-				d.x1, d.x2 = x1 - d.xc, x2 - d.xc
-			end
+			local ok,d=pcall(require("src.dock_geometry").build,part)
+			if not ok then fail(("station '%s': %s"):format(def.id,d)) end
 			table.insert(def.docks, d)
 		end
 	end
