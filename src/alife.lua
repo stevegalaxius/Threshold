@@ -40,7 +40,7 @@ local function start(r,clock,index)
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
  end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
- r.driverState=nil
+ r.driverState,r.cityExit=nil,nil
 end
 
 A.start=start
@@ -315,7 +315,7 @@ function A.point(r,clock)
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  if r.state=='idle' then
-  local x,y=L.position(r.route[r.index],clock)
+  local x,y=L.inspectionPosition(r.route[r.index],clock)
   return x+(r.offset and r.offset.x or 0),y+(r.offset and r.offset.y or 0)
  end
  local p=progress(r,clock)
@@ -397,6 +397,12 @@ function A.capture(game,e,remote)
  r.driverState=controlled and {phase=e.launch and 'launch' or 'tractor',
   driver=controlled.driver.locationId,to=controlled.to,t=controlled.t,
   ghost=controlled.ghost,angle=controlled.driver.angle} or nil
+ r.cityExit=nil
+ if e.dockExit and not remote then
+  local exit=e.dockExit;local index=1
+  for i,dock in ipairs(exit.station.docks or {exit.station.dock}) do if dock==exit.dock then index=i;break end end
+  r.cityExit={station=exit.station.locationId,dock=index,side=exit.side,t=exit.t}
+ end
  r.ship=shipRecord(e); r.power=e.power
  if Security.isRole(r) then return Security.capture(game,e,r,remote) end
  if e.alifeEgress then
@@ -471,8 +477,12 @@ local function bindRoute(game,e,r)
   local stop=place.area==game.fieldId and game:locationEntity(id)
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
-   stop={kind='waypoint',locationId=id,removed=false,body={getPosition=function()
+   stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
+    if station.city then return L.inspectionPosition(id,game.universe.clock) end
     return require('src.ai').stopPoint(station)
+   end,getLinearVelocityFromWorldPoint=function(_,x,y)
+    if station.city then return L.inspectionVelocity(id,game.universe.clock) end
+    return station.body:getLinearVelocityFromWorldPoint(x,y)
    end}}
   end
   if stop and place.kind=='driver' then
@@ -532,6 +542,13 @@ function A.wake(game,r)
   end
  else
   bindRoute(game,e,r)
+  if exact and r.cityExit then
+   local exit=r.cityExit;local station=game:locationEntity(exit.station)
+   if station and station.city then
+    local dock=(station.docks or {station.dock})[exit.dock]
+    if dock then e.dockExit={station=station,dock=dock,side=exit.side,t=exit.t} end
+   end
+  end
   if exact and r.driverState then
    local state=r.driverState
    local g=game:locationEntity(state.driver)
@@ -582,7 +599,8 @@ function A.wake(game,r)
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
    local station=close(destination) and destination or source
-   e.body:setPosition(require('src.ai').stopPoint(station))
+   if station.city then e.body:setPosition(L.inspectionPosition(station.locationId,game.universe.clock))
+   else e.body:setPosition(require('src.ai').stopPoint(station)) end
   end
  end
 

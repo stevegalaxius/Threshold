@@ -71,7 +71,7 @@ local function circlePolygon(cx,cy,r,poly,vx,vy,ahead)
    local nx,ny=-dy/len,dx/len
    local distance=dot(cx-ax,cy-ay,nx,ny); local speed=dot(vx,vy,nx,ny)
    if abs(speed)>.000001 then
-    for _,sign in ipairs({-1,1}) do
+    for sign=-1,1,2 do
      local t=(sign*r-distance)/speed
      if t>=0 and t<=ahead then
       local along=dot(cx+vx*t-ax,cy+vy*t-ay,dx/len,dy/len)
@@ -85,6 +85,42 @@ local function circlePolygon(cx,cy,r,poly,vx,vy,ahead)
  end
  return best
 end
+-- Sweep a clearance circle for local steering. Initial overlap must permit
+-- outward motion; reporting every escape direction as blocked causes deadlocks.
+function C.sweepCircle(x,y,r,obstacle,vx,vy,ahead)
+ if obstacle.minx then
+  local xx,yy=x+vx*ahead,y+vy*ahead
+  if max(x,xx)+r<obstacle.minx or min(x,xx)-r>obstacle.maxx
+   or max(y,yy)+r<obstacle.miny or min(y,yy)-r>obstacle.maxy then return end
+ end
+ local nx,ny,d,inside
+ if obstacle.r then
+  nx,ny=x-obstacle.x,y-obstacle.y
+  d=nx*nx+ny*ny;inside=d<=(r+obstacle.r)^2
+ else
+  local bx,by;bx,by,d=closest(obstacle.p,x,y)
+  local sign;inside=#obstacle.p>=6
+  if inside then
+   for i=1,#obstacle.p,2 do
+    local j=i+2;if j>#obstacle.p then j=1 end
+    local cross=(obstacle.p[j]-obstacle.p[i])*(y-obstacle.p[i+1])-(obstacle.p[j+1]-obstacle.p[i+1])*(x-obstacle.p[i])
+    if cross~=0 then
+     local s=cross>0;if sign~=nil and s~=sign then inside=false;break end;sign=s
+    end
+   end
+  end
+  nx,ny=x-bx,y-by
+  if inside then nx,ny=-nx,-ny end
+  inside=inside or d<=r*r
+ end
+ if inside then
+  if vx*nx+vy*ny>=0 and vx*vx+vy*vy>.0001 then return end
+  return 0
+ end
+ if obstacle.r then return pointCircle(x,y,vx,vy,obstacle.x,obstacle.y,r+obstacle.r,ahead) end
+ return circlePolygon(x,y,r,obstacle.p,vx,vy,ahead)
+end
+
 local function primitives(body)
  local shapes={}
  for _,fixture in ipairs(body:getFixtures()) do

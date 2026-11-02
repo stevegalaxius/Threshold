@@ -266,7 +266,7 @@ end
 
 local function graphSection(game)
  local G = require("src.travelgraph")
- local visible = game.travelGraphView and game.travelGraphView.area == game.fieldId
+ local visible = game.travelGraphView ~= nil
  if Slab.CheckBox(visible or false, "Show simulation connections and NPCs") then
   game.travelGraphView = not visible and G.build(game.fieldId) or nil
  end
