@@ -270,7 +270,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = not o.surfaceMine and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
+		tradeBuoys = o.tradeBuoys, stationTrack = not o.surfaceMine and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -286,6 +286,12 @@ local function planetField(o)
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = bands end
 			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale, field.stationIds[1]) end
+			if o.tradeBuoys then
+				for _, id in ipairs(field.buoyIds) do
+					local buoy = game:spawnBuoy(0, 0, id)
+					game:setOrbit(buoy, 0, 0, game:currentSpeed(sd))
+				end
+			end
 			if o.extra then o.extra(game, R) end
 			if o.surfaceMine then
 				local mine=game:spawnStation('zhuhai_strip_mine',0,0,0,false,field.stationIds[1])
@@ -390,7 +396,7 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = tru
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
 	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 1.5 } },
-	city = "Olympus", cityScale = 2,
+	city = "Olympus", cityScale = 2, tradeBuoys = true,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
@@ -519,7 +525,7 @@ for _, area in ipairs(Fields.list) do
 		end
 		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
 	end
-	if F.stationTrack and #F.stationIds > (F.city and 1 or 0) then
+	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
 		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
 			F.buoyIds[i] = add(i == 1 and "trade_buoy_a" or "trade_buoy_b", "Trade buoy " .. i, "buoy",
 				{ type = "orbit", radius = F.stationTrack, surface = F.planetR, phase = phase })
@@ -544,7 +550,15 @@ for _, area in ipairs(Fields.list) do
  local function link(a,b)
   if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end
  end
- if #F.buoyIds == 2 then
+ if F.tradeBuoys then
+  -- Keep through traffic above the clouds. Olympus is a destination spur,
+  -- never the junction between a moon exit and the mass driver.
+  link(F.buoyIds[1],F.buoyIds[2])
+  for _,id in ipairs(F.buoyIds) do
+   link(F.stationIds[1],id)
+   link(F.driverId,id)
+  end
+ elseif #F.buoyIds == 2 then
   local a,b=F.stationIds[F.city and 2 or 1],F.stationIds[F.city and 3 or 2]
   F.traderRoute={a,F.buoyIds[1],b,F.buoyIds[2]}
   for i,id in ipairs(F.traderRoute) do link(id,F.traderRoute[i%#F.traderRoute+1]) end
@@ -552,12 +566,12 @@ for _, area in ipairs(Fields.list) do
  else
   for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
  end
- link(F.driverId,F.stationIds[1])
+ if not F.tradeBuoys then link(F.driverId,F.stationIds[1]) end
  for _,place in ipairs(F.locations) do
   if place.kind=='moon_gate' then
    -- Candidate attachments to the existing corridor. Routing uses only the
    -- closest attachment at the planning clock, never an early-exit shortcut.
-   for _,node in ipairs(F.traderRoute or {F.stationIds[1]}) do link(place.id,node) end
+   for _,node in ipairs(F.tradeBuoys and F.buoyIds or F.traderRoute or {F.stationIds[1]}) do link(place.id,node) end
   end
  end
 

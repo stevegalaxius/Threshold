@@ -463,3 +463,13 @@ ship motion/spin, cursor aim, zoom, capacitor, engine spool and weapon cadence
 carry across the coordinate change. The player can steer, reverse, boost or fire
 immediately. Mass-driver launches retain their separate scripted sequence.
 Run `love . --moonentrytest` for entry and immediate-control regressions.
+
+Jupiter has two orbital trade buoys on its station track. Moon exits and the
+mass driver connect to this corridor, with Olympus reached through a buoy rather
+than used as a through-traffic junction. City-bound pilots finish circling above
+the gravity band before descending to the runway. The city's tractor supports
+NPCs against gravity just as it supports the player. Existing saved routes adopt
+the buoy approach without teleporting their ships.
+`love . --olympustest` checks orbital positions, routes at different phases,
+saved-route repair, and a physical visitor docking at Olympus and climbing back
+out to its buoy.

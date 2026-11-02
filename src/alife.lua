@@ -168,6 +168,7 @@ function A.seed(game)
    end
   end
   A.repairMoonRoutes(game)
+  A.repairApproachRoutes(game)
  end
 end
 
@@ -254,6 +255,47 @@ function A.repairMoonRoutes(game)
       local bx,by=journeyPoint(r,p,clock)
       r.offset={x=x-bx,y=y-by,progress=p}
      end
+    end
+   end
+  end
+ end
+end
+
+-- Insert newly authored orbital approaches into existing saved journeys.
+-- Keep a travelling ship at its current position while rebasing its next leg.
+function A.repairApproachRoutes(game)
+ local clock=game.universe.clock
+ for _,r in pairs(game.universe.npcs) do
+  if r.state~='dead' and r.state~='escaped' and r.route then
+   local route,map,first={}, {}, {}
+   local changed=false
+   for i,to in ipairs(r.route) do
+    local from=r.route[(i-2)%#r.route+1]
+    local a,b=L.get(from),L.get(to)
+    first[i]=#route+1
+    if a.area==b.area and Fields[a.area].tradeBuoys
+     and (a.kind=='station' or b.kind=='station')
+     and a.kind~='buoy' and b.kind~='buoy' then
+     local path=Graph.route(graph(a.area),from,to,clock)
+     if path then
+      for j=1,#path.legs-1 do route[#route+1]=path.legs[j].edge.to;changed=true end
+     end
+    end
+    route[#route+1]=to;map[i]=#route
+   end
+   if changed then
+    local x,y
+    if r.state=='travel' then
+     if r.pose then x,y=r.pose.x,r.pose.y else x,y=A.point(r,clock) end
+    end
+    local index=r.state=='travel' and first[r.index] or map[r.index]
+    r.route,r.index=route,index
+    if x then
+     local duration=math.max(.1,Graph.length(graph(r.area),edge(r),clock)/r.speed)
+     local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
+     r.depart=clock-p*duration;r.arrive=r.depart+duration
+     local bx,by=journeyPoint(r,p,clock)
+     r.offset={x=x-bx,y=y-by,progress=p}
     end
    end
   end

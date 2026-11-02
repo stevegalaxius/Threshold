@@ -212,11 +212,14 @@ local function trade(game, e, dt)
 			local rs = sqrt((sx - w.x) ^ 2 + (sy - w.y) ^ 2)
 			local am = atan2(y - w.y, x - w.x)
 			local gap = wrap(atan2(sy - w.y, sx - w.x) - am)
-			local stepA = 0.2
+			-- Cloud-city traffic must finish circling above the gravity band
+			-- before descending toward the tunnel's outer runway.
+			local stepA = stop.city and 0.08 or 0.2
 			if math.abs(gap) > stepA then
 				local ah = am + (gap > 0 and stepA or -stepA)
 				local currentR = sqrt((x - w.x)^2 + (y - w.y)^2)
 				local lookR = currentR + (rs - currentR) * stepA / math.abs(gap)
+				if stop.city then lookR = max(currentR, w.radius + T.surfacePullRange + 1000) end
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
