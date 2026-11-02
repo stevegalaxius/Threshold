@@ -203,7 +203,7 @@ end
 -- current fade out. Rocks and derelicts are laid out when you enter.
 T.laneSpecs = {
 	{ key = "laneRocks",       label = "Rocks on the road (per 10k px)", min = 0,  max = 15,    value = 1,     precision = 0 },
-	{ key = "laneHazardDepth", label = "Moon rocks beyond soft edge (px)", min = 1000, max = 16000, value = 6000, precision = 0 },
+	{ key = "laneHazardDepth", label = "Moon rock belt minimum depth (px)", min = 8000, max = 60000, value = 24000, precision = 0 },
 	{ key = "laneOffroad",     label = "Rocks off-road (per 10k px)",   min = 0,    max = 60,    value = 12,    precision = 0 },
 	{ key = "laneDerelicts",   label = "Derelicts (per 100k px)",       min = 0,    max = 10,    value = 1,     precision = 1 },
 	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },

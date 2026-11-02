@@ -12,6 +12,7 @@
 
 local data = require("src.data")
 local T = require("src.tuning")
+local softBoundary=require("src.soft_boundary")
 local Ship = require("src.ship")
 local HullShape = require("src.hullshape")
 local Stations = require("src.stations")
@@ -1616,7 +1617,7 @@ function Game:step(dt)
 	end
 end
 
--- Soft arena edge: the further past it, the harder you're pushed back.
+-- Soft arena edge: brake outward motion, then drift gently inward.
 function Game:applyBoundary()
 	local R = self.arenaRadius
 	for _, e in ipairs(self.entities) do
@@ -1633,9 +1634,7 @@ function Game:applyBoundary()
 			local vx, vy = b:getLinearVelocity()
 			local out = vx * nx + vy * ny
 			local m = b:getMass()
-			local k = min(1, (d - R) / T.edgeSoft)
-			local f = -T.edgeDrift * m
-			if out > 0 then f = f - out * T.edgeBrake * k * m end
+			local f = softBoundary(d-R,out,m)
 			b:applyForce(nx * f, ny * f)
 		end
 	end

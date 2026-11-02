@@ -161,6 +161,7 @@ local function flightSection(game)
 end
 
 local function laneSection(game)
+	if game.lane and game.lane.hazardDepth then Slab.Text(("Current outer rock depth: %.0f px"):format(game.lane.hazardDepth)) end
 	for _, s in ipairs(T.laneSpecs) do
 		Slab.Text(s.label)
 		if Slab.InputNumberSlider("lane_" .. s.key, T[s.key], s.min, s.max, { W = 300, Precision = s.precision }) then

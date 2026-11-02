@@ -392,11 +392,13 @@ lock and pilot retention after limits change, and legacy definitions.
 Side Jets are no longer a module or equipment slot. Hull `sideThrust` provides maneuvering thrust directly and is editable in the shipyard. Baseline hull values retain the previous scaled Side Jets thrust; ships no longer carry the module mass or continuous power draw. Existing saves/designs with the old slot layout may need to be recreated.
 
 
-Moon transit reuses the existing soft lateral pushback beyond
+Moon transit uses the local-map slowdown-and-drift response beyond
 `laneWidth + laneRamp + 2500` pixels from the route. It retains ordinary moon
 flight (no highway thrust buff or near-end wall). A denser rock belt spans the
-edge and extends another `laneHazardDepth` pixels beyond it (default 6,000;
-Transit lane debug setting). Those rocks are laid out at entry, stay clear of
+edge and extends `laneHazardDepth` pixels beyond it by default (24,000;
+Transit lane debug setting), expanded for the widest camera view and limited
+to valid lane geometry. Density is retained in bands across the wider field.
+Those rocks are laid out at entry, stay clear of
 the handoff mouths, and are not pushed back inside by the moon boundary.
 `laneOffroad` controls their population; zero disables the off-road rocks.
 Run `love . --moonboundarytest` for force, placement and no-pop-in checks.
@@ -447,3 +449,8 @@ export, reopen and autosave. Automatic geometry remains available for ring
 stations. Data fields: `dockHeading`, `dockX`, `dockY`, `dockWidth`,
 `dockDepth`, `dockRunway`, `dockCapture` (tractor half-width), `dockWall`,
 and `dockBoth`. Run `love . --dockeditortest` for editor/runtime regressions.
+
+Circular map edges and transit side boundaries share one response: brake outward
+velocity, then apply the same small inward drift regardless of distance outside.
+They do not apply a distance-proportional spring force. The outer rock belt
+remains in place.

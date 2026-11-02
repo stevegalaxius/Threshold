@@ -34,6 +34,7 @@
 ]]
 
 local T = require("src.tuning")
+local softBoundary=require("src.soft_boundary")
 local Ship = require("src.ship")
 local AI = require("src.ai")
 local Fields = require("src.fields")
@@ -828,15 +829,20 @@ function Game:populateLane()
 	-- the rest of the trip; it must not pop into view as the player wanders.
 	if trip.moon and span>0 and T.laneOffroad>0 then
 		local edge=self:laneBoundary()
+		local depth=self:moonHazardDepth()
+		lane.hazardDepth=depth
+		local bands=math.max(1,math.ceil((depth+500)/6500))
 		for _,side in ipairs({-1,1}) do
-			for _=1,math.max(1,floor(span/10000*T.laneOffroad*2)) do
-				local s=s1+rng:random()*span
-				local n=side*(edge-500+rng:random()*(T.laneHazardDepth+500))
-				local r=30+rng:random()^2*160
-				local x,y=at(s,n,r+40)
-				if x then
-					local e=self:spawnAsteroid(x,y,r,self:pickDebris(mix))
-					e.lane="hazard";e.body:setLinearVelocity(0,0)
+			for band=1,bands do
+				for _=1,math.max(1,floor(span/10000*T.laneOffroad*2)) do
+					local s=s1+rng:random()*span
+					local n=side*(edge-500+((band-1)+rng:random())/bands*(depth+500))
+					local r=30+rng:random()^2*160
+					local x,y=at(s,n,r+40)
+					if x then
+						local e=self:spawnAsteroid(x,y,r,self:pickDebris(mix))
+						e.lane="hazard";e.body:setLinearVelocity(0,0)
+					end
 				end
 			end
 		end
@@ -854,6 +860,17 @@ function Game:populateLane()
 			end
 		end
 	end
+end
+
+-- Several screens of continuous debris beyond the region where braking
+-- ramps up. Keep the field density when widening it and avoid lane-coordinate
+-- inversion at the inside of the arc.
+function Game:moonHazardDepth()
+ local w,h=love.graphics.getDimensions()
+ local zoom=math.min(T.minZoom,T.cineZoom or T.minZoom)
+ local view=math.sqrt(w*w+h*h)/math.max(.01,zoom)
+ return math.min(math.max(T.laneHazardDepth,T.edgeSoft+view*2),
+  self.lane.R-self:laneBoundary()-1000)
 end
 
 function Game:laneBoundary()
@@ -882,8 +899,11 @@ function Game:updateLane(dt)
 			local over = abs(n) - self:laneBoundary()
 			local moonDebris=self.trip and self.trip.moon and e.kind=="asteroid"
 			if over > 0 and not moonDebris then
-				local k = (n > 0 and 1 or -1) * over * m * 4
-				b:applyForce(sin(phi) * k, -cos(phi) * k)
+				local sign=n>0 and 1 or -1
+				local nx,ny=-sin(phi)*sign,cos(phi)*sign
+				local vx,vy=b:getLinearVelocity()
+				local force=softBoundary(over,vx*nx+vy*ny,m)
+				b:applyForce(nx*force,ny*force)
 			end
 			if s < -lane.half and e ~= p and not (self.trip and self.trip.moon) then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
 		end
