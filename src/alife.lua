@@ -9,6 +9,8 @@ local data = require('src.data')
 local T = require('src.tuning')
 local Hold = require('src.inventory.hold')
 local copy = require('src.persistence').copy
+local Tasks=require('src.tasks')
+local Transport=require('src.transport')
 local A = {}
 local graphs = {}
 local function graph(area)
@@ -26,9 +28,9 @@ local function start(r,clock,index)
  local leg=edge(r)
  local from,to=L.get(leg.from),L.get(leg.to)
  if from.area~=to.area then
-  local lane=assert(Graph.transit(leg.from,leg.to),'invalid inter-region journey')
+  local lane=assert(Graph.transit(leg.from,leg.to,clock),'invalid inter-region journey')
   r.state='transit'; r.area=nil; r.transit=lane
-  lane.speed=r.speed
+  lane.speed=lane.kind=='driver' and T.laneFlow or r.speed
   r.arrive=clock+lane.length/lane.speed
  else
   r.state='travel'; r.area=to.area; r.transit=nil
@@ -71,6 +73,17 @@ end
 
 -- Plan the next journey when leaving either trading destination.
 local function adoptTrip(r,station,clock,u)
+ if r.taskWorker and u then
+  if (r.nextTaskAt or 0)>clock then return false end
+  Tasks.arrive(u,r,station,clock)
+  local task=Tasks.choose(u,r,station,clock)
+  if not task then r.nextTaskAt=clock+10;return false end
+  r.nextTaskAt=nil
+  local route=Tasks.plan(r,station,clock)
+  if not route then Tasks.release(u,r,'no route',clock);return false end
+  r.route=route;r.index=1;r.onRoundTrip=nil;r.tripRoute=nil;r.tripDestination=nil
+  return true
+ end
  if r.home=='mars' and u then
   if not require('src.jobs').depart(u,r,station,clock) then return false end
  end
@@ -139,11 +152,27 @@ function A.seed(game)
    r.tripRoute=roundTrip(r.home,r.tripDestination,u.clock)
   end
  end
- if not game.preview then A.repairMoonRoutes(game) end
+ if not game.preview then
+  Transport.seed(u)
+  -- Upgrade one existing local trader per eligible planet, without moving it
+  -- or changing its fixed archetype. Work starts at its next docking stop.
+  for _,area in ipairs(Fields.list) do
+   if area~='mars' and Fields[area].driverId and Fields[area].stationIds[1] then
+    local worker
+    for _,r in pairs(u.npcs) do
+     if r.role=='trader' and r.home==area and not r.onRoundTrip and not r.tripDestination
+      and r.state~='dead' and r.state~='escaped' and (not worker or r.id<worker.id) then worker=r end
+    end
+    if worker then worker.taskWorker=true end
+   end
+  end
+  A.repairMoonRoutes(game)
+ end
 end
 
 local function dockingStop(r,id)
  if L.get(id).kind~='station' then return false end
+ if r.taskWorker then return id==(r.task and r.task.target) or not r.task end
  return not r.onRoundTrip or id==(r.tradeHome or Fields[r.home].stationIds[1])
   or id==Fields[r.tripDestination].stationIds[1]
 end
@@ -161,8 +190,9 @@ function A.advance(r,clock,u)
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
    if clock<r.untilTime then return end
+   if r.taskWorker and not u then return end
    local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)
-   if r.home=='mars' and u and not adopted then r.untilTime=clock+10;return end
+   if (r.home=='mars' or r.taskWorker) and u and not adopted then r.untilTime=clock+10;return end
    start(r,r.untilTime,r.index%#r.route+1)
   else return end
  end
@@ -204,7 +234,7 @@ function A.repairMoonRoutes(game)
    local duration=r.transit.length/r.speed
    r.depart=clock-p*duration; r.arrive=r.depart+duration
   end
-  if r.tripRoute then
+  if r.tripRoute and not r.taskWorker then
    r.tripRoute=strip(r.tripRoute)
    if r.onRoundTrip then
     local route,index,changed=strip(r.route,r.index)
@@ -359,6 +389,7 @@ end
 local function bindRoute(game,e,r)
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area)
+ e.taskWorker=r.taskWorker
  for _,id in ipairs(r.route) do
   local place=L.get(id)
   local stop=place.area==game.fieldId and game:locationEntity(id)
@@ -367,6 +398,10 @@ local function bindRoute(game,e,r)
    stop={kind='waypoint',locationId=id,removed=false,body={getPosition=function()
     return require('src.ai').stopPoint(station)
    end}}
+  end
+  if stop and place.kind=='driver' then
+   local driver=stop
+   stop={kind='driver',locationId=id,removed=false,body={getPosition=function() return game:driverBreech(driver) end}}
   end
   if not stop then
    stop={kind=place.kind,locationId=id,removed=false}
@@ -462,7 +497,7 @@ end
 function A.install(Game)
  function Game:traderCanDepart(e,station)
   local r=self.universe.npcs[e.alifeId]
-  if not r or r.home~='mars' then return true end
+  if not r or r.home~='mars' and not r.taskWorker then return true end
   A.capture(self,e,false)
   local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
   if not ok then return false end
@@ -503,6 +538,7 @@ function A.install(Game)
   if not force and clock<(self.alifeNext or 0) then return end
   self.alifeNext=clock+T.alifeLocalTick
   local records=self.universe.npcs or {}
+  Tasks.clean(self.universe,clock)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
   for id,e in pairs(self.alifeOnline) do
@@ -525,7 +561,7 @@ function A.install(Game)
     A.capture(self,e,true)
     local r=records[id]
     start(r,clock,r.index%#r.route+1)
-    r.transit.speed=math.max(50,math.sqrt(vx*vx+vy*vy))
+    r.transit.speed=r.transit.kind=='driver' and T.laneFlow or math.max(50,math.sqrt(vx*vx+vy*vy))
     r.arrive=clock+r.transit.length/r.transit.speed
     e.alifeDepart=nil; e.alifeEgress=true; e.route=nil
     e.egressHeading=math.atan2(y,x); e.egressSpeed=math.max(r.transit.speed,r.speed*.6)

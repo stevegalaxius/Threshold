@@ -305,3 +305,29 @@ Phobos and Deimos have permanent surface mining stations, retaining their rocky 
 The travel-graph debug overlay shows pickup/delivery assignments and waiting traders. Existing saved Mars traders adopt jobs at their next Mars docking departure. Run `love . --marsjobtest` for the production/reservation/delivery and physical mine-docking checks. Delivered ore is recorded as station supply; industrial consumption and player job contracts are not implemented yet.
 
 Debug travel is available in **F1 → Teleport and destinations**: filter areas by name and jump to the selected planet or moon. On the **M map**, the dropdown beneath the planet name teleports to a selected area; scroll the list to reach all planets and moons. Right-click a map point to teleport within the current area. Right-click a planet on the mass-driver map to teleport directly to that area. The current ship, equipment, cargo and damage are preserved, and no travel fare is charged. Run `love . --debugtraveltest` for the integration checks.
+
+## NPC tasks and interplanetary dispatch
+
+A role-neutral task board in `src/tasks.lua` owns available work and exclusive
+reservations. Task definitions specify eligible roles, requirements, selection
+scores, preparation, route planning and completion. NPC records retain their
+fixed role, current task and last outcome; the board and tasks survive save/load.
+Death releases a reservation, and idle workers retry after ten seconds.
+
+`src/transport.lua` supplies the first task type. One existing local trader per
+eligible planet (apart from Mars's mining workers) becomes a dispatch worker
+at its next docking stop. It chooses available transport work from that station,
+loads five scrap, flies to the mass driver, crosses to the destination planet,
+docks, delivers and chooses again. Tasks favor destinations other than the last
+pickup port, avoiding immediate return trips. Busy manifests remain reserved; completed or abandoned ones become
+available again after 120 seconds.
+
+These are authored, recurring transport manifests with placeholder cargo.
+They do not buy from markets, charge fares or calculate profits. A future economy
+can supply requests through `Tasks.post`. Existing local traffic, moon trips and
+Mars mining jobs remain supported. Other roles can register task types with the
+same lifecycle; patrol, mining and combat behaviors are not added by this change.
+
+Run `love . --tasktest` for role eligibility, reservation ownership, cargo,
+offline completion and reassignment, save/load, death cleanup, and a powered
+mass-driver departure followed by online destination docking and delivery.
