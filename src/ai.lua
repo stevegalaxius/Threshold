@@ -197,7 +197,7 @@ local function trade(game, e, dt)
 		-- way ahead along the circle until the stop is close.
 		local hx, hy = sx, sy
 		local w = game.well
-		local gateApproach = e.alifeId and stop.kind == "moon_gate" and e.travelGraph
+		local gateApproach = e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
 		if gateApproach then
 			local G = require("src.travelgraph")
 			local previous = route[(e.routeIndex-2)%#route+1]
@@ -224,7 +224,7 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock then
-			if e.alifeId and stop.kind == "moon_gate" then
+			if e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") then
 				e.alifeDepart = true
 				it.thrust, it.strafe = 0, 0
 				return
@@ -246,9 +246,9 @@ local function trade(game, e, dt)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
 		if gateApproach then
-			-- A fixed exit has no orbital velocity. Counter the current rather
-			-- than carrying its sideways drift into the lane.
-			fx0, fy0 = 0, 0
+			-- Match the endpoint velocity: gates are fixed, drivers orbit.
+			-- Do not carry unrelated orbital drift into the launch.
+			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
 		if stop.dock then
 			-- Final approach is relative to the moving dock, not the orbital

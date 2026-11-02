@@ -304,7 +304,7 @@ function Game:saveState()
 	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
-		jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
+		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -327,6 +327,7 @@ function Game:loadState(state)
 	self.universe.areas = Persistence.copy(state.areas or {})
 	self.universe.nextObjectId = state.nextObjectId or 0
 	self.universe.jobs = Persistence.copy(state.jobs)
+	self.universe.tasks = Persistence.copy(state.tasks)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
 	self.universe.nextNpcId = state.nextNpcId or 0
