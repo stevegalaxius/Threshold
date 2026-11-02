@@ -549,6 +549,28 @@ function Canvas.draw(E)
 	lg.translate(lg.getWidth() / 2 - v.x * v.zoom, lg.getHeight() / 2 - v.y * v.zoom)
 	lg.scale(v.zoom)
 
+	-- Use the chosen default equipment and the same geometry as live ships.
+	local weapons = {}
+	if not E.design.kind and E.preview == "normal" then
+		local loadout = E.ensureLoadout()
+		for i, slot in ipairs(E.design.slots or {}) do
+			local m = loadout[i] and data.modules[loadout[i]]
+			if m and m.weapon and data.fits(slot, m) then
+				weapons[#weapons+1] = { slot=slot, module=m, w=m.weapon,
+					group=slot.family, mount=slot.mount or E.stat("mount") or "gimbal", aim=0 }
+			end
+		end
+	end
+	local function drawWeapons(turrets)
+		for _, w in ipairs(weapons) do
+			if (w.mount == "turret") == turrets then
+				local col = E.paint
+				require('src.weapon_visual').draw(w, col,
+					{col[1]*.22,col[2]*.22,col[3]*.22}, 1.5/v.zoom)
+			end
+		end
+	end
+	drawWeapons(false)
 	E.errors = {}
 	-- each part on its own, so a broken one shows red without hiding the rest
 	local col = E.paint
@@ -621,6 +643,7 @@ function Canvas.draw(E)
 		end
 	end
 
+	drawWeapons(true)
 	lg.pop()
 
 	-- berths: a pad the size of the biggest ship that fits, nose arrow
