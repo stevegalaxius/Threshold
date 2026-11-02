@@ -234,6 +234,13 @@ local function trade(game, e, dt)
 		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
+		if stop.dock then
+			-- Final approach is relative to the moving dock, not the orbital
+			-- current. In particular, a surface mine has no sideways motion.
+			local blend = max(0, min(1, 1 - (d - 600) / 1800))
+			local dx, dy = stop.body:getLinearVelocityFromWorldPoint(sx, sy)
+			fx0, fy0 = fx0 + (dx - fx0) * blend, fy0 + (dy - fy0) * blend
+		end
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
 	end
 	local foe = e.aggressor

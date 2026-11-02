@@ -44,14 +44,20 @@ return function(game)
   r.depart=u.clock;r.arrive=u.clock+100;r.pose=nil;r.offset=nil
   r.ship.cargo={}
   local st=game:locationEntity(area..'/strip_mine')
-  local x,y=require('src.ai').stopPoint(st)
+  local x,y=game.dockWorld(st,1,st.dock.x2+st.dock.runway+600,300)
   r.pose={x=x,y=y,a=st.dock.a+math.pi,vx=0,vy=0,w=0,clock=u.clock}
   local e=A.wake(game,r)
+  check(not e.dockState and not game:inTractorZone(st,e.body:getPosition()),area..': approach test started inside capture')
   game.player.body:setPosition(x+3000,y)
   require('src.ai').think(game,e,1/120)
   check(e.intent.thrust==e.intent.thrust,area..': mining approach produced invalid steering')
-  game:beginDocking(e,st,1)
-  for _=1,2400 do
+  -- Fly into the real capture zone; do not force a tractor lock.
+  for i=#game.entities,1,-1 do
+   local other=game.entities[i]
+   if other.kind=='asteroid' or other.kind=='ship' and other~=e and other~=game.player then game:remove(other) end
+  end
+  game.sleepers={}
+  for _=1,12000 do
    game:step(1/120)
    if e.dockState and e.dockState.done then break end
   end
