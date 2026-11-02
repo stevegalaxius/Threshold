@@ -235,6 +235,13 @@ no docking stations yet, and Neptune has no port, so these are not docking-trip
 destinations. Moon corridor bearings stay fixed over time, so ships can reach an exit without
 chasing its orbit. No station structures or artificial navigation points are added.
 
+NPC gate approaches turn toward the exit early and straighten into an outward
+radial approach before crossing the boundary. Powered traders follow the same
+curved approach used by offline travel and the graph overlay, and compensate
+for orbital current when aiming at a stationary exit. This applies to both
+planet departures and moon return gates, including Earth and Deimos.
+
+
 The graph names real locations and declared journeys in `fields.lua`. Earth has
 six places and six connections. The system-level connection for a moon is its
 existing pair of departure gates and highway length. NPC movement never adds

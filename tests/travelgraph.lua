@@ -52,6 +52,27 @@ return function(game)
  local attachments=0
  for _ in pairs(seenAttachments) do attachments=attachments+1 end
  check(attachments==4,'attachment did not follow rotating stations and buoys')
+ -- Every fixed exit should have a radial final approach at different phases,
+ -- including small moons where the station can be opposite the gate.
+ for _,area in ipairs(Fields.list) do
+  local g=G.build(area)
+  for _,edge in ipairs(g.edges) do
+   if L.get(edge.to).kind=='moon_gate' or L.get(edge.from).kind=='moon_gate' then
+    local e=L.get(edge.to).kind=='moon_gate' and edge or {from=edge.to,to=edge.from}
+    for _,clock in ipairs({0,500,5000,20000}) do
+     local x,y=G.point(g,e,.999,clock)
+     local gx,gy=G.point(g,e,1,clock)
+     local dx,dy=gx-x,gy-y
+     local dot=(dx*gx+dy*gy)/math.sqrt((dx*dx+dy*dy)*(gx*gx+gy*gy))
+     check(dot>.999,area..': gate approach is not radial')
+     for _,p in ipairs({.1,.5,.9}) do
+      x,y=G.point(g,e,p,clock)
+      check(math.abs(G.project(g,e,x,y,clock)-p)<.001,area..': gate projection lost progress')
+     end
+    end
+   end
+  end
+ end
  local Save=require('src.save')
  local decoded=assert(Save.decode(Save.encode(route)))
  check(decoded.finish==route.finish and #decoded.legs==#route.legs,'route not serializable')

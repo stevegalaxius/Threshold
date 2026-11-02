@@ -15,7 +15,15 @@ function G.point(graph, edge, progress, clock)
  local xx, yy = G.position(graph, edge.to, clock)
  -- The coarse route goes around the planet instead of cutting across it.
  local r, rr = sqrt(x*x+y*y), sqrt(xx*xx+yy*yy)
- local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*progress
+ local turn = progress
+ -- Finish turning early: the final approach to a fixed gate is radial,
+ -- rather than a spiral that reaches the boundary almost sideways.
+ if L.get(edge.to).kind == 'moon_gate' then
+  turn = 1 - (1-progress)^3
+ elseif L.get(edge.from).kind == 'moon_gate' then
+  turn = progress^3
+ end
+ local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*turn
  r = r + (rr-r)*progress
  return cos(a)*r, sin(a)*r
 end
@@ -50,6 +58,15 @@ function G.transit(from,to)
 end
 
 function G.length(graph,edge,clock)
+ if L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate' then
+  local length=0
+  local x,y=G.point(graph,edge,0,clock)
+  for i=1,64 do
+   local xx,yy=G.point(graph,edge,i/64,clock)
+   length=length+sqrt((xx-x)^2+(yy-y)^2); x,y=xx,yy
+  end
+  return length
+ end
  local x,y=G.position(graph,edge.from,clock)
  local xx,yy=G.position(graph,edge.to,clock)
  local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
@@ -63,7 +80,10 @@ function G.project(graph,edge,x,y,clock)
  local bx,by=G.position(graph,edge.to,clock)
  local angle=delta(atan2(ay,ax),atan2(by,bx))
  local p
- if math.abs(angle)>.001 then
+ local ar,br=sqrt(ax*ax+ay*ay),sqrt(bx*bx+by*by)
+ if (L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate') and math.abs(br-ar)>1 then
+  p=(sqrt(x*x+y*y)-ar)/(br-ar)
+ elseif math.abs(angle)>.001 then
   p=delta(atan2(ay,ax),atan2(y,x))/angle
  else
   local dx,dy=bx-ax,by-ay
