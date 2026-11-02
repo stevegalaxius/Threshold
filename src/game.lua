@@ -514,16 +514,15 @@ end
 -- current's speed (per second). Loose things (rocks, wrecks, loot) are also
 -- held in their lane while they circle, so the belt doesn't fling outward.
 --
--- rocky: an airless rock (small moons, Ceres) instead of a smooth world:
--- a lumpy cratered outline (src/fields.lua, Fields.rockShape) that it
--- also collides as, and no atmosphere.
-function Game:spawnPlanet(x, y, radius, flow, swirl, rocky)
+-- rocky defines airless cratered artwork, independently of collision rules.
+-- Only landable mining worlds use terrain contacts that permit soft landings.
+function Game:spawnPlanet(x, y, radius, flow, swirl, rocky, landable)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
 		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
+	e.rock, e.landable = rocky, landable == true
 	local shape
-	if rocky then
-		e.rock = rocky
+	if e.landable and rocky then
 		shape = love.physics.newChainShape(true, rocky.outline)
 	else
 		shape = love.physics.newCircleShape(radius)
@@ -720,7 +719,7 @@ function Game:updateAtmosphere(dt)
 	end
 end
 
--- Rocky surfaces use normal impulse-based ship damage; other planets remain lethal.
+-- Mining-world surfaces use normal impulse damage; all other planets remain lethal.
 -- Hitting the planet itself: wrecks burn up, and rocks
 -- shatter and are replaced by a new one falling in from the edge of the
 -- map onto an orbit.
@@ -739,7 +738,7 @@ function Game:planetImpacts()
 	end
 	for o in pairs(hit) do
 		local x, y = o.body:getPosition()
-		if o.kind == "ship" and not o.dockState and not w.planet.rock then
+		if o.kind == "ship" and not o.dockState and not w.planet.landable then
 			self:damage(o, 1e9, nil, "crash")
 			if o == self.player then self:toast("CRASHED", 2) end
 		elseif o.kind == "asteroid" then

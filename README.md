@@ -483,6 +483,7 @@ save/load, and size-based fallback.
 
 Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
 use the Moon's round rocky surface treatment: cratered terrain in each world's
-own colors, without atmospheric haze or cloud bands. They also use the existing
-airless surface collision and gravity behavior. Titan retains its atmosphere;
-Phobos and Deimos retain their irregular outlines.
+own colors, without atmospheric haze or cloud bands. Surface appearance is
+independent of landing rules: only Phobos, Deimos and Ceres permit soft terrain
+contacts for mining. Other planetary impacts remain lethal, including Luna.
+Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
