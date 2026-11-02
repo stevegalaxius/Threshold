@@ -719,7 +719,8 @@ function Game:updateAtmosphere(dt)
 	end
 end
 
--- Hitting the planet itself: ships crash, wrecks burn up, and rocks
+-- Rocky surfaces use normal impulse-based ship damage; other planets remain lethal.
+-- Hitting the planet itself: wrecks burn up, and rocks
 -- shatter and are replaced by a new one falling in from the edge of the
 -- map onto an orbit.
 function Game:planetImpacts()
@@ -737,7 +738,7 @@ function Game:planetImpacts()
 	end
 	for o in pairs(hit) do
 		local x, y = o.body:getPosition()
-		if o.kind == "ship" and not o.dockState then
+		if o.kind == "ship" and not o.dockState and not w.planet.rock then
 			self:damage(o, 1e9, nil, "crash")
 			if o == self.player then self:toast("CRASHED", 2) end
 		elseif o.kind == "asteroid" then

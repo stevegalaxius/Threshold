@@ -73,6 +73,36 @@ return function(game)
 			check(p.body:getLinearVelocity() == 0, "docked cloud-city ship is falling")
 		end
 	end
+	-- Actual terrain contacts: a soft landing survives, a fast impact still hurts.
+	for _, area in ipairs({ "phobos", "deimos" }) do
+		for _, speed in ipairs({ 20, 1500 }) do
+			game:loadField(area)
+			local p, planet = game.player, game.well.planet
+			local v = planet.rock.outline
+			local x,y = (v[1]+v[3])/2, (v[2]+v[4])/2
+			local nx,ny = v[4]-v[2], v[1]-v[3]
+			local length = math.sqrt(nx*nx+ny*ny); nx,ny=nx/length,ny/length
+			if nx*x+ny*y<0 then nx,ny=-nx,-ny end
+			p.body:setPosition(x+nx*(p.halfLength+10),y+ny*(p.halfLength+10))
+			p.body:setAngle(math.atan2(-ny,-nx))
+			p.body:setLinearVelocity(-nx*speed,-ny*speed)
+			p.body:setAngularVelocity(0)
+			local armor,touched=p.armor,false
+			game.contacts={}
+			for _=1,300 do
+				game.world:update(1/120)
+				for _,c in ipairs(planet.body:getContacts()) do
+					local fa,fb=c:getFixtures()
+					if c:isTouching() and (fa:getUserData()==p or fb:getUserData()==p) then touched=true end
+				end
+				game:planetImpacts(); game:resolveContacts()
+				if touched then break end
+			end
+			check(touched,area..": terrain probe never contacted surface")
+			if speed==20 then check(not p.dead and p.armor==armor,area..": soft landing damaged player")
+			else check(p.armor<armor,area..": high speed terrain impact did no damage") end
+		end
+	end
 	-- An irregular outline's local surface, rather than the nominal radius,
 	-- controls the pull onset. This simple long rock has its end at x=1600.
 	game.well = { x = 0, y = 0, radius = 1000,
