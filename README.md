@@ -279,3 +279,11 @@ preview rendering, returns to retained Earth, resumes physics, and saves. It
 also checks that preview drawing follows the location clock without moving the
 paused Box2D bodies. Preview poses are render-only; repeated physics transforms
 on an unstepped world previously caused a native broad-phase crash on return.
+
+The navigation computer shows the current relative collision course only when
+contact is predicted within its lookahead (default two seconds). It fades in
+briefly and clears immediately when the course is safe; reversing does not
+leave a stale warning. Moving hazards are evaluated relative to the ship, and
+the line follows the earliest predicted contact rather than an arbitrary object.
+`love . --navcomputertest` checks warning lifetime, direction, near misses,
+stationary motion, incoming hazards, docking/catching, and removing the module.
