@@ -18,7 +18,7 @@ return function(game)
 		if e.kind == "asteroid" and e.debris == "rock" then rocks = rocks + 1 end
 	end
 	for _, r in pairs(game.universe.npcs) do
-		if r.home == "mars" then traders = traders + 1 end
+		if r.role == "trader" and r.home == "mars" then traders = traders + 1 end
 	end
 	check(traders == 9, "Mars should retain its nine traders across live bodies and offline records")
 	check(rocks < 20, "Mars should have sparse rocks")

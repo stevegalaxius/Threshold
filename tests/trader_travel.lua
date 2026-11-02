@@ -2,7 +2,7 @@ return function(game)
  local A,G,Fields,Save=require('src.alife'),require('src.travelgraph'),require('src.fields'),require('src.save')
  local checkCount=0
  local function check(ok,msg) assert(ok,msg); checkCount=checkCount+1 end
- local function count(t) local n=0; for _ in pairs(t) do n=n+1 end; return n end
+ local function count(t) local n=0; for _,r in pairs(t) do if r.role=='trader' then n=n+1 end end; return n end
  local function near(a,b) return math.abs(a-b)<.02 end
  game.autosaveOff=true
  local expected=0
@@ -10,7 +10,7 @@ return function(game)
  check(count(game.universe.npcs)==expected,'populations do not exist before visiting their regions')
  local homes,travellers={},0
  for _,r in pairs(game.universe.npcs) do
-  homes[r.home]=(homes[r.home] or 0)+1
+  if r.role=='trader' then homes[r.home]=(homes[r.home] or 0)+1 end
   if r.onRoundTrip then
    travellers=travellers+1
    for i,to in ipairs(r.route) do

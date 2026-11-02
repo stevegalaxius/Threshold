@@ -84,3 +84,22 @@ enemy {
 	ai = { style = "trader", range = 1200, accuracy = 0.55, throttle = 0.9, cruise = 700, horizon = 3.5, burstOn = 1.2, burstOff = 0.9 },
 	salvage = { 2, 5 },
 }
+
+-- Persistent A-Life roles. Role/duty live in the NPC record, while these
+-- definitions expose their hull, equipment and combat handling for variants.
+enemy {
+ id = "patrol_wisp", team = 3, name = "Independent Patrol", hull = "halcyon_wisp",
+ color = { 0.4, 0.75, 1 },
+ loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", false },
+ cargo = { rounds_s = 400 },
+ ai = { style = "orbit", range = 900, accuracy = 0.65, throttle = 0.85, cruise = 750 },
+ salvage = { 2, 3 },
+}
+enemy {
+ id = "pirate_wisp", team = 2, name = "Independent Pirate", hull = "halcyon_wisp",
+ color = { 1, 0.4, 0.25 },
+ loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", false },
+ cargo = { rounds_s = 300, scrap = 3 },
+ ai = { style = "orbit", range = 700, accuracy = 0.55, throttle = 0.8, cruise = 650 },
+ salvage = { 2, 4 },
+}

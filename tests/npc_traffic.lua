@@ -7,7 +7,7 @@ return function(game)
  game.autosaveOff=true
  -- Use explicit diagnostic records to cover both directions and moon filtering.
  local template
- for _,r in pairs(game.universe.npcs) do template=r;break end
+ for _,r in pairs(game.universe.npcs) do if r.role=='trader' then template=r;break end end
  local function record(id,from,to,kind,depart,arrive)
   local r=copy(template);r.id=id;r.state='transit';r.area=nil
   r.transit={kind=kind,from=from,to=to,length=100000,speed=1000}

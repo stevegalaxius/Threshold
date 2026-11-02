@@ -149,6 +149,11 @@ T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round t
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
+T.securityThink, T.securityRange = 0.5, 6000
+T.patrolInspect, T.pirateLinger = 10, 60
+T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
+T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
+T.alifeWreckLifetime = 1800
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Hangar bays: cells across and down, and how many pixels of hull length

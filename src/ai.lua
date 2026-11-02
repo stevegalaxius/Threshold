@@ -20,6 +20,7 @@ local Ship = require("src.ship")
 local T = require("src.tuning")
 local data = require("src.data")
 
+local Security=require("src.security")
 local AI = {}
 
 local sqrt, cos, sin, max, min, random = math.sqrt, math.cos, math.sin, math.max, math.min, love.math.random
@@ -227,6 +228,7 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock then
+			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" then
 				if game:requestDriver(e,stop.driver,stop.destination) then
 				 it.thrust,it.strafe=0,0;return
@@ -295,7 +297,15 @@ function AI.think(game, e, dt)
 	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()
-	local target = pickTarget(game, e, x, y)
+	local target
+	if e.alifeRole then
+		target = Security.target(game,e)
+		if not target then
+			Security.updateOnline(game,e,require("src.alife"))
+			if Security.hold(game,e,AI) then return end
+			return trade(game,e,dt)
+		end
+	else target = pickTarget(game, e, x, y) end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil

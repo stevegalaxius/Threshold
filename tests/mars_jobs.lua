@@ -13,7 +13,7 @@ return function(game)
  game:loadField('venus');game:captureALife(true)
  local u=game.universe
  local traders={}
- for _,r in pairs(u.npcs) do if r.home=='mars' then traders[#traders+1]=r end end
+ for _,r in pairs(u.npcs) do if r.role=='trader' and r.home=='mars' then traders[#traders+1]=r end end
  table.sort(traders,function(a,b)return a.id<b.id end)
  for _,r in ipairs(traders) do A.advance(r,100,u) end
  local active,waiting=0,0

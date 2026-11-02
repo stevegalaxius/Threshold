@@ -259,9 +259,8 @@ nodes or edges.
 
 Each trader has a persistent cross-track offset up to 1,500 world units that
 fades toward local endpoints. Offline station stops last 60 seconds; online
-stops retain the existing 30–90-second behavior. The simulation does not yet
-model offline combat or economic transactions, or assign interplanetary mass
-driver itineraries. Highway derelict generation is unchanged.
+stops retain the existing 30–90-second behavior. Economic transactions remain deferred. Persistent transport duties use mass
+drivers; patrols and pirates also participate in offline encounters. Highway derelict generation is unchanged.
 
 Open **F1 → A-Life records and connections**, enable **Show simulation connections
 and NPCs**, then open **M**. Blue lines are declared connections. Labels show
@@ -327,7 +326,8 @@ These are authored, recurring transport manifests with placeholder cargo.
 They do not buy from markets, charge fares or calculate profits. A future economy
 can supply requests through `Tasks.post`. Existing local traffic, moon trips and
 Mars mining jobs remain supported. Other roles can register task types with the
-same lifecycle; patrol, mining and combat behaviors are not added by this change.
+same lifecycle; patrol and raid duties now use it alongside transport. Mars
+mine hauling keeps its existing reservations.
 
 Run `love . --tasktest` for role eligibility, reservation ownership, cargo,
 offline completion and reassignment, save/load, death cleanup, and a powered
@@ -487,3 +487,34 @@ own colors, without atmospheric haze or cloud bands. Surface appearance is
 independent of landing rules: only Phobos, Deimos and Ceres permit soft terrain
 contacts for mining. Other planetary impacts remain lethal, including Luna.
 Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
+
+
+## Patrols and pirates
+
+The main planets with orbital trade corridors seed two independent patrols and
+one pirate as persistent A-Life records. They replace disposable field enemies
+on those planets; instance maps and other regions keep their existing encounters.
+Dead ships are not replenished on region loads. Roles remain fixed.
+
+Patrols choose inspection duties through the shared task board and visit existing
+stations and buoys. Pirates choose buoy raids and relocation duties, preferring
+passing traders as targets. Patrols engage pirates and defend themselves when
+attacked; peaceful ships are not automatic targets. Nearby combat uses the same
+flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
+After losing contact, ships resume their selected duty. F1's A-Life list and the
+map graph overlay show role, duty, destination and current target.
+
+Remote encounters only compare records sharing a graph segment or endpoint.
+Periodic seeded exchanges spend actual ammunition and carry hull damage across
+online/offline transitions and saves. In offline encounters, low-health ships
+withdraw; lengthy fights
+also disengage. A fight involving a physical ship never receives abstract damage.
+When the player approaches, both participants become physical where practical and
+ordinary AI takes over. Offline deaths leave salvage records for 30 minutes;
+approaching materializes each wreck once, after which normal area persistence
+handles its cargo, looting and destruction. Pricing, reputation, node heat and an
+event director remain future work.
+
+Run `love . --securitytest` for role-specific autonomous duties, population
+identity, target selection, physical combat and navigation, save/load, offline
+ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.

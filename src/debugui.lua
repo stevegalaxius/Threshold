@@ -264,8 +264,10 @@ local function graphSection(game)
  for id,r in pairs(game.universe.npcs or {}) do
   if r.area==game.fieldId then
    local e=game.alifeOnline and game.alifeOnline[id]
-   Slab.Text(id.."  "..(e and "online" or r.state))
+   Slab.Text(id.."  "..r.role.." / "..(e and "online" or r.state))
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
+   if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
+   if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end
  end
  for id,r in pairs(game.universe.npcs or {}) do
@@ -274,7 +276,7 @@ local function graphSection(game)
    Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
   end
  end
- Slab.Text("Persistent traders; a subset takes eligible moon routes.")
+ Slab.Text("Persistent traders, patrols and pirates. Roles keep their own duties.")
 end
 
 local function locationSection(game)

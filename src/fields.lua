@@ -547,6 +547,7 @@ for _, area in ipairs(Fields.list) do
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end
 	end
  -- These links describe existing journeys, not generated navigation geometry.
+ F.alifeSecurity = Fields.orbits[area] and #F.buoyIds==2 and {patrol=2,pirate=1} or nil
  F.travelLinks = {}
  local function link(a,b)
   if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end

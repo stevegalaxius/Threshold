@@ -11,6 +11,8 @@ local Hold = require('src.inventory.hold')
 local copy = require('src.persistence').copy
 local Tasks=require('src.tasks')
 local Transport=require('src.transport')
+local Security=require('src.security')
+local Encounters=require('src.encounters')
 local A = {}
 local graphs = {}
 local function graph(area)
@@ -21,6 +23,7 @@ local function edge(r)
  return {from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index]}
 end
 local function progress(r,clock)
+ if r.encounter then return r.encounter.progress end
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
@@ -39,6 +42,8 @@ local function start(r,clock,index)
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
  r.driverState=nil
 end
+
+A.start=start
 
 local function roundTrip(home,to,clock,homeStation)
  local a,b=homeStation or Fields[home].stationIds[1],Fields[to].stationIds[1]
@@ -167,12 +172,14 @@ function A.seed(game)
     if worker then worker.taskWorker=true end
    end
   end
+  Security.seed(game,start)
   A.repairMoonRoutes(game)
   A.repairApproachRoutes(game)
  end
 end
 
 local function dockingStop(r,id)
+ if Security.isRole(r) then return false end
  if L.get(id).kind~='station' then return false end
  if r.taskWorker then return id==(r.task and r.task.target) or not r.task end
  return not r.onRoundTrip or id==(r.tradeHome or Fields[r.home].stationIds[1])
@@ -180,6 +187,8 @@ local function dockingStop(r,id)
 end
 
 function A.advance(r,clock,u)
+ if Security.isRole(r) then return Security.advance(r,clock,u,start) end
+ if r.encounter then return end
  if r.state=='dead' or r.state=='escaped' then return end
  -- Complete elapsed activities using their event times, not frame steps.
  while true do
@@ -305,6 +314,10 @@ end
 function A.point(r,clock)
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
+ if r.state=='idle' then
+  local x,y=L.position(r.route[r.index],clock)
+  return x+(r.offset and r.offset.x or 0),y+(r.offset and r.offset.y or 0)
+ end
  local p=progress(r,clock)
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
@@ -371,6 +384,7 @@ function A.capture(game,e,remote)
   driver=controlled.driver.locationId,to=controlled.to,t=controlled.t,
   ghost=controlled.ghost,angle=controlled.driver.angle} or nil
  r.ship=shipRecord(e); r.power=e.power
+ if Security.isRole(r) then return Security.capture(game,e,r,remote) end
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
   local previous=r.transit.departure
@@ -420,6 +434,7 @@ function A.capture(game,e,remote)
   -- Never advance a destination merely because an online ship is close to it;
   -- actual AI/docking changes routeIndex. Leave a little time for handoff.
   p=math.min(.99,p)
+  if r.encounter then r.encounter.progress=p end
   r.depart=clock-p*duration; r.arrive=r.depart+duration
   if not remote then
    local bx,by=journeyPoint(r,p,clock)
@@ -468,6 +483,8 @@ local function bindRoute(game,e,r)
  end
 end
 
+A.bindRoute=bindRoute
+
 function A.wake(game,r)
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
@@ -481,6 +498,8 @@ function A.wake(game,r)
   enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
+ e.alifeRole=Security.isRole(r) and r.role or nil
+ e.fleeing=r.fleeing
  if egress then
   e.driverProtected=r.transit.kind=='driver' or nil
   e.coasting=e.driverProtected or nil
@@ -652,6 +671,9 @@ function A.install(Game)
     end
    end
   end
+  Encounters.syncOnline(self)
+  Encounters.update(self,clock)
+  Encounters.materialize(self,px,py,clock)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end
