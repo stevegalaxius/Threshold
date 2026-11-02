@@ -788,6 +788,23 @@ function Game:populateLane()
 			e.body:setLinearVelocity(0, 0)
 		end
 	end
+	-- A denser debris belt continues beyond the soft edge. Lay it out with
+	-- the rest of the trip; it must not pop into view as the player wanders.
+	if trip.moon and span>0 and T.laneOffroad>0 then
+		local edge=self:laneBoundary()
+		for _,side in ipairs({-1,1}) do
+			for _=1,math.max(1,floor(span/10000*T.laneOffroad*2)) do
+				local s=s1+rng:random()*span
+				local n=side*(edge-500+rng:random()*(T.laneHazardDepth+500))
+				local r=30+rng:random()^2*160
+				local x,y=at(s,n,r+40)
+				if x then
+					local e=self:spawnAsteroid(x,y,r,self:pickDebris(mix))
+					e.lane="hazard";e.body:setLinearVelocity(0,0)
+				end
+			end
+		end
+	end
 	-- derelicts
 	for _ = 1, floor(span / 100000 * T.laneDerelicts + rng:random()) do
 		local x, y = at(s1 + rng:random() * span, (rng:random() * 2 - 1) * W * 0.8, 400)
@@ -801,6 +818,10 @@ function Game:populateLane()
 			end
 		end
 	end
+end
+
+function Game:laneBoundary()
+ return T.laneWidth+T.laneRamp+2500
 end
 
 function Game:updateLane(dt)
@@ -820,10 +841,11 @@ function Game:updateLane(dt)
 				-- (not on a moon trip: just your own ship in open space)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 			end
-			-- soft walls well outside the lane, and the near end (not on
-			-- a moon trip: that's open space, flown like anywhere else)
-			local over = abs(n) - (W + T.laneRamp + 2500)
-			if over > 0 and not (self.trip and self.trip.moon) then
+			-- Shared soft lateral edge, including moon trips. Debris beyond
+			-- it stays in place instead of being herded back into the road.
+			local over = abs(n) - self:laneBoundary()
+			local moonDebris=self.trip and self.trip.moon and e.kind=="asteroid"
+			if over > 0 and not moonDebris then
 				local k = (n > 0 and 1 or -1) * over * m * 4
 				b:applyForce(sin(phi) * k, -cos(phi) * k)
 			end

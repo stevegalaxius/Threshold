@@ -390,3 +390,13 @@ sliders now serve as fallbacks for those older definitions.
 lock and pilot retention after limits change, and legacy definitions.
 
 Side Jets are no longer a module or equipment slot. Hull `sideThrust` provides maneuvering thrust directly and is editable in the shipyard. Baseline hull values retain the previous scaled Side Jets thrust; ships no longer carry the module mass or continuous power draw. Existing saves/designs with the old slot layout may need to be recreated.
+
+
+Moon transit reuses the existing soft lateral pushback beyond
+`laneWidth + laneRamp + 2500` pixels from the route. It retains ordinary moon
+flight (no highway thrust buff or near-end wall). A denser rock belt spans the
+edge and extends another `laneHazardDepth` pixels beyond it (default 6,000;
+Transit lane debug setting). Those rocks are laid out at entry, stay clear of
+the handoff mouths, and are not pushed back inside by the moon boundary.
+`laneOffroad` controls their population; zero disables the off-road rocks.
+Run `love . --moonboundarytest` for force, placement and no-pop-in checks.
