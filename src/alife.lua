@@ -315,7 +315,7 @@ function A.point(r,clock)
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  if r.state=='idle' then
-  local x,y=L.position(r.route[r.index],clock)
+  local x,y=L.inspectionPosition(r.route[r.index],clock)
   return x+(r.offset and r.offset.x or 0),y+(r.offset and r.offset.y or 0)
  end
  local p=progress(r,clock)
@@ -477,8 +477,12 @@ local function bindRoute(game,e,r)
   local stop=place.area==game.fieldId and game:locationEntity(id)
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
-   stop={kind='waypoint',locationId=id,removed=false,body={getPosition=function()
+   stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
+    if station.city then return L.inspectionPosition(id,game.universe.clock) end
     return require('src.ai').stopPoint(station)
+   end,getLinearVelocityFromWorldPoint=function(_,x,y)
+    if station.city then return L.inspectionVelocity(id,game.universe.clock) end
+    return station.body:getLinearVelocityFromWorldPoint(x,y)
    end}}
   end
   if stop and place.kind=='driver' then
@@ -595,7 +599,8 @@ function A.wake(game,r)
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
    local station=close(destination) and destination or source
-   e.body:setPosition(require('src.ai').stopPoint(station))
+   if station.city then e.body:setPosition(L.inspectionPosition(station.locationId,game.universe.clock))
+   else e.body:setPosition(require('src.ai').stopPoint(station)) end
   end
  end
 

@@ -591,3 +591,9 @@ boost cruise multiplier and stopping margin live in `src/tuning.lua`.
 Run `love . --localnavtest` for physical hauler tests around a wall, inside a
 concave pocket, in head-on and crossing traffic, and for safe boost activation.
 `love . --olympustest` checks city arrival, supported departure and restoration.
+
+Cloud-city inspection visits use a point above the gravity band, following the
+city's bearing. Non-docking patrols approach and hold there instead of trying to
+reach the docking runway below their avoidance boundary. Remote materialization
+and saved inspection offsets use the same point. Run `love . --patrolnavtest`
+for Olympus patrol arrival, holding, restoration and the next autonomous duty.
