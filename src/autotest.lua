@@ -905,10 +905,10 @@ function A.update(game, dt)
 			local p = game.player
 			for _, g in ipairs(game.moonGates or {}) do
 				if g.to == to then
-					local d = game.arenaRadius - 100
+					local d = game.arenaRadius + 10
 					p.body:setPosition(math.cos(g.a) * d, math.sin(g.a) * d)
 					p.body:setLinearVelocity(math.cos(g.a) * 800, math.sin(g.a) * 800)
-					stepN(os.getenv("MOONSHOT") == "depart" and 90 or math.ceil(T.departTime * 60) + 4)
+					stepN(1)
 					return game.lane ~= nil
 				end
 			end

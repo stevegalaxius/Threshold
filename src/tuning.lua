@@ -220,10 +220,9 @@ end
 
 
 -- Moons (src/moons.lua): the way out toward a moon is departArc px of the
--- map's edge; within departInset of the edge, heading out, the departure
--- starts and takes departTime seconds. Into a lane, its mouth is rampLead
--- ahead of you.
-T.departArc, T.departInset, T.departTime = 9000, 300, 2.5
+-- map's edge. Crossing it outward hands off immediately without taking
+-- control or zooming the camera. The lane mouth starts rampLead ahead.
+T.departArc = 9000
 T.rampLead = 1500
 -- Past a map's edge (Game:applyBoundary): outward speed bleeds away at up
 -- to edgeBrake per second, reaching full strength edgeSoft px out, and a

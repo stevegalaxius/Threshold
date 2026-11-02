@@ -454,3 +454,12 @@ Circular map edges and transit side boundaries share one response: brake outward
 velocity, then apply the same small inward drift regardless of distance outside.
 They do not apply a distance-proportional spring force. The outer rock belt
 remains in place.
+
+
+Moon exits hand off directly when the player crosses the map edge outward
+through a marked exit. There is no scripted alignment, velocity override,
+input lock, ghosting, flash or cinematic zoom. The retained origin scenery,
+ship motion/spin, cursor aim, zoom, capacitor, engine spool and weapon cadence
+carry across the coordinate change. The player can steer, reverse, boost or fire
+immediately. Mass-driver launches retain their separate scripted sequence.
+Run `love . --moonentrytest` for entry and immediate-control regressions.

@@ -509,6 +509,14 @@ function Game:launchTrip(to, moon)
 		local spin = p0.body:getAngularVelocity()
 		local record = Ship.record(p)
 		local camX, camY = self.camera.x, self.camera.y
+		local control={}
+		for k,v in pairs(p0.intent) do control[k]=v end
+		local weaponState={}
+		for i,w in ipairs(p0.weapons) do
+		 weaponState[i]={aim=w.aim,cooldown=w.cooldown,ammo=w.ammo,firing=w.firing,barrel=w.barrel}
+		end
+		local flight={}
+		for _,k in ipairs({"power","spool","mainBurn","retroBurn","sideBurn","turnBurn","foreBurn","afterburn","burnerLocked"}) do flight[k]=p0[k] end
 		local origin = self:retainField()
 		self.trip.originScene = origin
 		self:loadField("lane", { player = record, quiet = true, retain = true, deferALife = true })
@@ -520,6 +528,12 @@ function Game:launchTrip(to, moon)
 		p.body:setAngle(angle)
 		p.body:setAngularVelocity(spin)
 		p.body:setLinearVelocity(vx, vy)
+		for k,v in pairs(flight) do p[k]=v end
+		for i,w in ipairs(weaponState) do for k,v in pairs(w) do p.weapons[i][k]=v end end
+		for k,v in pairs(control) do p.intent[k]=v end
+		if p.intent.aimX then p.intent.aimX=p.intent.aimX+px-ox end
+		if p.intent.aimY then p.intent.aimY=p.intent.aimY+py-oy end
+		self.inputTranslation={x=px-ox,y=py-oy}
 		self.camera.x, self.camera.y = camX + px - ox, camY + py - oy
 		self.camera.backgroundX = (origin.camera.backgroundX or 0) - self.trip.origin.x
 		self.camera.backgroundY = (origin.camera.backgroundY or 0) - self.trip.origin.y

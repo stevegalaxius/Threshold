@@ -668,7 +668,7 @@ function Game:applySurfacePull()
 		-- until it has actually brought the ship inside or onto its berth.
 		if e.kind == "ship" and not e.dead and not e.removed
 			and (not e.dockState or e.dockState.phase == "tractor")
-			and not e.launch and not e.departure and not e.runup then
+			and not e.launch and not e.runup then
 			local b = e.body
 			local ax, ay = self:surfacePullAt(b:getPosition())
 			b:applyForce(ax * b:getMass(), ay * b:getMass())
@@ -2401,7 +2401,7 @@ end
 function Game:frame(dt, aimX, aimY)
 	-- the launch and the lane's run-up take the zoom for a while
 	local p = self.player
-	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup or p.departure)) then
+	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
 		-- whatever was running it is over (died, or a load): the zoom stays
 		-- where it is, and it's yours again
 		self.cineZoom, self.savedZoom = nil, nil

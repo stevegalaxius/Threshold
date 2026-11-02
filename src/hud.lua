@@ -240,7 +240,7 @@ local function drawOffscreen(game)
 		end
 	end
 	-- the ways out to moons (or back to the planet): src/moons.lua
-	if game.state ~= "docked" and not (game.player and game.player.departure) then
+	if game.state ~= "docked" then
 		for _, g in ipairs(game.moonGates or {}) do
 			mark(g.label, g.x, g.y, 0, { 0.6, 0.85, 1 })
 		end
