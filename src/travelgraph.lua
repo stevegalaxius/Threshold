@@ -59,11 +59,18 @@ end
 
 function G.length(graph,edge,clock)
  if L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate' then
+  -- Integrate speed along the polar curve without sampling NPC positions:
+  -- remote simulation only needs a duration, not a flight-path pose.
+  local x,y=G.position(graph,edge.from,clock)
+  local xx,yy=G.position(graph,edge.to,clock)
+  local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
+  local angle=delta(atan2(y,x),atan2(yy,xx))
+  local outgoing=L.get(edge.to).kind=='moon_gate'
   local length=0
-  local x,y=G.point(graph,edge,0,clock)
   for i=1,64 do
-   local xx,yy=G.point(graph,edge,i/64,clock)
-   length=length+sqrt((xx-x)^2+(yy-y)^2); x,y=xx,yy
+   local p=(i-.5)/64
+   local turnRate=3*(outgoing and (1-p)^2 or p^2)
+   length=length+sqrt((rr-r)^2+((r+(rr-r)*p)*angle*turnRate)^2)/64
   end
   return length
  end

@@ -16,7 +16,21 @@ return function(game)
   for id,r in pairs(game.universe.npcs) do if r.home=='earth' and not r.tripRoute and r.state~='dead' then return id,r end end
  end
  local graph=G.build('earth')
- check(#graph.order==6 and #graph.edges==6,'invented graph nodes or connections')
+ local earth=require('src.fields').earth
+ local function connectionKey(a,b) return a<b and a..'>'..b or b..'>'..a end
+ local authored={}
+ for _,pair in ipairs(earth.travelLinks) do authored[connectionKey(pair[1],pair[2])]=true end
+ local function checkTopology(g)
+  check(#g.order==#L.list('earth') and #g.edges==#earth.travelLinks,
+   'graph does not match authored Earth topology')
+  local seen={}
+  for _,edge in ipairs(g.edges) do
+   local key=connectionKey(edge.from,edge.to)
+   check(authored[key] and not seen[key],'invented or duplicate Earth connection')
+   seen[key]=true
+  end
+ end
+ checkTopology(graph)
  -- Persistent cross-track spread affects positions, fades at stops, and adds no edges.
  local probe=require('src.persistence').copy(select(2,earthTrader()))
  probe.spread=T.alifeSpread; probe.offset=nil; probe.state='travel'
@@ -57,7 +71,7 @@ return function(game)
  local xx,yy=A.point(r,game.universe.clock)
  check(near(xx,x+70) and near(yy,y+30),'offline handoff changed physical position')
  check(r.route[r.index]==target,'offline handoff changed journey')
- check(#G.build('earth').edges==6,'handoff created graph edges')
+ checkTopology(G.build('earth'))
  -- Hysteresis: the band keeps an offline record asleep and an online body awake.
  local band=(T.alifeNear+T.alifeFar)/2
  game.player.body:setPosition(xx+band,yy); game:updateALife(true)

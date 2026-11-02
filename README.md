@@ -241,9 +241,8 @@ curved approach used by offline travel and the graph overlay, and compensate
 for orbital current when aiming at a stationary exit. This applies to both
 planet departures and moon return gates, including Earth and Deimos.
 
-
 The graph names real locations and declared journeys in `fields.lua`. Earth has
-six places and six connections. The system-level connection for a moon is its
+six places and nine connections. The system-level connection for a moon is its
 existing pair of departure gates and highway length. NPC movement never adds
 nodes or edges.
 
