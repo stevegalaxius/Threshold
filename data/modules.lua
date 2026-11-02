@@ -200,8 +200,13 @@ module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective"
 module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800,
 	byMass = { ref = 58, exp = 0.452 } }
 
--- Computers: one universal slot on every playable hull (src/computers.lua).
-module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav",      price = 2500 }
-module { id = "fire_computer", name = "Ordnance Computer", maker = "Concord Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", price = 6000 }
-module { id = "guidance_computer", name = "Missile Guidance", maker = "Concord Military", family = "computer", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, price = 7000 }
-module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, price = 9000 }
+-- Computers (src/computers.lua). Ranges are world pixels:
+-- nav: radarRange, lookahead (seconds of collision prediction).
+-- ordnance: radarRange, predictionTime (maximum projectile flight time for a lead solution).
+-- guidance: radarRange, lockCone (half-angle in degrees; retention uses 1.5x).
+-- drone: uplinkRange, controlLimit (largest drone control cost for direct piloting:
+-- S=1, M=2, L=4; does not replace the launching bay's capacity).
+module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav", radarRange = 12000, lookahead = 2, price = 2500 }
+module { id = "fire_computer", name = "Ordnance Computer", maker = "Concord Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", radarRange = 6000, predictionTime = 4, price = 6000 }
+module { id = "guidance_computer", name = "Missile Guidance", maker = "Concord Military", family = "computer", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, lockCone = 25, price = 7000 }
+module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, controlLimit = 4, price = 9000 }

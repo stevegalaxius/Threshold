@@ -136,7 +136,7 @@ local function contact(a,b,vx,vy,time)
  end
 end
 local SOLID={asteroid=true,planet=true,station=true,structure=true,ship=true,husk=true,container=true}
-function C.threat(game,ship,ahead)
+function C.threat(game,ship,ahead,range)
  local own=primitives(ship.body)
  local x,y=ship.body:getPosition(); local vx,vy=ship.body:getLinearVelocity()
  local ownRadius=0
@@ -169,7 +169,9 @@ function C.threat(game,ship,ahead)
        else t=polygonSweep(a.p,b.p,dx,dy,ahead) end
        if t and (not threat or t<threat.time) then
         local hx,hy=contact(a,b,dx,dy,t)
-        threat={target=o,ship=ship,time=t,vx=dx,vy=dy,hitX=hx,hitY=hy}
+        if not range or (hx-x)^2+(hy-y)^2<=range*range then
+         threat={target=o,ship=ship,time=t,vx=dx,vy=dy,hitX=hx,hitY=hy}
+        end
        end
       end
      end

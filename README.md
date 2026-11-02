@@ -366,3 +366,24 @@ secondary guns. Mixed laser/projectile loadouts retain projectile lead regardles
 of weapon ordering. Navigation and ordnance marks use translucent strokes; missile
 guidance uses bright brackets with a dark under-stroke for contrast.
 Run `love . --ordnancetest` for loadout and overlay regressions.
+
+
+Computer variants are authored in `data/modules.lua` with two settings each:
+
+| Computer | Range (world pixels) | Second setting |
+| --- | --- | --- |
+| Navigation | `radarRange = 12000` | `lookahead = 2` seconds |
+| Ordnance | `radarRange = 6000` | `predictionTime = 4` seconds |
+| Missile guidance | `radarRange = 4000` | `lockCone = 25` degrees, half-angle |
+| Drone uplink | `uplinkRange = 4000` | `controlLimit = 4` |
+
+Ordnance range applies even when another computer supplies a missile lock.
+Its prediction horizon limits projectile flight time; lasers have zero flight
+time. Drone controlLimit is the largest drone control cost eligible for direct
+piloting (S=1, M=2, L=4); launch bays keep their own capacity. Leaving uplink range
+or fitting a smaller controller hands control back to the ship. Existing mod
+computers without these fields retain defaults. The global navigation/cone
+sliders now serve as fallbacks for those older definitions.
+
+`love . --computervarianttest` checks both settings on all four computers,
+lock and pilot retention after limits change, and legacy definitions.

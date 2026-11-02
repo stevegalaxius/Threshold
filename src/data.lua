@@ -224,6 +224,16 @@ function api.module(def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
 	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
+	if def.family=="computer" then
+		for _,field in ipairs({"radarRange","uplinkRange","lookahead","predictionTime","lockCone","controlLimit"}) do
+			local value=def[field]
+			if value~=nil and (type(value)~="number" or value~=value or value<=0 or value==math.huge) then
+				fail(("computer '%s': %s must be a positive finite number"):format(def.id,field))
+			end
+		end
+		if def.lockCone and def.lockCone>180 then fail(("computer '%s': lockCone must be at most 180 degrees"):format(def.id)) end
+		if def.controlLimit and def.controlLimit%1~=0 then fail(("computer '%s': controlLimit must be an integer"):format(def.id)) end
+	end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
 	end

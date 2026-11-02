@@ -3,14 +3,14 @@
 	A module's `computer` field says which one it is:
 
 	  nav       warns of a collision: when your course (velocity relative
-	            to it) runs you into something within T.navLookahead seconds,
+	            to it) runs you into something within its module lookahead,
 	            the dashed line along your relative course fades in, bright orange.
 	  ordnance  puts a lead pip on the target (the guidance lock, or the
 	            hostile nearest the cursor): shoot the pip and your primary/secondary
 	            rounds meet the target. Lasers use the target position directly.
 	  guidance  missile guidance, radarRange px. Locks on by itself to the
 	            hostile in range closest to where you're aiming (within
-	            T.guidanceCone degrees), marked with bright brackets, and every
+	            its module lockCone degrees), marked with bright brackets, and every
 	            missile you fire goes after that one ship.
 	  drone     drone uplink, uplinkRange px. G takes the controls of your
 	            nearest drone (your ship holds still), G again hands them
@@ -61,12 +61,12 @@ end
 -- Missile guidance: the hostile in range nearest your aim line. The
 -- current lock is kept while it's still in a wider cone, so it doesn't
 -- flicker between two ships side by side.
-local function pickLock(game, p, range)
+local function pickLock(game, p, range, angle)
 	local x, y = p.body:getPosition()
 	local ax, ay = p.intent.aimX, p.intent.aimY
 	if not ax then return nil end
 	local aim = math.atan2(ay - y, ax - x)
-	local cone = math.rad(T.guidanceCone)
+	local cone = math.rad(angle)
 	local function off(o)
 		local ox, oy = o.body:getPosition()
 		if (ox - x) ^ 2 + (oy - y) ^ 2 > range * range then return nil end
@@ -88,7 +88,7 @@ local function pickLock(game, p, range)
 		end
 	end
 	if best then return best end
-	if cur and not cur.dead and off(cur) and off(cur) < math.rad(T.guidanceCone) * 1.5 then return cur end
+	if cur and not cur.dead and off(cur) and off(cur) < math.rad(angle) * 1.5 then return cur end
 	return nil
 end
 
@@ -108,10 +108,10 @@ function Game:toggleDroneControl()
 		if o.drone and o.owner == p and not o.dead then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
-			if d <= uplink.uplinkRange ^ 2 and (not bd or d < bd) then best, bd = o, d end
+			if d <= (uplink.uplinkRange or 4000) ^ 2 and (o.control or 1)<=(uplink.controlLimit or 4) and (not bd or d < bd) then best, bd = o, d end
 		end
 	end
-	if not best then self:toast("No drone in uplink range") return end
+	if not best then self:toast("No eligible drone in uplink range") return end
 	best.piloted, self.piloting = true, best
 end
 
@@ -121,8 +121,9 @@ function Game:updateComputers(dt)
 	local p = self.player
 	if not p or p.dead then return end
 	local ship = self:pilotedShip()
-	p.navThreat = self:computer(p, "nav") and not ship.catching and not ship.dockState
-		and Prediction.threat(self, ship, T.navLookahead) or nil
+	local nav=self:computer(p,"nav")
+	p.navThreat = nav and not ship.catching and not ship.dockState
+		and Prediction.threat(self, ship, nav.lookahead or T.navLookahead, nav.radarRange or 12000) or nil
 	if p.navThreat then
 		-- Brief fade-in only. A cleared course must never retain a stale line.
 		p.navWarn = 1 - (1 - (p.navWarn or 0)) * math.exp(-dt / 0.06)
@@ -130,10 +131,16 @@ function Game:updateComputers(dt)
 		p.navWarn = 0
 	end
 	local guidance = self:computer(p, "guidance")
-	p.lock = guidance and pickLock(self, p, guidance.radarRange) or nil
-	if self.piloting and (not self:computer(p, "drone") or self.piloting.dead) then
-		if self.piloting.piloted then self.piloting.piloted = nil end
-		self.piloting = nil
+	p.lock = guidance and pickLock(self, p, guidance.radarRange or 4000, guidance.lockCone or T.guidanceCone) or nil
+	if self.piloting then
+		local uplink=self:computer(p,"drone")
+		local d=self.piloting
+		local px,py=p.body:getPosition()
+		local dx,dy=d.body:getPosition()
+		if not uplink or d.dead or (d.control or 1)>(uplink.controlLimit or 4)
+			or (dx-px)^2+(dy-py)^2>(uplink.uplinkRange or 4000)^2 then
+			d.piloted=nil;self.piloting=nil
+		end
 	end
 end
 
@@ -149,7 +156,7 @@ local function leadPoint(e, t, shotSpeed)
 		local time = sqrt((px - x) ^ 2 + (py - y) ^ 2) / shotSpeed
 		px, py = tx + rvx * time, ty + rvy * time
 	end
-	return px, py
+	return px, py, sqrt((px-x)^2+(py-y)^2)/shotSpeed
 end
 
 -- Prefer projectile lead over the instantaneous laser solution in mixed
@@ -179,7 +186,8 @@ function Game:drawComputers(px)
 	local warn, threat = p.navWarn or 0, p.navThreat
 	if threat and threat.ship == ship and (warn > 0.01 or threat.time <= 0.5) then
 		local vx, vy = threat.vx, threat.vy
-		local ahead = math.min(T.navLookahead, threat.time + 0.15)
+		local nav=self:computer(p,"nav")
+		local ahead = math.min(nav and nav.lookahead or T.navLookahead, threat.time + 0.15)
 		local endX, endY = threat.hitX or x + vx * ahead, threat.hitY or y + vy * ahead
 		local urgent = threat.time <= 0.5
 		lg.setColor(1, urgent and 0.18 or 0.55, urgent and 0.06 or 0.1, urgent and 0.6 or 0.35 * warn)
@@ -216,21 +224,30 @@ function Game:drawComputers(px)
 		end
 	end
 
-	if self:computer(p, "ordnance") then
+	local ordnance=self:computer(p,"ordnance")
+	if ordnance then
 		local speed = ordnanceSpeed(ship)
 		local aimX, aimY = ship.intent.aimX, ship.intent.aimY
-		local t = (lock and not lock.dead) and lock
-			or (aimX and hostileNear(self, ship, aimX, aimY, 900 * px, ship))
+		local range=ordnance.radarRange or 6000
+		local inRange=false
+		if lock and not lock.dead then
+			local tx,ty=lock.body:getPosition()
+			inRange=(tx-x)^2+(ty-y)^2<=range*range
+		end
+		local t = inRange and lock
+			or (aimX and hostileNear(self, ship, aimX, aimY, 900 * px, ship,range))
 		if speed and t then
-			local lx, ly = leadPoint(ship, t, speed)
-			local tx, ty = t.body:getPosition()
-			lg.setColor(1, 0.85, 0.35, 0.18)
-			lg.setLineWidth(max(1, px))
-			lg.line(tx, ty, lx, ly)
-			lg.setColor(1, 0.85, 0.35, 0.55)
-			lg.setLineWidth(max(2, 2 * px))
-			lg.circle("line", lx, ly, 9 * px)
-			lg.circle("fill", lx, ly, 2.5 * px)
+			local lx, ly, flightTime = leadPoint(ship, t, speed)
+			if flightTime <= (ordnance.predictionTime or 4) then
+				local tx, ty = t.body:getPosition()
+				lg.setColor(1, 0.85, 0.35, 0.18)
+				lg.setLineWidth(max(1, px))
+				lg.line(tx, ty, lx, ly)
+				lg.setColor(1, 0.85, 0.35, 0.55)
+				lg.setLineWidth(max(2, 2 * px))
+				lg.circle("line", lx, ly, 9 * px)
+				lg.circle("fill", lx, ly, 2.5 * px)
+			end
 		end
 	end
 
