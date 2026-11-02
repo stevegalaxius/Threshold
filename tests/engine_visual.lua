@@ -51,6 +51,25 @@ return function(game)
  check(not orange(idle,-55,-25),'idle engine emits exhaust')
  local boost=draw(true,1,true)
  check(orange(boost,-85,-25) and not orange(player,-85,-25),'afterburner did not extend exhaust')
+ local data=require('src.data')
+ local custom=copy(data.modules.flit_engine)
+ custom.id='test_blue_engine'
+ custom.exhaust={width=7,length=60,color={.1,.5,1},coreColor={.2,.7,1},
+  glowColor={.1,.3,1},afterburnScale=1,flicker=0}
+ data.modules[custom.id]=custom
+ e.loadout[1]=custom.id;e.loadout[2]='flit_engine'
+ local mixed=draw(true,1,false)
+ local r,g,b,a=mixed:getPixel(73,103)
+ check(a>.1 and b>r and b>g,'renderer ignored engine module color')
+ check(orange(mixed,-55,25),'one engine changed the other engine color')
+ r,g,b,a=mixed:getPixel(73,108)
+ check(a>.1 and b>r,'renderer ignored module nozzle width')
+ r,g,b,a=mixed:getPixel(38,103)
+ check(a>.1 and b>r,'renderer ignored module plume length')
+ local mixedBoost=draw(true,1,true)
+ local rr,gg,bb,aa=mixedBoost:getPixel(38,103)
+ check(r==rr and g==gg and b==bb and a==aa,'renderer ignored module afterburn scale')
+ data.modules[custom.id]=nil;e.loadout[1]='flit_engine';e.loadout[2]=false
  e.hull.slots[1].x=nil;e.hull.slots[1].y=nil
  check(Engine.emitters(e)[1].x==e.tailX,'legacy slot has no tail fallback')
  e.hull.slots[1].x=0;e.hull.slots[1].y=12

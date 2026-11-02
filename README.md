@@ -337,7 +337,10 @@ mass-driver departure followed by online destination docking and delivery.
 Player and NPC ships use the same warm engine exhaust. Each fitted engine
 emits from its slot's `x, y` hardpoint, so placing two engines in the shipyard
 creates two plumes. Exhaust points aft (local negative X), scales with engine
-size and throttle, and extends under afterburner. Empty slots produce no flame.
+module-defined dimensions and throttle, and extends under afterburner.
+Engine modules define an `exhaust` table in `data/modules.lua`: `width`, `length`,
+`color`, `coreColor`, `glowColor`, `afterburnScale`, and `flicker`.
+Changing an engine changes its effect for both player and NPC ships. Empty slots produce no flame.
 Legacy unplaced engines use a tail fallback. Maneuvering jets use the same warm
 palette.
 

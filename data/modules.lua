@@ -4,7 +4,7 @@
 	powerDraw that is taken out of the reactor's output all the time.
 
 	Stat fields by family:
-	  engine   thrust (kN), turn
+	  engine   thrust (kN), turn, exhaust (visual settings; see Engines below)
 	  thruster sideThrust (kN) for maneuvering thrusters: the only way a ship
 	           can strafe. Thruster slots are size "any", shared by every
 	           hull that has one, and battleships have none.
@@ -161,9 +161,21 @@ module {
 
 -- Engines -----------------------------------------------------------------------
 
-module { id = "flit_engine",  name = "Flit Engine",  maker = "Halcyon Arms",       family = "engine", size = "S", mass = 6,  powerDraw = 2, thrust = 420,  turn = 250, price = 3000 }
-module { id = "mule_engine",  name = "Mule Engine",  maker = "Brute Industries",   family = "engine", size = "M", mass = 16, powerDraw = 4, thrust = 900,  turn = 800, price = 9000 }
-module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate",     family = "engine", size = "L", mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000 }
+-- Exhaust dimensions are in ship-local pixels; colors are RGB in 0..1.
+-- width: nozzle half-width; length: full-throttle plume length.
+-- afterburnScale multiplies length while boosting; flicker is fractional jitter.
+module { id = "flit_engine", name = "Flit Engine", maker = "Halcyon Arms", family = "engine", size = "S",
+ mass = 6, powerDraw = 2, thrust = 420, turn = 250, price = 3000,
+ exhaust = { width = 3, length = 18, color = {1,.6,.25}, coreColor = {1,.92,.65},
+  glowColor = {1,.35,.08}, afterburnScale = 2.2, flicker = .15 } }
+module { id = "mule_engine", name = "Mule Engine", maker = "Brute Industries", family = "engine", size = "M",
+ mass = 16, powerDraw = 4, thrust = 900, turn = 800, price = 9000,
+ exhaust = { width = 5, length = 30, color = {1,.55,.18}, coreColor = {1,.9,.6},
+  glowColor = {1,.3,.06}, afterburnScale = 2.2, flicker = .12 } }
+module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate", family = "engine", size = "L",
+ mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000,
+ exhaust = { width = 8, length = 48, color = {1,.45,.12}, coreColor = {1,.85,.5},
+  glowColor = {1,.22,.04}, afterburnScale = 2.5, flicker = .18 } }
 
 -- Reactors ----------------------------------------------------------------------
 
