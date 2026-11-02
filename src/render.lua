@@ -7,6 +7,7 @@
 
 local data = require("src.data")
 local Ship = require("src.ship")
+local EngineVisual = require("src.engine_visual")
 local T = require("src.tuning")
 local HullShape = require("src.hullshape")
 local Fields = require("src.fields")
@@ -20,8 +21,6 @@ local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
 	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
-	flame = { 0.55, 0.85, 1.0 },
-	enemyFlame = { 1.0, 0.6, 0.25 },
 	gun = { 1.0, 0.92, 0.55 },
 	artillery = { 1.0, 0.6, 0.25 },
 	missile = { 1.0, 0.95, 0.9 },
@@ -817,22 +816,13 @@ local function drawShip(game, e)
 	lg.rotate(a)
 
 	-- Everything below is in the ship's own frame: +x is the nose, +y its right side.
-	local fc = e.isPlayer and COLORS.flame or COLORS.enemyFlame
 	local R = hull.radius
-	if e.mainBurn > 0.05 then
-		local len = R * (0.6 + e.mainBurn * 0.9) * (0.85 + love.math.random() * 0.3)
-		if e.afterburn then len = len * 2.2 end
-		local bx, wdt = e.tailX * 0.85, R * 0.35
-		lg.setColor(fc[1], fc[2], fc[3], 0.35)
-		lg.polygon("fill", bx, -wdt * 1.4, bx, wdt * 1.4, bx - len * 1.3, 0)
-		lg.setColor(fc[1], fc[2], fc[3], 0.9)
-		lg.polygon("fill", bx, -wdt, bx, wdt, bx - len, 0)
-	end
+	EngineVisual.draw(e)
 	-- Maneuvering thrusters: small puffs on the side opposite the push.
 	local function puff(px, py, dx, dy, k)
 		local len = R * 0.45 * k * (0.8 + love.math.random() * 0.4)
 		local qx, qy = -dy * 3, dx * 3
-		lg.setColor(1, 1, 1, 0.75)
+		lg.setColor(1, 0.6, 0.25, 0.75)
 		lg.polygon("fill", px + qx, py + qy, px - qx, py - qy, px + dx * len, py + dy * len)
 	end
 	if math.abs(e.sideBurn) > 0.05 then

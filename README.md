@@ -331,3 +331,16 @@ same lifecycle; patrol, mining and combat behaviors are not added by this change
 Run `love . --tasktest` for role eligibility, reservation ownership, cargo,
 offline completion and reassignment, save/load, death cleanup, and a powered
 mass-driver departure followed by online destination docking and delivery.
+
+## Engine exhaust
+
+Player and NPC ships use the same warm engine exhaust. Each fitted engine
+emits from its slot's `x, y` hardpoint, so placing two engines in the shipyard
+creates two plumes. Exhaust points aft (local negative X), scales with engine
+size and throttle, and extends under afterburner. Empty slots produce no flame.
+Legacy unplaced engines use a tail fallback. Maneuvering jets use the same warm
+palette.
+
+`love . --enginetest` renders twin-engine player and NPC fixtures and checks
+hardpoint positions, matching colors, refits, idle engines, afterburner extension,
+and legacy coordinates.
