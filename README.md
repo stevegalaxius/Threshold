@@ -281,11 +281,13 @@ paused Box2D bodies. Preview poses are render-only; repeated physics transforms
 on an unstepped world previously caused a native broad-phase crash on return.
 
 The navigation computer shows the current relative collision course only when
-contact is predicted within its lookahead (default two seconds). It fades in
+contact between the actual collision fixtures is predicted within its lookahead
+(default two seconds). Bounding circles alone do not trigger a warning. It fades in
 briefly and clears immediately when the course is safe; reversing does not
 leave a stale warning. Moving hazards are evaluated relative to the ship, and
 the line follows the earliest predicted contact rather than an arbitrary object.
-During the final half second before impact, an X marks the actual obstacle
-surface where the warning line ends; it clears immediately when danger passes.
+During the final half second before impact, the line becomes thicker and red,
+and a larger X with a ring marks the obstacle surface. The warning clears
+immediately when danger passes.
 `love . --navcomputertest` checks warning lifetime, direction, near misses,
 stationary motion, incoming hazards, docking/catching, and removing the module.
