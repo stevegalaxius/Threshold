@@ -79,7 +79,7 @@ function Orrery.draw(game)
 	lg.print("MASS DRIVER  -  PICK A TARGET", L.x + 20, L.y + 16)
 	lg.setFont(font(12))
 	lg.setColor(HUD.DIM)
-	lg.print(("credits %s"):format(HUD.credits(game.universe.credits)), L.x + 20, L.y + 40)
+	lg.print(("credits %s   /   Debug: right-click a planet to teleport"):format(HUD.credits(game.universe.credits)), L.x + 20, L.y + 40)
 	-- the Sun and the orbits
 	lg.setColor(1, 0.85, 0.4)
 	lg.circle("fill", L.cx, L.cy, 9)
@@ -136,8 +136,13 @@ local function choose(game, it)
 end
 
 function Orrery.mousepressed(game, mx, my, button)
-	if not game.driverMenu or button ~= 1 then return false end
+	if not game.driverMenu or (button ~= 1 and button ~= 2) then return false end
 	local L = layout(game)
+	if button == 2 then
+		local target=hovered(L,mx,my)
+		if target then require('src.debugtravel').go(game,target.id) end
+		return true
+	end
 	if inside(L.cancel, mx, my) then game:closeDriverMenu() return true end
 	choose(game, hovered(L, mx, my))
 	return true

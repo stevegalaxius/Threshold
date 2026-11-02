@@ -4,7 +4,7 @@
 
 	  nav       warns of a collision: when your course (velocity relative
 	            to it) runs you into something within T.navLookahead seconds,
-	            the dashed line along your velocity fades in, bright orange.
+	            the dashed line along your relative course fades in, bright orange.
 	  ordnance  puts a lead pip on the target (the guidance lock, or the
 	            hostile nearest the cursor): shoot the pip and your primary
 	            rounds meet the target.
@@ -22,6 +22,7 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local Weapons = require("src.weapons")
+local Prediction = require("src.collision_prediction")
 
 local sqrt, max, cos, sin = math.sqrt, math.max, math.cos, math.sin
 
@@ -114,41 +115,20 @@ function Game:toggleDroneControl()
 	best.piloted, self.piloting = true, best
 end
 
--- Is ship e on course to hit something within `ahead` seconds?
-local SOLID = { asteroid = true, planet = true, station = true, structure = true, ship = true, husk = true, container = true }
-local function collisionCourse(game, e, ahead)
-	local x, y = e.body:getPosition()
-	local vx, vy = e.body:getLinearVelocity()
-	local me = (e.halfLength or 20) * 0.8
-	for _, o in ipairs(game.entities) do
-		if o ~= e and SOLID[o.kind] and not o.dead and not o.removed and not o.gas
-			and not (o.drone and o.owner == e) and o.body then
-			local ox, oy = o.body:getPosition()
-			local ovx, ovy = o.body:getLinearVelocity()
-			local rx, ry, rvx, rvy = ox - x, oy - y, ovx - vx, ovy - vy
-			local reach = (o.radius or o.halfLength or 20) + me
-			local closing = -(rx * rvx + ry * rvy)
-			if closing > 0 then
-				local v2 = rvx * rvx + rvy * rvy
-				local t = math.min(closing / v2, ahead)
-				local cx, cy = rx + rvx * t, ry + rvy * t
-				if cx * cx + cy * cy < reach * reach then return true end
-			end
-		end
-	end
-	return false
-end
-
 -- Each frame: the nav warning, and drop a lock that's dead or out of
 -- radar range.
 function Game:updateComputers(dt)
 	local p = self.player
 	if not p or p.dead then return end
 	local ship = self:pilotedShip()
-	local want = (self:computer(p, "nav") and not ship.catching and not ship.dockState
-		and collisionCourse(self, ship, T.navLookahead)) and 1 or 0
-	local warn = p.navWarn or 0
-	p.navWarn = warn + math.max(-dt * 2, math.min(dt * 5, want - warn))
+	p.navThreat = self:computer(p, "nav") and not ship.catching and not ship.dockState
+		and Prediction.threat(self, ship, T.navLookahead) or nil
+	if p.navThreat then
+		-- Brief fade-in only. A cleared course must never retain a stale line.
+		p.navWarn = 1 - (1 - (p.navWarn or 0)) * math.exp(-dt / 0.06)
+	else
+		p.navWarn = 0
+	end
 	local guidance = self:computer(p, "guidance")
 	p.lock = guidance and pickLock(self, p, guidance.radarRange) or nil
 	if self.piloting and (not self:computer(p, "drone") or self.piloting.dead) then
@@ -186,17 +166,27 @@ function Game:drawComputers(px)
 	local ship = self:pilotedShip()
 	local x, y = ship.body:getPosition()
 
-	-- nav: the mass driver's dashed course line, only while a collision's coming
-	local warn = p.navWarn or 0
-	if warn > 0.01 then
-		local vx, vy = ship.body:getLinearVelocity()
-		local ahead = T.navLookahead
-		lg.setColor(1, 0.55, 0.1, 0.85 * warn)
-		lg.setLineWidth(max(2, 2 * px))
+	-- Nav: the current relative collision course, cleared immediately when safe.
+	local warn, threat = p.navWarn or 0, p.navThreat
+	if threat and threat.ship == ship and (warn > 0.01 or threat.time <= 0.5) then
+		local vx, vy = threat.vx, threat.vy
+		local ahead = math.min(T.navLookahead, threat.time + 0.15)
+		local endX, endY = threat.hitX or x + vx * ahead, threat.hitY or y + vy * ahead
+		local urgent = threat.time <= 0.5
+		lg.setColor(1, urgent and 0.18 or 0.55, urgent and 0.06 or 0.1, urgent and 1 or 0.85 * warn)
+		lg.setLineWidth((urgent and 4 or 2) * px)
 		local n = 20
 		for i = 0, n - 1, 2 do
-			local t1, t2 = i / n * ahead, (i + 1) / n * ahead
-			lg.line(x + vx * t1, y + vy * t1, x + vx * t2, y + vy * t2)
+			local t1, t2 = i / n, (i + 1) / n
+			lg.line(x + (endX - x) * t1, y + (endY - y) * t1,
+				x + (endX - x) * t2, y + (endY - y) * t2)
+		end
+		if urgent and threat.hitX then
+			local r = 10 * px
+			lg.setColor(1, 0.18, 0.06, 1)
+			lg.circle("line", endX, endY, 14 * px)
+			lg.line(endX - r, endY - r, endX + r, endY + r)
+			lg.line(endX - r, endY + r, endX + r, endY - r)
 		end
 	end
 

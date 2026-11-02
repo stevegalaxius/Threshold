@@ -377,6 +377,7 @@ local function designWindow(E, Editor)
 	end
 	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
 		local remove
+		local defaults = E.ensureLoadout()
 		for i, slot in ipairs(d.slots) do
 			Slab.PushID("yard_slot" .. i)
 			local selected = E.slotSel == i
@@ -390,12 +391,13 @@ local function designWindow(E, Editor)
 				slot.family = f
 				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end
 				if f ~= "primary" and f ~= "secondary" and f ~= "auxiliary" then slot.mount = nil end
+				E.validateSlotDefault(i)
 			end, 95)
 			if not SIZELESS[slot.family] then
 				Slab.SameLine()
 				local sopts = {}
 				for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
-				combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s end, 50)
+				combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s; E.validateSlotDefault(i) end, 50)
 			end
 			if slot.family == "primary" or slot.family == "secondary" or slot.family == "auxiliary" then
 				-- weapon slots can mount differently from the hull's default
@@ -411,12 +413,23 @@ local function designWindow(E, Editor)
 			end
 			Slab.SameLine()
 			if Slab.Button("x", { W = 18, H = 18, Tooltip = "Remove this slot" }) then remove = i end
+			Slab.Text("Default item"); Slab.SameLine()
+			local items = { { label = "Empty", value = false } }
+			for _, id in ipairs(data.list.modules) do
+				local m = data.modules[id]
+				if data.fits(slot, m) then table.insert(items, { label = m.name, value = id }) end
+			end
+			local current = defaults[i] and data.modules[defaults[i]]
+			combo("yard_slotdefault" .. i, current and current.name or "Empty", items, function(id)
+				E.pushUndo(); E.ensureLoadout()[i] = id
+			end, 230)
 			Slab.PopID()
 		end
-		if remove then E.pushUndo(); table.remove(d.slots, remove); E.slotSel = nil end
+		if remove then E.pushUndo(); table.remove(d.slots, remove); table.remove(defaults, remove); E.slotSel = nil end
 		if Slab.Button("Add slot") then
 			E.pushUndo()
 			table.insert(d.slots, { family = "primary", size = "S", x = 0, y = 0 })
+			defaults[#d.slots] = false
 			E.slotSel = #d.slots
 		end
 		Slab.Text("Modules that no longer fit a slot are", { Color = { 0.6, 0.6, 0.6 } })

@@ -14,10 +14,13 @@ return function(game)
 	game.autosaveOff = true
 	local traders, rocks = 0, 0
 	for _, e in ipairs(game.entities) do
-		if e.route then traders = traders + 1 end
+
 		if e.kind == "asteroid" and e.debris == "rock" then rocks = rocks + 1 end
 	end
-	check(traders == 9, "Mars should have nine local traders")
+	for _, r in pairs(game.universe.npcs) do
+		if r.home == "mars" then traders = traders + 1 end
+	end
+	check(traders == 9, "Mars should retain its nine traders across live bodies and offline records")
 	check(rocks < 20, "Mars should have sparse rocks")
 	for _, id in ipairs({ "phobos", "deimos", "io", "callisto", "enceladus", "titania" }) do
 		local moon = Fields.moons[id]
@@ -33,7 +36,7 @@ return function(game)
 		local st
 		for _, e in ipairs(game.entities) do if e.kind == "station" then st = e break end end
 		if id == "phobos" or id == "deimos" then
-			check(st == nil, "Martian moon body was replaced by a station")
+			check(st and st.surfaceMine and st.locationId == id .. "/strip_mine", "Martian moon is missing its surface mine")
 			check(game.well and game.well.planet.kind == "planet" and game.well.planet.rock,
 				"Martian moon lost its rocky body")
 			check(game.well.radius == (id == "phobos" and 1400 or 800), "incorrect Martian moon size")

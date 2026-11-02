@@ -77,6 +77,7 @@ return function(game)
 		local beforeX, beforeY = screen(preview.game.camera, marker.body)
 		local playerX, playerY = screen(game.camera, game.player.body)
 		local stars = game.camera.x + (game.camera.backgroundX or 0)
+		if target == "luna" then capture("moon-exit-boundary") end
 		game:arrive(false)
 		check(game.world == world and game.entities == entities, "arrival rebuilt the preview world")
 		local afterX, afterY = screen(game.camera, marker.body)

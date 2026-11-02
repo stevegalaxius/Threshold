@@ -574,6 +574,35 @@ local function drawLane(game)
 	end
 end
 
+-- Mark the actual simulation handoff planes, including open-space moon roads.
+local function drawRegionBoundaries(game, px)
+ if not game.lane or not game.trip then return end
+ local extent=T.laneWidth+T.laneRamp
+ lg.push("all")
+ lg.setLineWidth(2*px)
+ for _,exit in ipairs({{game.lane.half-400,game.trip.to},{-game.lane.half-200,game.trip.from}}) do
+  local s,id=exit[1],exit[2]
+  lg.setColor(.6,.95,1,.8)
+  for n=-extent,extent,90*px do
+   local x,y=game:fromLane(s,n)
+   local xx,yy=game:fromLane(s,math.min(extent,n+45*px))
+   lg.line(x,y,xx,yy)
+  end
+  for _,n in ipairs({-extent,extent}) do
+   local x,y=game:fromLane(s,n)
+   lg.circle("fill",x,y,5*px)
+  end
+  local _,viewN=game:toLane(game.camera.x,game.camera.y)
+  local x,y=game:fromLane(s,max(-extent,min(extent,viewN)))
+  lg.push(); lg.translate(x,y); lg.scale(px)
+  lg.setColor(.015,.035,.055,.85); lg.rectangle("fill",-130,-36,260,27)
+  lg.setColor(.65,1,1,1)
+  lg.printf(Fields[id].name:upper().." / LOCAL SPACE",-125,-31,250,"center")
+  lg.pop()
+ end
+ lg.pop()
+end
+
 -- Catch rings: a lit hoop for each braking ring, the next one brightest,
 -- passed ones dimmed, joined by a faint guide line in to the driver. The
 -- player's predicted path runs from the nose while inbound.
@@ -830,33 +859,7 @@ local function drawShip(game, e)
 	-- Weapon barrels, each rotated to where its mount points it (slot.aim).
 	-- Fixed and gimballed guns sit under the hull; turrets sit on top of it.
 	local function barrel(w)
-		local s = w.slot
-		local len = BARREL[w.module.size] or 8
-		local thick = (w.module.size == "L") and 5 or ((w.module.size == "M") and 4 or 3)
-		if w.mount == "turret" then len, thick = len * 1.5, thick + 1 end
-		lg.push()
-		lg.translate(s.x or 0, s.y or 0)
-		lg.rotate(w.aim or 0)
-		lg.setColor(0.75, 0.78, 0.82)
-		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
-		if w.group == "auxiliary" then
-			lg.rectangle("fill", -4, -4, 8, 8)
-		else
-			local n, gap = w.w.barrels or 1, w.w.barrelGap or 8
-			for b = 1, n do
-				local off = (b - (n + 1) / 2) * gap
-				lg.rectangle("fill", 0, off - thick / 2, len, thick)
-			end
-		end
-		if w.mount == "turret" then
-			local r = TURRET[w.module.size] or 5
-			lg.setColor(dark)
-			lg.circle("fill", 0, 0, r)
-			lg.setColor(col)
-			lg.setLineWidth(outline(1.5))
-			lg.circle("line", 0, 0, r)
-		end
-		lg.pop()
+		require('src.weapon_visual').draw(w, col, dark, outline(1.5))
 	end
 	for _, w in ipairs(e.weapons) do
 		if w.mount ~= "turret" then barrel(w) end
@@ -1112,7 +1115,7 @@ local function drawFieldWorld(game, F, px, py)
 end
 
 function Render.world(game, overlay)
-	if overlay then game:syncAreaMotion() end
+	local restorePreview = overlay and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
 		Render.background(game.camera)
@@ -1210,7 +1213,10 @@ function Render.world(game, overlay)
 	drawBeams(game)
 	drawEffects(game)
 	game:drawComputers(screenPx)
+	drawRegionBoundaries(game, screenPx)
+	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
+	if restorePreview then restorePreview() end
 end
 
 Render.ship = drawShip

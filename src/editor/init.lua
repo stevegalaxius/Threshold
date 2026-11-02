@@ -102,6 +102,7 @@ local function setBase(id, keep)
 	if not keep then
 		E.design.stats = {}
 		E.design.slots = h and Export.copy(h.slots) or {}
+		E.design.loadout = h and Export.copy(h.loadout) or {}
 	end
 	E.design.stats = E.design.stats or {}
 	E.design.slots = E.design.slots or (h and Export.copy(h.slots)) or {}
@@ -120,6 +121,19 @@ function E.radius()
 	return E.stat("radius")
 end
 E.setBase = setBase
+
+-- Materialize legacy inherited defaults before changing slots or equipment.
+function E.ensureLoadout()
+ if not E.design.loadout then E.design.loadout = Export.hullDef(E.design).loadout or {} end
+ return E.design.loadout
+end
+
+function E.validateSlotDefault(i)
+ local loadout = E.ensureLoadout()
+ local module = loadout[i] and data.modules[loadout[i]]
+ if not module or not data.fits(E.design.slots[i], module) then loadout[i] = false end
+end
+
 
 function E.newDesign(kind)
 	kind = kind or "hull"
