@@ -544,10 +544,9 @@ for _, area in ipairs(Fields.list) do
  link(F.driverId,F.stationIds[1])
  for _,place in ipairs(F.locations) do
   if place.kind=='moon_gate' then
-   -- Leave the trade corridor at either existing buoy, or directly from home
-   -- when that is shorter. These are alternatives, not mandatory detours.
-   link(place.id,F.stationIds[1])
-   for _,buoy in ipairs(F.buoyIds) do link(place.id,buoy) end
+   -- Candidate attachments to the existing corridor. Routing uses only the
+   -- closest attachment at the planning clock, never an early-exit shortcut.
+   for _,node in ipairs(F.traderRoute or {F.stationIds[1]}) do link(place.id,node) end
   end
  end
 

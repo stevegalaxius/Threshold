@@ -53,6 +53,14 @@ return function(game)
  check(table.concat(replanned.route,',')==table.concat(planned,','),'existing moon trader did not replan at departure')
  check(replanned.state=='travel' and replanned.index==2,'replanning failed to start the first leg')
  check(replanned.id==original.id and replanned.ship.armor==original.ship.armor,'replanning replaced the trader')
+ -- Intermediate stations are network waypoints in offline simulation too.
+ local passing=require('src.persistence').copy(original)
+ passing.route={Fields.earth.stationIds[1],Fields.earth.stationIds[2],'earth/to_luna',
+  'luna/to_earth',Fields.luna.stationIds[1],'luna/to_earth','earth/to_luna'}
+ passing.state,passing.area,passing.index='travel','earth',2
+ passing.depart,passing.arrive=0,100
+ A.advance(passing,100)
+ check(passing.state=='travel' and passing.index==3,'offline trader docked at a pass-through station')
  local probe=require('src.persistence').copy(original)
  local oldRoute={}
  for i,stop in ipairs(probe.route) do
@@ -133,8 +141,18 @@ return function(game)
  check(e.dockState and e.dockState.station==station,'traveller did not materialize docked at moon')
  game:updateDockedShip(e,(e.dockState.stay or 60)+1)
  check(not e.dockState,'moon docking wait did not lead to departure')
+ -- Traverse pass-through network stops before reaching the highway exit.
+ for _=1,#e.route do
+  local stop=e.route[e.routeIndex]
+  if stop.kind=='moon_gate' then break end
+  check(not stop.dock,'intermediate network station became a docking destination')
+  e.body:setPosition(stop.body:getPosition())
+  local before=e.routeIndex
+  require('src.ai').think(game,e,1/120)
+  check(e.routeIndex~=before,'trader failed to pass a network waypoint')
+ end
  local gate=e.route[e.routeIndex]
- check(gate.kind=='moon_gate','return itinerary did not lead to existing departure gate')
+ check(gate.kind=='moon_gate' ,'return itinerary did not lead to existing departure gate')
  e.body:setPosition(gate.body:getPosition())
  local gx,gy=e.body:getPosition(); local radius=math.sqrt(gx*gx+gy*gy)
  local dx,dy=gx/radius,gy/radius

@@ -72,10 +72,28 @@ function G.project(graph,edge,x,y,clock)
  return math.max(0,math.min(1,p))
 end
 
+-- An external destination joins the corridor at its closest existing node.
+-- Evaluate at planning time because the corridor rotates beneath fixed exits.
+function G.attachment(graph,id,clock)
+ if L.get(id).kind~='moon_gate' then return end
+ local x,y=G.position(graph,id,clock)
+ local best,distance=nil,math.huge
+ for _,edge in ipairs(graph.nodes[id].links) do
+  local nx,ny=G.position(graph,edge.to,clock)
+  local d=(nx-x)^2+(ny-y)^2
+  if d<distance then best,distance=edge.to,d end
+ end
+ return best
+end
+
 function G.route(graph,from,to,clock,speed)
  assert(speed==nil or speed>0,'travel speed must be positive')
  local starts, goals=graph.destinations[from],graph.destinations[to]
  if not starts or not goals then return nil,'destination is outside this local graph' end
+ local attachments={}
+ for _,id in ipairs(graph.order) do
+  attachments[id]=G.attachment(graph,id,clock)
+ end
  local dist,prev,done={}, {}, {}
  for _,id in ipairs(starts) do dist[id]=0 end
  local goalSet={}; for _,id in ipairs(goals) do goalSet[id]=true end
@@ -89,9 +107,14 @@ function G.route(graph,from,to,clock,speed)
   if goalSet[best] then finish=best; break end
   done[best]=true
   for _,edge in ipairs(graph.nodes[best].links) do
-   local nextCost=cost+G.length(graph,edge,clock)/(speed or 600)
-   if not dist[edge.to] or nextCost<dist[edge.to] then
-    dist[edge.to]=nextCost; prev[edge.to]={edge=edge,duration=nextCost-cost}
+   -- Gates are endpoints, never shortcuts between corridor nodes.
+   if (not attachments[best] or attachments[best]==edge.to)
+    and (not attachments[edge.to] or attachments[edge.to]==best)
+    and (L.get(edge.to).kind~='moon_gate' or edge.to==to) then
+    local nextCost=cost+G.length(graph,edge,clock)/(speed or 600)
+    if not dist[edge.to] or nextCost<dist[edge.to] then
+     dist[edge.to]=nextCost; prev[edge.to]={edge=edge,duration=nextCost-cost}
+    end
    end
   end
  end

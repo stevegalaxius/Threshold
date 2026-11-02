@@ -69,15 +69,17 @@ local function neighbours(area)
  return result
 end
 
--- A local trader can adopt its moon itinerary on departure from its home dock.
+-- Plan the next journey when leaving either trading destination.
 local function adoptTrip(r,station,clock)
- if r.tripDestination and station==Fields[r.home].stationIds[1] then
+ if r.tripDestination and (station==Fields[r.home].stationIds[1]
+  or station==Fields[r.tripDestination].stationIds[1]) then
   -- Plan at departure: buoys orbit while moon exits stay fixed. Existing saves
   -- pick up the new connections here without moving ships already in flight.
   local route=roundTrip(r.home,r.tripDestination,clock)
   if not route then return false end
   r.tripRoute=route
-  r.route=copy(route); r.index=1; r.onRoundTrip=true
+  r.route=copy(route); r.onRoundTrip=true
+  for i,id in ipairs(route) do if id==station then r.index=i; break end end
   return true
  end
 end
@@ -133,6 +135,12 @@ function A.seed(game)
  if not game.preview then A.repairMoonRoutes(game) end
 end
 
+local function dockingStop(r,id)
+ if L.get(id).kind~='station' then return false end
+ return not r.onRoundTrip or id==Fields[r.home].stationIds[1]
+  or id==Fields[r.tripDestination].stationIds[1]
+end
+
 function A.advance(r,clock)
  if r.state=='dead' or r.state=='escaped' then return end
  -- Complete elapsed activities using their event times, not frame steps.
@@ -141,7 +149,7 @@ function A.advance(r,clock)
    if clock<r.arrive then return end
    local at=r.arrive
    r.offset,r.pose=nil,nil
-   if L.get(r.route[r.index]).kind=='station' then
+   if dockingStop(r,r.route[r.index]) then
     r.state='docked'; r.untilTime=at+T.alifeStay
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
@@ -345,6 +353,12 @@ local function bindRoute(game,e,r)
  for _,id in ipairs(r.route) do
   local place=L.get(id)
   local stop=place.area==game.fieldId and game:locationEntity(id)
+  if stop and place.kind=='station' and not dockingStop(r,id) then
+   local station=stop
+   stop={kind='waypoint',locationId=id,removed=false,body={getPosition=function()
+    return require('src.ai').stopPoint(station)
+   end}}
+  end
   if not stop then
    stop={kind=place.kind,locationId=id,removed=false}
    if place.area==game.fieldId and place.kind=='moon_gate' then
@@ -413,16 +427,21 @@ function A.wake(game,r)
    local x,y=st.body:getPosition()
    return (p.x-x)^2+(p.y-y)^2<((st.radius or st.def.radius or 1000)+e.halfLength)^2
   end
-  if close(source) then
+  if close(source) and dockingStop(r,leg.from) then
    e.routeIndex=(r.index-2)%#r.route+1
    game:dockInstantly(e,source)
    game:undockShip(e)
-  elseif close(destination) then
+  elseif close(destination) and dockingStop(r,leg.to) then
    local x,y=require('src.ai').stopPoint(destination)
    e.body:setPosition(x,y)
    e.body:setAngle(game.dockAngle(destination,1)+math.pi)
    e.body:setLinearVelocity(destination.body:getLinearVelocityFromWorldPoint(x,y))
    game:beginDocking(e,destination,1)
+  elseif close(source) or close(destination) then
+   -- A pass-through station is not a dock. Materialize at its approach rather
+   -- than inside its hull when the coarse leg ends at the station centre.
+   local station=close(destination) and destination or source
+   e.body:setPosition(require('src.ai').stopPoint(station))
   end
  end
 
@@ -435,7 +454,7 @@ function A.install(Game)
  function Game:traderUndocked(e,station)
   local r=self.universe.npcs[e.alifeId]
   if adoptTrip(r,station.locationId,self.universe.clock) then
-   start(r,self.universe.clock,2)
+   start(r,self.universe.clock,r.index%#r.route+1)
    bindRoute(self,e,r)
   end
  end
