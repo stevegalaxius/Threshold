@@ -270,7 +270,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, city = o.city,
+		stationTrack = sd, city = o.city, alifeTraders = o.stations and (o.traders or 3),
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -304,19 +304,6 @@ local function planetField(o)
 				local b2 = game:spawnBuoy(cos(sa - pi / 2) * sd, sin(sa - pi / 2) * sd, field.buoyIds[2])
 				game:setOrbit(b1, 0, 0, speed)
 				game:setOrbit(b2, 0, 0, speed)
-				-- Neutral freighters hauling the loop: station, buoy, station, buoy.
-				local route = { stA, b1, stB, b2 }
-				-- They start on the track between stops, heading for the next one.
-				-- Repeated Hauler, Packhorse and Runner traffic; Mars has more.
-				local kinds = { "freighter", "packhorse_trader", "runner_trader" }
-				for k = 1, (field.alifeTraders and 0 or o.traders or 3) do
-					local a = sa + pi / 4 + (k - 1) * pi * 2 / ((o.traders or 3) + 1)
-					local f = game:spawnEnemy(kinds[(k - 1) % #kinds + 1], cos(a) * sd, sin(a) * sd)
-					f.route = route
-					f.routeIndex = k % #route + 1
-					f.body:setAngle(a + pi / 2)
-					f.body:setLinearVelocity(-sin(a) * speed, cos(a) * speed)
-				end
 			end
 			-- The belt (or rings), already circling with the current.
 			for _, band in ipairs(bands) do
@@ -558,8 +545,6 @@ for _, area in ipairs(Fields.list) do
  for _,place in ipairs(F.locations) do
   if place.kind=='moon_gate' then link(place.id,F.driverId or F.stationIds[1]) end
  end
- -- First working slice: reuse Earth's three existing traders.
- if area=='earth' then F.alifeTraders=3 end
 
 end
 

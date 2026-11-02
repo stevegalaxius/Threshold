@@ -169,9 +169,20 @@ function Map.draw(game)
    lg.setColor(colors[e.kind]); lg.circle('line',x,y,2)
   end
  end
+ if game.lane then
+  for id,r in pairs(game.universe.npcs or {}) do
+   if not (game.alifeOnline or {})[id] then
+    local p=require('src.alife').laneSample(game,r,clock)
+    if p then
+     local x,y=Map.toScreen(game,p.x,p.y)
+     lg.setColor(.65,.75,.8); lg.circle('line',x,y,2)
+    end
+   end
+  end
+ end
  if not game.lane and not game.flight then
   for id,r in pairs(game.universe.npcs or {}) do
-   if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and not (game.alifeOnline or {})[id] then
+   if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and r.state~='transit' and not (game.alifeOnline or {})[id] then
     local x,y=Map.toScreen(game,require('src.alife').point(r,clock))
     lg.setColor(.65,.75,.8); lg.circle('line',x,y,2)
    end

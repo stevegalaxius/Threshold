@@ -9,7 +9,7 @@
 	  levels    each named field keeps selected world objects in universe.areas
 	            (src/persistence.lua). Wrecks, containers and loose cargo follow
 	            the orbital current while unloaded. Scenery and unmanaged NPCs regenerate on visits;
-	            Earth traders persist as A-Life records (src/alife.lua);
+	            Station traders persist as A-Life records (src/alife.lua);
 	            transit lanes remain temporary.
 	  travel    mass drivers and the transit lane between planets: see
 	            src/transit.lua.

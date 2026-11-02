@@ -266,7 +266,13 @@ local function graphSection(game)
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
   end
  end
- Slab.Text("Earth: persistent traders. Other regions: existing NPCs.")
+ for id,r in pairs(game.universe.npcs or {}) do
+  if r.state=="transit" and (r.transit.from==game.fieldId or r.transit.to==game.fieldId or require("src.alife").laneDirection(game,r)) then
+   Slab.Text(id.." transit: "..Fields[r.transit.to].name)
+   Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
+  end
+ end
+ Slab.Text("Persistent traders; a subset takes eligible moon routes.")
 end
 
 local function locationSection(game)

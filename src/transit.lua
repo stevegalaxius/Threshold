@@ -892,11 +892,12 @@ end
 function Game:cruise(e)
 	local x, y = e.body:getPosition()
 	local _, n, phi = self:toLane(x, y)
-	local dir = self:laneFlow(n) >= 0 and 1 or -1
+	local dir = e.cruiseDir or (self:laneFlow(n) >= 0 and 1 or -1)
 	local tx, ty = cos(phi) * dir, sin(phi) * dir
 	local want = T.laneFlow * (e.cruiseSpeed or 1)
 	local vx, vy = e.body:getLinearVelocity()
-	local ex, ey = tx * want - vx, ty * want - vy
+	local across = e.cruiseOffset and (e.cruiseOffset - n) * 0.4 or 0
+	local ex, ey = tx * want - sin(phi) * across - vx, ty * want + cos(phi) * across - vy
 	local it = e.intent
 	it.aimX, it.aimY = x + tx * 1000, y + ty * 1000
 	local th, st = Ship.toLocal(e, ex / 200, ey / 200)

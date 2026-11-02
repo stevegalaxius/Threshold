@@ -145,6 +145,8 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- wake inside sleepNear; checked every sleepEvery steps.
 -- A-Life prototype, separate from the debris sleep band.
 T.alifeNear, T.alifeFar = 18000, 22000
+T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round trip
+T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12

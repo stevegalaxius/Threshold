@@ -40,6 +40,15 @@ function G.build(area)
  return graph
 end
 
+-- Existing region connections: the two authored ends of a moon highway.
+function G.transit(from,to)
+ local a,b=L.get(from),L.get(to)
+ if a.kind~='moon_gate' or b.kind~='moon_gate' or a.destination~=b.area or b.destination~=a.area then return nil end
+ local moon=Fields.moons[a.area] and Fields.moons[a.area].parent==b.area and a.area
+  or Fields.moons[b.area] and Fields.moons[b.area].parent==a.area and b.area
+ if moon then return {from=a.area,to=b.area,moon=moon,length=Fields.moons[moon].gap} end
+end
+
 function G.length(graph,edge,clock)
  local x,y=G.position(graph,edge.from,clock)
  local xx,yy=G.position(graph,edge.to,clock)
@@ -128,7 +137,7 @@ function G.draw(game,px)
  -- Inspect the actual trader records, including bodies managed by existing AI.
  local A=require('src.alife')
  for id,r in pairs(game.universe.npcs or {}) do
-  if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' then
+  if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and r.state~='transit' then
    local e=game.alifeOnline and game.alifeOnline[id]
    local x,y
    if e then x,y=e.body:getPosition() else x,y=A.point(r,clock) end

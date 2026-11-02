@@ -5,7 +5,7 @@
 
 	This is the loaded instance layer. Scenery and unmanaged ships are rebuilt on
 	arrival; selected world objects are restored from src/persistence.lua.
-	Earth traders use persistent records and temporary bodies (src/alife.lua).
+	Station traders use persistent records and temporary bodies (src/alife.lua).
 	The universe in src/world.lua keeps those records alongside station
 	storage, hangars, home, travel and save state.
 ]]
@@ -70,6 +70,7 @@ function Game:retainField()
 	scene.camera = Camera.new()
 	for k, v in pairs(self.camera) do scene.camera[k] = v end
 	scene.trip, scene.arrivalPreview, scene.contacts = nil, nil, {}
+	scene.alifeOnline, scene.alifeActiveArea, scene.preview = {}, nil, true
 	scene.autosaveOff = true
 	scene:remove(self.player)
 	scene.player = nil
@@ -1214,6 +1215,7 @@ function Game:undockShip(e)
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
+	if e.alifeId then self:traderUndocked(e, st) end
 	events.emit("undock", e, st)
 end
 
@@ -1620,7 +1622,7 @@ function Game:applyBoundary()
 		-- further out) and you drift slowly back in, rather than being
 		-- sprung back. Heading out a way to a moon, it lets you go.
 		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch
-			and not (e.isPlayer and self:onMoonRoad(x, y)) then
+			and not ((e.isPlayer or e.alifeId and e.route and e.route[e.routeIndex].kind == "moon_gate") and self:onMoonRoad(x, y)) then
 			local nx, ny = x / d, y / d
 			local vx, vy = b:getLinearVelocity()
 			local out = vx * nx + vy * ny

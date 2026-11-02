@@ -1,4 +1,4 @@
--- First A-Life slice: Earth's existing traders. Records own identity; bodies
+-- Persistent station traders and planet/moon itineraries. Records own identity; bodies
 -- are temporary representations. Remote travel advances timers, never positions.
 local Fields = require('src.fields')
 local L = require('src.locations')
@@ -22,34 +22,107 @@ local function progress(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
- r.index=index; r.state='travel'; r.depart=clock
- r.arrive=clock+math.max(.1,Graph.length(graph(r.area),edge(r),clock)/r.speed)
- r.offset,r.pose,r.docking=nil,nil,nil
+ r.index=index; r.depart=clock
+ local leg=edge(r)
+ local from,to=L.get(leg.from),L.get(leg.to)
+ if from.area~=to.area then
+  local lane=assert(Graph.transit(leg.from,leg.to),'invalid inter-region journey')
+  r.state='transit'; r.area=nil; r.transit=lane
+  r.arrive=clock+lane.length/T.laneFlow
+ else
+  r.state='travel'; r.area=to.area; r.transit=nil
+  r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
+ end
+ r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
 end
+
+local function roundTrip(home,to,clock)
+ local a,b=Fields[home].stationIds[1],Fields[to].stationIds[1]
+ if not a or not b then return end
+ local out,back=home..'/to_'..to,to..'/to_'..home
+ if not L.byId[out] or not L.byId[back] then return end
+ local route={a}
+ local function walk(area,from,dest)
+  local path=Graph.route(graph(area),from,dest,clock)
+  if not path then return false end
+  for _,leg in ipairs(path.legs) do route[#route+1]=leg.edge.to end
+  return true
+ end
+ if not walk(home,a,out) then return end
+ route[#route+1]=back
+ if not walk(to,back,b) or not walk(to,b,back) then return end
+ route[#route+1]=out
+ if not walk(home,out,a) then return end
+ table.remove(route) -- The home station is already the first node of the loop.
+ return route
+end
+A.roundTrip=roundTrip
+
+local function neighbours(area)
+ local result={}
+ local moon=Fields.moons[area]
+ if moon and Fields[moon.parent].stationIds[1] then result[#result+1]=moon.parent end
+ for _,id in ipairs(Fields.moonsOf(area)) do
+  if Fields[id].stationIds[1] then result[#result+1]=id end
+ end
+ return result
+end
+
+-- A local trader can adopt its moon itinerary on departure from its home dock.
+local function adoptTrip(r,station)
+ if r.tripRoute and not r.onRoundTrip and station==r.tripRoute[1] then
+  r.route=copy(r.tripRoute); r.index=1; r.onRoundTrip=true
+  return true
+ end
+end
+
 function A.seed(game)
- local f=Fields[game.fieldId]
- if not f.alifeTraders then return end
  local u=game.universe
  u.npcs=u.npcs or {}; u.npcAreas=u.npcAreas or {}; u.nextNpcId=u.nextNpcId or 0
- if u.npcAreas[game.fieldId] then return end
- u.npcAreas[game.fieldId]=true
  local kinds={'freighter','packhorse_trader','runner_trader'}
- for i=1,f.alifeTraders do
-  local kind=kinds[(i-1)%#kinds+1]
-  local def=data.enemies[kind]; local hull=data.hulls[def.hull]
-  u.nextNpcId=u.nextNpcId+1
-  local id='npc/'..u.nextNpcId
-  local loadout=copy(def.loadout or hull.loadout)
-  local stats=Stats.compute(hull,loadout)
-  local r={id=id,area=game.fieldId,role='trader',archetype=kind,
-   route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
-   spread=(love.math.random()*2-1)*T.alifeSpread,
-   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or hull.cargo),armor=stats.armor,color=copy(def.color)}}
-  start(r,u.clock,i%#r.route+1)
-  -- Start spread along existing journeys, rather than spawning replacements.
-  local elapsed=(r.arrive-r.depart)*i/(f.alifeTraders+1)
-  r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
-  u.npcs[id]=r
+ -- All populations exist before visiting their regions. Do not refill departed
+ -- or dead traders when an area is loaded.
+ for _,area in ipairs(Fields.list) do
+  local f=Fields[area]
+  if f.alifeTraders and not u.npcAreas[area] then
+   u.npcAreas[area]=true
+   for i=1,f.alifeTraders do
+    local kind=kinds[(i-1)%#kinds+1]
+    local def=data.enemies[kind]; local hull=data.hulls[def.hull]
+    u.nextNpcId=u.nextNpcId+1
+    local id='npc/'..u.nextNpcId
+    local loadout=copy(def.loadout or hull.loadout)
+    local stats=Stats.compute(hull,loadout)
+    local r={id=id,area=area,home=area,role='trader',archetype=kind,
+     route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
+     spread=(love.math.random()*2-1)*T.alifeSpread,
+     ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or hull.cargo),armor=stats.armor,color=copy(def.color)}}
+    local destinations=neighbours(area)
+    if i%T.alifeMoonEvery==0 and #destinations>0 then
+     r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
+     r.tripRoute=roundTrip(area,r.tripDestination,u.clock)
+     if r.tripRoute then r.route=copy(r.tripRoute); r.onRoundTrip=true end
+    end
+    start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
+    local elapsed=(r.arrive-r.depart)*i/(f.alifeTraders+1)
+    r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
+    u.npcs[id]=r
+   end
+  end
+ end
+ -- Keep records from the preceding Earth prototype; schedule a moon itinerary
+ -- at a home docking stop, without teleporting an existing ship.
+ local legacy={}
+ for _,r in pairs(u.npcs) do
+  if not r.home then r.home=r.area; legacy[#legacy+1]=r end
+ end
+ table.sort(legacy,function(a,b) return a.id<b.id end)
+ for i,r in ipairs(legacy) do
+  local destinations=neighbours(r.home)
+  if i%T.alifeMoonEvery==0 and #destinations>0 then
+   r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
+   r.tripRoute=roundTrip(r.home,r.tripDestination,u.clock)
+  end
  end
 end
 
@@ -57,7 +130,7 @@ function A.advance(r,clock)
  if r.state=='dead' or r.state=='escaped' then return end
  -- Complete elapsed activities using their event times, not frame steps.
  while true do
-  if r.state=='travel' then
+  if r.state=='travel' or r.state=='transit' then
    if clock<r.arrive then return end
    local at=r.arrive
    r.offset,r.pose=nil,nil
@@ -66,6 +139,7 @@ function A.advance(r,clock)
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
    if clock<r.untilTime then return end
+   adoptTrip(r,r.route[r.index])
    start(r,r.untilTime,r.index%#r.route+1)
   else return end
  end
@@ -85,6 +159,7 @@ local function journeyPoint(r,p,clock)
 end
 
 function A.point(r,clock)
+ if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  local p=progress(r,clock)
  local x,y=journeyPoint(r,p,clock)
@@ -101,6 +176,22 @@ function A.sample(r,clock)
  return {x=x,y=y,vx=vx,vy=vy,heading=math.atan2(vy,vx)}
 end
 
+function A.laneDirection(game,r)
+ if not game.lane or not game.trip or r.state~='transit' then return end
+ local trip,t=game.trip,r.transit
+ if t.from==trip.from and t.to==trip.to then return 1 end
+ if t.from==trip.to and t.to==trip.from then return -1 end
+end
+function A.laneSample(game,r,clock)
+ local dir=A.laneDirection(game,r)
+ if not dir then return end
+ local along=(-game.lane.half+progress(r,clock)*game.trip.length)*dir
+ local n=(r.laneOffset or -math.min(T.laneWidth*.65,math.max(T.laneMedian+200,500+math.abs(r.spread or 0))))*dir
+ local x,y=game:fromLane(along,n)
+ local a=game:laneHeading(along)+(dir==-1 and math.pi or 0)
+ return {x=x,y=y,vx=math.cos(a)*T.laneFlow,vy=math.sin(a)*T.laneFlow,heading=a,n=n,dir=dir}
+end
+
 local function shipRecord(e)
  local s=Ship.record(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
@@ -114,6 +205,20 @@ function A.capture(game,e,remote)
  local clock=game.universe.clock
  r.savedOnline=nil
  r.ship=shipRecord(e); r.power=e.power
+ if e.alifeLane then
+  local along,n=game:toLane(e.body:getPosition())
+  local p=math.max(0,math.min(.999,((along*e.cruiseDir)+game.lane.half)/game.trip.length))
+  local duration=game.trip.length/T.laneFlow
+  r.depart=clock-p*duration; r.arrive=r.depart+duration
+  r.laneOffset=n*e.cruiseDir
+  r.pose,r.offset,r.docking,r.savedOnline=nil,nil,nil,nil
+  if not remote then
+   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
+   r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock,
+    lane=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot)}
+  end
+  return
+ end
  r.index=e.routeIndex or r.index
  r.docking=nil
  local ds=e.dockState
@@ -147,17 +252,41 @@ function A.capture(game,e,remote)
  else r.offset,r.docking=nil,nil end
 end
 
+local function bindRoute(game,e,r)
+ e.routeIndex=r.index; e.route={}
+ for _,id in ipairs(r.route) do
+  local place=L.get(id)
+  local stop=place.area==game.fieldId and game:locationEntity(id)
+  if not stop then
+   stop={kind=place.kind,locationId=id,removed=false}
+   if place.area==game.fieldId and place.kind=='moon_gate' then
+    stop.body={getPosition=function()
+     local x,y=L.position(id,game.universe.clock)
+     local radius=math.sqrt(x*x+y*y)
+     local factor=1+T.alifeGateExit/radius
+     return x*factor,y*factor
+    end}
+   end
+  end
+  e.route[#e.route+1]=stop
+ end
+end
+
 function A.wake(game,r)
  local s=r.ship
- local p=A.sample(r,game.universe.clock)
+ local lane=A.laneSample(game,r,game.universe.clock)
+ local p=lane or A.sample(r,game.universe.clock)
  local exact=r.pose and math.abs(r.pose.clock-game.universe.clock)<.001 and r.pose
+ if exact and lane and exact.lane~=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot) then exact=nil end
  local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,cargo=s.cargo,
   hold=s.hold and Hold.deserialize(s.hold,function(id) return data.items[id]~=nil end),
   armor=s.armor,color=copy(s.color),team=data.enemies[r.archetype].team,
   enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
- e.alifeId=r.id; e.routeIndex=r.index; e.route={}
- for _,id in ipairs(r.route) do e.route[#e.route+1]=assert(game:locationEntity(id),'missing trader destination '..id) end
+ e.alifeId=r.id
+ if lane then
+  e.alifeLane=true; e.cruise=true; e.cruiseDir=lane.dir; e.cruiseOffset=lane.n
+ else bindRoute(game,e,r) end
  e.power=r.power or e.power
  e.body:setLinearVelocity(exact and exact.vx or p.vx,exact and exact.vy or p.vy)
  e.body:setAngularVelocity(exact and exact.w or 0)
@@ -172,12 +301,43 @@ function A.wake(game,r)
    e.body:setActive(e.dockState.phase=='tractor')
   end
  end
+ if not exact and not lane and r.state=='travel' then
+  -- Local graph nodes name the station as a whole. Physical handoff uses
+  -- the existing dock/undock transforms rather than spawning inside its hub.
+  local leg=edge(r)
+  local source=game:locationEntity(leg.from)
+  local destination=game:locationEntity(leg.to)
+  local function close(st)
+   if not st or st.kind~='station' then return false end
+   local x,y=st.body:getPosition()
+   return (p.x-x)^2+(p.y-y)^2<((st.radius or st.def.radius or 1000)+e.halfLength)^2
+  end
+  if close(source) then
+   e.routeIndex=(r.index-2)%#r.route+1
+   game:dockInstantly(e,source)
+   game:undockShip(e)
+  elseif close(destination) then
+   local x,y=require('src.ai').stopPoint(destination)
+   e.body:setPosition(x,y)
+   e.body:setAngle(game.dockAngle(destination,1)+math.pi)
+   e.body:setLinearVelocity(destination.body:getLinearVelocityFromWorldPoint(x,y))
+   game:beginDocking(e,destination,1)
+  end
+ end
+
  game.alifeOnline[r.id]=e
  r.pose,r.savedOnline=nil,nil
  return e
 end
 
 function A.install(Game)
+ function Game:traderUndocked(e,station)
+  local r=self.universe.npcs[e.alifeId]
+  if adoptTrip(r,station.locationId) then
+   start(r,self.universe.clock,2)
+   bindRoute(self,e,r)
+  end
+ end
  function Game:captureALife(detach)
   for id,e in pairs(self.alifeOnline or {}) do
    A.capture(self,e,detach)
@@ -212,7 +372,20 @@ function A.install(Game)
     -- Normal reap must still produce the wreck and death effects.
     A.capture(self,e,false)
     self.alifeOnline[id]=nil
-   elseif e.removed or not px or (x-px)^2+(y-py)^2>T.alifeFar^2 then
+   elseif e.removed then
+    A.capture(self,e,false)
+    self.alifeOnline[id]=nil
+   elseif e.alifeLane and select(1,self:toLane(e.body:getPosition()))*e.cruiseDir>=self.lane.half then
+    A.capture(self,e,true)
+    local r=records[id]
+    start(r,clock,r.index%#r.route+1)
+    self:remove(e); self.alifeOnline[id]=nil
+   elseif e.alifeDepart then
+    A.capture(self,e,true)
+    local r=records[id]
+    start(r,clock,r.index%#r.route+1)
+    self:remove(e); self.alifeOnline[id]=nil
+   elseif not px or (x-px)^2+(y-py)^2>T.alifeFar^2 then
     A.capture(self,e,false)
     if not e.removed then self:remove(e) end
     self.alifeOnline[id]=nil
@@ -221,9 +394,12 @@ function A.install(Game)
   for id,r in pairs(records) do
    if not self.alifeOnline[id] then
     local localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if localArea or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock) end
-    if localArea and px and r.state~='dead' and r.state~='escaped' then
-     local x,y=A.point(r,clock)
+    if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock) end
+    local lane=A.laneSample(self,r,clock)
+    localArea=r.area==self.fieldId and not self.lane and not self.flight
+    if px and (lane or localArea and r.state~='dead' and r.state~='escaped' and r.state~='transit') then
+     local x,y
+     if lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
      if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
     end

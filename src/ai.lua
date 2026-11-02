@@ -41,7 +41,8 @@ local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
 	local px, py, worst = 0, 0, 0
 	local speed = sqrt(vx * vx + vy * vy)
 	for _, o in ipairs(game.entities) do
-		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy" then
+		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy"
+			and not (o.kind == "planet" and target and target.city and game.well and game.well.gas) then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
 			local orad = (o.kind == "ship") and o.halfLength or o.radius
@@ -134,6 +135,8 @@ local function stopPoint(stop)
 	return stop.body:getPosition()
 end
 
+AI.stopPoint = stopPoint
+
 -- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
 -- strafe intent turns the hull), easing off when it isn't facing where
 -- it's going. Its turrets track and fire on whoever last attacked it,
@@ -167,7 +170,14 @@ local function trade(game, e, dt)
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock then e.routeIndex = e.routeIndex % #route + 1 end
+		if d < 450 and not stop.dock then
+			if e.alifeId and stop.kind == "moon_gate" then
+				e.alifeDepart = true
+				e.intent = Ship.emptyIntent()
+				return
+			end
+			e.routeIndex = e.routeIndex % #route + 1
+		end
 		-- The speed it wants: its cruise, but no faster than it can shed
 		-- before the stop (down to a crawl for a station's runway, or a
 		-- steady pass at a buoy). Measured against the planet's current,
@@ -178,7 +188,7 @@ local function trade(game, e, dt)
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
 		-- outweigh the route, and slows down while something's in the way.
-		local avx, avy, danger = avoidCollisions(game, e, nil, x, y, vx, vy, ai.horizon or 4.5)
+		local avx, avy, danger = avoidCollisions(game, e, stop.city and stop or nil, x, y, vx, vy, ai.horizon or 4.5)
 		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
