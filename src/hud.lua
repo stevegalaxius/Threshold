@@ -87,7 +87,7 @@ local function drawStatus(game)
 	bar(x + 12, y + 12, pw - 24, 18, p.armor / s.armor, lowArmor and WARN or { 0.4, 0.85, 0.95 }, "ARMOR", ("%d / %d"):format(floor(p.armor + 0.5), floor(s.armor + 0.5)))
 	local powerLabel = p.afterburn and (p.burnerLocked and "AFTERBURNER  (reserve)" or "AFTERBURNER") or (p.burnerLocked and "POWER  (afterburner on reserve)" or "POWER")
 	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), p.burnerLocked and { 1.0, 0.7, 0.35 } or { 0.55, 0.75, 1.0 }, powerLabel, ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
-	-- tick where the afterburner relights after running dry
+	-- capacitor charge protected by afterburner reserve mode
 	lg.setColor(1, 1, 1, 0.5)
 	local rx = x + 12 + (pw - 24) * T.boostRelight
 	lg.line(rx, y + 33, rx, y + 49)
@@ -240,7 +240,7 @@ local function drawOffscreen(game)
 		end
 	end
 	-- the ways out to moons (or back to the planet): src/moons.lua
-	if game.state ~= "docked" and not (game.player and game.player.departure) then
+	if game.state ~= "docked" then
 		for _, g in ipairs(game.moonGates or {}) do
 			mark(g.label, g.x, g.y, 0, { 0.6, 0.85, 1 })
 		end

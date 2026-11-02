@@ -10,8 +10,8 @@ T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
 	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1,    precision = 2 },
 	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.08,   precision = 2 },
-	{ key = "navLookahead",   label = "Nav: collision warning (s ahead)", min = 1, max = 8, value = 2, precision = 1 },
-	{ key = "guidanceCone",   label = "Guidance: lock cone (deg)", min = 5, max = 90, value = 25, precision = 0 },
+	{ key = "navLookahead",   label = "Nav fallback: lookahead (s)", min = 1, max = 8, value = 2, precision = 1 },
+	{ key = "guidanceCone",   label = "Guidance fallback: cone (deg)", min = 5, max = 90, value = 25, precision = 0 },
 	{ key = "droneRecall",    label = "Drone: idle secs before docking", min = 2, max = 30, value = 10, precision = 0 },
 	{ key = "aiCruise",       label = "AI: fighting speed (px/s)", min = 100, max = 2500, value = 750, precision = 0 },
 	{ key = "traderCruise",   label = "AI: trader cruise (px/s)", min = 100, max = 2500, value = 600, precision = 0 },
@@ -29,7 +29,7 @@ T.specs = {
 	{ key = "ramDamageScale", label = "Ram damage",             min = 0,   max = 0.003, value = 0.0005, precision = 5 },
 	{ key = "boostThrust",    label = "Afterburner thrust (x main)", min = 1, max = 6, value = 3,  precision = 2 },
 	{ key = "boostDrain",     label = "Afterburner drain (capacity/s)", min = 0, max = 2, value = 0.15, precision = 2 },
-	{ key = "boostRelight",   label = "Afterburner relights at (capacity)", min = 0, max = 1, value = 0.3, precision = 2 },
+	{ key = "boostRelight",   label = "Afterburner capacitor reserve (capacity)", min = 0, max = 1, value = 0.3, precision = 2 },
 	{ key = "boostReserve",   label = "Afterburner on reserve (share of its extra thrust)", min = 0, max = 1, value = 0.75, precision = 2 },
 	{ key = "thrustRecharge", label = "Power recharge while thrusting", min = 0, max = 1, value = 0.35, precision = 2 },
 	{ key = "surfacePull", label = "Surface inward pull (px/s2)", min = 0, max = 100, value = 35, precision = 0 },
@@ -149,6 +149,13 @@ T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round t
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
+T.securityThink, T.securityRange = 0.5, 6000
+T.patrolInspect, T.pirateLinger = 10, 60
+T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
+T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
+T.alifeWreckLifetime = 1800
+T.pirateSpawnMin, T.pirateSpawnMax = 180, 300
+T.piratePopulationCap, T.pirateWarpDuration = 2, 1.5
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
@@ -203,6 +210,7 @@ end
 -- current fade out. Rocks and derelicts are laid out when you enter.
 T.laneSpecs = {
 	{ key = "laneRocks",       label = "Rocks on the road (per 10k px)", min = 0,  max = 15,    value = 1,     precision = 0 },
+	{ key = "laneHazardDepth", label = "Moon rock belt minimum depth (px)", min = 8000, max = 60000, value = 24000, precision = 0 },
 	{ key = "laneOffroad",     label = "Rocks off-road (per 10k px)",   min = 0,    max = 60,    value = 12,    precision = 0 },
 	{ key = "laneDerelicts",   label = "Derelicts (per 100k px)",       min = 0,    max = 10,    value = 1,     precision = 1 },
 	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
@@ -219,10 +227,9 @@ end
 
 
 -- Moons (src/moons.lua): the way out toward a moon is departArc px of the
--- map's edge; within departInset of the edge, heading out, the departure
--- starts and takes departTime seconds. Into a lane, its mouth is rampLead
--- ahead of you.
-T.departArc, T.departInset, T.departTime = 9000, 300, 2.5
+-- map's edge. Crossing it outward hands off immediately without taking
+-- control or zooming the camera. The lane mouth starts rampLead ahead.
+T.departArc = 9000
 T.rampLead = 1500
 -- Past a map's edge (Game:applyBoundary): outward speed bleeds away at up
 -- to edgeBrake per second, reaching full strength edgeSoft px out, and a

@@ -20,6 +20,7 @@ local Ship = require("src.ship")
 local T = require("src.tuning")
 local data = require("src.data")
 
+local Security=require("src.security")
 local AI = {}
 
 local sqrt, cos, sin, max, min, random = math.sqrt, math.cos, math.sin, math.max, math.min, love.math.random
@@ -197,7 +198,7 @@ local function trade(game, e, dt)
 		-- way ahead along the circle until the stop is close.
 		local hx, hy = sx, sy
 		local w = game.well
-		local gateApproach = e.alifeId and stop.kind == "moon_gate" and e.travelGraph
+		local gateApproach = e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
 		if gateApproach then
 			local G = require("src.travelgraph")
 			local previous = route[(e.routeIndex-2)%#route+1]
@@ -212,11 +213,14 @@ local function trade(game, e, dt)
 			local rs = sqrt((sx - w.x) ^ 2 + (sy - w.y) ^ 2)
 			local am = atan2(y - w.y, x - w.x)
 			local gap = wrap(atan2(sy - w.y, sx - w.x) - am)
-			local stepA = 0.2
+			-- Cloud-city traffic must finish circling above the gravity band
+			-- before descending toward the tunnel's outer runway.
+			local stepA = stop.city and 0.08 or 0.2
 			if math.abs(gap) > stepA then
 				local ah = am + (gap > 0 and stepA or -stepA)
 				local currentR = sqrt((x - w.x)^2 + (y - w.y)^2)
 				local lookR = currentR + (rs - currentR) * stepA / math.abs(gap)
+				if stop.city then lookR = max(currentR, w.radius + T.surfacePullRange + 1000) end
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
@@ -224,12 +228,14 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock then
-			if e.alifeId and stop.kind == "moon_gate" then
-				e.alifeDepart = true
-				it.thrust, it.strafe = 0, 0
-				return
-			end
-			e.routeIndex = e.routeIndex % #route + 1
+			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
+			if e.alifeId and e.taskWorker and stop.kind=="driver" then
+				if game:requestDriver(e,stop.driver,stop.destination) then
+				 it.thrust,it.strafe=0,0;return
+				end
+			elseif e.alifeId and stop.kind=="moon_gate" then
+				e.alifeDepart=true;it.thrust,it.strafe=0,0;return
+			else e.routeIndex=e.routeIndex%#route+1 end
 		end
 		-- The speed it wants: its cruise, but no faster than it can shed
 		-- before the stop (down to a crawl for a station's runway, or a
@@ -246,9 +252,9 @@ local function trade(game, e, dt)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
 		if gateApproach then
-			-- A fixed exit has no orbital velocity. Counter the current rather
-			-- than carrying its sideways drift into the lane.
-			fx0, fy0 = 0, 0
+			-- Match the endpoint velocity: gates are fixed, drivers orbit.
+			-- Do not carry unrelated orbital drift into the launch.
+			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
 		if stop.dock then
 			-- Final approach is relative to the moving dock, not the orbital
@@ -291,7 +297,15 @@ function AI.think(game, e, dt)
 	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()
-	local target = pickTarget(game, e, x, y)
+	local target
+	if e.alifeRole then
+		target = Security.target(game,e)
+		if not target then
+			Security.updateOnline(game,e,require("src.alife"))
+			if Security.hold(game,e,AI) then return end
+			return trade(game,e,dt)
+		end
+	else target = pickTarget(game, e, x, y) end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil

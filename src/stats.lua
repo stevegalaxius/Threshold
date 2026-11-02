@@ -24,7 +24,7 @@ function stats.compute(hull, loadout)
 	for i in ipairs(hull.slots) do
 		local m = loadout[i] and data.modules[loadout[i]]
 		if m then
-			-- a module with byMass scales with the hull's mass (side jets):
+			-- a module with byMass scales with the hull's mass:
 			-- k = (hull mass / ref) ^ exp
 			local k = 1
 			if m.byMass then k = (hull.mass / m.byMass.ref) ^ m.byMass.exp end

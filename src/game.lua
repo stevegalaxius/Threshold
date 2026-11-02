@@ -12,6 +12,7 @@
 
 local data = require("src.data")
 local T = require("src.tuning")
+local softBoundary=require("src.soft_boundary")
 local Ship = require("src.ship")
 local HullShape = require("src.hullshape")
 local Stations = require("src.stations")
@@ -513,16 +514,15 @@ end
 -- current's speed (per second). Loose things (rocks, wrecks, loot) are also
 -- held in their lane while they circle, so the belt doesn't fling outward.
 --
--- rocky: an airless rock (small moons, Ceres) instead of a smooth world:
--- a lumpy cratered outline (src/fields.lua, Fields.rockShape) that it
--- also collides as, and no atmosphere.
-function Game:spawnPlanet(x, y, radius, flow, swirl, rocky)
+-- rocky defines airless cratered artwork, independently of collision rules.
+-- Only landable mining worlds use terrain contacts that permit soft landings.
+function Game:spawnPlanet(x, y, radius, flow, swirl, rocky, landable)
 	local body = love.physics.newBody(self.world, x, y, "static")
 	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
 		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
+	e.rock, e.landable = rocky, landable == true
 	local shape
-	if rocky then
-		e.rock = rocky
+	if e.landable and rocky then
 		shape = love.physics.newChainShape(true, rocky.outline)
 	else
 		shape = love.physics.newCircleShape(radius)
@@ -667,7 +667,7 @@ function Game:applySurfacePull()
 		-- until it has actually brought the ship inside or onto its berth.
 		if e.kind == "ship" and not e.dead and not e.removed
 			and (not e.dockState or e.dockState.phase == "tractor")
-			and not e.launch and not e.departure and not e.runup then
+			and not e.launch and not e.runup then
 			local b = e.body
 			local ax, ay = self:surfacePullAt(b:getPosition())
 			b:applyForce(ax * b:getMass(), ay * b:getMass())
@@ -719,7 +719,7 @@ function Game:updateAtmosphere(dt)
 	end
 end
 
--- Rocky surfaces use normal impulse-based ship damage; other planets remain lethal.
+-- Mining-world surfaces use normal impulse damage; all other planets remain lethal.
 -- Hitting the planet itself: wrecks burn up, and rocks
 -- shatter and are replaced by a new one falling in from the edge of the
 -- map onto an orbit.
@@ -738,7 +738,7 @@ function Game:planetImpacts()
 	end
 	for o in pairs(hit) do
 		local x, y = o.body:getPosition()
-		if o.kind == "ship" and not o.dockState and not w.planet.rock then
+		if o.kind == "ship" and not o.dockState and not w.planet.landable then
 			self:damage(o, 1e9, nil, "crash")
 			if o == self.player then self:toast("CRASHED", 2) end
 		elseif o.kind == "asteroid" then
@@ -1011,7 +1011,7 @@ function Game:inTractorZone(st, x, y)
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
-		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < d.hw * 1.3 then
+		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < (d.capture or d.hw*1.3) then
 			return true, lx, ly, side, d
 		end
 	end
@@ -1053,7 +1053,7 @@ end
 
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
--- A free berth at the station that the ship fits on, or nil (no berths,
+-- The nearest free berth at the station that the ship fits on, or nil (no berths,
 -- all taken, or all too small): then it goes inside.
 function Game:freeBerth(st, e)
 	local berths = st.def and st.def.berths
@@ -1063,10 +1063,15 @@ function Game:freeBerth(st, e)
 		local ods = o ~= e and not o.dead and not o.removed and o.dockState
 		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
 	end
+	local x, y = st.body:getLocalPoint(e.body:getPosition())
+	local best, distance = nil, math.huge
 	for i, b in ipairs(berths) do
-		if not taken[i] and (e.halfLength or 0) <= b.size then return i end
+		if not taken[i] and (e.halfLength or 0) <= b.size then
+			local d = (b.x - x)^2 + (b.y - y)^2
+			if d < distance then best, distance = i, d end
+		end
 	end
-	return nil
+	return best
 end
 
 function Game:finishDocking(e, ds, st)
@@ -1112,17 +1117,16 @@ function Game:updateDockedShip(e, dt)
 			local a = sqrt(ax * ax + ay * ay)
 			local cap = T.driverGrip * (0.5 + 0.5 * grip)
 			if a > cap then ax, ay = ax / a * cap, ay / a * cap end
-			if st.city then
-				-- Once locked, the tractor supports the added surface gravity.
-				-- The pilot still handles the unassisted approach to the beam.
-				local gx, gy = self:surfacePullAt(x, y)
-				ax, ay = ax - gx, ay - gy
-			end
-			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > d.hw * 2 then
+			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2,(d.capture or d.hw*1.3)*1.5) then
 				e.dockState, e.dockCooldown = nil, 3
 				self:toast("TRACTOR LOST", 1.4)
 				return
 			end
+		end
+		-- The beam supports every captured ship against cloud-top gravity.
+		if st.city then
+			local gx, gy = self:surfacePullAt(x, y)
+			ax, ay = ax - gx, ay - gy
 		end
 		b:applyForce(ax * m, ay * m)
 		-- nose toward the door
@@ -1567,10 +1571,14 @@ function Game:step(dt)
 				-- the player flies on under the beam until it's pulled inside
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
+			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
+				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
+				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
+				e.sideBurn,e.retroBurn,e.foreBurn,e.turnBurn=0,0,0,0
 			else
 				if e.cruise then self:cruise(e, dt) elseif e.def and not e.piloted then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
-				Weapons.update(self, e, dt)
+				if not e.driverProtected then Weapons.update(self, e, dt) end
 			end
 		end
 	end
@@ -1593,6 +1601,7 @@ function Game:step(dt)
 	self:updateTow(dt)
 	self:updateLootHold(dt)
 	self.world:update(dt)
+	require("src.exhaust_damage").update(self,dt)
 	self:planetImpacts()
 	self:updateDocking(dt)
 	self:resolveContacts()
@@ -1611,7 +1620,7 @@ function Game:step(dt)
 	end
 end
 
--- Soft arena edge: the further past it, the harder you're pushed back.
+-- Soft arena edge: brake outward motion, then drift gently inward.
 function Game:applyBoundary()
 	local R = self.arenaRadius
 	for _, e in ipairs(self.entities) do
@@ -1628,9 +1637,7 @@ function Game:applyBoundary()
 			local vx, vy = b:getLinearVelocity()
 			local out = vx * nx + vy * ny
 			local m = b:getMass()
-			local k = min(1, (d - R) / T.edgeSoft)
-			local f = -T.edgeDrift * m
-			if out > 0 then f = f - out * T.edgeBrake * k * m end
+			local f = softBoundary(d-R,out,m)
 			b:applyForce(nx * f, ny * f)
 		end
 	end
@@ -1710,6 +1717,7 @@ end
 -- hx, hy: where it hit, when that's known (a wreck built in parts takes
 -- it on the part that was hit).
 function Game:damage(e, amount, source, cause, hx, hy)
+	if e and e.driverProtected then return end
 	-- a station remembers who shot it (and its turrets answer)
 	if e and e.grudge and source and source.kind == "ship" and amount > 0 then e.grudge[source] = self.time end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
@@ -1717,6 +1725,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and (e.invulnerable or e.dockState) then return end
 	if e and e.kind == "husk" and e.pieces and not e.dead and amount > 0 and self:damagePiece(e, amount, hx, hy) then return end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
+		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
 		return
@@ -1728,7 +1737,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	e.armor = e.armor - amount
 	e.lastHitBy = source
 	-- a neutral that gets shot remembers who did it, and shoots back
-	if e.team == 3 and source and source.kind == "ship" and source.team ~= 3 then e.aggressor = source end
+	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
@@ -1754,7 +1763,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			if e == direct then fall = 1 end
 			if fall > 0 then
 				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash", x, y) end
-				if d > 1 and e.kind == "ship" then
+				if d > 1 and e.kind == "ship" and not e.driverProtected then
 					local k = knockback * fall
 					e.body:applyLinearImpulse(dx / d * k, dy / d * k)
 				end
@@ -1927,6 +1936,7 @@ function Game:reap()
 			e.removed = true
 		elseif e.fleeing and not e.dead and e.body:getX() ^ 2 + e.body:getY() ^ 2 > (self.arenaRadius + 600) ^ 2 then
 			-- A fleeing enemy that made it well past the edge is gone for good.
+			ALife.detach(self,e,"escaped")
 			table.remove(self.entities, i)
 			e.body:destroy()
 			e.removed = true
@@ -1964,7 +1974,7 @@ function Game:reap()
 				end
 			end
 		elseif e.dead then
-			if e.alifeId then ALife.capture(self, e, false) end
+			if e.alifeId then ALife.capture(self, e, false); ALife.detach(self,e,"dead") end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
@@ -2334,11 +2344,14 @@ function Game:breakOff(h, piece)
 	self:explode(x, y, part.reach * 0.6, 0, 0)
 end
 
-function Game:remove(e)
+function Game:remove(e, preserveRecord)
+	ALife.detach(self,e,not preserveRecord and (e.dead and "dead" or "escaped") or nil)
+	local control=e.launch or e.driverTractor
+	if control and control.driver.driverShip==e then control.driver.driverShip=nil end
 	for i, o in ipairs(self.entities) do
 		if o == e then table.remove(self.entities, i); break end
 	end
-	if not e.removed then e.body:destroy() end
+	if not e.removed and e.body and not e.body:isDestroyed() then e.body:destroy() end
 	e.removed = true
 end
 
@@ -2393,7 +2406,7 @@ end
 function Game:frame(dt, aimX, aimY)
 	-- the launch and the lane's run-up take the zoom for a while
 	local p = self.player
-	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup or p.departure)) then
+	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
 		-- whatever was running it is over (died, or a load): the zoom stays
 		-- where it is, and it's yours again
 		self.cineZoom, self.savedZoom = nil, nil

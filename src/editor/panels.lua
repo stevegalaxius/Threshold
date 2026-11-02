@@ -22,16 +22,17 @@ local STATS = {
 	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
 	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier.", 0, 20000, 50, 0 },
 	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque.", 10, 720, 5, 0 },
+	{ "sideThrust", "maneuvering (kN)", "Built-in side thrust; turn-mode hulls use it for turning.", 0, 5000, 10, 0 },
 	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward).", 0, 3000, 10, 0 },
 	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
 	{ "ramSpeed", "ram speed", "Impact speed (px/s) below which a bump does no harm. Low = fragile.", 20, 500, 5, 0 },
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
-local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
+local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "computer" }
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
-local SIZELESS = { utility = true, computer = true, thruster = true }
+local SIZELESS = { utility = true, computer = true }
 
 local function combo(id, selected, options, onPick, w)
 	if Slab.BeginComboBox(id, { Selected = selected, W = w or 200 }) then
@@ -263,6 +264,11 @@ local function designWindow(E, Editor)
 	if Slab.Button("Undo") then E.undoStep() end
 	Slab.SameLine()
 	if Slab.Button("Redo") then E.redoStep() end
+	if not E.isPlaced() and Slab.Button("Compare ships") then
+		local comparison=require("src.editor.comparison")
+		comparison.open=not comparison.open
+		if not comparison.open then comparison.clear() end
+	end
 
 	Slab.Separator()
 	Slab.Text("Tool")
@@ -570,11 +576,36 @@ local function partWindow(E)
 		Slab.Separator()
 		check(E, p.dock == true, "Docking module", function(on) p.dock = on or nil end)
 		if p.dock then
-			Slab.Text("Door faces out from the station's centre,", { Color = { 0.6, 0.6, 0.6 } })
-			Slab.Text("through this part.", { Color = { 0.6, 0.6, 0.6 } })
+			local ok,d=pcall(require("src.dock_geometry").build,p)
+			if not ok then Slab.Text(tostring(d));d={a=0,x2=0,yc=0,hw=100,x1=-200,runway=600,capture=260,wall=24} end
+			check(E,p.dockHeading==nil,"Auto direction from station center",function(on)
+			 p.dockHeading=not on and math.deg(d.a) or nil
+			end)
+			if p.dockHeading~=nil then
+			 Slab.Text("Entrance heading (degrees)")
+			 slider(E,"yard_dheading"..i,p.dockHeading,-180,180,function(v)p.dockHeading=v end,1)
+			end
+			check(E,p.dockX~=nil,"Custom entrance position",function(on)
+			 if on then p.dockX,p.dockY=require("src.dock_geometry").point(d,d.x2,0)
+			 else p.dockX,p.dockY=nil,nil end
+			end)
+			if p.dockX~=nil then
+			 Slab.Text("Entrance X / Y (station coordinates)")
+			 slider(E,"yard_dx"..i,p.dockX,-20000,20000,function(v)p.dockX=v end,0)
+			 slider(E,"yard_dy"..i,p.dockY,-20000,20000,function(v)p.dockY=v end,0)
+			end
+			check(E,p.dockWidth~=nil,"Custom opening width",function(on)p.dockWidth=on and d.hw*2 or nil end)
+			if p.dockWidth then slider(E,"yard_dwidth"..i,p.dockWidth,20,5000,function(v)p.dockWidth=v end,0) end
+			check(E,p.dockDepth~=nil,"Custom interior depth",function(on)p.dockDepth=on and d.x2-d.x1 or nil end)
+			if p.dockDepth then slider(E,"yard_ddepth"..i,p.dockDepth,20,5000,function(v)p.dockDepth=v end,0) end
 			check(E, p.dockBoth == true, "Tunnel (open at both ends)", function(on) p.dockBoth = on or nil end)
-			Slab.Text("runway length (px)")
-			slider(E, "yard_drun" .. i, p.dockRunway or 600, 100, 3000, function(v) p.dockRunway = math.floor(v + 0.5) end, 0)
+			Slab.Text("Runway length (px)")
+			slider(E, "yard_drun" .. i, p.dockRunway or 600, 100, 5000, function(v) p.dockRunway = math.floor(v + 0.5) end, 0)
+			check(E,p.dockCapture~=nil,"Custom tractor half-width",function(on)p.dockCapture=on and d.capture or nil end)
+			if p.dockCapture then slider(E,"yard_dcapture"..i,p.dockCapture,20,5000,function(v)p.dockCapture=v end,0) end
+			Slab.Text("Door frame thickness (px)")
+			slider(E,"yard_dwall"..i,p.dockWall or 24,1,200,function(v)p.dockWall=v end,0)
+
 		end
 	end
 	if E.design.kind ~= "station" then
@@ -624,6 +655,7 @@ end
 function Panels.update(E, Editor)
 	designWindow(E, Editor)
 	partWindow(E)
+	require("src.editor.comparison").update(E)
 end
 
 return Panels

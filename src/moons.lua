@@ -66,57 +66,21 @@ end
 
 function Game:onMoonRoad(x, y) return self:moonGateAt(x, y) ~= nil end
 
--- Flying out past the edge toward a moon starts the departure, which
--- plays like a mass driver's coast: the ship swings onto the bearing at
--- the speed it was going while the camera pulls wide and the planet
--- falls away behind, then it's into transit (Game:launchTrip, placed so
--- nothing on screen jumps).
+-- Crossing a moon exit is a scene handoff, not a scripted launch.
+-- The retained origin and translated camera preserve the view.
 function Game:updateMoonGates(dt)
-	if not self.moonGates or #self.moonGates == 0 then return end
-	self:placeMoonGates()
-	local p = self.player
-	if not p or p.dead or p.dockState or self.state ~= "playing" or self.lane then return end
-	if p.departure then return self:updateDeparture(p, dt) end
-	local x, y = p.body:getPosition()
-	if x * x + y * y < (self.arenaRadius - T.departInset) ^ 2 then return end
-	local vx, vy = p.body:getLinearVelocity()
-	if vx * x + vy * y <= 0 then return end
-	local g = self:moonGateAt(x, y)
-	if not g then return end
-	local sp = sqrt(vx * vx + vy * vy)
-	p.departure = { to = g.to, length = g.length, t = 0, speed0 = sp }
-	self.savedZoom = self.savedZoom or self.camera.zoom
-	self:toast(("TRANSIT TO %s"):format(Fields[g.to].name:upper()), 2.5)
-end
-
-function Game:updateDeparture(p, dt)
-	local D = p.departure
-	D.t = D.t + dt
-	local u = math.min(1, D.t / T.departTime)
-	-- the bearing: straight out from the planet where you are
-	local x, y = p.body:getPosition()
-	local b = math.atan2(y, x)
-	D.bearing = b
-	local it = p.intent
-	it.thrust, it.strafe, it.boost = 0, 0, false
-	it.firePrimary, it.fireSecondary, it.fireAux = false, false, false
-	local a = p.body:getAngle()
-	p.body:setAngle(a + ((b - a + pi) % (2 * pi) - pi) * math.min(1, dt * 3))
-	p.body:setAngularVelocity(0)
-	-- your own speed, just turned onto the bearing: no kick
-	local s = D.speed0
-	p.body:setLinearVelocity(cos(b) * s, sin(b) * s)
-	if not D.ghost then
-		D.ghost = true
-		for _, f in ipairs(p.body:getFixtures()) do f:setSensor(true) end
-	end
-	local wide = math.min(self.savedZoom, T.cineZoom)
-	self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
-	if u >= 1 then
-		p.departure = nil
-		self.flash = { t = 0, life = 0.5 }
-		return self:launchTrip(D.to, { bearing = b, length = D.length })
-	end
+ if not self.moonGates or #self.moonGates==0 then return end
+ self:placeMoonGates()
+ local p=self.player
+ if not p or p.dead or p.dockState or self.state~="playing" or self.lane then return end
+ local x,y=p.body:getPosition()
+ if x*x+y*y<self.arenaRadius^2 then return end
+ local vx,vy=p.body:getLinearVelocity()
+ if vx*x+vy*y<=0 then return end
+ local g=self:moonGateAt(x,y)
+ if not g then return end
+ self:launchTrip(g.to,{bearing=math.atan2(y,x),length=g.length})
+ self:toast(("TRANSIT TO %s"):format(Fields[g.to].name:upper()),2.5)
 end
 
 end

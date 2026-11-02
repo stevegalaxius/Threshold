@@ -6,14 +6,14 @@ return function(game)
  local T=require('src.tuning')
  local checks=0
  local function check(ok,msg) assert(ok,msg); checks=checks+1 end
- local function count(t) local n=0; for _ in pairs(t) do n=n+1 end; return n end
+ local function count(t) local n=0; for _,r in pairs(t) do if r.role=='trader' then n=n+1 end end; return n end
  local function near(a,b) return math.abs(a-b)<.02 end
  game.autosaveOff=true; game:loadField('earth')
  local expected=0
  for _,area in ipairs(require('src.fields').list) do expected=expected+(require('src.fields')[area].alifeTraders or 0) end
  check(count(game.universe.npcs)==expected,'existing trader populations not seeded exactly once')
  local function earthTrader()
-  for id,r in pairs(game.universe.npcs) do if r.home=='earth' and not r.tripRoute and r.state~='dead' then return id,r end end
+  for id,r in pairs(game.universe.npcs) do if r.role=='trader' and r.home=='earth' and not r.tripRoute and r.state~='dead' then return id,r end end
  end
  local graph=G.build('earth')
  local earth=require('src.fields').earth
@@ -135,7 +135,7 @@ return function(game)
  game:loadField('venus')
  local liveId,live
  for candidate,record in pairs(game.universe.npcs) do
-  if record.home=='earth' and not record.tripRoute and record.state~='dead' then liveId,live=candidate,record; break end
+  if record.role=='trader' and record.home=='earth' and not record.tripRoute and record.state~='dead' then liveId,live=candidate,record; break end
  end
  if live.state=='docked' then game.universe.clock=live.untilTime+.1 end
  game:updateALife(true)

@@ -37,7 +37,7 @@ function Ship.emptyIntent()
 end
 
 --[[ Ship.new(game, opts)
-	opts.hull     hull id
+	opts.hull     hull id, or a prepared hull table for an isolated preview
 	opts.loadout  module ids by slot (defaults to the hull's loadout)
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
@@ -49,7 +49,7 @@ end
 	opts.armor    armor to start with (defaults to full)
 ]]
 function Ship.new(game, opts)
-	local hull = assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
+	local hull = type(opts.hull)=="table" and opts.hull or assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
 	local e = {
 		kind = "ship", id = game:nextId(), team = opts.team or 2,
 		hull = hull, def = opts.enemy,
@@ -227,7 +227,7 @@ function Ship.launchProblem(e)
 		if m then has[m.family] = true end
 	end
 	if not has.reactor then return "no reactor" end
-	if not has.engine and not has.thruster then return "no engine or thrusters" end
+	if e.stats.thrust<=0 and e.stats.sideThrust<=0 then return "no propulsion" end
 	return nil
 end
 
@@ -325,16 +325,25 @@ function Ship.fly(e, dt)
 	local steer = 0
 	if e.hull.helm == "turn" then steer, side = side, 0 end
 
-	-- Afterburner: full main engine plus extra thrust, draining power fast.
-	-- Once the capacitor runs dry it drops to reserve: boostReserve of its
-	-- thrust with no drain, until power is back above boostRelight of
-	-- capacity. (The empty check comes after the drain below: the reactor
-	-- tops power up first every step, so it's never 0 up here.)
-	if e.burnerLocked and e.power > s.powerCap * T.boostRelight then e.burnerLocked = false end
+	-- Full boost spends only the charge above the reserve floor. Once on
+	-- reserve, holding boost keeps the reduced output and preserves that
+	-- charge; release boost to recharge and rearm the full-power mode.
 	local burner = it.boost and s.thrust > 0
 		-- the lane's buff replaces it, except on heavies, which need the
 		-- extra push to get anywhere on the road
 		and (not e.laneBuff or e.hull.class == "heavy")
+	local reserve = s.powerCap * T.boostRelight
+	if not burner and e.power > reserve then e.burnerLocked = false end
+	if burner then
+		if e.power <= reserve then e.burnerLocked = true end
+		if e.burnerLocked then
+			-- Other consumers may draw below the reserve; never create charge.
+			e.power = min(e.power, reserve)
+		else
+			e.power = max(reserve, e.power - s.powerCap * T.boostDrain * dt)
+			if e.power <= reserve then e.burnerLocked = true end
+		end
+	end
 	if burner then fwd = 1 end
 	e.afterburn = burner
 	local main = max(0, fwd)
@@ -361,10 +370,6 @@ function Ship.fly(e, dt)
 	local buff = e.laneBuff and 1 + (T.laneThrust - 1) * e.laneBuff or 1
 	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
 	local l = side * aux * scale * buff
-	if burner and not e.burnerLocked then
-		e.power = max(0, e.power - s.powerCap * T.boostDrain * dt)
-		if e.power <= 0 then e.burnerLocked = true end
-	end
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
 	e.mainBurn = s.thrust > 0 and e.spool or 0
 	e.foreBurn = jets > engine and max(0, fwd) or 0
@@ -450,6 +455,8 @@ function Ship.performance(e)
 		mass = m,
 		accel = thrust / m,
 		topSpeed = sqrt(thrust / k),
+		-- Full-capacitor maximum; reserve mode has a lower thrust multiplier.
+		afterburnTopSpeed = sqrt(max(e.stats.thrust * T.boostThrust, e.stats.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale / k),
 		sideAccel = turnHelm and 0 or aux / m,
 		turnAccel = torque / e.body:getInertia(),
 		turnSpeed = math.deg(cap),

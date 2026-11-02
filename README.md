@@ -35,7 +35,7 @@ file) onto `love.exe`.
 ## What's in it
 
 - Box2D flight: thrust and torque only, with quadratic drag giving a natural top speed instead of a hard cap.
-- Thrust is relative to the nose, and the main engine only pushes forward. Reverse and sideways movement come from maneuvering thrusters (the hull's `sideThrust`). Light hulls have plenty, so they can strafe with their guns on target. Heavy hulls (Bastion, Hauler) can't strafe: A/D turn them, and Side Jets in their thruster slot help them turn faster. Side Jets fit every hull.
+- Thrust is relative to the nose, and the main engine only pushes forward. Reverse and sideways movement come from built-in maneuvering thrusters (the hull's `sideThrust`). Light hulls have plenty, so they can strafe with their guns on target. Heavy hulls (Bastion, Hauler) can't strafe: A/D turn them, and built-in maneuvering thrust helps them turn faster. Maneuvering thrust is configured per hull with `sideThrust`.
 - Mass is hull + modules + whatever's in the hold. Firing ammo makes you lighter; picking up loot makes you heavier.
 - Your hold is a grid of 1 m3 cells (Wisp 6 x 4, Bastion 12 x 10, Hauler 20 x 20), and each Cargo Pod adds a small grid of its own. Items take shapes on it (rounds 1 x 1 in stacks of 50, missiles 2 or 3 cells long, crates 2 x 2), so a hold can fill up before its raw volume does. Press Tab to open it: drag stacks around, R rotates while dragging, Shift-drag splits a stack, and right-clicking a stack (or dragging it out of the window) ejects it behind the ship. Docked at a station, the same screen opens next to that station's storage: Ctrl-click or right-click moves a stack to the other panel, and double-clicking an ammo crate unboxes it into loose rounds.
 - Docked, the left side of the cargo screen shows your ship's equipment on the hull outline. Drag a module from the hold or storage onto a slot (or double-click it) to fit it; the old one goes back where the new one came from. The panel shows top speed, acceleration, turn, spare power and mass before and after. Refitting only works docked, and a Cargo Pod with cargo in it can't be pulled. You can't launch without a reactor and an engine or thrusters (side jets push you forward when there's no engine). Modules never wear out, and each one fitted to a wreck has a 50% chance to survive as loot.
@@ -224,8 +224,9 @@ population. Cargo, loadout, armor, paint, journey, and docking waits survive
 area changes and save/load. Dead traders stay dead and use normal wreck creation.
 Mars retains its nine traders; other populated regions retain their three.
 
-Highway exits have a dashed boundary and a destination label at the actual
-region handoff line, including moon roads.
+Highway previews draw the same circular map edge and departure arcs as local
+space. Region labels are attached to fixed points on that edge, with no
+camera-following badges or separate straight imitation of the boundary.
 
 One in three traders takes a repeating planet/moon round trip where both ends
 have stations (10 itineraries in the current world). Others keep their existing
@@ -258,9 +259,8 @@ nodes or edges.
 
 Each trader has a persistent cross-track offset up to 1,500 world units that
 fades toward local endpoints. Offline station stops last 60 seconds; online
-stops retain the existing 30–90-second behavior. The simulation does not yet
-model offline combat or economic transactions, or assign interplanetary mass
-driver itineraries. Highway derelict generation is unchanged.
+stops retain the existing 30–90-second behavior. Economic transactions remain deferred. Persistent transport duties use mass
+drivers; patrols and pirates also participate in offline encounters. Highway derelict generation is unchanged.
 
 Open **F1 → A-Life records and connections**, enable **Show simulation connections
 and NPCs**, then open **M**. Blue lines are declared connections. Labels show
@@ -305,3 +305,265 @@ Phobos and Deimos have permanent surface mining stations, retaining their rocky 
 The travel-graph debug overlay shows pickup/delivery assignments and waiting traders. Existing saved Mars traders adopt jobs at their next Mars docking departure. Run `love . --marsjobtest` for the production/reservation/delivery and physical mine-docking checks. Delivered ore is recorded as station supply; industrial consumption and player job contracts are not implemented yet.
 
 Debug travel is available in **F1 → Teleport and destinations**: filter areas by name and jump to the selected planet or moon. On the **M map**, the dropdown beneath the planet name teleports to a selected area; scroll the list to reach all planets and moons. Right-click a map point to teleport within the current area. Right-click a planet on the mass-driver map to teleport directly to that area. The current ship, equipment, cargo and damage are preserved, and no travel fare is charged. Run `love . --debugtraveltest` for the integration checks.
+
+## NPC tasks and interplanetary dispatch
+
+A role-neutral task board in `src/tasks.lua` owns available work and exclusive
+reservations. Task definitions specify eligible roles, requirements, selection
+scores, preparation, route planning and completion. NPC records retain their
+fixed role, current task and last outcome; the board and tasks survive save/load.
+Death releases a reservation, and idle workers retry after ten seconds.
+
+`src/transport.lua` supplies the first task type. One existing local trader per
+eligible planet (apart from Mars's mining workers) becomes a dispatch worker
+at its next docking stop. It chooses available transport work from that station,
+loads five scrap, flies to the mass driver, crosses to the destination planet,
+docks, delivers and chooses again. Tasks favor destinations other than the last
+pickup port, avoiding immediate return trips. Busy manifests remain reserved; completed or abandoned ones become
+available again after 120 seconds.
+
+These are authored, recurring transport manifests with placeholder cargo.
+They do not buy from markets, charge fares or calculate profits. A future economy
+can supply requests through `Tasks.post`. Existing local traffic, moon trips and
+Mars mining jobs remain supported. Other roles can register task types with the
+same lifecycle; patrol and raid duties now use it alongside transport. Mars
+mine hauling keeps its existing reservations.
+
+Run `love . --tasktest` for role eligibility, reservation ownership, cargo,
+offline completion and reassignment, save/load, death cleanup, and a powered
+mass-driver departure followed by online destination docking and delivery.
+
+## Engine exhaust
+
+Player and NPC ships use the same warm engine exhaust. Each fitted engine
+emits from its slot's `x, y` hardpoint, so placing two engines in the shipyard
+creates two plumes. Exhaust points aft (local negative X), scales with engine
+module-defined dimensions and throttle, and extends under afterburner.
+Engine modules define an `exhaust` table in `data/modules.lua`: `width`, `length`,
+`color`, `coreColor`, `glowColor`, `afterburnScale`, and `flicker`.
+Changing an engine changes its effect for both player and NPC ships. Empty slots produce no flame.
+Legacy unplaced engines use a tail fallback. Maneuvering jets use the same warm
+palette.
+
+`love . --enginetest` renders twin-engine player and NPC fixtures and checks
+hardpoint positions, matching colors, refits, idle engines, afterburner extension,
+and legacy coordinates.
+
+Exhaust also burns intersecting ships, rocks, wrecks and cargo containers.
+Each engine's `exhaust.damage` sets damage per second at full throttle (30/50/80
+for Flit/Mule/Cinder); zero or an omitted value disables damage. Throttle scales
+damage, afterburner extends its reach, and overlapping engine plumes add damage.
+The entire visible plume, including its outer glow, shares collision geometry
+with rendering. Asteroids briefly glow orange while being burned. It cannot damage its own ship or burn while docked. Damage uses the
+normal attribution, immunity and retaliation rules and can hit friendly ships.
+
+`love . --exhausttest` checks real polygon/circle overlaps, multiple fixtures,
+two-engine damage, empty/idle/docked engines, rotation, throttle/time scaling,
+afterburner reach, attribution and per-module disabling.
+
+
+Ordnance computers also support laser-only ships (direct target marker) and
+secondary guns. Mixed laser/projectile loadouts retain projectile lead regardless
+of weapon ordering. Navigation and ordnance marks use translucent strokes; missile
+guidance uses bright brackets with a dark under-stroke for contrast.
+Run `love . --ordnancetest` for loadout and overlay regressions.
+
+
+Computer variants are authored in `data/modules.lua` with two settings each:
+
+| Computer | Range (world pixels) | Second setting |
+| --- | --- | --- |
+| Navigation | `radarRange = 12000` | `lookahead = 2` seconds |
+| Ordnance | `radarRange = 6000` | `predictionTime = 4` seconds |
+| Missile guidance | `radarRange = 4000` | `lockCone = 25` degrees, half-angle |
+| Drone uplink | `uplinkRange = 4000` | `controlLimit = 4` |
+
+Ordnance range applies even when another computer supplies a missile lock.
+Its prediction horizon limits projectile flight time; lasers have zero flight
+time. Drone controlLimit is the largest drone control cost eligible for direct
+piloting (S=1, M=2, L=4); launch bays keep their own capacity. Leaving uplink range
+or fitting a smaller controller hands control back to the ship. Existing mod
+computers without these fields retain defaults. The global navigation/cone
+sliders now serve as fallbacks for those older definitions.
+
+`love . --computervarianttest` checks both settings on all four computers,
+lock and pilot retention after limits change, and legacy definitions.
+
+Side Jets are no longer a module or equipment slot. Hull `sideThrust` provides maneuvering thrust directly and is editable in the shipyard. Baseline hull values retain the previous scaled Side Jets thrust; ships no longer carry the module mass or continuous power draw. Existing saves/designs with the old slot layout may need to be recreated.
+
+
+Moon transit uses the local-map slowdown-and-drift response beyond
+`laneWidth + laneRamp + 2500` pixels from the route. It retains ordinary moon
+flight (no highway thrust buff or near-end wall). A denser rock belt spans the
+edge and extends `laneHazardDepth` pixels beyond it by default (24,000;
+Transit lane debug setting), expanded for the widest camera view and limited
+to valid lane geometry. Density is retained in bands across the wider field.
+Those rocks are laid out at entry, stay clear of
+the handoff mouths, and are not pushed back inside by the moon boundary.
+`laneOffroad` controls their population; zero disables the off-road rocks.
+Run `love . --moonboundarytest` for force, placement and no-pop-in checks.
+
+
+Mass-driver users share one tractor/alignment/barrel/coast controller.
+NPC dispatch workers reserve the driver, are reeled into its breech, aim at
+their task destination and fire with the same choreography as the player.
+NPC launches do not take over the player's camera, menus or travel state.
+Both get the blue transit glow and immunity to damage and weapon knockback
+while captured, held or being fired off. Losing the beam or cancelling the
+targeting menu releases that protection. NPC launch phases survive save/load.
+Run `love . --drivertest` and `love . --tasktest` for these launch regressions.
+
+
+## NPC traffic debugging
+
+Press **F4**, or use **F1 > A-Life records and connections > NPC traffic monitor**.
+The live route board groups directed journeys and shows each NPC progressing
+from departure to arrival. Click a marker for identity, role, task, cargo,
+online/offline state, launch phase, departure/arrival clock and ETA. Hover for
+quick details; click again to cycle stacked markers.
+
+**Tab** toggles moon routes, the wheel scrolls routes or the inspector, and
+**Space** freezes/resumes the displayed snapshot. Freezing the view does not
+pause or advance the game. The header identifies an already-paused simulation.
+**Escape/F4** closes it. The monitor is a debug schematic, not a gameplay map or
+a claim about physical solar-system positions. It reads existing records without
+advancing remote NPCs, spawning bodies or teleporting the player. Arrival timers
+that have expired but await a simulation tick are marked as pending.
+Run `love . --traffictest` for diagnostic data and UI regression checks.
+
+
+## Custom station docks
+
+In the station editor, select a docking part and disable **Auto direction from
+station center** to set its heading independently of the station shape.
+Enable **Custom entrance position** to place the door in station-local X/Y
+coordinates. Opening width, interior depth, runway length, tractor half-width,
+door-frame thickness, and a second tunnel opening are configurable per dock.
+Headings use local +X = 0 degrees and +Y = 90 degrees. Other station parts retain
+their authored collision shapes; the preview helps keep the approach clear.
+
+The canvas previews the actual runtime geometry: amber door/centerline, green
+tractor footprint. Custom entrance points follow whole-part drags and duplicate
+offsets; mirrors reflect both heading and entrance position. All settings survive
+export, reopen and autosave. Automatic geometry remains available for ring
+stations. Data fields: `dockHeading`, `dockX`, `dockY`, `dockWidth`,
+`dockDepth`, `dockRunway`, `dockCapture` (tractor half-width), `dockWall`,
+and `dockBoth`. Run `love . --dockeditortest` for editor/runtime regressions.
+
+Circular map edges and transit side boundaries share one response: brake outward
+velocity, then apply the same small inward drift regardless of distance outside.
+They do not apply a distance-proportional spring force. The outer rock belt
+remains in place.
+
+
+Moon exits hand off directly when the player crosses the map edge outward
+through a marked exit. There is no scripted alignment, velocity override,
+input lock, ghosting, flash or cinematic zoom. The retained origin scenery,
+ship motion/spin, cursor aim, zoom, capacitor, engine spool and weapon cadence
+carry across the coordinate change. The player can steer, reverse, boost or fire
+immediately. Mass-driver launches retain their separate scripted sequence.
+Run `love . --moonentrytest` for entry and immediate-control regressions.
+
+Jupiter has two orbital trade buoys on its station track. Moon exits and the
+mass driver connect to this corridor, with Olympus reached through a buoy rather
+than used as a through-traffic junction. City-bound pilots finish circling above
+the gravity band before descending to the runway. The city's tractor supports
+NPCs against gravity just as it supports the player. Existing saved routes adopt
+the buoy approach without teleporting their ships.
+`love . --olympustest` checks orbital positions, routes at different phases,
+saved-route repair, and a physical visitor docking at Olympus and climbing back
+out to its buoy.
+
+Docking uses the nearest unoccupied exterior berth that fits the ship. Switching
+ships while berthed preserves that placement and docking entrance. If the new
+ship does not fit, it uses the nearest suitable free berth or the station
+interior. Saves retain the player's berth, entrance and docking side.
+`love . --berthtest` checks berth selection, taxi placement, ship switching,
+save/load, and size-based fallback.
+
+Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
+use the Moon's round rocky surface treatment: cratered terrain in each world's
+own colors, without atmospheric haze or cloud bands. Surface appearance is
+independent of landing rules: only Phobos, Deimos and Ceres permit soft terrain
+contacts for mining. Other planetary impacts remain lethal, including Luna.
+Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
+
+
+## Patrols and pirates
+
+The main planets with orbital trade corridors seed two independent patrols and
+one pirate as persistent A-Life records. They replace disposable field enemies
+on those planets. Legacy authored pilots are restricted to the Asteroid field,
+Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
+seeded once and pirate reinforcements follow the saved arrival schedule below.
+
+Patrols choose inspection duties through the shared task board and visit existing
+stations and buoys. Pirates choose buoy raids and relocation duties, preferring
+passing traders as targets. Patrols engage pirates and defend themselves when
+attacked; peaceful ships are not automatic targets. Nearby combat uses the same
+flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
+After losing contact, ships resume their selected duty. F1's A-Life list and the
+map graph overlay show role, duty, destination and current target.
+
+Remote encounters only compare records sharing a graph segment or endpoint.
+Periodic seeded exchanges spend actual ammunition and carry hull damage across
+online/offline transitions and saves. In offline encounters, low-health ships
+withdraw; lengthy fights
+also disengage. A fight involving a physical ship never receives abstract damage.
+When the player approaches, both participants become physical where practical and
+ordinary AI takes over. Offline deaths leave salvage records for 30 minutes;
+approaching materializes each wreck once, after which normal area persistence
+handles its cargo, looting and destruction. Pricing, reputation, node heat and an
+event director remain future work.
+
+Run `love . --securitytest` for role-specific autonomous duties, population
+identity, target selection, physical combat and navigation, save/load, offline
+ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
+
+## Shipyard comparison
+
+In F2, click **Compare ships** to open a movable, resizable comparison window.
+The left column follows the current unsaved design; the right column selects a
+ship from the hull list. Both use their fitted default modules and cargo, with
+an option to empty both holds. Invalid or unfinished designs show an explanation
+while the reference ship remains available. Preview ships live in a separate
+physics world and do not replace the live ship or registered hull definitions.
+
+The window includes the F1 handling numbers, power, armor, hold capacity and
+maximum afterburner speed. The same afterburner maximum now appears in F1; it is
+the full-power speed relative to the local current before capacitor reserve mode.
+F1 can toggle the debug panel while the editor or its text inputs have focus.
+Run `love . --comparetest` for handling parity, live edits, empty holds,
+incomplete designs, preview cleanup, and the actual F1 key handler.
+
+`love . --npclifetest` checks drawing immediately after NPC removal, fleeing,
+death and stale-body cleanup, plus distance culling/rematerialization. Online
+ownership ends before a body is destroyed; ordinary culling preserves the record
+and its duty instead of marking the ship gone.
+
+Afterburner reserve protects the configured capacitor floor (30% by default).
+Holding boost stays at reduced output once that floor is reached, without
+cycling to empty and back. Release boost to recharge and rearm full output.
+Weapons and passive power deficits can still use charge below the reserve.
+Engine plumes interpolate between normal, reserve and full boost; their damage
+bounds use the same geometry. `love . --afterburntest` checks reserve stability,
+rearming, energy accounting, actual thrust and corresponding flame sizes.
+
+
+## Pirate warp-ins
+
+Pirates check for reinforcements every 3–5 minutes of game time in regions with
+trade buoys or a mass driver. Automatic arrivals stop at two living pirates per
+region; dead or escaped pirates are replaced by new identities on later checks.
+An overdue region gets at most one arrival per check, without a catch-up swarm.
+Schedules survive saves and visiting another region. Remote arrivals are plain
+A-Life records; visible arrivals produce a short blue warp flash and enter normal
+raid duties. Existing ship counts include pirates added through debug controls.
+
+Use **F1 > Spawn and arena > Warp in pirate (A-Life)** for an immediate arrival
+near the player. This debug action bypasses the automatic cap. The panel shows
+the region's pirate count and time until the next reinforcement check. The old
+individual enemy buttons appear only in instance maps. Spawn interval, cap and
+warp-effect duration are defined alongside A-Life settings in `src/tuning.lua`.
+Run `love . --piratespawntest` for replacements, caps, debug arrivals, remote
+simulation, saved timers and instance-only legacy spawning.

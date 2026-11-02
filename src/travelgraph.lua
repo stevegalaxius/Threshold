@@ -3,6 +3,7 @@ local L = require('src.locations')
 local Fields = require('src.fields')
 local G = {}
 local pi, cos, sin, sqrt, atan2 = math.pi, math.cos, math.sin, math.sqrt, math.atan2
+local function endpoint(id) local k=L.get(id).kind;return k=='moon_gate' or k=='driver' end
 local function delta(a, b) return (b - a + pi) % (2 * pi) - pi end
 
 function G.position(graph, id, clock)
@@ -18,9 +19,9 @@ function G.point(graph, edge, progress, clock)
  local turn = progress
  -- Finish turning early: the final approach to a fixed gate is radial,
  -- rather than a spiral that reaches the boundary almost sideways.
- if L.get(edge.to).kind == 'moon_gate' then
+ if endpoint(edge.to) then
   turn = 1 - (1-progress)^3
- elseif L.get(edge.from).kind == 'moon_gate' then
+ elseif endpoint(edge.from) then
   turn = progress^3
  end
  local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*turn
@@ -49,8 +50,11 @@ function G.build(area)
 end
 
 -- Existing region connections: the two authored ends of a moon highway.
-function G.transit(from,to)
+function G.transit(from,to,clock)
  local a,b=L.get(from),L.get(to)
+ if a.kind=='driver' and b.kind=='driver' and a.area~=b.area then
+  return {kind='driver',from=a.area,to=b.area,length=Fields.laneLength(Fields.distance(a.area,b.area,clock or 0))}
+ end
  if a.kind~='moon_gate' or b.kind~='moon_gate' or a.destination~=b.area or b.destination~=a.area then return nil end
  local moon=Fields.moons[a.area] and Fields.moons[a.area].parent==b.area and a.area
   or Fields.moons[b.area] and Fields.moons[b.area].parent==a.area and b.area
@@ -58,14 +62,14 @@ function G.transit(from,to)
 end
 
 function G.length(graph,edge,clock)
- if L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate' then
+ if endpoint(edge.from) or endpoint(edge.to) then
   -- Integrate speed along the polar curve without sampling NPC positions:
   -- remote simulation only needs a duration, not a flight-path pose.
   local x,y=G.position(graph,edge.from,clock)
   local xx,yy=G.position(graph,edge.to,clock)
   local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
   local angle=delta(atan2(y,x),atan2(yy,xx))
-  local outgoing=L.get(edge.to).kind=='moon_gate'
+  local outgoing=endpoint(edge.to)
   local length=0
   for i=1,64 do
    local p=(i-.5)/64
@@ -88,7 +92,7 @@ function G.project(graph,edge,x,y,clock)
  local angle=delta(atan2(ay,ax),atan2(by,bx))
  local p
  local ar,br=sqrt(ax*ax+ay*ay),sqrt(bx*bx+by*by)
- if (L.get(edge.from).kind=='moon_gate' or L.get(edge.to).kind=='moon_gate') and math.abs(br-ar)>1 then
+ if (endpoint(edge.from) or endpoint(edge.to)) and math.abs(br-ar)>1 then
   p=(sqrt(x*x+y*y)-ar)/(br-ar)
  elseif math.abs(angle)>.001 then
   p=delta(atan2(ay,ax),atan2(y,x))/angle
@@ -189,14 +193,18 @@ function G.draw(game,px)
  for id,r in pairs(game.universe.npcs or {}) do
   if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and r.state~='transit' then
    local e=game.alifeOnline and game.alifeOnline[id]
+   if e and (e.dead or e.removed or not e.body or e.body:isDestroyed()) then e=nil end
    local x,y
    if e then x,y=e.body:getPosition() else x,y=A.point(r,clock) end
    lg.setColor(e and .4 or 1,e and 1 or .75,.3,1)
    lg.circle('fill',x,y,4*px)
    lg.push(); lg.translate(x+8*px,y+5*px); lg.scale(px)
-   lg.print(id..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
-   if r.job then lg.print(r.job.phase..' '..r.job.amount..' ore / '..r.job.mine,0,14)
+   lg.print(id..' '..r.role..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
+   if r.task then lg.print(r.task.kind..' '..r.task.phase..' -> '..(L.byId[r.task.target] and L.byId[r.task.target].name or tostring(r.task.target)),0,14)
+   elseif r.taskStatus then lg.print(r.taskStatus,0,14)
+   elseif r.job then lg.print(r.job.phase..' '..r.job.amount..' ore / '..r.job.mine,0,14)
    elseif r.jobStatus then lg.print(r.jobStatus,0,14) end
+   if r.targetId then lg.print('Target: '..r.targetId,0,28) end
    lg.pop()
   end
  end

@@ -74,7 +74,7 @@ return function(game)
 		end
 	end
 	-- Actual terrain contacts: a soft landing survives, a fast impact still hurts.
-	for _, area in ipairs({ "phobos", "deimos" }) do
+	for _, area in ipairs({ "phobos", "deimos", "belt" }) do
 		for _, speed in ipairs({ 20, 1500 }) do
 			game:loadField(area)
 			local p, planet = game.player, game.well.planet
@@ -102,6 +102,39 @@ return function(game)
 			if speed==20 then check(not p.dead and p.armor==armor,area..": soft landing damaged player")
 			else check(p.armor<armor,area..": high speed terrain impact did no damage") end
 		end
+	end
+	-- Cratered artwork must not make a world safe to land on. Mining
+	-- exceptions are explicitly authored and independent of the renderer.
+	local mining = {phobos=true,deimos=true,belt=true}
+	for _, area in ipairs({"phobos","deimos","belt","luna","mercury","io","europa",
+		"ganymede","callisto","enceladus","pluto","titania","triton"}) do
+		game:loadField(area)
+		local planet = game.well.planet
+		check(planet.rock ~= nil, area..": rocky artwork was lost")
+		check(planet.landable == (mining[area] == true), area..": incorrect landing permission")
+		local shape = planet.body:getFixtures()[1]:getShape():getType()
+		check(shape == (mining[area] and "chain" or "circle"), area..": visual outline changed collision geometry")
+	end
+	-- Physical low-speed contact remains fatal on ordinary rocky worlds.
+	for _, area in ipairs({"luna","pluto","enceladus","titania"}) do
+		game:loadField(area)
+		local p, planet = game.player, game.well.planet
+		p.body:setPosition(game.well.radius + p.halfLength + 10, 0)
+		p.body:setAngle(math.pi)
+		p.body:setLinearVelocity(-20, 0)
+		p.body:setAngularVelocity(0)
+		game.contacts = {}
+		local touched = false
+		for _ = 1, 300 do
+			game.world:update(1/120)
+			for _,c in ipairs(planet.body:getContacts()) do
+				local fa,fb = c:getFixtures()
+				if c:isTouching() and (fa:getUserData()==p or fb:getUserData()==p) then touched=true end
+			end
+			game:planetImpacts()
+			if touched then break end
+		end
+		check(touched and p.dead, area..": rocky visuals allowed a non-mining landing")
 	end
 	-- An irregular outline's local surface, rather than the nominal radius,
 	-- controls the pull onset. This simple long rock has its end at x=1600.

@@ -161,6 +161,7 @@ local function flightSection(game)
 end
 
 local function laneSection(game)
+	if game.lane and game.lane.hazardDepth then Slab.Text(("Current outer rock depth: %.0f px"):format(game.lane.hazardDepth)) end
 	for _, s in ipairs(T.laneSpecs) do
 		Slab.Text(s.label)
 		if Slab.InputNumberSlider("lane_" .. s.key, T[s.key], s.min, s.max, { W = 300, Precision = s.precision }) then
@@ -182,11 +183,23 @@ local function spawnSection(game)
 	local fopts = {}
 	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
 	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) require("src.debugtravel").go(game,id) end)
-	for _, id in ipairs(data.list.enemies) do
-		local def = data.enemies[id]
-		if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then
-			local x, y = game:spawnPoint(900, 1300)
-			game:spawnEnemy(id, x, y)
+	local security=require('src.security')
+	if Slab.Button('Warp in pirate (A-Life)',{W=300}) then
+		local r,err=security.spawnPirate(game,game.fieldId,true)
+		game:toast(r and ('PIRATE ARRIVING: '..r.id) or err,2)
+	end
+	local timer=game.universe.pirateSpawns and game.universe.pirateSpawns[game.fieldId]
+	if timer then
+		Slab.Text(('Pirates: %d / %d; next arrival check in %.0fs'):format(
+			security.pirateCount(game.universe,game.fieldId),T.piratePopulationCap,math.max(0,timer.nextAt-game.universe.clock)))
+	end
+	if game.field.instance then
+		for _, id in ipairs(data.list.enemies) do
+			local def = data.enemies[id]
+			if Slab.Button(("Spawn %s (%s)"):format(def.name, id), { W = 300 }) then
+				local x, y = game:spawnPoint(900, 1300)
+				game:spawnEnemy(id, x, y)
+			end
 		end
 	end
 	if Slab.Button("Clear enemies") then game:clearEnemies() end
@@ -230,6 +243,7 @@ local function readout(game)
 		("Mass             %.0f t  (dry %.0f + hold %.0f)"):format(perf.mass, s.mass * T.massScale, p.cargoMass * T.massScale),
 		("Acceleration     %.0f px/s2"):format(perf.accel),
 		("Top speed        %.0f px/s"):format(perf.topSpeed),
+		("Max afterburner  %.0f px/s (full power)"):format(perf.afterburnTopSpeed),
 		("Turn accel       %.1f rad/s2"):format(perf.turnAccel),
 		("Max turn speed   %.0f deg/s"):format(perf.turnSpeed),
 		("Side accel       %.0f px/s2  (maneuvering thrusters)"):format(perf.sideAccel),
@@ -258,12 +272,15 @@ local function graphSection(game)
  end
  local graph=G.build(game.fieldId)
  Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
+ if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
  if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
  for id,r in pairs(game.universe.npcs or {}) do
   if r.area==game.fieldId then
    local e=game.alifeOnline and game.alifeOnline[id]
-   Slab.Text(id.."  "..(e and "online" or r.state))
+   Slab.Text(id.."  "..r.role.." / "..(e and "online" or r.state))
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
+   if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
+   if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end
  end
  for id,r in pairs(game.universe.npcs or {}) do
@@ -272,7 +289,7 @@ local function graphSection(game)
    Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
   end
  end
- Slab.Text("Persistent traders; a subset takes eligible moon routes.")
+ Slab.Text("Persistent traders, patrols and pirates. Roles keep their own duties.")
 end
 
 local function locationSection(game)
@@ -286,7 +303,7 @@ end
 
 function Debug.update(dt, game)
 	Slab.Update(dt)
-	if not Debug.visible then return end
+	if not Debug.visible or game.npcTraffic then return end
 	local h = love.graphics.getHeight()
 	Slab.BeginWindow("dbg_window", {
 		Title = "Debug  (F1 hides)", X = love.graphics.getWidth() - 380, Y = 140,

@@ -34,6 +34,7 @@
 ]]
 
 local T = require("src.tuning")
+local softBoundary=require("src.soft_boundary")
 local Ship = require("src.ship")
 local AI = require("src.ai")
 local Fields = require("src.fields")
@@ -112,6 +113,7 @@ end
 function Game:fireDriver(to)
 	local menu, p = self.driverMenu, self.player
 	if not menu or not p or p.dead then return false end
+	if menu.driver.driverShip and menu.driver.driverShip~=p then return false end
 	local fare = self:driverFare(to)
 	if self.universe.credits < fare then
 		self:toast(("PASSAGE TO %s IS %d CR"):format(Fields[to].name:upper(), fare), 2)
@@ -120,6 +122,7 @@ function Game:fireDriver(to)
 	self.universe.credits = self.universe.credits - fare
 	self.driverMenu = nil
 	p.launch = { driver = menu.driver, to = to, t = 0 }
+	p.driverProtected=true;menu.driver.driverShip=p
 	self:toast(("FIRING FOR %s  -%d CR"):format(Fields[to].name:upper(), fare), 1.6)
 	return true
 end
@@ -128,7 +131,10 @@ end
 function Game:closeDriverMenu()
 	local p = self.player
 	self.driverMenu = nil
-	if p then p.driverCooldown = T.driverCooldown end
+	if p then
+	 p.driverCooldown=T.driverCooldown;p.driverProtected=nil
+	 local g=self:findDriver();if g and g.driverShip==p then g.driverShip=nil end
+	end
 end
 
 -- Catch the player in the driver's ring and hold them at the breech while
@@ -174,7 +180,8 @@ function Game:aimDrivers(dt)
 	local p = self.player
 	for _, g in ipairs(self.entities) do
 		if g.kind == "driver" then
-			local want = barrelTarget(self, g, p)
+			if g.driverShip and (g.driverShip.dead or g.driverShip.removed) then g.driverShip=nil end
+			local want = barrelTarget(self, g, g.driverShip or p)
 			local diff = (want - g.angle + pi) % (2 * pi) - pi
 			local step = T.driverSlew * dt
 			g.angle = g.angle + max(-step, min(step, diff))
@@ -183,12 +190,19 @@ function Game:aimDrivers(dt)
 	end
 end
 
-function Game:updateDrivers(dt)
-	self:aimDrivers(dt)
-	local p = self.player
-	if not p or p.dead or p.dockState then self.driverMenu = nil return end
+function Game:requestDriver(p,g,to)
+ if g.driverShip and g.driverShip~=p then return false end
+ if p.driverCooldown and p.driverCooldown>0 then return false end
+ local lx,ly=driverLocal(g,p.body:getPosition())
+ if lx>=150 or lx<=-T.driverZone or math.abs(ly)>=T.driverZoneWidth then return false end
+ g.driverShip=p;p.driverProtected=true
+ p.driverTractor={driver=g,to=to,t=0}
+ return true
+end
+
+function Game:updateDriverLaunch(p,dt)
 	local L = p.launch
-	local menu = self.driverMenu
+	local menu = p==self.player and self.driverMenu
 	if L or menu then
 		local g = (L or menu).driver
 		local gx, gy = breech(g)
@@ -213,11 +227,12 @@ function Game:updateDrivers(dt)
 			end
 		else
 			L.t = L.t + dt
-			if not self.savedZoom then self.savedZoom = self.camera.zoom end
+			if p==self.player and not self.savedZoom then self.savedZoom = self.camera.zoom end
 			-- once it fires, the ship passes through whatever's in the way
 			-- (the bearing can point back across the map)
 			if not L.ghost then
 				L.ghost = true
+				p.coasting=true
 				for _, f in ipairs(p.body:getFixtures()) do f:setSensor(true) end
 			end
 			local ft = L.t - T.driverAlign
@@ -226,35 +241,55 @@ function Game:updateDrivers(dt)
 				-- down the barrel, harder and harder, engine lit
 				local u = ft / T.driverFire
 				s = T.driverExitSpeed * u * u
-				self:shake(0.08 * u)
+				if p==self.player then self:shake(0.08 * u) end
 			else
 				-- out of the muzzle and still climbing, the camera pulling
 				-- wide so everything falls away behind you
 				local u = min(1, (ft - T.driverFire) / T.driverCoast)
 				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
 				-- (only ever out: if you're already wider, it leaves you be)
-				local wide = math.min(self.savedZoom, T.cineZoom)
-				self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
+				if p==self.player then
+				 local wide = math.min(self.savedZoom, T.cineZoom)
+				 self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
+				end
 				-- the bearing can point back across the map: cut to the lane
 				-- early rather than fly into the planet (or a station)
 				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
-					self.pendingFlight = L.to
-					self.flash = { t = 0, life = 0.5 }
+					if p==self.player then
+					 self.pendingFlight = L.to;self.flash = { t = 0, life = 0.5 }
+					else
+					 p.launch=nil;p.alifeDepart=true
+					 if g.driverShip==p then g.driverShip=nil end
+					end
 				end
 			end
 			p.body:setLinearVelocity(dx * s, dy * s)
 			p.intent.thrust, p.intent.boost = 1, true
+			p.mainBurn=1
 		end
 		return
 	end
-	if p.driverTractor then return self:updateDriverTractor(p, dt) end
+end
+
+function Game:updateDrivers(dt)
+	self:aimDrivers(dt)
+	for _,e in ipairs(self.entities) do
+	 if e.kind=="ship" and not e.dead and not e.removed then
+	  if e~=self.player then e.driverCooldown=max(0,(e.driverCooldown or 0)-dt) end
+	  if e.launch or e==self.player and self.driverMenu then self:updateDriverLaunch(e,dt)
+	  elseif e.driverTractor then self:updateDriverTractor(e,dt) end
+	 end
+	end
+	local p=self.player
+	if not p or p.dead or p.dockState then self.driverMenu=nil;return end
+	if p.launch or p.driverTractor or self.driverMenu then return end
 	p.driverCooldown = max(0, (p.driverCooldown or 0) - dt)
 	if p.driverCooldown > 0 then return end
 	local g = self:findDriver()
-	if not g then return end
+	if not g or g.driverShip and g.driverShip~=p then return end
 	local lx, ly = driverLocal(g, p.body:getPosition())
 	if lx < 0 and lx > -T.driverZone and math.abs(ly) < T.driverZoneWidth then
-		p.driverTractor = { driver = g, t = 0 }
+		self:requestDriver(p,g)
 		self:toast("TRACTOR LOCK", 1.4)
 	end
 end
@@ -277,6 +312,7 @@ function Game:updateDriverTractor(p, dt)
 	if lx > 150 or math.abs(ly) > T.driverZoneWidth * 1.5 or lx < -T.driverZone * 1.2 then
 		-- overshot the breech, or slid out of the beam
 		p.driverTractor = nil
+		p.driverProtected=nil;if g.driverShip==p then g.driverShip=nil end
 		p.driverCooldown = 3
 		self:toast(lx > 150 and "OVERSHOT THE BREECH: TOO FAST" or "TRACTOR LOST", 1.8)
 		return
@@ -287,8 +323,9 @@ function Game:updateDriverTractor(p, dt)
 	vx, vy = vx - gvx, vy - gvy
 	if lx > -120 and math.abs(ly) < 120 and vx * vx + vy * vy < 250 ^ 2 then
 		p.driverTractor = nil
-		self.driverMenu = { driver = g }
-		self:toast("DRIVER LOCK", 1.2)
+		if p==self.player then
+		 self.driverMenu = { driver = g };self:toast("DRIVER LOCK", 1.2)
+		else p.launch={driver=g,to=tr.to,t=0} end
 		return
 	end
 	local near = 1 - max(0, min(1, -lx / T.driverZone))
@@ -472,6 +509,14 @@ function Game:launchTrip(to, moon)
 		local spin = p0.body:getAngularVelocity()
 		local record = Ship.record(p)
 		local camX, camY = self.camera.x, self.camera.y
+		local control={}
+		for k,v in pairs(p0.intent) do control[k]=v end
+		local weaponState={}
+		for i,w in ipairs(p0.weapons) do
+		 weaponState[i]={aim=w.aim,cooldown=w.cooldown,ammo=w.ammo,firing=w.firing,barrel=w.barrel}
+		end
+		local flight={}
+		for _,k in ipairs({"power","spool","mainBurn","retroBurn","sideBurn","turnBurn","foreBurn","afterburn","burnerLocked"}) do flight[k]=p0[k] end
 		local origin = self:retainField()
 		self.trip.originScene = origin
 		self:loadField("lane", { player = record, quiet = true, retain = true, deferALife = true })
@@ -483,6 +528,12 @@ function Game:launchTrip(to, moon)
 		p.body:setAngle(angle)
 		p.body:setAngularVelocity(spin)
 		p.body:setLinearVelocity(vx, vy)
+		for k,v in pairs(flight) do p[k]=v end
+		for i,w in ipairs(weaponState) do for k,v in pairs(w) do p.weapons[i][k]=v end end
+		for k,v in pairs(control) do p.intent[k]=v end
+		if p.intent.aimX then p.intent.aimX=p.intent.aimX+px-ox end
+		if p.intent.aimY then p.intent.aimY=p.intent.aimY+py-oy end
+		self.inputTranslation={x=px-ox,y=py-oy}
 		self.camera.x, self.camera.y = camX + px - ox, camY + py - oy
 		self.camera.backgroundX = (origin.camera.backgroundX or 0) - self.trip.origin.x
 		self.camera.backgroundY = (origin.camera.backgroundY or 0) - self.trip.origin.y
@@ -788,6 +839,28 @@ function Game:populateLane()
 			e.body:setLinearVelocity(0, 0)
 		end
 	end
+	-- A denser debris belt continues beyond the soft edge. Lay it out with
+	-- the rest of the trip; it must not pop into view as the player wanders.
+	if trip.moon and span>0 and T.laneOffroad>0 then
+		local edge=self:laneBoundary()
+		local depth=self:moonHazardDepth()
+		lane.hazardDepth=depth
+		local bands=math.max(1,math.ceil((depth+500)/6500))
+		for _,side in ipairs({-1,1}) do
+			for band=1,bands do
+				for _=1,math.max(1,floor(span/10000*T.laneOffroad*2)) do
+					local s=s1+rng:random()*span
+					local n=side*(edge-500+((band-1)+rng:random())/bands*(depth+500))
+					local r=30+rng:random()^2*160
+					local x,y=at(s,n,r+40)
+					if x then
+						local e=self:spawnAsteroid(x,y,r,self:pickDebris(mix))
+						e.lane="hazard";e.body:setLinearVelocity(0,0)
+					end
+				end
+			end
+		end
+	end
 	-- derelicts
 	for _ = 1, floor(span / 100000 * T.laneDerelicts + rng:random()) do
 		local x, y = at(s1 + rng:random() * span, (rng:random() * 2 - 1) * W * 0.8, 400)
@@ -801,6 +874,21 @@ function Game:populateLane()
 			end
 		end
 	end
+end
+
+-- Several screens of continuous debris beyond the region where braking
+-- ramps up. Keep the field density when widening it and avoid lane-coordinate
+-- inversion at the inside of the arc.
+function Game:moonHazardDepth()
+ local w,h=love.graphics.getDimensions()
+ local zoom=math.min(T.minZoom,T.cineZoom or T.minZoom)
+ local view=math.sqrt(w*w+h*h)/math.max(.01,zoom)
+ return math.min(math.max(T.laneHazardDepth,T.edgeSoft+view*2),
+  self.lane.R-self:laneBoundary()-1000)
+end
+
+function Game:laneBoundary()
+ return T.laneWidth+T.laneRamp+2500
 end
 
 function Game:updateLane(dt)
@@ -820,12 +908,16 @@ function Game:updateLane(dt)
 				-- (not on a moon trip: just your own ship in open space)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 			end
-			-- soft walls well outside the lane, and the near end (not on
-			-- a moon trip: that's open space, flown like anywhere else)
-			local over = abs(n) - (W + T.laneRamp + 2500)
-			if over > 0 and not (self.trip and self.trip.moon) then
-				local k = (n > 0 and 1 or -1) * over * m * 4
-				b:applyForce(sin(phi) * k, -cos(phi) * k)
+			-- Shared soft lateral edge, including moon trips. Debris beyond
+			-- it stays in place instead of being herded back into the road.
+			local over = abs(n) - self:laneBoundary()
+			local moonDebris=self.trip and self.trip.moon and e.kind=="asteroid"
+			if over > 0 and not moonDebris then
+				local sign=n>0 and 1 or -1
+				local nx,ny=-sin(phi)*sign,cos(phi)*sign
+				local vx,vy=b:getLinearVelocity()
+				local force=softBoundary(over,vx*nx+vy*ny,m)
+				b:applyForce(nx*force,ny*force)
 			end
 			if s < -lane.half and e ~= p and not (self.trip and self.trip.moon) then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
 		end

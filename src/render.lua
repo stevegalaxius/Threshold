@@ -7,6 +7,7 @@
 
 local data = require("src.data")
 local Ship = require("src.ship")
+local EngineVisual = require("src.engine_visual")
 local T = require("src.tuning")
 local HullShape = require("src.hullshape")
 local Fields = require("src.fields")
@@ -20,8 +21,6 @@ local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
 	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
-	flame = { 0.55, 0.85, 1.0 },
-	enemyFlame = { 1.0, 0.6, 0.25 },
 	gun = { 1.0, 0.92, 0.55 },
 	artillery = { 1.0, 0.6, 0.25 },
 	missile = { 1.0, 0.95, 0.9 },
@@ -107,6 +106,13 @@ local function drawGrid(game)
 	for x = floor((x1 + bx) / step) * step - bx, x2, step do lg.line(x, y1, x, y2) end
 	for y = floor((y1 + by) / step) * step - by, y2, step do lg.line(x1, y, x2, y) end
 
+end
+
+local function drawLocalBoundary(game, labelAngle)
+	if game.lane then return end
+	lg.push("all")
+	lg.setLineWidth(1)
+
 	-- Arena edge: a faint dashed line where the map ends (past it, you
 	-- slow down and drift back: Game:applyBoundary)
 	local c = COLORS.edge
@@ -135,6 +141,21 @@ local function drawGrid(game)
 		end
 		lg.setLineWidth(1)
 	end
+
+	if labelAngle then
+		-- The label belongs to this map edge, never to the camera.
+		local x,y=cos(labelAngle)*game.arenaRadius,sin(labelAngle)*game.arenaRadius
+		lg.push();lg.translate(x,y);lg.scale(screenPx)
+		lg.setColor(.6,.9,1,.55);lg.setLineWidth(1)
+		lg.line(0,0,cos(labelAngle)*22,sin(labelAngle)*22)
+		lg.translate(cos(labelAngle)*22,sin(labelAngle)*22)
+		local tx,ty,align=-125,sin(labelAngle)>0 and 0 or -18,"center"
+		if cos(labelAngle)>.4 then tx,ty,align=0,-8,"left"
+		elseif cos(labelAngle)<-.4 then tx,ty,align=-250,-8,"right" end
+		lg.printf(game.field.name:upper().." / LOCAL SPACE",tx,ty,250,align)
+		lg.pop()
+	end
+	lg.pop()
 end
 
 -- Re-entry glow: a hot plasma sheath on the leading side of anything
@@ -172,7 +193,13 @@ local ROCK_FILL, ROCK_LINE = { 0.24, 0.24, 0.27 }, { 0.6, 0.62, 0.68 }
 -- a single draw call however many there are, where outlines (lines) are
 -- built shape by shape on the CPU.
 local polyA, polyB = {}, {}
-local function drawAsteroid(e)
+local function drawAsteroid(e,time)
+ if e.exhaustHit and e.verts and time and time-e.exhaustHit<.3 then
+  local x,y=e.body:getPosition()
+  lg.push('all');lg.translate(x,y);lg.rotate(e.body:getAngle())
+  lg.setColor(1,.35,.05,math.max(0,1-(time-e.exhaustHit)/.3))
+  lg.setLineWidth(outline(5));lg.polygon('line',e.verts);lg.pop()
+ end
 	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
 	if not e.giant and e.verts and e.debris ~= "sat" and not e.reentry then
@@ -472,8 +499,8 @@ end
 -- with lights chasing along it in the direction it fires.
 local function drawDriver(game, e)
 	local x, y = game:driverBreech(e)
-	local p = game.player
-	local busy = p and not p.dead and (p.launch or (game.driverMenu and game.driverMenu.driver == e))
+	local p = e.driverShip or game.player
+	local busy = p and not p.dead and ((p.launch and p.launch.driver==e) or (p.driverTractor and p.driverTractor.driver==e) or (game.driverMenu and game.driverMenu.driver == e))
 	local len, hw = T.driverBarrel, 80
 	local lr = max(5, 3 * screenPx)
 	lg.push()
@@ -574,35 +601,6 @@ local function drawLane(game)
 	end
 end
 
--- Mark the actual simulation handoff planes, including open-space moon roads.
-local function drawRegionBoundaries(game, px)
- if not game.lane or not game.trip then return end
- local extent=T.laneWidth+T.laneRamp
- lg.push("all")
- lg.setLineWidth(2*px)
- for _,exit in ipairs({{game.lane.half-400,game.trip.to},{-game.lane.half-200,game.trip.from}}) do
-  local s,id=exit[1],exit[2]
-  lg.setColor(.6,.95,1,.8)
-  for n=-extent,extent,90*px do
-   local x,y=game:fromLane(s,n)
-   local xx,yy=game:fromLane(s,math.min(extent,n+45*px))
-   lg.line(x,y,xx,yy)
-  end
-  for _,n in ipairs({-extent,extent}) do
-   local x,y=game:fromLane(s,n)
-   lg.circle("fill",x,y,5*px)
-  end
-  local _,viewN=game:toLane(game.camera.x,game.camera.y)
-  local x,y=game:fromLane(s,max(-extent,min(extent,viewN)))
-  lg.push(); lg.translate(x,y); lg.scale(px)
-  lg.setColor(.015,.035,.055,.85); lg.rectangle("fill",-130,-36,260,27)
-  lg.setColor(.65,1,1,1)
-  lg.printf(Fields[id].name:upper().." / LOCAL SPACE",-125,-31,250,"center")
-  lg.pop()
- end
- lg.pop()
-end
-
 -- Catch rings: a lit hoop for each braking ring, the next one brightest,
 -- passed ones dimmed, joined by a faint guide line in to the driver. The
 -- player's predicted path runs from the nose while inbound.
@@ -643,7 +641,7 @@ end
 -- The lane buff: a crackling outline round any ship inside a transit
 -- lane.
 local function drawLaneBuff(e)
-	local buff = e.laneBuff or e.laneFade
+	local buff = e.driverProtected and 1 or e.laneBuff or e.laneFade
 	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
@@ -817,22 +815,13 @@ local function drawShip(game, e)
 	lg.rotate(a)
 
 	-- Everything below is in the ship's own frame: +x is the nose, +y its right side.
-	local fc = e.isPlayer and COLORS.flame or COLORS.enemyFlame
 	local R = hull.radius
-	if e.mainBurn > 0.05 then
-		local len = R * (0.6 + e.mainBurn * 0.9) * (0.85 + love.math.random() * 0.3)
-		if e.afterburn then len = len * 2.2 end
-		local bx, wdt = e.tailX * 0.85, R * 0.35
-		lg.setColor(fc[1], fc[2], fc[3], 0.35)
-		lg.polygon("fill", bx, -wdt * 1.4, bx, wdt * 1.4, bx - len * 1.3, 0)
-		lg.setColor(fc[1], fc[2], fc[3], 0.9)
-		lg.polygon("fill", bx, -wdt, bx, wdt, bx - len, 0)
-	end
+	EngineVisual.draw(e,game.time)
 	-- Maneuvering thrusters: small puffs on the side opposite the push.
 	local function puff(px, py, dx, dy, k)
 		local len = R * 0.45 * k * (0.8 + love.math.random() * 0.4)
 		local qx, qy = -dy * 3, dx * 3
-		lg.setColor(1, 1, 1, 0.75)
+		lg.setColor(1, 0.6, 0.25, 0.75)
 		lg.polygon("fill", px + qx, py + qy, px - qx, py - qy, px + dx * len, py + dy * len)
 	end
 	if math.abs(e.sideBurn) > 0.05 then
@@ -1070,7 +1059,17 @@ end
 local function drawEffects(game)
 	for _, fx in ipairs(game.effects) do
 		local k = fx.t / fx.life
-		if fx.kind == "spark" then
+		if fx.kind == "warp_in" then
+			lg.push('all')
+			lg.setBlendMode('add')
+			local radius=fx.r*(.2+k*2)
+			lg.setColor(.25,.7,1,(1-k)*.8)
+			lg.setLineWidth(outline(3))
+			lg.circle('line',fx.x,fx.y,radius,48)
+			lg.setColor(.7,.9,1,(1-k)^2*.7)
+			lg.circle('fill',fx.x,fx.y,fx.r*(1-k),32)
+			lg.pop()
+		elseif fx.kind == "spark" then
 			local c = fx.color or { 1, 0.8, 0.5 }
 			lg.setColor(c[1], c[2], c[3], 1 - k)
 			lg.rectangle("fill", floor(fx.x), floor(fx.y), 2, 2)
@@ -1114,7 +1113,7 @@ local function drawFieldWorld(game, F, px, py)
 		body = { getPosition = function() return px, py end } })
 end
 
-function Render.world(game, overlay)
+function Render.world(game, overlay, boundaryAngle)
 	local restorePreview = overlay and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
@@ -1129,7 +1128,9 @@ function Render.world(game, overlay)
 		scene.camera.x, scene.camera.y = game.camera.x - preview.x, game.camera.y - preview.y
 		scene.camera.zoom = game.camera.zoom
 		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		Render.world(scene, true)
+		local mouth=preview.back and -game.lane.half or game.lane.half
+		local ex,ey=game:fromLane(mouth,0)
+		Render.world(scene, true, math.atan2(ey-preview.y,ex-preview.x))
 	end
 	local trip = game.trip
 	if trip and trip.originScene and (not preview or not preview.back) then
@@ -1138,9 +1139,11 @@ function Render.world(game, overlay)
 		scene.camera.x, scene.camera.y = game.camera.x - o.x, game.camera.y - o.y
 		scene.camera.zoom = game.camera.zoom
 		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		Render.world(scene, true)
+		local ex,ey=game:fromLane(-game.lane.half,0)
+		Render.world(scene, true, math.atan2(ey-o.y,ex-o.x))
 	end
 	game.camera:apply()
+	drawLocalBoundary(game,boundaryAngle)
 	if game.lane then
 		-- the planet you're heading for, where it'll be when you arrive
 		-- (moon trips only: a mass driver's lane shows no planets)
@@ -1167,11 +1170,11 @@ function Render.world(game, overlay)
 	local dots, dotR = {}, 2.5 / cam.zoom
 	local function debris(e, x, y)
 		if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
-			if e.radius < dotR and not e.reentry then
+			if e.radius < dotR and not e.reentry and not (e.exhaustHit and game.time-e.exhaustHit<.3) then
 				dots[#dots + 1] = x; dots[#dots + 1] = y
 			else
 				e.body:setPosition(x, y)
-				drawAsteroid(e)
+				drawAsteroid(e,game.time)
 			end
 		end
 	end
@@ -1183,13 +1186,13 @@ function Render.world(game, overlay)
 		if e.kind == "asteroid" and not e.giant and e.line then
 			local x, y = e.body:getPosition()
 			if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
-				if e.radius < dotR and not e.reentry then
+				if e.radius < dotR and not e.reentry and not (e.exhaustHit and game.time-e.exhaustHit<.3) then
 					dots[#dots + 1] = x; dots[#dots + 1] = y
 				else
-					drawAsteroid(e)
+					drawAsteroid(e,game.time)
 				end
 			end
-		elseif e.kind == "asteroid" then drawAsteroid(e)
+		elseif e.kind == "asteroid" then drawAsteroid(e,game.time)
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
@@ -1213,7 +1216,6 @@ function Render.world(game, overlay)
 	drawBeams(game)
 	drawEffects(game)
 	game:drawComputers(screenPx)
-	drawRegionBoundaries(game, screenPx)
 	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
 	if restorePreview then restorePreview() end

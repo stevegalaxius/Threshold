@@ -20,10 +20,10 @@ local data = {
 
 -- Slot families. primary / secondary are fire groups for guns (left and
 -- right mouse button); auxiliary holds a launcher (middle mouse button).
-local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
+local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
 -- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
 -- secondary slot; every other family fits the slot of the same name.
-local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
+local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
@@ -31,7 +31,7 @@ data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
 -- Does a module fit a hull slot?
 function data.fits(slot, m)
-	-- a module sized "any" fits a slot of any size (side jets scale to it)
+	-- a module sized "any" fits a slot of any size (computers and utilities)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
 	return m.family == slot.family
@@ -63,8 +63,9 @@ local HullShape = require("src.hullshape")
 
 local api = {}
 
-function api.hull(def)
-	register("hulls", "hull", def)
+local function prepareHull(def)
+	if type(def) ~= "table" then fail("hull expects a table") end
+	need(def, "id", "hull"); need(def, "name", "hull")
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
 	local LAYERS = { hull = true, detail = true, glow = true }
@@ -103,6 +104,18 @@ function api.hull(def)
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
+end
+
+function api.hull(def)
+	prepareHull(def)
+	return register("hulls", "hull", def)
+end
+
+-- Validate and prepare an isolated preview without replacing a catalogue hull.
+function data.prepareHull(def)
+	local ok, err = pcall(prepareHull, def)
+	if not ok then return nil, err end
+	return def
 end
 
 -- A wreck: a derelict built from parts, placed in the world rather than
@@ -154,28 +167,14 @@ function api.station(def)
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
 	-- every part tagged dock is a docking module. Its frame points from the
-	-- station's centre out through the part (or along +x for a part on the
-	-- centre); the door is the far end. dockBoth: a tunnel open at both
-	-- ends, centred on its frame.
+	-- station's centre out through the part by default; authored heading,
+	-- entrance and dimensions override that geometry for any station shape.
+	-- dockBoth opens both ends of the same frame.
 	def.docks = {}
 	for _, part in ipairs(def.parts) do
 		if part.dock then
-			local a = (math.abs(part.cx) + math.abs(part.cy) < 1) and 0 or math.atan2(part.cy, part.cx)
-			local c, sn = math.cos(a), math.sin(a)
-			local x1, x2, y1, y2 = math.huge, -math.huge, math.huge, -math.huge
-			local s = part.shape
-			for k = 1, #s, 2 do
-				local rx, ry = s[k] * c + s[k + 1] * sn, -s[k] * sn + s[k + 1] * c
-				x1, x2 = math.min(x1, rx), math.max(x2, rx)
-				y1, y2 = math.min(y1, ry), math.max(y2, ry)
-			end
-			local d = { a = a, yc = (y1 + y2) / 2, x1 = x1, x2 = x2, hw = (y2 - y1) / 2,
-				wall = 24, runway = part.dockRunway or 600, capture = part.dockCapture or 260 }
-			if part.dockBoth then
-				d.both = true
-				d.xc = (x1 + x2) / 2
-				d.x1, d.x2 = x1 - d.xc, x2 - d.xc
-			end
+			local ok,d=pcall(require("src.dock_geometry").build,part)
+			if not ok then fail(("station '%s': %s"):format(def.id,d)) end
 			table.insert(def.docks, d)
 		end
 	end
@@ -224,6 +223,16 @@ function api.module(def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
 	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
+	if def.family=="computer" then
+		for _,field in ipairs({"radarRange","uplinkRange","lookahead","predictionTime","lockCone","controlLimit"}) do
+			local value=def[field]
+			if value~=nil and (type(value)~="number" or value~=value or value<=0 or value==math.huge) then
+				fail(("computer '%s': %s must be a positive finite number"):format(def.id,field))
+			end
+		end
+		if def.lockCone and def.lockCone>180 then fail(("computer '%s': lockCone must be at most 180 degrees"):format(def.id)) end
+		if def.controlLimit and def.controlLimit%1~=0 then fail(("computer '%s': controlLimit must be an integer"):format(def.id)) end
+	end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
 	end

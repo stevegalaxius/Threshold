@@ -4,10 +4,7 @@
 	powerDraw that is taken out of the reactor's output all the time.
 
 	Stat fields by family:
-	  engine   thrust (kN), turn
-	  thruster sideThrust (kN) for maneuvering thrusters: the only way a ship
-	           can strafe. Thruster slots are size "any", shared by every
-	           hull that has one, and battleships have none.
+	  engine   thrust (kN), turn, exhaust (visual settings; see Engines below)
 	  reactor  powerOut (per second), powerCap (stored power)
 	  computer universal (size "any"), one per hull. computer = "nav",
 	           "ordnance", "guidance" (radarRange px) or "drone" (uplinkRange
@@ -161,9 +158,22 @@ module {
 
 -- Engines -----------------------------------------------------------------------
 
-module { id = "flit_engine",  name = "Flit Engine",  maker = "Halcyon Arms",       family = "engine", size = "S", mass = 6,  powerDraw = 2, thrust = 420,  turn = 250, price = 3000 }
-module { id = "mule_engine",  name = "Mule Engine",  maker = "Brute Industries",   family = "engine", size = "M", mass = 16, powerDraw = 4, thrust = 900,  turn = 800, price = 9000 }
-module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate",     family = "engine", size = "L", mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000 }
+-- Exhaust dimensions are in ship-local pixels; colors are RGB in 0..1.
+-- width: nozzle half-width; length: full-throttle plume length.
+-- afterburnScale multiplies length while boosting; flicker is fractional jitter.
+-- damage is exhaust damage per second at full throttle (zero disables it).
+module { id = "flit_engine", name = "Flit Engine", maker = "Halcyon Arms", family = "engine", size = "S",
+ mass = 6, powerDraw = 2, thrust = 420, turn = 250, price = 3000,
+ exhaust = { width = 5, length = 30, color = {1,.6,.25}, coreColor = {1,.92,.65},
+  glowColor = {1,.35,.08}, afterburnScale = 2.2, flicker = .15, damage = 30 } }
+module { id = "mule_engine", name = "Mule Engine", maker = "Brute Industries", family = "engine", size = "M",
+ mass = 16, powerDraw = 4, thrust = 900, turn = 800, price = 9000,
+ exhaust = { width = 10, length = 45, color = {1,.55,.18}, coreColor = {1,.9,.6},
+  glowColor = {1,.3,.06}, afterburnScale = 2.2, flicker = .12, damage = 50 } }
+module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate", family = "engine", size = "L",
+ mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000,
+ exhaust = { width = 20, length = 60, color = {1,.45,.12}, coreColor = {1,.85,.5},
+  glowColor = {1,.22,.04}, afterburnScale = 2.5, flicker = .18, damage = 80 } }
 
 -- Reactors ----------------------------------------------------------------------
 
@@ -178,17 +188,13 @@ module { id = "hold_pod_s", name = "Cargo Pod",     maker = "Ferrous Collective"
 module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 3, powerDraw = 2, tractorRange = 220, price = 3500 }
 module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective", family = "utility", size = "any", mass = 5, hold = 30, price = 4000 }
 
--- Maneuvering thrusters (shared "any" slot) ----------------------------------------
-
--- One set of side jets for every hull: it scales with the hull's mass
--- (as listed on a 58 t hull like the Wisp; stronger, heavier and hungrier
--- on heavier hulls). The exponent keeps the Wisp at 1x and the Anvil
--- (240 t) at the 1.9x it had as an M slot.
-module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800,
-	byMass = { ref = 58, exp = 0.452 } }
-
--- Computers: one universal slot on every playable hull (src/computers.lua).
-module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav",      price = 2500 }
-module { id = "fire_computer", name = "Ordnance Computer", maker = "Concord Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", price = 6000 }
-module { id = "guidance_computer", name = "Missile Guidance", maker = "Concord Military", family = "computer", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, price = 7000 }
-module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, price = 9000 }
+-- Computers (src/computers.lua). Ranges are world pixels:
+-- nav: radarRange, lookahead (seconds of collision prediction).
+-- ordnance: radarRange, predictionTime (maximum projectile flight time for a lead solution).
+-- guidance: radarRange, lockCone (half-angle in degrees; retention uses 1.5x).
+-- drone: uplinkRange, controlLimit (largest drone control cost for direct piloting:
+-- S=1, M=2, L=4; does not replace the launching bay's capacity).
+module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav", radarRange = 12000, lookahead = 2, price = 2500 }
+module { id = "fire_computer", name = "Ordnance Computer", maker = "Concord Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", radarRange = 6000, predictionTime = 4, price = 6000 }
+module { id = "guidance_computer", name = "Missile Guidance", maker = "Concord Military", family = "computer", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, lockCone = 25, price = 7000 }
+module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, controlLimit = 4, price = 9000 }
