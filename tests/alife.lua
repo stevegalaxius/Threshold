@@ -3,6 +3,7 @@ return function(game)
  local G=require('src.travelgraph')
  local L=require('src.locations')
  local Save=require('src.save')
+ local T=require('src.tuning')
  local checks=0
  local function check(ok,msg) assert(ok,msg); checks=checks+1 end
  local function count(t) local n=0; for _ in pairs(t) do n=n+1 end; return n end
@@ -11,6 +12,25 @@ return function(game)
  check(count(game.universe.npcs)==3,'existing Earth population not seeded exactly once')
  local graph=G.build('earth')
  check(#graph.order==6 and #graph.edges==6,'invented graph nodes or connections')
+ -- Persistent cross-track spread affects positions, fades at stops, and adds no edges.
+ local probe=require('src.persistence').copy(select(2,next(game.universe.npcs)))
+ probe.spread=T.alifeSpread; probe.offset=nil; probe.state='travel'
+ local clock=(probe.depart+probe.arrive)/2
+ local leg={from=probe.route[(probe.index-2)%#probe.route+1],to=probe.route[probe.index]}
+ local bx,by=G.point(graph,leg,.5,clock)
+ local sx,sy=A.point(probe,clock)
+ check(near(math.sqrt((sx-bx)^2+(sy-by)^2),T.alifeSpread),'cross-track distribution missing')
+ local sample=A.sample(probe,clock)
+ check(sample.vx==sample.vx and sample.vy==sample.vy,'spread produced invalid velocity')
+ local restored=assert(Save.decode(Save.encode(probe)))
+ local rx,ry=A.point(restored,clock)
+ check(near(rx,sx) and near(ry,sy),'save/load reshuffled spread')
+ for _,t in ipairs({probe.depart,probe.arrive}) do
+  local p=t==probe.depart and 0 or 1
+  bx,by=G.point(graph,leg,p,t); sx,sy=A.point(probe,t)
+  check(near(bx,sx) and near(by,sy),'spread missed endpoint')
+ end
+ check(T.alifeNear>=18000 and T.alifeFar>T.alifeNear,'online band was not moved farther out')
  -- Capture the actual records and declared topology on the player map.
  game.travelGraphView=graph
  local Map=require('src.ui.localmap'); Map.open(game)
@@ -33,13 +53,14 @@ return function(game)
  check(near(xx,x+70) and near(yy,y+30),'offline handoff changed physical position')
  check(r.route[r.index]==target,'offline handoff changed journey')
  check(#G.build('earth').edges==6,'handoff created graph edges')
- -- Hysteresis: a record at 7500 stays offline, an online body there stays online.
- game.player.body:setPosition(xx+7500,yy); game:updateALife(true)
+ -- Hysteresis: the band keeps an offline record asleep and an online body awake.
+ local band=(T.alifeNear+T.alifeFar)/2
+ game.player.body:setPosition(xx+band,yy); game:updateALife(true)
  check(not game.alifeOnline[id],'offline ship woke outside inner threshold')
- game.player.body:setPosition(xx+6900,yy); game:updateALife(true)
+ game.player.body:setPosition(xx+T.alifeNear-100,yy); game:updateALife(true)
  e=assert(game.alifeOnline[id])
  check(near(e.armor,armor) and e.cargo.scrap==7,'ship damage or cargo changed across wake')
- game.player.body:setPosition(xx+7500,yy); game:updateALife(true)
+ game.player.body:setPosition(xx+band,yy); game:updateALife(true)
  check(game.alifeOnline[id]==e,'online ship culled within hysteresis band')
  -- Exact save/load while online, including the actual AI journey.
  local saved=assert(Save.decode(Save.encode(game:saveState())))

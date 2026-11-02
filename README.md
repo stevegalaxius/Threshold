@@ -228,11 +228,15 @@ Earth has six places and six connections. Its trader loop remains station → bu
 → station → buoy. No navigation ring, staging nodes, nearest-point connections,
 or new edges are generated when a ship moves or changes simulation state.
 
-- Online within 7,000 world units: normal Box2D ship, existing trader navigation,
+- Online within 18,000 world units: normal Box2D ship, existing trader navigation,
   collision avoidance, docking, waiting, and departure.
-- Offline beyond 8,000: one existing journey plus progress, without a body.
+- Offline beyond 22,000: one existing journey plus progress, without a body.
   Position is calculated only for nearby handoff/map display.
 - Unloaded region: travel/arrival and station wait timers; no flight-path sampling.
+
+Each trader has a persistent cross-track offset of up to 1,500 world units.
+It fades toward each endpoint, spreads travel away from the exact graph line,
+and survives save/load without changing graph connections.
 
 The transition preserves cargo, loadout, armor, paint, destination, and docking
 wait. The prototype uses a 60-second offline station stop; online stops retain

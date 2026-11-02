@@ -43,6 +43,7 @@ function A.seed(game)
   local stats=Stats.compute(hull,loadout)
   local r={id=id,area=game.fieldId,role='trader',archetype=kind,
    route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
+   spread=(love.math.random()*2-1)*T.alifeSpread,
    ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or hull.cargo),armor=stats.armor,color=copy(def.color)}}
   start(r,u.clock,i%#r.route+1)
   -- Start spread along existing journeys, rather than spawning replacements.
@@ -70,10 +71,23 @@ function A.advance(r,clock)
  end
 end
 
+local function journeyPoint(r,p,clock)
+ -- A per-ship offset spreads traffic across the corridor without adding nodes.
+ -- Keep it in the record so repeated sampling and save/load never reshuffle it.
+ if r.spread==nil then r.spread=(love.math.random()*2-1)*T.alifeSpread end
+ local x,y=Graph.point(graph(r.area),edge(r),p,clock)
+ local radius=math.sqrt(x*x+y*y)
+ if radius>0 then
+  local across=r.spread*math.sin(math.pi*p)
+  x,y=x+x/radius*across,y+y/radius*across
+ end
+ return x,y
+end
+
 function A.point(r,clock)
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  local p=progress(r,clock)
- local x,y=Graph.point(graph(r.area),edge(r),p,clock)
+ local x,y=journeyPoint(r,p,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
@@ -122,7 +136,7 @@ function A.capture(game,e,remote)
   p=math.min(.99,p)
   r.depart=clock-p*duration; r.arrive=r.depart+duration
   if not remote then
-   local bx,by=Graph.point(graph(r.area),edge(r),p,clock)
+   local bx,by=journeyPoint(r,p,clock)
    r.offset={x=x-bx,y=y-by,progress=p}
   end
  end
