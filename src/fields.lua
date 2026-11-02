@@ -523,7 +523,7 @@ for _, area in ipairs(Fields.list) do
 		local function gate(to, moon, back)
 			local m = Fields.moons[moon]
 			add("to_" .. to, "Departure to " .. Fields[to].name, "moon_gate",
-				{ type = "orbit", radius = F.radius, phase = m.phase + (back and pi or 0), period = m.period }, nil, to)
+				{ type = "orbit", radius = F.radius, phase = m.phase + (back and pi or 0), rate = 0 }, nil, to)
 		end
 		for _, moon in ipairs(Fields.moonsOf(area)) do gate(moon, moon, false) end
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end

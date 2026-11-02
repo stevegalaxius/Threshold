@@ -35,6 +35,7 @@
 
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local AI = require("src.ai")
 local Fields = require("src.fields")
 local Locations = require("src.locations")
 local events = require("src.events")
@@ -890,19 +891,18 @@ end
 
 -- Traffic flies its own side of the lane at its own speed, nose along
 -- the lane: thrusting (and side-jetting) to match the velocity it wants.
-function Game:cruise(e)
+function Game:cruise(e, dt)
 	local x, y = e.body:getPosition()
 	local _, n, phi = self:toLane(x, y)
 	local dir = e.cruiseDir or (self:laneFlow(n) >= 0 and 1 or -1)
 	local tx, ty = cos(phi) * dir, sin(phi) * dir
 	local want = T.laneFlow * (e.cruiseSpeed or 1)
-	local vx, vy = e.body:getLinearVelocity()
 	local across = e.cruiseOffset and (e.cruiseOffset - n) * 0.4 or 0
-	local ex, ey = tx * want - sin(phi) * across - vx, ty * want + cos(phi) * across - vy
-	local it = e.intent
-	it.aimX, it.aimY = x + tx * 1000, y + ty * 1000
-	local th, st = Ship.toLocal(e, ex / 200, ey / 200)
-	it.thrust, it.strafe = max(-1, min(1, th)), max(-1, min(1, st))
+	local wvx, wvy = tx * want - sin(phi) * across, ty * want + cos(phi) * across
+	-- Retaliation still runs for the same trader while it flies its lane.
+	if e.def then AI.think(self, e, dt or 1 / 120) end
+	AI.driveVelocity(e, wvx, wvy, tx, ty, e.def and e.def.ai.throttle or 1)
+	if not e.aggressor then e.intent.aimX, e.intent.aimY = x + tx * 1000, y + ty * 1000 end
 end
 
 -- Gas giants -----------------------------------------------------------------

@@ -50,6 +50,17 @@ local function advanced(game, r, elapsed)
 	return out
 end
 
+-- Pure poses for preview rendering; no writes to a retained physics world.
+function P.previewPositions(game)
+ local result={objects={},pickups={}}
+ local area=game.universe.areas and game.universe.areas[game.fieldId]
+ if not area then return result end
+ local elapsed=math.max(0,game.universe.clock-area.capturedAt)
+ for _,r in ipairs(area.objects) do result.objects[r.id]=advanced(game,r,elapsed) end
+ for _,r in ipairs(area.pickups) do result.pickups[r.id]=advanced(game,r,elapsed) end
+ return result
+end
+
 local function record(game, e)
 	local body = e.body
 	local x, y = body:getPosition()

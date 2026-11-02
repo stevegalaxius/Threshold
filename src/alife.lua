@@ -280,7 +280,8 @@ function A.capture(game,e,remote)
   r.transit.speed=math.max(50,math.sqrt(vx*vx+vy*vy))
   r.depart=clock-distance/r.transit.speed
   r.arrive=r.depart+r.transit.length/r.transit.speed
-  r.transit.departure={x=x,y=y,vx=vx,vy=vy,clock=clock,area=game.fieldId,distance=distance}
+  r.transit.departure={x=x,y=y,vx=vx,vy=vy,clock=clock,area=game.fieldId,distance=distance,
+   flightHeading=e.egressHeading,cruiseSpeed=e.egressSpeed}
   r.pose,r.offset,r.docking,r.savedOnline=nil,nil,nil,nil
   return
  end
@@ -369,6 +370,9 @@ function A.wake(game,r)
  e.alifeId=r.id
  if egress then
   e.alifeEgress=true; e.intent=Ship.emptyIntent()
+  local entry=r.transit.departure
+  e.egressHeading=entry.flightHeading or math.atan2(entry.y,entry.x)
+  e.egressSpeed=math.max(entry.cruiseSpeed or r.transit.speed,r.speed*.6)
  elseif lane then
   e.alifeLane=true; e.cruise=true; e.cruiseDir=lane.dir; e.cruiseOffset=lane.n
   e.cruiseSpeed=lane.speed/T.laneFlow
@@ -480,6 +484,7 @@ function A.install(Game)
     r.transit.speed=math.max(50,math.sqrt(vx*vx+vy*vy))
     r.arrive=clock+r.transit.length/r.transit.speed
     e.alifeDepart=nil; e.alifeEgress=true; e.route=nil
+    e.egressHeading=math.atan2(y,x); e.egressSpeed=math.max(r.transit.speed,r.speed*.6)
     e.intent=Ship.emptyIntent()
     A.capture(self,e,true)
    elseif not px or (x-px)^2+(y-py)^2>T.alifeFar^2 then

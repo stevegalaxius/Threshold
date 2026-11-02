@@ -1567,7 +1567,7 @@ function Game:step(dt)
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
 			else
-				if e.cruise then self:cruise(e) elseif e.def and not e.piloted then AI.think(self, e, dt) end
+				if e.cruise then self:cruise(e, dt) elseif e.def and not e.piloted then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
 				Weapons.update(self, e, dt)
 			end

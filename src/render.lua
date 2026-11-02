@@ -1141,7 +1141,7 @@ local function drawFieldWorld(game, F, px, py)
 end
 
 function Render.world(game, overlay)
-	if overlay then game:syncAreaMotion(); game:syncLocations() end
+	local restorePreview = overlay and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
 		Render.background(game.camera)
@@ -1242,6 +1242,7 @@ function Render.world(game, overlay)
 	drawRegionBoundaries(game, screenPx)
 	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
+	if restorePreview then restorePreview() end
 end
 
 Render.ship = drawShip

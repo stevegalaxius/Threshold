@@ -3,9 +3,9 @@
 	in src/fields.lua lists them); you don't take a mass driver there.
 
 	  ways out  every planet with moons has a stretch of its map's edge for
-	            each one (T.departArc wide), the way the moon lies from the
-	            planet right now (Fields.moonAngle), so it slides round the
-	            edge as the moon orbits. A moon's map has one, back toward
+	            each one (T.departArc wide), at a fixed corridor bearing. The
+	            corridor stays put while the moon orbits. A moon's map has
+	            one return corridor toward
 	            its planet. The map's edge lets you through there.
 	  departure fly out past the edge there and it plays like a mass
 	            driver's coast: you swing onto the bearing at your own
@@ -28,21 +28,21 @@ local sqrt, cos, sin, pi, abs = math.sqrt, math.cos, math.sin, math.pi, math.abs
 
 return function(Game)
 
--- The ways out in this map: { to, label, angle(clock), a, x, y, length }.
+-- Fixed corridor exits: { to, label, a, x, y, length }.
 -- x, y is the edge of the map in the direction of the moon (or planet).
 function Game:spawnMoonGates()
 	self.moonGates = {}
 	local id, F = self.fieldId, self.field
 	if not F.planetR then return end
-	local function add(to, angle, m)
-		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, angle = angle, length = m.gap })
+	local function add(to, m)
+		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, length = m.gap })
 	end
 	for _, m in ipairs(Fields.moonsOf(id)) do
-		add(m, function(clock) return Fields.moonAngle(m, clock) end, Fields.moons[m])
+		add(m, Fields.moons[m])
 	end
 	local moon = Fields.moons[id]
 	if moon then
-		add(moon.parent, function(clock) return Fields.moonAngle(id, clock) + pi end, moon)
+		add(moon.parent, moon)
 	end
 	self:placeMoonGates()
 end

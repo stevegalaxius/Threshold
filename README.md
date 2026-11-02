@@ -232,7 +232,8 @@ have stations (10 itineraries in the current world). Others keep their existing
 station/buoy loops. Travellers fly directly between their station and moon gate,
 bypassing mass drivers, then cross the highway, dock, wait, and return home. Phobos/Deimos have
 no docking stations yet, and Neptune has no port, so these are not docking-trip
-destinations. No station structures or artificial navigation points are added.
+destinations. Moon corridor bearings stay fixed over time, so ships can reach an exit without
+chasing its orbit. No station structures or artificial navigation points are added.
 
 The graph names real locations and declared journeys in `fields.lua`. Earth has
 six places and six connections. The system-level connection for a moon is its
@@ -245,7 +246,7 @@ nodes or edges.
 - Same highway as the player: matching persistent travellers can become physical
   ships, including oncoming traffic. These are the actual NPC records, not
   independently generated freighters. Departing ships remain visible in local
-  space. Following them into a moon highway preserves relative position and
+  space under powered AI and still react to attackers. Following them into a moon highway preserves relative position and
   departure velocity rather than assigning a fixed highway speed. Damage/cargo
   carry into their destination.
 
@@ -268,3 +269,13 @@ repairing saved driver detours, and exact spacing/speed when following a departu
 docking waits, death salvage, scene adoption, and duplicate prevention.
 `love . --graphtest` checks declared topology, projection, routing, serialization,
 and graph construction without physics bodies.
+
+`love . --navtest` runs a real physical departure from a station to a fixed moon
+exit, checks that the ship does not first head to the perimeter, and follows and
+attacks it during powered departure.
+
+`love . --idletest` simulates ten minutes idling in a highway with physics and
+preview rendering, returns to retained Earth, resumes physics, and saves. It
+also checks that preview drawing follows the location clock without moving the
+paused Box2D bodies. Preview poses are render-only; repeated physics transforms
+on an unstepped world previously caused a native broad-phase crash on return.
