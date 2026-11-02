@@ -144,7 +144,7 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- from the player stop being simulated and just follow their orbit, and
 -- wake inside sleepNear; checked every sleepEvery steps.
 -- A-Life prototype, separate from the debris sleep band.
-T.alifeNear, T.alifeFar = 18000, 22000
+T.alifeNear, T.alifeFar = 7000, 8000
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
