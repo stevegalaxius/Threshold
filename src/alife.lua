@@ -40,7 +40,7 @@ local function start(r,clock,index)
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
  end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
- r.driverState=nil
+ r.driverState,r.cityExit=nil,nil
 end
 
 A.start=start
@@ -397,6 +397,12 @@ function A.capture(game,e,remote)
  r.driverState=controlled and {phase=e.launch and 'launch' or 'tractor',
   driver=controlled.driver.locationId,to=controlled.to,t=controlled.t,
   ghost=controlled.ghost,angle=controlled.driver.angle} or nil
+ r.cityExit=nil
+ if e.dockExit and not remote then
+  local exit=e.dockExit;local index=1
+  for i,dock in ipairs(exit.station.docks or {exit.station.dock}) do if dock==exit.dock then index=i;break end end
+  r.cityExit={station=exit.station.locationId,dock=index,side=exit.side,t=exit.t}
+ end
  r.ship=shipRecord(e); r.power=e.power
  if Security.isRole(r) then return Security.capture(game,e,r,remote) end
  if e.alifeEgress then
@@ -532,6 +538,13 @@ function A.wake(game,r)
   end
  else
   bindRoute(game,e,r)
+  if exact and r.cityExit then
+   local exit=r.cityExit;local station=game:locationEntity(exit.station)
+   if station and station.city then
+    local dock=(station.docks or {station.dock})[exit.dock]
+    if dock then e.dockExit={station=station,dock=dock,side=exit.side,t=exit.t} end
+   end
+  end
   if exact and r.driverState then
    local state=r.driverState
    local g=game:locationEntity(state.driver)
