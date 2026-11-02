@@ -127,10 +127,12 @@ function Export.hullDef(design)
 	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
 	if design.slots then
 		def.slots = copy(design.slots)
-		-- keep the base loadout only where it still fits the slot
+		-- Explicit defaults win, including intentionally empty slots. Older designs
+		-- inherit the base loadout until they are edited.
 		local loadout = {}
 		for i, slot in ipairs(def.slots) do
-			local id = def.loadout and def.loadout[i]
+			local source = design.loadout or def.loadout
+			local id = source and source[i]
 			local m = id and data.modules[id]
 			loadout[i] = (m and data.fits(slot, m)) and id or false
 		end
@@ -225,7 +227,7 @@ end
 -- they mirror keeps mirror = true) and minus everything prepare added.
 function Export.fromHull(id)
 	local hull = data.hulls[id]
-	local design = { id = id, name = hull.name, base = id, parts = {}, stats = {}, slots = copy(hull.slots) }
+	local design = { id = id, name = hull.name, base = id, parts = {}, stats = {}, slots = copy(hull.slots), loadout = copy(hull.loadout) }
 	for _, part in ipairs(hull.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end
@@ -258,7 +260,7 @@ end
 
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
-	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots,
+	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
 		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze, berths = design.berths, turrets = design.turrets }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
