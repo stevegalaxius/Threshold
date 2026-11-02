@@ -352,8 +352,8 @@ Exhaust also burns intersecting ships, rocks, wrecks and cargo containers.
 Each engine's `exhaust.damage` sets damage per second at full throttle (30/50/80
 for Flit/Mule/Cinder); zero or an omitted value disables damage. Throttle scales
 damage, afterburner extends its reach, and overlapping engine plumes add damage.
-The bright plume's collision geometry uses the same flicker and dimensions as
-rendering. It cannot damage its own ship or burn while docked. Damage uses the
+The entire visible plume, including its outer glow, shares collision geometry
+with rendering. Asteroids briefly glow orange while being burned. It cannot damage its own ship or burn while docked. Damage uses the
 normal attribution, immunity and retaliation rules and can hit friendly ships.
 
 `love . --exhausttest` checks real polygon/circle overlaps, multiple fixtures,

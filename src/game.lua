@@ -1718,6 +1718,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and (e.invulnerable or e.dockState) then return end
 	if e and e.kind == "husk" and e.pieces and not e.dead and amount > 0 and self:damagePiece(e, amount, hx, hy) then return end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
+		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
 		return

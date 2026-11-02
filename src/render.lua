@@ -171,7 +171,13 @@ local ROCK_FILL, ROCK_LINE = { 0.24, 0.24, 0.27 }, { 0.6, 0.62, 0.68 }
 -- a single draw call however many there are, where outlines (lines) are
 -- built shape by shape on the CPU.
 local polyA, polyB = {}, {}
-local function drawAsteroid(e)
+local function drawAsteroid(e,time)
+ if e.exhaustHit and e.verts and time and time-e.exhaustHit<.3 then
+  local x,y=e.body:getPosition()
+  lg.push('all');lg.translate(x,y);lg.rotate(e.body:getAngle())
+  lg.setColor(1,.35,.05,math.max(0,1-(time-e.exhaustHit)/.3))
+  lg.setLineWidth(outline(5));lg.polygon('line',e.verts);lg.pop()
+ end
 	drawReentry(e, e.radius)
 	local x, y = e.body:getPosition()
 	if not e.giant and e.verts and e.debris ~= "sat" and not e.reentry then
@@ -1157,11 +1163,11 @@ function Render.world(game, overlay)
 	local dots, dotR = {}, 2.5 / cam.zoom
 	local function debris(e, x, y)
 		if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
-			if e.radius < dotR and not e.reentry then
+			if e.radius < dotR and not e.reentry and not (e.exhaustHit and game.time-e.exhaustHit<.3) then
 				dots[#dots + 1] = x; dots[#dots + 1] = y
 			else
 				e.body:setPosition(x, y)
-				drawAsteroid(e)
+				drawAsteroid(e,game.time)
 			end
 		end
 	end
@@ -1173,13 +1179,13 @@ function Render.world(game, overlay)
 		if e.kind == "asteroid" and not e.giant and e.line then
 			local x, y = e.body:getPosition()
 			if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
-				if e.radius < dotR and not e.reentry then
+				if e.radius < dotR and not e.reentry and not (e.exhaustHit and game.time-e.exhaustHit<.3) then
 					dots[#dots + 1] = x; dots[#dots + 1] = y
 				else
-					drawAsteroid(e)
+					drawAsteroid(e,game.time)
 				end
 			end
-		elseif e.kind == "asteroid" then drawAsteroid(e)
+		elseif e.kind == "asteroid" then drawAsteroid(e,game.time)
 		elseif e.kind == "structure" then drawStructure(game, e)
 		elseif e.kind == "planet" then drawPlanet(game, e)
 		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end

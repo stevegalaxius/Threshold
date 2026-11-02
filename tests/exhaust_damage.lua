@@ -62,6 +62,36 @@ return function(game)
  before=top.hp;Exhaust.update(sim,1)
  check(top.hp==before,'module damage zero did not disable exhaust damage')
  module.exhaust.damage=damage
+ -- Real asteroid factory/fixtures must take damage, not only test containers.
+ local rock=sim:spawnAsteroid(-7,-8,3,'rock')
+ rock.body:setLinearVelocity(0,0);rock.body:setAngularVelocity(0)
+ local hp=rock.hp
+ Exhaust.update(sim,1/120)
+ check(rock.hp<hp,'real asteroid did not take exhaust damage')
+ check(rock.exhaustHit==sim.time,'asteroid exhaust damage has no visible heat feedback')
+ for _=1,240 do Exhaust.update(sim,1/120) end
+ check(rock.dead,'sustained exhaust failed to destroy a real asteroid')
+ -- A small rock touching only the outer visible plume must also burn.
+ local Engine=require('src.engine_visual')
+ local nozzle=Engine.emitters(source)[1]
+ local x,y,w,length=Engine.geometry(nozzle,1,false,sim.time)
+ local glowRock=sim:spawnAsteroid(x-length*1.15,y, .3,'rock')
+ local hpGlow=glowRock.hp
+ Exhaust.update(sim,1/120)
+ check(glowRock.hp<hpGlow,'outer visible flame contact did not burn asteroid')
  world:destroy()
+ -- Verify the normal game step dispatches exhaust damage to actual asteroids.
+ game:loadField('asteroids')
+ for i=#game.entities,1,-1 do if game.entities[i]~=game.player then game:remove(game.entities[i]) end end
+ game.sleepers={}
+ local player=game.player
+ player.body:setPosition(3000,3000);player.body:setAngle(0)
+ player.intent.thrust=1
+ local active=require('src.engine_visual').emitters(player)[1]
+ local rock2=game:spawnAsteroid(3000+active.x-10,3000+active.y,3,'rock')
+ rock2.body:setLinearVelocity(0,0)
+ local hp2=rock2.hp
+ game:step(1/120)
+ check(rock2.hp<hp2,'normal game update did not apply exhaust damage to asteroid')
  print(('EXHAUST DAMAGE TEST PASSED (%d checks)'):format(checks))
 end
