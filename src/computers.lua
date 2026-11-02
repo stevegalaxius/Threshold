@@ -6,11 +6,11 @@
 	            to it) runs you into something within T.navLookahead seconds,
 	            the dashed line along your relative course fades in, bright orange.
 	  ordnance  puts a lead pip on the target (the guidance lock, or the
-	            hostile nearest the cursor): shoot the pip and your primary
-	            rounds meet the target.
+	            hostile nearest the cursor): shoot the pip and your primary/secondary
+	            rounds meet the target. Lasers use the target position directly.
 	  guidance  missile guidance, radarRange px. Locks on by itself to the
 	            hostile in range closest to where you're aiming (within
-	            T.guidanceCone degrees), marked with faint brackets, and every
+	            T.guidanceCone degrees), marked with bright brackets, and every
 	            missile you fire goes after that one ship.
 	  drone     drone uplink, uplinkRange px. G takes the controls of your
 	            nearest drone (your ship holds still), G again hands them
@@ -152,10 +152,19 @@ local function leadPoint(e, t, shotSpeed)
 	return px, py
 end
 
-local function primarySpeed(e)
-	for _, slot in ipairs(e.weapons or {}) do
-		if slot.group == "primary" and slot.ammo then return data.items[slot.ammo].shot.speed end
-	end
+-- Prefer projectile lead over the instantaneous laser solution in mixed
+-- loadouts, regardless of slot ordering. Missiles have their own guidance.
+local function ordnanceSpeed(e)
+ for _,group in ipairs({'primary','secondary'}) do
+  for _,slot in ipairs(e.weapons or {}) do
+   local item=slot.ammo and data.items[slot.ammo]
+   local speed=item and item.shot and item.shot.speed
+   if slot.group==group and speed and speed>0 then return speed end
+  end
+ end
+ for _,slot in ipairs(e.weapons or {}) do
+  if (slot.group=='primary' or slot.group=='secondary') and slot.w.kind=='laser' then return math.huge end
+ end
 end
 
 -- Drawn in world space (inside the camera), under the HUD.
@@ -173,7 +182,7 @@ function Game:drawComputers(px)
 		local ahead = math.min(T.navLookahead, threat.time + 0.15)
 		local endX, endY = threat.hitX or x + vx * ahead, threat.hitY or y + vy * ahead
 		local urgent = threat.time <= 0.5
-		lg.setColor(1, urgent and 0.18 or 0.55, urgent and 0.06 or 0.1, urgent and 1 or 0.85 * warn)
+		lg.setColor(1, urgent and 0.18 or 0.55, urgent and 0.06 or 0.1, urgent and 0.6 or 0.35 * warn)
 		lg.setLineWidth((urgent and 4 or 2) * px)
 		local n = 20
 		for i = 0, n - 1, 2 do
@@ -183,7 +192,7 @@ function Game:drawComputers(px)
 		end
 		if urgent and threat.hitX then
 			local r = 10 * px
-			lg.setColor(1, 0.18, 0.06, 1)
+			lg.setColor(1, 0.18, 0.06, 0.6)
 			lg.circle("line", endX, endY, 14 * px)
 			lg.line(endX - r, endY - r, endX + r, endY + r)
 			lg.line(endX - r, endY + r, endX + r, endY - r)
@@ -193,30 +202,32 @@ function Game:drawComputers(px)
 	local lock = p.lock
 	if lock and not lock.dead then
 		local tx, ty = lock.body:getPosition()
-		-- quiet: thin corner ticks, just a hint of who a missile would chase
+		-- Contrasting under-stroke keeps the lock readable over scenery.
 		local r = (lock.halfLength or 30) + 12 * px
-		local c = 6 * px
-		lg.setColor(1, 0.45, 0.4, 0.35)
-		lg.setLineWidth(max(1, px))
-		for _, s in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
-			local cx, cy = tx + s[1] * r, ty + s[2] * r
-			lg.line(cx, cy, cx - s[1] * c, cy)
-			lg.line(cx, cy, cx, cy - s[2] * c)
+		local c = 8 * px
+		for pass=1,2 do
+			if pass==1 then lg.setColor(.02,.02,.03,.65);lg.setLineWidth(4*px)
+			else lg.setColor(1,.45,.25,.9);lg.setLineWidth(2*px) end
+			for _, s in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
+				local cx, cy = tx + s[1] * r, ty + s[2] * r
+				lg.line(cx, cy, cx - s[1] * c, cy)
+				lg.line(cx, cy, cx, cy - s[2] * c)
+			end
 		end
 	end
 
 	if self:computer(p, "ordnance") then
-		local speed = primarySpeed(ship)
+		local speed = ordnanceSpeed(ship)
 		local aimX, aimY = ship.intent.aimX, ship.intent.aimY
 		local t = (lock and not lock.dead) and lock
 			or (aimX and hostileNear(self, ship, aimX, aimY, 900 * px, ship))
 		if speed and t then
 			local lx, ly = leadPoint(ship, t, speed)
 			local tx, ty = t.body:getPosition()
-			lg.setColor(1, 0.85, 0.35, 0.35)
+			lg.setColor(1, 0.85, 0.35, 0.18)
 			lg.setLineWidth(max(1, px))
 			lg.line(tx, ty, lx, ly)
-			lg.setColor(1, 0.85, 0.35, 0.95)
+			lg.setColor(1, 0.85, 0.35, 0.55)
 			lg.setLineWidth(max(2, 2 * px))
 			lg.circle("line", lx, ly, 9 * px)
 			lg.circle("fill", lx, ly, 2.5 * px)

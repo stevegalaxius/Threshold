@@ -359,3 +359,10 @@ normal attribution, immunity and retaliation rules and can hit friendly ships.
 `love . --exhausttest` checks real polygon/circle overlaps, multiple fixtures,
 two-engine damage, empty/idle/docked engines, rotation, throttle/time scaling,
 afterburner reach, attribution and per-module disabling.
+
+
+Ordnance computers also support laser-only ships (direct target marker) and
+secondary guns. Mixed laser/projectile loadouts retain projectile lead regardless
+of weapon ordering. Navigation and ordnance marks use translucent strokes; missile
+guidance uses bright brackets with a dark under-stroke for contrast.
+Run `love . --ordnancetest` for loadout and overlay regressions.
