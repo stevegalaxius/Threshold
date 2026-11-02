@@ -197,7 +197,7 @@ The existing `love . --autotest` also exercises all moon round trips.
 
 ## Known gaps (on purpose for this milestone)
 
-- NPC populations and background asteroids still regenerate; highway debris is transient.
+- NPC populations outside the Earth trader prototype still regenerate, as do background asteroids; highway debris is transient.
 - The art is placeholder outlines, and there's no audio.
 - Field repair items aren't in yet, pending their design.
 
@@ -206,7 +206,7 @@ The existing `love . --autotest` also exercises all moon round trips.
 Press **M** to see the current region: planet, stations, trade buoys, mass driver,
 moon departure gates, and your ship. Numbered markers match the location list;
 click a marker or list entry to select it and see its distance. Loaded ships,
-wrecks, and cargo appear as smaller contacts. Transit lanes show both exits.
+wrecks, cargo, and nearby offline Earth traders appear as smaller contacts. Transit lanes show both exits.
 
 Drag to pan, scroll to zoom, **Home** to fit the whole region, and **P** to center
 on your ship. **M** or **Esc** closes the map. The map has its own camera and
@@ -216,26 +216,37 @@ blocks flight controls while open; the simulation continues running.
 selection, zoom, pan, camera isolation, closing, and transit, and saves example
 map screenshots in the game's save directory.
 
-## Local travel graph prototype
+## A-Life trader prototype
 
-Open **F1 → Local travel graph prototype**, select two destinations, and click
-**Run route demo**. Blue lines show the local graph; gold shows the chosen route
-and an animated marker. Press **M** (or **Open local map** in the debug panel)
-to see the entire network on the regional map. This does not change NPCs.
+Earth's three existing traders now have persistent identities, ship state, and
+itineraries. Leave Earth and return, or save/load, and their journeys continue.
+Destroyed traders stay dead and create wrecks through the existing salvage code.
+Other NPCs still use their existing behavior and population generation.
 
-`src/travelgraph.lua` builds a small graph from stable location IDs without
-loading the area's physics. Station endpoints follow their real docking
-corridors, including both entrances of cloud cities. Navigation edges curve
-around the planet; the final approach follows the runway. Positions track the
-universe clock, so moving locations remain attached to their endpoints.
+The graph contains actual locations and declared connections in `fields.lua`.
+Earth has six places and six connections. Its trader loop remains station → buoy
+→ station → buoy. No navigation ring, staging nodes, nearest-point connections,
+or new edges are generated when a ship moves or changes simulation state.
 
-Routes are plain Lua records containing edges and travel durations. Sampling
-elapsed travel returns position, velocity, heading, and arrival status for a
-future online handoff. Durations and graph connectivity are fixed when a route
-is planned; sampling follows moving endpoints. This is a coarse local travel
-prototype: it does not avoid individual asteroids or other traffic, simulate
-offline collisions, persist NPCs, or implement inter-area journeys.
+- Online within 7,000 world units: normal Box2D ship, existing trader navigation,
+  collision avoidance, docking, waiting, and departure.
+- Offline beyond 8,000: one existing journey plus progress, without a body.
+  Position is calculated only for nearby handoff/map display.
+- Unloaded region: travel/arrival and station wait timers; no flight-path sampling.
 
-`love . --graphtest` checks routes in every region, solid-planet clearance,
-arrival at moving destinations, real docking transforms, route serialization,
-and graph construction without creating physics bodies.
+The transition preserves cargo, loadout, armor, paint, destination, and docking
+wait. The prototype uses a 60-second offline station stop; online stops retain
+the existing 30–90-second behavior. Offline movement does not simulate hazards,
+combat, or economic transactions. NPC travel between regions and the system graph
+remain future steps; this prototype preserves Earth traders while the player travels.
+
+Open **F1 → A-Life records and connections**, enable **Show simulation connections
+and NPCs**, then open **M**. Blue lines are declared connections. Labeled trader
+markers show their identity, online/activity state, and destination. The markers
+represent actual records, with green for online and gold for offline.
+
+`love . --alifetest` exercises body/record transitions and hysteresis, actual AI
+execution, remote activity, save/load, ship-state preservation, docking waits,
+death salvage, duplicate prevention, and retained-world moon turnarounds.
+`love . --graphtest` checks authored topology, existing-edge projection, routing,
+serialization, and construction without physics bodies.

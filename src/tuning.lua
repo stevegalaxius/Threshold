@@ -143,6 +143,9 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- Sleeping debris (Game:updateSleepers): rocks further than sleepFar
 -- from the player stop being simulated and just follow their orbit, and
 -- wake inside sleepNear; checked every sleepEvery steps.
+-- A-Life prototype, separate from the debris sleep band.
+T.alifeNear, T.alifeFar = 7000, 8000
+T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Hangar bays: cells across and down, and how many pixels of hull length

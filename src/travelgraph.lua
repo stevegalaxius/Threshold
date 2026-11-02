@@ -1,25 +1,18 @@
 -- Local offline travel: graph edges and elapsed time, never physics bodies.
 local L = require('src.locations')
 local Fields = require('src.fields')
-local Stations = require('src.stations')
-local data = require('src.data')
 local G = {}
 local pi, cos, sin, sqrt, atan2 = math.pi, math.cos, math.sin, math.sqrt, math.atan2
 local function delta(a, b) return (b - a + pi) % (2 * pi) - pi end
 
 function G.position(graph, id, clock)
  local n = assert(graph.nodes[id], 'unknown travel node ' .. tostring(id))
- if not n.location then return n.x, n.y end
- local x, y = L.position(n.location, clock)
- local a = L.heading(n.location, clock)
- return x + cos(a) * (n.x or 0) - sin(a) * (n.y or 0),
-        y + sin(a) * (n.x or 0) + cos(a) * (n.y or 0)
+ return L.position(n.location, clock)
 end
 
 function G.point(graph, edge, progress, clock)
  local x, y = G.position(graph, edge.from, clock)
  local xx, yy = G.position(graph, edge.to, clock)
- if edge.straight then return x + (xx-x)*progress, y + (yy-y)*progress end
  -- The coarse route goes around the planet instead of cutting across it.
  local r, rr = sqrt(x*x+y*y), sqrt(xx*xx+yy*yy)
  local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*progress
@@ -27,90 +20,47 @@ function G.point(graph, edge, progress, clock)
  return cos(a)*r, sin(a)*r
 end
 
-local function layout(place)
- local s = assert(place.layout, 'station needs travel layout: ' .. place.id)
- local id = s.city and Stations.cityId(s.city) or Stations.ringId(s.radius, s.tube)
- if not data.stations[id] then
-  assert(data.defineStation(s.city and Stations.city(s.city) or Stations.ring(s.radius,s.tube)))
- end
- return data.stations[id]
-end
-
-function G.build(area, clock)
+-- Connectivity is authored in fields.lua; physical positions never add links.
+function G.build(area)
  local f = assert(Fields[area], 'unknown area')
  local graph = {area=area, nodes={}, edges={}, destinations={}, order={}}
- local function node(id, n)
-  graph.nodes[id] = n; graph.order[#graph.order+1] = id; n.links = {}
-  return id
+ for _,place in ipairs(L.list(area)) do
+  graph.nodes[place.id]={location=place.id,links={},owner=place.owner,
+   market=place.marketId,danger=place.danger,capacity=place.capacity}
+  graph.order[#graph.order+1]=place.id
+  graph.destinations[place.id]={place.id}
  end
- local function link(a,b,straight)
-  for _, pair in ipairs({{a,b},{b,a}}) do
-   local e = {from=pair[1],to=pair[2],straight=straight or false}
-   graph.edges[#graph.edges+1] = e
-   table.insert(graph.nodes[pair[1]].links,e)
-  end
- end
- local attachments = {}
- for _, place in ipairs(L.list(area)) do
-  local targets = {}; graph.destinations[place.id] = targets
-  if place.kind == 'station' then
-   local def = layout(place)
-   for i,d in ipairs(def.docks) do
-    for _, side in ipairs(d.both and {1,-1} or {1}) do
-     local prefix = place.id .. '@' .. i .. ':' .. side
-     local function dockNode(suffix, distance)
-      local x, y = distance*side+(d.xc or 0), d.yc or 0
-      return node(prefix..suffix, {location=place.id,
-       x=x*cos(d.a)-y*sin(d.a), y=x*sin(d.a)+y*cos(d.a)})
-     end
-     local extent = d.x2+d.runway
-     for _, part in ipairs(def.parts) do
-      for k=1,#part.shape,2 do
-       local x = part.shape[k]*cos(d.a)+part.shape[k+1]*sin(d.a)
-       extent = math.max(extent,(x-(d.xc or 0))*side+600)
-      end
-     end
-     local approach = dockNode(':approach',d.x2+d.runway*.6)
-     local staging = dockNode(':staging',extent)
-     targets[#targets+1] = approach
-     attachments[#attachments+1] = staging
-     link(approach,staging,true)
-    end
-   end
-  else
-   node(place.id,{location=place.id})
-   targets[1]=place.id; attachments[#attachments+1]=place.id
-  end
- end
- if #attachments==0 then return graph end
- local radius = math.max((f.planetR or 0)+2500,f.stationTrack or 5000)
- local ring={}
- for i=1,16 do
-  local a=(i-1)*2*pi/16
-  ring[i]=node(area..'/nav_'..i,{x=cos(a)*radius,y=sin(a)*radius})
- end
- for i=1,16 do link(ring[i],ring[i%16+1]) end
- for _, id in ipairs(attachments) do
-  local x,y=G.position(graph,id,clock)
-  local near={}
-  for _, rid in ipairs(ring) do
-   local xx,yy=G.position(graph,rid,clock)
-   near[#near+1]={id=rid,d=(xx-x)^2+(yy-y)^2}
-  end
-  table.sort(near,function(a,b) return a.d<b.d end)
-  link(id,near[1].id); link(id,near[2].id)
+ for _,pair in ipairs(f.travelLinks or {}) do
+  local a,b=pair[1],pair[2]
+  assert(graph.nodes[a] and graph.nodes[b], 'travel link has unknown endpoint')
+  graph.edges[#graph.edges+1]={from=a,to=b}
+  table.insert(graph.nodes[a].links,{from=a,to=b})
+  table.insert(graph.nodes[b].links,{from=b,to=a})
  end
  return graph
 end
 
-local function length(graph,edge,clock)
- local x,y=G.point(graph,edge,0,clock)
- local total=0
- for i=1,24 do
-  local xx,yy=G.point(graph,edge,i/24,clock)
-  total=total+sqrt((xx-x)^2+(yy-y)^2); x,y=xx,yy
+function G.length(graph,edge,clock)
+ local x,y=G.position(graph,edge.from,clock)
+ local xx,yy=G.position(graph,edge.to,clock)
+ local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
+ local arc=delta(atan2(y,x),atan2(yy,xx))*(r+rr)/2
+ return sqrt((rr-r)^2+arc^2)
+end
+
+-- Recover progress on the ship's existing journey, without changing topology.
+function G.project(graph,edge,x,y,clock)
+ local ax,ay=G.position(graph,edge.from,clock)
+ local bx,by=G.position(graph,edge.to,clock)
+ local angle=delta(atan2(ay,ax),atan2(by,bx))
+ local p
+ if math.abs(angle)>.001 then
+  p=delta(atan2(ay,ax),atan2(y,x))/angle
+ else
+  local dx,dy=bx-ax,by-ay
+  p=((x-ax)*dx+(y-ay)*dy)/math.max(dx*dx+dy*dy,1)
  end
- return total
+ return math.max(0,math.min(1,p))
 end
 
 function G.route(graph,from,to,clock,speed)
@@ -130,7 +80,7 @@ function G.route(graph,from,to,clock,speed)
   if goalSet[best] then finish=best; break end
   done[best]=true
   for _,edge in ipairs(graph.nodes[best].links) do
-   local nextCost=cost+length(graph,edge,clock)/(speed or 600)
+   local nextCost=cost+G.length(graph,edge,clock)/(speed or 600)
    if not dist[edge.to] or nextCost<dist[edge.to] then
     dist[edge.to]=nextCost; prev[edge.to]={edge=edge,duration=nextCost-cost}
    end
@@ -162,7 +112,7 @@ function G.sample(graph,route,elapsed,clock)
  return {x=x,y=y,heading=atan2(vy,vx),vx=vx,vy=vy,arrived=arrived,edge=edge,progress=p}
 end
 
--- Developer-only visualization; the marker is not an NPC or a physics body.
+-- Developer-only overlay of declared links and real NPC state.
 function G.draw(game,px)
  local view=game.travelGraphView
  if not view or view.area~=game.fieldId then return end
@@ -175,13 +125,19 @@ function G.draw(game,px)
  lg.push('all'); lg.setLineWidth(px)
  lg.setColor(.2,.6,.8,.35)
  for _,e in ipairs(view.edges) do drawEdge(e) end
- local demo=game.travelGraphDemo
- if demo and demo.graph==view then
-  lg.setColor(1,.75,.2,.9); lg.setLineWidth(2*px)
-  for _,leg in ipairs(demo.route.legs) do drawEdge(leg.edge) end
-  local p=G.sample(view,demo.route,clock-demo.started,clock)
-  lg.circle('fill',p.x,p.y,5*px)
-  lg.line(p.x,p.y,p.x+cos(p.heading)*22*px,p.y+sin(p.heading)*22*px)
+ -- Inspect the actual trader records, including bodies managed by existing AI.
+ local A=require('src.alife')
+ for id,r in pairs(game.universe.npcs or {}) do
+  if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' then
+   local e=game.alifeOnline and game.alifeOnline[id]
+   local x,y
+   if e then x,y=e.body:getPosition() else x,y=A.point(r,clock) end
+   lg.setColor(e and .4 or 1,e and 1 or .75,.3,1)
+   lg.circle('fill',x,y,4*px)
+   lg.push(); lg.translate(x+8*px,y+5*px); lg.scale(px)
+   lg.print(id..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
+   lg.pop()
+  end
  end
  lg.setColor(.5,.85,1,.8)
  for _,id in ipairs(view.order) do local x,y=G.position(view,id,clock); lg.circle('line',x,y,3*px) end

@@ -312,6 +312,7 @@ end
 function Game:beginFlight(to)
 	local p = self.player
 	if not p or p.dead then return end
+	self:captureALife(true)
 	local from = self.fieldId
 	local au = Fields.distance(from, to, self.universe.clock)
 	p.launch = nil
@@ -514,7 +515,7 @@ function Game:prepareArrival(back)
 	local to = back and self.trip.from or self.trip.to
 	local scene = back and self.trip.originScene
 	if not scene then
-		scene = Game.new({ field = to, universe = self.universe })
+		scene = Game.new({ field = to, universe = self.universe, preview = true })
 		scene.autosaveOff = true
 		scene:remove(scene.player)
 		scene.player = nil

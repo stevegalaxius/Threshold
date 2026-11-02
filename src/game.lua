@@ -3,8 +3,9 @@
 	and asteroids), and lists of projectiles, pickups and effects. Systems
 	are just functions that loop over those lists each step.
 
-	This is the loaded instance layer. Scenery and ships are rebuilt on
+	This is the loaded instance layer. Scenery and unmanaged ships are rebuilt on
 	arrival; selected world objects are restored from src/persistence.lua.
+	Earth traders use persistent records and temporary bodies (src/alife.lua).
 	The universe in src/world.lua keeps those records alongside station
 	storage, hangars, home, travel and save state.
 ]]
@@ -24,6 +25,7 @@ local Hold = require("src.inventory.hold")
 local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
+local ALife = require("src.alife")
 
 local Game = {}
 Game.__index = Game
@@ -37,6 +39,7 @@ function Game.new(opts)
 	self.world = love.physics.newWorld(0, 0, true)
 	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 
+	self.preview = opts.preview
 	self.idCounter = 0
 	self.entities = {}
 	self.projectiles = {}
@@ -61,6 +64,7 @@ end
 
 -- Keep the field's bodies for the moon-road view and an immediate return.
 function Game:retainField()
+	self:captureALife(true)
 	local scene = setmetatable({}, Game)
 	for k, v in pairs(self) do scene[k] = v end
 	scene.camera = Camera.new()
@@ -80,6 +84,8 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	self:captureALife(true)
+	self.alifeNext, self.alifeRemoteNext = nil, nil
 	if not opts.skipCapture then self:captureArea() end
 	-- Dispose unused approach worlds once; a turnaround preview may also be
 	-- the retained departure scene. The adopted world must stay alive.
@@ -133,6 +139,8 @@ function Game:loadField(id, opts)
 	end
 	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
+	ALife.seed(self)
+	self:updateALife(true)
 	-- the new level's name replaces any still showing (the game builds
 	-- Earth before loading the save, which flashed EARTH wherever you were)
 	for i = #self.toasts, 1, -1 do
@@ -1542,7 +1550,7 @@ function Game:setPlayerIntent(intent)
 end
 
 function Game:step(dt)
-	if self.flight then self:updateFlight(dt) return end
+	if self.flight then self:updateFlight(dt); self:updateALife(); return end
 	self.time = self.time + dt
 	if self.universe then self.universe.clock = self.universe.clock + dt end
 
@@ -1566,6 +1574,7 @@ function Game:step(dt)
 
 	self:updateStationGuns(dt)
 	self:updateSleepers()
+	self:updateALife()
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:applySurfacePull()
@@ -1952,6 +1961,7 @@ function Game:reap()
 				end
 			end
 		elseif e.dead then
+			if e.alifeId then ALife.capture(self, e, false) end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
@@ -2438,6 +2448,7 @@ function Game:frame(dt, aimX, aimY)
 	end
 end
 
+ALife.install(Game)
 Locations.install(Game)
 Persistence.install(Game)
 require("src.world")(Game)

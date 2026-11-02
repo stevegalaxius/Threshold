@@ -43,7 +43,6 @@ return function(game)
  local graph=Graph.build('jupiter',game.universe.clock)
  game.travelGraphView=graph
  local route=assert(Graph.route(graph,Fields.jupiter.stationIds[1],Fields.jupiter.driverId,game.universe.clock))
- game.travelGraphDemo={graph=graph,route=route,started=game.universe.clock-20}
  Map.fit(game); draw('local-map-graph.png')
  local first=Map.places(game)[1]
  local w=love.graphics.getWidth()

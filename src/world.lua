@@ -8,7 +8,8 @@
 	            (src/locations.lua), independent of display name and spawn order. home is where you last docked.
 	  levels    each named field keeps selected world objects in universe.areas
 	            (src/persistence.lua). Wrecks, containers and loose cargo follow
-	            the orbital current while unloaded. Scenery and NPCs still regenerate on visits;
+	            the orbital current while unloaded. Scenery and unmanaged NPCs regenerate on visits;
+	            Earth traders persist as A-Life records (src/alife.lua);
 	            transit lanes remain temporary.
 	  travel    mass drivers and the transit lane between planets: see
 	            src/transit.lua.
@@ -43,7 +44,9 @@ local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
 return function(Game)
 
 function Game:newUniverse()
-	self.universe = { stations = {}, areas = {}, nextObjectId = 0, home = nil, credits = T.startCredits, clock = 0 }
+	self.alifeOnline = {}
+	self.alifeActiveArea = nil
+	self.universe = { stations = {}, areas = {}, nextObjectId = 0, npcs = {}, npcAreas = {}, nextNpcId = 0, home = nil, credits = T.startCredits, clock = 0 }
 end
 
 -- The lasting record for a station: its storage and its hangar.
@@ -283,6 +286,7 @@ end
 
 -- The whole game as one plain table (see src/save.lua).
 function Game:saveState()
+	self:captureALife(false)
 	self:captureArea()
 	if self.trip and self.trip.originScene then
 		self.trip.originScene:syncAreaMotion()
@@ -299,7 +303,8 @@ function Game:saveState()
 	-- saved mid-transit: you'll be at the far end's driver when you load
 	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
-		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId }
+		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
+		npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -321,6 +326,9 @@ function Game:loadState(state)
 	self:newUniverse()
 	self.universe.areas = Persistence.copy(state.areas or {})
 	self.universe.nextObjectId = state.nextObjectId or 0
+	self.universe.npcs = Persistence.copy(state.npcs or {})
+	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
+	self.universe.nextNpcId = state.nextNpcId or 0
 	for key, r in pairs(state.stations or {}) do
 		local hangar = {}
 		for _, t in ipairs(r.hangar or {}) do table.insert(hangar, loadShip(t)) end

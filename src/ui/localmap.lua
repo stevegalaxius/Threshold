@@ -170,6 +170,14 @@ function Map.draw(game)
   end
  end
  if not game.lane and not game.flight then
+  for id,r in pairs(game.universe.npcs or {}) do
+   if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and not (game.alifeOnline or {})[id] then
+    local x,y=Map.toScreen(game,require('src.alife').point(r,clock))
+    lg.setColor(.65,.75,.8); lg.circle('line',x,y,2)
+   end
+  end
+ end
+ if not game.lane and not game.flight then
   lg.push(); lg.translate(v.x+v.w/2,v.y+v.h/2); lg.scale(scale); lg.translate(-m.x,-m.y)
   Graph.draw(game,1/scale)
   lg.pop()

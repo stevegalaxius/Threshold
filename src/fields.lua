@@ -270,7 +270,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, city = o.city, cityScale = o.cityScale or 1,
+		stationTrack = sd, city = o.city,
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -309,7 +309,7 @@ local function planetField(o)
 				-- They start on the track between stops, heading for the next one.
 				-- Repeated Hauler, Packhorse and Runner traffic; Mars has more.
 				local kinds = { "freighter", "packhorse_trader", "runner_trader" }
-				for k = 1, (o.traders or 3) do
+				for k = 1, (field.alifeTraders and 0 or o.traders or 3) do
 					local a = sa + pi / 4 + (k - 1) * pi * 2 / ((o.traders or 3) + 1)
 					local f = game:spawnEnemy(kinds[(k - 1) % #kinds + 1], cos(a) * sd, sin(a) * sd)
 					f.route = route
@@ -520,10 +520,6 @@ for _, area in ipairs(Fields.list) do
 			motion, spin = { type = "fixed", x = 0, y = 0 }, area == "ring" and 0.02 or 0.04
 		end
 		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
-		F.locations[#F.locations].layout = F.city and i == 1
-			and { city = F.cityScale }
-			or { radius = area == "ring" and 3000 or area == "station" and 1400 or 900,
-				tube = area == "ring" and 300 or area == "station" and 160 or 120 }
 	end
 	if F.stationTrack and #F.stationIds > (F.city and 1 or 0) then
 		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
@@ -545,6 +541,26 @@ for _, area in ipairs(Fields.list) do
 		for _, moon in ipairs(Fields.moonsOf(area)) do gate(moon, moon, false) end
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end
 	end
+ -- These links describe existing journeys, not generated navigation geometry.
+ F.travelLinks = {}
+ local function link(a,b)
+  if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end
+ end
+ if #F.buoyIds == 2 then
+  local a,b=F.stationIds[F.city and 2 or 1],F.stationIds[F.city and 3 or 2]
+  F.traderRoute={a,F.buoyIds[1],b,F.buoyIds[2]}
+  for i,id in ipairs(F.traderRoute) do link(id,F.traderRoute[i%#F.traderRoute+1]) end
+  if F.city then link(F.stationIds[1],a) end
+ else
+  for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
+ end
+ link(F.driverId,F.stationIds[1])
+ for _,place in ipairs(F.locations) do
+  if place.kind=='moon_gate' then link(place.id,F.driverId or F.stationIds[1]) end
+ end
+ -- First working slice: reuse Earth's three existing traders.
+ if area=='earth' then F.alifeTraders=3 end
+
 end
 
 return Fields
