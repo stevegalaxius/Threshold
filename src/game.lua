@@ -805,7 +805,7 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local n = self.stationCount
 	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		def = def,
+		def = def, role = def.role,
 		key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
 	-- The dock (see Game:updateDocking): x1..x2 its extent out from the

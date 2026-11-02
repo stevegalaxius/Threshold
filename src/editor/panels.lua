@@ -101,6 +101,12 @@ local function placedSections(E, d)
 		Slab.Text("Mark one or more parts as docking modules;", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("each door faces out from the centre.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text(docks >= 1 and ("Docks: %d"):format(docks) or "No dock yet (needs at least 1)", { Color = docks >= 1 and { 0.5, 1, 0.6 } or { 1, 0.5, 0.4 } })
+		Slab.Text("Role (A-Life smart terrain):")
+		Slab.SameLine()
+		combo("yard_station_role", d.role or "none", {
+			{ label = "none", value = false }, { label = "habitat", value = "habitat" },
+			{ label = "shipyard", value = "shipyard" }, { label = "customs", value = "customs" },
+		}, function(v) E.pushUndo(); d.role = v or nil end, 120)
 		Slab.Text("Export with id ring_<R>_<tube> or city_<k>", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Separator()

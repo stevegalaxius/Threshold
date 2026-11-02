@@ -160,10 +160,16 @@ end
 -- A station layout (src/stations.lua has the format and the generated
 -- wheels). One part says dock = true: its box is the docking module, door
 -- at its +x end.
+local STATION_ROLES = { habitat = true, shipyard = true, customs = true }
 function api.station(def)
 	if not def.name then def.name = def.id end
 	register("stations", "station", def)
 	if not def.parts then fail(("station '%s' needs parts"):format(def.id)) end
+	-- role: which A-Life smart terrain the station is (habitat, shipyard,
+	-- customs). Left out, it's a plain station.
+	if def.role ~= nil and not STATION_ROLES[def.role] then
+		fail(("station '%s' has unknown role '%s' (use habitat, shipyard or customs)"):format(def.id, tostring(def.role)))
+	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
 	-- every part tagged dock is a docking module. Its frame points from the
