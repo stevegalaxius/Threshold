@@ -227,7 +227,7 @@ function Ship.launchProblem(e)
 		if m then has[m.family] = true end
 	end
 	if not has.reactor then return "no reactor" end
-	if not has.engine and not has.thruster then return "no engine or thrusters" end
+	if e.stats.thrust<=0 and e.stats.sideThrust<=0 then return "no propulsion" end
 	return nil
 end
 

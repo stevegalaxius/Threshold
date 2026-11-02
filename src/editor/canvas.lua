@@ -21,7 +21,7 @@ local SLOT_PX = 7        -- radius of a slot's hardpoint marker
 local SLOT_COLORS = {
 	primary = { 1, 0.45, 0.35 }, secondary = { 1, 0.7, 0.3 }, auxiliary = { 0.9, 0.5, 1 },
 	engine = { 0.4, 0.8, 1 }, reactor = { 0.5, 1, 0.5 }, utility = { 0.8, 0.8, 0.8 },
-	thruster = { 0.4, 1, 0.9 }, computer = { 0.8, 0.8, 1 },
+	computer = { 0.8, 0.8, 1 },
 }
 Canvas.SLOT_COLORS = SLOT_COLORS
 

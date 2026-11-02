@@ -987,7 +987,7 @@ local function tooltip(item, n, mx, my, hint, price)
 end
 
 local SLOT_LABEL = { primary = "PRIMARY", secondary = "SECONDARY", auxiliary = "AUXILIARY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "UTILITY", thruster = "THRUSTER", computer = "COMPUTER" }
+	reactor = "REACTOR", utility = "UTILITY", computer = "COMPUTER" }
 
 local function slotLabel(slot)
 	return SLOT_LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")

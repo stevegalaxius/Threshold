@@ -22,16 +22,17 @@ local STATS = {
 	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
 	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier.", 0, 20000, 50, 0 },
 	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque.", 10, 720, 5, 0 },
+	{ "sideThrust", "maneuvering (kN)", "Built-in side thrust; turn-mode hulls use it for turning.", 0, 5000, 10, 0 },
 	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward).", 0, 3000, 10, 0 },
 	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
 	{ "ramSpeed", "ram speed", "Impact speed (px/s) below which a bump does no harm. Low = fragile.", 20, 500, 5, 0 },
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
-local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "thruster", "computer" }
+local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "computer" }
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
-local SIZELESS = { utility = true, computer = true, thruster = true }
+local SIZELESS = { utility = true, computer = true }
 
 local function combo(id, selected, options, onPick, w)
 	if Slab.BeginComboBox(id, { Selected = selected, W = w or 200 }) then

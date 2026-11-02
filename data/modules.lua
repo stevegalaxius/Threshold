@@ -5,9 +5,6 @@
 
 	Stat fields by family:
 	  engine   thrust (kN), turn, exhaust (visual settings; see Engines below)
-	  thruster sideThrust (kN) for maneuvering thrusters: the only way a ship
-	           can strafe. Thruster slots are size "any", shared by every
-	           hull that has one, and battleships have none.
 	  reactor  powerOut (per second), powerCap (stored power)
 	  computer universal (size "any"), one per hull. computer = "nav",
 	           "ordnance", "guidance" (radarRange px) or "drone" (uplinkRange
@@ -190,15 +187,6 @@ module { id = "forge_reactor", name = "Forge Reactor", maker = "Concord Military
 module { id = "hold_pod_s", name = "Cargo Pod",     maker = "Ferrous Collective", family = "utility", size = "any", mass = 2, hold = 12, price = 1200 }
 module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 3, powerDraw = 2, tractorRange = 220, price = 3500 }
 module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective", family = "utility", size = "any", mass = 5, hold = 30, price = 4000 }
-
--- Maneuvering thrusters (shared "any" slot) ----------------------------------------
-
--- One set of side jets for every hull: it scales with the hull's mass
--- (as listed on a 58 t hull like the Wisp; stronger, heavier and hungrier
--- on heavier hulls). The exponent keeps the Wisp at 1x and the Anvil
--- (240 t) at the 1.9x it had as an M slot.
-module { id = "aux_thrusters",   name = "Side Jets",    maker = "Halcyon Arms", family = "thruster", size = "any", mass = 4,  powerDraw = 2, sideThrust = 410, price = 3800,
-	byMass = { ref = 58, exp = 0.452 } }
 
 -- Computers (src/computers.lua). Ranges are world pixels:
 -- nav: radarRange, lookahead (seconds of collision prediction).

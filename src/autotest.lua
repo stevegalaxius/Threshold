@@ -322,26 +322,19 @@ function A.update(game, dt)
 				end
 			end
 		end
-		local eng, thr = slotRow("engine"), slotRow("thruster")
-		local engineId, thrusterId = w.loadout[eng.i], w.loadout[thr.i]
+		local eng = slotRow("engine")
+		local engineId = w.loadout[eng.i]
 		local ex, ey = freeSpot()
 		Cargo.mousepressed(game, eng.x + 10, eng.y + 10, 1)
 		Cargo.mousereleased(game, ex, ey, 1)
 		log("equip: unfitted %s, slot now %s, in hold %d, thrust %.0f, launch problem: %s (thrusters count)", engineId, tostring(w.loadout[eng.i]),
 			w.cargo[engineId] or 0, w.stats.thrust, tostring(Ship.launchProblem(w)))
-		local tx, ty = freeSpot()
-		Cargo.mousepressed(game, thr.x + 10, thr.y + 10, 1)
-		Cargo.mousereleased(game, tx, ty, 1)
-		game:undock()
-		log("equip: thrusters out too: launch problem %s, undock -> state %s", tostring(Ship.launchProblem(w)), game.state)
 		local function dbl(x, y)                   -- a real double-click: press, release, press
 			Cargo.mousepressed(game, x, y, 1); Cargo.mousereleased(game, x, y, 1)
 			Cargo.mousepressed(game, x, y, 1); Cargo.mousereleased(game, x, y, 1)
 		end
 		dbl(ex, ey)
-		dbl(tx, ty)
-		log("equip: double-click refit, engine %s, thruster %s, thrust %.0f, launch problem: %s", tostring(w.loadout[eng.i]),
-			tostring(w.loadout[thr.i]), w.stats.thrust, tostring(Ship.launchProblem(w)))
+		log("equip: refitted engine %s, built-in side thrust %.0f", tostring(w.loadout[eng.i]), w.stats.sideThrust)
 		local util = slotRow("utility")
 		Hold.add(w.hold, "scrap", 1)
 		local podGrid = w.hold.grids[2]

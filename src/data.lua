@@ -20,10 +20,10 @@ local data = {
 
 -- Slot families. primary / secondary are fire groups for guns (left and
 -- right mouse button); auxiliary holds a launcher (middle mouse button).
-local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
+local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
 -- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
 -- secondary slot; every other family fits the slot of the same name.
-local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, thruster = true, computer = true }
+local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
@@ -31,7 +31,7 @@ data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
 -- Does a module fit a hull slot?
 function data.fits(slot, m)
-	-- a module sized "any" fits a slot of any size (side jets scale to it)
+	-- a module sized "any" fits a slot of any size (computers and utilities)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
 	return m.family == slot.family

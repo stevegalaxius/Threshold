@@ -1,10 +1,14 @@
 return function(game)
  local Exhaust=require('src.exhaust_damage')
+ local data=require('src.data')
+ local module=require('src.persistence').copy(data.modules.flit_engine)
+ module.id='test_damage_engine';module.exhaust.width=3;module.exhaust.length=18
+ data.modules[module.id]=module
  local checks=0
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
  local world=love.physics.newWorld(0,0,true)
  local source={kind='ship',hull={slots={{family='engine',x=0,y=-8},{family='engine',x=0,y=8}}},
-  loadout={'flit_engine','flit_engine'},mainBurn=1,body=love.physics.newBody(world,0,0,'dynamic'),
+  loadout={'test_damage_engine','test_damage_engine'},mainBurn=1,body=love.physics.newBody(world,0,0,'dynamic'),
   team=1,armor=100,tailX=0}
  local own=love.physics.newFixture(source.body,love.physics.newCircleShape(2))
  own:setUserData(source)
@@ -41,7 +45,7 @@ return function(game)
  source.mainBurn=1;source.loadout[1]=false
  before=top.hp;Exhaust.update(sim,1)
  check(top.hp==before,'empty engine slot caused damage')
- source.loadout[1]='flit_engine';source.dockState={}
+ source.loadout[1]='test_damage_engine';source.dockState={}
  before=top.hp;Exhaust.update(sim,1)
  check(top.hp==before,'docked ship caused exhaust damage')
  source.dockState=nil;source.mainBurn=.5
@@ -57,7 +61,7 @@ return function(game)
  sim.entities[#sim.entities+1]=victim
  Exhaust.update(sim,.1)
  check(victim.lastHitBy==source and victim.aggressor==source,'exhaust lost attribution or neutral retaliation')
- local module=require('src.data').modules.flit_engine
+ local module=data.modules.test_damage_engine
  local damage=module.exhaust.damage;module.exhaust.damage=0
  before=top.hp;Exhaust.update(sim,1)
  check(top.hp==before,'module damage zero did not disable exhaust damage')

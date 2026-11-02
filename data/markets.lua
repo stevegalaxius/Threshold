@@ -23,7 +23,7 @@
 
 market { location = "venus/hub_station", station = "Hub Station", ships = { "halcyon_wisp", "ferrous_runner" }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "px2_autogun", 2 }, { "flit_engine", 1 },
-	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "aux_thrusters", 1 }, { "cargo_container", 2 },
+	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
 market { location = "mars/station_alpha", station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "pip_mortar", 2 }, { "thumper_m", 1 },
@@ -48,7 +48,7 @@ market { location = "luna/tranquility_dock", station = "Tranquility Dock", sells
 	{ "rounds_s", 6 }, { "shell_s", 4 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
 } }
 market { location = "luna/shackleton_station", station = "Shackleton Station", sells = {   -- polar depot
-	{ "cargo_container", 3 }, { "aux_thrusters", 1 }, { "nav_computer", 1 },
+	{ "cargo_container", 3 }, { "nav_computer", 1 },
 } }
 market { location = "europa/conamara_station", station = "Conamara Station", sells = {   -- ice haulers
 	{ "hold_pod_m", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
@@ -98,7 +98,7 @@ market { location = "pluto/tombaugh_station", station = "Tombaugh Station", sell
 	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "nav_computer", 1 },
 } }
 market { location = "pluto/sputnik_port", station = "Sputnik Port", sells = {
-	{ "missile_s", 4 }, { "sparrow_rack", 1 }, { "aux_thrusters", 1 },
+	{ "missile_s", 4 }, { "sparrow_rack", 1 },
 } }
 
 market { location = "titania/gertrude_port", station = "Gertrude Port", sells = {

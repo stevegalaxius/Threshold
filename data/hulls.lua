@@ -9,14 +9,13 @@
 	  armor  hit points      turn    turning torque (bigger = snappier)
 	  retroThrust kN of built-in reverse thrusters (the main engine only
 	              pushes forward)
-	  sideThrust  kN of built-in side thrusters. Playable hulls have none:
-	              strafing comes from a module in their thruster slot.
+	  sideThrust  kN of built-in maneuvering thrust (strafe or turn assistance).
 	  spoolTime   seconds for the main engine to reach full thrust; a slight
 	              ramp-up makes heavy hulls feel heavy (default 0, instant)
 	  helm   how A/D steer it: "strafe" (default) fires the side thrusters,
 	         "turn" rotates the hull instead and the mouse only aims the
 	         guns. Battleships use "turn": they never strafe, and the side
-	         jets in their thruster slot add turning torque instead.
+	         built-in jets add turning torque instead.
 	  turnSpeed  optional cap on spin speed in degrees/second, so a heavy hull
 	             comes about slowly even with a big engine
 	  hold   cubic metres    drag    quadratic drag; top speed = sqrt(thrust*100 / drag)
@@ -40,11 +39,11 @@
 	armor is part of the hull itself, not a module.
 
 	Slots: family is primary, secondary, auxiliary, engine, reactor,
-	utility or thruster; size is S, M or L. Primary and secondary slots
+	utility or computer; size is S, M or L. Primary and secondary slots
 	take weapons (guns, artillery, lasers) and are the two fire groups: left
 	and right mouse button. The auxiliary slot takes a launcher (missiles,
 	torpedoes, drones) on the middle mouse button. Everything else takes a
-	module of its own family. Sizes must match. Utility and thruster slots are size "any": shared
+	module of its own family. Sizes must match. Utility and computer slots are size "any": shared
 	slots every class has alike. Slots with x,y are drawn on the hull
 	(weapons fire from there).
 
@@ -54,8 +53,8 @@
 
 hull {
 	id = "halcyon_wisp", name = "Wisp", maker = "Halcyon Arms", class = "light", mount = "fixed",
-	mass = 58, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
-	mass = 58, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16, ramSpeed = 100,
+	mass = 58, sideThrust = 410, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16,
+	mass = 58, sideThrust = 410, armor = 120, turn = 500, retroThrust = 340, hold = 24, drag = 0.14, radius = 16, ramSpeed = 100,
 	shape = { 40,0, 8,-7, -12,-14, -28,-12, -20,0, -28,12, -12,14, 8,7 },
 	slots = {
 		{ family = "primary",   size = "S", x = 12,   y = -9 },
@@ -64,17 +63,16 @@ hull {
 		{ family = "engine",    size = "S", x = -26, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "hold_pod_s", "aux_thrusters", "nav_computer" },
+	loadout = { "px2_autogun", "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	cargo = { rounds_s = 400, missile_s = 4 },
 	price = 14000,
 }
 
 hull {
 	id = "brute_anvil", name = "Anvil", maker = "Brute Industries", class = "medium", mount = "gimbal",
-	mass = 240, armor = 380, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34, ramSpeed = 170,
+	mass = 240, sideThrust = 779, armor = 380, turn = 3500, turnSpeed = 200, retroThrust = 600, spoolTime = 0.2, hold = 50, drag = 0.5, radius = 34, ramSpeed = 170,
 	shape = { 74,-11, 74,11, 34,26, -46,28, -68,14, -68,-14, -46,-28, 34,-26 },
 	slots = {
 		{ family = "primary",   size = "M", x = 40,  y = -20 },
@@ -84,10 +82,9 @@ hull {
 		{ family = "engine",    size = "M", x = -68, y = 0 },
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "thumper_m", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "aux_thrusters", "nav_computer" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "thumper_m", "hornet_pod", "mule_engine", "kiln_reactor", "tug_beam", "nav_computer" },
 	cargo = { rounds_m = 500, shell_m = 20, missile_m = 4, missile_s = 6 },
 	price = 38000,
 }
@@ -97,7 +94,7 @@ hull {
 -- strafe: A/D turn the hull, and side jets help it turn.
 hull {
 	id = "ferrous_bastion", name = "Bastion", maker = "Concord Military", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
-	mass = 735, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62, ramSpeed = 250,
+	mass = 735, sideThrust = 1292, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62, ramSpeed = 250,
 	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
 	slots = {
 		{ family = "secondary", size = "L", x = 80,  y = 0 },
@@ -110,11 +107,10 @@ hull {
 		{ family = "engine",    size = "L", x = -132, y = 0 },
 		{ family = "reactor",   size = "L" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "long_tom", "long_tom", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "trident_bay",
-		"cinder_drive", "forge_reactor", "hold_pod_m", "aux_thrusters", "nav_computer" },
+		"cinder_drive", "forge_reactor", "hold_pod_m", "nav_computer" },
 	cargo = { shell_l = 60, rounds_m = 1000, missile_l = 6, missile_m = 6 },
 	price = 95000,
 }
@@ -124,8 +120,8 @@ hull {
 -- straight line, but it comes about very slowly. Flown by neutral traders.
 hull {
 	id = "ferrous_freighter", name = "Hauler", maker = "Ferrous Collective", class = "heavy", mount = "turret", turretTurn = 120, helm = "turn",
-	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62,
-	mass = 900, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62, ramSpeed = 200,
+	mass = 900, sideThrust = 1416, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62,
+	mass = 900, sideThrust = 1416, armor = 900, turn = 3600, turnSpeed = 40, retroThrust = 800, spoolTime = 0.6, hold = 400, drag = 1.1, radius = 62, ramSpeed = 200,
 	-- built in parts: they're tinted apart, and break off separately when
 	-- it dies (src/hullshape.lua)
 	parts = {
@@ -142,10 +138,9 @@ hull {
 		{ family = "reactor",   size = "L" },
 		{ family = "utility",   size = "any" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "forge_reactor", "hold_pod_m", "hold_pod_m", "aux_thrusters", "nav_computer" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "forge_reactor", "hold_pod_m", "hold_pod_m", "nav_computer" },
 	cargo = { rounds_m = 600 },
 	price = 70000,
 }
@@ -154,18 +149,17 @@ hull {
 -- so it can swat a lone pirate while running; the hold is the point.
 hull {
 	id = "ferrous_runner", name = "Runner", maker = "Ferrous Collective", class = "light", mount = "turret", turretTurn = 180,
-	mass = 120, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24,
-	mass = 120, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24, ramSpeed = 110,
+	mass = 120, sideThrust = 570, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24,
+	mass = 120, sideThrust = 570, armor = 160, turn = 900, turnSpeed = 160, retroThrust = 400, spoolTime = 0.15, hold = 90, drag = 0.22, radius = 24, ramSpeed = 110,
 	shape = { 58,-8, 52,-20, -34,-22, -46,-14, -46,14, -34,22, 52,20, 58,8 },
 	slots = {
 		{ family = "primary",   size = "S", x = 30,  y = 0 },
 		{ family = "engine",    size = "S", x = -44, y = 0 },
 		{ family = "reactor",   size = "S" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "px2_autogun", "flit_engine", "ember_reactor", "hold_pod_s", "aux_thrusters", "nav_computer" },
+	loadout = { "px2_autogun", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	cargo = { rounds_s = 300 },
 	price = 22000,
 }
@@ -175,8 +169,8 @@ hull {
 -- engine. Slow to turn but steady.
 hull {
 	id = "ferrous_mule", name = "Packhorse", maker = "Ferrous Collective", class = "medium", mount = "turret", turretTurn = 140,
-	mass = 420, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44,
-	mass = 420, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44, ramSpeed = 180,
+	mass = 420, sideThrust = 1003, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44,
+	mass = 420, sideThrust = 1003, armor = 520, turn = 2400, turnSpeed = 90, retroThrust = 650, spoolTime = 0.35, hold = 200, drag = 0.6, radius = 44, ramSpeed = 180,
 	shape = { 96,-24, 88,-40, -78,-42, -92,-30, -92,30, -78,42, 88,40, 96,24 },
 	slots = {
 		{ family = "primary",   size = "M", x = 44,  y = -18 },
@@ -186,10 +180,9 @@ hull {
 		{ family = "reactor",   size = "M" },
 		{ family = "utility",   size = "any" },
 		{ family = "utility",   size = "any" },
-		{ family = "thruster",  size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "hornet_pod", "mule_engine", "kiln_reactor", "hold_pod_m", "hold_pod_s", "aux_thrusters", "nav_computer" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "hornet_pod", "mule_engine", "kiln_reactor", "hold_pod_m", "hold_pod_s", "nav_computer" },
 	cargo = { rounds_m = 400, missile_m = 4 },
 	price = 48000,
 }

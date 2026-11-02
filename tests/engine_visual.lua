@@ -1,6 +1,10 @@
 return function(game)
  local Engine,Render=require('src.engine_visual'),require('src.render')
  local copy=require('src.persistence').copy
+ local data=require('src.data')
+ local fixture=copy(data.modules.flit_engine)
+ fixture.id='test_visual_engine';fixture.exhaust.width=3;fixture.exhaust.length=18
+ data.modules[fixture.id]=fixture
  local e=game.player
  e.hull=copy(e.hull);e.loadout={}
  e.hull.slots={
@@ -8,7 +12,7 @@ return function(game)
   {family='engine',size='S',x=-45,y=25},
   {family='engine',size='S',x=-10,y=0}
  }
- e.loadout={'flit_engine','flit_engine',false}
+ e.loadout={'test_visual_engine','test_visual_engine',false}
  e.mainBurn=1;e.sideBurn=0;e.retroBurn=0;e.foreBurn=0;e.turnBurn=0
  e.weapons={};e.dockState=nil;e.flash=0;e.afterburn=false
  e.body:setPosition(0,0);e.body:setAngle(0)
@@ -46,7 +50,7 @@ return function(game)
  check(orange(refit,-55,-25) and not orange(refit,-55,25),'removed engine still emits exhaust')
  e.loadout[1]=false
  check(#Engine.emitters(e)==0,'empty engine slots emit exhaust')
- e.loadout[1]='flit_engine'
+ e.loadout[1]='test_visual_engine'
  local idle=draw(true,0,false)
  check(not orange(idle,-55,-25),'idle engine emits exhaust')
  local boost=draw(true,1,true)
@@ -57,7 +61,7 @@ return function(game)
  custom.exhaust={width=7,length=60,color={.1,.5,1},coreColor={.2,.7,1},
   glowColor={.1,.3,1},afterburnScale=1,flicker=0}
  data.modules[custom.id]=custom
- e.loadout[1]=custom.id;e.loadout[2]='flit_engine'
+ e.loadout[1]=custom.id;e.loadout[2]='test_visual_engine'
  local mixed=draw(true,1,false)
  local r,g,b,a=mixed:getPixel(73,103)
  check(a>.1 and b>r and b>g,'renderer ignored engine module color')
@@ -69,7 +73,7 @@ return function(game)
  local mixedBoost=draw(true,1,true)
  local rr,gg,bb,aa=mixedBoost:getPixel(38,103)
  check(r==rr and g==gg and b==bb and a==aa,'renderer ignored module afterburn scale')
- data.modules[custom.id]=nil;e.loadout[1]='flit_engine';e.loadout[2]=false
+ data.modules[custom.id]=nil;e.loadout[1]='test_visual_engine';e.loadout[2]=false
  e.hull.slots[1].x=nil;e.hull.slots[1].y=nil
  check(Engine.emitters(e)[1].x==e.tailX,'legacy slot has no tail fallback')
  e.hull.slots[1].x=0;e.hull.slots[1].y=12
