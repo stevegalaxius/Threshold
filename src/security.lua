@@ -302,10 +302,17 @@ function S.hold(game,e,AI)
   tx,ty=AI.stopPoint(station)
   vx,vy=station.body:getLinearVelocityFromWorldPoint(tx,ty)
  end
+ -- Distinct holding offsets keep ships assigned to the same place from
+ -- continually pushing toward the exact same point. These are not graph nodes.
+ local seed=tonumber(r.id:match('%d+$')) or e.id
+ local angle=seed*2.3999632297
+ local spacing=e.halfLength+120
+ if not station or station.kind~='station' then
+  tx,ty=tx+math.cos(angle)*spacing,ty+math.sin(angle)*spacing
+ end
  local dx,dy=tx-x,ty-y;local d=math.sqrt(dx*dx+dy*dy)
- local k=d>0 and math.min(150,d*.5)/d or 0
  local a=e.body:getAngle()
- AI.driveVelocity(e,vx+dx*k,vy+dy*k,math.cos(a),math.sin(a),e.def.ai.throttle)
+ AI.navigate(game,e,dx,dy,d>T.aiBoostStopMargin*2 and (e.def.ai.cruise or T.traderCruise) or math.min(150,d*.5),vx,vy,d>T.aiBoostStopMargin*2 and d or nil)
  e.intent.aimX,e.intent.aimY=x+math.cos(a)*300,y+math.sin(a)*300
  return true
 end
