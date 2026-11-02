@@ -4,7 +4,7 @@
 
 	  nav       warns of a collision: when your course (velocity relative
 	            to it) runs you into something within T.navLookahead seconds,
-	            the dashed line along your velocity fades in, bright orange.
+	            the dashed line along your relative course fades in, bright orange.
 	  ordnance  puts a lead pip on the target (the guidance lock, or the
 	            hostile nearest the cursor): shoot the pip and your primary
 	            rounds meet the target.
@@ -120,6 +120,7 @@ local function collisionCourse(game, e, ahead)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
 	local me = (e.halfLength or 20) * 0.8
+	local threat
 	for _, o in ipairs(game.entities) do
 		if o ~= e and SOLID[o.kind] and not o.dead and not o.removed and not o.gas
 			and not (o.drone and o.owner == e) and o.body then
@@ -128,15 +129,48 @@ local function collisionCourse(game, e, ahead)
 			local rx, ry, rvx, rvy = ox - x, oy - y, ovx - vx, ovy - vy
 			local reach = (o.radius or o.halfLength or 20) + me
 			local closing = -(rx * rvx + ry * rvy)
-			if closing > 0 then
-				local v2 = rvx * rvx + rvy * rvy
-				local t = math.min(closing / v2, ahead)
-				local cx, cy = rx + rvx * t, ry + rvy * t
-				if cx * cx + cy * cy < reach * reach then return true end
+			local speed2 = rvx * rvx + rvy * rvy
+			if closing > 0 and speed2 > 0.0001 then
+				-- Time of first contact, rather than time of closest approach.
+				local gap = rx * rx + ry * ry - reach * reach
+				local discriminant = closing * closing - speed2 * gap
+				if discriminant >= 0 then
+					local time = max(0, (closing - sqrt(discriminant)) / speed2)
+					if time <= ahead and (not threat or time < threat.time) then
+						threat = { target = o, time = time, vx = -rvx, vy = -rvy, ship = e }
+					end
+				end
 			end
 		end
 	end
-	return false
+	return threat
+end
+
+-- Mark the actual fixture surface, not the warning's broad bounding circle.
+local function impactPoint(game, ship, threat)
+	local speed = sqrt(threat.vx^2 + threat.vy^2)
+	if speed < 0.01 then return end
+	local x, y = ship.body:getPosition()
+	local dx, dy = threat.vx / speed, threat.vy / speed
+	local length = speed * 0.5 + (ship.halfLength or 20)
+	local hitX, hitY
+	local function cast(sx, sy)
+		game.world:rayCast(sx, sy, sx + dx * length, sy + dy * length,
+			function(fixture, hx, hy, _, _, fraction)
+				if fixture:getBody() ~= threat.target.body then return -1 end
+				hitX, hitY = hx, hy
+				return fraction
+			end)
+	end
+	cast(x, y)
+	if not hitX then
+		-- A glancing hit can catch the ship's side while its centerline misses.
+		local tx, ty = threat.target.body:getPosition()
+		local side = max(-(ship.hull.radius or 10), math.min(ship.hull.radius or 10,
+			(tx - x) * -dy + (ty - y) * dx))
+		cast(x - dy * side, y + dx * side)
+	end
+	return hitX, hitY
 end
 
 -- Each frame: the nav warning, and drop a lock that's dead or out of
@@ -145,10 +179,17 @@ function Game:updateComputers(dt)
 	local p = self.player
 	if not p or p.dead then return end
 	local ship = self:pilotedShip()
-	local want = (self:computer(p, "nav") and not ship.catching and not ship.dockState
-		and collisionCourse(self, ship, T.navLookahead)) and 1 or 0
-	local warn = p.navWarn or 0
-	p.navWarn = warn + math.max(-dt * 2, math.min(dt * 5, want - warn))
+	p.navThreat = self:computer(p, "nav") and not ship.catching and not ship.dockState
+		and collisionCourse(self, ship, T.navLookahead) or nil
+	if p.navThreat then
+		if p.navThreat.time <= 0.5 then
+			p.navThreat.hitX, p.navThreat.hitY = impactPoint(self, ship, p.navThreat)
+		end
+		-- Brief fade-in only. A cleared course must never retain a stale line.
+		p.navWarn = 1 - (1 - (p.navWarn or 0)) * math.exp(-dt / 0.06)
+	else
+		p.navWarn = 0
+	end
 	local guidance = self:computer(p, "guidance")
 	p.lock = guidance and pickLock(self, p, guidance.radarRange) or nil
 	if self.piloting and (not self:computer(p, "drone") or self.piloting.dead) then
@@ -186,17 +227,25 @@ function Game:drawComputers(px)
 	local ship = self:pilotedShip()
 	local x, y = ship.body:getPosition()
 
-	-- nav: the mass driver's dashed course line, only while a collision's coming
-	local warn = p.navWarn or 0
-	if warn > 0.01 then
-		local vx, vy = ship.body:getLinearVelocity()
-		local ahead = T.navLookahead
+	-- Nav: the current relative collision course, cleared immediately when safe.
+	local warn, threat = p.navWarn or 0, p.navThreat
+	if threat and threat.ship == ship and warn > 0.01 then
+		local vx, vy = threat.vx, threat.vy
+		local ahead = math.min(T.navLookahead, threat.time + 0.15)
+		local endX, endY = threat.hitX or x + vx * ahead, threat.hitY or y + vy * ahead
 		lg.setColor(1, 0.55, 0.1, 0.85 * warn)
 		lg.setLineWidth(max(2, 2 * px))
 		local n = 20
 		for i = 0, n - 1, 2 do
-			local t1, t2 = i / n * ahead, (i + 1) / n * ahead
-			lg.line(x + vx * t1, y + vy * t1, x + vx * t2, y + vy * t2)
+			local t1, t2 = i / n, (i + 1) / n
+			lg.line(x + (endX - x) * t1, y + (endY - y) * t1,
+				x + (endX - x) * t2, y + (endY - y) * t2)
+		end
+		if threat.hitX then
+			local r = 7 * px
+			lg.setColor(1, 0.55, 0.1, 1)
+			lg.line(endX - r, endY - r, endX + r, endY + r)
+			lg.line(endX - r, endY + r, endX + r, endY - r)
 		end
 	end
 

@@ -270,7 +270,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, city = o.city,
+		stationTrack = sd, city = o.city, alifeTraders = o.stations and (o.traders or 3),
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -304,19 +304,6 @@ local function planetField(o)
 				local b2 = game:spawnBuoy(cos(sa - pi / 2) * sd, sin(sa - pi / 2) * sd, field.buoyIds[2])
 				game:setOrbit(b1, 0, 0, speed)
 				game:setOrbit(b2, 0, 0, speed)
-				-- Neutral freighters hauling the loop: station, buoy, station, buoy.
-				local route = { stA, b1, stB, b2 }
-				-- They start on the track between stops, heading for the next one.
-				-- Repeated Hauler, Packhorse and Runner traffic; Mars has more.
-				local kinds = { "freighter", "packhorse_trader", "runner_trader" }
-				for k = 1, (o.traders or 3) do
-					local a = sa + pi / 4 + (k - 1) * pi * 2 / ((o.traders or 3) + 1)
-					local f = game:spawnEnemy(kinds[(k - 1) % #kinds + 1], cos(a) * sd, sin(a) * sd)
-					f.route = route
-					f.routeIndex = k % #route + 1
-					f.body:setAngle(a + pi / 2)
-					f.body:setLinearVelocity(-sin(a) * speed, cos(a) * speed)
-				end
 			end
 			-- The belt (or rings), already circling with the current.
 			for _, band in ipairs(bands) do
@@ -536,11 +523,29 @@ for _, area in ipairs(Fields.list) do
 		local function gate(to, moon, back)
 			local m = Fields.moons[moon]
 			add("to_" .. to, "Departure to " .. Fields[to].name, "moon_gate",
-				{ type = "orbit", radius = F.radius, phase = m.phase + (back and pi or 0), period = m.period }, nil, to)
+				{ type = "orbit", radius = F.radius, phase = m.phase + (back and pi or 0), rate = 0 }, nil, to)
 		end
 		for _, moon in ipairs(Fields.moonsOf(area)) do gate(moon, moon, false) end
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end
 	end
+ -- These links describe existing journeys, not generated navigation geometry.
+ F.travelLinks = {}
+ local function link(a,b)
+  if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end
+ end
+ if #F.buoyIds == 2 then
+  local a,b=F.stationIds[F.city and 2 or 1],F.stationIds[F.city and 3 or 2]
+  F.traderRoute={a,F.buoyIds[1],b,F.buoyIds[2]}
+  for i,id in ipairs(F.traderRoute) do link(id,F.traderRoute[i%#F.traderRoute+1]) end
+  if F.city then link(F.stationIds[1],a) end
+ else
+  for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
+ end
+ link(F.driverId,F.stationIds[1])
+ for _,place in ipairs(F.locations) do
+  if place.kind=='moon_gate' then link(place.id,F.stationIds[1]) end
+ end
+
 end
 
 return Fields

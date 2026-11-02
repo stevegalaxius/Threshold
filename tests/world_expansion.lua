@@ -14,10 +14,13 @@ return function(game)
 	game.autosaveOff = true
 	local traders, rocks = 0, 0
 	for _, e in ipairs(game.entities) do
-		if e.route then traders = traders + 1 end
+
 		if e.kind == "asteroid" and e.debris == "rock" then rocks = rocks + 1 end
 	end
-	check(traders == 9, "Mars should have nine local traders")
+	for _, r in pairs(game.universe.npcs) do
+		if r.home == "mars" then traders = traders + 1 end
+	end
+	check(traders == 9, "Mars should retain its nine traders across live bodies and offline records")
 	check(rocks < 20, "Mars should have sparse rocks")
 	for _, id in ipairs({ "phobos", "deimos", "io", "callisto", "enceladus", "titania" }) do
 		local moon = Fields.moons[id]

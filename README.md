@@ -47,7 +47,7 @@ file) onto `love.exe`.
 - Five enemy types built from the same parts and flight code as you. The basic Scrap Drone has no side thrusters, so it flies straight at you and is easy to hit. The Dart harasser is the twitchy, hard-to-hit one. Each level has its own enemies scattered around it; they leave you alone until you come within about 2,600 px or shoot them.
 - An Enemy damage slider (default 0.7) in the debug panel is the quick difficulty knob.
 - Wrecks drop part of their ammo plus salvage, and a full hold leaves loot behind.
-- Planets: you start at Earth (the big planet map). Venus and Mars are planet maps too, and Mars has the Heaven-Ladder, an orbital ring with gaps to fly through, held up by four space elevators. Jupiter is a first, barebones gas giant: a map three times Earth's size with no surface, where the deeper you sink below the cloud tops the harder it crushes your hull. The asteroid field, giant asteroid and lone station maps are kept as instance maps for missions later (debug panel). Scenery and NPCs regenerate on arrival; station state, wrecks, containers and loose cargo persist in named areas.
+- Planets: you start at Earth (the big planet map). Venus and Mars are planet maps too, and Mars has the Heaven-Ladder, an orbital ring with gaps to fly through, held up by four space elevators. Jupiter is a first, barebones gas giant: a map three times Earth's size with no surface, where the deeper you sink below the cloud tops the harder it crushes your hull. The asteroid field, giant asteroid and lone station maps are kept as instance maps for missions later (debug panel). Scenery and combat NPCs regenerate on arrival; traders persist across regions and saves; station state, wrecks, containers and loose cargo persist in named areas.
 - Mass drivers: every planet has one mass driver at the very edge of its map. Fly up its runway lights toward the breech and its tractor beam takes you like a station's, easing you in and holding you at the breech (come in too fast and it can't stop you: you overshoot out the barrel). It opens an orrery of the planets where they are right now; pick one (100 cr plus 60 per AU) and it fires you into the transit lane: a long highway arc laid out in full when you enter (rocks on the road, rocks off-road and the odd derelict, nothing popping in), longer the further apart the planets are right now (they circle the Sun with their real year lengths relative to each other; Earth's year is 30 minutes of game clock). There's no current in it: your thrusters just hit far harder while you're on it (the afterburner gets nothing extra). At the far end you come in from the edge of the other planet's map, still flying the way you were and lined up on the planet; turn round and fly back out the near end and you come home instead. The debug panel can switch drivers to the other way of travelling instead: a warp trip and a catch through braking rings at the other end.
 - Hangar: docked, press Tab (or click the Hangar tab on top of the window). Each station's hangar bay is a 30 x 14 grid, and every ship takes a footprint the size of its hull (Wisp 4 x 2, Anvil 8 x 3, Bastion 14 x 5, Hauler 14 x 6), including the one you're docked in, so a bay only holds so many. Click a ship to select it, drag to move it (R rotates), and double-click or press Fly to swap into it; the ship you came in stays parked where it was. Cargo opens the Cargo tab with three panels: your hold, then station storage, then the parked ship's hold. Ships on the storage panel opens the first parked ship, Next cycles through them and x closes it. With a parked ship open, each panel has a Target button: right-click (or Ctrl-click) sends a stack to the target panel (the parked ship to start with), and from the target panel back to your hold (or from your hold to storage). The equipment panel hides while three panels are open, so close the parked panel to refit. For now new ships come from the debug panel's "Park a new ..." buttons; buying ships in the hangar comes next.
 - Market: docked, the Market tab shows your hold (or station storage: the Your hold / Storage tabs on the left panel switch), a shared trade grid in the middle and the station's shelf on the right. You start with 5,000 cr. Put your goods and the station's on the trade grid (drag, or Ctrl-click / right-click to move a stack across); green frames are yours, amber the station's, and hovering a stack shows its price in green. The totals show what you get, what you pay and your balance after, and Complete trade settles it all at once. Bought goods go into your hold first, then storage. Leave the tab (or launch) and everything on the grid goes home. Buying costs the list price and selling pays 50% of it (a loaded container sells with everything in it). Each station sells its own catalogue (data/markets.lua), restocking each item a stack at a time on its own timer, and anything you sell stays on its shelf, where you can buy it back, for 10 minutes before it's sold on. The filters on the shelf (Ammo, Weapons, Modules, Misc) dim the rest.
@@ -197,6 +197,95 @@ The existing `love . --autotest` also exercises all moon round trips.
 
 ## Known gaps (on purpose for this milestone)
 
-- NPC populations and background asteroids still regenerate; highway debris is transient.
+- Combat NPCs and background asteroids still regenerate; highway debris is transient. Station traders persist.
 - The art is placeholder outlines, and there's no audio.
 - Field repair items aren't in yet, pending their design.
+
+## Local map
+
+Press **M** to see the current region: planet, stations, trade buoys, mass driver,
+moon departure gates, and your ship. Numbered markers match the location list;
+click a marker or list entry to select it and see its distance. Loaded ships,
+wrecks, cargo, and nearby offline traders appear as smaller contacts. Transit lanes show both exits.
+
+Drag to pan, scroll to zoom, **Home** to fit the whole region, and **P** to center
+on your ship. **M** or **Esc** closes the map. The map has its own camera and
+blocks flight controls while open; the simulation continues running.
+
+`love . --maptest` checks fitting and coordinate transforms across every region,
+selection, zoom, pan, camera isolation, closing, and transit, and saves example
+map screenshots in the game's save directory.
+
+## Persistent traders
+
+All 54 existing station traders have persistent identities, ship state, and
+itineraries from the start of a universe. Loading an area never refills its
+population. Cargo, loadout, armor, paint, journey, and docking waits survive
+area changes and save/load. Dead traders stay dead and use normal wreck creation.
+Mars retains its nine traders; other populated regions retain their three.
+
+Highway exits have a dashed boundary and a destination label at the actual
+region handoff line, including moon roads.
+
+One in three traders takes a repeating planet/moon round trip where both ends
+have stations (10 itineraries in the current world). Others keep their existing
+station/buoy loops. Travellers fly directly between their station and moon gate,
+bypassing mass drivers, then cross the highway, dock, wait, and return home. Phobos/Deimos have
+no docking stations yet, and Neptune has no port, so these are not docking-trip
+destinations. Moon corridor bearings stay fixed over time, so ships can reach an exit without
+chasing its orbit. No station structures or artificial navigation points are added.
+
+The graph names real locations and declared journeys in `fields.lua`. Earth has
+six places and six connections. The system-level connection for a moon is its
+existing pair of departure gates and highway length. NPC movement never adds
+nodes or edges.
+
+- Online within 18,000 world units: real ship, existing flight/docking AI.
+- Offline beyond 22,000: one journey record with progress; no physics body.
+- Remote region/highway: arrival and activity timers, without map positions.
+- Same highway as the player: matching persistent travellers can become physical
+  ships, including oncoming traffic. These are the actual NPC records, not
+  independently generated freighters. Departing ships remain visible in local
+  space under powered AI and still react to attackers. Following them into a moon highway preserves relative position and
+  departure velocity rather than assigning a fixed highway speed. Damage/cargo
+  carry into their destination.
+
+Each trader has a persistent cross-track offset up to 1,500 world units that
+fades toward local endpoints. Offline station stops last 60 seconds; online
+stops retain the existing 30–90-second behavior. The simulation does not yet
+model offline combat or economic transactions, or assign interplanetary mass
+driver itineraries. Highway derelict generation is unchanged.
+
+Open **F1 → A-Life records and connections**, enable **Show simulation connections
+and NPCs**, then open **M**. Blue lines are declared connections. Labels show
+actual trader identity, state, and destination; the debug panel also lists
+travellers in connecting highways. The map shows contacts sharing your highway.
+
+`love . --tradertest` checks populations across every region and an Earth–Luna–Earth
+round trip, including encountering the same trader in the matching highway,
+route/direction filtering, damage/cargo retention, docking, return, save/load,
+repairing saved driver detours, and exact spacing/speed when following a departure.
+`love . --alifetest` checks local body/record transitions, hysteresis, spread,
+docking waits, death salvage, scene adoption, and duplicate prevention.
+`love . --graphtest` checks declared topology, projection, routing, serialization,
+and graph construction without physics bodies.
+
+`love . --navtest` runs a real physical departure from a station to a fixed moon
+exit, checks that the ship does not first head to the perimeter, and follows and
+attacks it during powered departure.
+
+`love . --idletest` simulates ten minutes idling in a highway with physics and
+preview rendering, returns to retained Earth, resumes physics, and saves. It
+also checks that preview drawing follows the location clock without moving the
+paused Box2D bodies. Preview poses are render-only; repeated physics transforms
+on an unstepped world previously caused a native broad-phase crash on return.
+
+The navigation computer shows the current relative collision course only when
+contact is predicted within its lookahead (default two seconds). It fades in
+briefly and clears immediately when the course is safe; reversing does not
+leave a stale warning. Moving hazards are evaluated relative to the ship, and
+the line follows the earliest predicted contact rather than an arbitrary object.
+During the final half second before impact, an X marks the actual obstacle
+surface where the warning line ends; it clears immediately when danger passes.
+`love . --navcomputertest` checks warning lifetime, direction, near misses,
+stationary motion, incoming hazards, docking/catching, and removing the module.

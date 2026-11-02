@@ -41,7 +41,8 @@ local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
 	local px, py, worst = 0, 0, 0
 	local speed = sqrt(vx * vx + vy * vy)
 	for _, o in ipairs(game.entities) do
-		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy" then
+		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy"
+			and not (o.kind == "planet" and target and target.city and game.well and game.well.gas) then
 			local ox, oy = o.body:getPosition()
 			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
 			local orad = (o.kind == "ship") and o.halfLength or o.radius
@@ -114,6 +115,39 @@ local function steerVelocity(wvx, wvy, vx, vy)
 	return nx * k, ny * k, l
 end
 
+-- Share the existing trader velocity controller across local flight,
+-- powered departure, and lane cruise, including turn-helm haulers.
+function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
+ local it = e.intent
+ local x, y = e.body:getPosition()
+ local vx, vy = e.body:getLinearVelocity()
+	local sx, sy, err = steerVelocity(wvx, wvy, vx, vy)
+	local a = e.body:getAngle()
+	local nx, ny = cos(a), sin(a)
+	if e.hull.helm == "turn" then
+		-- Turn the hull toward the correction it needs, unless that's
+		-- mostly backwards: then keep pointing down the route and use
+		-- the retro thrusters.
+		local backing = (sx * nx + sy * ny) < -0.3 * min(1, err / T.aiResponse)
+		local hx2, hy2 = sx, sy
+		if backing or err < 40 then hx2, hy2 = mx, my end
+		local diff = wrap(atan2(hy2, hx2) - a)
+		it.strafe = max(-1, min(1, diff * 2.5))
+		local facing = cos(diff)
+		if backing then
+			it.thrust = -min(1, err / T.aiResponse)
+		else
+			it.thrust = facing > 0.6 and throttle * facing * min(1, err / T.aiResponse) or 0
+		end
+	else
+		-- a nimbler hull points down the route (or at whoever's shooting
+		-- at it) and uses every thruster to match the velocity it wants
+		local tx, ty = Ship.toLocal(e, sx * throttle, sy * throttle)
+		it.thrust, it.strafe = tx, ty
+		e.routeAimX, e.routeAimY = x + mx * 300, y + my * 300
+	end
+end
+
 -- How hard a ship can slow down along a line: its retro thrusters, or
 -- whatever it has when it turns round to use the main engine.
 local function brakeAccel(e)
@@ -134,6 +168,8 @@ local function stopPoint(stop)
 	return stop.body:getPosition()
 end
 
+AI.stopPoint = stopPoint
+
 -- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
 -- strafe intent turns the hull), easing off when it isn't facing where
 -- it's going. Its turrets track and fire on whoever last attacked it,
@@ -143,7 +179,13 @@ local function trade(game, e, dt)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
 	local route = e.route
-	if route and #route > 0 then
+	it.thrust, it.strafe, it.firePrimary = 0, 0, false
+	if e.alifeEgress then
+		local a = e.egressHeading or e.body:getAngle()
+		local dx, dy = cos(a), sin(a)
+		local speed = e.egressSpeed or ai.cruise or T.traderCruise
+		AI.driveVelocity(e, dx * speed, dy * speed, dx, dy, ai.throttle)
+	elseif route and #route > 0 then
 		e.routeIndex = e.routeIndex or 1
 		local stop = route[e.routeIndex]
 		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
@@ -161,13 +203,22 @@ local function trade(game, e, dt)
 			local stepA = 0.2
 			if math.abs(gap) > stepA then
 				local ah = am + (gap > 0 and stepA or -stepA)
-				hx, hy = w.x + cos(ah) * rs, w.y + sin(ah) * rs
+				local currentR = sqrt((x - w.x)^2 + (y - w.y)^2)
+				local lookR = currentR + (rs - currentR) * stepA / math.abs(gap)
+				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock then e.routeIndex = e.routeIndex % #route + 1 end
+		if d < 450 and not stop.dock then
+			if e.alifeId and stop.kind == "moon_gate" then
+				e.alifeDepart = true
+				it.thrust, it.strafe = 0, 0
+				return
+			end
+			e.routeIndex = e.routeIndex % #route + 1
+		end
 		-- The speed it wants: its cruise, but no faster than it can shed
 		-- before the stop (down to a crawl for a station's runway, or a
 		-- steady pass at a buoy). Measured against the planet's current,
@@ -178,35 +229,11 @@ local function trade(game, e, dt)
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
 		-- outweigh the route, and slows down while something's in the way.
-		local avx, avy, danger = avoidCollisions(game, e, nil, x, y, vx, vy, ai.horizon or 4.5)
+		local avx, avy, danger = avoidCollisions(game, e, stop.city and stop or nil, x, y, vx, vy, ai.horizon or 4.5)
 		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
 		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
-		local sx, sy, err = steerVelocity(fx0 + mx * want, fy0 + my * want, vx, vy)
-		local a = e.body:getAngle()
-		local nx, ny = cos(a), sin(a)
-		if e.hull.helm == "turn" then
-			-- Turn the hull toward the correction it needs, unless that's
-			-- mostly backwards: then keep pointing down the route and use
-			-- the retro thrusters.
-			local backing = (sx * nx + sy * ny) < -0.3 * min(1, err / T.aiResponse)
-			local hx2, hy2 = sx, sy
-			if backing or err < 40 then hx2, hy2 = mx, my end
-			local diff = wrap(atan2(hy2, hx2) - a)
-			it.strafe = max(-1, min(1, diff * 2.5))
-			local facing = cos(diff)
-			if backing then
-				it.thrust = -min(1, err / T.aiResponse)
-			else
-				it.thrust = facing > 0.6 and ai.throttle * facing * min(1, err / T.aiResponse) or 0
-			end
-		else
-			-- a nimbler hull points down the route (or at whoever's shooting
-			-- at it) and uses every thruster to match the velocity it wants
-			local tx, ty = Ship.toLocal(e, sx * ai.throttle, sy * ai.throttle)
-			it.thrust, it.strafe = tx, ty
-			e.routeAimX, e.routeAimY = x + mx * 300, y + my * 300
-		end
+		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end

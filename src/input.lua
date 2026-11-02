@@ -64,7 +64,7 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 
 	-- Gamepad
 	local j = Input.gamepad()
-	if j then
+	if j and not keyboardBlocked then
 		local mx, my = stick(j, "leftx", "lefty")
 		local ax, ay, al = stick(j, "rightx", "righty")
 		local rt = j:getGamepadAxis("triggerright") > 0.3

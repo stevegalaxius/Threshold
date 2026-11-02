@@ -10,7 +10,7 @@ T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
 	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1,    precision = 2 },
 	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.08,   precision = 2 },
-	{ key = "navLookahead",   label = "Nav: collision warning (s ahead)", min = 1, max = 8, value = 3, precision = 1 },
+	{ key = "navLookahead",   label = "Nav: collision warning (s ahead)", min = 1, max = 8, value = 2, precision = 1 },
 	{ key = "guidanceCone",   label = "Guidance: lock cone (deg)", min = 5, max = 90, value = 25, precision = 0 },
 	{ key = "droneRecall",    label = "Drone: idle secs before docking", min = 2, max = 30, value = 10, precision = 0 },
 	{ key = "aiCruise",       label = "AI: fighting speed (px/s)", min = 100, max = 2500, value = 750, precision = 0 },
@@ -143,6 +143,12 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- Sleeping debris (Game:updateSleepers): rocks further than sleepFar
 -- from the player stop being simulated and just follow their orbit, and
 -- wake inside sleepNear; checked every sleepEvery steps.
+-- A-Life prototype, separate from the debris sleep band.
+T.alifeNear, T.alifeFar = 18000, 22000
+T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round trip
+T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
+T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
+T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
