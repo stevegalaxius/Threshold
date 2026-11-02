@@ -13,7 +13,6 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local softBoundary=require("src.soft_boundary")
-local SleeperIndex=require("src.sleeper_index")
 local Ship = require("src.ship")
 local HullShape = require("src.hullshape")
 local Stations = require("src.stations")
@@ -296,36 +295,23 @@ function Game:updateSleepers()
 	if p and not p.dead then px, py = p.body:getPosition() else px, py = self.camera.x, self.camera.y end
 	local far2, near2 = T.sleepFar ^ 2, T.sleepNear ^ 2
 	-- wake the ones the player is coming up on
-	local sl = self.sleepers
-	local index, first, lastBand = SleeperIndex.range(self, px, py, T.sleepNear)
-	for band = first, lastBand do
-		local bucket = index.bands[band]
-		local i = 1
-		while bucket and i <= #bucket do
-			local e, woke = bucket[i], false
-			if not e.removed then
-				local x, y, a = self:sleeperPos(e)
-				if (x - px)^2 + (y - py)^2 < near2 then
-					local o = e.sleep
-					SleeperIndex.remove(self, e)
-					e.sleep = nil
-					self:debrisBody(e, x, y, e.body.a, o.spin)
-					local v = o.rate * o.r
-					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
-					table.insert(self.entities, e)
-					local slot = e.sleepSlot
-					local last = sl[#sl]
-					sl[slot] = last
-					sl[#sl] = nil
-					if last ~= e then last.sleepSlot = slot end
-					e.sleepSlot = nil
-					woke = true
-				end
+	local sl, keep = self.sleepers, {}
+	for _, e in ipairs(sl) do
+		if not e.removed then
+			local x, y, a = self:sleeperPos(e)
+			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
+				local o = e.sleep
+				e.sleep = nil
+				self:debrisBody(e, x, y, e.body.a, o.spin)
+				local v = o.rate * o.r
+				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				table.insert(self.entities, e)
+			else
+				keep[#keep + 1] = e
 			end
-			-- Removal swaps the bucket's last rock into this slot.
-			if not woke then i = i + 1 end
 		end
 	end
+	self.sleepers = keep
 	-- and put the far ones to sleep
 	local awake = {}
 	for _, e in ipairs(self.entities) do
@@ -343,9 +329,7 @@ function Game:updateSleepers()
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
 				b:destroy()
-				sl[#sl + 1] = e
-				e.sleepSlot = #sl
-				SleeperIndex.add(self, e)
+				keep[#keep + 1] = e
 				slept = true
 			end
 		end
