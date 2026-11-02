@@ -15,7 +15,7 @@ function Travel.go(game,area,place)
  assert(Fields[area] and not Fields[area].transit,'choose a named destination')
  if place then assert(Locations.get(place).area==area,'destination is in another area') end
  local p=game.player
- local record=p and not p.dead and Ship.record(p) or nil
+ local record=p and not p.dead and p.body and not p.body:isDestroyed() and Ship.record(p) or nil
  require('src.ui.cargo').close(game)
  game:loadField(area,{player=record})
  game.flight=nil;game.trip=nil
@@ -56,12 +56,17 @@ function Travel.panel(game,Slab)
  if Fields[area] and not Fields[area].transit then
   Slab.Separator();Slab.Text('Destination: '..Fields[area].name)
   if Slab.Button('Teleport to area spawn',{W=290}) then Travel.go(game,area);return end
-  for _,p in ipairs(Locations.list(area)) do
-   if Slab.Button('Go: '..p.name,{W=290}) then Travel.go(game,area,p.id);return end
-  end
  end
- if Slab.Button('Open world destinations on map',{W=290}) then
-  local M=require('src.ui.localmap');M.open(game);game.localMap.world=true
- end
+end
+function Travel.point(game,x,y)
+ local p=game.player
+ if not p or p.dead or not p.body or p.body:isDestroyed() then return false end
+ require('src.ui.cargo').close(game)
+ p.dockState=nil;p.dockExit=nil;p.dockCooldown=2
+ p.body:setActive(true);p.body:setPosition(x,y)
+ p.body:setLinearVelocity(0,0);p.body:setAngularVelocity(0)
+ game.state='playing';game.camera.x,game.camera.y=x,y
+ game:toast('DEBUG TELEPORT',1)
+ return true
 end
 return Travel

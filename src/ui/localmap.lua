@@ -16,7 +16,7 @@ local function viewport()
  return {x=24,y=88,w=w-328,h=h-154},w,h
 end
 local function playerPos(game)
- if game.player and not game.player.dead then return game.player.body:getPosition() end
+ if game.player and not game.player.dead and game.player.body and not game.player.body:isDestroyed() then return game.player.body:getPosition() end
  return 0,0
 end
 function Map.places(game)
@@ -87,7 +87,7 @@ function Map.keypressed(game,key)
  end
  if not Map.isOpen(game) then return false end
  if key=='escape' then game.localMap=nil
- elseif key=='tab' then game.localMap.world=not game.localMap.world
+
  elseif key=='home' then Map.fit(game)
  elseif key=='p' then game.localMap.x,game.localMap.y=playerPos(game)
  elseif key=='f1' then return false end
@@ -96,7 +96,6 @@ end
 local function inside(v,x,y) return x>=v.x and y>=v.y and x<=v.x+v.w and y<=v.y+v.h end
 function Map.wheelmoved(game,y)
  if not Map.isOpen(game) then return false end
- if game.localMap.world then return true end
  local mx,my=love.mouse.getPosition()
  if inside(viewport(),mx,my) then
   local x,y0=Map.toWorld(game,mx,my)
@@ -111,9 +110,7 @@ function Map.mousepressed(game,x,y,button)
  if not Map.isOpen(game) then return false end
  local v,w=viewport(); local m=game.localMap
  if button==1 then
-  if x>=24 and x<=300 and y>=52 and y<=78 then m.world=not m.world;return true end
   if x>w-100 and y<65 then game.localMap=nil; return true end
-  if m.world then require('src.ui.debugworldmap').click(game,x,y);return true end
   for i,p in ipairs(Map.places(game)) do
    local sx,sy=Map.toScreen(game,p.x,p.y)
    if (inside(v,x,y) and (x-sx)^2+(y-sy)^2<14^2)
@@ -122,8 +119,12 @@ function Map.mousepressed(game,x,y,button)
    end
   end
  end
- if m.world then return true end
- if inside(v,x,y) and (button==1 or button==2) then m.drag={x=x,y=y,cx=m.x,cy=m.y} end
+ if button==2 and inside(v,x,y) then
+  require('src.debugtravel').point(game,Map.toWorld(game,x,y))
+  m.drag=nil
+  return true
+ end
+ if inside(v,x,y) and button==1 then m.drag={x=x,y=y,cx=m.x,cy=m.y} end
  return true
 end
 function Map.mousereleased(game)
@@ -134,12 +135,6 @@ end
 function Map.draw(game)
  if not Map.isOpen(game) then return end
  local v,w,h=viewport(); local m=game.localMap
- if m.world then
-  require('src.ui.debugworldmap').draw(game)
-  lg.setColor(.2,.45,.55);lg.rectangle('fill',24,52,276,26)
-  lg.setFont(HUD.font(12));lg.setColor(HUD.INK);lg.print('Back to local map (Tab)',32,57)
-  return
- end
  local f=Fields[game.fieldId]; local clock=game.universe.clock
  local scale=m.base*m.zoom
  lg.push('all'); lg.origin()
@@ -151,8 +146,7 @@ function Map.draw(game)
  lg.print('M / Esc  close',w-110,30)
  lg.print('Drag to pan   /   Wheel to zoom   /   Home fit region   /   P center on ship',24,h-33)
  lg.print('Live map',w-90,h-33)
- lg.setColor(.2,.45,.55);lg.rectangle('fill',24,52,276,26)
- lg.setColor(HUD.INK);lg.print('World destinations / debug teleport (Tab)',32,57)
+ lg.print('Debug: right-click map to teleport',24,60)
  lg.setColor(.3,.55,.65,.3); lg.rectangle('line',v.x,v.y,v.w,v.h)
  lg.setScissor(v.x,v.y,v.w,v.h)
  local cx,cy=Map.toScreen(game,0,0)
@@ -219,10 +213,13 @@ function Map.draw(game)
   end
  end
  local px,py=playerPos(game); local x,y=Map.toScreen(game,px,py)
- local a=game.player and game.player.body:getAngle() or 0
+ local alive=game.player and not game.player.dead and game.player.body and not game.player.body:isDestroyed()
+ local a=alive and game.player.body:getAngle() or 0
+ if alive then
  lg.push(); lg.translate(x,y); lg.rotate(a); lg.setColor(1,.9,.45)
  lg.polygon('fill',9,0,-6,-5,-3,0,-6,5); lg.pop()
  lg.setColor(1,.9,.45); lg.print('YOU',x+11,y+8)
+ end
  -- A meaningful scale in world units, not an invented distance conversion.
  local units=10^math.floor(math.log(120/scale)/math.log(10))
  if units*scale<45 then units=units*5 end
