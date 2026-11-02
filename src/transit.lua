@@ -35,7 +35,9 @@
 
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local AI = require("src.ai")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 local events = require("src.events")
 local data = require("src.data")
 local Stations = require("src.stations")
@@ -62,8 +64,7 @@ function Game:spawnDrivers()
 	if not Fields.orbits[self.fieldId] then return end
 	local d = self.arenaRadius - T.driverBarrel - 100
 	local speed = self:currentSpeed(d) * T.driverOrbitScale
-	local a = -pi / 2 + 0.6 + (self.universe and self.universe.clock or 0) * speed / d
-	local x, y = cos(a) * (d + T.driverBarrel / 2), sin(a) * (d + T.driverBarrel / 2)
+	local x, y, a = Locations.position(self.field.driverId, self.universe.clock)
 	for k = #self.entities, 1, -1 do
 		local o = self.entities[k]
 		if o.kind == "asteroid" then
@@ -76,6 +77,7 @@ function Game:spawnDrivers()
 		radius = T.driverRadius, name = "Mass driver", angle = a }
 	body:setUserData(g)
 	table.insert(self.entities, g)
+	self:bindLocation(g, self.field.driverId)
 	self:setOrbit(g, 0, 0, speed)
 	-- the braking rings are only for the warp-and-catch way of travelling
 	if T.travelMode == "flight" then self:spawnCatchRings() end
@@ -311,6 +313,7 @@ end
 function Game:beginFlight(to)
 	local p = self.player
 	if not p or p.dead then return end
+	self:captureALife(true)
 	local from = self.fieldId
 	local au = Fields.distance(from, to, self.universe.clock)
 	p.launch = nil
@@ -471,7 +474,7 @@ function Game:launchTrip(to, moon)
 		local camX, camY = self.camera.x, self.camera.y
 		local origin = self:retainField()
 		self.trip.originScene = origin
-		self:loadField("lane", { player = record, quiet = true, retain = true })
+		self:loadField("lane", { player = record, quiet = true, retain = true, deferALife = true })
 		local mx, my = self:fromLane(-half, -T.laneWidth / 4)
 		local px, py = mx - cos(bearing) * T.rampLead, my - sin(bearing) * T.rampLead
 		self.trip.origin = { x = px - ox, y = py - oy }
@@ -483,6 +486,7 @@ function Game:launchTrip(to, moon)
 		self.camera.x, self.camera.y = camX + px - ox, camY + py - oy
 		self.camera.backgroundX = (origin.camera.backgroundX or 0) - self.trip.origin.x
 		self.camera.backgroundY = (origin.camera.backgroundY or 0) - self.trip.origin.y
+		self:updateALife(true)
 		events.emit("travel", from, to)
 		return
 	end
@@ -513,7 +517,7 @@ function Game:prepareArrival(back)
 	local to = back and self.trip.from or self.trip.to
 	local scene = back and self.trip.originScene
 	if not scene then
-		scene = Game.new({ field = to, universe = self.universe })
+		scene = Game.new({ field = to, universe = self.universe, preview = true })
 		scene.autosaveOff = true
 		scene:remove(scene.player)
 		scene.player = nil
@@ -823,7 +827,7 @@ function Game:updateLane(dt)
 				local k = (n > 0 and 1 or -1) * over * m * 4
 				b:applyForce(sin(phi) * k, -cos(phi) * k)
 			end
-			if s < -lane.half and e ~= p then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
+			if s < -lane.half and e ~= p and not (self.trip and self.trip.moon) then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
 		end
 	end
 	if not p or p.dead then return end
@@ -887,18 +891,18 @@ end
 
 -- Traffic flies its own side of the lane at its own speed, nose along
 -- the lane: thrusting (and side-jetting) to match the velocity it wants.
-function Game:cruise(e)
+function Game:cruise(e, dt)
 	local x, y = e.body:getPosition()
 	local _, n, phi = self:toLane(x, y)
-	local dir = self:laneFlow(n) >= 0 and 1 or -1
+	local dir = e.cruiseDir or (self:laneFlow(n) >= 0 and 1 or -1)
 	local tx, ty = cos(phi) * dir, sin(phi) * dir
 	local want = T.laneFlow * (e.cruiseSpeed or 1)
-	local vx, vy = e.body:getLinearVelocity()
-	local ex, ey = tx * want - vx, ty * want - vy
-	local it = e.intent
-	it.aimX, it.aimY = x + tx * 1000, y + ty * 1000
-	local th, st = Ship.toLocal(e, ex / 200, ey / 200)
-	it.thrust, it.strafe = max(-1, min(1, th)), max(-1, min(1, st))
+	local across = e.cruiseOffset and (e.cruiseOffset - n) * 0.4 or 0
+	local wvx, wvy = tx * want - sin(phi) * across, ty * want + cos(phi) * across
+	-- Retaliation still runs for the same trader while it flies its lane.
+	if e.def then AI.think(self, e, dt or 1 / 120) end
+	AI.driveVelocity(e, wvx, wvy, tx, ty, e.def and e.def.ai.throttle or 1)
+	if not e.aggressor then e.intent.aimX, e.intent.aimY = x + tx * 1000, y + ty * 1000 end
 end
 
 -- Gas giants -----------------------------------------------------------------
@@ -923,7 +927,8 @@ local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
 -- Where a cloud city's drift has it now, and the angle round the planet.
 function Game:cityTarget(e)
-	local w, d, t = self.well, e.drift, self.time
+	if e.locationId then return Locations.position(e.locationId, self.universe.clock) end
+	local w, d, t = self.well, e.drift, self.universe.clock
 	local rr = d.r + d.up * sin(t / d.upPeriod * pi * 2 + d.phase)
 	local aa = d.a + d.across * sin(t / d.acrossPeriod * pi * 2 + d.phase * 0.7) / d.r
 	return w.x + cos(aa) * rr, w.y + sin(aa) * rr, aa
@@ -949,7 +954,7 @@ end
 -- angle a round the planet, with its docking tunnel just under the tops.
 -- It doesn't turn or drift. You dock by flying into either end of the
 -- tunnel (dock.both); the clamp is in the middle. k: size (1 or 2).
-function Game:spawnCloudCity(a, k)
+function Game:spawnCloudCity(a, k, locationId)
 	k = k or 1
 	local w = self.well
 	local TH = Stations.CITY_TUNNEL
@@ -973,7 +978,7 @@ function Game:spawnCloudCity(a, k)
 	end
 	local def = data.stations[id]
 	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
-		def = def, key = ("%s/%d"):format(self.fieldId or "?", n),
+		def = def, key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n), locationId = locationId,
 		name = names and names[n] or "Cloud city", radius = 1680 * k,
 		cloudY = def.haze or (-TH - 60),
 		drift = { a = a, r = mid, up = max(0, (top - bottom) / 2 * 0.85), across = T.cityDriftAcross,
@@ -986,6 +991,10 @@ function Game:spawnCloudCity(a, k)
 	end
 	e.dock = e.docks[1]
 	self:armStation(e)
+	if locationId then
+		local location = Locations.get(locationId)
+		e.key, e.name = location.id, location.name
+	end
 	local sx, sy, sa = self:cityTarget(e)
 	body:setPosition(sx, sy)
 	body:setAngle(sa + pi / 2)
@@ -1004,6 +1013,7 @@ function Game:spawnCloudCity(a, k)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
+	if locationId then self:bindLocation(e, locationId) end
 	return e
 end
 

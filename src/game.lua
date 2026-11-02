@@ -3,8 +3,9 @@
 	and asteroids), and lists of projectiles, pickups and effects. Systems
 	are just functions that loop over those lists each step.
 
-	This is the loaded instance layer. Scenery and ships are rebuilt on
+	This is the loaded instance layer. Scenery and unmanaged ships are rebuilt on
 	arrival; selected world objects are restored from src/persistence.lua.
+	Station traders use persistent records and temporary bodies (src/alife.lua).
 	The universe in src/world.lua keeps those records alongside station
 	storage, hangars, home, travel and save state.
 ]]
@@ -19,10 +20,12 @@ local AI = require("src.ai")
 local Camera = require("src.camera")
 local events = require("src.events")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 local Hold = require("src.inventory.hold")
 local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
+local ALife = require("src.alife")
 
 local Game = {}
 Game.__index = Game
@@ -36,6 +39,7 @@ function Game.new(opts)
 	self.world = love.physics.newWorld(0, 0, true)
 	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 
+	self.preview = opts.preview
 	self.idCounter = 0
 	self.entities = {}
 	self.projectiles = {}
@@ -60,11 +64,13 @@ end
 
 -- Keep the field's bodies for the moon-road view and an immediate return.
 function Game:retainField()
+	self:captureALife(true)
 	local scene = setmetatable({}, Game)
 	for k, v in pairs(self) do scene[k] = v end
 	scene.camera = Camera.new()
 	for k, v in pairs(self.camera) do scene.camera[k] = v end
 	scene.trip, scene.arrivalPreview, scene.contacts = nil, nil, {}
+	scene.alifeOnline, scene.alifeActiveArea, scene.preview = {}, nil, true
 	scene.autosaveOff = true
 	scene:remove(self.player)
 	scene.player = nil
@@ -79,6 +85,8 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	self:captureALife(true)
+	self.alifeNext, self.alifeRemoteNext = nil, nil
 	if not opts.skipCapture then self:captureArea() end
 	-- Dispose unused approach worlds once; a turnaround preview may also be
 	-- the retained departure scene. The adopted world must stay alive.
@@ -130,7 +138,10 @@ function Game:loadField(id, opts)
 		self.restoringArea = nil
 		self:spawnFieldEnemies()
 	end
+	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
+	ALife.seed(self)
+	if not opts.deferALife then self:updateALife(true) end
 	-- the new level's name replaces any still showing (the game builds
 	-- Earth before loading the save, which flashed EARTH wherever you were)
 	for i = #self.toasts, 1, -1 do
@@ -708,7 +719,8 @@ function Game:updateAtmosphere(dt)
 	end
 end
 
--- Hitting the planet itself: ships crash, wrecks burn up, and rocks
+-- Rocky surfaces use normal impulse-based ship damage; other planets remain lethal.
+-- Hitting the planet itself: wrecks burn up, and rocks
 -- shatter and are replaced by a new one falling in from the edge of the
 -- map onto an orbit.
 function Game:planetImpacts()
@@ -726,7 +738,7 @@ function Game:planetImpacts()
 	end
 	for o in pairs(hit) do
 		local x, y = o.body:getPosition()
-		if o.kind == "ship" and not o.dockState then
+		if o.kind == "ship" and not o.dockState and not w.planet.rock then
 			self:damage(o, 1e9, nil, "crash")
 			if o == self.player then self:toast("CRASHED", 2) end
 		elseif o.kind == "asteroid" then
@@ -769,7 +781,7 @@ end
 -- smooth circle. Indestructible, and kinematic so it turns without being
 -- pushed around, unless simulated: then it's a very heavy dynamic body that
 -- gravity and collisions act on like anything else.
-function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
+function Game:spawnWheelStation(x, y, R, tube, spin, simulated, locationId)
 	-- the wheel's layout as parts (src/stations.lua); a station { } with
 	-- the same id in data or mods replaces it
 	local id = Stations.ringId(R, tube)
@@ -777,24 +789,24 @@ function Game:spawnWheelStation(x, y, R, tube, spin, simulated)
 		local _, err = data.defineStation(Stations.ring(R, tube))
 		if err then error(err, 0) end
 	end
-	return self:spawnStation(id, x, y, spin, simulated)
+	return self:spawnStation(id, x, y, spin, simulated, locationId)
 end
 
 -- A station from its definition (data.stations): every colliding part
 -- is solid, and the part tagged dock is the docking module.
-function Game:spawnStation(id, x, y, spin, simulated)
+function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(spin or 0.04)
-	-- key: which station this is, for the universe (storage, hangar,
-	-- respawn); the same field always builds its stations in the same order
+	-- Authored stations receive an explicit location ID below. Runtime
+	-- editor/debug stations have temporary keys and are not catalogue entries.
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
 		def = def,
-		key = ("%s/%d"):format(self.fieldId or "?", n),
+		key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
 	-- The dock (see Game:updateDocking): x1..x2 its extent out from the
 	-- centre along +x, hw its half-width. Ships that fly into the capture
@@ -833,6 +845,7 @@ function Game:spawnStation(id, x, y, spin, simulated)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
+	if locationId then self:bindLocation(e, locationId) end
 	return e
 end
 
@@ -1203,6 +1216,7 @@ function Game:undockShip(e)
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
+	if e.alifeId then self:traderUndocked(e, st) end
 	events.emit("undock", e, st)
 end
 
@@ -1246,11 +1260,12 @@ end
 
 -- A navigation buoy: a marker that nothing collides with (it has no
 -- fixtures), usually set on a track with setOrbit.
-function Game:spawnBuoy(x, y)
+function Game:spawnBuoy(x, y, locationId)
 	local body = love.physics.newBody(self.world, x, y, "kinematic")
 	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
 	body:setUserData(e)
 	table.insert(self.entities, e)
+	if locationId then self:bindLocation(e, locationId) end
 	return e
 end
 
@@ -1267,8 +1282,18 @@ function Game:updateOrbits(dt)
 	for _, e in ipairs(self.entities) do
 		local o = e.orbit
 		if o and not e.removed then
-			o.angle = o.angle + o.rate * dt
-			local tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
+			local tx, ty
+			if e.locationId then
+				tx, ty, o.angle = Locations.position(e.locationId, self.universe.clock)
+				if e.kind == "station" then
+					local want = Locations.heading(e.locationId, self.universe.clock)
+					local diff = (want - e.body:getAngle() + pi) % (2 * pi) - pi
+					e.body:setAngularVelocity(diff / dt)
+				end
+			else
+				o.angle = o.angle + o.rate * dt
+				tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
+			end
 			local x, y = e.body:getPosition()
 			-- velocity that lands it exactly on the track this step
 			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
@@ -1528,7 +1553,7 @@ function Game:setPlayerIntent(intent)
 end
 
 function Game:step(dt)
-	if self.flight then self:updateFlight(dt) return end
+	if self.flight then self:updateFlight(dt); self:updateALife(); return end
 	self.time = self.time + dt
 	if self.universe then self.universe.clock = self.universe.clock + dt end
 
@@ -1543,7 +1568,7 @@ function Game:step(dt)
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
 			else
-				if e.cruise then self:cruise(e) elseif e.def and not e.piloted then AI.think(self, e, dt) end
+				if e.cruise then self:cruise(e, dt) elseif e.def and not e.piloted then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
 				Weapons.update(self, e, dt)
 			end
@@ -1552,6 +1577,7 @@ function Game:step(dt)
 
 	self:updateStationGuns(dt)
 	self:updateSleepers()
+	self:updateALife()
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:applySurfacePull()
@@ -1596,8 +1622,8 @@ function Game:applyBoundary()
 		-- gently: past the edge your outward speed bleeds away (harder the
 		-- further out) and you drift slowly back in, rather than being
 		-- sprung back. Heading out a way to a moon, it lets you go.
-		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch
-			and not (e.isPlayer and self:onMoonRoad(x, y)) then
+		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch and not e.alifeEgress
+			and not ((e.isPlayer or e.alifeId and e.route and e.route[e.routeIndex].kind == "moon_gate") and self:onMoonRoad(x, y)) then
 			local nx, ny = x / d, y / d
 			local vx, vy = b:getLinearVelocity()
 			local out = vx * nx + vy * ny
@@ -1938,6 +1964,7 @@ function Game:reap()
 				end
 			end
 		elseif e.dead then
+			if e.alifeId then ALife.capture(self, e, false) end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
@@ -2424,6 +2451,8 @@ function Game:frame(dt, aimX, aimY)
 	end
 end
 
+ALife.install(Game)
+Locations.install(Game)
 Persistence.install(Game)
 require("src.world")(Game)
 require("src.transit")(Game)

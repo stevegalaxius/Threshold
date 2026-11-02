@@ -10,6 +10,7 @@ local T = require("src.tuning")
 local Ship = require("src.ship")
 local Render = require("src.render")
 local Fields = require("src.fields")
+local Locations = require("src.locations")
 
 local Debug = { visible = false }
 
@@ -249,6 +250,40 @@ local function section(id, label, fn, ...)
 	end
 end
 
+local function graphSection(game)
+ local G = require("src.travelgraph")
+ local visible = game.travelGraphView and game.travelGraphView.area == game.fieldId
+ if Slab.CheckBox(visible or false, "Show simulation connections and NPCs") then
+  game.travelGraphView = not visible and G.build(game.fieldId) or nil
+ end
+ local graph=G.build(game.fieldId)
+ Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
+ if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
+ for id,r in pairs(game.universe.npcs or {}) do
+  if r.area==game.fieldId then
+   local e=game.alifeOnline and game.alifeOnline[id]
+   Slab.Text(id.."  "..(e and "online" or r.state))
+   Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
+  end
+ end
+ for id,r in pairs(game.universe.npcs or {}) do
+  if r.state=="transit" and (r.transit.from==game.fieldId or r.transit.to==game.fieldId or require("src.alife").laneDirection(game,r)) then
+   Slab.Text(id.." transit: "..Fields[r.transit.to].name)
+   Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
+  end
+ end
+ Slab.Text("Persistent traders; a subset takes eligible moon routes.")
+end
+
+local function locationSection(game)
+	Slab.Text(("Universe clock: %.1f"):format(game.universe.clock))
+	for _, place in ipairs(Locations.list(game.fieldId)) do
+		local x, y = Locations.position(place.id, game.universe.clock)
+		Slab.Text(place.id)
+		Slab.Text(("  %s: %.0f, %.0f"):format(place.kind, x, y))
+	end
+end
+
 function Debug.update(dt, game)
 	Slab.Update(dt)
 	if not Debug.visible then return end
@@ -265,6 +300,8 @@ function Debug.update(dt, game)
 	section("dbg_tuning", "Flight tuning", tuningSection)
 	section("dbg_flight", "Flight and catch", flightSection, game)
 	section("dbg_lane", "Transit lane (highway)", laneSection, game)
+	section("dbg_graph", "A-Life records and connections", graphSection, game)
+	section("dbg_locations", "Location IDs and positions", locationSection, game)
 	section("dbg_spawn", "Spawn and arena", spawnSection, game)
 	Slab.EndWindow()
 end

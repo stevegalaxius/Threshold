@@ -252,13 +252,16 @@ function api.container(def)
 	def.fill = def.fill or {}
 end
 
--- A station's market: what it sells (data/markets.lua). Keyed by station
--- name; a later one for the same station replaces it.
+-- Station catalogues are keyed by explicit location IDs, with display-name
+-- aliases for temporary debug stations.
 function api.market(def)
 	if type(def) ~= "table" then fail("market expects a table, like market { station = ..., sells = { ... } }") end
 	if type(def.station) ~= "string" then fail("market is missing 'station'") end
+	if def.location ~= nil and type(def.location) ~= "string" then fail("market location must be an ID string") end
 	if type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells'"):format(def.station)) end
 	def.source = currentFile
+	data.markets[def.location or def.station] = def
+	-- Keep the label alias for runtime/debug stations without authored IDs.
 	data.markets[def.station] = def
 end
 
