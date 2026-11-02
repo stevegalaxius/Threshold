@@ -116,6 +116,7 @@ function Game:loadField(id, opts)
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
+	if self.travelGraphView then self.travelGraphView = require("src.travelgraph").build(id) end
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
 	self.well, self.lane, self.driverMenu = nil, nil, nil
