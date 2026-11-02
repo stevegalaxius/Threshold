@@ -480,3 +480,12 @@ ship does not fit, it uses the nearest suitable free berth or the station
 interior. Saves retain the player's berth, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
 save/load, and size-based fallback.
+
+Dense planetary rings keep their full debris population. Sleeping rocks are
+indexed by orbital radius, so waking and drawing only evaluate relevant bands;
+sleep/wake changes update the index without copying the full sleeper list.
+Planet rendering also skips off-screen circular guides, ring bands and gas layers.
+`love . --sleepertest` compares visibility and waking against brute-force checks
+on Saturn. `love . --planetperf` reports station/ring timings, active physics
+bodies, and sleeping-rock position evaluations for Earth, Jupiter and Saturn.
+Timings depend on the GPU and driver.

@@ -11,6 +11,7 @@ local EngineVisual = require("src.engine_visual")
 local T = require("src.tuning")
 local HullShape = require("src.hullshape")
 local Fields = require("src.fields")
+local SleeperIndex = require("src.sleeper_index")
 
 local Render = {}
 
@@ -716,16 +717,25 @@ local function drawPlanet(game, e)
 	local R, c = e.radius, e.hue
 	local w = game.well
 	local dir = (w and w.swirl or 0) >= 0 and 1 or -1
+	-- Circular scenery often sits entirely off screen on large maps. Avoid
+	-- submitting thousands of off-screen segments and mesh vertices.
+	local sw, sh = lg.getDimensions()
+	local hw, hh = sw / 2 / game.camera.zoom + 300, sh / 2 / game.camera.zoom + 300
+	local dx, dy = math.abs(x-game.camera.x), math.abs(y-game.camera.y)
+	local nx, ny = max(0, dx-hw), max(0, dy-hh)
+	local near, far = sqrt(nx*nx+ny*ny), sqrt((dx+hw)^2+(dy+hh)^2)
 	-- dashed rings that drift the way the well turns
 	lg.setLineWidth(outline(2))
 	for k = 1, 4 do
 		local rr = R + k * 1500
-		local n = floor(pi * rr / 900) * 2
-		local turn = dir * game.time * 150 / rr
-		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
-		for i = 0, n - 1, 2 do
-			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
-			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
+		if rr >= near and rr <= far then
+			local n = floor(pi * rr / 900) * 2
+			local turn = dir * game.time * 150 / rr
+			lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
+			for i = 0, n - 1, 2 do
+				local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
+				lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
+			end
 		end
 	end
 	if e.rock then
@@ -757,16 +767,17 @@ local function drawPlanet(game, e)
 		-- its rings: a faint band for each, brighter where it's denser
 		for _, band in ipairs(e.rings or {}) do
 			lg.setColor(0.85, 0.9, 0.95, min(0.12, 0.03 + band[3] * 0.08))
-			lg.draw(annulus(band[1], band[2]), x, y)
+			if band[2] >= near and band[1] <= far then lg.draw(annulus(band[1], band[2]), x, y) end
 		end
 		-- a gas giant: see-through bands thickening toward the middle
 		for k = 1, 12 do
 			lg.setColor(c[1], c[2], c[3], 0.045)
-			lg.draw(disc(floor(R * (1 - (k - 1) / 13))), x, y)
+			local radius = floor(R * (1 - (k - 1) / 13))
+			if radius >= near then lg.draw(disc(radius), x, y) end
 		end
 		lg.setColor(c[1], c[2], c[3], 0.5)
 		lg.setLineWidth(outline(3))
-		lg.circle("line", x, y, R, PLANET_SEGMENTS)
+		if R >= near and R <= far then lg.circle("line", x, y, R, PLANET_SEGMENTS) end
 		return
 	end
 	-- atmosphere haze
@@ -1168,9 +1179,11 @@ function Render.world(game, overlay, boundaryAngle)
 			end
 		end
 	end
-	for _, e in ipairs(game.sleepers or {}) do
-		local x, y = game:sleeperPos(e)
-		debris(e, x, y)
+	if game.well and game.sleepers then
+		for _, e in ipairs(SleeperIndex.candidates(game, cx, cy, sqrt(hw*hw + hh*hh))) do
+			local x, y = game:sleeperPos(e)
+			debris(e, x, y)
+		end
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" and not e.giant and e.line then
