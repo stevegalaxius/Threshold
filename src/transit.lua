@@ -473,7 +473,7 @@ function Game:launchTrip(to, moon)
 		local camX, camY = self.camera.x, self.camera.y
 		local origin = self:retainField()
 		self.trip.originScene = origin
-		self:loadField("lane", { player = record, quiet = true, retain = true })
+		self:loadField("lane", { player = record, quiet = true, retain = true, deferALife = true })
 		local mx, my = self:fromLane(-half, -T.laneWidth / 4)
 		local px, py = mx - cos(bearing) * T.rampLead, my - sin(bearing) * T.rampLead
 		self.trip.origin = { x = px - ox, y = py - oy }
@@ -485,6 +485,7 @@ function Game:launchTrip(to, moon)
 		self.camera.x, self.camera.y = camX + px - ox, camY + py - oy
 		self.camera.backgroundX = (origin.camera.backgroundX or 0) - self.trip.origin.x
 		self.camera.backgroundY = (origin.camera.backgroundY or 0) - self.trip.origin.y
+		self:updateALife(true)
 		events.emit("travel", from, to)
 		return
 	end
@@ -825,7 +826,7 @@ function Game:updateLane(dt)
 				local k = (n > 0 and 1 or -1) * over * m * 4
 				b:applyForce(sin(phi) * k, -cos(phi) * k)
 			end
-			if s < -lane.half and e ~= p then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
+			if s < -lane.half and e ~= p and not (self.trip and self.trip.moon) then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
 		end
 	end
 	if not p or p.dead then return end

@@ -574,6 +574,35 @@ local function drawLane(game)
 	end
 end
 
+-- Mark the actual simulation handoff planes, including open-space moon roads.
+local function drawRegionBoundaries(game, px)
+ if not game.lane or not game.trip then return end
+ local extent=T.laneWidth+T.laneRamp
+ lg.push("all")
+ lg.setLineWidth(2*px)
+ for _,exit in ipairs({{game.lane.half-400,game.trip.to},{-game.lane.half-200,game.trip.from}}) do
+  local s,id=exit[1],exit[2]
+  lg.setColor(.6,.95,1,.8)
+  for n=-extent,extent,90*px do
+   local x,y=game:fromLane(s,n)
+   local xx,yy=game:fromLane(s,math.min(extent,n+45*px))
+   lg.line(x,y,xx,yy)
+  end
+  for _,n in ipairs({-extent,extent}) do
+   local x,y=game:fromLane(s,n)
+   lg.circle("fill",x,y,5*px)
+  end
+  local _,viewN=game:toLane(game.camera.x,game.camera.y)
+  local x,y=game:fromLane(s,max(-extent,min(extent,viewN)))
+  lg.push(); lg.translate(x,y); lg.scale(px)
+  lg.setColor(.015,.035,.055,.85); lg.rectangle("fill",-130,-36,260,27)
+  lg.setColor(.65,1,1,1)
+  lg.printf(Fields[id].name:upper().." / LOCAL SPACE",-125,-31,250,"center")
+  lg.pop()
+ end
+ lg.pop()
+end
+
 -- Catch rings: a lit hoop for each braking ring, the next one brightest,
 -- passed ones dimmed, joined by a faint guide line in to the driver. The
 -- player's predicted path runs from the nose while inbound.
@@ -1210,6 +1239,7 @@ function Render.world(game, overlay)
 	drawBeams(game)
 	drawEffects(game)
 	game:drawComputers(screenPx)
+	drawRegionBoundaries(game, screenPx)
 	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
 end

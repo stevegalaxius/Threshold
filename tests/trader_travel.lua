@@ -14,6 +14,7 @@ return function(game)
   if r.onRoundTrip then
    travellers=travellers+1
    for i,to in ipairs(r.route) do
+    check(require('src.locations').get(to).kind~='driver','moon itinerary detoured through a mass driver')
     local from=r.route[(i-2)%#r.route+1]
     local a,b=require('src.locations').get(from),require('src.locations').get(to)
     if a.area~=b.area then check(G.transit(from,to)~=nil,'invented inter-region connection')
@@ -36,6 +37,34 @@ return function(game)
   end
   check(count(game.universe.npcs)==expected,'region load replenished its population')
  end
+ -- Saved itineraries from the driver-detour build are repaired in place.
+ local original
+ for _,record in pairs(game.universe.npcs) do
+  if record.home=='earth' and record.onRoundTrip then original=record; break end
+ end
+ local probe=require('src.persistence').copy(original)
+ local oldRoute={}
+ for i,stop in ipairs(probe.route) do
+  oldRoute[#oldRoute+1]=stop
+  if i==1 or i==#probe.route then oldRoute[#oldRoute+1]=Fields.earth.driverId end
+ end
+ probe.route,probe.tripRoute=oldRoute,require('src.persistence').copy(oldRoute)
+ probe.state,probe.area,probe.index='travel','earth',2
+ probe.depart,probe.arrive=game.universe.clock-5,game.universe.clock+10
+ probe.offset,probe.pose=nil,nil
+ local px0,py0=A.point(probe,game.universe.clock)
+ game.universe.npcs['repair-probe']=probe
+ A.repairMoonRoutes(game)
+ local px1,py1=A.point(probe,game.universe.clock)
+ check(near(px0,px1) and near(py0,py1),'saved route repair teleported the trader')
+ for _,stop in ipairs(probe.route) do check(require('src.locations').get(stop).kind~='driver','saved route still contains driver detour') end
+ probe.state,probe.area,probe.index='transit',nil,3
+ probe.transit={from='earth',to='luna',moon='luna',length=Fields.moons.luna.gap}
+ probe.depart,probe.arrive=game.universe.clock-3,game.universe.clock+7
+ A.repairMoonRoutes(game)
+ check(probe.transit.speed==probe.speed,'legacy transit retained fixed highway speed')
+ check(near((game.universe.clock-probe.depart)/(probe.arrive-probe.depart),.3),'legacy speed repair changed journey progress')
+ game.universe.npcs['repair-probe']=nil
  -- Follow one actual Earth trader all the way to Luna and home.
  local id,r
  for candidate,record in pairs(game.universe.npcs) do
@@ -96,10 +125,32 @@ return function(game)
  local gate=e.route[e.routeIndex]
  check(gate.kind=='moon_gate','return itinerary did not lead to existing departure gate')
  e.body:setPosition(gate.body:getPosition())
+ local gx,gy=e.body:getPosition(); local radius=math.sqrt(gx*gx+gy*gy)
+ local dx,dy=gx/radius,gy/radius
+ e.body:setLinearVelocity(dx*600,dy*600)
+ game.player.body:setPosition(gx-dx*600,gy-dy*600)
+ game.player.body:setLinearVelocity(dx*600,dy*600)
  require('src.ai').think(game,e,1/120)
  check(e.alifeDepart,'existing flight AI did not recognize reaching the gate')
  game:updateALife(true)
- check(not game.alifeOnline[id] and r.state=='transit' and r.transit.to=='earth','physical departure did not start return journey')
+ check(game.alifeOnline[id]==e and e.alifeEgress and r.state=='transit' and r.transit.to=='earth','departure must stay visible while starting the same transit record')
+ local departingX,departingY=e.body:getPosition()
+ game:loadState(assert(Save.decode(Save.encode(game:saveState()))))
+ r=game.universe.npcs[id]; e=assert(game.alifeOnline[id],'visible departure lost on reload')
+ check(e.alifeEgress and near(e.body:getX(),departingX) and near(e.body:getY(),departingY),'save/load moved a departing ship')
+ -- Follow straight after a visible departure: preserve the actual gap and speed,
+ -- including the player's ramp before the highway mouth.
+ local nx,ny=e.body:getPosition(); local px,py=game.player.body:getPosition()
+ local gapX,gapY=nx-px,ny-py
+ game:launchTrip('earth',{bearing=math.atan2(py,px),length=Fields.moons.luna.gap})
+ local followed=assert(game.alifeOnline[id],'followed trader did not enter the same highway')
+ local fx,fy=followed.body:getPosition(); px,py=game.player.body:getPosition()
+ check(near(fx-px,gapX) and near(fy-py,gapY),'highway transition jumped the followed trader ahead')
+ local vx,vy=followed.body:getLinearVelocity()
+ check(near(math.sqrt(vx*vx+vy*vy),600),'highway transition injected a new cruise speed')
+ for _=1,30 do game:step(1/120) end
+ vx,vy=followed.body:getLinearVelocity()
+ check(math.sqrt(vx*vx+vy*vy)<800,'moon highway mouth accelerated traffic artificially')
  local save=assert(Save.decode(Save.encode(game:saveState())))
  game:loadState(save); r=game.universe.npcs[id]
  check(r.state=='transit' and r.transit.to=='earth','return transit lost on save/load')

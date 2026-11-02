@@ -28,7 +28,8 @@ local function start(r,clock,index)
  if from.area~=to.area then
   local lane=assert(Graph.transit(leg.from,leg.to),'invalid inter-region journey')
   r.state='transit'; r.area=nil; r.transit=lane
-  r.arrive=clock+lane.length/T.laneFlow
+  lane.speed=r.speed
+  r.arrive=clock+lane.length/lane.speed
  else
   r.state='travel'; r.area=to.area; r.transit=nil
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
@@ -124,6 +125,7 @@ function A.seed(game)
    r.tripRoute=roundTrip(r.home,r.tripDestination,u.clock)
   end
  end
+ if not game.preview then A.repairMoonRoutes(game) end
 end
 
 function A.advance(r,clock)
@@ -158,6 +160,54 @@ local function journeyPoint(r,p,clock)
  return x,y
 end
 
+-- Repair already-saved moon itineraries too. Rebase the same ship's current
+-- leg at its existing position rather than retaining a stale driver detour.
+function A.repairMoonRoutes(game)
+ local function strip(route,index)
+  local result,map={},{}
+  local changed=false
+  for i,id in ipairs(route) do
+   if L.get(id).kind~='driver' then result[#result+1]=id; map[i]=#result
+   else changed=true end
+  end
+  if not changed then return route,index,false end
+  local nextIndex=index or 1
+  while not map[nextIndex] do nextIndex=nextIndex%#route+1 end
+  return result,map[nextIndex],true
+ end
+ for _,r in pairs(game.universe.npcs) do
+  if r.state=='transit' and not r.transit.speed then
+   local clock=game.universe.clock
+   local p=progress(r,clock)
+   r.transit.speed=r.speed
+   local duration=r.transit.length/r.speed
+   r.depart=clock-p*duration; r.arrive=r.depart+duration
+  end
+  if r.tripRoute then
+   r.tripRoute=strip(r.tripRoute)
+   if r.onRoundTrip then
+    local route,index,changed=strip(r.route,r.index)
+    if changed then
+     local clock=game.universe.clock
+     local x,y
+     if r.state=='travel' then
+      if r.pose and math.abs(r.pose.clock-clock)<.001 then x,y=r.pose.x,r.pose.y
+      else x,y=A.point(r,clock) end
+     end
+     r.route,r.index=route,index
+     if x then
+      local duration=math.max(.1,Graph.length(graph(r.area),edge(r),clock)/r.speed)
+      local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
+      r.depart=clock-p*duration; r.arrive=r.depart+duration
+      local bx,by=journeyPoint(r,p,clock)
+      r.offset={x=x-bx,y=y-by,progress=p}
+     end
+    end
+   end
+  end
+ end
+end
+
 function A.point(r,clock)
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
@@ -182,14 +232,32 @@ function A.laneDirection(game,r)
  if t.from==trip.from and t.to==trip.to then return 1 end
  if t.from==trip.to and t.to==trip.from then return -1 end
 end
+function A.egressSample(game,r,clock)
+ local entry=r.state=='transit' and r.transit.departure
+ if not entry or game.lane or game.flight or entry.area~=game.fieldId then return end
+ local elapsed=math.max(0,clock-entry.clock)
+ return {x=entry.x+entry.vx*elapsed,y=entry.y+entry.vy*elapsed,
+  vx=entry.vx,vy=entry.vy,heading=math.atan2(entry.vy,entry.vx)}
+end
 function A.laneSample(game,r,clock)
  local dir=A.laneDirection(game,r)
  if not dir then return end
- local along=(-game.lane.half+progress(r,clock)*game.trip.length)*dir
+ local speed=r.transit.speed or r.speed
+ local fraction=math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart))
+ local along=(-game.lane.half+fraction*game.trip.length)*dir
  local n=(r.laneOffset or -math.min(T.laneWidth*.65,math.max(T.laneMedian+200,500+math.abs(r.spread or 0))))*dir
+ local entry=r.transit.departure
+ local anchor=entry and dir==1 and game.trip.origin and game.trip.originScene
+  and game.trip.originScene.fieldId==entry.area
+ if anchor then
+  local s0,n0=game:toLane(entry.x+game.trip.origin.x,entry.y+game.trip.origin.y)
+  along=s0+(clock-entry.clock)*speed
+  n=n0
+ end
  local x,y=game:fromLane(along,n)
  local a=game:laneHeading(along)+(dir==-1 and math.pi or 0)
- return {x=x,y=y,vx=math.cos(a)*T.laneFlow,vy=math.sin(a)*T.laneFlow,heading=a,n=n,dir=dir}
+ return {x=x,y=y,vx=anchor and entry.vx or math.cos(a)*speed,
+  vy=anchor and entry.vy or math.sin(a)*speed,heading=a,n=n,dir=dir,speed=speed,along=along,anchor=anchor}
 end
 
 local function shipRecord(e)
@@ -205,10 +273,24 @@ function A.capture(game,e,remote)
  local clock=game.universe.clock
  r.savedOnline=nil
  r.ship=shipRecord(e); r.power=e.power
+ if e.alifeEgress then
+  local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
+  local previous=r.transit.departure
+  local distance=previous and (previous.distance or 0)+math.sqrt((x-previous.x)^2+(y-previous.y)^2) or 0
+  r.transit.speed=math.max(50,math.sqrt(vx*vx+vy*vy))
+  r.depart=clock-distance/r.transit.speed
+  r.arrive=r.depart+r.transit.length/r.transit.speed
+  r.transit.departure={x=x,y=y,vx=vx,vy=vy,clock=clock,area=game.fieldId,distance=distance}
+  r.pose,r.offset,r.docking,r.savedOnline=nil,nil,nil,nil
+  return
+ end
  if e.alifeLane then
   local along,n=game:toLane(e.body:getPosition())
-  local p=math.max(0,math.min(.999,((along*e.cruiseDir)+game.lane.half)/game.trip.length))
-  local duration=game.trip.length/T.laneFlow
+  local p=math.min(.999,((along*e.cruiseDir)+game.lane.half)/game.trip.length)
+  local vx,vy=e.body:getLinearVelocity()
+  r.transit.speed=math.max(50,math.sqrt(vx*vx+vy*vy))
+  r.transit.departure=nil
+  local duration=game.trip.length/r.transit.speed
   r.depart=clock-p*duration; r.arrive=r.depart+duration
   r.laneOffset=n*e.cruiseDir
   r.pose,r.offset,r.docking,r.savedOnline=nil,nil,nil,nil
@@ -275,7 +357,8 @@ end
 function A.wake(game,r)
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
- local p=lane or A.sample(r,game.universe.clock)
+ local egress=A.egressSample(game,r,game.universe.clock)
+ local p=egress or lane or A.sample(r,game.universe.clock)
  local exact=r.pose and math.abs(r.pose.clock-game.universe.clock)<.001 and r.pose
  if exact and lane and exact.lane~=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot) then exact=nil end
  local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,cargo=s.cargo,
@@ -284,8 +367,17 @@ function A.wake(game,r)
   enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
- if lane then
+ if egress then
+  e.alifeEgress=true; e.intent=Ship.emptyIntent()
+ elseif lane then
   e.alifeLane=true; e.cruise=true; e.cruiseDir=lane.dir; e.cruiseOffset=lane.n
+  e.cruiseSpeed=lane.speed/T.laneFlow
+  if lane.anchor then
+   r.depart=game.universe.clock-(lane.along*lane.dir+game.lane.half)/lane.speed
+   r.arrive=r.depart+game.trip.length/lane.speed
+   r.laneOffset=lane.n*lane.dir
+   r.transit.departure=nil
+  end
  else bindRoute(game,e,r) end
  e.power=r.power or e.power
  e.body:setLinearVelocity(exact and exact.vx or p.vx,exact and exact.vy or p.vy)
@@ -381,10 +473,15 @@ function A.install(Game)
     start(r,clock,r.index%#r.route+1)
     self:remove(e); self.alifeOnline[id]=nil
    elseif e.alifeDepart then
+    local vx,vy=e.body:getLinearVelocity()
     A.capture(self,e,true)
     local r=records[id]
     start(r,clock,r.index%#r.route+1)
-    self:remove(e); self.alifeOnline[id]=nil
+    r.transit.speed=math.max(50,math.sqrt(vx*vx+vy*vy))
+    r.arrive=clock+r.transit.length/r.transit.speed
+    e.alifeDepart=nil; e.alifeEgress=true; e.route=nil
+    e.intent=Ship.emptyIntent()
+    A.capture(self,e,true)
    elseif not px or (x-px)^2+(y-py)^2>T.alifeFar^2 then
     A.capture(self,e,false)
     if not e.removed then self:remove(e) end
@@ -396,10 +493,11 @@ function A.install(Game)
     local localArea=r.area==self.fieldId and not self.lane and not self.flight
     if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock) end
     local lane=A.laneSample(self,r,clock)
+    local egress=A.egressSample(self,r,clock)
     localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if px and (lane or localArea and r.state~='dead' and r.state~='escaped' and r.state~='transit') then
+    if px and (egress or lane or localArea and r.state~='dead' and r.state~='escaped' and r.state~='transit') then
      local x,y
-     if lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
+     if egress then x,y=egress.x,egress.y elseif lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
      if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
     end

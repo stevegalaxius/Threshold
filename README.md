@@ -224,10 +224,13 @@ population. Cargo, loadout, armor, paint, journey, and docking waits survive
 area changes and save/load. Dead traders stay dead and use normal wreck creation.
 Mars retains its nine traders; other populated regions retain their three.
 
+Highway exits have a dashed boundary and a destination label at the actual
+region handoff line, including moon roads.
+
 One in three traders takes a repeating planet/moon round trip where both ends
 have stations (10 itineraries in the current world). Others keep their existing
-station/buoy loops. Travellers use declared local connections to existing moon
-gates, cross the existing highway, dock, wait, and return home. Phobos/Deimos have
+station/buoy loops. Travellers fly directly between their station and moon gate,
+bypassing mass drivers, then cross the highway, dock, wait, and return home. Phobos/Deimos have
 no docking stations yet, and Neptune has no port, so these are not docking-trip
 destinations. No station structures or artificial navigation points are added.
 
@@ -241,7 +244,10 @@ nodes or edges.
 - Remote region/highway: arrival and activity timers, without map positions.
 - Same highway as the player: matching persistent travellers can become physical
   ships, including oncoming traffic. These are the actual NPC records, not
-  independently generated freighters. Damage/cargo carry into their destination.
+  independently generated freighters. Departing ships remain visible in local
+  space. Following them into a moon highway preserves relative position and
+  departure velocity rather than assigning a fixed highway speed. Damage/cargo
+  carry into their destination.
 
 Each trader has a persistent cross-track offset up to 1,500 world units that
 fades toward local endpoints. Offline station stops last 60 seconds; online
@@ -256,7 +262,8 @@ travellers in connecting highways. The map shows contacts sharing your highway.
 
 `love . --tradertest` checks populations across every region and an Earth–Luna–Earth
 round trip, including encountering the same trader in the matching highway,
-route/direction filtering, damage/cargo retention, docking, return, and save/load.
+route/direction filtering, damage/cargo retention, docking, return, save/load,
+repairing saved driver detours, and exact spacing/speed when following a departure.
 `love . --alifetest` checks local body/record transitions, hysteresis, spread,
 docking waits, death salvage, scene adoption, and duplicate prevention.
 `love . --graphtest` checks declared topology, projection, routing, serialization,

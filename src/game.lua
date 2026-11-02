@@ -141,7 +141,7 @@ function Game:loadField(id, opts)
 	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
 	ALife.seed(self)
-	self:updateALife(true)
+	if not opts.deferALife then self:updateALife(true) end
 	-- the new level's name replaces any still showing (the game builds
 	-- Earth before loading the save, which flashed EARTH wherever you were)
 	for i = #self.toasts, 1, -1 do
@@ -1621,7 +1621,7 @@ function Game:applyBoundary()
 		-- gently: past the edge your outward speed bleeds away (harder the
 		-- further out) and you drift slowly back in, rather than being
 		-- sprung back. Heading out a way to a moon, it lets you go.
-		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch
+		if d > R and e.kind ~= "asteroid" and not e.fleeing and not e.catching and not e.launch and not e.alifeEgress
 			and not ((e.isPlayer or e.alifeId and e.route and e.route[e.routeIndex].kind == "moon_gate") and self:onMoonRoad(x, y)) then
 			local nx, ny = x / d, y / d
 			local vx, vy = b:getLinearVelocity()
