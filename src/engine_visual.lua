@@ -26,16 +26,22 @@ function Engine.emitters(e)
  end
  return result
 end
-function Engine.draw(e)
+-- Deterministic plume geometry shared by rendering and damage.
+function Engine.geometry(nozzle,burn,boost,time)
+ local effect=nozzle.effect
+ local flicker=effect.flicker or DEFAULT.flicker
+ local jitter=math.sin((time or 0)*53+nozzle.x*.7+nozzle.y*1.3)
+ local length=(effect.length or DEFAULT.length)*(1/3+burn*2/3)*(1+jitter*flicker)
+ if boost then length=length*(effect.afterburnScale or DEFAULT.afterburnScale) end
+ return nozzle.x,nozzle.y,nozzle.width,length
+end
+function Engine.draw(e,time)
  local burn=e.mainBurn or 0
  if burn<=.05 then return end
  local lg=love.graphics
  for _,nozzle in ipairs(Engine.emitters(e)) do
-  local x,y,w=nozzle.x,nozzle.y,nozzle.width
+  local x,y,w,length=Engine.geometry(nozzle,burn,e.afterburn,time)
   local effect=nozzle.effect
-  local flicker=effect.flicker or DEFAULT.flicker
-  local length=(effect.length or DEFAULT.length)*(1/3+burn*2/3)*(1-flicker+love.math.random()*flicker*2)
-  if e.afterburn then length=length*(effect.afterburnScale or DEFAULT.afterburnScale) end
   local glow=effect.glowColor or DEFAULT.glowColor
   local color=effect.color or DEFAULT.color
   local core=effect.coreColor or DEFAULT.coreColor

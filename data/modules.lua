@@ -164,18 +164,19 @@ module {
 -- Exhaust dimensions are in ship-local pixels; colors are RGB in 0..1.
 -- width: nozzle half-width; length: full-throttle plume length.
 -- afterburnScale multiplies length while boosting; flicker is fractional jitter.
+-- damage is exhaust damage per second at full throttle (zero disables it).
 module { id = "flit_engine", name = "Flit Engine", maker = "Halcyon Arms", family = "engine", size = "S",
  mass = 6, powerDraw = 2, thrust = 420, turn = 250, price = 3000,
  exhaust = { width = 3, length = 18, color = {1,.6,.25}, coreColor = {1,.92,.65},
-  glowColor = {1,.35,.08}, afterburnScale = 2.2, flicker = .15 } }
+  glowColor = {1,.35,.08}, afterburnScale = 2.2, flicker = .15, damage = 30 } }
 module { id = "mule_engine", name = "Mule Engine", maker = "Brute Industries", family = "engine", size = "M",
  mass = 16, powerDraw = 4, thrust = 900, turn = 800, price = 9000,
  exhaust = { width = 5, length = 30, color = {1,.55,.18}, coreColor = {1,.9,.6},
-  glowColor = {1,.3,.06}, afterburnScale = 2.2, flicker = .12 } }
+  glowColor = {1,.3,.06}, afterburnScale = 2.2, flicker = .12, damage = 50 } }
 module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate", family = "engine", size = "L",
  mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000,
  exhaust = { width = 8, length = 48, color = {1,.45,.12}, coreColor = {1,.85,.5},
-  glowColor = {1,.22,.04}, afterburnScale = 2.5, flicker = .18 } }
+  glowColor = {1,.22,.04}, afterburnScale = 2.5, flicker = .18, damage = 80 } }
 
 -- Reactors ----------------------------------------------------------------------
 

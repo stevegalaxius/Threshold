@@ -50,7 +50,7 @@ return function(game)
  local idle=draw(true,0,false)
  check(not orange(idle,-55,-25),'idle engine emits exhaust')
  local boost=draw(true,1,true)
- check(orange(boost,-85,-25) and not orange(player,-85,-25),'afterburner did not extend exhaust')
+ check(orange(boost,-75,-25) and not orange(player,-75,-25),'afterburner did not extend exhaust')
  local data=require('src.data')
  local custom=copy(data.modules.flit_engine)
  custom.id='test_blue_engine'

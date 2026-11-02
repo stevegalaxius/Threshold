@@ -817,7 +817,7 @@ local function drawShip(game, e)
 
 	-- Everything below is in the ship's own frame: +x is the nose, +y its right side.
 	local R = hull.radius
-	EngineVisual.draw(e)
+	EngineVisual.draw(e,game.time)
 	-- Maneuvering thrusters: small puffs on the side opposite the push.
 	local function puff(px, py, dx, dy, k)
 		local len = R * 0.45 * k * (0.8 + love.math.random() * 0.4)
