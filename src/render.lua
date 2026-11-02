@@ -499,8 +499,8 @@ end
 -- with lights chasing along it in the direction it fires.
 local function drawDriver(game, e)
 	local x, y = game:driverBreech(e)
-	local p = game.player
-	local busy = p and not p.dead and (p.launch or (game.driverMenu and game.driverMenu.driver == e))
+	local p = e.driverShip or game.player
+	local busy = p and not p.dead and ((p.launch and p.launch.driver==e) or (p.driverTractor and p.driverTractor.driver==e) or (game.driverMenu and game.driverMenu.driver == e))
 	local len, hw = T.driverBarrel, 80
 	local lr = max(5, 3 * screenPx)
 	lg.push()
@@ -641,7 +641,7 @@ end
 -- The lane buff: a crackling outline round any ship inside a transit
 -- lane.
 local function drawLaneBuff(e)
-	local buff = e.laneBuff or e.laneFade
+	local buff = e.driverProtected and 1 or e.laneBuff or e.laneFade
 	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength

@@ -94,13 +94,27 @@ return function(game)
  local taskId=physical.task.id
  require('src.ship').layoutHold(e)
  game:undockShip(e)
+ local tractorSeen,launchSeen,fireSeen=false,false,false
+ local launchRestored=false
  for _=1,36000 do
   local x,y=e.body:getPosition()
   game.player.body:setPosition(x+3000,y);game.player.body:setLinearVelocity(0,0)
   game:step(1/120)
+  tractorSeen=tractorSeen or e.driverTractor~=nil
+  launchSeen=launchSeen or e.launch~=nil
+  fireSeen=fireSeen or e.launch and e.launch.ghost or false
+  if e.launch and e.launch.ghost and not launchRestored then
+   local launchSave=assert(Save.decode(Save.encode(game:saveState())))
+   check(launchSave.npcs[physical.id].driverState.phase=='launch','save omitted active driver animation')
+   game:loadState(launchSave)
+   physical=game.universe.npcs[physical.id];e=assert(game.alifeOnline[physical.id])
+   check(e.launch and e.launch.ghost and e.driverProtected,'save/load lost launch phase or shield')
+   launchRestored=true
+  end
   if e.alifeEgress or e.dead then break end
  end
  check(not e.dead and e.alifeEgress,'powered worker failed to reach mass driver')
+ check(tractorSeen and launchSeen and fireSeen,'NPC skipped tractor, alignment or firing animation')
  check(physical.state=='transit' and physical.transit.kind=='driver','driver did not start interplanetary transit')
  check(physical.task.id==taskId and e.cargo.scrap==5,'driver launch lost task cargo')
  local snapshot=assert(Save.decode(Save.encode(game:saveState())))

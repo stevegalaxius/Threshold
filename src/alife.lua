@@ -37,6 +37,7 @@ local function start(r,clock,index)
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
  end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
+ r.driverState=nil
 end
 
 local function roundTrip(home,to,clock,homeStation)
@@ -323,6 +324,10 @@ function A.capture(game,e,remote)
  if e.removed then r.state='escaped'; return end
  local clock=game.universe.clock
  r.savedOnline=nil
+ local controlled=e.launch or e.driverTractor
+ r.driverState=controlled and {phase=e.launch and 'launch' or 'tractor',
+  driver=controlled.driver.locationId,to=controlled.to,t=controlled.t,
+  ghost=controlled.ghost,angle=controlled.driver.angle} or nil
  r.ship=shipRecord(e); r.power=e.power
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
@@ -401,7 +406,7 @@ local function bindRoute(game,e,r)
   end
   if stop and place.kind=='driver' then
    local driver=stop
-   stop={kind='driver',locationId=id,removed=false,body={getPosition=function() return game:driverBreech(driver) end}}
+   stop={kind='driver',locationId=id,driver=driver,removed=false,body={getPosition=function() return game:driverBreech(driver) end}}
   end
   if not stop then
    stop={kind=place.kind,locationId=id,removed=false}
@@ -413,6 +418,9 @@ local function bindRoute(game,e,r)
      return x*factor,y*factor
     end}
    end
+  end
+  if place.kind=="driver" then
+   for i,node in ipairs(r.route) do if node==id and r.route[i+1] then stop.destination=L.get(r.route[i+1]).area;break end end
   end
   e.route[#e.route+1]=stop
  end
@@ -432,6 +440,8 @@ function A.wake(game,r)
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
  if egress then
+  e.driverProtected=r.transit.kind=='driver' or nil
+  e.coasting=e.driverProtected or nil
   e.alifeEgress=true; e.intent=Ship.emptyIntent()
   local entry=r.transit.departure
   e.egressHeading=entry.flightHeading or math.atan2(entry.y,entry.x)
@@ -445,7 +455,19 @@ function A.wake(game,r)
    r.laneOffset=lane.n*lane.dir
    r.transit.departure=nil
   end
- else bindRoute(game,e,r) end
+ else
+  bindRoute(game,e,r)
+  if exact and r.driverState then
+   local state=r.driverState
+   local g=game:locationEntity(state.driver)
+   if g and not g.driverShip then
+    local control={driver=g,to=state.to,t=state.t,ghost=state.ghost}
+    if state.phase=='launch' then e.launch=control else e.driverTractor=control end
+    g.driverShip=e;g.angle=state.angle;e.driverProtected=true
+    if state.ghost then e.coasting=true;for _,f in ipairs(e.body:getFixtures()) do f:setSensor(true) end end
+   end
+  end
+ end
  e.power=r.power or e.power
  e.body:setLinearVelocity(exact and exact.vx or p.vx,exact and exact.vy or p.vy)
  e.body:setAngularVelocity(exact and exact.w or 0)
@@ -564,10 +586,10 @@ function A.install(Game)
     r.transit.speed=r.transit.kind=='driver' and T.laneFlow or math.max(50,math.sqrt(vx*vx+vy*vy))
     r.arrive=clock+r.transit.length/r.transit.speed
     e.alifeDepart=nil; e.alifeEgress=true; e.route=nil
-    e.egressHeading=math.atan2(y,x); e.egressSpeed=math.max(r.transit.speed,r.speed*.6)
+    e.egressHeading=e.driverProtected and math.atan2(vy,vx) or math.atan2(y,x); e.egressSpeed=math.max(r.transit.speed,r.speed*.6)
     e.intent=Ship.emptyIntent()
     A.capture(self,e,true)
-   elseif not px or (x-px)^2+(y-py)^2>T.alifeFar^2 then
+   elseif not e.driverTractor and not e.launch and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2) then
     A.capture(self,e,false)
     if not e.removed then self:remove(e) end
     self.alifeOnline[id]=nil

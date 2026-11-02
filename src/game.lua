@@ -1567,10 +1567,14 @@ function Game:step(dt)
 				-- the player flies on under the beam until it's pulled inside
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
+			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
+				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
+				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
+				e.sideBurn,e.retroBurn,e.foreBurn,e.turnBurn=0,0,0,0
 			else
 				if e.cruise then self:cruise(e, dt) elseif e.def and not e.piloted then AI.think(self, e, dt) end
 				Ship.fly(e, dt)
-				Weapons.update(self, e, dt)
+				if not e.driverProtected then Weapons.update(self, e, dt) end
 			end
 		end
 	end
@@ -1711,6 +1715,7 @@ end
 -- hx, hy: where it hit, when that's known (a wreck built in parts takes
 -- it on the part that was hit).
 function Game:damage(e, amount, source, cause, hx, hy)
+	if e and e.driverProtected then return end
 	-- a station remembers who shot it (and its turrets answer)
 	if e and e.grudge and source and source.kind == "ship" and amount > 0 then e.grudge[source] = self.time end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
@@ -1756,7 +1761,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			if e == direct then fall = 1 end
 			if fall > 0 then
 				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash", x, y) end
-				if d > 1 and e.kind == "ship" then
+				if d > 1 and e.kind == "ship" and not e.driverProtected then
 					local k = knockback * fall
 					e.body:applyLinearImpulse(dx / d * k, dy / d * k)
 				end
@@ -2337,6 +2342,8 @@ function Game:breakOff(h, piece)
 end
 
 function Game:remove(e)
+	local control=e.launch or e.driverTractor
+	if control and control.driver.driverShip==e then control.driver.driverShip=nil end
 	for i, o in ipairs(self.entities) do
 		if o == e then table.remove(self.entities, i); break end
 	end

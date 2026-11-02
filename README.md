@@ -400,3 +400,13 @@ Transit lane debug setting). Those rocks are laid out at entry, stay clear of
 the handoff mouths, and are not pushed back inside by the moon boundary.
 `laneOffroad` controls their population; zero disables the off-road rocks.
 Run `love . --moonboundarytest` for force, placement and no-pop-in checks.
+
+
+Mass-driver users share one tractor/alignment/barrel/coast controller.
+NPC dispatch workers reserve the driver, are reeled into its breech, aim at
+their task destination and fire with the same choreography as the player.
+NPC launches do not take over the player's camera, menus or travel state.
+Both get the blue transit glow and immunity to damage and weapon knockback
+while captured, held or being fired off. Losing the beam or cancelling the
+targeting menu releases that protection. NPC launch phases survive save/load.
+Run `love . --drivertest` and `love . --tasktest` for these launch regressions.

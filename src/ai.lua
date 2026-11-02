@@ -224,12 +224,13 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock then
-			if e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") then
-				e.alifeDepart = true
-				it.thrust, it.strafe = 0, 0
-				return
-			end
-			e.routeIndex = e.routeIndex % #route + 1
+			if e.alifeId and e.taskWorker and stop.kind=="driver" then
+				if game:requestDriver(e,stop.driver,stop.destination) then
+				 it.thrust,it.strafe=0,0;return
+				end
+			elseif e.alifeId and stop.kind=="moon_gate" then
+				e.alifeDepart=true;it.thrust,it.strafe=0,0;return
+			else e.routeIndex=e.routeIndex%#route+1 end
 		end
 		-- The speed it wants: its cruise, but no faster than it can shed
 		-- before the stop (down to a crawl for a station's runway, or a
