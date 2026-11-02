@@ -193,6 +193,7 @@ function G.draw(game,px)
  for id,r in pairs(game.universe.npcs or {}) do
   if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and r.state~='transit' then
    local e=game.alifeOnline and game.alifeOnline[id]
+   if e and (e.dead or e.removed or not e.body or e.body:isDestroyed()) then e=nil end
    local x,y
    if e then x,y=e.body:getPosition() else x,y=A.point(r,clock) end
    lg.setColor(e and .4 or 1,e and 1 or .75,.3,1)

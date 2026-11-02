@@ -372,11 +372,25 @@ local function shipRecord(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
   cargo=copy(s.cargo),hold=s.hold and Hold.serialize(s.hold)}
 end
+-- End ownership before destroying a body; drawing can run before the next tick.
+-- A nil reason only unloads the representation, preserving its live record.
+function A.detach(game,e,reason)
+ local id=e.alifeId
+ if not id then return end
+ if game.alifeOnline and game.alifeOnline[id] and game.alifeOnline[id]~=e then return end
+ local r=game.universe.npcs and game.universe.npcs[id]
+ if r and reason then
+  r.state=reason
+  Tasks.release(game.universe,r,reason,game.universe.clock)
+ end
+ if game.alifeOnline and game.alifeOnline[id]==e then game.alifeOnline[id]=nil end
+end
+
 function A.capture(game,e,remote)
  local r=game.universe.npcs and game.universe.npcs[e.alifeId]
  if not r then return end
  if e.dead then r.state='dead'; return end
- if e.removed then r.state='escaped'; return end
+ if e.removed or not e.body or e.body:isDestroyed() then r.state='escaped'; return end
  local clock=game.universe.clock
  r.savedOnline=nil
  local controlled=e.launch or e.driverTractor
@@ -602,7 +616,7 @@ function A.install(Game)
    local r=self.universe.npcs and self.universe.npcs[id]
    if not detach and r then r.savedOnline=true end
    if detach then
-    if not e.removed then self:remove(e) end
+    if not e.removed then self:remove(e,true) end
     self.alifeOnline[id]=nil
    end
   end
@@ -626,19 +640,21 @@ function A.install(Game)
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
   for id,e in pairs(self.alifeOnline) do
    local x,y
-   if not e.removed then x,y=e.body:getPosition() end
+   if not e.removed and e.body and not e.body:isDestroyed() then x,y=e.body:getPosition()
+   else e.removed=true end
    if e.dead then
     -- Normal reap must still produce the wreck and death effects.
     A.capture(self,e,false)
     self.alifeOnline[id]=nil
    elseif e.removed then
     A.capture(self,e,false)
+    self:remove(e,true)
     self.alifeOnline[id]=nil
    elseif e.alifeLane and select(1,self:toLane(e.body:getPosition()))*e.cruiseDir>=self.lane.half then
     A.capture(self,e,true)
     local r=records[id]
     start(r,clock,r.index%#r.route+1)
-    self:remove(e); self.alifeOnline[id]=nil
+    self:remove(e,true); self.alifeOnline[id]=nil
    elseif e.alifeDepart then
     local vx,vy=e.body:getLinearVelocity()
     A.capture(self,e,true)
@@ -652,7 +668,7 @@ function A.install(Game)
     A.capture(self,e,true)
    elseif not e.driverTractor and not e.launch and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2) then
     A.capture(self,e,false)
-    if not e.removed then self:remove(e) end
+    if not e.removed then self:remove(e,true) end
     self.alifeOnline[id]=nil
    end
   end

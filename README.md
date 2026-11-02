@@ -534,3 +534,8 @@ the full-power speed relative to the local current before capacitor reserve mode
 F1 can toggle the debug panel while the editor or its text inputs have focus.
 Run `love . --comparetest` for handling parity, live edits, empty holds,
 incomplete designs, preview cleanup, and the actual F1 key handler.
+
+`love . --npclifetest` checks drawing immediately after NPC removal, fleeing,
+death and stale-body cleanup, plus distance culling/rematerialization. Online
+ownership ends before a body is destroyed; ordinary culling preserves the record
+and its duty instead of marking the ship gone.

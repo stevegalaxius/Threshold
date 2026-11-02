@@ -1936,6 +1936,7 @@ function Game:reap()
 			e.removed = true
 		elseif e.fleeing and not e.dead and e.body:getX() ^ 2 + e.body:getY() ^ 2 > (self.arenaRadius + 600) ^ 2 then
 			-- A fleeing enemy that made it well past the edge is gone for good.
+			ALife.detach(self,e,"escaped")
 			table.remove(self.entities, i)
 			e.body:destroy()
 			e.removed = true
@@ -1973,7 +1974,7 @@ function Game:reap()
 				end
 			end
 		elseif e.dead then
-			if e.alifeId then ALife.capture(self, e, false) end
+			if e.alifeId then ALife.capture(self, e, false); ALife.detach(self,e,"dead") end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
@@ -2343,13 +2344,14 @@ function Game:breakOff(h, piece)
 	self:explode(x, y, part.reach * 0.6, 0, 0)
 end
 
-function Game:remove(e)
+function Game:remove(e, preserveRecord)
+	ALife.detach(self,e,not preserveRecord and (e.dead and "dead" or "escaped") or nil)
 	local control=e.launch or e.driverTractor
 	if control and control.driver.driverShip==e then control.driver.driverShip=nil end
 	for i, o in ipairs(self.entities) do
 		if o == e then table.remove(self.entities, i); break end
 	end
-	if not e.removed then e.body:destroy() end
+	if not e.removed and e.body and not e.body:isDestroyed() then e.body:destroy() end
 	e.removed = true
 end
 
