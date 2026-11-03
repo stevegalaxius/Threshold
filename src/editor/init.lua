@@ -324,7 +324,7 @@ function E.switchCategory(cat)
 		E.view.zoom = cat == "station" and 0.25 or 3
 	end
 	if E.tool == "light" and cat ~= "station" and E.lightKind == "window" then E.lightKind = "nav" end
-	if (E.tool == "berth" or E.tool == "turret") and cat ~= "station" then E.tool = "select" end
+	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?

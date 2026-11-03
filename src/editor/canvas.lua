@@ -319,6 +319,15 @@ local function pressed(E, sx, sy, button)
 		return
 	end
 
+	if E.tool == "pivot" then
+		local r = E.rotorSel and E.design.rotors and E.design.rotors[E.rotorSel]
+		if not r then E.say("Pick a rotor in the tool panel first") return end
+		local px, py = Canvas.snap(E, wx, wy)
+		E.pushUndo()
+		r.x, r.y = px, py
+		return
+	end
+
 	if E.tool == "berth" then
 		local px, py = Canvas.snap(E, wx, wy)
 		E.drag = { kind = "berth", x1 = px, y1 = py, x2 = px, y2 = py }
@@ -695,6 +704,30 @@ function Canvas.draw(E)
 				lg.line(cx, cy, cx + r * 1.8, cy)
 			end
 			lg.print("T" .. i, cx + 6, cy + 4)
+		end
+		-- rotor pivots: a cross in a ring, the selected rotor's brightest,
+		-- with a dashed line to each of its parts' centres
+		for name, r in pairs(E.design.rotors or {}) do
+			local cx, cy = Canvas.toScreen(E, r.x or 0, r.y or 0)
+			local sel = E.tool == "pivot" and E.rotorSel == name
+			lg.setColor(0.45, 1, 0.75, sel and 1 or 0.6)
+			lg.setLineWidth(sel and 2.5 or 1.5)
+			lg.circle("line", cx, cy, sel and 11 or 8)
+			lg.line(cx - 15, cy, cx + 15, cy)
+			lg.line(cx, cy - 15, cx, cy + 15)
+			lg.print(name, cx + 12, cy - 18)
+			if sel then
+				lg.setColor(0.45, 1, 0.75, 0.35)
+				lg.setLineWidth(1)
+				for _, p in ipairs(E.design.parts) do
+					if p.rotor == name then
+						local sx, sy, n = 0, 0, 0
+						for j = 1, #p.shape, 2 do sx, sy, n = sx + p.shape[j], sy + p.shape[j + 1], n + 1 end
+						local px, py = Canvas.toScreen(E, sx / n, sy / n)
+						lg.line(cx, cy, px, py)
+					end
+				end
+			end
 		end
 		if E.drag and E.drag.kind == "berth" then
 			local d = E.drag
