@@ -52,6 +52,17 @@ return function(game)
  check(reached[1],'hauler did not back out and route around a concave obstacle')
  check(hits==0,'hauler scraped its way through the concave obstacle')
  g.world:destroy()
+ -- A long wall requires an actual committed detour, beyond short heading probes.
+ g=scene();e=ship(g,-2200,0,0,2200,0)
+ wall(g,0,0,160,4200)
+ local wx,wy,detour=Nav.waypoint(g,e,2200,0)
+ check(detour and math.abs(wy)>2100,'planner did not find a route around the long wall')
+ local cached=e.detour
+ g.time=.4;Nav.waypoint(g,e,2200,0)
+ check(e.detour==cached,'planner discarded a committed detour before following it')
+ reached,boost,elapsed,hits=run(g,{e},140,{{2200,0}})
+ check(reached[1] and hits==0,'hauler failed to follow the long-wall detour safely')
+ g.world:destroy()
  -- Opposing slow turn-mode ships must consistently pass, not balance pushes.
  g=scene()
  local a=ship(g,-2200,0,0,2200,0);local b=ship(g,2200,0,math.pi,-2200,0)

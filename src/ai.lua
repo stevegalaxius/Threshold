@@ -226,7 +226,7 @@ local function trade(game, e, dt)
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock then
+		if d < 450 and not stop.dock and not stop.hold then
 			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" then
 				if game:requestDriver(e,stop.driver,stop.destination) then
@@ -268,11 +268,15 @@ local function trade(game, e, dt)
 			want=min(cruise,sqrt(pass*pass+2*brakeAccel(e)*.6*max(0,d-150)))
 		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
+		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
+		ux,uy=norm(wx-x,wy-y)
+		local leg=sqrt((wx-x)^2+(wy-y)^2)
+		if detour then want=min(want,sqrt(60^2+brakeAccel(e)*max(0,leg-100))) end
 		local mx,my,scale,danger,clear=Nav.steer(game,e,ux,uy,want,fx0,fy0,
-			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=d})
+			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
 		want=want*scale
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
-		Nav.boost(e,mx,my,want,d,clear,danger,boosting)
+		Nav.boost(e,mx,my,want,leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
@@ -298,11 +302,14 @@ local function trade(game, e, dt)
 	end
 end
 
+AI.trade=trade
+
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
+	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
 	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()

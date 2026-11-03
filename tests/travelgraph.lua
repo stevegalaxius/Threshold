@@ -14,11 +14,15 @@ return function(game)
    check(not seen[key],'duplicate connection'); seen[key]=true
    local route=assert(G.route(graph,edge.from,edge.to,500))
    local p=G.sample(graph,route,0,500)
-   local x,y=L.position(edge.from,500)
-   check(math.abs(x-p.x)+math.abs(y-p.y)<.01,'incorrect start')
+   local start=route.start
+   check(L.canonical(start)==L.canonical(edge.from),'route started at another station')
+   local x,y=L.position(start,500)
+   check(math.abs(x-p.x)+math.abs(y-p.y)<.01,('incorrect start: %s %s -> %s, resolved %s, %f %f / %f %f'):format(area,edge.from,edge.to,start,x,y,p.x,p.y))
    local endClock=500+route.duration+10
    p=G.sample(graph,route,route.duration+10,endClock)
-   x,y=L.position(edge.to,endClock)
+   local destination=route.finish
+   check(L.canonical(destination)==L.canonical(edge.to),'route ended at another station')
+   x,y=L.position(destination,endClock)
    check(p.arrived and math.abs(x-p.x)+math.abs(y-p.y)<.01,'missed moving location')
    x,y=G.point(graph,edge,.37,500)
    check(math.abs(G.project(graph,edge,x,y,500)-.37)<.001,'could not recover existing journey progress')

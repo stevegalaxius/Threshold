@@ -4,7 +4,10 @@ return function(game)
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
  local function ownedWorld()
   local owned={}
-  for _,e in ipairs(game.entities) do owned[e.body]=true end
+  for _,e in ipairs(game.entities) do
+   owned[e.body]=true
+   for _,rotor in ipairs(e.rotors or {}) do owned[rotor.body]=true end
+  end
   local complete=true
   for _,b in ipairs(game.world:getBodies()) do if not owned[b] then complete=false;break end end
   check(complete,'unowned body remained in the current field')

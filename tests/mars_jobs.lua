@@ -1,5 +1,7 @@
 return function(game)
  local A=require('src.alife');local J=require('src.jobs');local Save=require('src.save')
+ -- The observer must survive while following the hauler through terrain.
+ require('src.tuning').dev.god=true
  local checks=0
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
  game:loadField('phobos')
@@ -8,7 +10,16 @@ return function(game)
   local st=game:locationEntity(area..'/strip_mine')
   check(st and st.surfaceMine,'missing surface mine')
   check(st.body:getAngularVelocity()==0,'mine rotates independently of terrain')
-  check(st.dock.a<0,'mine dock does not face space')
+  -- Dock layouts may have several horizontal or angled doors. Check the
+  -- actual outward corridor rather than requiring the old negative angle.
+  local d=st.dock;local x,y=game.dockWorld(st,1,d.x2+100,0,d)
+  local a=game.dockAngle(st,1,d);local clear=true
+  game.world:rayCast(x,y,x+math.cos(a)*(d.runway+300),y+math.sin(a)*(d.runway+300),function(fixture)
+   local e=fixture:getUserData()
+   if e and e.kind=='planet' then clear=false end
+   return 1
+  end)
+  check(clear,'mine docking corridor points into the terrain')
  end
  game:loadField('venus');game:captureALife(true)
  local u=game.universe
