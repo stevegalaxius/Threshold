@@ -1148,44 +1148,108 @@ end
 -- The Heaven-Ladder ----------------------------------------------------------
 
 -- An orbital ring of radius R round (cx, cy), cut by gaps to fly through,
--- with four space elevators running from it down to the surface.
+-- turning slowly (Game:updateRotors spins it from the clock). Four elevator
+-- anchors (data/station_ladder_anchor.lua) hold still where the tethers
+-- come up from the surface; the ring runs through them, and each has a
+-- dock and berths for the traffic waiting on the Ladder.
+local LADDER_SPIN = 0.006   -- radians a second (about 50 px/s at the rim)
 function Game:spawnHeavenLadder(cx, cy, R)
 	local w = self.well
 	local surface = w and w.radius or R - 1000
-	local thick, gaps, gapW = 50, 8, 700
+	local thick, gaps, gapW = 100, 8, 700   -- thick: half the ring's depth (the anchors' channel is 110 each side)
 	local gapA = gapW / R
+	local segments = {}
 	for i = 0, gaps - 1 do
 		local a1 = (i + 0.5) / gaps * pi * 2 + gapA / 2
 		local a2 = (i + 1.5) / gaps * pi * 2 - gapA / 2
 		local n = math.ceil((a2 - a1) * R / 400)
 		for k = 0, n - 1 do
 			local b1, b2 = a1 + (a2 - a1) * k / n, a1 + (a2 - a1) * (k + 1) / n
-			self:addStructure({
+			local e = self:addStructure({
 				cx + cos(b1) * (R - thick), cy + sin(b1) * (R - thick),
 				cx + cos(b2) * (R - thick), cy + sin(b2) * (R - thick),
 				cx + cos(b2) * (R + thick), cy + sin(b2) * (R + thick),
 				cx + cos(b1) * (R + thick), cy + sin(b1) * (R + thick),
 			}, { role = "ladder" })
+			-- the gate lights at each end of an arc, either side of a gap
+			e.gate = (k == 0 and 1 or 0) + (k == n - 1 and 2 or 0)
+			-- lit windows, in districts: each arc is cut into modules of
+			-- different lengths, and each module is housing (a dense warm
+			-- grid), industry (one sparse amber strip), a greenhouse (a
+			-- green band on the planet side), a sign (a short cyan run) or
+			-- dark; within a module some rooms are out. Deterministic, so
+			-- the ring looks the same every visit.
+			local function hash(...)
+				local h = 2166136261
+				for _, v in ipairs({ ... }) do h = (h * 16777619 + v * 2654435761) % 4294967296 end
+				return h
+			end
+			local wins = {}
+			local step = 34 / R                      -- one window's pitch, as an angle
+			local rows = { -0.75, -0.45, -0.15, 0.15, 0.45, 0.75 }
+			local t = b1 + step
+			local m = 0
+			while t < b2 - step do
+				m = m + 1
+				local h = hash(i, k, m)
+				local len = 3 + h % 9                 -- windows in this module
+				local kind = math.floor(h / 16) % 10   -- 0-4 housing, 5-6 industry, 7 greenhouse, 8 sign, 9 dark
+				local lit = 0.55 + (math.floor(h / 256) % 40) / 100
+				for j = 0, len - 1 do
+					local tj = t + j * step
+					if tj > b2 - step then break end
+					for r, off in ipairs(rows) do
+						local show, col
+						if kind <= 4 then
+							show, col = r >= 2 and r <= 5, (hash(i, k, m, j, r) % 100 < lit * 100) and 1 or nil
+						elseif kind <= 6 then
+							show, col = r == 3 and j % 2 == 0, 4
+						elseif kind == 7 then
+							show, col = r <= 2, 2
+						elseif kind == 8 then
+							show, col = r == 4 and j < 4, 3
+						end
+						if show and col then
+							local rr = R + off * thick
+							wins[#wins + 1] = { cx + cos(tj) * rr, cy + sin(tj) * rr, col }
+						end
+					end
+				end
+				t = t + (len + 1 + math.floor(h / 4096) % 3) * step   -- a gap of bulkhead between modules
+			end
+			e.windows = wins
+			e.body:setType("kinematic")
+			segments[#segments + 1] = e
 		end
 	end
-	-- the elevators, at the middle of every other arc
+	self.ladder = { segments = segments, spin = LADDER_SPIN, cx = cx, cy = cy }
+	-- the elevators: still anchors on the ring, tethers down to the surface
 	for i = 0, 3 do
 		local a = (i * 2 + 1) / gaps * pi * 2
 		local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
 		local tw = 24
+		local top = R - 560   -- the anchor's tether head
 		self:addStructure({
 			cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
-			cx + ux * (R - thick) + nx * tw, cy + uy * (R - thick) + ny * tw,
-			cx + ux * (R - thick) - nx * tw, cy + uy * (R - thick) - ny * tw,
+			cx + ux * top + nx * tw, cy + uy * top + ny * tw,
+			cx + ux * top - nx * tw, cy + uy * top - ny * tw,
 			cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
 		}, { role = "tether" })
-		local hw = 140
-		self:addStructure({
-			cx + ux * (R - 120) + nx * hw, cy + uy * (R - 120) + ny * hw,
-			cx + ux * (R + 120) + nx * hw, cy + uy * (R + 120) + ny * hw,
-			cx + ux * (R + 120) - nx * hw, cy + uy * (R + 120) - ny * hw,
-			cx + ux * (R - 120) - nx * hw, cy + uy * (R - 120) - ny * hw,
-		}, { role = "hub" })
+		-- one station, four access points: they share its location ID and
+		-- key (so its storage, hangar and market), and Game:locationEntity
+		-- picks the nearest when given a position. The first is bound to the
+		-- location; the rest hold still where they are.
+		local ids = self.field and self.field.ladderIds
+		local id = ids and ids[i + 1]
+		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0, false, id)
+		st.body:setAngle(a)
+		st.body:setAngularVelocity(0)
+		st.accessIndex = i + 1
+		if id then
+			-- each anchor is its own location; the station record is the Ladder's
+			st.key = ids[1]
+			st.name = require("src.locations").get(ids[1]).name .. (" (anchor %d)"):format(i + 1)
+		end
 	end
 end
 

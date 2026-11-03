@@ -29,6 +29,9 @@ market { location = "mars/station_alpha", station = "Station Alpha", ships = { "
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "pip_mortar", 2 }, { "thumper_m", 1 },
 	{ "torp_s", 3 }, { "maul_tube", 1 }, { "mule_engine", 1 },
 } }
+market { location = "mars/heaven_ladder", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
+	{ "martian_ore", 8 }, { "salvage_kit", 3 }, { "scrap", 6 },
+} }
 market { location = "mars/station_beta", station = "Station Beta", sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "sparrow_rack", 2 }, { "hornet_pod", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 },

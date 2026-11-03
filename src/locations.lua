@@ -16,6 +16,13 @@ for _, area in ipairs(Fields.list) do
 	end
 end
 
+-- The station a location belongs to: itself, or the station it's an
+-- access point of (the Heaven-Ladder's anchors).
+function L.canonical(id)
+	local place = id and L.byId[id]
+	return place and place.accessOf or id
+end
+
 function L.get(id) return assert(L.byId[id], "unknown location " .. tostring(id)) end
 function L.list(area) return L.byArea[area] or {} end
 
@@ -69,6 +76,14 @@ function L.heading(id, clock)
 	return (location.heading or 0) + (location.spin or 0) * clock
 end
 
+-- A station with rotors keeps its core (docks, berths) still and lets the
+-- rotors take the location's spin instead.
+function L.coreHeading(e, id, clock)
+	local location = L.get(id)
+	if e.rotors and location.motion.type ~= "cloud" then return location.heading or 0 end
+	return L.heading(id, clock)
+end
+
 function L.velocity(id, clock)
 	local x1, y1 = L.position(id, clock - 0.01)
 	local x2, y2 = L.position(id, clock + 0.01)
@@ -83,9 +98,12 @@ function L.install(Game)
 		if e.kind == "station" then e.key, e.name = id, location.name end
 		local clock = self.universe.clock
 		e.body:setPosition(L.position(id, clock))
-		e.body:setAngle(L.heading(id, clock))
+		e.body:setAngle(L.coreHeading(e, id, clock))
 		e.body:setLinearVelocity(L.velocity(id, clock))
-		e.body:setAngularVelocity(location.spin or 0)
+		e.body:setAngularVelocity(e.rotors and 0 or location.spin or 0)
+		for _, r in ipairs(e.rotors or {}) do
+			if not r.fixed then r.spin = location.spin or 0 end
+		end
 		return e
 	end
 
@@ -93,16 +111,26 @@ function L.install(Game)
 		for _, e in ipairs(self.entities) do
 			if e.locationId and not e.removed then
 				e.body:setPosition(L.position(e.locationId, self.universe.clock))
-				e.body:setAngle(L.heading(e.locationId, self.universe.clock))
+				e.body:setAngle(L.coreHeading(e, e.locationId, self.universe.clock))
 				e.body:setLinearVelocity(L.velocity(e.locationId, self.universe.clock))
 			end
 		end
 	end
 
-	function Game:locationEntity(id)
+	-- The entity for a location. A station with several access points
+	-- (the Heaven-Ladder's anchors) has one entity each; given x, y, the
+	-- nearest is returned, otherwise the first.
+	function Game:locationEntity(id, x, y)
+		local best, bestD
 		for _, e in ipairs(self.entities) do
-			if e.locationId == id and not e.removed then return e end
+			if e.locationId == id and not e.removed then
+				if not x then return e end
+				local ex, ey = e.body:getPosition()
+				local d = (ex - x) ^ 2 + (ey - y) ^ 2
+				if not best or d < bestD then best, bestD = e, d end
+			end
 		end
+		return best
 	end
 end
 

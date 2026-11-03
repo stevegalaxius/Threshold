@@ -125,11 +125,36 @@ function AI.navigate(game,e,dx,dy,want,fx,fy,boostDistance)
  Nav.boost(e,mx,my,want,boostDistance or 0,clear,danger,boostDistance~=nil)
 end
 
+-- A station with several docks: the one whose runway is nearest e, chosen
+-- once per stop (kept in e.approach) so the ship doesn't dither between two.
+local function runwayPoint(stop, d)
+	local a, lx = d.a or 0, d.x2 + d.runway * 0.6 + (d.xc or 0)
+	local ly = d.yc or 0
+	return stop.body:getWorldPoint(lx * math.cos(a) - ly * math.sin(a), lx * math.sin(a) + ly * math.cos(a))
+end
+local function approachDock(e, stop)
+	local docks = stop.docks
+	if not e or not docks or #docks < 2 then return stop.dock end
+	local ap = e.approach
+	if ap and ap.stop == stop then return ap.dock end
+	local x, y = e.body:getPosition()
+	local best, bestD
+	for _, d in ipairs(docks) do
+		local px, py = runwayPoint(stop, d)
+		local dd = (px - x) ^ 2 + (py - y) ^ 2
+		if not best or dd < bestD then best, bestD = d, dd end
+	end
+	e.approach = { stop = stop, dock = best }
+	return best
+end
+AI.approachDock = approachDock
+
 -- Where a route stop is right now: on a station's runway, or on a buoy.
-local function stopPoint(stop)
+-- e (optional): the ship heading there, which picks among several docks.
+local function stopPoint(stop, e)
 	if stop.dock then
 		-- out on the runway, where the station's tractor picks it up
-		local d = stop.dock
+		local d = approachDock(e, stop)
 		local a, lx = d.a or 0, d.x2 + d.runway * 0.6 + (d.xc or 0)
 		local ly = d.yc or 0
 		return stop.body:getWorldPoint(lx * math.cos(a) - ly * math.sin(a), lx * math.sin(a) + ly * math.cos(a))
@@ -160,7 +185,7 @@ local function trade(game, e, dt)
 		e.routeIndex = e.routeIndex or 1
 		local stop = route[e.routeIndex]
 		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
-		local sx, sy = stopPoint(stop)
+		local sx, sy = stopPoint(stop, e)
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
 		-- the chord (which would run through the rock belt): aim a little

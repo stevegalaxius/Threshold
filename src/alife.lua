@@ -79,6 +79,7 @@ end
 
 -- Plan the next journey when leaving either trading destination.
 local function adoptTrip(r,station,clock,u)
+ station=L.canonical(station)
  if r.taskWorker and u then
   if (r.nextTaskAt or 0)>clock then return false end
   Tasks.arrive(u,r,station,clock)
@@ -181,6 +182,7 @@ end
 local function dockingStop(r,id)
  if Security.isRole(r) then return false end
  if L.get(id).kind~='station' then return false end
+ id=L.canonical(id)
  if r.taskWorker then return id==(r.task and r.task.target) or not r.task end
  return not r.onRoundTrip or id==(r.tradeHome or Fields[r.home].stationIds[1])
   or id==Fields[r.tripDestination].stationIds[1]
@@ -474,7 +476,8 @@ local function bindRoute(game,e,r)
  e.taskWorker=r.taskWorker
  for _,id in ipairs(r.route) do
   local place=L.get(id)
-  local stop=place.area==game.fieldId and game:locationEntity(id)
+  -- a station with several access points: the one nearest the ship now
+  local stop=place.area==game.fieldId and game:locationEntity(id,e.body:getPosition())
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
    stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
@@ -565,7 +568,7 @@ function A.wake(game,r)
  e.body:setAngularVelocity(exact and exact.w or 0)
  table.insert(game.entities,e)
  if r.state=='docked' then
-  local st=game:locationEntity(r.route[r.index])
+  local st=game:locationEntity(r.route[r.index],p.x,p.y)
   game:dockInstantly(e,st)
   e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
   if exact and r.docking then
@@ -578,8 +581,8 @@ function A.wake(game,r)
   -- Local graph nodes name the station as a whole. Physical handoff uses
   -- the existing dock/undock transforms rather than spawning inside its hub.
   local leg=edge(r)
-  local source=game:locationEntity(leg.from)
-  local destination=game:locationEntity(leg.to)
+  local source=game:locationEntity(leg.from,p.x,p.y)
+  local destination=game:locationEntity(leg.to,p.x,p.y)
   local function close(st)
    if not st or st.kind~='station' then return false end
    local x,y=st.body:getPosition()
@@ -590,7 +593,7 @@ function A.wake(game,r)
    game:dockInstantly(e,source)
    game:undockShip(e)
   elseif close(destination) and dockingStop(r,leg.to) then
-   local x,y=require('src.ai').stopPoint(destination)
+   local x,y=require('src.ai').stopPoint(destination,e)
    e.body:setPosition(x,y)
    e.body:setAngle(game.dockAngle(destination,1)+math.pi)
    e.body:setLinearVelocity(destination.body:getLinearVelocityFromWorldPoint(x,y))
@@ -600,7 +603,7 @@ function A.wake(game,r)
    -- than inside its hull when the coarse leg ends at the station centre.
    local station=close(destination) and destination or source
    if station.city then e.body:setPosition(L.inspectionPosition(station.locationId,game.universe.clock))
-   else e.body:setPosition(require('src.ai').stopPoint(station)) end
+   else e.body:setPosition(require('src.ai').stopPoint(station,e)) end
   end
  end
 

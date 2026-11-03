@@ -306,8 +306,14 @@ local function planetField(o)
 				-- the current's speed at that altitude (what a free station drifts at).
 				local sa = -0.8
 				local speed = game:currentSpeed(sd)
-				local stA = game:spawnWheelStation(cos(sa) * sd, sin(sa) * sd, 900, 120, 0.05, false, field.stationIds[o.city and 2 or 1])
-				local stB = game:spawnWheelStation(-cos(sa) * sd, -sin(sa) * sd, 900, 120, -0.05, false, field.stationIds[o.city and 3 or 2])
+				-- a station's own layout (its location's layout), else a wheel
+				local function spawn(x, y, spin, id)
+					local layout = require("src.locations").get(id).layout
+					if layout then return game:spawnStation(layout, x, y, spin, false, id) end
+					return game:spawnWheelStation(x, y, 900, 120, spin, false, id)
+				end
+				local stA = spawn(cos(sa) * sd, sin(sa) * sd, 0.05, field.stationIds[o.city and 2 or 1])
+				local stB = spawn(-cos(sa) * sd, -sin(sa) * sd, -0.05, field.stationIds[o.city and 3 or 2])
 				game:setOrbit(stA, 0, 0, speed)
 				game:setOrbit(stB, 0, 0, speed)
 				sa = math.atan2(stA.body:getY(), stA.body:getX())
@@ -386,7 +392,7 @@ Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
 	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
-Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000,
+Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85, 0.38, 0.24 },   -- rust red
 	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
 	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
 	stations = { "Station Alpha", "Station Beta" },
@@ -487,7 +493,7 @@ local stationIds = {
 	phobos = { "strip_mine" }, deimos = { "strip_mine" },
 	mercury = { "terminator_station", "dawnline_station" },
 	venus = { "hub_station", "cloudline_station" }, earth = { "orbital_one", "orbital_two" },
-	mars = { "station_alpha", "station_beta" }, belt = { "ceres_dock", "piazzi_station" },
+	mars = { { "station_alpha", layout = "shipyard_1" }, "station_beta" }, belt = { "ceres_dock", "piazzi_station" },
 	jupiter = { "olympus" }, saturn = { "cassini_gate", "enceladus_station" },
 	uranus = { "herschel" }, luna = { "tranquility_dock", "shackleton_station" },
 	io = { "pele_works", "loki_laboratory" }, europa = { "conamara_station", "pwyll_station" },
@@ -505,7 +511,11 @@ for _, area in ipairs(Fields.list) do
 			motion = motion, spin = spin, destination = destination }
 		return full
 	end
-	for i, id in ipairs(stationIds[area] or {}) do
+	-- An entry is a location id, or { id, layout = station id } to build that
+	-- station from a station { } layout instead of the default for its spot.
+	for i, entry in ipairs(stationIds[area] or {}) do
+		local id, layout = entry, nil
+		if type(entry) == "table" then id, layout = entry[1], entry.layout end
 		local motion, spin
 		if F.surfaceMine then
 			local outline=Fields.rockShape(F.name,F.planetR,F.lumpy,F.maria).outline
@@ -528,6 +538,27 @@ for _, area in ipairs(Fields.list) do
 			motion, spin = { type = "fixed", x = 0, y = 0 }, area == "ring" and 0.02 or 0.04
 		end
 		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
+		F.locations[#F.locations].layout = layout
+	end
+	-- The Heaven-Ladder (Mars): one station with four elevator anchors as its
+	-- access points, each a location (and a travel-graph node) of its own.
+	-- The first is the station's identity; the others say accessOf it, so
+	-- routes to the Ladder end at whichever anchor is nearest, and all four
+	-- share its storage, hangar and market (see Game:spawnHeavenLadder).
+	if area == "mars" and F.planetR then
+		local LR = F.planetR + 1100
+		F.ladderIds = {}
+		for k = 0, 3 do
+			local a = (k * 2 + 1) / 8 * pi * 2
+			local lid = add(k == 0 and "heaven_ladder" or ("heaven_ladder_" .. (k + 1)),
+				k == 0 and "Heaven-Ladder" or ("Heaven-Ladder anchor " .. (k + 1)), "station",
+				{ type = "fixed", x = cos(a) * LR, y = sin(a) * LR }, 0)
+			local place = F.locations[#F.locations]
+			place.heading = a
+			if k > 0 then place.accessOf, place.marketId = F.ladderIds[1], F.ladderIds[1] end
+			F.ladderIds[k + 1] = lid
+		end
+		F.ladderId = F.ladderIds[1]
 	end
 	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
 		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
@@ -572,6 +603,13 @@ for _, area in ipairs(Fields.list) do
   for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
  end
  if not F.tradeBuoys then link(F.driverId,F.stationIds[1]) end
+ if F.ladderIds then
+  -- every anchor reaches the trade buoys, and its neighbours along the ring
+  for k,a in ipairs(F.ladderIds) do
+   for _,id in ipairs(F.buoyIds) do link(a,id) end
+   link(a,F.ladderIds[k%#F.ladderIds+1])
+  end
+ end
  for _,place in ipairs(F.locations) do
   if place.kind=='moon_gate' then
    -- Candidate attachments to the existing corridor. Routing uses only the

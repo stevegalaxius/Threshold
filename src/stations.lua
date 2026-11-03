@@ -88,7 +88,7 @@ function Stations.ring(R, tube)
 	table.insert(parts, { name = "dock", dock = true, shape = { round(x1), round(-hw), round(x2), round(-hw), round(x2), round(hw), round(x1), round(hw) } })
 	return {
 		id = Stations.ringId(R, tube), name = ("Ring station %d"):format(R),
-		parts = parts, color = { 0.55, 0.63, 0.74 },
+		parts = parts, color = { 0.55, 0.63, 0.74 }, role = "habitat",
 	}
 end
 

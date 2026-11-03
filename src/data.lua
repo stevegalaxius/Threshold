@@ -172,10 +172,16 @@ end
 -- A station layout (src/stations.lua has the format and the generated
 -- wheels). One part says dock = true: its box is the docking module, door
 -- at its +x end.
+local STATION_ROLES = { habitat = true, shipyard = true, customs = true, mine = true }
 function api.station(def)
 	if not def.name then def.name = def.id end
 	register("stations", "station", def)
 	if not def.parts then fail(("station '%s' needs parts"):format(def.id)) end
+	-- role: which A-Life smart terrain the station is (habitat, shipyard,
+	-- customs, mine). Left out, it's a plain station.
+	if def.role ~= nil and not STATION_ROLES[def.role] then
+		fail(("station '%s' has unknown role '%s' (use habitat, shipyard, customs or mine)"):format(def.id, tostring(def.role)))
+	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
 	-- every part tagged dock is a docking module. Its frame points from the
@@ -195,6 +201,35 @@ function api.station(def)
 	-- parked ship faces), size (the longest ship half-length that fits) }.
 	-- Arriving ships take a free one that fits; the rest go inside.
 	if def.berths ~= nil and type(def.berths) ~= "table" then fail(("station '%s': berths should be a list"):format(def.id)) end
+	-- rotors: parts that turn on their own, apart from the station's core
+	-- (where the docks and berths are). rotors = { name = { x, y (the
+	-- pivot, default 0, 0), spin (radians a second; left out, the
+	-- location's spin), over (drawn on top of the core instead of under
+	-- it) } }, and each turning part says rotor = "name".
+	-- Every part without a rotor is the core, which holds still.
+	if def.rotors ~= nil and type(def.rotors) ~= "table" then fail(("station '%s': rotors should be a table"):format(def.id)) end
+	def.staticParts, def.rotorParts = nil, nil
+	if def.rotors and next(def.rotors) then
+		def.staticParts, def.rotorParts = {}, {}
+		for name, r in pairs(def.rotors) do
+			if type(r) ~= "table" then fail(("station '%s': rotor '%s' should be a table"):format(def.id, tostring(name))) end
+			if r.over ~= nil and type(r.over) ~= "boolean" then fail(("station '%s': rotor '%s' over should be true or false"):format(def.id, tostring(name))) end
+			for _, f in ipairs({ "x", "y", "spin" }) do
+				if r[f] ~= nil and type(r[f]) ~= "number" then fail(("station '%s': rotor '%s' %s should be a number"):format(def.id, tostring(name), f)) end
+			end
+			def.rotorParts[name] = {}
+		end
+		for _, part in ipairs(def.parts) do
+			if part.rotor ~= nil then
+				local list = def.rotorParts[part.rotor]
+				if not list then fail(("station '%s': part '%s' names unknown rotor '%s'"):format(def.id, tostring(part.name), tostring(part.rotor))) end
+				if part.dock then fail(("station '%s': dock part '%s' can't be on a rotor"):format(def.id, tostring(part.name))) end
+				table.insert(list, part)
+			else
+				table.insert(def.staticParts, part)
+			end
+		end
+	end
 	-- turrets: { x, y, module (a weapon module id), turn
 	-- (degrees a second, default 90) }. They fire the module's weapon with
 	-- endless ammo at whatever Game:stationHostile picks.

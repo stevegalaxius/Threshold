@@ -63,10 +63,17 @@ function Game:stationRecord(st)
 	return r
 end
 
-function Game:findStation(key)
+-- access: which access point of a station that has several (the
+-- Heaven-Ladder's anchors); left out, the first found.
+function Game:findStation(key, access)
+	local first
 	for _, e in ipairs(self.entities) do
-		if e.kind == "station" and e.key == key then return e end
+		if e.kind == "station" and e.key == key then
+			if not access or e.accessIndex == access then return e end
+			first = first or e
+		end
 	end
+	return first
 end
 
 -- Where you'd respawn: { field, key, name }, or nil.
@@ -118,7 +125,7 @@ function Game:placePlayer(rec, at)
 	local p = self:spawnPlayer(rec)
 	at = at or {}
 	if at.station then
-		local st = self:findStation(at.station)
+		local st = self:findStation(at.station, at.access)
 		if st and st.dock then self:dockInstantly(p, st, at) return p end
 	end
 	if at.driver and self:placeAtDriver(p, at.exit) then return p end
@@ -330,7 +337,7 @@ function Game:saveState()
 			local ds = p.dockState
 			local dockIndex
 			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
-			where = { station = ds.station.key, bay = p.bay, berth = ds.berth, side = ds.side, dockIndex = dockIndex }
+			where = { station = ds.station.key, access = ds.station.accessIndex, bay = p.bay, berth = ds.berth, side = ds.side, dockIndex = dockIndex }
 		else
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()
