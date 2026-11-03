@@ -38,6 +38,7 @@ T.specs = {
 	{ key = "currentScale",   label = "Planet current speed",   min = 0,   max = 3,    value = 1,    precision = 2 },
 	{ key = "gunFalloff",     label = "Gun rounds: damage lost at max range", min = 0, max = 1, value = 0.6, precision = 2 },
 	{ key = "artilleryFuse",  label = "Artillery proximity fuse (x splash)", min = 0, max = 1, value = 0.2, precision = 2 },
+	{ key = "unguidedTurn",   label = "Missile/torpedo turn without guidance computer (x)", min = 0, max = 1, value = 0.5, precision = 2 },
 	{ key = "asteroidToughness", label = "Asteroid toughness (hp per r^2)", min = 0.005, max = 0.3, value = 0.05, precision = 3 },
 	{ key = "asteroidImpact", label = "Asteroid impact damage", min = 0, max = 20, value = 4, precision = 1 },
 	{ key = "huskToughness",  label = "Husk toughness (x ship armor)", min = 0.05, max = 2, value = 0.5, precision = 2 },

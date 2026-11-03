@@ -36,6 +36,7 @@ market { location = "mars/station_beta", station = "Station Beta", sells = {   -
 market { location = "earth/orbital_one", station = "Orbital One", sells = {   -- heavy weapons
 	{ "rk7_autocannon", 2 }, { "rk14_twin", 1 }, { "long_tom", 1 }, { "shell_l", 4 },
 	{ "glint_laser", 2 }, { "lumen_lance", 1 }, { "sunder_beam", 1 },
+	{ "thread_beam", 2 }, { "searing_ray", 1 }, { "furnace_beam", 1 },
 } }
 market { location = "earth/orbital_two", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "trident_bay", 1 }, { "torp_m", 2 }, { "breaker_tube", 1 },

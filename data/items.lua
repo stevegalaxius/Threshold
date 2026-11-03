@@ -13,7 +13,7 @@
 	  damage     per hit                    splash     blast radius (pixels)
 	  speed      pixels/second              knockback  push on what it hits
 	  range      pixels (shots expire there)
-	  accel, turnRate   missiles only: acceleration and turn (rad/s)
+	  accel, turnRate   missiles: acceleration and turn (rad/s); torpedoes: turnRate only (they launch at full speed)
 	Artillery and missiles burst on contact, at the end of their range, or
 	when they pass close to an enemy: missiles within half their splash
 	radius, shells within fuse pixels (default: the "Artillery proximity
@@ -51,11 +51,11 @@ ammo { id = "missile_l", name = "Longbow missile", maker = "Ferrous Collective",
 	shot = { damage = 120, splash = 90, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
 
 ammo { id = "torp_s", name = "Maul torpedo",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
-	shot = { damage = 220, splash = 80, speed = 4750, range = 12400, knockback = 15000 } }
+	shot = { damage = 220, splash = 80, speed = 9500, turnRate = 0.5, range = 12400, knockback = 15000 } }
 ammo { id = "torp_m", name = "Breaker torpedo",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400, w = 3, h = 1, stack = 1,
-	shot = { damage = 500, splash = 130, speed = 3650, range = 12800, knockback = 35000 } }
+	shot = { damage = 500, splash = 130, speed = 8500, turnRate = 0.4, range = 12800, knockback = 35000 } }
 ammo { id = "torp_l", name = "Leviathan torpedo", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 3200, w = 5, h = 1, stack = 1,
-	shot = { damage = 1100, splash = 210, speed = 2550, range = 13200, knockback = 80000 } }
+	shot = { damage = 1100, splash = 210, speed = 7500, turnRate = 0.3, range = 13200, knockback = 80000 } }
 
 ammo { id = "drone_s", name = "Wasp drone",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500, w = 2, h = 2, stack = 1,
 	shot = { hull = "wasp_drone", speed = 300, range = 1500 } }

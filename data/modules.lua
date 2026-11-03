@@ -24,6 +24,8 @@
 	              with no ammo: they carry damage (per pulse), range,
 	              knockback, pulse (seconds the flash shows) and
 	              powerPerShot themselves.
+	              beam = true makes it a beam laser instead: it burns while
+	              the trigger is held, with damage and powerPerSecond per second.
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
 	  fireRate    shots per second           spread    random spread in degrees
@@ -96,8 +98,29 @@ module {
 	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10, knockback = 8000 },
 }
 
+-- Beam lasers: a continuous beam while the trigger is held. damage and
+-- powerPerSecond are per second; easier to keep on target than a pulse
+-- laser, so a little less damage for the power.
+module {
+	id = "thread_beam", name = "Thread Beam", maker = "Halcyon Arms", family = "weapon", size = "S",
+	mass = 6, price = 6000,
+	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12, knockback = 800 },
+}
+
+module {
+	id = "searing_ray", name = "Searing Ray", maker = "Nova Syndicate", family = "weapon", size = "M",
+	mass = 14, price = 16000,
+	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12, knockback = 1600 },
+}
+
+module {
+	id = "furnace_beam", name = "Furnace Beam", maker = "Halcyon Arms", family = "weapon", size = "L",
+	mass = 32, price = 42000,
+	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10, knockback = 3000 },
+}
+
 -- Bay launchers -------------------------------------------------------------------
--- Missiles (guided), torpedoes (unguided, huge damage) and drone bays (launch
+-- Missiles (fire and forget), torpedoes (very fast, steer slowly, huge damage) and drone bays (launch
 -- an armed drone that fights for you for a while). Each fires its own kind
 -- in its size or smaller; Q switches the size.
 

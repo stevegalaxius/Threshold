@@ -35,6 +35,14 @@ return function(game)
  for _,w in ipairs(p.weapons) do w.cooldown=0;w.stagger=0 end
  Weapons.update(game,p,0.01)
  check(p.cargo.missile_s<before,'primary trigger did not launch the missile')
+ -- a beam laser burns while held, taking power per second
+ p.loadout={'thread_beam',false,false};p.triggers={};Ship.refit(p)
+ p.power=1000
+ local pw=p.power
+ p.intent.firePrimary=true
+ Weapons.update(game,p,0.1)
+ check(p.weapons[1].beam and p.power<pw,'beam laser did not fire or draw power')
+ p.intent.firePrimary=false
  -- old saved designs read as the new families
  local old=data.migrateSlot({family='secondary',size='M'})
  check(old.family=='hardpoint' and old.trigger=='secondary','old secondary slot not migrated')

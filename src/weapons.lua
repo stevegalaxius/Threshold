@@ -80,6 +80,27 @@ local function fire(game, e, slot, dt)
 	local angle = e.body:getAngle() + slot.aim
 	local dx, dy = cos(angle), sin(angle)
 
+	if w.kind == "laser" and w.beam then
+		-- Beam laser: burns continuously while the trigger is held, taking
+		-- damage and power per second instead of per pulse.
+		local need = w.powerPerSecond * dt
+		if e.power < need then slot.starved = true; return end
+		slot.starved = false
+		e.power = e.power - need
+		local ex, ey = wx + dx * w.range, wy + dy * w.range
+		local hit = game:raycast(wx, wy, ex, ey, e.team)
+		if hit then
+			ex, ey = hit.x, hit.y
+			game:damage(hit.entity, w.damage * dt * mult.primaryDamage, e, "laser", hit.x, hit.y)
+			local k = (w.knockback or 0) * dt * T.knockbackScale
+			if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
+			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, { 0.7, 1, 1 }) end
+		end
+		slot.beam = { wx, wy, ex, ey, game.time, 0.08 }
+		if not slot.firing then events.emit("fire", e, slot) end
+		return
+	end
+
 	if w.kind == "laser" then
 		-- One pulse: hits instantly along the beam, then the beam lingers
 		-- on screen for w.pulse seconds.
@@ -177,17 +198,28 @@ local function fire(game, e, slot, dt)
 		p.burst = true
 		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
 	elseif w.kind == "missile" then
+		-- Fire and forget: picks a target on launch and chases it. With a
+		-- guidance computer it turns harder, takes the computer's lock and
+		-- finds a new target if its own dies.
+		p.guided = game:computer(e, "guidance") ~= nil
 		p.vx, p.vy = svx + dx * ws.speed * 0.4, svy + dy * ws.speed * 0.4
-		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
+		p.maxSpeed, p.accel = ws.speed, ws.accel
+		p.turnRate = ws.turnRate * (p.guided and 1 or T.unguidedTurn)
 		p.life = ws.range / ws.speed * 1.3
 		p.damage = ws.damage * mult.missileDamage
-		p.target = (e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
+		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5
 	elseif w.kind == "torpedo" then
-		-- Unguided: flies straight and bursts on contact or at the end of its range.
+		-- Very fast, and steers only a little: aim it, then it corrects
+		-- slowly toward the target nearest your aim (the guidance lock,
+		-- and twice the correction, with a guidance computer).
+		p.guided = game:computer(e, "guidance") ~= nil
+		p.maxSpeed, p.accel = ws.speed, 0
+		p.turnRate = (ws.turnRate or 0) * (p.guided and 1 or T.unguidedTurn)
 		p.life = ws.range / ws.speed
+		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 500)
 		p.burst = true
 	end
 
@@ -294,6 +326,15 @@ end
 local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end
+	-- a guided missile whose target died picks the nearest other one
+	if not t and p.guided and p.kind == "missile" then
+		p.retarget = (p.retarget or 0) - dt
+		if p.retarget <= 0 then
+			p.retarget = 0.25
+			t = nearestTargetTo(game, p.x, p.y, p.team, 3000)
+			p.target = t
+		end
+	end
 	p.age = (p.age or 0) + dt
 	local fx, fy = game:flowAt(p.x, p.y)
 	local rvx, rvy = p.vx - fx, p.vy - fy
@@ -320,7 +361,7 @@ function Weapons.updateProjectiles(game, dt)
 	local i = 1
 	while i <= #list do
 		local p = list[i]
-		if p.kind == "missile" then steerMissile(game, p, dt) end
+		if p.kind == "missile" or (p.kind == "torpedo" and p.turnRate and p.turnRate > 0) then steerMissile(game, p, dt) end
 		p.px, p.py = p.x, p.y
 		local nx, ny = p.x + p.vx * dt, p.y + p.vy * dt
 		local hit = game:raycast(p.x, p.y, nx, ny, p.team)
