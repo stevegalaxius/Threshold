@@ -230,6 +230,7 @@ function Weapons.update(game, e, dt)
 		slot.cooldown = max(0, slot.cooldown - dt)
 		aimSlot(e, slot, dt)
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
+			or (slot.group == "tertiary" and it.fireTertiary)
 		-- AI only fires a weapon when the target is roughly in its range.
 		if wants and it.targetDist and it.targetDist > Weapons.range(slot) * 1.05 then wants = false end
 		-- When the trigger goes down, delay each identical weapon by its

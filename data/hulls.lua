@@ -41,10 +41,11 @@
 	Slots: family is hardpoint, bay, engine, reactor, utility or computer;
 	size is S, M or L. Hardpoints take turret-style weapons (guns,
 	artillery, lasers); bays take launchers (missiles, torpedoes, drones).
-	Either kind can fire on the primary (left mouse) or secondary (right
-	mouse) trigger: the player sets that per slot in the loadout screen.
-	trigger sets the slot's default; without one, hardpoints are primary
-	and bays secondary. Everything else takes a module of its own family. Sizes must match. Utility and computer slots are size "any": shared
+	Either kind can be in the primary, secondary or tertiary fire group
+	(mouse: left, right, middle; pad: right trigger, left trigger, right
+	bumper): the player sets that per slot in the loadout screen. trigger
+	sets the slot's default; without one, hardpoints are primary and bays
+	tertiary. Everything else takes a module of its own family. Sizes must match. Utility and computer slots are size "any": shared
 	slots every class has alike. Slots with x,y are drawn on the hull
 	(weapons fire from there).
 

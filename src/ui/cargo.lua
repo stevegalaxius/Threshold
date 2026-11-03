@@ -1130,13 +1130,13 @@ local function drawEquipment(game, L, mx, my)
 		end
 		if r.trig then
 			local t, on = r.trig, inRect(r.trig, mx, my)
-			local sec = Ship.triggerFor(p, r.i) == "secondary"
-			local col = sec and { 0.8, 0.9, 1 } or HUD.INK
+			local trig = Ship.triggerFor(p, r.i)
+			local col = trig == "secondary" and { 0.8, 0.9, 1 } or (trig == "tertiary" and { 1, 0.85, 0.7 } or HUD.INK)
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], (on and 0.35 or 0.12) * alpha)
 			lg.rectangle("fill", t.x, t.y, t.w, t.h, 4, 4)
 			lg.setColor(col[1], col[2], col[3], alpha)
 			lg.setFont(HUD.font(11))
-			lg.printf(sec and "RMB" or "LMB", t.x, t.y + (t.h - 11) / 2 - 1, t.w, "center")
+			lg.printf(Ship.TRIGGER_TAG[trig], t.x, t.y + (t.h - 11) / 2 - 1, t.w, "center")
 		end
 	end
 end
@@ -1386,7 +1386,7 @@ function Cargo.draw(game)
 			HUD.tip = nil
 			lg.setFont(HUD.font(11))
 			lg.setColor(HUD.DIM)
-			lg.print("click: fire on " .. (Ship.triggerFor(p, er.i) == "primary" and "right" or "left") .. " mouse", mx + 14, my + 14)
+			lg.print("click: change which fire group this slot is in", mx + 14, my + 14)
 		end
 		if fitted then
 			tooltip(data.items[fitted], 1, mx, my, docked and "Drag to the hold to unfit" or "Dock at a station to refit")

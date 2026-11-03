@@ -1027,7 +1027,7 @@ function Game:beginDocking(e, st, side, dock)
 	if e ~= self.player then
 		e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
 	end
-	e.intent.firePrimary, e.intent.fireSecondary = false, false
+	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireTertiary = false, false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
@@ -1555,7 +1555,7 @@ function Game:setPlayerIntent(intent)
 		local a = p.body:getAngle()
 		for k, v in pairs(intent) do p.intent[k] = v end
 		p.intent.thrust, p.intent.strafe, p.intent.boost, p.intent.tractor = 0, 0, false, false
-		p.intent.firePrimary, p.intent.fireSecondary = false, false
+		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 		p.intent.aimX, p.intent.aimY = x + cos(a) * 700, y + sin(a) * 700
 		return
 	end
@@ -1583,7 +1583,7 @@ function Game:step(dt)
 				local x,y=e.body:getPosition()
 				e.intent.thrust,e.intent.strafe,e.intent.boost=0,0,false
 				e.intent.aimX,e.intent.aimY=x+cos(a)*300,y+sin(a)*300
-				e.intent.firePrimary,e.intent.fireSecondary=false,false
+				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
 				Ship.fly(e,dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))

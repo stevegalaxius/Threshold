@@ -413,9 +413,10 @@ local function designWindow(E, Editor)
 				combo("yard_slotmount" .. i, slot.mount or "(hull)", mo, function(m) E.pushUndo(); slot.mount = m or nil end, 70)
 				-- default trigger (the player can change it in the hold)
 				Slab.SameLine()
-				local dflt = slot.family == "bay" and "secondary" or "primary"
-				local to = { { label = "LMB", value = "primary" }, { label = "RMB", value = "secondary" } }
-				combo("yard_slottrig" .. i, (slot.trigger or dflt) == "primary" and "LMB" or "RMB", to, function(t)
+				local dflt = slot.family == "bay" and "tertiary" or "primary"
+				local TAG = { primary = "PRI", secondary = "SEC", tertiary = "TER" }
+				local to = { { label = "PRI", value = "primary" }, { label = "SEC", value = "secondary" }, { label = "TER", value = "tertiary" } }
+				combo("yard_slottrig" .. i, TAG[slot.trigger or dflt], to, function(t)
 					E.pushUndo(); slot.trigger = (t ~= dflt) and t or nil
 				end, 50)
 			end

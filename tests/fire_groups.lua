@@ -13,10 +13,14 @@ return function(game)
  check(not data.fits(p.hull.slots[1],data.modules.sparrow_rack),'a launcher fit a hardpoint')
  check(not data.fits(p.hull.slots[2],data.modules.px2_autogun),'a gun fit a bay')
  local function group(i) for _,w in ipairs(p.weapons) do if w.index==i then return w.group end end end
- check(group(1)=='primary' and group(2)=='secondary' and group(3)=='secondary','default triggers wrong')
+ check(group(1)=='primary' and group(2)=='tertiary' and group(3)=='secondary','default triggers wrong')
+ Ship.toggleTrigger(p,1)
+ check(group(1)=='secondary','toggle did not step primary to secondary')
+ Ship.toggleTrigger(p,1);Ship.toggleTrigger(p,1)
+ check(group(1)=='primary','toggle did not cycle through all three groups')
  Ship.toggleTrigger(p,2)
  check(group(2)=='primary','bay did not move to the primary trigger')
- Ship.toggleTrigger(p,3)
+ Ship.toggleTrigger(p,3);Ship.toggleTrigger(p,3)
  check(group(3)=='primary','hardpoint did not move to the primary trigger')
  local rec=Ship.record(p)
  check(rec.triggers[2]=='primary' and rec.triggers[3]=='primary','triggers not in the ship record')
@@ -27,7 +31,7 @@ return function(game)
  -- the primary trigger now fires the missile rack
  p.cargo.missile_s=(p.cargo.missile_s or 0)+5
  local before=p.cargo.missile_s
- p.intent.firePrimary,p.intent.fireSecondary=true,false
+ p.intent.firePrimary,p.intent.fireSecondary,p.intent.fireTertiary=true,false,false
  for _,w in ipairs(p.weapons) do w.cooldown=0;w.stagger=0 end
  Weapons.update(game,p,0.01)
  check(p.cargo.missile_s<before,'primary trigger did not launch the missile')

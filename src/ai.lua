@@ -276,7 +276,7 @@ end
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
-	it.firePrimary, it.fireSecondary, it.boost = false, false, false
+	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
 	if ai.style == "trader" then return trade(game, e, dt) end
 
@@ -461,6 +461,7 @@ function AI.think(game, e, dt)
 	local facing = e.hull.mount == "turret" or (fx * ax + fy * ay) > 0.95
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
 	it.fireSecondary = it.firePrimary
+	it.fireTertiary = it.firePrimary
 end
 
 return AI

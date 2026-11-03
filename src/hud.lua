@@ -68,7 +68,7 @@ local function weaponLines(p)
 		line.n = line.n + 1
 		line.starved = line.starved or w.starved
 	end
-	local ORDER = { primary = 1, secondary = 2 }
+	local ORDER = { primary = 1, secondary = 2, tertiary = 3 }
 	table.sort(lines, function(a, b) return ORDER[a.group] < ORDER[b.group] end)
 	return lines
 end
@@ -95,9 +95,9 @@ local function drawStatus(game)
 	lg.setFont(font(12))
 	local ly = y + 56
 	for _, line in ipairs(lines) do
-		local tag = ({ primary = "LMB", secondary = "RMB" })[line.group] or ""
+		local tag = ({ primary = "PRI", secondary = "SEC", tertiary = "TER" })[line.group] or ""
 		local label = tag .. "  " .. (line.n > 1 and (line.n .. "x ") or "") .. line.name
-		lg.setColor(line.group == "secondary" and { 0.8, 0.9, 1 } or INK)
+		lg.setColor(line.group == "tertiary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
 		lg.print(label, x + 14, ly)
 		local right, col
 		if line.kind == "laser" then
@@ -160,7 +160,8 @@ end
 local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
-	"LMB primary   RMB secondary  (set per slot in the hold)",
+	"LMB primary   RMB secondary   MMB tertiary",
+	"(pick each slot's fire group in the hold)",
 	"Q launcher ammo size   E tractor beam",
 	"G fly a drone (drone uplink)",
 	"tap E open wreck/container   hold E tow",

@@ -113,7 +113,7 @@ local function prepareHull(def)
 		data.migrateSlot(slot)
 		if slot.mount and not MOUNTS[slot.mount] then fail(("hull '%s' slot %d has unknown mount '%s'"):format(def.id, i, tostring(slot.mount))) end
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
-		if slot.trigger and slot.trigger ~= "primary" and slot.trigger ~= "secondary" then fail(("hull '%s' slot %d has unknown trigger '%s' (use primary or secondary)"):format(def.id, i, tostring(slot.trigger))) end
+		if slot.trigger and slot.trigger ~= "primary" and slot.trigger ~= "secondary" and slot.trigger ~= "tertiary" then fail(("hull '%s' slot %d has unknown trigger '%s' (use primary, secondary or tertiary)"):format(def.id, i, tostring(slot.trigger))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
 end

@@ -33,7 +33,7 @@ function Ship.emptyIntent()
 	-- thrust: -1..1 along the nose (forward is the main engine, back is retro thrusters)
 	-- strafe: -1..1 to the ship's right (maneuvering thrusters, or turning
 	--         right on a hull with helm = "turn")
-	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, boost = false, tractor = false }
+	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireTertiary = false, boost = false, tractor = false }
 end
 
 --[[ Ship.new(game, opts)
@@ -48,7 +48,7 @@ end
 	              hangar or a save keeps its hold exactly as it was)
 	opts.armor    armor to start with (defaults to full)
 	opts.triggers which trigger fires each weapon slot, by slot index
-	              ("primary" or "secondary"; defaults per Ship.triggerFor)
+	              ("primary", "secondary" or "tertiary"; defaults per Ship.triggerFor)
 ]]
 function Ship.new(game, opts)
 	local hull = type(opts.hull)=="table" and opts.hull or assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -126,19 +126,24 @@ function Ship.record(e)
 	}
 end
 
+Ship.TRIGGERS = { primary = true, secondary = true, tertiary = true }
+-- Short labels for each trigger (not mouse buttons: a pad plays too).
+Ship.TRIGGER_TAG = { primary = "PRI", secondary = "SEC", tertiary = "TER" }
+
 -- Which trigger fires the weapon in slot i: the player's choice, else the
--- slot's default, else primary for hardpoints and secondary for bays.
+-- slot's default, else primary for hardpoints and tertiary for bays.
 function Ship.triggerFor(e, i)
 	local slot = e.hull.slots[i]
 	local t = e.triggers and e.triggers[i]
-	if t == "primary" or t == "secondary" then return t end
-	return slot.trigger or (slot.family == "bay" and "secondary" or "primary")
+	if Ship.TRIGGERS[t] then return t end
+	return slot.trigger or (slot.family == "bay" and "tertiary" or "primary")
 end
 
--- Flip slot i between the primary and secondary trigger.
+-- Step slot i to the next trigger: primary, secondary, tertiary.
 function Ship.toggleTrigger(e, i)
 	e.triggers = e.triggers or {}
-	e.triggers[i] = Ship.triggerFor(e, i) == "primary" and "secondary" or "primary"
+	local NEXT = { primary = "secondary", secondary = "tertiary", tertiary = "primary" }
+	e.triggers[i] = NEXT[Ship.triggerFor(e, i)]
 	Ship.refit(e)
 end
 
@@ -158,7 +163,7 @@ function Ship.refit(e)
 			table.insert(e.weapons, {
 				slot = slot, module = m, w = m.weapon,
 				index = i, bay = m.family == "bay",
-				group = Ship.triggerFor(e, i),    -- primary or secondary
+				group = Ship.triggerFor(e, i),    -- primary, secondary or tertiary
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
