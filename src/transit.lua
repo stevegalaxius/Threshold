@@ -1156,7 +1156,7 @@ local LADDER_SPIN = 0.006   -- radians a second (about 50 px/s at the rim)
 function Game:spawnHeavenLadder(cx, cy, R)
 	local w = self.well
 	local surface = w and w.radius or R - 1000
-	local thick, gaps, gapW = 140, 8, 700   -- thick: half the ring's depth (anchors leave a 170 channel)
+	local thick, gaps, gapW = 100, 8, 700   -- thick: half the ring's depth (the anchors' channel is 110 each side)
 	local gapA = gapW / R
 	local segments = {}
 	for i = 0, gaps - 1 do
@@ -1198,7 +1198,7 @@ function Game:spawnHeavenLadder(cx, cy, R)
 		local a = (i * 2 + 1) / gaps * pi * 2
 		local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
 		local tw = 24
-		local top = R - 620   -- the anchor's tether head
+		local top = R - 560   -- the anchor's tether head
 		self:addStructure({
 			cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
 			cx + ux * top + nx * tw, cy + uy * top + ny * tw,
