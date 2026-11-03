@@ -1022,13 +1022,29 @@ end
 -- A mining drill: a shaft out of the nose with a spinning bit at the tip.
 local function drawDrill(game, e, w)
 	local wx, wy = Ship.hardpoint(e, w.slot)
-	local a = e.body:getAngle()
+	local a = e.body:getAngle() + (w.aim or 0)
 	local reach = e.halfLength * 2 * w.extend
+	-- it shudders while it bites into something
+	if w.drillHit then
+		local j = 1.5
+		wx, wy = wx + (love.math.random() - 0.5) * j, wy + (love.math.random() - 0.5) * j
+	end
 	local ex, ey = wx + cos(a) * reach, wy + sin(a) * reach
 	local px = 1 / game.camera.zoom
 	lg.setColor(0.45, 0.47, 0.5)
 	lg.setLineWidth(max(6, 3 * px))
 	lg.line(wx, wy, ex, ey)
+	-- chain teeth running along the shaft, like a chainsaw
+	if w.firing then
+		local step, off = 7, (game.time * 140) % 7
+		local nx, ny = -sin(a), cos(a)
+		lg.setColor(0.9, 0.85, 0.7)
+		for d = off, reach - 4, step do
+			local cx, cy = wx + cos(a) * d, wy + sin(a) * d
+			lg.line(cx + nx * 3, cy + ny * 3, cx + nx * 5 + cos(a) * 2, cy + ny * 5 + sin(a) * 2)
+			lg.line(cx - nx * 3, cy - ny * 3, cx - nx * 5 - cos(a) * 2, cy - ny * 5 - sin(a) * 2)
+		end
+	end
 	local r = 9 + (({ S = 0, M = 4, L = 8 })[w.module.size] or 0)
 	local spin = game.time * 30
 	lg.setColor(0.85, 0.75, 0.45)

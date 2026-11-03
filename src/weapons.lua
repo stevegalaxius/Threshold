@@ -81,7 +81,7 @@ local function fire(game, e, slot, dt)
 	local dx, dy = cos(angle), sin(angle)
 
 	if w.kind == "drill" then
-		-- Mining drill: extends straight out of the nose while held, up to
+		-- Mining drill: extends out of its mount (which aims like any gun's) while held, up to
 		-- the ship's own length past the hardpoint, and grinds whatever the
 		-- tip touches. No ammo, a little power per second. Rock it breaks
 		-- drops ore (Game:breakAsteroid).
@@ -89,8 +89,7 @@ local function fire(game, e, slot, dt)
 		if e.power < need then slot.starved = true; return end
 		slot.starved = false
 		e.power = e.power - need
-		local a = e.body:getAngle()
-		local ddx, ddy = cos(a), sin(a)
+		local ddx, ddy = dx, dy
 		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
 		local reach = e.halfLength * 2 * slot.extend
 		local ex, ey = wx + ddx * reach, wy + ddy * reach
@@ -102,7 +101,13 @@ local function fire(game, e, slot, dt)
 			if rock then t.drilled = true end
 			game:damage(t, w.damage * dt * (rock and (w.rockDamage or 1) or 1), e, "drill", hit.x, hit.y)
 			slot.drillHit = { hit.x, hit.y }
-			if love.math.random() < dt * 25 then game:spark(hit.x, hit.y, 2, t.line or { 0.8, 0.7, 0.5 }) end
+			-- a steady spray of sparks and grit while it bites
+			slot.sparkT = (slot.sparkT or 0) - dt
+			if slot.sparkT <= 0 then
+				slot.sparkT = 0.04
+				game:spark(hit.x, hit.y, 3, { 1, 0.8, 0.4 })
+				if rock and love.math.random() < 0.4 then game:spark(hit.x, hit.y, 2, t.line or { 0.6, 0.6, 0.65 }) end
+			end
 		end
 		return
 	end
