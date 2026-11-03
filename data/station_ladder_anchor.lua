@@ -1,20 +1,15 @@
--- Station design (customs). Open and edit in the Shipyard (F2).
+-- Made in the Shipyard (F2).
 station {
-	id = "ladder_anchor", name = "Heaven-Ladder anchor", role = "customs",
-	color = { 0.66, 0.56, 0.48 },
-	rotors = {
-		scan = { over = true, spin = 0.8, x = 230, y = 0 },
-	},
+	id = "ladder_anchor", name = "Heaven-Ladder anchor",
 	berths = {
-		{ heading = 0, size = 130, x = 420, y = -430 },
-		{ heading = 180, size = 130, x = -470, y = -430 },
-		{ heading = 0, size = 130, x = 420, y = -620 },
-		{ heading = 180, size = 130, x = -470, y = -620 },
-		{ heading = 0, size = 130, x = 420, y = 430 },
-		{ heading = 180, size = 130, x = -470, y = 430 },
-		{ heading = 0, size = 130, x = 420, y = 620 },
-		{ heading = 180, size = 130, x = -470, y = 620 },
+		{ size = 130, x = 420, y = -430 },
+		{ size = 130, x = 420, y = -620 },
+		{ size = 130, x = 420, y = 430 },
+		{ size = 130, x = 420, y = 620 },
 	},
+	color = { 0.66, 0.56, 0.48 },
+	role = "customs",
+	rotors = { scan = { over = true, spin = 0.8, x = 230, y = 0 } },
 	parts = {
 		{ name = "climber hall", shape = { -420, -260, -110, -260, -110, 260, -420, 260 }, shade = 0.95, tint = { 0.06, 0, -0.05 }, lights = {
 			{ kind = "window", size = 8, x = -370, y = -200 },
@@ -49,10 +44,10 @@ station {
 			{ kind = "window", size = 8, x = 340, y = -200 },
 			{ kind = "window", size = 8, x = 340, y = 200 },
 		} },
-		{ name = "dock", dock = true, shape = { 420, -160, 700, -160, 700, 160, 420, 160 }, lights = {
+		{ name = "dock", shape = { 420, -160, 700, -160, 700, 160, 420, 160 }, lights = {
 			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 8, x = 690, y = -150 },
 			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 8, x = 690, y = 150 },
-		} },
+		}, dock = true },
 		{ name = "ring gantry -230", shape = { -110, -260, 110, -260, 110, -200, -110, -200 }, shade = 0.8, tint = { 0.12, -0.03, -0.08 }, layer = "detail", collide = false, lights = {
 			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 1.2, size = 7, x = 0, y = -230 },
 		} },
@@ -63,8 +58,8 @@ station {
 		{ name = "inner arm -1", shape = { -330, -720, -270, -720, -270, -260, -330, -260 }, shade = 0.8 },
 		{ name = "outer arm 1", shape = { 200, 260, 260, 260, 260, 720, 200, 720 }, shade = 0.8 },
 		{ name = "inner arm 1", shape = { -330, 260, -270, 260, -270, 720, -330, 720 }, shade = 0.8 },
-		{ name = "scanner", shape = { 230, -20, 380, -35, 380, 35, 230, 20 }, shade = 1.25, layer = "detail", collide = false, rotor = "scan", lights = {
+		{ name = "scanner", shape = { 230, -20, 380, -35, 380, 35, 230, 20 }, shade = 1.25, layer = "detail", collide = false, lights = {
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.5, size = 6, x = 380, y = 0 },
-		} },
+		}, rotor = "scan" },
 	},
 }

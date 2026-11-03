@@ -1088,7 +1088,8 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
-local TORPEDO = { S = 4, M = 6, L = 9 }
+local TORPEDO = { S = 4, M = 10, L = 16 }
+local MISSILE = { S = 3, M = 5, L = 8 }
 
 -- Shots keep a minimum on-screen size, so they stay visible zoomed out.
 local function drawProjectiles(game)
@@ -1119,9 +1120,10 @@ local function drawProjectiles(game)
 		elseif p.kind == "missile" then
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
-			lg.line(p.x, p.y, p.x - cos(a) * 22 * trail, p.y - sin(a) * 22 * trail)
+			local r = MISSILE[p.size] or 3
+			lg.line(p.x, p.y, p.x - cos(a) * r * 7 * trail, p.y - sin(a) * r * 7 * trail)
 			lg.setColor(COLORS.missile)
-			lg.circle("fill", p.x, p.y, max(3, 1.2 * px))
+			lg.circle("fill", p.x, p.y, max(r, 1.2 * px))
 		end
 	end
 end

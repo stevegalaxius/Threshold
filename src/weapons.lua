@@ -318,6 +318,11 @@ end
 local function fuseTarget(game, p)
 	-- a guided missile only bursts early beside its own target
 	local t = p.kind == "missile" and p.target
+	if t and t.kind == "decoy" then
+		-- a decoyed missile bursts on the flare (next step)
+		if not t.dead and (t.x - p.x) ^ 2 + (t.y - p.y) ^ 2 < p.fuse * p.fuse then p.life = 0 end
+		return nil
+	end
 	if t then
 		if not t.dead and Ship.distanceTo(t, p.x, p.y) < p.fuse then return t end
 		return nil
