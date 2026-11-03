@@ -413,7 +413,7 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, landable = true, lumpy = 0.15,
-	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
+	density = 0.06, mix = MIX.belt, belt = 0.8, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
@@ -448,9 +448,9 @@ Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
 Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
-	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
+	hue = { 0.5, 0.42, 0.38 }, density = 0.04, mix = { rock = 1 }, belt = 0.45, beltIn = 0.15, beltOut = 0.4 })
 Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
-	hue = { 0.55, 0.48, 0.42 }, density = 0.1, mix = { rock = 1 }, belt = 1.0, beltIn = 0.15, beltOut = 0.4 })
+	hue = { 0.55, 0.48, 0.42 }, density = 0.035, mix = { rock = 1 }, belt = 0.3, beltIn = 0.15, beltOut = 0.4 })
 Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
 	stations = { "Pele Works", "Loki Laboratory" },

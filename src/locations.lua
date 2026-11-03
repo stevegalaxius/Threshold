@@ -30,7 +30,7 @@ function L.rate(m)
 	if m.period then return pi * 2 / (T.yearLength * m.period) end
 	if m.surface then
 		local at = m.flowRadius or m.radius
-		return 290 * math.sqrt(m.surface / math.max(at, m.surface)) * T.currentScale * (m.speedScale or 1) / m.radius
+		return 290 * math.min(1, m.surface / 6000) * math.sqrt(m.surface / math.max(at, m.surface)) * T.currentScale * (m.speedScale or 1) / m.radius
 	end
 	return m.rate or 0
 end

@@ -22,6 +22,12 @@ return function(game)
 			check(strength(0, R) == strength(R, 0), id .. ": pull depends on approach direction")
 		end
 	end
+	-- Tiny bodies have gentler gravity and lower orbital speeds than large worlds.
+	game.well={x=0,y=0,radius=6000,flow=290}
+	local largePull,largeSpeed=strength(6000,0),game:currentSpeed(6000)
+	game.well={x=0,y=0,radius=800,flow=290}
+	check(strength(800,0)<largePull*.2,'small moon gravity is as strong as a large world')
+	check(game:currentSpeed(800)<largeSpeed*.2,'small moon debris orbits too quickly')
 	game.well = nil
 	check(strength(0, 100) == 0, "open space has surface gravity")
 

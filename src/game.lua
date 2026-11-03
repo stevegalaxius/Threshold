@@ -546,11 +546,13 @@ function Game:spawnPlanet(x, y, radius, flow, swirl, rocky, landable)
 	return e
 end
 
+-- Keep tiny-world currents gentle: a shared tangential speed makes their
+-- short orbits whirl much faster than those around larger planets.
 -- How fast the field's current runs at distance r from the planet.
 function Game:currentSpeed(r)
 	local w = self.well
 	if not w then return 0 end
-	return w.flow * sqrt(w.radius / max(r, w.radius)) * T.currentScale
+	return w.flow * min(1, w.radius / 6000) * sqrt(w.radius / max(r, w.radius)) * T.currentScale
 end
 
 -- The current's velocity at (x, y): along the tangent, clockwise on screen.
@@ -665,7 +667,7 @@ function Game:surfacePullAt(x, y)
 		end
 	end
 	local u = max(0, min(1, 1 - (r - surface) / reach))
-	local pull = T.surfacePull * (w.gas and T.gasPullScale or 1) * u * u * (3 - 2 * u)
+	local pull = T.surfacePull * min(1, w.radius / 6000) * (w.gas and T.gasPullScale or 1) * u * u * (3 - 2 * u)
 	return -dx / r * pull, -dy / r * pull
 end
 

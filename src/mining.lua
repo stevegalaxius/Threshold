@@ -39,6 +39,17 @@ Tasks.register('mine',{
 })
 function M.seed(game)
  local u=game.universe;local state=M.state(u)
+ -- Upgrade existing workers without replacing their identity, task or cargo.
+ for _,r in pairs(u.npcs) do
+  if M.isMiner(r) and r.ship.hull=='halcyon_wisp' then
+   local def=data.enemies.miner_packhorse
+   local old=Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
+   local fitted=Stats.compute(data.hulls[def.hull],def.loadout)
+   r.ship.armor=fitted.armor*min(1,(r.ship.armor or old.armor)/old.armor)
+   r.ship.hull,r.ship.loadout=def.hull,copy(def.loadout)
+   r.archetype,r.speed=def.id,def.ai.cruise
+  end
+ end
  for _,area in ipairs(Fields.list) do
   local specs=Fields.miningSources(area);local f=Fields[area]
   if #specs>0 then
@@ -63,9 +74,9 @@ function M.seed(game)
    if not f.instance and f.stationIds[1] and not state.seeded[area] then
     state.seeded[area]=true
     for _=1,T.minersPerArea do
-     local def=data.enemies.miner_wisp;local hull=data.hulls[def.hull]
+     local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
      u.nextNpcId=u.nextNpcId+1
-     local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_wisp',home=area,area=area,
+     local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
       base=f.stationIds[1],node=f.stationIds[1],route={f.stationIds[1],f.stationIds[1]},index=1,
       state='idle',speed=def.ai.cruise,spread=0,
       ship={hull=def.hull,loadout=copy(def.loadout),cargo={},color=copy(def.color),armor=Stats.compute(hull,def.loadout).armor}}
@@ -80,7 +91,7 @@ function M.position(resource,clock)
  local elapsed=max(0,clock-(resource.clock or clock));local f=Fields[resource.area]
  if f.planetR then
   local r=sqrt(resource.x^2+resource.y^2)
-  local rate=resource.orbitRate or 290*sqrt(f.planetR/max(r,f.planetR))*T.currentScale/max(r,1)
+  local rate=resource.orbitRate or 290*min(1,f.planetR/6000)*sqrt(f.planetR/max(r,f.planetR))*T.currentScale/max(r,1)
   local a=rate*elapsed
   return resource.x*cos(a)-resource.y*sin(a),resource.x*sin(a)+resource.y*cos(a),
    resource.vx*cos(a)-resource.vy*sin(a),resource.vx*sin(a)+resource.vy*cos(a)
@@ -369,11 +380,13 @@ function M.depart(game,e,station)
 end
 local function follow(game,e,AI,x,y,vx,vy,stand,ignore)
  local bx,by=e.body:getPosition();local dx,dy=x-bx,y-by;local d=max(.001,sqrt(dx*dx+dy*dy))
- local want=min(e.def.ai.cruise,max(-120,(d-stand)*.8))
- local sign=want<0 and -1 or 1
  local Nav=require('src.local_navigation')
- local ux,uy,scale=Nav.steer(game,e,dx/d*sign,dy/d*sign,math.abs(want),vx,vy,
-  {ignore=ignore,brake=Nav.brakeAccel(e),distance=max(1,math.abs(d-stand))})
+ local gx,gy=x-dx/d*stand,y-dy/d*stand
+ local wx,wy=Nav.waypoint(game,e,gx,gy,{ignore=ignore,cx=x,cy=y,stand=stand})
+ local rx,ry=wx-bx,wy-by;local leg=max(.001,sqrt(rx*rx+ry*ry))
+ local want=min(e.def.ai.cruise,leg*.8,sqrt(2*Nav.brakeAccel(e)*leg))
+ local ux,uy,scale=Nav.steer(game,e,rx/leg,ry/leg,want,vx,vy,
+  {ignore=ignore,brake=Nav.brakeAccel(e),distance=leg})
  AI.driveVelocity(e,vx+ux*math.abs(want)*scale,vy+uy*math.abs(want)*scale,ux,uy,e.def.ai.throttle)
  return d
 end

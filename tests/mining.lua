@@ -8,6 +8,16 @@ return function(game)
  local miners=0
  for _,r in pairs(game.universe.npcs) do if M.isMiner(r) then miners=miners+1;check(r.task and r.task.kind=='mine','miner has no autonomous duty') end end
  check(miners==8,'mining population missing or seeded in instance levels')
+ local legacy
+ for _,r in pairs(game.universe.npcs) do if M.isMiner(r) then legacy=r;break end end
+ local data=require('src.data');local previousTask=legacy.task
+ legacy.ship.hull='halcyon_wisp';legacy.ship.loadout={'bore_drill','bore_drill',false,'flit_engine','ember_reactor','tug_beam',false}
+ legacy.archetype='miner_wisp';legacy.ship.cargo.iron_ore=3
+ M.seed(game)
+ check(legacy.ship.hull=='ferrous_mule' and legacy.ship.loadout[1]=='rockbiter','existing miner was not upgraded to the industrial fit')
+ check(legacy.task==previousTask and legacy.ship.cargo.iron_ore==3,'miner upgrade discarded cargo or its current task')
+ legacy.ship.cargo.iron_ore=nil
+
  local before=game.universe.nextNpcId;A.seed(game)
  check(game.universe.nextNpcId==before,'visiting a region duplicated its miners')
  local area=os.getenv('THRESHOLD_MINING_AREA') or 'ring'
@@ -48,7 +58,7 @@ return function(game)
  local e=A.wake(game,r)
  if second then A.wake(game,second) end
  local cycles=tonumber(os.getenv('THRESHOLD_MINING_DELIVERIES')) or 1
- local trips,lastTrip={},{}
+ local trips,lastTrip,resumed={},{},{}
  local fired,looted,delivered,shot=false,false,false,false
  for step=1,72000 do
   local ex,ey=e.body:getPosition();game.player.body:setPosition(ex+1800,ey);game.player.body:setLinearVelocity(0,0)
@@ -67,6 +77,7 @@ return function(game)
   end
   looted=looted or (e.cargo[site.item] or 0)>0
   for _,worker in pairs(game.universe.npcs)do
+   if (trips[worker.id] or 0)>0 and worker.task and worker.task.phase=='mining' then resumed[worker.id]=true end
    local task=worker.lastTask
    if task and task.status=='completed' and lastTrip[worker.id]~=task.clock then
     lastTrip[worker.id]=task.clock;trips[worker.id]=(trips[worker.id] or 0)+1
@@ -79,7 +90,7 @@ return function(game)
  check(fired,'miner never used its fitted drill on a chunk')
  check(looted,'miner never collected the actual dropped ore')
  check(delivered,'miners did not complete their required delivery cycles within 600 seconds')
- check(r.task and r.task.phase=='mining','miner did not autonomously resume mining after delivery')
+ check(resumed[r.id] or r.task and r.task.phase=='mining','miner did not autonomously resume mining after delivery')
  -- Resource records and timer survive saves without entering ordinary area loot twice.
  M.captureResources(game)
  local resources=copy(M.state(game.universe).resources);local nextAt=site.nextAt

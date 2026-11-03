@@ -268,11 +268,15 @@ local function trade(game, e, dt)
 			want=min(cruise,sqrt(pass*pass+2*brakeAccel(e)*.6*max(0,d-150)))
 		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
+		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
+		ux,uy=norm(wx-x,wy-y)
+		local leg=sqrt((wx-x)^2+(wy-y)^2)
+		if detour then want=min(want,sqrt(60^2+brakeAccel(e)*max(0,leg-100))) end
 		local mx,my,scale,danger,clear=Nav.steer(game,e,ux,uy,want,fx0,fy0,
-			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=d})
+			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
 		want=want*scale
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
-		Nav.boost(e,mx,my,want,d,clear,danger,boosting)
+		Nav.boost(e,mx,my,want,leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
