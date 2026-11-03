@@ -92,6 +92,64 @@ local function turretCombo(id, current, pick)
 	combo(id, m and m.name or tostring(current), opts, pick, 200)
 end
 
+-- Window fill: lights a whole part in one go. Patterns:
+--   rooms      groups of windows share a colour; some rooms dark
+--   scattered  every window its own colour; whole rows go dark
+--   rows       unbroken lit rows, like a deck's promenade
+--   checker    every other window, a lattice
+--   grid       every window lit
+local WINDOW_PALETTES = {
+	warm = { { 1, 0.82, 0.5 }, { 1, 0.82, 0.5 }, { 1, 0.6, 0.35 }, { 1, 0.9, 0.7 } },
+	mixed = { { 1, 0.82, 0.5 }, { 1, 0.82, 0.5 }, { 1, 0.6, 0.35 }, { 0.6, 0.9, 1 }, { 0.75, 1, 0.65 } },
+	cool = { { 0.6, 0.9, 1 }, { 0.6, 0.9, 1 }, { 0.85, 0.95, 1 }, { 0.75, 1, 0.65 } },
+	amber = { { 1, 0.7, 0.35 }, { 1, 0.6, 0.35 } },
+	white = { { 1, 0.95, 0.85 } },
+	auto = false,   -- no colour: the game's default window colour
+}
+local WINDOW_PATTERNS = { "rooms", "scattered", "rows", "checker", "grid" }
+local function fillWindows(E, p)
+	local sx, sy = E.windowSpacing or 40, E.windowRowSpacing or 48
+	local density, pattern = E.windowDensity or 0.6, E.windowPattern or "rooms"
+	local pal, size = WINDOW_PALETTES[E.windowPalette or "mixed"], E.windowSize or 6
+	local rnd = love.math.random
+	local function colour() if pal then local c = pal[rnd(#pal)]; return { c[1], c[2], c[3] } end end
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for k = 1, #p.shape, 2 do
+		x0, x1 = math.min(x0, p.shape[k]), math.max(x1, p.shape[k])
+		y0, y1 = math.min(y0, p.shape[k + 1]), math.max(y1, p.shape[k + 1])
+	end
+	local rooms, row = {}, 0
+	p.lights = {}
+	for y = y0 + sy * 0.75, y1 - sy * 0.4, sy do
+		row = row + 1
+		local rowLit, rowColour = rnd() >= 0.25, colour()
+		local col = 0
+		for x = x0 + sx * 0.75, x1 - sx * 0.4, sx do
+			col = col + 1
+			if Canvas.inside(p.shape, x, y) then
+				local lit, c = false, nil
+				if pattern == "rooms" then
+					local key = math.floor(col / 3) .. ":" .. math.floor(row / 2)
+					rooms[key] = rooms[key] or { lit = rnd() < density, c = colour() }
+					lit, c = rooms[key].lit and rnd() < 0.9, rooms[key].c
+				elseif pattern == "scattered" then
+					lit, c = rowLit and rnd() < density, colour()
+				elseif pattern == "rows" then
+					lit, c = rnd() < 0.15 + density * 0.85 and row % 2 == 1, rowColour
+				elseif pattern == "checker" then
+					lit, c = (row + col) % 2 == 0 and rnd() < 0.3 + density * 0.7, colour()
+				else
+					lit, c = rnd() < 0.3 + density * 0.7, colour()
+				end
+				if lit then
+					table.insert(p.lights, { kind = "window", x = math.floor(x + 0.5), y = math.floor(y + 0.5), size = size, color = c })
+				end
+			end
+		end
+	end
+	if #p.lights == 0 then p.lights = nil end
+end
+
 local function placedSections(E, d)
 	d.stats = d.stats or {}
 	if d.kind == "station" then
@@ -359,6 +417,29 @@ local function designWindow(E, Editor)
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
+		if E.design.kind == "station" then
+			Slab.Separator()
+			Slab.Text("Fill a part with windows", { Color = { 0.8, 0.85, 1 } })
+			local p = E.sel and E.design.parts[E.sel]
+			Slab.Text(p and ("on: " .. (p.name or ("part " .. E.sel))) or "Select a part first (V)", { Color = { 0.6, 0.6, 0.6 } })
+			local popts = {}
+			for _, k in ipairs(WINDOW_PATTERNS) do table.insert(popts, { label = k, value = k }) end
+			Slab.Text("pattern"); Slab.SameLine()
+			combo("yard_wpattern", E.windowPattern or "rooms", popts, function(v) E.windowPattern = v end, 120)
+			local copts = {}
+			for _, k in ipairs({ "mixed", "warm", "cool", "amber", "white", "auto" }) do table.insert(copts, { label = k, value = k }) end
+			Slab.Text("colours"); Slab.SameLine()
+			combo("yard_wpalette", E.windowPalette or "mixed", copts, function(v) E.windowPalette = v end, 120)
+			Slab.Text("across / down (px)")
+			if Slab.InputNumberDrag("yard_wsx", E.windowSpacing or 40, 6, 200, 1, { W = 70 }) then E.windowSpacing = Slab.GetInputNumber() end
+			Slab.SameLine()
+			if Slab.InputNumberDrag("yard_wsy", E.windowRowSpacing or 48, 6, 200, 1, { W = 70 }) then E.windowRowSpacing = Slab.GetInputNumber() end
+			Slab.Text("size / lit share")
+			if Slab.InputNumberDrag("yard_wsize", E.windowSize or 6, 1, 24, 0.5, { W = 70 }) then E.windowSize = Slab.GetInputNumber() end
+			Slab.SameLine()
+			if Slab.InputNumberDrag("yard_wden", E.windowDensity or 0.6, 0.05, 1, 0.01, { W = 70 }) then E.windowDensity = Slab.GetInputNumber() end
+			if p and Slab.Button("Fill (replaces its lights; again to reroll)") then E.pushUndo(); fillWindows(E, p) end
+		end
 	end
 	if E.tool == "rect" then
 		Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
@@ -586,39 +667,6 @@ local function designWindow(E, Editor)
 	Slab.EndWindow()
 end
 
--- Window fill: a grid of windows inside a part, grouped into lit "rooms"
--- with mixed warm/cool colours and dark gaps, so a block reads as lived in.
-local WINDOW_PALETTE = {
-	{ 1, 0.82, 0.5 }, { 1, 0.82, 0.5 }, { 1, 0.6, 0.35 }, { 0.6, 0.9, 1 }, { 0.75, 1, 0.65 }, { 1, 0.95, 0.85 },
-}
-local function fillWindows(E, p, spacing, density)
-	local xs, ys = {}, {}
-	for k = 1, #p.shape, 2 do xs[#xs + 1] = p.shape[k]; ys[#ys + 1] = p.shape[k + 1] end
-	local x0, x1 = math.min(unpack(xs)), math.max(unpack(xs))
-	local y0, y1 = math.min(unpack(ys)), math.max(unpack(ys))
-	local room = spacing * 3
-	local rooms = {}
-	p.lights = {}
-	for y = y0 + spacing, y1 - spacing * 0.5, spacing do
-		for x = x0 + spacing, x1 - spacing * 0.5, spacing do
-			if Canvas.inside(p.shape, x, y) then
-				local key = math.floor(x / room) .. ":" .. math.floor(y / room)
-				local r = rooms[key]
-				if not r then
-					r = { lit = love.math.random() < density, color = WINDOW_PALETTE[love.math.random(#WINDOW_PALETTE)] }
-					rooms[key] = r
-				end
-				if r.lit and love.math.random() < 0.85 then
-					local c = r.color
-					table.insert(p.lights, { kind = "window", x = math.floor(x + 0.5), y = math.floor(y + 0.5),
-						size = math.max(1, spacing * 0.35), color = { c[1], c[2], c[3] } })
-				end
-			end
-		end
-	end
-	if #p.lights == 0 then p.lights = nil end
-end
-
 -- Right: the selected part -------------------------------------------------
 
 local function partWindow(E)
@@ -665,17 +713,6 @@ local function partWindow(E)
 		Slab.SameLine()
 		if Slab.Button("Back to the part") then E.lsel = nil end
 		if Slab.Button("Remove all lights on this part") then E.pushUndo(); p.lights = nil; E.lsel = nil end
-		Slab.Separator()
-	end
-	if not light and E.design.kind == "station" and p.shape then
-		Slab.Text("Fill with windows (replaces this part's lights)")
-		Slab.Text("spacing"); Slab.SameLine()
-		slider(E, "yard_wfsp" .. i, E.windowSpacing or 12, 4, 48, function(v) E.windowSpacing = v end, 0)
-		Slab.Text("lit share"); Slab.SameLine()
-		slider(E, "yard_wfden" .. i, E.windowDensity or 0.6, 0.05, 1, function(v) E.windowDensity = v end)
-		if Slab.Button("Fill windows (click again to reroll)") then
-			E.pushUndo(); fillWindows(E, p, E.windowSpacing or 12, E.windowDensity or 0.6)
-		end
 		Slab.Separator()
 	end
 	if E.errors[i] then Slab.Text("! " .. E.errors[i], { Color = { 1, 0.4, 0.4 } }) end
