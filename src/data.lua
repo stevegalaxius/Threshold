@@ -26,7 +26,7 @@ local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, 
 -- every other family fits the slot of the same name.
 local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
-local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
+local WEAPON_KINDS = { gun = true, artillery = true, laser = true, drill = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
@@ -372,7 +372,7 @@ end
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
-	if not w or w.kind == "laser" then return out end
+	if not w or w.kind == "laser" or w.kind == "drill" then return out end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
 		if item.kind == "ammo" and item.family == w.kind then
@@ -461,7 +461,7 @@ local function crossCheck()
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end
 	for id, m in pairs(data.modules) do
-		if m.weapon and m.weapon.kind ~= "laser" and not data.ammoFor(m) then
+		if m.weapon and m.weapon.kind ~= "laser" and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
 			error(("module '%s' fires %s %s ammo, but no ammo with that family and size exists"):format(
 				id, m.weapon.kind, m.size), 0)
 		end

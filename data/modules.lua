@@ -16,7 +16,7 @@
 	           Either fires on whichever trigger its slot is set to.
 
 	Weapon fields:
-	  kind        gun, artillery or laser (weapon family); missile, torpedo
+	  kind        gun, artillery, laser or drill (weapon family); missile, torpedo
 	              or drone (bay family). Each fires ammo of its own
 	              kind: guns and artillery in their exact caliber, bay
 	              launchers their size or smaller. The ammo sets damage,
@@ -96,6 +96,28 @@ module {
 	id = "sunder_beam", name = "Sunder Beam", maker = "Nova Syndicate", family = "weapon", size = "L",
 	mass = 30, price = 38000,
 	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10, knockback = 8000 },
+}
+
+-- Mining drills: hold the trigger and the drill extends out of the nose,
+-- up to the ship's own length, and grinds whatever its tip touches. No
+-- ammo and little power. damage is per second; rockDamage multiplies it
+-- against asteroids, and drilled rock drops ore when it breaks.
+module {
+	id = "bore_drill", name = "Bore Drill", maker = "Ferrous Collective", family = "weapon", size = "S",
+	mass = 6, price = 3500,
+	weapon = { kind = "drill", damage = 12, rockDamage = 12, powerPerSecond = 4, extendTime = 0.35 },
+}
+
+module {
+	id = "rockbiter", name = "Rockbiter", maker = "Ferrous Collective", family = "weapon", size = "M",
+	mass = 14, price = 9000,
+	weapon = { kind = "drill", damage = 25, rockDamage = 14, powerPerSecond = 8, extendTime = 0.45 },
+}
+
+module {
+	id = "deep_core_drill", name = "Deep Core Drill", maker = "Brute Industries", family = "weapon", size = "L",
+	mass = 34, price = 24000,
+	weapon = { kind = "drill", damage = 50, rockDamage = 16, powerPerSecond = 15, extendTime = 0.6 },
 }
 
 -- Beam lasers: a continuous beam while the trigger is held. damage and

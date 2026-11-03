@@ -349,6 +349,8 @@ local DEBRIS = {
 	sat = { fill = { 0.3, 0.31, 0.34 }, line = { 0.8, 0.83, 0.88 }, tough = 0.7 },   -- bursts, no pieces
 }
 Game.DEBRIS = DEBRIS
+-- What a drilled piece of each kind of debris drops when it breaks.
+local ORE = { rock = "iron_ore", ice = "water_ice", junk = "scrap" }
 
 -- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
 -- same kind of list, counter-clockwise (monotone chain).
@@ -1990,6 +1992,12 @@ function Game:breakAsteroid(e)
 			local s = 40 + random() * 90
 			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
 		end
+	end
+	-- drilled rock gives up ore: more for a bigger piece
+	local ore = e.drilled and ORE[e.debris or "rock"]
+	if ore and data.items[ore] then
+		local n = max(1, floor(e.radius / 20))
+		self:spawnPickup(x, y, ore, n)
 	end
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })

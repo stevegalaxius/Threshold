@@ -1019,10 +1019,33 @@ local function drawHusk(game, h)
 	lg.pop()
 end
 
+-- A mining drill: a shaft out of the nose with a spinning bit at the tip.
+local function drawDrill(game, e, w)
+	local wx, wy = Ship.hardpoint(e, w.slot)
+	local a = e.body:getAngle()
+	local reach = e.halfLength * 2 * w.extend
+	local ex, ey = wx + cos(a) * reach, wy + sin(a) * reach
+	local px = 1 / game.camera.zoom
+	lg.setColor(0.45, 0.47, 0.5)
+	lg.setLineWidth(max(6, 3 * px))
+	lg.line(wx, wy, ex, ey)
+	local r = 9 + (({ S = 0, M = 4, L = 8 })[w.module.size] or 0)
+	local spin = game.time * 30
+	lg.setColor(0.85, 0.75, 0.45)
+	for k = 0, 2 do
+		local b = spin + k * pi * 2 / 3
+		lg.polygon("fill", ex + cos(a) * r, ey + sin(a) * r,
+			ex + cos(a + pi / 2) * r * 0.6 * cos(b), ey + sin(a + pi / 2) * r * 0.6 * cos(b),
+			ex - cos(a + pi / 2) * r * 0.6 * cos(b), ey - sin(a + pi / 2) * r * 0.6 * cos(b))
+	end
+	lg.setLineWidth(1)
+end
+
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
 		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
+				if w.w.kind == "drill" and (w.extend or 0) > 0 and e.body then drawDrill(game, e, w) end
 				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam
 				local age = b and (game.time - b[5])

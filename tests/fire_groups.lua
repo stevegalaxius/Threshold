@@ -43,6 +43,24 @@ return function(game)
  Weapons.update(game,p,0.1)
  check(p.weapons[1].beam and p.power<pw,'beam laser did not fire or draw power')
  p.intent.firePrimary=false
+ -- a drill extends out of the nose while held and grinds rock into ore
+ p.loadout={'bore_drill',false,false};p.triggers={};Ship.refit(p)
+ p.body:setPosition(0,0);p.body:setAngle(0);p.body:setLinearVelocity(0,0)
+ local reach=p.halfLength*2
+ local rock=game:spawnAsteroid(reach*0.6+30,0,30,'rock');rock.body:setLinearVelocity(0,0)
+ local hp=rock.hp
+ p.power=1000;p.intent.firePrimary=true
+ for _=1,10 do Weapons.update(game,p,0.05) end
+ check((p.weapons[1].extend or 0)>0.9,'drill did not extend')
+ check(rock.hp<hp,'drill did not damage the rock')
+ check(p.power<1000,'drill drew no power')
+ rock.dead=true;game:reap()
+ local ore=false
+ for _,o in ipairs(game.pickups) do if o.item=='iron_ore' then ore=true end end
+ check(ore,'drilled rock dropped no ore')
+ p.intent.firePrimary=false
+ for _=1,20 do Weapons.update(game,p,0.05) end
+ check((p.weapons[1].extend or 0)==0,'drill did not retract')
  -- old saved designs read as the new families
  local old=data.migrateSlot({family='secondary',size='M'})
  check(old.family=='hardpoint' and old.trigger=='secondary','old secondary slot not migrated')

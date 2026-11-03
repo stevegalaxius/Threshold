@@ -80,6 +80,33 @@ local function fire(game, e, slot, dt)
 	local angle = e.body:getAngle() + slot.aim
 	local dx, dy = cos(angle), sin(angle)
 
+	if w.kind == "drill" then
+		-- Mining drill: extends straight out of the nose while held, up to
+		-- the ship's own length past the hardpoint, and grinds whatever the
+		-- tip touches. No ammo, a little power per second. Rock it breaks
+		-- drops ore (Game:breakAsteroid).
+		local need = (w.powerPerSecond or 0) * dt
+		if e.power < need then slot.starved = true; return end
+		slot.starved = false
+		e.power = e.power - need
+		local a = e.body:getAngle()
+		local ddx, ddy = cos(a), sin(a)
+		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
+		local reach = e.halfLength * 2 * slot.extend
+		local ex, ey = wx + ddx * reach, wy + ddy * reach
+		local hit = game:raycast(wx, wy, ex, ey, e.team)
+		slot.drillHit = nil
+		if hit then
+			local t = hit.entity
+			local rock = t.kind == "asteroid"
+			if rock then t.drilled = true end
+			game:damage(t, w.damage * dt * (rock and (w.rockDamage or 1) or 1), e, "drill", hit.x, hit.y)
+			slot.drillHit = { hit.x, hit.y }
+			if love.math.random() < dt * 25 then game:spark(hit.x, hit.y, 2, t.line or { 0.8, 0.7, 0.5 }) end
+		end
+		return
+	end
+
 	if w.kind == "laser" and w.beam then
 		-- Beam laser: burns continuously while the trigger is held, taking
 		-- damage and power per second instead of per pulse.
@@ -259,6 +286,12 @@ function Weapons.update(game, e, dt)
 	for _, slot in ipairs(e.weapons) do
 		slot.cooldown = max(0, slot.cooldown - dt)
 		aimSlot(e, slot, dt)
+		-- a drill retracts when the trigger is let go
+		if slot.w.kind == "drill" and not ((slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
+			or (slot.group == "tertiary" and it.fireTertiary)) then
+			slot.extend = max(0, (slot.extend or 0) - dt / (slot.w.extendTime or 0.4))
+			slot.drillHit = nil
+		end
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
 			or (slot.group == "tertiary" and it.fireTertiary)
 		-- AI only fires a weapon when the target is roughly in its range.
