@@ -51,6 +51,9 @@ function M.ejecta(site,sequence)
   delay=T.drillIntervalMin+(T.drillIntervalMax-T.drillIntervalMin)*rng:random()}
 end
 local function rigLength() return T.drillRockMax*2+20 end
+function M.chunkDamping(area)
+ return Fields[area].planetR and T.miningOrbitDamping or T.miningChunkDamping
+end
 function M.seed(game)
  local u=game.universe;local state=M.state(u)
  -- Upgrade existing workers without replacing their identity, task or cargo.
@@ -114,12 +117,33 @@ function M.position(resource,clock)
   local radial=resource.vx*nx+resource.vy*ny
   local tangent=-resource.vx*ny+resource.vy*nx
   if resource.relativeFlow then tangent=tangent+290*min(1,f.planetR/6000)*sqrt(f.planetR/max(r,f.planetR))*T.currentScale end
-  local damping=resource.kind=='loot' and 1.5 or T.miningChunkDamping
-  local decay=math.exp(-damping*elapsed)
-  local radius=max(1,r+radial*(1-decay)/damping)
-  local angle=math.atan2(resource.y,resource.x)+tangent/max(1,(r+radius)*.5)*elapsed
+  local damping=resource.kind=='loot' and 1.5 or M.chunkDamping(resource.area)
+  local function flow(at)
+   return 290*min(1,f.planetR/6000)*sqrt(f.planetR/max(at,f.planetR))*T.currentScale
+  end
+  -- Radial drift settles into the surrounding belt; excess tangential launch
+  -- speed relaxes toward the same orbital current as the physical rocks.
+  local excess=tangent-flow(r)
+  local function polar(t)
+   local decay=math.exp(-damping*t)
+   local radius=max(1,r+radial*(1-decay)/damping)
+   local speed=flow(radius)+excess*math.exp(-(.1+damping)*t)*r/radius
+   return radius,speed,radial*decay
+  end
+  -- Bounded quadrature follows the curved launch even after dematerializing.
+  -- After settling, only the steady orbit remains, regardless of elapsed time.
+  local duration=min(elapsed,240);local step=duration/32;local turn=0
+  for i=0,32 do
+   local radius,speed=polar(i*step)
+   local weight=(i==0 or i==32) and 1 or (i%2==0 and 2 or 4)
+   turn=turn+weight*speed/radius
+  end
+  turn=turn*step/3
+  local radius,speed,outward=polar(elapsed)
+  if elapsed>duration then turn=turn+(elapsed-duration)*speed/radius end
+  local angle=math.atan2(resource.y,resource.x)+turn
   local c,s=cos(angle),sin(angle)
-  return c*radius,s*radius,c*radial*decay-s*tangent,s*radial*decay+c*tangent
+  return c*radius,s*radius,c*outward-s*speed,s*outward+c*speed
  end
  local damping=resource.kind=='loot' and 1.5 or T.miningChunkDamping
  local travel=(1-math.exp(-damping*elapsed))/damping
@@ -169,6 +193,12 @@ function M.produce(game,clock)
     local item,yield=Ore.drop('rock',radius)
     local a=site.angle+spec.spread
     local dx,dy=cos(a),sin(a)
+    if Fields[site.area].planetR then
+     -- Join the planet's clockwise flow. Variation changes orbital speed and
+     -- gentle outward drift, never the direction of a random radial spray.
+     local outward=T.miningOutwardRatio*(1+spec.spread*.25)
+     dx,dy=-ny+nx*outward,nx+ny*outward
+    end
     state.resources[key]={id=key,site=id,area=site.area,kind='rock',item=item,yield=yield,
      x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
      vx=dx*spec.speed,vy=dy*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
@@ -260,7 +290,7 @@ function M.materialize(game)
     if r.kind=='rock' then
      local e=game:spawnAsteroid(x,y,r.radius,'rock',r.verts)
      e.miningId,e.hp,e.drilled=r.id,r.hp,r.drilled;e.body:setAngle(r.angle);e.body:setAngularVelocity(r.spin)
-     e.body:setLinearVelocity(vx,vy);e.body:setLinearDamping(T.miningChunkDamping)
+     e.body:setLinearVelocity(vx,vy);e.body:setLinearDamping(M.chunkDamping(r.area))
      game.miningLive[id]={kind='rock',object=e}
     else
      game:spawnPickup(x,y,r.item,r.count)

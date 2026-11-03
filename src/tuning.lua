@@ -246,6 +246,7 @@ T.drillSpeedMin,T.drillSpeedMax,T.drillSpread=420,950,.65
 T.miningSettleTime=6
 T.mineWorkAltitude=2600
 T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,.12
+T.miningOrbitDamping,T.miningOutwardRatio=.015,.07
 T.miningScan,T.miningOfflineEvery=.5,12
 
 return T

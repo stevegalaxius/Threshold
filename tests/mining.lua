@@ -1,4 +1,5 @@
 return function(game)
+ require('tests.mining_trajectories')()
  local M,A,T=require('src.mining'),require('src.alife'),require('src.tuning')
  local Save,copy=require('src.save'),require('src.persistence').copy
  local checks=0
@@ -62,7 +63,7 @@ return function(game)
   check(resource.radius>=T.drillRockMin,'mine ejected a tiny chip instead of a field rock')
   check(math.sqrt(resource.vx^2+resource.vy^2)>T.drillSpeedMin*.9,'mine did not launch its rock into the field')
   local px,py=M.position(resource,resource.clock+T.miningSettleTime)
-  check((px-resource.x)^2+(py-resource.y)^2>1200^2,'offline launch discarded outward travel')
+  check((px-resource.x)^2+(py-resource.y)^2>600^2,'offline launch discarded curved travel')
  end
 
  do
