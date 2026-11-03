@@ -26,7 +26,7 @@ return function(game)
  end
  game.sleepers={};game.miningLive={};M.state(game.universe).resources={}
  local site=M.state(game.universe).sites[r.task.target]
- for _,s in pairs(M.state(game.universe).sites)do s.nextAt=game.universe.clock+100000 end
+ for _,s in pairs(M.state(game.universe).sites)do s.nextAt=game.universe.clock+T.drillInterval end
  site.nextAt=game.universe.clock
  local x,y=M.workPoint(site)
  game.player.body:setPosition(x+1800,y);game.player.body:setLinearVelocity(0,0)
@@ -47,6 +47,8 @@ return function(game)
  end
  local e=A.wake(game,r)
  if second then A.wake(game,second) end
+ local cycles=tonumber(os.getenv('THRESHOLD_MINING_DELIVERIES')) or 1
+ local trips,lastTrip={},{}
  local fired,looted,delivered,shot=false,false,false,false
  for step=1,72000 do
   local ex,ey=e.body:getPosition();game.player.body:setPosition(ex+1800,ey);game.player.body:setLinearVelocity(0,0)
@@ -64,13 +66,19 @@ return function(game)
    game.camera.x,game.camera.y,game.camera.zoom=cx,cy,zoom;shot=true
   end
   looted=looted or (e.cargo[site.item] or 0)>0
-  local workersDone=not second or r.lastTask and r.lastTask.status=='completed' and second.lastTask and second.lastTask.status=='completed'
-  if ((M.state(game.universe).stock[r.base] or {})[site.item] or 0)>=T.minerLoad*(second and 2 or 1) and workersDone then delivered=true;break end
+  for _,worker in pairs(game.universe.npcs)do
+   local task=worker.lastTask
+   if task and task.status=='completed' and lastTrip[worker.id]~=task.clock then
+    lastTrip[worker.id]=task.clock;trips[worker.id]=(trips[worker.id] or 0)+1
+   end
+  end
+  local workersDone=(trips[r.id] or 0)>=cycles and (not second or (trips[second.id] or 0)>=cycles)
+  if ((M.state(game.universe).stock[r.base] or {})[site.item] or 0)>=T.minerLoad*(second and 2 or 1)*cycles and workersDone then delivered=true;break end
   if step%12000==0 then print('mining progress',step/120,r.task and r.task.phase,e.cargo[site.item] or 0) end
  end
  check(fired,'miner never used its fitted drill on a chunk')
  check(looted,'miner never collected the actual dropped ore')
- check(delivered,'miner did not deliver its cargo and choose another duty within 600 seconds')
+ check(delivered,'miners did not complete their required delivery cycles within 600 seconds')
  check(r.task and r.task.phase=='mining','miner did not autonomously resume mining after delivery')
  -- Resource records and timer survive saves without entering ordinary area loot twice.
  M.captureResources(game)

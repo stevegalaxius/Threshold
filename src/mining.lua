@@ -336,13 +336,21 @@ function M.bind(game,e,r)
  e.routeIndex=2
  local work={kind='waypoint',hold=true,inspection=true,locationId=r.task and r.task.target,removed=false,
   body={getPosition=function()
+   local resource=e.miningResource and M.state(game.universe).resources[e.miningResource]
+   if resource and r.task and r.task.phase=='mining' then return M.position(resource,game.universe.clock) end
    local site=r.task and M.state(game.universe).sites[r.task.target]
    if site then
     if r.task.phase=='delivery' then return M.workPoint(site) end
     return M.point(game,r,game.universe.clock)
    end
    return L.position(r.base,game.universe.clock)
-  end,getLinearVelocityFromWorldPoint=function()return 0,0 end}}
+  end,getLinearVelocityFromWorldPoint=function()
+   local resource=e.miningResource and M.state(game.universe).resources[e.miningResource]
+   if resource and r.task and r.task.phase=='mining' then
+    local _,_,vx,vy=M.position(resource,game.universe.clock);return vx,vy
+   end
+   return 0,0
+  end}}
  local home=game:locationEntity(r.base)
  if r.task and r.task.phase=='delivery' then e.route={work,home}
  else e.route={home,work} end
@@ -379,28 +387,29 @@ function M.think(game,e,dt,AI)
  if not r.task then return true end
  r.mineSite=r.mineSite or copy(M.state(game.universe).sites[r.task.target])
  if e.aggressor and not e.aggressor.dead and not e.aggressor.removed then
-  e.miningTarget,e.tractorTarget=nil,nil;e.intent.tractor=false;return false
+  e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;return false
  end
  if r.task.phase=='delivery' then
-  e.miningTarget,e.tractorTarget=nil,nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
+  e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
  end
  if (e.cargo[r.task.item] or 0)>=T.minerLoad or Ship.canFit(e,r.task.item,1)<=0 then
+  e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false
   M.returnHome(game,r,e.body:getPosition());M.bind(game,e,r);AI.trade(game,e,dt);return true
  end
  local x,y=e.body:getPosition()
  if game.time>=(e.miningScan or 0) then
   e.miningScan=game.time+T.miningScan
-  e.miningTarget=nil;e.tractorTarget=nil
+  e.miningTarget=nil;e.miningPickup=nil;e.miningResource=nil;e.tractorTarget=nil
   local best=math.huge
   for _,p in ipairs(game.pickups) do
    local resource=p.miningId and M.state(game.universe).resources[p.miningId]
    local owner=p.collector
-   if resource and resource.site==r.task.target and p.count>0 and (not owner or owner==e or owner.dead or owner.removed or owner.tractorTarget~=p) then
+   if resource and resource.site==r.task.target and p.count>0 and (not owner or owner==e or owner.dead or owner.removed or owner.miningPickup~=p) then
     local d=(p.x-x)^2+(p.y-y)^2
-    if d<best then e.tractorTarget=p;best=d end
+    if d<best then e.miningPickup=p;best=d end
    end
   end
-  if e.tractorTarget then e.tractorTarget.collector=e
+  if e.miningPickup then e.miningPickup.collector=e
   else
    for _,o in ipairs(game.entities) do
     local resource=o.miningId and M.state(game.universe).resources[o.miningId]
@@ -413,12 +422,36 @@ function M.think(game,e,dt,AI)
    end
    if e.miningTarget then e.miningTarget.miningOwner=e end
   end
+  -- A capped site can have all its resources outside the local physics band.
+  -- Pursue their saved positions instead of waiting forever at an empty node.
+  if not e.miningPickup and not e.miningTarget then
+   local preferred
+   for id,resource in pairs(M.state(game.universe).resources) do
+    if resource.site==r.task.target and not (game.miningLive and game.miningLive[id]) then
+     local claimed=false
+     for _,other in pairs(game.alifeOnline or {}) do
+      if other~=e and not other.dead and not other.removed and other.miningResource==id then claimed=true;break end
+     end
+     if not claimed then
+      local rx,ry=M.position(resource,game.universe.clock);local d=(rx-x)^2+(ry-y)^2
+      local priority=resource.kind=='loot' and 1 or 0
+      if not preferred or priority>preferred or priority==preferred and d<best then
+       e.miningResource=id;preferred=priority;best=d
+      end
+     end
+    end
+   end
+  end
  end
- local pickup=e.tractorTarget
+ local pickup=e.miningPickup
  if pickup and pickup.count>0 then
   follow(game,e,AI,pickup.x,pickup.y,pickup.vx,pickup.vy,Ship.tractorRange(e)*.55)
-  e.intent.aimX,e.intent.aimY=pickup.x,pickup.y;e.intent.tractor=true
+  e.intent.aimX,e.intent.aimY=pickup.x,pickup.y
+  -- Navigation owns the goal until collected; the beam only owns it in range.
+  local inRange=Ship.distanceTo(e,pickup.x,pickup.y)<=Ship.tractorRange(e)
+  e.tractorTarget=inRange and pickup or nil;e.intent.tractor=inRange
  elseif e.miningTarget and not e.miningTarget.dead and not e.miningTarget.removed then
+  e.tractorTarget=nil;e.intent.tractor=false
   local rock=e.miningTarget;local rx,ry=rock.body:getPosition();local vx,vy=rock.body:getLinearVelocity()
   local d=follow(game,e,AI,rx,ry,vx,vy,e.noseX+rock.radius+25,rock)
   e.intent.aimX,e.intent.aimY=rx,ry;e.intent.targetDist=nil
@@ -426,7 +459,7 @@ function M.think(game,e,dt,AI)
   local hit=game:raycast(x+cos(a)*e.halfLength,y+sin(a)*e.halfLength,rx,ry,e.team)
   e.intent.firePrimary=d<e.halfLength*3+rock.radius and math.abs(diff)<.18 and hit and hit.entity==rock or false
  else
-  e.intent.tractor=false;AI.trade(game,e,dt)
+  e.tractorTarget=nil;e.intent.tractor=false;AI.trade(game,e,dt)
  end
  return true
 end

@@ -630,7 +630,9 @@ power rules and pickup transport. Ordinary drilled debris keeps its existing
 fragmentation behavior; industrial chunks are consumed once into their ore.
 
 Miner identities, cargo, drill timers, chunk health, loose ore and delivered
-stock all persist. Distant workers use the same finite chunk/loot records and
+stock all persist. Miners retain pickup destinations outside tractor range and
+seek saved resources that drift beyond the local physics band, rather than
+returning to an empty waiting node. Distant workers use the same finite chunk/loot records and
 fitted drill power budget, without remote physics bodies. A resource represented
 by a live body or pickup is excluded from abstract mining. Physical resources
 stay awake around the player or an online miner, within the per-site cap.
