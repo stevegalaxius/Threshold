@@ -328,7 +328,7 @@ local function designWindow(E, Editor)
 
 	Slab.Separator()
 	Slab.Text("Tool")
-	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Rect (B)" }, { "light", "Lights (L)" } }
+	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" }, { "light", "Lights (L)" } }
 	if E.design.kind == "station" then
 		table.insert(tools, { "berth", "Berths" })
 		table.insert(tools, { "turret", "Turrets" })
@@ -353,6 +353,19 @@ local function designWindow(E, Editor)
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
+	end
+	if E.tool == "rect" then
+		Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
+		local popts = { { label = "rectangle", value = "rect" }, { label = "ellipse / circle", value = "ellipse" }, { label = "chamfered box", value = "chamfer" } }
+		local names = { rect = "rectangle", ellipse = "ellipse / circle", chamfer = "chamfered box" }
+		combo("yard_prim", names[E.primitive or "rect"], popts, function(k) E.primitive = k end, 160)
+		if E.primitive == "ellipse" then
+			Slab.Text("sides")
+			if Slab.InputNumberDrag("yard_primsides", E.primSides or 24, 6, 64, 1, { W = 90 }) then E.primSides = math.floor(Slab.GetInputNumber()) end
+		elseif E.primitive == "chamfer" then
+			Slab.Text("corner cut")
+			if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
+		end
 	end
 	if E.tool == "turret" then
 		Slab.Text("Click to place a turret; right click removes", { Color = { 0.6, 0.6, 0.6 } })

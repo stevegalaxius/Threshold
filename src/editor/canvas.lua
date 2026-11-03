@@ -513,9 +513,31 @@ function Canvas.mousereleased(E, sx, sy, button)
 		local x1, x2 = min(d.x1, d.x2), max(d.x1, d.x2)
 		local y1, y2 = min(d.y1, d.y2), max(d.y1, d.y2)
 		if x2 - x1 >= 1 and y2 - y1 >= 1 then
-			E.addPart({ x1, y1, x2, y1, x2, y2, x1, y2 })
+			E.addPart(Canvas.primitive(E, x1, y1, x2, y2))
 		end
 	end
+end
+
+-- The outline the primitive tool makes inside a dragged box: a rectangle,
+-- an ellipse (a circle when the box is square; hold shift to force one),
+-- or a box with chamfered corners.
+function Canvas.primitive(E, x1, y1, x2, y2)
+	local kind = E.primitive or "rect"
+	if kind == "ellipse" then
+		local cx, cy, rx, ry = (x1 + x2) / 2, (y1 + y2) / 2, (x2 - x1) / 2, (y2 - y1) / 2
+		if love.keyboard.isDown("lshift", "rshift") then rx = math.min(rx, ry); ry = rx end
+		local n, v = E.primSides or 24, {}
+		for k = 0, n - 1 do
+			local a = k / n * 2 * math.pi
+			v[#v + 1] = math.floor(cx + math.cos(a) * rx + 0.5)
+			v[#v + 1] = math.floor(cy + math.sin(a) * ry + 0.5)
+		end
+		return v
+	elseif kind == "chamfer" then
+		local c = math.min(E.primChamfer or 16, (x2 - x1) / 2, (y2 - y1) / 2)
+		return { x1 + c, y1, x2 - c, y1, x2, y1 + c, x2, y2 - c, x2 - c, y2, x1 + c, y2, x1, y2 - c, x1, y1 + c }
+	end
+	return { x1, y1, x2, y1, x2, y2, x1, y2 }
 end
 
 -- Drawing -------------------------------------------------------------------
@@ -838,7 +860,15 @@ function Canvas.draw(E)
 		local ax, ay = Canvas.toScreen(E, d.x1, d.y1)
 		local bx, by = Canvas.toScreen(E, d.x2, d.y2)
 		lg.setColor(0.5, 1, 0.6)
-		lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
+		local x1, y1, x2, y2 = min(d.x1, d.x2), min(d.y1, d.y2), max(d.x1, d.x2), max(d.y1, d.y2)
+		if x2 - x1 >= 1 and y2 - y1 >= 1 then
+			local v = Canvas.primitive(E, x1, y1, x2, y2)
+			local sv = {}
+			for k = 1, #v, 2 do sv[k], sv[k + 1] = Canvas.toScreen(E, v[k], v[k + 1]) end
+			lg.polygon("line", sv)
+		else
+			lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
+		end
 	end
 
 	-- the light under the mouse, and the eraser's reach
