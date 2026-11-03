@@ -27,6 +27,7 @@ local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
 local ALife = require("src.alife")
+local Mining = require("src.mining")
 
 local Game = {}
 Game.__index = Game
@@ -66,6 +67,7 @@ end
 -- Keep the field's bodies for the moon-road view and an immediate return.
 function Game:retainField()
 	self:captureALife(true)
+	Mining.unload(self)
 	local scene = setmetatable({}, Game)
 	for k, v in pairs(self) do scene[k] = v end
 	scene.camera = Camera.new()
@@ -86,6 +88,8 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	Mining.unload(self)
+	self.miningNext = nil
 	self:captureALife(true)
 	self.alifeNext, self.alifeRemoteNext = nil, nil
 	if not opts.skipCapture then self:captureArea() end
@@ -318,7 +322,7 @@ function Game:updateSleepers()
 	local awake = {}
 	for _, e in ipairs(self.entities) do
 		local slept = false
-		if e.kind == "asteroid" and not e.giant and not e.dead and not e.removed and not e.reentry then
+		if e.kind == "asteroid" and not e.giant and not e.miningId and not e.dead and not e.removed and not e.reentry then
 			local b = e.body
 			local x, y = b:getPosition()
 			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
@@ -350,7 +354,7 @@ local DEBRIS = {
 }
 Game.DEBRIS = DEBRIS
 -- What a drilled piece of each kind of debris drops when it breaks.
-local ORE = { rock = "iron_ore", ice = "water_ice", junk = "scrap" }
+local Ore = require("src.ore")
 
 -- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
 -- same kind of list, counter-clockwise (monotone chain).
@@ -408,7 +412,7 @@ function Game:spawnDebris(kind, x, y, radius)
 	return self:spawnAsteroid(x, y, radius, kind)
 end
 
-function Game:spawnAsteroid(x, y, radius, kind)
+function Game:spawnAsteroid(x, y, radius, kind, savedVerts)
 	kind = kind or "rock"
 	local D = DEBRIS[kind] or DEBRIS.rock
 	local verts = {}
@@ -436,7 +440,7 @@ function Game:spawnAsteroid(x, y, radius, kind)
 	-- jagged outlines can come out concave: keep their convex hull, so
 	-- every piece is a polygon (never a plain circle)
 	if not love.math.isConvex(verts) then verts = convexHull(verts) end
-	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts,
+	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
 	self:debrisBody(e, x, y, random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
@@ -1948,35 +1952,9 @@ function Game:updatePickups(dt)
 		end
 		k.vx, k.vy = fx + (k.vx - fx) * damp, fy + (k.vy - fy) * damp
 		local remove = false
-		if k == target then
-			local px, py = p.body:getPosition()
-			local pvx, pvy = p.body:getLinearVelocity()
-			local dx, dy = px - k.x, py - k.y
-			local d = max(sqrt(dx * dx + dy * dy), 1)
-			-- Reel in: steer toward the ship, matching its velocity.
-			local want = min(600, d * 4)
-			local tvx, tvy = pvx + dx / d * want, pvy + dy / d * want
-			local blend = min(1, dt * 8)
-			k.vx, k.vy = k.vx + (tvx - k.vx) * blend, k.vy + (tvy - k.vy) * blend
-			local edge = Ship.distanceTo(p, k.x, k.y)
-			if edge < 12 then
-				local item = data.items[k.item]
-				local got = Ship.addCargo(p, k.item, k.count)
-				if got > 0 then
-					k.count = k.count - got
-					self:toast(("+%d %s"):format(got, item.name), 1.4, "pickup")
-					events.emit("pickup", p, k.item, got)
-				end
-				if k.count <= 0 then
-					remove = true
-				else
-					self:toast("HOLD FULL", 1.2)
-					k.vx, k.vy = -dx / d * 160 + pvx, -dy / d * 160 + pvy
-				end
-				p.tractorTarget = nil
-			elseif edge > Ship.tractorRange(p) * 1.3 then
-				p.tractorTarget = nil
-			end
+		local collector=k==target and p or k.collector
+		if collector and collector.tractorTarget==k and collector.intent.tractor then
+			remove=require("src.tractor").pull(self,collector,k,dt)
 		end
 		k.x, k.y = k.x + k.vx * dt, k.y + k.vy * dt
 		if remove then
@@ -1993,6 +1971,7 @@ function Game:breakAsteroid(e)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
 	local breaks = (DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks
+	if e.miningId then breaks=nil end
 	local n = breaks and random(2, 4) or 0
 	local spin = random() * pi * 2
 	for k = 1, n do
@@ -2005,11 +1984,13 @@ function Game:breakAsteroid(e)
 		end
 	end
 	-- drilled rock gives up ore: more for a bigger piece
-	local ore = e.drilled and ORE[e.debris or "rock"]
-	if ore and data.items[ore] then
-		local n = max(1, floor(e.radius / 20))
+	local ore,n = Ore.drop(e.debris or "rock",e.radius)
+	local pickup
+	if e.drilled and ore and data.items[ore] then
 		self:spawnPickup(x, y, ore, n)
+		pickup=self.pickups[#self.pickups]
 	end
+	Mining.breakRock(self,e,pickup)
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
 end

@@ -608,3 +608,35 @@ and arrival scenes that are still needed remain alive; adopting a retained
 scene preserves that scene's world. `love . --teleporttest` checks two complete
 F3 cycles, leftover unmanaged bodies, abandoned highway previews and warp-flight
 cancellation.
+
+## Drill sites and A-Life miners
+
+Surface drill props on Phobos, Deimos and Ceres, plus the large asteroid props at
+Ring Station, periodically blast out batches of mineable rock. The Giant
+asteroid instance has a drill site as well, without adding A-Life pilots there.
+Each drill emits three chunks every 18 game seconds and stops at twelve
+outstanding chunks or ore stacks. Timers survive revisits and saves; overdue
+sites emit one batch rather than a catch-up swarm. Chunk damping keeps the work
+close to its source. Timing, population, batch and capacity settings live in
+`src/tuning.lua`.
+
+Two independent miners per populated mining region choose work through the
+shared task board. They approach a chunk, use their fitted **Bore Drills** at
+contact range, tractor the actual dropped ore, and return to dock with a load.
+They unload into saved station raw-material stock and choose their next duty.
+Stock is shown in F1's A-Life section; pricing and market settlement remain
+separate work. NPCs and the player use the same drill damage, ore drop table,
+power rules and pickup transport. Ordinary drilled debris keeps its existing
+fragmentation behavior; industrial chunks are consumed once into their ore.
+
+Miner identities, cargo, drill timers, chunk health, loose ore and delivered
+stock all persist. Distant workers use the same finite chunk/loot records and
+fitted drill power budget, without remote physics bodies. A resource represented
+by a live body or pickup is excluded from abstract mining. Physical resources
+stay awake around the player or an online miner, within the per-site cap.
+
+Run `love . --miningtest` for a complete physical drill/loot/delivery cycle,
+autonomous next duties, save restoration, shared online/offline resource
+accounting and production caps. Set `THRESHOLD_MINING_AREA=phobos` or `belt` to
+run the same physical cycle against those surfaces. The test writes a mining
+screenshot into LÖVE's save directory.

@@ -226,7 +226,7 @@ local function trade(game, e, dt)
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock then
+		if d < 450 and not stop.dock and not stop.hold then
 			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" then
 				if game:requestDriver(e,stop.driver,stop.destination) then
@@ -298,11 +298,14 @@ local function trade(game, e, dt)
 	end
 end
 
+AI.trade=trade
+
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
+	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
 	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()

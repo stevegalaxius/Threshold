@@ -105,7 +105,7 @@ function P.install(Game)
 			end
 		end
 		for _, p in ipairs(self.pickups) do
-			if p.count > 0 then snapshot.pickups[#snapshot.pickups + 1] = pickupRecord(self, p) end
+			if p.count > 0 and not p.miningId then snapshot.pickups[#snapshot.pickups + 1] = pickupRecord(self, p) end
 		end
 		self.universe.areas = self.universe.areas or {}
 		self.universe.areas[self.fieldId] = snapshot

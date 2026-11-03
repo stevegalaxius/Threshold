@@ -172,6 +172,7 @@ Fields.asteroids = {
 }
 
 Fields.giant = {
+ miningAsteroids={{x=0,y=0,radius=1800}},
 	instance = true,
 	name = "Giant asteroid",
 	spawn = { 0, 2600 },
@@ -357,6 +358,7 @@ end
 -- planet: a giant wheel station in the middle of thick rock, with a clear
 -- space round it kept by traffic control.
 Fields.ring = {
+ miningAsteroids = {},
 	name = "Ring Station",
 	spawn = { 0, 5200 },
 	radius = 26000,
@@ -366,10 +368,8 @@ Fields.ring = {
 	build = function(game)
 		game:spawnWheelStation(0, 0, 3000, 300, 0.02, false, "ring/ring_station")
 		-- a few huge rocks, too big to break, out in the field
-		for k = 0, 3 do
-			local a = k / 4 * pi * 2 + 0.4
-			local d = 11000 + (k % 2) * 5000
-			game:spawnGiantAsteroid(cos(a) * d, sin(a) * d, 900 + (k % 3) * 400)
+		for _,s in ipairs(Fields.ring.miningAsteroids) do
+			game:spawnGiantAsteroid(s.x,s.y,s.radius)
 		end
 		-- thick rock from the clear zone out to the edge
 		local area = pi * (26000 ^ 2 - 6500 ^ 2) / 1e6
@@ -377,6 +377,19 @@ Fields.ring = {
 		game:spawnContainers(T.fieldContainers, 4500)
 	end,
 }
+
+for k=0,3 do
+ local a,d=k/4*pi*2+.4,11000+(k%2)*5000
+ Fields.ring.miningAsteroids[#Fields.ring.miningAsteroids+1]={x=cos(a)*d,y=sin(a)*d,radius=900+(k%3)*400}
+end
+
+-- Authored industrial sites, shared by the catalogue and the simulation.
+function Fields.miningSources(area)
+ local f=Fields[area];local sources={}
+ if f.landable then sources[1]={x=0,y=0,radius=f.planetR,planet=true} end
+ for _,source in ipairs(f.miningAsteroids or {}) do sources[#sources+1]=source end
+ return sources
+end
 
 -- Each planet's map. Planet sizes are as set; how roomy a map is comes
 -- from depth, and its character from density, mix and belt.
@@ -580,12 +593,18 @@ for _, area in ipairs(Fields.list) do
 		for _, moon in ipairs(Fields.moonsOf(area)) do gate(moon, moon, false) end
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end
 	end
+ F.drillIds={}
+ for i,source in ipairs(Fields.miningSources(area)) do
+  F.drillIds[i]=add('drill/'..i,'Drill site '..i,'mining_site',
+   {type='mining',x=source.x,y=source.y,radius=source.radius,planet=source.planet,home=F.stationIds[1]})
+ end
  -- These links describe existing journeys, not generated navigation geometry.
  F.alifeSecurity = Fields.orbits[area] and #F.buoyIds==2 and {patrol=2,pirate=1} or nil
  F.travelLinks = {}
  local function link(a,b)
   if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end
  end
+ for _,id in ipairs(F.drillIds) do link(F.stationIds[1],id) end
  if F.tradeBuoys then
   -- Keep through traffic above the clouds. Olympus is a destination spur,
   -- never the junction between a moon exit and the mass driver.

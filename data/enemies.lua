@@ -103,3 +103,10 @@ enemy {
  ai = { style = "orbit", range = 700, accuracy = 0.55, throttle = 0.8, cruise = 650 },
  salvage = { 2, 4 },
 }
+
+-- A civilian mining fit using the same contact drills as the player.
+enemy {
+ id="miner_wisp",team=3,name="Independent Miner",hull="halcyon_wisp",color={.9,.73,.3},
+ loadout={"bore_drill","bore_drill",false,"flit_engine","ember_reactor","tug_beam",false},
+ cargo={},ai={style="trader",cruise=650,range=2500,accuracy=.7,throttle=.9},salvage={1,2},
+}

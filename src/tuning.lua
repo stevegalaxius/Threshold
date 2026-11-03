@@ -238,4 +238,10 @@ T.rampLead = 1500
 -- drift of edgeDrift px/s^2 carries you slowly back in.
 T.edgeBrake, T.edgeSoft, T.edgeDrift = 1.5, 3000, 40
 
+
+-- Surface drills emit bounded batches; both online and offline mining share them.
+T.drillInterval,T.drillBatch,T.drillCap,T.drillEjectSpeed=18,3,12,180
+T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,.3
+T.miningScan,T.miningOfflineEvery=.5,12
+
 return T
