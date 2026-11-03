@@ -1173,19 +1173,49 @@ function Game:spawnHeavenLadder(cx, cy, R)
 			}, { role = "ladder" })
 			-- the gate lights at each end of an arc, either side of a gap
 			e.gate = (k == 0 and 1 or 0) + (k == n - 1 and 2 or 0)
-			-- lit windows: decks along the ring, a few rooms dark, the odd
-			-- one tinted (greenhouses, signs), so it reads as lived in
+			-- lit windows, in districts: each arc is cut into modules of
+			-- different lengths, and each module is housing (a dense warm
+			-- grid), industry (one sparse amber strip), a greenhouse (a
+			-- green band on the planet side), a sign (a short cyan run) or
+			-- dark; within a module some rooms are out. Deterministic, so
+			-- the ring looks the same every visit.
+			local function hash(...)
+				local h = 2166136261
+				for _, v in ipairs({ ... }) do h = (h * 16777619 + v * 2654435761) % 4294967296 end
+				return h
+			end
 			local wins = {}
-			local steps = math.floor((b2 - b1) * R / 46)
-			for row, rr in ipairs({ R - thick * 0.7, R - thick * 0.35, R + thick * 0.05, R + thick * 0.4, R + thick * 0.72 }) do
-				for j = 0, steps - 1 do
-					local h = (i * 7919 + k * 104729 + j * 31 + row * 977) % 23
-					if h > 6 then
-						local t = b1 + (b2 - b1) * (j + 0.5) / steps
-						wins[#wins + 1] = { cx + cos(t) * rr, cy + sin(t) * rr,
-							h == 7 and 2 or h == 8 and 3 or (row == 3 and 4) or 1 }
+			local step = 34 / R                      -- one window's pitch, as an angle
+			local rows = { -0.75, -0.45, -0.15, 0.15, 0.45, 0.75 }
+			local t = b1 + step
+			local m = 0
+			while t < b2 - step do
+				m = m + 1
+				local h = hash(i, k, m)
+				local len = 3 + h % 9                 -- windows in this module
+				local kind = math.floor(h / 16) % 10   -- 0-4 housing, 5-6 industry, 7 greenhouse, 8 sign, 9 dark
+				local lit = 0.55 + (math.floor(h / 256) % 40) / 100
+				for j = 0, len - 1 do
+					local tj = t + j * step
+					if tj > b2 - step then break end
+					for r, off in ipairs(rows) do
+						local show, col
+						if kind <= 4 then
+							show, col = r >= 2 and r <= 5, (hash(i, k, m, j, r) % 100 < lit * 100) and 1 or nil
+						elseif kind <= 6 then
+							show, col = r == 3 and j % 2 == 0, 4
+						elseif kind == 7 then
+							show, col = r <= 2, 2
+						elseif kind == 8 then
+							show, col = r == 4 and j < 4, 3
+						end
+						if show and col then
+							local rr = R + off * thick
+							wins[#wins + 1] = { cx + cos(tj) * rr, cy + sin(tj) * rr, col }
+						end
 					end
 				end
+				t = t + (len + 1 + math.floor(h / 4096) % 3) * step   -- a gap of bulkhead between modules
 			end
 			e.windows = wins
 			e.body:setType("kinematic")

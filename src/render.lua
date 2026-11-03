@@ -332,7 +332,7 @@ local function drawStructure(game, e)
 	-- dimmer corridor row down the middle, the odd green or cyan room
 	if e.windows then
 		local s = max(5, 1.6 * screenPx)
-		local WIN = { { 1, 0.82, 0.5, 0.9 }, { 0.5, 1, 0.6, 0.9 }, { 0.55, 0.9, 1, 0.9 }, { 1, 0.75, 0.45, 0.45 } }
+		local WIN = { { 1, 0.82, 0.5, 0.9 }, { 0.45, 0.95, 0.55, 0.75 }, { 0.55, 0.9, 1, 1 }, { 1, 0.6, 0.25, 0.8 } }
 		local last
 		for _, w in ipairs(e.windows) do
 			if w[3] ~= last then lg.setColor(WIN[w[3]]); last = w[3] end
