@@ -328,6 +328,17 @@ local function drawStructure(game, e)
 		lg.setColor(e.role == "ring" and { 1, 0.35, 0.3 } or { 0.5, 0.9, 1 })
 		for i = 1, #e.verts, 2 do lg.circle("fill", e.verts[i], e.verts[i + 1], r) end
 	end
+	-- the Heaven-Ladder's lit windows (src/transit.lua): warm rooms, a
+	-- dimmer corridor row down the middle, the odd green or cyan room
+	if e.windows then
+		local s = max(5, 1.6 * screenPx)
+		local WIN = { { 1, 0.82, 0.5, 0.9 }, { 0.5, 1, 0.6, 0.9 }, { 0.55, 0.9, 1, 0.9 }, { 1, 0.75, 0.45, 0.45 } }
+		local last
+		for _, w in ipairs(e.windows) do
+			if w[3] ~= last then lg.setColor(WIN[w[3]]); last = w[3] end
+			lg.rectangle("fill", w[1] - s, w[2] - s * 0.6, s * 2, s * 1.2)
+		end
+	end
 	-- gate lights either side of a gap in the ring: green, pulsing
 	if e.gate and e.gate > 0 then
 		local r = max(10, 5 * screenPx)

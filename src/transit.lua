@@ -1156,7 +1156,7 @@ local LADDER_SPIN = 0.006   -- radians a second (about 50 px/s at the rim)
 function Game:spawnHeavenLadder(cx, cy, R)
 	local w = self.well
 	local surface = w and w.radius or R - 1000
-	local thick, gaps, gapW = 60, 8, 700
+	local thick, gaps, gapW = 140, 8, 700   -- thick: half the ring's depth (anchors leave a 170 channel)
 	local gapA = gapW / R
 	local segments = {}
 	for i = 0, gaps - 1 do
@@ -1173,6 +1173,21 @@ function Game:spawnHeavenLadder(cx, cy, R)
 			}, { role = "ladder" })
 			-- the gate lights at each end of an arc, either side of a gap
 			e.gate = (k == 0 and 1 or 0) + (k == n - 1 and 2 or 0)
+			-- lit windows: decks along the ring, a few rooms dark, the odd
+			-- one tinted (greenhouses, signs), so it reads as lived in
+			local wins = {}
+			local steps = math.floor((b2 - b1) * R / 46)
+			for row, rr in ipairs({ R - thick * 0.7, R - thick * 0.35, R + thick * 0.05, R + thick * 0.4, R + thick * 0.72 }) do
+				for j = 0, steps - 1 do
+					local h = (i * 7919 + k * 104729 + j * 31 + row * 977) % 23
+					if h > 6 then
+						local t = b1 + (b2 - b1) * (j + 0.5) / steps
+						wins[#wins + 1] = { cx + cos(t) * rr, cy + sin(t) * rr,
+							h == 7 and 2 or h == 8 and 3 or (row == 3 and 4) or 1 }
+					end
+				end
+			end
+			e.windows = wins
 			e.body:setType("kinematic")
 			segments[#segments + 1] = e
 		end
@@ -1183,7 +1198,7 @@ function Game:spawnHeavenLadder(cx, cy, R)
 		local a = (i * 2 + 1) / gaps * pi * 2
 		local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
 		local tw = 24
-		local top = R - 560   -- the anchor's tether head
+		local top = R - 620   -- the anchor's tether head
 		self:addStructure({
 			cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
 			cx + ux * top + nx * tw, cy + uy * top + ny * tw,
