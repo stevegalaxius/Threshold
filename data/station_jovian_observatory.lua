@@ -5,7 +5,7 @@ station {
 	rotors = {
 		dish0 = { over = true, spin = -0.05, x = -1300, y = -380 },
 		dish1 = { over = true, spin = 0.07, x = 1250, y = -180 },
-		big dish = { over = true, spin = 0.03, x = 0, y = 0 },
+		bigdish = { over = true, spin = 0.03, x = 0, y = 0 },
 	},
 	berths = {
 		{ heading = 90, size = 120, x = -1300, y = -120 },
@@ -123,7 +123,7 @@ station {
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = 92, y = 208 },
 			{ color = { 0.85, 0.95, 1 }, kind = "window", size = 6, x = 172, y = 208 },
 		} },
-		{ name = "big dish", shape = { -240, -30, 240, -30, 190, 40, -190, 40 }, shade = 1.35, layer = "detail", collide = false, rotor = "big dish", lights = {
+		{ name = "big dish", shape = { -240, -30, 240, -30, 190, 40, -190, 40 }, shade = 1.35, layer = "detail", collide = false, rotor = "bigdish", lights = {
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.2, size = 7, x = -230, y = -20 },
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.2, size = 7, x = 230, y = -20 },
 		} },
