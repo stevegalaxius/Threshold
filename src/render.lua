@@ -338,17 +338,23 @@ local function drawStation(game, e)
 	-- rotors first (under the core's docks and piers), each turned about
 	-- its pivot by how far it has come round relative to the core
 	local core = e.body:getAngle()
-	for _, r in ipairs(e.rotors or {}) do
-		local parts = e.def.rotorParts[r.name]
-		lg.push()
-		lg.translate(r.x, r.y)
-		lg.rotate(r.body:getAngle() - core)
-		HullShape.draw(e.def, col, dark, same, outline(2), parts, r.x, r.y)
-		HullShape.drawLights(e.def, game.time, screenPx, parts, r.x, r.y)
-		lg.pop()
+	local function rotors(over)
+		for _, r in ipairs(e.rotors or {}) do
+			if (r.over or false) == over then
+				local parts = e.def.rotorParts[r.name]
+				lg.push()
+				lg.translate(r.x, r.y)
+				lg.rotate(r.body:getAngle() - core)
+				HullShape.draw(e.def, col, dark, same, outline(2), parts, r.x, r.y)
+				HullShape.drawLights(e.def, game.time, screenPx, parts, r.x, r.y)
+				lg.pop()
+			end
+		end
 	end
+	rotors(false)
 	HullShape.draw(e.def, col, dark, same, outline(2), e.def.staticParts)
 	HullShape.drawLights(e.def, game.time, screenPx, e.def.staticParts)
+	rotors(true)
 	-- turrets: a base and barrels, turned to where each is aiming (twice a
 	-- ship mount's size, and never smaller than a few pixels)
 	for _, w in ipairs(e.weapons or {}) do

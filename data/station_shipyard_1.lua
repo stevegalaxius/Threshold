@@ -2,6 +2,11 @@
 station {
 	id = "shipyard_1", name = "Shipyard", role = "shipyard",
 	color = { 0.66, 0.6, 0.5 },
+	rotors = {
+		beacon = { over = true, spin = 1.4, x = 0, y = -905 },
+		crane1 = { over = true, spin = 0.12, x = -200, y = 0 },
+		crane2 = { over = true, spin = -0.09, x = 200, y = 0 },
+	},
 	berths = {
 		{ heading = 270, size = 140, x = -1700, y = -390 },
 		{ heading = 90, size = 140, x = -1700, y = 390 },
@@ -232,5 +237,19 @@ station {
 			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 6, x = -160, y = 510 },
 			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 6, x = 160, y = 510 },
 		} },
+		{ name = "light bar", shape = { -180, -915, 180, -915, 180, -895, -180, -895 }, shade = 1.2, layer = "detail", collide = false, rotor = "beacon", lights = {
+			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 2, size = 14, x = -170, y = -905 },
+			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 2, size = 14, x = 170, y = -905 },
+		} },
+		{ name = "crane mast 1", shape = { -166, 0, -171, 17, -183, 29, -200, 34, -217, 29, -229, 17, -234, 0, -229, -17, -217, -29, -200, -34, -183, -29, -171, -17 }, shade = 1 },
+		{ name = "crane jib 1", shape = { -270, -14, 60, -14, 60, 14, -270, 14 }, shade = 0.9, collide = false, rotor = "crane1", lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.7, size = 6, x = 55, y = 0 },
+		} },
+		{ name = "crane hook 1", shape = { 0, -26, 36, -26, 36, 26, 0, 26 }, shade = 1.2, layer = "detail", collide = false, rotor = "crane1" },
+		{ name = "crane mast 2", shape = { 234, 0, 229, 17, 217, 29, 200, 34, 183, 29, 171, 17, 166, 0, 171, -17, 183, -29, 200, -34, 217, -29, 229, -17 }, shade = 1 },
+		{ name = "crane jib 2", shape = { 130, -14, 460, -14, 460, 14, 130, 14 }, shade = 0.9, collide = false, rotor = "crane2", lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.7, size = 6, x = 455, y = 0 },
+		} },
+		{ name = "crane hook 2", shape = { 400, -26, 436, -26, 436, 26, 400, 26 }, shade = 1.2, layer = "detail", collide = false, rotor = "crane2" },
 	},
 }

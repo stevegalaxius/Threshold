@@ -2,7 +2,9 @@
 station {
 	id = "ring_900_120", name = "Habitat ring", role = "habitat",
 	color = { 0.55, 0.63, 0.74 },
-	rotors = { ring = {} },   -- the wheel turns at the location's spin; the dock pier holds still
+	rotors = {
+		ring = {  },
+	},
 	berths = {
 		{ heading = 180, size = 110, x = 1100, y = -220 },
 		{ heading = 0, size = 110, x = 1400, y = -220 },

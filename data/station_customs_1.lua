@@ -2,6 +2,11 @@
 station {
 	id = "customs_1", name = "Customs office", role = "customs",
 	color = { 0.62, 0.66, 0.7 },
+	rotors = {
+		scan1 = { over = true, spin = -0.9, x = -410, y = -120 },
+		scan2 = { over = true, spin = 0.9, x = 410, y = -120 },
+		search = { spin = 0.5, x = -630, y = 520 },
+	},
 	berths = {
 		{ heading = 270, size = 150, x = -860, y = 700 },
 		{ heading = 270, size = 150, x = -860, y = 1050 },
@@ -84,5 +89,16 @@ station {
 		{ name = "queue light 5", shape = { -660, 2092, -640, 2092, -640, 2108, -660, 2108 }, layer = "detail", collide = false, lights = {
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 6, x = -650, y = 2100 },
 		} },
+		{ name = "scanner mount 1", shape = { -370, -120, -375, -100, -390, -85, -410, -80, -430, -85, -445, -100, -450, -120, -445, -140, -430, -155, -410, -160, -390, -155, -375, -140 }, shade = 1.1, layer = "detail", collide = false },
+		{ name = "scanner arm 1", shape = { -420, -130, -260, -130, -260, -110, -420, -110 }, shade = 1, layer = "detail", collide = false, rotor = "scan1" },
+		{ name = "scanner dish 1", shape = { -260, -190, -235, -175, -225, -120, -235, -65, -260, -50 }, shade = 1.25, layer = "detail", collide = false, rotor = "scan1", lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.5, size = 6, x = -225, y = -120 },
+		} },
+		{ name = "scanner mount 2", shape = { 450, -120, 445, -100, 430, -85, 410, -80, 390, -85, 375, -100, 370, -120, 375, -140, 390, -155, 410, -160, 430, -155, 445, -140 }, shade = 1.1, layer = "detail", collide = false },
+		{ name = "scanner arm 2", shape = { 400, -130, 560, -130, 560, -110, 400, -110 }, shade = 1, layer = "detail", collide = false, rotor = "scan2" },
+		{ name = "scanner dish 2", shape = { 560, -190, 585, -175, 595, -120, 585, -65, 560, -50 }, shade = 1.25, layer = "detail", collide = false, rotor = "scan2", lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.5, size = 6, x = 595, y = -120 },
+		} },
+		{ name = "searchlight", shape = { -630, 520, -500, 880, -760, 880 }, shade = 0.5, tint = { 0.2, 0.2, 0.1 }, layer = "glow", collide = false, rotor = "search" },
 	},
 }

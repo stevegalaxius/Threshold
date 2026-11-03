@@ -105,7 +105,7 @@ local function placedSections(E, d)
 		Slab.SameLine()
 		combo("yard_station_role", d.role or "none", {
 			{ label = "none", value = false }, { label = "habitat", value = "habitat" },
-			{ label = "shipyard", value = "shipyard" }, { label = "customs", value = "customs" },
+			{ label = "shipyard", value = "shipyard" }, { label = "customs", value = "customs" }, { label = "mine", value = "mine" },
 		}, function(v) E.pushUndo(); d.role = v or nil end, 120)
 		Slab.Text("Export with id ring_<R>_<tube> or city_<k>", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })

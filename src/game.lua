@@ -845,7 +845,7 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 			for _, part in ipairs(def.rotorParts[name]) do
 				if part.collide ~= false then solid(rb, part, px, py) end
 			end
-			table.insert(e.rotors, { name = name, body = rb, x = px, y = py, spin = r.spin or spin or 0.04, fixed = r.spin ~= nil, phase = random() * pi * 2 })
+			table.insert(e.rotors, { name = name, body = rb, x = px, y = py, spin = r.spin or spin or 0.04, fixed = r.spin ~= nil, over = r.over, phase = random() * pi * 2 })
 		end
 	end
 	for _, part in ipairs(def.parts) do
