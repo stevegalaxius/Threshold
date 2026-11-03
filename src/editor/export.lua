@@ -128,6 +128,7 @@ function Export.hullDef(design)
 	def.radius = nil   -- worked out from the shape (src/data.lua)
 	-- the design's own stats and slots win over the base hull's
 	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
+	def.paint = nil   -- the old single factory paint; hulls use the paints pool now
 	if design.slots then
 		def.slots = copy(design.slots)
 		for _, slot in ipairs(def.slots) do data.migrateSlot(slot) end

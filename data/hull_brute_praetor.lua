@@ -1,6 +1,6 @@
--- Made in the Shipyard (F2). Base hull: Intaki_praetor
+-- Made in the Shipyard (F2). Base hull: brute_praetor
 hull {
-	id = "Intaki_praetor", name = "Praetor",
+	id = "brute_praetor", name = "Praetor",
 	armor = 400,
 	bonuses = {},
 	cargo = { missile_m = 4, missile_s = 6, rounds_m = 500, shell_m = 20 },
