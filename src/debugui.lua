@@ -13,6 +13,7 @@ local Fields = require("src.fields")
 local Locations = require("src.locations")
 
 local Debug = { visible = false }
+local arrivalRole = "pirate"
 
 function Debug.init()
 	Slab.Initialize({ "nodocks", "nomessages" })
@@ -183,15 +184,21 @@ local function spawnSection(game)
 	local fopts = {}
 	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
 	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) require("src.debugtravel").go(game,id) end)
-	local security=require('src.security')
-	if Slab.Button('Warp in pirate (A-Life)',{W=300}) then
-		local r,err=security.spawnPirate(game,game.fieldId,true)
-		game:toast(r and ('PIRATE ARRIVING: '..r.id) or err,2)
+	local population=require('src.population')
+	local roles={}
+	for _,role in ipairs(population.order) do roles[#roles+1]={label=role,value=role} end
+	combo('dbg_arrival_role',arrivalRole,roles,function(role) arrivalRole=role end)
+	if Slab.Button('Warp in '..arrivalRole..' (A-Life)',{W=300}) then
+		local r,err=population.spawn(game,game.fieldId,arrivalRole,true)
+		game:toast(r and (arrivalRole:upper()..' ARRIVING: '..r.id) or err,2)
 	end
-	local timer=game.universe.pirateSpawns and game.universe.pirateSpawns[game.fieldId]
-	if timer then
-		Slab.Text(('Pirates: %d / %d; next arrival check in %.0fs'):format(
-			security.pirateCount(game.universe,game.fieldId),T.piratePopulationCap,math.max(0,timer.nextAt-game.universe.clock)))
+	local timers=game.universe.populationSpawns and game.universe.populationSpawns[game.fieldId]
+	for _,role in ipairs(population.order) do
+		local timer=timers and timers[role]
+		if timer then
+			Slab.Text(('%s: %d / %d; next arrival check in %.0fs'):format(
+				role,population.count(game.universe,game.fieldId,role),population.target(game.fieldId,role),math.max(0,timer.nextAt-game.universe.clock)))
+		end
 	end
 	if game.field.instance then
 		for _, id in ipairs(data.list.enemies) do

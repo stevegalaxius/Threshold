@@ -5,7 +5,7 @@ return function(game)
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true
  game:loadField('earth')
- local timer=assert(game.universe.pirateSpawns.earth)
+ local timer=assert(game.universe.populationSpawns.earth.pirate)
  check(timer.nextAt>game.universe.clock,'arrival timer was not initialized')
  local id=game.universe.nextNpcId
  local count=S.pirateCount(game.universe,'earth')
@@ -25,7 +25,7 @@ return function(game)
  dead.state='dead';timer.nextAt=game.universe.clock
  S.updateSpawns(game,game.universe.clock)
  check(dead.state=='dead' and game.universe.nextNpcId>after,'arrival resurrected a dead identity or failed to replace it')
- check(S.pirateCount(game.universe,'earth')==T.piratePopulationCap,'replacement missed population cap')
+ check(S.pirateCount(game.universe,'earth')==T.population.pirate.target,'replacement missed population cap')
  -- Manual warp-in intentionally bypasses the automatic cap for debugging.
  local p=game.player
  local node=Fields.earth.buoyIds[1]
@@ -35,10 +35,10 @@ return function(game)
  check(manual.role=='pirate' and e.alifeRole=='pirate' and manual.task and manual.task.kind=='raid','debug spawn bypassed A-Life duties')
  local effect
  for _,fx in ipairs(game.effects) do if fx.kind=='warp_in' then effect=fx end end
- check(effect and effect.life==T.pirateWarpDuration,'warp-in visual was not emitted')
- check(S.pirateCount(game.universe,'earth')>T.piratePopulationCap,'manual spawn was blocked by the automatic cap')
+ check(effect and effect.life==T.npcWarpDuration,'warp-in visual was not emitted')
+ check(S.pirateCount(game.universe,'earth')>T.population.pirate.target,'manual spawn was blocked by the automatic cap')
  -- Remote arrivals remain records; no remote path sampling or bodies.
- game.universe.pirateSpawns.luna.nextAt=game.universe.clock-1000000
+ game.universe.populationSpawns.luna.pirate.nextAt=game.universe.clock-1000000
  local bodies=game.world:getBodyCount();local point=require('src.travelgraph').point
  require('src.travelgraph').point=function(g,...)
   assert(g.area=='earth','remote pirate arrival sampled a physical flight path')
@@ -59,7 +59,7 @@ return function(game)
    check(G.route(G.build(area),area..'/strip_mine',id,game.universe.clock)~=nil,area..': mine disconnected from its buoy')
    check(G.route(G.build(area),area..'/to_mars',id,game.universe.clock)~=nil,area..': transit endpoint disconnected from its buoy')
   end
-  check(game.universe.pirateSpawns[area]~=nil,area..': pirate arrivals not scheduled')
+  check(game.universe.populationSpawns[area].pirate~=nil,area..': pirate arrivals not scheduled')
   local pirate=assert(S.spawnPirate(game,area,false))
   check(pirate.task and pirate.task.kind=='raid',area..': pirate did not choose a raid duty')
   check(pirate.state=='travel' and pirate.task.source~=pirate.task.target,area..': pirate chose to wait at its starting buoy')
@@ -76,7 +76,7 @@ return function(game)
  local nextAt=timer.nextAt
  local saved=assert(Save.decode(Save.encode(game:saveState())))
  game:loadState(saved)
- check(game.universe.pirateSpawns.earth.nextAt==nextAt,'save/load reset the arrival timer')
+ check(game.universe.populationSpawns.earth.pirate.nextAt==nextAt,'save/load reset the arrival timer')
  check(game.universe.npcs[manual.id] and game.universe.nextNpcId==saved.nextNpcId,'save/load lost or duplicated incoming pirates')
  -- Inspect the legacy factory gate for every authored region.
  local spawn=game.spawnEnemy;local clear=game.isClear;local calls=0
@@ -95,7 +95,7 @@ return function(game)
  local Render=require('src.render')
  local canvas=love.graphics.newCanvas(love.graphics.getDimensions())
  game.camera.x,game.camera.y=effect.x,effect.y;game.camera.zoom=.7
- game:addEffect({kind='warp_in',x=effect.x,y=effect.y,r=140,t=.5,life=T.pirateWarpDuration})
+ game:addEffect({kind='warp_in',x=effect.x,y=effect.y,r=140,t=.5,life=T.npcWarpDuration})
  love.graphics.setCanvas(canvas);Render.world(game);love.graphics.setCanvas()
  canvas:newImageData():encode('png','pirate-warp-in.png')
  for _,area in ipairs({'phobos','deimos'}) do
@@ -114,7 +114,7 @@ return function(game)
   for id,other in pairs(game.alifeOnline) do
    if id~=pirate.id then game:remove(other,true);game.alifeOnline[id]=nil end
   end
-  game.universe.npcs={[pirate.id]=pirate};game.universe.pirateSpawns={}
+  game.universe.npcs={[pirate.id]=pirate};game.universe.populationSpawns={}
   for i=#game.entities,1,-1 do
    local object=game.entities[i]
    if object.kind=='asteroid' and not object.giant or object.kind=='container' or object.kind=='husk' then game:remove(object,true) end

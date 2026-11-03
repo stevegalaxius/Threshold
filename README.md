@@ -222,6 +222,7 @@ All 54 existing station traders have persistent identities, ship state, and
 itineraries from the start of a universe. Loading an area never refills its
 population. Cargo, loadout, armor, paint, journey, and docking waits survive
 area changes and save/load. Dead traders stay dead and use normal wreck creation.
+The shared replenishment timer introduces new traders to replace losses.
 Mars retains its nine traders; other populated regions retain their three.
 
 Highway previews draw the same circular map edge and departure arcs as local
@@ -495,7 +496,7 @@ The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies
 on those planets. Legacy authored pilots are restricted to the Asteroid field,
 Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
-seeded once and pirate reinforcements follow the saved arrival schedule below.
+seeded once and lost ships are replenished through the saved arrival schedules below.
 
 Patrols choose inspection duties through the shared task board and visit existing
 stations and buoys. Pirates choose buoy raids and relocation duties, preferring
@@ -550,23 +551,30 @@ bounds use the same geometry. `love . --afterburntest` checks reserve stability,
 rearming, energy accounting, actual thrust and corresponding flame sizes.
 
 
-## Pirate warp-ins
+## NPC replenishment and warp-ins
 
-Pirates check for reinforcements every 3–5 minutes of game time in regions with
-trade buoys or a mass driver. Automatic arrivals stop at two living pirates per
-region; dead or escaped pirates are replaced by new identities on later checks.
-An overdue region gets at most one arrival per check, without a catch-up swarm.
-Schedules survive saves and visiting another region. Remote arrivals are plain
-A-Life records; visible arrivals produce a short blue warp flash and enter normal
-raid duties. Existing ship counts include pirates added through debug controls.
+Pirates, traders, patrols and miners share `src/population.lua`. Each role checks
+for replacements every 3–5 minutes of game time, with a separate saved timer per
+home region. Pirates retain their target of two; other roles use the region's
+existing trader, patrol or miner population. Living ships still count toward
+their home population while visiting another region or travelling between planets.
 
-Use **F1 > Spawn and arena > Warp in pirate (A-Life)** for an immediate arrival
-near the player. This debug action bypasses the automatic cap. The panel shows
-the region's pirate count and time until the next reinforcement check. The old
-individual enemy buttons appear only in instance maps. Spawn interval, cap and
-warp-effect duration are defined alongside A-Life settings in `src/tuning.lua`.
-Run `love . --piratespawntest` for replacements, caps, debug arrivals, remote
-simulation, saved timers and instance-only legacy spawning.
+Dead or escaped ships are replaced with new identities, fitted ships and their
+role's existing routes or jobs. Each overdue role gets at most one arrival per
+check, without catch-up swarms. Remote arrivals remain records without physics
+bodies. Local arrivals use the same clear-space checks and blue warp flash as
+pirates. Instance maps do not receive persistent A-Life reinforcements.
+
+In **F1 > Spawn and arena**, select a role and use **Warp in … (A-Life)** for an
+immediate arrival near the player. This debug action bypasses the automatic
+population target. The panel shows each supported role's count, target and next
+check. Role intervals and warp duration are in `src/tuning.lua`; additional
+roles register their target, navigation nodes and ship/job creation with the
+population module. Existing pirate saves retain their scheduled arrival time.
+
+Run `love . --populationtest` for all-role replacements, travel-aware caps,
+remote records, saved timers, local warp effects and failed placement. The
+existing `--piratespawntest` also exercises pirates through the shared scheduler.
 
 
 ## NPC local navigation

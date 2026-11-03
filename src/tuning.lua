@@ -156,8 +156,13 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 T.alifeWreckLifetime = 1800
-T.pirateSpawnMin, T.pirateSpawnMax = 180, 300
-T.piratePopulationCap, T.pirateWarpDuration = 2, 1.5
+T.population = {
+ pirate={minDelay=180,maxDelay=300,target=2},
+ trader={minDelay=180,maxDelay=300},
+ patrol={minDelay=180,maxDelay=300},
+ miner={minDelay=180,maxDelay=300},
+}
+T.npcWarpDuration = 1.5
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Hangar bays: cells across and down, and how many pixels of hull length

@@ -7,6 +7,7 @@ local data=require('src.data')
 local Stats=require('src.stats')
 local T=require('src.tuning')
 local copy=require('src.persistence').copy
+local Population=require('src.population')
 local S={}
 function S.isRole(r) return r and (r.role=='patrol' or r.role=='pirate') end
 local function route(source,target,clock)
@@ -86,122 +87,24 @@ local function create(game,area,role,node,clock,start)
  S.advance(r,clock,u,start)
  return r
 end
-local function delay(area,sequence)
- local hash=sequence*7919
- for i=1,#area do hash=(hash*31+area:byte(i))%2147483647 end
- local low,high=math.min(T.pirateSpawnMin,T.pirateSpawnMax),math.max(T.pirateSpawnMin,T.pirateSpawnMax)
- return math.max(1,low+(hash%10001)/10000*(high-low))
-end
-function S.schedule(game,clock)
- local u=game.universe;u.pirateSpawns=u.pirateSpawns or {}
- for _,area in ipairs(Fields.list) do
-  if raidNodes(Fields[area]) then
-   S.ensureRaids(u,area)
-   if not u.pirateSpawns[area] then u.pirateSpawns[area]={nextAt=clock+delay(area,0),sequence=0} end
-  end
- end
-end
-function S.pirateCount(u,area)
- local n=0
- for _,r in pairs(u.npcs or {}) do
-  if r.role=='pirate' and r.home==area and r.state~='dead' and r.state~='escaped' then n=n+1 end
- end
- return n
-end
-local function clearArrival(game,x,y,margin)
- if not game:isClear(x,y,margin) then return false end
- -- isClear handles rocks/ships/stations; also avoid the driver's solid rails.
- local clear=true
- game.world:queryBoundingBox(x-60,y-60,x+60,y+60,function(fixture)
-  local e=fixture:getUserData() or fixture:getBody():getUserData()
-  if e and e.kind=='driver' and not fixture:isSensor() then clear=false;return false end
-  return true
- end)
- return clear
-end
-
-local function entryPoint(game)
- local p=game.player
- if not p or p.dead then return end
- local x,y=p.body:getPosition()
- local w=game.well
- local radius=math.sqrt(x*x+y*y)
- local safe=w and w.radius+math.min(T.surfacePullRange,w.radius*.5)+500 or 500
- local r=math.min(game.arenaRadius-500,math.max(safe,radius+300))
- local bearing=math.atan2(y,x)
- for _=1,20 do
-  local a=bearing+(love.math.random()<.5 and -1 or 1)*(900+love.math.random()*500)/math.max(radius,1)
-  local px,py=math.cos(a)*r,math.sin(a)*r
-  if clearArrival(game,px,py,200) then return px,py end
- end
-end
-function S.spawnPirate(game,area,nearPlayer)
- local nodes=S.ensureRaids(game.universe,area)
- if not nodes then return nil,'No pirate navigation route in this region.' end
- local clock=game.universe.clock
- local node=nodes[love.math.random(#nodes)]
- local x,y
- if nearPlayer and area==game.fieldId and not game.lane and not game.flight then x,y=entryPoint(game) end
- if x then
-  local distance=math.huge
-  for _,candidate in ipairs(nodes) do
-   local nx,ny=L.position(candidate,clock);local d=(nx-x)^2+(ny-y)^2
-   if d<distance then node,distance=candidate,d end
-  end
- end
- if area==game.fieldId and not game.lane and not game.flight and not x then
-  local nx,ny=L.position(node,clock)
-  for _=1,20 do
-   local a=love.math.random()*math.pi*2
-   local distance=200+love.math.random()*500
-   local sx,sy=nx+math.cos(a)*distance,ny+math.sin(a)*distance
-   if sx*sx+sy*sy<(game.arenaRadius-200)^2 and clearArrival(game,sx,sy,150) then x,y=sx,sy;break end
-  end
-  if not x then return nil,'No clear space for a pirate arrival.' end
- end
- -- Manual arrivals can exceed the population cap. Give each arrival a
- -- reservable travelling duty even when other pirates own the usual offers.
+-- Role-specific work stays here; shared arrival scheduling lives in population.
+local function ensureDuty(u,area,role,node,nodes,clock)
+ local kind=role=='pirate' and 'raid' or 'patrol'
  local available=false
- for _,offer in pairs(Tasks.state(game.universe).offers) do
-  if offer.kind=='raid' and offer.source==node and offer.state=='available' and (offer.readyAt or 0)<=clock
-   and raidLeg(area,node,offer.target) then available=true;break end
+ for _,offer in pairs(Tasks.state(u).offers) do
+  if offer.kind==kind and offer.source==node and offer.state=='available' and (offer.readyAt or 0)<=clock
+   and (role~='pirate' or raidLeg(area,node,offer.target)) then available=true;break end
  end
  if not available then
   local target=node
   for i,id in ipairs(nodes) do if id==node then target=nodes[i%#nodes+1];break end end
-  Tasks.post(game.universe,{kind='raid',source=node,target=target,cooldown=0,duration=T.pirateLinger})
- end
- local A=require('src.alife')
- local r=create(game,area,'pirate',node,clock,A.start)
- r.spawnedAt=clock;r.warpUntil=clock+T.pirateWarpDuration;r.spawnOrigin='warp'
- if x then
-  local nx,ny=L.position(node,clock)
-  r.offset={x=x-nx,y=y-ny,progress=0}
-  local vx,vy=game:flowAt(x,y)
-  r.pose={x=x,y=y,a=math.atan2(-y,-x),vx=vx,vy=vy,w=0,clock=clock}
- end
- if area==game.fieldId and not game.lane and not game.flight and game.player and not game.player.dead then
-  local px,py=game.player.body:getPosition()
-  local sx,sy=A.point(r,clock)
-  if (sx-px)^2+(sy-py)^2<T.alifeNear^2 then A.wake(game,r) end
- end
- return r
-end
-function S.updateSpawns(game,clock)
- local u=game.universe
- local counts={}
- for _,r in pairs(u.npcs) do
-  if r.role=='pirate' and r.state~='dead' and r.state~='escaped' then counts[r.home]=(counts[r.home] or 0)+1 end
- end
- for _,area in ipairs(Fields.list) do
-  local timer=u.pirateSpawns and u.pirateSpawns[area]
-  if timer and clock>=timer.nextAt then
-   timer.sequence=timer.sequence+1
-   timer.nextAt=clock+delay(area,timer.sequence)
-   if (counts[area] or 0)<T.piratePopulationCap then S.spawnPirate(game,area,false) end
-  end
+  Tasks.post(u,{kind=kind,source=node,target=target,cooldown=0,
+   duration=role=='pirate' and T.pirateLinger or T.patrolInspect})
  end
 end
+function S.spawnPirate(game,area,nearPlayer) return Population.spawn(game,area,'pirate',nearPlayer) end
+function S.pirateCount(u,area) return Population.count(u,area,'pirate') end
+function S.updateSpawns(game,clock) return Population.update(game,clock) end
 
 function S.seed(game,start)
  local u=game.universe
@@ -231,7 +134,6 @@ function S.seed(game,start)
    end
   end
  end
- S.schedule(game,u.clock)
 end
 function S.arrive(r,node,clock)
  r.state='idle';r.node=node;r.route={node,node};r.index=1
@@ -361,5 +263,22 @@ function S.visit(game,e,stop,A)
   A.bindRoute(game,e,r)
  end
  return true
+end
+for _,role in ipairs({'pirate','patrol'}) do
+ Population.register(role,{
+  target=function(f)
+   if role=='pirate' then return raidNodes(f) and T.population.pirate.target end
+   return f.alifeSecurity and f.alifeSecurity.patrol
+  end,
+  nodes=function(game,area)
+   if role=='pirate' then return S.ensureRaids(game.universe,area) end
+   return Fields[area].buoyIds
+  end,
+  create=function(game,area,node,clock)
+   local nodes=role=='pirate' and S.ensureRaids(game.universe,area) or Fields[area].buoyIds
+   ensureDuty(game.universe,area,role,node,nodes,clock)
+   return create(game,area,role,node,clock,require('src.alife').start)
+  end,
+ })
 end
 return S
