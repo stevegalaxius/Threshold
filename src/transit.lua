@@ -209,7 +209,7 @@ function Game:updateDriverLaunch(p,dt)
 		local x, y = p.body:getPosition()
 		local dx, dy = cos(g.angle), sin(g.angle)
 		p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
-		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 		local a = p.body:getAngle()
 		local diff = (g.angle - a + pi) % (2 * pi) - pi
 		p.body:setAngle(a + diff * min(1, dt * 4))
@@ -308,7 +308,7 @@ function Game:updateDriverTractor(p, dt)
 	local dx, dy = cos(g.angle), sin(g.angle)
 	local nx, ny = -dy, dx
 	p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
-	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 	if lx > 150 or math.abs(ly) > T.driverZoneWidth * 1.5 or lx < -T.driverZone * 1.2 then
 		-- overshot the breech, or slid out of the beam
 		p.driverTractor = nil
@@ -945,7 +945,7 @@ function Game:updateLane(dt)
 		local sp = R.speed + (keep - R.speed) * u * u
 		local it = p.intent
 		it.thrust, it.strafe, it.boost = 0, 0, false
-		it.firePrimary, it.fireSecondary, it.fireAux = false, false, false
+		it.firePrimary, it.fireSecondary, it.fireTertiary = false, false, false
 		p.body:setLinearVelocity(tx * sp, ty * sp)
 		p.body:setAngle(R.h)
 		p.body:setAngularVelocity(0)

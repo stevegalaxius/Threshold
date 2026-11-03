@@ -31,7 +31,6 @@
 	  right-click     quick move to the other panel, like Ctrl-click; in
 	                  space with just your hold up: eject the stack out
 	                  behind the ship
-	  double-click    docked: unbox an ammo crate into loose rounds
 	  drop outside    in space: eject it
 	  Sort            tidy a hold (biggest items first, grouped by type)
 
@@ -202,7 +201,12 @@ local function layout(game)
 	E.hull = { x = x + PAD, y = y + HEAD, w = EW - PAD * 2, h = HULL_H - 16 }
 	if showEquip then
 		for i, slot in ipairs(p.hull.slots) do
-			table.insert(E.slots, { i = i, slot = slot, x = x + PAD, y = y + HEAD + HULL_H + (i - 1) * ROW, w = EW - PAD * 2, h = ROW - 4 })
+			local r = { i = i, slot = slot, x = x + PAD, y = y + HEAD + HULL_H + (i - 1) * ROW, w = EW - PAD * 2, h = ROW - 4 }
+			-- weapon slots get a button that picks which trigger fires them
+			if slot.family == "hardpoint" or slot.family == "bay" then
+				r.trig = { x = r.x + r.w - 46, y = r.y + 4, w = 40, h = r.h - 8 }
+			end
+			table.insert(E.slots, r)
 		end
 		x = x + EW + GAP
 	else
@@ -580,18 +584,6 @@ local function takeAll(game, L, side)
 	changed(side); changed(mine)
 end
 
--- Double-click on a crate at a station: unbox as many rounds as fit.
-local function unbox(game, r, s)
-	local item = data.items[s.id]
-	if item.kind ~= "crate" then return end
-	local k = Hold.room(r.side.hold, item.ammo, s.n)
-	if k == 0 then game:toast("NO ROOM TO UNBOX", 1.2) return end
-	s.n = s.n - k
-	if s.n <= 0 then Grid.remove(r.g, s) end
-	Hold.add(r.side.hold, item.ammo, k)
-	changed(r.side)
-	game:toast(("Unboxed %d %s"):format(k, data.items[item.ammo].name), 1.2, "pickup")
-end
 
 -- Equipment ------------------------------------------------------------------
 
@@ -774,6 +766,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		end
 	end
 	local er = slotAt(L, mx, my)
+	if er and button == 1 and er.trig and inRect(er.trig, mx, my) then
+		Ship.toggleTrigger(game.player, er.i)
+		return true
+	end
 	if er and button == 1 then takeFromSlot(game, L, er) return true end
 	local r, cx, cy = cellAt(L, mx, my)
 	local s = r and Grid.at(r.g, cx, cy)
@@ -788,10 +784,6 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	if double and Cargo.tab == "market" and game.state == "docked" then double = false end   -- no opening or fitting at the market
 	if button == 1 and double and data.items[s.id].kind == "container" then
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
-		return true
-	end
-	if button == 1 and double and data.items[s.id].kind == "crate" and game.state == "docked" then
-		unbox(game, r, s)
 		return true
 	end
 	if button == 1 and double and data.items[s.id].kind == "module" then
@@ -986,7 +978,7 @@ local function tooltip(item, n, mx, my, hint, price)
 	end
 end
 
-local SLOT_LABEL = { primary = "PRIMARY", secondary = "SECONDARY", auxiliary = "AUXILIARY", engine = "ENGINE",
+local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
 	reactor = "REACTOR", utility = "UTILITY", computer = "COMPUTER" }
 
 local function slotLabel(slot)
@@ -1118,6 +1110,16 @@ local function drawEquipment(game, L, mx, my)
 		else
 			lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.8 * alpha)
 			lg.print("empty", r.x + 6, r.y + 12)
+		end
+		if r.trig then
+			local t, on = r.trig, inRect(r.trig, mx, my)
+			local trig = Ship.triggerFor(p, r.i)
+			local col = trig == "secondary" and { 0.8, 0.9, 1 } or (trig == "tertiary" and { 1, 0.85, 0.7 } or HUD.INK)
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], (on and 0.35 or 0.12) * alpha)
+			lg.rectangle("fill", t.x, t.y, t.w, t.h, 4, 4)
+			lg.setColor(col[1], col[2], col[3], alpha)
+			lg.setFont(HUD.font(11))
+			lg.printf(Ship.TRIGGER_TAG[trig], t.x, t.y + (t.h - 11) / 2 - 1, t.w, "center")
 		end
 	end
 end
@@ -1312,7 +1314,7 @@ function Cargo.draw(game)
 	if market then
 		hint = "Drag goods onto the trade grid   Ctrl-click or right-click move across   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
 	elseif docked then
-		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   Double-click unbox a crate   E, Enter or (A) launch"
+		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
 		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
@@ -1362,6 +1364,13 @@ function Cargo.draw(game)
 	else
 		local er = slotAt(L, mx, my)
 		local fitted = er and p.loadout[er.i]
+		if er and er.trig and inRect(er.trig, mx, my) then
+			fitted = nil
+			HUD.tip = nil
+			lg.setFont(HUD.font(11))
+			lg.setColor(HUD.DIM)
+			lg.print("click: change which fire group this slot is in", mx + 14, my + 14)
+		end
 		if fitted then
 			tooltip(data.items[fitted], 1, mx, my, docked and "Drag to the hold to unfit" or "Dock at a station to refit")
 		end
@@ -1380,7 +1389,6 @@ function Cargo.draw(game)
 					if t then hint2 = ("More in %s"):format(clock(t)) end
 				end
 			elseif docked and item.kind == "module" then hint2 = "Drag onto a slot or double-click to fit"
-			elseif docked and item.kind == "crate" then hint2 = "Double-click: unbox into loose rounds"
 			elseif item.kind == "container" and s.inner then
 				local k, m = 0, 0
 				for id, n in pairs(Hold.totals(s.inner)) do k, m = k + n, m + data.items[id].mass * n end

@@ -33,7 +33,7 @@ function Ship.emptyIntent()
 	-- thrust: -1..1 along the nose (forward is the main engine, back is retro thrusters)
 	-- strafe: -1..1 to the ship's right (maneuvering thrusters, or turning
 	--         right on a hull with helm = "turn")
-	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, tractor = false }
+	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireTertiary = false, boost = false, tractor = false }
 end
 
 --[[ Ship.new(game, opts)
@@ -47,6 +47,8 @@ end
 	opts.hold     an existing grid hold to carry (a ship coming out of a
 	              hangar or a save keeps its hold exactly as it was)
 	opts.armor    armor to start with (defaults to full)
+	opts.triggers which trigger fires each weapon slot, by slot index
+	              ("primary", "secondary" or "tertiary"; defaults per Ship.triggerFor)
 ]]
 function Ship.new(game, opts)
 	local hull = type(opts.hull)=="table" and opts.hull or assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -54,6 +56,7 @@ function Ship.new(game, opts)
 		kind = "ship", id = game:nextId(), team = opts.team or 2,
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
+		triggers = copy(opts.triggers or {}),
 		cargo = copy(opts.cargo or hull.cargo),
 		gridHold = opts.grid or opts.hold ~= nil,
 		hold = opts.hold,
@@ -118,9 +121,30 @@ end
 -- copy), armor and paint. Game:spawnPlayer turns one back into a ship.
 function Ship.record(e)
 	return {
-		hull = e.hull.id, loadout = copy(e.loadout), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
+		hull = e.hull.id, loadout = copy(e.loadout), triggers = copy(e.triggers or {}), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
 	}
+end
+
+Ship.TRIGGERS = { primary = true, secondary = true, tertiary = true }
+-- Short labels for each trigger (not mouse buttons: a pad plays too).
+Ship.TRIGGER_TAG = { primary = "PRI", secondary = "SEC", tertiary = "TER" }
+
+-- Which trigger fires the weapon in slot i: the player's choice, else the
+-- slot's default, else primary for hardpoints and tertiary for bays.
+function Ship.triggerFor(e, i)
+	local slot = e.hull.slots[i]
+	local t = e.triggers and e.triggers[i]
+	if Ship.TRIGGERS[t] then return t end
+	return slot.trigger or (slot.family == "bay" and "tertiary" or "primary")
+end
+
+-- Step slot i to the next trigger: primary, secondary, tertiary.
+function Ship.toggleTrigger(e, i)
+	e.triggers = e.triggers or {}
+	local NEXT = { primary = "secondary", secondary = "tertiary", tertiary = "primary" }
+	e.triggers[i] = NEXT[Ship.triggerFor(e, i)]
+	Ship.refit(e)
 end
 
 -- Rebuild stats and weapon list after the hull's modules change.
@@ -138,7 +162,8 @@ function Ship.refit(e)
 		if m and m.weapon then
 			table.insert(e.weapons, {
 				slot = slot, module = m, w = m.weapon,
-				group = slot.family,              -- primary, secondary or auxiliary
+				index = i, bay = m.family == "bay",
+				group = Ship.triggerFor(e, i),    -- primary, secondary or tertiary
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
@@ -293,6 +318,12 @@ end
 -- one, and a tractor module (tractorRange) extends it.
 function Ship.tractorRange(e)
 	return T.tractorBase + (e.stats.tractorRange or 0)
+end
+
+-- How strong the tractor beam is, as a multiple of the basic one: each
+-- tractor module adds its tractorPower.
+function Ship.tractorPower(e)
+	return 1 + (e.stats.tractorPower or 0)
 end
 
 -- World position of a slot's hardpoint.
