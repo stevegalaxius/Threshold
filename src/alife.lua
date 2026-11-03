@@ -474,7 +474,8 @@ local function bindRoute(game,e,r)
  e.taskWorker=r.taskWorker
  for _,id in ipairs(r.route) do
   local place=L.get(id)
-  local stop=place.area==game.fieldId and game:locationEntity(id)
+  -- a station with several access points: the one nearest the ship now
+  local stop=place.area==game.fieldId and game:locationEntity(id,e.body:getPosition())
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
    stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()

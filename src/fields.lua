@@ -306,8 +306,13 @@ local function planetField(o)
 				-- the current's speed at that altitude (what a free station drifts at).
 				local sa = -0.8
 				local speed = game:currentSpeed(sd)
-				local stA = game:spawnWheelStation(cos(sa) * sd, sin(sa) * sd, 900, 120, 0.05, false, field.stationIds[o.city and 2 or 1])
-				local stB = game:spawnWheelStation(-cos(sa) * sd, -sin(sa) * sd, 900, 120, -0.05, false, field.stationIds[o.city and 3 or 2])
+				-- o.shipyard = 1 or 2: that one is a shipyard (data/station_shipyard_1.lua)
+				local function spawn(k, x, y, spin, id)
+					if o.shipyard == k then return game:spawnStation("shipyard_1", x, y, spin, false, id) end
+					return game:spawnWheelStation(x, y, 900, 120, spin, false, id)
+				end
+				local stA = spawn(1, cos(sa) * sd, sin(sa) * sd, 0.05, field.stationIds[o.city and 2 or 1])
+				local stB = spawn(2, -cos(sa) * sd, -sin(sa) * sd, -0.05, field.stationIds[o.city and 3 or 2])
 				game:setOrbit(stA, 0, 0, speed)
 				game:setOrbit(stB, 0, 0, speed)
 				sa = math.atan2(stA.body:getY(), stA.body:getX())
@@ -386,7 +391,7 @@ Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
 	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
-Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85, 0.38, 0.24 },   -- rust red
+Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, shipyard = 1, hue = { 0.85, 0.38, 0.24 },   -- rust red
 	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
 	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
 	stations = { "Station Alpha", "Station Beta" },
