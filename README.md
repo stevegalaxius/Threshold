@@ -475,7 +475,9 @@ the buoy approach without teleporting their ships.
 saved-route repair, and a physical visitor docking at Olympus and climbing back
 out to its buoy.
 
-Docking uses the nearest unoccupied exterior berth that fits the ship. Switching
+Berths accept ships up to three times their authored pad half-length; the
+editor marker keeps its existing dimensions. `T.berthShipScale` controls this
+capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
 ship does not fit, it uses the nearest suitable free berth or the station
 interior. Saves retain the player's berth, entrance and docking side.

@@ -1134,7 +1134,7 @@ function Game:freeBerth(st, e)
 	local x, y = st.body:getLocalPoint(e.body:getPosition())
 	local best, distance = nil, math.huge
 	for i, b in ipairs(berths) do
-		if not taken[i] and (e.halfLength or 0) <= b.size then
+		if not taken[i] and (e.halfLength or 0) <= b.size * T.berthShipScale then
 			local d = (b.x - x)^2 + (b.y - y)^2
 			if d < distance then best, distance = i, d end
 		end

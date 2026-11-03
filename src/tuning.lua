@@ -165,6 +165,9 @@ T.population = {
 T.npcWarpDuration = 1.5
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
+-- Berth ship capacity is independent of the authored pad/editor marker size.
+T.berthShipScale = 3
+
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
 T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20

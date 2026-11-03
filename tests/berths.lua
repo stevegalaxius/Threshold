@@ -6,6 +6,19 @@ return function(game)
  game:loadField('earth')
  local st=game:locationEntity('earth/orbital_one')
  local p=game.player
+ -- A real fitted freighter can use a pad smaller than its hull, while
+ -- the marker's authored dimensions and oversized fallback remain intact.
+ local Ship,T=require('src.ship'),require('src.tuning')
+ local freighter=Ship.new(game,{hull='ferrous_freighter',x=0,y=0,angle=0})
+ local original,entities=st.def.berths,game.entities
+ local pad=freighter.halfLength/2
+ st.def.berths={{x=0,y=0,heading=0,size=pad}};game.entities={}
+ check(freighter.halfLength>pad and game:freeBerth(st,freighter)==1,'freighter still rejected by the original pad size limit')
+ check(st.def.berths[1].size==pad,'larger berth capacity changed the authored marker size')
+ st.def.berths[1].size=freighter.halfLength/T.berthShipScale-1
+ check(not game:freeBerth(st,freighter),'ship exceeded the enlarged berth capacity')
+ st.def.berths,game.entities=original,entities
+ freighter.body:destroy()
  local d=st.docks[2] or st.dock
  st.body:setAngle(.7)
  local wx,wy=game.dockWorld(st,1,d.x2+p.halfLength+40,0,d)

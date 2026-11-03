@@ -202,7 +202,7 @@ local function placedSections(E, d)
 		end
 		Slab.Separator()
 		local berths = d.berths or {}
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "Berths are parking spots outside the station.\nA ship that docks takes a free berth it fits on and parks there, in view.\nWhen every berth is taken (or there are none), it goes inside through the dock.\nSize is the longest ship half-length that fits." })
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Berths are parking spots outside the station.\nA ship that docks takes a free berth it fits on and parks there, in view.\nWhen every berth is taken (or there are none), it goes inside through the dock.\nSize controls the pad marker. Ship capacity is scaled separately." })
 		Slab.SameLine()
 		Slab.Text(#berths > 0 and ("Berths: %d"):format(#berths) or "Berths: none (every ship goes inside)")
 		local b = E.bsel and berths[E.bsel]
