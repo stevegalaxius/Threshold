@@ -92,5 +92,23 @@ return function(game)
  AI.think(g,e,1/120)
  check(not e.intent.boost,'hauler boosted into nearby geometry')
  g.world:destroy()
+ -- A terrain chain's multiple broad-phase proxies represent ONE fixture.
+ -- Count actual clearance sweeps so duplicate expansion cannot return.
+ g=scene();e=ship(g,0,0,0,8000,0)
+ local points={}
+ for i=0,95 do
+  local a=i/96*math.pi*2
+  points[#points+1]=math.cos(a)*800;points[#points+1]=1000+math.sin(a)*800
+ end
+ local body=love.physics.newBody(g.world,0,0,'static')
+ local fixture=love.physics.newFixture(body,love.physics.newChainShape(true,points))
+ fixture:setUserData({kind='planet',body=body})
+ local Sweep=require('src.collision_prediction');local sweep=Sweep.sweepCircle;local sweeps=0
+ Sweep.sweepCircle=function(...)sweeps=sweeps+1;return sweep(...)end
+ local ux,uy,scale=Nav.steer(g,e,1,0,650,0,0,{brake=Nav.brakeAccel(e)})
+ Sweep.sweepCircle=sweep
+ check(sweeps>0 and sweeps<=96*6,'terrain chain was expanded repeatedly for its broad-phase child proxies: '..sweeps)
+ check(ux>.99 and math.abs(uy)<.01 and scale==1,'deduplicating terrain altered the clear course')
+ g.world:destroy()
  print(('LOCAL NAVIGATION TEST PASSED (%d checks)'):format(checks))
 end
