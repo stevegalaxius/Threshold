@@ -72,18 +72,26 @@ local function shipSection(game)
 	Slab.SameLine()
 	if Slab.Button("Load autosave") then game:loadFrom("auto") end
 
-	Slab.Text("Paint")
-	local paints = {}
-	local paintName = "(custom)"
-	for _, pt in ipairs(Render.PAINTS) do
-		table.insert(paints, { label = pt.name, value = pt.color })
-		local c = game.playerColor
-		if pt.color[1] == c[1] and pt.color[2] == c[2] and pt.color[3] == c[3] then paintName = pt.name end
+	-- Repaint (a debug stand-in for the shipyard's paint service)
+	if p and not p.dead then
+		local Paint = require("src.paint")
+		local col = p.color
+		local function name(c)
+			for _, pt in ipairs(Paint.PRESETS) do
+				local q = pt.color
+				if math.abs(q[1] - c[1]) + math.abs(q[2] - c[2]) + math.abs(q[3] - c[3]) < 1e-3 then return pt.name end
+			end
+			return "(custom)"
+		end
+		local opts = {}
+		for _, pt in ipairs(Paint.PRESETS) do table.insert(opts, { label = pt.name, value = pt.color }) end
+		Slab.Text(("Paint: %s (factory: %s)"):format(col.name or "repainted", p.hull.paint or Paint.DEFAULT))
+		Slab.Text("primary"); Slab.SameLine()
+		combo("dbg_paint1", name(col), opts, function(c) p.color = Paint.make(c, col.secondary) end)
+		Slab.Text("secondary"); Slab.SameLine()
+		combo("dbg_paint2", name(col.secondary or col), opts, function(c) p.color = Paint.make(col, c) end)
+		if Slab.Button("Back to factory finish") then p.color = Paint.preset(p.hull.paint) end
 	end
-	combo("dbg_paint", paintName, paints, function(c)
-		game.playerColor = c
-		if p then p.color = c end
-	end)
 
 	if not p or p.dead then return end
 	Slab.Separator()

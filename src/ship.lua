@@ -13,6 +13,7 @@ local stats = require("src.stats")
 local T = require("src.tuning")
 local Hold = require("src.inventory.hold")
 local Shapes = require("src.inventory.shapes")
+local Paint = require("src.paint")
 
 local Ship = {}
 
@@ -41,7 +42,7 @@ end
 	opts.loadout  module ids by slot (defaults to the hull's loadout)
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
-	opts.color    paint { r, g, b } (defaults to the enemy definition's color)
+	opts.color    a paint (src/paint.lua); defaults to the enemy's livery, else the hull's factory preset
 	opts.grid     true for a grid hold (the player): items take shapes on a
 	              grid of 1 m3 cells. Other ships just count volume.
 	opts.hold     an existing grid hold to carry (a ship coming out of a
@@ -62,7 +63,7 @@ function Ship.new(game, opts)
 		hold = opts.hold,
 		intent = Ship.emptyIntent(),
 		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false,
-		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
+		color = Paint.resolve(opts.color, opts.enemy, hull),
 	}
 
 	-- The spine: the line through the hull's middle, tail to nose, inset by

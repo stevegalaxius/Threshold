@@ -240,7 +240,7 @@ end
 function Game:addToHangar(st, hullId)
 	local bay = self:hangarFit(st, hullId)
 	if not bay then self:toast("NO ROOM IN THE HANGAR", 1.4) return nil end
-	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = self.playerColor })
+	local e = Ship.new(self, { hull = hullId, team = 1, grid = true })
 	local rec = Ship.record(e)
 	e.body:destroy()
 	rec.bay = bay

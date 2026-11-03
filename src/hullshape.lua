@@ -51,6 +51,7 @@
 	code that only wants the hull's extent needs.
 ]]
 
+local Paint = require("src.paint")
 local HullShape = {}
 
 local abs, max, min, sqrt = math.abs, math.max, math.min, math.sqrt
@@ -135,7 +136,11 @@ end
 
 -- A part's colour on a ship painted `col`.
 function HullShape.color(part, col)
-	col = part.color or col
+	if part.color then col = part.color
+	elseif col.secondary then
+		-- a ship's paint: parts wear metal unless marked primary or secondary
+		col = part.paint == "primary" and col or part.paint == "secondary" and col.secondary or Paint.METAL
+	end
 	local s, t = part.shade or 1, part.tint
 	local r, g, b = col[1] * s, col[2] * s, col[3] * s
 	if t then r, g, b = r + t[1], g + t[2], b + t[3] end

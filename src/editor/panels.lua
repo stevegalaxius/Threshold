@@ -338,6 +338,13 @@ local function designWindow(E, Editor)
 		Slab.Button("?", { W = 18, H = 18, Tooltip = "Just a label, shown in the hangar as 'maker, class'." })
 		Slab.Text("maker"); Slab.SameLine()
 		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
+		local Paint = require("src.paint")
+		local popts = {}
+		for _, pt in ipairs(Paint.PRESETS) do table.insert(popts, { label = pt.name, value = pt.name }) end
+		Slab.Text("factory paint"); Slab.SameLine()
+		combo("yard_factorypaint", E.stat("paint") or Paint.DEFAULT, popts, function(n) E.pushUndo(); d.stats.paint = n end, 140)
+		Slab.SameLine()
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "The colour this hull leaves the yard in. The secondary is a shade of it.\nFactions paint over it with their livery. Mark parts primary or secondary\n(Part panel); unmarked parts are bare metal." })
 	end
 	Slab.Text("description")
 	if Slab.Input("yard_desc", { Text = ((d.kind or "hull") == "hull" and E.stat("description") or d.stats.description) or "", W = 260, H = 70, MultiLine = true, MultiLineW = 250, ReturnOnText = true }) then
@@ -475,8 +482,10 @@ local function designWindow(E, Editor)
 		table.insert(paints, { label = pt.name, value = pt.color })
 		if pt.color == E.paint then current = pt.name end
 	end
-	Slab.Text("paint"); Slab.SameLine()
-	combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
+	if (d.kind or "hull") ~= "hull" then
+		Slab.Text("paint"); Slab.SameLine()
+		combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
+	end
 	Slab.Text("Pretend damage (windows go out)")
 	if Slab.InputNumberSlider("yard_pdamage", E.previewDamage, 0, 1, { W = 160, Precision = 2 }) then E.previewDamage = Slab.GetInputNumber() end
 	Slab.SameLine()
@@ -832,6 +841,16 @@ local function partWindow(E)
 
 	Slab.Separator()
 	Slab.Text("Look")
+	if (E.design.kind or "hull") == "hull" and not p.color then
+		Slab.Text("paint"); Slab.SameLine()
+		combo("yard_ppaint" .. i, p.paint or "metal", {
+			{ label = "metal", value = "metal" }, { label = "primary", value = "primary" }, { label = "secondary", value = "secondary" },
+		}, function(v)
+			E.pushUndo()
+			local v2 = v ~= "metal" and v or nil
+			for _, k in ipairs(Canvas.selection(E)) do E.design.parts[k].paint = v2 end
+		end, 120)
+	end
 	slider(E, "yard_shade" .. i, p.shade or 1, 0, 1.5, function(v) p.shade = v end)
 	Slab.Text("Tint (added to the paint)")
 	local tint = p.tint or { 0, 0, 0 }
@@ -844,7 +863,7 @@ local function partWindow(E)
 		end)
 	end
 	check(E, p.color ~= nil, "Fixed colour (ignores the paint)", function(on)
-		p.color = on and { E.paint[1], E.paint[2], E.paint[3] } or nil
+		local c = E.previewPaint(); p.color = on and { c[1], c[2], c[3] } or nil
 	end)
 	if p.color then
 		for c, name in ipairs({ "r", "g", "b" }) do

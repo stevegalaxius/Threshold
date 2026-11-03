@@ -753,7 +753,7 @@ function Canvas.draw(E)
 	local function drawWeapons(turrets)
 		for _, w in ipairs(weapons) do
 			if (w.mount == "turret") == turrets then
-				local col = E.paint
+				local col = E.previewPaint()
 				require('src.weapon_visual').draw(w, col,
 					{col[1]*.22,col[2]*.22,col[3]*.22}, 1.5/v.zoom)
 			end
@@ -762,7 +762,7 @@ function Canvas.draw(E)
 	drawWeapons(false)
 	E.errors = {}
 	-- each part on its own, so a broken one shows red without hiding the rest
-	local col = E.paint
+	local col = E.previewPaint()
 	-- break-apart preview: parts that can be shot off drift out from the
 	-- core and back
 	local corePart = E.coreIndex and E.design.parts[E.coreIndex]

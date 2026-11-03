@@ -538,6 +538,13 @@ function Editor.keypressed(key)
 	return true
 end
 
+-- What the canvas paints the design with: a hull wears its factory preset,
+-- anything else the preview colour picked in the Preview section.
+function E.previewPaint()
+	if (E.design.kind or "hull") == "hull" then return require("src.paint").preset(E.stat("paint")) end
+	return E.paint
+end
+
 -- Paints to preview against (shade and tint are relative to the paint).
 Editor.PAINTS = Render.PAINTS
 
