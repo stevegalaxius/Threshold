@@ -422,7 +422,7 @@ local function designWindow(E, Editor)
 		Slab.Text("size for new berths")
 		if Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
 	end
-	if Slab.CheckBox(E.mirrorNew, "New parts get a mirror twin") then E.mirrorNew = not E.mirrorNew end
+	if Slab.CheckBox(E.mirrorNew, "Mirror new parts (default for the M box)") then E.mirrorNew = not E.mirrorNew end
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
 	local gopts = {}
 	for _, g in ipairs(GRIDS) do table.insert(gopts, { label = g .. " px", value = g }) end
@@ -848,7 +848,7 @@ local function partWindow(E)
 
 	Slab.Separator()
 	Slab.Text("Shape")
-	check(E, p.mirror == true, "Mirror copy on the other side (M)", function(on) p.mirror = on or nil end)
+	check(E, p.mirror == true, "Mirrored: drawn again flipped across the centre line (M)", function(on) p.mirror = on or nil end)
 	check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) p.collide = (not on) and false or nil end)
 	if Slab.Button("Flip nose-tail") then E.transformSelected(function(x, y) return -x, y end, true) end
 	Slab.SameLine()
