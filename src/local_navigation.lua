@@ -6,8 +6,12 @@ local pi,cos,sin,sqrt,abs,min,max=math.pi,math.cos,math.sin,math.sqrt,math.abs,m
 local ANGLES={0,.35,-.35,.7,-.7,1.1,-1.1,pi/2,-pi/2,2.2,-2.2,2.65,-2.65,pi}
 local function wrap(a)return (a+pi)%(2*pi)-pi end
 local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
- local x,y=e.body:getPosition();local result={}
+ local x,y=e.body:getPosition();local result={};local seen={}
  game.world:queryBoundingBox(x-reach,y-reach,x+reach,y+reach,function(fixture)
+  -- Box2D reports a chain fixture once per overlapping child edge. Expanding
+  -- the whole chain for every callback makes terrain avoidance quadratic.
+  if seen[fixture] then return true end
+  seen[fixture]=true
   local body=fixture:getBody();local o=fixture:getUserData() or body:getUserData()
   if (not staticOnly or body:getType()~='dynamic') and body~=e.body and o~=ignore and not fixture:isSensor() and not (o and (o.dead or o.removed))
    and not (allowSurface and o and o.kind=='planet') then
