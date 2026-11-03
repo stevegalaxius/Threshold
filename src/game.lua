@@ -101,17 +101,19 @@ function Game:loadField(id, opts)
 	release(self.arrivalPreview and self.arrivalPreview.game)
 	if not opts.retain then release(self.trip and self.trip.originScene) end
 	self.arrivalPreview = nil
-	if opts.retain then
-		self.world = love.physics.newWorld(0, 0, true)
-		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
-	else
-		for _, e in ipairs(self.entities) do
-			if not e.removed then e.body:destroy(); e.removed = true end
-		end
-		for _, e in ipairs(self.sleepers or {}) do
-			if not e.removed then e.body:destroy(); e.removed = true end
+	if not opts.retain then
+		-- Unloading a field ends ownership of the whole Box2D world, including
+		-- native broad-phase/contact allocations and any untracked bodies.
+		-- A highway's retained origin and an adopted preview remain alive.
+		local adoptingCurrent = opts.prepared and opts.prepared.world == self.world
+		if not adoptingCurrent then
+			for _, e in ipairs(self.entities) do e.removed = true end
+			for _, e in ipairs(self.sleepers or {}) do e.removed = true end
+			if not disposed[self.world] then self.world:destroy() end
 		end
 	end
+	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
+	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
@@ -124,9 +126,6 @@ function Game:loadField(id, opts)
 	self.stationCount = 0
 	if opts.prepared then
 		local scene = opts.prepared
-		self.world:destroy()
-		self.world = scene.world
-		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
 			"contacts", "well", "moonGates", "stationCount", "idCounter" }) do
 			self[key] = scene[key]
@@ -142,6 +141,9 @@ function Game:loadField(id, opts)
 	end
 	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
+	-- Cull distant generated debris before NPC placement and the first AI step.
+	-- Otherwise local steering scans the entire freshly built belt once.
+	if not opts.prepared then self:updateSleepers() end
 	ALife.seed(self)
 	if not opts.deferALife then self:updateALife(true) end
 	-- the new level's name replaces any still showing (the game builds
@@ -152,12 +154,11 @@ function Game:loadField(id, opts)
 	if not opts.quiet then self:toast(self.field.name:upper(), 2, nil, true) end
 end
 
--- F2: the next playing field.
+-- F3 uses the same cleanup as the other debug teleports.
 function Game:nextField()
 	local i = 1
 	for j, id in ipairs(Fields.list) do if id == self.fieldId then i = j end end
-	local p = self.player
-	self:loadField(Fields.list[i % #Fields.list + 1], { player = p and not p.dead and Ship.record(p) or nil })
+	require("src.debugtravel").go(self, Fields.list[i % #Fields.list + 1])
 end
 
 function Game:nextId()
