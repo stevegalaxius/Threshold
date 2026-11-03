@@ -652,7 +652,7 @@ local function paintWindow(E)
 	local pool = E.stat("paints") or {}
 	local on = {}
 	for _, n in ipairs(pool) do on[n] = true end
-	Slab.BeginWindow("yard_paintwin", { Title = "Factory paint jobs", X = 340, Y = 60, W = 290, H = 110 + #Paint.PRESETS * 20,
+	Slab.BeginWindow("yard_paintwin", { Title = "Factory paint jobs", X = 340, Y = 10, W = 290, H = math.min(love.graphics.getHeight() - 20, 110 + #Paint.PRESETS * 20),
 		AutoSizeWindow = false, AllowResize = true, IsOpen = true })
 	Slab.Text("Each hull leaves the yard in one of the", { Color = { 0.6, 0.6, 0.6 } })
 	Slab.Text("ticked jobs, at random. None: " .. Paint.DEFAULT, { Color = { 0.6, 0.6, 0.6 } })
