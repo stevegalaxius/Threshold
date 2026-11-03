@@ -85,6 +85,16 @@ local function restore(g)
 end
 
 function love.load(args)
+	-- Headless test runs: print an error and quit instead of showing the
+	-- error screen, which waits for a click and never exits.
+	for _, a in ipairs(args or {}) do
+		if a:match("^%-%-%a+test$") then
+			love.errorhandler = function(msg)
+				print("Error: " .. tostring(msg) .. "\n" .. debug.traceback("", 2))
+				os.exit(1)
+			end
+		end
+	end
 	data.load()
 	for _, a in ipairs(args or {}) do
 		if a == "--autotest" then autotest = require("src.autotest") end
