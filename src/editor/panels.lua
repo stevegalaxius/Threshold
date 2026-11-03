@@ -108,9 +108,9 @@ local WINDOW_PALETTES = {
 }
 local WINDOW_PATTERNS = { "rooms", "scattered", "rows", "checker", "grid" }
 local function fillWindows(E, p)
-	local sx, sy = E.windowSpacing or 40, E.windowRowSpacing or 48
+	local sx, sy = E.windowSpacing or (ship and 6 or 40), E.windowRowSpacing or (ship and 6 or 48)
 	local density, pattern = E.windowDensity or 0.6, E.windowPattern or "rooms"
-	local pal, size = WINDOW_PALETTES[E.windowPalette or "mixed"], E.windowSize or 6
+	local pal, size = WINDOW_PALETTES[E.windowPalette or "mixed"], E.windowSize or (ship and 1.2 or 6)
 	local rnd = love.math.random
 	local function colour() if pal then local c = pal[rnd(#pal)]; return { c[1], c[2], c[3] } end end
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
@@ -362,12 +362,13 @@ local function designWindow(E, Editor)
 		Slab.Text("Right drag erases lights", { Color = { 0.6, 0.6, 0.6 } })
 		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
 		local kopts = {}
-		local kinds = E.design.kind == "station" and { "window", "nav", "strobe" } or { "nav", "strobe" }
+		local kinds = { "window", "nav", "strobe" }
 		for _, k in ipairs(kinds) do table.insert(kopts, { label = names[k], value = k }) end
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
 		Slab.Text("row spacing (px)")
 		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
-		if E.design.kind == "station" then
+		do
+			local ship = E.design.kind ~= "station"
 			Slab.Separator()
 			Slab.Text("Fill a part with windows", { Color = { 0.8, 0.85, 1 } })
 			local p = E.sel and E.design.parts[E.sel]
@@ -381,11 +382,11 @@ local function designWindow(E, Editor)
 			Slab.Text("colours"); Slab.SameLine()
 			combo("yard_wpalette", E.windowPalette or "mixed", copts, function(v) E.windowPalette = v end, 120)
 			Slab.Text("across / down (px)")
-			if Slab.InputNumberDrag("yard_wsx", E.windowSpacing or 40, 6, 200, 1, { W = 70 }) then E.windowSpacing = Slab.GetInputNumber() end
+			if Slab.InputNumberDrag("yard_wsx", E.windowSpacing or (ship and 6 or 40), 2, 200, 1, { W = 70 }) then E.windowSpacing = Slab.GetInputNumber() end
 			Slab.SameLine()
-			if Slab.InputNumberDrag("yard_wsy", E.windowRowSpacing or 48, 6, 200, 1, { W = 70 }) then E.windowRowSpacing = Slab.GetInputNumber() end
+			if Slab.InputNumberDrag("yard_wsy", E.windowRowSpacing or (ship and 6 or 48), 2, 200, 1, { W = 70 }) then E.windowRowSpacing = Slab.GetInputNumber() end
 			Slab.Text("size / lit share")
-			if Slab.InputNumberDrag("yard_wsize", E.windowSize or 6, 1, 24, 0.5, { W = 70 }) then E.windowSize = Slab.GetInputNumber() end
+			if Slab.InputNumberDrag("yard_wsize", E.windowSize or (ship and 1.2 or 6), 0.5, 24, 0.5, { W = 70 }) then E.windowSize = Slab.GetInputNumber() end
 			Slab.SameLine()
 			if Slab.InputNumberDrag("yard_wden", E.windowDensity or 0.6, 0.05, 1, 0.01, { W = 70 }) then E.windowDensity = Slab.GetInputNumber() end
 			if p and Slab.Button("Fill (replaces its lights; again to reroll)") then E.pushUndo(); fillWindows(E, p) end
@@ -723,7 +724,7 @@ local function partWindow(E)
 	if light then
 		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
 		local kopts = { { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
-		if E.design.kind == "station" then table.insert(kopts, 1, { label = "window", value = "window" }) end
+		table.insert(kopts, 1, { label = "window", value = "window" })
 		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
 			E.pushUndo()
 			light.kind = k

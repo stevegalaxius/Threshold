@@ -32,7 +32,7 @@ local E = {
 	tool = "select",
 	drawing = nil,
 	mirrorNew = false,       -- new parts get a mirror twin
-	lightKind = "nav",       -- what the light tool places (windows: saved for stations)
+	lightKind = "nav",       -- what the light tool places (window, nav or strobe)
 	lightSpacing = 6,        -- px between lights in a dragged row
 	eraseRadius = 12,        -- screen px the light eraser (right drag) reaches
 	previewDamage = 0,       -- pretend damage, to see the windows go out
@@ -323,7 +323,6 @@ function E.switchCategory(cat)
 		E.view.x, E.view.y = 0, 0
 		E.view.zoom = cat == "station" and 0.25 or 3
 	end
-	if E.tool == "light" and cat ~= "station" and E.lightKind == "window" then E.lightKind = "nav" end
 	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 end
 
