@@ -12,7 +12,7 @@ function V.draw(w, col, dark, lineWidth)
 		lg.rotate(w.aim or 0)
 		lg.setColor(0.75, 0.78, 0.82)
 		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
-		if w.group == "auxiliary" then
+		if w.bay then
 			lg.rectangle("fill", -4, -4, 8, 8)
 		else
 			local n, gap = w.w.barrels or 1, w.w.barrelGap or 8

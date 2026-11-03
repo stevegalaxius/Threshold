@@ -68,7 +68,7 @@ end
 function A.intent(game, dt)
 	local t = game.time
 	local p = game.player
-	local it = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, aimX = 0, aimY = 0 }
+	local it = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, boost = false, aimX = 0, aimY = 0 }
 	if not p or p.dead then return it end
 	local px, py = p.body:getPosition()
 	it.aimX, it.aimY = px + 300, py
@@ -89,7 +89,7 @@ function A.intent(game, dt)
 			local err = math.max(-1, math.min(1, (d - 600) / 200))
 			it.thrust, it.strafe = Ship.toLocal(p, -dy / d * 0.8 + dx / d * err, dx / d * 0.8 + dy / d * err)
 			it.firePrimary = d < 950
-			it.fireAux = (math.floor(t * 2) % 7 == 0)
+			it.fireSecondary = (math.floor(t * 2) % 7 == 0)
 			it.boost = (math.floor(t) % 5 == 0)
 		end
 	elseif t < 27 then
@@ -347,7 +347,7 @@ function A.update(game, dt)
 		r, s = find("storage", "glint_laser")
 		x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 1)
-		local prim = slotRow("primary")
+		local prim = slotRow("hardpoint")
 		Cargo.mousereleased(game, prim.x + 10, prim.y + 10, 1)
 		log("equip: dragged glint_laser from storage onto slot %d -> %s, old module now in hold %d / storage %d",
 			prim.i, tostring(w.loadout[prim.i]), w.cargo.px2_autogun or 0, Hold.count(storage, "px2_autogun"))

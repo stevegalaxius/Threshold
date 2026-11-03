@@ -7,9 +7,9 @@
 	             or at the end of their range. Uses ammo.
 	  laser      pulse laser: a brief, instant-hit flash about once a second.
 	             No ammo; each pulse takes a chunk of power.
-	  missile    auxiliary, guided, splash. Expensive ammo.
-	  torpedo    auxiliary, unguided, slow, enormous damage and splash.
-	  drone      auxiliary: launches an armed drone that fights for a while.
+	  missile    bay, guided, splash. Expensive ammo.
+	  torpedo    bay, unguided, slow, enormous damage and splash.
+	  drone      bay: launches an armed drone that fights for a while.
 
 	Every shot of a gun, artillery piece or missile launcher takes one round
 	out of the hold, and the ship gets lighter as it does.
@@ -121,7 +121,7 @@ local function fire(game, e, slot, dt)
 		end
 		slot.fullWarned = false
 	end
-	local rate = w.fireRate * (slot.group ~= "auxiliary" and mult.primaryFireRate or 1)
+	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
 	-- Out of the selected ammo: fall back to another size this weapon can fire.
 	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
 		for _, id in ipairs(slot.ammoOptions) do
@@ -208,12 +208,13 @@ function Weapons.range(slot)
 	return slot.w.range or 0
 end
 
--- Switch every weapon in a group to the next ammo size it can fire.
--- Returns the newly selected ammo id (of the first launcher that changed).
+-- Switch every launcher (or, given a trigger group, every launcher on that
+-- trigger) to the next ammo size it can fire. Returns the newly selected
+-- ammo id (of the first launcher that changed).
 function Weapons.cycleAmmo(e, group)
 	local picked
 	for _, slot in ipairs(e.weapons) do
-		if slot.group == group and #slot.ammoOptions > 1 then
+		if slot.bay and (not group or slot.group == group) and #slot.ammoOptions > 1 then
 			local i = 1
 			for j, id in ipairs(slot.ammoOptions) do if id == slot.ammo then i = j end end
 			slot.ammo = slot.ammoOptions[i % #slot.ammoOptions + 1]
@@ -229,7 +230,6 @@ function Weapons.update(game, e, dt)
 		slot.cooldown = max(0, slot.cooldown - dt)
 		aimSlot(e, slot, dt)
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
-			or (slot.group == "auxiliary" and it.fireAux)
 		-- AI only fires a weapon when the target is roughly in its range.
 		if wants and it.targetDist and it.targetDist > Weapons.range(slot) * 1.05 then wants = false end
 		-- When the trigger goes down, delay each identical weapon by its

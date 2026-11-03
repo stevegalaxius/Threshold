@@ -29,7 +29,7 @@ local STATS = {
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
-local FAMILIES = { "primary", "secondary", "auxiliary", "engine", "reactor", "utility", "computer" }
+local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "utility", "computer" }
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
 local SIZELESS = { utility = true, computer = true }
@@ -113,7 +113,7 @@ local function placedSections(E, d)
 			Slab.Text(("Turret %d"):format(E.tsel), { Color = { 0.6, 0.85, 1 } })
 			turretCombo("yard_turretmod", t.module, function(id) E.pushUndo(); t.module = id end)
 			local m = data.modules[t.module]
-			if m and m.family == "auxiliary" then
+			if m and m.family == "bay" then
 				Slab.Text("fixed bay: missiles curve to the target,", { Color = { 0.6, 0.6, 0.6 } })
 				Slab.Text("drones fly off to it, torpedoes only", { Color = { 0.6, 0.6, 0.6 } })
 				Slab.Text("fire down its line", { Color = { 0.6, 0.6, 0.6 } })
@@ -396,7 +396,7 @@ local function designWindow(E, Editor)
 				E.pushUndo()
 				slot.family = f
 				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end
-				if f ~= "primary" and f ~= "secondary" and f ~= "auxiliary" then slot.mount = nil end
+				if f ~= "hardpoint" and f ~= "bay" then slot.mount, slot.trigger = nil, nil end
 				E.validateSlotDefault(i)
 			end, 95)
 			if not SIZELESS[slot.family] then
@@ -405,12 +405,19 @@ local function designWindow(E, Editor)
 				for _, s in ipairs(SIZES) do table.insert(sopts, { label = s, value = s }) end
 				combo("yard_slotsize" .. i, slot.size, sopts, function(s) E.pushUndo(); slot.size = s; E.validateSlotDefault(i) end, 50)
 			end
-			if slot.family == "primary" or slot.family == "secondary" or slot.family == "auxiliary" then
+			if slot.family == "hardpoint" or slot.family == "bay" then
 				-- weapon slots can mount differently from the hull's default
 				Slab.SameLine()
 				local mo = { { label = "(hull)", value = false } }
 				for _, m in ipairs({ "fixed", "gimbal", "turret" }) do table.insert(mo, { label = m, value = m }) end
 				combo("yard_slotmount" .. i, slot.mount or "(hull)", mo, function(m) E.pushUndo(); slot.mount = m or nil end, 70)
+				-- default trigger (the player can change it in the hold)
+				Slab.SameLine()
+				local dflt = slot.family == "bay" and "secondary" or "primary"
+				local to = { { label = "LMB", value = "primary" }, { label = "RMB", value = "secondary" } }
+				combo("yard_slottrig" .. i, (slot.trigger or dflt) == "primary" and "LMB" or "RMB", to, function(t)
+					E.pushUndo(); slot.trigger = (t ~= dflt) and t or nil
+				end, 50)
 			end
 			Slab.SameLine()
 			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
@@ -434,7 +441,7 @@ local function designWindow(E, Editor)
 		if remove then E.pushUndo(); table.remove(d.slots, remove); table.remove(defaults, remove); E.slotSel = nil end
 		if Slab.Button("Add slot") then
 			E.pushUndo()
-			table.insert(d.slots, { family = "primary", size = "S", x = 0, y = 0 })
+			table.insert(d.slots, { family = "hardpoint", size = "S", x = 0, y = 0 })
 			defaults[#d.slots] = false
 			E.slotSel = #d.slots
 		end

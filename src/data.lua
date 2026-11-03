@@ -18,22 +18,32 @@ local data = {
 	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {} },
 }
 
--- Slot families. primary / secondary are fire groups for guns (left and
--- right mouse button); auxiliary holds a launcher (middle mouse button).
-local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
--- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
--- secondary slot; every other family fits the slot of the same name.
-local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
+-- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
+-- takes a launcher (missiles, torpedoes, drones). Which trigger fires each
+-- is set per slot (see Ship.triggerFor).
+local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
+-- Module families. A "weapon" (gun, artillery, laser) fits a hardpoint;
+-- every other family fits the slot of the same name.
+local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
+-- Slots saved before hardpoints and bays (editor designs) used primary,
+-- secondary and auxiliary; read them as the new families.
+function data.migrateSlot(slot)
+	if slot.family == "primary" then slot.family = "hardpoint"
+	elseif slot.family == "secondary" then slot.family, slot.trigger = "hardpoint", slot.trigger or "secondary"
+	elseif slot.family == "auxiliary" then slot.family = "bay" end
+	return slot
+end
+
 -- Does a module fit a hull slot?
 function data.fits(slot, m)
 	-- a module sized "any" fits a slot of any size (computers and utilities)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
-	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
+	if m.family == "weapon" then return slot.family == "hardpoint" end
 	return m.family == slot.family
 end
 
@@ -100,8 +110,10 @@ local function prepareHull(def)
 	if def.helm and def.helm ~= "strafe" and def.helm ~= "turn" then fail(("hull '%s' has unknown helm '%s' (use strafe or turn)"):format(def.id, tostring(def.helm))) end
 	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do
+		data.migrateSlot(slot)
 		if slot.mount and not MOUNTS[slot.mount] then fail(("hull '%s' slot %d has unknown mount '%s'"):format(def.id, i, tostring(slot.mount))) end
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
+		if slot.trigger and slot.trigger ~= "primary" and slot.trigger ~= "secondary" then fail(("hull '%s' slot %d has unknown trigger '%s' (use primary or secondary)"):format(def.id, i, tostring(slot.trigger))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
 end
@@ -321,7 +333,7 @@ end
 
 -- Every ammo a weapon module can fire, biggest first: same family as the
 -- weapon kind, and the same caliber (guns, artillery) or the same size or
--- smaller (auxiliary launchers: missiles, torpedoes, drones).
+-- smaller (bay launchers: missiles, torpedoes, drones).
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
@@ -331,7 +343,7 @@ function data.ammoOptions(module)
 		if item.kind == "ammo" and item.family == w.kind then
 			-- a gun's caliber is its size unless it says otherwise (twin mounts)
 			local fits = item.size == (w.caliber or module.size)
-			if module.family == "auxiliary" then fits = SIZES[item.size] <= SIZES[module.size] end
+			if module.family == "bay" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end
 	end

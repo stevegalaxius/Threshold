@@ -276,7 +276,7 @@ end
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
-	it.firePrimary, it.fireSecondary, it.fireAux, it.boost = false, false, false, false
+	it.firePrimary, it.fireSecondary, it.boost = false, false, false
 	it.thrust, it.strafe = 0, 0
 	if ai.style == "trader" then return trade(game, e, dt) end
 

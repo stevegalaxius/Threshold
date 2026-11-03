@@ -19,7 +19,7 @@ local EDGE_PX = 6        -- or an edge, to insert a point on it
 local SLOT_PX = 7        -- radius of a slot's hardpoint marker
 
 local SLOT_COLORS = {
-	primary = { 1, 0.45, 0.35 }, secondary = { 1, 0.7, 0.3 }, auxiliary = { 0.9, 0.5, 1 },
+	hardpoint = { 1, 0.45, 0.35 }, bay = { 0.9, 0.5, 1 },
 	engine = { 0.4, 0.8, 1 }, reactor = { 0.5, 1, 0.5 }, utility = { 0.8, 0.8, 0.8 },
 	computer = { 0.8, 0.8, 1 },
 }
@@ -313,7 +313,7 @@ local function pressed(E, sx, sy, button)
 		E.design.turrets = E.design.turrets or {}
 		local t = { x = px, y = py, module = E.turretModule }
 		local m = data.modules[t.module]
-		if m and m.family == "auxiliary" then t.heading = berthHeading(px, py, px, py) end
+		if m and m.family == "bay" then t.heading = berthHeading(px, py, px, py) end
 		table.insert(E.design.turrets, t)
 		E.tsel, E.bsel = #E.design.turrets, nil
 		return
@@ -677,7 +677,7 @@ function Canvas.draw(E)
 		for i, t in ipairs(E.design.turrets or {}) do
 			local cx, cy = Canvas.toScreen(E, t.x, t.y)
 			local m = data.modules[t.module]
-			local aux = m and m.family == "auxiliary"
+			local aux = m and m.family == "bay"
 			local c = aux and { 1, 0.5, 0.4 } or { 0.6, 0.85, 1 }
 			local sel = E.tsel == i
 			local r = max(6, ({ S = 8, M = 12, L = 18 })[m and m.size or "M"] * v.zoom)

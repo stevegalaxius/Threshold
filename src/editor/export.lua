@@ -130,6 +130,7 @@ function Export.hullDef(design)
 	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
 	if design.slots then
 		def.slots = copy(design.slots)
+		for _, slot in ipairs(def.slots) do data.migrateSlot(slot) end
 		-- Explicit defaults win, including intentionally empty slots. Older designs
 		-- inherit the base loadout until they are edited.
 		local loadout = {}

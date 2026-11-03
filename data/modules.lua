@@ -11,15 +11,14 @@
 	           px); see src/computers.lua.
 	  utility  hold (cubic metres), tractorRange (pixels). Utility modules are
 	           size "any" and fit any hull's utility slot.
-	  weapon   (guns, artillery, lasers) fits a hull's primary or secondary
-	           slot; which one decides the mouse button that fires it.
-	  auxiliary (missile, torpedo and drone launchers) fits the auxiliary
-	           slot and fires on the middle mouse button.
+	  weapon   (guns, artillery, lasers) fits a hull's hardpoint slot.
+	  bay      (missile, torpedo and drone launchers) fits a bay slot.
+	           Either fires on whichever trigger its slot is set to.
 
 	Weapon fields:
 	  kind        gun, artillery or laser (weapon family); missile, torpedo
-	              or drone (auxiliary family). Each fires ammo of its own
-	              kind: guns and artillery in their exact caliber, auxiliary
+	              or drone (bay family). Each fires ammo of its own
+	              kind: guns and artillery in their exact caliber, bay
 	              launchers their size or smaller. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
@@ -97,61 +96,61 @@ module {
 	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10, knockback = 8000 },
 }
 
--- Auxiliary launchers -------------------------------------------------------------
+-- Bay launchers -------------------------------------------------------------------
 -- Missiles (guided), torpedoes (unguided, huge damage) and drone bays (launch
 -- an armed drone that fights for you for a while). Each fires its own kind
 -- in its size or smaller; Q switches the size.
 
 module {
-	id = "sparrow_rack", name = "Sparrow Rack", maker = "Halcyon Arms", family = "auxiliary", size = "S",
+	id = "sparrow_rack", name = "Sparrow Rack", maker = "Halcyon Arms", family = "bay", size = "S",
 	mass = 3, price = 4000,
 	weapon = { kind = "missile", fireRate = 1.5, recoil = 300 },
 }
 
 module {
-	id = "hornet_pod", name = "Hornet Pod", maker = "Nova Syndicate", family = "auxiliary", size = "M",
+	id = "hornet_pod", name = "Hornet Pod", maker = "Nova Syndicate", family = "bay", size = "M",
 	mass = 8, price = 11000,
 	weapon = { kind = "missile", fireRate = 1.0, recoil = 800 },
 }
 
 module {
-	id = "trident_bay", name = "Trident Bay", maker = "Ferrous Collective", family = "auxiliary", size = "L",
+	id = "trident_bay", name = "Trident Bay", maker = "Ferrous Collective", family = "bay", size = "L",
 	mass = 18, price = 26000,
 	weapon = { kind = "missile", fireRate = 0.7, recoil = 1600 },
 }
 
 module {
-	id = "maul_tube", name = "Maul Tube", maker = "Brute Industries", family = "auxiliary", size = "S",
+	id = "maul_tube", name = "Maul Tube", maker = "Brute Industries", family = "bay", size = "S",
 	mass = 5, price = 5000,
 	weapon = { kind = "torpedo", fireRate = 0.5, recoil = 600 },
 }
 
 module {
-	id = "breaker_tube", name = "Breaker Tube", maker = "Brute Industries", family = "auxiliary", size = "M",
+	id = "breaker_tube", name = "Breaker Tube", maker = "Brute Industries", family = "bay", size = "M",
 	mass = 12, price = 14000,
 	weapon = { kind = "torpedo", fireRate = 0.35, recoil = 1500 },
 }
 
 module {
-	id = "leviathan_tube", name = "Leviathan Tube", maker = "Ferrous Collective", family = "auxiliary", size = "L",
+	id = "leviathan_tube", name = "Leviathan Tube", maker = "Ferrous Collective", family = "bay", size = "L",
 	mass = 26, price = 32000,
 	weapon = { kind = "torpedo", fireRate = 0.25, recoil = 4000 },
 }
 
 module {
-	id = "wasp_bay", name = "Wasp Bay", maker = "Nova Syndicate", family = "auxiliary", size = "S",
+	id = "wasp_bay", name = "Wasp Bay", maker = "Nova Syndicate", family = "bay", size = "S",
 	mass = 6, price = 7000,
 	weapon = { kind = "drone", fireRate = 0.4, recoil = 100, control = 1 },
 }
 
 module {
-	id = "hive_bay", name = "Hive Bay", maker = "Nova Syndicate", family = "auxiliary", size = "M",
+	id = "hive_bay", name = "Hive Bay", maker = "Nova Syndicate", family = "bay", size = "M",
 	mass = 14, price = 18000,
 	weapon = { kind = "drone", fireRate = 0.3, recoil = 200, control = 2 },
 }
 
 module {
-	id = "carrier_deck", name = "Carrier Deck", maker = "Nova Syndicate", family = "auxiliary", size = "L",
+	id = "carrier_deck", name = "Carrier Deck", maker = "Nova Syndicate", family = "bay", size = "L",
 	mass = 30, price = 40000,
 	weapon = { kind = "drone", fireRate = 0.2, recoil = 400, control = 4 },
 }

@@ -285,7 +285,7 @@ end
 
 local function saveShip(rec)
 	return {
-		hull = rec.hull, loadout = rec.loadout, armor = rec.armor, color = rec.color, bay = rec.bay,
+		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, armor = rec.armor, color = rec.color, bay = rec.bay,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
 	}
 end
@@ -295,7 +295,7 @@ local function known(id) return data.items[id] ~= nil end
 local function loadShip(t)
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
 	return {
-		hull = t.hull, loadout = t.loadout, armor = t.armor, color = t.color, bay = t.bay,
+		hull = t.hull, loadout = t.loadout, triggers = t.triggers, armor = t.armor, color = t.color, bay = t.bay,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
 	}
 end

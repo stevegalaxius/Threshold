@@ -4,7 +4,7 @@ return function(game)
  local data=require('src.data')
  local p=game.player
  p.hull=copy(p.hull)
- p.hull.slots={{family='primary',size='S'},{family='secondary',size='S'},{family='computer',size='any'}}
+ p.hull.slots={{family='hardpoint',size='S'},{family='hardpoint',trigger='secondary',size='S'},{family='computer',size='any'}}
  p.loadout={'glint_laser','px2_autogun','fire_computer'}
  p.body:setPosition(0,0);p.body:setLinearVelocity(0,0);p.dockState=nil
  local target={kind='ship',team=2,halfLength=20,body=love.physics.newBody(game.world,200,0,'dynamic')}

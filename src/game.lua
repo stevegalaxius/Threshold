@@ -177,7 +177,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	self.playerHull = rec.hull or self.playerHull
 	if rec.color then self.playerColor = rec.color end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
@@ -870,10 +870,10 @@ function Game:armStation(e)
 			-- missile, torpedo and drone launchers are fixed bays: they
 			-- point one way (heading, or straight out from the centre);
 			-- missiles curve round to the target, drones fly off to it
-			local bay = m.family == "auxiliary"
+			local bay = m.family == "bay"
 			local out = (t.x == 0 and t.y == 0) and 0 or math.atan2(t.y, t.x)
 			table.insert(list, { slot = { x = t.x, y = t.y }, module = m, w = m.weapon,
-				group = bay and "auxiliary" or "primary",
+				group = "primary", bay = bay,
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m),
 				cooldown = random() * 0.5, think = random() * RETARGET,
 				mount = bay and "bay" or "turret", turn = math.rad(t.turn or 90),
@@ -1027,7 +1027,7 @@ function Game:beginDocking(e, st, side, dock)
 	if e ~= self.player then
 		e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
 	end
-	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireAux = false, false, false
+	e.intent.firePrimary, e.intent.fireSecondary = false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
@@ -1555,7 +1555,7 @@ function Game:setPlayerIntent(intent)
 		local a = p.body:getAngle()
 		for k, v in pairs(intent) do p.intent[k] = v end
 		p.intent.thrust, p.intent.strafe, p.intent.boost, p.intent.tractor = 0, 0, false, false
-		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+		p.intent.firePrimary, p.intent.fireSecondary = false, false
 		p.intent.aimX, p.intent.aimY = x + cos(a) * 700, y + sin(a) * 700
 		return
 	end
@@ -1583,7 +1583,7 @@ function Game:step(dt)
 				local x,y=e.body:getPosition()
 				e.intent.thrust,e.intent.strafe,e.intent.boost=0,0,false
 				e.intent.aimX,e.intent.aimY=x+cos(a)*300,y+sin(a)*300
-				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireAux=false,false,false
+				e.intent.firePrimary,e.intent.fireSecondary=false,false
 				Ship.fly(e,dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
@@ -2399,12 +2399,12 @@ function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
--- Q: switch the player's auxiliary launcher to the next size it can fire.
+-- Q: switch the player's launchers to the next size they can fire.
 function Game:cycleAux()
 	local p = self.player
 	if not p or p.dead then return end
-	local id = Weapons.cycleAmmo(p, "auxiliary")
-	if id then self:toast("AUX: " .. data.items[id].name:upper(), 1.2) end
+	local id = Weapons.cycleAmmo(p)
+	if id then self:toast("LAUNCHERS: " .. data.items[id].name:upper(), 1.2) end
 end
 
 -- big: a headline (arriving in a level)

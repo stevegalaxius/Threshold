@@ -349,7 +349,7 @@ local function drawStation(game, e)
 		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
 		if w.mount == "bay" then
 			-- (drawn below)
-		elseif w.group == "auxiliary" then
+		elseif w.bay then
 			lg.rectangle("fill", -r * 0.2, -r * 0.8, r * 1.6, r * 1.6)
 		else
 			local n, gap = w.w.barrels or 1, (w.w.barrelGap or 8) * 2
@@ -1095,7 +1095,7 @@ local function drawRange(game)
 	if not p or p.dead then return end
 	local reach = 0
 	for _, w in ipairs(p.weapons) do
-		if w.group ~= "auxiliary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
+		if not w.bay then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
 	local x, y = p.body:getPosition()
