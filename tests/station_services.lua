@@ -141,6 +141,46 @@ return function(game)
   berths={{x=0,y=0,size=80,maxLength=1200,maxWidth=400}}})
  check(config.hangar.w==40 and config.berths[1].maxLength==1200 and config.berths[1].maxWidth==400,'station export lost spatial capacity configuration')
 
+ -- Ships and goods share the same staged offer and settlement.
+ local marketDef=game.marketDefinition(st);local oldShips=marketDef.ships
+ marketDef.ships={'halcyon_wisp'}
+ Cargo.shipOwned=nil;Cargo.marketLeft='ships';Cargo.filter='ships';Cargo.setTab(game,'market')
+ local L=Cargo.layout(game);local ownedGrid,stockGrid
+ for _,g in ipairs(L.grids) do
+  if g.side.shipEntries then if g.side.market then stockGrid=g else ownedGrid=g end end
+ end
+ local sale=assert(ownedGrid.g.stacks[1]);local record=sale.shipRecord
+ local beforeCredits=game:credits();local beforeShips=#game:hangar(st)
+ local function clickStack(g,stack,button)
+  Cargo.mousepressed(game,g.x+(stack.x+.5)*L.cs,g.y+(stack.y+.5)*L.cs,button)
+ end
+ clickStack(ownedGrid,sale,2);clickStack(stockGrid,stockGrid.g.stacks[1],2)
+ check(#game:hangar(st)==beforeShips and game:credits()==beforeCredits,'staging transferred ownership or credits')
+ screenshot('ship-trade')
+ Cargo.clearTrade(game)
+ check(#game:hangar(st)==beforeShips and game:credits()==beforeCredits,'cancelling ship offers changed ownership')
+ L=Cargo.layout(game)
+ for _,g in ipairs(L.grids) do if g.side.shipEntries then if g.side.market then stockGrid=g else ownedGrid=g end end end
+ sale=ownedGrid.g.stacks[1];record=sale.shipRecord
+ -- Actual drag to the give grid, preserving the owned record identity.
+ clickStack(ownedGrid,sale,1)
+ local give=L.grids[2]
+ for _,g in ipairs(L.grids) do if g.g.tradeOwner=='player' then give=g end end
+ Cargo.mousereleased(game,give.x+L.cs*.5,give.y+L.cs*.5,1)
+ check(give.g.stacks[1] and give.g.stacks[1].shipRecord==record,'ship drag lost owned vessel identity')
+ clickStack(stockGrid,stockGrid.g.stacks[1],2)
+ local offer=L.sides[2].hold
+ check(Hold.placeStack({grids={offer.grids[2]}},{id='scrap',n=1,owner='station'}),'could not stage goods alongside ship')
+ local get,pay=game.tradeTotals(offer)
+ game.universe.credits=0
+ if pay>get then check(not game:completeTrade(st,offer) and #game:hangar(st)==beforeShips,'failed ship trade mutated roster') end
+ game.universe.credits=beforeCredits
+ local ok,why=game:completeTrade(st,offer);check(ok,why)
+ check(game:credits()==beforeCredits+get-pay and #game:hangar(st)==beforeShips,'mixed ship settlement totals wrong')
+ local found=false;for _,rec in ipairs(game:hangar(st)) do if rec==record then found=true end end
+ check(not found,'sold ship still owned')
+ Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all';marketDef.ships=oldShips
+
  -- Save the roster, grid layout, finite mooring locations and active parking.
  local saved=assert(Save.decode(Save.encode(game:saveState())))
  check(saved.player.at.parkingMooring==exterior,'save lost active exterior allocation')
@@ -167,10 +207,51 @@ return function(game)
  check(filled>0 and filled<#game:stationMoorings(st)+2,'exterior storage is unbounded')
  check(game:shipBuyProblem(st,'ferrous_freighter')~=nil,'full exterior storage permits another purchase')
  local before=game:credits();check(not game:buyShip(st,'ferrous_freighter') and game:credits()==before,'failed purchase consumed credits')
+ -- A full station rejects an offer atomically; selling a berthed ship
+ -- in that offer can make exactly the required room.
+ local mk=game.marketDefinition(st);local catalogue=mk.ships;mk.ships={'ferrous_freighter'}
+ local exchange=Hold.new({{key='give',w=20,h=10},{key='receive',w=20,h=10}})
+ local buy={id='ship:ferrous_freighter',n=1,owner='station'}
+ assert(Hold.placeStack({grids={exchange.grids[2]}},buy))
+ local roster=game:hangar(st);local count=#roster;local balance=game:credits()
+ local ok,why=game:completeTrade(st,exchange)
+ check(not ok and why=='NO SUITABLE FREE PARKING' and #roster==count and game:credits()==balance,'full berth offer was not atomic')
+ local sell=roster[1];assert(sell)
+ assert(Hold.placeStack({grids={exchange.grids[1]}},{id='ship:'..sell.hull,n=1,owner='player',shipRecord=sell}))
+ local ok,why=game:completeTrade(st,exchange);check(ok,why)
+ check(#game:hangar(st)==count,'ship exchange did not reuse released parking')
+ mk.ships={'ferrous_freighter','ferrous_mule','ferrous_runner'}
+ Cargo.shipOwned=nil;Cargo.marketLeft='ships';Cargo.filter='ships';Cargo.setTab(game,'market')
+ screenshot('ship-catalogue')
+ Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all';mk.ships=catalogue
  local worldCanvas=love.graphics.newCanvas(love.graphics.getDimensions())
  love.graphics.push('all');love.graphics.setCanvas(worldCanvas)
  require('src.render').world(game)
  love.graphics.setCanvas();love.graphics.pop();worldCanvas:release()
+ -- An open container stays on screen throughout pickup and drop.
+ Cargo.setTab(game,'cargo')
+ local storage=game:stationStorage(st)
+ local contents=Hold.new({{key='box',name='Box contents',w=8,h=5}})
+ Hold.add(contents,'scrap',3)
+ local box={id='cargo_container',n=1,inner=contents}
+ check(Hold.placeStack(storage,box),'could not place test container')
+ Cargo.inner=contents;Cargo.lastClick=nil
+ local beforeDrag=Cargo.layout(game);local source
+ for _,g in ipairs(beforeDrag.grids) do if g.side.hold==storage then source=g;break end end
+ local dx,dy=source.x+(box.x+.5)*beforeDrag.cs,source.y+(box.y+.5)*beforeDrag.cs
+ Cargo.mousepressed(game,dx,dy,1)
+ check(Cargo.hand and Cargo.hand.inner==contents,'container pickup lost its contents')
+ local during=Cargo.layout(game)
+ check(#during.sides==#beforeDrag.sides and during.cs==beforeDrag.cs,'container pickup changed panel count or cell size')
+ for i,g in ipairs(beforeDrag.grids) do
+  check(during.grids[i].x==g.x and during.grids[i].y==g.y,'container pickup moved a grid under the cursor')
+ end
+ Cargo.mousereleased(game,dx,dy,1)
+ check(not Cargo.hand and Cargo.inner==contents and Hold.count(contents,'scrap')==3,'container drop lost open state or cargo')
+ local restored=Grid.at(source.g,box.x,box.y)
+ check(restored and restored.inner==contents,'container did not return to the drop cell')
+ Cargo.inner=nil
+ before=game:credits()
  game:undock()
  local after=game:credits();check(after==before,'undocking changed credits')
  Cargo.open=true;Cargo.loot=nil;Cargo.inner=nil

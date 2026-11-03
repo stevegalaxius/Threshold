@@ -540,11 +540,17 @@ Market uses three panels: player inventory (hold/storage selector), a pending
 offer with separate **You give** and **You receive** grids, and station stock.
 Right-click/Ctrl-click offers a stack; dragging, splitting and rotation still
 work. Completing a trade uses the existing pricing and atomic settlement.
+The **Ships** inventory selector shows owned stored vessels; the **Ships** stock
+filter shows this station's ship catalogue. Hull footprints can be dragged or
+right-clicked into the same offer as goods. Ship sales include installed modules,
+cargo and containers; the active ship must be stored by switching ships before
+it can be sold. Ownership changes only when the trade completes. Parking is
+checked for the entire offer, including space released by sold ships.
 Leaving Market returns the staged goods. No prices or economic simulation
 rules were replaced.
 
 The Hangar service shows a small interior packing grid, exterior mooring
-positions, and shared ship details/actions. Owned ships have one location:
+positions, and shared ship details/actions. Ship shopping is in Market. Owned ships have one location:
 `bay` for interior grid coordinates or `mooring` for a reserved exterior slot.
 Purchases require a suitable free location. Switching ships leaves the old ship
 in its own location and selects the new ship at its existing location. Both

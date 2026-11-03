@@ -203,12 +203,14 @@ function love.draw()
 		return
 	end
 	Render.world(game)
-	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
+	if game.state ~= "docked" then
+		HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
+	end
 	if Cargo.isOpen(game) then
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
 	end
-	Orrery.draw(game)
+	if game.state ~= "docked" then Orrery.draw(game) end
 	Pause.draw(game)
 	Debug.draw()
 end

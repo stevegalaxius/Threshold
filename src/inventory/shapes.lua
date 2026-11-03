@@ -34,7 +34,7 @@ local cache = {}
 function Shapes.of(id)
 	local c = cache[id]
 	if c then return c[1], c[2], c[3] end
-	local item = assert(data.items[id], "unknown item " .. tostring(id))
+	local item = assert(data.items[id] or require("src.inventory.ship_entry").item(id), "unknown item " .. tostring(id))
 	local w, h, stack
 	if item.w and item.h then
 		w, h, stack = item.w, item.h, item.stack or 1

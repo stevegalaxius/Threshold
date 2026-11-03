@@ -38,6 +38,7 @@ local T = require("src.tuning")
 local events = require("src.events")
 local Locations = require("src.locations")
 
+local ShipEntry=require("src.inventory.ship_entry")
 local floor, min = math.floor, math.min
 
 return function(Game)
@@ -54,8 +55,8 @@ function Game.stackValue(id, n, inner)
 	return v
 end
 
-function Game.buyPrice(s) return Game.stackValue(s.id, s.n, s.inner) end
-function Game.sellPrice(s) return floor(Game.stackValue(s.id, s.n, s.inner) * T.sellRate) end
+function Game.buyPrice(s) local item=ShipEntry.item(s.id);return item and item.price or Game.stackValue(s.id,s.n,s.inner) end
+function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(Game.stackValue(s.id,s.n,s.inner)*T.sellRate) end
 
 function Game:credits() return self.universe.credits end
 
@@ -172,6 +173,31 @@ local function split(trade)
 	return buying, selling
 end
 
+-- Plan parking on an isolated roster so sold ships can free space for purchases.
+local function shipPlan(game,st,buying,selling)
+ local original=game:stationRecord(st);local roster,sold,planned={},{},{}
+ for _,s in ipairs(selling) do if ShipEntry.item(s.id) then
+  local found=false
+  for _,rec in ipairs(original.hangar) do if rec==s.shipRecord then found=true end end
+  if not found or sold[s.shipRecord] then return nil,'SHIP NO LONGER AVAILABLE' end
+  sold[s.shipRecord]=true
+ end end
+ for _,rec in ipairs(original.hangar) do if not sold[rec] then
+  local c={};for k,v in pairs(rec) do c[k]=v end;roster[#roster+1]=c
+ end end
+ local record={hangar=roster,moorings=original.moorings}
+ local proxy=setmetatable({stationRecord=function() return record end},{__index=game})
+ for _,s in ipairs(buying) do local item=ShipEntry.item(s.id);if item then
+  local available=false;for _,id in ipairs(game.shipyard(st)) do if id==item.hull then available=true end end
+  if not available then return nil,'SHIP NO LONGER FOR SALE' end
+  local parking=proxy:shipParkingFit(st,item.hull)
+  if not parking then return nil,'NO SUITABLE FREE PARKING' end
+  local rec={hull=item.hull};proxy:applyParking(rec,parking);roster[#roster+1]=rec
+  planned[#planned+1]={hull=item.hull,parking=parking}
+ end end
+ return {sold=sold,bought=planned}
+end
+
 -- Why the trade can't go through, or nil if it can: you can't cover the
 -- difference, or what you're buying won't fit in your hold and storage.
 function Game:tradeProblem(st, trade)
@@ -181,9 +207,11 @@ function Game:tradeProblem(st, trade)
 	if self.universe.credits + get < pay then return "NOT ENOUGH CREDITS" end
 	local th, ts = Hold.clone(self.player.hold), Hold.clone(self:stationStorage(st))
 	for _, s in ipairs(buying) do
-		if not deliver(s, th, ts) then return "NO ROOM" end
+		if not ShipEntry.item(s.id) and not deliver(s, th, ts) then return "NO ROOM" end
 	end
-	return nil
+ local plan,why=shipPlan(self,st,buying,selling)
+ if not plan then return why end
+ return nil
 end
 
 -- Settle the trade grid: you're paid for your goods and charged for the
@@ -197,11 +225,20 @@ function Game:completeTrade(st, trade)
 	local get, pay = Game.tradeTotals(trade)
 	local buying, selling = split(trade)
 	local storage = self:stationStorage(st)
-	for _, s in ipairs(buying) do deliver(s, p.hold, storage) end
+	local plan=assert(shipPlan(self,st,buying,selling))
+ local records={}
+ for _,purchase in ipairs(plan.bought) do
+  local e=Ship.new(self,{hull=purchase.hull,team=1,grid=true})
+  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,purchase.parking);records[#records+1]=rec
+ end
+ local roster=self:stationRecord(st).hangar
+ for i=#roster,1,-1 do if plan.sold[roster[i]] then table.remove(roster,i) end end
+ for _,rec in ipairs(records) do roster[#roster+1]=rec end
+ for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then deliver(s,p.hold,storage) end end
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do
 		-- (no room on the shelf: it's sold on straight away)
-		Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime })
+		if not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end
@@ -209,6 +246,8 @@ function Game:completeTrade(st, trade)
 	u.credits = u.credits + get - pay
 	p.cargo = Hold.totals(p.hold)
 	Ship.updateMass(p)
+ for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end
+ for _,rec in ipairs(records) do events.emit("buyship",rec,st) end
 	return true, get - pay
 end
 

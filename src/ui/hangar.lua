@@ -86,16 +86,8 @@ local function layout(game)
 	local ix, iw = L.info.x + PAD, IW - PAD * 2
 	L.fly = { x = ix, y = L.info.y + L.info.h - 44, w = floor(iw / 2) - 4, h = 30 }
 	L.cargo = { x = ix + floor(iw / 2) + 4, y = L.fly.y, w = floor(iw / 2) - 4, h = 30 }
-	L.sell = { x = ix, y = L.fly.y - 38, w = iw, h = 30 }
-	L.move = {x=ix,y=L.sell.y-38,w=iw,h=30}
-	-- the shipyard: one row per hull for sale, under the ship's details
-	L.yard = {}
-	for k, id in ipairs(game.shipyard(st)) do
-		local ry = L.info.y + 236 + (k - 1) * 30
-		if ry + 26 > L.move.y - 8 then break end
-		table.insert(L.yard, { hull = id, x = ix, y = ry, w = iw, h = 26,
-			buy = { x = ix + iw - 64, y = ry, w = 64, h = 26 } })
-	end
+	L.move = {x=ix,y=L.fly.y-38,w=iw,h=30}
+
 	return L
 end
 
@@ -154,6 +146,8 @@ local function drawHull(hull, x, y, w, h, rot, col, alpha)
 	lg.setLineWidth(1)
 end
 
+Hangar.drawHull=drawHull
+
 local function button(r, label, hot, col, enabled)
 	col = col or HUD.AQUA
 	local a = enabled == false and 0.06 or (hot and 0.4 or 0.18)
@@ -183,11 +177,11 @@ function Hangar.draw(game, mx, my)
 	lg.setFont(HUD.font(16))
 	lg.setColor(HUD.INK)
 	lg.print("Hangar \194\183 " .. L.station.name, B.x + PAD, B.y + 12)
-	local used = 0
-	for _, s in ipairs(L.ships) do if not s.exterior then used = used + (s.w / cs) * (s.h / cs) end end
+	local used,inside = 0,0
+	for _, s in ipairs(L.ships) do if not s.exterior then used = used + (s.w / cs) * (s.h / cs);inside=inside+1 end end
 	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
-	lg.printf(("%d ships    %d / %d cells"):format(#L.ships, used, L.gridW * L.gridH), B.x, B.y + 16, B.w - PAD, "right")
+	lg.printf(("%d ships    %d / %d cells"):format(inside, used, L.gridW * L.gridH), B.x, B.y + 16, B.w - PAD, "right")
 	lg.setColor(0, 0, 0, 0.35)
 	lg.rectangle("fill", L.gx, L.gy, L.gridW * cs, L.gridH * cs)
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.1)
@@ -231,7 +225,7 @@ function Hangar.draw(game, mx, my)
 		if cs >= 18 or s.exterior then
 			lg.setFont(HUD.font(10))
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
-			lg.print((flying and "FLYING  " or "") .. data.hulls[s.hull].name, s.x + 6, s.y + 4)
+			lg.print((flying and "ACTIVE  " or "") .. data.hulls[s.hull].name, s.x + 6, s.y + 4)
 		end
 	end
 	if h then
@@ -259,11 +253,11 @@ function Hangar.draw(game, mx, my)
  local fw,fh=game.hangarFootprint(hull.id,false);lines[4]=lines[4]..("  •  %d×%d cells"):format(fw,fh)
 	lg.setFont(HUD.font(10))
 	lg.setColor(HUD.DIM)
-	lg.print(flying and "FLYING" or "PARKED", I.x + PAD, I.y + 14)
+	lg.print(flying and "ACTIVE SHIP" or "STORED SHIP", I.x + PAD, I.y + 14)
 	lg.setFont(HUD.font(18))
 	lg.setColor(HUD.INK)
 	lg.print(hull.name, I.x + PAD, I.y + 26)
-	drawHull(hull, I.x + PAD, I.y + 56, I.w - PAD * 2, 70, false, flying and { 0.4, 1, 0.55 } or p.color, 1)
+	drawHull(hull, I.x + PAD, I.y + 56, I.w - PAD * 2, 70, false, owner.color or p.color, 1)
 	lg.setFont(HUD.font(12))
 	for k, l in ipairs(lines) do
 		lg.setColor(k == 1 and HUD.DIM or HUD.INK)
@@ -272,26 +266,9 @@ function Hangar.draw(game, mx, my)
 	lg.setColor(HUD.DIM)
 	lg.setFont(HUD.font(12))
 	lg.print(("Credits  %d"):format(game:credits()), I.x + PAD, I.y + 214)
-	if flying then
-		local note=game:shipParkingLabel(L.station,p)
-		lg.printf(note, I.x + PAD, L.sell.y, I.w - PAD * 2)
-		-- the shipyard
-		if #L.yard == 0 then
-			lg.setColor(HUD.DIM)
-			lg.print("No shipyard here.", I.x + PAD, I.y + 236)
-		end
-		for _, r in ipairs(L.yard) do
-			local hl = data.hulls[r.hull]
-			lg.setColor(HUD.INK)
-			lg.print(hl.name, r.x, r.y + 6)
-			lg.setColor(HUD.DIM)
-			lg.print(("%d cr"):format(hl.price or 0), r.x + 80, r.y + 6)
-			button(r.buy, "Buy", not h and inRect(r.buy, mx, my), { 0.3, 1, 0.5 }, game:shipBuyProblem(L.station, r.hull) == nil)
-		end
-	else
-		lg.setFont(HUD.font(13))
-		button(L.sell, ("Sell  %d cr"):format(game.shipSellPrice(owner)), not h and inRect(L.sell, mx, my), { 1, 0.6, 0.3 }, true)
-	end
+ lg.printf(game:shipParkingLabel(L.station,owner),I.x+PAD,I.y+236,I.w-PAD*2)
+ lg.printf('Buy and sell ships in Market → Ships.',I.x+PAD,I.y+262,I.w-PAD*2)
+
  lg.setFont(HUD.font(13))
  local canMove=owner.bay and game:mooringFit(L.station,hull.id,owner) or not owner.bay and game:hangarFit(L.station,hull.id,owner)
  button(L.move,owner.bay and 'Move to exterior' or 'Move into hangar',not h and inRect(L.move,mx,my),nil,not not canMove)
@@ -312,12 +289,7 @@ function Hangar.mousepressed(game, mx, my, button)
 	if inRect(L.move,mx,my) then return {move=sel and sel.owner or game.player,outside=(sel and sel.owner or game.player).bay~=nil} end
 	if inRect(L.fly, mx, my) then return parked and { fly = sel.i } or nil end
 	if inRect(L.cargo, mx, my) then return parked and { cargo = sel.owner } or nil end
-	if parked and inRect(L.sell, mx, my) then return { sell = sel.i } end
-	if not parked then
-		for _, r in ipairs(L.yard) do
-			if inRect(r.buy, mx, my) then return { buy = r.hull } end
-		end
-	end
+
 	local s = shipAt(L, mx, my)
 	if not s then return nil end
 	local now = love.timer.getTime()

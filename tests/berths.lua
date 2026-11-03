@@ -16,7 +16,7 @@ return function(game)
  st.def.berths={{x=st.radius+freighter.halfLength+200,y=0,heading=0,size=pad}};game.entities={}
  check(freighter.halfLength>pad and game:freeBerth(st,freighter)==1,'freighter still rejected by the original pad size limit')
  check(st.def.berths[1].size==pad,'larger berth capacity changed the authored marker size')
- st.def.berths[1].size=freighter.halfLength/T.berthShipScale-1
+ st.def.berths[1].size=game.shipDimensions(freighter.hull.id)/(2*T.berthShipScale)-1
  check(not game:freeBerth(st,freighter),'ship exceeded the enlarged berth capacity')
  st.def.berths,game.entities=original,entities
  freighter.body:destroy()
@@ -25,10 +25,11 @@ return function(game)
  local wx,wy=game.dockWorld(st,1,d.x2+p.halfLength+40,0,d)
  local x,y=st.body:getLocalPoint(wx,wy)
  local outward=math.deg(d.a or 0)
+ local c,s=math.cos(d.a or 0),math.sin(d.a or 0)
  st.def.berths={
-  {x=x-4000,y=y,heading=outward,size=2000},
-  {x=x+20,y=y+400,heading=outward,size=2000},
-  {x=x,y=y+20,heading=outward,size=2000},
+  {x=x+c*4000,y=y+s*4000,heading=outward,size=2000},
+  {x=x+c*300-s*400,y=y+s*300+c*400,heading=outward,size=2000},
+  {x=x+c*300-s*20,y=y+s*300+c*20,heading=outward,size=2000},
   {x=x,y=y,heading=0,size=0},
  }
  game:stationRecord(st).moorings=nil;st.parkingClearance=nil

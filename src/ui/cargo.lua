@@ -39,6 +39,8 @@
 ]]
 
 local data = require("src.data")
+local ShipEntry=require('src.inventory.ship_entry')
+local function itemFor(id) return data.items[id] or ShipEntry.item(id) end
 local Ship = require("src.ship")
 local Grid = require("src.inventory.grid")
 local Hold = require("src.inventory.hold")
@@ -77,6 +79,29 @@ local function tradeHold()
 	return Cargo.trade
 end
 
+local function shipOffers(game,st)
+ if Cargo.shipStation==st and Cargo.shipOwned then return end
+ Cargo.shipStation=st
+ local function make(entries,name)
+  local w,h=16,0
+  for _,s in ipairs(entries) do local item=ShipEntry.item(s.id);w=math.max(w,item.w);h=h+item.h end
+  local hold=Hold.new({{key='ships',name=name,w=w,h=math.max(6,h)}})
+  for _,s in ipairs(entries) do assert(Hold.placeStack(hold,s)) end
+  return hold
+ end
+ local owned,stock={},{}
+ for _,rec in ipairs(game:hangar(st)) do owned[#owned+1]={id='ship:'..rec.hull,n=1,shipRecord=rec} end
+ for _,id in ipairs(game.shipyard(st)) do stock[#stock+1]={id='ship:'..id,n=1} end
+ Cargo.shipOwned=make(owned,'Owned ships (stored)');Cargo.shipStock=make(stock,'Ships for sale')
+ local trade=tradeHold()
+ -- Offer space derives from available hull footprints before pickup.
+ local w,h=T.tradeW,T.tradeH
+ for _,list in ipairs({owned,stock}) do for _,s in ipairs(list) do local it=ShipEntry.item(s.id);w=math.max(w,it.w);h=math.max(h,it.h) end end
+ for _,g in ipairs(trade.grids) do
+  if #g.stacks==0 then g.w,g.h,g.cells=w,h,{} end
+ end
+end
+
 -- The holds on show: { title, hold, ship (if it's a ship's hold) }.
 local function sides(game)
 	local p = game.player
@@ -87,13 +112,15 @@ local function sides(game)
 		local st = p.dockState.station
 		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
 		if Cargo.tab == "market" then
+   shipOffers(game,st)
 			-- the market: your hold or storage (one at a time, picked with the
 			-- panel's own tabs), the trade grid, then the station's shelf
 			if Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
-			list[1].pick = true
+			if Cargo.marketLeft=='ships' then list[1]={title='Your ships',hold=Cargo.shipOwned,shipEntries=true} end
+   list[1].pick = true
 			Cargo.tradeStation = st
 			table.insert(list, { title = "Trade", hold = tradeHold(), trade = true, station = st })
-			table.insert(list, { title = st.name, hold = game:stationMarket(st).hold, market = true, station = st })
+			table.insert(list, { title = st.name, hold = Cargo.filter=="ships" and Cargo.shipStock or game:stationMarket(st).hold, shipEntries=Cargo.filter=="ships", market = true, station = st })
 			return list
 		end
 		local rec = Cargo.other
@@ -119,6 +146,13 @@ local function sides(game)
 				for _, st in ipairs(g.stacks) do if st.inner == c then parent = side end end
 			end
 		end
+		-- Picking up the open container must not remove its panel and resize
+  -- every grid beneath the cursor. Keep the same parent while it is held.
+  if not parent and Cargo.hand and Cargo.hand.inner==c then
+   for _,side in ipairs(list) do
+    if side.hold==Cargo.hand.side.hold then parent=side;break end
+   end
+  end
 		if parent then
 			table.insert(list, { title = "Container", hold = c, innerOf = c, parent = parent })
 		elseif not (Cargo.hand and Cargo.hand.inner == c) then
@@ -136,10 +170,11 @@ local EW, ROW, HULL_H = 260, 30, 110
 -- The market shelf's filters: which stacks stand out.
 local FILTERS = {
 	{ id = "all", label = "All" }, { id = "ammo", label = "Ammo" }, { id = "weapons", label = "Weapons" },
-	{ id = "modules", label = "Modules" }, { id = "misc", label = "Misc" },
+	{ id = "modules", label = "Modules" }, { id = "misc", label = "Misc" }, {id="ships",label="Ships"},
 }
 local function filterOf(id)
-	local item, m = data.items[id], data.modules[id]
+	local item, m = itemFor(id), data.modules[id]
+ if item.kind=="ship" then return "ships" end
 	if item.kind == "ammo" then return "ammo" end
 	if m then return m.family == "weapon" and "weapons" or "modules" end
 	return "misc"
@@ -238,7 +273,7 @@ local function layout(game)
 	for _, side in ipairs(list) do
 		local x, y = side.x, side.y
 		side.sort = { x = x + side.pw - PAD - 56, y = y + 12, w = 56, h = 22 }
-		if side.trade or side.market then side.sort = nil end
+		if side.trade or side.market or side.shipEntries then side.sort = nil end
 		if side.trade then
 			local by=y+side.ph
    side.complete={x=x+PAD,y=by-84,w=side.pw-PAD*2,h=32}
@@ -249,6 +284,7 @@ local function layout(game)
 			side.picks = {
 				{ id = "hold", label = "Ship hold", x = x + PAD, y = y + 48, w = 96, h = 24 },
 				{ id = "storage", label = "Station storage", x = x + PAD + 100, y = y + 48, w = 124, h = 24 },
+    {id="ships",label="Ships",x=x+PAD+228,y=y+48,w=64,h=24},
 			}
 		end
 		if side.market then
@@ -343,11 +379,18 @@ end
 -- station's to its shelf, yours to your hold or else storage. Nothing is
 -- ever lost: if there's truly no room, the grid grows a row.
 function sendHome(game, s)
+ if ShipEntry.item(s.id) then
+  local home=s.owner=='station' and Cargo.shipStock or Cargo.shipOwned
+  if home then
+   while not Hold.placeStack(home,s) do Grid.addRows(home.grids[1],1) end
+  end
+  return
+ end
 	local st = Cargo.tradeStation
 	if not st then return end
 	if s.owner == "station" then
 		local shelf = game:stationMarket(st).hold
-		local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, wear = s.wear }
+		local c = { id = s.id, n = s.n, inner = s.inner, shipRecord=s.shipRecord, resale = s.resale, wear = s.wear }
 		while not Hold.placeStack(shelf, c) do Grid.addRows(shelf.grids[1], 1) end
 		return
 	end
@@ -381,7 +424,7 @@ local function stockOut()
 	local out = {}
 	for _, g in ipairs(Cargo.trade and Cargo.trade.grids or {}) do
 		for _, s in ipairs(g.stacks) do
-			if s.owner == "station" and not s.resale then out[s.id] = (out[s.id] or 0) + s.n end
+			if s.owner == "station" and not s.resale and not ShipEntry.item(s.id) then out[s.id] = (out[s.id] or 0) + s.n end
 		end
 	end
 	return out
@@ -391,7 +434,7 @@ end
 local function toTrade(L, r, s)
 	local trade
 	for _, side in ipairs(L.sides) do if side.trade then trade = side end end
-	local c = { id = s.id, n = s.n, inner = s.inner, resale = s.resale, wear = s.wear, owner = r.side.market and "station" or "player" }
+	local c = { id = s.id, n = s.n, inner = s.inner, shipRecord=s.shipRecord, resale = s.resale, wear = s.wear, owner = r.side.market and "station" or "player" }
 	local grid=trade.hold.grids[c.owner=='station' and 2 or 1]
  if not Hold.placeStack({grids={grid}},c) then return false end
 	Grid.remove(r.g, s)
@@ -420,7 +463,7 @@ local function returnHand(game)
 	end
 	local fw, fh = h.w0, h.h0
 	if Grid.isFree(f.grid, f.x, f.y, fw, fh) then
-		Grid.place(f.grid, { id = h.id, n = h.n, x = f.x, y = f.y, w = fw, h = fh, rot = h.rot0, inner = h.inner,
+		Grid.place(f.grid, { id = h.id, n = h.n, x = f.x, y = f.y, w = fw, h = fh, rot = h.rot0, inner = h.inner, shipRecord=h.shipRecord,
 			owner = h.side.trade and h.owner or nil, resale = h.resale, wear = h.wear })
 		return
 	end
@@ -513,6 +556,7 @@ local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='hanga
 function Cargo.setTab(game,id)
  if Cargo.hand then return false end
  if Cargo.tab=='market' and id~='market' then Cargo.clearTrade(game) end
+ if id~="market" then Cargo.shipOwned=nil;Cargo.shipStation=nil end
  Cargo.tab=id;Hangar.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
 function tabRects(game)
@@ -754,6 +798,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		if button == 1 and side.complete and inRect(side.complete, mx, my) then
 			local ok, res = game:completeTrade(side.station, side.hold)
 			if ok then
+    Cargo.shipOwned=nil
 				game:toast("TRADE COMPLETE  " .. (res >= 0 and "+" or "") .. HUD.credits(res), 1.6, "pickup")
 				for _, sd in ipairs(L.sides) do changed(sd) end
 			else
@@ -806,11 +851,11 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local double = c and c.g == r.g and c.x == s.x and c.y == s.y and c.id == s.id and now - c.t < 0.35
 	Cargo.lastClick = { g = r.g, x = s.x, y = s.y, id = s.id, t = now }
 	if double and Cargo.tab == "market" and game.state == "docked" then double = false end   -- no opening or fitting at the market
-	if button == 1 and double and data.items[s.id].kind == "container" then
+	if button == 1 and double and itemFor(s.id).kind == "container" then
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
 		return true
 	end
-	if button == 1 and double and data.items[s.id].kind == "module" then
+	if button == 1 and double and itemFor(s.id).kind == "module" then
 		if game.state == "docked" then quickFit(game, L, r, s) else game:toast("DOCK AT A STATION TO REFIT", 1.4) end
 		return true
 	end
@@ -829,7 +874,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		local take = s.n
 		if shift and s.n > 1 then take = floor(s.n / 2) end
 		local hand = {
-			id = s.id, n = take, w = s.w, h = s.h, rot = s.rot, w0 = s.w, h0 = s.h, rot0 = s.rot, inner = s.inner,
+			id = s.id, n = take, w = s.w, h = s.h, rot = s.rot, w0 = s.w, h0 = s.h, rot0 = s.rot, inner = s.inner, shipRecord=s.shipRecord,
 			dx = cx - s.x, dy = cy - s.y, side = r.side,
 			owner = r.side.market and "station" or s.owner or "player", resale = s.resale,
 			from = { grid = r.g, hold = r.side.hold, x = s.x, y = s.y },
@@ -859,7 +904,8 @@ local function dropSpot(L, mx, my)
 	if r.side.market and h.owner ~= "station" then return r, x, y, "blocked" end
 	if h.owner == "station" and not (r.side.market or r.side.trade) then return r, x, y, "blocked" end
  if r.side.trade and r.g.tradeOwner~=h.owner then return r,x,y,'blocked' end
-	local target = Grid.at(r.g, cx, cy)
+	if not r.side.trade and (not not ShipEntry.item(h.id))~=(not not r.side.shipEntries) then return r,x,y,'blocked' end
+ local target = Grid.at(r.g, cx, cy)
 	local _, _, cap = Shapes.of(h.id)
 	if target and target.id == h.id and target.n < cap and not target.inner and not h.inner
 		and target.resale == h.resale and (not r.side.trade or target.owner == h.owner) then
@@ -891,7 +937,7 @@ function Cargo.mousereleased(game, mx, my, button)
 		changed(r.side); changed(h.side)
 	elseif how == "place" then
 		Cargo.hand = nil
-		Grid.place(r.g, { id = h.id, n = h.n, x = x, y = y, w = h.w, h = h.h, rot = h.rot, inner = h.inner,
+		Grid.place(r.g, { id = h.id, n = h.n, x = x, y = y, w = h.w, h = h.h, rot = h.rot, inner = h.inner, shipRecord=h.shipRecord,
 			owner = r.side.trade and h.owner or nil, resale = (r.side.trade or r.side.market) and h.resale or nil })
 		changed(r.side); changed(h.side)
 	elseif not r and not overPanel(L, mx, my) and game.state ~= "docked" and h.side.ship then
@@ -932,14 +978,19 @@ end
 
 -- tag (at the market): { color, frame = draw a frame in that color (whose
 -- it is, on the trade grid) }. Prices are in the tooltip.
-local function drawStack(item, n, x, y, w, h, cs, alpha, tag)
-	local c = HUD.itemColor(item)
+local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
+	local c = item.kind=='ship' and HUD.AQUA or HUD.itemColor(item)
 	lg.setColor(c[1], c[2], c[3], 0.32 * alpha)
 	lg.rectangle("fill", x + 2, y + 2, w - 4, h - 4, 3, 3)
 	lg.setColor(c[1], c[2], c[3], 0.95 * alpha)
 	lg.setLineWidth(1)
 	lg.rectangle("line", x + 2.5, y + 2.5, w - 5, h - 5, 3, 3)
-	if cs >= 16 then
+	if item.kind=='ship' then
+  local Paint=require('src.paint');local hull=data.hulls[item.hull]
+  local paint=entry and entry.shipRecord and entry.shipRecord.color or Paint.preset(Paint.pool(hull)[1])
+  Hangar.drawHull(hull,x+4,y+16,w-8,math.max(4,h-20),entry and entry.rot or false,paint,alpha)
+ end
+ if cs >= 16 then
 		lg.setFont(HUD.font(cs >= 24 and 11 or 9))
 		lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
 		if n > 1 then lg.printf(n, x, y + h - (cs >= 24 and 16 or 13), w - 5, "right") end
@@ -981,7 +1032,7 @@ local function tooltip(item, n, mx, my, hint, price)
 	local _, _, cap = Shapes.of(item.id)
 	local lines = {
 		item.name .. (item.maker and ("  \194\183  " .. item.maker) or ""),
-		("%d / %d per stack    %.2f m3    %.2f t"):format(n, cap, item.volume * n, item.mass * n),
+		item.kind=='ship' and 'Ship, including installed modules and cargo' or ("%d / %d per stack    %.2f m3    %.2f t"):format(n, cap, item.volume * n, item.mass * n),
 	}
 	if price then table.insert(lines, price) end
 	if hint then table.insert(lines, hint) end
@@ -1036,7 +1087,7 @@ local function drawReadout(game, i, x, y)
 	local before = {}
 	for k, v in pairs(p.loadout) do before[k] = v end
 	if h.from.slot then before[h.from.slot] = h.id end
-	local a = handling(p.hull, before, p.cargoMass + (h.from.slot and 0 or data.items[h.id].mass))
+	local a = handling(p.hull, before, p.cargoMass + (h.from.slot and 0 or itemFor(h.id).mass))
 	local b = handling(p.hull, after, cargoMass)
 	local w, rh = 300, 18
 	local ph = #a * rh + 16
@@ -1210,7 +1261,7 @@ function Cargo.draw(game)
 			lg.setFont(HUD.font(13))
 			lg.setColor(HUD.DIM)
 			local H = Hangar.layout(game)
-			lg.printf("Click a ship to select   Drag to move, R rotate   Double-click or Fly to swap ships   Cargo opens its hold   Sell / Buy trade ships   Tab switch tabs   E launch",
+			lg.printf("Click a ship to select   Drag to move, R rotate   Double-click or Fly to swap ships   Cargo opens its hold   Market buys / sells ships   Tab switch tabs   E launch",
 				0, H and (H.y + H.h + 12) or (sh - 40), sw, "center")
 			return
 		end
@@ -1239,7 +1290,7 @@ function Cargo.draw(game)
 			lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(side.station.name,side.x+PAD,side.y+44)
 		elseif side.picks then
 			-- (the tabs take the title's place: the fill goes on the grid's label row)
-			lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 80, side.pw - PAD, "right")
+			lg.printf((side.shipEntries and "%d / %d cells" or "%d / %d m3"):format(used,total),side.x,side.y+80,side.pw-PAD,"right")
 		elseif not side.trade then
    if docked then
     lg.printf(("%d / %d m3"):format(used,total),side.x+PAD,side.y+41,side.pw-PAD*2,'right')
@@ -1328,7 +1379,7 @@ function Cargo.draw(game)
 		for _, s in ipairs(r.g.stacks) do
 			local tag = market and marketTag(r.side, s)
 			local alpha = (r.side.market and Cargo.filter ~= "all" and filterOf(s.id) ~= Cargo.filter) and 0.25 or 1
-			drawStack(data.items[s.id], s.n, r.x + s.x * cs, r.y + s.y * cs, s.w * cs, s.h * cs, cs, alpha, tag)
+			drawStack(itemFor(s.id), s.n, r.x + s.x * cs, r.y + s.y * cs, s.w * cs, s.h * cs, cs, alpha, tag,s)
 		end
 	end
 
@@ -1385,8 +1436,8 @@ function Cargo.draw(game)
 		if er and hm and data.fits(er.slot, hm) and docked then
 			drawReadout(game, er.i, L.equip.x + L.equip.pw + 8, er.y)
 		end
-		drawStack(data.items[h.id], h.n, mx - h.dx * cs - cs / 2, my - h.dy * cs - cs / 2, h.w * cs, h.h * cs, cs, 0.85,
-			market and marketTag(h.side, h, h.owner))
+		drawStack(itemFor(h.id), h.n, mx - h.dx * cs - cs / 2, my - h.dy * cs - cs / 2, h.w * cs, h.h * cs, cs, 0.85,
+			market and marketTag(h.side, h, h.owner),h)
 	else
 		local er = slotAt(L, mx, my)
 		local fitted = er and p.loadout[er.i]
@@ -1403,7 +1454,7 @@ function Cargo.draw(game)
 		local r, cx, cy = cellAt(L, mx, my)
 		local s = r and Grid.at(r.g, cx, cy)
 		if s then
-			local item = data.items[s.id]
+			local item = itemFor(s.id)
 			local hint2, price
 			if market then
 				local tg = marketTag(r.side, s)
