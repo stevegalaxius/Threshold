@@ -46,6 +46,10 @@ return function(game)
  -- Exercise physical tractor docking and job pickup on both actual mines.
  for _,area in ipairs({'phobos','deimos'}) do
   game:loadField(area);game:captureALife(true)
+  -- Isolate this docking/hauling fixture from newly spawned populations and
+  -- live drill ejecta; their own suites exercise those systems.
+  u.populationSpawns={}
+  for _,site in pairs(require('src.mining').state(u).sites) do site.nextAt=u.clock+1000000 end
   u.npcs={[r.id]=r};r.state='travel';r.area=area;r.home='mars'
   r.tradeHome='mars/station_alpha';r.tripDestination=area;r.onRoundTrip=true
   r.route=A.roundTrip('mars',area,u.clock,r.tradeHome)

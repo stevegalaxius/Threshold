@@ -96,16 +96,26 @@ function Game:dockInstantly(e, st, placement)
 	placement = placement or {}
 	local d = placement.dock or (st.docks or {})[placement.dockIndex] or st.dock
 	local side = placement.side or 1
-	local berth
-	local previous = st.def and st.def.berths and st.def.berths[placement.berth]
+ if placement.interior then
+  for _,candidate in ipairs(st.docks or {st.dock}) do if self:fitsDock(e,candidate) then d=candidate;break end end
+ end
+ local parking=placement.parking
+ if not parking and placement.parkingMooring then parking={mooring=placement.parkingMooring} end
+ if parking and parking.mooring then
+  local point=self:parkingPlacement(st,parking,d)
+  placement.berth,placement.mooring=point.berth,point.mooring
+ end
+ local berth
+ local previous = st.def and st.def.berths and st.def.berths[placement.berth]
 	if previous then
 		e.body:setPosition(st.body:getWorldPoint(previous.x, previous.y))
 		berth = self:freeBerth(st, e)
 	end
-	if not berth and not self:fitsDock(e,d) then berth=self:freeBerth(st,e) end
+	if not berth and not placement.interior and not self:fitsDock(e,d) then berth=self:freeBerth(st,e) end
 	local mooring
-	if not berth and (placement.mooring or not self:fitsDock(e,d)) then
-		mooring=self:exteriorMooring(st,e,side,d,placement.mooring)
+	if not berth and not placement.interior and (placement.mooring or not self:fitsDock(e,d)) then
+		local index=parking and parking.mooring or self:mooringFit(st,e.hull.id,e)
+  if index then mooring=Persistence.copy(self:stationMoorings(st)[index]);mooring.slot=index end
 		if not mooring then
 			if e==self.player then self:toast('NO CLEAR EXTERIOR MOORING',2) end
 			return false
@@ -126,7 +136,7 @@ function Game:dockInstantly(e, st, placement)
 	if e == self.player then
 		self.state = "docked"
 		self.camera.x, self.camera.y = e.body:getPosition()
-		self:givePlayerBay(st)
+		if parking then self:applyParking(e,parking);e.bayStation=st.key else self:givePlayerBay(st) end
 	end
 end
 
@@ -174,12 +184,13 @@ end
 -- Hangar ----------------------------------------------------------------------
 
 function Game:hangar(st)
-	local list = self:stationRecord(st).hangar
-	-- ships parked before bays had spots (older saves) get one now
-	for _, rec in ipairs(list) do
-		if not rec.bay then rec.bay = self:hangarFit(st, rec.hull, rec) or { x = 0, y = 0, rot = false } end
-	end
-	return list
+ local list=self:stationRecord(st).hangar
+ for _,rec in ipairs(list) do
+  if rec.bay and not self:hangarFree(st,rec,rec.hull,rec.bay) then rec.bay=nil end
+  if rec.mooring and not self:mooringFits(st,rec.mooring,rec.hull,rec) then rec.mooring=nil end
+  if not rec.bay and not rec.mooring then self:applyParking(rec,self:shipParkingFit(st,rec.hull,rec)) end
+ end
+ return list
 end
 
 -- A hull's footprint in a hangar bay, in cells: its length and width over
@@ -205,7 +216,8 @@ end
 -- The station's bay as a grid of everything parked in it (and the ship
 -- you're docked in), leaving out `ignore` (a record, or the player).
 function Game:hangarGrid(st, ignore)
-	local g = Grid.new(T.hangarW, T.hangarH, "Hangar bay")
+	local w,h=Game.hangarSize(st)
+	local g = Grid.new(w,h,"Interior hangar")
 	local function put(owner, hullId, bay)
 		if owner == ignore or not bay then return end
 		local w, h = Game.hangarFootprint(hullId, bay.rot)
@@ -219,6 +231,11 @@ end
 
 -- The first free spot for a hull (unrotated first), or nil if it's full.
 function Game:hangarFit(st, hullId, ignore)
+ local hull=data.hulls[hullId];local width=0
+ for i=2,#hull.shape,2 do width=max(width,math.abs(hull.shape[i])) end
+ local access=false
+ for _,dock in ipairs(st.docks or {st.dock}) do if width+10<=dock.hw then access=true;break end end
+ if not access then return nil end
 	local g = self:hangarGrid(st, ignore)
 	for _, rot in ipairs({ false, true }) do
 		local w, h = Game.hangarFootprint(hullId, rot)
@@ -237,22 +254,29 @@ end
 -- here already). A full bay leaves it on the landing pad: docked, but
 -- not on the grid.
 function Game:givePlayerBay(st)
-	local p = self.player
-	if p.bayStation == st.key and p.bay and self:hangarFree(st, p, p.hull.id, p.bay) then return end
-	p.bayStation = st.key
-	p.bay = self:hangarFit(st, p.hull.id, p)
+ local p=self.player
+ if p.bayStation==st.key and self:shipParkingValid(st,p,p.hull.id) then return end
+ p.bayStation=st.key
+ local ds=p.dockState
+ local selected
+ if ds and ds.berth then
+  for i,slot in ipairs(self:stationMoorings(st)) do
+   if slot.berth==ds.berth and self:mooringFits(st,i,p.hull.id,p) then selected={mooring=i};break end
+  end
+ elseif ds and ds.mooring and ds.mooring.slot then selected={mooring=ds.mooring.slot} end
+ self:applyParking(p,selected or self:shipParkingFit(st,p.hull.id,p))
 end
 
 -- A brand-new ship of a hull, parked in this station's hangar (the debug
 -- panel's way of getting ships until there's a market). nil if the bay
 -- has no room for it.
 function Game:addToHangar(st, hullId)
-	local bay = self:hangarFit(st, hullId)
-	if not bay then self:toast("NO ROOM IN THE HANGAR", 1.4) return nil end
+	local parking=self:shipParkingFit(st,hullId)
+	if not parking then self:toast("NO SUITABLE FREE PARKING",1.4) return nil end
 	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = self.playerColor })
 	local rec = Ship.record(e)
 	e.body:destroy()
-	rec.bay = bay
+	self:applyParking(rec,parking)
 	table.insert(self:hangar(st), rec)
 	return rec
 end
@@ -267,17 +291,22 @@ function Game:flyFromHangar(i)
 	local list = self:hangar(st)
 	local rec = list[i]
 	if not rec then return false end
-	local placement = p.dockState
-	local old = Ship.record(p)
-	old.bay = p.bay
-	if not old.bay then
-		old.bay = self:hangarFit(st, old.hull, rec)
-		if not old.bay then self:toast("NO ROOM TO PARK YOUR SHIP", 1.4) return false end
-	end
-	list[i] = old
-	local ship = self:spawnPlayer(rec)
-	ship.bay, ship.bayStation = rec.bay, st.key
-	self:dockInstantly(ship, st, placement)
+ local old=Ship.record(p)
+ local oldParking={bay=p.bay,mooring=p.parkingMooring}
+ if not oldParking.bay and not oldParking.mooring then
+  oldParking=self:shipParkingFit(st,p.hull.id,p)
+  if not oldParking then self:toast('NO ROOM TO PARK YOUR SHIP',1.4);return false end
+ end
+ local newParking={bay=rec.bay,mooring=rec.mooring}
+ if not newParking.bay and not newParking.mooring then
+  newParking=self:shipParkingFit(st,rec.hull,rec)
+  if not newParking then self:toast('NO SUITABLE FREE PARKING',1.4);return false end
+ end
+ self:applyParking(old,oldParking)
+ list[i]=old
+ local ship=self:spawnPlayer(rec)
+ self:applyParking(ship,newParking);ship.bayStation=st.key
+ self:dockInstantly(ship,st,self:parkingPlacement(st,newParking))
 	events.emit("swapship", ship, st)
 	return true
 end
@@ -303,7 +332,7 @@ end
 
 local function saveShip(rec)
 	return {
-		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, armor = rec.armor, color = rec.color, bay = rec.bay,
+		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, armor = rec.armor, color = rec.color, bay = rec.bay, mooring=rec.mooring,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
 	}
 end
@@ -315,7 +344,7 @@ local function loadShip(t)
 	-- the Cargo Pod XL is gone: a save that fitted one gets a Cargo Pod
 	for i, id in pairs(t.loadout or {}) do if id == "hold_pod_m" then t.loadout[i] = "hold_pod_s" end end
 	return {
-		hull = t.hull, loadout = t.loadout, triggers = t.triggers, armor = t.armor, color = t.color, bay = t.bay,
+		hull = t.hull, loadout = t.loadout, triggers = t.triggers, armor = t.armor, color = t.color, bay = t.bay, mooring=t.mooring,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
 	}
 end
@@ -334,7 +363,7 @@ function Game:saveState()
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
 		local market = r.market and { hold = Hold.serialize(r.market.hold), next = r.market.next }
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, market = market }
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, market = market, moorings=Persistence.copy(r.moorings) }
 	end
 	local u = self.universe
 	-- saved mid-transit: you'll be at the far end's driver when you load
@@ -351,7 +380,7 @@ function Game:saveState()
 			local ds = p.dockState
 			local dockIndex
 			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
-			where = { station = ds.station.key, access = ds.station.accessIndex, bay = p.bay, berth = ds.berth, mooring = Persistence.copy(ds.mooring), side = ds.side, dockIndex = dockIndex }
+			where = { station = ds.station.key, access = ds.station.accessIndex, bay = p.bay, parkingMooring=p.parkingMooring, berth = ds.berth, mooring = Persistence.copy(ds.mooring), side = ds.side, dockIndex = dockIndex }
 		else
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()
@@ -384,7 +413,7 @@ function Game:loadState(state)
 		self.universe.stations[key] = {
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
-			hangar = hangar,
+			hangar = hangar, moorings=Persistence.copy(r.moorings),
 			market = r.market and { hold = Hold.deserialize(r.market.hold, known), next = r.market.next or {} },
 		}
 	end

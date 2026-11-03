@@ -26,7 +26,7 @@ local Hold = require("src.inventory.hold")
 local HUD = require("src.hud")
 local T = require("src.tuning")
 
-local Hangar = { sel = nil, hand = nil }
+local Hangar = { sel = nil, hand = nil, scroll=0 }
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
@@ -47,18 +47,35 @@ local function layout(game)
 	local st = p and p.dockState and p.dockState.station
 	if not st then return nil end
 	local sw, sh = lg.getDimensions()
-	local W, H = T.hangarW, T.hangarH
-	local cs = min(30, floor((sw - 32 - IW - GAP - PAD * 2) / W), floor((sh - 220) / H))
-	local bw, bh = W * cs + PAD * 2, HEAD + H * cs + PAD
-	local tw = bw + GAP + IW
-	local x, y = floor((sw - tw) / 2), max(80, floor((sh - bh - 40) / 2))
-	local L = { x = x, y = y, w = tw, h = bh, cs = cs, station = st, list = game:hangar(st) }
+	local W,H=game.hangarSize(st)
+	local MW=260
+	local cs = max(8,min(30,floor((sw-48-IW-MW-GAP*2-PAD*2)/W),floor((sh-220)/H)))
+	local bw, bh = W * cs + PAD * 2, max(480,HEAD + H * cs + PAD)
+	local tw = bw + GAP + MW + GAP + IW
+	local x,y=floor((sw-tw)/2),112
+	local L = { x = x, y = y, w = tw, h = bh, cs = cs, station = st, list = game:hangar(st),gridW=W,gridH=H }
 	L.bay = { x = x, y = y, w = bw, h = bh }
 	L.gx, L.gy = x + PAD, y + HEAD
-	L.info = { x = x + bw + GAP, y = y, w = IW, h = bh }
-	L.ships = {}
+	L.exterior={x=x+bw+GAP,y=y,w=MW,h=bh}
+	L.info = { x = L.exterior.x+MW+GAP, y = y, w = IW, h = bh }
+	L.ships = {};L.berths={}
+ local slots=game:stationMoorings(st);local visible=max(1,floor((bh-HEAD-PAD)/64))
+ Hangar.scroll=max(0,min(Hangar.scroll,max(0,#slots-visible)))
+ L.scrollUp={x=L.exterior.x+MW-56,y=y+12,w=20,h=24}
+ L.scrollDown={x=L.exterior.x+MW-30,y=y+12,w=20,h=24}
+ L.visibleRows,L.totalRows=visible,#slots
+ for i,slot in ipairs(slots) do
+  L.berths[i]={x=L.exterior.x+PAD,y=y+HEAD+(i-1-Hangar.scroll)*64,w=MW-PAD*2,h=58,index=i,slot=slot,
+   visible=i>Hangar.scroll and i<=Hangar.scroll+visible}
+ end
 	local function add(owner, hullId, bay, i)
-		if not bay then return end
+  local mooring=owner==p and owner.parkingMooring or owner.mooring
+  if mooring and L.berths[mooring] then
+   local row=L.berths[mooring]
+   local ship={owner=owner,hull=hullId,i=i,exterior=true,x=row.x,y=row.y,w=row.w,h=row.h}
+   row.ship=ship;if row.visible then L.ships[#L.ships+1]=ship end;return
+  end
+  if not bay then return end
 		local w, h = footprint(game, hullId, bay.rot)
 		table.insert(L.ships, { owner = owner, hull = hullId, bay = bay, i = i,
 			x = L.gx + bay.x * cs, y = L.gy + bay.y * cs, w = w * cs, h = h * cs })
@@ -69,11 +86,12 @@ local function layout(game)
 	L.fly = { x = ix, y = L.info.y + L.info.h - 44, w = floor(iw / 2) - 4, h = 30 }
 	L.cargo = { x = ix + floor(iw / 2) + 4, y = L.fly.y, w = floor(iw / 2) - 4, h = 30 }
 	L.sell = { x = ix, y = L.fly.y - 38, w = iw, h = 30 }
+	L.move = {x=ix,y=L.sell.y-38,w=iw,h=30}
 	-- the shipyard: one row per hull for sale, under the ship's details
 	L.yard = {}
 	for k, id in ipairs(game.shipyard(st)) do
 		local ry = L.info.y + 236 + (k - 1) * 30
-		if ry + 26 > L.sell.y - 8 then break end
+		if ry + 26 > L.move.y - 8 then break end
 		table.insert(L.yard, { hull = id, x = ix, y = ry, w = iw, h = 26,
 			buy = { x = ix + iw - 64, y = ry, w = 64, h = 26 } })
 	end
@@ -165,17 +183,37 @@ function Hangar.draw(game, mx, my)
 	lg.setColor(HUD.INK)
 	lg.print("Hangar \194\183 " .. L.station.name, B.x + PAD, B.y + 12)
 	local used = 0
-	for _, s in ipairs(L.ships) do used = used + (s.w / cs) * (s.h / cs) end
+	for _, s in ipairs(L.ships) do if not s.exterior then used = used + (s.w / cs) * (s.h / cs) end end
 	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
-	lg.printf(("%d ships    %d / %d cells"):format(#L.ships, used, T.hangarW * T.hangarH), B.x, B.y + 16, B.w - PAD, "right")
+	lg.printf(("%d ships    %d / %d cells"):format(#L.ships, used, L.gridW * L.gridH), B.x, B.y + 16, B.w - PAD, "right")
 	lg.setColor(0, 0, 0, 0.35)
-	lg.rectangle("fill", L.gx, L.gy, T.hangarW * cs, T.hangarH * cs)
+	lg.rectangle("fill", L.gx, L.gy, L.gridW * cs, L.gridH * cs)
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.1)
-	for cy = 0, T.hangarH - 1 do
-		for cx = 0, T.hangarW - 1 do lg.rectangle("line", L.gx + cx * cs + 0.5, L.gy + cy * cs + 0.5, cs - 1, cs - 1) end
+	for cy = 0, L.gridH - 1 do
+		for cx = 0, L.gridW - 1 do lg.rectangle("line", L.gx + cx * cs + 0.5, L.gy + cy * cs + 0.5, cs - 1, cs - 1) end
 	end
 
+ HUD.panel(L.exterior.x,L.exterior.y,L.exterior.w,L.exterior.h)
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK)
+ lg.print('Exterior moorings',L.exterior.x+PAD,L.exterior.y+12)
+ lg.setFont(HUD.font(12));button(L.scrollUp,'<',inRect(L.scrollUp,mx,my));button(L.scrollDown,'>',inRect(L.scrollDown,mx,my))
+ for _,row in ipairs(L.berths) do
+ if row.visible then
+  lg.setColor(HUD.AQUA[1],HUD.AQUA[2],HUD.AQUA[3],.2)
+  lg.rectangle('line',row.x,row.y,row.w,row.h)
+  if not row.ship then
+   lg.setFont(HUD.font(12));lg.setColor(HUD.DIM)
+   local hullId=sel and sel.hull or game.player.hull.id
+   local length,width=game.shipDimensions(hullId)
+   local status=game:mooringTaken(L.station,row.index) and 'visiting ship'
+    or (length>row.slot.length or width>row.slot.width) and 'too small'
+    or not game:mooringClear(L.station,row.index,hullId) and 'blocked' or 'free'
+   lg.print(('Mooring %d — %s'):format(row.index,status),row.x+8,row.y+10)
+   lg.print(('%g × %g'):format(row.slot.length,row.slot.width),row.x+8,row.y+30)
+  end
+ end
+ end
 	local h = Hangar.hand
 	for _, s in ipairs(L.ships) do
 		local flying = s.owner == p
@@ -188,8 +226,8 @@ function Hangar.draw(game, mx, my)
 		lg.setLineWidth(sel == s and 2 or 1)
 		lg.rectangle("line", s.x + 2.5, s.y + 2.5, s.w - 5, s.h - 5, 4, 4)
 		lg.setLineWidth(1)
-		drawHull(data.hulls[s.hull], s.x + 4, s.y + 4, s.w - 8, s.h - 8, s.bay.rot, col, alpha)
-		if cs >= 18 then
+		drawHull(data.hulls[s.hull], s.x + 4, s.y + 4, s.w - 8, s.h - 8, s.bay and s.bay.rot or false, col, alpha)
+		if cs >= 18 or s.exterior then
 			lg.setFont(HUD.font(10))
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
 			lg.print((flying and "FLYING  " or "") .. data.hulls[s.hull].name, s.x + 6, s.y + 4)
@@ -201,7 +239,7 @@ function Hangar.draw(game, mx, my)
 		lg.setColor(ok and 0.3 or 1, ok and 1 or 0.35, ok and 0.5 or 0.3, 0.25)
 		for cy = bay.y, bay.y + ht - 1 do
 			for cx = bay.x, bay.x + w - 1 do
-				if cx >= 0 and cy >= 0 and cx < T.hangarW and cy < T.hangarH then
+				if cx >= 0 and cy >= 0 and cx < L.gridW and cy < L.gridH then
 					lg.rectangle("fill", L.gx + cx * cs + 1, L.gy + cy * cs + 1, cs - 2, cs - 2)
 				end
 			end
@@ -217,6 +255,7 @@ function Hangar.draw(game, mx, my)
 	local flying = owner == p
 	local rec = flying and { hull = p.hull.id, loadout = p.loadout, hold = p.hold } or owner
 	local hull, lines = describe(rec, flying and p or nil)
+ local fw,fh=game.hangarFootprint(hull.id,false);lines[4]=lines[4]..("  •  %d×%d cells"):format(fw,fh)
 	lg.setFont(HUD.font(10))
 	lg.setColor(HUD.DIM)
 	lg.print(flying and "FLYING" or "PARKED", I.x + PAD, I.y + 14)
@@ -233,7 +272,7 @@ function Hangar.draw(game, mx, my)
 	lg.setFont(HUD.font(12))
 	lg.print(("Credits  %d"):format(game:credits()), I.x + PAD, I.y + 214)
 	if flying then
-		local note = not p.bay and "On the landing pad: the bay is full." or "The ship you're in. Pick a parked ship to fly, open or sell."
+		local note=game:shipParkingLabel(L.station,p)
 		lg.printf(note, I.x + PAD, L.sell.y, I.w - PAD * 2)
 		-- the shipyard
 		if #L.yard == 0 then
@@ -252,6 +291,9 @@ function Hangar.draw(game, mx, my)
 		lg.setFont(HUD.font(13))
 		button(L.sell, ("Sell  %d cr"):format(game.shipSellPrice(owner)), not h and inRect(L.sell, mx, my), { 1, 0.6, 0.3 }, true)
 	end
+ lg.setFont(HUD.font(13))
+ local canMove=owner.bay and game:mooringFit(L.station,hull.id,owner) or not owner.bay and game:hangarFit(L.station,hull.id,owner)
+ button(L.move,owner.bay and 'Move to exterior' or 'Move into hangar',not h and inRect(L.move,mx,my),nil,not not canMove)
 	lg.setFont(HUD.font(13))
 	button(L.fly, "Fly", not h and inRect(L.fly, mx, my), { 0.3, 1, 0.5 }, not flying)
 	button(L.cargo, "Cargo", not h and inRect(L.cargo, mx, my), nil, not flying)
@@ -262,8 +304,11 @@ end
 function Hangar.mousepressed(game, mx, my, button)
 	local L = layout(game)
 	if not L or button ~= 1 then return nil end
-	local sel = selected(game, L)
+	if inRect(L.scrollUp,mx,my) then Hangar.scroll=max(0,Hangar.scroll-1);return end
+ if inRect(L.scrollDown,mx,my) then Hangar.scroll=min(max(0,L.totalRows-L.visibleRows),Hangar.scroll+1);return end
+ local sel = selected(game, L)
 	local parked = sel and sel.owner ~= game.player and sel.i
+	if inRect(L.move,mx,my) then return {move=sel and sel.owner or game.player,outside=(sel and sel.owner or game.player).bay~=nil} end
 	if inRect(L.fly, mx, my) then return parked and { fly = sel.i } or nil end
 	if inRect(L.cargo, mx, my) then return parked and { cargo = sel.owner } or nil end
 	if parked and inRect(L.sell, mx, my) then return { sell = sel.i } end
@@ -280,6 +325,7 @@ function Hangar.mousepressed(game, mx, my, button)
 	Hangar.lastClick = { owner = s.owner, t = now }
 	Hangar.sel = s.owner
 	if double and s.i then return { fly = s.i } end
+	if s.exterior then return nil end
 	Hangar.hand = { owner = s.owner, hull = s.hull, rot = s.bay.rot,
 		dx = floor((mx - s.x) / L.cs), dy = floor((my - s.y) / L.cs) }
 	return nil
@@ -305,6 +351,20 @@ function Hangar.keypressed(game, key)
 		return true
 	end
 	return false
+end
+
+function Hangar.focus(game)
+ local L=layout(game);if not L then return end
+ local owner=Hangar.sel;local valid=owner==game.player
+ for _,rec in ipairs(L.list) do if rec==owner then valid=true end end
+ if not valid then owner=game.player;Hangar.sel=owner end
+ local index=owner==game.player and owner.parkingMooring or owner.mooring
+ if index then Hangar.scroll=max(0,index-L.visibleRows) end
+end
+
+function Hangar.wheelmoved(game,y)
+ local L=layout(game);if not L then return end
+ Hangar.scroll=max(0,min(max(0,L.totalRows-L.visibleRows),Hangar.scroll-y))
 end
 
 -- Drop whatever's in hand (the screen closed or the tab changed).

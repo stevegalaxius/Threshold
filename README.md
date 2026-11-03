@@ -526,6 +526,48 @@ Run `love . --securitytest` for role-specific autonomous duties, population
 identity, target selection, physical combat and navigation, save/load, offline
 ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
 
+## Station services prototype
+
+Docking opens four services: **Storage**, **Market**, **Hangar** and
+**Outfitting**. They reuse the existing small-cell inventory renderer and item
+controls. Storage retains the ship hold, station storage, parked cargo and
+opened containers. Outfitting shows the existing ship equipment panel. The
+in-space inventory is unchanged.
+
+Market uses three panels: player inventory (hold/storage selector), a pending
+offer with separate **You give** and **You receive** grids, and station stock.
+Right-click/Ctrl-click offers a stack; dragging, splitting and rotation still
+work. Completing a trade uses the existing pricing and atomic settlement.
+Leaving Market returns the staged goods. No prices or economic simulation
+rules were replaced.
+
+The Hangar service shows a small interior packing grid, exterior mooring
+positions, and shared ship details/actions. Owned ships have one location:
+`bay` for interior grid coordinates or `mooring` for a reserved exterior slot.
+Purchases require a suitable free location. Switching ships leaves the old ship
+in its own location and selects the new ship at its existing location. Both
+types retain equipment, damage and their real cargo/container grids. The move
+action transfers a ship between interior and exterior storage when space fits.
+Use the exterior list's arrows or mouse wheel to reach additional positions.
+
+Layouts are station-specific, not hull-class limits. Defaults are a 12×10
+interior grid with 20-unit cells, authored exterior berths, and four additional
+generated exterior positions. Station definitions can set
+`hangar = { w = 12, h = 10 }` and
+`moorings = { count = 8, length = 600, width = 240 }` (count is the total desired
+exterior capacity). Berths may set `maxLength` and `maxWidth` independently of
+their existing editor marker `size`. These settings survive F2 export and
+autosaves; dedicated capacity-editing controls are not part of this prototype.
+Larger ships and larger station layouts use the same system. Mooring fit checks
+include the parked hull and a departure clearance against station geometry.
+
+Parking locations, owned ships and exterior coordinates persist through travel
+and saves. Stored exterior ships are drawn at their moorings using the existing
+hull renderer; they remain stored records rather than additional simulated NPCs.
+`love . --stationtest` exercises service layouts, grid transfers, purchase/cancel
+settlement, ship storage, switching, capacity limits, and save restoration. It
+also writes real screenshots for the four services to the LÖVE save folder.
+
 ## Shipyard comparison
 
 In F2, click **Compare ships** to open a movable, resizable comparison window.

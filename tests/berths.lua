@@ -6,13 +6,14 @@ return function(game)
  game:loadField('earth')
  local st=game:locationEntity('earth/orbital_one')
  local p=game.player
+ st.def.hangar={w=1,h=1}
  -- A real fitted freighter can use a pad smaller than its hull, while
  -- the marker's authored dimensions and oversized fallback remain intact.
  local Ship,T=require('src.ship'),require('src.tuning')
  local freighter=Ship.new(game,{hull='ferrous_freighter',x=0,y=0,angle=0})
  local original,entities=st.def.berths,game.entities
  local pad=freighter.halfLength/2
- st.def.berths={{x=0,y=0,heading=0,size=pad}};game.entities={}
+ st.def.berths={{x=st.radius+freighter.halfLength+200,y=0,heading=0,size=pad}};game.entities={}
  check(freighter.halfLength>pad and game:freeBerth(st,freighter)==1,'freighter still rejected by the original pad size limit')
  check(st.def.berths[1].size==pad,'larger berth capacity changed the authored marker size')
  st.def.berths[1].size=freighter.halfLength/T.berthShipScale-1
@@ -23,12 +24,14 @@ return function(game)
  st.body:setAngle(.7)
  local wx,wy=game.dockWorld(st,1,d.x2+p.halfLength+40,0,d)
  local x,y=st.body:getLocalPoint(wx,wy)
+ local outward=math.deg(d.a or 0)
  st.def.berths={
-  {x=x-4000,y=y,heading=10,size=2000},
-  {x=x+20,y=y+400,heading=70,size=2000},
-  {x=x,y=y+20,heading=120,size=2000},
+  {x=x-4000,y=y,heading=outward,size=2000},
+  {x=x+20,y=y+400,heading=outward,size=2000},
+  {x=x,y=y+20,heading=outward,size=2000},
   {x=x,y=y,heading=0,size=0},
  }
+ game:stationRecord(st).moorings=nil;st.parkingClearance=nil
  p.body:setPosition(wx,wy)
  local occupied={dockState={station=st,berth=3}}
  table.insert(game.entities,occupied)
@@ -60,22 +63,20 @@ return function(game)
  check(game:flyFromHangar(index),'ship switch failed')
  check(game.player~=p and p.removed,'ship switch did not replace player')
  check(game.player.dockState.station==st and game.player.dockState.dock==d,'ship switch lost dock entrance')
- atBerth(2)
+ atBerth(1)
  -- Retain the same exterior placement across a save/load as well.
  local Save=require('src.save')
  local saved=assert(Save.decode(Save.encode(game:saveState())))
- check(saved.player.at.berth==2 and saved.player.at.dockIndex~=nil,'save dropped berth or dock')
+ check(saved.player.at.berth==1 and saved.player.at.dockIndex~=nil,'save dropped berth or dock')
  game:loadState(saved)
  st=game:locationEntity('earth/orbital_one')
- atBerth(2)
- -- A replacement must still fit: use the nearest available larger berth,
- -- and the interior if every exterior berth is unsuitable.
- st.def.berths[2].size=0;st.def.berths[3].size=0
- check(game:flyFromHangar(index),'second switch failed')
  atBerth(1)
- st.def.berths[1].size=0
- check(game:flyFromHangar(index),'interior fallback switch failed')
- check(not game.player.dockState.berth,'oversized replacement was parked on an unsuitable berth')
+ -- Re-enable interior storage and remove exterior capacity. A small ship
+ -- can still use the interior rather than an invalid reserved berth.
+ st.def.hangar=nil
+ for _,b in ipairs(st.def.berths) do b.size=0 end
+ check(game:flyFromHangar(index),'small ship could not move to free interior storage')
+ check(game.player.bay and not game.player.dockState.berth,'small ship ignored interior allocation')
  local px,py=game.player.body:getPosition()
  game:updateDockedShip(game.player,1/120)
  local xx,yy=game.player.body:getPosition()
@@ -85,9 +86,10 @@ return function(game)
  local big=game.player
  local dock=st.dock
  local oldWidth=dock.hw;dock.hw=1
+ st.def.hangar={w=1,h=1};st.def.moorings={count=5,length=600,width=240}
  for _,b in ipairs(st.def.berths) do b.size=0 end
  check(not game:fitsDock(big,dock),'narrow dock incorrectly accepts a wide hull')
- big.dockState=nil;big.body:setActive(true)
+ big.dockState=nil;big.bay=nil;big.parkingMooring=nil;big.body:setActive(true)
  local ax,ay=game.dockWorld(st,1,dock.x2+big.halfLength+40,0,dock)
  big.body:setPosition(ax,ay);big.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(ax,ay))
  game:beginDocking(big,st,1,dock)
@@ -106,10 +108,12 @@ return function(game)
  check(big.dockState.mooring and near(rx,mx) and near(ry,my),'save/load moved the externally moored ship')
  -- The new ship retains exterior placement when switching ships.
  local moored=big.dockState.mooring
+ st.def.moorings.count=6
  local rec2=assert(game:addToHangar(st,'halcyon_wisp'));local chosen
+ local destination=game:stationMoorings(st)[rec2.mooring]
  for i,r in ipairs(game:hangar(st)) do if r==rec2 then chosen=i end end
  check(game:flyFromHangar(chosen),'exterior ship switch failed')
- check(game.player.dockState.mooring and near(game.player.dockState.mooring.x,moored.x),'ship switch lost exterior placement')
+ check(game.player.dockState.mooring and near(game.player.dockState.mooring.x,destination.x),'ship switch lost the selected ship exterior placement')
  game:undockShip(game.player)
  check(not game.player.dockState and game.player.body:isActive(),'externally moored ship could not undock')
  local ux,uy=game.player.body:getPosition()

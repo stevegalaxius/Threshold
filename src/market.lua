@@ -262,7 +262,7 @@ function Game:shipBuyProblem(st, hullId)
 	local hull = data.hulls[hullId]
 	if not hull then return "UNKNOWN SHIP" end
 	if self.universe.credits < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
-	if not self:hangarFit(st, hullId) then return "NO ROOM IN THE HANGAR" end
+	if not self:shipParkingFit(st,hullId) then return "NO SUITABLE FREE PARKING" end
 	return nil
 end
 
@@ -272,7 +272,7 @@ function Game:buyShip(st, hullId)
 	local problem = self:shipBuyProblem(st, hullId)
 	if problem then return nil, problem end
 	local rec = self:addToHangar(st, hullId)
-	if not rec then return nil, "NO ROOM IN THE HANGAR" end
+	if not rec then return nil, "NO SUITABLE FREE PARKING" end
 	self.universe.credits = self.universe.credits - (data.hulls[hullId].price or 0)
 	events.emit("buyship", rec, st)
 	return rec
