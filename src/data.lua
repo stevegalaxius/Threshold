@@ -84,6 +84,7 @@ local function prepareHull(def)
 		if part.layer ~= nil and not LAYERS[part.layer] then bad("unknown layer '" .. tostring(part.layer) .. "' (use hull, detail or glow)") end
 		if part.color ~= nil and (type(part.color) ~= "table" or #part.color < 3) then bad("color should be { r, g, b }") end
 		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
+		if part.paint ~= nil and part.paint ~= "primary" and part.paint ~= "secondary" then bad("paint should be primary or secondary (leave it out for bare metal)") end
 		if part.armor ~= nil and type(part.armor) ~= "number" then bad("armor should be a number") end
 		if part.shade ~= nil and type(part.shade) ~= "number" then bad("shade should be a number") end
 		if part.mass ~= nil and type(part.mass) ~= "number" then bad("mass should be a number") end
@@ -91,6 +92,7 @@ local function prepareHull(def)
 			if type(part.lights) ~= "table" then bad("lights should be a list") end
 			for j, l in ipairs(part.lights) do
 				if type(l.x) ~= "number" or type(l.y) ~= "number" then bad(("light %d needs x and y"):format(j)) end
+				if (l.w ~= nil and type(l.w) ~= "number") or (l.h ~= nil and type(l.h) ~= "number") then bad(("light %d: w and h should be numbers"):format(j)) end
 				if l.kind ~= nil and l.kind ~= "window" and l.kind ~= "nav" and l.kind ~= "strobe" then bad(("light %d has unknown kind '%s' (use window, nav or strobe)"):format(j, tostring(l.kind))) end
 			end
 		end
@@ -107,6 +109,12 @@ local function prepareHull(def)
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
+	if def.paints ~= nil then
+		if type(def.paints) ~= "table" then fail(("hull '%s': paints should be a list of preset names"):format(def.id)) end
+		for _, n in ipairs(def.paints) do
+			if not require("src.paint").find(n) then fail(("hull '%s' has unknown paint '%s' (see src/paint.lua)"):format(def.id, tostring(n))) end
+		end
+	end
 	if def.helm and def.helm ~= "strafe" and def.helm ~= "turn" then fail(("hull '%s' has unknown helm '%s' (use strafe or turn)"):format(def.id, tostring(def.helm))) end
 	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do
@@ -324,6 +332,9 @@ end
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
+	if def.livery ~= nil and (type(def.livery) ~= "table" or type(def.livery.primary) ~= "table") then
+		error(("enemy '%s': livery should be { primary = { r, g, b }, secondary = { r, g, b }? }"):format(tostring(def.id)), 0)
+	end
 end
 
 -- A hull made at runtime (the F2 editor's test flight). Errors come back

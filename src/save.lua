@@ -28,6 +28,9 @@ local function encode(v, indent, out)
 		else out[#out + 1] = string.format("%.17g", v) end
 	elseif t == "string" then
 		out[#out + 1] = string.format("%q", v)
+	elseif t == "nil" then
+		-- only reachable as a hole in a list (an empty slot): keep its place
+		out[#out + 1] = "nil"
 	elseif t == "boolean" then
 		out[#out + 1] = tostring(v)
 	elseif t == "table" then
