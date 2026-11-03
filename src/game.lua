@@ -121,13 +121,13 @@ function Game:loadField(id, opts)
 	if self.travelGraphView then self.travelGraphView = require("src.travelgraph").build(id) end
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
-	self.well, self.lane, self.driverMenu = nil, nil, nil
+	self.well, self.lane, self.driverMenu, self.ladder = nil, nil, nil, nil
 	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
 	if opts.prepared then
 		local scene = opts.prepared
 		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
-			"contacts", "well", "moonGates", "stationCount", "idCounter" }) do
+			"contacts", "well", "moonGates", "stationCount", "idCounter", "ladder" }) do
 			self[key] = scene[key]
 		end
 	else
@@ -882,6 +882,18 @@ end
 -- comes from the clock, so it needs nothing saved.
 function Game:updateRotors()
 	local clock = self.universe and self.universe.clock or self.time
+	-- the Heaven-Ladder's ring (src/transit.lua): its arcs turn about the planet
+	local ladder = self.ladder
+	if ladder then
+		local a = (ladder.spin * clock) % (pi * 2)
+		for _, e in ipairs(ladder.segments) do
+			if not e.removed then
+				e.body:setPosition(ladder.cx - (ladder.cx * cos(a) - ladder.cy * sin(a)), ladder.cy - (ladder.cx * sin(a) + ladder.cy * cos(a)))
+				e.body:setAngle(a)
+				e.body:setAngularVelocity(ladder.spin)
+			end
+		end
+	end
 	for _, e in ipairs(self.entities) do
 		if e.rotors and not e.removed then
 			local b = e.body

@@ -306,6 +306,15 @@ local function drawAsteroid(e,time)
 end
 
 local function drawStructure(game, e)
+	-- a turning structure (the Heaven-Ladder's ring): its verts are in world
+	-- coordinates, so draw them through its body's transform
+	local moving = e.body:getType() ~= "static"
+	if moving then
+		local bx, by = e.body:getPosition()
+		lg.push()
+		lg.translate(bx, by)
+		lg.rotate(e.body:getAngle())
+	end
 	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or (e.role == "ladder" or e.role == "tether") and { 0.26, 0.17, 0.13 } or { 0.16, 0.18, 0.22 }
 	lg.setColor(fill)
 	lg.polygon("fill", e.verts)
@@ -319,6 +328,20 @@ local function drawStructure(game, e)
 		lg.setColor(e.role == "ring" and { 1, 0.35, 0.3 } or { 0.5, 0.9, 1 })
 		for i = 1, #e.verts, 2 do lg.circle("fill", e.verts[i], e.verts[i + 1], r) end
 	end
+	-- gate lights either side of a gap in the ring: green, pulsing
+	if e.gate and e.gate > 0 then
+		local r = max(10, 5 * screenPx)
+		local glow = 0.5 + 0.5 * math.sin(game.time * 4)
+		lg.setColor(0.4, 1, 0.55, 0.5 + 0.5 * glow)
+		local v = e.verts
+		if e.gate % 2 == 1 then
+			lg.circle("fill", (v[1] + v[7]) / 2, (v[2] + v[8]) / 2, r)
+		end
+		if e.gate >= 2 then
+			lg.circle("fill", (v[3] + v[5]) / 2, (v[4] + v[6]) / 2, r)
+		end
+	end
+	if moving then lg.pop() end
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }

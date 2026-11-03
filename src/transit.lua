@@ -1148,44 +1148,52 @@ end
 -- The Heaven-Ladder ----------------------------------------------------------
 
 -- An orbital ring of radius R round (cx, cy), cut by gaps to fly through,
--- with four space elevators running from it down to the surface.
+-- turning slowly (Game:updateRotors spins it from the clock). Four elevator
+-- anchors (data/station_ladder_anchor.lua) hold still where the tethers
+-- come up from the surface; the ring runs through them, and each has a
+-- dock and berths for the traffic waiting on the Ladder.
+local LADDER_SPIN = 0.006   -- radians a second (about 50 px/s at the rim)
 function Game:spawnHeavenLadder(cx, cy, R)
 	local w = self.well
 	local surface = w and w.radius or R - 1000
-	local thick, gaps, gapW = 50, 8, 700
+	local thick, gaps, gapW = 60, 8, 700
 	local gapA = gapW / R
+	local segments = {}
 	for i = 0, gaps - 1 do
 		local a1 = (i + 0.5) / gaps * pi * 2 + gapA / 2
 		local a2 = (i + 1.5) / gaps * pi * 2 - gapA / 2
 		local n = math.ceil((a2 - a1) * R / 400)
 		for k = 0, n - 1 do
 			local b1, b2 = a1 + (a2 - a1) * k / n, a1 + (a2 - a1) * (k + 1) / n
-			self:addStructure({
+			local e = self:addStructure({
 				cx + cos(b1) * (R - thick), cy + sin(b1) * (R - thick),
 				cx + cos(b2) * (R - thick), cy + sin(b2) * (R - thick),
 				cx + cos(b2) * (R + thick), cy + sin(b2) * (R + thick),
 				cx + cos(b1) * (R + thick), cy + sin(b1) * (R + thick),
 			}, { role = "ladder" })
+			-- the gate lights at each end of an arc, either side of a gap
+			e.gate = (k == 0 and 1 or 0) + (k == n - 1 and 2 or 0)
+			e.body:setType("kinematic")
+			segments[#segments + 1] = e
 		end
 	end
-	-- the elevators, at the middle of every other arc
+	self.ladder = { segments = segments, spin = LADDER_SPIN, cx = cx, cy = cy }
+	-- the elevators: still anchors on the ring, tethers down to the surface
 	for i = 0, 3 do
 		local a = (i * 2 + 1) / gaps * pi * 2
 		local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
 		local tw = 24
+		local top = R - 560   -- the anchor's tether head
 		self:addStructure({
 			cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
-			cx + ux * (R - thick) + nx * tw, cy + uy * (R - thick) + ny * tw,
-			cx + ux * (R - thick) - nx * tw, cy + uy * (R - thick) - ny * tw,
+			cx + ux * top + nx * tw, cy + uy * top + ny * tw,
+			cx + ux * top - nx * tw, cy + uy * top - ny * tw,
 			cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
 		}, { role = "tether" })
-		local hw = 140
-		self:addStructure({
-			cx + ux * (R - 120) + nx * hw, cy + uy * (R - 120) + ny * hw,
-			cx + ux * (R + 120) + nx * hw, cy + uy * (R + 120) + ny * hw,
-			cx + ux * (R + 120) - nx * hw, cy + uy * (R + 120) - ny * hw,
-			cx + ux * (R - 120) - nx * hw, cy + uy * (R - 120) - ny * hw,
-		}, { role = "hub" })
+		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0)
+		st.body:setAngle(a)
+		st.body:setAngularVelocity(0)
+		st.name = ("Ladder Anchor %d"):format(i + 1)
 	end
 end
 
