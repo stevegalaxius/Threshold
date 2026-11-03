@@ -461,6 +461,7 @@ function A.capture(game,e,remote)
   -- Preserve an in-progress physical docking operation for immediate save/load.
   r.docking={}
   for k,v in pairs(ds) do if type(v)~='table' and type(v)~='userdata' then r.docking[k]=v end end
+  r.docking.mooring=copy(ds.mooring)
  else
   r.state='travel'
   local x,y=e.body:getPosition()
@@ -584,11 +585,13 @@ function A.wake(game,r)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
   game:dockInstantly(e,st)
-  e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
-  if exact and r.docking then
-   e.dockState=copy(r.docking); e.dockState.station=st
-   e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
-   e.body:setActive(e.dockState.phase=='tractor')
+  if e.dockState then
+   e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
+   if exact and r.docking then
+    e.dockState=copy(r.docking); e.dockState.station=st
+    e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
+    e.body:setActive(e.dockState.phase=='tractor')
+   end
   end
  end
  if not exact and not lane and r.state=='travel' then

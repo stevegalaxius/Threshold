@@ -80,5 +80,40 @@ return function(game)
  game:updateDockedShip(game.player,1/120)
  local xx,yy=game.player.body:getPosition()
  check(near(px,xx) and near(py,yy),'interior placement jumped on the next frame')
+ -- Oversized vessels with no usable pad must never be pulled through
+ -- a corridor they cannot fit. Exercise the real tractor handoff.
+ local big=game.player
+ local dock=st.dock
+ local oldWidth=dock.hw;dock.hw=1
+ for _,b in ipairs(st.def.berths) do b.size=0 end
+ check(not game:fitsDock(big,dock),'narrow dock incorrectly accepts a wide hull')
+ big.dockState=nil;big.body:setActive(true)
+ local ax,ay=game.dockWorld(st,1,dock.x2+big.halfLength+40,0,dock)
+ big.body:setPosition(ax,ay);big.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(ax,ay))
+ game:beginDocking(big,st,1,dock)
+ game:updateDockedShip(big,1/120)
+ check(big.dockState.phase=='taxi' and big.dockState.mooring and not big.dockState.berth,'oversized ship entered the narrow interior')
+ game:updateDockedShip(big,10)
+ check(big.dockState.done and game.state=='docked','exterior mooring did not provide normal station access')
+ local mx,my=big.body:getPosition();local radius=math.sqrt(big.halfLength^2+big.hull.radius^2)
+ local sx,sy=st.body:getPosition()
+ check((mx-sx)^2+(my-sy)^2>(st.radius+radius)^2,'exterior mooring intersects station geometry')
+ local snapshot=assert(Save.decode(Save.encode(game:saveState())))
+ check(snapshot.player.at.mooring~=nil,'save dropped exterior mooring')
+ game:loadState(snapshot)
+ big=game.player;st=big.dockState.station
+ local rx,ry=big.body:getPosition()
+ check(big.dockState.mooring and near(rx,mx) and near(ry,my),'save/load moved the externally moored ship')
+ -- The new ship retains exterior placement when switching ships.
+ local moored=big.dockState.mooring
+ local rec2=assert(game:addToHangar(st,'halcyon_wisp'));local chosen
+ for i,r in ipairs(game:hangar(st)) do if r==rec2 then chosen=i end end
+ check(game:flyFromHangar(chosen),'exterior ship switch failed')
+ check(game.player.dockState.mooring and near(game.player.dockState.mooring.x,moored.x),'ship switch lost exterior placement')
+ game:undockShip(game.player)
+ check(not game.player.dockState and game.player.body:isActive(),'externally moored ship could not undock')
+ local ux,uy=game.player.body:getPosition()
+ check((ux-sx)^2+(uy-sy)^2>(st.radius+game.player.halfLength)^2,'exterior departure teleported into the dock')
+ dock.hw=oldWidth
  print(('BERTH TEST PASSED (%d checks)'):format(checks))
 end

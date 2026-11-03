@@ -102,10 +102,19 @@ function Game:dockInstantly(e, st, placement)
 		e.body:setPosition(st.body:getWorldPoint(previous.x, previous.y))
 		berth = self:freeBerth(st, e)
 	end
-	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth }
+	if not berth and not self:fitsDock(e,d) then berth=self:freeBerth(st,e) end
+	local mooring
+	if not berth and (placement.mooring or not self:fitsDock(e,d)) then
+		mooring=self:exteriorMooring(st,e,side,d,placement.mooring)
+		if not mooring then
+			if e==self.player then self:toast('NO CLEAR EXTERIOR MOORING',2) end
+			return false
+		end
+	end
+	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth, mooring = mooring }
 	e.body:setActive(false)
-	if berth then
-		local b = st.def.berths[berth]
+	if berth or mooring then
+		local b = mooring or st.def.berths[berth]
 		e.body:setPosition(st.body:getWorldPoint(b.x, b.y))
 		e.body:setAngle(st.body:getAngle() + math.rad(b.heading))
 	else
@@ -342,7 +351,7 @@ function Game:saveState()
 			local ds = p.dockState
 			local dockIndex
 			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
-			where = { station = ds.station.key, access = ds.station.accessIndex, bay = p.bay, berth = ds.berth, side = ds.side, dockIndex = dockIndex }
+			where = { station = ds.station.key, access = ds.station.accessIndex, bay = p.bay, berth = ds.berth, mooring = Persistence.copy(ds.mooring), side = ds.side, dockIndex = dockIndex }
 		else
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()

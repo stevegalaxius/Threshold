@@ -479,8 +479,11 @@ Berths accept ships up to three times their authored pad half-length; the
 editor marker keeps its existing dimensions. `T.berthShipScale` controls this
 capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
-ship does not fit, it uses the nearest suitable free berth or the station
-interior. Saves retain the player's berth, entrance and docking side.
+ship does not fit, it uses the nearest suitable free berth. Ships that fit the
+corridor can use the station interior; oversized ships instead use a clear exterior
+service mooring away from the entrance. Exterior moorings provide normal station
+access and survive saves and ship switching; undocking launches from that position.
+Saves retain the player's berth or mooring, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
 save/load, and size-based fallback.
 

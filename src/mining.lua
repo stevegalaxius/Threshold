@@ -413,6 +413,7 @@ function M.capture(game,e,r,remote)
  if e.dockState then
   r.docking={}
   for k,v in pairs(e.dockState) do if type(v)~='table' and type(v)~='userdata' then r.docking[k]=v end end
+  r.docking.mooring=copy(e.dockState.mooring)
   r.state='docked';r.untilTime=game.universe.clock+max(0,(e.dockState.stay or T.alifeStay)-e.dockState.t)
  elseif r.task and r.task.phase=='delivery' and not r.encounter then
   local x,y=e.body:getPosition();local hx,hy=L.position(r.base,game.universe.clock)
