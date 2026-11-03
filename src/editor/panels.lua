@@ -124,7 +124,28 @@ local function placedSections(E, d)
 				Slab.Text("Spin (radians a second)")
 				slider(E, "yard_rspin" .. name, r.spin, -3, 3, function(v) r.spin = v end, 2)
 			end
-			Slab.Text("Pivot X / Y")
+			Slab.Text(("Pivot %d, %d"):format(r.x or 0, r.y or 0))
+			if Slab.Button("Place on canvas##" .. name) then E.tool, E.rotorSel, E.drawing = "pivot", name, nil end
+			Slab.SameLine()
+			if Slab.Button("Centre of its parts##" .. name) then
+				-- the middle of the box round every part on this rotor
+				local x1, y1, x2, y2 = math.huge, math.huge, -math.huge, -math.huge
+				for _, p in ipairs(d.parts) do
+					if p.rotor == name then
+						for j = 1, #p.shape, 2 do
+							x1, x2 = math.min(x1, p.shape[j]), math.max(x2, p.shape[j])
+							y1, y2 = math.min(y1, p.shape[j + 1]), math.max(y2, p.shape[j + 1])
+						end
+					end
+				end
+				if x1 < math.huge then
+					E.pushUndo()
+					r.x, r.y = math.floor((x1 + x2) / 2 + 0.5), math.floor((y1 + y2) / 2 + 0.5)
+				end
+			end
+			Slab.SameLine()
+			if Slab.Button("Station centre##" .. name) then E.pushUndo(); r.x, r.y = 0, 0 end
+			Slab.Text("Fine tune X / Y")
 			slider(E, "yard_rx" .. name, r.x or 0, -20000, 20000, function(v) r.x = math.floor(v + 0.5) end, 0)
 			slider(E, "yard_ry" .. name, r.y or 0, -20000, 20000, function(v) r.y = math.floor(v + 0.5) end, 0)
 			check(E, r.over == true, "Draw over the core", function(on) r.over = on or nil end)
@@ -311,6 +332,7 @@ local function designWindow(E, Editor)
 	if E.design.kind == "station" then
 		table.insert(tools, { "berth", "Berths" })
 		table.insert(tools, { "turret", "Turrets" })
+		table.insert(tools, { "pivot", "Rotor pivots" })
 	end
 	local current = 1
 	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
@@ -337,6 +359,21 @@ local function designWindow(E, Editor)
 		Slab.Text("Select tool (V) picks one to move or change", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("weapon for new turrets")
 		turretCombo("yard_turretnew", E.turretModule, function(id) E.turretModule = id end)
+	end
+	if E.tool == "pivot" then
+		local names = {}
+		for name in pairs(E.design.rotors or {}) do table.insert(names, { label = name, value = name }) end
+		table.sort(names, function(a, b) return a.label < b.label end)
+		if #names == 0 then
+			Slab.Text("No rotors yet: put a part on one in the part panel", { Color = { 1, 0.6, 0.4 } })
+		else
+			if not (E.rotorSel and E.design.rotors[E.rotorSel]) then E.rotorSel = names[1].value end
+			Slab.Text("rotor")
+			Slab.SameLine()
+			combo("yard_pivotrotor", E.rotorSel, names, function(v) E.rotorSel = v end, 140)
+			Slab.Text("Click to put its pivot there (snaps to the grid)", { Color = { 0.6, 0.6, 0.6 } })
+			Slab.Text("The cross is each rotor's pivot; its parts dim", { Color = { 0.6, 0.6, 0.6 } })
+		end
 	end
 	if E.tool == "berth" then
 		Slab.Text("Click to place a berth; drag to aim its nose", { Color = { 0.6, 0.6, 0.6 } })

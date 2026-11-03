@@ -1792,7 +1792,12 @@ end
 function Game:damage(e, amount, source, cause, hx, hy)
 	if e and e.driverProtected then return end
 	-- a station remembers who shot it (and its turrets answer)
-	if e and e.grudge and source and source.kind == "ship" and amount > 0 then e.grudge[source] = self.time end
+	-- (not for bumps, and not from traders: their crossfire at pirates and
+	-- their docking scrapes are accidents, not attacks)
+	if e and e.grudge and source and source.kind == "ship" and amount > 0 and cause ~= "ram"
+		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
+		e.grudge[source] = self.time
+	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
