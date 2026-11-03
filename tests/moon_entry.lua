@@ -42,7 +42,7 @@ return function(game)
   check(game.camera.zoom==.63 and not game.cineZoom and not game.flash,'entry forced zoom or flashed screen')
   check(not p.departure and not p.runup and not p.launch,'moon entry created a scripted controller')
   for _,f in ipairs(p.body:getFixtures()) do check(not f:isSensor(),'entry ghosted ship collisions') end
-  local intent={thrust=-1,strafe=-.4,boost=false,firePrimary=false,fireSecondary=false,fireAux=false,
+  local intent={thrust=-1,strafe=-.4,boost=false,firePrimary=false,fireSecondary=false,fireTertiary=false,
    aimX=p.intent.aimX,aimY=p.intent.aimY}
   game:setPlayerIntent(intent);game:step(1/120)
   check(game.player.intent.thrust==-1 and game.player.intent.strafe==-.4,'player could not change course immediately after entry')

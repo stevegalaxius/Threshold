@@ -12,8 +12,8 @@
 	  mouse     aim                  right stick    aim
 	  left btn  primary weapons      right trigger  primary weapons
 	  right btn secondary weapons    left trigger   secondary weapons
-	  middle btn auxiliary launcher  right bumper   auxiliary launcher
-	  Q         auxiliary ammo size  Y              auxiliary ammo size
+	  middle btn tertiary weapons    right bumper   tertiary weapons
+	  Q         launcher ammo size   Y              launcher ammo size
 	  E (hold)  tractor beam: reels in the pickup under the cursor   X
 	  E (tap)   open the wreck or container under the cursor;
 	            holding it on a container tows it
@@ -40,7 +40,7 @@ end
 
 -- uiBlocksMouse: true while the pointer is over the debug panel.
 function Input.read(game, uiBlocksMouse, keyboardBlocked)
-	local intent = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, tractor = false }
+	local intent = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireTertiary = false, boost = false, tractor = false }
 	local p = game.player
 	local px, py = 0, 0
 	if p and not p.dead then px, py = p.body:getPosition() end
@@ -58,7 +58,7 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 	if not uiBlocksMouse then
 		intent.firePrimary = love.mouse.isDown(1)
 		intent.fireSecondary = love.mouse.isDown(2)
-		intent.fireAux = love.mouse.isDown(3)
+		intent.fireTertiary = love.mouse.isDown(3)
 	end
 	if intent.thrust ~= 0 or intent.strafe ~= 0 or intent.firePrimary then Input.device = "kbm" end
 
@@ -80,7 +80,7 @@ function Input.read(game, uiBlocksMouse, keyboardBlocked)
 			end
 			intent.firePrimary = intent.firePrimary or rt
 			intent.fireSecondary = intent.fireSecondary or lt
-			intent.fireAux = intent.fireAux or rb
+			intent.fireTertiary = intent.fireTertiary or rb
 			intent.tractor = intent.tractor or j:isGamepadDown("x")
 			intent.boost = intent.boost or j:isGamepadDown("a")
 		end

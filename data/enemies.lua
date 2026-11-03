@@ -15,7 +15,7 @@
 	             spawned by playing fields)
 	color        hull paint { r, g, b }
 	salvage      { min, max } salvage left in its husk (along with its
-	             whole hold, ammo boxed up as crates)
+	             whole hold)
 ]]
 
 enemy {

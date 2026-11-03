@@ -402,7 +402,7 @@ local function drawStation(game, e)
 		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
 		if w.mount == "bay" then
 			-- (drawn below)
-		elseif w.group == "auxiliary" then
+		elseif w.bay then
 			lg.rectangle("fill", -r * 0.2, -r * 0.8, r * 1.6, r * 1.6)
 		else
 			local n, gap = w.w.barrels or 1, (w.w.barrelGap or 8) * 2
@@ -1019,10 +1019,49 @@ local function drawHusk(game, h)
 	lg.pop()
 end
 
+-- A mining drill: a shaft out of the nose with a spinning bit at the tip.
+local function drawDrill(game, e, w)
+	local wx, wy = Ship.hardpoint(e, w.slot)
+	local a = e.body:getAngle() + (w.aim or 0)
+	local reach = e.halfLength * 2 * w.extend
+	-- it shudders while it bites into something
+	if w.drillHit then
+		local j = 1.5
+		wx, wy = wx + (love.math.random() - 0.5) * j, wy + (love.math.random() - 0.5) * j
+	end
+	local ex, ey = wx + cos(a) * reach, wy + sin(a) * reach
+	local px = 1 / game.camera.zoom
+	lg.setColor(0.45, 0.47, 0.5)
+	lg.setLineWidth(max(6, 3 * px))
+	lg.line(wx, wy, ex, ey)
+	-- chain teeth running along the shaft, like a chainsaw
+	if w.firing then
+		local step, off = 7, (game.time * 140) % 7
+		local nx, ny = -sin(a), cos(a)
+		lg.setColor(0.9, 0.85, 0.7)
+		for d = off, reach - 4, step do
+			local cx, cy = wx + cos(a) * d, wy + sin(a) * d
+			lg.line(cx + nx * 3, cy + ny * 3, cx + nx * 5 + cos(a) * 2, cy + ny * 5 + sin(a) * 2)
+			lg.line(cx - nx * 3, cy - ny * 3, cx - nx * 5 - cos(a) * 2, cy - ny * 5 - sin(a) * 2)
+		end
+	end
+	local r = 9 + (({ S = 0, M = 4, L = 8 })[w.module.size] or 0)
+	local spin = game.time * 30
+	lg.setColor(0.85, 0.75, 0.45)
+	for k = 0, 2 do
+		local b = spin + k * pi * 2 / 3
+		lg.polygon("fill", ex + cos(a) * r, ey + sin(a) * r,
+			ex + cos(a + pi / 2) * r * 0.6 * cos(b), ey + sin(a + pi / 2) * r * 0.6 * cos(b),
+			ex - cos(a + pi / 2) * r * 0.6 * cos(b), ey - sin(a + pi / 2) * r * 0.6 * cos(b))
+	end
+	lg.setLineWidth(1)
+end
+
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
 		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
+				if w.w.kind == "drill" and (w.extend or 0) > 0 and e.body then drawDrill(game, e, w) end
 				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam
 				local age = b and (game.time - b[5])
@@ -1049,7 +1088,8 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
-local TORPEDO = { S = 4, M = 6, L = 9 }
+local TORPEDO = { S = 4, M = 10, L = 16 }
+local MISSILE = { S = 3, M = 5, L = 8 }
 
 -- Shots keep a minimum on-screen size, so they stay visible zoomed out.
 local function drawProjectiles(game)
@@ -1080,11 +1120,26 @@ local function drawProjectiles(game)
 		elseif p.kind == "missile" then
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
-			lg.line(p.x, p.y, p.x - cos(a) * 22 * trail, p.y - sin(a) * 22 * trail)
+			local r = MISSILE[p.size] or 3
+			lg.line(p.x, p.y, p.x - cos(a) * r * 7 * trail, p.y - sin(a) * r * 7 * trail)
 			lg.setColor(COLORS.missile)
-			lg.circle("fill", p.x, p.y, max(3, 1.2 * px))
+			lg.circle("fill", p.x, p.y, max(r, 1.2 * px))
 		end
 	end
+end
+
+-- Countermeasure flares: hot, flickering points.
+local function drawDecoys(game)
+	lg.setBlendMode("add")
+	for _, d in ipairs(game.decoys or {}) do
+		local k = math.min(1, d.life)
+		local r = 6 + love.math.random() * 5
+		lg.setColor(1, 0.75, 0.35, 0.35 * k)
+		lg.circle("fill", d.x, d.y, r * 2.2)
+		lg.setColor(1, 0.95, 0.8, k)
+		lg.circle("fill", d.x, d.y, r * 0.6)
+	end
+	lg.setBlendMode("alpha")
 end
 
 local function drawPickups(game)
@@ -1148,7 +1203,7 @@ local function drawRange(game)
 	if not p or p.dead then return end
 	local reach = 0
 	for _, w in ipairs(p.weapons) do
-		if w.group ~= "auxiliary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
+		if not w.bay then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
 	local x, y = p.body:getPosition()
@@ -1212,6 +1267,7 @@ function Render.world(game, overlay, boundaryAngle)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
+	drawDecoys(game)
 	-- only what's on screen (with a margin for big things)
 	local cam = game.camera
 	local sw, sh = lg.getDimensions()

@@ -1,14 +1,20 @@
--- Station design (mine). Open and edit in the Shipyard (F2).
+-- Made in the Shipyard (F2).
 station {
-	id = "zhuhai_strip_mine", name = "Zhuhai Strip Mine", role = "mine",
-	color = { 0.66, 0.56, 0.48 },
-	rotors = {
-		wheel = { spin = 0.6, x = -880, y = 30 },
-		radar = { over = true, spin = 1.1, x = 205, y = -255 },
-	},
+	id = "zhuhai_strip_mine", name = "Zhuhai Strip Mine",
 	berths = {
-		{ heading = 270, size = 110, x = -415, y = -430 },
-		{ heading = 270, size = 110, x = 560, y = -320 },
+		{ heading = 270, size = 150, x = 16, y = -456 },
+		{ heading = 270, size = 150, x = 336, y = -48 },
+		{ size = 100, x = 552, y = 40 },
+		{ size = 100, x = 552, y = -88 },
+	},
+	color = { 0.66, 0.56, 0.48 },
+	role = "mine",
+	rotors = {
+		radar = { over = true, spin = 1.1, x = -135, y = -503 },
+		wheel = { spin = 0.6, x = -880, y = 30 },
+	},
+	turrets = {
+		{ module = "rk7_autocannon", x = -136, y = -536 },
 	},
 	parts = {
 		{ name = "footing slab", shape = { -640, 130, 640, 130, 700, 190, -700, 190 }, shade = 0.6 },
@@ -47,11 +53,11 @@ station {
 			{ kind = "window", size = 6, x = 146, y = 90 },
 		} },
 		{ name = "hall stripe", shape = { -230, 0, 230, 0, 230, 14, -230, 14 }, shade = 1.3, tint = { 0.12, -0.03, -0.08 }, layer = "detail", collide = false },
-		{ name = "dock neck", shape = { -40, -180, 40, -180, 40, -90, -40, -90 }, shade = 0.8 },
-		{ name = "tractor dock", dock = true, shape = { -150, -380, 150, -380, 150, -180, -150, -180 }, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 5, x = -140, y = -370 },
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 5, x = 140, y = -370 },
-		} },
+		{ name = "dock neck", shape = { -640, -70, -560, -70, -560, 20, -640, 20 }, shade = 0.8 },
+		{ name = "tractor dock", shape = { 699, 189, 701, 488, 501, 487, 499, 188 }, lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 5, x = 690, y = 198 },
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 5, x = 690, y = 478 },
+		}, dock = true, dockHeading = 0, dockWidth = 300 },
 		{ name = "silo 1", shape = { -518, 130, -518, -130, -500, -160, -440, -160, -422, -130, -422, 130 }, shade = 0.9, tint = { 0.12, -0.03, -0.08 }, lights = {
 			{ color = { 1, 0.35, 0.3 }, kind = "nav", size = 4, x = -470, y = -150 },
 		} },
@@ -64,45 +70,47 @@ station {
 		{ name = "silo band 1-80", shape = { -408, -80, -312, -80, -312, -70, -408, -70 }, shade = 0.6, layer = "detail", collide = false },
 		{ name = "silo band 10", shape = { -408, 0, -312, 0, -312, 10, -408, 10 }, shade = 0.6, layer = "detail", collide = false },
 		{ name = "silo band 180", shape = { -408, 80, -312, 80, -312, 90, -408, 90 }, shade = 0.6, layer = "detail", collide = false },
-		{ name = "conveyor", shape = { -310, -120, -230, -70, -230, -50, -310, -100 }, shade = 0.75 },
-		{ name = "excavator cab", shape = { -640, 20, -540, 20, -540, 130, -640, 130 }, shade = 1, tint = { 0.06, 0, -0.05 }, lights = {
+		{ name = "conveyor", shape = { -312, -120, -198, -60, -214, -50, -312, -102 }, shade = 0.75 },
+		{ name = "excavator cab", shape = { -640, 20, -540, 20, -540, 130, -640, 130 }, tint = { 0.06, 0, -0.05 }, lights = {
 			{ kind = "window", size = 5, x = -620, y = 45 },
 			{ kind = "window", size = 5, x = -590, y = 45 },
 		} },
 		{ name = "boom", shape = { -560, 20, -860, 10, -870, 40, -570, 50 }, shade = 0.8 },
-		{ name = "wheel hub", shape = { -850, 30, -854, 45, -865, 56, -880, 60, -895, 56, -906, 45, -910, 30, -906, 15, -895, 4, -880, 0, -865, 4, -854, 15 }, shade = 1 },
-		{ name = "bucket wheel", shape = { -770, 30, -804, 55, -791, 95, -833, 95, -846, 135, -880, 110, -914, 135, -927, 95, -969, 95, -956, 55, -990, 30, -956, 5, -969, -35, -927, -35, -914, -75, -880, -50, -846, -75, -833, -35, -791, -35, -804, 5 }, shade = 0.95, tint = { 0.12, -0.03, -0.08 }, rotor = "wheel", lights = {
+		{ name = "wheel hub", shape = { -850, 30, -854, 45, -865, 56, -880, 60, -895, 56, -906, 45, -910, 30, -906, 15, -895, 4, -880, 0, -865, 4, -854, 15 } },
+		{ name = "bucket wheel", shape = { -770, 30, -804, 55, -791, 95, -833, 95, -846, 135, -880, 110, -914, 135, -927, 95, -969, 95, -956, 55, -990, 30, -956, 5, -969, -35, -927, -35, -914, -75, -880, -50, -846, -75, -833, -35, -791, -35, -804, 5 }, shade = 0.95, tint = { 0.12, -0.03, -0.08 }, lights = {
 			{ color = { 1, 0.75, 0.3 }, kind = "window", size = 4, x = -770, y = 30 },
 			{ color = { 1, 0.75, 0.3 }, kind = "window", size = 4, x = -846, y = 135 },
 			{ color = { 1, 0.75, 0.3 }, kind = "window", size = 4, x = -969, y = 95 },
 			{ color = { 1, 0.75, 0.3 }, kind = "window", size = 4, x = -969, y = -35 },
 			{ color = { 1, 0.75, 0.3 }, kind = "window", size = 4, x = -846, y = -75 },
+		}, rotor = "wheel" },
+		{ name = "refinery", shape = { -100, -276, 100, -276, 100, -86, -100, -86 }, shade = 0.9, tint = { 0.06, 0, -0.05 }, lights = {
+			{ kind = "window", size = 5, x = -75, y = -216 },
+			{ kind = "window", size = 5, x = -35, y = -216 },
+			{ kind = "window", size = 5, x = 5, y = -216 },
+			{ kind = "window", size = 5, x = 45, y = -216 },
 		} },
-		{ name = "refinery", shape = { 260, -60, 460, -60, 460, 130, 260, 130 }, shade = 0.9, tint = { 0.06, 0, -0.05 }, lights = {
-			{ kind = "window", size = 5, x = 285, y = 0 },
-			{ kind = "window", size = 5, x = 325, y = 0 },
-			{ kind = "window", size = 5, x = 365, y = 0 },
-			{ kind = "window", size = 5, x = 405, y = 0 },
+		{ name = "stack", shape = { -154, -538, -114, -538, -114, -258, -154, -258 }, shade = 0.85, lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.9, size = 6, x = -134, y = -533 },
 		} },
-		{ name = "stack", shape = { 400, -340, 440, -340, 440, -60, 400, -60 }, shade = 0.85, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.9, size = 6, x = 420, y = -335 },
+		{ name = "tank 1", shape = { 189, -144, 186, -127, 176, -112, 161, -102, 144, -99, 127, -102, 112, -112, 102, -127, 99, -144, 102, -161, 112, -176, 127, -186, 144, -189, 161, -186, 176, -176, 186, -161 }, shade = 0.9 },
+		{ name = "tank 2", shape = { 189, -240, 186, -223, 176, -208, 161, -198, 144, -195, 127, -198, 112, -208, 102, -223, 99, -240, 102, -257, 112, -272, 127, -282, 144, -285, 161, -282, 176, -272, 186, -257 }, shade = 0.9 },
+		{ name = "control tower", shape = { -170, -258, -100, -258, -100, -108, -170, -108 }, shade = 1.05, lights = {
+			{ kind = "window", size = 6, x = -135, y = -233 },
+			{ kind = "window", size = 6, x = -135, y = -198 },
 		} },
-		{ name = "tank 1", shape = { 565, 80, 562, 97, 552, 112, 537, 122, 520, 125, 503, 122, 488, 112, 478, 97, 475, 80, 478, 63, 488, 48, 503, 38, 520, 35, 537, 38, 552, 48, 562, 63 }, shade = 0.9 },
-		{ name = "tank 2", shape = { 645, 80, 642, 97, 632, 112, 617, 122, 600, 125, 583, 122, 568, 112, 558, 97, 555, 80, 558, 63, 568, 48, 583, 38, 600, 35, 617, 38, 632, 48, 642, 63 }, shade = 0.9 },
-		{ name = "control tower", shape = { 170, -240, 240, -240, 240, -90, 170, -90 }, shade = 1.05, lights = {
-			{ kind = "window", size = 6, x = 205, y = -215 },
-			{ kind = "window", size = 6, x = 205, y = -180 },
+		{ name = "radar", shape = { -190, -510, -80, -510, -90, -496, -180, -496 }, shade = 1.25, layer = "detail", collide = false, rotor = "radar" },
+		{ name = "pad 1", shape = { 446, -130, 446, 110, 426, 110, 426, -130 }, shade = 0.8, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 436, y = -120 },
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 436, y = 100 },
 		} },
-		{ name = "radar", shape = { 150, -262, 260, -262, 250, -248, 160, -248 }, shade = 1.25, layer = "detail", collide = false, rotor = "radar" },
-		{ name = "pad gantry 1", shape = { -427, -300, -403, -300, -403, -160, -427, -160 }, shade = 0.7 },
-		{ name = "pad 1", shape = { -535, -320, -295, -320, -295, -300, -535, -300 }, shade = 0.8, lights = {
-			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = -525, y = -310 },
-			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = -305, y = -310 },
+		{ name = "pad 2", shape = { -100, -294, 140, -294, 140, -274, -100, -274 }, shade = 0.8, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = -90, y = -284 },
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 130, y = -284 },
 		} },
-		{ name = "pad gantry 2", shape = { 548, -190, 572, -190, 572, 130, 548, 130 }, shade = 0.7 },
-		{ name = "pad 2", shape = { 440, -210, 680, -210, 680, -190, 440, -190 }, shade = 0.8, lights = {
-			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 450, y = -200 },
-			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 670, y = -200 },
+		{ name = "pad 2 copy", shape = { 234, 110, 640, 110, 640, 130, 234, 130 }, shade = 0.8, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 244, y = 120 },
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 636, y = 120 },
 		} },
 	},
 }

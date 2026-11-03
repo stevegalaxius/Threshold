@@ -162,7 +162,7 @@ end
 -- Prefer projectile lead over the instantaneous laser solution in mixed
 -- loadouts, regardless of slot ordering. Missiles have their own guidance.
 local function ordnanceSpeed(e)
- for _,group in ipairs({'primary','secondary'}) do
+ for _,group in ipairs({'primary','secondary','tertiary'}) do
   for _,slot in ipairs(e.weapons or {}) do
    local item=slot.ammo and data.items[slot.ammo]
    local speed=item and item.shot and item.shot.speed
@@ -170,7 +170,7 @@ local function ordnanceSpeed(e)
   end
  end
  for _,slot in ipairs(e.weapons or {}) do
-  if (slot.group=='primary' or slot.group=='secondary') and slot.w.kind=='laser' then return math.huge end
+  if slot.w.kind=='laser' then return math.huge end
  end
 end
 

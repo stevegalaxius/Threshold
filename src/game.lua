@@ -177,7 +177,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	self.playerHull = rec.hull or self.playerHull
 	if rec.color then self.playerColor = rec.color end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
@@ -349,6 +349,8 @@ local DEBRIS = {
 	sat = { fill = { 0.3, 0.31, 0.34 }, line = { 0.8, 0.83, 0.88 }, tough = 0.7 },   -- bursts, no pieces
 }
 Game.DEBRIS = DEBRIS
+-- What a drilled piece of each kind of debris drops when it breaks.
+local ORE = { rock = "iron_ore", ice = "water_ice", junk = "scrap" }
 
 -- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
 -- same kind of list, counter-clockwise (monotone chain).
@@ -928,10 +930,10 @@ function Game:armStation(e)
 			-- missile, torpedo and drone launchers are fixed bays: they
 			-- point one way (heading, or straight out from the centre);
 			-- missiles curve round to the target, drones fly off to it
-			local bay = m.family == "auxiliary"
+			local bay = m.family == "bay"
 			local out = (t.x == 0 and t.y == 0) and 0 or math.atan2(t.y, t.x)
 			table.insert(list, { slot = { x = t.x, y = t.y }, module = m, w = m.weapon,
-				group = bay and "auxiliary" or "primary",
+				group = "primary", bay = bay,
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m),
 				cooldown = random() * 0.5, think = random() * RETARGET,
 				mount = bay and "bay" or "turret", turn = math.rad(t.turn or 90),
@@ -1085,7 +1087,7 @@ function Game:beginDocking(e, st, side, dock)
 	if e ~= self.player then
 		e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
 	end
-	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireAux = false, false, false
+	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireTertiary = false, false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
@@ -1507,8 +1509,10 @@ end
 -- Looting: while a wreck or container is open in the cargo screen
 -- (game.looting, set by the cargo screen), the tractor beam tries to keep
 -- it in reach. It matches your velocity and, past lootHoldAt of the beam's
--- range, closes back in; the pull has a limit (lootHoldAccel), so a heavy
--- burn can still leave it behind and close the window.
+-- range, closes back in. The beam has a limited force: enough to pull
+-- something your own ship's mass at lootHoldAccel, times (1 + tractorPower)
+-- from tractor modules. Heavier things move less, and the beam pulls your
+-- ship back just as hard, so slinging a big wreck around drags you too.
 function Game:updateLootHold(dt)
 	local p, e = self.player, self.looting
 	if not e or e.removed or e.dead or not p or p.dead or p.dockState then return end
@@ -1521,10 +1525,13 @@ function Game:updateLootHold(dt)
 	local pvx, pvy = p.body:getLinearVelocity()
 	local evx, evy = e.body:getLinearVelocity()
 	local ax, ay = (pvx + dx / d * want - evx) * 4, (pvy + dy / d * want - evy) * 4
-	local a = sqrt(ax * ax + ay * ay)
-	if a > T.lootHoldAccel then ax, ay = ax / a * T.lootHoldAccel, ay / a * T.lootHoldAccel end
 	local m = e.body:getMass()
-	e.body:applyForce(ax * m, ay * m)
+	local fx, fy = ax * m, ay * m
+	local f = sqrt(fx * fx + fy * fy)
+	local cap = T.lootHoldAccel * p.body:getMass() * Ship.tractorPower(p)
+	if f > cap then fx, fy = fx / f * cap, fy / f * cap end
+	e.body:applyForce(fx, fy)
+	p.body:applyForce(-fx, -fy)
 end
 
 -- Towing: a line from the player's ship to the container it holds with
@@ -1578,8 +1585,9 @@ function Game:updateTow(dt)
 		p.body:applyForce(-nx * f, -ny * f)
 	end
 	local sp = sqrt(pvx * pvx + pvy * pvy)
-	if sp > T.towSpeed then
-		local k = (sp - T.towSpeed) * p.body:getMass() * 30
+	local top = T.towSpeed * Ship.tractorPower(p)     -- a stronger beam tows faster
+	if sp > top then
+		local k = (sp - top) * p.body:getMass() * 30
 		p.body:applyForce(-pvx / sp * k, -pvy / sp * k)
 	end
 end
@@ -1613,7 +1621,7 @@ function Game:setPlayerIntent(intent)
 		local a = p.body:getAngle()
 		for k, v in pairs(intent) do p.intent[k] = v end
 		p.intent.thrust, p.intent.strafe, p.intent.boost, p.intent.tractor = 0, 0, false, false
-		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 		p.intent.aimX, p.intent.aimY = x + cos(a) * 700, y + sin(a) * 700
 		return
 	end
@@ -1641,7 +1649,7 @@ function Game:step(dt)
 				local x,y=e.body:getPosition()
 				e.intent.thrust,e.intent.strafe,e.intent.boost=0,0,false
 				e.intent.aimX,e.intent.aimY=x+cos(a)*300,y+sin(a)*300
-				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireAux=false,false,false
+				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
 				Ship.fly(e,dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
@@ -1996,6 +2004,12 @@ function Game:breakAsteroid(e)
 			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
 		end
 	end
+	-- drilled rock gives up ore: more for a bigger piece
+	local ore = e.drilled and ORE[e.debris or "rock"]
+	if ore and data.items[ore] then
+		local n = max(1, floor(e.radius / 20))
+		self:spawnPickup(x, y, ore, n)
+	end
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
 end
@@ -2087,10 +2101,7 @@ local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
 		local item = data.items[id]
-		-- Loose ammo is boxed up: crates are cargo to sell or use back at a
-		-- station, not something the guns can draw from mid-fight.
-		local into = (item and item.kind == "ammo") and item.crate or id
-		if count > 0 then loot[into] = (loot[into] or 0) + count end
+		if count > 0 then loot[id] = (loot[id] or 0) + count end
 	end
 	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
 	-- Remembered by slot, so a wreck in parts can put each one in the part
@@ -2463,12 +2474,12 @@ function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
--- Q: switch the player's auxiliary launcher to the next size it can fire.
+-- Q: switch the player's launchers to the next size they can fire.
 function Game:cycleAux()
 	local p = self.player
 	if not p or p.dead then return end
-	local id = Weapons.cycleAmmo(p, "auxiliary")
-	if id then self:toast("AUX: " .. data.items[id].name:upper(), 1.2) end
+	local id = Weapons.cycleAmmo(p)
+	if id then self:toast("LAUNCHERS: " .. data.items[id].name:upper(), 1.2) end
 end
 
 -- big: a headline (arriving in a level)
