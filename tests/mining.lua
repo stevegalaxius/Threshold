@@ -18,6 +18,19 @@ return function(game)
  check(legacy.task==previousTask and legacy.ship.cargo.iron_ore==3,'miner upgrade discarded cargo or its current task')
  legacy.ship.cargo.iron_ore=nil
 
+ -- A mine emits a distribution, not a synchronized repeating volley.
+ local samples={id='deimos/drill/1'}
+ local smallest,largest,slowest,fastest,first,last,left,right=math.huge,0,math.huge,0,math.huge,0,0,0
+ for i=1,40 do
+  local spec=M.ejecta(samples,i)
+  smallest,largest=math.min(smallest,spec.radius),math.max(largest,spec.radius)
+  slowest,fastest=math.min(slowest,spec.speed),math.max(fastest,spec.speed)
+  first,last=math.min(first,spec.delay),math.max(last,spec.delay)
+  left,right=math.min(left,spec.spread),math.max(right,spec.spread)
+ end
+ check(largest-smallest>40 and smallest<40,'ejected rocks lack a mix of small and large sizes')
+ check(fastest-slowest>300 and last-first>3,'mine repeats the same speed or ejection interval')
+ check(left<-.3 and right>.3,'ejected rocks do not spread into a field')
  local before=game.universe.nextNpcId;A.seed(game)
  check(game.universe.nextNpcId==before,'visiting a region duplicated its miners')
  local area=os.getenv('THRESHOLD_MINING_AREA') or 'ring'
@@ -36,20 +49,20 @@ return function(game)
  end
  game.sleepers={};game.miningLive={};M.state(game.universe).resources={}
  local site=M.state(game.universe).sites[r.task.target]
- for _,s in pairs(M.state(game.universe).sites)do s.nextAt=game.universe.clock+T.drillInterval end
+ for _,s in pairs(M.state(game.universe).sites)do s.nextAt=game.universe.clock+T.drillIntervalMax end
  site.nextAt=game.universe.clock
  local x,y=M.workPoint(site)
  game.player.body:setPosition(x+1800,y);game.player.body:setLinearVelocity(0,0)
  game.miningNext=nil;M.update(game)
- check(count(M.state(game.universe).resources)==T.drillBatch,'drill did not eject its timed batch')
+ check(count(M.state(game.universe).resources)==1,'drill did not eject one rock')
  local physical=0
  for _,e in ipairs(game.entities)do if e.miningId then physical=physical+1 end end
- check(physical==T.drillBatch,'drill batch did not become physical rocks')
+ check(physical==1,'ejected rock did not become physical')
  for _,resource in pairs(M.state(game.universe).resources) do
   check(resource.radius>=T.drillRockMin,'mine ejected a tiny chip instead of a field rock')
-  check(math.sqrt(resource.vx^2+resource.vy^2)>600,'mine did not launch its rock into the field')
+  check(math.sqrt(resource.vx^2+resource.vy^2)>T.drillSpeedMin*.9,'mine did not launch its rock into the field')
   local px,py=M.position(resource,resource.clock+T.miningSettleTime)
-  check((px-resource.x)^2+(py-resource.y)^2>2000^2,'offline launch discarded outward travel')
+  check((px-resource.x)^2+(py-resource.y)^2>1200^2,'offline launch discarded outward travel')
  end
 
  do
@@ -123,7 +136,7 @@ return function(game)
  check(game.world:getBodyCount()==bodies,'offline mining created physics bodies')
  local produced,accounted=0,0
  for _,s in pairs(M.state(game.universe).sites)do
-  for sequence=1,s.sequence do local _,n=require('src.ore').drop('rock',T.drillRockMin+(sequence%4)*T.drillRockStep);produced=produced+n end
+  for sequence=1,s.sequence do local _,n=require('src.ore').drop('rock',M.ejecta(s,sequence).radius);produced=produced+n end
  end
  for _,stock in pairs(M.state(game.universe).stock)do for _,n in pairs(stock)do accounted=accounted+n end end
  for _,resource in pairs(M.state(game.universe).resources)do accounted=accounted+(resource.kind=='rock' and resource.yield or resource.count) end

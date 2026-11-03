@@ -37,6 +37,20 @@ Tasks.register('mine',{
   return true
  end,
 })
+-- Deterministic per ejection, independent of visit order and unrelated RNG.
+-- Small fragments are common; large field rocks are occasional.
+function M.ejecta(site,sequence)
+ local seed=sequence*7919
+ for i=1,#site.id do seed=(seed*31+site.id:byte(i))%2147483647 end
+ local rng=love.math.newRandomGenerator(seed)
+ local size=rng:random()
+ return {radius=T.drillRockMin+(T.drillRockMax-T.drillRockMin)*size*size,
+  speed=T.drillSpeedMin+(T.drillSpeedMax-T.drillSpeedMin)*rng:random(),
+  spread=(rng:random()*2-1)*T.drillSpread,
+  spin=(rng:random()*2-1)*.12,angle=rng:random()*pi*2,
+  delay=T.drillIntervalMin+(T.drillIntervalMax-T.drillIntervalMin)*rng:random()}
+end
+local function rigLength() return T.drillRockMax*2+20 end
 function M.seed(game)
  local u=game.universe;local state=M.state(u)
  -- Upgrade existing workers without replacing their identity, task or cargo.
@@ -63,7 +77,7 @@ function M.seed(game)
      if s.planet then angle=angle+pi end
      state.sites[id]={id=id,area=area,x=s.x,y=s.y,radius=s.radius,planet=s.planet,
       angle=angle,item=Ore.items.rock,
-      nextAt=u.clock+T.drillInterval,sequence=0,home=home}
+      nextAt=u.clock+M.ejecta({id=id},1).delay,sequence=0,home=home}
      if home and not f.instance then
       for _=1,(#specs==1 and T.minersPerArea or 1) do
        Tasks.post(u,{kind='mine',source=home,target=id,area=area,item=state.sites[id].item,cooldown=0})
@@ -98,8 +112,8 @@ function M.position(resource,clock)
   local r=max(1,sqrt(resource.x^2+resource.y^2))
   local nx,ny=resource.x/r,resource.y/r
   local radial=resource.vx*nx+resource.vy*ny
-  local tangent=resource.relativeFlow and 290*min(1,f.planetR/6000)*sqrt(f.planetR/max(r,f.planetR))*T.currentScale
-   or -resource.vx*ny+resource.vy*nx
+  local tangent=-resource.vx*ny+resource.vy*nx
+  if resource.relativeFlow then tangent=tangent+290*min(1,f.planetR/6000)*sqrt(f.planetR/max(r,f.planetR))*T.currentScale end
   local damping=resource.kind=='loot' and 1.5 or T.miningChunkDamping
   local decay=math.exp(-damping*elapsed)
   local radius=max(1,r+radial*(1-decay)/damping)
@@ -142,28 +156,31 @@ function M.produce(game,clock)
  for _,resource in pairs(state.resources) do counts[resource.site]=(counts[resource.site] or 0)+1 end
  for id,site in pairs(state.sites) do
   if clock>=site.nextAt then
-   -- One overdue batch, never a catch-up storm after loading an old save.
-   site.nextAt=clock+T.drillInterval
-   local count=min(T.drillBatch,T.drillCap-(counts[id] or 0))
+   -- One irregular ejection, never a catch-up volley after travel or loading.
+   local spec=M.ejecta(site,site.sequence+1)
+   site.nextAt=clock+spec.delay
+   local count=(counts[id] or 0)<T.drillCap and 1 or 0
    local x,y,nx,ny=site.x+cos(site.angle)*site.radius,site.y+sin(site.angle)*site.radius,cos(site.angle),sin(site.angle)
    if site.area==game.fieldId then x,y,nx,ny=pointAtBody(site,game) end
-   for i=1,count do
+   if count>0 then
     site.sequence=site.sequence+1
     local key=id..'/chunk/'..site.sequence
-    local radius=T.drillRockMin+(site.sequence%4)*T.drillRockStep
+    local radius=spec.radius
     local item,yield=Ore.drop('rock',radius)
-    local spread=(i-(count+1)/2)*(T.drillRockMin+3*T.drillRockStep)*2.4
+    local a=site.angle+spec.spread
+    local dx,dy=cos(a),sin(a)
     state.resources[key]={id=key,site=id,area=site.area,kind='rock',item=item,yield=yield,
-     x=x+nx*(radius+T.drillRigScale*40)-ny*spread,y=y+ny*(radius+T.drillRigScale*40)+nx*spread,
-     vx=nx*T.drillEjectSpeed,vy=ny*T.drillEjectSpeed,radius=radius,hp=radius*radius*T.asteroidToughness,
-     angle=site.sequence*2.399963,spin=.08,clock=clock,readyAt=clock+T.miningSettleTime,relativeFlow=true}
+     x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
+     vx=dx*spec.speed,vy=dy*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
+     angle=spec.angle,spin=spec.spin,clock=clock,readyAt=clock+T.miningSettleTime,relativeFlow=true}
    end
    if count>0 and site.area==game.fieldId and game.player and not game.player.dead
     and not game.player.removed and not game.player.body:isDestroyed() then
     local px,py=game.player.body:getPosition()
     if (px-x)^2+(py-y)^2<T.sleepNear^2 then
-     game:spark(x,y,14,{1,.7,.25})
-     game:addEffect({kind='explosion',x=x,y=y,r=90*T.drillRigScale,t=0,life=.6,dust=true})
+     local ex,ey=x+nx*rigLength(),y+ny*rigLength()
+     game:spark(ex,ey,8,{1,.7,.25})
+     game:addEffect({kind='explosion',x=ex,y=ey,r=spec.radius*.8,t=0,life=.3,dust=true})
     end
    end
   end
@@ -503,12 +520,39 @@ function M.draw(game,px)
    local x,y,nx,ny=pointAtBody(site,game)
    local cx,cy=game.camera.x,game.camera.y
    if math.abs(x-cx)<love.graphics.getWidth()/game.camera.zoom and math.abs(y-cy)<love.graphics.getHeight()/game.camera.zoom then
-    lg.push('all');lg.translate(x,y);lg.rotate(math.atan2(ny,nx));lg.scale(T.drillRigScale)
-    lg.setColor(.3,.34,.38);lg.polygon('fill',-12,-26,12,-26,22,0,12,26,-12,26)
-    lg.setColor(1,.66,.2);lg.setLineWidth(max(px,2));lg.rectangle('line',-10,-24,24,48)
-    lg.setColor(.65,.7,.76);lg.rectangle('fill',-18,-7,46,14)
-    lg.setColor(1,.8,.35);lg.circle('fill',28,0,6+2*sin(game.time*14),12)
-    lg.setColor(.4,1,.55);lg.circle('fill',6,-16,3*px,8)
+    -- World-sized structure: the chute clears the largest ejected rock.
+    -- Detail and line widths stay in world pixels rather than being enlarged.
+    local length,hw=rigLength(),T.drillRockMax+18
+    lg.push('all');lg.translate(x,y);lg.rotate(math.atan2(ny,nx))
+    lg.setLineWidth(max(px,1.5))
+    lg.setColor(.22,.25,.28)
+    lg.polygon('fill',-28,-hw-26,16,-hw-26,32,-hw+10,32,hw-10,16,hw+26,-28,hw+26)
+    lg.setColor(.34,.39,.43)
+    lg.polygon('fill',8,-hw,76,-hw,98,-hw+22,98,hw-22,76,hw,8,hw)
+    lg.setColor(.57,.62,.64)
+    lg.polygon('line',8,-hw,76,-hw,98,-hw+22,98,hw-22,76,hw,8,hw)
+    -- Open conveyor/ejector bed, with structural rails and braces.
+    lg.setColor(.12,.15,.18);lg.rectangle('fill',48,-hw+12,length-48,hw*2-24)
+    for j=0,5 do
+     local bx=60+j*(length-76)/5
+     lg.setColor(.39,.44,.47);lg.rectangle('fill',bx,-hw+17,7,hw*2-34)
+    end
+    lg.setColor(.62,.66,.68)
+    lg.rectangle('fill',46,-hw,length-46,10);lg.rectangle('fill',46,hw-10,length-46,10)
+    lg.setColor(.32,.37,.4)
+    lg.polygon('fill',40,-hw-8,length-18,-hw-8,length,-hw,40,-hw)
+    lg.polygon('fill',40,hw, length,hw,length-18,hw+8,40,hw+8)
+    -- Separate drives and warning markings retain ship-scale detail.
+    for _,side in ipairs({-1,1}) do
+     lg.setColor(.46,.5,.52);lg.rectangle('fill',18,side*(hw-27)-12,40,24)
+     lg.setColor(.92,.64,.22)
+     for j=0,3 do lg.rectangle('fill',24+j*8,side*(hw+5)-3,4,6) end
+    end
+    lg.setColor(.13,.17,.19);lg.rectangle('fill',16,-30,26,60)
+    lg.setColor(.6,.65,.68)
+    for j=0,4 do lg.line(20,-23+j*11,38,-23+j*11) end
+    lg.setColor(.4,1,.55);lg.circle('fill',29,-43,3,8)
+    lg.setColor(1,.65,.2);lg.circle('fill',length-8,-hw-4,3,8);lg.circle('fill',length-8,hw+4,3,8)
     lg.pop()
    end
   end
