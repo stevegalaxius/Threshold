@@ -112,7 +112,7 @@ hull {
 		{ family = "computer",  size = "any" },
 	},
 	loadout = { "long_tom", "long_tom", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "trident_bay",
-		"cinder_drive", "forge_reactor", "hold_pod_m", "nav_computer" },
+		"cinder_drive", "forge_reactor", "hold_pod_s", "nav_computer" },
 	cargo = { shell_l = 60, rounds_m = 1000, missile_l = 6, missile_m = 6 },
 	price = 95000,
 }
@@ -142,7 +142,7 @@ hull {
 		{ family = "utility",   size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "forge_reactor", "hold_pod_m", "hold_pod_m", "nav_computer" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "cinder_drive", "forge_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
 	cargo = { rounds_m = 600 },
 	price = 70000,
 }
@@ -184,7 +184,7 @@ hull {
 		{ family = "utility",   size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "rk7_autocannon", "rk7_autocannon", "hornet_pod", "mule_engine", "kiln_reactor", "hold_pod_m", "hold_pod_s", "nav_computer" },
+	loadout = { "rk7_autocannon", "rk7_autocannon", "hornet_pod", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
 	cargo = { rounds_m = 400, missile_m = 4 },
 	price = 48000,
 }

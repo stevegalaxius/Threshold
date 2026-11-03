@@ -2096,10 +2096,7 @@ local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
 		local item = data.items[id]
-		-- Loose ammo is boxed up: crates are cargo to sell or use back at a
-		-- station, not something the guns can draw from mid-fight.
-		local into = (item and item.kind == "ammo") and item.crate or id
-		if count > 0 then loot[into] = (loot[into] or 0) + count end
+		if count > 0 then loot[id] = (loot[id] or 0) + count end
 	end
 	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
 	-- Remembered by slot, so a wreck in parts can put each one in the part

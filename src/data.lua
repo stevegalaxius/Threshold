@@ -468,23 +468,6 @@ local function crossCheck()
 	end
 end
 
--- Every ammo type gets a matching crate item: the same rounds boxed up as
--- cargo. Looted ammo arrives as crates, which weapons can't fire from;
--- they're for selling or restocking at a station.
-local function addCrates()
-	for _, id in ipairs(data.list.items) do
-		local a = data.items[id]
-		if a.kind == "ammo" and not a.crate then
-			local cid = id .. "_crate"
-			a.crate = cid
-			data.items[cid] = {
-				id = cid, kind = "crate", ammo = id, name = a.name .. " (crate)", maker = a.maker,
-				volume = a.volume, mass = a.mass, price = a.price,
-			}
-		end
-	end
-end
-
 -- Every module is also an item, so spares can sit in a hold, in station
 -- storage or in a husk. Its shape comes from its size (S 2 x 1, M 2 x 2,
 -- L 3 x 2, any 2 x 1), its volume matches the shape and its mass is the
@@ -516,7 +499,6 @@ function data.load()
 			if love.filesystem.getInfo(folder, "directory") then loadFolder(folder) end
 		end
 	end
-	addCrates()
 	addModuleItems()
 	crossCheck()
 end

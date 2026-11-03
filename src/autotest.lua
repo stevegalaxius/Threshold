@@ -267,7 +267,7 @@ function A.update(game, dt)
 		w.dockState = { done = true, phase = "done", t = 0, station = st }
 		game.state = "docked"
 		local storage = game:stationStorage(st)
-		Hold.add(storage, "rounds_s_crate", 120)
+		Hold.add(storage, "rounds_s", 120)
 		local L = Cargo.layout(game)
 		local cs = L.cs
 		local function at(r, s) return r.x + (s.x + 0.5) * cs, r.y + (s.y + 0.5) * cs end
@@ -282,20 +282,6 @@ function A.update(game, dt)
 		local x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 2)
 		log("cargo: right-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
-		r, s = find("storage", "rounds_s_crate")
-		x, y = at(r, s)
-		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
-		log("cargo: crate to hold: hold crates %d, storage crates %d", w.cargo.rounds_s_crate or 0, Hold.count(storage, "rounds_s_crate"))
-		local before = w.cargo.rounds_s or 0
-		r, s = find("ship", "rounds_s_crate")
-		if r then
-			x, y = at(r, s)
-			Cargo.lastClick = nil
-			Cargo.mousepressed(game, x, y, 1)      -- double-click
-			Cargo.mousereleased(game, x, y, 1)
-			Cargo.mousepressed(game, x, y, 1)
-		end
-		log("cargo: unboxed, light rounds %d -> %d, crates left %d, hold %d / %d", before, w.cargo.rounds_s or 0, w.cargo.rounds_s_crate or 0, w.holdUsed, Ship.holdCapacity(w))
 		r, s = find("ship", "missile_s")
 		x, y = at(r, s)
 		local tx, ty
@@ -704,7 +690,7 @@ function A.update(game, dt)
 		log("market: left panel tabs -> showing %s (%d panels)", L.sides[1].title, #L.sides)
 		local storage = game:stationStorage(A.st)
 		local inner = Hold.new({ { key = "main", name = "Container", w = 8, h = 4 } })
-		Hold.add(inner, "rounds_s_crate", 50)
+		Hold.add(inner, "rounds_s", 50)
 		Hold.placeStack(storage, { id = "cargo_container", n = 1, inner = inner })
 		L = Cargo.layout(game)
 		for _, gr in ipairs(L.grids) do

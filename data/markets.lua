@@ -45,7 +45,7 @@ market { location = "earth/orbital_one", station = "Orbital One", sells = {   --
 market { location = "earth/orbital_two", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "trident_bay", 1 }, { "torp_m", 2 }, { "breaker_tube", 1 },
 	{ "torp_l", 1 }, { "leviathan_tube", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
-	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_m", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
+	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 
 -- Moon stations. Each sells its own few things.
@@ -56,7 +56,7 @@ market { location = "luna/shackleton_station", station = "Shackleton Station", s
 	{ "cargo_container", 3 }, { "nav_computer", 1 },
 } }
 market { location = "europa/conamara_station", station = "Conamara Station", sells = {   -- ice haulers
-	{ "hold_pod_m", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
+	{ "hold_pod_s", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
 } }
 market { location = "europa/pwyll_station", station = "Pwyll Station", sells = {
 	{ "glint_laser", 1 }, { "missile_s", 4 }, { "sparrow_rack", 1 },
@@ -88,7 +88,7 @@ market { location = "io/loki_laboratory", station = "Loki Laboratory", sells = {
 	{ "glint_laser", 1 }, { "ember_reactor", 1 }, { "nav_computer", 1 },
 } }
 market { location = "callisto/valhalla_port", station = "Valhalla Port", sells = {
-	{ "hold_pod_m", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
+	{ "hold_pod_s", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
 } }
 market { location = "callisto/asgard_station", station = "Asgard Station", sells = {
 	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "tug_beam", 1 },

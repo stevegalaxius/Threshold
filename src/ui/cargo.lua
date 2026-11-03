@@ -31,7 +31,6 @@
 	  right-click     quick move to the other panel, like Ctrl-click; in
 	                  space with just your hold up: eject the stack out
 	                  behind the ship
-	  double-click    docked: unbox an ammo crate into loose rounds
 	  drop outside    in space: eject it
 	  Sort            tidy a hold (biggest items first, grouped by type)
 
@@ -585,18 +584,6 @@ local function takeAll(game, L, side)
 	changed(side); changed(mine)
 end
 
--- Double-click on a crate at a station: unbox as many rounds as fit.
-local function unbox(game, r, s)
-	local item = data.items[s.id]
-	if item.kind ~= "crate" then return end
-	local k = Hold.room(r.side.hold, item.ammo, s.n)
-	if k == 0 then game:toast("NO ROOM TO UNBOX", 1.2) return end
-	s.n = s.n - k
-	if s.n <= 0 then Grid.remove(r.g, s) end
-	Hold.add(r.side.hold, item.ammo, k)
-	changed(r.side)
-	game:toast(("Unboxed %d %s"):format(k, data.items[item.ammo].name), 1.2, "pickup")
-end
 
 -- Equipment ------------------------------------------------------------------
 
@@ -797,10 +784,6 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	if double and Cargo.tab == "market" and game.state == "docked" then double = false end   -- no opening or fitting at the market
 	if button == 1 and double and data.items[s.id].kind == "container" then
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
-		return true
-	end
-	if button == 1 and double and data.items[s.id].kind == "crate" and game.state == "docked" then
-		unbox(game, r, s)
 		return true
 	end
 	if button == 1 and double and data.items[s.id].kind == "module" then
@@ -1331,7 +1314,7 @@ function Cargo.draw(game)
 	if market then
 		hint = "Drag goods onto the trade grid   Ctrl-click or right-click move across   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
 	elseif docked then
-		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   Double-click unbox a crate   E, Enter or (A) launch"
+		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
 		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
@@ -1406,7 +1389,6 @@ function Cargo.draw(game)
 					if t then hint2 = ("More in %s"):format(clock(t)) end
 				end
 			elseif docked and item.kind == "module" then hint2 = "Drag onto a slot or double-click to fit"
-			elseif docked and item.kind == "crate" then hint2 = "Double-click: unbox into loose rounds"
 			elseif item.kind == "container" and s.inner then
 				local k, m = 0, 0
 				for id, n in pairs(Hold.totals(s.inner)) do k, m = k + n, m + data.items[id].mass * n end

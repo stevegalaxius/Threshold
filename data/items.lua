@@ -28,7 +28,7 @@
 	cells a stack of the item covers (it can be rotated), with up to stack
 	items in it. A stack never holds more volume than its cells, so
 	w * h >= volume * stack. Leave them out and src/inventory/shapes.lua
-	works one out from the volume. Ammo crates are 2 x 2.
+	works one out from the volume. 
 ]]
 
 ammo { id = "rounds_s",  name = "Light rounds",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3, w = 1, h = 1, stack = 50,
@@ -74,8 +74,8 @@ salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 
 container { id = "cargo_container", name = "Cargo container", maker = "Ferrous Collective",
 	volume = 40, mass = 4, price = 1200, w = 8, h = 5, grid = { 8, 4 }, hp = 90, body = { 46, 28 },
 	fill = {
-		{ "rounds_s_crate", 20, 120, 0.6 }, { "rounds_m_crate", 20, 80, 0.5 },
-		{ "shell_s_crate", 4, 18, 0.35 }, { "missile_s_crate", 2, 8, 0.3 },
+		{ "rounds_s", 20, 120, 0.6 }, { "rounds_m", 20, 80, 0.5 },
+		{ "shell_s", 4, 18, 0.35 }, { "missile_s", 2, 8, 0.3 },
 		{ "scrap", 2, 12, 0.7 }, { "salvage_kit", 1, 4, 0.4 },
 	} }
 

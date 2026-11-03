@@ -301,6 +301,8 @@ local function known(id) return data.items[id] ~= nil end
 
 local function loadShip(t)
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
+	-- the Cargo Pod XL is gone: a save that fitted one gets a Cargo Pod
+	for i, id in pairs(t.loadout or {}) do if id == "hold_pod_m" then t.loadout[i] = "hold_pod_s" end end
 	return {
 		hull = t.hull, loadout = t.loadout, triggers = t.triggers, armor = t.armor, color = t.color, bay = t.bay,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
