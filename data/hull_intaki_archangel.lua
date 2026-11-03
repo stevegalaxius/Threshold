@@ -1,17 +1,18 @@
--- Made in the Shipyard (F2). Base hull: ferrous_bastion
+-- Made in the Shipyard (F2). Base hull: Intaki_Archangel
 hull {
 	id = "Intaki_Archangel", name = "Archangel",
 	armor = 1070,
 	bonuses = {},
-	cargo = { missile_l = 30, missile_m = 40,},
+	cargo = { missile_l = 30, missile_m = 40 },
 	class = "heavy",
-	drag = 1.6,
+	drag = 0.99,
 	helm = "strafe",
 	hold = 120,
 	loadout = { "cinder_drive", "cinder_drive", "forge_reactor", false, "nav_computer", "carrier_deck", "carrier_deck", "trident_bay" },
 	maker = "Intaki",
 	mass = 800,
 	mount = "turret",
+	paints = { "Khaki", "Moss", "Old Gold", "Champagne" },
 	price = 95000,
 	ramSpeed = 250,
 	retroThrust = 1100,
@@ -31,13 +32,13 @@ hull {
 	turnSpeed = 50,
 	turretTurn = 150,
 	parts = {
-		{ name = "part 3", shape = { -124, -60, -136, -28, -48, -28, -24, -56 }, mirror = true },
-		{ name = "part 2", shape = { -96, -64, 32, -40, 160, -32, 160, -12, -128, -12 }, mirror = true, lights = {
+		{ name = "part 3", shape = { -124, -60, -136, -28, -48, -28, -24, -56 }, paint = "secondary", mirror = true },
+		{ name = "part 2", shape = { -96, -64, 32, -40, 160, -32, 160, -12, -128, -12 }, paint = "primary", mirror = true, lights = {
 			{ kind = "nav", x = -96, y = -60 },
 			{ kind = "strobe", rate = 1, x = 156, y = -28 },
 			{ kind = "strobe", rate = 1, x = 0, y = -28 },
 		} },
 		{ name = "part 4", shape = { -96, -12, -84, -12, -84, 12, -96, 12 }, mirror = true },
-		{ name = "part 5", shape = { 144, -12, 152, -12, 152, 12, 144, 12 }, mirror = true },
+		{ name = "part 5", shape = { -40, -12, -32, -12, -32, 12, -40, 12 }, mirror = true },
 	},
 }
