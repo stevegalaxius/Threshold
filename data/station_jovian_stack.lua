@@ -3,16 +3,14 @@ station {
 	id = "jovian_stack", name = "Accord stacks", role = "habitat",
 	color = { 0.62, 0.6, 0.56 },
 	berths = {
-		{ heading = 180, size = 110, x = -1000, y = 450 },
-		{ heading = 180, size = 110, x = -962, y = 139 },
-		{ heading = 180, size = 110, x = -961, y = -187 },
-		{ heading = 180, size = 110, x = -963, y = -483 },
-		{ heading = 180, size = 110, x = -929, y = -734 },
-		{ heading = 0, size = 110, x = 980, y = 435 },
-		{ heading = 0, size = 110, x = 1032, y = 109 },
-		{ heading = 0, size = 110, x = 1056, y = -187 },
-		{ heading = 0, size = 110, x = 1103, y = -468 },
-		{ heading = 0, size = 110, x = 1089, y = -764 },
+		{ heading = 180, size = 110, x = -982, y = 139 },
+		{ heading = 180, size = 110, x = -981, y = -187 },
+		{ heading = 180, size = 110, x = -983, y = -483 },
+		{ heading = 180, size = 110, x = -949, y = -734 },
+		{ heading = 0, size = 110, x = 1052, y = 109 },
+		{ heading = 0, size = 110, x = 1076, y = -187 },
+		{ heading = 0, size = 110, x = 1123, y = -468 },
+		{ heading = 0, size = 110, x = 1109, y = -764 },
 	},
 	parts = {
 		{ name = "tower 0 deck 0", shape = { -826, 380, -574, 380, -550, 404, -550, 520, -550, 520, -850, 520, -850, 520, -850, 404 }, shade = 1.05, tint = { -0.04, 0.03, 0.06 }, lights = {
@@ -47,6 +45,19 @@ station {
 			{ color = { 1, 0.9, 0.7 }, kind = "window", size = 6, x = -660, y = 186 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -620, y = 186 },
 		} },
+		{ name = "slip arm 0-2-1", shape = { -1112, 62, -812, 62, -812, 80, -1112, 80 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.17, rate = 0.5, size = 5, x = -1112, y = 71 },
+		} },
+		{ name = "slip arm 0-21", shape = { -1112, 198, -812, 198, -812, 216, -1112, 216 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.17, rate = 0.5, size = 5, x = -1112, y = 207 },
+		} },
+		{ name = "slip back 0-2", shape = { -834, 79, -812, 79, -812, 199, -834, 199 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = -823, y = 99 },
+			{ kind = "window", size = 6, x = -823, y = 119 },
+			{ kind = "window", size = 6, x = -823, y = 139 },
+			{ kind = "window", size = 6, x = -823, y = 159 },
+			{ kind = "window", size = 6, x = -823, y = 179 },
+		} },
 		{ name = "tower 0 deck 3", shape = { -842, -124, -502, -124, -502, -124, -502, 22, -526, 46, -818, 46, -842, 22, -842, -124 }, shade = 0.85, tint = { 0.1, 0.06, -0.08 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -809, y = -40 },
 			{ color = { 1, 0.9, 0.7 }, kind = "window", size = 6, x = -769, y = -40 },
@@ -77,6 +88,19 @@ station {
 			{ color = { 1, 0.9, 0.7 }, kind = "window", size = 6, x = -578, y = -158 },
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = -538, y = -158 },
 		} },
+		{ name = "slip arm 0-4-1", shape = { -1111, -264, -811, -264, -811, -246, -1111, -246 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.33, rate = 0.5, size = 5, x = -1111, y = -255 },
+		} },
+		{ name = "slip arm 0-41", shape = { -1111, -128, -811, -128, -811, -110, -1111, -110 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.33, rate = 0.5, size = 5, x = -1111, y = -119 },
+		} },
+		{ name = "slip back 0-4", shape = { -833, -247, -811, -247, -811, -127, -833, -127 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = -822, y = -227 },
+			{ kind = "window", size = 6, x = -822, y = -207 },
+			{ kind = "window", size = 6, x = -822, y = -187 },
+			{ kind = "window", size = 6, x = -822, y = -167 },
+			{ kind = "window", size = 6, x = -822, y = -147 },
+		} },
 		{ name = "tower 0 deck 5", shape = { -804, -420, -504, -420, -504, -420, -504, -274, -528, -250, -780, -250, -804, -274, -804, -420 }, shade = 0.95, tint = { 0.08, 0.02, -0.05 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -771, y = -384 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -731, y = -384 },
@@ -104,6 +128,19 @@ station {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -541, y = -454 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -501, y = -454 },
 		} },
+		{ name = "slip arm 0-6-1", shape = { -1113, -560, -813, -560, -813, -542, -1113, -542 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.5, rate = 0.5, size = 5, x = -1113, y = -551 },
+		} },
+		{ name = "slip arm 0-61", shape = { -1113, -424, -813, -424, -813, -406, -1113, -406 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.5, rate = 0.5, size = 5, x = -1113, y = -415 },
+		} },
+		{ name = "slip back 0-6", shape = { -835, -543, -813, -543, -813, -423, -835, -423 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = -824, y = -523 },
+			{ kind = "window", size = 6, x = -824, y = -503 },
+			{ kind = "window", size = 6, x = -824, y = -483 },
+			{ kind = "window", size = 6, x = -824, y = -463 },
+			{ kind = "window", size = 6, x = -824, y = -443 },
+		} },
 		{ name = "tower 0 deck 7", shape = { -806, -656, -466, -656, -466, -656, -466, -570, -490, -546, -782, -546, -806, -570, -806, -656 }, shade = 1.05, tint = { 0.02, 0.06, -0.02 }, lights = {
 			{ color = { 1, 0.9, 0.7 }, kind = "window", size = 6, x = -694, y = -620 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -614, y = -620 },
@@ -123,6 +160,19 @@ station {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -586, y = -768 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -546, y = -768 },
 			{ color = { 1, 0.9, 0.7 }, kind = "window", size = 6, x = -506, y = -768 },
+		} },
+		{ name = "slip arm 0-8-1", shape = { -1079, -811, -779, -811, -779, -793, -1079, -793 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.67, rate = 0.5, size = 5, x = -1079, y = -802 },
+		} },
+		{ name = "slip arm 0-81", shape = { -1079, -675, -779, -675, -779, -657, -1079, -657 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.67, rate = 0.5, size = 5, x = -1079, y = -666 },
+		} },
+		{ name = "slip back 0-8", shape = { -801, -794, -779, -794, -779, -674, -801, -674 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = -790, y = -774 },
+			{ kind = "window", size = 6, x = -790, y = -754 },
+			{ kind = "window", size = 6, x = -790, y = -734 },
+			{ kind = "window", size = 6, x = -790, y = -714 },
+			{ kind = "window", size = 6, x = -790, y = -694 },
 		} },
 		{ name = "spire 0", shape = { -639, -1000, -615, -1000, -615, -804, -639, -804 }, shade = 0.8, layer = "detail", collide = false, lights = {
 			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0, rate = 0.5, size = 6, x = -627, y = -1000 },
@@ -265,6 +315,19 @@ station {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 814, y = 138 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 854, y = 138 },
 		} },
+		{ name = "slip arm 2-2-1", shape = { 882, 32, 1182, 32, 1182, 50, 882, 50 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.17, rate = 0.5, size = 5, x = 1182, y = 41 },
+		} },
+		{ name = "slip arm 2-21", shape = { 882, 168, 1182, 168, 1182, 186, 882, 186 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.17, rate = 0.5, size = 5, x = 1182, y = 177 },
+		} },
+		{ name = "slip back 2-2", shape = { 882, 49, 904, 49, 904, 169, 882, 169 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = 893, y = 69 },
+			{ kind = "window", size = 6, x = 893, y = 89 },
+			{ kind = "window", size = 6, x = 893, y = 109 },
+			{ kind = "window", size = 6, x = 893, y = 129 },
+			{ kind = "window", size = 6, x = 893, y = 149 },
+		} },
 		{ name = "tower 2 deck 3", shape = { 593, -94, 893, -94, 893, -94, 893, 22, 869, 46, 617, 46, 593, 22, 593, -94 }, shade = 0.85, tint = { 0.1, 0.06, -0.08 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 624, y = -10 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 704, y = -10 },
@@ -294,6 +357,19 @@ station {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 837, y = -140 },
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = 877, y = -140 },
 		} },
+		{ name = "slip arm 2-4-1", shape = { 906, -264, 1206, -264, 1206, -246, 906, -246 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.33, rate = 0.5, size = 5, x = 1206, y = -255 },
+		} },
+		{ name = "slip arm 2-41", shape = { 906, -128, 1206, -128, 1206, -110, 906, -110 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.33, rate = 0.5, size = 5, x = 1206, y = -119 },
+		} },
+		{ name = "slip back 2-4", shape = { 906, -247, 928, -247, 928, -127, 906, -127 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = 917, y = -227 },
+			{ kind = "window", size = 6, x = 917, y = -207 },
+			{ kind = "window", size = 6, x = 917, y = -187 },
+			{ kind = "window", size = 6, x = 917, y = -167 },
+			{ kind = "window", size = 6, x = 917, y = -147 },
+		} },
 		{ name = "tower 2 deck 5", shape = { 622, -390, 922, -390, 922, -390, 922, -304, 898, -280, 646, -280, 622, -304, 622, -390 }, shade = 0.85, tint = { 0.1, 0.06, -0.08 } },
 		{ name = "tower 2 deck 6", shape = { 637, -538, 929, -538, 953, -514, 953, -398, 953, -398, 613, -398, 613, -398, 613, -514 }, shade = 0.95, tint = { -0.04, 0.03, 0.06 }, lights = {
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = 644, y = -502 },
@@ -311,6 +387,19 @@ station {
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = 884, y = -454 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 924, y = -454 },
 		} },
+		{ name = "slip arm 2-6-1", shape = { 953, -545, 1253, -545, 1253, -527, 953, -527 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.5, rate = 0.5, size = 5, x = 1253, y = -536 },
+		} },
+		{ name = "slip arm 2-61", shape = { 953, -409, 1253, -409, 1253, -391, 953, -391 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.5, rate = 0.5, size = 5, x = 1253, y = -400 },
+		} },
+		{ name = "slip back 2-6", shape = { 953, -528, 975, -528, 975, -408, 953, -408 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = 964, y = -508 },
+			{ kind = "window", size = 6, x = 964, y = -488 },
+			{ kind = "window", size = 6, x = 964, y = -468 },
+			{ kind = "window", size = 6, x = 964, y = -448 },
+			{ kind = "window", size = 6, x = 964, y = -428 },
+		} },
 		{ name = "tower 2 deck 7", shape = { 666, -686, 926, -686, 926, -686, 926, -570, 902, -546, 690, -546, 666, -570, 666, -686 }, shade = 0.95, tint = { -0.04, 0.03, 0.06 } },
 		{ name = "tower 2 deck 8", shape = { 703, -834, 915, -834, 939, -810, 939, -694, 939, -694, 679, -694, 679, -694, 679, -810 }, shade = 0.85, tint = { 0.08, 0.02, -0.05 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 711, y = -798 },
@@ -324,6 +413,19 @@ station {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 831, y = -750 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 871, y = -750 },
 			{ color = { 1, 0.9, 0.7 }, kind = "window", size = 6, x = 911, y = -750 },
+		} },
+		{ name = "slip arm 2-8-1", shape = { 939, -841, 1239, -841, 1239, -823, 939, -823 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.67, rate = 0.5, size = 5, x = 1239, y = -832 },
+		} },
+		{ name = "slip arm 2-81", shape = { 939, -705, 1239, -705, 1239, -687, 939, -687 }, shade = 0.9, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", phase = 0.67, rate = 0.5, size = 5, x = 1239, y = -696 },
+		} },
+		{ name = "slip back 2-8", shape = { 939, -824, 961, -824, 961, -704, 939, -704 }, shade = 1.1, lights = {
+			{ kind = "window", size = 6, x = 950, y = -804 },
+			{ kind = "window", size = 6, x = 950, y = -784 },
+			{ kind = "window", size = 6, x = 950, y = -764 },
+			{ kind = "window", size = 6, x = 950, y = -744 },
+			{ kind = "window", size = 6, x = 950, y = -724 },
 		} },
 		{ name = "spire 2", shape = { 798, -1000, 822, -1000, 822, -834, 798, -834 }, shade = 0.8, layer = "detail", collide = false, lights = {
 			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.667, rate = 0.5, size = 6, x = 810, y = -1000 },
