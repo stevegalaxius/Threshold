@@ -565,7 +565,7 @@ function A.wake(game,r)
  e.body:setAngularVelocity(exact and exact.w or 0)
  table.insert(game.entities,e)
  if r.state=='docked' then
-  local st=game:locationEntity(r.route[r.index])
+  local st=game:locationEntity(r.route[r.index],p.x,p.y)
   game:dockInstantly(e,st)
   e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
   if exact and r.docking then
@@ -578,8 +578,8 @@ function A.wake(game,r)
   -- Local graph nodes name the station as a whole. Physical handoff uses
   -- the existing dock/undock transforms rather than spawning inside its hub.
   local leg=edge(r)
-  local source=game:locationEntity(leg.from)
-  local destination=game:locationEntity(leg.to)
+  local source=game:locationEntity(leg.from,p.x,p.y)
+  local destination=game:locationEntity(leg.to,p.x,p.y)
   local function close(st)
    if not st or st.kind~='station' then return false end
    local x,y=st.body:getPosition()

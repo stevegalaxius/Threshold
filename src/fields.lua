@@ -529,6 +529,14 @@ for _, area in ipairs(Fields.list) do
 		end
 		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
 	end
+	-- The Heaven-Ladder (Mars): one station with four elevator anchors as its
+	-- access points. The location is the first anchor, which holds still on
+	-- the ring at 45 degrees (see Game:spawnHeavenLadder).
+	if area == "mars" and F.planetR then
+		local LR = F.planetR + 1100
+		F.ladderId = add("heaven_ladder", "Heaven-Ladder", "station", { type = "fixed", x = cos(pi / 4) * LR, y = sin(pi / 4) * LR }, 0)
+		F.locations[#F.locations].heading = pi / 4
+	end
 	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
 		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
 			F.buoyIds[i] = add(i == 1 and "trade_buoy_a" or "trade_buoy_b", "Trade buoy " .. i, "buoy",
@@ -572,6 +580,7 @@ for _, area in ipairs(Fields.list) do
   for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
  end
  if not F.tradeBuoys then link(F.driverId,F.stationIds[1]) end
+ if F.ladderId then for _,id in ipairs(F.buoyIds) do link(F.ladderId,id) end end
  for _,place in ipairs(F.locations) do
   if place.kind=='moon_gate' then
    -- Candidate attachments to the existing corridor. Routing uses only the

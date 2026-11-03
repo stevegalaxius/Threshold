@@ -1235,10 +1235,17 @@ function Game:spawnHeavenLadder(cx, cy, R)
 			cx + ux * top - nx * tw, cy + uy * top - ny * tw,
 			cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
 		}, { role = "tether" })
-		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0)
+		-- one station, four access points: they share its location ID and
+		-- key (so its storage, hangar and market), and Game:locationEntity
+		-- picks the nearest when given a position. The first is bound to the
+		-- location; the rest hold still where they are.
+		local id = self.field and self.field.ladderId
+		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0, false, i == 0 and id or nil)
 		st.body:setAngle(a)
 		st.body:setAngularVelocity(0)
-		st.name = ("Ladder Anchor %d"):format(i + 1)
+		st.accessIndex = i + 1
+		if id and i > 0 then st.locationId, st.key = id, id end
+		st.name = (id and L.get(id).name or "Heaven-Ladder") .. (" (anchor %d)"):format(i + 1)
 	end
 end
 

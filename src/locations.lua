@@ -102,7 +102,8 @@ function L.install(Game)
 
 	function Game:syncLocations()
 		for _, e in ipairs(self.entities) do
-			if e.locationId and not e.removed then
+			-- (extra access points of one station hold their own place)
+			if e.locationId and not e.removed and not (e.accessIndex and e.accessIndex > 1) then
 				e.body:setPosition(L.position(e.locationId, self.universe.clock))
 				e.body:setAngle(L.coreHeading(e, e.locationId, self.universe.clock))
 				e.body:setLinearVelocity(L.velocity(e.locationId, self.universe.clock))
@@ -110,10 +111,20 @@ function L.install(Game)
 		end
 	end
 
-	function Game:locationEntity(id)
+	-- The entity for a location. A station with several access points
+	-- (the Heaven-Ladder's anchors) has one entity each; given x, y, the
+	-- nearest is returned, otherwise the first.
+	function Game:locationEntity(id, x, y)
+		local best, bestD
 		for _, e in ipairs(self.entities) do
-			if e.locationId == id and not e.removed then return e end
+			if e.locationId == id and not e.removed then
+				if not x then return e end
+				local ex, ey = e.body:getPosition()
+				local d = (ex - x) ^ 2 + (ey - y) ^ 2
+				if not best or d < bestD then best, bestD = e, d end
+			end
 		end
+		return best
 	end
 end
 
