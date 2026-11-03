@@ -417,6 +417,14 @@ local function designWindow(E, Editor)
 			if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
 		end
 	end
+	if E.tool == "select" then
+		Slab.Text("Shift-click adds to the selection", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Drag on empty space to box select:")
+		combo("yard_boxmode", E.boxMode or "parts", {
+			{ label = "parts", value = "parts" }, { label = "lights", value = "lights" },
+			{ label = "points of the selected part", value = "points" },
+		}, function(v) E.boxMode = v end)
+	end
 	if E.tool == "turret" then
 		Slab.Text("Click to place a turret; right click removes", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("Select tool (V) picks one to move or change", { Color = { 0.6, 0.6, 0.6 } })
@@ -740,7 +748,15 @@ local function partWindow(E)
 	local i = E.sel
 	local light = E.lsel and p.lights and p.lights[E.lsel]
 	if light then
+		local group = Canvas.lightSelection(E)
+		local LFIELDS = { "kind", "color", "size", "w", "h", "rate", "phase" }
+		local function key(v) return type(v) == "table" and table.concat(v, ",") or tostring(v) end
+		local before = {}
+		for _, f in ipairs(LFIELDS) do before[f] = key(light[f]) end
 		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
+		if #group > 1 then
+			Slab.Text(("%d lights selected: edits apply to all"):format(#group), { Color = { 0.5, 0.9, 1 } })
+		end
 		local kopts = { { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
 		table.insert(kopts, 1, { label = "window", value = "window" })
 		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
@@ -782,6 +798,15 @@ local function partWindow(E)
 		Slab.SameLine()
 		if Slab.Button("Back to the part") then E.lsel = nil end
 		if Slab.Button("Remove all lights on this part") then E.pushUndo(); p.lights = nil; E.lsel = nil end
+		for _, f in ipairs(LFIELDS) do
+			if key(light[f]) ~= before[f] then
+				for k = 2, #group do
+					local v = light[f]
+					if type(v) == "table" then v = { unpack(v) } end
+					group[k][f] = v
+				end
+			end
+		end
 		Slab.Separator()
 	end
 	if E.errors[i] then Slab.Text("! " .. E.errors[i], { Color = { 1, 0.4, 0.4 } }) end

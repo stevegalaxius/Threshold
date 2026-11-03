@@ -78,5 +78,31 @@ return function(game)
  local Export=require('src.editor.export')
  local def=require('src.data').defineStation(Export.stationDef(d))
  check(def,'station with panes did not validate')
+ -- multi-select: box lights, move them as a group, edit together, delete together
+ E.tool='select'; E.boxMode='lights'; E.lsel=nil; E.lmulti={}
+ local total=#p.lights
+ local bx0,by0=Canvas.toScreen(E,x0-50,y0-50)
+ local bx1,by1=Canvas.toScreen(E,x1+50,y1+50)
+ -- start the box outside every part
+ local ox,oy=Canvas.toScreen(E,x1+5000,y1+5000)
+ E.view.zoom=E.view.zoom*0.5
+ bx0,by0=Canvas.toScreen(E,x0-50,y0-50); bx1,by1=Canvas.toScreen(E,x1+50,y1+50)
+ Editor.mousepressed(bx0-200,by0-200,1); Canvas.mousemoved(E,bx1+5,by1+5); Editor.mousereleased(bx1+5,by1+5,1)
+ local grp=Canvas.lightSelection(E)
+ check(#grp>=total,'box selected '..#grp..' of '..total..' lights')
+ local fx,fy=grp[1].x,grp[1].y; local lx,ly=grp[2].x,grp[2].y
+ local gx,gy=Canvas.toScreen(E,fx,fy)
+ Editor.mousepressed(gx,gy,1); Canvas.mousemoved(E,gx+20,gy); Editor.mousereleased(gx+20,gy,1)
+ check(math.abs((grp[1].x-fx)-(grp[2].x-lx))<1e-6 and grp[1].x~=fx,'group light move')
+ E.deleteSelected()
+ check(not p.lights or #p.lights==0,'group light delete left '..(p.lights and #p.lights or 0))
+ -- points: box a part's corners and delete them, keeping a valid polygon
+ E.sel=best; E.boxMode='points'; E.vsel=nil; E.vmulti={}
+ local npts=#p.shape/2
+ Editor.mousepressed(bx0-200,by0-200,1); Canvas.mousemoved(E,bx1+5,by1+5); Editor.mousereleased(bx1+5,by1+5,1)
+ E.sel=E.sel or best
+ check(#Canvas.vertexSelection(E)==npts,'box selected '..#Canvas.vertexSelection(E)..' of '..npts..' points')
+ E.deleteSelected()
+ check(#p.shape/2==3,'point delete left '..(#p.shape/2))
  print(('light tool: %d checks passed'):format(checks))
 end

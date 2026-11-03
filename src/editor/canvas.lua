@@ -376,13 +376,33 @@ local function pressed(E, sx, sy, button)
 		return
 	end
 	E.bsel = nil
+	local shift = love.keyboard.isDown("lshift", "rshift")
 	local li, lj = Canvas.lightAt(E, sx, sy)
 	if li then
-		E.sel, E.vsel, E.lsel = li, nil, lj
-		E.drag = { kind = "light", i = li, j = lj, pushed = false }
+		E.lmulti = E.lmulti or {}
+		local key = li .. ":" .. lj
+		if shift then
+			-- shift-click adds the light to the selection, or takes it out
+			if E.sel == li and E.lsel == lj then
+				local k, v = next(E.lmulti)
+				if k then E.lmulti[k] = nil; E.sel, E.lsel = v[1], v[2] else E.lsel = nil end
+			elseif E.lmulti[key] then E.lmulti[key] = nil
+			else
+				if E.lsel then E.lmulti[E.sel .. ":" .. E.lsel] = { E.sel, E.lsel } end
+				E.sel, E.lsel = li, lj
+			end
+			E.vsel = nil
+			return
+		end
+		-- clicking a light already in the selection keeps the group to drag it
+		if not (E.lmulti[key] or (E.sel == li and E.lsel == lj)) then E.lmulti = {} end
+		if E.lmulti[key] then E.lmulti[key] = nil; if E.lsel then E.lmulti[E.sel .. ":" .. E.lsel] = { E.sel, E.lsel } end end
+		E.sel, E.vsel, E.lsel, E.vmulti = li, nil, lj, {}
+		local px, py = Canvas.snap(E, wx, wy)
+		E.drag = { kind = "light", lx = px, ly = py, pushed = false }
 		return
 	end
-	E.lsel = nil
+	if not shift then E.lsel, E.lmulti = nil, {} end
 	local si = E.showSlots ~= false and Canvas.slotAt(E, sx, sy)
 	if si then
 		E.slotSel = si
@@ -391,8 +411,19 @@ local function pressed(E, sx, sy, button)
 	end
 	local k = Canvas.vertexAt(E, sx, sy)
 	if k then
+		E.vmulti = E.vmulti or {}
+		if shift then
+			-- shift-click adds the point to the selection, or takes it out
+			if E.vsel == k then E.vsel = next(E.vmulti); if E.vsel then E.vmulti[E.vsel] = nil end
+			elseif E.vmulti[k] then E.vmulti[k] = nil
+			else if E.vsel then E.vmulti[E.vsel] = true end; E.vsel = k end
+			return
+		end
+		if not (E.vmulti[k] or E.vsel == k) then E.vmulti = {} end
+		if E.vmulti[k] then E.vmulti[k] = nil; if E.vsel then E.vmulti[E.vsel] = true end end
 		E.vsel = k
-		E.drag = { kind = "vertex", k = k, pushed = false }
+		local px, py = Canvas.snap(E, wx, wy)
+		E.drag = { kind = "vertex", lx = px, ly = py, pushed = false }
 		return
 	end
 	if double then
@@ -430,9 +461,35 @@ local function pressed(E, sx, sy, button)
 		E.drag = { kind = "part", lx = px, ly = py, pushed = false }
 	else
 		-- empty space: drag a box to select every part inside it
-		if not shift then E.sel, E.multi = nil, {} end
-		E.drag = { kind = "marquee", x1 = wx, y1 = wy, x2 = wx, y2 = wy }
+		-- what the box takes: parts, lights, or the selected part's points
+		local mode = E.boxMode or "parts"
+		if mode == "points" and not E.sel then mode = "parts" end
+		if not shift then
+			if mode == "parts" then E.sel, E.multi = nil, {} end
+			E.lsel, E.lmulti, E.vmulti = nil, {}, {}
+			if mode ~= "points" then E.vsel = nil end
+		end
+		E.drag = { kind = "marquee", mode = mode, x1 = wx, y1 = wy, x2 = wx, y2 = wy }
 	end
+end
+
+-- Every selected light (the light tables), the primary first.
+function Canvas.lightSelection(E)
+	local out, parts = {}, E.design.parts
+	local function add(i, j) local p = parts[i]; local l = p and p.lights and p.lights[j]; if l then out[#out + 1] = l end end
+	if E.sel and E.lsel then add(E.sel, E.lsel) end
+	for _, v in pairs(E.lmulti or {}) do if not (v[1] == E.sel and v[2] == E.lsel) then add(v[1], v[2]) end end
+	return out
+end
+
+-- Every selected point of the selected part (index of its x), primary first.
+function Canvas.vertexSelection(E)
+	local out = {}
+	local p = E.sel and E.design.parts[E.sel]
+	if not p then return out end
+	if E.vsel then out[1] = E.vsel end
+	for k in pairs(E.vmulti or {}) do if k ~= E.vsel and p.shape[k] then out[#out + 1] = k end end
+	return out
 end
 
 -- Every selected part's index, the primary first.
@@ -491,16 +548,19 @@ function Canvas.mousemoved(E, sx, sy)
 			b.x, b.y = nx, ny
 		end
 	elseif d.kind == "light" then
-		local l = E.design.parts[d.i].lights[d.j]
-		if l and (l.x ~= px or l.y ~= py) then
+		local dx, dy = px - d.lx, py - d.ly
+		if dx ~= 0 or dy ~= 0 then
 			if not d.pushed then E.pushUndo(); d.pushed = true end
-			l.x, l.y = px, py
+			for _, l in ipairs(Canvas.lightSelection(E)) do l.x, l.y = l.x + dx, l.y + dy end
+			d.lx, d.ly = px, py
 		end
 	elseif d.kind == "vertex" then
-		local s = E.design.parts[E.sel].shape
-		if s[d.k] ~= px or s[d.k + 1] ~= py then
+		local dx, dy = px - d.lx, py - d.ly
+		if dx ~= 0 or dy ~= 0 then
 			if not d.pushed then E.pushUndo(); d.pushed = true end
-			s[d.k], s[d.k + 1] = px, py
+			local s = E.design.parts[E.sel].shape
+			for _, k in ipairs(Canvas.vertexSelection(E)) do s[k], s[k + 1] = s[k] + dx, s[k + 1] + dy end
+			d.lx, d.ly = px, py
 		end
 	elseif d.kind == "slot" then
 		local slot = E.design.slots[d.i]
@@ -531,6 +591,31 @@ function Canvas.mousereleased(E, sx, sy, button)
 		local x1, x2 = min(d.x1, d.x2), max(d.x1, d.x2)
 		local y1, y2 = min(d.y1, d.y2), max(d.y1, d.y2)
 		if x2 - x1 < 2 / E.view.zoom and y2 - y1 < 2 / E.view.zoom then return end
+		local function inbox(x, y) return x >= x1 and x <= x2 and y >= y1 and y <= y2 end
+		if d.mode == "lights" then
+			E.lmulti = E.lmulti or {}
+			for i, p in ipairs(E.design.parts) do
+				if not p.hidden and not p.locked then
+					for j, l in ipairs(p.lights or {}) do
+						if inbox(l.x, l.y) then
+							if E.lsel then E.lmulti[E.sel .. ":" .. E.lsel] = { E.sel, E.lsel } end
+							E.sel, E.lsel = i, j
+						end
+					end
+				end
+			end
+			return
+		elseif d.mode == "points" then
+			local p = E.design.parts[E.sel]
+			E.vmulti = E.vmulti or {}
+			for k = 1, #p.shape, 2 do
+				if inbox(p.shape[k], p.shape[k + 1]) then
+					if E.vsel then E.vmulti[E.vsel] = true end
+					E.vsel = k
+				end
+			end
+			return
+		end
 		E.multi = E.multi or {}
 		for i, p in ipairs(E.design.parts) do
 			if not p.hidden then
@@ -878,6 +963,24 @@ function Canvas.draw(E)
 		end
 	end
 
+	-- extra selected lights and points: rings
+	for _, v in pairs(E.lmulti or {}) do
+		local q = E.design.parts[v[1]]
+		local l = q and q.lights and q.lights[v[2]]
+		if l then
+			local x, y = Canvas.toScreen(E, l.x, l.y)
+			lg.setLineWidth(1.5); lg.setColor(1, 1, 1, 0.9); lg.circle("line", x, y, 7)
+		end
+	end
+	do
+		local q = E.sel and E.design.parts[E.sel]
+		for k in pairs(E.vmulti or {}) do
+			if q and q.shape[k] then
+				local x, y = Canvas.toScreen(E, q.shape[k], q.shape[k + 1])
+				lg.setColor(1, 1, 1); lg.rectangle("fill", x - 4, y - 4, 8, 8)
+			end
+		end
+	end
 	-- the rest of a multi-selection: plain outlines
 	for k in pairs(E.multi or {}) do
 		local q = E.design.parts[k]
