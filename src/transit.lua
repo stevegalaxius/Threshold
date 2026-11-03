@@ -1245,7 +1245,7 @@ function Game:spawnHeavenLadder(cx, cy, R)
 		st.body:setAngularVelocity(0)
 		st.accessIndex = i + 1
 		if id and i > 0 then st.locationId, st.key = id, id end
-		st.name = (id and L.get(id).name or "Heaven-Ladder") .. (" (anchor %d)"):format(i + 1)
+		st.name = (id and require("src.locations").get(id).name or "Heaven-Ladder") .. (" (anchor %d)"):format(i + 1)
 	end
 end
 
