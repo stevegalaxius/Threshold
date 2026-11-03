@@ -199,12 +199,11 @@ local function fire(game, e, slot, dt)
 		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
 	elseif w.kind == "missile" then
 		-- Fire and forget: picks a target on launch and chases it. With a
-		-- guidance computer it turns harder, takes the computer's lock and
-		-- finds a new target if its own dies.
+		-- guidance computer it takes the computer's lock and finds a new
+		-- target if its own dies.
 		p.guided = game:computer(e, "guidance") ~= nil
 		p.vx, p.vy = svx + dx * ws.speed * 0.4, svy + dy * ws.speed * 0.4
-		p.maxSpeed, p.accel = ws.speed, ws.accel
-		p.turnRate = ws.turnRate * (p.guided and 1 or T.unguidedTurn)
+		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
 		p.life = ws.range / ws.speed * 1.3
 		p.damage = ws.damage * mult.missileDamage
 		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
@@ -213,11 +212,10 @@ local function fire(game, e, slot, dt)
 		p.fuse = (ws.splash or 40) * 0.5
 	elseif w.kind == "torpedo" then
 		-- Very fast, and steers only a little: aim it, then it corrects
-		-- slowly toward the target nearest your aim (the guidance lock,
-		-- and twice the correction, with a guidance computer).
+		-- slowly toward the target nearest your aim (or the guidance lock).
 		p.guided = game:computer(e, "guidance") ~= nil
 		p.maxSpeed, p.accel = ws.speed, 0
-		p.turnRate = (ws.turnRate or 0) * (p.guided and 1 or T.unguidedTurn)
+		p.turnRate = ws.turnRate or 0
 		p.life = ws.range / ws.speed
 		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 500)
 		p.burst = true
