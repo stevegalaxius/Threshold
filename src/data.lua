@@ -109,7 +109,12 @@ local function prepareHull(def)
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
-	if def.paint ~= nil and not require("src.paint").find(def.paint) then fail(("hull '%s' has unknown paint '%s' (see src/paint.lua)"):format(def.id, tostring(def.paint))) end
+	if def.paints ~= nil then
+		if type(def.paints) ~= "table" then fail(("hull '%s': paints should be a list of preset names"):format(def.id)) end
+		for _, n in ipairs(def.paints) do
+			if not require("src.paint").find(n) then fail(("hull '%s' has unknown paint '%s' (see src/paint.lua)"):format(def.id, tostring(n))) end
+		end
+	end
 	if def.helm and def.helm ~= "strafe" and def.helm ~= "turn" then fail(("hull '%s' has unknown helm '%s' (use strafe or turn)"):format(def.id, tostring(def.helm))) end
 	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do

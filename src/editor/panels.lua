@@ -339,12 +339,9 @@ local function designWindow(E, Editor)
 		Slab.Text("maker"); Slab.SameLine()
 		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
 		local Paint = require("src.paint")
-		local popts = {}
-		for _, pt in ipairs(Paint.PRESETS) do table.insert(popts, { label = pt.name, value = pt.name }) end
-		Slab.Text("factory paint"); Slab.SameLine()
-		combo("yard_factorypaint", E.stat("paint") or Paint.DEFAULT, popts, function(n) E.pushUndo(); d.stats.paint = n end, 140)
-		Slab.SameLine()
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "The colour this hull leaves the yard in. The secondary is a shade of it.\nFactions paint over it with their livery. Mark parts primary or secondary\n(Part panel); unmarked parts are bare metal." })
+		local pool = E.stat("paints") or {}
+		Slab.Text("paint jobs: " .. (#pool > 0 and table.concat(pool, ", ") or Paint.DEFAULT .. " (none ticked)"), { Color = { 0.75, 0.75, 0.75 } })
+		if Slab.Button(E.showPaints and "Close paint jobs" or "Paint jobs...") then E.showPaints = not E.showPaints end
 	end
 	Slab.Text("description")
 	if Slab.Input("yard_desc", { Text = ((d.kind or "hull") == "hull" and E.stat("description") or d.stats.description) or "", W = 260, H = 70, MultiLine = true, MultiLineW = 250, ReturnOnText = true }) then
@@ -644,6 +641,41 @@ local function designWindow(E, Editor)
 		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then E.sel, E.vsel, E.lsel = i, nil, nil end
 		Slab.PopID()
 	end
+	Slab.EndWindow()
+end
+
+-- Floating: a hull's pool of factory paint jobs ---------------------------
+local function paintWindow(E)
+	local d = E.design
+	if (d.kind or "hull") ~= "hull" or not E.showPaints then return end
+	local Paint = require("src.paint")
+	local pool = E.stat("paints") or {}
+	local on = {}
+	for _, n in ipairs(pool) do on[n] = true end
+	Slab.BeginWindow("yard_paintwin", { Title = "Factory paint jobs", X = 340, Y = 60, W = 290, H = 110 + #Paint.PRESETS * 20,
+		AutoSizeWindow = false, AllowResize = true, IsOpen = true })
+	Slab.Text("Each hull leaves the yard in one of the", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("ticked jobs, at random. None: " .. Paint.DEFAULT, { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("Canvas shows the first ticked.", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Separator()
+	for _, pt in ipairs(Paint.PRESETS) do
+		local c, s2 = pt.color, Paint.shadeOf(pt.color)
+		Slab.Rectangle({ W = 22, H = 18, Color = { c[1], c[2], c[3], 1 } })
+		Slab.SameLine({ Pad = 0 })
+		Slab.Rectangle({ W = 10, H = 18, Color = { s2[1], s2[2], s2[3], 1 } })
+		Slab.SameLine()
+		if Slab.CheckBox(on[pt.name] == true, pt.name, { Id = "yard_pj_" .. pt.name }) then
+			E.pushUndo()
+			local out = {}
+			for _, q in ipairs(Paint.PRESETS) do
+				local want = on[q.name]
+				if q.name == pt.name then want = not want end
+				if want then out[#out + 1] = q.name end
+			end
+			d.stats.paints = #out > 0 and out or nil
+		end
+	end
+	if Slab.Button("Done") then E.showPaints = false end
 	Slab.EndWindow()
 end
 
@@ -962,6 +994,7 @@ function Panels.update(E, Editor)
 	designWindow(E, Editor)
 	partWindow(E)
 	rotorWindow(E)
+	paintWindow(E)
 	require("src.editor.comparison").update(E)
 end
 

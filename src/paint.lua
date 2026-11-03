@@ -26,20 +26,17 @@ Paint.PRESETS = {
 	{ name = "Moss",       color = { 0.55, 0.85, 0.45 } },
 	{ name = "Orchid",     color = { 0.85, 0.55, 0.95 } },
 	{ name = "Ember",      color = { 1.0, 0.45, 0.3 } },
-	{ name = "Primer",     color = { 0.6, 0.32, 0.26 } },
-	{ name = "Gunmetal",   color = { 0.36, 0.4, 0.47 } },
-	{ name = "Slate",      color = { 0.52, 0.54, 0.56 } },
-	{ name = "Oxide",      color = { 0.82, 0.45, 0.2 } },
+	{ name = "Primer",     color = { 0.55, 0.2, 0.16 } },
+	{ name = "Gunmetal",   color = { 0.27, 0.31, 0.38 } },
 	{ name = "Olive Drab", color = { 0.48, 0.5, 0.3 } },
 	{ name = "Hazard",     color = { 1.0, 0.55, 0.1 } },
 	{ name = "Tanker",     color = { 0.18, 0.55, 0.55 } },
 	{ name = "Cargo Blue", color = { 0.28, 0.36, 0.55 } },
-	{ name = "Sand",       color = { 0.85, 0.75, 0.55 } },
-	{ name = "Clay",       color = { 0.78, 0.45, 0.35 } },
+	{ name = "Sand",       color = { 0.84, 0.66, 0.36 } },
 	{ name = "Cobalt",     color = { 0.25, 0.45, 0.95 } },
 	{ name = "Plum",       color = { 0.5, 0.22, 0.35 } },
 }
-Paint.DEFAULT = "Slate"
+Paint.DEFAULT = "Gunmetal"
 
 local byName = {}
 for _, p in ipairs(Paint.PRESETS) do byName[p.name] = p end
@@ -71,13 +68,22 @@ end
 
 function Paint.isPaint(c) return type(c) == "table" and c.secondary ~= nil end
 
+-- A hull's pool of factory paint jobs (hull.paints, a list of preset
+-- names); the first is the one the editor and the hangar show.
+function Paint.pool(hull)
+	local pool = hull and hull.paints
+	if type(pool) == "table" and #pool > 0 then return pool end
+	return { Paint.DEFAULT }
+end
+
 -- What a ship spawns wearing: an explicit paint, else its faction livery,
--- else its hull's factory preset. Plain { r, g, b } colours from before
+-- else one of its hull's factory paint jobs, picked at random. Plain { r, g, b } colours from before
 -- paint existed are ignored.
 function Paint.resolve(explicit, enemy, hull)
 	if Paint.isPaint(explicit) then return explicit end
 	if enemy and enemy.livery then return Paint.livery(enemy.livery) end
-	return Paint.preset(hull and hull.paint)
+	local pool = Paint.pool(hull)
+	return Paint.preset(pool[love.math.random(#pool)])
 end
 
 return Paint
