@@ -1,6 +1,5 @@
 -- One station roster, with spatial interior bays and finite exterior positions.
 local data,T=require('src.data'),require('src.tuning')
-local copy=require('src.persistence').copy
 local Sweep=require('src.collision_prediction')
 local P={}
 function P.dimensions(hullId)
@@ -26,15 +25,8 @@ return function(Game)
    slot.length=b.maxLength or b.size*T.berthShipScale*2
    slot.width=b.maxWidth or b.size*T.berthShipScale*1.1
   end
-  local spec=st.def.moorings or {}
-  local count=math.max(#(st.def.berths or {}),spec.count or (#(st.def.berths or {})+T.stationMoorings))
-  local length,width=spec.length or T.mooringLength,spec.width or T.mooringWidth
-  local probe={halfLength=length/2,hull={radius=width/2}}
-  for i=#r.moorings+1,count do
-   local spot=self:exteriorMooring(st,probe,1,st.dock,nil,r.moorings)
-   if not spot then break end
-   spot.length,spot.width=length,width;r.moorings[i]=spot
-  end
+  -- Only editor-authored berths are parking locations. Drop old overflow slots.
+  for i=#r.moorings,#(st.def.berths or {})+1,-1 do r.moorings[i]=nil end
   return r.moorings
  end
  function Game:mooringTaken(st,index,ignore)
@@ -54,7 +46,7 @@ return function(Game)
   return false
  end
  -- Check once per hull and station-local pose. A nominally large berth
- -- is unusable if parking or launching would overlap the station itself.
+ -- is unusable if the parked hull would overlap the station itself.
  function Game:mooringClear(st,index,hullId)
   local slot=self:stationMoorings(st)[index];local hull=data.hulls[hullId]
   st.parkingClearance=st.parkingClearance or {}
@@ -68,15 +60,14 @@ return function(Game)
   end
   local angle=math.rad(slot.heading or 0);local c,s=math.cos(angle),math.sin(angle)
   local rect={}
-  for _,p in ipairs({{x1-10,y1-10},{x2+10,y1-10},{x2+10,y2+10},{x1-10,y2+10}}) do
+  for _,p in ipairs({{x1-2,y1-2},{x2+2,y1-2},{x2+2,y2+2},{x1-2,y2+2}}) do
    rect[#rect+1]=slot.x+p[1]*c-p[2]*s;rect[#rect+1]=slot.y+p[1]*s+p[2]*c
   end
-  local exit=math.max(300,st.radius+(x2-x1)-math.sqrt(slot.x^2+slot.y^2))
   local clear=true
   for _,fixture in ipairs(st.body:getFixtures()) do
    local shape=fixture:getShape()
    if not fixture:isSensor() and shape:getType()=='polygon'
-    and Sweep.sweepPolygon(rect,{shape:getPoints()},c*exit,s*exit,1) then clear=false;break end
+    and Sweep.sweepPolygon(rect,{shape:getPoints()},0,0,0) then clear=false;break end
   end
   cache[index]={x=slot.x,y=slot.y,heading=slot.heading,hull=hull,clear=clear}
   return clear
@@ -109,8 +100,7 @@ return function(Game)
  function Game:parkingPlacement(st,parking,dock)
   if parking and parking.mooring then
    local slot=self:stationMoorings(st)[parking.mooring]
-   local point=copy(slot);point.slot=parking.mooring
-   return {dock=dock or st.dock,berth=slot.berth,mooring=not slot.berth and point or nil,parking=parking}
+   return {dock=dock or st.dock,berth=slot and slot.berth,parking=parking}
   end
   return {dock=dock or st.dock,parking=parking,interior=true}
  end
@@ -129,7 +119,7 @@ return function(Game)
  end
  function Game:shipParkingLabel(st,owner)
   local i=owner==self.player and owner.parkingMooring or owner.mooring
-  if i then return 'Exterior '..i end
+  if i then return 'Berth '..i end
   return owner.bay and 'Interior hangar' or 'Awaiting allocation'
  end
 end

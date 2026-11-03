@@ -101,30 +101,36 @@ function Game:dockInstantly(e, st, placement)
  end
  local parking=placement.parking
  if not parking and placement.parkingMooring then parking={mooring=placement.parkingMooring} end
- if parking and parking.mooring then
-  local point=self:parkingPlacement(st,parking,d)
-  placement.berth,placement.mooring=point.berth,point.mooring
- end
+ local wantsBerth=parking and parking.mooring or placement.berth or placement.mooring
  local berth
- local previous = st.def and st.def.berths and st.def.berths[placement.berth]
-	if previous then
-		e.body:setPosition(st.body:getWorldPoint(previous.x, previous.y))
-		berth = self:freeBerth(st, e)
-	end
-	if not berth and not placement.interior and not self:fitsDock(e,d) then berth=self:freeBerth(st,e) end
-	local mooring
-	if not berth and not placement.interior and (placement.mooring or not self:fitsDock(e,d)) then
-		local index=parking and parking.mooring or self:mooringFit(st,e.hull.id,e)
-  if index then mooring=Persistence.copy(self:stationMoorings(st)[index]);mooring.slot=index end
-		if not mooring then
-			if e==self.player then self:toast('NO CLEAR EXTERIOR MOORING',2) end
-			return false
-		end
-	end
-	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth, mooring = mooring }
+ local previous=st.def.berths and st.def.berths[placement.berth]
+ if parking and parking.mooring then
+  local slot=self:stationMoorings(st)[parking.mooring]
+  if slot then previous=st.def.berths[slot.berth] end
+ end
+ if previous then e.body:setPosition(st.body:getWorldPoint(previous.x,previous.y)) end
+ if wantsBerth or not placement.interior and not self:fitsDock(e,d) then
+  berth=self:freeBerth(st,e)
+  if not berth then
+   -- Old overflow assignments are not valid parking. Leave the ship at
+   -- the station entrance, under player control, rather than restoring them.
+   local x,y=self.dockWorld(st,side,d.x2+e.halfLength+60,0,d)
+   e.body:setPosition(x,y);e.body:setActive(true)
+   e.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(x,y))
+   e.dockState=nil
+   if e==self.player then
+    self:applyParking(e,nil);self.state='playing'
+    self.camera.x,self.camera.y=x,y
+    self:toast('NO SUITABLE FREE BERTH',2)
+   end
+   return false
+  end
+  parking={mooring=berth}
+ end
+	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth }
 	e.body:setActive(false)
-	if berth or mooring then
-		local b = mooring or st.def.berths[berth]
+	if berth then
+		local b = st.def.berths[berth]
 		e.body:setPosition(st.body:getWorldPoint(b.x, b.y))
 		e.body:setAngle(st.body:getAngle() + math.rad(b.heading))
 	else
@@ -138,6 +144,7 @@ function Game:dockInstantly(e, st, placement)
 		self.camera.x, self.camera.y = e.body:getPosition()
 		if parking then self:applyParking(e,parking);e.bayStation=st.key else self:givePlayerBay(st) end
 	end
+ return true
 end
 
 -- Spawn the player in a level that's already built (see Game:loadField

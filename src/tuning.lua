@@ -171,7 +171,6 @@ T.berthShipScale = 3
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
 T.hangarW, T.hangarH, T.hangarCell = 12, 10, 20
-T.stationMoorings,T.mooringLength,T.mooringWidth=4,600,240
 
 -- Markets (src/market.lua, data/markets.lua). Credits you start with; the
 -- trade grid and a station's shelf, in cells; how long something you sold

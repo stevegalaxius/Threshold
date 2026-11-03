@@ -162,7 +162,11 @@ local function layout(game)
 			if side.trade then rowW=max(rowW,g.w*cs);rowH=rowH+g.h*cs+(i>2 and 24 or 0)
    else rowW = rowW + (i > 2 and GAP or 0) + g.w * cs;rowH = max(rowH, g.h * cs) end
 		end
-		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 118 or 0)
+		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 194 or 0)
+  if game.state=='docked' then
+   local header=(side.pick or side.market) and 98 or side.trade and 70 or 58
+   h=g1.h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
+  end
 		return max(w, rowW, (side.innerOf or side.parked) and 380 or (side.entity or side.station) and 340 or 300), h
 	end
 	-- Panels stand in columns, one each, except at the market, where storage
@@ -189,46 +193,21 @@ local function layout(game)
 		end
 		return tw, max(th + HEAD + PAD * 2, eh)
 	end
-	local cs = game.state=="docked" and 24 or 30
+	local cs = 30
 	while cs > 6 do
 		local tw, ph = measure(cs)
 		if tw <= sw - 32 and ph + 190 <= sh then break end
 		cs = cs - 1
 	end
- local stationPanels
- if game.state=='docked' then
-  stationPanels=Station.workspace(sw,sh,#cols+(showEquip and 1 or 0),showEquip)
-  cs=24
-  while cs>8 do
-   local fits=true
-   for i,col in ipairs(cols) do
-    local panel=stationPanels[i+(showEquip and 1 or 0)]
-    for _,side in ipairs(col) do
-     local g=side.hold.grids[1];local width=g.w*cs;local height=g.h*cs
-     local rowWidth,rowHeight=0,0
-     for j=2,#side.hold.grids do
-      local extra=side.hold.grids[j]
-      if side.trade then height=height+24+extra.h*cs
-      else rowWidth=rowWidth+(j>2 and GAP or 0)+extra.w*cs;rowHeight=max(rowHeight,extra.h*cs) end
-     end
-     width=max(width,rowWidth);if rowHeight>0 then height=height+24+rowHeight end
-     local header=side.pick and 98 or side.market and 98 or side.trade and 70 or 58
-     if width>panel.w-PAD*2 or height+header+(side.trade and 194 or 14)>panel.h then fits=false end
-    end
-   end
-   if fits then break end
-   cs=cs-1
-  end
- end
+
 	local L = { cs = cs, sides = list, grids = {} }
 	local tw, ph = measure(cs)
 	for _, side in ipairs(list) do side.w, side.h = size(side, cs) end
 	local x = floor((sw - tw) / 2)
 	local y = game.state=="docked" and 112 or max(80,floor((sh-ph-50)/2))
- if stationPanels then x=stationPanels[1].x;ph=stationPanels[1].h end
 
 	-- Equipment: the hull outline with numbered hardpoints, then a row per slot.
-	local equipmentWidth=stationPanels and showEquip and stationPanels[1].w or EW
+	local equipmentWidth=EW
 	local E = { x = x, y = y, pw = equipmentWidth, ph = ph, slots = {}, hidden = not showEquip }
 	E.hull = { x = x + PAD, y = y + HEAD, w = equipmentWidth - PAD * 2, h = HULL_H - 16 }
 	if showEquip then
@@ -246,10 +225,8 @@ local function layout(game)
 	end
 	L.equip = E
 
-	for ci,col in ipairs(cols) do
-  local rect=stationPanels and stationPanels[ci+(showEquip and 1 or 0)]
-		local cw = rect and rect.w-PAD*2 or column(col, cs)
-  if rect then x=rect.x end
+	for _,col in ipairs(cols) do
+		local cw=column(col,cs)
 		local cy = y
 		for k, side in ipairs(col) do
 			side.x, side.y, side.pw = x, cy, cw + PAD * 2
@@ -295,7 +272,7 @@ local function layout(game)
 		if targetKey(side) and Cargo.other and Cargo.tab == "cargo" then
 			side.target = { x = x + side.pw - PAD - 64, y = y + HEAD - 2, w = 64, h = 17 }
 		end
-		local gx, gy = x+PAD,y+(stationPanels and ((side.pick or side.market) and 98 or side.trade and 70 or 58) or HEAD+18)
+		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and 98 or side.trade and 70 or 58) or HEAD+18)
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
 		local rx, ry = gx, gy + g1.h * cs + 24
@@ -539,11 +516,6 @@ function Cargo.setTab(game,id)
  Cargo.tab=id;Hangar.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
 function tabRects(game)
- if game.state=='docked' then
-  local out={}
-  for i,t in ipairs(TABS) do out[i]={id=t.id,label=t.label,x=16+(i-1)*144,y=64,w=136,h=30} end
-  return out
- end
 	local left, right, top
 	if Cargo.tab == "hangar" then
 		local H = Hangar.layout(game)
@@ -1180,10 +1152,9 @@ end
 -- Folder tabs sitting on the top edge of the window.
 function drawTabs(game,mx,my)
  local sw=lg.getWidth();local p=game.player;local st=p.dockState.station
- lg.setFont(HUD.font(21));lg.setColor(HUD.INK);lg.print(st.name:upper(),16,12)
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print(st.name,16,16)
  lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(game:shipParkingLabel(st,p),16,39)
- lg.setColor(HUD.AQUA[1],HUD.AQUA[2],HUD.AQUA[3],.3);lg.line(16,57,sw-16,57);lg.line(16,101,sw-16,101)
- lg.setFont(HUD.font(18));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),sw-360,20,210,'right')
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),sw-360,20,210,'right')
  Station.button({x=sw-132,y=12,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))
  for _,t in ipairs(tabRects(game)) do Station.button(t,t.label,Cargo.tab==t.id) end
@@ -1204,7 +1175,7 @@ function drawTrade(game, L, side, mx, my)
 	end
 	row("Sell value",HUD.credits(get),HUD.INK,0)
  row("Buy cost",HUD.credits(pay),HUD.INK,1)
- row(pay>=get and "You pay" or "You receive",HUD.credits(math.abs(pay-get)),{.95,.75,.25},2)
+ row(pay>=get and "You pay" or "You receive",HUD.credits(math.abs(pay-get)),pay>=get and THEIRS or MINE,2)
 	local after = credits + get - pay
 	row("Balance", HUD.credits(credits) .. "  ->  " .. HUD.credits(after), after < 0 and HUD.WARN or HUD.INK, 3)
 	local problem = (get+pay>0) and game:tradeProblem(side.station,side.hold)
@@ -1229,7 +1200,7 @@ function Cargo.draw(game)
 	local docked = game.state == "docked"
 	local market = docked and Cargo.tab == "market"
 
-	lg.setColor(0, 0, 0, docked and 0.88 or 0.3)
+	lg.setColor(0, 0, 0, docked and 0.55 or 0.3)
 	lg.rectangle("fill", 0, 0, sw, sh)
 
 	if docked then
@@ -1250,7 +1221,7 @@ function Cargo.draw(game)
 	for _, side in ipairs(L.sides) do
 		if docked then Station.panel(side.x,side.y,side.pw,side.ph) else HUD.panel(side.x,side.y,side.pw,side.ph) end
 		if side.picks then
-   lg.setFont(HUD.font(18));lg.setColor(HUD.INK);lg.print('YOUR INVENTORY',side.x+PAD,side.y+12)
+   lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print('Your inventory',side.x+PAD,side.y+12)
 			for _, pk in ipairs(side.picks) do
 				local on = Cargo.marketLeft == pk.id
     lg.setFont(HUD.font(13));Station.button(pk,pk.label,on)
@@ -1258,7 +1229,7 @@ function Cargo.draw(game)
 		else
 			lg.setFont(HUD.font(16))
 			lg.setColor(HUD.INK)
-			lg.print(docked and (side.trade and 'TRADE OFFER' or side.market and 'STATION STOCK' or side.title) or side.title,side.x+PAD,side.y+12)
+			lg.print(docked and (side.trade and 'Trade offer' or side.market and 'Station stock' or side.title) or side.title,side.x+PAD,side.y+12)
 		end
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
@@ -1270,8 +1241,11 @@ function Cargo.draw(game)
 			-- (the tabs take the title's place: the fill goes on the grid's label row)
 			lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 80, side.pw - PAD, "right")
 		elseif not side.trade then
-			lg.printf(("%d / %d m3"):format(used, total), side.x, side.y + 16,
-				side.pw - PAD - (side.close and 176 or (side.take or side.switch) and 148 or 66), "right")
+   if docked then
+    lg.printf(("%d / %d m3"):format(used,total),side.x+PAD,side.y+41,side.pw-PAD*2,'right')
+   else
+    lg.printf(("%d / %d m3"):format(used,total),side.x,side.y+16,side.pw-PAD-(side.close and 176 or (side.take or side.switch) and 148 or 66),'right')
+   end
 		end
 		local b = side.sort
 		if b then
@@ -1371,24 +1345,15 @@ function Cargo.draw(game)
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
 		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
 	end
- local problem=docked and Ship.launchProblem(p)
- if docked then
-  local y=sh-46
-  lg.setColor(.025,.045,.06,.97);lg.rectangle('fill',16,y,sw-32,34)
-  lg.setColor(HUD.AQUA[1],HUD.AQUA[2],HUD.AQUA[3],.3);lg.rectangle('line',16.5,y+.5,sw-33,33)
-  lg.setFont(HUD.font(12));lg.setColor(problem and HUD.WARN or HUD.INK)
-  local r,cx,cy=cellAt(L,mx,my);local stack=r and Grid.at(r.g,cx,cy)
-  local detail=problem and ('Cannot launch: '..problem) or ('Mass %.0f t'):format(p.body:getMass())
-  if stack then
-   detail=('%s  ×%d  •  %d×%d cells'):format(data.items[stack.id].name,stack.n,stack.w,stack.h)
-  end
-  lg.print(detail,28,y+10)
-  lg.setColor(HUD.DIM)
-  lg.printf('Drag • R rotate • Shift split • Right-click transfer',sw-510,y+10,478,'right')
- else
-  lg.printf(('Mass %.0f t'):format(p.body:getMass()),0,L.bottom+10,sw,'center')
-  lg.setColor(HUD.DIM);lg.printf(hint,0,L.bottom+30,sw,'center')
- end
+	local problem = docked and Ship.launchProblem(p)
+	if problem then
+		lg.setColor(HUD.WARN)
+		lg.printf(("Mass %.0f t      Can't launch: %s"):format(p.body:getMass(), problem), 0, L.bottom + 10, sw, "center")
+	else
+		lg.printf(("Mass %.0f t"):format(p.body:getMass()), 0, L.bottom + 10, sw, "center")
+	end
+	lg.setColor(HUD.DIM)
+	lg.printf(hint, 0, L.bottom + 30, sw, "center")
 
 	local h = Cargo.hand
 	if h then

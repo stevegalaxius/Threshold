@@ -480,12 +480,13 @@ editor marker keeps its existing dimensions. `T.berthShipScale` controls this
 capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
 ship does not fit, it uses the nearest suitable free berth. Ships that fit the
-corridor can use the station interior; oversized ships instead use a clear exterior
-service mooring away from the entrance. Exterior moorings provide normal station
+corridor and hangar grid can use the station interior; oversized ships use a
+suitable free authored berth. If none is available, docking is refused without
+moving the ship to a generated overflow position. Berths provide normal station
 access and survive saves and ship switching; undocking launches from that position.
 Saves retain the player's berth or mooring, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
-save/load, and size-based fallback.
+save/load, and refusal when no suitable berth is available.
 
 Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
 use the Moon's round rocky surface treatment: cratered terrain in each world's
@@ -529,9 +530,9 @@ ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
 ## Station services prototype
 
 Docking opens three services: **Storage**, **Market**, and **Hangar**, beneath
-a persistent station header. Aligned panels fill the station workspace while
-retaining the existing small-cell inventory renderer and item controls. Storage
-keeps equipment beside the ship hold and station storage, including parked cargo
+a persistent station header. Panels size around their actual inventory contents,
+using the player inventory frames, colors, typography, small-cell renderer,
+and item controls. Storage keeps equipment beside the ship hold and station storage, including parked cargo
 and opened containers. Equipment remains part of the inventory service. The
 in-space inventory is unchanged.
 
@@ -552,22 +553,21 @@ action transfers a ship between interior and exterior storage when space fits.
 Use the exterior list's arrows or mouse wheel to reach additional positions.
 
 Layouts are station-specific, not hull-class limits. Defaults are a 12×10
-interior grid with 20-unit cells, authored exterior berths, and four additional
-generated exterior positions. Station definitions can set
-`hangar = { w = 12, h = 10 }` and
-`moorings = { count = 8, length = 600, width = 240 }` (count is the total desired
-exterior capacity). Berths may set `maxLength` and `maxWidth` independently of
+interior grid with 20-unit cells and authored exterior berths. No overflow
+positions are generated. Station definitions can set `hangar = { w = 12, h = 10 }`.
+Berths may set `maxLength` and `maxWidth` independently of
 their existing editor marker `size`. These settings survive F2 export and
 autosaves; dedicated capacity-editing controls are not part of this prototype.
 Larger ships and larger station layouts use the same system. Mooring fit checks
-include the parked hull and a departure clearance against station geometry.
+validate the parked hull against station geometry. A straight departure corridor
+is not required to accept an otherwise usable berth.
 
 Parking locations, owned ships and exterior coordinates persist through travel
 and saves. Stored exterior ships are drawn at their moorings using the existing
 hull renderer; they remain stored records rather than additional simulated NPCs.
 `love . --stationtest` exercises service layouts, grid transfers, purchase/cancel
 settlement, ship storage, switching, capacity limits, and save restoration. It
-also writes real screenshots for the four services to the LÖVE save folder.
+also writes real screenshots for the three services to the LÖVE save folder.
 
 ## Shipyard comparison
 

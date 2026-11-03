@@ -8,7 +8,7 @@ return function(game)
  local p=game.player
  st.def.hangar={w=1,h=1}
  -- A real fitted freighter can use a pad smaller than its hull, while
- -- the marker's authored dimensions and oversized fallback remain intact.
+ -- the marker's authored dimensions remain intact.
  local Ship,T=require('src.ship'),require('src.tuning')
  local freighter=Ship.new(game,{hull='ferrous_freighter',x=0,y=0,angle=0})
  local original,entities=st.def.berths,game.entities
@@ -86,38 +86,29 @@ return function(game)
  local big=game.player
  local dock=st.dock
  local oldWidth=dock.hw;dock.hw=1
- st.def.hangar={w=1,h=1};st.def.moorings={count=5,length=600,width=240}
+ st.def.hangar={w=1,h=1}
  for _,b in ipairs(st.def.berths) do b.size=0 end
+ -- Even stale saved overflow slots must not become invisible parking.
+ local record=game:stationRecord(st)
+ record.moorings[#st.def.berths+1]={x=100000,y=0,heading=0,length=600,width=240}
+ check(#game:stationMoorings(st)==#st.def.berths,'stale overflow parking survived')
  check(not game:fitsDock(big,dock),'narrow dock incorrectly accepts a wide hull')
  big.dockState=nil;big.bay=nil;big.parkingMooring=nil;big.body:setActive(true)
  local ax,ay=game.dockWorld(st,1,dock.x2+big.halfLength+40,0,dock)
  big.body:setPosition(ax,ay);big.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(ax,ay))
  game:beginDocking(big,st,1,dock)
  game:updateDockedShip(big,1/120)
- check(big.dockState.phase=='taxi' and big.dockState.mooring and not big.dockState.berth,'oversized ship entered the narrow interior')
- game:updateDockedShip(big,10)
- check(big.dockState.done and game.state=='docked','exterior mooring did not provide normal station access')
- local mx,my=big.body:getPosition();local radius=math.sqrt(big.halfLength^2+big.hull.radius^2)
- local sx,sy=st.body:getPosition()
- check((mx-sx)^2+(my-sy)^2>(st.radius+radius)^2,'exterior mooring intersects station geometry')
- local snapshot=assert(Save.decode(Save.encode(game:saveState())))
- check(snapshot.player.at.mooring~=nil,'save dropped exterior mooring')
- game:loadState(snapshot)
- big=game.player;st=big.dockState.station
- local rx,ry=big.body:getPosition()
- check(big.dockState.mooring and near(rx,mx) and near(ry,my),'save/load moved the externally moored ship')
- -- The new ship retains exterior placement when switching ships.
- local moored=big.dockState.mooring
- st.def.moorings.count=6
- local rec2=assert(game:addToHangar(st,'halcyon_wisp'));local chosen
- local destination=game:stationMoorings(st)[rec2.mooring]
- for i,r in ipairs(game:hangar(st)) do if r==rec2 then chosen=i end end
- check(game:flyFromHangar(chosen),'exterior ship switch failed')
- check(game.player.dockState.mooring and near(game.player.dockState.mooring.x,destination.x),'ship switch lost the selected ship exterior placement')
- game:undockShip(game.player)
- check(not game.player.dockState and game.player.body:isActive(),'externally moored ship could not undock')
- local ux,uy=game.player.body:getPosition()
- check((ux-sx)^2+(uy-sy)^2>(st.radius+game.player.halfLength)^2,'exterior departure teleported into the dock')
+ local bx,by=big.body:getPosition()
+ check(not big.dockState and big.body:isActive(),'ship with no suitable berth was parked at an invented position')
+ check(near(ax,bx) and near(ay,by),'failed docking launched the ship away')
+ -- Re-enable one real berth and exercise the same physical handoff.
+ st.def.berths[2].size=2000
+ game:beginDocking(big,st,1,dock);big.body:setLinearVelocity(0,0)
+ game:updateDockedShip(big,1/120)
+ check(big.dockState and big.dockState.phase=='taxi' and big.dockState.berth==2,'ship did not taxi to the available placed berth')
+ game:updateDockedShip(big,10);atBerth(2)
+ game:undockShip(big)
+ check(not big.dockState and big.body:isActive(),'berthed ship could not undock')
  dock.hw=oldWidth
  print(('BERTH TEST PASSED (%d checks)'):format(checks))
 end

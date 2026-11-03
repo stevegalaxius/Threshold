@@ -25,7 +25,8 @@ return function(game)
  check(not game:hangarFit(st,'ferrous_freighter'),'hauler still fits the default small interior')
  local marker=st.def.berths and st.def.berths[1] and st.def.berths[1].size
  local slots=game:stationMoorings(st)
- check(#slots>0,'station has no finite exterior positions')
+ check(#slots==#st.def.berths,'station added unplaced overflow moorings')
+ check(game:mooringFit(st,'ferrous_freighter')~=nil,'real station berths reject the hauler')
  if marker then check(st.def.berths[1].size==marker,'exterior allocation resized an editor marker') end
  if st.def.berths and st.def.berths[1] then
   local berth=st.def.berths[1];local bx,by=berth.x,berth.y
@@ -46,6 +47,16 @@ return function(game)
  local exterior=big.mooring
  check(game:flyFromHangar(index),'could not select an exterior ship')
  check(game.player.parkingMooring==exterior and not game.player.bay,'ship switching consumed an interior bay for a large ship')
+ -- Exercise the physical tractor handoff with a real hauler at the real station.
+ local hauler,d=game.player,st.dock
+ hauler.dockState=nil;hauler.parkingMooring=nil;hauler.bayStation=nil;hauler.body:setActive(true)
+ local ax,ay=game.dockWorld(st,1,d.x2+hauler.halfLength+40,0,d)
+ hauler.body:setPosition(ax,ay);hauler.body:setLinearVelocity(0,0)
+ game:beginDocking(hauler,st,1,d);game:updateDockedShip(hauler,1/120)
+ check(hauler.dockState and hauler.dockState.berth and not hauler.dockState.mooring,'hauler used overflow instead of a placed berth')
+ exterior=hauler.dockState.berth;game:updateDockedShip(hauler,10)
+ local pad=st.def.berths[exterior];local px,py=st.body:getLocalPoint(hauler.body:getPosition())
+ check(math.abs(px-pad.x)<.01 and math.abs(py-pad.y)<.01,'hauler did not arrive at its real berth')
  local small=game:hangar(st)[index]
  check(small.hull=='halcyon_wisp' and small.bay,'previous small ship was not retained in its interior grid position')
  check(not game:mooringFit(st,'ferrous_freighter',nil) or game:mooringFit(st,'ferrous_freighter',nil)~=exterior,'active exterior ship did not reserve its slot')
@@ -56,15 +67,24 @@ return function(game)
  -- Cargo stays a real small-cell inventory; equipment stays beside storage.
  Cargo.setTab(game,'cargo');local storageLayout=Cargo.layout(game)
  check(not storageLayout.equip.hidden,'storage lost the existing equipment panel')
- local sw,sh=love.graphics.getDimensions()
  local function checkWorkspace(panels)
-  check(panels[1].x==16 and panels[#panels].x+panels[#panels].pw==sw-16,'station panels do not fill screen width')
   for i,panel in ipairs(panels) do
-   check(panel.y==112 and panel.y+panel.ph==sh-56,'station panels are not aligned below service tabs')
-   if i>1 then check(panel.x==panels[i-1].x+panels[i-1].pw+12,'station panel spacing differs') end
+   check(panel.y==112 and panel.ph==panels[1].ph,'station panel tops and bottoms differ')
+   if i>1 then check(panel.x>panels[i-1].x+panels[i-1].pw,'station panels overlap') end
   end
  end
  checkWorkspace({storageLayout.equip,storageLayout.sides[1],storageLayout.sides[2]})
+ -- Extra window space must not stretch cells or panels beyond their contents.
+ local sw,sh=love.graphics.getDimensions()
+ love.window.setMode(1600,1100);local large=Cargo.layout(game)
+ love.window.setMode(1900,1300);local larger=Cargo.layout(game)
+ check(large.cs==larger.cs and large.cs==30,'inventory cells scale up with the window')
+ for i,side in ipairs(large.sides) do
+  check(side.pw==larger.sides[i].pw and side.ph==larger.sides[i].ph,'inventory panel size follows window size')
+ end
+ love.window.setMode(sw,sh)
+ local tabs=Cargo.tabRects(game)
+ check(#tabs==3 and tabs[1].x>=0 and tabs[3].x+tabs[3].w<=sw,'service tabs moved outside the resized window')
  screenshot('storage')
  Cargo.setTab(game,'hangar');local shipLayout=Hangar.layout(game)
  local listed=false
@@ -118,8 +138,8 @@ return function(game)
  Cargo.setTab(game,'cargo')
  local Export=require('src.editor.export')
  local config=Export.stationDef({id='prototype_parking',name='Parking',parts={},hangar={w=40,h=24},
-  moorings={count=6,length=1200,width=400},berths={{x=0,y=0,size=80,maxLength=1200,maxWidth=400}}})
- check(config.hangar.w==40 and config.moorings.length==1200 and config.berths[1].maxWidth==400,'station export lost spatial capacity configuration')
+  berths={{x=0,y=0,size=80,maxLength=1200,maxWidth=400}}})
+ check(config.hangar.w==40 and config.berths[1].maxLength==1200 and config.berths[1].maxWidth==400,'station export lost spatial capacity configuration')
 
  -- Save the roster, grid layout, finite mooring locations and active parking.
  local saved=assert(Save.decode(Save.encode(game:saveState())))
@@ -128,6 +148,15 @@ return function(game)
  game:loadState(saved);st=game.player.dockState.station
  check(game.player.parkingMooring==exterior,'load lost active exterior ship location')
  check(game:hangar(st)[index].bay~=nil,'load lost stored interior ship position')
+ local legacy=assert(Save.decode(Save.encode(game:saveState())))
+ legacy.player.at.parkingMooring=#st.def.berths+1
+ legacy.player.at.berth=nil
+ legacy.player.at.mooring={x=100000,y=100000,heading=0,slot=legacy.player.at.parkingMooring}
+ game:loadState(legacy);st=game.player.dockState.station
+ check(game.player.dockState.berth and not game.player.dockState.mooring,'old overflow save did not move to a real berth')
+ local pad=st.def.berths[game.player.dockState.berth]
+ local lx,ly=st.body:getLocalPoint(game.player.body:getPosition())
+ check(math.abs(lx-pad.x)<.01 and math.abs(ly-pad.y)<.01,'restored ship is away from its authored berth')
  local credits=game:credits()
  for i=#game:hangar(st),1,-1 do game:sellShip(st,i) end
  local filled=0
@@ -147,6 +176,7 @@ return function(game)
  Cargo.open=true;Cargo.loot=nil;Cargo.inner=nil
  local space=Cargo.layout(game)
  check(#space.sides==1 and space.sides[1].hold==game.player.hold and not space.equip.hidden,'station prototype changed the in-space inventory structure')
+ screenshot('space')
  Cargo.open=false
  print(('STATION SERVICES TEST PASSED (%d checks)'):format(checks))
 end

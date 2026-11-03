@@ -49,15 +49,16 @@ local function layout(game)
 	if not st then return nil end
 	local sw, sh = lg.getDimensions()
 	local W,H=game.hangarSize(st)
- local panels=Station.workspace(sw,sh,3,false)
- local bw,bh=panels[1].w,panels[1].h
- local MW,IW=panels[2].w,panels[3].w
- local cs=max(8,min(24,floor((bw-PAD*2)/W),floor((bh-HEAD-PAD)/H)))
- local x,y=panels[1].x,panels[1].y
- local L={x=x,y=y,w=sw-32,h=bh,cs=cs,station=st,list=game:hangar(st),gridW=W,gridH=H}
- L.bay={x=x,y=y,w=bw,h=bh}
- L.gx,L.gy=x+PAD,y+HEAD
- L.exterior=panels[2];L.info=panels[3]
+	local MW=260
+	local cs = max(8,min(30,floor((sw-48-IW-MW-GAP*2-PAD*2)/W),floor((sh-220)/H)))
+	local bw, bh = W * cs + PAD * 2, max(480,HEAD + H * cs + PAD)
+	local tw = bw + GAP + MW + GAP + IW
+	local x,y=floor((sw-tw)/2),112
+	local L = { x = x, y = y, w = tw, h = bh, cs = cs, station = st, list = game:hangar(st),gridW=W,gridH=H }
+	L.bay = { x = x, y = y, w = bw, h = bh }
+	L.gx, L.gy = x + PAD, y + HEAD
+	L.exterior={x=x+bw+GAP,y=y,w=MW,h=bh}
+	L.info = { x = L.exterior.x+MW+GAP, y = y, w = IW, h = bh }
 	L.ships = {};L.berths={}
  local slots=game:stationMoorings(st);local visible=max(1,floor((bh-HEAD-PAD)/64))
  Hangar.scroll=max(0,min(Hangar.scroll,max(0,#slots-visible)))

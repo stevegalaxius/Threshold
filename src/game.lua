@@ -1122,8 +1122,8 @@ end
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
 -- The nearest free berth at the station that the ship fits on, or nil (no berths,
--- all taken, or all too small). A ship without a berth uses an interior
--- dock only if it fits, otherwise an exterior service mooring.
+-- all taken, or all too small). Without one, the ship must fit the interior
+-- or docking is refused; no overflow positions are generated.
 function Game:freeBerth(st, e)
 	local berths = st.def and st.def.berths
 	if not berths or #berths == 0 then return nil end
@@ -1153,42 +1153,6 @@ function Game:fitsDock(e,d)
  local width=0
  for i=2,#e.hull.shape,2 do width=max(width,math.abs(e.hull.shape[i])) end
  return width+10<=d.hw
-end
-
--- Overflow moorings leave the entrance clear and provide station services
--- without pretending an oversized hull passed through a narrow doorway.
-function Game:exteriorMooring(st,e,side,d,previous,reserved)
- local radius=sqrt(e.halfLength^2+e.hull.radius^2)+60
- local function clear(x,y)
-  if self.arenaRadius and x*x+y*y>(max(0,self.arenaRadius-radius))^2 then return false end
-  for _,spot in ipairs(reserved or {}) do
-   local sx,sy=st.body:getWorldPoint(spot.x,spot.y)
-   local other=math.sqrt((spot.length/2)^2+(spot.width/2)^2)+60
-   if (x-sx)^2+(y-sy)^2<(radius+other)^2 then return false end
-  end
-  for _,o in ipairs(self.entities) do
-   if o~=e and not o.dead and not o.removed and o.body and not o.body:isDestroyed()
-    and (o.kind=='station' or o.kind=='planet' or o.kind=='structure' or o.kind=='asteroid' or o.kind=='ship') then
-    local ox,oy=o.body:getWorldPoint(o.cx or 0,o.cy or 0)
-    local r=o.kind=='ship' and sqrt(o.halfLength^2+o.hull.radius^2) or o.radius or 0
-    if (x-ox)^2+(y-oy)^2<(radius+r)^2 then return false end
-   end
-  end
-  return true
- end
- if previous then
-  local x,y=st.body:getWorldPoint(previous.x,previous.y)
-  if clear(x,y) then return Persistence.copy(previous) end
- end
- for column=0,15 do
-  for _,lane in ipairs({1,-1}) do
-   local x,y=dockWorld(st,side,d.x2+radius+100+column*(radius*2+100),lane*(d.hw+radius+100),d)
-   if clear(x,y) then
-    local lx,ly=st.body:getLocalPoint(x,y)
-    return {x=lx,y=ly,heading=math.deg(dockAngle(st,side,d)-st.body:getAngle())}
-   end
-  end
- end
 end
 
 function Game:finishDocking(e, ds, st)
@@ -1254,14 +1218,9 @@ function Game:updateDockedShip(e, dt)
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=e==self.player and self:hangarFit(st,e.hull.id,e)
 			local berth=not interior and self:freeBerth(st,e)
-			local mooring
-			if not berth and not interior and (e==self.player or not self:fitsDock(e,d)) then
-				local index=self:mooringFit(st,e.hull.id,e)
-				if index then mooring=Persistence.copy(self:stationMoorings(st)[index]);mooring.slot=index end
-			end
-			if berth or mooring then
-				local bd=berth and st.def.berths[berth] or mooring
-				ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,mooring or nil
+			if berth then
+    local bd=st.def.berths[berth]
+    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,nil
 				ds.lx,ds.ly=sb:getLocalPoint(x,y)
 				ds.la=b:getAngle()-sb:getAngle()
 				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
@@ -1270,7 +1229,7 @@ function Game:updateDockedShip(e, dt)
 				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
 			else
 				e.dockState,e.dockCooldown=nil,3
-				if e==self.player then self:toast('NO CLEAR EXTERIOR MOORING',2) end
+				if e==self.player then self:toast('NO SUITABLE FREE BERTH',2) end
 				return
 			end
 			b:setActive(false)
