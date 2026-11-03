@@ -38,13 +38,13 @@
 module {
 	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 4, powerDraw = 1, price = 2200,
-	weapon = { kind = "gun", fireRate = 150 / 60, spread = 2, gimbal = 10, recoil = 40 },
+	weapon = { kind = "gun", fireRate = 300 / 60, spread = 0.8, gimbal = 10, recoil = 40 },
 }
 
 module {
 	id = "rk7_autocannon", name = "RK-7 Autocannon", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
-	weapon = { kind = "gun", fireRate = 150 / 60, spread = 2.5, gimbal = 10, recoil = 70 },
+	weapon = { kind = "gun", fireRate = 240 / 60, spread = 1, gimbal = 10, recoil = 70 },
 }
 
 -- Two RK-7 actions on one large mount, firing the same heavy rounds. The
@@ -52,7 +52,7 @@ module {
 module {
 	id = "rk14_twin", name = "RK-14 Twin Autocannon", maker = "Brute Industries", family = "weapon", size = "L",
 	mass = 24, powerDraw = 4, price = 15000,
-	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 300 / 60, spread = 2.5, gimbal = 10, recoil = 70 },
+	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 480 / 60, spread = 1, gimbal = 10, recoil = 70 },
 }
 
 -- Weapons: artillery (slow, long range, high damage, splash) -----------------

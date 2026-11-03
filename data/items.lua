@@ -32,7 +32,7 @@
 ]]
 
 ammo { id = "rounds_s",  name = "Light rounds",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3, w = 1, h = 1, stack = 50,
-	shot = { damage = 10.8, speed = 4600, range = 8600, knockback = 250 } }
+	shot = { damage = 12, speed = 4600, range = 8600, knockback = 250 } }
 ammo { id = "rounds_m",  name = "Heavy rounds",  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
 	shot = { damage = 36, speed = 4800, range = 9800, knockback = 400 } }
 
