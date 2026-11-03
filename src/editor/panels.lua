@@ -113,12 +113,13 @@ local function placedSections(E, d)
 		local rnames = {}
 		for name in pairs(d.rotors or {}) do table.insert(rnames, name) end
 		table.sort(rnames)
-		Slab.Text(#rnames > 0 and ("Rotors: %d"):format(#rnames) or "Rotors: none")
+		if Slab.BeginTree("yard_rotors", { Label = #rnames > 0 and ("Rotors (%d)"):format(#rnames) or "Rotors (none)" }) then
+		if #rnames == 0 then Slab.Text("Put a part on a rotor in the part panel", { Color = { 0.6, 0.6, 0.6 } }) end
 		for _, name in ipairs(rnames) do
 			local r = d.rotors[name]
 			local count = 0
 			for _, p in ipairs(d.parts) do if p.rotor == name then count = count + 1 end end
-			Slab.Text(("%s (%d parts)"):format(name, count), { Color = { 0.8, 0.85, 1 } })
+			if Slab.BeginTree("yard_rotor_" .. name, { Label = ("%s (%d parts)"):format(name, count) }) then
 			check(E, r.spin ~= nil, "Own spin (else the location's)", function(on) r.spin = on and 0.5 or nil end)
 			if r.spin ~= nil then
 				Slab.Text("Spin (radians a second)")
@@ -155,10 +156,15 @@ local function placedSections(E, d)
 				d.rotors[name] = nil
 				if not next(d.rotors) then d.rotors = nil end
 			end
+			Slab.EndTree()
+			end
+		end
+		Slab.EndTree()
 		end
 		Slab.Separator()
-		Slab.Text("Export with id ring_<R>_<tube> or city_<k>", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Use it: layout = \"<id>\" on a station entry", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("in src/fields.lua, or export as ring_<R>_<tube>", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("or city_<k> to replace that one.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Separator()
 		local turrets = d.turrets or {}
 		Slab.Button("?", { W = 18, H = 18, Tooltip = "Turrets fire any weapon module (guns, artillery, lasers, missiles, torpedoes, drones)\nwith endless ammo and power. For now they shoot hostile ships and anyone\nwho shoots the station (for 30 s); reputation will decide this later.\nTurn: how fast the turret swings, degrees a second.\nMissile, torpedo and drone launchers are fixed bays with a heading instead." })
