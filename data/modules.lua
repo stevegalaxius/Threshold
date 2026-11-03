@@ -9,7 +9,7 @@
 	  computer universal (size "any"), one per hull. computer = "nav",
 	           "ordnance", "guidance" (radarRange px) or "drone" (uplinkRange
 	           px); see src/computers.lua.
-	  utility  hold (cubic metres), tractorRange (pixels). Utility modules are
+	  utility  hold (cubic metres), tractorRange (pixels), tractorPower (tractor strength added to the basic beam's 1: looting pull and top towing speed). Several stack. Utility modules are
 	           size "any" and fit any hull's utility slot.
 	  weapon   (guns, artillery, lasers) fits a hull's hardpoint slot.
 	  bay      (missile, torpedo and drone launchers) fits a bay slot.
@@ -229,7 +229,7 @@ module { id = "forge_reactor", name = "Forge Reactor", maker = "Concord Military
 -- Utility -----------------------------------------------------------------------
 
 module { id = "hold_pod_s", name = "Cargo Pod",     maker = "Ferrous Collective", family = "utility", size = "any", mass = 2, hold = 12, price = 1200 }
-module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 3, powerDraw = 2, tractorRange = 220, price = 3500 }
+module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 3, powerDraw = 2, tractorRange = 220, tractorPower = 1, price = 3500 }
 module { id = "hold_pod_m", name = "Cargo Pod XL",  maker = "Ferrous Collective", family = "utility", size = "any", mass = 5, hold = 30, price = 4000 }
 
 -- Computers (src/computers.lua). Ranges are world pixels:

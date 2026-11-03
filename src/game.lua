@@ -1509,8 +1509,10 @@ end
 -- Looting: while a wreck or container is open in the cargo screen
 -- (game.looting, set by the cargo screen), the tractor beam tries to keep
 -- it in reach. It matches your velocity and, past lootHoldAt of the beam's
--- range, closes back in; the pull has a limit (lootHoldAccel), so a heavy
--- burn can still leave it behind and close the window.
+-- range, closes back in. The beam has a limited force: enough to pull
+-- something your own ship's mass at lootHoldAccel, times (1 + tractorPower)
+-- from tractor modules. Heavier things move less, and the beam pulls your
+-- ship back just as hard, so slinging a big wreck around drags you too.
 function Game:updateLootHold(dt)
 	local p, e = self.player, self.looting
 	if not e or e.removed or e.dead or not p or p.dead or p.dockState then return end
@@ -1523,10 +1525,13 @@ function Game:updateLootHold(dt)
 	local pvx, pvy = p.body:getLinearVelocity()
 	local evx, evy = e.body:getLinearVelocity()
 	local ax, ay = (pvx + dx / d * want - evx) * 4, (pvy + dy / d * want - evy) * 4
-	local a = sqrt(ax * ax + ay * ay)
-	if a > T.lootHoldAccel then ax, ay = ax / a * T.lootHoldAccel, ay / a * T.lootHoldAccel end
 	local m = e.body:getMass()
-	e.body:applyForce(ax * m, ay * m)
+	local fx, fy = ax * m, ay * m
+	local f = sqrt(fx * fx + fy * fy)
+	local cap = T.lootHoldAccel * p.body:getMass() * Ship.tractorPower(p)
+	if f > cap then fx, fy = fx / f * cap, fy / f * cap end
+	e.body:applyForce(fx, fy)
+	p.body:applyForce(-fx, -fy)
 end
 
 -- Towing: a line from the player's ship to the container it holds with
@@ -1580,8 +1585,9 @@ function Game:updateTow(dt)
 		p.body:applyForce(-nx * f, -ny * f)
 	end
 	local sp = sqrt(pvx * pvx + pvy * pvy)
-	if sp > T.towSpeed then
-		local k = (sp - T.towSpeed) * p.body:getMass() * 30
+	local top = T.towSpeed * Ship.tractorPower(p)     -- a stronger beam tows faster
+	if sp > top then
+		local k = (sp - top) * p.body:getMass() * 30
 		p.body:applyForce(-pvx / sp * k, -pvy / sp * k)
 	end
 end

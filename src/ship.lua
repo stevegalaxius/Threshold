@@ -320,6 +320,12 @@ function Ship.tractorRange(e)
 	return T.tractorBase + (e.stats.tractorRange or 0)
 end
 
+-- How strong the tractor beam is, as a multiple of the basic one: each
+-- tractor module adds its tractorPower.
+function Ship.tractorPower(e)
+	return 1 + (e.stats.tractorPower or 0)
+end
+
 -- World position of a slot's hardpoint.
 function Ship.hardpoint(e, slot)
 	local x, y = e.body:getPosition()
