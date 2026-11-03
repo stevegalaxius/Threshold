@@ -43,12 +43,12 @@ ammo { id = "shell_m",   name = "Field shells",  maker = "Brute Industries",   f
 ammo { id = "shell_l",   name = "Siege shells",  maker = "Ferrous Collective", family = "artillery", size = "L", volume = 0.60, mass = 0.50, price = 110, w = 2, h = 1, stack = 3,
 	shot = { damage = 180, splash = 130, speed = 1900, range = 13000, knockback = 26000 } }
 
-ammo { id = "missile_s", name = "Sparrow missile", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.80, mass = 0.60, price = 400, w = 2, h = 1, stack = 2,
-	shot = { damage = 70, splash = 45, speed = 6100, range = 12600, knockback = 5000, accel = 2200, turnRate = 5 } }
-ammo { id = "missile_m", name = "Hornet missile",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 1.50, mass = 1.20, price = 900, w = 3, h = 1, stack = 2,
-	shot = { damage = 140, splash = 70, speed = 5000, range = 13000, knockback = 10000, accel = 1800, turnRate = 4 } }
-ammo { id = "missile_l", name = "Longbow missile", maker = "Ferrous Collective", family = "missile", size = "L", volume = 3.00, mass = 2.50, price = 2000, w = 3, h = 1, stack = 1,
-	shot = { damage = 260, splash = 110, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
+ammo { id = "missile_s", name = "Sparrow missile", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.08, mass = 0.06, price = 15, w = 2, h = 1, stack = 20,
+	shot = { damage = 14, splash = 35, speed = 6100, range = 12600, knockback = 5000, accel = 2200, turnRate = 5 } }
+ammo { id = "missile_m", name = "Hornet missile",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 0.15, mass = 0.12, price = 40, w = 3, h = 1, stack = 12,
+	shot = { damage = 45, splash = 55, speed = 5000, range = 13000, knockback = 10000, accel = 1800, turnRate = 4 } }
+ammo { id = "missile_l", name = "Longbow missile", maker = "Ferrous Collective", family = "missile", size = "L", volume = 0.40, mass = 0.30, price = 120, w = 3, h = 1, stack = 6,
+	shot = { damage = 120, splash = 90, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
 
 ammo { id = "torp_s", name = "Maul torpedo",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
 	shot = { damage = 220, splash = 80, speed = 4750, range = 12400, knockback = 15000 } }

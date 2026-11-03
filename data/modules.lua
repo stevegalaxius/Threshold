@@ -104,19 +104,19 @@ module {
 module {
 	id = "sparrow_rack", name = "Sparrow Rack", maker = "Halcyon Arms", family = "bay", size = "S",
 	mass = 3, price = 4000,
-	weapon = { kind = "missile", fireRate = 1.5, recoil = 300 },
+	weapon = { kind = "missile", fireRate = 3, recoil = 300 },
 }
 
 module {
 	id = "hornet_pod", name = "Hornet Pod", maker = "Nova Syndicate", family = "bay", size = "M",
 	mass = 8, price = 11000,
-	weapon = { kind = "missile", fireRate = 1.0, recoil = 800 },
+	weapon = { kind = "missile", fireRate = 2.5, recoil = 800 },
 }
 
 module {
 	id = "trident_bay", name = "Trident Bay", maker = "Ferrous Collective", family = "bay", size = "L",
 	mass = 18, price = 26000,
-	weapon = { kind = "missile", fireRate = 0.7, recoil = 1600 },
+	weapon = { kind = "missile", fireRate = 1.5, recoil = 1600 },
 }
 
 module {
