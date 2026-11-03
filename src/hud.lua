@@ -391,6 +391,29 @@ local function drawCatch(game)
 	lg.printf(("%d braking ring%s ahead"):format(left, left == 1 and "" or "s"), 0, h - 128, w, "center")
 end
 
+-- Name of the pickup floating under the cursor (and how many).
+local function drawPickupTip(game)
+	local mx, my = love.mouse.getPosition()
+	local best, bd = nil, 24 * 24
+	for _, k in ipairs(game.pickups or {}) do
+		local sx, sy = game.camera:toScreen(k.x, k.y)
+		local d = (sx - mx) ^ 2 + (sy - my) ^ 2
+		if d < bd then best, bd = k, d end
+	end
+	if not best then return end
+	local item = data.items[best.item]
+	if not item then return end
+	local text = item.name .. ((best.count or 1) > 1 and ("  x" .. best.count) or "")
+	lg.setFont(font(12))
+	local w, h = lg.getFont():getWidth(text) + 16, 20
+	local sw, sh = lg.getDimensions()
+	local x, y = min(mx + 16, sw - w - 4), min(my + 16, sh - h - 4)
+	lg.setColor(0.02, 0.06, 0.09, 0.9)
+	lg.rectangle("fill", x, y, w, h, 5, 5)
+	lg.setColor(INK)
+	lg.print(text, x + 8, y + 3)
+end
+
 function HUD.draw(game, aimX, aimY, uiOpen)
 	if game.flash then
 		-- the cut into the lane, hidden in a flash off the driver
@@ -409,6 +432,7 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 	drawHelp()
 	drawToasts(game)
 	drawReticle(game, aimX, aimY)
+	drawPickupTip(game)
 end
 
 HUD.drawToasts = drawToasts
