@@ -597,3 +597,14 @@ city's bearing. Non-docking patrols approach and hold there instead of trying to
 reach the docking runway below their avoidance boundary. Remote materialization
 and saved inspection offsets use the same point. Run `love . --patrolnavtest`
 for Olympus patrol arrival, holding, restoration and the next autonomous duty.
+
+
+F3 region cycling uses the shared debug teleport cleanup, closing cargo/trade
+UI and cancelling old travel state. Unloading a field disposes of its complete
+physics world instead of reusing its native allocations. Distant generated
+debris is put to sleep before NPCs start navigating, avoiding an initial scan
+of the complete belt. Only highway origin
+and arrival scenes that are still needed remain alive; adopting a retained
+scene preserves that scene's world. `love . --teleporttest` checks two complete
+F3 cycles, leftover unmanaged bodies, abandoned highway previews and warp-flight
+cancellation.
