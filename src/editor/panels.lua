@@ -507,10 +507,18 @@ local function designWindow(E, Editor)
 		Slab.SameLine()
 		Slab.Text("helm"); Slab.SameLine()
 		combo("yard_helm", E.stat("helm") or "strafe", hopts, function(m) E.pushUndo(); d.stats.helm = m end, 120)
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Shown in the hangar as 'maker, class'.\nThe exact word 'heavy' also matters: heavies keep their boost on trade lanes." })
+		Slab.SameLine()
 		Slab.Text("class"); Slab.SameLine()
 		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
 		Slab.Text("maker"); Slab.SameLine()
 		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
+		Slab.Text("description")
+		if Slab.Input("yard_desc", { Text = E.stat("description") or "", W = 250, H = 70, MultiLine = true, MultiLineW = 240, ReturnOnText = true }) then
+			E.pushUndoCoalesced("yard_desc")
+			local t = Slab.GetInputText()
+			d.stats.description = t ~= "" and t or nil
+		end
 		Slab.EndTree()
 	end
 	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
