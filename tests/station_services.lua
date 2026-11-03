@@ -16,9 +16,9 @@ return function(game)
  game.universe.populationSpawns={}
  game:dockInstantly(game.player,st,{interior=true})
  local r=game:stationRecord(st)
- check(#Cargo.tabs==4,'station services missing')
+ check(#Cargo.tabs==3,'station services missing')
  local labels={};for _,tab in ipairs(Cargo.tabs) do labels[tab.label]=true end
- check(labels.Storage and labels.Market and labels.Hangar and labels.Outfitting,'service tabs do not describe existing station mechanics')
+ check(labels.Storage and labels.Market and labels.Hangar and not labels.Outfitting,'service tabs do not describe existing station mechanics')
  local w,h=game.hangarSize(st)
  check(w==12 and h==10,'default interior is not a small finite grid')
  check(game:hangarFit(st,'halcyon_wisp')~=nil,'small ship does not fit inside')
@@ -53,12 +53,19 @@ return function(game)
  st.def.hangar={w=40,h=24}
  check(game:hangarFit(st,'ferrous_freighter')~=nil,'hangar has a hard-coded hull-class limit')
  st.def.hangar=nil
- -- Cargo stays a real small-cell inventory; storage and outfitting share it.
+ -- Cargo stays a real small-cell inventory; equipment stays beside storage.
  Cargo.setTab(game,'cargo');local storageLayout=Cargo.layout(game)
- check(storageLayout.equip.hidden,'storage is still tied to the equipment panel')
+ check(not storageLayout.equip.hidden,'storage lost the existing equipment panel')
+ local sw,sh=love.graphics.getDimensions()
+ local function checkWorkspace(panels)
+  check(panels[1].x==16 and panels[#panels].x+panels[#panels].pw==sw-16,'station panels do not fill screen width')
+  for i,panel in ipairs(panels) do
+   check(panel.y==112 and panel.y+panel.ph==sh-56,'station panels are not aligned below service tabs')
+   if i>1 then check(panel.x==panels[i-1].x+panels[i-1].pw+12,'station panel spacing differs') end
+  end
+ end
+ checkWorkspace({storageLayout.equip,storageLayout.sides[1],storageLayout.sides[2]})
  screenshot('storage')
- Cargo.setTab(game,'outfitting');check(not Cargo.layout(game).equip.hidden,'outfitting lost existing equipment controls')
- screenshot('outfitting')
  Cargo.setTab(game,'hangar');local shipLayout=Hangar.layout(game)
  local listed=false
  for _,s in ipairs(shipLayout.ships) do if s.owner==game.player and s.exterior then listed=true end end
@@ -66,6 +73,12 @@ return function(game)
  screenshot('hangar')
  Cargo.setTab(game,'market');local layout=Cargo.layout(game)
  check(#layout.sides==3 and layout.equip.hidden,'market is not a three-panel inventory workspace')
+ checkWorkspace(layout.sides)
+ for _,g in ipairs(layout.grids) do
+  check(g.x>=g.side.x and g.x+g.g.w*layout.cs<=g.side.x+g.side.pw and g.y+g.g.h*layout.cs<=g.side.y+g.side.ph,'inventory grid overflows its station panel')
+ end
+ local offer=layout.sides[2]
+ check(offer.complete.x>=offer.x and offer.complete.x+offer.complete.w<=offer.x+offer.pw and offer.clear.y+offer.clear.h<=offer.y+offer.ph,'trade controls leave center panel')
  local trade=layout.sides[2].hold
  check(#trade.grids==2 and trade.grids[1].tradeOwner=='player' and trade.grids[2].tradeOwner=='station','give and receive inventories are not separated')
  -- Exercise actual right-click transfers through the existing inventory UI.

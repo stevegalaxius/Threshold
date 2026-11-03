@@ -25,6 +25,7 @@ local stats = require("src.stats")
 local Hold = require("src.inventory.hold")
 local HUD = require("src.hud")
 local T = require("src.tuning")
+local Station=require("src.ui.station")
 
 local Hangar = { sel = nil, hand = nil, scroll=0 }
 
@@ -48,16 +49,15 @@ local function layout(game)
 	if not st then return nil end
 	local sw, sh = lg.getDimensions()
 	local W,H=game.hangarSize(st)
-	local MW=260
-	local cs = max(8,min(30,floor((sw-48-IW-MW-GAP*2-PAD*2)/W),floor((sh-220)/H)))
-	local bw, bh = W * cs + PAD * 2, max(480,HEAD + H * cs + PAD)
-	local tw = bw + GAP + MW + GAP + IW
-	local x,y=floor((sw-tw)/2),112
-	local L = { x = x, y = y, w = tw, h = bh, cs = cs, station = st, list = game:hangar(st),gridW=W,gridH=H }
-	L.bay = { x = x, y = y, w = bw, h = bh }
-	L.gx, L.gy = x + PAD, y + HEAD
-	L.exterior={x=x+bw+GAP,y=y,w=MW,h=bh}
-	L.info = { x = L.exterior.x+MW+GAP, y = y, w = IW, h = bh }
+ local panels=Station.workspace(sw,sh,3,false)
+ local bw,bh=panels[1].w,panels[1].h
+ local MW,IW=panels[2].w,panels[3].w
+ local cs=max(8,min(24,floor((bw-PAD*2)/W),floor((bh-HEAD-PAD)/H)))
+ local x,y=panels[1].x,panels[1].y
+ local L={x=x,y=y,w=sw-32,h=bh,cs=cs,station=st,list=game:hangar(st),gridW=W,gridH=H}
+ L.bay={x=x,y=y,w=bw,h=bh}
+ L.gx,L.gy=x+PAD,y+HEAD
+ L.exterior=panels[2];L.info=panels[3]
 	L.ships = {};L.berths={}
  local slots=game:stationMoorings(st);local visible=max(1,floor((bh-HEAD-PAD)/64))
  Hangar.scroll=max(0,min(Hangar.scroll,max(0,#slots-visible)))
@@ -178,7 +178,7 @@ function Hangar.draw(game, mx, my)
 
 	-- the bay
 	local B = L.bay
-	HUD.panel(B.x, B.y, B.w, B.h)
+	Station.panel(B.x,B.y,B.w,B.h)
 	lg.setFont(HUD.font(16))
 	lg.setColor(HUD.INK)
 	lg.print("Hangar \194\183 " .. L.station.name, B.x + PAD, B.y + 12)
@@ -194,7 +194,7 @@ function Hangar.draw(game, mx, my)
 		for cx = 0, L.gridW - 1 do lg.rectangle("line", L.gx + cx * cs + 0.5, L.gy + cy * cs + 0.5, cs - 1, cs - 1) end
 	end
 
- HUD.panel(L.exterior.x,L.exterior.y,L.exterior.w,L.exterior.h)
+ Station.panel(L.exterior.x,L.exterior.y,L.exterior.w,L.exterior.h)
  lg.setFont(HUD.font(16));lg.setColor(HUD.INK)
  lg.print('Exterior moorings',L.exterior.x+PAD,L.exterior.y+12)
  lg.setFont(HUD.font(12));button(L.scrollUp,'<',inRect(L.scrollUp,mx,my));button(L.scrollDown,'>',inRect(L.scrollDown,mx,my))
@@ -250,7 +250,7 @@ function Hangar.draw(game, mx, my)
 
 	-- the selected ship
 	local I = L.info
-	HUD.panel(I.x, I.y, I.w, I.h)
+	Station.panel(I.x,I.y,I.w,I.h)
 	local owner = sel and sel.owner or p
 	local flying = owner == p
 	local rec = flying and { hull = p.hull.id, loadout = p.loadout, hold = p.hold } or owner

@@ -528,10 +528,11 @@ ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
 
 ## Station services prototype
 
-Docking opens four services: **Storage**, **Market**, **Hangar** and
-**Outfitting**. They reuse the existing small-cell inventory renderer and item
-controls. Storage retains the ship hold, station storage, parked cargo and
-opened containers. Outfitting shows the existing ship equipment panel. The
+Docking opens three services: **Storage**, **Market**, and **Hangar**, beneath
+a persistent station header. Aligned panels fill the station workspace while
+retaining the existing small-cell inventory renderer and item controls. Storage
+keeps equipment beside the ship hold and station storage, including parked cargo
+and opened containers. Equipment remains part of the inventory service. The
 in-space inventory is unchanged.
 
 Market uses three panels: player inventory (hold/storage selector), a pending
