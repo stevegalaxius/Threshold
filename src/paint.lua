@@ -28,10 +28,10 @@ Paint.PRESETS = {
 	{ name = "Gunmetal",   color = { 0.27, 0.31, 0.38 } },
 	{ name = "Charcoal",   color = { 0.17, 0.17, 0.18 } },
 	-- earth
-	{ name = "Umber",      color = { 0.38, 0.26, 0.16 } },
-	{ name = "Primer",     color = { 0.55, 0.2, 0.16 } },
-	{ name = "Terracotta", color = { 0.72, 0.4, 0.28 } },
-	{ name = "Plum",       color = { 0.5, 0.22, 0.35 } },
+	{ name = "Umber",      color = { 0.26, 0.17, 0.1 } },
+	{ name = "Primer",     color = { 0.62, 0.12, 0.1 } },
+	{ name = "Terracotta", color = { 0.9, 0.56, 0.36 } },
+	{ name = "Plum",       color = { 0.42, 0.16, 0.42 } },
 	-- greens
 	{ name = "Sage",       color = { 0.6, 0.68, 0.55 } },
 	{ name = "Olive Drab", color = { 0.48, 0.5, 0.3 } },
@@ -39,9 +39,9 @@ Paint.PRESETS = {
 	{ name = "Forest",     color = { 0.17, 0.34, 0.2 } },
 	{ name = "Pine",       color = { 0.12, 0.3, 0.28 } },
 	-- golds
-	{ name = "Brass",      color = { 0.66, 0.54, 0.24 } },
-	{ name = "Mustard",    color = { 0.85, 0.66, 0.18 } },
-	{ name = "Signal",     color = { 1.0, 0.85, 0.35 } },
+	{ name = "Old Gold",   color = { 0.55, 0.42, 0.08 } },
+	{ name = "Champagne",  color = { 0.93, 0.86, 0.62 } },
+	{ name = "Signal",     color = { 1.0, 0.92, 0.15 } },
 	-- blues and brights
 	{ name = "Tanker",     color = { 0.18, 0.5, 0.52 } },
 	{ name = "Cargo Blue", color = { 0.28, 0.36, 0.55 } },

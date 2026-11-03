@@ -10,7 +10,7 @@ return function(game)
  local function same(a,b) return math.abs(a[1]-b[1])+math.abs(a[2]-b[2])+math.abs(a[3]-b[3])<1e-6 end
  check(#Paint.PRESETS>=15,'presets')
  local p=Paint.preset('Signal')
- check(same(p,{1,0.85,0.35}) and p.secondary[1]<p[1],'light preset shades darker')
+ check(same(p,{1,0.92,0.15}) and p.secondary[1]<p[1],'light preset shades darker')
  local d=Paint.preset('Plum'); check(d.secondary[1]>d[1],'dark preset shades lighter')
  local seen={}
  for _=1,60 do seen[Paint.resolve(nil,nil,{paints={'Signal','Plum'}}).name]=true end
