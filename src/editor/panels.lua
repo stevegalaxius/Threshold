@@ -330,6 +330,21 @@ local function designWindow(E, Editor)
 	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
+	d.stats = d.stats or {}
+	if (d.kind or "hull") == "hull" then
+		Slab.Text("class"); Slab.SameLine()
+		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
+		Slab.SameLine()
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Just a label, shown in the hangar as 'maker, class'." })
+		Slab.Text("maker"); Slab.SameLine()
+		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
+	end
+	Slab.Text("description")
+	if Slab.Input("yard_desc", { Text = ((d.kind or "hull") == "hull" and E.stat("description") or d.stats.description) or "", W = 260, H = 70, MultiLine = true, MultiLineW = 250, ReturnOnText = true }) then
+		E.pushUndoCoalesced("yard_desc")
+		local t = Slab.GetInputText()
+		d.stats.description = t ~= "" and t or nil
+	end
 	if Slab.Button(E.isPlaced() and "Spawn ahead of me" or "Test fly") then E.testFly() end
 	Slab.SameLine()
 	if Slab.Button("Export") then E.export() end
@@ -507,18 +522,6 @@ local function designWindow(E, Editor)
 		Slab.SameLine()
 		Slab.Text("helm"); Slab.SameLine()
 		combo("yard_helm", E.stat("helm") or "strafe", hopts, function(m) E.pushUndo(); d.stats.helm = m end, 120)
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "Just a label, shown in the hangar as 'maker, class'." })
-		Slab.SameLine()
-		Slab.Text("class"); Slab.SameLine()
-		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
-		Slab.Text("maker"); Slab.SameLine()
-		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
-		Slab.Text("description")
-		if Slab.Input("yard_desc", { Text = E.stat("description") or "", W = 250, H = 70, MultiLine = true, MultiLineW = 240, ReturnOnText = true }) then
-			E.pushUndoCoalesced("yard_desc")
-			local t = Slab.GetInputText()
-			d.stats.description = t ~= "" and t or nil
-		end
 		Slab.EndTree()
 	end
 	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
