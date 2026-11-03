@@ -394,13 +394,37 @@ local function pressed(E, sx, sy, button)
 	end
 	local i = Canvas.partAt(E, wx, wy)
 	E.vsel = nil
-	if i then
+	local shift = love.keyboard.isDown("lshift", "rshift")
+	E.multi = E.multi or {}
+	if i and shift then
+		-- shift-click adds a part to the selection, or takes it out
+		if i == E.sel then
+			E.sel = next(E.multi); if E.sel then E.multi[E.sel] = nil end
+		elseif E.multi[i] then E.multi[i] = nil
+		else
+			if E.sel then E.multi[E.sel] = true end
+			E.sel = i
+		end
+	elseif i then
+		-- clicking inside the selection keeps it, to drag the group
+		if i ~= E.sel and not E.multi[i] then E.multi = {} end
+		if E.multi[i] then E.multi[i] = nil; E.multi[E.sel] = true end
 		E.sel = i
 		local px, py = Canvas.snap(E, wx, wy)
 		E.drag = { kind = "part", lx = px, ly = py, pushed = false }
 	else
-		E.sel = nil
+		-- empty space: drag a box to select every part inside it
+		if not shift then E.sel, E.multi = nil, {} end
+		E.drag = { kind = "marquee", x1 = wx, y1 = wy, x2 = wx, y2 = wy }
 	end
+end
+
+-- Every selected part's index, the primary first.
+function Canvas.selection(E)
+	local out = {}
+	if E.sel then out[1] = E.sel end
+	for k in pairs(E.multi or {}) do if k ~= E.sel and E.design.parts[k] then out[#out + 1] = k end end
+	return out
 end
 
 -- Moving drags (a light, point, slot, part, berth or turret) only start
@@ -432,7 +456,9 @@ function Canvas.mousemoved(E, sx, sy)
 	end
 	local wx, wy = Canvas.toWorld(E, sx, sy)
 	local px, py = Canvas.snap(E, wx, wy)
-	if d.kind == "rect" or d.kind == "lights" or d.kind == "berth" then
+	if d.kind == "marquee" then
+		d.x2, d.y2 = wx, wy
+	elseif d.kind == "rect" or d.kind == "lights" or d.kind == "berth" then
 		d.x2, d.y2 = px, py
 	elseif d.kind == "turretmove" then
 		local t = E.design.turrets and E.design.turrets[d.i]
@@ -470,11 +496,13 @@ function Canvas.mousemoved(E, sx, sy)
 		local dx, dy = px - d.lx, py - d.ly
 		if dx ~= 0 or dy ~= 0 then
 			if not d.pushed then E.pushUndo(); d.pushed = true end
-			local s = E.design.parts[E.sel].shape
-			for k = 1, #s, 2 do s[k], s[k + 1] = s[k] + dx, s[k + 1] + dy end
-			for _, l in ipairs(E.design.parts[E.sel].lights or {}) do l.x, l.y = l.x + dx, l.y + dy end
-			local p=E.design.parts[E.sel]
-			if p.dockX~=nil then p.dockX,p.dockY=p.dockX+dx,p.dockY+dy end
+			for _, idx in ipairs(Canvas.selection(E)) do
+				local p = E.design.parts[idx]
+				local s = p.shape
+				for k = 1, #s, 2 do s[k], s[k + 1] = s[k] + dx, s[k + 1] + dy end
+				for _, l in ipairs(p.lights or {}) do l.x, l.y = l.x + dx, l.y + dy end
+				if p.dockX~=nil then p.dockX,p.dockY=p.dockX+dx,p.dockY+dy end
+			end
 			d.lx, d.ly = px, py
 		end
 	end
@@ -483,6 +511,27 @@ end
 function Canvas.mousereleased(E, sx, sy, button)
 	local d = E.drag
 	E.drag = nil
+	if d and d.kind == "marquee" then
+		local x1, x2 = min(d.x1, d.x2), max(d.x1, d.x2)
+		local y1, y2 = min(d.y1, d.y2), max(d.y1, d.y2)
+		if x2 - x1 < 2 / E.view.zoom and y2 - y1 < 2 / E.view.zoom then return end
+		E.multi = E.multi or {}
+		for i, p in ipairs(E.design.parts) do
+			if not p.hidden then
+				-- a part is in the box when its whole outline is
+				local all = true
+				for k = 1, #p.shape, 2 do
+					local x, y = p.shape[k], p.shape[k + 1]
+					if x < x1 or x > x2 or y < y1 or y > y2 then all = false break end
+				end
+				if all then
+					if E.sel and E.sel ~= i then E.multi[E.sel] = true end
+					E.sel = i
+				end
+			end
+		end
+		return
+	end
 	if d and d.kind == "lights" then
 		-- a click places one light; a drag places a row along it
 		local pts = {}
@@ -807,6 +856,26 @@ function Canvas.draw(E)
 		end
 	end
 
+	-- the rest of a multi-selection: plain outlines
+	for k in pairs(E.multi or {}) do
+		local q = E.design.parts[k]
+		if q and k ~= E.sel and not q.hidden then
+			local pts = {}
+			for j = 1, #q.shape, 2 do
+				local sx, sy = Canvas.toScreen(E, q.shape[j], q.shape[j + 1])
+				pts[#pts + 1], pts[#pts + 2] = sx, sy
+			end
+			lg.setLineWidth(2); lg.setColor(1, 0.85, 0.3, 0.6)
+			if #pts >= 6 then lg.polygon("line", pts) end
+		end
+	end
+	if E.drag and E.drag.kind == "marquee" then
+		local d = E.drag
+		local ax, ay = Canvas.toScreen(E, d.x1, d.y1)
+		local bx, by = Canvas.toScreen(E, d.x2, d.y2)
+		lg.setLineWidth(1); lg.setColor(1, 0.85, 0.3, 0.8)
+		lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
+	end
 	-- selection: outline, vertices, centre
 	local p = E.sel and E.design.parts[E.sel]
 	-- (handles only with the select tool; other tools just show a faint outline)
