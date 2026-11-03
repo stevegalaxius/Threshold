@@ -39,6 +39,13 @@ function G.build(area)
   graph.order[#graph.order+1]=place.id
   graph.destinations[place.id]={place.id}
  end
+ -- A station's extra access points (accessOf) are more ways to reach it:
+ -- a route to the station may end, or start, at any of them.
+ for _,place in ipairs(L.list(area)) do
+  if place.accessOf and graph.destinations[place.accessOf] then
+   table.insert(graph.destinations[place.accessOf],place.id)
+  end
+ end
  for _,pair in ipairs(f.travelLinks or {}) do
   local a,b=pair[1],pair[2]
   assert(graph.nodes[a] and graph.nodes[b], 'travel link has unknown endpoint')

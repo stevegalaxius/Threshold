@@ -1239,13 +1239,17 @@ function Game:spawnHeavenLadder(cx, cy, R)
 		-- key (so its storage, hangar and market), and Game:locationEntity
 		-- picks the nearest when given a position. The first is bound to the
 		-- location; the rest hold still where they are.
-		local id = self.field and self.field.ladderId
-		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0, false, i == 0 and id or nil)
+		local ids = self.field and self.field.ladderIds
+		local id = ids and ids[i + 1]
+		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0, false, id)
 		st.body:setAngle(a)
 		st.body:setAngularVelocity(0)
 		st.accessIndex = i + 1
-		if id and i > 0 then st.locationId, st.key = id, id end
-		st.name = (id and require("src.locations").get(id).name or "Heaven-Ladder") .. (" (anchor %d)"):format(i + 1)
+		if id then
+			-- each anchor is its own location; the station record is the Ladder's
+			st.key = ids[1]
+			st.name = require("src.locations").get(ids[1]).name .. (" (anchor %d)"):format(i + 1)
+		end
 	end
 end
 

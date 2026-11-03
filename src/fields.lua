@@ -541,12 +541,24 @@ for _, area in ipairs(Fields.list) do
 		F.locations[#F.locations].layout = layout
 	end
 	-- The Heaven-Ladder (Mars): one station with four elevator anchors as its
-	-- access points. The location is the first anchor, which holds still on
-	-- the ring at 45 degrees (see Game:spawnHeavenLadder).
+	-- access points, each a location (and a travel-graph node) of its own.
+	-- The first is the station's identity; the others say accessOf it, so
+	-- routes to the Ladder end at whichever anchor is nearest, and all four
+	-- share its storage, hangar and market (see Game:spawnHeavenLadder).
 	if area == "mars" and F.planetR then
 		local LR = F.planetR + 1100
-		F.ladderId = add("heaven_ladder", "Heaven-Ladder", "station", { type = "fixed", x = cos(pi / 4) * LR, y = sin(pi / 4) * LR }, 0)
-		F.locations[#F.locations].heading = pi / 4
+		F.ladderIds = {}
+		for k = 0, 3 do
+			local a = (k * 2 + 1) / 8 * pi * 2
+			local lid = add(k == 0 and "heaven_ladder" or ("heaven_ladder_" .. (k + 1)),
+				k == 0 and "Heaven-Ladder" or ("Heaven-Ladder anchor " .. (k + 1)), "station",
+				{ type = "fixed", x = cos(a) * LR, y = sin(a) * LR }, 0)
+			local place = F.locations[#F.locations]
+			place.heading = a
+			if k > 0 then place.accessOf, place.marketId = F.ladderIds[1], F.ladderIds[1] end
+			F.ladderIds[k + 1] = lid
+		end
+		F.ladderId = F.ladderIds[1]
 	end
 	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
 		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
@@ -591,7 +603,13 @@ for _, area in ipairs(Fields.list) do
   for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
  end
  if not F.tradeBuoys then link(F.driverId,F.stationIds[1]) end
- if F.ladderId then for _,id in ipairs(F.buoyIds) do link(F.ladderId,id) end end
+ if F.ladderIds then
+  -- every anchor reaches the trade buoys, and its neighbours along the ring
+  for k,a in ipairs(F.ladderIds) do
+   for _,id in ipairs(F.buoyIds) do link(a,id) end
+   link(a,F.ladderIds[k%#F.ladderIds+1])
+  end
+ end
  for _,place in ipairs(F.locations) do
   if place.kind=='moon_gate' then
    -- Candidate attachments to the existing corridor. Routing uses only the

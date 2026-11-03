@@ -16,6 +16,13 @@ for _, area in ipairs(Fields.list) do
 	end
 end
 
+-- The station a location belongs to: itself, or the station it's an
+-- access point of (the Heaven-Ladder's anchors).
+function L.canonical(id)
+	local place = id and L.byId[id]
+	return place and place.accessOf or id
+end
+
 function L.get(id) return assert(L.byId[id], "unknown location " .. tostring(id)) end
 function L.list(area) return L.byArea[area] or {} end
 
@@ -102,8 +109,7 @@ function L.install(Game)
 
 	function Game:syncLocations()
 		for _, e in ipairs(self.entities) do
-			-- (extra access points of one station hold their own place)
-			if e.locationId and not e.removed and not (e.accessIndex and e.accessIndex > 1) then
+			if e.locationId and not e.removed then
 				e.body:setPosition(L.position(e.locationId, self.universe.clock))
 				e.body:setAngle(L.coreHeading(e, e.locationId, self.universe.clock))
 				e.body:setLinearVelocity(L.velocity(e.locationId, self.universe.clock))
