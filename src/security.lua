@@ -82,7 +82,7 @@ local function create(game,area,role,node,clock,start)
  u.nextNpcId=u.nextNpcId+1
  local r={id='npc/'..u.nextNpcId,home=area,area=area,role=role,archetype=archetype,
   speed=def.ai.cruise,spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
-  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor,color=copy(def.color)}}
+  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor}}
  u.npcs[r.id]=r
  S.advance(r,clock,u,start)
  return r

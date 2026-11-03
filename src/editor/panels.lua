@@ -98,7 +98,7 @@ end
 --   rows       unbroken lit rows, like a deck's promenade
 --   checker    every other window, a lattice
 --   grid       every window lit
-local WINDOW_PALETTES = {
+local WINDOW_PALETTES = Canvas.WINDOW_PALETTES or {
 	warm = { { 1, 0.82, 0.5 }, { 1, 0.82, 0.5 }, { 1, 0.6, 0.35 }, { 1, 0.9, 0.7 } },
 	mixed = { { 1, 0.82, 0.5 }, { 1, 0.82, 0.5 }, { 1, 0.6, 0.35 }, { 0.6, 0.9, 1 }, { 0.75, 1, 0.65 } },
 	cool = { { 0.6, 0.9, 1 }, { 0.6, 0.9, 1 }, { 0.85, 0.95, 1 }, { 0.75, 1, 0.65 } },
@@ -106,11 +106,13 @@ local WINDOW_PALETTES = {
 	white = { { 1, 0.95, 0.85 } },
 	auto = false,   -- no colour: the game's default window colour
 }
+Canvas.WINDOW_PALETTES = WINDOW_PALETTES
 local WINDOW_PATTERNS = { "rooms", "scattered", "rows", "checker", "grid" }
 local function fillWindows(E, p)
 	local sx, sy = E.windowSpacing or (ship and 6 or 40), E.windowRowSpacing or (ship and 6 or 48)
 	local density, pattern = E.windowDensity or 0.6, E.windowPattern or "rooms"
-	local pal, size = WINDOW_PALETTES[E.windowPalette or "mixed"], E.windowSize or (ship and 1.2 or 6)
+	local pal = WINDOW_PALETTES[E.windowPalette or "auto"]
+	local pw, ph = Canvas.paneSize(E)
 	local rnd = love.math.random
 	local function colour() if pal then local c = pal[rnd(#pal)]; return { c[1], c[2], c[3] } end end
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
@@ -142,7 +144,7 @@ local function fillWindows(E, p)
 					lit, c = rnd() < 0.3 + density * 0.7, colour()
 				end
 				if lit then
-					table.insert(p.lights, { kind = "window", x = math.floor(x + 0.5), y = math.floor(y + 0.5), size = size, color = c })
+					table.insert(p.lights, { kind = "window", x = math.floor(x + 0.5), y = math.floor(y + 0.5), w = pw, h = ph, color = c })
 				end
 			end
 		end
@@ -168,7 +170,9 @@ local function placedSections(E, d)
 		Slab.Separator()
 		local nr = 0
 		for _ in pairs(d.rotors or {}) do nr = nr + 1 end
-		check(E, E.showRotors ~= false, ("Rotors window (%d rotors)"):format(nr), function(on) E.showRotors = on end)
+		local shown = E.showRotors
+		if shown == nil then shown = nr > 0 end
+		check(E, shown, ("Rotors window (%d rotors)"):format(nr), function(on) E.showRotors = on end)
 		Slab.Separator()
 		Slab.Text("Use it: layout = \"<id>\" on a station entry", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("in src/fields.lua, or export as ring_<R>_<tube>", { Color = { 0.6, 0.6, 0.6 } })
@@ -326,6 +330,25 @@ local function designWindow(E, Editor)
 	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
+	d.stats = d.stats or {}
+	if (d.kind or "hull") == "hull" then
+		Slab.Text("class"); Slab.SameLine()
+		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
+		Slab.SameLine()
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Just a label, shown in the hangar as 'maker, class'." })
+		Slab.Text("maker"); Slab.SameLine()
+		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
+		local Paint = require("src.paint")
+		local pool = E.stat("paints") or {}
+		Slab.Text("paint jobs: " .. (#pool > 0 and table.concat(pool, ", ") or Paint.DEFAULT .. " (none ticked)"), { Color = { 0.75, 0.75, 0.75 } })
+		if Slab.Button(E.showPaints and "Close paint jobs" or "Paint jobs...") then E.showPaints = not E.showPaints end
+	end
+	Slab.Text("description")
+	if Slab.Input("yard_desc", { Text = ((d.kind or "hull") == "hull" and E.stat("description") or d.stats.description) or "", W = 260, H = 70, MultiLine = true, MultiLineW = 250, ReturnOnText = true }) then
+		E.pushUndoCoalesced("yard_desc")
+		local t = Slab.GetInputText()
+		d.stats.description = t ~= "" and t or nil
+	end
 	if Slab.Button(E.isPlaced() and "Spawn ahead of me" or "Test fly") then E.testFly() end
 	Slab.SameLine()
 	if Slab.Button("Export") then E.export() end
@@ -357,40 +380,48 @@ local function designWindow(E, Editor)
 		end
 	end
 	if E.tool == "light" then
-		Slab.Text("Left: click a part for one light, drag a row", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text("Select tool (V) picks a light to edit or move", { Color = { 0.6, 0.6, 0.6 } })
-		Slab.Text("Right drag erases lights", { Color = { 0.6, 0.6, 0.6 } })
+		-- one set of light settings: clicks, dragged rows and Fill all use it
+		local ship = E.design.kind ~= "station"
 		local names = { window = "window", nav = "nav (red/green)", strobe = "strobe (white flash)" }
 		local kopts = {}
-		local kinds = { "window", "nav", "strobe" }
-		for _, k in ipairs(kinds) do table.insert(kopts, { label = names[k], value = k }) end
+		for _, k in ipairs({ "window", "nav", "strobe" }) do table.insert(kopts, { label = names[k], value = k }) end
+		Slab.Text("Light"); Slab.SameLine()
 		combo("yard_lightkind", names[E.lightKind], kopts, function(k) E.lightKind = k end, 160)
-		Slab.Text("row spacing (px)")
-		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 64, 1, { W = 90 }) then E.lightSpacing = Slab.GetInputNumber() end
-		do
-			local ship = E.design.kind ~= "station"
-			Slab.Separator()
-			Slab.Text("Fill a part with windows", { Color = { 0.8, 0.85, 1 } })
-			local p = E.sel and E.design.parts[E.sel]
-			Slab.Text(p and ("on: " .. (p.name or ("part " .. E.sel))) or "Select a part first (V)", { Color = { 0.6, 0.6, 0.6 } })
-			local popts = {}
-			for _, k in ipairs(WINDOW_PATTERNS) do table.insert(popts, { label = k, value = k }) end
-			Slab.Text("pattern"); Slab.SameLine()
-			combo("yard_wpattern", E.windowPattern or "rooms", popts, function(v) E.windowPattern = v end, 120)
-			local copts = {}
-			for _, k in ipairs({ "mixed", "warm", "cool", "amber", "white", "auto" }) do table.insert(copts, { label = k, value = k }) end
-			Slab.Text("colours"); Slab.SameLine()
-			combo("yard_wpalette", E.windowPalette or "mixed", copts, function(v) E.windowPalette = v end, 120)
-			Slab.Text("across / down (px)")
-			if Slab.InputNumberDrag("yard_wsx", E.windowSpacing or (ship and 6 or 40), 2, 200, 1, { W = 70 }) then E.windowSpacing = Slab.GetInputNumber() end
+		local copts = {}
+		for _, k in ipairs({ "auto", "mixed", "warm", "cool", "amber", "white" }) do table.insert(copts, { label = k, value = k }) end
+		Slab.Text("colours"); Slab.SameLine()
+		combo("yard_wpalette", E.windowPalette or "auto", copts, function(v) E.windowPalette = v end, 120)
+		if E.lightKind == "window" then
+			local pw, ph = Canvas.paneSize(E)
+			Slab.Text("pane width / height (px)")
+			if Slab.InputNumberDrag("yard_panew", pw, 0.5, 400, 0.5, { W = 70 }) then E.paneW = Slab.GetInputNumber() end
 			Slab.SameLine()
-			if Slab.InputNumberDrag("yard_wsy", E.windowRowSpacing or (ship and 6 or 48), 2, 200, 1, { W = 70 }) then E.windowRowSpacing = Slab.GetInputNumber() end
-			Slab.Text("size / lit share")
-			if Slab.InputNumberDrag("yard_wsize", E.windowSize or (ship and 1.2 or 6), 0.5, 24, 0.5, { W = 70 }) then E.windowSize = Slab.GetInputNumber() end
-			Slab.SameLine()
-			if Slab.InputNumberDrag("yard_wden", E.windowDensity or 0.6, 0.05, 1, 0.01, { W = 70 }) then E.windowDensity = Slab.GetInputNumber() end
-			if p and Slab.Button("Fill (replaces its lights; again to reroll)") then E.pushUndo(); fillWindows(E, p) end
+			if Slab.InputNumberDrag("yard_paneh", ph, 0.5, 400, 0.5, { W = 70 }) then E.paneH = Slab.GetInputNumber() end
+		else
+			Slab.Text("size (px)"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_lsizenew", E.lightSize or (E.lightKind == "nav" and 3 or 1.2), 0.5, 24, 0.5, { W = 70 }) then E.lightSize = Slab.GetInputNumber() end
 		end
+		Slab.Separator()
+		Slab.Text("Place", { Color = { 0.8, 0.85, 1 } })
+		Slab.Text("Click a part for one light, drag for a row", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Right drag erases; Select (V) edits one", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text(E.lightKind == "window" and "gap between panes (px)" or "row spacing (px)"); Slab.SameLine()
+		if Slab.InputNumberDrag("yard_lightspacing", E.lightSpacing, 2, 200, 1, { W = 70 }) then E.lightSpacing = Slab.GetInputNumber() end
+		Slab.Separator()
+		Slab.Text("Fill a whole part (windows)", { Color = { 0.8, 0.85, 1 } })
+		local p = E.sel and E.design.parts[E.sel]
+		Slab.Text(p and ("on: " .. (p.name or ("part " .. E.sel))) or "Select a part first (V)", { Color = { 0.6, 0.6, 0.6 } })
+		local popts = {}
+		for _, k in ipairs(WINDOW_PATTERNS) do table.insert(popts, { label = k, value = k }) end
+		Slab.Text("pattern"); Slab.SameLine()
+		combo("yard_wpattern", E.windowPattern or "rooms", popts, function(v) E.windowPattern = v end, 120)
+		Slab.Text("across / down (px)")
+		if Slab.InputNumberDrag("yard_wsx", E.windowSpacing or (ship and 6 or 40), 2, 200, 1, { W = 70 }) then E.windowSpacing = Slab.GetInputNumber() end
+		Slab.SameLine()
+		if Slab.InputNumberDrag("yard_wsy", E.windowRowSpacing or (ship and 6 or 48), 2, 200, 1, { W = 70 }) then E.windowRowSpacing = Slab.GetInputNumber() end
+		Slab.Text("lit share"); Slab.SameLine()
+		if Slab.InputNumberDrag("yard_wden", E.windowDensity or 0.6, 0.05, 1, 0.01, { W = 70 }) then E.windowDensity = Slab.GetInputNumber() end
+		if p and Slab.Button("Fill (replaces its lights; again to reroll)") then E.pushUndo(); fillWindows(E, p) end
 	end
 	if E.tool == "rect" then
 		Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
@@ -404,6 +435,14 @@ local function designWindow(E, Editor)
 			Slab.Text("corner cut")
 			if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
 		end
+	end
+	if E.tool == "select" then
+		Slab.Text("Shift-click adds to the selection", { Color = { 0.6, 0.6, 0.6 } })
+		Slab.Text("Drag on empty space to box select:")
+		combo("yard_boxmode", E.boxMode or "parts", {
+			{ label = "parts", value = "parts" }, { label = "lights", value = "lights" },
+			{ label = "points of the selected part", value = "points" },
+		}, function(v) E.boxMode = v end)
 	end
 	if E.tool == "turret" then
 		Slab.Text("Click to place a turret; right click removes", { Color = { 0.6, 0.6, 0.6 } })
@@ -440,8 +479,10 @@ local function designWindow(E, Editor)
 		table.insert(paints, { label = pt.name, value = pt.color })
 		if pt.color == E.paint then current = pt.name end
 	end
-	Slab.Text("paint"); Slab.SameLine()
-	combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
+	if (d.kind or "hull") ~= "hull" then
+		Slab.Text("paint"); Slab.SameLine()
+		combo("yard_paint", current, paints, function(c) E.paint = c end, 140)
+	end
 	Slab.Text("Pretend damage (windows go out)")
 	if Slab.InputNumberSlider("yard_pdamage", E.previewDamage, 0, 1, { W = 160, Precision = 2 }) then E.previewDamage = Slab.GetInputNumber() end
 	Slab.SameLine()
@@ -483,14 +524,10 @@ local function designWindow(E, Editor)
 		Slab.Text("default mount"); Slab.SameLine()
 		combo("yard_mount", E.stat("mount") or "gimbal", mopts, function(m) E.pushUndo(); d.stats.mount = m end, 120)
 		local hopts = { { label = "strafe", value = "strafe" }, { label = "turn", value = "turn" } }
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "strafe: A/D slide sideways on the side thrusters.\nturn: A/D rotate the hull and the mouse only aims the guns (battleships)." })
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "strafe: A/D slide sideways on the side thrusters.\nturn: A/D rotate the hull and the mouse only aims the guns (battleships).\nTurn-helm hulls also keep their boost on trade lanes." })
 		Slab.SameLine()
 		Slab.Text("helm"); Slab.SameLine()
 		combo("yard_helm", E.stat("helm") or "strafe", hopts, function(m) E.pushUndo(); d.stats.helm = m end, 120)
-		Slab.Text("class"); Slab.SameLine()
-		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
-		Slab.Text("maker"); Slab.SameLine()
-		textField(E, "yard_maker", E.stat("maker"), function(t) d.stats.maker = t end, 150)
 		Slab.EndTree()
 	end
 	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
@@ -607,13 +644,54 @@ local function designWindow(E, Editor)
 	Slab.EndWindow()
 end
 
+-- Floating: a hull's pool of factory paint jobs ---------------------------
+local function paintWindow(E)
+	local d = E.design
+	if (d.kind or "hull") ~= "hull" or not E.showPaints then return end
+	local Paint = require("src.paint")
+	local pool = E.stat("paints") or {}
+	local on = {}
+	for _, n in ipairs(pool) do on[n] = true end
+	Slab.BeginWindow("yard_paintwin", { Title = "Factory paint jobs", X = 340, Y = 10, W = 290, H = math.min(love.graphics.getHeight() - 20, 110 + #Paint.PRESETS * 20),
+		AutoSizeWindow = false, AllowResize = true, IsOpen = true })
+	Slab.Text("Each hull leaves the yard in one of the", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("ticked jobs, at random. None: " .. Paint.DEFAULT, { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("Canvas shows the first ticked.", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Separator()
+	for _, pt in ipairs(Paint.PRESETS) do
+		local c, s2 = pt.color, Paint.shadeOf(pt.color)
+		Slab.Rectangle({ W = 22, H = 18, Color = { c[1], c[2], c[3], 1 } })
+		Slab.SameLine({ Pad = 0 })
+		Slab.Rectangle({ W = 10, H = 18, Color = { s2[1], s2[2], s2[3], 1 } })
+		Slab.SameLine()
+		if Slab.CheckBox(on[pt.name] == true, pt.name, { Id = "yard_pj_" .. pt.name }) then
+			E.pushUndo()
+			local out = {}
+			for _, q in ipairs(Paint.PRESETS) do
+				local want = on[q.name]
+				if q.name == pt.name then want = not want end
+				if want then out[#out + 1] = q.name end
+			end
+			d.stats.paints = #out > 0 and out or nil
+		end
+	end
+	if Slab.Button("Done") then E.showPaints = false end
+	Slab.EndWindow()
+end
+
 -- Floating: the station's rotors -------------------------------------------
 -- Everything about rotors in one place: which rotor the selected part
 -- turns with, each rotor's pivot and spin, and picking pivots on the canvas.
 local function rotorWindow(E)
 	local d = E.design
-	if d.kind ~= "station" or E.showRotors == false then return end
-	Slab.BeginWindow("yard_rotorwin", { Title = "Rotors", X = 320, Y = 10, W = 300, H = 420, AutoSizeWindow = false, AllowResize = true })
+	if d.kind ~= "station" then return end
+	-- shown when the station has rotors, unless hidden; the checkbox in
+	-- the station section turns it on for one without
+	local show = E.showRotors
+	if show == nil then show = d.rotors ~= nil end
+	if not show then return end
+	local h = love.graphics.getHeight()
+	Slab.BeginWindow("yard_rotorwin", { Title = "Rotors", X = 340, Y = h - 330, W = 300, H = 300, AutoSizeWindow = false, AllowResize = true })
 	local p = E.sel and d.parts[E.sel]
 	if p then
 		Slab.Text("Selected part: " .. (p.name or ("part " .. E.sel)), { Color = { 0.8, 0.85, 1 } })
@@ -722,7 +800,15 @@ local function partWindow(E)
 	local i = E.sel
 	local light = E.lsel and p.lights and p.lights[E.lsel]
 	if light then
+		local group = Canvas.lightSelection(E)
+		local LFIELDS = { "kind", "color", "size", "w", "h", "rate", "phase" }
+		local function key(v) return type(v) == "table" and table.concat(v, ",") or tostring(v) end
+		local before = {}
+		for _, f in ipairs(LFIELDS) do before[f] = key(light[f]) end
 		Slab.Text(("Light %d of %d on this part"):format(E.lsel, #p.lights))
+		if #group > 1 then
+			Slab.Text(("%d lights selected: edits apply to all"):format(#group), { Color = { 0.5, 0.9, 1 } })
+		end
 		local kopts = { { label = "nav", value = "nav" }, { label = "strobe", value = "strobe" } }
 		table.insert(kopts, 1, { label = "window", value = "window" })
 		combo("yard_lkind" .. i, light.kind or "window", kopts, function(k)
@@ -743,8 +829,17 @@ local function partWindow(E)
 				slider(E, "yard_lc" .. name .. i, light.color[ci], 0, 1, function(v) light.color[ci] = v end)
 			end
 		end
-		Slab.Text("size (px)")
-		slider(E, "yard_lsize" .. i, light.size or (light.kind == "nav" and 3 or 1.2), 0.5, 6, function(v) light.size = v end, 1)
+		if light.kind == "window" and (light.w or light.h) then
+			Slab.Text("pane width / height (px)")
+			slider(E, "yard_lw" .. i, light.w or light.size or 1.2, 0.5, 400, function(v) light.w = v end, 1)
+			slider(E, "yard_lh" .. i, light.h or light.size or 1.2, 0.5, 400, function(v) light.h = v end, 1)
+		else
+			Slab.Text("size (px)")
+			slider(E, "yard_lsize" .. i, light.size or (light.kind == "nav" and 3 or 1.2), 0.5, 24, function(v) light.size = v end, 1)
+			if light.kind == "window" and Slab.Button("Make it a pane") then
+				E.pushUndo(); local s0 = (light.size or 1.2) * 1.2; light.w, light.h, light.size = s0, s0, nil
+			end
+		end
 		if light.kind == "strobe" then
 			Slab.Text("flashes per second")
 			slider(E, "yard_lrate" .. i, light.rate or 1, 0.1, 4, function(v) light.rate = v end)
@@ -755,6 +850,15 @@ local function partWindow(E)
 		Slab.SameLine()
 		if Slab.Button("Back to the part") then E.lsel = nil end
 		if Slab.Button("Remove all lights on this part") then E.pushUndo(); p.lights = nil; E.lsel = nil end
+		for _, f in ipairs(LFIELDS) do
+			if key(light[f]) ~= before[f] then
+				for k = 2, #group do
+					local v = light[f]
+					if type(v) == "table" then v = { unpack(v) } end
+					group[k][f] = v
+				end
+			end
+		end
 		Slab.Separator()
 	end
 	if E.errors[i] then Slab.Text("! " .. E.errors[i], { Color = { 1, 0.4, 0.4 } }) end
@@ -769,6 +873,16 @@ local function partWindow(E)
 
 	Slab.Separator()
 	Slab.Text("Look")
+	if (E.design.kind or "hull") == "hull" and not p.color then
+		Slab.Text("paint"); Slab.SameLine()
+		combo("yard_ppaint" .. i, p.paint or "metal", {
+			{ label = "metal", value = "metal" }, { label = "primary", value = "primary" }, { label = "secondary", value = "secondary" },
+		}, function(v)
+			E.pushUndo()
+			local v2 = v ~= "metal" and v or nil
+			for _, k in ipairs(Canvas.selection(E)) do E.design.parts[k].paint = v2 end
+		end, 120)
+	end
 	slider(E, "yard_shade" .. i, p.shade or 1, 0, 1.5, function(v) p.shade = v end)
 	Slab.Text("Tint (added to the paint)")
 	local tint = p.tint or { 0, 0, 0 }
@@ -781,7 +895,7 @@ local function partWindow(E)
 		end)
 	end
 	check(E, p.color ~= nil, "Fixed colour (ignores the paint)", function(on)
-		p.color = on and { E.paint[1], E.paint[2], E.paint[3] } or nil
+		local c = E.previewPaint(); p.color = on and { c[1], c[2], c[3] } or nil
 	end)
 	if p.color then
 		for c, name in ipairs({ "r", "g", "b" }) do
@@ -880,7 +994,9 @@ function Panels.update(E, Editor)
 	designWindow(E, Editor)
 	partWindow(E)
 	rotorWindow(E)
+	paintWindow(E)
 	require("src.editor.comparison").update(E)
 end
 
+Panels.fillWindows = fillWindows
 return Panels

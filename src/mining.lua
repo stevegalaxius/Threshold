@@ -73,7 +73,7 @@ function M.create(game,area,clock)
  local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
   base=f.stationIds[1],node=f.stationIds[1],route={f.stationIds[1],f.stationIds[1]},index=1,
   state='idle',speed=def.ai.cruise,spread=0,
-  ship={hull=def.hull,loadout=copy(def.loadout),cargo={},color=copy(def.color),armor=Stats.compute(hull,def.loadout).armor}}
+  ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
  u.npcs[r.id]=r
  M.advance(game,r,clock)
  return r

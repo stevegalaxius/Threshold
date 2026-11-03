@@ -54,7 +54,6 @@ function Game.new(opts)
 	self.camera = Camera.new()
 
 	self.playerHull = opts.hull or "halcyon_wisp"
-	self.playerColor = { 0.55, 0.9, 0.95 }
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
@@ -179,10 +178,9 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	local rec = type(hullId) == "table" and hullId or { hull = hullId, loadout = loadout, cargo = cargo }
 	if not data.hulls[rec.hull or self.playerHull] then rec = { hull = T.starterHull } end
 	self.playerHull = rec.hull or self.playerHull
-	if rec.color then self.playerColor = rec.color end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
 	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
-		team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
+		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p

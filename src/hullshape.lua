@@ -36,7 +36,9 @@
 	             when it breaks off and go dark on a wreck:
 	               { x, y, kind = "window" | "nav" | "strobe",
 	                 color = { r, g, b }, size = px, rate = flashes/s,
-	                 phase = 0..1 }
+	                 phase = 0..1, w = px, h = px }
+	             a window with w and h is a pane that size (a lit
+	             rectangle); without, a small square of `size`
 	             windows stutter when the ship is hit and go out one by one
 	             as it's damaged; nav lights are steady, red to port and
 	             green to starboard; strobes double-flash white
@@ -49,6 +51,7 @@
 	code that only wants the hull's extent needs.
 ]]
 
+local Paint = require("src.paint")
 local HullShape = {}
 
 local abs, max, min, sqrt = math.abs, math.max, math.min, math.sqrt
@@ -133,7 +136,11 @@ end
 
 -- A part's colour on a ship painted `col`.
 function HullShape.color(part, col)
-	col = part.color or col
+	if part.color then col = part.color
+	elseif col.secondary then
+		-- a ship's paint: parts wear metal unless marked primary or secondary
+		col = part.paint == "primary" and col or part.paint == "secondary" and col.secondary or Paint.METAL
+	end
 	local s, t = part.shade or 1, part.tint
 	local r, g, b = col[1] * s, col[2] * s, col[3] * s
 	if t then r, g, b = r + t[1], g + t[2], b + t[3] end
@@ -270,9 +277,15 @@ function HullShape.drawLights(hull, time, px, only, ox, oy, state)
 					lg.setColor(1, 1, 1, b * fade)
 					lg.circle("fill", l.x, l.y, max(size * 0.7, 0.9 * px))
 				else
-					local w = max(size, 0.8 * px)
 					lg.setColor(c[1], c[2], c[3], 0.9 * b)
-					lg.rectangle("fill", l.x - w * 0.6, l.y - w * 0.6, w * 1.2, w * 1.2)
+					if l.w or l.h then
+						-- a pane: a lit rectangle, at least a pixel each way
+						local w, h = max(l.w or size, 0.8 * px), max(l.h or size, 0.8 * px)
+						lg.rectangle("fill", l.x - w / 2, l.y - h / 2, w, h)
+					else
+						local w = max(size, 0.8 * px)
+						lg.rectangle("fill", l.x - w * 0.6, l.y - w * 0.6, w * 1.2, w * 1.2)
+					end
 				end
 			end
 		end

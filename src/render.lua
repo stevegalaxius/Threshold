@@ -41,14 +41,7 @@ end
 
 -- Paint jobs the player can pick from (debug panel for now). Enemies get
 -- their color from data/enemies.lua.
-Render.PAINTS = {
-	{ name = "Glacier",  color = { 0.55, 0.9, 0.95 } },
-	{ name = "Signal",   color = { 1.0, 0.85, 0.35 } },
-	{ name = "Bone",     color = { 0.9, 0.88, 0.8 } },
-	{ name = "Moss",     color = { 0.55, 0.85, 0.45 } },
-	{ name = "Orchid",   color = { 0.85, 0.55, 0.95 } },
-	{ name = "Ember",    color = { 1.0, 0.45, 0.3 } },
-}
+Render.PAINTS = require("src.paint").PRESETS
 
 -- Starfield: three parallax layers of fixed random stars, tiled. Each layer
 -- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers

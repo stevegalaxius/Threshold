@@ -2,14 +2,13 @@
 station {
 	id = "ring_900_120", name = "Habitat ring",
 	berths = {
-		{ size = 110, x = 1320, y = -220 },
-		{ size = 110, x = 1320, y = -430 },
-		{ size = 110, x = 1320, y = 220 },
-		{ size = 110, x = 1320, y = 430 },
-		{ size = 110, x = 1768, y = -220 },
-		{ size = 110, x = 1768, y = -430 },
-		{ size = 110, x = 1768, y = 220 },
-		{ size = 110, x = 1768, y = 430 },
+		{ heading = 90, size = 200, x = 1704, y = 276 },
+		{ heading = 270, size = 200, x = 1704, y = -272 },
+		{ size = 150, x = 2080, y = -512 },
+		{ size = 150, x = 2080, y = -272 },
+		{ size = 150, x = 2080, y = -32 },
+		{ size = 150, x = 2080, y = 208 },
+		{ size = 150, x = 2080, y = 452 },
 	},
 	color = { 0.55, 0.63, 0.74 },
 	role = "habitat",
@@ -155,17 +154,13 @@ station {
 		{ name = "hub core", shape = { 81, 0, 80, 11, 78, 21, 75, 31, 70, 40, 64, 49, 57, 57, 49, 64, 41, 70, 31, 75, 21, 78, 11, 80, 0, 81, -11, 80, -21, 78, -31, 75, -40, 70, -49, 64, -57, 57, -64, 49, -70, 40, -75, 31, -78, 21, -80, 11, -81, 0, -80, -11, -78, -21, -75, -31, -70, -41, -64, -49, -57, -57, -49, -64, -41, -70, -31, -75, -21, -78, -11, -80, 0, -81, 11, -80, 21, -78, 31, -75, 41, -70, 49, -64, 57, -57, 64, -49, 70, -41, 75, -31, 78, -21, 80, -11 }, layer = "detail", collide = false, rotor = "ring" },
 		{ name = "pier", shape = { 930, -50, 1900, -50, 1900, 50, 930, 50 }, shade = 0.8 },
 		{ name = "pier spine", shape = { 960, -12, 1900, -12, 1900, 12, 960, 12 }, shade = 0.6, layer = "detail", collide = false },
-		{ name = "berth arm 1", shape = { 1103, -560, 1173, -560, 1173, 560, 1103, 560 }, shade = 0.8, lights = {
-			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 0.8, size = 6, x = 1138, y = -560 },
-			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 0.8, size = 6, x = 1138, y = 560 },
+		{ name = "berth arm 2", shape = { 1831, -576, 1901, -576, 1901, 544, 1831, 544 }, shade = 0.8, lights = {
+			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 0.8, size = 6, x = 1866, y = -576 },
+			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 0.8, size = 6, x = 1866, y = 544 },
 		} },
-		{ name = "berth arm 2", shape = { 1551, -560, 1621, -560, 1621, 560, 1551, 560 }, shade = 0.8, lights = {
-			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 0.8, size = 6, x = 1586, y = -560 },
-			{ color = { 1, 0.75, 0.3 }, kind = "strobe", rate = 0.8, size = 6, x = 1586, y = 560 },
-		} },
-		{ name = "dock", shape = { 1900, -170, 2200, -170, 2200, 170, 1900, 170 }, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 6, x = 2192, y = -160 },
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 6, x = 2190, y = 160 },
-		}, dock = true },
+		{ name = "dock", shape = { 1108, -170, 1408, -170, 1408, 170, 1108, 170 }, lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 6, x = 1400, y = -160 },
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 6, x = 1398, y = 160 },
+		}, dock = true, dockBoth = true, dockHeading = -90 },
 	},
 }

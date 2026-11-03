@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -128,6 +128,7 @@ function Export.hullDef(design)
 	def.radius = nil   -- worked out from the shape (src/data.lua)
 	-- the design's own stats and slots win over the base hull's
 	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
+	def.paint = nil   -- the old single factory paint; hulls use the paints pool now
 	if design.slots then
 		def.slots = copy(design.slots)
 		for _, slot in ipairs(def.slots) do data.migrateSlot(slot) end

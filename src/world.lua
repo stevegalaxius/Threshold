@@ -280,7 +280,7 @@ end
 function Game:addToHangar(st, hullId)
 	local parking=self:shipParkingFit(st,hullId)
 	if not parking then self:toast("NO SUITABLE FREE PARKING",1.4) return nil end
-	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = self.playerColor })
+	local e = Ship.new(self, { hull = hullId, team = 1, grid = true })
 	local rec = Ship.record(e)
 	e.body:destroy()
 	self:applyParking(rec,parking)
