@@ -363,7 +363,7 @@ local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end
 	-- a guided missile whose target died picks the nearest other one
-	if not t and p.guided and p.kind == "missile" then
+	if not t and p.guided and p.kind == "missile" and not p.decoyed then
 		p.retarget = (p.retarget or 0) - dt
 		if p.retarget <= 0 then
 			p.retarget = 0.25
@@ -392,7 +392,63 @@ local function steerMissile(game, p, dt)
 	p.trailTimer = (p.trailTimer or 0) - dt
 end
 
+-- Countermeasures: a ship with a flare pod (a module with flares = true)
+-- and flares in its hold fires them by itself when a missile chasing it
+-- comes within FLARE_RANGE. Each missile after it then has FLARE_CHANCE
+-- of going for the flare instead, and it won't come back.
+local FLARE_RANGE, FLARE_CHANCE, FLARE_COOLDOWN, FLARE_LIFE = 900, 0.75, 1.2, 2.0
+
+local function hasFlarePod(e)
+	if e.flarePod == nil or e.flarePodFor ~= e.loadout then
+		e.flarePod, e.flarePodFor = false, e.loadout
+		for _, id in pairs(e.loadout or {}) do
+			local m = id and data.modules[id]
+			if m and m.flares then e.flarePod = true end
+		end
+	end
+	return e.flarePod
+end
+
+local function updateFlares(game, dt)
+	game.decoys = game.decoys or {}
+	for i = #game.decoys, 1, -1 do
+		local d = game.decoys[i]
+		d.life = d.life - dt
+		d.x, d.y = d.x + d.vx * dt, d.y + d.vy * dt
+		d.vx, d.vy = d.vx * (1 - dt), d.vy * (1 - dt)
+		if d.life <= 0 then d.dead = true; table.remove(game.decoys, i) end
+	end
+	for _, p in ipairs(game.projectiles) do
+		local t = p.target
+		if p.kind == "missile" and t and t.kind == "ship" and not t.dead and not p.decoyed and hasFlarePod(t) then
+			local tx, ty = t.body:getPosition()
+			if (tx - p.x) ^ 2 + (ty - p.y) ^ 2 < FLARE_RANGE * FLARE_RANGE then
+				if (t.flareCooldown or 0) <= game.time and (t.cargo.flare or 0) > 0 then
+					t.flareCooldown = game.time + FLARE_COOLDOWN
+					takeAmmo(t, "flare")
+					local vx, vy = t.body:getLinearVelocity()
+					for k = 1, 3 do
+						local a = love.math.random() * math.pi * 2
+						local d = { kind = "decoy", x = tx, y = ty, vx = vx * 0.5 + cos(a) * 250, vy = vy * 0.5 + sin(a) * 250, life = FLARE_LIFE }
+						d.body = { getPosition = function() return d.x, d.y end }
+						table.insert(game.decoys, d)
+						t.lastFlares = d
+					end
+					if t.isPlayer then game:toast("FLARES", 0.8) end
+				end
+				-- missiles near a fresh flare may go for it
+				local d = t.lastFlares
+				if d and not d.dead and p.flareRoll ~= d then
+					p.flareRoll = d
+					if love.math.random() < FLARE_CHANCE then p.target, p.decoyed = d, true end
+				end
+			end
+		end
+	end
+end
+
 function Weapons.updateProjectiles(game, dt)
+	updateFlares(game, dt)
 	local list = game.projectiles
 	local i = 1
 	while i <= #list do

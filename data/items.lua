@@ -79,6 +79,10 @@ container { id = "cargo_container", name = "Cargo container", maker = "Ferrous C
 		{ "scrap", 2, 12, 0.7 }, { "salvage_kit", 1, 4, 0.4 },
 	} }
 
+-- Countermeasure flares: a flare pod fires them on its own when a missile
+-- closes in (src/weapons.lua).
+salvage { id = "flare", name = "Flare charge", volume = 0.1, mass = 0.05, price = 20, w = 1, h = 1, stack = 10 }
+
 -- What a mining drill gets out of the rock it breaks (src/game.lua ORE).
 salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 25, w = 1, h = 1, stack = 4 }
 salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 15, w = 1, h = 1, stack = 4 }

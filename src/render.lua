@@ -1126,6 +1126,20 @@ local function drawProjectiles(game)
 	end
 end
 
+-- Countermeasure flares: hot, flickering points.
+local function drawDecoys(game)
+	lg.setBlendMode("add")
+	for _, d in ipairs(game.decoys or {}) do
+		local k = math.min(1, d.life)
+		local r = 6 + love.math.random() * 5
+		lg.setColor(1, 0.75, 0.35, 0.35 * k)
+		lg.circle("fill", d.x, d.y, r * 2.2)
+		lg.setColor(1, 0.95, 0.8, k)
+		lg.circle("fill", d.x, d.y, r * 0.6)
+	end
+	lg.setBlendMode("alpha")
+end
+
 local function drawPickups(game)
 	for _, k in ipairs(game.pickups) do
 		local item = data.items[k.item]
@@ -1251,6 +1265,7 @@ function Render.world(game, overlay, boundaryAngle)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
+	drawDecoys(game)
 	-- only what's on screen (with a margin for big things)
 	local cam = game.camera
 	local sw, sh = lg.getDimensions()

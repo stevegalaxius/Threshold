@@ -61,6 +61,22 @@ return function(game)
  p.intent.firePrimary=false
  for _=1,20 do Weapons.update(game,p,0.05) end
  check((p.weapons[1].extend or 0)==0,'drill did not retract')
+ -- flares: a flare pod fires them by itself at a missile closing in
+ p.hull.slots[4]={family='utility',size='any'}
+ p.loadout={false,false,false,'flare_pod'};p.triggers={};Ship.refit(p)
+ p.cargo.flare=3
+ local px,py=p.body:getPosition()
+ game.projectiles={{kind='missile',team=2,x=px+500,y=py,px=px+500,py=py,vx=-100,vy=0,maxSpeed=3000,accel=0,turnRate=4,life=5,target=p,damage=1,knockback=0,burst=true,splash=10,fuse=5}}
+ Weapons.updateProjectiles(game,0.016)
+ check(p.cargo.flare==2,'flare pod did not use a flare')
+ check(#(game.decoys or {})==3,'no flares in space')
+ local m=game.projectiles[1]
+ check(m and (m.target==p or m.target.kind=='decoy'),'missile lost its target oddly')
+ -- the scanner is a computer the game can find
+ p.hull.slots[5]={family='computer',size='any'}
+ p.loadout[5]='scanner';Ship.refit(p)
+ check(game:computer(p,'scanner'),'scanner computer not found')
+ game.projectiles={}
  -- old saved designs read as the new families
  local old=data.migrateSlot({family='secondary',size='M'})
  check(old.family=='hardpoint' and old.trigger=='secondary','old secondary slot not migrated')

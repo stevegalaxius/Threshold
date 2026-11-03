@@ -35,7 +35,7 @@ market { location = "mars/heaven_ladder", station = "Heaven-Ladder", sells = {  
 } }
 market { location = "mars/station_beta", station = "Station Beta", sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "sparrow_rack", 2 }, { "hornet_pod", 1 },
-	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 },
+	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
 market { location = "earth/orbital_one", station = "Orbital One", sells = {   -- heavy weapons
 	{ "rk7_autocannon", 2 }, { "rk14_twin", 1 }, { "long_tom", 1 }, { "shell_l", 4 },
