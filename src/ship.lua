@@ -360,9 +360,9 @@ function Ship.fly(e, dt)
 	-- reserve, holding boost keeps the reduced output and preserves that
 	-- charge; release boost to recharge and rearm the full-power mode.
 	local burner = it.boost and s.thrust > 0
-		-- the lane's buff replaces it, except on heavies, which need the
-		-- extra push to get anywhere on the road
-		and (not e.laneBuff or e.hull.class == "heavy")
+		-- the lane's buff replaces it, except on turn-helm hulls (manual
+		-- bearing), which need the extra push to get anywhere on the road
+		and (not e.laneBuff or e.hull.helm == "turn")
 	local reserve = s.powerCap * T.boostRelight
 	if not burner and e.power > reserve then e.burnerLocked = false end
 	if burner then
