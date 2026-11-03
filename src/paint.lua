@@ -21,8 +21,8 @@ Paint.METAL = { 0.56, 0.58, 0.62 }
 -- Factory presets: one base colour each; the secondary is a shade of it.
 Paint.PRESETS = {
 	-- neutrals
-	{ name = "Bone",       color = { 0.9, 0.88, 0.8 } },
-	{ name = "Khaki",      color = { 0.76, 0.7, 0.55 } },
+	{ name = "Bone",       color = { 0.88, 0.88, 0.84 } },
+	{ name = "Khaki",      color = { 0.66, 0.64, 0.44 } },
 	{ name = "Ash",        color = { 0.62, 0.6, 0.57 } },
 	{ name = "Taupe",      color = { 0.5, 0.43, 0.38 } },
 	{ name = "Gunmetal",   color = { 0.27, 0.31, 0.38 } },
@@ -40,7 +40,7 @@ Paint.PRESETS = {
 	{ name = "Pine",       color = { 0.12, 0.3, 0.28 } },
 	-- golds
 	{ name = "Old Gold",   color = { 0.55, 0.42, 0.08 } },
-	{ name = "Champagne",  color = { 0.93, 0.86, 0.62 } },
+	{ name = "Champagne",  color = { 0.96, 0.8, 0.58 } },
 	{ name = "Signal",     color = { 1.0, 0.92, 0.15 } },
 	-- blues and brights
 	{ name = "Tanker",     color = { 0.18, 0.5, 0.52 } },
