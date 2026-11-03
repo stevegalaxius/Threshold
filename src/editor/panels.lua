@@ -107,6 +107,35 @@ local function placedSections(E, d)
 			{ label = "none", value = false }, { label = "habitat", value = "habitat" },
 			{ label = "shipyard", value = "shipyard" }, { label = "customs", value = "customs" }, { label = "mine", value = "mine" },
 		}, function(v) E.pushUndo(); d.role = v or nil end, 120)
+		-- rotors: groups of parts that turn about a pivot, apart from the
+		-- still core (assign parts to one in the part panel)
+		Slab.Separator()
+		local rnames = {}
+		for name in pairs(d.rotors or {}) do table.insert(rnames, name) end
+		table.sort(rnames)
+		Slab.Text(#rnames > 0 and ("Rotors: %d"):format(#rnames) or "Rotors: none")
+		for _, name in ipairs(rnames) do
+			local r = d.rotors[name]
+			local count = 0
+			for _, p in ipairs(d.parts) do if p.rotor == name then count = count + 1 end end
+			Slab.Text(("%s (%d parts)"):format(name, count), { Color = { 0.8, 0.85, 1 } })
+			check(E, r.spin ~= nil, "Own spin (else the location's)", function(on) r.spin = on and 0.5 or nil end)
+			if r.spin ~= nil then
+				Slab.Text("Spin (radians a second)")
+				slider(E, "yard_rspin" .. name, r.spin, -3, 3, function(v) r.spin = v end, 2)
+			end
+			Slab.Text("Pivot X / Y")
+			slider(E, "yard_rx" .. name, r.x or 0, -20000, 20000, function(v) r.x = math.floor(v + 0.5) end, 0)
+			slider(E, "yard_ry" .. name, r.y or 0, -20000, 20000, function(v) r.y = math.floor(v + 0.5) end, 0)
+			check(E, r.over == true, "Draw over the core", function(on) r.over = on or nil end)
+			if Slab.Button("Remove " .. name) then
+				E.pushUndo()
+				for _, p in ipairs(d.parts) do if p.rotor == name then p.rotor = nil end end
+				d.rotors[name] = nil
+				if not next(d.rotors) then d.rotors = nil end
+			end
+		end
+		Slab.Separator()
 		Slab.Text("Export with id ring_<R>_<tube> or city_<k>", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("to replace that one in the game.", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Separator()
@@ -580,6 +609,34 @@ local function partWindow(E)
 
 	if E.design.kind == "station" then
 		Slab.Separator()
+		-- rotor: this part turns with one of the station's rotors (the
+		-- rotor list is in the left panel); docks stay on the still core
+		if not p.dock then
+			local ropts = { { label = "none (still core)", value = false } }
+			local names = {}
+			for name in pairs(E.design.rotors or {}) do table.insert(names, name) end
+			table.sort(names)
+			for _, name in ipairs(names) do table.insert(ropts, { label = name, value = name }) end
+			table.insert(ropts, { label = "+ new rotor here", value = true })
+			Slab.Text("Rotor")
+			Slab.SameLine()
+			combo("yard_rotor" .. i, p.rotor or "none (still core)", ropts, function(v)
+				E.pushUndo()
+				if v == true then
+					-- a new rotor pivoting on this part's centre
+					E.design.rotors = E.design.rotors or {}
+					local n = 1
+					while E.design.rotors["rotor" .. n] do n = n + 1 end
+					local sx, sy, k = 0, 0, 0
+					for j = 1, #p.shape, 2 do sx, sy, k = sx + p.shape[j], sy + p.shape[j + 1], k + 1 end
+					E.design.rotors["rotor" .. n] = { x = math.floor(sx / k + 0.5), y = math.floor(sy / k + 0.5), spin = 0.5 }
+					p.rotor = "rotor" .. n
+				else
+					p.rotor = v or nil
+				end
+			end, 160)
+		end
+
 		check(E, p.dock == true, "Docking module", function(on) p.dock = on or nil end)
 		if p.dock then
 			local ok,d=pcall(require("src.dock_geometry").build,p)
