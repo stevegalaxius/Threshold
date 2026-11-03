@@ -306,13 +306,14 @@ local function planetField(o)
 				-- the current's speed at that altitude (what a free station drifts at).
 				local sa = -0.8
 				local speed = game:currentSpeed(sd)
-				-- o.shipyard = 1 or 2: that one is a shipyard (data/station_shipyard_1.lua)
-				local function spawn(k, x, y, spin, id)
-					if o.shipyard == k then return game:spawnStation("shipyard_1", x, y, spin, false, id) end
+				-- a station's own layout (its location's layout), else a wheel
+				local function spawn(x, y, spin, id)
+					local layout = require("src.locations").get(id).layout
+					if layout then return game:spawnStation(layout, x, y, spin, false, id) end
 					return game:spawnWheelStation(x, y, 900, 120, spin, false, id)
 				end
-				local stA = spawn(1, cos(sa) * sd, sin(sa) * sd, 0.05, field.stationIds[o.city and 2 or 1])
-				local stB = spawn(2, -cos(sa) * sd, -sin(sa) * sd, -0.05, field.stationIds[o.city and 3 or 2])
+				local stA = spawn(cos(sa) * sd, sin(sa) * sd, 0.05, field.stationIds[o.city and 2 or 1])
+				local stB = spawn(-cos(sa) * sd, -sin(sa) * sd, -0.05, field.stationIds[o.city and 3 or 2])
 				game:setOrbit(stA, 0, 0, speed)
 				game:setOrbit(stB, 0, 0, speed)
 				sa = math.atan2(stA.body:getY(), stA.body:getX())
@@ -391,7 +392,7 @@ Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
 	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
-Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, shipyard = 1, hue = { 0.85, 0.38, 0.24 },   -- rust red
+Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85, 0.38, 0.24 },   -- rust red
 	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
 	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
 	stations = { "Station Alpha", "Station Beta" },
@@ -492,7 +493,7 @@ local stationIds = {
 	phobos = { "strip_mine" }, deimos = { "strip_mine" },
 	mercury = { "terminator_station", "dawnline_station" },
 	venus = { "hub_station", "cloudline_station" }, earth = { "orbital_one", "orbital_two" },
-	mars = { "station_alpha", "station_beta" }, belt = { "ceres_dock", "piazzi_station" },
+	mars = { { "station_alpha", layout = "shipyard_1" }, "station_beta" }, belt = { "ceres_dock", "piazzi_station" },
 	jupiter = { "olympus" }, saturn = { "cassini_gate", "enceladus_station" },
 	uranus = { "herschel" }, luna = { "tranquility_dock", "shackleton_station" },
 	io = { "pele_works", "loki_laboratory" }, europa = { "conamara_station", "pwyll_station" },
@@ -510,7 +511,11 @@ for _, area in ipairs(Fields.list) do
 			motion = motion, spin = spin, destination = destination }
 		return full
 	end
-	for i, id in ipairs(stationIds[area] or {}) do
+	-- An entry is a location id, or { id, layout = station id } to build that
+	-- station from a station { } layout instead of the default for its spot.
+	for i, entry in ipairs(stationIds[area] or {}) do
+		local id, layout = entry, nil
+		if type(entry) == "table" then id, layout = entry[1], entry.layout end
 		local motion, spin
 		if F.surfaceMine then
 			local outline=Fields.rockShape(F.name,F.planetR,F.lumpy,F.maria).outline
@@ -533,6 +538,7 @@ for _, area in ipairs(Fields.list) do
 			motion, spin = { type = "fixed", x = 0, y = 0 }, area == "ring" and 0.02 or 0.04
 		end
 		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
+		F.locations[#F.locations].layout = layout
 	end
 	-- The Heaven-Ladder (Mars): one station with four elevator anchors as its
 	-- access points. The location is the first anchor, which holds still on
