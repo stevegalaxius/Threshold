@@ -447,9 +447,9 @@ Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
-Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, tradeBuoys = true, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
+Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, tradeBuoys = 4, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
 	hue = { 0.5, 0.42, 0.38 }, density = 0.04, mix = { rock = 1 }, belt = 0.45, beltIn = 0.15, beltOut = 0.4 })
-Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, tradeBuoys = true, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
+Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, tradeBuoys = 4, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
 	hue = { 0.55, 0.48, 0.42 }, density = 0.035, mix = { rock = 1 }, belt = 0.3, beltIn = 0.15, beltOut = 0.4 })
 Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
@@ -574,8 +574,10 @@ for _, area in ipairs(Fields.list) do
 		F.ladderId = F.ladderIds[1]
 	end
 	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
-		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
-			F.buoyIds[i] = add(i == 1 and "trade_buoy_a" or "trade_buoy_b", "Trade buoy " .. i, "buoy",
+		local count = type(F.tradeBuoys)=='number' and F.tradeBuoys or 2
+		for i=1,count do
+			local phase = -0.8 + pi/2 + (i-1)*pi*2/count
+			F.buoyIds[i] = add("trade_buoy_" .. string.char(96+i), "Trade buoy " .. i, "buoy",
 				{ type = "orbit", radius = F.stationTrack, surface = F.planetR, phase = phase })
 		end
 	end
@@ -608,7 +610,9 @@ for _, area in ipairs(Fields.list) do
  if F.tradeBuoys then
   -- Keep through traffic above the clouds. Olympus is a destination spur,
   -- never the junction between a moon exit and the mass driver.
-  link(F.buoyIds[1],F.buoyIds[2])
+  for i,id in ipairs(F.buoyIds) do
+   if i<#F.buoyIds or #F.buoyIds>2 then link(id,F.buoyIds[i%#F.buoyIds+1]) end
+  end
   for _,id in ipairs(F.buoyIds) do
    link(F.stationIds[1],id)
    link(F.driverId,id)

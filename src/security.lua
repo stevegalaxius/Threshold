@@ -17,11 +17,26 @@ local function route(source,target,clock)
  for _,leg in ipairs(path.legs) do result[#result+1]=leg.edge.to end
  return result
 end
+local function raidLeg(area,from,to)
+ local nodes=Fields[area].buoyIds
+ if #nodes<=1 then return true end
+ if from==to then return false end
+ if #nodes<=2 then return true end
+ local a,b
+ for i,id in ipairs(nodes) do if id==from then a=i end;if id==to then b=i end end
+ -- Follow the perimeter rather than taking a station spur across the ring.
+ return a and b and ((a-b)%#nodes==1 or (b-a)%#nodes==1)
+end
 for _,kind in ipairs({'patrol','raid'}) do
  local role=kind=='patrol' and 'patrol' or 'pirate'
  Tasks.register(kind,{
   roles={[role]=true},
-  eligible=function(u,r,o,node,clock) return node==o.source and route(node,o.target,clock)~=nil end,
+  eligible=function(u,r,o,node,clock)
+   -- A multi-buoy raid should travel, rather than reserve a minute of waiting
+   -- at its current buoy. Driver-only regions still have a holding duty.
+   if kind=='raid' and not raidLeg(r.area,o.source,o.target) then return false end
+   return node==o.source and route(node,o.target,clock)~=nil
+  end,
   score=function(u,r,o,node,clock)
    return clock-(o.readyAt or 0)-(r.lastDutyTarget==o.target and 10000 or 0)
   end,
@@ -40,19 +55,20 @@ function S.ensureRaids(u,area)
  if not nodes then return end
  local state=Tasks.state(u)
  state.raidAreas=state.raidAreas or {}
- if not state.raidAreas[area] then
+ local signature=table.concat(nodes,'|')
+ if state.raidAreas[area]~=signature then
   local existing={}
   for _,o in pairs(state.offers) do
    if o.kind=='raid' then existing[o.source..'>'..o.target]=true end
   end
   for _,from in ipairs(nodes) do
    for _,to in ipairs(nodes) do
-    if not existing[from..'>'..to] then
+    if raidLeg(area,from,to) and not existing[from..'>'..to] then
      Tasks.post(u,{kind='raid',source=from,target=to,cooldown=0,duration=T.pirateLinger})
     end
    end
   end
-  state.raidAreas[area]=true
+  state.raidAreas[area]=signature
  end
  return nodes
 end
@@ -79,9 +95,9 @@ end
 function S.schedule(game,clock)
  local u=game.universe;u.pirateSpawns=u.pirateSpawns or {}
  for _,area in ipairs(Fields.list) do
-  if raidNodes(Fields[area]) and not u.pirateSpawns[area] then
+  if raidNodes(Fields[area]) then
    S.ensureRaids(u,area)
-   u.pirateSpawns[area]={nextAt=clock+delay(area,0),sequence=0}
+   if not u.pirateSpawns[area] then u.pirateSpawns[area]={nextAt=clock+delay(area,0),sequence=0} end
   end
  end
 end
@@ -142,6 +158,18 @@ function S.spawnPirate(game,area,nearPlayer)
    if sx*sx+sy*sy<(game.arenaRadius-200)^2 and clearArrival(game,sx,sy,150) then x,y=sx,sy;break end
   end
   if not x then return nil,'No clear space for a pirate arrival.' end
+ end
+ -- Manual arrivals can exceed the population cap. Give each arrival a
+ -- reservable travelling duty even when other pirates own the usual offers.
+ local available=false
+ for _,offer in pairs(Tasks.state(game.universe).offers) do
+  if offer.kind=='raid' and offer.source==node and offer.state=='available' and (offer.readyAt or 0)<=clock
+   and raidLeg(area,node,offer.target) then available=true;break end
+ end
+ if not available then
+  local target=node
+  for i,id in ipairs(nodes) do if id==node then target=nodes[i%#nodes+1];break end end
+  Tasks.post(game.universe,{kind='raid',source=node,target=target,cooldown=0,duration=T.pirateLinger})
  end
  local A=require('src.alife')
  local r=create(game,area,'pirate',node,clock,A.start)
@@ -212,6 +240,8 @@ function S.arrive(r,node,clock)
 end
 function S.advance(r,clock,u,start)
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
+ if r.role=='pirate' and r.state=='idle' and r.task and r.task.source==r.task.target
+  and #Fields[r.area].buoyIds>1 then r.untilTime=math.min(r.untilTime,clock) end
  -- Bound catch-up work without dropping a partially completed duty.
  for _=1,128 do
   if r.state=='travel' then
@@ -287,6 +317,7 @@ function S.target(game,e)
 end
 function S.updateOnline(game,e,A)
  local r=game.universe.npcs[e.alifeId]
+ if r.role=='pirate' and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target) then r.untilTime=game.universe.clock end
  if r.state=='idle' and game.universe.clock>=r.untilTime and not r.encounter then
   S.advance(r,game.universe.clock,game.universe,A.start)
   A.bindRoute(game,e,r)

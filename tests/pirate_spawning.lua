@@ -54,7 +54,7 @@ return function(game)
  -- Mining moons use ordinary trade buoys for navigation and pirate duties.
  local L,G=require('src.locations'),require('src.travelgraph')
  for _,area in ipairs({'phobos','deimos'}) do
-  check(#Fields[area].buoyIds==2,area..': missing trade buoys')
+  check(#Fields[area].buoyIds==4,area..': missing trade buoys')
   for _,id in ipairs(Fields[area].buoyIds) do
    check(G.route(G.build(area),area..'/strip_mine',id,game.universe.clock)~=nil,area..': mine disconnected from its buoy')
    check(G.route(G.build(area),area..'/to_mars',id,game.universe.clock)~=nil,area..': transit endpoint disconnected from its buoy')
@@ -62,6 +62,13 @@ return function(game)
   check(game.universe.pirateSpawns[area]~=nil,area..': pirate arrivals not scheduled')
   local pirate=assert(S.spawnPirate(game,area,false))
   check(pirate.task and pirate.task.kind=='raid',area..': pirate did not choose a raid duty')
+  check(pirate.state=='travel' and pirate.task.source~=pirate.task.target,area..': pirate chose to wait at its starting buoy')
+  local graph=G.build(area)
+  for i,id in ipairs(Fields[area].buoyIds) do
+   local nextId=Fields[area].buoyIds[i%4+1];local connected=false
+   for _,edge in ipairs(graph.nodes[id].links) do if edge.to==nextId then connected=true end end
+   check(connected,area..': buoy ring has a missing connection')
+  end
  end
  local unsupported,err=S.spawnPirate(game,'station',false)
  check(not unsupported and err,'instance map accepted an automatic A-Life pirate')
@@ -103,6 +110,31 @@ return function(game)
   local actor=assert(game.alifeOnline[pirate.id],area..': debug pirate did not materialize')
   require('src.ai').think(game,actor,1/120)
   check(actor.alifeRole=='pirate' and pirate.task.kind=='raid',area..': debug pirate bypassed shared role system')
+  -- Exercise real powered travel, not just creation of a valid task record.
+  for id,other in pairs(game.alifeOnline) do
+   if id~=pirate.id then game:remove(other,true);game.alifeOnline[id]=nil end
+  end
+  game.universe.npcs={[pirate.id]=pirate};game.universe.pirateSpawns={}
+  for i=#game.entities,1,-1 do
+   local object=game.entities[i]
+   if object.kind=='asteroid' and not object.giant or object.kind=='container' or object.kind=='husk' then game:remove(object,true) end
+   if object.kind=='station' then object.weapons={} end
+  end
+  game.sleepers={};game.projectiles={};game.contacts={}
+  actor.aggressor,actor.combatTarget=nil,nil
+  local target=S.target;S.target=function() return nil end
+  local sx,sy=actor.body:getPosition();local moved=false
+  for _=1,90*120 do
+   local ax,ay=actor.body:getPosition()
+   game.player.body:setPosition(ax+2000,ay);game.player.body:setLinearVelocity(0,0)
+   game:step(1/120)
+   assert(not actor.body:isDestroyed(),area..': pirate removed at '..ax..','..ay..' state '..pirate.state..' dead '..tostring(actor.dead)..' time '..game.universe.clock)
+   moved=moved or (ax-sx)^2+(ay-sy)^2>1500^2
+   if pirate.lastTask and pirate.lastTask.status=='completed' then break end
+  end
+  S.target=target
+  check(moved and pirate.lastTask and pirate.lastTask.status=='completed',area..': pirate failed to travel around its buoy route and finish a duty')
+
  end
  print(('PIRATE SPAWN TEST PASSED (%d checks)'):format(checks))
 end

@@ -43,8 +43,8 @@ function L.position(id, clock)
  if m.type=='mining' then
   local angle=-pi/2
   if m.home then local hx,hy=L.position(m.home,0);angle=math.atan2(hy-m.y,hx-m.x) end
-  if m.planet then angle=angle+.9 end
-  local distance=m.radius+(m.planet and math.min(T.surfacePullRange,m.radius*.5)+500 or 600)
+  if m.planet then angle=angle+pi end
+  local distance=m.radius+T.mineWorkAltitude
   return m.x+cos(angle)*distance,m.y+sin(angle)*distance,angle
  end
 	if m.type == "cloud" then

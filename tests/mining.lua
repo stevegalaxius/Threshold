@@ -45,10 +45,17 @@ return function(game)
  local physical=0
  for _,e in ipairs(game.entities)do if e.miningId then physical=physical+1 end end
  check(physical==T.drillBatch,'drill batch did not become physical rocks')
+ for _,resource in pairs(M.state(game.universe).resources) do
+  check(resource.radius>=T.drillRockMin,'mine ejected a tiny chip instead of a field rock')
+  check(math.sqrt(resource.vx^2+resource.vy^2)>600,'mine did not launch its rock into the field')
+  local px,py=M.position(resource,resource.clock+T.miningSettleTime)
+  check((px-resource.x)^2+(py-resource.y)^2>2000^2,'offline launch discarded outward travel')
+ end
+
  do
   local canvas=love.graphics.newCanvas(love.graphics.getDimensions())
   local cx,cy,zoom=game.camera.x,game.camera.y,game.camera.zoom
-  game.camera.x,game.camera.y,game.camera.zoom=x,y,.5
+  game.camera.x,game.camera.y,game.camera.zoom=site.x+math.cos(site.angle)*site.radius,site.y+math.sin(site.angle)*site.radius,.5
   love.graphics.push('all');love.graphics.setCanvas(canvas)
   require('src.render').world(game)
   love.graphics.setCanvas();love.graphics.pop()
@@ -116,7 +123,7 @@ return function(game)
  check(game.world:getBodyCount()==bodies,'offline mining created physics bodies')
  local produced,accounted=0,0
  for _,s in pairs(M.state(game.universe).sites)do
-  for sequence=1,s.sequence do local _,n=require('src.ore').drop('rock',28+(sequence%4)*5);produced=produced+n end
+  for sequence=1,s.sequence do local _,n=require('src.ore').drop('rock',T.drillRockMin+(sequence%4)*T.drillRockStep);produced=produced+n end
  end
  for _,stock in pairs(M.state(game.universe).stock)do for _,n in pairs(stock)do accounted=accounted+n end end
  for _,resource in pairs(M.state(game.universe).resources)do accounted=accounted+(resource.kind=='rock' and resource.yield or resource.count) end

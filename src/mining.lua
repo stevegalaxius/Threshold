@@ -60,7 +60,7 @@ function M.seed(game)
      local angle=-pi/2
      if home then local hx,hy=L.position(home,0);angle=math.atan2(hy-s.y,hx-s.x) end
      -- A surface drill sits away from the station's roof and docking approach.
-     if s.planet then angle=angle+.9 end
+     if s.planet then angle=angle+pi end
      state.sites[id]={id=id,area=area,x=s.x,y=s.y,radius=s.radius,planet=s.planet,
       angle=angle,item=Ore.items.rock,
       nextAt=u.clock+T.drillInterval,sequence=0,home=home}
@@ -69,6 +69,11 @@ function M.seed(game)
        Tasks.post(u,{kind='mine',source=home,target=id,area=area,item=state.sites[id].item,cooldown=0})
       end
      end
+    end
+    -- Apply rig placement changes to existing saves without resetting resources.
+    if s.planet and state.sites[id].home then
+     local hx,hy=L.position(state.sites[id].home,0)
+     state.sites[id].angle=math.atan2(hy-s.y,hx-s.x)+pi
     end
    end
    if not f.instance and f.stationIds[1] and not state.seeded[area] then
@@ -90,11 +95,17 @@ end
 function M.position(resource,clock)
  local elapsed=max(0,clock-(resource.clock or clock));local f=Fields[resource.area]
  if f.planetR then
-  local r=sqrt(resource.x^2+resource.y^2)
-  local rate=resource.orbitRate or 290*min(1,f.planetR/6000)*sqrt(f.planetR/max(r,f.planetR))*T.currentScale/max(r,1)
-  local a=rate*elapsed
-  return resource.x*cos(a)-resource.y*sin(a),resource.x*sin(a)+resource.y*cos(a),
-   resource.vx*cos(a)-resource.vy*sin(a),resource.vx*sin(a)+resource.vy*cos(a)
+  local r=max(1,sqrt(resource.x^2+resource.y^2))
+  local nx,ny=resource.x/r,resource.y/r
+  local radial=resource.vx*nx+resource.vy*ny
+  local tangent=resource.relativeFlow and 290*min(1,f.planetR/6000)*sqrt(f.planetR/max(r,f.planetR))*T.currentScale
+   or -resource.vx*ny+resource.vy*nx
+  local damping=resource.kind=='loot' and 1.5 or T.miningChunkDamping
+  local decay=math.exp(-damping*elapsed)
+  local radius=max(1,r+radial*(1-decay)/damping)
+  local angle=math.atan2(resource.y,resource.x)+tangent/max(1,(r+radius)*.5)*elapsed
+  local c,s=cos(angle),sin(angle)
+  return c*radius,s*radius,c*radial*decay-s*tangent,s*radial*decay+c*tangent
  end
  local damping=resource.kind=='loot' and 1.5 or T.miningChunkDamping
  local travel=(1-math.exp(-damping*elapsed))/damping
@@ -139,20 +150,20 @@ function M.produce(game,clock)
    for i=1,count do
     site.sequence=site.sequence+1
     local key=id..'/chunk/'..site.sequence
-    local radius=28+(site.sequence%4)*5
+    local radius=T.drillRockMin+(site.sequence%4)*T.drillRockStep
     local item,yield=Ore.drop('rock',radius)
-    local spread=(i-(count+1)/2)*60
+    local spread=(i-(count+1)/2)*(T.drillRockMin+3*T.drillRockStep)*2.4
     state.resources[key]={id=key,site=id,area=site.area,kind='rock',item=item,yield=yield,
-     x=x+nx*(radius+40)-ny*spread,y=y+ny*(radius+40)+nx*spread,
+     x=x+nx*(radius+T.drillRigScale*40)-ny*spread,y=y+ny*(radius+T.drillRigScale*40)+nx*spread,
      vx=nx*T.drillEjectSpeed,vy=ny*T.drillEjectSpeed,radius=radius,hp=radius*radius*T.asteroidToughness,
-     angle=site.sequence*2.399963,spin=.2,clock=clock,relativeFlow=true}
+     angle=site.sequence*2.399963,spin=.08,clock=clock,readyAt=clock+T.miningSettleTime,relativeFlow=true}
    end
    if count>0 and site.area==game.fieldId and game.player and not game.player.dead
     and not game.player.removed and not game.player.body:isDestroyed() then
     local px,py=game.player.body:getPosition()
     if (px-x)^2+(py-y)^2<T.sleepNear^2 then
      game:spark(x,y,14,{1,.7,.25})
-     game:addEffect({kind='explosion',x=x,y=y,r=90,t=0,life=.4,dust=true})
+     game:addEffect({kind='explosion',x=x,y=y,r=90*T.drillRigScale,t=0,life=.6,dust=true})
     end
    end
   end
@@ -227,7 +238,7 @@ function M.materialize(game)
   if r.area==game.fieldId and not game.miningLive[id] then
    local x,y,vx,vy=M.position(r,game.universe.clock)
    if needed(x,y,T.sleepNear) then
-    if r.relativeFlow then local fx,fy=game:flowAt(x,y);vx,vy=vx+fx,vy+fy end
+    if r.relativeFlow and not game.well then local fx,fy=game:flowAt(x,y);vx,vy=vx+fx,vy+fy end
     r.relativeFlow=nil
     if r.kind=='rock' then
      local e=game:spawnAsteroid(x,y,r.radius,'rock',r.verts)
@@ -296,11 +307,13 @@ function M.advance(game,r,clock)
   if r.state~='docked' and clock>=r.arrive then r.state='docked';r.untilTime=r.arrive+T.alifeStay end
   return
  end
+ -- Restore a saved physical worker before allowing any abstract mining tick.
+ if r.savedOnline and r.pose and math.abs(clock-r.pose.clock)<.001 then return end
  if clock<(r.nextMiningAt or 0) then return end
  r.nextMiningAt=clock+T.miningOfflineEvery
  local state=M.state(u);local loot,rock
  for id,resource in pairs(state.resources) do
-  if resource.site==r.task.target and not (game.miningLive and game.miningLive[id]) then
+  if resource.site==r.task.target and game.universe.clock>=(resource.readyAt or 0) and not (game.miningLive and game.miningLive[id]) then
    if resource.kind=='loot' then loot=resource;break else rock=resource end
   end
  end
@@ -427,7 +440,7 @@ function M.think(game,e,dt,AI)
    for _,o in ipairs(game.entities) do
     local resource=o.miningId and M.state(game.universe).resources[o.miningId]
     local owner=o.miningOwner
-    if resource and resource.site==r.task.target and not o.dead and not o.removed
+    if resource and resource.site==r.task.target and game.universe.clock>=(resource.readyAt or 0) and not o.dead and not o.removed
      and (not owner or owner==e or owner.dead or owner.removed or owner.miningTarget~=o) then
      local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
      if d<best then e.miningTarget=o;best=d end
@@ -440,7 +453,7 @@ function M.think(game,e,dt,AI)
   if not e.miningPickup and not e.miningTarget then
    local preferred
    for id,resource in pairs(M.state(game.universe).resources) do
-    if resource.site==r.task.target and not (game.miningLive and game.miningLive[id]) then
+    if resource.site==r.task.target and game.universe.clock>=(resource.readyAt or 0) and not (game.miningLive and game.miningLive[id]) then
      local claimed=false
      for _,other in pairs(game.alifeOnline or {}) do
       if other~=e and not other.dead and not other.removed and other.miningResource==id then claimed=true;break end
@@ -490,7 +503,7 @@ function M.draw(game,px)
    local x,y,nx,ny=pointAtBody(site,game)
    local cx,cy=game.camera.x,game.camera.y
    if math.abs(x-cx)<love.graphics.getWidth()/game.camera.zoom and math.abs(y-cy)<love.graphics.getHeight()/game.camera.zoom then
-    lg.push('all');lg.translate(x,y);lg.rotate(math.atan2(ny,nx))
+    lg.push('all');lg.translate(x,y);lg.rotate(math.atan2(ny,nx));lg.scale(T.drillRigScale)
     lg.setColor(.3,.34,.38);lg.polygon('fill',-12,-26,12,-26,22,0,12,26,-12,26)
     lg.setColor(1,.66,.2);lg.setLineWidth(max(px,2));lg.rectangle('line',-10,-24,24,48)
     lg.setColor(.65,.7,.76);lg.rectangle('fill',-18,-7,46,14)
