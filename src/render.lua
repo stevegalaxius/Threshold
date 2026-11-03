@@ -1316,8 +1316,16 @@ function Render.world(game, overlay, boundaryAngle)
 		lg.setPointSize(2)
 		lg.points(dots)
 	end
+	require("src.mining").draw(game,screenPx)
 	drawLootHover(game)
 	drawTractor(game)
+	for _,e in ipairs(game.entities) do
+		local target=e.tractorTarget
+		if not e.isPlayer and not e.dead and e.intent and e.intent.tractor and target and target.count>0 then
+			local x,y=e.body:getPosition()
+			lg.setColor(.35,.8,1,.6);lg.setLineWidth(screenPx*1.5);lg.line(x,y,target.x,target.y)
+		end
+	end
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then drawShip(game, e) end

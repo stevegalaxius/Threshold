@@ -289,7 +289,21 @@ local function graphSection(game)
    Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
   end
  end
- Slab.Text("Persistent traders, patrols and pirates. Roles keep their own duties.")
+ local mining=game.universe.mining
+ if mining then
+  local drills,rocks,loot=0,0,0
+  for _,site in pairs(mining.sites) do if site.area==game.fieldId then drills=drills+1 end end
+  for _,resource in pairs(mining.resources) do
+   if resource.area==game.fieldId then if resource.kind=='rock' then rocks=rocks+1 else loot=loot+1 end end
+  end
+  Slab.Text(('Mining: %d drills / %d chunks / %d ore stacks'):format(drills,rocks,loot))
+  for station,stock in pairs(mining.stock) do
+   if Locations.get(station).area==game.fieldId then
+    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s delivered'):format(Locations.get(station).name,n,data.items[item].name)) end
+   end
+  end
+ end
+ Slab.Text("Persistent traders, miners, patrols and pirates. Roles keep their own duties.")
 end
 
 local function locationSection(game)

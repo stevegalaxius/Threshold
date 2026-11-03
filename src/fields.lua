@@ -172,6 +172,7 @@ Fields.asteroids = {
 }
 
 Fields.giant = {
+ miningAsteroids={{x=0,y=0,radius=1800}},
 	instance = true,
 	name = "Giant asteroid",
 	spawn = { 0, 2600 },
@@ -274,7 +275,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		tradeBuoys = o.tradeBuoys, stationTrack = not o.surfaceMine and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
+		tradeBuoys = o.tradeBuoys, stationTrack = (not o.surfaceMine or o.tradeBuoys) and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, landable = o.landable, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -357,6 +358,7 @@ end
 -- planet: a giant wheel station in the middle of thick rock, with a clear
 -- space round it kept by traffic control.
 Fields.ring = {
+ miningAsteroids = {},
 	name = "Ring Station",
 	spawn = { 0, 5200 },
 	radius = 26000,
@@ -366,10 +368,8 @@ Fields.ring = {
 	build = function(game)
 		game:spawnWheelStation(0, 0, 3000, 300, 0.02, false, "ring/ring_station")
 		-- a few huge rocks, too big to break, out in the field
-		for k = 0, 3 do
-			local a = k / 4 * pi * 2 + 0.4
-			local d = 11000 + (k % 2) * 5000
-			game:spawnGiantAsteroid(cos(a) * d, sin(a) * d, 900 + (k % 3) * 400)
+		for _,s in ipairs(Fields.ring.miningAsteroids) do
+			game:spawnGiantAsteroid(s.x,s.y,s.radius)
 		end
 		-- thick rock from the clear zone out to the edge
 		local area = pi * (26000 ^ 2 - 6500 ^ 2) / 1e6
@@ -377,6 +377,19 @@ Fields.ring = {
 		game:spawnContainers(T.fieldContainers, 4500)
 	end,
 }
+
+for k=0,3 do
+ local a,d=k/4*pi*2+.4,11000+(k%2)*5000
+ Fields.ring.miningAsteroids[#Fields.ring.miningAsteroids+1]={x=cos(a)*d,y=sin(a)*d,radius=900+(k%3)*400}
+end
+
+-- Authored industrial sites, shared by the catalogue and the simulation.
+function Fields.miningSources(area)
+ local f=Fields[area];local sources={}
+ if f.landable then sources[1]={x=0,y=0,radius=f.planetR,planet=true} end
+ for _,source in ipairs(f.miningAsteroids or {}) do sources[#sources+1]=source end
+ return sources
+end
 
 -- Each planet's map. Planet sizes are as set; how roomy a map is comes
 -- from depth, and its character from density, mix and belt.
@@ -400,7 +413,7 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85
 	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, landable = true, lumpy = 0.15,
-	density = 0.15, mix = MIX.belt, belt = 2.5, beltIn = 0.1, beltOut = 0.35,
+	density = 0.06, mix = MIX.belt, belt = 0.8, beltIn = 0.1, beltOut = 0.35,
 	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
@@ -434,10 +447,10 @@ Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
 	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
-Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
-	hue = { 0.5, 0.42, 0.38 }, density = 0.12, mix = { rock = 1 }, belt = 1.5, beltIn = 0.15, beltOut = 0.4 })
-Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
-	hue = { 0.55, 0.48, 0.42 }, density = 0.1, mix = { rock = 1 }, belt = 1.0, beltIn = 0.15, beltOut = 0.4 })
+Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, tradeBuoys = 4, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
+	hue = { 0.5, 0.42, 0.38 }, density = 0.04, mix = { rock = 1 }, belt = 0.45, beltIn = 0.15, beltOut = 0.4 })
+Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, tradeBuoys = 4, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
+	hue = { 0.55, 0.48, 0.42 }, density = 0.035, mix = { rock = 1 }, belt = 0.3, beltIn = 0.15, beltOut = 0.4 })
 Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
 	stations = { "Pele Works", "Loki Laboratory" },
@@ -561,8 +574,10 @@ for _, area in ipairs(Fields.list) do
 		F.ladderId = F.ladderIds[1]
 	end
 	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
-		for i, phase in ipairs({ -0.8 + pi / 2, -0.8 - pi / 2 }) do
-			F.buoyIds[i] = add(i == 1 and "trade_buoy_a" or "trade_buoy_b", "Trade buoy " .. i, "buoy",
+		local count = type(F.tradeBuoys)=='number' and F.tradeBuoys or 2
+		for i=1,count do
+			local phase = -0.8 + pi/2 + (i-1)*pi*2/count
+			F.buoyIds[i] = add("trade_buoy_" .. string.char(96+i), "Trade buoy " .. i, "buoy",
 				{ type = "orbit", radius = F.stationTrack, surface = F.planetR, phase = phase })
 		end
 	end
@@ -580,16 +595,24 @@ for _, area in ipairs(Fields.list) do
 		for _, moon in ipairs(Fields.moonsOf(area)) do gate(moon, moon, false) end
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end
 	end
+ F.drillIds={}
+ for i,source in ipairs(Fields.miningSources(area)) do
+  F.drillIds[i]=add('drill/'..i,'Drill site '..i,'mining_site',
+   {type='mining',x=source.x,y=source.y,radius=source.radius,planet=source.planet,home=F.stationIds[1]})
+ end
  -- These links describe existing journeys, not generated navigation geometry.
  F.alifeSecurity = Fields.orbits[area] and #F.buoyIds==2 and {patrol=2,pirate=1} or nil
  F.travelLinks = {}
  local function link(a,b)
   if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end
  end
+ for _,id in ipairs(F.drillIds) do link(F.stationIds[1],id) end
  if F.tradeBuoys then
   -- Keep through traffic above the clouds. Olympus is a destination spur,
   -- never the junction between a moon exit and the mass driver.
-  link(F.buoyIds[1],F.buoyIds[2])
+  for i,id in ipairs(F.buoyIds) do
+   if i<#F.buoyIds or #F.buoyIds>2 then link(id,F.buoyIds[i%#F.buoyIds+1]) end
+  end
   for _,id in ipairs(F.buoyIds) do
    link(F.stationIds[1],id)
    link(F.driverId,id)

@@ -13,6 +13,7 @@ local Tasks=require('src.tasks')
 local Transport=require('src.transport')
 local Security=require('src.security')
 local Encounters=require('src.encounters')
+local Mining=require('src.mining')
 local A = {}
 local graphs = {}
 local function graph(area)
@@ -174,6 +175,7 @@ function A.seed(game)
    end
   end
   Security.seed(game,start)
+  Mining.seed(game)
   A.repairMoonRoutes(game)
   A.repairApproachRoutes(game)
  end
@@ -188,7 +190,8 @@ local function dockingStop(r,id)
   or id==Fields[r.tripDestination].stationIds[1]
 end
 
-function A.advance(r,clock,u)
+function A.advance(r,clock,u,game)
+ if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
  if Security.isRole(r) then return Security.advance(r,clock,u,start) end
  if r.encounter then return end
  if r.state=='dead' or r.state=='escaped' then return end
@@ -314,6 +317,7 @@ function A.repairApproachRoutes(game)
 end
 
 function A.point(r,clock)
+ if Mining.isMiner(r) then return Mining.point(nil,r,clock) end
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  if r.state=='idle' then
@@ -406,6 +410,7 @@ function A.capture(game,e,remote)
   r.cityExit={station=exit.station.locationId,dock=index,side=exit.side,t=exit.t}
  end
  r.ship=shipRecord(e); r.power=e.power
+ if Mining.isMiner(r) then return Mining.capture(game,e,r,remote) end
  if Security.isRole(r) then return Security.capture(game,e,r,remote) end
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
@@ -471,6 +476,7 @@ function A.capture(game,e,remote)
 end
 
 local function bindRoute(game,e,r)
+ if Mining.isMiner(r) then return Mining.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area)
  e.taskWorker=r.taskWorker
@@ -619,6 +625,7 @@ end
 
 function A.install(Game)
  function Game:traderCanDepart(e,station)
+  if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.depart(self,e,station) end
   local r=self.universe.npcs[e.alifeId]
   if not r or r.home~='mars' and not r.taskWorker then return true end
   A.capture(self,e,false)
@@ -629,6 +636,7 @@ function A.install(Game)
   return true
  end
  function Game:traderUndocked(e,station)
+  if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.bind(self,e,self.universe.npcs[e.alifeId]) end
   local r=self.universe.npcs[e.alifeId]
   if e.jobPrepared or adoptTrip(r,station.locationId,self.universe.clock,self.universe) then
    e.jobPrepared=nil
@@ -660,6 +668,7 @@ function A.install(Game)
   local clock=self.universe.clock
   if not force and clock<(self.alifeNext or 0) then return end
   self.alifeNext=clock+T.alifeLocalTick
+  Mining.update(self)
   Security.updateSpawns(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
@@ -702,7 +711,7 @@ function A.install(Game)
   for id,r in pairs(records) do
    if not self.alifeOnline[id] then
     local localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock,self.universe) end
+    if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock,self.universe,self) end
     local lane=A.laneSample(self,r,clock)
     local egress=A.egressSample(self,r,clock)
     localArea=r.area==self.fieldId and not self.lane and not self.flight

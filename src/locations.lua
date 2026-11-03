@@ -30,7 +30,7 @@ function L.rate(m)
 	if m.period then return pi * 2 / (T.yearLength * m.period) end
 	if m.surface then
 		local at = m.flowRadius or m.radius
-		return 290 * math.sqrt(m.surface / math.max(at, m.surface)) * T.currentScale * (m.speedScale or 1) / m.radius
+		return 290 * math.min(1, m.surface / 6000) * math.sqrt(m.surface / math.max(at, m.surface)) * T.currentScale * (m.speedScale or 1) / m.radius
 	end
 	return m.rate or 0
 end
@@ -40,6 +40,13 @@ end
 function L.position(id, clock)
 	local m = L.get(id).motion
 	if m.type == "fixed" then return m.x, m.y, 0 end
+ if m.type=='mining' then
+  local angle=-pi/2
+  if m.home then local hx,hy=L.position(m.home,0);angle=math.atan2(hy-m.y,hx-m.x) end
+  if m.planet then angle=angle+pi end
+  local distance=m.radius+T.mineWorkAltitude
+  return m.x+cos(angle)*distance,m.y+sin(angle)*distance,angle
+ end
 	if m.type == "cloud" then
 		local r = m.r + m.up * sin(clock / m.upPeriod * pi * 2 + m.phase)
 		local a = m.a + m.across * sin(clock / m.acrossPeriod * pi * 2 + m.phase * 0.7) / m.r

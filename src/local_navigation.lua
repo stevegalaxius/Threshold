@@ -1,15 +1,15 @@
--- Local steering only: authored graph routes and destinations stay unchanged.
+-- Local detours and steering preserve authored graph routes and destinations.
 local Sweep=require('src.collision_prediction')
 local T=require('src.tuning')
 local Nav={}
 local pi,cos,sin,sqrt,abs,min,max=math.pi,math.cos,math.sin,math.sqrt,math.abs,math.min,math.max
 local ANGLES={0,.35,-.35,.7,-.7,1.1,-1.1,pi/2,-pi/2,2.2,-2.2,2.65,-2.65,pi}
 local function wrap(a)return (a+pi)%(2*pi)-pi end
-local function obstacles(game,e,reach,ignore,allowSurface)
+local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
  local x,y=e.body:getPosition();local result={}
  game.world:queryBoundingBox(x-reach,y-reach,x+reach,y+reach,function(fixture)
   local body=fixture:getBody();local o=fixture:getUserData() or body:getUserData()
-  if body~=e.body and o~=ignore and not fixture:isSensor() and not (o and (o.dead or o.removed))
+  if (not staticOnly or body:getType()~='dynamic') and body~=e.body and o~=ignore and not fixture:isSensor() and not (o and (o.dead or o.removed))
    and not (allowSurface and o and o.kind=='planet') then
    local shape=fixture:getShape();local kind=shape:getType()
    local vx,vy=body:getLinearVelocity()
@@ -39,6 +39,93 @@ local function obstacles(game,e,reach,ignore,allowSurface)
   end
  end
  return result
+end
+-- Commit to a detour around scenery instead of repeatedly aiming into it.
+-- Dynamic traffic still uses the predictive steering below.
+function Nav.waypoint(game,e,gx,gy,options)
+ options=options or {}
+ local x,y=e.body:getPosition();local now=game.time or 0
+ local old=e.detour
+ local function distance(ax,ay,bx,by)return sqrt((ax-bx)^2+(ay-by)^2) end
+ if old and old.ignore==options.ignore and old.surface==options.allowSurface
+  and distance(gx,gy,old.gx,old.gy)<180 and now<old.expires then
+  while old.index<#old.path and distance(x,y,old.path[old.index][1],old.path[old.index][2])<120 do old.index=old.index+1 end
+  local point=old.path[old.index]
+  return point[1],point[2],old.index<#old.path
+ end
+ local requestedX,requestedY=gx,gy
+ local direct=distance(x,y,gx,gy)
+ local radius=max(e.halfLength,e.hull.radius)+T.aiClearance
+ local padding=max(1400,min(5000,direct*.6))
+ local geometry=obstacles(game,e,min(24000,direct+padding),options.ignore,options.allowSurface,true)
+ local function clear(ax,ay,bx,by)
+  local loX,hiX=min(ax,bx)-radius,max(ax,bx)+radius
+  local loY,hiY=min(ay,by)-radius,max(ay,by)+radius
+  for _,o in ipairs(geometry) do
+   if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY
+    and Sweep.sweepCircle(ax,ay,radius,o,bx-ax,by-ay,1) then return false end
+  end
+  return true
+ end
+ local function save(path,ttl)
+  e.detour={gx=requestedX,gy=requestedY,ignore=options.ignore,surface=options.allowSurface,
+   path=path,index=1,expires=now+ttl}
+  return path[1][1],path[1][2],#path>1
+ end
+ -- A near-side mining standoff can fall inside the parent asteroid.
+ -- Find an accessible point on the same working ring before planning.
+ if not clear(gx,gy,gx,gy) and options.stand then
+  local best
+  for i=0,23 do
+   local angle=i*pi/12
+   local px,py=options.cx+cos(angle)*options.stand,options.cy+sin(angle)*options.stand
+   local cost=distance(x,y,px,py)
+   if (not best or cost<best) and clear(px,py,px,py) then gx,gy,best=px,py,cost end
+  end
+ end
+ if clear(x,y,gx,gy) then return save({{gx,gy}},.8) end
+ if not clear(gx,gy,gx,gy) then return save({{gx,gy}},2) end
+ local step=max(180,radius*2,(direct+padding*2)/36)
+ local minx,miny=min(x,gx)-padding,min(y,gy)-padding
+ local nx=math.ceil((math.abs(gx-x)+padding*2)/step)
+ local ny=math.ceil((math.abs(gy-y)+padding*2)/step)
+ local function heuristic(px,py)return distance(px,py,gx,gy) end
+ local start={x=x,y=y,cost=0};start.score=direct
+ local open={start};local nodes={};local finish
+ local directions={{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}}
+ for _=1,1600 do
+  if #open==0 then break end
+  local best=1
+  for i=2,#open do if open[i].score<open[best].score then best=i end end
+  local current=table.remove(open,best);current.closed=true
+  if heuristic(current.x,current.y)<step*2 and clear(current.x,current.y,gx,gy) then finish=current;break end
+  local ix=math.floor((current.x-minx)/step+.5)
+  local iy=math.floor((current.y-miny)/step+.5)
+  for _,v in ipairs(directions) do
+   local cx,cy=ix+v[1],iy+v[2]
+   if cx>=0 and cx<=nx and cy>=0 and cy<=ny then
+    local key=cx+cy*(nx+1);local node=nodes[key]
+    if not node or not node.closed then
+     local px,py=minx+cx*step,miny+cy*step
+     local cost=current.cost+distance(current.x,current.y,px,py)
+     if (not node or cost<node.cost) and clear(current.x,current.y,px,py) then
+      if not node then node={x=px,y=py};nodes[key]=node;open[#open+1]=node end
+      node.cost,node.score,node.parent=cost,cost+heuristic(px,py),current
+     end
+    end
+   end
+  end
+ end
+ if not finish then return save({{gx,gy}},2) end
+ local reverse={{gx,gy}}
+ while finish.parent do reverse[#reverse+1]={finish.x,finish.y};finish=finish.parent end
+ local path={};local ax,ay=x,y;local i=#reverse
+ while i>=1 do
+  local nextIndex=i
+  for j=1,i do if clear(ax,ay,reverse[j][1],reverse[j][2]) then nextIndex=j;break end end
+  local point=reverse[nextIndex];path[#path+1]=point;ax,ay=point[1],point[2];i=nextIndex-1
+ end
+ return save(path,8)
 end
 function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  options=options or {};flowX,flowY=flowX or 0,flowY or 0
