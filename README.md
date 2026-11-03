@@ -592,6 +592,12 @@ Run `love . --localnavtest` for physical hauler tests around a wall, inside a
 concave pocket, in head-on and crossing traffic, and for safe boost activation.
 `love . --olympustest` checks city arrival, supported departure and restoration.
 
+Terrain chains have multiple broad-phase proxies, so navigation processes each
+fixture once per query before expanding its edges. `love . --navprofile` runs
+60 simulated seconds each on Phobos, Deimos and Earth and reports simulation
+step timings plus steering, detour and mining-position costs. Rendering and
+display FPS are excluded from these measurements.
+
 Cloud-city inspection visits use a point above the gravity band, following the
 city's bearing. Non-docking patrols approach and hold there instead of trying to
 reach the docking runway below their avoidance boundary. Remote materialization
