@@ -223,9 +223,25 @@ local function berthHeading(x1, y1, x2, y2)
 end
 
 -- A new light like the light tool's settings.
+-- The window pane the Lights tool makes: width and height in px, sized
+-- for the design (station panes are big, a ship's are a pixel or two).
+function Canvas.paneSize(E)
+	local ship = E.design.kind ~= "station"
+	return E.paneW or (ship and 2 or 18), E.paneH or (ship and 1.5 or 12)
+end
+
+-- A placed light takes the Lights tool's settings: kind, size, and a
+-- colour from the chosen palette (auto leaves it to the game's default).
 local function newLight(E, x, y)
 	local l = { x = x, y = y, kind = E.lightKind }
 	if E.lightKind == "strobe" then l.rate = 1 end
+	if l.kind == "window" then
+		l.w, l.h = Canvas.paneSize(E)
+	elseif E.lightSize then
+		l.size = E.lightSize
+	end
+	local pal = Canvas.WINDOW_PALETTES and Canvas.WINDOW_PALETTES[E.windowPalette or "auto"]
+	if pal then local c = pal[love.math.random(#pal)]; l.color = { c[1], c[2], c[3] } end
 	return l
 end
 
@@ -537,10 +553,16 @@ function Canvas.mousereleased(E, sx, sy, button)
 		local pts = {}
 		local dx, dy = d.x2 - d.x1, d.y2 - d.y1
 		local len = sqrt(dx * dx + dy * dy)
-		if len < E.lightSpacing * 0.5 then
+		-- for window panes the spacing is the gap between them
+		local step = E.lightSpacing
+		if E.lightKind == "window" then
+			local pw, ph = Canvas.paneSize(E)
+			step = step + (math.abs(dx) >= math.abs(dy) and pw or ph)
+		end
+		if len < step * 0.5 then
 			pts[1] = { d.x1, d.y1 }
 		else
-			local n = floor(len / E.lightSpacing + 0.5)
+			local n = math.max(1, floor(len / step + 0.5))
 			for k = 0, n do pts[#pts + 1] = { d.x1 + dx * k / n, d.y1 + dy * k / n } end
 		end
 		E.pushUndo()

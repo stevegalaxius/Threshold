@@ -36,7 +36,9 @@
 	             when it breaks off and go dark on a wreck:
 	               { x, y, kind = "window" | "nav" | "strobe",
 	                 color = { r, g, b }, size = px, rate = flashes/s,
-	                 phase = 0..1 }
+	                 phase = 0..1, w = px, h = px }
+	             a window with w and h is a pane that size (a lit
+	             rectangle); without, a small square of `size`
 	             windows stutter when the ship is hit and go out one by one
 	             as it's damaged; nav lights are steady, red to port and
 	             green to starboard; strobes double-flash white
@@ -270,9 +272,15 @@ function HullShape.drawLights(hull, time, px, only, ox, oy, state)
 					lg.setColor(1, 1, 1, b * fade)
 					lg.circle("fill", l.x, l.y, max(size * 0.7, 0.9 * px))
 				else
-					local w = max(size, 0.8 * px)
 					lg.setColor(c[1], c[2], c[3], 0.9 * b)
-					lg.rectangle("fill", l.x - w * 0.6, l.y - w * 0.6, w * 1.2, w * 1.2)
+					if l.w or l.h then
+						-- a pane: a lit rectangle, at least a pixel each way
+						local w, h = max(l.w or size, 0.8 * px), max(l.h or size, 0.8 * px)
+						lg.rectangle("fill", l.x - w / 2, l.y - h / 2, w, h)
+					else
+						local w = max(size, 0.8 * px)
+						lg.rectangle("fill", l.x - w * 0.6, l.y - w * 0.6, w * 1.2, w * 1.2)
+					end
 				end
 			end
 		end

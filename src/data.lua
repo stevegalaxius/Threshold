@@ -91,6 +91,7 @@ local function prepareHull(def)
 			if type(part.lights) ~= "table" then bad("lights should be a list") end
 			for j, l in ipairs(part.lights) do
 				if type(l.x) ~= "number" or type(l.y) ~= "number" then bad(("light %d needs x and y"):format(j)) end
+				if (l.w ~= nil and type(l.w) ~= "number") or (l.h ~= nil and type(l.h) ~= "number") then bad(("light %d: w and h should be numbers"):format(j)) end
 				if l.kind ~= nil and l.kind ~= "window" and l.kind ~= "nav" and l.kind ~= "strobe" then bad(("light %d has unknown kind '%s' (use window, nav or strobe)"):format(j, tostring(l.kind))) end
 			end
 		end
