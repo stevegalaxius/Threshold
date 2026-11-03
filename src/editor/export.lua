@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -160,7 +160,7 @@ end
 -- A station layout for a design (design.kind "station").
 function Export.stationDef(design)
 	local def = { id = design.id, name = design.name, kind = "station", parts = {},
-		color = design.color and copy(design.color), haze = design.haze }
+		color = design.color and copy(design.color), haze = design.haze, role = design.role, rotors = design.rotors and copy(design.rotors) }
 	if design.turrets and #design.turrets > 0 then
 		def.turrets = {}
 		for _, t in ipairs(design.turrets) do
@@ -253,7 +253,7 @@ end
 function Export.fromStation(id)
 	local st = data.stations[id]
 	local design = { id = id, name = st.name, kind = "station", base = data.list.hulls[1], parts = {}, slots = {}, stats = {},
-		color = st.color and copy(st.color), haze = st.haze, berths = st.berths and copy(st.berths),
+		color = st.color and copy(st.color), haze = st.haze, role = st.role, rotors = st.rotors and copy(st.rotors), berths = st.berths and copy(st.berths),
 		turrets = st.turrets and copy(st.turrets) }
 	for _, part in ipairs(st.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
@@ -264,7 +264,7 @@ end
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
-		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze, berths = design.berths, turrets = design.turrets }
+		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end
