@@ -559,6 +559,39 @@ local function designWindow(E, Editor)
 	Slab.EndWindow()
 end
 
+-- Window fill: a grid of windows inside a part, grouped into lit "rooms"
+-- with mixed warm/cool colours and dark gaps, so a block reads as lived in.
+local WINDOW_PALETTE = {
+	{ 1, 0.82, 0.5 }, { 1, 0.82, 0.5 }, { 1, 0.6, 0.35 }, { 0.6, 0.9, 1 }, { 0.75, 1, 0.65 }, { 1, 0.95, 0.85 },
+}
+local function fillWindows(E, p, spacing, density)
+	local xs, ys = {}, {}
+	for k = 1, #p.shape, 2 do xs[#xs + 1] = p.shape[k]; ys[#ys + 1] = p.shape[k + 1] end
+	local x0, x1 = math.min(unpack(xs)), math.max(unpack(xs))
+	local y0, y1 = math.min(unpack(ys)), math.max(unpack(ys))
+	local room = spacing * 3
+	local rooms = {}
+	p.lights = {}
+	for y = y0 + spacing, y1 - spacing * 0.5, spacing do
+		for x = x0 + spacing, x1 - spacing * 0.5, spacing do
+			if Canvas.inside(p.shape, x, y) then
+				local key = math.floor(x / room) .. ":" .. math.floor(y / room)
+				local r = rooms[key]
+				if not r then
+					r = { lit = love.math.random() < density, color = WINDOW_PALETTE[love.math.random(#WINDOW_PALETTE)] }
+					rooms[key] = r
+				end
+				if r.lit and love.math.random() < 0.85 then
+					local c = r.color
+					table.insert(p.lights, { kind = "window", x = math.floor(x + 0.5), y = math.floor(y + 0.5),
+						size = math.max(1, spacing * 0.35), color = { c[1], c[2], c[3] } })
+				end
+			end
+		end
+	end
+	if #p.lights == 0 then p.lights = nil end
+end
+
 -- Right: the selected part -------------------------------------------------
 
 local function partWindow(E)
@@ -605,6 +638,17 @@ local function partWindow(E)
 		Slab.SameLine()
 		if Slab.Button("Back to the part") then E.lsel = nil end
 		if Slab.Button("Remove all lights on this part") then E.pushUndo(); p.lights = nil; E.lsel = nil end
+		Slab.Separator()
+	end
+	if not light and E.design.kind == "station" and p.shape then
+		Slab.Text("Fill with windows (replaces this part's lights)")
+		Slab.Text("spacing"); Slab.SameLine()
+		slider(E, "yard_wfsp" .. i, E.windowSpacing or 12, 4, 48, function(v) E.windowSpacing = v end, 0)
+		Slab.Text("lit share"); Slab.SameLine()
+		slider(E, "yard_wfden" .. i, E.windowDensity or 0.6, 0.05, 1, function(v) E.windowDensity = v end)
+		if Slab.Button("Fill windows (click again to reroll)") then
+			E.pushUndo(); fillWindows(E, p, E.windowSpacing or 12, E.windowDensity or 0.6)
+		end
 		Slab.Separator()
 	end
 	if E.errors[i] then Slab.Text("! " .. E.errors[i], { Color = { 1, 0.4, 0.4 } }) end
