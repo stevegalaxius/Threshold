@@ -182,8 +182,8 @@ T.startCredits = 5000
 -- How far the camera zooms out (mouse wheel), as a scale.
 T.minZoom = 0.17
 
-T.tradeW, T.tradeH = 10, 4
-T.marketW, T.marketH = 12, 10
+T.tradeW, T.tradeH = 12, 6
+T.marketW, T.marketH = 14, 12
 T.resaleTime = 600
 T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 

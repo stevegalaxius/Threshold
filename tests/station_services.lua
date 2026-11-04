@@ -135,15 +135,19 @@ return function(game)
  check(offer.complete.x>=offer.x and offer.complete.x+offer.complete.w<=offer.x+offer.pw and offer.clear.y+offer.clear.h<=offer.y+offer.ph,'trade controls leave center panel')
  local trade=layout.sides[2].hold
  -- Orbital One has two shops, each with its own shelf.
- local shopButtons=layout.sides[3].shops
+ local shopButtons=layout.sides[3].shops;local menu=layout.sides[3].shopMenu
  check(#shopButtons==2 and game:currentShop(st)==1,'market did not list the station shops')
  local firstShelf=game:stationMarket(st).hold
+ Cargo.mousepressed(game,menu.x+4,menu.y+4,1)
+ check(Cargo.shopOpen,'shop dropdown did not open')
+ screenshot('shop-menu')
  Cargo.mousepressed(game,shopButtons[2].x+4,shopButtons[2].y+4,1)
+ check(not Cargo.shopOpen,'shop dropdown stayed open')
  check(game:currentShop(st)==2 and game:stationMarket(st).hold~=firstShelf,'switching shops kept the same shelf')
  local beam=false;for _,g in ipairs(game:stationMarket(st).hold.grids) do for _,s in ipairs(g.stacks) do if s.id=='glint_laser' then beam=true end end end
  check(beam,'second shop is not stocked from its own list')
  screenshot('shops')
- Cargo.mousepressed(game,shopButtons[1].x+4,shopButtons[1].y+4,1)
+ Cargo.mousepressed(game,menu.x+4,menu.y+4,1);Cargo.mousepressed(game,shopButtons[1].x+4,shopButtons[1].y+4,1)
  layout=Cargo.layout(game)
 
  check(#trade.grids==2 and trade.grids[1].tradeOwner=='player' and trade.grids[2].tradeOwner=='station','give and receive inventories are not separated')

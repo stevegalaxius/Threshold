@@ -274,13 +274,13 @@ local function layout(game)
 		if side.market then
 			-- filter buttons along the grid's label row
 			side.filters = {}
-			-- the station's shops, one button each, in place of a search bar
-			side.shops = {}
+			-- the station's shops: a dropdown (the menu opens below it)
 			local shops = Game.marketShops(side.station)
-			local sx, sw = x + PAD, (side.pw - PAD * 2 - (#shops - 1) * 4) / #shops
+			side.shopMenu = { x = x + PAD, y = y + 44, w = side.pw - PAD * 2, h = 28 }
+			side.shops = {}
 			for i, shop in ipairs(shops) do
-				table.insert(side.shops, { i = i, label = shop.name, x = floor(sx), y = y + 44, w = floor(sw), h = 26 })
-				sx = sx + sw + 4
+				table.insert(side.shops, { i = i, label = shop.name, desc = shop.description,
+					x = side.shopMenu.x, y = side.shopMenu.y + side.shopMenu.h + 2 + (i - 1) * 44, w = side.shopMenu.w, h = 42 })
 			end
 			local fx = x + PAD
 			for _, f in ipairs(FILTERS) do
@@ -559,6 +559,7 @@ local function checkTab(game)
  Cargo.setTab(game,'cargo')
 end
 function Cargo.setTab(game,id)
+ Cargo.shopOpen=false
  if Cargo.hand then return false end
  local ok=false;for _,t in ipairs(offered(game)) do if t.id==id then ok=true end end
  if not ok then return false end
@@ -756,6 +757,19 @@ end
 -- mods: { ctrl, shift } to stand in for the keyboard (the autotest uses it).
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
+	-- an open shop menu takes the click: pick a shop, or close it
+	if Cargo.shopOpen then
+		Cargo.shopOpen = false
+		local L = layout(game)
+		for _, side in ipairs(L and L.sides or {}) do
+			for _, b in ipairs(side.shops or {}) do
+				if button == 1 and inRect(b, mx, my) then
+					if b.i ~= game:currentShop(side.station) then Cargo.clearTrade(game); game:setShop(side.station, b.i) end
+				end
+			end
+		end
+		return true
+	end
 	if game.state == "docked" and not Cargo.hand then
   local frame=Cargo.workspace(game)
   if button==1 and mx>=frame.x+frame.w-130 and mx<=frame.x+frame.w-14 and my>=24 and my<=54 then
@@ -843,12 +857,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			Cargo.clearTrade(game)
 			return true
 		end
-  for _,b in ipairs(side.shops or {}) do
-   if button==1 and inRect(b,mx,my) then
-    if b.i~=game:currentShop(side.station) then Cargo.clearTrade(game);game:setShop(side.station,b.i) end
-    return true
-   end
-  end
+  if button==1 and side.shopMenu and inRect(side.shopMenu,mx,my) and #side.shops>1 then Cargo.shopOpen=true;return true end
 		for _, f in ipairs(side.filters or {}) do
 			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id; return true end
 		end
@@ -1389,10 +1398,15 @@ function Cargo.draw(game)
 				lg.setLineWidth(1)
 			end
 		end
-  if side.shops then
+  if side.shopMenu then
    local cur=game:currentShop(side.station);local shops=Game.marketShops(side.station)
-   for _,b in ipairs(side.shops or {}) do
-    lg.setFont(HUD.font(b.w<90 and 12 or 14));Station.button(b,b.label,b.i==cur)
+   local m=side.shopMenu
+   lg.setFont(HUD.font(14));Station.button(m,'',Cargo.shopOpen or inRect(m,mx,my))
+   lg.setColor(HUD.INK);lg.print(shops[cur].name,m.x+10,m.y+6)
+   if #shops>1 then
+    lg.setColor(HUD.DIM);lg.printf(('%d shops'):format(#shops),m.x,m.y+6,m.w-30,'right')
+    local ax,ay=m.x+m.w-18,m.y+m.h/2
+    lg.polygon('fill',ax-5,ay-3,ax+5,ay-3,ax,ay+3)
    end
    local desc=shops[cur] and shops[cur].description or ''
    if desc~='' then lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.printf(desc,side.x+PAD,side.y+76,side.pw-PAD*2) end
@@ -1571,6 +1585,29 @@ function Cargo.draw(game)
 			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
 			elseif not docked and #L.sides == 1 then hint2 = "Right-click: eject" end
 			tooltip(item, s.n, mx, my, hint2, price)
+		end
+	end
+	-- the open shop menu, over everything else
+	if Cargo.shopOpen then
+		for _, side in ipairs(L.sides) do
+			if side.shops then
+				local cur = game:currentShop(side.station)
+				local last = side.shops[#side.shops]
+				lg.setColor(0.03, 0.07, 0.1, 0.97)
+				lg.rectangle("fill", side.shopMenu.x - 2, side.shops[1].y - 2, side.shopMenu.w + 4, last.y + last.h - side.shops[1].y + 4, 5, 5)
+				for _, b in ipairs(side.shops) do
+					local hot = inRect(b, mx, my)
+					lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], b.i == cur and 0.3 or (hot and 0.2 or 0.06))
+					lg.rectangle("fill", b.x, b.y, b.w, b.h, 4, 4)
+					lg.setFont(HUD.font(14)); lg.setColor(HUD.INK)
+					lg.print(b.label, b.x + 10, b.y + 4)
+					lg.setFont(HUD.font(12)); lg.setColor(HUD.DIM)
+					local d = b.desc or ""
+					local f = HUD.font(12)
+					while #d > 3 and f:getWidth(d) > b.w - 20 do d = d:sub(1, -5) .. "..." end
+					lg.print(d, b.x + 10, b.y + 23)
+				end
+			end
 		end
 	end
 end
