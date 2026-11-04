@@ -332,7 +332,7 @@ local function graphSection(game)
   Slab.Text(('Mining: %d drills / %d chunks / %d ore stacks'):format(drills,rocks,loot))
   for station,stock in pairs(mining.stock) do
    if Locations.get(station).area==game.fieldId then
-    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s delivered'):format(Locations.get(station).name,n,data.items[item].name)) end
+    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s in stock'):format(Locations.get(station).name,n,data.items[item].name)) end
    end
   end
  end

@@ -9,12 +9,10 @@ local Population=require('src.population')
 local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Homes=require('src.npc_home')
+local Jobs=require('src.jobs')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
-function M.state(u)
- u.mining=u.mining or {sites={},resources={},stock={},seeded={}}
- return u.mining
-end
+function M.state(u) return Jobs.state(u) end
 function M.isMiner(r)return r and r.role=='miner' end
 function M.workPoint(site)
  return L.position(site.id,0)
@@ -28,10 +26,9 @@ Tasks.register('mine',{
  plan=function(t)return {t.source,t.target} end,
  complete=function(u,r,t,node)
   if node~=t.source then return false end
-  local state=M.state(u);local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
+  local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
   if n<=0 then return false end
-  state.stock[node]=state.stock[node] or {}
-  state.stock[node][t.item]=(state.stock[node][t.item] or 0)+n
+  Jobs.deliver(u,node,t.item,n)
   cargo[t.item]=nil
   if r.ship.hold then
    local h=Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)

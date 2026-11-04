@@ -102,9 +102,9 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	for _, a in ipairs(args or {}) do
-		if a == "--historytest" then
+		if a == "--historytest" or a == "--oretest" then
 			game.autosaveOff = true
-			local ok, err = xpcall(function() require("tests.simulation_history")(game) end, debug.traceback)
+			local ok, err = xpcall(function() require(a == "--oretest" and "tests.ore_logistics" or "tests.simulation_history")(game) end, debug.traceback)
 			if not ok then print(err) end
 			love.event.quit(ok and 0 or 1)
 			return

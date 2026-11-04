@@ -309,9 +309,30 @@ stationary motion, incoming hazards, docking/catching, and removing the module.
 
 ### Mars mining slice
 
-Phobos and Deimos have permanent surface mining stations, retaining their rocky moon bodies. Mars traders reserve ore-hauling jobs at station departure instead of continuing fixed trading loops. Each mine produces one unit of Martian ore per 12 seconds, stores up to 80 units, and permits two reserved pickups. Haulers carry up to 10 units, constrained by cargo space, and deliver them to their Mars station. Unassigned traders wait docked; dead or escaped traders release reservations. Mine stocks, assignments, cargo, and delivery totals persist through saves and offline travel. Combat NPCs are unchanged.
+Phobos and Deimos have permanent surface strip mines. Their miners drill real
+chunks, collect `iron_ore`, and unload it into each strip mine's saved stock.
+Mars haulers collect ten units from that same stock, carry it through the moon
+gates, and deposit it in their destination Mars station's raw-material stock.
+An empty strip mine leaves its haulers docked until miners deliver enough ore;
+elapsed time alone never refills station stock. Competing haulers cannot load
+ore already taken by another ship, and a lost shipment is not refunded.
 
-The travel-graph debug overlay shows pickup/delivery assignments and waiting traders. Existing saved Mars traders adopt jobs at their next Mars docking departure. Run `love . --marsjobtest` for the production/reservation/delivery and physical mine-docking checks. Delivered ore is recorded as station supply; industrial consumption and player job contracts are not implemented yet.
+Mars dispatch workers run the supplies-out/ore-back moon circuit. Workers already
+travelling elsewhere finish their current assignment and can take a return trip
+to Mars. The outward supply manifests still use placeholder scrap; other planets'
+dispatch trade remains a prototype. Industrial consumption, prices, and player
+contracts remain future work.
+
+Station stock, loaded cargo, and task reservations survive online/offline changes
+and save/load. Existing miner deposits are immediately available to haulers.
+Legacy automatic mine counters no longer supply cargo. Already-loaded legacy
+Martian-ore manifests can finish and deposit their existing cargo, but no new
+placeholder ore jobs are assigned.
+
+**F6 → A-Life records and connections** shows station stock and current duties.
+Run `love . --oretest` for focused miner/hauler conservation, competition, loss,
+dockside waiting and save/load checks. `love . --marsjobtest` checks physical
+strip-mine docking, ore pickup and departure on both moons.
 
 Debug travel is available in **F1 → Teleport and destinations**: filter areas by name and jump to the selected planet or moon. On the **M map**, the dropdown beneath the planet name teleports to a selected area; scroll the list to reach all planets and moons. Right-click a map point to teleport within the current area. Right-click a planet on the mass-driver map to teleport directly to that area. The current ship, equipment, cargo and damage are preserved, and no travel fare is charged. Run `love . --debugtraveltest` for the integration checks.
 
@@ -331,7 +352,8 @@ docks, delivers and chooses again. Tasks favor destinations other than the last
 pickup port, avoiding immediate return trips. Busy manifests remain reserved; completed or abandoned ones become
 available again after 120 seconds.
 
-These are authored, recurring transport manifests with placeholder cargo.
+General dispatch uses authored, recurring manifests with placeholder cargo;
+Mars-moon ore hauling transfers actual miner-produced stock.
 They do not buy from markets, charge fares or calculate profits. A future economy
 can supply requests through `Tasks.post`. Existing local traffic, moon trips and
 Mars mining jobs remain supported. Other roles can register task types with the

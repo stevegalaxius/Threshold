@@ -694,8 +694,9 @@ function A.install(Game)
   if not r or not r.taskWorker then return true end
   A.capture(self,e,false)
   local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
-  if not ok then return false end
+  -- Delivery may have unloaded cargo even when no next job is available.
   e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
+  if not ok then return false end
   e.jobPrepared=true
   return true
  end
