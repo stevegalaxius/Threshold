@@ -10,10 +10,10 @@ return function(game)
  local hull=game.player.hull.id
  local armor=game.player.armor*.8;game.player.armor=armor
  local credits,clock=game.universe.credits,game.universe.clock
- Travel.go(game,'phobos','phobos/strip_mine')
+ Travel.go(game,'phobos','station:001')
  check(game.fieldId=='phobos' and game.player.hull.id==hull,'teleport replaced ship')
  check(game.player.armor==armor,'teleport repaired ship')
- local mine=game:locationEntity('phobos/strip_mine')
+ local mine=game:locationEntity('station:001')
  local lx,ly=game.dockLocal(mine,1,game.player.body:getPosition())
  check(lx>mine.dock.x2+mine.dock.runway and math.abs(ly)<.1,'station teleport not on clear approach')
  check(game.universe.clock==clock and game.universe.credits==credits,'teleport charged fare or advanced time')
@@ -36,7 +36,7 @@ return function(game)
  check(not Travel.point(game,100,100),'teleported a destroyed player body')
  game.player=nil
  game:loadField('earth');game:launchTrip('luna',{bearing=0,length=30000})
- Travel.go(game,'deimos','deimos/strip_mine')
+ Travel.go(game,'deimos','station:002')
  check(game.fieldId=='deimos' and not game.trip and not game.lane and not game.flight,'teleport did not exit transit')
  game:step(1/120)
  print(('DEBUG TRAVEL TEST PASSED (%d checks)'):format(checks))

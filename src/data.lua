@@ -316,11 +316,11 @@ function api.container(def)
 	def.fill = def.fill or {}
 end
 
--- Station catalogues are keyed by explicit location IDs, with display-name
--- aliases for temporary debug stations.
+-- Market profiles have their own identity; station placements reference them explicitly.
 function api.market(def)
 	if type(def) ~= "table" then fail("market expects a table, like market { station = ..., sells = { ... } }") end
-	if type(def.station) ~= "string" then fail("market is missing 'station'") end
+	if type(def.id or def.location) ~= "string" then fail("market needs an explicit id") end
+ def.station=def.station or def.id or def.location
 	if def.location ~= nil and type(def.location) ~= "string" then fail("market location must be an ID string") end
 	if def.shops ~= nil then
 		if type(def.shops) ~= "table" or #def.shops == 0 then fail(("market '%s': shops must be a list"):format(def.station)) end
@@ -330,9 +330,7 @@ function api.market(def)
 		end
 	elseif type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells' (or 'shops')"):format(def.station)) end
 	def.source = currentFile
-	data.markets[def.location or def.station] = def
-	-- Keep the label alias for runtime/debug stations without authored IDs.
-	data.markets[def.station] = def
+	data.markets[def.id or def.location] = def
 end
 
 function api.enemy(def)

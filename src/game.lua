@@ -36,6 +36,10 @@ local sqrt, cos, sin, max, min, floor, pi, random, exp = math.sqrt, math.cos, ma
 
 function Game.new(opts)
 	opts = opts or {}
+ if not opts.universe and not opts.preview and love.filesystem.getInfo('world_layout.lua') then
+  local ok,err=require('src.world_authoring').loadDefinition()
+  if not ok then print('World layout could not be loaded: '..tostring(err)) end
+ end
 	local self = setmetatable({}, Game)
 	love.physics.setMeter(64)
 	self.world = love.physics.newWorld(0, 0, true)
@@ -1160,6 +1164,10 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
+  if e.alifeRole=="patrol" then
+   ds.stay=T.patrolDockStay
+  end
+  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
 	events.emit("dock", e, st)
 end
@@ -1167,6 +1175,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local b, sb = e.body, st.body
@@ -1357,7 +1366,13 @@ function Game:spawnBuoy(x, y, locationId)
 	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	if locationId then self:bindLocation(e, locationId) end
+	if locationId then
+  local def,scale=Locations.buoyDefinition(locationId)
+  e.propId,e.propScale=Locations.get(locationId).prop,scale or 1
+  e.def=def
+  if def then e.radius=def.radius*e.propScale end
+  self:bindLocation(e,locationId)
+ end
 	return e
 end
 
@@ -1961,7 +1976,7 @@ function Game:updatePickups(dt)
 		k.spin = k.spin + dt * 1.5
 		-- slow down relative to the current (around a planet they drift
 		-- with it like everything else)
-		local damp = exp(-dt * 1.5)
+		local damp = exp(-dt * T.pickupDrag)
 		local fx, fy = 0, 0
 		if self.well then
 			local dx, dy = self.well.x - k.x, self.well.y - k.y

@@ -14,7 +14,7 @@ return function(game)
  end
  game.sleepers={};game.universe.npcs={[r.id]=r};game.universe.populationSpawns={}
  game.updateMoonGates=function(self) self:placeMoonGates() end
- local city='jupiter/olympus';local buoy=Fields.jupiter.buoyIds[1]
+ local city='station:013';local buoy=Fields.jupiter.buoyIds[1]
  r.route={buoy,city};r.index=2;r.state='travel';r.area='jupiter';r.node=nil;r.encounter=nil;r.offset=nil;r.pose=nil
  r.depart=game.universe.clock;r.arrive=r.depart+300
  local x,y=L.position(city,game.universe.clock)

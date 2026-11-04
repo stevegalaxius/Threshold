@@ -172,7 +172,7 @@ function E.materialize(game,px,py,clock)
  for id,w in pairs(u.alifeWrecks or {}) do
   if clock>=w.expires then u.alifeWrecks[id]=nil
   elseif px and not game.lane and not game.flight and w.area==game.fieldId then
-   local x,y=G.point(G.build(w.area),{from=w.from,to=w.to},w.progress,clock)
+   local x,y=G.wreckPoint(w,clock)
    if (x-px)^2+(y-py)^2<T.alifeNear^2 then
     local s=w.ship
     local ship=Ship.new(game,{hull=s.hull,loadout=copy(s.loadout),cargo=copy(s.cargo),

@@ -290,10 +290,13 @@ local function graphSection(game)
  end
  local graph=G.build(game.fieldId)
  Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
- local stash=game.universe.piracy and game.universe.piracy.stashes[T.pirateBase]
- if stash then
-  Slab.Text('Milliways pirate stash:')
-  for id,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[id].name,n)) end
+ for _,station in ipairs(Locations.stations(game.fieldId)) do
+  Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
+ end
+ for id,stash in pairs(game.universe.piracy and game.universe.piracy.stashes or {}) do
+  local place=Locations.byId[id]
+  Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')
+  for item,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[item].name,n)) end
  end
  if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
  if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
@@ -301,6 +304,8 @@ local function graphSection(game)
   if r.area==game.fieldId then
    local e=game.alifeOnline and game.alifeOnline[id]
    Slab.Text(id.."  "..r.role.." / "..(e and "online" or r.state))
+   local home=require("src.npc_home").get(r)
+   if home then Slab.Text("  Home: "..Locations.get(home).name.." ("..home..")") end
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
    if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
    if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end

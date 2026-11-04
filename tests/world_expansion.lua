@@ -36,13 +36,13 @@ return function(game)
 		local st
 		for _, e in ipairs(game.entities) do if e.kind == "station" then st = e break end end
 		if id == "phobos" or id == "deimos" then
-			check(st and st.surfaceMine and st.locationId == id .. "/strip_mine", "Martian moon is missing its surface mine")
+			check(st and st.surfaceMine and st.locationId == require('src.locations').station(id,'mining'), "Martian moon is missing its surface mine")
 			check(game.well and game.well.planet.kind == "planet" and game.well.planet.rock,
 				"Martian moon lost its rocky body")
 			check(game.well.radius == (id == "phobos" and 1400 or 800), "incorrect Martian moon size")
 		else
 			check(st ~= nil, "missing destination station for " .. id)
-			check(data.markets[st.name] ~= nil, "missing market for " .. st.name)
+			check(game.marketDefinition(st) ~= nil, "missing market for " .. st.name)
 			game:dockInstantly(game.player, st)
 			local saved = game:saveState()
 			game:loadState(saved)

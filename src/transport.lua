@@ -27,17 +27,9 @@ local function cargo(r,item,amount)
  end
 end
 function Transport.route(source,target,clock)
- local a,b=L.get(source),L.get(target)
- local from,to=Fields[a.area].driverId,Fields[b.area].driverId
- if not from or not to or a.area==b.area then return end
- local out=G.route(G.build(a.area),source,from,clock)
- local inbound=G.route(G.build(b.area),to,target,clock)
- if not out or not inbound then return end
- local route={source}
- for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
- route[#route+1]=to
- for _,leg in ipairs(inbound.legs) do route[#route+1]=leg.edge.to end
- return route
+ local a,b=L.byId[source],L.byId[target]
+ if not a or not b or a.area==b.area then return end
+ return G.itinerary(source,target,clock)
 end
 Tasks.register('transport',{
  roles={trader=true,courier=true},
@@ -71,21 +63,23 @@ Tasks.register('transport',{
 })
 function Transport.seed(u)
  local state=Tasks.state(u)
- if state.transportSeeded then return end
  state.transportSeeded=true
- -- Recurring dispatches from each port to the other planets. These are test manifests,
- -- not market stock; the economy can post real work through Tasks.post later.
+ -- Saved manifests reconcile with the current ports when loading the world.
+ -- Reservations survive; new ports receive work without resetting the board.
+ local specs={}
  for _,from in ipairs(Fields.list) do
-  if Fields[from].driverId and Fields[from].stationIds[1] then
+  if Fields[from].driverId then
    for _,to in ipairs(Fields.list) do
-    if from~=to and Fields[to].driverId and Fields[to].stationIds[1] then
-     for _,source in ipairs(Fields[from].stationIds) do
-      Tasks.post(u,{kind='transport',source=source,
-       target=Fields[to].stationIds[1],item='scrap',amount=5})
+    if from~=to and Fields[to].driverId then
+     for _,source in ipairs(L.stations(from,'trade')) do
+      for _,target in ipairs(L.stations(to,'trade')) do
+       specs[#specs+1]={kind='transport',source=source,target=target,item='scrap',amount=5}
+      end
      end
     end
    end
   end
  end
+ Tasks.sync(u,'transport',specs,function(o)return o.kind=='transport' end)
 end
 return Transport

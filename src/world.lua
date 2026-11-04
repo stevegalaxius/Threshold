@@ -34,6 +34,7 @@ local T = require("src.tuning")
 local Ship = require("src.ship")
 local Paint = require("src.paint")
 local Fields = require("src.fields")
+local Locations=require("src.locations")
 local Hold = require("src.inventory.hold")
 local Save = require("src.save")
 local Grid = require("src.inventory.grid")
@@ -43,6 +44,8 @@ local events = require("src.events")
 local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
 
 return function(Game)
+
+function Game:editWorldLayout(edit) return require("src.world_authoring").apply(self,edit) end
 
 function Game:newUniverse()
 	if self.universe then require("src.mining").unload(self) end
@@ -380,7 +383,8 @@ function Game:saveState()
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		piracy = Persistence.copy(u.piracy), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
-		populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
+		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
+        populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
 		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
 	local p = self.player
 	if p and not p.dead then
@@ -403,6 +407,11 @@ function Game:saveState()
 end
 
 function Game:loadState(state)
+ state=require("src.world_migration").ids(state)
+ -- Detach the outgoing scene while it still owns its universe. Capturing old
+ -- bodies after installing the snapshot can overwrite incoming NPC/resource data.
+ require('src.mining').unload(self)
+ self:captureALife(true)
 	self:newUniverse()
 	self.universe.areas = Persistence.copy(state.areas or {})
 	self.universe.nextObjectId = state.nextObjectId or 0
@@ -411,6 +420,8 @@ function Game:loadState(state)
 	self.universe.encounterNext = state.encounterNext
 	self.universe.pirateSpawns = Persistence.copy(state.pirateSpawns)
 	self.universe.populationSpawns = Persistence.copy(state.populationSpawns)
+	self.universe.worldLayoutSignature=state.worldLayoutSignature
+ self.universe.worldLocations=Persistence.copy(state.worldLocations or state.worldStations)
 	self.universe.mining = Persistence.copy(state.mining)
 	self.universe.jobs = Persistence.copy(state.jobs)
 	self.universe.tasks = Persistence.copy(state.tasks)
@@ -439,6 +450,14 @@ function Game:loadState(state)
 	self.kills = state.kills or 0
 	local field = Fields[state.field] and state.field or Fields.start
 	local pl = state.player
+ if pl and pl.at and pl.at.station then
+  local place=Locations.byId[pl.at.station]
+  if place then field=place.area
+  else
+   local replacement=Locations.station(field,'trade')
+   pl.at=replacement and {station=replacement} or {x=Fields[field].spawn[1],y=Fields[field].spawn[2]}
+  end
+ end
 	self:loadField(field, { player = pl and loadShip(pl.ship), at = pl and pl.at, skipCapture = true })
 	local p = self.player
 	local st = p and p.dockState and p.dockState.station

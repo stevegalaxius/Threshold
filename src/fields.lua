@@ -4,7 +4,7 @@
 	function that places everything. Optional:
 	  enemies   { { enemy id, count }, ... } placed around the level; they
 	            leave you alone until you come close (T.aggroRange)
-	  stations  names for its stations, in the order build makes them
+	Station identities, names and placements are authored in src/world_layout.lua.
 	Every planet map has a mass driver. Fly into it, pick a planet on its
 	orrery, and it fires you into a transit lane (the "lane" field) toward
 	that planet; you
@@ -190,10 +190,9 @@ Fields.station = {
 	name = "Space station",
 	spawn = { 0, 2600 },
 	radius = 9000,
-	stations = { "Hub Station" },
 	enemies = { { "swarmer", 2 } },
 	build = function(game)
-		game:spawnWheelStation(0, 0, 1400, 160, 0.04, false, "station/hub_station")
+		for _,id in ipairs(Fields.station.stationIds) do require("src.locations").spawnStation(game,id) end
 		-- A thin scattering of rocks well outside.
 		game:spawnAsteroids(70, 2200)
 		game:spawnContainers(T.fieldContainers, 2200)
@@ -267,19 +266,13 @@ local function planetField(o)
 	local rng = love.math.newRandomGenerator(#name * 7919 + R)
 	local hue = { 0.35 + rng:random() * 0.2, 0.45 + rng:random() * 0.2, 0.7 + rng:random() * 0.2 }
 	if o.hue then hue = o.hue end
-	local stations = o.stations
-	if o.city then
-		stations = { o.city }
-		for _, n in ipairs(o.stations or {}) do table.insert(stations, n) end
-	end
 	local field
 	field = {
 		name = name,
-		tradeBuoys = o.tradeBuoys, stationTrack = (not o.surfaceMine or o.tradeBuoys) and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
+		stationTrack = sd, surfaceMine = o.surfaceMine, city = o.city, cityScale = o.cityScale, traderPopulation = o.traders or 3,
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, landable = o.landable, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
-		stations = stations,
 		enemies = o.enemies,
 		spawn = { 0, sd - 800 },
 		belt = { beltIn, beltOut },
@@ -290,41 +283,15 @@ local function planetField(o)
 				or game:spawnPlanet(0, 0, R, 290, 0.1, o.rocky and Fields.rockShape(name, R, o.lumpy, o.maria), o.landable)
 			if not o.gas then planet.hue = hue end
 			if o.gas then planet.rings = bands end
-			if o.city then game:spawnCloudCity(-pi / 2 + 0.35, o.cityScale, field.stationIds[1]) end
-			if o.tradeBuoys then
-				for _, id in ipairs(field.buoyIds) do
-					local buoy = game:spawnBuoy(0, 0, id)
-					game:setOrbit(buoy, 0, 0, game:currentSpeed(sd))
-				end
-			end
-			if o.extra then o.extra(game, R) end
-			if o.surfaceMine then
-				local mine=game:spawnStation('zhuhai_strip_mine',0,0,0,false,field.stationIds[1])
-				mine.surfaceMine=true
-			elseif o.stations then
-				-- Two wheel stations out past the belt.
-				-- Both ride a track around the planet at opposite ends, moving at
-				-- the current's speed at that altitude (what a free station drifts at).
-				local sa = -0.8
-				local speed = game:currentSpeed(sd)
-				-- a station's own layout (its location's layout), else a wheel
-				local function spawn(x, y, spin, id)
-					local layout = require("src.locations").get(id).layout
-					if layout then return game:spawnStation(layout, x, y, spin, false, id) end
-					return game:spawnWheelStation(x, y, 900, 120, spin, false, id)
-				end
-				local stA = spawn(cos(sa) * sd, sin(sa) * sd, 0.05, field.stationIds[o.city and 2 or 1])
-				local stB = spawn(-cos(sa) * sd, -sin(sa) * sd, -0.05, field.stationIds[o.city and 3 or 2])
-				game:setOrbit(stA, 0, 0, speed)
-				game:setOrbit(stB, 0, 0, speed)
-				sa = math.atan2(stA.body:getY(), stA.body:getX())
-				-- Buoys on the same track at the two Lagrange-style points halfway
-				-- between the stations, a quarter turn from each.
-				local b1 = game:spawnBuoy(cos(sa + pi / 2) * sd, sin(sa + pi / 2) * sd, field.buoyIds[1])
-				local b2 = game:spawnBuoy(cos(sa - pi / 2) * sd, sin(sa - pi / 2) * sd, field.buoyIds[2])
-				game:setOrbit(b1, 0, 0, speed)
-				game:setOrbit(b2, 0, 0, speed)
-			end
+			-- The catalogue drives both physical construction and remote navigation.
+            local Locations=require('src.locations')
+            for _,id in ipairs(field.stationIds) do Locations.spawnStation(game,id) end
+            for _,id in ipairs(field.buoyIds) do
+                local buoy=game:spawnBuoy(0,0,id);local m=Locations.get(id).motion
+                game:setOrbit(buoy,m.cx or 0,m.cy or 0,Locations.rate(m)*m.radius)
+            end
+            if o.extra then o.extra(game,R) end
+
 			-- The belt (or rings), already circling with the current.
 			for _, band in ipairs(bands) do
 				local b1, b2 = band[1], band[2]
@@ -363,10 +330,9 @@ Fields.ring = {
 	spawn = { 0, 5200 },
 	radius = 26000,
 	mix = MIX.belt,
-	stations = { "Ring Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "gunner", 2 } },
 	build = function(game)
-		game:spawnWheelStation(0, 0, 3000, 300, 0.02, false, "ring/ring_station")
+		for _,id in ipairs(Fields.ring.stationIds) do require("src.locations").spawnStation(game,id) end
 		-- a few huge rocks, too big to break, out in the field
 		for _,s in ipairs(Fields.ring.miningAsteroids) do
 			game:spawnGiantAsteroid(s.x,s.y,s.radius)
@@ -395,31 +361,26 @@ end
 -- from depth, and its character from density, mix and belt.
 Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 15000, rocky = true, lumpy = 0,
 	density = 0.07, mix = { junk = 3, sat = 2, rock = 5 }, belt = 1.1,
-	stations = { "Terminator Station", "Dawnline Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
 Fields.venus = planetField({ name = "Venus", R = 14300, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
-	stations = { "Hub Station", "Cloudline Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 3 } } })
 Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
 	density = 0.1, mix = MIX.inner, belt = 1.1,
-	stations = { "Orbital One", "Orbital Two" },
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
 Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85, 0.38, 0.24 },   -- rust red
 	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
 	belt = 0.025, beltMix = { junk = 7, sat = 5, rock = 1 }, traders = 9,
-	stations = { "Station Alpha", "Station Beta" },
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
-	extra = function(game, R) game:spawnHeavenLadder(0, 0, R + 1100) end })
+	extra = function(game, R) if game.field.ladderId then game:spawnHeavenLadder(0, 0, R + 1100) end end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, landable = true, lumpy = 0.15,
 	density = 0.06, mix = MIX.belt, belt = 0.8, beltIn = 0.1, beltOut = 0.35,
-	stations = { "Ceres Dock", "Piazzi Station" },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
 	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 1.5 } },
-	city = "Olympus", cityScale = 2, tradeBuoys = true,
+	city = true, cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
@@ -427,12 +388,11 @@ Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = t
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
 	rings = { { 0.15, 0.25, density = 0.5 }, { 0.25, 0.42, density = 3, big = 0.03 }, { 0.46, 0.6, density = 1.5 } },
-	stations = { "Cassini Gate", "Enceladus Station" },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
 	density = 0.09, mix = MIX.ice, rings = { { 0.25, 0.4, density = 2 } },
-	city = "Herschel",
+	city = true,
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
@@ -445,50 +405,40 @@ Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas =
 -- silhouettes; infrastructure can be added separately without replacing them.
 Fields.luna = planetField({ name = "Luna", R = 4000, depth = 15000, rocky = true, lumpy = 0, maria = 6, parent = "earth",
 	hue = { 0.62, 0.62, 0.6 }, density = 0.08, mix = { rock = 6, junk = 3, sat = 1 }, belt = 0.6,
-	stations = { "Tranquility Dock", "Shackleton Station" },
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
-Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, tradeBuoys = 4, stations = { "Phobos Strip Mine" }, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
+Fields.phobos = planetField({ name = "Phobos", surfaceMine = true, R = 1400, depth = 9000, rocky = true, landable = true, parent = "mars",
 	hue = { 0.5, 0.42, 0.38 }, density = 0.04, mix = { rock = 1 }, belt = 0.45, beltIn = 0.15, beltOut = 0.4 })
-Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, tradeBuoys = 4, stations = { "Deimos Strip Mine" }, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
+Fields.deimos = planetField({ name = "Deimos", surfaceMine = true, R = 800, depth = 9000, rocky = true, landable = true, parent = "mars",
 	hue = { 0.55, 0.48, 0.42 }, density = 0.035, mix = { rock = 1 }, belt = 0.3, beltIn = 0.15, beltOut = 0.4 })
 Fields.io = planetField({ name = "Io", R = 4500, depth = 14000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.65, 0.25 }, density = 0.035, mix = { rock = 7, junk = 3 }, belt = 0.15,
-	stations = { "Pele Works", "Loki Laboratory" },
 	enemies = { { "gunner", 2 }, { "interceptor", 1 } } })
 Fields.callisto = planetField({ name = "Callisto", R = 6000, depth = 16000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.48, 0.45, 0.42 }, density = 0.08, mix = { rock = 6, ice = 3, junk = 1 }, belt = 0.4,
-	stations = { "Valhalla Port", "Asgard Station" },
 	enemies = { { "swarmer", 2 }, { "gunner", 2 } } })
 Fields.enceladus = planetField({ name = "Enceladus", R = 2600, depth = 13000, parent = "saturn", rocky = true, lumpy = 0,
 	hue = { 0.72, 0.85, 0.9 }, density = 0.09, mix = { ice = 9, junk = 1 },
 	belt = 0.7, beltMix = { ice = 1 },
-	stations = { "Tiger Stripe Laboratory", "South Pole Port" },
 	enemies = { { "interceptor", 2 } } })
 Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000, rocky = true, lumpy = 0,
 	hue = { 0.65, 0.52, 0.45 }, density = 0.06, mix = { ice = 8, rock = 2 },
 	belt = 0.35, beltMix = { ice = 1 },
-	stations = { "Milliways Freeport", "Sputnik Port" },
 	enemies = { { "sniper", 1 }, { "interceptor", 2 } } })
 Fields.europa = planetField({ name = "Europa", R = 3800, depth = 15000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.8, 0.7 }, density = 0.08, mix = { ice = 8, rock = 2 }, belt = 0.8,
-	stations = { "Conamara Station", "Pwyll Station" },
 	enemies = { { "interceptor", 2 }, { "sniper", 1 } } })
 Fields.ganymede = planetField({ name = "Ganymede", R = 6000, depth = 17000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.6, 0.58, 0.55 }, density = 0.08, mix = { ice = 5, rock = 5 }, belt = 0.8,
-	stations = { "Galileo Regio", "Uruk Station" },
 	enemies = { { "brawler", 2 }, { "gunner", 2 } } })
 Fields.titan = planetField({ name = "Titan", R = 6000, depth = 17000, parent = "saturn",
 	hue = { 0.9, 0.62, 0.3 }, density = 0.07, mix = { ice = 6, rock = 4 }, belt = 0.7,
-	stations = { "Kraken Station", "Huygens Station" },
 	enemies = { { "gunner", 2 }, { "sniper", 2 } } })
 Fields.titania = planetField({ name = "Titania", R = 2000, depth = 14000, parent = "uranus", rocky = true, lumpy = 0,
 	hue = { 0.62, 0.64, 0.67 }, density = 0.07, mix = { ice = 6, rock = 3, junk = 1 },
 	belt = 0.45, beltMix = { ice = 7, rock = 3 },
-	stations = { "Gertrude Port", "Messina Research Station" },
 	enemies = { { "interceptor", 2 }, { "gunner", 1 } } })
 Fields.triton = planetField({ name = "Triton", R = 3200, depth = 15000, parent = "neptune", rocky = true, lumpy = 0,
 	hue = { 0.75, 0.8, 0.85 }, density = 0.09, mix = { ice = 9, rock = 1 }, belt = 0.8,
-	stations = { "Cipango Station", "Voyager Station" },
 	enemies = { { "interceptor", 3 }, { "sniper", 1 } } })
 
 -- The transit lane: built from game.trip (see Game:launchTrip).
@@ -502,83 +452,115 @@ Fields.lane = {
 
 -- Stable authored station IDs. Display names may change without changing
 -- these references. Factory calls pass these IDs explicitly to each body.
-local stationIds = {
-	phobos = { "strip_mine" }, deimos = { "strip_mine" },
-	mercury = { "terminator_station", "dawnline_station" },
-	venus = { "hub_station", "cloudline_station" }, earth = { "orbital_one", "orbital_two" },
-	mars = { { "station_alpha", layout = "shipyard_1" }, "station_beta" }, belt = { "ceres_dock", "piazzi_station" },
-	jupiter = { "olympus" }, saturn = { "cassini_gate", "enceladus_station" },
-	uranus = { "herschel" }, luna = { "tranquility_dock", "shackleton_station" },
-	io = { "pele_works", "loki_laboratory" }, europa = { "conamara_station", "pwyll_station" },
-	ganymede = { "galileo_regio", "uruk_station" }, callisto = { "valhalla_port", "asgard_station" },
-	enceladus = { "tiger_stripe_laboratory", "south_pole_port" }, titan = { "kraken_station", "huygens_station" },
-	titania = { "gertrude_port", "messina_research_station" }, triton = { "cipango_station", "voyager_station" },
-	pluto = { { "tombaugh_station", layout = "jovian_kink" }, "sputnik_port" }, ring = { "ring_station" }, station = { "hub_station" },
-}
-for _, area in ipairs(Fields.list) do
+local WorldLayout=require('src.world_layout')
+function Fields.configureLocations(area)
 	local F = Fields[area]
 	F.locations, F.stationIds, F.buoyIds = {}, {}, {}
+ F.ladderId,F.ladderIds=nil,nil
 	local function add(id, name, kind, motion, spin, destination)
-		local full = area .. "/" .. id
+		local full = kind=="station" and id or area .. "/" .. id
 		F.locations[#F.locations + 1] = { id = full, area = area, name = name, kind = kind,
 			motion = motion, spin = spin, destination = destination }
 		return full
 	end
-	-- An entry is a location id, or { id, layout = station id } to build that
-	-- station from a station { } layout instead of the default for its spot.
-	for i, entry in ipairs(stationIds[area] or {}) do
-		local id, layout = entry, nil
-		if type(entry) == "table" then id, layout = entry[1], entry.layout end
-		local motion, spin
-		if F.surfaceMine then
-			local outline=Fields.rockShape(F.name,F.planetR,F.lumpy,F.maria).outline
-			local x,y=0,math.huge
-			for j=1,#outline,2 do
-				if outline[j+1]<y then x,y=outline[j],outline[j+1] end
-			end
-			motion,spin={type="fixed",x=x,y=y-100},0
-		elseif F.city and i == 1 then
-			local tunnel = require("src.stations").CITY_TUNNEL
-			local top, bottom = F.planetR - 60 - tunnel, F.planetR - F.planetR / 13 + tunnel + 100
-			motion = { type = "cloud", a = -pi / 2 + 0.35, r = (top + bottom) / 2,
-				up = math.max(0, (top - bottom) / 2 * 0.85), across = T.cityDriftAcross,
-				upPeriod = T.cityDriftUp, acrossPeriod = T.cityDriftAcrossPeriod, phase = area == "jupiter" and 0.7 or 2.1 }
-		elseif F.stationTrack then
-			local n = i - (F.city and 1 or 0)
-			motion = { type = "orbit", radius = F.stationTrack, surface = F.planetR, phase = -0.8 + (n - 1) * pi }
-			spin = n == 1 and 0.05 or -0.05
-		else
-			motion, spin = { type = "fixed", x = 0, y = 0 }, area == "ring" and 0.02 or 0.04
-		end
-		F.stationIds[i] = add(id, F.stations[i], "station", motion, spin)
-		F.locations[#F.locations].layout = layout
-	end
+    F.navigation=WorldLayout.navigation[area] or {}
+    local entries={}
+    for _,entry in ipairs(WorldLayout.stations[area] or {}) do if entry.enabled~=false then entries[#entries+1]=entry end end
+    local orbitCount=0
+    for _,entry in ipairs(entries) do if not entry.adapter and (not entry.motion or entry.motion.type=='orbit') then orbitCount=orbitCount+1 end end
+    F.stations={}
+    local orbitIndex=0
+    for i,entry in ipairs(entries) do
+        local id=assert(entry.id,'station needs a stable id')
+        local motion,spin=entry.motion,entry.spin
+        if entry.position then
+            local p=entry.position
+            if F.stationTrack and not p.fixed then
+                local radius=math.sqrt(p.x*p.x+p.y*p.y)
+                assert(radius>0,'orbiting station must be outside the planet centre')
+                motion={type='orbit',radius=radius,phase=math.atan2(p.y,p.x),surface=F.planetR}
+            else motion={type='fixed',x=p.x,y=p.y} end
+        end
+        local wheel=entry.wheel or {900,120}
+        local layout=entry.layout or require('src.stations').ringId(wheel[1],wheel[2])
+        if entry.adapter=='surface_mine' then
+            local outline=Fields.rockShape(F.name,F.planetR,F.lumpy,F.maria).outline
+            local x,y=0,math.huge
+            for j=1,#outline,2 do if outline[j+1]<y then x,y=outline[j],outline[j+1] end end
+            motion=motion or {type='fixed',x=x,y=y-100};spin=spin or 0
+        elseif entry.adapter=='cloud' then
+            local tunnel=require('src.stations').CITY_TUNNEL
+            local top,bottom=F.planetR-60-tunnel,F.planetR-F.planetR/13+tunnel+100
+            motion=motion or {type='cloud',a=-pi/2+.35,r=(top+bottom)/2,
+                up=math.max(0,(top-bottom)/2*.85),across=T.cityDriftAcross,
+                upPeriod=T.cityDriftUp,acrossPeriod=T.cityDriftAcrossPeriod,phase=area=='jupiter' and .7 or 2.1}
+            layout=entry.layout or 'city_'..(F.cityScale or 1)
+        elseif F.stationTrack and (not motion or motion.type=='orbit') then
+            orbitIndex=orbitIndex+1
+            motion=motion or {type='orbit',radius=entry.radius or F.stationTrack,surface=F.planetR,
+                phase=entry.phase or -.8+(orbitIndex-1)*pi*2/math.max(1,orbitCount)}
+            spin=spin or (orbitIndex==1 and .05 or -.05)
+        else
+            motion=motion or {type='fixed',x=0,y=0};spin=spin or (area=='ring' and .02 or .04)
+        end
+        F.stations[i]=entry.name or id
+        F.stationIds[i]=add(id,F.stations[i],'station',motion,spin)
+        local place=F.locations[#F.locations]
+        place.layout,place.wheel,place.adapter=layout,wheel,entry.adapter
+        place.marketId=entry.marketId or WorldLayout.defaults.marketId
+        place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}
+        for purpose,enabled in pairs(entry.uses or {}) do place.uses[purpose]=enabled end
+    end
+    local function home(purpose)
+        local candidates={}
+        for _,place in ipairs(F.locations) do
+            if place.uses[purpose] then candidates[#candidates+1]=place end
+        end
+        table.sort(candidates,function(a,b)
+            if not not a.primary~=not not b.primary then return not not a.primary end
+            return a.id<b.id
+        end)
+        return candidates[1] and candidates[1].id
+    end
+    F.tradeHome,F.miningHome=home('trade'),home('mining')
+    local population=F.navigation.population or {}
+    F.alifeTraders=F.tradeHome and not F.surfaceMine and (population.trader~=nil and population.trader or F.traderPopulation) or nil
+
 	-- The Heaven-Ladder (Mars): one station with four elevator anchors as its
 	-- access points, each a location (and a travel-graph node) of its own.
 	-- The first is the station's identity; the others say accessOf it, so
 	-- routes to the Ladder end at whichever anchor is nearest, and all four
 	-- share its storage, hangar and market (see Game:spawnHeavenLadder).
-	if area == "mars" and F.planetR then
+	if area == "mars" and F.planetR and WorldLayout.specials.heavenLadder.enabled~=false then
 		local LR = F.planetR + 1100
 		F.ladderIds = {}
 		for k = 0, 3 do
 			local a = (k * 2 + 1) / 8 * pi * 2
-			local lid = add(k == 0 and "heaven_ladder" or ("heaven_ladder_" .. (k + 1)),
+			local lid = add(WorldLayout.specials.heavenLadder.access[k+1],
 				k == 0 and "Heaven-Ladder" or ("Heaven-Ladder anchor " .. (k + 1)), "station",
 				{ type = "fixed", x = cos(a) * LR, y = sin(a) * LR }, 0)
 			local place = F.locations[#F.locations]
-			place.heading = a
-			if k > 0 then place.accessOf, place.marketId = F.ladderIds[1], F.ladderIds[1] end
+			place.heading,place.layout,place.uses = a,"ladder_anchor",{patrol=true}
+            place.marketId=WorldLayout.specials.heavenLadder.marketId
+			if k > 0 then place.accessOf = F.ladderIds[1] end
 			F.ladderIds[k + 1] = lid
 		end
 		F.ladderId = F.ladderIds[1]
 	end
-	if F.stationTrack and (#F.stationIds > (F.city and 1 or 0) or F.tradeBuoys) then
-		local count = type(F.tradeBuoys)=='number' and F.tradeBuoys or 2
-		for i=1,count do
-			local phase = -0.8 + pi/2 + (i-1)*pi*2/count
-			F.buoyIds[i] = add("trade_buoy_" .. string.char(96+i), "Trade buoy " .. i, "buoy",
-				{ type = "orbit", radius = F.stationTrack, surface = F.planetR, phase = phase })
+	if F.stationTrack then
+        local specs=F.navigation.buoys
+        local count=type(specs)=="table" and #specs or assert(specs,"rotating region needs a buoy definition: "..area)
+        assert(count>=2,"rotating regions need at least two navigation buoys")
+        for i=1,count do
+            local spec=type(specs)=='table' and specs[i] or {}
+            F.buoyIds[i]=add(spec.id or ('trade_buoy_'..string.char(96+i)),spec.name or ('Trade buoy '..i),'buoy',
+                {type='orbit',radius=spec.radius or F.stationTrack,surface=F.planetR,
+                 phase=spec.phase or -.8+pi/2+(i-1)*pi*2/count},spec.spin or 0)
+            local place=F.locations[#F.locations]
+            place.prop=spec.prop
+            if place.prop==nil then place.prop=F.navigation.buoyProp end
+            if place.prop==nil then place.prop=WorldLayout.defaults.buoyProp end
+            place.scale,place.heading=spec.scale or 1,spec.heading or 0
 		end
 	end
 	if Fields.orbits[area] then
@@ -598,49 +580,18 @@ for _, area in ipairs(Fields.list) do
  F.drillIds={}
  for i,source in ipairs(Fields.miningSources(area)) do
   F.drillIds[i]=add('drill/'..i,'Drill site '..i,'mining_site',
-   {type='mining',x=source.x,y=source.y,radius=source.radius,planet=source.planet,home=F.stationIds[1]})
+   {type='mining',x=source.x,y=source.y,radius=source.radius,planet=source.planet,home=source.home or F.miningHome})
  end
- -- These links describe existing journeys, not generated navigation geometry.
- F.alifeSecurity = Fields.orbits[area] and #F.buoyIds==2 and {patrol=2,pirate=1} or nil
- F.travelLinks = {}
- local function link(a,b)
-  if a and b and a~=b then F.travelLinks[#F.travelLinks+1]={a,b} end
+ F.holdingId=nil
+ if #F.stationIds==0 and #F.buoyIds==0 then
+  F.holdingId=add('holding','Holding position','waypoint',{type='fixed',x=F.spawn and F.spawn[1] or 0,y=F.spawn and F.spawn[2] or 0})
  end
- for _,id in ipairs(F.drillIds) do link(F.stationIds[1],id) end
- if F.tradeBuoys then
-  -- Keep through traffic above the clouds. Olympus is a destination spur,
-  -- never the junction between a moon exit and the mass driver.
-  for i,id in ipairs(F.buoyIds) do
-   if i<#F.buoyIds or #F.buoyIds>2 then link(id,F.buoyIds[i%#F.buoyIds+1]) end
-  end
-  for _,id in ipairs(F.buoyIds) do
-   link(F.stationIds[1],id)
-   link(F.driverId,id)
-  end
- elseif #F.buoyIds == 2 then
-  local a,b=F.stationIds[F.city and 2 or 1],F.stationIds[F.city and 3 or 2]
-  F.traderRoute={a,F.buoyIds[1],b,F.buoyIds[2]}
-  for i,id in ipairs(F.traderRoute) do link(id,F.traderRoute[i%#F.traderRoute+1]) end
-  if F.city then link(F.stationIds[1],a) end
- else
-  for i=2,#F.stationIds do link(F.stationIds[i-1],F.stationIds[i]) end
- end
- if not F.tradeBuoys then link(F.driverId,F.stationIds[1]) end
- if F.ladderIds then
-  -- every anchor reaches the trade buoys, and its neighbours along the ring
-  for k,a in ipairs(F.ladderIds) do
-   for _,id in ipairs(F.buoyIds) do link(a,id) end
-   link(a,F.ladderIds[k%#F.ladderIds+1])
-  end
- end
- for _,place in ipairs(F.locations) do
-  if place.kind=='moon_gate' then
-   -- Candidate attachments to the existing corridor. Routing uses only the
-   -- closest attachment at the planning clock, never an early-exit shortcut.
-   for _,node in ipairs(F.tradeBuoys and F.buoyIds or F.traderRoute or {F.stationIds[1]}) do link(place.id,node) end
-  end
- end
+ -- Population defaults depend on available navigation, not an exact buoy count.
+ F.alifeSecurity=Fields.orbits[area] and F.tradeHome and #F.buoyIds>=2 and {patrol=population.patrol or 2,pirate=population.pirate or 1} or nil
+ WorldLayout.connect(F)
 
 end
+
+for _,area in ipairs(Fields.list) do Fields.configureLocations(area) end
 
 return Fields

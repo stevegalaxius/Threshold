@@ -1047,7 +1047,7 @@ end
 -- angle a round the planet, with its docking tunnel just under the tops.
 -- It doesn't turn or drift. You dock by flying into either end of the
 -- tunnel (dock.both); the clamp is in the middle. k: size (1 or 2).
-function Game:spawnCloudCity(a, k, locationId)
+function Game:spawnCloudCity(a, k, locationId, layoutId)
 	k = k or 1
 	local w = self.well
 	local TH = Stations.CITY_TUNNEL
@@ -1064,7 +1064,7 @@ function Game:spawnCloudCity(a, k, locationId)
 	local names = self.field and self.field.stations
 	-- the layout (src/stations.lua): a station { } with this id in the
 	-- data or the mods folder (say, from the Shipyard) replaces it
-	local id = Stations.cityId(k)
+	local id = layoutId or Stations.cityId(k)
 	if not data.stations[id] then
 		local _, err = data.defineStation(Stations.city(k))
 		if err then error(err) end

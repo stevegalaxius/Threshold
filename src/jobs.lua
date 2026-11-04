@@ -1,6 +1,7 @@
 -- Mars smart terrains: finite mining output and reserved hauling work.
 local J={}
 local Fields=require('src.fields')
+local L=require('src.locations')
 local data=require('src.data')
 local MINES={'phobos','deimos'}
 function J.state(u,clock)
@@ -26,7 +27,7 @@ end
 function J.depart(u,r,station,clock)
  local state=J.state(u,clock)
  local job=r.job
- if job and station==Fields[job.mine].stationIds[1] and job.phase=='pickup' then
+ if job and station==L.station(job.mine,'trade') and job.phase=='pickup' then
   local m=state.mines[job.mine]
   local amount=math.min(job.amount,math.floor(m.stock),capacity(r))
   m.stock=m.stock-amount;m.reservations[r.id]=nil
@@ -42,7 +43,7 @@ function J.depart(u,r,station,clock)
   r.job=nil
  end
  if r.job then return true end
- if station:sub(1,5)~='mars/' then return true end
+ if L.get(station).area~='mars' then return true end
  local best,available
  for _,area in ipairs(MINES) do
   local m=state.mines[area];local reserved,count=0,0

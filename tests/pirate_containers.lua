@@ -1,4 +1,5 @@
 return function(game)
+ local pirateBase=require('src.locations').station(nil,'pirateBase')
  local Ship,Hold,Grid=require('src.ship'),require('src.inventory.hold'),require('src.inventory.grid')
  local Loot,P,T=require('src.loot'),require('src.piracy'),require('src.tuning')
  local Save,data=require('src.save'),require('src.data')
@@ -35,19 +36,19 @@ return function(game)
  check(restored.grids[1].stacks[1].stolen,'save lost stolen container marker')
  r.ship={cargo=Hold.totals(restored),hold=Hold.serialize(restored)}
  local u={};P.unload(u,r)
- local savedBox=u.piracy.containers[T.pirateBase][1]
+ local savedBox=u.piracy.containers[pirateBase][1]
  local stored=Hold.deserialize(savedBox.inner)
  check(Hold.count(stored,'rounds_s')==12 and Hold.count(stored,'cargo_container')==1,'stash lost intact crate contents')
  local sub
  for _,g in ipairs(stored.grids) do for _,s in ipairs(g.stacks) do if s.inner then sub=s.inner end end end
  check(sub and Hold.count(sub,'scrap')==4,'stash lost nested crate cargo')
  local persisted=assert(Save.decode(Save.encode(u)))
- local restoredStash=Hold.deserialize(persisted.piracy.containers[T.pirateBase][1].inner)
+ local restoredStash=Hold.deserialize(persisted.piracy.containers[pirateBase][1].inner)
  check(Hold.count(restoredStash,'rounds_s')==12,'save lost stashed container contents')
 
  check(Hold.count(Hold.deserialize(r.ship.hold),'cargo_container')==0,'unloaded crate still aboard pirate')
  P.unload(u,r)
- check(#u.piracy.containers[T.pirateBase]==1 and u.piracy.stashes[T.pirateBase].cargo_container==1,'repeated unload duplicated crate')
+ check(#u.piracy.containers[pirateBase]==1 and u.piracy.stashes[pirateBase].cargo_container==1,'repeated unload duplicated crate')
  -- A Wisp cannot carry the shell; it takes only contents that fit.
  local small,sr=pirate('halcyon_wisp')
  local hold=inner(16,16);Hold.add(hold,'scrap',200)
@@ -77,7 +78,7 @@ return function(game)
  check(worn and worn.wear==.37 and worn.stolen,'extraction lost item wear or provenance')
  local wornRecord={ship={hold=Hold.serialize(other.hold)},stolenCargo={salvage_kit=1}}
  local wornStash={};P.unload(wornStash,wornRecord)
- check(wornStash.piracy.stacks[T.pirateBase][1].wear==.37,'stash lost unique item state')
+ check(wornStash.piracy.stacks[pirateBase][1].wear==.37,'stash lost unique item state')
  game:remove(damagedBox)
  -- The actual pirate controller selects a physical loaded container and
  -- extracts its contents through the same transfer path.

@@ -1,10 +1,10 @@
 --[[
-	Station markets: what each station sells, by stable location ID (declared in
-	src/fields.lua). Every station sells its own things; none repeats
-	another's. Every station buys anything.
+	Market profiles: station placements select a catalogue by its explicit ID.
+	Profiles can be reused without coupling shops to station names or regions.
+	Every station buys anything.
 
-	market { location = <stable id>, station = <display label>, sells = { entries } }. A mod can replace a
-	station's whole list by using the same location ID.
+	market { id = <profile id>, station = <display label>, sells = { entries } }. A mod can replace a
+	station's whole list by using the same profile ID.
 
 	Several shops instead of one list: shops = { { name = "...",
 	description = "...", sells = { entries } }, ... }. Each shop has its own
@@ -25,23 +25,23 @@
 	seconds, then it's sold on.
 ]]
 
-market { location = "venus/hub_station", station = "Hub Station", ships = { "halcyon_wisp", "ferrous_runner" }, sells = {   -- general store
+market { id = "market:001", station = "Hub Station", ships = { "halcyon_wisp", "ferrous_runner" }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "px2_autogun", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
-market { location = "mars/station_alpha", station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
+market { id = "market:002", station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "pip_mortar", 2 }, { "thumper_m", 1 },
 	{ "torp_s", 3 }, { "maul_tube", 1 }, { "mule_engine", 1 },
 } }
-market { location = "mars/heaven_ladder", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
+market { id = "market:003", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
 	{ "martian_ore", 8 }, { "salvage_kit", 3 }, { "scrap", 6 },
 	{ "bore_drill", 2 }, { "rockbiter", 1 }, { "deep_core_drill", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
-market { location = "mars/station_beta", station = "Station Beta", sells = {   -- missiles and drones
+market { id = "market:004", station = "Station Beta", sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "sparrow_rack", 2 }, { "hornet_pod", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
-market { location = "earth/orbital_one", station = "Orbital One", shops = {   -- heavy weapons
+market { id = "market:005", station = "Orbital One", shops = {   -- heavy weapons
 	{ name = "Kinetic armory", description = "Autocannons, the Long Tom and heavy shells.", sells = {
 		{ "rk7_autocannon", 2 }, { "rk14_twin", 1 }, { "long_tom", 1 }, { "shell_l", 4 },
 	} },
@@ -50,73 +50,73 @@ market { location = "earth/orbital_one", station = "Orbital One", shops = {   --
 		{ "thread_beam", 2 }, { "searing_ray", 1 }, { "furnace_beam", 1 },
 	} },
 } }
-market { location = "earth/orbital_two", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
+market { id = "market:006", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "trident_bay", 1 }, { "torp_m", 2 }, { "breaker_tube", 1 },
 	{ "torp_l", 1 }, { "leviathan_tube", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 
 -- Moon stations. Each sells its own few things.
-market { location = "luna/tranquility_dock", station = "Tranquility Dock", sells = {   -- miners' supply
+market { id = "market:007", station = "Tranquility Dock", sells = {   -- miners' supply
 	{ "rounds_s", 6 }, { "shell_s", 4 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
 } }
-market { location = "luna/shackleton_station", station = "Shackleton Station", sells = {   -- polar depot
+market { id = "market:008", station = "Shackleton Station", sells = {   -- polar depot
 	{ "cargo_container", 3 }, { "nav_computer", 1 },
 } }
-market { location = "europa/conamara_station", station = "Conamara Station", sells = {   -- ice haulers
+market { id = "market:009", station = "Conamara Station", sells = {   -- ice haulers
 	{ "hold_pod_s", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
 } }
-market { location = "europa/pwyll_station", station = "Pwyll Station", sells = {
+market { id = "market:010", station = "Pwyll Station", sells = {
 	{ "glint_laser", 1 }, { "missile_s", 4 }, { "sparrow_rack", 1 },
 } }
-market { location = "ganymede/galileo_regio", station = "Galileo Regio", sells = {   -- Jovian Accord yard
+market { id = "market:011", station = "Galileo Regio", sells = {   -- Jovian Accord yard
 	{ "rk7_autocannon", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
 } }
-market { location = "ganymede/uruk_station", station = "Uruk Station", sells = {
+market { id = "market:012", station = "Uruk Station", sells = {
 	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "ember_reactor", 1 },
 } }
-market { location = "titan/kraken_station", station = "Kraken Station", sells = {   -- Caliphate refinery
+market { id = "market:013", station = "Kraken Station", sells = {   -- Caliphate refinery
 	{ "kiln_reactor", 1 }, { "torp_s", 3 }, { "maul_tube", 1 },
 } }
-market { location = "titan/huygens_station", station = "Huygens Station", sells = {
+market { id = "market:014", station = "Huygens Station", sells = {
 	{ "missile_m", 3 }, { "hornet_pod", 1 }, { "fire_computer", 1 },
 } }
-market { location = "triton/cipango_station", station = "Cipango Station", sells = {   -- frontier outpost
+market { id = "market:015", station = "Cipango Station", sells = {   -- frontier outpost
 	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "flit_engine", 1 },
 } }
-market { location = "triton/voyager_station", station = "Voyager Station", sells = {
+market { id = "market:016", station = "Voyager Station", sells = {
 	{ "lumen_lance", 1 }, { "guidance_computer", 1 }, { "drone_m", 1 },
 } }
 
 -- Expanded destinations: modest working catalogues using existing equipment.
-market { location = "io/pele_works", station = "Pele Works", sells = {
+market { id = "market:017", station = "Pele Works", sells = {
 	{ "kiln_reactor", 1 }, { "shell_m", 4 }, { "thumper_m", 1 },
 } }
-market { location = "io/loki_laboratory", station = "Loki Laboratory", sells = {
+market { id = "market:018", station = "Loki Laboratory", sells = {
 	{ "glint_laser", 1 }, { "ember_reactor", 1 }, { "nav_computer", 1 },
 } }
-market { location = "callisto/valhalla_port", station = "Valhalla Port", sells = {
+market { id = "market:019", station = "Valhalla Port", sells = {
 	{ "hold_pod_s", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
 } }
-market { location = "callisto/asgard_station", station = "Asgard Station", sells = {
+market { id = "market:020", station = "Asgard Station", sells = {
 	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "tug_beam", 1 },
 } }
-market { location = "enceladus/tiger_stripe_laboratory", station = "Tiger Stripe Laboratory", sells = {
+market { id = "market:021", station = "Tiger Stripe Laboratory", sells = {
 	{ "guidance_computer", 1 }, { "glint_laser", 1 }, { "ember_reactor", 1 },
 } }
-market { location = "enceladus/south_pole_port", station = "South Pole Port", sells = {
+market { id = "market:022", station = "South Pole Port", sells = {
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "flit_engine", 1 },
 } }
-market { location = "pluto/tombaugh_station", station = "Milliways Freeport", sells = {
+market { id = "market:023", station = "Milliways Freeport", sells = {
 	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "nav_computer", 1 },
 } }
-market { location = "pluto/sputnik_port", station = "Sputnik Port", sells = {
+market { id = "market:024", station = "Sputnik Port", sells = {
 	{ "missile_s", 4 }, { "sparrow_rack", 1 },
 } }
 
-market { location = "titania/gertrude_port", station = "Gertrude Port", sells = {
+market { id = "market:025", station = "Gertrude Port", sells = {
 	{ "cargo_container", 3 }, { "hold_pod_s", 2 }, { "rounds_s", 4 },
 } }
-market { location = "titania/messina_research_station", station = "Messina Research Station", sells = {
+market { id = "market:026", station = "Messina Research Station", sells = {
 	{ "nav_computer", 1 }, { "glint_laser", 1 }, { "guidance_computer", 1 },
 } }

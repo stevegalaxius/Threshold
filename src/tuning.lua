@@ -115,6 +115,7 @@ T.driverFare, T.driverFarePerAU = 100, 60
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).
+T.pickupDrag = 1.5 -- shared by live pickups and unloaded orbital catch-up
 T.yearLength = 7200
 
 -- The transit lane: length (base + per AU of distance), the radius of its
@@ -153,8 +154,8 @@ T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12
 T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
--- Milliways Freeport: destination for the planned pirate loot/return duties.
-T.pirateBase = "pluto/tombaugh_station"
+T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
+T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12

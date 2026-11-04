@@ -47,7 +47,7 @@ return function(game)
  end
  check(driverLeg,'transport route did not use mass drivers')
  worker.route=route;worker.index=2;worker.area='earth';worker.state='travel'
- worker.depart=0;worker.arrive=10;worker.pose=nil;worker.offset=nil
+ worker.depart=0;worker.arrive=10;worker.pose=nil;worker.offset=nil;worker.encounter=nil
  local completed=false
  for _=1,20 do
   local clock=(worker.state=='docked' and worker.untilTime or worker.arrive)+.01

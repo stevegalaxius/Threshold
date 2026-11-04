@@ -86,7 +86,10 @@ stay gone; an emptied area does not regenerate its cargo containers.
 
 Around planets and moons, unloaded objects advance along the orbital current
 using elapsed game time, at constant altitude. Other areas retain their saved
-positions. This is a lightweight motion approximation, not offline physics. NPCs, projectiles, effects,
+positions. This is a lightweight motion approximation, not offline physics.
+Saved loose pickups outside a planet follow the same damped current as live
+pickups, including their gradual outward drift, so travel catch-up does not
+exaggerate a loot cloud into a longer arc. NPCs, projectiles, effects,
 and background asteroid populations are not persistent in this first step.
 Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
@@ -496,12 +499,103 @@ contacts for mining. Other planetary impacts remain lethal, including Luna.
 Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
 
 
+## World layout and NPC homes
+
+`src/world_layout.lua` is the authoring definition for station placement. Station
+IDs are opaque, permanent identities (`station:...`), independent of names and
+regions. Moving an entry to another region retains its ID, saved inventory,
+hangar, NPC references and market profile. `data/markets.lua` defines independent
+`market:...` profiles; placements reference `marketId`, with a general shop as
+the default. There is no display-name lookup. Old name-based save references
+are translated once through the compatibility alias table.
+
+A placement specifies `name`, optional `layout`/`marketId`, and either
+`position = {x=..., y=...}` or orbital `phase`/`radius`/`spin`. Positions on rotating
+worlds become orbits through those coordinates at world clock zero; add
+`fixed=true` for stationary structures. Existing ports have explicit phases,
+so adding another does not redistribute them. `uses` tags (`trade`, `mining`,
+`patrol`, `pirateBase`) select roles; ordinary trade/mining/patrol use is enabled
+by default. `primary=true` supplies a stable default home independent of list order.
+
+Developer code can edit the running world transactionally:
+
+```lua
+local ok, id = game:editWorldLayout(function(world)
+    return world.addStation('earth', {
+        name = 'New port', layout = 'shipyard_1',
+        position = {x=26000, y=6000},
+    })
+end)
+assert(ok, id)
+
+game:editWorldLayout(function(world)
+    world.moveStation(id, 'mars', {x=15000, y=7000})
+end)
+game:editWorldLayout(function(world)
+    world.setStationEnabled(id, false) -- reversible removal
+    -- world.removeStation(id) removes the placement entry instead
+end)
+require('src.world_authoring').save() -- world_layout.lua in the LÖVE save folder
+```
+
+`addStation` assigns the ID once; export it rather than generating one each
+startup. The exported file loads automatically on startup. Definitions can also
+be edited directly, or exported/imported through `WorldLayout.export` and
+`WorldAuthoring.import`. Invalid edits restore the previous world. Live edits
+return dragged/staged items, snapshot the universe, rebuild the catalogue and
+loaded scene, and restore the player and NPCs against the new definition.
+
+Every rotating region has an explicit buoy list in `WorldLayout.navigation`.
+`navigation[area].buoys` also accepts a count of at least two or explicit
+`id`/`phase`/`radius` entries. Ordinary corridors are ordered by bearing;
+`corridor='buoys'` keeps stations on spurs. Extra full-ID pairs use `links`.
+Buoy visuals can reference an F2 **Prop** by its exported ID: add
+`prop='my_beacon', scale=1.5, heading=0` to a buoy entry. `heading` and optional
+`spin` use radians. The prop's parts, colours and lights use the standard model
+renderer. Set `navigation[area].buoyProp` for a regional default or
+`WorldLayout.defaults.buoyProp` for a global default; a per-buoy `prop` overrides
+those defaults (`false` opts out). Unassigned buoys retain the original beacon.
+Save/export the prop through F2 so it is available on the next run.
+
+Navigation, local trader circuits, patrol destinations, pirate routes, dispatch
+manifests, mine job sources and population eligibility all derive from the
+catalogue. `navigation[area].population` can override role counts. Shared
+inter-region itineraries use existing gates and mass drivers. No new per-frame
+world pathfinding is added.
+
+Every persistent NPC saves `homeStation`, separately from its home region and
+current destination. Removing a home assigns a reachable replacement; NPCs with
+no available home/route hold safely and retry when the world definition changes.
+Recovery uses the ordinary flight controller, mass-driver/gate navigation and
+station docking, then resumes the NPC's role. Loaded deliveries can finish when
+the source disappears; a missing destination cancels the duty while preserving
+its cargo. Miners get replacement home/job sources; pirates keep stolen cargo
+and provenance when a haven changes. Wreck and mineral loot is retained.
+
+Removed station storage, hangars and shop stock remain saved under the station
+ID and return if it is re-enabled/re-added with that ID. A player docked at a
+removed port uses a surviving local port or the region's normal spawn; moving a
+docked port between regions retains the docking reference. F1 shows living
+resident counts; F1/F4 show each ship's home. Rosters derive from NPC records,
+without a second saved membership list.
+
+Cloud cities, surface mines and the Heaven-Ladder retain construction adapters.
+The Ladder can be disabled through its shared definition, removing its access
+points and geometry together; changes to its special placement belong to the
+adapter. Live construction and offline services use the same definitions.
+
+Run `love . --graphtest` for actual add/move/remove/disable edits, cargo-safe duty
+recovery, physical recovery docking, ID migration and
+export/import. `love . --locationtest` checks physical/offline station and service
+parity across all regions.
+
+
 ## Patrols and pirates
 
 Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
-layout and is designated by `T.pirateBase` as the base for the planned pirate
-loot-and-return loop. Its existing stable location ID, `pluto/tombaugh_station`,
-keeps station inventory, ships, saves and routes attached to the same place.
+layout and is tagged `uses.pirateBase` in `src/world_layout.lua` as the base for the pirate
+loot-and-return loop. Its immutable station identity keeps inventory, ships, saves and routes attached
+to the same place; the old Tombaugh identifier remains only as a save alias.
 Existing pirates now opportunistically break nearby wrecks open and tractor
 exposed loose cargo using the shared pickup accounting. After five units or a
 25-second looting window following the first pickup, they abandon the raid,
@@ -537,8 +631,21 @@ Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
 seeded once and lost ships are replenished through the saved arrival schedules below.
 
 Patrols choose inspection duties through the shared task board and visit existing
-stations and buoys. Pirates choose buoy raids and relocation duties, preferring
-passing traders as targets. Patrols engage pirates and defend themselves when
+stations and buoys. Every third station visit is an actual docking stop, staggered
+by NPC identity; the decision and visit counter persist. Passing inspections wait
+outside the station hull and runway corridors rather than at the dock mouth.
+Patrols below 70% armor prioritize stations with repair service. All persistent
+A-Life roles repair at four armor points per game second while fully docked at a
+station offering repairs, staying long enough to finish. Traders and couriers
+use their scheduled stops. Damaged miners return to their repair-capable home
+station, deliver any ore, then resume mining; an empty repair trip retains its
+reserved job. Damaged pirates return to Milliways even without stolen cargo,
+repair, then redeploy through their existing return loop. Online/offline progress
+and saves preserve armor, repair timing and ship identity. NPC maintenance does
+not debit player credits; billing remains deferred with the economy. Timing,
+health threshold and repair speed are tuning values. Pirates choose buoy raids
+and relocation duties, preferring passing traders as targets. Patrols engage
+pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
 After losing contact, ships resume their selected duty. F1's A-Life list and the
