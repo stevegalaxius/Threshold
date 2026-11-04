@@ -32,7 +32,9 @@
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
 	  barrels     barrels that take turns firing; barrelGap = spacing
 	  gimbal      degrees it can aim off the nose
-	  recoil      push back on the shooter
+	  recoilPct   guns and artillery: push back on the shooter, as a
+	              percentage of the round's knockback
+	  recoil      launchers: push back on the shooter (a fixed impulse)
 ]]
 
 -- Weapons: guns (fast, short range, no splash) --------------------------------
@@ -40,13 +42,13 @@
 module {
 	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 4, powerDraw = 1, price = 2200,
-	weapon = { kind = "gun", fireRate = 300 / 60, spread = 0.8, gimbal = 10, recoil = 40 },
+	weapon = { kind = "gun", fireRate = 300 / 60, spread = 0.8, gimbal = 10, recoilPct = 16 },
 }
 
 module {
 	id = "rk7_autocannon", name = "RK-7 Autocannon", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
-	weapon = { kind = "gun", fireRate = 240 / 60, spread = 1, gimbal = 10, recoil = 70 },
+	weapon = { kind = "gun", fireRate = 240 / 60, spread = 1, gimbal = 10, recoilPct = 17.5 },
 }
 
 -- Two RK-7 actions on one large mount, firing the same heavy rounds. The
@@ -54,7 +56,7 @@ module {
 module {
 	id = "rk14_twin", name = "RK-14 Twin Autocannon", maker = "Brute Industries", family = "weapon", size = "L",
 	mass = 24, powerDraw = 4, price = 15000,
-	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 480 / 60, spread = 1, gimbal = 10, recoil = 70 },
+	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 480 / 60, spread = 1, gimbal = 10, recoilPct = 17.5 },
 }
 
 -- Weapons: artillery (slow, long range, high damage, splash) -----------------
@@ -63,19 +65,19 @@ module {
 module {
 	id = "pip_mortar", name = "Pip Mortar", maker = "Ferrous Collective", family = "weapon", size = "S",
 	mass = 6, powerDraw = 1, price = 3400,
-	weapon = { kind = "artillery", fireRate = 1.2, spread = 1, gimbal = 6, recoil = 1500 },
+	weapon = { kind = "artillery", fireRate = 1.2, spread = 1, gimbal = 6, recoilPct = 25 },
 }
 
 module {
 	id = "thumper_m", name = "Thumper", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 16, powerDraw = 2, price = 9000,
-	weapon = { kind = "artillery", fireRate = 0.8, spread = 1, gimbal = 6, recoil = 4000 },
+	weapon = { kind = "artillery", fireRate = 0.8, spread = 1, gimbal = 6, recoilPct = 33 },
 }
 
 module {
 	id = "long_tom", name = "Long Tom", maker = "Ferrous Collective", family = "weapon", size = "L",
 	mass = 34, powerDraw = 3, price = 24000,
-	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoil = 12000 },
+	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoilPct = 46 },
 }
 
 -- Weapons: pulse lasers (no ammo, a chunk of power per pulse) -----------------

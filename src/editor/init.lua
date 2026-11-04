@@ -143,7 +143,7 @@ function E.newDesign(kind)
 		E.design.name = "New weapon"
 		E.design.muzzles = { { 12, 0 } }
 		E.design.module = { family = "weapon", size = "S", mass = 4, powerDraw = 1, price = 2000, maker = "",
-			weapon = { kind = "gun", fireRate = 4, spread = 1, gimbal = 10, recoil = 50 } }
+			weapon = { kind = "gun", fireRate = 4, spread = 1, gimbal = 10, recoilPct = 15 } }
 		E.design.parts = {
 			{ name = "base", shape = { -4, -4, 4, -4, 4, 4, -4, 4 } },
 			{ name = "barrel", shape = { 0, -1.5, 12, -1.5, 12, 1.5, 0, 1.5 }, barrel = true },

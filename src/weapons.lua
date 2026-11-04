@@ -263,7 +263,9 @@ local function fire(game, e, slot, dt)
 
 	table.insert(game.projectiles, p)
 
-	local r = (w.recoil or 0) * T.recoilScale
+	-- Guns and artillery kick back by a share of the round's knockback;
+	-- launchers (and older data) by a fixed impulse.
+	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or w.recoil or 0) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
 	if w.kind == "artillery" or w.kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
 	if e.isPlayer and w.kind == "artillery" then game:shake(0.18) end
