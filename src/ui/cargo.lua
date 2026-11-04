@@ -162,6 +162,12 @@ local function sides(game)
 	return list
 end
 
+local function stockMatch(stack)
+ local item=itemFor(stack.id)
+ local query=(Cargo.search or ''):lower()
+ return query=='' or (item.name..' '..(item.maker or '')):lower():find(query,1,true)~=nil
+end
+
 -- Where everything sits on screen: the equipment panel on the left, then
 -- each hold. A side's main grid is on top, any further grids (Cargo Pods)
 -- in a row underneath. One cell size for every grid, as big as fits.
@@ -170,7 +176,7 @@ local EW, ROW, HULL_H = 260, 30, 110
 -- The market shelf's filters: which stacks stand out.
 local FILTERS = {
 	{ id = "all", label = "All" }, { id = "ammo", label = "Ammo" }, { id = "weapons", label = "Weapons" },
-	{ id = "modules", label = "Modules" }, { id = "misc", label = "Misc" }, {id="ships",label="Ships"},
+	{ id = "modules", label = "Modules" }, { id = "misc", label = "Misc" }, {id="ships",label="Shipyard"},
 }
 local function filterOf(id)
 	local item, m = itemFor(id), data.modules[id]
@@ -199,10 +205,10 @@ local function layout(game)
 		end
 		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 194 or 0)
   if game.state=='docked' then
-   local header=(side.pick or side.market) and 98 or side.trade and 70 or 58
+   local header=(side.pick or side.market) and (side.market and 132 or 98) or side.trade and 70 or 58
    h=g1.h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
   end
-		return max(w, rowW, (side.innerOf or side.parked) and 380 or (side.entity or side.station) and 340 or 300), h
+		return max(w, rowW, (side.innerOf or side.parked) and 380 or side.market and 360 or (side.entity or side.station) and 340 or 300), h
 	end
 	-- Panels stand in columns, one each, except at the market, where storage
 	-- sits under your hold.
@@ -276,8 +282,8 @@ local function layout(game)
 		if side.trade or side.market or side.shipEntries then side.sort = nil end
 		if side.trade then
 			local by=y+side.ph
-   side.complete={x=x+PAD,y=by-84,w=side.pw-PAD*2,h=32}
-   side.clear={x=x+PAD,y=by-44,w=side.pw-PAD*2,h=28}
+   side.complete={x=x+PAD,y=by-54,w=side.pw-PAD*2-108,h=32}
+   side.clear={x=x+side.pw-PAD-100,y=by-54,w=100,h=32}
 		end
 		if side.pick then
 			-- the market's left panel: Hold / Storage tabs in place of the title
@@ -290,10 +296,11 @@ local function layout(game)
 		if side.market then
 			-- filter buttons along the grid's label row
 			side.filters = {}
+   side.search={x=x+PAD,y=y+50,w=side.pw-PAD*2,h=28}
 			local fx = x + PAD
 			for _, f in ipairs(FILTERS) do
 				local fw = HUD.font(11):getWidth(f.label) + 12
-				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 58, w = fw, h = 20 })
+				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 92, w = fw, h = 20 })
 				fx = fx + fw + 4
 			end
 		end
@@ -308,7 +315,7 @@ local function layout(game)
 		if targetKey(side) and Cargo.other and Cargo.tab == "cargo" then
 			side.target = { x = x + side.pw - PAD - 64, y = y + HEAD - 2, w = 64, h = 17 }
 		end
-		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and 98 or side.trade and 70 or 58) or HEAD+18)
+		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and (side.market and 132 or 98) or side.trade and 70 or 58) or HEAD+18)
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
 		local rx, ry = gx, gy + g1.h * cs + 24
@@ -556,29 +563,22 @@ local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='hanga
 function Cargo.setTab(game,id)
  if Cargo.hand then return false end
  if Cargo.tab=='market' and id~='market' then Cargo.clearTrade(game) end
- if id~="market" then Cargo.shipOwned=nil;Cargo.shipStation=nil end
+ Cargo.searchFocus=false;love.keyboard.setTextInput(false)
+ if id~="market" then Cargo.search="";Cargo.shipOwned=nil;Cargo.shipStation=nil end
  Cargo.tab=id;Hangar.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
+function Cargo.workspace(game)
+ if Cargo.tab=='hangar' then
+  local h=Hangar.layout(game);return {x=h.x,w=h.w,bottom=h.y+h.h}
+ end
+ local l=layout(game);local first=l.equip.hidden and l.sides[1] or l.equip
+ local last=l.sides[#l.sides]
+ return {x=first.x,w=last.x+last.pw-first.x,bottom=l.bottom}
+end
 function tabRects(game)
-	local left, right, top
-	if Cargo.tab == "hangar" then
-		local H = Hangar.layout(game)
-		if H then left, right, top = H.x, H.x + H.w, H.y end
-	else
-		local L = layout(game)
-		if L then
-			local last = L.sides[#L.sides]
-			left = L.equip.hidden and L.sides[1].x or L.equip.x
-			right, top = last.x + last.pw, L.sides[1].y
-		end
-	end
-	if not left then return {} end
-	local out, w, h = {}, 110, 28
-	local x = floor((left + right - #TABS * (w + 4)) / 2)
-	for i, t in ipairs(TABS) do
-		out[i] = { id = t.id, label = t.label, x = x + (i - 1) * (w + 4), y = game.state=="docked" and 60 or top-h, w = w, h = h }
-	end
-	return out
+ local frame=Cargo.workspace(game);local out={}
+ for i,t in ipairs(TABS) do out[i]={id=t.id,label=t.label,x=frame.x+14+(i-1)*120,y=66,w=112,h=28} end
+ return out
 end
 
 local function playerSideOf(L)
@@ -750,8 +750,8 @@ end
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
 	if game.state == "docked" and not Cargo.hand then
-  local sw=lg.getWidth()
-  if button==1 and mx>=sw-132 and mx<=sw-16 and my>=12 and my<=42 then
+  local frame=Cargo.workspace(game)
+  if button==1 and mx>=frame.x+frame.w-130 and mx<=frame.x+frame.w-14 and my>=24 and my<=54 then
    Cargo.clearTrade(game);game:undock();return true
   end
 		for _, t in ipairs(tabRects(game)) do
@@ -810,8 +810,9 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			Cargo.clearTrade(game)
 			return true
 		end
+  if button==1 and side.search and inRect(side.search,mx,my) then Cargo.searchFocus=true;love.keyboard.setTextInput(true);return true end
 		for _, f in ipairs(side.filters or {}) do
-			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id return true end
+			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id; if f.id=="ships" then Cargo.marketLeft="ships" end; return true end
 		end
 		for _, pk in ipairs(side.picks or {}) do
 			if button == 1 and inRect(pk, mx, my) then Cargo.marketLeft = pk.id return true end
@@ -842,7 +843,8 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	if er and button == 1 then takeFromSlot(game, L, er) return true end
 	local r, cx, cy = cellAt(L, mx, my)
 	local s = r and Grid.at(r.g, cx, cy)
-	if not s then return true end
+	if not s or r.side.market and not stockMatch(s) then return true end
+ Cargo.searchFocus=false;love.keyboard.setTextInput(false)
 	-- double-click a module to fit it
 	local now = love.timer.getTime()
 	-- (the first click picks the stack up and puts it back as a new one,
@@ -950,7 +952,15 @@ function Cargo.mousereleased(game, mx, my, button)
 	return true
 end
 
+function Cargo.textinput(game,text)
+ if game.state=='docked' and Cargo.tab=='market' and Cargo.searchFocus then Cargo.search=(Cargo.search or '')..text;return true end
+end
 function Cargo.keypressed(game, key)
+ if game.state=='docked' and Cargo.tab=='market' and Cargo.searchFocus then
+  if key=='escape' or key=='return' then Cargo.searchFocus=false;love.keyboard.setTextInput(false)
+  elseif key=='backspace' then local utf8=require('utf8');local offset=utf8.offset(Cargo.search or '',-1);if offset then Cargo.search=Cargo.search:sub(1,offset-1) end end
+  return true
+ end
 	if key == "tab" and game.state == "docked" then
 		if not Cargo.hand then
 			for i, t in ipairs(TABS) do
@@ -1202,11 +1212,12 @@ end
 
 -- Folder tabs sitting on the top edge of the window.
 function drawTabs(game,mx,my)
- local sw=lg.getWidth();local p=game.player;local st=p.dockState.station
- lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print(st.name,16,16)
- lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(game:shipParkingLabel(st,p),16,39)
- lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),sw-360,20,210,'right')
- Station.button({x=sw-132,y=12,w=116,h=30},'Undock',false)
+ local p=game.player;local st=p.dockState.station;local f=Cargo.workspace(game)
+ Station.panel(f.x,12,f.w,88)
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print(st.name,f.x+14,23)
+ lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(game:shipParkingLabel(st,p),f.x+14,44)
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,27,190,'right')
+ Station.button({x=f.x+f.w-130,y=24,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))
  for _,t in ipairs(tabRects(game)) do Station.button(t,t.label,Cargo.tab==t.id) end
 end
@@ -1238,7 +1249,7 @@ function drawTrade(game, L, side, mx, my)
 	local empty=true;for _,g in ipairs(side.hold.grids) do if #g.stacks>0 then empty=false end end
 	local ok = not empty and not problem
  Station.button(c,'Complete trade',ok,ok)
- Station.button(cl,'Clear offer',false,not empty)
+ Station.button(cl,'Clear',false,not empty)
 end
 
 function Cargo.draw(game)
@@ -1261,8 +1272,9 @@ function Cargo.draw(game)
 			lg.setFont(HUD.font(13))
 			lg.setColor(HUD.DIM)
 			local H = Hangar.layout(game)
-			lg.printf("Click a ship to select   Drag to move, R rotate   Double-click or Fly to swap ships   Cargo opens its hold   Market buys / sells ships   Tab switch tabs   E launch",
-				0, H and (H.y + H.h + 12) or (sh - 40), sw, "center")
+			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
+   lg.setColor(HUD.INK);lg.print('Drag ships between the hangar grid and a free berth.',f.x+14,f.bottom+22)
+   lg.setColor(HUD.DIM);lg.print('R rotate • Double-click to select active ship • Cargo opens its hold • Market trades ships',f.x+14,f.bottom+43)
 			return
 		end
 	end
@@ -1322,6 +1334,9 @@ function Cargo.draw(game)
 				lg.setLineWidth(1)
 			end
 		end
+  if side.search then
+   Station.button(side.search,(Cargo.search or '')~='' and Cargo.search or 'Search stock…',Cargo.searchFocus)
+  end
 		for _, f in ipairs(side.filters or {}) do
 			local on = Cargo.filter == f.id
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.4 or (inRect(f, mx, my) and 0.25 or 0.1))
@@ -1371,6 +1386,12 @@ function Cargo.draw(game)
   end
 		lg.setColor(0, 0, 0, 0.35)
 		lg.rectangle("fill", r.x, r.y, r.g.w * cs, r.g.h * cs)
+  if r.side.market and r.side.shipEntries and #r.g.stacks==0 then
+   lg.setFont(HUD.font(12));lg.setColor(HUD.DIM)
+   local st=r.side.station
+   local message=#game.shipyard(st)==0 and 'This station has no ships for sale.\nStored ships can still be sold here.' or 'Ships for sale are in your trade offer.'
+   lg.printf(message,r.x+8,r.y+12,r.g.w*cs-16,'left')
+  end
 		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
 		lg.setLineWidth(1)
 		for cy = 0, r.g.h - 1 do
@@ -1379,6 +1400,7 @@ function Cargo.draw(game)
 		for _, s in ipairs(r.g.stacks) do
 			local tag = market and marketTag(r.side, s)
 			local alpha = (r.side.market and Cargo.filter ~= "all" and filterOf(s.id) ~= Cargo.filter) and 0.25 or 1
+   if r.side.market and not stockMatch(s) then alpha=0 end
 			drawStack(itemFor(s.id), s.n, r.x + s.x * cs, r.y + s.y * cs, s.w * cs, s.h * cs, cs, alpha, tag,s)
 		end
 	end
@@ -1396,6 +1418,20 @@ function Cargo.draw(game)
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
 		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
 	end
+ if docked then
+  local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
+  local r,cx,cy=cellAt(L,mx,my);local selected=Cargo.hand or r and Grid.at(r.g,cx,cy)
+  if selected and not Cargo.hand and r.side.market and not stockMatch(selected) then selected=nil end
+  local title=Ship.launchProblem(p) or ('Mass %.0f t'):format(p.body:getMass())
+  local details='Drag to move • R rotate • Shift split • Right-click transfer'
+  if selected then
+   local item=itemFor(selected.id);title=item.name
+   details=('%d units • %d × %d cells'):format(selected.n,selected.w,selected.h)
+   if market then local tag=marketTag(Cargo.hand and Cargo.hand.side or r.side,selected);details=details..' • '..(tag.station and 'Buy ' or 'Sell ')..HUD.credits(tag.value) end
+  end
+  lg.setFont(HUD.font(14));lg.setColor(HUD.INK);lg.print(title,f.x+14,f.bottom+21)
+  lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(details,f.x+14,f.bottom+43)
+ else
 	local problem = docked and Ship.launchProblem(p)
 	if problem then
 		lg.setColor(HUD.WARN)
@@ -1405,6 +1441,8 @@ function Cargo.draw(game)
 	end
 	lg.setColor(HUD.DIM)
 	lg.printf(hint, 0, L.bottom + 30, sw, "center")
+
+ end
 
 	local h = Cargo.hand
 	if h then
@@ -1453,7 +1491,7 @@ function Cargo.draw(game)
 		end
 		local r, cx, cy = cellAt(L, mx, my)
 		local s = r and Grid.at(r.g, cx, cy)
-		if s then
+		if s and (not r.side.market or stockMatch(s)) then
 			local item = itemFor(s.id)
 			local hint2, price
 			if market then

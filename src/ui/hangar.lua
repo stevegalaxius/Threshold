@@ -267,7 +267,7 @@ function Hangar.draw(game, mx, my)
 	lg.setFont(HUD.font(12))
 	lg.print(("Credits  %d"):format(game:credits()), I.x + PAD, I.y + 214)
  lg.printf(game:shipParkingLabel(L.station,owner),I.x+PAD,I.y+236,I.w-PAD*2)
- lg.printf('Buy and sell ships in Market → Ships.',I.x+PAD,I.y+262,I.w-PAD*2)
+ lg.printf('Buy and sell ships in Market > Shipyard.',I.x+PAD,I.y+262,I.w-PAD*2)
 
  lg.setFont(HUD.font(13))
  local canMove=owner.bay and game:mooringFit(L.station,hull.id,owner) or not owner.bay and game:hangarFit(L.station,hull.id,owner)
@@ -298,9 +298,8 @@ function Hangar.mousepressed(game, mx, my, button)
 	Hangar.lastClick = { owner = s.owner, t = now }
 	Hangar.sel = s.owner
 	if double and s.i then return { fly = s.i } end
-	if s.exterior then return nil end
-	Hangar.hand = { owner = s.owner, hull = s.hull, rot = s.bay.rot,
-		dx = floor((mx - s.x) / L.cs), dy = floor((my - s.y) / L.cs) }
+	Hangar.hand = { owner = s.owner, hull = s.hull, rot = s.bay and s.bay.rot or false,
+		dx = s.exterior and 0 or floor((mx - s.x) / L.cs), dy = s.exterior and 0 or floor((my - s.y) / L.cs) }
 	return nil
 end
 
@@ -308,11 +307,21 @@ function Hangar.mousereleased(game, mx, my)
 	local h = Hangar.hand
 	if not h then return end
 	local L = layout(game)
-	local bay, ok
-	if L then bay, ok = dropSpot(game, L, mx, my) end
-	Hangar.hand = nil
-	if not ok then return end
-	if h.owner == game.player then game.player.bay = bay else h.owner.bay = bay end
+ local parking
+ if L then
+  for _,row in ipairs(L.berths) do
+   if row.visible and inRect(row,mx,my) and game:mooringFits(L.station,row.index,h.hull,h.owner) then parking={mooring=row.index};break end
+  end
+  if not parking then
+   local bay,ok=dropSpot(game,L,mx,my)
+   if ok then parking={bay=bay} end
+  end
+ end
+ Hangar.hand=nil
+ if not parking then return end
+ game:applyParking(h.owner,parking)
+ if h.owner==game.player then game:dockInstantly(h.owner,L.station,game:parkingPlacement(L.station,parking)) end
+
 end
 
 function Hangar.keypressed(game, key)

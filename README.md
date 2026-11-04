@@ -540,8 +540,10 @@ Market uses three panels: player inventory (hold/storage selector), a pending
 offer with separate **You give** and **You receive** grids, and station stock.
 Right-click/Ctrl-click offers a stack; dragging, splitting and rotation still
 work. Completing a trade uses the existing pricing and atomic settlement.
-The **Ships** inventory selector shows owned stored vessels; the **Ships** stock
-filter shows this station's ship catalogue. Hull footprints can be dragged or
+The **Ships** inventory selector shows owned stored vessels; the **Shipyard** stock
+control opens both sides of ship trading and shows this station's catalogue.
+Stations without a ship catalogue explain that they have no ships for sale;
+they still buy stored ships. Hull footprints can be dragged or
 right-clicked into the same offer as goods. Ship sales include installed modules,
 cargo and containers; the active ship must be stored by switching ships before
 it can be sold. Ownership changes only when the trade completes. Parking is
@@ -556,7 +558,9 @@ Purchases require a suitable free location. Switching ships leaves the old ship
 in its own location and selects the new ship at its existing location. Both
 types retain equipment, damage and their real cargo/container grids. The move
 action transfers a ship between interior and exterior storage when space fits.
-Use the exterior list's arrows or mouse wheel to reach additional positions.
+Drag an owned ship onto a specific free berth, or from its berth back into the
+interior grid; occupied and unsuitable berths reject the drop. Use the exterior
+list's arrows or mouse wheel to reach additional positions.
 
 Layouts are station-specific, not hull-class limits. Defaults are a 12×10
 interior grid with 20-unit cells and authored exterior berths. No overflow

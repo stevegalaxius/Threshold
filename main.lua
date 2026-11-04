@@ -219,6 +219,10 @@ local function relaunch()
 	if game.state == "dead" then game:respawn() end
 end
 
+function love.textinput(text)
+ Cargo.textinput(game,text)
+end
+
 function love.keypressed(key)
 	if key == "f1" then Debug.toggle(); return end
 	if key=="f4" then Traffic.toggle(game);return end
