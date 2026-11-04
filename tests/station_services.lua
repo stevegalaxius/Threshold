@@ -16,9 +16,9 @@ return function(game)
  game.universe.populationSpawns={}
  game:dockInstantly(game.player,st,{interior=true})
  local r=game:stationRecord(st)
- check(#Cargo.tabs==4,'station services missing')
+ check(#Cargo.tabs==5,'station services missing')
  local labels={};for _,tab in ipairs(Cargo.tabs) do labels[tab.label]=true end
- check(labels.Storage and labels.Market and labels.Shipyard and labels.Hangar and not labels.Outfitting,'service tabs do not describe existing station mechanics')
+ check(labels.Storage and labels.Market and labels.Shipyard and labels.Hangar and labels.Repair and not labels.Outfitting,'service tabs do not describe existing station mechanics')
  local w,h=game.hangarSize(st)
  check(w==12 and h==10,'default interior is not a small finite grid')
  check(game:hangarFit(st,'halcyon_wisp')~=nil,'small ship does not fit inside')
@@ -84,7 +84,7 @@ return function(game)
  end
  love.window.setMode(sw,sh)
  local tabs=Cargo.tabRects(game)
- check(#tabs==4 and tabs[1].x>=0 and tabs[4].x+tabs[4].w<=sw,'service tabs moved outside the resized window')
+ check(#tabs==5 and tabs[1].x>=0 and tabs[5].x+tabs[5].w<=sw,'service tabs moved outside the resized window')
  screenshot('storage')
  Cargo.setTab(game,'hangar');local shipLayout=Hangar.layout(game)
  local listed=false
@@ -192,6 +192,26 @@ return function(game)
  local config=Export.stationDef({id='prototype_parking',name='Parking',parts={},hangar={w=40,h=24},
   berths={{x=0,y=0,size=80,maxLength=1200,maxWidth=400}}})
  check(config.hangar.w==40 and config.berths[1].maxLength==1200 and config.berths[1].maxWidth==400,'station export lost spatial capacity configuration')
+
+ -- Services come from the station definition: drop repair, lose the tab.
+ local oldServices=st.def.services
+ check(oldServices and game.stationServices(st).repair,'station data does not define its services')
+ st.def.services={'hangar'}
+ check(#Cargo.tabRects(game)==2 and not Cargo.setTab(game,'market'),'tabs ignore station services')
+ st.def.services=oldServices
+ -- Repair: fix the flying ship by clicking its row.
+ local Repair=require('src.ui.repair')
+ check(Cargo.setTab(game,'repair'),'repair tab missing')
+ game.player.armor=game.player.stats.armor-50
+ local RL=Repair.layout(game);local before=game:credits()
+ Cargo.mousepressed(game,RL.rows[1].button.x+4,RL.rows[1].button.y+4,1)
+ check(game.player.armor==game.player.stats.armor and game:credits()==before-50*game.repairRate(st),'repair did not charge and fix armor')
+ game.player.armor=game.player.stats.armor-50;game.universe.credits=game.repairRate(st)*20
+ screenshot('repair')
+ Cargo.mousepressed(game,RL.rows[1].button.x+4,RL.rows[1].button.y+4,1)
+ check(game.player.armor==game.player.stats.armor-30 and game:credits()==0,'partial repair wrong')
+ game.player.armor=game.player.stats.armor;game.universe.credits=before
+ Cargo.setTab(game,'cargo')
 
  -- The Shipyard tab: a catalogue of this station's hulls, bought by click.
  local Shipyard=require('src.ui.shipyard')

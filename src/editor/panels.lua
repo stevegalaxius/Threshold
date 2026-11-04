@@ -168,6 +168,25 @@ local function placedSections(E, d)
 			{ label = "shipyard", value = "shipyard" }, { label = "customs", value = "customs" }, { label = "mine", value = "mine" },
 		}, function(v) E.pushUndo(); d.role = v or nil end, 120)
 		Slab.Separator()
+		-- Station services: which tabs a docked player gets here.
+		Slab.Text("Services (tabs when docked; Storage is always there):")
+		local Game = require("src.game")
+		local have = {}
+		for _, id in ipairs(d.services or { "market", "shipyard", "hangar" }) do have[id] = true end
+		for _, id in ipairs(Game.SERVICES) do
+			check(E, have[id] == true, id, function(on)
+				have[id] = on or nil
+				d.services = {}
+				for _, sid in ipairs(Game.SERVICES) do if have[sid] then table.insert(d.services, sid) end end
+			end)
+		end
+		if have.repair then
+			Slab.Text("repair cost per armor point"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_repairrate", d.repairRate or require("src.tuning").repairRate, 0, 200, 1, { W = 60, Precision = 0 }) then
+				E.pushUndoCoalesced("yard_repairrate"); d.repairRate = math.floor(Slab.GetInputNumber())
+			end
+		end
+		Slab.Separator()
 		local nr = 0
 		for _ in pairs(d.rotors or {}) do nr = nr + 1 end
 		local shown = E.showRotors

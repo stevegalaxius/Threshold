@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2).
 station {
 	id = "city_1", name = "Cloud city (size 1)",
+	services = { "market", "shipyard", "hangar", "repair" },
 	berths = {
 		{ heading = 270, size = 152, x = -480, y = 176 },
 		{ heading = 270, size = 150, x = -736, y = 176 },

@@ -1,6 +1,7 @@
 -- Station design (mine). Open and edit in the Shipyard (F2).
 station {
 	id = "caliphate_chemworks", name = "Diwan chemical works", role = "mine",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.5, 0.48, 0.52 },
 	rotors = {
 		spin1 = { over = true, spin = 1.2, x = -180, y = 270 },

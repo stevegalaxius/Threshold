@@ -1,6 +1,7 @@
 -- Station design (customs). Open and edit in the Shipyard (F2).
 station {
 	id = "diwan_terminal", name = "Diwan export terminal", role = "customs",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.64, 0.56, 0.46 },
 	berths = {
 		{ heading = 180, size = 130, x = 980, y = -450 },

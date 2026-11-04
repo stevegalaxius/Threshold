@@ -1,6 +1,7 @@
 -- Station design (habitat). Open and edit in the Shipyard (F2).
 station {
 	id = "jovian_observatory", name = "Accord observatory", role = "habitat",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.6, 0.63, 0.66 },
 	rotors = {
 		dish0 = { over = true, spin = -0.05, x = -1300, y = -380 },

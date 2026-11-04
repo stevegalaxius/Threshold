@@ -50,6 +50,7 @@ local HUD = require("src.hud")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
+local Repair = require("src.ui.repair")
 local Station=require("src.ui.station")
 local stats = require("src.stats")
 local T = require("src.tuning")
@@ -536,9 +537,24 @@ end
 
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
-local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'}}
+local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'}}
+-- The tabs this station offers: Storage, then its services (Game.stationServices).
+local function offered(game)
+ local p=game.player;local st=p and p.dockState and p.dockState.station
+ local have=Game.stationServices(st);local out={}
+ for _,t in ipairs(TABS) do if t.id=='cargo' or have[t.id] then out[#out+1]=t end end
+ return out
+end
+-- Leave a tab this station doesn't offer (after docking somewhere else).
+local function checkTab(game)
+ if game.state~='docked' or Cargo.hand then return end
+ for _,t in ipairs(offered(game)) do if t.id==Cargo.tab then return end end
+ Cargo.setTab(game,'cargo')
+end
 function Cargo.setTab(game,id)
  if Cargo.hand then return false end
+ local ok=false;for _,t in ipairs(offered(game)) do if t.id==id then ok=true end end
+ if not ok then return false end
  if trading() and id~=Cargo.tab then Cargo.clearTrade(game) end
  Cargo.searchFocus=false;love.keyboard.setTextInput(false)
  if id~=Cargo.tab then
@@ -552,8 +568,8 @@ function Cargo.setTab(game,id)
  Cargo.tab=id;Hangar.cancel();Shipyard.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
 function Cargo.workspace(game)
- if Cargo.tab=='hangar' or Cargo.tab=='shipyard' then
-  local h=(Cargo.tab=='hangar' and Hangar or Shipyard).layout(game);return {x=h.x,w=h.w,bottom=h.y+h.h}
+ if Cargo.tab=='hangar' or Cargo.tab=='shipyard' or Cargo.tab=='repair' then
+  local h=(Cargo.tab=='hangar' and Hangar or Cargo.tab=='repair' and Repair or Shipyard).layout(game);return {x=h.x,w=h.w,bottom=h.y+h.h}
  end
  local l=layout(game);local first=l.equip.hidden and l.sides[1] or l.equip
  local last=l.sides[#l.sides]
@@ -561,7 +577,7 @@ function Cargo.workspace(game)
 end
 function tabRects(game)
  local frame=Cargo.workspace(game);local out={}
- for i,t in ipairs(TABS) do out[i]={id=t.id,label=t.label,x=frame.x+14+(i-1)*120,y=66,w=112,h=28} end
+ for i,t in ipairs(offered(game)) do out[i]={id=t.id,label=t.label,x=frame.x+14+(i-1)*120,y=66,w=112,h=28} end
  return out
 end
 
@@ -762,6 +778,25 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			end
 			return true
 		end
+		if Cargo.tab == "repair" then
+			local act = Repair.mousepressed(game, mx, my, button)
+			local st = game.player.dockState.station
+			if act and act.repair then
+				local pts, paid = game:repairShip(st, act.repair)
+				if pts then game:toast(("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()), 1.4)
+				else game:toast(paid, 1.4) end
+			elseif act and act.repairAll then
+				local owners = { game.player }
+				for _, rec in ipairs(game:hangar(st)) do owners[#owners + 1] = rec end
+				local pts, paid = 0, 0
+				for _, o in ipairs(owners) do
+					local a, b = game:repairShip(st, o)
+					if a then pts, paid = pts + a, paid + b end
+				end
+				game:toast(pts > 0 and ("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()) or "NOTHING REPAIRED", 1.4)
+			end
+			return true
+		end
 		if Cargo.tab == "shipyard" then
 			local act = Shipyard.mousepressed(game, mx, my, button)
 			if act and act.buy then
@@ -954,8 +989,9 @@ function Cargo.keypressed(game, key)
  end
 	if key == "tab" and game.state == "docked" then
 		if not Cargo.hand then
-			for i, t in ipairs(TABS) do
-				if t.id == Cargo.tab then Cargo.setTab(game,(TABS[i+1] or TABS[1]).id);break end
+			local tabs = offered(game)
+			for i, t in ipairs(tabs) do
+				if t.id == Cargo.tab then Cargo.setTab(game,(tabs[i+1] or tabs[1]).id);break end
 			end
 			Hangar.cancel()
 		end
@@ -1245,6 +1281,7 @@ end
 
 function Cargo.draw(game)
 	if not Cargo.isOpen(game) then return end
+	checkTab(game)
 	local L = layout(game)
 	if not L then return end
 	local cs = L.cs
@@ -1265,6 +1302,14 @@ function Cargo.draw(game)
 			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
 			lg.setColor(HUD.INK);lg.print('Drag a ship to another spot in the bay or onto a free berth outside.',f.x+14,f.bottom+22)
 			lg.setColor(HUD.DIM);lg.print('Click selects  \194\183  R rotates while dragging  \194\183  Double-click flies  \194\183  Mouse wheel scrolls berths',f.x+14,f.bottom+43)
+			return
+		end
+		if Cargo.tab == "repair" then
+			Repair.draw(game, mx, my)
+			lg.setFont(HUD.font(14))
+			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
+			lg.setColor(HUD.INK);lg.print('Repairs restore armor at this station\'s rate per point.',f.x+14,f.bottom+22)
+			lg.setColor(HUD.DIM);lg.print('Short on credits? Repair fixes as much as you can pay for.',f.x+14,f.bottom+43)
 			return
 		end
 		if Cargo.tab == "shipyard" then
@@ -1526,7 +1571,7 @@ Cargo.layout = layout       -- for the autotest
 -- Where toasts go while the screen is up: under the window and its help.
 function Cargo.toastY(game)
 	local sh = lg.getHeight()
-	if game.state == "docked" and (Cargo.tab == "hangar" or Cargo.tab == "shipyard") then return sh - 110 end
+	if game.state == "docked" and (Cargo.tab == "hangar" or Cargo.tab == "shipyard" or Cargo.tab == "repair") then return sh - 110 end
 	local L = layout(game)
 	return L and min(L.bottom + 54, sh - 60) or sh - 110
 end

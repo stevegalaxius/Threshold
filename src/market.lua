@@ -30,6 +30,7 @@
 ]]
 
 local data = require("src.data")
+local stats = require("src.stats")
 local Hold = require("src.inventory.hold")
 local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
@@ -79,6 +80,48 @@ local function stockCount(hold, id)
 		end
 	end
 	return n
+end
+
+-- The services a station offers, from its definition's services list
+-- (src/editor: station panel). Stations saved before services existed
+-- offer the original three. Storage (your hold, fitting and station
+-- storage) is always there. Returns a set: { market = true, ... }.
+Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
+function Game.stationServices(st)
+	local list = st and st.def and st.def.services or { "market", "shipyard", "hangar" }
+	local set = {}
+	for _, id in ipairs(list) do set[id] = true end
+	return set
+end
+
+-- Repairs: credits per armor point here, and what fixing a ship costs.
+function Game.repairRate(st)
+	return st and st.def and st.def.repairRate or T.repairRate
+end
+
+-- owner is the player's ship or a stored ship record. Returns missing
+-- armor points and the full price.
+function Game:repairQuote(st, owner)
+	local hull = owner == self.player and owner.hull or data.hulls[owner.hull]
+	local max = owner == self.player and owner.stats.armor
+		or stats.compute(hull, owner.loadout or hull.loadout).armor
+	local missing = math.max(0, math.ceil(max - (owner.armor or max)))
+	return missing, missing * Game.repairRate(st), max
+end
+
+-- Repair as much as credits allow. Returns points repaired and paid, or
+-- nil and why not.
+function Game:repairShip(st, owner)
+	if not Game.stationServices(st).repair then return nil, "NO REPAIR BAY HERE" end
+	local missing, _, max = self:repairQuote(st, owner)
+	if missing <= 0 then return nil, "NOTHING TO REPAIR" end
+	local rate = Game.repairRate(st)
+	local points = rate > 0 and math.min(missing, floor(self.universe.credits / rate)) or missing
+	if points <= 0 then return nil, "NOT ENOUGH CREDITS" end
+	local paid = points * rate
+	owner.armor = math.min(max, (owner.armor or max) + points)
+	self.universe.credits = self.universe.credits - paid
+	return points, paid
 end
 
 function Game.marketDefinition(st)
