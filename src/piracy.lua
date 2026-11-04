@@ -11,34 +11,7 @@ local Grid=require('src.inventory.grid')
 local Repairs=require('src.npc_repair')
 local Homes=require('src.npc_home')
 local P={}
-local function itinerary(source,target,clock)
- if source==target then return {source} end
- local from,to=L.get(source).area,L.get(target).area
- if from~=to then
-  local moon=Fields.moons[from]
-  if moon then
-   local gate=from..'/to_'..moon.parent
-   local path=itinerary(source,gate,clock)
-   local rest=itinerary(moon.parent..'/to_'..from,target,clock)
-   if not path or not rest then return end
-   for _,id in ipairs(rest) do path[#path+1]=id end
-   return path
-  end
-  moon=Fields.moons[to]
-  if moon then
-   local path=itinerary(source,moon.parent..'/to_'..to,clock)
-   local rest=itinerary(to..'/to_'..moon.parent,target,clock)
-   if not path or not rest then return end
-   for _,id in ipairs(rest) do path[#path+1]=id end
-   return path
-  end
-  return require('src.transport').route(source,target,clock)
- end
- local path=G.route(G.build(L.get(source).area),source,target,clock)
- if not path then return end
- local result={source};for _,leg in ipairs(path.legs) do result[#result+1]=leg.edge.to end
- return result
-end
+local itinerary=G.itinerary
 P.route=itinerary
 function P.unload(u,r)
  local base=r.piracy and r.piracy.base or r.homeStation or L.station(nil,'pirateBase')

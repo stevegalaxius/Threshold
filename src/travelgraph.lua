@@ -11,22 +11,35 @@ function G.position(graph, id, clock)
  return L.position(n.location, clock)
 end
 
-function G.point(graph, edge, progress, clock)
- local x, y = G.position(graph, edge.from, clock)
- local xx, yy = G.position(graph, edge.to, clock)
+function G.interpolate(x,y,xx,yy,progress,incoming,outgoing)
  -- The coarse route goes around the planet instead of cutting across it.
  local r, rr = sqrt(x*x+y*y), sqrt(xx*xx+yy*yy)
  local turn = progress
  -- Finish turning early: the final approach to a fixed gate is radial,
  -- rather than a spiral that reaches the boundary almost sideways.
- if endpoint(edge.to) then
+ if outgoing then
   turn = 1 - (1-progress)^3
- elseif endpoint(edge.from) then
+ elseif incoming then
   turn = progress^3
  end
  local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*turn
  r = r + (rr-r)*progress
  return cos(a)*r, sin(a)*r
+end
+
+function G.point(graph,edge,progress,clock)
+ local x,y=G.position(graph,edge.from,clock)
+ local xx,yy=G.position(graph,edge.to,clock)
+ return G.interpolate(x,y,xx,yy,progress,endpoint(edge.from),endpoint(edge.to))
+end
+
+function G.withSpread(x,y,progress,spread)
+ local radius=math.sqrt(x*x+y*y)
+ if radius>0 then
+  local across=(spread or 0)*math.sin(math.pi*progress)
+  x,y=x+x/radius*across,y+y/radius*across
+ end
+ return x,y
 end
 
 -- Connectivity is authored in fields.lua; physical positions never add links.
@@ -66,6 +79,42 @@ function G.transit(from,to,clock)
  local moon=Fields.moons[a.area] and Fields.moons[a.area].parent==b.area and a.area
   or Fields.moons[b.area] and Fields.moons[b.area].parent==a.area and b.area
  if moon then return {from=a.area,to=b.area,moon=moon,length=Fields.moons[moon].gap} end
+end
+
+-- Shared inter-region itinerary. Local legs always use declared connections;
+-- moons use paired gates, planets use their existing mass drivers.
+function G.itinerary(source,target,clock)
+ local a,b=L.byId[source],L.byId[target]
+ if not a or not b then return nil end
+ if source==target then return {source} end
+ local function join(left,right)
+  if not left or not right then return end
+  for _,id in ipairs(right) do left[#left+1]=id end
+  return left
+ end
+ if a.area~=b.area then
+  local moon=Fields.moons[a.area]
+  if moon then
+   return join(G.itinerary(source,a.area..'/to_'..moon.parent,clock),G.itinerary(moon.parent..'/to_'..a.area,target,clock))
+  end
+  moon=Fields.moons[b.area]
+  if moon then
+   return join(G.itinerary(source,moon.parent..'/to_'..b.area,clock),G.itinerary(b.area..'/to_'..moon.parent,target,clock))
+  end
+  local from,to=Fields[a.area].driverId,Fields[b.area].driverId
+  if not from or not to then return end
+  return join(G.itinerary(source,from,clock),G.itinerary(to,target,clock))
+ end
+ local path=G.route(G.build(a.area),source,target,clock)
+ if not path then return end
+ local route={source}
+ for _,leg in ipairs(path.legs) do route[#route+1]=leg.edge.to end
+ return route
+end
+
+function G.wreckPoint(w,clock)
+ if w.worldPosition then return w.worldPosition.x,w.worldPosition.y end
+ return G.point(G.build(w.area),{from=w.from,to=w.to},w.progress,clock)
 end
 
 function G.length(graph,edge,clock)

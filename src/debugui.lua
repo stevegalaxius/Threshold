@@ -293,10 +293,10 @@ local function graphSection(game)
  for _,station in ipairs(Locations.stations(game.fieldId)) do
   Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
  end
- local stash=game.universe.piracy and game.universe.piracy.stashes[T.pirateBase]
- if stash then
-  Slab.Text(Locations.get(T.pirateBase).name..' pirate stash:')
-  for id,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[id].name,n)) end
+ for id,stash in pairs(game.universe.piracy and game.universe.piracy.stashes or {}) do
+  local place=Locations.byId[id]
+  Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')
+  for item,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[item].name,n)) end
  end
  if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
  if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end

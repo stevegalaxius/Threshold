@@ -22,7 +22,20 @@ function H.get(r)
   if r.role=='pirate' then id=L.station(nil,'pirateBase')
   elseif region then id=L.station(region,r.role=='miner' and 'mining' or 'trade') end
  end
+ if not id and region then
+  local G=require('src.travelgraph');local Fields=require('src.fields')
+  local source=Fields[region].buoyIds[1] or Fields[region].stationIds[1] or Fields[region].holdingId
+  for _,area in ipairs(Fields.list) do
+   if r.role~='miner' or #Fields[area].drillIds>0 then
+    local purpose=r.role=='pirate' and 'pirateBase' or r.role=='miner' and 'mining' or 'trade'
+    local candidate=L.station(area,purpose)
+    if candidate and source and G.itinerary(source,candidate,0) then id=candidate;break end
+   end
+  end
+ end
  if id then return H.assign(r,id) end
+ r.homeStation=nil
+ if r.role=='miner' then r.base=nil end
 end
 function H.seed(u)
  for _,r in pairs(u.npcs) do H.get(r) end

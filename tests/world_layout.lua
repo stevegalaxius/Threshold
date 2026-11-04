@@ -16,18 +16,18 @@ return function(game)
  local taskId=duty.id;local amount=trader.ship.cargo.scrap
  -- A third station, four navigation buoys, a different model, reordered ports.
  W.stations.earth={copy(oldStations[2]),copy(oldStations[1]),
-  {id='layout_test_port',name='Layout test port',layout='shipyard_1',marketId=home,phase=1.4,uses={mining=true}}}
+  {id='layout_test_port',name='Layout test port',layout='shipyard_1',marketId=L.get(home).marketId,phase=1.4,uses={mining=true}}}
  W.navigation.earth={buoys=4}
  local bodies=game.world:getBodyCount()
  L.rebuild('earth')
  check(game.world:getBodyCount()==bodies,'catalogue rebuild constructed physics')
  check(#F.earth.stationIds==3 and #F.earth.buoyIds==4,'world definition did not produce the configured nodes')
  check(L.station('earth','trade')==home and H.get(trader)==home,'reordering ports changed home selection')
- local added='earth/layout_test_port';local graph=G.build('earth')
+ local added='layout_test_port';local graph=G.build('earth')
  for _,from in ipairs(F.earth.stationIds) do for _,to in ipairs(F.earth.buoyIds) do
   check(G.route(graph,from,to,0)~=nil,'new station/buoy is not reachable')
  end end
- check(Transport.route(home,'mars/station_alpha',0)~=nil,'expanded layout broke interplanetary travel')
+ check(Transport.route(home,'station:009',0)~=nil,'expanded layout broke interplanetary travel')
  local circuit={};for _,id in ipairs(F.earth.traderRoute) do circuit[id]=true end
  check(circuit[added],'new trading station omitted from local circuit')
  local live=L.spawnStation(game,added)

@@ -7,7 +7,7 @@ return function(game)
  game:loadField('phobos')
  for _,area in ipairs({'phobos','deimos'}) do
   game:loadField(area)
-  local st=game:locationEntity(area..'/strip_mine')
+  local st=game:locationEntity(require('src.locations').station(area,'mining'))
   check(st and st.surfaceMine,'missing surface mine')
   check(st.body:getAngularVelocity()==0,'mine rotates independently of terrain')
   -- Dock layouts may have several horizontal or angled doors. Check the
@@ -51,14 +51,14 @@ return function(game)
   u.populationSpawns={}
   for _,site in pairs(require('src.mining').state(u).sites) do site.nextAt=u.clock+1000000 end
   u.npcs={[r.id]=r};r.state='travel';r.area=area;r.home='mars'
-  r.tradeHome='mars/station_alpha';r.tripDestination=area;r.onRoundTrip=true
+  r.tradeHome='station:009';r.tripDestination=area;r.onRoundTrip=true
   r.route=A.roundTrip('mars',area,u.clock,r.tradeHome)
-  for i,id in ipairs(r.route) do if id==area..'/strip_mine' then r.index=i;break end end
+  for i,id in ipairs(r.route) do if id==require('src.locations').station(area,'mining') then r.index=i;break end end
   r.job={mine=area,home=r.tradeHome,amount=10,phase='pickup'}
   u.jobs.mines[area].stock=20;u.jobs.mines[area].reservations[r.id]=10
   r.depart=u.clock;r.arrive=u.clock+100;r.pose=nil;r.offset=nil
   r.ship.cargo={}
-  local st=game:locationEntity(area..'/strip_mine')
+  local st=game:locationEntity(require('src.locations').station(area,'mining'))
   local x,y=game.dockWorld(st,1,st.dock.x2+st.dock.runway+600,300)
   r.pose={x=x,y=y,a=st.dock.a+math.pi,vx=0,vy=0,w=0,clock=u.clock}
   local e=A.wake(game,r)

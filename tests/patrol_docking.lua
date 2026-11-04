@@ -8,7 +8,7 @@ return function(game)
  local u=game.universe;local r
  for _,record in pairs(u.npcs) do if record.role=='patrol' and record.home=='earth' then r=record;break end end
  r=r or assert(require('src.population').spawn(game,'earth','patrol',false))
- local st=game:locationEntity('earth/orbital_one');local buoy=Fields.earth.buoyIds[1]
+ local st=game:locationEntity('station:007');local buoy=Fields.earth.buoyIds[1]
  local max=require('src.stats').compute(require('src.data').hulls[r.ship.hull],r.ship.loadout).armor
  local prepare=Tasks.definitions.patrol.prepare
  r.ship.armor=max;r.patrolStationVisits=0
@@ -53,7 +53,7 @@ return function(game)
  check(e.armor==max and not e.dockState and r.state=='travel','repaired patrol did not depart onto its next duty')
  check(game:credits()==credits,'NPC repairs charged player credits')
  -- Passing inspections are placed outside the hull and dock runways.
- st=game:locationEntity('earth/orbital_one');r.task.dock=false
+ st=game:locationEntity('station:007');r.task.dock=false
  r.route={buoy,st.locationId};r.index=2;r.state='travel';A.bindRoute(game,e,r)
  check(e.route[2].kind=='waypoint','non-docking visit became a docking stop')
  local px,py=S.inspectionPoint(game,st,e);local sx,sy=st.body:getPosition()

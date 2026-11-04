@@ -36,6 +36,10 @@ local sqrt, cos, sin, max, min, floor, pi, random, exp = math.sqrt, math.cos, ma
 
 function Game.new(opts)
 	opts = opts or {}
+ if not opts.universe and not opts.preview and love.filesystem.getInfo('world_layout.lua') then
+  local ok,err=require('src.world_authoring').loadDefinition()
+  if not ok then print('World layout could not be loaded: '..tostring(err)) end
+ end
 	local self = setmetatable({}, Game)
 	love.physics.setMeter(64)
 	self.world = love.physics.newWorld(0, 0, true)

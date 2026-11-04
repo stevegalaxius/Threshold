@@ -123,7 +123,8 @@ end
 
 function Game.marketDefinition(st)
 	local place = st.locationId and Locations.get(st.locationId)
-	return (place and data.markets[place.marketId or place.id]) or data.markets[st.name]
+	local id=place and place.marketId or st.marketId or st.def and st.def.marketId or require('src.world_layout').defaults.marketId
+ return data.markets[id]
 end
 
 function Game.newShelf()

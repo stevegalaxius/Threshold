@@ -314,7 +314,7 @@ function S.hold(game,e,AI)
 end
 
 function S.visit(game,e,stop,A)
- if game.universe.npcs[e.alifeId].piracy then return false end
+ if game.universe.npcs[e.alifeId].piracy or game.universe.npcs[e.alifeId].worldRecovery then return false end
  if not e.alifeRole or e.routeIndex<#e.route then return false end
  local r=game.universe.npcs[e.alifeId]
  if r.state=='travel' then
@@ -326,7 +326,10 @@ end
 for _,role in ipairs({'pirate','patrol'}) do
  Population.register(role,{
   target=function(f)
-   if role=='pirate' then return raidNodes(f) and T.population.pirate.target end
+   if role=='pirate' then
+    local override=f.navigation and f.navigation.population and f.navigation.population.pirate
+    return raidNodes(f) and (override~=nil and override or T.population.pirate.target)
+   end
    return f.alifeSecurity and f.alifeSecurity.patrol
   end,
   nodes=function(game,area)

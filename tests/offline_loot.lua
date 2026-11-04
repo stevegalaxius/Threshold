@@ -1,4 +1,5 @@
 return function(game)
+ local pirateBase=require('src.locations').station(nil,'pirateBase')
  local O,A,P=require('src.offline_loot'),require('src.alife'),require('src.piracy')
  local Hold,Fields,L=require('src.inventory.hold'),require('src.fields'),require('src.locations')
  local data,T,Save=require('src.data'),require('src.tuning'),require('src.save')
@@ -27,7 +28,7 @@ return function(game)
  check(not O.update(game,other,clock) and not other.offlineLoot,'two pirates claimed the same resource')
  clock=clock+2;u.clock=clock;O.update(game,r,clock)
  check(#area.pickups==0 and r.ship.cargo.scrap==8,'offline pickup transfer lost or duplicated cargo')
- check(r.piracy and r.route[#r.route]==T.pirateBase,'offline looter did not return to Milliways')
+ check(r.piracy and r.route[#r.route]==pirateBase,'offline looter did not return to Milliways')
  local saved=assert(Save.decode(Save.encode(game:saveState())))
  check(#saved.areas.earth.pickups==0 and saved.npcs[r.id].ship.cargo.scrap==8,'save lost offline resource depletion')
  -- Intact saved containers preserve nested inventory and disappear only once.
@@ -41,7 +42,7 @@ return function(game)
  local h=Hold.deserialize(big.ship.hold);local stack=h.grids[1].stacks[1]
  check(stack.inner and stack.stolen and Hold.count(stack.inner,'rounds_s')==25,'offline container lost nested cargo or provenance')
  P.unload(u,big)
- local stored=u.piracy.containers[T.pirateBase]
+ local stored=u.piracy.containers[pirateBase]
  check(Hold.count(Hold.deserialize(stored[#stored].inner),'rounds_s')==25,'offline crate lost contents at stash')
  -- Prepared combat wreck inventories are authoritative when materialized later.
  area.objects={};area.pickups={}

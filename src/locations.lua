@@ -19,6 +19,21 @@ function L.rebuild(area)
  register(area)
 end
 for _,area in ipairs(Fields.list) do register(area) end
+function L.rebuildAll()
+ L.byId,L.byArea={},{}
+ for _,area in ipairs(Fields.list) do Fields.configureLocations(area);register(area) end
+end
+function L.nearest(area,x,y,clock)
+ local best,distance
+ for _,place in ipairs(L.list(area)) do
+  if place.kind=='buoy' or place.kind=='station' or place.id==Fields[area].holdingId then
+   local px,py=L.position(place.id,clock or 0);local d=(px-x)^2+(py-y)^2
+   if not best or d<distance or d==distance and place.id<best then best,distance=place.id,d end
+  end
+ end
+ return best or Fields[area].driverId
+end
+
 
 -- The station a location belongs to: itself, or the station it's an
 -- access point of (the Heaven-Ladder's anchors).
@@ -41,8 +56,7 @@ end
 
 -- The optional third result is the radial bearing. Cloud-city orientation
 -- and an idle driver's barrel use it; station spin is independent of orbit.
-function L.position(id, clock)
-	local m = L.get(id).motion
+function L.motionPosition(m, clock)
 	if m.type == "fixed" then return m.x, m.y, 0 end
  if m.type=='mining' then
   local angle=-pi/2
@@ -59,6 +73,8 @@ function L.position(id, clock)
 	local a = m.phase + clock * L.rate(m)
 	return (m.cx or 0) + cos(a) * m.radius, (m.cy or 0) + sin(a) * m.radius, a
 end
+
+function L.position(id,clock) return L.motionPosition(L.get(id).motion,clock) end
 
 -- Non-docking visits to cloud cities stay above the gravity band. Follow the
 -- city's bearing rather than its runway, which is intentionally below it.

@@ -40,7 +40,7 @@ local function candidates(game,r,clock)
  local result={}
  for id,w in pairs(game.universe.alifeWrecks or {}) do
   if w.area==r.area and clock<w.expires then
-   local x,y=G.point(G.build(w.area),{from=w.from,to=w.to},w.progress,clock)
+   local x,y=G.wreckPoint(w,clock)
    local visible=false
    if game.fieldId==w.area and game.player and not game.player.dead then
     local px,py=game.player.body:getPosition();visible=(x-px)^2+(y-py)^2<T.alifeNear^2

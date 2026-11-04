@@ -1,10 +1,11 @@
 return function(game)
+ local pirateBase=require('src.locations').station(nil,'pirateBase')
  local R,A,M,T=require('src.npc_repair'),require('src.alife'),require('src.mining'),require('src.tuning')
  local Save,copy=require('src.save'),require('src.persistence').copy
  local u=copy(game.universe);local fixture={universe=u};local checks=0
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  local function near(a,b)return math.abs(a-b)<.001 end
- local station='earth/orbital_one'
+ local station='station:007'
  local template,miner,pirate
  for _,r in pairs(u.npcs) do
   if r.role=='trader' then template=r end
@@ -12,7 +13,7 @@ return function(game)
   if r.role=='pirate' and r.home=='earth' then pirate=r end
  end
  assert(template and miner and pirate,'repair fixtures missing')
- check(R.supports(station) and R.supports(T.pirateBase),'service station layout lookup failed')
+ check(R.supports(station) and R.supports(pirateBase),'service station layout lookup failed')
  check(not R.supports(require('src.fields').earth.buoyIds[1]),'buoy offers repairs')
  -- The same completed-docking gate applies to every persistent role.
  local physical={universe=u,stationServices=function(st)return st.services end}
@@ -62,13 +63,13 @@ return function(game)
  end
  -- Empty-handed damaged pirates use the existing saved return/redeploy loop.
  local r=pirate;r.ship.armor=R.maximum(r)*.2;r.ship.cargo={};r.ship.hold=nil;r.stolenCargo={}
- r.encounter=nil;r.piracy=nil;r.state='idle';r.node='earth/orbital_one';r.route={r.node,r.node};r.index=1
+ r.encounter=nil;r.piracy=nil;r.state='idle';r.node='station:007';r.route={r.node,r.node};r.index=1
  A.advance(r,u.clock,u,fixture)
- check(r.piracy and r.route[#r.route]==T.pirateBase,'empty damaged pirate did not seek repair')
+ check(r.piracy and r.route[#r.route]==pirateBase,'empty damaged pirate did not seek repair')
  for _=1,80 do if r.state=='docked' then break end;u.clock=r.arrive;A.advance(r,u.clock,u,fixture) end
- check(r.state=='docked' and r.node==T.pirateBase,'repairing pirate never reached base')
+ check(r.state=='docked' and r.node==pirateBase,'repairing pirate never reached base')
  u.clock=r.untilTime;A.advance(r,u.clock,u,fixture)
  check(r.ship.armor==R.maximum(r) and r.piracy.phase=='redeploy','pirate failed to repair before redeploy')
- check(not next(u.piracy.stashes[T.pirateBase]),'empty repair trip manufactured stolen cargo')
+ check(not next(u.piracy.stashes[pirateBase]),'empty repair trip manufactured stolen cargo')
  print(('ALL-ROLE NPC REPAIR TEST PASSED (%d checks)'):format(checks))
 end

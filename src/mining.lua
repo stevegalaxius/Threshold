@@ -109,10 +109,19 @@ function M.seed(game)
      state.sites[id]={id=id,area=area,x=s.x,y=s.y,radius=s.radius,planet=s.planet,
       angle=angle,item=Ore.items.rock,
       nextAt=u.clock+M.ejecta({id=id},1).delay,sequence=0,home=home}
-     if home and not f.instance then
-      for _=1,(#specs==1 and T.minersPerArea or 1) do
-       Tasks.post(u,{kind='mine',source=home,target=id,area=area,item=state.sites[id].item,cooldown=0})
+
+    end
+    local site=state.sites[id];site.home=L.get(id).motion.home
+    if site.home and not f.instance then
+     local count=0
+     for offerId,offer in pairs(Tasks.state(u).offers) do
+      if offer.kind=='mine' and offer.target==id then
+       if offer.source==site.home then count=count+1
+       elseif not offer.owner then Tasks.state(u).offers[offerId]=nil end
       end
+     end
+     for _=count+1,(#specs==1 and T.minersPerArea or 1) do
+      Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
      end
     end
     -- Apply rig placement changes to existing saves without resetting resources.
@@ -372,7 +381,9 @@ function M.advance(game,r,clock)
   r.repairReturn=nil
  end
  if not r.task then r.task=Tasks.choose(u,r,r.base,clock);r.nextMiningAt=clock+T.miningOfflineEvery end
- if not r.task then return end
+ if not r.task then
+  r.state='docked';r.node=r.base;r.route={r.base,r.base};r.index=1;r.untilTime=clock+10;return
+ end
  r.mineSite=copy(M.state(u).sites[r.task.target])
  if r.task.phase=='mining' and Repairs.needs(r) and Repairs.supports(r.base) then r.repairReturn=true;M.returnHome(game,r,M.point(u,r,clock)) end
  if r.task.phase=='mining' then r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
@@ -622,7 +633,7 @@ function M.draw(game,px)
  end
 end
 Population.register('miner',{
- target=function(f) return #f.drillIds>0 and #f.stationIds>0 and T.minersPerArea end,
+ target=function(f,area) return #f.drillIds>0 and L.station(area,'mining') and T.minersPerArea end,
  nodes=function(game,area) return Fields[area].drillIds end,
  create=function(game,area,node,clock) return M.create(game,area,clock) end,
 })

@@ -27,17 +27,9 @@ local function cargo(r,item,amount)
  end
 end
 function Transport.route(source,target,clock)
- local a,b=L.get(source),L.get(target)
- local from,to=Fields[a.area].driverId,Fields[b.area].driverId
- if not from or not to or a.area==b.area then return end
- local out=G.route(G.build(a.area),source,from,clock)
- local inbound=G.route(G.build(b.area),to,target,clock)
- if not out or not inbound then return end
- local route={source}
- for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
- route[#route+1]=to
- for _,leg in ipairs(inbound.legs) do route[#route+1]=leg.edge.to end
- return route
+ local a,b=L.byId[source],L.byId[target]
+ if not a or not b or a.area==b.area then return end
+ return G.itinerary(source,target,clock)
 end
 Tasks.register('transport',{
  roles={trader=true,courier=true},

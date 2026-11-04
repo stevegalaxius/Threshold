@@ -501,53 +501,92 @@ Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
 
 ## World layout and NPC homes
 
-`src/world_layout.lua` owns ordinary station identities, names, layouts, placement
-and navigation overrides. A station entry has a stable `id`, display `name`,
-optional `layout`/`marketId`, orbital `phase`/`radius`/`spin` or explicit `motion`, and
-`uses` tags (`trade`, `mining`, `patrol`, `pirateBase`). Trade, mining and patrol
-are enabled by default; setting a tag false excludes that purpose. An explicit
-`primary` port supplies the default home for each enabled purpose, independently
-of array order. Display names and geometry can change without changing IDs.
+`src/world_layout.lua` is the authoring definition for station placement. Station
+IDs are opaque, permanent identities (`station:...`), independent of names and
+regions. Moving an entry to another region retains its ID, saved inventory,
+hangar, NPC references and market profile. `data/markets.lua` defines independent
+`market:...` profiles; placements reference `marketId`, with a general shop as
+the default. There is no display-name lookup. Old name-based save references
+are translated once through the compatibility alias table.
 
-`navigation[area].buoys` accepts a count of at least two, or entries with stable
-`id`, `phase`, and optional `radius`/`name`. Ordinary stations and buoys form a
-corridor ordered by bearing. `corridor = 'buoys'` keeps through traffic on a buoy
-perimeter, with stations as spurs; extra full-ID pairs can be added through
-`links`. Gates attach to the configured corridor, and drill nodes to their
-configured home. Local trading circuits, patrol destinations, pirate perimeter
-duties and generated interplanetary dispatches derive from this catalogue.
-Saved dispatch reservations survive reconciliation when ports are added.
+A placement specifies `name`, optional `layout`/`marketId`, and either
+`position = {x=..., y=...}` or orbital `phase`/`radius`/`spin`. Positions on rotating
+worlds become orbits through those coordinates at world clock zero; add
+`fixed=true` for stationary structures. Existing ports have explicit phases,
+so adding another does not redistribute them. `uses` tags (`trade`, `mining`,
+`patrol`, `pirateBase`) select roles; ordinary trade/mining/patrol use is enabled
+by default. `primary=true` supplies a stable default home independent of list order.
 
-Live construction and offline queries use `Locations.stationDefinition` and the
-same service resolver. There is no second repair-layout lookup. Cloud cities,
-surface mines and the Heaven-Ladder retain their special construction adapters;
-their station layouts and access points are still visible to shared navigation.
+Developer code can edit the running world transactionally:
 
-Every persistent NPC saves a `homeStation`, separate from its `home` region and
-current destination. Traders and patrols default to a trading port, miners to
-the station supplying their mining duty, and pirates to their pirate base even
-when hunting elsewhere. Legacy saves get an assignment on load; existing homes
-do not follow changes in station order or primary-port selection. `src/npc_home.lua`
-provides assignment, lookup and living resident rosters without maintaining a
-second saved membership list. Miners' legacy `base` mirrors the assignment.
-F1 shows station resident counts; F1 and the F4 traffic details display each NPC's home. Pirate return trips save
-their destination base so unloading finishes at the base they set out for.
+```lua
+local ok, id = game:editWorldLayout(function(world)
+    return world.addStation('earth', {
+        name = 'New port', layout = 'shipyard_1',
+        position = {x=26000, y=6000},
+    })
+end)
+assert(ok, id)
 
-Keep stable IDs when moving or redesigning places; deleting IDs that saved
-journeys reference still requires a save migration. `Locations.rebuild(area)`
-recompiles authoring changes and invalidates cached local route graphs; it does
-not rebuild an already loaded physics scene. Reload the region for construction
-changes. Run `love . --graphtest` for an integration fixture adding a station,
-expanding to four buoys, reordering definitions and preserving homes/reservations.
-`love . --locationtest` compares live and offline layouts/services across all areas.
+game:editWorldLayout(function(world)
+    world.moveStation(id, 'mars', {x=15000, y=7000})
+end)
+game:editWorldLayout(function(world)
+    world.setStationEnabled(id, false) -- reversible removal
+    -- world.removeStation(id) removes the placement entry instead
+end)
+require('src.world_authoring').save() -- world_layout.lua in the LÖVE save folder
+```
+
+`addStation` assigns the ID once; export it rather than generating one each
+startup. The exported file loads automatically on startup. Definitions can also
+be edited directly, or exported/imported through `WorldLayout.export` and
+`WorldAuthoring.import`. Invalid edits restore the previous world. Live edits
+return dragged/staged items, snapshot the universe, rebuild the catalogue and
+loaded scene, and restore the player and NPCs against the new definition.
+
+`navigation[area].buoys` accepts a count of at least two or explicit
+`id`/`phase`/`radius` entries. Ordinary corridors are ordered by bearing;
+`corridor='buoys'` keeps stations on spurs. Extra full-ID pairs use `links`.
+Navigation, local trader circuits, patrol destinations, pirate routes, dispatch
+manifests, mine job sources and population eligibility all derive from the
+catalogue. `navigation[area].population` can override role counts. Shared
+inter-region itineraries use existing gates and mass drivers. No new per-frame
+world pathfinding is added.
+
+Every persistent NPC saves `homeStation`, separately from its home region and
+current destination. Removing a home assigns a reachable replacement; NPCs with
+no available home/route hold safely and retry when the world definition changes.
+Recovery uses the ordinary flight controller, mass-driver/gate navigation and
+station docking, then resumes the NPC's role. Loaded deliveries can finish when
+the source disappears; a missing destination cancels the duty while preserving
+its cargo. Miners get replacement home/job sources; pirates keep stolen cargo
+and provenance when a haven changes. Wreck and mineral loot is retained.
+
+Removed station storage, hangars and shop stock remain saved under the station
+ID and return if it is re-enabled/re-added with that ID. A player docked at a
+removed port uses a surviving local port or the region's normal spawn; moving a
+docked port between regions retains the docking reference. F1 shows living
+resident counts; F1/F4 show each ship's home. Rosters derive from NPC records,
+without a second saved membership list.
+
+Cloud cities, surface mines and the Heaven-Ladder retain construction adapters.
+The Ladder can be disabled through its shared definition, removing its access
+points and geometry together; changes to its special placement belong to the
+adapter. Live construction and offline services use the same definitions.
+
+Run `love . --graphtest` for actual add/move/remove/disable edits, cargo-safe duty
+recovery, physical recovery docking, ID migration and
+export/import. `love . --locationtest` checks physical/offline station and service
+parity across all regions.
 
 
 ## Patrols and pirates
 
 Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
 layout and is tagged `uses.pirateBase` in `src/world_layout.lua` as the base for the pirate
-loot-and-return loop. Its existing stable location ID, `pluto/tombaugh_station`,
-keeps station inventory, ships, saves and routes attached to the same place.
+loot-and-return loop. Its immutable station identity keeps inventory, ships, saves and routes attached
+to the same place; the old Tombaugh identifier remains only as a save alias.
 Existing pirates now opportunistically break nearby wrecks open and tractor
 exposed loose cargo using the shared pickup accounting. After five units or a
 25-second looting window following the first pickup, they abandon the raid,

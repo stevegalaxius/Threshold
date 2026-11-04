@@ -43,7 +43,7 @@ function J.depart(u,r,station,clock)
   r.job=nil
  end
  if r.job then return true end
- if station:sub(1,5)~='mars/' then return true end
+ if L.get(station).area~='mars' then return true end
  local best,available
  for _,area in ipairs(MINES) do
   local m=state.mines[area];local reserved,count=0,0
