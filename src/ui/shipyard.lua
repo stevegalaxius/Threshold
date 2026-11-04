@@ -233,9 +233,17 @@ local function drawDetail(game, L, mx, my)
 
 	-- right: numbers against what you fly
 	local rx, rw = L.rx, L.rw
-	y = Sheet.label("Compared with your " .. p.hull.name, rx, D.y + 12) + 2
-	local mine = Sheet.numbers(p.hull, p.loadout, 0)
-	y = Sheet.compare(Sheet.numbers(hull, hull.loadout, 0), mine, rx, y, rw) + 14
+	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
+	lg.rectangle("fill", rx - 6, D.y + 10, rw + 12, 26, 4, 4)
+	lg.setFont(HUD.font(14))
+	lg.setColor(HUD.INK)
+	lg.print("Compared with your " .. p.hull.name, rx, D.y + 14)
+	lg.setFont(HUD.font(10))
+	lg.setColor(HUD.DIM)
+	lg.printf("both empty, as fitted", rx, D.y + 17, rw, "right")
+	y = D.y + 42
+	local mine = Sheet.numbers(p.hull, p.loadout)
+	y = Sheet.compare(Sheet.numbers(hull, hull.loadout), mine, rx, y, rw) + 14
 
 	-- parking preview
 	Sheet.label("Where it parks", rx, y)

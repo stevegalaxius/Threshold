@@ -89,22 +89,43 @@ function Sheet.slots(hull, loadout, x, y, w, maxY)
 	return y
 end
 
--- Handling numbers, in the same terms as the Equipment readout.
-function Sheet.numbers(hull, loadout, cargoMass)
+-- Handling numbers from an empty-hold preview ship built in a private
+-- physics world, so they come from Ship.performance like the F1 readout
+-- and the editor's comparison (real mass and moment of inertia).
+local previews, pworld, pcontext = {}, nil, nil
+local function preview(hull, loadout)
+	local key = hull.id .. "|" .. table.concat((function()
+		local t = {}
+		for i = 1, #hull.slots do t[i] = tostring(loadout and loadout[i] or "-") end
+		return t
+	end)(), ",")
+	if previews[key] then return previews[key] end
+	if not pworld or pworld:isDestroyed() then
+		pworld = love.physics.newWorld(0, 0, true)
+		pcontext = { world = pworld, field = { rockDrag = 0 }, nextId = function() return 0 end }
+	end
+	local Ship = require("src.ship")
+	local ok, ship = pcall(Ship.new, pcontext, { hull = hull.id, loadout = loadout, cargo = {}, grid = true })
+	if not ok then return nil end
+	Ship.updateMass(ship)
+	local perf = Ship.performance(ship)
+	perf.stats = ship.stats
+	previews[key] = perf
+	return perf
+end
+
+function Sheet.numbers(hull, loadout)
 	local s = stats.compute(hull, loadout)
-	local m = (s.mass + (cargoMass or 0)) * T.massScale
-	local thrust = max(s.thrust, s.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale
-	local weapons = 0
-	for _, slot in ipairs(hull.slots) do if Sheet.isWeapon(slot) then weapons = weapons + 1 end end
+	local p = preview(hull, loadout) or {}
 	return {
 		{ "Armor", s.armor, "%d" },
 		{ "Hold", s.hold, "%d m3" },
-		{ "Weapon slots", weapons, "%d" },
-		{ "Top speed", math.sqrt(thrust / (hull.drag * T.dragScale)), "%.0f px/s" },
-		{ "Acceleration", thrust / m, "%.0f px/s2" },
-		{ "Turn", s.turn, "%.0f" },
+		{ "Top speed", p.topSpeed or 0, "%.0f px/s" },
+		{ "Acceleration", p.accel or 0, "%.0f px/s2" },
+		{ "Max turn rate", p.turnSpeed or 0, "%.0f deg/s" },
+		{ "Turn acceleration", math.deg(p.turnAccel or 0), "%.0f deg/s2" },
 		{ "Spare power", s.powerNet, "%+.0f/s" },
-		{ "Mass", m, "%.0f t", lower = true },
+		{ "Mass (empty)", p.mass or s.mass * T.massScale, "%.0f t", lower = true },
 	}
 end
 
