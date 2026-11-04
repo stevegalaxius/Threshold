@@ -56,5 +56,21 @@ return function(game)
  check(collect(90),'miner waited at its node instead of seeking saved ore outside the physics band')
  M.captureResources(game)
  check(not state.resources[far],'far ore was collected more than once')
+ -- A damaged empty worker can service its ship without completing or losing its job.
+ e.cargo={};Ship.updateMass(e);e.armor=e.stats.armor*.2
+ local duty=r.task;local st=game:locationEntity(r.base)
+ local services=st.def.services;st.def.services=require('src.persistence').copy(services or {})
+ st.def.services[#st.def.services+1]='repair'
+ check(require('src.npc_repair').supports(r.base),'physical/offline station services disagree')
+ require('src.mining').think(game,e,1/120,require('src.ai'))
+ check(r.repairReturn and r.task==duty and duty.phase=='delivery','physical miner failed to interrupt work for repair')
+ local d=st.dock;local dx,dy=game.dockWorld(st,1,d.x2+e.halfLength+40,0,d)
+ e.body:setPosition(dx,dy);e.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(dx,dy))
+ game:beginDocking(e,st,1,d);game:updateDockedShip(e,1/120);game:updateDockedShip(e,10)
+ check(e.dockState.done,'repairing miner failed physical docking')
+ game.universe.clock=game.universe.clock+1000;game:updateDockedShip(e,1000)
+ check(e.armor==e.stats.armor and not e.dockState,'miner left before repairs finished')
+ check(r.task==duty and duty.phase=='mining' and not r.repairReturn,'empty miner lost its job after repair')
+ st.def.services=services
  print(('MINING PICKUP TEST PASSED (%d checks)'):format(checks))
 end

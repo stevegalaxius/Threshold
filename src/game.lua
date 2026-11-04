@@ -1160,6 +1160,10 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
+  if e.alifeRole=="patrol" then
+   ds.stay=T.patrolDockStay
+  end
+  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
 	events.emit("dock", e, st)
 end
@@ -1167,6 +1171,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local b, sb = e.body, st.body

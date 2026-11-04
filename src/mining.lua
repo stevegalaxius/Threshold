@@ -6,6 +6,8 @@ local Tasks,Hold=require('src.tasks'),require('src.inventory.hold')
 local copy=require('src.persistence').copy
 local Ore=require('src.ore')
 local Population=require('src.population')
+local Repairs=require('src.npc_repair')
+local Homes=require('src.npc_home')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u)
@@ -58,22 +60,24 @@ end
 function M.create(game,area,clock)
  local u,f=game.universe,Fields[area]
  Tasks.clean(u,clock)
- local available=false
+ local available
  for _,offer in pairs(Tasks.state(u).offers) do
-  if offer.kind=='mine' and offer.area==area and offer.state=='available' then available=true;break end
+  if offer.kind=='mine' and offer.area==area and offer.state=='available' and (offer.readyAt or 0)<=clock and (not available or offer.id<available.id) then available=offer end
  end
  -- Debug arrivals may exceed the normal population, just like pirate arrivals.
  if not available then
   local id=f.drillIds[(u.nextNpcId%#f.drillIds)+1]
   local site=M.state(u).sites[id]
-  Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
+  available=Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
  end
+ local home=available.source
  local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
  u.nextNpcId=u.nextNpcId+1
  local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
-  base=f.stationIds[1],node=f.stationIds[1],route={f.stationIds[1],f.stationIds[1]},index=1,
+  base=home,node=home,route={home,home},index=1,
   state='idle',speed=def.ai.cruise,spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ Homes.assign(r,home)
  u.npcs[r.id]=r
  M.advance(game,r,clock)
  return r
@@ -97,7 +101,7 @@ function M.seed(game)
    for index,s in ipairs(specs) do
     local id=area..'/drill/'..index
     if not state.sites[id] then
-     local home=f.stationIds and f.stationIds[1]
+     local home=L.get(id).motion.home
      local angle=-pi/2
      if home then local hx,hy=L.position(home,0);angle=math.atan2(hy-s.y,hx-s.x) end
      -- A surface drill sits away from the station's roof and docking approach.
@@ -117,7 +121,7 @@ function M.seed(game)
      state.sites[id].angle=math.atan2(hy-s.y,hx-s.x)+pi
     end
    end
-   if not f.instance and f.stationIds[1] and not state.seeded[area] then
+   if not f.instance and L.station(area,'mining') and not state.seeded[area] then
     state.seeded[area]=true
     for _=1,T.minersPerArea do
      M.create(game,area,u.clock)
@@ -360,15 +364,20 @@ end
 function M.advance(game,r,clock)
  local u=game.universe
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
+ if r.state=='docked' then Repairs.advance(r,clock,r.base) end
  if r.state=='docked' and clock>=(r.untilTime or 0) then
-  Tasks.arrive(u,r,r.base,clock);r.state='idle';r.task=nil
+  if r.repairReturn and r.task and (r.ship.cargo[r.task.item] or 0)==0 then
+   r.task.phase='mining';r.state='idle'
+  else Tasks.arrive(u,r,r.base,clock);r.state='idle';r.task=nil end
+  r.repairReturn=nil
  end
  if not r.task then r.task=Tasks.choose(u,r,r.base,clock);r.nextMiningAt=clock+T.miningOfflineEvery end
  if not r.task then return end
  r.mineSite=copy(M.state(u).sites[r.task.target])
+ if r.task.phase=='mining' and Repairs.needs(r) and Repairs.supports(r.base) then r.repairReturn=true;M.returnHome(game,r,M.point(u,r,clock)) end
  if r.task.phase=='mining' then r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
  if r.task.phase=='delivery' then
-  if r.state~='docked' and clock>=r.arrive then r.state='docked';r.untilTime=r.arrive+T.alifeStay end
+  if r.state~='docked' and clock>=r.arrive then r.state='docked';Repairs.begin(r,r.base,r.arrive,T.alifeStay) end
   return
  end
  -- Restore a saved physical worker before allowing any abstract mining tick.
@@ -447,6 +456,8 @@ end
 function M.depart(game,e,station)
  local r=game.universe.npcs[e.alifeId]
  r.ship.cargo=copy(e.cargo)
+ if r.repairReturn and r.task and (e.cargo[r.task.item] or 0)==0 then r.task.phase='mining' end
+ r.repairReturn=nil
  Tasks.arrive(game.universe,r,L.canonical(station.locationId),game.universe.clock)
  e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
  Tasks.choose(game.universe,r,r.base,game.universe.clock)
@@ -479,6 +490,10 @@ function M.think(game,e,dt,AI)
  r.mineSite=r.mineSite or copy(M.state(game.universe).sites[r.task.target])
  if e.aggressor and not e.aggressor.dead and not e.aggressor.removed then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;return false
+ end
+ if r.task.phase=='mining' and Repairs.needs(r,e.armor,e.stats.armor) and Repairs.supports(r.base) then
+  e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false
+  r.repairReturn=true;M.returnHome(game,r,e.body:getPosition());M.bind(game,e,r);AI.trade(game,e,dt);return true
  end
  if r.task.phase=='delivery' then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;AI.trade(game,e,dt);return true

@@ -55,7 +55,7 @@ function M.snapshot(game,includeMoons)
     hull=e and e.hull.name or (data.hulls[r.ship.hull] and data.hulls[r.ship.hull].name or r.ship.hull),cargo=cargo(ship),
     task=r.task and (r.task.id..' / '..r.task.kind..' / '..r.task.phase)
       or r.job and ('mine hauling / '..r.job.phase) or '(itinerary)',
-    status=r.taskStatus or r.jobStatus,protected=e and e.driverProtected or false,localArea=r.area,
+    homeStation=require("src.npc_home").get(r),status=r.taskStatus or r.jobStatus,protected=e and e.driverProtected or false,localArea=r.area,
     launchTime=driver and driver.t,launchPhase=driver and (driver.ghost and 'barrel / coast' or phase)}
    model.npcs[id]=n
    local key=from..'>'..to
@@ -207,6 +207,7 @@ function M.draw(game)
   if n.launchTime then detail(('Driver: %s / %.2fs'):format(n.launchPhase,n.launchTime)) end
   detail('Current area: '..name(n.localArea or (n.state=='transit' and 'transit')))
   detail('Role: '..tostring(n.role))
+  if n.homeStation then detail('Home: '..L.get(n.homeStation).name..' ('..n.homeStation..')') end
   detail('Task: '..n.task)
   detail('Cargo: '..n.cargo)
   if n.protected then detail('Mass-driver protection active') end

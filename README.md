@@ -499,10 +499,53 @@ contacts for mining. Other planetary impacts remain lethal, including Luna.
 Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
 
 
+## World layout and NPC homes
+
+`src/world_layout.lua` owns ordinary station identities, names, layouts, placement
+and navigation overrides. A station entry has a stable `id`, display `name`,
+optional `layout`/`marketId`, orbital `phase`/`radius`/`spin` or explicit `motion`, and
+`uses` tags (`trade`, `mining`, `patrol`, `pirateBase`). Trade, mining and patrol
+are enabled by default; setting a tag false excludes that purpose. An explicit
+`primary` port supplies the default home for each enabled purpose, independently
+of array order. Display names and geometry can change without changing IDs.
+
+`navigation[area].buoys` accepts a count of at least two, or entries with stable
+`id`, `phase`, and optional `radius`/`name`. Ordinary stations and buoys form a
+corridor ordered by bearing. `corridor = 'buoys'` keeps through traffic on a buoy
+perimeter, with stations as spurs; extra full-ID pairs can be added through
+`links`. Gates attach to the configured corridor, and drill nodes to their
+configured home. Local trading circuits, patrol destinations, pirate perimeter
+duties and generated interplanetary dispatches derive from this catalogue.
+Saved dispatch reservations survive reconciliation when ports are added.
+
+Live construction and offline queries use `Locations.stationDefinition` and the
+same service resolver. There is no second repair-layout lookup. Cloud cities,
+surface mines and the Heaven-Ladder retain their special construction adapters;
+their station layouts and access points are still visible to shared navigation.
+
+Every persistent NPC saves a `homeStation`, separate from its `home` region and
+current destination. Traders and patrols default to a trading port, miners to
+the station supplying their mining duty, and pirates to their pirate base even
+when hunting elsewhere. Legacy saves get an assignment on load; existing homes
+do not follow changes in station order or primary-port selection. `src/npc_home.lua`
+provides assignment, lookup and living resident rosters without maintaining a
+second saved membership list. Miners' legacy `base` mirrors the assignment.
+F1 shows station resident counts; F1 and the F4 traffic details display each NPC's home. Pirate return trips save
+their destination base so unloading finishes at the base they set out for.
+
+Keep stable IDs when moving or redesigning places; deleting IDs that saved
+journeys reference still requires a save migration. `Locations.rebuild(area)`
+recompiles authoring changes and invalidates cached local route graphs; it does
+not rebuild an already loaded physics scene. Reload the region for construction
+changes. Run `love . --graphtest` for an integration fixture adding a station,
+expanding to four buoys, reordering definitions and preserving homes/reservations.
+`love . --locationtest` compares live and offline layouts/services across all areas.
+
+
 ## Patrols and pirates
 
 Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
-layout and is designated by `T.pirateBase` as the base for the planned pirate
+layout and is tagged `uses.pirateBase` in `src/world_layout.lua` as the base for the pirate
 loot-and-return loop. Its existing stable location ID, `pluto/tombaugh_station`,
 keeps station inventory, ships, saves and routes attached to the same place.
 Existing pirates now opportunistically break nearby wrecks open and tractor
@@ -540,8 +583,21 @@ Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
 seeded once and lost ships are replenished through the saved arrival schedules below.
 
 Patrols choose inspection duties through the shared task board and visit existing
-stations and buoys. Pirates choose buoy raids and relocation duties, preferring
-passing traders as targets. Patrols engage pirates and defend themselves when
+stations and buoys. Every third station visit is an actual docking stop, staggered
+by NPC identity; the decision and visit counter persist. Passing inspections wait
+outside the station hull and runway corridors rather than at the dock mouth.
+Patrols below 70% armor prioritize stations with repair service. All persistent
+A-Life roles repair at four armor points per game second while fully docked at a
+station offering repairs, staying long enough to finish. Traders and couriers
+use their scheduled stops. Damaged miners return to their repair-capable home
+station, deliver any ore, then resume mining; an empty repair trip retains its
+reserved job. Damaged pirates return to Milliways even without stolen cargo,
+repair, then redeploy through their existing return loop. Online/offline progress
+and saves preserve armor, repair timing and ship identity. NPC maintenance does
+not debit player credits; billing remains deferred with the economy. Timing,
+health threshold and repair speed are tuning values. Pirates choose buoy raids
+and relocation duties, preferring passing traders as targets. Patrols engage
+pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
 After losing contact, ships resume their selected duty. F1's A-Life list and the

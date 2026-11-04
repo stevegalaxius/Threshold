@@ -5,16 +5,20 @@ local T = require("src.tuning")
 local L = { byId = {}, byArea = {} }
 local pi, cos, sin = math.pi, math.cos, math.sin
 
-for _, area in ipairs(Fields.list) do
-	L.byArea[area] = {}
-	for _, location in ipairs(Fields[area].locations or {}) do
-		assert(not L.byId[location.id], "duplicate location " .. location.id)
-		assert(location.area == area, "location assigned to the wrong area")
-		if location.id == "station/hub_station" then location.marketId = "venus/hub_station" end
-		L.byId[location.id] = location
-		L.byArea[area][#L.byArea[area] + 1] = location
-	end
+local function register(area)
+ L.byArea[area]={}
+ for _,location in ipairs(Fields[area].locations) do
+  assert(not L.byId[location.id],'duplicate location '..location.id)
+  L.byId[location.id]=location;L.byArea[area][#L.byArea[area]+1]=location
+ end
 end
+-- Rebuild catalogue/topology together after changing authoring definitions.
+function L.rebuild(area)
+ for id,place in pairs(L.byId) do if place.area==area then L.byId[id]=nil end end
+ Fields.configureLocations(area)
+ register(area)
+end
+for _,area in ipairs(Fields.list) do register(area) end
 
 -- The station a location belongs to: itself, or the station it's an
 -- access point of (the Heaven-Ladder's anchors).
@@ -95,6 +99,66 @@ function L.velocity(id, clock)
 	local x1, y1 = L.position(id, clock - 0.01)
 	local x2, y2 = L.position(id, clock + 0.01)
 	return (x2 - x1) / 0.02, (y2 - y1) / 0.02
+end
+
+-- Station selection uses purpose tags, never construction order.
+function L.station(area,purpose)
+ local best
+ for _,place in pairs(L.byId) do
+  if place.kind=='station' and not place.accessOf and (not area or place.area==area)
+   and place.uses and place.uses[purpose] then
+   if not best or (place.primary and not best.primary)
+    or (not not place.primary==not not best.primary and place.id<best.id) then best=place end
+  end
+ end
+ return best and best.id
+end
+function L.stations(area,purpose)
+ local ids={}
+ for _,place in ipairs(L.list(area)) do
+  if place.kind=='station' and not place.accessOf and (not purpose or place.uses and place.uses[purpose]) then ids[#ids+1]=place.id end
+ end
+ table.sort(ids)
+ return ids
+end
+function L.rally(area,from,clock)
+ local field=Fields[area];local x,y=0,0
+ if from then x,y=L.position(from,clock or 0) end
+ local best,distance
+ for _,id in ipairs(field.buoyIds) do
+  local px,py=L.position(id,clock or 0);local d=(px-x)^2+(py-y)^2
+  if not best or d<distance or d==distance and id<best then best,distance=id,d end
+ end
+ return best or field.driverId
+end
+-- Resolve/generate the definition without building a physics scene. The live
+-- builder uses this exact definition too, including generated wheels/cities.
+function L.stationDefinition(id)
+ local place=L.get(id)
+ assert(place.kind=='station','not a station: '..id)
+ local data=require('src.data');local def=data.stations[place.layout]
+ if not def then
+  local Stations=require('src.stations');local generated
+  if place.adapter=='cloud' and place.layout==Stations.cityId(Fields[place.area].cityScale or 1) then
+   generated=Stations.city(Fields[place.area].cityScale or 1)
+  elseif place.wheel and place.layout==Stations.ringId(unpack(place.wheel)) then generated=Stations.ring(unpack(place.wheel)) end
+  assert(generated,'unknown station layout '..tostring(place.layout)..' at '..id)
+  local err;def,err=data.defineStation(generated);assert(def,err)
+ end
+ return def
+end
+function L.stationServices(id)
+ return require('src.station_services').get(L.stationDefinition(id))
+end
+function L.spawnStation(game,id)
+ local place=L.get(id);local def=L.stationDefinition(id);local station
+ if place.adapter=='cloud' then station=game:spawnCloudCity(place.motion.a,Fields[place.area].cityScale,id,def.id)
+ else
+  station=game:spawnStation(def.id,0,0,place.spin or 0,false,id)
+  station.surfaceMine=place.adapter=='surface_mine' or nil
+  if place.motion.type=='orbit' then game:setOrbit(station,place.motion.cx or 0,place.motion.cy or 0,L.rate(place.motion)*place.motion.radius) end
+ end
+ return station
 end
 
 function L.install(Game)
