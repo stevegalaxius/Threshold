@@ -6,6 +6,7 @@
 local Slab = require("lib.Slab")
 local data = require("src.data")
 local Canvas = require("src.editor.canvas")
+local Export = require("src.editor.export")
 local HullShape = require("src.hullshape")
 
 local Panels = {}
@@ -314,6 +315,89 @@ end
 
 -- Left: the design ------------------------------------------------------
 
+local fileBrowser
+
+local GREY = { 0.6, 0.6, 0.6 }
+
+-- Which category an exported id belongs to, from what's loaded (nil: not loaded yet).
+local function categoryOf(id)
+	if data.stations[id] and not data.hulls[id] then return "station" end
+	if data.wrecks[id] and not data.hulls[id] then return "wreck" end
+	if data.hulls[id] then return "hull" end
+end
+
+-- The Files section: new / save, then a browser of the export folder that
+-- you move around in. Where you're browsing is where Save writes.
+function fileBrowser(E, cat, builtIn)
+	local d = E.design
+	E.browseDir = E.browseDir or ""
+	local dir = E.browseDir
+	if dir ~= "" and not love.filesystem.getInfo(Export.FOLDER .. "/" .. dir, "directory") then E.browseDir, dir = "", "" end
+
+	Slab.Text("Files")
+	if cat == "hull" then
+		if Slab.Button("New hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
+	elseif cat == "wreck" then
+		if Slab.Button("New wreck", { Tooltip = "A derelict with a loot table" }) then E.newDesign("wreck") end
+		Slab.SameLine()
+		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
+	else
+		if Slab.Button("New station", { Tooltip = "A station layout: needs one part marked as the docking module" }) then E.newDesign("station") end
+	end
+	Slab.SameLine()
+	if Slab.Button("Save", { Tooltip = "Writes " .. d.id .. ".lua into the folder below.\nSaving over the same id replaces it; saving into another folder moves it." }) then
+		E.pushUndo(); d.folder = dir; E.export()
+	end
+	Slab.Text("Saves as " .. (dir == "" and "" or dir .. "/") .. d.id .. ".lua", { Color = GREY })
+
+	-- where you are, and the way up
+	Slab.Text("Folder: /" .. dir)
+	if dir ~= "" then
+		Slab.SameLine()
+		if Slab.Button("Up", { H = 18 }) then E.browseDir = dir:match("^(.*)/[^/]*$") or "" ; E.confirmDelete = nil end
+	end
+	if Slab.Input("yard_newfolder", { Text = E.newFolderName or "", W = 180, ReturnOnText = true }) then E.newFolderName = Slab.GetInputText() end
+	Slab.SameLine()
+	if Slab.Button("New folder", { Tooltip = "Makes it here and goes into it" }) then
+		local rel = E.makeFolder((dir == "" and "" or dir .. "/") .. (E.newFolderName or ""))
+		if rel then E.browseDir = rel end
+		E.newFolderName = ""
+	end
+
+	-- this folder's contents: subfolders, then this tab's designs
+	local shown = 0
+	for _, e in ipairs(Export.list()) do
+		local c = not e.dir and categoryOf(e.id)
+		if e.folder == dir and (e.dir or c == cat or not c) then
+			shown = shown + 1
+			local label
+			if e.dir then label = "[" .. e.name .. "]"
+			else
+				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id]
+				label = def and (def.name .. "  (" .. e.id .. ")") or (e.id .. "  (loads on restart)")
+				if e.id == d.id then label = "> " .. label end
+			end
+			if E.confirmDelete == e.rel then
+				Slab.Text("Delete " .. e.name .. "?"); Slab.SameLine()
+				if Slab.Button("Yes", { H = 18 }) then E.deleteSaved(e.rel) end
+				Slab.SameLine()
+				if Slab.Button("No", { H = 18 }) then E.confirmDelete = nil end
+			else
+				if Slab.Button("x", { W = 18, H = 18, Tooltip = e.dir and "Delete this folder (must be empty)" or "Delete this saved design" }) then E.confirmDelete = e.rel end
+				Slab.SameLine()
+				if Slab.TextSelectable(label) then
+					if e.dir then E.browseDir = e.rel; E.confirmDelete = nil
+					elseif c then E.openHull(e.id) end
+				end
+			end
+		end
+	end
+	if shown == 0 then Slab.Text(dir == "" and "Nothing saved yet." or "Empty folder.", { Color = GREY }) end
+
+	-- the game's own designs, to start from
+	combo("yard_open_" .. cat, "Open a built-in design...", builtIn, function(id) E.openHull(id) end, 280)
+end
+
 local function designWindow(E, Editor)
 	local h = love.graphics.getHeight()
 	Slab.BeginWindow("yard_design", {
@@ -347,21 +431,7 @@ local function designWindow(E, Editor)
 			table.insert(openOpts, { label = ("%s  (%s)"):format(data.stations[id].name, id), value = id })
 		end
 	end
-	Slab.Text("Start from")
-	combo("yard_open_" .. cat, "Edit an existing one...", openOpts, function(id) E.openHull(id) end, 280)
-	Slab.Text("or new:"); Slab.SameLine()
-	if cat == "hull" then
-		if Slab.Button("Hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
-	elseif cat == "wreck" then
-		if Slab.Button("Wreck", { Tooltip = "A derelict with a loot table" }) then E.newDesign("wreck") end
-		Slab.SameLine()
-		if Slab.Button("Prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
-	else
-		if Slab.Button("Station", { Tooltip = "A station layout: needs one part marked as the docking module" }) then E.newDesign("station") end
-	end
-	Slab.Text("Opening one loads its shape and settings.", { Color = { 0.6, 0.6, 0.6 } })
-	Slab.Text("Export with the same id to replace it.", { Color = { 0.6, 0.6, 0.6 } })
-
+	fileBrowser(E, cat, openOpts)
 	Slab.Separator()
 	Slab.Text(("This design: a %s"):format(d.kind or "hull"))
 	Slab.Text("id"); Slab.SameLine()
@@ -389,9 +459,7 @@ local function designWindow(E, Editor)
 	end
 	if Slab.Button(E.isPlaced() and "Spawn ahead of me" or "Test fly") then E.testFly() end
 	Slab.SameLine()
-	if Slab.Button("Export") then E.export() end
-	Slab.SameLine()
-	if Slab.Button("Copy source") then E.copySource() end
+	if Slab.Button("Copy source", { Tooltip = "Copies the data file text to the clipboard" }) then E.copySource() end
 	if Slab.Button("Undo") then E.undoStep() end
 	Slab.SameLine()
 	if Slab.Button("Redo") then E.redoStep() end

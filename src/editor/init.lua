@@ -146,6 +146,8 @@ end
 function E.openHull(id)
 	if data.stations[id] and not data.hulls[id] then
 		E.design = Export.fromStation(id)
+		E.design.folder = Export.folderOf(id)
+		if E.design.folder then E.browseDir = E.design.folder end
 		setBase(E.design.base, true)
 		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 		E.view.zoom = math.min(E.view.zoom, 0.3)
@@ -154,12 +156,16 @@ function E.openHull(id)
 	end
 	if data.wrecks[id] and not data.hulls[id] then
 		E.design = Export.fromWreck(id)
+		E.design.folder = Export.folderOf(id)
+		if E.design.folder then E.browseDir = E.design.folder end
 		setBase(E.design.base, true)
 		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 		say("Opened " .. data.wrecks[id].name)
 		return
 	end
 	E.design = Export.fromHull(id)
+	E.design.folder = Export.folderOf(id)
+	if E.design.folder then E.browseDir = E.design.folder end
 	setBase(id, true)
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 	say("Opened " .. data.hulls[id].name)
@@ -377,6 +383,23 @@ function E.export()
 	if not ok then say("Not exported: " .. tostring(err)) return end
 	local path, werr = Export.write(E.design)
 	if path then say("Exported to " .. path .. " (loads on restart; Test fly uses it now)") else say("Export failed: " .. tostring(werr)) end
+end
+
+-- Saved designs: folders under the export folder, and deleting entries.
+function E.makeFolder(name)
+	local rel, err = Export.makeFolder(name)
+	if not rel then say("No folder: " .. tostring(err)) return end
+	say("Made folder " .. rel)
+	return rel
+end
+
+-- The panel asks for confirmation before calling this.
+function E.deleteSaved(rel)
+	E.confirmDelete = nil
+	local ok, err = Export.remove(rel)
+	if not ok then say("Not deleted: " .. tostring(err)) return end
+	if E.design.folder and (E.design.folder == rel or E.design.folder:sub(1, #rel + 1) == rel .. "/") then E.design.folder = nil end
+	say("Deleted " .. rel .. (rel:match("%.lua$") and " (it stays in the game until restart)" or ""))
 end
 
 function E.copySource()
