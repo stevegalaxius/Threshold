@@ -33,7 +33,7 @@ return function(game)
  checkTopology(graph)
  -- Persistent cross-track spread affects positions, fades at stops, and adds no edges.
  local probe=require('src.persistence').copy(select(2,earthTrader()))
- probe.spread=T.alifeSpread; probe.offset=nil; probe.state='travel'
+ probe.spread=T.alifeSpread; probe.offset=nil; probe.encounter=nil; probe.state='travel'
  local clock=(probe.depart+probe.arrive)/2
  local leg={from=probe.route[(probe.index-2)%#probe.route+1],to=probe.route[probe.index]}
  local bx,by=G.point(graph,leg,.5,clock)
@@ -91,6 +91,8 @@ return function(game)
  r=game.universe.npcs[id]
  check(not game.alifeOnline[id],'remote trader has a body')
  check(not r.pose and not r.offset and not r.docking,'remote record retained physical sampling state')
+ -- Offline pirate looting samples positions by design; this checks traders.
+ local Loot=require('src.offline_loot');local oldLoot=Loot.update;Loot.update=function() return false end
  local oldPoint=G.point
  G.point=function(g,...)
   assert(g.area~='earth','remote simulation sampled a flight path')
@@ -103,12 +105,13 @@ return function(game)
   game.universe.clock=r.untilTime+.1; game:updateALife(true)
   check(r.state=='travel' and r.route[r.index]~=target,'remote docked trader never departed')
  end
- G.point=oldPoint
+ G.point=oldPoint;Loot.update=oldLoot
  local encoded=assert(Save.decode(Save.encode(game:saveState())))
  game:loadState(encoded); game:loadField('earth')
  check(count(game.universe.npcs)==expected,'return spawned duplicate population')
  r=assert(game.universe.npcs[id])
- check(r.ship.cargo.scrap==7 and near(r.ship.armor,armor),'remote journey lost ship state')
+ -- Docked stops repair NPCs, so armor can only have gone up.
+ check(r.ship.cargo.scrap==7 and r.ship.armor>=armor-.02,'remote journey lost ship state')
  x,y=A.point(r,game.universe.clock); game.player.body:setPosition(x,y); game:updateALife(true)
  e=assert(game.alifeOnline[id]); check(e.alifeId==id,'return did not restore same identity')
  -- Preserve docking state and remaining wait when a docked NPC saves/loads.
@@ -137,6 +140,10 @@ return function(game)
  for candidate,record in pairs(game.universe.npcs) do
   if record.role=='trader' and record.home=='earth' and not record.tripRoute and record.state~='dead' then liveId,live=candidate,record; break end
  end
+ -- Keep it on its local circuit: a dispatch worker may leave the region.
+ live.taskWorker=nil;live.task=nil;live.onRoundTrip=nil;live.encounter=nil
+ live.route=require('src.persistence').copy(require('src.fields').earth.traderRoute);live.index=1
+ live.state='docked';live.untilTime=game.universe.clock
  if live.state=='docked' then game.universe.clock=live.untilTime+.1 end
  game:updateALife(true)
  game:loadField('earth')

@@ -5,6 +5,7 @@ local L=require('src.locations')
 local G=require('src.travelgraph')
 local Hold=require('src.inventory.hold')
 local data=require('src.data')
+local J=require('src.jobs')
 local Transport={}
 local function hold(r)
  return r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
@@ -35,7 +36,9 @@ Tasks.register('transport',{
  roles={trader=true,courier=true},
  plan=function(t,station,clock) return Transport.route(station,t.target,clock) end,
  eligible=function(u,r,o,station,clock)
-  return station==o.source and room(r,o.item,o.amount)>=o.amount and Transport.route(o.source,o.target,clock)~=nil
+  return station==o.source and room(r,o.item,o.amount)>=o.amount
+   and (not o.mine or J.available(u,o.mine,clock)>=o.amount)
+   and Transport.route(o.source,o.target,clock)~=nil
  end,
  score=function(u,r,o,station,clock)
   -- Oldest dispatch first, with immediate return trips deprioritized.
@@ -44,6 +47,7 @@ Tasks.register('transport',{
  prepare=function(u,r,t,station,clock)
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route or room(r,t.item,t.amount)<t.amount then return false end
+  if t.mine and not J.take(u,t.mine,t.amount,clock) then return false end
   cargo(r,t.item,t.amount);t.phase='delivery'
   return true
  end,
@@ -77,6 +81,14 @@ function Transport.seed(u)
       end
      end
     end
+   end
+  end
+ end
+ -- Mars hauls ore down from its mining moons and sends supplies back up.
+ for _,mine in ipairs(J.mines) do
+  for _,a in ipairs(L.stations(mine,'trade')) do
+   for _,b in ipairs(L.stations(J.oreTo,'trade')) do
+    specs[#specs+1]={kind='transport',source=a,target=b,item='martian_ore',amount=10,mine=mine}
    end
   end
  end
