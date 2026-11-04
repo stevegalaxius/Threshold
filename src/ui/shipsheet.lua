@@ -49,7 +49,7 @@ function Sheet.outline(hull, paint, x, y, w, h, alpha)
 		function(c) return { c[1], c[2], c[3], 0.85 * alpha } end, 1.5 / sc)
 	lg.pop()
 	lg.setLineWidth(1)
-	lg.setFont(HUD.font(10))
+	lg.setFont(HUD.font(12))
 	for i, slot in ipairs(hull.slots) do
 		if slot.x then
 			local sx, sy = ox + slot.x * sc, oy + (slot.y or 0) * sc
@@ -66,10 +66,10 @@ end
 -- One compact row per slot. Returns the y under the last row drawn; rows
 -- past maxY are left off with a "+n more" line.
 function Sheet.slots(hull, loadout, x, y, w, maxY)
-	local RH = 17
+	local RH = 20
 	for i, slot in ipairs(hull.slots) do
 		if maxY and y + RH * 2 > maxY and i < #hull.slots then
-			lg.setFont(HUD.font(11))
+			lg.setFont(HUD.font(13))
 			lg.setColor(HUD.DIM)
 			lg.print(("+%d more slots"):format(#hull.slots - i + 1), x, y + 1)
 			return y + RH
@@ -78,10 +78,10 @@ function Sheet.slots(hull, loadout, x, y, w, maxY)
 		local m = id and data.modules[id]
 		lg.setColor(0, 0, 0, 0.3)
 		lg.rectangle("fill", x, y, w, RH - 2, 3, 3)
-		lg.setFont(HUD.font(10))
+		lg.setFont(HUD.font(12))
 		lg.setColor(Sheet.isWeapon(slot) and HUD.AQUA or HUD.DIM)
 		lg.print((slot.x and (i .. " ") or "  ") .. Sheet.slotLabel(slot), x + 5, y + 2)
-		lg.setFont(HUD.font(11))
+		lg.setFont(HUD.font(13))
 		if m then lg.setColor(HUD.INK) else lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.8) end
 		lg.printf(m and m.name or "empty", x, y + 1, w - 5, "right")
 		y = y + RH
@@ -132,10 +132,10 @@ end
 -- rows from Sheet.numbers; against (optional) the same for another ship.
 -- Better is green, worse is red (mass: lower is better).
 function Sheet.compare(rows, against, x, y, w)
-	local RH = 19
+	local RH = 22
 	for k, r in ipairs(rows) do
 		local yy = y + (k - 1) * RH
-		lg.setFont(HUD.font(12))
+		lg.setFont(HUD.font(14))
 		lg.setColor(HUD.DIM)
 		lg.print(r[1], x, yy)
 		lg.setColor(HUD.INK)
@@ -145,7 +145,7 @@ function Sheet.compare(rows, against, x, y, w)
 			local d = r[2] - o[2]
 			local tiny = math.abs(d) < 0.5
 			local good = (d > 0) ~= (r.lower == true)
-			lg.setFont(HUD.font(11))
+			lg.setFont(HUD.font(13))
 			if tiny then lg.setColor(HUD.DIM) elseif good then lg.setColor(0.4, 1, 0.55) else lg.setColor(HUD.WARN) end
 			lg.printf(tiny and "=" or (d > 0 and "+" or "-") .. ("%.0f"):format(math.abs(d)), x, yy + 1, w, "right")
 		end
@@ -155,24 +155,24 @@ end
 
 -- "Armor   322 / 380" over a thin meter.
 function Sheet.bar(label, value, total, x, y, w)
-	lg.setFont(HUD.font(12))
+	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.DIM)
 	lg.print(label, x, y)
 	lg.setColor(HUD.INK)
 	lg.printf(("%d / %d"):format(value, total), x, y, w, "right")
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.14)
-	lg.rectangle("fill", x, y + 17, w, 4, 2, 2)
+	lg.rectangle("fill", x, y + 19, w, 4, 2, 2)
 	lg.setColor(HUD.AQUA)
-	lg.rectangle("fill", x, y + 17, w * max(0, min(1, total > 0 and value / total or 0)), 4, 2, 2)
-	return y + 27
+	lg.rectangle("fill", x, y + 19, w * max(0, min(1, total > 0 and value / total or 0)), 4, 2, 2)
+	return y + 30
 end
 
 -- A small section label.
 function Sheet.label(text, x, y)
-	lg.setFont(HUD.font(10))
+	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
 	lg.print(text:upper(), x, y)
-	return y + 15
+	return y + 18
 end
 
 -- A button: col tints it, enabled == false greys it out.
@@ -181,7 +181,7 @@ function Sheet.button(r, label, hot, col, enabled)
 	local a = enabled == false and 0.06 or (hot and 0.4 or 0.18)
 	lg.setColor(col[1], col[2], col[3], a)
 	lg.rectangle("fill", r.x, r.y, r.w, r.h, 5, 5)
-	lg.setFont(HUD.font(13))
+	lg.setFont(HUD.font(15))
 	lg.setColor(enabled == false and HUD.DIM or HUD.INK)
 	lg.printf(label, r.x, r.y + (r.h - 14) / 2, r.w, "center")
 end

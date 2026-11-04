@@ -27,7 +27,7 @@ local Yard = { sel = nil, paint = nil, tradeIn = nil, scroll = 0, confirm = fals
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
 local GAP, PAD = 16, 14
-local LIST_W, ROW_H, LEFT_W = 300, 54, 360
+local LIST_W, ROW_H, LEFT_W = 300, 64, 360
 
 local function inRect(r, x, y)
 	return r and x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
@@ -117,10 +117,10 @@ end
 local function drawList(game, L, mx, my)
 	local P = L.list
 	Station.panel(P.x, P.y, P.w, P.h)
-	lg.setFont(HUD.font(16))
+	lg.setFont(HUD.font(18))
 	lg.setColor(HUD.INK)
 	lg.print("For sale here", P.x + PAD, P.y + 12)
-	lg.setFont(HUD.font(12))
+	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.DIM)
 	lg.printf(("%d hulls"):format(#L.stock), P.x, P.y + 15, P.w - PAD, "right")
 	if #L.stock == 0 then
@@ -139,22 +139,22 @@ local function drawList(game, L, mx, my)
 		lg.line(r.x + 6, r.y + r.h + 0.5, r.x + r.w - 6, r.y + r.h + 0.5)
 		local paint = Paint.preset(Paint.pool(hull)[1])
 		Hangar.drawHull(hull, r.x + 6, r.y + 8, 70, r.h - 16, false, paint, 1)
-		lg.setFont(HUD.font(14))
+		lg.setFont(HUD.font(16))
 		lg.setColor(HUD.INK)
 		lg.print(hull.name, r.x + 86, r.y + 8)
-		lg.setFont(HUD.font(11))
-		lg.setColor(HUD.DIM)
-		lg.print(("%s \194\183 %s"):format(hull.maker, hull.class), r.x + 86, r.y + 28)
 		lg.setFont(HUD.font(13))
+		lg.setColor(HUD.DIM)
+		lg.print(("%s \194\183 %s"):format(hull.maker, hull.class), r.x + 86, r.y + 25)
+		lg.setFont(HUD.font(15))
 		lg.setColor(game:credits() >= (hull.price or 0) and HUD.INK or HUD.WARN)
 		lg.printf(HUD.credits(hull.price or 0), r.x, r.y + 8, r.w - 8, "right")
 		local text, col = parkingText(parkingFor(game, L.station, r.id))
-		lg.setFont(HUD.font(10))
+		lg.setFont(HUD.font(12))
 		lg.setColor(col)
-		lg.printf(text, r.x, r.y + 30, r.w - 8, "right")
+		lg.print(text, r.x + 86, r.y + 42)
 	end
 	if #L.stock > L.visibleRows then
-		lg.setFont(HUD.font(11))
+		lg.setFont(HUD.font(13))
 		lg.setColor(HUD.DIM)
 		lg.printf("scroll for more", P.x, P.y + P.h - 20, P.w - PAD, "right")
 	end
@@ -165,7 +165,7 @@ local function drawParking(game, L, hullId, x, y, w, h)
 	local st = L.station
 	local p = parkingFor(game, st, hullId, Yard.tradeIn)
 	local text, col = parkingText(p)
-	lg.setFont(HUD.font(12))
+	lg.setFont(HUD.font(14))
 	lg.setColor(col)
 	lg.printf(text, x, y - 15, w, "right")
 	local W, H = game.hangarSize(st)
@@ -208,7 +208,7 @@ local function drawDetail(game, L, mx, my)
 	-- left: identity, hull, paint, stock fit
 	local x, w = L.lx, L.lw
 	local y = Sheet.label(("%s \194\183 %s"):format(hull.maker, hull.class), x, D.y + 12)
-	lg.setFont(HUD.font(22))
+	lg.setFont(HUD.font(24))
 	lg.setColor(HUD.INK)
 	lg.print(hull.name, x, y)
 	y = Sheet.outline(hull, paint, x, y + 30, w, 108)
@@ -235,10 +235,10 @@ local function drawDetail(game, L, mx, my)
 	local rx, rw = L.rx, L.rw
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
 	lg.rectangle("fill", rx - 6, D.y + 10, rw + 12, 26, 4, 4)
-	lg.setFont(HUD.font(14))
+	lg.setFont(HUD.font(16))
 	lg.setColor(HUD.INK)
 	lg.print("Compared with your " .. p.hull.name, rx, D.y + 14)
-	lg.setFont(HUD.font(10))
+	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
 	lg.printf("both empty, as fitted", rx, D.y + 17, rw, "right")
 	y = D.y + 42
@@ -256,7 +256,7 @@ local function drawDetail(game, L, mx, my)
 	local list = tradeable(game, L.station)
 	Sheet.button(L.tiPrev, "<", inRect(L.tiPrev, mx, my), nil, #list > 0)
 	Sheet.button(L.tiNext, ">", inRect(L.tiNext, mx, my), nil, #list > 0)
-	lg.setFont(HUD.font(12))
+	lg.setFont(HUD.font(14))
 	lg.setColor(ti and HUD.INK or HUD.DIM)
 	lg.printf(ti and data.hulls[ti.hull].name .. (ti.color and ti.color.name and (" \194\183 " .. ti.color.name) or "")
 		or (#list > 0 and "None" or "No stored ships"), T.x + 30, T.y + 5, rw - 60, "center")
@@ -265,7 +265,7 @@ local function drawDetail(game, L, mx, my)
 	local cost = price - credit
 	local yy = T.y + 32
 	local function row(label, value, col)
-		lg.setFont(HUD.font(12))
+		lg.setFont(HUD.font(14))
 		lg.setColor(HUD.DIM)
 		lg.print(label, rx, yy)
 		lg.setColor(col or HUD.INK)

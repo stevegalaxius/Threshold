@@ -167,7 +167,7 @@ end
 
 -- Ship name on its tile; small tiles get a smaller font, never nothing.
 local function tileName(s, label, alpha)
-	local size = (s.h >= 28 and s.w >= 60) and 11 or 9
+	local size = (s.h >= 28 and s.w >= 60) and 13 or 12
 	if s.h < 12 then return end
 	local f = HUD.font(size)
 	lg.setFont(f)
@@ -183,7 +183,7 @@ local function drawBerths(game, L, mx, my, sel)
 	local p, cs, h = game.player, L.cs, Hangar.hand
 	local B = L.bay
 	Station.panel(B.x, B.y, B.w, B.h)
-	lg.setFont(HUD.font(16))
+	lg.setFont(HUD.font(18))
 	lg.setColor(HUD.INK)
 	lg.print("Hangar \194\183 " .. L.station.name, B.x + PAD, B.y + 12)
 
@@ -194,7 +194,7 @@ local function drawBerths(game, L, mx, my, sel)
 	for _, row in ipairs(L.berths) do
 		if not row.ship and not game:mooringTaken(L.station, row.index) then freeMoor = freeMoor + 1 end
 	end
-	lg.setFont(HUD.font(12))
+	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.DIM)
 	lg.printf(("%d in bay  \194\183  %d / %d cells  \194\183  %d of %d berths free"):format(
 		inside, used, L.gridW * L.gridH, freeMoor, #L.berths), B.x, B.y + 15, B.w - PAD, "right")
@@ -232,10 +232,10 @@ local function drawBerths(game, L, mx, my, sel)
 			end
 			lg.setColor(col[1], col[2], col[3], (taken or small) and 0.15 or 0.35)
 			lg.rectangle("line", row.x + 0.5, row.y + 0.5, row.w - 1, row.h - 1, 4, 4)
-			lg.setFont(HUD.font(12))
+			lg.setFont(HUD.font(14))
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], (taken or small) and 0.5 or 1)
 			lg.print(("Berth %d"):format(row.index), row.x + 8, row.y + 6)
-			lg.setFont(HUD.font(11))
+			lg.setFont(HUD.font(13))
 			if taken or not ok then lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.75) else lg.setColor(HUD.DIM) end
 			lg.printf(status, row.x, row.y + 7, row.w - 8, "right")
 			lg.setColor(HUD.DIM)
@@ -243,7 +243,7 @@ local function drawBerths(game, L, mx, my, sel)
 		end
 	end
 	if L.totalRows > L.visibleRows then
-		lg.setFont(HUD.font(11))
+		lg.setFont(HUD.font(13))
 		lg.setColor(HUD.DIM)
 		local above, below = Hangar.scroll, L.totalRows - L.visibleRows - Hangar.scroll
 		if above > 0 then lg.printf(("\226\150\178 %d more"):format(above), L.moor.x, L.gy - 18, L.moor.w, "right") end
@@ -264,11 +264,11 @@ local function drawBerths(game, L, mx, my, sel)
 		local name = data.hulls[s.hull].name
 		if s.exterior then
 			drawHull(data.hulls[s.hull], s.x + 90, s.y + 4, s.w - 96, s.h - 8, false, col, alpha)
-			lg.setFont(HUD.font(12))
+			lg.setFont(HUD.font(14))
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
 			local mooring = s.owner == p and s.owner.parkingMooring or s.owner.mooring
 			lg.print(("Berth %d"):format(mooring), s.x + 8, s.y + 6)
-			lg.setFont(HUD.font(11))
+			lg.setFont(HUD.font(13))
 			lg.setColor(s.owner == p and ACTIVE or HUD.DIM)
 			lg.print((s.owner == p and "FLYING  " or "") .. name, s.x + 8, s.y + 25)
 		else
@@ -312,24 +312,24 @@ local function drawCard(game, L, mx, my, sel)
 	local y = I.y + 12
 
 	y = Sheet.label(flying and "Active ship" or "Stored ship", x, y)
-	lg.setFont(HUD.font(18))
+	lg.setFont(HUD.font(20))
 	lg.setColor(HUD.INK)
 	lg.print(hull.name, x, y)
 	y = y + 24
 	local fw, fh = game.hangarFootprint(hull.id, false)
-	lg.setFont(HUD.font(11))
+	lg.setFont(HUD.font(13))
 	lg.setColor(HUD.DIM)
 	lg.printf(("%s \194\183 %s \194\183 %d\195\151%d cells"):format(hull.maker, hull.class, fw, fh), x, y, w)
 	y = y + 18
 	local col = flying and p.color or owner.color or p.color
-	y = Sheet.outline(hull, col, x, y, w, 74) + 4
+	y = Sheet.outline(hull, col, x, y, w, 58) + 2
 	if col.name then
 		lg.setColor(col[1], col[2], col[3])
 		lg.rectangle("fill", x, y + 2, 10, 10, 2, 2)
-		lg.setFont(HUD.font(11))
+		lg.setFont(HUD.font(13))
 		lg.setColor(HUD.DIM)
 		lg.print(col.name, x + 16, y)
-		y = y + 18
+		y = y + 22
 	end
 
 	local used, total = 0, s.hold
@@ -342,7 +342,7 @@ local function drawCard(game, L, mx, my, sel)
 	y = Sheet.label(("Fit \194\183 %d of %d slots"):format(fitted, #hull.slots), x, y)
 	y = Sheet.slots(hull, loadout, x, y, w, L.fly.y - 22) + 4
 
-	lg.setFont(HUD.font(11))
+	lg.setFont(HUD.font(13))
 	lg.setColor(HUD.DIM)
 	lg.printf("Parked: " .. game:shipParkingLabel(L.station, owner), x, L.fly.y - 18, w)
 

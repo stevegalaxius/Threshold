@@ -1260,7 +1260,7 @@ function Cargo.draw(game)
 		drawTabs(game, mx, my)
 		if Cargo.tab == "hangar" then
 			Hangar.draw(game, mx, my)
-			lg.setFont(HUD.font(13))
+			lg.setFont(HUD.font(14))
 			lg.setColor(HUD.DIM)
 			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
 			lg.setColor(HUD.INK);lg.print('Drag a ship to another spot in the bay or onto a free berth outside.',f.x+14,f.bottom+22)
@@ -1269,7 +1269,7 @@ function Cargo.draw(game)
 		end
 		if Cargo.tab == "shipyard" then
 			Shipyard.draw(game, mx, my)
-			lg.setFont(HUD.font(13))
+			lg.setFont(HUD.font(14))
 			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
 			lg.setColor(HUD.INK);lg.print('Pick a hull, then a factory paint. New ships come with the stock fit shown.',f.x+14,f.bottom+22)
 			lg.setColor(HUD.DIM);lg.print('Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab',f.x+14,f.bottom+43)
