@@ -9,6 +9,8 @@
 	Events emitted so far: fire, hit, kill, pickup, eject, death, dock,
 	undock, travel (from, to), swapship (ship, station), buyship and sellship (record,
 	station).
+	Simulation history also emits simulation_outcome(entry), a plain-data copy of
+	a saved observation shared by online and offline simulation.
 	Keep this list small and stable: it's going to be the modding API.
 ]]
 

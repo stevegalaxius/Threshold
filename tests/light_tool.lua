@@ -62,6 +62,8 @@ return function(game)
   love.graphics.captureScreenshot(function(img) local f=io.open(shots..'/ui.png','wb'); f:write(img:encode('png'):getString()); f:close() end)
   love.graphics.present()
  end
+ -- Keep randomized fill fixtures repeatable.
+ love.math.setRandomSeed(1)
  -- fill, every pattern
  for _,pat in ipairs({'rooms','scattered','rows','checker','grid'}) do
   E.windowPattern=pat; E.windowSpacing=60; E.windowRowSpacing=40; E.windowPalette='mixed'
@@ -74,6 +76,25 @@ return function(game)
  local n0=#p.lights
  Editor.mousepressed(sx,sy,1); Editor.mousereleased(sx,sy,1)
  check(#p.lights==n0+1 and p.lights[#p.lights].size==5 and not p.lights[#p.lights].w,'nav light ignored size')
+ -- Newly placed strobes share the phase shown by the inspector, even at
+ -- different positions. Existing omitted phases must behave like explicit zero.
+ E.lightKind='strobe'
+ Editor.mousepressed(sx,sy,1);Editor.mousereleased(sx,sy,1)
+ local strobeA=p.lights[#p.lights]
+ local tx,ty=Canvas.toScreen(E,cx+10,cy)
+ Editor.mousepressed(tx,ty,1);Editor.mousereleased(tx,ty,1)
+ local strobeB=p.lights[#p.lights]
+ check(strobeA~=strobeB and strobeA.phase==0 and strobeB.phase==0,'placed strobes did not save phase zero')
+ local Shape=require('src.hullshape')
+ local omitted={kind='strobe',rate=1,x=-193,y=71}
+ local synced=true
+ for _,time in ipairs({0,.02,.06,.11,.16,.55,1.01}) do
+  local a=Shape.brightness(strobeA,time)
+  synced=synced and a==Shape.brightness(strobeB,time) and a==Shape.brightness(omitted,time)
+ end
+ check(synced,'same-rate phase-zero strobes depend on light position')
+ check(Shape.brightness(strobeA,0)==1 and Shape.brightness({kind='strobe',rate=1,phase=.5,x=0,y=0},0)==0,
+  'explicit strobe phase stopped controlling the flash offset')
  -- the station still loads with panes
  local Export=require('src.editor.export')
  local def=require('src.data').defineStation(Export.stationDef(d))

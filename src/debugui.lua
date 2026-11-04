@@ -1,5 +1,5 @@
 --[[
-	Debug panel (F1), built with Slab. Swap hulls and modules, tune flight
+	Debug panels (F1 general, F6 A-Life), built with Slab. Swap hulls and modules, tune flight
 	feel live, spawn enemies, and read the numbers behind the handling.
 	This is a developer tool; the player-facing menus will use Luis.
 ]]
@@ -12,7 +12,7 @@ local Render = require("src.render")
 local Fields = require("src.fields")
 local Locations = require("src.locations")
 
-local Debug = { visible = false }
+local Debug = { visible = false, alifeVisible = false }
 local arrivalRole = "pirate"
 
 function Debug.init()
@@ -23,13 +23,17 @@ function Debug.toggle()
 	Debug.visible = not Debug.visible
 end
 
--- True while the mouse is over the panel, so clicks don't fire weapons.
+function Debug.toggleALife()
+	Debug.alifeVisible = not Debug.alifeVisible
+end
+
+-- True while the mouse is over either panel, so clicks don't fire weapons.
 function Debug.blocksMouse()
-	return Debug.visible and not Slab.IsVoidHovered()
+	return (Debug.visible or Debug.alifeVisible) and not Slab.IsVoidHovered()
 end
 
 function Debug.blocksKeyboard()
-	return Debug.visible and Slab.IsAnyInputFocused()
+	return (Debug.visible or Debug.alifeVisible) and Slab.IsAnyInputFocused()
 end
 
 local function combo(id, selected, options, onPick)
@@ -328,7 +332,7 @@ local function graphSection(game)
   Slab.Text(('Mining: %d drills / %d chunks / %d ore stacks'):format(drills,rocks,loot))
   for station,stock in pairs(mining.stock) do
    if Locations.get(station).area==game.fieldId then
-    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s delivered'):format(Locations.get(station).name,n,data.items[item].name)) end
+    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s in stock'):format(Locations.get(station).name,n,data.items[item].name)) end
    end
   end
  end
@@ -346,25 +350,39 @@ end
 
 function Debug.update(dt, game)
 	Slab.Update(dt)
-	if not Debug.visible or game.npcTraffic then return end
+	if game.npcTraffic then return end
 	local h = love.graphics.getHeight()
-	Slab.BeginWindow("dbg_window", {
-		Title = "Debug  (F1 hides)", X = love.graphics.getWidth() - 380, Y = 140,
-		W = 360, H = h - 160, AutoSizeWindow = false, AllowResize = true,
-	})
-	Slab.Text(("FPS %d    ships+rocks %d    shots %d"):format(love.timer.getFPS(), #game.entities, #game.projectiles))
-	cheats(game)
-	Slab.Separator()
-	section("dbg_travel", "Teleport and destinations", function(g) require("src.debugtravel").panel(g,Slab) end, game)
-	section("dbg_ship", "Ship, modules and hold", shipSection, game)
-	section("dbg_readout", "Handling readout", readout, game)
-	section("dbg_tuning", "Flight tuning", tuningSection)
-	section("dbg_flight", "Flight and catch", flightSection, game)
-	section("dbg_lane", "Transit lane (highway)", laneSection, game)
-	section("dbg_graph", "A-Life records and connections", graphSection, game)
-	section("dbg_locations", "Location IDs and positions", locationSection, game)
-	section("dbg_spawn", "Spawn and arena", spawnSection, game)
-	Slab.EndWindow()
+	if Debug.visible then
+		Slab.BeginWindow("dbg_window", {
+			Title = "Debug  (F1 hides)", X = love.graphics.getWidth() - 380, Y = 140,
+			W = 360, H = h - 160, AutoSizeWindow = false, AllowResize = true,
+		})
+		Slab.Text(("FPS %d    ships+rocks %d    shots %d"):format(love.timer.getFPS(), #game.entities, #game.projectiles))
+		cheats(game)
+		Slab.Separator()
+		section("dbg_travel", "Teleport and destinations", function(g) require("src.debugtravel").panel(g,Slab) end, game)
+		section("dbg_ship", "Ship, modules and hold", shipSection, game)
+		section("dbg_readout", "Handling readout", readout, game)
+		section("dbg_tuning", "Flight tuning", tuningSection)
+		section("dbg_flight", "Flight and catch", flightSection, game)
+		section("dbg_lane", "Transit lane (highway)", laneSection, game)
+		if Slab.Button("A-Life debug window (F6)") then Debug.toggleALife() end
+		section("dbg_locations", "Location IDs and positions", locationSection, game)
+		section("dbg_spawn", "Spawn and arena", spawnSection, game)
+		Slab.EndWindow()
+	end
+	if Debug.alifeVisible then
+		Debug.alifeVisible = Slab.BeginWindow("dbg_alife_window", {
+			Title = "A-Life debug  (F6 hides)", X = 30, Y = 80,
+			W = 560, H = h - 110, AutoSizeWindow = false, AllowResize = true,
+			IsOpen = Debug.alifeVisible,
+		})
+		if Debug.alifeVisible then
+			section("dbg_graph", "A-Life records and connections", graphSection, game)
+			section("dbg_history", "Simulation history", function(g) require("src.simulation_history").panel(g,Slab) end, game)
+		end
+		Slab.EndWindow()
+	end
 end
 
 function Debug.draw()

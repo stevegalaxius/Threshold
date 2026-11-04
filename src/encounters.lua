@@ -9,6 +9,7 @@ local Ship=require('src.ship')
 local Tasks=require('src.tasks')
 local copy=require('src.persistence').copy
 local T=require('src.tuning')
+local History=require('src.simulation_history')
 local E={}
 local function active(r)
  return r and (r.state=='travel' or r.state=='idle') and not r.driverState and r.area~=nil
@@ -43,7 +44,11 @@ local function resume(r,clock)
  elseif r.state=='idle' then r.untilTime=math.max(r.untilTime or clock,clock+1) end
  r.encounter=nil;r.targetId=nil
 end
-function E.finish(u,a,b,clock,retreat)
+function E.finish(u,a,b,clock,retreat,handoff)
+ if not handoff and a and b then
+  local reason=retreat and 'retreated' or (a.state=='dead' or b.state=='dead') and 'death' or 'disengaged'
+  History.finish(u,a.id,b.id,clock,reason,retreat and retreat.id)
+ end
  resume(a,clock)
  if b then resume(b,clock) end
  if retreat then retreat.retreatUntil=clock+T.offlineRetreat;retreat.taskStatus='withdrawing after combat' end
@@ -89,6 +94,8 @@ local function wreck(u,r,clock)
   progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
   ship=copy(r.ship),archetype=r.archetype}
  r.state='dead';r.ship.armor=0
+ History.death(u,r,clock,r.area,fight and fight.target)
+ u.alifeWrecks[r.id].historyWreckId=History.wreck(u,r,clock,r.area)
  Tasks.release(u,r,'destroyed',clock)
 end
 function E.update(game,clock)
@@ -100,6 +107,7 @@ function E.update(game,clock)
  -- End stale fights first. A live counterpart is excluded from dice damage.
  for _,id in ipairs(ids) do
   local a=records[id];local b=a.encounter and records[a.encounter.target]
+  if a.encounter and b then History.begin(u,a.id,b.id,clock,a.area) end
   if a.encounter and (not active(a) or not active(b) or a.area~=b.area) then E.finish(u,a,b,clock) end
  end
  for _,id in ipairs(ids) do
@@ -138,7 +146,7 @@ function E.update(game,clock)
       if not target or b.role=='patrol' and target.role~='patrol' then target=b end
      end
     end
-    if target then begin(a,target,clock) end
+    if target then begin(a,target,clock);History.begin(u,a.id,target.id,clock,a.area) end
    end
   end
  end
@@ -163,7 +171,8 @@ function E.syncOnline(game)
    if other.role=='trader' then target.aggressor=e else target.combatTarget=e;target.securityThink=game.time+T.securityThink end
    -- Once both bodies exist, ordinary AI owns the encounter completely.
    -- Do not leave frozen graph duties behind after a physical disengagement.
-   E.finish(game.universe,r,other,game.universe.clock)
+   History.begin(game.universe,r.id,other.id,game.universe.clock,r.area)
+   E.finish(game.universe,r,other,game.universe.clock,nil,true)
   end
  end
 end
@@ -181,7 +190,7 @@ function E.materialize(game,px,py,clock)
     local vx,vy=game:flowAt(x,y)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
     local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
-    ship.body:destroy();husk.alifeWreckId=id
+    ship.body:destroy();husk.alifeWreckId=id;husk.historyWreckId=w.historyWreckId
     u.alifeWrecks[id]=nil
    end
   end

@@ -9,8 +9,8 @@
 	orrery, and it fires you into a transit lane (the "lane" field) toward
 	that planet; you
 	come out the far end at the other planet's driver, still moving fast.
-	F2 (or the debug panel) still jumps straight to the next field for
-	testing.
+	F1 debug travel and the map teleport controls select named destinations
+	for testing.
 
 	Planets also circle the Sun (Fields.orbits): each one's year keeps its
 	real length relative to Earth's, all sped up to T.yearLength seconds of

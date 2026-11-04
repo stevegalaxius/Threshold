@@ -1,25 +1,27 @@
--- Mine output for placeholder ore jobs. Phobos and Deimos refill slowly; ore
--- transport offers on the shared task board (src/transport.lua) are only
--- eligible while their mine has stock, and picking one up takes from it.
-local J={}
-J.mines={'phobos','deimos'}
-J.oreTo='mars'
-function J.state(u,clock)
- u.jobs=u.jobs or {}
- u.jobs.mines=u.jobs.mines or {}
- for _,area in ipairs(J.mines) do
-  local m=u.jobs.mines[area]
-  if not m then m={stock=20,clock=clock};u.jobs.mines[area]=m end
-  m.reservations=nil -- legacy per-trader reservations; the task board owns those now
-  m.stock=math.min(80,m.stock+math.max(0,clock-m.clock)/12)
-  m.clock=math.max(clock,m.clock)
- end
- return u.jobs
+-- Ore logistics uses the same saved station stock as miner deliveries.
+-- Legacy u.jobs.mines counters are deliberately ignored: elapsed time is not ore.
+local L=require('src.locations')
+local J={mines={'phobos','deimos'},oreTo='mars',item='iron_ore'}
+function J.isMine(area) return area=='phobos' or area=='deimos' end
+function J.state(u)
+ u.mining=u.mining or {sites={},resources={},stock={},seeded={}}
+ return u.mining
 end
-function J.available(u,area,clock) return math.floor(J.state(u,clock).mines[area].stock) end
-function J.take(u,area,amount,clock)
- local m=J.state(u,clock).mines[area]
- if math.floor(m.stock)<amount then return false end
- m.stock=m.stock-amount;return true
+function J.stock(u,station)
+ local stock=J.state(u).stock
+ station=L.canonical(station)
+ stock[station]=stock[station] or {}
+ return stock[station]
+end
+function J.available(u,station,item) return J.stock(u,station)[item] or 0 end
+function J.take(u,station,item,amount)
+ local stock=J.stock(u,station)
+ if (stock[item] or 0)<amount then return false end
+ stock[item]=stock[item]-amount
+ return true
+end
+function J.deliver(u,station,item,amount)
+ local stock=J.stock(u,station)
+ stock[item]=(stock[item] or 0)+amount
 end
 return J

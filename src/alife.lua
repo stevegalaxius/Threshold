@@ -14,6 +14,7 @@ local Transport=require('src.transport')
 local Security=require('src.security')
 local Piracy=require("src.piracy")
 local Repairs=require('src.npc_repair')
+local Supplies=require('src.supplies')
 local Encounters=require('src.encounters')
 local Mining=require('src.mining')
 local Population=require('src.population')
@@ -89,6 +90,7 @@ local function adoptTrip(r,station,clock,u)
  if r.taskWorker and u then
   if (r.nextTaskAt or 0)>clock then return false end
   Tasks.arrive(u,r,station,clock)
+  Supplies.refill(r,station)
   local task=Tasks.choose(u,r,station,clock)
   if not task then r.nextTaskAt=clock+10;return false end
   r.nextTaskAt=nil
@@ -215,7 +217,7 @@ end
 
 function A.advance(r,clock,u,game)
  if r.waitingForHome then return end
- if game and not r.worldRecovery and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and Repairs.needs(r) then Piracy.returnRecord(game,r) end
+ if game and not r.worldRecovery and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and (Repairs.needs(r) or Supplies.needs(r)) then Piracy.returnRecord(game,r) end
  if r.piracy and not r.worldRecovery then return Piracy.advance(r,clock,u,start) end
  if game and not r.worldRecovery and require("src.offline_loot").update(game,r,clock) then return end
  if Mining.isMiner(r) and not r.worldRecovery then return Mining.advance(game or {universe=u},r,clock) end
@@ -692,8 +694,9 @@ function A.install(Game)
   if not r or not r.taskWorker then return true end
   A.capture(self,e,false)
   local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
-  if not ok then return false end
+  -- Delivery may have unloaded cargo even when no next job is available.
   e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
+  if not ok then return false end
   e.jobPrepared=true
   return true
  end
@@ -794,6 +797,7 @@ function A.install(Game)
   Encounters.syncOnline(self)
   Encounters.update(self,clock)
   Encounters.materialize(self,px,py,clock)
+  require("src.simulation_history").update(self)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end

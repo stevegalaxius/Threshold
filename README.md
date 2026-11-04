@@ -25,6 +25,7 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
+| A-Life debug window | F6 | — |
 | Station screen: cycle Storage / Market / Shipyard / Hangar tabs | Tab (docked) | |
 | Buy a ship (shipyard list, with your own ship selected) / sell a parked ship | Hangar tab buttons | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
@@ -119,6 +120,10 @@ and 4 times strength for gas giants.
 - Spawn and arena: spawn any enemy (these come straight for you), clear enemies, jump to any level.
 - Docked: park a new ship of any hull in this station's hangar. +10,000 credits. Save, load and load the autosave.
 - Also: god mode and infinite ammo.
+
+The separate **A-Life debug window (F6)** contains **A-Life records and connections**
+and **Simulation history**. It can also be opened from F1 and moved, resized or
+closed independently of the general debug panel.
 
 ## Where things live
 
@@ -266,7 +271,7 @@ fades toward local endpoints. Offline station stops last 60 seconds; online
 stops retain the existing 30–90-second behavior. Economic transactions remain deferred. Persistent transport duties use mass
 drivers; patrols and pirates also participate in offline encounters. Highway derelict generation is unchanged.
 
-Open **F1 → A-Life records and connections**, enable **Show simulation connections
+Open **F6 → A-Life records and connections**, enable **Show simulation connections
 and NPCs**, then open **M**. Blue lines are declared connections. Labels show
 actual trader identity, state, and destination; the debug panel also lists
 travellers in connecting highways. The map shows contacts sharing your highway.
@@ -304,9 +309,30 @@ stationary motion, incoming hazards, docking/catching, and removing the module.
 
 ### Mars mining slice
 
-Phobos and Deimos have permanent surface mining stations, retaining their rocky moon bodies. Mars traders reserve ore-hauling jobs at station departure instead of continuing fixed trading loops. Each mine produces one unit of Martian ore per 12 seconds, stores up to 80 units, and permits two reserved pickups. Haulers carry up to 10 units, constrained by cargo space, and deliver them to their Mars station. Unassigned traders wait docked; dead or escaped traders release reservations. Mine stocks, assignments, cargo, and delivery totals persist through saves and offline travel. Combat NPCs are unchanged.
+Phobos and Deimos have permanent surface strip mines. Their miners drill real
+chunks, collect `iron_ore`, and unload it into each strip mine's saved stock.
+Mars haulers collect ten units from that same stock, carry it through the moon
+gates, and deposit it in their destination Mars station's raw-material stock.
+An empty strip mine leaves its haulers docked until miners deliver enough ore;
+elapsed time alone never refills station stock. Competing haulers cannot load
+ore already taken by another ship, and a lost shipment is not refunded.
 
-The travel-graph debug overlay shows pickup/delivery assignments and waiting traders. Existing saved Mars traders adopt jobs at their next Mars docking departure. Run `love . --marsjobtest` for the production/reservation/delivery and physical mine-docking checks. Delivered ore is recorded as station supply; industrial consumption and player job contracts are not implemented yet.
+Mars dispatch workers run the supplies-out/ore-back moon circuit. Workers already
+travelling elsewhere finish their current assignment and can take a return trip
+to Mars. The outward supply manifests still use placeholder scrap; other planets'
+dispatch trade remains a prototype. Industrial consumption, prices, and player
+contracts remain future work.
+
+Station stock, loaded cargo, and task reservations survive online/offline changes
+and save/load. Existing miner deposits are immediately available to haulers.
+Legacy automatic mine counters no longer supply cargo. Already-loaded legacy
+Martian-ore manifests can finish and deposit their existing cargo, but no new
+placeholder ore jobs are assigned.
+
+**F6 → A-Life records and connections** shows station stock and current duties.
+Run `love . --oretest` for focused miner/hauler conservation, competition, loss,
+dockside waiting and save/load checks. `love . --marsjobtest` checks physical
+strip-mine docking, ore pickup and departure on both moons.
 
 Debug travel is available in **F1 → Teleport and destinations**: filter areas by name and jump to the selected planet or moon. On the **M map**, the dropdown beneath the planet name teleports to a selected area; scroll the list to reach all planets and moons. Right-click a map point to teleport within the current area. Right-click a planet on the mass-driver map to teleport directly to that area. The current ship, equipment, cargo and damage are preserved, and no travel fare is charged. Run `love . --debugtraveltest` for the integration checks.
 
@@ -326,7 +352,8 @@ docks, delivers and chooses again. Tasks favor destinations other than the last
 pickup port, avoiding immediate return trips. Busy manifests remain reserved; completed or abandoned ones become
 available again after 120 seconds.
 
-These are authored, recurring transport manifests with placeholder cargo.
+General dispatch uses authored, recurring manifests with placeholder cargo;
+Mars-moon ore hauling transfers actual miner-produced stock.
 They do not buy from markets, charge fares or calculate profits. A future economy
 can supply requests through `Tasks.post`. Existing local traffic, moon trips and
 Mars mining jobs remain supported. Other roles can register task types with the
@@ -420,7 +447,7 @@ Run `love . --drivertest` and `love . --tasktest` for these launch regressions.
 
 ## NPC traffic debugging
 
-Press **F4**, or use **F1 > A-Life records and connections > NPC traffic monitor**.
+Press **F4**, or use **F6 > A-Life records and connections > NPC traffic monitor**.
 The live route board groups directed journeys and shows each NPC progressing
 from departure to arrival. Click a marker for identity, role, task, cargo,
 online/offline state, launch phase, departure/arrival clock and ETA. Hover for
@@ -575,8 +602,8 @@ and provenance when a haven changes. Wreck and mineral loot is retained.
 Removed station storage, hangars and shop stock remain saved under the station
 ID and return if it is re-enabled/re-added with that ID. A player docked at a
 removed port uses a surviving local port or the region's normal spawn; moving a
-docked port between regions retains the docking reference. F1 shows living
-resident counts; F1/F4 show each ship's home. Rosters derive from NPC records,
+docked port between regions retains the docking reference. F6 shows living
+resident counts; F6/F4 show each ship's home. Rosters derive from NPC records,
 without a second saved membership list.
 
 Cloud cities, surface mines and the Heaven-Ladder retain construction adapters.
@@ -604,7 +631,7 @@ their home region's raid corridor. Low-health looters leave early. Their identit
 ship, ordinary ammunition, damage and home population remain intact. Moon routes
 use their existing gates before joining the interplanetary driver network.
 
-F1's A-Life section shows the current pirate activity and Milliways' stash.
+F6's A-Life section shows the current pirate activity and Milliways' stash.
 Pirates acquire loot physically and from fully unloaded saved resources; return,
 delivery and redeployment work both physically and abstractly. Surrender demands and more selective/bounded hunting remain future work.
 Offline pirates can claim saved loose items, containers and combat wrecks in
@@ -648,8 +675,27 @@ and relocation duties, preferring passing traders as targets. Patrols engage
 pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
-After losing contact, ships resume their selected duty. F1's A-Life list and the
+After losing contact, ships resume their selected duty. F6's A-Life list and the
 map graph overlay show role, duty, destination and current target.
+
+Every current station includes **Supplies** in the Market's existing vendor
+dropdown. The common vendor sells ammunition and flare charges, replenishing
+its displayed stock immediately; other vendors retain their existing stock
+and restock behavior. Player purchases use the normal grid trade and prices.
+NPCs use the same unlimited supplies source without consuming the player's
+shelf or credits while their economy is deferred.
+
+Persistent NPCs replenish fitted weapons only while fully docked. Archetype
+starting ammo is the default reserve; `ammoReserve={item=count}` on an archetype
+or NPC overrides it. Other fitted weapons default to 30 seconds of ammunition.
+Below 20% reserve, patrols prioritize a supply stop and pirates return to their
+haven; armed miners return home and resume their mining reservation. Traders
+and couriers replenish at normal delivery stops, before loading the next job.
+Power-only lasers/drills need no ammo. Holds are respected, cargo and container
+contents are preserved, and fresh ammo remains separate from stolen loot.
+Online/offline resupply and saves use the same counts. `src/supplies.lua` owns
+the catalogue and replenishment rules; thresholds are in `src/tuning.lua`.
+Run `love . --securitytest` for supplies, repair and duty-resumption checks.
 
 Remote encounters only compare records sharing a graph segment or endpoint.
 Periodic seeded exchanges spend actual ammunition and carry hull damage across
@@ -811,14 +857,14 @@ and saved inspection offsets use the same point. Run `love . --patrolnavtest`
 for Olympus patrol arrival, holding, restoration and the next autonomous duty.
 
 
-F3 region cycling uses the shared debug teleport cleanup, closing cargo/trade
+F1 debug travel and map teleports use shared cleanup, closing cargo/trade
 UI and cancelling old travel state. Unloading a field disposes of its complete
 physics world instead of reusing its native allocations. Distant generated
 debris is put to sleep before NPCs start navigating, avoiding an initial scan
 of the complete belt. Only highway origin
 and arrival scenes that are still needed remain alive; adopting a retained
 scene preserves that scene's world. `love . --teleporttest` checks two complete
-F3 cycles, leftover unmanaged bodies, abandoned highway previews and warp-flight
+region tours, leftover unmanaged bodies, abandoned highway previews and warp-flight
 cancellation.
 
 ## Drill sites and A-Life miners
@@ -836,7 +882,7 @@ Two independent miners per populated mining region choose work through the
 shared task board. They approach a chunk, use their fitted **Bore Drills** at
 contact range, tractor the actual dropped ore, and return to dock with a load.
 They unload into saved station raw-material stock and choose their next duty.
-Stock is shown in F1's A-Life section; pricing and market settlement remain
+Stock is shown in F6's A-Life section; pricing and market settlement remain
 separate work. NPCs and the player use the same drill damage, ore drop table,
 power rules and pickup transport. Ordinary drilled debris keeps its existing
 fragmentation behavior; industrial chunks are consumed once into their ore.
@@ -854,3 +900,33 @@ autonomous next duties, save restoration, shared online/offline resource
 accounting and production caps. Set `THRESHOLD_MINING_AREA=phobos` or `belt` to
 run the same physical cycle against those surfaces. The test writes a mining
 screenshot into LÖVE's save directory.
+
+## Simulation history
+
+F6 → **Simulation history** shows the newest 40 observations from a saved,
+bounded history of 256 entries. This first slice covers combat starting and
+ending, NPC deaths, and wreck creation; it does not generate contracts or change
+NPC decisions. Entries contain universe-clock timestamps, area and participant
+IDs, results, and stable fight IDs. NPC records retain their latest fight summary
+in `fight_log`, even after the corresponding history entry has aged out.
+
+Physical targeting or damage starts an engagement. Offline fights use the same
+history API. Bringing an offline encounter online retains its fight ID; saving
+or unloading a body does not itself end combat. Physical retreat/disengagement
+is reported after five seconds without targeting or damage, while the offline
+resolver reports its explicit result. These are observations of the existing
+simulation, not a replay system or a claim that the two combat models produce
+identical damage. `T.historyLimit` and `T.historyQuietTime` control retention and
+the quiet interval.
+
+NPC death and wreck creation are recorded once per persistent NPC identity.
+`historyWreckId` follows salvage from its abstract record to its physical husk
+and area save. The reference remains historical if the wreck is later looted,
+destroyed or expires. Combat summaries list dead/fleeing participants and wreck
+references; they do not snapshot inventories. Existing saves begin with empty
+history, without inventing past events. The event bus emits
+`simulation_outcome(entry)` after recording each observation, with a copy of its
+plain saved data. Existing gameplay event signatures remain unchanged.
+
+Run `love . --historytest` for focused combat handoff, death/salvage identity,
+save/load, retreat and retention checks.

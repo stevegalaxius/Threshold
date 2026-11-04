@@ -7,13 +7,12 @@ local copy=require('src.persistence').copy
 local Ore=require('src.ore')
 local Population=require('src.population')
 local Repairs=require('src.npc_repair')
+local Supplies=require('src.supplies')
 local Homes=require('src.npc_home')
+local Jobs=require('src.jobs')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
-function M.state(u)
- u.mining=u.mining or {sites={},resources={},stock={},seeded={}}
- return u.mining
-end
+function M.state(u) return Jobs.state(u) end
 function M.isMiner(r)return r and r.role=='miner' end
 function M.workPoint(site)
  return L.position(site.id,0)
@@ -27,10 +26,9 @@ Tasks.register('mine',{
  plan=function(t)return {t.source,t.target} end,
  complete=function(u,r,t,node)
   if node~=t.source then return false end
-  local state=M.state(u);local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
+  local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
   if n<=0 then return false end
-  state.stock[node]=state.stock[node] or {}
-  state.stock[node][t.item]=(state.stock[node][t.item] or 0)+n
+  Jobs.deliver(u,node,t.item,n)
   cargo[t.item]=nil
   if r.ship.hold then
    local h=Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
@@ -379,13 +377,14 @@ function M.advance(game,r,clock)
    r.task.phase='mining';r.state='idle'
   else Tasks.arrive(u,r,r.base,clock);r.state='idle';r.task=nil end
   r.repairReturn=nil
+  Supplies.refill(r,r.base)
  end
  if not r.task then r.task=Tasks.choose(u,r,r.base,clock);r.nextMiningAt=clock+T.miningOfflineEvery end
  if not r.task then
   r.state='docked';r.node=r.base;r.route={r.base,r.base};r.index=1;r.untilTime=clock+10;return
  end
  r.mineSite=copy(M.state(u).sites[r.task.target])
- if r.task.phase=='mining' and Repairs.needs(r) and Repairs.supports(r.base) then r.repairReturn=true;M.returnHome(game,r,M.point(u,r,clock)) end
+ if r.task.phase=='mining' and ((Repairs.needs(r) and Repairs.supports(r.base)) or (Supplies.needs(r) and Supplies.supports(r.base))) then r.repairReturn=true;M.returnHome(game,r,M.point(u,r,clock)) end
  if r.task.phase=='mining' then r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
  if r.task.phase=='delivery' then
   if r.state~='docked' and clock>=r.arrive then r.state='docked';Repairs.begin(r,r.base,r.arrive,T.alifeStay) end
@@ -470,6 +469,7 @@ function M.depart(game,e,station)
  if r.repairReturn and r.task and (e.cargo[r.task.item] or 0)==0 then r.task.phase='mining' end
  r.repairReturn=nil
  Tasks.arrive(game.universe,r,L.canonical(station.locationId),game.universe.clock)
+ Supplies.refill(r,L.canonical(station.locationId))
  e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
  Tasks.choose(game.universe,r,r.base,game.universe.clock)
  r.mineSite=r.task and copy(M.state(game.universe).sites[r.task.target])
@@ -502,7 +502,7 @@ function M.think(game,e,dt,AI)
  if e.aggressor and not e.aggressor.dead and not e.aggressor.removed then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;return false
  end
- if r.task.phase=='mining' and Repairs.needs(r,e.armor,e.stats.armor) and Repairs.supports(r.base) then
+ if r.task.phase=='mining' and ((Repairs.needs(r,e.armor,e.stats.armor) and Repairs.supports(r.base)) or (Supplies.needs(r,e) and Supplies.supports(r.base))) then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false
   r.repairReturn=true;M.returnHome(game,r,e.body:getPosition());M.bind(game,e,r);AI.trade(game,e,dt);return true
  end

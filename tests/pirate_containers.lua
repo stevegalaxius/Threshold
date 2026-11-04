@@ -83,6 +83,8 @@ return function(game)
  -- The actual pirate controller selects a physical loaded container and
  -- extracts its contents through the same transfer path.
  local live=orole;live.id='container-ai-test';live.role='pirate'
+ live.ammoReserve={flare=0} -- this fixture tests an unarmed container looter
+ for _,weapon in ipairs(other.weapons) do if weapon.ammo then live.ammoReserve[weapon.ammo]=0 end end
  other.alifeId=live.id;game.universe.npcs[live.id]=live
  local liveContents=inner();Hold.add(liveContents,'scrap',6)
  local liveBox=game:spawnContainer(10000,10000,'cargo_container',false,liveContents)
