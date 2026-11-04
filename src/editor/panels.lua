@@ -83,7 +83,6 @@ local WSTAT = {
 	powerPerShot = { "power / shot", 0, 500, 1, 0, "Power each pulse takes." },
 	powerPerSecond = { "power / s", 0, 500, 1, 0, "Power while it's held." },
 	pulse = { "pulse (s)", 0.02, 1, 0.01, 2, "How long the flash lingers." },
-	knockback = { "knockback", 0, 20000, 50, 0, "Push on whatever it hits." },
 	barrels = { "barrels", 1, 6, 1, 0, "Shots take turns between barrels (ignored when the art has muzzle points)." },
 	barrelGap = { "barrel gap (px)", 0, 40, 1, 0, "Distance between barrels (ignored with muzzle points)." },
 	rockDamage = { "rock damage", 0, 100, 1, 0, "Damage to asteroids." },
@@ -96,8 +95,8 @@ local WSTAT = {
 local WFIELDS = {
 	gun = { "fireRate", "spread", "gimbal", "recoil", "barrels", "barrelGap" },
 	artillery = { "fireRate", "spread", "gimbal", "recoil" },
-	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal", "knockback" },
-	beam = { "damage", "range", "powerPerSecond", "gimbal", "knockback" },
+	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
+	beam = { "damage", "range", "powerPerSecond", "gimbal" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
 	missile = { "fireRate", "recoil" },
 	torpedo = { "fireRate", "recoil" },
@@ -479,10 +478,20 @@ function weaponSections(E, d)
 	Slab.Text("Weapon")
 	for _, key in ipairs(WFIELDS[(w.kind == "laser" and w.beam) and "beam" or w.kind] or {}) do
 		local f = WSTAT[key]
+		if key == "fireRate" and E.rpm then
+			num("yard_w_rpm", "fire rate (rpm)", (w.fireRate or 0) * 60, 1, 1800, 1, 0, nil, function(v) w.fireRate = v / 60 end)
+			Slab.SameLine()
+			if Slab.Button("rpm", { W = 36, H = 18, Tooltip = "Showing rounds per minute: click for shots per second" }) then E.rpm = false end
+		elseif key == "fireRate" then
+			num("yard_w_" .. key, f[1], w[key], f[2], f[3], f[4], f[5], f[6], function(v) w[key] = v end)
+			Slab.SameLine()
+			if Slab.Button("/s", { W = 36, H = 18, Tooltip = "Showing shots per second: click for rounds per minute" }) then E.rpm = true end
+		else
 		num("yard_w_" .. key, f[1], w[key], f[2], f[3], f[4], f[5], f[6], function(v)
 			if f[5] == 0 then v = math.floor(v + 0.5) end
 			w[key] = v
 		end)
+		end
 	end
 	Slab.Text("description")
 	if Slab.Input("yard_wdesc", { Text = m.description or "", W = 260, H = 60, MultiLine = true, MultiLineW = 250, ReturnOnText = true }) then

@@ -130,8 +130,6 @@ local function fire(game, e, slot, dt)
 		if hit then
 			ex, ey = hit.x, hit.y
 			game:damage(hit.entity, w.damage * dt * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			local k = (w.knockback or 0) * dt * T.knockbackScale
-			if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
 			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, { 0.7, 1, 1 }) end
 		end
 		slot.beam = { wx, wy, ex, ey, game.time, 0.08 }
@@ -152,8 +150,6 @@ local function fire(game, e, slot, dt)
 		if hit then
 			ex, ey = hit.x, hit.y
 			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			local k = (w.knockback or 0) * T.knockbackScale
-			if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
 			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
 		end
 		slot.beam = { wx, wy, ex, ey, game.time, w.pulse or 0.12 }

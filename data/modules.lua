@@ -22,7 +22,7 @@
 	              launchers their size or smaller. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
-	              knockback, pulse (seconds the flash shows) and
+	              pulse (seconds the flash shows) and
 	              powerPerShot themselves.
 	              beam = true makes it a beam laser instead: it burns while
 	              the trigger is held, with damage and powerPerSecond per second.
@@ -83,19 +83,19 @@ module {
 module {
 	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 5, price = 5200,
-	weapon = { kind = "laser", fireRate = 1.6, damage = 30, powerPerShot = 20, pulse = 0.12, range = 3500, gimbal = 12, knockback = 1500 },
+	weapon = { kind = "laser", fireRate = 1.6, damage = 30, powerPerShot = 20, pulse = 0.12, range = 3500, gimbal = 12 },
 }
 
 module {
 	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 12, price = 14000,
-	weapon = { kind = "laser", fireRate = 1.4, damage = 65, powerPerShot = 45, pulse = 0.14, range = 4200, gimbal = 12, knockback = 3000 },
+	weapon = { kind = "laser", fireRate = 1.4, damage = 65, powerPerShot = 45, pulse = 0.14, range = 4200, gimbal = 12 },
 }
 
 module {
 	id = "sunder_beam", name = "Sunder Beam", maker = "Nova Syndicate", family = "weapon", size = "L",
 	mass = 30, price = 38000,
-	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10, knockback = 8000 },
+	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10 },
 }
 
 -- Mining drills: hold the trigger and the drill extends out of the nose,
@@ -126,19 +126,19 @@ module {
 module {
 	id = "thread_beam", name = "Thread Beam", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 6, price = 6000,
-	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12, knockback = 800 },
+	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
 }
 
 module {
 	id = "searing_ray", name = "Searing Ray", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 14, price = 16000,
-	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12, knockback = 1600 },
+	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
 }
 
 module {
 	id = "furnace_beam", name = "Furnace Beam", maker = "Halcyon Arms", family = "weapon", size = "L",
 	mass = 32, price = 42000,
-	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10, knockback = 3000 },
+	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
 }
 
 -- Bay launchers -------------------------------------------------------------------
