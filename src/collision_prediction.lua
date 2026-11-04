@@ -58,6 +58,9 @@ local function polygonSweep(a,b,vx,vy,ahead)
  if leave<0 or enter>ahead then return end
  return max(0,enter)
 end
+-- Also used for cached parked-hull clearance against station fixtures.
+function C.sweepPolygon(a,b,vx,vy,ahead) return polygonSweep(a,b,vx,vy,ahead) end
+
 -- A circle moving against a convex polygon: sweep edges and rounded vertices.
 local function circlePolygon(cx,cy,r,poly,vx,vy,ahead)
  local _,_,d=closest(poly,cx,cy)

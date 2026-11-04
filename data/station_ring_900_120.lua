@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2).
 station {
 	id = "ring_900_120", name = "Habitat ring",
+	services = { "market", "shipyard", "hangar", "repair" },
 	berths = {
 		{ heading = 90, size = 200, x = 1704, y = 276 },
 		{ heading = 270, size = 200, x = 1704, y = -272 },

@@ -43,7 +43,7 @@ return function(game)
   for id,record in pairs(game.universe.npcs)do if record.home==area and M.isMiner(record) and id~=r.id then second=record;break end end
  end
  game.universe.npcs={[r.id]=r};if second then game.universe.npcs[second.id]=second end
- game.universe.pirateSpawns={} 
+ game.universe.populationSpawns={}
  for i=#game.entities,1,-1 do
   local e=game.entities[i]
   if e~=game.player and (e.kind=='ship' or e.kind=='asteroid' and not e.giant or e.kind=='husk' or e.kind=='container') then game:remove(e) end

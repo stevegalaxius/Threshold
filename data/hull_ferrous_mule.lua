@@ -3,7 +3,6 @@ hull {
 	id = "ferrous_mule", name = "Packhorse",
 	armor = 520,
 	bonuses = {},
-	cargo = { missile_m = 4, rounds_m = 400 },
 	class = "medium",
 	drag = 0.6,
 	hold = 200,

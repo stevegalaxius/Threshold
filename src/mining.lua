@@ -5,6 +5,7 @@ local data,Ship,Stats=require('src.data'),require('src.ship'),require('src.stats
 local Tasks,Hold=require('src.tasks'),require('src.inventory.hold')
 local copy=require('src.persistence').copy
 local Ore=require('src.ore')
+local Population=require('src.population')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u)
@@ -54,6 +55,29 @@ local function rigLength() return T.drillRockMax*2+20 end
 function M.chunkDamping(area)
  return Fields[area].planetR and T.miningOrbitDamping or T.miningChunkDamping
 end
+function M.create(game,area,clock)
+ local u,f=game.universe,Fields[area]
+ Tasks.clean(u,clock)
+ local available=false
+ for _,offer in pairs(Tasks.state(u).offers) do
+  if offer.kind=='mine' and offer.area==area and offer.state=='available' then available=true;break end
+ end
+ -- Debug arrivals may exceed the normal population, just like pirate arrivals.
+ if not available then
+  local id=f.drillIds[(u.nextNpcId%#f.drillIds)+1]
+  local site=M.state(u).sites[id]
+  Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
+ end
+ local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
+ u.nextNpcId=u.nextNpcId+1
+ local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
+  base=f.stationIds[1],node=f.stationIds[1],route={f.stationIds[1],f.stationIds[1]},index=1,
+  state='idle',speed=def.ai.cruise,spread=0,
+  ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ u.npcs[r.id]=r
+ M.advance(game,r,clock)
+ return r
+end
 function M.seed(game)
  local u=game.universe;local state=M.state(u)
  -- Upgrade existing workers without replacing their identity, task or cargo.
@@ -96,14 +120,7 @@ function M.seed(game)
    if not f.instance and f.stationIds[1] and not state.seeded[area] then
     state.seeded[area]=true
     for _=1,T.minersPerArea do
-     local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
-     u.nextNpcId=u.nextNpcId+1
-     local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
-      base=f.stationIds[1],node=f.stationIds[1],route={f.stationIds[1],f.stationIds[1]},index=1,
-      state='idle',speed=def.ai.cruise,spread=0,
-      ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
-     u.npcs[r.id]=r
-     M.advance(game,r,u.clock)
+     M.create(game,area,u.clock)
     end
    end
   end
@@ -396,6 +413,7 @@ function M.capture(game,e,r,remote)
  if e.dockState then
   r.docking={}
   for k,v in pairs(e.dockState) do if type(v)~='table' and type(v)~='userdata' then r.docking[k]=v end end
+  r.docking.mooring=copy(e.dockState.mooring)
   r.state='docked';r.untilTime=game.universe.clock+max(0,(e.dockState.stay or T.alifeStay)-e.dockState.t)
  elseif r.task and r.task.phase=='delivery' and not r.encounter then
   local x,y=e.body:getPosition();local hx,hy=L.position(r.base,game.universe.clock)
@@ -588,4 +606,9 @@ function M.draw(game,px)
   end
  end
 end
+Population.register('miner',{
+ target=function(f) return #f.drillIds>0 and #f.stationIds>0 and T.minersPerArea end,
+ nodes=function(game,area) return Fields[area].drillIds end,
+ create=function(game,area,node,clock) return M.create(game,area,clock) end,
+})
 return M

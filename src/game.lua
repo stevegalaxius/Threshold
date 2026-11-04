@@ -1120,7 +1120,8 @@ end
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
 -- The nearest free berth at the station that the ship fits on, or nil (no berths,
--- all taken, or all too small): then it goes inside.
+-- all taken, or all too small). Without one, the ship must fit the interior
+-- or docking is refused; no overflow positions are generated.
 function Game:freeBerth(st, e)
 	local berths = st.def and st.def.berths
 	if not berths or #berths == 0 then return nil end
@@ -1129,15 +1130,27 @@ function Game:freeBerth(st, e)
 		local ods = o ~= e and not o.dead and not o.removed and o.dockState
 		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
 	end
+	for _,rec in ipairs(self:stationRecord(st).hangar) do
+		local slot=rec.mooring and self:stationMoorings(st)[rec.mooring]
+		if slot and slot.berth then taken[slot.berth]=true end
+	end
 	local x, y = st.body:getLocalPoint(e.body:getPosition())
 	local best, distance = nil, math.huge
 	for i, b in ipairs(berths) do
-		if not taken[i] and (e.halfLength or 0) <= b.size then
+  if not taken[i] and self:mooringFits(st,i,e.hull.id,e) then
 			local d = (b.x - x)^2 + (b.y - y)^2
 			if d < distance then best, distance = i, d end
 		end
 	end
 	return best
+end
+
+-- Berths are exterior anchors; a ship without one may only enter a dock
+-- whose doorway passes its width. The hangar grid governs storage length.
+function Game:fitsDock(e,d)
+ local width=0
+ for i=2,#e.hull.shape,2 do width=max(width,math.abs(e.hull.shape[i])) end
+ return width+10<=d.hw
 end
 
 function Game:finishDocking(e, ds, st)
@@ -1201,17 +1214,21 @@ function Game:updateDockedShip(e, dt)
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
-			local berth = self:freeBerth(st, e)
+			local interior=e==self.player and self:hangarFit(st,e.hull.id,e)
+			local berth=not interior and self:freeBerth(st,e)
 			if berth then
-				-- a free berth outside: glide over and park there, in view
-				local bd = st.def.berths[berth]
-				ds.phase, ds.t, ds.berth = "taxi", 0, berth
-				ds.lx, ds.ly = sb:getLocalPoint(x, y)
-				ds.la = b:getAngle() - sb:getAngle()
-				ds.dur = max(1.5, min(8, sqrt((bd.x - ds.lx) ^ 2 + (bd.y - ds.ly) ^ 2) / 220))
+    local bd=st.def.berths[berth]
+    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,nil
+				ds.lx,ds.ly=sb:getLocalPoint(x,y)
+				ds.la=b:getAngle()-sb:getAngle()
+				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
+			elseif self:fitsDock(e,d) and (e~=self.player or interior) then
+				ds.phase,ds.t='pull',0
+				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
 			else
-				ds.phase, ds.t = "pull", 0
-				ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side, d)
+				e.dockState,e.dockCooldown=nil,3
+				if e==self.player then self:toast('NO SUITABLE FREE BERTH',2) end
+				return
 			end
 			b:setActive(false)
 		end
@@ -1219,7 +1236,7 @@ function Game:updateDockedShip(e, dt)
 	end
 
 	if ds.phase == "taxi" then
-		local bd = st.def.berths[ds.berth]
+		local bd = ds.mooring or st.def.berths[ds.berth]
 		local f = min(1, ds.t / ds.dur)
 		f = f * f * (3 - 2 * f)
 		local ba = math.rad(bd.heading)
@@ -1245,8 +1262,8 @@ function Game:updateDockedShip(e, dt)
 	end
 
 	-- docked: ride along, parked on a berth or inside
-	if ds.berth then
-		local bd = st.def.berths[ds.berth]
+	if ds.berth or ds.mooring then
+		local bd = ds.mooring or st.def.berths[ds.berth]
 		b:setPosition(sb:getWorldPoint(bd.x, bd.y))
 		b:setAngle(sb:getAngle() + math.rad(bd.heading))
 	else
@@ -1263,7 +1280,7 @@ function Game:undockShip(e)
 	local sb = st.body
 	local side = ds.side or 1
 	local wx, wy, wa, ox, oy, speed
-	local bd = ds.berth and st.def.berths[ds.berth]
+	local bd = ds.mooring or ds.berth and st.def.berths[ds.berth]
 	if bd then
 		-- off the berth, nose first, gently
 		wx, wy = sb:getWorldPoint(bd.x, bd.y)
@@ -1281,6 +1298,7 @@ function Game:undockShip(e)
 	e.body:setLinearVelocity(svx + ox * speed, svy + oy * speed)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
+	if e==self.player then e.bay,e.parkingMooring,e.bayStation=nil,nil,nil end
 	e.dockCooldown = 4
 	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
@@ -2538,6 +2556,7 @@ ALife.install(Game)
 Locations.install(Game)
 Persistence.install(Game)
 require("src.world")(Game)
+require("src.station_parking")(Game)
 require("src.transit")(Game)
 require("src.moons")(Game)
 require("src.computers")(Game)

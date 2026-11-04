@@ -3,7 +3,6 @@ hull {
 	id = "ferrous_freighter", name = "Hauler",
 	armor = 900,
 	bonuses = {},
-	cargo = { rounds_m = 600 },
 	class = "heavy",
 	drag = 1.1,
 	helm = "turn",

@@ -25,7 +25,7 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
-| Station screen: cycle Cargo / Hangar / Market tabs | Tab (docked) | |
+| Station screen: cycle Storage / Market / Shipyard / Hangar tabs | Tab (docked) | |
 | Buy a ship (shipyard list, with your own ship selected) / sell a parked ship | Hangar tab buttons | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
 | New ship after death (at the last station you docked at) | R | Start |
@@ -222,6 +222,7 @@ All 54 existing station traders have persistent identities, ship state, and
 itineraries from the start of a universe. Loading an area never refills its
 population. Cargo, loadout, armor, paint, journey, and docking waits survive
 area changes and save/load. Dead traders stay dead and use normal wreck creation.
+The shared replenishment timer introduces new traders to replace losses.
 Mars retains its nine traders; other populated regions retain their three.
 
 Highway previews draw the same circular map edge and departure arcs as local
@@ -474,12 +475,18 @@ the buoy approach without teleporting their ships.
 saved-route repair, and a physical visitor docking at Olympus and climbing back
 out to its buoy.
 
-Docking uses the nearest unoccupied exterior berth that fits the ship. Switching
+Berths accept ships up to three times their authored pad half-length; the
+editor marker keeps its existing dimensions. `T.berthShipScale` controls this
+capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
-ship does not fit, it uses the nearest suitable free berth or the station
-interior. Saves retain the player's berth, entrance and docking side.
+ship does not fit, it uses the nearest suitable free berth. Ships that fit the
+corridor and hangar grid can use the station interior; oversized ships use a
+suitable free authored berth. If none is available, docking is refused without
+moving the ship to a generated overflow position. Berths provide normal station
+access and survive saves and ship switching; undocking launches from that position.
+Saves retain the player's berth or mooring, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
-save/load, and size-based fallback.
+save/load, and refusal when no suitable berth is available.
 
 Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
 use the Moon's round rocky surface treatment: cratered terrain in each world's
@@ -495,7 +502,7 @@ The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies
 on those planets. Legacy authored pilots are restricted to the Asteroid field,
 Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
-seeded once and pirate reinforcements follow the saved arrival schedule below.
+seeded once and lost ships are replenished through the saved arrival schedules below.
 
 Patrols choose inspection duties through the shared task board and visit existing
 stations and buoys. Pirates choose buoy raids and relocation duties, preferring
@@ -519,6 +526,59 @@ event director remain future work.
 Run `love . --securitytest` for role-specific autonomous duties, population
 identity, target selection, physical combat and navigation, save/load, offline
 ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
+
+## Station services prototype
+
+Docking opens four services: **Storage**, **Market**, **Shipyard**, and **Hangar**, beneath
+a persistent station header. Panels size around their actual inventory contents,
+using the player inventory frames, colors, typography, small-cell renderer,
+and item controls. Storage keeps equipment beside the ship hold and station storage, including parked cargo
+and opened containers. Equipment remains part of the inventory service. The
+in-space inventory is unchanged.
+
+Market uses three panels: player inventory (hold/storage selector), a pending
+offer with separate **You give** and **You receive** grids, and station stock.
+Right-click/Ctrl-click offers a stack; dragging, splitting and rotation still
+work. Completing a trade uses the existing pricing and atomic settlement.
+The separate **Shipyard** service opens owned stored ships on the left,
+a pending offer in the center, and this station's ships for sale on the right.
+Its inventory selectors also allow goods to be included in the offer.
+Stations without a ship catalogue explain that they have no ships for sale;
+they still buy stored ships. Hull footprints can be dragged or
+right-clicked into the same offer as goods. Ship sales include installed modules,
+cargo and containers; the active ship must be stored by switching ships before
+it can be sold. Ownership changes only when the trade completes. Parking is
+checked for the entire offer, including space released by sold ships.
+Leaving Market or Shipyard returns the staged goods and ship offers. No prices or economic simulation
+rules were replaced.
+
+The Hangar service shows a small interior packing grid, exterior mooring
+positions, and shared ship details/actions. Ship shopping is in Shipyard. Owned ships have one location:
+`bay` for interior grid coordinates or `mooring` for a reserved exterior slot.
+Purchases require a suitable free location. Switching ships leaves the old ship
+in its own location and selects the new ship at its existing location. Both
+types retain equipment, damage and their real cargo/container grids. The move
+action transfers a ship between interior and exterior storage when space fits.
+Drag an owned ship onto a specific free berth, or from its berth back into the
+interior grid; occupied and unsuitable berths reject the drop. Use the exterior
+list's arrows or mouse wheel to reach additional positions.
+
+Layouts are station-specific, not hull-class limits. Defaults are a 12×10
+interior grid with 20-unit cells and authored exterior berths. No overflow
+positions are generated. Station definitions can set `hangar = { w = 12, h = 10 }`.
+Berths may set `maxLength` and `maxWidth` independently of
+their existing editor marker `size`. These settings survive F2 export and
+autosaves; dedicated capacity-editing controls are not part of this prototype.
+Larger ships and larger station layouts use the same system. Mooring fit checks
+validate the parked hull against station geometry. A straight departure corridor
+is not required to accept an otherwise usable berth.
+
+Parking locations, owned ships and exterior coordinates persist through travel
+and saves. Stored exterior ships are drawn at their moorings using the existing
+hull renderer; they remain stored records rather than additional simulated NPCs.
+`love . --stationtest` exercises service layouts, grid transfers, purchase/cancel
+settlement, ship storage, switching, capacity limits, and save restoration. It
+also writes real screenshots for the four services to the LÖVE save folder.
 
 ## Shipyard comparison
 
@@ -550,23 +610,30 @@ bounds use the same geometry. `love . --afterburntest` checks reserve stability,
 rearming, energy accounting, actual thrust and corresponding flame sizes.
 
 
-## Pirate warp-ins
+## NPC replenishment and warp-ins
 
-Pirates check for reinforcements every 3–5 minutes of game time in regions with
-trade buoys or a mass driver. Automatic arrivals stop at two living pirates per
-region; dead or escaped pirates are replaced by new identities on later checks.
-An overdue region gets at most one arrival per check, without a catch-up swarm.
-Schedules survive saves and visiting another region. Remote arrivals are plain
-A-Life records; visible arrivals produce a short blue warp flash and enter normal
-raid duties. Existing ship counts include pirates added through debug controls.
+Pirates, traders, patrols and miners share `src/population.lua`. Each role checks
+for replacements every 3–5 minutes of game time, with a separate saved timer per
+home region. Pirates retain their target of two; other roles use the region's
+existing trader, patrol or miner population. Living ships still count toward
+their home population while visiting another region or travelling between planets.
 
-Use **F1 > Spawn and arena > Warp in pirate (A-Life)** for an immediate arrival
-near the player. This debug action bypasses the automatic cap. The panel shows
-the region's pirate count and time until the next reinforcement check. The old
-individual enemy buttons appear only in instance maps. Spawn interval, cap and
-warp-effect duration are defined alongside A-Life settings in `src/tuning.lua`.
-Run `love . --piratespawntest` for replacements, caps, debug arrivals, remote
-simulation, saved timers and instance-only legacy spawning.
+Dead or escaped ships are replaced with new identities, fitted ships and their
+role's existing routes or jobs. Each overdue role gets at most one arrival per
+check, without catch-up swarms. Remote arrivals remain records without physics
+bodies. Local arrivals use the same clear-space checks and blue warp flash as
+pirates. Instance maps do not receive persistent A-Life reinforcements.
+
+In **F1 > Spawn and arena**, select a role and use **Warp in … (A-Life)** for an
+immediate arrival near the player. This debug action bypasses the automatic
+population target. The panel shows each supported role's count, target and next
+check. Role intervals and warp duration are in `src/tuning.lua`; additional
+roles register their target, navigation nodes and ship/job creation with the
+population module. Existing pirate saves retain their scheduled arrival time.
+
+Run `love . --populationtest` for all-role replacements, travel-aware caps,
+remote records, saved timers, local warp effects and failed placement. The
+existing `--piratespawntest` also exercises pirates through the shared scheduler.
 
 
 ## NPC local navigation

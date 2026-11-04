@@ -6,6 +6,10 @@
 	market { location = <stable id>, station = <display label>, sells = { entries } }. A mod can replace a
 	station's whole list by using the same location ID.
 
+	Several shops instead of one list: shops = { { name = "...",
+	description = "...", sells = { entries } }, ... }. Each shop has its own
+	shelf and restock; the Market tab lists them as buttons.
+
 	Each entry: { item id, max [, restock seconds] }.
 	  max      how much the station keeps on its shelf, in stacks (a stack
 	           of ammo is its full stack, a module is one)
@@ -37,10 +41,14 @@ market { location = "mars/station_beta", station = "Station Beta", sells = {   -
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "sparrow_rack", 2 }, { "hornet_pod", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
-market { location = "earth/orbital_one", station = "Orbital One", sells = {   -- heavy weapons
-	{ "rk7_autocannon", 2 }, { "rk14_twin", 1 }, { "long_tom", 1 }, { "shell_l", 4 },
-	{ "glint_laser", 2 }, { "lumen_lance", 1 }, { "sunder_beam", 1 },
-	{ "thread_beam", 2 }, { "searing_ray", 1 }, { "furnace_beam", 1 },
+market { location = "earth/orbital_one", station = "Orbital One", shops = {   -- heavy weapons
+	{ name = "Kinetic armory", description = "Autocannons, the Long Tom and heavy shells.", sells = {
+		{ "rk7_autocannon", 2 }, { "rk14_twin", 1 }, { "long_tom", 1 }, { "shell_l", 4 },
+	} },
+	{ name = "Beam works", description = "Lasers and beam weapons. No ammo needed, just power.", sells = {
+		{ "glint_laser", 2 }, { "lumen_lance", 1 }, { "sunder_beam", 1 },
+		{ "thread_beam", 2 }, { "searing_ray", 1 }, { "furnace_beam", 1 },
+	} },
 } }
 market { location = "earth/orbital_two", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "trident_bay", 1 }, { "torp_m", 2 }, { "breaker_tube", 1 },

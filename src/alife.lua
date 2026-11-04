@@ -14,6 +14,7 @@ local Transport=require('src.transport')
 local Security=require('src.security')
 local Encounters=require('src.encounters')
 local Mining=require('src.mining')
+local Population=require('src.population')
 local A = {}
 local graphs = {}
 local function graph(area)
@@ -108,10 +109,33 @@ local function adoptTrip(r,station,clock,u)
  end
 end
 
+function A.createTrader(game,area,i)
+ local u,f=game.universe,Fields[area]
+ local kinds={'freighter','packhorse_trader','runner_trader'}
+ local kind=kinds[(i-1)%#kinds+1]
+ local def=data.enemies[kind]; local hull=data.hulls[def.hull]
+ u.nextNpcId=u.nextNpcId+1
+ local id='npc/'..u.nextNpcId
+ local loadout=copy(def.loadout or hull.loadout)
+ local stats=Stats.compute(hull,loadout)
+ local r={id=id,area=area,home=area,role='trader',archetype=kind,
+  route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
+  spread=(love.math.random()*2-1)*T.alifeSpread,
+  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
+ local destinations=neighbours(area)
+ if i%T.alifeMoonEvery==0 and #destinations>0 then
+  r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
+  r.tripRoute=roundTrip(area,r.tripDestination,u.clock)
+  if r.tripRoute then r.route=copy(r.tripRoute); r.onRoundTrip=true end
+ end
+ start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
+ u.npcs[id]=r
+ return r
+end
+
 function A.seed(game)
  local u=game.universe
  u.npcs=u.npcs or {}; u.npcAreas=u.npcAreas or {}; u.nextNpcId=u.nextNpcId or 0
- local kinds={'freighter','packhorse_trader','runner_trader'}
  -- All populations exist before visiting their regions. Do not refill departed
  -- or dead traders when an area is loaded.
  for _,area in ipairs(Fields.list) do
@@ -119,30 +143,13 @@ function A.seed(game)
   if f.alifeTraders and not u.npcAreas[area] then
    u.npcAreas[area]=true
    for i=1,f.alifeTraders do
-    local kind=kinds[(i-1)%#kinds+1]
-    local def=data.enemies[kind]; local hull=data.hulls[def.hull]
-    u.nextNpcId=u.nextNpcId+1
-    local id='npc/'..u.nextNpcId
-    local loadout=copy(def.loadout or hull.loadout)
-    local stats=Stats.compute(hull,loadout)
-    local r={id=id,area=area,home=area,role='trader',archetype=kind,
-     route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
-     spread=(love.math.random()*2-1)*T.alifeSpread,
-     ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or hull.cargo),armor=stats.armor}}
-    local destinations=neighbours(area)
-    if i%T.alifeMoonEvery==0 and #destinations>0 then
-     r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
-     r.tripRoute=roundTrip(area,r.tripDestination,u.clock)
-     if r.tripRoute then r.route=copy(r.tripRoute); r.onRoundTrip=true end
-    end
-    start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
+    local r=A.createTrader(game,area,i)
     local elapsed=(r.arrive-r.depart)*i/(f.alifeTraders+1)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if area=='mars' then
      r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil
      r.index=i%2==0 and 3 or 1;r.state='docked';r.untilTime=u.clock+i*2
     end
-    u.npcs[id]=r
    end
   end
  end
@@ -176,6 +183,7 @@ function A.seed(game)
   end
   Security.seed(game,start)
   Mining.seed(game)
+  Population.schedule(game,u.clock)
   A.repairMoonRoutes(game)
   A.repairApproachRoutes(game)
  end
@@ -453,6 +461,7 @@ function A.capture(game,e,remote)
   -- Preserve an in-progress physical docking operation for immediate save/load.
   r.docking={}
   for k,v in pairs(ds) do if type(v)~='table' and type(v)~='userdata' then r.docking[k]=v end end
+  r.docking.mooring=copy(ds.mooring)
  else
   r.state='travel'
   local x,y=e.body:getPosition()
@@ -576,11 +585,13 @@ function A.wake(game,r)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
   game:dockInstantly(e,st)
-  e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
-  if exact and r.docking then
-   e.dockState=copy(r.docking); e.dockState.station=st
-   e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
-   e.body:setActive(e.dockState.phase=='tractor')
+  if e.dockState then
+   e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
+   if exact and r.docking then
+    e.dockState=copy(r.docking); e.dockState.station=st
+    e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
+    e.body:setActive(e.dockState.phase=='tractor')
+   end
   end
  end
  if not exact and not lane and r.state=='travel' then
@@ -669,7 +680,7 @@ function A.install(Game)
   if not force and clock<(self.alifeNext or 0) then return end
   self.alifeNext=clock+T.alifeLocalTick
   Mining.update(self)
-  Security.updateSpawns(self,clock)
+  Population.update(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
   local px,py
@@ -729,4 +740,27 @@ function A.install(Game)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end
+Population.register('trader',{
+ target=function(f) return f.alifeTraders end,
+ nodes=function(game,area)
+  local f=Fields[area]
+  return #f.buoyIds>0 and f.buoyIds or f.stationIds
+ end,
+ create=function(game,area,node,clock)
+  local u=game.universe
+  local r=A.createTrader(game,area,u.nextNpcId+1)
+  -- Keep one dispatch worker available when its previous ship was lost.
+  if area~='mars' and Fields[area].driverId then
+   local dispatch=false
+   for _,other in pairs(u.npcs) do
+    if other~=r and other.home==area and other.taskWorker and other.state~='dead' and other.state~='escaped' then dispatch=true;break end
+   end
+   if not dispatch then
+    r.taskWorker=true;r.onRoundTrip,r.tripDestination,r.tripRoute=nil,nil,nil
+    r.route=copy(Fields[area].traderRoute);start(r,clock,1)
+   end
+  end
+  return r
+ end,
+})
 return A

@@ -3,7 +3,6 @@ hull {
 	id = "ferrous_runner", name = "Runner",
 	armor = 160,
 	bonuses = {},
-	cargo = { rounds_s = 300 },
 	class = "light",
 	drag = 0.22,
 	hold = 90,

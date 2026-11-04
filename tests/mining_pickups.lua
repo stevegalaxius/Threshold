@@ -9,7 +9,7 @@ return function(game)
  local r
  for _,record in pairs(game.universe.npcs)do if M.isMiner(record) and record.home=='ring' then r=record;break end end
  assert(r)
- game.universe.npcs={[r.id]=r};game.universe.pirateSpawns={}
+ game.universe.npcs={[r.id]=r};game.universe.populationSpawns={}
  for i=#game.entities,1,-1 do
   local object=game.entities[i]
   if object~=game.player and (object.kind=='ship' or object.kind=='asteroid' and not object.giant or object.kind=='husk' or object.kind=='container') then game:remove(object) end

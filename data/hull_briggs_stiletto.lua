@@ -3,7 +3,6 @@ hull {
 	id = "briggs_stiletto", name = "Stiletto",
 	armor = 180,
 	bonuses = {},
-	cargo = { missile_s = 4, rounds_s = 400 },
 	class = "light",
 	drag = 0.14,
 	hold = 33,

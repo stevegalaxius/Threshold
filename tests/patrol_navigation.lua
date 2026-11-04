@@ -12,7 +12,7 @@ return function(game)
   local e=game.entities[i]
   if e~=game.player and (e.kind=='ship' or e.kind=='asteroid' or e.kind=='container' or e.kind=='husk') then game:remove(e) end
  end
- game.sleepers={};game.universe.npcs={[r.id]=r};game.universe.pirateSpawns={}
+ game.sleepers={};game.universe.npcs={[r.id]=r};game.universe.populationSpawns={}
  game.updateMoonGates=function(self) self:placeMoonGates() end
  local city='jupiter/olympus';local buoy=Fields.jupiter.buoyIds[1]
  r.route={buoy,city};r.index=2;r.state='travel';r.area='jupiter';r.node=nil;r.encounter=nil;r.offset=nil;r.pose=nil

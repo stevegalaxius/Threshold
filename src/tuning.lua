@@ -156,13 +156,22 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 T.alifeWreckLifetime = 1800
-T.pirateSpawnMin, T.pirateSpawnMax = 180, 300
-T.piratePopulationCap, T.pirateWarpDuration = 2, 1.5
+T.population = {
+ pirate={minDelay=180,maxDelay=300,target=2},
+ trader={minDelay=180,maxDelay=300},
+ patrol={minDelay=180,maxDelay=300},
+ miner={minDelay=180,maxDelay=300},
+}
+T.npcWarpDuration = 1.5
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+
+-- Berth ship capacity is independent of the authored pad/editor marker size.
+T.berthShipScale = 3
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
-T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20
+T.hangarW, T.hangarH, T.hangarCell = 12, 10, 20
+T.repairRate = 6          -- credits per armor point at a station repair bay (station def repairRate overrides)
 
 -- Markets (src/market.lua, data/markets.lua). Credits you start with; the
 -- trade grid and a station's shelf, in cells; how long something you sold
@@ -173,8 +182,8 @@ T.startCredits = 5000
 -- How far the camera zooms out (mouse wheel), as a scale.
 T.minZoom = 0.17
 
-T.tradeW, T.tradeH = 10, 8
-T.marketW, T.marketH = 12, 10
+T.tradeW, T.tradeH = 12, 6
+T.marketW, T.marketH = 14, 12
 T.resaleTime = 600
 T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 

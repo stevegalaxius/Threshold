@@ -57,7 +57,6 @@ hull {
 	id = "halcyon_wisp", name = "Wisp",
 	armor = 120,
 	bonuses = {},
-	cargo = { missile_s = 4, rounds_s = 400 },
 	class = "light",
 	drag = 0.14,
 	hold = 24,
@@ -112,7 +111,6 @@ hull {
 	},
 	loadout = { "long_tom", "long_tom", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "rk7_autocannon", "trident_bay",
 		"cinder_drive", "forge_reactor", "hold_pod_s", "nav_computer" },
-	cargo = { shell_l = 60, rounds_m = 1000, missile_l = 6, missile_m = 6 },
 	price = 95000,
 }
 
@@ -143,7 +141,6 @@ hull {
 		{ family = "reactor", size = "S" },
 	},
 	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },
-	cargo = { rounds_s = 150 },
 }
 
 -- Harasser: tiny, twitchy, strong side thrusters. Hard to hit on purpose.
@@ -158,7 +155,6 @@ hull {
 		{ family = "reactor", size = "S" },
 	},
 	loadout = { "px2_autogun", "flit_engine", "ember_reactor" },
-	cargo = { rounds_s = 200 },
 }
 
 -- Drones: launched from drone bays, fight on the launcher's side for a while.
@@ -174,7 +170,6 @@ hull {
 		{ family = "reactor", size = "S" },
 	},
 	loadout = { "glint_laser", "flit_engine", "ember_reactor" },
-	cargo = {},
 }
 
 hull {
@@ -188,7 +183,6 @@ hull {
 		{ family = "reactor", size = "M" },
 	},
 	loadout = { "lumen_lance", "mule_engine", "kiln_reactor" },
-	cargo = {},
 }
 
 hull {
@@ -203,5 +197,4 @@ hull {
 		{ family = "reactor", size = "L" },
 	},
 	loadout = { "lumen_lance", "lumen_lance", "mule_engine", "forge_reactor" },
-	cargo = {},
 }

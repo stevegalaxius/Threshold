@@ -1,6 +1,7 @@
 -- Station design (customs). Open and edit in the Shipyard (F2).
 station {
 	id = "estates_gatehouse", name = "Estates gatehouse", role = "customs",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.74, 0.73, 0.7 },
 	rotors = {
 		scan = { over = true, spin = 0.5, x = 0, y = 0 },
