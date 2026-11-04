@@ -32,6 +32,7 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local Paint = require("src.paint")
 local Fields = require("src.fields")
 local Hold = require("src.inventory.hold")
 local Save = require("src.save")
@@ -277,10 +278,10 @@ end
 -- A brand-new ship of a hull, parked in this station's hangar (the debug
 -- panel's way of getting ships until there's a market). nil if the bay
 -- has no room for it.
-function Game:addToHangar(st, hullId)
+function Game:addToHangar(st, hullId, paintName)
 	local parking=self:shipParkingFit(st,hullId)
 	if not parking then self:toast("NO SUITABLE FREE PARKING",1.4) return nil end
-	local e = Ship.new(self, { hull = hullId, team = 1, grid = true })
+	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = paintName and Paint.preset(paintName) or nil })
 	local rec = Ship.record(e)
 	e.body:destroy()
 	self:applyParking(rec,parking)
@@ -369,8 +370,9 @@ function Game:saveState()
 	for key, r in pairs(self.universe.stations) do
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
-		local market = r.market and { hold = Hold.serialize(r.market.hold), next = r.market.next }
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, market = market, moorings=Persistence.copy(r.moorings) }
+		local shops = {}
+		for i, m in pairs(r.shops or {}) do shops[i] = { hold = Hold.serialize(m.hold), next = m.next } end
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings) }
 	end
 	local u = self.universe
 	-- saved mid-transit: you'll be at the far end's driver when you load
@@ -421,8 +423,14 @@ function Game:loadState(state)
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
 			hangar = hangar, moorings=Persistence.copy(r.moorings),
-			market = r.market and { hold = Hold.deserialize(r.market.hold, known), next = r.market.next or {} },
+			shop = r.shop,
 		}
+		-- shops; a save from before shops had one market, which is shop 1
+		local shops = {}
+		for i, m in pairs(r.shops or (r.market and { r.market }) or {}) do
+			shops[tonumber(i)] = { hold = Hold.deserialize(m.hold, known), next = m.next or {} }
+		end
+		self.universe.stations[key].shops = shops
 	end
 	self.universe.home = state.home
 	self.universe.credits = state.credits or T.startCredits

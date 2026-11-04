@@ -268,6 +268,9 @@ function A.update(game, dt)
 		game.state = "docked"
 		local storage = game:stationStorage(st)
 		Hold.add(storage, "rounds_s", 120)
+		-- hulls start empty, so give the Wisp the ammo this part moves around
+		if (w.cargo.rounds_s or 0) == 0 then Ship.addCargo(w, "rounds_s", 200) end
+		if (w.cargo.missile_s or 0) == 0 then Ship.addCargo(w, "missile_s", 4) end
 		local L = Cargo.layout(game)
 		local cs = L.cs
 		local function at(r, s) return r.x + (s.x + 0.5) * cs, r.y + (s.y + 0.5) * cs end

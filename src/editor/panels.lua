@@ -168,6 +168,25 @@ local function placedSections(E, d)
 			{ label = "shipyard", value = "shipyard" }, { label = "customs", value = "customs" }, { label = "mine", value = "mine" },
 		}, function(v) E.pushUndo(); d.role = v or nil end, 120)
 		Slab.Separator()
+		-- Station services: which tabs a docked player gets here.
+		Slab.Text("Services (tabs when docked; Storage is always there):")
+		local Game = require("src.game")
+		local have = {}
+		for _, id in ipairs(d.services or { "market", "shipyard", "hangar" }) do have[id] = true end
+		for _, id in ipairs(Game.SERVICES) do
+			check(E, have[id] == true, id, function(on)
+				have[id] = on or nil
+				d.services = {}
+				for _, sid in ipairs(Game.SERVICES) do if have[sid] then table.insert(d.services, sid) end end
+			end)
+		end
+		if have.repair then
+			Slab.Text("repair cost per armor point"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_repairrate", d.repairRate or require("src.tuning").repairRate, 0, 200, 1, { W = 60, Precision = 0 }) then
+				E.pushUndoCoalesced("yard_repairrate"); d.repairRate = math.floor(Slab.GetInputNumber())
+			end
+		end
+		Slab.Separator()
 		local nr = 0
 		for _ in pairs(d.rotors or {}) do nr = nr + 1 end
 		local shown = E.showRotors
@@ -227,6 +246,25 @@ local function placedSections(E, d)
 		else
 			Slab.Text("Use the Berths tool to place some", { Color = { 0.6, 0.6, 0.6 } })
 		end
+		Slab.Separator()
+		local T = require("src.tuning")
+		local bay = d.hangar or {}
+		Slab.Button("?", { W = 18, H = 18, Tooltip = ("Interior bay: the hangar grid docked ships park in, in cells of %d px.\nA ship takes its hull length x width in cells. Default %d x %d."):format(T.hangarCell, T.hangarW, T.hangarH) })
+		Slab.SameLine()
+		Slab.Text("Interior bay  w"); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag("yard_hangarw", bay.w or T.hangarW, 1, 80, 1, { W = 60, Precision = 0 }) then
+			E.pushUndoCoalesced("yard_hangarw")
+			d.hangar = d.hangar or { w = T.hangarW, h = T.hangarH }
+			d.hangar.w = math.floor(Slab.GetInputNumber())
+		end
+		Slab.SameLine()
+		Slab.Text("h"); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag("yard_hangarh", bay.h or T.hangarH, 1, 60, 1, { W = 60, Precision = 0 }) then
+			E.pushUndoCoalesced("yard_hangarh")
+			d.hangar = d.hangar or { w = T.hangarW, h = T.hangarH }
+			d.hangar.h = math.floor(Slab.GetInputNumber())
+		end
+		Slab.Text(("= %d x %d px"):format((bay.w or T.hangarW) * T.hangarCell, (bay.h or T.hangarH) * T.hangarCell), { Color = { 0.6, 0.6, 0.6 } })
 		return
 	end
 	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then

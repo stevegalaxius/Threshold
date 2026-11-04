@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2).
 station {
 	id = "ladder_anchor", name = "Heaven-Ladder anchor",
+	services = { "market", "shipyard", "hangar", "repair" },
 	berths = {
 		{ size = 130, x = 420, y = -430 },
 		{ size = 130, x = 420, y = -620 },

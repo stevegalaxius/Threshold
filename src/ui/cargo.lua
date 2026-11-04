@@ -49,13 +49,15 @@ local HullShape = require("src.hullshape")
 local HUD = require("src.hud")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
+local Shipyard = require("src.ui.shipyard")
+local Repair = require("src.ui.repair")
 local Station=require("src.ui.station")
 local stats = require("src.stats")
 local T = require("src.tuning")
 
 local Cargo = { open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
 
-local function trading() return Cargo.tab=='market' or Cargo.tab=='shipyard' end
+local function trading() return Cargo.tab=='market' end
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
@@ -81,36 +83,6 @@ local function tradeHold()
 	return Cargo.trade
 end
 
-local function shipOffers(game,st)
- local roster=game:hangar(st)
- if Cargo.shipStation==st and Cargo.shipOwned then
-  local same=Cargo.shipRoster and #Cargo.shipRoster==#roster
-  if same then for i,rec in ipairs(roster) do if Cargo.shipRoster[i]~=rec then same=false;break end end end
-  if same or Cargo.hand then return end
-  for _,g in ipairs(tradeHold().grids) do if #g.stacks>0 then return end end
- end
- Cargo.shipRoster={};for i,rec in ipairs(roster) do Cargo.shipRoster[i]=rec end
- Cargo.shipStation=st
- local function make(entries,name)
-  local w,h=16,0
-  for _,s in ipairs(entries) do local item=ShipEntry.item(s.id);w=math.max(w,item.w);h=h+item.h end
-  local hold=Hold.new({{key='ships',name=name,w=w,h=math.max(6,h)}})
-  for _,s in ipairs(entries) do assert(Hold.placeStack(hold,s)) end
-  return hold
- end
- local owned,stock={},{}
- for _,rec in ipairs(game:hangar(st)) do owned[#owned+1]={id='ship:'..rec.hull,n=1,shipRecord=rec} end
- for _,id in ipairs(game.shipyard(st)) do stock[#stock+1]={id='ship:'..id,n=1} end
- Cargo.shipOwned=make(owned,'Owned ships (stored)');Cargo.shipStock=make(stock,'Ships for sale')
- local trade=tradeHold()
- -- Offer space derives from available hull footprints before pickup.
- local w,h=T.tradeW,T.tradeH
- for _,list in ipairs({owned,stock}) do for _,s in ipairs(list) do local it=ShipEntry.item(s.id);w=math.max(w,it.w);h=math.max(h,it.h) end end
- for _,g in ipairs(trade.grids) do
-  if #g.stacks==0 then g.w,g.h,g.cells=w,h,{} end
- end
-end
-
 -- The holds on show: { title, hold, ship (if it's a ship's hold) }.
 local function sides(game)
 	local p = game.player
@@ -121,15 +93,13 @@ local function sides(game)
 		local st = p.dockState.station
 		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
 		if trading() then
-   if Cargo.tab=="shipyard" then shipOffers(game,st) end
 			-- the market: your hold or storage (one at a time, picked with the
 			-- panel's own tabs), the trade grid, then the station's shelf
 			if Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
-			if Cargo.marketLeft=='ships' then list[1]={title='Your ships',hold=Cargo.shipOwned,shipEntries=true} end
    list[1].pick = true
 			Cargo.tradeStation = st
 			table.insert(list, { title = "Trade", hold = tradeHold(), trade = true, station = st })
-			table.insert(list, { title = st.name, hold = Cargo.tab=="shipyard" and Cargo.shipStock or game:stationMarket(st).hold, shipEntries=Cargo.tab=="shipyard", market = true, station = st })
+			table.insert(list, { title = st.name, hold = game:stationMarket(st).hold, market = true, station = st })
 			return list
 		end
 		local rec = Cargo.other
@@ -214,7 +184,7 @@ local function layout(game)
 		end
 		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 194 or 0)
   if game.state=='docked' then
-   local header=(side.pick or side.market) and (side.market and 132 or 98) or side.trade and 70 or 58
+   local header=(side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58
    h=g1.h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
   end
 		return max(w, rowW, (side.innerOf or side.parked) and 380 or side.market and 360 or (side.entity or side.station) and 340 or 300), h
@@ -300,16 +270,22 @@ local function layout(game)
 				{ id = "hold", label = "Ship hold", x = x + PAD, y = y + 48, w = 96, h = 24 },
 				{ id = "storage", label = "Station storage", x = x + PAD + 100, y = y + 48, w = 124, h = 24 },
 			}
-   if Cargo.tab=='shipyard' then table.insert(side.picks,{id='ships',label='Ships',x=x+PAD+228,y=y+48,w=64,h=24}) end
 		end
 		if side.market then
 			-- filter buttons along the grid's label row
 			side.filters = {}
-   side.search={x=x+PAD,y=y+50,w=side.pw-PAD*2,h=28}
+			-- the station's shops: a dropdown (the menu opens below it)
+			local shops = Game.marketShops(side.station)
+			side.shopMenu = { x = x + PAD, y = y + 44, w = side.pw - PAD * 2, h = 28 }
+			side.shops = {}
+			for i, shop in ipairs(shops) do
+				table.insert(side.shops, { i = i, label = shop.name, desc = shop.description,
+					x = side.shopMenu.x, y = side.shopMenu.y + side.shopMenu.h + 2 + (i - 1) * 44, w = side.shopMenu.w, h = 42 })
+			end
 			local fx = x + PAD
-			for _, f in ipairs(Cargo.tab=="shipyard" and {{id="all",label="All ships"}} or FILTERS) do
+			for _, f in ipairs(FILTERS) do
 				local fw = HUD.font(11):getWidth(f.label) + 12
-				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 92, w = fw, h = 20 })
+				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 100, w = fw, h = 20 })
 				fx = fx + fw + 4
 			end
 		end
@@ -324,7 +300,7 @@ local function layout(game)
 		if targetKey(side) and Cargo.other and Cargo.tab == "cargo" then
 			side.target = { x = x + side.pw - PAD - 64, y = y + HEAD - 2, w = 64, h = 17 }
 		end
-		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and (side.market and 132 or 98) or side.trade and 70 or 58) or HEAD+18)
+		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58) or HEAD+18)
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
 		local rx, ry = gx, gy + g1.h * cs + 24
@@ -568,25 +544,40 @@ end
 
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
-local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'}}
+local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'}}
+-- The tabs this station offers: Storage, then its services (Game.stationServices).
+local function offered(game)
+ local p=game.player;local st=p and p.dockState and p.dockState.station
+ local have=Game.stationServices(st);local out={}
+ for _,t in ipairs(TABS) do if t.id=='cargo' or have[t.id] then out[#out+1]=t end end
+ return out
+end
+-- Leave a tab this station doesn't offer (after docking somewhere else).
+local function checkTab(game)
+ if game.state~='docked' or Cargo.hand then return end
+ for _,t in ipairs(offered(game)) do if t.id==Cargo.tab then return end end
+ Cargo.setTab(game,'cargo')
+end
 function Cargo.setTab(game,id)
+ Cargo.shopOpen=false
  if Cargo.hand then return false end
+ local ok=false;for _,t in ipairs(offered(game)) do if t.id==id then ok=true end end
+ if not ok then return false end
  if trading() and id~=Cargo.tab then Cargo.clearTrade(game) end
  Cargo.searchFocus=false;love.keyboard.setTextInput(false)
  if id~=Cargo.tab then
   Cargo.search='';Cargo.shipOwned=nil;Cargo.shipStation=nil
-  if id=='shipyard' then Cargo.marketLeft='ships'
-  elseif id=='market' then
+  if id=='market' then
    if Cargo.marketLeft=='ships' then Cargo.marketLeft='hold' end
    for _,g in ipairs(tradeHold().grids) do if #g.stacks==0 then g.w,g.h,g.cells=T.tradeW,T.tradeH,{} end end
   end
   Cargo.filter='all'
  end
- Cargo.tab=id;Hangar.cancel();if id=='hangar' then Hangar.focus(game) end;return true
+ Cargo.tab=id;Hangar.cancel();Shipyard.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
 function Cargo.workspace(game)
- if Cargo.tab=='hangar' then
-  local h=Hangar.layout(game);return {x=h.x,w=h.w,bottom=h.y+h.h}
+ if Cargo.tab=='hangar' or Cargo.tab=='shipyard' or Cargo.tab=='repair' then
+  local h=(Cargo.tab=='hangar' and Hangar or Cargo.tab=='repair' and Repair or Shipyard).layout(game);return {x=h.x,w=h.w,bottom=h.y+h.h}
  end
  local l=layout(game);local first=l.equip.hidden and l.sides[1] or l.equip
  local last=l.sides[#l.sides]
@@ -594,7 +585,7 @@ function Cargo.workspace(game)
 end
 function tabRects(game)
  local frame=Cargo.workspace(game);local out={}
- for i,t in ipairs(TABS) do out[i]={id=t.id,label=t.label,x=frame.x+14+(i-1)*120,y=66,w=112,h=28} end
+ for i,t in ipairs(offered(game)) do out[i]={id=t.id,label=t.label,x=frame.x+14+(i-1)*120,y=66,w=112,h=28} end
  return out
 end
 
@@ -766,6 +757,19 @@ end
 -- mods: { ctrl, shift } to stand in for the keyboard (the autotest uses it).
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
+	-- an open shop menu takes the click: pick a shop, or close it
+	if Cargo.shopOpen then
+		Cargo.shopOpen = false
+		local L = layout(game)
+		for _, side in ipairs(L and L.sides or {}) do
+			for _, b in ipairs(side.shops or {}) do
+				if button == 1 and inRect(b, mx, my) then
+					if b.i ~= game:currentShop(side.station) then Cargo.clearTrade(game); game:setShop(side.station, b.i) end
+				end
+			end
+		end
+		return true
+	end
 	if game.state == "docked" and not Cargo.hand then
   local frame=Cargo.workspace(game)
   if button==1 and mx>=frame.x+frame.w-130 and mx<=frame.x+frame.w-14 and my>=24 and my<=54 then
@@ -779,8 +783,8 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			if act and act.fly then
 				Cargo.other = nil
 				game:flyFromHangar(act.fly)
-			elseif act and act.cargo then
-				Cargo.other, Cargo.tab = act.cargo, "cargo"
+			elseif act and act.cargo ~= nil then
+				Cargo.setTab(game, "cargo"); Cargo.other = act.cargo or nil
 			elseif act and act.sell then
 				local st = game.player.dockState.station
 				local rec = game:hangar(st)[act.sell]
@@ -792,9 +796,35 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			elseif act and act.move then
     local ok,why=game:moveStationShip(game.player.dockState.station,act.move,act.outside)
     if not ok then game:toast(why,1.4) end
-   elseif act and act.buy then
-				local rec, why = game:buyShip(game.player.dockState.station, act.buy)
-				if rec then Hangar.sel = rec; game:toast("SHIP PARKED: "..game:shipParkingLabel(game.player.dockState.station,rec),1.4)
+			end
+			return true
+		end
+		if Cargo.tab == "repair" then
+			local act = Repair.mousepressed(game, mx, my, button)
+			local st = game.player.dockState.station
+			if act and act.repair then
+				local pts, paid = game:repairShip(st, act.repair)
+				if pts then game:toast(("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()), 1.4)
+				else game:toast(paid, 1.4) end
+			elseif act and act.repairAll then
+				local owners = { game.player }
+				for _, rec in ipairs(game:hangar(st)) do owners[#owners + 1] = rec end
+				local pts, paid = 0, 0
+				for _, o in ipairs(owners) do
+					local a, b = game:repairShip(st, o)
+					if a then pts, paid = pts + a, paid + b end
+				end
+				game:toast(pts > 0 and ("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()) or "NOTHING REPAIRED", 1.4)
+			end
+			return true
+		end
+		if Cargo.tab == "shipyard" then
+			local act = Shipyard.mousepressed(game, mx, my, button)
+			if act and act.buy then
+				local st = game.player.dockState.station
+				if act.tradeIn and Cargo.other == act.tradeIn then Cargo.other = nil end
+				local rec, why = game:buyShip(st, act.buy, { paint = act.paint, tradeIn = act.tradeIn })
+				if rec then Hangar.sel = rec; game:toast("BOUGHT. PARKED: "..game:shipParkingLabel(st,rec):upper(),1.6)
 				else game:toast(why, 1.4) end
 			end
 			return true
@@ -827,7 +857,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			Cargo.clearTrade(game)
 			return true
 		end
-  if button==1 and side.search and inRect(side.search,mx,my) then Cargo.searchFocus=true;love.keyboard.setTextInput(true);return true end
+  if button==1 and side.shopMenu and inRect(side.shopMenu,mx,my) and #side.shops>1 then Cargo.shopOpen=true;return true end
 		for _, f in ipairs(side.filters or {}) do
 			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id; return true end
 		end
@@ -980,8 +1010,9 @@ function Cargo.keypressed(game, key)
  end
 	if key == "tab" and game.state == "docked" then
 		if not Cargo.hand then
-			for i, t in ipairs(TABS) do
-				if t.id == Cargo.tab then Cargo.setTab(game,(TABS[i+1] or TABS[1]).id);break end
+			local tabs = offered(game)
+			for i, t in ipairs(tabs) do
+				if t.id == Cargo.tab then Cargo.setTab(game,(tabs[i+1] or tabs[1]).id);break end
 			end
 			Hangar.cancel()
 		end
@@ -1271,6 +1302,7 @@ end
 
 function Cargo.draw(game)
 	if not Cargo.isOpen(game) then return end
+	checkTab(game)
 	local L = layout(game)
 	if not L then return end
 	local cs = L.cs
@@ -1286,12 +1318,27 @@ function Cargo.draw(game)
 		drawTabs(game, mx, my)
 		if Cargo.tab == "hangar" then
 			Hangar.draw(game, mx, my)
-			lg.setFont(HUD.font(13))
+			lg.setFont(HUD.font(14))
 			lg.setColor(HUD.DIM)
-			local H = Hangar.layout(game)
 			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
-   lg.setColor(HUD.INK);lg.print('Drag ships between the hangar grid and a free berth.',f.x+14,f.bottom+22)
-   lg.setColor(HUD.DIM);lg.print('R rotate • Double-click to select active ship • Cargo opens its hold • Shipyard trades ships',f.x+14,f.bottom+43)
+			lg.setColor(HUD.INK);lg.print('Drag a ship to another spot in the bay or onto a free berth outside.',f.x+14,f.bottom+22)
+			lg.setColor(HUD.DIM);lg.print('Click selects  \194\183  R rotates while dragging  \194\183  Double-click flies  \194\183  Mouse wheel scrolls berths',f.x+14,f.bottom+43)
+			return
+		end
+		if Cargo.tab == "repair" then
+			Repair.draw(game, mx, my)
+			lg.setFont(HUD.font(14))
+			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
+			lg.setColor(HUD.INK);lg.print('Repairs restore armor at this station\'s rate per point.',f.x+14,f.bottom+22)
+			lg.setColor(HUD.DIM);lg.print('Short on credits? Repair fixes as much as you can pay for.',f.x+14,f.bottom+43)
+			return
+		end
+		if Cargo.tab == "shipyard" then
+			Shipyard.draw(game, mx, my)
+			lg.setFont(HUD.font(14))
+			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
+			lg.setColor(HUD.INK);lg.print('Pick a hull, then a factory paint. New ships come with the stock fit shown.',f.x+14,f.bottom+22)
+			lg.setColor(HUD.DIM);lg.print('Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab',f.x+14,f.bottom+43)
 			return
 		end
 	end
@@ -1301,7 +1348,7 @@ function Cargo.draw(game)
 	for _, side in ipairs(L.sides) do
 		if docked then Station.panel(side.x,side.y,side.pw,side.ph) else HUD.panel(side.x,side.y,side.pw,side.ph) end
 		if side.picks then
-   lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print((Cargo.tab=='shipyard' and side.shipEntries and 'Your ships' or 'Your inventory'),side.x+PAD,side.y+12)
+   lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print('Your inventory',side.x+PAD,side.y+12)
 			for _, pk in ipairs(side.picks) do
 				local on = Cargo.marketLeft == pk.id
     lg.setFont(HUD.font(13));Station.button(pk,pk.label,on)
@@ -1309,14 +1356,14 @@ function Cargo.draw(game)
 		else
 			lg.setFont(HUD.font(16))
 			lg.setColor(HUD.INK)
-			lg.print(docked and (side.trade and 'Trade offer' or side.market and (Cargo.tab=='shipyard' and 'Ships for sale' or 'Station stock') or side.title) or side.title,side.x+PAD,side.y+12)
+			lg.print(docked and (side.trade and 'Trade offer' or side.market and ('Shops \194\183 '..side.station.name) or side.title) or side.title,side.x+PAD,side.y+12)
 		end
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
 		lg.setColor(HUD.DIM)
 		if side.market then
 			lg.setColor(HUD.INK)
-			lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(side.station.name,side.x+PAD,side.y+44)
+
 		elseif side.picks then
 			-- (the tabs take the title's place: the fill goes on the grid's label row)
 			lg.printf((side.shipEntries and "%d / %d cells" or "%d / %d m3"):format(used,total),side.x,side.y+80,side.pw-PAD,"right")
@@ -1351,8 +1398,18 @@ function Cargo.draw(game)
 				lg.setLineWidth(1)
 			end
 		end
-  if side.search then
-   Station.button(side.search,(Cargo.search or '')~='' and Cargo.search or (Cargo.tab=='shipyard' and 'Search ships…' or 'Search stock…'),Cargo.searchFocus)
+  if side.shopMenu then
+   local cur=game:currentShop(side.station);local shops=Game.marketShops(side.station)
+   local m=side.shopMenu
+   lg.setFont(HUD.font(14));Station.button(m,'',Cargo.shopOpen or inRect(m,mx,my))
+   lg.setColor(HUD.INK);lg.print(shops[cur].name,m.x+10,m.y+6)
+   if #shops>1 then
+    lg.setColor(HUD.DIM);lg.printf(('%d shops'):format(#shops),m.x,m.y+6,m.w-30,'right')
+    local ax,ay=m.x+m.w-18,m.y+m.h/2
+    lg.polygon('fill',ax-5,ay-3,ax+5,ay-3,ax,ay+3)
+   end
+   local desc=shops[cur] and shops[cur].description or ''
+   if desc~='' then lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.printf(desc,side.x+PAD,side.y+76,side.pw-PAD*2) end
   end
 		for _, f in ipairs(side.filters or {}) do
 			local on = Cargo.filter == f.id
@@ -1530,11 +1587,35 @@ function Cargo.draw(game)
 			tooltip(item, s.n, mx, my, hint2, price)
 		end
 	end
+	-- the open shop menu, over everything else
+	if Cargo.shopOpen then
+		for _, side in ipairs(L.sides) do
+			if side.shops then
+				local cur = game:currentShop(side.station)
+				local last = side.shops[#side.shops]
+				lg.setColor(0.03, 0.07, 0.1, 0.97)
+				lg.rectangle("fill", side.shopMenu.x - 2, side.shops[1].y - 2, side.shopMenu.w + 4, last.y + last.h - side.shops[1].y + 4, 5, 5)
+				for _, b in ipairs(side.shops) do
+					local hot = inRect(b, mx, my)
+					lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], b.i == cur and 0.3 or (hot and 0.2 or 0.06))
+					lg.rectangle("fill", b.x, b.y, b.w, b.h, 4, 4)
+					lg.setFont(HUD.font(14)); lg.setColor(HUD.INK)
+					lg.print(b.label, b.x + 10, b.y + 4)
+					lg.setFont(HUD.font(12)); lg.setColor(HUD.DIM)
+					local d = b.desc or ""
+					local f = HUD.font(12)
+					while #d > 3 and f:getWidth(d) > b.w - 20 do d = d:sub(1, -5) .. "..." end
+					lg.print(d, b.x + 10, b.y + 23)
+				end
+			end
+		end
+	end
 end
 
 function Cargo.wheelmoved(game,y)
  if not Cargo.isOpen(game) then return false end
  if game.state=='docked' and Cargo.tab=='hangar' then Hangar.wheelmoved(game,y) end
+ if game.state=='docked' and Cargo.tab=='shipyard' then Shipyard.wheelmoved(game,y) end
  return true
 end
 Cargo.tabs=TABS
@@ -1544,7 +1625,7 @@ Cargo.layout = layout       -- for the autotest
 -- Where toasts go while the screen is up: under the window and its help.
 function Cargo.toastY(game)
 	local sh = lg.getHeight()
-	if game.state == "docked" and Cargo.tab == "hangar" then return sh - 110 end
+	if game.state == "docked" and (Cargo.tab == "hangar" or Cargo.tab == "shipyard" or Cargo.tab == "repair") then return sh - 110 end
 	local L = layout(game)
 	return L and min(L.bottom + 54, sh - 60) or sh - 110
 end

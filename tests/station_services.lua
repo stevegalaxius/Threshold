@@ -16,9 +16,9 @@ return function(game)
  game.universe.populationSpawns={}
  game:dockInstantly(game.player,st,{interior=true})
  local r=game:stationRecord(st)
- check(#Cargo.tabs==4,'station services missing')
+ check(#Cargo.tabs==5,'station services missing')
  local labels={};for _,tab in ipairs(Cargo.tabs) do labels[tab.label]=true end
- check(labels.Storage and labels.Market and labels.Shipyard and labels.Hangar and not labels.Outfitting,'service tabs do not describe existing station mechanics')
+ check(labels.Storage and labels.Market and labels.Shipyard and labels.Hangar and labels.Repair and not labels.Outfitting,'service tabs do not describe existing station mechanics')
  local w,h=game.hangarSize(st)
  check(w==12 and h==10,'default interior is not a small finite grid')
  check(game:hangarFit(st,'halcyon_wisp')~=nil,'small ship does not fit inside')
@@ -84,7 +84,7 @@ return function(game)
  end
  love.window.setMode(sw,sh)
  local tabs=Cargo.tabRects(game)
- check(#tabs==4 and tabs[1].x>=0 and tabs[4].x+tabs[4].w<=sw,'service tabs moved outside the resized window')
+ check(#tabs==5 and tabs[1].x>=0 and tabs[5].x+tabs[5].w<=sw,'service tabs moved outside the resized window')
  screenshot('storage')
  Cargo.setTab(game,'hangar');local shipLayout=Hangar.layout(game)
  local listed=false
@@ -134,21 +134,21 @@ return function(game)
  local offer=layout.sides[2]
  check(offer.complete.x>=offer.x and offer.complete.x+offer.complete.w<=offer.x+offer.pw and offer.clear.y+offer.clear.h<=offer.y+offer.ph,'trade controls leave center panel')
  local trade=layout.sides[2].hold
- local search=layout.sides[3].search
- Cargo.mousepressed(game,search.x+4,search.y+4,1)
- Cargo.textinput(game,'not-a-stock-item')
- check(Cargo.searchFocus and Cargo.search=='not-a-stock-item','stock search did not accept text')
- for _,g in ipairs(layout.grids) do if g.side.market and g.g.stacks[1] then
-  local stock=g.g.stacks[1]
-  Cargo.mousepressed(game,g.x+(stock.x+.5)*layout.cs,g.y+(stock.y+.5)*layout.cs,1)
-  check(not Cargo.hand,'search allowed pickup of a hidden stock item');break
- end end
-
- check(Cargo.keypressed(game,'e') and game.state=='docked','typing in search triggered launch')
- Cargo.keypressed(game,'backspace')
- check(Cargo.search=='not-a-stock-ite','stock search backspace failed')
- Cargo.keypressed(game,'escape');check(not Cargo.searchFocus,'search did not release keyboard focus')
- Cargo.search=''
+ -- Orbital One has two shops, each with its own shelf.
+ local shopButtons=layout.sides[3].shops;local menu=layout.sides[3].shopMenu
+ check(#shopButtons==2 and game:currentShop(st)==1,'market did not list the station shops')
+ local firstShelf=game:stationMarket(st).hold
+ Cargo.mousepressed(game,menu.x+4,menu.y+4,1)
+ check(Cargo.shopOpen,'shop dropdown did not open')
+ screenshot('shop-menu')
+ Cargo.mousepressed(game,shopButtons[2].x+4,shopButtons[2].y+4,1)
+ check(not Cargo.shopOpen,'shop dropdown stayed open')
+ check(game:currentShop(st)==2 and game:stationMarket(st).hold~=firstShelf,'switching shops kept the same shelf')
+ local beam=false;for _,g in ipairs(game:stationMarket(st).hold.grids) do for _,s in ipairs(g.stacks) do if s.id=='glint_laser' then beam=true end end end
+ check(beam,'second shop is not stocked from its own list')
+ screenshot('shops')
+ Cargo.mousepressed(game,menu.x+4,menu.y+4,1);Cargo.mousepressed(game,shopButtons[1].x+4,shopButtons[1].y+4,1)
+ layout=Cargo.layout(game)
 
  check(#trade.grids==2 and trade.grids[1].tradeOwner=='player' and trade.grids[2].tradeOwner=='station','give and receive inventories are not separated')
  -- Exercise actual right-click transfers through the existing inventory UI.
@@ -193,65 +193,83 @@ return function(game)
   berths={{x=0,y=0,size=80,maxLength=1200,maxWidth=400}}})
  check(config.hangar.w==40 and config.berths[1].maxLength==1200 and config.berths[1].maxWidth==400,'station export lost spatial capacity configuration')
 
- -- Use the actual station catalogue: the shipyard control must open both
- -- sides, and a station without sales stock must still permit ship sales.
+ -- Services come from the station definition: drop repair, lose the tab.
+ local oldServices=st.def.services
+ check(oldServices and game.stationServices(st).repair,'station data does not define its services')
+ st.def.services={'hangar'}
+ check(#Cargo.tabRects(game)==2 and not Cargo.setTab(game,'market'),'tabs ignore station services')
+ st.def.services=oldServices
+ -- Repair: fix the flying ship by clicking its row.
+ local Repair=require('src.ui.repair')
+ check(Cargo.setTab(game,'repair'),'repair tab missing')
+ game.player.armor=game.player.stats.armor-50
+ local RL=Repair.layout(game);local before=game:credits()
+ Cargo.mousepressed(game,RL.rows[1].button.x+4,RL.rows[1].button.y+4,1)
+ check(game.player.armor==game.player.stats.armor and game:credits()==before-50*game.repairRate(st),'repair did not charge and fix armor')
+ game.player.armor=game.player.stats.armor-50;game.universe.credits=game.repairRate(st)*20
+ screenshot('repair')
+ Cargo.mousepressed(game,RL.rows[1].button.x+4,RL.rows[1].button.y+4,1)
+ check(game.player.armor==game.player.stats.armor-30 and game:credits()==0,'partial repair wrong')
+ game.player.armor=game.player.stats.armor;game.universe.credits=before
+ Cargo.setTab(game,'cargo')
+
+ -- The Shipyard tab: a catalogue of this station's hulls, bought by click.
+ local Shipyard=require('src.ui.shipyard')
  local control
  for _,tab in ipairs(Cargo.tabRects(game)) do if tab.id=='shipyard' then control=tab end end
  check(control and control.label=='Shipyard','Shipyard service tab missing')
  Cargo.mousepressed(game,control.x+2,control.y+2,1)
- check(Cargo.tab=='shipyard' and Cargo.marketLeft=='ships','Shipyard tab did not open ship trading')
- Cargo.layout(game)
- check(#Cargo.shipStock.grids[1].stacks==#game.shipyard(st),'shipyard UI does not match actual station stock')
- local fresh=assert(game:addToHangar(st,'halcyon_wisp'))
- Cargo.layout(game)
- local present=false
- for _,g in ipairs(Cargo.shipOwned.grids) do for _,entry in ipairs(g.stacks) do if entry.shipRecord==fresh then present=true end end end
- check(present,'owned ships grid stayed cached after adding a ship')
- local roster=game:hangar(st);for i,rec in ipairs(roster) do if rec==fresh then table.remove(roster,i);break end end
- Cargo.layout(game)
-
+ check(Cargo.tab=='shipyard','Shipyard tab did not open')
+ local Y=Shipyard.layout(game)
+ check(#Y.stock==#game.shipyard(st),'shipyard UI does not match actual station stock')
  screenshot('actual-shipyard')
- Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all'
- -- Ships and goods share the same staged offer and settlement.
  local marketDef=game.marketDefinition(st);local oldShips=marketDef.ships
- marketDef.ships={'halcyon_wisp'}
- Cargo.shipOwned=nil;Cargo.setTab(game,'shipyard')
- local L=Cargo.layout(game);local ownedGrid,stockGrid
- for _,g in ipairs(L.grids) do
-  if g.side.shipEntries then if g.side.market then stockGrid=g else ownedGrid=g end end
- end
- local sale=assert(ownedGrid.g.stacks[1]);local record=sale.shipRecord
- local beforeCredits=game:credits();local beforeShips=#game:hangar(st)
- local function clickStack(g,stack,button)
-  Cargo.mousepressed(game,g.x+(stack.x+.5)*L.cs,g.y+(stack.y+.5)*L.cs,button)
- end
- clickStack(ownedGrid,sale,2);clickStack(stockGrid,stockGrid.g.stacks[1],2)
- check(#game:hangar(st)==beforeShips and game:credits()==beforeCredits,'staging transferred ownership or credits')
- screenshot('ship-trade')
- Cargo.setTab(game,'market')
- check(Cargo.marketLeft~='ships' and not Cargo.layout(game).sides[3].shipEntries,'Market retained the Shipyard view')
- Cargo.setTab(game,'shipyard')
- check(#game:hangar(st)==beforeShips and game:credits()==beforeCredits,'cancelling ship offers changed ownership')
- L=Cargo.layout(game)
- for _,g in ipairs(L.grids) do if g.side.shipEntries then if g.side.market then stockGrid=g else ownedGrid=g end end end
- sale=ownedGrid.g.stacks[1];record=sale.shipRecord
- -- Actual drag to the give grid, preserving the owned record identity.
- clickStack(ownedGrid,sale,1)
- local give=L.grids[2]
- for _,g in ipairs(L.grids) do if g.g.tradeOwner=='player' then give=g end end
- Cargo.mousereleased(game,give.x+L.cs*.5,give.y+L.cs*.5,1)
- check(give.g.stacks[1] and give.g.stacks[1].shipRecord==record,'ship drag lost owned vessel identity')
- clickStack(stockGrid,stockGrid.g.stacks[1],2)
- local offer=L.sides[2].hold
- check(Hold.placeStack({grids={offer.grids[2]}},{id='scrap',n=1,owner='station'}),'could not stage goods alongside ship')
- local get,pay=game.tradeTotals(offer)
+ marketDef.ships={'halcyon_wisp','ferrous_runner'}
+ Y=Shipyard.layout(game)
+ check(#Y.rows==2,'catalogue rows missing')
+ -- pick the second hull and a non-default paint with the mouse
+ Cargo.mousepressed(game,Y.rows[2].x+10,Y.rows[2].y+10,1)
+ check(Shipyard.sel=='ferrous_runner','clicking a catalogue row did not select it')
+ Y=Shipyard.layout(game)
+ local sw=Y.swatches[#Y.swatches]
+ Cargo.mousepressed(game,sw.x+2,sw.y+2,1)
+ check(Shipyard.paint==sw.name,'clicking a swatch did not pick that paint')
+ screenshot('ship-catalogue-detail')
  game.universe.credits=0
- if pay>get then check(not game:completeTrade(st,offer) and #game:hangar(st)==beforeShips,'failed ship trade mutated roster') end
- game.universe.credits=beforeCredits
- local ok,why=game:completeTrade(st,offer);check(ok,why)
- check(game:credits()==beforeCredits+get-pay and #game:hangar(st)==beforeShips,'mixed ship settlement totals wrong')
- local found=false;for _,rec in ipairs(game:hangar(st)) do if rec==record then found=true end end
- check(not found,'sold ship still owned')
+ local beforeShips=#game:hangar(st)
+ Cargo.mousepressed(game,Y.buy.x+4,Y.buy.y+4,1)
+ check(#game:hangar(st)==beforeShips and game:credits()==0,'buy without credits changed the roster')
+ game.universe.credits=1000000
+ Cargo.mousepressed(game,Y.buy.x+4,Y.buy.y+4,1)
+ local bought=game:hangar(st)[#game:hangar(st)]
+ check(#game:hangar(st)==beforeShips+1 and bought.hull=='ferrous_runner','buy did not park a new ship')
+ check(bought.color and bought.color.name==sw.name,'bought ship ignored the chosen paint')
+ check(game:credits()==1000000-data.hulls.ferrous_runner.price,'buy charged the wrong price')
+ -- trade it back in toward a Wisp: needs two clicks, sells the old record
+ Cargo.mousepressed(game,Y.rows[1].x+10,Y.rows[1].y+10,1)
+ Y=Shipyard.layout(game)
+ local credit=game.shipSellPrice(bought)
+ while Shipyard.tradeIn~=bought do Cargo.mousepressed(game,Y.tiNext.x+4,Y.tiNext.y+4,1) end
+ local credits=game:credits()
+ Cargo.mousepressed(game,Y.buy.x+4,Y.buy.y+4,1)
+ check(game:credits()==credits,'trade-in bought on the first click')
+ screenshot('ship-trade')
+ Cargo.mousepressed(game,Y.buy.x+4,Y.buy.y+4,1)
+ local still=false;for _,rec in ipairs(game:hangar(st)) do if rec==bought then still=true end end
+ check(not still,'traded-in ship still owned')
+ check(game:credits()==credits+credit-data.hulls.halcyon_wisp.price,'trade-in settled the wrong amount')
+ check(game:hangar(st)[#game:hangar(st)].hull=='halcyon_wisp','trade-in did not deliver the new ship')
+ -- selling from the hangar card also takes two clicks
+ Cargo.setTab(game,'hangar')
+ local wisp=game:hangar(st)[#game:hangar(st)];Hangar.sel=wisp
+ local HL=Hangar.layout(game);credits=game:credits()
+ Cargo.mousepressed(game,HL.sell.x+4,HL.sell.y+4,1)
+ check(game:credits()==credits,'sell happened on the first click')
+ screenshot('hangar-sell')
+ Cargo.mousepressed(game,HL.sell.x+4,HL.sell.y+4,1)
+ check(game:credits()==credits+game.shipSellPrice(wisp),'hangar sell paid the wrong amount')
+ Cargo.setTab(game,'market')
+ check(not Cargo.layout(game).sides[3].shipEntries,'Market shows ships')
  Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all';marketDef.ships=oldShips
 
  -- Save the roster, grid layout, finite mooring locations and active parking.
@@ -294,7 +312,7 @@ return function(game)
  local ok,why=game:completeTrade(st,exchange);check(ok,why)
  check(#game:hangar(st)==count,'ship exchange did not reuse released parking')
  mk.ships={'ferrous_freighter','ferrous_mule','ferrous_runner'}
- Cargo.shipOwned=nil;Cargo.setTab(game,'shipyard')
+ Cargo.setTab(game,'shipyard')
  screenshot('ship-catalogue')
  Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all';mk.ships=catalogue
  -- Filling later berths must not make newly added ships unreachable.

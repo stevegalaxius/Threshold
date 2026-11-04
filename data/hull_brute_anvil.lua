@@ -3,7 +3,6 @@ hull {
 	id = "brute_anvil", name = "Anvil",
 	armor = 380,
 	bonuses = {},
-	cargo = { },
 	class = "medium",
 	drag = 0.5,
 	hold = 50,

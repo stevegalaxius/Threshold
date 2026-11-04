@@ -1,6 +1,7 @@
 -- Station design (shipyard). Open and edit in the Shipyard (F2).
 station {
 	id = "shipyard_1", name = "Shipyard", role = "shipyard",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.66, 0.6, 0.5 },
 	rotors = {
 		beacon = { over = true, spin = 1.4, x = 0, y = -905 },

@@ -1,6 +1,7 @@
 -- Station design (habitat). Open and edit in the Shipyard (F2).
 station {
 	id = "estates_manor", name = "Estates manor", role = "habitat",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.72, 0.72, 0.7 },
 	rotors = {
 		ring = {  },

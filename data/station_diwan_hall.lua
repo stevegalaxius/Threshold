@@ -1,6 +1,7 @@
 -- Station design (habitat). Open and edit in the Shipyard (F2).
 station {
 	id = "diwan_hall", name = "Diwan hall", role = "habitat",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.86, 0.8, 0.72 },
 	berths = {
 		{ heading = 270, size = 120, x = -560, y = -580 },

@@ -58,7 +58,7 @@ function Ship.new(game, opts)
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
 		triggers = copy(opts.triggers or {}),
-		cargo = copy(opts.cargo or hull.cargo),
+		cargo = copy(opts.cargo or {}),
 		gridHold = opts.grid or opts.hold ~= nil,
 		hold = opts.hold,
 		intent = Ship.emptyIntent(),

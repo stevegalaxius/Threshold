@@ -3,7 +3,6 @@ hull {
 	id = "Intaki_Archangel", name = "Archangel",
 	armor = 1070,
 	bonuses = {},
-	cargo = { missile_l = 30, missile_m = 40 },
 	class = "heavy",
 	drag = 0.99,
 	helm = "strafe",

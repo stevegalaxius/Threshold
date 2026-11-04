@@ -1,6 +1,7 @@
 -- Station design (habitat). Open and edit in the Shipyard (F2).
 station {
 	id = "jovian_stack", name = "Accord stacks", role = "habitat",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.62, 0.6, 0.56 },
 	berths = {
 		{ heading = 180, size = 110, x = -982, y = 139 },

@@ -1,6 +1,7 @@
 -- Station design (mine). Open and edit in the Shipyard (F2).
 station {
 	id = "diwan_works", name = "Diwan works", role = "mine",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.9, 0.89, 0.86 },
 	berths = {
 		{ heading = 90, size = 130, x = -1050, y = -280 },

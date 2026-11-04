@@ -1,6 +1,7 @@
 -- Station design (mine). Open and edit in the Shipyard (F2).
 station {
 	id = "jovian_works", name = "Accord works", role = "mine",
+	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.6, 0.58, 0.54 },
 	rotors = {
 		crane0 = { over = true, spin = 0.1, x = -1300, y = 390 },

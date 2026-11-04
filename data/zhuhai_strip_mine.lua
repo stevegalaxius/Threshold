@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2).
 station {
 	id = "zhuhai_strip_mine", name = "Zhuhai Strip Mine",
+	services = { "market", "shipyard", "hangar", "repair" },
 	berths = {
 		{ heading = 270, size = 150, x = 16, y = -456 },
 		{ heading = 270, size = 150, x = 336, y = -48 },

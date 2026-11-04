@@ -322,7 +322,13 @@ function api.market(def)
 	if type(def) ~= "table" then fail("market expects a table, like market { station = ..., sells = { ... } }") end
 	if type(def.station) ~= "string" then fail("market is missing 'station'") end
 	if def.location ~= nil and type(def.location) ~= "string" then fail("market location must be an ID string") end
-	if type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells'"):format(def.station)) end
+	if def.shops ~= nil then
+		if type(def.shops) ~= "table" or #def.shops == 0 then fail(("market '%s': shops must be a list"):format(def.station)) end
+		for i, shop in ipairs(def.shops) do
+			if type(shop.name) ~= "string" then fail(("market '%s' shop %d is missing 'name'"):format(def.station, i)) end
+			if type(shop.sells) ~= "table" then fail(("market '%s' shop '%s' is missing 'sells'"):format(def.station, shop.name)) end
+		end
+	elseif type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells' (or 'shops')"):format(def.station)) end
 	def.source = currentFile
 	data.markets[def.location or def.station] = def
 	-- Keep the label alias for runtime/debug stations without authored IDs.
@@ -419,9 +425,11 @@ local function crossCheck()
 				error(("%s: market '%s' sells unknown or unplayable ship '%s'"):format(mk.source, name, tostring(id)), 0)
 			end
 		end
-		for _, e in ipairs(mk.sells) do
-			if not data.items[e[1]] then
-				error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)
+		for _, shop in ipairs(mk.shops or { { sells = mk.sells } }) do
+			for _, e in ipairs(shop.sells) do
+				if not data.items[e[1]] then
+					error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)
+				end
 			end
 		end
 	end

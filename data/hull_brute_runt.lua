@@ -3,7 +3,6 @@ hull {
 	id = "brute_runt", name = "Runt",
 	armor = 170,
 	bonuses = {},
-	cargo = { missile_s = 40, },
 	class = "small",
 	drag = 0.3,
 	hold = 50,

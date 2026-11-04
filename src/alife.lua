@@ -121,7 +121,7 @@ function A.createTrader(game,area,i)
  local r={id=id,area=area,home=area,role='trader',archetype=kind,
   route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
   spread=(love.math.random()*2-1)*T.alifeSpread,
-  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or hull.cargo),armor=stats.armor}}
+  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  local destinations=neighbours(area)
  if i%T.alifeMoonEvery==0 and #destinations>0 then
   r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
