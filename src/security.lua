@@ -8,6 +8,7 @@ local Stats=require('src.stats')
 local T=require('src.tuning')
 local copy=require('src.persistence').copy
 local Population=require('src.population')
+local Homes=require('src.npc_home')
 local S={}
 function S.isRole(r) return r and (r.role=='patrol' or r.role=='pirate') end
 local function route(source,target,clock)
@@ -16,17 +17,19 @@ local function route(source,target,clock)
  if not path then return end
  local result={source}
  for _,leg in ipairs(path.legs) do result[#result+1]=leg.edge.to end
+ if #result==1 then result[2]=source end
  return result
 end
 local function raidLeg(area,from,to)
- local nodes=Fields[area].buoyIds
- if #nodes<=1 then return true end
- if from==to then return false end
- if #nodes<=2 then return true end
- local a,b
- for i,id in ipairs(nodes) do if id==from then a=i end;if id==to then b=i end end
- -- Follow the perimeter rather than taking a station spur across the ring.
- return a and b and ((a-b)%#nodes==1 or (b-a)%#nodes==1)
+ local field=Fields[area];local nodes={}
+ for _,id in ipairs(field.buoyIds) do nodes[id]=true end
+ if #field.buoyIds<=1 then return from==to end
+ if not nodes[from] or not nodes[to] then return false end
+ -- Use declared connectivity, so reordering buoy definitions changes no duty.
+ for _,link in ipairs(field.raidLinks or {}) do
+  if link[1]==from and link[2]==to or link[1]==to and link[2]==from then return true end
+ end
+ return false
 end
 local Repairs=require('src.npc_repair')
 local repairStation=Repairs.supports
@@ -41,7 +44,7 @@ for _,kind in ipairs({'patrol','raid'}) do
    -- A multi-buoy raid should travel, rather than reserve a minute of waiting
    -- at its current buoy. Driver-only regions still have a holding duty.
    if kind=='raid' and not raidLeg(r.area,o.source,o.target) then return false end
-   return node==o.source and route(node,o.target,clock)~=nil
+   return L.canonical(node)==L.canonical(o.source) and route(node,o.target,clock)~=nil
   end,
   score=function(u,r,o,node,clock)
    return clock-(o.readyAt or 0)-(r.lastDutyTarget==o.target and 10000 or 0)
@@ -58,7 +61,7 @@ for _,kind in ipairs({'patrol','raid'}) do
    return true
   end,
   plan=function(t,node,clock) return route(node,t.target,clock) end,
-  complete=function(u,r,t,node) if node~=t.target then return false end;r.lastDutyTarget=node;return true end,
+  complete=function(u,r,t,node) if L.canonical(node)~=L.canonical(t.target) then return false end;r.lastDutyTarget=node;return true end,
  })
 end
 local function raidNodes(f)
@@ -66,28 +69,39 @@ local function raidNodes(f)
  if #f.buoyIds>0 then return f.buoyIds end
  if f.driverId then return {f.driverId} end
 end
-function S.ensureRaids(u,area)
- local nodes=raidNodes(Fields[area])
- if not nodes then return end
- local state=Tasks.state(u)
- state.raidAreas=state.raidAreas or {}
- local signature=table.concat(nodes,'|')
- if state.raidAreas[area]~=signature then
-  local existing={}
-  for _,o in pairs(state.offers) do
-   if o.kind=='raid' then existing[o.source..'>'..o.target]=true end
-  end
-  for _,from in ipairs(nodes) do
-   for _,to in ipairs(nodes) do
-    if raidLeg(area,from,to) and not existing[from..'>'..to] then
-     Tasks.post(u,{kind='raid',source=from,target=to,cooldown=0,duration=T.pirateLinger})
-    end
+function S.patrolNodes(area)
+ local nodes=L.stations(area,'patrol')
+ for _,id in ipairs(Fields[area].buoyIds) do nodes[#nodes+1]=id end
+ return nodes
+end
+local function ensureOffers(u,area,kind,nodes)
+ local state=Tasks.state(u);state.navigationDuties=state.navigationDuties or {}
+ local signature=table.concat(nodes,'|')..':'..Fields[area].navigationVersion
+ local scope=kind..':'..area
+ if state.navigationDuties[scope]~=signature then
+  local specs={}
+  for _,from in ipairs(nodes) do for _,to in ipairs(nodes) do
+   if kind=='raid' and raidLeg(area,from,to) or kind=='patrol' and from~=to then
+    specs[#specs+1]={kind=kind,source=from,target=to,cooldown=0,
+     duration=kind=='raid' and T.pirateLinger or T.patrolInspect}
    end
-  end
-  state.raidAreas[area]=signature
+  end end
+  Tasks.sync(u,scope,specs,function(o)
+   local source=L.byId[o.source]
+   return o.kind==kind and source and source.area==area
+  end)
+  state.navigationDuties[scope]=signature
  end
  return nodes
 end
+function S.ensureRaids(u,area)
+ local nodes=raidNodes(Fields[area])
+ if nodes then return ensureOffers(u,area,'raid',nodes) end
+end
+function S.ensurePatrols(u,area)
+ return ensureOffers(u,area,'patrol',S.patrolNodes(area))
+end
+
 local function create(game,area,role,node,clock,start)
  local u=game.universe
  local archetype=role=='patrol' and 'patrol_wisp' or 'pirate_wisp'
@@ -98,6 +112,9 @@ local function create(game,area,role,node,clock,start)
  local r={id='npc/'..u.nextNpcId,home=area,area=area,role=role,archetype=archetype,
   speed=def.ai.cruise,spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor}}
+ local home
+ if role=='pirate' then home=L.station(nil,'pirateBase') else home=L.station(area,'trade') end
+ if home then Homes.assign(r,home) end
  u.npcs[r.id]=r
  S.advance(r,clock,u,start)
  return r
@@ -112,7 +129,9 @@ local function ensureDuty(u,area,role,node,nodes,clock)
  end
  if not available then
   local target=node
-  for i,id in ipairs(nodes) do if id==node then target=nodes[i%#nodes+1];break end end
+  for _,id in ipairs(nodes) do
+   if id~=node and (role~='pirate' or raidLeg(area,node,id)) then target=id;break end
+  end
   Tasks.post(u,{kind=kind,source=node,target=target,cooldown=0,
    duration=role=='pirate' and T.pirateLinger or T.patrolInspect})
  end
@@ -126,17 +145,9 @@ function S.seed(game,start)
  local state=Tasks.state(u);state.securityAreas=state.securityAreas or {}
  for _,area in ipairs(Fields.list) do
   local f=Fields[area]
+  if f.alifeSecurity then S.ensurePatrols(u,area);S.ensureRaids(u,area) end
   if f.alifeSecurity and not state.securityAreas[area] then
    state.securityAreas[area]=true
-   local nodes=f.traderRoute or f.buoyIds
-   -- Patrols inspect existing stations/buoys. Pirates rally at buoys, away
-   -- from station clamps; relocation still follows declared connections.
-   for _,from in ipairs(nodes) do
-    for _,to in ipairs(nodes) do
-     if from~=to then Tasks.post(u,{kind='patrol',source=from,target=to,cooldown=0,duration=T.patrolInspect}) end
-    end
-   end
-   S.ensureRaids(u,area)
    for _,role in ipairs({'patrol','pirate'}) do
     for i=1,f.alifeSecurity[role] do
      local node=f.buoyIds[(i-1)%#f.buoyIds+1]
@@ -151,7 +162,7 @@ function S.seed(game,start)
  end
 end
 function S.shouldDock(r,node)
- return r and r.role=='patrol' and r.task and r.task.kind=='patrol' and r.task.dock and r.task.target==node
+ return r and r.role=='patrol' and r.task and r.task.kind=='patrol' and r.task.dock and L.canonical(r.task.target)==L.canonical(node)
 end
 -- Choose a station-local holding point outside its hull and every runway.
 function S.inspectionPoint(game,station,e)

@@ -9,6 +9,7 @@ local Tasks=require('src.tasks')
 local Loot=require('src.loot')
 local Grid=require('src.inventory.grid')
 local Repairs=require('src.npc_repair')
+local Homes=require('src.npc_home')
 local P={}
 local function itinerary(source,target,clock)
  if source==target then return {source} end
@@ -40,21 +41,22 @@ local function itinerary(source,target,clock)
 end
 P.route=itinerary
 function P.unload(u,r)
+ local base=r.piracy and r.piracy.base or r.homeStation or L.station(nil,'pirateBase')
  local stashState=u.piracy or {stashes={}};u.piracy=stashState
- local stash=stashState.stashes[T.pirateBase] or {};stashState.stashes[T.pirateBase]=stash
+ local stash=stashState.stashes[base] or {};stashState.stashes[base]=stash
  local h=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return require('src.data').items[id]~=nil end)
  local cargo=h and Hold.totals(h) or r.ship.cargo or {}
  -- Loaded containers are transferred as stacks, before count-based cargo.
  if h then
   stashState.containers=stashState.containers or {}
-  local containers=stashState.containers[T.pirateBase] or {};stashState.containers[T.pirateBase]=containers
+  local containers=stashState.containers[base] or {};stashState.containers[base]=containers
   for _,g in ipairs(h.grids) do for i=#g.stacks,1,-1 do
    local s=g.stacks[i]
    if s.stolen then
     local destination=containers
     if not s.inner then
-     stashState.stacks=stashState.stacks or {};stashState.stacks[T.pirateBase]=stashState.stacks[T.pirateBase] or {}
-     destination=stashState.stacks[T.pirateBase]
+     stashState.stacks=stashState.stacks or {};stashState.stacks[base]=stashState.stacks[base] or {}
+     destination=stashState.stacks[base]
     end
     destination[#destination+1]={id=s.id,n=s.n,inner=s.inner and Hold.serialize(s.inner),wear=s.wear}
     stash[s.id]=(stash[s.id] or 0)+s.n
@@ -78,19 +80,21 @@ function P.returnRecord(game,r)
  if r.piracy then return true end
  local A=require('src.alife')
  if r.encounter then require('src.encounters').finish(game.universe,r,game.universe.npcs[r.encounter.target],game.universe.clock,r) end
+ local base=Homes.get(r)
+ if not base then r.taskStatus='no pirate home station';return false end
  local source=r.state=='travel' and r.route[r.index] or r.node or r.route[r.index]
- local path=itinerary(source,T.pirateBase,game.universe.clock)
- if not path then r.taskStatus='no route to Milliways';return false end
+ local path=itinerary(source,base,game.universe.clock)
+ if not path then r.taskStatus='no route to '..L.get(base).name;return false end
  Tasks.release(game.universe,r,'returning with loot',game.universe.clock)
- r.piracy={phase='escape',origin=Fields[r.home].stationIds[1],started=game.universe.clock}
- r.taskWorker=true;r.taskStatus='escape to Milliways Freeport'
+ r.piracy={phase='escape',base=base,origin=L.rally(r.home,source,game.universe.clock) or L.station(r.home,'trade'),started=game.universe.clock}
+ r.taskWorker=true;r.taskStatus='returning to '..L.get(base).name
  if r.state=='travel' then
   local previous=r.route[(r.index-2)%#r.route+1]
   r.route={previous};for _,id in ipairs(path) do r.route[#r.route+1]=id end;r.index=2
  else
   r.route=path;r.index=1
   if #path>1 then A.start(r,game.universe.clock,2)
-  else r.state='docked';r.node=T.pirateBase;Repairs.begin(r,r.node,game.universe.clock,T.pirateRest) end
+  else r.state='docked';r.node=base;Repairs.begin(r,r.node,game.universe.clock,T.pirateRest) end
  end
  return true
 end
@@ -108,17 +112,18 @@ function P.depart(u,r,clock,start)
  if not duty then return end
  if duty.phase=='escape' then
   P.unload(u,r)
-  local path=itinerary(T.pirateBase,duty.origin,clock)
+  local path=itinerary(duty.base or Homes.get(r),duty.origin,clock)
   if not path then r.taskStatus='waiting for route home';return false end
   duty.phase='redeploy';r.taskStatus='returning to hunting grounds'
   r.route=path;r.index=1
   if #path>1 then start(r,clock,2);return true end
  end
  -- Restore the existing pirate raid lifecycle at a reachable local buoy.
- local area=L.get(duty.origin).area;local f=Fields[area]
- local rally=f.buoyIds[1] or f.driverId
+ local area=L.get(duty.origin).area
+ local rally=L.rally(area,duty.origin,clock)
  local path=rally and itinerary(duty.origin,rally,clock)
- if not path or #path<2 then r.untilTime=clock+10;return false end
+ if not path then r.untilTime=clock+10;return false end
+ if #path==1 then path[2]=path[1] end
  r.piracy=nil;r.taskWorker=nil;r.taskStatus=nil;r.area=area
  r.route=path;r.index=1;start(r,clock,2)
  return true

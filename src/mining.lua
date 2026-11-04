@@ -7,6 +7,7 @@ local copy=require('src.persistence').copy
 local Ore=require('src.ore')
 local Population=require('src.population')
 local Repairs=require('src.npc_repair')
+local Homes=require('src.npc_home')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u)
@@ -59,22 +60,24 @@ end
 function M.create(game,area,clock)
  local u,f=game.universe,Fields[area]
  Tasks.clean(u,clock)
- local available=false
+ local available
  for _,offer in pairs(Tasks.state(u).offers) do
-  if offer.kind=='mine' and offer.area==area and offer.state=='available' then available=true;break end
+  if offer.kind=='mine' and offer.area==area and offer.state=='available' and (offer.readyAt or 0)<=clock and (not available or offer.id<available.id) then available=offer end
  end
  -- Debug arrivals may exceed the normal population, just like pirate arrivals.
  if not available then
   local id=f.drillIds[(u.nextNpcId%#f.drillIds)+1]
   local site=M.state(u).sites[id]
-  Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
+  available=Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
  end
+ local home=available.source
  local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
  u.nextNpcId=u.nextNpcId+1
  local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
-  base=f.stationIds[1],node=f.stationIds[1],route={f.stationIds[1],f.stationIds[1]},index=1,
+  base=home,node=home,route={home,home},index=1,
   state='idle',speed=def.ai.cruise,spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ Homes.assign(r,home)
  u.npcs[r.id]=r
  M.advance(game,r,clock)
  return r
@@ -98,7 +101,7 @@ function M.seed(game)
    for index,s in ipairs(specs) do
     local id=area..'/drill/'..index
     if not state.sites[id] then
-     local home=f.stationIds and f.stationIds[1]
+     local home=L.get(id).motion.home
      local angle=-pi/2
      if home then local hx,hy=L.position(home,0);angle=math.atan2(hy-s.y,hx-s.x) end
      -- A surface drill sits away from the station's roof and docking approach.
@@ -118,7 +121,7 @@ function M.seed(game)
      state.sites[id].angle=math.atan2(hy-s.y,hx-s.x)+pi
     end
    end
-   if not f.instance and f.stationIds[1] and not state.seeded[area] then
+   if not f.instance and L.station(area,'mining') and not state.seeded[area] then
     state.seeded[area]=true
     for _=1,T.minersPerArea do
      M.create(game,area,u.clock)

@@ -17,10 +17,11 @@ local Repairs=require('src.npc_repair')
 local Encounters=require('src.encounters')
 local Mining=require('src.mining')
 local Population=require('src.population')
+local Homes=require('src.npc_home')
 local A = {}
 local graphs = {}
 local function graph(area)
- if not graphs[area] then graphs[area]=Graph.build(area) end
+ if not graphs[area] or graphs[area].version~=Fields[area].navigationVersion then graphs[area]=Graph.build(area) end
  return graphs[area]
 end
 local function edge(r)
@@ -50,7 +51,7 @@ end
 A.start=start
 
 local function roundTrip(home,to,clock,homeStation)
- local a,b=homeStation or Fields[home].stationIds[1],Fields[to].stationIds[1]
+ local a,b=homeStation or L.station(home,'trade'),L.station(to,'trade')
  if not a or not b then return end
  local out,back=home..'/to_'..to,to..'/to_'..home
  if not L.byId[out] or not L.byId[back] then return end
@@ -74,9 +75,9 @@ A.roundTrip=roundTrip
 local function neighbours(area)
  local result={}
  local moon=Fields.moons[area]
- if moon and Fields[moon.parent].stationIds[1] then result[#result+1]=moon.parent end
+ if moon and L.station(moon.parent,'trade') then result[#result+1]=moon.parent end
  for _,id in ipairs(Fields.moonsOf(area)) do
-  if Fields[id].stationIds[1] then result[#result+1]=id end
+  if L.station(id,'trade') then result[#result+1]=id end
  end
  return result
 end
@@ -98,11 +99,11 @@ local function adoptTrip(r,station,clock,u)
  if r.home=='mars' and u then
   if not require('src.jobs').depart(u,r,station,clock) then return false end
  end
- if r.tripDestination and (station==(r.tradeHome or Fields[r.home].stationIds[1])
-  or station==Fields[r.tripDestination].stationIds[1]) then
+ if r.tripDestination and (station==(r.tradeHome or Homes.get(r))
+  or station==L.station(r.tripDestination,'trade')) then
   -- Plan at departure: buoys orbit while moon exits stay fixed. Existing saves
   -- pick up the new connections here without moving ships already in flight.
-  local route=roundTrip(r.home,r.tripDestination,clock,r.tradeHome)
+  local route=roundTrip(r.home,r.tripDestination,clock,r.tradeHome or Homes.get(r))
   if not route then return false end
   r.tripRoute=route
   r.route=copy(route); r.onRoundTrip=true
@@ -124,10 +125,11 @@ function A.createTrader(game,area,i)
   route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
+ Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
  local destinations=neighbours(area)
  if i%T.alifeMoonEvery==0 and #destinations>0 then
   r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
-  r.tripRoute=roundTrip(area,r.tripDestination,u.clock)
+  r.tripRoute=roundTrip(area,r.tripDestination,u.clock,Homes.get(r))
   if r.tripRoute then r.route=copy(r.tripRoute); r.onRoundTrip=true end
  end
  start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
@@ -150,7 +152,9 @@ function A.seed(game)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if area=='mars' then
      r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil
-     r.index=i%2==0 and 3 or 1;r.state='docked';r.untilTime=u.clock+i*2
+     local station=L.stations(area,'trade')[(i-1)%#L.stations(area,'trade')+1]
+     for index,id in ipairs(r.route) do if id==station then r.index=index;break end end
+     r.state='docked';r.untilTime=u.clock+i*2
     end
    end
   end
@@ -174,7 +178,7 @@ function A.seed(game)
   -- Upgrade one existing local trader per eligible planet, without moving it
   -- or changing its fixed archetype. Work starts at its next docking stop.
   for _,area in ipairs(Fields.list) do
-   if area~='mars' and Fields[area].driverId and Fields[area].stationIds[1] then
+   if area~='mars' and Fields[area].driverId and L.station(area,'trade') then
     local worker
     for _,r in pairs(u.npcs) do
      if r.role=='trader' and r.home==area and not r.onRoundTrip and not r.tripDestination
@@ -185,6 +189,7 @@ function A.seed(game)
   end
   Security.seed(game,start)
   Mining.seed(game)
+  Homes.seed(u)
   Population.schedule(game,u.clock)
   A.repairMoonRoutes(game)
   A.repairApproachRoutes(game)
@@ -198,8 +203,8 @@ local function dockingStop(r,id)
  if L.get(id).kind~='station' then return false end
  id=L.canonical(id)
  if r.taskWorker then return id==(r.task and r.task.target) or not r.task end
- return not r.onRoundTrip or id==(r.tradeHome or Fields[r.home].stationIds[1])
-  or id==Fields[r.tripDestination].stationIds[1]
+ return not r.onRoundTrip or id==(r.tradeHome or Homes.get(r))
+  or id==L.station(r.tripDestination,'trade')
 end
 
 function A.advance(r,clock,u,game)
@@ -303,7 +308,7 @@ function A.repairApproachRoutes(game)
     local from=r.route[(i-2)%#r.route+1]
     local a,b=L.get(from),L.get(to)
     first[i]=#route+1
-    if a.area==b.area and Fields[a.area].tradeBuoys
+    if a.area==b.area and Fields[a.area].buoyCorridor
      and (a.kind=='station' or b.kind=='station')
      and a.kind~='buoy' and b.kind~='buoy' then
      local path=Graph.route(graph(a.area),from,to,clock)

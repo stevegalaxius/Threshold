@@ -71,21 +71,23 @@ Tasks.register('transport',{
 })
 function Transport.seed(u)
  local state=Tasks.state(u)
- if state.transportSeeded then return end
  state.transportSeeded=true
- -- Recurring dispatches from each port to the other planets. These are test manifests,
- -- not market stock; the economy can post real work through Tasks.post later.
+ -- Saved manifests reconcile with the current ports when loading the world.
+ -- Reservations survive; new ports receive work without resetting the board.
+ local specs={}
  for _,from in ipairs(Fields.list) do
-  if Fields[from].driverId and Fields[from].stationIds[1] then
+  if Fields[from].driverId then
    for _,to in ipairs(Fields.list) do
-    if from~=to and Fields[to].driverId and Fields[to].stationIds[1] then
-     for _,source in ipairs(Fields[from].stationIds) do
-      Tasks.post(u,{kind='transport',source=source,
-       target=Fields[to].stationIds[1],item='scrap',amount=5})
+    if from~=to and Fields[to].driverId then
+     for _,source in ipairs(L.stations(from,'trade')) do
+      for _,target in ipairs(L.stations(to,'trade')) do
+       specs[#specs+1]={kind='transport',source=source,target=target,item='scrap',amount=5}
+      end
      end
     end
    end
   end
  end
+ Tasks.sync(u,'transport',specs,function(o)return o.kind=='transport' end)
 end
 return Transport

@@ -156,7 +156,7 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 -- Milliways Freeport: destination for the planned pirate loot/return duties.
-T.pirateBase = "pluto/tombaugh_station"
+T.pirateBase = require('src.world_layout').home('pirateBase')
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12

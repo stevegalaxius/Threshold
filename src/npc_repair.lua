@@ -2,24 +2,12 @@
 local data=require('src.data')
 local Stats=require('src.stats')
 local L=require('src.locations')
-local Fields=require('src.fields')
 local T=require('src.tuning')
 local R={}
 function R.supports(node)
  local place=node and L.byId[node]
  if not place or place.kind~='station' then return false end
- local field=Fields[place.area]
- local layout=place.layout
- if not layout then
-  if field.surfaceMine then layout='zhuhai_strip_mine'
-  elseif place.motion.type=='cloud' then layout='city_'..(field.cityScale or 1)
-  elseif place.area=='ring' then layout='ring_3000_300'
-  elseif place.area=='station' then layout='ring_1400_160'
-  else layout='ring_900_120' end
- end
- local def=data.stations[layout]
- for _,service in ipairs(def and def.services or {}) do if service=='repair' then return true end end
- return false
+ return L.stationServices(node).repair or false
 end
 function R.maximum(r) return Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).armor end
 function R.needs(r,armor,maximum)
@@ -40,7 +28,7 @@ function R.advance(r,clock,node)
  if R.supports(node) then
   local maximum=R.maximum(r)
   r.ship.armor=math.min(maximum,(r.ship.armor or maximum)+math.max(0,at-(r.repairAt or r.patrolRepairAt or at))*T.npcRepairPerSecond)
-  if r.ship.armor>=maximum then r.fleeing=nil end
+  if maximum-r.ship.armor<1e-6 then r.ship.armor=maximum;r.fleeing=nil end
  end
  r.repairAt=at;r.patrolRepairAt=nil
 end

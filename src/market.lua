@@ -88,10 +88,7 @@ end
 -- storage) is always there. Returns a set: { market = true, ... }.
 Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
 function Game.stationServices(st)
-	local list = st and st.def and st.def.services or { "market", "shipyard", "hangar" }
-	local set = {}
-	for _, id in ipairs(list) do set[id] = true end
-	return set
+ return require('src.station_services').get(st and st.def)
 end
 
 -- Repairs: credits per armor point here, and what fixing a ship costs.

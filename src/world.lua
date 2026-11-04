@@ -403,6 +403,10 @@ function Game:saveState()
 end
 
 function Game:loadState(state)
+ -- Detach the outgoing scene while it still owns its universe. Capturing old
+ -- bodies after installing the snapshot can overwrite incoming NPC/resource data.
+ require('src.mining').unload(self)
+ self:captureALife(true)
 	self:newUniverse()
 	self.universe.areas = Persistence.copy(state.areas or {})
 	self.universe.nextObjectId = state.nextObjectId or 0

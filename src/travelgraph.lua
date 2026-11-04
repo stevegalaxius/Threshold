@@ -32,7 +32,7 @@ end
 -- Connectivity is authored in fields.lua; physical positions never add links.
 function G.build(area)
  local f = assert(Fields[area], 'unknown area')
- local graph = {area=area, nodes={}, edges={}, destinations={}, order={}}
+ local graph = {area=area, version=f.navigationVersion, nodes={}, edges={}, destinations={}, order={}}
  for _,place in ipairs(L.list(area)) do
   graph.nodes[place.id]={location=place.id,links={},owner=place.owner,
    market=place.marketId,danger=place.danger,capacity=place.capacity}
