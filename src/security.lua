@@ -219,6 +219,7 @@ function S.target(game,e)
 end
 function S.updateOnline(game,e,A)
  local r=game.universe.npcs[e.alifeId]
+ if r.piracy then return end
  if r.role=='pirate' and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target) then r.untilTime=game.universe.clock end
  if r.state=='idle' and game.universe.clock>=r.untilTime and not r.encounter then
   S.advance(r,game.universe.clock,game.universe,A.start)
@@ -256,6 +257,7 @@ function S.hold(game,e,AI)
 end
 
 function S.visit(game,e,stop,A)
+ if game.universe.npcs[e.alifeId].piracy then return false end
  if not e.alifeRole or e.routeIndex<#e.route then return false end
  local r=game.universe.npcs[e.alifeId]
  if r.state=='travel' then

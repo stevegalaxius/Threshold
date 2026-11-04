@@ -12,6 +12,7 @@ local copy = require('src.persistence').copy
 local Tasks=require('src.tasks')
 local Transport=require('src.transport')
 local Security=require('src.security')
+local Piracy=require("src.piracy")
 local Encounters=require('src.encounters')
 local Mining=require('src.mining')
 local Population=require('src.population')
@@ -190,7 +191,8 @@ function A.seed(game)
 end
 
 local function dockingStop(r,id)
- if Security.isRole(r) then return false end
+ if r.piracy then return id==r.route[#r.route] end
+ if Security.isRole(r) and not r.piracy then return false end
  if L.get(id).kind~='station' then return false end
  id=L.canonical(id)
  if r.taskWorker then return id==(r.task and r.task.target) or not r.task end
@@ -199,6 +201,7 @@ local function dockingStop(r,id)
 end
 
 function A.advance(r,clock,u,game)
+ if r.piracy then return Piracy.advance(r,clock,u,start) end
  if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
  if Security.isRole(r) then return Security.advance(r,clock,u,start) end
  if r.encounter then return end
@@ -419,7 +422,7 @@ function A.capture(game,e,remote)
  end
  r.ship=shipRecord(e); r.power=e.power
  if Mining.isMiner(r) then return Mining.capture(game,e,r,remote) end
- if Security.isRole(r) then return Security.capture(game,e,r,remote) end
+ if Security.isRole(r) and not r.piracy then return Security.capture(game,e,r,remote) end
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
   local previous=r.transit.departure
@@ -541,6 +544,7 @@ function A.wake(game,r)
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
  e.alifeRole=Security.isRole(r) and r.role or nil
+ e.alifeRecord=r;e.alifeGame=game
  e.fleeing=r.fleeing
  if egress then
   e.driverProtected=r.transit.kind=='driver' or nil
@@ -638,6 +642,12 @@ function A.install(Game)
  function Game:traderCanDepart(e,station)
   if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.depart(self,e,station) end
   local r=self.universe.npcs[e.alifeId]
+  if r and r.piracy then
+   A.capture(self,e,false)
+   if not Piracy.depart(self.universe,r,self.universe.clock,start) then return false end
+   e.cargo=copy(r.ship.cargo);if e.hold then Hold.sync(e.hold,e.cargo) end;Ship.updateMass(e)
+   e.pirateDeparture=true;return true
+  end
   if not r or r.home~='mars' and not r.taskWorker then return true end
   A.capture(self,e,false)
   local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
@@ -649,6 +659,7 @@ function A.install(Game)
  function Game:traderUndocked(e,station)
   if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.bind(self,e,self.universe.npcs[e.alifeId]) end
   local r=self.universe.npcs[e.alifeId]
+  if e.pirateDeparture then e.pirateDeparture=nil;bindRoute(self,e,r);return end
   if e.jobPrepared or adoptTrip(r,station.locationId,self.universe.clock,self.universe) then
    e.jobPrepared=nil
    start(r,self.universe.clock,r.index%#r.route+1)

@@ -290,6 +290,11 @@ local function graphSection(game)
  end
  local graph=G.build(game.fieldId)
  Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
+ local stash=game.universe.piracy and game.universe.piracy.stashes[T.pirateBase]
+ if stash then
+  Slab.Text('Milliways pirate stash:')
+  for id,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[id].name,n)) end
+ end
  if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
  if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
  for id,r in pairs(game.universe.npcs or {}) do
@@ -298,6 +303,7 @@ local function graphSection(game)
    Slab.Text(id.."  "..r.role.." / "..(e and "online" or r.state))
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
    if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
+   if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end
    if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end
  end

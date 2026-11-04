@@ -502,7 +502,22 @@ Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
 layout and is designated by `T.pirateBase` as the base for the planned pirate
 loot-and-return loop. Its existing stable location ID, `pluto/tombaugh_station`,
 keeps station inventory, ships, saves and routes attached to the same place.
-The loot/stash return behavior itself is not implemented yet.
+Existing pirates now opportunistically break nearby wrecks open and tractor
+exposed loose cargo using the shared pickup accounting. After five units or a
+25-second looting window following the first pickup, they abandon the raid,
+travel to Milliways, unload stolen cargo into its saved stash, and redeploy to
+their home region's raid corridor. Low-health looters leave early. Their identity,
+ship, ordinary ammunition, damage and home population remain intact. Moon routes
+use their existing gates before joining the interplanetary driver network.
+
+F1's A-Life section shows the current pirate activity and Milliways' stash.
+The first pass supports online acquisition and both physical and abstract return,
+delivery and redeployment. Offline wreck acquisition, intact loaded-container
+collection, surrender demands and more selective/bounded hunting remain future
+work. No loot is conjured from a living ship. An unloaded stash is not a market
+sale and produces no credits. `love . --piracytest` checks actual tractor pickup,
+identity, cross-region routing (including Phobos/Deimos), physical docking,
+unloading, no duplicate delivery, saves and return to the original raid role.
 
 The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies

@@ -309,6 +309,7 @@ function AI.think(game, e, dt)
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
+	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
 	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
 	if ai.style == "trader" then return trade(game, e, dt) end
 

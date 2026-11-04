@@ -155,6 +155,8 @@ T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 -- Milliways Freeport: destination for the planned pirate loot/return duties.
 T.pirateBase = "pluto/tombaugh_station"
+T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
+T.pirateRetreatHealth,T.pirateRest=.35,30
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 T.alifeWreckLifetime = 1800
