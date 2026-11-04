@@ -352,6 +352,19 @@ function data.defineHull(def)
 	return def
 end
 
+local addModuleItems
+-- A weapon module made at runtime (the Shipyard's Weapons tab). Errors
+-- come back as nil, message instead of being thrown.
+function data.defineModule(def)
+	local was = currentFile
+	currentFile = "shipyard"
+	local ok, err = pcall(api.module, def)
+	currentFile = was
+	if not ok then return nil, err end
+	addModuleItems()
+	return def
+end
+
 -- Loading ------------------------------------------------------------------
 
 local function sandbox()
@@ -497,7 +510,7 @@ end
 -- module's own. Module items stay out of data.list.items so they don't
 -- show up in ammo lists.
 local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
-local function addModuleItems()
+function addModuleItems()
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]
 		local existing = data.items[id]
