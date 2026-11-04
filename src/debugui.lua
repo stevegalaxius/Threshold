@@ -13,6 +13,7 @@ local Fields = require("src.fields")
 local Locations = require("src.locations")
 
 local Debug = { visible = false }
+local arrivalRole = "pirate"
 
 function Debug.init()
 	Slab.Initialize({ "nodocks", "nomessages" })
@@ -58,7 +59,10 @@ local function shipSection(game)
 	if st then
 		Slab.Text("Park a new ship here (" .. st.name .. ")")
 		for _, o in ipairs(opts) do
-			if Slab.Button("Park a new " .. data.hulls[o.value].name, { W = 300 }) then game:addToHangar(st, o.value) end
+			if Slab.Button("Park a new " .. data.hulls[o.value].name, { W = 300 }) then
+    local rec=game:addToHangar(st,o.value)
+    if rec then require('src.ui.hangar').focus(game,rec) end
+   end
 		end
 	end
 	if Slab.Button("+10,000 credits") then game.universe.credits = game.universe.credits + 10000 end
@@ -72,18 +76,26 @@ local function shipSection(game)
 	Slab.SameLine()
 	if Slab.Button("Load autosave") then game:loadFrom("auto") end
 
-	Slab.Text("Paint")
-	local paints = {}
-	local paintName = "(custom)"
-	for _, pt in ipairs(Render.PAINTS) do
-		table.insert(paints, { label = pt.name, value = pt.color })
-		local c = game.playerColor
-		if pt.color[1] == c[1] and pt.color[2] == c[2] and pt.color[3] == c[3] then paintName = pt.name end
+	-- Repaint (a debug stand-in for the shipyard's paint service)
+	if p and not p.dead then
+		local Paint = require("src.paint")
+		local col = p.color
+		local function name(c)
+			for _, pt in ipairs(Paint.PRESETS) do
+				local q = pt.color
+				if math.abs(q[1] - c[1]) + math.abs(q[2] - c[2]) + math.abs(q[3] - c[3]) < 1e-3 then return pt.name end
+			end
+			return "(custom)"
+		end
+		local opts = {}
+		for _, pt in ipairs(Paint.PRESETS) do table.insert(opts, { label = pt.name, value = pt.color }) end
+		Slab.Text(("Paint: %s (factory: %s)"):format(col.name or "repainted", p.hull.paint or Paint.DEFAULT))
+		Slab.Text("primary"); Slab.SameLine()
+		combo("dbg_paint1", name(col), opts, function(c) p.color = Paint.make(c, col.secondary) end)
+		Slab.Text("secondary"); Slab.SameLine()
+		combo("dbg_paint2", name(col.secondary or col), opts, function(c) p.color = Paint.make(col, c) end)
+		if Slab.Button("Back to factory finish") then p.color = Paint.preset(p.hull.paint) end
 	end
-	combo("dbg_paint", paintName, paints, function(c)
-		game.playerColor = c
-		if p then p.color = c end
-	end)
 
 	if not p or p.dead then return end
 	Slab.Separator()
@@ -183,15 +195,21 @@ local function spawnSection(game)
 	local fopts = {}
 	for _, id in ipairs(Fields.list) do fopts[#fopts + 1] = { label = Fields[id].name, value = id } end
 	combo("dbg_field", game.field and game.field.name or "", fopts, function(id) require("src.debugtravel").go(game,id) end)
-	local security=require('src.security')
-	if Slab.Button('Warp in pirate (A-Life)',{W=300}) then
-		local r,err=security.spawnPirate(game,game.fieldId,true)
-		game:toast(r and ('PIRATE ARRIVING: '..r.id) or err,2)
+	local population=require('src.population')
+	local roles={}
+	for _,role in ipairs(population.order) do roles[#roles+1]={label=role,value=role} end
+	combo('dbg_arrival_role',arrivalRole,roles,function(role) arrivalRole=role end)
+	if Slab.Button('Warp in '..arrivalRole..' (A-Life)',{W=300}) then
+		local r,err=population.spawn(game,game.fieldId,arrivalRole,true)
+		game:toast(r and (arrivalRole:upper()..' ARRIVING: '..r.id) or err,2)
 	end
-	local timer=game.universe.pirateSpawns and game.universe.pirateSpawns[game.fieldId]
-	if timer then
-		Slab.Text(('Pirates: %d / %d; next arrival check in %.0fs'):format(
-			security.pirateCount(game.universe,game.fieldId),T.piratePopulationCap,math.max(0,timer.nextAt-game.universe.clock)))
+	local timers=game.universe.populationSpawns and game.universe.populationSpawns[game.fieldId]
+	for _,role in ipairs(population.order) do
+		local timer=timers and timers[role]
+		if timer then
+			Slab.Text(('%s: %d / %d; next arrival check in %.0fs'):format(
+				role,population.count(game.universe,game.fieldId,role),population.target(game.fieldId,role),math.max(0,timer.nextAt-game.universe.clock)))
+		end
 	end
 	if game.field.instance then
 		for _, id in ipairs(data.list.enemies) do
@@ -266,20 +284,31 @@ end
 
 local function graphSection(game)
  local G = require("src.travelgraph")
- local visible = game.travelGraphView and game.travelGraphView.area == game.fieldId
+ local visible = game.travelGraphView ~= nil
  if Slab.CheckBox(visible or false, "Show simulation connections and NPCs") then
   game.travelGraphView = not visible and G.build(game.fieldId) or nil
  end
  local graph=G.build(game.fieldId)
  Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
+ for _,station in ipairs(Locations.stations(game.fieldId)) do
+  Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
+ end
+ for id,stash in pairs(game.universe.piracy and game.universe.piracy.stashes or {}) do
+  local place=Locations.byId[id]
+  Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')
+  for item,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[item].name,n)) end
+ end
  if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
  if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
  for id,r in pairs(game.universe.npcs or {}) do
   if r.area==game.fieldId then
    local e=game.alifeOnline and game.alifeOnline[id]
    Slab.Text(id.."  "..r.role.." / "..(e and "online" or r.state))
+   local home=require("src.npc_home").get(r)
+   if home then Slab.Text("  Home: "..Locations.get(home).name.." ("..home..")") end
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
    if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
+   if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end
    if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end
  end
@@ -289,7 +318,21 @@ local function graphSection(game)
    Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
   end
  end
- Slab.Text("Persistent traders, patrols and pirates. Roles keep their own duties.")
+ local mining=game.universe.mining
+ if mining then
+  local drills,rocks,loot=0,0,0
+  for _,site in pairs(mining.sites) do if site.area==game.fieldId then drills=drills+1 end end
+  for _,resource in pairs(mining.resources) do
+   if resource.area==game.fieldId then if resource.kind=='rock' then rocks=rocks+1 else loot=loot+1 end end
+  end
+  Slab.Text(('Mining: %d drills / %d chunks / %d ore stacks'):format(drills,rocks,loot))
+  for station,stock in pairs(mining.stock) do
+   if Locations.get(station).area==game.fieldId then
+    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s delivered'):format(Locations.get(station).name,n,data.items[item].name)) end
+   end
+  end
+ end
+ Slab.Text("Persistent traders, miners, patrols and pirates. Roles keep their own duties.")
 end
 
 local function locationSection(game)

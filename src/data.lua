@@ -18,22 +18,32 @@ local data = {
 	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {} },
 }
 
--- Slot families. primary / secondary are fire groups for guns (left and
--- right mouse button); auxiliary holds a launcher (middle mouse button).
-local FAMILIES = { primary = true, secondary = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
--- Module families. A "weapon" (gun, artillery, laser) fits a primary or a
--- secondary slot; every other family fits the slot of the same name.
-local MODULE_FAMILIES = { weapon = true, auxiliary = true, engine = true, reactor = true, utility = true, computer = true }
+-- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
+-- takes a launcher (missiles, torpedoes, drones). Which trigger fires each
+-- is set per slot (see Ship.triggerFor).
+local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
+-- Module families. A "weapon" (gun, artillery, laser) fits a hardpoint;
+-- every other family fits the slot of the same name.
+local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
-local WEAPON_KINDS = { gun = true, artillery = true, laser = true, missile = true, torpedo = true, drone = true }
+local WEAPON_KINDS = { gun = true, artillery = true, laser = true, drill = true, missile = true, torpedo = true, drone = true }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
+
+-- Slots saved before hardpoints and bays (editor designs) used primary,
+-- secondary and auxiliary; read them as the new families.
+function data.migrateSlot(slot)
+	if slot.family == "primary" then slot.family = "hardpoint"
+	elseif slot.family == "secondary" then slot.family, slot.trigger = "hardpoint", slot.trigger or "secondary"
+	elseif slot.family == "auxiliary" then slot.family = "bay" end
+	return slot
+end
 
 -- Does a module fit a hull slot?
 function data.fits(slot, m)
 	-- a module sized "any" fits a slot of any size (computers and utilities)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
-	if m.family == "weapon" then return slot.family == "primary" or slot.family == "secondary" end
+	if m.family == "weapon" then return slot.family == "hardpoint" end
 	return m.family == slot.family
 end
 
@@ -74,6 +84,7 @@ local function prepareHull(def)
 		if part.layer ~= nil and not LAYERS[part.layer] then bad("unknown layer '" .. tostring(part.layer) .. "' (use hull, detail or glow)") end
 		if part.color ~= nil and (type(part.color) ~= "table" or #part.color < 3) then bad("color should be { r, g, b }") end
 		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
+		if part.paint ~= nil and part.paint ~= "primary" and part.paint ~= "secondary" then bad("paint should be primary or secondary (leave it out for bare metal)") end
 		if part.armor ~= nil and type(part.armor) ~= "number" then bad("armor should be a number") end
 		if part.shade ~= nil and type(part.shade) ~= "number" then bad("shade should be a number") end
 		if part.mass ~= nil and type(part.mass) ~= "number" then bad("mass should be a number") end
@@ -81,6 +92,7 @@ local function prepareHull(def)
 			if type(part.lights) ~= "table" then bad("lights should be a list") end
 			for j, l in ipairs(part.lights) do
 				if type(l.x) ~= "number" or type(l.y) ~= "number" then bad(("light %d needs x and y"):format(j)) end
+				if (l.w ~= nil and type(l.w) ~= "number") or (l.h ~= nil and type(l.h) ~= "number") then bad(("light %d: w and h should be numbers"):format(j)) end
 				if l.kind ~= nil and l.kind ~= "window" and l.kind ~= "nav" and l.kind ~= "strobe" then bad(("light %d has unknown kind '%s' (use window, nav or strobe)"):format(j, tostring(l.kind))) end
 			end
 		end
@@ -97,11 +109,19 @@ local function prepareHull(def)
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
+	if def.paints ~= nil then
+		if type(def.paints) ~= "table" then fail(("hull '%s': paints should be a list of preset names"):format(def.id)) end
+		for _, n in ipairs(def.paints) do
+			if not require("src.paint").find(n) then fail(("hull '%s' has unknown paint '%s' (see src/paint.lua)"):format(def.id, tostring(n))) end
+		end
+	end
 	if def.helm and def.helm ~= "strafe" and def.helm ~= "turn" then fail(("hull '%s' has unknown helm '%s' (use strafe or turn)"):format(def.id, tostring(def.helm))) end
 	if not MOUNTS[def.mount] then fail(("hull '%s' has unknown mount '%s' (use fixed, gimbal or turret)"):format(def.id, tostring(def.mount))) end
 	for i, slot in ipairs(def.slots) do
+		data.migrateSlot(slot)
 		if slot.mount and not MOUNTS[slot.mount] then fail(("hull '%s' slot %d has unknown mount '%s'"):format(def.id, i, tostring(slot.mount))) end
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
+		if slot.trigger and slot.trigger ~= "primary" and slot.trigger ~= "secondary" and slot.trigger ~= "tertiary" then fail(("hull '%s' slot %d has unknown trigger '%s' (use primary, secondary or tertiary)"):format(def.id, i, tostring(slot.trigger))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
 	end
 end
@@ -160,10 +180,16 @@ end
 -- A station layout (src/stations.lua has the format and the generated
 -- wheels). One part says dock = true: its box is the docking module, door
 -- at its +x end.
+local STATION_ROLES = { habitat = true, shipyard = true, customs = true, mine = true }
 function api.station(def)
 	if not def.name then def.name = def.id end
 	register("stations", "station", def)
 	if not def.parts then fail(("station '%s' needs parts"):format(def.id)) end
+	-- role: which A-Life smart terrain the station is (habitat, shipyard,
+	-- customs, mine). Left out, it's a plain station.
+	if def.role ~= nil and not STATION_ROLES[def.role] then
+		fail(("station '%s' has unknown role '%s' (use habitat, shipyard, customs or mine)"):format(def.id, tostring(def.role)))
+	end
 	local ok, err = pcall(HullShape.prepare, def)
 	if not ok then fail(err) end
 	-- every part tagged dock is a docking module. Its frame points from the
@@ -183,6 +209,35 @@ function api.station(def)
 	-- parked ship faces), size (the longest ship half-length that fits) }.
 	-- Arriving ships take a free one that fits; the rest go inside.
 	if def.berths ~= nil and type(def.berths) ~= "table" then fail(("station '%s': berths should be a list"):format(def.id)) end
+	-- rotors: parts that turn on their own, apart from the station's core
+	-- (where the docks and berths are). rotors = { name = { x, y (the
+	-- pivot, default 0, 0), spin (radians a second; left out, the
+	-- location's spin), over (drawn on top of the core instead of under
+	-- it) } }, and each turning part says rotor = "name".
+	-- Every part without a rotor is the core, which holds still.
+	if def.rotors ~= nil and type(def.rotors) ~= "table" then fail(("station '%s': rotors should be a table"):format(def.id)) end
+	def.staticParts, def.rotorParts = nil, nil
+	if def.rotors and next(def.rotors) then
+		def.staticParts, def.rotorParts = {}, {}
+		for name, r in pairs(def.rotors) do
+			if type(r) ~= "table" then fail(("station '%s': rotor '%s' should be a table"):format(def.id, tostring(name))) end
+			if r.over ~= nil and type(r.over) ~= "boolean" then fail(("station '%s': rotor '%s' over should be true or false"):format(def.id, tostring(name))) end
+			for _, f in ipairs({ "x", "y", "spin" }) do
+				if r[f] ~= nil and type(r[f]) ~= "number" then fail(("station '%s': rotor '%s' %s should be a number"):format(def.id, tostring(name), f)) end
+			end
+			def.rotorParts[name] = {}
+		end
+		for _, part in ipairs(def.parts) do
+			if part.rotor ~= nil then
+				local list = def.rotorParts[part.rotor]
+				if not list then fail(("station '%s': part '%s' names unknown rotor '%s'"):format(def.id, tostring(part.name), tostring(part.rotor))) end
+				if part.dock then fail(("station '%s': dock part '%s' can't be on a rotor"):format(def.id, tostring(part.name))) end
+				table.insert(list, part)
+			else
+				table.insert(def.staticParts, part)
+			end
+		end
+	end
 	-- turrets: { x, y, module (a weapon module id), turn
 	-- (degrees a second, default 90) }. They fire the module's weapon with
 	-- endless ammo at whatever Game:stationHostile picks.
@@ -261,22 +316,29 @@ function api.container(def)
 	def.fill = def.fill or {}
 end
 
--- Station catalogues are keyed by explicit location IDs, with display-name
--- aliases for temporary debug stations.
+-- Market profiles have their own identity; station placements reference them explicitly.
 function api.market(def)
 	if type(def) ~= "table" then fail("market expects a table, like market { station = ..., sells = { ... } }") end
-	if type(def.station) ~= "string" then fail("market is missing 'station'") end
+	if type(def.id or def.location) ~= "string" then fail("market needs an explicit id") end
+ def.station=def.station or def.id or def.location
 	if def.location ~= nil and type(def.location) ~= "string" then fail("market location must be an ID string") end
-	if type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells'"):format(def.station)) end
+	if def.shops ~= nil then
+		if type(def.shops) ~= "table" or #def.shops == 0 then fail(("market '%s': shops must be a list"):format(def.station)) end
+		for i, shop in ipairs(def.shops) do
+			if type(shop.name) ~= "string" then fail(("market '%s' shop %d is missing 'name'"):format(def.station, i)) end
+			if type(shop.sells) ~= "table" then fail(("market '%s' shop '%s' is missing 'sells'"):format(def.station, shop.name)) end
+		end
+	elseif type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells' (or 'shops')"):format(def.station)) end
 	def.source = currentFile
-	data.markets[def.location or def.station] = def
-	-- Keep the label alias for runtime/debug stations without authored IDs.
-	data.markets[def.station] = def
+	data.markets[def.id or def.location] = def
 end
 
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
+	if def.livery ~= nil and (type(def.livery) ~= "table" or type(def.livery.primary) ~= "table") then
+		error(("enemy '%s': livery should be { primary = { r, g, b }, secondary = { r, g, b }? }"):format(tostring(def.id)), 0)
+	end
 end
 
 -- A hull made at runtime (the F2 editor's test flight). Errors come back
@@ -327,17 +389,17 @@ end
 
 -- Every ammo a weapon module can fire, biggest first: same family as the
 -- weapon kind, and the same caliber (guns, artillery) or the same size or
--- smaller (auxiliary launchers: missiles, torpedoes, drones).
+-- smaller (bay launchers: missiles, torpedoes, drones).
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
-	if not w or w.kind == "laser" then return out end
+	if not w or w.kind == "laser" or w.kind == "drill" then return out end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
 		if item.kind == "ammo" and item.family == w.kind then
 			-- a gun's caliber is its size unless it says otherwise (twin mounts)
 			local fits = item.size == (w.caliber or module.size)
-			if module.family == "auxiliary" then fits = SIZES[item.size] <= SIZES[module.size] end
+			if module.family == "bay" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end
 	end
@@ -367,9 +429,11 @@ local function crossCheck()
 				error(("%s: market '%s' sells unknown or unplayable ship '%s'"):format(mk.source, name, tostring(id)), 0)
 			end
 		end
-		for _, e in ipairs(mk.sells) do
-			if not data.items[e[1]] then
-				error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)
+		for _, shop in ipairs(mk.shops or { { sells = mk.sells } }) do
+			for _, e in ipairs(shop.sells) do
+				if not data.items[e[1]] then
+					error(("%s: market '%s' sells unknown item '%s'"):format(mk.source, name, tostring(e[1])), 0)
+				end
 			end
 		end
 	end
@@ -420,26 +484,9 @@ local function crossCheck()
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end
 	for id, m in pairs(data.modules) do
-		if m.weapon and m.weapon.kind ~= "laser" and not data.ammoFor(m) then
+		if m.weapon and m.weapon.kind ~= "laser" and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
 			error(("module '%s' fires %s %s ammo, but no ammo with that family and size exists"):format(
 				id, m.weapon.kind, m.size), 0)
-		end
-	end
-end
-
--- Every ammo type gets a matching crate item: the same rounds boxed up as
--- cargo. Looted ammo arrives as crates, which weapons can't fire from;
--- they're for selling or restocking at a station.
-local function addCrates()
-	for _, id in ipairs(data.list.items) do
-		local a = data.items[id]
-		if a.kind == "ammo" and not a.crate then
-			local cid = id .. "_crate"
-			a.crate = cid
-			data.items[cid] = {
-				id = cid, kind = "crate", ammo = id, name = a.name .. " (crate)", maker = a.maker,
-				volume = a.volume, mass = a.mass, price = a.price,
-			}
 		end
 	end
 end
@@ -475,7 +522,6 @@ function data.load()
 			if love.filesystem.getInfo(folder, "directory") then loadFolder(folder) end
 		end
 	end
-	addCrates()
 	addModuleItems()
 	crossCheck()
 end

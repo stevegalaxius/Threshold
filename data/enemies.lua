@@ -13,20 +13,22 @@
 	             whoever attacked it)
 	team         2 = hostile (default), 3 = neutral (never in waves; only
 	             spawned by playing fields)
-	color        hull paint { r, g, b }
+	livery       faction paint { primary = { r, g, b }, secondary = { r, g, b }? }
+	             (secondary defaults to a shade of the primary); leave it
+	             out and the ship flies its hull's factory preset
 	salvage      { min, max } salvage left in its husk (along with its
-	             whole hold, ammo boxed up as crates)
+	             whole hold)
 ]]
 
 enemy {
-	id = "swarmer", color = { 0.95, 0.5, 0.32 }, name = "Scrap Drone", hull = "scrap_drone",
+	id = "swarmer", livery = { primary = { 0.95, 0.5, 0.32 } }, name = "Scrap Drone", hull = "scrap_drone",
 	cargo = { rounds_s = 150 },
 	ai = { style = "rush", range = 350, accuracy = 0.35, throttle = 0.6, burstOn = 0.8, burstOff = 1.8 },
 	salvage = { 1, 2 },
 }
 
 enemy {
-	id = "gunner", color = { 0.95, 0.8, 0.3 }, name = "Raider Wisp", hull = "halcyon_wisp",
+	id = "gunner", livery = { primary = { 0.95, 0.8, 0.3 } }, name = "Raider Wisp", hull = "halcyon_wisp",
 	loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", false },
 	cargo = { rounds_s = 300 },
 	ai = { style = "orbit", range = 600, accuracy = 0.55, throttle = 0.75 },
@@ -34,7 +36,7 @@ enemy {
 }
 
 enemy {
-	id = "brawler", color = { 0.95, 0.3, 0.3 }, name = "Raider Anvil", hull = "brute_anvil",
+	id = "brawler", livery = { primary = { 0.95, 0.3, 0.3 } }, name = "Raider Anvil", hull = "brute_anvil",
 	loadout = { "rk7_autocannon", "rk7_autocannon", false, false, "mule_engine", "kiln_reactor", false },
 	cargo = { rounds_m = 300 },
 	ai = { style = "rush", range = 500, accuracy = 0.55, throttle = 0.85 },
@@ -42,7 +44,7 @@ enemy {
 }
 
 enemy {
-	id = "sniper", color = { 0.75, 0.45, 0.95 }, name = "Raider Mortar", hull = "brute_anvil",
+	id = "sniper", livery = { primary = { 0.75, 0.45, 0.95 } }, name = "Raider Mortar", hull = "brute_anvil",
 	loadout = { "rk7_autocannon", false, "thumper_m", false, "mule_engine", "kiln_reactor", false },
 	cargo = { shell_m = 24, rounds_m = 150 },
 	ai = { style = "kite", range = 1500, accuracy = 0.6, throttle = 0.7, burstOn = 2, burstOff = 2 },
@@ -51,7 +53,7 @@ enemy {
 
 -- Harasser: the fast, hard-to-hit one. Shows up from wave 3.
 enemy {
-	id = "interceptor", color = { 0.5, 0.95, 0.45 }, name = "Dart", hull = "nova_dart",
+	id = "interceptor", livery = { primary = { 0.5, 0.95, 0.45 } }, name = "Dart", hull = "nova_dart",
 	cargo = { rounds_s = 200 },
 	ai = { style = "orbit", range = 450, accuracy = 0.6, throttle = 1.0, burstOn = 0.8, burstOff = 1.2 },
 	salvage = { 1, 3 },
@@ -60,7 +62,7 @@ enemy {
 -- Neutral trader: hauls cargo between stations. Leave it alone and it
 -- leaves you alone; its hold is worth a lot if you don't.
 enemy {
-	id = "freighter", team = 3, color = { 0.78, 0.8, 0.72 }, name = "Hauler", hull = "ferrous_freighter",
+	id = "freighter", team = 3, name = "Hauler", hull = "ferrous_freighter",
 	cargo = { rounds_m = 600, scrap = 30, salvage_kit = 15 },
 	containers = { "cargo_container", 1, 4 },   -- its cargo is packed in these; the wreck keeps them
 	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
@@ -69,7 +71,7 @@ enemy {
 
 -- A courier in a Runner: small hold, quick, and it runs rather than fights.
 enemy {
-	id = "runner_trader", team = 3, color = { 0.8, 0.82, 0.7 }, name = "Runner", hull = "ferrous_runner",
+	id = "runner_trader", team = 3, name = "Runner", hull = "ferrous_runner",
 	cargo = { rounds_s = 200, salvage_kit = 4 },
 	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 900, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
 	salvage = { 1, 3 },
@@ -78,7 +80,7 @@ enemy {
 -- The everyday trader in a Packhorse: a fair hold and enough guns to
 -- make a lone pirate think twice.
 enemy {
-	id = "packhorse_trader", team = 3, color = { 0.76, 0.8, 0.74 }, name = "Packhorse", hull = "ferrous_mule",
+	id = "packhorse_trader", team = 3, name = "Packhorse", hull = "ferrous_mule",
 	cargo = { rounds_m = 300, scrap = 15, salvage_kit = 8 },
 	containers = { "cargo_container", 0, 2 },
 	ai = { style = "trader", range = 1200, accuracy = 0.55, throttle = 0.9, cruise = 700, horizon = 3.5, burstOn = 1.2, burstOff = 0.9 },
@@ -89,7 +91,7 @@ enemy {
 -- definitions expose their hull, equipment and combat handling for variants.
 enemy {
  id = "patrol_wisp", team = 3, name = "Independent Patrol", hull = "halcyon_wisp",
- color = { 0.4, 0.75, 1 },
+ livery = { primary = { 0.4, 0.75, 1 } },
  loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", false },
  cargo = { rounds_s = 400 },
  ai = { style = "orbit", range = 900, accuracy = 0.65, throttle = 0.85, cruise = 750 },
@@ -97,9 +99,16 @@ enemy {
 }
 enemy {
  id = "pirate_wisp", team = 2, name = "Independent Pirate", hull = "halcyon_wisp",
- color = { 1, 0.4, 0.25 },
+ livery = { primary = { 1, 0.4, 0.25 } },
  loadout = { "px2_autogun", "px2_autogun", false, "flit_engine", "ember_reactor", false },
  cargo = { rounds_s = 300, scrap = 3 },
  ai = { style = "orbit", range = 700, accuracy = 0.55, throttle = 0.8, cruise = 650 },
  salvage = { 2, 4 },
+}
+
+-- A civilian mining fit using the same contact drills as the player.
+enemy {
+ id="miner_packhorse",team=3,name="Independent Miner",hull="ferrous_mule",
+ loadout={"rockbiter","rockbiter",false,"mule_engine","kiln_reactor","tug_beam",false,false},
+ cargo={},ai={style="trader",cruise=500,range=2500,accuracy=.7,throttle=.9},salvage={1,2},
 }

@@ -85,6 +85,16 @@ local function restore(g)
 end
 
 function love.load(args)
+	-- Headless test runs: print an error and quit instead of showing the
+	-- error screen, which waits for a click and never exits.
+	for _, a in ipairs(args or {}) do
+		if a:match("^%-%-%a+test$") then
+			love.errorhandler = function(msg)
+				print("Error: " .. tostring(msg) .. "\n" .. debug.traceback("", 2))
+				os.exit(1)
+			end
+		end
+	end
 	data.load()
 	for _, a in ipairs(args or {}) do
 		if a == "--autotest" then autotest = require("src.autotest") end
@@ -92,10 +102,10 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	for _, a in ipairs(args or {}) do
-		if a == "--piratespawntest" or a == "--afterburntest" or a == "--npclifetest" or a == "--comparetest" or a == "--securitytest" or a == "--berthtest" or a == "--olympustest" or a == "--moonentrytest" or a == "--dockeditortest" or a == "--traffictest" or a == "--drivertest" or a == "--moonboundarytest" or a == "--hullthrusttest" or a == "--computervarianttest" or a == "--ordnancetest" or a == "--exhausttest" or a == "--enginetest" or a == "--tasktest" or a == "--debugtraveltest" or a == "--marsjobtest" or a == "--editortest" or a == "--editorfoldertest" or a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" or a == "--maptest" or a == "--alifetest" or a == "--tradertest" or a == "--navtest" or a == "--idletest" or a == "--navcomputertest" then
+		if a == "--piracytest" or a == "--stationtest" or a == "--navprofile" or a == "--populationtest" or a == "--miningpickuptest" or a == "--miningtest" or a == "--teleporttest" or a == "--patrolnavtest" or a == "--localnavtest" or a == "--piratespawntest" or a == "--afterburntest" or a == "--npclifetest" or a == "--comparetest" or a == "--securitytest" or a == "--berthtest" or a == "--olympustest" or a == "--moonentrytest" or a == "--dockeditortest" or a == "--traffictest" or a == "--drivertest" or a == "--moonboundarytest" or a == "--hullthrusttest" or a == "--computervarianttest" or a == "--ordnancetest" or a == "--exhausttest" or a == "--enginetest" or a == "--tasktest" or a == "--debugtraveltest" or a == "--marsjobtest" or a == "--editortest" or a == "--editorfoldertest" or a == "--worldtest" or a == "--persisttest" or a == "--locationtest" or a == "--graphtest" or a == "--maptest" or a == "--alifetest" or a == "--tradertest" or a == "--navtest" or a == "--idletest" or a == "--navcomputertest" or a == "--firegrouptest" or a == "--painttest" or a == "--lighttooltest" then
 			game.autosaveOff = true
-			local suite = a == "--piratespawntest" and "tests.pirate_spawning" or a == "--afterburntest" and "tests.afterburner" or a == "--npclifetest" and "tests.npc_lifecycle" or a == "--comparetest" and "tests.ship_comparison" or a == "--securitytest" and "tests.security" or a == "--berthtest" and "tests.berths" or a == "--olympustest" and "tests.olympus_navigation" or a == "--moonentrytest" and "tests.moon_entry" or a == "--dockeditortest" and "tests.dock_editor" or a == "--traffictest" and "tests.npc_traffic" or a == "--drivertest" and "tests.driver_launch" or a == "--moonboundarytest" and "tests.moon_boundary" or a == "--hullthrusttest" and "tests.hull_thrust" or a == "--computervarianttest" and "tests.computer_variants" or a == "--ordnancetest" and "tests.ordnance_computer" or a == "--exhausttest" and "tests.exhaust_damage" or a == "--enginetest" and "tests.engine_visual" or a == "--tasktest" and "tests.tasks" or a == "--debugtraveltest" and "tests.debug_travel" or a == "--marsjobtest" and "tests.mars_jobs" or a == "--editortest" and "tests.editor_loadout" or a == "--editorfoldertest" and "tests.editor_folders" or a == "--navcomputertest" and "tests.navigation_computer" or a == "--idletest" and "tests.highway_idle" or a == "--navtest" and "tests.trader_navigation" or a == "--tradertest" and "tests.trader_travel" or a == "--alifetest" and "tests.alife" or a == "--maptest" and "tests.localmap" or a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
-				or a == "--persisttest" and "tests.persistence" or "tests.world_expansion"
+			local suite = a == "--piracytest" and "tests.piracy" or a == "--stationtest" and "tests.station_services" or a == "--navprofile" and "tests.navigation_profile" or a == "--populationtest" and "tests.population" or a == "--miningpickuptest" and "tests.mining_pickups" or a == "--miningtest" and "tests.mining" or a == "--teleporttest" and "tests.teleport_cleanup" or a == "--patrolnavtest" and "tests.patrol_navigation" or a == "--localnavtest" and "tests.local_navigation" or a == "--piratespawntest" and "tests.pirate_spawning" or a == "--afterburntest" and "tests.afterburner" or a == "--npclifetest" and "tests.npc_lifecycle" or a == "--comparetest" and "tests.ship_comparison" or a == "--securitytest" and "tests.security" or a == "--berthtest" and "tests.berths" or a == "--olympustest" and "tests.olympus_navigation" or a == "--moonentrytest" and "tests.moon_entry" or a == "--dockeditortest" and "tests.dock_editor" or a == "--traffictest" and "tests.npc_traffic" or a == "--drivertest" and "tests.driver_launch" or a == "--moonboundarytest" and "tests.moon_boundary" or a == "--hullthrusttest" and "tests.hull_thrust" or a == "--computervarianttest" and "tests.computer_variants" or a == "--ordnancetest" and "tests.ordnance_computer" or a == "--exhausttest" and "tests.exhaust_damage" or a == "--enginetest" and "tests.engine_visual" or a == "--tasktest" and "tests.tasks" or a == "--debugtraveltest" and "tests.debug_travel" or a == "--marsjobtest" and "tests.mars_jobs" or a == "--editortest" and "tests.editor_loadout" or a == "--editorfoldertest" and "tests.editor_folders" or a == "--navcomputertest" and "tests.navigation_computer" or a == "--idletest" and "tests.highway_idle" or a == "--navtest" and "tests.trader_navigation" or a == "--tradertest" and "tests.trader_travel" or a == "--alifetest" and "tests.alife" or a == "--maptest" and "tests.localmap" or a == "--graphtest" and "tests.travelgraph" or a == "--locationtest" and "tests.locations"
+				or a == "--persisttest" and "tests.persistence" or a == "--firegrouptest" and "tests.fire_groups" or a == "--painttest" and "tests.paint" or a == "--lighttooltest" and "tests.light_tool" or "tests.world_expansion"
 			local ok, err = xpcall(function() require(suite)(game) end, debug.traceback)
 			if not ok then print(err) end
 			love.event.quit(ok and 0 or 1)
@@ -193,18 +203,24 @@ function love.draw()
 		return
 	end
 	Render.world(game)
-	HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
+	if game.state ~= "docked" then
+		HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
+	end
 	if Cargo.isOpen(game) then
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
 	end
-	Orrery.draw(game)
+	if game.state ~= "docked" then Orrery.draw(game) end
 	Pause.draw(game)
 	Debug.draw()
 end
 
 local function relaunch()
 	if game.state == "dead" then game:respawn() end
+end
+
+function love.textinput(text)
+ Cargo.textinput(game,text)
 end
 
 function love.keypressed(key)
@@ -265,5 +281,6 @@ function love.wheelmoved(x, y)
 	if Debug.blocksMouse() then return end
 	if Pause.isOpen() then return end
 	if LocalMap.wheelmoved(game, y) then return end
+	if Cargo.wheelmoved(game,y) then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
 end

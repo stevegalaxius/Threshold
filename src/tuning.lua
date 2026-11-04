@@ -43,7 +43,7 @@ T.specs = {
 	{ key = "huskToughness",  label = "Husk toughness (x ship armor)", min = 0.05, max = 2, value = 0.5, precision = 2 },
 	{ key = "tractorBase",    label = "Tractor beam base range", min = 50, max = 800, value = 260, precision = 0 },
 	{ key = "lootHoldAt",     label = "Looting: beam holds it within (x range)", min = 0.2, max = 1.2, value = 0.6, precision = 2 },
-	{ key = "lootHoldAccel",  label = "Looting: beam pull (px/s^2)", min = 0, max = 4000, value = 1200, precision = 0 },
+	{ key = "lootHoldAccel",  label = "Looting: beam pull on something your own mass (px/s^2)", min = 0, max = 4000, value = 1200, precision = 0 },
 	{ key = "enemyDamage",    label = "Enemy damage",           min = 0,   max = 2,    value = 0.7,  precision = 2 },
 	{ key = "camLead",        label = "Camera lead",            min = 0,   max = 0.6,  value = 0.3,  precision = 2 },
 	{ key = "shake",          label = "Screenshake",            min = 0,   max = 2,    value = 1,    precision = 2 },
@@ -115,6 +115,7 @@ T.driverFare, T.driverFarePerAU = 100, 60
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).
+T.pickupDrag = 1.5 -- shared by live pickups and unloaded orbital catch-up
 T.yearLength = 7200
 
 -- The transit lane: length (base + per AU of distance), the radius of its
@@ -150,17 +151,32 @@ T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.securityThink, T.securityRange = 0.5, 6000
+T.aiSteerEvery, T.aiClearance = 0.2, 12
+T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
+T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
+T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
+T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
+T.pirateRetreatHealth,T.pirateRest=.35,30
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 T.alifeWreckLifetime = 1800
-T.pirateSpawnMin, T.pirateSpawnMax = 180, 300
-T.piratePopulationCap, T.pirateWarpDuration = 2, 1.5
+T.population = {
+ pirate={minDelay=180,maxDelay=300,target=2},
+ trader={minDelay=180,maxDelay=300},
+ patrol={minDelay=180,maxDelay=300},
+ miner={minDelay=180,maxDelay=300},
+}
+T.npcWarpDuration = 1.5
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+
+-- Berth ship capacity is independent of the authored pad/editor marker size.
+T.berthShipScale = 3
 
 -- Hangar bays: cells across and down, and how many pixels of hull length
 -- or width one cell stands for (a Wisp is 4 x 2, a Bastion 14 x 5).
-T.hangarW, T.hangarH, T.hangarCell = 30, 14, 20
+T.hangarW, T.hangarH, T.hangarCell = 12, 10, 20
+T.repairRate = 6          -- credits per armor point at a station repair bay (station def repairRate overrides)
 
 -- Markets (src/market.lua, data/markets.lua). Credits you start with; the
 -- trade grid and a station's shelf, in cells; how long something you sold
@@ -171,8 +187,8 @@ T.startCredits = 5000
 -- How far the camera zooms out (mouse wheel), as a scale.
 T.minZoom = 0.17
 
-T.tradeW, T.tradeH = 10, 8
-T.marketW, T.marketH = 12, 10
+T.tradeW, T.tradeH = 12, 6
+T.marketW, T.marketH = 14, 12
 T.resaleTime = 600
 T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 
@@ -235,5 +251,16 @@ T.rampLead = 1500
 -- to edgeBrake per second, reaching full strength edgeSoft px out, and a
 -- drift of edgeDrift px/s^2 carries you slowly back in.
 T.edgeBrake, T.edgeSoft, T.edgeDrift = 1.5, 3000, 40
+
+
+-- Surface drills emit bounded batches; both online and offline mining share them.
+T.drillIntervalMin,T.drillIntervalMax,T.drillCap=2.5,8,18
+T.drillRockMin,T.drillRockMax=28,100
+T.drillSpeedMin,T.drillSpeedMax,T.drillSpread=420,950,.65
+T.miningSettleTime=6
+T.mineWorkAltitude=2600
+T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,.12
+T.miningOrbitDamping,T.miningOutwardRatio=.015,.07
+T.miningScan,T.miningOfflineEvery=.5,12
 
 return T

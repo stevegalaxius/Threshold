@@ -1,0 +1,43 @@
+-- Made in the Shipyard (F2). Base hull: brute_praetor
+hull {
+	id = "brute_praetor", name = "Praetor",
+	armor = 400,
+	bonuses = {},
+	class = "medium",
+	drag = 0.25,
+	hold = 50,
+	loadout = { "lumen_lance", "lumen_lance", "breaker_tube", "mule_engine", "forge_reactor", "tug_beam", "nav_computer", "fire_computer", "mule_engine" },
+	maker = "Brute Industries",
+	mass = 345,
+	mount = "gimbal",
+	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },
+	price = 54500,
+	ramSpeed = 220,
+	retroThrust = 800,
+	sideThrust = 800,
+	slots = {
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 36, y = -16 },
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 36, y = 16 },
+		{ family = "bay", size = "M", x = 108, y = 0 },
+		{ family = "engine", size = "M", x = -70, y = -24 },
+		{ family = "reactor", size = "L" },
+		{ family = "utility", size = "any" },
+		{ family = "computer", size = "any" },
+		{ family = "computer", size = "any" },
+		{ family = "engine", size = "M", x = -68, y = 24 },
+	},
+	spoolTime = 0.2,
+	turn = 2750,
+	turnSpeed = 150,
+	turretTurn = 30,
+	parts = {
+		{ name = "part 4", shape = { 100, -6, 108, -6, 108, 6, 100, 6 }, mirror = true },
+		{ name = "part 3", shape = { -32, -8, -16, -8, -16, 8, -32, 8 }, mirror = true },
+		{ name = "part 2", shape = { -80, -32, -64, -16, 28, -16, -8, -32 }, paint = "secondary", mirror = true, lights = {
+			{ kind = "nav", x = -8, y = -30 },
+		} },
+		{ name = "part 5", shape = { -64, -8, -56, -36, 32, -16, 144, -4 }, paint = "primary", mirror = true, core = true, lights = {
+			{ kind = "strobe", rate = 1, x = 144, y = -4 },
+		} },
+	},
+}

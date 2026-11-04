@@ -56,6 +56,9 @@ local Input = {}
 local Instances = {}
 local Focused = nil
 local LastFocused = nil
+-- Set when the focused control is drawn; focus held by a control that stopped
+-- being drawn (closed window/panel) is dropped so it can't swallow keys forever.
+local FocusedSeen = false
 local TextCursorPos = 0
 local TextCursorPosLine = 0
 local TextCursorPosLineMax = 0
@@ -1168,6 +1171,10 @@ function Input.Begin(Id, Options)
 		LastFocused = nil
 	end
 
+	if Instance == Focused then
+		FocusedSeen = true
+	end
+
 	local IsEditing = Instance == Focused and not IsSliding
 
 	if Instance == Focused then
@@ -1566,6 +1573,11 @@ function Input.Update(dt)
 		TextCursorAlpha = max(TextCursorAlpha - Delta, 0.0)
 		FadeIn = TextCursorAlpha == 0.0
 	end
+
+	if Focused ~= nil and not FocusedSeen then
+		Focused = nil
+	end
+	FocusedSeen = false
 
 	if PendingFocus ~= nil then
 		LastFocused = Focused

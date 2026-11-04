@@ -68,7 +68,7 @@ end
 function A.intent(game, dt)
 	local t = game.time
 	local p = game.player
-	local it = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, aimX = 0, aimY = 0 }
+	local it = { thrust = 0, strafe = 0, firePrimary = false, fireSecondary = false, fireTertiary = false, boost = false, aimX = 0, aimY = 0 }
 	if not p or p.dead then return it end
 	local px, py = p.body:getPosition()
 	it.aimX, it.aimY = px + 300, py
@@ -89,7 +89,7 @@ function A.intent(game, dt)
 			local err = math.max(-1, math.min(1, (d - 600) / 200))
 			it.thrust, it.strafe = Ship.toLocal(p, -dy / d * 0.8 + dx / d * err, dx / d * 0.8 + dy / d * err)
 			it.firePrimary = d < 950
-			it.fireAux = (math.floor(t * 2) % 7 == 0)
+			it.fireTertiary = (math.floor(t * 2) % 7 == 0)
 			it.boost = (math.floor(t) % 5 == 0)
 		end
 	elseif t < 27 then
@@ -267,7 +267,10 @@ function A.update(game, dt)
 		w.dockState = { done = true, phase = "done", t = 0, station = st }
 		game.state = "docked"
 		local storage = game:stationStorage(st)
-		Hold.add(storage, "rounds_s_crate", 120)
+		Hold.add(storage, "rounds_s", 120)
+		-- hulls start empty, so give the Wisp the ammo this part moves around
+		if (w.cargo.rounds_s or 0) == 0 then Ship.addCargo(w, "rounds_s", 200) end
+		if (w.cargo.missile_s or 0) == 0 then Ship.addCargo(w, "missile_s", 4) end
 		local L = Cargo.layout(game)
 		local cs = L.cs
 		local function at(r, s) return r.x + (s.x + 0.5) * cs, r.y + (s.y + 0.5) * cs end
@@ -282,20 +285,6 @@ function A.update(game, dt)
 		local x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 2)
 		log("cargo: right-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
-		r, s = find("storage", "rounds_s_crate")
-		x, y = at(r, s)
-		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
-		log("cargo: crate to hold: hold crates %d, storage crates %d", w.cargo.rounds_s_crate or 0, Hold.count(storage, "rounds_s_crate"))
-		local before = w.cargo.rounds_s or 0
-		r, s = find("ship", "rounds_s_crate")
-		if r then
-			x, y = at(r, s)
-			Cargo.lastClick = nil
-			Cargo.mousepressed(game, x, y, 1)      -- double-click
-			Cargo.mousereleased(game, x, y, 1)
-			Cargo.mousepressed(game, x, y, 1)
-		end
-		log("cargo: unboxed, light rounds %d -> %d, crates left %d, hold %d / %d", before, w.cargo.rounds_s or 0, w.cargo.rounds_s_crate or 0, w.holdUsed, Ship.holdCapacity(w))
 		r, s = find("ship", "missile_s")
 		x, y = at(r, s)
 		local tx, ty
@@ -347,7 +336,7 @@ function A.update(game, dt)
 		r, s = find("storage", "glint_laser")
 		x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 1)
-		local prim = slotRow("primary")
+		local prim = slotRow("hardpoint")
 		Cargo.mousereleased(game, prim.x + 10, prim.y + 10, 1)
 		log("equip: dragged glint_laser from storage onto slot %d -> %s, old module now in hold %d / storage %d",
 			prim.i, tostring(w.loadout[prim.i]), w.cargo.px2_autogun or 0, Hold.count(storage, "px2_autogun"))
@@ -704,7 +693,7 @@ function A.update(game, dt)
 		log("market: left panel tabs -> showing %s (%d panels)", L.sides[1].title, #L.sides)
 		local storage = game:stationStorage(A.st)
 		local inner = Hold.new({ { key = "main", name = "Container", w = 8, h = 4 } })
-		Hold.add(inner, "rounds_s_crate", 50)
+		Hold.add(inner, "rounds_s", 50)
 		Hold.placeStack(storage, { id = "cargo_container", n = 1, inner = inner })
 		L = Cargo.layout(game)
 		for _, gr in ipairs(L.grids) do

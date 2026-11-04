@@ -114,6 +114,7 @@ function Hold.innerMass(h, items)
 		for _, s in ipairs(g.stacks) do
 			if s.inner then
 				for id, n in pairs(Hold.totals(s.inner)) do m = m + items[id].mass * n end
+    m=m+Hold.innerMass(s.inner,items)
 			end
 		end
 	end
@@ -235,7 +236,7 @@ function Hold.clone(h)
 		local cg = Grid.new(g.w, g.h, g.name)
 		cg.key = g.key
 		for _, s in ipairs(g.stacks) do
-			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner, resale = s.resale, wear = s.wear })
+			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner, resale = s.resale, wear = s.wear, stolen = s.stolen })
 		end
 		table.insert(c.grids, cg)
 	end
@@ -336,7 +337,7 @@ function Hold.serialize(h)
 		local sg = { key = g.key, name = g.name, w = g.w, h = g.h, stacks = {} }
 		for _, s in ipairs(g.stacks) do
 			table.insert(sg.stacks, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or nil,
-				inner = s.inner and Hold.serialize(s.inner) or nil, resale = s.resale, wear = s.wear })
+				inner = s.inner and Hold.serialize(s.inner) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen })
 		end
 		table.insert(out.grids, sg)
 	end
@@ -351,7 +352,7 @@ function Hold.deserialize(t, known)
 		for _, s in ipairs(sg.stacks or {}) do
 			if (not known or known(s.id)) and Grid.isFree(g, s.x, s.y, s.w, s.h) then
 				Grid.place(g, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
-					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear })
+					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen })
 			end
 		end
 		table.insert(h.grids, g)

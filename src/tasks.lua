@@ -17,6 +17,27 @@ function Tasks.post(u,offer)
  state.offers[o.id]=o
  return o
 end
+-- Reconcile generated world duties without replacing reservations or reposting
+-- completed work. Custom offers outside this scope are left alone.
+function Tasks.sync(u,scope,specs,legacy)
+ local state=Tasks.state(u);local desired,existing={},{}
+ local function key(o)return o.kind..'|'..o.source..'|'..o.target..'|'..(o.item or '') end
+ for _,o in ipairs(specs) do desired[key(o)]=o end
+ for id,o in pairs(state.offers) do
+  if o.layoutScope==scope or (not o.layoutScope and legacy and legacy(o)) then
+   local k=key(o);o.layoutScope=scope
+   if desired[k] then existing[k]=true
+   elseif o.state=='available' then state.offers[id]=nil end
+  end
+ end
+ -- Preserve authoring order, which is also the stable task-ID tie breaker.
+ for _,spec in ipairs(specs) do
+  if not existing[key(spec)] then
+   local offer=copy(spec);offer.layoutScope=scope;Tasks.post(u,offer);existing[key(spec)]=true
+  end
+ end
+end
+
 function Tasks.release(u,r,reason,clock)
  local t=r.task
  if not t then return end

@@ -3,7 +3,7 @@ return function(game)
  local copy=require('src.persistence').copy
  local p=game.player
  p.hull=copy(p.hull)
- p.hull.slots={{family='primary',size='S'},{family='computer',size='any'}}
+ p.hull.slots={{family='hardpoint',size='S'},{family='computer',size='any'}}
  p.loadout={'px2_autogun',false};p.team=1;p.dockState=nil
  p.body:setPosition(0,0);p.body:setAngle(0)
  p.intent.aimX=1000;p.intent.aimY=0

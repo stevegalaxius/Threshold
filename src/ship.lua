@@ -13,6 +13,7 @@ local stats = require("src.stats")
 local T = require("src.tuning")
 local Hold = require("src.inventory.hold")
 local Shapes = require("src.inventory.shapes")
+local Paint = require("src.paint")
 
 local Ship = {}
 
@@ -33,7 +34,7 @@ function Ship.emptyIntent()
 	-- thrust: -1..1 along the nose (forward is the main engine, back is retro thrusters)
 	-- strafe: -1..1 to the ship's right (maneuvering thrusters, or turning
 	--         right on a hull with helm = "turn")
-	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireAux = false, boost = false, tractor = false }
+	return { thrust = 0, strafe = 0, aimX = 0, aimY = 0, firePrimary = false, fireSecondary = false, fireTertiary = false, boost = false, tractor = false }
 end
 
 --[[ Ship.new(game, opts)
@@ -41,12 +42,14 @@ end
 	opts.loadout  module ids by slot (defaults to the hull's loadout)
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
 	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
-	opts.color    paint { r, g, b } (defaults to the enemy definition's color)
+	opts.color    a paint (src/paint.lua); defaults to the enemy's livery, else the hull's factory preset
 	opts.grid     true for a grid hold (the player): items take shapes on a
 	              grid of 1 m3 cells. Other ships just count volume.
 	opts.hold     an existing grid hold to carry (a ship coming out of a
 	              hangar or a save keeps its hold exactly as it was)
 	opts.armor    armor to start with (defaults to full)
+	opts.triggers which trigger fires each weapon slot, by slot index
+	              ("primary", "secondary" or "tertiary"; defaults per Ship.triggerFor)
 ]]
 function Ship.new(game, opts)
 	local hull = type(opts.hull)=="table" and opts.hull or assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
@@ -54,12 +57,13 @@ function Ship.new(game, opts)
 		kind = "ship", id = game:nextId(), team = opts.team or 2,
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
-		cargo = copy(opts.cargo or hull.cargo),
+		triggers = copy(opts.triggers or {}),
+		cargo = copy(opts.cargo or {}),
 		gridHold = opts.grid or opts.hold ~= nil,
 		hold = opts.hold,
 		intent = Ship.emptyIntent(),
 		flash = 0, spool = 0, mainBurn = 0, retroBurn = 0, sideBurn = 0, afterburn = false,
-		color = opts.color or (opts.enemy and opts.enemy.color) or { 0.95, 0.5, 0.32 },
+		color = Paint.resolve(opts.color, opts.enemy, hull),
 	}
 
 	-- The spine: the line through the hull's middle, tail to nose, inset by
@@ -118,9 +122,30 @@ end
 -- copy), armor and paint. Game:spawnPlayer turns one back into a ship.
 function Ship.record(e)
 	return {
-		hull = e.hull.id, loadout = copy(e.loadout), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
+		hull = e.hull.id, loadout = copy(e.loadout), triggers = copy(e.triggers or {}), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
 	}
+end
+
+Ship.TRIGGERS = { primary = true, secondary = true, tertiary = true }
+-- Short labels for each trigger (not mouse buttons: a pad plays too).
+Ship.TRIGGER_TAG = { primary = "PRI", secondary = "SEC", tertiary = "TER" }
+
+-- Which trigger fires the weapon in slot i: the player's choice, else the
+-- slot's default, else primary for hardpoints and tertiary for bays.
+function Ship.triggerFor(e, i)
+	local slot = e.hull.slots[i]
+	local t = e.triggers and e.triggers[i]
+	if Ship.TRIGGERS[t] then return t end
+	return slot.trigger or (slot.family == "bay" and "tertiary" or "primary")
+end
+
+-- Step slot i to the next trigger: primary, secondary, tertiary.
+function Ship.toggleTrigger(e, i)
+	e.triggers = e.triggers or {}
+	local NEXT = { primary = "secondary", secondary = "tertiary", tertiary = "primary" }
+	e.triggers[i] = NEXT[Ship.triggerFor(e, i)]
+	Ship.refit(e)
 end
 
 -- Rebuild stats and weapon list after the hull's modules change.
@@ -138,7 +163,8 @@ function Ship.refit(e)
 		if m and m.weapon then
 			table.insert(e.weapons, {
 				slot = slot, module = m, w = m.weapon,
-				group = slot.family,              -- primary, secondary or auxiliary
+				index = i, bay = m.family == "bay",
+				group = Ship.triggerFor(e, i),    -- primary, secondary or tertiary
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
@@ -266,6 +292,15 @@ function Ship.addCargo(e, itemId, count)
 	return n
 end
 
+-- Upgrade a count-only NPC hold only when every existing item fits the real grids.
+function Ship.ensureGridHold(e)
+ if e.hold then return true end
+ local hold=Hold.new(Ship.holdLayout(e))
+ for id,n in pairs(e.cargo or {}) do if Hold.add(hold,id,n)~=n then return false end end
+ e.hold=hold;e.gridHold=true
+ return true
+end
+
 -- Scoop a floating container into the hold, cargo and all. Returns true
 -- if there was room.
 function Ship.stowContainer(e, box)
@@ -275,7 +310,7 @@ function Ship.stowContainer(e, box)
 	if not Hold.placeStack(e.hold, s) then return false end
 	e.cargo = Hold.totals(e.hold)
 	Ship.updateMass(e)
-	return true
+	return true, s
 end
 
 -- Distance from a world point to the ship's hull edge (0 or less = inside).
@@ -293,6 +328,12 @@ end
 -- one, and a tractor module (tractorRange) extends it.
 function Ship.tractorRange(e)
 	return T.tractorBase + (e.stats.tractorRange or 0)
+end
+
+-- How strong the tractor beam is, as a multiple of the basic one: each
+-- tractor module adds its tractorPower.
+function Ship.tractorPower(e)
+	return 1 + (e.stats.tractorPower or 0)
 end
 
 -- World position of a slot's hardpoint.
@@ -329,9 +370,9 @@ function Ship.fly(e, dt)
 	-- reserve, holding boost keeps the reduced output and preserves that
 	-- charge; release boost to recharge and rearm the full-power mode.
 	local burner = it.boost and s.thrust > 0
-		-- the lane's buff replaces it, except on heavies, which need the
-		-- extra push to get anywhere on the road
-		and (not e.laneBuff or e.hull.class == "heavy")
+		-- the lane's buff replaces it, except on turn-helm hulls (manual
+		-- bearing), which need the extra push to get anywhere on the road
+		and (not e.laneBuff or e.hull.helm == "turn")
 	local reserve = s.powerCap * T.boostRelight
 	if not burner and e.power > reserve then e.burnerLocked = false end
 	if burner then

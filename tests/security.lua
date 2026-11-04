@@ -1,4 +1,5 @@
 return function(game)
+ require("tests.npc_repair")(game)
  local A,S,E=require('src.alife'),require('src.security'),require('src.encounters')
  local Tasks,L,G,Fields=require('src.tasks'),require('src.locations'),require('src.travelgraph'),require('src.fields')
  local Save,copy,AI,T=require('src.save'),require('src.persistence').copy,require('src.ai'),require('src.tuning')
@@ -38,7 +39,7 @@ return function(game)
  local duty=copy(patrol);local u=copy(game.universe);u.npcs[duty.id]=duty
  duty.state='travel';duty.index=#duty.route;duty.arrive=10;duty.encounter=nil
  S.advance(duty,10,u,A.start)
- check(duty.state=='idle' and duty.node==duty.task.target,'patrol did not inspect its destination')
+ check((duty.state=='idle' or duty.state=='docked') and duty.node==duty.task.target,'patrol did not inspect its destination')
  local taskId=duty.task.id
  S.advance(duty,duty.untilTime,u,A.start)
  check(duty.lastTask and duty.lastTask.id==taskId and duty.lastTask.status=='completed','completed patrol duty remained reserved')
@@ -180,5 +181,6 @@ return function(game)
  game:loadState(final)
  local restored=0;for _,e in ipairs(game.entities) do if e.kind=='husk' then restored=restored+1 end end
  check(restored==afterWreck,'materialized wreck was lost or duplicated in a save')
+ require('tests.patrol_docking')(game)
  print(('SECURITY A-LIFE TEST PASSED (%d checks; %d persistent security NPCs)'):format(checks,expected))
 end

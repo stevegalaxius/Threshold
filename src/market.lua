@@ -30,6 +30,7 @@
 ]]
 
 local data = require("src.data")
+local stats = require("src.stats")
 local Hold = require("src.inventory.hold")
 local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
@@ -38,6 +39,7 @@ local T = require("src.tuning")
 local events = require("src.events")
 local Locations = require("src.locations")
 
+local ShipEntry=require("src.inventory.ship_entry")
 local floor, min = math.floor, math.min
 
 return function(Game)
@@ -54,8 +56,8 @@ function Game.stackValue(id, n, inner)
 	return v
 end
 
-function Game.buyPrice(s) return Game.stackValue(s.id, s.n, s.inner) end
-function Game.sellPrice(s) return floor(Game.stackValue(s.id, s.n, s.inner) * T.sellRate) end
+function Game.buyPrice(s) local item=ShipEntry.item(s.id);return item and item.price or Game.stackValue(s.id,s.n,s.inner) end
+function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(Game.stackValue(s.id,s.n,s.inner)*T.sellRate) end
 
 function Game:credits() return self.universe.credits end
 
@@ -80,9 +82,49 @@ local function stockCount(hold, id)
 	return n
 end
 
+-- The services a station offers, from its definition's services list
+-- (src/editor: station panel). Stations saved before services existed
+-- offer the original three. Storage (your hold, fitting and station
+-- storage) is always there. Returns a set: { market = true, ... }.
+Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
+function Game.stationServices(st)
+ return require('src.station_services').get(st and st.def)
+end
+
+-- Repairs: credits per armor point here, and what fixing a ship costs.
+function Game.repairRate(st)
+	return st and st.def and st.def.repairRate or T.repairRate
+end
+
+-- owner is the player's ship or a stored ship record. Returns missing
+-- armor points and the full price.
+function Game:repairQuote(st, owner)
+	local hull = owner == self.player and owner.hull or data.hulls[owner.hull]
+	local max = owner == self.player and owner.stats.armor
+		or stats.compute(hull, owner.loadout or hull.loadout).armor
+	local missing = math.max(0, math.ceil(max - (owner.armor or max)))
+	return missing, missing * Game.repairRate(st), max
+end
+
+-- Repair as much as credits allow. Returns points repaired and paid, or
+-- nil and why not.
+function Game:repairShip(st, owner)
+	if not Game.stationServices(st).repair then return nil, "NO REPAIR BAY HERE" end
+	local missing, _, max = self:repairQuote(st, owner)
+	if missing <= 0 then return nil, "NOTHING TO REPAIR" end
+	local rate = Game.repairRate(st)
+	local points = rate > 0 and math.min(missing, floor(self.universe.credits / rate)) or missing
+	if points <= 0 then return nil, "NOT ENOUGH CREDITS" end
+	local paid = points * rate
+	owner.armor = math.min(max, (owner.armor or max) + points)
+	self.universe.credits = self.universe.credits - paid
+	return points, paid
+end
+
 function Game.marketDefinition(st)
 	local place = st.locationId and Locations.get(st.locationId)
-	return (place and data.markets[place.marketId or place.id]) or data.markets[st.name]
+	local id=place and place.marketId or st.marketId or st.def and st.def.marketId or require('src.world_layout').defaults.marketId
+ return data.markets[id]
 end
 
 function Game.newShelf()
@@ -90,24 +132,53 @@ function Game.newShelf()
 end
 
 -- A station's market, opened fully stocked the first time.
-function Game:stationMarket(st)
-	local r = self:stationRecord(st)
-	if not r.market then
-		r.market = { hold = Game.newShelf(), next = {} }
-		local mk = Game.marketDefinition(st)
-		for _, e in ipairs(mk and mk.sells or {}) do
-			local _, _, cap = Shapes.of(e[1])
-			for _ = 1, e[2] do Hold.placeStack(r.market.hold, { id = e[1], n = cap }) end
-		end
+-- A station's shops: { name, description, sells } each, from the market
+-- definition's shops list. A market with a plain sells list is one shop.
+function Game.marketShops(st)
+	local mk = Game.marketDefinition(st)
+	if mk and mk.shops then return mk.shops end
+	return { { name = "Station stock", description = "", sells = mk and mk.sells or {} } }
+end
+
+local function newMarket(sells)
+	local m = { hold = Game.newShelf(), next = {} }
+	for _, e in ipairs(sells or {}) do
+		local _, _, cap = Shapes.of(e[1])
+		for _ = 1, e[2] do Hold.placeStack(m.hold, { id = e[1], n = cap }) end
 	end
-	return r.market
+	return m
+end
+
+-- Which shop is open (its index), and switching to another.
+function Game:currentShop(st)
+	local r = self:stationRecord(st)
+	local n = #Game.marketShops(st)
+	if not r.shop or r.shop > n then r.shop = 1 end
+	return r.shop
+end
+function Game:setShop(st, i)
+	if i >= 1 and i <= #Game.marketShops(st) then self:stationRecord(st).shop = i end
+end
+
+-- Shop i's shelf (default: the open one). Each shop keeps its own stock
+-- and restock timers; what you sell goes to the shop you sold it to.
+function Game:stationMarket(st, i)
+	local r = self:stationRecord(st)
+	i = i or self:currentShop(st)
+	r.shops = r.shops or {}
+	if not r.shops[i] then r.shops[i] = newMarket(Game.marketShops(st)[i].sells) end
+	return r.shops[i]
 end
 
 -- Bring a station's shelf up to the clock: resale that's had its time is
 -- sold on, and stock comes in a stack at a time. away: { id = n } of its
 -- stock that's out on the trade grid, so that doesn't count as missing.
 function Game:marketTick(st, away)
-	local mk = self:stationMarket(st)
+	for i, shop in ipairs(Game.marketShops(st)) do self:shopTick(st, i, shop, i == self:currentShop(st) and away or nil) end
+end
+
+function Game:shopTick(st, i, shop, away)
+	local mk = self:stationMarket(st, i)
 	local now = self.universe.clock
 	for _, g in ipairs(mk.hold.grids) do
 		for i = #g.stacks, 1, -1 do
@@ -115,8 +186,7 @@ function Game:marketTick(st, away)
 			if s.resale and s.resale <= now then Grid.remove(g, s) end
 		end
 	end
-	local cat = Game.marketDefinition(st)
-	for _, e in ipairs(cat and cat.sells or {}) do
+	for _, e in ipairs(shop.sells or {}) do
 		local id = e[1]
 		local _, _, cap = Shapes.of(id)
 		local want, every = e[2] * cap, restockTime(e)
@@ -172,6 +242,31 @@ local function split(trade)
 	return buying, selling
 end
 
+-- Plan parking on an isolated roster so sold ships can free space for purchases.
+local function shipPlan(game,st,buying,selling)
+ local original=game:stationRecord(st);local roster,sold,planned={},{},{}
+ for _,s in ipairs(selling) do if ShipEntry.item(s.id) then
+  local found=false
+  for _,rec in ipairs(original.hangar) do if rec==s.shipRecord then found=true end end
+  if not found or sold[s.shipRecord] then return nil,'SHIP NO LONGER AVAILABLE' end
+  sold[s.shipRecord]=true
+ end end
+ for _,rec in ipairs(original.hangar) do if not sold[rec] then
+  local c={};for k,v in pairs(rec) do c[k]=v end;roster[#roster+1]=c
+ end end
+ local record={hangar=roster,moorings=original.moorings}
+ local proxy=setmetatable({stationRecord=function() return record end},{__index=game})
+ for _,s in ipairs(buying) do local item=ShipEntry.item(s.id);if item then
+  local available=false;for _,id in ipairs(game.shipyard(st)) do if id==item.hull then available=true end end
+  if not available then return nil,'SHIP NO LONGER FOR SALE' end
+  local parking=proxy:shipParkingFit(st,item.hull)
+  if not parking then return nil,'NO SUITABLE FREE PARKING' end
+  local rec={hull=item.hull};proxy:applyParking(rec,parking);roster[#roster+1]=rec
+  planned[#planned+1]={hull=item.hull,parking=parking}
+ end end
+ return {sold=sold,bought=planned}
+end
+
 -- Why the trade can't go through, or nil if it can: you can't cover the
 -- difference, or what you're buying won't fit in your hold and storage.
 function Game:tradeProblem(st, trade)
@@ -181,9 +276,11 @@ function Game:tradeProblem(st, trade)
 	if self.universe.credits + get < pay then return "NOT ENOUGH CREDITS" end
 	local th, ts = Hold.clone(self.player.hold), Hold.clone(self:stationStorage(st))
 	for _, s in ipairs(buying) do
-		if not deliver(s, th, ts) then return "NO ROOM" end
+		if not ShipEntry.item(s.id) and not deliver(s, th, ts) then return "NO ROOM" end
 	end
-	return nil
+ local plan,why=shipPlan(self,st,buying,selling)
+ if not plan then return why end
+ return nil
 end
 
 -- Settle the trade grid: you're paid for your goods and charged for the
@@ -197,11 +294,20 @@ function Game:completeTrade(st, trade)
 	local get, pay = Game.tradeTotals(trade)
 	local buying, selling = split(trade)
 	local storage = self:stationStorage(st)
-	for _, s in ipairs(buying) do deliver(s, p.hold, storage) end
+	local plan=assert(shipPlan(self,st,buying,selling))
+ local records={}
+ for _,purchase in ipairs(plan.bought) do
+  local e=Ship.new(self,{hull=purchase.hull,team=1,grid=true})
+  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,purchase.parking);records[#records+1]=rec
+ end
+ local roster=self:stationRecord(st).hangar
+ for i=#roster,1,-1 do if plan.sold[roster[i]] then table.remove(roster,i) end end
+ for _,rec in ipairs(records) do roster[#roster+1]=rec end
+ for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then deliver(s,p.hold,storage) end end
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do
 		-- (no room on the shelf: it's sold on straight away)
-		Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime })
+		if not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end
@@ -209,6 +315,8 @@ function Game:completeTrade(st, trade)
 	u.credits = u.credits + get - pay
 	p.cargo = Hold.totals(p.hold)
 	Ship.updateMass(p)
+ for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end
+ for _,rec in ipairs(records) do events.emit("buyship",rec,st) end
 	return true, get - pay
 end
 
@@ -257,23 +365,41 @@ function Game.shipyard(st)
 	return mk and mk.ships or {}
 end
 
--- Why this ship can't be bought here, or nil if it can.
-function Game:shipBuyProblem(st, hullId)
+-- Why this ship can't be bought here, or nil if it can. tradeIn (a
+-- stored ship record) counts toward the price and frees its parking.
+function Game:shipBuyProblem(st, hullId, tradeIn)
 	local hull = data.hulls[hullId]
 	if not hull then return "UNKNOWN SHIP" end
-	if self.universe.credits < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
-	if not self:hangarFit(st, hullId) then return "NO ROOM IN THE HANGAR" end
+	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
+	if self.universe.credits + credit < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
+	if not self:shipParkingFit(st, hullId, tradeIn) then return "NO SUITABLE FREE PARKING" end
 	return nil
 end
 
--- Buy a new ship of a hull: paid for and parked in this station's hangar.
--- Returns the record, or nil and why not (then nothing changes).
-function Game:buyShip(st, hullId)
-	local problem = self:shipBuyProblem(st, hullId)
+-- Buy a new ship of a hull: paid for and parked at this station.
+-- opts.paint names one of the hull's factory paints; opts.tradeIn is a
+-- stored ship here, sold (with its hold) toward the price. Returns the
+-- record, or nil and why not (then nothing changes).
+function Game:buyShip(st, hullId, opts)
+	opts = opts or {}
+	local tradeIn = opts.tradeIn
+	local problem = self:shipBuyProblem(st, hullId, tradeIn)
 	if problem then return nil, problem end
-	local rec = self:addToHangar(st, hullId)
-	if not rec then return nil, "NO ROOM IN THE HANGAR" end
-	self.universe.credits = self.universe.credits - (data.hulls[hullId].price or 0)
+	local list = self:hangar(st)
+	local tradeIndex
+	if tradeIn then
+		for i, rec in ipairs(list) do if rec == tradeIn then tradeIndex = i end end
+		if not tradeIndex then return nil, "NO SUCH SHIP" end
+		table.remove(list, tradeIndex)
+	end
+	local rec = self:addToHangar(st, hullId, opts.paint)
+	if not rec then
+		if tradeIndex then table.insert(list, tradeIndex, tradeIn) end
+		return nil, "NO SUITABLE FREE PARKING"
+	end
+	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
+	self.universe.credits = self.universe.credits + credit - (data.hulls[hullId].price or 0)
+	if tradeIn then events.emit("sellship", tradeIn, st) end
 	events.emit("buyship", rec, st)
 	return rec
 end

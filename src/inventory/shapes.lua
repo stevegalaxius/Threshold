@@ -34,20 +34,10 @@ local cache = {}
 function Shapes.of(id)
 	local c = cache[id]
 	if c then return c[1], c[2], c[3] end
-	local item = assert(data.items[id], "unknown item " .. tostring(id))
+	local item = assert(data.items[id] or require("src.inventory.ship_entry").item(id), "unknown item " .. tostring(id))
 	local w, h, stack
 	if item.w and item.h then
 		w, h, stack = item.w, item.h, item.stack or 1
-	elseif item.kind == "crate" then
-		-- A crate is a 2 x 2 box of the rounds; ammo too big for that is
-		-- crated one at a time in its own shape.
-		local ammo = data.items[item.ammo]
-		if ammo.volume <= 4 + EPS then
-			w, h, stack = 2, 2, max(1, floor(4 / ammo.volume + EPS))
-		else
-			w, h = Shapes.of(item.ammo)
-			stack = 1
-		end
 	else
 		w, h, stack = fromVolume(item.volume)
 	end

@@ -27,6 +27,7 @@ local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
 local ALife = require("src.alife")
+local Mining = require("src.mining")
 
 local Game = {}
 Game.__index = Game
@@ -35,6 +36,10 @@ local sqrt, cos, sin, max, min, floor, pi, random, exp = math.sqrt, math.cos, ma
 
 function Game.new(opts)
 	opts = opts or {}
+ if not opts.universe and not opts.preview and love.filesystem.getInfo('world_layout.lua') then
+  local ok,err=require('src.world_authoring').loadDefinition()
+  if not ok then print('World layout could not be loaded: '..tostring(err)) end
+ end
 	local self = setmetatable({}, Game)
 	love.physics.setMeter(64)
 	self.world = love.physics.newWorld(0, 0, true)
@@ -53,7 +58,6 @@ function Game.new(opts)
 	self.camera = Camera.new()
 
 	self.playerHull = opts.hull or "halcyon_wisp"
-	self.playerColor = { 0.55, 0.9, 0.95 }
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
@@ -66,6 +70,7 @@ end
 -- Keep the field's bodies for the moon-road view and an immediate return.
 function Game:retainField()
 	self:captureALife(true)
+	Mining.unload(self)
 	local scene = setmetatable({}, Game)
 	for k, v in pairs(self) do scene[k] = v end
 	scene.camera = Camera.new()
@@ -86,6 +91,8 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	Mining.unload(self)
+	self.miningNext = nil
 	self:captureALife(true)
 	self.alifeNext, self.alifeRemoteNext = nil, nil
 	if not opts.skipCapture then self:captureArea() end
@@ -101,33 +108,33 @@ function Game:loadField(id, opts)
 	release(self.arrivalPreview and self.arrivalPreview.game)
 	if not opts.retain then release(self.trip and self.trip.originScene) end
 	self.arrivalPreview = nil
-	if opts.retain then
-		self.world = love.physics.newWorld(0, 0, true)
-		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
-	else
-		for _, e in ipairs(self.entities) do
-			if not e.removed then e.body:destroy(); e.removed = true end
-		end
-		for _, e in ipairs(self.sleepers or {}) do
-			if not e.removed then e.body:destroy(); e.removed = true end
+	if not opts.retain then
+		-- Unloading a field ends ownership of the whole Box2D world, including
+		-- native broad-phase/contact allocations and any untracked bodies.
+		-- A highway's retained origin and an adopted preview remain alive.
+		local adoptingCurrent = opts.prepared and opts.prepared.world == self.world
+		if not adoptingCurrent then
+			for _, e in ipairs(self.entities) do e.removed = true end
+			for _, e in ipairs(self.sleepers or {}) do e.removed = true end
+			if not disposed[self.world] then self.world:destroy() end
 		end
 	end
+	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
+	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
+	if self.travelGraphView then self.travelGraphView = require("src.travelgraph").build(id) end
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
-	self.well, self.lane, self.driverMenu = nil, nil, nil
+	self.well, self.lane, self.driverMenu, self.ladder = nil, nil, nil, nil
 	if not self.field.transit then self.trip = nil end
 	self.stationCount = 0
 	if opts.prepared then
 		local scene = opts.prepared
-		self.world:destroy()
-		self.world = scene.world
-		self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
-			"contacts", "well", "moonGates", "stationCount", "idCounter" }) do
+			"contacts", "well", "moonGates", "stationCount", "idCounter", "ladder" }) do
 			self[key] = scene[key]
 		end
 	else
@@ -141,6 +148,9 @@ function Game:loadField(id, opts)
 	end
 	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
+	-- Cull distant generated debris before NPC placement and the first AI step.
+	-- Otherwise local steering scans the entire freshly built belt once.
+	if not opts.prepared then self:updateSleepers() end
 	ALife.seed(self)
 	if not opts.deferALife then self:updateALife(true) end
 	-- the new level's name replaces any still showing (the game builds
@@ -151,12 +161,11 @@ function Game:loadField(id, opts)
 	if not opts.quiet then self:toast(self.field.name:upper(), 2, nil, true) end
 end
 
--- F2: the next playing field.
+-- F3 uses the same cleanup as the other debug teleports.
 function Game:nextField()
 	local i = 1
 	for j, id in ipairs(Fields.list) do if id == self.fieldId then i = j end end
-	local p = self.player
-	self:loadField(Fields.list[i % #Fields.list + 1], { player = p and not p.dead and Ship.record(p) or nil })
+	require("src.debugtravel").go(self, Fields.list[i % #Fields.list + 1])
 end
 
 function Game:nextId()
@@ -173,10 +182,9 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	local rec = type(hullId) == "table" and hullId or { hull = hullId, loadout = loadout, cargo = cargo }
 	if not data.hulls[rec.hull or self.playerHull] then rec = { hull = T.starterHull } end
 	self.playerHull = rec.hull or self.playerHull
-	if rec.color then self.playerColor = rec.color end
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
-		team = 1, x = sx, y = sy, angle = -pi / 2, color = self.playerColor, grid = true })
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
 	self.player = p
@@ -316,7 +324,7 @@ function Game:updateSleepers()
 	local awake = {}
 	for _, e in ipairs(self.entities) do
 		local slept = false
-		if e.kind == "asteroid" and not e.giant and not e.dead and not e.removed and not e.reentry then
+		if e.kind == "asteroid" and not e.giant and not e.miningId and not e.dead and not e.removed and not e.reentry then
 			local b = e.body
 			local x, y = b:getPosition()
 			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
@@ -347,6 +355,8 @@ local DEBRIS = {
 	sat = { fill = { 0.3, 0.31, 0.34 }, line = { 0.8, 0.83, 0.88 }, tough = 0.7 },   -- bursts, no pieces
 }
 Game.DEBRIS = DEBRIS
+-- What a drilled piece of each kind of debris drops when it breaks.
+local Ore = require("src.ore")
 
 -- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
 -- same kind of list, counter-clockwise (monotone chain).
@@ -404,7 +414,7 @@ function Game:spawnDebris(kind, x, y, radius)
 	return self:spawnAsteroid(x, y, radius, kind)
 end
 
-function Game:spawnAsteroid(x, y, radius, kind)
+function Game:spawnAsteroid(x, y, radius, kind, savedVerts)
 	kind = kind or "rock"
 	local D = DEBRIS[kind] or DEBRIS.rock
 	local verts = {}
@@ -432,7 +442,7 @@ function Game:spawnAsteroid(x, y, radius, kind)
 	-- jagged outlines can come out concave: keep their convex hull, so
 	-- every piece is a polygon (never a plain circle)
 	if not love.math.isConvex(verts) then verts = convexHull(verts) end
-	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = verts,
+	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
 	self:debrisBody(e, x, y, random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
@@ -538,11 +548,13 @@ function Game:spawnPlanet(x, y, radius, flow, swirl, rocky, landable)
 	return e
 end
 
+-- Keep tiny-world currents gentle: a shared tangential speed makes their
+-- short orbits whirl much faster than those around larger planets.
 -- How fast the field's current runs at distance r from the planet.
 function Game:currentSpeed(r)
 	local w = self.well
 	if not w then return 0 end
-	return w.flow * sqrt(w.radius / max(r, w.radius)) * T.currentScale
+	return w.flow * min(1, w.radius / 6000) * sqrt(w.radius / max(r, w.radius)) * T.currentScale
 end
 
 -- The current's velocity at (x, y): along the tangent, clockwise on screen.
@@ -657,7 +669,7 @@ function Game:surfacePullAt(x, y)
 		end
 	end
 	local u = max(0, min(1, 1 - (r - surface) / reach))
-	local pull = T.surfacePull * (w.gas and T.gasPullScale or 1) * u * u * (3 - 2 * u)
+	local pull = T.surfacePull * min(1, w.radius / 6000) * (w.gas and T.gasPullScale or 1) * u * u * (3 - 2 * u)
 	return -dx / r * pull, -dy / r * pull
 end
 
@@ -798,14 +810,14 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	body:setAngle(random() * pi * 2)
-	body:setAngularVelocity(spin or 0.04)
+	body:setAngularVelocity(def.rotors and 0 or spin or 0.04)
 	-- Authored stations receive an explicit location ID below. Runtime
 	-- editor/debug stations have temporary keys and are not catalogue entries.
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
 	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		def = def,
+		def = def, role = def.role,
 		key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
 	-- The dock (see Game:updateDocking): x1..x2 its extent out from the
@@ -820,8 +832,35 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	e.dock = e.docks[1]
 	e.radius = def.radius
 	-- the dock module is solid too; ships only get inside by being pulled in
+	local function solid(b, part, ox, oy)
+		for _, t in ipairs(part.tris) do
+			local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
+			if a2 > 4 then
+				local f = love.physics.newFixture(b, love.physics.newPolygonShape(
+					t[1] - ox, t[2] - oy, t[3] - ox, t[4] - oy, t[5] - ox, t[6] - oy))
+				f:setFriction(0.5)
+				f:setRestitution(0.1)
+				f:setUserData(e)
+			end
+		end
+	end
+	-- rotors (def.rotors): their parts on kinematic bodies of their own,
+	-- pivoting on the core; Game:updateRotors keeps them turning
+	if def.rotorParts then
+		e.rotors = {}
+		for name, r in pairs(def.rotors) do
+			local px, py = r.x or 0, r.y or 0
+			local rb = love.physics.newBody(self.world, body:getWorldPoint(px, py))
+			rb:setType("kinematic")
+			rb:setUserData(e)
+			for _, part in ipairs(def.rotorParts[name]) do
+				if part.collide ~= false then solid(rb, part, px, py) end
+			end
+			table.insert(e.rotors, { name = name, body = rb, x = px, y = py, spin = r.spin or spin or 0.04, fixed = r.spin ~= nil, over = r.over, phase = random() * pi * 2 })
+		end
+	end
 	for _, part in ipairs(def.parts) do
-		if part.collide ~= false then
+		if part.collide ~= false and not part.rotor then
 			for _, t in ipairs(part.tris) do
 				local a2 = math.abs((t[3] - t[1]) * (t[6] - t[2]) - (t[5] - t[1]) * (t[4] - t[2]))
 				if a2 > 4 then
@@ -841,12 +880,43 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 		body:setMassData(0, 0, m, m * R * R)
 		body:setLinearDamping(0)
 		body:setAngularDamping(0)
-		body:setAngularVelocity(spin or 0.04)
+		body:setAngularVelocity(def.rotors and 0 or spin or 0.04)
 	end
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	if locationId then self:bindLocation(e, locationId) end
 	return e
+end
+
+-- Turn every station's rotors: each pivot rides the core, and its angle
+-- comes from the clock, so it needs nothing saved.
+function Game:updateRotors()
+	local clock = self.universe and self.universe.clock or self.time
+	-- the Heaven-Ladder's ring (src/transit.lua): its arcs turn about the planet
+	local ladder = self.ladder
+	if ladder then
+		local a = (ladder.spin * clock) % (pi * 2)
+		for _, e in ipairs(ladder.segments) do
+			if not e.removed then
+				e.body:setPosition(ladder.cx - (ladder.cx * cos(a) - ladder.cy * sin(a)), ladder.cy - (ladder.cx * sin(a) + ladder.cy * cos(a)))
+				e.body:setAngle(a)
+				e.body:setAngularVelocity(ladder.spin)
+			end
+		end
+	end
+	for _, e in ipairs(self.entities) do
+		if e.rotors and not e.removed then
+			local b = e.body
+			local a, av = b:getAngle(), b:getAngularVelocity()
+			for _, r in ipairs(e.rotors) do
+				local x, y = b:getWorldPoint(r.x, r.y)
+				r.body:setPosition(x, y)
+				r.body:setAngle(a + r.phase + r.spin * clock)
+				r.body:setLinearVelocity(b:getLinearVelocityFromWorldPoint(x, y))
+				r.body:setAngularVelocity(av + r.spin)
+			end
+		end
+	end
 end
 
 -- Station turrets (def.turrets): each fires its weapon module like a
@@ -868,10 +938,10 @@ function Game:armStation(e)
 			-- missile, torpedo and drone launchers are fixed bays: they
 			-- point one way (heading, or straight out from the centre);
 			-- missiles curve round to the target, drones fly off to it
-			local bay = m.family == "auxiliary"
+			local bay = m.family == "bay"
 			local out = (t.x == 0 and t.y == 0) and 0 or math.atan2(t.y, t.x)
 			table.insert(list, { slot = { x = t.x, y = t.y }, module = m, w = m.weapon,
-				group = bay and "auxiliary" or "primary",
+				group = "primary", bay = bay,
 				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m),
 				cooldown = random() * 0.5, think = random() * RETARGET,
 				mount = bay and "bay" or "turret", turn = math.rad(t.turn or 90),
@@ -1025,7 +1095,7 @@ function Game:beginDocking(e, st, side, dock)
 	if e ~= self.player then
 		e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
 	end
-	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireAux = false, false, false
+	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireTertiary = false, false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
@@ -1033,7 +1103,9 @@ function Game:updateDocking(dt)
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead and not e.dockState then
 			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
-			local trader = e.def and e.def.ai.style == "trader"
+			-- A-Life patrols and pirates fly the trader route logic when idle, so
+			-- they dock the same way when their route stops at a station.
+			local trader = e.def and e.def.ai.style == "trader" or (e.alifeRole and e.route ~= nil)
 			if (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
@@ -1054,7 +1126,8 @@ end
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
 
 -- The nearest free berth at the station that the ship fits on, or nil (no berths,
--- all taken, or all too small): then it goes inside.
+-- all taken, or all too small). Without one, the ship must fit the interior
+-- or docking is refused; no overflow positions are generated.
 function Game:freeBerth(st, e)
 	local berths = st.def and st.def.berths
 	if not berths or #berths == 0 then return nil end
@@ -1063,15 +1136,27 @@ function Game:freeBerth(st, e)
 		local ods = o ~= e and not o.dead and not o.removed and o.dockState
 		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
 	end
+	for _,rec in ipairs(self:stationRecord(st).hangar) do
+		local slot=rec.mooring and self:stationMoorings(st)[rec.mooring]
+		if slot and slot.berth then taken[slot.berth]=true end
+	end
 	local x, y = st.body:getLocalPoint(e.body:getPosition())
 	local best, distance = nil, math.huge
 	for i, b in ipairs(berths) do
-		if not taken[i] and (e.halfLength or 0) <= b.size then
+  if not taken[i] and self:mooringFits(st,i,e.hull.id,e) then
 			local d = (b.x - x)^2 + (b.y - y)^2
 			if d < distance then best, distance = i, d end
 		end
 	end
 	return best
+end
+
+-- Berths are exterior anchors; a ship without one may only enter a dock
+-- whose doorway passes its width. The hangar grid governs storage length.
+function Game:fitsDock(e,d)
+ local width=0
+ for i=2,#e.hull.shape,2 do width=max(width,math.abs(e.hull.shape[i])) end
+ return width+10<=d.hw
 end
 
 function Game:finishDocking(e, ds, st)
@@ -1081,6 +1166,10 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
+  if e.alifeRole=="patrol" then
+   ds.stay=T.patrolDockStay
+  end
+  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
 	events.emit("dock", e, st)
 end
@@ -1088,6 +1177,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local b, sb = e.body, st.body
@@ -1135,17 +1225,21 @@ function Game:updateDockedShip(e, dt)
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
-			local berth = self:freeBerth(st, e)
+			local interior=e==self.player and self:hangarFit(st,e.hull.id,e)
+			local berth=not interior and self:freeBerth(st,e)
 			if berth then
-				-- a free berth outside: glide over and park there, in view
-				local bd = st.def.berths[berth]
-				ds.phase, ds.t, ds.berth = "taxi", 0, berth
-				ds.lx, ds.ly = sb:getLocalPoint(x, y)
-				ds.la = b:getAngle() - sb:getAngle()
-				ds.dur = max(1.5, min(8, sqrt((bd.x - ds.lx) ^ 2 + (bd.y - ds.ly) ^ 2) / 220))
+    local bd=st.def.berths[berth]
+    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,nil
+				ds.lx,ds.ly=sb:getLocalPoint(x,y)
+				ds.la=b:getAngle()-sb:getAngle()
+				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
+			elseif self:fitsDock(e,d) and (e~=self.player or interior) then
+				ds.phase,ds.t='pull',0
+				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
 			else
-				ds.phase, ds.t = "pull", 0
-				ds.lx, ds.ly, ds.la = lx, ly, b:getAngle() - dockAngle(st, side, d)
+				e.dockState,e.dockCooldown=nil,3
+				if e==self.player then self:toast('NO SUITABLE FREE BERTH',2) end
+				return
 			end
 			b:setActive(false)
 		end
@@ -1153,7 +1247,7 @@ function Game:updateDockedShip(e, dt)
 	end
 
 	if ds.phase == "taxi" then
-		local bd = st.def.berths[ds.berth]
+		local bd = ds.mooring or st.def.berths[ds.berth]
 		local f = min(1, ds.t / ds.dur)
 		f = f * f * (3 - 2 * f)
 		local ba = math.rad(bd.heading)
@@ -1179,8 +1273,8 @@ function Game:updateDockedShip(e, dt)
 	end
 
 	-- docked: ride along, parked on a berth or inside
-	if ds.berth then
-		local bd = st.def.berths[ds.berth]
+	if ds.berth or ds.mooring then
+		local bd = ds.mooring or st.def.berths[ds.berth]
 		b:setPosition(sb:getWorldPoint(bd.x, bd.y))
 		b:setAngle(sb:getAngle() + math.rad(bd.heading))
 	else
@@ -1197,7 +1291,7 @@ function Game:undockShip(e)
 	local sb = st.body
 	local side = ds.side or 1
 	local wx, wy, wa, ox, oy, speed
-	local bd = ds.berth and st.def.berths[ds.berth]
+	local bd = ds.mooring or ds.berth and st.def.berths[ds.berth]
 	if bd then
 		-- off the berth, nose first, gently
 		wx, wy = sb:getWorldPoint(bd.x, bd.y)
@@ -1215,8 +1309,9 @@ function Game:undockShip(e)
 	e.body:setLinearVelocity(svx + ox * speed, svy + oy * speed)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
+	if e==self.player then e.bay,e.parkingMooring,e.bayStation=nil,nil,nil end
 	e.dockCooldown = 4
-	if st.city and not bd and e == self.player then
+	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
@@ -1226,17 +1321,17 @@ end
 
 -- Cloud-city departure: keep the ship supported and guide it outward
 -- along the runway, then release once clear. Flight controls remain live.
-function Game:updateDockExits(dt)
-	local e = self.player
+local function updateDockExit(self, e, dt)
 	local assist = e and e.dockExit
 	if not assist then return end
 	local st, d, side = assist.station, assist.dock, assist.side
 	assist.t = assist.t + dt
-	if e.dead or st.removed or assist.t > 10 then e.dockExit = nil; return end
+	if e.dead or st.removed or assist.t > (e.isPlayer and 10 or 22) then e.dockExit = nil; return end
 	local b = e.body
 	local x, y = b:getPosition()
 	local lx, ly = dockLocal(st, side, x, y, d)
-	if lx > d.x2 + d.runway + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
+	local clearance=e.isPlayer and d.runway or max(d.runway,st.radius)
+	if lx > d.x2 + clearance + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
 		e.dockExit, e.dockCooldown = nil, 2
 		return
 	end
@@ -1249,6 +1344,10 @@ function Game:updateDockExits(dt)
 	if a > T.driverGrip then ax, ay = ax / a * T.driverGrip, ay / a * T.driverGrip end
 	local gx, gy = self:surfacePullAt(x, y)
 	b:applyForce((ax - gx) * b:getMass(), (ay - gy) * b:getMass())
+end
+
+function Game:updateDockExits(dt)
+ for _,e in ipairs(self.entities) do if e.dockExit then updateDockExit(self,e,dt) end end
 end
 
 -- The player's launch button on the station screen.
@@ -1269,7 +1368,13 @@ function Game:spawnBuoy(x, y, locationId)
 	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	if locationId then self:bindLocation(e, locationId) end
+	if locationId then
+  local def,scale=Locations.buoyDefinition(locationId)
+  e.propId,e.propScale=Locations.get(locationId).prop,scale or 1
+  e.def=def
+  if def then e.radius=def.radius*e.propScale end
+  self:bindLocation(e,locationId)
+ end
 	return e
 end
 
@@ -1423,6 +1528,7 @@ end
 function Game:containerMass(e)
 	local m = data.items[e.item].mass
 	for id, n in pairs(e.loot) do m = m + data.items[id].mass * n end
+ m=m+Hold.innerMass(e.hold,data.items)
 	m = m * T.massScale
 	e.body:setMassData(0, 0, m, m * (e.w * e.w + e.h * e.h) / 12)
 	e.massDirty = nil
@@ -1443,8 +1549,10 @@ end
 -- Looting: while a wreck or container is open in the cargo screen
 -- (game.looting, set by the cargo screen), the tractor beam tries to keep
 -- it in reach. It matches your velocity and, past lootHoldAt of the beam's
--- range, closes back in; the pull has a limit (lootHoldAccel), so a heavy
--- burn can still leave it behind and close the window.
+-- range, closes back in. The beam has a limited force: enough to pull
+-- something your own ship's mass at lootHoldAccel, times (1 + tractorPower)
+-- from tractor modules. Heavier things move less, and the beam pulls your
+-- ship back just as hard, so slinging a big wreck around drags you too.
 function Game:updateLootHold(dt)
 	local p, e = self.player, self.looting
 	if not e or e.removed or e.dead or not p or p.dead or p.dockState then return end
@@ -1457,10 +1565,13 @@ function Game:updateLootHold(dt)
 	local pvx, pvy = p.body:getLinearVelocity()
 	local evx, evy = e.body:getLinearVelocity()
 	local ax, ay = (pvx + dx / d * want - evx) * 4, (pvy + dy / d * want - evy) * 4
-	local a = sqrt(ax * ax + ay * ay)
-	if a > T.lootHoldAccel then ax, ay = ax / a * T.lootHoldAccel, ay / a * T.lootHoldAccel end
 	local m = e.body:getMass()
-	e.body:applyForce(ax * m, ay * m)
+	local fx, fy = ax * m, ay * m
+	local f = sqrt(fx * fx + fy * fy)
+	local cap = T.lootHoldAccel * p.body:getMass() * Ship.tractorPower(p)
+	if f > cap then fx, fy = fx / f * cap, fy / f * cap end
+	e.body:applyForce(fx, fy)
+	p.body:applyForce(-fx, -fy)
 end
 
 -- Towing: a line from the player's ship to the container it holds with
@@ -1514,8 +1625,9 @@ function Game:updateTow(dt)
 		p.body:applyForce(-nx * f, -ny * f)
 	end
 	local sp = sqrt(pvx * pvx + pvy * pvy)
-	if sp > T.towSpeed then
-		local k = (sp - T.towSpeed) * p.body:getMass() * 30
+	local top = T.towSpeed * Ship.tractorPower(p)     -- a stronger beam tows faster
+	if sp > top then
+		local k = (sp - top) * p.body:getMass() * 30
 		p.body:applyForce(-pvx / sp * k, -pvy / sp * k)
 	end
 end
@@ -1549,7 +1661,7 @@ function Game:setPlayerIntent(intent)
 		local a = p.body:getAngle()
 		for k, v in pairs(intent) do p.intent[k] = v end
 		p.intent.thrust, p.intent.strafe, p.intent.boost, p.intent.tractor = 0, 0, false, false
-		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireAux = false, false, false
+		p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 		p.intent.aimX, p.intent.aimY = x + cos(a) * 700, y + sin(a) * 700
 		return
 	end
@@ -1571,6 +1683,14 @@ function Game:step(dt)
 				-- the player flies on under the beam until it's pulled inside
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
+			elseif e.dockExit and not e.isPlayer then
+				-- Follow the supported city runway until the entire hull is clear.
+				local a=dockAngle(e.dockExit.station,e.dockExit.side,e.dockExit.dock)
+				local x,y=e.body:getPosition()
+				e.intent.thrust,e.intent.strafe,e.intent.boost=0,0,false
+				e.intent.aimX,e.intent.aimY=x+cos(a)*300,y+sin(a)*300
+				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
+				Ship.fly(e,dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
@@ -1583,6 +1703,7 @@ function Game:step(dt)
 		end
 	end
 
+	self:updateRotors()
 	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:updateALife()
@@ -1719,7 +1840,12 @@ end
 function Game:damage(e, amount, source, cause, hx, hy)
 	if e and e.driverProtected then return end
 	-- a station remembers who shot it (and its turrets answer)
-	if e and e.grudge and source and source.kind == "ship" and amount > 0 then e.grudge[source] = self.time end
+	-- (not for bumps, and not from traders: their crossfire at pirates and
+	-- their docking scrapes are accidents, not attacks)
+	if e and e.grudge and source and source.kind == "ship" and amount > 0 and cause ~= "ram"
+		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
+		e.grudge[source] = self.time
+	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
@@ -1852,7 +1978,7 @@ function Game:updatePickups(dt)
 		k.spin = k.spin + dt * 1.5
 		-- slow down relative to the current (around a planet they drift
 		-- with it like everything else)
-		local damp = exp(-dt * 1.5)
+		local damp = exp(-dt * T.pickupDrag)
 		local fx, fy = 0, 0
 		if self.well then
 			local dx, dy = self.well.x - k.x, self.well.y - k.y
@@ -1862,35 +1988,9 @@ function Game:updatePickups(dt)
 		end
 		k.vx, k.vy = fx + (k.vx - fx) * damp, fy + (k.vy - fy) * damp
 		local remove = false
-		if k == target then
-			local px, py = p.body:getPosition()
-			local pvx, pvy = p.body:getLinearVelocity()
-			local dx, dy = px - k.x, py - k.y
-			local d = max(sqrt(dx * dx + dy * dy), 1)
-			-- Reel in: steer toward the ship, matching its velocity.
-			local want = min(600, d * 4)
-			local tvx, tvy = pvx + dx / d * want, pvy + dy / d * want
-			local blend = min(1, dt * 8)
-			k.vx, k.vy = k.vx + (tvx - k.vx) * blend, k.vy + (tvy - k.vy) * blend
-			local edge = Ship.distanceTo(p, k.x, k.y)
-			if edge < 12 then
-				local item = data.items[k.item]
-				local got = Ship.addCargo(p, k.item, k.count)
-				if got > 0 then
-					k.count = k.count - got
-					self:toast(("+%d %s"):format(got, item.name), 1.4, "pickup")
-					events.emit("pickup", p, k.item, got)
-				end
-				if k.count <= 0 then
-					remove = true
-				else
-					self:toast("HOLD FULL", 1.2)
-					k.vx, k.vy = -dx / d * 160 + pvx, -dy / d * 160 + pvy
-				end
-				p.tractorTarget = nil
-			elseif edge > Ship.tractorRange(p) * 1.3 then
-				p.tractorTarget = nil
-			end
+		local collector=k==target and p or k.collector
+		if collector and collector.tractorTarget==k and collector.intent.tractor then
+			remove=require("src.tractor").pull(self,collector,k,dt)
 		end
 		k.x, k.y = k.x + k.vx * dt, k.y + k.vy * dt
 		if remove then
@@ -1907,6 +2007,7 @@ function Game:breakAsteroid(e)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
 	local breaks = (DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks
+	if e.miningId then breaks=nil end
 	local n = breaks and random(2, 4) or 0
 	local spin = random() * pi * 2
 	for k = 1, n do
@@ -1918,6 +2019,14 @@ function Game:breakAsteroid(e)
 			rock.body:setLinearVelocity(vx + cos(a) * s, vy + sin(a) * s)
 		end
 	end
+	-- drilled rock gives up ore: more for a bigger piece
+	local ore,n = Ore.drop(e.debris or "rock",e.radius)
+	local pickup
+	if e.drilled and ore and data.items[ore] then
+		self:spawnPickup(x, y, ore, n)
+		pickup=self.pickups[#self.pickups]
+	end
+	Mining.breakRock(self,e,pickup)
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
 end
@@ -2009,10 +2118,7 @@ local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
 		local item = data.items[id]
-		-- Loose ammo is boxed up: crates are cargo to sell or use back at a
-		-- station, not something the guns can draw from mid-fight.
-		local into = (item and item.kind == "ammo") and item.crate or id
-		if count > 0 then loot[into] = (loot[into] or 0) + count end
+		if count > 0 then loot[id] = (loot[id] or 0) + count end
 	end
 	-- Fitted modules: each one has a T.moduleSalvage chance of surviving.
 	-- Remembered by slot, so a wreck in parts can put each one in the part
@@ -2059,7 +2165,17 @@ local function huskHold(ship)
 	else
 		gw, gh = Shapes.gridFor(ship.stats.hold)
 	end
-	local loose, stacks = intoContainers(ship, lootOf(ship))
+	local loot=lootOf(ship)
+ local carried={}
+ if ship.hold then for _,g in ipairs(ship.hold.grids) do for _,stack in ipairs(g.stacks) do
+  if stack.inner or stack.wear~=nil then
+   local moved={};for key,value in pairs(stack) do moved[key]=value end
+   carried[#carried+1]=moved;loot[stack.id]=(loot[stack.id] or 0)-stack.n
+   if loot[stack.id]<=0 then loot[stack.id]=nil end
+  end
+ end end end
+ local loose, stacks = intoContainers(ship, loot)
+ for _,stack in ipairs(carried) do stacks[#stacks+1]=stack end
 	return Hold.pack(loose, gw, gh, ship.hull.name .. " husk", random, stacks)
 end
 
@@ -2067,10 +2183,11 @@ end
 -- the ship's loot in a grid hold (to be opened with the tractor beam once
 -- the loot window exists), and can be shot apart, which spills the loot as
 -- pickups.
-function Game:spawnHusk(ship, x, y, a, vx, vy, w)
+Game.huskHold=huskHold
+function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local hull = ship.hull
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
-	local hold = huskHold(ship)
+	local hold = preparedHold or huskHold(ship)
 	local h = {
 		kind = "husk", id = self:nextId(), team = 0, hull = hull, color = ship.color,
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
@@ -2385,12 +2502,12 @@ function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
--- Q: switch the player's auxiliary launcher to the next size it can fire.
+-- Q: switch the player's launchers to the next size they can fire.
 function Game:cycleAux()
 	local p = self.player
 	if not p or p.dead then return end
-	local id = Weapons.cycleAmmo(p, "auxiliary")
-	if id then self:toast("AUX: " .. data.items[id].name:upper(), 1.2) end
+	local id = Weapons.cycleAmmo(p)
+	if id then self:toast("LAUNCHERS: " .. data.items[id].name:upper(), 1.2) end
 end
 
 -- big: a headline (arriving in a level)
@@ -2468,6 +2585,7 @@ ALife.install(Game)
 Locations.install(Game)
 Persistence.install(Game)
 require("src.world")(Game)
+require("src.station_parking")(Game)
 require("src.transit")(Game)
 require("src.moons")(Game)
 require("src.computers")(Game)

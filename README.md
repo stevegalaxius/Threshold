@@ -25,7 +25,7 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
-| Station screen: cycle Cargo / Hangar / Market tabs | Tab (docked) | |
+| Station screen: cycle Storage / Market / Shipyard / Hangar tabs | Tab (docked) | |
 | Buy a ship (shipyard list, with your own ship selected) / sell a parked ship | Hangar tab buttons | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
 | New ship after death (at the last station you docked at) | R | Start |
@@ -86,7 +86,10 @@ stay gone; an emptied area does not regenerate its cargo containers.
 
 Around planets and moons, unloaded objects advance along the orbital current
 using elapsed game time, at constant altitude. Other areas retain their saved
-positions. This is a lightweight motion approximation, not offline physics. NPCs, projectiles, effects,
+positions. This is a lightweight motion approximation, not offline physics.
+Saved loose pickups outside a planet follow the same damped current as live
+pickups, including their gradual outward drift, so travel catch-up does not
+exaggerate a loot cloud into a longer arc. NPCs, projectiles, effects,
 and background asteroid populations are not persistent in this first step.
 Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
@@ -222,6 +225,7 @@ All 54 existing station traders have persistent identities, ship state, and
 itineraries from the start of a universe. Loading an area never refills its
 population. Cargo, loadout, armor, paint, journey, and docking waits survive
 area changes and save/load. Dead traders stay dead and use normal wreck creation.
+The shared replenishment timer introduces new traders to replace losses.
 Mars retains its nine traders; other populated regions retain their three.
 
 Highway previews draw the same circular map edge and departure arcs as local
@@ -474,12 +478,18 @@ the buoy approach without teleporting their ships.
 saved-route repair, and a physical visitor docking at Olympus and climbing back
 out to its buoy.
 
-Docking uses the nearest unoccupied exterior berth that fits the ship. Switching
+Berths accept ships up to three times their authored pad half-length; the
+editor marker keeps its existing dimensions. `T.berthShipScale` controls this
+capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
-ship does not fit, it uses the nearest suitable free berth or the station
-interior. Saves retain the player's berth, entrance and docking side.
+ship does not fit, it uses the nearest suitable free berth. Ships that fit the
+corridor and hangar grid can use the station interior; oversized ships use a
+suitable free authored berth. If none is available, docking is refused without
+moving the ship to a generated overflow position. Berths provide normal station
+access and survive saves and ship switching; undocking launches from that position.
+Saves retain the player's berth or mooring, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
-save/load, and size-based fallback.
+save/load, and refusal when no suitable berth is available.
 
 Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
 use the Moon's round rocky surface treatment: cratered terrain in each world's
@@ -489,17 +499,153 @@ contacts for mining. Other planetary impacts remain lethal, including Luna.
 Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
 
 
+## World layout and NPC homes
+
+`src/world_layout.lua` is the authoring definition for station placement. Station
+IDs are opaque, permanent identities (`station:...`), independent of names and
+regions. Moving an entry to another region retains its ID, saved inventory,
+hangar, NPC references and market profile. `data/markets.lua` defines independent
+`market:...` profiles; placements reference `marketId`, with a general shop as
+the default. There is no display-name lookup. Old name-based save references
+are translated once through the compatibility alias table.
+
+A placement specifies `name`, optional `layout`/`marketId`, and either
+`position = {x=..., y=...}` or orbital `phase`/`radius`/`spin`. Positions on rotating
+worlds become orbits through those coordinates at world clock zero; add
+`fixed=true` for stationary structures. Existing ports have explicit phases,
+so adding another does not redistribute them. `uses` tags (`trade`, `mining`,
+`patrol`, `pirateBase`) select roles; ordinary trade/mining/patrol use is enabled
+by default. `primary=true` supplies a stable default home independent of list order.
+
+Developer code can edit the running world transactionally:
+
+```lua
+local ok, id = game:editWorldLayout(function(world)
+    return world.addStation('earth', {
+        name = 'New port', layout = 'shipyard_1',
+        position = {x=26000, y=6000},
+    })
+end)
+assert(ok, id)
+
+game:editWorldLayout(function(world)
+    world.moveStation(id, 'mars', {x=15000, y=7000})
+end)
+game:editWorldLayout(function(world)
+    world.setStationEnabled(id, false) -- reversible removal
+    -- world.removeStation(id) removes the placement entry instead
+end)
+require('src.world_authoring').save() -- world_layout.lua in the LÖVE save folder
+```
+
+`addStation` assigns the ID once; export it rather than generating one each
+startup. The exported file loads automatically on startup. Definitions can also
+be edited directly, or exported/imported through `WorldLayout.export` and
+`WorldAuthoring.import`. Invalid edits restore the previous world. Live edits
+return dragged/staged items, snapshot the universe, rebuild the catalogue and
+loaded scene, and restore the player and NPCs against the new definition.
+
+Every rotating region has an explicit buoy list in `WorldLayout.navigation`.
+`navigation[area].buoys` also accepts a count of at least two or explicit
+`id`/`phase`/`radius` entries. Ordinary corridors are ordered by bearing;
+`corridor='buoys'` keeps stations on spurs. Extra full-ID pairs use `links`.
+Buoy visuals can reference an F2 **Prop** by its exported ID: add
+`prop='my_beacon', scale=1.5, heading=0` to a buoy entry. `heading` and optional
+`spin` use radians. The prop's parts, colours and lights use the standard model
+renderer. Set `navigation[area].buoyProp` for a regional default or
+`WorldLayout.defaults.buoyProp` for a global default; a per-buoy `prop` overrides
+those defaults (`false` opts out). Unassigned buoys retain the original beacon.
+Save/export the prop through F2 so it is available on the next run.
+
+Navigation, local trader circuits, patrol destinations, pirate routes, dispatch
+manifests, mine job sources and population eligibility all derive from the
+catalogue. `navigation[area].population` can override role counts. Shared
+inter-region itineraries use existing gates and mass drivers. No new per-frame
+world pathfinding is added.
+
+Every persistent NPC saves `homeStation`, separately from its home region and
+current destination. Removing a home assigns a reachable replacement; NPCs with
+no available home/route hold safely and retry when the world definition changes.
+Recovery uses the ordinary flight controller, mass-driver/gate navigation and
+station docking, then resumes the NPC's role. Loaded deliveries can finish when
+the source disappears; a missing destination cancels the duty while preserving
+its cargo. Miners get replacement home/job sources; pirates keep stolen cargo
+and provenance when a haven changes. Wreck and mineral loot is retained.
+
+Removed station storage, hangars and shop stock remain saved under the station
+ID and return if it is re-enabled/re-added with that ID. A player docked at a
+removed port uses a surviving local port or the region's normal spawn; moving a
+docked port between regions retains the docking reference. F1 shows living
+resident counts; F1/F4 show each ship's home. Rosters derive from NPC records,
+without a second saved membership list.
+
+Cloud cities, surface mines and the Heaven-Ladder retain construction adapters.
+The Ladder can be disabled through its shared definition, removing its access
+points and geometry together; changes to its special placement belong to the
+adapter. Live construction and offline services use the same definitions.
+
+Run `love . --graphtest` for actual add/move/remove/disable edits, cargo-safe duty
+recovery, physical recovery docking, ID migration and
+export/import. `love . --locationtest` checks physical/offline station and service
+parity across all regions.
+
+
 ## Patrols and pirates
+
+Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
+layout and is tagged `uses.pirateBase` in `src/world_layout.lua` as the base for the pirate
+loot-and-return loop. Its immutable station identity keeps inventory, ships, saves and routes attached
+to the same place; the old Tombaugh identifier remains only as a save alias.
+Existing pirates now opportunistically break nearby wrecks open and tractor
+exposed loose cargo using the shared pickup accounting. After five units or a
+25-second looting window following the first pickup, they abandon the raid,
+travel to Milliways, unload stolen cargo into its saved stash, and redeploy to
+their home region's raid corridor. Low-health looters leave early. Their identity,
+ship, ordinary ammunition, damage and home population remain intact. Moon routes
+use their existing gates before joining the interplanetary driver network.
+
+F1's A-Life section shows the current pirate activity and Milliways' stash.
+Pirates acquire loot physically and from fully unloaded saved resources; return,
+delivery and redeployment work both physically and abstractly. Surrender demands and more selective/bounded hunting remain future work.
+Offline pirates can claim saved loose items, containers and combat wrecks in
+their region, approach them over simulated time, and transfer cargo using the
+same inventory rules. Claims are exclusive; live areas, retained travel scenes,
+online NPCs and expired wrecks are excluded. Depleted inventories remain depleted
+when restored or materialized. Combat wreck loot is rolled once, including
+surviving fitted modules and packed cargo, then saved; it is not rerolled on
+arrival. Loose items and containers persist in area snapshots, while combat
+wreck records retain their existing 30-minute expiry. Physical containers are looted intact when their
+footprint fits; smaller ships extract stacks that fit, recursively accessing
+nested crates while leaving the shells and remaining cargo in place. Loaded
+containers keep their internal grids, mass and stolen provenance through saves
+and transfer intact into Milliways’ saved container stash. Full holds do not
+consume source cargo. No loot is conjured from a living ship. An unloaded stash is not a market
+sale and produces no credits. `love . --piracytest` checks actual tractor pickup,
+identity, cross-region routing (including Phobos/Deimos), physical docking,
+unloading, no duplicate delivery, saves and return to the original raid role.
 
 The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies
 on those planets. Legacy authored pilots are restricted to the Asteroid field,
 Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
-seeded once and pirate reinforcements follow the saved arrival schedule below.
+seeded once and lost ships are replenished through the saved arrival schedules below.
 
 Patrols choose inspection duties through the shared task board and visit existing
-stations and buoys. Pirates choose buoy raids and relocation duties, preferring
-passing traders as targets. Patrols engage pirates and defend themselves when
+stations and buoys. Every third station visit is an actual docking stop, staggered
+by NPC identity; the decision and visit counter persist. Passing inspections wait
+outside the station hull and runway corridors rather than at the dock mouth.
+Patrols below 70% armor prioritize stations with repair service. All persistent
+A-Life roles repair at four armor points per game second while fully docked at a
+station offering repairs, staying long enough to finish. Traders and couriers
+use their scheduled stops. Damaged miners return to their repair-capable home
+station, deliver any ore, then resume mining; an empty repair trip retains its
+reserved job. Damaged pirates return to Milliways even without stolen cargo,
+repair, then redeploy through their existing return loop. Online/offline progress
+and saves preserve armor, repair timing and ship identity. NPC maintenance does
+not debit player credits; billing remains deferred with the economy. Timing,
+health threshold and repair speed are tuning values. Pirates choose buoy raids
+and relocation duties, preferring passing traders as targets. Patrols engage
+pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
 After losing contact, ships resume their selected duty. F1's A-Life list and the
@@ -519,6 +665,59 @@ event director remain future work.
 Run `love . --securitytest` for role-specific autonomous duties, population
 identity, target selection, physical combat and navigation, save/load, offline
 ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
+
+## Station services prototype
+
+Docking opens four services: **Storage**, **Market**, **Shipyard**, and **Hangar**, beneath
+a persistent station header. Panels size around their actual inventory contents,
+using the player inventory frames, colors, typography, small-cell renderer,
+and item controls. Storage keeps equipment beside the ship hold and station storage, including parked cargo
+and opened containers. Equipment remains part of the inventory service. The
+in-space inventory is unchanged.
+
+Market uses three panels: player inventory (hold/storage selector), a pending
+offer with separate **You give** and **You receive** grids, and station stock.
+Right-click/Ctrl-click offers a stack; dragging, splitting and rotation still
+work. Completing a trade uses the existing pricing and atomic settlement.
+The separate **Shipyard** service opens owned stored ships on the left,
+a pending offer in the center, and this station's ships for sale on the right.
+Its inventory selectors also allow goods to be included in the offer.
+Stations without a ship catalogue explain that they have no ships for sale;
+they still buy stored ships. Hull footprints can be dragged or
+right-clicked into the same offer as goods. Ship sales include installed modules,
+cargo and containers; the active ship must be stored by switching ships before
+it can be sold. Ownership changes only when the trade completes. Parking is
+checked for the entire offer, including space released by sold ships.
+Leaving Market or Shipyard returns the staged goods and ship offers. No prices or economic simulation
+rules were replaced.
+
+The Hangar service shows a small interior packing grid, exterior mooring
+positions, and shared ship details/actions. Ship shopping is in Shipyard. Owned ships have one location:
+`bay` for interior grid coordinates or `mooring` for a reserved exterior slot.
+Purchases require a suitable free location. Switching ships leaves the old ship
+in its own location and selects the new ship at its existing location. Both
+types retain equipment, damage and their real cargo/container grids. The move
+action transfers a ship between interior and exterior storage when space fits.
+Drag an owned ship onto a specific free berth, or from its berth back into the
+interior grid; occupied and unsuitable berths reject the drop. Use the exterior
+list's arrows or mouse wheel to reach additional positions.
+
+Layouts are station-specific, not hull-class limits. Defaults are a 12×10
+interior grid with 20-unit cells and authored exterior berths. No overflow
+positions are generated. Station definitions can set `hangar = { w = 12, h = 10 }`.
+Berths may set `maxLength` and `maxWidth` independently of
+their existing editor marker `size`. These settings survive F2 export and
+autosaves; dedicated capacity-editing controls are not part of this prototype.
+Larger ships and larger station layouts use the same system. Mooring fit checks
+validate the parked hull against station geometry. A straight departure corridor
+is not required to accept an otherwise usable berth.
+
+Parking locations, owned ships and exterior coordinates persist through travel
+and saves. Stored exterior ships are drawn at their moorings using the existing
+hull renderer; they remain stored records rather than additional simulated NPCs.
+`love . --stationtest` exercises service layouts, grid transfers, purchase/cancel
+settlement, ship storage, switching, capacity limits, and save restoration. It
+also writes real screenshots for the four services to the LÖVE save folder.
 
 ## Shipyard comparison
 
@@ -550,20 +749,108 @@ bounds use the same geometry. `love . --afterburntest` checks reserve stability,
 rearming, energy accounting, actual thrust and corresponding flame sizes.
 
 
-## Pirate warp-ins
+## NPC replenishment and warp-ins
 
-Pirates check for reinforcements every 3–5 minutes of game time in regions with
-trade buoys or a mass driver. Automatic arrivals stop at two living pirates per
-region; dead or escaped pirates are replaced by new identities on later checks.
-An overdue region gets at most one arrival per check, without a catch-up swarm.
-Schedules survive saves and visiting another region. Remote arrivals are plain
-A-Life records; visible arrivals produce a short blue warp flash and enter normal
-raid duties. Existing ship counts include pirates added through debug controls.
+Pirates, traders, patrols and miners share `src/population.lua`. Each role checks
+for replacements every 3–5 minutes of game time, with a separate saved timer per
+home region. Pirates retain their target of two; other roles use the region's
+existing trader, patrol or miner population. Living ships still count toward
+their home population while visiting another region or travelling between planets.
 
-Use **F1 > Spawn and arena > Warp in pirate (A-Life)** for an immediate arrival
-near the player. This debug action bypasses the automatic cap. The panel shows
-the region's pirate count and time until the next reinforcement check. The old
-individual enemy buttons appear only in instance maps. Spawn interval, cap and
-warp-effect duration are defined alongside A-Life settings in `src/tuning.lua`.
-Run `love . --piratespawntest` for replacements, caps, debug arrivals, remote
-simulation, saved timers and instance-only legacy spawning.
+Dead or escaped ships are replaced with new identities, fitted ships and their
+role's existing routes or jobs. Each overdue role gets at most one arrival per
+check, without catch-up swarms. Remote arrivals remain records without physics
+bodies. Local arrivals use the same clear-space checks and blue warp flash as
+pirates. Instance maps do not receive persistent A-Life reinforcements.
+
+In **F1 > Spawn and arena**, select a role and use **Warp in … (A-Life)** for an
+immediate arrival near the player. This debug action bypasses the automatic
+population target. The panel shows each supported role's count, target and next
+check. Role intervals and warp duration are in `src/tuning.lua`; additional
+roles register their target, navigation nodes and ship/job creation with the
+population module. Existing pirate saves retain their scheduled arrival time.
+
+Run `love . --populationtest` for all-role replacements, travel-aware caps,
+remote records, saved timers, local warp effects and failed placement. The
+existing `--piratespawntest` also exercises pirates through the shared scheduler.
+
+
+## NPC local navigation
+
+NPCs sweep their hull clearance against nearby collision fixtures and moving
+traffic before choosing a local heading. They prefer clear detours, keep a
+consistent passing side, and can turn back out of concave obstacles. Waiting
+patrols and pirates use separate holding positions around a shared buoy. The
+authored travel graph and planetary routes still determine their destinations.
+
+Traders, security ships and highway traffic use their fitted afterburners when
+aligned with a clear route and sufficiently far from their stopping point.
+Obstacle avoidance, final approaches and braking disable boost; ordinary engine
+power and capacitor reserve rules apply. Low-altitude departures climb out of
+the gravity band before resuming their orbital route. Cloud-city NPCs receive
+the existing runway support until clear of the structure, including across an
+immediate save/load.
+
+Steering decisions are cached for 0.2 seconds while the route remains stable,
+and geometry queries use the physics broad phase. Clearance, refresh interval,
+boost cruise multiplier and stopping margin live in `src/tuning.lua`.
+Run `love . --localnavtest` for physical hauler tests around a wall, inside a
+concave pocket, in head-on and crossing traffic, and for safe boost activation.
+`love . --olympustest` checks city arrival, supported departure and restoration.
+
+Terrain chains have multiple broad-phase proxies, so navigation processes each
+fixture once per query before expanding its edges. `love . --navprofile` runs
+60 simulated seconds each on Phobos, Deimos and Earth and reports simulation
+step timings plus steering, detour and mining-position costs. Rendering and
+display FPS are excluded from these measurements.
+
+Cloud-city inspection visits use a point above the gravity band, following the
+city's bearing. Non-docking patrols approach and hold there instead of trying to
+reach the docking runway below their avoidance boundary. Remote materialization
+and saved inspection offsets use the same point. Run `love . --patrolnavtest`
+for Olympus patrol arrival, holding, restoration and the next autonomous duty.
+
+
+F3 region cycling uses the shared debug teleport cleanup, closing cargo/trade
+UI and cancelling old travel state. Unloading a field disposes of its complete
+physics world instead of reusing its native allocations. Distant generated
+debris is put to sleep before NPCs start navigating, avoiding an initial scan
+of the complete belt. Only highway origin
+and arrival scenes that are still needed remain alive; adopting a retained
+scene preserves that scene's world. `love . --teleporttest` checks two complete
+F3 cycles, leftover unmanaged bodies, abandoned highway previews and warp-flight
+cancellation.
+
+## Drill sites and A-Life miners
+
+Surface drill props on Phobos, Deimos and Ceres, plus the large asteroid props at
+Ring Station, periodically blast out batches of mineable rock. The Giant
+asteroid instance has a drill site as well, without adding A-Life pilots there.
+Each drill emits three chunks every 18 game seconds and stops at twelve
+outstanding chunks or ore stacks. Timers survive revisits and saves; overdue
+sites emit one batch rather than a catch-up swarm. Chunk damping keeps the work
+close to its source. Timing, population, batch and capacity settings live in
+`src/tuning.lua`.
+
+Two independent miners per populated mining region choose work through the
+shared task board. They approach a chunk, use their fitted **Bore Drills** at
+contact range, tractor the actual dropped ore, and return to dock with a load.
+They unload into saved station raw-material stock and choose their next duty.
+Stock is shown in F1's A-Life section; pricing and market settlement remain
+separate work. NPCs and the player use the same drill damage, ore drop table,
+power rules and pickup transport. Ordinary drilled debris keeps its existing
+fragmentation behavior; industrial chunks are consumed once into their ore.
+
+Miner identities, cargo, drill timers, chunk health, loose ore and delivered
+stock all persist. Miners retain pickup destinations outside tractor range and
+seek saved resources that drift beyond the local physics band, rather than
+returning to an empty waiting node. Distant workers use the same finite chunk/loot records and
+fitted drill power budget, without remote physics bodies. A resource represented
+by a live body or pickup is excluded from abstract mining. Physical resources
+stay awake around the player or an online miner, within the per-site cap.
+
+Run `love . --miningtest` for a complete physical drill/loot/delivery cycle,
+autonomous next duties, save restoration, shared online/offline resource
+accounting and production caps. Set `THRESHOLD_MINING_AREA=phobos` or `belt` to
+run the same physical cycle against those surfaces. The test writes a mining
+screenshot into LÖVE's save directory.

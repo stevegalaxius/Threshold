@@ -41,14 +41,7 @@ end
 
 -- Paint jobs the player can pick from (debug panel for now). Enemies get
 -- their color from data/enemies.lua.
-Render.PAINTS = {
-	{ name = "Glacier",  color = { 0.55, 0.9, 0.95 } },
-	{ name = "Signal",   color = { 1.0, 0.85, 0.35 } },
-	{ name = "Bone",     color = { 0.9, 0.88, 0.8 } },
-	{ name = "Moss",     color = { 0.55, 0.85, 0.45 } },
-	{ name = "Orchid",   color = { 0.85, 0.55, 0.95 } },
-	{ name = "Ember",    color = { 1.0, 0.45, 0.3 } },
-}
+Render.PAINTS = require("src.paint").PRESETS
 
 -- Starfield: three parallax layers of fixed random stars, tiled. Each layer
 -- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers
@@ -306,6 +299,15 @@ local function drawAsteroid(e,time)
 end
 
 local function drawStructure(game, e)
+	-- a turning structure (the Heaven-Ladder's ring): its verts are in world
+	-- coordinates, so draw them through its body's transform
+	local moving = e.body:getType() ~= "static"
+	if moving then
+		local bx, by = e.body:getPosition()
+		lg.push()
+		lg.translate(bx, by)
+		lg.rotate(e.body:getAngle())
+	end
 	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or (e.role == "ladder" or e.role == "tether") and { 0.26, 0.17, 0.13 } or { 0.16, 0.18, 0.22 }
 	lg.setColor(fill)
 	lg.polygon("fill", e.verts)
@@ -319,6 +321,31 @@ local function drawStructure(game, e)
 		lg.setColor(e.role == "ring" and { 1, 0.35, 0.3 } or { 0.5, 0.9, 1 })
 		for i = 1, #e.verts, 2 do lg.circle("fill", e.verts[i], e.verts[i + 1], r) end
 	end
+	-- the Heaven-Ladder's lit windows (src/transit.lua): warm rooms, a
+	-- dimmer corridor row down the middle, the odd green or cyan room
+	if e.windows then
+		local s = max(5, 1.6 * screenPx)
+		local WIN = { { 1, 0.82, 0.5, 0.9 }, { 0.45, 0.95, 0.55, 0.75 }, { 0.55, 0.9, 1, 1 }, { 1, 0.6, 0.25, 0.8 } }
+		local last
+		for _, w in ipairs(e.windows) do
+			if w[3] ~= last then lg.setColor(WIN[w[3]]); last = w[3] end
+			lg.rectangle("fill", w[1] - s, w[2] - s * 0.6, s * 2, s * 1.2)
+		end
+	end
+	-- gate lights either side of a gap in the ring: green, pulsing
+	if e.gate and e.gate > 0 then
+		local r = max(10, 5 * screenPx)
+		local glow = 0.5 + 0.5 * math.sin(game.time * 4)
+		lg.setColor(0.4, 1, 0.55, 0.5 + 0.5 * glow)
+		local v = e.verts
+		if e.gate % 2 == 1 then
+			lg.circle("fill", (v[1] + v[7]) / 2, (v[2] + v[8]) / 2, r)
+		end
+		if e.gate >= 2 then
+			lg.circle("fill", (v[3] + v[5]) / 2, (v[4] + v[6]) / 2, r)
+		end
+	end
+	if moving then lg.pop() end
 end
 
 local BARREL = { S = 7, M = 10, L = 16 }
@@ -333,9 +360,28 @@ local function drawStation(game, e)
 	lg.rotate(e.body:getAngle())
 	-- the layout's parts (src/stations.lua), then their windows and beacons
 	local col = e.def.color or { 0.55, 0.63, 0.74 }
-	HullShape.draw(e.def, col, function(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end,
-		function(c) return c end, outline(2))
-	HullShape.drawLights(e.def, game.time, screenPx)
+	local function dark(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end
+	local function same(c) return c end
+	-- rotors first (under the core's docks and piers), each turned about
+	-- its pivot by how far it has come round relative to the core
+	local core = e.body:getAngle()
+	local function rotors(over)
+		for _, r in ipairs(e.rotors or {}) do
+			if (r.over or false) == over then
+				local parts = e.def.rotorParts[r.name]
+				lg.push()
+				lg.translate(r.x, r.y)
+				lg.rotate(r.body:getAngle() - core)
+				HullShape.draw(e.def, col, dark, same, outline(2), parts, r.x, r.y)
+				HullShape.drawLights(e.def, game.time, screenPx, parts, r.x, r.y)
+				lg.pop()
+			end
+		end
+	end
+	rotors(false)
+	HullShape.draw(e.def, col, dark, same, outline(2), e.def.staticParts)
+	HullShape.drawLights(e.def, game.time, screenPx, e.def.staticParts)
+	rotors(true)
 	-- turrets: a base and barrels, turned to where each is aiming (twice a
 	-- ship mount's size, and never smaller than a few pixels)
 	for _, w in ipairs(e.weapons or {}) do
@@ -349,7 +395,7 @@ local function drawStation(game, e)
 		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
 		if w.mount == "bay" then
 			-- (drawn below)
-		elseif w.group == "auxiliary" then
+		elseif w.bay then
 			lg.rectangle("fill", -r * 0.2, -r * 0.8, r * 1.6, r * 1.6)
 		else
 			local n, gap = w.w.barrels or 1, (w.w.barrelGap or 8) * 2
@@ -384,6 +430,11 @@ local function drawStation(game, e)
 			local ds = o.dockState
 			if ds and ds.station == e and ds.berth then taken[ds.berth] = true end
 		end
+  local record=game.universe.stations[e.key]
+  for _,rec in ipairs(record and record.hangar or {}) do
+   local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
+   if slot and slot.berth then taken[slot.berth]=true end
+  end
 		lg.setLineWidth(outline(1.5))
 		for i, b in ipairs(berths) do
 			lg.push()
@@ -455,6 +506,17 @@ local function drawStation(game, e)
 		lg.pop()
 	end
 	end
+ local record=game.universe.stations[e.key]
+ for _,rec in ipairs(record and record.hangar or {}) do
+  local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
+  if slot then
+   lg.push();lg.translate(slot.x,slot.y);lg.rotate(math.rad(slot.heading or 0))
+   local tint=rec.color or {.55,.8,.85}
+   HullShape.draw(data.hulls[rec.hull],tint,function(c)return {c[1]*.22,c[2]*.22,c[3]*.22}end,
+    function(c)return c end,outline(1.5))
+   lg.pop()
+  end
+ end
 	lg.pop()
 end
 
@@ -478,9 +540,20 @@ local function drawCity(game, e)
 	lg.pop()
 end
 
--- A navigation buoy: a small beacon with a slow pulse ring.
+-- A navigation buoy uses its F2 prop, or the original beacon when unassigned.
 local function drawBuoy(game, e)
 	local x, y = e.body:getPosition()
+ local def=e.propId and data.wrecks[e.propId]
+ if def then
+  local scale=e.propScale or 1
+  local col=def.color or {.55,.63,.74}
+  lg.push();lg.translate(x,y);lg.rotate(e.body:getAngle());lg.scale(scale)
+  HullShape.draw(def,col,function(c)return {c[1]*.37,c[2]*.37,c[3]*.37} end,
+   function(c)return c end,outline(2)/scale)
+  HullShape.drawLights(def,game.time,screenPx/scale)
+  lg.pop()
+  return
+ end
 	local px = screenPx
 	local r = max(14, 5 * px)
 	local t = (game.time * 0.5 + e.blink) % 1
@@ -966,10 +1039,49 @@ local function drawHusk(game, h)
 	lg.pop()
 end
 
+-- A mining drill: a shaft out of the nose with a spinning bit at the tip.
+local function drawDrill(game, e, w)
+	local wx, wy = Ship.hardpoint(e, w.slot)
+	local a = e.body:getAngle() + (w.aim or 0)
+	local reach = e.halfLength * 2 * w.extend
+	-- it shudders while it bites into something
+	if w.drillHit then
+		local j = 1.5
+		wx, wy = wx + (love.math.random() - 0.5) * j, wy + (love.math.random() - 0.5) * j
+	end
+	local ex, ey = wx + cos(a) * reach, wy + sin(a) * reach
+	local px = 1 / game.camera.zoom
+	lg.setColor(0.45, 0.47, 0.5)
+	lg.setLineWidth(max(6, 3 * px))
+	lg.line(wx, wy, ex, ey)
+	-- chain teeth running along the shaft, like a chainsaw
+	if w.firing then
+		local step, off = 7, (game.time * 140) % 7
+		local nx, ny = -sin(a), cos(a)
+		lg.setColor(0.9, 0.85, 0.7)
+		for d = off, reach - 4, step do
+			local cx, cy = wx + cos(a) * d, wy + sin(a) * d
+			lg.line(cx + nx * 3, cy + ny * 3, cx + nx * 5 + cos(a) * 2, cy + ny * 5 + sin(a) * 2)
+			lg.line(cx - nx * 3, cy - ny * 3, cx - nx * 5 - cos(a) * 2, cy - ny * 5 - sin(a) * 2)
+		end
+	end
+	local r = 9 + (({ S = 0, M = 4, L = 8 })[w.module.size] or 0)
+	local spin = game.time * 30
+	lg.setColor(0.85, 0.75, 0.45)
+	for k = 0, 2 do
+		local b = spin + k * pi * 2 / 3
+		lg.polygon("fill", ex + cos(a) * r, ey + sin(a) * r,
+			ex + cos(a + pi / 2) * r * 0.6 * cos(b), ey + sin(a + pi / 2) * r * 0.6 * cos(b),
+			ex - cos(a + pi / 2) * r * 0.6 * cos(b), ey - sin(a + pi / 2) * r * 0.6 * cos(b))
+	end
+	lg.setLineWidth(1)
+end
+
 local function drawBeams(game)
 	for _, e in ipairs(game.entities) do
 		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
+				if w.w.kind == "drill" and (w.extend or 0) > 0 and e.body then drawDrill(game, e, w) end
 				-- Pulse: a very bright flash that fades out over the pulse length.
 				local b = w.beam
 				local age = b and (game.time - b[5])
@@ -996,7 +1108,8 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
-local TORPEDO = { S = 4, M = 6, L = 9 }
+local TORPEDO = { S = 4, M = 10, L = 16 }
+local MISSILE = { S = 3, M = 5, L = 8 }
 
 -- Shots keep a minimum on-screen size, so they stay visible zoomed out.
 local function drawProjectiles(game)
@@ -1027,11 +1140,26 @@ local function drawProjectiles(game)
 		elseif p.kind == "missile" then
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
-			lg.line(p.x, p.y, p.x - cos(a) * 22 * trail, p.y - sin(a) * 22 * trail)
+			local r = MISSILE[p.size] or 3
+			lg.line(p.x, p.y, p.x - cos(a) * r * 7 * trail, p.y - sin(a) * r * 7 * trail)
 			lg.setColor(COLORS.missile)
-			lg.circle("fill", p.x, p.y, max(3, 1.2 * px))
+			lg.circle("fill", p.x, p.y, max(r, 1.2 * px))
 		end
 	end
+end
+
+-- Countermeasure flares: hot, flickering points.
+local function drawDecoys(game)
+	lg.setBlendMode("add")
+	for _, d in ipairs(game.decoys or {}) do
+		local k = math.min(1, d.life)
+		local r = 6 + love.math.random() * 5
+		lg.setColor(1, 0.75, 0.35, 0.35 * k)
+		lg.circle("fill", d.x, d.y, r * 2.2)
+		lg.setColor(1, 0.95, 0.8, k)
+		lg.circle("fill", d.x, d.y, r * 0.6)
+	end
+	lg.setBlendMode("alpha")
 end
 
 local function drawPickups(game)
@@ -1095,7 +1223,7 @@ local function drawRange(game)
 	if not p or p.dead then return end
 	local reach = 0
 	for _, w in ipairs(p.weapons) do
-		if w.group ~= "auxiliary" then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
+		if not w.bay then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
 	local x, y = p.body:getPosition()
@@ -1159,6 +1287,7 @@ function Render.world(game, overlay, boundaryAngle)
 	drawRange(game)
 	drawPredicted(game)
 	drawPickups(game)
+	drawDecoys(game)
 	-- only what's on screen (with a margin for big things)
 	local cam = game.camera
 	local sw, sh = lg.getDimensions()
@@ -1207,8 +1336,16 @@ function Render.world(game, overlay, boundaryAngle)
 		lg.setPointSize(2)
 		lg.points(dots)
 	end
+	require("src.mining").draw(game,screenPx)
 	drawLootHover(game)
 	drawTractor(game)
+	for _,e in ipairs(game.entities) do
+		local target=e.tractorTarget
+		if not e.isPlayer and not e.dead and e.intent and e.intent.tractor and target and target.count>0 then
+			local x,y=e.body:getPosition()
+			lg.setColor(.35,.8,1,.6);lg.setLineWidth(screenPx*1.5);lg.line(x,y,target.x,target.y)
+		end
+	end
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" then drawShip(game, e) end

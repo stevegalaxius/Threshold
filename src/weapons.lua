@@ -7,9 +7,9 @@
 	             or at the end of their range. Uses ammo.
 	  laser      pulse laser: a brief, instant-hit flash about once a second.
 	             No ammo; each pulse takes a chunk of power.
-	  missile    auxiliary, guided, splash. Expensive ammo.
-	  torpedo    auxiliary, unguided, slow, enormous damage and splash.
-	  drone      auxiliary: launches an armed drone that fights for a while.
+	  missile    bay, guided, splash. Expensive ammo.
+	  torpedo    bay, unguided, slow, enormous damage and splash.
+	  drone      bay: launches an armed drone that fights for a while.
 
 	Every shot of a gun, artillery piece or missile launcher takes one round
 	out of the hold, and the ship gets lighter as it does.
@@ -80,6 +80,59 @@ local function fire(game, e, slot, dt)
 	local angle = e.body:getAngle() + slot.aim
 	local dx, dy = cos(angle), sin(angle)
 
+	if w.kind == "drill" then
+		-- Mining drill: extends out of its mount (which aims like any gun's) while held, up to
+		-- the ship's own length past the hardpoint, and grinds whatever the
+		-- tip touches. No ammo, a little power per second. Rock it breaks
+		-- drops ore (Game:breakAsteroid).
+		local need = (w.powerPerSecond or 0) * dt
+		if e.power < need then slot.starved = true; return end
+		slot.starved = false
+		e.power = e.power - need
+		local ddx, ddy = dx, dy
+		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
+		local reach = e.halfLength * 2 * slot.extend
+		local ex, ey = wx + ddx * reach, wy + ddy * reach
+		local hit = game:raycast(wx, wy, ex, ey, e.team)
+		slot.drillHit = nil
+		if hit then
+			local t = hit.entity
+			local rock = t.kind == "asteroid"
+			if rock then t.drilled = true end
+			game:damage(t, w.damage * dt * (rock and (w.rockDamage or 1) or 1), e, "drill", hit.x, hit.y)
+			slot.drillHit = { hit.x, hit.y }
+			-- a steady spray of sparks and grit while it bites
+			slot.sparkT = (slot.sparkT or 0) - dt
+			if slot.sparkT <= 0 then
+				slot.sparkT = 0.04
+				game:spark(hit.x, hit.y, 3, { 1, 0.8, 0.4 })
+				if rock and love.math.random() < 0.4 then game:spark(hit.x, hit.y, 2, t.line or { 0.6, 0.6, 0.65 }) end
+			end
+		end
+		return
+	end
+
+	if w.kind == "laser" and w.beam then
+		-- Beam laser: burns continuously while the trigger is held, taking
+		-- damage and power per second instead of per pulse.
+		local need = w.powerPerSecond * dt
+		if e.power < need then slot.starved = true; return end
+		slot.starved = false
+		e.power = e.power - need
+		local ex, ey = wx + dx * w.range, wy + dy * w.range
+		local hit = game:raycast(wx, wy, ex, ey, e.team)
+		if hit then
+			ex, ey = hit.x, hit.y
+			game:damage(hit.entity, w.damage * dt * mult.primaryDamage, e, "laser", hit.x, hit.y)
+			local k = (w.knockback or 0) * dt * T.knockbackScale
+			if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
+			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, { 0.7, 1, 1 }) end
+		end
+		slot.beam = { wx, wy, ex, ey, game.time, 0.08 }
+		if not slot.firing then events.emit("fire", e, slot) end
+		return
+	end
+
 	if w.kind == "laser" then
 		-- One pulse: hits instantly along the beam, then the beam lingers
 		-- on screen for w.pulse seconds.
@@ -121,7 +174,7 @@ local function fire(game, e, slot, dt)
 		end
 		slot.fullWarned = false
 	end
-	local rate = w.fireRate * (slot.group ~= "auxiliary" and mult.primaryFireRate or 1)
+	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
 	-- Out of the selected ammo: fall back to another size this weapon can fire.
 	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
 		for _, id in ipairs(slot.ammoOptions) do
@@ -177,17 +230,26 @@ local function fire(game, e, slot, dt)
 		p.burst = true
 		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
 	elseif w.kind == "missile" then
+		-- Fire and forget: picks a target on launch and chases it. With a
+		-- guidance computer it takes the computer's lock and finds a new
+		-- target if its own dies.
+		p.guided = game:computer(e, "guidance") ~= nil
 		p.vx, p.vy = svx + dx * ws.speed * 0.4, svy + dy * ws.speed * 0.4
 		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
 		p.life = ws.range / ws.speed * 1.3
 		p.damage = ws.damage * mult.missileDamage
-		p.target = (e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
+		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5
 	elseif w.kind == "torpedo" then
-		-- Unguided: flies straight and bursts on contact or at the end of its range.
+		-- Very fast, and steers only a little: aim it, then it corrects
+		-- slowly toward the target nearest your aim (or the guidance lock).
+		p.guided = game:computer(e, "guidance") ~= nil
+		p.maxSpeed, p.accel = ws.speed, 0
+		p.turnRate = ws.turnRate or 0
 		p.life = ws.range / ws.speed
+		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 500)
 		p.burst = true
 	end
 
@@ -208,12 +270,13 @@ function Weapons.range(slot)
 	return slot.w.range or 0
 end
 
--- Switch every weapon in a group to the next ammo size it can fire.
--- Returns the newly selected ammo id (of the first launcher that changed).
+-- Switch every launcher (or, given a trigger group, every launcher on that
+-- trigger) to the next ammo size it can fire. Returns the newly selected
+-- ammo id (of the first launcher that changed).
 function Weapons.cycleAmmo(e, group)
 	local picked
 	for _, slot in ipairs(e.weapons) do
-		if slot.group == group and #slot.ammoOptions > 1 then
+		if slot.bay and (not group or slot.group == group) and #slot.ammoOptions > 1 then
 			local i = 1
 			for j, id in ipairs(slot.ammoOptions) do if id == slot.ammo then i = j end end
 			slot.ammo = slot.ammoOptions[i % #slot.ammoOptions + 1]
@@ -228,8 +291,14 @@ function Weapons.update(game, e, dt)
 	for _, slot in ipairs(e.weapons) do
 		slot.cooldown = max(0, slot.cooldown - dt)
 		aimSlot(e, slot, dt)
+		-- a drill retracts when the trigger is let go
+		if slot.w.kind == "drill" and not ((slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
+			or (slot.group == "tertiary" and it.fireTertiary)) then
+			slot.extend = max(0, (slot.extend or 0) - dt / (slot.w.extendTime or 0.4))
+			slot.drillHit = nil
+		end
 		local wants = (slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
-			or (slot.group == "auxiliary" and it.fireAux)
+			or (slot.group == "tertiary" and it.fireTertiary)
 		-- AI only fires a weapon when the target is roughly in its range.
 		if wants and it.targetDist and it.targetDist > Weapons.range(slot) * 1.05 then wants = false end
 		-- When the trigger goes down, delay each identical weapon by its
@@ -249,6 +318,11 @@ end
 local function fuseTarget(game, p)
 	-- a guided missile only bursts early beside its own target
 	local t = p.kind == "missile" and p.target
+	if t and t.kind == "decoy" then
+		-- a decoyed missile bursts on the flare (next step)
+		if not t.dead and (t.x - p.x) ^ 2 + (t.y - p.y) ^ 2 < p.fuse * p.fuse then p.life = 0 end
+		return nil
+	end
 	if t then
 		if not t.dead and Ship.distanceTo(t, p.x, p.y) < p.fuse then return t end
 		return nil
@@ -293,6 +367,15 @@ end
 local function steerMissile(game, p, dt)
 	local t = p.target
 	if t and t.dead then p.target, t = nil, nil end
+	-- a guided missile whose target died picks the nearest other one
+	if not t and p.guided and p.kind == "missile" and not p.decoyed then
+		p.retarget = (p.retarget or 0) - dt
+		if p.retarget <= 0 then
+			p.retarget = 0.25
+			t = nearestTargetTo(game, p.x, p.y, p.team, 3000)
+			p.target = t
+		end
+	end
 	p.age = (p.age or 0) + dt
 	local fx, fy = game:flowAt(p.x, p.y)
 	local rvx, rvy = p.vx - fx, p.vy - fy
@@ -314,12 +397,68 @@ local function steerMissile(game, p, dt)
 	p.trailTimer = (p.trailTimer or 0) - dt
 end
 
+-- Countermeasures: a ship with a flare pod (a module with flares = true)
+-- and flares in its hold fires them by itself when a missile chasing it
+-- comes within FLARE_RANGE. Each missile after it then has FLARE_CHANCE
+-- of going for the flare instead, and it won't come back.
+local FLARE_RANGE, FLARE_CHANCE, FLARE_COOLDOWN, FLARE_LIFE = 900, 0.75, 1.2, 2.0
+
+local function hasFlarePod(e)
+	if e.flarePod == nil or e.flarePodFor ~= e.loadout then
+		e.flarePod, e.flarePodFor = false, e.loadout
+		for _, id in pairs(e.loadout or {}) do
+			local m = id and data.modules[id]
+			if m and m.flares then e.flarePod = true end
+		end
+	end
+	return e.flarePod
+end
+
+local function updateFlares(game, dt)
+	game.decoys = game.decoys or {}
+	for i = #game.decoys, 1, -1 do
+		local d = game.decoys[i]
+		d.life = d.life - dt
+		d.x, d.y = d.x + d.vx * dt, d.y + d.vy * dt
+		d.vx, d.vy = d.vx * (1 - dt), d.vy * (1 - dt)
+		if d.life <= 0 then d.dead = true; table.remove(game.decoys, i) end
+	end
+	for _, p in ipairs(game.projectiles) do
+		local t = p.target
+		if p.kind == "missile" and t and t.kind == "ship" and not t.dead and not p.decoyed and hasFlarePod(t) then
+			local tx, ty = t.body:getPosition()
+			if (tx - p.x) ^ 2 + (ty - p.y) ^ 2 < FLARE_RANGE * FLARE_RANGE then
+				if (t.flareCooldown or 0) <= game.time and (t.cargo.flare or 0) > 0 then
+					t.flareCooldown = game.time + FLARE_COOLDOWN
+					takeAmmo(t, "flare")
+					local vx, vy = t.body:getLinearVelocity()
+					for k = 1, 3 do
+						local a = love.math.random() * math.pi * 2
+						local d = { kind = "decoy", x = tx, y = ty, vx = vx * 0.5 + cos(a) * 250, vy = vy * 0.5 + sin(a) * 250, life = FLARE_LIFE }
+						d.body = { getPosition = function() return d.x, d.y end }
+						table.insert(game.decoys, d)
+						t.lastFlares = d
+					end
+					if t.isPlayer then game:toast("FLARES", 0.8) end
+				end
+				-- missiles near a fresh flare may go for it
+				local d = t.lastFlares
+				if d and not d.dead and p.flareRoll ~= d then
+					p.flareRoll = d
+					if love.math.random() < FLARE_CHANCE then p.target, p.decoyed = d, true end
+				end
+			end
+		end
+	end
+end
+
 function Weapons.updateProjectiles(game, dt)
+	updateFlares(game, dt)
 	local list = game.projectiles
 	local i = 1
 	while i <= #list do
 		local p = list[i]
-		if p.kind == "missile" then steerMissile(game, p, dt) end
+		if p.kind == "missile" or (p.kind == "torpedo" and p.turnRate and p.turnRate > 0) then steerMissile(game, p, dt) end
 		p.px, p.py = p.x, p.y
 		local nx, ny = p.x + p.vx * dt, p.y + p.vy * dt
 		local hit = game:raycast(p.x, p.y, nx, ny, p.team)

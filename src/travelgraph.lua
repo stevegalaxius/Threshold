@@ -11,17 +11,15 @@ function G.position(graph, id, clock)
  return L.position(n.location, clock)
 end
 
-function G.point(graph, edge, progress, clock)
- local x, y = G.position(graph, edge.from, clock)
- local xx, yy = G.position(graph, edge.to, clock)
+function G.interpolate(x,y,xx,yy,progress,incoming,outgoing)
  -- The coarse route goes around the planet instead of cutting across it.
  local r, rr = sqrt(x*x+y*y), sqrt(xx*xx+yy*yy)
  local turn = progress
  -- Finish turning early: the final approach to a fixed gate is radial,
  -- rather than a spiral that reaches the boundary almost sideways.
- if endpoint(edge.to) then
+ if outgoing then
   turn = 1 - (1-progress)^3
- elseif endpoint(edge.from) then
+ elseif incoming then
   turn = progress^3
  end
  local a = atan2(y,x) + delta(atan2(y,x), atan2(yy,xx))*turn
@@ -29,15 +27,37 @@ function G.point(graph, edge, progress, clock)
  return cos(a)*r, sin(a)*r
 end
 
+function G.point(graph,edge,progress,clock)
+ local x,y=G.position(graph,edge.from,clock)
+ local xx,yy=G.position(graph,edge.to,clock)
+ return G.interpolate(x,y,xx,yy,progress,endpoint(edge.from),endpoint(edge.to))
+end
+
+function G.withSpread(x,y,progress,spread)
+ local radius=math.sqrt(x*x+y*y)
+ if radius>0 then
+  local across=(spread or 0)*math.sin(math.pi*progress)
+  x,y=x+x/radius*across,y+y/radius*across
+ end
+ return x,y
+end
+
 -- Connectivity is authored in fields.lua; physical positions never add links.
 function G.build(area)
  local f = assert(Fields[area], 'unknown area')
- local graph = {area=area, nodes={}, edges={}, destinations={}, order={}}
+ local graph = {area=area, version=f.navigationVersion, nodes={}, edges={}, destinations={}, order={}}
  for _,place in ipairs(L.list(area)) do
   graph.nodes[place.id]={location=place.id,links={},owner=place.owner,
    market=place.marketId,danger=place.danger,capacity=place.capacity}
   graph.order[#graph.order+1]=place.id
   graph.destinations[place.id]={place.id}
+ end
+ -- A station's extra access points (accessOf) are more ways to reach it:
+ -- a route to the station may end, or start, at any of them.
+ for _,place in ipairs(L.list(area)) do
+  if place.accessOf and graph.destinations[place.accessOf] then
+   table.insert(graph.destinations[place.accessOf],place.id)
+  end
  end
  for _,pair in ipairs(f.travelLinks or {}) do
   local a,b=pair[1],pair[2]
@@ -59,6 +79,42 @@ function G.transit(from,to,clock)
  local moon=Fields.moons[a.area] and Fields.moons[a.area].parent==b.area and a.area
   or Fields.moons[b.area] and Fields.moons[b.area].parent==a.area and b.area
  if moon then return {from=a.area,to=b.area,moon=moon,length=Fields.moons[moon].gap} end
+end
+
+-- Shared inter-region itinerary. Local legs always use declared connections;
+-- moons use paired gates, planets use their existing mass drivers.
+function G.itinerary(source,target,clock)
+ local a,b=L.byId[source],L.byId[target]
+ if not a or not b then return nil end
+ if source==target then return {source} end
+ local function join(left,right)
+  if not left or not right then return end
+  for _,id in ipairs(right) do left[#left+1]=id end
+  return left
+ end
+ if a.area~=b.area then
+  local moon=Fields.moons[a.area]
+  if moon then
+   return join(G.itinerary(source,a.area..'/to_'..moon.parent,clock),G.itinerary(moon.parent..'/to_'..a.area,target,clock))
+  end
+  moon=Fields.moons[b.area]
+  if moon then
+   return join(G.itinerary(source,moon.parent..'/to_'..b.area,clock),G.itinerary(b.area..'/to_'..moon.parent,target,clock))
+  end
+  local from,to=Fields[a.area].driverId,Fields[b.area].driverId
+  if not from or not to then return end
+  return join(G.itinerary(source,from,clock),G.itinerary(to,target,clock))
+ end
+ local path=G.route(G.build(a.area),source,target,clock)
+ if not path then return end
+ local route={source}
+ for _,leg in ipairs(path.legs) do route[#route+1]=leg.edge.to end
+ return route
+end
+
+function G.wreckPoint(w,clock)
+ if w.worldPosition then return w.worldPosition.x,w.worldPosition.y end
+ return G.point(G.build(w.area),{from=w.from,to=w.to},w.progress,clock)
 end
 
 function G.length(graph,edge,clock)
@@ -201,9 +257,7 @@ function G.draw(game,px)
    lg.push(); lg.translate(x+8*px,y+5*px); lg.scale(px)
    lg.print(id..' '..r.role..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
    if r.task then lg.print(r.task.kind..' '..r.task.phase..' -> '..(L.byId[r.task.target] and L.byId[r.task.target].name or tostring(r.task.target)),0,14)
-   elseif r.taskStatus then lg.print(r.taskStatus,0,14)
-   elseif r.job then lg.print(r.job.phase..' '..r.job.amount..' ore / '..r.job.mine,0,14)
-   elseif r.jobStatus then lg.print(r.jobStatus,0,14) end
+   elseif r.taskStatus then lg.print(r.taskStatus,0,14) end
    if r.targetId then lg.print('Target: '..r.targetId,0,28) end
    lg.pop()
   end

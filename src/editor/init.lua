@@ -32,7 +32,7 @@ local E = {
 	tool = "select",
 	drawing = nil,
 	mirrorNew = false,       -- new parts get a mirror twin
-	lightKind = "nav",       -- what the light tool places (windows: saved for stations)
+	lightKind = "nav",       -- what the light tool places (window, nav or strobe)
 	lightSpacing = 6,        -- px between lights in a dragged row
 	eraseRadius = 12,        -- screen px the light eraser (right drag) reaches
 	previewDamage = 0,       -- pretend damage, to see the windows go out
@@ -84,7 +84,7 @@ function E.undoStep()
 	if not s then return end
 	table.insert(E.redo, snapshot())
 	E.design = s
-	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel = nil, nil
+	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
 function E.redoStep()
@@ -92,7 +92,7 @@ function E.redoStep()
 	if not s then return end
 	table.insert(E.undo, snapshot())
 	E.design = s
-	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel = nil, nil
+	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
 -- Fly with another hull's stats and slots (dropping the design's own).
@@ -140,7 +140,7 @@ function E.newDesign(kind)
 	E.design = { id = "new_" .. kind, name = "New " .. kind, base = data.list.hulls[1], parts = {}, kind = kind ~= "hull" and kind or nil,
 		loot = kind == "wreck" and {} or nil }
 	setBase(E.design.base)
-	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
 function E.openHull(id)
@@ -148,7 +148,7 @@ function E.openHull(id)
 		E.design = Export.fromStation(id)
 		E.design.folder = Export.folderOf(id)
 		setBase(E.design.base, true)
-		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 		E.view.zoom = math.min(E.view.zoom, 0.3)
 		say("Opened " .. data.stations[id].name)
 		return
@@ -157,14 +157,14 @@ function E.openHull(id)
 		E.design = Export.fromWreck(id)
 		E.design.folder = Export.folderOf(id)
 		setBase(E.design.base, true)
-		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 		say("Opened " .. data.wrecks[id].name)
 		return
 	end
 	E.design = Export.fromHull(id)
 	E.design.folder = Export.folderOf(id)
 	setBase(id, true)
-	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel = nil, nil
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 	say("Opened " .. data.hulls[id].name)
 end
 
@@ -200,39 +200,69 @@ function E.deleteSelected()
 		E.pushUndo()
 		table.remove(E.design.berths, E.bsel)
 		if #E.design.berths == 0 then E.design.berths = nil end
-		E.bsel, E.tsel = nil, nil
+		E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
+		return
+	end
+	-- lights: the primary plus every shift/box-picked one, on any part
+	local lsets = {}
+	if E.sel and E.lsel then lsets[E.sel] = { [E.lsel] = true } end
+	for _, v in pairs(E.lmulti or {}) do lsets[v[1]] = lsets[v[1]] or {}; lsets[v[1]][v[2]] = true end
+	if next(lsets) then
+		E.pushUndo()
+		for i, set in pairs(lsets) do
+			local q = E.design.parts[i]
+			if q and q.lights then
+				local idx = {}
+				for j in pairs(set) do idx[#idx + 1] = j end
+				table.sort(idx, function(a, b) return a > b end)
+				for _, j in ipairs(idx) do if q.lights[j] then table.remove(q.lights, j) end end
+				if #q.lights == 0 then q.lights = nil end
+			end
+		end
+		E.lsel, E.lmulti = nil, {}
 		return
 	end
 	if not E.sel then return end
 	local p = E.design.parts[E.sel]
-	if E.lsel and p.lights and p.lights[E.lsel] then
-		E.pushUndo()
-		table.remove(p.lights, E.lsel)
-		if #p.lights == 0 then p.lights = nil end
-		E.lsel = nil
-		return
-	end
-	if E.vsel and #p.shape > 6 then
-		E.pushUndo()
-		table.remove(p.shape, E.vsel); table.remove(p.shape, E.vsel)
-		E.vsel = nil
+	local verts = Canvas.vertexSelection(E)
+	if #verts > 0 then
+		local removable = #p.shape / 2 - 3
+		if removable > 0 then
+			E.pushUndo()
+			table.sort(verts, function(a, b) return a > b end)
+			for n, k in ipairs(verts) do
+				if n > removable then break end
+				table.remove(p.shape, k); table.remove(p.shape, k)
+			end
+		end
+		E.vsel, E.vmulti = nil, {}
 	else
 		E.pushUndo()
-		table.remove(E.design.parts, E.sel)
-		E.sel, E.vsel = nil, nil; E.bsel, E.tsel = nil, nil
+		local list = Canvas.selection(E)
+		table.sort(list, function(a, b) return a > b end)
+		for _, idx in ipairs(list) do table.remove(E.design.parts, idx) end
+		E.sel, E.vsel, E.multi = nil, nil, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 	end
 end
 
 function E.duplicateSelected()
 	if not E.sel then return end
 	E.pushUndo()
-	local p = Export.copy(E.design.parts[E.sel])
-	for k = 1, #p.shape, 2 do p.shape[k], p.shape[k + 1] = p.shape[k] + E.grid * 2, p.shape[k + 1] + E.grid * 2 end
-	for _, l in ipairs(p.lights or {}) do l.x, l.y = l.x + E.grid * 2, l.y + E.grid * 2 end
-	if p.dockX~=nil then p.dockX,p.dockY=p.dockX+E.grid*2,p.dockY+E.grid*2 end
-	p.name = (p.name or "part") .. " copy"
-	table.insert(E.design.parts, E.sel + 1, p)
-	E.sel = E.sel + 1
+	local list = Canvas.selection(E)
+	table.sort(list)
+	local copies = {}
+	for _, idx in ipairs(list) do
+		local p = Export.copy(E.design.parts[idx])
+		for k = 1, #p.shape, 2 do p.shape[k], p.shape[k + 1] = p.shape[k] + E.grid * 2, p.shape[k + 1] + E.grid * 2 end
+		for _, l in ipairs(p.lights or {}) do l.x, l.y = l.x + E.grid * 2, l.y + E.grid * 2 end
+		if p.dockX~=nil then p.dockX,p.dockY=p.dockX+E.grid*2,p.dockY+E.grid*2 end
+		p.name = (p.name or "part") .. " copy"
+		table.insert(E.design.parts, p)
+		copies[#copies + 1] = #E.design.parts
+	end
+	-- the copies (added at the end) become the selection
+	E.sel, E.multi = copies[1], {}
+	for k = 2, #copies do E.multi[copies[k]] = true end
 end
 
 function E.movePart(i, delta)
@@ -317,7 +347,7 @@ end
 function E.switchCategory(cat)
 	E.byCategory[E.category()] = { design = E.design, undo = E.undo, redo = E.redo, view = { x = E.view.x, y = E.view.y, zoom = E.view.zoom } }
 	local saved = E.byCategory[cat]
-	E.sel, E.vsel, E.lsel, E.slotSel, E.drawing = nil, nil, nil, nil, nil; E.bsel, E.tsel = nil, nil
+	E.sel, E.vsel, E.lsel, E.slotSel, E.drawing = nil, nil, nil, nil, nil; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 	if saved then
 		E.design, E.undo, E.redo = saved.design, saved.undo, saved.redo
 		E.view.x, E.view.y, E.view.zoom = saved.view.x, saved.view.y, saved.view.zoom
@@ -326,8 +356,7 @@ function E.switchCategory(cat)
 		E.view.x, E.view.y = 0, 0
 		E.view.zoom = cat == "station" and 0.25 or 3
 	end
-	if E.tool == "light" and cat ~= "station" and E.lightKind == "window" then E.lightKind = "nav" end
-	if (E.tool == "berth" or E.tool == "turret") and cat ~= "station" then E.tool = "select" end
+	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
@@ -528,10 +557,17 @@ function Editor.keypressed(key)
 		p.mirror = not p.mirror or nil
 	elseif key == "return" or key == "kpenter" then E.finishDrawing()
 	elseif key == "escape" then
-		if E.drawing then E.drawing = nil else E.sel, E.vsel, E.bsel, E.tsel = nil, nil, nil, nil end
+		if E.drawing then E.drawing = nil else E.sel, E.vsel, E.bsel, E.tsel, E.multi = nil, nil, nil, nil, {}; E.lmulti, E.vmulti = {}, {} end
 	elseif key == "delete" or key == "backspace" then E.deleteSelected()
 	end
 	return true
+end
+
+-- What the canvas paints the design with: a hull wears its factory preset,
+-- anything else the preview colour picked in the Preview section.
+function E.previewPaint()
+	if (E.design.kind or "hull") == "hull" then local Paint = require("src.paint"); return Paint.preset(Paint.pool({ paints = E.stat("paints") })[1]) end
+	return E.paint
 end
 
 -- Paints to preview against (shade and tint are relative to the paint).

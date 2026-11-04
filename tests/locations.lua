@@ -28,9 +28,21 @@ return function(game)
 				local x, y = L.position(e.locationId, game.universe.clock)
 				local bx, by = e.body:getPosition()
 				check(near(x, bx) and near(y, by), "loaded object differs from catalogue")
-				if e.kind == "station" then check(e.key == e.locationId, "station save key is not stable") end
+				if e.kind == "station" then
+     check(e.key == L.canonical(e.locationId), "station save key is not stable: "..e.locationId)
+     check(e.def==L.stationDefinition(e.locationId),'live/offline station layouts disagree: '..e.locationId)
+     for _,service in ipairs(game.SERVICES) do
+      check(game.stationServices(e)[service]==L.stationServices(e.locationId)[service],'live/offline service mismatch: '..e.locationId..' / '..service)
+     end
+    end
 			end
 		end
+  if area=='pluto' then
+   local base=game:locationEntity(L.station(nil,'pirateBase'))
+   check(base and base.name=='Milliways Freeport','pirate base rename not reflected in live station')
+   check(base.def.id=='jovian_kink','pirate base did not use the Jovian Kink layout')
+   check(game.marketDefinition(base).station=='Milliways Freeport','pirate base market lost its identity')
+  end
 		for _ = 1, 3 do game:step(1 / 120) end
 		for _, e in ipairs(game.entities) do
 			if e.locationId then
@@ -45,12 +57,17 @@ return function(game)
 		end
 	end
 	game:loadField("earth")
-	local st = game:locationEntity("earth/orbital_one")
+	local st = game:locationEntity("station:earth_1")
 	local key = st.key
 	Hold.add(game:stationRecord(st).storage, "scrap", 2)
 	game:dockInstantly(game.player, st)
+ local Homes=require('src.npc_home');local resident
+ for _,r in pairs(game.universe.npcs) do if r.role=='patrol' and r.home=='earth' then resident=r;break end end
+ assert(resident);Homes.assign(resident,'station:earth_2');local residentId=resident.id
 	local saved = assert(Save.decode(Save.encode(game:saveState())))
 	check(saved.player.at.station == key and saved.stations[key] ~= nil, "save does not use location IDs")
+ check(saved.npcs[residentId].homeStation=='station:earth_2','game snapshot lost NPC home')
+ Homes.assign(resident,'station:earth_1')
 	-- Rename it and insert an unrelated station ahead of normal construction.
 	local place = L.get(key)
 	local oldName = place.name
@@ -63,6 +80,7 @@ return function(game)
 	end
 	game:loadState(saved)
 	game.spawnWheelStation = nil
+ check(Homes.get(game.universe.npcs[residentId])=='station:earth_2','loading did not restore assigned NPC home')
 	st = game:locationEntity(key)
 	check(st.name == place.name and st.key == key, "rename or spawn order changed identity")
 	check(game.player.dockState.station == st, "saved station reference broke after reordering")

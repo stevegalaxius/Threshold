@@ -13,6 +13,7 @@ local Fields = require("src.fields")
 local HUD = { showHelp = true }
 
 local lg = love.graphics
+local drawScanTip
 local floor, max, min, sqrt, atan2, cos, sin = math.floor, math.max, math.min, math.sqrt, math.atan2, math.cos, math.sin
 
 local fonts
@@ -58,7 +59,7 @@ end
 local function weaponLines(p)
 	local lines, index = {}, {}
 	for _, w in ipairs(p.weapons) do
-		local key = w.module.id
+		local key = w.group .. ":" .. w.module.id
 		local line = index[key]
 		if not line then
 			line = { name = w.module.name, n = 0, kind = w.w.kind, ammo = w.ammo, group = w.group, starved = false }
@@ -68,7 +69,7 @@ local function weaponLines(p)
 		line.n = line.n + 1
 		line.starved = line.starved or w.starved
 	end
-	local ORDER = { primary = 1, secondary = 2, auxiliary = 3 }
+	local ORDER = { primary = 1, secondary = 2, tertiary = 3 }
 	table.sort(lines, function(a, b) return ORDER[a.group] < ORDER[b.group] end)
 	return lines
 end
@@ -95,12 +96,12 @@ local function drawStatus(game)
 	lg.setFont(font(12))
 	local ly = y + 56
 	for _, line in ipairs(lines) do
-		local tag = ({ primary = "LMB", secondary = "RMB", auxiliary = "MMB" })[line.group] or ""
+		local tag = ({ primary = "PRI", secondary = "SEC", tertiary = "TER" })[line.group] or ""
 		local label = tag .. "  " .. (line.n > 1 and (line.n .. "x ") or "") .. line.name
-		lg.setColor(line.group == "auxiliary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
+		lg.setColor(line.group == "tertiary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
 		lg.print(label, x + 14, ly)
 		local right, col
-		if line.kind == "laser" then
+		if line.kind == "laser" or line.kind == "drill" then
 			right, col = line.starved and "NO POWER" or "power", line.starved and WARN or DIM
 		else
 			local n = p.cargo[line.ammo] or 0
@@ -160,8 +161,9 @@ end
 local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
-	"LMB primary   RMB secondary   MMB auxiliary",
-	"Q auxiliary ammo size   E tractor beam",
+	"LMB primary   RMB secondary   MMB tertiary",
+	"(pick each slot's fire group in the hold)",
+	"Q launcher ammo size   E tractor beam",
 	"G fly a drone (drone uplink)",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold   M local map",
@@ -390,6 +392,73 @@ local function drawCatch(game)
 	lg.printf(("%d braking ring%s ahead"):format(left, left == 1 and "" or "s"), 0, h - 128, w, "center")
 end
 
+-- Deep Scanner (a computer): hover a wreck or container within its range
+-- and see what's inside before you open it.
+drawScanTip = function(game, mx, my)
+	local p = game.player
+	local sc = p and not p.dead and game:computer(p, "scanner")
+	if not sc then return end
+	local wx, wy = game.camera:toWorld(mx, my)
+	local px, py = p.body:getPosition()
+	local target
+	for _, e in ipairs(game.entities) do
+		if (e.kind == "husk" or e.kind == "container") and not e.dead and e.hold then
+			local ex, ey = e.body:getPosition()
+			if (ex - wx) ^ 2 + (ey - wy) ^ 2 < (e.radius + 20) ^ 2 and (ex - px) ^ 2 + (ey - py) ^ 2 < sc.radarRange ^ 2 then target = e end
+		end
+	end
+	if not target then return end
+	local count = {}
+	local order = {}
+	for _, g in ipairs(target.hold.grids) do
+		for _, st in ipairs(g.stacks) do
+			if not count[st.id] then table.insert(order, st.id) end
+			count[st.id] = (count[st.id] or 0) + st.n
+		end
+	end
+	local lines = { "SCAN: " .. (#order == 0 and "empty" or (#order .. " kinds of cargo")) }
+	for i, id in ipairs(order) do
+		if i > 8 then table.insert(lines, ("+%d more"):format(#order - 8)) break end
+		table.insert(lines, ("%s  x%d"):format(data.items[id] and data.items[id].name or id, count[id]))
+	end
+	lg.setFont(font(12))
+	local w = 0
+	for _, l in ipairs(lines) do w = max(w, lg.getFont():getWidth(l)) end
+	w = w + 16
+	local h = #lines * 16 + 8
+	local sw, sh = lg.getDimensions()
+	local x, y = min(mx + 16, sw - w - 4), min(my + 16, sh - h - 4)
+	lg.setColor(0.02, 0.06, 0.09, 0.9)
+	lg.rectangle("fill", x, y, w, h, 5, 5)
+	for i, l in ipairs(lines) do
+		lg.setColor(i == 1 and { 0.55, 0.9, 1 } or INK)
+		lg.print(l, x + 8, y + 4 + (i - 1) * 16)
+	end
+end
+
+-- Name of the pickup floating under the cursor (and how many).
+local function drawPickupTip(game)
+	local mx, my = love.mouse.getPosition()
+	local best, bd = nil, 24 * 24
+	for _, k in ipairs(game.pickups or {}) do
+		local sx, sy = game.camera:toScreen(k.x, k.y)
+		local d = (sx - mx) ^ 2 + (sy - my) ^ 2
+		if d < bd then best, bd = k, d end
+	end
+	if not best then return drawScanTip(game, mx, my) end
+	local item = data.items[best.item]
+	if not item then return end
+	local text = item.name .. ((best.count or 1) > 1 and ("  x" .. best.count) or "")
+	lg.setFont(font(12))
+	local w, h = lg.getFont():getWidth(text) + 16, 20
+	local sw, sh = lg.getDimensions()
+	local x, y = min(mx + 16, sw - w - 4), min(my + 16, sh - h - 4)
+	lg.setColor(0.02, 0.06, 0.09, 0.9)
+	lg.rectangle("fill", x, y, w, h, 5, 5)
+	lg.setColor(INK)
+	lg.print(text, x + 8, y + 3)
+end
+
 function HUD.draw(game, aimX, aimY, uiOpen)
 	if game.flash then
 		-- the cut into the lane, hidden in a flash off the driver
@@ -408,6 +477,7 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 	drawHelp()
 	drawToasts(game)
 	drawReticle(game, aimX, aimY)
+	drawPickupTip(game)
 end
 
 HUD.drawToasts = drawToasts

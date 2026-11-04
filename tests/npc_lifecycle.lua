@@ -59,7 +59,7 @@ return function(game)
  game:updateALife(true)
  check(not game.alifeOnline[r.id] and r.state=='escaped','sync did not clear stale destroyed body')
  -- Distance culling is an unload, not a despawn: duty and damage survive.
- r,e=spawn('culled-npc');e.armor=e.stats.armor*.6
+ r,e=spawn('culled-npc');e.armor=e.stats.armor*.8  -- above the repair threshold, so it keeps its duty
  e.body:setPosition(x+100,y)
  local armor=e.armor;task=r.task and r.task.id
  game.player.body:setPosition(0,0);game:updateALife(true)

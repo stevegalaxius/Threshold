@@ -40,7 +40,7 @@ local function resume(r,clock)
  if r.state=='travel' then
   local duration=math.max(.1,r.arrive-r.depart)
   r.depart=clock-fight.progress*duration;r.arrive=r.depart+duration
- elseif r.state=='idle' then r.untilTime=math.max(r.untilTime,clock+1) end
+ elseif r.state=='idle' then r.untilTime=math.max(r.untilTime or clock,clock+1) end
  r.encounter=nil;r.targetId=nil
 end
 function E.finish(u,a,b,clock,retreat)
@@ -134,7 +134,7 @@ function E.update(game,clock)
    if a.role=='pirate' and not a.encounter then
     local target
     for _,b in ipairs(group) do
-     if (b.role=='trader' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
+     if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
       if not target or b.role=='patrol' and target.role~='patrol' then target=b end
      end
     end
@@ -172,14 +172,15 @@ function E.materialize(game,px,py,clock)
  for id,w in pairs(u.alifeWrecks or {}) do
   if clock>=w.expires then u.alifeWrecks[id]=nil
   elseif px and not game.lane and not game.flight and w.area==game.fieldId then
-   local x,y=G.point(G.build(w.area),{from=w.from,to=w.to},w.progress,clock)
+   local x,y=G.wreckPoint(w,clock)
    if (x-px)^2+(y-py)^2<T.alifeNear^2 then
     local s=w.ship
     local ship=Ship.new(game,{hull=s.hull,loadout=copy(s.loadout),cargo=copy(s.cargo),
      hold=s.hold and Hold.deserialize(s.hold,function(item)return data.items[item]~=nil end),
      color=copy(s.color),enemy=data.enemies[w.archetype]})
     local vx,vy=game:flowAt(x,y)
-    local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0)
+    if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
+    local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
     ship.body:destroy();husk.alifeWreckId=id
     u.alifeWrecks[id]=nil
    end

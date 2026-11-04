@@ -21,6 +21,7 @@ local T = require("src.tuning")
 local data = require("src.data")
 
 local Security=require("src.security")
+local Nav=require("src.local_navigation")
 local AI = {}
 
 local sqrt, cos, sin, max, min, random = math.sqrt, math.cos, math.sin, math.max, math.min, love.math.random
@@ -32,49 +33,6 @@ local function norm(x, y)
 	local l = sqrt(x * x + y * y)
 	if l < 1e-6 then return 0, 0, 0 end
 	return x / l, y / l, l
-end
-
--- Look ahead for collisions: for every ship and asteroid nearby (except the
--- target, which the braking below handles), find where it will be at the
--- moment of closest approach over the next couple of seconds. If that's
--- too close, push away from that point, harder the sooner and closer it
--- is. Returns the push and how urgent the worst one is (0..1).
-local HORIZON = 1.6
-local function avoidCollisions(game, e, target, x, y, vx, vy, horizon)
-	local HORIZON = horizon or HORIZON
-	local px, py, worst = 0, 0, 0
-	local speed = sqrt(vx * vx + vy * vy)
-	for _, o in ipairs(game.entities) do
-		if o ~= e and o ~= target and not o.dead and o.kind ~= "buoy"
-			and not (o.kind == "planet" and target and ((target.city and game.well and game.well.gas) or (target.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(target.body:getY(),target.body:getX())))<.25))) then
-			local ox, oy = o.body:getPosition()
-			ox, oy = ox + (o.cx or 0), oy + (o.cy or 0)   -- structures sit at 0,0
-			local orad = (o.kind == "ship") and o.halfLength or o.radius
-			-- keep out of a planet's atmosphere, not just off its surface
-			if o.kind == "planet" and game.well and game.well.atmo then orad = orad + game.well.atmo end
-			local clear = e.halfLength + orad + 50
-			local rx, ry = ox - x, oy - y
-			local reach = clear + (speed + 400) * HORIZON
-			if rx * rx + ry * ry < reach * reach then
-				local ovx, ovy = o.body:getLinearVelocity()
-				local dvx, dvy = ovx - vx, ovy - vy
-				local dv2 = dvx * dvx + dvy * dvy
-				local t = (dv2 > 1e-6) and max(0, -(rx * dvx + ry * dvy) / dv2) or 0
-				if t < HORIZON then
-					local cx, cy = rx + dvx * t, ry + dvy * t
-					local miss = sqrt(cx * cx + cy * cy)
-					if miss < clear then
-						local urgency = (1 - miss / clear) * 0.5 + (1 - t / HORIZON) * 0.5
-						local nx, ny, l = norm(-cx, -cy)
-						if l == 0 then nx, ny = norm(-ry, rx) end
-						px, py = px + nx * urgency * 3, py + ny * urgency * 3
-						worst = max(worst, urgency)
-					end
-				end
-			end
-		end
-	end
-	return px, py, worst
 end
 
 -- Who an AI ship fights: enemies go for the player; drones go for the
@@ -153,16 +111,50 @@ end
 -- How hard a ship can slow down along a line: its retro thrusters, or
 -- whatever it has when it turns round to use the main engine.
 local function brakeAccel(e)
-	local s = e.stats
-	local f = max(s.retroThrust * T.sideScale, s.sideThrust * T.sideScale, s.thrust * 0.5) * T.FORCE_PER_KN * T.thrustScale
-	return max(f / e.body:getMass(), 1)
+ return Nav.brakeAccel(e)
 end
 
+function AI.navigate(game,e,dx,dy,want,fx,fy,boostDistance)
+ if want<1 then
+  local a=e.body:getAngle()
+  AI.driveVelocity(e,fx,fy,cos(a),sin(a),e.def and e.def.ai.throttle or 1)
+  e.intent.boost=false;return
+ end
+ local mx,my,scale,danger,clear=Nav.steer(game,e,dx,dy,want,fx,fy,{brake=brakeAccel(e),distance=boostDistance})
+ AI.driveVelocity(e,fx+mx*want*scale,fy+my*want*scale,mx,my,e.def and e.def.ai.throttle or 1)
+ Nav.boost(e,mx,my,want,boostDistance or 0,clear,danger,boostDistance~=nil)
+end
+
+-- A station with several docks: the one whose runway is nearest e, chosen
+-- once per stop (kept in e.approach) so the ship doesn't dither between two.
+local function runwayPoint(stop, d)
+	local a, lx = d.a or 0, d.x2 + d.runway * 0.6 + (d.xc or 0)
+	local ly = d.yc or 0
+	return stop.body:getWorldPoint(lx * math.cos(a) - ly * math.sin(a), lx * math.sin(a) + ly * math.cos(a))
+end
+local function approachDock(e, stop)
+	local docks = stop.docks
+	if not e or not docks or #docks < 2 then return stop.dock end
+	local ap = e.approach
+	if ap and ap.stop == stop then return ap.dock end
+	local x, y = e.body:getPosition()
+	local best, bestD
+	for _, d in ipairs(docks) do
+		local px, py = runwayPoint(stop, d)
+		local dd = (px - x) ^ 2 + (py - y) ^ 2
+		if not best or dd < bestD then best, bestD = d, dd end
+	end
+	e.approach = { stop = stop, dock = best }
+	return best
+end
+AI.approachDock = approachDock
+
 -- Where a route stop is right now: on a station's runway, or on a buoy.
-local function stopPoint(stop)
+-- e (optional): the ship heading there, which picks among several docks.
+local function stopPoint(stop, e)
 	if stop.dock then
 		-- out on the runway, where the station's tractor picks it up
-		local d = stop.dock
+		local d = approachDock(e, stop)
 		local a, lx = d.a or 0, d.x2 + d.runway * 0.6 + (d.xc or 0)
 		local ly = d.yc or 0
 		return stop.body:getWorldPoint(lx * math.cos(a) - ly * math.sin(a), lx * math.sin(a) + ly * math.cos(a))
@@ -186,12 +178,14 @@ local function trade(game, e, dt)
 		local a = e.egressHeading or e.body:getAngle()
 		local dx, dy = cos(a), sin(a)
 		local speed = e.egressSpeed or ai.cruise or T.traderCruise
-		AI.driveVelocity(e, dx * speed, dy * speed, dx, dy, ai.throttle)
+		local mx,my,scale,danger,clear=Nav.steer(game,e,dx,dy,speed,0,0,{brake=brakeAccel(e)})
+		AI.driveVelocity(e,mx*speed*scale,my*speed*scale,mx,my,ai.throttle)
+		Nav.boost(e,mx,my,speed,math.huge,clear,danger,true)
 	elseif route and #route > 0 then
 		e.routeIndex = e.routeIndex or 1
 		local stop = route[e.routeIndex]
 		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
-		local sx, sy = stopPoint(stop)
+		local sx, sy = stopPoint(stop, e)
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
 		-- the chord (which would run through the rock belt): aim a little
@@ -224,10 +218,15 @@ local function trade(game, e, dt)
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
+		if w and not stop.city and not stop.surfaceMine then
+			local rx,ry=x-w.x,y-w.y;local r=sqrt(rx*rx+ry*ry)
+			local safe=w.radius+min(T.surfacePullRange,w.radius*.5)+500
+			if r>0 and r<safe then hx,hy=w.x+rx/r*safe,w.y+ry/r*safe end
+		end
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock then
+		if d < 450 and not stop.dock and not stop.hold then
 			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" then
 				if game:requestDriver(e,stop.driver,stop.destination) then
@@ -242,28 +241,42 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = ai.cruise or T.traderCruise
-		local pass = stop.dock and 60 or cruise * 0.6
+		local pass = (stop.dock or stop.inspection) and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
 		-- outweigh the route, and slows down while something's in the way.
-		local avx, avy, danger = avoidCollisions(game, e, (stop.city or stop.surfaceMine) and stop or nil, x, y, vx, vy, ai.horizon or 4.5)
-		local mx, my = norm(ux * (1 - danger * 0.8) + avx * 1.5, uy * (1 - danger * 0.8) + avy * 1.5)
-		want = want * (1 - danger * 0.6)
 		local fx0, fy0 = e.flowX or 0, e.flowY or 0
 		if gateApproach then
 			-- Match the endpoint velocity: gates are fixed, drivers orbit.
 			-- Do not carry unrelated orbital drift into the launch.
 			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
-		if stop.dock then
+		if stop.dock or stop.inspection then
 			-- Final approach is relative to the moving dock, not the orbital
 			-- current. In particular, a surface mine has no sideways motion.
 			local blend = max(0, min(1, 1 - (d - 600) / 1800))
 			local dx, dy = stop.body:getLinearVelocityFromWorldPoint(sx, sy)
 			fx0, fy0 = fx0 + (dx - fx0) * blend, fy0 + (dy - fy0) * blend
 		end
+		local inGravity=w and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius+min(T.surfacePullRange,w.radius*.5)+500
+		local climbing=w and ux*(x-w.x)+uy*(y-w.y)>sqrt((x-w.x)^2+(y-w.y)^2)*.4
+		local boosting=d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
+		if boosting then
+			local top=Ship.performance(e).topSpeed
+			cruise=max(cruise,min(cruise*T.aiBoostCruise,top*.85))
+			want=min(cruise,sqrt(pass*pass+2*brakeAccel(e)*.6*max(0,d-150)))
+		end
+		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
+		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
+		ux,uy=norm(wx-x,wy-y)
+		local leg=sqrt((wx-x)^2+(wy-y)^2)
+		if detour then want=min(want,sqrt(60^2+brakeAccel(e)*max(0,leg-100))) end
+		local mx,my,scale,danger,clear=Nav.steer(game,e,ux,uy,want,fx0,fy0,
+			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
+		want=want*scale
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
+		Nav.boost(e,mx,my,want,leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
@@ -289,11 +302,17 @@ local function trade(game, e, dt)
 	end
 end
 
+AI.trade=trade
+
 function AI.think(game, e, dt)
 	local it = e.intent
 	local ai = e.def.ai
-	it.firePrimary, it.fireSecondary, it.fireAux, it.boost = false, false, false, false
+	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
+	local record=e.alifeId and game.universe.npcs[e.alifeId]
+ if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
+	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
+	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
 	if ai.style == "trader" then return trade(game, e, dt) end
 
 	local x, y = e.body:getPosition()
@@ -352,11 +371,10 @@ function AI.think(game, e, dt)
 		if od == 0 then ox, oy = 1, 0 end
 		local ax, ay = norm(x - tx, y - ty)
 		local mx, my = ox * 0.7 + ax * 0.5, oy * 0.7 + ay * 0.5
-		local avx, avy = avoidCollisions(game, e, nil, x, y, vx, vy)
-		local nmx, nmy = norm(mx + avx, my + avy)
+		local nmx,nmy,scale,danger,clear=Nav.steer(game,e,mx,my,T.aiCruise*1.5,0,0,{ignore=target,brake=brakeAccel(e)})
 		it.aimX, it.aimY = x + nmx * 400, y + nmy * 400
-		it.thrust, it.strafe = Ship.toLocal(e, nmx, nmy)
-		it.boost = true
+		AI.driveVelocity(e,nmx*T.aiCruise*1.5*scale,nmy*T.aiCruise*1.5*scale,nmx,nmy,1)
+		Nav.boost(e,nmx,nmy,T.aiCruise*1.5,math.huge,clear,danger,true)
 		it.targetDist = nil
 		return
 	end
@@ -434,21 +452,7 @@ function AI.think(game, e, dt)
 	end
 
 	-- Steer clear of asteroids and other ships it's about to hit.
-	local avx, avy, danger = avoidCollisions(game, e, target, x, y, vx, vy)
-	mx, my = mx + avx, my + avy
-
-	-- Keep some distance from other AI ships so they don't clump.
-	for _, o in ipairs(game.entities) do
-		if o ~= e and o.kind == "ship" and o.team == e.team and not o.dead then
-			local ox, oy = o.body:getPosition()
-			local sx, sy, d = norm(x - ox, y - oy)
-			local keep = (e.halfLength + o.halfLength) * 1.6
-			if d > 0 and d < keep then
-				local push = (keep - d) / keep
-				mx, my = mx + sx * push * 1.5, my + sy * push * 1.5
-			end
-		end
-	end
+	local danger = 0
 
 	if random() < dt * 0.15 then e.orbitDir = -e.orbitDir end
 
@@ -458,6 +462,10 @@ function AI.think(game, e, dt)
 	local wl = sqrt(mx * mx + my * my)
 	local cruise = (ai.cruise or T.aiCruise) * (hurt and 1.3 or 1)
 	if wl > 1 then mx, my = mx / wl * min(wl, 1.6), my / wl * min(wl, 1.6) end
+	local routeX,routeY,scale,risk,clear=Nav.steer(game,e,mx,my,cruise*min(wl,1.6),tvx,tvy,
+		{ignore=target,brake=brakeAccel(e),horizon=ai.horizon})
+	danger=risk
+	mx,my=routeX*min(wl,1.6)*scale,routeY*min(wl,1.6)*scale
 	local nmx, nmy, ml = norm(steerVelocity(tvx + mx * cruise, tvy + my * cruise, vx, vy))
 	ml = min(1, ml)
 
@@ -476,7 +484,7 @@ function AI.think(game, e, dt)
 	-- Avoiding a crash or running hurt: full throttle.
 	local th = ((danger > 0.3 or hurt) and 1 or ai.throttle) * ml
 	it.thrust, it.strafe = Ship.toLocal(e, nmx * th, nmy * th)
-	if burning and style == "kite" and dist < r * 0.5 then it.boost = true end
+	Nav.boost(e,routeX,routeY,cruise,dist,clear,danger,dist>r*2)
 
 	-- Fire in bursts, only when not turning away and roughly facing the
 	-- target (turrets don't need to face it).
@@ -488,6 +496,7 @@ function AI.think(game, e, dt)
 	local facing = e.hull.mount == "turret" or (fx * ax + fy * ay) > 0.95
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
 	it.fireSecondary = it.firePrimary
+	it.fireTertiary = it.firePrimary
 end
 
 return AI
