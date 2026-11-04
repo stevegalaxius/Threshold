@@ -41,7 +41,12 @@ return function(game)
  game:captureALife(true)
  local id,r
  for key,record in pairs(game.universe.npcs) do
-  if record.home=='io' and record.onRoundTrip then id,r=key,record;break end
+  if record.home=='io' and record.role=='trader' and not record.taskWorker then id,r=key,record;break end
+ end
+ -- Moon round trips survive only in older saves; build one explicitly.
+ if r then
+  r.task=nil;r.tripDestination='jupiter';r.tripRoute=require('src.alife').roundTrip('io','jupiter',game.universe.clock)
+  r.route=require('src.persistence').copy(r.tripRoute);r.onRoundTrip=true
  end
  assert(r,'missing Io visitor')
  game.universe.npcs={[id]=r}

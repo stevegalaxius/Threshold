@@ -127,13 +127,10 @@ function A.createTrader(game,area,i)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
- local destinations=neighbours(area)
- if i%T.alifeMoonEvery==0 and #destinations>0 then
-  r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
-  r.tripRoute=roundTrip(area,r.tripDestination,u.clock,Homes.get(r))
-  if r.tripRoute then r.route=copy(r.tripRoute); r.onRoundTrip=true end
- end
- start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
+ -- One in every few traders works the dispatch board (transport jobs to
+ -- other regions); the rest fly their local circuit. Mars hauls ore instead.
+ if area~='mars' and i%T.alifeMoonEvery==0 and #neighbours(area)>0 then r.taskWorker=true end
+ start(r,u.clock,i%#r.route+1)
  u.npcs[id]=r
  return r
 end
@@ -568,6 +565,7 @@ function A.wake(game,r)
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
  e.alifeRole=Security.isRole(r) and r.role or nil
+ e.npcRole=r.role
  e.alifeRecord=r;e.alifeGame=game
  e.fleeing=r.fleeing
  if egress then

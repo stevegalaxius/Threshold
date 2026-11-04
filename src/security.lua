@@ -253,12 +253,15 @@ function S.capture(game,e,r,remote)
   r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
  end
 end
+-- Civilian A-Life ships pirates hunt; matches offline encounters.lua.
+local PREY={trader=true,courier=true,miner=true}
+function S.prey(o) return o.npcRole and PREY[o.npcRole] or false end
 function S.hostile(e,o)
  if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
  if o==e.aggressor then return true end
  if e.alifeRole=='patrol' then return o.team==2 end
  if e.alifeRole=='pirate' then
-  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or o.def and o.def.ai.style=='trader')
+  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or S.prey(o))
  end
  return false
 end
@@ -270,7 +273,7 @@ function S.target(game,e)
  for _,o in ipairs(game.entities) do
   if S.hostile(e,o) then
    local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
-   local rank=o==e.aggressor and 3 or e.alifeRole=='pirate' and o.def and o.def.ai.style=='trader' and 2 or 1
+   local rank=o==e.aggressor and 3 or e.alifeRole=='pirate' and S.prey(o) and 2 or 1
    if d<T.securityRange^2 and (rank>bestRank or rank==bestRank and d<bestDistance) then best,bestRank,bestDistance=o,rank,d end
   end
  end

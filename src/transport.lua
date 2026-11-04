@@ -80,6 +80,18 @@ function Transport.seed(u)
    end
   end
  end
+ -- Planets and their moons trade with each other too.
+ for _,moon in ipairs(Fields.list) do
+  local parent=Fields.moons and Fields.moons[moon] and Fields.moons[moon].parent
+  if parent then
+   for _,a in ipairs(L.stations(moon,'trade')) do
+    for _,b in ipairs(L.stations(parent,'trade')) do
+     specs[#specs+1]={kind='transport',source=a,target=b,item='scrap',amount=5}
+     specs[#specs+1]={kind='transport',source=b,target=a,item='scrap',amount=5}
+    end
+   end
+  end
+ end
  Tasks.sync(u,'transport',specs,function(o)return o.kind=='transport' end)
 end
 return Transport
