@@ -218,11 +218,103 @@ function Export.source(design)
 	return table.concat(out, "\n") .. "\n"
 end
 
+-- Folders inside the export folder: "" is the top, "ships/fighters" a
+-- subfolder. Names keep letters, digits, _ and -; empty parts drop out.
+function Export.cleanFolder(folder)
+	local parts = {}
+	for seg in tostring(folder or ""):gmatch("[^/\\]+") do
+		if seg ~= "." and seg ~= ".." then table.insert(parts, (seg:gsub("[^%w_%-%.]", "_"))) end
+	end
+	return table.concat(parts, "/")
+end
+
+local function full(rel)
+	rel = Export.cleanFolder(rel)
+	return rel == "" and Export.FOLDER or (Export.FOLDER .. "/" .. rel)
+end
+
+-- Every folder and design file under the export folder, in tree order:
+-- { rel = "ships/x.lua", name = "x.lua", dir = false, depth = 1, folder = "ships", id = "x" }.
+-- Cached: the panel asks every frame; anything that changes the files clears it.
+local listCache
+function Export.refresh() listCache = nil end
+function Export.list()
+	if listCache then return listCache end
+	local out = {}
+	local function walk(rel, depth)
+		local items = love.filesystem.getDirectoryItems(full(rel))
+		table.sort(items, function(a, b) return a:lower() < b:lower() end)
+		local dirs, files = {}, {}
+		for _, name in ipairs(items) do
+			local r = rel == "" and name or (rel .. "/" .. name)
+			local info = love.filesystem.getInfo(full(rel) .. "/" .. name)
+			if info and info.type == "directory" then table.insert(dirs, { rel = r, name = name })
+			elseif name:match("%.lua$") then table.insert(files, { rel = r, name = name, id = name:gsub("%.lua$", "") }) end
+		end
+		for _, d in ipairs(dirs) do
+			table.insert(out, { rel = d.rel, name = d.name, dir = true, depth = depth, folder = rel })
+			walk(d.rel, depth + 1)
+		end
+		for _, f in ipairs(files) do
+			table.insert(out, { rel = f.rel, name = f.name, id = f.id, dir = false, depth = depth, folder = rel })
+		end
+	end
+	if love.filesystem.getInfo(Export.FOLDER, "directory") then walk("", 0) end
+	listCache = out
+	return out
+end
+
+-- Just the folders, top first: { "", "ships", "ships/fighters", ... }.
+function Export.folders()
+	local out = { "" }
+	for _, e in ipairs(Export.list()) do if e.dir then table.insert(out, e.rel) end end
+	return out
+end
+
+-- The folder an exported design with this id lives in, or nil.
+function Export.folderOf(id)
+	for _, e in ipairs(Export.list()) do
+		if not e.dir and e.id == id then return e.folder end
+	end
+	return nil
+end
+
+function Export.makeFolder(rel)
+	rel = Export.cleanFolder(rel)
+	if rel == "" then return nil, "no folder name" end
+	Export.refresh()
+	if not love.filesystem.createDirectory(full(rel)) then return nil, "couldn't create " .. rel end
+	return rel
+end
+
+-- Delete a design file, or a folder if it's empty.
+function Export.remove(rel)
+	rel = Export.cleanFolder(rel)
+	if rel == "" then return nil, "can't delete the export folder itself" end
+	local path = full(rel)
+	local info = love.filesystem.getInfo(path)
+	if not info then return nil, rel .. " is already gone" end
+	if info.type == "directory" and #love.filesystem.getDirectoryItems(path) > 0 then
+		return nil, rel .. " isn't empty"
+	end
+	Export.refresh()
+	if not love.filesystem.remove(path) then return nil, "couldn't delete " .. rel end
+	return true
+end
+
+-- Writes into design.folder (default: wherever this id was exported
+-- before, else the top). Exporting into a different folder moves it, so
+-- there's never two files with the same id.
 function Export.write(design)
-	love.filesystem.createDirectory(Export.FOLDER)
-	local path = Export.FOLDER .. "/" .. design.id .. ".lua"
+	local old = Export.folderOf(design.id)
+	local folder = Export.cleanFolder(design.folder or old or "")
+	love.filesystem.createDirectory(full(folder))
+	local path = full(folder) .. "/" .. design.id .. ".lua"
 	local ok, err = love.filesystem.write(path, Export.source(design))
+	Export.refresh()
 	if not ok then return nil, err end
+	if old and old ~= folder then love.filesystem.remove(full(old) .. "/" .. design.id .. ".lua") end
+	design.folder = folder
 	return love.filesystem.getSaveDirectory() .. "/" .. path
 end
 
@@ -264,7 +356,7 @@ end
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
-		kind = design.kind, loot = design.loot, color = design.color, haze = design.haze, berths = design.berths, turrets = design.turrets }
+		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, berths = design.berths, turrets = design.turrets }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

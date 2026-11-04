@@ -6,6 +6,7 @@
 local Slab = require("lib.Slab")
 local data = require("src.data")
 local Canvas = require("src.editor.canvas")
+local Export = require("src.editor.export")
 local HullShape = require("src.hullshape")
 
 local Panels = {}
@@ -261,6 +262,34 @@ local function designWindow(E, Editor)
 	if Slab.Button("Export") then E.export() end
 	Slab.SameLine()
 	if Slab.Button("Copy source") then E.copySource() end
+	Slab.Text("Export into"); Slab.SameLine()
+	local folderOpts = {}
+	for _, f in ipairs(Export.folders()) do table.insert(folderOpts, { label = f == "" and "(top folder)" or f, value = f }) end
+	local cur = d.folder or Export.folderOf(d.id) or ""
+	combo("yard_folder", cur == "" and "(top folder)" or cur, folderOpts, function(f) E.pushUndo(); d.folder = f end, 200)
+	if Slab.BeginTree("yard_saved", { Label = "Saved designs" }) then
+		Slab.Text("New folder"); Slab.SameLine()
+		if Slab.Input("yard_newfolder", { Text = E.newFolderName or "", W = 140, ReturnOnText = true }) then E.newFolderName = Slab.GetInputText() end
+		Slab.SameLine()
+		if Slab.Button("Make", { Tooltip = "Creates it inside the export folder; use a/b for a subfolder.\nThis design exports there from now on." }) then
+			E.makeFolder(E.newFolderName); E.newFolderName = ""
+		end
+		local entries = Export.list()
+		if #entries == 0 then Slab.Text("Nothing exported yet.", { Color = { 0.6, 0.6, 0.6 } }) end
+		for _, e in ipairs(entries) do
+			local armed = E.pendingDelete == e.rel
+			if Slab.Button(armed and "!" or "x", { W = 18, H = 18, Tooltip = e.dir and "Delete this folder (only when empty)" or "Delete this exported file" }) then E.deleteSaved(e.rel) end
+			Slab.SameLine()
+			local label = string.rep("  ", e.depth) .. (e.dir and ("[" .. e.name .. "]") or e.id)
+			if e.dir then
+				if Slab.TextSelectable(label, { Tooltip = "Export this design here" }) then E.pushUndo(); d.folder = e.rel end
+			else
+				local known = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id]
+				if Slab.TextSelectable(label, { Tooltip = known and "Open it" or "Not loaded (restart to load it)" }) and known then E.openHull(e.id) end
+			end
+		end
+		Slab.EndTree()
+	end
 	if Slab.Button("Undo") then E.undoStep() end
 	Slab.SameLine()
 	if Slab.Button("Redo") then E.redoStep() end

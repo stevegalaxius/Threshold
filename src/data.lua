@@ -311,11 +311,17 @@ local function loadFile(path)
 	chunk()
 end
 
-local function loadFolder(folder)
+local loadFolder
+function loadFolder(folder)
 	local files = love.filesystem.getDirectoryItems(folder)
 	table.sort(files)
+	-- files first, then subfolders (the Shipyard lets you sort designs into folders)
 	for _, name in ipairs(files) do
 		if name:match("%.lua$") then loadFile(folder .. "/" .. name) end
+	end
+	for _, name in ipairs(files) do
+		local sub = folder .. "/" .. name
+		if love.filesystem.getInfo(sub, "directory") then loadFolder(sub) end
 	end
 end
 
