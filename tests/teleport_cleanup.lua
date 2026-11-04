@@ -14,18 +14,18 @@ return function(game)
  end
  game.autosaveOff=true
  require('src.tuning').dev.god=true
- for _=1,#Fields.list*2 do
+ for i=1,#Fields.list*2 do
   local world=game.world
   local bodies=world:getBodies()
   -- Include an unmanaged body: complete unloading must not depend on entity lists.
   local untracked=love.physics.newBody(world,0,0,'static')
-  game:nextField()
-  check(world:isDestroyed(),'F3 kept the previous physics world alive')
-  check(untracked:isDestroyed(),'untracked physics body survived F3')
+  Travel.go(game,Fields.list[(i-1)%#Fields.list+1])
+  check(world:isDestroyed(),'debug teleport kept the previous physics world alive')
+  check(untracked:isDestroyed(),'untracked physics body survived debug teleport')
   local destroyed=true
   for _,body in ipairs(bodies) do if not body:isDestroyed() then destroyed=false;break end end
-  check(destroyed,'previous field body survived F3')
-  check(not game.flight and not game.trip and not game.arrivalPreview,'F3 retained travel state')
+  check(destroyed,'previous field body survived debug teleport')
+  check(not game.flight and not game.trip and not game.arrivalPreview,'debug teleport retained travel state')
   ownedWorld()
   game:step(1/120)
  end
@@ -41,20 +41,20 @@ return function(game)
   end
  end
  check(localDebris,'first AI step would still see distant generated debris')
- -- F3 from a prepared highway releases its current, origin and unused arrival worlds.
+ -- debug teleport from a prepared highway releases its current, origin and unused arrival worlds.
  game:loadField('earth')
  game:launchTrip('luna',{bearing=0,length=Fields.moons.luna.gap})
  local lane,origin=game.world,game.trip.originScene.world
  game:prepareArrival(false)
  local preview=game.arrivalPreview.game.world
  check(not origin:isDestroyed() and not preview:isDestroyed(),'highway scenes destroyed before unloading')
- game:nextField()
- check(lane:isDestroyed() and origin:isDestroyed() and preview:isDestroyed(),'F3 leaked a highway or preview world')
- check(not game.lane and not game.trip and not game.arrivalPreview,'F3 kept highway state')
+ Travel.go(game,'mars')
+ check(lane:isDestroyed() and origin:isDestroyed() and preview:isDestroyed(),'debug teleport leaked a highway or preview world')
+ check(not game.lane and not game.trip and not game.arrivalPreview,'debug teleport kept highway state')
  ownedWorld();game:step(1/120)
- -- The alternate flight mode must not resume an old trip after F3.
- game:loadField('earth');game:beginFlight('mars');game:nextField()
- check(not game.flight,'F3 left the old warp flight running')
+ -- The alternate flight mode must not resume an old trip after debug teleport.
+ game:loadField('earth');game:beginFlight('mars');Travel.go(game,'venus')
+ check(not game.flight,'debug teleport left the old warp flight running')
  local area=game.fieldId
  game:step(1/120)
  check(game.fieldId==area,'old flight replaced the teleported destination')

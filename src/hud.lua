@@ -169,7 +169,7 @@ local HELP = {
 	"Tab cargo hold   M local map",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
-	"fly into a mass driver to travel   F3 skip to next level   F2 shipyard",
+	"fly into a mass driver to travel   F1 debug travel   F2 shipyard",
 	"F5 save   F9 load (docking autosaves)",
 	"H hide help   Esc pause",
 }

@@ -162,13 +162,6 @@ function Game:loadField(id, opts)
 	if not opts.quiet then self:toast(self.field.name:upper(), 2, nil, true) end
 end
 
--- F3 uses the same cleanup as the other debug teleports.
-function Game:nextField()
-	local i = 1
-	for j, id in ipairs(Fields.list) do if id == self.fieldId then i = j end end
-	require("src.debugtravel").go(self, Fields.list[i % #Fields.list + 1])
-end
-
 function Game:nextId()
 	self.idCounter = self.idCounter + 1
 	return self.idCounter

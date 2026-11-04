@@ -251,7 +251,6 @@ function love.keypressed(key)
 	elseif key == "q" then game:cycleAux()
 	elseif key == "g" then game:toggleDroneControl()
 	elseif key == "f2" then Editor.toggle(game)
-	elseif key == "f3" then game:nextField()
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
 	end
