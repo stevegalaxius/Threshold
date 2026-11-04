@@ -234,7 +234,7 @@ end
 -- colour from the chosen palette (auto leaves it to the game's default).
 local function newLight(E, x, y)
 	local l = { x = x, y = y, kind = E.lightKind }
-	if E.lightKind == "strobe" then l.rate = 1 end
+	if E.lightKind == "strobe" then l.rate, l.phase = 1, 0 end
 	if l.kind == "window" then
 		l.w, l.h = Canvas.paneSize(E)
 	elseif E.lightSize then

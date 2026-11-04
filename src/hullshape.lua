@@ -226,7 +226,8 @@ function HullShape.brightness(l, time, state)
 	local flash = state and state.flash or 0
 	local h = hash(l)
 	if l.kind == "strobe" then
-		local t = (time * (l.rate or 1) + (l.phase or h)) % 1
+		-- Match the editor: omitted phase means zero, independent of position.
+		local t = (time * (l.rate or 1) + (l.phase or 0)) % 1
 		return (t < 0.04 or (t > 0.1 and t < 0.14)) and 1 or 0
 	end
 	if l.kind == "nav" then
