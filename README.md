@@ -25,7 +25,7 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
-| Station screen: cycle Cargo / Hangar / Market tabs | Tab (docked) | |
+| Station screen: cycle Storage / Market / Shipyard / Hangar tabs | Tab (docked) | |
 | Buy a ship (shipyard list, with your own ship selected) / sell a parked ship | Hangar tab buttons | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
 | New ship after death (at the last station you docked at) | R | Start |
@@ -529,7 +529,7 @@ ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
 
 ## Station services prototype
 
-Docking opens three services: **Storage**, **Market**, and **Hangar**, beneath
+Docking opens four services: **Storage**, **Market**, **Shipyard**, and **Hangar**, beneath
 a persistent station header. Panels size around their actual inventory contents,
 using the player inventory frames, colors, typography, small-cell renderer,
 and item controls. Storage keeps equipment beside the ship hold and station storage, including parked cargo
@@ -540,19 +540,20 @@ Market uses three panels: player inventory (hold/storage selector), a pending
 offer with separate **You give** and **You receive** grids, and station stock.
 Right-click/Ctrl-click offers a stack; dragging, splitting and rotation still
 work. Completing a trade uses the existing pricing and atomic settlement.
-The **Ships** inventory selector shows owned stored vessels; the **Shipyard** stock
-control opens both sides of ship trading and shows this station's catalogue.
+The separate **Shipyard** service opens owned stored ships on the left,
+a pending offer in the center, and this station's ships for sale on the right.
+Its inventory selectors also allow goods to be included in the offer.
 Stations without a ship catalogue explain that they have no ships for sale;
 they still buy stored ships. Hull footprints can be dragged or
 right-clicked into the same offer as goods. Ship sales include installed modules,
 cargo and containers; the active ship must be stored by switching ships before
 it can be sold. Ownership changes only when the trade completes. Parking is
 checked for the entire offer, including space released by sold ships.
-Leaving Market returns the staged goods. No prices or economic simulation
+Leaving Market or Shipyard returns the staged goods and ship offers. No prices or economic simulation
 rules were replaced.
 
 The Hangar service shows a small interior packing grid, exterior mooring
-positions, and shared ship details/actions. Ship shopping is in Market. Owned ships have one location:
+positions, and shared ship details/actions. Ship shopping is in Shipyard. Owned ships have one location:
 `bay` for interior grid coordinates or `mooring` for a reserved exterior slot.
 Purchases require a suitable free location. Switching ships leaves the old ship
 in its own location and selects the new ship at its existing location. Both
@@ -577,7 +578,7 @@ and saves. Stored exterior ships are drawn at their moorings using the existing
 hull renderer; they remain stored records rather than additional simulated NPCs.
 `love . --stationtest` exercises service layouts, grid transfers, purchase/cancel
 settlement, ship storage, switching, capacity limits, and save restoration. It
-also writes real screenshots for the three services to the LÖVE save folder.
+also writes real screenshots for the four services to the LÖVE save folder.
 
 ## Shipyard comparison
 

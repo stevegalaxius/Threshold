@@ -267,7 +267,7 @@ function Hangar.draw(game, mx, my)
 	lg.setFont(HUD.font(12))
 	lg.print(("Credits  %d"):format(game:credits()), I.x + PAD, I.y + 214)
  lg.printf(game:shipParkingLabel(L.station,owner),I.x+PAD,I.y+236,I.w-PAD*2)
- lg.printf('Buy and sell ships in Market > Shipyard.',I.x+PAD,I.y+262,I.w-PAD*2)
+ lg.printf('Buy and sell ships in the Shipyard tab.',I.x+PAD,I.y+262,I.w-PAD*2)
 
  lg.setFont(HUD.font(13))
  local canMove=owner.bay and game:mooringFit(L.station,hull.id,owner) or not owner.bay and game:hangarFit(L.station,hull.id,owner)

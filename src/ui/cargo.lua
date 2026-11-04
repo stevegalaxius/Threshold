@@ -55,6 +55,8 @@ local T = require("src.tuning")
 
 local Cargo = { open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
 
+local function trading() return Cargo.tab=='market' or Cargo.tab=='shipyard' end
+
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
 
@@ -111,8 +113,8 @@ local function sides(game)
 		-- station storage, then a parked ship's hold if one is open (Cargo.other)
 		local st = p.dockState.station
 		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
-		if Cargo.tab == "market" then
-   shipOffers(game,st)
+		if trading() then
+   if Cargo.tab=="shipyard" then shipOffers(game,st) end
 			-- the market: your hold or storage (one at a time, picked with the
 			-- panel's own tabs), the trade grid, then the station's shelf
 			if Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
@@ -120,7 +122,7 @@ local function sides(game)
    list[1].pick = true
 			Cargo.tradeStation = st
 			table.insert(list, { title = "Trade", hold = tradeHold(), trade = true, station = st })
-			table.insert(list, { title = st.name, hold = Cargo.filter=="ships" and Cargo.shipStock or game:stationMarket(st).hold, shipEntries=Cargo.filter=="ships", market = true, station = st })
+			table.insert(list, { title = st.name, hold = Cargo.tab=="shipyard" and Cargo.shipStock or game:stationMarket(st).hold, shipEntries=Cargo.tab=="shipyard", market = true, station = st })
 			return list
 		end
 		local rec = Cargo.other
@@ -176,7 +178,7 @@ local EW, ROW, HULL_H = 260, 30, 110
 -- The market shelf's filters: which stacks stand out.
 local FILTERS = {
 	{ id = "all", label = "All" }, { id = "ammo", label = "Ammo" }, { id = "weapons", label = "Weapons" },
-	{ id = "modules", label = "Modules" }, { id = "misc", label = "Misc" }, {id="ships",label="Shipyard"},
+	{ id = "modules", label = "Modules" }, { id = "misc", label = "Misc" },
 }
 local function filterOf(id)
 	local item, m = itemFor(id), data.modules[id]
@@ -214,7 +216,7 @@ local function layout(game)
 	-- sits under your hold.
 	local cols = {}
 	for _, side in ipairs(list) do
-		if side.storage and Cargo.tab == "market" and #cols > 0 then table.insert(cols[#cols], side)
+		if side.storage and trading() and #cols > 0 then table.insert(cols[#cols], side)
 		else table.insert(cols, { side }) end
 	end
 	local STACKED = HEAD + PAD * 2 + GAP          -- what a panel under another adds besides its own height
@@ -290,15 +292,15 @@ local function layout(game)
 			side.picks = {
 				{ id = "hold", label = "Ship hold", x = x + PAD, y = y + 48, w = 96, h = 24 },
 				{ id = "storage", label = "Station storage", x = x + PAD + 100, y = y + 48, w = 124, h = 24 },
-    {id="ships",label="Ships",x=x+PAD+228,y=y+48,w=64,h=24},
 			}
+   if Cargo.tab=='shipyard' then table.insert(side.picks,{id='ships',label='Ships',x=x+PAD+228,y=y+48,w=64,h=24}) end
 		end
 		if side.market then
 			-- filter buttons along the grid's label row
 			side.filters = {}
    side.search={x=x+PAD,y=y+50,w=side.pw-PAD*2,h=28}
 			local fx = x + PAD
-			for _, f in ipairs(FILTERS) do
+			for _, f in ipairs(Cargo.tab=="shipyard" and {{id="all",label="All ships"}} or FILTERS) do
 				local fw = HUD.font(11):getWidth(f.label) + 12
 				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 92, w = fw, h = 20 })
 				fx = fx + fw + 4
@@ -544,7 +546,7 @@ function Cargo.update(game)
 	if game.state == "dead" then Cargo.open = false end
 	local p = game.player
 	local st = game.state == "docked" and p and p.dockState and p.dockState.station
-	if st and Cargo.tab == "market" then
+	if st and trading() then
 		game:marketTick(st, stockOut())
 	elseif Cargo.trade and not Cargo.hand then
 		Cargo.clearTrade(game)
@@ -559,12 +561,20 @@ end
 
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
-local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='hangar',label='Hangar'}}
+local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'}}
 function Cargo.setTab(game,id)
  if Cargo.hand then return false end
- if Cargo.tab=='market' and id~='market' then Cargo.clearTrade(game) end
+ if trading() and id~=Cargo.tab then Cargo.clearTrade(game) end
  Cargo.searchFocus=false;love.keyboard.setTextInput(false)
- if id~="market" then Cargo.search="";Cargo.shipOwned=nil;Cargo.shipStation=nil end
+ if id~=Cargo.tab then
+  Cargo.search='';Cargo.shipOwned=nil;Cargo.shipStation=nil
+  if id=='shipyard' then Cargo.marketLeft='ships'
+  elseif id=='market' then
+   if Cargo.marketLeft=='ships' then Cargo.marketLeft='hold' end
+   for _,g in ipairs(tradeHold().grids) do if #g.stacks==0 then g.w,g.h,g.cells=T.tradeW,T.tradeH,{} end end
+  end
+  Cargo.filter='all'
+ end
  Cargo.tab=id;Hangar.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
 function Cargo.workspace(game)
@@ -607,7 +617,7 @@ local function quickMove(game, L, r, s)
 			end
 		end
 	end
-	if Cargo.tab == "market" and game.state == "docked" then
+	if trading() and game.state == "docked" then
 		if r.side.trade then
 			Grid.remove(r.g, s)
 			sendHome(game, s)
@@ -812,7 +822,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		end
   if button==1 and side.search and inRect(side.search,mx,my) then Cargo.searchFocus=true;love.keyboard.setTextInput(true);return true end
 		for _, f in ipairs(side.filters or {}) do
-			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id; if f.id=="ships" then Cargo.marketLeft="ships" end; return true end
+			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id; return true end
 		end
 		for _, pk in ipairs(side.picks or {}) do
 			if button == 1 and inRect(pk, mx, my) then Cargo.marketLeft = pk.id return true end
@@ -852,7 +862,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local c = Cargo.lastClick
 	local double = c and c.g == r.g and c.x == s.x and c.y == s.y and c.id == s.id and now - c.t < 0.35
 	Cargo.lastClick = { g = r.g, x = s.x, y = s.y, id = s.id, t = now }
-	if double and Cargo.tab == "market" and game.state == "docked" then double = false end   -- no opening or fitting at the market
+	if double and trading() and game.state == "docked" then double = false end   -- no opening or fitting at the market
 	if button == 1 and double and itemFor(s.id).kind == "container" then
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
 		return true
@@ -863,7 +873,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	end
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
-	local atMarket = Cargo.tab == "market" and game.state == "docked"
+	local atMarket = trading() and game.state == "docked"
 	if button == 2 and (#L.sides > 1 or atMarket) then
 		quickMove(game, L, r, s)                   -- right-click: to the other panel
 	elseif button == 2 and game.state ~= "docked" then
@@ -953,10 +963,10 @@ function Cargo.mousereleased(game, mx, my, button)
 end
 
 function Cargo.textinput(game,text)
- if game.state=='docked' and Cargo.tab=='market' and Cargo.searchFocus then Cargo.search=(Cargo.search or '')..text;return true end
+ if game.state=='docked' and trading() and Cargo.searchFocus then Cargo.search=(Cargo.search or '')..text;return true end
 end
 function Cargo.keypressed(game, key)
- if game.state=='docked' and Cargo.tab=='market' and Cargo.searchFocus then
+ if game.state=='docked' and trading() and Cargo.searchFocus then
   if key=='escape' or key=='return' then Cargo.searchFocus=false;love.keyboard.setTextInput(false)
   elseif key=='backspace' then local utf8=require('utf8');local offset=utf8.offset(Cargo.search or '',-1);if offset then Cargo.search=Cargo.search:sub(1,offset-1) end end
   return true
@@ -1260,7 +1270,7 @@ function Cargo.draw(game)
 	local sw, sh = lg.getDimensions()
 	local mx, my = love.mouse.getPosition()
 	local docked = game.state == "docked"
-	local market = docked and Cargo.tab == "market"
+	local market = docked and trading()
 
 	lg.setColor(0, 0, 0, docked and 0.55 or 0.3)
 	lg.rectangle("fill", 0, 0, sw, sh)
@@ -1274,7 +1284,7 @@ function Cargo.draw(game)
 			local H = Hangar.layout(game)
 			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
    lg.setColor(HUD.INK);lg.print('Drag ships between the hangar grid and a free berth.',f.x+14,f.bottom+22)
-   lg.setColor(HUD.DIM);lg.print('R rotate • Double-click to select active ship • Cargo opens its hold • Market trades ships',f.x+14,f.bottom+43)
+   lg.setColor(HUD.DIM);lg.print('R rotate • Double-click to select active ship • Cargo opens its hold • Shipyard trades ships',f.x+14,f.bottom+43)
 			return
 		end
 	end
@@ -1284,7 +1294,7 @@ function Cargo.draw(game)
 	for _, side in ipairs(L.sides) do
 		if docked then Station.panel(side.x,side.y,side.pw,side.ph) else HUD.panel(side.x,side.y,side.pw,side.ph) end
 		if side.picks then
-   lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print('Your inventory',side.x+PAD,side.y+12)
+   lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print((Cargo.tab=='shipyard' and side.shipEntries and 'Your ships' or 'Your inventory'),side.x+PAD,side.y+12)
 			for _, pk in ipairs(side.picks) do
 				local on = Cargo.marketLeft == pk.id
     lg.setFont(HUD.font(13));Station.button(pk,pk.label,on)
@@ -1292,7 +1302,7 @@ function Cargo.draw(game)
 		else
 			lg.setFont(HUD.font(16))
 			lg.setColor(HUD.INK)
-			lg.print(docked and (side.trade and 'Trade offer' or side.market and 'Station stock' or side.title) or side.title,side.x+PAD,side.y+12)
+			lg.print(docked and (side.trade and 'Trade offer' or side.market and (Cargo.tab=='shipyard' and 'Ships for sale' or 'Station stock') or side.title) or side.title,side.x+PAD,side.y+12)
 		end
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
@@ -1335,7 +1345,7 @@ function Cargo.draw(game)
 			end
 		end
   if side.search then
-   Station.button(side.search,(Cargo.search or '')~='' and Cargo.search or 'Search stock…',Cargo.searchFocus)
+   Station.button(side.search,(Cargo.search or '')~='' and Cargo.search or (Cargo.tab=='shipyard' and 'Search ships…' or 'Search stock…'),Cargo.searchFocus)
   end
 		for _, f in ipairs(side.filters or {}) do
 			local on = Cargo.filter == f.id

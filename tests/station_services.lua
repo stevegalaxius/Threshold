@@ -16,9 +16,9 @@ return function(game)
  game.universe.populationSpawns={}
  game:dockInstantly(game.player,st,{interior=true})
  local r=game:stationRecord(st)
- check(#Cargo.tabs==3,'station services missing')
+ check(#Cargo.tabs==4,'station services missing')
  local labels={};for _,tab in ipairs(Cargo.tabs) do labels[tab.label]=true end
- check(labels.Storage and labels.Market and labels.Hangar and not labels.Outfitting,'service tabs do not describe existing station mechanics')
+ check(labels.Storage and labels.Market and labels.Shipyard and labels.Hangar and not labels.Outfitting,'service tabs do not describe existing station mechanics')
  local w,h=game.hangarSize(st)
  check(w==12 and h==10,'default interior is not a small finite grid')
  check(game:hangarFit(st,'halcyon_wisp')~=nil,'small ship does not fit inside')
@@ -84,7 +84,7 @@ return function(game)
  end
  love.window.setMode(sw,sh)
  local tabs=Cargo.tabRects(game)
- check(#tabs==3 and tabs[1].x>=0 and tabs[3].x+tabs[3].w<=sw,'service tabs moved outside the resized window')
+ check(#tabs==4 and tabs[1].x>=0 and tabs[4].x+tabs[4].w<=sw,'service tabs moved outside the resized window')
  screenshot('storage')
  Cargo.setTab(game,'hangar');local shipLayout=Hangar.layout(game)
  local listed=false
@@ -126,6 +126,7 @@ return function(game)
 
  Cargo.setTab(game,'market');local layout=Cargo.layout(game)
  check(#layout.sides==3 and layout.equip.hidden,'market is not a three-panel inventory workspace')
+ for _,filter in ipairs(layout.sides[3].filters) do check(filter.id~='ships','Market still contains a Shipyard filter') end
  checkWorkspace(layout.sides)
  for _,g in ipairs(layout.grids) do
   check(g.x>=g.side.x and g.x+g.g.w*layout.cs<=g.side.x+g.side.pw and g.y+g.g.h*layout.cs<=g.side.y+g.side.ph,'inventory grid overflows its station panel')
@@ -194,19 +195,19 @@ return function(game)
 
  -- Use the actual station catalogue: the shipyard control must open both
  -- sides, and a station without sales stock must still permit ship sales.
- Cargo.setTab(game,'market');Cargo.marketLeft='hold';Cargo.filter='all'
- local shipyardLayout=Cargo.layout(game);local control
- for _,f in ipairs(shipyardLayout.sides[3].filters) do if f.id=='ships' then control=f end end
- check(control and control.label=='Shipyard','shipyard entry is not visible in Market')
+ local control
+ for _,tab in ipairs(Cargo.tabRects(game)) do if tab.id=='shipyard' then control=tab end end
+ check(control and control.label=='Shipyard','Shipyard service tab missing')
  Cargo.mousepressed(game,control.x+2,control.y+2,1)
- check(Cargo.filter=='ships' and Cargo.marketLeft=='ships','shipyard control did not open both sides of ship trading')
+ check(Cargo.tab=='shipyard' and Cargo.marketLeft=='ships','Shipyard tab did not open ship trading')
+ Cargo.layout(game)
  check(#Cargo.shipStock.grids[1].stacks==#game.shipyard(st),'shipyard UI does not match actual station stock')
  screenshot('actual-shipyard')
  Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all'
  -- Ships and goods share the same staged offer and settlement.
  local marketDef=game.marketDefinition(st);local oldShips=marketDef.ships
  marketDef.ships={'halcyon_wisp'}
- Cargo.shipOwned=nil;Cargo.marketLeft='ships';Cargo.filter='ships';Cargo.setTab(game,'market')
+ Cargo.shipOwned=nil;Cargo.setTab(game,'shipyard')
  local L=Cargo.layout(game);local ownedGrid,stockGrid
  for _,g in ipairs(L.grids) do
   if g.side.shipEntries then if g.side.market then stockGrid=g else ownedGrid=g end end
@@ -219,7 +220,9 @@ return function(game)
  clickStack(ownedGrid,sale,2);clickStack(stockGrid,stockGrid.g.stacks[1],2)
  check(#game:hangar(st)==beforeShips and game:credits()==beforeCredits,'staging transferred ownership or credits')
  screenshot('ship-trade')
- Cargo.clearTrade(game)
+ Cargo.setTab(game,'market')
+ check(Cargo.marketLeft~='ships' and not Cargo.layout(game).sides[3].shipEntries,'Market retained the Shipyard view')
+ Cargo.setTab(game,'shipyard')
  check(#game:hangar(st)==beforeShips and game:credits()==beforeCredits,'cancelling ship offers changed ownership')
  L=Cargo.layout(game)
  for _,g in ipairs(L.grids) do if g.side.shipEntries then if g.side.market then stockGrid=g else ownedGrid=g end end end
@@ -283,7 +286,7 @@ return function(game)
  local ok,why=game:completeTrade(st,exchange);check(ok,why)
  check(#game:hangar(st)==count,'ship exchange did not reuse released parking')
  mk.ships={'ferrous_freighter','ferrous_mule','ferrous_runner'}
- Cargo.shipOwned=nil;Cargo.marketLeft='ships';Cargo.filter='ships';Cargo.setTab(game,'market')
+ Cargo.shipOwned=nil;Cargo.setTab(game,'shipyard')
  screenshot('ship-catalogue')
  Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all';mk.ships=catalogue
  local worldCanvas=love.graphics.newCanvas(love.graphics.getDimensions())
