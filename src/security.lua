@@ -28,39 +28,11 @@ local function raidLeg(area,from,to)
  -- Follow the perimeter rather than taking a station spur across the ring.
  return a and b and ((a-b)%#nodes==1 or (b-a)%#nodes==1)
 end
-local function repairStation(node)
- local place=L.get(node)
- if place.kind~='station' then return false end
- local layout=place.layout
- if not layout then layout=place.motion.type=='cloud' and ('city_'..(Fields[place.area].cityScale or 1)) or 'ring_900_120' end
- local def=data.stations[layout]
- for _,service in ipairs(def and def.services or {}) do if service=='repair' then return true end end
- return false
-end
-local function armorMax(r) return Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).armor end
-local function needsRepair(r) return (r.ship.armor or armorMax(r))<armorMax(r)*T.patrolRepairThreshold end
-local function dockStay(r,node)
- if repairStation(node) then return math.max(T.patrolDockStay,(armorMax(r)-(r.ship.armor or armorMax(r)))/T.npcRepairPerSecond) end
- return T.patrolDockStay
-end
-function S.repairOnline(game,e,dt)
- if e.alifeRole~='patrol' or not e.dockState or not e.dockState.done then return end
- local r=game.universe.npcs[e.alifeId]
- if game.stationServices(e.dockState.station).repair then
-  e.armor=math.min(e.stats.armor,e.armor+T.npcRepairPerSecond*dt)
-  r.ship.armor=e.armor
-  if e.armor>=e.stats.armor then e.fleeing=nil;r.fleeing=nil end
- end
- r.patrolRepairAt=game.universe.clock
-end
-local function repairOffline(r,clock)
- local at=math.min(clock,r.untilTime)
- if repairStation(r.node) then
-  r.ship.armor=math.min(armorMax(r),(r.ship.armor or armorMax(r))+math.max(0,at-(r.patrolRepairAt or at))*T.npcRepairPerSecond)
-  if r.ship.armor>=armorMax(r) then r.fleeing=nil end
- end
- r.patrolRepairAt=at
-end
+local Repairs=require('src.npc_repair')
+local repairStation=Repairs.supports
+local armorMax=Repairs.maximum
+local needsRepair=Repairs.needs
+local function dockStay(r,node) return Repairs.stay(r,node,T.patrolDockStay) end
 for _,kind in ipairs({'patrol','raid'}) do
  local role=kind=='patrol' and 'patrol' or 'pirate'
  Tasks.register(kind,{
@@ -214,7 +186,7 @@ end
 function S.arrive(r,node,clock)
  r.state=S.shouldDock(r,node) and 'docked' or 'idle';r.node=node;r.route={node,node};r.index=1
  r.untilTime=clock+(r.task and r.task.duration or T.patrolInspect)
- if r.state=="docked" then r.untilTime=clock+dockStay(r,node);r.patrolRepairAt=clock end
+ if r.state=="docked" then Repairs.begin(r,node,clock,T.patrolDockStay) end
  r.offset,r.pose=nil,nil
 end
 function S.advance(r,clock,u,start)
@@ -229,13 +201,13 @@ function S.advance(r,clock,u,start)
    if r.index<#r.route then start(r,at,r.index+1)
    else S.arrive(r,r.route[r.index],at) end
   elseif r.state=='idle' or r.state=='docked' then
-   if r.state=='docked' then repairOffline(r,clock) end
+   if r.state=='docked' then Repairs.advance(r,clock,r.node) end
    if clock<r.untilTime then return end
    local at=r.untilTime
    Tasks.arrive(u,r,r.node,at)
    local task=Tasks.choose(u,r,r.node,at)
    if not task then r.untilTime=clock+10;return end
-   r.patrolRepairAt=nil
+   r.repairAt=nil
    r.route=assert(Tasks.plan(r,r.node,at));r.index=1
    if task.target==r.node then
     r.untilTime=at+task.duration

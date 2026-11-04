@@ -154,7 +154,7 @@ T.aiSteerEvery, T.aiClearance = 0.2, 12
 T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
-T.patrolRepairThreshold,T.npcRepairPerSecond=.7,4
+T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 -- Milliways Freeport: destination for the planned pirate loot/return duties.
 T.pirateBase = "pluto/tombaugh_station"
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000

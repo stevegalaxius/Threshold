@@ -13,6 +13,7 @@ local Tasks=require('src.tasks')
 local Transport=require('src.transport')
 local Security=require('src.security')
 local Piracy=require("src.piracy")
+local Repairs=require('src.npc_repair')
 local Encounters=require('src.encounters')
 local Mining=require('src.mining')
 local Population=require('src.population')
@@ -202,6 +203,7 @@ local function dockingStop(r,id)
 end
 
 function A.advance(r,clock,u,game)
+ if game and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and Repairs.needs(r) then Piracy.returnRecord(game,r) end
  if r.piracy then return Piracy.advance(r,clock,u,start) end
  if game and require("src.offline_loot").update(game,r,clock) then return end
  if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
@@ -215,9 +217,10 @@ function A.advance(r,clock,u,game)
    local at=r.arrive
    r.offset,r.pose=nil,nil
    if dockingStop(r,r.route[r.index]) then
-    r.state='docked'; r.untilTime=at+T.alifeStay
+    r.state='docked';Repairs.begin(r,r.route[r.index],at,T.alifeStay)
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
+   Repairs.advance(r,clock,r.route[r.index])
    if clock<r.untilTime then return end
    if r.taskWorker and not u then return end
    local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)

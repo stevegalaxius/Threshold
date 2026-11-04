@@ -8,6 +8,7 @@ local Hold=require('src.inventory.hold')
 local Tasks=require('src.tasks')
 local Loot=require('src.loot')
 local Grid=require('src.inventory.grid')
+local Repairs=require('src.npc_repair')
 local P={}
 local function itinerary(source,target,clock)
  if source==target then return {source} end
@@ -89,7 +90,7 @@ function P.returnRecord(game,r)
  else
   r.route=path;r.index=1
   if #path>1 then A.start(r,game.universe.clock,2)
-  else r.state='docked';r.untilTime=game.universe.clock+T.pirateRest end
+  else r.state='docked';r.node=T.pirateBase;Repairs.begin(r,r.node,game.universe.clock,T.pirateRest) end
  end
  return true
 end
@@ -131,9 +132,10 @@ function P.advance(r,clock,u,start)
    if r.index<#r.route then start(r,at,r.index+1)
    else
     r.area=L.get(r.route[r.index]).area;r.transit=nil;r.state='docked';r.node=r.route[r.index]
-    r.untilTime=at+T.pirateRest
+    Repairs.begin(r,r.node,at,T.pirateRest)
    end
   elseif r.state=='docked' then
+   Repairs.advance(r,clock,r.node or r.route[r.index])
    if clock<r.untilTime then return end
    if not P.depart(u,r,r.untilTime,start) then return end
    if not r.piracy then return end
@@ -148,6 +150,9 @@ function P.think(game,e,dt,AI)
   e.tractorTarget=nil;e.intent.tractor=false
   if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
   AI.trade(game,e,dt);return true
+ end
+ if not (e.driverTractor or e.launch or e.alifeEgress) and Repairs.needs(r,e.armor,e.stats.armor) then
+  if P.beginReturn(game,e,r) then AI.trade(game,e,dt);return true end
  end
  -- Keep decisions bounded; pursuit and the beam itself still update each frame.
  local now=game.universe.clock

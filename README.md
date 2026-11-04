@@ -540,13 +540,18 @@ Patrols choose inspection duties through the shared task board and visit existin
 stations and buoys. Every third station visit is an actual docking stop, staggered
 by NPC identity; the decision and visit counter persist. Passing inspections wait
 outside the station hull and runway corridors rather than at the dock mouth.
-Patrols below 70% armor prioritize stations with repair service. Repairs progress
-at four armor points per game second only while fully docked; damaged patrols
-stay long enough to finish before choosing their next duty. Online/offline
-progress and saves use the same rate and preserve the ship's identity. NPC
-maintenance does not debit player credits; NPC repair billing remains deferred
-with the economy. Timing, health threshold and repair speed are tuning values. Pirates choose buoy raids and relocation duties, preferring
-passing traders as targets. Patrols engage pirates and defend themselves when
+Patrols below 70% armor prioritize stations with repair service. All persistent
+A-Life roles repair at four armor points per game second while fully docked at a
+station offering repairs, staying long enough to finish. Traders and couriers
+use their scheduled stops. Damaged miners return to their repair-capable home
+station, deliver any ore, then resume mining; an empty repair trip retains its
+reserved job. Damaged pirates return to Milliways even without stolen cargo,
+repair, then redeploy through their existing return loop. Online/offline progress
+and saves preserve armor, repair timing and ship identity. NPC maintenance does
+not debit player credits; billing remains deferred with the economy. Timing,
+health threshold and repair speed are tuning values. Pirates choose buoy raids
+and relocation duties, preferring passing traders as targets. Patrols engage
+pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
 After losing contact, ships resume their selected duty. F1's A-Life list and the

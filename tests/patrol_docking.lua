@@ -42,7 +42,7 @@ return function(game)
  u.clock=u.clock+2;game:updateDockedShip(e,2)
  check(math.abs(e.armor-before-T.npcRepairPerSecond*2)<.01,'physical patrol did not repair over time')
  local saved=assert(Save.decode(Save.encode(game:saveState())))
- check(saved.npcs[r.id].patrolRepairAt==u.clock,'save lost patrol repair progress')
+ check(saved.npcs[r.id].repairAt==u.clock,'save lost patrol repair progress')
  local id=r.id;game:loadState(saved);u=game.universe;r=u.npcs[id];e=game.alifeOnline[id] or A.wake(game,r)
  check(e.dockState and e.dockState.done,'load lost the patrol docking stop')
  local hp=e.armor;local services=e.dockState.station.def.services

@@ -6,6 +6,7 @@ local Tasks,Hold=require('src.tasks'),require('src.inventory.hold')
 local copy=require('src.persistence').copy
 local Ore=require('src.ore')
 local Population=require('src.population')
+local Repairs=require('src.npc_repair')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u)
@@ -360,15 +361,20 @@ end
 function M.advance(game,r,clock)
  local u=game.universe
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
+ if r.state=='docked' then Repairs.advance(r,clock,r.base) end
  if r.state=='docked' and clock>=(r.untilTime or 0) then
-  Tasks.arrive(u,r,r.base,clock);r.state='idle';r.task=nil
+  if r.repairReturn and r.task and (r.ship.cargo[r.task.item] or 0)==0 then
+   r.task.phase='mining';r.state='idle'
+  else Tasks.arrive(u,r,r.base,clock);r.state='idle';r.task=nil end
+  r.repairReturn=nil
  end
  if not r.task then r.task=Tasks.choose(u,r,r.base,clock);r.nextMiningAt=clock+T.miningOfflineEvery end
  if not r.task then return end
  r.mineSite=copy(M.state(u).sites[r.task.target])
+ if r.task.phase=='mining' and Repairs.needs(r) and Repairs.supports(r.base) then r.repairReturn=true;M.returnHome(game,r,M.point(u,r,clock)) end
  if r.task.phase=='mining' then r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
  if r.task.phase=='delivery' then
-  if r.state~='docked' and clock>=r.arrive then r.state='docked';r.untilTime=r.arrive+T.alifeStay end
+  if r.state~='docked' and clock>=r.arrive then r.state='docked';Repairs.begin(r,r.base,r.arrive,T.alifeStay) end
   return
  end
  -- Restore a saved physical worker before allowing any abstract mining tick.
@@ -447,6 +453,8 @@ end
 function M.depart(game,e,station)
  local r=game.universe.npcs[e.alifeId]
  r.ship.cargo=copy(e.cargo)
+ if r.repairReturn and r.task and (e.cargo[r.task.item] or 0)==0 then r.task.phase='mining' end
+ r.repairReturn=nil
  Tasks.arrive(game.universe,r,L.canonical(station.locationId),game.universe.clock)
  e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
  Tasks.choose(game.universe,r,r.base,game.universe.clock)
@@ -479,6 +487,10 @@ function M.think(game,e,dt,AI)
  r.mineSite=r.mineSite or copy(M.state(game.universe).sites[r.task.target])
  if e.aggressor and not e.aggressor.dead and not e.aggressor.removed then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;return false
+ end
+ if r.task.phase=='mining' and Repairs.needs(r,e.armor,e.stats.armor) and Repairs.supports(r.base) then
+  e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false
+  r.repairReturn=true;M.returnHome(game,r,e.body:getPosition());M.bind(game,e,r);AI.trade(game,e,dt);return true
  end
  if r.task.phase=='delivery' then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
