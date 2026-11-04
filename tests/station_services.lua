@@ -134,21 +134,17 @@ return function(game)
  local offer=layout.sides[2]
  check(offer.complete.x>=offer.x and offer.complete.x+offer.complete.w<=offer.x+offer.pw and offer.clear.y+offer.clear.h<=offer.y+offer.ph,'trade controls leave center panel')
  local trade=layout.sides[2].hold
- local search=layout.sides[3].search
- Cargo.mousepressed(game,search.x+4,search.y+4,1)
- Cargo.textinput(game,'not-a-stock-item')
- check(Cargo.searchFocus and Cargo.search=='not-a-stock-item','stock search did not accept text')
- for _,g in ipairs(layout.grids) do if g.side.market and g.g.stacks[1] then
-  local stock=g.g.stacks[1]
-  Cargo.mousepressed(game,g.x+(stock.x+.5)*layout.cs,g.y+(stock.y+.5)*layout.cs,1)
-  check(not Cargo.hand,'search allowed pickup of a hidden stock item');break
- end end
-
- check(Cargo.keypressed(game,'e') and game.state=='docked','typing in search triggered launch')
- Cargo.keypressed(game,'backspace')
- check(Cargo.search=='not-a-stock-ite','stock search backspace failed')
- Cargo.keypressed(game,'escape');check(not Cargo.searchFocus,'search did not release keyboard focus')
- Cargo.search=''
+ -- Orbital One has two shops, each with its own shelf.
+ local shopButtons=layout.sides[3].shops
+ check(#shopButtons==2 and game:currentShop(st)==1,'market did not list the station shops')
+ local firstShelf=game:stationMarket(st).hold
+ Cargo.mousepressed(game,shopButtons[2].x+4,shopButtons[2].y+4,1)
+ check(game:currentShop(st)==2 and game:stationMarket(st).hold~=firstShelf,'switching shops kept the same shelf')
+ local beam=false;for _,g in ipairs(game:stationMarket(st).hold.grids) do for _,s in ipairs(g.stacks) do if s.id=='glint_laser' then beam=true end end end
+ check(beam,'second shop is not stocked from its own list')
+ screenshot('shops')
+ Cargo.mousepressed(game,shopButtons[1].x+4,shopButtons[1].y+4,1)
+ layout=Cargo.layout(game)
 
  check(#trade.grids==2 and trade.grids[1].tradeOwner=='player' and trade.grids[2].tradeOwner=='station','give and receive inventories are not separated')
  -- Exercise actual right-click transfers through the existing inventory UI.

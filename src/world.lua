@@ -370,8 +370,9 @@ function Game:saveState()
 	for key, r in pairs(self.universe.stations) do
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
-		local market = r.market and { hold = Hold.serialize(r.market.hold), next = r.market.next }
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, market = market, moorings=Persistence.copy(r.moorings) }
+		local shops = {}
+		for i, m in pairs(r.shops or {}) do shops[i] = { hold = Hold.serialize(m.hold), next = m.next } end
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings) }
 	end
 	local u = self.universe
 	-- saved mid-transit: you'll be at the far end's driver when you load
@@ -422,8 +423,14 @@ function Game:loadState(state)
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
 			hangar = hangar, moorings=Persistence.copy(r.moorings),
-			market = r.market and { hold = Hold.deserialize(r.market.hold, known), next = r.market.next or {} },
+			shop = r.shop,
 		}
+		-- shops; a save from before shops had one market, which is shop 1
+		local shops = {}
+		for i, m in pairs(r.shops or (r.market and { r.market }) or {}) do
+			shops[tonumber(i)] = { hold = Hold.deserialize(m.hold, known), next = m.next or {} }
+		end
+		self.universe.stations[key].shops = shops
 	end
 	self.universe.home = state.home
 	self.universe.credits = state.credits or T.startCredits

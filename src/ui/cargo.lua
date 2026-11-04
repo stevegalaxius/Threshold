@@ -184,7 +184,7 @@ local function layout(game)
 		end
 		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 194 or 0)
   if game.state=='docked' then
-   local header=(side.pick or side.market) and (side.market and 132 or 98) or side.trade and 70 or 58
+   local header=(side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58
    h=g1.h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
   end
 		return max(w, rowW, (side.innerOf or side.parked) and 380 or side.market and 360 or (side.entity or side.station) and 340 or 300), h
@@ -274,11 +274,18 @@ local function layout(game)
 		if side.market then
 			-- filter buttons along the grid's label row
 			side.filters = {}
-   side.search={x=x+PAD,y=y+50,w=side.pw-PAD*2,h=28}
+			-- the station's shops, one button each, in place of a search bar
+			side.shops = {}
+			local shops = Game.marketShops(side.station)
+			local sx, sw = x + PAD, (side.pw - PAD * 2 - (#shops - 1) * 4) / #shops
+			for i, shop in ipairs(shops) do
+				table.insert(side.shops, { i = i, label = shop.name, x = floor(sx), y = y + 44, w = floor(sw), h = 26 })
+				sx = sx + sw + 4
+			end
 			local fx = x + PAD
 			for _, f in ipairs(FILTERS) do
 				local fw = HUD.font(11):getWidth(f.label) + 12
-				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 92, w = fw, h = 20 })
+				table.insert(side.filters, { id = f.id, label = f.label, x = fx, y = y + 100, w = fw, h = 20 })
 				fx = fx + fw + 4
 			end
 		end
@@ -293,7 +300,7 @@ local function layout(game)
 		if targetKey(side) and Cargo.other and Cargo.tab == "cargo" then
 			side.target = { x = x + side.pw - PAD - 64, y = y + HEAD - 2, w = 64, h = 17 }
 		end
-		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and (side.market and 132 or 98) or side.trade and 70 or 58) or HEAD+18)
+		local gx, gy = x+PAD,y+(game.state=='docked' and ((side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58) or HEAD+18)
 		local g1 = side.hold.grids[1]
 		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
 		local rx, ry = gx, gy + g1.h * cs + 24
@@ -836,7 +843,12 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			Cargo.clearTrade(game)
 			return true
 		end
-  if button==1 and side.search and inRect(side.search,mx,my) then Cargo.searchFocus=true;love.keyboard.setTextInput(true);return true end
+  for _,b in ipairs(side.shops or {}) do
+   if button==1 and inRect(b,mx,my) then
+    if b.i~=game:currentShop(side.station) then Cargo.clearTrade(game);game:setShop(side.station,b.i) end
+    return true
+   end
+  end
 		for _, f in ipairs(side.filters or {}) do
 			if button == 1 and inRect(f, mx, my) then Cargo.filter = f.id; return true end
 		end
@@ -1335,14 +1347,14 @@ function Cargo.draw(game)
 		else
 			lg.setFont(HUD.font(16))
 			lg.setColor(HUD.INK)
-			lg.print(docked and (side.trade and 'Trade offer' or side.market and 'Station stock' or side.title) or side.title,side.x+PAD,side.y+12)
+			lg.print(docked and (side.trade and 'Trade offer' or side.market and ('Shops \194\183 '..side.station.name) or side.title) or side.title,side.x+PAD,side.y+12)
 		end
 		local used, total = Hold.cells(side.hold)
 		lg.setFont(HUD.font(12))
 		lg.setColor(HUD.DIM)
 		if side.market then
 			lg.setColor(HUD.INK)
-			lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(side.station.name,side.x+PAD,side.y+44)
+
 		elseif side.picks then
 			-- (the tabs take the title's place: the fill goes on the grid's label row)
 			lg.printf((side.shipEntries and "%d / %d cells" or "%d / %d m3"):format(used,total),side.x,side.y+80,side.pw-PAD,"right")
@@ -1377,8 +1389,13 @@ function Cargo.draw(game)
 				lg.setLineWidth(1)
 			end
 		end
-  if side.search then
-   Station.button(side.search,(Cargo.search or '')~='' and Cargo.search or 'Search stock…',Cargo.searchFocus)
+  if side.shops then
+   local cur=game:currentShop(side.station);local shops=Game.marketShops(side.station)
+   for _,b in ipairs(side.shops or {}) do
+    lg.setFont(HUD.font(b.w<90 and 12 or 14));Station.button(b,b.label,b.i==cur)
+   end
+   local desc=shops[cur] and shops[cur].description or ''
+   if desc~='' then lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.printf(desc,side.x+PAD,side.y+76,side.pw-PAD*2) end
   end
 		for _, f in ipairs(side.filters or {}) do
 			local on = Cargo.filter == f.id

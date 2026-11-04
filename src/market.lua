@@ -134,24 +134,53 @@ function Game.newShelf()
 end
 
 -- A station's market, opened fully stocked the first time.
-function Game:stationMarket(st)
-	local r = self:stationRecord(st)
-	if not r.market then
-		r.market = { hold = Game.newShelf(), next = {} }
-		local mk = Game.marketDefinition(st)
-		for _, e in ipairs(mk and mk.sells or {}) do
-			local _, _, cap = Shapes.of(e[1])
-			for _ = 1, e[2] do Hold.placeStack(r.market.hold, { id = e[1], n = cap }) end
-		end
+-- A station's shops: { name, description, sells } each, from the market
+-- definition's shops list. A market with a plain sells list is one shop.
+function Game.marketShops(st)
+	local mk = Game.marketDefinition(st)
+	if mk and mk.shops then return mk.shops end
+	return { { name = "Station stock", description = "", sells = mk and mk.sells or {} } }
+end
+
+local function newMarket(sells)
+	local m = { hold = Game.newShelf(), next = {} }
+	for _, e in ipairs(sells or {}) do
+		local _, _, cap = Shapes.of(e[1])
+		for _ = 1, e[2] do Hold.placeStack(m.hold, { id = e[1], n = cap }) end
 	end
-	return r.market
+	return m
+end
+
+-- Which shop is open (its index), and switching to another.
+function Game:currentShop(st)
+	local r = self:stationRecord(st)
+	local n = #Game.marketShops(st)
+	if not r.shop or r.shop > n then r.shop = 1 end
+	return r.shop
+end
+function Game:setShop(st, i)
+	if i >= 1 and i <= #Game.marketShops(st) then self:stationRecord(st).shop = i end
+end
+
+-- Shop i's shelf (default: the open one). Each shop keeps its own stock
+-- and restock timers; what you sell goes to the shop you sold it to.
+function Game:stationMarket(st, i)
+	local r = self:stationRecord(st)
+	i = i or self:currentShop(st)
+	r.shops = r.shops or {}
+	if not r.shops[i] then r.shops[i] = newMarket(Game.marketShops(st)[i].sells) end
+	return r.shops[i]
 end
 
 -- Bring a station's shelf up to the clock: resale that's had its time is
 -- sold on, and stock comes in a stack at a time. away: { id = n } of its
 -- stock that's out on the trade grid, so that doesn't count as missing.
 function Game:marketTick(st, away)
-	local mk = self:stationMarket(st)
+	for i, shop in ipairs(Game.marketShops(st)) do self:shopTick(st, i, shop, i == self:currentShop(st) and away or nil) end
+end
+
+function Game:shopTick(st, i, shop, away)
+	local mk = self:stationMarket(st, i)
 	local now = self.universe.clock
 	for _, g in ipairs(mk.hold.grids) do
 		for i = #g.stacks, 1, -1 do
@@ -159,8 +188,7 @@ function Game:marketTick(st, away)
 			if s.resale and s.resale <= now then Grid.remove(g, s) end
 		end
 	end
-	local cat = Game.marketDefinition(st)
-	for _, e in ipairs(cat and cat.sells or {}) do
+	for _, e in ipairs(shop.sells or {}) do
 		local id = e[1]
 		local _, _, cap = Shapes.of(id)
 		local want, every = e[2] * cap, restockTime(e)
