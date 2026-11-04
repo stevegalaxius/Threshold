@@ -147,6 +147,7 @@ function E.openHull(id)
 	if data.stations[id] and not data.hulls[id] then
 		E.design = Export.fromStation(id)
 		E.design.folder = Export.folderOf(id)
+		if E.design.folder then E.browseDir = E.design.folder end
 		setBase(E.design.base, true)
 		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 		E.view.zoom = math.min(E.view.zoom, 0.3)
@@ -156,6 +157,7 @@ function E.openHull(id)
 	if data.wrecks[id] and not data.hulls[id] then
 		E.design = Export.fromWreck(id)
 		E.design.folder = Export.folderOf(id)
+		if E.design.folder then E.browseDir = E.design.folder end
 		setBase(E.design.base, true)
 		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 		say("Opened " .. data.wrecks[id].name)
@@ -163,6 +165,7 @@ function E.openHull(id)
 	end
 	E.design = Export.fromHull(id)
 	E.design.folder = Export.folderOf(id)
+	if E.design.folder then E.browseDir = E.design.folder end
 	setBase(id, true)
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 	say("Opened " .. data.hulls[id].name)
@@ -386,18 +389,13 @@ end
 function E.makeFolder(name)
 	local rel, err = Export.makeFolder(name)
 	if not rel then say("No folder: " .. tostring(err)) return end
-	E.design.folder = rel
-	say("Made folder " .. rel .. "; exports go there now")
+	say("Made folder " .. rel)
+	return rel
 end
 
--- Delete asks twice: the first click arms it, the second (same entry) deletes.
+-- The panel asks for confirmation before calling this.
 function E.deleteSaved(rel)
-	if E.pendingDelete ~= rel then
-		E.pendingDelete = rel
-		say("Click delete again to remove " .. rel)
-		return
-	end
-	E.pendingDelete = nil
+	E.confirmDelete = nil
 	local ok, err = Export.remove(rel)
 	if not ok then say("Not deleted: " .. tostring(err)) return end
 	if E.design.folder and (E.design.folder == rel or E.design.folder:sub(1, #rel + 1) == rel .. "/") then E.design.folder = nil end
