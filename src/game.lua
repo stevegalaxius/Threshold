@@ -1961,7 +1961,7 @@ function Game:updatePickups(dt)
 		k.spin = k.spin + dt * 1.5
 		-- slow down relative to the current (around a planet they drift
 		-- with it like everything else)
-		local damp = exp(-dt * 1.5)
+		local damp = exp(-dt * T.pickupDrag)
 		local fx, fy = 0, 0
 		if self.well then
 			local dx, dy = self.well.x - k.x, self.well.y - k.y

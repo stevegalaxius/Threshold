@@ -4,6 +4,7 @@
 -- are meaningful, so collected containers do not refill on the next visit.
 local data = require("src.data")
 local Hold = require("src.inventory.hold")
+local T=require("src.tuning")
 local P = {}
 
 function P.copy(value)
@@ -32,16 +33,48 @@ local function orbit(game, x, y)
 	if not w then return end
 	local r = math.sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
 	if r < 1 then return end
-	return { x = w.x, y = w.y, rate = game:currentSpeed(r) / r }
+	return { x = w.x, y = w.y, radius = w.radius, rate = game:currentSpeed(r) / r }
 end
 
--- Lightweight orbital catch-up, not an offline physics simulation. Keep
--- altitude constant, rotate drift velocity with the orbit, and retain loot.
+-- Lightweight orbital catch-up without remote physics. Rigid objects keep
+-- altitude; loose pickups follow the damped current, retaining all loot.
 local function advanced(game, r, elapsed)
 	local motion = r.orbit or game and orbit(game, r.x, r.y)
 	if not motion or elapsed <= 0 then return r end
 	local out = {}
 	for k, v in pairs(r) do out[k] = v end
+ local flowRadius=motion.radius or game and game.well and game.well.radius
+ if not r.kind and (not flowRadius or (r.x-motion.x)^2+(r.y-motion.y)^2>=flowRadius^2) then
+  -- Pickups relax toward the turning current instead of receiving the
+  -- centripetal support used by rigid debris. Their small outward drift
+  -- reduces angular shear over time; holding each initial radius fixed
+  -- greatly over-spreads a loot cloud during long trips.
+  local dx,dy=r.x-motion.x,r.y-motion.y
+  local radius=math.sqrt(dx*dx+dy*dy)
+  if radius<1 then return r end
+  local drag=T.pickupDrag
+  local decay=math.exp(-drag*elapsed)
+  local flowX,flowY=-dy*motion.rate,dx*motion.rate
+  local driftX,driftY=r.vx-flowX,r.vy-flowY
+  local settling=(1-decay)/drag
+  dx,dy=dx+driftX*settling,dy+driftY*settling
+  local settledRadius=math.sqrt(dx*dx+dy*dy)
+  if settledRadius<1 then return r end
+  -- current speed scales as radius^-1/2, hence angular speed radius^-3/2.
+  local rate=motion.rate*(radius/settledRadius)^1.5
+  local ratio=1+3*rate*rate*elapsed/drag
+  local root=math.sqrt(ratio)
+  local angle=(2*rate*elapsed/(root+1))%(math.pi*2)
+  local scale=ratio^(1/3)
+  local c,s=math.cos(angle),math.sin(angle)
+  local x,y=(dx*c-dy*s)*scale,(dx*s+dy*c)*scale
+  out.x,out.y=motion.x+x,motion.y+y
+  local angular=rate/root
+  local radial=rate*rate/(drag*ratio)
+  out.vx=x*radial-y*angular+driftX*decay
+  out.vy=y*radial+x*angular+driftY*decay
+  return out
+ end
 	local a = (motion.rate * elapsed) % (math.pi * 2)
 	local c, s = math.cos(a), math.sin(a)
 	local x, y = r.x - motion.x, r.y - motion.y

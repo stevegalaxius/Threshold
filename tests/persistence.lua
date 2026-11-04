@@ -153,6 +153,39 @@ return function(game)
 	ox, oy = moved.body:getPosition()
 	check(near(ox, 22000 * math.cos(expected * 1.5)) and near(oy, 22000 * math.sin(expected * 1.5)),
 		"retained source scene ignored elapsed orbital time")
+ -- Saved pickup catch-up must match the live current's outward drift,
+ -- rather than artificially stretching nearby loot into a much longer arc.
+ local Persistence=require('src.persistence')
+ local oldPlayer,oldPickups=game.player,game.pickups
+ game.player=nil
+ for _,kick in ipairs({0,90}) do
+  game.pickups={}
+  for _,radius in ipairs({21900,22100}) do
+   game:spawnPickup(radius,0,'scrap',1)
+   local pickup=game.pickups[#game.pickups]
+   pickup.vx,pickup.vy=game:flowAt(radius,0)
+   pickup.vx=pickup.vx+kick
+  end
+  local savedCloud=assert(Save.decode(Save.encode(game:captureArea())))
+  for i,r in ipairs(savedCloud.pickups) do
+   local immediate=Persistence.advanceRecord(r,0)
+   check(near(immediate.x,game.pickups[i].x) and near(immediate.y,game.pickups[i].y),'immediate reload moved loot')
+  end
+  local seconds=3600
+  for _=1,seconds*120 do game:updatePickups(1/120) end
+  local predicted={}
+  for i,r in ipairs(savedCloud.pickups) do
+   predicted[i]=Persistence.advanceRecord(r,seconds)
+   local live=game.pickups[i]
+   local error=math.sqrt((predicted[i].x-live.x)^2+(predicted[i].y-live.y)^2)
+   check(error<220,'saved loot catch-up diverged from live drift')
+  end
+  local function separation(list)
+   return math.sqrt((list[1].x-list[2].x)^2+(list[1].y-list[2].y)^2)
+  end
+  check(math.abs(separation(predicted)-separation(game.pickups))<20,'offline catch-up exaggerated the loot arc')
+ end
+ game.player,game.pickups=oldPlayer,oldPickups
 	-- Old saves start with no snapshots; loading them cannot retain current clutter.
 	local old = { version = 1, field = "asteroids", stations = {}, clock = 0, credits = 5000 }
 	check(next(Save.upgrade(old).areas) == nil, "old save migration needs optional area data")

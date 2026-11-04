@@ -86,7 +86,10 @@ stay gone; an emptied area does not regenerate its cargo containers.
 
 Around planets and moons, unloaded objects advance along the orbital current
 using elapsed game time, at constant altitude. Other areas retain their saved
-positions. This is a lightweight motion approximation, not offline physics. NPCs, projectiles, effects,
+positions. This is a lightweight motion approximation, not offline physics.
+Saved loose pickups outside a planet follow the same damped current as live
+pickups, including their gradual outward drift, so travel catch-up does not
+exaggerate a loot cloud into a longer arc. NPCs, projectiles, effects,
 and background asteroid populations are not persistent in this first step.
 Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
