@@ -1103,7 +1103,9 @@ function Game:updateDocking(dt)
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead and not e.dockState then
 			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
-			local trader = e.def and e.def.ai.style == "trader"
+			-- A-Life patrols and pirates fly the trader route logic when idle, so
+			-- they dock the same way when their route stops at a station.
+			local trader = e.def and e.def.ai.style == "trader" or (e.alifeRole and e.route ~= nil)
 			if (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
