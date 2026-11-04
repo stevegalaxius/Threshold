@@ -202,6 +202,14 @@ return function(game)
  check(Cargo.tab=='shipyard' and Cargo.marketLeft=='ships','Shipyard tab did not open ship trading')
  Cargo.layout(game)
  check(#Cargo.shipStock.grids[1].stacks==#game.shipyard(st),'shipyard UI does not match actual station stock')
+ local fresh=assert(game:addToHangar(st,'halcyon_wisp'))
+ Cargo.layout(game)
+ local present=false
+ for _,g in ipairs(Cargo.shipOwned.grids) do for _,entry in ipairs(g.stacks) do if entry.shipRecord==fresh then present=true end end end
+ check(present,'owned ships grid stayed cached after adding a ship')
+ local roster=game:hangar(st);for i,rec in ipairs(roster) do if rec==fresh then table.remove(roster,i);break end end
+ Cargo.layout(game)
+
  screenshot('actual-shipyard')
  Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all'
  -- Ships and goods share the same staged offer and settlement.
@@ -289,6 +297,12 @@ return function(game)
  Cargo.shipOwned=nil;Cargo.setTab(game,'shipyard')
  screenshot('ship-catalogue')
  Cargo.setTab(game,'cargo');Cargo.marketLeft='hold';Cargo.filter='all';mk.ships=catalogue
+ -- Filling later berths must not make newly added ships unreachable.
+ local roster=game:hangar(st);local last=roster[#roster]
+ Hangar.focus(game,last)
+ local view=Hangar.layout(game);local visible=false
+ for _,ship in ipairs(view.ships) do if ship.owner==last then visible=true end end
+ check(visible,'focus failed to reveal newly added stored ship')
  local worldCanvas=love.graphics.newCanvas(love.graphics.getDimensions())
  love.graphics.push('all');love.graphics.setCanvas(worldCanvas)
  require('src.render').world(game)

@@ -82,7 +82,14 @@ local function tradeHold()
 end
 
 local function shipOffers(game,st)
- if Cargo.shipStation==st and Cargo.shipOwned then return end
+ local roster=game:hangar(st)
+ if Cargo.shipStation==st and Cargo.shipOwned then
+  local same=Cargo.shipRoster and #Cargo.shipRoster==#roster
+  if same then for i,rec in ipairs(roster) do if Cargo.shipRoster[i]~=rec then same=false;break end end end
+  if same or Cargo.hand then return end
+  for _,g in ipairs(tradeHold().grids) do if #g.stacks>0 then return end end
+ end
+ Cargo.shipRoster={};for i,rec in ipairs(roster) do Cargo.shipRoster[i]=rec end
  Cargo.shipStation=st
  local function make(entries,name)
   local w,h=16,0

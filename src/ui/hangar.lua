@@ -335,7 +335,8 @@ function Hangar.keypressed(game, key)
 	return false
 end
 
-function Hangar.focus(game)
+function Hangar.focus(game,ownerToShow)
+ if ownerToShow then Hangar.sel=ownerToShow end
  local L=layout(game);if not L then return end
  local owner=Hangar.sel;local valid=owner==game.player
  for _,rec in ipairs(L.list) do if rec==owner then valid=true end end

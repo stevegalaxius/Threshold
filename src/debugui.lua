@@ -59,7 +59,10 @@ local function shipSection(game)
 	if st then
 		Slab.Text("Park a new ship here (" .. st.name .. ")")
 		for _, o in ipairs(opts) do
-			if Slab.Button("Park a new " .. data.hulls[o.value].name, { W = 300 }) then game:addToHangar(st, o.value) end
+			if Slab.Button("Park a new " .. data.hulls[o.value].name, { W = 300 }) then
+    local rec=game:addToHangar(st,o.value)
+    if rec then require('src.ui.hangar').focus(game,rec) end
+   end
 		end
 	end
 	if Slab.Button("+10,000 credits") then game.universe.credits = game.universe.credits + 10000 end
