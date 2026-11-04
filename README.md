@@ -95,7 +95,7 @@ Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
 
 Save version 2 adds optional area snapshots. Older object snapshots can load,
-but old numbered station references are not migrated by the location catalogue. `love . --persisttest` runs the focused round-trip, loot, wreck damage,
+but old numbered station references are migrated through the world_layout alias table. `love . --persisttest` runs the focused round-trip, loot, wreck damage,
 moon-travel and save-compatibility checks.
 
 ## Close-surface flight

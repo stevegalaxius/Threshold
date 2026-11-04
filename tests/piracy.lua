@@ -57,7 +57,7 @@ return function(game)
  -- Exercise the real physical station clamp and departure handoff too.
  game:captureALife(true)
  r=game.universe.npcs[identity]
- r.piracy={phase='escape',origin='station:007'};r.taskWorker=true
+ r.piracy={phase='escape',origin='station:earth_1'};r.taskWorker=true
  r.ship.hold=nil;r.ship.cargo.scrap=2;r.stolenCargo={scrap=2}
  r.area='pluto';r.state='docked';r.route={pirateBase,pirateBase};r.index=2
  r.untilTime=game.universe.clock+30;r.encounter=nil

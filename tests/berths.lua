@@ -4,7 +4,7 @@ return function(game)
  local function near(a,b)return math.abs(a-b)<.01 end
  game.autosaveOff=true
  game:loadField('earth')
- local st=game:locationEntity('station:007')
+ local st=game:locationEntity('station:earth_1')
  local p=game.player
  st.def.hangar={w=1,h=1}
  -- A real fitted freighter can use a pad smaller than its hull, while
@@ -70,7 +70,7 @@ return function(game)
  local saved=assert(Save.decode(Save.encode(game:saveState())))
  check(saved.player.at.berth==1 and saved.player.at.dockIndex~=nil,'save dropped berth or dock')
  game:loadState(saved)
- st=game:locationEntity('station:007')
+ st=game:locationEntity('station:earth_1')
  atBerth(1)
  -- Re-enable interior storage and remove exterior capacity. A small ship
  -- can still use the interior rather than an invalid reserved berth.

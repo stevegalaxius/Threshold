@@ -5,7 +5,7 @@ return function(game)
  local u=copy(game.universe);local fixture={universe=u};local checks=0
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  local function near(a,b)return math.abs(a-b)<.001 end
- local station='station:007'
+ local station='station:earth_1'
  local template,miner,pirate
  for _,r in pairs(u.npcs) do
   if r.role=='trader' then template=r end
@@ -63,7 +63,7 @@ return function(game)
  end
  -- Empty-handed damaged pirates use the existing saved return/redeploy loop.
  local r=pirate;r.ship.armor=R.maximum(r)*.2;r.ship.cargo={};r.ship.hold=nil;r.stolenCargo={}
- r.encounter=nil;r.piracy=nil;r.state='idle';r.node='station:007';r.route={r.node,r.node};r.index=1
+ r.encounter=nil;r.piracy=nil;r.state='idle';r.node='station:earth_1';r.route={r.node,r.node};r.index=1
  A.advance(r,u.clock,u,fixture)
  check(r.piracy and r.route[#r.route]==pirateBase,'empty damaged pirate did not seek repair')
  for _=1,80 do if r.state=='docked' then break end;u.clock=r.arrive;A.advance(r,u.clock,u,fixture) end

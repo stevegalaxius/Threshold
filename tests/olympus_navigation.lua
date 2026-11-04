@@ -4,7 +4,7 @@ return function(game)
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true
  local graph=G.build('jupiter')
- local city='station:013'
+ local city='station:jupiter_1'
  check(#Fields.jupiter.buoyIds==2,'Jupiter needs two orbital trade buoys')
  for _,clock in ipairs({0,500,2000}) do
   for _,place in ipairs(L.list('jupiter')) do
