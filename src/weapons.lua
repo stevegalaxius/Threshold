@@ -61,6 +61,12 @@ local function aimSlot(e, slot, dt)
 	end
 end
 
+-- How far a drill reaches fully out: its own length, else twice the
+-- ship's half length (as long as the ship).
+function Weapons.drillLength(e, w)
+	return w.length or e.halfLength * 2
+end
+
 local function nearestTargetTo(game, x, y, team, maxDist)
 	local best, bestD = nil, maxDist * maxDist
 	for _, o in ipairs(game.entities) do
@@ -91,7 +97,7 @@ local function fire(game, e, slot, dt)
 		e.power = e.power - need
 		local ddx, ddy = dx, dy
 		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
-		local reach = e.halfLength * 2 * slot.extend
+		local reach = Weapons.drillLength(e, w) * slot.extend
 		local ex, ey = wx + ddx * reach, wy + ddy * reach
 		local hit = game:raycast(wx, wy, ex, ey, e.team)
 		slot.drillHit = nil
