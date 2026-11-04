@@ -549,6 +549,14 @@ Every rotating region has an explicit buoy list in `WorldLayout.navigation`.
 `navigation[area].buoys` also accepts a count of at least two or explicit
 `id`/`phase`/`radius` entries. Ordinary corridors are ordered by bearing;
 `corridor='buoys'` keeps stations on spurs. Extra full-ID pairs use `links`.
+Buoy visuals can reference an F2 **Prop** by its exported ID: add
+`prop='my_beacon', scale=1.5, heading=0` to a buoy entry. `heading` and optional
+`spin` use radians. The prop's parts, colours and lights use the standard model
+renderer. Set `navigation[area].buoyProp` for a regional default or
+`WorldLayout.defaults.buoyProp` for a global default; a per-buoy `prop` overrides
+those defaults (`false` opts out). Unassigned buoys retain the original beacon.
+Save/export the prop through F2 so it is available on the next run.
+
 Navigation, local trader circuits, patrol destinations, pirate routes, dispatch
 manifests, mine job sources and population eligibility all derive from the
 catalogue. `navigation[area].population` can override role counts. Shared

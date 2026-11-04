@@ -137,7 +137,9 @@ W.aliases={
 }
 
 -- Every rotating region declares its actual buoy placements here. Optional
--- radius overrides the region track; phase is the starting angle in radians.
+-- radius overrides the track; phase/heading/spin use radians. prop selects an
+-- F2 prop ID; scale changes its visual size. A region-wide buoyProp or
+-- defaults.buoyProp can supply the prop for entries without one.
 -- A numeric buoys count is also accepted for evenly spaced generated rings.
 W.navigation={
  mercury={buoys={
@@ -280,7 +282,7 @@ function W.setStationEnabled(id,enabled)
  local entry=assert(W.find(id),'unknown station '..tostring(id));entry.enabled=not not enabled
 end
 function W.export()
- return 'return '..require('src.save').encode({stations=W.stations,navigation=W.navigation,specials=W.specials})
+ return 'return '..require('src.save').encode({stations=W.stations,navigation=W.navigation,specials=W.specials,defaults=W.defaults})
 end
 function W.signature()
  local h=0;local compiled={}

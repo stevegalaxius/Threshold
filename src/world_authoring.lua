@@ -11,6 +11,7 @@ local function compile()
   assert(type(place.id)=='string' and type(place.name)=='string','locations need string identities and names')
   local x,y=L.position(place.id,0)
   assert(type(x)=='number' and type(y)=='number' and x==x and y==y and math.abs(x)<math.huge and math.abs(y)<math.huge,'location position must be finite: '..place.id)
+  if place.kind=='buoy' then L.buoyDefinition(place.id) end
   if place.kind=='station' then
    L.stationDefinition(place.id)
    assert(not place.marketId or require('src.data').markets[place.marketId],'unknown station market '..tostring(place.marketId))
@@ -19,10 +20,10 @@ local function compile()
  end
 end
 local function change(edit)
- local before={stations=copy(W.stations),navigation=copy(W.navigation),specials=copy(W.specials)}
+ local before={stations=copy(W.stations),navigation=copy(W.navigation),specials=copy(W.specials),defaults=copy(W.defaults)}
  local ok,result=pcall(function()local value=edit(W);compile();return value end)
  if not ok then
-  W.stations,W.navigation,W.specials=before.stations,before.navigation,before.specials
+  W.stations,W.navigation,W.specials,W.defaults=before.stations,before.navigation,before.specials,before.defaults
   L.rebuildAll()
   return nil,result
  end
@@ -47,7 +48,7 @@ function E.import(game,text)
  local definition,err=Save.decode(text)
  if not definition then return nil,err end
  if type(definition.stations)~='table' or type(definition.navigation)~='table' then return nil,'world definition needs stations and navigation tables' end
- return E.apply(game,function()W.stations=definition.stations;W.navigation=definition.navigation;W.specials=definition.specials or W.specials end)
+ return E.apply(game,function()W.stations=definition.stations;W.navigation=definition.navigation;W.specials=definition.specials or W.specials;W.defaults=definition.defaults or W.defaults end)
 end
 function E.save(path)
  return love.filesystem.write(path or 'world_layout.lua',W.export())
@@ -58,6 +59,6 @@ function E.loadDefinition(path)
  local definition;definition,err=Save.decode(text)
  if not definition then return nil,err end
  if type(definition.stations)~='table' or type(definition.navigation)~='table' then return nil,'world definition needs stations and navigation tables' end
- return change(function()W.stations=definition.stations;W.navigation=definition.navigation;W.specials=definition.specials or W.specials end)
+ return change(function()W.stations=definition.stations;W.navigation=definition.navigation;W.specials=definition.specials or W.specials;W.defaults=definition.defaults or W.defaults end)
 end
 return E

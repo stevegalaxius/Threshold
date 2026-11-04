@@ -166,6 +166,17 @@ end
 function L.stationServices(id)
  return require('src.station_services').get(L.stationDefinition(id))
 end
+function L.buoyDefinition(id)
+ local place=L.get(id)
+ assert(place.kind=='buoy','not a navigation buoy: '..id)
+ if not place.prop then return end
+ local def=require('src.data').wrecks[place.prop]
+ assert(def and def.kind=='prop','buoy '..id..' needs an F2 prop: '..tostring(place.prop))
+ local scale=place.scale or 1
+ assert(type(scale)=='number' and scale>0 and scale<math.huge,'buoy scale must be positive and finite: '..id)
+ return def,scale
+end
+
 function L.spawnStation(game,id)
  local place=L.get(id);local def=L.stationDefinition(id);local station
  if place.adapter=='cloud' then station=game:spawnCloudCity(place.motion.a,Fields[place.area].cityScale,id,def.id)

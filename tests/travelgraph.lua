@@ -82,5 +82,6 @@ return function(game)
  check(decoded.finish==route.finish and #decoded.legs==#route.legs,'route not serializable')
  require('tests.world_layout')(game)
  require('tests.world_authoring')(game)
+ require('tests.buoy_props')(game)
  print(('TRAVEL GRAPH TEST PASSED (%d checks)'):format(checks))
 end

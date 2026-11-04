@@ -555,7 +555,12 @@ function Fields.configureLocations(area)
             local spec=type(specs)=='table' and specs[i] or {}
             F.buoyIds[i]=add(spec.id or ('trade_buoy_'..string.char(96+i)),spec.name or ('Trade buoy '..i),'buoy',
                 {type='orbit',radius=spec.radius or F.stationTrack,surface=F.planetR,
-                 phase=spec.phase or -.8+pi/2+(i-1)*pi*2/count})
+                 phase=spec.phase or -.8+pi/2+(i-1)*pi*2/count},spec.spin or 0)
+            local place=F.locations[#F.locations]
+            place.prop=spec.prop
+            if place.prop==nil then place.prop=F.navigation.buoyProp end
+            if place.prop==nil then place.prop=WorldLayout.defaults.buoyProp end
+            place.scale,place.heading=spec.scale or 1,spec.heading or 0
 		end
 	end
 	if Fields.orbits[area] then

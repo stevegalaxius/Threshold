@@ -540,9 +540,20 @@ local function drawCity(game, e)
 	lg.pop()
 end
 
--- A navigation buoy: a small beacon with a slow pulse ring.
+-- A navigation buoy uses its F2 prop, or the original beacon when unassigned.
 local function drawBuoy(game, e)
 	local x, y = e.body:getPosition()
+ local def=e.propId and data.wrecks[e.propId]
+ if def then
+  local scale=e.propScale or 1
+  local col=def.color or {.55,.63,.74}
+  lg.push();lg.translate(x,y);lg.rotate(e.body:getAngle());lg.scale(scale)
+  HullShape.draw(def,col,function(c)return {c[1]*.37,c[2]*.37,c[3]*.37} end,
+   function(c)return c end,outline(2)/scale)
+  HullShape.drawLights(def,game.time,screenPx/scale)
+  lg.pop()
+  return
+ end
 	local px = screenPx
 	local r = max(14, 5 * px)
 	local t = (game.time * 0.5 + e.blink) % 1

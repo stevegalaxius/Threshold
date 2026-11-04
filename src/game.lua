@@ -1366,7 +1366,13 @@ function Game:spawnBuoy(x, y, locationId)
 	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
 	body:setUserData(e)
 	table.insert(self.entities, e)
-	if locationId then self:bindLocation(e, locationId) end
+	if locationId then
+  local def,scale=Locations.buoyDefinition(locationId)
+  e.propId,e.propScale=Locations.get(locationId).prop,scale or 1
+  e.def=def
+  if def then e.radius=def.radius*e.propScale end
+  self:bindLocation(e,locationId)
+ end
 	return e
 end
 
