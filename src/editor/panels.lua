@@ -227,6 +227,25 @@ local function placedSections(E, d)
 		else
 			Slab.Text("Use the Berths tool to place some", { Color = { 0.6, 0.6, 0.6 } })
 		end
+		Slab.Separator()
+		local T = require("src.tuning")
+		local bay = d.hangar or {}
+		Slab.Button("?", { W = 18, H = 18, Tooltip = ("Interior bay: the hangar grid docked ships park in, in cells of %d px.\nA ship takes its hull length x width in cells. Default %d x %d."):format(T.hangarCell, T.hangarW, T.hangarH) })
+		Slab.SameLine()
+		Slab.Text("Interior bay  w"); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag("yard_hangarw", bay.w or T.hangarW, 1, 80, 1, { W = 60, Precision = 0 }) then
+			E.pushUndoCoalesced("yard_hangarw")
+			d.hangar = d.hangar or { w = T.hangarW, h = T.hangarH }
+			d.hangar.w = math.floor(Slab.GetInputNumber())
+		end
+		Slab.SameLine()
+		Slab.Text("h"); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag("yard_hangarh", bay.h or T.hangarH, 1, 60, 1, { W = 60, Precision = 0 }) then
+			E.pushUndoCoalesced("yard_hangarh")
+			d.hangar = d.hangar or { w = T.hangarW, h = T.hangarH }
+			d.hangar.h = math.floor(Slab.GetInputNumber())
+		end
+		Slab.Text(("= %d x %d px"):format((bay.w or T.hangarW) * T.hangarCell, (bay.h or T.hangarH) * T.hangarCell), { Color = { 0.6, 0.6, 0.6 } })
 		return
 	end
 	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then
