@@ -179,7 +179,8 @@ function E.materialize(game,px,py,clock)
      hold=s.hold and Hold.deserialize(s.hold,function(item)return data.items[item]~=nil end),
      color=copy(s.color),enemy=data.enemies[w.archetype]})
     local vx,vy=game:flowAt(x,y)
-    local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0)
+    if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
+    local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
     ship.body:destroy();husk.alifeWreckId=id
     u.alifeWrecks[id]=nil
    end

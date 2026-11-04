@@ -511,9 +511,16 @@ ship, ordinary ammunition, damage and home population remain intact. Moon routes
 use their existing gates before joining the interplanetary driver network.
 
 F1's A-Life section shows the current pirate activity and Milliways' stash.
-The first pass supports online acquisition and both physical and abstract return,
-delivery and redeployment. Offline wreck acquisition, surrender demands and more selective/bounded
-hunting remain future work. Physical containers are looted intact when their
+Pirates acquire loot physically and from fully unloaded saved resources; return,
+delivery and redeployment work both physically and abstractly. Surrender demands and more selective/bounded hunting remain future work.
+Offline pirates can claim saved loose items, containers and combat wrecks in
+their region, approach them over simulated time, and transfer cargo using the
+same inventory rules. Claims are exclusive; live areas, retained travel scenes,
+online NPCs and expired wrecks are excluded. Depleted inventories remain depleted
+when restored or materialized. Combat wreck loot is rolled once, including
+surviving fitted modules and packed cargo, then saved; it is not rerolled on
+arrival. Loose items and containers persist in area snapshots, while combat
+wreck records retain their existing 30-minute expiry. Physical containers are looted intact when their
 footprint fits; smaller ships extract stacks that fit, recursively accessing
 nested crates while leaving the shells and remaining cargo in place. Loaded
 containers keep their internal grids, mass and stolen provenance through saves

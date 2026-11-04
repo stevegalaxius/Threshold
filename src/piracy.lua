@@ -73,11 +73,10 @@ function P.unload(u,r)
  if h then r.ship.hold=Hold.serialize(h);cargo=Hold.totals(h) end
  r.ship.cargo=cargo;r.stolenCargo={};r.lootUntil=nil
 end
-function P.beginReturn(game,e,r)
+function P.returnRecord(game,r)
  if r.piracy then return true end
  local A=require('src.alife')
  if r.encounter then require('src.encounters').finish(game.universe,r,game.universe.npcs[r.encounter.target],game.universe.clock,r) end
- A.capture(game,e,false)
  local source=r.state=='travel' and r.route[r.index] or r.node or r.route[r.index]
  local path=itinerary(source,T.pirateBase,game.universe.clock)
  if not path then r.taskStatus='no route to Milliways';return false end
@@ -92,6 +91,12 @@ function P.beginReturn(game,e,r)
   if #path>1 then A.start(r,game.universe.clock,2)
   else r.state='docked';r.untilTime=game.universe.clock+T.pirateRest end
  end
+ return true
+end
+function P.beginReturn(game,e,r)
+ if r.piracy then return true end
+ local A=require('src.alife');A.capture(game,e,false)
+ if not P.returnRecord(game,r) then return false end
  e.combatTarget,e.lock,e.aggressor,e.tractorTarget=nil,nil,nil,nil
  e.intent.tractor=false;A.bindRoute(game,e,r)
  return true

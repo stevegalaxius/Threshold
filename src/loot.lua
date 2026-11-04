@@ -21,23 +21,18 @@ function Loot.canTake(ship,box)
  if fits(ship,{id=box.item,inner=box.hold}) then return true end
  return canTake(ship,box.hold)
 end
-local function takeStack(ship,hold)
- for _,g in ipairs(hold.grids) do for _,s in ipairs(g.stacks) do
+-- Pure inventory transfer, also used by remote NPCs without physics bodies.
+function Loot.takeStack(destination,source)
+ for _,g in ipairs(source.grids) do for _,s in ipairs(g.stacks) do
   if s.inner or s.wear~=nil then
    local moved={};for key,value in pairs(s) do moved[key]=value end
-   if ship.hold and Hold.placeStack(ship.hold,moved) then
-    Grid.remove(g,s);ship.cargo=Hold.totals(ship.hold);Ship.updateMass(ship)
-    events.emit('pickup',ship,moved.id,moved.n,moved)
-    return s.n
+   if Hold.placeStack(destination,moved) then
+    Grid.remove(g,s);return moved.n,moved.id,moved
    end
-   if s.inner then local n=takeStack(ship,s.inner);if n>0 then return n end end
+   if s.inner then local n,id,moved=Loot.takeStack(destination,s.inner);if n>0 then return n,id,moved end end
   else
-   local n=Ship.addCargo(ship,s.id,s.n)
-   if n>0 then
-    s.n=s.n-n;if s.n==0 then Grid.remove(g,s) end
-    events.emit('pickup',ship,s.id,n)
-    return n
-   end
+   local n=Hold.add(destination,s.id,s.n)
+   if n>0 then s.n=s.n-n;if s.n==0 then Grid.remove(g,s) end;return n,s.id end
   end
  end end
  return 0
@@ -52,7 +47,12 @@ function Loot.transfer(game,ship,box)
   events.emit('pickup',ship,box.item,1,stack)
   return 1
  end
- local n=takeStack(ship,box.hold)
+ if not ship.hold then return 0 end
+ local n,id,moved=Loot.takeStack(ship.hold,box.hold)
+ if n>0 then
+  ship.cargo=Hold.totals(ship.hold);Ship.updateMass(ship)
+  events.emit('pickup',ship,id,n,moved)
+ end
  if n>0 then
   box.loot=Hold.totals(box.hold)
   game:containerMass(box)

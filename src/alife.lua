@@ -202,6 +202,7 @@ end
 
 function A.advance(r,clock,u,game)
  if r.piracy then return Piracy.advance(r,clock,u,start) end
+ if game and require("src.offline_loot").update(game,r,clock) then return end
  if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
  if Security.isRole(r) then return Security.advance(r,clock,u,start) end
  if r.encounter then return end
@@ -328,6 +329,7 @@ function A.repairApproachRoutes(game)
 end
 
 function A.point(r,clock)
+ if r.offlineLoot then local x,y=require("src.offline_loot").position(r,clock);if x then return x,y end end
  if Mining.isMiner(r) then return Mining.point(nil,r,clock) end
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
@@ -387,7 +389,7 @@ end
 local function shipRecord(e)
  local s=Ship.record(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
-  cargo=copy(s.cargo),hold=s.hold and Hold.serialize(s.hold)}
+  cargo=copy(s.cargo or e.cargo or {}),hold=s.hold and Hold.serialize(s.hold)}
 end
 -- End ownership before destroying a body; drawing can run before the next tick.
 -- A nil reason only unloads the representation, preserving its live record.
@@ -531,6 +533,7 @@ end
 A.bindRoute=bindRoute
 
 function A.wake(game,r)
+ require("src.offline_loot").release(game,r,game.universe.clock)
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
  local egress=A.egressSample(game,r,game.universe.clock)

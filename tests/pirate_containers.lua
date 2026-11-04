@@ -23,6 +23,10 @@ return function(game)
  local stack=big.hold.grids[1].stacks[1]
  check(stack and stack.inner==contents and stack.stolen,'crate contents or provenance lost at pickup')
  check(Hold.count(stack.inner,'cargo_container')==1 and Hold.count(nested,'scrap')==4,'nested contents flattened at pickup')
+ local wreckHold=game.huskHold(big);local preserved=false
+ for _,g in ipairs(wreckHold.grids) do for _,s in ipairs(g.stacks) do if s.inner==contents then preserved=true end end end
+ check(preserved,'ship destruction flattened its loaded container inventory')
+
  check(big.body:getMass()>beforeMass+4,'nested cargo mass was not included')
  check(Loot.transfer(game,big,box)==0,'removed crate could be looted twice')
  -- Serialization restores the complete stack and its stolen marker.

@@ -38,7 +38,7 @@ end
 -- Lightweight orbital catch-up, not an offline physics simulation. Keep
 -- altitude constant, rotate drift velocity with the orbit, and retain loot.
 local function advanced(game, r, elapsed)
-	local motion = r.orbit or orbit(game, r.x, r.y)
+	local motion = r.orbit or game and orbit(game, r.x, r.y)
 	if not motion or elapsed <= 0 then return r end
 	local out = {}
 	for k, v in pairs(r) do out[k] = v end
@@ -49,6 +49,8 @@ local function advanced(game, r, elapsed)
 	out.vx, out.vy = r.vx * c - r.vy * s, r.vx * s + r.vy * c
 	return out
 end
+
+function P.advanceRecord(record,elapsed) return advanced(nil,record,elapsed) end
 
 -- Pure poses for preview rendering; no writes to a retained physics world.
 function P.previewPositions(game)

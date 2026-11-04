@@ -2148,7 +2148,17 @@ local function huskHold(ship)
 	else
 		gw, gh = Shapes.gridFor(ship.stats.hold)
 	end
-	local loose, stacks = intoContainers(ship, lootOf(ship))
+	local loot=lootOf(ship)
+ local carried={}
+ if ship.hold then for _,g in ipairs(ship.hold.grids) do for _,stack in ipairs(g.stacks) do
+  if stack.inner or stack.wear~=nil then
+   local moved={};for key,value in pairs(stack) do moved[key]=value end
+   carried[#carried+1]=moved;loot[stack.id]=(loot[stack.id] or 0)-stack.n
+   if loot[stack.id]<=0 then loot[stack.id]=nil end
+  end
+ end end end
+ local loose, stacks = intoContainers(ship, loot)
+ for _,stack in ipairs(carried) do stacks[#stacks+1]=stack end
 	return Hold.pack(loose, gw, gh, ship.hull.name .. " husk", random, stacks)
 end
 
@@ -2156,10 +2166,11 @@ end
 -- the ship's loot in a grid hold (to be opened with the tractor beam once
 -- the loot window exists), and can be shot apart, which spills the loot as
 -- pickups.
-function Game:spawnHusk(ship, x, y, a, vx, vy, w)
+Game.huskHold=huskHold
+function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local hull = ship.hull
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
-	local hold = huskHold(ship)
+	local hold = preparedHold or huskHold(ship)
 	local h = {
 		kind = "husk", id = self:nextId(), team = 0, hull = hull, color = ship.color,
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
