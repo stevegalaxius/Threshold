@@ -48,15 +48,16 @@ return function(game)
  require('src.travelgraph').point=point
  check(S.pirateCount(game.universe,'luna')==1,'moon arrival did not establish pirate traffic')
  check(game.world:getBodyCount()==bodies,'remote arrival created a local physics body')
- -- Driver-only regions also support raid duties without new graph nodes.
+ -- Uranus (a cloud-city region) raids along its buoys like any other region.
  local remote=assert(S.spawnPirate(game,'uranus',false))
- check(remote.node==Fields.uranus.driverId and remote.task.kind=='raid','driver-only region has no valid pirate duty')
+ local onBuoy=false;for _,id in ipairs(Fields.uranus.buoyIds) do if remote.node==id then onBuoy=true end end
+ check(onBuoy and remote.task.kind=='raid','cloud-city region has no valid pirate duty')
  -- Mining moons use ordinary trade buoys for navigation and pirate duties.
  local L,G=require('src.locations'),require('src.travelgraph')
  for _,area in ipairs({'phobos','deimos'}) do
   check(#Fields[area].buoyIds==4,area..': missing trade buoys')
   for _,id in ipairs(Fields[area].buoyIds) do
-   check(G.route(G.build(area),area..'/strip_mine',id,game.universe.clock)~=nil,area..': mine disconnected from its buoy')
+   check(G.route(G.build(area),L.station(area,'mining'),id,game.universe.clock)~=nil,area..': mine disconnected from its buoy')
    check(G.route(G.build(area),area..'/to_mars',id,game.universe.clock)~=nil,area..': transit endpoint disconnected from its buoy')
   end
   check(game.universe.populationSpawns[area].pirate~=nil,area..': pirate arrivals not scheduled')

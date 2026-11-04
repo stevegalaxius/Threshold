@@ -75,16 +75,20 @@ return function(game)
   if e.dockState and e.dockState.done then docked=true;break end
  end
  check(docked,'visitor did not reach Olympus docking control within 600 seconds')
+ local berthed=e.dockState.berth or e.dockState.mooring
  game:undockShip(e)
- check(e.dockExit~=nil,'city visitor did not receive supported runway departure')
- for i=1,120 do game:step(1/120) end
- A.capture(game,e,false)
- check(r.cityExit and r.cityExit.t>0,'runway support was not captured for save/load')
- local saved=require('src.persistence').copy(r.cityExit)
- game:remove(e,true)
- e=A.wake(game,r)
- check(e.dockExit and e.dockExit.station.locationId==saved.station and e.dockExit.t==saved.t,
+ -- Runway departures get lift support; berth departures fly off unassisted.
+ if not berthed then
+  check(e.dockExit~=nil,'city visitor did not receive supported runway departure')
+  for i=1,120 do game:step(1/120) end
+  A.capture(game,e,false)
+  check(r.cityExit and r.cityExit.t>0,'runway support was not captured for save/load')
+  local saved=require('src.persistence').copy(r.cityExit)
+  game:remove(e,true)
+  e=A.wake(game,r)
+  check(e.dockExit and e.dockExit.station.locationId==saved.station and e.dockExit.t==saved.t,
   'runway support was lost when restoring the visitor')
+ end
  local departureIndex=e.routeIndex
  local escaped=false
  for i=1,72000 do
