@@ -1,4 +1,5 @@
 return function(game)
+ require("tests.npc_supplies")(game)
  require("tests.npc_repair")(game)
  local A,S,E=require('src.alife'),require('src.security'),require('src.encounters')
  local Tasks,L,G,Fields=require('src.tasks'),require('src.locations'),require('src.travelgraph'),require('src.fields')

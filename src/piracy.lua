@@ -9,6 +9,7 @@ local Tasks=require('src.tasks')
 local Loot=require('src.loot')
 local Grid=require('src.inventory.grid')
 local Repairs=require('src.npc_repair')
+local Supplies=require('src.supplies')
 local Homes=require('src.npc_home')
 local P={}
 local itinerary=G.itinerary
@@ -85,6 +86,7 @@ function P.depart(u,r,clock,start)
  if not duty then return end
  if duty.phase=='escape' then
   P.unload(u,r)
+  Supplies.refill(r,duty.base or Homes.get(r))
   local path=itinerary(duty.base or Homes.get(r),duty.origin,clock)
   if not path then r.taskStatus='waiting for route home';return false end
   duty.phase='redeploy';r.taskStatus='returning to hunting grounds'
@@ -129,7 +131,7 @@ function P.think(game,e,dt,AI)
   if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
   AI.trade(game,e,dt);return true
  end
- if not (e.driverTractor or e.launch or e.alifeEgress) and Repairs.needs(r,e.armor,e.stats.armor) then
+ if not (e.driverTractor or e.launch or e.alifeEgress) and (Repairs.needs(r,e.armor,e.stats.armor) or Supplies.needs(r,e)) then
   if P.beginReturn(game,e,r) then AI.trade(game,e,dt);return true end
  end
  -- Keep decisions bounded; pursuit and the beam itself still update each frame.

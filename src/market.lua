@@ -135,9 +135,11 @@ end
 -- A station's shops: { name, description, sells } each, from the market
 -- definition's shops list. A market with a plain sells list is one shop.
 function Game.marketShops(st)
-	local mk = Game.marketDefinition(st)
-	if mk and mk.shops then return mk.shops end
-	return { { name = "Station stock", description = "", sells = mk and mk.sells or {} } }
+ local mk=Game.marketDefinition(st);local shops={};local supplied=false
+ local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
+ for _,shop in ipairs(existing) do shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies' end
+ if not supplied then shops[#shops+1]=require('src.supplies').shop() end
+ return shops
 end
 
 local function newMarket(sells)
@@ -190,13 +192,14 @@ function Game:shopTick(st, i, shop, away)
 		local id = e[1]
 		local _, _, cap = Shapes.of(id)
 		local want, every = e[2] * cap, restockTime(e)
+  if shop.unlimited then mk.next[id]=now end
 		local function have() return stockCount(mk.hold, id) + (away and away[id] or 0) end
 		while have() < want and mk.next[id] and mk.next[id] <= now do
 			if not Hold.placeStack(mk.hold, { id = id, n = min(cap, want - have()) }) then
 				mk.next[id] = now + every               -- shelf full: try again later
 				break
 			end
-			mk.next[id] = mk.next[id] + every
+			mk.next[id] = shop.unlimited and now or mk.next[id] + every
 		end
 		if have() >= want then mk.next[id] = nil
 		elseif not mk.next[id] then mk.next[id] = now + every end

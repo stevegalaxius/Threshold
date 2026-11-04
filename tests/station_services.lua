@@ -134,9 +134,9 @@ return function(game)
  local offer=layout.sides[2]
  check(offer.complete.x>=offer.x and offer.complete.x+offer.complete.w<=offer.x+offer.pw and offer.clear.y+offer.clear.h<=offer.y+offer.ph,'trade controls leave center panel')
  local trade=layout.sides[2].hold
- -- Orbital One has two shops, each with its own shelf.
+ -- Orbital One keeps its two original shops and appends the common Supplies vendor.
  local shopButtons=layout.sides[3].shops;local menu=layout.sides[3].shopMenu
- check(#shopButtons==2 and game:currentShop(st)==1,'market did not list the station shops')
+ check(#shopButtons==3 and shopButtons[3].label=='Supplies' and game:currentShop(st)==1,'market did not list the station shops')
  local firstShelf=game:stationMarket(st).hold
  Cargo.mousepressed(game,menu.x+4,menu.y+4,1)
  check(Cargo.shopOpen,'shop dropdown did not open')

@@ -133,14 +133,14 @@ local function split(h)
 end
 
 -- Add up to n of an item; returns how many went in.
--- opts.random: a random(a, b) function, to scatter stacks loosely.
+-- opts.random: scatter stacks; opts.pristine: merge only into unmarked stacks.
 function Hold.add(h, id, n, opts)
 	if n <= 0 then return 0 end
 	local w, ht, cap = Shapes.of(id)
 	local left = n
 	for _, g in ipairs(h.grids) do
 		for _, s in ipairs(g.stacks) do
-			if s.id == id and s.n < cap then
+			if s.id == id and s.n < cap and (not (opts and opts.pristine) or not (s.stolen or s.resale or s.wear or s.inner)) then
 				local k = min(cap - s.n, left)
 				s.n, left = s.n + k, left - k
 				if left == 0 then return n end
@@ -244,8 +244,8 @@ function Hold.clone(h)
 end
 
 -- How many of an item would go in right now.
-function Hold.room(h, id, n)
-	return Hold.add(Hold.clone(h), id, n)
+function Hold.room(h, id, n, opts)
+	return Hold.add(Hold.clone(h), id, n, opts)
 end
 
 -- Repack the hold neatly (biggest items first, grouped by type). If the

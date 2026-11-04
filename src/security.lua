@@ -32,6 +32,7 @@ local function raidLeg(area,from,to)
  return false
 end
 local Repairs=require('src.npc_repair')
+local Supplies=require('src.supplies')
 local repairStation=Repairs.supports
 local armorMax=Repairs.maximum
 local needsRepair=Repairs.needs
@@ -48,15 +49,17 @@ for _,kind in ipairs({'patrol','raid'}) do
   end,
   score=function(u,r,o,node,clock)
    return clock-(o.readyAt or 0)-(r.lastDutyTarget==o.target and 10000 or 0)
-    +(role=='patrol' and needsRepair(r) and repairStation(o.target) and 1000000 or 0)
+    +(role=='patrol' and ((needsRepair(r) and repairStation(o.target)) or (Supplies.needs(r) and Supplies.supports(o.target))) and 1000000 or 0)
   end,
   prepare=function(u,r,t)
    t.phase=kind=='patrol' and 'patrolling' or 'raiding'
    if role=='patrol' and L.get(t.target).kind=='station' then
     local visits=(r.patrolStationVisits or ((tonumber(r.id:match('%d+$')) or 0)%T.patrolDockEvery))+1
     r.patrolStationVisits=visits
-    t.dock=visits%T.patrolDockEvery==0 or needsRepair(r) and repairStation(t.target)
-    if t.dock then t.duration=dockStay(r,t.target);t.phase=needsRepair(r) and repairStation(t.target) and 'repair visit' or 'station docking visit' end
+    local repair=needsRepair(r) and repairStation(t.target)
+    local supply=Supplies.needs(r) and Supplies.supports(t.target)
+    t.dock=visits%T.patrolDockEvery==0 or repair or supply
+    if t.dock then t.duration=dockStay(r,t.target);t.phase=repair and 'repair visit' or supply and 'resupply visit' or 'station docking visit' end
    end
    return true
   end,
@@ -266,6 +269,8 @@ function S.hostile(e,o)
  return false
 end
 function S.target(game,e)
+ local record=game.universe.npcs[e.alifeId]
+ if e.alifeRole=='patrol' and record and Supplies.needs(record,e) then e.combatTarget=nil;e.lock=nil;return nil end
  if game.time<(e.securityThink or 0) then return S.hostile(e,e.combatTarget) and e.combatTarget or nil end
  e.securityThink=game.time+T.securityThink
  local x,y=e.body:getPosition()
@@ -287,7 +292,8 @@ function S.updateOnline(game,e,A)
  if r.piracy then return end
  if r.role=='pirate' and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target) then r.untilTime=game.universe.clock end
  if r.state=='idle' and game.universe.clock>=r.untilTime and not r.encounter then
-  r.ship.armor=e.armor
+  r.ship.armor=e.armor;r.ship.cargo=copy(e.cargo)
+  if e.hold then r.ship.hold=require('src.inventory.hold').serialize(e.hold) end
   S.advance(r,game.universe.clock,game.universe,A.start)
   A.bindRoute(game,e,r)
  end
