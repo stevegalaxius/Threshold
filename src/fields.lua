@@ -549,7 +549,7 @@ function Fields.configureLocations(area)
 	end
 	if F.stationTrack then
         local specs=F.navigation.buoys
-        local count=type(specs)=="table" and #specs or specs or 2
+        local count=type(specs)=="table" and #specs or assert(specs,"rotating region needs a buoy definition: "..area)
         assert(count>=2,"rotating regions need at least two navigation buoys")
         for i=1,count do
             local spec=type(specs)=='table' and specs[i] or {}

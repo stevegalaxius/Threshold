@@ -545,7 +545,8 @@ be edited directly, or exported/imported through `WorldLayout.export` and
 return dragged/staged items, snapshot the universe, rebuild the catalogue and
 loaded scene, and restore the player and NPCs against the new definition.
 
-`navigation[area].buoys` accepts a count of at least two or explicit
+Every rotating region has an explicit buoy list in `WorldLayout.navigation`.
+`navigation[area].buoys` also accepts a count of at least two or explicit
 `id`/`phase`/`radius` entries. Ordinary corridors are ordered by bearing;
 `corridor='buoys'` keeps stations on spurs. Extra full-ID pairs use `links`.
 Navigation, local trader circuits, patrol destinations, pirate routes, dispatch

@@ -136,15 +136,99 @@ W.aliases={
  ["mars/heaven_ladder_4"]="access:003",
 }
 
--- Omit an override to retain the region's default corridor. Buoys can also be
--- a list of {id, phase, radius}; phases are radians, radii are world units.
+-- Every rotating region declares its actual buoy placements here. Optional
+-- radius overrides the region track; phase is the starting angle in radians.
+-- A numeric buoys count is also accepted for evenly spaced generated rings.
 W.navigation={
- jupiter={corridor='buoys',population={trader=0}},
- uranus={population={trader=0}},
- phobos={buoys=4,corridor='buoys'},
- deimos={buoys=4,corridor='buoys'},
+ mercury={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ venus={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ earth={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ mars={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ belt={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ jupiter={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }, corridor='buoys', population={trader=0}},
+ saturn={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ uranus={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }, population={trader=0}},
+ neptune={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ luna={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ phobos={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+1*math.pi*2/4},
+  {id='trade_buoy_c', phase=-.8+math.pi/2+2*math.pi*2/4},
+  {id='trade_buoy_d', phase=-.8+math.pi/2+3*math.pi*2/4},
+ }, corridor='buoys'},
+ deimos={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+1*math.pi*2/4},
+  {id='trade_buoy_c', phase=-.8+math.pi/2+2*math.pi*2/4},
+  {id='trade_buoy_d', phase=-.8+math.pi/2+3*math.pi*2/4},
+ }, corridor='buoys'},
+ io={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ callisto={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ enceladus={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ pluto={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ europa={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ ganymede={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ titan={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ titania={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
+ triton={buoys={
+  {id='trade_buoy_a', phase=-.8+math.pi/2},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+ }},
 }
-
 
 -- Placement operations change this definition; WorldAuthoring applies/reloads it.
 function W.find(id)
