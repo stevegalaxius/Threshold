@@ -20,6 +20,7 @@ local Weapons = require("src.weapons")
 local AI = require("src.ai")
 local Camera = require("src.camera")
 local events = require("src.events")
+local History = require("src.simulation_history")
 local Fields = require("src.fields")
 local Locations = require("src.locations")
 local Hold = require("src.inventory.hold")
@@ -1858,6 +1859,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
 	if source and source.def then amount = amount * T.enemyDamage end   -- difficulty knob
+	History.hit(self,e,source)
 	e.flash = 0.08
 	if e.isPlayer and T.dev.god then return end
 	e.armor = e.armor - amount
@@ -2083,7 +2085,11 @@ function Game:reap()
 				end
 			end
 		elseif e.dead then
-			if e.alifeId then ALife.capture(self, e, false); ALife.detach(self,e,"dead") end
+			if e.alifeId then
+				ALife.capture(self, e, false); ALife.detach(self,e,"dead")
+				local r=self.universe.npcs[e.alifeId]
+				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
+			end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
@@ -2105,6 +2111,8 @@ function Game:reap()
 			if not e.drone then
 				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
 				if e.isPlayer then self.playerHusk = husk end
+				local r=e.alifeId and self.universe.npcs[e.alifeId]
+				if r then husk.historyWreckId=History.wreck(self.universe,r,self.universe.clock,self.fieldId) end
 			end
 		else
 			i = i + 1

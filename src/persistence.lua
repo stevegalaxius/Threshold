@@ -105,7 +105,7 @@ local function record(game, e)
 		angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
 		mass = { mx, my, mass, inertia }, linearDamping = body:getLinearDamping(),
 		angularDamping = body:getAngularDamping(), hp = e.hp, radius = e.radius,
-		hold = Hold.serialize(e.hold) }
+		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId }
 	if e.kind == "container" then
 		r.item = e.item
 	else
@@ -208,6 +208,7 @@ function P.install(Game)
 			end
 			if e then
 				e.persistenceId, e.hp = r.id, r.hp
+				e.historyWreckId=r.historyWreckId
 				local b = e.body
 				b:setMassData(unpack(r.mass))
 				b:setPosition(r.x, r.y)

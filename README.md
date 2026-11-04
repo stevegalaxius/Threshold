@@ -873,3 +873,33 @@ autonomous next duties, save restoration, shared online/offline resource
 accounting and production caps. Set `THRESHOLD_MINING_AREA=phobos` or `belt` to
 run the same physical cycle against those surfaces. The test writes a mining
 screenshot into LÖVE's save directory.
+
+## Simulation history
+
+F1 → **Simulation history** shows the newest 40 observations from a saved,
+bounded history of 256 entries. This first slice covers combat starting and
+ending, NPC deaths, and wreck creation; it does not generate contracts or change
+NPC decisions. Entries contain universe-clock timestamps, area and participant
+IDs, results, and stable fight IDs. NPC records retain their latest fight summary
+in `fight_log`, even after the corresponding history entry has aged out.
+
+Physical targeting or damage starts an engagement. Offline fights use the same
+history API. Bringing an offline encounter online retains its fight ID; saving
+or unloading a body does not itself end combat. Physical retreat/disengagement
+is reported after five seconds without targeting or damage, while the offline
+resolver reports its explicit result. These are observations of the existing
+simulation, not a replay system or a claim that the two combat models produce
+identical damage. `T.historyLimit` and `T.historyQuietTime` control retention and
+the quiet interval.
+
+NPC death and wreck creation are recorded once per persistent NPC identity.
+`historyWreckId` follows salvage from its abstract record to its physical husk
+and area save. The reference remains historical if the wreck is later looted,
+destroyed or expires. Combat summaries list dead/fleeing participants and wreck
+references; they do not snapshot inventories. Existing saves begin with empty
+history, without inventing past events. The event bus emits
+`simulation_outcome(entry)` after recording each observation, with a copy of its
+plain saved data. Existing gameplay event signatures remain unchanged.
+
+Run `love . --historytest` for focused combat handoff, death/salvage identity,
+save/load, retreat and retention checks.

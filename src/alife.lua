@@ -796,6 +796,7 @@ function A.install(Game)
   Encounters.syncOnline(self)
   Encounters.update(self,clock)
   Encounters.materialize(self,px,py,clock)
+  require("src.simulation_history").update(self)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end

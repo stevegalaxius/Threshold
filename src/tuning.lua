@@ -264,4 +264,7 @@ T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,.12
 T.miningOrbitDamping,T.miningOutwardRatio=.015,.07
 T.miningScan,T.miningOfflineEvery=.5,12
 
+-- Bounded saved observations; quiet physical fights end after this interval.
+T.historyLimit,T.historyQuietTime=256,5
+
 return T
