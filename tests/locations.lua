@@ -57,17 +57,17 @@ return function(game)
 		end
 	end
 	game:loadField("earth")
-	local st = game:locationEntity("station:007")
+	local st = game:locationEntity("station:earth_1")
 	local key = st.key
 	Hold.add(game:stationRecord(st).storage, "scrap", 2)
 	game:dockInstantly(game.player, st)
  local Homes=require('src.npc_home');local resident
  for _,r in pairs(game.universe.npcs) do if r.role=='patrol' and r.home=='earth' then resident=r;break end end
- assert(resident);Homes.assign(resident,'station:008');local residentId=resident.id
+ assert(resident);Homes.assign(resident,'station:earth_2');local residentId=resident.id
 	local saved = assert(Save.decode(Save.encode(game:saveState())))
 	check(saved.player.at.station == key and saved.stations[key] ~= nil, "save does not use location IDs")
- check(saved.npcs[residentId].homeStation=='station:008','game snapshot lost NPC home')
- Homes.assign(resident,'station:007')
+ check(saved.npcs[residentId].homeStation=='station:earth_2','game snapshot lost NPC home')
+ Homes.assign(resident,'station:earth_1')
 	-- Rename it and insert an unrelated station ahead of normal construction.
 	local place = L.get(key)
 	local oldName = place.name
@@ -80,7 +80,7 @@ return function(game)
 	end
 	game:loadState(saved)
 	game.spawnWheelStation = nil
- check(Homes.get(game.universe.npcs[residentId])=='station:008','loading did not restore assigned NPC home')
+ check(Homes.get(game.universe.npcs[residentId])=='station:earth_2','loading did not restore assigned NPC home')
 	st = game:locationEntity(key)
 	check(st.name == place.name and st.key == key, "rename or spawn order changed identity")
 	check(game.player.dockState.station == st, "saved station reference broke after reordering")

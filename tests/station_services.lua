@@ -12,7 +12,7 @@ return function(game)
   canvas:newImageData():encode('png','station-prototype-'..name..'.png');canvas:release()
  end
  game.autosaveOff=true;game:loadField('earth');game:captureALife(true)
- local st=game:locationEntity('station:007')
+ local st=game:locationEntity('station:earth_1')
  game.universe.populationSpawns={}
  game:dockInstantly(game.player,st,{interior=true})
  local r=game:stationRecord(st)

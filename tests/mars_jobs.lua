@@ -51,7 +51,7 @@ return function(game)
   u.populationSpawns={}
   for _,site in pairs(require('src.mining').state(u).sites) do site.nextAt=u.clock+1000000 end
   u.npcs={[r.id]=r};r.state='travel';r.area=area;r.home='mars'
-  r.tradeHome='station:009';r.tripDestination=area;r.onRoundTrip=true
+  r.tradeHome='station:mars_1';r.tripDestination=area;r.onRoundTrip=true
   r.route=A.roundTrip('mars',area,u.clock,r.tradeHome)
   for i,id in ipairs(r.route) do if id==require('src.locations').station(area,'mining') then r.index=i;break end end
   r.job={mine=area,home=r.tradeHome,amount=10,phase='pickup'}

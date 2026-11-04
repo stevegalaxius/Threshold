@@ -27,7 +27,7 @@ return function(game)
  for _,from in ipairs(F.earth.stationIds) do for _,to in ipairs(F.earth.buoyIds) do
   check(G.route(graph,from,to,0)~=nil,'new station/buoy is not reachable')
  end end
- check(Transport.route(home,'station:009',0)~=nil,'expanded layout broke interplanetary travel')
+ check(Transport.route(home,'station:mars_1',0)~=nil,'expanded layout broke interplanetary travel')
  local circuit={};for _,id in ipairs(F.earth.traderRoute) do circuit[id]=true end
  check(circuit[added],'new trading station omitted from local circuit')
  local live=L.spawnStation(game,added)
