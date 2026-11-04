@@ -512,9 +512,13 @@ use their existing gates before joining the interplanetary driver network.
 
 F1's A-Life section shows the current pirate activity and Milliways' stash.
 The first pass supports online acquisition and both physical and abstract return,
-delivery and redeployment. Offline wreck acquisition, intact loaded-container
-collection, surrender demands and more selective/bounded hunting remain future
-work. No loot is conjured from a living ship. An unloaded stash is not a market
+delivery and redeployment. Offline wreck acquisition, surrender demands and more selective/bounded
+hunting remain future work. Physical containers are looted intact when their
+footprint fits; smaller ships extract stacks that fit, recursively accessing
+nested crates while leaving the shells and remaining cargo in place. Loaded
+containers keep their internal grids, mass and stolen provenance through saves
+and transfer intact into Milliways’ saved container stash. Full holds do not
+consume source cargo. No loot is conjured from a living ship. An unloaded stash is not a market
 sale and produces no credits. `love . --piracytest` checks actual tractor pickup,
 identity, cross-region routing (including Phobos/Deimos), physical docking,
 unloading, no duplicate delivery, saves and return to the original raid role.

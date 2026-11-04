@@ -292,6 +292,15 @@ function Ship.addCargo(e, itemId, count)
 	return n
 end
 
+-- Upgrade a count-only NPC hold only when every existing item fits the real grids.
+function Ship.ensureGridHold(e)
+ if e.hold then return true end
+ local hold=Hold.new(Ship.holdLayout(e))
+ for id,n in pairs(e.cargo or {}) do if Hold.add(hold,id,n)~=n then return false end end
+ e.hold=hold;e.gridHold=true
+ return true
+end
+
 -- Scoop a floating container into the hold, cargo and all. Returns true
 -- if there was room.
 function Ship.stowContainer(e, box)
@@ -301,7 +310,7 @@ function Ship.stowContainer(e, box)
 	if not Hold.placeStack(e.hold, s) then return false end
 	e.cargo = Hold.totals(e.hold)
 	Ship.updateMass(e)
-	return true
+	return true, s
 end
 
 -- Distance from a world point to the ship's hull edge (0 or less = inside).

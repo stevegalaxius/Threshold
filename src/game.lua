@@ -1511,6 +1511,7 @@ end
 function Game:containerMass(e)
 	local m = data.items[e.item].mass
 	for id, n in pairs(e.loot) do m = m + data.items[id].mass * n end
+ m=m+Hold.innerMass(e.hold,data.items)
 	m = m * T.massScale
 	e.body:setMassData(0, 0, m, m * (e.w * e.w + e.h * e.h) / 12)
 	e.massDirty = nil

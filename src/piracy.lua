@@ -6,6 +6,8 @@ local Fields=require('src.fields')
 local Ship=require('src.ship')
 local Hold=require('src.inventory.hold')
 local Tasks=require('src.tasks')
+local Loot=require('src.loot')
+local Grid=require('src.inventory.grid')
 local P={}
 local function itinerary(source,target,clock)
  if source==target then return {source} end
@@ -41,6 +43,26 @@ function P.unload(u,r)
  local stash=stashState.stashes[T.pirateBase] or {};stashState.stashes[T.pirateBase]=stash
  local h=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return require('src.data').items[id]~=nil end)
  local cargo=h and Hold.totals(h) or r.ship.cargo or {}
+ -- Loaded containers are transferred as stacks, before count-based cargo.
+ if h then
+  stashState.containers=stashState.containers or {}
+  local containers=stashState.containers[T.pirateBase] or {};stashState.containers[T.pirateBase]=containers
+  for _,g in ipairs(h.grids) do for i=#g.stacks,1,-1 do
+   local s=g.stacks[i]
+   if s.stolen then
+    local destination=containers
+    if not s.inner then
+     stashState.stacks=stashState.stacks or {};stashState.stacks[T.pirateBase]=stashState.stacks[T.pirateBase] or {}
+     destination=stashState.stacks[T.pirateBase]
+    end
+    destination[#destination+1]={id=s.id,n=s.n,inner=s.inner and Hold.serialize(s.inner),wear=s.wear}
+    stash[s.id]=(stash[s.id] or 0)+s.n
+    if r.stolenCargo then r.stolenCargo[s.id]=math.max(0,(r.stolenCargo[s.id] or 0)-s.n) end
+    Grid.remove(g,s)
+   end
+  end end
+  cargo=Hold.totals(h)
+ end
  for id,count in pairs(r.stolenCargo or {}) do
   local n=math.min(count,cargo[id] or 0)
   if n>0 then
@@ -116,6 +138,7 @@ end
 function P.think(game,e,dt,AI)
  if e.alifeRole~='pirate' then return false end
  local r=game.universe.npcs[e.alifeId];if not r then return false end
+ Ship.ensureGridHold(e)
  if r.piracy then
   e.tractorTarget=nil;e.intent.tractor=false
   if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
@@ -141,6 +164,25 @@ function P.think(game,e,dt,AI)
    end
   end
   if previous and previous~=e.piratePickup and previous.collector==e then previous.collector=nil end
+  e.pirateContainer=nil
+  for _,box in ipairs(game.entities) do
+   if box.kind=='container' and box~=game.looting and not box.dead and not box.removed
+    and (not box.lootCollector or box.lootCollector==e or box.lootCollector.dead or box.lootCollector.removed or box.lootCollector.pirateContainer~=box)
+    and Loot.canTake(e,box) then
+    local bx,by=box.body:getPosition();local d=(bx-x)^2+(by-y)^2
+    if d<distance then e.pirateContainer=box;e.piratePickup=nil;distance=d end
+   end
+  end
+ end
+ local box=e.pirateContainer
+ if box and not box.dead and not box.removed and box~=game.looting then
+  local x,y=e.body:getPosition();local bx,by=box.body:getPosition();local vx,vy=box.body:getLinearVelocity()
+  local dx,dy=bx-x,by-y;local d=math.sqrt(dx*dx+dy*dy)
+  AI.navigate(game,e,dx,dy,math.min(400,math.max(0,(d-100)*.6)),vx,vy,d)
+  e.intent.aimX,e.intent.aimY=bx,by;e.intent.tractor=true;e.tractorTarget=nil
+  box.lootCollector=e;r.taskStatus='looting a cargo container'
+  Loot.pull(game,e,box,dt)
+  return true
  end
  local pickup=e.piratePickup
  local exists=false;for _,p in ipairs(game.pickups) do if p==pickup then exists=true;break end end
@@ -188,8 +230,9 @@ function P.think(game,e,dt,AI)
  r.taskStatus='collecting exposed cargo'
  return true
 end
-require('src.events').on('pickup',function(e,item,n)
+require('src.events').on('pickup',function(e,item,n,stack)
  if e.alifeRole~='pirate' or not e.alifeRecord or e.alifeRecord.piracy then return end
+ if stack and (stack.inner or stack.wear~=nil) then stack.stolen=true end
  local r=e.alifeRecord;r.stolenCargo=r.stolenCargo or {};r.stolenCargo[item]=(r.stolenCargo[item] or 0)+n
  r.lootUntil=r.lootUntil or (e.alifeGame.universe.clock+T.pirateLootTime)
 end)

@@ -67,5 +67,6 @@ return function(game)
  game:updateDockedShip(physical,1/60)
  check(not physical.dockState and r.piracy.phase=='redeploy','physical unloading did not release pirate onto return route')
  check((physical.cargo.scrap or 0)==0 and game.universe.piracy.stashes[T.pirateBase].scrap==5,'physical unloading lost or duplicated cargo')
+ require('tests.pirate_containers')(game)
  print(('PIRACY TEST PASSED (%d checks)'):format(checks))
 end
