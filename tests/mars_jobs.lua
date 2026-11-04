@@ -23,26 +23,31 @@ return function(game)
  end
  game:loadField('venus');game:captureALife(true)
  local u=game.universe
+ local Tasks,L=require('src.tasks'),require('src.locations')
  local traders={}
  for _,r in pairs(u.npcs) do if r.role=='trader' and r.home=='mars' then traders[#traders+1]=r end end
  table.sort(traders,function(a,b)return a.id<b.id end)
- for _,r in ipairs(traders) do A.advance(r,100,u) end
- local active,waiting=0,0
- for _,r in ipairs(traders) do if r.job then active=active+1 else waiting=waiting+1 end end
- check(active==4 and waiting==5,'reservations failed to limit mine traffic')
- local r=traders[1]
- for _=1,50 do
-  local t=(r.state=='docked' and r.untilTime or r.arrive)+.01
-  A.advance(r,t,u)
-  if (u.jobs.delivered[r.tradeHome] or 0)>0 then break end
- end
- check((u.jobs.delivered[r.tradeHome] or 0)>0,'ore never reached Mars')
- check((r.ship.cargo.martian_ore or 0)==0,'delivery did not unload cargo')
+ check(#traders>0,'no Mars traders')
+ for _,r in ipairs(traders) do check(r.taskWorker,'Mars trader is not on the task board') end
+ local ore=0
+ for _,o in pairs(Tasks.state(u).offers) do if o.item=='martian_ore' then ore=ore+1;check(o.mine and L.get(o.source).area==o.mine,'ore job does not start at its mine') end end
+ check(ore>0,'no ore jobs posted')
+ -- Drain a mine: its ore jobs stop being eligible.
+ local mine=J.mines[1];J.state(u,u.clock).mines[mine].stock=0
+ local probe=require('src.persistence').copy(traders[1]);probe.id='ore-probe';probe.task=nil;probe.ship.cargo={};probe.ship.hold=nil
+ local mineStation=L.stations(mine,'trade')[1]
+ local picked=Tasks.choose(u,probe,mineStation,u.clock)
+ check(not picked or picked.item~='martian_ore','empty mine handed out ore')
+ if picked then Tasks.release(u,probe,'test',u.clock) end
+ J.state(u,u.clock).mines[mine].stock=20;probe.task=nil
+ for id,o in pairs(Tasks.state(u).offers) do if o.source==mineStation and o.item~='martian_ore' then o.readyAt=math.huge end end
+ picked=assert(Tasks.choose(u,probe,mineStation,u.clock),'stocked mine offered no ore job')
+ check(picked.item=='martian_ore' and probe.ship.cargo.martian_ore==10,'ore pickup did not load cargo')
+ check(J.available(u,mine,u.clock)==10,'ore pickup did not draw down mine stock')
  local encoded=Save.encode(game:saveState());local state=assert(Save.decode(encoded))
- check(state.jobs and state.jobs.delivered[r.tradeHome]>0,'save lost mine economy')
- local dead=traders[2];dead.state='dead'
- J.state(u,10000)
- for _,m in pairs(u.jobs.mines) do check(not m.reservations[dead.id],'dead trader held reservation') end
+ check(state.jobs and state.jobs.mines[mine],'save lost mine stock')
+ Tasks.release(u,probe,'test',u.clock)
+ local r=traders[1]
  -- Exercise physical tractor docking and job pickup on both actual mines.
  for _,area in ipairs({'phobos','deimos'}) do
   game:loadField(area);game:captureALife(true)
@@ -51,11 +56,12 @@ return function(game)
   u.populationSpawns={}
   for _,site in pairs(require('src.mining').state(u).sites) do site.nextAt=u.clock+1000000 end
   u.npcs={[r.id]=r};r.state='travel';r.area=area;r.home='mars'
-  r.tradeHome='station:mars_1';r.tripDestination=area;r.onRoundTrip=true
+  r.tradeHome='station:mars_1'
   r.route=A.roundTrip('mars',area,u.clock,r.tradeHome)
   for i,id in ipairs(r.route) do if id==require('src.locations').station(area,'mining') then r.index=i;break end end
-  r.job={mine=area,home=r.tradeHome,amount=10,phase='pickup'}
-  u.jobs.mines[area].stock=20;u.jobs.mines[area].reservations[r.id]=10
+  r.task=nil;r.taskWorker=true;r.onRoundTrip=nil;r.tripDestination=nil
+  J.state(u,u.clock).mines[area].stock=20
+  for _,o in pairs(Tasks.state(u).offers) do if o.source==L.stations(area,'trade')[1] and o.item~='martian_ore' then o.readyAt=math.huge end end
   r.depart=u.clock;r.arrive=u.clock+100;r.pose=nil;r.offset=nil
   r.ship.cargo={}
   local st=game:locationEntity(require('src.locations').station(area,'mining'))
@@ -78,7 +84,7 @@ return function(game)
   end
   check(not e.dead and e.dockState and e.dockState.done,area..': tractor docking failed')
   game:updateDockedShip(e,100)
-  check(not e.dockState and r.job.phase=='delivery',area..': pickup failed to launch')
+  check(not e.dockState and r.task and r.task.item=='martian_ore',area..': ore pickup failed to launch')
   check(e.cargo.martian_ore==10 and r.ship.cargo.martian_ore==10,area..': physical cargo differs from job')
   game.updateMoonGates=function(self) self:placeMoonGates() end
   for _=1,24000 do

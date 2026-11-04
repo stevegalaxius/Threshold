@@ -97,9 +97,6 @@ local function adoptTrip(r,station,clock,u)
   r.route=route;r.index=1;r.onRoundTrip=nil;r.tripRoute=nil;r.tripDestination=nil
   return true
  end
- if r.home=='mars' and u then
-  if not require('src.jobs').depart(u,r,station,clock) then return false end
- end
  if r.tripDestination and (station==(r.tradeHome or Homes.get(r))
   or station==L.station(r.tripDestination,'trade')) then
   -- Plan at departure: buoys orbit while moon exits stay fixed. Existing saves
@@ -127,13 +124,11 @@ function A.createTrader(game,area,i)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
- local destinations=neighbours(area)
- if i%T.alifeMoonEvery==0 and #destinations>0 then
-  r.tripDestination=destinations[(i/T.alifeMoonEvery-1)%#destinations+1]
-  r.tripRoute=roundTrip(area,r.tripDestination,u.clock,Homes.get(r))
-  if r.tripRoute then r.route=copy(r.tripRoute); r.onRoundTrip=true end
- end
- start(r,u.clock,r.onRoundTrip and 2 or i%#r.route+1)
+ -- One in every few traders works the dispatch board (transport jobs to
+ -- other regions); the rest fly their local circuit. Every Mars trader works
+ -- the board, which includes ore runs from Phobos and Deimos.
+ if area=='mars' or i%T.alifeMoonEvery==0 and #neighbours(area)>0 then r.taskWorker=true end
+ start(r,u.clock,i%#r.route+1)
  u.npcs[id]=r
  return r
 end
@@ -152,13 +147,21 @@ function A.seed(game)
     local r=A.createTrader(game,area,i)
     local elapsed=(r.arrive-r.depart)*i/(f.alifeTraders+1)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
-    if area=='mars' then
+    if r.taskWorker then -- start docked, where work is handed out
      r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil
      local station=L.stations(area,'trade')[(i-1)%#L.stations(area,'trade')+1]
      for index,id in ipairs(r.route) do if id==station then r.index=index;break end end
      r.state='docked';r.untilTime=u.clock+i*2
     end
    end
+  end
+ end
+ -- Saves from the Mars-only job module: those haulers join the task board.
+ for _,r in pairs(u.npcs) do
+  if r.role=='trader' and r.home=='mars' then r.taskWorker=true end
+  if r.job then
+   if r.job.phase=='delivery' and r.ship.cargo then r.ship.cargo.martian_ore=nil end
+   r.job,r.jobStatus,r.onRoundTrip,r.tripDestination,r.tripRoute=nil,nil,nil,nil,nil
   end
  end
  -- Keep records from the preceding Earth prototype; schedule a moon itinerary
@@ -239,7 +242,7 @@ function A.advance(r,clock,u,game)
    end
    if r.taskWorker and not u then return end
    local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)
-   if (r.home=='mars' or r.taskWorker) and u and not adopted then r.untilTime=clock+10;return end
+   if r.taskWorker and u and not adopted then r.untilTime=clock+10;return end
    start(r,r.untilTime,r.index%#r.route+1)
   else return end
  end
@@ -568,6 +571,7 @@ function A.wake(game,r)
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
  e.alifeRole=Security.isRole(r) and r.role or nil
+ e.npcRole=r.role
  e.alifeRecord=r;e.alifeGame=game
  e.fleeing=r.fleeing
  if egress then
@@ -685,7 +689,7 @@ function A.install(Game)
    e.cargo=copy(r.ship.cargo);if e.hold then Hold.sync(e.hold,e.cargo) end;Ship.updateMass(e)
    e.pirateDeparture=true;return true
   end
-  if not r or r.home~='mars' and not r.taskWorker then return true end
+  if not r or not r.taskWorker then return true end
   A.capture(self,e,false)
   local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
   if not ok then return false end

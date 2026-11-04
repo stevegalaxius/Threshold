@@ -11,8 +11,8 @@ return function(game)
  local homes,travellers={},0
  for _,r in pairs(game.universe.npcs) do
   if r.role=='trader' then homes[r.home]=(homes[r.home] or 0)+1 end
+  if r.taskWorker then travellers=travellers+1 end
   if r.onRoundTrip then
-   travellers=travellers+1
    for i,to in ipairs(r.route) do
     check(require('src.locations').get(to).kind~='driver','moon itinerary detoured through a mass driver')
     local from=r.route[(i-2)%#r.route+1]
@@ -28,7 +28,7 @@ return function(game)
    end
   end
  end
- check(travellers>0 and travellers<expected,'missing mix of local and moon traders')
+ check(travellers>0 and travellers<expected,'missing mix of local and dispatch traders')
  for _,area in ipairs(Fields.list) do
   check((homes[area] or 0)==(Fields[area].alifeTraders or 0),'wrong population in '..area)
   game:loadField(area)
@@ -40,8 +40,11 @@ return function(game)
  -- Saved itineraries from the driver-detour build are repaired in place.
  local original
  for _,record in pairs(game.universe.npcs) do
-  if record.home=='earth' and record.onRoundTrip then original=record; break end
+  if record.home=='earth' and record.role=='trader' and not record.taskWorker then original=record; break end
  end
+ -- Moon round trips now only come from older saves; mark one as such.
+ original.tripDestination='luna';original.onRoundTrip=true
+ original.tripRoute=A.roundTrip('earth','luna',0)
  -- Existing moon traders replan at home departure using that departure time,
  -- including offline departures processed later in a catch-up tick.
  local replanClock=10000
@@ -90,8 +93,8 @@ return function(game)
   if record.home=='earth' and record.tripDestination=='luna' then id,r=candidate,record; break end
  end
  check(r~=nil,'no Earth–Luna itinerary')
- r.ship.cargo={scrap=17}; r.ship.armor=r.ship.armor*.6
- local armor=r.ship.armor
+ r.ship.cargo={scrap=17}
+ local armor
  local function advanceUntil(predicate)
   for _=1,30 do
    if predicate() then return end
@@ -101,6 +104,8 @@ return function(game)
   error('itinerary did not reach expected activity')
  end
  advanceUntil(function() return r.state=='transit' and r.transit.to=='luna' end)
+ -- Damage it in flight: docked stops repair NPCs, which is intended.
+ r.ship.armor=r.ship.armor*.6;armor=r.ship.armor
  check(A.point(r,game.universe.clock)==nil,'remote transit has a fabricated map position')
  local saved=assert(Save.decode(Save.encode(game:saveState())))
  game:loadState(saved); r=game.universe.npcs[id]
@@ -189,7 +194,8 @@ return function(game)
  game.player.body:setPosition(station.body:getPosition()); game:updateALife(true)
  e=assert(game.alifeOnline[id])
  check(e.dockState and e.dockState.station.locationId==Fields.earth.stationIds[1],'same trader did not dock back home')
- check(e.cargo.scrap==18 and near(e.armor,armor),'round trip lost ship state')
+ -- Docked stops repair NPCs, so armor can only have gone up.
+ check(e.cargo.scrap==18 and e.armor>=armor-.02,'round trip lost ship state')
  check(count(game.universe.npcs)==expected,'round trip spawned replacement traders')
  print(('TRADER TRAVEL TEST PASSED (%d checks; %d persistent traders, %d moon itineraries)'):format(checkCount,expected,travellers))
 end

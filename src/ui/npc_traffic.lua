@@ -54,8 +54,8 @@ function M.snapshot(game,includeMoons)
     progress=progress,eta=eta,depart=r.depart,arrive=r.arrive,online=e~=nil,
     hull=e and e.hull.name or (data.hulls[r.ship.hull] and data.hulls[r.ship.hull].name or r.ship.hull),cargo=cargo(ship),
     task=r.task and (r.task.id..' / '..r.task.kind..' / '..r.task.phase)
-      or r.job and ('mine hauling / '..r.job.phase) or '(itinerary)',
-    homeStation=require("src.npc_home").get(r),status=r.taskStatus or r.jobStatus,protected=e and e.driverProtected or false,localArea=r.area,
+      or '(itinerary)',
+    homeStation=require("src.npc_home").get(r),status=r.taskStatus,protected=e and e.driverProtected or false,localArea=r.area,
     launchTime=driver and driver.t,launchPhase=driver and (driver.ghost and 'barrel / coast' or phase)}
    model.npcs[id]=n
    local key=from..'>'..to

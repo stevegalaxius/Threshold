@@ -257,9 +257,7 @@ function G.draw(game,px)
    lg.push(); lg.translate(x+8*px,y+5*px); lg.scale(px)
    lg.print(id..' '..r.role..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
    if r.task then lg.print(r.task.kind..' '..r.task.phase..' -> '..(L.byId[r.task.target] and L.byId[r.task.target].name or tostring(r.task.target)),0,14)
-   elseif r.taskStatus then lg.print(r.taskStatus,0,14)
-   elseif r.job then lg.print(r.job.phase..' '..r.job.amount..' ore / '..r.job.mine,0,14)
-   elseif r.jobStatus then lg.print(r.jobStatus,0,14) end
+   elseif r.taskStatus then lg.print(r.taskStatus,0,14) end
    if r.targetId then lg.print('Target: '..r.targetId,0,28) end
    lg.pop()
   end

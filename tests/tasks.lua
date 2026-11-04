@@ -15,6 +15,10 @@ return function(game)
  Transport.seed(u)
  worker.ship.hold=nil;worker.ship.cargo={}
  local source=Fields.earth.stationIds[1]
+ -- Exercise an interplanetary manifest; planet-moon work is checked separately.
+ for id,o in pairs(u.tasks.offers) do
+  if Fields.moons[require('src.locations').get(o.target).area] then u.tasks.offers[id]=nil end
+ end
  local task=assert(Tasks.choose(u,worker,source,0))
  check(task.kind=='transport' and task.phase=='delivery','worker did not choose delivery task')
  check(worker.ship.cargo.scrap==5,'manifest not loaded')
@@ -82,6 +86,9 @@ return function(game)
  physical.pose=nil;physical.offset=nil;physical.docking=nil
  game.universe.npcs={[physical.id]=physical};game.universe.tasks=nil
  Transport.seed(game.universe)
+ for id,o in pairs(game.universe.tasks.offers) do
+  if Fields.moons[require('src.locations').get(o.target).area] then game.universe.tasks.offers[id]=nil end
+ end
  for i=#game.entities,1,-1 do
   local e=game.entities[i]
   if e~=game.player and (e.kind=='ship' or e.kind=='asteroid' or e.kind=='container' or e.kind=='husk') then game:remove(e) end
