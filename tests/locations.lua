@@ -28,9 +28,15 @@ return function(game)
 				local x, y = L.position(e.locationId, game.universe.clock)
 				local bx, by = e.body:getPosition()
 				check(near(x, bx) and near(y, by), "loaded object differs from catalogue")
-				if e.kind == "station" then check(e.key == e.locationId, "station save key is not stable") end
+				if e.kind == "station" then check(e.key == L.canonical(e.locationId), "station save key is not stable: "..e.locationId) end
 			end
 		end
+  if area=='pluto' then
+   local base=game:locationEntity(require('src.tuning').pirateBase)
+   check(base and base.name=='Milliways Freeport','pirate base rename not reflected in live station')
+   check(base.def.id=='jovian_kink','pirate base did not use the Jovian Kink layout')
+   check(game.marketDefinition(base).station=='Milliways Freeport','pirate base market lost its identity')
+  end
 		for _ = 1, 3 do game:step(1 / 120) end
 		for _, e in ipairs(game.entities) do
 			if e.locationId then

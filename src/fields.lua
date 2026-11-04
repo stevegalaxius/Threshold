@@ -467,7 +467,7 @@ Fields.enceladus = planetField({ name = "Enceladus", R = 2600, depth = 13000, pa
 Fields.pluto = planetField({ name = "Pluto", R = 3000, depth = 16000, rocky = true, lumpy = 0,
 	hue = { 0.65, 0.52, 0.45 }, density = 0.06, mix = { ice = 8, rock = 2 },
 	belt = 0.35, beltMix = { ice = 1 },
-	stations = { "Tombaugh Station", "Sputnik Port" },
+	stations = { "Milliways Freeport", "Sputnik Port" },
 	enemies = { { "sniper", 1 }, { "interceptor", 2 } } })
 Fields.europa = planetField({ name = "Europa", R = 3800, depth = 15000, parent = "jupiter", rocky = true, lumpy = 0,
 	hue = { 0.85, 0.8, 0.7 }, density = 0.08, mix = { ice = 8, rock = 2 }, belt = 0.8,
@@ -513,7 +513,7 @@ local stationIds = {
 	ganymede = { "galileo_regio", "uruk_station" }, callisto = { "valhalla_port", "asgard_station" },
 	enceladus = { "tiger_stripe_laboratory", "south_pole_port" }, titan = { "kraken_station", "huygens_station" },
 	titania = { "gertrude_port", "messina_research_station" }, triton = { "cipango_station", "voyager_station" },
-	pluto = { "tombaugh_station", "sputnik_port" }, ring = { "ring_station" }, station = { "hub_station" },
+	pluto = { { "tombaugh_station", layout = "jovian_kink" }, "sputnik_port" }, ring = { "ring_station" }, station = { "hub_station" },
 }
 for _, area in ipairs(Fields.list) do
 	local F = Fields[area]

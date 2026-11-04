@@ -107,7 +107,7 @@ market { location = "enceladus/tiger_stripe_laboratory", station = "Tiger Stripe
 market { location = "enceladus/south_pole_port", station = "South Pole Port", sells = {
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "flit_engine", 1 },
 } }
-market { location = "pluto/tombaugh_station", station = "Tombaugh Station", sells = {
+market { location = "pluto/tombaugh_station", station = "Milliways Freeport", sells = {
 	{ "rounds_s", 4 }, { "pip_mortar", 1 }, { "nav_computer", 1 },
 } }
 market { location = "pluto/sputnik_port", station = "Sputnik Port", sells = {

@@ -498,6 +498,12 @@ Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
 
 ## Patrols and pirates
 
+Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
+layout and is designated by `T.pirateBase` as the base for the planned pirate
+loot-and-return loop. Its existing stable location ID, `pluto/tombaugh_station`,
+keeps station inventory, ships, saves and routes attached to the same place.
+The loot/stash return behavior itself is not implemented yet.
+
 The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies
 on those planets. Legacy authored pilots are restricted to the Asteroid field,
