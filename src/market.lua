@@ -296,23 +296,41 @@ function Game.shipyard(st)
 	return mk and mk.ships or {}
 end
 
--- Why this ship can't be bought here, or nil if it can.
-function Game:shipBuyProblem(st, hullId)
+-- Why this ship can't be bought here, or nil if it can. tradeIn (a
+-- stored ship record) counts toward the price and frees its parking.
+function Game:shipBuyProblem(st, hullId, tradeIn)
 	local hull = data.hulls[hullId]
 	if not hull then return "UNKNOWN SHIP" end
-	if self.universe.credits < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
-	if not self:shipParkingFit(st,hullId) then return "NO SUITABLE FREE PARKING" end
+	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
+	if self.universe.credits + credit < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
+	if not self:shipParkingFit(st, hullId, tradeIn) then return "NO SUITABLE FREE PARKING" end
 	return nil
 end
 
--- Buy a new ship of a hull: paid for and parked in this station's hangar.
--- Returns the record, or nil and why not (then nothing changes).
-function Game:buyShip(st, hullId)
-	local problem = self:shipBuyProblem(st, hullId)
+-- Buy a new ship of a hull: paid for and parked at this station.
+-- opts.paint names one of the hull's factory paints; opts.tradeIn is a
+-- stored ship here, sold (with its hold) toward the price. Returns the
+-- record, or nil and why not (then nothing changes).
+function Game:buyShip(st, hullId, opts)
+	opts = opts or {}
+	local tradeIn = opts.tradeIn
+	local problem = self:shipBuyProblem(st, hullId, tradeIn)
 	if problem then return nil, problem end
-	local rec = self:addToHangar(st, hullId)
-	if not rec then return nil, "NO SUITABLE FREE PARKING" end
-	self.universe.credits = self.universe.credits - (data.hulls[hullId].price or 0)
+	local list = self:hangar(st)
+	local tradeIndex
+	if tradeIn then
+		for i, rec in ipairs(list) do if rec == tradeIn then tradeIndex = i end end
+		if not tradeIndex then return nil, "NO SUCH SHIP" end
+		table.remove(list, tradeIndex)
+	end
+	local rec = self:addToHangar(st, hullId, opts.paint)
+	if not rec then
+		if tradeIndex then table.insert(list, tradeIndex, tradeIn) end
+		return nil, "NO SUITABLE FREE PARKING"
+	end
+	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
+	self.universe.credits = self.universe.credits + credit - (data.hulls[hullId].price or 0)
+	if tradeIn then events.emit("sellship", tradeIn, st) end
 	events.emit("buyship", rec, st)
 	return rec
 end
