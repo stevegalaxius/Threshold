@@ -3,7 +3,6 @@ hull {
 	id = "brute_praetor", name = "Praetor",
 	armor = 400,
 	bonuses = {},
-	cargo = { missile_m = 4, missile_s = 6, rounds_m = 500, shell_m = 20 },
 	class = "medium",
 	drag = 0.25,
 	hold = 50,

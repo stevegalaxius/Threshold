@@ -129,6 +129,7 @@ function Export.hullDef(design)
 	-- the design's own stats and slots win over the base hull's
 	for k, v in pairs(design.stats or {}) do def[k] = copy(v) end
 	def.paint = nil   -- the old single factory paint; hulls use the paints pool now
+	def.cargo = nil   -- hulls carry no starting cargo; a ship's hold starts empty
 	if design.slots then
 		def.slots = copy(design.slots)
 		for _, slot in ipairs(def.slots) do data.migrateSlot(slot) end
