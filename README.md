@@ -651,6 +651,25 @@ flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
 After losing contact, ships resume their selected duty. F1's A-Life list and the
 map graph overlay show role, duty, destination and current target.
 
+Every current station includes **Supplies** in the Market's existing vendor
+dropdown. The common vendor sells ammunition and flare charges, replenishing
+its displayed stock immediately; other vendors retain their existing stock
+and restock behavior. Player purchases use the normal grid trade and prices.
+NPCs use the same unlimited supplies source without consuming the player's
+shelf or credits while their economy is deferred.
+
+Persistent NPCs replenish fitted weapons only while fully docked. Archetype
+starting ammo is the default reserve; `ammoReserve={item=count}` on an archetype
+or NPC overrides it. Other fitted weapons default to 30 seconds of ammunition.
+Below 20% reserve, patrols prioritize a supply stop and pirates return to their
+haven; armed miners return home and resume their mining reservation. Traders
+and couriers replenish at normal delivery stops, before loading the next job.
+Power-only lasers/drills need no ammo. Holds are respected, cargo and container
+contents are preserved, and fresh ammo remains separate from stolen loot.
+Online/offline resupply and saves use the same counts. `src/supplies.lua` owns
+the catalogue and replenishment rules; thresholds are in `src/tuning.lua`.
+Run `love . --securitytest` for supplies, repair and duty-resumption checks.
+
 Remote encounters only compare records sharing a graph segment or endpoint.
 Periodic seeded exchanges spend actual ammunition and carry hull damage across
 online/offline transitions and saves. In offline encounters, low-health ships

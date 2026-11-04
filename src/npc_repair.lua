@@ -24,6 +24,7 @@ function R.begin(r,node,at,minimum)
 end
 function R.advance(r,clock,node)
  if r.state~='docked' or r.ship.armor==0 then return end
+ require('src.supplies').refill(r,node)
  local at=math.min(clock,r.untilTime)
  if R.supports(node) then
   local maximum=R.maximum(r)
@@ -35,6 +36,7 @@ end
 function R.online(game,e,dt)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  if not r or e.dead or e.removed or not e.dockState or not e.dockState.done then return end
+ require('src.supplies').online(game,e)
  if game.stationServices(e.dockState.station).repair then
   e.armor=math.min(e.stats.armor,e.armor+T.npcRepairPerSecond*dt)
   r.ship.armor=e.armor
