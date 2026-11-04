@@ -537,7 +537,15 @@ Giant asteroid and Space station instance maps. Roles remain fixed; patrols are
 seeded once and lost ships are replenished through the saved arrival schedules below.
 
 Patrols choose inspection duties through the shared task board and visit existing
-stations and buoys. Pirates choose buoy raids and relocation duties, preferring
+stations and buoys. Every third station visit is an actual docking stop, staggered
+by NPC identity; the decision and visit counter persist. Passing inspections wait
+outside the station hull and runway corridors rather than at the dock mouth.
+Patrols below 70% armor prioritize stations with repair service. Repairs progress
+at four armor points per game second only while fully docked; damaged patrols
+stay long enough to finish before choosing their next duty. Online/offline
+progress and saves use the same rate and preserve the ship's identity. NPC
+maintenance does not debit player credits; NPC repair billing remains deferred
+with the economy. Timing, health threshold and repair speed are tuning values. Pirates choose buoy raids and relocation duties, preferring
 passing traders as targets. Patrols engage pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.

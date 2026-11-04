@@ -275,7 +275,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		tradeBuoys = o.tradeBuoys, stationTrack = (not o.surfaceMine or o.tradeBuoys) and sd or nil, surfaceMine = o.surfaceMine, city = o.city, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
+		tradeBuoys = o.tradeBuoys, stationTrack = (not o.surfaceMine or o.tradeBuoys) and sd or nil, surfaceMine = o.surfaceMine, city = o.city, cityScale = o.cityScale, alifeTraders = not o.surfaceMine and o.stations and (o.traders or 3),
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, landable = o.landable, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,

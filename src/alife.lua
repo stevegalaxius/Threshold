@@ -192,6 +192,7 @@ end
 
 local function dockingStop(r,id)
  if r.piracy then return id==r.route[#r.route] end
+ if Security.shouldDock(r,id) then return true end
  if Security.isRole(r) and not r.piracy then return false end
  if L.get(id).kind~='station' then return false end
  id=L.canonical(id)
@@ -424,7 +425,7 @@ function A.capture(game,e,remote)
  end
  r.ship=shipRecord(e); r.power=e.power
  if Mining.isMiner(r) then return Mining.capture(game,e,r,remote) end
- if Security.isRole(r) and not r.piracy then return Security.capture(game,e,r,remote) end
+ if Security.isRole(r) and not r.piracy and not Security.shouldDock(r,r.route[r.index]) then return Security.capture(game,e,r,remote) end
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
   local previous=r.transit.departure
@@ -462,6 +463,7 @@ function A.capture(game,e,remote)
   for i,id in ipairs(r.route) do if id==ds.station.locationId then index=i; break end end
   r.index=assert(index,'trader docked outside its itinerary')
   r.state='docked'
+  if r.role=='patrol' then r.node=ds.station.locationId end
   r.untilTime=clock+(ds.done and math.max(0,(ds.stay or T.alifeStay)-ds.t) or T.alifeStay)
   -- Preserve an in-progress physical docking operation for immediate save/load.
   r.docking={}
@@ -501,11 +503,9 @@ local function bindRoute(game,e,r)
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
    stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
-    if station.city then return L.inspectionPosition(id,game.universe.clock) end
-    return require('src.ai').stopPoint(station)
+    return Security.inspectionPoint(game,station,e)
    end,getLinearVelocityFromWorldPoint=function(_,x,y)
-    if station.city then return L.inspectionVelocity(id,game.universe.clock) end
-    return station.body:getLinearVelocityFromWorldPoint(x,y)
+    local _,_,vx,vy=Security.inspectionPoint(game,station,e);return vx,vy
    end}}
   end
   if stop and place.kind=='driver' then
@@ -645,6 +645,12 @@ function A.install(Game)
  function Game:traderCanDepart(e,station)
   if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.depart(self,e,station) end
   local r=self.universe.npcs[e.alifeId]
+  if Security.shouldDock(r,station.locationId) then
+   A.capture(self,e,false)
+   Security.advance(r,self.universe.clock,self.universe,start)
+   if r.state~='travel' then return false end
+   e.patrolDeparture=true;return true
+  end
   if r and r.piracy then
    A.capture(self,e,false)
    if not Piracy.depart(self.universe,r,self.universe.clock,start) then return false end
@@ -662,6 +668,7 @@ function A.install(Game)
  function Game:traderUndocked(e,station)
   if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.bind(self,e,self.universe.npcs[e.alifeId]) end
   local r=self.universe.npcs[e.alifeId]
+  if e.patrolDeparture then e.patrolDeparture=nil;bindRoute(self,e,r);return end
   if e.pirateDeparture then e.pirateDeparture=nil;bindRoute(self,e,r);return end
   if e.jobPrepared or adoptTrip(r,station.locationId,self.universe.clock,self.universe) then
    e.jobPrepared=nil
