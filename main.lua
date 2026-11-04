@@ -234,6 +234,7 @@ end
 
 function love.keypressed(key)
 	if key == "f1" then Debug.toggle(); return end
+	if key == "f6" then Debug.toggleALife(); return end
 	if key=="f4" then Traffic.toggle(game);return end
 	if Traffic.keypressed(game,key) then return end
 	if Editor.keypressed(key) then return end

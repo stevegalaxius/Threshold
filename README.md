@@ -25,6 +25,7 @@ file) onto `love.exe`.
 | Afterburner | Shift | A |
 | Zoom | Mouse wheel | |
 | Debug panel | F1 | Back |
+| A-Life debug window | F6 | — |
 | Station screen: cycle Storage / Market / Shipyard / Hangar tabs | Tab (docked) | |
 | Buy a ship (shipyard list, with your own ship selected) / sell a parked ship | Hangar tab buttons | |
 | Save / load newest (docking and quitting autosave; launching continues) | F5 / F9 | |
@@ -119,6 +120,10 @@ and 4 times strength for gas giants.
 - Spawn and arena: spawn any enemy (these come straight for you), clear enemies, jump to any level.
 - Docked: park a new ship of any hull in this station's hangar. +10,000 credits. Save, load and load the autosave.
 - Also: god mode and infinite ammo.
+
+The separate **A-Life debug window (F6)** contains **A-Life records and connections**
+and **Simulation history**. It can also be opened from F1 and moved, resized or
+closed independently of the general debug panel.
 
 ## Where things live
 
@@ -266,7 +271,7 @@ fades toward local endpoints. Offline station stops last 60 seconds; online
 stops retain the existing 30–90-second behavior. Economic transactions remain deferred. Persistent transport duties use mass
 drivers; patrols and pirates also participate in offline encounters. Highway derelict generation is unchanged.
 
-Open **F1 → A-Life records and connections**, enable **Show simulation connections
+Open **F6 → A-Life records and connections**, enable **Show simulation connections
 and NPCs**, then open **M**. Blue lines are declared connections. Labels show
 actual trader identity, state, and destination; the debug panel also lists
 travellers in connecting highways. The map shows contacts sharing your highway.
@@ -420,7 +425,7 @@ Run `love . --drivertest` and `love . --tasktest` for these launch regressions.
 
 ## NPC traffic debugging
 
-Press **F4**, or use **F1 > A-Life records and connections > NPC traffic monitor**.
+Press **F4**, or use **F6 > A-Life records and connections > NPC traffic monitor**.
 The live route board groups directed journeys and shows each NPC progressing
 from departure to arrival. Click a marker for identity, role, task, cargo,
 online/offline state, launch phase, departure/arrival clock and ETA. Hover for
@@ -575,8 +580,8 @@ and provenance when a haven changes. Wreck and mineral loot is retained.
 Removed station storage, hangars and shop stock remain saved under the station
 ID and return if it is re-enabled/re-added with that ID. A player docked at a
 removed port uses a surviving local port or the region's normal spawn; moving a
-docked port between regions retains the docking reference. F1 shows living
-resident counts; F1/F4 show each ship's home. Rosters derive from NPC records,
+docked port between regions retains the docking reference. F6 shows living
+resident counts; F6/F4 show each ship's home. Rosters derive from NPC records,
 without a second saved membership list.
 
 Cloud cities, surface mines and the Heaven-Ladder retain construction adapters.
@@ -604,7 +609,7 @@ their home region's raid corridor. Low-health looters leave early. Their identit
 ship, ordinary ammunition, damage and home population remain intact. Moon routes
 use their existing gates before joining the interplanetary driver network.
 
-F1's A-Life section shows the current pirate activity and Milliways' stash.
+F6's A-Life section shows the current pirate activity and Milliways' stash.
 Pirates acquire loot physically and from fully unloaded saved resources; return,
 delivery and redeployment work both physically and abstractly. Surrender demands and more selective/bounded hunting remain future work.
 Offline pirates can claim saved loose items, containers and combat wrecks in
@@ -648,7 +653,7 @@ and relocation duties, preferring passing traders as targets. Patrols engage
 pirates and defend themselves when
 attacked; peaceful ships are not automatic targets. Nearby combat uses the same
 flight controller, fitted weapons, ammunition, damage and wrecks as other ships.
-After losing contact, ships resume their selected duty. F1's A-Life list and the
+After losing contact, ships resume their selected duty. F6's A-Life list and the
 map graph overlay show role, duty, destination and current target.
 
 Every current station includes **Supplies** in the Market's existing vendor
@@ -855,7 +860,7 @@ Two independent miners per populated mining region choose work through the
 shared task board. They approach a chunk, use their fitted **Bore Drills** at
 contact range, tractor the actual dropped ore, and return to dock with a load.
 They unload into saved station raw-material stock and choose their next duty.
-Stock is shown in F1's A-Life section; pricing and market settlement remain
+Stock is shown in F6's A-Life section; pricing and market settlement remain
 separate work. NPCs and the player use the same drill damage, ore drop table,
 power rules and pickup transport. Ordinary drilled debris keeps its existing
 fragmentation behavior; industrial chunks are consumed once into their ore.
@@ -876,7 +881,7 @@ screenshot into LÖVE's save directory.
 
 ## Simulation history
 
-F1 → **Simulation history** shows the newest 40 observations from a saved,
+F6 → **Simulation history** shows the newest 40 observations from a saved,
 bounded history of 256 entries. This first slice covers combat starting and
 ending, NPC deaths, and wreck creation; it does not generate contracts or change
 NPC decisions. Entries contain universe-clock timestamps, area and participant
