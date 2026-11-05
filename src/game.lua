@@ -2275,6 +2275,11 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
 	}
+	-- Who this was, for the loot window: hull, ship type and the A-Life record.
+	if ship.def or ship.alifeId then
+		local rec = ship.alifeId and self.universe and self.universe.npcs and self.universe.npcs[ship.alifeId]
+		h.origin = { hull = hull.name, type = ship.def and ship.def.name, role = rec and rec.role or ship.alifeRole, npc = ship.alifeId }
+	end
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
 	if #hull.parts > 1 then
 		self:breakablePieces(h, ship)
@@ -2358,7 +2363,7 @@ function Game:restoreHusk(r, hull, hold)
 	local h = { kind = "husk", id = self:nextId(), team = 0, hull = hull, body = body,
 		hold = hold, loot = Hold.totals(hold), color = r.color, spine = r.spine,
 		noseX = r.noseX, tailX = r.tailX, halfLength = r.halfLength, radius = r.radius,
-		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase }
+		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin }
 	if r.part then
 		h.part = hull.parts[r.part]
 		if not h.part then body:destroy(); return nil end

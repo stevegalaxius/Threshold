@@ -277,6 +277,8 @@ T.npcFuelStopRetry=600
 T.launchClearance=60
 -- Physics categories: loose pickups collide with world geometry, not ships.
 T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
+-- Seconds a dead/escaped NPC record lingers (unreferenced) before removal.
+T.alifeGoneLinger=300
 
 T.salvagerPopulation,T.salvagerLoad,T.salvagerCollectTime=1,8,30
 T.salvagerRange,T.salvagerStay=6000,30

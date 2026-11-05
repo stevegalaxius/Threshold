@@ -778,6 +778,26 @@ function A.wake(game,r)
  return e
 end
 
+-- Dead and escaped records stay only while something still points at them
+-- (a live fight, a target, a task they own), plus a short linger for
+-- history and debug views; then they are dropped so the universe stops growing.
+function A.pruneGone(u,clock,online)
+ local referenced={}
+ for _,r in pairs(u.npcs or {}) do
+  if r.state~='dead' and r.state~='escaped' then
+   if r.encounter and r.encounter.target then referenced[r.encounter.target]=true end
+   if r.targetId then referenced[r.targetId]=true end
+  end
+ end
+ for _,o in pairs(u.tasks and u.tasks.offers or {}) do if o.owner then referenced[o.owner]=true end end
+ for id,r in pairs(u.npcs or {}) do
+  if (r.state=='dead' or r.state=='escaped') and not (online and online[id]) and not referenced[id] then
+   r.goneAt=r.goneAt or clock
+   if clock-r.goneAt>=T.alifeGoneLinger then u.npcs[id]=nil end
+  end
+ end
+end
+
 function A.install(Game)
  function Game:traderCanDepart(e,station)
   local salvager=self.universe.npcs[e.alifeId]
@@ -877,6 +897,7 @@ function A.install(Game)
   Population.update(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
+  A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
   for id,e in pairs(self.alifeOnline) do

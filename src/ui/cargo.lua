@@ -112,7 +112,16 @@ local function sides(game)
 		end
 	elseif Cargo.loot then
 		local e = Cargo.loot
-		table.insert(list, { title = e.kind == "husk" and "Wreck" or "Container", hold = e.hold, entity = e })
+		local title = e.kind == "husk" and "Wreck" or "Container"
+		local o = e.origin
+		if o then
+			-- e.g. "Wreck · Freighter (Ferrous Freighter) · trader npc/47"
+			title = title .. " \194\183 " .. (o.type and (o.type .. (o.hull and o.hull ~= o.type and " (" .. o.hull .. ")" or "")) or o.hull or "?")
+			if o.npc then title = title .. " \194\183 " .. (o.role and (o.role .. " ") or "") .. o.npc end
+		elseif e.kind == "husk" and e.hull and e.hull.name then
+			title = title .. " \194\183 " .. e.hull.name
+		end
+		table.insert(list, { title = title, hold = e.hold, entity = e })
 	end
 	-- an opened container, if it's still in one of the holds on show
 	-- (Cargo.inner is the container's own hold: the stack table holding it

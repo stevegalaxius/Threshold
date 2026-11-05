@@ -96,7 +96,7 @@ end
 local function wreck(u,r,clock)
  local fight=r.encounter
  u.alifeWrecks=u.alifeWrecks or {}
- u.alifeWrecks[r.id]={id=r.id,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
+ u.alifeWrecks[r.id]={id=r.id,role=r.role,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
   progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
   ship=copy(r.ship),archetype=r.archetype}
  r.state='dead';r.ship.armor=0
@@ -198,6 +198,7 @@ function E.materialize(game,px,py,clock)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
     local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
     ship.body:destroy();husk.alifeWreckId=id;husk.historyWreckId=w.historyWreckId
+    husk.origin=husk.origin or {};husk.origin.npc=w.npcId or id;husk.origin.role=w.role or husk.origin.role
     u.alifeWrecks[id]=nil
    end
   end

@@ -112,7 +112,7 @@ local function record(game, e)
 		angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
 		mass = { mx, my, mass, inertia }, linearDamping = body:getLinearDamping(),
 		angularDamping = body:getAngularDamping(), hp = e.hp, radius = e.radius,
-		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId }
+		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId, origin = P.copy(e.origin) }
 	if e.kind == "container" then
 		r.item = e.item
 	else
