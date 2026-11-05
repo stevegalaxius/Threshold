@@ -368,7 +368,7 @@ function fileBrowser(E, cat, builtIn)
 	local d = E.design
 	E.browseDir = E.browseDir or ""
 	local dir = E.browseDir
-	if dir ~= "" and not love.filesystem.getInfo(Export.FOLDER .. "/" .. dir, "directory") then E.browseDir, dir = "", "" end
+	if dir ~= "" and not Export.isFolder(dir) then E.browseDir, dir = "", "" end
 
 	Slab.Text("Files")
 	if cat == "hull" then
@@ -386,10 +386,10 @@ function fileBrowser(E, cat, builtIn)
 	if Slab.Button("Save", { Tooltip = "Writes " .. d.id .. ".lua into the folder below.\nSaving over the same id replaces it; saving into another folder moves it." }) then
 		E.pushUndo(); d.folder = dir; E.export()
 	end
-	Slab.Text("Saves as " .. (dir == "" and "" or dir .. "/") .. d.id .. ".lua", { Color = GREY })
+	Slab.Text("Saves to " .. Export.path(dir) .. "/" .. d.id .. ".lua", { Color = GREY })
 
 	-- where you are, and the way up
-	Slab.Text("Folder: /" .. dir)
+	Slab.Text("Folder: " .. (dir == "" and "shipyard" or dir:match("^@") and dir:gsub("^@([^/]+)", "mod %1") or "shipyard/" .. dir))
 	if dir ~= "" then
 		Slab.SameLine()
 		if Slab.Button("Up", { H = 18 }) then E.browseDir = dir:match("^(.*)/[^/]*$") or "" ; E.confirmDelete = nil end
@@ -413,6 +413,8 @@ function fileBrowser(E, cat, builtIn)
 			else
 				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
 				label = def and (def.name .. "  (" .. e.id .. ")") or (e.id .. "  (loads on restart)")
+				-- two files with one id: the later-loaded one is the one in the game
+				if def and def.source and def.source ~= e.path then label = label .. "  (same id as " .. def.source:gsub("^mods/", "") .. ", which is in use)" end
 				if e.id == d.id then label = "> " .. label end
 			end
 			if E.confirmDelete == e.rel then
@@ -421,7 +423,7 @@ function fileBrowser(E, cat, builtIn)
 				Slab.SameLine()
 				if Slab.Button("No", { H = 18 }) then E.confirmDelete = nil end
 			else
-				if Slab.Button("x", { W = 18, H = 18, Tooltip = e.dir and "Delete this folder (must be empty)" or "Delete this saved design" }) then E.confirmDelete = e.rel end
+				if e.mod then Slab.Text("   ") elseif Slab.Button("x", { W = 18, H = 18, Tooltip = e.dir and "Delete this folder (must be empty)" or "Delete this saved design" }) then E.confirmDelete = e.rel end
 				Slab.SameLine()
 				if Slab.TextSelectable(label) then
 					if e.dir then E.browseDir = e.rel; E.confirmDelete = nil

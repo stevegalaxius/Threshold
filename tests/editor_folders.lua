@@ -23,5 +23,26 @@ return function(game)
  E.deleteSaved('tests/fighters')
  E.deleteSaved('tests')
  check(not love.filesystem.getInfo(Export.FOLDER..'/tests'),'folders deleted')
+ -- files copied in by hand show up without any editor action
+ local src=Export.source(E.design)
+ Export.list(); love.filesystem.createDirectory(Export.FOLDER..'/handcopy')
+ love.filesystem.write(Export.FOLDER..'/handcopy/foldertest_ship.lua',src)
+ love.timer.sleep(1.1)
+ local seen=false
+ for _,e in ipairs(Export.list()) do if e.rel=='handcopy/foldertest_ship.lua' then seen=true end end
+ check(seen,'hand-copied file listed')
+ -- another mod's data folder is browsable
+ love.filesystem.createDirectory('mods/zz_handmod/data/ships')
+ love.filesystem.write('mods/zz_handmod/data/ships/foldertest_ship.lua',src)
+ Export.refresh(); local modDir,modFile=false,false
+ for _,e in ipairs(Export.list()) do
+  if e.rel=='@zz_handmod' and e.dir then modDir=true end
+  if e.rel=='@zz_handmod/ships/foldertest_ship.lua' and e.path=='mods/zz_handmod/data/ships/foldertest_ship.lua' then modFile=true end
+ end
+ check(modDir and modFile,'other mod listed')
+ check(Export.isFolder('@zz_handmod/ships'),'mod subfolder resolves')
+ check(not Export.remove('@zz_handmod'),'mod root protected')
+ love.filesystem.remove('mods/zz_handmod/data/ships/foldertest_ship.lua'); love.filesystem.remove('mods/zz_handmod/data/ships'); love.filesystem.remove('mods/zz_handmod/data'); love.filesystem.remove('mods/zz_handmod')
+ love.filesystem.remove(Export.FOLDER..'/handcopy/foldertest_ship.lua'); love.filesystem.remove(Export.FOLDER..'/handcopy')
  print(('EDITOR FOLDERS TEST PASSED (%d checks)'):format(checks))
 end

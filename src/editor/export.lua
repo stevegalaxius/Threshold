@@ -268,23 +268,39 @@ end
 function Export.cleanFolder(folder)
 	local parts = {}
 	for seg in tostring(folder or ""):gmatch("[^/\\]+") do
-		if seg ~= "." and seg ~= ".." then table.insert(parts, (seg:gsub("[^%w_%-%.]", "_"))) end
+		if seg ~= "." and seg ~= ".." then
+			-- "@name" at the front means another mod's data folder
+			local mod = #parts == 0 and seg:sub(1, 1) == "@"
+			seg = seg:gsub("[^%w_%-%.]", "_")
+			table.insert(parts, mod and ("@" .. seg:sub(2)) or seg)
+		end
 	end
 	return table.concat(parts, "/")
 end
 
+-- rel -> path in the save folder. "ships/x.lua" is in the Shipyard's own
+-- mod; "@other/ships/x.lua" is in mods/other/data.
 local function full(rel)
 	rel = Export.cleanFolder(rel)
+	local mod, rest = rel:match("^@([^/]+)/?(.*)$")
+	if mod then return "mods/" .. mod .. "/data" .. (rest ~= "" and ("/" .. rest) or "") end
 	return rel == "" and Export.FOLDER or (Export.FOLDER .. "/" .. rel)
+end
+Export.path = full
+
+function Export.isFolder(rel)
+	return love.filesystem.getInfo(full(rel), "directory") ~= nil
 end
 
 -- Every folder and design file under the export folder, in tree order:
 -- { rel = "ships/x.lua", name = "x.lua", dir = false, depth = 1, folder = "ships", id = "x" }.
--- Cached: the panel asks every frame; anything that changes the files clears it.
-local listCache
+-- Cached for a second: the panel asks every frame, and files copied in by
+-- hand while the game runs still show up straight after.
+local listCache, listTime
 function Export.refresh() listCache = nil end
 function Export.list()
-	if listCache then return listCache end
+	local now = love.timer.getTime()
+	if listCache and now - listTime < 1 then return listCache end
 	local out = {}
 	local function walk(rel, depth)
 		local items = love.filesystem.getDirectoryItems(full(rel))
@@ -299,7 +315,7 @@ function Export.list()
 				-- file was renamed by hand); the name is the fallback
 				local head = love.filesystem.read(full(rel) .. "/" .. name, 2048) or ""
 				local id = head:match('%f[%w_]id%s*=%s*"([^"]+)"') or name:gsub("%.lua$", "")
-				table.insert(files, { rel = r, name = name, id = id })
+				table.insert(files, { rel = r, name = name, id = id, path = full(rel) .. "/" .. name })
 			end
 		end
 		for _, d in ipairs(dirs) do
@@ -307,11 +323,20 @@ function Export.list()
 			walk(d.rel, depth + 1)
 		end
 		for _, f in ipairs(files) do
-			table.insert(out, { rel = f.rel, name = f.name, id = f.id, dir = false, depth = depth, folder = rel })
+			table.insert(out, { rel = f.rel, name = f.name, id = f.id, path = f.path, dir = false, depth = depth, folder = rel })
 		end
 	end
 	if love.filesystem.getInfo(Export.FOLDER, "directory") then walk("", 0) end
-	listCache = out
+	-- other mods' data folders, as folders at the top
+	local mods = love.filesystem.getDirectoryItems("mods")
+	table.sort(mods)
+	for _, mod in ipairs(mods) do
+		if mod ~= "shipyard" and love.filesystem.getInfo("mods/" .. mod .. "/data", "directory") then
+			table.insert(out, { rel = "@" .. mod, name = "mod: " .. mod, dir = true, mod = true, depth = 0, folder = "" })
+			walk("@" .. mod, 1)
+		end
+	end
+	listCache, listTime = out, now
 	return out
 end
 
@@ -342,6 +367,7 @@ end
 function Export.remove(rel)
 	rel = Export.cleanFolder(rel)
 	if rel == "" then return nil, "can't delete the export folder itself" end
+	if rel:match("^@[^/]+$") then return nil, "can't delete a mod's data folder from here" end
 	local path = full(rel)
 	local info = love.filesystem.getInfo(path)
 	if not info then return nil, rel .. " is already gone" end
