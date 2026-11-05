@@ -111,5 +111,66 @@ return function(game)
  game:undockShip(big)
  check(not big.dockState and big.body:isActive(),'berthed ship could not undock')
  dock.hw=oldWidth
+ -- All arriving ships use grid capacity, including physical and restored NPCs.
+ game:captureALife(true)
+ local w,h=game.hangarFootprint('halcyon_wisp')
+ st.def.hangar={w=w,h=h};game:stationRecord(st).hangar={}
+ for i,berth in ipairs(st.def.berths) do berth.size=i<=3 and 2000 or 0 end
+ local function npc(hull)
+  local e=Ship.new(game,{hull=hull,team=3})
+  table.insert(game.entities,e);return e
+ end
+ local small=npc('halcyon_wisp')
+ check(game:dockInstantly(small,st) and small.bay and not small.dockState.berth,
+  'small NPC ignored a free hangar-grid slot')
+ local second=npc('halcyon_wisp')
+ check(game:dockInstantly(second,st) and second.dockState.berth and not second.bay,
+  'second NPC reused occupied hangar cells')
+ game:undockShip(small)
+ check(not small.bay and game:hangarFit(st,'halcyon_wisp'),'NPC departure did not release its grid reservation')
+ check(game:dockInstantly(game.player,st) and game.player.bay and not game.player.dockState.berth,
+  'player did not follow the same grid-fit rule')
+ for _,door in ipairs(st.docks or {st.dock}) do door.hw=2000 end
+ local large=npc('ferrous_freighter')
+ check(game:fitsDock(large,st.dock) and not game:hangarFit(st,large.hull.id),
+  'large-ship fixture must fit the door but exceed the grid')
+ check(game:dockInstantly(large,st) and large.dockState.berth and not large.bay,
+  'door width bypassed the large ship grid limit')
+ game:undockShip(game.player)
+ local arriving=npc('halcyon_wisp')
+ local dx,dy=game.dockWorld(st,1,st.dock.x2+arriving.halfLength+40,0,st.dock)
+ arriving.body:setPosition(dx,dy);arriving.body:setLinearVelocity(0,0)
+ game:beginDocking(arriving,st,1,st.dock);game:updateDockedShip(arriving,1/120)
+ check(arriving.dockState.phase=='pull' and arriving.bay and not arriving.dockState.berth,
+  'physical NPC arrival preferred an exterior berth over a free grid slot')
+ game:updateDockedShip(arriving,10)
+ local full=npc('halcyon_wisp')
+ check(game:dockInstantly(full,st) and full.dockState.berth and not full.bay,
+  'full hangar did not fall back to an exterior slot')
+ local refused=npc('halcyon_wisp')
+ check(not game:dockInstantly(refused,st) and not refused.dockState and not refused.bay,
+  'full station admitted a ship without a real parking slot')
+ -- Restoring an NPC must not overwrite an exterior fallback with its old
+ -- interior pose when the grid is now occupied.
+ game:undockShip(full)
+ local record
+ for _,r in pairs(game.universe.npcs) do if r.role=='trader' and r.home=='earth' then record=r;break end end
+ assert(record)
+ local A=require('src.alife')
+ record.state='docked';record.area='earth';record.route={st.locationId,st.locationId};record.index=1
+ record.untilTime=game.universe.clock+60;record.taskWorker=nil;record.task=nil
+ record.encounter=nil;record.piracy=nil;record.worldRecovery=nil;record.waitingForHome=nil;record.driverState=nil
+ record.ship.hull='halcyon_wisp';record.ship.loadout=require('src.data').hulls.halcyon_wisp.loadout
+ record.ship.hold=nil;record.ship.cargo={};record.ship.fuelInitialized=true;record.ship.fuelCharge=100;record.power=60
+ local ix,iy=game.dockWorld(st,1,(st.dock.x1+st.dock.x2)/2,0,st.dock)
+ record.pose={x=ix,y=iy,a=0,vx=0,vy=0,w=0,clock=game.universe.clock}
+ record.docking={phase='done',done=true,t=0,stay=60,side=1,dockIndex=1}
+ local restored=A.wake(game,record)
+ check(restored.dockState and restored.dockState.berth and not restored.bay,
+  'saved NPC interior state overwrote its valid exterior fallback')
+ local berth=st.def.berths[restored.dockState.berth]
+ local ex,ey=st.body:getWorldPoint(berth.x,berth.y)
+ local rx,ry=restored.body:getPosition()
+ check(near(ex,rx) and near(ey,ry),'restored NPC kept its old interior pose on an exterior berth')
  print(('BERTH TEST PASSED (%d checks)'):format(checks))
 end

@@ -100,12 +100,17 @@ function Game:dockInstantly(e, st, placement)
 	placement = placement or {}
 	local d = placement.dock or (st.docks or {})[placement.dockIndex] or st.dock
 	local side = placement.side or 1
- if placement.interior then
-  for _,candidate in ipairs(st.docks or {st.dock}) do if self:fitsDock(e,candidate) then d=candidate;break end end
- end
  local parking=placement.parking
+ if not parking and placement.bay then parking={bay=placement.bay} end
  if not parking and placement.parkingMooring then parking={mooring=placement.parkingMooring} end
  local wantsBerth=parking and parking.mooring or placement.berth or placement.mooring
+ if not wantsBerth then
+  local fit=self:hangarFit(st,e.hull.id,e)
+  if fit then
+   local preferred=parking and parking.bay
+   parking={bay=preferred and self:hangarFree(st,e,e.hull.id,preferred) and preferred or fit}
+  else parking=nil;wantsBerth=true end
+ end
  local berth
  local previous=st.def.berths and st.def.berths[placement.berth]
  if parking and parking.mooring then
@@ -113,7 +118,7 @@ function Game:dockInstantly(e, st, placement)
   if slot then previous=st.def.berths[slot.berth] end
  end
  if previous then e.body:setPosition(st.body:getWorldPoint(previous.x,previous.y)) end
- if wantsBerth or not placement.interior and not self:fitsDock(e,d) then
+ if wantsBerth then
   berth=self:freeBerth(st,e)
   if not berth then
    -- Old overflow assignments are not valid parking. Leave the ship at
@@ -121,7 +126,7 @@ function Game:dockInstantly(e, st, placement)
    local x,y=self.dockWorld(st,side,d.x2+e.halfLength+60,0,d)
    e.body:setPosition(x,y);e.body:setActive(true)
    e.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(x,y))
-   e.dockState=nil
+   e.dockState=nil;e.bay,e.mooring,e.parkingMooring,e.bayStation=nil,nil,nil,nil
    if e==self.player then
     self:applyParking(e,nil);self.state='playing'
     self.camera.x,self.camera.y=x,y
@@ -131,7 +136,12 @@ function Game:dockInstantly(e, st, placement)
   end
   parking={mooring=berth}
  end
+ if parking and parking.bay and not self:fitsDock(e,d) then
+  for _,candidate in ipairs(st.docks or {st.dock}) do if self:fitsDock(e,candidate) then d=candidate;break end end
+ end
+ self:applyParking(e,parking);e.bayStation=st.key
 	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth }
+ for i,candidate in ipairs(st.docks or {st.dock}) do if candidate==d then e.dockState.dockIndex=i end end
 	e.body:setActive(false)
 	if berth then
 		local b = st.def.berths[berth]
@@ -224,8 +234,8 @@ function Game.hangarFootprint(hullId, rot)
 	return w, h
 end
 
--- The station's bay as a grid of everything parked in it (and the ship
--- you're docked in), leaving out `ignore` (a record, or the player).
+-- One occupied grid for stored ships and docked player/NPC ships, including
+-- ships currently being pulled inside. Leave out `ignore` when checking itself.
 function Game:hangarGrid(st, ignore)
 	local w,h=Game.hangarSize(st)
 	local g = Grid.new(w,h,"Interior hangar")
@@ -235,8 +245,11 @@ function Game:hangarGrid(st, ignore)
 		if Grid.isFree(g, bay.x, bay.y, w, h) then Grid.place(g, { x = bay.x, y = bay.y, w = w, h = h, owner = owner }) end
 	end
 	for _, rec in ipairs(self:stationRecord(st).hangar) do put(rec, rec.hull, rec.bay) end
-	local p = self.player
-	if p and not p.dead and p.dockState and p.dockState.station == st then put(p, p.hull.id, p.bay) end
+	for _,e in ipairs(self.entities) do
+		if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station.key==st.key then
+			put(e,e.hull.id,e.bay)
+		end
+	end
 	return g
 end
 
@@ -255,7 +268,7 @@ function Game:hangarFit(st, hullId, ignore)
 	end
 end
 
--- Can this ship (a record, or the player) sit at bay?
+-- Can this ship (a record, the player, or an NPC) sit at bay?
 function Game:hangarFree(st, owner, hullId, bay)
 	local w, h = Game.hangarFootprint(hullId, bay.rot)
 	return Grid.isFree(self:hangarGrid(st, owner), bay.x, bay.y, w, h)

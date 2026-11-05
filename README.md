@@ -507,7 +507,9 @@ out to its buoy.
 
 Berths accept ships up to three times their authored pad half-length; the
 editor marker keeps its existing dimensions. `T.berthShipScale` controls this
-capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
+capacity multiplier. Players and NPCs use the same admission rule: a ship
+with a free footprint in the station's hangar grid and a usable doorway enters
+the interior; otherwise it needs the nearest unoccupied exterior berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
 ship does not fit, it uses the nearest suitable free berth. Ships that fit the
 corridor and hangar grid can use the station interior; oversized ships use a
@@ -516,7 +518,11 @@ moving the ship to a generated overflow position. Berths provide normal station
 access and survive saves and ship switching; undocking launches from that position.
 Saves retain the player's berth or mooring, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
-save/load, and refusal when no suitable berth is available.
+save/load, shared NPC/player grid occupancy, and refusal when no suitable
+parking is available. Docked NPCs reserve grid cells just like stored ships and
+release them when departing. Restored NPCs keep only parking assignments that
+remain valid. Offline station visits are still timed abstractions; advance
+reservations and a station-wide docking queue are not implemented.
 
 Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
 use the Moon's round rocky surface treatment: cratered terrain in each world's

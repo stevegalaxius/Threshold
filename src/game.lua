@@ -1086,6 +1086,7 @@ end
 
 function Game:beginDocking(e, st, side, dock)
 	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1, dock = dock or st.dock }
+ for i,candidate in ipairs(st.docks or {st.dock}) do if candidate==e.dockState.dock then e.dockState.dockIndex=i end end
 	-- the player keeps the stick while the beam works (like a mass
 	-- driver's): it can be fought, overshot or slid out of
 	if e ~= self.player then
@@ -1221,15 +1222,16 @@ function Game:updateDockedShip(e, dt)
 		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
-			local interior=e==self.player and self:hangarFit(st,e.hull.id,e)
+			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
 			local berth=not interior and self:freeBerth(st,e)
+			e.bay=interior or nil;e.bayStation=st.key
 			if berth then
     local bd=st.def.berths[berth]
     ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,nil
 				ds.lx,ds.ly=sb:getLocalPoint(x,y)
 				ds.la=b:getAngle()-sb:getAngle()
 				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
-			elseif self:fitsDock(e,d) and (e~=self.player or interior) then
+			elseif interior then
 				ds.phase,ds.t='pull',0
 				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
 			else
@@ -1305,7 +1307,7 @@ function Game:undockShip(e)
 	e.body:setLinearVelocity(svx + ox * speed, svy + oy * speed)
 	e.body:setAngularVelocity(sb:getAngularVelocity())
 	e.dockState = nil
-	if e==self.player then e.bay,e.parkingMooring,e.bayStation=nil,nil,nil end
+	e.bay,e.mooring,e.parkingMooring,e.bayStation=nil,nil,nil,nil
 	e.dockCooldown = 4
 	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }

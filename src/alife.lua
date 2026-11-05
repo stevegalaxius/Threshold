@@ -639,11 +639,12 @@ function A.wake(game,r)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
-  game:dockInstantly(e,st)
+  game:dockInstantly(e,st,r.docking)
   if e.dockState then
    e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
-   if exact and r.docking then
-    e.dockState=copy(r.docking); e.dockState.station=st
+   if exact and r.docking and r.docking.berth==e.dockState.berth then
+    local dock=e.dockState.dock
+    e.dockState=copy(r.docking); e.dockState.station=st;e.dockState.dock=dock
     e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
     e.body:setActive(e.dockState.phase=='tractor')
    end
