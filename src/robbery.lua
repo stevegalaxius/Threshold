@@ -8,7 +8,7 @@
 -- same outcome as an instant handover.
 local T=require('src.tuning')
 local data=require('src.data')
-local events=require('src.events')
+local Handover=require('src.handover')
 local R={}
 
 -- Trade goods: everything but ammunition and reactor fuel.
@@ -30,10 +30,18 @@ local function announce(game,pirate,target,text)
  if target.isPlayer then game:toast(text,2.5,nil,true) end
 end
 
+local function isGood(id)
+ local item=data.items[id]
+ return item and not item.shot and id~=require('src.reactor_fuel').item() or false
+end
+local function demandOf(pirate)
+ local d=pirate.request
+ return d and d.kind=='robbery' and not d.closed and d or nil
+end
 -- Is pirate still waiting on target's answer (so holds fire)?
 function R.pending(pirate)
- local d=pirate.demand
- return d and not d.refused and d.target and not d.target.dead and not d.target.removed or false
+ local d=demandOf(pirate)
+ return d and not d.refused and not Handover.gone(d.giver) or false
 end
 
 -- The pirate has (re)chosen target; returns true if it should still shoot it.
@@ -42,18 +50,17 @@ function R.consider(game,pirate,target)
  local civilian=target.isPlayer or target.npcRole and require('src.security').prey(target)
  if not civilian then return true end
  pirate.spared=pirate.spared or setmetatable({},{__mode='k'})
- local d=pirate.demand
- if d and d.target==target then
+ local d=demandOf(pirate)
+ if d and d.giver==target then
   if d.refused then return true end
-  local left=goods(target)
-  if d.paid>=d.amount or left==0 then
+  if Handover.met(d) or goods(target)==0 then
    pirate.spared[target]=game.time+T.robberySpare
-   pirate.demand=nil;target.robbedBy=nil
+   Handover.close(d)
    pirate.combatTarget,pirate.lock=nil,nil
    announce(game,pirate,target,name(pirate)..': WISE CHOICE. MOVE ALONG.')
    return false
   end
-  if game.time>=d.deadline then
+  if Handover.expired(game,d) then
    d.refused=true
    announce(game,pirate,target,name(pirate)..': YOU WERE WARNED.')
    return true
@@ -64,12 +71,12 @@ function R.consider(game,pirate,target)
   end
   return false
  end
+ if d then Handover.close(d) end
  local have=goods(target)
  if have==0 then pirate.spared[target]=game.time+T.robberySpare;return false end
- pirate.demand={target=target,amount=math.max(1,math.ceil(have*T.robberyShare)),paid=0,
-  deadline=game.time+T.robberyWindow,started=game.time}
- target.robbedBy=pirate
- announce(game,pirate,target,('%s: JETTISON %d CARGO OR BE FIRED UPON'):format(name(pirate),pirate.demand.amount))
+ if target.asked then return true end   -- already handing something over to someone
+ d=Handover.open(game,'robbery',pirate,target,math.max(1,math.ceil(have*T.robberyShare)),T.robberyWindow,isGood)
+ announce(game,pirate,target,('%s: JETTISON %d CARGO OR BE FIRED UPON'):format(name(pirate),d.amount))
  return false
 end
 
@@ -78,21 +85,12 @@ function R.isSpared(game,pirate,o)
  return t and game.time<t or false
 end
 
--- Count what a robbed ship throws out.
-events.on('eject',function(e,id,count)
- local pirate=e.robbedBy
- local d=pirate and pirate.demand
- if not d or d.target~=e then return end
- local item=data.items[id]
- if item and not item.shot and id~=require('src.reactor_fuel').item() then d.paid=d.paid+count end
-end)
-
 -- An NPC victim's answer, decided once per demand by the offline rule's
 -- odds (with any covering station's guns on its side).
 function R.respond(game,e)
- local pirate=e.robbedBy
- local d=pirate and pirate.demand
- if not d or d.target~=e or d.answered or pirate.dead or pirate.removed then return end
+ local d=e.asked
+ if not d or d.kind~='robbery' or d.closed or d.answered or Handover.gone(d.asker) then return end
+ local pirate=d.asker
  d.answered=true
  local E=require('src.encounters')
  local mine=game.universe.npcs[e.alifeId];local theirs=game.universe.npcs[pirate.alifeId]
@@ -103,20 +101,9 @@ function R.respond(game,e)
   odds=E.odds(mine,theirs,guns*T.offlineStationAccuracy)
  end
  if odds>=T.offlineEngageOdds then e.aggressor=pirate;return end
- -- comply: dump the demanded share, smallest stacks of goods first
- local need=d.amount
+ -- comply: dump the demanded share of goods
  local _,list=goods(e)
- for _,id in ipairs(list) do
-  if need<=0 then break end
-  local n=math.min(need,e.cargo[id] or 0)
-  if n>0 then
-   if e.hold then require('src.inventory.hold').take(e.hold,id,n);e.cargo=require('src.inventory.hold').totals(e.hold)
-   else e.cargo[id]=e.cargo[id]-n;if e.cargo[id]<=0 then e.cargo[id]=nil end end
-   require('src.ship').updateMass(e)
-   game:eject(e,id,n)
-   need=need-n
-  end
- end
+ Handover.give(game,e,list,d.amount)
  if mine then mine.taskStatus='robbed by pirates' end
 end
 

@@ -169,9 +169,11 @@ T.offlineEscapeGain, T.offlineEscapeMax = 1.5, 0.8
 -- Robbery (robbery.lua): share of trade goods a pirate demands, seconds to
 -- comply, seconds a complying ship is spared afterwards.
 T.robberyShare, T.robberyWindow, T.robberySpare = 0.5, 15, 120
--- Upkeep (upkeep.lua): seconds an NPC sits stranded before an emergency
--- fuel drop, and how many units of reactor fuel it brings.
-T.npcRescueDelay, T.npcRescueFuel = 300, 2
+-- Distress (distress.lua): how far a stranded ship's call reaches online,
+-- seconds between calls, seconds a helper has to deliver, and the share of
+-- its normal fuel reserve a stranded ship asks for.
+T.distressRange, T.distressRetry, T.distressWindow, T.distressShare = 20000, 30, 120, 0.5
+T.distressMinSpare = 3   -- units of fuel a helper must be able to spare
 T.offlineStationAccuracy = 0.5   -- turret hit chance offline
 T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800

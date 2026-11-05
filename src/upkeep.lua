@@ -88,23 +88,6 @@ function U.finish(r,at)
  if U.need(r) then r.nextServiceAt=at+T.npcFuelStopRetry end
 end
 
--- An NPC whose reactor and capacitor are both dry gets an emergency fuel
--- drop once it has waited long enough; upkeep then sends it to refuel.
-function U.rescue(r,clock)
- if r.fuelStatus~='stranded' or not Fuel.needsPropulsion(r) then r.strandedAt=nil;return false end
- r.strandedAt=r.strandedAt or clock
- if clock-r.strandedAt<T.npcRescueDelay then return false end
- r.strandedAt=nil
- Fuel.withRecord(r,function(e)
-  local n=math.max(T.npcRescueFuel,math.ceil((Supplies.targets(r)[Fuel.item()] or 0)*.5))
-  if e.hold then n=require('src.inventory.hold').add(e.hold,Fuel.item(),n);e.cargo=require('src.inventory.hold').totals(e.hold)
-  else e.cargo[Fuel.item()]=(e.cargo[Fuel.item()] or 0)+n end
- end)
- r.taskStatus='emergency fuel delivered'
- Fuel.observe(nil,r,clock)
- return true
-end
-
 -- Offline: advance an active visit through elapsed events. Returns true when
 -- upkeep owned this update (the role must not run).
 function U.advance(r,clock,u)

@@ -323,6 +323,7 @@ function AI.think(game, e, dt)
  if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
   local x,y=e.body:getPosition();local a=e.body:getAngle()
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100
+  require("src.distress").stranded(game,e,record,dt)
   return
  end
  if record and e.route and not e.dockState then
@@ -537,7 +538,8 @@ end
 -- A pirate waiting on a robbery demand keeps its guns quiet.
 local think=AI.think
 function AI.think(game,e,dt)
-	if e.robbedBy then require("src.robbery").respond(game,e) end
+	if e.asked then require("src.robbery").respond(game,e) end
+	if e.asked and require("src.distress").helper(game,e,dt,AI) then return end
 	think(game,e,dt)
 	if e.alifeRole=='pirate' and require("src.robbery").pending(e) then
 		local it=e.intent

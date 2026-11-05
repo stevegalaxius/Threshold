@@ -235,7 +235,7 @@ end
 
 function A.advance(r,clock,u,game)
  local fuelStatus=Fuel.advance(r,clock,u)
- if Upkeep.rescue(r,clock) then fuelStatus=r.fuelStatus end
+ if fuelStatus=='stranded' and require('src.distress').advance(game,r,clock) then fuelStatus=r.fuelStatus end
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
  -- Upkeep comes before every role: a due service visit owns the ship.
@@ -868,12 +868,19 @@ function A.install(Game)
     A.capture(self,e,true)
     local r=records[id]
     start(r,clock,r.index%#r.route+1)
+    if not r.transit then
+     -- the record's next leg isn't the crossing the ship reached (its
+     -- itinerary changed under it): hand it to the record, which has
+     -- already started that leg
+     self:remove(e,true);self.alifeOnline[id]=nil
+    else
     r.transit.speed=r.transit.kind=='driver' and T.laneFlow or math.max(50,math.sqrt(vx*vx+vy*vy))
     r.arrive=clock+r.transit.length/r.transit.speed
     e.alifeDepart=nil; e.alifeEgress=true; e.route=nil
     e.egressHeading=e.driverProtected and math.atan2(vy,vx) or math.atan2(y,x); e.egressSpeed=math.max(r.transit.speed,r.speed*.6)
     e.intent=Ship.emptyIntent()
     A.capture(self,e,true)
+    end
    elseif not e.driverTractor and not e.launch and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2) then
     A.capture(self,e,false)
     if not e.removed then self:remove(e,true) end
