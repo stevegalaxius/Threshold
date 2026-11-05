@@ -294,7 +294,13 @@ function Export.list()
 			local r = rel == "" and name or (rel .. "/" .. name)
 			local info = love.filesystem.getInfo(full(rel) .. "/" .. name)
 			if info and info.type == "directory" then table.insert(dirs, { rel = r, name = name })
-			elseif name:match("%.lua$") then table.insert(files, { rel = r, name = name, id = name:gsub("%.lua$", "") }) end
+			elseif name:match("%.lua$") then
+				-- the id the file defines (it can differ from its name if the
+				-- file was renamed by hand); the name is the fallback
+				local head = love.filesystem.read(full(rel) .. "/" .. name, 2048) or ""
+				local id = head:match('%f[%w_]id%s*=%s*"([^"]+)"') or name:gsub("%.lua$", "")
+				table.insert(files, { rel = r, name = name, id = id })
+			end
 		end
 		for _, d in ipairs(dirs) do
 			table.insert(out, { rel = d.rel, name = d.name, dir = true, depth = depth, folder = rel })
