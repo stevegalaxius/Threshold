@@ -125,6 +125,7 @@ function Game:loadField(id, opts)
 	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
+	self.pickupBodies = {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
 	if self.travelGraphView then self.travelGraphView = require("src.travelgraph").build(id) end
@@ -2000,9 +2001,13 @@ function Game:updatePickups(dt)
 	end
 
 	local target = alive and p.tractorTarget
+	local bodies, seen = self.pickupBodies or {}, {}
+	self.pickupBodies = bodies
 	local i = 1
 	while i <= #list do
 		local k = list[i]
+		seen[k] = true
+		self:pickupBody(k)
 		k.spin = k.spin + dt * 1.5
 		-- slow down relative to the current (around a planet they drift
 		-- with it like everything else)
@@ -2020,13 +2025,53 @@ function Game:updatePickups(dt)
 		if collector and collector.tractorTarget==k and collector.intent.tractor then
 			remove=require("src.tractor").pull(self,collector,k,dt)
 		end
-		k.x, k.y = k.x + k.vx * dt, k.y + k.vy * dt
 		if remove then
 			list[i] = list[#list]; list[#list] = nil
+			seen[k] = nil
 		else
+			-- The physics step moves it next frame, against world geometry.
+			k.body:setLinearVelocity(k.vx, k.vy)
+			k.setVx, k.setVy = k.vx, k.vy
 			i = i + 1
 		end
 	end
+	-- Bodies whose pickups left the list (collected, despawned, reloaded).
+	for body, k in pairs(bodies) do
+		if not seen[k] then
+			if not body:isDestroyed() then body:destroy() end
+			bodies[body], k.body = nil, nil
+		end
+	end
+end
+
+-- Loose items are small dynamic circles that bounce off stations, rocks and
+-- wrecks but pass through ships and each other. The pickup table stays the
+-- record other systems read and write; this keeps its body in step with it.
+function Game:pickupBody(k)
+	local b = k.body
+	if b and not b:isDestroyed() then
+		local bx, by = b:getPosition()
+		if k.x == k.syncX and k.y == k.syncY then
+			k.x, k.y = bx, by
+		else
+			b:setPosition(k.x, k.y)          -- something else moved it
+		end
+		-- Keep velocity changes made elsewhere; add what collisions did.
+		local vx, vy = b:getLinearVelocity()
+		k.vx, k.vy = k.vx + vx - (k.setVx or vx), k.vy + vy - (k.setVy or vy)
+	else
+		b = love.physics.newBody(self.world, k.x, k.y, "dynamic")
+		local f = love.physics.newFixture(b, love.physics.newCircleShape(T.pickupRadius), 0.2)
+		f:setRestitution(0.3)
+		f:setFriction(0.4)
+		f:setCategory(T.collidePickup)
+		f:setMask(T.collideShip, T.collidePickup)
+		b:setLinearVelocity(k.vx, k.vy)
+		k.body, k.setVx, k.setVy = b, k.vx, k.vy
+		self.pickupBodies = self.pickupBodies or {}
+		self.pickupBodies[b] = k
+	end
+	k.syncX, k.syncY = k.x, k.y
 end
 
 -- An asteroid that took too much damage splits into two to four smaller

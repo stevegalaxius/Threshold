@@ -172,7 +172,14 @@ return function(game)
    check(near(immediate.x,game.pickups[i].x) and near(immediate.y,game.pickups[i].y),'immediate reload moved loot')
   end
   local seconds=3600
-  for _=1,seconds*120 do game:updatePickups(1/120) end
+  -- Loose items are physics bodies: the world step moves them.
+  -- Drift is compared in open space: this fixture's loot ignores the
+  -- field's random rocks, which would legitimately deflect it.
+  game:updatePickups(0)
+  for _,k in ipairs(game.pickups) do
+   for _,f in ipairs(k.body:getFixtures()) do f:setMask(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16) end
+  end
+  for _=1,seconds*120 do game.world:update(1/120);game:updatePickups(1/120) end
   local predicted={}
   for i,r in ipairs(savedCloud.pickups) do
    predicted[i]=Persistence.advanceRecord(r,seconds)

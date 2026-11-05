@@ -275,6 +275,8 @@ T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
 T.npcFuelStopRetry=600
 -- Extra gap between an undocking ship and traffic at its launch point.
 T.launchClearance=60
+-- Physics categories: loose pickups collide with world geometry, not ships.
+T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 
 T.salvagerPopulation,T.salvagerLoad,T.salvagerCollectTime=1,8,30
 T.salvagerRange,T.salvagerStay=6000,30

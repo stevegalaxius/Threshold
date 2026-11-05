@@ -200,5 +200,34 @@ return function(game)
   if not blocker.body:isDestroyed() then blocker.body:destroy() end
   check(game:launchBlocker(pl)==nil,'cleared launch point still reported traffic')
  end
+ -- Loose items hit station geometry but pass through ships.
+ do
+  local saved=game.pickups;game.pickups={}
+  local hub=game:locationEntity('station:earth_1')
+  local hx,hy=hub.body:getPosition()
+  game:spawnPickup(hx+1500,hy,'scrap',1)
+  local k=game.pickups[1];k.x,k.y=hx+1500,hy
+  local hit=false
+  for _=1,120*8 do
+   local svx,svy=hub.body:getLinearVelocityFromWorldPoint(k.x,k.y)
+   k.vx,k.vy=svx+(hx-k.x)/math.max(1,math.sqrt((hx-k.x)^2+(hy-k.y)^2))*300,svy+(hy-k.y)/math.max(1,math.sqrt((hx-k.x)^2+(hy-k.y)^2))*300
+   game:updatePickups(1/120);game.world:update(1/120)
+   for _,c in ipairs(k.body and k.body:getContacts() or {}) do if c:isTouching() then hit=true end end
+   hx,hy=hub.body:getPosition()
+   if hit then break end
+  end
+  check(hit,'loose item passed through station geometry')
+  game.pickups={}
+  local ship=Ship.new(game,{hull=game.player.hull.id,team=2})
+  ship.body:setPosition(hx+6000,hy+6000);local sx,sy=ship.body:getPosition()
+  game:spawnPickup(sx,sy,'scrap',1);k=game.pickups[1];k.x,k.y=sx,sy
+  game:updatePickups(1/120);game.world:update(1/120);game:updatePickups(1/120)
+  local touching=false
+  for _,c in ipairs(k.body:getContacts()) do local fa,fb=c:getFixtures();if c:isTouching() and (fa:getBody()==ship.body or fb:getBody()==ship.body) then touching=true end end
+  check(not touching,'loose item collided with a ship')
+  game.pickups={};game:updatePickups(0)
+  check(next(game.pickupBodies)==nil,'removed loose items left physics bodies behind')
+  ship.body:destroy();game.pickups=saved
+ end
  print(('BERTH TEST PASSED (%d checks)'):format(checks))
 end
