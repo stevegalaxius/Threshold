@@ -313,7 +313,8 @@ local function graphSection(game)
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
    if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
    if r.fuelStatus then Slab.Text('  Fuel: '..require('src.reactor_fuel').label(r)) end
-   if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end
+   local activity=require("src.reactor_fuel").activity(r)
+   if activity then Slab.Text("  Activity: "..activity) end
    if r.role=='salvager' then Slab.Text(('  Salvage earnings: %d cr'):format(r.salvageEarnings or 0)) end
    if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end

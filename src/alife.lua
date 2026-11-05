@@ -33,6 +33,9 @@ local function edge(r)
 end
 local function progress(r,clock)
  if r.encounter then return r.encounter.progress end
+ -- Fuel shifts the leg clock only when the record advances. Between updates,
+ -- an unpowered ship must not be drawn ahead of where it will be pulled back.
+ if (r.fuelStatus=='stranded' or r.fuelStatus=='empty') and r.fuelClock then clock=math.min(clock,r.fuelClock) end
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)

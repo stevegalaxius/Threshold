@@ -36,6 +36,17 @@ function F.condition(r,e)
  return 'normal'
 end
 function F.label(r) return r.fuelStatus and labels[r.fuelStatus] end
+-- What the ship is doing, for debug views: a fuel emergency outranks any
+-- earlier activity text such as a post-combat withdrawal.
+function F.activity(r)
+ if r.fuelStatus=='stranded' then return 'out of fuel: stranded, waiting for fuel' end
+ if r.fuelStop then
+  local place=require('src.locations').byId[r.fuelStop]
+  return 'heading to refuel at '..(place and place.name or r.fuelStop)
+ end
+ if r.fuelStatus=='empty' then return 'out of fuel: running on capacitor' end
+ return r.taskStatus
+end
 function F.needsPropulsion(r)
  return r.state~='docked' and not r.driverState
   and not (r.state=='transit' and r.transit and r.transit.kind=='driver')
@@ -64,6 +75,8 @@ function F.observe(u,r,clock,e)
  if e then e.fuelStatus=status end
  -- Clear only the old prototype's fuel-owned activity text, never a duty.
  if r.taskStatus=='out of reactor fuel' then r.taskStatus=nil end
+ -- A finished retreat must not linger as the ship's activity.
+ if r.taskStatus=='withdrawing after combat' and (r.retreatUntil or 0)<=clock then r.taskStatus=nil end
  return status
 end
 local function burn(e,need)

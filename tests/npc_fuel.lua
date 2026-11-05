@@ -140,5 +140,22 @@ return function(game)
  check(row and row.stranded and row.phase=='stranded in transit' and row.eta==nil,'monitor did not show a stranded transit')
  check(view.stranded>=1 and view.overdue==0,'stranded transit counted as an overdue arrival')
  game.universe.npcs[lost.id]=nil
+
+ -- A stranded offline ship is drawn where its next update will leave it.
+ local drift=copy(d);drift.id='npc/880005';drift.state='travel';drift.fuelStop=nil;drift.fuelRejoin=nil
+ drift.index=first;drift.route=copy(loop);drift.depart=0;drift.arrive=1000;drift.fuelClock=0
+ drift.ship.cargo={};drift.ship.fuelCharge=0;drift.power=0;drift.fuelStatus=nil
+ local dv={clock=0,npcs={[drift.id]=drift}}
+ A.advance(drift,0,dv)
+ local snap=0
+ for i=1,10 do
+  local c=i*2;local x,y=A.point(drift,c);A.advance(drift,c,dv);local x2,y2=A.point(drift,c)
+  snap=math.max(snap,math.sqrt((x-x2)^2+(y-y2)^2))
+ end
+ check(drift.fuelStatus=='stranded' and snap<1e-6,'stranded offline ship jittered on the map')
+
+ drift.taskStatus='withdrawing after combat';drift.retreatUntil=1
+ F.observe(dv,drift,30)
+ check(drift.taskStatus==nil and F.activity(drift):match('out of fuel'),'stale combat withdrawal hid the fuel emergency')
  print(('NPC FUEL LIFECYCLE TEST PASSED (%d checks)'):format(checks))
 end
