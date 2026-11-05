@@ -4,7 +4,7 @@ return function(game)
  local E=require('src.editor').state
  local checks=0
  local function check(ok,msg) assert(ok,msg); checks=checks+1 end
- check(Export.cleanFolder('a/../b c//d\\e')=='a/b_c/d/e' and Export.cleanFolder('x.lua')=='x.lua','cleanFolder')
+ check(Export.cleanFolder('a/../b c//d\\e')=='a/b c/d/e' and Export.cleanFolder('New folder/x')=='New folder/x' and Export.cleanFolder('x.lua')=='x.lua','cleanFolder')
  E.newDesign('hull'); E.openHull(data.list.hulls[1])
  local d=E.design; d.id='foldertest_ship'
  check(E.makeFolder('tests/fighters')=='tests/fighters','makeFolder'); d.folder='tests/fighters'
@@ -44,5 +44,13 @@ return function(game)
  check(not Export.remove('@zz_handmod'),'mod root protected')
  love.filesystem.remove('mods/zz_handmod/data/ships/foldertest_ship.lua'); love.filesystem.remove('mods/zz_handmod/data/ships'); love.filesystem.remove('mods/zz_handmod/data'); love.filesystem.remove('mods/zz_handmod')
  love.filesystem.remove(Export.FOLDER..'/handcopy/foldertest_ship.lua'); love.filesystem.remove(Export.FOLDER..'/handcopy')
+ -- folders made outside the game keep their names (Explorer's "New folder")
+ love.filesystem.createDirectory(Export.FOLDER..'/Spaced test folder')
+ love.filesystem.write(Export.FOLDER..'/Spaced test folder/spaced_ship.lua',src)
+ Export.refresh(); check(Export.isFolder('Spaced test folder'),'spaced folder resolves')
+ local spaced=false
+ for _,e in ipairs(Export.list()) do if e.folder=='Spaced test folder' and e.name=='spaced_ship.lua' then spaced=true end end
+ check(spaced,'file in spaced folder listed')
+ check(Export.remove('Spaced test folder/spaced_ship.lua') and Export.remove('Spaced test folder'),'spaced folder deletes')
  print(('EDITOR FOLDERS TEST PASSED (%d checks)'):format(checks))
 end

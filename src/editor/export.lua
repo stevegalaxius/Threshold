@@ -271,7 +271,9 @@ function Export.cleanFolder(folder)
 		if seg ~= "." and seg ~= ".." then
 			-- "@name" at the front means another mod's data folder
 			local mod = #parts == 0 and seg:sub(1, 1) == "@"
-			seg = seg:gsub("[^%w_%-%.]", "_")
+			-- keep names as they are on disk (spaces and all); only drop
+			-- characters no file system allows
+			seg = seg:gsub('[%c<>:"|%?%*]', "_"):gsub("^%s+", ""):gsub("%s+$", "")
 			table.insert(parts, mod and ("@" .. seg:sub(2)) or seg)
 		end
 	end
