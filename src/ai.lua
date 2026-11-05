@@ -319,6 +319,14 @@ function AI.think(game, e, dt)
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100
   return
  end
+ if record and e.route and not e.dockState then
+  -- Low fuel: divert to a supply station; rebind when back on the itinerary.
+  local A=require("src.alife")
+  local passed=((e.routeIndex or 1)-2)%#e.route+1
+  if A.fuelRejoin(record,passed) then
+   record.index=record.index%#record.route+1;A.bindRoute(game,e,record)
+  elseif A.planFuelStop(record,game.universe.clock,e.routeIndex or 1) then A.bindRoute(game,e,record) end
+ end
  if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
 	if e.alifeId and require("src.salvager").think(game,e,dt,AI) then return end
 	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
