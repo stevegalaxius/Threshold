@@ -418,7 +418,8 @@ function fileBrowser(E, cat, builtIn)
 	local shown = 0
 	for _, e in ipairs(Export.list()) do
 		local c = not e.dir and categoryOf(e.id)
-		if e.folder == dir then
+		-- folders always; designs only on their own tab (not-yet-loaded files on every tab)
+		if e.folder == dir and (e.dir or c == cat or not c) then
 			shown = shown + 1
 			local label
 			if e.dir then label = "[" .. e.name .. "]"
@@ -428,7 +429,6 @@ function fileBrowser(E, cat, builtIn)
 				-- two files with one id: the later-loaded one is the one in the game
 				if def and def.source and def.source ~= e.path then label = label .. "  (duplicate id: " .. def.source:gsub("^mods/", ""):gsub("/data/", "/") .. " is the one in use)" end
 				if e.id == d.id then label = "> " .. label end
-				if c and c ~= cat then label = "[" .. c .. "] " .. label end
 			end
 			if E.confirmDelete == e.rel then
 				Slab.Text("Delete " .. e.name .. "?"); Slab.SameLine()
@@ -440,10 +440,7 @@ function fileBrowser(E, cat, builtIn)
 				Slab.SameLine()
 				if Slab.TextSelectable(label) then
 					if e.dir then E.browseDir = e.rel; E.confirmDelete = nil
-					elseif c then
-						if c ~= cat then E.switchCategory(c) end
-						E.openHull(e.id)
-					end
+					elseif c then E.openHull(e.id) end
 				end
 			end
 		end
