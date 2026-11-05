@@ -65,7 +65,7 @@ return function(game)
   -- Keep the dock/exit fixture on its authored route rather than a random
   -- population spread offset; formation spacing is tested separately.
   r.depart=u.clock;r.arrive=u.clock+100;r.pose=nil;r.offset=nil;r.spread=0
-  r.ship.cargo={};r.ship.hold=nil
+  r.ship.cargo={[require('src.reactor_fuel').item()]=8};r.ship.hold=nil;r.ship.fuelCharge=0;r.ship.fuelInitialized=true;r.power=nil
   local st=game:locationEntity(require('src.locations').station(area,'mining'))
   local x,y=game.dockWorld(st,1,st.dock.x2+st.dock.runway+600,300)
   r.pose={x=x,y=y,a=st.dock.a+math.pi,vx=0,vy=0,w=0,clock=u.clock}
