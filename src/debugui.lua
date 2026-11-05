@@ -332,7 +332,7 @@ local function graphSection(game)
   for _,resource in pairs(mining.resources) do
    if resource.area==game.fieldId then if resource.kind=='rock' then rocks=rocks+1 else loot=loot+1 end end
   end
-  Slab.Text(('Mining: %d drills / %d chunks / %d ore stacks'):format(drills,rocks,loot))
+  Slab.Text(('Loose objects: %d drills / %d chunks / %d item stacks'):format(drills,rocks,loot))
   for station,stock in pairs(mining.stock) do
    if Locations.get(station).area==game.fieldId then
     for item,n in pairs(stock) do Slab.Text(('  %s: %d %s in stock'):format(Locations.get(station).name,n,data.items[item].name)) end

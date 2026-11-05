@@ -1478,10 +1478,16 @@ function Game:spawnPickup(x, y, item, count, inner)
 	end
 	local a = random() * pi * 2
 	local s = 40 + random() * 120
-	table.insert(self.pickups, {
-		x = x, y = y, vx = cos(a) * s, vy = sin(a) * s,
-		item = item, count = count, spin = random() * pi * 2,
-	})
+	local p = self:pickupView(x, y, item, count, cos(a) * s, sin(a) * s)
+	require("src.loose").adopt(self, p)
+	return p
+end
+
+-- A live pickup with no record of its own (its record already exists).
+function Game:pickupView(x, y, item, count, vx, vy)
+	local p = { x = x, y = y, vx = vx or 0, vy = vy or 0, item = item, count = count, spin = random() * pi * 2 }
+	table.insert(self.pickups, p)
+	return p
 end
 
 -- Push something out of the player's hold: it floats out behind the ship
@@ -1503,11 +1509,8 @@ function Game:eject(e, id, count, inner)
 		events.emit("eject", e, id, count)
 		return
 	end
-	table.insert(self.pickups, {
-		x = x + c * back - s * side, y = y + s * back + c * side,
-		vx = vx - c * 90 + (random() - 0.5) * 30, vy = vy - s * 90 + (random() - 0.5) * 30,
-		item = id, count = count, spin = random() * pi * 2,
-	})
+	require("src.loose").adopt(self, self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
+		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30))
 	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
 	events.emit("eject", e, id, count)
 end
@@ -2096,8 +2099,7 @@ function Game:breakAsteroid(e)
 	local ore,n = Ore.drop(e.debris or "rock",e.radius)
 	local pickup
 	if e.drilled and ore and data.items[ore] then
-		self:spawnPickup(x, y, ore, n)
-		pickup=self.pickups[#self.pickups]
+		pickup=self:spawnPickup(x, y, ore, n)
 	end
 	Mining.breakRock(self,e,pickup)
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })

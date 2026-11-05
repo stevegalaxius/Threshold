@@ -48,7 +48,9 @@ return function(game)
 	game.pendingArrive = nil
 	game:arrive(true)
 	check(game.world == originalWorld and game.entities == originalEntities, "turnaround regenerated departure map")
-	check(game.pickups[#game.pickups] == pickup, "turnaround discarded original salvage")
+	-- The pickup is a view; its loose record is what must survive the turnaround.
+	local kept = require("src.loose").records(game.universe)[pickup.looseId]
+	check(kept and kept.count == 1 and kept.item == "scrap", "turnaround discarded original salvage")
 	local rx, ry = screen(game.camera, station.body)
 	check(near(rx, sx) and near(ry, sy), "turnaround moved the camera relative to the station")
 	check(near(game.player.body:getAngularVelocity(), 0.25), "turnaround reset ship spin")

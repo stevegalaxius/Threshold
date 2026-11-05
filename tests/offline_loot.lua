@@ -9,6 +9,15 @@ return function(game)
  local u=game.universe;local clock=u.clock
  u.alifeWrecks={};u.areas.earth={capturedAt=clock,objects={},pickups={}}
  local nextId=0
+ -- Loose items are single records in the shared store (src/loose.lua).
+ local Loose=require('src.loose')
+ local function loot(area,id,count,x,y)
+  local rec={id='test/'..id,area=area,kind='loot',item='scrap',count=count,x=x,y=y,vx=0,vy=0,spin=0,clock=clock}
+  Loose.records(u)[rec.id]=rec;return rec
+ end
+ local function clearLoot()
+  for id in pairs(Loose.records(u)) do if id:match('^test/') then Loose.records(u)[id]=nil end end
+ end
  local function pirate(area,hull)
   nextId=nextId+1
   local node=Fields[area].buoyIds[1] or Fields[area].stationIds[1]
@@ -21,16 +30,16 @@ return function(game)
   return r,x,y
  end
  local r,x,y=pirate('earth');local other=pirate('earth')
- local item={id=1001,item='scrap',count=8,x=x,y=y,vx=0,vy=0,spin=0}
- local area=u.areas.earth;area.pickups={item}
+ local item=loot('earth',1001,8,x,y)
+ local area=u.areas.earth
  check(O.update(game,r,clock) and r.offlineLoot,'pirate did not approach saved loose loot')
  check(item.count==8 and not r.ship.cargo.scrap,'approach transferred cargo instantly')
  check(not O.update(game,other,clock) and not other.offlineLoot,'two pirates claimed the same resource')
  clock=clock+2;u.clock=clock;O.update(game,r,clock)
- check(#area.pickups==0 and r.ship.cargo.scrap==8,'offline pickup transfer lost or duplicated cargo')
+ check(not Loose.records(u)[item.id] and r.ship.cargo.scrap==8,'offline pickup transfer lost or duplicated cargo')
  check(r.piracy and r.route[#r.route]==pirateBase,'offline looter did not return to Milliways')
  local saved=assert(Save.decode(Save.encode(game:saveState())))
- check(#saved.areas.earth.pickups==0 and saved.npcs[r.id].ship.cargo.scrap==8,'save lost offline resource depletion')
+ check(not saved.mining.resources[item.id] and saved.npcs[r.id].ship.cargo.scrap==8,'save lost offline resource depletion')
  -- Intact saved containers preserve nested inventory and disappear only once.
  local big,bx,by=pirate('earth','ferrous_freighter')
  local inner=Hold.new({{key='box',w=8,h=4}});Hold.add(inner,'rounds_s',25)
@@ -45,7 +54,7 @@ return function(game)
  local stored=u.piracy.containers[pirateBase]
  check(Hold.count(Hold.deserialize(stored[#stored].inner),'rounds_s')==25,'offline crate lost contents at stash')
  -- Prepared combat wreck inventories are authoritative when materialized later.
- area.objects={};area.pickups={}
+ area.objects={};clearLoot()
  local looter,wx,wy=pirate('earth')
  local cargo=Hold.new({{key='wreck',w=12,h=10}});Hold.add(cargo,'scrap',6)
  local node=looter.node
@@ -63,45 +72,42 @@ return function(game)
  local wreck
  for _,e in ipairs(game.entities) do if e.alifeWreckId==w.id then wreck=e end end
  check(wreck and Hold.count(wreck.hold,'scrap')==0 and not u.alifeWrecks[w.id],'materializing a looted wreck regenerated cargo')
- -- Current and retained scenes own their physical resources; stale snapshots
- -- are never another source of loot for remote NPCs.
+ -- An item with a live view belongs to the scene until it is captured back;
+ -- remote NPCs only ever consume records nobody is viewing.
  local localPirate,lx,ly=pirate('pluto')
- u.areas.pluto={capturedAt=clock,objects={},pickups={{id=1003,item='scrap',count=7,x=lx,y=ly,vx=0,vy=0,spin=0}}}
- check(not O.update(game,localPirate,clock) and u.areas.pluto.pickups[1].count==7,'offline looting modified a loaded area snapshot')
- local retained,rx,ry=pirate('earth')
- area.pickups={{id=1004,item='scrap',count=7,x=rx,y=ry,vx=0,vy=0,spin=0}}
- game.arrivalPreview={game={fieldId='earth'}}
- check(not O.update(game,retained,clock) and area.pickups[1].count==7,'offline looting modified a retained preview scene')
- game.arrivalPreview=nil
+ local seen=game:spawnPickup(lx,ly,'scrap',7)
+ check(not O.update(game,localPirate,clock) and seen.count==7 and Loose.records(u)[seen.looseId].count==7,'offline looting consumed a live item')
+ for i,p in ipairs(game.pickups) do if p==seen then table.remove(game.pickups,i) end end
+ game.miningLive[seen.looseId]=nil;Loose.remove(u,seen.looseId)
  -- Full holds cannot consume a saved source; expired wrecks are not looted.
  local full,fx,fy=pirate('earth')
  local slots=Hold.new(require('src.ship').holdLayout({hull=data.hulls.halcyon_wisp,loadout=data.hulls.halcyon_wisp.loadout,stats=require('src.stats').compute(data.hulls.halcyon_wisp,data.hulls.halcyon_wisp.loadout)}))
  Hold.add(slots,'scrap',10000);full.ship.hold=Hold.serialize(slots);full.ship.cargo=Hold.totals(slots)
- area.pickups={{id=1005,item='scrap',count=7,x=fx,y=fy,vx=0,vy=0,spin=0}}
- check(not O.update(game,full,clock) and area.pickups[1].count==7,'full offline pirate consumed loot')
- area.pickups={};u.alifeWrecks.expired={id='expired',area='earth',from=node,to=node,progress=0,expires=clock-1,ship=w.ship,archetype='gunner'}
+ local spare=loot('earth',1005,7,fx,fy)
+ check(not O.update(game,full,clock) and spare.count==7,'full offline pirate consumed loot')
+ clearLoot();u.alifeWrecks.expired={id='expired',area='earth',from=node,to=node,progress=0,expires=clock-1,ship=w.ship,archetype='gunner'}
  local fresh=pirate('earth')
  check(not O.update(game,fresh,clock),'pirate looted an expired wreck')
  -- An offline approach has a position; waking cancels its exclusive claim
  -- while preserving that position rather than jumping back to the graph.
  u.alifeWrecks={}
  local approaching,ax,ay=pirate('earth')
- area.pickups={{id=1006,item='scrap',count=4,x=ax+1200,y=ay,vx=0,vy=0,spin=0}}
+ local target=loot('earth',1006,4,ax+1200,ay)
  O.update(game,approaching,clock)
  local pending=assert(Save.decode(Save.encode(game:saveState())))
- check(pending.npcs[approaching.id].offlineLoot.id==1006 and pending.areas.earth.pickups[1].lootOwner==approaching.id,'save lost pending loot reservation')
+ check(pending.npcs[approaching.id].offlineLoot.id==target.id and pending.mining.resources[target.id].lootOwner==approaching.id,'save lost pending loot reservation')
  local resumed={universe=pending,fieldId='pluto',alifeOnline={}}
  pending.clock=clock+3
  O.update(resumed,pending.npcs[approaching.id],pending.clock)
- check(#pending.areas.earth.pickups==0 and pending.npcs[approaching.id].ship.cargo.scrap==4,'restored reservation failed to transfer exactly once')
+ check(not pending.mining.resources[target.id] and pending.npcs[approaching.id].ship.cargo.scrap==4,'restored reservation failed to transfer exactly once')
  local px,py=A.point(approaching,clock+1)
  check(px>ax and px<ax+1200,'offline loot approach had no intermediate position')
  O.release(game,approaching,clock+1)
  local hx,hy=A.point(approaching,clock+1)
  check(math.abs(hx-px)<.01 and math.abs(hy-py)<.01 and not approaching.offlineLoot,'live handoff moved pirate or retained its loot claim')
- check(not area.pickups[1].lootOwner,'live handoff did not release saved resource')
+ check(not target.lootOwner,'live handoff did not release saved resource')
  -- Reload the saved depleted world to verify revisit/save restoration.
  game:loadState(saved)
- check(#game.universe.areas.earth.pickups==0,'load regenerated consumed loose items')
+ check(not Loose.records(game.universe)[item.id],'load regenerated consumed loose items')
  print(('OFFLINE LOOT TEST PASSED (%d checks)'):format(checks))
 end

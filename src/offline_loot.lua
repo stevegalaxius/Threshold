@@ -7,6 +7,7 @@ local G=require('src.travelgraph')
 local T=require('src.tuning')
 local Persistence=require('src.persistence')
 local Loot=require('src.loot')
+local Loose=require('src.loose')
 local O={}
 local function retained(game,area)
  return game.fieldId==area or game.trip and game.trip.originScene and game.trip.originScene.fieldId==area
@@ -51,17 +52,25 @@ local function candidates(game,r,clock)
  if not retained(game,r.area) then
   local area=game.universe.areas and game.universe.areas[r.area]
   if area then
-   for _,kind in ipairs({'objects','pickups'}) do for _,saved in ipairs(area[kind] or {}) do
-    if r.role~='salvager' or kind=='pickups' and not saved.inner then
+   if r.role~='salvager' then
+    for _,saved in ipairs(area.objects or {}) do
      local pose=Persistence.advanceRecord(saved,math.max(0,clock-area.capturedAt))
-     result[#result+1]={kind=kind,id=saved.id,record=saved,x=pose.x,y=pose.y,list=area[kind]}
+     result[#result+1]={kind='objects',id=saved.id,record=saved,x=pose.x,y=pose.y,list=area.objects}
     end
-   end end
+   end
+  end
+ end
+ -- Loose items: one record each, whether or not their area is loaded. Any
+ -- without a live view are fair game for an offline collector.
+ if r.area then
+  for _,loose in ipairs(Loose.offline(game,r.area,clock)) do
+   result[#result+1]={kind='pickups',id=loose.record.id,record=loose.record,x=loose.x,y=loose.y}
   end
  end
  return result
 end
-local function remove(source)
+local function remove(game,source)
+ if source.kind=='pickups' then Loose.remove(game.universe,source.id);return end
  if source.list then for i,s in ipairs(source.list) do if s==source.record then table.remove(source.list,i);break end end end
 end
 local function available(game,r,s)
@@ -150,13 +159,13 @@ function O.update(game,r,clock)
  local record=source.record
  if source.kind=='pickups' then
   id=record.item;n=Hold.add(dest,id,record.count);record.count=record.count-n
-  if record.count==0 then remove(source) end
+  if record.count==0 then remove(game,source) end
  else
   local h=source.kind=='combat' and sourceHold(game,record) or Hold.deserialize(record.hold)
   local oldMass=cargoMass(h)
   if record.kind=='container' then
    moved={id=record.item,n=1,inner=h}
-   if Hold.placeStack(dest,moved) then n,id=1,record.item;remove(source) else moved=nil end
+   if Hold.placeStack(dest,moved) then n,id=1,record.item;remove(game,source) else moved=nil end
   end
   if n==0 then
    n,id,moved=Loot.takeStack(dest,h)
