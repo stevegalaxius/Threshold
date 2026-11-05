@@ -507,7 +507,9 @@ out to its buoy.
 
 Berths accept ships up to three times their authored pad half-length; the
 editor marker keeps its existing dimensions. `T.berthShipScale` controls this
-capacity multiplier. Docking uses the nearest unoccupied berth that fits. Switching
+capacity multiplier. Players and NPCs use the same admission rule: a ship
+with a free footprint in the station's hangar grid and a usable doorway enters
+the interior; otherwise it needs the nearest unoccupied exterior berth that fits. Switching
 ships while berthed preserves that placement and docking entrance. If the new
 ship does not fit, it uses the nearest suitable free berth. Ships that fit the
 corridor and hangar grid can use the station interior; oversized ships use a
@@ -516,7 +518,11 @@ moving the ship to a generated overflow position. Berths provide normal station
 access and survive saves and ship switching; undocking launches from that position.
 Saves retain the player's berth or mooring, entrance and docking side.
 `love . --berthtest` checks berth selection, taxi placement, ship switching,
-save/load, and refusal when no suitable berth is available.
+save/load, shared NPC/player grid occupancy, and refusal when no suitable
+parking is available. Docked NPCs reserve grid cells just like stored ships and
+release them when departing. Restored NPCs keep only parking assignments that
+remain valid. Offline station visits are still timed abstractions; advance
+reservations and a station-wide docking queue are not implemented.
 
 Enceladus, Pluto, Titania, Io, Europa, Ganymede, Callisto, Mercury and Triton
 use the Moon's round rocky surface treatment: cratered terrain in each world's
@@ -986,3 +992,43 @@ materialization and save/load preserve the condition without repeating entries.
 The first healthy observation initializes the record silently. `--fueltest`
 includes controlled online/offline depletion, duty retention, history deduplication,
 recovery, idle timing and persistence checks. Rescue tasks are not implemented.
+
+## A-Life salvagers
+
+**Salvager** is a civilian role with a recurring station-board `salvage` job.
+One starts in each populated planet system, with shared population timers
+replacing losses. Its saved home remains the planet while it visits that
+planet's moons. Jobs are reserved exclusively, and successive assignments
+rotate through the system's local stations and moon routes. F1's existing
+**Spawn and arena** role picker can spawn a salvager in a supported home system;
+F6 shows its current job, activity and lifetime salvage earnings.
+
+Salvagers fly toward real loose cargo and collect it with the normal tractor
+transport. They return to a local station when loaded, their collection window
+ends, nearby loot is exhausted, or they need maintenance. Remote salvagers
+reserve and consume saved pickups, using the shared offline-loot accounting;
+they cannot collect a second copy from an area whose live scene owns the items.
+This first role collects ordinary loose pickups such as ore, ammo and scrap;
+opening containers and dismantling wrecks remain separate work.
+
+At the destination station they sell recovered items at the normal resale price,
+put the goods on its market shelf, and receive credits on their own NPC record.
+The player's wallet is unaffected. Starting supplies are not sale cargo; fuel
+and ammunition reserves are retained, including recovered supplies needed for
+the next trip. Full resale shelves handle onward sales like normal player trade.
+The job completes, its reservation is released, and the salvager chooses another.
+
+Identity, cargo, the recovery manifest, earnings, visits and board reservations
+survive online/offline changes and save/load. Pirates regard salvagers as civilian
+prey. The same fuel, stranding and maintenance rules apply as for other NPCs.
+`T.salvagerPopulation`, `T.salvagerLoad`, `T.salvagerCollectTime`,
+`T.salvagerRange` and `T.salvagerStay` control population and pacing.
+Run `love . --salvagertest` for the focused role/job, physical and remote pickup,
+local sale, moon-route, persistence and shared offline-loot regression checks.
+
+Saved task assignments whose implementation is unavailable are suspended rather
+than completed or discarded. Their cargo, delivery phase and reservation survive
+save/load. NPCs wait for task support instead of accepting replacement work.
+When that task kind is registered again, the same assignment resumes without
+running pickup preparation again. Explicit cancellation or the worker's death
+still releases its reservation normally.

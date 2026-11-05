@@ -314,6 +314,7 @@ local function graphSection(game)
    if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
    if r.fuelStatus then Slab.Text('  Fuel: '..require('src.reactor_fuel').label(r)) end
    if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end
+   if r.role=='salvager' then Slab.Text(('  Salvage earnings: %d cr'):format(r.salvageEarnings or 0)) end
    if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end
  end

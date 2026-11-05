@@ -11,6 +11,7 @@
 	station).
 	Simulation history also emits simulation_outcome(entry), a plain-data copy of
 	a saved observation shared by online and offline simulation.
+	Civilian scavenging emits salvage_sale(npcId, stationId, itemCounts, credits).
 	Keep this list small and stable: it's going to be the modding API.
 ]]
 

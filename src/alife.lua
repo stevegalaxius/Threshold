@@ -18,6 +18,7 @@ local Supplies=require('src.supplies')
 local Encounters=require('src.encounters')
 local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
+local Salvager=require('src.salvager')
 local Population=require('src.population')
 local Homes=require('src.npc_home')
 local Reconcile=require('src.world_reconcile')
@@ -197,6 +198,7 @@ function A.seed(game)
   end
   Security.seed(game,start)
   Mining.seed(game)
+  Salvager.seed(game)
   for _,r in pairs(u.npcs) do
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
   end
@@ -209,6 +211,7 @@ end
 
 local function dockingStop(r,id)
  if r.worldRecovery then return id==r.worldRecovery.target end
+ if r.role=='salvager' then return id==r.salvageGoal end
  if r.piracy then return id==r.route[#r.route] end
  if Security.shouldDock(r,id) then return true end
  if Security.isRole(r) and not r.piracy then return false end
@@ -229,6 +232,10 @@ function A.advance(r,clock,u,game)
   Fuel.observe(u,r,clock);return result
  end
  if game and not r.worldRecovery and require("src.offline_loot").update(game,r,clock) then return end
+ if r.role=='salvager' and not r.worldRecovery then
+  local result=Salvager.advance(game or {universe=u},r,clock,start)
+  Fuel.observe(u,r,clock);return result
+ end
  if Mining.isMiner(r) and not r.worldRecovery then
   local result=Mining.advance(game or {universe=u},r,clock)
   Fuel.observe(u,r,clock);return result
@@ -254,6 +261,11 @@ function A.advance(r,clock,u,game)
    if clock<r.untilTime then return end
    if r.worldRecovery then
     Reconcile.resume(u,r,r.untilTime)
+    if r.role=='salvager' then
+     r.salvageGoal=r.node
+     if r.task then r.task.target=r.node end
+     return Salvager.advance(game or {universe=u},r,clock,start)
+    end
     if r.piracy then return Piracy.advance(r,clock,u,start) end
     if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
     if Security.isRole(r) then return Security.advance(r,clock,u,start) end
@@ -639,11 +651,12 @@ function A.wake(game,r)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
-  game:dockInstantly(e,st)
+  game:dockInstantly(e,st,r.docking)
   if e.dockState then
    e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
-   if exact and r.docking then
-    e.dockState=copy(r.docking); e.dockState.station=st
+   if exact and r.docking and r.docking.berth==e.dockState.berth then
+    local dock=e.dockState.dock
+    e.dockState=copy(r.docking); e.dockState.station=st;e.dockState.dock=dock
     e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
     e.body:setActive(e.dockState.phase=='tractor')
    end
@@ -691,6 +704,19 @@ end
 
 function A.install(Game)
  function Game:traderCanDepart(e,station)
+  local salvager=self.universe.npcs[e.alifeId]
+  if salvager and salvager.role=='salvager' then
+   A.capture(self,e,false)
+   if salvager.worldRecovery then
+    Reconcile.resume(self.universe,salvager,self.universe.clock)
+    salvager.salvageGoal=station.locationId
+    if salvager.task then salvager.task.target=station.locationId end
+   end
+   local ok=Salvager.depart(self,salvager,station.locationId,self.universe.clock)
+   e.cargo=copy(salvager.ship.cargo);Ship.updateMass(e)
+   if ok then e.salvagerDeparture=true end
+   return ok
+  end
   local recovering=self.universe.npcs[e.alifeId]
   local patrolRecovery=recovering.worldRecovery and recovering.role=='patrol'
   if recovering.worldRecovery then
@@ -722,6 +748,12 @@ function A.install(Game)
   return true
  end
  function Game:traderUndocked(e,station)
+  if e.salvagerDeparture then
+   e.salvagerDeparture=nil
+   local r=self.universe.npcs[e.alifeId];start(r,self.universe.clock,2);bindRoute(self,e,r);return
+  end
+  local salvager=self.universe.npcs[e.alifeId]
+  if salvager and salvager.role=='salvager' then bindRoute(self,e,salvager);return end
   if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.bind(self,e,self.universe.npcs[e.alifeId]) end
   local r=self.universe.npcs[e.alifeId]
   if e.patrolDeparture then e.patrolDeparture=nil;bindRoute(self,e,r);return end

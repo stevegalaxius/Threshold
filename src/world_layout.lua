@@ -3,28 +3,35 @@
 -- in its existing adapter; ordinary layout changes belong here.
 local W={}
 W.stations = {
-	phobos = {
-		{ id = "station:phobos_1", primary = true, name = "Phobos Strip Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
-	},
-	deimos = {
-		{ id = "station:deimos_1", primary = true, name = "Deimos Strip Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
-	},
+
 	mercury = {
-		{ id = "station:mercury_1", spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station" },
-		{ id = "station:mercury_2", spin = -0.05, phase = 2.3415926535897933, name = "Dawnline Station" },
+		{ id = "station:mercury_1", spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
+		{ id = "station:mercury_2", spin = -0.05, phase = 2.3415926535897933, name = "Haephestus Logistics", layout = "customs_1"  },
 	},
 	venus = {
 		{ id = "station:venus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
-		{ id = "station:venus_2", spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station" },
+		{ id = "station:venus_2", spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
 	},
 	earth = {
-		{ id = "station:earth_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Orbital One" },
-		{ id = "station:earth_2", marketId = "market:earth_2", spin = -0.05, phase = 2.3415926535897933, name = "Orbital Two" },
+		{ id = "station:earth_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1" },
+		{ id = "station:earth_2", marketId = "market:earth_2", spin = -0.05, phase = 2.3415926535897933, name = "Elysium", layout = "estates_palace"  },
+	},
+	
+	luna = {
+		{ id = "station:luna_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_2", marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 	},
 	mars = {
-		{ id = "station:mars_1", spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Station Alpha" },
-		{ id = "station:mars_2", marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, name = "Station Beta" },
+		{ id = "station:mars_1", spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
+		{ id = "station:mars_2", marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
 	},
+	phobos = {
+		{ id = "station:phobos_1", primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
+	},
+	deimos = {
+		{ id = "station:deimos_1", primary = true, name = "The Moon-Swallowing Yard", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
+	},
+	
 	belt = {
 		{ id = "station:belt_1", spin = 0.05, phase = -0.8, primary = true, name = "Ceres Dock" },
 		{ id = "station:belt_2", spin = -0.05, phase = 2.3415926535897933, name = "Piazzi Station" },
@@ -32,17 +39,7 @@ W.stations = {
 	jupiter = {
 		{ id = "station:jupiter_1", primary = true, name = "Olympus", adapter = "cloud" },
 	},
-	saturn = {
-		{ id = "station:saturn_1", spin = 0.05, phase = -0.8, primary = true, name = "Cassini Gate" },
-		{ id = "station:saturn_2", spin = -0.05, phase = 2.3415926535897933, name = "Enceladus Station" },
-	},
-	uranus = {
-		{ id = "station:uranus_1", primary = true, name = "Herschel", adapter = "cloud" },
-	},
-	luna = {
-		{ id = "station:luna_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Tranquility Dock" },
-		{ id = "station:luna_2", marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "Shackleton Station" },
-	},
+
 	io = {
 		{ id = "station:io_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works" },
 		{ id = "station:io_2", marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
@@ -59,25 +56,31 @@ W.stations = {
 		{ id = "station:callisto_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port" },
 		{ id = "station:callisto_2", marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station" },
 	},
+	saturn = {
+		{ id = "station:saturn_1", spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
+		{ id = "station:saturn_2", spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
+	},
 	enceladus = {
-		{ id = "station:enceladus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Tiger Stripe Laboratory" },
-		{ id = "station:enceladus_2", marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "South Pole Port" },
+		{ id = "station:enceladus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
+		{ id = "station:enceladus_2", marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
 	},
 	titan = {
-		{ id = "station:titan_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Kraken Station" },
-		{ id = "station:titan_2", marketId = "market:titan_2", spin = -0.05, phase = 2.3415926535897933, name = "Huygens Station" },
+		{ id = "station:titan_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },
+		{ id = "station:titan_2", marketId = "market:titan_2", spin = -0.05, phase = 2.3415926535897933, name = "Abaddon", layout = "diwan_works"   },
 	},
 	titania = {
-		{ id = "station:titania_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "Gertrude Port" },
-		{ id = "station:titania_2", marketId = "market:titania_2", spin = -0.05, phase = 2.3415926535897933, name = "Messina Research Station" },
+		{ id = "station:titania_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
 	},
+	uranus = {
+		{ id = "station:uranus_1", primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
+		{ id = "station:uranus_2", spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
+		},
 	triton = {
-		{ id = "station:triton_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:triton_1", name = "Cipango Station" },
-		{ id = "station:triton_2", marketId = "market:triton_2", spin = -0.05, phase = 2.3415926535897933, name = "Voyager Station" },
+		{ id = "station:triton_1", marketId = "market:triton_1", spin = -0.05, phase = 2.3415926535897933, name = "Neptune's Bounty"   },
+	
 	},
 	pluto = {
 		{ id = "station:pluto_1", spin = 0.05, phase = -0.8, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
-		{ id = "station:pluto_2", marketId = "market:pluto_2", spin = -0.05, phase = 2.3415926535897933, name = "Sputnik Port" },
 	},
 	ring = {
 		{ id = "station:ring_1", spin = 0.02, phase = -0.8, primary = true, name = "Ring Station", wheel = { 3000, 300 } },
@@ -85,6 +88,7 @@ W.stations = {
 	station = {
 		{ id = "station:station_1", spin = 0.04, phase = -0.8, primary = true, name = "Hub Station", marketId = "market:venus_1", wheel = { 1400, 160 } },
 	},
+
 }
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
