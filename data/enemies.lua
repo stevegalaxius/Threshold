@@ -112,3 +112,10 @@ enemy {
  loadout={"rockbiter","rockbiter",false,"mule_engine","kiln_reactor","tug_beam",false,false},
  cargo={},ai={style="trader",cruise=500,range=2500,accuracy=.7,throttle=.9},salvage={1,2},
 }
+
+-- Civilian loose-cargo collector. It trades salvage, not generated manifests.
+enemy {
+ id="salvager_packhorse",team=3,name="Independent Salvager",hull="ferrous_mule",
+ loadout={false,false,false,"mule_engine","kiln_reactor","tug_beam",false,false},
+ cargo={},ai={style="trader",cruise=600,range=1200,accuracy=.5,throttle=.9},salvage={1,2},
+}

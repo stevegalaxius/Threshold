@@ -82,11 +82,12 @@ function Tasks.plan(r,station,clock)
  local def=t and Tasks.definitions[t.kind]
  return def and def.plan and def.plan(t,station,clock)
 end
-function Tasks.arrive(u,r,station,clock)
+-- Optional scene context lets completion use the normal station-market API.
+function Tasks.arrive(u,r,station,clock,game)
  local t=r.task
  if not t then return end
  local def=assert(Tasks.definitions[t.kind],'unknown saved task kind')
- if def.complete(u,r,t,station,clock) then
+ if def.complete(u,r,t,station,clock,game) then
   Tasks.release(u,r,'completed',clock)
   return true
  end

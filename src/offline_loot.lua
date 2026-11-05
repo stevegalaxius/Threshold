@@ -39,7 +39,7 @@ end
 local function candidates(game,r,clock)
  local result={}
  for id,w in pairs(game.universe.alifeWrecks or {}) do
-  if w.area==r.area and clock<w.expires then
+  if r.role~='salvager' and w.area==r.area and clock<w.expires then
    local x,y=G.wreckPoint(w,clock)
    local visible=false
    if game.fieldId==w.area and game.player and not game.player.dead then
@@ -52,8 +52,10 @@ local function candidates(game,r,clock)
   local area=game.universe.areas and game.universe.areas[r.area]
   if area then
    for _,kind in ipairs({'objects','pickups'}) do for _,saved in ipairs(area[kind] or {}) do
-    local pose=Persistence.advanceRecord(saved,math.max(0,clock-area.capturedAt))
-    result[#result+1]={kind=kind,id=saved.id,record=saved,x=pose.x,y=pose.y,list=area[kind]}
+    if r.role~='salvager' or kind=='pickups' and not saved.inner then
+     local pose=Persistence.advanceRecord(saved,math.max(0,clock-area.capturedAt))
+     result[#result+1]={kind=kind,id=saved.id,record=saved,x=pose.x,y=pose.y,list=area[kind]}
+    end
    end end
   end
  end
@@ -95,12 +97,29 @@ local function canTake(game,dest,s)
  if s.record.kind=='container' and Hold.placeStack(Hold.clone(dest),{id=s.record.item,n=1,inner=h}) then return true end
  return Loot.takeStack(Hold.clone(dest),Hold.deserialize(Hold.serialize(h)))>0
 end
+-- Shared availability query for deciding whether a collector's local sweep is done.
+function O.hasLoot(game,r,clock)
+ local dest=recipient(r);if not dest then return false end
+ local x,y=require('src.alife').point(r,clock)
+ if not x then return false end
+ local range=(r.role=='salvager' and T.salvagerRange or T.pirateLootRange)^2
+ for _,source in ipairs(candidates(game,r,clock)) do
+  if (source.x-x)^2+(source.y-y)^2<=range and available(game,r,source) and canTake(game,dest,source) then return true end
+ end
+ return false
+end
 function O.update(game,r,clock)
- if r.role~='pirate' or r.piracy or r.encounter or r.state~='idle' and r.state~='travel'
+ local salvager=r.role=='salvager'
+ local manifest=salvager and 'salvageCargo' or 'stolenCargo'
+ local deadline=salvager and 'salvageUntil' or 'lootUntil'
+ local returner=salvager and require('src.salvager').returnRecord or require('src.piracy').returnRecord
+ if (not salvager and r.role~='pirate') or r.piracy or r.salvageReturn or r.encounter or r.state~='idle' and r.state~='travel'
   or game.alifeOnline and game.alifeOnline[r.id] then O.release(game,r,clock);return false end
- if r.stolenCargo and clock>=(r.lootUntil or math.huge) then
+ local loaded=0;for _,n in pairs(r[manifest] or {}) do loaded=loaded+n end
+ if r[manifest] and (clock>=(r[deadline] or math.huge) or salvager and loaded>=T.salvagerLoad) then
   O.release(game,r,clock)
-  if require('src.piracy').returnRecord(game,r) then return true end
+  if returner(game,r) then return true end
+  if salvager then return false end
  end
  if not r.offlineLoot and clock<(r.lootCheckAt or 0) then return false end
  local dest=recipient(r);if not dest then O.release(game,r,clock);return false end
@@ -111,7 +130,7 @@ function O.update(game,r,clock)
  else
   if clock<(r.lootCheckAt or 0) then return false end
   r.lootCheckAt=clock+2
-  local x,y=require('src.alife').point(r,clock);local best=T.pirateLootRange^2
+  local x,y=require('src.alife').point(r,clock);local best=(salvager and T.salvagerRange or T.pirateLootRange)^2
   for _,s in ipairs(sources) do
    local d=(s.x-x)^2+(s.y-y)^2
    if d<best and available(game,r,s) and canTake(game,dest,s) then best=d;source=s end
@@ -157,13 +176,13 @@ function O.update(game,r,clock)
  if n==0 then O.release(game,r,clock);return false end
  if moved and (moved.inner or moved.wear~=nil) then moved.stolen=true end
  r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest)
- r.stolenCargo=r.stolenCargo or {};r.stolenCargo[id]=(r.stolenCargo[id] or 0)+n
- r.lootUntil=r.lootUntil or clock+T.pirateLootTime
+ r[manifest]=r[manifest] or {};r[manifest][id]=(r[manifest][id] or 0)+n
+ r[deadline]=r[deadline] or clock+(salvager and T.salvagerCollectTime or T.pirateLootTime)
  r.taskStatus='looting saved cargo'
- local count=0;for _,amount in pairs(r.stolenCargo) do count=count+amount end
+ local count=0;for _,amount in pairs(r[manifest]) do count=count+amount end
  r.offlineLoot.readyAt=clock+1
- if count>=T.pirateLootUnits or clock>=r.lootUntil or not canTake(game,dest,source) then
-  O.release(game,r,clock);require('src.piracy').returnRecord(game,r)
+ if count>=(salvager and T.salvagerLoad or T.pirateLootUnits) or clock>=r[deadline] or not canTake(game,dest,source) then
+  O.release(game,r,clock);returner(game,r)
  end
  return true
 end

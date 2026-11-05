@@ -148,7 +148,7 @@ function E.update(game,clock)
    if a.role=='pirate' and not a.encounter and Fuel.condition(a)~='stranded' then
     local target
     for _,b in ipairs(group) do
-     if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
+     if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='salvager' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
       if not target or b.role=='patrol' and target.role~='patrol' then target=b end
      end
     end
