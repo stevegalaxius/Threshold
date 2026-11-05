@@ -397,7 +397,7 @@ function Game:saveState()
 	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
-		simulationHistory = Persistence.copy(u.simulationHistory),
+		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
@@ -435,6 +435,7 @@ function Game:loadState(state)
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext
 	self.universe.simulationHistory = Persistence.copy(state.simulationHistory)
+ self.universe.salvage=Persistence.copy(state.salvage)
 	self.universe.pirateSpawns = Persistence.copy(state.pirateSpawns)
 	self.universe.populationSpawns = Persistence.copy(state.populationSpawns)
 	self.universe.worldLayoutSignature=state.worldLayoutSignature
