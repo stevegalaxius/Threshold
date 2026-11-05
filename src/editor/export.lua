@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -111,6 +111,7 @@ function Export.cleanPart(part, editor)
 	if out.core == false then out.core = nil end
 	if out.role == "" then out.role = nil end
 	if out.name == "" then out.name = nil end
+	if out.barrel == false then out.barrel = nil end
 	return out
 end
 
@@ -181,8 +182,24 @@ function Export.stationDef(design)
 	return def
 end
 
+-- A weapon module (the Weapons tab): its stats plus the drawn art.
+function Export.weaponDef(design)
+	local def = copy(design.module or {})
+	def.id, def.name = design.id, design.name
+	def.family = def.family or "weapon"
+	def.source, def.art = nil, nil
+	local parts = {}
+	for _, part in ipairs(design.parts) do table.insert(parts, Export.cleanPart(part)) end
+	if #parts > 0 then
+		def.art = { parts = parts }
+		if design.muzzles and #design.muzzles > 0 then def.art.muzzles = copy(design.muzzles) end
+	end
+	return def
+end
+
 -- The definition for whatever kind the design is.
 function Export.def(design)
+	if design.kind == "weapon" then return Export.weaponDef(design) end
 	if design.kind == "station" then return Export.stationDef(design) end
 	if design.kind == "wreck" or design.kind == "prop" then return Export.wreckDef(design) end
 	return Export.hullDef(design)
@@ -199,7 +216,31 @@ end
 
 -- The design as a data file: hull { ... } with one part per line and the
 -- part's name first, so it survives a re-import.
+local function weaponSource(design)
+	local def = Export.weaponDef(design)
+	local keys = {}
+	for k in pairs(def) do if k ~= "id" and k ~= "name" and k ~= "art" and k ~= "weapon" then table.insert(keys, k) end end
+	table.sort(keys)
+	local out = { "-- Made in the Shipyard (F2), Weapons tab.", "module {", ("\tid = %q, name = %q,"):format(def.id, def.name) }
+	for _, k in ipairs(keys) do table.insert(out, "\t" .. k .. " = " .. serialize(def[k], "\t") .. ",") end
+	if def.weapon then table.insert(out, "\tweapon = " .. serialize(def.weapon, "\t") .. ",") end
+	if def.art then
+		table.insert(out, "\tart = {")
+		if def.art.muzzles then table.insert(out, "\t\tmuzzles = " .. serialize(def.art.muzzles, "\t\t") .. ",") end
+		table.insert(out, "\t\tparts = {")
+		for _, part in ipairs(design.parts) do
+			local line = partLine(part, "\t\t\t")
+			table.insert(out, line)
+		end
+		table.insert(out, "\t\t},")
+		table.insert(out, "\t},")
+	end
+	table.insert(out, "}")
+	return table.concat(out, "\n") .. "\n"
+end
+
 function Export.source(design)
+	if design.kind == "weapon" then return weaponSource(design) end
 	local def = Export.def(design)
 	local kind = (design.kind == "wreck" or design.kind == "prop" or design.kind == "station") and design.kind or "hull"
 	local keys = {}
@@ -253,7 +294,13 @@ function Export.list()
 			local r = rel == "" and name or (rel .. "/" .. name)
 			local info = love.filesystem.getInfo(full(rel) .. "/" .. name)
 			if info and info.type == "directory" then table.insert(dirs, { rel = r, name = name })
-			elseif name:match("%.lua$") then table.insert(files, { rel = r, name = name, id = name:gsub("%.lua$", "") }) end
+			elseif name:match("%.lua$") then
+				-- the id the file defines (it can differ from its name if the
+				-- file was renamed by hand); the name is the fallback
+				local head = love.filesystem.read(full(rel) .. "/" .. name, 2048) or ""
+				local id = head:match('%f[%w_]id%s*=%s*"([^"]+)"') or name:gsub("%.lua$", "")
+				table.insert(files, { rel = r, name = name, id = id })
+			end
 		end
 		for _, d in ipairs(dirs) do
 			table.insert(out, { rel = d.rel, name = d.name, dir = true, depth = depth, folder = rel })
@@ -358,10 +405,22 @@ function Export.fromStation(id)
 	return design
 end
 
+-- A design from a loaded weapon module: its art parts become the parts.
+function Export.fromModule(id)
+	local m = data.modules[id]
+	local module = copy(m)
+	module.id, module.name, module.source, module.art = nil, nil, nil, nil
+	local design = { id = id, name = m.name, kind = "weapon", base = data.list.hulls[1], parts = {}, slots = {}, stats = {},
+		module = module, muzzles = m.art and m.art.muzzles and copy(m.art.muzzles) or {} }
+	for _, part in ipairs(m.art and m.art.parts or {}) do table.insert(design.parts, Export.cleanPart(part)) end
+	return design
+end
+
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
-		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate }
+		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate,
+		module = design.module, muzzles = design.muzzles }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

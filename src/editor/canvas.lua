@@ -272,6 +272,24 @@ local function pressed(E, sx, sy, button)
 			return
 		end
 	end
+	if E.tool == "muzzle" and (button == 1 or button == 2) then
+		local m = E.design.muzzles or {}
+		E.design.muzzles = m
+		if button == 2 then
+			local best, bd = nil, 12
+			for i, q in ipairs(m) do
+				local qx, qy = Canvas.toScreen(E, q[1], q[2])
+				local d = math.sqrt((qx - sx) ^ 2 + (qy - sy) ^ 2)
+				if d < bd then best, bd = i, d end
+			end
+			if best then E.pushUndo(); table.remove(m, best) end
+			return
+		end
+		local px, py = Canvas.snap(E, wx, wy)
+		E.pushUndo()
+		table.insert(m, { px, py })
+		return
+	end
 	if button == 2 and E.tool == "berth" then
 		local i = Canvas.berthAt(E, sx, sy)
 		if i then
@@ -1098,6 +1116,27 @@ function Canvas.draw(E)
 		lg.setColor(1, 0.86, 0.55, 0.8)
 		lg.setLineWidth(1)
 		lg.line(ax, ay, bx, by)
+	end
+
+	-- weapons: the mount (pivot and line of fire), its turret ring, and
+	-- the muzzle points shots leave from
+	if E.design.kind == "weapon" then
+		local ox, oy = Canvas.toScreen(E, 0, 0)
+		local fx = Canvas.toScreen(E, 30, 0)
+		lg.setLineWidth(1)
+		lg.setColor(1, 1, 1, 0.25)
+		lg.line(ox, oy, fx, oy)
+		lg.line(ox, oy - 6, ox, oy + 6)
+		local r = ({ S = 4, M = 6, L = 9 })[E.design.module and E.design.module.size] or 5
+		lg.setColor(0.5, 0.8, 1, 0.35)
+		lg.circle("line", ox, oy, r * v.zoom)
+		for i, q in ipairs(E.design.muzzles or {}) do
+			local qx, qy = Canvas.toScreen(E, q[1], q[2])
+			lg.setColor(1, 0.75, 0.3)
+			lg.circle("line", qx, qy, 4)
+			lg.line(qx, qy, qx + 8, qy)
+			lg.print(tostring(i), qx + 5, qy - 16)
+		end
 	end
 
 	-- the cursor's position in ship space

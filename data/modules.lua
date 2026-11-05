@@ -22,7 +22,7 @@
 	              launchers their size or smaller. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
-	              knockback, pulse (seconds the flash shows) and
+	              pulse (seconds the flash shows) and
 	              powerPerShot themselves.
 	              beam = true makes it a beam laser instead: it burns while
 	              the trigger is held, with damage and powerPerSecond per second.
@@ -32,7 +32,9 @@
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
 	  barrels     barrels that take turns firing; barrelGap = spacing
 	  gimbal      degrees it can aim off the nose
-	  recoil      push back on the shooter
+	  recoilPct   guns and artillery: push back on the shooter, as a
+	              percentage of the round's knockback
+	  recoil      launchers: push back on the shooter (a fixed impulse)
 ]]
 
 -- Weapons: guns (fast, short range, no splash) --------------------------------
@@ -40,13 +42,13 @@
 module {
 	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 4, powerDraw = 1, price = 2200,
-	weapon = { kind = "gun", fireRate = 300 / 60, spread = 0.8, gimbal = 10, recoil = 40 },
+	weapon = { kind = "gun", fireRate = 300 / 60, spread = 0.8, gimbal = 10, recoilPct = 16 },
 }
 
 module {
 	id = "rk7_autocannon", name = "RK-7 Autocannon", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 10, powerDraw = 2, price = 6500,
-	weapon = { kind = "gun", fireRate = 240 / 60, spread = 1, gimbal = 10, recoil = 70 },
+	weapon = { kind = "gun", fireRate = 240 / 60, spread = 1, gimbal = 10, recoilPct = 17.5 },
 }
 
 -- Two RK-7 actions on one large mount, firing the same heavy rounds. The
@@ -54,7 +56,7 @@ module {
 module {
 	id = "rk14_twin", name = "RK-14 Twin Autocannon", maker = "Brute Industries", family = "weapon", size = "L",
 	mass = 24, powerDraw = 4, price = 15000,
-	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 480 / 60, spread = 1, gimbal = 10, recoil = 70 },
+	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 480 / 60, spread = 1, gimbal = 10, recoilPct = 17.5 },
 }
 
 -- Weapons: artillery (slow, long range, high damage, splash) -----------------
@@ -63,19 +65,19 @@ module {
 module {
 	id = "pip_mortar", name = "Pip Mortar", maker = "Ferrous Collective", family = "weapon", size = "S",
 	mass = 6, powerDraw = 1, price = 3400,
-	weapon = { kind = "artillery", fireRate = 1.2, spread = 1, gimbal = 6, recoil = 1500 },
+	weapon = { kind = "artillery", fireRate = 1.2, spread = 1, gimbal = 6, recoilPct = 25 },
 }
 
 module {
 	id = "thumper_m", name = "Thumper", maker = "Brute Industries", family = "weapon", size = "M",
 	mass = 16, powerDraw = 2, price = 9000,
-	weapon = { kind = "artillery", fireRate = 0.8, spread = 1, gimbal = 6, recoil = 4000 },
+	weapon = { kind = "artillery", fireRate = 0.8, spread = 1, gimbal = 6, recoilPct = 33 },
 }
 
 module {
 	id = "long_tom", name = "Long Tom", maker = "Ferrous Collective", family = "weapon", size = "L",
 	mass = 34, powerDraw = 3, price = 24000,
-	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoil = 12000 },
+	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoilPct = 46 },
 }
 
 -- Weapons: pulse lasers (no ammo, a chunk of power per pulse) -----------------
@@ -83,19 +85,19 @@ module {
 module {
 	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 5, price = 5200,
-	weapon = { kind = "laser", fireRate = 1.6, damage = 30, powerPerShot = 20, pulse = 0.12, range = 3500, gimbal = 12, knockback = 1500 },
+	weapon = { kind = "laser", fireRate = 1.6, damage = 30, powerPerShot = 20, pulse = 0.12, range = 3500, gimbal = 12 },
 }
 
 module {
 	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 12, price = 14000,
-	weapon = { kind = "laser", fireRate = 1.4, damage = 65, powerPerShot = 45, pulse = 0.14, range = 4200, gimbal = 12, knockback = 3000 },
+	weapon = { kind = "laser", fireRate = 1.4, damage = 65, powerPerShot = 45, pulse = 0.14, range = 4200, gimbal = 12 },
 }
 
 module {
 	id = "sunder_beam", name = "Sunder Beam", maker = "Nova Syndicate", family = "weapon", size = "L",
 	mass = 30, price = 38000,
-	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10, knockback = 8000 },
+	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10 },
 }
 
 -- Mining drills: hold the trigger and the drill extends out of the nose,
@@ -126,19 +128,19 @@ module {
 module {
 	id = "thread_beam", name = "Thread Beam", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 6, price = 6000,
-	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12, knockback = 800 },
+	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
 }
 
 module {
 	id = "searing_ray", name = "Searing Ray", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 14, price = 16000,
-	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12, knockback = 1600 },
+	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
 }
 
 module {
 	id = "furnace_beam", name = "Furnace Beam", maker = "Halcyon Arms", family = "weapon", size = "L",
 	mass = 32, price = 42000,
-	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10, knockback = 3000 },
+	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
 }
 
 -- Bay launchers -------------------------------------------------------------------
