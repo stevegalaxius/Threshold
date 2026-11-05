@@ -182,5 +182,23 @@ return function(game)
  check(cells==0,'moored ship blocked interior hangar cells')
  for i=#list,1,-1 do list[i]=nil end
  for i,r in ipairs(saved) do list[i]=r end
+ -- Launching never drops a ship onto traffic at the launch point.
+ local Ship=require('src.ship')
+ local pl=game.player
+ local st=game:locationEntity('station:earth_2')
+ game:dockInstantly(pl,st,{})
+ check(pl.dockState and pl.dockState.done,'launch fixture could not dock')
+ if pl.dockState and pl.dockState.done then
+  local d=pl.dockState.dock or st.dock
+  local bx,by=game.dockWorld(st,pl.dockState.side or 1,d.x2+pl.halfLength+60,0,d)
+  local blocker=Ship.new(game,{hull=pl.hull.id,team=2})
+  blocker.body:setPosition(bx,by);table.insert(game.entities,blocker)
+  game:undock()
+  check(pl.dockState~=nil,'player launched on top of a ship at the launch point')
+  game:remove(blocker)
+  for i=#game.entities,1,-1 do if game.entities[i]==blocker then table.remove(game.entities,i) end end
+  if not blocker.body:isDestroyed() then blocker.body:destroy() end
+  check(game:launchBlocker(pl)==nil,'cleared launch point still reported traffic')
+ end
  print(('BERTH TEST PASSED (%d checks)'):format(checks))
 end

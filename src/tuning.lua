@@ -273,6 +273,8 @@ T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
 -- Seconds before a ship still short of fuel after a supply stop tries another.
 T.npcFuelStopRetry=600
+-- Extra gap between an undocking ship and traffic at its launch point.
+T.launchClearance=60
 
 T.salvagerPopulation,T.salvagerLoad,T.salvagerCollectTime=1,8,30
 T.salvagerRange,T.salvagerStay=6000,30

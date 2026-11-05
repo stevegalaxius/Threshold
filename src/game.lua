@@ -1278,28 +1278,52 @@ function Game:updateDockedShip(e, dt)
 	else
 		b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
 	end
-	if ds.stay and ds.t >= ds.stay and (not e.alifeId or self:traderCanDepart(e,ds.station)) then self:undockShip(e) end
+	-- Hold departure while the launch point is occupied; checked before the
+	-- trader's departure planning so that only runs when it can actually leave.
+	if ds.stay and ds.t >= ds.stay and not self:launchBlocker(e) and (not e.alifeId or self:traderCanDepart(e,ds.station)) then self:undockShip(e) end
 end
 
 -- Launch a docked ship back out of the door.
+-- Where an undocking ship appears, and how it leaves.
+local function launchPose(e)
+	local ds = e.dockState
+	local st, d = ds.station, ds.dock or ds.station.dock
+	local sb = st.body
+	local side = ds.side or 1
+	local bd = ds.mooring or ds.berth and st.def.berths[ds.berth]
+	if bd then
+		-- off the berth, nose first, gently
+		local wx, wy = sb:getWorldPoint(bd.x, bd.y)
+		local wa = sb:getAngle() + math.rad(bd.heading or 0)
+		return wx, wy, wa, cos(wa), sin(wa), 140, bd
+	end
+	local wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
+	local ox, oy = dockVector(st, side, 1, 0, d)
+	return wx, wy, dockAngle(st, side, d), ox, oy, 260, nil
+end
+
+-- Another flying ship where this one would appear (say one on its tractor
+-- approach), or nil when the launch point is clear.
+function Game:launchBlocker(e)
+	if not e.dockState then return nil end
+	local wx, wy = launchPose(e)
+	for _, o in ipairs(self.entities) do
+		if o ~= e and o.kind == "ship" and not o.dead and not o.removed and o.body
+			and o.body:isActive() and not (o.dockState and o.dockState.done) then
+			local x, y = o.body:getPosition()
+			local r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance
+			if (x - wx)^2 + (y - wy)^2 < r * r then return o end
+		end
+	end
+end
+
 function Game:undockShip(e)
 	local ds = e.dockState
 	if not ds or not ds.done then return end
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local sb = st.body
 	local side = ds.side or 1
-	local wx, wy, wa, ox, oy, speed
-	local bd = ds.mooring or ds.berth and st.def.berths[ds.berth]
-	if bd then
-		-- off the berth, nose first, gently
-		wx, wy = sb:getWorldPoint(bd.x, bd.y)
-		wa = sb:getAngle() + math.rad(bd.heading)
-		ox, oy, speed = cos(wa), sin(wa), 140
-	else
-		wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
-		ox, oy = dockVector(st, side, 1, 0, d)
-		wa, speed = dockAngle(st, side, d), 260
-	end
+	local wx, wy, wa, ox, oy, speed, bd = launchPose(e)
 	local svx, svy = sb:getLinearVelocityFromWorldPoint(wx, wy)
 	e.body:setPosition(wx, wy)
 	e.body:setAngle(wa)
@@ -1354,6 +1378,7 @@ function Game:undock()
 	if not p or not p.dockState or not p.dockState.done then return end
 	local missing = Ship.launchProblem(p)
 	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
+	if self:launchBlocker(p) then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
 	self:toast("LAUNCHED", 1)
