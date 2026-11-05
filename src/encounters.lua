@@ -107,9 +107,9 @@ function E.profile(r)
 end
 local function strength(p) return p.dps*p.hp end
 -- Chance that a's side wins a straight fight against b's.
-function E.odds(a,b)
+function E.odds(a,b,support)
  local pa,pb=E.profile(a),E.profile(b)
- local sa,sb=strength(pa),strength(pb)
+ local sa,sb=strength(pa),(pb.dps+(support or 0))*pb.hp
  if sa+sb<=0 then return .5 end
  return sa/(sa+sb)
 end
@@ -175,6 +175,33 @@ local function surrender(game,pirate,victim)
  return taken
 end
 E.surrender=surrender
+-- Stations defend the space around them (as online, they only answer
+-- aggression, so only fights already under way). Damage per second of a
+-- station's turrets, endless ammo; 0 for none.
+local stationDps={}
+function E.stationDps(node)
+ local id=node and L.canonical(node)
+ if not id or not L.byId[id] or L.get(id).kind~='station' then return 0 end
+ if stationDps[id] then return stationDps[id] end
+ local ok,def=pcall(L.stationDefinition,id);local dps=0
+ for _,t in ipairs(ok and def.turrets or {}) do
+  local m=data.modules[t.module];local w=m and m.weapon
+  if w and w.kind~='drone' then
+   local hit=w.damage or 0
+   if w.kind~='laser' then local ammo=data.ammoFor(m);hit=ammo and data.items[ammo] and data.items[ammo].shot.damage or hit end
+   dps=dps+(w.fireRate or 1)*hit
+  end
+ end
+ stationDps[id]=dps
+ return dps
+end
+-- The guns covering a fight: the station at the node either side is near.
+local function coveringStation(a,b,clock)
+ local _,_,an=segment(a,clock);local _,_,bn=segment(b,clock)
+ local node=E.stationDps(an)>0 and an or E.stationDps(bn)>0 and bn or nil
+ return node,node and E.stationDps(node) or 0
+end
+E.coveringStation=coveringStation
 local function wreck(u,r,clock)
  local fight=r.encounter
  u.alifeWrecks=u.alifeWrecks or {}
@@ -205,6 +232,13 @@ function E.update(game,clock)
    -- Simultaneous exchange: neither side loses its shot to iteration order.
    local da=E.damage(a,T.offlineCombatTick,random(fight),b)
    local db=E.damage(b,T.offlineCombatTick,random(fight),a)
+   -- a covering station fires on the pirate side
+   local _,guns=coveringStation(a,b,clock)
+   if guns>0 then
+    local roll=random(fight)
+    local shot=guns*T.offlineCombatTick*T.offlineStationAccuracy*(.75+.5*roll)*T.offlineCombatHit
+    if a.role=='pirate' and b.role~='pirate' then db=db+shot elseif b.role=='pirate' and a.role~='pirate' then da=da+shot end
+   end
    a.ship.armor=math.max(0,a.ship.armor-db);b.ship.armor=math.max(0,b.ship.armor-da)
    fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
    b.encounter.round=fight.round;b.encounter.nextAt=fight.nextAt
@@ -251,7 +285,10 @@ function E.update(game,clock)
       if not best or odds>best then target,best=b,odds end
      end
     end
-    if target and E.odds(a,target)>=T.offlineEngageOdds then
+    -- a station's guns count on the target's side
+    local guns=0
+    if target then guns=select(2,coveringStation(a,target,clock)) end
+    if target and E.odds(a,target,guns*T.offlineStationAccuracy)>=T.offlineEngageOdds then
      local pa,pb=E.profile(a),E.profile(target)
      local fight=a.id..target.id..math.floor(clock/T.offlineEngageWindow)
      local roll=random({seed=(#fight*7919+math.floor(clock))%2147483647})

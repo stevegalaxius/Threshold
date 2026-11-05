@@ -166,6 +166,7 @@ T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 -- armour fraction where each kind of ship breaks off.
 T.offlineEngageOdds, T.offlineEngageWindow = 0.6, 60
 T.offlineEscapeGain, T.offlineEscapeMax = 1.5, 0.8
+T.offlineStationAccuracy = 0.5   -- turret hit chance offline
 T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800
 T.population = {
