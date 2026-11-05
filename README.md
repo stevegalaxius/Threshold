@@ -962,3 +962,27 @@ are deferred. Scripted transfers and docked ships do not run normal flight
 loads. Fuel item, energy per unit, starting allowance and NPC reserve targets
 are configured in `src/tuning.lua`. Run `love . --fueltest` for focused inventory,
 depletion, physics, persistence, NPC handoff and supply checks.
+
+### NPC fuel conditions
+
+NPCs retain a saved `fuelStatus` alongside their existing task/travel state:
+**normal**, **low**, **empty** (fuel gone, capacitor still usable), or **stranded**
+(fuel and capacitor exhausted). F6's A-Life records and the F4 traffic monitor's
+status details show the condition. Low fuel uses the existing role-specific
+Supplies-return behavior; traders continue toward their scheduled station stop.
+Nearest-station diversion and route-specific reserve planning remain deferred.
+
+Stranding pauses powered route progress, timed idle duties, and active NPC AI
+without replacing the record, releasing its cargo/task reservation, or reducing
+its population count. Existing momentum and externally powered mass-driver
+transport remain possible. Refueling through ordinary inventory/Supplies clears
+the condition and allows the same duty to resume. Miners do not retrospectively
+complete work for the time they were stranded. Stranded NPCs remain vulnerable
+to other ships; they do not initiate new offline attacks or take combat turns.
+
+Each change emits one saved `fuel_condition_changed` history entry with the old
+and new conditions, remaining fuel energy and capacitor charge. Repeated updates,
+materialization and save/load preserve the condition without repeating entries.
+The first healthy observation initializes the record silently. `--fueltest`
+includes controlled online/offline depletion, duty retention, history deduplication,
+recovery, idle timing and persistence checks. Rescue tasks are not implemented.

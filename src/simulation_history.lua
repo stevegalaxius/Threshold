@@ -22,6 +22,10 @@ local function append(u,kind,clock,area,participants,result,fightId)
  return entry
 end
 local function key(a,b) if a>b then a,b=b,a end return a..'|'..b,a,b end
+function H.fuelCondition(u,r,clock,previous,status,fuel,power)
+ return append(u,'fuel_condition_changed',clock,r.area,{r.id},
+  {from=previous,to=status,fuelEnergy=fuel,power=power})
+end
 function H.begin(u,a,b,clock,area)
  if not a or not b or a==b then return end
  local k,x,y=key(a,b);local s=H.state(u)
@@ -119,6 +123,7 @@ function H.panel(game,Slab)
   Slab.Text(('  %s / %s'):format(e.area or 'transit',table.concat(e.participants,', ')))
   if e.fightId then Slab.Text('  '..e.fightId..' '..(e.result.reason or '')) end
   if e.result.wreckId then Slab.Text('  '..e.result.wreckId) end
+  if e.kind=='fuel_condition_changed' then Slab.Text('  '..e.result.from..' -> '..e.result.to) end
   if #((e.result or {}).dead or {})>0 then Slab.Text('  Dead: '..table.concat(e.result.dead,', ')) end
   if #((e.result or {}).fled or {})>0 then Slab.Text('  Fled: '..table.concat(e.result.fled,', ')) end
  end

@@ -312,6 +312,7 @@ local function graphSection(game)
    if home then Slab.Text("  Home: "..Locations.get(home).name.." ("..home..")") end
    Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
    if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
+   if r.fuelStatus then Slab.Text('  Fuel: '..require('src.reactor_fuel').label(r)) end
    if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end
    if r.targetId then Slab.Text("  Target: "..r.targetId) end
   end

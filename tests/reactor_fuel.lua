@@ -80,7 +80,7 @@ return function(game)
  local stranded=copy(r);stranded.state='travel';stranded.depart=0;stranded.arrive=100;stranded.fuelClock=10
  stranded.ship.cargo={};stranded.ship.hold=nil;stranded.ship.fuelCharge=0;stranded.power=0
  Fuel.advance(stranded,15)
- check(stranded.depart==5 and stranded.arrive==105 and stranded.taskStatus=='out of reactor fuel','empty offline ship continued abstract travel')
+ check(stranded.depart==5 and stranded.arrive==105 and stranded.fuelStatus=='stranded','empty offline ship continued abstract travel')
  local refill=copy(stranded);local node=L.stations('earth','trade')[1]
  Supplies.refill(refill,node)
  check((refill.ship.cargo[item] or 0)>0,'NPC dockside supplies omitted reactor fuel')
@@ -91,5 +91,6 @@ return function(game)
  Fuel.initialize(old);old.cargo[item]=0;old.fuelCharge=0;Fuel.initialize(old)
  check(old.cargo[item]==0,'initialization repeatedly refueled an empty ship')
  require('src.hud').draw(game,0,0,false)
+ require('tests.npc_fuel')(game)
  print(('REACTOR FUEL TEST PASSED (%d checks)'):format(checks))
 end

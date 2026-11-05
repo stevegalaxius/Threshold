@@ -220,13 +220,23 @@ local function dockingStop(r,id)
 end
 
 function A.advance(r,clock,u,game)
- Fuel.advance(r,clock)
+ local fuelStatus=Fuel.advance(r,clock,u)
+ if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
  if game and not r.worldRecovery and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and (Repairs.needs(r) or Supplies.needs(r)) then Piracy.returnRecord(game,r) end
- if r.piracy and not r.worldRecovery then return Piracy.advance(r,clock,u,start) end
+ if r.piracy and not r.worldRecovery then
+  local result=Piracy.advance(r,clock,u,start)
+  Fuel.observe(u,r,clock);return result
+ end
  if game and not r.worldRecovery and require("src.offline_loot").update(game,r,clock) then return end
- if Mining.isMiner(r) and not r.worldRecovery then return Mining.advance(game or {universe=u},r,clock) end
- if Security.isRole(r) and not r.worldRecovery then return Security.advance(r,clock,u,start) end
+ if Mining.isMiner(r) and not r.worldRecovery then
+  local result=Mining.advance(game or {universe=u},r,clock)
+  Fuel.observe(u,r,clock);return result
+ end
+ if Security.isRole(r) and not r.worldRecovery then
+  local result=Security.advance(r,clock,u,start)
+  Fuel.observe(u,r,clock);return result
+ end
  if r.encounter then return end
  if r.state=='dead' or r.state=='escaped' then return end
  -- Complete elapsed activities using their event times, not frame steps.
@@ -240,6 +250,7 @@ function A.advance(r,clock,u,game)
    else start(r,at,r.index%#r.route+1) end
   elseif r.state=='docked' then
    Repairs.advance(r,clock,r.route[r.index])
+   Fuel.observe(u,r,clock)
    if clock<r.untilTime then return end
    if r.worldRecovery then
     Reconcile.resume(u,r,r.untilTime)
@@ -448,6 +459,7 @@ function A.capture(game,e,remote)
   r.cityExit={station=exit.station.locationId,dock=index,side=exit.side,t=exit.t}
  end
  r.ship=shipRecord(e); r.power=e.power;r.fuelClock=clock
+ Fuel.observe(game.universe,r,clock,e)
  if r.waitingForHome then
   r.state='idle';r.node=r.route[r.index]
   local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
@@ -580,6 +592,7 @@ function A.wake(game,r)
   enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
+ Fuel.observe(game.universe,r,game.universe.clock,e)
  e.alifeRole=Security.isRole(r) and r.role or nil
  e.npcRole=r.role
  e.alifeRecord=r;e.alifeGame=game

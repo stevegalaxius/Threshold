@@ -10,6 +10,7 @@ local Tasks=require('src.tasks')
 local copy=require('src.persistence').copy
 local T=require('src.tuning')
 local History=require('src.simulation_history')
+local Fuel=require('src.reactor_fuel')
 local E={}
 local function active(r)
  return r and (r.state=='travel' or r.state=='idle') and not r.driverState and r.area~=nil
@@ -66,6 +67,7 @@ local function random(fight)
 end
 -- Spend real ammunition and carry that inventory back into physical combat.
 function E.damage(r,seconds,roll)
+ if Fuel.condition(r)=='stranded' then return 0 end
  local hold=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
  local cargo=hold and Hold.totals(hold) or r.ship.cargo or {}
  local damage=0
@@ -143,7 +145,7 @@ function E.update(game,clock)
  end
  for _,group in pairs(areas) do
   for _,a in ipairs(group) do
-   if a.role=='pirate' and not a.encounter then
+   if a.role=='pirate' and not a.encounter and Fuel.condition(a)~='stranded' then
     local target
     for _,b in ipairs(group) do
      if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='patrol') and not b.encounter and close(a,b,clock) then

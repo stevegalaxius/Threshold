@@ -25,6 +25,47 @@ end
 function F.remaining(e)
  return (e.fuelCharge or 0)+(e.cargo[F.item()] or 0)*T.reactorFuelEnergy
 end
+local labels={normal='normal',low='low reactor fuel',empty='fuel empty; capacitor available',stranded='stranded: no reactor fuel or power'}
+function F.condition(r,e)
+ local ship=e or r.ship
+ local stats=e and e.stats or Stats.compute(data.hulls[ship.hull],ship.loadout)
+ local fuel=F.remaining(ship)
+ local power=e and e.power or r.power or stats.powerCap
+ if fuel<=1e-6 then return power<=1e-6 and 'stranded' or 'empty' end
+ if fuel<stats.powerOut*T.reactorFuelReserveSeconds*T.npcAmmoThreshold then return 'low' end
+ return 'normal'
+end
+function F.label(r) return r.fuelStatus and labels[r.fuelStatus] end
+function F.needsPropulsion(r)
+ return r.state~='docked' and not r.driverState
+  and not (r.state=='transit' and r.transit and r.transit.kind=='driver')
+end
+function F.observe(u,r,clock,e)
+ if not r or r.state=='dead' or r.state=='escaped' or e and e.dead then return end
+ local status=F.condition(r,e)
+ local previous=r.fuelStatus
+ -- Pause timed idle duties, too; a fuel stop must not complete a patrol or
+ -- discard an assignment simply because its ordinary wait timer elapsed.
+ if previous=='stranded' and r.fuelObservedAt and r.state=='idle' and r.untilTime then
+  r.untilTime=r.untilTime+math.max(0,clock-r.fuelObservedAt)
+ end
+ r.fuelObservedAt=clock
+ if previous=='stranded' and status~='stranded' and r.role=='miner' then
+  r.fuelClock=clock;r.nextMiningAt=clock+T.miningOfflineEvery
+ end
+ if status=='stranded' and r.role=='miner' then r.fuelClock=clock end
+ if status~=previous then
+  r.fuelStatus=status;r.fuelStatusSince=clock
+  if u and (previous or status~='normal') then
+   require('src.simulation_history').fuelCondition(u,r,clock,previous or 'normal',status,
+    F.remaining(e or r.ship),e and e.power or r.power or 0)
+  end
+ end
+ if e then e.fuelStatus=status end
+ -- Clear only the old prototype's fuel-owned activity text, never a duty.
+ if r.taskStatus=='out of reactor fuel' then r.taskStatus=nil end
+ return status
+end
 local function burn(e,need)
  local generated=0
  while need>1e-9 do
@@ -72,20 +113,23 @@ function F.withRecord(r,fn)
  r.power=e.power
  return result
 end
-function F.advance(r,clock)
- -- Mining accounts for its continuous drill load in its own work slice.
- if r.role=='miner' and r.task and r.task.phase=='mining' and r.state=='idle' then return end
- local previous=r.fuelClock or clock;r.fuelClock=clock
+function F.advance(r,clock,u)
  if r.state=='dead' or r.state=='escaped' then return end
+ if not r.ship.fuelInitialized then F.withRecord(r,function() end);r.fuelClock=clock end
+ -- Mining accounts for its continuous drill load in its own work slice.
+ if r.role=='miner' and r.task and r.task.phase=='mining' and r.state=='idle' then
+  return F.observe(u,r,clock)
+ end
+ local previous=r.fuelClock or clock;r.fuelClock=clock
  local seconds=math.max(0,clock-previous)
  local moving=r.state=='travel' or r.state=='transit' and r.transit and r.transit.kind~='driver'
- if r.state=='docked' then return end -- dockside maintenance, no flight load
+ if r.state=='docked' then return F.observe(u,r,clock) end -- dockside maintenance, no flight load
  local scale=F.withRecord(r,function(e,s)return F.step(e,s,seconds,moving) end)
  if moving and scale<1 then
   -- Freeze abstract route progress for the time propulsion could not be powered.
   local delay=seconds*(1-scale)
   r.depart=(r.depart or clock)+delay;r.arrive=(r.arrive or clock)+delay
-  r.taskStatus='out of reactor fuel'
  end
+ return F.observe(u,r,clock)
 end
 return F

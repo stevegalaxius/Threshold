@@ -22,6 +22,7 @@ local data = require("src.data")
 
 local Security=require("src.security")
 local Nav=require("src.local_navigation")
+local Fuel=require('src.reactor_fuel')
 local AI = {}
 
 local sqrt, cos, sin, max, min, random = math.sqrt, math.cos, math.sin, math.max, math.min, love.math.random
@@ -313,6 +314,11 @@ function AI.think(game, e, dt)
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
 	local record=e.alifeId and game.universe.npcs[e.alifeId]
+ if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
+  local x,y=e.body:getPosition();local a=e.body:getAngle()
+  it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100
+  return
+ end
  if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
 	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
 	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end

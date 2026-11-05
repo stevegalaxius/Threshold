@@ -57,7 +57,7 @@ end
 function S.needs(r,e)
  local cargo=e and e.cargo or r.ship.cargo or {};local h=e and e.hold
  for id,target in pairs(S.targets(r,e)) do
-  if (cargo[id] or 0)<target*T.npcAmmoThreshold then
+  if (id==Fuel.item() and Fuel.condition(r,e)~='normal' or id~=Fuel.item() and (cargo[id] or 0)<target*T.npcAmmoThreshold) then
    if not h and r.ship.hold and not e then h=Hold.deserialize(r.ship.hold) end
    if room(r,e,h,id)>0 then return true end
   end
