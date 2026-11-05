@@ -158,7 +158,7 @@ local function surrender(game,pirate,victim)
  for id,n in pairs(vc) do
   local item=data.items[id]
   if n>0 and item and not item.shot and id~=Fuel.item() then
-   local k=n
+   local k=math.max(1,math.ceil(n*T.robberyShare))
    if ph then k=Hold.add(ph,id,n) else pc[id]=(pc[id] or 0)+n end
    if k>0 then
     if vh then Hold.take(vh,id,k) end

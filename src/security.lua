@@ -265,7 +265,7 @@ function S.hostile(game,e,o)
  -- patrols answer aggression (as stations do, and as offline does)
  if e.alifeRole=='patrol' then return o.team==2 and o.aggressedAt~=nil and game.time-o.aggressedAt<30 end
  if e.alifeRole=='pirate' then
-  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or S.prey(o))
+  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or S.prey(o)) and not require('src.robbery').isSpared(game,e,o)
  end
  return false
 end

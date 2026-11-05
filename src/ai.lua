@@ -337,6 +337,10 @@ function AI.think(game, e, dt)
 	local target
 	if e.alifeRole then
 		target = Security.target(game,e)
+		if target and e.alifeRole=='pirate' and not require("src.robbery").consider(game,e,target) then
+			-- demanding cargo: close in, guns quiet
+			if not require("src.robbery").pending(e) then target=nil;e.combatTarget=nil end
+		end
 		if not target then
 			Security.updateOnline(game,e,require("src.alife"))
 			if Security.hold(game,e,AI) then return end
@@ -515,6 +519,17 @@ function AI.think(game, e, dt)
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
 	it.fireSecondary = it.firePrimary
 	it.fireTertiary = it.firePrimary
+end
+
+-- A pirate waiting on a robbery demand keeps its guns quiet.
+local think=AI.think
+function AI.think(game,e,dt)
+	if e.robbedBy then require("src.robbery").respond(game,e) end
+	think(game,e,dt)
+	if e.alifeRole=='pirate' and require("src.robbery").pending(e) then
+		local it=e.intent
+		it.firePrimary,it.fireSecondary,it.fireTertiary=false,false,false
+	end
 end
 
 return AI
