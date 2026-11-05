@@ -204,6 +204,13 @@ local function trade(game, e, dt)
 			local G = require("src.travelgraph")
 			local previous = route[(e.routeIndex-2)%#route+1]
 			local edge = {from=previous.locationId, to=stop.locationId}
+			-- (a route that wraps or crosses regions has no local edge here)
+			if not (e.travelGraph.nodes[edge.from] and e.travelGraph.nodes[edge.to]) then gateApproach = false end
+		end
+		if gateApproach then
+			local G = require("src.travelgraph")
+			local previous = route[(e.routeIndex-2)%#route+1]
+			local edge = {from=previous.locationId, to=stop.locationId}
 			local clock = game.universe.clock
 			local p = G.project(e.travelGraph, edge, x, y, clock)
 			local look = math.max(500, math.sqrt(vx*vx+vy*vy)*1.5)
