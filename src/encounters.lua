@@ -209,6 +209,7 @@ local function wreck(u,r,clock)
   progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
   ship=copy(r.ship),archetype=r.archetype}
  r.state='dead';r.ship.armor=0
+ require('src.alife_trace').note(r,clock,'encounter','destroyed'..(fight and (' by '..fight.target) or ''))
  History.death(u,r,clock,r.area,fight and fight.target)
  u.alifeWrecks[r.id].historyWreckId=History.wreck(u,r,clock,r.area)
  Tasks.release(u,r,'destroyed',clock)
@@ -254,11 +255,14 @@ function E.update(game,clock)
      local winner=loser==a and b or a
      if CIVILIAN[loser.role] and winner.role=='pirate' then
       surrender(game,winner,loser)
+      require('src.alife_trace').note(loser,clock,'encounter','broke, surrendered cargo to '..winner.id)
+      require('src.alife_trace').note(winner,clock,'encounter','robbed '..loser.id..' -> heading home')
       E.finish(u,a,b,clock,nil,nil,'surrendered')
       loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
       require('src.piracy').returnRecord(game,winner)
      else
       E.finish(u,a,b,clock,loser)
+      require('src.alife_trace').note(loser,clock,'encounter','broke off vs '..winner.id)
      end
     end
    end
@@ -288,17 +292,22 @@ function E.update(game,clock)
     -- a station's guns count on the target's side
     local guns=0
     if target then guns=select(2,coveringStation(a,target,clock)) end
-    if target and E.odds(a,target,guns*T.offlineStationAccuracy)>=T.offlineEngageOdds then
+    local odds=target and E.odds(a,target,guns*T.offlineStationAccuracy)
+    if target then require('src.alife_trace').note(a,clock,'encounter',('sized up %s: odds %.0f%%%s'):format(target.id,odds*100,guns>0 and ' (under station guns)' or '')) end
+    if target and odds>=T.offlineEngageOdds then
      local pa,pb=E.profile(a),E.profile(target)
      local fight=a.id..target.id..math.floor(clock/T.offlineEngageWindow)
      local roll=random({seed=(#fight*7919+math.floor(clock))%2147483647})
      local escape=pb.agility>pa.agility and math.min(T.offlineEscapeMax,(pb.agility/math.max(1e-6,pa.agility)-1)*T.offlineEscapeGain) or 0
      History.begin(u,a.id,target.id,clock,a.area)
      if roll<escape then
+      require('src.alife_trace').note(target,clock,'encounter','outran '..a.id)
       -- outran: no shots fired; the pirate won't try this pair again this window
       a.offlineEyed={math.floor(clock/T.offlineEngageWindow)}
       E.finish(u,a,target,clock,nil,nil,'evaded')
-     else begin(a,target,clock) end
+     else begin(a,target,clock)
+      require('src.alife_trace').note(a,clock,'encounter','attacked '..target.id)
+      require('src.alife_trace').note(target,clock,'encounter','attacked by '..a.id) end
     elseif target then a.offlineEyed={math.floor(clock/T.offlineEngageWindow)} end
    end
   end

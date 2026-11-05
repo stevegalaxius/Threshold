@@ -381,6 +381,7 @@ function Debug.update(dt, game)
 			IsOpen = Debug.alifeVisible,
 		})
 		if Debug.alifeVisible then
+			require("src.ui.alife_inspector").panel(game)
 			section("dbg_graph", "A-Life records and connections", graphSection, game)
 			section("dbg_history", "Simulation history", function(g) require("src.simulation_history").panel(g,Slab) end, game)
 		end

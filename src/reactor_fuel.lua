@@ -64,6 +64,7 @@ function F.observe(u,r,clock,e)
  if status=='stranded' and r.role=='miner' then r.fuelClock=clock end
  if status~=previous then
   r.fuelStatus=status;r.fuelStatusSince=clock
+  if previous then require('src.alife_trace').note(r,clock,'fuel',previous..' -> '..status..(' (%.0f fuel)'):format(F.remaining(e or r.ship))) end
   if u and (previous or status~='normal') then
    require('src.simulation_history').fuelCondition(u,r,clock,previous or 'normal',status,
     F.remaining(e or r.ship),e and e.power or r.power or 0)

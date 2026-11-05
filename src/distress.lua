@@ -61,6 +61,8 @@ function D.stranded(game,e,r,dt)
  if helper then
   local h=game.universe.npcs[helper.alifeId]
   Handover.open(game,'distress',e,helper,math.min(want(r),spare(h,helper.cargo)),T.distressWindow,isFuel)
+  require('src.alife_trace').note(r,game.universe.clock,'distress','called '..h.id..' for fuel (online)')
+  require('src.alife_trace').note(h,game.universe.clock,'distress','answering '..r.id..': fuel run')
   r.taskStatus='stranded: '..(helper.def and helper.def.name or 'a ship')..' is bringing fuel'
  end
 end
@@ -85,7 +87,8 @@ function D.helper(game,e,dt,AI)
  if r then r.taskStatus='bringing fuel to a stranded ship' end
  if d<close and not req.given then
   req.given=true
-  Handover.give(game,e,{Fuel.item()},req.amount-req.paid)
+  local n=Handover.give(game,e,{Fuel.item()},req.amount-req.paid)
+  if r then require('src.alife_trace').note(r,game.universe.clock,'distress',('ejected %d fuel for %s'):format(n,tostring(asker.alifeId))) end
   Handover.close(req)
  end
  return true
@@ -118,6 +121,7 @@ function D.advance(game,r,clock)
      l.record.count=l.record.count-got
      if l.record.count<=0 then Loose.remove(u,l.record.id) end
      Fuel.observe(u,r,clock);r.taskStatus='recovered floating fuel'
+     require('src.alife_trace').note(r,clock,'distress',('claimed %d floating fuel'):format(got))
      return true
     end
    end
@@ -127,15 +131,18 @@ function D.advance(game,r,clock)
  local run=r.distress
  if run then
   local h=u.npcs[run.helper]
-  if not h or h.state=='dead' or h.area~=r.area or h.encounter or game.alifeOnline and game.alifeOnline[h.id] then r.distress=nil;return false end
+  if not h or h.state=='dead' or h.area~=r.area or h.encounter or game.alifeOnline and game.alifeOnline[h.id] then
+   require('src.alife_trace').note(r,clock,'distress','fuel run by '..run.helper..' fell through');r.distress=nil;return false end
   if clock<run.at then return false end
   r.distress=nil
   local n=withHold(h,function(e) return take(e,math.min(run.amount,spare(h,e.cargo))) end)
-  if n<=0 then return false end
+  if n<=0 then require('src.alife_trace').note(r,clock,'distress',run.helper..' had no fuel left to spare');return false end
   local got=withHold(r,function(e) return add(e,n) end)
   if got<n then withHold(h,function(e) add(e,n-got) end) end
   Fuel.observe(u,r,clock);Fuel.observe(u,h,clock)
   r.taskStatus='refuelled by a passing ship'
+  require('src.alife_trace').note(r,clock,'distress',('got %d fuel from %s'):format(got,h.id))
+  require('src.alife_trace').note(h,clock,'distress',('gave %d fuel to %s'):format(got,r.id))
   return got>0
  end
  if clock<(r.nextDistressAt or 0) then return false end
@@ -156,7 +163,8 @@ function D.advance(game,r,clock)
   local speed=best.speed or 300
   r.distress={helper=best.id,amount=want(r),at=clock+math.sqrt(bd==math.huge and T.distressRange^2 or bd)/speed*2+T.alifeStay}
   r.taskStatus='stranded: help is on the way'
- else r.taskStatus='stranded: calling for fuel' end
+  require('src.alife_trace').note(r,clock,'distress','called '..best.id..' for fuel')
+ else r.taskStatus='stranded: calling for fuel';require('src.alife_trace').note(r,clock,'distress','called for fuel: nobody in '..r.area..' can spare any') end
  return false
 end
 return D

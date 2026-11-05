@@ -63,7 +63,8 @@ function U.plan(r,clock,e)
    if ret and (not best or go.duration<best) then best,out,back,station=go.duration,go,ret,id end
   end
  end
- if not out then r.nextServiceAt=clock+T.npcFuelStopRetry;return false end
+ if not out then r.nextServiceAt=clock+T.npcFuelStopRetry
+  require('src.alife_trace').note(r,clock,'upkeep','needs '..need..', no station in '..r.area..' can serve it');return false end
  local route={idle and at or prev,at}
  if idle then route={at} end
  for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
@@ -71,6 +72,7 @@ function U.plan(r,clock,e)
  r.service={station=L.canonical(station),need=need,saved={route=copy(r.route),index=r.index,
   idle=idle or nil,node=idle and r.node or nil,untilTime=idle and r.untilTime or nil}}
  r.route=route
+ require('src.alife_trace').note(r,clock,'upkeep','needs '..need..' -> service visit at '..station)
  if not idle then r.index=2   -- the leg under way is kept: same depart, same arrive
  elseif #route==1 then r.index=1;r.state='docked';Repairs.begin(r,at,clock,T.alifeStay)
  else r.index=1;deps.start(r,clock,2) end
@@ -82,6 +84,7 @@ end
 function U.finish(r,at)
  local s=r.service;if not s then return end
  r.route=s.saved.route;r.index=s.saved.index;r.service=nil
+ require('src.alife_trace').note(r,at,'upkeep','service done at '..s.station..(U.need(r) and (', still needs '..U.need(r)) or '')..' -> back to role')
  if s.saved.idle then
   r.state='idle';r.node=s.saved.node;r.untilTime=math.max(s.saved.untilTime or at,at)
  else r.state='travel';r.depart=at;r.arrive=at end

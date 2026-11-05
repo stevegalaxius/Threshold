@@ -60,6 +60,7 @@ function P.returnRecord(game,r)
  local path=itinerary(source,base,game.universe.clock)
  if not path then r.taskStatus='no route to '..L.get(base).name;return false end
  Tasks.release(game.universe,r,'returning with loot',game.universe.clock)
+ require('src.alife_trace').note(r,game.universe.clock,'piracy','returning to '..base)
  r.piracy={phase='escape',base=base,origin=L.rally(r.home,source,game.universe.clock) or L.station(r.home,'trade'),started=game.universe.clock}
  r.taskWorker=true;r.taskStatus='returning to '..L.get(base).name
  if r.state=='travel' then

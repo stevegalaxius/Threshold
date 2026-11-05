@@ -56,12 +56,14 @@ function R.consider(game,pirate,target)
   if Handover.met(d) or goods(target)==0 then
    pirate.spared[target]=game.time+T.robberySpare
    Handover.close(d)
+   require('src.alife_trace').entity(game,pirate,'robbery',('paid %d by %s -> spared'):format(d.paid,tostring(target.alifeId or 'player')))
    pirate.combatTarget,pirate.lock=nil,nil
    announce(game,pirate,target,name(pirate)..': WISE CHOICE. MOVE ALONG.')
    return false
   end
   if Handover.expired(game,d) then
    d.refused=true
+   require('src.alife_trace').entity(game,pirate,'robbery',tostring(target.alifeId or 'player')..' did not pay -> attack')
    announce(game,pirate,target,name(pirate)..': YOU WERE WARNED.')
    return true
   end
@@ -77,6 +79,8 @@ function R.consider(game,pirate,target)
  if target.asked then return true end   -- already handing something over to someone
  d=Handover.open(game,'robbery',pirate,target,math.max(1,math.ceil(have*T.robberyShare)),T.robberyWindow,isGood)
  announce(game,pirate,target,('%s: JETTISON %d CARGO OR BE FIRED UPON'):format(name(pirate),d.amount))
+ require('src.alife_trace').entity(game,pirate,'robbery',('demanded %d from %s'):format(d.amount,tostring(target.alifeId or 'player')))
+ require('src.alife_trace').entity(game,target,'robbery',('%s demanded %d cargo'):format(tostring(pirate.alifeId),d.amount))
  return false
 end
 
@@ -100,7 +104,9 @@ function R.respond(game,e)
   local _,guns=E.coveringStation(mine,theirs,game.universe.clock)
   odds=E.odds(mine,theirs,guns*T.offlineStationAccuracy)
  end
- if odds>=T.offlineEngageOdds then e.aggressor=pirate;return end
+ if odds>=T.offlineEngageOdds then e.aggressor=pirate
+  require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> refuse and fight'):format(odds*100));return end
+ require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> comply'):format(odds*100))
  -- comply: dump the demanded share of goods
  local _,list=goods(e)
  Handover.give(game,e,list,d.amount)

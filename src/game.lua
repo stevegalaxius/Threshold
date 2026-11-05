@@ -2653,7 +2653,14 @@ function Game:frame(dt, aimX, aimY)
 	end
 
 	p = self.player
-	if p and not p.dead then
+	local follow = self.debugFollow
+	if follow and (follow.dead or follow.removed or not follow.body or follow.body:isDestroyed()) then self.debugFollow, follow = nil, nil end
+	if follow then
+		-- F6 inspector: watch an NPC
+		if p and not p.dead then self:updateComputers(dt) end
+		local x, y = follow.body:getPosition()
+		self.camera:follow(x, y, x, y, dt)
+	elseif p and not p.dead then
 		self:updateComputers(dt)
 		local x, y = self:pilotedShip().body:getPosition()
 		if p.catching then
