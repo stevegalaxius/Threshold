@@ -955,14 +955,15 @@ function Game:armStation(e)
 	e.grudge = e.grudge or setmetatable({}, { __mode = "k" })
 end
 
--- Would this station shoot at o? For now: hostile ships (team 2, and
--- their drones), and anyone who has shot the station lately. The
--- reputation and AI system will replace this.
+-- Would this station shoot at o? Only at aggression: anyone who has shot
+-- the station lately, or a hostile (team 2) ship that has lately opened
+-- fire on someone else. A pirate just passing by is left alone, which is
+-- also all the offline simulation can know about (it has no stations).
 function Game:stationHostile(st, o)
 	if o.kind ~= "ship" or o.dead or o.removed or o.dockState then return false end
 	local g = st.grudge and st.grudge[o]
 	if g and self.time - g < GRUDGE_TIME then return true end
-	return o.team == 2
+	return o.team == 2 and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
 end
 
 function Game:updateStationGuns(dt)
@@ -1876,6 +1877,11 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and e.grudge and source and source.kind == "ship" and amount > 0 and cause ~= "ram"
 		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
 		e.grudge[source] = self.time
+	end
+	-- remember who starts shooting at other ships (stations answer it)
+	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
+		and cause ~= "ram" and source.team ~= e.team then
+		source.aggressedAt = self.time
 	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).

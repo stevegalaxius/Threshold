@@ -149,7 +149,8 @@ function E.update(game,clock)
     local target
     for _,b in ipairs(group) do
      if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='salvager' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
-      if not target or b.role=='patrol' and target.role~='patrol' then target=b end
+      -- like online (security.lua), pirates go for prey before patrols
+      if not target or b.role~='patrol' and target.role=='patrol' then target=b end
      end
     end
     if target then begin(a,target,clock);History.begin(u,a.id,target.id,clock,a.area) end
