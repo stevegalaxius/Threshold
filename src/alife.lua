@@ -16,6 +16,7 @@ local Piracy=require("src.piracy")
 local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Encounters=require('src.encounters')
+local Upkeep=require('src.upkeep')
 local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
 local Salvager=require('src.salvager')
@@ -61,6 +62,7 @@ local function start(r,clock,index)
 end
 
 A.start=start
+Upkeep.install({start=start,graph=graph})
 
 local function roundTrip(home,to,clock,homeStation)
  local a,b=homeStation or L.station(home,'trade'),L.station(to,'trade')
@@ -107,7 +109,6 @@ local function adoptTrip(r,station,clock,u)
   local route=Tasks.plan(r,station,clock)
   if not route then Tasks.release(u,r,'no route',clock);return false end
   r.route=route;r.index=1;r.onRoundTrip=nil;r.tripRoute=nil;r.tripDestination=nil
-  r.fuelStop,r.fuelRejoin=nil,nil
   return true
  end
  if r.tripDestination and (station==(r.tradeHome or Homes.get(r))
@@ -118,7 +119,6 @@ local function adoptTrip(r,station,clock,u)
   if not route then return false end
   r.tripRoute=route
   r.route=copy(route); r.onRoundTrip=true
-  r.fuelStop,r.fuelRejoin=nil,nil
   for i,id in ipairs(route) do if id==station then r.index=i; break end end
   return true
  end
@@ -221,7 +221,7 @@ end
 
 local function dockingStop(r,id)
  if r.worldRecovery then return id==r.worldRecovery.target end
- if r.fuelStop and L.canonical(id)==r.fuelStop then return true end
+ if r.service then return Upkeep.isStation(r,id) end
  if r.role=='salvager' then return id==r.salvageGoal end
  if r.piracy then return id==r.route[#r.route] end
  if Security.shouldDock(r,id) then return true end
@@ -233,68 +233,14 @@ local function dockingStop(r,id)
   or id==L.station(r.tripDestination,'trade')
 end
 
--- Low or empty reactor fuel: route through the nearest supply station in the
--- region, then come back to the same node and resume the itinerary unchanged.
--- Specialist roles (pirates, salvagers, miners, security) have their own
--- supply returns; this covers traders and couriers flying plain routes.
-local function fuelRole(r)
- return not (r.role=='pirate' or r.role=='salvager' or Mining.isMiner(r) or Security.isRole(r))
-end
-local function supplyAhead(r,index)
- for k=0,#r.route-1 do
-  local id=r.route[(index-1+k)%#r.route+1]
-  local place=L.get(id)
-  if place.area~=r.area then return false end
-  if place.kind=='station' and Supplies.supports(L.canonical(id)) and dockingStop(r,id) then return true end
- end
- return false
-end
-function A.planFuelStop(r,clock,index)
- index=index or r.index
- if r.fuelStop or r.fuelRejoin or not (r.fuelStatus=='low' or r.fuelStatus=='empty') then return false end
- if r.state~='travel' or not r.area or not r.route or not r.route[index] then return false end
- if r.worldRecovery or r.waitingForHome or r.piracy or r.encounter or not fuelRole(r) then return false end
- if (r.nextFuelStopAt or 0)>clock then return false end
- if supplyAhead(r,index) then return false end
- local g=graph(r.area);local at=r.route[index]
- if L.get(at).area~=r.area then return false end
- local best,out,back,station
- for _,id in ipairs(L.stations(r.area)) do
-  if Supplies.supports(id) then
-   local go=Graph.route(g,at,id,clock,r.speed)
-   local ret=go and Graph.route(g,id,at,clock,r.speed)
-   if ret and #go.legs>0 and (not best or go.duration<best) then best,out,back,station=go.duration,go,ret,id end
-  end
- end
- if not out then r.nextFuelStopAt=clock+T.npcFuelStopRetry;return false end
- local detour={}
- for _,leg in ipairs(out.legs) do detour[#detour+1]=leg.edge.to end
- for _,leg in ipairs(back.legs) do detour[#detour+1]=leg.edge.to end
- local route={}
- for i=1,index do route[i]=r.route[i] end
- for _,id in ipairs(detour) do route[#route+1]=id end
- for i=index+1,#r.route do route[#route+1]=r.route[i] end
- r.fuelRejoin={route=copy(r.route),index=index+#detour,at=index}
- r.route=route;r.index=index;r.fuelStop=L.canonical(station)
- return true
-end
--- After the fuel stop: still short (e.g. a full hold) waits before retrying.
-local function leaveFuelStop(r,clock)
- r.fuelStop=nil
- if r.fuelStatus~='normal' then r.nextFuelStopAt=clock+T.npcFuelStopRetry end
-end
-function A.fuelRejoin(r,passed)
- local j=r.fuelRejoin
- if not j or passed~=j.index then return false end
- r.route=j.route;r.index=j.at;r.fuelRejoin=nil
- return true
-end
-
 function A.advance(r,clock,u,game)
  local fuelStatus=Fuel.advance(r,clock,u)
+ if Upkeep.rescue(r,clock) then fuelStatus=r.fuelStatus end
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
- if game and not r.worldRecovery and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and (Repairs.needs(r) or Supplies.needs(r)) then Piracy.returnRecord(game,r) end
+ -- Upkeep comes before every role: a due service visit owns the ship.
+ if r.state~='dead' and r.state~='escaped' and not r.service then Upkeep.plan(r,clock) end
+ if r.service and Upkeep.advance(r,clock,u) then return end
  if r.piracy and not r.worldRecovery then
   local result=Piracy.advance(r,clock,u,start)
   Fuel.observe(u,r,clock);return result
@@ -314,14 +260,12 @@ function A.advance(r,clock,u,game)
  end
  if r.encounter then return end
  if r.state=='dead' or r.state=='escaped' then return end
- A.planFuelStop(r,clock)
  -- Complete elapsed activities using their event times, not frame steps.
  while true do
   if r.state=='travel' or r.state=='transit' then
    if clock<r.arrive then return end
    local at=r.arrive
    r.offset,r.pose=nil,nil
-   A.fuelRejoin(r,r.index)
    if dockingStop(r,r.route[r.index]) then
     r.state='docked';r.node=r.route[r.index];Repairs.begin(r,r.node,at,T.alifeStay)
    else start(r,at,r.index%#r.route+1) end
@@ -340,13 +284,9 @@ function A.advance(r,clock,u,game)
     if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
     if Security.isRole(r) then return Security.advance(r,clock,u,start) end
    end
-   if r.fuelStop and L.canonical(r.route[r.index])==r.fuelStop then
-    leaveFuelStop(r,r.untilTime)
-   else
-    if r.taskWorker and not u then return end
-    local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)
-    if r.taskWorker and u and not adopted then r.untilTime=clock+10;return end
-   end
+   if r.taskWorker and not u then return end
+   local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)
+   if r.taskWorker and u and not adopted then r.untilTime=clock+10;return end
    start(r,r.untilTime,r.index%#r.route+1)
   else return end
  end
@@ -622,7 +562,7 @@ function A.capture(game,e,remote)
 end
 
 local function bindRoute(game,e,r)
- if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return Mining.bind(game,e,r) end
+ if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome or r.service) then return Mining.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area)
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
@@ -800,6 +740,11 @@ end
 
 function A.install(Game)
  function Game:traderCanDepart(e,station)
+  local serviced=self.universe.npcs[e.alifeId]
+  if serviced and serviced.service and Upkeep.isStation(serviced,station.locationId) then
+   if not Upkeep.canDepart(self,e,serviced) then return false end
+   e.serviceDeparture=true;return true
+  end
   local salvager=self.universe.npcs[e.alifeId]
   if salvager and salvager.role=='salvager' then
    A.capture(self,e,false)
@@ -834,7 +779,6 @@ function A.install(Game)
    e.cargo=copy(r.ship.cargo);if e.hold then Hold.sync(e.hold,e.cargo) end;Ship.updateMass(e)
    e.pirateDeparture=true;return true
   end
-  if r and r.fuelStop and L.canonical(station.locationId)==r.fuelStop then e.fuelDeparture=true;return true end
   if not r or not r.taskWorker then return true end
   A.capture(self,e,false)
   local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
@@ -845,6 +789,12 @@ function A.install(Game)
   return true
  end
  function Game:traderUndocked(e,station)
+  if e.serviceDeparture then
+   e.serviceDeparture,e.serviceDockedAt=nil,nil
+   local r=self.universe.npcs[e.alifeId];A.capture(self,e,false)
+   if r.index>=#r.route then Upkeep.passed(r,#r.route) end
+   start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return
+  end
   if e.salvagerDeparture then
    e.salvagerDeparture=nil
    local r=self.universe.npcs[e.alifeId];start(r,self.universe.clock,2);bindRoute(self,e,r);return
@@ -855,10 +805,6 @@ function A.install(Game)
   local r=self.universe.npcs[e.alifeId]
   if e.patrolDeparture then e.patrolDeparture=nil;bindRoute(self,e,r);return end
   if e.pirateDeparture then e.pirateDeparture=nil;bindRoute(self,e,r);return end
-  if e.fuelDeparture then
-   e.fuelDeparture=nil;A.capture(self,e,false);leaveFuelStop(r,self.universe.clock)
-   start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return
-  end
   if e.worldDeparture then
    e.worldDeparture,e.jobPrepared=nil,nil
    start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return

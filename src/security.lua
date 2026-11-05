@@ -324,6 +324,14 @@ function S.hold(game,e,AI)
 end
 
 function S.visit(game,e,stop,A)
+ local pr=game.universe.npcs[e.alifeId]
+ -- A pirate redeploying reaches the end of its trip at a buoy, not a dock:
+ -- finish the trip there (as offline) instead of wrapping the route.
+ if pr.piracy and pr.piracy.phase=='redeploy' and e.routeIndex>=#e.route and not pr.worldRecovery then
+  A.capture(game,e,false)
+  if require('src.piracy').depart(game.universe,pr,game.universe.clock,A.start) then A.bindRoute(game,e,pr) end
+  return true
+ end
  if game.universe.npcs[e.alifeId].piracy or game.universe.npcs[e.alifeId].worldRecovery then return false end
  if not e.alifeRole or e.routeIndex<#e.route then return false end
  local r=game.universe.npcs[e.alifeId]

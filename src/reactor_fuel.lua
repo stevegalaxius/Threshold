@@ -32,7 +32,7 @@ function F.condition(r,e)
  local fuel=F.remaining(ship)
  local power=e and e.power or r.power or stats.powerCap
  if fuel<=1e-6 then return power<=1e-6 and 'stranded' or 'empty' end
- if fuel<stats.powerOut*T.reactorFuelReserveSeconds*T.npcAmmoThreshold then return 'low' end
+ if fuel<stats.powerOut*T.reactorFuelReserveSeconds*T.npcFuelLow then return 'low' end
  return 'normal'
 end
 function F.label(r) return r.fuelStatus and labels[r.fuelStatus] end
@@ -40,10 +40,7 @@ function F.label(r) return r.fuelStatus and labels[r.fuelStatus] end
 -- earlier activity text such as a post-combat withdrawal.
 function F.activity(r)
  if r.fuelStatus=='stranded' then return 'out of fuel: stranded, waiting for fuel' end
- if r.fuelStop then
-  local place=require('src.locations').byId[r.fuelStop]
-  return 'heading to refuel at '..(place and place.name or r.fuelStop)
- end
+ if r.service then return require('src.upkeep').label(r) end
  if r.fuelStatus=='empty' then return 'out of fuel: running on capacitor' end
  return r.taskStatus
 end

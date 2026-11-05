@@ -185,7 +185,13 @@ local function trade(game, e, dt)
 	elseif route and #route > 0 then
 		e.routeIndex = e.routeIndex or 1
 		local stop = route[e.routeIndex]
-		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
+		if stop.removed then
+			-- A persistent NPC's stops come from its record: rebuild them
+			-- rather than reindexing (which would desync record and route).
+			local record = e.alifeId and game.universe.npcs[e.alifeId]
+			if record and record.route then require("src.alife").bindRoute(game, e, record); return end
+			table.remove(route, e.routeIndex); e.routeIndex = 1; return
+		end
 		local sx, sy = stopPoint(stop, e)
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
@@ -320,13 +326,20 @@ function AI.think(game, e, dt)
   return
  end
  if record and e.route and not e.dockState then
-  -- Low fuel: divert to a supply station; rebind when back on the itinerary.
-  local A=require("src.alife")
+  -- Upkeep before any role: plan a service visit when one is due; hand the
+  -- role its route back once the visit has returned to it.
+  local A=require("src.alife");local Upkeep=require("src.upkeep")
   local passed=((e.routeIndex or 1)-2)%#e.route+1
-  if A.fuelRejoin(record,passed) then
-   record.index=record.index%#record.route+1;A.bindRoute(game,e,record)
-  elseif A.planFuelStop(record,game.universe.clock,e.routeIndex or 1) then A.bindRoute(game,e,record) end
+  if record.service and Upkeep.passed(record,passed) then
+   if record.state~='idle' then record.index=record.index%#record.route+1 end
+   A.bindRoute(game,e,record)
+  elseif not record.service then
+   local index=record.index
+   record.index=e.routeIndex or index
+   if Upkeep.plan(record,game.universe.clock,e) then A.bindRoute(game,e,record) else record.index=index end
+  end
  end
+ if record and record.service then return trade(game,e,dt) end
  if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
 	if e.alifeId and require("src.salvager").think(game,e,dt,AI) then return end
 	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end

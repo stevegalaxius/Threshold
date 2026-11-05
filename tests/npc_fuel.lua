@@ -22,7 +22,7 @@ return function(game)
  local r=template;r.id='npc/880001';r.state='docked';r.area='earth';r.taskWorker=true
  r.task=nil;r.nextTaskAt=nil;r.encounter=nil;r.piracy=nil;r.worldRecovery=nil
  r.driverState=nil;r.pose=nil;r.offset=nil;r.fuelStatus=nil;r.fuelObservedAt=nil
- r.ship.hold=nil;r.ship.cargo={[F.item()]=8};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
+ r.ship.hold=nil;r.ship.cargo={[F.item()]=40};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
  local s=require('src.stats').compute(require('src.data').hulls[r.ship.hull],r.ship.loadout)
  r.power=s.powerCap
  local u={clock=0,npcs={[r.id]=r}}
@@ -39,7 +39,7 @@ return function(game)
  check(F.observe(u,r,0)=='empty' and transitions(u,'empty')==1,'fuel empty ignored remaining capacitor')
  A.advance(r,.1,u)
  check(r.task.id==taskId and r.state=='travel' and r.fuelStatus=='empty','empty fuel cancelled a powered duty')
- check(r.fuelStop and r.fuelRejoin,'empty-fuel courier did not divert to a supply stop')
+ check(r.service and r.service.need=='fuel','empty-fuel courier did not divert to a supply stop')
  route=Save.encode(r.route) -- the detour is the itinerary while stranded
  r.power=0
  A.advance(r,1,u)
@@ -66,7 +66,7 @@ return function(game)
  local monitor=require('src.ui.npc_traffic').snapshot(game,true)
  check(monitor.npcs[r.id] and monitor.npcs[r.id].status==F.label(r),'traffic monitor hid the stranded condition')
  -- A cargo transfer restores the very same ship and duty, not a replacement.
- Ship.addCargo(live,F.item(),8)
+ Ship.addCargo(live,F.item(),40)
  local events=transitions(game.universe)
  check(F.observe(game.universe,r,3,live)=='normal','fuel transfer did not clear stranding')
  F.observe(game.universe,r,3,live)
@@ -109,26 +109,26 @@ return function(game)
  local d=copy(template);d.id='npc/880003';d.taskWorker=nil;d.task=nil;d.onRoundTrip=true
  d.tripDestination='luna';d.home='earth';d.tradeHome=home;d.worldRecovery=nil;d.encounter=nil;d.piracy=nil;d.area='earth'
  d.route=copy(loop);d.index=first;d.state='travel';d.depart=0;d.arrive=1;d.fuelClock=0
- d.fuelStatus=nil;d.fuelStop=nil;d.fuelRejoin=nil;d.nextFuelStopAt=nil
+ d.fuelStatus=nil;d.service=nil;d.nextServiceAt=nil
  d.ship.hold=nil;d.ship.cargo={};d.ship.fuelCharge=s.powerOut*T.reactorFuelReserveSeconds*T.npcAmmoThreshold*.9;d.ship.fuelInitialized=true;d.power=s.powerCap
  local du={clock=0,npcs={[d.id]=d}}
  F.observe(du,d,0)
  local original=Save.encode(d.route)
  A.advance(d,0,du)
- check(d.fuelStop and Supplies.supports(d.fuelStop),'low-fuel trader did not plan a supply stop')
+ check(d.service and Supplies.supports(d.service.station),'low-fuel trader did not plan a supply stop')
  local docked=false
  for step=1,4000 do
   A.advance(d,step,du)
-  if d.state=='docked' and L.canonical(d.route[d.index])==d.fuelStop then docked=true;break end
+  if d.state=='docked' and d.service and L.canonical(d.route[d.index])==d.service.station then docked=true;break end
  end
  check(docked,'low-fuel trader never docked at its supply stop')
  local clock=d.untilTime+1;A.advance(d,clock,du)
- check(F.condition(d)=='normal' and not d.fuelStop and d.state=='travel','supply stop did not refuel and release the trader')
+ check(F.condition(d)=='normal' and not (d.service and not d.serviced) and d.state=='travel','supply stop did not refuel and release the trader')
  for step=1,4000 do
-  if not d.fuelRejoin then break end
+  if not d.service then break end
   A.advance(d,clock+step,du)
  end
- check(not d.fuelRejoin and Save.encode(d.route)==original,'trader did not rejoin its original itinerary after refueling')
+ check(not d.service and Save.encode(d.route)==original,'trader did not rejoin its original itinerary after refueling')
 
  -- The traffic monitor reports a ship stranded mid-transit, not an overdue arrival.
  local lost=copy(r);lost.id='npc/880004';lost.state='transit';lost.area=nil;lost.encounter=nil
@@ -142,7 +142,7 @@ return function(game)
  game.universe.npcs[lost.id]=nil
 
  -- A stranded offline ship is drawn where its next update will leave it.
- local drift=copy(d);drift.id='npc/880005';drift.state='travel';drift.fuelStop=nil;drift.fuelRejoin=nil
+ local drift=copy(d);drift.id='npc/880005';drift.state='travel';drift.service=nil
  drift.index=first;drift.route=copy(loop);drift.depart=0;drift.arrive=1000;drift.fuelClock=0
  drift.ship.cargo={};drift.ship.fuelCharge=0;drift.power=0;drift.fuelStatus=nil
  local dv={clock=0,npcs={[drift.id]=drift}}

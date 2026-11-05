@@ -169,6 +169,9 @@ T.offlineEscapeGain, T.offlineEscapeMax = 1.5, 0.8
 -- Robbery (robbery.lua): share of trade goods a pirate demands, seconds to
 -- comply, seconds a complying ship is spared afterwards.
 T.robberyShare, T.robberyWindow, T.robberySpare = 0.5, 15, 120
+-- Upkeep (upkeep.lua): seconds an NPC sits stranded before an emergency
+-- fuel drop, and how many units of reactor fuel it brings.
+T.npcRescueDelay, T.npcRescueFuel = 300, 2
 T.offlineStationAccuracy = 0.5   -- turret hit chance offline
 T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800
@@ -281,6 +284,7 @@ T.historyLimit,T.historyQuietTime=256,5
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
 T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
+T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
 -- Seconds before a ship still short of fuel after a supply stop tries another.
 T.npcFuelStopRetry=600
 -- Extra gap between an undocking ship and traffic at its launch point.
