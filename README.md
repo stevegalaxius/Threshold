@@ -930,3 +930,35 @@ plain saved data. Existing gameplay event signatures remain unchanged.
 
 Run `love . --historytest` for focused combat handoff, death/salvage identity,
 save/load, retreat and retention checks.
+
+## Inventory reactor-fuel prototype
+
+Reactors consume **Water ice** from ordinary cargo space. Buy spare units from
+any station's **Market → Supplies** vendor, or obtain them as normal cargo. No
+separate tank is needed. Each unit provides 1,200 electrical energy: the reactor
+loads one whole item and retains its partially consumed charge on the ship.
+The HUD shows spare units, active-unit percentage, and actual reactor output.
+
+A full capacitor with no equipment or propulsion demand does not burn fuel.
+Passive equipment, flight (including turning), capacitor recharge, and powered
+weapons/drills create demand. When fuel runs out, the capacitor remains usable;
+when it is also empty, powered thrust and steering stop. Momentum and external
+forces remain. An active fuel unit stays with its ship when spare cargo is
+removed, and both active charge and capacitor survive saves, teleports and
+hangar storage/swaps.
+
+New ships and older saves get a one-time allowance up to eight spare units,
+subject to available cargo space. Empty ships are never refueled merely by
+loading a save or going online again. NPCs carry the same inventory fuel and
+request it through their existing Supplies visits, with fuel loaded before
+ammunition and transport cargo. Remote travel uses an estimated propulsion
+load; unsupported powered progress pauses when its fuel and capacitor run out.
+Remote drills and lasers are limited by available electrical energy.
+
+This is a balancing prototype: Supplies fuel is unlimited like its ammunition,
+NPC refueling is unbilled, and supply production/hauling, route-specific fuel
+reserve planning, distress/rescue behavior and precise offline maneuver costs
+are deferred. Scripted transfers and docked ships do not run normal flight
+loads. Fuel item, energy per unit, starting allowance and NPC reserve targets
+are configured in `src/tuning.lua`. Run `love . --fueltest` for focused inventory,
+depletion, physics, persistence, NPC handoff and supply checks.

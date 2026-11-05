@@ -79,7 +79,7 @@ local function drawStatus(game)
 	if not p or p.dead then return end
 	local w, h = lg.getDimensions()
 	local lines = weaponLines(p)
-	local ph = 112 + #lines * 18
+	local ph = 130 + #lines * 18
 	local x, y, pw = 16, h - ph - 16, 330
 	panel(x, y, pw, ph)
 
@@ -87,14 +87,17 @@ local function drawStatus(game)
 	local lowArmor = p.armor / s.armor < 0.3
 	bar(x + 12, y + 12, pw - 24, 18, p.armor / s.armor, lowArmor and WARN or { 0.4, 0.85, 0.95 }, "ARMOR", ("%d / %d"):format(floor(p.armor + 0.5), floor(s.armor + 0.5)))
 	local powerLabel = p.afterburn and (p.burnerLocked and "AFTERBURNER  (reserve)" or "AFTERBURNER") or (p.burnerLocked and "POWER  (afterburner on reserve)" or "POWER")
-	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), p.burnerLocked and { 1.0, 0.7, 0.35 } or { 0.55, 0.75, 1.0 }, powerLabel, ("%d  (+%d/s)"):format(floor(p.power), floor(s.powerNet)))
+	bar(x + 12, y + 34, pw - 24, 14, p.power / max(1, s.powerCap), p.burnerLocked and { 1.0, 0.7, 0.35 } or { 0.55, 0.75, 1.0 }, powerLabel, ("%d  (reactor %d/s)"):format(floor(p.power), floor(p.reactorOutput or 0)))
 	-- capacitor charge protected by afterburner reserve mode
 	lg.setColor(1, 1, 1, 0.5)
 	local rx = x + 12 + (pw - 24) * T.boostRelight
 	lg.line(rx, y + 33, rx, y + 49)
 
 	lg.setFont(font(12))
-	local ly = y + 56
+	local Fuel=require('src.reactor_fuel')
+	lg.setColor(Fuel.remaining(p)>0 and 0.75 or 1,0.8,0.65,1)
+	lg.print(("FUEL: %d %s / %.0f%% active"):format(p.cargo[Fuel.item()] or 0,data.items[Fuel.item()].name,100*(p.fuelCharge or 0)/T.reactorFuelEnergy),x+12,y+54)
+	local ly = y + 74
 	for _, line in ipairs(lines) do
 		local tag = ({ primary = "PRI", secondary = "SEC", tertiary = "TER" })[line.group] or ""
 		local label = tag .. "  " .. (line.n > 1 and (line.n .. "x ") or "") .. line.name

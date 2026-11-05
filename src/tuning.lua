@@ -267,4 +267,8 @@ T.miningScan,T.miningOfflineEvery=.5,12
 -- Bounded saved observations; quiet physical fights end after this interval.
 T.historyLimit,T.historyQuietTime=256,5
 
+-- Inventory-fuel prototype. One unit provides this much electrical energy.
+T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
+T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
+
 return T

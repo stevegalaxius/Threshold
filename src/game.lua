@@ -178,6 +178,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	self.playerHull = rec.hull or self.playerHull
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
 	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)

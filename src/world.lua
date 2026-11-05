@@ -344,6 +344,7 @@ end
 local function saveShip(rec)
 	return {
 		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, armor = rec.armor, color = rec.color, bay = rec.bay, mooring=rec.mooring,
+		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
 	}
 end
@@ -356,6 +357,7 @@ local function loadShip(t)
 	for i, id in pairs(t.loadout or {}) do if id == "hold_pod_m" then t.loadout[i] = "hold_pod_s" end end
 	return {
 		hull = t.hull, loadout = t.loadout, triggers = t.triggers, armor = t.armor, color = t.color, bay = t.bay, mooring=t.mooring,
+		fuelCharge=t.fuelCharge, fuelInitialized=t.fuelInitialized, power=t.power,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
 	}
 end

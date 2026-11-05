@@ -78,7 +78,11 @@ function E.damage(r,seconds,roll)
     local ammo=data.ammoFor(m)
     shots=math.min(shots,cargo[ammo] or 0)
     if shots>0 then cargo[ammo]=cargo[ammo]-shots;hit=data.items[ammo].shot.damage end
-   elseif Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).powerNet<=0 then shots=0 end
+   else
+    local cost=w.powerPerShot or w.powerPerSecond or 0
+    local power=r.power or Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).powerCap
+    if cost>0 then shots=math.min(shots,math.floor(power/cost));r.power=power-shots*cost end
+   end
    damage=damage+shots*hit
   end
  end
@@ -186,6 +190,7 @@ function E.materialize(game,px,py,clock)
     local s=w.ship
     local ship=Ship.new(game,{hull=s.hull,loadout=copy(s.loadout),cargo=copy(s.cargo),
      hold=s.hold and Hold.deserialize(s.hold,function(item)return data.items[item]~=nil end),
+     fuelCharge=s.fuelCharge,fuelInitialized=true,
      color=copy(s.color),enemy=data.enemies[w.archetype]})
     local vx,vy=game:flowAt(x,y)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end

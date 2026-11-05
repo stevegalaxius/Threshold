@@ -16,6 +16,7 @@ local Piracy=require("src.piracy")
 local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Encounters=require('src.encounters')
+local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
 local Population=require('src.population')
 local Homes=require('src.npc_home')
@@ -196,6 +197,9 @@ function A.seed(game)
   end
   Security.seed(game,start)
   Mining.seed(game)
+  for _,r in pairs(u.npcs) do
+   if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
+  end
   Homes.seed(u)
   Population.schedule(game,u.clock)
   A.repairMoonRoutes(game)
@@ -216,6 +220,7 @@ local function dockingStop(r,id)
 end
 
 function A.advance(r,clock,u,game)
+ Fuel.advance(r,clock)
  if r.waitingForHome then return end
  if game and not r.worldRecovery and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and (Repairs.needs(r) or Supplies.needs(r)) then Piracy.returnRecord(game,r) end
  if r.piracy and not r.worldRecovery then return Piracy.advance(r,clock,u,start) end
@@ -408,6 +413,7 @@ end
 local function shipRecord(e)
  local s=Ship.record(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
+  fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,
   cargo=copy(s.cargo or e.cargo or {}),hold=s.hold and Hold.serialize(s.hold)}
 end
 -- End ownership before destroying a body; drawing can run before the next tick.
@@ -441,7 +447,7 @@ function A.capture(game,e,remote)
   for i,dock in ipairs(exit.station.docks or {exit.station.dock}) do if dock==exit.dock then index=i;break end end
   r.cityExit={station=exit.station.locationId,dock=index,side=exit.side,t=exit.t}
  end
- r.ship=shipRecord(e); r.power=e.power
+ r.ship=shipRecord(e); r.power=e.power;r.fuelClock=clock
  if r.waitingForHome then
   r.state='idle';r.node=r.route[r.index]
   local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
@@ -559,6 +565,7 @@ end
 A.bindRoute=bindRoute
 
 function A.wake(game,r)
+ Fuel.withRecord(r,function() end);r.fuelClock=game.universe.clock
  require("src.offline_loot").release(game,r,game.universe.clock)
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
@@ -568,6 +575,7 @@ function A.wake(game,r)
  if exact and lane and exact.lane~=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot) then exact=nil end
  local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,cargo=s.cargo,
   hold=s.hold and Hold.deserialize(s.hold,function(id) return data.items[id]~=nil end),
+  fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,power=r.power,
   armor=s.armor,color=copy(s.color),team=data.enemies[r.archetype].team,
   enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})

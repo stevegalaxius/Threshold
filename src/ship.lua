@@ -8,6 +8,7 @@
 	torque and impulses, so mass matters for everyone.
 ]]
 
+local Fuel=require('src.reactor_fuel')
 local data = require("src.data")
 local stats = require("src.stats")
 local T = require("src.tuning")
@@ -59,6 +60,7 @@ function Ship.new(game, opts)
 		loadout = copy(opts.loadout or hull.loadout),
 		triggers = copy(opts.triggers or {}),
 		cargo = copy(opts.cargo or {}),
+		fuelCharge=opts.fuelCharge, fuelInitialized=opts.fuelInitialized,
 		gridHold = opts.grid or opts.hold ~= nil,
 		hold = opts.hold,
 		intent = Ship.emptyIntent(),
@@ -113,7 +115,9 @@ function Ship.new(game, opts)
 	if e.hold then e.cargo = Hold.totals(e.hold) end
 	Ship.refit(e)
 	e.armor = min(opts.armor or e.stats.armor, e.stats.armor)
-	e.power = e.stats.powerCap
+	e.power = math.min(e.stats.powerCap,opts.power or e.stats.powerCap)
+	Fuel.initialize(e)
+	Ship.updateMass(e)
 	return e
 end
 
@@ -123,6 +127,7 @@ end
 function Ship.record(e)
 	return {
 		hull = e.hull.id, loadout = copy(e.loadout), triggers = copy(e.triggers or {}), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
+		fuelCharge=e.fuelCharge, fuelInitialized=e.fuelInitialized, power=e.power,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
 	}
 end
@@ -348,13 +353,13 @@ end
 function Ship.fly(e, dt)
 	local b, s, it = e.body, e.stats, e.intent
 
-	-- Power: reactor output minus passive draw refills the capacitor, but
-	-- only at thrustRecharge of that rate while any thruster is firing.
-	local moving = (it.thrust or 0) ~= 0 or (it.strafe or 0) ~= 0 or it.boost
-	local net = s.powerNet
-	if net > 0 and moving then net = net * T.thrustRecharge end
-	e.power = min(s.powerCap, e.power + net * dt)
-	if e.power < 0 then e.power = 0 end
+	local x,y=b:getPosition()
+	local turning = e.hull.helm == "turn" and (it.strafe or 0)~=0
+		or e.hull.helm ~= "turn" and abs(wrapAngle(atan2(it.aimY-y,it.aimX-x)-b:getAngle()))>.01
+		or abs(b:getAngularVelocity())>.01
+	local moving = (it.thrust or 0)~=0 or (it.strafe or 0)~=0 or it.boost or e.spool>.001 or turning
+	local powered=Fuel.step(e,s,dt,moving)
+	if e.massDirty then Ship.updateMass(e) end
 
 	-- Thrust is relative to the nose. The main engine only pushes forward,
 	-- and spools up over the hull's spoolTime (winding down twice as fast),
@@ -369,7 +374,7 @@ function Ship.fly(e, dt)
 	-- Full boost spends only the charge above the reserve floor. Once on
 	-- reserve, holding boost keeps the reduced output and preserves that
 	-- charge; release boost to recharge and rearm the full-power mode.
-	local burner = it.boost and s.thrust > 0
+	local burner = powered>0 and it.boost and s.thrust > 0
 		-- the lane's buff replaces it, except on turn-helm hulls (manual
 		-- bearing), which need the extra push to get anywhere on the road
 		and (not e.laneBuff or e.hull.helm == "turn")
@@ -400,7 +405,7 @@ function Ship.fly(e, dt)
 	local rx, ry = -fy, fx                         -- the ship's right-hand side
 	local retro = s.retroThrust * T.sideScale
 	local aux = s.sideThrust * T.sideScale
-	local scale = T.FORCE_PER_KN * T.thrustScale
+	local scale = T.FORCE_PER_KN * T.thrustScale * powered
 	-- Maneuvering thrusters push forward too, but only matter when they
 	-- out-push the main engine (no engine fitted, or a very weak one).
 	local boost = burner and (e.burnerLocked and 1 + (T.boostThrust - 1) * T.boostReserve or T.boostThrust) or 1
@@ -412,11 +417,11 @@ function Ship.fly(e, dt)
 	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
 	local l = side * aux * scale * buff
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
-	e.mainBurn = s.thrust > 0 and e.spool or 0
-	e.foreBurn = jets > engine and max(0, fwd) or 0
-	e.retroBurn = retro > 0 and max(0, -fwd) or 0
-	e.sideBurn = aux > 0 and side or 0
-	e.turnBurn = (aux > 0 and e.hull.helm == "turn") and steer or 0
+	e.mainBurn = s.thrust > 0 and e.spool * powered or 0
+	e.foreBurn = jets > engine and max(0, fwd) * powered or 0
+	e.retroBurn = retro > 0 and max(0, -fwd) * powered or 0
+	e.sideBurn = aux > 0 and side * powered or 0
+	e.turnBurn = (aux > 0 and e.hull.helm == "turn") and steer * powered or 0
 
 	-- Quadratic drag gives a natural top speed (no hard cap):
 	-- top speed = sqrt(thrust / drag). Drag is measured against the space
@@ -447,7 +452,7 @@ function Ship.fly(e, dt)
 	-- On a turn-helm hull the side jets can't strafe, so they help it turn:
 	-- their thrust at the hull's edge adds torque and lifts the spin cap.
 	local inertia = b:getInertia()
-	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale
+	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale * powered
 	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
 	if e.hull.helm == "turn" and aux > 0 then
 		local jet = aux * scale * e.hull.radius
