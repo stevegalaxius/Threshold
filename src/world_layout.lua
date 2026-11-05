@@ -38,6 +38,8 @@ W.stations = {
 	},
 	jupiter = {
 		{ id = "station:jupiter_1", primary = true, name = "Olympus", adapter = "cloud" },
+		{ id = "station:jupiter_2", spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
+				
 	},
 
 	io = {
