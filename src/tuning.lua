@@ -161,6 +161,12 @@ T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
+-- Offline combat rule (encounters.lua): pirates attack only at these odds or
+-- better; faster prey escapes with chance (speed ratio - 1) x gain, capped;
+-- armour fraction where each kind of ship breaks off.
+T.offlineEngageOdds, T.offlineEngageWindow = 0.6, 60
+T.offlineEscapeGain, T.offlineEscapeMax = 1.5, 0.8
+T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800
 T.population = {
  pirate={minDelay=180,maxDelay=300,target=2},

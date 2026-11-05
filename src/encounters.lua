@@ -34,7 +34,7 @@ local function close(a,b,clock)
 end
 local function maxArmor(r) return Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).armor end
 local function fit(r,clock)
- return active(r) and (r.retreatUntil or 0)<=clock and r.ship.armor>maxArmor(r)*.2
+ return active(r) and (r.retreatUntil or 0)<=clock and r.ship.armor>maxArmor(r)*E.breakPoint(r)
 end
 local function resume(r,clock)
  local fight=r.encounter
@@ -45,9 +45,9 @@ local function resume(r,clock)
  elseif r.state=='idle' then r.untilTime=math.max(r.untilTime or clock,clock+1) end
  r.encounter=nil;r.targetId=nil
 end
-function E.finish(u,a,b,clock,retreat,handoff)
+function E.finish(u,a,b,clock,retreat,handoff,outcome)
  if not handoff and a and b then
-  local reason=retreat and 'retreated' or (a.state=='dead' or b.state=='dead') and 'death' or 'disengaged'
+  local reason=outcome or retreat and 'retreated' or (a.state=='dead' or b.state=='dead') and 'death' or 'disengaged'
   History.finish(u,a.id,b.id,clock,reason,retreat and retreat.id)
  end
  resume(a,clock)
@@ -65,11 +65,70 @@ local function random(fight)
  fight.seed=((fight.seed or 7193)*48271)%2147483647
  return fight.seed/2147483647
 end
--- Spend real ammunition and carry that inventory back into physical combat.
-function E.damage(r,seconds,roll)
- if Fuel.condition(r)=='stranded' then return 0 end
+-- The offline combat rule. One simplified model, meant as the target online
+-- behaviour adheres to as well:
+--  * a side's strength is sustained DPS x effective HP; agility is
+--    acceleration (thrust / mass)
+--  * pirates only attack when the odds favour them; faster prey may outrun
+--    them before a shot is fired
+--  * each round, hit chance depends on the shooter's agility against the
+--    target's; lasers draw on power that recharges from the reactor
+--  * a side breaks at its morale threshold: civilians surrender cargo,
+--    pirates take it home, anyone else withdraws. Kills happen only when
+--    a side is wrecked before it breaks.
+local CIVILIAN={trader=true,courier=true,miner=true,salvager=true}
+E.civilian=CIVILIAN
+local function cargoOf(r)
  local hold=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
- local cargo=hold and Hold.totals(hold) or r.ship.cargo or {}
+ return hold,hold and Hold.totals(hold) or r.ship.cargo or {}
+end
+function E.profile(r)
+ local hull=data.hulls[r.ship.hull]
+ local st=Stats.compute(hull,r.ship.loadout)
+ local _,cargo=cargoOf(r)
+ local dps=0
+ for _,id in pairs(r.ship.loadout) do
+  local m=id and data.modules[id];local w=m and m.weapon
+  if w and w.kind~='drone' then
+   local rate=w.fireRate or 1;local hit=w.damage or 0
+   if w.kind~='laser' then
+    local ammo=data.ammoFor(m)
+    if (cargo[ammo] or 0)>0 then hit=data.items[ammo].shot.damage else rate=0 end
+   else
+    local cost=w.powerPerShot or w.powerPerSecond or 0
+    if cost>0 then rate=math.min(rate,math.max(0,st.powerNet or st.powerOut or 0)/cost) end
+   end
+   dps=dps+rate*hit
+  end
+ end
+ if Fuel.condition(r)=='stranded' then dps=0 end
+ local agility=(st.thrust or 0)/math.max(1,st.mass)
+ return {dps=dps,hp=math.max(0,r.ship.armor),maxHp=math.max(1,st.armor),agility=agility,powerCap=st.powerCap,powerNet=st.powerNet or 0}
+end
+local function strength(p) return p.dps*p.hp end
+-- Chance that a's side wins a straight fight against b's.
+function E.odds(a,b)
+ local pa,pb=E.profile(a),E.profile(b)
+ local sa,sb=strength(pa),strength(pb)
+ if sa+sb<=0 then return .5 end
+ return sa/(sa+sb)
+end
+function E.hitChance(attacker,target)
+ local t=attacker.agility+target.agility
+ return 0.3+0.5*(t>0 and attacker.agility/t or .5)
+end
+-- Morale: the armour fraction at which a side breaks off.
+function E.breakPoint(r)
+ return CIVILIAN[r.role] and T.offlineCivilianBreak or r.role=='pirate' and T.offlinePirateBreak or T.offlinePatrolBreak
+end
+-- Damage one side deals in a round. Spends real ammunition (carried back
+-- into physical combat) and recharges laser power.
+function E.damage(r,seconds,roll,target)
+ if Fuel.condition(r)=='stranded' then return 0 end
+ local me=E.profile(r)
+ local hold,cargo=cargoOf(r)
+ local st=Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
+ r.power=math.min(st.powerCap,(r.power or st.powerCap)+math.max(0,st.powerNet or 0)*seconds)
  local damage=0
  for _,id in pairs(r.ship.loadout) do
   local m=id and data.modules[id];local w=m and m.weapon
@@ -82,17 +141,40 @@ function E.damage(r,seconds,roll)
     if shots>0 then cargo[ammo]=cargo[ammo]-shots;hit=data.items[ammo].shot.damage end
    else
     local cost=w.powerPerShot or w.powerPerSecond or 0
-    local power=r.power or Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).powerCap
-    if cost>0 then shots=math.min(shots,math.floor(power/cost));r.power=power-shots*cost end
+    if cost>0 then shots=math.min(shots,math.floor(r.power/cost));r.power=r.power-shots*cost end
    end
    damage=damage+shots*hit
   end
  end
  if hold then Hold.sync(hold,cargo);r.ship.hold=Hold.serialize(hold) end
  r.ship.cargo=cargo
- local health=math.max(.1,r.ship.armor/maxArmor(r))
- return damage*T.offlineCombatHit*(.5+roll)*math.sqrt(health)*T.enemyDamage
+ local accuracy=target and E.hitChance(me,E.profile(target)) or .55
+ return damage*accuracy*(.75+.5*roll)*T.offlineCombatHit*T.enemyDamage
 end
+-- A surrendering civilian hands its trade goods (not ammo or fuel) to the pirate.
+local function surrender(game,pirate,victim)
+ local vh,vc=cargoOf(victim);local ph,pc=cargoOf(pirate)
+ local taken=0
+ for id,n in pairs(vc) do
+  local item=data.items[id]
+  if n>0 and item and not item.shot and id~=Fuel.item() then
+   local k=n
+   if ph then k=Hold.add(ph,id,n) else pc[id]=(pc[id] or 0)+n end
+   if k>0 then
+    if vh then Hold.take(vh,id,k) end
+    vc[id]=n-k;if vc[id]<=0 then vc[id]=nil end
+    pirate.stolenCargo=pirate.stolenCargo or {};pirate.stolenCargo[id]=(pirate.stolenCargo[id] or 0)+k
+    taken=taken+k
+   end
+  end
+ end
+ if vh then victim.ship.hold=Hold.serialize(vh);vc=Hold.totals(vh) end
+ victim.ship.cargo=vc
+ if ph then pirate.ship.hold=Hold.serialize(ph);pc=Hold.totals(ph) end
+ pirate.ship.cargo=pc
+ return taken
+end
+E.surrender=surrender
 local function wreck(u,r,clock)
  local fight=r.encounter
  u.alifeWrecks=u.alifeWrecks or {}
@@ -121,16 +203,30 @@ function E.update(game,clock)
   if b and a.id<b.id and not online[a.id] and not online[b.id] and clock>=a.encounter.nextAt then
    local fight=a.encounter
    -- Simultaneous exchange: neither side loses its shot to iteration order.
-   local da=E.damage(a,T.offlineCombatTick,random(fight))
-   local db=E.damage(b,T.offlineCombatTick,random(fight))
+   local da=E.damage(a,T.offlineCombatTick,random(fight),b)
+   local db=E.damage(b,T.offlineCombatTick,random(fight),a)
    a.ship.armor=math.max(0,a.ship.armor-db);b.ship.armor=math.max(0,b.ship.armor-da)
    fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
    b.encounter.round=fight.round;b.encounter.nextAt=fight.nextAt
    if a.ship.armor<=0 then wreck(u,a,clock) end
    if b.ship.armor<=0 then wreck(u,b,clock) end
    if not active(a) or not active(b) then E.finish(u,a,b,clock)
-   elseif not fit(a,clock) or not fit(b,clock) or fight.round>=T.offlineCombatRounds then
-    E.finish(u,a,b,clock,a.ship.armor/maxArmor(a)<b.ship.armor/maxArmor(b) and a or b)
+   else
+    local fa,fb=a.ship.armor/maxArmor(a),b.ship.armor/maxArmor(b)
+    local brokeA,brokeB=fa<=E.breakPoint(a),fb<=E.breakPoint(b)
+    if brokeA or brokeB or fight.round>=T.offlineCombatRounds then
+     -- the side further past its breaking point gives way
+     local loser=(fa-E.breakPoint(a))<(fb-E.breakPoint(b)) and a or b
+     local winner=loser==a and b or a
+     if CIVILIAN[loser.role] and winner.role=='pirate' then
+      surrender(game,winner,loser)
+      E.finish(u,a,b,clock,nil,nil,'surrendered')
+      loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
+      require('src.piracy').returnRecord(game,winner)
+     else
+      E.finish(u,a,b,clock,loser)
+     end
+    end
    end
   end
  end
@@ -145,15 +241,28 @@ function E.update(game,clock)
  end
  for _,group in pairs(areas) do
   for _,a in ipairs(group) do
-   if a.role=='pirate' and not a.encounter and Fuel.condition(a)~='stranded' then
-    local target
+   if a.role=='pirate' and not a.encounter and not a.piracy and Fuel.condition(a)~='stranded'
+    and (a.offlineEyed or {})[1]~=math.floor(clock/T.offlineEngageWindow) then
+    -- pick the softest prey in reach; patrols only if nothing else
+    local target,best
     for _,b in ipairs(group) do
-     if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='salvager' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
-      -- like online (security.lua), pirates go for prey before patrols
-      if not target or b.role~='patrol' and target.role=='patrol' then target=b end
+     if (CIVILIAN[b.role] or b.role=='patrol') and not b.encounter and close(a,b,clock) then
+      local odds=E.odds(a,b)-(b.role=='patrol' and 1 or 0)
+      if not best or odds>best then target,best=b,odds end
      end
     end
-    if target then begin(a,target,clock);History.begin(u,a.id,target.id,clock,a.area) end
+    if target and E.odds(a,target)>=T.offlineEngageOdds then
+     local pa,pb=E.profile(a),E.profile(target)
+     local fight=a.id..target.id..math.floor(clock/T.offlineEngageWindow)
+     local roll=random({seed=(#fight*7919+math.floor(clock))%2147483647})
+     local escape=pb.agility>pa.agility and math.min(T.offlineEscapeMax,(pb.agility/math.max(1e-6,pa.agility)-1)*T.offlineEscapeGain) or 0
+     History.begin(u,a.id,target.id,clock,a.area)
+     if roll<escape then
+      -- outran: no shots fired; the pirate won't try this pair again this window
+      a.offlineEyed={math.floor(clock/T.offlineEngageWindow)}
+      E.finish(u,a,target,clock,nil,nil,'evaded')
+     else begin(a,target,clock) end
+    elseif target then a.offlineEyed={math.floor(clock/T.offlineEngageWindow)} end
    end
   end
  end
