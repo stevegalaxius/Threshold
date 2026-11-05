@@ -500,6 +500,7 @@ function Editor.isOpen() return E.isOpenFlag end
 
 function Editor.open(game)
 	Editor.game = game
+	Export.refresh()
 	-- the generated wheel layouts, so they can be opened and redrawn
 	local Stations = require("src.stations")
 	for _, rt in ipairs({ { 900, 120 }, { 1400, 160 }, { 3000, 300 } }) do
