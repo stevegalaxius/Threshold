@@ -39,24 +39,48 @@ function Tasks.sync(u,scope,specs,legacy)
 end
 
 function Tasks.release(u,r,reason,clock)
- local t=r.task
+ local t=r.task or r.suspendedTask
  if not t then return end
  local o=Tasks.state(u).offers[t.id]
  if o and o.owner==r.id then
   o.owner=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
  end
  r.lastTask={id=t.id,kind=t.kind,status=reason,clock=clock}
- r.task=nil
+ r.task=nil;r.suspendedTask=nil;r.suspendedTaskStatus=nil
+end
+-- Saves may outlive a task implementation (or be opened on another branch).
+-- Keep its phase, cargo and reservation intact until that implementation returns.
+function Tasks.resolve(u,r)
+ if r.state=='dead' or r.state=='escaped' then return false end
+ local t=r.task or r.suspendedTask
+ if not t then return true end
+ if not Tasks.definitions[t.kind] then
+  if r.task then
+   r.suspendedTaskStatus=r.taskStatus;r.suspendedTask=r.task;r.task=nil
+  end
+  r.taskStatus='waiting for task support: '..tostring(t.kind)
+  return false
+ end
+ if not r.task then
+  local offer=Tasks.state(u).offers[t.id]
+  if offer and offer.owner and offer.owner~=r.id then return false end
+  r.task=t;r.suspendedTask=nil;r.taskStatus=r.suspendedTaskStatus;r.suspendedTaskStatus=nil
+  if offer then offer.owner=r.id;offer.state='reserved' end
+ end
+ return true
 end
 function Tasks.clean(u,clock)
+ for _,r in pairs(u.npcs or {}) do Tasks.resolve(u,r) end
  for _,o in pairs(Tasks.state(u).offers) do
   local r=o.owner and u.npcs[o.owner]
-  if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not r.task or r.task.id~=o.id) then
+  local task=r and (r.task or r.suspendedTask)
+  if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not task or task.id~=o.id) then
    o.owner=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
   end
  end
 end
 function Tasks.choose(u,r,station,clock)
+ if not Tasks.resolve(u,r) then return end
  if r.task then return r.task end
  Tasks.clean(u,clock)
  local best,score
@@ -84,9 +108,10 @@ function Tasks.plan(r,station,clock)
 end
 -- Optional scene context lets completion use the normal station-market API.
 function Tasks.arrive(u,r,station,clock,game)
+ if not Tasks.resolve(u,r) then return false end
  local t=r.task
  if not t then return end
- local def=assert(Tasks.definitions[t.kind],'unknown saved task kind')
+ local def=Tasks.definitions[t.kind]
  if def.complete(u,r,t,station,clock,game) then
   Tasks.release(u,r,'completed',clock)
   return true

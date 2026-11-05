@@ -1,4 +1,5 @@
 return function(game)
+ require('tests.saved_tasks')()
  local S,A,Tasks=require('src.salvager'),require('src.alife'),require('src.tasks')
  local O,L,G=require('src.offline_loot'),require('src.locations'),require('src.travelgraph')
  local Hold,Ship,AI=require('src.inventory.hold'),require('src.ship'),require('src.ai')

@@ -1025,3 +1025,10 @@ prey. The same fuel, stranding and maintenance rules apply as for other NPCs.
 `T.salvagerRange` and `T.salvagerStay` control population and pacing.
 Run `love . --salvagertest` for the focused role/job, physical and remote pickup,
 local sale, moon-route, persistence and shared offline-loot regression checks.
+
+Saved task assignments whose implementation is unavailable are suspended rather
+than completed or discarded. Their cargo, delivery phase and reservation survive
+save/load. NPCs wait for task support instead of accepting replacement work.
+When that task kind is registered again, the same assignment resumes without
+running pickup preparation again. Explicit cancellation or the worker's death
+still releases its reservation normally.
