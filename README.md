@@ -986,3 +986,36 @@ materialization and save/load preserve the condition without repeating entries.
 The first healthy observation initializes the record silently. `--fueltest`
 includes controlled online/offline depletion, duty retention, history deduplication,
 recovery, idle timing and persistence checks. Rescue tasks are not implemented.
+
+## A-Life salvagers
+
+**Salvager** is a civilian role with a recurring station-board `salvage` job.
+One starts in each populated planet system, with shared population timers
+replacing losses. Its saved home remains the planet while it visits that
+planet's moons. Jobs are reserved exclusively, and successive assignments
+rotate through the system's local stations and moon routes. F1's existing
+**Spawn and arena** role picker can spawn a salvager in a supported home system;
+F6 shows its current job, activity and lifetime salvage earnings.
+
+Salvagers fly toward real loose cargo and collect it with the normal tractor
+transport. They return to a local station when loaded, their collection window
+ends, nearby loot is exhausted, or they need maintenance. Remote salvagers
+reserve and consume saved pickups, using the shared offline-loot accounting;
+they cannot collect a second copy from an area whose live scene owns the items.
+This first role collects ordinary loose pickups such as ore, ammo and scrap;
+opening containers and dismantling wrecks remain separate work.
+
+At the destination station they sell recovered items at the normal resale price,
+put the goods on its market shelf, and receive credits on their own NPC record.
+The player's wallet is unaffected. Starting supplies are not sale cargo; fuel
+and ammunition reserves are retained, including recovered supplies needed for
+the next trip. Full resale shelves handle onward sales like normal player trade.
+The job completes, its reservation is released, and the salvager chooses another.
+
+Identity, cargo, the recovery manifest, earnings, visits and board reservations
+survive online/offline changes and save/load. Pirates regard salvagers as civilian
+prey. The same fuel, stranding and maintenance rules apply as for other NPCs.
+`T.salvagerPopulation`, `T.salvagerLoad`, `T.salvagerCollectTime`,
+`T.salvagerRange` and `T.salvagerStay` control population and pacing.
+Run `love . --salvagertest` for the focused role/job, physical and remote pickup,
+local sale, moon-route, persistence and shared offline-loot regression checks.

@@ -45,6 +45,7 @@ The band has a gap (near/far) so ships don't flicker. A ship coming online mid-e
 |---|---|---|
 | Trader | Haul between stations | `transport` (placeholder cargo for now) |
 | Miner | Belt/site to home station | `mine` |
+| Salvager | Sweep loose cargo around a planet and its moons, sell locally | `salvage` |
 | Patrol | Loop and dock at owned stations, hunt pirates | none (own loop; may take bounties) |
 | Pirate | Lurk on busy edges, raid, return to base to fence | none (own loop) |
 
