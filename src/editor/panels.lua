@@ -394,19 +394,31 @@ function fileBrowser(E, cat, builtIn)
 		Slab.SameLine()
 		if Slab.Button("Up", { H = 18 }) then E.browseDir = dir:match("^(.*)/[^/]*$") or "" ; E.confirmDelete = nil end
 	end
-	if Slab.Input("yard_newfolder", { Text = E.newFolderName or "", W = 180, ReturnOnText = true }) then E.newFolderName = Slab.GetInputText() end
+	if Slab.Button("New folder", { Tooltip = "Makes a folder here; type its name, then Enter or Make" }) then
+		E.namingFolder = true; E.newFolderName = ""
+	end
 	Slab.SameLine()
-	if Slab.Button("New folder", { Tooltip = "Makes it here and goes into it" }) then
-		local rel = E.makeFolder((dir == "" and "" or dir .. "/") .. (E.newFolderName or ""))
-		if rel then E.browseDir = rel end
-		E.newFolderName = ""
+	if Slab.Button("Refresh", { Tooltip = "Re-read the folders (it also does this every second)" }) then Export.refresh() end
+	if E.namingFolder then
+		Slab.Text("Name"); Slab.SameLine()
+		local entered = Slab.Input("yard_newfolder", { Text = E.newFolderName or "", W = 140, ReturnOnText = false })
+		if entered then E.newFolderName = Slab.GetInputText() end
+		Slab.SameLine()
+		local make = Slab.Button("Make", { H = 18 })
+		Slab.SameLine()
+		if Slab.Button("Cancel", { H = 18 }) then E.namingFolder = false end
+		if (make or entered) and (E.newFolderName or "") ~= "" then
+			local rel = E.makeFolder((dir == "" and "" or dir .. "/") .. E.newFolderName)
+			if rel then E.browseDir = rel end
+			E.namingFolder, E.newFolderName = false, ""
+		end
 	end
 
 	-- this folder's contents: subfolders, then this tab's designs
 	local shown = 0
 	for _, e in ipairs(Export.list()) do
 		local c = not e.dir and categoryOf(e.id)
-		if e.folder == dir and (e.dir or c == cat or not c) then
+		if e.folder == dir then
 			shown = shown + 1
 			local label
 			if e.dir then label = "[" .. e.name .. "]"
@@ -414,8 +426,9 @@ function fileBrowser(E, cat, builtIn)
 				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
 				label = def and (def.name .. "  (" .. e.id .. ")") or (e.id .. "  (loads on restart)")
 				-- two files with one id: the later-loaded one is the one in the game
-				if def and def.source and def.source ~= e.path then label = label .. "  (same id as " .. def.source:gsub("^mods/", "") .. ", which is in use)" end
+				if def and def.source and def.source ~= e.path then label = label .. "  (duplicate id: " .. def.source:gsub("^mods/", ""):gsub("/data/", "/") .. " is the one in use)" end
 				if e.id == d.id then label = "> " .. label end
+				if c and c ~= cat then label = "[" .. c .. "] " .. label end
 			end
 			if E.confirmDelete == e.rel then
 				Slab.Text("Delete " .. e.name .. "?"); Slab.SameLine()
@@ -427,7 +440,10 @@ function fileBrowser(E, cat, builtIn)
 				Slab.SameLine()
 				if Slab.TextSelectable(label) then
 					if e.dir then E.browseDir = e.rel; E.confirmDelete = nil
-					elseif c then E.openHull(e.id) end
+					elseif c then
+						if c ~= cat then E.switchCategory(c) end
+						E.openHull(e.id)
+					end
 				end
 			end
 		end
