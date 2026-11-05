@@ -61,6 +61,12 @@ local function aimSlot(e, slot, dt)
 	end
 end
 
+-- How far a drill reaches fully out: its own length, else twice the
+-- ship's half length (as long as the ship).
+function Weapons.drillLength(e, w)
+	return w.length or e.halfLength * 2
+end
+
 local function nearestTargetTo(game, x, y, team, maxDist)
 	local best, bestD = nil, maxDist * maxDist
 	for _, o in ipairs(game.entities) do
@@ -91,7 +97,7 @@ local function fire(game, e, slot, dt)
 		e.power = e.power - need
 		local ddx, ddy = dx, dy
 		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
-		local reach = e.halfLength * 2 * slot.extend
+		local reach = Weapons.drillLength(e, w) * slot.extend
 		local ex, ey = wx + ddx * reach, wy + ddy * reach
 		local hit = game:raycast(wx, wy, ex, ey, e.team)
 		slot.drillHit = nil
@@ -124,8 +130,6 @@ local function fire(game, e, slot, dt)
 		if hit then
 			ex, ey = hit.x, hit.y
 			game:damage(hit.entity, w.damage * dt * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			local k = (w.knockback or 0) * dt * T.knockbackScale
-			if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
 			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, { 0.7, 1, 1 }) end
 		end
 		slot.beam = { wx, wy, ex, ey, game.time, 0.08 }
@@ -146,8 +150,6 @@ local function fire(game, e, slot, dt)
 		if hit then
 			ex, ey = hit.x, hit.y
 			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			local k = (w.knockback or 0) * T.knockbackScale
-			if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(dx * k, dy * k, hit.x, hit.y) end
 			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
 		end
 		slot.beam = { wx, wy, ex, ey, game.time, w.pulse or 0.12 }
@@ -193,10 +195,16 @@ local function fire(game, e, slot, dt)
 	-- The round sets the damage and flight; the weapon only how it's fired.
 	local ws = data.items[slot.ammo].shot
 	local spread = rad(w.spread or 0)
+	local mountAngle = angle
 	angle = angle + (random() * 2 - 1) * spread
 	dx, dy = cos(angle), sin(angle)
-	-- Multi-barrel mounts take turns, each barrel offset across the line of fire.
-	if (w.barrels or 1) > 1 then
+	-- Multi-barrel mounts take turns, each barrel offset across the line of
+	-- fire; weapon art with muzzle points fires from those instead.
+	local mx, my = require("src.weapon_visual").muzzle(slot.module, slot)
+	if mx then
+		local ca, sa = cos(mountAngle), sin(mountAngle)
+		wx, wy = wx + ca * mx - sa * my, wy + sa * mx + ca * my
+	elseif (w.barrels or 1) > 1 then
 		slot.barrel = (slot.barrel or 0) % w.barrels + 1
 		local off = (slot.barrel - (w.barrels + 1) / 2) * (w.barrelGap or 8)
 		wx, wy = wx - dy * off, wy + dx * off
@@ -255,7 +263,9 @@ local function fire(game, e, slot, dt)
 
 	table.insert(game.projectiles, p)
 
-	local r = (w.recoil or 0) * T.recoilScale
+	-- Guns and artillery kick back by a share of the round's knockback;
+	-- launchers (and older data) by a fixed impulse.
+	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or w.recoil or 0) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
 	if w.kind == "artillery" or w.kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
 	if e.isPlayer and w.kind == "artillery" then game:shake(0.18) end

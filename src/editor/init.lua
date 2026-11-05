@@ -139,11 +139,31 @@ function E.newDesign(kind)
 	kind = kind or "hull"
 	E.design = { id = "new_" .. kind, name = "New " .. kind, base = data.list.hulls[1], parts = {}, kind = kind ~= "hull" and kind or nil,
 		loot = kind == "wreck" and {} or nil }
+	if kind == "weapon" then
+		E.design.name = "New weapon"
+		E.design.muzzles = { { 12, 0 } }
+		E.design.module = { family = "weapon", size = "S", mass = 4, powerDraw = 1, price = 2000, maker = "",
+			weapon = { kind = "gun", fireRate = 4, spread = 1, gimbal = 10, recoilPct = 15 } }
+		E.design.parts = {
+			{ name = "base", shape = { -4, -4, 4, -4, 4, 4, -4, 4 } },
+			{ name = "barrel", shape = { 0, -1.5, 12, -1.5, 12, 1.5, 0, 1.5 }, barrel = true },
+		}
+	end
 	setBase(E.design.base)
+	if kind == "weapon" then E.design.slots, E.design.loadout = {}, {} end
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
 function E.openHull(id)
+	if data.modules[id] and data.modules[id].weapon and not data.hulls[id] then
+		E.design = Export.fromModule(id)
+		E.design.folder = Export.folderOf(id)
+		if E.design.folder then E.browseDir = E.design.folder end
+		setBase(E.design.base, true)
+		E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
+		say("Opened " .. data.modules[id].name)
+		return
+	end
 	if data.stations[id] and not data.hulls[id] then
 		E.design = Export.fromStation(id)
 		E.design.folder = Export.folderOf(id)
@@ -339,6 +359,7 @@ end
 local function categoryOf(kind)
 	if kind == "wreck" or kind == "prop" then return "wreck" end
 	if kind == "station" then return "station" end
+	if kind == "weapon" then return "weapon" end
 	return "hull"
 end
 E.byCategory = {}
@@ -357,9 +378,10 @@ function E.switchCategory(cat)
 	else
 		E.newDesign(cat)
 		E.view.x, E.view.y = 0, 0
-		E.view.zoom = cat == "station" and 0.25 or 3
+		E.view.zoom = cat == "station" and 0.25 or (cat == "weapon" and 12 or 3)
 	end
 	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
+	if E.tool == "muzzle" and cat ~= "weapon" then E.tool = "select" end
 end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
@@ -370,6 +392,7 @@ end
 -- Register the design with the game now: nil, error if it doesn't load.
 function E.define()
 	local def = Export.def(E.design)
+	if E.design.kind == "weapon" then return data.defineModule(def) end
 	if E.design.kind == "station" then return data.defineStation(def) end
 	if E.isPlaced() then return data.defineWreck(def) end
 	return data.defineHull(def)
@@ -404,7 +427,7 @@ end
 
 function E.copySource()
 	love.system.setClipboardText(Export.source(E.design))
-	say(("Copied the %s { } source to the clipboard"):format(E.isPlaced() and E.design.kind or "hull"))
+	say(("Copied the %s { } source to the clipboard"):format(E.design.kind == "weapon" and "module" or E.isPlaced() and E.design.kind or "hull"))
 end
 
 -- Register the design right now and try it: fly a hull, or drop a wreck
@@ -414,6 +437,7 @@ function E.testFly()
 	if not def then say("Can't use it: " .. tostring(err)) return end
 	local game = Editor.game
 	if not game then return end
+	if E.design.kind == "weapon" then return E.testWeapon(def) end
 	if E.isPlaced() then
 		local p = game.player
 		if not p or p.dead then say("Need a live ship to spawn it next to") return end
@@ -435,6 +459,39 @@ function E.testFly()
 	if game.state == "dead" then game:respawn() end
 	game:spawnPlayer(def.id)
 	say("Flying " .. def.name .. " (F2 to go back)")
+end
+
+-- Fit the weapon to every slot of your ship it fits and fly it, with a
+-- wreck ahead to shoot at.
+function E.testWeapon(def)
+	local game = Editor.game
+	local p = game.player
+	local hullId = game.playerHull
+	local hull = data.hulls[hullId]
+	if not hull then say("No ship to fit it to") return end
+	local loadout = {}
+	local base = (p and p.loadout) or hull.loadout or {}
+	local fitted = 0
+	for i, slot in ipairs(hull.slots) do
+		loadout[i] = base[i] or false
+		if data.fits(slot, def) then loadout[i] = def.id; fitted = fitted + 1 end
+	end
+	if fitted == 0 then say(("%s has no %s %s slot for it"):format(hull.name, def.size, def.family == "bay" and "bay" or "hardpoint")) return end
+	local cargo
+	if p and p.cargo then cargo = {}; for k, v in pairs(p.cargo) do cargo[k] = v end end
+	cargo = cargo or {}
+	local ammo = data.ammoFor(def)
+	if ammo then cargo[ammo] = math.max(cargo[ammo] or 0, 200) end
+	Editor.close()
+	if game.state == "dead" then game:respawn() end
+	local ship = game:spawnPlayer(hullId, loadout, cargo)
+	local x, y = ship.body:getPosition()
+	local a = ship.body:getAngle()
+	if data.list.wrecks[1] and game.spawnWreck then
+		local d = (ship.halfLength or 40) + 400
+		game:spawnWreck(data.list.wrecks[1], x + math.cos(a) * d, y + math.sin(a) * d)
+	end
+	say(("Fitted %s to %d slot%s on the %s (F2 to go back)"):format(def.name, fitted, fitted == 1 and "" or "s", hull.name))
 end
 
 -- Open / close --------------------------------------------------------------

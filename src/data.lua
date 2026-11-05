@@ -352,6 +352,19 @@ function data.defineHull(def)
 	return def
 end
 
+local addModuleItems
+-- A weapon module made at runtime (the Shipyard's Weapons tab). Errors
+-- come back as nil, message instead of being thrown.
+function data.defineModule(def)
+	local was = currentFile
+	currentFile = "shipyard"
+	local ok, err = pcall(api.module, def)
+	currentFile = was
+	if not ok then return nil, err end
+	addModuleItems()
+	return def
+end
+
 -- Loading ------------------------------------------------------------------
 
 local function sandbox()
@@ -378,9 +391,11 @@ function loadFolder(folder)
 	local files = love.filesystem.getDirectoryItems(folder)
 	table.sort(files)
 	-- files first, then subfolders (the Shipyard lets you sort designs into folders)
+	local n = 0
 	for _, name in ipairs(files) do
-		if name:match("%.lua$") then loadFile(folder .. "/" .. name) end
+		if name:match("%.lua$") then loadFile(folder .. "/" .. name); n = n + 1 end
 	end
+	if folder:sub(1, 5) == "mods/" then print(("[data] %s: %d file%s"):format(folder, n, n == 1 and "" or "s")) end
 	for _, name in ipairs(files) do
 		local sub = folder .. "/" .. name
 		if love.filesystem.getInfo(sub, "directory") then loadFolder(sub) end
@@ -497,7 +512,7 @@ end
 -- module's own. Module items stay out of data.list.items so they don't
 -- show up in ammo lists.
 local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
-local function addModuleItems()
+function addModuleItems()
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]
 		local existing = data.items[id]

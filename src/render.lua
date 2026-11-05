@@ -1043,7 +1043,7 @@ end
 local function drawDrill(game, e, w)
 	local wx, wy = Ship.hardpoint(e, w.slot)
 	local a = e.body:getAngle() + (w.aim or 0)
-	local reach = e.halfLength * 2 * w.extend
+	local reach = (w.w.length or e.halfLength * 2) * w.extend
 	-- it shudders while it bites into something
 	if w.drillHit then
 		local j = 1.5
@@ -1052,7 +1052,7 @@ local function drawDrill(game, e, w)
 	local ex, ey = wx + cos(a) * reach, wy + sin(a) * reach
 	local px = 1 / game.camera.zoom
 	lg.setColor(0.45, 0.47, 0.5)
-	lg.setLineWidth(max(6, 3 * px))
+	lg.setLineWidth(max(w.w.width or 6, 3 * px))
 	lg.line(wx, wy, ex, ey)
 	-- chain teeth running along the shaft, like a chainsaw
 	if w.firing then
@@ -1065,7 +1065,7 @@ local function drawDrill(game, e, w)
 			lg.line(cx - nx * 3, cy - ny * 3, cx - nx * 5 - cos(a) * 2, cy - ny * 5 - sin(a) * 2)
 		end
 	end
-	local r = 9 + (({ S = 0, M = 4, L = 8 })[w.module.size] or 0)
+	local r = w.w.bitSize or (9 + (({ S = 0, M = 4, L = 8 })[w.module.size] or 0))
 	local spin = game.time * 30
 	lg.setColor(0.85, 0.75, 0.45)
 	for k = 0, 2 do

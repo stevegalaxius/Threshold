@@ -69,7 +69,42 @@ local CATEGORIES = {
 	{ "hull", "Ships", "Hulls you can fly" },
 	{ "wreck", "Wrecks", "Derelicts and props placed in the world" },
 	{ "station", "Stations", "Station layouts" },
+	{ "weapon", "Weapons", "Guns, launchers and bays: stats and art" },
 }
+
+-- Weapon stats by kind: key, label, lo, hi, step, precision, tooltip.
+local WSTAT = {
+	fireRate = { "fire rate (/s)", 0.05, 30, 0.05, 2, "Shots per second." },
+	spread = { "spread (deg)", 0, 20, 0.1, 1, "Random wobble on each shot." },
+	gimbal = { "gimbal (deg)", 0, 45, 1, 0, "How far a gimballed mount can swing to aim." },
+	recoil = { "recoil", 0, 20000, 10, 0, "Push back on the ship per launch." },
+	recoilPct = { "recoil (%)", 0, 200, 1, 1, "Push back on the ship per shot, as a percentage of the round's knockback." },
+	damage = { "damage", 0, 1000, 1, 0, "Per pulse, or per second for beams and drills." },
+	range = { "range (px)", 100, 10000, 50, 0, "How far the beam reaches." },
+	powerPerShot = { "power / shot", 0, 500, 1, 0, "Power each pulse takes." },
+	powerPerSecond = { "power / s", 0, 500, 1, 0, "Power while it's held." },
+	pulse = { "pulse (s)", 0.02, 1, 0.01, 2, "How long the flash lingers." },
+	barrels = { "barrels", 1, 6, 1, 0, "Shots take turns between barrels (ignored when the art has muzzle points)." },
+	barrelGap = { "barrel gap (px)", 0, 40, 1, 0, "Distance between barrels (ignored with muzzle points)." },
+	rockDamage = { "rock damage", 0, 100, 1, 0, "Damage to asteroids." },
+	extendTime = { "extend (s)", 0.05, 2, 0.05, 2, "Time to reach full length." },
+	length = { "length (px)", 10, 2000, 5, 0, "How far it reaches fully out. Unset: as long as the ship." },
+	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
+	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
+	control = { "control", 1, 8, 1, 0, "Drone control budget." },
+}
+local WFIELDS = {
+	gun = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
+	artillery = { "fireRate", "spread", "gimbal", "recoilPct" },
+	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
+	beam = { "damage", "range", "powerPerSecond", "gimbal" },
+	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
+	missile = { "fireRate", "recoil" },
+	torpedo = { "fireRate", "recoil" },
+	drone = { "fireRate", "recoil", "control" },
+}
+local WKINDS = { "gun", "artillery", "laser", "drill", "missile", "torpedo", "drone" }
+local BAY_KINDS = { missile = true, torpedo = true, drone = true }
 
 -- Wreck and prop settings, in place of hull stats and slots.
 local WRECK_STATS = {
@@ -324,6 +359,7 @@ local function categoryOf(id)
 	if data.stations[id] and not data.hulls[id] then return "station" end
 	if data.wrecks[id] and not data.hulls[id] then return "wreck" end
 	if data.hulls[id] then return "hull" end
+	if data.modules[id] then return "weapon" end
 end
 
 -- The Files section: new / save, then a browser of the export folder that
@@ -341,6 +377,8 @@ function fileBrowser(E, cat, builtIn)
 		if Slab.Button("New wreck", { Tooltip = "A derelict with a loot table" }) then E.newDesign("wreck") end
 		Slab.SameLine()
 		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
+	elseif cat == "weapon" then
+		if Slab.Button("New weapon", { Tooltip = "A gun or launcher module" }) then E.newDesign("weapon") end
 	else
 		if Slab.Button("New station", { Tooltip = "A station layout: needs one part marked as the docking module" }) then E.newDesign("station") end
 	end
@@ -373,7 +411,7 @@ function fileBrowser(E, cat, builtIn)
 			local label
 			if e.dir then label = "[" .. e.name .. "]"
 			else
-				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id]
+				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
 				label = def and (def.name .. "  (" .. e.id .. ")") or (e.id .. "  (loads on restart)")
 				if e.id == d.id then label = "> " .. label end
 			end
@@ -398,6 +436,113 @@ function fileBrowser(E, cat, builtIn)
 	combo("yard_open_" .. cat, "Open a built-in design...", builtIn, function(id) E.openHull(id) end, 280)
 end
 
+-- The Weapons tab: the module's stats, then the art tools.
+function weaponSections(E, d)
+	local m = d.module
+	m.weapon = m.weapon or { kind = "gun" }
+	local w = m.weapon
+	local function num(id, label, value, lo, hi, step, prec, tip, set)
+		Slab.Text(label); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag(id, value or lo, lo, hi, step, { W = 90, Precision = prec }) then
+			E.pushUndoCoalesced(id); set(Slab.GetInputNumber())
+		end
+		if tip then Slab.SameLine(); Slab.Button("?", { W = 18, H = 18, Tooltip = tip }) end
+	end
+	Slab.Text("maker"); Slab.SameLine()
+	textField(E, "yard_wmaker", m.maker, function(t) m.maker = t ~= "" and t or nil end, 200)
+	Slab.Text("kind"); Slab.SameLine()
+	local kopts = {}
+	for _, k in ipairs(WKINDS) do table.insert(kopts, { label = k, value = k }) end
+	combo("yard_wkind", w.kind, kopts, function(k)
+		E.pushUndo(); w.kind = k
+		m.family = BAY_KINDS[k] and "bay" or "weapon"
+		if k ~= "laser" then w.beam = nil end
+	end, 120)
+	if w.kind == "laser" then check(E, w.beam == true, "Beam (held, not pulsed)", function(on) w.beam = on or nil end) end
+	Slab.Text("size"); Slab.SameLine()
+	local sopts = {}
+	for _, z in ipairs(SIZES) do table.insert(sopts, { label = z, value = z }) end
+	combo("yard_wsize", m.size, sopts, function(z) E.pushUndo(); m.size = z end, 60)
+	if w.kind == "gun" or w.kind == "artillery" then
+		Slab.SameLine(); Slab.Text("caliber"); Slab.SameLine()
+		local copts = { { label = "same as size", value = false } }
+		for _, z in ipairs(SIZES) do table.insert(copts, { label = z, value = z }) end
+		combo("yard_wcal", w.caliber or "same as size", copts, function(z) E.pushUndo(); w.caliber = z or nil end, 80)
+	end
+	Slab.Text(("Fits %s %s slots"):format(m.size, m.family == "bay" and "bay" or "hardpoint"), { Color = GREY })
+	Slab.Separator()
+	Slab.Text("Module")
+	num("yard_wmass", "mass (t)", m.mass, 0.1, 500, 0.5, 1, nil, function(v) m.mass = v end)
+	num("yard_wpow", "power draw", m.powerDraw or 0, 0, 100, 0.5, 1, "Reactor output it needs just to be fitted.", function(v) m.powerDraw = v end)
+	num("yard_wprice", "price", m.price or 0, 0, 1000000, 100, 0, nil, function(v) m.price = v end)
+	Slab.Separator()
+	Slab.Text("Weapon")
+	for _, key in ipairs(WFIELDS[(w.kind == "laser" and w.beam) and "beam" or w.kind] or {}) do
+		local f = WSTAT[key]
+		if key == "fireRate" and E.rpm then
+			num("yard_w_rpm", "fire rate (rpm)", (w.fireRate or 0) * 60, 1, 1800, 1, 0, nil, function(v) w.fireRate = v / 60 end)
+			Slab.SameLine()
+			if Slab.Button("rpm", { W = 36, H = 18, Tooltip = "Showing rounds per minute: click for shots per second" }) then E.rpm = false end
+		elseif key == "fireRate" then
+			num("yard_w_" .. key, f[1], w[key], f[2], f[3], f[4], f[5], f[6], function(v) w[key] = v end)
+			Slab.SameLine()
+			if Slab.Button("/s", { W = 36, H = 18, Tooltip = "Showing shots per second: click for rounds per minute" }) then E.rpm = true end
+		else
+		num("yard_w_" .. key, f[1], w[key], f[2], f[3], f[4], f[5], f[6], function(v)
+			if f[5] == 0 then v = math.floor(v + 0.5) end
+			w[key] = v
+		end)
+		end
+	end
+	Slab.Text("description")
+	if Slab.Input("yard_wdesc", { Text = m.description or "", W = 260, H = 60, MultiLine = true, MultiLineW = 250, ReturnOnText = true }) then
+		E.pushUndoCoalesced("yard_wdesc")
+		local t = Slab.GetInputText()
+		m.description = t ~= "" and t or nil
+	end
+	if Slab.Button("Test fire", { Tooltip = "Fits it to every matching slot on your ship and puts you in flight" }) then E.testFly() end
+	Slab.SameLine()
+	if Slab.Button("Copy source") then E.copySource() end
+	if Slab.Button("Undo") then E.undoStep() end
+	Slab.SameLine()
+	if Slab.Button("Redo") then E.redoStep() end
+
+	Slab.Separator()
+	Slab.Text("Art (optional; none = plain barrels)")
+	Slab.Text("+x is the line of fire, 0,0 the pivot.", { Color = GREY })
+	Slab.Text("Tick Barrel on a part to make it recoil.", { Color = GREY })
+	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" }, { "muzzle", "Muzzle points" } }
+	local current = 1
+	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
+	if E.tool == "light" then E.tool = "select" end
+	for i, t in ipairs(tools) do
+		if Slab.RadioButton(t[2], { Index = i, SelectedIndex = current }) then
+			E.tool = t[1]
+			if t[1] ~= "draw" then E.drawing = nil end
+		end
+	end
+	if E.tool == "muzzle" then
+		Slab.Text("Click to add one, right click removes.", { Color = GREY })
+		Slab.Text("Shots take turns between them.", { Color = GREY })
+	end
+	Slab.Text(("%d part%s, %d muzzle%s"):format(#d.parts, #d.parts == 1 and "" or "s", #(d.muzzles or {}), #(d.muzzles or {}) == 1 and "" or "s"), { Color = GREY })
+	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
+	Slab.Text("grid"); Slab.SameLine()
+	local gopts = {}
+	for _, g in ipairs({ 0.5, 1, 2, 4 }) do table.insert(gopts, { label = tostring(g), value = g }) end
+	combo("yard_wgrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
+	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
+	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
+	for i, p in ipairs(d.parts) do
+		if Slab.Button("^", { W = 18, H = 18, Tooltip = "Draw earlier (further back)" }) then E.movePart(i, -1) end
+		Slab.SameLine()
+		if Slab.Button("v", { W = 18, H = 18, Tooltip = "Draw later (further forward)" }) then E.movePart(i, 1) end
+		Slab.SameLine()
+		local tags = (p.barrel and "  (barrel)" or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
+		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
+	end
+end
+
 local function designWindow(E, Editor)
 	local h = love.graphics.getHeight()
 	Slab.BeginWindow("yard_design", {
@@ -415,12 +560,17 @@ local function designWindow(E, Editor)
 	for i, t in ipairs(CATEGORIES) do
 		if i > 1 then Slab.SameLine() end
 		local on = cat == t[1]
-		if Slab.Button(on and ("[ " .. t[2] .. " ]") or t[2], { W = 92, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
+		if Slab.Button(on and ("[" .. t[2] .. "]") or t[2], { W = 72, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
 	end
 	Slab.Separator()
 	local openOpts = {}
 	if cat == "hull" then
 		openOpts = opts
+	elseif cat == "weapon" then
+		for _, id in ipairs(data.list.modules) do
+			local m = data.modules[id]
+			if m.weapon then table.insert(openOpts, { label = ("%s  (%s %s, %s)"):format(m.name, m.size, m.weapon.kind, id), value = id }) end
+		end
 	elseif cat == "wreck" then
 		for _, id in ipairs(data.list.wrecks) do
 			local w = data.wrecks[id]
@@ -439,6 +589,7 @@ local function designWindow(E, Editor)
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
 	d.stats = d.stats or {}
+	if cat == "weapon" then weaponSections(E, d) Slab.EndWindow() return end
 	if (d.kind or "hull") == "hull" then
 		Slab.Text("class"); Slab.SameLine()
 		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
@@ -979,7 +1130,10 @@ local function partWindow(E)
 
 	Slab.Separator()
 	Slab.Text("Look")
-	if (E.design.kind or "hull") == "hull" and not p.color then
+	if E.design.kind == "weapon" then
+		check(E, p.barrel == true, "Barrel (recoils when it fires)", function(on) p.barrel = on or nil end)
+	end
+	if ((E.design.kind or "hull") == "hull" or E.design.kind == "weapon") and not p.color then
 		Slab.Text("paint"); Slab.SameLine()
 		combo("yard_ppaint" .. i, p.paint or "metal", {
 			{ label = "metal", value = "metal" }, { label = "primary", value = "primary" }, { label = "secondary", value = "secondary" },
@@ -1009,10 +1163,12 @@ local function partWindow(E)
 			slider(E, "yard_col" .. name .. i, p.color[c], 0, 1, function(v) p.color[c] = v end)
 		end
 	end
+	do
 	Slab.Text("Layer")
 	local lopts = {}
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
 	combo("yard_layer" .. i, p.layer or "hull", lopts, function(l) E.pushUndo(); p.layer = l ~= "hull" and l or nil end, 140)
+	end
 
 	if E.design.kind == "station" then
 		Slab.Separator()
@@ -1052,7 +1208,7 @@ local function partWindow(E)
 
 		end
 	end
-	if E.design.kind ~= "station" then
+	if E.design.kind ~= "station" and E.design.kind ~= "weapon" then
 		Slab.Separator()
 		Slab.Text("Wreck")
 		check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
@@ -1069,7 +1225,7 @@ local function partWindow(E)
 	Slab.Separator()
 	Slab.Text("Shape")
 	check(E, p.mirror == true, "Mirrored: drawn again flipped across the centre line (M)", function(on) p.mirror = on or nil end)
-	check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) if on then p.collide = nil else p.collide = false end end)
+	if E.design.kind ~= "weapon" then check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) if on then p.collide = nil else p.collide = false end end) end
 	if Slab.Button("Flip nose-tail") then E.transformSelected(function(x, y) return -x, y end, true) end
 	Slab.SameLine()
 	if Slab.Button("Flip sides") then E.transformSelected(function(x, y) return x, -y end, true) end
