@@ -76,6 +76,8 @@ local PendingCursorColumn = -1
 local PendingCursorLine = -1
 local IsSliding = false
 local DragDelta = 0
+-- Where a number drag started: a click that doesn't move opens the box for typing.
+local SlideStartX, SlideStartY = 0, 0
 
 local MIN_WIDTH = 150.0
 local DEF_PW_CHAR = "*"
@@ -1290,6 +1292,7 @@ function Input.Begin(Id, Options)
 				if Options.NumbersOnly and not NumbersOnlyEntry and not Options.NoDrag then
 					IsSliding = true
 					DragDelta = 0
+					SlideStartX, SlideStartY = MouseX, MouseY
 				elseif Options.SelectOnFocus and Instance.Text ~= "" then
 					TextCursorAnchor = 0
 					TextCursorPos = #Instance.Text
@@ -1340,9 +1343,16 @@ function Input.Begin(Id, Options)
 
 			if IsSliding then
 				IsSliding = false
-				Focused = nil
-				Result = true
-				LastText = Instance.Text
+				if math.abs(MouseX - SlideStartX) < 3 and math.abs(MouseY - SlideStartY) < 3 then
+					-- a plain click: keep focus and select the number so typing replaces it
+					TextCursorAnchor = 0
+					TextCursorPos = #Instance.Text
+					if Utility.IsMobile() and not Options.ReadOnly then love.keyboard.setTextInput(true) end
+				else
+					Focused = nil
+					Result = true
+					LastText = Instance.Text
+				end
 			end
 		end
 
