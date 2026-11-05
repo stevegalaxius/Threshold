@@ -221,6 +221,9 @@ local function trade(game, e, dt)
 		if w and not stop.city and not stop.surfaceMine then
 			local rx,ry=x-w.x,y-w.y;local r=sqrt(rx*rx+ry*ry)
 			local safe=w.radius+min(T.surfacePullRange,w.radius*.5)+500
+			-- A stop that itself sits inside the band (the Heaven-Ladder
+			-- anchors) must stay reachable: hold its altitude, no higher.
+			safe=min(safe,sqrt((sx-w.x)^2+(sy-w.y)^2))
 			if r>0 and r<safe then hx,hy=w.x+rx/r*safe,w.y+ry/r*safe end
 		end
 		local ux, uy = norm(hx - x, hy - y)
