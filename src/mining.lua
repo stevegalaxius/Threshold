@@ -294,7 +294,6 @@ function M.breakRock(game,e,pickup)
 end
 function M.materialize(game)
  if game.lane or game.flight then return end
- require('src.loose').records(game.universe) -- folds in any old area-saved items
  if not game.player or game.player.dead or game.player.removed or game.player.body:isDestroyed() then M.unload(game);return end
  local state=M.state(game.universe)
  game.miningLive=game.miningLive or {}

@@ -8,24 +8,8 @@ local T=require('src.tuning')
 local Lo={}
 local function persistence() return require('src.persistence') end
 
--- Old saves kept loose items in each area's snapshot; fold them in once.
-local function migrate(u,records)
- for areaId,area in pairs(u.areas or {}) do
-  if area.pickups and #area.pickups>0 then
-   for _,saved in ipairs(area.pickups) do
-    local id='loot/area/'..tostring(saved.id)
-    records[id]={id=id,area=areaId,kind='loot',item=saved.item,count=saved.count,
-     x=saved.x,y=saved.y,vx=saved.vx,vy=saved.vy,spin=saved.spin,orbit=saved.orbit,
-     clock=area.capturedAt}
-   end
-   area.pickups={}
-  end
- end
-end
-
 function Lo.records(u)
  local records=require('src.jobs').state(u).resources
- if u.areas then migrate(u,records) end
  return records
 end
 
