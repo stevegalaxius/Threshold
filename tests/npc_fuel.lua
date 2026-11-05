@@ -129,5 +129,16 @@ return function(game)
   A.advance(d,clock+step,du)
  end
  check(not d.fuelRejoin and Save.encode(d.route)==original,'trader did not rejoin its original itinerary after refueling')
+
+ -- The traffic monitor reports a ship stranded mid-transit, not an overdue arrival.
+ local lost=copy(r);lost.id='npc/880004';lost.state='transit';lost.area=nil;lost.encounter=nil
+ lost.transit={kind='moon',from='earth',to='luna',length=1000,speed=100};lost.depart=0;lost.arrive=1
+ lost.ship.cargo={};lost.ship.hold=nil;lost.ship.fuelCharge=0;lost.power=0;lost.fuelStatus=nil
+ game.universe.npcs[lost.id]=lost;F.observe(game.universe,lost,game.universe.clock)
+ local view=require('src.ui.npc_traffic').snapshot(game,true)
+ local row=view.npcs[lost.id]
+ check(row and row.stranded and row.phase=='stranded in transit' and row.eta==nil,'monitor did not show a stranded transit')
+ check(view.stranded>=1 and view.overdue==0,'stranded transit counted as an overdue arrival')
+ game.universe.npcs[lost.id]=nil
  print(('NPC FUEL LIFECYCLE TEST PASSED (%d checks)'):format(checks))
 end
