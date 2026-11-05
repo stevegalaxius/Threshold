@@ -10,6 +10,7 @@ local Tasks=require('src.tasks')
 local copy=require('src.persistence').copy
 local T=require('src.tuning')
 local History=require('src.simulation_history')
+local Fuel=require('src.reactor_fuel')
 local E={}
 local function active(r)
  return r and (r.state=='travel' or r.state=='idle') and not r.driverState and r.area~=nil
@@ -66,6 +67,7 @@ local function random(fight)
 end
 -- Spend real ammunition and carry that inventory back into physical combat.
 function E.damage(r,seconds,roll)
+ if Fuel.condition(r)=='stranded' then return 0 end
  local hold=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
  local cargo=hold and Hold.totals(hold) or r.ship.cargo or {}
  local damage=0
@@ -78,7 +80,11 @@ function E.damage(r,seconds,roll)
     local ammo=data.ammoFor(m)
     shots=math.min(shots,cargo[ammo] or 0)
     if shots>0 then cargo[ammo]=cargo[ammo]-shots;hit=data.items[ammo].shot.damage end
-   elseif Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).powerNet<=0 then shots=0 end
+   else
+    local cost=w.powerPerShot or w.powerPerSecond or 0
+    local power=r.power or Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).powerCap
+    if cost>0 then shots=math.min(shots,math.floor(power/cost));r.power=power-shots*cost end
+   end
    damage=damage+shots*hit
   end
  end
@@ -139,7 +145,7 @@ function E.update(game,clock)
  end
  for _,group in pairs(areas) do
   for _,a in ipairs(group) do
-   if a.role=='pirate' and not a.encounter then
+   if a.role=='pirate' and not a.encounter and Fuel.condition(a)~='stranded' then
     local target
     for _,b in ipairs(group) do
      if (b.role=='trader' or b.role=='courier' or b.role=='miner' or b.role=='patrol') and not b.encounter and close(a,b,clock) then
@@ -186,6 +192,7 @@ function E.materialize(game,px,py,clock)
     local s=w.ship
     local ship=Ship.new(game,{hull=s.hull,loadout=copy(s.loadout),cargo=copy(s.cargo),
      hold=s.hold and Hold.deserialize(s.hold,function(item)return data.items[item]~=nil end),
+     fuelCharge=s.fuelCharge,fuelInitialized=true,
      color=copy(s.color),enemy=data.enemies[w.archetype]})
     local vx,vy=game:flowAt(x,y)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end

@@ -10,6 +10,7 @@ local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Homes=require('src.npc_home')
 local Jobs=require('src.jobs')
+local Fuel=require('src.reactor_fuel')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u) return Jobs.state(u) end
@@ -400,23 +401,33 @@ function M.advance(game,r,clock)
    if resource.kind=='loot' then loot=resource;break else rock=resource end
   end
  end
+ local elapsed=math.min(T.miningOfflineEvery,math.max(0,clock-(r.fuelClock or clock-T.miningOfflineEvery)))
+ r.fuelClock=clock
+ local requested=0
+ if rock and not loot then
+  for _,id in ipairs(r.ship.loadout) do
+   local w=id and data.modules[id] and data.modules[id].weapon
+   if w and w.kind=='drill' then requested=requested+(w.powerPerSecond or 0)*elapsed end
+  end
+ end
+ local energy=Fuel.withRecord(r,function(e,s)
+  local _,delivered=Fuel.step(e,s,elapsed,false,requested)
+  return delivered
+ end)
  if loot then
   local n=min(loot.count,room(r,loot.item))
   r.ship.cargo[loot.item]=(r.ship.cargo[loot.item] or 0)+n;loot.count=loot.count-n
   if loot.count<=0 then state.resources[loot.id]=nil end
  elseif rock then
-  local stats=Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
-  local energy=max(0,(r.power or stats.powerCap)+stats.powerNet*T.miningOfflineEvery)
   for _,id in ipairs(r.ship.loadout) do
    local m=id and data.modules[id];local w=m and m.weapon
    if w and w.kind=='drill' then
-    local seconds=min(T.miningOfflineEvery,energy/max(.001,w.powerPerSecond or 0))
+    local seconds=min(elapsed,energy/max(.001,w.powerPerSecond or 0))
     energy=energy-seconds*(w.powerPerSecond or 0)
     rock.hp=rock.hp-seconds*w.damage*(w.rockDamage or 1)
     if seconds>0 then rock.drilled=true end
    end
   end
-  r.power=min(stats.powerCap,max(0,energy))
   if rock.hp<=0 then rock.kind,rock.count='loot',rock.yield end
  end
  if (r.ship.cargo[r.task.item] or 0)>=T.minerLoad or room(r,r.task.item)<=0 then

@@ -3,15 +3,16 @@
 local data,Stats=require('src.data'),require('src.stats')
 local Hold,Ship=require('src.inventory.hold'),require('src.ship')
 local L,T=require('src.locations'),require('src.tuning')
+local Fuel=require('src.reactor_fuel')
 local S={}
 local catalogue,itemCount
 function S.shop()
  if catalogue and itemCount==#data.list.items then return catalogue end
  local sells={}
  for _,id in ipairs(data.list.items) do
-  if data.items[id].kind=='ammo' or id=='flare' then sells[#sells+1]={id,1} end
+  if data.items[id].kind=='ammo' or id=='flare' or id==Fuel.item() then sells[#sells+1]={id,1} end
  end
- catalogue={id='supplies',name='Supplies',description='Ammunition and countermeasures.',sells=sells,unlimited=true}
+ catalogue={id='supplies',name='Supplies',description='Reactor fuel, ammunition and countermeasures.',sells=sells,unlimited=true}
  itemCount=#data.list.items
  return catalogue
 end
@@ -41,6 +42,8 @@ function S.targets(r,e)
   local amount=reserve and reserve[id] or preset.cargo and preset.cargo[id]
   targets[id]=math.max(0,amount or math.max(data.items[id].stack or 1,math.ceil(rate*T.npcAmmoSeconds)))
  end
+ local stats=e and e.stats or Stats.compute(hull,loadout)
+ if stats.powerOut>0 then targets[Fuel.item()]=math.max(1,math.ceil(stats.powerOut*T.reactorFuelReserveSeconds/T.reactorFuelEnergy)) end
  if not reserve then profiles[key]=targets end
  return targets
 end
@@ -54,7 +57,7 @@ end
 function S.needs(r,e)
  local cargo=e and e.cargo or r.ship.cargo or {};local h=e and e.hold
  for id,target in pairs(S.targets(r,e)) do
-  if (cargo[id] or 0)<target*T.npcAmmoThreshold then
+  if (id==Fuel.item() and Fuel.condition(r,e)~='normal' or id~=Fuel.item() and (cargo[id] or 0)<target*T.npcAmmoThreshold) then
    if not h and r.ship.hold and not e then h=Hold.deserialize(r.ship.hold) end
    if room(r,e,h,id)>0 then return true end
   end
@@ -63,7 +66,15 @@ function S.needs(r,e)
 end
 local function fill(r,e,h,cargo)
  local added=0
- for id,target in pairs(S.targets(r,e)) do
+ local targets=S.targets(r,e);local order={}
+ for id in pairs(targets) do order[#order+1]=id end
+ table.sort(order,function(a,b)
+  if a==Fuel.item() then return b~=a end
+  if b==Fuel.item() then return false end
+  return a<b
+ end)
+ for _,id in ipairs(order) do
+  local target=targets[id]
   local missing=math.max(0,target-(cargo[id] or 0));local n
   if missing==0 then n=0
   elseif h then n=Hold.add(h,id,missing,{pristine=true})

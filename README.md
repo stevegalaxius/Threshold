@@ -930,3 +930,59 @@ plain saved data. Existing gameplay event signatures remain unchanged.
 
 Run `love . --historytest` for focused combat handoff, death/salvage identity,
 save/load, retreat and retention checks.
+
+## Inventory reactor-fuel prototype
+
+Reactors consume **Water ice** from ordinary cargo space. Buy spare units from
+any station's **Market → Supplies** vendor, or obtain them as normal cargo. No
+separate tank is needed. Each unit provides 1,200 electrical energy: the reactor
+loads one whole item and retains its partially consumed charge on the ship.
+The HUD shows spare units, active-unit percentage, and actual reactor output.
+
+A full capacitor with no equipment or propulsion demand does not burn fuel.
+Passive equipment, flight (including turning), capacitor recharge, and powered
+weapons/drills create demand. When fuel runs out, the capacitor remains usable;
+when it is also empty, powered thrust and steering stop. Momentum and external
+forces remain. An active fuel unit stays with its ship when spare cargo is
+removed, and both active charge and capacitor survive saves, teleports and
+hangar storage/swaps.
+
+New ships and older saves get a one-time allowance up to eight spare units,
+subject to available cargo space. Empty ships are never refueled merely by
+loading a save or going online again. NPCs carry the same inventory fuel and
+request it through their existing Supplies visits, with fuel loaded before
+ammunition and transport cargo. Remote travel uses an estimated propulsion
+load; unsupported powered progress pauses when its fuel and capacitor run out.
+Remote drills and lasers are limited by available electrical energy.
+
+This is a balancing prototype: Supplies fuel is unlimited like its ammunition,
+NPC refueling is unbilled, and supply production/hauling, route-specific fuel
+reserve planning, distress/rescue behavior and precise offline maneuver costs
+are deferred. Scripted transfers and docked ships do not run normal flight
+loads. Fuel item, energy per unit, starting allowance and NPC reserve targets
+are configured in `src/tuning.lua`. Run `love . --fueltest` for focused inventory,
+depletion, physics, persistence, NPC handoff and supply checks.
+
+### NPC fuel conditions
+
+NPCs retain a saved `fuelStatus` alongside their existing task/travel state:
+**normal**, **low**, **empty** (fuel gone, capacitor still usable), or **stranded**
+(fuel and capacitor exhausted). F6's A-Life records and the F4 traffic monitor's
+status details show the condition. Low fuel uses the existing role-specific
+Supplies-return behavior; traders continue toward their scheduled station stop.
+Nearest-station diversion and route-specific reserve planning remain deferred.
+
+Stranding pauses powered route progress, timed idle duties, and active NPC AI
+without replacing the record, releasing its cargo/task reservation, or reducing
+its population count. Existing momentum and externally powered mass-driver
+transport remain possible. Refueling through ordinary inventory/Supplies clears
+the condition and allows the same duty to resume. Miners do not retrospectively
+complete work for the time they were stranded. Stranded NPCs remain vulnerable
+to other ships; they do not initiate new offline attacks or take combat turns.
+
+Each change emits one saved `fuel_condition_changed` history entry with the old
+and new conditions, remaining fuel energy and capacitor charge. Repeated updates,
+materialization and save/load preserve the condition without repeating entries.
+The first healthy observation initializes the record silently. `--fueltest`
+includes controlled online/offline depletion, duty retention, history deduplication,
+recovery, idle timing and persistence checks. Rescue tasks are not implemented.

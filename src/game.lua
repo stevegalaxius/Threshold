@@ -28,6 +28,7 @@ local Grid = require("src.inventory.grid")
 local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
 local ALife = require("src.alife")
+local Fuel = require("src.reactor_fuel")
 local Mining = require("src.mining")
 
 local Game = {}
@@ -178,6 +179,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	self.playerHull = rec.hull or self.playerHull
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
 	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	table.insert(self.entities, p)
@@ -1686,7 +1688,7 @@ function Game:step(dt)
 				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
 				Ship.fly(e,dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
-				e.power=math.min(e.stats.powerCap,math.max(0,e.power+e.stats.powerNet*dt))
+				Fuel.step(e,e.stats,dt,false)
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
 				e.sideBurn,e.retroBurn,e.foreBurn,e.turnBurn=0,0,0,0
 			else
@@ -1695,6 +1697,10 @@ function Game:step(dt)
 				if not e.driverProtected then Weapons.update(self, e, dt) end
 			end
 		end
+	end
+
+	for id,e in pairs(self.alifeOnline or {}) do
+		if not e.removed then Fuel.observe(self.universe,self.universe.npcs[id],self.universe.clock,e) end
 	end
 
 	self:updateRotors()
