@@ -550,6 +550,8 @@ end
 
 function Editor.update(dt)
 	if not E.isOpenFlag then return end
+	-- text boxes need SDL text input on; other screens may have switched it off
+	if not love.keyboard.hasTextInput() then love.keyboard.setTextInput(true) end
 	Panels.update(E, Editor)
 	local mx, my = love.mouse.getPosition()
 	Canvas.mousemoved(E, mx, my)
