@@ -21,6 +21,7 @@ return function(game)
  assert(template,'no trader for lifecycle fixture')
  local r=template;r.id='npc/880001';r.state='docked';r.area='earth';r.taskWorker=true
  r.task=nil;r.nextTaskAt=nil;r.encounter=nil;r.piracy=nil;r.worldRecovery=nil
+ r.service=nil;r.serviced=nil;r.nextServiceAt=nil;r.distress=nil;r.nextDistressAt=nil
  r.driverState=nil;r.pose=nil;r.offset=nil;r.fuelStatus=nil;r.fuelObservedAt=nil
  r.ship.hold=nil;r.ship.cargo={[F.item()]=40};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
  local s=require('src.stats').compute(require('src.data').hulls[r.ship.hull],r.ship.loadout)

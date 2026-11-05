@@ -338,6 +338,25 @@ function E.syncOnline(game)
   end
  end
 end
+function E.clearSpot(game,x,y,radius,seed)
+ local a0=((tonumber(tostring(seed):match('%d+')) or 0)*2.3999632297)%(2*math.pi)
+ for ring=0,6 do
+  local d=ring*radius*1.5
+  for k=0,ring==0 and 0 or 7 do
+   local a=a0+k*math.pi/4
+   local cx,cy=x+math.cos(a)*d,y+math.sin(a)*d
+   local free=true
+   for _,o in ipairs(game.entities) do
+    if o.body and not o.removed and not o.dead and o.body.isDestroyed and not o.body:isDestroyed() then
+     local ox,oy=o.body:getPosition();local r=(o.radius or o.halfLength or 50)+radius+40
+     if (ox-cx)^2+(oy-cy)^2<r*r then free=false;break end
+    end
+   end
+   if free then return cx,cy end
+  end
+ end
+ return x,y
+end
 function E.materialize(game,px,py,clock)
  local u=game.universe
  for id,w in pairs(u.alifeWrecks or {}) do
@@ -350,6 +369,10 @@ function E.materialize(game,px,py,clock)
      hold=s.hold and Hold.deserialize(s.hold,function(item)return data.items[item]~=nil end),
      fuelCharge=s.fuelCharge,fuelInitialized=true,
      color=copy(s.color),enemy=data.enemies[w.archetype]})
+    -- Both sides of an offline fight wreck at the same point on the lane;
+    -- spawned on top of each other (or of a rock), Box2D flings them apart.
+    -- Step out to clear space first.
+    x,y=E.clearSpot(game,x,y,ship.hull.radius or ship.halfLength or 60,id)
     local vx,vy=game:flowAt(x,y)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
     local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
