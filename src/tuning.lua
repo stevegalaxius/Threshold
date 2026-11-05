@@ -167,6 +167,7 @@ T.population = {
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  miner={minDelay=180,maxDelay=300},
+ salvager={minDelay=180,maxDelay=300},
 }
 T.npcWarpDuration = 1.5
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
@@ -270,5 +271,8 @@ T.historyLimit,T.historyQuietTime=256,5
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
 T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
+
+T.salvagerPopulation,T.salvagerLoad,T.salvagerCollectTime=1,8,30
+T.salvagerRange,T.salvagerStay=6000,30
 
 return T

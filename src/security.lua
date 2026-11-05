@@ -257,7 +257,7 @@ function S.capture(game,e,r,remote)
  end
 end
 -- Civilian A-Life ships pirates hunt; matches offline encounters.lua.
-local PREY={trader=true,courier=true,miner=true}
+local PREY={trader=true,courier=true,miner=true,salvager=true}
 function S.prey(o) return o.npcRole and PREY[o.npcRole] or false end
 function S.hostile(e,o)
  if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
