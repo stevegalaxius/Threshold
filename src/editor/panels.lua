@@ -532,8 +532,14 @@ function weaponSections(E, d)
 	for _, g in ipairs({ 0.5, 1, 2, 4 }) do table.insert(gopts, { label = tostring(g), value = g }) end
 	combo("yard_wgrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
+	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
 	for i, p in ipairs(d.parts) do
-		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. (p.barrel and "  (barrel)" or "")) then E.sel, E.vsel, E.multi = i, nil, {} end
+		if Slab.Button("^", { W = 18, H = 18, Tooltip = "Draw earlier (further back)" }) then E.movePart(i, -1) end
+		Slab.SameLine()
+		if Slab.Button("v", { W = 18, H = 18, Tooltip = "Draw later (further forward)" }) then E.movePart(i, 1) end
+		Slab.SameLine()
+		local tags = (p.barrel and "  (barrel)" or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
+		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
 	end
 end
 
@@ -1157,7 +1163,7 @@ local function partWindow(E)
 			slider(E, "yard_col" .. name .. i, p.color[c], 0, 1, function(v) p.color[c] = v end)
 		end
 	end
-	if E.design.kind ~= "weapon" then
+	do
 	Slab.Text("Layer")
 	local lopts = {}
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end

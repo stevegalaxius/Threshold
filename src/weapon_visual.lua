@@ -40,10 +40,13 @@ end
 
 -- Just the art, in mount space (no slot transform): the Shipyard draws it
 -- like this on its canvas too.
+-- Parts draw in list order, like a hull's: later parts on top. The layer
+-- sets the look (hull outlined, detail darker, glow additive).
 function V.drawArt(art, col, dark, lineWidth, kick)
-	for _, layer in ipairs({ false, true }) do
+	do
 		for _, p in ipairs(art.parts or {}) do
-			if (p.barrel == true) == layer and p.shape and #p.shape >= 6 then
+			local layer = p.layer or "hull"
+			if p.shape and #p.shape >= 6 then
 				local list = { p.shape }
 				if p.mirror then
 					local m = {}
@@ -51,15 +54,21 @@ function V.drawArt(art, col, dark, lineWidth, kick)
 					list[2] = m
 				end
 				lg.push()
-				if layer and kick and kick > 0 then lg.translate(-kick, 0) end
+				if p.barrel and kick and kick > 0 then lg.translate(-kick, 0) end
+				if layer == "glow" then lg.setBlendMode("add") end
 				for _, s in ipairs(list) do
 					local tris = triangles(s)
-					lg.setColor(V.partColor(p, col))
+					local c = V.partColor(p, col)
+					if layer == "detail" then c = { c[1] * 0.5, c[2] * 0.5, c[3] * 0.5 } end
+					lg.setColor(c)
 					if tris then for _, tri in ipairs(tris) do lg.polygon("fill", tri) end end
-					lg.setColor(dark)
-					lg.setLineWidth(lineWidth or 1)
-					lg.polygon("line", s)
+					if layer == "hull" then
+						lg.setColor(dark)
+						lg.setLineWidth(lineWidth or 1)
+						lg.polygon("line", s)
+					end
 				end
+				if layer == "glow" then lg.setBlendMode("alpha") end
 				lg.pop()
 			end
 		end
