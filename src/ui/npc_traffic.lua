@@ -58,6 +58,11 @@ function M.snapshot(game,includeMoons)
    local driver=e and (e.launch or e.driverTractor) or r.driverState
    if stranded and r.state~='transit' then phase='stranded'
    elseif driver and r.state~='transit' then phase=e and e.driverTractor and 'tractor capture' or driver.phase=='tractor' and 'tractor capture' or 'launching' end
+   if r.state~='transit' and r.area then
+    -- not physically in the lane: say which system's local space it's in
+    local F=require('src.fields');local name=F[r.area] and F[r.area].name or r.area
+    phase=phase..' at '..name..' (local space, not in lane)'
+   end
    local ship=e or r.ship
    local n={id=id,role=r.role,state=r.state,phase=phase,stranded=stranded,from=from,to=to,kind=kind,
     progress=progress,eta=eta,depart=r.depart,arrive=r.arrive,online=e~=nil,
