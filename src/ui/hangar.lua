@@ -93,6 +93,16 @@ local function layout(game)
 	end
 	for i, rec in ipairs(L.list) do add(rec, rec.hull, rec.bay, i) end
 	add(p, p.hull.id, p.bay)
+	-- Visiting NPC ships docked inside occupy cells too; show them so the
+	-- space they block isn't a mystery. They can't be selected or moved.
+	L.visitors = {}
+	for _, s in pairs(game:hangarGrid(st).stacks) do
+		local o = s.owner
+		if o ~= p and o.kind == "ship" and o.hull then
+			table.insert(L.visitors, { hull = o.hull.id, rot = o.bay and o.bay.rot,
+				x = L.gx + s.x * cs, y = L.gy + s.y * cs, w = s.w * cs, h = s.h * cs })
+		end
+	end
 
 	-- the card's buttons, bottom up
 	local I = L.info
@@ -250,6 +260,14 @@ local function drawBerths(game, L, mx, my, sel)
 		if below > 0 then lg.printf(("\226\150\188 %d more (scroll)"):format(below), L.moor.x, L.moor.y + L.moor.h - 2, L.moor.w, "right") end
 	end
 
+	for _, v in ipairs(L.visitors or {}) do
+		lg.setColor(HUD.DIM[1], HUD.DIM[2], HUD.DIM[3], 0.12)
+		lg.rectangle("fill", v.x + 2, v.y + 2, v.w - 4, v.h - 4, 4, 4)
+		lg.setColor(HUD.DIM[1], HUD.DIM[2], HUD.DIM[3], 0.5)
+		lg.rectangle("line", v.x + 2.5, v.y + 2.5, v.w - 5, v.h - 5, 4, 4)
+		drawHull(data.hulls[v.hull], v.x + 4, v.y + 4, v.w - 8, v.h - 8, v.rot or false, HUD.DIM, 0.5)
+		tileName(v, "VISITING  " .. data.hulls[v.hull].name, 0.6)
+	end
 	-- ships, in the bay and on moorings
 	for _, s in ipairs(L.ships) do
 		local col = shipColor(game, s.owner)

@@ -172,5 +172,15 @@ return function(game)
  local ex,ey=st.body:getWorldPoint(berth.x,berth.y)
  local rx,ry=restored.body:getPosition()
  check(near(ex,rx) and near(ey,ry),'restored NPC kept its old interior pose on an exterior berth')
+ -- A moored ship carrying a stale bay must not take invisible interior cells.
+ local list=game:hangar(st);local saved={}
+ for i,r in ipairs(list) do saved[i]=r end
+ for i=#list,1,-1 do list[i]=nil end
+ local ghost={hull=game.player.hull.id,loadout=game.player.loadout,bay={x=0,y=0,rot=false},mooring=1}
+ list[1]=ghost
+ local cells=0;for _,c in pairs(game:hangarGrid(st).cells) do if c.owner==ghost then cells=cells+1 end end
+ check(cells==0,'moored ship blocked interior hangar cells')
+ for i=#list,1,-1 do list[i]=nil end
+ for i,r in ipairs(saved) do list[i]=r end
  print(('BERTH TEST PASSED (%d checks)'):format(checks))
 end

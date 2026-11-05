@@ -241,6 +241,9 @@ function Game:hangarGrid(st, ignore)
 	local g = Grid.new(w,h,"Interior hangar")
 	local function put(owner, hullId, bay)
 		if owner == ignore or not bay then return end
+		-- A ship on an exterior berth takes no interior cells, even if an
+		-- old bay assignment is still attached to it.
+		if owner.mooring or owner.parkingMooring or owner.dockState and owner.dockState.berth then return end
 		local w, h = Game.hangarFootprint(hullId, bay.rot)
 		if Grid.isFree(g, bay.x, bay.y, w, h) then Grid.place(g, { x = bay.x, y = bay.y, w = w, h = h, owner = owner }) end
 	end
