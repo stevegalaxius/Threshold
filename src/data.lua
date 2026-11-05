@@ -391,9 +391,11 @@ function loadFolder(folder)
 	local files = love.filesystem.getDirectoryItems(folder)
 	table.sort(files)
 	-- files first, then subfolders (the Shipyard lets you sort designs into folders)
+	local n = 0
 	for _, name in ipairs(files) do
-		if name:match("%.lua$") then loadFile(folder .. "/" .. name) end
+		if name:match("%.lua$") then loadFile(folder .. "/" .. name); n = n + 1 end
 	end
+	if folder:sub(1, 5) == "mods/" then print(("[data] %s: %d file%s"):format(folder, n, n == 1 and "" or "s")) end
 	for _, name in ipairs(files) do
 		local sub = folder .. "/" .. name
 		if love.filesystem.getInfo(sub, "directory") then loadFolder(sub) end
