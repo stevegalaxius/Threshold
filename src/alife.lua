@@ -31,11 +31,16 @@ end
 local function edge(r)
  return {from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index]}
 end
+-- Fuel shifts the leg clock only when the record advances. Between updates,
+-- an unpowered ship must not be drawn ahead of where it will be pulled back.
+local function legClock(r,clock)
+ if (r.fuelStatus=='stranded' or r.fuelStatus=='empty') and r.fuelClock then return math.min(clock,r.fuelClock) end
+ return clock
+end
+A.legClock=legClock
 local function progress(r,clock)
  if r.encounter then return r.encounter.progress end
- -- Fuel shifts the leg clock only when the record advances. Between updates,
- -- an unpowered ship must not be drawn ahead of where it will be pulled back.
- if (r.fuelStatus=='stranded' or r.fuelStatus=='empty') and r.fuelClock then clock=math.min(clock,r.fuelClock) end
+ clock=legClock(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
@@ -485,6 +490,7 @@ function A.laneSample(game,r,clock)
  local dir=A.laneDirection(game,r)
  if not dir then return end
  local speed=r.transit.speed or r.speed
+ clock=legClock(r,clock)
  local fraction=math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart))
  local along=(-game.lane.half+fraction*game.trip.length)*dir
  local n=(r.laneOffset or -math.min(T.laneWidth*.65,math.max(T.laneMedian+200,500+math.abs(r.spread or 0))))*dir
@@ -493,7 +499,8 @@ function A.laneSample(game,r,clock)
   and game.trip.originScene.fieldId==entry.area
  if anchor then
   local s0,n0=game:toLane(entry.x+game.trip.origin.x,entry.y+game.trip.origin.y)
-  along=s0+(clock-entry.clock)*speed
+  -- Headway since entry, excluding time the leg clock was held for lack of power.
+  along=s0+math.max(0,clock-r.depart-(entry.distance or 0)/speed)*speed
   n=n0
  end
  local x,y=game:fromLane(along,n)

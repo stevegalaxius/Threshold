@@ -18,10 +18,10 @@ local function cargo(ship)
 end
 function M.snapshot(game,includeMoons)
  local clock=game.universe.clock
- local model={clock=clock,rows={},npcs={},total=0,waiting=0,transit=0,overdue=0,stranded=0}
+ local model={clock=clock,rows={},npcs={},total=0,waiting=0,transit=0,overdue=0,stranded=0,gone=0}
  local rows={}
  for id,r in pairs(game.universe.npcs or {}) do
-  model.total=model.total+1
+  if r.state=='dead' or r.state=='escaped' then model.gone=model.gone+1 else model.total=model.total+1 end
   local e=game.alifeOnline and game.alifeOnline[id]
   local from,to,kind
   if r.state=='transit' and r.transit then
@@ -42,7 +42,8 @@ function M.snapshot(game,includeMoons)
    local stranded=r.fuelStatus=='stranded' and require('src.reactor_fuel').needsPropulsion(r)
    if stranded then model.stranded=model.stranded+1 end
    if r.state=='transit' then
-    progress=math.max(0,math.min(1,(clock-r.depart)/math.max(.001,r.arrive-r.depart)))
+    local legAt=require('src.alife').legClock(r,clock)
+    progress=math.max(0,math.min(1,(legAt-r.depart)/math.max(.001,r.arrive-r.depart)))
     model.transit=model.transit+1
     if stranded then
      -- Frozen in place with no ETA; recovery is left to a future event.
@@ -162,7 +163,7 @@ function M.draw(game)
  button(520,140,v.frozen and 'Frozen view' or 'Live view',v.frozen)
  button(w-90,70,'Close',false)
  lg.setFont(HUD.font(12));lg.setColor(.55,.68,.78)
- lg.print(('Clock %.1fs   |   %d NPCs   |   %d shown in transit   |   %d stranded   |   %d workers waiting'):format(model.clock,model.total,model.transit,model.stranded,model.waiting),20,60)
+ lg.print(('Clock %.1fs   |   %d NPCs (+%d dead/escaped records)   |   %d shown in transit   |   %d stranded   |   %d workers waiting'):format(model.clock,model.total,model.gone,model.transit,model.stranded,model.waiting),20,60)
  lg.print('Schematic progress, not physical positions.  Click a ship to inspect.  Wheel: routes / inspector  /  Tab: moons  /  Space: freeze view  /  F4: close',20,h-25)
  local start,finish=135,right-110
  lg.setColor(.45,.62,.72);lg.setFont(HUD.font(10))
