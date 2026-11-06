@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "missile_s_base", name = "Sparrow Rack",
+	id = "missile_s_base", name = "Missile Rack S",
 	family = "bay",
 	maker = "Halcyon Arms",
 	mass = 3,

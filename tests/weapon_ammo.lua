@@ -17,21 +17,21 @@ return function(game)
  -- a gun that lists more families chambers them, its own first
  local combo={ id='t', size='M', family='weapon', weapon={ kind='cannon', fireRate=3, chambers={ 'gun', 'shotgun' } } }
  local c=data.ammoOptions(combo)
- check(c[1]=='rounds_m' and has(c,'buckshot_m') and not has(c,'shell_m'),'chambers list ignored')
+ check(c[1]=='rounds_m' and has(c,'shot_m') and not has(c,'shell_m'),'chambers list ignored')
  check(data.fireRate==nil,'per-ammo fire rate still there')
  -- a shotgun fires a fan of pellets that fly as rounds
  local sg=data.modules.shotgun_m_base
- check(sg and data.ammoOptions(sg)[1]=='buckshot_m','shotgun does not load buckshot')
+ check(sg and data.ammoOptions(sg)[1]=='shot_m','shotgun does not load shot')
  do
   local en=Ship.new(game,{hull='brute_anvil',loadout={'shotgun_m_base',false,false,false,'mule_engine','kiln_reactor',false},x=5000,y=5000})
-  en.cargo.buckshot_m=5
+  en.cargo.shot_m=5
   en.intent=en.intent or {}
   en.intent.aimX,en.intent.aimY=6000,5000
   local before=#game.projectiles
   Weapons.fire(game,en,en.weapons[1],0.016)
   local n=#game.projectiles-before
-  check(n==data.items.buckshot_m.shot.pellets,'shotgun fired '..n..' pellets')
-  check(game.projectiles[#game.projectiles].kind=='gun' and en.cargo.buckshot_m==4,'pellets should fly as rounds and take one shell')
+  check(n==data.items.shot_m.shot.pellets,'shotgun fired '..n..' pellets')
+  check(game.projectiles[#game.projectiles].kind=='gun' and en.cargo.shot_m==4,'pellets should fly as rounds and take one shell')
  end
  -- per-slot pick
  local e=Ship.new(game,{hull='estates_bastion',loadout=data.hulls.estates_bastion.loadout,x=0,y=0})

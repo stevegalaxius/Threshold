@@ -19,7 +19,7 @@
 	Weapon fields:
 	  kind        cannon, laser or drill (weapon family); missile or drone
 	              (bay family). A cannon is anything that fires rounds, shells
-	              or buckshot: chambers says which. Hardpoint weapons load ammo
+	              or shot: chambers says which. Hardpoint weapons load ammo
 	              in their exact caliber, bay launchers their size or smaller. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
@@ -30,7 +30,7 @@
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
 	  chambers    the ammo families it can load, first = default: "gun"
-	              (rounds), "artillery" (shells), "shotgun" (buckshot), like
+	              (rounds), "artillery" (shells), "shotgun" (shot), like
 	              { "shotgun", "gun" }. Unset: cannons rounds, missile racks
 	              missiles and torpedoes. It fires at its own fireRate
 	              whatever is loaded; the ammo changes the hit, not the cadence.

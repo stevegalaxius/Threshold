@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "missile_l_base", name = "Trident Bay",
+	id = "missile_l_base", name = "Missile Rack L",
 	family = "bay",
 	maker = "Ferrous Collective",
 	mass = 18,

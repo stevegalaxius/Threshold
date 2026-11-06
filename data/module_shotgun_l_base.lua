@@ -1,6 +1,6 @@
 -- Made by hand: a starting point for the Shipyard (F2), Weapons tab.
 module {
-	id = "shotgun_l_base", name = "Doorkicker",
+	id = "shotgun_l_base", name = "Shotgun L",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 26,

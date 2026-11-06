@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "missile_m_base", name = "Hornet Pod",
+	id = "missile_m_base", name = "Missile Rack M",
 	family = "bay",
 	maker = "Nova Syndicate",
 	mass = 8,

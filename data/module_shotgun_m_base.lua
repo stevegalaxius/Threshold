@@ -1,6 +1,6 @@
 -- Made by hand: a starting point for the Shipyard (F2), Weapons tab.
 module {
-	id = "shotgun_m_base", name = "Breacher",
+	id = "shotgun_m_base", name = "Shotgun M",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 11,

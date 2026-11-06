@@ -45,7 +45,7 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 	{ name = "Kinetic armory", description = "Autocannons, shotguns, the Long Tom and heavy shells.", sells = {
 		{ "gun_m_base", 2 }, { "gun_l_base", 1 }, { "artillery_l_base", 1 }, { "shell_l", 4 },
 		{ "shotgun_s_base", 1 }, { "shotgun_m_base", 1 }, { "shotgun_l_base", 1 },
-		{ "buckshot_s", 4 }, { "buckshot_m", 4 }, { "buckshot_l", 3 },
+		{ "shot_s", 4 }, { "shot_m", 4 }, { "shot_l", 3 },
 	} },
 	{ name = "Beam works", description = "Lasers and beam weapons. No ammo needed, just power.", sells = {
 		{ "pulse_s_base", 2 }, { "pulse_m_base", 1 }, { "pulse_l_base", 1 },

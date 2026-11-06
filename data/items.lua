@@ -31,44 +31,44 @@
 	works one out from the volume. 
 ]]
 
-ammo { id = "rounds_s",  name = "Light rounds",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3, w = 1, h = 1, stack = 50,
+ammo { id = "rounds_s", name = "Bullet S",  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3, w = 1, h = 1, stack = 50,
 	shot = { damage = 12, speed = 4600, range = 8600, knockback = 250 } }
-ammo { id = "rounds_m",  name = "Heavy rounds",  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
+ammo { id = "rounds_m", name = "Bullet M",  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
 	shot = { damage = 36, speed = 4800, range = 9800, knockback = 400 } }
 
-ammo { id = "shell_s",   name = "Pip shells",    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25, w = 1, h = 1, stack = 6,
+ammo { id = "shell_s", name = "Shell S",    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25, w = 1, h = 1, stack = 6,
 	shot = { damage = 45, splash = 60, speed = 4800, range = 9000, knockback = 6000 } }
-ammo { id = "shell_m",   name = "Field shells",  maker = "Brute Industries",   family = "artillery", size = "M", volume = 0.30, mass = 0.25, price = 50, w = 1, h = 1, stack = 3,
+ammo { id = "shell_m", name = "Shell M",  maker = "Brute Industries",   family = "artillery", size = "M", volume = 0.30, mass = 0.25, price = 50, w = 1, h = 1, stack = 3,
 	shot = { damage = 90, splash = 90, speed = 4700, range = 10400, knockback = 12000 } }
-ammo { id = "shell_l",   name = "Siege shells",  maker = "Ferrous Collective", family = "artillery", size = "L", volume = 0.60, mass = 0.50, price = 110, w = 2, h = 1, stack = 3,
+ammo { id = "shell_l", name = "Shell L",  maker = "Ferrous Collective", family = "artillery", size = "L", volume = 0.60, mass = 0.50, price = 110, w = 2, h = 1, stack = 3,
 	shot = { damage = 180, splash = 130, speed = 1900, range = 13000, knockback = 26000 } }
 
-ammo { id = "buckshot_s", name = "Light buckshot", maker = "Halcyon Arms",    family = "shotgun", size = "S", volume = 0.06, mass = 0.05, price = 8, w = 1, h = 1, stack = 16,
+ammo { id = "shot_s", name = "Shot S", maker = "Halcyon Arms",    family = "shotgun", size = "S", volume = 0.06, mass = 0.05, price = 8, w = 1, h = 1, stack = 16,
 	shot = { damage = 9, pellets = 6, pelletSpread = 7, speed = 4000, range = 3000, knockback = 120 } }
-ammo { id = "buckshot_m", name = "Heavy buckshot", maker = "Brute Industries",  family = "shotgun", size = "M", volume = 0.12, mass = 0.10, price = 18, w = 1, h = 1, stack = 8,
+ammo { id = "shot_m", name = "Shot M", maker = "Brute Industries",  family = "shotgun", size = "M", volume = 0.12, mass = 0.10, price = 18, w = 1, h = 1, stack = 8,
 	shot = { damage = 22, pellets = 7, pelletSpread = 6, speed = 4200, range = 3600, knockback = 220 } }
-ammo { id = "buckshot_l", name = "Breaching buckshot", maker = "Brute Industries", family = "shotgun", size = "L", volume = 0.25, mass = 0.20, price = 40, w = 2, h = 1, stack = 6,
+ammo { id = "shot_l", name = "Shot L", maker = "Brute Industries", family = "shotgun", size = "L", volume = 0.25, mass = 0.20, price = 40, w = 2, h = 1, stack = 6,
 	shot = { damage = 45, pellets = 8, pelletSpread = 5, speed = 4400, range = 4200, knockback = 400 } }
 
-ammo { id = "missile_s", name = "Sparrow missile", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.08, mass = 0.06, price = 15, w = 2, h = 1, stack = 20,
+ammo { id = "missile_s", name = "Missile S", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.08, mass = 0.06, price = 15, w = 2, h = 1, stack = 20,
 	shot = { damage = 14, splash = 35, speed = 6100, range = 12600, knockback = 5000, accel = 2200, turnRate = 5 } }
-ammo { id = "missile_m", name = "Hornet missile",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 0.15, mass = 0.12, price = 40, w = 3, h = 1, stack = 12,
+ammo { id = "missile_m", name = "Missile M",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 0.15, mass = 0.12, price = 40, w = 3, h = 1, stack = 12,
 	shot = { damage = 45, splash = 55, speed = 5000, range = 13000, knockback = 10000, accel = 1800, turnRate = 4 } }
-ammo { id = "missile_l", name = "Longbow missile", maker = "Ferrous Collective", family = "missile", size = "L", volume = 0.40, mass = 0.30, price = 120, w = 3, h = 1, stack = 6,
+ammo { id = "missile_l", name = "Missile L", maker = "Ferrous Collective", family = "missile", size = "L", volume = 0.40, mass = 0.30, price = 120, w = 3, h = 1, stack = 6,
 	shot = { damage = 120, splash = 90, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
 
-ammo { id = "torp_s", name = "Maul torpedo",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
+ammo { id = "torp_s", name = "Torpedo S",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
 	shot = { recoil = 2, damage = 220, splash = 80, speed = 9500, turnRate = 0.5, range = 12400, knockback = 15000 } }
-ammo { id = "torp_m", name = "Breaker torpedo",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400, w = 3, h = 1, stack = 1,
+ammo { id = "torp_m", name = "Torpedo M",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400, w = 3, h = 1, stack = 1,
 	shot = { recoil = 2, damage = 500, splash = 130, speed = 8500, turnRate = 0.4, range = 12800, knockback = 35000 } }
-ammo { id = "torp_l", name = "Leviathan torpedo", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 3200, w = 5, h = 1, stack = 1,
+ammo { id = "torp_l", name = "Torpedo L", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 3200, w = 5, h = 1, stack = 1,
 	shot = { recoil = 2, damage = 1100, splash = 210, speed = 7500, turnRate = 0.3, range = 13200, knockback = 80000 } }
 
-ammo { id = "drone_s", name = "Wasp drone",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500, w = 2, h = 2, stack = 1,
+ammo { id = "drone_s", name = "Drone S",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500, w = 2, h = 2, stack = 1,
 	shot = { hull = "wasp_drone", speed = 300, range = 1500 } }
-ammo { id = "drone_m", name = "Hive drone",    maker = "Nova Syndicate", family = "drone", size = "M", volume = 8, mass = 7, price = 6000, w = 3, h = 3, stack = 1,
+ammo { id = "drone_m", name = "Drone M",    maker = "Nova Syndicate", family = "drone", size = "M", volume = 8, mass = 7, price = 6000, w = 3, h = 3, stack = 1,
 	shot = { hull = "hive_drone", speed = 250, range = 1800 } }
-ammo { id = "drone_l", name = "Warden drone",  maker = "Nova Syndicate", family = "drone", size = "L", volume = 16, mass = 14, price = 14000, w = 4, h = 4, stack = 1,
+ammo { id = "drone_l", name = "Drone L",  maker = "Nova Syndicate", family = "drone", size = "L", volume = 16, mass = 14, price = 14000, w = 4, h = 4, stack = 1,
 	shot = { hull = "warden_drone", speed = 200, range = 2000 } }
 
 salvage { id = "scrap",       name = "Scrap metal",      volume = 0.5, mass = 0.4, price = 60, w = 1, h = 1, stack = 2 }

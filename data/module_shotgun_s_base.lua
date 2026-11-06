@@ -1,6 +1,6 @@
 -- Made by hand: a starting point for the Shipyard (F2), Weapons tab.
 module {
-	id = "shotgun_s_base", name = "Scattergun",
+	id = "shotgun_s_base", name = "Shotgun S",
 	family = "weapon",
 	maker = "Halcyon Arms",
 	mass = 4,

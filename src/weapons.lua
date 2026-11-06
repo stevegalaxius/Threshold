@@ -6,7 +6,7 @@
 	               shells    long range, big damage and splash. Shells burst
 	                         on contact, when they pass near an enemy (proximity
 	                         fuse), or at the end of their range.
-	               buckshot  a spray of pellets (shot.pellets, fanned over
+	               shot      a spray of pellets (shot.pellets, fanned over
 	                         shot.pelletSpread degrees), each hitting like a round.
 	  laser      pulse laser: a brief, instant-hit flash about once a second.
 	             No ammo; each pulse takes a chunk of power.
