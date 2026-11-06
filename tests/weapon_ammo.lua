@@ -54,25 +54,18 @@ return function(game)
   check(Weapons.tubes(rk)==8 and rk.armed==0,'S missiles should pack 8 into an L rack, and swapping ammo should empty the tubes')
   check(data.items.torp_l.shot.armTime>data.items.missile_l.shot.armTime,'torpedoes should arm slower than missiles')
  end
- -- lasers: one kind; pulsed ones light for `pulse` per shot, others while held
+ -- lasers: pulse and beam kinds, several lines, own color
  do
-  local pl,bm=data.modules.pulse_m_base.weapon,data.modules.beam_s_base.weapon
-  check(pl.kind=='laser' and bm.kind=='laser' and pl.pulse and not bm.pulse,'lasers should be one kind, pulse set or not')
-  local old=assert(data.defineModule({ id='t_oldpulse', name='t', family='weapon', size='S', mass=1, weapon={ kind='laser', damage=30, powerPerShot=20, pulse=0.1, fireRate=1, range=100 } }))
-  check(math.abs(old.weapon.damage-300)<1e-6 and math.abs(old.weapon.powerPerSecond-200)<1e-6 and old.weapon.powerPerShot==nil,'old per-shot pulse not converted to per second')
+  check(data.modules.pulse_s_base.weapon.kind=='pulse' and data.modules.beam_s_base.weapon.kind=='beam','lasers should be pulse / beam kinds')
+  local old=assert(data.defineModule({ id='t_oldbeam', name='t', family='weapon', size='S', mass=1, weapon={ kind='laser', beam=true, damage=1, powerPerSecond=1, range=100 } }))
+  check(old.weapon.kind=='beam' and old.weapon.beam==nil,'old laser+beam did not load as a beam')
   local en=Ship.new(game,{hull='brute_anvil',loadout={'pulse_m_base',false,false,false,'mule_engine','kiln_reactor',false},x=12000,y=12000})
   local sl=en.weapons[1]
-  sl.w={}; for k,v in pairs(pl) do sl.w[k]=v end
+  sl.w={}; for k,v in pairs(data.modules.pulse_m_base.weapon) do sl.w[k]=v end
   sl.w.beams, sl.w.beamSpread, sl.w.color = 5, 20, { 1, 0.2, 0.2 }
   en.power=1000; en.intent=en.intent or {}; en.intent.aimX,en.intent.aimY=13000,12000
   Weapons.fire(game,en,sl,0.016)
-  check(sl.litLeft==sl.w.pulse,'pulse did not light')
-  local p0=en.power
-  Weapons.burn(game,en,sl,0.05)
   check(sl.beams and #sl.beams.lines==5 and sl.beams.color[2]==0.2,'shotgun laser should fire 5 colored lines')
-  check(math.abs((p0-en.power)-sl.w.powerPerSecond*0.05)<1e-6,'laser power not per second while lit')
-  Weapons.burn(game,en,sl,1); Weapons.burn(game,en,sl,0.01)
-  check(sl.litLeft<=0,'pulse should go dark after its length')
  end
  -- atomic warheads: a missile that vaporizes what it kills (no wreck)
  do

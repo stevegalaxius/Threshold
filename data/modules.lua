@@ -17,14 +17,14 @@
 	           loads whichever ammo is picked for that slot.
 
 	Weapon fields:
-	  kind        cannon, laser or drill (weapon family); missile or drone
+	  kind        cannon, pulse, beam or drill (weapon family); missile or drone
 	              (bay family). A cannon is anything that fires rounds, shells
 	              or shot: chambers says which. Hardpoint weapons load ammo
 	              in their exact caliber, bay launchers their size or smaller. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua).
-	              Lasers take no ammo: damage and powerPerSecond are per
-	              second while lit. With pulse (seconds) it lights that long
-	              per shot, fireRate shots a second; without, while held.
+	              Lasers take no ammo. A pulse fires a flash per shot:
+	              damage, range, powerPerShot, pulse (seconds it shows). A
+	              beam burns while held: damage and powerPerSecond per second.
 	  beams       lasers: lines fired at once, each doing full damage
 	              (a shotgun laser); beamSpread = fan width in degrees.
 	  color       lasers: beam color { r, g, b } (0..1); beamWidth scales
@@ -97,19 +97,19 @@ module {
 module {
 	id = "beam_s_base", name = "Beam Laser S", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 6, price = 6000,
-	weapon = { kind = "laser", damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
+	weapon = { kind = "beam", damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
 }
 
 module {
 	id = "beam_m_base", name = "Beam Laser M", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 14, price = 16000,
-	weapon = { kind = "laser", damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
+	weapon = { kind = "beam", damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
 }
 
 module {
 	id = "beam_l_base", name = "Beam Laser L", maker = "Halcyon Arms", family = "weapon", size = "L",
 	mass = 32, price = 42000,
-	weapon = { kind = "laser", damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
+	weapon = { kind = "beam", damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
 }
 
 -- Bay launchers -------------------------------------------------------------------

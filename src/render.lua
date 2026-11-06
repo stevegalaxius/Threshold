@@ -392,7 +392,7 @@ local function drawStation(game, e)
 		lg.push()
 		lg.translate(w.slot.x, w.slot.y)
 		lg.rotate(w.aim or 0)
-		lg.setColor(w.w.kind == "laser" and (w.w.color or { 0.6, 0.95, 1 }) or { 0.75, 0.78, 0.82 })
+		lg.setColor(data.LASERS[w.w.kind] and (w.w.color or { 0.6, 0.95, 1 }) or { 0.75, 0.78, 0.82 })
 		if w.mount == "bay" then
 			-- (drawn below)
 		elseif w.bay then
