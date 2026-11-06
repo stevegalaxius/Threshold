@@ -561,12 +561,15 @@ data.renamedModules = {
 	pip_mortar = "artillery_s_base", thumper_m = "artillery_m_base", long_tom = "artillery_l_base",
 	sparrow_rack = "missile_s_base", hornet_pod = "missile_m_base", trident_bay = "missile_l_base",
 	artilllery_S_base = "artillery_s_base",
+	thread_beam = "beam_s_base", searing_ray = "beam_m_base", furnace_beam = "beam_l_base",
+	bore_drill = "drill_s_base", rockbiter = "drill_m_base", deep_core_drill = "drill_l_base",
+	wasp_bay = "drone_s_base", hive_bay = "drone_m_base", carrier_deck = "drone_l_base",
 	glint_laser = "pulse_s_base", lumen_lance = "pulse_m_base", sunder_beam = "pulse_l_base",
 	-- torpedo tubes are gone: torpedoes are missile-rack ammo now
 	maul_tube = "missile_s_base", breaker_tube = "missile_m_base", leviathan_tube = "missile_l_base",
 }
 -- the first _base ids had upper-case sizes (gun_S_base)
-for _, kind in ipairs({ "gun", "artillery", "missile", "pulse" }) do
+for _, kind in ipairs({ "gun", "artillery", "missile", "pulse", "beam", "drill", "drone" }) do
 	for _, size in ipairs({ "S", "M", "L" }) do
 		data.renamedModules[kind .. "_" .. size .. "_base"] = kind .. "_" .. size:lower() .. "_base"
 	end

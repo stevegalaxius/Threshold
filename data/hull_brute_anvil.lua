@@ -6,7 +6,7 @@ hull {
 	class = "medium",
 	drag = 0.5,
 	hold = 50,
-	loadout = { false, false, "rockbiter", "hive_bay", "mule_engine", "kiln_reactor", "tug_beam", "nav_computer" },
+	loadout = { false, false, "drill_m_base", "drone_m_base", "mule_engine", "kiln_reactor", "tug_beam", "nav_computer" },
 	maker = "Brute Industries",
 	mass = 240,
 	mount = "gimbal",

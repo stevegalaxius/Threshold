@@ -6,7 +6,7 @@ hull {
 	class = "light",
 	drag = 0.14,
 	hold = 24,
-	loadout = { "thread_beam", "gun_s_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
+	loadout = { "beam_s_base", "gun_s_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	maker = "Intaki",
 	mass = 58,
 	mount = "fixed",

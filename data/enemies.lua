@@ -109,7 +109,7 @@ enemy {
 -- A civilian mining fit using the same contact drills as the player.
 enemy {
  id="miner_packhorse",team=3,name="Independent Miner",hull="ferrous_mule",
- loadout={"rockbiter","rockbiter",false,"mule_engine","kiln_reactor","tug_beam",false,false},
+ loadout={"drill_m_base","drill_m_base",false,"mule_engine","kiln_reactor","tug_beam",false,false},
  cargo={},ai={style="trader",cruise=500,range=2500,accuracy=.7,throttle=.9},salvage={1,2},
 }
 

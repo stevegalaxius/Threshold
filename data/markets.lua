@@ -35,11 +35,11 @@ market { id = "market:mars_1", station = "Station Alpha", ships = { "brute_anvil
 } }
 market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
 	{ "martian_ore", 8 }, { "salvage_kit", 3 }, { "scrap", 6 },
-	{ "bore_drill", 2 }, { "rockbiter", 1 }, { "deep_core_drill", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
+	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
 market { id = "market:mars_2", station = "Station Beta", sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "missile_s_base", 2 }, { "missile_m_base", 1 },
-	{ "drone_s", 2 }, { "drone_m", 1 }, { "wasp_bay", 1 }, { "hive_bay", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
+	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
 market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy weapons
 	{ name = "Kinetic armory", description = "Autocannons, the Long Tom and heavy shells.", sells = {
@@ -47,12 +47,12 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 	} },
 	{ name = "Beam works", description = "Lasers and beam weapons. No ammo needed, just power.", sells = {
 		{ "pulse_s_base", 2 }, { "pulse_m_base", 1 }, { "pulse_l_base", 1 },
-		{ "thread_beam", 2 }, { "searing_ray", 1 }, { "furnace_beam", 1 },
+		{ "beam_s_base", 2 }, { "beam_m_base", 1 }, { "beam_l_base", 1 },
 	} },
 } }
 market { id = "market:earth_2", station = "Orbital Two", ships = { "estates_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
-	{ "torp_l", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
+	{ "torp_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 
@@ -73,7 +73,7 @@ market { id = "market:ganymede_1", station = "Galileo Regio", sells = {   -- Jov
 	{ "gun_m_base", 1 }, { "shell_m", 4 }, { "artillery_m_base", 1 },
 } }
 market { id = "market:ganymede_2", station = "Uruk Station", sells = {
-	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "ember_reactor", 1 },
+	{ "drone_s", 2 }, { "drone_s_base", 1 }, { "ember_reactor", 1 },
 } }
 market { id = "market:titan_1", station = "Kraken Station", sells = {   -- Caliphate refinery
 	{ "kiln_reactor", 1 }, { "torp_s", 3 }, { "missile_s_base", 1 },
@@ -99,7 +99,7 @@ market { id = "market:callisto_1", station = "Valhalla Port", sells = {
 	{ "hold_pod_s", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
 } }
 market { id = "market:callisto_2", station = "Asgard Station", sells = {
-	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "tug_beam", 1 },
+	{ "drone_s", 2 }, { "drone_s_base", 1 }, { "tug_beam", 1 },
 } }
 market { id = "market:enceladus_1", station = "Tiger Stripe Laboratory", sells = {
 	{ "guidance_computer", 1 }, { "pulse_s_base", 1 }, { "ember_reactor", 1 },
