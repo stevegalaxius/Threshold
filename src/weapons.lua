@@ -293,6 +293,7 @@ local function fire(game, e, slot, dt)
 		size = data.items[slot.ammo].size,
 		cause = ws.vaporize and "atomic" or nil,   -- atomic warheads leave no wreck
 		born = game.time,                           -- (launch glow)
+		ox = wx, oy = wy,                           -- where it left the barrel (trails stop there)
 	}
 
 	if kind == "gun" or kind == "shotgun" then

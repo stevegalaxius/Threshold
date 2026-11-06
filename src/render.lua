@@ -1185,7 +1185,14 @@ local function drawProjectiles(game)
 			lg.setColor(1, 0.35, 0.2, 0.35)
 			lg.circle("fill", p.x, p.y, r * 2.2)
 			lg.setColor(1, 0.55, 0.3, 0.7)
-			lg.line(p.x - p.vx * 0.03 * trail, p.y - p.vy * 0.03 * trail, p.x, p.y)
+			-- the trail never reaches back past where it was launched
+			local tl = 0.03 * trail
+			if p.ox then
+				local sp = sqrt(p.vx * p.vx + p.vy * p.vy)
+				local flown = sqrt((p.x - p.ox) ^ 2 + (p.y - p.oy) ^ 2)
+				if sp > 0 then tl = min(tl, flown / sp) end
+			end
+			lg.line(p.x - p.vx * tl, p.y - p.vy * tl, p.x, p.y)
 			lg.setColor(1, 0.9, 0.75)
 			lg.circle("fill", p.x, p.y, r)
 		elseif p.kind == "missile" then
@@ -1244,19 +1251,19 @@ local function drawEffects(game)
 			local img = glow()
 			local s = fx.r * 2 / img:getWidth()
 			lg.setBlendMode("add")
-			lg.setColor(1, 0.65, 0.3, (1 - k) * 0.9)
+			lg.setColor(1, 0.65, 0.3, (1 - k) ^ 2 * 0.95)
 			lg.draw(img, fx.x, fx.y, 0, s * (1 + k * 0.4), nil, img:getWidth() / 2, img:getHeight() / 2)
-			lg.setColor(1, 1, 0.92, (1 - k) ^ 2)
+			lg.setColor(1, 1, 0.92, (1 - k) ^ 3)
 			lg.draw(img, fx.x, fx.y, 0, s * 0.55, nil, img:getWidth() / 2, img:getHeight() / 2)
 			lg.setBlendMode("alpha")
 		elseif fx.kind == "shockwave" then
 			-- a ring that races out and thins as it goes
-			local e = 1 - (1 - k) ^ 2.5
+			local e = 1 - (1 - k) ^ 3
 			local r = fx.r * e
 			lg.setBlendMode("add")
-			lg.setColor(1, 0.9, 0.75, (1 - k) * 0.12)
+			lg.setColor(1, 0.9, 0.75, (1 - k) ^ 2 * 0.12)
 			lg.circle("fill", fx.x, fx.y, r, 64)
-			lg.setColor(1, 0.92, 0.8, (1 - k) * 0.85)
+			lg.setColor(1, 0.92, 0.8, (1 - k) ^ 2 * 0.85)
 			lg.setLineWidth(max(1, fx.r * 0.06 * (1 - k)))
 			lg.circle("line", fx.x, fx.y, r, 64)
 			lg.setBlendMode("alpha")
