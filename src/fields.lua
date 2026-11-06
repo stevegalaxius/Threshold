@@ -237,7 +237,10 @@ Fields.mixes = MIX
 --   extra(game, R)     more to build once the planet is in
 local function planetField(o)
 	local name, R = o.name, o.R
-	local depth = o.depth or 35000
+	-- T.mapScale stretches every planet map's open space; T.mapDensity
+	-- thins its debris so a bigger map doesn't carry (scale^2) more rocks.
+	local depth = (o.depth or 35000) * T.mapScale
+	local dens = T.mapDensity
 	local edge = R + depth
 	-- Everything is laid out as fractions of the open space (depth), so a
 	-- roomier map spreads its belt and stations out instead of leaving
@@ -254,13 +257,13 @@ local function planetField(o)
 	if o.gas then
 		for _, rb in ipairs(o.rings or {}) do
 			local big = rb.big or 0
-			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], rb.density, { ice = 1 },
+			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], (rb.density or 0) * dens, { ice = 1 },
 				size = function() return random() < big and 60 + random() * 60 or 10 + random() ^ 3 * 60 end })
 		end
 	else
-		bands[1] = { beltIn, beltOut, o.belt or 0, o.beltMix or { rock = 1 } }
+		bands[1] = { beltIn, beltOut, (o.belt or 0) * dens, o.beltMix or { rock = 1 } }
 	end
-	local scattered = floor((o.density or 0) * area(looseIn, edge))
+	local scattered = floor((o.density or 0) * dens * area(looseIn, edge))
 	-- the planet's colour, the same every visit (so it can be drawn ahead
 	-- of you on the highway before you arrive)
 	local rng = love.math.newRandomGenerator(#name * 7919 + R)
@@ -327,8 +330,8 @@ end
 Fields.ring = {
  miningAsteroids = {},
 	name = "Ring Station",
-	spawn = { 0, 5200 },
-	radius = 26000,
+	spawn = { 0, 5200 * T.mapScale },
+	radius = 26000 * T.mapScale,
 	mix = MIX.belt,
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "gunner", 2 } },
 	build = function(game)
@@ -338,14 +341,15 @@ Fields.ring = {
 			game:spawnGiantAsteroid(s.x,s.y,s.radius)
 		end
 		-- thick rock from the clear zone out to the edge
-		local area = pi * (26000 ^ 2 - 6500 ^ 2) / 1e6
-		game:spawnAsteroids(floor(area * 0.18), 6500)
+		local S = T.mapScale
+		local area = pi * ((26000 * S) ^ 2 - (6500 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 6500 * S)
 		game:spawnContainers(T.fieldContainers, 4500)
 	end,
 }
 
 for k=0,3 do
- local a,d=k/4*pi*2+.4,11000+(k%2)*5000
+ local a,d=k/4*pi*2+.4,(11000+(k%2)*5000)*T.mapScale
  Fields.ring.miningAsteroids[#Fields.ring.miningAsteroids+1]={x=cos(a)*d,y=sin(a)*d,radius=900+(k%3)*400}
 end
 

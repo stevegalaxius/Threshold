@@ -202,7 +202,7 @@ T.repairRate = 6          -- credits per armor point at a station repair bay (st
 T.startCredits = 5000
 
 -- How far the camera zooms out (mouse wheel), as a scale.
-T.minZoom = 0.17
+T.minZoom = 0.17 / 1.5   -- pulled out with T.mapScale
 
 T.tradeW, T.tradeH = 12, 6
 T.marketW, T.marketH = 14, 12
@@ -299,4 +299,12 @@ T.alifeGoneLinger=300
 T.salvagerPopulation,T.salvagerLoad,T.salvagerCollectTime=1,8,30
 T.salvagerRange,T.salvagerStay=6000,30
 
+-- Playable area: every planet map's open space (edge, belts, rings,
+-- station track) is multiplied by mapScale; loose debris, belts and rings
+-- are thinned by mapDensity (1/mapScale^2 keeps rock counts unchanged;
+-- lower thins further). Pre-alpha test values.
+T.mapScale = 1.5
+T.mapDensity = 0.3
+
 return T
+
