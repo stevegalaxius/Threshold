@@ -42,7 +42,7 @@ market { id = "market:mars_2", station = "Station Beta", sells = {   -- missiles
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
 market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy weapons
-	{ name = "Kinetic armory", description = "Autocannons, shotguns, the Long Tom and heavy shells.", sells = {
+	{ name = "Kinetic armory", description = "Guns, shotguns, heavy artillery and shells.", sells = {
 		{ "gun_m_base", 2 }, { "gun_l_base", 1 }, { "artillery_l_base", 1 }, { "shell_l", 4 },
 		{ "shotgun_s_base", 1 }, { "shotgun_m_base", 1 }, { "shotgun_l_base", 1 },
 		{ "shot_s", 4 }, { "shot_m", 4 }, { "shot_l", 3 },
