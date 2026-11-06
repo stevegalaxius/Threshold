@@ -208,7 +208,7 @@ function Ship.refit(e)
 				index = i, bay = m.family == "bay",
 				group = Ship.triggerFor(e, i),    -- primary, secondary or tertiary
 				ammo = Ship.loadFor(e, i), ammoOptions = data.ammoOptions(m), cooldown = 0,
-				mount = slot.mount or hull.mount or "gimbal", aim = 0,
+				mount = slot.mount or hull.mount or "gimbal", aim = math.rad(slot.heading or 0),
 			})
 			local old, new = was[i], e.weapons[#e.weapons]
 			if old and old.module == m then new.armedId, new.armed, new.arming = old.armedId, old.armed, old.arming end

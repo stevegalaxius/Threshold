@@ -977,6 +977,11 @@ function Canvas.draw(E)
 			lg.setColor(c[1], c[2], c[3], E.slotSel == i and 1 or 0.75)
 			lg.setLineWidth(E.slotSel == i and 2.5 or 1.5)
 			lg.circle("line", sx, sy, SLOT_PX)
+			if slot.family == "hardpoint" or slot.family == "bay" then
+				-- a tick for the way it faces
+				local a = math.rad(slot.heading or 0)
+				lg.line(sx + math.cos(a) * SLOT_PX, sy + math.sin(a) * SLOT_PX, sx + math.cos(a) * (SLOT_PX + 9), sy + math.sin(a) * (SLOT_PX + 9))
+			end
 			lg.print(("%d%s"):format(i, slot.family:sub(1, 1):upper()), sx + SLOT_PX + 2, sy - 7)
 		end
 	end

@@ -80,6 +80,19 @@ return function(game)
   local after=0; for _,e in ipairs(game.entities) do if e.kind=='husk' then after=after+1 end end
   check(after==husks,'a vaporized ship left a husk')
  end
+ -- a slot can face backwards (heading 180): fixed mounts fire that way
+ do
+  local hull={}; for k,v in pairs(data.hulls.brute_anvil) do hull[k]=v end
+  hull.slots={}; for i,sl in ipairs(data.hulls.brute_anvil.slots) do local c={}; for k,v in pairs(sl) do c[k]=v end; hull.slots[i]=c end
+  local en=Ship.new(game,{hull='brute_anvil',loadout=data.hulls.brute_anvil.loadout,x=30000,y=30000})
+  local wi=en.weapons[1].index
+  hull.slots[wi].heading, hull.slots[wi].mount = 180, 'fixed'
+  en.hull=hull; Ship.refit(en)
+  en.intent=en.intent or {}; en.intent.aimX,en.intent.aimY=31000,30000
+  Weapons.update(game,en,0.016)
+  local w1=en.weapons[1]
+  check(math.abs(math.abs(w1.aim)-math.pi)<1e-6,'a slot facing 180 should aim out the back')
+ end
  -- per-slot pick
  local e=Ship.new(game,{hull='estates_bastion',loadout=data.hulls.estates_bastion.loadout,x=0,y=0})
  local slot,bay

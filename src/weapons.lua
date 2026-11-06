@@ -99,8 +99,11 @@ end
 --   turret  rotates all the way around at the hull's turretTurn speed, so
 --           it can fire in any direction while the hull points elsewhere
 --           (heavy hulls)
+-- A slot can face any way (slot.heading, degrees off the nose: 180 points
+-- it out the back); fixed mounts fire along it, gimbals swing around it.
 local function aimSlot(e, slot, dt)
-	if slot.mount == "fixed" then slot.aim = 0; return end
+	local face = rad(slot.slot.heading or 0)
+	if slot.mount == "fixed" then slot.aim = face; return end
 	local wx, wy = Ship.hardpoint(e, slot.slot)
 	local want = Ship.wrapAngle(atan2(e.intent.aimY - wy, e.intent.aimX - wx) - e.body:getAngle())
 	if slot.mount == "turret" then
@@ -108,7 +111,7 @@ local function aimSlot(e, slot, dt)
 		slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, Ship.wrapAngle(want - slot.aim))))
 	else
 		local g = rad(slot.w.gimbal or 8)
-		slot.aim = max(-g, min(g, want))
+		slot.aim = face + max(-g, min(g, Ship.wrapAngle(want - face)))
 	end
 end
 

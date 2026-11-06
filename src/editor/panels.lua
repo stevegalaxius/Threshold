@@ -871,6 +871,14 @@ local function designWindow(E, Editor)
 				combo("yard_slottrig" .. i, TAG[slot.trigger or dflt], to, function(t)
 					E.pushUndo(); slot.trigger = (t ~= dflt) and t or nil
 				end, 50)
+				-- which way it faces, degrees off the nose (180 = out the back)
+				Slab.SameLine()
+				if Slab.InputNumberDrag("yard_slotface" .. i, slot.heading or 0, -180, 180, 5,
+					{ W = 50, Precision = 0, Tooltip = "Facing: degrees off the nose (180 = backwards). Fixed mounts fire this way; gimbals swing around it." }) then
+					E.pushUndoCoalesced("yard_slotface" .. i)
+					local v = math.floor(Slab.GetInputNumber() + 0.5)
+					slot.heading = v ~= 0 and v or nil
+				end
 			end
 			Slab.SameLine()
 			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
