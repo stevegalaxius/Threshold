@@ -8,8 +8,11 @@
 	                         fuse), or at the end of their range.
 	               shot      a spray of pellets (shot.pellets, fanned over
 	                         shot.pelletSpread degrees), each hitting like a round.
-	  laser      pulse laser: a brief, instant-hit flash about once a second.
-	             No ammo; each pulse takes a chunk of power.
+	  pulse      laser: a brief, instant-hit flash per shot. No ammo; each
+	             pulse takes powerPerShot.
+	  beam       laser: burns while held, damage and powerPerSecond per second.
+	             Both lasers can fire several lines at once (beams, fanned
+	             over beamSpread degrees) in their own color.
 	  missile    bay rack: missiles (guided, splash) or torpedoes (very fast,
 	             steer slowly, enormous damage and splash).
 
@@ -73,6 +76,11 @@ function Weapons.arm(e, slot, dt)
 		slot.arming = 0
 	end
 end
+
+-- Pulse and beam lasers; their default color when the weapon sets none.
+local LASER_COLOR = { 0.55, 0.95, 1 }
+Weapons.LASER_COLOR = LASER_COLOR
+function Weapons.isLaser(w) return w.kind == "pulse" or w.kind == "beam" end
 
 local function takeAmmo(e, id)
 	if T.dev.infiniteAmmo and e.isPlayer then return true end
@@ -161,43 +169,43 @@ local function fire(game, e, slot, dt)
 		return
 	end
 
-	if w.kind == "laser" and w.beam then
-		-- Beam laser: burns continuously while the trigger is held, taking
-		-- damage and power per second instead of per pulse.
-		local need = w.powerPerSecond * dt
+	-- Lasers: hit instantly along each of w.beams lines (fanned over
+	-- w.beamSpread degrees; a shotgun laser has several), each doing the
+	-- full damage. A pulse fires once per shot and lingers w.pulse seconds;
+	-- a beam burns while the trigger is held, per second.
+	if Weapons.isLaser(w) then
+		local beam = w.kind == "beam"
+		if not beam and slot.cooldown > 0 then return end
+		local need = beam and w.powerPerSecond * dt or w.powerPerShot
 		if e.power < need then slot.starved = true; return end
 		slot.starved = false
 		e.power = e.power - need
-		local ex, ey = wx + dx * w.range, wy + dy * w.range
-		local hit = game:raycast(wx, wy, ex, ey, e.team)
-		if hit then
-			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * dt * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, { 0.7, 1, 1 }) end
+		local damage = w.damage * (beam and dt or 1) * mult.primaryDamage
+		local n, fan = w.beams or 1, rad(w.beamSpread or 0)
+		local c = w.color or LASER_COLOR
+		local spark = { 0.7 + 0.3 * c[1], 0.7 + 0.3 * c[2], 0.7 + 0.3 * c[3] }
+		local lines = {}
+		for i = 1, n do
+			local a = angle + (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0)
+			local bx, by = cos(a), sin(a)
+			local ex, ey = wx + bx * w.range, wy + by * w.range
+			local hit = game:raycast(wx, wy, ex, ey, e.team)
+			if hit then
+				ex, ey = hit.x, hit.y
+				game:damage(hit.entity, damage, e, "laser", hit.x, hit.y)
+				if not beam then game:spark(hit.x, hit.y, 8, spark)
+				elseif love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
+			end
+			lines[i] = { wx, wy, ex, ey }
 		end
-		slot.beam = { wx, wy, ex, ey, game.time, 0.08 }
-		if not slot.firing then events.emit("fire", e, slot) end
-		return
-	end
-
-	if w.kind == "laser" then
-		-- One pulse: hits instantly along the beam, then the beam lingers
-		-- on screen for w.pulse seconds.
-		if slot.cooldown > 0 then return end
-		if e.power < w.powerPerShot then slot.starved = true; return end
-		slot.starved = false
-		e.power = e.power - w.powerPerShot
-		slot.cooldown = 1 / w.fireRate
-		local ex, ey = wx + dx * w.range, wy + dy * w.range
-		local hit = game:raycast(wx, wy, ex, ey, e.team)
-		if hit then
-			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
+		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth }
+		if beam then
+			if not slot.firing then events.emit("fire", e, slot) end
+		else
+			slot.cooldown = 1 / w.fireRate
+			game:muzzle(wx, wy, angle, 1.0)
+			events.emit("fire", e, slot)
 		end
-		slot.beam = { wx, wy, ex, ey, game.time, w.pulse or 0.12 }
-		game:muzzle(wx, wy, angle, 1.0)
-		events.emit("fire", e, slot)
 		return
 	end
 

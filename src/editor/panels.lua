@@ -92,17 +92,20 @@ local WSTAT = {
 	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
 	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
 	control = { "control", 1, 8, 1, 0, "Drone control budget." },
+	beams = { "beams", 1, 12, 1, 0, "Lines it fires at once, each doing the full damage (several = a shotgun laser)." },
+	beamSpread = { "beam spread (deg)", 0, 90, 0.5, 1, "How wide the beams fan out, edge to edge." },
+	beamWidth = { "beam width", 0.2, 4, 0.05, 2, "Thickness of the drawn beam (1 = normal)." },
 	capacity = { "tube capacity", 1, 32, 1, 0, "How much its tubes hold, in S rounds: an M round takes 2, an L round 4. It fires only what's armed, and re-arms one round at a time (each ammo's arm time)." },
 }
 local WFIELDS = {
 	cannon = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
-	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
-	beam = { "damage", "range", "powerPerSecond", "gimbal" },
+	pulse = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal", "beams", "beamSpread", "beamWidth" },
+	beam = { "damage", "range", "powerPerSecond", "gimbal", "beams", "beamSpread", "beamWidth" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
 	missile = { "fireRate", "capacity", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
-local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }
+local WKINDS = { "cannon", "pulse", "beam", "drill", "missile", "drone" }
 local BAY_KINDS = { missile = true, drone = true }
 
 -- Wreck and prop settings, in place of hull stats and slots.
@@ -470,9 +473,7 @@ function weaponSections(E, d)
 	combo("yard_wkind", w.kind, kopts, function(k)
 		E.pushUndo(); w.kind = k
 		m.family = BAY_KINDS[k] and "bay" or "weapon"
-		if k ~= "laser" then w.beam = nil end
 	end, 120)
-	if w.kind == "laser" then check(E, w.beam == true, "Beam (held, not pulsed)", function(on) w.beam = on or nil end) end
 	Slab.Text("size"); Slab.SameLine()
 	local sopts = {}
 	for _, z in ipairs(SIZES) do table.insert(sopts, { label = z, value = z }) end
@@ -507,7 +508,7 @@ function weaponSections(E, d)
 	num("yard_wprice", "price", m.price or 0, 0, 1000000, 100, 0, nil, function(v) m.price = v end)
 	Slab.Separator()
 	Slab.Text("Weapon")
-	for _, key in ipairs(WFIELDS[(w.kind == "laser" and w.beam) and "beam" or w.kind] or {}) do
+	for _, key in ipairs(WFIELDS[w.kind] or {}) do
 		local f = WSTAT[key]
 		if key == "fireRate" and E.rpm then
 			num("yard_w_rpm", "fire rate (rpm)", (w.fireRate or 0) * 60, 1, 1800, 1, 0, nil, function(v) w.fireRate = v / 60 end)
@@ -522,6 +523,17 @@ function weaponSections(E, d)
 			if f[5] == 0 then v = math.floor(v + 0.5) end
 			w[key] = v
 		end)
+		end
+	end
+	-- laser color, 0..1 per channel
+	if w.kind == "pulse" or w.kind == "beam" then
+		local c = w.color or require("src.weapons").LASER_COLOR
+		for ch, label in ipairs({ "red", "green", "blue" }) do
+			num("yard_wcol" .. ch, "beam " .. label, c[ch], 0, 1, 0.02, 2, "Beam color (0..1).", function(v)
+				local nc = { c[1], c[2], c[3] }
+				nc[ch] = v
+				w.color = nc
+			end)
 		end
 	end
 	Slab.Text("description")

@@ -100,7 +100,7 @@ function V.draw(w, col, dark, lineWidth)
 			return
 		end
 		lg.setColor(METAL)
-		if w.w.kind == "laser" then lg.setColor(0.6, 0.95, 1) end
+		if w.w.kind == "pulse" or w.w.kind == "beam" then local c = w.w.color or { 0.6, 0.95, 1 }; lg.setColor(c[1], c[2], c[3]) end
 		if w.bay then
 			lg.rectangle("fill", -4, -4, 8, 8)
 		else

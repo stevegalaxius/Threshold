@@ -392,7 +392,7 @@ local function drawStation(game, e)
 		lg.push()
 		lg.translate(w.slot.x, w.slot.y)
 		lg.rotate(w.aim or 0)
-		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
+		lg.setColor(data.LASERS[w.w.kind] and (w.w.color or { 0.6, 0.95, 1 }) or { 0.75, 0.78, 0.82 })
 		if w.mount == "bay" then
 			-- (drawn below)
 		elseif w.bay then
@@ -1082,24 +1082,27 @@ local function drawBeams(game)
 		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
 				if w.w.kind == "drill" and (w.extend or 0) > 0 and e.body then drawDrill(game, e, w) end
-				-- Pulse: a very bright flash that fades out over the pulse length.
-				local b = w.beam
-				local age = b and (game.time - b[5])
-				if b and age < b[6] then
-					local k = 1 - age / b[6]
-					local c = COLORS.laser
+				-- Lasers: a very bright flash per line that fades out over its life.
+				local b = w.beams
+				local age = b and (game.time - b.t)
+				if b and age < b.life then
+					local k = 1 - age / b.life
+					local c = b.color
 					local px = 1 / game.camera.zoom
+					local wd = (b.width or 1)
 					lg.setBlendMode("add")
-					lg.setColor(c[1], c[2], c[3], 0.35 * k)
-					lg.setLineWidth(max(18, 10 * px))
-					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(c[1], c[2], c[3], 0.7 * k)
-					lg.setLineWidth(max(8, 4 * px))
-					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(1, 1, 1, k)
-					lg.setLineWidth(max(3, 2 * px))
-					lg.line(b[1], b[2], b[3], b[4])
-					lg.circle("fill", b[3], b[4], (8 + love.math.random() * 4) * k)
+					for _, l in ipairs(b.lines) do
+						lg.setColor(c[1], c[2], c[3], 0.35 * k)
+						lg.setLineWidth(max(18, 10 * px) * wd)
+						lg.line(l[1], l[2], l[3], l[4])
+						lg.setColor(c[1], c[2], c[3], 0.7 * k)
+						lg.setLineWidth(max(8, 4 * px) * wd)
+						lg.line(l[1], l[2], l[3], l[4])
+						lg.setColor(1, 1, 1, k)
+						lg.setLineWidth(max(3, 2 * px) * wd)
+						lg.line(l[1], l[2], l[3], l[4])
+						lg.circle("fill", l[3], l[4], (8 + love.math.random() * 4) * k * wd)
+					end
 					lg.setBlendMode("alpha")
 				end
 			end

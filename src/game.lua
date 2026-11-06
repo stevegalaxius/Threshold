@@ -997,7 +997,7 @@ function Game:updateStationGuns(dt)
 					-- at once; missiles steer themselves)
 					local tx, ty = tg.body:getPosition()
 					local kind = slot.ammo and data.items[slot.ammo].family or slot.w.kind
-					if kind ~= "laser" and kind ~= "missile" and slot.ammo then
+					if not data.LASERS[kind] and kind ~= "missile" and slot.ammo then
 						local speed = data.items[slot.ammo].shot.speed
 						local vx, vy = tg.body:getLinearVelocity()
 						local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)

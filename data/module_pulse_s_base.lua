@@ -10,7 +10,7 @@ module {
 		damage = 30,
 		fireRate = 1.6,
 		gimbal = 12,
-		kind = "laser",
+		kind = "pulse",
 		powerPerShot = 20,
 		pulse = 0.12,
 		range = 3500,
