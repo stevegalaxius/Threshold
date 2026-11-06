@@ -198,7 +198,10 @@ local function fire(game, e, slot, dt)
 			local hit = game:raycast(wx, wy, ex, ey, e.team)
 			if hit then
 				ex, ey = hit.x, hit.y
-				game:damage(hit.entity, damage, e, "laser", hit.x, hit.y)
+				-- damage falls off with the drawn fade: full out to 40% of
+				-- range, then down to nothing at max range
+				local t = math.sqrt((hit.x - wx) ^ 2 + (hit.y - wy) ^ 2) / w.range
+				game:damage(hit.entity, damage * math.min(1, (1 - t) / 0.6), e, "laser", hit.x, hit.y)
 				if not beam then game:spark(hit.x, hit.y, 8, spark)
 				elseif love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
 			end
