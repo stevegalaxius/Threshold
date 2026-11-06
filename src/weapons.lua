@@ -202,7 +202,7 @@ local function fire(game, e, slot, dt)
 				if not beam then game:spark(hit.x, hit.y, 8, spark)
 				elseif love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
 			end
-			lines[i] = { wx, wy, ex, ey }
+			lines[i] = { wx, wy, ex, ey, hit ~= nil }
 		end
 		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth }
 		if beam then

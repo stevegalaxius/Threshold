@@ -1092,16 +1092,28 @@ local function drawBeams(game)
 					local wd = (b.width or 1)
 					lg.setBlendMode("add")
 					for _, l in ipairs(b.lines) do
-						lg.setColor(c[1], c[2], c[3], 0.35 * k)
-						lg.setLineWidth(max(18, 10 * px) * wd)
-						lg.line(l[1], l[2], l[3], l[4])
-						lg.setColor(c[1], c[2], c[3], 0.7 * k)
-						lg.setLineWidth(max(8, 4 * px) * wd)
-						lg.line(l[1], l[2], l[3], l[4])
-						lg.setColor(1, 1, 1, k)
-						lg.setLineWidth(max(3, 2 * px) * wd)
-						lg.line(l[1], l[2], l[3], l[4])
-						lg.circle("fill", l[3], l[4], (8 + love.math.random() * 4) * k * wd)
+						-- A hit ends in a bright spot on the target; a miss
+						-- fades out over the far part of its reach instead.
+						local segs = l[5] and 1 or 12
+						for sgi = 1, segs do
+							local t0, t1 = (sgi - 1) / segs, sgi / segs
+							local f = l[5] and 1 or min(1, (1 - t0) / 0.6)
+							local x0, y0 = l[1] + (l[3] - l[1]) * t0, l[2] + (l[4] - l[2]) * t0
+							local x1, y1 = l[1] + (l[3] - l[1]) * t1, l[2] + (l[4] - l[2]) * t1
+							lg.setColor(c[1], c[2], c[3], 0.35 * k * f)
+							lg.setLineWidth(max(18, 10 * px) * wd)
+							lg.line(x0, y0, x1, y1)
+							lg.setColor(c[1], c[2], c[3], 0.7 * k * f)
+							lg.setLineWidth(max(8, 4 * px) * wd)
+							lg.line(x0, y0, x1, y1)
+							lg.setColor(1, 1, 1, k * f)
+							lg.setLineWidth(max(3, 2 * px) * wd)
+							lg.line(x0, y0, x1, y1)
+						end
+						if l[5] then
+							lg.setColor(1, 1, 1, k)
+							lg.circle("fill", l[3], l[4], (8 + love.math.random() * 4) * k * wd)
+						end
 					end
 					lg.setBlendMode("alpha")
 				end
