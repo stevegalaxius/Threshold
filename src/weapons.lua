@@ -8,11 +8,11 @@
 	                         fuse), or at the end of their range.
 	               shot      a spray of pellets (shot.pellets, fanned over
 	                         shot.pelletSpread degrees), each hitting like a round.
-	  pulse      laser: a brief, instant-hit flash per shot. No ammo; each
-	             pulse takes powerPerShot.
-	  beam       laser: burns while held, damage and powerPerSecond per second.
-	             Both lasers can fire several lines at once (beams, fanned
-	             over beamSpread degrees) in their own color.
+	  laser      no ammo: instant-hit lines, damage and powerPerSecond per
+	             second while lit. With a pulse it lights for that long per
+	             shot (fireRate shots a second); without, while held. It can
+	             fire several lines at once (beams, fanned over beamSpread
+	             degrees) in its own color.
 	  missile    bay rack: missiles (guided, splash) or torpedoes (very fast,
 	             steer slowly, enormous damage and splash).
 
@@ -41,6 +41,10 @@ local DRONE_CONTROL = { S = 1, M = 2, L = 4 }
 
 local sqrt, cos, sin, atan2, rad, max, min, random = math.sqrt, math.cos, math.sin, math.atan2, math.rad, math.max, math.min, love.math.random
 
+-- A laser's color when the weapon sets none.
+local LASER_COLOR = { 0.55, 0.95, 1 }
+Weapons.LASER_COLOR = LASER_COLOR
+
 -- How much of a missile rack's tubes one round of each size fills.
 local TUBE_UNITS = { S = 1, M = 2, L = 4 }
 Weapons.TUBE_UNITS = TUBE_UNITS
@@ -51,6 +55,42 @@ function Weapons.tubes(slot)
 	local item = slot.ammo and data.items[slot.ammo]
 	if not (slot.w.capacity and item) then return nil end
 	return math.floor(slot.w.capacity / TUBE_UNITS[item.size])
+end
+
+-- A laser while lit: every line (w.beams, fanned over w.beamSpread degrees,
+-- each doing full damage) hits instantly, damage and powerPerSecond per
+-- second. A pulse stays lit for its slot.litLeft; a held laser for the frame.
+function Weapons.burn(game, e, slot, dt)
+	local w = slot.w
+	if w.pulse then
+		if (slot.litLeft or 0) <= 0 then return end
+		slot.litLeft = slot.litLeft - dt
+	elseif not slot.lit then return end
+	slot.lit = false
+	if not e.body then return end
+	local need = (w.powerPerSecond or 0) * dt
+	if e.power < need then slot.starved, slot.litLeft = true, 0; return end
+	slot.starved = false
+	e.power = e.power - need
+	local wx, wy = Ship.hardpoint(e, slot.slot)
+	local angle = e.body:getAngle() + slot.aim
+	local damage = w.damage * dt * e.stats.mult.primaryDamage
+	local n, fan = w.beams or 1, rad(w.beamSpread or 0)
+	local c = w.color or LASER_COLOR
+	local spark = { 0.7 + 0.3 * c[1], 0.7 + 0.3 * c[2], 0.7 + 0.3 * c[3] }
+	local lines = {}
+	for i = 1, n do
+		local a = angle + (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0)
+		local ex, ey = wx + cos(a) * w.range, wy + sin(a) * w.range
+		local hit = game:raycast(wx, wy, ex, ey, e.team)
+		if hit then
+			ex, ey = hit.x, hit.y
+			game:damage(hit.entity, damage, e, "laser", hit.x, hit.y)
+			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
+		end
+		lines[i] = { wx, wy, ex, ey }
+	end
+	slot.beams = { lines = lines, t = game.time, life = 0.08, color = c, width = w.beamWidth }
 end
 
 -- Missile racks fire only what's armed in their tubes, and re-arm one round
@@ -77,10 +117,7 @@ function Weapons.arm(e, slot, dt)
 	end
 end
 
--- Pulse and beam lasers; their default color when the weapon sets none.
-local LASER_COLOR = { 0.55, 0.95, 1 }
-Weapons.LASER_COLOR = LASER_COLOR
-function Weapons.isLaser(w) return w.kind == "pulse" or w.kind == "beam" end
+function Weapons.isLaser(w) return w.kind == "laser" end
 
 local function takeAmmo(e, id)
 	if T.dev.infiniteAmmo and e.isPlayer then return true end
@@ -169,41 +206,19 @@ local function fire(game, e, slot, dt)
 		return
 	end
 
-	-- Lasers: hit instantly along each of w.beams lines (fanned over
-	-- w.beamSpread degrees; a shotgun laser has several), each doing the
-	-- full damage. A pulse fires once per shot and lingers w.pulse seconds;
-	-- a beam burns while the trigger is held, per second.
+	-- Lasers: a pulsed laser lights for w.pulse seconds per shot (see
+	-- Weapons.burn, which keeps it lit after the trigger lets go); one with
+	-- no pulse burns while the trigger is held.
 	if Weapons.isLaser(w) then
-		local beam = w.kind == "beam"
-		if not beam and slot.cooldown > 0 then return end
-		local need = beam and w.powerPerSecond * dt or w.powerPerShot
-		if e.power < need then slot.starved = true; return end
-		slot.starved = false
-		e.power = e.power - need
-		local damage = w.damage * (beam and dt or 1) * mult.primaryDamage
-		local n, fan = w.beams or 1, rad(w.beamSpread or 0)
-		local c = w.color or LASER_COLOR
-		local spark = { 0.7 + 0.3 * c[1], 0.7 + 0.3 * c[2], 0.7 + 0.3 * c[3] }
-		local lines = {}
-		for i = 1, n do
-			local a = angle + (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0)
-			local bx, by = cos(a), sin(a)
-			local ex, ey = wx + bx * w.range, wy + by * w.range
-			local hit = game:raycast(wx, wy, ex, ey, e.team)
-			if hit then
-				ex, ey = hit.x, hit.y
-				game:damage(hit.entity, damage, e, "laser", hit.x, hit.y)
-				if not beam then game:spark(hit.x, hit.y, 8, spark)
-				elseif love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
-			end
-			lines[i] = { wx, wy, ex, ey }
-		end
-		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth }
-		if beam then
+		if not w.pulse then
+			slot.lit = true
+			Weapons.burn(game, e, slot, dt)
 			if not slot.firing then events.emit("fire", e, slot) end
-		else
-			slot.cooldown = 1 / w.fireRate
-			game:muzzle(wx, wy, angle, 1.0)
+		elseif slot.cooldown <= 0 and (slot.litLeft or 0) <= 0 and e.power >= (w.powerPerSecond or 0) * w.pulse then
+			slot.litLeft = w.pulse
+			slot.cooldown = 1 / (w.fireRate or 1)
+			local mx, my = wx, wy
+			game:muzzle(mx, my, angle, 1.0)
 			events.emit("fire", e, slot)
 		end
 		return
@@ -363,6 +378,7 @@ function Weapons.update(game, e, dt)
 		slot.cooldown = max(0, slot.cooldown - dt)
 		Weapons.arm(e, slot, dt)
 		aimSlot(e, slot, dt)
+		if slot.w.kind == "laser" then Weapons.burn(game, e, slot, dt) end
 		-- a drill retracts when the trigger is let go
 		if slot.w.kind == "drill" and not ((slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
 			or (slot.group == "tertiary" and it.fireTertiary)) then

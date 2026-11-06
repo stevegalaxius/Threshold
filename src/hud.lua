@@ -111,7 +111,7 @@ local function drawStatus(game)
 		lg.setColor(line.group == "tertiary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
 		lg.print(label, x + 14, ly)
 		local right, col
-		if data.LASERS[line.kind] or line.kind == "drill" then
+		if line.kind == "laser" or line.kind == "drill" then
 			right, col = line.starved and "NO POWER" or "power", line.starved and WARN or DIM
 		else
 			local n = p.cargo[line.ammo] or 0

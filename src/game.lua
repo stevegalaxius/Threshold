@@ -972,6 +972,7 @@ function Game:updateStationGuns(dt)
 			for _, slot in ipairs(st.weapons) do
 				slot.cooldown = max(0, slot.cooldown - dt)
 				Weapons.arm(st, slot, dt)
+				if slot.w.kind == "laser" then Weapons.burn(self, st, slot, dt) end
 				local wx, wy = Ship.hardpoint(st, slot.slot)
 				-- (a drone's "range" is how far it flies on launch; a drone
 				-- bay launches at anything inside STATION_DRONE_REACH)
@@ -997,7 +998,7 @@ function Game:updateStationGuns(dt)
 					-- at once; missiles steer themselves)
 					local tx, ty = tg.body:getPosition()
 					local kind = slot.ammo and data.items[slot.ammo].family or slot.w.kind
-					if not data.LASERS[kind] and kind ~= "missile" and slot.ammo then
+					if kind ~= "laser" and kind ~= "missile" and slot.ammo then
 						local speed = data.items[slot.ammo].shot.speed
 						local vx, vy = tg.body:getLinearVelocity()
 						local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)

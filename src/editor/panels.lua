@@ -79,11 +79,11 @@ local WSTAT = {
 	gimbal = { "gimbal (deg)", 0, 45, 1, 0, "How far a gimballed mount can swing to aim." },
 	recoil = { "recoil", 0, 20000, 10, 0, "Push back on the ship per launch." },
 	recoilPct = { "recoil (%)", 0, 200, 1, 1, "Push back on the ship per shot, as a percentage of the round's knockback." },
-	damage = { "damage", 0, 1000, 1, 0, "Per pulse, or per second for beams and drills." },
+	damage = { "damage", 0, 5000, 1, 0, "Per shot for cannons; per second while lit for lasers and drills." },
 	range = { "range (px)", 100, 10000, 50, 0, "How far the beam reaches." },
 	powerPerShot = { "power / shot", 0, 500, 1, 0, "Power each pulse takes." },
-	powerPerSecond = { "power / s", 0, 500, 1, 0, "Power while it's held." },
-	pulse = { "pulse (s)", 0.02, 1, 0.01, 2, "How long the flash lingers." },
+	powerPerSecond = { "power / s", 0, 2000, 1, 0, "Power per second while it's lit (lasers) or running (drills)." },
+	pulse = { "pulse (s)", 0.02, 5, 0.01, 2, "How long each shot stays lit." },
 	barrels = { "barrels", 1, 6, 1, 0, "Shots take turns between barrels (ignored when the art has muzzle points)." },
 	barrelGap = { "barrel gap (px)", 0, 40, 1, 0, "Distance between barrels (ignored with muzzle points)." },
 	rockDamage = { "rock damage", 0, 100, 1, 0, "Damage to asteroids." },
@@ -99,13 +99,13 @@ local WSTAT = {
 }
 local WFIELDS = {
 	cannon = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
-	pulse = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal", "beams", "beamSpread", "beamWidth" },
-	beam = { "damage", "range", "powerPerSecond", "gimbal", "beams", "beamSpread", "beamWidth" },
+	laser = { "damage", "powerPerSecond", "range", "gimbal", "beams", "beamSpread", "beamWidth" },
+	laserPulse = { "fireRate", "pulse" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
 	missile = { "fireRate", "capacity", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
-local WKINDS = { "cannon", "pulse", "beam", "drill", "missile", "drone" }
+local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }
 local BAY_KINDS = { missile = true, drone = true }
 
 -- Wreck and prop settings, in place of hull stats and slots.
@@ -508,7 +508,15 @@ function weaponSections(E, d)
 	num("yard_wprice", "price", m.price or 0, 0, 1000000, 100, 0, nil, function(v) m.price = v end)
 	Slab.Separator()
 	Slab.Text("Weapon")
-	for _, key in ipairs(WFIELDS[w.kind] or {}) do
+	local keys = {}
+	for _, k in ipairs(WFIELDS[w.kind] or {}) do table.insert(keys, k) end
+	if w.kind == "laser" then
+		check(E, w.pulse ~= nil, "Pulsed (else lit while held)", function(on)
+			if on then w.pulse, w.fireRate = 0.12, 1.5 else w.pulse, w.fireRate = nil, nil end
+		end)
+		if w.pulse then for _, k in ipairs(WFIELDS.laserPulse) do table.insert(keys, k) end end
+	end
+	for _, key in ipairs(keys) do
 		local f = WSTAT[key]
 		if key == "fireRate" and E.rpm then
 			num("yard_w_rpm", "fire rate (rpm)", (w.fireRate or 0) * 60, 1, 1800, 1, 0, nil, function(v) w.fireRate = v / 60 end)
@@ -526,7 +534,7 @@ function weaponSections(E, d)
 		end
 	end
 	-- laser color, 0..1 per channel
-	if w.kind == "pulse" or w.kind == "beam" then
+	if w.kind == "laser" then
 		local c = w.color or require("src.weapons").LASER_COLOR
 		for ch, label in ipairs({ "red", "green", "blue" }) do
 			num("yard_wcol" .. ch, "beam " .. label, c[ch], 0, 1, 0.02, 2, "Beam color (0..1).", function(v)

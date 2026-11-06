@@ -26,7 +26,7 @@ local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, 
 -- every other family fits the slot of the same name.
 local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
-local WEAPON_KINDS = { cannon = true, pulse = true, beam = true, drill = true, missile = true, drone = true }
+local WEAPON_KINDS = { cannon = true, laser = true, drill = true, missile = true, drone = true }
 -- The ammo families a weapon chambers when it doesn't list its own
 -- (weapon.chambers = { "artillery" }, { "shotgun", "gun" }). A cannon is any
 -- hardpoint weapon that fires ammo: what it chambers makes it an autocannon,
@@ -34,8 +34,9 @@ local WEAPON_KINDS = { cannon = true, pulse = true, beam = true, drill = true, m
 data.CHAMBERS = { cannon = { "gun" }, missile = { "missile", "torpedo" }, drone = { "drone" } }
 -- Older weapon kinds: a gun, artillery piece or shotgun is a cannon that
 -- chambers that ammo; a torpedo tube is a missile rack.
--- Lasers are pulse or beam kinds (an old "laser" is a pulse, or a beam if it said beam = true).
-data.LASERS = { pulse = true, beam = true }
+-- A laser is lit for `pulse` seconds per shot (every 1 / fireRate), or for
+-- as long as the trigger is held when it has no pulse; damage and
+-- powerPerSecond are per second while lit.
 local OLD_KINDS = { gun = { "cannon", "gun" }, artillery = { "cannon", "artillery" }, shotgun = { "cannon", "shotgun" }, torpedo = { "missile" } }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
@@ -298,9 +299,17 @@ function api.module(def)
 		if def.lockCone and def.lockCone>180 then fail(("computer '%s': lockCone must be at most 180 degrees"):format(def.id)) end
 		if def.controlLimit and def.controlLimit%1~=0 then fail(("computer '%s': controlLimit must be an integer"):format(def.id)) end
 	end
-	if def.weapon and def.weapon.kind == "laser" then
-		def.weapon.kind = def.weapon.beam and "beam" or "pulse"
-		def.weapon.beam = nil
+	-- older lasers: beam = true (held), or a pulse with per-shot damage and power
+	local lw = def.weapon
+	if lw and (lw.kind == "laser" or lw.kind == "pulse" or lw.kind == "beam") then
+		if lw.kind == "beam" or lw.beam then lw.pulse, lw.fireRate = nil, nil
+		elseif lw.powerPerShot then
+			local t = lw.pulse or 0.12
+			lw.pulse = t
+			lw.damage = (lw.damage or 0) / t
+			lw.powerPerSecond = lw.powerPerShot / t
+		end
+		lw.kind, lw.beam, lw.powerPerShot = "laser", nil, nil
 	end
 	local old = def.weapon and OLD_KINDS[def.weapon.kind]
 	if old then
@@ -532,7 +541,7 @@ local function crossCheck()
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end
 	for id, m in pairs(data.modules) do
-		if m.weapon and not data.LASERS[m.weapon.kind] and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
+		if m.weapon and m.weapon.kind ~= "laser" and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
 			error(("module '%s' fires %s %s ammo, but no ammo with that family and size exists"):format(
 				id, m.weapon.kind, m.size), 0)
 		end
