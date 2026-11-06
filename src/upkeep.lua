@@ -39,6 +39,32 @@ U.serves=serves
 function U.active(r) return r and r.service~=nil end
 function U.isStation(r,id) return r.service~=nil and L.canonical(id)==r.service.station end
 
+-- Fuel by route: the fixed "low" mark can be less than the trip to the
+-- nearest fuel stop in a big region (the gas giants), so also go when what's
+-- left wouldn't cover the rest of this leg plus that trip, with a margin.
+-- Never when the tank is already as full as a refill would make it.
+function U.shortOfFuel(r,e,g,at,clock)
+ local ship=e or r.ship
+ local hull=e and e.hull or require('src.data').hulls[ship.hull]
+ if not hull then return false end
+ local s=e and e.stats or require('src.stats').compute(hull,ship.loadout)
+ if (s.powerOut or 0)<=0 then return false end
+ local have=Fuel.remaining(ship)
+ local full=(Supplies.targets(r,e)[Fuel.item()] or 0)*T.reactorFuelEnergy
+ if have>=full then return false end
+ local best
+ for _,id in ipairs(L.stations(r.area)) do
+  if Supplies.supports(id) then
+   local go=id==L.canonical(at) and {duration=0} or Graph.route(g,at,id,clock,r.speed)
+   if go and (not best or go.duration<best) then best=go.duration end
+  end
+ end
+ if not best then return false end
+ local leg=r.state=='travel' and math.max(0,(r.arrive or clock)-clock) or 0
+ local burn=math.min(s.powerOut,math.max(0,s.powerDraw)+math.max(1,s.powerNet*(1-T.thrustRecharge)))
+ return have<burn*((leg+best)*T.npcFuelRangeMargin+T.npcFuelRangeSlack)
+end
+
 -- Plan a visit if one is due. Only while travelling within a region, and
 -- never mid-fight or during a reconciliation.
 function U.plan(r,clock,e)
@@ -46,8 +72,6 @@ function U.plan(r,clock,e)
  if r.state=='idle' and not r.node then return false end
  if r.encounter or r.worldRecovery or r.waitingForHome or r.driverState then return false end
  if (r.nextServiceAt or 0)>clock then return false end
- local need=U.need(r,e)
- if not need then return false end
  local idle=r.state=='idle'
  local at=idle and r.node or r.route[r.index]
  if L.get(at).area~=r.area then return false end
@@ -55,6 +79,12 @@ function U.plan(r,clock,e)
  local prev=not idle and r.route[r.index-1]
  if not idle and (not prev or L.get(prev).area~=r.area) then return false end
  local g=deps.graph(r.area)
+ local need=U.need(r,e)
+ if not need and (r.fuelRangeCheckAt or 0)<=clock then
+  r.fuelRangeCheckAt=clock+T.npcFuelRangeCheck
+  if U.shortOfFuel(r,e,g,at,clock) then need='fuel' end
+ end
+ if not need then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
   if serves(need,id) then
