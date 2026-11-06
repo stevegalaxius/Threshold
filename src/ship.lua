@@ -189,10 +189,9 @@ end
 -- Rebuild stats and weapon list after the hull's modules change.
 function Ship.refit(e)
 	local hull = e.hull
-	for i, slot in ipairs(hull.slots) do
-		local m = e.loadout[i] and data.modules[e.loadout[i]]
-		if not m or not data.fits(slot, m) then e.loadout[i] = false end
-	end
+	local fitted = data.fitLoadout(hull, e.loadout)
+	for i in pairs(e.loadout) do e.loadout[i] = nil end
+	for i, id in pairs(fitted) do e.loadout[i] = id end
 
 	e.stats = stats.compute(hull, e.loadout)
 	-- missile racks keep their tubes through a refit (a new ammo pick
