@@ -148,10 +148,10 @@ function A.createTrader(game,area,i)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
- -- One in every few traders works the dispatch board (transport jobs to
- -- other regions); the rest fly their local circuit. Every Mars trader works
- -- the board, which includes ore runs from Phobos and Deimos.
- if area=='mars' or i%T.alifeMoonEvery==0 and #neighbours(area)>0 then r.taskWorker=true end
+ -- Every trader works the dispatch board (transport jobs to other regions,
+ -- and Mars's ore runs from Phobos and Deimos). The old fixed local circuit
+ -- is only the route it starts docked on.
+ r.taskWorker=true
  start(r,u.clock,i%#r.route+1)
  u.npcs[id]=r
  return r
@@ -181,8 +181,10 @@ function A.seed(game)
   end
  end
  -- Saves from the Mars-only job module: those haulers join the task board.
+ -- Saves with plain circuit traders: they join the board at their next
+ -- docking stop (a round trip under way finishes first).
  for _,r in pairs(u.npcs) do
-  if r.role=='trader' and r.home=='mars' then r.taskWorker=true end
+  if r.role=='trader' and not r.piracy then r.taskWorker=true end
   if r.job then
    if r.job.phase=='delivery' and r.ship.cargo then r.ship.cargo.martian_ore=nil end
    r.job,r.jobStatus,r.onRoundTrip,r.tripDestination,r.tripRoute=nil,nil,nil,nil,nil
