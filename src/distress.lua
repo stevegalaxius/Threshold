@@ -44,7 +44,7 @@ function D.stranded(game,e,r,dt)
  -- and call for help
  local req=e.request
  if req and req.kind=='distress' then
-  if req.closed or Handover.gone(req.giver) or Handover.expired(game,req) then Handover.close(req);e.nextDistressAt=game.time+T.distressRetry end
+  if req.closed or Handover.gone(req.giver) or Handover.expired(game,req) then Handover.close(req);e.nextDistressAt=game.time+T.distressRetry;r.taskStatus='stranded: calling for fuel' end
   return
  end
  if game.time<(e.nextDistressAt or 0) then return end
@@ -64,7 +64,7 @@ function D.stranded(game,e,r,dt)
   require('src.alife_trace').note(r,game.universe.clock,'distress','called '..h.id..' for fuel (online)')
   require('src.alife_trace').note(h,game.universe.clock,'distress','answering '..r.id..': fuel run')
   r.taskStatus='stranded: '..(helper.def and helper.def.name or 'a ship')..' is bringing fuel'
- end
+ else r.taskStatus='stranded: calling for fuel' end
 end
 
 -- Each frame for an online helper on a fuel run. Returns true if it owns
@@ -132,11 +132,11 @@ function D.advance(game,r,clock)
  if run then
   local h=u.npcs[run.helper]
   if not h or h.state=='dead' or h.area~=r.area or h.encounter or game.alifeOnline and game.alifeOnline[h.id] then
-   require('src.alife_trace').note(r,clock,'distress','fuel run by '..run.helper..' fell through');r.distress=nil;return false end
+   require('src.alife_trace').note(r,clock,'distress','fuel run by '..run.helper..' fell through');r.distress=nil;r.taskStatus='stranded: calling for fuel';return false end
   if clock<run.at then return false end
   r.distress=nil
   local n=withHold(h,function(e) return take(e,math.min(run.amount,spare(h,e.cargo))) end)
-  if n<=0 then require('src.alife_trace').note(r,clock,'distress',run.helper..' had no fuel left to spare');return false end
+  if n<=0 then require('src.alife_trace').note(r,clock,'distress',run.helper..' had no fuel left to spare');r.taskStatus='stranded: calling for fuel';return false end
   local got=withHold(r,function(e) return add(e,n) end)
   if got<n then withHold(h,function(e) add(e,n-got) end) end
   Fuel.observe(u,r,clock);Fuel.observe(u,h,clock)
@@ -162,7 +162,7 @@ function D.advance(game,r,clock)
  if best then
   local speed=best.speed or 300
   r.distress={helper=best.id,amount=want(r),at=clock+math.sqrt(bd==math.huge and T.distressRange^2 or bd)/speed*2+T.alifeStay}
-  r.taskStatus='stranded: help is on the way'
+  r.taskStatus='stranded: '..best.id..' bringing fuel'
   require('src.alife_trace').note(r,clock,'distress','called '..best.id..' for fuel')
  else r.taskStatus='stranded: calling for fuel';require('src.alife_trace').note(r,clock,'distress','called for fuel: nobody in '..r.area..' can spare any') end
  return false
