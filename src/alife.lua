@@ -574,7 +574,7 @@ end
 local function bindRoute(game,e,r)
  if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome or r.service) then return Mining.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
- e.travelGraph=graph(r.area)
+ e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
  for _,id in ipairs(r.route) do
   local place=L.get(id)
