@@ -310,10 +310,21 @@ function M.materialize(game)
   end
   return false
  end
+ -- Stream in past the edge of the view, not just T.sleepNear: zoomed out
+ -- (T.minZoom) the screen reaches well beyond it, and at speed the ship
+ -- covers a lot of ground between scans.
+ local near,far=T.sleepNear,T.sleepFar
+ local cam=game.camera
+ if cam and cam.zoom and cam.zoom>0 and love.graphics then
+  local sw,sh=love.graphics.getDimensions()
+  local vx,vy=game.player.body:getLinearVelocity()
+  local view=math.sqrt(sw*sw+sh*sh)/2/cam.zoom+math.sqrt(vx*vx+vy*vy)*T.miningScan*2+600
+  if view>near then near,far=view,view+(T.sleepFar-T.sleepNear) end
+ end
  for id,r in pairs(state.resources) do
   if r.area==game.fieldId and not game.miningLive[id] then
    local x,y,vx,vy=M.position(r,game.universe.clock)
-   if needed(x,y,T.sleepNear) then
+   if needed(x,y,near) then
     if r.relativeFlow and not game.well then local fx,fy=game:flowAt(x,y);vx,vy=vx+fx,vy+fy end
     r.relativeFlow=nil
     if r.kind=='rock' then
@@ -334,9 +345,9 @@ function M.materialize(game)
   local r=state.resources[id];local object=live.object
   local x,y
   if live.kind=='rock' then
-   if not object.removed and not object.body:isDestroyed() then x,y=object.body:getPosition() else x,y=px+T.sleepFar+1,py end
+   if not object.removed and not object.body:isDestroyed() then x,y=object.body:getPosition() else x,y=px+far+1,py end
   else x,y=object.x,object.y end
-  if not r or not needed(x,y,T.sleepFar) then
+  if not r or not needed(x,y,far) then
    if live.kind=='rock' then if not object.removed then game:remove(object,true) end
    else
     -- Drop the view only; its record (if any) stays the authority.

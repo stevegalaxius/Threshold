@@ -554,14 +554,29 @@ function A.capture(game,e,remote)
  else
   r.state='travel'
   local x,y=e.body:getPosition()
-  local duration=math.max(.1,Graph.length(graph(r.area),edge(r),clock)/r.speed)
-  local p=Graph.project(graph(r.area),edge(r),x,y,clock)
+  -- The ship is flying on this map; a record bound here from between regions
+  -- can still carry another region's area, so measure the leg on a graph
+  -- that actually holds both of its nodes.
+  local leg=edge(r)
+  local g=e.travelGraph or graph(r.area or game.fieldId)
+  if not (g.nodes[leg.from] and g.nodes[leg.to]) then g=graph(game.fieldId) end
+  if g.nodes[leg.from] and g.nodes[leg.to] then r.area=g.area end
+  local duration,p
+  local known=g.nodes[leg.from] and g.nodes[leg.to]
+  if known[leg.from] and g.nodes[leg.to] then
+   duration=math.max(.1,Graph.length(g,leg,clock)/r.speed)
+   p=Graph.project(g,leg,x,y,clock)
+  else
+   -- No local graph holds this leg (a stale cross-region route); hand it
+   -- back nearly finished so the offline model takes over the next leg.
+   duration,p=1,.99
+  end
   -- Never advance a destination merely because an online ship is close to it;
   -- actual AI/docking changes routeIndex. Leave a little time for handoff.
   p=math.min(.99,p)
   if r.encounter then r.encounter.progress=p end
   r.depart=clock-p*duration; r.arrive=r.depart+duration
-  if not remote then
+  if not remote and known then
    local bx,by=journeyPoint(r,p,clock)
    r.offset={x=x-bx,y=y-by,progress=p}
   end
