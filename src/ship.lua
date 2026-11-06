@@ -195,6 +195,10 @@ function Ship.refit(e)
 	end
 
 	e.stats = stats.compute(hull, e.loadout)
+	-- missile racks keep their tubes through a refit (a new ammo pick
+	-- empties them; see Weapons.arm), so swapping ammo isn't a free reload
+	local was = {}
+	for _, w in ipairs(e.weapons or {}) do was[w.index] = w end
 	e.weapons = {}
 	for i, slot in ipairs(hull.slots) do
 		local m = e.loadout[i] and data.modules[e.loadout[i]]
@@ -206,6 +210,8 @@ function Ship.refit(e)
 				ammo = Ship.loadFor(e, i), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
+			local old, new = was[i], e.weapons[#e.weapons]
+			if old and old.module == m then new.armedId, new.armed, new.arming = old.armedId, old.armed, old.arming end
 		end
 	end
 	-- Stagger: identical weapons in the same fire group take turns instead of

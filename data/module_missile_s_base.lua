@@ -6,7 +6,7 @@ module {
 	mass = 3,
 	price = 4000,
 	size = "S",
-	weapon = { fireRate = 3, kind = "missile", recoil = 300 },
+	weapon = { capacity = 4, fireRate = 3, kind = "missile", recoil = 300 },
 	art = {
 		parts = {
 			{ name = "part 1", shape = { -4, 4, -4, -4, 6, -4, 8, -3, 8, 3, 6, 4 }, paint = "primary" },

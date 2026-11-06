@@ -92,13 +92,14 @@ local WSTAT = {
 	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
 	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
 	control = { "control", 1, 8, 1, 0, "Drone control budget." },
+	capacity = { "tube capacity", 1, 32, 1, 0, "How much its tubes hold, in S rounds: an M round takes 2, an L round 4. It fires only what's armed, and re-arms one round at a time (each ammo's arm time)." },
 }
 local WFIELDS = {
 	cannon = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
 	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
 	beam = { "damage", "range", "powerPerSecond", "gimbal" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
-	missile = { "fireRate", "recoil" },
+	missile = { "fireRate", "capacity", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
 local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }

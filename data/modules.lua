@@ -27,6 +27,10 @@
 	              powerPerShot themselves.
 	              beam = true makes it a beam laser instead: it burns while
 	              the trigger is held, with damage and powerPerSecond per second.
+	  capacity    missile racks: tube space, in S rounds (an M round takes 2,
+	              an L round 4). It salvos what's armed at fireRate, then
+	              re-arms one round at a time from the hold, each taking its
+	              ammo's shot.armTime seconds.
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
 	  chambers    the ammo families it can load, first = default: "gun"

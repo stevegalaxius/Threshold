@@ -33,6 +33,27 @@ return function(game)
   check(n==data.items.shot_m.shot.pellets,'shotgun fired '..n..' pellets')
   check(game.projectiles[#game.projectiles].kind=='gun' and en.cargo.shot_m==4,'pellets should fly as rounds and take one shell')
  end
+ -- missile racks: tubes hold capacity in S units, re-arm per round
+ do
+  local en=Ship.new(game,{hull='estates_bastion',loadout=data.hulls.estates_bastion.loadout,x=8000,y=8000})
+  local rk
+  for _,w in ipairs(en.weapons) do if w.module.id=='missile_l_base' then rk=w end end
+  en.cargo.missile_l=5; en.cargo.missile_s=20; en.cargo.torp_l=3
+  en.intent=en.intent or {}; en.intent.aimX,en.intent.aimY=9000,8000
+  Weapons.arm(en,rk,0)
+  check(Weapons.tubes(rk)==2 and rk.armed==2,'fresh L rack should start with 2 L missiles armed')
+  for _=1,3 do rk.cooldown=0; Weapons.fire(game,en,rk,0.016) end
+  check(rk.armed==0 and en.cargo.missile_l==3,'rack fired more than its tubes held')
+  Weapons.arm(en,rk,data.items.missile_l.shot.armTime-0.01)
+  check(rk.armed==0,'armed too early')
+  Weapons.arm(en,rk,0.02)
+  check(rk.armed==1,'did not arm after its arm time')
+  Ship.setLoad(en,rk.index,'missile_s')
+  for _,w in ipairs(en.weapons) do if w.index==rk.index then rk=w end end
+  Weapons.arm(en,rk,0)
+  check(Weapons.tubes(rk)==8 and rk.armed==0,'S missiles should pack 8 into an L rack, and swapping ammo should empty the tubes')
+  check(data.items.torp_l.shot.armTime>data.items.missile_l.shot.armTime,'torpedoes should arm slower than missiles')
+ end
  -- per-slot pick
  local e=Ship.new(game,{hull='estates_bastion',loadout=data.hulls.estates_bastion.loadout,x=0,y=0})
  local slot,bay

@@ -38,6 +38,42 @@ local DRONE_CONTROL = { S = 1, M = 2, L = 4 }
 
 local sqrt, cos, sin, atan2, rad, max, min, random = math.sqrt, math.cos, math.sin, math.atan2, math.rad, math.max, math.min, love.math.random
 
+-- How much of a missile rack's tubes one round of each size fills.
+local TUBE_UNITS = { S = 1, M = 2, L = 4 }
+Weapons.TUBE_UNITS = TUBE_UNITS
+
+-- How many rounds of its loaded ammo a rack's tubes hold (weapon.capacity
+-- in S-size units: an M round takes 2, an L round 4).
+function Weapons.tubes(slot)
+	local item = slot.ammo and data.items[slot.ammo]
+	if not (slot.w.capacity and item) then return nil end
+	return math.floor(slot.w.capacity / TUBE_UNITS[item.size])
+end
+
+-- Missile racks fire only what's armed in their tubes, and re-arm one round
+-- at a time from the hold, each taking its ammo's shot.armTime seconds.
+-- Armed rounds stay counted in the hold until they're fired. A fresh rack
+-- starts armed; switching ammo empties the tubes.
+function Weapons.arm(e, slot, dt)
+	local n = Weapons.tubes(slot)
+	if not n then return end
+	local inf = T.dev.infiniteAmmo and e.isPlayer
+	local held = inf and math.huge or (e.cargo[slot.ammo] or 0)
+	if slot.armedId == nil then
+		slot.armedId, slot.armed, slot.arming = slot.ammo, math.min(n, held), 0
+	elseif slot.armedId ~= slot.ammo then
+		slot.armedId, slot.armed, slot.arming = slot.ammo, 0, 0
+	end
+	slot.armed = math.min(slot.armed, n, held)
+	if slot.armed < n and held > slot.armed then
+		slot.arming = slot.arming + dt
+		local t = data.items[slot.ammo].shot.armTime or 1
+		if slot.arming >= t then slot.armed, slot.arming = slot.armed + 1, 0 end
+	else
+		slot.arming = 0
+	end
+end
+
 local function takeAmmo(e, id)
 	if T.dev.infiniteAmmo and e.isPlayer then return true end
 	local n = e.cargo[id] or 0
@@ -197,6 +233,11 @@ local function fire(game, e, slot, dt)
 		end
 	end
 	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
+	-- a missile rack waits on its tubes (with ammo left, it's re-arming)
+	if w.capacity and ((e.cargo[slot.ammo] or 0) > 0 or (T.dev.infiniteAmmo and e.isPlayer)) then
+		Weapons.arm(e, slot, 0)
+		if slot.armed < 1 then slot.cooldown = 0.05; return end
+	end
 	if not takeAmmo(e, slot.ammo) then
 		slot.empty = true
 		slot.cooldown = 0.3
@@ -204,6 +245,7 @@ local function fire(game, e, slot, dt)
 		return
 	end
 	slot.empty = false
+	if w.capacity then slot.armed = slot.armed - 1 end
 	slot.cooldown = 1 / rate
 
 	-- The round sets the damage and flight; the weapon only how it's fired.
@@ -311,6 +353,7 @@ function Weapons.update(game, e, dt)
 	local it = e.intent
 	for _, slot in ipairs(e.weapons) do
 		slot.cooldown = max(0, slot.cooldown - dt)
+		Weapons.arm(e, slot, dt)
 		aimSlot(e, slot, dt)
 		-- a drill retracts when the trigger is let go
 		if slot.w.kind == "drill" and not ((slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)

@@ -971,6 +971,7 @@ function Game:updateStationGuns(dt)
 			local sa = st.body:getAngle()
 			for _, slot in ipairs(st.weapons) do
 				slot.cooldown = max(0, slot.cooldown - dt)
+				Weapons.arm(st, slot, dt)
 				local wx, wy = Ship.hardpoint(st, slot.slot)
 				-- (a drone's "range" is how far it flies on launch; a drone
 				-- bay launches at anything inside STATION_DRONE_REACH)
