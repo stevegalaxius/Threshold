@@ -3,13 +3,13 @@
 local L=require('src.locations')
 local Graph=require('src.travelgraph')
 local Trace=require('src.alife_trace')
-local O={state={selected=nil,overlay=false,labels='selected'}}
+local O={state={selected=nil,overlay=false,labels='all'}}
 local lg=love.graphics
 
-function O.select(id) O.state.selected=id end
+function O.select(id,game) O.state.selected=id;if id and game and game.localMap then game.localMap.selected=nil end end
 function O.selected() return O.state.selected end
 function O.toggleOverlay() O.state.overlay=not O.state.overlay end
-local LABELS={'selected','problems','all'}
+local LABELS={'all','problems','selected'}
 function O.cycleLabels()
  for i,m in ipairs(LABELS) do if m==O.state.labels then O.state.labels=LABELS[i%#LABELS+1];return end end
  O.state.labels='selected'
@@ -62,6 +62,8 @@ end
 function O.draw(game,toScreen,font)
  local st,clock=O.state,game.universe.clock
  lg.push('all')
+ -- screen space: the world pass leaves its zoom-scaled line width behind
+ lg.setLineWidth(1)
  -- simulation connections
  local view=st.overlay and not game.lane and not game.flight and Graph.build(game.fieldId)
  if view then
@@ -83,7 +85,10 @@ function O.draw(game,toScreen,font)
   local label=st.overlay and (st.labels=='all' or st.labels=='problems' and problem(game,n.r,n.e))
   if label and n.id~=st.selected then
    if font then lg.setFont(font) end
-   lg.setColor(c[1],c[2],c[3],.8);lg.print(n.id..' '..(n.r.role or ''),x+6,y-6)
+   -- the old N overlay's readout: who, what's driving it, what it's doing
+   lg.setColor(c[1],c[2],c[3],.85);lg.print(n.id..' '..(n.r.role or '')..'  '..Trace.controller(game,n.r,n.e),x+6,y-6)
+   local status=require('src.reactor_fuel').activity(n.r)
+   if status then lg.setColor(c[1],c[2],c[3],.6);lg.print(status,x+6,y+7) end
   end
  end
  if sel then

@@ -160,7 +160,7 @@ function Map.mousepressed(game,x,y,button)
   if inside(v,x,y) then
    local id=require('src.ui.alife_overlay').pick(game,Map.toScreen,x,y)
    if id then
-    require('src.ui.alife_overlay').select(id)
+    require('src.ui.alife_overlay').select(id,game)
     require('src.debugui').alifeVisible=true
     return true
    end
@@ -169,7 +169,7 @@ function Map.mousepressed(game,x,y,button)
    local sx,sy=Map.toScreen(game,p.x,p.y)
    if (inside(v,x,y) and (x-sx)^2+(y-sy)^2<14^2)
     or (x>=w-282 and y>=98+(i-1)*38 and y<98+i*38) then
-    m.selected=p.id; return true
+    m.selected=p.id;require('src.ui.alife_overlay').select(nil); return true
    end
   end
  end

@@ -52,7 +52,7 @@ local function list(game)
   local r=game.universe.npcs[id];local e=game.alifeOnline and game.alifeOnline[id]
   Slab.BeginListBoxItem('alife_item'..i,{Selected=Overlay.state.selected==id})
   Slab.Text(('%s%s  %s  %s  %s'):format(e and '* ' or '  ',id,r.role or '?',r.area or 'transit',Trace.controller(game,r,e)))
-  if Slab.IsListBoxItemClicked() then Overlay.state.selected=id end
+  if Slab.IsListBoxItemClicked() then Overlay.select(id,game) end
   Slab.EndListBoxItem()
  end
  Slab.EndListBox()
