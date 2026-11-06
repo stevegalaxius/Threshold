@@ -527,24 +527,6 @@ function addModuleItems()
 	end
 end
 
--- A Shipyard weapon saved with an id ending in _base (gun_S_base, say) is
--- the look for every weapon of its kind and size: modules without art of
--- their own take its art, so the whole game uses it, not just the ship
--- that mounts that module.
-local function shareWeaponArt()
-	local base = {}
-	for id, m in pairs(data.modules) do
-		if m.weapon and m.art and id:match("_base$") then
-			base[(m.weapon.kind or "") .. "/" .. (m.size or "")] = m.art
-		end
-	end
-	for _, m in pairs(data.modules) do
-		if m.weapon and not m.art then
-			m.art = base[(m.weapon.kind or "") .. "/" .. (m.size or "")]
-		end
-	end
-end
-
 function data.load()
 	loadFolder("data")
 	if love.filesystem.getInfo("mods", "directory") then
@@ -556,7 +538,6 @@ function data.load()
 		end
 	end
 	addModuleItems()
-	shareWeaponArt()
 	crossCheck()
 end
 
