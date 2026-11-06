@@ -7,7 +7,7 @@ module {
 	powerDraw = 2,
 	price = 8000,
 	size = "M",
-	weapon = { fireRate = 1.0, gimbal = 7, chambers = { "shotgun", "gun" }, kind = "cannon", recoilPct = 60, spread = 0.5 },
+	weapon = { fireRate = 1.0, gimbal = 7, chambers = { "shotgun" }, kind = "cannon", recoilPct = 60, spread = 0.5 },
 	art = {
 		muzzles = {
 			{ 18, 0 },

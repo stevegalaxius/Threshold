@@ -10,8 +10,8 @@ return function(game)
  check(data.modules.gun_m_base==gun and data.modules.maul_tube==data.modules.missile_s_base,'old ids do not resolve')
  check(gun.weapon.kind=='cannon' and mortar.weapon.kind=='cannon' and mortar.weapon.chambers[1]=='artillery','guns and artillery should be cannons that chamber their ammo')
  local g,m,r=data.ammoOptions(gun),data.ammoOptions(mortar),data.ammoOptions(rack)
- check(g[1]=='rounds_m' and has(g,'shot_m') and not has(g,'shell_m'),'gun should chamber bullets first, then shot')
- check(m[1]=='shell_m' and has(m,'rounds_m'),'artillery should chamber shells first, then bullets')
+ check(#g==1 and g[1]=='rounds_m','a plain gun should chamber only its rounds')
+ check(#m==1 and m[1]=='shell_m','a plain mortar should chamber only its shells')
  check(r[1]=='missile_m' and has(r,'torp_m') and has(r,'torp_s') and not has(r,'torp_l'),'rack ammo options wrong')
  for id,mod in pairs(data.modules) do check(not (mod.weapon and mod.weapon.kind=='torpedo'),'torpedo weapon left: '..id) end
  -- a gun that lists more families chambers them, its own first
