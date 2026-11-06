@@ -146,8 +146,7 @@ local function fire(game, e, slot, dt)
 		-- tip touches. No ammo, a little power per second. Rock it breaks
 		-- drops ore (Game:breakAsteroid).
 		local need = (w.powerPerSecond or 0) * dt
-		-- no lasers while the afterburner runs on reserve power
-		if e.power < need or e.burnerLocked then slot.starved = true; return end
+		if e.power < need then slot.starved = true; return end
 		slot.starved = false
 		e.power = e.power - need
 		local ddx, ddy = dx, dy
