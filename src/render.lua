@@ -1115,6 +1115,53 @@ local TORPEDO = { S = 4, M = 10, L = 16 }
 local MISSILE = { S = 3, M = 5, L = 8 }
 
 -- Shots keep a minimum on-screen size, so they stay visible zoomed out.
+-- A soft white ball, bright in the middle, fading to nothing at the edge
+-- (blast flashes).
+local glowImage
+local engineGlow
+local function glow()
+	if not glowImage then
+		local n = 128
+		local d = love.image.newImageData(n, n)
+		d:mapPixel(function(px, py)
+			local dx, dy = (px + 0.5) / n * 2 - 1, (py + 0.5) / n * 2 - 1
+			local a = max(0, 1 - sqrt(dx * dx + dy * dy))
+			return 1, 1, 1, a * a
+		end)
+		glowImage = lg.newImage(d)
+	end
+	return glowImage
+end
+
+-- Draw the glow ball at x, y: radius r along angle a, stretched by `long`.
+local function glowAt(x, y, r, a, long)
+	local img = glow()
+	local s = r * 2 / img:getWidth()
+	lg.draw(img, x, y, a or 0, s * (long or 1), s, img:getWidth() / 2, img:getHeight() / 2)
+end
+
+-- A missile or torpedo's engine: a hot, flickering glow behind it, and a
+-- big bright bloom for the first moments after launch.
+engineGlow = function(game, p, r, px)
+	local a = math.atan2(p.vy, p.vx)
+	local tx, ty = p.x - cos(a) * r * 2.5, p.y - sin(a) * r * 2.5
+	local fl = 0.85 + love.math.random() * 0.3
+	local born = p.born and (game.time - p.born) or 1
+	local launch = max(0, 1 - born / 0.35)
+	lg.setBlendMode("add")
+	lg.setColor(1, 0.55, 0.2, 0.55 * fl)
+	glowAt(tx, ty, max(r * 6, 6 * px) * fl, a, 1.8)
+	lg.setColor(1, 0.95, 0.8, 0.9)
+	glowAt(tx, ty, max(r * 2.2, 2.5 * px), a, 1.6)
+	if launch > 0 then
+		lg.setColor(1, 0.75, 0.4, launch * 0.8)
+		glowAt(tx, ty, r * 26 * (1.2 - launch * 0.4), 0, 1)
+		lg.setColor(1, 1, 0.9, launch)
+		glowAt(tx, ty, r * 9, 0, 1)
+	end
+	lg.setBlendMode("alpha")
+end
+
 local function drawProjectiles(game)
 	local zoom = game.camera.zoom
 	local px = 1 / zoom                            -- one screen pixel in world units
@@ -1134,6 +1181,7 @@ local function drawProjectiles(game)
 			lg.line(p.x - p.vx * 0.012 * trail, p.y - p.vy * 0.012 * trail, p.x, p.y)
 		elseif p.kind == "torpedo" then
 			local r = max(TORPEDO[p.size] or 5, 1.8 * px)
+			engineGlow(game, p, r * 1.4, px)
 			lg.setColor(1, 0.35, 0.2, 0.35)
 			lg.circle("fill", p.x, p.y, r * 2.2)
 			lg.setColor(1, 0.55, 0.3, 0.7)
@@ -1141,6 +1189,7 @@ local function drawProjectiles(game)
 			lg.setColor(1, 0.9, 0.75)
 			lg.circle("fill", p.x, p.y, r)
 		elseif p.kind == "missile" then
+			engineGlow(game, p, MISSILE[p.size] or 3, px)
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
 			local r = MISSILE[p.size] or 3
@@ -1185,23 +1234,6 @@ local function drawPickups(game)
 		lg.rectangle("line", -5, -5, 10, 10)
 		lg.pop()
 	end
-end
-
--- A soft white ball, bright in the middle, fading to nothing at the edge
--- (blast flashes).
-local glowImage
-local function glow()
-	if not glowImage then
-		local n = 128
-		local d = love.image.newImageData(n, n)
-		d:mapPixel(function(px, py)
-			local dx, dy = (px + 0.5) / n * 2 - 1, (py + 0.5) / n * 2 - 1
-			local a = max(0, 1 - sqrt(dx * dx + dy * dy))
-			return 1, 1, 1, a * a
-		end)
-		glowImage = lg.newImage(d)
-	end
-	return glowImage
 end
 
 local function drawEffects(game)
@@ -1262,8 +1294,16 @@ local function drawEffects(game)
 			lg.setLineWidth(3 * (1 - k) + 1)
 			lg.circle("line", fx.x, fx.y, fx.r * (0.4 + k * 0.8))
 		elseif fx.kind == "muzzle" then
-			lg.setColor(1, 0.95, 0.7, 1 - k)
-			lg.circle("fill", fx.x + cos(fx.a) * 4, fx.y + sin(fx.a) * 4, 3 * fx.size + 2)
+			-- a hot bloom thrown forward from the barrel, gone in a blink
+			local q = 1 - k
+			local sz = fx.size or 1
+			local fx2, fy2 = fx.x + cos(fx.a) * 6 * sz, fx.y + sin(fx.a) * 6 * sz
+			lg.setBlendMode("add")
+			lg.setColor(1, 0.6, 0.25, 0.7 * q)
+			glowAt(fx2, fy2, 18 * sz * (0.8 + k * 0.4), fx.a, 2.2)
+			lg.setColor(1, 0.97, 0.85, q)
+			glowAt(fx2, fy2, 7 * sz, fx.a, 2.6)
+			lg.setBlendMode("alpha")
 		end
 	end
 end

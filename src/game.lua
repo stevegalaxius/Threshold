@@ -2602,7 +2602,7 @@ function Game:spark(x, y, n, color)
 end
 
 function Game:muzzle(x, y, angle, size)
-	self:addEffect({ kind = "muzzle", x = x, y = y, a = angle, size = size, life = 0.06, t = 0 })
+	self:addEffect({ kind = "muzzle", x = x, y = y, a = angle, size = size, life = 0.09, t = 0 })
 end
 
 function Game:shake(amount)
