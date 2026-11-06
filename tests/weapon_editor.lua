@@ -32,7 +32,7 @@ return function(game)
  local slot={}
  local x1,y1=V.muzzle(m,slot); local x2,y2=V.muzzle(m,slot); local x3,y3=V.muzzle(m,slot)
  check(y1==-2 and y2==2 and y3==-2 and x1==14,'muzzles cycle')
- check(V.muzzle(data.modules.rockbiter,{})==nil,'no art: no muzzle')
+ check(V.muzzle({ weapon = m.weapon },{})==nil,'no art: no muzzle')
  -- kick right after a shot, none at rest
  check(V.kick({w=m.weapon,cooldown=1/7})>0 and V.kick({w=m.weapon,cooldown=0})==0,'barrel kick')
  -- test fire fits it to the ship
