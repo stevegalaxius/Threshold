@@ -6,7 +6,7 @@ hull {
 	class = "small",
 	drag = 0.3,
 	hold = 50,
-	loadout = { "sparrow_rack", "sparrow_rack", "flit_engine", "ember_reactor", "tug_beam", "nav_computer" },
+	loadout = { "missile_S_base", "missile_S_base", "flit_engine", "ember_reactor", "tug_beam", "nav_computer" },
 	maker = "Brute Industries",
 	mass = 95,
 	mount = "gimbal",

@@ -6,7 +6,7 @@ hull {
 	class = "light",
 	drag = 0.14,
 	hold = 33,
-	loadout = { "px2_autogun", "sparrow_rack", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
+	loadout = { "gun_S_base", "missile_S_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	maker = "Briggs MFG",
 	mass = 73,
 	mount = "fixed",

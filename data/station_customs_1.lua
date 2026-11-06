@@ -21,10 +21,10 @@ station {
 		{ heading = 270, size = 150, x = 860, y = -2100 },
 	},
 	turrets = {
-		{ module = "rk7_autocannon", x = -410, y = -420 },
-		{ module = "px2_autogun", x = -410, y = 420 },
-		{ module = "rk7_autocannon", x = 410, y = -420 },
-		{ module = "px2_autogun", x = 410, y = 420 },
+		{ module = "gun_M_base", x = -410, y = -420 },
+		{ module = "gun_S_base", x = -410, y = 420 },
+		{ module = "gun_M_base", x = 410, y = -420 },
+		{ module = "gun_S_base", x = 410, y = 420 },
 	},
 	parts = {
 		{ name = "tower L", shape = { -620, -340, -560, -420, -260, -420, -200, -340, -200, 420, -620, 420 }, shade = 0.95, lights = {

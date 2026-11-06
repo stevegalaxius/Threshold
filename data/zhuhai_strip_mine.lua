@@ -15,7 +15,7 @@ station {
 	},
 	services = { "market", "shipyard", "hangar", "repair" },
 	turrets = {
-		{ module = "rk7_autocannon", x = -136, y = -536 },
+		{ module = "gun_M_base", x = -136, y = -536 },
 	},
 	parts = {
 		{ name = "footing slab", shape = { -640, 130, 640, 130, 700, 190, -700, 190 }, shade = 0.6 },
