@@ -8,8 +8,8 @@ local T = {}
 
 T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
-	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1,    precision = 2 },
-	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.08,   precision = 2 },
+	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1.5,    precision = 2 },
+	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.03,   precision = 2 },
 	{ key = "navLookahead",   label = "Nav fallback: lookahead (s)", min = 1, max = 8, value = 2, precision = 1 },
 	{ key = "guidanceCone",   label = "Guidance fallback: cone (deg)", min = 5, max = 90, value = 25, precision = 0 },
 	{ key = "droneRecall",    label = "Drone: idle secs before docking", min = 2, max = 30, value = 10, precision = 0 },
@@ -23,7 +23,7 @@ T.specs = {
 	{ key = "aimGain",        label = "Aim snappiness",         min = 1,   max = 30,   value = 9,    precision = 1 },
 	{ key = "turnResponse",   label = "Turn response",          min = 1,   max = 60,   value = 18,   precision = 1 },
 	{ key = "knockbackScale", label = "Hit knockback",          min = 0,   max = 4,    value = 1,    precision = 2 },
-	{ key = "recoilScale",    label = "Recoil",                 min = 0,   max = 4,    value = 1,    precision = 2 },
+	{ key = "recoilScale",    label = "Recoil",                 min = 0,   max = 4,    value = 3,    precision = 2 },
 	{ key = "ramSpeed",       label = "Ram: min impact speed (non-ships)", min = 0, max = 400, value = 90, precision = 0 },
 	{ key = "ramSpeedScale",  label = "Ram: min impact speed (x each hull's)", min = 0, max = 3, value = 1, precision = 2 },
 	{ key = "ramDamageScale", label = "Ram damage",             min = 0,   max = 0.003, value = 0.0005, precision = 5 },
@@ -39,7 +39,7 @@ T.specs = {
 	{ key = "gunFalloff",     label = "Gun rounds: damage lost at max range", min = 0, max = 1, value = 0.6, precision = 2 },
 	{ key = "artilleryFuse",  label = "Artillery proximity fuse (x splash)", min = 0, max = 1, value = 0.2, precision = 2 },
 	{ key = "asteroidToughness", label = "Asteroid toughness (hp per r^2)", min = 0.005, max = 0.3, value = 0.05, precision = 3 },
-	{ key = "asteroidImpact", label = "Asteroid impact damage", min = 0, max = 20, value = 4, precision = 1 },
+	{ key = "asteroidImpact", label = "Asteroid impact damage", min = 0, max = 20, value = 8, precision = 1 },
 	{ key = "huskToughness",  label = "Husk toughness (x ship armor)", min = 0.05, max = 2, value = 0.5, precision = 2 },
 	{ key = "tractorBase",    label = "Tractor beam base range", min = 50, max = 800, value = 260, precision = 0 },
 	{ key = "lootHoldAt",     label = "Looting: beam holds it within (x range)", min = 0.2, max = 1.2, value = 0.6, precision = 2 },
@@ -62,7 +62,7 @@ T.FORCE_PER_KN = 100      -- 1 kN of engine thrust = this much force in pixel un
 T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 
 -- Share of a dead ship's fitted modules that survive in its husk.
-T.moduleSalvage = 0.5
+T.moduleSalvage = 0.75
 
 -- Station storage grid, in 1 m3 cells (every station has its own).
 T.storageW, T.storageH = 16, 12
@@ -134,7 +134,7 @@ T.laneFarAU, T.laneFarScale = 5, 0.25
 -- starts, how much deeper it reaches full strength, its damage per
 -- second there, and its drag.
 T.crushStart = 2000
-T.crushDepth, T.crushDamage, T.crushDrag = 8000, 60, 0.8
+T.crushDepth, T.crushDamage, T.crushDrag = 8000, 260, 1
 
 -- Cloud cities drift round their spot: this far across (px, each way),
 -- and over these periods (s) across and up and down (the up and down
