@@ -41,7 +41,7 @@ local E = {
 	bsel = nil,              -- selected berth (index into design.berths; stations)
 	berthSize = 80,          -- size for new berths
 	tsel = nil,              -- selected turret (index into design.turrets; stations)
-	turretModule = "rk7_autocannon",   -- weapon for new turrets
+	turretModule = "gun_M_base",   -- weapon for new turrets
 	view = { x = 0, y = 0, zoom = 3 },
 	snap = true, grid = 4,
 	preview = "normal",

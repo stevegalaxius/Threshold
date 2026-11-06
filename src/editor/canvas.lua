@@ -406,7 +406,7 @@ local function pressed(E, sx, sy, button)
 				if k then E.lmulti[k] = nil; E.sel, E.lsel = v[1], v[2] else E.lsel = nil end
 			elseif E.lmulti[key] then E.lmulti[key] = nil
 			else
-				if E.lsel then E.lmulti[E.sel .. ":" .. E.lsel] = { E.sel, E.lsel } end
+				if E.sel and E.lsel then E.lmulti[E.sel .. ":" .. E.lsel] = { E.sel, E.lsel } end
 				E.sel, E.lsel = li, lj
 			end
 			E.vsel = nil

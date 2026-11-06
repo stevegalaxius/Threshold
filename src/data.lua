@@ -527,6 +527,13 @@ function addModuleItems()
 	end
 end
 
+data.renamedModules = {
+	px2_autogun = "gun_S_base", rk7_autocannon = "gun_M_base", rk14_twin = "gun_L_base",
+	pip_mortar = "artillery_S_base", thumper_m = "artillery_M_base", long_tom = "artillery_L_base",
+	sparrow_rack = "missile_S_base", hornet_pod = "missile_M_base", trident_bay = "missile_L_base",
+	artilllery_S_base = "artillery_S_base",
+}
+
 function data.load()
 	loadFolder("data")
 	if love.filesystem.getInfo("mods", "directory") then
@@ -538,6 +545,13 @@ function data.load()
 		end
 	end
 	addModuleItems()
+	-- Old weapon ids (before the Shipyard <kind>_<size>_base designs) still
+	-- resolve, so saves holding them load. Lookup only: not in the lists.
+	for old, new in pairs(data.renamedModules) do
+		if data.modules[new] and not data.modules[old] then
+			data.modules[old], data.items[old] = data.modules[new], data.items[new]
+		end
+	end
 	crossCheck()
 end
 

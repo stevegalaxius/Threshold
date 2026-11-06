@@ -6,7 +6,7 @@ hull {
 	class = "light",
 	drag = 0.22,
 	hold = 90,
-	loadout = { "px2_autogun", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
+	loadout = { "gun_S_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
 	mass = 120,
 	mount = "turret",

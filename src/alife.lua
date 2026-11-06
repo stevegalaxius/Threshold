@@ -49,7 +49,17 @@ local function start(r,clock,index)
  local leg=edge(r)
  local from,to=L.get(leg.from),L.get(leg.to)
  if from.area~=to.area then
-  local lane=assert(Graph.transit(leg.from,leg.to,clock),'invalid inter-region journey')
+  local lane=Graph.transit(leg.from,leg.to,clock)
+  if not lane then
+   -- Two nodes in different regions with no direct lane between them (a
+   -- one-way route wrapping round to its start, say). Route there properly
+   -- through the gates and drivers instead of crashing.
+   local path=Graph.itinerary(leg.from,leg.to,clock)
+   assert(path and #path>1,'invalid inter-region journey '..tostring(leg.from)..' -> '..tostring(leg.to))
+   print(('A-Life: %s rerouted %s -> %s'):format(tostring(r.id),leg.from,leg.to))
+   r.route=path;r.onRoundTrip=nil;r.tripRoute=nil
+   return start(r,clock,2)
+  end
   r.state='transit'; r.area=nil; r.transit=lane
   lane.speed=lane.kind=='driver' and T.laneFlow or r.speed
   r.arrive=clock+lane.length/lane.speed
@@ -138,10 +148,10 @@ function A.createTrader(game,area,i)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
- -- One in every few traders works the dispatch board (transport jobs to
- -- other regions); the rest fly their local circuit. Every Mars trader works
- -- the board, which includes ore runs from Phobos and Deimos.
- if area=='mars' or i%T.alifeMoonEvery==0 and #neighbours(area)>0 then r.taskWorker=true end
+ -- Every trader works the dispatch board (transport jobs to other regions,
+ -- and Mars's ore runs from Phobos and Deimos). The old fixed local circuit
+ -- is only the route it starts docked on.
+ r.taskWorker=true
  start(r,u.clock,i%#r.route+1)
  u.npcs[id]=r
  return r
@@ -171,8 +181,10 @@ function A.seed(game)
   end
  end
  -- Saves from the Mars-only job module: those haulers join the task board.
+ -- Saves with plain circuit traders: they join the board at their next
+ -- docking stop (a round trip under way finishes first).
  for _,r in pairs(u.npcs) do
-  if r.role=='trader' and r.home=='mars' then r.taskWorker=true end
+  if r.role=='trader' and not r.piracy then r.taskWorker=true end
   if r.job then
    if r.job.phase=='delivery' and r.ship.cargo then r.ship.cargo.martian_ore=nil end
    r.job,r.jobStatus,r.onRoundTrip,r.tripDestination,r.tripRoute=nil,nil,nil,nil,nil
@@ -564,7 +576,7 @@ end
 local function bindRoute(game,e,r)
  if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome or r.service) then return Mining.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
- e.travelGraph=graph(r.area)
+ e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
  for _,id in ipairs(r.route) do
   local place=L.get(id)

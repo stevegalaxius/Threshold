@@ -40,44 +40,138 @@
 -- Weapons: guns (fast, short range, no splash) --------------------------------
 
 module {
-	id = "px2_autogun", name = "PX-2 Autogun", maker = "Halcyon Arms", family = "weapon", size = "S",
-	mass = 4, powerDraw = 1, price = 2200,
-	weapon = { kind = "gun", fireRate = 300 / 60, spread = 0.8, gimbal = 10, recoilPct = 16 },
+	id = "gun_S_base", name = "PX-2 Autogun",
+	family = "weapon",
+	maker = "Halcyon Arms",
+	mass = 4,
+	powerDraw = 1,
+	price = 2200,
+	size = "S",
+	weapon = { fireRate = 5, gimbal = 10, kind = "gun", recoilPct = 16, spread = 0.8 },
+	art = {
+		muzzles = {
+			{ 12, 0 },
+		},
+		parts = {
+			{ name = "part 2", shape = { 3, -1, 12, -1, 12, 1, 3, 1 }, barrel = true },
+			{ name = "part 1", shape = { -5.5, -1.5, 8, -1.5, 8, 1.5, -5.5, 1.5 } },
+		},
+	},
 }
 
 module {
-	id = "rk7_autocannon", name = "RK-7 Autocannon", maker = "Brute Industries", family = "weapon", size = "M",
-	mass = 10, powerDraw = 2, price = 6500,
-	weapon = { kind = "gun", fireRate = 240 / 60, spread = 1, gimbal = 10, recoilPct = 17.5 },
+	id = "gun_M_base", name = "RK-7 Autocannon",
+	family = "weapon",
+	maker = "Brute Industries",
+	mass = 10,
+	powerDraw = 2,
+	price = 6500,
+	size = "M",
+	weapon = { fireRate = 4, gimbal = 10, kind = "gun", recoilPct = 50.5, spread = 1 },
+	art = {
+		muzzles = {
+			{ 22, 0 },
+		},
+		parts = {
+			{ name = "part 1", shape = { -2.5, -1.5, 22, -1.5, 22, 1.5, -2.5, 1.5 }, barrel = true },
+			{ name = "part 2", shape = { -9.5, -2.5, 16, -2.5, 16, 2.5, -9.5, 2.5 }, paint = "primary" },
+		},
+	},
 }
 
 -- Two RK-7 actions on one large mount, firing the same heavy rounds. The
 -- barrels alternate, so it's two autocannons' worth of fire from one slot.
 module {
-	id = "rk14_twin", name = "RK-14 Twin Autocannon", maker = "Brute Industries", family = "weapon", size = "L",
-	mass = 24, powerDraw = 4, price = 15000,
-	weapon = { kind = "gun", caliber = "M", barrels = 2, barrelGap = 10, fireRate = 480 / 60, spread = 1, gimbal = 10, recoilPct = 17.5 },
+	id = "gun_L_base", name = "RK-14 Twin Autocannon",
+	family = "weapon",
+	maker = "Brute Industries",
+	mass = 24,
+	powerDraw = 4,
+	price = 15000,
+	size = "L",
+	weapon = {
+		barrelGap = 10,
+		barrels = 2,
+		caliber = "M",
+		fireRate = 8,
+		gimbal = 10,
+		kind = "gun",
+		recoilPct = 17.5,
+		spread = 1,
+	},
+	art = {
+		muzzles = {
+			{ 22.5, -4.5 },
+			{ 22.5, 4.5 },
+		},
+		parts = {
+			{ name = "part 2", shape = { 0.5, -6, 22.5, -6, 22.5, -3, 0.5, -3 }, mirror = true },
+			{ name = "part 1", shape = { -11, -7, 16, -7, 16, -2, -11, -2 }, mirror = true },
+		},
+	},
 }
 
 -- Weapons: artillery (slow, long range, high damage, splash) -----------------
 -- Shells fly their full range and burst on contact, near an enemy, or at the end of their range.
 
 module {
-	id = "pip_mortar", name = "Pip Mortar", maker = "Ferrous Collective", family = "weapon", size = "S",
-	mass = 6, powerDraw = 1, price = 3400,
-	weapon = { kind = "artillery", fireRate = 1.2, spread = 1, gimbal = 6, recoilPct = 25 },
+	id = "artillery_S_base", name = "Pip Mortar",
+	family = "weapon",
+	maker = "Ferrous Collective",
+	mass = 6,
+	powerDraw = 1,
+	price = 3400,
+	size = "S",
+	weapon = { fireRate = 1.2, gimbal = 6, kind = "artillery", recoilPct = 100, spread = 1 },
+	art = {
+		muzzles = {
+			{ 19, 0 },
+		},
+		parts = {
+			{ name = "part 2", shape = { 4, -0.5, 19, -0.5, 19, 0.5, 4, 0.5 } },
+			{ name = "part 1", shape = { -8, -1.5, 6, -1.5, 6, 1.5, -8, 1.5 } },
+		},
+	},
 }
 
 module {
-	id = "thumper_m", name = "Thumper", maker = "Brute Industries", family = "weapon", size = "M",
-	mass = 16, powerDraw = 2, price = 9000,
-	weapon = { kind = "artillery", fireRate = 0.8, spread = 1, gimbal = 6, recoilPct = 33 },
+	id = "artillery_M_base", name = "Thumper",
+	family = "weapon",
+	maker = "Brute Industries",
+	mass = 16,
+	powerDraw = 2,
+	price = 9000,
+	size = "M",
+	weapon = { fireRate = 0.8, gimbal = 6, kind = "artillery", recoilPct = 100, spread = 1 },
+	art = {
+		muzzles = {
+			{ 28, 0 },
+		},
+		parts = {
+			{ name = "part 2", shape = { 0, -1, 28, -1, 28, 1, 0, 1 } },
+			{ name = "part 1", shape = { -16, -2, 8, -2, 8, 2, -16, 2 } },
+		},
+	},
 }
 
 module {
-	id = "long_tom", name = "Long Tom", maker = "Ferrous Collective", family = "weapon", size = "L",
-	mass = 34, powerDraw = 3, price = 24000,
-	weapon = { kind = "artillery", fireRate = 0.5, spread = 0.5, gimbal = 5, recoilPct = 46 },
+	id = "artillery_L_base", name = "Long Tom",
+	family = "weapon",
+	maker = "Ferrous Collective",
+	mass = 34,
+	powerDraw = 3,
+	price = 24000,
+	size = "L",
+	weapon = { fireRate = 0.5, gimbal = 5, kind = "artillery", recoilPct = 100, spread = 0.5 },
+	art = {
+		muzzles = {
+			{ 52, 0 },
+		},
+		parts = {
+			{ name = "part 2", shape = { 0, -1.5, 52, -1.5, 52, 1.5, 0, 1.5 }, barrel = true },
+			{ name = "part 1", shape = { -28, -4, 12, -4, 12, 4, -28, 4 } },
+		},
+	},
 }
 
 -- Weapons: pulse lasers (no ammo, a chunk of power per pulse) -----------------
@@ -149,21 +243,51 @@ module {
 -- in its size or smaller; Q switches the size.
 
 module {
-	id = "sparrow_rack", name = "Sparrow Rack", maker = "Halcyon Arms", family = "bay", size = "S",
-	mass = 3, price = 4000,
-	weapon = { kind = "missile", fireRate = 3, recoil = 300 },
+	id = "missile_S_base", name = "Sparrow Rack",
+	family = "bay",
+	maker = "Halcyon Arms",
+	mass = 3,
+	price = 4000,
+	size = "S",
+	weapon = { fireRate = 3, kind = "missile", recoil = 300 },
+	art = {
+		parts = {
+			{ name = "part 1", shape = { -4, 4, -4, -4, 6, -4, 8, -3, 8, 3, 6, 4 }, paint = "primary" },
+			{ name = "part 2", shape = { 5, -1, 8, -1, 8, 1, 5, 1 } },
+		},
+	},
 }
 
 module {
-	id = "hornet_pod", name = "Hornet Pod", maker = "Nova Syndicate", family = "bay", size = "M",
-	mass = 8, price = 11000,
-	weapon = { kind = "missile", fireRate = 2.5, recoil = 800 },
+	id = "missile_M_base", name = "Hornet Pod",
+	family = "bay",
+	maker = "Nova Syndicate",
+	mass = 8,
+	price = 11000,
+	size = "M",
+	weapon = { fireRate = 2.5, kind = "missile", recoil = 800 },
+	art = {
+		parts = {
+			{ name = "part 1", shape = { -6, 6, -6, -6, 8, -6, 12, -3, 12, 3, 8, 6 }, paint = "primary" },
+			{ name = "part 2", shape = { 5, -2, 12, -2, 12, 2, 5, 2 }, barrel = true },
+		},
+	},
 }
 
 module {
-	id = "trident_bay", name = "Trident Bay", maker = "Ferrous Collective", family = "bay", size = "L",
-	mass = 18, price = 26000,
-	weapon = { kind = "missile", fireRate = 1.5, recoil = 1600 },
+	id = "missile_L_base", name = "Trident Bay",
+	family = "bay",
+	maker = "Ferrous Collective",
+	mass = 18,
+	price = 26000,
+	size = "L",
+	weapon = { fireRate = 1.5, kind = "missile", recoil = 1600 },
+	art = {
+		parts = {
+			{ name = "part 1", shape = { -9, -9, -9, 9, 10, 9, 16, 4, 16, -4, 10, -9 }, paint = "primary" },
+			{ name = "part 2", shape = { 5, -4, 16, -4, 16, 4, 5, 4 }, barrel = true },
+		},
+	},
 }
 
 module {

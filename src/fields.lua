@@ -237,7 +237,10 @@ Fields.mixes = MIX
 --   extra(game, R)     more to build once the planet is in
 local function planetField(o)
 	local name, R = o.name, o.R
-	local depth = o.depth or 35000
+	-- T.mapScale stretches every planet map's open space; T.mapDensity
+	-- thins its debris so a bigger map doesn't carry (scale^2) more rocks.
+	local depth = (o.depth or 35000) * T.mapScale
+	local dens = T.mapDensity
 	local edge = R + depth
 	-- Everything is laid out as fractions of the open space (depth), so a
 	-- roomier map spreads its belt and stations out instead of leaving
@@ -254,13 +257,13 @@ local function planetField(o)
 	if o.gas then
 		for _, rb in ipairs(o.rings or {}) do
 			local big = rb.big or 0
-			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], rb.density, { ice = 1 },
+			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], (rb.density or 0) * dens, { ice = 1 },
 				size = function() return random() < big and 60 + random() * 60 or 10 + random() ^ 3 * 60 end })
 		end
 	else
-		bands[1] = { beltIn, beltOut, o.belt or 0, o.beltMix or { rock = 1 } }
+		bands[1] = { beltIn, beltOut, (o.belt or 0) * dens, o.beltMix or { rock = 1 } }
 	end
-	local scattered = floor((o.density or 0) * area(looseIn, edge))
+	local scattered = floor((o.density or 0) * dens * area(looseIn, edge))
 	-- the planet's colour, the same every visit (so it can be drawn ahead
 	-- of you on the highway before you arrive)
 	local rng = love.math.newRandomGenerator(#name * 7919 + R)
@@ -269,7 +272,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, surfaceMine = o.surfaceMine, city = o.city, cityScale = o.cityScale, traderPopulation = o.traders or 3,
+		stationTrack = sd, surfaceMine = o.surfaceMine, city = o.city, cityScale = o.cityScale, traderPopulation = o.traders or 5,
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, landable = o.landable, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -327,8 +330,8 @@ end
 Fields.ring = {
  miningAsteroids = {},
 	name = "Ring Station",
-	spawn = { 0, 5200 },
-	radius = 26000,
+	spawn = { 0, 5200 * T.mapScale },
+	radius = 26000 * T.mapScale,
 	mix = MIX.belt,
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "gunner", 2 } },
 	build = function(game)
@@ -338,14 +341,15 @@ Fields.ring = {
 			game:spawnGiantAsteroid(s.x,s.y,s.radius)
 		end
 		-- thick rock from the clear zone out to the edge
-		local area = pi * (26000 ^ 2 - 6500 ^ 2) / 1e6
-		game:spawnAsteroids(floor(area * 0.18), 6500)
+		local S = T.mapScale
+		local area = pi * ((26000 * S) ^ 2 - (6500 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 6500 * S)
 		game:spawnContainers(T.fieldContainers, 4500)
 	end,
 }
 
 for k=0,3 do
- local a,d=k/4*pi*2+.4,11000+(k%2)*5000
+ local a,d=k/4*pi*2+.4,(11000+(k%2)*5000)*T.mapScale
  Fields.ring.miningAsteroids[#Fields.ring.miningAsteroids+1]={x=cos(a)*d,y=sin(a)*d,radius=900+(k%3)*400}
 end
 
@@ -379,26 +383,33 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = tru
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
-	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 1.5 } },
+	-- ring stretched out to the edge (x2.43 from the surface); stations
+	-- orbit inside it
+	density = 0.08, mix = MIX.giant, track = 0.4, rings = { { 0.485, 0.97, density = 1.5 } },
 	city = true, cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
-	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.75,
+	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.71,   -- in the Cassini division
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
-	rings = { { 0.15, 0.25, density = 0.5 }, { 0.25, 0.42, density = 3, big = 0.03 }, { 0.46, 0.6, density = 1.5 } },
+	-- (stretched x1.617 from the surface so the A ring meets the edge)
+	rings = { { 0.243, 0.404, density = 0.5 }, { 0.404, 0.679, density = 3, big = 0.03 }, { 0.744, 0.97, density = 1.5 } },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
-	density = 0.09, mix = MIX.ice, rings = { { 0.25, 0.4, density = 2 } },
+	-- ring stretched out to the edge (x2.43); stations orbit inside it
+	density = 0.09, mix = MIX.ice, track = 0.45, rings = { { 0.606, 0.97, density = 2 } },
 	city = true,
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
 	density = 0.09, mix = { ice = 9, rock = 1 }, -- four dense rings, well out from the planet, in pairs: a wider ring
 	-- then a thin one just outside it, twice
-	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 } },
+	-- (stretched x1.183 so the outer pair meets the edge; stations in the
+	-- wide gap between the pairs)
+	track = 0.7,
+	rings = { { 0.399, 0.461, density = 6 }, { 0.564, 0.590, density = 6 }, { 0.822, 0.885, density = 6 }, { 0.951, 0.97, density = 6 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The moons' maps (see Fields.moons). Airless bodies retain their rocky

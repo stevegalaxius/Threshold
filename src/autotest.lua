@@ -339,7 +339,7 @@ function A.update(game, dt)
 		local prim = slotRow("hardpoint")
 		Cargo.mousereleased(game, prim.x + 10, prim.y + 10, 1)
 		log("equip: dragged glint_laser from storage onto slot %d -> %s, old module now in hold %d / storage %d",
-			prim.i, tostring(w.loadout[prim.i]), w.cargo.px2_autogun or 0, Hold.count(storage, "px2_autogun"))
+			prim.i, tostring(w.loadout[prim.i]), w.cargo.gun_S_base or 0, Hold.count(storage, "gun_S_base"))
 		shot("08_cargo_station")
 	end) end
 	if t >= 33.9 then once("cargo_done", function() game:undock() end) end
