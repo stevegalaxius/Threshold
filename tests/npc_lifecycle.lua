@@ -15,7 +15,7 @@ return function(game)
  local canvas=love.graphics.newCanvas(love.graphics.getDimensions())
  local function draw()
   love.graphics.setCanvas(canvas)
-  local ok,err=pcall(G.draw,game,1)
+  local ok,err=pcall(require('src.ui.alife_overlay').draw,game,function(_,x,y) return x,y end)
   love.graphics.setCanvas()
   check(ok,'overlay used a stale body: '..tostring(err))
  end
