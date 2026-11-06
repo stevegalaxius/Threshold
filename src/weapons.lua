@@ -189,7 +189,10 @@ local function fire(game, e, slot, dt)
 		local spark = { 0.7 + 0.3 * c[1], 0.7 + 0.3 * c[2], 0.7 + 0.3 * c[3] }
 		local lines = {}
 		for i = 1, n do
-			local a = angle + (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0)
+			-- an even fan, or (beamRandom) scattered anywhere in it, fresh
+			-- every shot (every frame for a beam)
+			local a = angle + (w.beamRandom and fan * (random() - 0.5)
+				or (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0))
 			local bx, by = cos(a), sin(a)
 			local ex, ey = wx + bx * w.range, wy + by * w.range
 			local hit = game:raycast(wx, wy, ex, ey, e.team)

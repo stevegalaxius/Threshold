@@ -27,7 +27,8 @@
 	              beam = true it burns while held: damage and powerPerSecond
 	              per second.
 	  beams       lasers: lines fired at once, each doing full damage
-	              (a shotgun laser); beamSpread = fan width in degrees.
+	              (a shotgun laser); beamSpread = fan width in degrees, an
+	              even fan unless beamRandom = true scatters them in it.
 	  color       lasers: beam color { r, g, b } (0..1); beamWidth scales
 	              how thick it's drawn.
 	  capacity    missile racks: tube space, in S rounds (an M round takes 2,

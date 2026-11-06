@@ -531,6 +531,7 @@ function weaponSections(E, d)
 	end
 	-- laser color, 0..1 per channel
 	if w.kind == "laser" then
+		check(E, w.beamRandom == true, "Random spread (scatter beams across the spread, like a shotgun)", function(on) w.beamRandom = on or nil end)
 		local c = w.color or require("src.weapons").LASER_COLOR
 		for ch, label in ipairs({ "red", "green", "blue" }) do
 			num("yard_wcol" .. ch, "beam " .. label, c[ch], 0, 1, 0.02, 2, "Beam color (0..1).", function(v)
