@@ -56,9 +56,9 @@ return function(game)
  end
  -- lasers: pulse and beam kinds, several lines, own color
  do
-  check(data.modules.pulse_s_base.weapon.kind=='pulse' and data.modules.beam_s_base.weapon.kind=='beam','lasers should be pulse / beam kinds')
-  local old=assert(data.defineModule({ id='t_oldbeam', name='t', family='weapon', size='S', mass=1, weapon={ kind='laser', beam=true, damage=1, powerPerSecond=1, range=100 } }))
-  check(old.weapon.kind=='beam' and old.weapon.beam==nil,'old laser+beam did not load as a beam')
+  check(data.modules.pulse_s_base.weapon.kind=='laser' and not data.modules.pulse_s_base.weapon.beam and data.modules.beam_s_base.weapon.beam,'lasers should be one kind with a beam switch')
+  local old=assert(data.defineModule({ id='t_oldbeam', name='t', family='weapon', size='S', mass=1, weapon={ kind='beam', damage=1, powerPerSecond=1, range=100 } }))
+  check(old.weapon.kind=='laser' and old.weapon.beam==true,'a beam kind did not load as a beam laser')
   local en=Ship.new(game,{hull='brute_anvil',loadout={'pulse_m_base',false,false,false,'mule_engine','kiln_reactor',false},x=12000,y=12000})
   local sl=en.weapons[1]
   sl.w={}; for k,v in pairs(data.modules.pulse_m_base.weapon) do sl.w[k]=v end

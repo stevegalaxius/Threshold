@@ -99,13 +99,13 @@ local WSTAT = {
 }
 local WFIELDS = {
 	cannon = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
-	pulse = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal", "beams", "beamSpread", "beamWidth" },
+	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal", "beams", "beamSpread", "beamWidth" },
 	beam = { "damage", "range", "powerPerSecond", "gimbal", "beams", "beamSpread", "beamWidth" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
 	missile = { "fireRate", "capacity", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
-local WKINDS = { "cannon", "pulse", "beam", "drill", "missile", "drone" }
+local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }
 local BAY_KINDS = { missile = true, drone = true }
 
 -- Wreck and prop settings, in place of hull stats and slots.
@@ -472,6 +472,7 @@ function weaponSections(E, d)
 	for _, k in ipairs(WKINDS) do table.insert(kopts, { label = k, value = k }) end
 	combo("yard_wkind", w.kind, kopts, function(k)
 		E.pushUndo(); w.kind = k
+		if k ~= "laser" then w.beam = nil end
 		m.family = BAY_KINDS[k] and "bay" or "weapon"
 	end, 120)
 	Slab.Text("size"); Slab.SameLine()
@@ -508,7 +509,10 @@ function weaponSections(E, d)
 	num("yard_wprice", "price", m.price or 0, 0, 1000000, 100, 0, nil, function(v) m.price = v end)
 	Slab.Separator()
 	Slab.Text("Weapon")
-	for _, key in ipairs(WFIELDS[w.kind] or {}) do
+	if w.kind == "laser" then
+		check(E, w.beam == true, "Beam (held, per second) instead of pulse (per shot)", function(on) w.beam = on or nil end)
+	end
+	for _, key in ipairs(WFIELDS[(w.kind == "laser" and w.beam) and "beam" or w.kind] or {}) do
 		local f = WSTAT[key]
 		if key == "fireRate" and E.rpm then
 			num("yard_w_rpm", "fire rate (rpm)", (w.fireRate or 0) * 60, 1, 1800, 1, 0, nil, function(v) w.fireRate = v / 60 end)
@@ -526,7 +530,7 @@ function weaponSections(E, d)
 		end
 	end
 	-- laser color, 0..1 per channel
-	if w.kind == "pulse" or w.kind == "beam" then
+	if w.kind == "laser" then
 		local c = w.color or require("src.weapons").LASER_COLOR
 		for ch, label in ipairs({ "red", "green", "blue" }) do
 			num("yard_wcol" .. ch, "beam " .. label, c[ch], 0, 1, 0.02, 2, "Beam color (0..1).", function(v)

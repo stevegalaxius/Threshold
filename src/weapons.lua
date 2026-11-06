@@ -8,10 +8,10 @@
 	                         fuse), or at the end of their range.
 	               shot      a spray of pellets (shot.pellets, fanned over
 	                         shot.pelletSpread degrees), each hitting like a round.
-	  pulse      laser: a brief, instant-hit flash per shot. No ammo; each
-	             pulse takes powerPerShot.
-	  beam       laser: burns while held, damage and powerPerSecond per second.
-	             Both lasers can fire several lines at once (beams, fanned
+	  laser      no ammo. A pulse laser fires a brief, instant-hit flash per
+	             shot (damage and powerPerShot per pulse); a beam laser
+	             (beam = true) burns while held, damage and powerPerSecond
+	             per second. Either can fire several lines at once (beams, fanned
 	             over beamSpread degrees) in their own color.
 	  missile    bay rack: missiles (guided, splash) or torpedoes (very fast,
 	             steer slowly, enormous damage and splash).
@@ -80,7 +80,7 @@ end
 -- Pulse and beam lasers; their default color when the weapon sets none.
 local LASER_COLOR = { 0.55, 0.95, 1 }
 Weapons.LASER_COLOR = LASER_COLOR
-function Weapons.isLaser(w) return w.kind == "pulse" or w.kind == "beam" end
+function Weapons.isLaser(w) return w.kind == "laser" end
 
 local function takeAmmo(e, id)
 	if T.dev.infiniteAmmo and e.isPlayer then return true end
@@ -174,7 +174,7 @@ local function fire(game, e, slot, dt)
 	-- full damage. A pulse fires once per shot and lingers w.pulse seconds;
 	-- a beam burns while the trigger is held, per second.
 	if Weapons.isLaser(w) then
-		local beam = w.kind == "beam"
+		local beam = w.beam
 		if not beam and slot.cooldown > 0 then return end
 		local need = beam and w.powerPerSecond * dt or w.powerPerShot
 		if e.power < need then slot.starved = true; return end
