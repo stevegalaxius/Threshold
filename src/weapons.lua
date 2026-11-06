@@ -1,17 +1,27 @@
 --[[
 	Weapons and projectiles.
 
-	  gun        fast fire, short range, no splash. Uses ammo.
-	  artillery  slow fire, long range, big damage and splash. Shells burst
-	             on contact, when they pass near an enemy (proximity fuse),
-	             or at the end of their range. Uses ammo.
-	  laser      pulse laser: a brief, instant-hit flash about once a second.
-	             No ammo; each pulse takes a chunk of power.
-	  missile    bay, guided, splash. Expensive ammo.
-	  torpedo    bay, unguided, slow, enormous damage and splash.
+	  cannon     fires whatever ammo it chambers:
+	               rounds    fast, short range, no splash.
+	               shells    long range, big damage and splash. Shells burst
+	                         on contact, when they pass near an enemy (proximity
+	                         fuse), or at the end of their range.
+	               shot      a spray of pellets (shot.pellets, fanned over
+	                         shot.pelletSpread degrees), each hitting like a round.
+	  laser      no ammo. A pulse laser fires a brief, instant-hit flash per
+	             shot (damage and powerPerShot per pulse); a beam laser
+	             (beam = true) burns while held, damage and powerPerSecond
+	             per second. Either can fire several lines at once (beams, fanned
+	             over beamSpread degrees) in their own color.
+	  missile    bay rack: missiles (guided, splash) or torpedoes (very fast,
+	             steer slowly, enormous damage and splash).
+
+	A weapon loads any ammo family it chambers (data.chambers). The weapon sets how it fires (fire rate,
+	spread, recoil); the ammo sets the hit and how the shot flies, by its
+	family.
 	  drone      bay: launches an armed drone that fights for a while.
 
-	Every shot of a gun, artillery piece or missile launcher takes one round
+	Every shot of a cannon or missile rack takes one round
 	out of the hold, and the ship gets lighter as it does.
 
 	Projectiles aren't physics bodies: each step they ray-cast from where
@@ -31,6 +41,47 @@ local DRONE_CONTROL = { S = 1, M = 2, L = 4 }
 
 local sqrt, cos, sin, atan2, rad, max, min, random = math.sqrt, math.cos, math.sin, math.atan2, math.rad, math.max, math.min, love.math.random
 
+-- How much of a missile rack's tubes one round of each size fills.
+local TUBE_UNITS = { S = 1, M = 2, L = 4 }
+Weapons.TUBE_UNITS = TUBE_UNITS
+
+-- How many rounds of its loaded ammo a rack's tubes hold (weapon.capacity
+-- in S-size units: an M round takes 2, an L round 4).
+function Weapons.tubes(slot)
+	local item = slot.ammo and data.items[slot.ammo]
+	if not (slot.w.capacity and item) then return nil end
+	return math.floor(slot.w.capacity / TUBE_UNITS[item.size])
+end
+
+-- Missile racks fire only what's armed in their tubes, and re-arm one round
+-- at a time from the hold, each taking its ammo's shot.armTime seconds.
+-- Armed rounds stay counted in the hold until they're fired. A fresh rack
+-- starts armed; switching ammo empties the tubes.
+function Weapons.arm(e, slot, dt)
+	local n = Weapons.tubes(slot)
+	if not n then return end
+	local inf = T.dev.infiniteAmmo and e.isPlayer
+	local held = inf and math.huge or (e.cargo[slot.ammo] or 0)
+	if slot.armedId == nil then
+		slot.armedId, slot.armed, slot.arming = slot.ammo, math.min(n, held), 0
+	elseif slot.armedId ~= slot.ammo then
+		slot.armedId, slot.armed, slot.arming = slot.ammo, 0, 0
+	end
+	slot.armed = math.min(slot.armed, n, held)
+	if slot.armed < n and held > slot.armed then
+		slot.arming = slot.arming + dt
+		local t = data.items[slot.ammo].shot.armTime or 1
+		if slot.arming >= t then slot.armed, slot.arming = slot.armed + 1, 0 end
+	else
+		slot.arming = 0
+	end
+end
+
+-- Pulse and beam lasers; their default color when the weapon sets none.
+local LASER_COLOR = { 0.55, 0.95, 1 }
+Weapons.LASER_COLOR = LASER_COLOR
+function Weapons.isLaser(w) return w.kind == "laser" end
+
 local function takeAmmo(e, id)
 	if T.dev.infiniteAmmo and e.isPlayer then return true end
 	local n = e.cargo[id] or 0
@@ -48,8 +99,11 @@ end
 --   turret  rotates all the way around at the hull's turretTurn speed, so
 --           it can fire in any direction while the hull points elsewhere
 --           (heavy hulls)
+-- A slot can face any way (slot.heading, degrees off the nose: 180 points
+-- it out the back); fixed mounts fire along it, gimbals swing around it.
 local function aimSlot(e, slot, dt)
-	if slot.mount == "fixed" then slot.aim = 0; return end
+	local face = rad(slot.slot.heading or 0)
+	if slot.mount == "fixed" then slot.aim = face; return end
 	local wx, wy = Ship.hardpoint(e, slot.slot)
 	local want = Ship.wrapAngle(atan2(e.intent.aimY - wy, e.intent.aimX - wx) - e.body:getAngle())
 	if slot.mount == "turret" then
@@ -57,7 +111,7 @@ local function aimSlot(e, slot, dt)
 		slot.aim = Ship.wrapAngle(slot.aim + max(-step, min(step, Ship.wrapAngle(want - slot.aim))))
 	else
 		local g = rad(slot.w.gimbal or 8)
-		slot.aim = max(-g, min(g, want))
+		slot.aim = face + max(-g, min(g, Ship.wrapAngle(want - face)))
 	end
 end
 
@@ -118,43 +172,50 @@ local function fire(game, e, slot, dt)
 		return
 	end
 
-	if w.kind == "laser" and w.beam then
-		-- Beam laser: burns continuously while the trigger is held, taking
-		-- damage and power per second instead of per pulse.
-		local need = w.powerPerSecond * dt
-		if e.power < need then slot.starved = true; return end
+	-- Lasers: hit instantly along each of w.beams lines (fanned over
+	-- w.beamSpread degrees; a shotgun laser has several), each doing the
+	-- full damage. A pulse fires once per shot and lingers w.pulse seconds;
+	-- a beam burns while the trigger is held, per second.
+	if Weapons.isLaser(w) then
+		local beam = w.beam
+		if not beam and slot.cooldown > 0 then return end
+		local need = beam and w.powerPerSecond * dt or w.powerPerShot
+		-- no lasers while the afterburner runs on reserve power
+		if e.power < need or e.burnerLocked then slot.starved = true; return end
 		slot.starved = false
 		e.power = e.power - need
-		local ex, ey = wx + dx * w.range, wy + dy * w.range
-		local hit = game:raycast(wx, wy, ex, ey, e.team)
-		if hit then
-			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * dt * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			if love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, { 0.7, 1, 1 }) end
+		local damage = w.damage * (beam and dt or 1) * mult.primaryDamage
+		local n, fan = w.beams or 1, rad(w.beamSpread or 0)
+		local c = w.color or LASER_COLOR
+		local spark = { 0.7 + 0.3 * c[1], 0.7 + 0.3 * c[2], 0.7 + 0.3 * c[3] }
+		local lines = {}
+		for i = 1, n do
+			-- an even fan, or (beamRandom) scattered anywhere in it, fresh
+			-- every shot (every frame for a beam)
+			local a = angle + (w.beamRandom and fan * (random() - 0.5)
+				or (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0))
+			local bx, by = cos(a), sin(a)
+			local ex, ey = wx + bx * w.range, wy + by * w.range
+			local hit = game:raycast(wx, wy, ex, ey, e.team)
+			if hit then
+				ex, ey = hit.x, hit.y
+				-- damage falls off with the drawn fade: full out to 40% of
+				-- range, then down to nothing at max range
+				local t = math.sqrt((hit.x - wx) ^ 2 + (hit.y - wy) ^ 2) / w.range
+				game:damage(hit.entity, damage * math.min(1, (1 - t) / 0.6), e, "laser", hit.x, hit.y)
+				if not beam then game:spark(hit.x, hit.y, 8, spark)
+				elseif love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
+			end
+			lines[i] = { wx, wy, ex, ey, hit ~= nil }
 		end
-		slot.beam = { wx, wy, ex, ey, game.time, 0.08 }
-		if not slot.firing then events.emit("fire", e, slot) end
-		return
-	end
-
-	if w.kind == "laser" then
-		-- One pulse: hits instantly along the beam, then the beam lingers
-		-- on screen for w.pulse seconds.
-		if slot.cooldown > 0 then return end
-		if e.power < w.powerPerShot then slot.starved = true; return end
-		slot.starved = false
-		e.power = e.power - w.powerPerShot
-		slot.cooldown = 1 / w.fireRate
-		local ex, ey = wx + dx * w.range, wy + dy * w.range
-		local hit = game:raycast(wx, wy, ex, ey, e.team)
-		if hit then
-			ex, ey = hit.x, hit.y
-			game:damage(hit.entity, w.damage * mult.primaryDamage, e, "laser", hit.x, hit.y)
-			game:spark(hit.x, hit.y, 8, { 0.7, 1, 1 })
+		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth }
+		if beam then
+			if not slot.firing then events.emit("fire", e, slot) end
+		else
+			slot.cooldown = 1 / w.fireRate
+			game:muzzle(wx, wy, angle, 1.0)
+			events.emit("fire", e, slot)
 		end
-		slot.beam = { wx, wy, ex, ey, game.time, w.pulse or 0.12 }
-		game:muzzle(wx, wy, angle, 1.0)
-		events.emit("fire", e, slot)
 		return
 	end
 
@@ -176,12 +237,24 @@ local function fire(game, e, slot, dt)
 		end
 		slot.fullWarned = false
 	end
-	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
-	-- Out of the selected ammo: fall back to another size this weapon can fire.
-	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
-		for _, id in ipairs(slot.ammoOptions) do
-			if (e.cargo[id] or 0) > 0 then slot.ammo = id; break end
+	-- Out of the picked ammo: fall back to another this weapon takes, and
+	-- back to the pick as soon as there's some in the hold again.
+	local pick = slot.pick or slot.ammo
+	slot.pick = pick
+	if not (T.dev.infiniteAmmo and e.isPlayer) then
+		if (e.cargo[pick] or 0) > 0 then
+			slot.ammo = pick
+		elseif (e.cargo[slot.ammo] or 0) <= 0 then
+			for _, id in ipairs(slot.ammoOptions) do
+				if (e.cargo[id] or 0) > 0 then slot.ammo = id; break end
+			end
 		end
+	end
+	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
+	-- a missile rack waits on its tubes (with ammo left, it's re-arming)
+	if w.capacity and ((e.cargo[slot.ammo] or 0) > 0 or (T.dev.infiniteAmmo and e.isPlayer)) then
+		Weapons.arm(e, slot, 0)
+		if slot.armed < 1 then slot.cooldown = 0.05; return end
 	end
 	if not takeAmmo(e, slot.ammo) then
 		slot.empty = true
@@ -190,10 +263,12 @@ local function fire(game, e, slot, dt)
 		return
 	end
 	slot.empty = false
+	if w.capacity then slot.armed = slot.armed - 1 end
 	slot.cooldown = 1 / rate
 
 	-- The round sets the damage and flight; the weapon only how it's fired.
 	local ws = data.items[slot.ammo].shot
+	local kind = data.items[slot.ammo].family
 	local spread = rad(w.spread or 0)
 	local mountAngle = angle
 	angle = angle + (random() * 2 - 1) * spread
@@ -212,7 +287,7 @@ local function fire(game, e, slot, dt)
 	local svx, svy = e.body:getLinearVelocity()
 
 	-- Drone bays launch a ship, not a projectile.
-	if w.kind == "drone" then
+	if kind == "drone" then
 		local d = game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
 		d.bay, d.control = slot.slot, DRONE_CONTROL[data.items[slot.ammo].size]
 		game:muzzle(wx, wy, angle, 1.2)
@@ -221,23 +296,27 @@ local function fire(game, e, slot, dt)
 	end
 
 	local p = {
-		kind = w.kind, team = e.team, owner = e,
+		kind = kind, team = e.team, owner = e,
 		x = wx, y = wy, px = wx, py = wy,
 		vx = svx + dx * ws.speed, vy = svy + dy * ws.speed,
 		damage = ws.damage, splash = ws.splash, knockback = (ws.knockback or 0),
 		size = data.items[slot.ammo].size,
+		cause = ws.vaporize and "atomic" or nil,   -- atomic warheads leave no wreck
+		born = game.time,                           -- (launch glow)
+		ox = wx, oy = wy,                           -- where it left the barrel (trails stop there)
 	}
 
-	if w.kind == "gun" then
+	if kind == "gun" or kind == "shotgun" then
+		p.kind = "gun"                             -- pellets fly and hit like rounds
 		p.life = ws.range / ws.speed
 		p.maxLife = p.life
 		p.damage = ws.damage * mult.primaryDamage
-	elseif w.kind == "artillery" then
+	elseif kind == "artillery" then
 		p.life = ws.range / ws.speed
 		p.damage = ws.damage * mult.primaryDamage
 		p.burst = true
 		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
-	elseif w.kind == "missile" then
+	elseif kind == "missile" then
 		-- Fire and forget: picks a target on launch and chases it. With a
 		-- guidance computer it takes the computer's lock and finds a new
 		-- target if its own dies.
@@ -250,7 +329,7 @@ local function fire(game, e, slot, dt)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5
-	elseif w.kind == "torpedo" then
+	elseif kind == "torpedo" then
 		-- Very fast, and steers only a little: aim it, then it corrects
 		-- slowly toward the target nearest your aim (or the guidance lock).
 		p.guided = game:computer(e, "guidance") ~= nil
@@ -262,13 +341,24 @@ local function fire(game, e, slot, dt)
 	end
 
 	table.insert(game.projectiles, p)
+	-- A shotgun shell is several pellets, fanned across pelletSpread.
+	if kind == "shotgun" then
+		local fan = rad(ws.pelletSpread or 8)
+		for _ = 2, ws.pellets or 1 do
+			local a = angle + (random() * 2 - 1) * fan
+			local q = {}
+			for k, v in pairs(p) do q[k] = v end
+			q.vx, q.vy = svx + cos(a) * ws.speed, svy + sin(a) * ws.speed
+			table.insert(game.projectiles, q)
+		end
+	end
 
 	-- Guns and artillery kick back by a share of the round's knockback;
 	-- launchers (and older data) by a fixed impulse.
-	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or w.recoil or 0) * T.recoilScale
+	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or (w.recoil or 0) * (ws.recoil or 1)) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
-	if w.kind == "artillery" or w.kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
-	if e.isPlayer and w.kind == "artillery" then game:shake(0.18) end
+	if kind == "artillery" or kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
+	if e.isPlayer and (kind == "artillery" or kind == "shotgun") then game:shake(0.18) end
 	events.emit("fire", e, slot)
 end
 
@@ -280,26 +370,11 @@ function Weapons.range(slot)
 	return slot.w.range or 0
 end
 
--- Switch every launcher (or, given a trigger group, every launcher on that
--- trigger) to the next ammo size it can fire. Returns the newly selected
--- ammo id (of the first launcher that changed).
-function Weapons.cycleAmmo(e, group)
-	local picked
-	for _, slot in ipairs(e.weapons) do
-		if slot.bay and (not group or slot.group == group) and #slot.ammoOptions > 1 then
-			local i = 1
-			for j, id in ipairs(slot.ammoOptions) do if id == slot.ammo then i = j end end
-			slot.ammo = slot.ammoOptions[i % #slot.ammoOptions + 1]
-			picked = picked or slot.ammo
-		end
-	end
-	return picked
-end
-
 function Weapons.update(game, e, dt)
 	local it = e.intent
 	for _, slot in ipairs(e.weapons) do
 		slot.cooldown = max(0, slot.cooldown - dt)
+		Weapons.arm(e, slot, dt)
 		aimSlot(e, slot, dt)
 		-- a drill retracts when the trigger is let go
 		if slot.w.kind == "drill" and not ((slot.group == "primary" and it.firePrimary) or (slot.group == "secondary" and it.fireSecondary)
@@ -479,7 +554,7 @@ function Weapons.updateProjectiles(game, dt)
 			local sp = sqrt(p.vx * p.vx + p.vy * p.vy)
 			local k = p.knockback * T.knockbackScale
 			if p.burst then
-				game:explode(p.x, p.y, p.splash, p.damage, k, p.owner, hit.entity, p.kind)
+				game:explode(p.x, p.y, p.splash, p.damage, k, p.owner, hit.entity, p.cause or p.kind)
 			else
 				local dmg = p.damage
 				-- gun rounds lose punch the further they've flown
@@ -493,12 +568,12 @@ function Weapons.updateProjectiles(game, dt)
 			p.x, p.y = nx, ny
 			p.life = p.life - dt
 			if p.life <= 0 then
-				if p.burst then game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, nil, p.kind) end
+				if p.burst then game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, nil, p.cause or p.kind) end
 				done = true
 			elseif p.fuse then
 				local near = fuseTarget(game, p)
 				if near then
-					game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, near, p.kind)
+					game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, near, p.cause or p.kind)
 					done = true
 				end
 			end

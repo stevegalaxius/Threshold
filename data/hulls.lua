@@ -22,8 +22,9 @@
 	  radius optional: half the hull's width (worked out from the shape if left
 	         out). Ships collide in their drawn shape; radius sets the spine,
 	         distances to the hull and thruster size
-	  ramSpeed  impact speed (px/s) below which a bump does it no harm;
-	            low is fragile, high shrugs off collisions
+	  toughness optional (default 1): crash damage is divided by it. Size is
+	            already felt (a light ship's speed changes most in a crash);
+	            this makes one hull sturdier (2 = half damage) or flimsier.
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
 	  parts  instead of shape: a list of polygons, { shape = {...}, shade = 0.6,
 	         tint = { r, g, b } }, drawn in order and coloured apart from the
@@ -53,66 +54,11 @@
 	(false = empty). cargo is what's in the hold when you take the hull out.
 ]]
 
-hull {
-	id = "halcyon_wisp", name = "Wisp",
-	armor = 120,
-	bonuses = {},
-	class = "light",
-	drag = 0.14,
-	hold = 24,
-	loadout = { "gun_S_base", "gun_S_base", "missile_S_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
-	maker = "Halcyon Arms",
-	mass = 58,
-	mount = "fixed",
-	price = 14000,
-	ramSpeed = 100,
-	retroThrust = 340,
-	sideThrust = 410,
-	slots = {
-		{ family = "primary", size = "S", x = 12, y = -9 },
-		{ family = "primary", size = "S", x = 12, y = 9 },
-		{ family = "auxiliary", size = "S", x = 24, y = 0 },
-		{ family = "engine", size = "S", x = -26, y = 0 },
-		{ family = "reactor", size = "S" },
-		{ family = "utility", size = "any" },
-		{ family = "computer", size = "any" },
-	},
-	turn = 500,
-	parts = {
-		{ name = "part 2", shape = { -28, -4, -16, -4, -16, 4, -28, 4 }, lights = {
-			{ kind = "strobe", rate = 1, x = -20, y = 0 },
-		} },
-		{ name = "part 3", shape = { -20, -4, -28, -16, -12, -20, 8, -12, 40, -4 }, mirror = true, lights = {
-			{ kind = "nav", size = 2, x = -12, y = -20 },
-		} },
-	},
-}
 
 
 -- Battleship: huge, slow to turn, and every gun is on a turret, so it can
 -- fight in every direction at once while the hull lumbers along. It can't
 -- strafe: A/D turn the hull, and side jets help it turn.
-hull {
-	id = "ferrous_bastion", name = "Bastion", maker = "Estates Military", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
-	mass = 735, sideThrust = 1292, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62, ramSpeed = 250,
-	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
-	slots = {
-		{ family = "hardpoint", trigger = "secondary", size = "L", x = 80,  y = 0 },
-		{ family = "hardpoint", trigger = "secondary", size = "L", x = -60, y = 0 },
-		{ family = "hardpoint", size = "M", x = 28,  y = -32 },
-		{ family = "hardpoint", size = "M", x = 28,  y = 32 },
-		{ family = "hardpoint", size = "M", x = -52, y = -36 },
-		{ family = "hardpoint", size = "M", x = -52, y = 36 },
-		{ family = "bay",       size = "L", x = 12,  y = 0 },
-		{ family = "engine",    size = "L", x = -132, y = 0 },
-		{ family = "reactor",   size = "L" },
-		{ family = "utility",   size = "any" },
-		{ family = "computer",  size = "any" },
-	},
-	loadout = { "artillery_L_base", "artillery_L_base", "gun_M_base", "gun_M_base", "gun_M_base", "gun_M_base", "missile_L_base",
-		"cinder_drive", "forge_reactor", "hold_pod_s", "nav_computer" },
-	price = 95000,
-}
 
 -- Freighter: battleship-sized but boxy, nearly all cargo bay. Two medium
 -- turrets to see off pirates, a big engine and low drag so it's quick in a
@@ -133,28 +79,28 @@ hull {
 hull {
 	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
-	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13, ramSpeed = 100,
+	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
 	shape = { 30,0, -18,-11, -10,0, -18,11 },
 	slots = {
 		{ family = "hardpoint", size = "S", x = 8,  y = 0 },
 		{ family = "engine",  size = "S", x = -16, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "gun_S_base", "flit_engine", "ember_reactor" },
+	loadout = { "gun_s_base", "flit_engine", "ember_reactor" },
 }
 
 -- Harasser: tiny, twitchy, strong side thrusters. Hard to hit on purpose.
 hull {
 	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
-	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11, ramSpeed = 90,
+	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
 	shape = { 28,0, 4,-5, -16,-10, -10,0, -16,10, 4,5 },
 	slots = {
 		{ family = "hardpoint", size = "S", x = 10,  y = 0 },
 		{ family = "engine",  size = "S", x = -14, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "gun_S_base", "flit_engine", "ember_reactor" },
+	loadout = { "gun_s_base", "flit_engine", "ember_reactor" },
 }
 
 -- Drones: launched from drone bays, fight on the launcher's side for a while.
@@ -162,33 +108,33 @@ hull {
 hull {
 	id = "wasp_drone", name = "Wasp", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8,
-	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8, ramSpeed = 80,
+	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8,
 	shape = { 22,0, 2,-4, -12,-8, -8,0, -12,8, 2,4 },
 	slots = {
 		{ family = "hardpoint", size = "S", x = 8,  y = 0 },
 		{ family = "engine",  size = "S", x = -10, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "glint_laser", "flit_engine", "ember_reactor" },
+	loadout = { "pulse_s_base", "flit_engine", "ember_reactor" },
 }
 
 hull {
 	id = "hive_drone", name = "Hive", maker = "Nova Syndicate", class = "drone", playable = false, mount = "gimbal",
 	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14,
-	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14, ramSpeed = 100,
+	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14,
 	shape = { 34,0, 6,-9, -20,-14, -14,0, -20,14, 6,9 },
 	slots = {
 		{ family = "hardpoint", size = "M", x = 12, y = 0 },
 		{ family = "engine",  size = "M", x = -16, y = 0 },
 		{ family = "reactor", size = "M" },
 	},
-	loadout = { "lumen_lance", "mule_engine", "kiln_reactor" },
+	loadout = { "pulse_m_base", "mule_engine", "kiln_reactor" },
 }
 
 hull {
 	id = "warden_drone", name = "Warden", maker = "Nova Syndicate", class = "drone", playable = false, mount = "turret", turretTurn = 200,
 	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20,
-	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20, ramSpeed = 150,
+	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20,
 	shape = { 48,0, 20,-16, -26,-20, -36,0, -26,20, 20,16 },
 	slots = {
 		{ family = "hardpoint", size = "M", x = 14, y = -8 },
@@ -196,5 +142,5 @@ hull {
 		{ family = "engine",  size = "M", x = -34, y = 0 },
 		{ family = "reactor", size = "L" },
 	},
-	loadout = { "lumen_lance", "lumen_lance", "mule_engine", "forge_reactor" },
+	loadout = { "pulse_m_base", "pulse_m_base", "mule_engine", "forge_reactor" },
 }

@@ -11,207 +11,84 @@
 	           px); see src/computers.lua.
 	  utility  hold (cubic metres), tractorRange (pixels), tractorPower (tractor strength added to the basic beam's 1: looting pull and top towing speed). Several stack. Utility modules are
 	           size "any" and fit any hull's utility slot.
-	  weapon   (guns, artillery, lasers) fits a hull's hardpoint slot.
-	  bay      (missile, torpedo and drone launchers) fits a bay slot.
-	           Either fires on whichever trigger its slot is set to.
+	  weapon   (cannons, lasers, drills) fits a hull's hardpoint slot.
+	  bay      (missile racks and drone bays) fits a bay slot.
+	           Either fires on whichever trigger its slot is set to, and
+	           loads whichever ammo is picked for that slot.
 
 	Weapon fields:
-	  kind        gun, artillery, laser or drill (weapon family); missile, torpedo
-	              or drone (bay family). Each fires ammo of its own
-	              kind: guns and artillery in their exact caliber, bay
-	              launchers their size or smaller. The ammo sets damage,
-	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
-	              with no ammo: they carry damage (per pulse), range,
-	              pulse (seconds the flash shows) and
-	              powerPerShot themselves.
-	              beam = true makes it a beam laser instead: it burns while
-	              the trigger is held, with damage and powerPerSecond per second.
+	  kind        cannon, laser or drill (weapon family); missile or drone
+	              (bay family). A cannon is anything that fires rounds, shells
+	              or shot: chambers says which. Hardpoint weapons load ammo
+	              in their exact caliber, bay launchers their size or smaller. The ammo sets damage,
+	              speed, range, splash and knockback (data/items.lua).
+	              Lasers take no ammo. A pulse laser fires a flash per shot:
+	              damage, range, powerPerShot, pulse (seconds it shows). With
+	              beam = true it burns while held: damage and powerPerSecond
+	              per second.
+	  beams       lasers: lines fired at once, each doing full damage
+	              (a shotgun laser); beamSpread = fan width in degrees, an
+	              even fan unless beamRandom = true scatters them in it.
+	  color       lasers: beam color { r, g, b } (0..1); beamWidth scales
+	              how thick it's drawn.
+	  capacity    missile racks: tube space, in S rounds (an M round takes 2,
+	              an L round 4). It salvos what's armed at fireRate, then
+	              re-arms one round at a time from the hold, each taking its
+	              ammo's shot.armTime seconds.
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
+	  chambers    the ammo families it can load, first = default: "gun"
+	              (rounds), "artillery" (shells), "shotgun" (shot), like
+	              { "shotgun", "gun" }. Unset: cannons rounds, missile racks
+	              missiles and torpedoes. It fires at its own fireRate
+	              whatever is loaded; the ammo changes the hit, not the cadence.
+	              (Old kinds gun, artillery and shotgun load as a cannon
+	              chambering that ammo; torpedo as a missile rack.)
 	  fireRate    shots per second           spread    random spread in degrees
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
 	  barrels     barrels that take turns firing; barrelGap = spacing
 	  gimbal      degrees it can aim off the nose
-	  recoilPct   guns and artillery: push back on the shooter, as a
+	  recoilPct   cannons: push back on the shooter, as a
 	              percentage of the round's knockback
 	  recoil      launchers: push back on the shooter (a fixed impulse)
 ]]
 
 -- Weapons: guns (fast, short range, no splash) --------------------------------
 
-module {
-	id = "gun_S_base", name = "PX-2 Autogun",
-	family = "weapon",
-	maker = "Halcyon Arms",
-	mass = 4,
-	powerDraw = 1,
-	price = 2200,
-	size = "S",
-	weapon = { fireRate = 5, gimbal = 10, kind = "gun", recoilPct = 16, spread = 0.8 },
-	art = {
-		muzzles = {
-			{ 12, 0 },
-		},
-		parts = {
-			{ name = "part 2", shape = { 3, -1, 12, -1, 12, 1, 3, 1 }, barrel = true },
-			{ name = "part 1", shape = { -5.5, -1.5, 8, -1.5, 8, 1.5, -5.5, 1.5 } },
-		},
-	},
-}
 
-module {
-	id = "gun_M_base", name = "RK-7 Autocannon",
-	family = "weapon",
-	maker = "Brute Industries",
-	mass = 10,
-	powerDraw = 2,
-	price = 6500,
-	size = "M",
-	weapon = { fireRate = 4, gimbal = 10, kind = "gun", recoilPct = 50.5, spread = 1 },
-	art = {
-		muzzles = {
-			{ 22, 0 },
-		},
-		parts = {
-			{ name = "part 1", shape = { -2.5, -1.5, 22, -1.5, 22, 1.5, -2.5, 1.5 }, barrel = true },
-			{ name = "part 2", shape = { -9.5, -2.5, 16, -2.5, 16, 2.5, -9.5, 2.5 }, paint = "primary" },
-		},
-	},
-}
 
 -- Two RK-7 actions on one large mount, firing the same heavy rounds. The
 -- barrels alternate, so it's two autocannons' worth of fire from one slot.
-module {
-	id = "gun_L_base", name = "RK-14 Twin Autocannon",
-	family = "weapon",
-	maker = "Brute Industries",
-	mass = 24,
-	powerDraw = 4,
-	price = 15000,
-	size = "L",
-	weapon = {
-		barrelGap = 10,
-		barrels = 2,
-		caliber = "M",
-		fireRate = 8,
-		gimbal = 10,
-		kind = "gun",
-		recoilPct = 17.5,
-		spread = 1,
-	},
-	art = {
-		muzzles = {
-			{ 22.5, -4.5 },
-			{ 22.5, 4.5 },
-		},
-		parts = {
-			{ name = "part 2", shape = { 0.5, -6, 22.5, -6, 22.5, -3, 0.5, -3 }, mirror = true },
-			{ name = "part 1", shape = { -11, -7, 16, -7, 16, -2, -11, -2 }, mirror = true },
-		},
-	},
-}
 
 -- Weapons: artillery (slow, long range, high damage, splash) -----------------
 -- Shells fly their full range and burst on contact, near an enemy, or at the end of their range.
 
-module {
-	id = "artillery_S_base", name = "Pip Mortar",
-	family = "weapon",
-	maker = "Ferrous Collective",
-	mass = 6,
-	powerDraw = 1,
-	price = 3400,
-	size = "S",
-	weapon = { fireRate = 1.2, gimbal = 6, kind = "artillery", recoilPct = 100, spread = 1 },
-	art = {
-		muzzles = {
-			{ 19, 0 },
-		},
-		parts = {
-			{ name = "part 2", shape = { 4, -0.5, 19, -0.5, 19, 0.5, 4, 0.5 } },
-			{ name = "part 1", shape = { -8, -1.5, 6, -1.5, 6, 1.5, -8, 1.5 } },
-		},
-	},
-}
 
-module {
-	id = "artillery_M_base", name = "Thumper",
-	family = "weapon",
-	maker = "Brute Industries",
-	mass = 16,
-	powerDraw = 2,
-	price = 9000,
-	size = "M",
-	weapon = { fireRate = 0.8, gimbal = 6, kind = "artillery", recoilPct = 100, spread = 1 },
-	art = {
-		muzzles = {
-			{ 28, 0 },
-		},
-		parts = {
-			{ name = "part 2", shape = { 0, -1, 28, -1, 28, 1, 0, 1 } },
-			{ name = "part 1", shape = { -16, -2, 8, -2, 8, 2, -16, 2 } },
-		},
-	},
-}
 
-module {
-	id = "artillery_L_base", name = "Long Tom",
-	family = "weapon",
-	maker = "Ferrous Collective",
-	mass = 34,
-	powerDraw = 3,
-	price = 24000,
-	size = "L",
-	weapon = { fireRate = 0.5, gimbal = 5, kind = "artillery", recoilPct = 100, spread = 0.5 },
-	art = {
-		muzzles = {
-			{ 52, 0 },
-		},
-		parts = {
-			{ name = "part 2", shape = { 0, -1.5, 52, -1.5, 52, 1.5, 0, 1.5 }, barrel = true },
-			{ name = "part 1", shape = { -28, -4, 12, -4, 12, 4, -28, 4 } },
-		},
-	},
-}
 
 -- Weapons: pulse lasers (no ammo, a chunk of power per pulse) -----------------
 
-module {
-	id = "glint_laser", name = "Glint Laser", maker = "Halcyon Arms", family = "weapon", size = "S",
-	mass = 5, price = 5200,
-	weapon = { kind = "laser", fireRate = 1.6, damage = 30, powerPerShot = 20, pulse = 0.12, range = 3500, gimbal = 12 },
-}
 
-module {
-	id = "lumen_lance", name = "Lumen Lance", maker = "Nova Syndicate", family = "weapon", size = "M",
-	mass = 12, price = 14000,
-	weapon = { kind = "laser", fireRate = 1.4, damage = 65, powerPerShot = 45, pulse = 0.14, range = 4200, gimbal = 12 },
-}
 
-module {
-	id = "sunder_beam", name = "Sunder Beam", maker = "Nova Syndicate", family = "weapon", size = "L",
-	mass = 30, price = 38000,
-	weapon = { kind = "laser", fireRate = 1.0, damage = 160, powerPerShot = 90, pulse = 0.2, range = 5200, gimbal = 10 },
-}
 
 -- Mining drills: hold the trigger and the drill extends out of the nose,
 -- up to the ship's own length, and grinds whatever its tip touches. No
 -- ammo and little power. damage is per second; rockDamage multiplies it
 -- against asteroids, and drilled rock drops ore when it breaks.
 module {
-	id = "bore_drill", name = "Bore Drill", maker = "Ferrous Collective", family = "weapon", size = "S",
+	id = "drill_s_base", name = "Drill S", maker = "Ferrous Collective", family = "weapon", size = "S",
 	mass = 6, price = 3500,
 	weapon = { kind = "drill", damage = 12, rockDamage = 12, powerPerSecond = 4, extendTime = 0.35 },
 }
 
 module {
-	id = "rockbiter", name = "Rockbiter", maker = "Ferrous Collective", family = "weapon", size = "M",
+	id = "drill_m_base", name = "Drill M", maker = "Ferrous Collective", family = "weapon", size = "M",
 	mass = 14, price = 9000,
 	weapon = { kind = "drill", damage = 25, rockDamage = 14, powerPerSecond = 8, extendTime = 0.45 },
 }
 
 module {
-	id = "deep_core_drill", name = "Deep Core Drill", maker = "Brute Industries", family = "weapon", size = "L",
+	id = "drill_l_base", name = "Drill L", maker = "Brute Industries", family = "weapon", size = "L",
 	mass = 34, price = 24000,
 	weapon = { kind = "drill", damage = 50, rockDamage = 16, powerPerSecond = 15, extendTime = 0.6 },
 }
@@ -220,108 +97,45 @@ module {
 -- powerPerSecond are per second; easier to keep on target than a pulse
 -- laser, so a little less damage for the power.
 module {
-	id = "thread_beam", name = "Thread Beam", maker = "Halcyon Arms", family = "weapon", size = "S",
+	id = "beam_s_base", name = "Beam Laser S", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 6, price = 6000,
 	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
 }
 
 module {
-	id = "searing_ray", name = "Searing Ray", maker = "Nova Syndicate", family = "weapon", size = "M",
+	id = "beam_m_base", name = "Beam Laser M", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 14, price = 16000,
 	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
 }
 
 module {
-	id = "furnace_beam", name = "Furnace Beam", maker = "Halcyon Arms", family = "weapon", size = "L",
+	id = "beam_l_base", name = "Beam Laser L", maker = "Halcyon Arms", family = "weapon", size = "L",
 	mass = 32, price = 42000,
 	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
 }
 
 -- Bay launchers -------------------------------------------------------------------
--- Missiles (fire and forget), torpedoes (very fast, steer slowly, huge damage) and drone bays (launch
+-- Missile racks (fire missiles, or torpedoes: very fast, steer slowly, huge damage) and drone bays (launch
 -- an armed drone that fights for you for a while). Each fires its own kind
--- in its size or smaller; Q switches the size.
+-- in its size or smaller, picked per slot.
+
+
+
 
 module {
-	id = "missile_S_base", name = "Sparrow Rack",
-	family = "bay",
-	maker = "Halcyon Arms",
-	mass = 3,
-	price = 4000,
-	size = "S",
-	weapon = { fireRate = 3, kind = "missile", recoil = 300 },
-	art = {
-		parts = {
-			{ name = "part 1", shape = { -4, 4, -4, -4, 6, -4, 8, -3, 8, 3, 6, 4 }, paint = "primary" },
-			{ name = "part 2", shape = { 5, -1, 8, -1, 8, 1, 5, 1 } },
-		},
-	},
-}
-
-module {
-	id = "missile_M_base", name = "Hornet Pod",
-	family = "bay",
-	maker = "Nova Syndicate",
-	mass = 8,
-	price = 11000,
-	size = "M",
-	weapon = { fireRate = 2.5, kind = "missile", recoil = 800 },
-	art = {
-		parts = {
-			{ name = "part 1", shape = { -6, 6, -6, -6, 8, -6, 12, -3, 12, 3, 8, 6 }, paint = "primary" },
-			{ name = "part 2", shape = { 5, -2, 12, -2, 12, 2, 5, 2 }, barrel = true },
-		},
-	},
-}
-
-module {
-	id = "missile_L_base", name = "Trident Bay",
-	family = "bay",
-	maker = "Ferrous Collective",
-	mass = 18,
-	price = 26000,
-	size = "L",
-	weapon = { fireRate = 1.5, kind = "missile", recoil = 1600 },
-	art = {
-		parts = {
-			{ name = "part 1", shape = { -9, -9, -9, 9, 10, 9, 16, 4, 16, -4, 10, -9 }, paint = "primary" },
-			{ name = "part 2", shape = { 5, -4, 16, -4, 16, 4, 5, 4 }, barrel = true },
-		},
-	},
-}
-
-module {
-	id = "maul_tube", name = "Maul Tube", maker = "Brute Industries", family = "bay", size = "S",
-	mass = 5, price = 5000,
-	weapon = { kind = "torpedo", fireRate = 0.5, recoil = 600 },
-}
-
-module {
-	id = "breaker_tube", name = "Breaker Tube", maker = "Brute Industries", family = "bay", size = "M",
-	mass = 12, price = 14000,
-	weapon = { kind = "torpedo", fireRate = 0.35, recoil = 1500 },
-}
-
-module {
-	id = "leviathan_tube", name = "Leviathan Tube", maker = "Ferrous Collective", family = "bay", size = "L",
-	mass = 26, price = 32000,
-	weapon = { kind = "torpedo", fireRate = 0.25, recoil = 4000 },
-}
-
-module {
-	id = "wasp_bay", name = "Wasp Bay", maker = "Nova Syndicate", family = "bay", size = "S",
+	id = "drone_s_base", name = "Drone Bay S", maker = "Nova Syndicate", family = "bay", size = "S",
 	mass = 6, price = 7000,
 	weapon = { kind = "drone", fireRate = 0.4, recoil = 100, control = 1 },
 }
 
 module {
-	id = "hive_bay", name = "Hive Bay", maker = "Nova Syndicate", family = "bay", size = "M",
+	id = "drone_m_base", name = "Drone Bay M", maker = "Nova Syndicate", family = "bay", size = "M",
 	mass = 14, price = 18000,
 	weapon = { kind = "drone", fireRate = 0.3, recoil = 200, control = 2 },
 }
 
 module {
-	id = "carrier_deck", name = "Carrier Deck", maker = "Nova Syndicate", family = "bay", size = "L",
+	id = "drone_l_base", name = "Drone Bay L", maker = "Nova Syndicate", family = "bay", size = "L",
 	mass = 30, price = 40000,
 	weapon = { kind = "drone", fireRate = 0.2, recoil = 400, control = 4 },
 }

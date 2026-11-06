@@ -45,7 +45,7 @@ function Game.new(opts)
 	local self = setmetatable({}, Game)
 	love.physics.setMeter(64)
 	self.world = love.physics.newWorld(0, 0, true)
-	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+	self.world:setCallbacks(function(...) self:beginContact(...) end)
 
 	self.preview = opts.preview
 	self.idCounter = 0
@@ -59,7 +59,7 @@ function Game.new(opts)
 	self.arenaRadius = 4500
 	self.camera = Camera.new()
 
-	self.playerHull = opts.hull or "halcyon_wisp"
+	self.playerHull = opts.hull or "intaki_wisp"
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
@@ -122,7 +122,7 @@ function Game:loadField(id, opts)
 		end
 	end
 	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
-	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+	self.world:setCallbacks(function(...) self:beginContact(...) end)
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.pickupBodies = {}
@@ -178,7 +178,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	if not data.hulls[rec.hull or self.playerHull] then rec = { hull = T.starterHull } end
 	self.playerHull = rec.hull or self.playerHull
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
@@ -971,6 +971,7 @@ function Game:updateStationGuns(dt)
 			local sa = st.body:getAngle()
 			for _, slot in ipairs(st.weapons) do
 				slot.cooldown = max(0, slot.cooldown - dt)
+				Weapons.arm(st, slot, dt)
 				local wx, wy = Ship.hardpoint(st, slot.slot)
 				-- (a drone's "range" is how far it flies on launch; a drone
 				-- bay launches at anything inside STATION_DRONE_REACH)
@@ -995,8 +996,8 @@ function Game:updateStationGuns(dt)
 					-- lead the target by the shot's flight time (lasers hit
 					-- at once; missiles steer themselves)
 					local tx, ty = tg.body:getPosition()
-					local kind = slot.w.kind
-					if kind ~= "laser" and kind ~= "missile" and slot.ammo then
+					local kind = slot.ammo and data.items[slot.ammo].family or slot.w.kind
+					if not data.LASERS[kind] and kind ~= "missile" and slot.ammo then
 						local speed = data.items[slot.ammo].shot.speed
 						local vx, vy = tg.body:getLinearVelocity()
 						local svx, svy = st.body:getLinearVelocityFromWorldPoint(wx, wy)
@@ -1795,59 +1796,63 @@ function Game:applyBoundary()
 	end
 end
 
--- Box2D reports collision impulses after it resolves them; we sum them per
--- pair of entities and turn anything over the threshold into ram damage.
-function Game:postSolve(fa, fb, contact, n1, t1, n2, t2)
+-- Crashes: each is measured once, when two bodies first touch, from how
+-- fast they were closing along the contact normal (so corner and glancing
+-- hits behave like head-on ones). Damage is worked out in resolveContacts.
+function Game:beginContact(fa, fb, contact)
 	local a, b = fa:getUserData(), fb:getUserData()
-	if not a or not b then return end
+	if not a or not b or not a.body or not b.body or fa:isSensor() or fb:isSensor() then return end
+	local x, y = contact:getPositions()
+	if not x then return end
+	local nx, ny = contact:getNormal()
+	local avx, avy = a.body:getLinearVelocityFromWorldPoint(x, y)
+	local bvx, bvy = b.body:getLinearVelocityFromWorldPoint(x, y)
+	local closing = (avx - bvx) * nx + (avy - bvy) * ny
+	if closing < 0 then closing = -closing end
 	local key = a.id < b.id and (a.id * 1000003 + b.id) or (b.id * 1000003 + a.id)
 	local c = self.contacts[key]
-	if not c then
-		c = { a = a, b = b, imp = 0 }
-		self.contacts[key] = c
-		c.x, c.y = contact:getPositions()
-	end
-	c.imp = c.imp + (n1 or 0) + (n2 or 0)
+	if not c or closing > c.v then self.contacts[key] = { a = a, b = b, v = closing, x = x, y = y } end
 end
 
+-- How much a body's own speed changes in a crash at closing speed v: the
+-- lighter one takes most of it (momentum), and anything immovable (a
+-- station, a planet, the giant asteroid: mass 0) gives the full v.
+local function speedChange(m, other, v)
+	if m == 0 then return 0 end
+	if other == 0 then return v end
+	return v * other / (m + other)
+end
+
+-- Each side takes  ramDamage x its mass x (speed change - grace)^2 / toughness,
+-- times the other ship's ram-damage upgrade (rocks, wrecks and containers:
+-- x asteroidImpact instead). A pair can't crash again for a moment, so one
+-- grinding contact isn't a dozen crashes.
 function Game:resolveContacts()
+	self.ramCooldown = self.ramCooldown or {}
 	for key, c in pairs(self.contacts) do
-		-- (skip anything removed this step, e.g. a rock that hit a planet)
-		if c.a.removed or c.b.removed then
-			self.contacts[key] = nil
-		else
-		-- Impulse / reduced mass is roughly the impact speed. Slow bumps and
-		-- scrapes (below the hull's ramSpeed) do nothing; harder hits scale with impulse,
-		-- so heavy ships hit harder.
-		local ma, mb = c.a.body:getMass(), c.b.body:getMass()
-		-- Against something immovable (a station, the giant asteroid) the
-		-- reduced mass is just the moving body's own.
-		local mu = (ma == 0 or mb == 0) and max(ma, mb) or ma * mb / (ma + mb)
-		local impactSpeed = c.imp / max(mu, 1e-6)
-		if impactSpeed > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = impactSpeed end
-		if c.imp > self.stats.maxImpulse then self.stats.maxImpulse = c.imp end
-		-- Each side has its own toughness: a hull's ramSpeed (light hulls
-		-- crumple at a nudge, battleships shrug off bumps), T.ramSpeed for
-		-- everything else, all scaled by the debug slider.
-		local function threshold(o)
-			return (o.kind == "ship" and o.hull.ramSpeed or T.ramSpeed) * T.ramSpeedScale
-		end
-		local ta, tb = threshold(c.a), threshold(c.b)
-		if impactSpeed > min(ta, tb) and c.x then
-			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
-			local function hit(o, other, thr)
-				if impactSpeed <= thr then return 0 end
-				local base = c.imp * T.ramDamageScale * (1 - thr / impactSpeed)
-				local mult = (o.kind == "asteroid" or o.kind == "husk" or o.kind == "container") and T.asteroidImpact or ramMult(other)
-				self:damage(o, base * mult, other, "ram", c.x, c.y)
-				return base
-			end
-			local base = max(hit(c.a, c.b, ta), hit(c.b, c.a, tb))
-			self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
-			if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
-			events.emit("ram", c.a, c.b, base)
-		end
 		self.contacts[key] = nil
+		if not (c.a.removed or c.b.removed) and (self.ramCooldown[key] or -1) <= self.time then
+			local ma, mb = c.a.body:getMass(), c.b.body:getMass()
+			if c.v > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = c.v end
+			local function hurt(o, m, dv, other)
+				local over = dv - T.ramGrace
+				if over <= 0 then return 0 end
+				local rock = o.kind == "asteroid" or o.kind == "husk" or o.kind == "container"
+				local tough = (o.kind == "ship" and o.hull.toughness) or 1
+				local mult = rock and T.asteroidImpact or (other.kind == "ship" and other.stats.mult.ramDamage or 1)
+				local dmg = T.ramDamage * m * over * over / tough * mult
+				self:damage(o, dmg, other, "ram", c.x, c.y)
+				return dmg
+			end
+			local da = hurt(c.a, ma, speedChange(ma, mb, c.v), c.b)
+			local db = hurt(c.b, mb, speedChange(mb, ma, c.v), c.a)
+			local base = max(da, db)
+			if base > 0 then
+				self.ramCooldown[key] = self.time + 0.25
+				self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
+				if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
+				events.emit("ram", c.a, c.b, base)
+			end
 		end
 	end
 end
@@ -1889,7 +1894,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
-		if e.hp <= 0 then e.dead = true end
+		if e.hp <= 0 then e.dead = true; e.vaporized = cause == "atomic" end
 		return
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
@@ -1907,10 +1912,12 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e.armor <= 0 then
 		e.armor = 0
 		e.dead = true
+		e.vaporized = cause == "atomic"      -- nothing left to be a wreck
 	end
 end
 
--- Splash damage and a radial shove. Ships don't take splash from their own side.
+-- Splash damage and a radial shove. It hits everyone in the blast, the
+-- shooter and their side included.
 function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 	radius = radius or 40
 	local seen = {}
@@ -1925,7 +1932,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
 			if fall > 0 then
-				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash", x, y) end
+				self:damage(e, damage * fall, owner, cause or "splash", x, y)
 				if d > 1 and e.kind == "ship" and not e.driverProtected then
 					local k = knockback * fall
 					e.body:applyLinearImpulse(dx / d * k, dy / d * k)
@@ -1934,7 +1941,17 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 		end
 		return true
 	end)
-	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = 0.45, t = 0 })
+	local nuke = cause == "atomic"
+	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = nuke and 1.2 or 0.22, t = 0, nuke = nuke })
+	-- a weapon's blast reads big: a white-hot gradient flash for a split
+	-- second, then a shockwave ring racing out past the blast (missiles and
+	-- torpedoes larger still)
+	if damage > 0 then
+		local big = (cause == "missile" or cause == "torpedo" or nuke) and 1.6 or 1
+		local r = max(50, radius) * big
+		self:addEffect({ kind = "flash", x = x, y = y, r = r * 1.5, life = nuke and 0.3 or 0.09, t = 0 })
+		self:addEffect({ kind = "shockwave", x = x, y = y, r = r * 2.4, life = nuke and 0.9 or 0.28, t = 0 })
+	end
 	self:spark(x, y, 10 + floor(radius / 8), { 1, 0.7, 0.35 })
 	if self.player and not self.player.dead then
 		local px, py = self.player.body:getPosition()
@@ -2138,7 +2155,8 @@ function Game:reap()
 			self:explode(x, y, e.halfLength, 0, 0)
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
-			for _, g in ipairs(e.hold.grids) do
+			-- (unless an atomic blast vaporized it, contents and all)
+			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
 		elseif e.recalled then
@@ -2186,7 +2204,9 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
-			if not e.drone then
+			if e.vaporized then
+				self:spark(x, y, 40, { 1, 0.95, 0.8 })
+			elseif not e.drone then
 				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
 				if e.isPlayer then self.playerHusk = husk end
 				local r=e.alifeId and self.universe.npcs[e.alifeId]
@@ -2586,20 +2606,13 @@ function Game:spark(x, y, n, color)
 end
 
 function Game:muzzle(x, y, angle, size)
-	self:addEffect({ kind = "muzzle", x = x, y = y, a = angle, size = size, life = 0.06, t = 0 })
+	self:addEffect({ kind = "muzzle", x = x, y = y, a = angle, size = size, life = 0.09, t = 0 })
 end
 
 function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
--- Q: switch the player's launchers to the next size they can fire.
-function Game:cycleAux()
-	local p = self.player
-	if not p or p.dead then return end
-	local id = Weapons.cycleAmmo(p)
-	if id then self:toast("LAUNCHERS: " .. data.items[id].name:upper(), 1.2) end
-end
 
 -- big: a headline (arriving in a level)
 function Game:toast(text, duration, style, big)

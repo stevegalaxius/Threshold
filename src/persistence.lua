@@ -179,8 +179,37 @@ function P.install(Game)
 				local r = advanced(self, saved, elapsed)
 				e.body:setPosition(r.x, r.y)
 				e.body:setLinearVelocity(r.vx, r.vy)
+				self:stepOutOfStations(e)
 			end
 		end
+	end
+
+	-- Saved debris rides the well's current rigidly while the area is
+	-- unloaded, but stations follow their own tracks, so a husk can come
+	-- back inside one; Box2D then flings it off at speed. Step it out to
+	-- the nearest clear spot beside the station instead.
+	function Game:stepOutOfStations(e)
+		if not e.body or e.body:isDestroyed() then return end
+		local x, y = e.body:getPosition()
+		local own = e.radius or e.halfLength or 50
+		for _ = 1, 4 do
+			local moved = false
+			for _, o in ipairs(self.entities) do
+				if o.kind == "station" and o ~= e and not o.removed and o.body and not o.body:isDestroyed() then
+					local ox, oy = o.body:getPosition()
+					local need = (o.radius or 300) + own + 40
+					local dx, dy = x - ox, y - oy
+					local d = math.sqrt(dx * dx + dy * dy)
+					if d < need then
+						if d < 1 then dx, dy, d = 1, 0, 1 end
+						x, y = ox + dx / d * need, oy + dy / d * need
+						moved = true
+					end
+				end
+			end
+			if not moved then break end
+		end
+		e.body:setPosition(x, y)
 	end
 
 	function Game:restoreArea(snapshot)
@@ -211,6 +240,7 @@ function P.install(Game)
 				b:setAngularVelocity(r.spin)
 				b:setLinearDamping(r.linearDamping)
 				b:setAngularDamping(r.angularDamping)
+				self:stepOutOfStations(e)
 			end
 		end
 	end

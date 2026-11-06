@@ -919,4 +919,4 @@ still releases its reservation normally.
 
 ## Tests
 
-`love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.
+`love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

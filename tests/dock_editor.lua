@@ -44,7 +44,7 @@ return function(game)
  wx,wy=game.dockWorld(st,1,st.dock.x2+300,201)
  check(not game:inTractorZone(st,wx,wy),'tractor ignored configured width')
  wx,wy=game.dockWorld(st,1,st.dock.x2+400,0)
- local e=Ship.new(game,{hull='halcyon_wisp',x=wx,y=wy,angle=game.dockAngle(st,1)+math.pi})
+ local e=Ship.new(game,{hull='intaki_wisp',x=wx,y=wy,angle=game.dockAngle(st,1)+math.pi})
  e.def={ai={style='trader'}};e.route={st};e.routeIndex=1
  game.entities={st,e}
  game:updateDocking(1/120)

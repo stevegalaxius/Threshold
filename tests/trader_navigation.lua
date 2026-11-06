@@ -10,7 +10,7 @@ return function(game)
  game:loadField('earth')
  local id,r
  for candidate,record in pairs(game.universe.npcs) do
-  if record.home=='earth' and record.role=='trader' and not record.taskWorker then id,r=candidate,record; break end
+  if record.home=='earth' and record.role=='trader' then id,r=candidate,record; break end
  end
  -- Moon round trips survive only in older saves; build one explicitly.
  r.taskWorker=nil;r.task=nil;r.tripDestination='luna';r.tripRoute=A.roundTrip('earth','luna',game.universe.clock)
@@ -57,6 +57,9 @@ return function(game)
   'Earth trader reached the exit sideways')
  -- Chasing/attacking the departing trader must not remove its movement AI.
  game:damage(e,1,game.player,'navigation-test')
+ -- (the player is dragged along beside it by teleport, which can land it on
+ -- debris: keep it from being rammed to death while it shadows the trader)
+ game.player.invulnerable=true
  local powered=false
  for _=1,480 do
   local x,y=e.body:getPosition()

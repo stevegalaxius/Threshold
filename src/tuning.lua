@@ -24,9 +24,8 @@ T.specs = {
 	{ key = "turnResponse",   label = "Turn response",          min = 1,   max = 60,   value = 18,   precision = 1 },
 	{ key = "knockbackScale", label = "Hit knockback",          min = 0,   max = 4,    value = 1,    precision = 2 },
 	{ key = "recoilScale",    label = "Recoil",                 min = 0,   max = 4,    value = 3,    precision = 2 },
-	{ key = "ramSpeed",       label = "Ram: min impact speed (non-ships)", min = 0, max = 400, value = 90, precision = 0 },
-	{ key = "ramSpeedScale",  label = "Ram: min impact speed (x each hull's)", min = 0, max = 3, value = 1, precision = 2 },
-	{ key = "ramDamageScale", label = "Ram damage",             min = 0,   max = 0.003, value = 0.0005, precision = 5 },
+	{ key = "ramDamage",      label = "Ram damage (x mass x speed change^2)", min = 0, max = 0.00003, value = 0.0000028, precision = 7 },
+	{ key = "ramGrace",       label = "Ram: free speed change (px/s)", min = 0, max = 300, value = 60, precision = 0 },
 	{ key = "boostThrust",    label = "Afterburner thrust (x main)", min = 1, max = 6, value = 3,  precision = 2 },
 	{ key = "boostDrain",     label = "Afterburner drain (capacity/s)", min = 0, max = 2, value = 0.15, precision = 2 },
 	{ key = "boostRelight",   label = "Afterburner capacitor reserve (capacity)", min = 0, max = 1, value = 0.3, precision = 2 },
@@ -77,7 +76,7 @@ T.towStiffness, T.towDamping = 15, 6
 T.fieldContainers = 6
 
 -- The ship you're given when you start out or lose yours.
-T.starterHull = "halcyon_wisp"
+T.starterHull = "intaki_wisp"
 -- Level enemies leave you alone until you come this close (or shoot them).
 T.aggroRange = 2600
 -- Mass drivers (src/transit.lua): the capture ring's radius, seconds to

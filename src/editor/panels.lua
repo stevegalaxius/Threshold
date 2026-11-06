@@ -26,7 +26,7 @@ local STATS = {
 	{ "sideThrust", "maneuvering (kN)", "Built-in side thrust; turn-mode hulls use it for turning.", 0, 5000, 10, 0 },
 	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward).", 0, 3000, 10, 0 },
 	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
-	{ "ramSpeed", "ram speed", "Impact speed (px/s) below which a bump does no harm. Low = fragile.", 20, 500, 5, 0 },
+	{ "toughness", "toughness", "Crash damage is divided by this (default 1; 2 = half). Light ships already take the most, since their speed changes most.", 0.1, 10, 0.05, 2 },
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
@@ -92,19 +92,21 @@ local WSTAT = {
 	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
 	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
 	control = { "control", 1, 8, 1, 0, "Drone control budget." },
+	beams = { "beams", 1, 12, 1, 0, "Lines it fires at once, each doing the full damage (several = a shotgun laser)." },
+	beamSpread = { "beam spread (deg)", 0, 90, 0.5, 1, "How wide the beams fan out, edge to edge." },
+	beamWidth = { "beam width", 0.2, 4, 0.05, 2, "Thickness of the drawn beam (1 = normal)." },
+	capacity = { "tube capacity", 1, 32, 1, 0, "How much its tubes hold, in S rounds: an M round takes 2, an L round 4. It fires only what's armed, and re-arms one round at a time (each ammo's arm time)." },
 }
 local WFIELDS = {
-	gun = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
-	artillery = { "fireRate", "spread", "gimbal", "recoilPct" },
-	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
-	beam = { "damage", "range", "powerPerSecond", "gimbal" },
+	cannon = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
+	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal", "beams", "beamSpread", "beamWidth" },
+	beam = { "damage", "range", "powerPerSecond", "gimbal", "beams", "beamSpread", "beamWidth" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
-	missile = { "fireRate", "recoil" },
-	torpedo = { "fireRate", "recoil" },
+	missile = { "fireRate", "capacity", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
-local WKINDS = { "gun", "artillery", "laser", "drill", "missile", "torpedo", "drone" }
-local BAY_KINDS = { missile = true, torpedo = true, drone = true }
+local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }
+local BAY_KINDS = { missile = true, drone = true }
 
 -- Wreck and prop settings, in place of hull stats and slots.
 local WRECK_STATS = {
@@ -119,7 +121,7 @@ local function turretCombo(id, current, pick)
 	for _, mid in ipairs(data.list.modules) do
 		local m = data.modules[mid]
 		if m.weapon then
-			local kind = m.weapon.kind == "missile" and "missile, homing" or m.weapon.kind == "torpedo" and "torpedo, unguided"
+			local kind = m.weapon.kind == "missile" and "missile rack"
 				or m.weapon.kind == "drone" and "drone bay" or m.weapon.kind
 			table.insert(opts, { label = ("%s (%s %s)"):format(m.name, m.size, kind), value = mid })
 		end
@@ -454,7 +456,7 @@ end
 -- The Weapons tab: the module's stats, then the art tools.
 function weaponSections(E, d)
 	local m = d.module
-	m.weapon = m.weapon or { kind = "gun" }
+	m.weapon = m.weapon or { kind = "cannon" }
 	local w = m.weapon
 	local function num(id, label, value, lo, hi, step, prec, tip, set)
 		Slab.Text(label); Slab.SameLine({ Pad = 4 })
@@ -470,19 +472,34 @@ function weaponSections(E, d)
 	for _, k in ipairs(WKINDS) do table.insert(kopts, { label = k, value = k }) end
 	combo("yard_wkind", w.kind, kopts, function(k)
 		E.pushUndo(); w.kind = k
-		m.family = BAY_KINDS[k] and "bay" or "weapon"
 		if k ~= "laser" then w.beam = nil end
+		m.family = BAY_KINDS[k] and "bay" or "weapon"
 	end, 120)
-	if w.kind == "laser" then check(E, w.beam == true, "Beam (held, not pulsed)", function(on) w.beam = on or nil end) end
 	Slab.Text("size"); Slab.SameLine()
 	local sopts = {}
 	for _, z in ipairs(SIZES) do table.insert(sopts, { label = z, value = z }) end
 	combo("yard_wsize", m.size, sopts, function(z) E.pushUndo(); m.size = z end, 60)
-	if w.kind == "gun" or w.kind == "artillery" then
+	if w.kind == "cannon" then
 		Slab.SameLine(); Slab.Text("caliber"); Slab.SameLine()
 		local copts = { { label = "same as size", value = false } }
 		for _, z in ipairs(SIZES) do table.insert(copts, { label = z, value = z }) end
 		combo("yard_wcal", w.caliber or "same as size", copts, function(z) E.pushUndo(); w.caliber = z or nil end, 80)
+	end
+	-- which ammo families it chambers, in the order ticked (first = default)
+	local FAMS = { cannon = { "gun", "artillery", "shotgun" }, missile = { "missile", "torpedo" } }
+	if FAMS[w.kind] then
+		local list = {}
+		for _, f in ipairs(data.chambers(w)) do table.insert(list, f) end
+		Slab.Text("chambers")
+		for _, f in ipairs(FAMS[w.kind]) do
+			local at
+			for i, g in ipairs(list) do if g == f then at = i end end
+			Slab.SameLine()
+			check(E, at ~= nil, f, function(on)
+				if on then table.insert(list, f) elseif #list > 1 then table.remove(list, at) end
+				w.chambers = list
+			end)
+		end
 	end
 	Slab.Text(("Fits %s %s slots"):format(m.size, m.family == "bay" and "bay" or "hardpoint"), { Color = GREY })
 	Slab.Separator()
@@ -492,6 +509,9 @@ function weaponSections(E, d)
 	num("yard_wprice", "price", m.price or 0, 0, 1000000, 100, 0, nil, function(v) m.price = v end)
 	Slab.Separator()
 	Slab.Text("Weapon")
+	if w.kind == "laser" then
+		check(E, w.beam == true, "Beam (held, per second) instead of pulse (per shot)", function(on) w.beam = on or nil end)
+	end
 	for _, key in ipairs(WFIELDS[(w.kind == "laser" and w.beam) and "beam" or w.kind] or {}) do
 		local f = WSTAT[key]
 		if key == "fireRate" and E.rpm then
@@ -507,6 +527,18 @@ function weaponSections(E, d)
 			if f[5] == 0 then v = math.floor(v + 0.5) end
 			w[key] = v
 		end)
+		end
+	end
+	-- laser color, 0..1 per channel
+	if w.kind == "laser" then
+		check(E, w.beamRandom == true, "Random spread (scatter beams across the spread, like a shotgun)", function(on) w.beamRandom = on or nil end)
+		local c = w.color or require("src.weapons").LASER_COLOR
+		for ch, label in ipairs({ "red", "green", "blue" }) do
+			num("yard_wcol" .. ch, "beam " .. label, c[ch], 0, 1, 0.02, 2, "Beam color (0..1).", function(v)
+				local nc = { c[1], c[2], c[3] }
+				nc[ch] = v
+				w.color = nc
+			end)
 		end
 	end
 	Slab.Text("description")
@@ -840,6 +872,14 @@ local function designWindow(E, Editor)
 				combo("yard_slottrig" .. i, TAG[slot.trigger or dflt], to, function(t)
 					E.pushUndo(); slot.trigger = (t ~= dflt) and t or nil
 				end, 50)
+				-- which way it faces, degrees off the nose (180 = out the back)
+				Slab.SameLine()
+				if Slab.InputNumberDrag("yard_slotface" .. i, slot.heading or 0, -180, 180, 5,
+					{ W = 50, Precision = 0, Tooltip = "Facing: degrees off the nose (180 = backwards). Fixed mounts fire this way; gimbals swing around it." }) then
+					E.pushUndoCoalesced("yard_slotface" .. i)
+					local v = math.floor(Slab.GetInputNumber() + 0.5)
+					slot.heading = v ~= 0 and v or nil
+				end
 			end
 			Slab.SameLine()
 			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then

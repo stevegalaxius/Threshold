@@ -26,7 +26,19 @@ local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, 
 -- every other family fits the slot of the same name.
 local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
-local WEAPON_KINDS = { gun = true, artillery = true, laser = true, drill = true, missile = true, torpedo = true, drone = true }
+local WEAPON_KINDS = { cannon = true, laser = true, drill = true, missile = true, drone = true }
+-- The ammo families a weapon chambers when it doesn't list its own
+-- (weapon.chambers = { "artillery" }, { "shotgun", "gun" }). A cannon is any
+-- hardpoint weapon that fires ammo: what it chambers makes it an autocannon,
+-- a mortar or a shotgun. Lasers and drills take none.
+data.CHAMBERS = { cannon = { "gun" }, missile = { "missile", "torpedo" }, drone = { "drone" } }
+-- Older weapon kinds: a gun, artillery piece or shotgun is a cannon that
+-- chambers that ammo; a torpedo tube is a missile rack.
+-- One laser kind with two ways to fire: a pulse (per-shot damage and
+-- power, fireRate shots a second) or, with beam = true, a beam (per-second
+-- damage and power while held). They fire down separate paths in Weapons.fire.
+data.LASERS = { laser = true }
+local OLD_KINDS = { gun = { "cannon", "gun" }, artillery = { "cannon", "artillery" }, shotgun = { "cannon", "shotgun" }, torpedo = { "missile" } }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
@@ -288,6 +300,19 @@ function api.module(def)
 		if def.lockCone and def.lockCone>180 then fail(("computer '%s': lockCone must be at most 180 degrees"):format(def.id)) end
 		if def.controlLimit and def.controlLimit%1~=0 then fail(("computer '%s': controlLimit must be an integer"):format(def.id)) end
 	end
+	-- pulse / beam kinds (briefly separate) are lasers
+	if def.weapon and (def.weapon.kind == "pulse" or def.weapon.kind == "beam") then
+		def.weapon.beam = def.weapon.kind == "beam" or nil
+		def.weapon.kind = "laser"
+	end
+	local old = def.weapon and OLD_KINDS[def.weapon.kind]
+	if old then
+		def.weapon.kind = old[1]
+		if old[2] and not def.weapon.chambers then def.weapon.chambers = { old[2] } end
+	end
+	if def.weapon and def.weapon.chambers ~= nil and type(def.weapon.chambers) ~= "table" then
+		fail(("module '%s': chambers should be a list of ammo families, like { \"gun\", \"shotgun\" }"):format(def.id))
+	end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
 	end
@@ -402,23 +427,35 @@ function loadFolder(folder)
 	end
 end
 
--- Every ammo a weapon module can fire, biggest first: same family as the
--- weapon kind, and the same caliber (guns, artillery) or the same size or
--- smaller (bay launchers: missiles, torpedoes, drones).
+-- The ammo families a weapon chambers (see data.CHAMBERS).
+function data.chambers(w)
+	return w and (w.chambers or data.CHAMBERS[w.kind]) or {}
+end
+
+-- Every ammo a weapon module can load: a family it chambers, in its exact
+-- caliber (hardpoint weapons) or its size or smaller (bay launchers). Its
+-- first chambered family comes first, then biggest first.
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
-	if not w or w.kind == "laser" or w.kind == "drill" then return out end
+	local rank = {}
+	for i, fam in ipairs(data.chambers(w)) do rank[fam] = i end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
-		if item.kind == "ammo" and item.family == w.kind then
+		if item.kind == "ammo" and rank[item.family] then
 			-- a gun's caliber is its size unless it says otherwise (twin mounts)
 			local fits = item.size == (w.caliber or module.size)
 			if module.family == "bay" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end
 	end
-	table.sort(out, function(a, b) return SIZES[data.items[a].size] > SIZES[data.items[b].size] end)
+	table.sort(out, function(a, b)
+		local ia, ib = data.items[a], data.items[b]
+		if ia.family ~= ib.family then return rank[ia.family] < rank[ib.family] end
+		if ia.size ~= ib.size then return SIZES[ia.size] > SIZES[ib.size] end
+		if (ia.price or 0) ~= (ib.price or 0) then return (ia.price or 0) < (ib.price or 0) end   -- cheapest is the default
+		return a < b
+	end)
 	return out
 end
 
@@ -499,7 +536,7 @@ local function crossCheck()
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end
 	for id, m in pairs(data.modules) do
-		if m.weapon and m.weapon.kind ~= "laser" and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
+		if m.weapon and not data.LASERS[m.weapon.kind] and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
 			error(("module '%s' fires %s %s ammo, but no ammo with that family and size exists"):format(
 				id, m.weapon.kind, m.size), 0)
 		end
@@ -528,10 +565,28 @@ function addModuleItems()
 end
 
 data.renamedModules = {
-	px2_autogun = "gun_S_base", rk7_autocannon = "gun_M_base", rk14_twin = "gun_L_base",
-	pip_mortar = "artillery_S_base", thumper_m = "artillery_M_base", long_tom = "artillery_L_base",
-	sparrow_rack = "missile_S_base", hornet_pod = "missile_M_base", trident_bay = "missile_L_base",
-	artilllery_S_base = "artillery_S_base",
+	px2_autogun = "gun_s_base", rk7_autocannon = "gun_m_base", rk14_twin = "gun_l_base",
+	pip_mortar = "artillery_s_base", thumper_m = "artillery_m_base", long_tom = "artillery_l_base",
+	sparrow_rack = "missile_s_base", hornet_pod = "missile_m_base", trident_bay = "missile_l_base",
+	artilllery_S_base = "artillery_s_base",
+	thread_beam = "beam_s_base", searing_ray = "beam_m_base", furnace_beam = "beam_l_base",
+	bore_drill = "drill_s_base", rockbiter = "drill_m_base", deep_core_drill = "drill_l_base",
+	wasp_bay = "drone_s_base", hive_bay = "drone_m_base", carrier_deck = "drone_l_base",
+	glint_laser = "pulse_s_base", lumen_lance = "pulse_m_base", sunder_beam = "pulse_l_base",
+	-- torpedo tubes are gone: torpedoes are missile-rack ammo now
+	maul_tube = "missile_s_base", breaker_tube = "missile_m_base", leviathan_tube = "missile_l_base",
+}
+-- the first _base ids had upper-case sizes (gun_S_base)
+for _, kind in ipairs({ "gun", "artillery", "missile", "pulse", "beam", "drill", "drone" }) do
+	for _, size in ipairs({ "S", "M", "L" }) do
+		data.renamedModules[kind .. "_" .. size .. "_base"] = kind .. "_" .. size:lower() .. "_base"
+	end
+end
+
+-- Hulls that took new ids (lower case, or a new maker), so saves still load.
+data.renamedHulls = {
+	halcyon_wisp = "intaki_wisp", ferrous_bastion = "estates_bastion", brute_praetor = "intaki_praetor",
+	Intaki_Archangel = "intaki_archangel", Intaki_wisp = "intaki_wisp", ferrous_Bison = "ferrous_bison",
 }
 
 function data.load()
@@ -551,6 +606,9 @@ function data.load()
 		if data.modules[new] and not data.modules[old] then
 			data.modules[old], data.items[old] = data.modules[new], data.items[new]
 		end
+	end
+	for old, new in pairs(data.renamedHulls) do
+		if data.hulls[new] and not data.hulls[old] then data.hulls[old] = data.hulls[new] end
 	end
 	crossCheck()
 end

@@ -392,7 +392,7 @@ local function drawStation(game, e)
 		lg.push()
 		lg.translate(w.slot.x, w.slot.y)
 		lg.rotate(w.aim or 0)
-		lg.setColor(w.w.kind == "laser" and { 0.6, 0.95, 1 } or { 0.75, 0.78, 0.82 })
+		lg.setColor(data.LASERS[w.w.kind] and (w.w.color or { 0.6, 0.95, 1 }) or { 0.75, 0.78, 0.82 })
 		if w.mount == "bay" then
 			-- (drawn below)
 		elseif w.bay then
@@ -1082,24 +1082,39 @@ local function drawBeams(game)
 		if (e.kind == "ship" or e.kind == "station") and e.weapons then
 			for _, w in ipairs(e.weapons) do
 				if w.w.kind == "drill" and (w.extend or 0) > 0 and e.body then drawDrill(game, e, w) end
-				-- Pulse: a very bright flash that fades out over the pulse length.
-				local b = w.beam
-				local age = b and (game.time - b[5])
-				if b and age < b[6] then
-					local k = 1 - age / b[6]
-					local c = COLORS.laser
+				-- Lasers: a very bright flash per line that fades out over its life.
+				local b = w.beams
+				local age = b and (game.time - b.t)
+				if b and age < b.life then
+					local k = 1 - age / b.life
+					local c = b.color
 					local px = 1 / game.camera.zoom
+					local wd = (b.width or 1)
 					lg.setBlendMode("add")
-					lg.setColor(c[1], c[2], c[3], 0.35 * k)
-					lg.setLineWidth(max(18, 10 * px))
-					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(c[1], c[2], c[3], 0.7 * k)
-					lg.setLineWidth(max(8, 4 * px))
-					lg.line(b[1], b[2], b[3], b[4])
-					lg.setColor(1, 1, 1, k)
-					lg.setLineWidth(max(3, 2 * px))
-					lg.line(b[1], b[2], b[3], b[4])
-					lg.circle("fill", b[3], b[4], (8 + love.math.random() * 4) * k)
+					for _, l in ipairs(b.lines) do
+						-- A hit ends in a bright spot on the target; a miss
+						-- fades out over the far part of its reach instead.
+						local segs = l[5] and 1 or 12
+						for sgi = 1, segs do
+							local t0, t1 = (sgi - 1) / segs, sgi / segs
+							local f = l[5] and 1 or min(1, (1 - t0) / 0.6)
+							local x0, y0 = l[1] + (l[3] - l[1]) * t0, l[2] + (l[4] - l[2]) * t0
+							local x1, y1 = l[1] + (l[3] - l[1]) * t1, l[2] + (l[4] - l[2]) * t1
+							lg.setColor(c[1], c[2], c[3], 0.35 * k * f)
+							lg.setLineWidth(max(18, 10 * px) * wd)
+							lg.line(x0, y0, x1, y1)
+							lg.setColor(c[1], c[2], c[3], 0.7 * k * f)
+							lg.setLineWidth(max(8, 4 * px) * wd)
+							lg.line(x0, y0, x1, y1)
+							lg.setColor(1, 1, 1, k * f)
+							lg.setLineWidth(max(3, 2 * px) * wd)
+							lg.line(x0, y0, x1, y1)
+						end
+						if l[5] then
+							lg.setColor(1, 1, 1, k)
+							lg.circle("fill", l[3], l[4], (8 + love.math.random() * 4) * k * wd)
+						end
+					end
 					lg.setBlendMode("alpha")
 				end
 			end
@@ -1112,6 +1127,53 @@ local TORPEDO = { S = 4, M = 10, L = 16 }
 local MISSILE = { S = 3, M = 5, L = 8 }
 
 -- Shots keep a minimum on-screen size, so they stay visible zoomed out.
+-- A soft white ball, bright in the middle, fading to nothing at the edge
+-- (blast flashes).
+local glowImage
+local engineGlow
+local function glow()
+	if not glowImage then
+		local n = 128
+		local d = love.image.newImageData(n, n)
+		d:mapPixel(function(px, py)
+			local dx, dy = (px + 0.5) / n * 2 - 1, (py + 0.5) / n * 2 - 1
+			local a = max(0, 1 - sqrt(dx * dx + dy * dy))
+			return 1, 1, 1, a * a
+		end)
+		glowImage = lg.newImage(d)
+	end
+	return glowImage
+end
+
+-- Draw the glow ball at x, y: radius r along angle a, stretched by `long`.
+local function glowAt(x, y, r, a, long)
+	local img = glow()
+	local s = r * 2 / img:getWidth()
+	lg.draw(img, x, y, a or 0, s * (long or 1), s, img:getWidth() / 2, img:getHeight() / 2)
+end
+
+-- A missile or torpedo's engine: a hot, flickering glow behind it, and a
+-- big bright bloom for the first moments after launch.
+engineGlow = function(game, p, r, px)
+	local a = math.atan2(p.vy, p.vx)
+	local tx, ty = p.x - cos(a) * r * 2.5, p.y - sin(a) * r * 2.5
+	local fl = 0.85 + love.math.random() * 0.3
+	local born = p.born and (game.time - p.born) or 1
+	local launch = max(0, 1 - born / 0.35)
+	lg.setBlendMode("add")
+	lg.setColor(1, 0.55, 0.2, 0.55 * fl)
+	glowAt(tx, ty, max(r * 6, 6 * px) * fl, a, 1.8)
+	lg.setColor(1, 0.95, 0.8, 0.9)
+	glowAt(tx, ty, max(r * 2.2, 2.5 * px), a, 1.6)
+	if launch > 0 then
+		lg.setColor(1, 0.75, 0.4, launch * 0.8)
+		glowAt(tx, ty, r * 26 * (1.2 - launch * 0.4), 0, 1)
+		lg.setColor(1, 1, 0.9, launch)
+		glowAt(tx, ty, r * 9, 0, 1)
+	end
+	lg.setBlendMode("alpha")
+end
+
 local function drawProjectiles(game)
 	local zoom = game.camera.zoom
 	local px = 1 / zoom                            -- one screen pixel in world units
@@ -1131,13 +1193,22 @@ local function drawProjectiles(game)
 			lg.line(p.x - p.vx * 0.012 * trail, p.y - p.vy * 0.012 * trail, p.x, p.y)
 		elseif p.kind == "torpedo" then
 			local r = max(TORPEDO[p.size] or 5, 1.8 * px)
+			engineGlow(game, p, r * 1.4, px)
 			lg.setColor(1, 0.35, 0.2, 0.35)
 			lg.circle("fill", p.x, p.y, r * 2.2)
 			lg.setColor(1, 0.55, 0.3, 0.7)
-			lg.line(p.x - p.vx * 0.03 * trail, p.y - p.vy * 0.03 * trail, p.x, p.y)
+			-- the trail never reaches back past where it was launched
+			local tl = 0.03 * trail
+			if p.ox then
+				local sp = sqrt(p.vx * p.vx + p.vy * p.vy)
+				local flown = sqrt((p.x - p.ox) ^ 2 + (p.y - p.oy) ^ 2)
+				if sp > 0 then tl = min(tl, flown / sp) end
+			end
+			lg.line(p.x - p.vx * tl, p.y - p.vy * tl, p.x, p.y)
 			lg.setColor(1, 0.9, 0.75)
 			lg.circle("fill", p.x, p.y, r)
 		elseif p.kind == "missile" then
+			engineGlow(game, p, MISSILE[p.size] or 3, px)
 			local a = math.atan2(p.vy, p.vx)
 			lg.setColor(1, 0.7, 0.3, 0.6)
 			local r = MISSILE[p.size] or 3
@@ -1187,7 +1258,29 @@ end
 local function drawEffects(game)
 	for _, fx in ipairs(game.effects) do
 		local k = fx.t / fx.life
-		if fx.kind == "warp_in" then
+		if fx.kind == "flash" then
+			-- a white-hot core inside an orange bloom, gone in a blink
+			local img = glow()
+			local s = fx.r * 2 / img:getWidth()
+			lg.setBlendMode("add")
+			lg.setColor(1, 0.65, 0.3, (1 - k) ^ 2 * 0.95)
+			lg.draw(img, fx.x, fx.y, 0, s * (1 + k * 0.4), nil, img:getWidth() / 2, img:getHeight() / 2)
+			lg.setColor(1, 1, 0.92, (1 - k) ^ 3)
+			lg.draw(img, fx.x, fx.y, 0, s * 0.55, nil, img:getWidth() / 2, img:getHeight() / 2)
+			lg.setBlendMode("alpha")
+		elseif fx.kind == "shockwave" then
+			-- a ring that races out and thins as it goes
+			local e = 1 - (1 - k) ^ 3
+			local r = fx.r * e
+			lg.setBlendMode("add")
+			lg.setColor(1, 0.9, 0.75, (1 - k) ^ 2 * 0.12)
+			lg.circle("fill", fx.x, fx.y, r, 64)
+			lg.setColor(1, 0.92, 0.8, (1 - k) ^ 2 * 0.85)
+			lg.setLineWidth(max(1, fx.r * 0.06 * (1 - k)))
+			lg.circle("line", fx.x, fx.y, r, 64)
+			lg.setBlendMode("alpha")
+			lg.setLineWidth(1)
+		elseif fx.kind == "warp_in" then
 			lg.push('all')
 			lg.setBlendMode('add')
 			local radius=fx.r*(.2+k*2)
@@ -1204,6 +1297,15 @@ local function drawEffects(game)
 		elseif fx.kind == "explosion" and fx.dust then
 			lg.setColor(0.6, 0.6, 0.65, (1 - k) * 0.35)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.5 + k * 0.8))
+		elseif fx.kind == "explosion" and fx.nuke then
+			-- atomic: a white-hot flash that swells into a fading fireball and shock ring
+			lg.setColor(1, 1, 0.95, max(0, 1 - k * 4) * 0.9)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.2 + k * 0.6))
+			lg.setColor(1, 0.6, 0.25, (1 - k) * 0.35)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
+			lg.setColor(1, 0.9, 0.7, (1 - k) * 0.8)
+			lg.setLineWidth(12 * (1 - k) + 2)
+			lg.circle("line", fx.x, fx.y, fx.r * (0.2 + k))
 		elseif fx.kind == "explosion" then
 			lg.setColor(1, 0.75, 0.4, (1 - k) * 0.25)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
@@ -1211,8 +1313,16 @@ local function drawEffects(game)
 			lg.setLineWidth(3 * (1 - k) + 1)
 			lg.circle("line", fx.x, fx.y, fx.r * (0.4 + k * 0.8))
 		elseif fx.kind == "muzzle" then
-			lg.setColor(1, 0.95, 0.7, 1 - k)
-			lg.circle("fill", fx.x + cos(fx.a) * 4, fx.y + sin(fx.a) * 4, 3 * fx.size + 2)
+			-- a hot bloom thrown forward from the barrel, gone in a blink
+			local q = 1 - k
+			local sz = fx.size or 1
+			local fx2, fy2 = fx.x + cos(fx.a) * 6 * sz, fx.y + sin(fx.a) * 6 * sz
+			lg.setBlendMode("add")
+			lg.setColor(1, 0.6, 0.25, 0.7 * q)
+			glowAt(fx2, fy2, 18 * sz * (0.8 + k * 0.4), fx.a, 2.2)
+			lg.setColor(1, 0.97, 0.85, q)
+			glowAt(fx2, fy2, 7 * sz, fx.a, 2.6)
+			lg.setBlendMode("alpha")
 		end
 	end
 end

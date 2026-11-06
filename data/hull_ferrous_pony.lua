@@ -1,0 +1,47 @@
+-- Made in the Shipyard (F2). Base hull: ferrous_pony
+hull {
+	id = "ferrous_pony", name = "Pony",
+	armor = 160,
+	bonuses = {},
+	class = "Errand-class",
+	drag = 0.22,
+	hold = 90,
+	loadout = { false, "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
+	maker = "Ferrous Collective",
+	mass = 120,
+	mount = "gimbal",
+	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
+	price = 22000,
+	retroThrust = 400,
+	sideThrust = 570,
+	slots = {
+		{ family = "hardpoint", mount = "gimbal", size = "S", x = 50, y = 0 },
+		{ family = "engine", size = "S", x = -44, y = 0 },
+		{ family = "reactor", size = "S" },
+		{ family = "utility", size = "any" },
+		{ family = "computer", size = "any" },
+	},
+	spoolTime = 0.15,
+	turn = 900,
+	turnSpeed = 160,
+	turretTurn = 180,
+	parts = {
+		{ name = "part 6", shape = { -52, -12, -52, 12, -40, 16, -40, -16 } },
+		{ name = "part 4", shape = { -32, -4, 54, -4, 54, 4, -32, 4 } },
+		{ name = "part 2", shape = { -34, -22, -46, -14, -46, 14, -34, 22, -16, 22, -16, -22 }, paint = "secondary", lights = {
+			{ kind = "nav", x = -18, y = -20 },
+			{ kind = "nav", x = -18, y = 20 },
+		} },
+		{ name = "part 3", shape = { 58, 6, 52, 20, 42, 20, 42, -20, 52, -20, 58, -6 }, paint = "secondary", lights = {
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = -16 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = -8 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = 0 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = 8 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = 16 },
+		} },
+		{ name = "part 5", shape = { -8, -22, 34, -22, 40, -16, 40, 16, 34, 22, -8, 22, -14, 16, -14, -16 }, paint = "primary" },
+		{ name = "part 7", shape = { 60, -4, 60, 4, 48, 4, 48, -4 }, paint = "secondary", lights = {
+			{ kind = "strobe", rate = 1, x = 60, y = 0 },
+		} },
+	},
+}

@@ -166,7 +166,7 @@ function A.update(game, dt)
 		end
 		game:clearEnemies()
 		T.dev.god = true
-		game:spawnPlayer("ferrous_bastion")
+		game:spawnPlayer("estates_bastion")
 		local bx, by = game.player.body:getPosition()
 		A.artyTarget = game:spawnEnemy("brawler", bx + 1400, by - 300)
 		A.artyTarget.def = nil          -- parked target, no AI
@@ -190,8 +190,8 @@ function A.update(game, dt)
 	end) end
 	if t >= 31 then once("laser_setup", function()
 		T.dev.god = false
-		local w = game:spawnPlayer("halcyon_wisp")
-		w.loadout[1], w.loadout[2] = "glint_laser", "glint_laser"
+		local w = game:spawnPlayer("intaki_wisp")
+		w.loadout[1], w.loadout[2] = "pulse_s_base", "pulse_s_base"
 		Ship.refit(w)
 		local x, y = w.body:getPosition()
 		A.laserTarget = game:spawnEnemy("swarmer", x, y - 220)
@@ -331,15 +331,15 @@ function A.update(game, dt)
 		Cargo.mousepressed(game, util.x + 10, util.y + 10, 1)
 		log("equip: tried to pull a Cargo Pod holding %d stacks -> slot %s, hand %s", podHas, tostring(w.loadout[util.i]), tostring(Cargo.hand and Cargo.hand.id))
 		-- grab a spare module from storage and drag it over the slot it fits
-		Hold.add(storage, "glint_laser", 1)
+		Hold.add(storage, "pulse_s_base", 1)
 		L = Cargo.layout(game)
-		r, s = find("storage", "glint_laser")
+		r, s = find("storage", "pulse_s_base")
 		x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 1)
 		local prim = slotRow("hardpoint")
 		Cargo.mousereleased(game, prim.x + 10, prim.y + 10, 1)
-		log("equip: dragged glint_laser from storage onto slot %d -> %s, old module now in hold %d / storage %d",
-			prim.i, tostring(w.loadout[prim.i]), w.cargo.gun_S_base or 0, Hold.count(storage, "gun_S_base"))
+		log("equip: dragged pulse_s_base from storage onto slot %d -> %s, old module now in hold %d / storage %d",
+			prim.i, tostring(w.loadout[prim.i]), w.cargo.gun_s_base or 0, Hold.count(storage, "gun_s_base"))
 		shot("08_cargo_station")
 	end) end
 	if t >= 33.9 then once("cargo_done", function() game:undock() end) end
@@ -444,7 +444,8 @@ function A.update(game, dt)
 			if e.kind == "husk" and e.hull.id == "ferrous_freighter" then husk = e end
 		end
 		local packed, loose, inside = 0, 0, 0
-		for _, g in ipairs(husk.hold.grids) do
+		if not husk then log("loot: no Hauler wreck this run (it wasn't killed)") end
+		for _, g in ipairs(husk and husk.hold.grids or {}) do
 			for _, st in ipairs(g.stacks) do
 				if st.inner then
 					packed = packed + 1
@@ -455,6 +456,7 @@ function A.update(game, dt)
 			end
 		end
 		log("hauler: wreck holds %d loaded containers (%d items inside) and %d loose stacks", packed, inside, loose)
+		if not husk then return end
 		-- bring the wreck alongside, open it, double-click a container, take a stack out of it
 		local w = game.player
 		local px, py = w.body:getPosition()
@@ -507,7 +509,7 @@ function A.update(game, dt)
 		local orig = game:credits()
 		game.universe.credits = 20000
 		local c0 = game:credits()
-		local bought, why = game:buyShip(st, "halcyon_wisp")
+		local bought, why = game:buyShip(st, "intaki_wisp")
 		local c1 = game:credits()
 		local i = #game:hangar(st)
 		local paid = game:sellShip(st, i)
@@ -515,13 +517,13 @@ function A.update(game, dt)
 			tostring(bought ~= nil), tostring(why), c0, c1, tostring(paid), game:credits(), #game:hangar(st),
 			table.concat(game.shipyard(st), ","))
 		game.universe.credits = 0
-		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, "halcyon_wisp")))
+		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, "intaki_wisp")))
 		game.universe.credits = orig
 		game:addToHangar(st, "brute_anvil")
 		Cargo.tab = "hangar"
 		log("hangar: docked at %s (%s), home %s, hangar has %d ship(s): %s", st.name, st.key, game:homeStation().key,
 			#game:hangar(st), game:hangar(st)[1].hull)
-		game:addToHangar(st, "ferrous_bastion")
+		game:addToHangar(st, "estates_bastion")
 		shot("12_hangar")
 	end) end
 	if t >= 35.75 then once("hangar_cargo", function()
@@ -533,23 +535,28 @@ function A.update(game, dt)
 		local rec = game:hangar(A.st)[1]
 		local ship
 		for _, s in ipairs(H.ships) do if s.owner == rec then ship = s end end
-		-- drag the Anvil onto the Bastion (refused), then down 6 rows; then the Cargo button
-		local x0, y0 = ship.x + 4, ship.y + 4
-		local bx, by = rec.bay.x, rec.bay.y
-		Cargo.mousepressed(game, x0, y0, 1)
-		Cargo.mousereleased(game, x0 + 4 * H.cs, y0, 1)
-		local blocked = rec.bay.x == bx
-		Hangar.lastClick = nil                   -- (two quick clicks would be a double-click: fly)
-		Cargo.mousepressed(game, x0, y0, 1)
-		Cargo.mousereleased(game, x0, y0 + 6 * H.cs, 1)
-		local T = require("src.tuning")
-		local aw, ah = game.hangarFootprint("brute_anvil")
-		local ww, wh = game.hangarFootprint("halcyon_wisp")
-		local bw, bh = game.hangarFootprint("ferrous_bastion")
-		log("hangar: bay %d x %d; footprints Wisp %d x %d, Anvil %d x %d, Bastion %d x %d; Wisp (flying) at %d,%d",
-			T.hangarW, T.hangarH, ww, wh, aw, ah, bw, bh, game.player.bay.x, game.player.bay.y)
-		log("hangar: dragging the Anvil onto the Bastion refused %s; dragged down from %d,%d to %d,%d",
-			tostring(blocked), bx, by, rec.bay.x, rec.bay.y)
+		-- drag the Anvil onto the Bastion (refused), then down 6 rows; then the
+		-- Cargo button. A ship that didn't fit inside is moored outside: no drag.
+		if not (rec.bay and ship) then
+			log("hangar: the Anvil is moored outside (no room in the bay); drag skipped")
+		else
+			local x0, y0 = ship.x + 4, ship.y + 4
+			local bx, by = rec.bay.x, rec.bay.y
+			Cargo.mousepressed(game, x0, y0, 1)
+			Cargo.mousereleased(game, x0 + 4 * H.cs, y0, 1)
+			local blocked = rec.bay.x == bx
+			Hangar.lastClick = nil                   -- (two quick clicks would be a double-click: fly)
+			Cargo.mousepressed(game, x0, y0, 1)
+			Cargo.mousereleased(game, x0, y0 + 6 * H.cs, 1)
+			local T = require("src.tuning")
+			local aw, ah = game.hangarFootprint("brute_anvil")
+			local ww, wh = game.hangarFootprint("intaki_wisp")
+			local bw, bh = game.hangarFootprint("estates_bastion")
+			log("hangar: bay %d x %d; footprints Wisp %d x %d, Anvil %d x %d, Bastion %d x %d; Wisp (flying) at %d,%d",
+				T.hangarW, T.hangarH, ww, wh, aw, ah, bw, bh, game.player.bay and game.player.bay.x or -1, game.player.bay and game.player.bay.y or -1)
+			log("hangar: dragging the Anvil onto the Bastion refused %s; dragged down from %d,%d to %d,%d",
+				tostring(blocked), bx, by, rec.bay.x, rec.bay.y)
+		end
 		shot("12b_hangar_moved")
 		H = Hangar.layout(game)
 		Hangar.sel = rec
@@ -604,7 +611,7 @@ function A.update(game, dt)
 		log("save: %d bytes, round trip %s", #text, tostring(back and Save.encode(back) == text))
 		Save.write("autotest", state)
 		Hold.add(game:stationStorage(A.st), "scrap", 2)
-		game:spawnPlayer("ferrous_bastion")
+		game:spawnPlayer("estates_bastion")
 		game:loadFrom("autotest")
 		p = game.player
 		local st = p.dockState and p.dockState.station

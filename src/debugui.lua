@@ -273,7 +273,7 @@ local function readout(game)
 		("Armor            %.0f"):format(s.armor),
 		("Power            %.0f out, %.0f draw, %.0f stored"):format(s.powerOut, s.powerDraw, s.powerCap),
 		("Hold             %.1f / %.0f m3"):format(p.holdUsed, Ship.holdCapacity(p)),
-		("Hardest impact   %.0f px/s  (you take damage above %.0f)"):format(game.stats.maxImpactSpeed, (game.player and game.player.hull.ramSpeed or T.ramSpeed) * T.ramSpeedScale),
+		("Hardest impact   %.0f px/s closing  (free below a %.0f px/s speed change)"):format(game.stats.maxImpactSpeed, T.ramGrace),
 	}
 	for _, l in ipairs(lines) do Slab.Text(l) end
 	if Slab.Button("Reset impact meter") then game.stats.maxImpulse, game.stats.maxImpactSpeed = 0, 0 end

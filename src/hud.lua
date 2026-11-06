@@ -59,14 +59,21 @@ end
 local function weaponLines(p)
 	local lines, index = {}, {}
 	for _, w in ipairs(p.weapons) do
-		local key = w.group .. ":" .. w.module.id
+		local key = w.group .. ":" .. w.module.id .. ":" .. tostring(w.ammo)
 		local line = index[key]
 		if not line then
-			line = { name = w.module.name, n = 0, kind = w.w.kind, ammo = w.ammo, group = w.group, starved = false }
+			line = { name = w.module.name, n = 0, kind = w.w.kind, ammo = w.ammo, group = w.group, starved = false, armed = 0, tubes = 0, arming = 0 }
 			index[key] = line
 			table.insert(lines, line)
 		end
 		line.n = line.n + 1
+		local tubes = require("src.weapons").tubes(w)
+		if tubes then
+			line.tubes = line.tubes + tubes
+			line.armed = line.armed + (w.armed or 0)
+			local t = data.items[w.ammo].shot.armTime or 1
+			line.arming = max(line.arming, (w.arming or 0) / t)
+		end
 		line.starved = line.starved or w.starved
 	end
 	local ORDER = { primary = 1, secondary = 2, tertiary = 3 }
@@ -104,12 +111,20 @@ local function drawStatus(game)
 		lg.setColor(line.group == "tertiary" and { 1, 0.85, 0.7 } or (line.group == "secondary" and { 0.8, 0.9, 1 } or INK))
 		lg.print(label, x + 14, ly)
 		local right, col
-		if line.kind == "laser" or line.kind == "drill" then
+		if data.LASERS[line.kind] or line.kind == "drill" then
 			right, col = line.starved and "NO POWER" or "power", line.starved and WARN or DIM
 		else
 			local n = p.cargo[line.ammo] or 0
 			right = ("%d  %s"):format(n, data.items[line.ammo].name:lower())
-			col = (n == 0) and WARN or ((n < 20 and line.kind == "gun") and { 1, 0.8, 0.4 } or INK)
+			if line.tubes > 0 then
+				-- tubes: armed / held, and a bar for the one re-arming
+				right = ("%d/%d armed   "):format(line.armed, line.tubes) .. right
+				if line.armed < line.tubes and line.arming > 0 then
+					lg.setColor(1, 0.85, 0.5, 0.35)
+					lg.rectangle("fill", x + 14, ly + 15, (pw - 28) * line.arming, 2)
+				end
+			end
+			col = (n == 0) and WARN or ((n < 20 and data.items[line.ammo].family == "gun") and { 1, 0.8, 0.4 } or INK)
 		end
 		lg.setColor(col)
 		lg.printf(right, x, ly, pw - 14, "right")
@@ -165,8 +180,8 @@ local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB tertiary",
-	"(pick each slot's fire group in the hold)",
-	"Q launcher ammo size   E tractor beam",
+	"(pick each slot's fire group and ammo in the hold)",
+	"E tractor beam",
 	"G fly a drone (drone uplink)",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold   M local map",

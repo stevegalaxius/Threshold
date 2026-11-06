@@ -359,7 +359,7 @@ end
 
 local function saveShip(rec)
 	return {
-		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, armor = rec.armor, color = rec.color, bay = rec.bay, mooring=rec.mooring,
+		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads, armor = rec.armor, color = rec.color, bay = rec.bay, mooring=rec.mooring,
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
 	}
@@ -368,11 +368,16 @@ end
 local function known(id) return data.items[id] ~= nil end
 
 local function loadShip(t)
+	if t and data.renamedHulls[t.hull] then t.hull = data.renamedHulls[t.hull] end
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
 	-- the Cargo Pod XL is gone: a save that fitted one gets a Cargo Pod
 	for i, id in pairs(t.loadout or {}) do if id == "hold_pod_m" then t.loadout[i] = "hold_pod_s" end end
+	-- renamed weapons (and torpedo tubes, now missile racks) take their new ids
+	for i, id in pairs(t.loadout or {}) do
+		if data.renamedModules[id] then t.loadout[i] = data.renamedModules[id] end
+	end
 	return {
-		hull = t.hull, loadout = t.loadout, triggers = t.triggers, armor = t.armor, color = t.color, bay = t.bay, mooring=t.mooring,
+		hull = t.hull, loadout = t.loadout, triggers = t.triggers, loads = t.loads, armor = t.armor, color = t.color, bay = t.bay, mooring=t.mooring,
 		fuelCharge=t.fuelCharge, fuelInitialized=t.fuelInitialized, power=t.power,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
 	}

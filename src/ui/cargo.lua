@@ -42,6 +42,19 @@ local data = require("src.data")
 local ShipEntry=require('src.inventory.ship_entry')
 local function itemFor(id) return data.items[id] or ShipEntry.item(id) end
 local Ship = require("src.ship")
+
+-- The ammo the weapon in slot i can load, when there's a choice (else nil).
+local function ammoList(p, i)
+	local m = p.loadout[i] and data.modules[p.loadout[i]]
+	local opts = m and data.ammoOptions(m)
+	return opts and #opts > 0 and opts or nil
+end
+
+local function loadOptions(p, i)
+	local m = p.loadout[i] and data.modules[p.loadout[i]]
+	local opts = m and data.ammoOptions(m)
+	return opts and #opts > 1 and opts or nil
+end
 local Grid = require("src.inventory.grid")
 local Hold = require("src.inventory.hold")
 local Shapes = require("src.inventory.shapes")
@@ -245,6 +258,8 @@ local function layout(game)
 			-- weapon slots get a button that picks which trigger fires them
 			if slot.family == "hardpoint" or slot.family == "bay" then
 				r.trig = { x = r.x + r.w - 46, y = r.y + 4, w = 40, h = r.h - 8 }
+				-- and one that picks which ammo it loads
+				r.load = { x = r.trig.x - 96, y = r.y + 4, w = 92, h = r.h - 8 }
 			end
 			table.insert(E.slots, r)
 		end
@@ -896,6 +911,14 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		Ship.toggleTrigger(game.player, er.i)
 		return true
 	end
+	if er and (button == 1 or button == 2) and er.load and inRect(er.load, mx, my) and loadOptions(game.player, er.i) then
+		local p, opts = game.player, loadOptions(game.player, er.i)
+		local cur, n = Ship.loadFor(p, er.i), 1
+		for j, id in ipairs(opts) do if id == cur then n = j end end
+		n = button == 1 and n % #opts + 1 or (n - 2) % #opts + 1
+		Ship.setLoad(p, er.i, opts[n])
+		return true
+	end
 	if er and button == 1 then takeFromSlot(game, L, er) return true end
 	local r, cx, cy = cellAt(L, mx, my)
 	local s = r and Grid.at(r.g, cx, cy)
@@ -1254,6 +1277,18 @@ local function drawEquipment(game, L, mx, my)
 			lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.8 * alpha)
 			lg.print("empty", r.x + 6, r.y + 12)
 		end
+		local opts = r.load and ammoList(p, r.i)
+		if opts then
+			local t, on = r.load, inRect(r.load, mx, my)
+			local id = Ship.loadFor(p, r.i)
+			local have = (p.cargo[id] or 0) > 0
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], ((on and #opts > 1) and 0.35 or 0.12) * alpha)
+			lg.rectangle("fill", t.x, t.y, t.w, t.h, 4, 4)
+			local col = have and HUD.INK or HUD.WARN
+			lg.setColor(col[1], col[2], col[3], (#opts > 1 and 1 or 0.55) * alpha)
+			lg.setFont(HUD.font(10))
+			lg.printf(data.items[id].name, t.x + 2, t.y + (t.h - 10) / 2 - 1, t.w - 4, "center")
+		end
 		if r.trig then
 			local t, on = r.trig, inRect(r.trig, mx, my)
 			local trig = Ship.triggerFor(p, r.i)
@@ -1568,6 +1603,14 @@ function Cargo.draw(game)
 			lg.setFont(HUD.font(11))
 			lg.setColor(HUD.DIM)
 			lg.print("click: change which fire group this slot is in", mx + 14, my + 14)
+		end
+		if er and er.load and inRect(er.load, mx, my) and ammoList(p, er.i) then
+			fitted = nil
+			HUD.tip = nil
+			lg.setFont(HUD.font(11))
+			lg.setColor(HUD.DIM)
+			lg.print(loadOptions(p, er.i) and "click: change which ammo this weapon loads (right-click: back)"
+				or "this weapon chambers only this ammo", mx + 14, my + 14)
 		end
 		if fitted then
 			tooltip(data.items[fitted], 1, mx, my, docked and "Drag to the hold to unfit" or "Dock at a station to refit")
