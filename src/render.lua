@@ -1187,10 +1187,49 @@ local function drawPickups(game)
 	end
 end
 
+-- A soft white ball, bright in the middle, fading to nothing at the edge
+-- (blast flashes).
+local glowImage
+local function glow()
+	if not glowImage then
+		local n = 128
+		local d = love.image.newImageData(n, n)
+		d:mapPixel(function(px, py)
+			local dx, dy = (px + 0.5) / n * 2 - 1, (py + 0.5) / n * 2 - 1
+			local a = max(0, 1 - sqrt(dx * dx + dy * dy))
+			return 1, 1, 1, a * a
+		end)
+		glowImage = lg.newImage(d)
+	end
+	return glowImage
+end
+
 local function drawEffects(game)
 	for _, fx in ipairs(game.effects) do
 		local k = fx.t / fx.life
-		if fx.kind == "warp_in" then
+		if fx.kind == "flash" then
+			-- a white-hot core inside an orange bloom, gone in a blink
+			local img = glow()
+			local s = fx.r * 2 / img:getWidth()
+			lg.setBlendMode("add")
+			lg.setColor(1, 0.65, 0.3, (1 - k) * 0.9)
+			lg.draw(img, fx.x, fx.y, 0, s * (1 + k * 0.4), nil, img:getWidth() / 2, img:getHeight() / 2)
+			lg.setColor(1, 1, 0.92, (1 - k) ^ 2)
+			lg.draw(img, fx.x, fx.y, 0, s * 0.55, nil, img:getWidth() / 2, img:getHeight() / 2)
+			lg.setBlendMode("alpha")
+		elseif fx.kind == "shockwave" then
+			-- a ring that races out and thins as it goes
+			local e = 1 - (1 - k) ^ 2.5
+			local r = fx.r * e
+			lg.setBlendMode("add")
+			lg.setColor(1, 0.9, 0.75, (1 - k) * 0.12)
+			lg.circle("fill", fx.x, fx.y, r, 64)
+			lg.setColor(1, 0.92, 0.8, (1 - k) * 0.85)
+			lg.setLineWidth(max(1, fx.r * 0.06 * (1 - k)))
+			lg.circle("line", fx.x, fx.y, r, 64)
+			lg.setBlendMode("alpha")
+			lg.setLineWidth(1)
+		elseif fx.kind == "warp_in" then
 			lg.push('all')
 			lg.setBlendMode('add')
 			local radius=fx.r*(.2+k*2)

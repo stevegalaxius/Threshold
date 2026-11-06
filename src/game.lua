@@ -1912,7 +1912,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 end
 
--- Splash damage and a radial shove. Ships don't take splash from their own side.
+-- Splash damage and a radial shove. It hits everyone in the blast, the
+-- shooter and their side included.
 function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 	radius = radius or 40
 	local seen = {}
@@ -1927,7 +1928,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
 			if fall > 0 then
-				if not (owner and e.team == owner.team) then self:damage(e, damage * fall, owner, cause or "splash", x, y) end
+				self:damage(e, damage * fall, owner, cause or "splash", x, y)
 				if d > 1 and e.kind == "ship" and not e.driverProtected then
 					local k = knockback * fall
 					e.body:applyLinearImpulse(dx / d * k, dy / d * k)
@@ -1938,6 +1939,15 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 	end)
 	local nuke = cause == "atomic"
 	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = nuke and 2.5 or 0.45, t = 0, nuke = nuke })
+	-- a weapon's blast reads big: a white-hot gradient flash for a split
+	-- second, then a shockwave ring racing out past the blast (missiles and
+	-- torpedoes larger still)
+	if damage > 0 then
+		local big = (cause == "missile" or cause == "torpedo" or nuke) and 1.6 or 1
+		local r = max(50, radius) * big
+		self:addEffect({ kind = "flash", x = x, y = y, r = r * 1.5, life = nuke and 0.6 or 0.18, t = 0 })
+		self:addEffect({ kind = "shockwave", x = x, y = y, r = r * 2.4, life = nuke and 2.2 or 0.6, t = 0 })
+	end
 	self:spark(x, y, 10 + floor(radius / 8), { 1, 0.7, 0.35 })
 	if self.player and not self.player.dead then
 		local px, py = self.player.body:getPosition()
