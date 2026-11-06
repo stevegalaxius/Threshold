@@ -49,7 +49,17 @@ local function start(r,clock,index)
  local leg=edge(r)
  local from,to=L.get(leg.from),L.get(leg.to)
  if from.area~=to.area then
-  local lane=assert(Graph.transit(leg.from,leg.to,clock),'invalid inter-region journey')
+  local lane=Graph.transit(leg.from,leg.to,clock)
+  if not lane then
+   -- Two nodes in different regions with no direct lane between them (a
+   -- one-way route wrapping round to its start, say). Route there properly
+   -- through the gates and drivers instead of crashing.
+   local path=Graph.itinerary(leg.from,leg.to,clock)
+   assert(path and #path>1,'invalid inter-region journey '..tostring(leg.from)..' -> '..tostring(leg.to))
+   print(('A-Life: %s rerouted %s -> %s'):format(tostring(r.id),leg.from,leg.to))
+   r.route=path;r.onRoundTrip=nil;r.tripRoute=nil
+   return start(r,clock,2)
+  end
   r.state='transit'; r.area=nil; r.transit=lane
   lane.speed=lane.kind=='driver' and T.laneFlow or r.speed
   r.arrive=clock+lane.length/lane.speed
