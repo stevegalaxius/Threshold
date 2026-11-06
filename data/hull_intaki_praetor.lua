@@ -12,7 +12,6 @@ hull {
 	mount = "gimbal",
 	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },
 	price = 54500,
-	ramSpeed = 220,
 	retroThrust = 800,
 	sideThrust = 800,
 	slots = {

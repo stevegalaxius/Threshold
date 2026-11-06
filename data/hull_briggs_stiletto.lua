@@ -12,7 +12,6 @@ hull {
 	mount = "fixed",
 	paints = { "Primer", "Forest", "Signal", "Cobalt", "Hazard" },
 	price = 11500,
-	ramSpeed = 180,
 	retroThrust = 340,
 	sideThrust = 350,
 	slots = {

@@ -22,8 +22,9 @@
 	  radius optional: half the hull's width (worked out from the shape if left
 	         out). Ships collide in their drawn shape; radius sets the spine,
 	         distances to the hull and thruster size
-	  ramSpeed  impact speed (px/s) below which a bump does it no harm;
-	            low is fragile, high shrugs off collisions
+	  toughness optional (default 1): crash damage is divided by it. Size is
+	            already felt (a light ship's speed changes most in a crash);
+	            this makes one hull sturdier (2 = half damage) or flimsier.
 	  shape  outline drawn for the ship, as x,y pairs in pixels, nose pointing +x
 	  parts  instead of shape: a list of polygons, { shape = {...}, shade = 0.6,
 	         tint = { r, g, b } }, drawn in order and coloured apart from the
@@ -78,7 +79,7 @@
 hull {
 	id = "scrap_drone", name = "Scrap Drone", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
-	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13, ramSpeed = 100,
+	mass = 38, armor = 50, turn = 160, sideThrust = 0, retroThrust = 150, hold = 8, drag = 0.14, radius = 13,
 	shape = { 30,0, -18,-11, -10,0, -18,11 },
 	slots = {
 		{ family = "hardpoint", size = "S", x = 8,  y = 0 },
@@ -92,7 +93,7 @@ hull {
 hull {
 	id = "nova_dart", name = "Dart", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
-	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11, ramSpeed = 90,
+	mass = 24, armor = 30, turn = 220, sideThrust = 320, retroThrust = 320, hold = 6, drag = 0.12, radius = 11,
 	shape = { 28,0, 4,-5, -16,-10, -10,0, -16,10, 4,5 },
 	slots = {
 		{ family = "hardpoint", size = "S", x = 10,  y = 0 },
@@ -107,7 +108,7 @@ hull {
 hull {
 	id = "wasp_drone", name = "Wasp", maker = "Nova Syndicate", class = "drone", playable = false, mount = "fixed",
 	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8,
-	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8, ramSpeed = 80,
+	mass = 14, armor = 30, turn = 160, sideThrust = 260, retroThrust = 260, hold = 4, drag = 0.12, radius = 8,
 	shape = { 22,0, 2,-4, -12,-8, -8,0, -12,8, 2,4 },
 	slots = {
 		{ family = "hardpoint", size = "S", x = 8,  y = 0 },
@@ -120,7 +121,7 @@ hull {
 hull {
 	id = "hive_drone", name = "Hive", maker = "Nova Syndicate", class = "drone", playable = false, mount = "gimbal",
 	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14,
-	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14, ramSpeed = 100,
+	mass = 40, armor = 80, turn = 900, sideThrust = 450, retroThrust = 450, hold = 10, drag = 0.25, radius = 14,
 	shape = { 34,0, 6,-9, -20,-14, -14,0, -20,14, 6,9 },
 	slots = {
 		{ family = "hardpoint", size = "M", x = 12, y = 0 },
@@ -133,7 +134,7 @@ hull {
 hull {
 	id = "warden_drone", name = "Warden", maker = "Nova Syndicate", class = "drone", playable = false, mount = "turret", turretTurn = 200,
 	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20,
-	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20, ramSpeed = 150,
+	mass = 90, armor = 180, turn = 2200, sideThrust = 700, retroThrust = 700, hold = 20, drag = 0.4, radius = 20,
 	shape = { 48,0, 20,-16, -26,-20, -36,0, -26,20, 20,16 },
 	slots = {
 		{ family = "hardpoint", size = "M", x = 14, y = -8 },

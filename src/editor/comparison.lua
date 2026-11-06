@@ -71,7 +71,7 @@ function C.rows(ship)
   {'Hold used',ship.holdUsed,'%.1f m3'},
   {'Hold capacity',Ship.holdCapacity(ship),'%.0f m3'},
   {'Engine spool time',ship.hull.spoolTime or 0,'%.2f s'},
-  {'Impact tolerance',(ship.hull.ramSpeed or T.ramSpeed)*T.ramSpeedScale,'%.0f px/s'},
+  {'Crash toughness',ship.hull.toughness or 1,'x%.2f'},
  }
 end
 function C.update(E)

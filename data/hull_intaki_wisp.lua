@@ -12,7 +12,6 @@ hull {
 	mount = "fixed",
 	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },
 	price = 14000,
-	ramSpeed = 100,
 	retroThrust = 340,
 	sideThrust = 410,
 	slots = {

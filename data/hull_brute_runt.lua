@@ -12,7 +12,6 @@ hull {
 	mount = "gimbal",
 	paints = { "Moss" },
 	price = 38000,
-	ramSpeed = 170,
 	retroThrust = 390,
 	sideThrust = 609,
 	slots = {

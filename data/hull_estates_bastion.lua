@@ -13,7 +13,6 @@ hull {
 	mount = "turret",
 	paints = { "Gunmetal" },
 	price = 95000,
-	ramSpeed = 250,
 	retroThrust = 1100,
 	sideThrust = 1292,
 	slots = {

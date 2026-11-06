@@ -12,7 +12,6 @@ hull {
 	mount = "turret",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
 	price = 48000,
-	ramSpeed = 180,
 	retroThrust = 650,
 	sideThrust = 1003,
 	slots = {

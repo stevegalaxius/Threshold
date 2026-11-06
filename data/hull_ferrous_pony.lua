@@ -12,7 +12,6 @@ hull {
 	mount = "gimbal",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
 	price = 22000,
-	ramSpeed = 110,
 	retroThrust = 400,
 	sideThrust = 570,
 	slots = {

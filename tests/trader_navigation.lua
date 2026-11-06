@@ -57,6 +57,9 @@ return function(game)
   'Earth trader reached the exit sideways')
  -- Chasing/attacking the departing trader must not remove its movement AI.
  game:damage(e,1,game.player,'navigation-test')
+ -- (the player is dragged along beside it by teleport, which can land it on
+ -- debris: keep it from being rammed to death while it shadows the trader)
+ game.player.invulnerable=true
  local powered=false
  for _=1,480 do
   local x,y=e.body:getPosition()

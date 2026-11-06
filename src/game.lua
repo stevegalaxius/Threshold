@@ -45,7 +45,7 @@ function Game.new(opts)
 	local self = setmetatable({}, Game)
 	love.physics.setMeter(64)
 	self.world = love.physics.newWorld(0, 0, true)
-	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+	self.world:setCallbacks(function(...) self:beginContact(...) end)
 
 	self.preview = opts.preview
 	self.idCounter = 0
@@ -122,7 +122,7 @@ function Game:loadField(id, opts)
 		end
 	end
 	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
-	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
+	self.world:setCallbacks(function(...) self:beginContact(...) end)
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.pickupBodies = {}
@@ -1796,59 +1796,63 @@ function Game:applyBoundary()
 	end
 end
 
--- Box2D reports collision impulses after it resolves them; we sum them per
--- pair of entities and turn anything over the threshold into ram damage.
-function Game:postSolve(fa, fb, contact, n1, t1, n2, t2)
+-- Crashes: each is measured once, when two bodies first touch, from how
+-- fast they were closing along the contact normal (so corner and glancing
+-- hits behave like head-on ones). Damage is worked out in resolveContacts.
+function Game:beginContact(fa, fb, contact)
 	local a, b = fa:getUserData(), fb:getUserData()
-	if not a or not b then return end
+	if not a or not b or not a.body or not b.body or fa:isSensor() or fb:isSensor() then return end
+	local x, y = contact:getPositions()
+	if not x then return end
+	local nx, ny = contact:getNormal()
+	local avx, avy = a.body:getLinearVelocityFromWorldPoint(x, y)
+	local bvx, bvy = b.body:getLinearVelocityFromWorldPoint(x, y)
+	local closing = (avx - bvx) * nx + (avy - bvy) * ny
+	if closing < 0 then closing = -closing end
 	local key = a.id < b.id and (a.id * 1000003 + b.id) or (b.id * 1000003 + a.id)
 	local c = self.contacts[key]
-	if not c then
-		c = { a = a, b = b, imp = 0 }
-		self.contacts[key] = c
-		c.x, c.y = contact:getPositions()
-	end
-	c.imp = c.imp + (n1 or 0) + (n2 or 0)
+	if not c or closing > c.v then self.contacts[key] = { a = a, b = b, v = closing, x = x, y = y } end
 end
 
+-- How much a body's own speed changes in a crash at closing speed v: the
+-- lighter one takes most of it (momentum), and anything immovable (a
+-- station, a planet, the giant asteroid: mass 0) gives the full v.
+local function speedChange(m, other, v)
+	if m == 0 then return 0 end
+	if other == 0 then return v end
+	return v * other / (m + other)
+end
+
+-- Each side takes  ramDamage x its mass x (speed change - grace)^2 / toughness,
+-- times the other ship's ram-damage upgrade (rocks, wrecks and containers:
+-- x asteroidImpact instead). A pair can't crash again for a moment, so one
+-- grinding contact isn't a dozen crashes.
 function Game:resolveContacts()
+	self.ramCooldown = self.ramCooldown or {}
 	for key, c in pairs(self.contacts) do
-		-- (skip anything removed this step, e.g. a rock that hit a planet)
-		if c.a.removed or c.b.removed then
-			self.contacts[key] = nil
-		else
-		-- Impulse / reduced mass is roughly the impact speed. Slow bumps and
-		-- scrapes (below the hull's ramSpeed) do nothing; harder hits scale with impulse,
-		-- so heavy ships hit harder.
-		local ma, mb = c.a.body:getMass(), c.b.body:getMass()
-		-- Against something immovable (a station, the giant asteroid) the
-		-- reduced mass is just the moving body's own.
-		local mu = (ma == 0 or mb == 0) and max(ma, mb) or ma * mb / (ma + mb)
-		local impactSpeed = c.imp / max(mu, 1e-6)
-		if impactSpeed > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = impactSpeed end
-		if c.imp > self.stats.maxImpulse then self.stats.maxImpulse = c.imp end
-		-- Each side has its own toughness: a hull's ramSpeed (light hulls
-		-- crumple at a nudge, battleships shrug off bumps), T.ramSpeed for
-		-- everything else, all scaled by the debug slider.
-		local function threshold(o)
-			return (o.kind == "ship" and o.hull.ramSpeed or T.ramSpeed) * T.ramSpeedScale
-		end
-		local ta, tb = threshold(c.a), threshold(c.b)
-		if impactSpeed > min(ta, tb) and c.x then
-			local function ramMult(o) return o.kind == "ship" and o.stats.mult.ramDamage or 1 end
-			local function hit(o, other, thr)
-				if impactSpeed <= thr then return 0 end
-				local base = c.imp * T.ramDamageScale * (1 - thr / impactSpeed)
-				local mult = (o.kind == "asteroid" or o.kind == "husk" or o.kind == "container") and T.asteroidImpact or ramMult(other)
-				self:damage(o, base * mult, other, "ram", c.x, c.y)
-				return base
-			end
-			local base = max(hit(c.a, c.b, ta), hit(c.b, c.a, tb))
-			self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
-			if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
-			events.emit("ram", c.a, c.b, base)
-		end
 		self.contacts[key] = nil
+		if not (c.a.removed or c.b.removed) and (self.ramCooldown[key] or -1) <= self.time then
+			local ma, mb = c.a.body:getMass(), c.b.body:getMass()
+			if c.v > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = c.v end
+			local function hurt(o, m, dv, other)
+				local over = dv - T.ramGrace
+				if over <= 0 then return 0 end
+				local rock = o.kind == "asteroid" or o.kind == "husk" or o.kind == "container"
+				local tough = (o.kind == "ship" and o.hull.toughness) or 1
+				local mult = rock and T.asteroidImpact or (other.kind == "ship" and other.stats.mult.ramDamage or 1)
+				local dmg = T.ramDamage * m * over * over / tough * mult
+				self:damage(o, dmg, other, "ram", c.x, c.y)
+				return dmg
+			end
+			local da = hurt(c.a, ma, speedChange(ma, mb, c.v), c.b)
+			local db = hurt(c.b, mb, speedChange(mb, ma, c.v), c.a)
+			local base = max(da, db)
+			if base > 0 then
+				self.ramCooldown[key] = self.time + 0.25
+				self:spark(c.x, c.y, min(14, 3 + floor(base / 4)), { 1, 0.9, 0.7 })
+				if c.a == self.player or c.b == self.player then self:shake(min(0.5, base / 40)) end
+				events.emit("ram", c.a, c.b, base)
+			end
 		end
 	end
 end
