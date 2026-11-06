@@ -53,66 +53,11 @@
 	(false = empty). cargo is what's in the hold when you take the hull out.
 ]]
 
-hull {
-	id = "halcyon_wisp", name = "Wisp",
-	armor = 120,
-	bonuses = {},
-	class = "light",
-	drag = 0.14,
-	hold = 24,
-	loadout = { "gun_s_base", "gun_s_base", "missile_s_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
-	maker = "Halcyon Arms",
-	mass = 58,
-	mount = "fixed",
-	price = 14000,
-	ramSpeed = 100,
-	retroThrust = 340,
-	sideThrust = 410,
-	slots = {
-		{ family = "primary", size = "S", x = 12, y = -9 },
-		{ family = "primary", size = "S", x = 12, y = 9 },
-		{ family = "auxiliary", size = "S", x = 24, y = 0 },
-		{ family = "engine", size = "S", x = -26, y = 0 },
-		{ family = "reactor", size = "S" },
-		{ family = "utility", size = "any" },
-		{ family = "computer", size = "any" },
-	},
-	turn = 500,
-	parts = {
-		{ name = "part 2", shape = { -28, -4, -16, -4, -16, 4, -28, 4 }, lights = {
-			{ kind = "strobe", rate = 1, x = -20, y = 0 },
-		} },
-		{ name = "part 3", shape = { -20, -4, -28, -16, -12, -20, 8, -12, 40, -4 }, mirror = true, lights = {
-			{ kind = "nav", size = 2, x = -12, y = -20 },
-		} },
-	},
-}
 
 
 -- Battleship: huge, slow to turn, and every gun is on a turret, so it can
 -- fight in every direction at once while the hull lumbers along. It can't
 -- strafe: A/D turn the hull, and side jets help it turn.
-hull {
-	id = "ferrous_bastion", name = "Bastion", maker = "Estates Military", class = "heavy", mount = "turret", turretTurn = 150, helm = "turn",
-	mass = 735, sideThrust = 1292, armor = 1070, turn = 3200, turnSpeed = 50, retroThrust = 1100, spoolTime = 0.45, hold = 120, drag = 1.6, radius = 62, ramSpeed = 250,
-	shape = { 144,0, 108,-26, 32,-46, -68,-50, -124,-36, -136,0, -124,36, -68,50, 32,46, 108,26 },
-	slots = {
-		{ family = "hardpoint", trigger = "secondary", size = "L", x = 80,  y = 0 },
-		{ family = "hardpoint", trigger = "secondary", size = "L", x = -60, y = 0 },
-		{ family = "hardpoint", size = "M", x = 28,  y = -32 },
-		{ family = "hardpoint", size = "M", x = 28,  y = 32 },
-		{ family = "hardpoint", size = "M", x = -52, y = -36 },
-		{ family = "hardpoint", size = "M", x = -52, y = 36 },
-		{ family = "bay",       size = "L", x = 12,  y = 0 },
-		{ family = "engine",    size = "L", x = -132, y = 0 },
-		{ family = "reactor",   size = "L" },
-		{ family = "utility",   size = "any" },
-		{ family = "computer",  size = "any" },
-	},
-	loadout = { "artillery_l_base", "artillery_l_base", "gun_m_base", "gun_m_base", "gun_m_base", "gun_m_base", "missile_l_base",
-		"cinder_drive", "forge_reactor", "hold_pod_s", "nav_computer" },
-	price = 95000,
-}
 
 -- Freighter: battleship-sized but boxy, nearly all cargo bay. Two medium
 -- turrets to see off pirates, a big engine and low drag so it's quick in a
@@ -169,7 +114,7 @@ hull {
 		{ family = "engine",  size = "S", x = -10, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "glint_laser", "flit_engine", "ember_reactor" },
+	loadout = { "pulse_s_base", "flit_engine", "ember_reactor" },
 }
 
 hull {
@@ -182,7 +127,7 @@ hull {
 		{ family = "engine",  size = "M", x = -16, y = 0 },
 		{ family = "reactor", size = "M" },
 	},
-	loadout = { "lumen_lance", "mule_engine", "kiln_reactor" },
+	loadout = { "pulse_m_base", "mule_engine", "kiln_reactor" },
 }
 
 hull {
@@ -196,5 +141,5 @@ hull {
 		{ family = "engine",  size = "M", x = -34, y = 0 },
 		{ family = "reactor", size = "L" },
 	},
-	loadout = { "lumen_lance", "lumen_lance", "mule_engine", "forge_reactor" },
+	loadout = { "pulse_m_base", "pulse_m_base", "mule_engine", "forge_reactor" },
 }

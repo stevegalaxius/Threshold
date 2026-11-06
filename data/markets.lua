@@ -25,7 +25,7 @@
 	seconds, then it's sold on.
 ]]
 
-market { id = "market:venus_1", station = "Hub Station", ships = { "halcyon_wisp", "ferrous_runner" }, sells = {   -- general store
+market { id = "market:venus_1", station = "Hub Station", ships = { "intaki_wisp", "ferrous_runner" }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
@@ -46,11 +46,11 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 		{ "gun_m_base", 2 }, { "gun_l_base", 1 }, { "artillery_l_base", 1 }, { "shell_l", 4 },
 	} },
 	{ name = "Beam works", description = "Lasers and beam weapons. No ammo needed, just power.", sells = {
-		{ "glint_laser", 2 }, { "lumen_lance", 1 }, { "sunder_beam", 1 },
+		{ "pulse_s_base", 2 }, { "pulse_m_base", 1 }, { "pulse_l_base", 1 },
 		{ "thread_beam", 2 }, { "searing_ray", 1 }, { "furnace_beam", 1 },
 	} },
 } }
-market { id = "market:earth_2", station = "Orbital Two", ships = { "ferrous_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
+market { id = "market:earth_2", station = "Orbital Two", ships = { "estates_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
 	{ "torp_l", 1 }, { "drone_l", 1 }, { "carrier_deck", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
@@ -67,7 +67,7 @@ market { id = "market:europa_1", station = "Conamara Station", sells = {   -- ic
 	{ "hold_pod_s", 1 }, { "mule_engine", 1 }, { "rounds_m", 4 },
 } }
 market { id = "market:europa_2", station = "Pwyll Station", sells = {
-	{ "glint_laser", 1 }, { "missile_s", 4 }, { "missile_s_base", 1 },
+	{ "pulse_s_base", 1 }, { "missile_s", 4 }, { "missile_s_base", 1 },
 } }
 market { id = "market:ganymede_1", station = "Galileo Regio", sells = {   -- Jovian Accord yard
 	{ "gun_m_base", 1 }, { "shell_m", 4 }, { "artillery_m_base", 1 },
@@ -85,7 +85,7 @@ market { id = "market:triton_1", station = "Cipango Station", sells = {   -- fro
 	{ "rounds_s", 4 }, { "artillery_s_base", 1 }, { "flit_engine", 1 },
 } }
 market { id = "market:triton_2", station = "Voyager Station", sells = {
-	{ "lumen_lance", 1 }, { "guidance_computer", 1 }, { "drone_m", 1 },
+	{ "pulse_m_base", 1 }, { "guidance_computer", 1 }, { "drone_m", 1 },
 } }
 
 -- Expanded destinations: modest working catalogues using existing equipment.
@@ -93,7 +93,7 @@ market { id = "market:io_1", station = "Pele Works", sells = {
 	{ "kiln_reactor", 1 }, { "shell_m", 4 }, { "artillery_m_base", 1 },
 } }
 market { id = "market:io_2", station = "Loki Laboratory", sells = {
-	{ "glint_laser", 1 }, { "ember_reactor", 1 }, { "nav_computer", 1 },
+	{ "pulse_s_base", 1 }, { "ember_reactor", 1 }, { "nav_computer", 1 },
 } }
 market { id = "market:callisto_1", station = "Valhalla Port", sells = {
 	{ "hold_pod_s", 1 }, { "cargo_container", 3 }, { "rounds_m", 4 },
@@ -102,7 +102,7 @@ market { id = "market:callisto_2", station = "Asgard Station", sells = {
 	{ "drone_s", 2 }, { "wasp_bay", 1 }, { "tug_beam", 1 },
 } }
 market { id = "market:enceladus_1", station = "Tiger Stripe Laboratory", sells = {
-	{ "guidance_computer", 1 }, { "glint_laser", 1 }, { "ember_reactor", 1 },
+	{ "guidance_computer", 1 }, { "pulse_s_base", 1 }, { "ember_reactor", 1 },
 } }
 market { id = "market:enceladus_2", station = "South Pole Port", sells = {
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "flit_engine", 1 },
@@ -118,5 +118,5 @@ market { id = "market:titania_1", station = "Gertrude Port", sells = {
 	{ "cargo_container", 3 }, { "hold_pod_s", 2 }, { "rounds_s", 4 },
 } }
 market { id = "market:titania_2", station = "Messina Research Station", sells = {
-	{ "nav_computer", 1 }, { "glint_laser", 1 }, { "guidance_computer", 1 },
+	{ "nav_computer", 1 }, { "pulse_s_base", 1 }, { "guidance_computer", 1 },
 } }

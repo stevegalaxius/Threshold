@@ -1,4 +1,4 @@
--- Made in the Shipyard (F2). Base hull: briggs_runt
+-- Made in the Shipyard (F2). Base hull: brute_runt
 hull {
 	id = "brute_runt", name = "Runt",
 	armor = 170,
@@ -16,15 +16,15 @@ hull {
 	retroThrust = 390,
 	sideThrust = 609,
 	slots = {
-		{ family = "bay", mount = "fixed", size = "S", x = 8, y = -8 },
-		{ family = "bay", mount = "fixed", size = "S", x = 8, y = 8 },
+		{ family = "bay", mount = "fixed", size = "S", x = 8, y = -12 },
+		{ family = "bay", mount = "fixed", size = "S", x = 8, y = 12 },
 		{ family = "engine", size = "S", x = -36, y = 0 },
 		{ family = "reactor", size = "S" },
 		{ family = "utility", size = "any" },
 		{ family = "computer", size = "any" },
 	},
-	spoolTime = 0.2,
-	turn = 3500,
+	spoolTime = 0.1,
+	turn = 250,
 	turnSpeed = 200,
 	parts = {
 		{ name = "part 5", shape = { 8, -8, 8, 8, 44, 4, 44, -4 }, paint = "secondary", lights = {
@@ -32,12 +32,13 @@ hull {
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 12, y = 4 },
 			{ kind = "strobe", rate = 1, x = 40, y = 0 },
 		} },
-		{ name = "part 2", shape = { 8, -12, 8, 12, -8, 8, -8, -8 }, paint = "primary", lights = {
-			{ kind = "nav", x = 8, y = -12 },
-			{ kind = "nav", x = 8, y = 12 },
+		{ name = "part 6", shape = { 0, -16, 0, 16, 8, 16, 8, -16 }, paint = "secondary" },
+		{ name = "part 2", shape = { 8, -16, 8, 16, -8, 8, -8, -8 }, paint = "primary", core = true, breakable = false, lights = {
+			{ kind = "nav", x = 8, y = -16 },
+			{ kind = "nav", x = 8, y = 16 },
 		} },
-		{ name = "part 3", shape = { -8, -8, -32, -8, -32, 8, -8, 8 }, paint = "primary" },
-		{ name = "part 4", shape = { -36, -4, -12, -4, -12, 4, -36, 4 }, lights = {
+		{ name = "part 3", shape = { -8, -8, -32, -8, -32, 8, -8, 8 }, paint = "primary", core = true, breakable = false },
+		{ name = "part 4", shape = { -36, -4, -12, -4, -12, 4, -36, 4 }, core = true, breakable = false, lights = {
 			{ kind = "strobe", rate = 1, x = -32, y = 0 },
 		} },
 	},

@@ -1,7 +1,6 @@
 -- Made in the Shipyard (F2).
 station {
 	id = "city_2", name = "Cloud city (size 2)",
-	services = { "market", "shipyard", "hangar", "repair" },
 	berths = {
 		{ heading = 270, size = 150, x = -1312, y = 144 },
 		{ heading = 270, size = 150, x = -1056, y = 144 },
@@ -11,6 +10,10 @@ station {
 		{ heading = 270, size = 150, x = 1040, y = 144 },
 		{ heading = 270, size = 150, x = 784, y = 144 },
 		{ heading = 270, size = 150, x = 528, y = 144 },
+		{ heading = 270, size = 200, x = -1920, y = 64 },
+		{ heading = 270, size = 200, x = -1616, y = 64 },
+		{ heading = 270, size = 200, x = 1632, y = 96 },
+		{ heading = 270, size = 200, x = 1920, y = 96 },
 	},
 	color = { 0.55, 0.63, 0.74 },
 	haze = -252,

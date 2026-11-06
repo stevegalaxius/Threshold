@@ -1,13 +1,13 @@
--- Made in the Shipyard (F2). Base hull: brute_praetor
+-- Made in the Shipyard (F2). Base hull: intaki_praetor
 hull {
-	id = "brute_praetor", name = "Praetor",
+	id = "intaki_praetor", name = "Praetor",
 	armor = 400,
 	bonuses = {},
 	class = "medium",
 	drag = 0.25,
 	hold = 50,
-	loadout = { "lumen_lance", "lumen_lance", "missile_m_base", "mule_engine", "forge_reactor", "tug_beam", "nav_computer", "fire_computer", "mule_engine" },
-	maker = "Brute Industries",
+	loadout = { "gun_m_base", "pulse_m_base", "mule_engine", "forge_reactor", "tug_beam", "nav_computer", "fire_computer", "mule_engine" },
+	maker = "Intaki",
 	mass = 345,
 	mount = "gimbal",
 	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },
@@ -16,9 +16,8 @@ hull {
 	retroThrust = 800,
 	sideThrust = 800,
 	slots = {
-		{ family = "hardpoint", mount = "gimbal", size = "M", x = 36, y = -16 },
-		{ family = "hardpoint", mount = "gimbal", size = "M", x = 36, y = 16 },
-		{ family = "bay", size = "M", x = 108, y = 0 },
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 0, y = -24 },
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 0, y = 24 },
 		{ family = "engine", size = "M", x = -70, y = -24 },
 		{ family = "reactor", size = "L" },
 		{ family = "utility", size = "any" },
@@ -32,11 +31,14 @@ hull {
 	turretTurn = 30,
 	parts = {
 		{ name = "part 4", shape = { 100, -6, 108, -6, 108, 6, 100, 6 }, mirror = true },
-		{ name = "part 3", shape = { -32, -8, -16, -8, -16, 8, -32, 8 }, mirror = true },
+		{ name = "part 3", shape = { -32, -8, -16, -8, -16, 8, -32, 8 }, mirror = true, lights = {
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -20, y = -4 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -20, y = 4 },
+		} },
 		{ name = "part 2", shape = { -80, -32, -64, -16, 28, -16, -8, -32 }, paint = "secondary", mirror = true, lights = {
 			{ kind = "nav", x = -8, y = -30 },
 		} },
-		{ name = "part 5", shape = { -64, -8, -56, -36, 32, -16, 144, -4 }, paint = "primary", mirror = true, core = true, lights = {
+		{ name = "part 5", shape = { -64, -8, -56, -36, 32, -16, 144, -4 }, paint = "primary", mirror = true, lights = {
 			{ kind = "strobe", rate = 1, x = 144, y = -4 },
 		} },
 	},

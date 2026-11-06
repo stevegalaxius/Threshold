@@ -30,7 +30,7 @@ hull {
 	turnSpeed = 200,
 	parts = {
 		{ name = "part 3", shape = { -48, -28, -48, 28, -64, 20, -64, -20 } },
-		{ name = "part 2", shape = { -48, -28, 0, -28, 0, 28, -48, 28 }, paint = "secondary", cargo = true, core = true, lights = {
+		{ name = "part 2", shape = { -48, -28, 0, -28, 0, 28, -48, 28 }, paint = "secondary", cargo = true, core = true, breakable = false, lights = {
 			{ kind = "nav", x = -46, y = -26 },
 			{ kind = "nav", x = -46, y = 26 },
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -40, y = 24 },
@@ -40,7 +40,7 @@ hull {
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -22, y = -24 },
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -4, y = -24 },
 		} },
-		{ name = "part 4", shape = { 0, -28, 36, -32, 40, -20, 40, 20, 36, 32, 0, 28 }, paint = "secondary", core = true, lights = {
+		{ name = "part 4", shape = { 0, -28, 36, -32, 40, -20, 40, 20, 36, 32, 0, 28 }, paint = "secondary", core = true, breakable = false, lights = {
 			{ kind = "strobe", rate = 1, x = 34, y = -30 },
 			{ kind = "strobe", rate = 1, x = 34, y = 30 },
 		} },
@@ -51,6 +51,6 @@ hull {
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = 4 },
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 44, y = 12 },
 		} },
-		{ name = "part 6", shape = { -48, -20, 40, -20, 40, 20, -48, 20 }, paint = "primary" },
+		{ name = "part 6", shape = { -48, -20, 40, -20, 40, 20, -48, 20 }, paint = "primary", breakable = false },
 	},
 }

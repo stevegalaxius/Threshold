@@ -166,7 +166,7 @@ function A.update(game, dt)
 		end
 		game:clearEnemies()
 		T.dev.god = true
-		game:spawnPlayer("ferrous_bastion")
+		game:spawnPlayer("estates_bastion")
 		local bx, by = game.player.body:getPosition()
 		A.artyTarget = game:spawnEnemy("brawler", bx + 1400, by - 300)
 		A.artyTarget.def = nil          -- parked target, no AI
@@ -190,8 +190,8 @@ function A.update(game, dt)
 	end) end
 	if t >= 31 then once("laser_setup", function()
 		T.dev.god = false
-		local w = game:spawnPlayer("halcyon_wisp")
-		w.loadout[1], w.loadout[2] = "glint_laser", "glint_laser"
+		local w = game:spawnPlayer("intaki_wisp")
+		w.loadout[1], w.loadout[2] = "pulse_s_base", "pulse_s_base"
 		Ship.refit(w)
 		local x, y = w.body:getPosition()
 		A.laserTarget = game:spawnEnemy("swarmer", x, y - 220)
@@ -331,14 +331,14 @@ function A.update(game, dt)
 		Cargo.mousepressed(game, util.x + 10, util.y + 10, 1)
 		log("equip: tried to pull a Cargo Pod holding %d stacks -> slot %s, hand %s", podHas, tostring(w.loadout[util.i]), tostring(Cargo.hand and Cargo.hand.id))
 		-- grab a spare module from storage and drag it over the slot it fits
-		Hold.add(storage, "glint_laser", 1)
+		Hold.add(storage, "pulse_s_base", 1)
 		L = Cargo.layout(game)
-		r, s = find("storage", "glint_laser")
+		r, s = find("storage", "pulse_s_base")
 		x, y = at(r, s)
 		Cargo.mousepressed(game, x, y, 1)
 		local prim = slotRow("hardpoint")
 		Cargo.mousereleased(game, prim.x + 10, prim.y + 10, 1)
-		log("equip: dragged glint_laser from storage onto slot %d -> %s, old module now in hold %d / storage %d",
+		log("equip: dragged pulse_s_base from storage onto slot %d -> %s, old module now in hold %d / storage %d",
 			prim.i, tostring(w.loadout[prim.i]), w.cargo.gun_s_base or 0, Hold.count(storage, "gun_s_base"))
 		shot("08_cargo_station")
 	end) end
@@ -507,7 +507,7 @@ function A.update(game, dt)
 		local orig = game:credits()
 		game.universe.credits = 20000
 		local c0 = game:credits()
-		local bought, why = game:buyShip(st, "halcyon_wisp")
+		local bought, why = game:buyShip(st, "intaki_wisp")
 		local c1 = game:credits()
 		local i = #game:hangar(st)
 		local paid = game:sellShip(st, i)
@@ -515,13 +515,13 @@ function A.update(game, dt)
 			tostring(bought ~= nil), tostring(why), c0, c1, tostring(paid), game:credits(), #game:hangar(st),
 			table.concat(game.shipyard(st), ","))
 		game.universe.credits = 0
-		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, "halcyon_wisp")))
+		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, "intaki_wisp")))
 		game.universe.credits = orig
 		game:addToHangar(st, "brute_anvil")
 		Cargo.tab = "hangar"
 		log("hangar: docked at %s (%s), home %s, hangar has %d ship(s): %s", st.name, st.key, game:homeStation().key,
 			#game:hangar(st), game:hangar(st)[1].hull)
-		game:addToHangar(st, "ferrous_bastion")
+		game:addToHangar(st, "estates_bastion")
 		shot("12_hangar")
 	end) end
 	if t >= 35.75 then once("hangar_cargo", function()
@@ -544,8 +544,8 @@ function A.update(game, dt)
 		Cargo.mousereleased(game, x0, y0 + 6 * H.cs, 1)
 		local T = require("src.tuning")
 		local aw, ah = game.hangarFootprint("brute_anvil")
-		local ww, wh = game.hangarFootprint("halcyon_wisp")
-		local bw, bh = game.hangarFootprint("ferrous_bastion")
+		local ww, wh = game.hangarFootprint("intaki_wisp")
+		local bw, bh = game.hangarFootprint("estates_bastion")
 		log("hangar: bay %d x %d; footprints Wisp %d x %d, Anvil %d x %d, Bastion %d x %d; Wisp (flying) at %d,%d",
 			T.hangarW, T.hangarH, ww, wh, aw, ah, bw, bh, game.player.bay.x, game.player.bay.y)
 		log("hangar: dragging the Anvil onto the Bastion refused %s; dragged down from %d,%d to %d,%d",
@@ -604,7 +604,7 @@ function A.update(game, dt)
 		log("save: %d bytes, round trip %s", #text, tostring(back and Save.encode(back) == text))
 		Save.write("autotest", state)
 		Hold.add(game:stationStorage(A.st), "scrap", 2)
-		game:spawnPlayer("ferrous_bastion")
+		game:spawnPlayer("estates_bastion")
 		game:loadFrom("autotest")
 		p = game.player
 		local st = p.dockState and p.dockState.station

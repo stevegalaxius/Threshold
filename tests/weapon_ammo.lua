@@ -7,7 +7,7 @@ return function(game)
  local function has(t,v) for _,x in ipairs(t) do if x==v then return true end end end
  local gun,mortar,rack=data.modules.gun_m_base,data.modules.artillery_m_base,data.modules.missile_m_base
  check(gun and mortar and rack,'lower-case _base ids missing')
- check(data.modules.gun_M_base==gun and data.modules.maul_tube==data.modules.missile_s_base,'old ids do not resolve')
+ check(data.modules.gun_m_base==gun and data.modules.maul_tube==data.modules.missile_s_base,'old ids do not resolve')
  check(gun.weapon.kind=='cannon' and mortar.weapon.kind=='cannon','guns and artillery are not cannons')
  local g,m,r=data.ammoOptions(gun),data.ammoOptions(mortar),data.ammoOptions(rack)
  check(g[1]=='rounds_m' and has(g,'shell_m') and not has(g,'shell_s'),'cannon ammo options wrong')
@@ -20,18 +20,21 @@ return function(game)
  check(data.fireRate(mortar.weapon,'rounds_m')==mortar.weapon.fireRate,'rounds fired faster than a mortar cycles')
  check(math.abs(data.fireRate(rack.weapon,'torp_m')-rack.weapon.fireRate/6)<1e-9,'torpedo rate wrong')
  -- per-slot pick
- local e=Ship.new(game,{hull='brute_praetor',loadout={'lumen_lance','lumen_lance','missile_m_base'},x=0,y=0})
- local slot
- for _,w in ipairs(e.weapons) do if w.index==3 then slot=w end end
- check(slot and slot.ammo=='missile_m','rack did not default to missiles')
- Ship.setLoad(e,3,'torp_m')
- for _,w in ipairs(e.weapons) do if w.index==3 then slot=w end end
+ local e=Ship.new(game,{hull='estates_bastion',loadout=data.hulls.estates_bastion.loadout,x=0,y=0})
+ local slot,bay
+ for _,w in ipairs(e.weapons) do if w.module.id=='missile_l_base' then bay=w.index end end
+ check(bay,'test hull has no missile rack')
+ local function at() for _,w in ipairs(e.weapons) do if w.index==bay then return w end end end
+ slot=at()
+ check(slot.ammo=='missile_l','rack did not default to missiles')
+ Ship.setLoad(e,bay,'torp_m')
+ slot=at()
  check(slot.ammo=='torp_m','picked ammo not loaded')
  local rec=Ship.record(e)
- check(rec.loads[3]=='torp_m','pick not in the ship record')
- Ship.setLoad(e,3,'rounds_m')
- for _,w in ipairs(e.weapons) do if w.index==3 then slot=w end end
- check(slot.ammo=='missile_m','an ammo the weapon cannot take was loaded')
+ check(rec.loads[bay]=='torp_m','pick not in the ship record')
+ Ship.setLoad(e,bay,'rounds_m')
+ slot=at()
+ check(slot.ammo=='missile_l','an ammo the weapon cannot take was loaded')
  check(Weapons.cycleAmmo==nil,'global launcher cycling still there')
  print(('weapon ammo test: %d checks passed'):format(checks))
 end

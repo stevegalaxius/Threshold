@@ -21,7 +21,7 @@ return function(game)
  local function pirate(area,hull)
   nextId=nextId+1
   local node=Fields[area].buoyIds[1] or Fields[area].stationIds[1]
-  local h=hull or 'halcyon_wisp'
+  local h=hull or 'intaki_wisp'
   local r={id='offline-loot/'..nextId,home=area,area=area,role='pirate',archetype='pirate_wisp',speed=600,
    route={node,node},node=node,index=1,state='idle',untilTime=clock+100,
    ship={hull=h,loadout=data.hulls[h].loadout,cargo={},armor=data.hulls[h].armor}}
@@ -59,7 +59,7 @@ return function(game)
  local cargo=Hold.new({{key='wreck',w=12,h=10}});Hold.add(cargo,'scrap',6)
  local node=looter.node
  local w={id='offline-victim',area='earth',from=node,to=node,progress=0,clock=clock,expires=clock+1800,
-  ship={hull='halcyon_wisp',loadout=data.hulls.halcyon_wisp.loadout,cargo={scrap=99},armor=0},
+  ship={hull='intaki_wisp',loadout=data.hulls.intaki_wisp.loadout,cargo={scrap=99},armor=0},
   archetype='gunner',lootHold=Hold.serialize(cargo),salvagedSlots={}}
  u.alifeWrecks[w.id]=w
  O.update(game,looter,clock)
@@ -81,7 +81,7 @@ return function(game)
  game.miningLive[seen.looseId]=nil;Loose.remove(u,seen.looseId)
  -- Full holds cannot consume a saved source; expired wrecks are not looted.
  local full,fx,fy=pirate('earth')
- local slots=Hold.new(require('src.ship').holdLayout({hull=data.hulls.halcyon_wisp,loadout=data.hulls.halcyon_wisp.loadout,stats=require('src.stats').compute(data.hulls.halcyon_wisp,data.hulls.halcyon_wisp.loadout)}))
+ local slots=Hold.new(require('src.ship').holdLayout({hull=data.hulls.intaki_wisp,loadout=data.hulls.intaki_wisp.loadout,stats=require('src.stats').compute(data.hulls.intaki_wisp,data.hulls.intaki_wisp.loadout)}))
  Hold.add(slots,'scrap',10000);full.ship.hold=Hold.serialize(slots);full.ship.cargo=Hold.totals(slots)
  local spare=loot('earth',1005,7,fx,fy)
  check(not O.update(game,full,clock) and spare.count==7,'full offline pirate consumed loot')

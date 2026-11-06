@@ -77,7 +77,7 @@ T.towStiffness, T.towDamping = 15, 6
 T.fieldContainers = 6
 
 -- The ship you're given when you start out or lose yours.
-T.starterHull = "halcyon_wisp"
+T.starterHull = "intaki_wisp"
 -- Level enemies leave you alone until you come this close (or shoot them).
 T.aggroRange = 2600
 -- Mass drivers (src/transit.lua): the capture ring's radius, seconds to

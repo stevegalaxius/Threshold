@@ -85,7 +85,7 @@ function M.seed(game)
  local u=game.universe;local state=M.state(u)
  -- Upgrade existing workers without replacing their identity, task or cargo.
  for _,r in pairs(u.npcs) do
-  if M.isMiner(r) and r.ship.hull=='halcyon_wisp' then
+  if M.isMiner(r) and r.ship.hull=='intaki_wisp' then
    local def=data.enemies.miner_packhorse
    local old=Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
    local fitted=Stats.compute(data.hulls[def.hull],def.loadout)

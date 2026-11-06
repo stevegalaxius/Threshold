@@ -59,7 +59,7 @@ function Game.new(opts)
 	self.arenaRadius = 4500
 	self.camera = Camera.new()
 
-	self.playerHull = opts.hull or "halcyon_wisp"
+	self.playerHull = opts.hull or "intaki_wisp"
 	self.kills = 0
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }

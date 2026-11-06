@@ -368,6 +368,7 @@ end
 local function known(id) return data.items[id] ~= nil end
 
 local function loadShip(t)
+	if t and data.renamedHulls[t.hull] then t.hull = data.renamedHulls[t.hull] end
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
 	-- the Cargo Pod XL is gone: a save that fitted one gets a Cargo Pod
 	for i, id in pairs(t.loadout or {}) do if id == "hold_pod_m" then t.loadout[i] = "hold_pod_s" end end

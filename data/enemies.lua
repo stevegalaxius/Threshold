@@ -28,8 +28,8 @@ enemy {
 }
 
 enemy {
-	id = "gunner", livery = { primary = { 0.95, 0.8, 0.3 } }, name = "Raider Wisp", hull = "halcyon_wisp",
-	loadout = { "gun_s_base", "gun_s_base", false, "flit_engine", "ember_reactor", false },
+	id = "gunner", livery = { primary = { 0.95, 0.8, 0.3 } }, name = "Raider Wisp", hull = "intaki_wisp",
+	loadout = { "gun_s_base", "gun_s_base", "flit_engine", "ember_reactor", false, false },
 	cargo = { rounds_s = 300 },
 	ai = { style = "orbit", range = 600, accuracy = 0.55, throttle = 0.75 },
 	salvage = { 2, 3 },
@@ -90,17 +90,17 @@ enemy {
 -- Persistent A-Life roles. Role/duty live in the NPC record, while these
 -- definitions expose their hull, equipment and combat handling for variants.
 enemy {
- id = "patrol_wisp", team = 3, name = "Independent Patrol", hull = "halcyon_wisp",
+ id = "patrol_wisp", team = 3, name = "Independent Patrol", hull = "intaki_wisp",
  livery = { primary = { 0.4, 0.75, 1 } },
- loadout = { "gun_s_base", "gun_s_base", false, "flit_engine", "ember_reactor", false },
+ loadout = { "gun_s_base", "gun_s_base", "flit_engine", "ember_reactor", false, false },
  cargo = { rounds_s = 400 },
  ai = { style = "orbit", range = 900, accuracy = 0.65, throttle = 0.85, cruise = 750 },
  salvage = { 2, 3 },
 }
 enemy {
- id = "pirate_wisp", team = 2, name = "Independent Pirate", hull = "halcyon_wisp",
+ id = "pirate_wisp", team = 2, name = "Independent Pirate", hull = "intaki_wisp",
  livery = { primary = { 1, 0.4, 0.25 } },
- loadout = { "gun_s_base", "gun_s_base", false, "flit_engine", "ember_reactor", false },
+ loadout = { "gun_s_base", "gun_s_base", "flit_engine", "ember_reactor", false, false },
  cargo = { rounds_s = 300, scrap = 3 },
  ai = { style = "orbit", range = 700, accuracy = 0.55, throttle = 0.8, cruise = 650 },
  salvage = { 2, 4 },
