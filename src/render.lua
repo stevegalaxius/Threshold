@@ -1164,7 +1164,7 @@ end
 
 local function drawPickups(game)
 	for _, k in ipairs(game.pickups) do
-		local item = data.items[k.item]
+		local item = data.items[k.item] or { kind = "salvage" }   -- an id no longer in the game
 		local c = (item.kind == "salvage") and COLORS.salvage or COLORS.ammo
 		local blink = 1
 		if k == game.hoverPickup then
