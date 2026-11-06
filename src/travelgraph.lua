@@ -231,39 +231,4 @@ function G.sample(graph,route,elapsed,clock)
  return {x=x,y=y,heading=atan2(vy,vx),vx=vx,vy=vy,arrived=arrived,edge=edge,progress=p}
 end
 
--- Developer-only overlay of declared links and real NPC state.
-function G.draw(game,px)
- local view=game.travelGraphView
- if not view or view.area~=game.fieldId then return end
- local lg,clock=love.graphics,game.universe.clock
- local function drawEdge(e)
-  local points={}
-  for i=0,24 do local x,y=G.point(view,e,i/24,clock); points[#points+1]=x; points[#points+1]=y end
-  lg.line(points)
- end
- lg.push('all'); lg.setLineWidth(px)
- lg.setColor(.2,.6,.8,.35)
- for _,e in ipairs(view.edges) do drawEdge(e) end
- -- Inspect the actual trader records, including bodies managed by existing AI.
- local A=require('src.alife')
- for id,r in pairs(game.universe.npcs or {}) do
-  if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and r.state~='transit' then
-   local e=game.alifeOnline and game.alifeOnline[id]
-   if e and (e.dead or e.removed or not e.body or e.body:isDestroyed()) then e=nil end
-   local x,y
-   if e then x,y=e.body:getPosition() else x,y=A.point(r,clock) end
-   lg.setColor(e and .4 or 1,e and 1 or .75,.3,1)
-   lg.circle('fill',x,y,4*px)
-   lg.push(); lg.translate(x+8*px,y+5*px); lg.scale(px)
-   lg.print(id..' '..r.role..' '..(e and 'online' or r.state)..' -> '..L.get(r.route[e and e.routeIndex or r.index]).name,0,0)
-   if r.task then lg.print(r.task.kind..' '..r.task.phase..' -> '..(L.byId[r.task.target] and L.byId[r.task.target].name or tostring(r.task.target)),0,14)
-   elseif r.taskStatus then lg.print(r.taskStatus,0,14) end
-   if r.targetId then lg.print('Target: '..r.targetId,0,28) end
-   lg.pop()
-  end
- end
- lg.setColor(.5,.85,1,.8)
- for _,id in ipairs(view.order) do local x,y=G.position(view,id,clock); lg.circle('line',x,y,3*px) end
- lg.pop()
-end
 return G

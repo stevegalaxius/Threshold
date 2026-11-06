@@ -47,8 +47,9 @@ function Map.fit(game)
  if game.lane then
   for i=0,64 do include(game:fromLane(-game.lane.half+game.lane.half*2*i/64,0)) end
  end
- if game.travelGraphView and game.travelGraphView.area==game.fieldId and not game.lane then
-  for _,id in ipairs(game.travelGraphView.order) do include(Graph.position(game.travelGraphView,id,game.universe.clock)) end
+ if require('src.ui.alife_overlay').state.overlay and not game.lane and not game.flight then
+  local view=Graph.build(game.fieldId)
+  for _,id in ipairs(view.order) do include(Graph.position(view,id,game.universe.clock)) end
  end
  local v=viewport()
  m.x,m.y=(x1+x2)/2,(y1+y2)/2
@@ -116,7 +117,9 @@ function Map.keypressed(game,key)
 
  elseif key=='home' then Map.fit(game)
  elseif key=='p' then game.localMap.x,game.localMap.y=playerPos(game)
- elseif key=='f1' then return false end
+ elseif key=='n' then require('src.ui.alife_overlay').toggleOverlay()
+ elseif key=='l' then require('src.ui.alife_overlay').cycleLabels()
+ elseif key=='f1' or key=='f4' or key=='f6' then return false end
  return true
 end
 local function inside(v,x,y) return x>=v.x and y>=v.y and x<=v.x+v.w and y<=v.y+v.h end
@@ -154,6 +157,14 @@ function Map.mousepressed(game,x,y,button)
  end
  if button==1 then
   if x>w-100 and y<65 then game.localMap=nil; return true end
+  if inside(v,x,y) then
+   local id=require('src.ui.alife_overlay').pick(game,Map.toScreen,x,y)
+   if id then
+    require('src.ui.alife_overlay').select(id)
+    require('src.debugui').alifeVisible=true
+    return true
+   end
+  end
   for i,p in ipairs(Map.places(game)) do
    local sx,sy=Map.toScreen(game,p.x,p.y)
    if (inside(v,x,y) and (x-sx)^2+(y-sy)^2<14^2)
@@ -189,7 +200,7 @@ function Map.draw(game)
  lg.print('M / Esc  close',w-110,30)
  lg.print('Drag to pan   /   Wheel to zoom   /   Home fit region   /   P center on ship',24,h-33)
  lg.print('Live map',w-90,h-33)
- lg.print('Debug: right-click map to teleport',320,60)
+ lg.print('Debug: right-click map to teleport   /   click an NPC to inspect (F6)   /   N connections   L labels',320,60)
  lg.setColor(.3,.55,.65,.3); lg.rectangle('line',v.x,v.y,v.w,v.h)
  lg.setScissor(v.x,v.y,v.w,v.h)
  local cx,cy=Map.toScreen(game,0,0)
@@ -214,35 +225,12 @@ function Map.draw(game)
  end
  -- Show currently loaded contacts; no invented offline NPC positions.
  for _,e in ipairs(game.entities) do
-  if colors[e.kind] and (e.kind=='husk' or e.kind=='container' or e.kind=='ship') and e~=game.player and not e.dead and not e.removed then
+  if colors[e.kind] and (e.kind=='husk' or e.kind=='container' or e.kind=='ship' and not e.alifeId) and e~=game.player and not e.dead and not e.removed then
    local x,y=Map.toScreen(game,e.body:getPosition())
    lg.setColor(colors[e.kind]); lg.circle('line',x,y,2)
   end
  end
- if game.lane then
-  for id,r in pairs(game.universe.npcs or {}) do
-   if not (game.alifeOnline or {})[id] then
-    local p=require('src.alife').laneSample(game,r,clock)
-    if p then
-     local x,y=Map.toScreen(game,p.x,p.y)
-     lg.setColor(.65,.75,.8); lg.circle('line',x,y,2)
-    end
-   end
-  end
- end
- if not game.lane and not game.flight then
-  for id,r in pairs(game.universe.npcs or {}) do
-   if r.area==game.fieldId and r.state~='dead' and r.state~='escaped' and r.state~='transit' and not (game.alifeOnline or {})[id] then
-    local x,y=Map.toScreen(game,require('src.alife').point(r,clock))
-    lg.setColor(.65,.75,.8); lg.circle('line',x,y,2)
-   end
-  end
- end
- if not game.lane and not game.flight then
-  lg.push(); lg.translate(v.x+v.w/2,v.y+v.h/2); lg.scale(scale); lg.translate(-m.x,-m.y)
-  Graph.draw(game,1/scale)
-  lg.pop()
- end
+ require('src.ui.alife_overlay').draw(game,Map.toScreen,HUD.font(12))
  for i,p in ipairs(Map.places(game)) do
   local x,y=Map.toScreen(game,p.x,p.y)
   lg.setColor(colors[p.kind] or HUD.AQUA)

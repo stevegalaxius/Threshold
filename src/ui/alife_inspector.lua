@@ -5,7 +5,8 @@ local data=require('src.data')
 local L=require('src.locations')
 local Fuel=require('src.reactor_fuel')
 local Trace=require('src.alife_trace')
-local I={filter='problems',search='',selected=nil}
+local Overlay=require('src.ui.alife_overlay')
+local I={filter='problems',search=''}
 
 local FILTERS={
  {'problems','Problems (stranded, low fuel, no station)'},
@@ -49,9 +50,9 @@ local function list(game)
  Slab.BeginListBox('alife_list',{H=180,W=520})
  for i,id in ipairs(ids) do
   local r=game.universe.npcs[id];local e=game.alifeOnline and game.alifeOnline[id]
-  Slab.BeginListBoxItem('alife_item'..i,{Selected=I.selected==id})
+  Slab.BeginListBoxItem('alife_item'..i,{Selected=Overlay.state.selected==id})
   Slab.Text(('%s%s  %s  %s  %s'):format(e and '* ' or '  ',id,r.role or '?',r.area or 'transit',Trace.controller(game,r,e)))
-  if Slab.IsListBoxItemClicked() then I.selected=id end
+  if Slab.IsListBoxItemClicked() then Overlay.state.selected=id end
   Slab.EndListBoxItem()
  end
  Slab.EndListBox()
@@ -89,7 +90,7 @@ local function actions(game,r,e)
 end
 
 local function details(game)
- local r=I.selected and game.universe.npcs[I.selected]
+ local r=Overlay.state.selected and game.universe.npcs[Overlay.state.selected]
  if not r then Slab.Text('Select an NPC above.');return end
  local e=game.alifeOnline and game.alifeOnline[r.id]
  Slab.Separator()
