@@ -444,7 +444,8 @@ function A.update(game, dt)
 			if e.kind == "husk" and e.hull.id == "ferrous_freighter" then husk = e end
 		end
 		local packed, loose, inside = 0, 0, 0
-		for _, g in ipairs(husk.hold.grids) do
+		if not husk then log("loot: no Hauler wreck this run (it wasn't killed)") end
+		for _, g in ipairs(husk and husk.hold.grids or {}) do
 			for _, st in ipairs(g.stacks) do
 				if st.inner then
 					packed = packed + 1
@@ -455,6 +456,7 @@ function A.update(game, dt)
 			end
 		end
 		log("hauler: wreck holds %d loaded containers (%d items inside) and %d loose stacks", packed, inside, loose)
+		if not husk then return end
 		-- bring the wreck alongside, open it, double-click a container, take a stack out of it
 		local w = game.player
 		local px, py = w.body:getPosition()
@@ -533,23 +535,28 @@ function A.update(game, dt)
 		local rec = game:hangar(A.st)[1]
 		local ship
 		for _, s in ipairs(H.ships) do if s.owner == rec then ship = s end end
-		-- drag the Anvil onto the Bastion (refused), then down 6 rows; then the Cargo button
-		local x0, y0 = ship.x + 4, ship.y + 4
-		local bx, by = rec.bay.x, rec.bay.y
-		Cargo.mousepressed(game, x0, y0, 1)
-		Cargo.mousereleased(game, x0 + 4 * H.cs, y0, 1)
-		local blocked = rec.bay.x == bx
-		Hangar.lastClick = nil                   -- (two quick clicks would be a double-click: fly)
-		Cargo.mousepressed(game, x0, y0, 1)
-		Cargo.mousereleased(game, x0, y0 + 6 * H.cs, 1)
-		local T = require("src.tuning")
-		local aw, ah = game.hangarFootprint("brute_anvil")
-		local ww, wh = game.hangarFootprint("intaki_wisp")
-		local bw, bh = game.hangarFootprint("estates_bastion")
-		log("hangar: bay %d x %d; footprints Wisp %d x %d, Anvil %d x %d, Bastion %d x %d; Wisp (flying) at %d,%d",
-			T.hangarW, T.hangarH, ww, wh, aw, ah, bw, bh, game.player.bay.x, game.player.bay.y)
-		log("hangar: dragging the Anvil onto the Bastion refused %s; dragged down from %d,%d to %d,%d",
-			tostring(blocked), bx, by, rec.bay.x, rec.bay.y)
+		-- drag the Anvil onto the Bastion (refused), then down 6 rows; then the
+		-- Cargo button. A ship that didn't fit inside is moored outside: no drag.
+		if not (rec.bay and ship) then
+			log("hangar: the Anvil is moored outside (no room in the bay); drag skipped")
+		else
+			local x0, y0 = ship.x + 4, ship.y + 4
+			local bx, by = rec.bay.x, rec.bay.y
+			Cargo.mousepressed(game, x0, y0, 1)
+			Cargo.mousereleased(game, x0 + 4 * H.cs, y0, 1)
+			local blocked = rec.bay.x == bx
+			Hangar.lastClick = nil                   -- (two quick clicks would be a double-click: fly)
+			Cargo.mousepressed(game, x0, y0, 1)
+			Cargo.mousereleased(game, x0, y0 + 6 * H.cs, 1)
+			local T = require("src.tuning")
+			local aw, ah = game.hangarFootprint("brute_anvil")
+			local ww, wh = game.hangarFootprint("intaki_wisp")
+			local bw, bh = game.hangarFootprint("estates_bastion")
+			log("hangar: bay %d x %d; footprints Wisp %d x %d, Anvil %d x %d, Bastion %d x %d; Wisp (flying) at %d,%d",
+				T.hangarW, T.hangarH, ww, wh, aw, ah, bw, bh, game.player.bay and game.player.bay.x or -1, game.player.bay and game.player.bay.y or -1)
+			log("hangar: dragging the Anvil onto the Bastion refused %s; dragged down from %d,%d to %d,%d",
+				tostring(blocked), bx, by, rec.bay.x, rec.bay.y)
+		end
 		shot("12b_hangar_moved")
 		H = Hangar.layout(game)
 		Hangar.sel = rec

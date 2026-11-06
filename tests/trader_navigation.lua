@@ -10,7 +10,7 @@ return function(game)
  game:loadField('earth')
  local id,r
  for candidate,record in pairs(game.universe.npcs) do
-  if record.home=='earth' and record.role=='trader' and not record.taskWorker then id,r=candidate,record; break end
+  if record.home=='earth' and record.role=='trader' then id,r=candidate,record; break end
  end
  -- Moon round trips survive only in older saves; build one explicitly.
  r.taskWorker=nil;r.task=nil;r.tripDestination='luna';r.tripRoute=A.roundTrip('earth','luna',game.universe.clock)
