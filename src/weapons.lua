@@ -1,19 +1,21 @@
 --[[
 	Weapons and projectiles.
 
-	  cannon     fires rounds or shells, whichever its slot loads:
-	               rounds  fast, short range, no splash.
-	               shells  slow, long range, big damage and splash. Shells
-	                       burst on contact, when they pass near an enemy
-	                       (proximity fuse), or at the end of their range.
+	  cannon     fires whatever ammo it chambers:
+	               rounds    fast, short range, no splash.
+	               shells    long range, big damage and splash. Shells burst
+	                         on contact, when they pass near an enemy (proximity
+	                         fuse), or at the end of their range.
+	               buckshot  a spray of pellets (shot.pellets, fanned over
+	                         shot.pelletSpread degrees), each hitting like a round.
 	  laser      pulse laser: a brief, instant-hit flash about once a second.
 	             No ammo; each pulse takes a chunk of power.
-	  missile    bay rack: fires missiles or torpedoes, whichever its slot loads:
-	               missiles   guided, splash. Expensive ammo.
-	               torpedoes  very fast, steer slowly, enormous damage and splash.
+	  missile    bay rack: missiles (guided, splash) or torpedoes (very fast,
+	             steer slowly, enormous damage and splash).
 
-	How a shot flies is the ammo's family (gun, artillery, missile,
-	torpedo, drone); the weapon only sets how it's fired.
+	A weapon loads any ammo family it chambers (data.chambers). The weapon sets how it fires (fire rate,
+	spread, recoil); the ammo sets the hit and how the shot flies, by its
+	family.
 	  drone      bay: launches an armed drone that fights for a while.
 
 	Every shot of a cannon or missile rack takes one round
@@ -194,7 +196,7 @@ local function fire(game, e, slot, dt)
 			end
 		end
 	end
-	local rate = data.fireRate(w, slot.ammo) * (not slot.bay and mult.primaryFireRate or 1)
+	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
 	if not takeAmmo(e, slot.ammo) then
 		slot.empty = true
 		slot.cooldown = 0.3
@@ -241,7 +243,8 @@ local function fire(game, e, slot, dt)
 		size = data.items[slot.ammo].size,
 	}
 
-	if kind == "gun" then
+	if kind == "gun" or kind == "shotgun" then
+		p.kind = "gun"                             -- pellets fly and hit like rounds
 		p.life = ws.range / ws.speed
 		p.maxLife = p.life
 		p.damage = ws.damage * mult.primaryDamage
@@ -275,13 +278,24 @@ local function fire(game, e, slot, dt)
 	end
 
 	table.insert(game.projectiles, p)
+	-- A shotgun shell is several pellets, fanned across pelletSpread.
+	if kind == "shotgun" then
+		local fan = rad(ws.pelletSpread or 8)
+		for _ = 2, ws.pellets or 1 do
+			local a = angle + (random() * 2 - 1) * fan
+			local q = {}
+			for k, v in pairs(p) do q[k] = v end
+			q.vx, q.vy = svx + cos(a) * ws.speed, svy + sin(a) * ws.speed
+			table.insert(game.projectiles, q)
+		end
+	end
 
 	-- Guns and artillery kick back by a share of the round's knockback;
 	-- launchers (and older data) by a fixed impulse.
 	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or (w.recoil or 0) * (ws.recoil or 1)) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
 	if kind == "artillery" or kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
-	if e.isPlayer and kind == "artillery" then game:shake(0.18) end
+	if e.isPlayer and (kind == "artillery" or kind == "shotgun") then game:shake(0.18) end
 	events.emit("fire", e, slot)
 end
 

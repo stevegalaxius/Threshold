@@ -42,8 +42,10 @@ market { id = "market:mars_2", station = "Station Beta", sells = {   -- missiles
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
 market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy weapons
-	{ name = "Kinetic armory", description = "Autocannons, the Long Tom and heavy shells.", sells = {
+	{ name = "Kinetic armory", description = "Autocannons, shotguns, the Long Tom and heavy shells.", sells = {
 		{ "gun_m_base", 2 }, { "gun_l_base", 1 }, { "artillery_l_base", 1 }, { "shell_l", 4 },
+		{ "shotgun_s_base", 1 }, { "shotgun_m_base", 1 }, { "shotgun_l_base", 1 },
+		{ "buckshot_s", 4 }, { "buckshot_m", 4 }, { "buckshot_l", 3 },
 	} },
 	{ name = "Beam works", description = "Lasers and beam weapons. No ammo needed, just power.", sells = {
 		{ "pulse_s_base", 2 }, { "pulse_m_base", 1 }, { "pulse_l_base", 1 },

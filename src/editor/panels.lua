@@ -92,14 +92,13 @@ local WSTAT = {
 	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
 	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
 	control = { "control", 1, 8, 1, 0, "Drone control budget." },
-	cycle = { "ammo cycle", 1, 10, 1, 0, "Reload weight of the ammo it's built for (rounds and missiles 1, shells 4, torpedoes 6). Fire rate is for that ammo; heavier ammo fires slower." },
 }
 local WFIELDS = {
-	cannon = { "fireRate", "cycle", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
+	cannon = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
 	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
 	beam = { "damage", "range", "powerPerSecond", "gimbal" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
-	missile = { "fireRate", "cycle", "recoil" },
+	missile = { "fireRate", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
 local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }
@@ -482,6 +481,22 @@ function weaponSections(E, d)
 		local copts = { { label = "same as size", value = false } }
 		for _, z in ipairs(SIZES) do table.insert(copts, { label = z, value = z }) end
 		combo("yard_wcal", w.caliber or "same as size", copts, function(z) E.pushUndo(); w.caliber = z or nil end, 80)
+	end
+	-- which ammo families it chambers, in the order ticked (first = default)
+	local FAMS = { cannon = { "gun", "artillery", "shotgun" }, missile = { "missile", "torpedo" } }
+	if FAMS[w.kind] then
+		local list = {}
+		for _, f in ipairs(data.chambers(w)) do table.insert(list, f) end
+		Slab.Text("chambers")
+		for _, f in ipairs(FAMS[w.kind]) do
+			local at
+			for i, g in ipairs(list) do if g == f then at = i end end
+			Slab.SameLine()
+			check(E, at ~= nil, f, function(on)
+				if on then table.insert(list, f) elseif #list > 1 then table.remove(list, at) end
+				w.chambers = list
+			end)
+		end
 	end
 	Slab.Text(("Fits %s %s slots"):format(m.size, m.family == "bay" and "bay" or "hardpoint"), { Color = GREY })
 	Slab.Separator()

@@ -27,13 +27,14 @@ local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, 
 local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { cannon = true, laser = true, drill = true, missile = true, drone = true }
--- Which ammo families each weapon kind loads. Cannons fire rounds (gun) or
--- shells (artillery); missile racks fire missiles or torpedoes.
-data.LOADS = { cannon = { gun = true, artillery = true }, missile = { missile = true, torpedo = true }, drone = { drone = true } }
--- Older weapon kinds, from before cannons and racks took several ammo
--- families: the kind they are now and the reload weight (cycle) they were
--- tuned for. See data.fireRate.
-local OLD_KINDS = { gun = { "cannon", 1 }, artillery = { "cannon", 4 }, torpedo = { "missile", 6 } }
+-- The ammo families a weapon chambers when it doesn't list its own
+-- (weapon.chambers = { "artillery" }, { "shotgun", "gun" }). A cannon is any
+-- hardpoint weapon that fires ammo: what it chambers makes it an autocannon,
+-- a mortar or a shotgun. Lasers and drills take none.
+data.CHAMBERS = { cannon = { "gun" }, missile = { "missile", "torpedo" }, drone = { "drone" } }
+-- Older weapon kinds: a gun, artillery piece or shotgun is a cannon that
+-- chambers that ammo; a torpedo tube is a missile rack.
+local OLD_KINDS = { gun = { "cannon", "gun" }, artillery = { "cannon", "artillery" }, shotgun = { "cannon", "shotgun" }, torpedo = { "missile" } }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
@@ -296,7 +297,13 @@ function api.module(def)
 		if def.controlLimit and def.controlLimit%1~=0 then fail(("computer '%s': controlLimit must be an integer"):format(def.id)) end
 	end
 	local old = def.weapon and OLD_KINDS[def.weapon.kind]
-	if old then def.weapon.kind, def.weapon.cycle = old[1], def.weapon.cycle or old[2] end
+	if old then
+		def.weapon.kind = old[1]
+		if old[2] and not def.weapon.chambers then def.weapon.chambers = { old[2] } end
+	end
+	if def.weapon and def.weapon.chambers ~= nil and type(def.weapon.chambers) ~= "table" then
+		fail(("module '%s': chambers should be a list of ammo families, like { \"gun\", \"shotgun\" }"):format(def.id))
+	end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
 	end
@@ -411,44 +418,35 @@ function loadFolder(folder)
 	end
 end
 
--- Every ammo a weapon module can load: an ammo family its kind loads
--- (data.LOADS), in its exact caliber (cannons) or its size or smaller
--- (bay launchers). The ammo it was built around (same reload cycle) comes
--- first, then biggest first.
+-- The ammo families a weapon chambers (see data.CHAMBERS).
+function data.chambers(w)
+	return w and (w.chambers or data.CHAMBERS[w.kind]) or {}
+end
+
+-- Every ammo a weapon module can load: a family it chambers, in its exact
+-- caliber (hardpoint weapons) or its size or smaller (bay launchers). Its
+-- first chambered family comes first, then biggest first.
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
-	local loads = w and data.LOADS[w.kind]
-	if not loads then return out end
+	local rank = {}
+	for i, fam in ipairs(data.chambers(w)) do rank[fam] = i end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
-		if item.kind == "ammo" and loads[item.family] then
+		if item.kind == "ammo" and rank[item.family] then
 			-- a gun's caliber is its size unless it says otherwise (twin mounts)
 			local fits = item.size == (w.caliber or module.size)
 			if module.family == "bay" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end
 	end
-	local own = w.cycle or 1
 	table.sort(out, function(a, b)
 		local ia, ib = data.items[a], data.items[b]
-		local na, nb = (ia.shot.cycle or 1) == own, (ib.shot.cycle or 1) == own
-		if na ~= nb then return na end
+		if ia.family ~= ib.family then return rank[ia.family] < rank[ib.family] end
 		if ia.size ~= ib.size then return SIZES[ia.size] > SIZES[ib.size] end
 		return a < b
 	end)
 	return out
-end
-
--- Shots per second a weapon fires with an ammo loaded. A weapon's fireRate
--- is for ammo of its own reload cycle (weapon.cycle, default 1); heavier
--- ammo (bigger shot.cycle) fires that much slower, and lighter ammo no
--- faster, so an autogun lobs shells slowly and a mortar fires rounds at
--- its own pace.
-function data.fireRate(w, ammoId)
-	local item = ammoId and data.items[ammoId]
-	local cycle = item and item.shot.cycle or 1
-	return (w.fireRate or 1) * math.min(1, (w.cycle or 1) / cycle)
 end
 
 -- The ammo a weapon fires by default (its biggest option).

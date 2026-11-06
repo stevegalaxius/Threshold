@@ -18,9 +18,9 @@
 
 	Weapon fields:
 	  kind        cannon, laser or drill (weapon family); missile or drone
-	              (bay family). Cannons load rounds or shells in their
-	              exact caliber; missile racks load missiles or torpedoes
-	              their size or smaller; drone bays drones. The ammo sets damage,
+	              (bay family). A cannon is anything that fires rounds, shells
+	              or buckshot: chambers says which. Hardpoint weapons load ammo
+	              in their exact caliber, bay launchers their size or smaller. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
 	              pulse (seconds the flash shows) and
@@ -29,16 +29,18 @@
 	              the trigger is held, with damage and powerPerSecond per second.
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
-	  cycle       reload weight of the ammo it's built for (rounds and
-	              missiles 1, shells 4, torpedoes 6). fireRate is for that
-	              ammo; heavier ammo fires slower (data.fireRate). The old
-	              kinds gun, artillery and torpedo still load as cannon /
-	              missile with cycle 1, 4 and 6.
+	  chambers    the ammo families it can load, first = default: "gun"
+	              (rounds), "artillery" (shells), "shotgun" (buckshot), like
+	              { "shotgun", "gun" }. Unset: cannons rounds, missile racks
+	              missiles and torpedoes. It fires at its own fireRate
+	              whatever is loaded; the ammo changes the hit, not the cadence.
+	              (Old kinds gun, artillery and shotgun load as a cannon
+	              chambering that ammo; torpedo as a missile rack.)
 	  fireRate    shots per second           spread    random spread in degrees
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
 	  barrels     barrels that take turns firing; barrelGap = spacing
 	  gimbal      degrees it can aim off the nose
-	  recoilPct   guns and artillery: push back on the shooter, as a
+	  recoilPct   cannons: push back on the shooter, as a
 	              percentage of the round's knockback
 	  recoil      launchers: push back on the shooter (a fixed impulse)
 ]]

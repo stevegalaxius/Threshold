@@ -13,7 +13,7 @@ module {
 		caliber = "M",
 		fireRate = 8,
 		gimbal = 10,
-		kind = "cannon",
+		chambers = { "gun" }, kind = "cannon",
 		recoilPct = 17.5,
 		spread = 1,
 	},
