@@ -383,32 +383,33 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = tru
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
-	density = 0.08, mix = MIX.giant, -- rings out to the edge, with a clear lane at the station track (0.55)
-	rings = { { 0.15, 0.5, density = 1.2 }, { 0.6, 0.97, density = 0.8 } },
+	-- ring stretched out to the edge (x2.43 from the surface); stations
+	-- orbit inside it
+	density = 0.08, mix = MIX.giant, track = 0.4, rings = { { 0.485, 0.97, density = 1.5 } },
 	city = true, cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
-	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.75,
+	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.71,   -- in the Cassini division
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
-	-- then the outer rings out to the edge, past a clear lane at the
-	-- station track (0.75)
-	rings = { { 0.1, 0.2, density = 0.5 }, { 0.2, 0.42, density = 3, big = 0.03 }, { 0.46, 0.7, density = 1.5 },
-		{ 0.8, 0.97, density = 0.8 } },
+	-- (stretched x1.617 from the surface so the A ring meets the edge)
+	rings = { { 0.243, 0.404, density = 0.5 }, { 0.404, 0.679, density = 3, big = 0.03 }, { 0.744, 0.97, density = 1.5 } },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
-	density = 0.09, mix = MIX.ice, rings = { { 0.15, 0.5, density = 1.5 }, { 0.6, 0.97, density = 1 } },   -- clear lane at the track (0.55)
+	-- ring stretched out to the edge (x2.43); stations orbit inside it
+	density = 0.09, mix = MIX.ice, track = 0.45, rings = { { 0.606, 0.97, density = 2 } },
 	city = true,
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
 	density = 0.09, mix = { ice = 9, rock = 1 }, -- four dense rings, well out from the planet, in pairs: a wider ring
 	-- then a thin one just outside it, twice
-	-- (the station track, 0.55, falls in the clear gap between the pairs)
-	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 },
-		{ 0.88, 0.97, density = 2 } },
+	-- (stretched x1.183 so the outer pair meets the edge; stations in the
+	-- wide gap between the pairs)
+	track = 0.7,
+	rings = { { 0.399, 0.461, density = 6 }, { 0.564, 0.590, density = 6 }, { 0.822, 0.885, density = 6 }, { 0.951, 0.97, density = 6 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The moons' maps (see Fields.moons). Airless bodies retain their rocky
