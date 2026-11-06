@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "gun_s_base", name = "PX-2 Autogun",
+	id = "gun_s_base", name = "Gun S",
 	family = "weapon",
 	maker = "Halcyon Arms",
 	mass = 4,

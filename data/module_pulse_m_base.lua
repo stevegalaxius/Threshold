@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "pulse_m_base", name = "Lumen Lance",
+	id = "pulse_m_base", name = "Pulse Laser M",
 	family = "weapon",
 	maker = "Nova Syndicate",
 	mass = 12,

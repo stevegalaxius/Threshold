@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "pulse_s_base", name = "Glint Laser",
+	id = "pulse_s_base", name = "Pulse Laser S",
 	family = "weapon",
 	maker = "Halcyon Arms",
 	mass = 5,

@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "artillery_s_base", name = "Pip Mortar",
+	id = "artillery_s_base", name = "Artillery S",
 	family = "weapon",
 	maker = "Ferrous Collective",
 	mass = 6,

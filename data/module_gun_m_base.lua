@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "gun_m_base", name = "RK-7 Autocannon",
+	id = "gun_m_base", name = "Gun M",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 10,

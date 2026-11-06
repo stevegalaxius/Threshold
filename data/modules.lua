@@ -68,19 +68,19 @@
 -- ammo and little power. damage is per second; rockDamage multiplies it
 -- against asteroids, and drilled rock drops ore when it breaks.
 module {
-	id = "drill_s_base", name = "Bore Drill", maker = "Ferrous Collective", family = "weapon", size = "S",
+	id = "drill_s_base", name = "Drill S", maker = "Ferrous Collective", family = "weapon", size = "S",
 	mass = 6, price = 3500,
 	weapon = { kind = "drill", damage = 12, rockDamage = 12, powerPerSecond = 4, extendTime = 0.35 },
 }
 
 module {
-	id = "drill_m_base", name = "Rockbiter", maker = "Ferrous Collective", family = "weapon", size = "M",
+	id = "drill_m_base", name = "Drill M", maker = "Ferrous Collective", family = "weapon", size = "M",
 	mass = 14, price = 9000,
 	weapon = { kind = "drill", damage = 25, rockDamage = 14, powerPerSecond = 8, extendTime = 0.45 },
 }
 
 module {
-	id = "drill_l_base", name = "Deep Core Drill", maker = "Brute Industries", family = "weapon", size = "L",
+	id = "drill_l_base", name = "Drill L", maker = "Brute Industries", family = "weapon", size = "L",
 	mass = 34, price = 24000,
 	weapon = { kind = "drill", damage = 50, rockDamage = 16, powerPerSecond = 15, extendTime = 0.6 },
 }
@@ -89,19 +89,19 @@ module {
 -- powerPerSecond are per second; easier to keep on target than a pulse
 -- laser, so a little less damage for the power.
 module {
-	id = "beam_s_base", name = "Thread Beam", maker = "Halcyon Arms", family = "weapon", size = "S",
+	id = "beam_s_base", name = "Beam Laser S", maker = "Halcyon Arms", family = "weapon", size = "S",
 	mass = 6, price = 6000,
 	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
 }
 
 module {
-	id = "beam_m_base", name = "Searing Ray", maker = "Nova Syndicate", family = "weapon", size = "M",
+	id = "beam_m_base", name = "Beam Laser M", maker = "Nova Syndicate", family = "weapon", size = "M",
 	mass = 14, price = 16000,
 	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
 }
 
 module {
-	id = "beam_l_base", name = "Furnace Beam", maker = "Halcyon Arms", family = "weapon", size = "L",
+	id = "beam_l_base", name = "Beam Laser L", maker = "Halcyon Arms", family = "weapon", size = "L",
 	mass = 32, price = 42000,
 	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
 }
@@ -115,19 +115,19 @@ module {
 
 
 module {
-	id = "drone_s_base", name = "Wasp Bay", maker = "Nova Syndicate", family = "bay", size = "S",
+	id = "drone_s_base", name = "Drone Bay S", maker = "Nova Syndicate", family = "bay", size = "S",
 	mass = 6, price = 7000,
 	weapon = { kind = "drone", fireRate = 0.4, recoil = 100, control = 1 },
 }
 
 module {
-	id = "drone_m_base", name = "Hive Bay", maker = "Nova Syndicate", family = "bay", size = "M",
+	id = "drone_m_base", name = "Drone Bay M", maker = "Nova Syndicate", family = "bay", size = "M",
 	mass = 14, price = 18000,
 	weapon = { kind = "drone", fireRate = 0.3, recoil = 200, control = 2 },
 }
 
 module {
-	id = "drone_l_base", name = "Carrier Deck", maker = "Nova Syndicate", family = "bay", size = "L",
+	id = "drone_l_base", name = "Drone Bay L", maker = "Nova Syndicate", family = "bay", size = "L",
 	mass = 30, price = 40000,
 	weapon = { kind = "drone", fireRate = 0.2, recoil = 400, control = 4 },
 }

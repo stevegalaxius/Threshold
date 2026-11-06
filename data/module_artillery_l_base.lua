@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "artillery_l_base", name = "Long Tom",
+	id = "artillery_l_base", name = "Artillery L",
 	family = "weapon",
 	maker = "Ferrous Collective",
 	mass = 34,

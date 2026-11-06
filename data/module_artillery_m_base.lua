@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2), Weapons tab.
 module {
-	id = "artillery_m_base", name = "Thumper",
+	id = "artillery_m_base", name = "Artillery M",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 16,
