@@ -84,6 +84,7 @@ local function advanced(game, r, elapsed)
 end
 
 function P.advanceRecord(record,elapsed) return advanced(nil,record,elapsed) end
+function P.orbit(game,x,y) return orbit(game,x,y) end
 
 -- Pure poses for preview rendering; no writes to a retained physics world.
 function P.previewPositions(game)
@@ -92,7 +93,13 @@ function P.previewPositions(game)
  if not area then return result end
  local elapsed=math.max(0,game.universe.clock-area.capturedAt)
  for _,r in ipairs(area.objects) do result.objects[r.id]=advanced(game,r,elapsed) end
- for _,r in ipairs(area.pickups) do result.pickups[r.id]=advanced(game,r,elapsed) end
+ local Loose=require('src.loose')
+ for id,record in pairs(Loose.records(game.universe)) do
+  if record.area==game.fieldId and record.kind=='loot' then
+   local x,y,vx,vy=Loose.position(record,game.universe.clock)
+   result.pickups[id]={x=x,y=y,vx=vx,vy=vy,item=record.item,count=record.count}
+  end
+ end
  return result
 end
 
@@ -105,7 +112,7 @@ local function record(game, e)
 		angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
 		mass = { mx, my, mass, inertia }, linearDamping = body:getLinearDamping(),
 		angularDamping = body:getAngularDamping(), hp = e.hp, radius = e.radius,
-		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId }
+		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId, origin = P.copy(e.origin) }
 	if e.kind == "container" then
 		r.item = e.item
 	else
@@ -125,11 +132,6 @@ local function record(game, e)
 	return r
 end
 
-local function pickupRecord(game, p)
-	return { id = identify(game, p), item = p.item, count = p.count,
-		x = p.x, y = p.y, vx = p.vx, vy = p.vy, spin = p.spin, orbit = orbit(game, p.x, p.y) }
-end
-
 function P.install(Game)
 	function Game:captureArea()
 		if not self.field or self.field.transit then return end
@@ -139,9 +141,7 @@ function P.install(Game)
 				snapshot.objects[#snapshot.objects + 1] = record(self, e)
 			end
 		end
-		for _, p in ipairs(self.pickups) do
-			if p.count > 0 and not p.miningId then snapshot.pickups[#snapshot.pickups + 1] = pickupRecord(self, p) end
-		end
+		-- Loose items are not area state: their records live in src/loose.lua.
 		self.universe.areas = self.universe.areas or {}
 		self.universe.areas[self.fieldId] = snapshot
 		return snapshot
@@ -155,9 +155,12 @@ function P.install(Game)
 			local r = advanced(self, saved, math.max(0, self.universe.clock - area.capturedAt))
 			if (r.x - x) ^ 2 + (r.y - y) ^ 2 < ((r.radius or 100) + margin) ^ 2 then return false end
 		end
-		for _, saved in ipairs(area.pickups) do
-			local r = advanced(self, saved, math.max(0, self.universe.clock - area.capturedAt))
-			if (r.x - x) ^ 2 + (r.y - y) ^ 2 < (20 + margin) ^ 2 then return false end
+		local Loose = require("src.loose")
+		for _, record in pairs(Loose.records(self.universe)) do
+			if record.area == self.fieldId and record.kind == "loot" then
+				local rx, ry = Loose.position(record, self.universe.clock)
+				if (rx - x) ^ 2 + (ry - y) ^ 2 < (20 + margin) ^ 2 then return false end
+			end
 		end
 		return true
 	end
@@ -176,15 +179,6 @@ function P.install(Game)
 				local r = advanced(self, saved, elapsed)
 				e.body:setPosition(r.x, r.y)
 				e.body:setLinearVelocity(r.vx, r.vy)
-			end
-		end
-		records = {}
-		for _, r in ipairs(area.pickups) do records[r.id] = r end
-		for _, p in ipairs(self.pickups) do
-			local saved = records[p.persistenceId]
-			if saved then
-				local r = advanced(self, saved, elapsed)
-				p.x, p.y, p.vx, p.vy = r.x, r.y, r.vx, r.vy
 			end
 		end
 	end
@@ -217,13 +211,6 @@ function P.install(Game)
 				b:setAngularVelocity(r.spin)
 				b:setLinearDamping(r.linearDamping)
 				b:setAngularDamping(r.angularDamping)
-			end
-		end
-		for _, saved in ipairs(snapshot.pickups or {}) do
-			local r = advanced(self, saved, math.max(0, self.universe.clock - snapshot.capturedAt))
-			if known(r.item) and r.count > 0 then
-				self.pickups[#self.pickups + 1] = { persistenceId = r.id, item = r.item, count = r.count,
-					x = r.x, y = r.y, vx = r.vx, vy = r.vy, spin = r.spin }
 			end
 		end
 	end

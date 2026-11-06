@@ -88,8 +88,7 @@ end
 function S.advance(game,r,clock,start)
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
  if not r.salvageReturn and r.area and (units(r)>=T.salvagerLoad or units(r)>0 and clock>=(r.salvageUntil or 0)
-  or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)
-  or Supplies.needs(r) or Repairs.needs(r)) then S.returnRecord(game,r,Supplies.needs(r) or Repairs.needs(r)) end
+  or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
  for _=1,64 do
   if r.state=='travel' or r.state=='transit' then
    if clock<r.arrive then return end
@@ -112,10 +111,9 @@ function S.think(game,e,dt,AI)
  local r=e.alifeRecord
  if not r or r.role~='salvager' then return false end
  if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
- if not r.salvageReturn and (units(r)>=T.salvagerLoad or units(r)>0 and game.universe.clock>=(r.salvageUntil or 0)
-  or Supplies.needs(r,e) or Repairs.needs(r,e.armor,e.stats.armor)) then
+ if not r.salvageReturn and (units(r)>=T.salvagerLoad or units(r)>0 and game.universe.clock>=(r.salvageUntil or 0)) then
   local A=require('src.alife');A.capture(game,e,false)
-  if S.returnRecord(game,r,Supplies.needs(r,e) or Repairs.needs(r,e.armor,e.stats.armor)) then A.bindRoute(game,e,r) end
+  if S.returnRecord(game,r,false) then A.bindRoute(game,e,r) end
   e.tractorTarget=nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
  end
  if r.salvageReturn then e.intent.tractor=false;e.tractorTarget=nil;AI.trade(game,e,dt);return true end

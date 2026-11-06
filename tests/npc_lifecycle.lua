@@ -15,7 +15,7 @@ return function(game)
  local canvas=love.graphics.newCanvas(love.graphics.getDimensions())
  local function draw()
   love.graphics.setCanvas(canvas)
-  local ok,err=pcall(G.draw,game,1)
+  local ok,err=pcall(require('src.ui.alife_overlay').draw,game,function(_,x,y) return x,y end)
   love.graphics.setCanvas()
   check(ok,'overlay used a stale body: '..tostring(err))
  end
@@ -74,5 +74,14 @@ return function(game)
  game:remove(e)
  check(game.alifeOnline[r.id]==awake and r.state=='idle','stale removal detached a newer representation')
  draw()
+
+ -- Unreferenced dead records are dropped after their linger; referenced ones stay.
+ do
+  local u={clock=0,npcs={}}
+  u.npcs.a={id='a',state='dead'};u.npcs.b={id='b',state='dead'}
+  u.npcs.c={id='c',state='idle',encounter={target='b'}}
+  A.pruneGone(u,0);A.pruneGone(u,require('src.tuning').alifeGoneLinger+1)
+  check(not u.npcs.a and u.npcs.b and u.npcs.c,'dead record cleanup removed a referenced record or kept a stale one')
+ end
  print(('NPC LIFECYCLE TEST PASSED (%d checks)'):format(checks))
 end

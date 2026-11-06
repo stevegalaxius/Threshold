@@ -286,14 +286,8 @@ local function section(id, label, fn, ...)
 	end
 end
 
-local function graphSection(game)
- local G = require("src.travelgraph")
- local visible = game.travelGraphView ~= nil
- if Slab.CheckBox(visible or false, "Show simulation connections and NPCs") then
-  game.travelGraphView = not visible and G.build(game.fieldId) or nil
- end
- local graph=G.build(game.fieldId)
- Slab.Text(("%d places, %d declared connections"):format(#graph.order,#graph.edges))
+-- Region numbers for the A-Life suite: residents, stashes, loose objects.
+local function regionSection(game)
  for _,station in ipairs(Locations.stations(game.fieldId)) do
   Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
  end
@@ -302,28 +296,6 @@ local function graphSection(game)
   Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')
   for item,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[item].name,n)) end
  end
- if Slab.Button("NPC traffic monitor (F4)") then require("src.ui.npc_traffic").toggle(game) end
- if Slab.Button("Open local map (M)") then require("src.ui.localmap").open(game) end
- for id,r in pairs(game.universe.npcs or {}) do
-  if r.area==game.fieldId then
-   local e=game.alifeOnline and game.alifeOnline[id]
-   Slab.Text(id.."  "..r.role.." / "..(e and "online" or r.state))
-   local home=require("src.npc_home").get(r)
-   if home then Slab.Text("  Home: "..Locations.get(home).name.." ("..home..")") end
-   Slab.Text("  Destination: "..Locations.get(r.route[e and e.routeIndex or r.index]).name)
-   if r.task then Slab.Text("  Duty: "..r.task.kind.." / "..r.task.phase) end
-   if r.fuelStatus then Slab.Text('  Fuel: '..require('src.reactor_fuel').label(r)) end
-   if r.taskStatus then Slab.Text("  Activity: "..r.taskStatus) end
-   if r.role=='salvager' then Slab.Text(('  Salvage earnings: %d cr'):format(r.salvageEarnings or 0)) end
-   if r.targetId then Slab.Text("  Target: "..r.targetId) end
-  end
- end
- for id,r in pairs(game.universe.npcs or {}) do
-  if r.state=="transit" and (r.transit.from==game.fieldId or r.transit.to==game.fieldId or require("src.alife").laneDirection(game,r)) then
-   Slab.Text(id.." transit: "..Fields[r.transit.to].name)
-   Slab.Text(("  Arrives in %.0fs"):format(math.max(0,r.arrive-game.universe.clock)))
-  end
- end
  local mining=game.universe.mining
  if mining then
   local drills,rocks,loot=0,0,0
@@ -331,14 +303,8 @@ local function graphSection(game)
   for _,resource in pairs(mining.resources) do
    if resource.area==game.fieldId then if resource.kind=='rock' then rocks=rocks+1 else loot=loot+1 end end
   end
-  Slab.Text(('Mining: %d drills / %d chunks / %d ore stacks'):format(drills,rocks,loot))
-  for station,stock in pairs(mining.stock) do
-   if Locations.get(station).area==game.fieldId then
-    for item,n in pairs(stock) do Slab.Text(('  %s: %d %s in stock'):format(Locations.get(station).name,n,data.items[item].name)) end
-   end
-  end
+  Slab.Text(('Loose objects: %d drills / %d chunks / %d item stacks'):format(drills,rocks,loot))
  end
- Slab.Text("Persistent traders, miners, patrols and pirates. Roles keep their own duties.")
 end
 
 local function locationSection(game)
@@ -375,13 +341,24 @@ function Debug.update(dt, game)
 	end
 	if Debug.alifeVisible then
 		Debug.alifeVisible = Slab.BeginWindow("dbg_alife_window", {
-			Title = "A-Life debug  (F6 hides)", X = 30, Y = 80,
-			W = 560, H = h - 110, AutoSizeWindow = false, AllowResize = true,
+			-- on the right, so the local map's NPCs stay visible beside it
+			Title = "A-Life debug suite  (F6 hides)", X = love.graphics.getWidth() - 570, Y = 80,
+			W = 550, H = h - 110, AutoSizeWindow = false, AllowResize = true,
 			IsOpen = Debug.alifeVisible,
 		})
 		if Debug.alifeVisible then
-			section("dbg_graph", "A-Life records and connections", graphSection, game)
-			section("dbg_history", "Simulation history", function(g) require("src.simulation_history").panel(g,Slab) end, game)
+			local O = require("src.ui.alife_overlay")
+			if Slab.CheckBox(O.state.overlay, "Show simulation connections and NPC labels on the local map (N)") then O.toggleOverlay() end
+			if Slab.Button("Labels: " .. O.state.labels .. " (L)") then O.cycleLabels() end
+			Slab.SameLine()
+			if Slab.Button("Local map (M)") then require("src.ui.localmap").open(game) end
+			Slab.SameLine()
+			if Slab.Button("Traffic (F4)") then require("src.ui.npc_traffic").toggle(game) end
+			Slab.Separator()
+			require("src.ui.alife_inspector").panel(game)
+			Slab.Separator()
+			section("dbg_region", "This region", regionSection, game)
+			section("dbg_history", "Outcome log", function(g) require("src.simulation_history").panel(g,Slab) end, game)
 		end
 		Slab.EndWindow()
 	end

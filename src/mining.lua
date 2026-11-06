@@ -138,7 +138,9 @@ function M.seed(game)
   end
  end
 end
-function M.position(resource,clock)
+function M.position(resource,clock) return require('src.loose').position(resource,clock) end
+-- Drilled rocks only; loose items use the shared model in src/loose.lua.
+function M.rockPosition(resource,clock)
  local elapsed=max(0,clock-(resource.clock or clock));local f=Fields[resource.area]
  if f.planetR then
   local r=max(1,sqrt(resource.x^2+resource.y^2))
@@ -206,7 +208,7 @@ end
 function M.produce(game,clock)
  local state=M.state(game.universe)
  local counts={}
- for _,resource in pairs(state.resources) do counts[resource.site]=(counts[resource.site] or 0)+1 end
+ for _,resource in pairs(state.resources) do if resource.site then counts[resource.site]=(counts[resource.site] or 0)+1 end end
  for id,site in pairs(state.sites) do
   if clock>=site.nextAt then
    -- One irregular ejection, never a catch-up volley after travel or loading.
@@ -261,9 +263,7 @@ function M.captureResources(game)
      r.verts=copy(e.verts);r.clock=game.universe.clock
     end
    else
-    local p=live.object
-    if p.count<=0 then resources[id]=nil
-    else r.x,r.y,r.vx,r.vy,r.count,r.clock=p.x,p.y,p.vx,p.vy,p.count,game.universe.clock end
+    require('src.loose').write(game,r,live.object)
    end
   end
  end
@@ -274,18 +274,18 @@ function M.unload(game)
   if live.kind=='rock' and not live.object.removed then game:remove(live.object,true) end
  end
  local keep={}
- for _,p in ipairs(game.pickups) do if not p.miningId then keep[#keep+1]=p end end
+ for _,p in ipairs(game.pickups) do if not p.looseId then keep[#keep+1]=p end end
  game.pickups=keep;game.miningLive={}
 end
 function M.breakRock(game,e,pickup)
  if not e.miningId then return end
  local state=M.state(game.universe);local r=state.resources[e.miningId]
  if r and r.kind=='rock' then
-  if pickup then
-   r.x,r.y,r.vx,r.vy,r.clock=pickup.x,pickup.y,pickup.vx,pickup.vy,game.universe.clock
-   r.kind,r.item,r.count='loot',pickup.item,pickup.count
-   pickup.miningId=r.id
-   game.miningLive[r.id]={kind='loot',object=pickup}
+  if pickup and pickup.looseId then
+   -- The ore has its own loot record already; it stays reserved for the site.
+   local loot=state.resources[pickup.looseId]
+   if loot then loot.site=r.site end
+   state.resources[r.id]=nil;game.miningLive[r.id]=nil
   else
    -- Collisions and other weapons destroy the resource without a drill yield.
    state.resources[r.id]=nil;game.miningLive[r.id]=nil
@@ -322,8 +322,7 @@ function M.materialize(game)
      e.body:setLinearVelocity(vx,vy);e.body:setLinearDamping(M.chunkDamping(r.area))
      game.miningLive[id]={kind='rock',object=e}
     else
-     game:spawnPickup(x,y,r.item,r.count)
-     local p=game.pickups[#game.pickups];p.miningId=id;p.vx,p.vy=vx,vy
+     local p=game:pickupView(x,y,r.item,r.count,vx,vy);p.looseId=id
      game.miningLive[id]={kind='loot',object=p}
     end
    end
@@ -338,7 +337,11 @@ function M.materialize(game)
    if not object.removed and not object.body:isDestroyed() then x,y=object.body:getPosition() else x,y=px+T.sleepFar+1,py end
   else x,y=object.x,object.y end
   if not r or not needed(x,y,T.sleepFar) then
-   if live.kind=='rock' then if not object.removed then game:remove(object,true) end else object.count=0 end
+   if live.kind=='rock' then if not object.removed then game:remove(object,true) end
+   else
+    -- Drop the view only; its record (if any) stays the authority.
+    for i,p in ipairs(game.pickups) do if p==object then table.remove(game.pickups,i);break end end
+   end
    game.miningLive[id]=nil
   end
  end
@@ -530,7 +533,7 @@ function M.think(game,e,dt,AI)
   e.miningTarget=nil;e.miningPickup=nil;e.miningResource=nil;e.tractorTarget=nil
   local best=math.huge
   for _,p in ipairs(game.pickups) do
-   local resource=p.miningId and M.state(game.universe).resources[p.miningId]
+   local resource=p.looseId and M.state(game.universe).resources[p.looseId]
    local owner=p.collector
    if resource and resource.site==r.task.target and p.count>0 and (not owner or owner==e or owner.dead or owner.removed or owner.miningPickup~=p) then
     local d=(p.x-x)^2+(p.y-y)^2

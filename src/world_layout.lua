@@ -418,8 +418,13 @@ function W.connect(f)
  for _,id in ipairs(buoyOnly and #f.buoyIds>0 and f.buoyIds or {f.tradeHome or f.holdingId}) do link(f.driverId,id) end
  if f.ladderIds then
   for k,id in ipairs(f.ladderIds) do
+   -- each anchor is its own way in from the buoys; anchors are not linked
+   -- to each other (that ring ran straight through the ladder's cables)
    for _,to in ipairs(f.buoyIds) do link(id,to) end
-   link(id,f.ladderIds[k%#f.ladderIds+1])
+   -- and straight to the region's other stations and its mass driver, so
+   -- traffic leaves an anchor outward instead of skirting the ladder
+   for _,to in ipairs(f.stationIds) do if not byId[to].accessOf and to~=f.ladderIds[1] then link(id,to) end end
+   if f.driverId then link(id,f.driverId) end
   end
  end
  for _,p in ipairs(f.locations) do

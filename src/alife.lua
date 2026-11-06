@@ -16,6 +16,7 @@ local Piracy=require("src.piracy")
 local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Encounters=require('src.encounters')
+local Upkeep=require('src.upkeep')
 local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
 local Salvager=require('src.salvager')
@@ -31,8 +32,16 @@ end
 local function edge(r)
  return {from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index]}
 end
+-- Fuel shifts the leg clock only when the record advances. Between updates,
+-- an unpowered ship must not be drawn ahead of where it will be pulled back.
+local function legClock(r,clock)
+ if (r.fuelStatus=='stranded' or r.fuelStatus=='empty') and r.fuelClock then return math.min(clock,r.fuelClock) end
+ return clock
+end
+A.legClock=legClock
 local function progress(r,clock)
  if r.encounter then return r.encounter.progress end
+ clock=legClock(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
@@ -53,6 +62,7 @@ local function start(r,clock,index)
 end
 
 A.start=start
+Upkeep.install({start=start,graph=graph})
 
 local function roundTrip(home,to,clock,homeStation)
  local a,b=homeStation or L.station(home,'trade'),L.station(to,'trade')
@@ -211,6 +221,7 @@ end
 
 local function dockingStop(r,id)
  if r.worldRecovery then return id==r.worldRecovery.target end
+ if r.service then return Upkeep.isStation(r,id) end
  if r.role=='salvager' then return id==r.salvageGoal end
  if r.piracy then return id==r.route[#r.route] end
  if Security.shouldDock(r,id) then return true end
@@ -224,9 +235,12 @@ end
 
 function A.advance(r,clock,u,game)
  local fuelStatus=Fuel.advance(r,clock,u)
+ if fuelStatus=='stranded' and require('src.distress').advance(game,r,clock) then fuelStatus=r.fuelStatus end
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
- if game and not r.worldRecovery and r.role=='pirate' and not r.piracy and not r.encounter and (r.state=='idle' or r.state=='travel') and (Repairs.needs(r) or Supplies.needs(r)) then Piracy.returnRecord(game,r) end
+ -- Upkeep comes before every role: a due service visit owns the ship.
+ if r.state~='dead' and r.state~='escaped' and not r.service then Upkeep.plan(r,clock) end
+ if r.service and Upkeep.advance(r,clock,u) then return end
  if r.piracy and not r.worldRecovery then
   local result=Piracy.advance(r,clock,u,start)
   Fuel.observe(u,r,clock);return result
@@ -416,6 +430,7 @@ function A.laneSample(game,r,clock)
  local dir=A.laneDirection(game,r)
  if not dir then return end
  local speed=r.transit.speed or r.speed
+ clock=legClock(r,clock)
  local fraction=math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart))
  local along=(-game.lane.half+fraction*game.trip.length)*dir
  local n=(r.laneOffset or -math.min(T.laneWidth*.65,math.max(T.laneMedian+200,500+math.abs(r.spread or 0))))*dir
@@ -424,7 +439,8 @@ function A.laneSample(game,r,clock)
   and game.trip.originScene.fieldId==entry.area
  if anchor then
   local s0,n0=game:toLane(entry.x+game.trip.origin.x,entry.y+game.trip.origin.y)
-  along=s0+(clock-entry.clock)*speed
+  -- Headway since entry, excluding time the leg clock was held for lack of power.
+  along=s0+math.max(0,clock-r.depart-(entry.distance or 0)/speed)*speed
   n=n0
  end
  local x,y=game:fromLane(along,n)
@@ -546,7 +562,7 @@ function A.capture(game,e,remote)
 end
 
 local function bindRoute(game,e,r)
- if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return Mining.bind(game,e,r) end
+ if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome or r.service) then return Mining.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area)
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
@@ -651,7 +667,12 @@ function A.wake(game,r)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
-  game:dockInstantly(e,st,r.docking)
+  if st and st.kind=='station' and st.def then game:dockInstantly(e,st,r.docking)
+  else
+   -- docked at something that isn't a dockable station here (e.g. an
+   -- access point resolved to another entity): leave it in open space
+   require('src.alife_trace').note(r,game.universe.clock,'wake','docked record at '..tostring(r.route[r.index])..' has no station entity here')
+  end
   if e.dockState then
    e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
    if exact and r.docking and r.docking.berth==e.dockState.berth then
@@ -702,8 +723,33 @@ function A.wake(game,r)
  return e
 end
 
+-- Dead and escaped records stay only while something still points at them
+-- (a live fight, a target, a task they own), plus a short linger for
+-- history and debug views; then they are dropped so the universe stops growing.
+function A.pruneGone(u,clock,online)
+ local referenced={}
+ for _,r in pairs(u.npcs or {}) do
+  if r.state~='dead' and r.state~='escaped' then
+   if r.encounter and r.encounter.target then referenced[r.encounter.target]=true end
+   if r.targetId then referenced[r.targetId]=true end
+  end
+ end
+ for _,o in pairs(u.tasks and u.tasks.offers or {}) do if o.owner then referenced[o.owner]=true end end
+ for id,r in pairs(u.npcs or {}) do
+  if (r.state=='dead' or r.state=='escaped') and not (online and online[id]) and not referenced[id] then
+   r.goneAt=r.goneAt or clock
+   if clock-r.goneAt>=T.alifeGoneLinger then u.npcs[id]=nil end
+  end
+ end
+end
+
 function A.install(Game)
  function Game:traderCanDepart(e,station)
+  local serviced=self.universe.npcs[e.alifeId]
+  if serviced and serviced.service and Upkeep.isStation(serviced,station.locationId) then
+   if not Upkeep.canDepart(self,e,serviced) then return false end
+   e.serviceDeparture=true;return true
+  end
   local salvager=self.universe.npcs[e.alifeId]
   if salvager and salvager.role=='salvager' then
    A.capture(self,e,false)
@@ -748,6 +794,12 @@ function A.install(Game)
   return true
  end
  function Game:traderUndocked(e,station)
+  if e.serviceDeparture then
+   e.serviceDeparture,e.serviceDockedAt=nil,nil
+   local r=self.universe.npcs[e.alifeId];A.capture(self,e,false)
+   if r.index>=#r.route then Upkeep.passed(r,#r.route) end
+   start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return
+  end
   if e.salvagerDeparture then
    e.salvagerDeparture=nil
    local r=self.universe.npcs[e.alifeId];start(r,self.universe.clock,2);bindRoute(self,e,r);return
@@ -796,6 +848,7 @@ function A.install(Game)
   Population.update(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
+  A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
   for id,e in pairs(self.alifeOnline) do
@@ -820,12 +873,19 @@ function A.install(Game)
     A.capture(self,e,true)
     local r=records[id]
     start(r,clock,r.index%#r.route+1)
+    if not r.transit then
+     -- the record's next leg isn't the crossing the ship reached (its
+     -- itinerary changed under it): hand it to the record, which has
+     -- already started that leg
+     self:remove(e,true);self.alifeOnline[id]=nil
+    else
     r.transit.speed=r.transit.kind=='driver' and T.laneFlow or math.max(50,math.sqrt(vx*vx+vy*vy))
     r.arrive=clock+r.transit.length/r.transit.speed
     e.alifeDepart=nil; e.alifeEgress=true; e.route=nil
     e.egressHeading=e.driverProtected and math.atan2(vy,vx) or math.atan2(y,x); e.egressSpeed=math.max(r.transit.speed,r.speed*.6)
     e.intent=Ship.emptyIntent()
     A.capture(self,e,true)
+    end
    elseif not e.driverTractor and not e.launch and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2) then
     A.capture(self,e,false)
     if not e.removed then self:remove(e,true) end

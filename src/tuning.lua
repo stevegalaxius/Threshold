@@ -161,6 +161,21 @@ T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
+-- Offline combat rule (encounters.lua): pirates attack only at these odds or
+-- better; faster prey escapes with chance (speed ratio - 1) x gain, capped;
+-- armour fraction where each kind of ship breaks off.
+T.offlineEngageOdds, T.offlineEngageWindow = 0.6, 60
+T.offlineEscapeGain, T.offlineEscapeMax = 1.5, 0.8
+-- Robbery (robbery.lua): share of trade goods a pirate demands, seconds to
+-- comply, seconds a complying ship is spared afterwards.
+T.robberyShare, T.robberyWindow, T.robberySpare = 0.5, 15, 120
+-- Distress (distress.lua): how far a stranded ship's call reaches online,
+-- seconds between calls, seconds a helper has to deliver, and the share of
+-- its normal fuel reserve a stranded ship asks for.
+T.distressRange, T.distressRetry, T.distressWindow, T.distressShare = 20000, 30, 120, 0.5
+T.distressMinSpare = 3   -- units of fuel a helper must be able to spare
+T.offlineStationAccuracy = 0.5   -- turret hit chance offline
+T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800
 T.population = {
  pirate={minDelay=180,maxDelay=300,target=2},
@@ -271,6 +286,15 @@ T.historyLimit,T.historyQuietTime=256,5
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
 T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
+T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
+-- Seconds before a ship still short of fuel after a supply stop tries another.
+T.npcFuelStopRetry=600
+-- Extra gap between an undocking ship and traffic at its launch point.
+T.launchClearance=60
+-- Physics categories: loose pickups collide with world geometry, not ships.
+T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
+-- Seconds a dead/escaped NPC record lingers (unreferenced) before removal.
+T.alifeGoneLinger=300
 
 T.salvagerPopulation,T.salvagerLoad,T.salvagerCollectTime=1,8,30
 T.salvagerRange,T.salvagerStay=6000,30

@@ -32,10 +32,18 @@ function F.condition(r,e)
  local fuel=F.remaining(ship)
  local power=e and e.power or r.power or stats.powerCap
  if fuel<=1e-6 then return power<=1e-6 and 'stranded' or 'empty' end
- if fuel<stats.powerOut*T.reactorFuelReserveSeconds*T.npcAmmoThreshold then return 'low' end
+ if fuel<stats.powerOut*T.reactorFuelReserveSeconds*T.npcFuelLow then return 'low' end
  return 'normal'
 end
 function F.label(r) return r.fuelStatus and labels[r.fuelStatus] end
+-- What the ship is doing, for debug views: a fuel emergency outranks any
+-- earlier activity text such as a post-combat withdrawal.
+function F.activity(r)
+ if r.fuelStatus=='stranded' then return 'out of fuel: stranded, waiting for fuel' end
+ if r.service then return require('src.upkeep').label(r) end
+ if r.fuelStatus=='empty' then return 'out of fuel: running on capacitor' end
+ return r.taskStatus
+end
 function F.needsPropulsion(r)
  return r.state~='docked' and not r.driverState
   and not (r.state=='transit' and r.transit and r.transit.kind=='driver')
@@ -56,6 +64,7 @@ function F.observe(u,r,clock,e)
  if status=='stranded' and r.role=='miner' then r.fuelClock=clock end
  if status~=previous then
   r.fuelStatus=status;r.fuelStatusSince=clock
+  if previous then require('src.alife_trace').note(r,clock,'fuel',previous..' -> '..status..(' (%.0f fuel)'):format(F.remaining(e or r.ship))) end
   if u and (previous or status~='normal') then
    require('src.simulation_history').fuelCondition(u,r,clock,previous or 'normal',status,
     F.remaining(e or r.ship),e and e.power or r.power or 0)
@@ -64,6 +73,8 @@ function F.observe(u,r,clock,e)
  if e then e.fuelStatus=status end
  -- Clear only the old prototype's fuel-owned activity text, never a duty.
  if r.taskStatus=='out of reactor fuel' then r.taskStatus=nil end
+ -- A finished retreat must not linger as the ship's activity.
+ if r.taskStatus=='withdrawing after combat' and (r.retreatUntil or 0)<=clock then r.taskStatus=nil end
  return status
 end
 local function burn(e,need)

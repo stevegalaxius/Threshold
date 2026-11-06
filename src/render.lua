@@ -1353,8 +1353,12 @@ function Render.world(game, overlay, boundaryAngle)
 	drawBeams(game)
 	drawEffects(game)
 	game:drawComputers(screenPx)
-	require("src.travelgraph").draw(game, screenPx)
 	game.camera:release()
+	-- A-Life debug overlay (F6 / N on the local map), drawn in screen space
+	local Overlay = require("src.ui.alife_overlay")
+	if Overlay.state.overlay or Overlay.state.selected then
+		Overlay.draw(game, function(_, x, y) return game.camera:toScreen(x, y) end)
+	end
 	if restorePreview then restorePreview() end
 end
 

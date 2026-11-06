@@ -73,6 +73,9 @@ function Game:updateMoonGates(dt)
  self:placeMoonGates()
  local p=self.player
  if not p or p.dead or p.dockState or self.state~="playing" or self.lane then return end
+ -- a mass-driver shot is already bound for another planet; flying out
+ -- through a moon exit on the way must not hijack it
+ if p.launch or p.driverTractor or self.driverMenu or self.pendingFlight then return end
  local x,y=p.body:getPosition()
  if x*x+y*y<self.arenaRadius^2 then return end
  local vx,vy=p.body:getLinearVelocity()

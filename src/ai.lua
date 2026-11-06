@@ -185,7 +185,13 @@ local function trade(game, e, dt)
 	elseif route and #route > 0 then
 		e.routeIndex = e.routeIndex or 1
 		local stop = route[e.routeIndex]
-		if stop.removed then table.remove(route, e.routeIndex); e.routeIndex = 1; return end
+		if stop.removed then
+			-- A persistent NPC's stops come from its record: rebuild them
+			-- rather than reindexing (which would desync record and route).
+			local record = e.alifeId and game.universe.npcs[e.alifeId]
+			if record and record.route then require("src.alife").bindRoute(game, e, record); return end
+			table.remove(route, e.routeIndex); e.routeIndex = 1; return
+		end
 		local sx, sy = stopPoint(stop, e)
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
@@ -194,6 +200,13 @@ local function trade(game, e, dt)
 		local hx, hy = sx, sy
 		local w = game.well
 		local gateApproach = e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
+		if gateApproach then
+			local G = require("src.travelgraph")
+			local previous = route[(e.routeIndex-2)%#route+1]
+			local edge = {from=previous.locationId, to=stop.locationId}
+			-- (a route that wraps or crosses regions has no local edge here)
+			if not (e.travelGraph.nodes[edge.from] and e.travelGraph.nodes[edge.to]) then gateApproach = false end
+		end
 		if gateApproach then
 			local G = require("src.travelgraph")
 			local previous = route[(e.routeIndex-2)%#route+1]
@@ -317,8 +330,24 @@ function AI.think(game, e, dt)
  if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
   local x,y=e.body:getPosition();local a=e.body:getAngle()
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100
+  require("src.distress").stranded(game,e,record,dt)
   return
  end
+ if record and e.route and not e.dockState then
+  -- Upkeep before any role: plan a service visit when one is due; hand the
+  -- role its route back once the visit has returned to it.
+  local A=require("src.alife");local Upkeep=require("src.upkeep")
+  local passed=((e.routeIndex or 1)-2)%#e.route+1
+  if record.service and Upkeep.passed(record,passed) then
+   if record.state~='idle' then record.index=record.index%#record.route+1 end
+   A.bindRoute(game,e,record)
+  elseif not record.service then
+   local index=record.index
+   record.index=e.routeIndex or index
+   if Upkeep.plan(record,game.universe.clock,e) then A.bindRoute(game,e,record) else record.index=index end
+  end
+ end
+ if record and record.service then return trade(game,e,dt) end
  if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
 	if e.alifeId and require("src.salvager").think(game,e,dt,AI) then return end
 	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
@@ -329,6 +358,10 @@ function AI.think(game, e, dt)
 	local target
 	if e.alifeRole then
 		target = Security.target(game,e)
+		if target and e.alifeRole=='pirate' and not require("src.robbery").consider(game,e,target) then
+			-- demanding cargo: close in, guns quiet
+			if not require("src.robbery").pending(e) then target=nil;e.combatTarget=nil end
+		end
 		if not target then
 			Security.updateOnline(game,e,require("src.alife"))
 			if Security.hold(game,e,AI) then return end
@@ -507,6 +540,18 @@ function AI.think(game, e, dt)
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
 	it.fireSecondary = it.firePrimary
 	it.fireTertiary = it.firePrimary
+end
+
+-- A pirate waiting on a robbery demand keeps its guns quiet.
+local think=AI.think
+function AI.think(game,e,dt)
+	if e.asked then require("src.robbery").respond(game,e) end
+	if e.asked and require("src.distress").helper(game,e,dt,AI) then return end
+	think(game,e,dt)
+	if e.alifeRole=='pirate' and require("src.robbery").pending(e) then
+		local it=e.intent
+		it.firePrimary,it.fireSecondary,it.fireTertiary=false,false,false
+	end
 end
 
 return AI

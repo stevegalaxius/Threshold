@@ -7,12 +7,24 @@ return function(game)
 	local checks = 0
 	local function check(ok, message) assert(ok, message); checks = checks + 1 end
 	local function near(a, b) return math.abs(a - b) < 0.001 end
+	local Loose = require("src.loose")
 	local function clear()
 		for i = #game.entities, 1, -1 do
 			local e = game.entities[i]
 			if e.kind == "husk" or e.kind == "container" then game:remove(e) end
 		end
-		game.pickups = {}
+		-- Collecting loose items retires their records, not just the views.
+		for id, record in pairs(Loose.records(game.universe)) do
+			if record.area == game.fieldId and record.kind == "loot" then Loose.remove(game.universe, id) end
+		end
+		game.pickups, game.miningLive = {}, {}
+	end
+	local function records(area, item)
+		local n = 0
+		for _, record in pairs(Loose.records(game.universe)) do
+			if record.area == area and record.kind == "loot" and (not item or record.item == item) then n = n + 1 end
+		end
+		return n
 	end
 	local function find(id)
 		for _, e in ipairs(game.entities) do if e.persistenceId == id then return e end end
@@ -41,18 +53,19 @@ return function(game)
 	game:containerMass(box)
 	box.hp = box.hp * 0.5
 	box.body:setLinearVelocity(11, -7)
-	game:spawnPickup(1800, 2200, "rounds_s", 9)
+	local dropped = game:spawnPickup(1800, 2200, "rounds_s", 9)
 	local snapshot = game:captureArea()
 	local savedHull, savedContainer = h.persistenceId, box.persistenceId
 	check(snapshot.version == 1 and snapshot.capturedAt == game.universe.clock, "snapshot schema missing")
-	check(#snapshot.objects == 4 and #snapshot.pickups == 1, "wrong snapshot population")
+	check(#snapshot.objects == 4 and #snapshot.pickups == 0, "wrong snapshot population")
+	check(Loose.records(game.universe)[dropped.looseId].count == 9, "dropped item has no loose record")
 	check(snapshot.objects[1].pieces and #snapshot.objects[1].pieces == #h.pieces, "broken part state missing")
 	local encodedObjects = Save.encode(snapshot.objects)
 	game:loadField("giant")
 	game.universe.clock = game.universe.clock + 10000
 	game:loadField("asteroids")
 	local restored = game:captureArea()
-	check(#restored.objects == 4 and #restored.pickups == 1, "return duplicated or lost objects")
+	check(#restored.objects == 4 and records("asteroids", "rounds_s") == 1, "return duplicated or lost objects")
 	for i, r in ipairs(restored.objects) do
 		local before = snapshot.objects[i]
 		check(r.id == before.id and r.kind == before.kind, "persistent identity changed")
@@ -78,9 +91,11 @@ return function(game)
 	local decoded, err = Save.decode(Save.encode(saved))
 	check(decoded ~= nil, err)
 	check(Save.upgrade(decoded).version == Save.VERSION, "save version not upgraded")
-	game:spawnPickup(0, 0, "scrap", 99)
+	local abandoned = game:spawnPickup(0, 0, "scrap", 99)
 	game:loadState(decoded)
-	check(#game.pickups == #saved.areas.asteroids.pickups, "load overwrote saved state with the abandoned live scene")
+	check(not Loose.records(game.universe)[abandoned.looseId] and records("asteroids", "rounds_s") == 1,
+		"load overwrote saved state with the abandoned live scene")
+	for _, p in ipairs(game.pickups) do check(p.count ~= 99, "abandoned live item survived the load") end
 	check(find(savedContainer).hp == box.hp, "save/load lost container damage")
 	check(game.universe.nextObjectId == saved.nextObjectId, "persistent ID allocator was not restored")
 	-- Single-piece hulls use spine/circle fixtures rather than breakable parts.
@@ -104,7 +119,7 @@ return function(game)
 	clear()
 	game:loadField("giant")
 	game:loadField("asteroids")
-	check(#game.pickups == 0, "collected loot respawned")
+	check(#game.pickups == 0 and records("asteroids") == 0, "collected loot respawned")
 	local selected = 0
 	for _, e in ipairs(game.entities) do if e.kind == "husk" or e.kind == "container" then selected = selected + 1 end end
 	check(selected == 0, "empty area refilled its containers")
@@ -116,20 +131,19 @@ return function(game)
 	check(#game.entities > 0 and #game:captureArea().objects == 0, "unloaded area's empty snapshot was lost")
 	-- Real moon travel releases the original world, then recreates its objects.
 	game:loadField("earth")
-	game:spawnPickup(30000, 0, "scrap", 5)
-	game:captureArea()
-	local id = game.pickups[#game.pickups].persistenceId
+	local id = game:spawnPickup(30000, 0, "scrap", 5).looseId
 	local oldWorld = game.world
 	game:launchTrip("luna", { bearing = 0, length = Fields.moons.luna.gap })
 	local mid = assert(Save.decode(Save.encode(game:saveState())))
-	check(mid.areas.earth and #mid.areas.earth.pickups > 0, "mid-transit save lost the departure area")
+	check(mid.areas.earth and mid.mining.resources[id], "mid-transit save lost the departure area's items")
 	game:arrive(false)
 	check(oldWorld:isDestroyed(), "onward travel did not release the source physics world")
 	game:launchTrip("earth", { bearing = math.pi, length = Fields.moons.luna.gap })
 	game:arrive(false)
-	local found = 0
-	for _, p in ipairs(game.pickups) do if p.persistenceId == id and p.count == 5 then found = found + 1 end end
-	check(found == 1, "moon round trip lost or duplicated dropped cargo")
+	local views = 0
+	for _, p in ipairs(game.pickups) do if p.looseId == id then views = views + 1 end end
+	local kept = Loose.records(game.universe)[id]
+	check(kept and kept.count == 5 and views <= 1, "moon round trip lost or duplicated dropped cargo")
 	check(game.universe.areas.lane == nil, "transient lanes were accidentally cached as a single area")
 	-- Unloaded planetary objects follow the same current as sleeping debris.
 	game:loadField("earth")
@@ -160,22 +174,32 @@ return function(game)
  game.player=nil
  for _,kick in ipairs({0,90}) do
   game.pickups={}
+  local savedCloud={}
   for _,radius in ipairs({21900,22100}) do
-   game:spawnPickup(radius,0,'scrap',1)
-   local pickup=game.pickups[#game.pickups]
+   local pickup=game:spawnPickup(radius,0,'scrap',1)
    pickup.vx,pickup.vy=game:flowAt(radius,0)
    pickup.vx=pickup.vx+kick
+   local record=Loose.records(game.universe)[pickup.looseId]
+   Loose.write(game,record,pickup)
+   savedCloud[#savedCloud+1]=assert(Save.decode(Save.encode(record)))
   end
-  local savedCloud=assert(Save.decode(Save.encode(game:captureArea())))
-  for i,r in ipairs(savedCloud.pickups) do
-   local immediate=Persistence.advanceRecord(r,0)
-   check(near(immediate.x,game.pickups[i].x) and near(immediate.y,game.pickups[i].y),'immediate reload moved loot')
+  for i,r in ipairs(savedCloud) do
+   local x,y=Loose.position(r,r.clock)
+   check(near(x,game.pickups[i].x) and near(y,game.pickups[i].y),'immediate reload moved loot')
   end
   local seconds=3600
-  for _=1,seconds*120 do game:updatePickups(1/120) end
+  -- Loose items are physics bodies: the world step moves them.
+  -- Drift is compared in open space: this fixture's loot ignores the
+  -- field's random rocks, which would legitimately deflect it.
+  game:updatePickups(0)
+  for _,k in ipairs(game.pickups) do
+   for _,f in ipairs(k.body:getFixtures()) do f:setMask(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16) end
+  end
+  for _=1,seconds*120 do game.world:update(1/120);game:updatePickups(1/120) end
   local predicted={}
-  for i,r in ipairs(savedCloud.pickups) do
-   predicted[i]=Persistence.advanceRecord(r,seconds)
+  for i,r in ipairs(savedCloud) do
+   local x,y=Loose.position(r,r.clock+seconds)
+   predicted[i]={x=x,y=y}
    local live=game.pickups[i]
    local error=math.sqrt((predicted[i].x-live.x)^2+(predicted[i].y-live.y)^2)
    check(error<220,'saved loot catch-up diverged from live drift')

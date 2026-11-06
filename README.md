@@ -74,8 +74,6 @@ stations remain temporary and are not catalogue entries. Start a new game when
 switching to this build: old numbered station references are not migrated.
 
 This catalogue does not yet assign NPCs, offer smart-terrain jobs or plan routes.
-`love . --locationtest` checks all existing regions, live/unloaded position
-agreement, stable save references, display renames and construction reordering.
 
 ## Area-object persistence
 
@@ -96,8 +94,7 @@ Highways are temporary per-trip areas and are excluded. There is no offline NPC
 simulation, expiration policy, or permanent NPC registry yet.
 
 Save version 2 adds optional area snapshots. Older object snapshots can load,
-but old numbered station references are not migrated by the location catalogue. `love . --persisttest` runs the focused round-trip, loot, wreck damage,
-moon-travel and save-compatibility checks.
+but old numbered station references are not migrated by the location catalogue.
 
 ## Close-surface flight
 
@@ -193,16 +190,6 @@ Phobos and Deimos retain their irregular rocky moon bodies (radii 1,400 and
 800 pixels). Mars keeps the Heaven-Ladder and its existing stations, with nine
 local traders and much less rock debris.
 
-`love . --worldtest` runs targeted checks for the expanded destinations: highway
-arrival and return, rocky moon bodies and sizes, docked save/load, and
-Pluto's targeting shortcut. It exits with a failing status on an assertion and
-writes `phobos-rocky-moon.png` to the game's save directory for visual inspection.
-It also runs highway handoff regressions: immediate turnarounds preserve the
-original scene, and arrivals reuse the visible approach scene without moving
-the camera or changing ship motion. Comparison screenshots are saved as
-`turnaround-before.png`, `turnaround-highway.png`, and `turnaround-after.png`.
-The existing `love . --autotest` also exercises all moon round trips.
-
 ## Known gaps (on purpose for this milestone)
 
 - Combat NPCs and background asteroids still regenerate; highway debris is transient. Station traders persist.
@@ -219,10 +206,6 @@ wrecks, cargo, and nearby offline traders appear as smaller contacts. Transit la
 Drag to pan, scroll to zoom, **Home** to fit the whole region, and **P** to center
 on your ship. **M** or **Esc** closes the map. The map has its own camera and
 blocks flight controls while open; the simulation continues running.
-
-`love . --maptest` checks fitting and coordinate transforms across every region,
-selection, zoom, pan, camera isolation, closing, and transit, and saves example
-map screenshots in the game's save directory.
 
 ## Persistent traders
 
@@ -276,24 +259,11 @@ and NPCs**, then open **M**. Blue lines are declared connections. Labels show
 actual trader identity, state, and destination; the debug panel also lists
 travellers in connecting highways. The map shows contacts sharing your highway.
 
-`love . --tradertest` checks populations across every region and an Earth–Luna–Earth
-round trip, including encountering the same trader in the matching highway,
-route/direction filtering, damage/cargo retention, docking, return, save/load,
-repairing saved driver detours, and exact spacing/speed when following a departure.
-`love . --alifetest` checks local body/record transitions, hysteresis, spread,
-docking waits, death salvage, scene adoption, and duplicate prevention.
-`love . --graphtest` checks declared topology, projection, routing, serialization,
-and graph construction without physics bodies.
-
 `love . --navtest` runs a real physical departure from a station to a fixed moon
 exit, checks that the ship does not first head to the perimeter, and follows and
 attacks it during powered departure.
 
-`love . --idletest` simulates ten minutes idling in a highway with physics and
-preview rendering, returns to retained Earth, resumes physics, and saves. It
-also checks that preview drawing follows the location clock without moving the
-paused Box2D bodies. Preview poses are render-only; repeated physics transforms
-on an unstepped world previously caused a native broad-phase crash on return.
+Preview poses are render-only; repeated physics transforms on an unstepped world previously caused a native broad-phase crash on return.
 
 The navigation computer shows the current relative collision course only when
 contact between the actual collision fixtures is predicted within its lookahead
@@ -304,8 +274,6 @@ the line follows the earliest predicted contact rather than an arbitrary object.
 During the final half second before impact, the line becomes thicker and red,
 and a larger X with a ring marks the obstacle surface. The warning clears
 immediately when danger passes.
-`love . --navcomputertest` checks warning lifetime, direction, near misses,
-stationary motion, incoming hazards, docking/catching, and removing the module.
 
 ### Mars mining slice
 
@@ -330,11 +298,8 @@ Martian-ore manifests can finish and deposit their existing cargo, but no new
 placeholder ore jobs are assigned.
 
 **F6 → A-Life records and connections** shows station stock and current duties.
-Run `love . --oretest` for focused miner/hauler conservation, competition, loss,
-dockside waiting and save/load checks. `love . --marsjobtest` checks physical
-strip-mine docking, ore pickup and departure on both moons.
 
-Debug travel is available in **F1 → Teleport and destinations**: filter areas by name and jump to the selected planet or moon. On the **M map**, the dropdown beneath the planet name teleports to a selected area; scroll the list to reach all planets and moons. Right-click a map point to teleport within the current area. Right-click a planet on the mass-driver map to teleport directly to that area. The current ship, equipment, cargo and damage are preserved, and no travel fare is charged. Run `love . --debugtraveltest` for the integration checks.
+Debug travel is available in **F1 → Teleport and destinations**: filter areas by name and jump to the selected planet or moon. On the **M map**, the dropdown beneath the planet name teleports to a selected area; scroll the list to reach all planets and moons. Right-click a map point to teleport within the current area. Right-click a planet on the mass-driver map to teleport directly to that area. The current ship, equipment, cargo and damage are preserved, and no travel fare is charged.
 
 ## NPC tasks and interplanetary dispatch
 
@@ -360,10 +325,6 @@ Mars mining jobs remain supported. Other roles can register task types with the
 same lifecycle; patrol and raid duties now use it alongside transport. Mars
 mine hauling keeps its existing reservations.
 
-Run `love . --tasktest` for role eligibility, reservation ownership, cargo,
-offline completion and reassignment, save/load, death cleanup, and a powered
-mass-driver departure followed by online destination docking and delivery.
-
 ## Engine exhaust
 
 Player and NPC ships use the same warm engine exhaust. Each fitted engine
@@ -376,10 +337,6 @@ Changing an engine changes its effect for both player and NPC ships. Empty slots
 Legacy unplaced engines use a tail fallback. Maneuvering jets use the same warm
 palette.
 
-`love . --enginetest` renders twin-engine player and NPC fixtures and checks
-hardpoint positions, matching colors, refits, idle engines, afterburner extension,
-and legacy coordinates.
-
 Exhaust also burns intersecting ships, rocks, wrecks and cargo containers.
 Each engine's `exhaust.damage` sets damage per second at full throttle (30/50/80
 for Flit/Mule/Cinder); zero or an omitted value disables damage. Throttle scales
@@ -388,17 +345,10 @@ The entire visible plume, including its outer glow, shares collision geometry
 with rendering. Asteroids briefly glow orange while being burned. It cannot damage its own ship or burn while docked. Damage uses the
 normal attribution, immunity and retaliation rules and can hit friendly ships.
 
-`love . --exhausttest` checks real polygon/circle overlaps, multiple fixtures,
-two-engine damage, empty/idle/docked engines, rotation, throttle/time scaling,
-afterburner reach, attribution and per-module disabling.
-
-
 Ordnance computers also support laser-only ships (direct target marker) and
 secondary guns. Mixed laser/projectile loadouts retain projectile lead regardless
 of weapon ordering. Navigation and ordnance marks use translucent strokes; missile
 guidance uses bright brackets with a dark under-stroke for contrast.
-Run `love . --ordnancetest` for loadout and overlay regressions.
-
 
 Computer variants are authored in `data/modules.lua` with two settings each:
 
@@ -417,11 +367,7 @@ or fitting a smaller controller hands control back to the ship. Existing mod
 computers without these fields retain defaults. The global navigation/cone
 sliders now serve as fallbacks for those older definitions.
 
-`love . --computervarianttest` checks both settings on all four computers,
-lock and pilot retention after limits change, and legacy definitions.
-
 Side Jets are no longer a module or equipment slot. Hull `sideThrust` provides maneuvering thrust directly and is editable in the shipyard. Baseline hull values retain the previous scaled Side Jets thrust; ships no longer carry the module mass or continuous power draw. Existing saves/designs with the old slot layout may need to be recreated.
-
 
 Moon transit uses the local-map slowdown-and-drift response beyond
 `laneWidth + laneRamp + 2500` pixels from the route. It retains ordinary moon
@@ -432,8 +378,6 @@ to valid lane geometry. Density is retained in bands across the wider field.
 Those rocks are laid out at entry, stay clear of
 the handoff mouths, and are not pushed back inside by the moon boundary.
 `laneOffroad` controls their population; zero disables the off-road rocks.
-Run `love . --moonboundarytest` for force, placement and no-pop-in checks.
-
 
 Mass-driver users share one tractor/alignment/barrel/coast controller.
 NPC dispatch workers reserve the driver, are reeled into its breech, aim at
@@ -442,8 +386,6 @@ NPC launches do not take over the player's camera, menus or travel state.
 Both get the blue transit glow and immunity to damage and weapon knockback
 while captured, held or being fired off. Losing the beam or cancelling the
 targeting menu releases that protection. NPC launch phases survive save/load.
-Run `love . --drivertest` and `love . --tasktest` for these launch regressions.
-
 
 ## NPC traffic debugging
 
@@ -460,8 +402,6 @@ pause or advance the game. The header identifies an already-paused simulation.
 a claim about physical solar-system positions. It reads existing records without
 advancing remote NPCs, spawning bodies or teleporting the player. Arrival timers
 that have expired but await a simulation tick are marked as pending.
-Run `love . --traffictest` for diagnostic data and UI regression checks.
-
 
 ## Custom station docks
 
@@ -486,14 +426,12 @@ velocity, then apply the same small inward drift regardless of distance outside.
 They do not apply a distance-proportional spring force. The outer rock belt
 remains in place.
 
-
 Moon exits hand off directly when the player crosses the map edge outward
 through a marked exit. There is no scripted alignment, velocity override,
 input lock, ghosting, flash or cinematic zoom. The retained origin scenery,
 ship motion/spin, cursor aim, zoom, capacitor, engine spool and weapon cadence
 carry across the coordinate change. The player can steer, reverse, boost or fire
 immediately. Mass-driver launches retain their separate scripted sequence.
-Run `love . --moonentrytest` for entry and immediate-control regressions.
 
 Jupiter has two orbital trade buoys on its station track. Moon exits and the
 mass driver connect to this corridor, with Olympus reached through a buoy rather
@@ -501,9 +439,6 @@ than used as a through-traffic junction. City-bound pilots finish circling above
 the gravity band before descending to the runway. The city's tractor supports
 NPCs against gravity just as it supports the player. Existing saved routes adopt
 the buoy approach without teleporting their ships.
-`love . --olympustest` checks orbital positions, routes at different phases,
-saved-route repair, and a physical visitor docking at Olympus and climbing back
-out to its buoy.
 
 Berths accept ships up to three times their authored pad half-length; the
 editor marker keeps its existing dimensions. `T.berthShipScale` controls this
@@ -517,9 +452,7 @@ suitable free authored berth. If none is available, docking is refused without
 moving the ship to a generated overflow position. Berths provide normal station
 access and survive saves and ship switching; undocking launches from that position.
 Saves retain the player's berth or mooring, entrance and docking side.
-`love . --berthtest` checks berth selection, taxi placement, ship switching,
-save/load, shared NPC/player grid occupancy, and refusal when no suitable
-parking is available. Docked NPCs reserve grid cells just like stored ships and
+Docked NPCs reserve grid cells just like stored ships and
 release them when departing. Restored NPCs keep only parking assignments that
 remain valid. Offline station visits are still timed abstractions; advance
 reservations and a station-wide docking queue are not implemented.
@@ -530,7 +463,6 @@ own colors, without atmospheric haze or cloud bands. Surface appearance is
 independent of landing rules: only Phobos, Deimos and Ceres permit soft terrain
 contacts for mining. Other planetary impacts remain lethal, including Luna.
 Titan retains its atmosphere; Phobos and Deimos retain their irregular outlines.
-
 
 ## World layout and NPC homes
 
@@ -617,12 +549,6 @@ The Ladder can be disabled through its shared definition, removing its access
 points and geometry together; changes to its special placement belong to the
 adapter. Live construction and offline services use the same definitions.
 
-Run `love . --graphtest` for actual add/move/remove/disable edits, cargo-safe duty
-recovery, physical recovery docking, ID migration and
-export/import. `love . --locationtest` checks physical/offline station and service
-parity across all regions.
-
-
 ## Patrols and pirates
 
 Milliways Freeport at Pluto (formerly Tombaugh Station) uses the Jovian Kink
@@ -653,9 +579,7 @@ nested crates while leaving the shells and remaining cargo in place. Loaded
 containers keep their internal grids, mass and stolen provenance through saves
 and transfer intact into Milliways’ saved container stash. Full holds do not
 consume source cargo. No loot is conjured from a living ship. An unloaded stash is not a market
-sale and produces no credits. `love . --piracytest` checks actual tractor pickup,
-identity, cross-region routing (including Phobos/Deimos), physical docking,
-unloading, no duplicate delivery, saves and return to the original raid role.
+sale and produces no credits.
 
 The main planets with orbital trade corridors seed two independent patrols and
 one pirate as persistent A-Life records. They replace disposable field enemies
@@ -701,7 +625,6 @@ Power-only lasers/drills need no ammo. Holds are respected, cargo and container
 contents are preserved, and fresh ammo remains separate from stolen loot.
 Online/offline resupply and saves use the same counts. `src/supplies.lua` owns
 the catalogue and replenishment rules; thresholds are in `src/tuning.lua`.
-Run `love . --securitytest` for supplies, repair and duty-resumption checks.
 
 Remote encounters only compare records sharing a graph segment or endpoint.
 Periodic seeded exchanges spend actual ammunition and carry hull damage across
@@ -713,10 +636,6 @@ ordinary AI takes over. Offline deaths leave salvage records for 30 minutes;
 approaching materializes each wreck once, after which normal area persistence
 handles its cargo, looting and destruction. Pricing, reputation, node heat and an
 event director remain future work.
-
-Run `love . --securitytest` for role-specific autonomous duties, population
-identity, target selection, physical combat and navigation, save/load, offline
-ammunition/damage, repeatable rolls, mixed-state immunity and wreck persistence.
 
 ## Station services prototype
 
@@ -767,9 +686,6 @@ is not required to accept an otherwise usable berth.
 Parking locations, owned ships and exterior coordinates persist through travel
 and saves. Stored exterior ships are drawn at their moorings using the existing
 hull renderer; they remain stored records rather than additional simulated NPCs.
-`love . --stationtest` exercises service layouts, grid transfers, purchase/cancel
-settlement, ship storage, switching, capacity limits, and save restoration. It
-also writes real screenshots for the four services to the LÖVE save folder.
 
 ## Shipyard comparison
 
@@ -784,11 +700,8 @@ The window includes the F1 handling numbers, power, armor, hold capacity and
 maximum afterburner speed. The same afterburner maximum now appears in F1; it is
 the full-power speed relative to the local current before capacitor reserve mode.
 F1 can toggle the debug panel while the editor or its text inputs have focus.
-Run `love . --comparetest` for handling parity, live edits, empty holds,
-incomplete designs, preview cleanup, and the actual F1 key handler.
 
-`love . --npclifetest` checks drawing immediately after NPC removal, fleeing,
-death and stale-body cleanup, plus distance culling/rematerialization. Online
+Online
 ownership ends before a body is destroyed; ordinary culling preserves the record
 and its duty instead of marking the ship gone.
 
@@ -797,9 +710,7 @@ Holding boost stays at reduced output once that floor is reached, without
 cycling to empty and back. Release boost to recharge and rearm full output.
 Weapons and passive power deficits can still use charge below the reserve.
 Engine plumes interpolate between normal, reserve and full boost; their damage
-bounds use the same geometry. `love . --afterburntest` checks reserve stability,
-rearming, energy accounting, actual thrust and corresponding flame sizes.
-
+bounds use the same geometry.
 
 ## NPC replenishment and warp-ins
 
@@ -822,11 +733,6 @@ check. Role intervals and warp duration are in `src/tuning.lua`; additional
 roles register their target, navigation nodes and ship/job creation with the
 population module. Existing pirate saves retain their scheduled arrival time.
 
-Run `love . --populationtest` for all-role replacements, travel-aware caps,
-remote records, saved timers, local warp effects and failed placement. The
-existing `--piratespawntest` also exercises pirates through the shared scheduler.
-
-
 ## NPC local navigation
 
 NPCs sweep their hull clearance against nearby collision fixtures and moving
@@ -846,22 +752,14 @@ immediate save/load.
 Steering decisions are cached for 0.2 seconds while the route remains stable,
 and geometry queries use the physics broad phase. Clearance, refresh interval,
 boost cruise multiplier and stopping margin live in `src/tuning.lua`.
-Run `love . --localnavtest` for physical hauler tests around a wall, inside a
-concave pocket, in head-on and crossing traffic, and for safe boost activation.
-`love . --olympustest` checks city arrival, supported departure and restoration.
 
 Terrain chains have multiple broad-phase proxies, so navigation processes each
-fixture once per query before expanding its edges. `love . --navprofile` runs
-60 simulated seconds each on Phobos, Deimos and Earth and reports simulation
-step timings plus steering, detour and mining-position costs. Rendering and
-display FPS are excluded from these measurements.
+fixture once per query before expanding its edges.
 
 Cloud-city inspection visits use a point above the gravity band, following the
 city's bearing. Non-docking patrols approach and hold there instead of trying to
 reach the docking runway below their avoidance boundary. Remote materialization
-and saved inspection offsets use the same point. Run `love . --patrolnavtest`
-for Olympus patrol arrival, holding, restoration and the next autonomous duty.
-
+and saved inspection offsets use the same point.
 
 F1 debug travel and map teleports use shared cleanup, closing cargo/trade
 UI and cancelling old travel state. Unloading a field disposes of its complete
@@ -869,9 +767,7 @@ physics world instead of reusing its native allocations. Distant generated
 debris is put to sleep before NPCs start navigating, avoiding an initial scan
 of the complete belt. Only highway origin
 and arrival scenes that are still needed remain alive; adopting a retained
-scene preserves that scene's world. `love . --teleporttest` checks two complete
-region tours, leftover unmanaged bodies, abandoned highway previews and warp-flight
-cancellation.
+scene preserves that scene's world.
 
 ## Drill sites and A-Life miners
 
@@ -901,12 +797,6 @@ fitted drill power budget, without remote physics bodies. A resource represented
 by a live body or pickup is excluded from abstract mining. Physical resources
 stay awake around the player or an online miner, within the per-site cap.
 
-Run `love . --miningtest` for a complete physical drill/loot/delivery cycle,
-autonomous next duties, save restoration, shared online/offline resource
-accounting and production caps. Set `THRESHOLD_MINING_AREA=phobos` or `belt` to
-run the same physical cycle against those surfaces. The test writes a mining
-screenshot into LÖVE's save directory.
-
 ## Simulation history
 
 F6 → **Simulation history** shows the newest 40 observations from a saved,
@@ -933,9 +823,6 @@ references; they do not snapshot inventories. Existing saves begin with empty
 history, without inventing past events. The event bus emits
 `simulation_outcome(entry)` after recording each observation, with a copy of its
 plain saved data. Existing gameplay event signatures remain unchanged.
-
-Run `love . --historytest` for focused combat handoff, death/salvage identity,
-save/load, retreat and retention checks.
 
 ## Inventory reactor-fuel prototype
 
@@ -966,8 +853,7 @@ NPC refueling is unbilled, and supply production/hauling, route-specific fuel
 reserve planning, distress/rescue behavior and precise offline maneuver costs
 are deferred. Scripted transfers and docked ships do not run normal flight
 loads. Fuel item, energy per unit, starting allowance and NPC reserve targets
-are configured in `src/tuning.lua`. Run `love . --fueltest` for focused inventory,
-depletion, physics, persistence, NPC handoff and supply checks.
+are configured in `src/tuning.lua`.
 
 ### NPC fuel conditions
 
@@ -1023,8 +909,6 @@ survive online/offline changes and save/load. Pirates regard salvagers as civili
 prey. The same fuel, stranding and maintenance rules apply as for other NPCs.
 `T.salvagerPopulation`, `T.salvagerLoad`, `T.salvagerCollectTime`,
 `T.salvagerRange` and `T.salvagerStay` control population and pacing.
-Run `love . --salvagertest` for the focused role/job, physical and remote pickup,
-local sale, moon-route, persistence and shared offline-loot regression checks.
 
 Saved task assignments whose implementation is unavailable are suspended rather
 than completed or discarded. Their cargo, delivery phase and reservation survive
@@ -1032,3 +916,7 @@ save/load. NPCs wait for task support instead of accepting replacement work.
 When that task kind is registered again, the same assignment resumes without
 running pickup preparation again. Explicit cancellation or the worker's death
 still releases its reservation normally.
+
+## Tests
+
+`love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

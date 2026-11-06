@@ -125,9 +125,9 @@ function Game:loadField(id, opts)
 	self.world:setCallbacks(nil, nil, nil, function(...) self:postSolve(...) end)
 	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
+	self.pickupBodies = {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
-	if self.travelGraphView then self.travelGraphView = require("src.travelgraph").build(id) end
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	self.arenaRadius = self.field.radius or 10000
 	self.well, self.lane, self.driverMenu, self.ladder = nil, nil, nil, nil
@@ -954,14 +954,15 @@ function Game:armStation(e)
 	e.grudge = e.grudge or setmetatable({}, { __mode = "k" })
 end
 
--- Would this station shoot at o? For now: hostile ships (team 2, and
--- their drones), and anyone who has shot the station lately. The
--- reputation and AI system will replace this.
+-- Would this station shoot at o? Only at aggression: anyone who has shot
+-- the station lately, or a hostile (team 2) ship that has lately opened
+-- fire on someone else. A pirate just passing by is left alone, which is
+-- also all the offline simulation can know about (it has no stations).
 function Game:stationHostile(st, o)
 	if o.kind ~= "ship" or o.dead or o.removed or o.dockState then return false end
 	local g = st.grudge and st.grudge[o]
 	if g and self.time - g < GRUDGE_TIME then return true end
-	return o.team == 2
+	return o.team == 2 and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
 end
 
 function Game:updateStationGuns(dt)
@@ -1278,28 +1279,52 @@ function Game:updateDockedShip(e, dt)
 	else
 		b:setPosition(dockWorld(st, side, (d.x1 + d.x2) / 2, 0, d))
 	end
-	if ds.stay and ds.t >= ds.stay and (not e.alifeId or self:traderCanDepart(e,ds.station)) then self:undockShip(e) end
+	-- Hold departure while the launch point is occupied; checked before the
+	-- trader's departure planning so that only runs when it can actually leave.
+	if ds.stay and ds.t >= ds.stay and not self:launchBlocker(e) and (not e.alifeId or self:traderCanDepart(e,ds.station)) then self:undockShip(e) end
 end
 
 -- Launch a docked ship back out of the door.
+-- Where an undocking ship appears, and how it leaves.
+local function launchPose(e)
+	local ds = e.dockState
+	local st, d = ds.station, ds.dock or ds.station.dock
+	local sb = st.body
+	local side = ds.side or 1
+	local bd = ds.mooring or ds.berth and st.def.berths[ds.berth]
+	if bd then
+		-- off the berth, nose first, gently
+		local wx, wy = sb:getWorldPoint(bd.x, bd.y)
+		local wa = sb:getAngle() + math.rad(bd.heading or 0)
+		return wx, wy, wa, cos(wa), sin(wa), 140, bd
+	end
+	local wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
+	local ox, oy = dockVector(st, side, 1, 0, d)
+	return wx, wy, dockAngle(st, side, d), ox, oy, 260, nil
+end
+
+-- Another flying ship where this one would appear (say one on its tractor
+-- approach), or nil when the launch point is clear.
+function Game:launchBlocker(e)
+	if not e.dockState then return nil end
+	local wx, wy = launchPose(e)
+	for _, o in ipairs(self.entities) do
+		if o ~= e and o.kind == "ship" and not o.dead and not o.removed and o.body
+			and o.body:isActive() and not (o.dockState and o.dockState.done) then
+			local x, y = o.body:getPosition()
+			local r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance
+			if (x - wx)^2 + (y - wy)^2 < r * r then return o end
+		end
+	end
+end
+
 function Game:undockShip(e)
 	local ds = e.dockState
 	if not ds or not ds.done then return end
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local sb = st.body
 	local side = ds.side or 1
-	local wx, wy, wa, ox, oy, speed
-	local bd = ds.mooring or ds.berth and st.def.berths[ds.berth]
-	if bd then
-		-- off the berth, nose first, gently
-		wx, wy = sb:getWorldPoint(bd.x, bd.y)
-		wa = sb:getAngle() + math.rad(bd.heading)
-		ox, oy, speed = cos(wa), sin(wa), 140
-	else
-		wx, wy = dockWorld(st, side, d.x2 + e.halfLength + 60, 0, d)
-		ox, oy = dockVector(st, side, 1, 0, d)
-		wa, speed = dockAngle(st, side, d), 260
-	end
+	local wx, wy, wa, ox, oy, speed, bd = launchPose(e)
 	local svx, svy = sb:getLinearVelocityFromWorldPoint(wx, wy)
 	e.body:setPosition(wx, wy)
 	e.body:setAngle(wa)
@@ -1354,6 +1379,7 @@ function Game:undock()
 	if not p or not p.dockState or not p.dockState.done then return end
 	local missing = Ship.launchProblem(p)
 	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
+	if self:launchBlocker(p) then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
 	self:toast("LAUNCHED", 1)
@@ -1452,10 +1478,16 @@ function Game:spawnPickup(x, y, item, count, inner)
 	end
 	local a = random() * pi * 2
 	local s = 40 + random() * 120
-	table.insert(self.pickups, {
-		x = x, y = y, vx = cos(a) * s, vy = sin(a) * s,
-		item = item, count = count, spin = random() * pi * 2,
-	})
+	local p = self:pickupView(x, y, item, count, cos(a) * s, sin(a) * s)
+	require("src.loose").adopt(self, p)
+	return p
+end
+
+-- A live pickup with no record of its own (its record already exists).
+function Game:pickupView(x, y, item, count, vx, vy)
+	local p = { x = x, y = y, vx = vx or 0, vy = vy or 0, item = item, count = count, spin = random() * pi * 2 }
+	table.insert(self.pickups, p)
+	return p
 end
 
 -- Push something out of the player's hold: it floats out behind the ship
@@ -1477,11 +1509,8 @@ function Game:eject(e, id, count, inner)
 		events.emit("eject", e, id, count)
 		return
 	end
-	table.insert(self.pickups, {
-		x = x + c * back - s * side, y = y + s * back + c * side,
-		vx = vx - c * 90 + (random() - 0.5) * 30, vy = vy - s * 90 + (random() - 0.5) * 30,
-		item = id, count = count, spin = random() * pi * 2,
-	})
+	require("src.loose").adopt(self, self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
+		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30))
 	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
 	events.emit("eject", e, id, count)
 end
@@ -1848,6 +1877,11 @@ function Game:damage(e, amount, source, cause, hx, hy)
 		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
 		e.grudge[source] = self.time
 	end
+	-- remember who starts shooting at other ships (stations answer it)
+	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
+		and cause ~= "ram" and source.team ~= e.team then
+		source.aggressedAt = self.time
+	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
@@ -1975,9 +2009,13 @@ function Game:updatePickups(dt)
 	end
 
 	local target = alive and p.tractorTarget
+	local bodies, seen = self.pickupBodies or {}, {}
+	self.pickupBodies = bodies
 	local i = 1
 	while i <= #list do
 		local k = list[i]
+		seen[k] = true
+		self:pickupBody(k)
 		k.spin = k.spin + dt * 1.5
 		-- slow down relative to the current (around a planet they drift
 		-- with it like everything else)
@@ -1995,13 +2033,53 @@ function Game:updatePickups(dt)
 		if collector and collector.tractorTarget==k and collector.intent.tractor then
 			remove=require("src.tractor").pull(self,collector,k,dt)
 		end
-		k.x, k.y = k.x + k.vx * dt, k.y + k.vy * dt
 		if remove then
 			list[i] = list[#list]; list[#list] = nil
+			seen[k] = nil
 		else
+			-- The physics step moves it next frame, against world geometry.
+			k.body:setLinearVelocity(k.vx, k.vy)
+			k.setVx, k.setVy = k.vx, k.vy
 			i = i + 1
 		end
 	end
+	-- Bodies whose pickups left the list (collected, despawned, reloaded).
+	for body, k in pairs(bodies) do
+		if not seen[k] then
+			if not body:isDestroyed() then body:destroy() end
+			bodies[body], k.body = nil, nil
+		end
+	end
+end
+
+-- Loose items are small dynamic circles that bounce off stations, rocks and
+-- wrecks but pass through ships and each other. The pickup table stays the
+-- record other systems read and write; this keeps its body in step with it.
+function Game:pickupBody(k)
+	local b = k.body
+	if b and not b:isDestroyed() then
+		local bx, by = b:getPosition()
+		if k.x == k.syncX and k.y == k.syncY then
+			k.x, k.y = bx, by
+		else
+			b:setPosition(k.x, k.y)          -- something else moved it
+		end
+		-- Keep velocity changes made elsewhere; add what collisions did.
+		local vx, vy = b:getLinearVelocity()
+		k.vx, k.vy = k.vx + vx - (k.setVx or vx), k.vy + vy - (k.setVy or vy)
+	else
+		b = love.physics.newBody(self.world, k.x, k.y, "dynamic")
+		local f = love.physics.newFixture(b, love.physics.newCircleShape(T.pickupRadius), 0.2)
+		f:setRestitution(0.3)
+		f:setFriction(0.4)
+		f:setCategory(T.collidePickup)
+		f:setMask(T.collideShip, T.collidePickup)
+		b:setLinearVelocity(k.vx, k.vy)
+		k.body, k.setVx, k.setVy = b, k.vx, k.vy
+		self.pickupBodies = self.pickupBodies or {}
+		self.pickupBodies[b] = k
+	end
+	k.syncX, k.syncY = k.x, k.y
 end
 
 -- An asteroid that took too much damage splits into two to four smaller
@@ -2026,8 +2104,7 @@ function Game:breakAsteroid(e)
 	local ore,n = Ore.drop(e.debris or "rock",e.radius)
 	local pickup
 	if e.drilled and ore and data.items[ore] then
-		self:spawnPickup(x, y, ore, n)
-		pickup=self.pickups[#self.pickups]
+		pickup=self:spawnPickup(x, y, ore, n)
 	end
 	Mining.breakRock(self,e,pickup)
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
@@ -2203,6 +2280,11 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
 	}
+	-- Who this was, for the loot window: hull, ship type and the A-Life record.
+	if ship.def or ship.alifeId then
+		local rec = ship.alifeId and self.universe and self.universe.npcs and self.universe.npcs[ship.alifeId]
+		h.origin = { hull = hull.name, type = ship.def and ship.def.name, role = rec and rec.role or ship.alifeRole, npc = ship.alifeId }
+	end
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
 	if #hull.parts > 1 then
 		self:breakablePieces(h, ship)
@@ -2286,7 +2368,7 @@ function Game:restoreHusk(r, hull, hold)
 	local h = { kind = "husk", id = self:nextId(), team = 0, hull = hull, body = body,
 		hold = hold, loot = Hold.totals(hold), color = r.color, spine = r.spine,
 		noseX = r.noseX, tailX = r.tailX, halfLength = r.halfLength, radius = r.radius,
-		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase }
+		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin }
 	if r.part then
 		h.part = hull.parts[r.part]
 		if not h.part then body:destroy(); return nil end
@@ -2570,7 +2652,14 @@ function Game:frame(dt, aimX, aimY)
 	end
 
 	p = self.player
-	if p and not p.dead then
+	local follow = self.debugFollow
+	if follow and (follow.dead or follow.removed or not follow.body or follow.body:isDestroyed()) then self.debugFollow, follow = nil, nil end
+	if follow then
+		-- F6 inspector: watch an NPC
+		if p and not p.dead then self:updateComputers(dt) end
+		local x, y = follow.body:getPosition()
+		self.camera:follow(x, y, x, y, dt)
+	elseif p and not p.dead then
 		self:updateComputers(dt)
 		local x, y = self:pilotedShip().body:getPosition()
 		if p.catching then

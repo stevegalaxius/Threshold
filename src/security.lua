@@ -259,24 +259,25 @@ end
 -- Civilian A-Life ships pirates hunt; matches offline encounters.lua.
 local PREY={trader=true,courier=true,miner=true,salvager=true}
 function S.prey(o) return o.npcRole and PREY[o.npcRole] or false end
-function S.hostile(e,o)
+function S.hostile(game,e,o)
  if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
  if o==e.aggressor then return true end
- if e.alifeRole=='patrol' then return o.team==2 end
+ -- patrols answer aggression (as stations do, and as offline does)
+ if e.alifeRole=='patrol' then return o.team==2 and o.aggressedAt~=nil and game.time-o.aggressedAt<30 end
  if e.alifeRole=='pirate' then
-  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or S.prey(o))
+  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or S.prey(o)) and not require('src.robbery').isSpared(game,e,o)
  end
  return false
 end
 function S.target(game,e)
  local record=game.universe.npcs[e.alifeId]
  if e.alifeRole=='patrol' and record and Supplies.needs(record,e) then e.combatTarget=nil;e.lock=nil;return nil end
- if game.time<(e.securityThink or 0) then return S.hostile(e,e.combatTarget) and e.combatTarget or nil end
+ if game.time<(e.securityThink or 0) then return S.hostile(game,e,e.combatTarget) and e.combatTarget or nil end
  e.securityThink=game.time+T.securityThink
  local x,y=e.body:getPosition()
  local best,bestRank,bestDistance=nil,-1,T.securityRange^2
  for _,o in ipairs(game.entities) do
-  if S.hostile(e,o) then
+  if S.hostile(game,e,o) then
    local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
    local rank=o==e.aggressor and 3 or e.alifeRole=='pirate' and S.prey(o) and 2 or 1
    if d<T.securityRange^2 and (rank>bestRank or rank==bestRank and d<bestDistance) then best,bestRank,bestDistance=o,rank,d end
@@ -323,6 +324,14 @@ function S.hold(game,e,AI)
 end
 
 function S.visit(game,e,stop,A)
+ local pr=game.universe.npcs[e.alifeId]
+ -- A pirate redeploying reaches the end of its trip at a buoy, not a dock:
+ -- finish the trip there (as offline) instead of wrapping the route.
+ if pr.piracy and pr.piracy.phase=='redeploy' and e.routeIndex>=#e.route and not pr.worldRecovery then
+  A.capture(game,e,false)
+  if require('src.piracy').depart(game.universe,pr,game.universe.clock,A.start) then A.bindRoute(game,e,pr) end
+  return true
+ end
  if game.universe.npcs[e.alifeId].piracy or game.universe.npcs[e.alifeId].worldRecovery then return false end
  if not e.alifeRole or e.routeIndex<#e.route then return false end
  local r=game.universe.npcs[e.alifeId]

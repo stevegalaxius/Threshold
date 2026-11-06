@@ -1,12 +1,11 @@
 -- Made in the Shipyard (F2).
 station {
 	id = "zhuhai_strip_mine", name = "Zhuhai Strip Mine",
-	services = { "market", "shipyard", "hangar", "repair" },
 	berths = {
-		{ heading = 270, size = 150, x = 16, y = -456 },
-		{ heading = 270, size = 150, x = 336, y = -48 },
-		{ size = 100, x = 552, y = 40 },
-		{ size = 100, x = 552, y = -88 },
+		{ heading = 270, size = 200, x = 16, y = -504 },
+		{ heading = 270, size = 200, x = 352, y = -96 },
+		{ size = 100, x = 608, y = 40 },
+		{ size = 100, x = 608, y = -88 },
 	},
 	color = { 0.66, 0.56, 0.48 },
 	role = "mine",
@@ -14,6 +13,7 @@ station {
 		radar = { over = true, spin = 1.1, x = -135, y = -503 },
 		wheel = { spin = 0.6, x = -880, y = 30 },
 	},
+	services = { "market", "shipyard", "hangar", "repair" },
 	turrets = {
 		{ module = "rk7_autocannon", x = -136, y = -536 },
 	},
@@ -101,9 +101,9 @@ station {
 			{ kind = "window", size = 6, x = -135, y = -198 },
 		} },
 		{ name = "radar", shape = { -190, -510, -80, -510, -90, -496, -180, -496 }, shade = 1.25, layer = "detail", collide = false, rotor = "radar" },
-		{ name = "pad 1", shape = { 446, -130, 446, 110, 426, 110, 426, -130 }, shade = 0.8, lights = {
-			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 436, y = -120 },
-			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 436, y = 100 },
+		{ name = "pad 1", shape = { 494, -130, 494, 110, 474, 110, 474, -130 }, shade = 0.8, lights = {
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 484, y = -120 },
+			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = 484, y = 100 },
 		} },
 		{ name = "pad 2", shape = { -100, -294, 140, -294, 140, -274, -100, -274 }, shade = 0.8, lights = {
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 0.5, size = 4, x = -90, y = -284 },

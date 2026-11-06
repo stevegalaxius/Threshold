@@ -18,10 +18,10 @@ local function cargo(ship)
 end
 function M.snapshot(game,includeMoons)
  local clock=game.universe.clock
- local model={clock=clock,rows={},npcs={},total=0,waiting=0,transit=0,overdue=0}
+ local model={clock=clock,rows={},npcs={},total=0,waiting=0,transit=0,overdue=0,stranded=0,gone=0}
  local rows={}
  for id,r in pairs(game.universe.npcs or {}) do
-  model.total=model.total+1
+  if r.state=='dead' or r.state=='escaped' then model.gone=model.gone+1 else model.total=model.total+1 end
   local e=game.alifeOnline and game.alifeOnline[id]
   local from,to,kind
   if r.state=='transit' and r.transit then
@@ -39,23 +39,37 @@ function M.snapshot(game,includeMoons)
    local progress=0
    local phase=r.state
    local eta
+   local stranded=r.fuelStatus=='stranded' and require('src.reactor_fuel').needsPropulsion(r)
+   if stranded then model.stranded=model.stranded+1 end
    if r.state=='transit' then
-    progress=math.max(0,math.min(1,(clock-r.depart)/math.max(.001,r.arrive-r.depart)))
-    eta=math.max(0,r.arrive-clock);phase=eta==0 and 'arrival pending' or 'in transit'
+    local legAt=require('src.alife').legClock(r,clock)
+    progress=math.max(0,math.min(1,(legAt-r.depart)/math.max(.001,r.arrive-r.depart)))
     model.transit=model.transit+1
-    if eta==0 then model.overdue=model.overdue+1 end
+    if stranded then
+     -- Frozen in place with no ETA; recovery is left to a future event.
+     phase='stranded in transit'
+    else
+     eta=math.max(0,r.arrive-clock);phase=eta==0 and 'arrival pending' or 'in transit'
+     if eta==0 then model.overdue=model.overdue+1 end
+    end
    elseif r.area==to then progress=1;phase=r.state=='docked' and 'docked' or 'approaching port'
    elseif r.state=='docked' then phase='loading / docked'
    else phase='to departure' end
    local driver=e and (e.launch or e.driverTractor) or r.driverState
-   if driver and r.state~='transit' then phase=e and e.driverTractor and 'tractor capture' or driver.phase=='tractor' and 'tractor capture' or 'launching' end
+   if stranded and r.state~='transit' then phase='stranded'
+   elseif driver and r.state~='transit' then phase=e and e.driverTractor and 'tractor capture' or driver.phase=='tractor' and 'tractor capture' or 'launching' end
+   if r.state~='transit' and r.area then
+    -- not physically in the lane: say which system's local space it's in
+    local F=require('src.fields');local name=F[r.area] and F[r.area].name or r.area
+    phase=phase..' at '..name..' (local space, not in lane)'
+   end
    local ship=e or r.ship
-   local n={id=id,role=r.role,state=r.state,phase=phase,from=from,to=to,kind=kind,
+   local n={id=id,role=r.role,state=r.state,phase=phase,stranded=stranded,from=from,to=to,kind=kind,
     progress=progress,eta=eta,depart=r.depart,arrive=r.arrive,online=e~=nil,
     hull=e and e.hull.name or (data.hulls[r.ship.hull] and data.hulls[r.ship.hull].name or r.ship.hull),cargo=cargo(ship),
     task=r.task and (r.task.id..' / '..r.task.kind..' / '..r.task.phase)
       or '(itinerary)',
-    homeStation=require("src.npc_home").get(r),status=(r.fuelStatus and r.fuelStatus~='normal' and require('src.reactor_fuel').label(r) or r.taskStatus),fuelStatus=r.fuelStatus,protected=e and e.driverProtected or false,localArea=r.area,
+    homeStation=require("src.npc_home").get(r),status=(r.fuelStatus and r.fuelStatus~='normal' and require('src.reactor_fuel').label(r) or r.taskStatus),activity=require('src.reactor_fuel').activity(r),fuelStatus=r.fuelStatus,protected=e and e.driverProtected or false,localArea=r.area,
     launchTime=driver and driver.t,launchPhase=driver and (driver.ghost and 'barrel / coast' or phase)}
    model.npcs[id]=n
    local key=from..'>'..to
@@ -154,7 +168,7 @@ function M.draw(game)
  button(520,140,v.frozen and 'Frozen view' or 'Live view',v.frozen)
  button(w-90,70,'Close',false)
  lg.setFont(HUD.font(12));lg.setColor(.55,.68,.78)
- lg.print(('Clock %.1fs   |   %d NPCs   |   %d shown in transit   |   %d workers waiting'):format(model.clock,model.total,model.transit,model.waiting),20,60)
+ lg.print(('Clock %.1fs   |   %d NPCs (+%d dead/escaped records)   |   %d shown in transit   |   %d stranded   |   %d workers waiting'):format(model.clock,model.total,model.gone,model.transit,model.stranded,model.waiting),20,60)
  lg.print('Schematic progress, not physical positions.  Click a ship to inspect.  Wheel: routes / inspector  /  Tab: moons  /  Space: freeze view  /  F4: close',20,h-25)
  local start,finish=135,right-110
  lg.setColor(.45,.62,.72);lg.setFont(HUD.font(10))
@@ -177,7 +191,8 @@ function M.draw(game)
    local x=start+(finish-start)*n.progress
    local yy=y+43+(i%3-1)*7
    local selected=v.selected==n.id
-   lg.setColor(n.progress==1 and .55 or .3,n.online and 1 or .7,n.kind=='driver' and 1 or .6,1)
+   if n.stranded then lg.setColor(1,.35,.3,1) else
+   lg.setColor(n.progress==1 and .55 or .3,n.online and 1 or .7,n.kind=='driver' and 1 or .6,1) end
    lg.polygon('fill',x+6,yy,x-4,yy-4,x-4,yy+4)
    if selected then lg.setColor(1,.85,.35);lg.circle('line',x,yy,9) end
    v.hits[#v.hits+1]={id=n.id,x=x,y=yy}
@@ -202,7 +217,8 @@ function M.draw(game)
   detail(name(n.from)..' > '..name(n.to))
   detail(n.phase..' / '..(n.online and 'physical body' or 'offline record'))
   detail(('Progress: %.1f%%'):format(n.progress*100))
-  if n.eta then detail(('ETA: %.1fs%s'):format(n.eta,n.eta==0 and ' (awaiting simulation tick)' or '')) end
+  if n.stranded then detail('ETA: none (stranded: no reactor fuel or power)')
+  elseif n.eta then detail(('ETA: %.1fs%s'):format(n.eta,n.eta==0 and ' (awaiting simulation tick)' or '')) end
   if n.depart and n.arrive then detail(('Leg clock: %.1f > %.1f'):format(n.depart,n.arrive)) end
   if n.launchTime then detail(('Driver: %s / %.2fs'):format(n.launchPhase,n.launchTime)) end
   detail('Current area: '..name(n.localArea or (n.state=='transit' and 'transit')))
@@ -212,6 +228,7 @@ function M.draw(game)
   detail('Cargo: '..n.cargo)
   if n.protected then detail('Mass-driver protection active') end
   if n.status then detail('Status: '..n.status) end
+  if n.activity and n.activity~=n.status then detail('Activity: '..n.activity) end
  elseif v.selected then detail(v.selected..' is no longer on an active route. Select another ship.')
  else detail('Select an NPC marker.\n\nDeparture is the left end; arrival is the right end. Each row has its own direction.\n\nFreezing this view does not pause or advance the simulation.') end
  v.detailHeight=y+(v.detailScroll or 0)-108
@@ -225,7 +242,7 @@ function M.draw(game)
    lg.setColor(.06,.1,.15,.98);lg.rectangle('fill',tx,ty,240,42,4)
    lg.setFont(HUD.font(11));lg.setColor(.8,.92,1)
    lg.print(n.id..' / '..n.phase,tx+8,ty+7)
-   lg.print(('%.1f%% / %s'):format(n.progress*100,n.eta and ('ETA %.1fs'):format(n.eta) or n.state),tx+8,ty+23)
+   lg.print(('%.1f%% / %s'):format(n.progress*100,n.stranded and 'stranded' or n.eta and ('ETA %.1fs'):format(n.eta) or n.state),tx+8,ty+23)
    break
   end
  end

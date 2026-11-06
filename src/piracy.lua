@@ -60,6 +60,7 @@ function P.returnRecord(game,r)
  local path=itinerary(source,base,game.universe.clock)
  if not path then r.taskStatus='no route to '..L.get(base).name;return false end
  Tasks.release(game.universe,r,'returning with loot',game.universe.clock)
+ require('src.alife_trace').note(r,game.universe.clock,'piracy','returning to '..base)
  r.piracy={phase='escape',base=base,origin=L.rally(r.home,source,game.universe.clock) or L.station(r.home,'trade'),started=game.universe.clock}
  r.taskWorker=true;r.taskStatus='returning to '..L.get(base).name
  if r.state=='travel' then
@@ -130,9 +131,6 @@ function P.think(game,e,dt,AI)
   e.tractorTarget=nil;e.intent.tractor=false
   if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
   AI.trade(game,e,dt);return true
- end
- if not (e.driverTractor or e.launch or e.alifeEgress) and (Repairs.needs(r,e.armor,e.stats.armor) or Supplies.needs(r,e)) then
-  if P.beginReturn(game,e,r) then AI.trade(game,e,dt);return true end
  end
  -- Keep decisions bounded; pursuit and the beam itself still update each frame.
  local now=game.universe.clock

@@ -107,6 +107,8 @@ function Ship.new(game, opts)
 		fixture:setFriction(0.3)
 		fixture:setUserData(e)
 	end
+	-- Ships ignore loose items physically; they're collected by distance.
+	for _, f in ipairs(body:getFixtures()) do f:setCategory(T.collideShip) end
 	body:setUserData(e)
 	body:setAngle(opts.angle or 0)
 	body:setAngularDamping(0)

@@ -112,7 +112,16 @@ local function sides(game)
 		end
 	elseif Cargo.loot then
 		local e = Cargo.loot
-		table.insert(list, { title = e.kind == "husk" and "Wreck" or "Container", hold = e.hold, entity = e })
+		local title = e.kind == "husk" and "Wreck" or "Container"
+		local o = e.origin
+		if o then
+			-- e.g. "Wreck · Freighter (Ferrous Freighter) · trader npc/47"
+			title = title .. " \194\183 " .. (o.type and (o.type .. (o.hull and o.hull ~= o.type and " (" .. o.hull .. ")" or "")) or o.hull or "?")
+			if o.npc then title = title .. " \194\183 " .. (o.role and (o.role .. " ") or "") .. o.npc end
+		elseif e.kind == "husk" and e.hull and e.hull.name then
+			title = title .. " \194\183 " .. e.hull.name
+		end
+		table.insert(list, { title = title, hold = e.hold, entity = e })
 	end
 	-- an opened container, if it's still in one of the holds on show
 	-- (Cargo.inner is the container's own hold: the stack table holding it
@@ -564,7 +573,7 @@ function Cargo.setTab(game,id)
  local ok=false;for _,t in ipairs(offered(game)) do if t.id==id then ok=true end end
  if not ok then return false end
  if trading() and id~=Cargo.tab then Cargo.clearTrade(game) end
- Cargo.searchFocus=false;love.keyboard.setTextInput(false)
+ Cargo.searchFocus=false
  if id~=Cargo.tab then
   Cargo.search='';Cargo.shipOwned=nil;Cargo.shipStation=nil
   if id=='market' then
@@ -891,7 +900,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local r, cx, cy = cellAt(L, mx, my)
 	local s = r and Grid.at(r.g, cx, cy)
 	if not s or r.side.market and not stockMatch(s) then return true end
- Cargo.searchFocus=false;love.keyboard.setTextInput(false)
+ Cargo.searchFocus=false
 	-- double-click a module to fit it
 	local now = love.timer.getTime()
 	-- (the first click picks the stack up and puts it back as a new one,
@@ -1004,7 +1013,7 @@ function Cargo.textinput(game,text)
 end
 function Cargo.keypressed(game, key)
  if game.state=='docked' and trading() and Cargo.searchFocus then
-  if key=='escape' or key=='return' then Cargo.searchFocus=false;love.keyboard.setTextInput(false)
+  if key=='escape' or key=='return' then Cargo.searchFocus=false
   elseif key=='backspace' then local utf8=require('utf8');local offset=utf8.offset(Cargo.search or '',-1);if offset then Cargo.search=Cargo.search:sub(1,offset-1) end end
   return true
  end
