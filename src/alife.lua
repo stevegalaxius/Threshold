@@ -667,7 +667,12 @@ function A.wake(game,r)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
-  game:dockInstantly(e,st,r.docking)
+  if st and st.kind=='station' and st.def then game:dockInstantly(e,st,r.docking)
+  else
+   -- docked at something that isn't a dockable station here (e.g. an
+   -- access point resolved to another entity): leave it in open space
+   require('src.alife_trace').note(r,game.universe.clock,'wake','docked record at '..tostring(r.route[r.index])..' has no station entity here')
+  end
   if e.dockState then
    e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
    if exact and r.docking and r.docking.berth==e.dockState.berth then
