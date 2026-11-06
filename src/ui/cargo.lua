@@ -44,6 +44,12 @@ local function itemFor(id) return data.items[id] or ShipEntry.item(id) end
 local Ship = require("src.ship")
 
 -- The ammo the weapon in slot i can load, when there's a choice (else nil).
+local function ammoList(p, i)
+	local m = p.loadout[i] and data.modules[p.loadout[i]]
+	local opts = m and data.ammoOptions(m)
+	return opts and #opts > 0 and opts or nil
+end
+
 local function loadOptions(p, i)
 	local m = p.loadout[i] and data.modules[p.loadout[i]]
 	local opts = m and data.ammoOptions(m)
@@ -1271,15 +1277,15 @@ local function drawEquipment(game, L, mx, my)
 			lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.8 * alpha)
 			lg.print("empty", r.x + 6, r.y + 12)
 		end
-		local opts = r.load and loadOptions(p, r.i)
+		local opts = r.load and ammoList(p, r.i)
 		if opts then
 			local t, on = r.load, inRect(r.load, mx, my)
 			local id = Ship.loadFor(p, r.i)
 			local have = (p.cargo[id] or 0) > 0
-			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], (on and 0.35 or 0.12) * alpha)
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], ((on and #opts > 1) and 0.35 or 0.12) * alpha)
 			lg.rectangle("fill", t.x, t.y, t.w, t.h, 4, 4)
 			local col = have and HUD.INK or HUD.WARN
-			lg.setColor(col[1], col[2], col[3], alpha)
+			lg.setColor(col[1], col[2], col[3], (#opts > 1 and 1 or 0.55) * alpha)
 			lg.setFont(HUD.font(10))
 			lg.printf(data.items[id].name, t.x + 2, t.y + (t.h - 10) / 2 - 1, t.w - 4, "center")
 		end
@@ -1598,12 +1604,13 @@ function Cargo.draw(game)
 			lg.setColor(HUD.DIM)
 			lg.print("click: change which fire group this slot is in", mx + 14, my + 14)
 		end
-		if er and er.load and inRect(er.load, mx, my) and loadOptions(p, er.i) then
+		if er and er.load and inRect(er.load, mx, my) and ammoList(p, er.i) then
 			fitted = nil
 			HUD.tip = nil
 			lg.setFont(HUD.font(11))
 			lg.setColor(HUD.DIM)
-			lg.print("click: change which ammo this weapon loads (right-click: back)", mx + 14, my + 14)
+			lg.print(loadOptions(p, er.i) and "click: change which ammo this weapon loads (right-click: back)"
+				or "this weapon chambers only this ammo", mx + 14, my + 14)
 		end
 		if fitted then
 			tooltip(data.items[fitted], 1, mx, my, docked and "Drag to the hold to unfit" or "Dock at a station to refit")
