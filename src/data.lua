@@ -459,6 +459,7 @@ function data.ammoOptions(module)
 		local ia, ib = data.items[a], data.items[b]
 		if ia.family ~= ib.family then return rank[ia.family] < rank[ib.family] end
 		if ia.size ~= ib.size then return SIZES[ia.size] > SIZES[ib.size] end
+		if (ia.price or 0) ~= (ib.price or 0) then return (ia.price or 0) < (ib.price or 0) end   -- cheapest is the default
 		return a < b
 	end)
 	return out

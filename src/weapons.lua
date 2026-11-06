@@ -306,6 +306,7 @@ local function fire(game, e, slot, dt)
 		vx = svx + dx * ws.speed, vy = svy + dy * ws.speed,
 		damage = ws.damage, splash = ws.splash, knockback = (ws.knockback or 0),
 		size = data.items[slot.ammo].size,
+		cause = ws.vaporize and "atomic" or nil,   -- atomic warheads leave no wreck
 	}
 
 	if kind == "gun" or kind == "shotgun" then
@@ -557,7 +558,7 @@ function Weapons.updateProjectiles(game, dt)
 			local sp = sqrt(p.vx * p.vx + p.vy * p.vy)
 			local k = p.knockback * T.knockbackScale
 			if p.burst then
-				game:explode(p.x, p.y, p.splash, p.damage, k, p.owner, hit.entity, p.kind)
+				game:explode(p.x, p.y, p.splash, p.damage, k, p.owner, hit.entity, p.cause or p.kind)
 			else
 				local dmg = p.damage
 				-- gun rounds lose punch the further they've flown
@@ -571,12 +572,12 @@ function Weapons.updateProjectiles(game, dt)
 			p.x, p.y = nx, ny
 			p.life = p.life - dt
 			if p.life <= 0 then
-				if p.burst then game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, nil, p.kind) end
+				if p.burst then game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, nil, p.cause or p.kind) end
 				done = true
 			elseif p.fuse then
 				local near = fuseTarget(game, p)
 				if near then
-					game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, near, p.kind)
+					game:explode(p.x, p.y, p.splash, p.damage, p.knockback * T.knockbackScale, p.owner, near, p.cause or p.kind)
 					done = true
 				end
 			end

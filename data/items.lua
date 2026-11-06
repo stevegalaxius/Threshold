@@ -57,6 +57,11 @@ ammo { id = "missile_m", name = "Missile M",  maker = "Nova Syndicate",   family
 ammo { id = "missile_l", name = "Missile L", maker = "Ferrous Collective", family = "missile", size = "L", volume = 0.40, mass = 0.30, price = 120, w = 3, h = 1, stack = 6,
 	shot = { armTime = 3.0, damage = 120, splash = 90, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
 
+-- An atomic warhead: vaporizes what it kills (no wreck, no cargo), and
+-- takes an age to arm.
+ammo { id = "atomic_l", name = "Atomic Missile L", maker = "Estates Military", family = "missile", size = "L", volume = 6, mass = 5, price = 60000, w = 6, h = 1, stack = 1,
+	shot = { armTime = 30, damage = 25000, splash = 3000, speed = 3200, range = 14000, knockback = 400000, accel = 900, turnRate = 1.6, vaporize = true } }
+
 ammo { id = "torp_s", name = "Torpedo S",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
 	shot = { armTime = 5, recoil = 2, damage = 220, splash = 80, speed = 9500, turnRate = 0.5, range = 12400, knockback = 15000 } }
 ammo { id = "torp_m", name = "Torpedo M",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400, w = 3, h = 1, stack = 1,

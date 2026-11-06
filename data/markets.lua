@@ -54,7 +54,7 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 } }
 market { id = "market:earth_2", station = "Orbital Two", ships = { "estates_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
-	{ "torp_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
+	{ "torp_l", 1 }, { "atomic_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 

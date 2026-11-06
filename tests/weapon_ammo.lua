@@ -74,6 +74,19 @@ return function(game)
   Weapons.burn(game,en,sl,1); Weapons.burn(game,en,sl,0.01)
   check(sl.litLeft<=0,'pulse should go dark after its length')
  end
+ -- atomic warheads: a missile that vaporizes what it kills (no wreck)
+ do
+  check(data.items.atomic_l.family=='missile' and has(data.ammoOptions(data.modules.missile_l_base),'atomic_l'),'atomic should be L missile ammo')
+  local victim=Ship.new(game,{hull='brute_anvil',loadout=data.hulls.brute_anvil.loadout,x=20000,y=20000,team=2})
+  local listed=false; for _,e in ipairs(game.entities) do if e==victim then listed=true end end
+  if not listed then table.insert(game.entities,victim) end
+  local husks=0; for _,e in ipairs(game.entities) do if e.kind=='husk' then husks=husks+1 end end
+  game:explode(20000,20000,3000,25000,0,nil,victim,'atomic')
+  check(victim.dead and victim.vaporized,'atomic blast should vaporize')
+  game:reap()
+  local after=0; for _,e in ipairs(game.entities) do if e.kind=='husk' then after=after+1 end end
+  check(after==husks,'a vaporized ship left a husk')
+ end
  -- per-slot pick
  local e=Ship.new(game,{hull='estates_bastion',loadout=data.hulls.estates_bastion.loadout,x=0,y=0})
  local slot,bay

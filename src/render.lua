@@ -1207,6 +1207,15 @@ local function drawEffects(game)
 		elseif fx.kind == "explosion" and fx.dust then
 			lg.setColor(0.6, 0.6, 0.65, (1 - k) * 0.35)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.5 + k * 0.8))
+		elseif fx.kind == "explosion" and fx.nuke then
+			-- atomic: a white-hot flash that swells into a fading fireball and shock ring
+			lg.setColor(1, 1, 0.95, max(0, 1 - k * 4) * 0.9)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.2 + k * 0.6))
+			lg.setColor(1, 0.6, 0.25, (1 - k) * 0.35)
+			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
+			lg.setColor(1, 0.9, 0.7, (1 - k) * 0.8)
+			lg.setLineWidth(12 * (1 - k) + 2)
+			lg.circle("line", fx.x, fx.y, fx.r * (0.2 + k))
 		elseif fx.kind == "explosion" then
 			lg.setColor(1, 0.75, 0.4, (1 - k) * 0.25)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))

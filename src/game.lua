@@ -1891,7 +1891,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
-		if e.hp <= 0 then e.dead = true end
+		if e.hp <= 0 then e.dead = true; e.vaporized = cause == "atomic" end
 		return
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
@@ -1909,6 +1909,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e.armor <= 0 then
 		e.armor = 0
 		e.dead = true
+		e.vaporized = cause == "atomic"      -- nothing left to be a wreck
 	end
 end
 
@@ -1936,7 +1937,8 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 		end
 		return true
 	end)
-	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = 0.45, t = 0 })
+	local nuke = cause == "atomic"
+	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = nuke and 2.5 or 0.45, t = 0, nuke = nuke })
 	self:spark(x, y, 10 + floor(radius / 8), { 1, 0.7, 0.35 })
 	if self.player and not self.player.dead then
 		local px, py = self.player.body:getPosition()
@@ -2140,7 +2142,8 @@ function Game:reap()
 			self:explode(x, y, e.halfLength, 0, 0)
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
-			for _, g in ipairs(e.hold.grids) do
+			-- (unless an atomic blast vaporized it, contents and all)
+			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
 		elseif e.recalled then
@@ -2188,7 +2191,9 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
-			if not e.drone then
+			if e.vaporized then
+				self:spark(x, y, 40, { 1, 0.95, 0.8 })
+			elseif not e.drone then
 				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
 				if e.isPlayer then self.playerHusk = husk end
 				local r=e.alifeId and self.universe.npcs[e.alifeId]
