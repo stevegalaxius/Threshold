@@ -178,7 +178,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	if not data.hulls[rec.hull or self.playerHull] then rec = { hull = T.starterHull } end
 	self.playerHull = rec.hull or self.playerHull
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
-	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
+	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
@@ -995,7 +995,7 @@ function Game:updateStationGuns(dt)
 					-- lead the target by the shot's flight time (lasers hit
 					-- at once; missiles steer themselves)
 					local tx, ty = tg.body:getPosition()
-					local kind = slot.w.kind
+					local kind = slot.ammo and data.items[slot.ammo].family or slot.w.kind
 					if kind ~= "laser" and kind ~= "missile" and slot.ammo then
 						local speed = data.items[slot.ammo].shot.speed
 						local vx, vy = tg.body:getLinearVelocity()
@@ -2593,13 +2593,6 @@ function Game:shake(amount)
 	self.camera:shake(amount)
 end
 
--- Q: switch the player's launchers to the next size they can fire.
-function Game:cycleAux()
-	local p = self.player
-	if not p or p.dead then return end
-	local id = Weapons.cycleAmmo(p)
-	if id then self:toast("LAUNCHERS: " .. data.items[id].name:upper(), 1.2) end
-end
 
 -- big: a headline (arriving in a level)
 function Game:toast(text, duration, style, big)

@@ -9,9 +9,9 @@ return function(game)
  Editor.game=game
  E.switchCategory('weapon')
  check(E.category()=='weapon' and E.design.kind=='weapon','weapon tab')
- E.openHull('gun_M_base')
+ E.openHull('gun_m_base')
  local d=E.design
- check(d.kind=='weapon' and d.module.weapon.kind=='gun' and #d.slots==0,'opened a built-in weapon')
+ check(d.kind=='weapon' and d.module.weapon.kind=='cannon' and #d.slots==0,'opened a built-in weapon')
  d.id='wtest_gun'; d.name='Test Gun'; d.module.weapon.fireRate=7
  d.parts={ { name='base', shape={-4,-4,4,-4,4,4,-4,4} }, { name='barrel', shape={0,-1,14,-1,14,1,0,1}, barrel=true } }
  d.muzzles={ {14,-2}, {14,2} }
@@ -32,7 +32,7 @@ return function(game)
  local slot={}
  local x1,y1=V.muzzle(m,slot); local x2,y2=V.muzzle(m,slot); local x3,y3=V.muzzle(m,slot)
  check(y1==-2 and y2==2 and y3==-2 and x1==14,'muzzles cycle')
- check(V.muzzle(data.modules.gun_S_base,{})==nil,'no art: no muzzle')
+ check(V.muzzle(data.modules.gun_s_base,{})==nil,'no art: no muzzle')
  -- kick right after a shot, none at rest
  check(V.kick({w=m.weapon,cooldown=1/7})>0 and V.kick({w=m.weapon,cooldown=0})==0,'barrel kick')
  -- test fire fits it to the ship

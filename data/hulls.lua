@@ -60,7 +60,7 @@ hull {
 	class = "light",
 	drag = 0.14,
 	hold = 24,
-	loadout = { "gun_S_base", "gun_S_base", "missile_S_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
+	loadout = { "gun_s_base", "gun_s_base", "missile_s_base", "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	maker = "Halcyon Arms",
 	mass = 58,
 	mount = "fixed",
@@ -109,7 +109,7 @@ hull {
 		{ family = "utility",   size = "any" },
 		{ family = "computer",  size = "any" },
 	},
-	loadout = { "artillery_L_base", "artillery_L_base", "gun_M_base", "gun_M_base", "gun_M_base", "gun_M_base", "missile_L_base",
+	loadout = { "artillery_l_base", "artillery_l_base", "gun_m_base", "gun_m_base", "gun_m_base", "gun_m_base", "missile_l_base",
 		"cinder_drive", "forge_reactor", "hold_pod_s", "nav_computer" },
 	price = 95000,
 }
@@ -140,7 +140,7 @@ hull {
 		{ family = "engine",  size = "S", x = -16, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "gun_S_base", "flit_engine", "ember_reactor" },
+	loadout = { "gun_s_base", "flit_engine", "ember_reactor" },
 }
 
 -- Harasser: tiny, twitchy, strong side thrusters. Hard to hit on purpose.
@@ -154,7 +154,7 @@ hull {
 		{ family = "engine",  size = "S", x = -14, y = 0 },
 		{ family = "reactor", size = "S" },
 	},
-	loadout = { "gun_S_base", "flit_engine", "ember_reactor" },
+	loadout = { "gun_s_base", "flit_engine", "ember_reactor" },
 }
 
 -- Drones: launched from drone bays, fight on the launcher's side for a while.

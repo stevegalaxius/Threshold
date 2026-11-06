@@ -7,7 +7,7 @@ hull {
 	drag = 1.1,
 	helm = "turn",
 	hold = 400,
-	loadout = { "gun_M_base", "gun_M_base", "cinder_drive", "forge_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
+	loadout = { "gun_m_base", "gun_m_base", "cinder_drive", "forge_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
 	mass = 900,
 	mount = "turret",

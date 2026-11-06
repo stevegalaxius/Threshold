@@ -29,7 +29,7 @@ enemy {
 
 enemy {
 	id = "gunner", livery = { primary = { 0.95, 0.8, 0.3 } }, name = "Raider Wisp", hull = "halcyon_wisp",
-	loadout = { "gun_S_base", "gun_S_base", false, "flit_engine", "ember_reactor", false },
+	loadout = { "gun_s_base", "gun_s_base", false, "flit_engine", "ember_reactor", false },
 	cargo = { rounds_s = 300 },
 	ai = { style = "orbit", range = 600, accuracy = 0.55, throttle = 0.75 },
 	salvage = { 2, 3 },
@@ -37,7 +37,7 @@ enemy {
 
 enemy {
 	id = "brawler", livery = { primary = { 0.95, 0.3, 0.3 } }, name = "Raider Anvil", hull = "brute_anvil",
-	loadout = { "gun_M_base", "gun_M_base", false, false, "mule_engine", "kiln_reactor", false },
+	loadout = { "gun_m_base", "gun_m_base", false, false, "mule_engine", "kiln_reactor", false },
 	cargo = { rounds_m = 300 },
 	ai = { style = "rush", range = 500, accuracy = 0.55, throttle = 0.85 },
 	salvage = { 3, 5 },
@@ -45,7 +45,7 @@ enemy {
 
 enemy {
 	id = "sniper", livery = { primary = { 0.75, 0.45, 0.95 } }, name = "Raider Mortar", hull = "brute_anvil",
-	loadout = { "gun_M_base", false, "artillery_M_base", false, "mule_engine", "kiln_reactor", false },
+	loadout = { "gun_m_base", false, "artillery_m_base", false, "mule_engine", "kiln_reactor", false },
 	cargo = { shell_m = 24, rounds_m = 150 },
 	ai = { style = "kite", range = 1500, accuracy = 0.6, throttle = 0.7, burstOn = 2, burstOff = 2 },
 	salvage = { 3, 5 },
@@ -92,7 +92,7 @@ enemy {
 enemy {
  id = "patrol_wisp", team = 3, name = "Independent Patrol", hull = "halcyon_wisp",
  livery = { primary = { 0.4, 0.75, 1 } },
- loadout = { "gun_S_base", "gun_S_base", false, "flit_engine", "ember_reactor", false },
+ loadout = { "gun_s_base", "gun_s_base", false, "flit_engine", "ember_reactor", false },
  cargo = { rounds_s = 400 },
  ai = { style = "orbit", range = 900, accuracy = 0.65, throttle = 0.85, cruise = 750 },
  salvage = { 2, 3 },
@@ -100,7 +100,7 @@ enemy {
 enemy {
  id = "pirate_wisp", team = 2, name = "Independent Pirate", hull = "halcyon_wisp",
  livery = { primary = { 1, 0.4, 0.25 } },
- loadout = { "gun_S_base", "gun_S_base", false, "flit_engine", "ember_reactor", false },
+ loadout = { "gun_s_base", "gun_s_base", false, "flit_engine", "ember_reactor", false },
  cargo = { rounds_s = 300, scrap = 3 },
  ai = { style = "orbit", range = 700, accuracy = 0.55, throttle = 0.8, cruise = 650 },
  salvage = { 2, 4 },

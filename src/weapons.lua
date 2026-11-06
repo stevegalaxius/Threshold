@@ -1,17 +1,22 @@
 --[[
 	Weapons and projectiles.
 
-	  gun        fast fire, short range, no splash. Uses ammo.
-	  artillery  slow fire, long range, big damage and splash. Shells burst
-	             on contact, when they pass near an enemy (proximity fuse),
-	             or at the end of their range. Uses ammo.
+	  cannon     fires rounds or shells, whichever its slot loads:
+	               rounds  fast, short range, no splash.
+	               shells  slow, long range, big damage and splash. Shells
+	                       burst on contact, when they pass near an enemy
+	                       (proximity fuse), or at the end of their range.
 	  laser      pulse laser: a brief, instant-hit flash about once a second.
 	             No ammo; each pulse takes a chunk of power.
-	  missile    bay, guided, splash. Expensive ammo.
-	  torpedo    bay, unguided, slow, enormous damage and splash.
+	  missile    bay rack: fires missiles or torpedoes, whichever its slot loads:
+	               missiles   guided, splash. Expensive ammo.
+	               torpedoes  very fast, steer slowly, enormous damage and splash.
+
+	How a shot flies is the ammo's family (gun, artillery, missile,
+	torpedo, drone); the weapon only sets how it's fired.
 	  drone      bay: launches an armed drone that fights for a while.
 
-	Every shot of a gun, artillery piece or missile launcher takes one round
+	Every shot of a cannon or missile rack takes one round
 	out of the hold, and the ship gets lighter as it does.
 
 	Projectiles aren't physics bodies: each step they ray-cast from where
@@ -176,13 +181,20 @@ local function fire(game, e, slot, dt)
 		end
 		slot.fullWarned = false
 	end
-	local rate = w.fireRate * (not slot.bay and mult.primaryFireRate or 1)
-	-- Out of the selected ammo: fall back to another size this weapon can fire.
-	if (e.cargo[slot.ammo] or 0) <= 0 and not (T.dev.infiniteAmmo and e.isPlayer) then
-		for _, id in ipairs(slot.ammoOptions) do
-			if (e.cargo[id] or 0) > 0 then slot.ammo = id; break end
+	-- Out of the picked ammo: fall back to another this weapon takes, and
+	-- back to the pick as soon as there's some in the hold again.
+	local pick = slot.pick or slot.ammo
+	slot.pick = pick
+	if not (T.dev.infiniteAmmo and e.isPlayer) then
+		if (e.cargo[pick] or 0) > 0 then
+			slot.ammo = pick
+		elseif (e.cargo[slot.ammo] or 0) <= 0 then
+			for _, id in ipairs(slot.ammoOptions) do
+				if (e.cargo[id] or 0) > 0 then slot.ammo = id; break end
+			end
 		end
 	end
+	local rate = data.fireRate(w, slot.ammo) * (not slot.bay and mult.primaryFireRate or 1)
 	if not takeAmmo(e, slot.ammo) then
 		slot.empty = true
 		slot.cooldown = 0.3
@@ -194,6 +206,7 @@ local function fire(game, e, slot, dt)
 
 	-- The round sets the damage and flight; the weapon only how it's fired.
 	local ws = data.items[slot.ammo].shot
+	local kind = data.items[slot.ammo].family
 	local spread = rad(w.spread or 0)
 	local mountAngle = angle
 	angle = angle + (random() * 2 - 1) * spread
@@ -212,7 +225,7 @@ local function fire(game, e, slot, dt)
 	local svx, svy = e.body:getLinearVelocity()
 
 	-- Drone bays launch a ship, not a projectile.
-	if w.kind == "drone" then
+	if kind == "drone" then
 		local d = game:launchDrone(e, data.items[slot.ammo], wx, wy, angle)
 		d.bay, d.control = slot.slot, DRONE_CONTROL[data.items[slot.ammo].size]
 		game:muzzle(wx, wy, angle, 1.2)
@@ -221,23 +234,23 @@ local function fire(game, e, slot, dt)
 	end
 
 	local p = {
-		kind = w.kind, team = e.team, owner = e,
+		kind = kind, team = e.team, owner = e,
 		x = wx, y = wy, px = wx, py = wy,
 		vx = svx + dx * ws.speed, vy = svy + dy * ws.speed,
 		damage = ws.damage, splash = ws.splash, knockback = (ws.knockback or 0),
 		size = data.items[slot.ammo].size,
 	}
 
-	if w.kind == "gun" then
+	if kind == "gun" then
 		p.life = ws.range / ws.speed
 		p.maxLife = p.life
 		p.damage = ws.damage * mult.primaryDamage
-	elseif w.kind == "artillery" then
+	elseif kind == "artillery" then
 		p.life = ws.range / ws.speed
 		p.damage = ws.damage * mult.primaryDamage
 		p.burst = true
 		p.fuse = ws.fuse or (ws.splash or 40) * T.artilleryFuse
-	elseif w.kind == "missile" then
+	elseif kind == "missile" then
 		-- Fire and forget: picks a target on launch and chases it. With a
 		-- guidance computer it takes the computer's lock and finds a new
 		-- target if its own dies.
@@ -250,7 +263,7 @@ local function fire(game, e, slot, dt)
 			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5
-	elseif w.kind == "torpedo" then
+	elseif kind == "torpedo" then
 		-- Very fast, and steers only a little: aim it, then it corrects
 		-- slowly toward the target nearest your aim (or the guidance lock).
 		p.guided = game:computer(e, "guidance") ~= nil
@@ -265,10 +278,10 @@ local function fire(game, e, slot, dt)
 
 	-- Guns and artillery kick back by a share of the round's knockback;
 	-- launchers (and older data) by a fixed impulse.
-	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or w.recoil or 0) * T.recoilScale
+	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or (w.recoil or 0) * (ws.recoil or 1)) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
-	if w.kind == "artillery" or w.kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
-	if e.isPlayer and w.kind == "artillery" then game:shake(0.18) end
+	if kind == "artillery" or kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
+	if e.isPlayer and kind == "artillery" then game:shake(0.18) end
 	events.emit("fire", e, slot)
 end
 
@@ -278,22 +291,6 @@ Weapons.fire = fire
 function Weapons.range(slot)
 	if slot.ammo then return data.items[slot.ammo].shot.range end
 	return slot.w.range or 0
-end
-
--- Switch every launcher (or, given a trigger group, every launcher on that
--- trigger) to the next ammo size it can fire. Returns the newly selected
--- ammo id (of the first launcher that changed).
-function Weapons.cycleAmmo(e, group)
-	local picked
-	for _, slot in ipairs(e.weapons) do
-		if slot.bay and (not group or slot.group == group) and #slot.ammoOptions > 1 then
-			local i = 1
-			for j, id in ipairs(slot.ammoOptions) do if id == slot.ammo then i = j end end
-			slot.ammo = slot.ammoOptions[i % #slot.ammoOptions + 1]
-			picked = picked or slot.ammo
-		end
-	end
-	return picked
 end
 
 function Weapons.update(game, e, dt)

@@ -92,19 +92,18 @@ local WSTAT = {
 	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
 	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
 	control = { "control", 1, 8, 1, 0, "Drone control budget." },
+	cycle = { "ammo cycle", 1, 10, 1, 0, "Reload weight of the ammo it's built for (rounds and missiles 1, shells 4, torpedoes 6). Fire rate is for that ammo; heavier ammo fires slower." },
 }
 local WFIELDS = {
-	gun = { "fireRate", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
-	artillery = { "fireRate", "spread", "gimbal", "recoilPct" },
+	cannon = { "fireRate", "cycle", "spread", "gimbal", "recoilPct", "barrels", "barrelGap" },
 	laser = { "fireRate", "damage", "range", "powerPerShot", "pulse", "gimbal" },
 	beam = { "damage", "range", "powerPerSecond", "gimbal" },
 	drill = { "damage", "rockDamage", "powerPerSecond", "extendTime", "length", "width", "bitSize" },
-	missile = { "fireRate", "recoil" },
-	torpedo = { "fireRate", "recoil" },
+	missile = { "fireRate", "cycle", "recoil" },
 	drone = { "fireRate", "recoil", "control" },
 }
-local WKINDS = { "gun", "artillery", "laser", "drill", "missile", "torpedo", "drone" }
-local BAY_KINDS = { missile = true, torpedo = true, drone = true }
+local WKINDS = { "cannon", "laser", "drill", "missile", "drone" }
+local BAY_KINDS = { missile = true, drone = true }
 
 -- Wreck and prop settings, in place of hull stats and slots.
 local WRECK_STATS = {
@@ -119,7 +118,7 @@ local function turretCombo(id, current, pick)
 	for _, mid in ipairs(data.list.modules) do
 		local m = data.modules[mid]
 		if m.weapon then
-			local kind = m.weapon.kind == "missile" and "missile, homing" or m.weapon.kind == "torpedo" and "torpedo, unguided"
+			local kind = m.weapon.kind == "missile" and "missile rack"
 				or m.weapon.kind == "drone" and "drone bay" or m.weapon.kind
 			table.insert(opts, { label = ("%s (%s %s)"):format(m.name, m.size, kind), value = mid })
 		end
@@ -454,7 +453,7 @@ end
 -- The Weapons tab: the module's stats, then the art tools.
 function weaponSections(E, d)
 	local m = d.module
-	m.weapon = m.weapon or { kind = "gun" }
+	m.weapon = m.weapon or { kind = "cannon" }
 	local w = m.weapon
 	local function num(id, label, value, lo, hi, step, prec, tip, set)
 		Slab.Text(label); Slab.SameLine({ Pad = 4 })
@@ -478,7 +477,7 @@ function weaponSections(E, d)
 	local sopts = {}
 	for _, z in ipairs(SIZES) do table.insert(sopts, { label = z, value = z }) end
 	combo("yard_wsize", m.size, sopts, function(z) E.pushUndo(); m.size = z end, 60)
-	if w.kind == "gun" or w.kind == "artillery" then
+	if w.kind == "cannon" then
 		Slab.SameLine(); Slab.Text("caliber"); Slab.SameLine()
 		local copts = { { label = "same as size", value = false } }
 		for _, z in ipairs(SIZES) do table.insert(copts, { label = z, value = z }) end

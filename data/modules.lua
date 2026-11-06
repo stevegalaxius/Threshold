@@ -11,15 +11,16 @@
 	           px); see src/computers.lua.
 	  utility  hold (cubic metres), tractorRange (pixels), tractorPower (tractor strength added to the basic beam's 1: looting pull and top towing speed). Several stack. Utility modules are
 	           size "any" and fit any hull's utility slot.
-	  weapon   (guns, artillery, lasers) fits a hull's hardpoint slot.
-	  bay      (missile, torpedo and drone launchers) fits a bay slot.
-	           Either fires on whichever trigger its slot is set to.
+	  weapon   (cannons, lasers, drills) fits a hull's hardpoint slot.
+	  bay      (missile racks and drone bays) fits a bay slot.
+	           Either fires on whichever trigger its slot is set to, and
+	           loads whichever ammo is picked for that slot.
 
 	Weapon fields:
-	  kind        gun, artillery, laser or drill (weapon family); missile, torpedo
-	              or drone (bay family). Each fires ammo of its own
-	              kind: guns and artillery in their exact caliber, bay
-	              launchers their size or smaller. The ammo sets damage,
+	  kind        cannon, laser or drill (weapon family); missile or drone
+	              (bay family). Cannons load rounds or shells in their
+	              exact caliber; missile racks load missiles or torpedoes
+	              their size or smaller; drone bays drones. The ammo sets damage,
 	              speed, range, splash and knockback (data/items.lua). Lasers are pulse lasers
 	              with no ammo: they carry damage (per pulse), range,
 	              pulse (seconds the flash shows) and
@@ -28,6 +29,11 @@
 	              the trigger is held, with damage and powerPerSecond per second.
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
+	  cycle       reload weight of the ammo it's built for (rounds and
+	              missiles 1, shells 4, torpedoes 6). fireRate is for that
+	              ammo; heavier ammo fires slower (data.fireRate). The old
+	              kinds gun, artillery and torpedo still load as cannon /
+	              missile with cycle 1, 4 and 6.
 	  fireRate    shots per second           spread    random spread in degrees
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
 	  barrels     barrels that take turns firing; barrelGap = spacing
@@ -40,14 +46,14 @@
 -- Weapons: guns (fast, short range, no splash) --------------------------------
 
 module {
-	id = "gun_S_base", name = "PX-2 Autogun",
+	id = "gun_s_base", name = "PX-2 Autogun",
 	family = "weapon",
 	maker = "Halcyon Arms",
 	mass = 4,
 	powerDraw = 1,
 	price = 2200,
 	size = "S",
-	weapon = { fireRate = 5, gimbal = 10, kind = "gun", recoilPct = 16, spread = 0.8 },
+	weapon = { fireRate = 5, gimbal = 10, kind = "cannon", recoilPct = 16, spread = 0.8 },
 	art = {
 		muzzles = {
 			{ 12, 0 },
@@ -60,14 +66,14 @@ module {
 }
 
 module {
-	id = "gun_M_base", name = "RK-7 Autocannon",
+	id = "gun_m_base", name = "RK-7 Autocannon",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 10,
 	powerDraw = 2,
 	price = 6500,
 	size = "M",
-	weapon = { fireRate = 4, gimbal = 10, kind = "gun", recoilPct = 50.5, spread = 1 },
+	weapon = { fireRate = 4, gimbal = 10, kind = "cannon", recoilPct = 50.5, spread = 1 },
 	art = {
 		muzzles = {
 			{ 22, 0 },
@@ -82,7 +88,7 @@ module {
 -- Two RK-7 actions on one large mount, firing the same heavy rounds. The
 -- barrels alternate, so it's two autocannons' worth of fire from one slot.
 module {
-	id = "gun_L_base", name = "RK-14 Twin Autocannon",
+	id = "gun_l_base", name = "RK-14 Twin Autocannon",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 24,
@@ -95,7 +101,7 @@ module {
 		caliber = "M",
 		fireRate = 8,
 		gimbal = 10,
-		kind = "gun",
+		kind = "cannon",
 		recoilPct = 17.5,
 		spread = 1,
 	},
@@ -115,14 +121,14 @@ module {
 -- Shells fly their full range and burst on contact, near an enemy, or at the end of their range.
 
 module {
-	id = "artillery_S_base", name = "Pip Mortar",
+	id = "artillery_s_base", name = "Pip Mortar",
 	family = "weapon",
 	maker = "Ferrous Collective",
 	mass = 6,
 	powerDraw = 1,
 	price = 3400,
 	size = "S",
-	weapon = { fireRate = 1.2, gimbal = 6, kind = "artillery", recoilPct = 100, spread = 1 },
+	weapon = { fireRate = 1.2, gimbal = 6, cycle = 4, kind = "cannon", recoilPct = 100, spread = 1 },
 	art = {
 		muzzles = {
 			{ 19, 0 },
@@ -135,14 +141,14 @@ module {
 }
 
 module {
-	id = "artillery_M_base", name = "Thumper",
+	id = "artillery_m_base", name = "Thumper",
 	family = "weapon",
 	maker = "Brute Industries",
 	mass = 16,
 	powerDraw = 2,
 	price = 9000,
 	size = "M",
-	weapon = { fireRate = 0.8, gimbal = 6, kind = "artillery", recoilPct = 100, spread = 1 },
+	weapon = { fireRate = 0.8, gimbal = 6, cycle = 4, kind = "cannon", recoilPct = 100, spread = 1 },
 	art = {
 		muzzles = {
 			{ 28, 0 },
@@ -155,14 +161,14 @@ module {
 }
 
 module {
-	id = "artillery_L_base", name = "Long Tom",
+	id = "artillery_l_base", name = "Long Tom",
 	family = "weapon",
 	maker = "Ferrous Collective",
 	mass = 34,
 	powerDraw = 3,
 	price = 24000,
 	size = "L",
-	weapon = { fireRate = 0.5, gimbal = 5, kind = "artillery", recoilPct = 100, spread = 0.5 },
+	weapon = { fireRate = 0.5, gimbal = 5, cycle = 4, kind = "cannon", recoilPct = 100, spread = 0.5 },
 	art = {
 		muzzles = {
 			{ 52, 0 },
@@ -238,12 +244,12 @@ module {
 }
 
 -- Bay launchers -------------------------------------------------------------------
--- Missiles (fire and forget), torpedoes (very fast, steer slowly, huge damage) and drone bays (launch
+-- Missile racks (fire missiles, or torpedoes: very fast, steer slowly, huge damage) and drone bays (launch
 -- an armed drone that fights for you for a while). Each fires its own kind
--- in its size or smaller; Q switches the size.
+-- in its size or smaller, picked per slot.
 
 module {
-	id = "missile_S_base", name = "Sparrow Rack",
+	id = "missile_s_base", name = "Sparrow Rack",
 	family = "bay",
 	maker = "Halcyon Arms",
 	mass = 3,
@@ -259,7 +265,7 @@ module {
 }
 
 module {
-	id = "missile_M_base", name = "Hornet Pod",
+	id = "missile_m_base", name = "Hornet Pod",
 	family = "bay",
 	maker = "Nova Syndicate",
 	mass = 8,
@@ -275,7 +281,7 @@ module {
 }
 
 module {
-	id = "missile_L_base", name = "Trident Bay",
+	id = "missile_l_base", name = "Trident Bay",
 	family = "bay",
 	maker = "Ferrous Collective",
 	mass = 18,
@@ -288,24 +294,6 @@ module {
 			{ name = "part 2", shape = { 5, -4, 16, -4, 16, 4, 5, 4 }, barrel = true },
 		},
 	},
-}
-
-module {
-	id = "maul_tube", name = "Maul Tube", maker = "Brute Industries", family = "bay", size = "S",
-	mass = 5, price = 5000,
-	weapon = { kind = "torpedo", fireRate = 0.5, recoil = 600 },
-}
-
-module {
-	id = "breaker_tube", name = "Breaker Tube", maker = "Brute Industries", family = "bay", size = "M",
-	mass = 12, price = 14000,
-	weapon = { kind = "torpedo", fireRate = 0.35, recoil = 1500 },
-}
-
-module {
-	id = "leviathan_tube", name = "Leviathan Tube", maker = "Ferrous Collective", family = "bay", size = "L",
-	mass = 26, price = 32000,
-	weapon = { kind = "torpedo", fireRate = 0.25, recoil = 4000 },
 }
 
 module {

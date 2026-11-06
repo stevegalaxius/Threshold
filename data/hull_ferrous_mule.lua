@@ -6,7 +6,7 @@ hull {
 	class = "medium",
 	drag = 0.6,
 	hold = 200,
-	loadout = { "gun_M_base", "gun_M_base", "missile_M_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
+	loadout = { "gun_m_base", "gun_m_base", "missile_m_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
 	mass = 420,
 	mount = "turret",

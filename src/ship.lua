@@ -50,6 +50,7 @@ end
 	              hangar or a save keeps its hold exactly as it was)
 	opts.armor    armor to start with (defaults to full)
 	opts.triggers which trigger fires each weapon slot, by slot index
+	opts.loads    which ammo each weapon slot loads, by slot index (else its default)
 	              ("primary", "secondary" or "tertiary"; defaults per Ship.triggerFor)
 ]]
 function Ship.new(game, opts)
@@ -59,6 +60,7 @@ function Ship.new(game, opts)
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
 		triggers = copy(opts.triggers or {}),
+		loads = copy(opts.loads or {}),
 		cargo = copy(opts.cargo or {}),
 		fuelCharge=opts.fuelCharge, fuelInitialized=opts.fuelInitialized,
 		gridHold = opts.grid or opts.hold ~= nil,
@@ -128,7 +130,7 @@ end
 -- copy), armor and paint. Game:spawnPlayer turns one back into a ship.
 function Ship.record(e)
 	return {
-		hull = e.hull.id, loadout = copy(e.loadout), triggers = copy(e.triggers or {}), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
+		hull = e.hull.id, loadout = copy(e.loadout), triggers = copy(e.triggers or {}), loads = copy(e.loads or {}), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
 		fuelCharge=e.fuelCharge, fuelInitialized=e.fuelInitialized, power=e.power,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
 	}
@@ -155,6 +157,35 @@ function Ship.toggleTrigger(e, i)
 	Ship.refit(e)
 end
 
+-- The ammo slot i loads: the player's pick if the fitted weapon takes it,
+-- else the weapon's default.
+function Ship.loadFor(e, i)
+	local m = e.loadout[i] and data.modules[e.loadout[i]]
+	if not m then return nil end
+	local opts = data.ammoOptions(m)
+	local pick = e.loads and e.loads[i]
+	for _, id in ipairs(opts) do if id == pick then return id end end
+	return opts[1]
+end
+
+-- Pick the ammo slot i loads (any ammo the weapon takes; nil for the default).
+function Ship.setLoad(e, i, id)
+	e.loads = e.loads or {}
+	e.loads[i] = id
+	Ship.refit(e)
+end
+
+-- Step slot i to the next ammo its weapon takes.
+function Ship.cycleLoad(e, i)
+	local m = e.loadout[i] and data.modules[e.loadout[i]]
+	local opts = m and data.ammoOptions(m) or {}
+	if #opts < 2 then return Ship.loadFor(e, i) end
+	local cur, n = Ship.loadFor(e, i), 1
+	for j, id in ipairs(opts) do if id == cur then n = j end end
+	Ship.setLoad(e, i, opts[n % #opts + 1])
+	return e.loads[i]
+end
+
 -- Rebuild stats and weapon list after the hull's modules change.
 function Ship.refit(e)
 	local hull = e.hull
@@ -172,7 +203,7 @@ function Ship.refit(e)
 				slot = slot, module = m, w = m.weapon,
 				index = i, bay = m.family == "bay",
 				group = Ship.triggerFor(e, i),    -- primary, secondary or tertiary
-				ammo = data.ammoFor(m), ammoOptions = data.ammoOptions(m), cooldown = 0,
+				ammo = Ship.loadFor(e, i), ammoOptions = data.ammoOptions(m), cooldown = 0,
 				mount = slot.mount or hull.mount or "gimbal", aim = 0,
 			})
 		end
@@ -181,11 +212,11 @@ function Ship.refit(e)
 	-- firing in unison (see Weapons.update).
 	local count, seen = {}, {}
 	for _, w in ipairs(e.weapons) do
-		local key = w.group .. ":" .. w.module.id
+		local key = w.group .. ":" .. w.module.id .. ":" .. tostring(w.ammo)
 		count[key] = (count[key] or 0) + 1
 	end
 	for _, w in ipairs(e.weapons) do
-		local key = w.group .. ":" .. w.module.id
+		local key = w.group .. ":" .. w.module.id .. ":" .. tostring(w.ammo)
 		seen[key] = (seen[key] or 0) + 1
 		w.stagger = (seen[key] - 1) / count[key]
 	end

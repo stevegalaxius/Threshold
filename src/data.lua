@@ -26,7 +26,14 @@ local FAMILIES = { hardpoint = true, bay = true, engine = true, reactor = true, 
 -- every other family fits the slot of the same name.
 local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = true, utility = true, computer = true }
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
-local WEAPON_KINDS = { gun = true, artillery = true, laser = true, drill = true, missile = true, torpedo = true, drone = true }
+local WEAPON_KINDS = { cannon = true, laser = true, drill = true, missile = true, drone = true }
+-- Which ammo families each weapon kind loads. Cannons fire rounds (gun) or
+-- shells (artillery); missile racks fire missiles or torpedoes.
+data.LOADS = { cannon = { gun = true, artillery = true }, missile = { missile = true, torpedo = true }, drone = { drone = true } }
+-- Older weapon kinds, from before cannons and racks took several ammo
+-- families: the kind they are now and the reload weight (cycle) they were
+-- tuned for. See data.fireRate.
+local OLD_KINDS = { gun = { "cannon", 1 }, artillery = { "cannon", 4 }, torpedo = { "missile", 6 } }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
@@ -288,6 +295,8 @@ function api.module(def)
 		if def.lockCone and def.lockCone>180 then fail(("computer '%s': lockCone must be at most 180 degrees"):format(def.id)) end
 		if def.controlLimit and def.controlLimit%1~=0 then fail(("computer '%s': controlLimit must be an integer"):format(def.id)) end
 	end
+	local old = def.weapon and OLD_KINDS[def.weapon.kind]
+	if old then def.weapon.kind, def.weapon.cycle = old[1], def.weapon.cycle or old[2] end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
 	end
@@ -402,24 +411,44 @@ function loadFolder(folder)
 	end
 end
 
--- Every ammo a weapon module can fire, biggest first: same family as the
--- weapon kind, and the same caliber (guns, artillery) or the same size or
--- smaller (bay launchers: missiles, torpedoes, drones).
+-- Every ammo a weapon module can load: an ammo family its kind loads
+-- (data.LOADS), in its exact caliber (cannons) or its size or smaller
+-- (bay launchers). The ammo it was built around (same reload cycle) comes
+-- first, then biggest first.
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
-	if not w or w.kind == "laser" or w.kind == "drill" then return out end
+	local loads = w and data.LOADS[w.kind]
+	if not loads then return out end
 	for _, id in ipairs(data.list.items) do
 		local item = data.items[id]
-		if item.kind == "ammo" and item.family == w.kind then
+		if item.kind == "ammo" and loads[item.family] then
 			-- a gun's caliber is its size unless it says otherwise (twin mounts)
 			local fits = item.size == (w.caliber or module.size)
 			if module.family == "bay" then fits = SIZES[item.size] <= SIZES[module.size] end
 			if fits then table.insert(out, id) end
 		end
 	end
-	table.sort(out, function(a, b) return SIZES[data.items[a].size] > SIZES[data.items[b].size] end)
+	local own = w.cycle or 1
+	table.sort(out, function(a, b)
+		local ia, ib = data.items[a], data.items[b]
+		local na, nb = (ia.shot.cycle or 1) == own, (ib.shot.cycle or 1) == own
+		if na ~= nb then return na end
+		if ia.size ~= ib.size then return SIZES[ia.size] > SIZES[ib.size] end
+		return a < b
+	end)
 	return out
+end
+
+-- Shots per second a weapon fires with an ammo loaded. A weapon's fireRate
+-- is for ammo of its own reload cycle (weapon.cycle, default 1); heavier
+-- ammo (bigger shot.cycle) fires that much slower, and lighter ammo no
+-- faster, so an autogun lobs shells slowly and a mortar fires rounds at
+-- its own pace.
+function data.fireRate(w, ammoId)
+	local item = ammoId and data.items[ammoId]
+	local cycle = item and item.shot.cycle or 1
+	return (w.fireRate or 1) * math.min(1, (w.cycle or 1) / cycle)
 end
 
 -- The ammo a weapon fires by default (its biggest option).
@@ -528,11 +557,19 @@ function addModuleItems()
 end
 
 data.renamedModules = {
-	px2_autogun = "gun_S_base", rk7_autocannon = "gun_M_base", rk14_twin = "gun_L_base",
-	pip_mortar = "artillery_S_base", thumper_m = "artillery_M_base", long_tom = "artillery_L_base",
-	sparrow_rack = "missile_S_base", hornet_pod = "missile_M_base", trident_bay = "missile_L_base",
-	artilllery_S_base = "artillery_S_base",
+	px2_autogun = "gun_s_base", rk7_autocannon = "gun_m_base", rk14_twin = "gun_l_base",
+	pip_mortar = "artillery_s_base", thumper_m = "artillery_m_base", long_tom = "artillery_l_base",
+	sparrow_rack = "missile_s_base", hornet_pod = "missile_m_base", trident_bay = "missile_l_base",
+	artilllery_S_base = "artillery_s_base",
+	-- torpedo tubes are gone: torpedoes are missile-rack ammo now
+	maul_tube = "missile_s_base", breaker_tube = "missile_m_base", leviathan_tube = "missile_l_base",
 }
+-- the first _base ids had upper-case sizes (gun_S_base)
+for _, kind in ipairs({ "gun", "artillery", "missile" }) do
+	for _, size in ipairs({ "S", "M", "L" }) do
+		data.renamedModules[kind .. "_" .. size .. "_base"] = kind .. "_" .. size:lower() .. "_base"
+	end
+end
 
 function data.load()
 	loadFolder("data")

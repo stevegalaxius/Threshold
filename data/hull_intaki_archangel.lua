@@ -7,7 +7,7 @@ hull {
 	drag = 0.99,
 	helm = "strafe",
 	hold = 120,
-	loadout = { "cinder_drive", "cinder_drive", "forge_reactor", false, "nav_computer", "carrier_deck", "carrier_deck", "missile_L_base" },
+	loadout = { "cinder_drive", "cinder_drive", "forge_reactor", false, "nav_computer", "carrier_deck", "carrier_deck", "missile_l_base" },
 	maker = "Intaki",
 	mass = 800,
 	mount = "turret",

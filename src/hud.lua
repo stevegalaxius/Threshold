@@ -59,7 +59,7 @@ end
 local function weaponLines(p)
 	local lines, index = {}, {}
 	for _, w in ipairs(p.weapons) do
-		local key = w.group .. ":" .. w.module.id
+		local key = w.group .. ":" .. w.module.id .. ":" .. tostring(w.ammo)
 		local line = index[key]
 		if not line then
 			line = { name = w.module.name, n = 0, kind = w.w.kind, ammo = w.ammo, group = w.group, starved = false }
@@ -109,7 +109,7 @@ local function drawStatus(game)
 		else
 			local n = p.cargo[line.ammo] or 0
 			right = ("%d  %s"):format(n, data.items[line.ammo].name:lower())
-			col = (n == 0) and WARN or ((n < 20 and line.kind == "gun") and { 1, 0.8, 0.4 } or INK)
+			col = (n == 0) and WARN or ((n < 20 and data.items[line.ammo].family == "gun") and { 1, 0.8, 0.4 } or INK)
 		end
 		lg.setColor(col)
 		lg.printf(right, x, ly, pw - 14, "right")
@@ -165,8 +165,8 @@ local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
 	"LMB primary   RMB secondary   MMB tertiary",
-	"(pick each slot's fire group in the hold)",
-	"Q launcher ammo size   E tractor beam",
+	"(pick each slot's fire group and ammo in the hold)",
+	"E tractor beam",
 	"G fly a drone (drone uplink)",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold   M local map",

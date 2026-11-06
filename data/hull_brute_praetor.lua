@@ -6,7 +6,7 @@ hull {
 	class = "medium",
 	drag = 0.25,
 	hold = 50,
-	loadout = { "lumen_lance", "lumen_lance", "breaker_tube", "mule_engine", "forge_reactor", "tug_beam", "nav_computer", "fire_computer", "mule_engine" },
+	loadout = { "lumen_lance", "lumen_lance", "missile_m_base", "mule_engine", "forge_reactor", "tug_beam", "nav_computer", "fire_computer", "mule_engine" },
 	maker = "Brute Industries",
 	mass = 345,
 	mount = "gimbal",

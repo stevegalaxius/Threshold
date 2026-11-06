@@ -107,6 +107,7 @@ function love.load(args)
 		["--editortest"] = "tests.editor_loadout", ["--editorfoldertest"] = "tests.editor_folders",
 		["--weaponeditortest"] = "tests.weapon_editor", ["--dockeditortest"] = "tests.dock_editor",
 		["--lighttooltest"] = "tests.light_tool", ["--painttest"] = "tests.paint",
+		["--ammotest"] = "tests.weapon_ammo",
 	}
 	for _, a in ipairs(args or {}) do
 		if suites[a] then
@@ -244,7 +245,6 @@ function love.keypressed(key)
 	if key == "escape" then Pause.toggle(game)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
-	elseif key == "q" then game:cycleAux()
 	elseif key == "g" then game:toggleDroneControl()
 	elseif key == "f2" then Editor.toggle(game)
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
@@ -257,7 +257,6 @@ function love.gamepadpressed(_, button)
 	if Pause.isOpen() or Editor.isOpen() or LocalMap.isOpen(game) or Traffic.isOpen(game) then return end
 	if game.state == "docked" and button == "a" then game:undock(); return end
 	if button == "start" then relaunch()
-	elseif button == "y" then game:cycleAux()
 	elseif button == "back" then Debug.toggle()
 	end
 end
