@@ -383,7 +383,8 @@ Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = tru
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
-	density = 0.08, mix = MIX.giant, rings = { { 0.2, 0.4, density = 1.5 } },
+	density = 0.08, mix = MIX.giant, -- rings out to the edge, with a clear lane at the station track (0.55)
+	rings = { { 0.15, 0.5, density = 1.2 }, { 0.6, 0.97, density = 0.8 } },
 	city = true, cityScale = 2,
 	enemies = { { "brawler", 3 }, { "sniper", 2 }, { "interceptor", 3 } } })
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
@@ -391,18 +392,23 @@ Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = t
 	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.75,
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
-	rings = { { 0.15, 0.25, density = 0.5 }, { 0.25, 0.42, density = 3, big = 0.03 }, { 0.46, 0.6, density = 1.5 } },
+	-- then the outer rings out to the edge, past a clear lane at the
+	-- station track (0.75)
+	rings = { { 0.1, 0.2, density = 0.5 }, { 0.2, 0.42, density = 3, big = 0.03 }, { 0.46, 0.7, density = 1.5 },
+		{ 0.8, 0.97, density = 0.8 } },
 	enemies = { { "gunner", 3 }, { "sniper", 2 }, { "swarmer", 3 } } })
 Fields.uranus = planetField({ name = "Uranus", R = 30000, depth = 20000, gas = true,
 	hue = { 0.55, 0.85, 0.9 },
-	density = 0.09, mix = MIX.ice, rings = { { 0.25, 0.4, density = 2 } },
+	density = 0.09, mix = MIX.ice, rings = { { 0.15, 0.5, density = 1.5 }, { 0.6, 0.97, density = 1 } },   -- clear lane at the track (0.55)
 	city = true,
 	enemies = { { "interceptor", 3 }, { "sniper", 2 } } })
 Fields.neptune = planetField({ name = "Neptune", R = 30000, depth = 20000, gas = true,
 	hue = { 0.35, 0.5, 0.95 },
 	density = 0.09, mix = { ice = 9, rock = 1 }, -- four dense rings, well out from the planet, in pairs: a wider ring
 	-- then a thin one just outside it, twice
-	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 } },
+	-- (the station track, 0.55, falls in the clear gap between the pairs)
+	rings = { { 0.337, 0.390, density = 6 }, { 0.477, 0.499, density = 6 }, { 0.695, 0.748, density = 6 }, { 0.804, 0.820, density = 6 },
+		{ 0.88, 0.97, density = 2 } },
 	enemies = { { "brawler", 3 }, { "interceptor", 3 }, { "sniper", 2 } } })
 
 -- The moons' maps (see Fields.moons). Airless bodies retain their rocky
