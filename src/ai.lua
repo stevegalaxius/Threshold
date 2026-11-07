@@ -178,7 +178,7 @@ local function trade(game, e, dt)
 	if e.alifeEgress then
 		local a = e.egressHeading or e.body:getAngle()
 		local dx, dy = cos(a), sin(a)
-		local speed = e.egressSpeed or ai.cruise or T.traderCruise
+		local speed = e.egressSpeed or e.npcCruise or ai.cruise or T.traderCruise
 		local mx,my,scale,danger,clear=Nav.steer(game,e,dx,dy,speed,0,0,{brake=brakeAccel(e)})
 		AI.driveVelocity(e,mx*speed*scale,my*speed*scale,mx,my,ai.throttle)
 		Nav.boost(e,mx,my,speed,math.huge,clear,danger,true)
@@ -257,7 +257,7 @@ local function trade(game, e, dt)
 		-- before the stop (down to a crawl for a station's runway, or a
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
-		local cruise = ai.cruise or T.traderCruise
+		local cruise = e.npcCruise or ai.cruise or T.traderCruise
 		local pass = (stop.dock or stop.inspection) and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts

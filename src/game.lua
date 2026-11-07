@@ -1905,7 +1905,9 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	e.armor = e.armor - amount
 	e.lastHitBy = source
 	-- a neutral that gets shot remembers who did it, and shoots back
-	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team then e.aggressor = source end
+	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
+	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
+	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
@@ -2245,23 +2247,6 @@ local function lootOf(e)
 	return loot
 end
 
--- A ship that carries its cargo in containers (enemy containers =
--- { item, min, max }, like a Hauler) packs its loot into them: at least
--- min, more as needed up to max, and anything left over stays loose.
-local function intoContainers(ship, loot)
-	local cs = ship.def and ship.def.containers
-	if not cs then return loot, {} end
-	local item = data.items[cs[1]]
-	local stacks = {}
-	for k = 1, cs[3] do
-		if k > cs[2] and not next(loot) then break end
-		local inner = Hold.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
-		loot = Hold.fill(inner, loot)
-		table.insert(stacks, { id = cs[1], n = 1, inner = next(Hold.totals(inner)) and inner or nil })
-	end
-	return loot, stacks
-end
-
 -- A husk's hold: one grid the size of the ship's main hold, loosely packed
 -- (it's wreckage), growing if it has to so nothing is lost.
 local function huskHold(ship)
@@ -2280,9 +2265,7 @@ local function huskHold(ship)
    if loot[stack.id]<=0 then loot[stack.id]=nil end
   end
  end end end
- local loose, stacks = intoContainers(ship, loot)
- for _,stack in ipairs(carried) do stacks[#stacks+1]=stack end
-	return Hold.pack(loose, gw, gh, ship.hull.name .. " husk", random, stacks)
+ return Hold.pack(loot, gw, gh, ship.hull.name .. " husk", random, carried)
 end
 
 -- A burnt-out wreck in the dead ship's shape. It drifts and tumbles, holds

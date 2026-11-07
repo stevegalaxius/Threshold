@@ -397,10 +397,7 @@ function W.connect(f)
  f.buoyCorridor=buoyOnly
  f.buoyCircuit={}
  for _,id in ipairs(corridor) do if byId[id].kind=='buoy' then f.buoyCircuit[#f.buoyCircuit+1]=id end end
- f.raidLinks={}
- for i,id in ipairs(f.buoyCircuit) do
-  if #f.buoyCircuit>1 then f.raidLinks[#f.raidLinks+1]={id,f.buoyCircuit[i%#f.buoyCircuit+1]} end
- end
+-- Raid legs are worked out from where the buoys are now (security.lua).
  f.travelLinks={};local seen={}
  local function link(a,b)
   if not a or not b or a==b then return end
@@ -408,7 +405,9 @@ function W.connect(f)
   local key=a<b and a..'|'..b or b..'|'..a
   if not seen[key] then seen[key]=true;f.travelLinks[#f.travelLinks+1]={a,b} end
  end
- for i,id in ipairs(corridor) do link(id,corridor[i%#corridor+1]) end
+-- Ordinary nodes need no authored links: NPCs fly straight between them,
+ -- round the planet (travelgraph.lua, G.neighbours). Only gates, drivers,
+ -- ladders and authored extras are linked here.
  local onCorridor={};for _,id in ipairs(corridor) do onCorridor[id]=true end
  local attachments=#corridor>0 and corridor or f.holdingId and {f.holdingId} or f.stationIds
  -- With three or more buoys, something off the ring joins only the two
@@ -427,11 +426,6 @@ function W.connect(f)
   table.sort(list,function(x,y) return x[2]==y[2] and x[1]<y[1] or x[2]<y[2] end)
   return {list[1][1],list[2][1]}
  end
- for _,id in ipairs(f.stationIds) do
-  if not onCorridor[id] then
-   for _,to in ipairs(#f.buoyIds>0 and nearBuoys(id) or attachments) do link(id,to) end
-  end
- end
  for _,id in ipairs(f.drillIds) do link(byId[id].motion.home,id) end
  for _,id in ipairs(buoyOnly and #f.buoyIds>0 and f.driverId and nearBuoys(f.driverId) or {f.tradeHome or f.holdingId}) do link(f.driverId,id) end
  if f.ladderIds then
@@ -449,29 +443,9 @@ function W.connect(f)
   if p.kind=='moon_gate' then for _,id in ipairs(buoyOnly and #f.buoyIds>0 and nearBuoys(p.id) or attachments) do link(p.id,id) end end
  end
  for _,pair in ipairs(config.links or {}) do link(pair[1],pair[2]) end
- local circuit={}
- for _,id in ipairs(corridor) do circuit[#circuit+1]=id end
- for _,id in ipairs(f.stationIds) do
-  if #corridor>0 and not onCorridor[id] and byId[id].uses.trade then
-   -- The spur has links to the buoys; inserting it at a connected node keeps
-   -- the local trader circuit valid without inventing navigation shortcuts.
-   local function position(node)
-    local m=byId[node].motion
-    if m.type=='fixed' then return m.x,m.y end
-    local a,r=m.type=='cloud' and m.a or m.phase,m.type=='cloud' and m.r or m.radius
-    return (m.cx or 0)+math.cos(a)*r,(m.cy or 0)+math.sin(a)*r
-   end
-   local x,y=position(id);local attach,distance
-   for _,candidate in ipairs(#f.buoyIds>0 and f.buoyIds or corridor) do
-    local px,py=position(candidate);local d=(px-x)^2+(py-y)^2
-    if not attach or d<distance or d==distance and candidate<attach then attach,distance=candidate,d end
-   end
-   for i,node in ipairs(circuit) do if node==attach then
-    table.insert(circuit,i+1,id);table.insert(circuit,i+2,attach);break
-   end end
-  end
- end
- f.traderRoute=#circuit>0 and circuit or f.stationIds
+ -- traders start docked at home and take work from the board
+ local home=f.tradeHome or f.stationIds[1]
+ f.traderRoute=home and {home,home} or {}
  f.navigationVersion=(f.navigationVersion or 0)+1
 end
 return W

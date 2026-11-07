@@ -66,6 +66,17 @@ return function(game)
   en.power=1000; en.intent=en.intent or {}; en.intent.aimX,en.intent.aimY=13000,12000
   Weapons.fire(game,en,sl,0.016)
   check(sl.beams and #sl.beams.lines==5 and sl.beams.color[2]==0.2,'shotgun laser should fire 5 colored lines')
+  -- below the reserve floor lasers still fire, at reduced output
+  local T=require('src.tuning')
+  en.power=en.stats.powerCap; sl.cooldown=0; sl.beams=nil
+  Weapons.fire(game,en,sl,0.016)
+  check(sl.beams and sl.beams.alpha==1,'a full capacitor should fire at full output')
+  en.power=en.stats.powerCap*T.boostRelight*0.5; en.burnerLocked=true; sl.cooldown=0; sl.beams=nil
+  local before=en.power
+  Weapons.fire(game,en,sl,0.016)
+  check(sl.beams and sl.beams.alpha==T.laserReserve,'lasers on reserve should fire at reduced output, even after afterburning')
+  check(en.power==before,'lasers on reserve should not drain the capacitor')
+  en.burnerLocked=nil
  end
  -- atomic warheads: a missile that vaporizes what it kills (no wreck)
  do

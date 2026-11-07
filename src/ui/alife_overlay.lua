@@ -67,6 +67,8 @@ function O.draw(game,toScreen,font)
  -- simulation connections
  local view=st.overlay and not game.lane and not game.flight and Graph.build(game.fieldId)
  if view then
+  -- authored links only (gates, drivers, ladders): ordinary nodes fly by
+  -- line of sight and would fill the map with lines
   lg.setColor(.2,.6,.8,.35)
   for _,edge in ipairs(view.edges) do
    local pts={}
@@ -93,16 +95,27 @@ function O.draw(game,toScreen,font)
  end
  if sel then
   local n,r,e=sel.n,sel.n.r,sel.n.e
-  -- its itinerary through this map
-  if r.route and not game.lane then
+  -- the rest of its route through this map, drawn as it will fly it (round
+  -- the planet, leg by leg), from the leg under way to the last stop
+  if r.route and not game.lane and (r.state=='travel' or r.state=='idle' or r.state=='docked') then
+   local g=Graph.build(game.fieldId)
    local pts={sel.x,sel.y}
-   for i=0,#r.route-1 do
-    local id=r.route[((r.index or 1)-1+i)%#r.route+1]
-    local place=L.byId[id]
-    if not place or place.area~=game.fieldId then break end
-    local x,y=toScreen(game,L.position(id,clock));pts[#pts+1]=x;pts[#pts+1]=y
+   local first=r.state=='travel' and r.index or #r.route+1
+   for i=first,#r.route do
+    local from,to=r.route[i-1] or r.route[i],r.route[i]
+    if not (g.nodes[from] and g.nodes[to]) then break end
+    local edge={from=from,to=to}
+    local start=0
+    if i==first and r.state=='travel' then start=math.max(0,math.min(1,(clock-(r.depart or clock))/math.max(.01,(r.arrive or clock)-(r.depart or clock)))) end
+    for k=1,16 do
+     local x,y=toScreen(game,Graph.point(g,edge,start+(1-start)*k/16,clock));pts[#pts+1]=x;pts[#pts+1]=y
+    end
    end
    if #pts>=4 then lg.setColor(1,.85,.4,.6);lg.line(pts) end
+   local last=r.route[#r.route]
+   if L.byId[last] and L.byId[last].area==game.fieldId then
+    local x,y=toScreen(game,L.position(last,clock));lg.setColor(1,.85,.4,.8);lg.circle('line',x,y,6)
+   end
   end
   -- who it is dealing with
   local req=e and (e.asked or e.request)
