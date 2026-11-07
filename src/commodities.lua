@@ -20,6 +20,11 @@ local C={list={
  -- (Not hauled out yet: nothing lists a user.)
  {item='deuterium_canister',amount=10,cap=60,make={belt=12},use={},
   inputs={{item='water_ice',n=2},{item='empty_canister',n=1}}},
+ -- Jupiter and Uranus skim deuterium from their atmospheres: no ice, just
+ -- canisters to fill. (A second entry for the same item: each region makes
+ -- it by one recipe only, so their carries never mix.)
+ {item='deuterium_canister',amount=10,cap=60,make={jupiter=12,uranus=8},use={},
+  input={item='empty_canister',n=1}},
 }}
 -- A commodity's inputs, whether it lists one (input) or several (inputs).
 function C.inputs(c) return c.inputs or (c.input and {c.input}) or {} end
