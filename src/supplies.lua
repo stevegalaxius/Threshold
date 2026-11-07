@@ -1,7 +1,9 @@
--- One supplies catalogue for station vendors and persistent NPC maintenance.
--- Ammunition and flares are unlimited. Reactor fuel is not: it comes out of
--- the station's own stock (src/economy.lua orders more), except for a small
--- emergency issue to an NPC running dry, so nobody is ever stranded.
+-- Two storefronts at every station with a market:
+--   Fuel      the real one: reactor fuel from the station's own stock, which
+--             NPCs refuel from and src/economy.lua keeps ordered up.
+--   Supplies  the debug fallback: unlimited fuel, ammunition and flares,
+--             for the player only. NPCs never draw on it (an NPC running dry
+--             at an empty station gets a small emergency issue instead).
 local data,Stats=require('src.data'),require('src.stats')
 local Hold,Ship=require('src.inventory.hold'),require('src.ship')
 local L,T=require('src.locations'),require('src.tuning')
@@ -12,11 +14,17 @@ function S.shop()
  if catalogue and itemCount==#data.list.items then return catalogue end
  local sells={}
  for _,id in ipairs(data.list.items) do
-  if data.items[id].kind=='ammo' or id=='flare' then sells[#sells+1]={id,1} end
+  if data.items[id].kind=='ammo' or id=='flare' or id==Fuel.item() then sells[#sells+1]={id,1} end
  end
- catalogue={id='supplies',name='Supplies',description='Reactor fuel, ammunition and countermeasures.',sells=sells,unlimited=true}
+ catalogue={id='supplies',name='Supplies (debug)',description='Unlimited reactor fuel, ammunition and countermeasures, for testing.',sells=sells,unlimited=true}
  itemCount=#data.list.items
  return catalogue
+end
+-- The real fuel storefront, from station stock.
+local fuelShop
+function S.fuelShop()
+ fuelShop=fuelShop or {id='fuel',name='Fuel',description='Deuterium canisters from station stock.',sells={{Fuel.item(),10}}}
+ return fuelShop
 end
 function S.supports(node)
  local place=node and L.byId[node]

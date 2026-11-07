@@ -32,9 +32,15 @@ function S.definition(st)
 end
 
 function S.shops(st)
- local mk=S.definition(st);local shops={};local supplied=false
+ local mk=S.definition(st);local shops={};local supplied,fueled=false,false
+ local fuel=require('src.reactor_fuel').item()
  local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
- for _,shop in ipairs(existing) do shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies' end
+ for _,shop in ipairs(existing) do
+  shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies'
+  fueled=fueled or not shop.unlimited and S.lists(shop,fuel)
+ end
+ -- the real fuel storefront, unless a shop here already stocks fuel
+ if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
  if not supplied then shops[#shops+1]=require('src.supplies').shop() end
  return shops
 end
