@@ -16,14 +16,22 @@ local C={list={
  {item='hydrogen_canister',amount=10,cap=60,
   make={jupiter=20,saturn=20,uranus=12,neptune=12},input={item='empty_canister',n=1},
   use={venus=16,mercury=12}},
+ -- Ceres cracks its ice into deuterium, one canister of it per two ice.
+ -- (Not hauled out yet: nothing lists a user.)
+ {item='deuterium_canister',amount=10,cap=60,make={belt=12},use={},
+  inputs={{item='water_ice',n=2},{item='empty_canister',n=1}}},
 }}
+-- A commodity's inputs, whether it lists one (input) or several (inputs).
+function C.inputs(c) return c.inputs or (c.input and {c.input}) or {} end
 function C.rate(c,area) return (c.make[area] or 0)-(c.use[area] or 0) end
 -- Regions that take this item: its users, and makers that need it as input.
 function C.takers(c)
  local set={}
  for area in pairs(c.use) do set[area]=true end
  for _,o in ipairs(C.list) do
-  if o.input and o.input.item==c.item then for area in pairs(o.make) do set[area]=true end end
+  for _,input in ipairs(C.inputs(o)) do
+   if input.item==c.item then for area in pairs(o.make) do set[area]=true end end
+  end
  end
  return set
 end

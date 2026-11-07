@@ -117,11 +117,14 @@ function S.flow(u,key,i,m)
    local carry=(m.flowCarry[c.item] or 0)+rate*dt/3600
    local whole=carry>=0 and math.floor(carry) or math.ceil(carry)
    if rate>0 then whole=math.max(0,math.min(whole,c.cap-have)) end
-   if rate>0 and c.input then
-    -- making it uses up its input from the same station's stock
-    local can=math.floor(S.count(u,key,c.input.item)/c.input.n)
-    if can<whole then whole=can;carry=whole end
-    if whole>0 then S.take(u,key,c.input.item,whole*c.input.n) end
+   local inputs=C.inputs(c)
+   if rate>0 and #inputs>0 then
+    -- making it uses up its inputs from the same station's stock
+    for _,input in ipairs(inputs) do
+     local can=math.floor(S.count(u,key,input.item)/input.n)
+     if can<whole then whole=can;carry=whole end
+    end
+    if whole>0 then for _,input in ipairs(inputs) do S.take(u,key,input.item,whole*input.n) end end
    end
    if rate<0 then whole=math.max(whole,-have) end
    if rate>0 and have>=c.cap then carry=0 end
