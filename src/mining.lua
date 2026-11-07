@@ -134,7 +134,7 @@ function M.seed(game)
      local count=0
      for offerId,offer in pairs(Tasks.state(u).offers) do
       if offer.kind=='mine' and offer.target==id then
-       if offer.source==site.home then count=count+1
+       if offer.source==site.home then count=count+1;offer.item=site.item
        elseif not offer.owner then Tasks.state(u).offers[offerId]=nil end
       end
      end

@@ -165,6 +165,7 @@ end
 
 function A.seed(game)
  local u=game.universe
+ require('src.supplies').universe=u
  u.npcs=u.npcs or {}; u.npcAreas=u.npcAreas or {}; u.nextNpcId=u.nextNpcId or 0
  Reconcile.prepare(game,start)
  -- All populations exist before visiting their regions. Do not refill departed
@@ -788,6 +789,8 @@ function A.install(Game)
   Population.update(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
+  require('src.supplies').universe=self.universe
+  require('src.economy').update(self.universe,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end

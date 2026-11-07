@@ -107,7 +107,7 @@ function love.load(args)
 		["--editortest"] = "tests.editor_loadout", ["--editorfoldertest"] = "tests.editor_folders",
 		["--weaponeditortest"] = "tests.weapon_editor", ["--dockeditortest"] = "tests.dock_editor",
 		["--lighttooltest"] = "tests.light_tool", ["--painttest"] = "tests.paint",
-		["--ammotest"] = "tests.weapon_ammo", ["--ramtest"] = "tests.collisions",
+		["--ammotest"] = "tests.weapon_ammo", ["--economytest"] = "tests.economy", ["--ramtest"] = "tests.collisions",
 	}
 	for _, a in ipairs(args or {}) do
 		if suites[a] then

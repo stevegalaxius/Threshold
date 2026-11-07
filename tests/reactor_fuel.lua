@@ -82,10 +82,18 @@ return function(game)
  Fuel.advance(stranded,15)
  check(stranded.depart==5 and stranded.arrive==105 and stranded.fuelStatus=='stranded','empty offline ship continued abstract travel')
  local refill=copy(stranded);local node=L.stations('earth','trade')[1]
- Supplies.refill(refill,node)
- check((refill.ship.cargo[item] or 0)>0,'NPC dockside supplies omitted reactor fuel')
- local found=false;for _,entry in ipairs(Supplies.shop().sells) do if entry[1]==item then found=true end end
- check(found,'player Supplies vendor omitted reactor fuel')
+ local Stock=require('src.stockpile')
+ local had=Stock.count(game.universe,node,item);if had>0 then Stock.take(game.universe,node,item,had) end
+ Stock.add(game.universe,node,item,10)
+ Supplies.refill(refill,node,game.universe)
+ local got=refill.ship.cargo[item] or 0
+ check(got>0,'NPC dockside supplies omitted reactor fuel')
+ check(Stock.count(game.universe,node,item)==10-got,'dockside fuel did not come out of station stock')
+ -- an empty station still gives a dry NPC enough to move on
+ local dry=copy(stranded);Stock.take(game.universe,node,item,Stock.count(game.universe,node,item))
+ Supplies.refill(dry,node,game.universe)
+ check((dry.ship.cargo[item] or 0)>0,'empty station stranded a dry NPC')
+ Stock.add(game.universe,node,item,80)
  -- Initial fuel is a one-time migration, never a reward for going online again.
  local old={hull=rec.hull,loadout=rec.loadout,cargo={}}
  Fuel.initialize(old);old.cargo[item]=0;old.fuelCharge=0;Fuel.initialize(old)

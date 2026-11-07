@@ -86,6 +86,11 @@ function S.stock(u,st,i)
     local _,_,cap=Shapes.of(e[1]);stock[e[1]]=(stock[e[1]] or 0)+e[2]*cap
    end
   end
+  -- a station with Supplies opens with its fuel floor on hand
+  local fuel=require('src.reactor_fuel').item();local floor=require('src.economy').floor[fuel]
+  if floor and S.shopFor(key,fuel)==i and L.byId[key] and require('src.supplies').supports(key) then
+   stock[fuel]=math.max(stock[fuel] or 0,floor*2)
+  end
   m.stock=stock
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]
@@ -124,9 +129,11 @@ function S.flow(u,key,i,m)
      local can=math.floor(S.count(u,key,input.item)/input.n)
      if can<whole then whole=can;carry=whole end
     end
-    if whole>0 then for _,input in ipairs(inputs) do S.take(u,key,input.item,whole*input.n) end end
+    if whole>0 then for _,input in ipairs(inputs) do
+     S.take(u,key,input.item,whole*input.n);require('src.economy').consume(u,key,input.item,whole*input.n)
+    end end
    end
-   if rate<0 then whole=math.max(whole,-have) end
+   if rate<0 then whole=math.max(whole,-have);require('src.economy').consume(u,key,c.item,-whole) end
    if rate>0 and have>=c.cap then carry=0 end
    m.flowCarry[c.item]=carry-whole
    have=have+whole
@@ -146,6 +153,7 @@ function S.add(u,st,id,n,i)
  return true
 end
 function S.take(u,st,id,n,i)
+ if n<=0 then return true end
  local stock=S.stock(u,st,i or S.shopFor(st,id))
  if not stock or (stock[id] or 0)<n then return false end
  stock[id]=stock[id]-n

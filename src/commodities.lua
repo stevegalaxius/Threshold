@@ -5,25 +5,23 @@
 	and, with an input, uses input.n of that item (from the same station's
 	stock) per unit made; using stops at empty.
 
-	Transport (src/transport.lua) posts hauls from each maker to each user,
-	and to each region whose making needs it as input. A hauler only takes
-	one when the source has the cargo and the target is under cap.
+	Stations order what they run short of (src/economy.lua), and haulers
+	fill the orders from whichever maker has stock to spare.
 ]]
 local C={list={
  -- Mars presses empty canisters from the ore its moons send down.
- {item='empty_canister',amount=10,cap=60,make={mars=24},use={},input={item='iron_ore',n=1}},
+ {item='empty_canister',amount=10,cap=600,make={mars=300},use={},input={item='iron_ore',n=1}},
  -- The gas giants fill them for the inner planets.
  {item='hydrogen_canister',amount=10,cap=60,
-  make={jupiter=20,saturn=20,uranus=12,neptune=12},input={item='empty_canister',n=1},
+  make={jupiter=10,saturn=10,uranus=6,neptune=6},input={item='empty_canister',n=1},
   use={venus=16,mercury=12}},
- -- Ceres cracks its ice into deuterium, one canister of it per two ice.
- -- (Not hauled out yet: nothing lists a user.)
- {item='deuterium_canister',amount=10,cap=60,make={belt=12},use={},
-  inputs={{item='water_ice',n=2},{item='empty_canister',n=1}}},
+ -- Ceres cracks its ice into deuterium, one canister of it per ice.
+ {item='deuterium_canister',amount=10,cap=1000,make={belt=300},use={},
+  inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
  -- Jupiter and Uranus skim deuterium from their atmospheres: no ice, just
  -- canisters to fill. (A second entry for the same item: each region makes
  -- it by one recipe only, so their carries never mix.)
- {item='deuterium_canister',amount=10,cap=60,make={jupiter=12,uranus=8},use={},
+ {item='deuterium_canister',amount=10,cap=1000,make={jupiter=300,uranus=300},use={},
   input={item='empty_canister',n=1}},
 }}
 -- A commodity's inputs, whether it lists one (input) or several (inputs).

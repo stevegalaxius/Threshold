@@ -121,6 +121,9 @@ function Tasks.arrive(u,r,station,clock,game)
  local def=Tasks.definitions[t.kind]
  if def.complete(u,r,t,station,clock,game) then
   Tasks.release(u,r,'completed',clock)
+  -- a one-off order is filled; standing work goes back on the board
+  local o=Tasks.state(u).offers[t.id]
+  if o and o.order then Tasks.state(u).offers[t.id]=nil end
   return true
  end
 end

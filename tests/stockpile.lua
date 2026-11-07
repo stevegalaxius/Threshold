@@ -37,10 +37,11 @@ return function(game)
  local h=J.available(u,jup,'hydrogen_canister');u.clock=u.clock+3600
  assert(J.available(u,jup,'hydrogen_canister')==h,'hydrogen stops without empties')
  local hauls=0
- local Transport,Tasks=require('src.transport'),require('src.tasks')
- Transport.seed(u)
- for _,o in pairs(Tasks.state(u).offers) do if o.item=='hydrogen_canister' or o.item=='empty_canister' then hauls=hauls+1 end end
- assert(hauls>0,'commodity hauls are posted')
+ local Tasks=require('src.tasks')
+ -- stations short of a good order it (src/economy.lua)
+ u.economyNext=nil;require('src.economy').update(u,u.clock)
+ for _,o in pairs(Tasks.state(u).offers) do if o.order and (o.item=='hydrogen_canister' or o.item=='empty_canister') then hauls=hauls+1 end end
+ assert(hauls>0,'commodity orders are posted')
  -- an idle trader flies empty to work elsewhere, loads there, then delivers
  local copy=require('src.persistence').copy
  local template

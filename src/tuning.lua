@@ -295,7 +295,9 @@ T.miningScan,T.miningOfflineEvery=.5,12
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',1200
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',4800
+T.fuelEmergency=2
+T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take   -- canisters an NPC running dry gets free at an empty station
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve

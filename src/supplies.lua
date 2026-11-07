@@ -1,5 +1,7 @@
 -- One supplies catalogue for station vendors and persistent NPC maintenance.
--- Supply is unlimited for now; NPC billing remains deferred with their economy.
+-- Ammunition and flares are unlimited. Reactor fuel is not: it comes out of
+-- the station's own stock (src/economy.lua orders more), except for a small
+-- emergency issue to an NPC running dry, so nobody is ever stranded.
 local data,Stats=require('src.data'),require('src.stats')
 local Hold,Ship=require('src.inventory.hold'),require('src.ship')
 local L,T=require('src.locations'),require('src.tuning')
@@ -10,7 +12,7 @@ function S.shop()
  if catalogue and itemCount==#data.list.items then return catalogue end
  local sells={}
  for _,id in ipairs(data.list.items) do
-  if data.items[id].kind=='ammo' or id=='flare' or id==Fuel.item() then sells[#sells+1]={id,1} end
+  if data.items[id].kind=='ammo' or id=='flare' then sells[#sells+1]={id,1} end
  end
  catalogue={id='supplies',name='Supplies',description='Reactor fuel, ammunition and countermeasures.',sells=sells,unlimited=true}
  itemCount=#data.list.items
@@ -64,7 +66,16 @@ function S.needs(r,e)
  end
  return false
 end
-local function fill(r,e,h,cargo)
+-- Fuel from the station's stock; empty, an NPC that's low gets just enough
+-- to reach the next station (T.fuelEmergency canisters), on the house.
+local function fuelAvailable(u,key,r,e)
+ if not u or not key then return math.huge end
+ local have=require('src.stockpile').count(u,key,Fuel.item())
+ if have>0 then return have,false end
+ if Fuel.condition(r,e)~='normal' then return T.fuelEmergency or 2,true end
+ return 0,false
+end
+local function fill(r,e,h,cargo,u,key)
  local added=0
  local targets=S.targets(r,e);local order={}
  for id in pairs(targets) do order[#order+1]=id end
@@ -76,18 +87,32 @@ local function fill(r,e,h,cargo)
  for _,id in ipairs(order) do
   local target=targets[id]
   local missing=math.max(0,target-(cargo[id] or 0));local n
+  local free
+  if id==Fuel.item() then
+   local can;can,free=fuelAvailable(u,key,r,e);missing=math.min(missing,can)
+  end
   if missing==0 then n=0
   elseif h then n=Hold.add(h,id,missing,{pristine=true})
   else n=math.min(missing,room(r,e,nil,id)) end
   if n>0 then cargo[id]=(cargo[id] or 0)+n;added=added+n end
+  if n>0 and id==Fuel.item() and u and key then
+   if not free then
+    -- a fill is a swap: the ship hands in its spent canisters, which go
+    -- back to the deuterium makers to be filled again (src/economy.lua)
+    require('src.stockpile').take(u,key,id,n)
+    require('src.stockpile').add(u,key,'empty_canister',n)
+   end
+   require('src.economy').consume(u,key,id,n)
+  end
  end
  return added
 end
-function S.refill(r,node)
+function S.refill(r,node,u)
  if not S.supports(node) then return 0 end
  local h=r.ship.hold and Hold.deserialize(r.ship.hold)
  r.ship.cargo=h and Hold.totals(h) or r.ship.cargo or {}
- local n=fill(r,nil,h,r.ship.cargo)
+ u=u or S.universe
+ local n=fill(r,nil,h,r.ship.cargo,u,u and L.canonical(node))
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
  return n
 end
@@ -96,7 +121,7 @@ function S.online(game,e)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  if not r or e.dead or e.removed or not e.cargo or not ds or not ds.done or ds.supplied then return end
  if not game.stationServices(ds.station).market then return end
- local n=fill(r,e,e.hold,e.cargo)
+ local n=fill(r,e,e.hold,e.cargo,game.universe,L.canonical(ds.station.key))
  ds.supplied=true
  if n>0 then
   Ship.updateMass(e)

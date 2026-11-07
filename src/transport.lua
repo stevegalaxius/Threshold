@@ -7,6 +7,7 @@ local G=require('src.travelgraph')
 local Hold=require('src.inventory.hold')
 local data=require('src.data')
 local J=require('src.jobs')
+local T=require('src.tuning')
 local Transport={}
 local function hold(r)
  return r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
@@ -30,7 +31,7 @@ local function cargo(r,item,amount)
 end
 function Transport.route(source,target,clock)
  local a,b=L.byId[source],L.byId[target]
- if not a or not b or a.area==b.area then return end
+ if not a or not b or source==target then return end
  return G.itinerary(source,target,clock)
 end
 -- Whether a route exists, remembered for a while: idle traders weigh every
@@ -60,14 +61,16 @@ Tasks.register('transport',{
   local from,to=source.area,target.area
   -- Retired return manifests can remain reserved in old saves until delivery.
   -- Once released, they must not let an empty strip mine generate more cargo.
-  if J.isMine(from) and to==J.oreTo and (not o.mine or o.item~=J.item) then return false end
+  if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return false end
   -- Mars's dispatch workers run the moon supply/ore circuit. Existing trips
   -- elsewhere finish normally before the worker chooses its next duty.
   if r.home=='mars' and r.taskWorker and not
    (from==J.oreTo and J.isMine(to) or from~=J.oreTo and to==J.oreTo) then return false end
   if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
-  return room(r,o.item,o.amount)>=o.amount
-   and (not (o.mine or o.stocked) or J.available(u,o.source,o.item)>=o.amount)
+  -- an order takes whatever part of it this hold can carry
+  local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
+  return room(r,o.item,need)>=need
+   and (not (o.mine or o.stocked) or J.available(u,o.source,o.item)>=need)
  end,
  feasible=function(u,r,o,station,clock)
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
@@ -75,9 +78,28 @@ Tasks.register('transport',{
  score=function(u,r,o,station,clock)
   -- Oldest dispatch first, with immediate return trips deprioritized.
   -- Work at this station before work elsewhere.
+  -- A station's order for something it's short of beats placeholder work.
   return clock-(o.readyAt or 0)-(r.lastOrigin==o.target and 100000 or 0)-(station~=o.source and 1000000 or 0)
+   +(o.order and 10000000*(1+(o.priority or 0)) or 0)
  end,
  prepare=function(u,r,t,station,clock)
+  if t.order then
+   -- fold in the other open orders on the same run, so one trip carries a
+   -- full hold instead of a few canisters
+   local offers=Tasks.state(u).offers;local fit=room(r,t.item,1e6)
+   for id,o in pairs(offers) do
+    if id~=t.id and o.order and o.state=='available' and o.source==t.source and o.target==t.target
+     and o.item==t.item and t.amount+o.amount<=fit then
+     t.amount=t.amount+o.amount;offers[id]=nil
+    end
+   end
+   -- size the load to the hold (and to what's there), and say so on the
+   -- order, so the station counts only what's really coming
+   t.amount=math.min(t.amount,room(r,t.item,t.amount))
+   if station==t.source then t.amount=math.min(t.amount,J.available(u,t.source,t.item)) end
+   if t.amount<=0 then return false end
+   local o=Tasks.state(u).offers[t.id];if o then o.amount=t.amount end
+  end
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route or room(r,t.item,t.amount)<t.amount then return false end
   if station~=t.source then t.phase='pickup';return true end
@@ -89,6 +111,7 @@ Tasks.register('transport',{
   if t.phase=='pickup' then
    -- Arrived empty at the source: load up, then carry on to the target.
    if station~=t.source then return false end
+   if t.order then t.amount=math.min(t.amount,math.max(1,J.available(u,t.source,t.item))) end
    if room(r,t.item,t.amount)<t.amount or ((t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount)) then
     Tasks.release(u,r,'nothing to pick up',clock);return false
    end
@@ -128,31 +151,13 @@ function Transport.seed(u)
    end
   end
  end
- -- Commodities go from the regions that make them to the ones that use them.
- for _,c in ipairs(require('src.commodities').list) do
-  for from in pairs(c.make) do for to in pairs(require('src.commodities').takers(c)) do
-   for _,a in ipairs(L.stations(from,'trade')) do for _,b in ipairs(L.stations(to,'trade')) do
-    specs[#specs+1]={kind='transport',source=a,target=b,item=c.item,amount=c.amount,stocked=true,cap=c.cap}
-   end end
-  end end
- end
- -- Mars hauls ore down from its mining moons and sends supplies back up.
- for _,mine in ipairs(J.mines) do
-  local a=L.station(mine,'mining')
-  if a then
-   for _,b in ipairs(L.stations(J.oreTo,'trade')) do
-    specs[#specs+1]={kind='transport',source=a,target=b,item=J.item,amount=10,mine=mine}
-   end
-  end
- end
- -- Quarry ore: to the logistics station next door, then on to Mars.
+ -- Commodities and ore move by order now (src/economy.lua). What stays
+ -- authored is freight: a quarry's ore goes to its hub, which the economy
+ -- then ships on to whoever needs it.
  for _,route in ipairs(J.freight) do
   if L.byId[route.via] then
    for _,a in ipairs(L.stations(route.from,'trade')) do
     specs[#specs+1]={kind='transport',source=a,target=route.via,item=J.item,amount=10,stocked=true,cap=80}
-   end
-   for _,b in ipairs(L.stations(J.oreTo,'trade')) do
-    specs[#specs+1]={kind='transport',source=route.via,target=b,item=J.item,amount=20,stocked=true,cap=60}
    end
   end
  end
