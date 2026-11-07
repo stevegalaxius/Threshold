@@ -38,5 +38,27 @@ return function(game)
  end
  assert(#stuck==0,'NPCs that never moved in two hours:\n'..table.concat(stuck,'\n'))
  assert((count.pirate or 0)>0 and (count.patrol or 0)>0,'world has pirates and patrols to check')
+-- A patrol passing a pirate's fight joins on the victim's side.
+ local E=require('src.encounters');local copy=require('src.persistence').copy
+ local pirate,patrol,victim
+ for _,r in pairs(u.npcs) do
+  if r.role=='pirate' and not pirate and r.state~='dead' then pirate=r end
+  if r.role=='patrol' and not patrol and r.state~='dead' then patrol=r end
+  if r.role=='trader' and not victim and r.state~='dead' then victim=r end
+ end
+ local function park(r,id,node)
+  r=copy(r);r.id=id;r.area=pirate.area;r.state='idle';r.node=node;r.route={node,node};r.index=1
+  r.untilTime=u.clock+1e6;r.encounter=nil;r.piracy=nil;r.service=nil;r.retreatUntil=nil;r.worldRecovery=nil
+  r.ship.armor=require('src.npc_repair').maximum(r);u.npcs[id]=r;return r
+ end
+ local node=pirate.node or pirate.route[pirate.index]
+ local P=park(pirate,'npc/970001',node);local V=park(victim,'npc/970002',node);local S=park(patrol,'npc/970003',node)
+ E.begin(P,V,u.clock)
+ u.encounterNext=0;E.update(game,u.clock)
+ assert(S.encounter and S.encounter.support and S.encounter.target==P.id,'patrol did not join the fight')
+ local hp=P.ship.armor
+ for i=1,3 do u.encounterNext=0;u.clock=u.clock+T.offlineCombatTick;E.update(game,u.clock) end
+ assert(P.ship.armor<hp or P.state=='dead','pirate took no fire with a patrol defending')
+ checks=checks+2
  print(('NPC MOVEMENT TEST PASSED (%d checks, %d with nowhere to go)'):format(checks,lonely or 0))
 end

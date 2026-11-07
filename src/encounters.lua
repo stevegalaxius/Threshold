@@ -52,6 +52,11 @@ function E.finish(u,a,b,clock,retreat,handoff,outcome)
  end
  resume(a,clock)
  if b then resume(b,clock) end
+ -- patrols that joined this fight go back to their duties
+ for _,s in pairs(u.npcs or {}) do
+  local f=s.encounter
+  if f and f.support and (f.target==a.id or b and f.target==b.id) then resume(s,clock) end
+ end
  if retreat then retreat.retreatUntil=clock+T.offlineRetreat;retreat.taskStatus='withdrawing after combat' end
 end
 local function begin(a,b,clock)
@@ -223,16 +228,30 @@ function E.update(game,clock)
  -- End stale fights first. A live counterpart is excluded from dice damage.
  for _,id in ipairs(ids) do
   local a=records[id];local b=a.encounter and records[a.encounter.target]
+  if a.encounter and a.encounter.support then
+   -- a patrol defending someone: done once the pirate's fight is over
+   if not active(a) or not b or not b.encounter or b.area~=a.area then resume(a,clock) end
+  else
   if a.encounter and b then History.begin(u,a.id,b.id,clock,a.area) end
   if a.encounter and (not active(a) or not active(b) or a.area~=b.area) then E.finish(u,a,b,clock) end
+  end
  end
  for _,id in ipairs(ids) do
   local a=records[id];local b=a.encounter and records[a.encounter.target]
-  if b and a.id<b.id and not online[a.id] and not online[b.id] and clock>=a.encounter.nextAt then
+  if b and a.id<b.id and not a.encounter.support and b.encounter and b.encounter.target==a.id
+   and not online[a.id] and not online[b.id] and clock>=a.encounter.nextAt then
    local fight=a.encounter
    -- Simultaneous exchange: neither side loses its shot to iteration order.
    local da=E.damage(a,T.offlineCombatTick,random(fight),b)
    local db=E.damage(b,T.offlineCombatTick,random(fight),a)
+   -- patrols that joined fire on the pirate too
+   for _,sid in ipairs(ids) do
+    local s=records[sid];local f=s.encounter
+    if f and f.support and not online[sid] then
+     if f.target==a.id and a.role=='pirate' then db=db+E.damage(s,T.offlineCombatTick,random(fight),a)
+     elseif f.target==b.id and b.role=='pirate' then da=da+E.damage(s,T.offlineCombatTick,random(fight),b) end
+    end
+   end
    -- a covering station fires on the pirate side
    local _,guns=coveringStation(a,b,clock)
    if guns>0 then
@@ -264,6 +283,22 @@ function E.update(game,clock)
       E.finish(u,a,b,clock,loser)
       require('src.alife_trace').note(loser,clock,'encounter','broke off vs '..winner.id)
      end
+    end
+   end
+  end
+ end
+ -- A patrol passing a pirate's fight joins it on the victim's side.
+ for _,id in ipairs(ids) do
+  local p=records[id]
+  if p.role=='patrol' and not p.encounter and not online[id] and fit(p,clock) then
+   for _,xid in ipairs(ids) do
+    local x=records[xid];local f=x.encounter;local v=f and records[f.target]
+    if x.role=='pirate' and f and not f.support and v and v.role~='pirate' and x.area==p.area
+     and (close(p,x,clock) or close(p,v,clock)) then
+     p.encounter={target=x.id,support=true,progress=fraction(p,clock),nextAt=clock,round=0,seed=f.seed}
+     p.targetId=x.id;p.taskStatus='defending '..v.id
+     require('src.alife_trace').note(p,clock,'encounter','joined the fight against '..x.id..' to defend '..v.id)
+     break
     end
    end
   end
@@ -327,7 +362,11 @@ function E.syncOnline(game)
  for id,e in pairs(game.alifeOnline) do
   local r=game.universe.npcs[id]
   local target=r.encounter and game.alifeOnline[r.encounter.target]
-  if target and not target.dead and not target.removed then
+  if target and not target.dead and not target.removed and r.encounter.support then
+   -- a defending patrol keeps after the pirate onscreen
+   e.aggressor=target;e.combatTarget=target;e.securityThink=game.time+T.securityThink
+   resume(r,game.universe.clock)
+  elseif target and not target.dead and not target.removed then
    -- Each side marks the other as its aggressor: hostility checks always
    -- honour an aggressor, so the fight carries on onscreen instead of the
    -- next target scan quietly dropping it.
