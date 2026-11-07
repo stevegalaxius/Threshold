@@ -805,6 +805,9 @@ end
 function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
+	-- Box2D puts a body turning slower than about 0.035 rad/s to sleep,
+	-- which zeroes its spin: a slow wheel would stop dead after half a second
+	body:setSleepingAllowed(false)
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(def.rotors and 0 or spin or 0.04)
 	-- Authored stations receive an explicit location ID below. Runtime
@@ -848,6 +851,7 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 			local px, py = r.x or 0, r.y or 0
 			local rb = love.physics.newBody(self.world, body:getWorldPoint(px, py))
 			rb:setType("kinematic")
+			rb:setSleepingAllowed(false)
 			rb:setUserData(e)
 			for _, part in ipairs(def.rotorParts[name]) do
 				if part.collide ~= false then solid(rb, part, px, py) end

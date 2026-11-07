@@ -39,7 +39,7 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "jupiter", "io", "europa", "ganymede", "callisto",
+Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "jupiter", "io", "europa", "ganymede", "callisto",
 	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
@@ -81,6 +81,11 @@ Fields.moons = {
 	titan = { parent = "saturn", period = 0.15, phase = 4.4, gap = 40000, color = { 0.95, 0.7, 0.35 } },
 	titania = { parent = "uranus", period = 0.09, phase = 2.0, gap = 30000, color = { 0.7, 0.72, 0.75 } },
 	triton = { parent = "neptune", period = 0.1, phase = 5.5, gap = 32000, color = { 0.8, 0.85, 0.9 } },
+	-- not a moon: Ring Station's mining field, a short hop out from the hub
+	-- (the phase fixes which side of the hub's map the way out is on)
+	quarry = { parent = "ring", period = 1, phase = 0.9, gap = 16000, color = { 0.7, 0.62, 0.5 } },
+	-- and Ceres's: Ceres itself is drilled for ice, rock comes from here
+	ceres_quarry = { parent = "belt", period = 1, phase = 2.4, gap = 14000, color = { 0.66, 0.6, 0.52 } },
 }
 
 -- The moons of a planet, in a fixed order.
@@ -260,6 +265,12 @@ local function planetField(o)
 			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], (rb.density or 0) * dens, { ice = 1 },
 				size = function() return random() < big and 60 + random() * 60 or 10 + random() ^ 3 * 60 end })
 		end
+	elseif o.belts then
+		-- several belts, each { inner, outer (fractions of depth), density
+		-- per million px^2, mix }
+		for _, b in ipairs(o.belts) do
+			table.insert(bands, { R + depth * b[1], R + depth * b[2], b[3] * dens, b[4] or { rock = 1 } })
+		end
 	else
 		bands[1] = { beltIn, beltOut, (o.belt or 0) * dens, o.beltMix or { rock = 1 } }
 	end
@@ -325,38 +336,60 @@ local function planetField(o)
 end
 
 -- Ring Station: the belt's other stop, across the Sun from Ceres. No
--- planet: a giant wheel station in the middle of thick rock, with a clear
--- space round it kept by traffic control.
+-- planet: a turning wheel station in a wide clear space kept by traffic
+-- control, with only loose rock drifting in from the field. The mining is
+-- next door in the Quarry (Fields.quarry), reached the way a moon is.
 Fields.ring = {
- miningAsteroids = {},
 	name = "Ring Station",
-	spawn = { 0, 5200 * T.mapScale },
+	spawn = { 0, 3800 * T.mapScale },
 	radius = 26000 * T.mapScale,
 	mix = MIX.belt,
-	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "gunner", 2 } },
+	enemies = { { "swarmer", 2 }, { "interceptor", 1 } },
 	build = function(game)
 		for _,id in ipairs(Fields.ring.stationIds) do require("src.locations").spawnStation(game,id) end
-		-- a few huge rocks, too big to break, out in the field
-		for _,s in ipairs(Fields.ring.miningAsteroids) do
-			game:spawnGiantAsteroid(s.x,s.y,s.radius)
-		end
-		-- thick rock from the clear zone out to the edge
+		-- a thin scattering of rock from well outside the hub to the edge
 		local S = T.mapScale
-		local area = pi * ((26000 * S) ^ 2 - (6500 * S) ^ 2) / 1e6
-		game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 6500 * S)
-		game:spawnContainers(T.fieldContainers, 4500)
+		local area = pi * ((26000 * S) ^ 2 - (9000 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.035 * T.mapDensity), 9000 * S)
+		game:spawnContainers(T.fieldContainers, 6000)
 	end,
 }
 
-for k=0,3 do
- local a,d=k/4*pi*2+.4,(11000+(k%2)*5000)*T.mapScale
- Fields.ring.miningAsteroids[#Fields.ring.miningAsteroids+1]={x=cos(a)*d,y=sin(a)*d,radius=900+(k%3)*400}
+-- A quarry: a station's mining field, its own map off the edge of its
+-- parent's (Fields.moons). Thick belt rock, a few huge rocks the drill
+-- crews work, and an ore depot they haul back to.
+local function quarryField(id, name)
+	local f
+	f = {
+		miningAsteroids = {},
+		name = name,
+		spawn = { 0, 3000 * T.mapScale },
+		radius = 22000 * T.mapScale,
+		mix = MIX.belt,
+		enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "gunner", 2 } },
+		build = function(game)
+			for _,sid in ipairs(f.stationIds) do require("src.locations").spawnStation(game,sid) end
+			for _,s in ipairs(f.miningAsteroids) do game:spawnGiantAsteroid(s.x,s.y,s.radius) end
+			-- thick rock from the depot's clear zone out to the edge
+			local S = T.mapScale
+			local area = pi * ((22000 * S) ^ 2 - (4500 * S) ^ 2) / 1e6
+			game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 4500 * S)
+			game:spawnContainers(T.fieldContainers, 4500)
+		end,
+	}
+	for k = 0, 3 do
+		local a, d = k / 4 * pi * 2 + 0.4, (8000 + (k % 2) * 4500) * T.mapScale
+		f.miningAsteroids[#f.miningAsteroids + 1] = { x = cos(a) * d, y = sin(a) * d, radius = 900 + (k % 3) * 400 }
+	end
+	Fields[id] = f
 end
+quarryField("quarry", "Ring Quarry")
+quarryField("ceres_quarry", "Ceres Quarry")
 
 -- Authored industrial sites, shared by the catalogue and the simulation.
 function Fields.miningSources(area)
  local f=Fields[area];local sources={}
- if f.landable then sources[1]={x=0,y=0,radius=f.planetR,planet=true} end
+ if f.landable then sources[1]={x=0,y=0,radius=f.planetR,planet=true,ore=f.drillOre} end
  for _,source in ipairs(f.miningAsteroids or {}) do sources[#sources+1]=source end
  return sources
 end
@@ -378,9 +411,14 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
 	extra = function(game, R) if game.field.ladderId then game:spawnHeavenLadder(0, 0, R + 1100) end end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
+-- Close in, Ceres's own ice and rock; out past the station track, the belt
+-- proper, all rock, thickening toward the edge of the map.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, landable = true, lumpy = 0.15,
-	density = 0.06, mix = MIX.belt, belt = 0.8, beltIn = 0.1, beltOut = 0.35,
+	density = 0.12, mix = { rock = 1 },
+	belts = { { 0.06, 0.4, 0.9, { ice = 1, rock = 1 } }, { 0.7, 0.97, 0.5, { rock = 1 } } },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
+-- Ceres's surface drill brings up ice; its rock is mined in the Ceres Quarry.
+Fields.belt.drillOre = "ice"
 Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas = true,
 	hue = { 0.85, 0.65, 0.45 },
 	-- ring stretched out to the edge (x2.43 from the surface); stations
@@ -512,7 +550,7 @@ function Fields.configureLocations(area)
                 phase=entry.phase or -.8+(orbitIndex-1)*pi*2/math.max(1,orbitCount)}
             spin=spin or (orbitIndex==1 and .05 or -.05)
         else
-            motion=motion or {type='fixed',x=0,y=0};spin=spin or (area=='ring' and .02 or .04)
+            motion=motion or {type='fixed',x=0,y=0};spin=spin or .04
         end
         F.stations[i]=entry.name or id
         F.stationIds[i]=add(id,F.stations[i],'station',motion,spin)
@@ -579,7 +617,7 @@ function Fields.configureLocations(area)
 		F.driverId = add("mass_driver", "Mass driver", "driver", { type = "orbit", radius = d + T.driverBarrel / 2,
 			surface = F.planetR, flowRadius = d, speedScale = T.driverOrbitScale, phase = -pi / 2 + 0.6 })
 	end
-	if F.planetR then
+	do -- moon gates (also the Quarry's, off Ring Station, which has no planet)
 		local function gate(to, moon, back)
 			local m = Fields.moons[moon]
 			add("to_" .. to, "Departure to " .. Fields[to].name, "moon_gate",

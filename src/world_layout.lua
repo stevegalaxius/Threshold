@@ -83,7 +83,13 @@ W.stations = {
 		{ id = "station:pluto_1", spin = 0.05, phase = -0.8, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
 	},
 	ring = {
-		{ id = "station:ring_1", spin = 0.02, phase = -0.8, primary = true, name = "Ring Station", wheel = { 3000, 300 } },
+		{ id = "station:ring_1", spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
+	},
+	ceres_quarry = {
+		{ id = "station:ceres_quarry_1", spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
+	},
+	quarry = {
+		{ id = "station:quarry_1", spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
 	},
 	station = {
 		{ id = "station:station_1", spin = 0.04, phase = -0.8, primary = true, name = "Hub Station", marketId = "market:venus_1", wheel = { 1400, 160 } },
@@ -323,7 +329,7 @@ function W.addStation(area,definition)
  end
  assert(not W.find(entry.id),'station id already exists: '..entry.id)
  assert(type(entry.name)=='string','station needs a name')
- if entry.spin==nil then entry.spin=area=='ring' and .02 or .04 end
+ if entry.spin==nil then entry.spin=.04 end
  if not entry.position and not entry.motion and not entry.phase then
   local phases={}
   for _,existing in ipairs(W.stations[area] or {}) do
