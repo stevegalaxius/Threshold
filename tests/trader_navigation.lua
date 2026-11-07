@@ -24,6 +24,13 @@ return function(game)
  -- Retain the actual planet/stations, clear unrelated hazards/populations.
  game:captureALife(true)
  game.universe.npcs={[id]=r}
+ -- One job on the board, to Luna. Back at its own door once the dock
+ -- cooldown runs out the trader redocks and takes work from the board; with
+ -- the whole board there, which job it gets (and which exit it heads for)
+ -- depends on every market in the system.
+ local Tasks=require('src.tasks')
+ Tasks.state(game.universe).offers={}
+ Tasks.post(game.universe,{kind='transport',source=Fields.earth.stationIds[1],target=Fields.luna.stationIds[1],item='scrap',amount=5})
  for i=#game.entities,1,-1 do
   local e=game.entities[i]
   if e~=game.player and (e.kind=='ship' or e.kind=='asteroid' or e.kind=='container' or e.kind=='husk') then game:remove(e) end
