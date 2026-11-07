@@ -101,7 +101,9 @@ function P.spawn(game,area,role,nearPlayer)
   for _=1,20 do
    local a=love.math.random()*math.pi*2;local distance=200+love.math.random()*500
    local sx,sy=nx+math.cos(a)*distance,ny+math.sin(a)*distance
-   if sx*sx+sy*sy<(game.arenaRadius-200)^2 and clearArrival(game,sx,sy,150) then x,y=sx,sy;break end
+   -- never inside the planet (or its pull zone): stations ring it closely
+   local w=game.well;local surface=w and w.radius+math.min(T.surfacePullRange,w.radius*.5)+300 or 0
+   if sx*sx+sy*sy<(game.arenaRadius-200)^2 and sx*sx+sy*sy>surface*surface and clearArrival(game,sx,sy,150) then x,y=sx,sy;break end
   end
   if not x then return nil,'No clear space for an NPC arrival.' end
  end
