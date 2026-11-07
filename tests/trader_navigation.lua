@@ -30,6 +30,8 @@ return function(game)
  -- depends on every market in the system.
  local Tasks=require('src.tasks')
  Tasks.state(game.universe).offers={}
+ -- and no station orders (src/economy.lua) to pull it elsewhere
+ game.universe.economyNext=math.huge
  Tasks.post(game.universe,{kind='transport',source=Fields.earth.stationIds[1],target=Fields.luna.stationIds[1],item='scrap',amount=5})
  for i=#game.entities,1,-1 do
   local e=game.entities[i]
