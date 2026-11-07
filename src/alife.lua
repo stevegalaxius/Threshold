@@ -861,6 +861,16 @@ end
 Population.register('trader',{
  -- the area's base, plus whatever the arbiter says its open hauls need
  target=function(f,area) return L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) end,
+ -- the whole fleet stays within the areas' bases plus the arbiter's extras,
+ -- however the free agents have spread out
+ budget=function()
+  local n=0
+  for _,area in ipairs(Fields.list) do
+   local f=Fields[area]
+   if not f.instance and not f.transit and L.station(area,'trade') and f.alifeTraders then n=n+f.alifeTraders+require('src.arbiter').extraTraders(area) end
+  end
+  return n
+ end,
  nodes=function(game,area)
   local f=Fields[area]
   return #f.buoyIds>0 and f.buoyIds or f.stationIds

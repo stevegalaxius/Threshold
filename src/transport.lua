@@ -62,10 +62,6 @@ Tasks.register('transport',{
   -- Retired return manifests can remain reserved in old saves until delivery.
   -- Once released, they must not let an empty strip mine generate more cargo.
   if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return false end
-  -- Mars's dispatch workers run the moon supply/ore circuit. Existing trips
-  -- elsewhere finish normally before the worker chooses its next duty.
-  if r.home=='mars' and r.taskWorker and not
-   (from==J.oreTo and J.isMine(to) or from~=J.oreTo and to==J.oreTo) then return false end
   if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
@@ -76,10 +72,12 @@ Tasks.register('transport',{
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
  end,
  score=function(u,r,o,station,clock)
-  -- Oldest dispatch first, with immediate return trips deprioritized.
+  -- Oldest dispatch first.
   -- Work at this station before work elsewhere.
   -- A station's order for something it's short of beats placeholder work.
-  return clock-(o.readyAt or 0)-(r.lastOrigin==o.target and 100000 or 0)-(station~=o.source and 1000000 or 0)
+  -- A return trip is fine for orders (that's how empties get back to the
+  -- makers); only placeholder work avoids shuttling straight back.
+  return clock-(o.readyAt or 0)-(not o.order and r.lastOrigin==o.target and 100000 or 0)-(station~=o.source and 1000000 or 0)
    +(o.order and 10000000*(1+(o.priority or 0)) or 0)
  end,
  prepare=function(u,r,t,station,clock)
