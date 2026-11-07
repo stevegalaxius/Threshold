@@ -98,8 +98,7 @@ local function goods()
  local fuel=require('src.reactor_fuel').item()
  for _,area in ipairs(Fields.list) do
   for _,id in ipairs(tradeStations(area)) do
-   -- and hands back the spent canisters to be refilled
-   if supportsSupplies(id) then add(good(fuel).consumers,id);add(good('empty_canister').suppliers,id) end
+   if supportsSupplies(id) then add(good(fuel).consumers,id) end
   end
  end
  -- ore: dug at the mining moons, collected at the freight hubs

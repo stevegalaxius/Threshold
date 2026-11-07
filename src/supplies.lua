@@ -96,12 +96,8 @@ local function fill(r,e,h,cargo,u,key)
   else n=math.min(missing,room(r,e,nil,id)) end
   if n>0 then cargo[id]=(cargo[id] or 0)+n;added=added+n end
   if n>0 and id==Fuel.item() and u and key then
-   if not free then
-    -- a fill is a swap: the ship hands in its spent canisters, which go
-    -- back to the deuterium makers to be filled again (src/economy.lua)
-    require('src.stockpile').take(u,key,id,n)
-    require('src.stockpile').add(u,key,'empty_canister',n)
-   end
+   -- a spent canister is gone: new empties only come from Mars
+   if not free then require('src.stockpile').take(u,key,id,n) end
    require('src.economy').consume(u,key,id,n)
   end
  end
