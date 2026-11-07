@@ -38,7 +38,7 @@ enemy {
 enemy {
 	id = "brawler", livery = { primary = { 0.95, 0.3, 0.3 } }, name = "Raider Anvil", hull = "brute_anvil",
 	loadout = { "gun_m_base", "gun_m_base", false, false, "mule_engine", "kiln_reactor", false },
-	cargo = { rounds_m = 300 },
+	cargo = { rounds_m = 100 },
 	ai = { style = "rush", range = 500, accuracy = 0.55, throttle = 0.85 },
 	salvage = { 3, 5 },
 }
@@ -54,7 +54,7 @@ enemy {
 -- Harasser: the fast, hard-to-hit one. Shows up from wave 3.
 enemy {
 	id = "interceptor", livery = { primary = { 0.5, 0.95, 0.45 } }, name = "Dart", hull = "nova_dart",
-	cargo = { rounds_s = 200 },
+	cargo = { rounds_s = 100 },
 	ai = { style = "orbit", range = 450, accuracy = 0.6, throttle = 1.0, burstOn = 0.8, burstOff = 1.2 },
 	salvage = { 1, 3 },
 }
@@ -64,7 +64,7 @@ enemy {
 -- else in its hold is real cargo it loaded for a dispatch job.
 enemy {
 	id = "freighter", team = 3, name = "Hauler", hull = "ferrous_freighter",
-	cargo = { rounds_m = 600 },
+	cargo = { rounds_m = 200 },
 	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
 	salvage = { 4, 8 },
 }
@@ -72,7 +72,7 @@ enemy {
 -- A courier in a Runner: small hold, quick, and it runs rather than fights.
 enemy {
 	id = "runner_trader", team = 3, name = "Runner", hull = "ferrous_runner",
-	cargo = { rounds_s = 200 },
+	cargo = { rounds_s = 100 },
 	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 900, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
 	salvage = { 1, 3 },
 }
@@ -81,7 +81,7 @@ enemy {
 -- make a lone pirate think twice.
 enemy {
 	id = "packhorse_trader", team = 3, name = "Packhorse", hull = "ferrous_mule",
-	cargo = { rounds_m = 300 },
+	cargo = { rounds_m = 100 },
 	ai = { style = "trader", range = 1200, accuracy = 0.55, throttle = 0.9, cruise = 700, horizon = 3.5, burstOn = 1.2, burstOff = 0.9 },
 	salvage = { 2, 5 },
 }

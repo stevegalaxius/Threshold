@@ -431,7 +431,8 @@ function A.update(game, dt)
 				local item = require("src.data").items.cargo_container
 				local inner = H.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
 				H.fill(inner, { scrap = 20, salvage_kit = 6 })
-				if e.hold then H.placeStack(e.hold, { id = "cargo_container", n = 1, inner = inner }) end
+				require("src.ship").ensureGridHold(e)
+				assert(H.placeStack(e.hold, { id = "cargo_container", n = 1, inner = inner }), "no room in the Hauler for a container")
 				game:damage(e, 1e9)
 				break
 			end
