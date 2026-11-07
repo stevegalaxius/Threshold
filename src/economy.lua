@@ -103,7 +103,12 @@ local function goods()
  end
  -- ore: dug at the mining moons, collected at the freight hubs
  for _,mine in ipairs(J.mines) do local id=L.station(mine,'mining');if id then add(good(J.item).suppliers,id) end end
- for _,route in ipairs(J.freight) do if L.byId[route.via] then add(good(J.item).suppliers,route.via) end end
+ for _,route in ipairs(J.freight) do
+  if L.byId[route.via] then add(good(J.item).suppliers,route.via) end
+  -- and the quarries themselves: their ore waited on low-ranked freight
+  -- runs to the hub while Mars went without
+  for _,id in ipairs(tradeStations(route.from)) do add(good(J.item).suppliers,id) end
+ end
  return g
 end
 E.goods=goods
