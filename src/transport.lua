@@ -33,6 +33,17 @@ function Transport.route(source,target,clock)
  if not a or not b or a.area==b.area then return end
  return G.itinerary(source,target,clock)
 end
+-- Whether a route exists, remembered for a while: idle traders weigh every
+-- job on the board, and planning each one in full was a lag spike.
+local reach,reachAt={},nil
+local function reachable(a,b,clock,sameArea)
+ if not reachAt or clock<reachAt or clock-reachAt>600 then reach,reachAt={},clock end
+ local key=a..'|'..b
+ if reach[key]==nil then
+  reach[key]=(sameArea and G.itinerary(a,b,clock) or Transport.route(a,b,clock))~=nil
+ end
+ return reach[key]
+end
 Tasks.register('transport',{
  roles={trader=true,courier=true},
  plan=function(t,station,clock)
@@ -43,7 +54,7 @@ Tasks.register('transport',{
   -- Old reserved manifests may finish, but never issue new placeholder ore.
   if o.item=='martian_ore' then return false end
   -- Work elsewhere means flying there empty first (a pickup leg).
-  if station~=o.source and (r.task or not L.byId[station] or not G.itinerary(station,o.source,clock)) then return false end
+  if station~=o.source and (r.task or not L.byId[station] or not reachable(station,o.source,clock,true)) then return false end
   local source,target=L.byId[o.source],L.byId[o.target]
   if not source or not target then return false end
   local from,to=source.area,target.area
@@ -57,7 +68,7 @@ Tasks.register('transport',{
   if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
   return room(r,o.item,o.amount)>=o.amount
    and (not (o.mine or o.stocked) or J.available(u,o.source,o.item)>=o.amount)
-   and Transport.route(o.source,o.target,clock)~=nil
+   and reachable(o.source,o.target,clock)
  end,
  score=function(u,r,o,station,clock)
   -- Oldest dispatch first, with immediate return trips deprioritized.

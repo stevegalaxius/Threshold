@@ -106,15 +106,23 @@ local function neighbours(area)
  return result
 end
 
+local chooseClock,chooseCount=nil,0
 -- Plan the next journey when leaving either trading destination.
 local function adoptTrip(r,station,clock,u)
  station=L.canonical(station)
  if r.taskWorker and u then
   if (r.nextTaskAt or 0)>clock then return false end
+  -- Stagger job hunting: a few traders per tick, the rest try again shortly,
+  -- so a new game's whole fleet doesn't weigh the job board in one frame.
+  if not r.task then
+   if chooseClock~=clock then chooseClock,chooseCount=clock,0 end
+   if chooseCount>=T.taskChoosePerTick then r.nextTaskAt=clock+love.math.random()*2;return false end
+   chooseCount=chooseCount+1
+  end
   Tasks.arrive(u,r,station,clock)
   Supplies.refill(r,station)
   local task=Tasks.choose(u,r,station,clock)
-  if not task then r.nextTaskAt=clock+10;return false end
+  if not task then r.nextTaskAt=clock+8+love.math.random()*4;return false end
   r.nextTaskAt=nil
   local route=Tasks.plan(r,station,clock)
   if not route then Tasks.release(u,r,'no route',clock);return false end
