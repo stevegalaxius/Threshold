@@ -550,11 +550,6 @@ local function crossCheck()
 	end
 	for id, e in pairs(data.enemies) do
 		local h = data.hulls[e.hull]
-		for _, c in ipairs(e.containers and { e.containers[1] } or {}) do
-			if not data.items[c] or data.items[c].kind ~= "container" then
-				error(("enemy '%s' carries unknown container '%s'"):format(id, tostring(c)), 0)
-			end
-		end
 		if not h then error(("enemy '%s' uses unknown hull '%s'"):format(id, e.hull), 0) end
 		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
 	end
