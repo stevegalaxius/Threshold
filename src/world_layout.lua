@@ -5,12 +5,10 @@ local W={}
 W.stations = {
 
 	mercury = {
-		{ id = "station:mercury_1", spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
-		{ id = "station:mercury_2", spin = -0.05, phase = 2.3415926535897933, name = "Haephestus Logistics", layout = "customs_1"  },
+		{ id = "station:mercury_1", spin = 0.05, phase = -0.8, primary = true, name = "Haephestus Logistics", layout = "customs_1" },
 	},
 	venus = {
-		{ id = "station:venus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
-		{ id = "station:venus_2", spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
+		{ id = "station:venus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Cloudline Station", layout = "estates_palace"    },
 	},
 	earth = {
 		{ id = "station:earth_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1" },
@@ -33,8 +31,8 @@ W.stations = {
 	},
 	
 	belt = {
-		{ id = "station:belt_1", spin = 0.05, phase = -0.8, primary = true, name = "Ceres Dock" },
-		{ id = "station:belt_2", spin = -0.05, phase = 2.3415926535897933, name = "Piazzi Station" },
+		{ id = "station:belt_1", spin = 0.05, phase = -0.8, primary = true, name = "Ceres Dock", layout = "jovian_stack" },
+		{ id = "station:belt_2", spin = -0.05, phase = 2.3415926535897933, name = "The Kettleworks", layout = "caliphate_chemworks" },
 	},
 	jupiter = {
 		{ id = "station:jupiter_1", primary = true, name = "Olympus", adapter = "cloud" },
@@ -47,8 +45,8 @@ W.stations = {
 		{ id = "station:io_2", marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
 	},
 	europa = {
-		{ id = "station:europa_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station" },
-		{ id = "station:europa_2", marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station" },
+		{ id = "station:europa_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Europan Research Institute" },
+		{ id = "station:europa_2", marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Bowman's Point" },
 	},
 	ganymede = {
 		{ id = "station:ganymede_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio" },
