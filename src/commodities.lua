@@ -9,8 +9,9 @@
 	fill the orders from whichever maker has stock to spare.
 ]]
 local C={list={
- -- Mars presses empty canisters from the ore its moons send down.
- {item='empty_canister',amount=10,cap=1000,make={mars=600},use={},input={item='iron_ore',n=1}},
+ -- Mars presses empty canisters from the ore its moons send down, and
+ -- Ceres presses its own from the quarry next door to fill locally.
+ {item='empty_canister',amount=10,cap=1500,make={mars=1200,belt=300},use={},input={item='iron_ore',n=1}},
  -- The gas giants fill them for the inner planets.
  {item='hydrogen_canister',amount=10,cap=60,
   make={jupiter=10,saturn=10,uranus=6,neptune=6},input={item='empty_canister',n=1},

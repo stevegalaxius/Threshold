@@ -395,7 +395,9 @@ function Ship.fly(e, dt)
 	local turning = e.hull.helm == "turn" and (it.strafe or 0)~=0
 		or e.hull.helm ~= "turn" and abs(wrapAngle(atan2(it.aimY-y,it.aimX-x)-b:getAngle()))>.01
 		or abs(b:getAngularVelocity())>.01
-	local moving = (it.thrust or 0)~=0 or (it.strafe or 0)~=0 or it.boost or e.spool>.001 or turning
+	local thrusting = (it.thrust or 0)~=0 or (e.hull.helm ~= "turn" and (it.strafe or 0)~=0) or it.boost or e.spool>.001
+	-- turning alone is a light load next to the main drive
+	local moving = thrusting and 1 or turning and T.turnDrain or false
 	local powered=Fuel.step(e,s,dt,moving)
 	if e.massDirty then Ship.updateMass(e) end
 

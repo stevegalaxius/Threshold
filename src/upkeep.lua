@@ -99,7 +99,7 @@ function U.shortOfFuel(r,e,g,at,clock)
   best=trip.duration*2
  end
  local leg=r.state=='travel' and math.max(0,(r.arrive or clock)-clock) or 0
- local burn=math.min(s.powerOut,math.max(0,s.powerDraw)+math.max(1,s.powerNet*(1-T.thrustRecharge)))
+ local burn=math.min(s.powerOut,math.max(0,s.powerDraw)*T.idleDrain+math.max(1,s.powerNet*(1-T.thrustRecharge)))
  return have<burn*((leg+best)*T.npcFuelRangeMargin+T.npcFuelRangeSlack)
 end
 

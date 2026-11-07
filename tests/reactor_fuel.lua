@@ -26,7 +26,7 @@ return function(game)
  check(battery.power<10,'propulsion without reactor output used no capacitor energy')
  -- A large work slice may cross units, but must conserve their total energy.
  e={cargo={[item]=2},fuelCharge=10,power=0}
- local bulk={powerOut=10000,powerDraw=0,powerCap=0,powerNet=10000}
+ local bulk={powerOut=1e6,powerDraw=0,powerCap=0,powerNet=1e6}
  local _,delivered=Fuel.step(e,bulk,1,false,2*unit+100)
  check(near(delivered,2*unit+10) and e.cargo[item]==0 and e.fuelCharge==0,'cross-unit work overran available fuel')
  local grid=Hold.new({{name='fuel fixture',w=2,h=2}})
