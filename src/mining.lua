@@ -54,8 +54,9 @@ function M.ejecta(site,sequence)
  for i=1,#site.id do seed=(seed*31+site.id:byte(i))%2147483647 end
  local rng=love.math.newRandomGenerator(seed)
  local size=rng:random()
+ local throw=T.drillThrowMin+(T.drillThrowMax-T.drillThrowMin)*rng:random()
  return {radius=T.drillRockMin+(T.drillRockMax-T.drillRockMin)*size*size,
-  speed=T.drillSpeedMin+(T.drillSpeedMax-T.drillSpeedMin)*rng:random(),
+  speed=throw*T.miningChunkDamping,
   spread=(rng:random()*2-1)*T.drillSpread,
   spin=(rng:random()*2-1)*.12,angle=rng:random()*pi*2,
   delay=T.drillIntervalMin+(T.drillIntervalMax-T.drillIntervalMin)*rng:random()}
@@ -223,6 +224,19 @@ local function pointAtBody(site,game)
  end
  return site.x+nx*radius,site.y+ny*radius,nx,ny
 end
+-- Any ship in the drill's line of fire: the cone out from the muzzle to
+-- past the far end of the spoil field.
+local function lineOccupied(game,x,y,nx,ny)
+ local reach=rigLength()+T.drillThrowMax+T.drillRockMax*2+200
+ for _,e in ipairs(game.entities) do
+  if e.kind=='ship' and not e.dead and not e.removed and not e.dockState then
+   local ex,ey=e.body:getPosition();local dx,dy=ex-x,ey-y
+   local along=dx*nx+dy*ny;local across=math.abs(-dx*ny+dy*nx)
+   if along>-100 and along<reach and across<T.drillRockMax*2+(e.halfLength or 40)+along*T.drillSpread then return true end
+  end
+ end
+ return false
+end
 function M.produce(game,clock)
  local state=M.state(game.universe)
  local counts={}
@@ -234,20 +248,21 @@ function M.produce(game,clock)
    site.lastAt=clock;site.nextAt=clock+spec.delay
    local count=(counts[id] or 0)<T.drillCap and 1 or 0
    local x,y,nx,ny=site.x+cos(site.angle)*site.radius,site.y+sin(site.angle)*site.radius,cos(site.angle),sin(site.angle)
-   if site.area==game.fieldId then x,y,nx,ny=pointAtBody(site,game) end
+   if site.area==game.fieldId then
+    x,y,nx,ny=pointAtBody(site,game)
+    -- hold fire while a ship is in the line of fire (miners going in to
+    -- pick up, or anyone flying past the muzzle)
+    if count>0 and lineOccupied(game,x,y,nx,ny) then count=0;site.nextAt=clock+1 end
+   end
    if count>0 then
     site.sequence=site.sequence+1
     local key=id..'/chunk/'..site.sequence
     local radius=spec.radius
     local item,yield=Ore.drop(site.ore or 'rock',radius)
-    local a=site.angle+spec.spread
+    -- straight out along the rail; on a planet the throw is relative to
+    -- the local current, so the chunk settles into it where it stops
+    local a=math.atan2(ny,nx)+spec.spread
     local dx,dy=cos(a),sin(a)
-    if Fields[site.area].planetR then
-     -- Join the planet's clockwise flow. Variation changes orbital speed and
-     -- gentle outward drift, never the direction of a random radial spray.
-     local outward=T.miningOutwardRatio*(1+spec.spread*.25)
-     dx,dy=-ny+nx*outward,nx+ny*outward
-    end
     state.resources[key]={id=key,site=id,area=site.area,kind='rock',debris=site.ore or 'rock',item=item,yield=yield,
      x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
      vx=dx*spec.speed,vy=dy*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
