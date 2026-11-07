@@ -21,15 +21,30 @@ local function route(source,target,clock)
  if #result==1 then result[2]=source end
  return result
 end
-local function raidLeg(area,from,to)
+-- A raid leg runs from a buoy to one of the two buoys nearest it round the
+-- planet, judged from where they are now (buoys orbit at different speeds).
+local function nearestBuoys(area,from,clock)
+ local field=Fields[area];local list={}
+ local x,y=L.position(from,clock or 0);local a=math.atan2(y,x)
+ for _,id in ipairs(field.buoyIds) do
+  if id~=from then
+   local xx,yy=L.position(id,clock or 0)
+   local d=math.abs((math.atan2(yy,xx)-a+math.pi)%(2*math.pi)-math.pi)
+   list[#list+1]={id,d}
+  end
+ end
+ table.sort(list,function(p,q) return p[2]==q[2] and p[1]<q[1] or p[2]<q[2] end)
+ local result={}
+ for i=1,math.min(2,#list) do result[i]=list[i][1] end
+ return result
+end
+S.nearestBuoys=nearestBuoys
+local function raidLeg(area,from,to,clock)
  local field=Fields[area];local nodes={}
  for _,id in ipairs(field.buoyIds) do nodes[id]=true end
  if #field.buoyIds<=1 then return from==to end
- if not nodes[from] or not nodes[to] then return false end
- -- Use declared connectivity, so reordering buoy definitions changes no duty.
- for _,link in ipairs(field.raidLinks or {}) do
-  if link[1]==from and link[2]==to or link[1]==to and link[2]==from then return true end
- end
+ if not nodes[from] or not nodes[to] or from==to then return false end
+ for _,id in ipairs(nearestBuoys(area,from,clock)) do if id==to then return true end end
  return false
 end
 local Repairs=require('src.npc_repair')
@@ -45,7 +60,7 @@ for _,kind in ipairs({'patrol','raid'}) do
   eligible=function(u,r,o,node,clock)
    -- A multi-buoy raid should travel, rather than reserve a minute of waiting
    -- at its current buoy. Driver-only regions still have a holding duty.
-   if kind=='raid' and not raidLeg(r.area,o.source,o.target) then return false end
+   if kind=='raid' and not raidLeg(r.area,o.source,o.target,clock) then return false end
    return L.canonical(node)==L.canonical(o.source) and route(node,o.target,clock)~=nil
   end,
   score=function(u,r,o,node,clock)
@@ -85,7 +100,7 @@ local function ensureOffers(u,area,kind,nodes)
  if state.navigationDuties[scope]~=signature then
   local specs={}
   for _,from in ipairs(nodes) do for _,to in ipairs(nodes) do
-   if kind=='raid' and raidLeg(area,from,to) or kind=='patrol' and from~=to then
+   if kind=='raid' and (from~=to or #nodes==1) or kind=='patrol' and from~=to then
     specs[#specs+1]={kind=kind,source=from,target=to,cooldown=0,
      duration=kind=='raid' and T.pirateLinger or T.patrolInspect}
    end
@@ -129,12 +144,12 @@ local function ensureDuty(u,area,role,node,nodes,clock)
  local available=false
  for _,offer in pairs(Tasks.state(u).offers) do
   if offer.kind==kind and offer.source==node and offer.state=='available' and (offer.readyAt or 0)<=clock
-   and (role~='pirate' or raidLeg(area,node,offer.target)) then available=true;break end
+   and (role~='pirate' or raidLeg(area,node,offer.target,clock)) then available=true;break end
  end
  if not available then
   local target=node
   for _,id in ipairs(nodes) do
-   if id~=node and (role~='pirate' or raidLeg(area,node,id)) then target=id;break end
+   if id~=node and (role~='pirate' or raidLeg(area,node,id,clock)) then target=id;break end
   end
   Tasks.post(u,{kind=kind,source=node,target=target,cooldown=0,
    duration=role=='pirate' and T.pirateLinger or T.patrolInspect})
@@ -204,10 +219,8 @@ require('src.piracy') -- a pirate carrying loot home is matched before this job
 local function roam(r,node)
  local area=L.get(node).area
  if r.role=='pirate' then
-  local field=Fields[area];local nodes={}
-  for _,link in ipairs(field.raidLinks or {}) do
-   if link[1]==node then nodes[#nodes+1]=link[2] elseif link[2]==node then nodes[#nodes+1]=link[1] end
-  end
+  local field=Fields[area]
+  local nodes=require('src.locations').get(node).kind=='buoy' and nearestBuoys(area,node,r.untilTime) or {}
   -- off the raid network (a station, a gate): go back to any of its buoys
   if #nodes==0 then for _,id in ipairs(field.buoyIds) do nodes[#nodes+1]=id end end
   return nodes
@@ -305,7 +318,7 @@ end
 function S.updateOnline(game,e,A)
  local r=game.universe.npcs[e.alifeId]
  if r.piracy then return end
- if r.role=='pirate' and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target) then r.untilTime=game.universe.clock end
+ if r.role=='pirate' and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target,game.universe.clock) then r.untilTime=game.universe.clock end
  NPC.updateOnline(game,e)
 end
 function S.hold(game,e,AI)

@@ -47,8 +47,8 @@ local function validRoute(r)
    if a.area~=b.area then if not G.transit(from,id,0) then return false end
    elseif from~=id then
     local linked=false
-    for _,pair in ipairs(F[a.area].travelLinks) do
-     if pair[1]==from and pair[2]==id or pair[1]==id and pair[2]==from then linked=true;break end
+    for _,edge in ipairs(G.neighbours(G.build(a.area),from,0)) do
+     if edge.to==id then linked=true;break end
     end
     if not linked then return false end
    end
