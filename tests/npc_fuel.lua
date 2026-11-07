@@ -27,8 +27,9 @@ return function(game)
  local s=require('src.stats').compute(require('src.data').hulls[r.ship.hull],r.ship.loadout)
  r.power=s.powerCap
  local u={clock=0,npcs={[r.id]=r}}
- Transport.seed(u)
  local source=L.stations('earth','trade')[1]
+ -- one ordinary haul on the board (nothing is authored by default any more)
+ Tasks.post(u,{kind='transport',source=source,target=L.stations('mars','trade')[1],item='scrap',amount=5})
  -- Pick a normal delivery through the real reservation API.
  local task=assert(Tasks.choose(u,r,source,0));local taskId=task.id
  r.route=assert(Tasks.plan(r,source,0));r.index=2;r.state='travel';r.depart=0;r.arrive=100;r.fuelClock=0

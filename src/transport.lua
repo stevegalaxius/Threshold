@@ -1,5 +1,5 @@
--- Authored dispatch work: placeholder scrap, real ore and commodity hauls
--- from station stock (src/commodities.lua). No prices or NPC credits yet.
+-- Transport tasks: carry a station's order (src/economy.lua) from the
+-- station that has the goods to the one that wants them. No prices yet.
 local Tasks=require('src.tasks')
 local Fields=require('src.fields')
 local L=require('src.locations')
@@ -124,6 +124,7 @@ Tasks.register('transport',{
   end
   cargo(r,t.item,-t.amount)
   if t.mine or t.stocked then J.deliver(u,station,t.item,t.amount) end
+  require('src.economy').stat(u,'hauled',t.item,t.amount)
   local state=Tasks.state(u);state.delivered=state.delivered or {}
   state.delivered[station]=(state.delivered[station] or 0)+t.amount
   r.lastDestination=station;r.lastOrigin=t.source
@@ -133,47 +134,10 @@ Tasks.register('transport',{
 function Transport.seed(u)
  local state=Tasks.state(u)
  state.transportSeeded=true
- -- Saved manifests reconcile with the current ports when loading the world.
- -- Reservations survive; new ports receive work without resetting the board.
+ -- Nothing is authored any more: every haul is a station's order
+ -- (src/economy.lua). Syncing an empty list clears the old scrap and
+ -- freight runs from saves, leaving reserved trips to finish.
  local specs={}
- for _,from in ipairs(Fields.list) do
-  if Fields[from].driverId then
-   for _,to in ipairs(Fields.list) do
-    if from~=to and Fields[to].driverId then
-     for _,source in ipairs(L.stations(from,'trade')) do
-      for _,target in ipairs(L.stations(to,'trade')) do
-       specs[#specs+1]={kind='transport',source=source,target=target,item='scrap',amount=5}
-      end
-     end
-    end
-   end
-  end
- end
- -- Commodities and ore move by order now (src/economy.lua). What stays
- -- authored is freight: a quarry's ore goes to its hub, which the economy
- -- then ships on to whoever needs it.
- for _,route in ipairs(J.freight) do
-  if L.byId[route.via] then
-   for _,a in ipairs(L.stations(route.from,'trade')) do
-    specs[#specs+1]={kind='transport',source=a,target=route.via,item=J.item,amount=10,stocked=true,cap=80}
-   end
-  end
- end
- -- Planets and their moons trade with each other too.
- for _,moon in ipairs(Fields.list) do
-  local parent=Fields.moons and Fields.moons[moon] and Fields.moons[moon].parent
-  if parent then
-   for _,a in ipairs(L.stations(moon,'trade')) do
-    for _,b in ipairs(L.stations(parent,'trade')) do
-     -- These two strip mines ship real ore, not generated return cargo.
-     if not J.isMine(moon) then
-      specs[#specs+1]={kind='transport',source=a,target=b,item='scrap',amount=5}
-     end
-     specs[#specs+1]={kind='transport',source=b,target=a,item='scrap',amount=5}
-    end
-   end
-  end
- end
  Tasks.sync(u,'transport',specs,function(o)return o.kind=='transport' end)
 end
 return Transport

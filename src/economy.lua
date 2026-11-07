@@ -10,15 +10,16 @@
 	            of what its recipes would use running flat out (so a
 	            starved maker keeps ordering instead of forgetting it ever
 	            needed anything), and never below E.floor for the good.
-	  orders    every E.tick seconds, each station short of its target
-	            (counting what's already on the way) posts transport orders
-	            of up to E.lot, each from the best supplier: the one with the
-	            most to spare above its own target, nearer ones first. Old
-	            unclaimed orders are withdrawn and placed again, so they
-	            follow wherever the stock is now.
-	  suppliers a good's makers (src/commodities.lua), the mines that dig
-	            it, and freight hubs that collect it (src/jobs.lua). A
-	            supplier never empties itself below its own target.
+	  orders    every E.tick seconds, for every good and every trade
+	            station alike: a station that makes the good keeps
+	            E.reserveHours of its use and offers the rest; any other
+	            station below its target buys back up to twice it, and offers
+	            whatever it holds over twice it. Buyers are served neediest
+	            first, each from the nearest station with enough spare, in
+	            orders of up to E.lot. Unclaimed orders expire after E.expire
+	            and are placed again, so they follow wherever the stock is.
+	  stats     E.stat counts what was made, used and hauled of each good,
+	            for the economy test's hourly table.
 
 	Works on the universe table alone, so it runs the same offline.
 ]]
@@ -27,7 +28,6 @@ local Fields=require('src.fields')
 local Tasks=require('src.tasks')
 local Stock=require('src.stockpile')
 local C=require('src.commodities')
-local J=require('src.jobs')
 local T=require('src.tuning')
 local E={tick=60,lot=120,hours=4,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 -- Every trade station keeps at least this much of these on hand.
@@ -38,8 +38,16 @@ E.floor={deuterium_canister=40}
 local function record(u,key)
  local r=Stock.record(u,key);r.usage=r.usage or {};return r.usage
 end
+-- Running totals of what was made, used and hauled, by good.
+function E.stat(u,kind,item,n)
+ if not n or n<=0 then return end
+ u.economyStats=u.economyStats or {}
+ local t=u.economyStats[kind] or {};u.economyStats[kind]=t
+ t[item]=(t[item] or 0)+n
+end
 function E.consume(u,key,item,n)
  if n<=0 or not u.clock then return end
+ E.stat(u,'used',item,n)
  local m=record(u,key);local e=m[item] or {rate=0,at=u.clock}
  local dt=math.max(0,u.clock-e.at)
  -- an exponentially weighted rate, in units an hour
@@ -82,36 +90,24 @@ function E.target(u,key,item,supplier)
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  return math.ceil(want)
 end
--- Goods and their consumers / suppliers, rebuilt when the world changes.
+-- The goods that move: every commodity, its inputs, what the drills dig,
+-- and reactor fuel. Every trade station can hold, sell and buy any of them;
+-- nobody is listed by hand as a supplier or a user.
 local function goods()
- local g={}
- local function good(item) g[item]=g[item] or {item=item,consumers={},suppliers={}};return g[item] end
- local function add(list,id) for _,x in ipairs(list) do if x==id then return end end list[#list+1]=id end
- for _,c in ipairs(C.list) do
-  for area in pairs(c.make) do for _,id in ipairs(tradeStations(area)) do add(good(c.item).suppliers,id) end end
-  for area in pairs(c.use) do for _,id in ipairs(tradeStations(area)) do add(good(c.item).consumers,id) end end
-  for _,input in ipairs(C.inputs(c)) do
-   for area in pairs(c.make) do for _,id in ipairs(tradeStations(area)) do add(good(input.item).consumers,id) end end
-  end
- end
- -- fuel: every station with Supplies burns it
- local fuel=require('src.reactor_fuel').item()
- for _,area in ipairs(Fields.list) do
-  for _,id in ipairs(tradeStations(area)) do
-   if supportsSupplies(id) then add(good(fuel).consumers,id) end
-  end
- end
- -- ore: dug at the mining moons, collected at the freight hubs
- for _,mine in ipairs(J.mines) do local id=L.station(mine,'mining');if id then add(good(J.item).suppliers,id) end end
- for _,route in ipairs(J.freight) do
-  if L.byId[route.via] then add(good(J.item).suppliers,route.via) end
-  -- and the quarries themselves: their ore waited on low-ranked freight
-  -- runs to the hub while Mars went without
-  for _,id in ipairs(tradeStations(route.from)) do add(good(J.item).suppliers,id) end
- end
- return g
+ local set,list={},{}
+ local function add(item) if item and not set[item] then set[item]=true;list[#list+1]=item end end
+ for _,c in ipairs(C.list) do add(c.item);for _,input in ipairs(C.inputs(c)) do add(input.item) end end
+ for _,item in pairs(require('src.ore').items) do if item~='scrap' then add(item) end end
+ add(require('src.reactor_fuel').item())
+ table.sort(list)
+ return list
 end
 E.goods=goods
+local function stations()
+ local list={}
+ for _,area in ipairs(Fields.list) do for _,id in ipairs(tradeStations(area)) do list[#list+1]=id end end
+ return list
+end
 
 -- Distance between two stations, for picking the nearest supplier: the AU
 -- between their planets (a moon counts as its planet), and 0 for the same.
@@ -143,50 +139,46 @@ function E.update(u,clock)
   end
  end
  local reach={}
- for item,g in pairs(goods()) do
-  if #g.suppliers>0 then
-   -- what each supplier can spare right now
-   local spare={}
-   for _,s in ipairs(g.suppliers) do
-    spare[s]=Stock.count(u,s,item)-E.target(u,s,item,true)
+ local all=stations()
+ for _,item in ipairs(goods()) do
+  -- One rule for every good. A station that makes it keeps E.reserveHours
+  -- of its own use and offers the rest. Any other station wants E.hours of
+  -- its use; below that it buys back up to twice that, and anything over
+  -- twice that is spare (a mine, a quarry, a hub that collected stock).
+  local spare,buyers={},{}
+  for _,s in ipairs(all) do
+   local have=Stock.count(u,s,item)
+   if makes(s,item) then spare[s]=have-E.target(u,s,item,true)
+   else
+    local want=E.target(u,s,item)
+    spare[s]=have-want*2
+    local coming=have+(inbound[s..'|'..item] or 0)
+    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=want*2-coming,fill=coming/want} end
    end
-   -- neediest first: the emptiest shelf against its target gets first call
-   -- on what suppliers can spare (in list order, the stations listed
-   -- last never got any)
-   local order={}
-   for i,c in ipairs(g.consumers) do
-    local t=E.target(u,c,item)
-    order[i]={c=c,fill=t>0 and (Stock.count(u,c,item)+(inbound[c..'|'..item] or 0))/t or math.huge}
-   end
-   table.sort(order,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
-   for _,entry in ipairs(order) do
-    local c=entry.c
-    -- a maker of the good serves itself first, then ships what's over
-    -- below its target a station orders back up to twice it, so each
-    -- order is a real load rather than the last few units used
-    local want=E.target(u,c,item);local have=Stock.count(u,c,item)+(inbound[c..'|'..item] or 0)
-    local short=(makes(c,item) or have>=want) and 0 or want*2-have
-    while short>0 do
-     local best,bestScore
-     for _,s in ipairs(g.suppliers) do
-      if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then
-       local k=s..'>'..c
-       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
-       if reach[k] then
-        local score=distance(s,c,clock)*100-spare[s]
-        if not bestScore or score<bestScore then best,bestScore=s,score end
-       end
+  end
+  -- neediest first: the emptiest shelf against its target gets first call
+  table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
+  for _,entry in ipairs(buyers) do
+   local c,short=entry.c,entry.short
+   while short>0 do
+    local best,bestScore
+    for _,s in ipairs(all) do
+     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then
+      local k=s..'>'..c
+      if reach[k]==nil then reach[k]=reachable(s,c,clock) end
+      if reach[k] then
+       local score=distance(s,c,clock)*100-spare[s]
+       if not bestScore or score<bestScore then best,bestScore=s,score end
       end
      end
-     if not best then break end
-     local n=math.min(E.lot,short,spare[best])
-     -- a bare shelf before a low one (fuel isn't ranked above its inputs:
-     -- starving the makers of empties starves everyone of fuel)
-     local priority=Stock.count(u,c,item)==0 and 1 or 0
-     Tasks.post(u,{kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-      layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock})
-     spare[best]=spare[best]-n;short=short-n
     end
+    if not best then break end
+    local n=math.min(E.lot,short,spare[best])
+    -- a bare shelf before a low one
+    local priority=Stock.count(u,c,item)==0 and 1 or 0
+    Tasks.post(u,{kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
+     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock})
+    spare[best]=spare[best]-n;short=short-n
    end
   end
  end

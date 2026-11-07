@@ -134,6 +134,7 @@ function S.flow(u,key,i,m)
     end end
    end
    if rate<0 then whole=math.max(whole,-have);require('src.economy').consume(u,key,c.item,-whole) end
+   if rate>0 then require('src.economy').stat(u,'made',c.item,whole) end
    if rate>0 and have>=c.cap then carry=0 end
    m.flowCarry[c.item]=carry-whole
    have=have+whole

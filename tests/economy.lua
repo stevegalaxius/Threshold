@@ -23,6 +23,7 @@ return function(game)
  end
  local fuel=Fuel.item()
  local dryHours,lastDry,lastTotal={},0,0
+ local prev
  local start=u.clock
  local worst={}
  for hour=1,hours do
@@ -51,6 +52,26 @@ return function(game)
   lastDry,lastTotal=dry,total
   local tr=0 for _,r in pairs(u.npcs) do if r.role=='trader' and r.state~='dead' and r.state~='escaped' then tr=tr+1 end end
   goods[#goods+1]='traders '..tr
+  -- what limits the system: per good, this hour's flow and what's waiting
+  local stats=u.economyStats or {};local last=prev or {}
+  local waiting,orderCount={},{}
+  for _,o in pairs(Tasks.state(u).offers) do
+   if o.order then
+    local k=o.state=='available' and 'open' or 'moving'
+    waiting[o.item]=waiting[o.item] or {open=0,moving=0};waiting[o.item][k]=waiting[o.item][k]+o.amount
+   end
+  end
+  print(('  %-20s %7s %7s %7s %7s %7s %7s'):format('good','made','used','hauled','stock','moving','open'))
+  for _,item in ipairs(Econ.goods()) do
+   local function d(kind) return ((stats[kind] or {})[item] or 0)-(((last[kind] or {})[item]) or 0) end
+   local stock=0 for _,a in ipairs(Fields.list) do for _,id in ipairs(L.stations(a,'trade')) do stock=stock+Stock.count(u,id,item) end end
+   local w=waiting[item] or {open=0,moving=0}
+   print(('  %-20s %7d %7d %7d %7d %7d %7d'):format(item,d('made'),d('used'),d('hauled'),stock,w.moving,w.open))
+  end
+  prev=require('src.persistence').copy(stats)
+  local busy,idle=0,0
+  for _,r in pairs(u.npcs) do if r.role=='trader' and r.state~='dead' and r.state~='escaped' then if r.task then busy=busy+1 else idle=idle+1 end end end
+  print(('  traders %d busy, %d idle'):format(busy,idle))
   print(('hour %3d  fuel %5d at %d stations, %2d dry  orders %3d  | %s'):format(hour,total,#stations,dry,orders,table.concat(goods,', ')))
  end
  local long={}

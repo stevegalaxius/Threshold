@@ -37,7 +37,7 @@ Tasks.register('mine',{
   if node~=t.source then return false end
   local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
   if n<=0 then return false end
-  Jobs.deliver(u,node,t.item,n)
+  Jobs.deliver(u,node,t.item,n);require('src.economy').stat(u,'made',t.item,n)
   cargo[t.item]=nil
   if r.ship.hold then
    local h=Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
