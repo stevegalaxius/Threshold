@@ -321,13 +321,9 @@ function Game:completeTrade(st, trade)
  end end
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do
-		if ShipEntry.item(s.id) then
-		elseif stock and not s.inner and Stock.lists(shop, s.id) then
-			stock[s.id] = (stock[s.id] or 0) + s.n   -- joins this shop's stockpile
-		else
-			-- (no room on the shelf: it's sold on straight away)
-			Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime })
-		end
+		-- resale: it can be bought back until it's sold on
+		-- (no room on the shelf: it's sold on straight away)
+		if not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end
