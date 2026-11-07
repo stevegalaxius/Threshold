@@ -160,6 +160,7 @@ T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
 T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
+T.ramAggroShare=.15 -- a ram this share of max armour (or more) makes the victim hostile
 T.npcIdleRoam=60 -- seconds with no work before an NPC roams to another node of its job
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90

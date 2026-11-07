@@ -1905,7 +1905,9 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	e.armor = e.armor - amount
 	e.lastHitBy = source
 	-- a neutral that gets shot remembers who did it, and shoots back
-	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team then e.aggressor = source end
+	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
+	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
+	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
