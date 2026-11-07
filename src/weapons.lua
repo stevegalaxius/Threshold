@@ -180,13 +180,13 @@ local function fire(game, e, slot, dt)
 		local beam = w.beam
 		if not beam and slot.cooldown > 0 then return end
 		local need = beam and w.powerPerSecond * dt or w.powerPerShot
-		if e.power < need then slot.starved = true; return end
-		slot.starved = false
-		-- Below the reserve floor (a share of the capacitor) lasers still
-		-- fire, but weaker and dimmer.
+		-- Below the reserve floor (a share of the capacitor) lasers run on
+		-- reserve power: weaker and dimmer, but they no longer drain it.
 		local onReserve = e.power < e.stats.powerCap * T.boostRelight
 		local out = onReserve and T.laserReserve or 1
-		e.power = e.power - need
+		if not onReserve and e.power < need then slot.starved = true; return end
+		slot.starved = false
+		if not onReserve then e.power = e.power - need end
 		local damage = w.damage * (beam and dt or 1) * mult.primaryDamage * out
 		local n, fan = w.beams or 1, rad(w.beamSpread or 0)
 		local c = w.color or LASER_COLOR
