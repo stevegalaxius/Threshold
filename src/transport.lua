@@ -35,10 +35,15 @@ function Transport.route(source,target,clock)
 end
 Tasks.register('transport',{
  roles={trader=true,courier=true},
- plan=function(t,station,clock) return Transport.route(station,t.target,clock) end,
+ plan=function(t,station,clock)
+  if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
+  return Transport.route(station,t.target,clock)
+ end,
  eligible=function(u,r,o,station,clock)
   -- Old reserved manifests may finish, but never issue new placeholder ore.
-  if station~=o.source or o.item=='martian_ore' then return false end
+  if o.item=='martian_ore' then return false end
+  -- Work elsewhere means flying there empty first (a pickup leg).
+  if station~=o.source and (r.task or not L.byId[station] or not G.itinerary(station,o.source,clock)) then return false end
   local source,target=L.byId[o.source],L.byId[o.target]
   if not source or not target then return false end
   local from,to=source.area,target.area
@@ -56,16 +61,27 @@ Tasks.register('transport',{
  end,
  score=function(u,r,o,station,clock)
   -- Oldest dispatch first, with immediate return trips deprioritized.
-  return clock-(o.readyAt or 0)-(r.lastOrigin==o.target and 100000 or 0)
+  -- Work at this station before work elsewhere.
+  return clock-(o.readyAt or 0)-(r.lastOrigin==o.target and 100000 or 0)-(station~=o.source and 1000000 or 0)
  end,
  prepare=function(u,r,t,station,clock)
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route or room(r,t.item,t.amount)<t.amount then return false end
+  if station~=t.source then t.phase='pickup';return true end
   if (t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount) then return false end
   cargo(r,t.item,t.amount);t.phase='delivery'
   return true
  end,
  complete=function(u,r,t,station,clock)
+  if t.phase=='pickup' then
+   -- Arrived empty at the source: load up, then carry on to the target.
+   if station~=t.source then return false end
+   if room(r,t.item,t.amount)<t.amount or ((t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount)) then
+    Tasks.release(u,r,'nothing to pick up',clock);return false
+   end
+   cargo(r,t.item,t.amount);t.phase='delivery';t.route=Transport.route(t.source,t.target,clock)
+   return false
+  end
   if station~=t.target then return false end
   local h=hold(r)
   local amount=h and Hold.count(h,t.item) or (r.ship.cargo or {})[t.item] or 0

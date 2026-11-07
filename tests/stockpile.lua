@@ -41,5 +41,24 @@ return function(game)
  Transport.seed(u)
  for _,o in pairs(Tasks.state(u).offers) do if o.item=='hydrogen_canister' or o.item=='empty_canister' then hauls=hauls+1 end end
  assert(hauls>0,'commodity hauls are posted')
+ -- an idle trader flies empty to work elsewhere, loads there, then delivers
+ local copy=require('src.persistence').copy
+ local template
+ for _,r in pairs(u.npcs or {}) do if r.role=='trader' and r.taskWorker and r.home~='mars' then template=copy(r);break end end
+ assert(template,'no trader fixture')
+ do
+  local r=template;r.id='npc/990001';r.task=nil;r.ship.hold=nil;r.ship.cargo={}
+  local w={clock=u.clock,npcs={[r.id]=r},stations=u.stations,mining=u.mining}
+  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,cap=60})
+  J.deliver(w,jup,'hydrogen_canister',20)
+  local t=Tasks.choose(w,r,ven,w.clock)
+  assert(t and t.phase=='pickup','trader takes remote work as a pickup')
+  local route=Tasks.plan(r,ven,w.clock);assert(route and route[#route]==jup,'pickup route ends at the source')
+  local before=J.available(w,jup,'hydrogen_canister')
+  Tasks.arrive(w,r,jup,w.clock)
+  assert(r.task.phase=='delivery' and J.available(w,jup,'hydrogen_canister')==before-10,'loads at the source')
+  local leg=Tasks.plan(r,jup,w.clock);assert(leg and leg[#leg]==ven,'then heads for the target')
+  assert(Tasks.arrive(w,r,ven,w.clock),'and delivers')
+ end
  print(('stockpile: ok (Mars made %d canisters in an hour; %d commodity hauls)'):format(made,hauls))
 end
