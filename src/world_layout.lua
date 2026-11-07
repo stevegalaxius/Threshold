@@ -87,6 +87,9 @@ W.stations = {
 	ring = {
 		{ id = "station:ring_1", spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
 	},
+	ceres_quarry = {
+		{ id = "station:ceres_quarry_1", spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
+	},
 	quarry = {
 		{ id = "station:quarry_1", spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
 	},
