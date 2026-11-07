@@ -1426,15 +1426,30 @@ function Game:updateOrbits(dt)
 				if e.kind == "station" then
 					local want = Locations.heading(e.locationId, self.universe.clock)
 					local diff = (want - e.body:getAngle() + pi) % (2 * pi) - pi
-					e.body:setAngularVelocity(diff / dt)
+					if math.abs(diff) > 0.05 then
+						-- far off its heading (built for another clock, e.g. on
+						-- load): snap to it. Turning there in one step spun the
+						-- station so fast its hull hit docked ships at 150,000 px/s.
+						e.body:setAngle(want)
+						e.body:setAngularVelocity(0)
+					else
+						e.body:setAngularVelocity(diff / dt)
+					end
 				end
 			else
 				o.angle = o.angle + o.rate * dt
 				tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
 			end
 			local x, y = e.body:getPosition()
-			-- velocity that lands it exactly on the track this step
-			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+			if (tx - x) ^ 2 + (ty - y) ^ 2 > 200 ^ 2 then
+				-- far off its track: jump there rather than close the gap in
+				-- one step at an enormous speed
+				e.body:setPosition(tx, ty)
+				e.body:setLinearVelocity(0, 0)
+			else
+				-- velocity that lands it exactly on the track this step
+				e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+			end
 		end
 	end
 end
