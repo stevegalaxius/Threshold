@@ -115,7 +115,7 @@ function S.flow(u,key,i,m)
  local dt=now-last;if dt<=0 then return end
  local C=require('src.commodities')
  for _,c in ipairs(C.list) do
-  local rate=C.rate(c,place.area)
+  local rate=C.rate(c,key)*require('src.economy').scale(u,key,c)
   if rate~=0 and S.shopFor(key,c.item)==i then
    local stock=m.stock;local have=stock[c.item] or 0
    m.flowCarry=m.flowCarry or {}

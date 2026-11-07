@@ -166,7 +166,7 @@ function L.stationDefinition(id)
  return def
 end
 function L.stationServices(id)
- return require('src.station_services').get(L.stationDefinition(id))
+ return require('src.station_services').get(L.stationDefinition(id),L.byId[L.canonical(id)])
 end
 function L.buoyDefinition(id)
  local place=L.get(id)

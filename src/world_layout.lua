@@ -5,96 +5,96 @@ local W={}
 W.stations = {
 
 	mercury = {
-		{ id = "station:mercury_1", spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
-		{ id = "station:mercury_2", spin = -0.05, phase = 2.3415926535897933, name = "Haephestus Logistics", layout = "customs_1"  },
+		{ id = "station:mercury_1", industry = { burn_hydrogen = -12 }, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
+		{ id = "station:mercury_2", industry = { burn_hydrogen = -12 }, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Haephestus Logistics", layout = "customs_1"  },
 	},
 	venus = {
-		{ id = "station:venus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
-		{ id = "station:venus_2", spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
+		{ id = "station:venus_1", industry = { burn_hydrogen = -16 }, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
+		{ id = "station:venus_2", industry = { burn_hydrogen = -16 }, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
 	},
 	earth = {
-		{ id = "station:earth_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1" },
-		{ id = "station:earth_2", marketId = "market:earth_2", spin = -0.05, phase = 2.3415926535897933, name = "Elysium", layout = "estates_palace"  },
+		{ id = "station:earth_1", services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1" },
+		{ id = "station:earth_2", services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 2.3415926535897933, name = "Elysium", layout = "estates_palace"  },
 	},
 	
 	luna = {
-		{ id = "station:luna_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
-		{ id = "station:luna_2", marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
+		{ id = "station:luna_1", services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 	},
 	mars = {
-		{ id = "station:mars_1", spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
-		{ id = "station:mars_2", marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
+		{ id = "station:mars_1", industry = { press_canisters = 1200 }, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
+		{ id = "station:mars_2", industry = { press_canisters = 1200 }, services = { "market", "shipyard", "hangar" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
 	},
 	phobos = {
-		{ id = "station:phobos_1", primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
+		{ id = "station:phobos_1", services = { "market", "shipyard", "hangar", "repair" }, primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
 	},
 	deimos = {
-		{ id = "station:deimos_1", primary = true, name = "The Moon-Swallowing Yard", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
+		{ id = "station:deimos_1", services = { "market", "shipyard", "hangar", "repair" }, primary = true, name = "The Moon-Swallowing Yard", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
 	},
 	
 	belt = {
-		{ id = "station:belt_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
-		{ id = "station:belt_2", spin = -0.05, phase = 2.3415926535897933, marketId = "market:belt_2", name = "MACK Industrial Freight", layout = "customs_1" },
+		{ id = "station:belt_1", industry = { press_canisters = 300, crack_ice = 300 }, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
+		{ id = "station:belt_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, marketId = "market:belt_2", name = "MACK Industrial Freight", layout = "customs_1" },
 	},
 	jupiter = {
-		{ id = "station:jupiter_1", primary = true, name = "Olympus", adapter = "cloud" },
-		{ id = "station:jupiter_2", spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
+		{ id = "station:jupiter_1", industry = { skim_deuterium = 600, skim_hydrogen = 10 }, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
+		{ id = "station:jupiter_2", industry = { skim_deuterium = 600, skim_hydrogen = 10 }, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
 				
 	},
 
 	io = {
-		{ id = "station:io_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works" },
-		{ id = "station:io_2", marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
+		{ id = "station:io_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works" },
+		{ id = "station:io_2", services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
 	},
 	europa = {
-		{ id = "station:europa_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station" },
-		{ id = "station:europa_2", marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station" },
+		{ id = "station:europa_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station" },
+		{ id = "station:europa_2", services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station" },
 	},
 	ganymede = {
-		{ id = "station:ganymede_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio" },
-		{ id = "station:ganymede_2", marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station" },
+		{ id = "station:ganymede_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio" },
+		{ id = "station:ganymede_2", services = { "market", "hangar", "repair" }, marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station" },
 	},
 	callisto = {
-		{ id = "station:callisto_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port" },
-		{ id = "station:callisto_2", marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station" },
+		{ id = "station:callisto_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port" },
+		{ id = "station:callisto_2", services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station" },
 	},
 	saturn = {
-		{ id = "station:saturn_1", spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
-		{ id = "station:saturn_2", spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
+		{ id = "station:saturn_1", industry = { skim_hydrogen = 10 }, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
+		{ id = "station:saturn_2", industry = { skim_hydrogen = 10 }, services = { "market", "shipyard", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
 	},
 	enceladus = {
-		{ id = "station:enceladus_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
-		{ id = "station:enceladus_2", marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
+		{ id = "station:enceladus_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
+		{ id = "station:enceladus_2", services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
 	},
 	titan = {
-		{ id = "station:titan_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },
-		{ id = "station:titan_2", marketId = "market:titan_2", spin = -0.05, phase = 2.3415926535897933, name = "Abaddon", layout = "diwan_works"   },
+		{ id = "station:titan_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },
+		{ id = "station:titan_2", services = { "market", "shipyard", "hangar" }, marketId = "market:titan_2", spin = -0.05, phase = 2.3415926535897933, name = "Abaddon", layout = "diwan_works"   },
 	},
 	titania = {
-		{ id = "station:titania_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
+		{ id = "station:titania_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
 	},
 	uranus = {
-		{ id = "station:uranus_1", primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
-		{ id = "station:uranus_2", spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
+		{ id = "station:uranus_1", industry = { skim_deuterium = 600, skim_hydrogen = 6 }, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
+		{ id = "station:uranus_2", industry = { skim_deuterium = 600, skim_hydrogen = 6 }, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
 		},
 	triton = {
-		{ id = "station:triton_1", marketId = "market:triton_1", spin = -0.05, phase = 2.3415926535897933, name = "Neptune's Bounty"   },
+		{ id = "station:triton_1", services = { "market", "hangar", "repair" }, marketId = "market:triton_1", spin = -0.05, phase = 2.3415926535897933, name = "Neptune's Bounty"   },
 	
 	},
 	pluto = {
-		{ id = "station:pluto_1", spin = 0.05, phase = -0.8, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
+		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
 	},
 	ring = {
-		{ id = "station:ring_1", spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
+		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
 	},
 	ceres_quarry = {
-		{ id = "station:ceres_quarry_1", spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
+		{ id = "station:ceres_quarry_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
 	},
 	quarry = {
-		{ id = "station:quarry_1", spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
+		{ id = "station:quarry_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
 	},
 	station = {
-		{ id = "station:station_1", spin = 0.04, phase = -0.8, primary = true, name = "Hub Station", marketId = "market:venus_1", wheel = { 1400, 160 } },
+		{ id = "station:station_1", services = { "market", "shipyard", "hangar" }, spin = 0.04, phase = -0.8, primary = true, name = "Hub Station", marketId = "market:venus_1", wheel = { 1400, 160 } },
 	},
 
 }

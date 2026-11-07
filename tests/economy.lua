@@ -52,6 +52,8 @@ return function(game)
   lastDry,lastTotal=dry,total
   local tr=0 for _,r in pairs(u.npcs) do if r.role=='trader' and r.state~='dead' and r.state~='escaped' then tr=tr+1 end end
   goods[#goods+1]='traders '..tr
+  local mn=0 for _,r in pairs(u.npcs) do if r.role=='miner' and r.state~='dead' and r.state~='escaped' then mn=mn+1 end end
+  goods[#goods+1]='miners '..mn
   -- what limits the system: per good, this hour's flow and what's waiting
   local stats=u.economyStats or {};local last=prev or {}
   local waiting,orderCount={},{}

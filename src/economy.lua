@@ -29,7 +29,7 @@ local Tasks=require('src.tasks')
 local Stock=require('src.stockpile')
 local C=require('src.commodities')
 local T=require('src.tuning')
-local E={tick=60,lot=120,hours=4,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
+local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 -- Every trade station keeps at least this much of these on hand.
 E.floor={deuterium_canister=40}
 
@@ -65,14 +65,42 @@ end
 
 local function tradeStations(area) return L.stations(area,'trade') end
 local function supportsSupplies(id) return require('src.supplies').supports(id) end
+-- How hard a station runs each recipe, against its authored rate: it
+-- speeds up while buyers of what it makes go short and it ships all it
+-- makes, and slows down while its own stock sits unwanted (E.adjust).
+function E.scale(u,key,c)
+ local t=u.industry and u.industry[key];return t and t[c.id] or 1
+end
+local function fed(u,key,c)
+ for _,input in ipairs(C.inputs(c)) do
+  if Stock.count(u,key,input.item)<(c.make[key] or 0)*input.n*.25 then return false end
+ end
+ return true
+end
+local function adjust(u,unmet)
+ u.industry=u.industry or {}
+ for _,c in ipairs(C.list) do
+  for key in pairs(c.make) do
+   local t=u.industry[key] or {};u.industry[key]=t
+   local v=t[c.id] or 1
+   local have=Stock.count(u,key,c.item)
+   -- stock piling up here always slows it, whatever anyone else is short of
+   if have>=E.lot*2 then v=v*(1-E.scaleStep)
+   -- speed up only with inputs on hand: a starved maker asking for more
+   -- capacity would just raise its own input orders, round and round
+   elseif (unmet[c.item] or 0)>0 and have<E.lot and fed(u,key,c) then v=v*(1+E.scaleStep) end
+   t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
+  end
+ end
+end
 -- What a station's recipes would use an hour, running flat out.
-local function capacityUse(key,item)
+local function capacityUse(u,key,item)
  local place=L.byId[key];if not place then return 0 end
  local n=0
  for _,c in ipairs(C.list) do
-  n=n+(c.use[place.area] or 0)*(c.item==item and 1 or 0)
+  n=n+(c.use[key] or 0)*(c.item==item and 1 or 0)
   for _,input in ipairs(C.inputs(c)) do
-   if input.item==item then n=n+(c.make[place.area] or 0)*input.n end
+   if input.item==item then n=n+(c.make[key] or 0)*E.scale(u,key,c)*input.n end
   end
  end
  return n
@@ -81,11 +109,11 @@ end
 -- is for shipping, and hoarding hours of local sales starves everyone else.
 local function makes(key,item)
  local place=L.byId[key];if not place then return false end
- for _,c in ipairs(C.list) do if c.item==item and (c.make[place.area] or 0)>0 then return true end end
+ for _,c in ipairs(C.list) do if c.item==item and (c.make[key] or 0)>0 then return true end end
  return false
 end
 function E.target(u,key,item,supplier)
- local want=math.max(E.rate(u,key,item),capacityUse(key,item))*(supplier and E.reserveHours or E.hours)
+ local want=math.max(E.rate(u,key,item),capacityUse(u,key,item))*(supplier and E.reserveHours or E.hours)
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  return math.ceil(want)
@@ -140,6 +168,8 @@ function E.update(u,clock)
  end
  local reach={}
  local all=stations()
+ -- what buyers wanted that no station could supply, by good
+ local unmet={}
  for _,item in ipairs(goods()) do
   -- One rule for every good. A station that makes it keeps E.reserveHours
   -- of its own use and offers the rest. Any other station wants E.hours of
@@ -153,13 +183,13 @@ function E.update(u,clock)
     local want=E.target(u,s,item)
     spare[s]=have-want*2
     local coming=have+(inbound[s..'|'..item] or 0)
-    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=want*2-coming,fill=coming/want} end
+    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=want*2-coming,need=want-coming,fill=coming/want} end
    end
   end
   -- neediest first: the emptiest shelf against its target gets first call
   table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
   for _,entry in ipairs(buyers) do
-   local c,short=entry.c,entry.short
+   local c,short=entry.c,entry.short;local need=entry.need
    while short>0 do
     local best,bestScore
     for _,s in ipairs(all) do
@@ -172,7 +202,15 @@ function E.update(u,clock)
       end
      end
     end
-    if not best then break end
+    if not best then
+     -- only real scarcity counts: spare stock that just can't reach this
+     -- buyer is a hauling problem, not a reason to make or dig more
+     local anywhere=false
+     for _,s in ipairs(all) do if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then anywhere=true;break end end
+     -- counted against its target, not the reorder level
+     if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
+     break
+    end
     local n=math.min(E.lot,short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
@@ -182,6 +220,8 @@ function E.update(u,clock)
    end
   end
  end
+ u.economyUnmet=unmet
+ adjust(u,unmet)
 end
 
 return E

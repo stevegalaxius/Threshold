@@ -277,6 +277,7 @@ T.edgeBrake, T.edgeSoft, T.edgeDrift = 1.5, 3000, 40
 
 -- Surface drills emit bounded batches; both online and offline mining share them.
 T.drillIntervalMin,T.drillIntervalMax,T.drillCap=2.5,8,18
+T.drillStockCap=600 -- a drill stops while its station holds this much of its ore
 T.drillRockMin,T.drillRockMax=28,100
 -- A drill fires each chunk straight out along its rail, inside a narrow
 -- cone (drillSpread, radians either side), and it brakes to a stop in the

@@ -245,8 +245,13 @@ function M.produce(game,clock)
   if clock>=site.nextAt then
    -- One irregular ejection, never a catch-up volley after travel or loading.
    local spec=M.ejecta(site,site.sequence+1)
-   site.lastAt=clock;site.nextAt=clock+spec.delay
+   -- a drill runs faster as the arbiter adds crews to dig for it
+   local crews=1+require('src.arbiter').extraMiners(site.area)/math.max(1,T.minersPerArea)
+   site.lastAt=clock;site.nextAt=clock+spec.delay/crews
    local count=(counts[id] or 0)<T.drillCap and 1 or 0
+   -- a drill idles while its station's shelf is full of what it digs and
+   -- nobody is buying: the arbiter's crews start it up again on demand
+   if site.home and site.item and require('src.stockpile').count(game.universe,site.home,site.item)>=T.drillStockCap then count=0 end
    local x,y,nx,ny=site.x+cos(site.angle)*site.radius,site.y+sin(site.angle)*site.radius,cos(site.angle),sin(site.angle)
    if site.area==game.fieldId then
     x,y,nx,ny=pointAtBody(site,game)
@@ -714,7 +719,8 @@ function M.draw(game,px)
  end
 end
 Population.register('miner',{
- target=function(f,area) return #f.drillIds>0 and L.station(area,'mining') and T.minersPerArea end,
+ -- a base crew, plus whatever the arbiter says unmet ore orders need
+ target=function(f,area) return #f.drillIds>0 and L.station(area,'mining') and T.minersPerArea+require('src.arbiter').extraMiners(area) end,
  nodes=function(game,area) return Fields[area].drillIds end,
  create=function(game,area,node,clock) return M.create(game,area,clock) end,
 })
