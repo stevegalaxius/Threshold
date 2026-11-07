@@ -96,7 +96,40 @@ function S.stock(u,st,i)
    end
   end
  end
+ if u.clock then S.flow(u,key,i,m) end
  return m.stock
+end
+
+-- Commodity production and use (src/commodities.lua), caught up to the
+-- clock whenever the stock is looked at. Goods land in, and are used from,
+-- the shop that holds them for NPCs (shopFor).
+function S.flow(u,key,i,m)
+ local place=L.byId[key]
+ if not place or not place.uses or not place.uses.trade then return end
+ local now=u.clock;local last=m.flowAt or now;m.flowAt=now
+ local dt=now-last;if dt<=0 then return end
+ local C=require('src.commodities')
+ for _,c in ipairs(C.list) do
+  local rate=C.rate(c,place.area)
+  if rate~=0 and S.shopFor(key,c.item)==i then
+   local stock=m.stock;local have=stock[c.item] or 0
+   m.flowCarry=m.flowCarry or {}
+   local carry=(m.flowCarry[c.item] or 0)+rate*dt/3600
+   local whole=carry>=0 and math.floor(carry) or math.ceil(carry)
+   if rate>0 then whole=math.max(0,math.min(whole,c.cap-have)) end
+   if rate>0 and c.input then
+    -- making it uses up its input from the same station's stock
+    local can=math.floor(S.count(u,key,c.input.item)/c.input.n)
+    if can<whole then whole=can;carry=whole end
+    if whole>0 then S.take(u,key,c.input.item,whole*c.input.n) end
+   end
+   if rate<0 then whole=math.max(whole,-have) end
+   if rate>0 and have>=c.cap then carry=0 end
+   m.flowCarry[c.item]=carry-whole
+   have=have+whole
+   stock[c.item]=have>0 and have or nil
+  end
+ end
 end
 
 function S.count(u,st,id,i)

@@ -1,4 +1,5 @@
--- Authored dispatch work, independent of market prices and NPC credits.
+-- Authored dispatch work: placeholder scrap, real ore and commodity hauls
+-- from station stock (src/commodities.lua). No prices or NPC credits yet.
 local Tasks=require('src.tasks')
 local Fields=require('src.fields')
 local L=require('src.locations')
@@ -48,8 +49,9 @@ Tasks.register('transport',{
   -- elsewhere finish normally before the worker chooses its next duty.
   if r.home=='mars' and r.taskWorker and not
    (from==J.oreTo and J.isMine(to) or from~=J.oreTo and to==J.oreTo) then return false end
+  if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
   return room(r,o.item,o.amount)>=o.amount
-   and (not o.mine or J.available(u,o.source,o.item)>=o.amount)
+   and (not (o.mine or o.stocked) or J.available(u,o.source,o.item)>=o.amount)
    and Transport.route(o.source,o.target,clock)~=nil
  end,
  score=function(u,r,o,station,clock)
@@ -59,7 +61,7 @@ Tasks.register('transport',{
  prepare=function(u,r,t,station,clock)
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route or room(r,t.item,t.amount)<t.amount then return false end
-  if t.mine and not J.take(u,t.source,t.item,t.amount) then return false end
+  if (t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount) then return false end
   cargo(r,t.item,t.amount);t.phase='delivery'
   return true
  end,
@@ -71,7 +73,7 @@ Tasks.register('transport',{
    Tasks.release(u,r,'cargo lost',clock);return false
   end
   cargo(r,t.item,-t.amount)
-  if t.mine then J.deliver(u,station,t.item,t.amount) end
+  if t.mine or t.stocked then J.deliver(u,station,t.item,t.amount) end
   local state=Tasks.state(u);state.delivered=state.delivered or {}
   state.delivered[station]=(state.delivered[station] or 0)+t.amount
   r.lastDestination=station;r.lastOrigin=t.source
@@ -96,6 +98,14 @@ function Transport.seed(u)
     end
    end
   end
+ end
+ -- Commodities go from the regions that make them to the ones that use them.
+ for _,c in ipairs(require('src.commodities').list) do
+  for from in pairs(c.make) do for to in pairs(require('src.commodities').takers(c)) do
+   for _,a in ipairs(L.stations(from,'trade')) do for _,b in ipairs(L.stations(to,'trade')) do
+    specs[#specs+1]={kind='transport',source=a,target=b,item=c.item,amount=c.amount,stocked=true,cap=c.cap}
+   end end
+  end end
  end
  -- Mars hauls ore down from its mining moons and sends supplies back up.
  for _,mine in ipairs(J.mines) do
