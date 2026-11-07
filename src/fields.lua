@@ -265,6 +265,12 @@ local function planetField(o)
 			table.insert(bands, { R + depth * rb[1], R + depth * rb[2], (rb.density or 0) * dens, { ice = 1 },
 				size = function() return random() < big and 60 + random() * 60 or 10 + random() ^ 3 * 60 end })
 		end
+	elseif o.belts then
+		-- several belts, each { inner, outer (fractions of depth), density
+		-- per million px^2, mix }
+		for _, b in ipairs(o.belts) do
+			table.insert(bands, { R + depth * b[1], R + depth * b[2], b[3] * dens, b[4] or { rock = 1 } })
+		end
 	else
 		bands[1] = { beltIn, beltOut, (o.belt or 0) * dens, o.beltMix or { rock = 1 } }
 	end
@@ -405,8 +411,11 @@ Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85
 	enemies = { { "gunner", 2 }, { "interceptor", 2 } },
 	extra = function(game, R) if game.field.ladderId then game:spawnHeavenLadder(0, 0, R + 1100) end end })
 -- The asteroid belt: Ceres in the middle and rock everywhere.
+-- Close in, Ceres's own ice and rock; out past the station track, the belt
+-- proper, all rock, thickening toward the edge of the map.
 Fields.belt = planetField({ name = "Ceres", R = 2500, depth = 20000, rocky = true, landable = true, lumpy = 0.15,
-	density = 0.06, mix = MIX.belt, belt = 0.8, beltIn = 0.1, beltOut = 0.35,
+	density = 0.12, mix = { rock = 1 },
+	belts = { { 0.06, 0.4, 0.9, { ice = 1, rock = 1 } }, { 0.7, 0.97, 0.5, { rock = 1 } } },
 	enemies = { { "swarmer", 3 }, { "interceptor", 2 }, { "brawler", 1 } } })
 -- Ceres's surface drill brings up ice; its rock is mined in the Ceres Quarry.
 Fields.belt.drillOre = "ice"
