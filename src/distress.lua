@@ -80,7 +80,7 @@ function D.helper(game,e,dt,AI)
  local vx,vy=asker.body:getLinearVelocity()
  local dx,dy=ax-x,ay-y;local d=math.sqrt(dx*dx+dy*dy)
  local close=require('src.ship').tractorRange(asker)*.8+asker.halfLength+e.halfLength
- AI.navigate(game,e,dx,dy,math.min(e.def.ai.cruise or 400,math.max(0,(d-close*.6)*.6)),vx,vy,d)
+ AI.navigate(game,e,dx,dy,math.min(require('src.npc').liveCruise(e),math.max(0,(d-close*.6)*.6)),vx,vy,d)
  e.intent.aimX,e.intent.aimY=ax,ay
  e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
  local r=game.universe.npcs[e.alifeId]

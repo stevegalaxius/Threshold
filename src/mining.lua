@@ -15,6 +15,14 @@ local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u) return Jobs.state(u) end
 function M.isMiner(r)return r and r.role=='miner' end
+-- Miners fly straight between their base and a rock field and drill there;
+-- that world model is theirs. Upkeep, fuel and speed are the shared loop's.
+require('src.npc').job('miner',{
+ match=M.isMiner,
+ docks=function(r,id) return id==r.base end,
+ next=function() return nil end,
+ advance=function(game,r,clock) return M.advance(game,r,clock) end,
+})
 function M.workPoint(site)
  return L.position(site.id,0)
 end
@@ -74,7 +82,7 @@ function M.create(game,area,clock)
  u.nextNpcId=u.nextNpcId+1
  local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
   base=home,node=home,route={home,home},index=1,
-  state='idle',speed=def.ai.cruise,spread=0,
+  state='idle',speed=require('src.npc').cruise('miner_packhorse'),spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
  Homes.assign(r,home)
  u.npcs[r.id]=r
@@ -91,7 +99,7 @@ function M.seed(game)
    local fitted=Stats.compute(data.hulls[def.hull],def.loadout)
    r.ship.armor=fitted.armor*min(1,(r.ship.armor or old.armor)/old.armor)
    r.ship.hull,r.ship.loadout=def.hull,copy(def.loadout)
-   r.archetype,r.speed=def.id,def.ai.cruise
+   r.archetype,r.speed=def.id,require('src.npc').cruise(def.id)
   end
  end
  for _,area in ipairs(Fields.list) do
@@ -509,7 +517,7 @@ local function follow(game,e,AI,x,y,vx,vy,stand,ignore)
  local gx,gy=x-dx/d*stand,y-dy/d*stand
  local wx,wy=Nav.waypoint(game,e,gx,gy,{ignore=ignore,cx=x,cy=y,stand=stand})
  local rx,ry=wx-bx,wy-by;local leg=max(.001,sqrt(rx*rx+ry*ry))
- local want=min(e.def.ai.cruise,leg*.8,sqrt(2*Nav.brakeAccel(e)*leg))
+ local want=min(require('src.npc').liveCruise(e),leg*.8,sqrt(2*Nav.brakeAccel(e)*leg))
  local ux,uy,scale=Nav.steer(game,e,rx/leg,ry/leg,want,vx,vy,
   {ignore=ignore,brake=Nav.brakeAccel(e),distance=leg})
  AI.driveVelocity(e,vx+ux*math.abs(want)*scale,vy+uy*math.abs(want)*scale,ux,uy,e.def.ai.throttle)

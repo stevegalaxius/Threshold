@@ -158,6 +158,9 @@ T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
+-- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
+T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
+T.npcIdleRoam=60 -- seconds with no work before an NPC roams to another node of its job
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 -- Offline combat rule (encounters.lua): pirates attack only at these odds or

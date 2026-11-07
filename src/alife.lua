@@ -23,6 +23,7 @@ local Salvager=require('src.salvager')
 local Population=require('src.population')
 local Homes=require('src.npc_home')
 local Reconcile=require('src.world_reconcile')
+local NPC=require('src.npc')
 local A = {}
 local graphs = {}
 local function graph(area)
@@ -73,6 +74,7 @@ end
 
 A.start=start
 Upkeep.install({start=start,graph=graph})
+NPC.install({start=start,graph=graph})
 
 local function roundTrip(home,to,clock,homeStation)
  local a,b=homeStation or L.station(home,'trade'),L.station(to,'trade')
@@ -107,40 +109,36 @@ local function neighbours(area)
 end
 
 local chooseClock,chooseCount=nil,0
--- Plan the next journey when leaving either trading destination.
-local function adoptTrip(r,station,clock,u)
- station=L.canonical(station)
- if r.taskWorker and u then
-  if (r.nextTaskAt or 0)>clock then return false end
+-- Traders: the job board's transport work. Movement, docking and upkeep are
+-- the shared NPC loop's (src/npc.lua).
+NPC.job('trader',{
+ match=function(r) return true end, -- registered last: any other civilian
+ docks=function(r,id)
+  id=L.canonical(id)
+  return id==(r.task and r.task.target) or not r.task
+ end,
+ complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
+ next=function(c)
+  local u,r,clock=c.u,c.r,c.clock
+  local station=L.canonical(c.node)
+  r.taskWorker=true
+  if (r.nextTaskAt or 0)>clock then return {wait=r.nextTaskAt-clock} end
   -- Stagger job hunting: a few traders per tick, the rest try again shortly,
   -- so a new game's whole fleet doesn't weigh the job board in one frame.
   if not r.task then
    if chooseClock~=clock then chooseClock,chooseCount=clock,0 end
-   if chooseCount>=T.taskChoosePerTick then r.nextTaskAt=clock+love.math.random()*2;return false end
+   if chooseCount>=T.taskChoosePerTick then return {wait=love.math.random()*2} end
    chooseCount=chooseCount+1
   end
-  Tasks.arrive(u,r,station,clock)
-  Supplies.refill(r,station)
   local task=Tasks.choose(u,r,station,clock)
-  if not task then r.nextTaskAt=clock+8+love.math.random()*4;return false end
+  if not task then return {wait=8+love.math.random()*4} end
   r.nextTaskAt=nil
   local route=Tasks.plan(r,station,clock)
-  if not route then Tasks.release(u,r,'no route',clock);return false end
-  r.route=route;r.index=1;r.onRoundTrip=nil;r.tripRoute=nil;r.tripDestination=nil
-  return true
- end
- if r.tripDestination and (station==(r.tradeHome or Homes.get(r))
-  or station==L.station(r.tripDestination,'trade')) then
-  -- Plan at departure: buoys orbit while moon exits stay fixed. Existing saves
-  -- pick up the new connections here without moving ships already in flight.
-  local route=roundTrip(r.home,r.tripDestination,clock,r.tradeHome or Homes.get(r))
-  if not route then return false end
-  r.tripRoute=route
-  r.route=copy(route); r.onRoundTrip=true
-  for i,id in ipairs(route) do if id==station then r.index=i; break end end
-  return true
- end
-end
+  if not route then Tasks.release(u,r,'no route',clock);return {wait=10} end
+  r.onRoundTrip=nil;r.tripRoute=nil;r.tripDestination=nil
+  return {route=route}
+ end,
+})
 
 function A.createTrader(game,area,i)
  local u,f=game.universe,Fields[area]
@@ -152,7 +150,7 @@ function A.createTrader(game,area,i)
  local loadout=copy(def.loadout or hull.loadout)
  local stats=Stats.compute(hull,loadout)
  local r={id=id,area=area,home=area,role='trader',archetype=kind,
-  route=copy(f.traderRoute),speed=def.ai.cruise or T.traderCruise,
+  route=copy(f.traderRoute),speed=NPC.cruise(kind),
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
@@ -231,6 +229,8 @@ function A.seed(game)
   Salvager.seed(game)
   for _,r in pairs(u.npcs) do
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
+   -- every NPC flies at the shared cruise speed (older saves kept per-hull speeds)
+   if r.archetype then r.speed=NPC.cruise(r.archetype) end
   end
   Homes.seed(u)
   Population.schedule(game,u.clock)
@@ -239,77 +239,21 @@ function A.seed(game)
  end
 end
 
-local function dockingStop(r,id)
- if r.worldRecovery then return id==r.worldRecovery.target end
- if r.service then return Upkeep.isStation(r,id) end
- if r.role=='salvager' then return id==r.salvageGoal end
- if r.piracy then return id==r.route[#r.route] end
- if Security.shouldDock(r,id) then return true end
- if Security.isRole(r) and not r.piracy then return false end
- if L.get(id).kind~='station' then return false end
- id=L.canonical(id)
- if r.taskWorker then return id==(r.task and r.task.target) or not r.task end
- return not r.onRoundTrip or id==(r.tradeHome or Homes.get(r))
-  or id==L.station(r.tripDestination,'trade')
-end
+local dockingStop=NPC.docksAt
 
 function A.advance(r,clock,u,game)
  local fuelStatus=Fuel.advance(r,clock,u)
  if fuelStatus=='stranded' and require('src.distress').advance(game,r,clock) then fuelStatus=r.fuelStatus end
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
- -- Upkeep comes before every role: a due service visit owns the ship.
- if r.state~='dead' and r.state~='escaped' and not r.service then Upkeep.plan(r,clock) end
- if r.service and Upkeep.advance(r,clock,u) then return end
- if r.piracy and not r.worldRecovery then
-  local result=Piracy.advance(r,clock,u,start)
-  Fuel.observe(u,r,clock);return result
- end
- if game and not r.worldRecovery and require("src.offline_loot").update(game,r,clock) then return end
- if r.role=='salvager' and not r.worldRecovery then
-  local result=Salvager.advance(game or {universe=u},r,clock,start)
-  Fuel.observe(u,r,clock);return result
- end
- if Mining.isMiner(r) and not r.worldRecovery then
-  local result=Mining.advance(game or {universe=u},r,clock)
-  Fuel.observe(u,r,clock);return result
- end
- if Security.isRole(r) and not r.worldRecovery then
-  local result=Security.advance(r,clock,u,start)
-  Fuel.observe(u,r,clock);return result
- end
- if r.encounter then return end
  if r.state=='dead' or r.state=='escaped' then return end
- -- Complete elapsed activities using their event times, not frame steps.
- while true do
-  if r.state=='travel' or r.state=='transit' then
-   if clock<r.arrive then return end
-   local at=r.arrive
-   r.offset,r.pose=nil,nil
-   if dockingStop(r,r.route[r.index]) then
-    r.state='docked';r.node=r.route[r.index];Repairs.begin(r,r.node,at,T.alifeStay)
-   else start(r,at,r.index%#r.route+1) end
-  elseif r.state=='docked' then
-   Repairs.advance(r,clock,r.route[r.index])
-   Fuel.observe(u,r,clock)
-   if clock<r.untilTime then return end
-   if r.worldRecovery then
-    Reconcile.resume(u,r,r.untilTime)
-    if r.role=='salvager' then
-     r.salvageGoal=r.node
-     if r.task then r.task.target=r.node end
-     return Salvager.advance(game or {universe=u},r,clock,start)
-    end
-    if r.piracy then return Piracy.advance(r,clock,u,start) end
-    if Mining.isMiner(r) then return Mining.advance(game or {universe=u},r,clock) end
-    if Security.isRole(r) then return Security.advance(r,clock,u,start) end
-   end
-   if r.taskWorker and not u then return end
-   local adopted=adoptTrip(r,r.route[r.index],r.untilTime,u)
-   if r.taskWorker and u and not adopted then r.untilTime=clock+10;return end
-   start(r,r.untilTime,r.index%#r.route+1)
-  else return end
- end
+ -- Upkeep comes before every job: a due service visit owns the ship.
+ if not r.service then Upkeep.plan(r,clock) end
+ if r.service and Upkeep.advance(r,clock,u) then return end
+ if game and not r.worldRecovery and not r.piracy and require("src.offline_loot").update(game,r,clock) then return end
+ local result=NPC.advance(r,clock,u,game)
+ Fuel.observe(u,r,clock)
+ return result
 end
 
 local function journeyPoint(r,p,clock)
@@ -664,6 +608,7 @@ function A.wake(game,r)
   enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
+ e.npcCruise=r.speed
  Fuel.observe(game.universe,r,game.universe.clock,e)
  e.alifeRole=Security.isRole(r) and r.role or nil
  e.npcRole=r.role
@@ -794,48 +739,10 @@ function A.install(Game)
    if not Upkeep.canDepart(self,e,serviced) then return false end
    e.serviceDeparture=true;return true
   end
-  local salvager=self.universe.npcs[e.alifeId]
-  if salvager and salvager.role=='salvager' then
-   A.capture(self,e,false)
-   if salvager.worldRecovery then
-    Reconcile.resume(self.universe,salvager,self.universe.clock)
-    salvager.salvageGoal=station.locationId
-    if salvager.task then salvager.task.target=station.locationId end
-   end
-   local ok=Salvager.depart(self,salvager,station.locationId,self.universe.clock)
-   e.cargo=copy(salvager.ship.cargo);Ship.updateMass(e)
-   if ok then e.salvagerDeparture=true end
-   return ok
-  end
-  local recovering=self.universe.npcs[e.alifeId]
-  local patrolRecovery=recovering.worldRecovery and recovering.role=='patrol'
-  if recovering.worldRecovery then
-   A.capture(self,e,false)
-   Reconcile.resume(self.universe,recovering,self.universe.clock)
-   if recovering.role=='trader' or recovering.role=='courier' then e.worldDeparture=true end
-  end
-  if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.depart(self,e,station) end
   local r=self.universe.npcs[e.alifeId]
-  if Security.shouldDock(r,station.locationId) or patrolRecovery then
-   A.capture(self,e,false)
-   Security.advance(r,self.universe.clock,self.universe,start)
-   if r.state~='travel' then return false end
-   e.patrolDeparture=true;return true
-  end
-  if r and r.piracy then
-   A.capture(self,e,false)
-   if not Piracy.depart(self.universe,r,self.universe.clock,start) then return false end
-   e.cargo=copy(r.ship.cargo);if e.hold then Hold.sync(e.hold,e.cargo) end;Ship.updateMass(e)
-   e.pirateDeparture=true;return true
-  end
-  if not r or not r.taskWorker then return true end
-  A.capture(self,e,false)
-  local ok=adoptTrip(r,station.locationId,self.universe.clock,self.universe)
-  -- Delivery may have unloaded cargo even when no next job is available.
-  e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
-  if not ok then return false end
-  e.jobPrepared=true
-  return true
+  if Mining.isMiner(r) and not r.worldRecovery then return Mining.depart(self,e,station) end
+  if not r then return true end
+  return NPC.departOnline(self,e,station)
  end
  function Game:traderUndocked(e,station)
   if e.serviceDeparture then
@@ -844,25 +751,14 @@ function A.install(Game)
    if r.index>=#r.route then Upkeep.passed(r,#r.route) end
    start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return
   end
-  if e.salvagerDeparture then
-   e.salvagerDeparture=nil
-   local r=self.universe.npcs[e.alifeId];start(r,self.universe.clock,2);bindRoute(self,e,r);return
-  end
-  local salvager=self.universe.npcs[e.alifeId]
-  if salvager and salvager.role=='salvager' then bindRoute(self,e,salvager);return end
-  if Mining.isMiner(self.universe.npcs[e.alifeId]) then return Mining.bind(self,e,self.universe.npcs[e.alifeId]) end
   local r=self.universe.npcs[e.alifeId]
-  if e.patrolDeparture then e.patrolDeparture=nil;bindRoute(self,e,r);return end
-  if e.pirateDeparture then e.pirateDeparture=nil;bindRoute(self,e,r);return end
-  if e.worldDeparture then
-   e.worldDeparture,e.jobPrepared=nil,nil
-   start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return
+  if Mining.isMiner(r) and not r.worldRecovery then return Mining.bind(self,e,r) end
+  if e.npcDeparture then
+   -- the record left when the ship asked to undock: its leg starts now
+   e.npcDeparture=nil
+   if r.state=='travel' or r.state=='transit' then start(r,self.universe.clock,r.index) end
   end
-  if e.jobPrepared or adoptTrip(r,station.locationId,self.universe.clock,self.universe) then
-   e.jobPrepared=nil
-   start(r,self.universe.clock,r.index%#r.route+1)
-   bindRoute(self,e,r)
-  end
+  bindRoute(self,e,r)
  end
  function Game:captureALife(detach)
   for id,e in pairs(self.alifeOnline or {}) do

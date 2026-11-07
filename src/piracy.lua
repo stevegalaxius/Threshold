@@ -81,48 +81,47 @@ function P.beginReturn(game,e,r)
  e.intent.tractor=false;A.bindRoute(game,e,r)
  return true
 end
--- Finish a stop, using the same route whether online or remote.
-function P.depart(u,r,clock,start)
+-- Pirates carrying loot: home to the base, unload, then back to the hunting
+-- grounds. Movement, docking and upkeep are the shared NPC loop's (src/npc.lua);
+-- once back on the raid network the pirate is a 'security' job again.
+local NPC=require('src.npc')
+local function next(c)
+ local u,r,clock=c.u,c.r,c.clock
  local duty=r.piracy
- if not duty then return end
+ local base=duty.base or Homes.get(r)
  if duty.phase=='escape' then
+  if L.canonical(c.node)~=L.canonical(base) then
+   local path=itinerary(c.node,base,clock)
+   if path then return {route=path} end
+  end
   P.unload(u,r)
-  Supplies.refill(r,duty.base or Homes.get(r))
-  local path=itinerary(duty.base or Homes.get(r),duty.origin,clock)
-  if not path then r.taskStatus='waiting for route home';return false end
-  duty.phase='redeploy';r.taskStatus='returning to hunting grounds'
-  r.route=path;r.index=1
-  if #path>1 then start(r,clock,2);return true end
+  Supplies.refill(r,base)
+  local path=itinerary(base,duty.origin,clock)
+  if path and #path>1 then
+   duty.phase='redeploy';r.taskStatus='returning to hunting grounds'
+   return {route=path}
+  end
  end
- -- Restore the existing pirate raid lifecycle at a reachable local buoy.
- local area=L.get(duty.origin).area
- local rally=L.rally(area,duty.origin,clock)
- local path=rally and itinerary(duty.origin,rally,clock)
- if not path then r.untilTime=clock+10;return false end
- if #path==1 then path[2]=path[1] end
+ -- Back where it set out (or no way back): rejoin the raid network.
+ local area=L.get(c.node).area
+ local rally=L.rally(area,c.node,clock)
+ local path=rally and itinerary(c.node,rally,clock)
  r.piracy=nil;r.taskWorker=nil;r.taskStatus=nil;r.area=area
- r.route=path;r.index=1;start(r,clock,2)
- return true
+ if path and #path>1 then return {route=path} end
+ return nil -- the shared loop roams it to a buoy
 end
-function P.advance(r,clock,u,start)
- if r.state=='dead' or r.state=='escaped' or r.encounter then return end
- for _=1,128 do
-  if r.state=='travel' or r.state=='transit' then
-   if clock<r.arrive then return end
-   local at=r.arrive
-   if r.index<#r.route then start(r,at,r.index+1)
-   else
-    r.area=L.get(r.route[r.index]).area;r.transit=nil;r.state='docked';r.node=r.route[r.index]
-    Repairs.begin(r,r.node,at,T.pirateRest)
-   end
-  elseif r.state=='docked' then
-   Repairs.advance(r,clock,r.node or r.route[r.index])
-   if clock<r.untilTime then return end
-   if not P.depart(u,r,r.untilTime,start) then return end
-   if not r.piracy then return end
-  else return end
- end
+NPC.job('piracy',{
+ match=function(r) return r.piracy~=nil end,
+ docks=function(r,id) return r.piracy and r.piracy.phase=='escape' and L.canonical(id)==L.canonical(r.piracy.base or Homes.get(r)) end,
+ stay=function() return T.pirateRest end,
+ next=next,
+ roam=function(r,node) local f=Fields[L.get(node).area];return f and f.buoyIds or {} end,
+})
+-- Kept for callers outside the loop: finish the current stop now.
+function P.depart(u,r,clock)
+ return NPC.decide(u,r,r.node or r.route[r.index],clock)
 end
+function P.advance(r,clock,u) return NPC.advance(r,clock,u) end
 function P.think(game,e,dt,AI)
  if e.alifeRole~='pirate' then return false end
  local r=game.universe.npcs[e.alifeId];if not r then return false end
@@ -210,7 +209,7 @@ function P.think(game,e,dt,AI)
  end
  local x,y=e.body:getPosition();local dx,dy=pickup.x-x,pickup.y-y
  local d=math.sqrt(dx*dx+dy*dy);local range=Ship.tractorRange(e)
- AI.navigate(game,e,dx,dy,math.min(e.def.ai.cruise or 600,math.max(20,(d-range*.5)*.6)),pickup.vx,pickup.vy,d)
+ AI.navigate(game,e,dx,dy,NPC.approach(e,d,range*.5),pickup.vx,pickup.vy,d)
  e.intent.aimX,e.intent.aimY=pickup.x,pickup.y;e.intent.firePrimary=false
  local near=Ship.distanceTo(e,pickup.x,pickup.y)<=range
  e.intent.tractor=near;e.tractorTarget=near and pickup or nil

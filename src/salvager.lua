@@ -7,6 +7,7 @@ local Repairs,Supplies=require('src.npc_repair'),require('src.supplies')
 local Fuel=require('src.reactor_fuel')
 local Tasks=require('src.tasks')
 local copy=require('src.persistence').copy
+local NPC=require('src.npc')
 local S={}
 function S.system(area)
  local root=Fields.moons[area] and Fields.moons[area].parent or area
@@ -51,10 +52,11 @@ local function pathVia(source,waypoint,target,clock)
  return first
 end
 function S.depart(game,r,node,clock)
- if r.salvageGoal and L.byId[r.salvageGoal] and node~=r.salvageGoal then return false end
+ -- Somewhere other than the goal (a recovery, a service stop): this is
+ -- where it is now, so work from here instead of waiting for ever.
+ if r.salvageGoal and L.byId[r.salvageGoal] and node~=r.salvageGoal then r.salvageGoal=node end
  Tasks.arrive(game.universe,r,node,clock,game)
- Supplies.refill(r,node);Fuel.observe(game.universe,r,clock)
- if r.fuelStatus=='stranded' then r.untilTime=clock+10;return false end
+ Supplies.refill(r,node)
  local task=Tasks.choose(game.universe,r,node,clock)
  if not task then r.taskStatus='waiting for salvage work';r.untilTime=clock+10;return false end
  r.salvageGoal=task.target;r.salvageReturn=nil;r.route=copy(task.route);r.index=1
@@ -85,28 +87,31 @@ function S.returnRecord(game,r,maintenance)
  if r.task then r.task.route=copy(r.route) end
  return true
 end
-function S.advance(game,r,clock,start)
- if r.state=='dead' or r.state=='escaped' or r.encounter then return end
- if not r.salvageReturn and r.area and (units(r)>=T.salvagerLoad or units(r)>0 and clock>=(r.salvageUntil or 0)
-  or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
- for _=1,64 do
-  if r.state=='travel' or r.state=='transit' then
-   if clock<r.arrive then return end
-   local at=r.arrive
-   if r.index<#r.route then start(r,at,r.index+1)
-   else
-    r.area=L.get(r.route[r.index]).area;r.transit=nil;r.state='docked';r.node=r.route[r.index]
-    Repairs.begin(r,r.node,at,T.salvagerStay)
-   end
-  elseif r.state=='docked' then
-   Repairs.advance(r,clock,r.node or r.route[r.index])
-   if clock<r.untilTime then return end
-   local at=r.untilTime
-   if not S.depart(game,r,r.node or r.route[r.index],at) then return end
-   start(r,at,2)
-  else return end
- end
-end
+-- Salvagers: roam for loose cargo, sell it at a station. Movement, docking
+-- and upkeep are the shared NPC loop's (src/npc.lua).
+NPC.job('salvager',{
+ match=function(r) return r.role=='salvager' end,
+ docks=function(r,id) return id==r.salvageGoal end,
+ stay=function() return T.salvagerStay end,
+ roam=function(r,node)
+  local nodes={}
+  for _,area in ipairs(S.system(r.home)) do
+   for _,id in ipairs(L.stations(area,'trade')) do nodes[#nodes+1]=id end
+  end
+  return nodes
+ end,
+ before=function(c)
+  local r,game,clock=c.r,c.game or {universe=c.u},c.clock
+  if not r.salvageReturn and r.area and (units(r)>=T.salvagerLoad or units(r)>0 and clock>=(r.salvageUntil or 0)
+   or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
+ end,
+ next=function(c)
+  local game=c.game or {universe=c.u}
+  if not S.depart(game,c.r,c.node,c.clock) then return {wait=10} end
+  return {route=c.r.route}
+ end,
+})
+function S.advance(game,r,clock) return NPC.advance(r,clock,game.universe,game) end
 function S.think(game,e,dt,AI)
  local r=e.alifeRecord
  if not r or r.role~='salvager' then return false end
@@ -136,7 +141,7 @@ function S.think(game,e,dt,AI)
  if p and exists and p.count>0 and Ship.canFit(e,p.item,1)>0 then
   local x,y=e.body:getPosition();local dx,dy=p.x-x,p.y-y;local d=math.sqrt(dx*dx+dy*dy)
   local range=Ship.tractorRange(e)
-  AI.navigate(game,e,dx,dy,math.min(e.def.ai.cruise,math.max(20,(d-range*.5)*.6)),p.vx,p.vy,d)
+  AI.navigate(game,e,dx,dy,NPC.approach(e,d,range*.5),p.vx,p.vy,d)
   e.intent.aimX,e.intent.aimY=p.x,p.y
   e.intent.tractor=Ship.distanceTo(e,p.x,p.y)<=range
   e.tractorTarget=e.intent.tractor and p or nil
@@ -153,12 +158,12 @@ function S.create(game,area,node,clock)
  local def=data.enemies.salvager_packhorse;local hull=data.hulls[def.hull]
  local u=game.universe;u.nextNpcId=(u.nextNpcId or 0)+1
  local r={id='npc/'..u.nextNpcId,role='salvager',archetype=def.id,home=area,area=area,
-  state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=def.ai.cruise,
+  state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=NPC.cruise(def.id),
   spread=0,taskWorker=true,credits=0,salvageCargo={},salvageGoal=node,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
  Homes.assign(r,node);u.npcs[r.id]=r
  Fuel.withRecord(r,function() end);r.fuelClock=clock
- if S.depart(game,r,node,clock) then require('src.alife').start(r,clock,2) end
+ NPC.advance(r,clock,u,game)
  return r
 end
 function S.seed(game)
@@ -194,6 +199,8 @@ end)
 Tasks.register('salvage',{
  roles={salvager=true},
  eligible=function(u,r,o,node)
+  -- staying put is only a job where there are buoys to sweep on the way
+  if o.source==o.target and #(Fields[L.get(o.target).area].buoyIds or {})==0 then return false end
   return node==o.source and o.system==r.home and L.byId[o.source] and L.byId[o.target]
    and G.itinerary(o.source,o.target,u.clock)~=nil
  end,
