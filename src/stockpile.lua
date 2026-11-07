@@ -97,6 +97,15 @@ function S.stock(u,st,i)
   if floor and S.shopFor(key,fuel)==i and L.byId[key] and require('src.supplies').supports(key) then
    stock[fuel]=math.max(stock[fuel] or 0,floor*2)
   end
+  -- a new world opens part-stocked (a quarter to three quarters, fixed per
+  -- station and good), so stations are ordering from the first minutes
+  if not m.hold then
+   for id,n in pairs(stock) do
+    local h=0;local k=key..'|'..id
+    for c=1,#k do h=(h*31+k:byte(c))%1000003 end
+    stock[id]=math.floor(n*(.25+.5*(h%1000)/999))
+   end
+  end
   m.stock=stock
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]
