@@ -146,7 +146,17 @@ function E.update(u,clock)
    for _,s in ipairs(g.suppliers) do
     spare[s]=Stock.count(u,s,item)-E.target(u,s,item,true)
    end
-   for _,c in ipairs(g.consumers) do
+   -- neediest first: the emptiest shelf against its target gets first call
+   -- on what suppliers can spare (in list order, the stations listed
+   -- last never got any)
+   local order={}
+   for i,c in ipairs(g.consumers) do
+    local t=E.target(u,c,item)
+    order[i]={c=c,fill=t>0 and (Stock.count(u,c,item)+(inbound[c..'|'..item] or 0))/t or math.huge}
+   end
+   table.sort(order,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
+   for _,entry in ipairs(order) do
+    local c=entry.c
     -- a maker of the good serves itself first, then ships what's over
     -- below its target a station orders back up to twice it, so each
     -- order is a real load rather than the last few units used
