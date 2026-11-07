@@ -308,7 +308,16 @@ local function journeyPoint(r,p,clock)
  -- A per-ship offset spreads traffic across the corridor without adding nodes.
  -- Keep it in the record so repeated sampling and save/load never reshuffle it.
  if r.spread==nil then r.spread=(love.math.random()*2-1)*T.alifeSpread end
- local x,y=Graph.point(graph(r.area),edge(r),p,clock)
+ local leg=edge(r);local g=graph(r.area)
+ -- A leg that crosses regions (a stale route) is drawn on the graph that
+ -- holds both ends, or at its destination, instead of crashing.
+ if not (g.nodes[leg.from] and g.nodes[leg.to]) then
+  g=graph(L.get(leg.to).area)
+  if not (g.nodes[leg.from] and g.nodes[leg.to]) then
+   local x,y=L.position(leg.to,clock);return Graph.withSpread(x,y,p,r.spread)
+  end
+ end
+ local x,y=Graph.point(g,leg,p,clock)
  return Graph.withSpread(x,y,p,r.spread)
 end
 
@@ -563,7 +572,7 @@ function A.capture(game,e,remote)
   if g.nodes[leg.from] and g.nodes[leg.to] then r.area=g.area end
   local duration,p
   local known=g.nodes[leg.from] and g.nodes[leg.to]
-  if known[leg.from] and g.nodes[leg.to] then
+  if known then
    duration=math.max(.1,Graph.length(g,leg,clock)/r.speed)
    p=Graph.project(g,leg,x,y,clock)
   else

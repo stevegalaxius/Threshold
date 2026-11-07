@@ -59,6 +59,29 @@ function data.fits(slot, m)
 	return m.family == slot.family
 end
 
+-- A loadout made to fit the hull's slots. A module in a slot it doesn't fit
+-- (the hull's slot layout changed, as with the Shipyard redesigns) moves to
+-- the first empty slot it does fit instead of being dropped; unknown ids and
+-- modules with no room go.
+function data.fitLoadout(hull, loadout)
+	local out, misfits = {}, {}
+	local n = #hull.slots
+	for i, id in pairs(loadout or {}) do
+		local m = id and data.modules[id]
+		if type(i) == "number" and m then
+			if i <= n and data.fits(hull.slots[i], m) then out[i] = id else misfits[#misfits + 1] = { i = i, id = id } end
+		end
+	end
+	table.sort(misfits, function(a, b) return a.i < b.i end)
+	for _, f in ipairs(misfits) do
+		for i, slot in ipairs(hull.slots) do
+			if not out[i] and data.fits(slot, data.modules[f.id]) then out[i] = f.id; break end
+		end
+	end
+	for i = 1, n do out[i] = out[i] or false end
+	return out
+end
+
 local currentFile = "?"
 
 local function fail(msg)

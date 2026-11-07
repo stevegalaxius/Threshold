@@ -39,6 +39,70 @@ U.serves=serves
 function U.active(r) return r and r.service~=nil end
 function U.isStation(r,id) return r.service~=nil and L.canonical(id)==r.service.station end
 
+-- Regions next door: this region's moons and the planet it orbits. A region
+-- with no station of its own (Neptune) services at one of these.
+local function neighbours(area)
+ local Fields=require('src.fields');local out={}
+ if Fields.moons[area] then out[#out+1]=Fields.moons[area].parent end
+ for moon,m in pairs(Fields.moons) do if m.parent==area then out[#out+1]=moon end end
+ table.sort(out)
+ return out
+end
+-- The nearest serving station in a neighbouring region, by the in-region
+-- time to the gate that leads there, and the node lists out and back.
+-- Returns station, {out=,back=,duration=} or nil.
+function U.neighbourStop(area,at,clock,ok,speed)
+ local g=deps.graph(area)
+ local best,station,trip
+ for _,other in ipairs(neighbours(area)) do
+  for _,id in ipairs(L.stations(other)) do
+   if ok(id) then
+    local go=Graph.itinerary(at,id,clock);local ret=go and Graph.itinerary(id,at,clock)
+    if ret then
+     -- in-region part: up to the first node outside this region
+     local exit=at
+     for _,n in ipairs(go) do if L.get(n).area~=area then break end exit=n end
+     local leg=exit==at and {duration=0} or Graph.route(g,at,exit,clock,speed or 700)
+     local d=leg and leg.duration or math.huge
+     if not best or d<best then best,station,trip=d,id,{out=go,back=ret,duration=d} end
+    end
+   end
+  end
+ end
+ return station,trip
+end
+
+-- Fuel by route: the fixed "low" mark can be less than the trip to the
+-- nearest fuel stop in a big region (the gas giants), so also go when what's
+-- left wouldn't cover the rest of this leg plus that trip, with a margin.
+-- Never when the tank is already as full as a refill would make it.
+function U.shortOfFuel(r,e,g,at,clock)
+ local ship=e or r.ship
+ local hull=e and e.hull or require('src.data').hulls[ship.hull]
+ if not hull then return false end
+ local s=e and e.stats or require('src.stats').compute(hull,ship.loadout)
+ if (s.powerOut or 0)<=0 then return false end
+ local have=Fuel.remaining(ship)
+ local full=(Supplies.targets(r,e)[Fuel.item()] or 0)*T.reactorFuelEnergy
+ if have>=full then return false end
+ local best
+ for _,id in ipairs(L.stations(r.area)) do
+  if Supplies.supports(id) then
+   local go=id==L.canonical(at) and {duration=0} or Graph.route(g,at,id,clock,r.speed)
+   if go and (not best or go.duration<best) then best=go.duration end
+  end
+ end
+ if not best then
+  local _,trip=U.neighbourStop(r.area,at,clock,Supplies.supports,r.speed)
+  if not trip then return false end
+  -- the far side of the gate is unknown here: count the gate trip twice
+  best=trip.duration*2
+ end
+ local leg=r.state=='travel' and math.max(0,(r.arrive or clock)-clock) or 0
+ local burn=math.min(s.powerOut,math.max(0,s.powerDraw)+math.max(1,s.powerNet*(1-T.thrustRecharge)))
+ return have<burn*((leg+best)*T.npcFuelRangeMargin+T.npcFuelRangeSlack)
+end
+
 -- Plan a visit if one is due. Only while travelling within a region, and
 -- never mid-fight or during a reconciliation.
 function U.plan(r,clock,e)
@@ -46,8 +110,6 @@ function U.plan(r,clock,e)
  if r.state=='idle' and not r.node then return false end
  if r.encounter or r.worldRecovery or r.waitingForHome or r.driverState then return false end
  if (r.nextServiceAt or 0)>clock then return false end
- local need=U.need(r,e)
- if not need then return false end
  local idle=r.state=='idle'
  local at=idle and r.node or r.route[r.index]
  if L.get(at).area~=r.area then return false end
@@ -55,6 +117,12 @@ function U.plan(r,clock,e)
  local prev=not idle and r.route[r.index-1]
  if not idle and (not prev or L.get(prev).area~=r.area) then return false end
  local g=deps.graph(r.area)
+ local need=U.need(r,e)
+ if not need and (r.fuelRangeCheckAt or 0)<=clock then
+  r.fuelRangeCheckAt=clock+T.npcFuelRangeCheck
+  if U.shortOfFuel(r,e,g,at,clock) then need='fuel' end
+ end
+ if not need then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
   if serves(need,id) then
@@ -63,12 +131,21 @@ function U.plan(r,clock,e)
    if ret and (not best or go.duration<best) then best,out,back,station=go.duration,go,ret,id end
   end
  end
- if not out then r.nextServiceAt=clock+T.npcFuelStopRetry
-  require('src.alife_trace').note(r,clock,'upkeep','needs '..need..', no station in '..r.area..' can serve it');return false end
+ local trip -- node lists out and back, for a stop in a neighbouring region
+ if not out then
+  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) end,r.speed)
+  if not station then r.nextServiceAt=clock+T.npcFuelStopRetry
+   require('src.alife_trace').note(r,clock,'upkeep','needs '..need..', no station in or next to '..r.area..' can serve it');return false end
+ end
  local route={idle and at or prev,at}
  if idle then route={at} end
- for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
- for _,leg in ipairs(back.legs) do route[#route+1]=leg.edge.to end
+ if trip then
+  for i=2,#trip.out do route[#route+1]=trip.out[i] end
+  for i=2,#trip.back do route[#route+1]=trip.back[i] end
+ else
+  for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
+  for _,leg in ipairs(back.legs) do route[#route+1]=leg.edge.to end
+ end
  r.service={station=L.canonical(station),need=need,saved={route=copy(r.route),index=r.index,
   idle=idle or nil,node=idle and r.node or nil,untilTime=idle and r.untilTime or nil}}
  r.route=route

@@ -284,8 +284,12 @@ T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
 T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
-T.reactorFuelStart,T.reactorFuelReserveSeconds=8,300
+T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
+-- ...or sooner, when what's left wouldn't cover the rest of the leg plus the
+-- trip to the nearest fuel stop (times the margin, plus slack seconds).
+-- Checked every npcFuelRangeCheck seconds of game time.
+T.npcFuelRangeMargin,T.npcFuelRangeSlack,T.npcFuelRangeCheck=1.5,60,15
 -- Seconds before a ship still short of fuel after a supply stop tries another.
 T.npcFuelStopRetry=600
 -- Extra gap between an undocking ship and traffic at its launch point.

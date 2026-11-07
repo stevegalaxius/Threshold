@@ -367,6 +367,29 @@ end
 
 local function known(id) return data.items[id] ~= nil end
 
+-- NPC records keep their ship as plain ids. Renamed hulls and modules take
+-- their new ids, modules follow a hull whose slots moved, and an engine or
+-- reactor slot an older build emptied takes the archetype's part again, so
+-- the ship isn't left drifting with fuel it can't burn.
+local function repairNpcShip(r)
+	local s = r and r.ship
+	if not s then return end
+	if data.renamedHulls[s.hull] then s.hull = data.renamedHulls[s.hull] end
+	local hull = data.hulls[s.hull]
+	if not hull then return end
+	for i, id in pairs(s.loadout or {}) do
+		if data.renamedModules[id] then s.loadout[i] = data.renamedModules[id] end
+	end
+	s.loadout = data.fitLoadout(hull, s.loadout)
+	local preset = data.enemies[r.archetype]
+	local want = preset and data.fitLoadout(hull, preset.loadout or hull.loadout) or {}
+	for i, slot in ipairs(hull.slots) do
+		if not s.loadout[i] and (slot.family == "engine" or slot.family == "reactor") and want[i] then
+			s.loadout[i] = want[i]
+		end
+	end
+end
+
 local function loadShip(t)
 	if t and data.renamedHulls[t.hull] then t.hull = data.renamedHulls[t.hull] end
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
@@ -453,6 +476,7 @@ function Game:loadState(state)
 	self.universe.tasks = Persistence.copy(state.tasks)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
+	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
 	self.universe.nextNpcId = state.nextNpcId or 0
 	for key, r in pairs(state.stations or {}) do
 		local hangar = {}

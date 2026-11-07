@@ -245,7 +245,7 @@ local function trade(game, e, dt)
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock and not stop.hold then
 			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
-			if e.alifeId and e.taskWorker and stop.kind=="driver" then
+			if e.alifeId and e.taskWorker and stop.kind=="driver" and stop.driver then
 				if game:requestDriver(e,stop.driver,stop.destination) then
 				 it.thrust,it.strafe=0,0;return
 				end
