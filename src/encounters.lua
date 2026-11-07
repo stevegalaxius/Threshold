@@ -328,9 +328,13 @@ function E.syncOnline(game)
   local r=game.universe.npcs[id]
   local target=r.encounter and game.alifeOnline[r.encounter.target]
   if target and not target.dead and not target.removed then
-   if r.role=='trader' then e.aggressor=target else e.combatTarget=target;e.securityThink=game.time+T.securityThink end
+   -- Each side marks the other as its aggressor: hostility checks always
+   -- honour an aggressor, so the fight carries on onscreen instead of the
+   -- next target scan quietly dropping it.
    local other=game.universe.npcs[r.encounter.target]
-   if other.role=='trader' then target.aggressor=e else target.combatTarget=e;target.securityThink=game.time+T.securityThink end
+   e.aggressor=target;target.aggressor=e
+   if r.role~='trader' then e.combatTarget=target;e.securityThink=game.time+T.securityThink end
+   if other.role~='trader' then target.combatTarget=e;target.securityThink=game.time+T.securityThink end
    -- Once both bodies exist, ordinary AI owns the encounter completely.
    -- Do not leave frozen graph duties behind after a physical disengagement.
    History.begin(game.universe,r.id,other.id,game.universe.clock,r.area)
