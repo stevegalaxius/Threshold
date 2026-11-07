@@ -173,6 +173,32 @@ function G.attachment(graph,id,clock)
  return best
 end
 
+-- Line of sight: besides its authored links, a node can fly straight to any
+-- other ordinary node whose bearing (where both are now) is within
+-- T.directLinkAngle. Flights follow the planet's curve, so they never cross
+-- it; gates and mass drivers keep their authored approaches, and ladder
+-- anchors never link to each other (the cables run between them).
+local function ordinary(id) return not endpoint(id) end
+function G.neighbours(graph,id,clock)
+ local links=graph.nodes[id].links
+ if not ordinary(id) then return links end
+ local T=require('src.tuning')
+ local f=Fields[graph.area];local ladder={}
+ for _,a in ipairs(f.ladderIds or {}) do ladder[a]=true end
+ local x,y=G.position(graph,id,clock)
+ local result,seen={},{}
+ for _,edge in ipairs(links) do result[#result+1]=edge;seen[edge.to]=true end
+ for _,other in ipairs(graph.order) do
+  if other~=id and not seen[other] and ordinary(other) and not (ladder[id] and ladder[other]) then
+   local xx,yy=G.position(graph,other,clock)
+   if math.abs(delta(atan2(y,x),atan2(yy,xx)))<=T.directLinkAngle then
+    result[#result+1]={from=id,to=other,direct=true}
+   end
+  end
+ end
+ return result
+end
+
 function G.route(graph,from,to,clock,speed)
  assert(speed==nil or speed>0,'travel speed must be positive')
  local starts, goals=graph.destinations[from],graph.destinations[to]
@@ -193,7 +219,7 @@ function G.route(graph,from,to,clock,speed)
   if not best then return nil,'no route' end
   if goalSet[best] then finish=best; break end
   done[best]=true
-  for _,edge in ipairs(graph.nodes[best].links) do
+  for _,edge in ipairs(G.neighbours(graph,best,clock)) do
    -- Gates are endpoints, never shortcuts between corridor nodes.
    if (not attachments[best] or attachments[best]==edge.to)
     and (not attachments[edge.to] or attachments[edge.to]==best)

@@ -426,6 +426,13 @@ function A.update(game, dt)
 		game:eject(w, "cargo_container", 1)
 		for _, e in ipairs(game.entities) do
 			if e.kind == "ship" and e.def and e.def.id == "freighter" then
+				-- Haulers spawn empty, so load one container as a job would.
+				local H = require("src.inventory.hold")
+				local item = require("src.data").items.cargo_container
+				local inner = H.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
+				H.fill(inner, { scrap = 20, salvage_kit = 6 })
+				require("src.ship").ensureGridHold(e)
+				assert(H.placeStack(e.hold, { id = "cargo_container", n = 1, inner = inner }), "no room in the Hauler for a container")
 				game:damage(e, 1e9)
 				break
 			end
