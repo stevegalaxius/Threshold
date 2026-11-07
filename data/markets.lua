@@ -129,9 +129,6 @@ market { id = "market:ring_1", station = "Ring Station", ships = { "intaki_wisp"
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },
 } }
-market { id = "market:ring_2", station = "Ring Traffic Control", sells = {   -- patrol stores
-	{ "missile_s", 4 }, { "pulse_s_base", 1 }, { "guidance_computer", 1 },
-} }
 market { id = "market:quarry_1", station = "Quarry Ore Depot", sells = {   -- drill crews' supply
 	{ "rounds_s", 4 }, { "tug_beam", 1 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }

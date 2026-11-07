@@ -102,6 +102,14 @@ function M.seed(game)
    r.archetype,r.speed=def.id,require('src.npc').cruise(def.id)
   end
  end
+ -- Drop sites whose source is gone (Ring Station's rocks moved to the
+ -- Quarry), or their rigs keep drawing and ejecting with nothing to mine.
+ for id in pairs(state.sites) do
+  if not L.byId[id] then state.sites[id]=nil end
+ end
+ for offerId,offer in pairs(Tasks.state(u).offers) do
+  if offer.kind=='mine' and not L.byId[offer.target] and not offer.owner then Tasks.state(u).offers[offerId]=nil end
+ end
  for _,area in ipairs(Fields.list) do
   local specs=Fields.miningSources(area);local f=Fields[area]
   if #specs>0 then
