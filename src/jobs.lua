@@ -4,6 +4,9 @@
 local L=require('src.locations')
 local Stock=require('src.stockpile')
 local J={mines={'phobos','deimos'},oreTo='mars',item='iron_ore'}
+-- Freight ore: quarries ship their ore to a logistics station, which ships
+-- it on to Mars to be pressed into canisters. { from = area, via = station }.
+J.freight={{from='ceres_quarry',via='station:belt_2'}}
 function J.isMine(area) return area=='phobos' or area=='deimos' end
 function J.state(u)
  u.mining=u.mining or {sites={},resources={},stock={},seeded={}}

@@ -34,7 +34,7 @@ W.stations = {
 	
 	belt = {
 		{ id = "station:belt_1", spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
-		{ id = "station:belt_2", spin = -0.05, phase = 2.3415926535897933, name = "Piazzi Station" },
+		{ id = "station:belt_2", spin = -0.05, phase = 2.3415926535897933, marketId = "market:belt_2", name = "MACK Industrial Freight", layout = "customs_1" },
 	},
 	jupiter = {
 		{ id = "station:jupiter_1", primary = true, name = "Olympus", adapter = "cloud" },

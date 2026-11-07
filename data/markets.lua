@@ -133,9 +133,12 @@ market { id = "market:quarry_1", station = "Quarry Ore Depot", sells = {   -- dr
 	{ "rounds_s", 4 }, { "tug_beam", 1 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }
 market { id = "market:ceres_quarry_1", station = "Ceres Quarry Depot", sells = {   -- drill crews' supply
-	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
+	{ "iron_ore", 4 }, { "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
 } }
 market { id = "market:belt_1", station = "Ceres Dock", sells = {   -- deuterium works
 	{ "deuterium_canister", 6 }, { "empty_canister", 2 }, { "water_ice", 2 },
 	{ "rounds_s", 4 }, { "drill_s_base", 1 },
+} }
+market { id = "market:belt_2", station = "MACK Industrial Freight", sells = {   -- belt freight forwarder
+	{ "iron_ore", 4 }, { "cargo_container", 4 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }

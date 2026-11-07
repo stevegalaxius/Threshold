@@ -145,6 +145,17 @@ function Transport.seed(u)
    end
   end
  end
+ -- Quarry ore: to the logistics station next door, then on to Mars.
+ for _,route in ipairs(J.freight) do
+  if L.byId[route.via] then
+   for _,a in ipairs(L.stations(route.from,'trade')) do
+    specs[#specs+1]={kind='transport',source=a,target=route.via,item=J.item,amount=10,stocked=true,cap=80}
+   end
+   for _,b in ipairs(L.stations(J.oreTo,'trade')) do
+    specs[#specs+1]={kind='transport',source=route.via,target=b,item=J.item,amount=20,stocked=true,cap=60}
+   end
+  end
+ end
  -- Planets and their moons trade with each other too.
  for _,moon in ipairs(Fields.list) do
   local parent=Fields.moons and Fields.moons[moon] and Fields.moons[moon].parent
