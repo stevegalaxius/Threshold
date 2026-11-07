@@ -289,6 +289,7 @@ T.historyLimit,T.historyQuietTime=256,5
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
 T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
+T.laserReserve=.75 -- laser damage and opacity below the capacitor reserve floor
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
 -- ...or sooner, when what's left wouldn't cover the rest of the leg plus the
 -- trip to the nearest fuel stop (times the margin, plus slack seconds).

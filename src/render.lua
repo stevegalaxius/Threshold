@@ -1086,7 +1086,7 @@ local function drawBeams(game)
 				local b = w.beams
 				local age = b and (game.time - b.t)
 				if b and age < b.life then
-					local k = 1 - age / b.life
+					local k = (1 - age / b.life) * (b.alpha or 1)
 					local c = b.color
 					local px = 1 / game.camera.zoom
 					local wd = (b.width or 1)
