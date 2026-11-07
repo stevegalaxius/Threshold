@@ -38,6 +38,7 @@ local Ship = require("src.ship")
 local T = require("src.tuning")
 local events = require("src.events")
 local Locations = require("src.locations")
+local Stock = require("src.stockpile")
 
 local ShipEntry=require("src.inventory.ship_entry")
 local floor, min = math.floor, math.min
@@ -121,11 +122,7 @@ function Game:repairShip(st, owner)
 	return points, paid
 end
 
-function Game.marketDefinition(st)
-	local place = st.locationId and Locations.get(st.locationId)
-	local id=place and place.marketId or st.marketId or st.def and st.def.marketId or require('src.world_layout').defaults.marketId
- return data.markets[id]
-end
+function Game.marketDefinition(st) return Stock.definition(st) end
 
 function Game.newShelf()
 	return Hold.new({ { key = "market", name = "For sale", w = T.marketW, h = T.marketH } })
@@ -134,13 +131,7 @@ end
 -- A station's market, opened fully stocked the first time.
 -- A station's shops: { name, description, sells } each, from the market
 -- definition's shops list. A market with a plain sells list is one shop.
-function Game.marketShops(st)
- local mk=Game.marketDefinition(st);local shops={};local supplied=false
- local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
- for _,shop in ipairs(existing) do shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies' end
- if not supplied then shops[#shops+1]=require('src.supplies').shop() end
- return shops
-end
+function Game.marketShops(st) return Stock.shops(st) end
 
 local function newMarket(sells)
 	local m = { hold = Game.newShelf(), next = {} }
@@ -162,14 +153,23 @@ function Game:setShop(st, i)
 	if i >= 1 and i <= #Game.marketShops(st) then self:stationRecord(st).shop = i end
 end
 
--- Shop i's shelf (default: the open one). Each shop keeps its own stock
--- and restock timers; what you sell goes to the shop you sold it to.
+-- Shop i's shelf (default: the open one). Each shop keeps its own
+-- stockpile (src/stockpile.lua) and restock timers; the shelf grid shows
+-- that stockpile, and what you sell goes to the shop you sold it to.
 function Game:stationMarket(st, i)
 	local r = self:stationRecord(st)
 	i = i or self:currentShop(st)
 	r.shops = r.shops or {}
-	if not r.shops[i] then r.shops[i] = newMarket(Game.marketShops(st)[i].sells) end
-	return r.shops[i]
+	local m = r.shops[i]
+	if not m then
+		m = newMarket(Game.marketShops(st)[i].sells)
+		r.shops[i] = m
+	elseif not m.hold then
+		m.hold = Game.newShelf(); m.next = m.next or {}
+	end
+	local stock = Stock.stock(self.universe, st, i)
+	if stock then Stock.syncShelf(m.hold, stock) end
+	return m
 end
 
 -- Bring a station's shelf up to the clock: resale that's had its time is
@@ -193,9 +193,13 @@ function Game:shopTick(st, i, shop, away)
 		local _, _, cap = Shapes.of(id)
 		local want, every = e[2] * cap, restockTime(e)
   if shop.unlimited then mk.next[id]=now end
-		local function have() return stockCount(mk.hold, id) + (away and away[id] or 0) end
+		local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
+		local function have() return stock and (stock[id] or 0) or stockCount(mk.hold, id) + (away and away[id] or 0) end
+		-- the timed restock stands in for production until stations make goods
 		while have() < want and mk.next[id] and mk.next[id] <= now do
-			if not Hold.placeStack(mk.hold, { id = id, n = min(cap, want - have()) }) then
+			if stock then
+				stock[id] = (stock[id] or 0) + min(cap, want - have())
+			elseif not Hold.placeStack(mk.hold, { id = id, n = min(cap, want - have()) }) then
 				mk.next[id] = now + every               -- shelf full: try again later
 				break
 			end
@@ -204,6 +208,8 @@ function Game:shopTick(st, i, shop, away)
 		if have() >= want then mk.next[id] = nil
 		elseif not mk.next[id] then mk.next[id] = now + every end
 	end
+	local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
+	if stock then Stock.syncShelf(mk.hold, stock, away) end
 end
 
 -- Seconds until the next stack of an item comes in, or nil.
@@ -306,11 +312,22 @@ function Game:completeTrade(st, trade)
  local roster=self:stationRecord(st).hangar
  for i=#roster,1,-1 do if plan.sold[roster[i]] then table.remove(roster,i) end end
  for _,rec in ipairs(records) do roster[#roster+1]=rec end
- for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then deliver(s,p.hold,storage) end end
+ local shopIndex = self:currentShop(st)
+	local shop = Game.marketShops(st)[shopIndex]
+	local stock = not shop.unlimited and Stock.stock(u, st, shopIndex)
+ for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then
+  deliver(s,p.hold,storage)
+  if stock and not s.resale and not s.inner and stock[s.id] then stock[s.id]=math.max(0,stock[s.id]-s.n);if stock[s.id]==0 then stock[s.id]=nil end end
+ end end
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do
-		-- (no room on the shelf: it's sold on straight away)
-		if not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
+		if ShipEntry.item(s.id) then
+		elseif stock and not s.inner and Stock.lists(shop, s.id) then
+			stock[s.id] = (stock[s.id] or 0) + s.n   -- joins this shop's stockpile
+		else
+			-- (no room on the shelf: it's sold on straight away)
+			Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime })
+		end
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end

@@ -27,9 +27,13 @@ function S.sell(game,r,node,clock)
  for id,count in pairs(r.salvageCargo or {}) do
   local n=math.min(count,math.max(0,(cargo[id] or 0)-(reserve[id] or 0)))
   if n>0 then
-   shelf=shelf or game:stationMarket({key=node,locationId=node},1).hold
    local stack={id=id,n=n,resale=(clock or game.universe.clock)+T.resaleTime}
-   Hold.placeStack(shelf,stack) -- full shelves sell stock onward, like player trade
+   local Stock=require('src.stockpile');local i=Stock.shopFor(node,id)
+   if Stock.lists(Stock.shops(node)[i],id) then Stock.add(game.universe,node,id,n,i) -- joins the shop's stockpile
+   else
+    shelf=shelf or game:stationMarket({key=node,locationId=node},1).hold
+    Hold.placeStack(shelf,stack) -- full shelves sell stock onward, like player trade
+   end
    total=total+game.sellPrice(stack);sold[id]=n
    if h then Hold.take(h,id,n) else cargo[id]=cargo[id]-n end
   end

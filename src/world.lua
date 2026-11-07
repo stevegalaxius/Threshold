@@ -420,7 +420,7 @@ function Game:saveState()
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
 		local shops = {}
-		for i, m in pairs(r.shops or {}) do shops[i] = { hold = Hold.serialize(m.hold), next = m.next } end
+		for i, m in pairs(r.shops or {}) do shops[i] = { hold = m.hold and Hold.serialize(m.hold), next = m.next, stock = Persistence.copy(m.stock) } end
 		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings) }
 	end
 	local u = self.universe
@@ -490,7 +490,7 @@ function Game:loadState(state)
 		-- shops; a save from before shops had one market, which is shop 1
 		local shops = {}
 		for i, m in pairs(r.shops or (r.market and { r.market }) or {}) do
-			shops[tonumber(i)] = { hold = Hold.deserialize(m.hold, known), next = m.next or {} }
+			shops[tonumber(i)] = { hold = m.hold and Hold.deserialize(m.hold, known), next = m.next or {}, stock = Persistence.copy(m.stock) }
 		end
 		self.universe.stations[key].shops = shops
 	end
