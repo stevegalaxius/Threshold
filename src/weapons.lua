@@ -180,11 +180,14 @@ local function fire(game, e, slot, dt)
 		local beam = w.beam
 		if not beam and slot.cooldown > 0 then return end
 		local need = beam and w.powerPerSecond * dt or w.powerPerShot
-		-- no lasers while the afterburner runs on reserve power
-		if e.power < need or e.burnerLocked then slot.starved = true; return end
+		if e.power < need then slot.starved = true; return end
 		slot.starved = false
+		-- Below the reserve floor (a share of the capacitor) lasers still
+		-- fire, but weaker and dimmer.
+		local onReserve = e.power < e.stats.powerCap * T.boostRelight
+		local out = onReserve and T.laserReserve or 1
 		e.power = e.power - need
-		local damage = w.damage * (beam and dt or 1) * mult.primaryDamage
+		local damage = w.damage * (beam and dt or 1) * mult.primaryDamage * out
 		local n, fan = w.beams or 1, rad(w.beamSpread or 0)
 		local c = w.color or LASER_COLOR
 		local spark = { 0.7 + 0.3 * c[1], 0.7 + 0.3 * c[2], 0.7 + 0.3 * c[3] }
@@ -208,7 +211,7 @@ local function fire(game, e, slot, dt)
 			end
 			lines[i] = { wx, wy, ex, ey, hit ~= nil }
 		end
-		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth }
+		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth, alpha = out }
 		if beam then
 			if not slot.firing then events.emit("fire", e, slot) end
 		else
