@@ -98,4 +98,8 @@ salvage { id = "flare", name = "Flare charge", volume = 0.1, mass = 0.05, price 
 -- What a mining drill gets out of the rock it breaks (src/game.lua ORE).
 salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 25, w = 1, h = 1, stack = 4 }
 salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 15, w = 1, h = 1, stack = 4 }
+
+-- Trade commodities (src/commodities.lua): made at some stations, used up at others.
+salvage { id = "empty_canister", name = "Empty canister", volume = 0.25, mass = 0.08, price = 15, w = 1, h = 1, stack = 4 }
+salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, mass = 0.1, price = 40, w = 1, h = 1, stack = 4 }
 salvage { id = "martian_ore", name = "Martian ore", volume = 1, mass = 1, price = 30, w = 1, h = 1, stack = 1 }

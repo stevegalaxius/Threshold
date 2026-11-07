@@ -240,7 +240,8 @@ W.navigation={
  }},
  jupiter={buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
-  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+1*math.pi*2/3},
+  {id='trade_buoy_c', phase=-.8+math.pi/2+2*math.pi*2/3},
  }, corridor='buoys', population={trader=0}},
  saturn={buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
@@ -248,8 +249,9 @@ W.navigation={
  }},
  uranus={buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
-  {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
- }, population={trader=0}},
+  {id='trade_buoy_b', phase=-.8+math.pi/2+1*math.pi*2/3},
+  {id='trade_buoy_c', phase=-.8+math.pi/2+2*math.pi*2/3},
+ }, corridor='buoys', population={trader=0}},
  neptune={buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
@@ -409,13 +411,29 @@ function W.connect(f)
  for i,id in ipairs(corridor) do link(id,corridor[i%#corridor+1]) end
  local onCorridor={};for _,id in ipairs(corridor) do onCorridor[id]=true end
  local attachments=#corridor>0 and corridor or f.holdingId and {f.holdingId} or f.stationIds
+ -- With three or more buoys, something off the ring joins only the two
+ -- buoys either side of it; a link to a far buoy would cut across the planet.
+ local function bearing(node)
+  local m=byId[node].motion
+  if m.type=='fixed' then return math.atan2(m.y or 0,m.x or 0) end
+  return m.type=='cloud' and m.a or m.phase or 0
+ end
+ local function nearBuoys(id)
+  if #f.buoyIds<3 then return f.buoyIds end
+  local a=bearing(id);local list={}
+  for _,b in ipairs(f.buoyIds) do
+   local d=math.abs((bearing(b)-a+math.pi)%(2*math.pi)-math.pi);list[#list+1]={b,d}
+  end
+  table.sort(list,function(x,y) return x[2]==y[2] and x[1]<y[1] or x[2]<y[2] end)
+  return {list[1][1],list[2][1]}
+ end
  for _,id in ipairs(f.stationIds) do
   if not onCorridor[id] then
-   for _,to in ipairs(#f.buoyIds>0 and f.buoyIds or attachments) do link(id,to) end
+   for _,to in ipairs(#f.buoyIds>0 and nearBuoys(id) or attachments) do link(id,to) end
   end
  end
  for _,id in ipairs(f.drillIds) do link(byId[id].motion.home,id) end
- for _,id in ipairs(buoyOnly and #f.buoyIds>0 and f.buoyIds or {f.tradeHome or f.holdingId}) do link(f.driverId,id) end
+ for _,id in ipairs(buoyOnly and #f.buoyIds>0 and f.driverId and nearBuoys(f.driverId) or {f.tradeHome or f.holdingId}) do link(f.driverId,id) end
  if f.ladderIds then
   for k,id in ipairs(f.ladderIds) do
    -- each anchor is its own way in from the buoys; anchors are not linked
@@ -428,7 +446,7 @@ function W.connect(f)
   end
  end
  for _,p in ipairs(f.locations) do
-  if p.kind=='moon_gate' then for _,id in ipairs(attachments) do link(p.id,id) end end
+  if p.kind=='moon_gate' then for _,id in ipairs(buoyOnly and #f.buoyIds>0 and nearBuoys(p.id) or attachments) do link(p.id,id) end end
  end
  for _,pair in ipairs(config.links or {}) do link(pair[1],pair[2]) end
  local circuit={}

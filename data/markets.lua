@@ -8,7 +8,8 @@
 
 	Several shops instead of one list: shops = { { name = "...",
 	description = "...", sells = { entries } }, ... }. Each shop has its own
-	shelf and restock; the Market tab lists them as buttons.
+	stockpile and restock; the Market tab lists them as buttons. NPC haulers
+	and miners use the first shop that lists an item (src/stockpile.lua).
 
 	Each entry: { item id, max [, restock seconds] }.
 	  max      how much the station keeps on its shelf, in stacks (a stack

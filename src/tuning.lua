@@ -309,5 +309,7 @@ T.salvagerRange,T.salvagerStay=6000,30
 T.mapScale = 1.5
 T.mapDensity = 0.3
 
+-- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).
+T.taskChoosePerTick = 4
 return T
 
