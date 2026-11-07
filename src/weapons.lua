@@ -211,7 +211,7 @@ local function fire(game, e, slot, dt)
 			end
 			lines[i] = { wx, wy, ex, ey, hit ~= nil }
 		end
-		slot.beams = { lines = lines, t = game.time, life = beam and 0.08 or (w.pulse or 0.12), color = c, width = w.beamWidth, alpha = out }
+		slot.beams = { lines = lines, t = game.time, life = beam and 0.01 or (w.pulse or 0.12), color = c, width = w.beamWidth, alpha = out }
 		if beam then
 			if not slot.firing then events.emit("fire", e, slot) end
 		else
