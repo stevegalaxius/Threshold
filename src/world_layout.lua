@@ -85,7 +85,7 @@ W.stations = {
 		{ id = "station:pluto_1", spin = 0.05, phase = -0.8, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
 	},
 	ring = {
-		{ id = "station:ring_1", spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_hub" },
+		{ id = "station:ring_1", spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
 	},
 	quarry = {
 		{ id = "station:quarry_1", spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
