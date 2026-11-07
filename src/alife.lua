@@ -790,6 +790,7 @@ function A.install(Game)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
   require('src.supplies').universe=self.universe
+  require('src.arbiter').update(self.universe,clock)
   require('src.economy').update(self.universe,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
@@ -858,7 +859,8 @@ function A.install(Game)
  end
 end
 Population.register('trader',{
- target=function(f,area) return L.station(area,'trade') and f.alifeTraders end,
+ -- the area's base, plus whatever the arbiter says its open hauls need
+ target=function(f,area) return L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) end,
  nodes=function(game,area)
   local f=Fields[area]
   return #f.buoyIds>0 and f.buoyIds or f.stationIds

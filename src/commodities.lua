@@ -10,7 +10,7 @@
 ]]
 local C={list={
  -- Mars presses empty canisters from the ore its moons send down.
- {item='empty_canister',amount=10,cap=600,make={mars=300},use={},input={item='iron_ore',n=1}},
+ {item='empty_canister',amount=10,cap=1000,make={mars=600},use={},input={item='iron_ore',n=1}},
  -- The gas giants fill them for the inner planets.
  {item='hydrogen_canister',amount=10,cap=60,
   make={jupiter=10,saturn=10,uranus=6,neptune=6},input={item='empty_canister',n=1},
@@ -21,7 +21,7 @@ local C={list={
  -- Jupiter and Uranus skim deuterium from their atmospheres: no ice, just
  -- canisters to fill. (A second entry for the same item: each region makes
  -- it by one recipe only, so their carries never mix.)
- {item='deuterium_canister',amount=10,cap=1000,make={jupiter=300,uranus=300},use={},
+ {item='deuterium_canister',amount=10,cap=1000,make={jupiter=600,uranus=600},use={},
   input={item='empty_canister',n=1}},
 }}
 -- A commodity's inputs, whether it lists one (input) or several (inputs).

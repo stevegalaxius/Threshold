@@ -139,7 +139,6 @@ function E.update(u,clock)
   end
  end
  local reach={}
- local fuel=require('src.reactor_fuel').item()
  for item,g in pairs(goods()) do
   if #g.suppliers>0 then
    -- what each supplier can spare right now
@@ -167,8 +166,9 @@ function E.update(u,clock)
      end
      if not best then break end
      local n=math.min(E.lot,short,spare[best])
-     -- reactor fuel first (ships stop without it), and a bare shelf before a low one
-     local priority=(item==fuel and 2 or 0)+(Stock.count(u,c,item)==0 and 1 or 0)
+     -- a bare shelf before a low one (fuel isn't ranked above its inputs:
+     -- starving the makers of empties starves everyone of fuel)
+     local priority=Stock.count(u,c,item)==0 and 1 or 0
      Tasks.post(u,{kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
       layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock})
      spare[best]=spare[best]-n;short=short-n
