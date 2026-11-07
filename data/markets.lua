@@ -126,10 +126,12 @@ market { id = "market:titania_2", station = "Messina Research Station", sells = 
 
 -- Ring Station and its Quarry.
 market { id = "market:ring_1", station = "Ring Station", ships = { "intaki_wisp", "ferrous_pony" }, sells = {   -- belt crossroads
+	{ "iron_ore", 4 },
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },
 } }
 market { id = "market:quarry_1", station = "Quarry Ore Depot", sells = {   -- drill crews' supply
+	{ "iron_ore", 4 },
 	{ "rounds_s", 4 }, { "tug_beam", 1 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }
 market { id = "market:ceres_quarry_1", station = "Ceres Quarry Depot", sells = {   -- drill crews' supply
