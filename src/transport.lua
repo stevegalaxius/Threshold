@@ -54,7 +54,7 @@ Tasks.register('transport',{
   -- Old reserved manifests may finish, but never issue new placeholder ore.
   if o.item=='martian_ore' then return false end
   -- Work elsewhere means flying there empty first (a pickup leg).
-  if station~=o.source and (r.task or not L.byId[station] or not reachable(station,o.source,clock,true)) then return false end
+  if station~=o.source and (r.task or not L.byId[station]) then return false end
   local source,target=L.byId[o.source],L.byId[o.target]
   if not source or not target then return false end
   local from,to=source.area,target.area
@@ -68,7 +68,9 @@ Tasks.register('transport',{
   if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
   return room(r,o.item,o.amount)>=o.amount
    and (not (o.mine or o.stocked) or J.available(u,o.source,o.item)>=o.amount)
-   and reachable(o.source,o.target,clock)
+ end,
+ feasible=function(u,r,o,station,clock)
+  return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
  end,
  score=function(u,r,o,station,clock)
   -- Oldest dispatch first, with immediate return trips deprioritized.

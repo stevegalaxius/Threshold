@@ -1,6 +1,6 @@
 -- Role-neutral task board. Definitions execute code; saves contain plain records.
 local copy=require('src.persistence').copy
-local Tasks={definitions={}}
+local Tasks={definitions={},feasibleTries=4}
 function Tasks.register(kind,definition)
  assert(not Tasks.definitions[kind],'duplicate task kind')
  Tasks.definitions[kind]=definition
@@ -83,14 +83,21 @@ function Tasks.choose(u,r,station,clock)
  if not Tasks.resolve(u,r) then return end
  if r.task then return r.task end
  Tasks.clean(u,clock)
- local best,score
+ -- Cheap checks and scores for everything on the board; the costly check
+-- (feasible: route planning) runs only on the best few, in score order.
+ local list={}
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
   if o.state=='available' and (o.readyAt or 0)<=clock and def and def.roles[r.role]
    and def.eligible(u,r,o,station,clock) then
-   local value=def.score and def.score(u,r,o,station,clock) or 0
-   if not best or value>score or value==score and o.id<best.id then best,score=o,value end
+   list[#list+1]={o=o,v=def.score and def.score(u,r,o,station,clock) or 0}
   end
+ end
+ table.sort(list,function(a,b) return a.v>b.v or a.v==b.v and a.o.id<b.o.id end)
+ local best
+ for i=1,math.min(#list,Tasks.feasibleTries) do
+  local o=list[i].o;local def=Tasks.definitions[o.kind]
+  if not def.feasible or def.feasible(u,r,o,station,clock) then best=o;break end
  end
  if not best then r.taskStatus='waiting for work';return end
  local t=copy(best);t.phase='prepare';t.assigned=clock;t.state=nil
