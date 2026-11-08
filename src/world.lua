@@ -432,6 +432,7 @@ function Game:saveState()
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
+		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId,
 		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
 	local p = self.player
 	if p and not p.dead then
@@ -499,6 +500,11 @@ function Game:loadState(state)
 	self.universe.credits = state.credits or T.startCredits
 	self.universe.clock = state.clock or 0
 	self.kills = state.kills or 0
+	self.universe.sites = Persistence.copy(state.sites or {})
+	self.universe.nextSiteId = state.nextSiteId or 0
+	local Sites = require("src.sites")
+	Sites.restore(self.universe)
+	Sites.prune(self.universe, state.field)
 	local field = Fields[state.field] and state.field or Fields.start
 	local pl = state.player
  if pl and pl.at and pl.at.station then

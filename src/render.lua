@@ -632,6 +632,34 @@ local function drawDriver(game, e)
 	lg.pop()
 end
 
+-- An acceleration gate (src/sites.lua): a ring of the site's colour, its
+-- coils spinning up while it charges you; dim and red-barred while locked.
+local function drawGate(game, e)
+	local x, y = e.body:getPosition()
+	local c = e.color or { 0.6, 0.8, 1 }
+	local open = game:gateOpen(e)
+	local r = e.radius
+	lg.setLineWidth(outline(6))
+	lg.setColor(0.15, 0.17, 0.2)
+	lg.circle("line", x, y, r + 40, 64)
+	lg.setColor(c[1], c[2], c[3], open and 0.9 or 0.35)
+	lg.setLineWidth(outline(3))
+	lg.circle("line", x, y, r, 64)
+	local spin = game.time * (0.6 + (e.charge or 0) * 6)
+	for i = 0, 7 do
+		local a = spin + i * pi / 4
+		lg.circle("fill", x + cos(a) * (r + 40), y + sin(a) * (r + 40), max(8, 4 * screenPx))
+	end
+	if open then
+		lg.setColor(c[1], c[2], c[3], 0.12 + 0.25 * (e.charge or 0))
+		lg.circle("fill", x, y, r, 64)
+	else
+		lg.setColor(1, 0.3, 0.25, 0.7)
+		lg.line(x - r * 0.7, y - r * 0.7, x + r * 0.7, y + r * 0.7)
+		lg.line(x - r * 0.7, y + r * 0.7, x + r * 0.7, y - r * 0.7)
+	end
+end
+
 -- The transit lane: a faint glow under its arc, fading out past its
 -- edges the way the buff does, so the road reads without markings.
 local function drawLane(game)
@@ -1437,6 +1465,7 @@ function Render.world(game, overlay, boundaryAngle)
 		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
 		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "driver" then drawDriver(game, e)
+		elseif e.kind == "gate" then drawGate(game, e)
 		elseif e.kind == "catchring" then drawCatchRing(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end

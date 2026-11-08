@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {} },
 }
 
 -- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
@@ -225,6 +225,14 @@ function api.spawn_set(def)
 	def.name = def.name or def.id
 	register("spawnSets", "spawn_set", def)
 	def.place = def.place or {}
+end
+-- Sites (src/sites.lua): instanced places a mass driver can fire you to,
+-- each a chain of pockets joined by acceleration gates. See data/sites.lua.
+function api.site(def)
+	def.name = def.name or def.id
+	register("sites", "site", def)
+	def.pockets = def.pockets or {}
+	def.color = def.color or { 0.6, 0.8, 1 }
 end
 function api.prop(def) def.loot = {}; wreckLike("prop", def) end
 
@@ -595,6 +603,23 @@ local function crossCheck()
 			if p.container and not data.wrecks[p.container] then error(("spawn set '%s' places unknown container '%s'"):format(id, p.container), 0) end
 			if p.item and not data.items[p.item] then error(("spawn set '%s' places unknown item '%s'"):format(id, p.item), 0) end
 			if p.loot and not data.lootTables[p.loot] then error(("spawn set '%s' uses unknown loot table '%s'"):format(id, p.loot), 0) end
+		end
+	end
+	for id, s in pairs(data.sites) do
+		if #s.pockets == 0 then error(("site '%s' has no pockets"):format(id), 0) end
+		for n, pk in ipairs(s.pockets) do
+			for _, pc in ipairs(pk.pieces or {}) do
+				local what = ("site '%s' pocket %d"):format(id, n)
+				if pc.type == "station" and not data.stations[pc.station] then error(("%s places unknown station '%s'"):format(what, tostring(pc.station)), 0) end
+				if pc.type == "spawnSet" and not data.spawnSets[pc.id] then error(("%s uses unknown spawn set '%s'"):format(what, tostring(pc.id)), 0) end
+				if pc.type == "containers" and pc.loot and not data.lootTables[pc.loot] then error(("%s uses unknown loot table '%s'"):format(what, pc.loot), 0) end
+				if pc.type == "enemies" then
+					for _, g in ipairs(pc.groups or {}) do
+						if not data.enemies[g[1]] then error(("%s spawns unknown enemy '%s'"):format(what, tostring(g[1])), 0) end
+					end
+				end
+				if pc.type == "gate" and pc.to ~= "exit" and not s.pockets[pc.to] then error(("%s has a gate to missing pocket '%s'"):format(what, tostring(pc.to)), 0) end
+			end
 		end
 	end
 	for id, e in pairs(data.enemies) do

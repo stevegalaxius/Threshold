@@ -127,6 +127,27 @@ function Game:fireDriver(to)
 	return true
 end
 
+-- Pay the fare to a site (src/sites.lua) and start the launch: the same
+-- run down the barrel, then straight into the site's first pocket.
+function Game:fireDriverToSite(instId)
+	local Sites = require("src.sites")
+	local menu, p = self.driverMenu, self.player
+	local inst = Sites.list(self.universe)[instId]
+	if not menu or not p or p.dead or not inst then return false end
+	if menu.driver.driverShip and menu.driver.driverShip~=p then return false end
+	local fare = Sites.fare(inst)
+	if self.universe.credits < fare then
+		self:toast(("PASSAGE TO %s IS %d CR"):format(Sites.name(inst):upper(), fare), 2)
+		return false
+	end
+	self.universe.credits = self.universe.credits - fare
+	self.driverMenu = nil
+	p.launch = { driver = menu.driver, to = instId, site = true, t = 0 }
+	p.driverProtected=true;menu.driver.driverShip=p
+	self:toast(("FIRING FOR %s  -%d CR"):format(Sites.name(inst):upper(), fare), 1.6)
+	return true
+end
+
 -- Back out of the targeting window: you drift free of the ring.
 function Game:closeDriverMenu()
 	local p = self.player
@@ -166,7 +187,15 @@ local function barrelTarget(game, g, p)
 	if L and L.driver == g then
 		local clock = game.universe and game.universe.clock or 0
 		local ax, ay = Fields.orbitPos(game.fieldId, clock)
-		local bx, by = Fields.orbitPos(L.to, clock)
+		local bx, by
+		if L.site then
+			local Sites = require("src.sites")
+			local inst = Sites.list(game.universe)[L.to]
+			if not inst then return g.angle end
+			bx, by = Sites.position(inst, clock)
+		else
+			bx, by = Fields.orbitPos(L.to, clock)
+		end
 		return math.atan2(by - ay, bx - ax)
 	end
 	if g.orbit then return g.orbit.angle end
@@ -256,7 +285,7 @@ function Game:updateDriverLaunch(p,dt)
 				-- early rather than fly into the planet (or a station)
 				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
 					if p==self.player then
-					 self.pendingFlight = L.to;self.flash = { t = 0, life = 0.5 }
+					 if L.site then self.pendingSite = L.to else self.pendingFlight = L.to end;self.flash = { t = 0, life = 0.5 }
 					else
 					 p.launch=nil;p.alifeDepart=true
 					 if g.driverShip==p then g.driverShip=nil end

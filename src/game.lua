@@ -1775,6 +1775,7 @@ function Game:step(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)
 	self:updateDrivers(dt)
+	self:updateSites(dt)
 	self:updateCatch(dt)
 	self:updateMoonGates(dt)
 	self:updateOrbits(dt)
@@ -1789,7 +1790,11 @@ function Game:step(dt)
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
-	if self.pendingFlight then
+	if self.pendingSite then
+		local id = self.pendingSite
+		self.pendingSite = nil
+		self:enterSite(id)
+	elseif self.pendingFlight then
 		local to = self.pendingFlight
 		self.pendingFlight = nil
 		-- the highway, or the warp trip and the catch (debug panel picks)
@@ -2729,6 +2734,7 @@ require("src.world")(Game)
 require("src.station_parking")(Game)
 require("src.transit")(Game)
 require("src.moons")(Game)
+require("src.sites").install(Game)
 require("src.computers")(Game)
 require("src.market")(Game)
 

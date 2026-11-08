@@ -111,6 +111,7 @@ T.laneKeep = 0.8
 T.laneCarryTime = 20
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
+T.siteFare = 200   -- a site that names no fare of its own (data/sites.lua)
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).
