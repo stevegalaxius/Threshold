@@ -23,7 +23,6 @@ local T = require("src.tuning")
 local Sites = {}
 local cos, sin, pi, sqrt, random = math.cos, math.sin, math.pi, math.sqrt, love.math.random
 
-local GATE_RADIUS, GATE_CHARGE = 260, 1.2
 
 function Sites.fieldId(instId, n) return ("site/%s/%d"):format(instId, n) end
 
@@ -238,12 +237,22 @@ end
 
 function Sites.install(Game)
 
+-- An acceleration gate: a small mass driver with one target, pre-aimed
+-- (the piece's angle, else pointing out from the pocket's middle). Fly
+-- up its runway and it tractors you in and fires you down a short lane to
+-- the next pocket, or back to the driver you came in by. A locked one
+-- won't take you (Game:gateOpen).
 function Game:spawnSiteGate(inst, n, pc)
-	local body = love.physics.newBody(self.world, pc.x or 0, pc.y or 0, "kinematic")
+	local x, y = pc.x or 0, pc.y or 0
+	local a = pc.angle or ((x ~= 0 or y ~= 0) and math.atan2(y, x) or -pi / 2)
+	local barrel = T.gateBarrel
+	-- the piece's x, y is the breech; the body sits mid-barrel
+	local body = love.physics.newBody(self.world, x + cos(a) * barrel / 2, y + sin(a) * barrel / 2, "kinematic")
 	local def = Sites.template(inst)
-	local g = { kind = "gate", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		radius = GATE_RADIUS, site = inst.id, pocket = n, to = pc.to, unlock = pc.unlock,
-		color = def.color, charge = 0,
+	local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body, angle = a,
+		radius = T.gateRadius, barrel = barrel, hw = T.gateHalfWidth, zone = T.gateZone, zoneWidth = T.gateZoneWidth,
+		color = def.color, site = inst.id, pocket = n, unlock = pc.unlock,
+		gate = { site = inst.id, pocket = n, to = pc.to },
 		name = pc.name or (pc.to == "exit" and "Return gate" or "Acceleration gate") }
 	body:setUserData(g)
 	table.insert(self.entities, g)
@@ -275,42 +284,59 @@ function Game:gateOpen(g)
 	return true
 end
 
--- Fire the player through a gate: to the next pocket, or home.
-function Game:throughGate(g)
+-- Fired from a gate (its launch is done): down a short lane to the next
+-- pocket, or to the planet you came in from.
+function Game:throughGate(gate)
 	local u = self.universe
-	local inst = Sites.list(u)[g.site]
-	local Ship = require("src.ship")
-	local rec = Ship.record(self.player)
-	require("src.ui.cargo").close(self)
-	self.flash = { t = 0, life = 0.5 }
-	if g.to == "exit" or not inst then
+	local inst = Sites.list(u)[gate.site]
+	local g = self:findGate(gate)
+	local bearing = g and g.angle or 0
+	if gate.to == "exit" or not inst then
 		local back = inst and inst.from or Fields.start
-		if inst and g.pocket == #Sites.template(inst).pockets then inst.done = true end
-		self:loadField(back, { player = rec, at = { driver = back } })
-		Sites.prune(u, self.fieldId)
+		if inst and gate.pocket == #Sites.template(inst).pockets then inst.done = true end
+		self:launchTrip(back, nil, { bearing = bearing, length = T.siteLaneLength })
 		return
 	end
-	local id = Sites.fieldId(inst.id, g.to)
-	local f = Fields[id]
-	self:loadField(id, { player = rec, at = { x = f.spawn[1], y = f.spawn[2], angle = -pi / 2, vx = 0, vy = -300 } })
+	self:launchTrip(Sites.fieldId(inst.id, gate.to), nil, { bearing = bearing, length = T.gateLaneLength })
 end
 
--- Into a site's first pocket, off a mass driver.
-function Game:enterSite(instId)
+function Game:findGate(gate)
+	for _, e in ipairs(self.entities) do
+		if e.gate == gate then return e end
+	end
+end
+
+-- Into a site's first pocket, fired off a mass driver on `bearing` (else
+-- straight there: the debug warp).
+function Game:enterSite(instId, bearing)
 	local inst = Sites.list(self.universe)[instId]
 	if not inst then return false end
 	if not Sites.of(self.fieldId) then inst.from = self.fieldId end
+	local id = Sites.fieldId(inst.id, 1)
+	if bearing then
+		self:launchTrip(id, nil, { bearing = bearing, length = T.siteLaneLength })
+		return true
+	end
 	local rec = require("src.ship").record(self.player)
-	local f = Fields[Sites.fieldId(inst.id, 1)]
+	local f = Fields[id]
 	self.flash = { t = 0, life = 0.6 }
-	self:loadField(Sites.fieldId(inst.id, 1), { player = rec, at = { x = f.spawn[1], y = f.spawn[2], angle = -pi / 2, vx = 0, vy = -500 } })
+	self:loadField(id, { player = rec, at = { x = f.spawn[1], y = f.spawn[2], angle = -pi / 2, vx = 0, vy = -500 } })
 	return true
 end
 
 -- Each step in a pocket: mark it cleared, and work the gates.
 function Game:updateSites(dt)
 	local siteId, n = Sites.of(self.fieldId)
-	if not siteId then return end
+	-- finished and expired sites close once you're out of them (not on the
+	-- lane, where turning back would need the pocket you left)
+	if not siteId then
+		if not self.field.transit and self.sitesPrunedIn ~= self.fieldId then
+			self.sitesPrunedIn = self.fieldId
+			Sites.prune(self.universe, self.fieldId)
+		end
+		return
+	end
+	self.sitesPrunedIn = nil
 	local inst = Sites.list(self.universe)[siteId]
 	if not inst then return end
 	local state = inst.pockets[n] or {}
@@ -325,28 +351,7 @@ function Game:updateSites(dt)
 			self:toast("POCKET CLEAR", 1.6)
 		end
 	end
-	local p = self.player
-	if not p or p.dead or p.dockState then return end
-	local px, py = p.body:getPosition()
-	for _, g in ipairs(self.entities) do
-		if g.kind == "gate" then
-			local gx, gy = g.body:getPosition()
-			local inside = (px - gx) ^ 2 + (py - gy) ^ 2 < g.radius ^ 2
-			if inside then
-				local open, why = self:gateOpen(g)
-				if open then
-					g.charge = g.charge + dt
-					self:shake(0.05 * g.charge)
-					if g.charge >= GATE_CHARGE then g.charge = 0; self:throughGate(g); return end
-				elseif not g.warned then
-					g.warned = true
-					self:toast("GATE LOCKED: " .. why, 2)
-				end
-			else
-				g.charge, g.warned = 0, nil
-			end
-		end
-	end
+
 end
 
 end

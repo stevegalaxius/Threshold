@@ -574,7 +574,11 @@ local function drawDriver(game, e)
 	local x, y = game:driverBreech(e)
 	local p = e.driverShip or game.player
 	local busy = p and not p.dead and ((p.launch and p.launch.driver==e) or (p.driverTractor and p.driverTractor.driver==e) or (game.driverMenu and game.driverMenu.driver == e))
-	local len, hw = T.driverBarrel, 80
+	-- a site's acceleration gate (src/sites.lua) is the same machine, smaller,
+	-- its coils lit in the site's colour, its breech red while it's locked
+	local len, hw = e.barrel or T.driverBarrel, e.hw or 80
+	local coil = e.color or { 0.6, 0.95, 1 }
+	local locked = e.gate and not game:gateOpen(e)
 	local lr = max(5, 3 * screenPx)
 	lg.push()
 	lg.translate(x, y)
@@ -593,23 +597,23 @@ local function drawDriver(game, e)
 	local rate = p and p.launch and 3 or 0.8
 	for i = 0, 9 do
 		local k = (i / 10 + game.time * rate) % 1
-		lg.setColor(0.6, 0.95, 1, 0.8 * (1 - k))
+		lg.setColor(coil[1], coil[2], coil[3], (locked and 0.25 or 0.8) * (1 - k))
 		lg.rectangle("fill", k * len - 8, -hw + 10, 16, hw * 2 - 20)
 	end
 	-- the breech: hazard-striped, lit green while it has you
 	local dw, wall = hw * 1.3, 60
 	lg.setColor(0.09, 0.1, 0.13)
 	lg.rectangle("fill", -wall, -dw, wall, dw * 2)
-	lg.setColor(busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+	lg.setColor(locked and { 1, 0.3, 0.25 } or busy and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
 	for k = -3, 2 do
 		lg.rectangle("fill", -wall, dw * k / 3, wall, dw / 6)
 	end
 	-- runway lights back along the approach, strobes chasing in to the
 	-- breech; off while someone's in it (the gun swings, they'd only mislead)
-	local rw = 90
+	local rw = hw + 10
 	local step = 75
-	local n = floor(T.driverZone / step)
-	for i = 0, busy and -1 or n do
+	local n = floor((e.zone or T.driverZone) / step)
+	for i = 0, (busy or locked) and -1 or n do
 		local lx = -wall - 30 - i * step
 		local fade = 1 - i / (n + 1) * 0.6
 		lg.setColor(0.35, 1, 0.5, 0.75 * fade)
@@ -630,34 +634,6 @@ local function drawDriver(game, e)
 	lg.circle("fill", len, hw, lr * 1.4)
 	lg.circle("fill", len, -hw, lr * 1.4)
 	lg.pop()
-end
-
--- An acceleration gate (src/sites.lua): a ring of the site's colour, its
--- coils spinning up while it charges you; dim and red-barred while locked.
-local function drawGate(game, e)
-	local x, y = e.body:getPosition()
-	local c = e.color or { 0.6, 0.8, 1 }
-	local open = game:gateOpen(e)
-	local r = e.radius
-	lg.setLineWidth(outline(6))
-	lg.setColor(0.15, 0.17, 0.2)
-	lg.circle("line", x, y, r + 40, 64)
-	lg.setColor(c[1], c[2], c[3], open and 0.9 or 0.35)
-	lg.setLineWidth(outline(3))
-	lg.circle("line", x, y, r, 64)
-	local spin = game.time * (0.6 + (e.charge or 0) * 6)
-	for i = 0, 7 do
-		local a = spin + i * pi / 4
-		lg.circle("fill", x + cos(a) * (r + 40), y + sin(a) * (r + 40), max(8, 4 * screenPx))
-	end
-	if open then
-		lg.setColor(c[1], c[2], c[3], 0.12 + 0.25 * (e.charge or 0))
-		lg.circle("fill", x, y, r, 64)
-	else
-		lg.setColor(1, 0.3, 0.25, 0.7)
-		lg.line(x - r * 0.7, y - r * 0.7, x + r * 0.7, y + r * 0.7)
-		lg.line(x - r * 0.7, y + r * 0.7, x + r * 0.7, y - r * 0.7)
-	end
 end
 
 -- The transit lane: a faint glow under its arc, fading out past its
@@ -1465,7 +1441,6 @@ function Render.world(game, overlay, boundaryAngle)
 		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
 		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "driver" then drawDriver(game, e)
-		elseif e.kind == "gate" then drawGate(game, e)
 		elseif e.kind == "catchring" then drawCatchRing(game, e)
 		elseif e.kind == "husk" then drawHusk(game, e)
 		elseif e.kind == "container" then drawContainer(game, e) end

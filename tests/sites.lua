@@ -19,7 +19,7 @@ return function(game)
  check(game.fieldId==Sites.fieldId(inst.id,1) and inst.from=='saturn','you arrive in pocket 1 and it remembers where from')
  local gates,enemies={},0
  for _,e in ipairs(game.entities) do
-  if e.kind=='gate' then gates[e.to]=e end
+  if e.gate then gates[e.gate.to]=e end
   if e.siteEnemy then enemies=enemies+1 end
  end
  check(enemies==5,'pocket enemies are spawned: '..enemies)
@@ -28,14 +28,18 @@ return function(game)
  check(game:gateOpen(gates.exit),'the way home is always open')
  game:clearEnemies();game:updateSites(0.1)
  check(inst.pockets[1].cleared and game:gateOpen(gates[2]),'clearing the pocket opens its gate')
- -- fly into the gate and it charges, then fires you on
- game.player.body:setPosition(gates[2].body:getPosition())
- for _=1,20 do game:updateSites(0.1) if game.fieldId~=Sites.fieldId(inst.id,1) then break end end
- check(game.fieldId==Sites.fieldId(inst.id,2),'the gate fires you to the next pocket')
+ -- fly up the gate's runway: it tractors you in, fires you down a lane
+ local g2=gates[2];local bx,by=game:driverBreech(g2)
+ local p=game.player
+ p.body:setPosition(bx-math.cos(g2.angle)*400,by-math.sin(g2.angle)*400);p.body:setLinearVelocity(0,0);p.driverCooldown=0
+ for _=1,4000 do game:step(1/120) if game.fieldId=='lane' then break end end
+ check(game.fieldId=='lane' and game.trip.to==Sites.fieldId(inst.id,2),'the gate tractors you in and fires you down a lane to the next pocket')
+ game:arrive()
+ check(game.fieldId==Sites.fieldId(inst.id,2),'and the lane comes out in the next pocket')
  game:clearEnemies();game:updateSites(0.1)
  game:loadField(Sites.fieldId(inst.id,3),{player=require('src.ship').record(game.player)})
  local vault
- for _,e in ipairs(game.entities) do if e.kind=='gate' and e.to==4 then vault=e end end
+ for _,e in ipairs(game.entities) do if e.gate and e.gate.to==4 then vault=e end end
  check(vault and not game:gateOpen(vault),'the vault gate wants its key')
  Hold.fill(game.player.hold,{vault_key=1},{random=love.math.random})
  check(game:gateOpen(vault),'carrying the key opens it')
@@ -52,9 +56,12 @@ return function(game)
  check(e2==0,'a cleared pocket stays clear')
  -- out through the last gate: home, and the site is done
  game:loadField(Sites.fieldId(inst.id,4),{player=require('src.ship').record(game.player)})
- local out;for _,e in ipairs(game.entities) do if e.kind=='gate' and e.to=='exit' then out=e end end
- game:throughGate(out)
+ local out;for _,e in ipairs(game.entities) do if e.gate and e.gate.to=='exit' then out=e end end
+ game:throughGate(out.gate)
+ check(game.fieldId=='lane' and game.trip.to=='saturn','the exit gate fires you down a lane home')
+ game:arrive()
  check(game.fieldId=='saturn','the exit gate sends you back out of the driver you came from')
+ game:updateSites(0)
  check(not u.sites[inst.id] and not Fields[Sites.fieldId(inst.id,1)],'a finished site closes')
  -- a station site you can dock at
  local dock=u.sites[hidden.id]
@@ -78,8 +85,9 @@ return function(game)
  game:loadField('saturn',{player=require('src.ship').record(game.player)})
  game.driverMenu={driver=game:findDriver()};u.credits=10000
  check(game:fireDriverToSite(dock.id),'paying a site fare starts the launch')
- for _=1,4000 do game:step(1/120) if Sites.of(game.fieldId) then break end end
- check(Sites.of(game.fieldId)==dock.id,'and the launch ends in the site')
+ for _=1,4000 do game:step(1/120) if game.fieldId=='lane' then break end end
+ check(game.fieldId=='lane' and Sites.of(game.trip.to)==dock.id,'and the launch sends you down a lane to the site')
+ game:arrive();check(Sites.of(game.fieldId)==dock.id,'which comes out in its first pocket')
  -- every template builds
  for _,id in ipairs(data.list.sites) do
   local s=Sites.spawn(u,id)

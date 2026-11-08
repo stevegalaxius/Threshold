@@ -1790,10 +1790,14 @@ function Game:step(dt)
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
-	if self.pendingSite then
-		local id = self.pendingSite
+	if self.pendingGate then
+		local gate = self.pendingGate
+		self.pendingGate = nil
+		self:throughGate(gate)
+	elseif self.pendingSite then
+		local s = self.pendingSite
 		self.pendingSite = nil
-		self:enterSite(id)
+		self:enterSite(s.id, s.bearing)
 	elseif self.pendingFlight then
 		local to = self.pendingFlight
 		self.pendingFlight = nil

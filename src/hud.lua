@@ -253,10 +253,10 @@ local function drawOffscreen(game)
 	end
 	for _, e in ipairs(game.entities) do
 		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
-		if game.state ~= "docked" and (e.kind == "driver" or e.kind == "gate" or nextRing or (e.kind == "station" and e.dock)) then
-			local label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and "Mass driver" or e.name
+		if game.state ~= "docked" and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
+			local label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and (e.gate and e.name or "Mass driver") or e.name
 			local x, y = e.body:getPosition()
-			mark(label, x, y, e.radius or e.ringR or 0, e.kind == "driver" and { 0.55, 0.85, 1 } or e.kind == "gate" and e.color or { 1, 0.8, 0.45 })
+			mark(label, x, y, e.radius or e.ringR or 0, e.kind == "driver" and (e.color or { 0.55, 0.85, 1 }) or { 1, 0.8, 0.45 })
 		end
 	end
 	-- the ways out to moons (or back to the planet): src/moons.lua
