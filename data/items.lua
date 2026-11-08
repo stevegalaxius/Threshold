@@ -79,7 +79,7 @@ ammo { id = "drone_l", name = "Drone L",  maker = "Nova Syndicate", family = "dr
 salvage { id = "scrap",       name = "Scrap metal",      volume = 0.5, mass = 0.4, price = 60, w = 1, h = 1, stack = 2 }
 salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 0.3, price = 260, w = 1, h = 1, stack = 1 }
 -- Cut from a wreck's hull with a drill: a fixed amount per hull (Game.wreckAlloy).
-salvage { id = "hull_alloy",  name = "Salvaged hull alloy", volume = 0.5, mass = 0.5, price = 180, w = 1, h = 1, stack = 4 }
+salvage { id = "hull_alloy",  name = "Salvaged hull alloy", volume = 0.25, mass = 0.5, price = 180, w = 1, h = 1, stack = 4 }
 
 -- Standard cargo container. Empty, it's an 8 x 5 item, too big for a
 -- Wisp's hold and only just fits an Anvil's. Out in space it's a box with
