@@ -933,7 +933,7 @@ function Game:updateStaging()
 		end
 	end
 	if lane.half - ps < reach then stage(false) end
-	if p.laneEntered and not trip.originScene and ps + lane.half < reach then
+	if trip.moon and p.laneEntered and not trip.originScene and ps + lane.half < reach then
 		local vx, vy = p.body:getLinearVelocity()
 		local _, _, ph = self:toLane(p.body:getPosition())
 		if vx * cos(ph) + vy * sin(ph) < 0 then stage(true) end
@@ -1371,9 +1371,8 @@ function Game:updateLane(dt)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 				if e == p then
 					-- You don't get the buff: the lane carries you instead.
-					-- It flows at T.laneSpeed (outbound below the median,
-					-- home above it, easing through zero across it, and
-					-- fading out past the edges), and your ship flies
+					-- It flows at T.laneSpeed, onward (fading out past the
+					-- edges), and your ship flies
 					-- relative to that, exactly as it rides a planet's
 					-- current (Ship.fly): let go and you cruise with the
 					-- lane, and steering, dodging and braking feel like
@@ -1383,7 +1382,9 @@ function Game:updateLane(dt)
 					-- they still come at you at the lane's speed.
 					local flow = 0
 					if e.laneBuff then
-						local side = max(-1, min(1, -n / T.laneMedian))
+						-- (a driver's lane only ever takes you onward: the
+						-- whole road flows outbound for you)
+						local side = 1
 						local speed = T.laneSpeed
 						local K = e.laneKick
 						if K and side > 0 then
@@ -1447,7 +1448,8 @@ function Game:updateLane(dt)
 	-- map's edge you start short of the mouth, so only once you're in)
 	local vx, vy = p.body:getLinearVelocity()
 	local reversing = vx * cos(ph) + vy * sin(ph) < 0
-	if ps < -lane.half - 200 and (p.laneEntered or not self.trip.origin or reversing) then self.pendingArrive = "back" end
+	-- (only off a moon hop: a driver's lane has no way back)
+	if self.trip.moon and ps < -lane.half - 200 and (p.laneEntered or not self.trip.origin or reversing) then self.pendingArrive = "back" end
 end
 
 -- Traffic flies its own side of the lane at its own speed, nose along
