@@ -122,6 +122,11 @@ T.laneStageAhead = 60000
 T.laneDropBehind = 8000
 -- fastest you come out of a lane into a site's pocket (at its spawn point)
 T.siteArriveSpeed = 600
+-- loose rock carrying on past a map's edge (Game:spawnOuterBelt): how far
+-- out (px; past what's in view at the widest zoom, so a lane leaving the
+-- map takes over out of sight) and how thick (rocks per 100M px^2)
+T.mapOuter = 16000
+T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road
 T.laneCarryTime = 20

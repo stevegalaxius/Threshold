@@ -268,6 +268,7 @@ function Game:loadField(id, opts)
 		if Game.staging then Game.staging.noYield = nil end
 		self.restoringArea = nil
 		self:spawnFieldEnemies()
+		self:spawnOuterBelt()
 	end
 	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
@@ -500,6 +501,31 @@ local function convexHull(v)
 end
 
 -- A random kind from a mix of weights ({ rock = 5, ice = 2, ... }).
+-- The map doesn't stop at its edge: a ring of loose rock carries on past
+-- it (T.mapOuter wide, thinning out), riding the same current, so flying
+-- out to the edge, or out of a driver, there's still something around you,
+-- and a lane leaving the map picks up where it ends (src/transit.lua).
+function Game:spawnOuterBelt()
+	local f = self.field
+	if not f or f.transit or not self.well or T.mapOuter <= 0 then return end
+	local R, W = self.arenaRadius, T.mapOuter
+	local rng = love.math.newRandomGenerator(random(1, 2147483646))
+	local n = floor(2 * pi * (R + W / 2) * W / 1e8 * T.mapOuterDensity)
+	for _ = 1, n do
+		local a = rng:random() * 2 * pi
+		local u = rng:random() ^ 1.6        -- thicker near the edge
+		local d = R - 500 + u * (W + 500)
+		local r = 30 + rng:random() ^ 2 * 160
+		local x, y = self.well.x + cos(a) * d, self.well.y + sin(a) * d
+		if self:isClear(x, y, r + 40) then
+			local e = self:spawnAsteroid(x, y, r, self:pickDebris(f.mix))
+			e.outer = true
+			local v = self:currentSpeed(d)
+			e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+		end
+	end
+end
+
 function Game:pickDebris(mix)
 	mix = mix or (self.field and self.field.mix) or { rock = 1 }
 	local total = 0

@@ -1285,7 +1285,7 @@ function Game:populateLane()
 	local o1 = -lane.half - lead - 2000
 	local ospan = max(0, s2 - o1)
 	local O = trip.origin
-	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + 600
+	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + T.mapOuter + 600
 	-- what's on the road: the mix where you're headed
 	local dest = Fields[trip.to]
 	local mix = dest and dest.mix
@@ -1402,7 +1402,7 @@ function Game:updateLane(dt)
 				local force=softBoundary(over,vx*nx+vy*ny,m)
 				b:applyForce(nx*force,ny*force)
 			end
-			if s < -lane.half and e ~= p and not (self.trip and self.trip.moon) then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
+			if s < -lane.half and e ~= p and e.kind == "ship" and not (self.trip and self.trip.moon) then b:applyForce(tx * (-lane.half - s) * m * 6, ty * (-lane.half - s) * m * 6) end
 		end
 	end
 	if not p or p.dead then return end
