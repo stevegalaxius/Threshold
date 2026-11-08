@@ -623,7 +623,9 @@ Cargo.spaceTab='hold'
 local function spaceTabs(game)
  if game.state=='docked' or Cargo.other or Cargo.loot then return nil end
  local L=layout(game);if not L or not L.sides[1] then return nil end
- local f=Cargo.workspace(game);local top=L.sides[1].y;if not L.equip.hidden then top=math.min(top,L.equip.y or top) end
+ -- the hold's own frame (not Cargo.workspace, which follows the docked tab)
+ local first=L.equip.hidden and L.sides[1] or L.equip;local last=L.sides[#L.sides]
+ local f={x=first.x,w=last.x+last.pw-first.x};local top=L.sides[1].y;if not L.equip.hidden then top=math.min(top,L.equip.y or top) end
  local out={}
  for i,t in ipairs(SPACE_TABS) do out[i]={id=t.id,label=t.label,x=f.x+(i-1)*130,y=top-40,w=122,h=30} end
  return out,{x=f.x,y=top,w=f.w}
