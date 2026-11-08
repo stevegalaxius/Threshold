@@ -183,6 +183,28 @@ function Rep.shipKilled(u, r, area)
 	elseif r and r.role == "pirate" then Rep.addStanding(u, Rep.ofArea(area), Rep.T.standingPirateKill) end
 end
 
+-- Helping, heard from the world's event log (src/simulation_history.lua):
+-- the ship you saved remembers it, and whoever owns the node where it
+-- happened saw it (a faction watches its own space).
+Rep.T.goodwillRescue = 35
+Rep.T.standingRescue = 3
+function Rep.onOutcome(u, e)
+	if e.kind == "rescued" and e.result and e.result.rescuer == "player" then
+		local victim = u.npcs and u.npcs[e.participants[1]]
+		Rep.addGoodwill(u, victim, Rep.T.goodwillRescue)
+		Rep.addStanding(u, e.node and Rep.ofNode(e.node) or Rep.ofArea(e.area), Rep.T.standingRescue)
+	end
+end
+-- Hook the listener once per game (the universe can be swapped on load).
+function Rep.listen(game)
+	Rep.game = game
+	if Rep.listening then return end
+	Rep.listening = require("src.events").on("simulation_outcome", function(e)
+		local g = Rep.game
+		if g and g.universe then Rep.onOutcome(g.universe, e) end
+	end)
+end
+
 -- Drop heat that has cooled all the way (keeps saves small).
 function Rep.prune(u)
 	local s = store(u)

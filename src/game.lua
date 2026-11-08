@@ -66,6 +66,7 @@ function Game.new(opts)
 	if opts.universe then self.universe = opts.universe else self:newUniverse() end
 
 	self:loadField(opts.field or Fields.start)
+	if not opts.preview then require("src.reputation").listen(self) end
 	return self
 end
 

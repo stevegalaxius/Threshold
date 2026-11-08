@@ -334,7 +334,7 @@ function E.update(game,clock)
      local fight=a.id..target.id..math.floor(clock/T.offlineEngageWindow)
      local roll=random({seed=(#fight*7919+math.floor(clock))%2147483647})
      local escape=pb.agility>pa.agility and math.min(T.offlineEscapeMax,(pb.agility/math.max(1e-6,pa.agility)-1)*T.offlineEscapeGain) or 0
-     History.begin(u,a.id,target.id,clock,a.area)
+     History.begin(u,a.id,target.id,clock,a.area,a.id)
      if roll<escape then
       require('src.alife_trace').note(target,clock,'encounter','outran '..a.id)
       -- outran: no shots fired; the pirate won't try this pair again this window
