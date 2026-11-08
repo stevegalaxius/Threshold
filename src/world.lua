@@ -412,9 +412,14 @@ function Game:saveState()
 	require("src.mining").captureResources(self)
 	self:captureALife(false)
 	self:captureArea()
-	if self.trip and self.trip.originScene then
-		self.trip.originScene:syncAreaMotion()
-		self.trip.originScene:captureArea()
+	-- the maps alive beside this one (src/transit.lua) are saved as they are
+	for _, side in ipairs(self:sideScenes()) do
+		local scene = side.scene
+		if not side.trail then
+			require("src.mining").captureResources(scene)
+			scene:captureALife(false)
+			scene:captureArea()
+		end
 	end
 	local stations = {}
 	for key, r in pairs(self.universe.stations) do
@@ -466,6 +471,10 @@ end
 
 function Game:loadState(state)
  state=require("src.world_migration").ids(state)
+ -- the maps kept alive beside a lane go with the game they belonged to
+ for _,side in ipairs(self:sideScenes()) do side.scene:releaseScene(true) end
+ self.trail=nil
+ if self.trip then self.trip.originScene,self.trip.dest,self.trip.returning=nil,nil,nil end
  -- Detach the outgoing scene while it still owns its universe. Capturing old
  -- bodies after installing the snapshot can overwrite incoming NPC/resource data.
  require('src.mining').unload(self)

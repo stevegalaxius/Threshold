@@ -106,9 +106,20 @@ T.laneEntrySpeed = 2600
 T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 20000
 -- share of the driver's speed you still have as you enter the lane
 T.laneKeep = 0.8
--- a level swap (into or out of a lane) hidden in the lane's glow: seconds
--- for it to wash over, and to clear once the new level is in (Game:coverThen)
+-- longest you coast on past the driver's coast, out to the map's edge,
+-- before the lane takes over (seconds)
+T.driverCoastMax = 4
+-- a cut that can't be avoided (fired at something solid, a map that
+-- couldn't be built ahead) hidden in the lane's glow: seconds for it to
+-- wash over, and to clear once the new level is in (Game:coverThen)
 T.laneCoverIn, T.laneCoverOut = 0.18, 0.55
+-- the map at a lane's far end is built ahead of you, a slice per frame
+-- (seconds of each frame it may take), starting this far from the end
+-- (px, on top of what's in view); the map you left goes once you're this
+-- far past its edge (px, on top of what's in view)
+T.laneStageBudget = 0.004
+T.laneStageAhead = 60000
+T.laneDropBehind = 8000
 -- fastest you come out of a lane into a site's pocket (at its spawn point)
 T.siteArriveSpeed = 600
 -- seconds over which lane drag comes back after you enter, so the kick

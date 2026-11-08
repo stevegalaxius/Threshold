@@ -332,10 +332,14 @@ function M.breakRock(game,e,pickup)
 end
 function M.materialize(game)
  if game.lane or game.flight then return end
- if not game.player or game.player.dead or game.player.removed or game.player.body:isDestroyed() then M.unload(game);return end
+ -- game.focus: a map built ahead of the player (Game:stepScene, the lane's
+ -- far end) streams in round where the player will come in
+ local focus=game.focus
+ if not focus and (not game.player or game.player.dead or game.player.removed or game.player.body:isDestroyed()) then M.unload(game);return end
  local state=M.state(game.universe)
  game.miningLive=game.miningLive or {}
- local px,py=game.player.body:getPosition()
+ local px,py
+ if focus then px,py=focus.x,focus.y else px,py=game.player.body:getPosition() end
  local function needed(x,y,range)
   if (x-px)^2+(y-py)^2<range^2 then return true end
   for id,e in pairs(game.alifeOnline or {}) do
@@ -355,7 +359,8 @@ function M.materialize(game)
  local cam=game.camera
  if cam and cam.zoom and cam.zoom>0 and love.graphics then
   local sw,sh=love.graphics.getDimensions()
-  local vx,vy=game.player.body:getLinearVelocity()
+  local vx,vy
+  if focus then vx,vy=focus.vx or 0,focus.vy or 0 else vx,vy=game.player.body:getLinearVelocity() end
   local view=math.sqrt(sw*sw+sh*sh)/2/cam.zoom+math.sqrt(vx*vx+vy*vy)*T.miningScan*2+600
   if view>near then near,far=view,view+(T.sleepFar-T.sleepNear) end
  end

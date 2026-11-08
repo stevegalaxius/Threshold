@@ -11,7 +11,11 @@ local Loose=require('src.loose')
 local Scavenge=require('src.scavenge')
 local O={}
 local function retained(game,area)
- return game.fieldId==area or game.trip and game.trip.originScene and game.trip.originScene.fieldId==area
+ if game.fieldId==area then return true end
+ for _,side in ipairs(game.sideScenes and game:sideScenes() or {}) do
+  if side.scene.fieldId==area then return true end
+ end
+ return false
 end
 local function sourceHold(game,wreck)
  if not wreck.lootHold then

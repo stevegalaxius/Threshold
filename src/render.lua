@@ -1356,7 +1356,8 @@ local function drawFieldWorld(game, F, px, py)
 end
 
 function Render.world(game, overlay, boundaryAngle)
-	local restorePreview = overlay and require("src.preview").begin(game)
+	-- (a live side scene is stepped, so its bodies are where they are)
+	local restorePreview = overlay and not game.live and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
 		Render.background(game.camera)
@@ -1364,15 +1365,24 @@ function Render.world(game, overlay, boundaryAngle)
 		drawGrid(game)
 		game.camera:release()
 	end
-	local trip = game.trip
-	if trip and trip.originScene and trip.origin then
-		local scene, o = trip.originScene, trip.origin
-		scene.time = game.time
-		scene.camera.x, scene.camera.y = game.camera.x - o.x, game.camera.y - o.y
-		scene.camera.zoom = game.camera.zoom
-		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		local ex,ey=game:fromLane(-game.lane.half,0)
-		Render.world(scene, true, math.atan2(ey-o.y,ex-o.x))
+	-- the maps alive beside this one (src/transit.lua): the one you left
+	-- behind the lane's mouth, the one ahead built for you to fly into, the
+	-- lane behind you once you're out of it. Each is drawn at its offset,
+	-- under this map's own things.
+	if not overlay and game.sideScenes then
+		for _, side in ipairs(game:sideScenes()) do
+			local scene = side.scene
+			scene.time = game.time
+			scene.camera.x, scene.camera.y = game.camera.x - side.x, game.camera.y - side.y
+			scene.camera.zoom = game.camera.zoom
+			scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
+			local angle
+			if game.lane and not side.trail then
+				local ex, ey = game:fromLane(side.origin and -game.lane.half or game.lane.half, 0)
+				angle = math.atan2(ey - side.y, ex - side.x)
+			end
+			Render.world(scene, true, angle)
+		end
 	end
 	game.camera:apply()
 	drawLocalBoundary(game,boundaryAngle)
