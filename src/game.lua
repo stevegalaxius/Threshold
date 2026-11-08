@@ -964,6 +964,12 @@ end
 -- also all the offline simulation can know about (it has no stations).
 function Game:stationHostile(st, o)
 	if o.kind ~= "ship" or o.dead or o.removed or o.dockState then return false end
+	-- the player: by standing with the owner and local heat (saved, so
+	-- it holds across saves and while you're away, cooling on the clock)
+	if o.isPlayer then
+		local Rep = require("src.reputation")
+		return Rep.hostile(Rep.stationAttitude(self.universe, st.key or st.locationId))
+	end
 	local g = st.grudge and st.grudge[o]
 	if g and self.time - g < GRUDGE_TIME then return true end
 	return o.team == 2 and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
@@ -1901,6 +1907,13 @@ function Game:damage(e, amount, source, cause, hx, hy)
 		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
 		e.grudge[source] = self.time
 	end
+	-- the player's aggression is remembered: heat at a station it shoots,
+	-- goodwill with the ship it shoots, standing with their faction
+	if e and source and source.isPlayer and amount > 0 and cause ~= "ram" and e ~= source then
+		local Rep = require("src.reputation")
+		if e.kind == "station" and e.weapons then Rep.stationHit(self.universe, e.key or e.locationId)
+		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId]) end
+	end
 	-- remember who starts shooting at other ships (stations answer it)
 	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
 		and cause ~= "ram" and source.team ~= e.team then
@@ -2206,6 +2219,7 @@ function Game:reap()
 				ALife.capture(self, e, false); ALife.detach(self,e,"dead")
 				local r=self.universe.npcs[e.alifeId]
 				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
+				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
 			end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()

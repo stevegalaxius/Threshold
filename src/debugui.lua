@@ -228,16 +228,29 @@ local function spawnSection(game)
 	-- station turrets: make every armed station angry at you (as if you'd
 	-- shot it), or forgive you
 	if game.player and not game.player.dead then
-		if Slab.Button("Stations hate me (30 s)") then
+		if Slab.Button("Stations hate me (heat)") then
 			for _, st in ipairs(game.entities) do
 				if st.grudge then st.grudge[game.player] = game.time end
+				if st.kind == "station" then require("src.reputation").addHeat(game.universe, st.key, 100) end
 			end
 		end
 		Slab.SameLine()
 		if Slab.Button("Forgive me") then
 			for _, st in ipairs(game.entities) do
 				if st.grudge then st.grudge[game.player] = nil end
+				if st.kind == "station" and game.universe.reputation then game.universe.reputation.heat[st.key] = nil end
 			end
+		end
+	end
+	-- reputation: standing with each faction, nudgeable
+	do
+		local Rep = require("src.reputation")
+		for _, f in ipairs(Rep.summary(game.universe)) do
+			Slab.Text(("%s: %d (%s)"):format(f.name, math.floor(f.value + 0.5), f.tier))
+			Slab.SameLine()
+			if Slab.Button("-10##rep" .. f.id) then Rep.addStanding(game.universe, f.id, -10) end
+			Slab.SameLine()
+			if Slab.Button("+10##rep" .. f.id) then Rep.addStanding(game.universe, f.id, 10) end
 		end
 	end
 	-- wrecks and props from data/ or the Shipyard (data.wrecks)

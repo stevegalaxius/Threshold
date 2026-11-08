@@ -429,7 +429,7 @@ function Game:saveState()
 	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
-		piracy = Persistence.copy(u.piracy), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
+		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
 		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
@@ -463,6 +463,7 @@ function Game:loadState(state)
 	self.universe.areas = Persistence.copy(state.areas or {})
 	self.universe.nextObjectId = state.nextObjectId or 0
 	self.universe.piracy = Persistence.copy(state.piracy)
+	self.universe.reputation = Persistence.copy(state.reputation)
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext
 	self.universe.simulationHistory = Persistence.copy(state.simulationHistory)

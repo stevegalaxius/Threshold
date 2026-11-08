@@ -57,7 +57,9 @@ function Game.stackValue(id, n, inner)
 	return v
 end
 
-function Game.buyPrice(s) local item=ShipEntry.item(s.id);return item and item.price or Game.stackValue(s.id,s.n,s.inner) end
+-- Game.priceFactor: the docked station's reputation discount or markup (src/reputation.lua), set by stationMarket.
+Game.priceFactor=1
+function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or Game.stackValue(s.id,s.n,s.inner))*Game.priceFactor) end
 function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(Game.stackValue(s.id,s.n,s.inner)*T.sellRate) end
 
 function Game:credits() return self.universe.credits end
@@ -159,6 +161,7 @@ end
 -- that stockpile, and what you sell goes to the shop you sold it to.
 function Game:stationMarket(st, i)
 	local r = self:stationRecord(st)
+	Game.priceFactor = require("src.reputation").priceFactor(self.universe, st.key or st.locationId)
 	i = i or self:currentShop(st)
 	r.shops = r.shops or {}
 	local m = r.shops[i]
