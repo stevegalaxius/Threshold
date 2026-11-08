@@ -450,10 +450,13 @@ end
 local function toTrade(L, r, s)
 	local trade
 	for _, side in ipairs(L.sides) do if side.trade then trade = side end end
-	local c = { id = s.id, n = s.n, inner = s.inner, shipRecord=s.shipRecord, resale = s.resale, wear = s.wear, owner = r.side.market and "station" or "player" }
+	-- the station's shelf stacks without limit: take one ordinary stack off it
+	local _, _, cap = Shapes.of(s.id)
+	local n = r.side.market and min(s.n, cap) or s.n
+	local c = { id = s.id, n = n, inner = s.inner, shipRecord=s.shipRecord, resale = s.resale, wear = s.wear, owner = r.side.market and "station" or "player" }
 	local grid=trade.hold.grids[c.owner=='station' and 2 or 1]
  if not Hold.placeStack({grids={grid}},c) then return false end
-	Grid.remove(r.g, s)
+	if n < s.n then s.n = s.n - n else Grid.remove(r.g, s) end
 	changed(r.side)
 	return true
 end
@@ -953,7 +956,9 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		quickMove(game, L, r, s)
 	elseif button == 1 then
 		local take = s.n
-		if shift and s.n > 1 then take = floor(s.n / 2) end
+		-- a shelf stack has no limit; you pick up one ordinary stack of it
+		if r.side.market then local _, _, cap = Shapes.of(s.id); take = min(take, cap) end
+		if shift and take > 1 then take = floor(take / 2) end
 		local hand = {
 			id = s.id, n = take, w = s.w, h = s.h, rot = s.rot, w0 = s.w, h0 = s.h, rot0 = s.rot, inner = s.inner, shipRecord=s.shipRecord,
 			dx = cx - s.x, dy = cy - s.y, side = r.side,

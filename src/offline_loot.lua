@@ -139,7 +139,7 @@ function O.update(game,r,clock)
  else
   if clock<(r.lootCheckAt or 0) then return false end
   r.lootCheckAt=clock+2
-  local x,y=require('src.alife').point(r,clock);local best=(salvager and T.salvagerRange or T.pirateLootRange)^2
+  local x,y=require('src.alife').point(r,clock);if not x then return false end;local best=(salvager and T.salvagerRange or T.pirateLootRange)^2
   for _,s in ipairs(sources) do
    local d=(s.x-x)^2+(s.y-y)^2
    if d<best and available(game,r,s) and canTake(game,dest,s) then best=d;source=s end
