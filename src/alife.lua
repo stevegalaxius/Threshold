@@ -763,7 +763,15 @@ function A.install(Game)
   local serviced=self.universe.npcs[e.alifeId]
   if serviced and serviced.service and Upkeep.isStation(serviced,station.locationId) then
    if not Upkeep.canDepart(self,e,serviced) then return false end
-   e.serviceDeparture=true;return true
+   -- The visit is done here: hand the route back now and plan the next
+   -- leg like any departure (its job may start right here). Ending it on
+   -- undock instead never fired: undocking wraps the live route index to
+   -- 1 first, so the ship flew its service leg again and redocked here,
+   -- 'heading to repair' for ever.
+   A.capture(self,e,false);e.serviceDockedAt=nil
+   serviced.index=#serviced.route;Upkeep.passed(serviced,#serviced.route)
+   -- still docked here, now as itself
+   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock
   end
   local r=self.universe.npcs[e.alifeId]
   if Mining.isMiner(r) and not r.worldRecovery then return Mining.depart(self,e,station) end
