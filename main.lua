@@ -232,6 +232,7 @@ end
 function love.keypressed(key)
 	if key == "f1" then Debug.toggle(); return end
 	if key == "f6" then Debug.toggleALife(); return end
+	if key == "f7" then require("src.profiler").toggle(require("src.game")); return end
 	if key=="f4" then Traffic.toggle(game);return end
 	if Traffic.keypressed(game,key) then return end
 	if Editor.keypressed(key) then return end
@@ -287,4 +288,13 @@ function love.wheelmoved(x, y)
 	if LocalMap.wheelmoved(game, y) then return end
 	if Cargo.wheelmoved(game,y) then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
+end
+
+-- F7 frame profiler: counts frames and draws on top of everything
+do
+	local draw = love.draw
+	function love.draw()
+		draw()
+		local P = require("src.profiler"); P.frame(); P.draw()
+	end
 end
