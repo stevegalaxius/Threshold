@@ -277,19 +277,30 @@ T.edgeBrake, T.edgeSoft, T.edgeDrift = 1.5, 3000, 40
 
 -- Surface drills emit bounded batches; both online and offline mining share them.
 T.drillIntervalMin,T.drillIntervalMax,T.drillCap=2.5,8,18
+T.drillStockCap=600 -- a drill stops while its station holds this much of its ore
 T.drillRockMin,T.drillRockMax=28,100
-T.drillSpeedMin,T.drillSpeedMax,T.drillSpread=420,950,.65
-T.miningSettleTime=6
-T.mineWorkAltitude=2600
-T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,.12
-T.miningOrbitDamping,T.miningOutwardRatio=.015,.07
+-- A drill fires each chunk straight out along its rail, inside a narrow
+-- cone (drillSpread, radians either side), and it brakes to a stop in the
+-- spoil field drillThrowMin..Max px past the muzzle (speed = distance x
+-- damping). Miners wait off to one side of that field (mineWorkSide) and
+-- go in once a chunk has settled, so nothing is ever fired at them.
+T.drillThrowMin,T.drillThrowMax,T.drillSpread=450,1150,.12
+T.miningSettleTime=3
+T.mineWorkAltitude=1500
+T.mineWorkSide=1100
+T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,1.1
+T.miningOrbitDamping=1.1
 T.miningScan,T.miningOfflineEvery=.5,12
 
 -- Bounded saved observations; quiet physical fights end after this interval.
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='water_ice',1200
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',6000
+T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
+T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
+T.fuelEmergency=2
+T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take   -- canisters an NPC running dry gets free at an empty station
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve

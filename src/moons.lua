@@ -33,7 +33,6 @@ return function(Game)
 function Game:spawnMoonGates()
 	self.moonGates = {}
 	local id, F = self.fieldId, self.field
-	if not F.planetR then return end
 	local function add(to, m)
 		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, length = m.gap })
 	end

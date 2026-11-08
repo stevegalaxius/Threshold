@@ -440,7 +440,7 @@ local function drawStation(game, e)
 			lg.push()
 			lg.translate(b.x, b.y)
 			lg.rotate(math.rad(b.heading))
-			local L, W = b.size, b.size * 0.55
+			local L, W = (b.maxLength or b.size * 2) / 2, (b.maxWidth or b.size * 1.1) / 2
 			lg.setColor(0.95, 0.75, 0.25, 0.35)
 			lg.rectangle("line", -L, -W, L * 2, W * 2)
 			local t = min(L, W) * 0.3

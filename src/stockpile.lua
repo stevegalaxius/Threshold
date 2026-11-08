@@ -32,9 +32,15 @@ function S.definition(st)
 end
 
 function S.shops(st)
- local mk=S.definition(st);local shops={};local supplied=false
+ local mk=S.definition(st);local shops={};local supplied,fueled=false,false
+ local fuel=require('src.reactor_fuel').item()
  local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
- for _,shop in ipairs(existing) do shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies' end
+ for _,shop in ipairs(existing) do
+  shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies'
+  fueled=fueled or not shop.unlimited and S.lists(shop,fuel)
+ end
+ -- the real fuel storefront, unless a shop here already stocks fuel
+ if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
  if not supplied then shops[#shops+1]=require('src.supplies').shop() end
  return shops
 end
@@ -86,6 +92,20 @@ function S.stock(u,st,i)
     local _,_,cap=Shapes.of(e[1]);stock[e[1]]=(stock[e[1]] or 0)+e[2]*cap
    end
   end
+  -- a station with Supplies opens with its fuel floor on hand
+  local fuel=require('src.reactor_fuel').item();local floor=require('src.economy').floor[fuel]
+  if floor and S.shopFor(key,fuel)==i and L.byId[key] and require('src.supplies').supports(key) then
+   stock[fuel]=math.max(stock[fuel] or 0,floor*2)
+  end
+  -- a new world opens part-stocked (a quarter to three quarters, fixed per
+  -- station and good), so stations are ordering from the first minutes
+  if not m.hold then
+   for id,n in pairs(stock) do
+    local h=0;local k=key..'|'..id
+    for c=1,#k do h=(h*31+k:byte(c))%1000003 end
+    stock[id]=math.floor(n*(.25+.5*(h%1000)/999))
+   end
+  end
   m.stock=stock
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]
@@ -110,20 +130,26 @@ function S.flow(u,key,i,m)
  local dt=now-last;if dt<=0 then return end
  local C=require('src.commodities')
  for _,c in ipairs(C.list) do
-  local rate=C.rate(c,place.area)
+  local rate=C.rate(c,key)*require('src.economy').scale(u,key,c)
   if rate~=0 and S.shopFor(key,c.item)==i then
    local stock=m.stock;local have=stock[c.item] or 0
    m.flowCarry=m.flowCarry or {}
    local carry=(m.flowCarry[c.item] or 0)+rate*dt/3600
    local whole=carry>=0 and math.floor(carry) or math.ceil(carry)
    if rate>0 then whole=math.max(0,math.min(whole,c.cap-have)) end
-   if rate>0 and c.input then
-    -- making it uses up its input from the same station's stock
-    local can=math.floor(S.count(u,key,c.input.item)/c.input.n)
-    if can<whole then whole=can;carry=whole end
-    if whole>0 then S.take(u,key,c.input.item,whole*c.input.n) end
+   local inputs=C.inputs(c)
+   if rate>0 and #inputs>0 then
+    -- making it uses up its inputs from the same station's stock
+    for _,input in ipairs(inputs) do
+     local can=math.floor(S.count(u,key,input.item)/input.n)
+     if can<whole then whole=can;carry=whole end
+    end
+    if whole>0 then for _,input in ipairs(inputs) do
+     S.take(u,key,input.item,whole*input.n);require('src.economy').consume(u,key,input.item,whole*input.n)
+    end end
    end
-   if rate<0 then whole=math.max(whole,-have) end
+   if rate<0 then whole=math.max(whole,-have);require('src.economy').consume(u,key,c.item,-whole) end
+   if rate>0 then require('src.economy').stat(u,'made',c.item,whole) end
    if rate>0 and have>=c.cap then carry=0 end
    m.flowCarry[c.item]=carry-whole
    have=have+whole
@@ -143,6 +169,7 @@ function S.add(u,st,id,n,i)
  return true
 end
 function S.take(u,st,id,n,i)
+ if n<=0 then return true end
  local stock=S.stock(u,st,i or S.shopFor(st,id))
  if not stock or (stock[id] or 0)<n then return false end
  stock[id]=stock[id]-n

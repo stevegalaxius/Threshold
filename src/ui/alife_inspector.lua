@@ -110,6 +110,22 @@ local function details(game)
   Slab.Text('Route: '..table.concat(parts,' > '))
   if r.state=='travel' or r.state=='transit' then Slab.Text(('Leg: %.0fs to go'):format(math.max(0,(r.arrive or 0)-game.universe.clock))) end
  end
+ -- current job: the task it holds (or last finished), and its inventory
+ local function place(id) return id and (L.byId[id] and L.byId[id].name or id) or '?' end
+ local t=r.task or r.suspendedTask
+ if t then
+  local what=t.item and ('%d %s'):format(t.amount or 0,data.items[t.item] and data.items[t.item].name or t.item) or ''
+  Slab.Text(('Job: %s %s  %s > %s  (%s%s%s)'):format(t.kind,what,place(t.source),place(t.target),
+   tostring(t.phase),t.order and ', station order' or '',r.suspendedTask and ', suspended' or ''))
+ else
+  local last=r.lastTask
+  Slab.Text('Job: none'..(last and ('   last: %s %s at %.0fs'):format(last.kind,tostring(last.status),last.clock) or ''))
+ end
+ local cargo=e and e.cargo or r.ship.cargo or {}
+ local items={}
+ for id,n in pairs(cargo) do if n>0 then items[#items+1]=('%s x%d'):format(data.items[id] and data.items[id].name or id,n) end end
+ table.sort(items)
+ Slab.Text('Inventory: '..(#items>0 and table.concat(items,', ') or 'empty'))
  if r.service then Slab.Text(('Service: %s at %s, then back to %s'):format(r.service.need,r.service.station,r.service.saved.route[r.service.saved.index] or '?')) end
  if r.distress then Slab.Text(('Distress: %s bringing %d fuel at %.0fs'):format(r.distress.helper,r.distress.amount,r.distress.at)) end
  local req=e and (e.asked or e.request)

@@ -62,8 +62,10 @@ function L.motionPosition(m, clock)
   local angle=-pi/2
   if m.home then local hx,hy=L.position(m.home,0);angle=math.atan2(hy-m.y,hx-m.x) end
   if m.planet then angle=angle+pi end
+  -- off to one side of the drill's spoil field, never in its line of fire
   local distance=m.radius+T.mineWorkAltitude
-  return m.x+cos(angle)*distance,m.y+sin(angle)*distance,angle
+  local side=T.mineWorkSide or 0
+  return m.x+cos(angle)*distance-sin(angle)*side,m.y+sin(angle)*distance+cos(angle)*side,angle
  end
 	if m.type == "cloud" then
 		local r = m.r + m.up * sin(clock / m.upPeriod * pi * 2 + m.phase)
@@ -164,7 +166,7 @@ function L.stationDefinition(id)
  return def
 end
 function L.stationServices(id)
- return require('src.station_services').get(L.stationDefinition(id))
+ return require('src.station_services').get(L.stationDefinition(id),L.byId[L.canonical(id)])
 end
 function L.buoyDefinition(id)
  local place=L.get(id)

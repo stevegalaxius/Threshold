@@ -37,7 +37,7 @@ Tasks.register('mine',{
   if node~=t.source then return false end
   local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
   if n<=0 then return false end
-  Jobs.deliver(u,node,t.item,n)
+  Jobs.deliver(u,node,t.item,n);require('src.economy').stat(u,'made',t.item,n)
   cargo[t.item]=nil
   if r.ship.hold then
    local h=Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
@@ -54,13 +54,14 @@ function M.ejecta(site,sequence)
  for i=1,#site.id do seed=(seed*31+site.id:byte(i))%2147483647 end
  local rng=love.math.newRandomGenerator(seed)
  local size=rng:random()
+ local throw=T.drillThrowMin+(T.drillThrowMax-T.drillThrowMin)*rng:random()
  return {radius=T.drillRockMin+(T.drillRockMax-T.drillRockMin)*size*size,
-  speed=T.drillSpeedMin+(T.drillSpeedMax-T.drillSpeedMin)*rng:random(),
+  speed=throw*T.miningChunkDamping,
   spread=(rng:random()*2-1)*T.drillSpread,
   spin=(rng:random()*2-1)*.12,angle=rng:random()*pi*2,
   delay=T.drillIntervalMin+(T.drillIntervalMax-T.drillIntervalMin)*rng:random()}
 end
-local function rigLength() return T.drillRockMax*2+20 end
+local function rigLength() return T.drillRockMax*3+40 end
 function M.chunkDamping(area)
  return Fields[area].planetR and T.miningOrbitDamping or T.miningChunkDamping
 end
@@ -102,6 +103,14 @@ function M.seed(game)
    r.archetype,r.speed=def.id,require('src.npc').cruise(def.id)
   end
  end
+ -- Drop sites whose source is gone (Ring Station's rocks moved to the
+ -- Quarry), or their rigs keep drawing and ejecting with nothing to mine.
+ for id in pairs(state.sites) do
+  if not L.byId[id] then state.sites[id]=nil end
+ end
+ for offerId,offer in pairs(Tasks.state(u).offers) do
+  if offer.kind=='mine' and not L.byId[offer.target] and not offer.owner then Tasks.state(u).offers[offerId]=nil end
+ end
  for _,area in ipairs(Fields.list) do
   local specs=Fields.miningSources(area);local f=Fields[area]
   if #specs>0 then
@@ -114,16 +123,18 @@ function M.seed(game)
      -- A surface drill sits away from the station's roof and docking approach.
      if s.planet then angle=angle+pi end
      state.sites[id]={id=id,area=area,x=s.x,y=s.y,radius=s.radius,planet=s.planet,
-      angle=angle,item=Ore.items.rock,
+      angle=angle,ore=s.ore or 'rock',item=Ore.items[s.ore or 'rock'],
       nextAt=u.clock+M.ejecta({id=id},1).delay,sequence=0,home=home}
 
     end
     local site=state.sites[id];site.home=L.get(id).motion.home
+    -- what the drill brings up follows the source (Ceres turned to ice)
+    site.ore=s.ore or 'rock';site.item=Ore.items[site.ore]
     if site.home and not f.instance then
      local count=0
      for offerId,offer in pairs(Tasks.state(u).offers) do
       if offer.kind=='mine' and offer.target==id then
-       if offer.source==site.home then count=count+1
+       if offer.source==site.home then count=count+1;offer.item=site.item
        elseif not offer.owner then Tasks.state(u).offers[offerId]=nil end
       end
      end
@@ -213,6 +224,19 @@ local function pointAtBody(site,game)
  end
  return site.x+nx*radius,site.y+ny*radius,nx,ny
 end
+-- Any ship in the drill's line of fire: the cone out from the muzzle to
+-- past the far end of the spoil field.
+local function lineOccupied(game,x,y,nx,ny)
+ local reach=rigLength()+T.drillThrowMax+T.drillRockMax*2+200
+ for _,e in ipairs(game.entities) do
+  if e.kind=='ship' and not e.dead and not e.removed and not e.dockState then
+   local ex,ey=e.body:getPosition();local dx,dy=ex-x,ey-y
+   local along=dx*nx+dy*ny;local across=math.abs(-dx*ny+dy*nx)
+   if along>-100 and along<reach and across<T.drillRockMax*2+(e.halfLength or 40)+along*T.drillSpread then return true end
+  end
+ end
+ return false
+end
 function M.produce(game,clock)
  local state=M.state(game.universe)
  local counts={}
@@ -221,24 +245,30 @@ function M.produce(game,clock)
   if clock>=site.nextAt then
    -- One irregular ejection, never a catch-up volley after travel or loading.
    local spec=M.ejecta(site,site.sequence+1)
-   site.nextAt=clock+spec.delay
+   -- a drill runs faster as the arbiter adds crews to dig for it
+   local crews=1+require('src.arbiter').extraMiners(site.area)/math.max(1,T.minersPerArea)
+   site.lastAt=clock;site.nextAt=clock+spec.delay/crews
    local count=(counts[id] or 0)<T.drillCap and 1 or 0
+   -- a drill idles while its station's shelf is full of what it digs and
+   -- nobody is buying: the arbiter's crews start it up again on demand
+   if site.home and site.item and require('src.stockpile').count(game.universe,site.home,site.item)>=T.drillStockCap then count=0 end
    local x,y,nx,ny=site.x+cos(site.angle)*site.radius,site.y+sin(site.angle)*site.radius,cos(site.angle),sin(site.angle)
-   if site.area==game.fieldId then x,y,nx,ny=pointAtBody(site,game) end
+   if site.area==game.fieldId then
+    x,y,nx,ny=pointAtBody(site,game)
+    -- hold fire while a ship is in the line of fire (miners going in to
+    -- pick up, or anyone flying past the muzzle)
+    if count>0 and lineOccupied(game,x,y,nx,ny) then count=0;site.nextAt=clock+1 end
+   end
    if count>0 then
     site.sequence=site.sequence+1
     local key=id..'/chunk/'..site.sequence
     local radius=spec.radius
-    local item,yield=Ore.drop('rock',radius)
-    local a=site.angle+spec.spread
+    local item,yield=Ore.drop(site.ore or 'rock',radius)
+    -- straight out along the rail; on a planet the throw is relative to
+    -- the local current, so the chunk settles into it where it stops
+    local a=math.atan2(ny,nx)+spec.spread
     local dx,dy=cos(a),sin(a)
-    if Fields[site.area].planetR then
-     -- Join the planet's clockwise flow. Variation changes orbital speed and
-     -- gentle outward drift, never the direction of a random radial spray.
-     local outward=T.miningOutwardRatio*(1+spec.spread*.25)
-     dx,dy=-ny+nx*outward,nx+ny*outward
-    end
-    state.resources[key]={id=key,site=id,area=site.area,kind='rock',item=item,yield=yield,
+    state.resources[key]={id=key,site=id,area=site.area,kind='rock',debris=site.ore or 'rock',item=item,yield=yield,
      x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
      vx=dx*spec.speed,vy=dy*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
      angle=spec.angle,spin=spec.spin,clock=clock,readyAt=clock+T.miningSettleTime,relativeFlow=true}
@@ -336,7 +366,7 @@ function M.materialize(game)
     if r.relativeFlow and not game.well then local fx,fy=game:flowAt(x,y);vx,vy=vx+fx,vy+fy end
     r.relativeFlow=nil
     if r.kind=='rock' then
-     local e=game:spawnAsteroid(x,y,r.radius,'rock',r.verts)
+     local e=game:spawnAsteroid(x,y,r.radius,r.debris or 'rock',r.verts)
      e.miningId,e.hp,e.drilled=r.id,r.hp,r.drilled;e.body:setAngle(r.angle);e.body:setAngularVelocity(r.spin)
      e.body:setLinearVelocity(vx,vy);e.body:setLinearDamping(M.chunkDamping(r.area))
      game.miningLive[id]={kind='rock',object=e}
@@ -629,44 +659,68 @@ function M.draw(game,px)
    if math.abs(x-cx)<love.graphics.getWidth()/game.camera.zoom and math.abs(y-cy)<love.graphics.getHeight()/game.camera.zoom then
     -- World-sized structure: the chute clears the largest ejected rock.
     -- Detail and line widths stay in world pixels rather than being enlarged.
+    -- A mass catapult: a dome over the bore, a drill derrick, and a launch
+    -- rail of coils that light one by one as the next shot charges, then
+    -- fire it along the rail. Ice rigs run cold blue, rock rigs amber.
     local length,hw=rigLength(),T.drillRockMax+18
+    local ice=site.ore=='ice'
+    local glow=ice and {.45,.85,1} or {1,.7,.3}
+    local clock=game.universe.clock
+    local last=site.lastAt or (site.nextAt-T.drillIntervalMax)
+    local charge=max(0,min(1,(clock-last)/max(.01,site.nextAt-last)))
+    local fired=max(0,1-(clock-last)/.35)
     lg.push('all');lg.translate(x,y);lg.rotate(math.atan2(ny,nx))
     lg.setLineWidth(max(px,1.5))
-    lg.setColor(.22,.25,.28)
-    lg.polygon('fill',-28,-hw-26,16,-hw-26,32,-hw+10,32,hw-10,16,hw+26,-28,hw+26)
-    lg.setColor(.34,.39,.43)
-    lg.polygon('fill',8,-hw,76,-hw,98,-hw+22,98,hw-22,76,hw,8,hw)
-    lg.setColor(.57,.62,.64)
-    lg.polygon('line',8,-hw,76,-hw,98,-hw+22,98,hw-22,76,hw,8,hw)
-    -- Open conveyor/ejector bed, with structural rails and braces.
-    lg.setColor(.12,.15,.18);lg.rectangle('fill',48,-hw+12,length-48,hw*2-24)
-    for j=0,5 do
-     local bx=60+j*(length-76)/5
-     lg.setColor(.39,.44,.47);lg.rectangle('fill',bx,-hw+17,7,hw*2-34)
-    end
-    lg.setColor(.62,.66,.68)
-    lg.rectangle('fill',46,-hw,length-46,10);lg.rectangle('fill',46,hw-10,length-46,10)
-    lg.setColor(.32,.37,.4)
-    lg.polygon('fill',40,-hw-8,length-18,-hw-8,length,-hw,40,-hw)
-    lg.polygon('fill',40,hw, length,hw,length-18,hw+8,40,hw+8)
-    -- Separate drives and warning markings retain ship-scale detail.
+    -- footing and dome over the bore
+    lg.setColor(.2,.23,.26)
+    lg.polygon('fill',-40,-hw-60,10,-hw-44,10,hw+44,-40,hw+60)
+    lg.setColor(.3,.34,.38);lg.arc('fill',0,0,hw+30,-pi/2,pi/2,24)
+    lg.setColor(.55,.6,.64);lg.arc('line',0,0,hw+30,-pi/2,pi/2,24)
+    -- derrick: a lattice tower off to one side of the rail
+    local tx=hw*.2
+    lg.setColor(.45,.5,.54)
     for _,side in ipairs({-1,1}) do
-     lg.setColor(.46,.5,.52);lg.rectangle('fill',18,side*(hw-27)-12,40,24)
-     lg.setColor(.92,.64,.22)
-     for j=0,3 do lg.rectangle('fill',24+j*8,side*(hw+5)-3,4,6) end
+     local y0=side*(hw+18)
+     lg.line(tx,y0,tx+70,y0+side*70);lg.line(tx+44,y0,tx+70,y0+side*70)
+     for k=1,3 do local f=k/4;lg.line(tx+f*70,y0+side*f*70,tx+44+f*26,y0+side*f*70) end
+     lg.setColor(1,.3,.25);lg.circle('fill',tx+70,y0+side*70,4,8);lg.setColor(.45,.5,.54)
     end
-    lg.setColor(.13,.17,.19);lg.rectangle('fill',16,-30,26,60)
-    lg.setColor(.6,.65,.68)
-    for j=0,4 do lg.line(20,-23+j*11,38,-23+j*11) end
-    lg.setColor(.4,1,.55);lg.circle('fill',29,-43,3,8)
-    lg.setColor(1,.65,.2);lg.circle('fill',length-8,-hw-4,3,8);lg.circle('fill',length-8,hw+4,3,8)
+    -- the rail: two bars and a dark bore between them
+    local r0,r1=hw+20,length
+    lg.setColor(.1,.12,.14);lg.rectangle('fill',r0,-hw*.55,r1-r0,hw*1.1)
+    lg.setColor(.58,.63,.66)
+    lg.rectangle('fill',r0,-hw*.55-10,r1-r0,10);lg.rectangle('fill',r0,hw*.55,r1-r0,10)
+    -- coils: each lights when the charge passes it, all flare when it fires
+    local n=7
+    for k=0,n-1 do
+     local cx=r0+18+k*(r1-r0-36)/(n-1)
+     local lit=charge*n>k and .35+.65*min(1,charge*n-k) or 0
+     lit=max(lit,fired)
+     lg.setColor(.26,.3,.33);lg.rectangle('fill',cx-9,-hw*.55-22,18,hw*1.1+44)
+     if lit>0 then
+      lg.setColor(glow[1],glow[2],glow[3],lit)
+      lg.rectangle('fill',cx-5,-hw*.55-18,10,8);lg.rectangle('fill',cx-5,hw*.55+10,10,8)
+      lg.setColor(glow[1],glow[2],glow[3],lit*.18);lg.rectangle('fill',cx-9,-hw*.55,18,hw*1.1)
+     end
+    end
+    -- the round sitting in the breech, and the muzzle flash after a shot
+    if charge>.15 and fired<=0 then
+     lg.setColor(ice and {.6,.78,.88} or {.42,.38,.34});lg.circle('fill',r0+30,0,min(hw*.45,28),10)
+    end
+    if fired>0 then
+     lg.setColor(glow[1],glow[2],glow[3],fired*.8)
+     lg.polygon('fill',r1,-hw*.5,r1+90*fired+20,0,r1,hw*.5)
+    end
+    -- muzzle beacons
+    lg.setColor(glow);lg.circle('fill',r1-6,-hw*.55-14,4,8);lg.circle('fill',r1-6,hw*.55+14,4,8)
     lg.pop()
    end
   end
  end
 end
 Population.register('miner',{
- target=function(f,area) return #f.drillIds>0 and L.station(area,'mining') and T.minersPerArea end,
+ -- a base crew, plus whatever the arbiter says unmet ore orders need
+ target=function(f,area) return #f.drillIds>0 and L.station(area,'mining') and T.minersPerArea+require('src.arbiter').extraMiners(area) end,
  nodes=function(game,area) return Fields[area].drillIds end,
  create=function(game,area,node,clock) return M.create(game,area,clock) end,
 })

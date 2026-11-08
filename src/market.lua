@@ -89,7 +89,8 @@ end
 -- storage) is always there. Returns a set: { market = true, ... }.
 Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
 function Game.stationServices(st)
- return require('src.station_services').get(st and st.def)
+ local L=require('src.locations');local id=st and (st.locationId or st.key)
+ return require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
 end
 
 -- Repairs: credits per armor point here, and what fixing a ship costs.

@@ -94,11 +94,14 @@ local function burn(e,need)
 end
 -- Both physical flight and remote estimates use this energy balance. Idle
 -- reactors throttle down at full capacitor; movement creates electrical demand.
+-- moving is true/1 for the main drive, a fraction for a lighter load (turning
+-- in place); modules' standing draw is scaled by T.idleDrain.
 function F.step(e,s,dt,moving,work)
  if dt<=0 then return 1,0 end
  work=math.max(0,work or 0)
- local passive=math.max(0,s.powerDraw)*dt
- local drive=moving and math.max(1,s.powerNet*(1-T.thrustRecharge))*dt or 0
+ local passive=math.max(0,s.powerDraw)*T.idleDrain*dt
+ local load=moving==true and 1 or type(moving)=='number' and moving or 0
+ local drive=load>0 and math.max(1,s.powerNet*(1-T.thrustRecharge))*load*dt or 0
  local request=math.min(math.max(0,s.powerOut)*dt,passive+drive+work+math.max(0,s.powerCap-e.power))
  local generated=burn(e,request)
  e.reactorOutput=generated/dt

@@ -21,10 +21,18 @@ function P.target(area,role)
  if not f or f.instance or f.transit or not def then return 0 end
  return def.target(f,area) or 0
 end
+-- Traders are free agents: they count where they are, not where they
+-- first arrived, so an area its ships have left gets new ones.
+function P.where(r) return r.role=='trader' and (r.area or r.home) or r.home end
+function P.total(u,role)
+ local n=0
+ for _,r in pairs(u.npcs or {}) do if r.role==role and r.state~='dead' and r.state~='escaped' then n=n+1 end end
+ return n
+end
 function P.count(u,area,role)
  local n=0
  for _,r in pairs(u.npcs or {}) do
-  if r.home==area and r.role==role and r.state~='dead' and r.state~='escaped' then n=n+1 end
+  if P.where(r)==area and r.role==role and r.state~='dead' and r.state~='escaped' then n=n+1 end
  end
  return n
 end
@@ -93,7 +101,9 @@ function P.spawn(game,area,role,nearPlayer)
   for _=1,20 do
    local a=love.math.random()*math.pi*2;local distance=200+love.math.random()*500
    local sx,sy=nx+math.cos(a)*distance,ny+math.sin(a)*distance
-   if sx*sx+sy*sy<(game.arenaRadius-200)^2 and clearArrival(game,sx,sy,150) then x,y=sx,sy;break end
+   -- never inside the planet (or its pull zone): stations ring it closely
+   local w=game.well;local surface=w and w.radius+math.min(T.surfacePullRange,w.radius*.5)+300 or 0
+   if sx*sx+sy*sy<(game.arenaRadius-200)^2 and sx*sx+sy*sy>surface*surface and clearArrival(game,sx,sy,150) then x,y=sx,sy;break end
   end
   if not x then return nil,'No clear space for an NPC arrival.' end
  end
@@ -120,7 +130,7 @@ function P.update(game,clock)
  local u=game.universe;local counts={}
  for _,r in pairs(u.npcs) do
   if r.state~='dead' and r.state~='escaped' then
-   local key=r.home..'/'..r.role;counts[key]=(counts[key] or 0)+1
+   local key=P.where(r)..'/'..r.role;counts[key]=(counts[key] or 0)+1
   end
  end
  for _,area in ipairs(Fields.list) do
@@ -130,7 +140,9 @@ function P.update(game,clock)
     local timer=timers[role]
     if timer and clock>=timer.nextAt then
      timer.sequence=timer.sequence+1;timer.nextAt=clock+delay(area,role,timer.sequence)
-     if (counts[area..'/'..role] or 0)<P.target(area,role) then P.spawn(game,area,role,false) end
+     local def=P.roles[role]
+     -- a role with a world-wide budget (traders) also stops at that
+     if (counts[area..'/'..role] or 0)<P.target(area,role) and (not def.budget or P.total(u,role)<def.budget()) then P.spawn(game,area,role,false) end
     end
    end
   end

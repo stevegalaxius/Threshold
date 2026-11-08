@@ -165,6 +165,7 @@ end
 
 function A.seed(game)
  local u=game.universe
+ require('src.supplies').universe=u
  u.npcs=u.npcs or {}; u.npcAreas=u.npcAreas or {}; u.nextNpcId=u.nextNpcId or 0
  Reconcile.prepare(game,start)
  -- All populations exist before visiting their regions. Do not refill departed
@@ -788,6 +789,9 @@ function A.install(Game)
   Population.update(self,clock)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
+  require('src.supplies').universe=self.universe
+  require('src.arbiter').update(self.universe,clock)
+  require('src.economy').update(self.universe,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
@@ -855,7 +859,18 @@ function A.install(Game)
  end
 end
 Population.register('trader',{
- target=function(f,area) return L.station(area,'trade') and f.alifeTraders end,
+ -- the area's base, plus whatever the arbiter says its open hauls need
+ target=function(f,area) return L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) end,
+ -- the whole fleet stays within the areas' bases plus the arbiter's extras,
+ -- however the free agents have spread out
+ budget=function()
+  local n=0
+  for _,area in ipairs(Fields.list) do
+   local f=Fields[area]
+   if not f.instance and not f.transit and L.station(area,'trade') and f.alifeTraders then n=n+f.alifeTraders+require('src.arbiter').extraTraders(area) end
+  end
+  return n
+ end,
  nodes=function(game,area)
   local f=Fields[area]
   return #f.buoyIds>0 and f.buoyIds or f.stationIds

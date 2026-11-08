@@ -805,6 +805,9 @@ end
 function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
+	-- Box2D puts a body turning slower than about 0.035 rad/s to sleep,
+	-- which zeroes its spin: a slow wheel would stop dead after half a second
+	body:setSleepingAllowed(false)
 	body:setAngle(random() * pi * 2)
 	body:setAngularVelocity(def.rotors and 0 or spin or 0.04)
 	-- Authored stations receive an explicit location ID below. Runtime
@@ -848,6 +851,7 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 			local px, py = r.x or 0, r.y or 0
 			local rb = love.physics.newBody(self.world, body:getWorldPoint(px, py))
 			rb:setType("kinematic")
+			rb:setSleepingAllowed(false)
 			rb:setUserData(e)
 			for _, part in ipairs(def.rotorParts[name]) do
 				if part.collide ~= false then solid(rb, part, px, py) end
@@ -1422,15 +1426,30 @@ function Game:updateOrbits(dt)
 				if e.kind == "station" then
 					local want = Locations.heading(e.locationId, self.universe.clock)
 					local diff = (want - e.body:getAngle() + pi) % (2 * pi) - pi
-					e.body:setAngularVelocity(diff / dt)
+					if math.abs(diff) > 0.05 then
+						-- far off its heading (built for another clock, e.g. on
+						-- load): snap to it. Turning there in one step spun the
+						-- station so fast its hull hit docked ships at 150,000 px/s.
+						e.body:setAngle(want)
+						e.body:setAngularVelocity(0)
+					else
+						e.body:setAngularVelocity(diff / dt)
+					end
 				end
 			else
 				o.angle = o.angle + o.rate * dt
 				tx, ty = o.cx + cos(o.angle) * o.r, o.cy + sin(o.angle) * o.r
 			end
 			local x, y = e.body:getPosition()
-			-- velocity that lands it exactly on the track this step
-			e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+			if (tx - x) ^ 2 + (ty - y) ^ 2 > 200 ^ 2 then
+				-- far off its track: jump there rather than close the gap in
+				-- one step at an enormous speed
+				e.body:setPosition(tx, ty)
+				e.body:setLinearVelocity(0, 0)
+			else
+				-- velocity that lands it exactly on the track this step
+				e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+			end
 		end
 	end
 end
