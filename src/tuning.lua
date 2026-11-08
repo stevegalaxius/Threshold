@@ -126,6 +126,9 @@ T.siteArriveSpeed = 600
 -- out (px; past what's in view at the widest zoom, so a lane leaving the
 -- map takes over out of sight) and how thick (rocks per 100M px^2)
 T.mapOuter = 16000
+-- share of a map's radius, in from its edge, over which the current eases
+-- off to nothing (so it's still at the edge and beyond)
+T.edgeCurrentFade = 0.3
 T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road

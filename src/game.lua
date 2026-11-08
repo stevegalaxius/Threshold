@@ -502,7 +502,8 @@ end
 
 -- A random kind from a mix of weights ({ rock = 5, ice = 2, ... }).
 -- The map doesn't stop at its edge: a ring of loose rock carries on past
--- it (T.mapOuter wide, thinning out), riding the same current, so flying
+-- it (T.mapOuter wide, thinning out), lying still where the current has
+-- died away (Game:currentSpeed), so flying
 -- out to the edge, or out of a driver, there's still something around you,
 -- and a lane leaving the map picks up where it ends (src/transit.lua).
 function Game:spawnOuterBelt()
@@ -520,8 +521,7 @@ function Game:spawnOuterBelt()
 		if self:isClear(x, y, r + 40) then
 			local e = self:spawnAsteroid(x, y, r, self:pickDebris(f.mix))
 			e.outer = true
-			local v = self:currentSpeed(d)
-			e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+			e.body:setLinearVelocity(0, 0)
 		end
 	end
 end
@@ -701,7 +701,14 @@ end
 function Game:currentSpeed(r)
 	local w = self.well
 	if not w then return 0 end
-	return w.flow * min(1, w.radius / 6000) * sqrt(w.radius / max(r, w.radius)) * T.currentScale
+	-- easing off to a standstill over the outer part of the map, so past
+	-- its edge (the rock carrying on there, src/game.lua spawnOuterBelt,
+	-- and the lanes beyond) nothing moving still looks right
+	local R = self.arenaRadius or r
+	local band = R * T.edgeCurrentFade
+	local k = band > 0 and max(0, min(1, (R - r) / band)) or 1
+	k = k * k * (3 - 2 * k)
+	return w.flow * min(1, w.radius / 6000) * sqrt(w.radius / max(r, w.radius)) * T.currentScale * k
 end
 
 -- The current's velocity at (x, y): along the tangent, clockwise on screen.
