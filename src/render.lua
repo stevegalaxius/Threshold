@@ -659,15 +659,7 @@ local function drawLane(game)
 	if #pts < 4 then return end
 	-- the road fades out over its last stretch as the planet comes up
 	local fade = max(0, min(1, (lane.half - cs) / 15000))
-	lg.setBlendMode("add")
-	local bands = 6
-	for k = bands, 1, -1 do
-		local half = W + T.laneRamp * (k - 1) / bands
-		lg.setColor(0.35, 0.6, 0.9, (k == 1 and 0.05 or 0.018) * fade)
-		lg.setLineWidth(half * 2)
-		lg.line(pts)
-	end
-	lg.setBlendMode("alpha")
+	-- (no glow under the road: the lane is just space, and its rocks)
 	-- the far end
 	if lane.half - cs < view then
 		local x1, y1 = game:fromLane(lane.half, -W)
