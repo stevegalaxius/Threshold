@@ -145,7 +145,7 @@ function O.hasLoot(game,r,clock)
  local range=Scavenge.range(Scavenge.profile(r))^2
  for _,source in ipairs(candidates(game,r,clock)) do
   local prof=Scavenge.profile(r)
-  if ((source.x-x)^2+(source.y-y)^2<=range or clearable(prof,source)) and available(game,r,source)
+  if (source.x-x)^2+(source.y-y)^2<=range and available(game,r,source)
    and (canTake(game,dest,source) or clearable(prof,source) and bare(game,source)) then return true end
  end
  return false
@@ -174,8 +174,7 @@ function O.update(game,r,clock)
   local reach,best=Scavenge.range(prof)^2,math.huge
   for _,s in ipairs(sources) do
    local d=(s.x-x)^2+(s.y-y)^2
-   -- loose cargo only in reach; a clean-up crew goes anywhere in the area for a wreck
-   if d<best and (d<reach or clearable(prof,s)) and available(game,r,s)
+   if d<best and d<reach and available(game,r,s)
     and (canTake(game,dest,s) or clearable(prof,s) and bare(game,s)) then best=d;source=s end
   end
   if not source then return false end
