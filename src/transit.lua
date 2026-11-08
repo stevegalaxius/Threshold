@@ -651,10 +651,20 @@ function Game:arrive(back)
 		local keep = min(sp, T.siteArriveSpeed or 600)
 		at = { x = F.spawn[1], y = F.spawn[2], angle = a, vx = cos(a) * keep, vy = sin(a) * keep }
 	else
-		at = { driver = from, exit = self:laneExit(back) }
+		local exit = self:laneExit(back)
+		exit.free, exit.continuous = true, true
+		at = { driver = from, exit = exit }
 	end
+	-- the camera keeps its offset from the ship across the swap
+	local px, py = p.body:getPosition()
+	local camDX, camDY = self.camera.x - px, self.camera.y - py
 	self:loadField(to, { player = ship, at = at })
 	if at.x then self.player.laneFade = 1 end
+	local np = self.player
+	if np and np.body then
+		local nx, ny = np.body:getPosition()
+		self.camera.x, self.camera.y = nx + camDX, ny + camDY
+	end
 end
 
 -- How you come out of the lane: pointing and moving exactly as you were,
@@ -664,8 +674,16 @@ function Game:laneExit(back)
 	local p = self.player
 	local vx, vy = p.body:getLinearVelocity()
 	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy, spin = p.body:getAngularVelocity(), moon = self.trip and self.trip.moon }
-	if back and self.trip and self.trip.origin then
-		local px, py = p.body:getPosition()
+	local px, py = p.body:getPosition()
+	if not back and self.lane then
+		-- where you are relative to the far planet's centre, taken to sit
+		-- straight on past the lane's end, so you come in on the same line
+		local lane, F = self.lane, Fields[self.trip.to]
+		local ex, ey = self:fromLane(lane.half, 0)
+		local phi = self:laneHeading(lane.half)
+		local d = (F and F.radius or 10000) - 1500
+		exit.ox, exit.oy = px - (ex + cos(phi) * d), py - (ey + sin(phi) * d)
+	elseif back and self.trip and self.trip.origin then
 		exit.ox, exit.oy = px - self.trip.origin.x, py - self.trip.origin.y
 		exit.free = true   -- put back exactly there, even past the map's edge
 	end

@@ -1795,27 +1795,22 @@ function Game:step(dt)
 	elseif self.pendingGate then
 		local gate = self.pendingGate
 		self.pendingGate = nil
-		self:coverThen(function() self:throughGate(gate) end)
+		self:throughGate(gate); self.resetClock = true
 	elseif self.pendingSite then
 		local s = self.pendingSite
 		self.pendingSite = nil
-		self:coverThen(function() self:enterSite(s.id, s.bearing) end)
+		self:enterSite(s.id, s.bearing); self.resetClock = true
 	elseif self.pendingFlight then
 		local to = self.pendingFlight
 		self.pendingFlight = nil
 		-- the highway, or the warp trip and the catch (debug panel picks)
-		self:coverThen(function()
-			if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
-		end)
+		if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
+		self.resetClock = true
 	elseif self.pendingArrive then
 		local back = self.pendingArrive == "back"
 		self.pendingArrive = nil
-		local t = self.trip
-		if back and t and t.originScene and t.origin then
-			self:arrive(true)   -- adopted as it is: nothing to hide
-		else
-			self:coverThen(function() self:arrive(back) end)
-		end
+		self:arrive(back)
+		self.resetClock = true
 	end
 end
 
