@@ -261,7 +261,10 @@ local function journeyPoint(r,p,clock)
  -- A per-ship offset spreads traffic across the corridor without adding nodes.
  -- Keep it in the record so repeated sampling and save/load never reshuffle it.
  if r.spread==nil then r.spread=(love.math.random()*2-1)*T.alifeSpread end
- local leg=edge(r);local g=graph(r.area)
+ local leg=edge(r)
+ -- a record with no area of its own (between areas, or one that no longer
+ -- exists) is drawn on the graph of where its leg is going
+ local g=Fields[r.area or ''] and graph(r.area) or graph(L.get(leg.to).area)
  -- A leg that crosses regions (a stale route) is drawn on the graph that
  -- holds both ends, or at its destination, instead of crashing.
  if not (g.nodes[leg.from] and g.nodes[leg.to]) then

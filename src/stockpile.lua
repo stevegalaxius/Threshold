@@ -190,6 +190,14 @@ function S.syncShelf(hold,stock,away)
  for id in pairs(ids) do
   if data.items[id] then
    local want=math.max(0,(stock[id] or 0)-(away and away[id] or 0))
+   -- fold a shelf from before unlimited stacks into one stack per item
+   local first
+   for _,g in ipairs(hold.grids) do for k=#g.stacks,1,-1 do
+    local s=g.stacks[k]
+    if s.id==id and not s.resale and not s.inner then
+     if first then first.n=first.n+s.n;Grid.remove(g,s) else first=s end
+    end
+   end end
    local have=shelfCount(hold,id)
    if have>want then
     for _,g in ipairs(hold.grids) do for k=#g.stacks,1,-1 do
@@ -202,12 +210,13 @@ function S.syncShelf(hold,stock,away)
     end end
    end
    if have<want then
-    local _,_,cap=Shapes.of(id)
-    while have<want do
-     local n=math.min(cap,want-have)
-     if not Hold.placeStack(hold,{id=id,n=n}) then break end
-     have=have+n
-    end
+    -- the shelf stacks without limit: one stack per item, topped up
+    local top
+    for _,g in ipairs(hold.grids) do for _,s in ipairs(g.stacks) do
+     if not top and s.id==id and not s.resale and not s.inner then top=s end
+    end end
+    if top then top.n=top.n+(want-have)
+    else Hold.placeStack(hold,{id=id,n=want-have}) end
    end
   end
  end
