@@ -87,11 +87,7 @@ salvage { id = "hull_alloy",  name = "Salvaged hull alloy", volume = 0.25, mass 
 -- it, if it's empty and your hold has room). body is its size in pixels.
 container { id = "cargo_container", name = "Cargo container", maker = "Ferrous Collective",
 	volume = 40, mass = 4, price = 1200, w = 8, h = 5, grid = { 8, 4 }, hp = 90, body = { 46, 28 },
-	fill = {
-		{ "rounds_s", 20, 120, 0.6 }, { "rounds_m", 20, 80, 0.5 },
-		{ "shell_s", 4, 18, 0.35 }, { "missile_s", 2, 8, 0.3 },
-		{ "scrap", 2, 12, 0.7 }, { "salvage_kit", 1, 4, 0.4 },
-	} }
+	lootTable = "lost_cargo" }
 
 -- Countermeasure flares: a flare pod fires them on its own when a missile
 -- closes in (src/weapons.lua).

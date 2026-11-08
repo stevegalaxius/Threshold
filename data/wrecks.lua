@@ -10,7 +10,7 @@
 	  loot   { { item, min, max, chance }, ... } rolled when it spawns
 ]]
 
-wreck {
+container {
 	id = "derelict_tug", name = "Derelict tug",
 	armor = 260, hold = 16, mass = 140,
 	parts = {

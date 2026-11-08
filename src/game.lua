@@ -1562,11 +1562,7 @@ function Game:spawnContainer(x, y, id, loaded, inner)
 		w = w, h = h, radius = sqrt(w * w + h * h) / 2, halfLength = w / 2, hp = item.hp,
 	}
 	if loaded then
-		local counts = {}
-		for _, f in ipairs(item.fill) do
-			if random() < (f[4] or 1) then counts[f[1]] = (counts[f[1]] or 0) + random(f[2], f[3]) end
-		end
-		Hold.fill(hold, counts, { random = random })
+		Hold.fill(hold, require("src.loot_tables").fill(item, { area = self.fieldId }, nil, nil) , { random = random })
 	end
 	e.loot = Hold.totals(hold)
 	local f = love.physics.newFixture(body, love.physics.newRectangleShape(w, h), 1)
@@ -1593,16 +1589,17 @@ function Game:containerMass(e)
 	e.massDirty = nil
 end
 
--- A few loaded containers drifting loose somewhere in the field.
+-- The area's containers: its spawn sets (data/spawn_sets.lua, src/spawn.lua),
+-- placed past minD. n is ignored now; the sets say how many.
 function Game:spawnContainers(n, minD)
-	minD = minD or 600
-	for _ = 1, n * 10 do
-		if n <= 0 then break end
-		local a = random() * pi * 2
-		local d = minD + random() * (self.arenaRadius - minD - 300)
-		local x, y = cos(a) * d, sin(a) * d
-		if self:isClear(x, y, 80) then self:spawnContainer(x, y, nil, true); n = n - 1 end
-	end
+	require("src.spawn").baseline(self, minD or 600)
+end
+
+-- Put rolled loot (item = count) into a container's hold.
+function Game:fillContainer(e, counts)
+	Hold.fill(e.hold, counts, { random = random })
+	e.loot = Hold.totals(e.hold)
+	self:containerMass(e)
 end
 
 -- Looting: while a wreck or container is open in the cargo screen
@@ -2362,16 +2359,12 @@ end
 
 -- A placed wreck or prop (data.wrecks): rolls its loot table, then becomes
 -- a husk like a dead ship's, so it drifts, loots and breaks apart the same.
-function Game:spawnWreck(id, x, y, a, vx, vy)
+-- A container (or prop) drawn in the Shipyard, filled from its loot table
+-- or the one given (lootTable).
+function Game:spawnWreck(id, x, y, a, vx, vy, lootTable)
 	local def = data.wrecks[id]
 	if not def then return nil end
-	local cargo = {}
-	for _, l in ipairs(def.loot) do
-		local item, lo, hi, chance = l[1], l[2] or 1, l[3] or l[2] or 1, l[4] or 1
-		if data.items[item] and random() < chance then
-			cargo[item] = (cargo[item] or 0) + random(lo, math.max(lo, hi))
-		end
-	end
+	local cargo = def.kind == "prop" and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
 	-- a stand-in for the ship a husk normally comes from
 	local noseX, tailX = 0, 0
 	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end

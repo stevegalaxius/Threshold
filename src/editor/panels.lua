@@ -67,7 +67,7 @@ end
 
 local CATEGORIES = {
 	{ "hull", "Ships", "Hulls you can fly" },
-	{ "wreck", "Wrecks", "Derelicts and props placed in the world" },
+	{ "wreck", "Containers", "Containers and props placed in the world" },
 	{ "station", "Stations", "Station layouts" },
 	{ "weapon", "Weapons", "Guns, launchers and bays: stats and art" },
 }
@@ -320,9 +320,24 @@ local function placedSections(E, d)
 		end
 		Slab.EndTree()
 	end
-	if d.kind ~= "wreck" then return end
+	if d.kind ~= "container" and d.kind ~= "wreck" then return end
 	d.loot = d.loot or {}
-	if Slab.BeginTree("yard_loot", { Label = ("Loot table (%d)"):format(#d.loot) }) then
+	-- a named loot table (data/loot_tables.lua), else the list below
+	local tables = { { label = "(own list below)", value = false } }
+	for _, id in ipairs(data.list.lootTables) do table.insert(tables, { label = id, value = id }) end
+	Slab.Text("Loot table")
+	Slab.SameLine()
+	combo("yard_loottable", d.lootTable or "(own list below)", tables, function(id) E.pushUndo(); d.lootTable = id or nil end, 170)
+	if Slab.Button("Roll preview", { Tooltip = "Roll this container's loot once, as it would spawn here" }) then
+		local LT = require("src.loot_tables")
+		local got = LT.fill({ lootTable = d.lootTable, loot = d.loot }, { area = E.game and E.game.fieldId })
+		local parts = {}
+		for id, n in pairs(got) do parts[#parts + 1] = ("%d %s"):format(n, data.items[id] and data.items[id].name or id) end
+		table.sort(parts)
+		E.lootPreview = #parts > 0 and table.concat(parts, ", ") or "nothing"
+	end
+	if E.lootPreview then Slab.Text(E.lootPreview, { Color = { 0.7, 0.8, 0.7 } }) end
+	if not d.lootTable and Slab.BeginTree("yard_loot", { Label = ("Own loot list (%d)"):format(#d.loot) }) then
 		Slab.Text("item, min, max, chance (0-1) per spawn", { Color = { 0.6, 0.6, 0.6 } })
 		local items = {}
 		for _, id in ipairs(data.list.items) do table.insert(items, { label = data.items[id].name, value = id }) end
@@ -376,9 +391,9 @@ function fileBrowser(E, cat, builtIn)
 	if cat == "hull" then
 		if Slab.Button("New hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
 	elseif cat == "wreck" then
-		if Slab.Button("New wreck", { Tooltip = "A derelict with a loot table" }) then E.newDesign("wreck") end
+		if Slab.Button("New container", { Tooltip = "An object that holds loot, filled from a loot table" }) then E.newDesign("container") end
 		Slab.SameLine()
-		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a wreck, no loot" }) then E.newDesign("prop") end
+		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a container, no loot" }) then E.newDesign("prop") end
 	elseif cat == "weapon" then
 		if Slab.Button("New weapon", { Tooltip = "A gun or launcher module" }) then E.newDesign("weapon") end
 	else

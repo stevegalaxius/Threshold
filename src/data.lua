@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {} },
 }
 
 -- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
@@ -199,7 +199,33 @@ local function wreckLike(kind, def)
 	def.radius = def.radius or math.max(4, math.floor(w + 0.5))
 end
 
-function api.wreck(def) wreckLike("wreck", def) end
+-- A container: an object drawn in parts (Shipyard) that holds loot, filled
+-- by its loot table (lootTable = id, or an inline loot list) when placed.
+-- Kept in data.wrecks with the props; "wreck" is the old name and loads as
+-- a container.
+local function objectContainer(def) wreckLike("container", def) end
+api.wreck = objectContainer
+
+-- Loot tables (src/loot_tables.lua): what containers and crates hold.
+--   loot_table { id, rolls = { min, max }, guaranteed = { entry, ... },
+--                entries = { { item = id, min, max, weight } or
+--                            { table = id, weight }, ... },
+--                areas = { area = true, ... }? (only there) }
+function api.loot_table(def)
+	def.name = def.name or def.id
+	register("lootTables", "loot_table", def)
+	def.rolls = def.rolls or { 1, 1 }
+	def.entries, def.guaranteed = def.entries or {}, def.guaranteed or {}
+end
+-- Spawn sets (src/spawn.lua): what gets placed in an area, once per save.
+--   spawn_set { id, area = id or areas = { ... }, place = {
+--     { container = object id | item = crate item id, count = { min, max },
+--       loot = table id, zone = "field" | "lanes" | { x, y, r } }, ... } }
+function api.spawn_set(def)
+	def.name = def.name or def.id
+	register("spawnSets", "spawn_set", def)
+	def.place = def.place or {}
+end
 function api.prop(def) def.loot = {}; wreckLike("prop", def) end
 
 -- A wreck or prop made at runtime (the Shipyard's test spawn).
@@ -356,8 +382,11 @@ end
 
 -- A container: an item you can stow in a hold when it's empty, and a
 -- floating box with a grid of its own (grid = { w, h }) when it isn't.
--- fill lists what a loaded one can turn up: { item, min, max, chance }.
+-- lootTable names what a loaded one holds (data/loot_tables.lua); an
+-- older fill list ({ item, min, max, chance }) still works.
+-- A container with parts is instead an object drawn in the Shipyard (above).
 function api.container(def)
+	if type(def) == "table" and def.parts then return objectContainer(def) end
 	register("items", "container", def)
 	for _, f in ipairs({ "volume", "mass", "price", "w", "h", "grid", "hp", "body" }) do need(def, f, "container") end
 	def.kind, def.stack = "container", 1
@@ -546,6 +575,26 @@ local function crossCheck()
 			for _, f in ipairs(item.fill) do
 				if not data.items[f[1]] then error(("container '%s' fills with unknown item '%s'"):format(id, tostring(f[1])), 0) end
 			end
+			if item.lootTable and not data.lootTables[item.lootTable] then error(("container '%s' uses unknown loot table '%s'"):format(id, item.lootTable), 0) end
+		end
+	end
+	for id, w in pairs(data.wrecks) do
+		if w.lootTable and not data.lootTables[w.lootTable] then error(("container '%s' uses unknown loot table '%s'"):format(id, w.lootTable), 0) end
+	end
+	-- loot tables and spawn sets point at things that exist
+	for id, t in pairs(data.lootTables) do
+		for _, list in ipairs({ t.entries, t.guaranteed }) do
+			for _, e in ipairs(list) do
+				if e.item and not data.items[e.item] then error(("loot table '%s' lists unknown item '%s'"):format(id, e.item), 0) end
+				if e.table and not data.lootTables[e.table] then error(("loot table '%s' nests unknown table '%s'"):format(id, e.table), 0) end
+			end
+		end
+	end
+	for id, s in pairs(data.spawnSets) do
+		for _, p in ipairs(s.place) do
+			if p.container and not data.wrecks[p.container] then error(("spawn set '%s' places unknown container '%s'"):format(id, p.container), 0) end
+			if p.item and not data.items[p.item] then error(("spawn set '%s' places unknown item '%s'"):format(id, p.item), 0) end
+			if p.loot and not data.lootTables[p.loot] then error(("spawn set '%s' uses unknown loot table '%s'"):format(id, p.loot), 0) end
 		end
 	end
 	for id, e in pairs(data.enemies) do

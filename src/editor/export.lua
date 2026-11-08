@@ -155,7 +155,11 @@ function Export.wreckDef(design)
 	local st = design.stats or {}
 	local def = { id = design.id, name = design.name, kind = design.kind,
 		armor = st.armor or 200, hold = st.hold or 20, mass = st.mass or 100 }
-	if design.kind == "wreck" then def.loot = copy(design.loot or {}) end
+	if design.kind == "wreck" or design.kind == "container" then
+		def.kind = "container"
+		def.loot = copy(design.loot or {})
+		def.lootTable = design.lootTable
+	end
 	def.parts = {}
 	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
 	return def
@@ -201,7 +205,7 @@ end
 function Export.def(design)
 	if design.kind == "weapon" then return Export.weaponDef(design) end
 	if design.kind == "station" then return Export.stationDef(design) end
-	if design.kind == "wreck" or design.kind == "prop" then return Export.wreckDef(design) end
+	if design.kind == "wreck" or design.kind == "container" or design.kind == "prop" then return Export.wreckDef(design) end
 	return Export.hullDef(design)
 end
 
@@ -242,7 +246,8 @@ end
 function Export.source(design)
 	if design.kind == "weapon" then return weaponSource(design) end
 	local def = Export.def(design)
-	local kind = (design.kind == "wreck" or design.kind == "prop" or design.kind == "station") and design.kind or "hull"
+	local kind = (design.kind == "wreck" or design.kind == "container") and "container"
+		or (design.kind == "prop" or design.kind == "station") and design.kind or "hull"
 	local keys = {}
 	for k in pairs(def) do if k ~= "parts" and k ~= "id" and k ~= "name" and k ~= "kind" then table.insert(keys, k) end end
 	table.sort(keys)
@@ -413,7 +418,7 @@ end
 function Export.fromWreck(id)
 	local w = data.wrecks[id]
 	local design = { id = id, name = w.name, kind = w.kind, base = data.list.hulls[1], parts = {}, slots = {},
-		stats = { armor = w.armor, hold = w.hold, mass = w.mass }, loot = copy(w.loot or {}) }
+		stats = { armor = w.armor, hold = w.hold, mass = w.mass }, loot = copy(w.loot or {}), lootTable = w.lootTable }
 	for _, part in ipairs(w.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end
