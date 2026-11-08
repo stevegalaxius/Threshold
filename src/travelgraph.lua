@@ -89,6 +89,11 @@ function G.transit(from,to,clock)
  local moon=Fields.moons[a.area] and Fields.moons[a.area].parent==b.area and a.area
   or Fields.moons[b.area] and Fields.moons[b.area].parent==a.area and b.area
  if moon then return {from=a.area,to=b.area,moon=moon,length=Fields.moons[moon].gap} end
+ local ma,mb=Fields.moons[a.area],Fields.moons[b.area]
+ if ma and mb and ma.parent==mb.parent then
+  local _,length=Fields.moonLink(a.area,b.area)
+  return {from=a.area,to=b.area,moon=a.area,length=length}
+ end
 end
 
 -- Shared inter-region itinerary. Local legs always use declared connections;
@@ -120,6 +125,10 @@ plan=function(source,target,clock)
  end
  if a.area~=b.area then
   local moon=Fields.moons[a.area]
+  local other=Fields.moons[b.area]
+  if moon and other and moon.parent==other.parent then
+   return join(G.itinerary(source,a.area..'/to_'..b.area,clock),G.itinerary(b.area..'/to_'..a.area,target,clock))
+  end
   if moon then
    return join(G.itinerary(source,a.area..'/to_'..moon.parent,clock),G.itinerary(moon.parent..'/to_'..a.area,target,clock))
   end
