@@ -43,7 +43,17 @@ function G.withSpread(x,y,progress,spread)
 end
 
 -- Connectivity is authored in fields.lua; physical positions never add links.
+-- Built graphs are kept per area until its navigation version changes:
+-- route planning used to rebuild the area's graph on every call.
+local built={}
 function G.build(area)
+ local f = assert(Fields[area], 'unknown area')
+ local g=built[area]
+ if g and g.version==f.navigationVersion then return g end
+ g=G.fresh(area);built[area]=g
+ return g
+end
+function G.fresh(area)
  local f = assert(Fields[area], 'unknown area')
  local graph = {area=area, version=f.navigationVersion, nodes={}, edges={}, destinations={}, order={}}
  for _,place in ipairs(L.list(area)) do
@@ -83,7 +93,23 @@ end
 
 -- Shared inter-region itinerary. Local legs always use declared connections;
 -- moons use paired gates, planets use their existing mass drivers.
+-- Planning a route walks every node's line of sight, and the economy asks
+-- for every station pair each tick: that burst was a multi-second stall.
+-- Answers are reused for a minute of game time (corridors rotate slowly),
+-- and each caller gets its own copy to change.
+local plans,plansAt={},nil
+local plan
 function G.itinerary(source,target,clock)
+ clock=clock or 0
+ if not plansAt or clock<plansAt or clock-plansAt>60 then plans,plansAt={},clock end
+ local key=source..'|'..target
+ local hit=plans[key]
+ if hit==nil then hit=plan(source,target,clock) or false;plans[key]=hit end
+ if not hit then return nil end
+ local copy={};for i,id in ipairs(hit) do copy[i]=id end
+ return copy
+end
+plan=function(source,target,clock)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b then return nil end
  if source==target then return {source} end
