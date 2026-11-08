@@ -616,6 +616,20 @@ function tabRects(game)
  return out
 end
 
+-- In flight the inventory has its own tabs (Inventory, Reputation), shown
+-- while nothing is open next to your hold. More screens go in SPACE_TABS.
+local SPACE_TABS={{id='hold',label='Inventory'},{id='reputation',label='Reputation'}}
+Cargo.spaceTab='hold'
+local function spaceTabs(game)
+ if game.state=='docked' or Cargo.other or Cargo.loot then return nil end
+ local L=layout(game);if not L or not L.sides[1] then return nil end
+ local f=Cargo.workspace(game);local top=L.sides[1].y;if not L.equip.hidden then top=math.min(top,L.equip.y or top) end
+ local out={}
+ for i,t in ipairs(SPACE_TABS) do out[i]={id=t.id,label=t.label,x=f.x+(i-1)*130,y=top-40,w=122,h=30} end
+ return out,{x=f.x,y=top,w=f.w}
+end
+Cargo.spaceTabs=spaceTabs
+
 local function playerSideOf(L)
 	for _, side in ipairs(L.sides) do
 		if side.ship then return side end
@@ -785,6 +799,13 @@ end
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
 	-- an open shop menu takes the click: pick a shop, or close it
+	if button == 1 then
+		local tabs = spaceTabs(game)
+		for _, t in ipairs(tabs or {}) do
+			if inRect(t, mx, my) then Cargo.spaceTab = t.id; return true end
+		end
+		if tabs and Cargo.spaceTab == "reputation" then return true end
+	end
 	if Cargo.shopOpen then
 		Cargo.shopOpen = false
 		local L = layout(game)
@@ -1392,6 +1413,12 @@ function Cargo.draw(game)
 		end
 	end
 
+	local stabs, sframe = spaceTabs(game)
+	if stabs then
+		lg.setFont(HUD.font(14))
+		for _, t in ipairs(stabs) do Station.button(t, t.label, Cargo.spaceTab == t.id) end
+		if Cargo.spaceTab == "reputation" then require("src.ui.reputation").draw(game, sframe) return end
+	end
 	drawEquipment(game, L, mx, my)
 
 	for _, side in ipairs(L.sides) do
