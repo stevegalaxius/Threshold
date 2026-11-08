@@ -2264,8 +2264,8 @@ function Game:reap()
 	end
 end
 
--- What a dead ship leaves behind: its whole hold (nothing is lost), the
--- modules that survived, and the salvage its enemy definition rolls.
+-- What a dead ship leaves behind: its whole hold (nothing is lost) and the
+-- modules that survived.
 local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
@@ -2283,11 +2283,7 @@ local function lootOf(e)
 			e.salvagedSlots[i] = id
 		end
 	end
-	local s = e.def and e.def.salvage or { 0, 0 }
-	for _ = 1, random(s[1], s[2]) do
-		local id = random() < 0.2 and "salvage_kit" or "scrap"
-		loot[id] = (loot[id] or 0) + 1
-	end
+	-- no rolled salvage: a wreck's metal comes from drilling it (hull alloy)
 	return loot
 end
 
