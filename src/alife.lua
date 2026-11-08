@@ -120,7 +120,11 @@ NPC.job('trader',{
   -- a pickup loads at its source: a live ship that only passed by it
   -- circled the station's inspection point forever, never loading
   local t=r.task
-  return not t or id==t.target or t.phase=='pickup' and id==t.source
+  -- on the empty leg to a pickup only the source counts: passing through
+  -- the delivery target (often on the way) docked there, then left and
+  -- docked again on the next pass, over and over
+  if t and t.phase=='pickup' then return id==t.source end
+  return not t or id==t.target
  end,
  complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
  next=function(c)
