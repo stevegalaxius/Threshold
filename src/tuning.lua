@@ -106,9 +106,6 @@ T.laneEntrySpeed = 2600
 T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 20000
 -- share of the driver's speed you still have as you enter the lane
 T.laneKeep = 0.8
--- longest you coast on past the driver's coast, out to the map's edge,
--- before the lane takes over (seconds)
-T.driverCoastMax = 4
 -- a cut that can't be avoided (fired at something solid, a map that
 -- couldn't be built ahead) hidden in the lane's glow: seconds for it to
 -- wash over, and to clear once the new level is in (Game:coverThen)

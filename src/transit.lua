@@ -264,18 +264,6 @@ function Game:updateDriverLaunch(p,dt)
 		else
 			L.t = L.t + dt
 			if p==self.player and not self.savedZoom then self.savedZoom = self.camera.zoom end
-			-- fired toward a planet: lay the lane out ahead now, where you'll
-			-- cross the map's edge on this barrel's line
-			if p==self.player and not L.staged and not L.gate and not L.site and T.travelMode ~= "flight" and Fields.orbits[L.to] then
-				L.staged = true
-				local bx, by = breech(g)
-				local ux, uy = cos(g.angle), sin(g.angle)
-				local R = self.arenaRadius - 2000
-				local bd = bx * ux + by * uy
-				local disc = bd * bd - (bx * bx + by * by) + R * R
-				local t = disc > 0 and -bd + sqrt(disc) or 0
-				self:stageLane(L.to, nil, nil, bx + ux * t, by + uy * t)
-			end
 			-- once it fires, the ship passes through whatever's in the way
 			-- (the bearing can point back across the map)
 			if not L.ghost then
@@ -300,18 +288,15 @@ function Game:updateDriverLaunch(p,dt)
 				 local wide = math.min(self.savedZoom, T.cineZoom)
 				 self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
 				end
-				-- into the lane once you're out past the map's edge, so the map
-				-- you leave (kept alive behind the lane's mouth) has nothing
-				-- left ahead of you to fly through without touching; a few
-				-- seconds at most. The bearing can point back across the map:
-				-- cut to the lane early rather than fly into the planet (or a
-				-- station), hidden behind the glow.
-				local edge = x * x + y * y >= (self.arenaRadius - 2000) ^ 2
-				local late = ft - T.driverFire >= T.driverCoast + T.driverCoastMax
-				local blocked = self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000
-				if u >= 1 and (edge or late) or blocked then
+				-- the bearing can point back across the map: cut to the lane
+				-- early rather than fly into the planet (or a station). A
+				-- driver shot is a cut into the lane, hidden in the flash
+				-- off the driver (the map isn't kept behind you: you're
+				-- often over the planet when it fires).
+				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
 					if p==self.player then
-					 self.launchBlocked = blocked and u < 1
+					 self.driverCut = true
+					 self.flash = { t = 0, life = 0.5 }
 					 if L.gate then self.pendingGate = L.driver.gate elseif L.site then self.pendingSite = { id = L.to, bearing = L.driver.angle } else self.pendingFlight = L.to end
 					else
 					 p.launch=nil;p.alifeDepart=true
@@ -688,7 +673,7 @@ function Game:launchTrip(to, moon, lane)
 	if self.trail then self.trail.scene:releaseScene(); self.trail = nil end
 	-- the lane built ahead of you for this trip (Game:stageLane), if any
 	local staged = self.laneStage
-	if staged and staged.to == to and not self.launchBlocked and self:finishLaneStage() then
+	if staged and staged.to == to and not self.launchBlocked and not self.driverCut and self:finishLaneStage() then
 		self.laneStage = nil
 		return self:enterStagedLane(staged)
 	end
@@ -702,8 +687,8 @@ function Game:launchTrip(to, moon, lane)
 	-- Fired out of a driver with something solid dead ahead (the barrel
 	-- pointed back across the map) you'd fly through the planet you left:
 	-- that one still cuts, behind the glow (Game:coverThen).
-	local blocked = self.launchBlocked
-	self.launchBlocked = nil
+	local blocked = self.launchBlocked or self.driverCut
+	self.launchBlocked, self.driverCut = nil, nil
 	if blocked and not moon then
 		local speed = max(T.laneEntrySpeed, sqrt(vx * vx + vy * vy))
 		self:loadField("lane", { player = Ship.record(p) })
