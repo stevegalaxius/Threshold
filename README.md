@@ -186,6 +186,11 @@ after changing data or flight code.
 Io and Callisto use Jupiter's existing moon highways; Enceladus uses Saturn's,
 Titania uses Uranus's, and Deimos joins Phobos at Mars. Fly through the marked departure arc at the
 parent map's edge to reach a moon, and use the moon's return arc to come back.
+Sister moons of the same planet are linked directly too: each moon's edge has an
+exit toward every sister (Io to Europa, Phobos to Deimos, Titan to Enceladus), so
+you don't have to go back through the planet. The bearing and length come from
+where the two moons sit in the planet's fixed corridor frame (`Fields.moonLink`),
+nudged along the edge so no two exits overlap.
 Pluto is a mass-driver destination (the `-` shortcut in the target window).
 
 Phobos and Deimos retain their irregular rocky moon bodies (radii 1,400 and

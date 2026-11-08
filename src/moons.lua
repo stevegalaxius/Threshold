@@ -6,7 +6,8 @@
 	            each one (T.departArc wide), at a fixed corridor bearing. The
 	            corridor stays put while the moon orbits. A moon's map has
 	            one return corridor toward
-	            its planet. The map's edge lets you through there.
+	            its planet, plus one toward each sister moon of the
+	            same planet (Fields.moonLink gives its bearing and length). The map's edge lets you through there.
 	  departure fly out past the edge there and it plays like a mass
 	            driver's coast: you swing onto the bearing at your own
 	            speed while the camera pulls wide, then you're in
@@ -33,15 +34,20 @@ return function(Game)
 function Game:spawnMoonGates()
 	self.moonGates = {}
 	local id, F = self.fieldId, self.field
-	local function add(to, m)
-		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, length = m.gap })
+	local function add(to, length)
+		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, length = length })
 	end
 	for _, m in ipairs(Fields.moonsOf(id)) do
-		add(m, Fields.moons[m])
+		add(m, Fields.moons[m].gap)
 	end
 	local moon = Fields.moons[id]
 	if moon then
-		add(moon.parent, moon)
+		add(moon.parent, moon.gap)
+		-- sister moons: a direct highway, no stop at the planet
+		for _, sister in ipairs(Fields.siblingMoons(id)) do
+			local _, length = Fields.moonLink(id, sister)
+			add(sister, length)
+		end
 	end
 	self:placeMoonGates()
 end

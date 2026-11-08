@@ -96,6 +96,29 @@ function Fields.moonsOf(planet)
 	return out
 end
 
+-- The moons that share a planet with this one (its sisters), in a fixed order.
+function Fields.siblingMoons(id)
+	local m = Fields.moons[id]
+	local out = {}
+	if not m then return out end
+	for _, other in ipairs(Fields.moonsOf(m.parent)) do
+		if other ~= id then table.insert(out, other) end
+	end
+	return out
+end
+
+-- The highway between two sister moons: the bearing (radians) it leaves
+-- moon a on, and its length in px. Each moon is put at its gap along its
+-- authored phase round the planet, the same fixed frame the planet's
+-- corridors use, so the corridor stays put while the moons orbit.
+function Fields.moonLink(a, b)
+	local ma, mb = Fields.moons[a], Fields.moons[b]
+	local ax, ay = cos(ma.phase) * ma.gap, sin(ma.phase) * ma.gap
+	local bx, by = cos(mb.phase) * mb.gap, sin(mb.phase) * mb.gap
+	local dx, dy = bx - ax, by - ay
+	return math.atan2(dy, dx), math.max(12000, math.sqrt(dx * dx + dy * dy))
+end
+
 -- Which way a moon lies from its planet at this clock (radians).
 function Fields.moonAngle(id, clock)
 	local m = Fields.moons[id]
@@ -627,6 +650,35 @@ function Fields.configureLocations(area)
 		end
 		for _, moon in ipairs(Fields.moonsOf(area)) do gate(moon, moon, false) end
 		if Fields.moons[area] then gate(Fields.moons[area].parent, area, true) end
+		-- Sister corridors sit on their true bearing, nudged along the edge
+		-- so no two exits' arcs overlap (the planet's stays where it is).
+		local moon = Fields.moons[area]
+		if moon then
+			local sep = T.departArc / F.radius * 1.25
+			local function d(a, b) return (b - a + pi) % (2 * pi) - pi end
+			local fixed, ways = moon.phase + pi, {}
+			for _, sister in ipairs(Fields.siblingMoons(area)) do
+				ways[#ways + 1] = { id = sister, a = (Fields.moonLink(area, sister)) }
+			end
+			for _ = 1, 40 do
+				for i, w in ipairs(ways) do
+					local k = d(fixed, w.a)
+					if math.abs(k) < sep then w.a = fixed + (k >= 0 and sep or -sep) end
+					for j = i + 1, #ways do
+						local o = ways[j]
+						local e = d(w.a, o.a)
+						if math.abs(e) < sep then
+							local push = (sep - math.abs(e)) / 2 * (e >= 0 and 1 or -1)
+							w.a, o.a = w.a - push, o.a + push
+						end
+					end
+				end
+			end
+			for _, w in ipairs(ways) do
+				add("to_" .. w.id, "Departure to " .. Fields[w.id].name, "moon_gate",
+					{ type = "orbit", radius = F.radius, phase = w.a, rate = 0 }, nil, w.id)
+			end
+		end
 	end
  F.drillIds={}
  for i,source in ipairs(Fields.miningSources(area)) do
