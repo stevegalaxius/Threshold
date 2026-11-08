@@ -314,7 +314,7 @@ function Game:updateDriverTractor(p, dt)
 		p.driverTractor = nil
 		p.driverProtected=nil;if g.driverShip==p then g.driverShip=nil end
 		p.driverCooldown = 3
-		self:toast(lx > 150 and "OVERSHOT THE BREECH: TOO FAST" or "TRACTOR LOST", 1.8)
+		if p.isPlayer then self:toast(lx > 150 and "OVERSHOT THE BREECH: TOO FAST" or "TRACTOR LOST", 1.8) end
 		return
 	end
 	-- velocity relative to the driver, which rides its track round the planet
