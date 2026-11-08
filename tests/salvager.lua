@@ -73,9 +73,9 @@ return function(game)
  game:spawnPickup(px+e.halfLength+1500,py,'salvage_kit',1)
  local pickup=game.pickups[#game.pickups]
  AI.think(game,e,1/120)
- check(e.salvagePickup==pickup and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
+ check(e.scavengePickup==pickup and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
  check((e.cargo.salvage_kit or 0)==0,'pursuit copied a distant item into cargo')
- pickup.x,pickup.y=px,py;e.salvageScanAt=0
+ pickup.x,pickup.y=px,py;e.scavengeThink=0
  AI.think(game,e,1/120);game:updatePickups(1/120)
  check(e.cargo.salvage_kit==1 and r.salvageCargo.salvage_kit==1 and #game.pickups==0,'beam pickup did not conserve the item')
  local carrying=assert(Save.decode(Save.encode(game:saveState())))

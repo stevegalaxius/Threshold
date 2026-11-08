@@ -131,96 +131,14 @@ function P.think(game,e,dt,AI)
   if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
   AI.trade(game,e,dt);return true
  end
- -- Keep decisions bounded; pursuit and the beam itself still update each frame.
+ -- Loot: the shared scavenging loop (src/scavenge.lua), then home to fence it.
+ local Scavenge=require('src.scavenge')
  local now=game.universe.clock
- local stolen=0;for _,n in pairs(r.stolenCargo or {}) do stolen=stolen+n end
- if stolen>0 and (stolen>=T.pirateLootUnits or now>=(r.lootUntil or 0) or e.armor<e.stats.armor*T.pirateRetreatHealth) then
+ local hurt=e.armor<e.stats.armor*T.pirateRetreatHealth
+ if Scavenge.taken(r)>0 and (Scavenge.done(r,now) or hurt) then
   if P.beginReturn(game,e,r) then AI.trade(game,e,dt);return true end
  end
- local refresh=(e.pirateLootThink or 0)<=game.time
- if refresh then
-  e.pirateLootThink=game.time+T.securityThink
-  local previous=e.piratePickup;e.piratePickup=nil
-  local x,y=e.body:getPosition();local distance=T.pirateLootRange^2
-  for _,pickup in ipairs(game.pickups) do
-   local owner=pickup.collector
-   if not pickup.inner and pickup.count>0 and (not owner or owner==e or owner.dead or owner.removed or owner.tractorTarget~=pickup)
-    and Ship.canFit(e,pickup.item,pickup.count)>0 then
-    local d=(pickup.x-x)^2+(pickup.y-y)^2
-    if d<distance then distance=d;e.piratePickup=pickup end
-   end
-  end
-  if previous and previous~=e.piratePickup and previous.collector==e then previous.collector=nil end
-  e.pirateContainer=nil
-  for _,box in ipairs(game.entities) do
-   if box.kind=='container' and box~=game.looting and not box.dead and not box.removed
-    and (not box.lootCollector or box.lootCollector==e or box.lootCollector.dead or box.lootCollector.removed or box.lootCollector.pirateContainer~=box)
-    and Loot.canTake(e,box) then
-    local bx,by=box.body:getPosition();local d=(bx-x)^2+(by-y)^2
-    if d<distance then e.pirateContainer=box;e.piratePickup=nil;distance=d end
-   end
-  end
- end
- local box=e.pirateContainer
- if box and not box.dead and not box.removed and box~=game.looting then
-  local x,y=e.body:getPosition();local bx,by=box.body:getPosition();local vx,vy=box.body:getLinearVelocity()
-  local dx,dy=bx-x,by-y;local d=math.sqrt(dx*dx+dy*dy)
-  AI.navigate(game,e,dx,dy,math.min(400,math.max(0,(d-100)*.6)),vx,vy,d)
-  e.intent.aimX,e.intent.aimY=bx,by;e.intent.tractor=true;e.tractorTarget=nil
-  box.lootCollector=e;r.taskStatus='looting a cargo container'
-  Loot.pull(game,e,box,dt)
-  return true
- end
- local pickup=e.piratePickup
- local exists=false;for _,p in ipairs(game.pickups) do if p==pickup then exists=true;break end end
- if not exists or not pickup or pickup.count<=0 then
-  e.intent.tractor=false;e.tractorTarget=nil
-  -- Wrecks retain real cargo until broken open; fire on the wreck rather
-  -- than copying its inventory into the pirate's hold.
-  local wreck=e.pirateWreck
-  if wreck and (wreck.dead or wreck.removed or not wreck.body or wreck.body:isDestroyed()) then wreck=nil end
-  local range=T.pirateLootRange^2
-  local x,y=e.body:getPosition()
-  if refresh then
-  wreck=nil
-  for _,o in ipairs(game.entities) do
-   if o.kind=='husk' and not o.dead and not o.removed and o.body and not o.body:isDestroyed() then
-    local wx,wy=o.body:getPosition();local d=(wx-x)^2+(wy-y)^2
-    if d<range then wreck,range=o,d end
-   end
-  end
-  end
-  if not wreck then e.pirateWreck=nil;return false end
-  local wx,wy=wreck.body:getPosition();range=(wx-x)^2+(wy-y)^2
-  if range>T.pirateLootRange^2 then e.pirateWreck=nil;return false end
-  if e.pirateWreck~=wreck then e.pirateWreck=wreck;e.pirateSalvageUntil=now+T.pirateLootTime end
-  if now>e.pirateSalvageUntil then return false end
-  local wx,wy=wreck.body:getPosition();local d=math.sqrt(range)
-  local vx,vy=wreck.body:getLinearVelocity()
-  AI.navigate(game,e,wx-x,wy-y,math.max(0,math.min(400,(d-400)*.6)),vx,vy,d)
-  e.intent.aimX,e.intent.aimY=wx,wy;e.lock=nil
-  e.intent.firePrimary=d<(e.def.ai.range or 700)
-  r.taskStatus='breaking open a wreck'
-  return true
- end
- if e.armor<e.stats.armor*T.pirateRetreatHealth then
-  e.tractorTarget=nil;e.intent.tractor=false
-  return P.beginReturn(game,e,r) and (AI.trade(game,e,dt) or true) or false
- end
- local x,y=e.body:getPosition();local dx,dy=pickup.x-x,pickup.y-y
- local d=math.sqrt(dx*dx+dy*dy);local range=Ship.tractorRange(e)
- AI.navigate(game,e,dx,dy,NPC.approach(e,d,range*.5),pickup.vx,pickup.vy,d)
- e.intent.aimX,e.intent.aimY=pickup.x,pickup.y;e.intent.firePrimary=false
- local near=Ship.distanceTo(e,pickup.x,pickup.y)<=range
- e.intent.tractor=near;e.tractorTarget=near and pickup or nil
- if near then pickup.collector=e end
- r.taskStatus='collecting exposed cargo'
- return true
+ if hurt and Scavenge.taken(r)>0 then e.tractorTarget=nil;e.intent.tractor=false;return false end
+ return Scavenge.think(game,e,dt,AI,r,NPC)
 end
-require('src.events').on('pickup',function(e,item,n,stack)
- if e.alifeRole~='pirate' or not e.alifeRecord or e.alifeRecord.piracy then return end
- if stack and (stack.inner or stack.wear~=nil) then stack.stolen=true end
- local r=e.alifeRecord;r.stolenCargo=r.stolenCargo or {};r.stolenCargo[item]=(r.stolenCargo[item] or 0)+n
- r.lootUntil=r.lootUntil or (e.alifeGame.universe.clock+T.pirateLootTime)
-end)
 return P
