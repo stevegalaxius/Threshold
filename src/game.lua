@@ -2018,7 +2018,8 @@ end
 function Game:applyBoundary()
 	local R = self.arenaRadius
 	for _, e in ipairs(self.entities) do
-		local b = e.body
+		local b = e.kind ~= "asteroid" and e.body   -- (rock drifts on out)
+		if b then
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
 		-- only what people built is turned back (rocks drift on out), and
@@ -2033,6 +2034,7 @@ function Game:applyBoundary()
 			local m = b:getMass()
 			local f = softBoundary(d-R,out,m)
 			b:applyForce(nx * f, ny * f)
+		end
 		end
 	end
 end
