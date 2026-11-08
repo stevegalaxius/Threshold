@@ -1292,7 +1292,12 @@ function Game:updateDockedShip(e, dt)
 	end
 	-- Hold departure while the launch point is occupied; checked before the
 	-- trader's departure planning so that only runs when it can actually leave.
-	if ds.stay and ds.t >= ds.stay and not self:launchBlocker(e) and (not e.alifeId or self:traderCanDepart(e,ds.station)) then self:undockShip(e) end
+	-- A ship with nothing to leave for asks again about twice a second,
+	-- not every frame: departure planning cleans the whole task board.
+	if ds.stay and ds.t >= ds.stay and self.time >= (ds.departRetry or 0) and not self:launchBlocker(e) then
+		if not e.alifeId or self:traderCanDepart(e,ds.station) then self:undockShip(e)
+		else ds.departRetry = self.time + 0.5 + love.math.random() * 0.5 end
+	end
 end
 
 -- Launch a docked ship back out of the door.
