@@ -544,6 +544,8 @@ function Game:launchTrip(to, moon, lane)
 	local p = self.player
 	if not p or p.dead then return end
 	local from = self.fieldId
+	-- already in a lane (a second ask in the same step): nothing to do
+	if self.lane or not Fields[from] then return end
 	local au, bearing, half
 	if moon then
 		au, bearing, half = 0, moon.bearing, moon.length / 2

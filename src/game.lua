@@ -1969,7 +1969,11 @@ function Game:updateCover(dt)
 	c.t = c.t + dt
 	if c.t < c.life then return end
 	self.cover = nil
+	-- the launch kept running under the cover and kept asking to go: that's
+	-- this action, so those asks are spent
+	self.pendingGate, self.pendingSite, self.pendingFlight, self.pendingArrive = nil, nil, nil, nil
 	c.action()
+	self.pendingGate, self.pendingSite, self.pendingFlight, self.pendingArrive = nil, nil, nil, nil
 	self.flash = { t = 0, life = T.laneCoverOut or 0.55, peak = 1 }
 	self.resetClock = true
 end
