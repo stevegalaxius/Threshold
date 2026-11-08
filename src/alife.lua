@@ -115,7 +115,10 @@ NPC.job('trader',{
  match=function(r) return true end, -- registered last: any other civilian
  docks=function(r,id)
   id=L.canonical(id)
-  return id==(r.task and r.task.target) or not r.task
+  -- a pickup loads at its source: a live ship that only passed by it
+  -- circled the station's inspection point forever, never loading
+  local t=r.task
+  return not t or id==t.target or t.phase=='pickup' and id==t.source
  end,
  complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
  next=function(c)
