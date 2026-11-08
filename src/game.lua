@@ -84,7 +84,7 @@ function Game:retainField(opts)
 	for id, e in pairs(self.alifeOnline or {}) do
 		ALife.capture(self, e, true)
 		e.alifeId = nil
-		if not (opts.lane and e.cruise) then e.ghost = true; e.cruise = nil end
+		if not (opts.lane and e.cruise) then e.ghost = true; e.cruise = nil else e.ghostCruise = true end
 		self.alifeOnline[id] = nil
 	end
 	if self.alifeActiveArea == self.fieldId then

@@ -1473,7 +1473,8 @@ function Game:cruise(e, dt)
 	local across = e.cruiseOffset and (e.cruiseOffset - n) * 0.4 or 0
 	local wvx, wvy = tx * want - sin(phi) * across, ty * want + cos(phi) * across
 	-- Retaliation still runs for the same trader while it flies its lane.
-	if e.def then AI.think(self, e, dt or 1 / 120) end
+	-- (not a lane-behind-you ghost: its record went back to the universe)
+	if e.def and not e.ghostCruise then AI.think(self, e, dt or 1 / 120) end
 	AI.navigate(self,e,wvx,wvy,sqrt(wvx*wvx+wvy*wvy),0,0,self.lane.half-along*dir)
 	if not e.aggressor then e.intent.aimX, e.intent.aimY = x + tx * 1000, y + ty * 1000 end
 end
