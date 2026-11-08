@@ -1284,7 +1284,10 @@ function Game:populateLane()
 	for _ = 1, floor(span / 10000 * T.laneRocks) do
 		local s, n = s1 + rng:random() * span, (rng:random() * 2 - 1) * W * 0.9
 		local cluster = rng:random() < 0.25 and 3 or 1
-		local across = rng:random() < 0.35 and (n > 0 and -1 or 1) * (120 + rng:random() * 200) or 0
+		-- the road itself is clear, so the way on reads at a glance: the
+		-- only rocks on it are ones drifting across it from the sides
+		local across = (n > 0 and -1 or 1) * (120 + rng:random() * 200)
+		n = (n > 0 and 1 or -1) * (W + rng:random() * T.laneRamp)
 		for k = 1, cluster do
 			local r = 25 + rng:random() ^ 2 * (k == 1 and 140 or 50)
 			local x, y = at(s + (k - 1) * 260, n + (rng:random() - 0.5) * 400, r + 60)
@@ -1310,7 +1313,7 @@ function Game:populateLane()
 	end
 	-- A denser debris belt continues beyond the soft edge. Lay it out with
 	-- the rest of the trip; it must not pop into view as the player wanders.
-	if trip.moon and span>0 and T.laneOffroad>0 then
+	if span>0 and T.laneOffroad>0 then
 		local edge=self:laneBoundary()
 		local depth=self:moonHazardDepth()
 		lane.hazardDepth=depth
@@ -1407,7 +1410,7 @@ function Game:updateLane(dt)
 			-- Shared soft lateral edge, including moon trips. Debris beyond
 			-- it stays in place instead of being herded back into the road.
 			local over = abs(n) - self:laneBoundary()
-			local moonDebris=self.trip and self.trip.moon and e.kind=="asteroid"
+			local moonDebris=e.kind=="asteroid"
 			if over > 0 and not moonDebris then
 				local sign=n>0 and 1 or -1
 				local nx,ny=-sin(phi)*sign,cos(phi)*sign
