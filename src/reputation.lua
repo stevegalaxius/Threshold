@@ -26,8 +26,9 @@ Rep.FACTIONS = {
 	jove      = { name = "Jove",           major = true },
 	ceres     = { name = "Ceres Concern" },
 	milliways = { name = "Milliways" },
+	bowman    = { name = "Bowman Atmospherics" },
 }
-Rep.ORDER = { "estates", "zhuhai", "diwan", "jove", "ceres", "milliways" }
+Rep.ORDER = { "estates", "zhuhai", "diwan", "jove", "ceres", "milliways", "bowman" }
 
 -- Who owns each area. Lore, not a world variable: nothing changes it.
 Rep.AREAS = {
@@ -35,12 +36,12 @@ Rep.AREAS = {
 	mars = "zhuhai", phobos = "zhuhai", deimos = "zhuhai",
 	belt = "ceres", ceres_quarry = "ceres", quarry = "ceres",
 	jupiter = "jove", io = "jove", europa = "jove", ganymede = "jove", callisto = "jove",
-	saturn = "diwan", enceladus = "diwan", titan = "diwan", titania = "diwan", uranus = "diwan", triton = "diwan",
+	saturn = "diwan", enceladus = "diwan", titan = "diwan",
+	uranus = "bowman", titania = "bowman",
 }
 -- Single nodes that differ from their area (secondary factions' holdings).
 Rep.NODES = {
 	["station:pluto_1"] = "milliways",
-	["station:mars_3"] = false,          -- Heaven-Ladder answers to nobody
 }
 
 -- Tiers, lowest first: the first whose max the value is under.
