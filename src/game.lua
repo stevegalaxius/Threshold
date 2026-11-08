@@ -407,13 +407,17 @@ function Ghost:destroy() end
 function Game:sleeperPos(e)
 	local o = e.sleep
 	local w = self.well
+	-- no well (a lane): it just carries on in a straight line
+	if not o.r then
+		local t = self.time - o.t
+		return o.x + o.vx * t, o.y + o.vy * t
+	end
 	local a = o.a + o.rate * (self.time - o.t)
 	return w.x + cos(a) * o.r, w.y + sin(a) * o.r, a
 end
 
 function Game:updateSleepers()
 	local w = self.well
-	if not w or self.lane then return end
 	self.sleepTick = (self.sleepTick or 0) + 1
 	if self.sleepTick <= T.sleepEvery then return end
 	self.sleepTick = 0
@@ -430,8 +434,12 @@ function Game:updateSleepers()
 				local o = e.sleep
 				e.sleep = nil
 				self:debrisBody(e, x, y, e.body.a, o.spin)
-				local v = o.rate * o.r
-				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				if o.r then
+					local v = o.rate * o.r
+					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				else
+					e.body:setLinearVelocity(o.vx, o.vy)
+				end
 				table.insert(self.entities, e)
 			else
 				keep[#keep + 1] = e
@@ -447,11 +455,15 @@ function Game:updateSleepers()
 			local b = e.body
 			local x, y = b:getPosition()
 			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
-				local dx, dy = x - w.x, y - w.y
-				local r2 = dx * dx + dy * dy
 				local vx, vy = b:getLinearVelocity()
-				e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1),
-					spin = b:getAngularVelocity() }
+				if w then
+					local dx, dy = x - w.x, y - w.y
+					local r2 = dx * dx + dy * dy
+					e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1),
+						spin = b:getAngularVelocity() }
+				else
+					e.sleep = { x = x, y = y, vx = vx, vy = vy, t = self.time, spin = b:getAngularVelocity() }
+				end
 				-- out of the physics world entirely (an inactive body still
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)

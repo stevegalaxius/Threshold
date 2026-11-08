@@ -1366,26 +1366,6 @@ end
 function Game:updateLane(dt)
 	local lane, p = self.lane, self.player
 	if not lane then return end
-	-- A lane's rock is switched off in the physics far from you (a body
-	-- that's switched off costs nothing to step), and back on well before
-	-- it's in view. Checked a few times a second.
-	self.laneActiveNext = (self.laneActiveNext or 0) - dt
-	if self.laneActiveNext <= 0 then
-		self.laneActiveNext = 0.25
-		local fx, fy
-		if p and not p.dead and p.body and not p.body:isDestroyed() then fx, fy = p.body:getPosition()
-		elseif self.focus then fx, fy = self.focus.x, self.focus.y
-		else fx, fy = self.camera.x, self.camera.y end
-		local near = (viewReach(self) + T.laneActiveMargin) ^ 2
-		for _, e in ipairs(self.entities) do
-			if e.kind == "asteroid" and not e.removed then
-				local b = e.body
-				local x, y = b:getPosition()
-				local on = (x - fx) ^ 2 + (y - fy) ^ 2 < near
-				if b:isActive() ~= on then b:setActive(on) end
-			end
-		end
-	end
 	local W = T.laneWidth
 	for _, e in ipairs(self.entities) do
 		local b = e.body

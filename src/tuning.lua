@@ -134,8 +134,6 @@ T.laneCarryTime = 20
 -- and the seconds a driver's extra kick takes to settle back to it
 T.laneSpeed = 6000
 T.laneKickTime = 6
--- how far past the view a lane's rocks stay switched on in the physics (px)
-T.laneActiveMargin = 12000
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
