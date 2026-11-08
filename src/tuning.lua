@@ -91,11 +91,11 @@ T.driverZone, T.driverZoneWidth = 1500, 250
 T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
 T.driverGrip = 320
-T.driverAlign, T.driverFire = 1.2, 1.4
+T.driverAlign, T.driverFire = 1.2, 0.25
 -- how fast a driver's barrel swings round to its firing bearing (rad/s),
 -- and its speed round the planet as a share of the current there
 T.driverSlew, T.driverOrbitScale = 0.6, 1
-T.driverExitSpeed = 4500
+T.driverExitSpeed = 16000
 -- How a driver sends you: "lane" (the highway) or "flight" (the warp
 -- trip and the catch at the other end). Switchable in the debug panel.
 T.travelMode = "lane"
@@ -103,9 +103,9 @@ T.laneEntrySpeed = 2600
 -- After the barrel: T.driverCoast seconds climbing to driverCoastSpeed with
 -- the camera pulling out to cineZoom; then into the lane on a run-up of
 -- laneRunup px short of its mouth, braking to laneEntrySpeed.
-T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 20000
+T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 0.7, 24000, 0.15, 20000
 -- share of the driver's speed you still have as you enter the lane
-T.laneKeep = 0.8
+T.laneKeep = 1
 -- a cut that can't be avoided (fired at something solid, a map that
 -- couldn't be built ahead) hidden in the lane's glow: seconds for it to
 -- wash over, and to clear once the new level is in (Game:coverThen)

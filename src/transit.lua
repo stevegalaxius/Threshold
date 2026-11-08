@@ -282,6 +282,12 @@ function Game:updateDriverLaunch(p,dt)
 				-- wide so everything falls away behind you
 				local u = min(1, (ft - T.driverFire) / T.driverCoast)
 				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
+				-- the kick out of the muzzle
+				if p==self.player and not L.kicked then
+					L.kicked = true
+					self:shake(0.6)
+					self:spark(x, y, 30, { 0.7, 0.95, 1 })
+				end
 				-- the bearing can point back across the map: cut to the lane
 				-- early rather than fly into the planet (or a station). A
 				-- driver shot is a cut into the lane, hidden in the flash
@@ -290,7 +296,8 @@ function Game:updateDriverLaunch(p,dt)
 				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
 					if p==self.player then
 					 self.driverCut = true
-					 self.flash = { t = 0, life = 0.5 }
+					 -- a full white-out off the driver hides the cut
+					 self.flash = { t = 0, life = 0.7, peak = 1 }
 					 if L.gate then self.pendingGate = L.driver.gate elseif L.site then self.pendingSite = { id = L.to, bearing = L.driver.angle } else self.pendingFlight = L.to end
 					else
 					 p.launch=nil;p.alifeDepart=true
