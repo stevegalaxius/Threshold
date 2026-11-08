@@ -318,6 +318,7 @@ T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 -- Seconds a dead/escaped NPC record lingers (unreferenced) before removal.
 T.alifeGoneLinger=300
 
+T.wreckAlloyPerTonne = 1 / 40   -- hull alloy a drilled wreck yields, per tonne of hull
 T.salvagerPopulation,T.salvagerCollectTime=1,180   -- salvagers fill their hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
 

@@ -176,7 +176,12 @@ function O.update(game,r,clock)
   if n==0 then
    n,id,moved=Loot.takeStack(dest,h)
    if n==0 and clearable(prof,source) and not next(Hold.totals(h)) then
-    -- stripped bare: the clean-up crew hauls the hull off
+    -- stripped bare: the clean-up crew drills the hull apart for its alloy
+    -- (the same fixed yield a live wreck gives: Game.wreckAlloy)
+    local hullId=source.kind=='combat' and record.ship and record.ship.hull or record.hull
+    local alloy=require('src.game').wreckAlloy(data.hulls[hullId])
+    local got=Hold.add(dest,'hull_alloy',alloy)
+    if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Scavenge.took(r,'hull_alloy',got,clock) end
     if source.kind=='combat' then game.universe.alifeWrecks[source.id]=nil else remove(game,source) end
     require('src.events').emit('wreck_cleared',r,source.record)
     O.release(game,r,clock);return true

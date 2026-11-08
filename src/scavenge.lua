@@ -162,8 +162,10 @@ function S.think(game, e, dt, AI, r, NPC)
 		-- clean-up crew: no guns needed. Alongside, it strips the hold a stack
 		-- at a time, then cuts up the empty hull and hauls it off.
 		local reachT = Ship.tractorRange(e)
-		AI.navigate(game, e, wx - x, wy - y, NPC.approach(e, d, reachT * .5), vx, vy, d)
-		e.intent.aimX, e.intent.aimY = wx, wy; e.intent.firePrimary = false
+		-- in close to drill, tractor range to strip
+		local stand = e.scavengeDrilling == wreck and (wreck.radius or 0) + (e.halfLength or 60) or reachT * .5
+		AI.navigate(game, e, wx - x, wy - y, NPC.approach(e, d, stand), vx, vy, d)
+		e.intent.aimX, e.intent.aimY = wx, wy; e.intent.firePrimary = false; e.lock = nil
 		local near = Ship.distanceTo(e, wx, wy) - (wreck.radius or 0) <= reachT
 		e.intent.tractor = near; e.tractorTarget = nil
 		r.taskStatus = 'stripping a wreck'
@@ -179,9 +181,15 @@ function S.think(game, e, dt, AI, r, NPC)
 					e.scavengeWreck = nil; return false        -- hold full
 				end
 			else
-				game:remove(wreck); e.scavengeWreck = nil
-				require('src.events').emit('wreck_cleared', e, wreck)
+				-- stripped bare: drill the hull apart; its alloy spills as
+				-- loose cargo and the loop above collects it
+				e.scavengeDrilling = wreck
 			end
+		end
+		if e.scavengeDrilling == wreck then
+			e.intent.tractor = false
+			e.intent.firePrimary = d < (wreck.radius or 0) + 260
+			r.taskStatus = 'drilling a wreck apart'
 		end
 		return true
 	end

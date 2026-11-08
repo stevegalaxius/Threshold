@@ -2196,6 +2196,11 @@ function Game:reap()
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
 			-- (unless an atomic blast vaporized it, contents and all)
+			-- drilled apart, a wreck gives up its hull alloy (shot apart, it's slag)
+			if e.kind == "husk" and e.drilled and not e.vaporized and (e.alloy or 0) > 0 then
+				self:spawnPickup(x, y, "hull_alloy", e.alloy)
+			end
+			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
 			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
@@ -2312,6 +2317,12 @@ end
 -- the loot window exists), and can be shot apart, which spills the loot as
 -- pickups.
 Game.huskHold=huskHold
+-- Hull alloy a wreck yields when drilled apart: set by the hull alone, and
+-- shared out among its parts when they break off, so a wreck gives the
+-- same total however many pieces it ends up in.
+function Game.wreckAlloy(hull)
+	return math.max(2, math.floor((hull and hull.mass or 80) * T.wreckAlloyPerTonne + 0.5))
+end
 function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local hull = ship.hull
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
@@ -2321,6 +2332,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
+		alloy = Game.wreckAlloy(hull),
 	}
 	-- Who this was, for the loot window: hull, ship type and the A-Life record.
 	if ship.def or ship.alifeId then
@@ -2473,6 +2485,12 @@ function Game:breakablePieces(h, ship)
 		table.insert(h.pieces, piece)
 		if carries(part) then lootTotal = lootTotal + part.area end
 	end
+	-- hull alloy: each breakable part carries its share; the core the rest
+	local alloy, given = h.alloy or 0, 0
+	for _, pc in ipairs(h.pieces) do
+		if not pc.core then pc.alloy = math.floor(alloy * pc.frac); given = given + pc.alloy end
+	end
+	h.alloy = alloy - given
 	-- mass tag: a part's share of the wreck's weight, when it breaks away
 	local massTotal = 0
 	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
@@ -2580,6 +2598,7 @@ function Game:breakOff(h, piece)
 		flicker = random() * 10,
 	}
 	bits.loot = Hold.totals(bits.hold)
+	bits.alloy, bits.drilled, bits.origin = piece.alloy or 0, h.drilled, h.origin
 	partFixtures(body, part, bits, part.cx, part.cy)
 	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))
 	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)
