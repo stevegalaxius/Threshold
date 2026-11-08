@@ -5,7 +5,7 @@
 -- exact numbers; rewrite freely as the design moves.
 return function(game)
  local Game=require('src.game')
- for i,suite in ipairs({'tests.npc_lifecycle','tests.reactor_fuel','tests.persistence','tests.salvager','tests.stockpile','tests.npc_moves'}) do
+ for i,suite in ipairs({'tests.npc_lifecycle','tests.reactor_fuel','tests.persistence','tests.salvager','tests.stockpile','tests.npc_moves','tests.reputation'}) do
   -- Each part gets a fresh universe so one can't leave fixtures for the next.
   if i>1 then game=Game.new() end
   game.autosaveOff=true

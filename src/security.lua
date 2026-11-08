@@ -289,6 +289,12 @@ function S.prey(o) return o.npcRole and PREY[o.npcRole] or false end
 function S.hostile(game,e,o)
  if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
  if o==e.aggressor then return true end
+ -- patrols read the player's standing with their faction, their own
+ -- goodwill and the heat where they are (Reputation)
+ if e.alifeRole=='patrol' and o.isPlayer then
+  local Rep=require('src.reputation');local r=game.universe.npcs[e.alifeId]
+  return Rep.hostile(Rep.attitude(game.universe,r,r and r.node))
+ end
  -- patrols answer aggression (as stations do, and as offline does)
  if e.alifeRole=='patrol' then return o.team==2 and o.aggressedAt~=nil and game.time-o.aggressedAt<30 end
  if e.alifeRole=='pirate' then

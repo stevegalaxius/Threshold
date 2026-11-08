@@ -190,6 +190,7 @@ T.population = {
  salvager={minDelay=180,maxDelay=300},
 }
 T.npcWarpDuration = 1.5
+T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Berth ship capacity is independent of the authored pad/editor marker size.

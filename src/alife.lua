@@ -65,6 +65,8 @@ local function start(r,clock,index)
   lane.speed=lane.kind=='driver' and T.laneFlow or r.speed
   r.arrive=clock+lane.length/lane.speed
  else
+  -- just off a mass driver's lane: wakes come in along its rail (below)
+  r.driverArrival=(r.state=='transit' and from.kind=='driver') and clock or nil
   r.state='travel'; r.area=to.area; r.transit=nil
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
  end
@@ -690,7 +692,20 @@ function A.wake(game,r)
    local x,y=st.body:getPosition()
    return (p.x-x)^2+(p.y-y)^2<((st.radius or st.def.radius or 1000)+e.halfLength)^2
   end
-  if close(source) and dockingStop(r,leg.from) then
+  local g=source and source.kind=='driver' and source
+  local fresh=r.driverArrival and game.universe.clock-r.driverArrival<T.npcDriverArrivalTime
+  if g and fresh then
+   -- off the lane: in from out along the rail, beyond the catch rings,
+   -- lined up on the breech, as the player arrives (Game:placeForCatch)
+   local gx,gy=game:driverBreech(g)
+   local d=math.floor(T.catchRings+.5)*T.catchSpacing+T.catchApproach
+   local off=(love.math.random()*2-1)*T.catchOffset
+   local ox,oy=math.cos(g.angle),math.sin(g.angle)
+   local ia=g.angle+math.pi
+   e.body:setPosition(gx+ox*d-oy*off,gy+oy*d+ox*off);e.body:setAngle(ia)
+   e.body:setLinearVelocity(math.cos(ia)*r.speed,math.sin(ia)*r.speed)
+   r.driverArrival=nil
+  elseif close(source) and dockingStop(r,leg.from) then
    e.routeIndex=(r.index-2)%#r.route+1
    game:dockInstantly(e,source)
    game:undockShip(e)

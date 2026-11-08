@@ -58,7 +58,9 @@ end
 local function clearArrival(game,x,y,margin)
  if not game:isClear(x,y,margin) then return false end
  local clear=true
- game.world:queryBoundingBox(x-60,y-60,x+60,y+60,function(fixture)
+ -- a mass driver is huge: keep a whole ship's length off its hull
+ local m=math.max(300,margin or 0)
+ game.world:queryBoundingBox(x-m,y-m,x+m,y+m,function(fixture)
   local e=fixture:getUserData() or fixture:getBody():getUserData()
   if e and e.kind=='driver' and not fixture:isSensor() then clear=false;return false end
   return true
@@ -85,7 +87,12 @@ function P.spawn(game,area,role,nearPlayer)
  local nodes=def.nodes(game,area)
  if not nodes or #nodes==0 then return nil,'No '..role..' navigation route in this region.' end
  local clock=game.universe.clock
- local node=nodes[love.math.random(#nodes)]
+ -- warp in near a station or waypoint, not on a mass driver's barrel
+ -- (a driver is only a start when nothing else is on the route)
+ local anchors={}
+ for _,id in ipairs(nodes) do local place=L.byId[id];if not (place and place.kind=='driver') then anchors[#anchors+1]=id end end
+ if #anchors==0 then anchors=nodes end
+ local node=anchors[love.math.random(#anchors)]
  local x,y
  local localArea=area==game.fieldId and not game.lane and not game.flight
  if nearPlayer and localArea then x,y=entryPoint(game) end
