@@ -15,9 +15,8 @@ function S.system(area)
  for _,moon in ipairs(Fields.moonsOf(root)) do areas[#areas+1]=moon end
  return areas
 end
-local function units(r)
- local n=0;for _,count in pairs(r.salvageCargo or {}) do n=n+count end;return n
-end
+local Scavenge=require('src.scavenge')
+local function units(r) return Scavenge.taken(r) end
 function S.sell(game,r,node,clock)
  local sold,total={},0
  local h=r.ship.hold and Hold.deserialize(r.ship.hold)
@@ -102,7 +101,7 @@ NPC.job('salvager',{
  end,
  before=function(c)
   local r,game,clock=c.r,c.game or {universe=c.u},c.clock
-  if not r.salvageReturn and r.area and (units(r)>=T.salvagerLoad or units(r)>0 and clock>=(r.salvageUntil or 0)
+  if not r.salvageReturn and r.area and (Scavenge.done(r,clock)
    or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
  end,
  next=function(c)
@@ -116,37 +115,13 @@ function S.think(game,e,dt,AI)
  local r=e.alifeRecord
  if not r or r.role~='salvager' then return false end
  if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
- if not r.salvageReturn and (units(r)>=T.salvagerLoad or units(r)>0 and game.universe.clock>=(r.salvageUntil or 0)) then
+ if not r.salvageReturn and Scavenge.done(r,game.universe.clock) then
   local A=require('src.alife');A.capture(game,e,false)
   if S.returnRecord(game,r,false) then A.bindRoute(game,e,r) end
   e.tractorTarget=nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
  end
  if r.salvageReturn then e.intent.tractor=false;e.tractorTarget=nil;AI.trade(game,e,dt);return true end
- if game.time>=(e.salvageScanAt or 0) then
-  e.salvageScanAt=game.time+T.securityThink
-  local previous=e.salvagePickup;e.salvagePickup=nil
-  local x,y=e.body:getPosition();local best=T.salvagerRange^2
-  for _,p in ipairs(game.pickups) do
-   local owner=p.collector
-   if p.count>0 and not p.inner and (not owner or owner==e or owner.dead or owner.removed or owner.tractorTarget~=p)
-    and Ship.canFit(e,p.item,1)>0 then
-    local d=(p.x-x)^2+(p.y-y)^2
-    if d<best then best=d;e.salvagePickup=p end
-   end
-  end
-  if previous and previous~=e.salvagePickup and previous.collector==e then previous.collector=nil end
- end
- local p=e.salvagePickup;local exists=false
- for _,candidate in ipairs(game.pickups) do if candidate==p then exists=true;break end end
- if p and exists and p.count>0 and Ship.canFit(e,p.item,1)>0 then
-  local x,y=e.body:getPosition();local dx,dy=p.x-x,p.y-y;local d=math.sqrt(dx*dx+dy*dy)
-  local range=Ship.tractorRange(e)
-  AI.navigate(game,e,dx,dy,NPC.approach(e,d,range*.5),p.vx,p.vy,d)
-  e.intent.aimX,e.intent.aimY=p.x,p.y
-  e.intent.tractor=Ship.distanceTo(e,p.x,p.y)<=range
-  e.tractorTarget=e.intent.tractor and p or nil
-  p.collector=e;r.taskStatus='collecting loose salvage';return true
- end
+ if Scavenge.think(game,e,dt,AI,r,NPC) then return true end
  e.tractorTarget=nil;e.intent.tractor=false
  if units(r)>0 then
   local A=require('src.alife');A.capture(game,e,false)
@@ -190,12 +165,6 @@ function S.seed(game)
   end
  end
 end
-require('src.events').on('pickup',function(e,item,n)
- local r=e.alifeRecord
- if not r or r.role~='salvager' or r.salvageReturn then return end
- r.salvageCargo=r.salvageCargo or {};r.salvageCargo[item]=(r.salvageCargo[item] or 0)+n
- r.salvageUntil=r.salvageUntil or e.alifeGame.universe.clock+T.salvagerCollectTime
-end)
 Tasks.register('salvage',{
  roles={salvager=true},
  eligible=function(u,r,o,node)

@@ -112,7 +112,8 @@ local function record(game, e)
 		angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
 		mass = { mx, my, mass, inertia }, linearDamping = body:getLinearDamping(),
 		angularDamping = body:getAngularDamping(), hp = e.hp, radius = e.radius,
-		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId, origin = P.copy(e.origin) }
+		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId, origin = P.copy(e.origin),
+		alloy = e.alloy, drilled = e.drilled }
 	if e.kind == "container" then
 		r.item = e.item
 	else
@@ -232,6 +233,8 @@ function P.install(Game)
 			if e then
 				e.persistenceId, e.hp = r.id, r.hp
 				e.historyWreckId=r.historyWreckId
+				if r.alloy then e.alloy = r.alloy end
+				e.drilled = r.drilled
 				local b = e.body
 				b:setMassData(unpack(r.mass))
 				b:setPosition(r.x, r.y)

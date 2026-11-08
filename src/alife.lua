@@ -120,7 +120,11 @@ NPC.job('trader',{
   -- a pickup loads at its source: a live ship that only passed by it
   -- circled the station's inspection point forever, never loading
   local t=r.task
-  return not t or id==t.target or t.phase=='pickup' and id==t.source
+  -- on the empty leg to a pickup only the source counts: passing through
+  -- the delivery target (often on the way) docked there, then left and
+  -- docked again on the next pass, over and over
+  if t and t.phase=='pickup' then return id==t.source end
+  return not t or id==t.target
  end,
  complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
  next=function(c)
@@ -759,7 +763,15 @@ function A.install(Game)
   local serviced=self.universe.npcs[e.alifeId]
   if serviced and serviced.service and Upkeep.isStation(serviced,station.locationId) then
    if not Upkeep.canDepart(self,e,serviced) then return false end
-   e.serviceDeparture=true;return true
+   -- The visit is done here: hand the route back now and plan the next
+   -- leg like any departure (its job may start right here). Ending it on
+   -- undock instead never fired: undocking wraps the live route index to
+   -- 1 first, so the ship flew its service leg again and redocked here,
+   -- 'heading to repair' for ever.
+   A.capture(self,e,false);e.serviceDockedAt=nil
+   serviced.index=#serviced.route;Upkeep.passed(serviced,#serviced.route)
+   -- still docked here, now as itself
+   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock
   end
   local r=self.universe.npcs[e.alifeId]
   if Mining.isMiner(r) and not r.worldRecovery then return Mining.depart(self,e,station) end

@@ -66,6 +66,7 @@ function Game.new(opts)
 	if opts.universe then self.universe = opts.universe else self:newUniverse() end
 
 	self:loadField(opts.field or Fields.start)
+	if not opts.preview then require("src.reputation").listen(self) end
 	return self
 end
 
@@ -1561,11 +1562,7 @@ function Game:spawnContainer(x, y, id, loaded, inner)
 		w = w, h = h, radius = sqrt(w * w + h * h) / 2, halfLength = w / 2, hp = item.hp,
 	}
 	if loaded then
-		local counts = {}
-		for _, f in ipairs(item.fill) do
-			if random() < (f[4] or 1) then counts[f[1]] = (counts[f[1]] or 0) + random(f[2], f[3]) end
-		end
-		Hold.fill(hold, counts, { random = random })
+		Hold.fill(hold, require("src.loot_tables").fill(item, { area = self.fieldId }, nil, nil) , { random = random })
 	end
 	e.loot = Hold.totals(hold)
 	local f = love.physics.newFixture(body, love.physics.newRectangleShape(w, h), 1)
@@ -1592,16 +1589,17 @@ function Game:containerMass(e)
 	e.massDirty = nil
 end
 
--- A few loaded containers drifting loose somewhere in the field.
+-- The area's containers: its spawn sets (data/spawn_sets.lua, src/spawn.lua),
+-- placed past minD. n is ignored now; the sets say how many.
 function Game:spawnContainers(n, minD)
-	minD = minD or 600
-	for _ = 1, n * 10 do
-		if n <= 0 then break end
-		local a = random() * pi * 2
-		local d = minD + random() * (self.arenaRadius - minD - 300)
-		local x, y = cos(a) * d, sin(a) * d
-		if self:isClear(x, y, 80) then self:spawnContainer(x, y, nil, true); n = n - 1 end
-	end
+	require("src.spawn").baseline(self, minD or 600)
+end
+
+-- Put rolled loot (item = count) into a container's hold.
+function Game:fillContainer(e, counts)
+	Hold.fill(e.hold, counts, { random = random })
+	e.loot = Hold.totals(e.hold)
+	self:containerMass(e)
 end
 
 -- Looting: while a wreck or container is open in the cargo screen
@@ -2195,6 +2193,11 @@ function Game:reap()
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
 			-- (unless an atomic blast vaporized it, contents and all)
+			-- drilled apart, a wreck gives up its hull alloy (shot apart, it's slag)
+			if e.kind == "husk" and e.drilled and not e.vaporized and (e.alloy or 0) > 0 then
+				self:spawnPickup(x, y, "hull_alloy", e.alloy)
+			end
+			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
 			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
 				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
 			end
@@ -2258,8 +2261,8 @@ function Game:reap()
 	end
 end
 
--- What a dead ship leaves behind: its whole hold (nothing is lost), the
--- modules that survived, and the salvage its enemy definition rolls.
+-- What a dead ship leaves behind: its whole hold (nothing is lost) and the
+-- modules that survived.
 local function lootOf(e)
 	local loot = {}
 	for id, count in pairs(e.cargo) do
@@ -2277,11 +2280,7 @@ local function lootOf(e)
 			e.salvagedSlots[i] = id
 		end
 	end
-	local s = e.def and e.def.salvage or { 0, 0 }
-	for _ = 1, random(s[1], s[2]) do
-		local id = random() < 0.2 and "salvage_kit" or "scrap"
-		loot[id] = (loot[id] or 0) + 1
-	end
+	-- no rolled salvage: a wreck's metal comes from drilling it (hull alloy)
 	return loot
 end
 
@@ -2311,6 +2310,12 @@ end
 -- the loot window exists), and can be shot apart, which spills the loot as
 -- pickups.
 Game.huskHold=huskHold
+-- Hull alloy a wreck yields when drilled apart: set by the hull alone, and
+-- shared out among its parts when they break off, so a wreck gives the
+-- same total however many pieces it ends up in.
+function Game.wreckAlloy(hull)
+	return math.max(2, math.floor((hull and hull.mass or 80) * T.wreckAlloyPerTonne + 0.5))
+end
 function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local hull = ship.hull
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
@@ -2320,6 +2325,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
+		alloy = Game.wreckAlloy(hull),
 	}
 	-- Who this was, for the loot window: hull, ship type and the A-Life record.
 	if ship.def or ship.alifeId then
@@ -2353,16 +2359,12 @@ end
 
 -- A placed wreck or prop (data.wrecks): rolls its loot table, then becomes
 -- a husk like a dead ship's, so it drifts, loots and breaks apart the same.
-function Game:spawnWreck(id, x, y, a, vx, vy)
+-- A container (or prop) drawn in the Shipyard, filled from its loot table
+-- or the one given (lootTable).
+function Game:spawnWreck(id, x, y, a, vx, vy, lootTable)
 	local def = data.wrecks[id]
 	if not def then return nil end
-	local cargo = {}
-	for _, l in ipairs(def.loot) do
-		local item, lo, hi, chance = l[1], l[2] or 1, l[3] or l[2] or 1, l[4] or 1
-		if data.items[item] and random() < chance then
-			cargo[item] = (cargo[item] or 0) + random(lo, math.max(lo, hi))
-		end
-	end
+	local cargo = def.kind == "prop" and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
 	-- a stand-in for the ship a husk normally comes from
 	local noseX, tailX = 0, 0
 	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end
@@ -2472,6 +2474,12 @@ function Game:breakablePieces(h, ship)
 		table.insert(h.pieces, piece)
 		if carries(part) then lootTotal = lootTotal + part.area end
 	end
+	-- hull alloy: each breakable part carries its share; the core the rest
+	local alloy, given = h.alloy or 0, 0
+	for _, pc in ipairs(h.pieces) do
+		if not pc.core then pc.alloy = math.floor(alloy * pc.frac); given = given + pc.alloy end
+	end
+	h.alloy = alloy - given
 	-- mass tag: a part's share of the wreck's weight, when it breaks away
 	local massTotal = 0
 	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
@@ -2579,6 +2587,7 @@ function Game:breakOff(h, piece)
 		flicker = random() * 10,
 	}
 	bits.loot = Hold.totals(bits.hold)
+	bits.alloy, bits.drilled, bits.origin = piece.alloy or 0, h.drilled, h.origin
 	partFixtures(body, part, bits, part.cx, part.cy)
 	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))
 	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)

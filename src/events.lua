@@ -10,7 +10,13 @@
 	undock, travel (from, to), swapship (ship, station), buyship and sellship (record,
 	station).
 	Simulation history also emits simulation_outcome(entry), a plain-data copy of
-	a saved observation shared by online and offline simulation.
+	a saved observation shared by online and offline simulation. Its kinds:
+	combat_started, combat_ended (aggressor, dead, fled, wrecks), npc_died,
+	wreck_created, fuel_condition_changed, rescued (victim saved by killing
+	its attacker), docked, undocked, left_area, arrived. Each has a clock,
+	area, node (when known) and participant ids ('player' for you).
+	Quests and random events read the same log with
+	simulation_history.recent(u, { kind, node, area, participant, since }).
 	Civilian scavenging emits salvage_sale(npcId, stationId, itemCounts, credits).
 	Keep this list small and stable: it's going to be the modding API.
 ]]

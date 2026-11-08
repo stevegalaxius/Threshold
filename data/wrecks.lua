@@ -10,13 +10,9 @@
 	  loot   { { item, min, max, chance }, ... } rolled when it spawns
 ]]
 
-wreck {
+container {
 	id = "derelict_tug", name = "Derelict tug",
 	armor = 260, hold = 16, mass = 140,
-	loot = {
-		{ "scrap", 3, 8, 1 },
-		{ "salvage_kit", 1, 2, 0.4 },
-	},
 	parts = {
 		{ name = "cabin", shape = { 46,-14, 46,14, 20,22, -30,22, -40,10, -40,-10, -30,-22, 20,-22 }, core = true },
 		{ name = "cargo pod", shape = { 10,-38, 10,-22, -34,-22, -34,-38 }, cargo = true, mirror = true, shade = 0.8 },
