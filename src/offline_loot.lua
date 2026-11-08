@@ -59,6 +59,21 @@ local function candidates(game,r,clock)
    end
   end
  end
+ -- Wrecks lying in the loaded area beyond the player's view: real husks,
+ -- which an offline clean-up crew works like records (kind 'live').
+ if Scavenge.profile(r) and Scavenge.profile(r).clears and game.fieldId==r.area and game.entities then
+  local px,py
+  if game.player and not game.player.dead then px,py=game.player.body:getPosition() end
+  for _,o in ipairs(game.entities) do
+   if o.kind=='husk' and o.origin and not o.dead and not o.removed and o~=game.looting and o.body and not o.body:isDestroyed() then
+    local x,y=o.body:getPosition()
+    if not px or (x-px)^2+(y-py)^2>=T.alifeNear^2 then
+     o.liveLootId=o.liveLootId or ('live/'..tostring(o.id))
+     result[#result+1]={kind='live',id=o.liveLootId,record=o,x=x,y=y}
+    end
+   end
+  end
+ end
  -- Loose items: one record each, whether or not their area is loaded. Any
  -- without a live view are fair game for an offline collector.
  if r.area then
@@ -70,6 +85,7 @@ local function candidates(game,r,clock)
 end
 local function remove(game,source)
  if source.kind=='pickups' then Loose.remove(game.universe,source.id);return end
+ if source.kind=='live' then game:remove(source.record);return end
  if source.list then for i,s in ipairs(source.list) do if s==source.record then table.remove(source.list,i);break end end end
 end
 local function available(game,r,s)
@@ -102,15 +118,22 @@ end
 -- Wrecks of ships that died (not authored derelicts): a clean-up crew
 -- strips these and hauls the hull away.
 local function clearable(prof,s)
- return prof and prof.clears and (s.kind=='combat' or s.kind=='objects' and s.record.kind=='husk' and s.record.origin~=nil)
+ return prof and prof.clears and (s.kind=='combat' or s.kind=='live' or s.kind=='objects' and s.record.kind=='husk' and s.record.origin~=nil)
+end
+-- The hold behind a source: a live husk's own (changed in place), else a copy
+local function holdOf(game,s)
+ if s.kind=='live' then return s.record.hold end
+ if s.kind=='combat' then return sourceHold(game,s.record) end
+ return s.record.hold and Hold.deserialize(s.record.hold)
 end
 local function bare(game,s)
- local h=s.kind=='combat' and sourceHold(game,s.record) or s.record.hold and Hold.deserialize(s.record.hold)
+ local h=holdOf(game,s)
  return not h or not next(Hold.totals(h))
 end
 local function canTake(game,dest,s)
  if s.kind=='pickups' then return Hold.room(dest,s.record.item,1)>0 end
- local h=s.kind=='combat' and sourceHold(game,s.record) or Hold.deserialize(s.record.hold)
+ local h=holdOf(game,s);if not h then return false end
+ if s.kind=='live' then h=Hold.clone(h) end
  if s.record.kind=='container' and Hold.placeStack(Hold.clone(dest),{id=s.record.item,n=1,inner=h}) then return true end
  return Loot.takeStack(Hold.clone(dest),Hold.deserialize(Hold.serialize(h)))>0
 end
@@ -121,7 +144,9 @@ function O.hasLoot(game,r,clock)
  if not x then return false end
  local range=Scavenge.range(Scavenge.profile(r))^2
  for _,source in ipairs(candidates(game,r,clock)) do
-  if (source.x-x)^2+(source.y-y)^2<=range and available(game,r,source) and canTake(game,dest,source) then return true end
+  local prof=Scavenge.profile(r)
+  if ((source.x-x)^2+(source.y-y)^2<=range or clearable(prof,source)) and available(game,r,source)
+   and (canTake(game,dest,source) or clearable(prof,source) and bare(game,source)) then return true end
  end
  return false
 end
@@ -145,10 +170,13 @@ function O.update(game,r,clock)
  else
   if clock<(r.lootCheckAt or 0) then return false end
   r.lootCheckAt=clock+2
-  local x,y=require('src.alife').point(r,clock);if not x then return false end;local best=Scavenge.range(prof)^2
+  local x,y=require('src.alife').point(r,clock);if not x then return false end
+  local reach,best=Scavenge.range(prof)^2,math.huge
   for _,s in ipairs(sources) do
    local d=(s.x-x)^2+(s.y-y)^2
-   if d<best and available(game,r,s) and (canTake(game,dest,s) or clearable(prof,s) and bare(game,s)) then best=d;source=s end
+   -- loose cargo only in reach; a clean-up crew goes anywhere in the area for a wreck
+   if d<best and (d<reach or clearable(prof,s)) and available(game,r,s)
+    and (canTake(game,dest,s) or clearable(prof,s) and bare(game,s)) then best=d;source=s end
   end
   if not source then return false end
   source.record.lootOwner=r.id
@@ -167,7 +195,7 @@ function O.update(game,r,clock)
   id=record.item;n=Hold.add(dest,id,record.count);record.count=record.count-n
   if record.count==0 then remove(game,source) end
  else
-  local h=source.kind=='combat' and sourceHold(game,record) or Hold.deserialize(record.hold)
+  local h=holdOf(game,source)
   local oldMass=cargoMass(h)
   if record.kind=='container' then
    moved={id=record.item,n=1,inner=h}
@@ -178,8 +206,8 @@ function O.update(game,r,clock)
    if n==0 and clearable(prof,source) and not next(Hold.totals(h)) then
     -- stripped bare: the clean-up crew drills the hull apart for its alloy
     -- (the same fixed yield a live wreck gives: Game.wreckAlloy)
-    local hullId=source.kind=='combat' and record.ship and record.ship.hull or record.hull
-    local alloy=require('src.game').wreckAlloy(data.hulls[hullId])
+    local hullId=source.kind=='combat' and record.ship and record.ship.hull or source.kind=='live' and record.hull.id or record.hull
+    local alloy=source.kind=='live' and (record.alloy or 0) or require('src.game').wreckAlloy(data.hulls[hullId])
     local got=Hold.add(dest,'hull_alloy',alloy)
     if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Scavenge.took(r,'hull_alloy',got,clock) end
     if source.kind=='combat' then game.universe.alifeWrecks[source.id]=nil else remove(game,source) end
@@ -189,6 +217,8 @@ function O.update(game,r,clock)
    if n>0 then
     if source.kind=='combat' then
      record.lootHold=Hold.serialize(h)
+    elseif source.kind=='live' then
+     record.loot=Hold.totals(h)
     else
      record.hold=Hold.serialize(h)
      if record.mass then
