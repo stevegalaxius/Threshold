@@ -1364,18 +1364,8 @@ function Render.world(game, overlay, boundaryAngle)
 		drawGrid(game)
 		game.camera:release()
 	end
-	local preview = game.arrivalPreview
-	if preview then
-		local scene = preview.game
-		scene.camera.x, scene.camera.y = game.camera.x - preview.x, game.camera.y - preview.y
-		scene.camera.zoom = game.camera.zoom
-		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		local mouth=preview.back and -game.lane.half or game.lane.half
-		local ex,ey=game:fromLane(mouth,0)
-		Render.world(scene, true, math.atan2(ey-preview.y,ex-preview.x))
-	end
 	local trip = game.trip
-	if trip and trip.originScene and (not preview or not preview.back) then
+	if trip and trip.originScene and trip.origin then
 		local scene, o = trip.originScene, trip.origin
 		scene.time = game.time
 		scene.camera.x, scene.camera.y = game.camera.x - o.x, game.camera.y - o.y
@@ -1387,14 +1377,11 @@ function Render.world(game, overlay, boundaryAngle)
 	game.camera:apply()
 	drawLocalBoundary(game,boundaryAngle)
 	if game.lane then
-		-- the planet you're heading for, where it'll be when you arrive
-		-- (moon trips only: a mass driver's lane shows no planets)
+		-- the planet you left off the edge of (a moon trip loaded from a
+		-- save, whose map isn't kept alive behind the mouth)
 		if game.trip and game.trip.moon then
-			local px, py, F = game:laneDestination()
-			if not preview or preview.back then drawFieldWorld(game, F, px, py) end
-			-- the one you left off the edge of (a moon trip)
 			local o = game.trip.origin
-			if o and not game.trip.originScene and (not preview or not preview.back) then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
+			if o and not game.trip.originScene then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
 		end
 		drawLane(game)
 	end

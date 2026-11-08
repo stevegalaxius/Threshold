@@ -174,6 +174,11 @@ function love.update(dt)
 		remember(game)
 		local before=game.inputTranslation
 		game:step(STEP)
+		if game.resetClock then
+			-- a level was just loaded: don't catch up on the time it took
+			game.resetClock = nil
+			accumulator = STEP
+		end
 		if game.inputTranslation~=before then
 			local shift=game.inputTranslation
 			if intent.aimX then intent.aimX=intent.aimX+shift.x end

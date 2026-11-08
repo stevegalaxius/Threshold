@@ -291,7 +291,7 @@ function Game:updateDriverLaunch(p,dt)
 				-- early rather than fly into the planet (or a station)
 				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
 					if p==self.player then
-					 if L.gate then self.pendingGate = L.driver.gate elseif L.site then self.pendingSite = { id = L.to, bearing = L.driver.angle } else self.pendingFlight = L.to end;self.flash = { t = 0, life = 0.5 }
+					 if L.gate then self.pendingGate = L.driver.gate elseif L.site then self.pendingSite = { id = L.to, bearing = L.driver.angle } else self.pendingFlight = L.to end
 					else
 					 p.launch=nil;p.alifeDepart=true
 					 if g.driverShip==p then g.driverShip=nil end
@@ -613,74 +613,59 @@ function Game:launchTrip(to, moon, lane)
 	if not lane then events.emit("travel", from, to) end
 end
 
--- Prepare the actual destination before its map edge enters the view.
--- It is drawn in lane coordinates, then adopted rather than rebuilt on exit.
-function Game:prepareArrival(back)
-	local cached = self.arrivalPreview
-	if cached and cached.back == (not not back) then return cached end
-	if cached and cached.game ~= self.trip.originScene then cached.game.world:destroy() end
-	local to = back and self.trip.from or self.trip.to
-	local scene = back and self.trip.originScene
-	if not scene then
-		scene = Game.new({ field = to, universe = self.universe, preview = true })
-		scene.autosaveOff = true
-		scene:remove(scene.player)
-		scene.player = nil
-	end
-	scene.time = self.time
-	local x, y
-	if back and self.trip.origin then
-		x, y = self.trip.origin.x, self.trip.origin.y
-	elseif back then
-		local ex, ey = self:fromLane(-self.lane.half, 0)
-		local a = self:laneHeading(-self.lane.half)
-		local d = Fields[to].radius - 1500
-		x, y = ex - cos(a) * d, ey - sin(a) * d
-	else
-		x, y = self:laneDestination()
-	end
-	cached = { game = scene, back = not not back, x = x, y = y }
-	self.arrivalPreview = cached
-	return cached
-end
-
 -- Out of the far end of the lane at the other planet's driver, moving fast.
 -- back: you turned round, so you come out of your own planet's driver.
+-- Back off a moon trip, the planet you left is still alive behind the
+-- lane's mouth (trip.originScene): it's adopted as it is, no rebuild and no
+-- cut. Anything else is built fresh, under the transition's cover (see
+-- Game:coverThen), so the load and the swap don't show.
 function Game:arrive(back)
 	local p, trip = self.player, self.trip
 	if not p or p.dead or not trip then return end
 	local to, from = trip.to, trip.from
 	if back then to, from = from, to end
-	local preview = self:prepareArrival(back)
-	preview.game:syncAreaMotion()
-	local exit = self:laneExit(back)
-	exit.free, exit.continuous = true, true
-	local cx, cy = self.camera.x - preview.x, self.camera.y - preview.y
 	local ship = Ship.record(p)
-	local bx = (self.camera.backgroundX or 0) + preview.x
-	local by = (self.camera.backgroundY or 0) + preview.y
-	self:loadField(to, { player = ship, at = { driver = from, exit = exit }, prepared = preview.game })
-	self.camera.x, self.camera.y = cx, cy
-	self.camera.backgroundX, self.camera.backgroundY = bx, by
+	local Sites = require("src.sites")
+	if not Fields[to] then to = Fields.start end
+	if back and trip.originScene and trip.origin then
+		local o, scene = trip.origin, trip.originScene
+		local exit = self:laneExit(true)
+		exit.free, exit.continuous = true, true
+		scene:syncAreaMotion()
+		scene.time = self.time
+		local cx, cy = self.camera.x - o.x, self.camera.y - o.y
+		local bx = (self.camera.backgroundX or 0) + o.x
+		local by = (self.camera.backgroundY or 0) + o.y
+		self:loadField(to, { player = ship, at = { driver = from, exit = exit }, prepared = scene })
+		self.camera.x, self.camera.y = cx, cy
+		self.camera.backgroundX, self.camera.backgroundY = bx, by
+		return
+	end
+	local at
+	if Sites.of(to) then
+		-- a site's pocket: out at its spawn point, still flying the way you were
+		local F = Fields[to]
+		local vx, vy = p.body:getLinearVelocity()
+		local sp = sqrt(vx * vx + vy * vy)
+		local a = sp > 50 and math.atan2(vy, vx) or p.body:getAngle()
+		local keep = min(sp, T.siteArriveSpeed or 600)
+		at = { x = F.spawn[1], y = F.spawn[2], angle = a, vx = cos(a) * keep, vy = sin(a) * keep }
+	else
+		at = { driver = from, exit = self:laneExit(back) }
+	end
+	self:loadField(to, { player = ship, at = at })
+	if at.x then self.player.laneFade = 1 end
 end
 
--- How you come out of the lane: pointing and moving exactly as you were on
--- screen, and where you were relative to the planet drawn ahead at the end
--- of the lane (Game:laneDestination). Saving mid-trip uses it too.
+-- How you come out of the lane: pointing and moving exactly as you were,
+-- in from the destination map's edge (Game:placeAtDriver). Back off a moon
+-- trip, where you were relative to the planet drawn behind the mouth.
 function Game:laneExit(back)
 	local p = self.player
 	local vx, vy = p.body:getLinearVelocity()
 	local exit = { angle = p.body:getAngle(), vx = vx, vy = vy, spin = p.body:getAngularVelocity(), moon = self.trip and self.trip.moon }
-	local px, py = p.body:getPosition()
-	if not back then
-		local cx, cy = self:laneDestination()
-		exit.ox, exit.oy = px - cx, py - cy
-	elseif self.arrivalPreview and self.arrivalPreview.back then
-		exit.ox, exit.oy = px - self.arrivalPreview.x, py - self.arrivalPreview.y
-		exit.free = true
-	elseif self.trip and self.trip.origin then
-		-- back off a moon trip: where you are relative to the planet drawn
-		-- behind the mouth
+	if back and self.trip and self.trip.origin then
+		local px, py = p.body:getPosition()
 		exit.ox, exit.oy = px - self.trip.origin.x, py - self.trip.origin.y
 		exit.free = true   -- put back exactly there, even past the map's edge
 	end
@@ -776,18 +761,6 @@ function Game:toLane(x, y)
 	local dx, dy = x, y + R
 	local psi = math.atan2(dx, dy)
 	return psi * R, sqrt(dx * dx + dy * dy) - R, -psi + r
-end
-
--- Where the destination planet's centre sits, in the lane's coordinates:
--- straight on past the end of the lane by as far as you'll arrive from
--- it. It's drawn there as you come in, and you arrive where you were
--- relative to it, so the swap doesn't show.
-function Game:laneDestination()
-	local lane, F = self.lane, Fields[self.trip.to]
-	local ex, ey = self:fromLane(lane.half, 0)
-	local phi = self:laneHeading(lane.half)
-	local d = F.radius - 1500
-	return ex + cos(phi) * d, ey + sin(phi) * d, F
 end
 
 -- A lane's point at (s, n) for a lane of arc radius R turned by r, in its
@@ -978,14 +951,6 @@ function Game:updateLane(dt)
 	end
 	if not p or p.dead then return end
 	local ps, pn, ph = self:toLane(p.body:getPosition())
-	local w, h = love.graphics.getDimensions()
-	local approach = sqrt(w * w + h * h) / (2 * self.camera.zoom) + 4000
-	if ps >= 0 and ps > lane.half - approach then
-		self:prepareArrival(false)
-	elseif ps < 0 and ps < -lane.half + approach and p.laneEntered then
-		self:prepareArrival(true)
-	end
-	if self.arrivalPreview then self.arrivalPreview.game.time = self.time end
 	local R = p.runup
 	if R then
 		-- the run-up: held on the line into the mouth, braking from the

@@ -12,7 +12,6 @@ local Scavenge=require('src.scavenge')
 local O={}
 local function retained(game,area)
  return game.fieldId==area or game.trip and game.trip.originScene and game.trip.originScene.fieldId==area
-  or game.arrivalPreview and game.arrivalPreview.game.fieldId==area
 end
 local function sourceHold(game,wreck)
  if not wreck.lootHold then

@@ -106,6 +106,11 @@ T.laneEntrySpeed = 2600
 T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 20000
 -- share of the driver's speed you still have as you enter the lane
 T.laneKeep = 0.8
+-- a level swap (into or out of a lane) hidden in the lane's glow: seconds
+-- for it to wash over, and to clear once the new level is in (Game:coverThen)
+T.laneCoverIn, T.laneCoverOut = 0.18, 0.55
+-- fastest you come out of a lane into a site's pocket (at its spawn point)
+T.siteArriveSpeed = 600
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road
 T.laneCarryTime = 20

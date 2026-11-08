@@ -78,7 +78,7 @@ function Game:retainField()
 	for k, v in pairs(self) do scene[k] = v end
 	scene.camera = Camera.new()
 	for k, v in pairs(self.camera) do scene.camera[k] = v end
-	scene.trip, scene.arrivalPreview, scene.contacts = nil, nil, {}
+	scene.trip, scene.contacts = nil, {}
 	scene.alifeOnline, scene.alifeActiveArea, scene.preview = {}, nil, true
 	scene.autosaveOff = true
 	scene:remove(self.player)
@@ -108,9 +108,7 @@ function Game:loadField(id, opts)
 			disposed[scene.world] = true
 		end
 	end
-	release(self.arrivalPreview and self.arrivalPreview.game)
 	if not opts.retain then release(self.trip and self.trip.originScene) end
-	self.arrivalPreview = nil
 	if not opts.retain then
 		-- Unloading a field ends ownership of the whole Box2D world, including
 		-- native broad-phase/contact allocations and any untracked bodies.
@@ -1790,24 +1788,56 @@ function Game:step(dt)
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
-	if self.pendingGate then
+	self:updateCover(dt)
+	if self.cover then
+		-- already on the way out: the cover's action does the load
+		self.pendingGate, self.pendingSite, self.pendingFlight, self.pendingArrive = nil, nil, nil, nil
+	elseif self.pendingGate then
 		local gate = self.pendingGate
 		self.pendingGate = nil
-		self:throughGate(gate)
+		self:coverThen(function() self:throughGate(gate) end)
 	elseif self.pendingSite then
 		local s = self.pendingSite
 		self.pendingSite = nil
-		self:enterSite(s.id, s.bearing)
+		self:coverThen(function() self:enterSite(s.id, s.bearing) end)
 	elseif self.pendingFlight then
 		local to = self.pendingFlight
 		self.pendingFlight = nil
 		-- the highway, or the warp trip and the catch (debug panel picks)
-		if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
+		self:coverThen(function()
+			if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
+		end)
 	elseif self.pendingArrive then
 		local back = self.pendingArrive == "back"
 		self.pendingArrive = nil
-		self:arrive(back)
+		local t = self.trip
+		if back and t and t.originScene and t.origin then
+			self:arrive(true)   -- adopted as it is: nothing to hide
+		else
+			self:coverThen(function() self:arrive(back) end)
+		end
 	end
+end
+
+-- Hide a level swap: the screen washes over to the lane's glow over
+-- T.laneCoverIn, the swap runs once it's fully covered (so the frame the
+-- load takes, and everything vanishing and appearing, happen behind it),
+-- and the glow clears over T.laneCoverOut. The step clock restarts after
+-- the load so the long frame isn't caught up afterwards.
+function Game:coverThen(action)
+	if self.cover then return end
+	self.cover = { t = 0, life = T.laneCoverIn or 0.18, action = action }
+end
+
+function Game:updateCover(dt)
+	local c = self.cover
+	if not c then return end
+	c.t = c.t + dt
+	if c.t < c.life then return end
+	self.cover = nil
+	c.action()
+	self.flash = { t = 0, life = T.laneCoverOut or 0.55, peak = 1 }
+	self.resetClock = true
 end
 
 -- Soft arena edge: brake outward motion, then drift gently inward.
