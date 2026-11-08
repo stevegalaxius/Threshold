@@ -654,7 +654,7 @@ function Fields.configureLocations(area)
 		-- so no two exits' arcs overlap (the planet's stays where it is).
 		local moon = Fields.moons[area]
 		if moon then
-			local sep = T.departArc / F.radius * 1.25
+			local sep = T.departArc / F.radius * 2.5
 			local function d(a, b) return (b - a + pi) % (2 * pi) - pi end
 			local fixed, ways = moon.phase + pi, {}
 			for _, sister in ipairs(Fields.siblingMoons(area)) do
