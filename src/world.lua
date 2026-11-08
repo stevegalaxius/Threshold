@@ -473,7 +473,7 @@ function Game:loadState(state)
  state=require("src.world_migration").ids(state)
  -- the maps kept alive beside a lane go with the game they belonged to
  for _,side in ipairs(self:sideScenes()) do side.scene:releaseScene(true) end
- self.trail=nil
+ self.trail,self.laneStage=nil,nil
  if self.trip then self.trip.originScene,self.trip.dest,self.trip.returning=nil,nil,nil end
  -- Detach the outgoing scene while it still owns its universe. Capturing old
  -- bodies after installing the snapshot can overwrite incoming NPC/resource data.

@@ -64,6 +64,8 @@ function Game.new(opts)
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
 	if opts.universe then self.universe = opts.universe else self:newUniverse() end
+	-- a lane built ahead of you (Game:stageLane) is laid out from its trip
+	self.trip = opts.trip
 
 	self:loadField(opts.field or Fields.start)
 	if not opts.preview then require("src.reputation").listen(self) end
@@ -156,11 +158,11 @@ end
 -- Start building field `id` off to the side, for the player to fly into.
 -- Returns a stage: Game.advanceStage(stage, seconds) builds on, and
 -- stage.scene is the finished side scene.
-function Game:stageField(id)
+function Game:stageField(id, trip)
 	local universe = self.universe
 	local stage = {}
 	stage.co = coroutine.create(function()
-		local scene = Game.new({ field = id, universe = universe, preview = true })
+		local scene = Game.new({ field = id, universe = universe, preview = true, trip = trip })
 		scene.autosaveOff, scene.sideScene, scene.live = true, true, true
 		if scene.player then scene:remove(scene.player, true) end
 		scene.player = nil
@@ -215,6 +217,7 @@ function Game:loadField(id, opts)
 	-- Side scenes the trip kept (the planet behind the lane, the one built
 	-- ahead) go with the lane, unless one is the map being adopted.
 	if not opts.retain and self.trail then self.trail.scene:releaseScene(opts.skipCapture); self.trail = nil end
+	if self.laneStage and not opts.retain then self:dropLaneStage(opts.skipCapture) end
 	if not opts.retain and self.trip then
 		local function drop(scene) if scene and scene ~= opts.prepared then scene:releaseScene(opts.skipCapture) end end
 		drop(self.trip.originScene)
@@ -245,7 +248,7 @@ function Game:loadField(id, opts)
 	if opts.prepared then
 		local scene = opts.prepared
 		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
-			"contacts", "well", "moonGates", "stationCount", "idCounter", "ladder", "miningLive", "pickupBodies" }) do
+			"contacts", "well", "moonGates", "stationCount", "idCounter", "ladder", "miningLive", "pickupBodies", "lane", "arenaRadius" }) do
 			self[key] = scene[key]
 		end
 		-- A-Life ships the scene already had flying (woken ahead of you)
@@ -2853,6 +2856,7 @@ function Game:frame(dt, aimX, aimY)
 	end
 	self:ageEffects(dt)
 	self:updateStaging()
+	self:updateLaneStage()
 	for j = #self.toasts, 1, -1 do
 		local t = self.toasts[j]
 		t.t = t.t + dt

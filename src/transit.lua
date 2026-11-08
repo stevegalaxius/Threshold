@@ -44,6 +44,7 @@ local data = require("src.data")
 local Stations = require("src.stations")
 
 local sqrt, cos, sin, pi, max, min, abs, random, floor = math.sqrt, math.cos, math.sin, math.pi, math.max, math.min, math.abs, love.math.random, math.floor
+local laneXYFor   -- (defined with laneXY below)
 
 return function(Game)
 
@@ -263,6 +264,18 @@ function Game:updateDriverLaunch(p,dt)
 		else
 			L.t = L.t + dt
 			if p==self.player and not self.savedZoom then self.savedZoom = self.camera.zoom end
+			-- fired toward a planet: lay the lane out ahead now, where you'll
+			-- cross the map's edge on this barrel's line
+			if p==self.player and not L.staged and not L.gate and not L.site and T.travelMode ~= "flight" and Fields.orbits[L.to] then
+				L.staged = true
+				local bx, by = breech(g)
+				local ux, uy = cos(g.angle), sin(g.angle)
+				local R = self.arenaRadius - 2000
+				local bd = bx * ux + by * uy
+				local disc = bd * bd - (bx * bx + by * by) + R * R
+				local t = disc > 0 and -bd + sqrt(disc) or 0
+				self:stageLane(L.to, nil, nil, bx + ux * t, by + uy * t)
+			end
 			-- once it fires, the ship passes through whatever's in the way
 			-- (the bearing can point back across the map)
 			if not L.ghost then
@@ -534,18 +547,9 @@ function Game:updateCatch(dt)
 	end
 end
 
--- Into the transit lane toward planet `to`, in the ship you're flying.
--- moon: a short hop between a planet and its moon (src/moons.lua), left
--- off the edge of the map: { bearing, length } instead of the orbits'.
--- lane: { bearing, length } for a trip that isn't between two orbits (a
--- site off a driver or a gate, src/sites.lua): fired down a lane all the
--- same, just of a set length on the bearing it left on.
-function Game:launchTrip(to, moon, lane)
-	local p = self.player
-	if not p or p.dead then return end
+-- The lane for a trip from here to `to` (see Game:launchTrip).
+function Game:tripShape(to, moon, lane)
 	local from = self.fieldId
-	-- already in a lane (a second ask in the same step): nothing to do
-	if self.lane or not Fields[from] then return end
 	local au, bearing, half
 	if moon then
 		au, bearing, half = 0, moon.bearing, moon.length / 2
@@ -560,10 +564,137 @@ function Game:launchTrip(to, moon, lane)
 		bearing = math.atan2(by - ay, bx - ax)
 		half = Fields.laneLength(au) / 2
 	end
+	local _, rot = Game.laneShape(half * 2, bearing)
+	return { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil, bearing = bearing }
+end
+
+-- Where you come into a lane from the map's edge, in the lane's own
+-- coordinates: just short of the mouth off a moon exit, at the start of
+-- the run-in out of a driver. (A lane's coordinates only need its trip.)
+local function laneEntry(trip)
+	local probe = { lane = { R = Game.laneShape(trip.length, trip.bearing), rot = trip.rot, half = trip.length / 2 } }
+	local half = trip.length / 2
+	if trip.moon then
+		local mx, my = laneXYFor(probe.lane, -half, -T.laneWidth / 4)
+		return mx - cos(trip.bearing) * T.rampLead, my - sin(trip.bearing) * T.rampLead
+	end
+	local mx, my = laneXYFor(probe.lane, -half, -T.laneWidth / 2)
+	local h = -half / probe.lane.R + trip.rot
+	return mx - cos(h) * T.laneRunup, my - sin(h) * T.laneRunup, h
+end
+
+-- Build the lane ahead of you while you're still on the map, so it's
+-- already there (rocks and all, drawn beside the map) when you cross into
+-- it. (ex, ey): where on this map you'll cross, which fixes where the lane
+-- sits relative to it.
+function Game:stageLane(to, moon, lane, ex, ey)
+	local st = self.laneStage
+	if st and st.to == to then return st end
+	self:dropLaneStage()
+	local trip = self:tripShape(to, moon, lane)
+	local lx, ly = laneEntry(trip)
+	trip.origin = { x = lx - ex, y = ly - ey }
+	st = { to = to, trip = trip, stage = self:stageField("lane", trip) }
+	self.laneStage = st
+	return st
+end
+
+function Game:dropLaneStage(forget)
+	local st = self.laneStage
+	self.laneStage = nil
+	if st and st.scene then st.scene:releaseScene(forget) end
+end
+
+-- Each frame: build on the staged lane.
+function Game:updateLaneStage()
+	local st = self.laneStage
+	if not st or st.scene or st.failed then return end
+	if Game.advanceStage(st.stage, T.laneStageBudget) then
+		if st.stage.failed then st.failed = true return end
+		st.scene = st.stage.scene
+		st.scene.time = self.time
+	end
+end
+
+function Game:finishLaneStage()
+	local st = self.laneStage
+	if not st or st.failed then return false end
+	if not st.scene then
+		while not Game.advanceStage(st.stage, 1) do end
+		if st.stage.failed then st.failed = true return false end
+		st.scene = st.stage.scene
+		st.scene.time = self.time
+	end
+	return true
+end
+
+-- Into the lane that was built ahead of you: like any handoff, only your
+-- ship and the camera move over, and the map you're leaving stays behind
+-- the mouth.
+function Game:enterStagedLane(st)
+	local trip, scene = st.trip, st.scene
+	local p = self.player
+	local from, to = trip.from, trip.to
+	local o = trip.origin
+	local x, y = p.body:getPosition()
+	local vx, vy = p.body:getLinearVelocity()
+	local at = { x = x + o.x, y = y + o.y, angle = p.body:getAngle(), vx = vx, vy = vy }
+	local spin = p.body:getAngularVelocity()
+	local carry = self:carryFlight(p)
+	local record = Ship.record(p)
+	local camX, camY = self.camera.x, self.camera.y
+	local effects = self.effects
+	local origin = self:retainField()
+	self.trip = trip
+	trip.originScene = origin
+	self:loadField("lane", { player = record, at = at, prepared = scene, retain = true, quiet = true, deferALife = true })
+	p = self.player
+	p.body:setAngularVelocity(spin)
+	self:restoreFlight(p, carry, o.x, o.y)
+	self.inputTranslation = { x = o.x, y = o.y }
+	self.camera.x, self.camera.y = camX + o.x, camY + o.y
+	self.camera.backgroundX = (origin.camera.backgroundX or 0) - o.x
+	self.camera.backgroundY = (origin.camera.backgroundY or 0) - o.y
+	for _, fx in ipairs(effects or {}) do
+		if fx.x then fx.x, fx.y = fx.x + o.x, fx.y + o.y; table.insert(self.effects, fx) end
+	end
+	if not trip.moon then
+		local _, _, h = laneEntry(trip)
+		local speed = max(T.laneEntrySpeed, sqrt(vx * vx + vy * vy))
+		p.runup = { speed = speed, x = at.x, y = at.y, h = h }
+	end
+	self:updateALife(true)
+	if trip.moon then
+		events.emit("travel", from, to)
+	else
+		self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), trip.au), 3)
+		events.emit("travel", from, to)
+	end
+end
+
+-- Into the transit lane toward planet `to`, in the ship you're flying.
+-- moon: a short hop between a planet and its moon (src/moons.lua), left
+-- off the edge of the map: { bearing, length } instead of the orbits'.
+-- lane: { bearing, length } for a trip that isn't between two orbits (a
+-- site off a driver or a gate, src/sites.lua): fired down a lane all the
+-- same, just of a set length on the bearing it left on.
+function Game:launchTrip(to, moon, lane)
+	local p = self.player
+	if not p or p.dead then return end
+	local from = self.fieldId
+	-- already in a lane (a second ask in the same step): nothing to do
+	if self.lane or not Fields[from] then return end
 	-- the lane behind you from the last trip, if it's still in view
 	if self.trail then self.trail.scene:releaseScene(); self.trail = nil end
-	local _, rot = Game.laneShape(half * 2, bearing)
-	self.trip = { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil }
+	-- the lane built ahead of you for this trip (Game:stageLane), if any
+	local staged = self.laneStage
+	if staged and staged.to == to and not self.launchBlocked and self:finishLaneStage() then
+		self.laneStage = nil
+		return self:enterStagedLane(staged)
+	end
+	self:dropLaneStage()
+	self.trip = self:tripShape(to, moon, lane)
+	local au, half, bearing = self.trip.au, self.trip.length / 2, self.trip.bearing
 	local p0 = self.player
 	local vx, vy = p0.body:getLinearVelocity()
 	local label = lane and ("%s TO %s"):format(Fields[from].name:upper(), Fields[to].name:upper())
@@ -612,20 +743,14 @@ function Game:launchTrip(to, moon, lane)
 	local flight={}
 	for _,k in ipairs({"power","spool","mainBurn","retroBurn","sideBurn","turnBurn","foreBurn","afterburn","burnerLocked"}) do flight[k]=p0[k] end
 	local effects = self.effects
+	-- (where the map you're leaving sits is known before the lane is laid
+	-- out, so its rocks keep out of that map)
+	local px, py, h = laneEntry(self.trip)
+	local dx, dy = px - ox, py - oy
+	self.trip.origin = { x = dx, y = dy }
 	local origin = self:retainField()
 	self.trip.originScene = origin
 	self:loadField("lane", { player = record, quiet = true, retain = true, deferALife = true })
-	local px, py, h
-	if moon then
-		local mx, my = self:fromLane(-half, -T.laneWidth / 4)
-		px, py = mx - cos(bearing) * T.rampLead, my - sin(bearing) * T.rampLead
-	else
-		local mx, my = self:fromLane(-half, -T.laneWidth / 2)
-		h = self:laneHeading(-half)
-		px, py = mx - cos(h) * T.laneRunup, my - sin(h) * T.laneRunup
-	end
-	local dx, dy = px - ox, py - oy
-	self.trip.origin = { x = dx, y = dy }
 	p = self.player
 	p.body:setPosition(px, py)
 	p.body:setAngle(angle)
@@ -712,6 +837,11 @@ function Game:sideScenes()
 	end
 	local t = self.trail
 	if t and not t.scene.released then list[#list + 1] = { scene = t.scene, x = t.x, y = t.y, trail = true } end
+	-- the lane built ahead of you, before you're in it
+	local st = self.laneStage
+	if st and st.scene and not st.scene.released then
+		list[#list + 1] = { scene = st.scene, x = -st.trip.origin.x, y = -st.trip.origin.y, staged = true }
+	end
 	return list
 end
 
@@ -729,6 +859,7 @@ local function viewReach(game)
 	local zoom = min(game.camera.zoom or 1, T.minZoom)
 	return sqrt(w * w + h * h) / (2 * max(zoom, 0.01))
 end
+function Game:viewReach() return viewReach(self) end
 
 -- Each step: the side scenes move on with the clock; the far end's
 -- A-Life traffic near where you'll come in is woken there ahead of you;
@@ -1093,6 +1224,7 @@ local function laneXY(R, r, s, n)
 	return x * c - y * si, x * si + y * c
 end
 Game.laneXY = laneXY
+function laneXYFor(lane, s, n) return laneXY(lane.R, lane.rot or 0, s, n) end
 
 function Game:fromLane(s, n)
 	return laneXY(self.lane.R, self.lane.rot or 0, s, n)
@@ -1146,11 +1278,20 @@ function Game:populateLane()
 	local W = T.laneWidth
 	local s1, s2 = -lane.half + 3000, lane.half - 3000
 	local span = max(0, s2 - s1)
+	-- off the road, the field reaches back past the mouth over the run-in
+	-- from the map's edge, so the space you cross into the lane isn't bare
+	-- (but not inside the map you left, which is there itself)
+	local lead = trip.moon and T.rampLead or T.laneRunup
+	local o1 = -lane.half - lead - 2000
+	local ospan = max(0, s2 - o1)
+	local O = trip.origin
+	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + 600
 	-- what's on the road: the mix where you're headed
 	local dest = Fields[trip.to]
 	local mix = dest and dest.mix
 	local function at(s, n, r)
 		local x, y = self:fromLane(s, n)
+		if OR and (x - O.x) ^ 2 + (y - O.y) ^ 2 < (OR + r) ^ 2 then return end
 		if self:isClear(x, y, r) then return x, y end
 	end
 	-- on the road
@@ -1170,9 +1311,9 @@ function Game:populateLane()
 		end
 	end
 	-- off the road, either side
-	for _ = 1, floor(span / 10000 * T.laneOffroad) do
+	for _ = 1, floor(ospan / 10000 * T.laneOffroad) do
 		local side = rng:random() < 0.5 and -1 or 1
-		local s, n = s1 + rng:random() * span, side * (W + 200 + rng:random() * (T.laneRamp + 2000))
+		local s, n = o1 + rng:random() * ospan, side * (W + 200 + rng:random() * (T.laneRamp + 2000))
 		local r = 30 + rng:random() ^ 2 * 160
 		local x, y = at(s, n, r + 40)
 		if x then
@@ -1190,8 +1331,8 @@ function Game:populateLane()
 		local bands=math.max(1,math.ceil((depth+500)/6500))
 		for _,side in ipairs({-1,1}) do
 			for band=1,bands do
-				for _=1,math.max(1,floor(span/10000*T.laneOffroad*2)) do
-					local s=s1+rng:random()*span
+				for _=1,math.max(1,floor(ospan/10000*T.laneOffroad*2)) do
+					local s=o1+rng:random()*ospan
 					local n=side*(edge-500+((band-1)+rng:random())/bands*(depth+500))
 					local r=30+rng:random()^2*160
 					local x,y=at(s,n,r+40)
