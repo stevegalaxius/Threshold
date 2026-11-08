@@ -111,6 +111,12 @@ T.laneKeep = 0.8
 T.laneCarryTime = 20
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
+T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
+T.gateLaneLength = 20000   -- between a site's pockets
+-- acceleration gates (src/sites.lua): small single-target mass drivers
+T.gateBarrel, T.gateHalfWidth, T.gateRadius = 520, 46, 300
+T.gateZone, T.gateZoneWidth = 900, 170
+T.siteFare = 200   -- a site that names no fare of its own (data/sites.lua)
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).

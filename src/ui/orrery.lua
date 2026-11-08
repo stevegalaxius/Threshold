@@ -10,6 +10,7 @@
 
 local HUD = require("src.hud")
 local Fields = require("src.fields")
+local Sites = require("src.sites")
 
 local Orrery = {}
 
@@ -55,11 +56,37 @@ local function layout(game)
 		end
 		table.insert(L.items, item)
 	end
+	-- sites (src/sites.lua): a diamond in each site's colour beside its
+	-- home planet's dot
+	L.sites = {}
+	local dots = {}
+	for _, it in ipairs(L.items) do dots[it.id] = it end
+	for _, inst in ipairs(Sites.visible(game.universe)) do
+		local home = dots[inst.home]
+		if home then
+			local off = 20
+			L.sites[#L.sites + 1] = { inst = inst, dx = home.dx + cos(inst.bearing) * off, dy = home.dy + sin(inst.bearing) * off,
+				fare = Sites.fare(inst) }
+		end
+	end
 	L.cancel = { x = x + 500, y = y + ph - 60, w = 240, h = 40 }
 	return L
 end
 
 local function inside(r, mx, my) return mx >= r.x and mx <= r.x + r.w and my >= r.y and my <= r.y + r.h end
+
+local function hoveredSite(L, mx, my)
+	for _, s in ipairs(L.sites) do
+		if (mx - s.dx) ^ 2 + (my - s.dy) ^ 2 < 9 ^ 2 then return s end
+	end
+end
+
+local function clockText(t)
+	if not t then return "open" end
+	t = math.floor(t)
+	if t >= 3600 then return ("closes in %dh %02dm"):format(math.floor(t / 3600), math.floor(t % 3600 / 60)) end
+	return ("closes in %d:%02d"):format(math.floor(t / 60), t % 60)
+end
 
 local function hovered(L, mx, my)
 	for _, it in ipairs(L.items) do
@@ -123,6 +150,30 @@ function Orrery.draw(game)
 			lg.print(("%.2f AU    %d cr"):format(it.au, it.fare), r.x + 10, r.y + r.h - 18)
 		end
 	end
+	-- the sites' diamonds, and a label for the one under the mouse
+	local hs = hoveredSite(L, mx, my)
+	for _, s in ipairs(L.sites) do
+		local col = Sites.color(s.inst)
+		local k = s == hs and 7 or 5
+		lg.setColor(col[1], col[2], col[3])
+		lg.polygon("fill", s.dx, s.dy - k, s.dx + k, s.dy, s.dx, s.dy + k, s.dx - k, s.dy)
+		lg.setColor(0, 0, 0, 0.6)
+		lg.polygon("line", s.dx, s.dy - k, s.dx + k, s.dy, s.dx, s.dy + k, s.dx - k, s.dy)
+	end
+	if hs then
+		local col = Sites.color(hs.inst)
+		local name = Sites.name(hs.inst)
+		local sub = ("%s   %d cr"):format(clockText(Sites.timeLeft(game.universe, hs.inst)), hs.fare)
+		lg.setFont(font(12))
+		local tw = math.max(font(12):getWidth(name), font(12):getWidth(sub)) + 20
+		local tx, ty = hs.dx + 12, hs.dy - 40
+		lg.setColor(0, 0, 0, 0.8)
+		lg.rectangle("fill", tx, ty, tw, 38, 4, 4)
+		lg.setColor(col)
+		lg.print(name, tx + 10, ty + 4)
+		lg.setColor(game.universe.credits >= hs.fare and HUD.INK or HUD.WARN)
+		lg.print(sub, tx + 10, ty + 20)
+	end
 	local c = L.cancel
 	lg.setColor(0, 0, 0, inside(c, mx, my) and 0.5 or 0.3)
 	lg.rectangle("fill", c.x, c.y, c.w, c.h, 6, 6)
@@ -139,11 +190,15 @@ function Orrery.mousepressed(game, mx, my, button)
 	if not game.driverMenu or (button ~= 1 and button ~= 2) then return false end
 	local L = layout(game)
 	if button == 2 then
+		local s=hoveredSite(L,mx,my)
+		if s then game:closeDriverMenu();game:enterSite(s.inst.id);return true end
 		local target=hovered(L,mx,my)
 		if target then require('src.debugtravel').go(game,target.id) end
 		return true
 	end
 	if inside(L.cancel, mx, my) then game:closeDriverMenu() return true end
+	local s = hoveredSite(L, mx, my)
+	if s then game:fireDriverToSite(s.inst.id) return true end
 	choose(game, hovered(L, mx, my))
 	return true
 end

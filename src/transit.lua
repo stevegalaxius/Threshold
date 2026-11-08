@@ -88,7 +88,7 @@ end
 -- axis it turns on, half a barrel up from the breech.
 local function breech(g)
 	local gx, gy = g.body:getPosition()
-	local h = T.driverBarrel / 2
+	local h = (g.barrel or T.driverBarrel) / 2
 	return gx - cos(g.angle) * h, gy - sin(g.angle) * h
 end
 function Game:driverBreech(g) return breech(g) end
@@ -104,9 +104,13 @@ end
 
 function Game:findDriver()
 	for _, g in ipairs(self.entities) do
-		if g.kind == "driver" then return g end
+		if g.kind == "driver" and not g.gate then return g end
 	end
 end
+
+-- A driver's approach zone: a planet's driver, or a site's smaller
+-- acceleration gate (src/sites.lua), which has its own.
+local function zone(g) return g.zone or T.driverZone, g.zoneWidth or T.driverZoneWidth end
 
 -- Pay the fare to planet `to` and start the launch (from the driver's
 -- targeting window, src/ui/orrery.lua).
@@ -124,6 +128,27 @@ function Game:fireDriver(to)
 	p.launch = { driver = menu.driver, to = to, t = 0 }
 	p.driverProtected=true;menu.driver.driverShip=p
 	self:toast(("FIRING FOR %s  -%d CR"):format(Fields[to].name:upper(), fare), 1.6)
+	return true
+end
+
+-- Pay the fare to a site (src/sites.lua) and start the launch: the same
+-- run down the barrel, then straight into the site's first pocket.
+function Game:fireDriverToSite(instId)
+	local Sites = require("src.sites")
+	local menu, p = self.driverMenu, self.player
+	local inst = Sites.list(self.universe)[instId]
+	if not menu or not p or p.dead or not inst then return false end
+	if menu.driver.driverShip and menu.driver.driverShip~=p then return false end
+	local fare = Sites.fare(inst)
+	if self.universe.credits < fare then
+		self:toast(("PASSAGE TO %s IS %d CR"):format(Sites.name(inst):upper(), fare), 2)
+		return false
+	end
+	self.universe.credits = self.universe.credits - fare
+	self.driverMenu = nil
+	p.launch = { driver = menu.driver, to = instId, site = true, t = 0 }
+	p.driverProtected=true;menu.driver.driverShip=p
+	self:toast(("FIRING FOR %s  -%d CR"):format(Sites.name(inst):upper(), fare), 1.6)
 	return true
 end
 
@@ -163,10 +188,19 @@ end
 -- is on, otherwise straight out from the planet.
 local function barrelTarget(game, g, p)
 	local L = p and p.launch
+	if g.gate then return g.angle end
 	if L and L.driver == g then
 		local clock = game.universe and game.universe.clock or 0
 		local ax, ay = Fields.orbitPos(game.fieldId, clock)
-		local bx, by = Fields.orbitPos(L.to, clock)
+		local bx, by
+		if L.site then
+			local Sites = require("src.sites")
+			local inst = Sites.list(game.universe)[L.to]
+			if not inst then return g.angle end
+			bx, by = Sites.position(inst, clock)
+		else
+			bx, by = Fields.orbitPos(L.to, clock)
+		end
 		return math.atan2(by - ay, bx - ax)
 	end
 	if g.orbit then return g.orbit.angle end
@@ -194,7 +228,8 @@ function Game:requestDriver(p,g,to)
  if g.driverShip and g.driverShip~=p then return false end
  if p.driverCooldown and p.driverCooldown>0 then return false end
  local lx,ly=driverLocal(g,p.body:getPosition())
- if lx>=150 or lx<=-T.driverZone or math.abs(ly)>=T.driverZoneWidth then return false end
+ local zl,zw=zone(g)
+ if lx>=150 or lx<=-zl or math.abs(ly)>=zw then return false end
  g.driverShip=p;p.driverProtected=true
  p.driverTractor={driver=g,to=to,t=0}
  return true
@@ -256,7 +291,7 @@ function Game:updateDriverLaunch(p,dt)
 				-- early rather than fly into the planet (or a station)
 				if u >= 1 or self:solidAhead(x, y, dx, dy) < s * 0.8 + 2000 then
 					if p==self.player then
-					 self.pendingFlight = L.to;self.flash = { t = 0, life = 0.5 }
+					 if L.gate then self.pendingGate = L.driver.gate elseif L.site then self.pendingSite = { id = L.to, bearing = L.driver.angle } else self.pendingFlight = L.to end;self.flash = { t = 0, life = 0.5 }
 					else
 					 p.launch=nil;p.alifeDepart=true
 					 if g.driverShip==p then g.driverShip=nil end
@@ -285,12 +320,20 @@ function Game:updateDrivers(dt)
 	if p.launch or p.driverTractor or self.driverMenu then return end
 	p.driverCooldown = max(0, (p.driverCooldown or 0) - dt)
 	if p.driverCooldown > 0 then return end
-	local g = self:findDriver()
-	if not g or g.driverShip and g.driverShip~=p then return end
-	local lx, ly = driverLocal(g, p.body:getPosition())
-	if lx < 0 and lx > -T.driverZone and math.abs(ly) < T.driverZoneWidth then
-		self:requestDriver(p,g)
-		self:toast("TRACTOR LOCK", 1.4)
+	for _, g in ipairs(self.entities) do
+		if g.kind == "driver" and not (g.driverShip and g.driverShip ~= p) then
+			local lx, ly = driverLocal(g, p.body:getPosition())
+			local zl, zw = zone(g)
+			if lx < 0 and lx > -zl and math.abs(ly) < zw then
+				if g.gate and not self:gateOpen(g) then
+					if not g.warned then g.warned = true; self:toast("GATE LOCKED: " .. select(2, self:gateOpen(g)), 2) end
+				else
+					self:requestDriver(p,g)
+					self:toast("TRACTOR LOCK", 1.4)
+					return
+				end
+			elseif g.gate then g.warned = nil end
+		end
 	end
 end
 
@@ -309,7 +352,8 @@ function Game:updateDriverTractor(p, dt)
 	local nx, ny = -dy, dx
 	p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
 	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
-	if lx > 150 or math.abs(ly) > T.driverZoneWidth * 1.5 or lx < -T.driverZone * 1.2 then
+	local zl, zw = zone(g)
+	if lx > 150 or math.abs(ly) > zw * 1.5 or lx < -zl * 1.2 then
 		-- overshot the breech, or slid out of the beam
 		p.driverTractor = nil
 		p.driverProtected=nil;if g.driverShip==p then g.driverShip=nil end
@@ -323,12 +367,16 @@ function Game:updateDriverTractor(p, dt)
 	vx, vy = vx - gvx, vy - gvy
 	if lx > -120 and math.abs(ly) < 120 and vx * vx + vy * vy < 250 ^ 2 then
 		p.driverTractor = nil
-		if p==self.player then
+		if p==self.player and g.gate then
+		 -- an acceleration gate has one target: no window, it just fires
+		 p.launch={driver=g,to=g.gate.to,gate=true,t=0};p.driverProtected=true
+		 self:toast("GATE LOCK", 1.2)
+		elseif p==self.player then
 		 self.driverMenu = { driver = g };self:toast("DRIVER LOCK", 1.2)
 		else p.launch={driver=g,to=tr.to,t=0} end
 		return
 	end
-	local near = 1 - max(0, min(1, -lx / T.driverZone))
+	local near = 1 - max(0, min(1, -lx / zl))
 	local grip = min(1, tr.t / 1.0) * (0.35 + 0.65 * near)
 	local gap = -lx
 	local inward = min(T.driverReel, max(60, gap * 0.6))
@@ -481,13 +529,18 @@ end
 -- Into the transit lane toward planet `to`, in the ship you're flying.
 -- moon: a short hop between a planet and its moon (src/moons.lua), left
 -- off the edge of the map: { bearing, length } instead of the orbits'.
-function Game:launchTrip(to, moon)
+-- lane: { bearing, length } for a trip that isn't between two orbits (a
+-- site off a driver or a gate, src/sites.lua): fired down a lane all the
+-- same, just of a set length on the bearing it left on.
+function Game:launchTrip(to, moon, lane)
 	local p = self.player
 	if not p or p.dead then return end
 	local from = self.fieldId
 	local au, bearing, half
 	if moon then
 		au, bearing, half = 0, moon.bearing, moon.length / 2
+	elseif lane then
+		au, bearing, half = 0, lane.bearing, lane.length / 2
 	else
 		au = Fields.distance(from, to, self.universe.clock)
 		-- the lane leaves along the bearing the driver fired you on
@@ -556,8 +609,8 @@ function Game:launchTrip(to, moon)
 	p.body:setLinearVelocity(cos(h) * speed, sin(h) * speed)
 	p.runup = { speed = speed, x = x, y = y, h = h }
 	self.camera.x, self.camera.y = x, y
-	self:toast(("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
-	events.emit("travel", from, to)
+	self:toast(lane and ("%s TO %s"):format(Fields[from].name:upper(), Fields[to].name:upper()) or ("%s TO %s  %.2f AU"):format(Fields[from].name:upper(), Fields[to].name:upper(), au), 3)
+	if not lane then events.emit("travel", from, to) end
 end
 
 -- Prepare the actual destination before its map edge enters the view.
