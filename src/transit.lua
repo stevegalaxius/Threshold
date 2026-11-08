@@ -263,7 +263,6 @@ function Game:updateDriverLaunch(p,dt)
 			end
 		else
 			L.t = L.t + dt
-			if p==self.player and not self.savedZoom then self.savedZoom = self.camera.zoom end
 			-- once it fires, the ship passes through whatever's in the way
 			-- (the bearing can point back across the map)
 			if not L.ghost then
@@ -283,11 +282,6 @@ function Game:updateDriverLaunch(p,dt)
 				-- wide so everything falls away behind you
 				local u = min(1, (ft - T.driverFire) / T.driverCoast)
 				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
-				-- (only ever out: if you're already wider, it leaves you be)
-				if p==self.player then
-				 local wide = math.min(self.savedZoom, T.cineZoom)
-				 self.cineZoom = self.savedZoom + (wide - self.savedZoom) * (1 - (1 - u) ^ 2)
-				end
 				-- the bearing can point back across the map: cut to the lane
 				-- early rather than fly into the planet (or a station). A
 				-- driver shot is a cut into the lane, hidden in the flash
@@ -1349,7 +1343,7 @@ end
 -- inversion at the inside of the arc.
 function Game:moonHazardDepth()
  local w,h=love.graphics.getDimensions()
- local zoom=math.min(T.minZoom,T.cineZoom or T.minZoom)
+ local zoom=T.minZoom
  local view=math.sqrt(w*w+h*h)/math.max(.01,zoom)
  return math.min(math.max(T.laneHazardDepth,T.edgeSoft+view*2),
   self.lane.R-self:laneBoundary()-1000)
@@ -1375,6 +1369,32 @@ function Game:updateLane(dt)
 				local k = self:laneStrength(n)
 				-- (not on a moon trip: just your own ship in open space)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
+				if e == p then
+					-- You don't get the buff: the lane carries you instead.
+					-- It flows at T.laneSpeed (outbound below the median,
+					-- home above it, easing through zero across it, and
+					-- fading out past the edges), and your ship flies
+					-- relative to that, exactly as it rides a planet's
+					-- current (Ship.fly): let go and you cruise with the
+					-- lane, and steering, dodging and braking feel like
+					-- ordinary flight. Fresh off a driver the flow starts
+					-- at the speed you came in at and settles back to the
+					-- lane's over T.laneKickTime. The rocks stand still, so
+					-- they still come at you at the lane's speed.
+					local flow = 0
+					if e.laneBuff then
+						local side = max(-1, min(1, -n / T.laneMedian))
+						local speed = T.laneSpeed
+						local K = e.laneKick
+						if K and side > 0 then
+							local u = min(1, K.t / T.laneKickTime)
+							speed = speed + max(0, K.speed - speed) * (1 - u) ^ 2
+						end
+						flow = speed * side * e.laneBuff
+					end
+					e.laneFrame = true
+					if flow ~= 0 then e.flowX, e.flowY = tx * flow, ty * flow else e.flowX, e.flowY = nil, nil end
+				end
 			end
 			-- Shared soft lateral edge, including moon trips. Debris beyond
 			-- it stays in place instead of being herded back into the road.
@@ -1395,7 +1415,7 @@ function Game:updateLane(dt)
 	local R = p.runup
 	if R then
 		-- the run-up: held on the line into the mouth, braking from the
-		-- driver's speed to the lane's, the camera wide so you see it coming
+		-- driver's speed to the lane's
 		local tx, ty = cos(R.h), sin(R.h)
 		local x, y = p.body:getPosition()
 		local u = max(0, min(1, ((x - R.x) * tx + (y - R.y) * ty) / T.laneRunup))
@@ -1409,28 +1429,17 @@ function Game:updateLane(dt)
 		p.body:setLinearVelocity(tx * sp, ty * sp)
 		p.body:setAngle(R.h)
 		p.body:setAngularVelocity(0)
-		-- the zoom stays wide; once you're in the lane it's yours again,
-		-- left where it is
 		if u >= 1 then
 			p.runup = nil
-			p.laneCarry = { speed = sp, t = 0 }
-			self.cineZoom, self.savedZoom = nil, nil
+			p.laneKick = { speed = sp, t = 0 }
 			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return
 	end
-	-- fresh onto the highway, the driver's kick bleeds off slowly: your
-	-- speed can't drop below a floor that eases down from the entry speed
-	-- over T.laneCarryTime (steer all you like, it only keeps the pace)
-	local C = p.laneCarry
-	if C then
-		C.t = C.t + dt
-		local u = C.t / T.laneCarryTime
-		local floor = C.speed * (1 - u * u)
-		local vx, vy = p.body:getLinearVelocity()
-		local sp = sqrt(vx * vx + vy * vy)
-		if sp > 1 and sp < floor then p.body:setLinearVelocity(vx / sp * floor, vy / sp * floor) end
-		if u >= 1 or p.intent.thrust < 0 then p.laneCarry = nil end
+	local K = p.laneKick
+	if K then
+		K.t = K.t + dt
+		if K.t >= T.laneKickTime then p.laneKick = nil end
 	end
 	if ps > -lane.half then p.laneEntered = true end
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end

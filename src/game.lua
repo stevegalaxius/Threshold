@@ -2869,16 +2869,8 @@ end
 
 -- Per-frame update for things that aren't simulation: effects, camera, toasts.
 function Game:frame(dt, aimX, aimY)
-	-- the launch and the lane's run-up take the zoom for a while
+	-- (the zoom is the player's alone: nothing here takes it over)
 	local p = self.player
-	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
-		-- whatever was running it is over (died, or a load): the zoom stays
-		-- where it is, and it's yours again
-		self.cineZoom, self.savedZoom = nil, nil
-	end
-	if self.cineZoom then
-		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * 6))
-	end
 	if p and p.laneFade then
 		p.laneFade = p.laneFade - dt / 1.5
 		if p.laneFade <= 0 then p.laneFade = nil end

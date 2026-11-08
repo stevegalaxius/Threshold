@@ -130,6 +130,10 @@ T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road
 T.laneCarryTime = 20
+-- how fast a lane carries you (px/s; you fly relative to it, src/transit.lua),
+-- and the seconds a driver's extra kick takes to settle back to it
+T.laneSpeed = 6000
+T.laneKickTime = 6
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
