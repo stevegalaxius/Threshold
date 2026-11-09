@@ -640,6 +640,7 @@ function Game:enterStagedLane(st)
 	self.trip = trip
 	trip.originScene = origin
 	self:loadField("lane", { player = record, at = at, prepared = scene, retain = true, quiet = true, deferALife = true })
+	self:clearArrival(origin, o.x, o.y, true)
 	p = self.player
 	p.body:setAngularVelocity(spin)
 	self:restoreFlight(p, carry, o.x, o.y)
@@ -743,6 +744,7 @@ function Game:launchTrip(to, moon, lane)
 	local origin = self:retainField()
 	self.trip.originScene = origin
 	self:loadField("lane", { player = record, quiet = true, retain = true, deferALife = true })
+	self:clearArrival(origin, dx, dy, true)
 	p = self.player
 	p.body:setPosition(px, py)
 	p.body:setAngle(angle)
@@ -934,6 +936,7 @@ function Game:updateStaging()
 				local x, y = self:laneEndCenter(true)
 				trip.origin = trip.origin or { x = x, y = y }
 				trip.originScene = scene
+				self:clearArrival(scene, trip.origin.x, trip.origin.y, true)
 				st.scene = scene
 			else
 				st.scene = scene
@@ -972,6 +975,7 @@ function Game:finishStaging(back)
 			local x, y = self:laneEndCenter(true)
 			trip.origin = trip.origin or { x = x, y = y }
 			trip.originScene = scene
+			self:clearArrival(scene, trip.origin.x, trip.origin.y, true)
 		else
 			st.x, st.y = self:laneEndCenter(false)
 			self:clearArrival(scene, st.x, st.y)
@@ -980,27 +984,33 @@ function Game:finishStaging(back)
 	return self:laneEndScene(back) ~= nil
 end
 
--- The road carries on into the map ahead: its ring of rock past the edge
--- is cleared along the line you'll come in on, as wide as the road, so
--- you fly out of the lane between the same walls and not into a field.
--- (scene at ox, oy from the lane)
-function Game:clearArrival(scene, ox, oy)
-	if self.trip.moon then return end
+-- The maps at either end of a lane (scene at ox, oy from the lane; back:
+-- the map you left, else the one ahead) are only drawn while you're in
+-- the lane, not flown in, so any of their rock in reach of the lane would
+-- be something you pass straight through. Their ring of rock past the
+-- edge is cleared from all of the lane you can fly in (the lane's own
+-- walls run on through it), on every kind of lane, a moon's too; and the
+-- map ahead's own loose rock is cleared from the road for the first
+-- stretch in, so you don't come out of the lane into it.
+function Game:clearArrival(scene, ox, oy, back)
 	local half = self.lane.half
 	local ex, ey = self:fromLane(half, 0)
 	ex, ey = ex - ox, ey - oy
 	local h = self:laneHeading(half)
 	local tx, ty = cos(h), sin(h)
 	local W = T.laneWidth
-	-- (the ring past the edge across all of the lane you can fly in, the
-	-- lane's own walls run on through it; and the map's own loose rock for
-	-- the first stretch in, along the road, so you don't come out of the
-	-- lane into it)
 	local reach = self:laneBoundary() + (self.lane.hazardDepth or 0) + 1000
+	local lead = self.trip.moon and T.rampLead or T.laneRunup
 	local function inRoad(e, x, y)
 		if e.giant or e.miningId then return false end
+		if e.outer then
+			local s, n = self:toLane(x + ox, y + oy)
+			if abs(n) > reach + e.radius then return false end
+			if back then return s > -half - lead - 2000 end
+			return s < half + 1000
+		end
+		if back then return false end
 		local dx, dy = x - ex, y - ey
-		if e.outer then return dx * tx + dy * ty < 1000 and abs(dy * tx - dx * ty) < reach + e.radius end
 		return dx * tx + dy * ty < 3000 and abs(dy * tx - dx * ty) < W + e.radius
 	end
 	local keep = {}
@@ -1295,7 +1305,7 @@ function Game:populateLane()
 	local o1 = -lane.half - lead - 2000
 	local ospan = max(0, s2 - o1)
 	local O = trip.origin
-	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + T.mapOuter + 600
+	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + 600
 	-- nor inside the map ahead: that's there itself, built ahead of you.
 	-- Its ring of rock past the edge is, too, but that map is only drawn
 	-- while you're in the lane, not flown in, so its rock would be
@@ -1304,7 +1314,7 @@ function Game:populateLane()
 	-- width (Game:clearArrival)
 	local dest = Fields[trip.to]
 	local DX, DY, DR
-	if dest and not dest.transit and not trip.moon and T.mapOuter > 0 then
+	if dest and not dest.transit then
 		DX, DY = self:laneEndCenter(false)
 		DR = (dest.radius or 10000) + 600
 	end
