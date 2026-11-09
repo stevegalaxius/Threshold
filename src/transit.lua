@@ -1255,8 +1255,7 @@ end
 
 -- Everything on the road, laid out once when you enter and left alone
 -- until you leave: no pop-in, nothing invented as you go. A fresh layout
--- every trip (the planets have moved since the last one). Rocks on the road (some drifting across it), rocks off-road,
--- and now and then a derelict hauler or a lost container. The first and
+-- every trip (the planets have moved since the last one). Rocks drifting across the road and walls of rock either side. The first and
 -- last few thousand px stay clear for the drivers.
 function Game:populateLane()
 	local lane, trip = self.lane, self.trip
@@ -1346,19 +1345,6 @@ function Game:populateLane()
 						e.lane="hazard"
 					end
 				end
-			end
-		end
-	end
-	-- derelicts
-	for _ = 1, floor(span / 100000 * T.laneDerelicts + rng:random()) do
-		local x, y = at(s1 + rng:random() * span, (rng:random() * 2 - 1) * W * 0.8, 400)
-		if x then
-			if rng:random() < 0.6 then
-				local e = self:spawnEnemy("freighter", x, y)
-				self:damage(e, 1e9, nil, "derelict")
-			else
-				local e = self:spawnContainer(x, y, "cargo_container", true)
-				if e then e.body:setLinearVelocity(0, 0) end
 			end
 		end
 	end
