@@ -47,8 +47,8 @@ function Sites.register(inst)
 		local id = Sites.fieldId(inst.id, n)
 		local field = {
 			instance = true, site = inst.id, pocket = n,
-			name = pk.name or def.name, radius = pk.radius or 7000,
-			spawn = pk.spawn or { 0, (pk.radius or 7000) * 0.4 },
+			name = pk.name or def.name, radius = pk.radius or 21000,
+			spawn = pk.spawn or { 0, (pk.radius or 21000) * 0.4 },
 			stationIds = {}, buoyIds = {}, locations = {},
 		}
 		field.build = function(game) Sites.build(game, inst, n) end
