@@ -212,7 +212,31 @@ function builders.spawnSet(game, pc, ctx)
 	require("src.spawn").place(game, pc.id, pc.minD)
 end
 
-function builders.gate(game, pc, ctx) game:spawnSiteGate(ctx.inst, ctx.n, pc) end
+-- A gate's place round its pocket: the template's spot, swung round the
+-- centre to a bearing of its own for this site and pocket. Each pocket
+-- turns a golden angle (about 137 degrees) on from the last, from the
+-- site's own bearing, give or take a little, so a site's gates never all
+-- face one way and no two sites lay out alike.
+local GOLDEN = pi * (3 - math.sqrt(5))
+local function gateBearing(inst, n, k)
+	local h = 0
+	for i = 1, #inst.id do h = (h * 31 + inst.id:byte(i)) % 2147483647 end
+	local rng = love.math.newRandomGenerator(h + n * 7919 + k * 104729)
+	return inst.bearing + n * GOLDEN + (rng:random() - 0.5) * 0.6
+end
+function builders.gate(game, pc, ctx)
+	local x, y = pc.x or 0, pc.y or 0
+	local d = math.sqrt(x * x + y * y)
+	if d > 0 and not pc.angle then
+		ctx.gates = (ctx.gates or 0) + 1
+		local a = gateBearing(ctx.inst, ctx.n, ctx.gates)
+		local q = {}
+		for k, v in pairs(pc) do q[k] = v end
+		q.x, q.y = cos(a) * d, sin(a) * d
+		pc = q
+	end
+	game:spawnSiteGate(ctx.inst, ctx.n, pc)
+end
 
 function Sites.builders() return builders end
 
