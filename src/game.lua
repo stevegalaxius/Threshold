@@ -531,9 +531,8 @@ function Game:spawnOuterBelt()
 		local r = 30 + rng:random() ^ 2 * 160
 		local x, y = self.well.x + cos(a) * d, self.well.y + sin(a) * d
 		if self:isClear(x, y, r + 40) then
-			local e = self:spawnAsteroid(x, y, r, self:pickDebris(f.mix))
+			local e = self:spawnAsteroid(x, y, r, self:pickDebris(f.mix), nil, true)
 			e.outer = true
-			e.body:setLinearVelocity(0, 0)
 		end
 	end
 end
@@ -570,7 +569,10 @@ function Game:spawnDebris(kind, x, y, radius)
 	return self:spawnAsteroid(x, y, radius, kind)
 end
 
-function Game:spawnAsteroid(x, y, radius, kind, savedVerts)
+-- asleep: made straight into a sleeper (Game:updateSleepers), standing
+-- still, with no body until the player comes near: how a lane's walls and
+-- the rock past a map's edge are laid out, thousands at a time.
+function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 	Game.buildYield()
 	kind = kind or "rock"
 	local D = DEBRIS[kind] or DEBRIS.rock
@@ -602,7 +604,21 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts)
 	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
-	self:debrisBody(e, x, y, random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
+	local angle, spin = random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6)
+	if asleep then
+		e.body = setmetatable({ x = x, y = y, a = angle }, Ghost)
+		local w = self.well
+		if w then
+			local dx, dy = x - w.x, y - w.y
+			e.sleep = { r = sqrt(dx * dx + dy * dy), a = math.atan2(dy, dx), t = self.time, rate = 0, spin = spin }
+		else
+			e.sleep = { x = x, y = y, vx = 0, vy = 0, t = self.time, spin = spin }
+		end
+		self.sleepers = self.sleepers or {}
+		table.insert(self.sleepers, e)
+		return e
+	end
+	self:debrisBody(e, x, y, angle, spin)
 	e.body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
 	table.insert(self.entities, e)
 	return e

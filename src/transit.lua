@@ -1309,10 +1309,10 @@ function Game:populateLane()
 			local r = 25 + rng:random() ^ 2 * (k == 1 and 140 or 50)
 			local x, y = at(s + (k - 1) * 260, n + (rng:random() - 0.5) * 400, r + 60)
 			if x then
-				local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix))
+				local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix), nil, true)
 				e.lane = "rock"
 				local _, _, phi = self:toLane(x, y)
-				e.body:setLinearVelocity(-sin(phi) * across, cos(phi) * across)
+				e.sleep.vx, e.sleep.vy = -sin(phi) * across, cos(phi) * across
 			end
 		end
 	end
@@ -1323,9 +1323,8 @@ function Game:populateLane()
 		local r = 30 + rng:random() ^ 2 * 160
 		local x, y = at(s, n, r + 40)
 		if x then
-			local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix))
+			local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix), nil, true)
 			e.lane = "offroad"
-			e.body:setLinearVelocity(0, 0)
 		end
 	end
 	-- A denser debris belt continues beyond the soft edge. Lay it out with
@@ -1343,8 +1342,8 @@ function Game:populateLane()
 					local r=30+rng:random()^2*160
 					local x,y=at(s,n,r+40)
 					if x then
-						local e=self:spawnAsteroid(x,y,r,self:pickDebris(mix))
-						e.lane="hazard";e.body:setLinearVelocity(0,0)
+						local e=self:spawnAsteroid(x,y,r,self:pickDebris(mix),nil,true)
+						e.lane="hazard"
 					end
 				end
 			end
