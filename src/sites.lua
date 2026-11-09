@@ -126,6 +126,18 @@ function Sites.position(inst, clock)
 	return x + cos(inst.bearing) * 0.25, y + sin(inst.bearing) * 0.25
 end
 
+-- How long the lane is between a site and map `from`: the same length a
+-- planet-to-planet lane of that distance gets (Fields.laneLength), so a
+-- site across the system is a longer trip than one next door. Also the
+-- distance, in AU, for the lane's progress bar.
+function Sites.laneLength(inst, from, clock)
+	if not Fields.orbits[from] then return T.siteLaneLength, 0 end
+	local ax, ay = Fields.orbitPos(from, clock)
+	local bx, by = Sites.position(inst, clock)
+	local au = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
+	return Fields.laneLength(au), au
+end
+
 function Sites.fare(inst)
 	local def = Sites.template(inst)
 	return def and def.fare or T.siteFare or 200
@@ -294,7 +306,9 @@ function Game:throughGate(gate)
 	if gate.to == "exit" or not inst then
 		local back = inst and inst.from or Fields.start
 		if inst and gate.pocket == #Sites.template(inst).pockets then inst.done = true end
-		self:launchTrip(back, nil, { bearing = bearing, length = T.siteLaneLength })
+		local length, au = T.siteLaneLength, 0
+		if inst then length, au = Sites.laneLength(inst, back, u.clock) end
+		self:launchTrip(back, nil, { bearing = bearing, length = length, au = au })
 		return
 	end
 	self:launchTrip(Sites.fieldId(inst.id, gate.to), nil, { bearing = bearing, length = T.gateLaneLength })
@@ -314,7 +328,8 @@ function Game:enterSite(instId, bearing)
 	if not Sites.of(self.fieldId) then inst.from = self.fieldId end
 	local id = Sites.fieldId(inst.id, 1)
 	if bearing then
-		self:launchTrip(id, nil, { bearing = bearing, length = T.siteLaneLength })
+		local length, au = Sites.laneLength(inst, inst.from, self.universe.clock)
+		self:launchTrip(id, nil, { bearing = bearing, length = length, au = au })
 		return true
 	end
 	local rec = require("src.ship").record(self.player)

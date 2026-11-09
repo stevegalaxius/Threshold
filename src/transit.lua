@@ -540,7 +540,7 @@ function Game:tripShape(to, moon, lane)
 	if moon then
 		au, bearing, half = 0, moon.bearing, moon.length / 2
 	elseif lane then
-		au, bearing, half = 0, lane.bearing, lane.length / 2
+		au, bearing, half = lane.au or 0, lane.bearing, lane.length / 2
 	else
 		au = Fields.distance(from, to, self.universe.clock)
 		-- the lane leaves along the bearing the driver fired you on
