@@ -135,10 +135,7 @@ T.laneCarryTime = 20
 T.laneKickTime = 6
 -- seconds the lane's speed takes to come off once you're out of a
 -- driver's lane onto the map ahead (Game:updateArriveCarry)
-T.arriveCarryTime = 3
--- px before the end of a driver's lane over which its flow eases off to
--- nothing (at most half the lane), so you come out at your own pace
-T.laneBrake = 24000
+T.arriveCarryTime = 8
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)

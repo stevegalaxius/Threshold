@@ -1482,16 +1482,6 @@ function Game:updateLane(dt)
 							local u = min(1, K.t / T.laneKickTime)
 							speed = speed + max(0, K.speed - speed) * (1 - u) ^ 2
 						end
-						-- and over the last stretch the lane lets you go, the
-						-- way a driver's catch would: its flow eases off to
-						-- nothing by the end, so you come out at your own
-						-- ship's pace, in control
-						local D = min(T.laneBrake, lane.half * 0.5)
-						local left = lane.half - s
-						if left < D then
-							local u = max(0, left / D)
-							speed = speed * u * u * (3 - 2 * u)
-						end
 						flow = speed * side * e.laneBuff
 						-- The lane's speed is the top speed in it: your engine
 						-- steers you across it and can hold you back, but it
