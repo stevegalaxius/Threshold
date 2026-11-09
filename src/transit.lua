@@ -1050,11 +1050,6 @@ function Game:arrive(back)
 	p.driverCooldown = T.driverCooldown
 	if not moon then p.laneFade = 1 end
 	if Fields[to].instance then p.arriveBrake = { t = 0 }
-	elseif not moon then
-		-- off the end of a driver's lane: the lane's speed comes off over
-		-- a few seconds, not all at once
-		local sp = sqrt(vx * vx + vy * vy)
-		if sp > 1 then p.arriveCarry = { t = 0, speed = sp, dx = vx / sp, dy = vy / sp } end
 	end
 	self.inputTranslation = { x = -ox, y = -oy }
 	self.camera.x, self.camera.y = camX - ox, camY - oy
@@ -1113,7 +1108,6 @@ end
 -- second and a half, smoothly.
 function Game:updateArriveBrake(dt)
 	local p = self.player
-	if p and not p.dead and p.arriveCarry then self:updateArriveCarry(dt) end
 	local b = p and not p.dead and p.arriveBrake
 	if not b then return end
 	b.t = b.t + dt
@@ -1125,25 +1119,6 @@ function Game:updateArriveBrake(dt)
 		p.body:setLinearVelocity(vx / sp * want, vy / sp * want)
 	end
 	if b.t > 1.5 or p.intent.thrust < 0 then p.arriveBrake = nil end
-end
-
--- Out of a driver's lane onto a map: the ship keeps no less than a speed
--- that eases off from the lane's to nothing over T.arriveCarryTime. Hit
--- something, turn off the line or brake and it lets go, and you're flying
--- on your own.
-function Game:updateArriveCarry(dt)
-	local p = self.player
-	local c = p.arriveCarry
-	c.t = c.t + dt
-	local u = c.t / T.arriveCarryTime
-	local vx, vy = p.body:getLinearVelocity()
-	local sp = sqrt(vx * vx + vy * vy)
-	if u >= 1 or sp < 1 or p.intent.thrust < 0 or (vx * c.dx + vy * c.dy) / sp < 0.95 then
-		p.arriveCarry = nil
-		return
-	end
-	local want = c.speed * (1 - u) ^ 2
-	if sp < want then p.body:setLinearVelocity(vx / sp * want, vy / sp * want) end
 end
 
 -- How you come out of the lane when it has to cut: pointing and moving
@@ -1434,6 +1409,23 @@ function Game:moonHazardDepth()
   self.lane.R-self:laneBoundary()-1000)
 end
 
+-- How fast the shot off a driver carries you at distance s along the
+-- lane: launched at Game:shotLaunch, slowing at a steady rate so it's
+-- down to T.laneEntrySpeed (about a ship's own pace) at the far end, then
+-- nothing: you're flying yourself. A steady slowing takes 2L/v to cover
+-- the lane.
+function Game:shotLaunch()
+	local L = self.trip and self.trip.length or 40000
+	return max(T.shotMin, min(T.shotMax, 2 * L / T.shotTime))
+end
+function Game:shotSpeed(s)
+	local lane = self.lane
+	local v0, v1 = self:shotLaunch(), T.laneEntrySpeed
+	local u = max(0, min(1, (s + lane.half) / (2 * lane.half)))
+	if u >= 1 then return 0 end
+	return sqrt(v0 * v0 * (1 - u) + v1 * v1 * u)
+end
+
 function Game:laneBoundary()
  return T.laneWidth+T.laneRamp+2500
 end
@@ -1457,42 +1449,22 @@ function Game:updateLane(dt)
 				-- (not on a moon trip: just your own ship in open space)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 				if e == p then
-					-- You don't get the buff: the lane carries you instead.
-					-- It flows at T.laneFlow, onward (fading out past the
-					-- edges), and your ship flies
-					-- relative to that, exactly as it rides a planet's
-					-- current (Ship.fly): let go and you cruise with the
-					-- lane, and steering, dodging and braking feel like
-					-- ordinary flight. Fresh off a driver the flow starts
-					-- at the speed you came in at and settles back to the
-					-- lane's over T.laneKickTime. The rocks stand still, so
-					-- they still come at you at the lane's speed.
-					-- (the whole of a driver's lane flows, out past the walls
-					-- too: wander off the road and you're among the rock at
-					-- the same speed, never suddenly slowed)
+					-- A driver's lane: you're the shot. Your speed along the
+					-- road is the shot's, losing pace at a steady rate from
+					-- the launch to your own ship's speed at the far end
+					-- (Game:shotSpeed); your engine only steers you across
+					-- it. Your drag is measured against the shot, so steering
+					-- feels like ordinary flight. A moon trip is just your
+					-- own ship in open space.
 					local flow = 0
-					if not (self.trip and self.trip.moon) then e.laneBuff = 1 end
-					if e.laneBuff then
-						-- (a driver's lane only ever takes you onward: the
-						-- whole road flows outbound for you)
-						local side = 1
-						local speed = T.laneFlow
-						local K = e.laneKick
-						if K and side > 0 then
-							local u = min(1, K.t / T.laneKickTime)
-							speed = speed + max(0, K.speed - speed) * (1 - u) ^ 2
-						end
-						flow = speed * side * e.laneBuff
-						-- The lane's speed is the top speed in it: your engine
-						-- steers you across it and can hold you back, but it
-						-- doesn't add to it (or you'd climb to the lane's plus
-						-- your own).
-						local vx, vy = b:getLinearVelocity()
-						local va = vx * tx + vy * ty
-						local top = max(flow, T.laneEntrySpeed)
-						if va > top then
-							local cut = va - top
-							b:setLinearVelocity(vx - tx * cut, vy - ty * cut)
+					if not (self.trip and self.trip.moon) then
+						e.laneBuff = 1
+						local c = self:shotSpeed(s)
+						if c > 0 then
+							flow = c
+							local vx, vy = b:getLinearVelocity()
+							local va = vx * tx + vy * ty
+							b:setLinearVelocity(vx + tx * (c - va), vy + ty * (c - va))
 						end
 					end
 					e.laneFrame = true
@@ -1534,7 +1506,7 @@ function Game:updateLane(dt)
 		local u = max(0, min(1, ((x - R.x) * tx + (y - R.y) * ty) / T.laneRunup))
 		-- easing off only a little: you hit the lane still carrying most of
 		-- the driver's kick
-		local keep = max(T.laneEntrySpeed, R.speed * T.laneKeep)
+		local keep = self:shotLaunch()
 		local sp = R.speed + (keep - R.speed) * u * u
 		local it = p.intent
 		it.thrust, it.strafe, it.boost = 0, 0, false
@@ -1544,15 +1516,9 @@ function Game:updateLane(dt)
 		p.body:setAngularVelocity(0)
 		if u >= 1 then
 			p.runup = nil
-			p.laneKick = { speed = sp, t = 0 }
 			self:toast("ON THE HIGHWAY", 1.5)
 		end
 		return
-	end
-	local K = p.laneKick
-	if K then
-		K.t = K.t + dt
-		if K.t >= T.laneKickTime then p.laneKick = nil end
 	end
 	if ps > -lane.half then p.laneEntered = true end
 	if ps > lane.half - 400 and not p.launch then self.pendingArrive = true end
