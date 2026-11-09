@@ -71,6 +71,7 @@ function P.returnRecord(game,r)
  if r.state=='travel' then
   local previous=r.route[(r.index-2)%#r.route+1]
   r.route={previous};for _,id in ipairs(path) do r.route[#r.route+1]=id end;r.index=2
+  require('src.queue').leg(r) -- the leg under way may now end at a driver or a dock
  else
   r.route=path;r.index=1
   if #path>1 then A.start(r,game.universe.clock,2)

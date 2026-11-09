@@ -193,13 +193,16 @@ local function trade(game, e, dt)
 			table.remove(route, e.routeIndex); e.routeIndex = 1; return
 		end
 		local sx, sy = stopPoint(stop, e)
+		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
+		local queued = e.alifeId and require("src.queue").holding(game, e, stop)
+		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex) end
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
 		-- the chord (which would run through the rock belt): aim a little
 		-- way ahead along the circle until the stop is close.
 		local hx, hy = sx, sy
 		local w = game.well
-		local gateApproach = e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
+		local gateApproach = not queued and e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
 		if gateApproach then
 			local G = require("src.travelgraph")
 			local previous = route[(e.routeIndex-2)%#route+1]
@@ -243,7 +246,7 @@ local function trade(game, e, dt)
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock and not stop.hold then
+		if d < 450 and not stop.dock and not stop.hold and not queued then
 			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" and stop.driver then
 				if game:requestDriver(e,stop.driver,stop.destination) then
@@ -258,7 +261,7 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
-		local pass = (stop.dock or stop.inspection) and 60 or cruise * 0.6
+		local pass = queued and 0 or (stop.dock or stop.inspection) and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance

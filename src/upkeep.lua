@@ -150,7 +150,7 @@ function U.plan(r,clock,e)
   idle=idle or nil,node=idle and r.node or nil,untilTime=idle and r.untilTime or nil}}
  r.route=route
  require('src.alife_trace').note(r,clock,'upkeep','needs '..need..' -> service visit at '..station)
- if not idle then r.index=2   -- the leg under way is kept: same depart, same arrive
+ if not idle then r.index=2;require('src.queue').leg(r)   -- the leg under way is kept: same depart, same arrive; it books the service dock
  elseif #route==1 then r.index=1;r.state='docked';Repairs.begin(r,at,clock,T.alifeStay)
  else r.index=1;deps.start(r,clock,2) end
  return true
@@ -175,8 +175,8 @@ function U.advance(r,clock,u)
  if r.encounter then return true end
  for _=1,64 do
   if r.state=='travel' or r.state=='transit' then
-   if clock<r.arrive then return true end
-   local at=r.arrive
+   local at=require('src.queue').due(r)
+   if clock<at then return true end
    r.offset,r.pose=nil,nil
    if U.isStation(r,r.route[r.index]) and not r.serviced then
     r.state='docked';r.node=r.route[r.index];Repairs.begin(r,r.node,at,T.alifeStay)

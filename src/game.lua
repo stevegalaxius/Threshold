@@ -1316,9 +1316,13 @@ function Game:updateDocking(dt)
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
-					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st)) then
+					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
+						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
 						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						if inZone then
+						-- an NPC waits while the player is in that dock's beam
+						local p = self.player
+						local playerIn = trader and p and p.dockState and p.dockState.phase == "tractor" and p.dockState.dock == dock
+						if inZone and not playerIn then
 							self:beginDocking(e, st, side, dock)
 							break
 						end

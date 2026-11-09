@@ -345,6 +345,11 @@ T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 T.npcTravelThrottle=.3
 -- How far (px) an NPC's own offset from a shared track or holding point can be
 T.npcSpread=220
+-- Queues at mass drivers and docks (src/queue.lua): how long one ship has the
+-- beam (s), and where the line holds: the first spot this far back from the
+-- chokepoint along the way in (px), each after it this much further.
+T.queueService={driver=10,dock=14}
+T.queueStart,T.queueGap=2200,600
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
 -- ...or sooner, when what's left wouldn't cover the rest of the leg plus the
 -- trip to the nearest fuel stop (times the margin, plus slack seconds).

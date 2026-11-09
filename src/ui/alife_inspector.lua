@@ -146,6 +146,7 @@ local function details(game)
  for id,n in pairs(cargo) do if n>0 then items[#items+1]=('%s x%d'):format(data.items[id] and data.items[id].name or id,n) end end
  table.sort(items)
  Slab.Text('Inventory: '..(#items>0 and table.concat(items,', ') or 'empty'))
+ do local ql=require('src.queue').label(r,game.universe.clock);if ql then Slab.Text('Queue: '..ql) end end
  if r.service then Slab.Text(('Service: %s at %s, then back to %s'):format(r.service.need,r.service.station,r.service.saved.route[r.service.saved.index] or '?')) end
  if r.distress then Slab.Text(('Distress: %s bringing %d fuel at %.0fs'):format(r.distress.helper,r.distress.amount,r.distress.at)) end
  local req=e and (e.asked or e.request)

@@ -81,6 +81,8 @@ local function start(r,clock,index)
   r.state='travel'; r.area=to.area; r.transit=nil
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
  end
+ -- a leg into a mass driver or a dock books its turn there
+ if r.state=='travel' then require('src.queue').leg(r) else r.queue=nil end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
  r.driverState,r.cityExit=nil,nil
 end
@@ -186,6 +188,7 @@ end
 function A.seed(game)
  local u=game.universe
  require('src.supplies').universe=u
+ require('src.queue').universe=u
  u.npcs=u.npcs or {}; u.npcAreas=u.npcAreas or {}; u.nextNpcId=u.nextNpcId or 0
  Reconcile.prepare(game,start)
  -- All populations exist before visiting their regions. Do not refill departed
@@ -401,7 +404,17 @@ function A.trackPoint(r,clock)
   local x,y=L.inspectionPosition(r.route[r.index],clock)
   return x+(r.offset and r.offset.x or 0),y+(r.offset and r.offset.y or 0)
  end
+ -- through with the leg and waiting its turn at a driver or a dock: in line
+ -- (it stops there on the way in, once it gets that close)
+ local Q=require('src.queue')
  local p=progress(r,clock)
+ if Q.waiting(r,clock) then
+  local hx,hy=Q.holdPoint(r,clock)
+  local nx,ny=L.position(r.route[r.index],clock)
+  local x,y=journeyPoint(r,p,clock)
+  if clock>=r.arrive or (x-nx)^2+(y-ny)^2<=(hx-nx)^2+(hy-ny)^2 then return hx,hy end
+  return x,y
+ end
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
@@ -840,6 +853,7 @@ function A.install(Game)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
   require('src.supplies').universe=self.universe
+  require('src.queue').universe=self.universe
   require('src.arbiter').update(self.universe,clock)
   require('src.economy').update(self.universe,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
