@@ -788,10 +788,6 @@ function Game:laneEndCenter(back)
 	local s = back and -lane.half or lane.half
 	local ex, ey = self:fromLane(s, 0)
 	local h = self:laneHeading(s) + (back and pi or 0)
-	if F and F.instance and F.spawn then
-		local sx, sy = ex + cos(h) * 400, ey + sin(h) * 400
-		return sx - F.spawn[1], sy - F.spawn[2]
-	end
 	local d = (F and F.radius or 10000) - 1500
 	return ex + cos(h) * d, ey + sin(h) * d
 end
@@ -1049,8 +1045,7 @@ function Game:arrive(back)
 	self:restoreFlight(p, carry, -ox, -oy)
 	p.driverCooldown = T.driverCooldown
 	if not moon then p.laneFade = 1 end
-	if Fields[to].instance then p.arriveBrake = { t = 0 }
-	end
+
 	self.inputTranslation = { x = -ox, y = -oy }
 	self.camera.x, self.camera.y = camX - ox, camY - oy
 	self.camera.backgroundX = (self.camera.backgroundX or 0) + ox
@@ -1102,23 +1097,6 @@ function Game:restoreFlight(p, c, dx, dy)
 	for k, v in pairs(c.control) do p.intent[k] = v end
 	if p.intent.aimX then p.intent.aimX = p.intent.aimX + dx end
 	if p.intent.aimY then p.intent.aimY = p.intent.aimY + dy end
-end
-
--- Into a site's pocket at lane speed: brake to a manageable pace over a
--- second and a half, smoothly.
-function Game:updateArriveBrake(dt)
-	local p = self.player
-	local b = p and not p.dead and p.arriveBrake
-	if not b then return end
-	b.t = b.t + dt
-	local vx, vy = p.body:getLinearVelocity()
-	local sp = sqrt(vx * vx + vy * vy)
-	if sp > T.siteArriveSpeed then
-		local k = math.exp(-dt * 2.5)
-		local want = max(T.siteArriveSpeed, sp * k)
-		p.body:setLinearVelocity(vx / sp * want, vy / sp * want)
-	end
-	if b.t > 1.5 or p.intent.thrust < 0 then p.arriveBrake = nil end
 end
 
 -- How you come out of the lane when it has to cut: pointing and moving

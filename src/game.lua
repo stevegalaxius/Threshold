@@ -1992,7 +1992,6 @@ function Game:step(dt)
 	self:reap()
 	if self.sideScene then return end
 	self:stepSides(dt)
-	self:updateArriveBrake(dt)
 	self:updateCover(dt)
 	-- Into a lane: seamless (src/transit.lua), unless the launch had to cut
 	-- short because something solid was dead ahead, which hides behind the
