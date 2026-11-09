@@ -990,10 +990,12 @@ function Game:clearArrival(scene, ox, oy)
 	local h = self:laneHeading(half)
 	local tx, ty = cos(h), sin(h)
 	local W = T.laneWidth
+	-- (the ring past the edge, and the map's own loose rock for the first
+	-- stretch in, so you don't come out of the lane into it)
 	local function inRoad(e, x, y)
-		if not e.outer then return false end
+		if e.giant or e.miningId then return false end
 		local dx, dy = x - ex, y - ey
-		return dx * tx + dy * ty < 1000 and abs(dy * tx - dx * ty) < W + e.radius
+		return dx * tx + dy * ty < (e.outer and 1000 or 3000) and abs(dy * tx - dx * ty) < W + e.radius
 	end
 	local keep = {}
 	for _, e in ipairs(scene.sleepers or {}) do
@@ -1379,8 +1381,10 @@ function Game:populateLane()
 				local e = self:spawnAsteroid(x, y, r, self:pickDebris(mix), nil, true)
 				e.lane = "rock"
 				local _, _, phi = self:toLane(x, y)
-				e.sleep.vx, e.sleep.vy = -sin(phi) * across, cos(phi) * across
-				e.sleep.still = nil
+				-- (it lies still asleep, so it's still beside the road when
+				-- you get there however long the trip; it starts drifting
+				-- in once it wakes, as you come up on it)
+				e.drift = { -sin(phi) * across, cos(phi) * across }
 			end
 		end
 	end
@@ -1477,6 +1481,16 @@ function Game:updateLane(dt)
 						if K and side > 0 then
 							local u = min(1, K.t / T.laneKickTime)
 							speed = speed + max(0, K.speed - speed) * (1 - u) ^ 2
+						end
+						-- and over the last stretch the lane lets you go, the
+						-- way a driver's catch would: its flow eases off to
+						-- nothing by the end, so you come out at your own
+						-- ship's pace, in control
+						local D = min(T.laneBrake, lane.half * 0.5)
+						local left = lane.half - s
+						if left < D then
+							local u = max(0, left / D)
+							speed = speed * u * u * (3 - 2 * u)
 						end
 						flow = speed * side * e.laneBuff
 					end

@@ -440,6 +440,11 @@ function Game:updateSleepers()
 				if o.r then
 					local v = o.rate * o.r
 					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				elseif e.drift then
+					-- (made still, set moving when it wakes: a lane's rock
+					-- drifting onto the road)
+					e.body:setLinearVelocity(e.drift[1], e.drift[2])
+					e.drift = nil
 				else
 					e.body:setLinearVelocity(o.vx, o.vy)
 				end

@@ -105,7 +105,7 @@ T.laneEntrySpeed = 2600
 -- laneRunup px short of its mouth, braking to laneEntrySpeed.
 T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 0.7, 24000, 0.15, 20000
 -- share of the driver's speed you still have as you enter the lane
-T.laneKeep = 1
+T.laneKeep = 0.4
 -- a cut that can't be avoided (fired at something solid, a map that
 -- couldn't be built ahead) hidden in the lane's glow: seconds for it to
 -- wash over, and to clear once the new level is in (Game:coverThen)
@@ -136,6 +136,9 @@ T.laneKickTime = 6
 -- seconds the lane's speed takes to come off once you're out of a
 -- driver's lane onto the map ahead (Game:updateArriveCarry)
 T.arriveCarryTime = 3
+-- px before the end of a driver's lane over which its flow eases off to
+-- nothing (at most half the lane), so you come out at your own pace
+T.laneBrake = 24000
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
