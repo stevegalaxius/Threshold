@@ -104,7 +104,20 @@ function P.spawn(game,area,role,nearPlayer)
   end
  end
  if localArea and not x then
-  local nx,ny=L.position(node,clock)
+  -- A-Life is persistent: a new ship arrives out of the player's sight,
+  -- at a station or waypoint off-screen, never in front of them
+  local pl=game.player
+  local px,py
+  if pl and not pl.dead and pl.body and not pl.body:isDestroyed() then px,py=pl.body:getPosition() end
+  local hidden=(game.viewReach and game:viewReach() or 3000)+1500
+  local nx,ny
+  for _=1,20 do
+   node=anchors[love.math.random(#anchors)]
+   nx,ny=L.position(node,clock)
+   if not px or (nx-px)^2+(ny-py)^2>(hidden+700)^2 then break end
+   nx=nil
+  end
+  if not nx then return nil,'Every arrival point is in view.' end
   for _=1,20 do
    local a=love.math.random()*math.pi*2;local distance=200+love.math.random()*500
    local sx,sy=nx+math.cos(a)*distance,ny+math.sin(a)*distance
