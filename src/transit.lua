@@ -1461,10 +1461,16 @@ function Game:updateLane(dt)
 						e.laneBuff = 1
 						local c = self:shotSpeed(s)
 						if c > 0 then
-							flow = c
+							-- The shot is the least you're doing, never the
+							-- most: your drag is measured against the shot
+							-- less your own top speed, so at full throttle you
+							-- do the shot's speed, and on the afterburner more.
+							-- (Near the end that frame is still: it's just you.)
+							e.ownTop = e.ownTop or Ship.performance(e).topSpeed
+							flow = max(0, c - e.ownTop)
 							local vx, vy = b:getLinearVelocity()
 							local va = vx * tx + vy * ty
-							b:setLinearVelocity(vx + tx * (c - va), vy + ty * (c - va))
+							if va < c then b:setLinearVelocity(vx + tx * (c - va), vy + ty * (c - va)) end
 						end
 					end
 					e.laneFrame = true
