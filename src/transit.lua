@@ -1493,6 +1493,17 @@ function Game:updateLane(dt)
 							speed = speed * u * u * (3 - 2 * u)
 						end
 						flow = speed * side * e.laneBuff
+						-- The lane's speed is the top speed in it: your engine
+						-- steers you across it and can hold you back, but it
+						-- doesn't add to it (or you'd climb to the lane's plus
+						-- your own).
+						local vx, vy = b:getLinearVelocity()
+						local va = vx * tx + vy * ty
+						local top = max(flow, T.laneEntrySpeed)
+						if va > top then
+							local cut = va - top
+							b:setLinearVelocity(vx - tx * cut, vy - ty * cut)
+						end
 					end
 					e.laneFrame = true
 					if flow ~= 0 then e.flowX, e.flowY = tx * flow, ty * flow else e.flowX, e.flowY = nil, nil end
