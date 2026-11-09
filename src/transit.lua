@@ -1312,7 +1312,7 @@ function Game:populateLane()
 	-- there itself, built ahead of you, and it's what you'll fly into
 	local dest = Fields[trip.to]
 	local DX, DY, DR
-	if dest and dest.planetR and not trip.moon then
+	if dest and not dest.transit and not trip.moon and T.mapOuter > 0 then
 		DX, DY = self:laneEndCenter(false)
 		DR = (dest.radius or 10000) + T.mapOuter + 600
 	end

@@ -528,7 +528,9 @@ end
 -- and a lane leaving the map picks up where it ends (src/transit.lua).
 function Game:spawnOuterBelt()
 	local f = self.field
-	if not f or f.transit or not self.well or T.mapOuter <= 0 then return end
+	-- (a map with no planet, a site's pocket, rings its centre all the same)
+	if not f or f.transit or T.mapOuter <= 0 then return end
+	local cx, cy = self.well and self.well.x or 0, self.well and self.well.y or 0
 	local R, W = self.arenaRadius, T.mapOuter
 	local rng = love.math.newRandomGenerator(random(1, 2147483646))
 	local n = floor(2 * pi * (R + W / 2) * W / 1e8 * T.mapOuterDensity)
@@ -537,7 +539,7 @@ function Game:spawnOuterBelt()
 		local u = rng:random() ^ 1.6        -- thicker near the edge
 		local d = R - 500 + u * (W + 500)
 		local r = 30 + rng:random() ^ 2 * 160
-		local x, y = self.well.x + cos(a) * d, self.well.y + sin(a) * d
+		local x, y = cx + cos(a) * d, cy + sin(a) * d
 		if self:isClear(x, y, r + 40) then
 			local e = self:spawnAsteroid(x, y, r, self:pickDebris(f.mix), nil, true)
 			e.outer = true
