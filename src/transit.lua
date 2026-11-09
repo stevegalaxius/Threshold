@@ -1410,13 +1410,12 @@ function Game:moonHazardDepth()
 end
 
 -- How fast the shot off a driver carries you at distance s along the
--- lane: launched at Game:shotLaunch, slowing at a steady rate so it's
+-- lane: launched at the driver's speed (T.driverExitSpeed), slowing at a steady rate so it's
 -- down to T.laneEntrySpeed (about a ship's own pace) at the far end, then
 -- nothing: you're flying yourself. A steady slowing takes 2L/v to cover
 -- the lane.
 function Game:shotLaunch()
-	local L = self.trip and self.trip.length or 40000
-	return max(T.shotMin, min(T.shotMax, 2 * L / T.shotTime))
+	return T.driverExitSpeed
 end
 function Game:shotSpeed(s)
 	local lane = self.lane

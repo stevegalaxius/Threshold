@@ -133,10 +133,6 @@ T.laneCarryTime = 20
 -- the seconds a driver's extra kick takes to settle back to the lane's
 -- speed (laneFlow: the lane carries you, and its traffic, src/transit.lua)
 T.laneKickTime = 6
--- The shot off a mass driver (Game:shotSpeed): launched fast enough to
--- cover the lane in about shotTime seconds (slowing steadily to a ship's
--- own pace, laneEntrySpeed, at the far end), within shotMin..shotMax.
-T.shotTime, T.shotMin, T.shotMax = 30, 8000, 40000
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
