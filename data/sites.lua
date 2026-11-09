@@ -64,8 +64,8 @@ site {
 	id = "quiet_meet", name = "Quiet rendezvous", kind = "meetup",
 	color = { 0.45, 0.75, 1 }, home = { "earth", "mars", "venus" }, lifetime = 900,
 	pockets = {
-		{ name = "Rendezvous", radius = 5000, spawn = { 0, 1500 },
-			pieces = { { type = "rocks", count = 25, minD = 900 } } },
+		{ name = "Rendezvous", radius = 15000, spawn = { 0, 4500 },
+			pieces = { { type = "rocks", count = 225, minD = 2700 } } },
 	},
 }
 
@@ -74,10 +74,10 @@ site {
 	id = "dark_dock", name = "Unlisted dock", kind = "station", hidden = true,
 	color = { 0.6, 0.9, 0.85 }, home = { "jupiter", "saturn", "belt" },
 	pockets = {
-		{ name = "Unlisted dock", radius = 7000, spawn = { 0, 3200 },
+		{ name = "Unlisted dock", radius = 21000, spawn = { 0, 9600 },
 			pieces = {
 				{ type = "station", station = "customs_1", x = 0, y = 0, spin = 0.02, name = "Unlisted dock" },
-				{ type = "rocks", count = 30, minD = 2000 },
+				{ type = "rocks", count = 270, minD = 6000 },
 			} },
 	},
 }
@@ -87,18 +87,18 @@ site {
 	id = "smugglers_hollow", name = "Smugglers' hollow", kind = "dungeon",
 	color = { 1, 0.6, 0.25 }, home = { "belt", "mars" }, lifetime = 1800,
 	pockets = {
-		{ name = "Hollow mouth", radius = 7000, spawn = { 0, 3000 },
+		{ name = "Hollow mouth", radius = 21000, spawn = { 0, 9000 },
 			pieces = {
-				{ type = "rocks", count = 60, minD = 800 },
-				{ type = "enemies", groups = { { "swarmer", 3 }, { "gunner", 2 } }, x = 0, y = -1200, r = 1800 },
-				{ type = "gate", to = 2, x = 0, y = -3800, unlock = "clear" },
+				{ type = "rocks", count = 540, minD = 2400 },
+				{ type = "enemies", groups = { { "swarmer", 3 }, { "gunner", 2 } }, x = 0, y = -3600, r = 1800 },
+				{ type = "gate", to = 2, x = 0, y = -11400, unlock = "clear" },
 			} },
-		{ name = "Hollow cache", radius = 6000, spawn = { 0, 2600 },
+		{ name = "Hollow cache", radius = 18000, spawn = { 0, 7800 },
 			pieces = {
-				{ type = "giant", x = 0, y = -600, r = 900 },
-				{ type = "enemies", groups = { { "gunner", 2 }, { "interceptor", 1 } }, x = 0, y = -2200, r = 1200 },
-				{ type = "containers", item = "cargo_container", count = { 2, 3 }, loot = "site_cache", x = 0, y = -2400, r = 700 },
-				{ type = "gate", to = "exit", x = 2200, y = 2200 },
+				{ type = "giant", x = 0, y = -1800, r = 900 },
+				{ type = "enemies", groups = { { "gunner", 2 }, { "interceptor", 1 } }, x = 0, y = -6600, r = 1200 },
+				{ type = "containers", item = "cargo_container", count = { 2, 3 }, loot = "site_cache", x = 0, y = -7200, r = 700 },
+				{ type = "gate", to = "exit", x = 6600, y = 6600 },
 			} },
 	},
 }
@@ -108,31 +108,31 @@ site {
 	id = "iron_vault", name = "Iron vault", kind = "raid",
 	color = { 1, 0.3, 0.3 }, home = { "saturn", "jupiter", "uranus" }, lifetime = 3600, fare = 600,
 	pockets = {
-		{ name = "Picket", radius = 8000, spawn = { 0, 3500 },
+		{ name = "Picket", radius = 24000, spawn = { 0, 10500 },
 			pieces = {
-				{ type = "rocks", count = 40, minD = 1200 },
-				{ type = "enemies", groups = { { "gunner", 3 }, { "interceptor", 2 } }, x = 0, y = -1000, r = 2000 },
-				{ type = "gate", to = 2, x = 0, y = -4500, unlock = "clear" },
+				{ type = "rocks", count = 360, minD = 3600 },
+				{ type = "enemies", groups = { { "gunner", 3 }, { "interceptor", 2 } }, x = 0, y = -3000, r = 2000 },
+				{ type = "gate", to = 2, x = 0, y = -13500, unlock = "clear" },
 			} },
-		{ name = "Breaker yard", radius = 8000, spawn = { 0, 3500 },
+		{ name = "Breaker yard", radius = 24000, spawn = { 0, 10500 },
 			pieces = {
-				{ type = "rocks", count = 80, minD = 900 },
-				{ type = "enemies", groups = { { "brawler", 2 }, { "sniper", 1 }, { "swarmer", 4 } }, x = 0, y = -1500, r = 2500 },
-				{ type = "containers", item = "cargo_container", count = { 1, 2 }, loot = "site_cache", x = 3000, y = 0, r = 800 },
-				{ type = "gate", to = 3, x = 0, y = -4800, unlock = "clear" },
+				{ type = "rocks", count = 720, minD = 2700 },
+				{ type = "enemies", groups = { { "brawler", 2 }, { "sniper", 1 }, { "swarmer", 4 } }, x = 0, y = -4500, r = 2500 },
+				{ type = "containers", item = "cargo_container", count = { 1, 2 }, loot = "site_cache", x = 9000, y = 0, r = 800 },
+				{ type = "gate", to = 3, x = 0, y = -14400, unlock = "clear" },
 			} },
-		{ name = "Warden's post", radius = 7000, spawn = { 0, 3000 },
+		{ name = "Warden's post", radius = 21000, spawn = { 0, 9000 },
 			pieces = {
 				{ type = "giant", x = 0, y = 0, r = 1200 },
-				{ type = "enemies", groups = { { "brawler", 1 } }, x = 0, y = -2400, r = 300, tag = "warden" },
-				{ type = "enemies", groups = { { "gunner", 2 } }, x = 0, y = -2600, r = 900 },
-				{ type = "containers", container = "derelict_tug", count = 1, loot = "warden_key", x = 2400, y = -2400, r = 200 },
-				{ type = "gate", to = 4, x = 0, y = -4200, unlock = { item = "vault_key" } },
+				{ type = "enemies", groups = { { "brawler", 1 } }, x = 0, y = -7200, r = 300, tag = "warden" },
+				{ type = "enemies", groups = { { "gunner", 2 } }, x = 0, y = -7800, r = 900 },
+				{ type = "containers", container = "derelict_tug", count = 1, loot = "warden_key", x = 7200, y = -7200, r = 200 },
+				{ type = "gate", to = 4, x = 0, y = -12600, unlock = { item = "vault_key" } },
 			} },
-		{ name = "The vault", radius = 5000, spawn = { 0, 2400 },
+		{ name = "The vault", radius = 15000, spawn = { 0, 7200 },
 			pieces = {
-				{ type = "containers", item = "cargo_container", count = { 3, 4 }, loot = "vault_hoard", x = 0, y = -800, r = 900 },
-				{ type = "gate", to = "exit", x = 0, y = -3000 },
+				{ type = "containers", item = "cargo_container", count = { 3, 4 }, loot = "vault_hoard", x = 0, y = -2400, r = 900 },
+				{ type = "gate", to = "exit", x = 0, y = -9000 },
 			} },
 	},
 }
