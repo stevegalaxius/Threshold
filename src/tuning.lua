@@ -133,6 +133,9 @@ T.laneCarryTime = 20
 -- the seconds a driver's extra kick takes to settle back to the lane's
 -- speed (laneFlow: the lane carries you, and its traffic, src/transit.lua)
 T.laneKickTime = 6
+-- seconds the lane's speed takes to come off once you're out of a
+-- driver's lane onto the map ahead (Game:updateArriveCarry)
+T.arriveCarryTime = 3
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)

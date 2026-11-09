@@ -550,7 +550,7 @@ function Game:tripShape(to, moon, lane)
 		bearing = math.atan2(by - ay, bx - ax)
 		half = Fields.laneLength(au) / 2
 	end
-	local _, rot = Game.laneShape(half * 2, bearing)
+	local _, rot = Game.laneShape(half * 2, bearing, moon ~= nil)
 	return { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil, bearing = bearing }
 end
 
@@ -558,7 +558,7 @@ end
 -- coordinates: just short of the mouth off a moon exit, at the start of
 -- the run-in out of a driver. (A lane's coordinates only need its trip.)
 local function laneEntry(trip)
-	local probe = { lane = { R = Game.laneShape(trip.length, trip.bearing), rot = trip.rot, half = trip.length / 2 } }
+	local probe = { lane = { R = Game.laneShape(trip.length, trip.bearing, trip.moon), rot = trip.rot, half = trip.length / 2 } }
 	local half = trip.length / 2
 	if trip.moon then
 		local mx, my = laneXYFor(probe.lane, -half, -T.laneWidth / 4)
@@ -936,6 +936,7 @@ function Game:updateStaging()
 			else
 				st.scene = scene
 				st.x, st.y = self:laneEndCenter(false)
+				self:clearArrival(scene, st.x, st.y)
 			end
 		end
 	end
@@ -971,9 +972,39 @@ function Game:finishStaging(back)
 			trip.originScene = scene
 		else
 			st.x, st.y = self:laneEndCenter(false)
+			self:clearArrival(scene, st.x, st.y)
 		end
 	end
 	return self:laneEndScene(back) ~= nil
+end
+
+-- The road carries on into the map ahead: its ring of rock past the edge
+-- is cleared along the line you'll come in on, as wide as the road, so
+-- you fly out of the lane between the same walls and not into a field.
+-- (scene at ox, oy from the lane)
+function Game:clearArrival(scene, ox, oy)
+	if self.trip.moon then return end
+	local half = self.lane.half
+	local ex, ey = self:fromLane(half, 0)
+	ex, ey = ex - ox, ey - oy
+	local h = self:laneHeading(half)
+	local tx, ty = cos(h), sin(h)
+	local W = T.laneWidth
+	local function inRoad(e, x, y)
+		if not e.outer then return false end
+		local dx, dy = x - ex, y - ey
+		return dx * tx + dy * ty < 1000 and abs(dy * tx - dx * ty) < W + e.radius
+	end
+	local keep = {}
+	for _, e in ipairs(scene.sleepers or {}) do
+		if not inRoad(e, e.body.x, e.body.y) then keep[#keep + 1] = e end
+	end
+	scene.sleepers = keep
+	local gone = {}
+	for _, e in ipairs(scene.entities) do
+		if e.kind == "asteroid" and not e.removed and inRoad(e, e.body:getPosition()) then gone[#gone + 1] = e end
+	end
+	for _, e in ipairs(gone) do scene:remove(e) end
 end
 
 -- Out of the far end of the lane into the map that's been running there
@@ -1016,7 +1047,13 @@ function Game:arrive(back)
 	self:restoreFlight(p, carry, -ox, -oy)
 	p.driverCooldown = T.driverCooldown
 	if not moon then p.laneFade = 1 end
-	if Fields[to].instance then p.arriveBrake = { t = 0 } end
+	if Fields[to].instance then p.arriveBrake = { t = 0 }
+	elseif not moon then
+		-- off the end of a driver's lane: the lane's speed comes off over
+		-- a few seconds, not all at once
+		local sp = sqrt(vx * vx + vy * vy)
+		if sp > 1 then p.arriveCarry = { t = 0, speed = sp, dx = vx / sp, dy = vy / sp } end
+	end
 	self.inputTranslation = { x = -ox, y = -oy }
 	self.camera.x, self.camera.y = camX - ox, camY - oy
 	self.camera.backgroundX = (self.camera.backgroundX or 0) + ox
@@ -1074,6 +1111,7 @@ end
 -- second and a half, smoothly.
 function Game:updateArriveBrake(dt)
 	local p = self.player
+	if p and not p.dead and p.arriveCarry then self:updateArriveCarry(dt) end
 	local b = p and not p.dead and p.arriveBrake
 	if not b then return end
 	b.t = b.t + dt
@@ -1085,6 +1123,25 @@ function Game:updateArriveBrake(dt)
 		p.body:setLinearVelocity(vx / sp * want, vy / sp * want)
 	end
 	if b.t > 1.5 or p.intent.thrust < 0 then p.arriveBrake = nil end
+end
+
+-- Out of a driver's lane onto a map: the ship keeps no less than a speed
+-- that eases off from the lane's to nothing over T.arriveCarryTime. Hit
+-- something, turn off the line or brake and it lets go, and you're flying
+-- on your own.
+function Game:updateArriveCarry(dt)
+	local p = self.player
+	local c = p.arriveCarry
+	c.t = c.t + dt
+	local u = c.t / T.arriveCarryTime
+	local vx, vy = p.body:getLinearVelocity()
+	local sp = sqrt(vx * vx + vy * vy)
+	if u >= 1 or sp < 1 or p.intent.thrust < 0 or (vx * c.dx + vy * c.dy) / sp < 0.95 then
+		p.arriveCarry = nil
+		return
+	end
+	local want = c.speed * (1 - u) ^ 2
+	if sp < want then p.body:setLinearVelocity(vx / sp * want, vy / sp * want) end
 end
 
 -- How you come out of the lane when it has to cut: pointing and moving
@@ -1217,8 +1274,11 @@ function Game:fromLane(s, n)
 end
 
 -- The arc radius and turn of a lane `length` long leaving along bearing.
-function Game.laneShape(length, bearing)
-	local Rc = max(T.laneArc, length * 0.9)
+-- A moon's highway keeps its gentle S; a driver's lane runs dead straight
+-- along the line it fired you on (an arc this big is a line), so flying
+-- straight on keeps you on the road.
+function Game.laneShape(length, bearing, moon)
+	local Rc = moon and max(T.laneArc, length * 0.9) or 1e9
 	return Rc, bearing + length / 2 / Rc
 end
 
@@ -1248,7 +1308,7 @@ function Game:buildLane()
 		local au = Fields.distance("earth", "mars", self.universe.clock)
 		self.trip = { from = "earth", to = "mars", au = au, length = Fields.laneLength(au) }
 	end
-	self.lane = { half = self.trip.length / 2, R = max(T.laneArc, self.trip.length * 0.9), rot = self.trip.rot or 0 }
+	self.lane = { half = self.trip.length / 2, R = Game.laneShape(self.trip.length, 0, self.trip.moon), rot = self.trip.rot or 0 }
 	self.arenaRadius = 1e7
 	self:populateLane()
 end
@@ -1271,8 +1331,15 @@ function Game:populateLane()
 	local ospan = max(0, s2 - o1)
 	local O = trip.origin
 	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + T.mapOuter + 600
-	-- what's on the road: the mix where you're headed
+	-- nor inside the map ahead, or its ring of rock past its edge: that's
+	-- there itself, built ahead of you, and it's what you'll fly into
 	local dest = Fields[trip.to]
+	local DX, DY, DR
+	if dest and dest.planetR and not trip.moon then
+		DX, DY = self:laneEndCenter(false)
+		DR = (dest.radius or 10000) + T.mapOuter + 600
+	end
+	-- what's on the road: the mix where you're headed
 	local mix = dest and dest.mix
 	-- Keeping rocks apart: a grid of what's been placed, so each check
 	-- looks at a few neighbours (Game:isClear walks every entity, and a
@@ -1283,6 +1350,7 @@ function Game:populateLane()
 	local function at(s, n, r)
 		local x, y = self:fromLane(s, n)
 		if OR and (x - O.x) ^ 2 + (y - O.y) ^ 2 < (OR + r) ^ 2 then return end
+		if DR and (x - DX) ^ 2 + (y - DY) ^ 2 < (DR + r) ^ 2 then return end
 		local cx, cy = floor(x / CELL), floor(y / CELL)
 		for i = cx - 1, cx + 1 do
 			for j = cy - 1, cy + 1 do
@@ -1312,6 +1380,7 @@ function Game:populateLane()
 				e.lane = "rock"
 				local _, _, phi = self:toLane(x, y)
 				e.sleep.vx, e.sleep.vy = -sin(phi) * across, cos(phi) * across
+				e.sleep.still = nil
 			end
 		end
 	end
@@ -1394,7 +1463,11 @@ function Game:updateLane(dt)
 					-- at the speed you came in at and settles back to the
 					-- lane's over T.laneKickTime. The rocks stand still, so
 					-- they still come at you at the lane's speed.
+					-- (the whole of a driver's lane flows, out past the walls
+					-- too: wander off the road and you're among the rock at
+					-- the same speed, never suddenly slowed)
 					local flow = 0
+					if not (self.trip and self.trip.moon) then e.laneBuff = 1 end
 					if e.laneBuff then
 						-- (a driver's lane only ever takes you onward: the
 						-- whole road flows outbound for you)
@@ -1418,7 +1491,12 @@ function Game:updateLane(dt)
 			end
 			-- Shared soft lateral edge, including moon trips. Debris beyond
 			-- it stays in place instead of being herded back into the road.
-			local over = abs(n) - self:laneBoundary()
+			-- (you, in a driver's lane: only past the far side of the
+			-- walls, so the rock is all that's in your way, never an
+			-- edge pinning you against it)
+			local edge = self:laneBoundary()
+			if e == p and not (self.trip and self.trip.moon) then edge = edge + (lane.hazardDepth or 0) + 1000 end
+			local over = abs(n) - edge
 			local moonDebris=e.kind=="asteroid"
 			if over > 0 and not moonDebris then
 				local sign=n>0 and 1 or -1

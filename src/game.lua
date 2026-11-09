@@ -406,6 +406,8 @@ function Ghost:destroy() end
 -- steps.
 function Game:sleeperPos(e)
 	local o = e.sleep
+	-- (made asleep and never moved: right where it was put)
+	if o.still then return e.body.x, e.body.y, o.a end
 	local w = self.well
 	-- no well (a lane): it just carries on in a straight line
 	if not o.r then
@@ -429,7 +431,8 @@ function Game:updateSleepers()
 	local sl, keep = self.sleepers, {}
 	for _, e in ipairs(sl) do
 		if not e.removed then
-			local x, y, a = self:sleeperPos(e)
+			local x, y, a
+			if e.sleep.still then x, y, a = e.body.x, e.body.y, e.sleep.a else x, y, a = self:sleeperPos(e) end
 			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
 				local o = e.sleep
 				e.sleep = nil
@@ -610,9 +613,9 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 		local w = self.well
 		if w then
 			local dx, dy = x - w.x, y - w.y
-			e.sleep = { r = sqrt(dx * dx + dy * dy), a = math.atan2(dy, dx), t = self.time, rate = 0, spin = spin }
+			e.sleep = { r = sqrt(dx * dx + dy * dy), a = math.atan2(dy, dx), t = self.time, rate = 0, spin = spin, still = true }
 		else
-			e.sleep = { x = x, y = y, vx = 0, vy = 0, t = self.time, spin = spin }
+			e.sleep = { x = x, y = y, vx = 0, vy = 0, t = self.time, spin = spin, still = true }
 		end
 		self.sleepers = self.sleepers or {}
 		table.insert(self.sleepers, e)

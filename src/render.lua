@@ -1414,8 +1414,9 @@ function Render.world(game, overlay, boundaryAngle)
 		end
 	end
 	for _, e in ipairs(game.sleepers or {}) do
-		local x, y = game:sleeperPos(e)
-		debris(e, x, y)
+		-- (most of it, past a map's edge and down a lane, never moves)
+		if e.sleep.still then debris(e, e.body.x, e.body.y)
+		else debris(e, game:sleeperPos(e)) end
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" and not e.giant and e.line then
