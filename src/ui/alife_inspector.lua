@@ -105,6 +105,11 @@ local function details(game)
   local parts={}
   for i,id in ipairs(r.route) do
    local name=L.byId[id] and L.byId[id].name or id
+   -- a mass driver or gate: say where it fires to (the next stop's map)
+   local nextPlace=r.route[i+1] and L.byId[r.route[i+1]]
+   local here=L.byId[id]
+   if here and nextPlace and nextPlace.area~=here.area then name=name..' (to '..nextPlace.area..')' end
+   if r.service and i>1 and L.canonical(id)==r.service.station then name=name..' (service)' end
    parts[#parts+1]=(i==r.index and '['..name..']' or name)
   end
   Slab.Text('Route: '..table.concat(parts,' > '))
@@ -117,6 +122,21 @@ local function details(game)
   local what=t.item and ('%d %s'):format(t.amount or 0,data.items[t.item] and data.items[t.item].name or t.item) or ''
   Slab.Text(('Job: %s %s  %s > %s  (%s%s%s)'):format(t.kind,what,place(t.source),place(t.target),
    tostring(t.phase),t.order and ', station order' or '',r.suspendedTask and ', suspended' or ''))
+  -- The route above is only this map's legs. Where the job takes it after
+  -- them: the maps on the way to its next job stop (the pickup, then the
+  -- delivery), so a trader crossing Saturn to reach Ceres reads as such.
+  local Fields=require('src.fields')
+  local goal=(t.phase=='prepare' or t.phase=='pickup') and t.source or t.target
+  local last=r.route and r.route[#r.route]
+  local path=goal and last and L.byId[goal] and require('src.travelgraph').itinerary(last,goal,game.universe.clock)
+  if path then
+   local areas,prev={},nil
+   for _,id in ipairs(path) do
+    local a=L.byId[id] and L.byId[id].area
+    if a and a~=prev then areas[#areas+1]=(Fields[a] and Fields[a].name or a);prev=a end
+   end
+   Slab.Text(('Then: %s for %s at %s'):format(table.concat(areas,' > '),goal==t.source and 'pickup' or 'delivery',place(goal)))
+  elseif goal then Slab.Text(('Then: no route to %s from %s'):format(place(goal),tostring(last))) end
  else
   local last=r.lastTask
   Slab.Text('Job: none'..(last and ('   last: %s %s at %.0fs'):format(last.kind,tostring(last.status),last.clock) or ''))
