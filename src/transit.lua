@@ -1275,10 +1275,27 @@ function Game:populateLane()
 	-- what's on the road: the mix where you're headed
 	local dest = Fields[trip.to]
 	local mix = dest and dest.mix
+	-- Keeping rocks apart: a grid of what's been placed, so each check
+	-- looks at a few neighbours (Game:isClear walks every entity, and a
+	-- lane lays out tens of thousands of rocks).
+	local CELL = 800
+	local grid = {}
+	local function key(cx, cy) return cx * 65536 + cy end
 	local function at(s, n, r)
 		local x, y = self:fromLane(s, n)
 		if OR and (x - O.x) ^ 2 + (y - O.y) ^ 2 < (OR + r) ^ 2 then return end
-		if self:isClear(x, y, r) then return x, y end
+		local cx, cy = floor(x / CELL), floor(y / CELL)
+		for i = cx - 1, cx + 1 do
+			for j = cy - 1, cy + 1 do
+				for _, q in ipairs(grid[key(i, j)] or {}) do
+					if (q[1] - x) ^ 2 + (q[2] - y) ^ 2 < (q[3] + r) ^ 2 then return end
+				end
+			end
+		end
+		local k = key(cx, cy)
+		grid[k] = grid[k] or {}
+		table.insert(grid[k], { x, y, r })
+		return x, y
 	end
 	-- on the road
 	for _ = 1, floor(span / 10000 * T.laneRocks) do
