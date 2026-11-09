@@ -29,6 +29,22 @@ local function problem(game,r,e)
  return r.fuelStatus=='stranded' or r.fuelStatus=='empty' or r.encounter or r.service or r.distress or e and (e.asked or e.request)
 end
 
+-- Where a live ship is steering right now: the stop its own route is on
+-- (which can be a stop ahead of the saved record between captures), and
+-- the point it is actually aiming at.
+local function heading(r,e)
+ local aim=e and not e.dockState and e.navAim
+ if aim and e.route and e.route[e.routeIndex or 1] and e.route[e.routeIndex or 1].locationId~=aim.stop then aim=nil end
+ local index=e and e.route and e.routeIndex or r.index
+ local stop=e and e.route and e.route[index] and e.route[index].locationId or r.route and r.route[r.index]
+ return stop,index,aim
+end
+O.heading=heading
+local function stopName(id)
+ local place=id and L.byId[id]
+ return place and (place.name or id) or tostring(id)
+end
+
 -- Every NPC that is in this map right now: {id,r,e,x,y} in world units.
 function O.npcs(game)
  local out,clock=game.universe and game.universe.npcs and {} ,game.universe.clock
@@ -90,7 +106,11 @@ function O.draw(game,toScreen,font)
    -- the old N overlay's readout: who, what's driving it, what it's doing
    lg.setColor(c[1],c[2],c[3],.85);lg.print(n.id..' '..(n.r.role or '')..'  '..Trace.controller(game,n.r,n.e),x+6,y-6)
    local status=require('src.reactor_fuel').activity(n.r)
+   local stop=heading(n.r,n.e)
+   if stop and n.r.state~='docked' then status=(status and status..'  ' or '')..'-> '..stopName(stop) end
    if status then lg.setColor(c[1],c[2],c[3],.6);lg.print(status,x+6,y+7) end
+   local _,_,aim=heading(n.r,n.e)
+   if aim then local ax,ay=toScreen(game,aim.x,aim.y);lg.setColor(.3,.9,1,.35);lg.line(x,y,ax,ay) end
   end
  end
  if sel then
@@ -100,18 +120,26 @@ function O.draw(game,toScreen,font)
   if r.route and not game.lane and (r.state=='travel' or r.state=='idle' or r.state=='docked') then
    local g=Graph.build(game.fieldId)
    local pts={sel.x,sel.y}
-   local first=r.state=='travel' and r.index or #r.route+1
+   local _,live,aim=heading(r,e)
+   local first=r.state=='travel' and live or #r.route+1
    for i=first,#r.route do
     local from,to=r.route[i-1] or r.route[i],r.route[i]
     if not (g.nodes[from] and g.nodes[to]) then break end
     local edge={from=from,to=to}
     local start=0
-    if i==first and r.state=='travel' then start=math.max(0,math.min(1,(clock-(r.depart or clock))/math.max(.01,(r.arrive or clock)-(r.depart or clock)))) end
+    if i==first and r.state=='travel' and e then start=math.max(0,math.min(1,Graph.project(g,edge,n.x,n.y,clock)))
+    elseif i==first and r.state=='travel' then start=math.max(0,math.min(1,(clock-(r.depart or clock))/math.max(.01,(r.arrive or clock)-(r.depart or clock)))) end
     for k=1,16 do
      local x,y=toScreen(game,Graph.point(g,edge,start+(1-start)*k/16,clock));pts[#pts+1]=x;pts[#pts+1]=y
     end
    end
    if #pts>=4 then lg.setColor(1,.85,.4,.6);lg.line(pts) end
+   -- and where the ship is actually steering this moment (detours, the
+   -- runway, the arc round the planet), in cyan
+   if aim then
+    local ax,ay=toScreen(game,aim.x,aim.y)
+    lg.setColor(.3,.9,1,.9);lg.line(sel.x,sel.y,ax,ay);lg.circle('line',ax,ay,4)
+   end
    local last=r.route[#r.route]
    if L.byId[last] and L.byId[last].area==game.fieldId then
     local x,y=toScreen(game,L.position(last,clock));lg.setColor(1,.85,.4,.8);lg.circle('line',x,y,6)
@@ -128,6 +156,8 @@ function O.draw(game,toScreen,font)
   if font then lg.setFont(font) end
   lg.print(n.id..'  '..(r.role or '')..'  '..Trace.controller(game,r,e),sel.x+14,sel.y-8)
   local status=require('src.reactor_fuel').activity(r)
+  local stop=heading(r,e)
+  if stop and r.state~='docked' then status=(status and status..'  ' or '')..'-> '..stopName(stop) end
   if status then lg.setColor(1,.85,.4,.8);lg.print(status,sel.x+14,sel.y+6) end
  end
  lg.pop()

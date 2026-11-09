@@ -269,12 +269,21 @@ local function trade(game, e, dt)
 			-- Do not carry unrelated orbital drift into the launch.
 			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
-		if stop.dock or stop.inspection then
-			-- Final approach is relative to the moving dock, not the orbital
-			-- current. In particular, a surface mine has no sideways motion.
-			local blend = max(0, min(1, 1 - (d - 600) / 1800))
-			local dx, dy = stop.body:getLinearVelocityFromWorldPoint(sx, sy)
-			fx0, fy0 = fx0 + (dx - fx0) * blend, fy0 + (dy - fy0) * blend
+		if not gateApproach then
+			-- Final approach is relative to the stop, not the orbital current.
+			-- Inside its braking distance the ship is slowing for the stop, and
+			-- measured against the current that slow approach can be slower
+			-- than the current itself: a stop that doesn't ride it (the
+			-- Heaven-Ladder, a surface mine) would drift away for ever.
+			local reach = cruise * cruise / (2 * brakeAccel(e) * 0.6) + 150
+			local blend = max(0, min(1, (reach * 1.5 - d) / (reach * 0.5)))
+			if stop.dock or stop.inspection then blend = max(blend, min(1, 1 - (d - 600) / 1800)) end
+			if blend > 0 then
+				local dx, dy
+				if stop.body.getLinearVelocityFromWorldPoint then dx, dy = stop.body:getLinearVelocityFromWorldPoint(sx, sy)
+				elseif stop.driver then dx, dy = stop.driver.body:getLinearVelocity() end
+				if dx then fx0, fy0 = fx0 + (dx - fx0) * blend, fy0 + (dy - fy0) * blend end
+			end
 		end
 		local inGravity=w and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius+min(T.surfacePullRange,w.radius*.5)+500
 		local climbing=w and ux*(x-w.x)+uy*(y-w.y)>sqrt((x-w.x)^2+(y-w.y)^2)*.4
@@ -286,6 +295,8 @@ local function trade(game, e, dt)
 		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
 		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
+		-- for the A-Life overlay: where it is actually steering, and for which stop
+		e.navAim={x=wx,y=wy,stop=stop.locationId,sx=sx,sy=sy}
 		ux,uy=norm(wx-x,wy-y)
 		local leg=sqrt((wx-x)^2+(wy-y)^2)
 		if detour then want=min(want,sqrt(60^2+brakeAccel(e)*max(0,leg-100))) end

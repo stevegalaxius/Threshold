@@ -17,14 +17,15 @@ local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
    and not (allowSurface and o and o.kind=='planet') then
    local shape=fixture:getShape();local kind=shape:getType()
    local vx,vy=body:getLinearVelocity()
+   local ship=o and o.kind=='ship' and o or nil
    if kind=='circle' then
     local cx,cy=body:getWorldPoint(shape:getPoint())
-    result[#result+1]={x=cx,y=cy,r=shape:getRadius(),vx=vx,vy=vy}
+    result[#result+1]={x=cx,y=cy,r=shape:getRadius(),vx=vx,vy=vy,ship=ship}
    elseif kind=='polygon' or kind=='edge' or kind=='chain' then
     local points={body:getWorldPoints(shape:getPoints())}
     if kind=='chain' then
-     for i=1,#points-2,2 do result[#result+1]={p={points[i],points[i+1],points[i+2],points[i+3]},vx=vx,vy=vy} end
-    else result[#result+1]={p=points,vx=vx,vy=vy} end
+     for i=1,#points-2,2 do result[#result+1]={p={points[i],points[i+1],points[i+2],points[i+3]},vx=vx,vy=vy,ship=ship} end
+    else result[#result+1]={p=points,vx=vx,vy=vy,ship=ship} end
    end
   end
   return true
@@ -151,6 +152,14 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  local geometry=obstacles(game,e,reach,options.ignore,options.allowSurface)
  local a=e.body:getAngle();local c,s=cos(a),sin(a)
  local radius=e.hull.radius+T.aiClearance
+ -- A ship already overlapping this one (two woken on the same spot) blocks
+ -- every heading at time 0, which left both crawling at the minimum speed
+ -- for ever, drifting off with the current. The collision pushes them
+ -- apart; steering ignores it meanwhile.
+ for i=#geometry,1,-1 do
+  local o=geometry[i]
+  if o.ship and (o.ship.body:getX()-x)^2+(o.ship.body:getY()-y)^2<(e.hull.radius+(o.ship.hull and o.ship.hull.radius or 0))^2 then table.remove(geometry,i) end
+ end
  local spine=e.spine or {0,0}
  local offsets={spine[1],0,spine[2]}
  local function freeTime(dx,dy,ahead,physicalOnly)

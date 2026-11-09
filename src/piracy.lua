@@ -60,6 +60,11 @@ function P.returnRecord(game,r)
  local path=itinerary(source,base,game.universe.clock)
  if not path then r.taskStatus='no route to '..L.get(base).name;return false end
  Tasks.release(game.universe,r,'returning with loot',game.universe.clock)
+ -- A service visit under way (repair, fuel) would hand back the route it saved
+ -- when it ends, the old one, not this one: the ship docked at the service
+ -- station and then left for where it was before the loot. Home docks and
+ -- repairs it anyway; upkeep plans again from there if it still needs to.
+ r.service,r.serviced=nil,nil
  require('src.alife_trace').note(r,game.universe.clock,'piracy','returning to '..base)
  r.piracy={phase='escape',base=base,origin=L.rally(r.home,source,game.universe.clock) or L.station(r.home,'trade'),started=game.universe.clock}
  r.taskWorker=true;r.taskStatus='returning to '..L.get(base).name
@@ -78,6 +83,7 @@ function P.beginReturn(game,e,r)
  local A=require('src.alife');A.capture(game,e,false)
  if not P.returnRecord(game,r) then return false end
  e.combatTarget,e.lock,e.aggressor,e.tractorTarget=nil,nil,nil,nil
+ e.serviceDockedAt,e.serviceDeparture=nil,nil
  e.intent.tractor=false;A.bindRoute(game,e,r)
  return true
 end
