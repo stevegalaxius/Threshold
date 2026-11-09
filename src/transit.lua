@@ -362,7 +362,7 @@ end
 -- The approach, like a station's runway: fly into the zone behind the
 -- breech and the beam takes over, easing you onto the centre line, nose
 -- along the barrel, and drawing you in, gently at first and firmer near
--- the breech. Its grip has a limit (driverGrip, px/s^2), so come in too
+-- the breech. Its grip on the player has a limit (T.beamGrip, px/s^2), so come in too
 -- fast and you sail straight through the breech and out the far side.
 function Game:updateDriverTractor(p, dt)
 	local tr = p.driverTractor
@@ -372,10 +372,12 @@ function Game:updateDriverTractor(p, dt)
 	local lx, ly = driverLocal(g, x, y)
 	local dx, dy = cos(g.angle), sin(g.angle)
 	local nx, ny = -dy, dx
-	p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false
+	-- an NPC's engines are off in the beam; the player keeps the stick
+	if p ~= self.player then p.intent.thrust, p.intent.strafe, p.intent.boost = 0, 0, false end
 	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 	local zl, zw = zone(g)
-	if lx > 150 or math.abs(ly) > zw * 1.5 or lx < -zl * 1.2 then
+	-- the player can overshoot or slide out of the beam; an NPC is held
+	if p == self.player and (lx > 150 or math.abs(ly) > zw * 1.5 or lx < -zl * 1.2) then
 		-- overshot the breech, or slid out of the beam
 		p.driverTractor = nil
 		p.driverProtected=nil;if g.driverShip==p then g.driverShip=nil end
@@ -399,20 +401,9 @@ function Game:updateDriverTractor(p, dt)
 		return
 	end
 	local near = 1 - max(0, min(1, -lx / zl))
-	local grip = min(1, tr.t / 1.0) * (0.35 + 0.65 * near)
-	local gap = -lx
-	local inward = min(T.driverReel, max(60, gap * 0.6))
-	local wx, wy = dx * inward - nx * ly * 0.8, dy * inward - ny * ly * 0.8
-	local ax, ay = (wx - vx) * 2.2 * grip, (wy - vy) * 2.2 * grip
-	local a = math.sqrt(ax * ax + ay * ay)
-	local cap = T.driverGrip * (0.5 + 0.5 * grip)
-	if a > cap then ax, ay = ax / a * cap, ay / a * cap end
-	local m = p.body:getMass()
-	p.body:applyForce(ax * m, ay * m)
-	-- nose down the barrel
-	local turn = ((g.angle - p.body:getAngle() + pi) % (2 * pi) - pi) * 1.4 * grip
-	local w = p.body:getAngularVelocity()
-	p.body:setAngularVelocity(w + (turn - w) * min(1, 3 * dt))
+	local inward = min(T.driverReel, max(60, -lx * 0.6))
+	require("src.beam").hold(self, p, { t = tr.t, near = near, fvx = gvx, fvy = gvy,
+		wx = dx * inward - nx * ly * 0.8, wy = dy * inward - ny * ly * 0.8, nose = g.angle, dt = dt })
 end
 
 -- In flight to planet `to`: the trip is the transit view, game.flight =

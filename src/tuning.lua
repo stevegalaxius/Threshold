@@ -90,7 +90,10 @@ T.driverRadius = 260
 T.driverZone, T.driverZoneWidth = 1500, 250
 T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
-T.driverGrip = 320
+-- The tractor beam that catches ships (src/beam.lua): the most it can slow
+-- the player (px/s^2) at a station's runway or a driver's breech. NPCs are
+-- held without a cap.
+T.beamGrip = 360
 T.driverAlign, T.driverFire = 1.2, 0.25
 -- how fast a driver's barrel swings round to its firing bearing (rad/s),
 -- and its speed round the planet as a share of the current there
@@ -330,7 +333,7 @@ T.miningScan,T.miningOfflineEvery=.5,12
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',6000
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.fuelEmergency=2
