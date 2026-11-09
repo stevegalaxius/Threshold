@@ -1001,12 +1001,16 @@ function Game:clearArrival(scene, ox, oy)
 	local h = self:laneHeading(half)
 	local tx, ty = cos(h), sin(h)
 	local W = T.laneWidth
-	-- (the ring past the edge, and the map's own loose rock for the first
-	-- stretch in, so you don't come out of the lane into it)
+	-- (the ring past the edge across all of the lane you can fly in, the
+	-- lane's own walls run on through it; and the map's own loose rock for
+	-- the first stretch in, along the road, so you don't come out of the
+	-- lane into it)
+	local reach = self:laneBoundary() + (self.lane.hazardDepth or 0) + 1000
 	local function inRoad(e, x, y)
 		if e.giant or e.miningId then return false end
 		local dx, dy = x - ex, y - ey
-		return dx * tx + dy * ty < (e.outer and 1000 or 3000) and abs(dy * tx - dx * ty) < W + e.radius
+		if e.outer then return dx * tx + dy * ty < 1000 and abs(dy * tx - dx * ty) < reach + e.radius end
+		return dx * tx + dy * ty < 3000 and abs(dy * tx - dx * ty) < W + e.radius
 	end
 	local keep = {}
 	for _, e in ipairs(scene.sleepers or {}) do
@@ -1301,13 +1305,17 @@ function Game:populateLane()
 	local ospan = max(0, s2 - o1)
 	local O = trip.origin
 	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + T.mapOuter + 600
-	-- nor inside the map ahead, or its ring of rock past its edge: that's
-	-- there itself, built ahead of you, and it's what you'll fly into
+	-- nor inside the map ahead: that's there itself, built ahead of you.
+	-- Its ring of rock past the edge is, too, but that map is only drawn
+	-- while you're in the lane, not flown in, so its rock would be
+	-- something you pass straight through: the lane's own walls carry on
+	-- through the ring instead, and the ring is cleared from the lane's
+	-- width (Game:clearArrival)
 	local dest = Fields[trip.to]
 	local DX, DY, DR
 	if dest and not dest.transit and not trip.moon and T.mapOuter > 0 then
 		DX, DY = self:laneEndCenter(false)
-		DR = (dest.radius or 10000) + T.mapOuter + 600
+		DR = (dest.radius or 10000) + 600
 	end
 	-- what's on the road: the mix where you're headed
 	local mix = dest and dest.mix
