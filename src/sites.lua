@@ -126,13 +126,23 @@ function Sites.position(inst, clock)
 	return x + cos(inst.bearing) * 0.25, y + sin(inst.bearing) * 0.25
 end
 
+-- Where any map is, in AU from the Sun: a planet on its orbit, a moon on
+-- its planet, a site's pocket wherever its site is.
+function Sites.mapPosition(u, id, clock)
+	if Fields.orbits[id] then return Fields.orbitPos(id, clock) end
+	local moon = Fields.moons and Fields.moons[id]
+	if moon then return Fields.orbitPos(moon.parent, clock) end
+	local inst = Sites.of(id) and Sites.list(u)[Sites.of(id)]
+	if inst then return Sites.position(inst, clock) end
+end
+
 -- How long the lane is between a site and map `from`: the same length a
 -- planet-to-planet lane of that distance gets (Fields.laneLength), so a
 -- site across the system is a longer trip than one next door. Also the
 -- distance, in AU, for the lane's progress bar.
-function Sites.laneLength(inst, from, clock)
-	if not Fields.orbits[from] then return T.siteLaneLength, 0 end
-	local ax, ay = Fields.orbitPos(from, clock)
+function Sites.laneLength(u, inst, from, clock)
+	local ax, ay = Sites.mapPosition(u, from, clock)
+	if not ax then return T.siteLaneLength, 0 end
 	local bx, by = Sites.position(inst, clock)
 	local au = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
 	return Fields.laneLength(au), au
@@ -307,7 +317,7 @@ function Game:throughGate(gate)
 		local back = inst and inst.from or Fields.start
 		if inst and gate.pocket == #Sites.template(inst).pockets then inst.done = true end
 		local length, au = T.siteLaneLength, 0
-		if inst then length, au = Sites.laneLength(inst, back, u.clock) end
+		if inst then length, au = Sites.laneLength(u, inst, back, u.clock) end
 		self:launchTrip(back, nil, { bearing = bearing, length = length, au = au })
 		return
 	end
@@ -328,7 +338,7 @@ function Game:enterSite(instId, bearing)
 	if not Sites.of(self.fieldId) then inst.from = self.fieldId end
 	local id = Sites.fieldId(inst.id, 1)
 	if bearing then
-		local length, au = Sites.laneLength(inst, inst.from, self.universe.clock)
+		local length, au = Sites.laneLength(self.universe, inst, self.fieldId, self.universe.clock)
 		self:launchTrip(id, nil, { bearing = bearing, length = length, au = au })
 		return true
 	end
