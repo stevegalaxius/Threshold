@@ -370,10 +370,11 @@ Fields.ring = {
 	enemies = { { "swarmer", 2 }, { "interceptor", 1 } },
 	build = function(game)
 		for _,id in ipairs(Fields.ring.stationIds) do require("src.locations").spawnStation(game,id) end
-		-- a thin scattering of rock from well outside the hub to the edge
+		-- rock from well outside the hub to the edge, as thick as it was
+		-- before the mining moved to the Quarry
 		local S = T.mapScale
 		local area = pi * ((26000 * S) ^ 2 - (9000 * S) ^ 2) / 1e6
-		game:spawnAsteroids(floor(area * 0.035 * T.mapDensity), 9000 * S)
+		game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 9000 * S)
 		game:spawnContainers(T.fieldContainers, 6000)
 	end,
 }
