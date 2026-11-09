@@ -1399,7 +1399,7 @@ function Game:updateLane(dt)
 				e.laneBuff = k > 0 and not (self.trip and self.trip.moon) and k or nil
 				if e == p then
 					-- You don't get the buff: the lane carries you instead.
-					-- It flows at T.laneSpeed, onward (fading out past the
+					-- It flows at T.laneFlow, onward (fading out past the
 					-- edges), and your ship flies
 					-- relative to that, exactly as it rides a planet's
 					-- current (Ship.fly): let go and you cruise with the
@@ -1413,7 +1413,7 @@ function Game:updateLane(dt)
 						-- (a driver's lane only ever takes you onward: the
 						-- whole road flows outbound for you)
 						local side = 1
-						local speed = T.laneSpeed
+						local speed = T.laneFlow
 						local K = e.laneKick
 						if K and side > 0 then
 							local u = min(1, K.t / T.laneKickTime)
@@ -1421,6 +1421,11 @@ function Game:updateLane(dt)
 						end
 						flow = speed * side * e.laneBuff
 					end
+					e.laneFrame = true
+					if flow ~= 0 then e.flowX, e.flowY = tx * flow, ty * flow else e.flowX, e.flowY = nil, nil end
+				elseif e.cruise and not (self.trip and self.trip.moon) then
+					-- traffic rides the lane the same way, its own direction
+					local flow = T.laneFlow * (e.cruiseDir or 1) * k
 					e.laneFrame = true
 					if flow ~= 0 then e.flowX, e.flowY = tx * flow, ty * flow else e.flowX, e.flowY = nil, nil end
 				end

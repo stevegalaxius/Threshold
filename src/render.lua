@@ -710,7 +710,10 @@ end
 -- The lane buff: a crackling outline round any ship inside a transit
 -- lane.
 local function drawLaneBuff(e)
-	local buff = e.driverProtected and 1 or e.laneBuff or e.laneFade
+	-- the mass driver's glow: while it's firing you, then fading off as
+	-- its kick settles in the lane (not just for being in a lane)
+	local K = e.laneKick
+	local buff = e.driverProtected and 1 or K and max(0, 1 - K.t / T.laneKickTime) or e.laneFade
 	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength

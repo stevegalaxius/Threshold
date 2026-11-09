@@ -130,9 +130,8 @@ T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road
 T.laneCarryTime = 20
--- how fast a lane carries you (px/s; you fly relative to it, src/transit.lua),
--- and the seconds a driver's extra kick takes to settle back to it
-T.laneSpeed = 6000
+-- the seconds a driver's extra kick takes to settle back to the lane's
+-- speed (laneFlow: the lane carries you, and its traffic, src/transit.lua)
 T.laneKickTime = 6
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
@@ -283,7 +282,7 @@ T.laneSpecs = {
 	{ key = "laneHazardDepth", label = "Moon rock belt minimum depth (px)", min = 8000, max = 60000, value = 24000, precision = 0 },
 	{ key = "laneOffroad",     label = "Rocks off-road (per 10k px)",   min = 0,    max = 60,    value = 12,    precision = 0 },
 	{ key = "laneDerelicts",   label = "Derelicts (per 100k px)",       min = 0,    max = 10,    value = 1,     precision = 1 },
-	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
+	{ key = "laneFlow",        label = "Lane speed (px/s)",             min = 300,  max = 12000, value = 6000,  precision = 0 },
 	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 3,     precision = 2 },
 	{ key = "laneDrag",        label = "Lane buff: drag x",             min = 0.05, max = 1,     value = 0.25,  precision = 2 },
 	{ key = "laneRamp",        label = "Off-road falloff (px)",         min = 0,    max = 8000,  value = 3000,  precision = 0 },
