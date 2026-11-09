@@ -343,6 +343,8 @@ T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,
 -- Saturn and the Belt measured .25-.34): what offline travel is billed at.
 T.npcTravelThrottle=.3
+-- How far (px) an NPC's own offset from a shared track or holding point can be
+T.npcSpread=220
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
 -- ...or sooner, when what's left wouldn't cover the rest of the leg plus the
 -- trip to the nearest fuel stop (times the margin, plus slack seconds).

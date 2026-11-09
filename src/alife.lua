@@ -25,6 +25,17 @@ local Homes=require('src.npc_home')
 local Reconcile=require('src.world_reconcile')
 local NPC=require('src.npc')
 local A = {}
+-- Each NPC keeps its own small offset from the shared track, so two ships on
+-- the same leg at the same time (or holding at the same buoy) aren't drawn on
+-- top of each other on the map, and don't wake up inside each other.
+function A.spread(r)
+ local id=tostring(r.id or '')
+ local n=tonumber(id:match('%d+$')) or 0
+ for i=1,#id do n=n+id:byte(i)*i*7 end
+ -- the golden angle: consecutive ids land far apart round the circle
+ local a=n*2.399963;local d=T.npcSpread*(.4+.6*((n*.618034)%1))
+ return math.cos(a)*d,math.sin(a)*d
+end
 local graphs = {}
 local function graph(area)
  if not graphs[area] or graphs[area].version~=Fields[area].navigationVersion then graphs[area]=Graph.build(area) end
@@ -326,7 +337,7 @@ function A.repairMoonRoutes(game)
       local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
       r.depart=clock-p*duration; r.arrive=r.depart+duration
       local bx,by=journeyPoint(r,p,clock)
-      r.offset={x=x-bx,y=y-by,progress=p}
+      local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
      end
     end
    end
@@ -368,7 +379,7 @@ function A.repairApproachRoutes(game)
      local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
      r.depart=clock-p*duration;r.arrive=r.depart+duration
      local bx,by=journeyPoint(r,p,clock)
-     r.offset={x=x-bx,y=y-by,progress=p}
+     local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
     end
    end
   end
@@ -376,6 +387,12 @@ function A.repairApproachRoutes(game)
 end
 
 function A.point(r,clock)
+ local x,y=A.trackPoint(r,clock)
+ if not x or r.state=='docked' or r.offlineLoot or Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return x,y end
+ local sx,sy=A.spread(r)
+ return x+sx,y+sy
+end
+function A.trackPoint(r,clock)
  if r.offlineLoot then local x,y=require("src.offline_loot").position(r,clock);if x then return x,y end end
  if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return Mining.point(nil,r,clock) end
  if r.state=='transit' then return nil end
@@ -552,7 +569,7 @@ function A.capture(game,e,remote)
   r.depart=clock-p*duration; r.arrive=r.depart+duration
   if not remote and known then
    local bx,by=journeyPoint(r,p,clock)
-   r.offset={x=x-bx,y=y-by,progress=p}
+   local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
   end
  end
  r.pose=nil
