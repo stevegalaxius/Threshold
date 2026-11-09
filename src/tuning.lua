@@ -139,6 +139,9 @@ T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
 T.gateLaneLength = 20000   -- between a site's pockets
 -- acceleration gates (src/sites.lua): small single-target mass drivers
 T.gateBarrel, T.gateHalfWidth, T.gateRadius = 520, 46, 300
+-- an acceleration gate's shot: out of the barrel at gateExitSpeed, climbing
+-- to gateCoastSpeed (a driver's are driverExitSpeed and driverCoastSpeed)
+T.gateExitSpeed, T.gateCoastSpeed = 5000, 6500
 T.gateZone, T.gateZoneWidth = 900, 170
 T.siteFare = 200   -- a site that names no fare of its own (data/sites.lua)
 

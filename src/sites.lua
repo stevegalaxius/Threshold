@@ -47,8 +47,8 @@ function Sites.register(inst)
 		local id = Sites.fieldId(inst.id, n)
 		local field = {
 			instance = true, site = inst.id, pocket = n,
-			name = pk.name or def.name, radius = pk.radius or 7000,
-			spawn = pk.spawn or { 0, (pk.radius or 7000) * 0.4 },
+			name = pk.name or def.name, radius = pk.radius or 21000,
+			spawn = pk.spawn or { 0, (pk.radius or 21000) * 0.4 },
 			stationIds = {}, buoyIds = {}, locations = {},
 		}
 		field.build = function(game) Sites.build(game, inst, n) end
@@ -126,6 +126,28 @@ function Sites.position(inst, clock)
 	return x + cos(inst.bearing) * 0.25, y + sin(inst.bearing) * 0.25
 end
 
+-- Where any map is, in AU from the Sun: a planet on its orbit, a moon on
+-- its planet, a site's pocket wherever its site is.
+function Sites.mapPosition(u, id, clock)
+	if Fields.orbits[id] then return Fields.orbitPos(id, clock) end
+	local moon = Fields.moons and Fields.moons[id]
+	if moon then return Fields.orbitPos(moon.parent, clock) end
+	local inst = Sites.of(id) and Sites.list(u)[Sites.of(id)]
+	if inst then return Sites.position(inst, clock) end
+end
+
+-- How long the lane is between a site and map `from`: the same length a
+-- planet-to-planet lane of that distance gets (Fields.laneLength), so a
+-- site across the system is a longer trip than one next door. Also the
+-- distance, in AU, for the lane's progress bar.
+function Sites.laneLength(u, inst, from, clock)
+	local ax, ay = Sites.mapPosition(u, from, clock)
+	if not ax then return T.siteLaneLength, 0 end
+	local bx, by = Sites.position(inst, clock)
+	local au = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
+	return Fields.laneLength(au), au
+end
+
 function Sites.fare(inst)
 	local def = Sites.template(inst)
 	return def and def.fare or T.siteFare or 200
@@ -190,7 +212,31 @@ function builders.spawnSet(game, pc, ctx)
 	require("src.spawn").place(game, pc.id, pc.minD)
 end
 
-function builders.gate(game, pc, ctx) game:spawnSiteGate(ctx.inst, ctx.n, pc) end
+-- A gate's place round its pocket: the template's spot, swung round the
+-- centre to a bearing of its own for this site and pocket. Each pocket
+-- turns a golden angle (about 137 degrees) on from the last, from the
+-- site's own bearing, give or take a little, so a site's gates never all
+-- face one way and no two sites lay out alike.
+local GOLDEN = pi * (3 - math.sqrt(5))
+local function gateBearing(inst, n, k)
+	local h = 0
+	for i = 1, #inst.id do h = (h * 31 + inst.id:byte(i)) % 2147483647 end
+	local rng = love.math.newRandomGenerator(h + n * 7919 + k * 104729)
+	return inst.bearing + n * GOLDEN + (rng:random() - 0.5) * 0.6
+end
+function builders.gate(game, pc, ctx)
+	local x, y = pc.x or 0, pc.y or 0
+	local d = math.sqrt(x * x + y * y)
+	if d > 0 and not pc.angle then
+		ctx.gates = (ctx.gates or 0) + 1
+		local a = gateBearing(ctx.inst, ctx.n, ctx.gates)
+		local q = {}
+		for k, v in pairs(pc) do q[k] = v end
+		q.x, q.y = cos(a) * d, sin(a) * d
+		pc = q
+	end
+	game:spawnSiteGate(ctx.inst, ctx.n, pc)
+end
 
 function Sites.builders() return builders end
 
@@ -294,10 +340,12 @@ function Game:throughGate(gate)
 	if gate.to == "exit" or not inst then
 		local back = inst and inst.from or Fields.start
 		if inst and gate.pocket == #Sites.template(inst).pockets then inst.done = true end
-		self:launchTrip(back, nil, { bearing = bearing, length = T.siteLaneLength })
+		local length, au = T.siteLaneLength, 0
+		if inst then length, au = Sites.laneLength(u, inst, back, u.clock) end
+		self:launchTrip(back, nil, { bearing = bearing, length = length, au = au, gate = true })
 		return
 	end
-	self:launchTrip(Sites.fieldId(inst.id, gate.to), nil, { bearing = bearing, length = T.gateLaneLength })
+	self:launchTrip(Sites.fieldId(inst.id, gate.to), nil, { bearing = bearing, length = T.gateLaneLength, gate = true })
 end
 
 function Game:findGate(gate)
@@ -314,7 +362,8 @@ function Game:enterSite(instId, bearing)
 	if not Sites.of(self.fieldId) then inst.from = self.fieldId end
 	local id = Sites.fieldId(inst.id, 1)
 	if bearing then
-		self:launchTrip(id, nil, { bearing = bearing, length = T.siteLaneLength })
+		local length, au = Sites.laneLength(self.universe, inst, self.fieldId, self.universe.clock)
+		self:launchTrip(id, nil, { bearing = bearing, length = length, au = au })
 		return true
 	end
 	local rec = require("src.ship").record(self.player)

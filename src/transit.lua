@@ -189,7 +189,19 @@ end
 -- is on, otherwise straight out from the planet.
 local function barrelTarget(game, g, p)
 	local L = p and p.launch
-	if g.gate then return g.angle end
+	if g.gate then
+		-- an acceleration gate turns to where it sends you: the exit gate
+		-- toward the map you came from
+		local Sites = require("src.sites")
+		local inst = Sites.list(game.universe)[g.gate.site]
+		if inst and g.gate.to == "exit" then
+			local clock = game.universe.clock or 0
+			local ax, ay = Sites.position(inst, clock)
+			local bx, by = Sites.mapPosition(game.universe, inst.from or Fields.start, clock)
+			if bx and (bx ~= ax or by ~= ay) then return math.atan2(by - ay, bx - ax) end
+		end
+		return g.angle
+	end
 	if L and L.driver == g then
 		local clock = game.universe and game.universe.clock or 0
 		local ax, ay = Fields.orbitPos(game.fieldId, clock)
@@ -271,17 +283,20 @@ function Game:updateDriverLaunch(p,dt)
 				for _, f in ipairs(p.body:getFixtures()) do f:setSensor(true) end
 			end
 			local ft = L.t - T.driverAlign
+			-- (an acceleration gate is a much gentler shot than a driver)
+			local v0 = g.gate and T.gateExitSpeed or T.driverExitSpeed
+			local v1 = g.gate and T.gateCoastSpeed or T.driverCoastSpeed
 			local s
 			if ft < T.driverFire then
 				-- down the barrel, harder and harder, engine lit
 				local u = ft / T.driverFire
-				s = T.driverExitSpeed * u * u
+				s = v0 * u * u
 				if p==self.player then self:shake(0.08 * u) end
 			else
 				-- out of the muzzle and still climbing, the camera pulling
 				-- wide so everything falls away behind you
 				local u = min(1, (ft - T.driverFire) / T.driverCoast)
-				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
+				s = v0 + (v1 - v0) * u
 				-- the kick out of the muzzle
 				if p==self.player and not L.kicked then
 					L.kicked = true
@@ -540,7 +555,7 @@ function Game:tripShape(to, moon, lane)
 	if moon then
 		au, bearing, half = 0, moon.bearing, moon.length / 2
 	elseif lane then
-		au, bearing, half = 0, lane.bearing, lane.length / 2
+		au, bearing, half = lane.au or 0, lane.bearing, lane.length / 2
 	else
 		au = Fields.distance(from, to, self.universe.clock)
 		-- the lane leaves along the bearing the driver fired you on
@@ -551,7 +566,7 @@ function Game:tripShape(to, moon, lane)
 		half = Fields.laneLength(au) / 2
 	end
 	local _, rot = Game.laneShape(half * 2, bearing, moon ~= nil)
-	return { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil, bearing = bearing }
+	return { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil, bearing = bearing, gate = lane and lane.gate or nil }
 end
 
 -- Where you come into a lane from the map's edge, in the lane's own
@@ -986,12 +1001,16 @@ function Game:clearArrival(scene, ox, oy)
 	local h = self:laneHeading(half)
 	local tx, ty = cos(h), sin(h)
 	local W = T.laneWidth
-	-- (the ring past the edge, and the map's own loose rock for the first
-	-- stretch in, so you don't come out of the lane into it)
+	-- (the ring past the edge across all of the lane you can fly in, the
+	-- lane's own walls run on through it; and the map's own loose rock for
+	-- the first stretch in, along the road, so you don't come out of the
+	-- lane into it)
+	local reach = self:laneBoundary() + (self.lane.hazardDepth or 0) + 1000
 	local function inRoad(e, x, y)
 		if e.giant or e.miningId then return false end
 		local dx, dy = x - ex, y - ey
-		return dx * tx + dy * ty < (e.outer and 1000 or 3000) and abs(dy * tx - dx * ty) < W + e.radius
+		if e.outer then return dx * tx + dy * ty < 1000 and abs(dy * tx - dx * ty) < reach + e.radius end
+		return dx * tx + dy * ty < 3000 and abs(dy * tx - dx * ty) < W + e.radius
 	end
 	local keep = {}
 	for _, e in ipairs(scene.sleepers or {}) do
@@ -1286,13 +1305,17 @@ function Game:populateLane()
 	local ospan = max(0, s2 - o1)
 	local O = trip.origin
 	local OR = O and Fields[trip.from] and (Fields[trip.from].radius or 10000) + T.mapOuter + 600
-	-- nor inside the map ahead, or its ring of rock past its edge: that's
-	-- there itself, built ahead of you, and it's what you'll fly into
+	-- nor inside the map ahead: that's there itself, built ahead of you.
+	-- Its ring of rock past the edge is, too, but that map is only drawn
+	-- while you're in the lane, not flown in, so its rock would be
+	-- something you pass straight through: the lane's own walls carry on
+	-- through the ring instead, and the ring is cleared from the lane's
+	-- width (Game:clearArrival)
 	local dest = Fields[trip.to]
 	local DX, DY, DR
 	if dest and not dest.transit and not trip.moon and T.mapOuter > 0 then
 		DX, DY = self:laneEndCenter(false)
-		DR = (dest.radius or 10000) + T.mapOuter + 600
+		DR = (dest.radius or 10000) + 600
 	end
 	-- what's on the road: the mix where you're headed
 	local mix = dest and dest.mix
@@ -1393,6 +1416,7 @@ end
 -- nothing: you're flying yourself. A steady slowing takes 2L/v to cover
 -- the lane.
 function Game:shotLaunch()
+	if self.trip and self.trip.gate then return T.gateExitSpeed end
 	return T.driverExitSpeed
 end
 function Game:shotSpeed(s)
