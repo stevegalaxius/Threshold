@@ -189,7 +189,19 @@ end
 -- is on, otherwise straight out from the planet.
 local function barrelTarget(game, g, p)
 	local L = p and p.launch
-	if g.gate then return g.angle end
+	if g.gate then
+		-- an acceleration gate turns to where it sends you: the exit gate
+		-- toward the map you came from
+		local Sites = require("src.sites")
+		local inst = Sites.list(game.universe)[g.gate.site]
+		if inst and g.gate.to == "exit" then
+			local clock = game.universe.clock or 0
+			local ax, ay = Sites.position(inst, clock)
+			local bx, by = Sites.mapPosition(game.universe, inst.from or Fields.start, clock)
+			if bx and (bx ~= ax or by ~= ay) then return math.atan2(by - ay, bx - ax) end
+		end
+		return g.angle
+	end
 	if L and L.driver == g then
 		local clock = game.universe and game.universe.clock or 0
 		local ax, ay = Fields.orbitPos(game.fieldId, clock)
@@ -271,17 +283,20 @@ function Game:updateDriverLaunch(p,dt)
 				for _, f in ipairs(p.body:getFixtures()) do f:setSensor(true) end
 			end
 			local ft = L.t - T.driverAlign
+			-- (an acceleration gate is a much gentler shot than a driver)
+			local v0 = g.gate and T.gateExitSpeed or T.driverExitSpeed
+			local v1 = g.gate and T.gateCoastSpeed or T.driverCoastSpeed
 			local s
 			if ft < T.driverFire then
 				-- down the barrel, harder and harder, engine lit
 				local u = ft / T.driverFire
-				s = T.driverExitSpeed * u * u
+				s = v0 * u * u
 				if p==self.player then self:shake(0.08 * u) end
 			else
 				-- out of the muzzle and still climbing, the camera pulling
 				-- wide so everything falls away behind you
 				local u = min(1, (ft - T.driverFire) / T.driverCoast)
-				s = T.driverExitSpeed + (T.driverCoastSpeed - T.driverExitSpeed) * u
+				s = v0 + (v1 - v0) * u
 				-- the kick out of the muzzle
 				if p==self.player and not L.kicked then
 					L.kicked = true
@@ -551,7 +566,7 @@ function Game:tripShape(to, moon, lane)
 		half = Fields.laneLength(au) / 2
 	end
 	local _, rot = Game.laneShape(half * 2, bearing, moon ~= nil)
-	return { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil, bearing = bearing }
+	return { from = from, to = to, au = au, length = half * 2, rot = rot, moon = moon ~= nil, bearing = bearing, gate = lane and lane.gate or nil }
 end
 
 -- Where you come into a lane from the map's edge, in the lane's own
@@ -1393,6 +1408,7 @@ end
 -- nothing: you're flying yourself. A steady slowing takes 2L/v to cover
 -- the lane.
 function Game:shotLaunch()
+	if self.trip and self.trip.gate then return T.gateExitSpeed end
 	return T.driverExitSpeed
 end
 function Game:shotSpeed(s)

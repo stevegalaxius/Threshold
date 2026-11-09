@@ -318,10 +318,10 @@ function Game:throughGate(gate)
 		if inst and gate.pocket == #Sites.template(inst).pockets then inst.done = true end
 		local length, au = T.siteLaneLength, 0
 		if inst then length, au = Sites.laneLength(u, inst, back, u.clock) end
-		self:launchTrip(back, nil, { bearing = bearing, length = length, au = au })
+		self:launchTrip(back, nil, { bearing = bearing, length = length, au = au, gate = true })
 		return
 	end
-	self:launchTrip(Sites.fieldId(inst.id, gate.to), nil, { bearing = bearing, length = T.gateLaneLength })
+	self:launchTrip(Sites.fieldId(inst.id, gate.to), nil, { bearing = bearing, length = T.gateLaneLength, gate = true })
 end
 
 function Game:findGate(gate)
