@@ -1388,16 +1388,17 @@ function Game:moonHazardDepth()
 end
 
 -- How fast the shot off a driver carries you at distance s along the
--- lane: launched at the driver's speed (T.driverExitSpeed), slowing at a steady rate so it's
--- down to T.laneEntrySpeed (about a ship's own pace) at the far end, then
--- nothing: you're flying yourself. A steady slowing takes 2L/v to cover
+-- lane: launched at the driver's speed (T.driverExitSpeed), slowing at a
+-- steady rate so it's down to `top` (your own ship's top speed) at the far
+-- end, then nothing: you're flying yourself, at a pace your ship can
+-- handle on any map, however small. A steady slowing takes 2L/v to cover
 -- the lane.
 function Game:shotLaunch()
 	return T.driverExitSpeed
 end
-function Game:shotSpeed(s)
+function Game:shotSpeed(s, top)
 	local lane = self.lane
-	local v0, v1 = self:shotLaunch(), T.laneEntrySpeed
+	local v0, v1 = self:shotLaunch(), top or T.laneEntrySpeed
 	local u = max(0, min(1, (s + lane.half) / (2 * lane.half)))
 	if u >= 1 then return 0 end
 	return sqrt(v0 * v0 * (1 - u) + v1 * v1 * u)
@@ -1436,14 +1437,14 @@ function Game:updateLane(dt)
 					local flow = 0
 					if not (self.trip and self.trip.moon) then
 						e.laneBuff = 1
-						local c = self:shotSpeed(s)
+						e.ownTop = e.ownTop or Ship.performance(e).topSpeed
+						local c = self:shotSpeed(s, e.ownTop)
 						if c > 0 then
 							-- The shot is the least you're doing, never the
 							-- most: your drag is measured against the shot
 							-- less your own top speed, so at full throttle you
 							-- do the shot's speed, and on the afterburner more.
-							-- (Near the end that frame is still: it's just you.)
-							e.ownTop = e.ownTop or Ship.performance(e).topSpeed
+							-- (At the end that frame is still: it's just you.)
 							flow = max(0, c - e.ownTop)
 							local vx, vy = b:getLinearVelocity()
 							local va = vx * tx + vy * ty
