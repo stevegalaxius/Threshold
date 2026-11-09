@@ -78,6 +78,23 @@ function Q.leg(r)
  r.queue={key=key,kind=kind,ready=ready,at=r.arrive,service=service,capacity=capacity}
 end
 
+-- Something outside the line (the player) has the chokepoint: nobody's turn
+-- comes while it does. Every turn not yet started slides back by dt, and the
+-- ships holding those turns with it, so they stay in line where they are.
+function Q.hold(key,dt,clock)
+ local qs=state();local list=qs and qs[key]
+ if not list then return end
+ local npcs=Q.universe.npcs or {}
+ for _,b in ipairs(list) do
+  if b.finish>clock then
+   if b.start<clock then b.start=clock end
+   b.start,b.finish=b.start+dt,b.finish+dt
+   local r=npcs[b.id]
+   if r and r.queue and r.queue.key==key then r.queue.ready=b.start end
+  end
+ end
+end
+
 -- When the ship's turn comes: the end of its leg, or later if it's queued.
 function Q.due(r)
  local q=r.queue
@@ -103,7 +120,12 @@ function Q.place(r,clock)
  local q=r.queue
  local qs=state();local list=qs and qs[q.key] or {}
  local ahead=0
- for _,b in ipairs(list) do if b.id~=r.id and b.start<q.ready and b.finish>clock then ahead=ahead+1 end end
+ local npcs=Q.universe and Q.universe.npcs or {}
+ for _,b in ipairs(list) do
+  local o=npcs[b.id]
+  -- only ships actually still lined up here count as ahead
+  if b.id~=r.id and b.start<q.ready and b.finish>clock and o and o.queue and o.queue.key==q.key then ahead=ahead+1 end
+ end
  return math.floor(ahead/(q.capacity or 1))+1
 end
 

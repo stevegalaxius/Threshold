@@ -330,6 +330,11 @@ end
 
 function Game:updateDrivers(dt)
 	self:aimDrivers(dt)
+	-- the player in a driver's beam, breech or targeting window holds up
+	-- the NPCs queued for it (src/queue.lua)
+	local pl = self.player
+	local using = pl and not pl.dead and ((pl.driverTractor and pl.driverTractor.driver) or (pl.launch and pl.launch.driver) or (self.driverMenu and self.driverMenu.driver))
+	if using and using.locationId then require("src.queue").hold(using.locationId, dt, self.universe.clock) end
 	for _,e in ipairs(self.entities) do
 	 if e.kind=="ship" and not e.dead and not e.removed then
 	  if e~=self.player then e.driverCooldown=max(0,(e.driverCooldown or 0)-dt) end
