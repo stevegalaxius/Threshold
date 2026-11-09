@@ -138,7 +138,9 @@ function F.advance(r,clock,u)
  local seconds=math.max(0,clock-previous)
  local moving=r.state=='travel' or r.state=='transit' and r.transit and r.transit.kind~='driver'
  if r.state=='docked' then return F.observe(u,r,clock) end -- dockside maintenance, no flight load
- local scale=F.withRecord(r,function(e,s)return F.step(e,s,seconds,moving) end)
+ -- Offline travel is billed at the AI's average throttle while it flies a
+ -- leg (measured from live flights), not a full burn the whole way.
+ local scale=F.withRecord(r,function(e,s)return F.step(e,s,seconds,moving and T.npcTravelThrottle) end)
  if moving and scale<1 then
   -- Freeze abstract route progress for the time propulsion could not be powered.
   local delay=seconds*(1-scale)
