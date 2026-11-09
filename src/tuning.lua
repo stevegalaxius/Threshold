@@ -91,11 +91,11 @@ T.driverZone, T.driverZoneWidth = 1500, 250
 T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
 T.driverGrip = 320
-T.driverAlign, T.driverFire = 1.2, 1.4
+T.driverAlign, T.driverFire = 1.2, 0.25
 -- how fast a driver's barrel swings round to its firing bearing (rad/s),
 -- and its speed round the planet as a share of the current there
 T.driverSlew, T.driverOrbitScale = 0.6, 1
-T.driverExitSpeed = 4500
+T.driverExitSpeed = 16000
 -- How a driver sends you: "lane" (the highway) or "flight" (the warp
 -- trip and the catch at the other end). Switchable in the debug panel.
 T.travelMode = "lane"
@@ -103,12 +103,36 @@ T.laneEntrySpeed = 2600
 -- After the barrel: T.driverCoast seconds climbing to driverCoastSpeed with
 -- the camera pulling out to cineZoom; then into the lane on a run-up of
 -- laneRunup px short of its mouth, braking to laneEntrySpeed.
-T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 2.5, 9000, 0.15, 20000
+T.driverCoast, T.driverCoastSpeed, T.cineZoom, T.laneRunup = 0.7, 24000, 0.15, 20000
 -- share of the driver's speed you still have as you enter the lane
-T.laneKeep = 0.8
+T.laneKeep = 0.4
+-- a cut that can't be avoided (fired at something solid, a map that
+-- couldn't be built ahead) hidden in the lane's glow: seconds for it to
+-- wash over, and to clear once the new level is in (Game:coverThen)
+T.laneCoverIn, T.laneCoverOut = 0.18, 0.55
+-- the map at a lane's far end is built ahead of you, a slice per frame
+-- (seconds of each frame it may take), starting this far from the end
+-- (px, on top of what's in view); the map you left goes once you're this
+-- far past its edge (px, on top of what's in view)
+T.laneStageBudget = 0.004
+T.laneStageAhead = 60000
+T.laneDropBehind = 8000
+-- fastest you come out of a lane into a site's pocket (at its spawn point)
+T.siteArriveSpeed = 600
+-- loose rock carrying on past a map's edge (Game:spawnOuterBelt): how far
+-- out (px; past what's in view at the widest zoom, so a lane leaving the
+-- map takes over out of sight) and how thick (rocks per 100M px^2)
+T.mapOuter = 16000
+-- share of a map's radius, in from its edge, over which the current eases
+-- off to nothing (so it's still at the edge and beyond)
+T.edgeCurrentFade = 0.3
+T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road
 T.laneCarryTime = 20
+-- the seconds a driver's extra kick takes to settle back to the lane's
+-- speed (laneFlow: the lane carries you, and its traffic, src/transit.lua)
+T.laneKickTime = 6
 T.driverCooldown = 6
 T.driverFare, T.driverFarePerAU = 100, 60
 T.siteLaneLength = 40000   -- off a driver out to a site (and home again)
@@ -258,7 +282,7 @@ T.laneSpecs = {
 	{ key = "laneHazardDepth", label = "Moon rock belt minimum depth (px)", min = 8000, max = 60000, value = 24000, precision = 0 },
 	{ key = "laneOffroad",     label = "Rocks off-road (per 10k px)",   min = 0,    max = 60,    value = 12,    precision = 0 },
 	{ key = "laneDerelicts",   label = "Derelicts (per 100k px)",       min = 0,    max = 10,    value = 1,     precision = 1 },
-	{ key = "laneFlow",        label = "Traffic speed (px/s)",          min = 300,  max = 4000,  value = 1800,  precision = 0 },
+	{ key = "laneFlow",        label = "Lane speed (px/s)",             min = 300,  max = 12000, value = 6000,  precision = 0 },
 	{ key = "laneThrust",      label = "Lane buff: thrust x",           min = 1,    max = 6,     value = 3,     precision = 2 },
 	{ key = "laneDrag",        label = "Lane buff: drag x",             min = 0.05, max = 1,     value = 0.25,  precision = 2 },
 	{ key = "laneRamp",        label = "Off-road falloff (px)",         min = 0,    max = 8000,  value = 3000,  precision = 0 },

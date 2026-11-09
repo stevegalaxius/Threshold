@@ -870,7 +870,8 @@ function A.install(Game)
    end
   end
   for id,r in pairs(records) do
-   if not self.alifeOnline[id] then
+   -- (a record the map ahead has woken is that map's: src/transit.lua)
+   if not self.alifeOnline[id] and not (self.sideOwns and self:sideOwns(id)) then
     local localArea=r.area==self.fieldId and not self.lane and not self.flight
     if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock,self.universe,self) end
     local lane=A.laneSample(self,r,clock)

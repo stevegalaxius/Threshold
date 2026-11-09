@@ -64,26 +64,141 @@ function Game.new(opts)
 	self.state = "playing"
 	self.stats = { maxImpulse = 0, maxImpactSpeed = 0 }
 	if opts.universe then self.universe = opts.universe else self:newUniverse() end
+	-- a lane built ahead of you (Game:stageLane) is laid out from its trip
+	self.trip = opts.trip
 
 	self:loadField(opts.field or Fields.start)
 	if not opts.preview then require("src.reputation").listen(self) end
 	return self
 end
 
--- Keep the field's bodies for the moon-road view and an immediate return.
-function Game:retainField()
-	self:captureALife(true)
-	Mining.unload(self)
+-- Keep this map alive as a side scene (Game:stepScene) while the player
+-- carries on in the next one: the planet behind a lane's mouth, or the lane
+-- behind you once you're out of it. Everything in it stays where it is and
+-- keeps moving. A-Life ships become ghosts that coast on (their records go
+-- back to the universe as usual), and mining rocks stay as they are.
+-- opts.lane: this is the lane being left behind (its traffic keeps cruising)
+function Game:retainField(opts)
+	opts = opts or {}
+	Mining.captureResources(self)
+	for id, e in pairs(self.alifeOnline or {}) do
+		ALife.capture(self, e, true)
+		e.alifeId = nil
+		if not (opts.lane and e.cruise) then e.ghost = true; e.cruise = nil else e.ghostCruise = true end
+		self.alifeOnline[id] = nil
+	end
+	if self.alifeActiveArea == self.fieldId then
+		for _, r in pairs(self.universe.npcs or {}) do
+			if r.area == self.fieldId then r.pose, r.offset, r.docking, r.savedOnline = nil, nil, nil, nil end
+		end
+		self.alifeActiveArea = nil
+	end
 	local scene = setmetatable({}, Game)
 	for k, v in pairs(self) do scene[k] = v end
 	scene.camera = Camera.new()
 	for k, v in pairs(self.camera) do scene.camera[k] = v end
-	scene.trip, scene.arrivalPreview, scene.contacts = nil, nil, {}
+	scene.trip = opts.lane and self.trip and { moon = self.trip.moon } or nil
+	scene.contacts = {}
 	scene.alifeOnline, scene.alifeActiveArea, scene.preview = {}, nil, true
-	scene.autosaveOff = true
-	scene:remove(self.player)
+	scene.autosaveOff, scene.sideScene, scene.live = true, true, true
+	scene.toasts, scene.flash, scene.cover, scene.trail = {}, nil, nil, nil
+	scene.pendingGate, scene.pendingSite, scene.pendingFlight, scene.pendingArrive = nil, nil, nil, nil
+	scene.world:setCallbacks(function(...) scene:beginContact(...) end)
+	-- the player's ship leaves with the player; this map keeps the rest
+	local p = self.player
+	if p then
+		for i, o in ipairs(scene.entities) do
+			if o == p then table.remove(scene.entities, i) break end
+		end
+	end
 	scene.player = nil
+	scene.effects = {}
+	scene.lastClock = self.universe.clock
+	-- its body stays in this world otherwise: the ship goes on as a record
+	if p then
+		if p.body and not p.body:isDestroyed() then p.body:destroy() end
+		p.removed = true
+	end
+	-- the map's mining rocks and loose pickups now belong to the scene
+	self.miningLive, self.alifeOnline = {}, {}
 	return scene
+end
+
+-- A side scene's world goes: what's in it is written back first (its area,
+-- its mining rocks, any A-Life ships it had woken), then its bodies freed.
+-- forget: the universe it belonged to is being replaced (a load, a new
+-- game): nothing is written back.
+function Game:releaseScene(forget)
+	if self.released then return end
+	self.released = true
+	if not forget then
+		if self.field and not self.field.transit and self.universe then self:captureArea() end
+		Mining.unload(self)
+		for id, e in pairs(self.alifeOnline or {}) do
+			ALife.capture(self, e, true)
+			self.alifeOnline[id] = nil
+		end
+	end
+	for _, e in ipairs(self.entities or {}) do e.removed = true end
+	for _, e in ipairs(self.sleepers or {}) do e.removed = true end
+	if self.world and not self.world:isDestroyed() then self.world:destroy() end
+end
+
+-- Building a map over several frames (Game:stageField): the spawners hand
+-- the frame back once the slice's time is up. Only inside a staging
+-- coroutine, and never while a saved area is being restored (that walks
+-- the universe's shared records, which the running game may change).
+Game.staging = nil
+function Game.buildYield()
+	local st = Game.staging
+	if not st or st.noYield or coroutine.running() ~= st.co then return end
+	if love.timer.getTime() >= st.deadline then coroutine.yield() end
+end
+
+-- Start building field `id` off to the side, for the player to fly into.
+-- Returns a stage: Game.advanceStage(stage, seconds) builds on, and
+-- stage.scene is the finished side scene.
+function Game:stageField(id, trip)
+	local universe = self.universe
+	local stage = {}
+	stage.co = coroutine.create(function()
+		local scene = Game.new({ field = id, universe = universe, preview = true, trip = trip })
+		scene.autosaveOff, scene.sideScene, scene.live = true, true, true
+		if scene.player then scene:remove(scene.player, true) end
+		scene.player = nil
+		return scene
+	end)
+	return stage
+end
+
+function Game.advanceStage(stage, budget)
+	if stage.scene or stage.failed then return true end
+	local before = Game.staging
+	Game.staging = stage
+	stage.deadline = love.timer.getTime() + budget
+	local ok, result = coroutine.resume(stage.co)
+	Game.staging = before
+	if not ok then
+		print("Building the next map failed: " .. tostring(result))
+		stage.failed = true
+		return true
+	end
+	if coroutine.status(stage.co) == "dead" then stage.scene = result return true end
+	return false
+end
+
+-- One step of a side scene: everything in it moves on with the universe's
+-- clock (which the player's own game advances), with no player in it.
+function Game:stepScene(dt, time)
+	if self.released then return end
+	self.time = time - dt
+	self:step(dt)
+	self:ageEffects(dt)
+	self.lastClock = self.universe.clock
+	if self.focus and self.universe.clock >= (self.miningNext or 0) then
+		self.miningNext = self.universe.clock + 0.5
+		Mining.materialize(self)
+	end
 end
 
 -- Clear the arena and build a level (a playing field, src/fields.lua) in
@@ -99,27 +214,23 @@ function Game:loadField(id, opts)
 	self:captureALife(true)
 	self.alifeNext, self.alifeRemoteNext = nil, nil
 	if not opts.skipCapture then self:captureArea() end
-	-- Dispose unused approach worlds once; a turnaround preview may also be
-	-- the retained departure scene. The adopted world must stay alive.
-	local disposed = {}
-	local function release(scene)
-		if scene and scene ~= opts.prepared and not disposed[scene.world] then
-			scene.world:destroy()
-			disposed[scene.world] = true
-		end
+	-- Side scenes the trip kept (the planet behind the lane, the one built
+	-- ahead) go with the lane, unless one is the map being adopted.
+	if not opts.retain and self.trail then self.trail.scene:releaseScene(opts.skipCapture); self.trail = nil end
+	if self.laneStage and not opts.retain then self:dropLaneStage(opts.skipCapture) end
+	if not opts.retain and self.trip then
+		local function drop(scene) if scene and scene ~= opts.prepared then scene:releaseScene(opts.skipCapture) end end
+		drop(self.trip.originScene)
+		drop(self.trip.dest and self.trip.dest.scene)
 	end
-	release(self.arrivalPreview and self.arrivalPreview.game)
-	if not opts.retain then release(self.trip and self.trip.originScene) end
-	self.arrivalPreview = nil
 	if not opts.retain then
 		-- Unloading a field ends ownership of the whole Box2D world, including
 		-- native broad-phase/contact allocations and any untracked bodies.
-		-- A highway's retained origin and an adopted preview remain alive.
 		local adoptingCurrent = opts.prepared and opts.prepared.world == self.world
 		if not adoptingCurrent then
 			for _, e in ipairs(self.entities) do e.removed = true end
 			for _, e in ipairs(self.sleepers or {}) do e.removed = true end
-			if not disposed[self.world] then self.world:destroy() end
+			if not self.world:isDestroyed() then self.world:destroy() end
 		end
 	end
 	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
@@ -137,17 +248,27 @@ function Game:loadField(id, opts)
 	if opts.prepared then
 		local scene = opts.prepared
 		for _, key in ipairs({ "entities", "sleepers", "sleepTick", "projectiles", "pickups", "effects",
-			"contacts", "well", "moonGates", "stationCount", "idCounter", "ladder" }) do
+			"contacts", "well", "moonGates", "stationCount", "idCounter", "ladder", "miningLive", "pickupBodies", "lane", "arenaRadius" }) do
 			self[key] = scene[key]
 		end
+		-- A-Life ships the scene already had flying (woken ahead of you)
+		-- stay as they are, now this game's
+		self.alifeOnline = self.alifeOnline or {}
+		for id, e in pairs(scene.alifeOnline or {}) do self.alifeOnline[id] = e end
+		scene.alifeOnline = {}
+		self.world:setCallbacks(function(...) self:beginContact(...) end)
+		scene.released = true
 	else
 		self.restoringArea = self.universe.areas and self.universe.areas[id]
 		self.field.build(self)
 		self:spawnDrivers()
 		self:spawnMoonGates()
+		if Game.staging then Game.staging.noYield = true end
 		self:restoreArea(self.restoringArea)
+		if Game.staging then Game.staging.noYield = nil end
 		self.restoringArea = nil
 		self:spawnFieldEnemies()
+		self:spawnOuterBelt()
 	end
 	if opts.prepared then self:syncLocations() end
 	self:placePlayer(opts.player, opts.at)
@@ -194,6 +315,7 @@ end
 -- shoots it (enemies placed by a level); otherwise it comes straight for
 -- the player.
 function Game:spawnEnemy(id, x, y, opts)
+	Game.buildYield()
 	local def = assert(data.enemies[id], "unknown enemy " .. tostring(id))
 	local angle = 0
 	if self.player and not self.player.dead then
@@ -284,14 +406,20 @@ function Ghost:destroy() end
 -- steps.
 function Game:sleeperPos(e)
 	local o = e.sleep
+	-- (made asleep and never moved: right where it was put)
+	if o.still then return e.body.x, e.body.y, o.a end
 	local w = self.well
+	-- no well (a lane): it just carries on in a straight line
+	if not o.r then
+		local t = self.time - o.t
+		return o.x + o.vx * t, o.y + o.vy * t
+	end
 	local a = o.a + o.rate * (self.time - o.t)
 	return w.x + cos(a) * o.r, w.y + sin(a) * o.r, a
 end
 
 function Game:updateSleepers()
 	local w = self.well
-	if not w or self.lane then return end
 	self.sleepTick = (self.sleepTick or 0) + 1
 	if self.sleepTick <= T.sleepEvery then return end
 	self.sleepTick = 0
@@ -303,13 +431,23 @@ function Game:updateSleepers()
 	local sl, keep = self.sleepers, {}
 	for _, e in ipairs(sl) do
 		if not e.removed then
-			local x, y, a = self:sleeperPos(e)
+			local x, y, a
+			if e.sleep.still then x, y, a = e.body.x, e.body.y, e.sleep.a else x, y, a = self:sleeperPos(e) end
 			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
 				local o = e.sleep
 				e.sleep = nil
 				self:debrisBody(e, x, y, e.body.a, o.spin)
-				local v = o.rate * o.r
-				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				if o.r then
+					local v = o.rate * o.r
+					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+				elseif e.drift then
+					-- (made still, set moving when it wakes: a lane's rock
+					-- drifting onto the road)
+					e.body:setLinearVelocity(e.drift[1], e.drift[2])
+					e.drift = nil
+				else
+					e.body:setLinearVelocity(o.vx, o.vy)
+				end
 				table.insert(self.entities, e)
 			else
 				keep[#keep + 1] = e
@@ -325,11 +463,15 @@ function Game:updateSleepers()
 			local b = e.body
 			local x, y = b:getPosition()
 			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
-				local dx, dy = x - w.x, y - w.y
-				local r2 = dx * dx + dy * dy
 				local vx, vy = b:getLinearVelocity()
-				e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1),
-					spin = b:getAngularVelocity() }
+				if w then
+					local dx, dy = x - w.x, y - w.y
+					local r2 = dx * dx + dy * dy
+					e.sleep = { r = sqrt(r2), a = math.atan2(dy, dx), t = self.time, rate = (dx * vy - dy * vx) / max(r2, 1),
+						spin = b:getAngularVelocity() }
+				else
+					e.sleep = { x = x, y = y, vx = vx, vy = vy, t = self.time, spin = b:getAngularVelocity() }
+				end
 				-- out of the physics world entirely (an inactive body still
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
@@ -379,6 +521,32 @@ local function convexHull(v)
 end
 
 -- A random kind from a mix of weights ({ rock = 5, ice = 2, ... }).
+-- The map doesn't stop at its edge: a ring of loose rock carries on past
+-- it (T.mapOuter wide, thinning out), lying still where the current has
+-- died away (Game:currentSpeed), so flying
+-- out to the edge, or out of a driver, there's still something around you,
+-- and a lane leaving the map picks up where it ends (src/transit.lua).
+function Game:spawnOuterBelt()
+	local f = self.field
+	-- (a map with no planet, a site's pocket, rings its centre all the same)
+	if not f or f.transit or T.mapOuter <= 0 then return end
+	local cx, cy = self.well and self.well.x or 0, self.well and self.well.y or 0
+	local R, W = self.arenaRadius, T.mapOuter
+	local rng = love.math.newRandomGenerator(random(1, 2147483646))
+	local n = floor(2 * pi * (R + W / 2) * W / 1e8 * T.mapOuterDensity)
+	for _ = 1, n do
+		local a = rng:random() * 2 * pi
+		local u = rng:random() ^ 1.6        -- thicker near the edge
+		local d = R - 500 + u * (W + 500)
+		local r = 30 + rng:random() ^ 2 * 160
+		local x, y = cx + cos(a) * d, cy + sin(a) * d
+		if self:isClear(x, y, r + 40) then
+			local e = self:spawnAsteroid(x, y, r, self:pickDebris(f.mix), nil, true)
+			e.outer = true
+		end
+	end
+end
+
 function Game:pickDebris(mix)
 	mix = mix or (self.field and self.field.mix) or { rock = 1 }
 	local total = 0
@@ -411,7 +579,11 @@ function Game:spawnDebris(kind, x, y, radius)
 	return self:spawnAsteroid(x, y, radius, kind)
 end
 
-function Game:spawnAsteroid(x, y, radius, kind, savedVerts)
+-- asleep: made straight into a sleeper (Game:updateSleepers), standing
+-- still, with no body until the player comes near: how a lane's walls and
+-- the rock past a map's edge are laid out, thousands at a time.
+function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
+	Game.buildYield()
 	kind = kind or "rock"
 	local D = DEBRIS[kind] or DEBRIS.rock
 	local verts = {}
@@ -442,7 +614,21 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts)
 	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
-	self:debrisBody(e, x, y, random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6))
+	local angle, spin = random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6)
+	if asleep then
+		e.body = setmetatable({ x = x, y = y, a = angle }, Ghost)
+		local w = self.well
+		if w then
+			local dx, dy = x - w.x, y - w.y
+			e.sleep = { r = sqrt(dx * dx + dy * dy), a = math.atan2(dy, dx), t = self.time, rate = 0, spin = spin, still = true }
+		else
+			e.sleep = { x = x, y = y, vx = 0, vy = 0, t = self.time, spin = spin, still = true }
+		end
+		self.sleepers = self.sleepers or {}
+		table.insert(self.sleepers, e)
+		return e
+	end
+	self:debrisBody(e, x, y, angle, spin)
 	e.body:setLinearVelocity((random() - 0.5) * 20, (random() - 0.5) * 20)
 	table.insert(self.entities, e)
 	return e
@@ -450,6 +636,7 @@ end
 
 -- The physics body for a piece of debris (made again when it wakes).
 function Game:debrisBody(e, x, y, angle, spin)
+	Game.buildYield()
 	local kind, radius = e.debris, e.radius
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
 	body:setAngle(angle or 0)
@@ -486,6 +673,7 @@ end
 -- One enormous rock, far too big to damage: a static body built from a
 -- fan of triangles around a lumpy outline.
 function Game:spawnGiantAsteroid(x, y, radius)
+	Game.buildYield()
 	local n = 28
 	local outline = {}
 	for j = 0, n - 1 do
@@ -551,7 +739,14 @@ end
 function Game:currentSpeed(r)
 	local w = self.well
 	if not w then return 0 end
-	return w.flow * min(1, w.radius / 6000) * sqrt(w.radius / max(r, w.radius)) * T.currentScale
+	-- easing off to a standstill over the outer part of the map, so past
+	-- its edge (the rock carrying on there, src/game.lua spawnOuterBelt,
+	-- and the lanes beyond) nothing moving still looks right
+	local R = self.arenaRadius or r
+	local band = R * T.edgeCurrentFade
+	local k = band > 0 and max(0, min(1, (R - r) / band)) or 1
+	k = k * k * (3 - 2 * k)
+	return w.flow * min(1, w.radius / 6000) * sqrt(w.radius / max(r, w.radius)) * T.currentScale * k
 end
 
 -- The current's velocity at (x, y): along the tangent, clockwise on screen.
@@ -804,6 +999,7 @@ end
 -- A station from its definition (data.stations): every colliding part
 -- is solid, and the part tagged dock is the docking module.
 function Game:spawnStation(id, x, y, spin, simulated, locationId)
+	Game.buildYield()
 	local def = data.stations[id]
 	local body = love.physics.newBody(self.world, x, y, simulated and "dynamic" or "kinematic")
 	-- Box2D puts a body turning slower than about 0.035 rad/s to sleep,
@@ -1504,6 +1700,7 @@ end
 
 -- inner: what a loaded container carries (its hold).
 function Game:spawnPickup(x, y, item, count, inner)
+	Game.buildYield()
 	if data.items[item].kind == "container" then          -- a stowed container floats out as itself
 		for _ = 1, count do self:spawnContainer(x + (random() - 0.5) * 40, y + (random() - 0.5) * 40, item, false, inner) end
 		return
@@ -1552,6 +1749,7 @@ end
 -- carries (one that was stowed or packed into a wreck). Like a husk it
 -- soaks damage until it breaks, and then spills what it held.
 function Game:spawnContainer(x, y, id, loaded, inner)
+	Game.buildYield()
 	id = id or "cargo_container"
 	local item = data.items[id]
 	local w, h = item.body[1], item.body[2]
@@ -1727,7 +1925,7 @@ end
 function Game:step(dt)
 	if self.flight then self:updateFlight(dt); self:updateALife(); return end
 	self.time = self.time + dt
-	if self.universe then self.universe.clock = self.universe.clock + dt end
+	if self.universe and not self.sideScene then self.universe.clock = self.universe.clock + dt end
 
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead then
@@ -1735,7 +1933,9 @@ function Game:step(dt)
 				e.life = e.life - dt
 				if e.life <= 0 then e.dead = true end
 			end
-			if e.dockState then
+			if e.ghost then
+				-- a side scene's former A-Life ship: it just coasts on
+			elseif e.dockState then
 				-- the player flies on under the beam until it's pulled inside
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
@@ -1790,31 +1990,73 @@ function Game:step(dt)
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
-	if self.pendingGate then
+	if self.sideScene then return end
+	self:stepSides(dt)
+	self:updateCover(dt)
+	-- Into a lane: seamless (src/transit.lua), unless the launch had to cut
+	-- short because something solid was dead ahead, which hides behind the
+	-- glow. The step clock restarts after either, so the frame the work
+	-- took isn't caught up in a burst afterwards.
+	local function go(action)
+		if self.launchBlocked then self:coverThen(action) else action(); self.resetClock = true end
+	end
+	if self.cover then
+		-- already on the way out: the cover's action does the load
+		self.pendingGate, self.pendingSite, self.pendingFlight, self.pendingArrive = nil, nil, nil, nil
+	elseif self.pendingGate then
 		local gate = self.pendingGate
 		self.pendingGate = nil
-		self:throughGate(gate)
+		go(function() self:throughGate(gate) end)
 	elseif self.pendingSite then
 		local s = self.pendingSite
 		self.pendingSite = nil
-		self:enterSite(s.id, s.bearing)
+		go(function() self:enterSite(s.id, s.bearing) end)
 	elseif self.pendingFlight then
 		local to = self.pendingFlight
 		self.pendingFlight = nil
 		-- the highway, or the warp trip and the catch (debug panel picks)
-		if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
+		go(function()
+			if T.travelMode == "flight" then self:beginFlight(to) else self:launchTrip(to) end
+		end)
 	elseif self.pendingArrive then
 		local back = self.pendingArrive == "back"
 		self.pendingArrive = nil
 		self:arrive(back)
+		self.resetClock = true
 	end
+end
+
+-- Hide a level swap: the screen washes over to the lane's glow over
+-- T.laneCoverIn, the swap runs once it's fully covered (so the frame the
+-- load takes, and everything vanishing and appearing, happen behind it),
+-- and the glow clears over T.laneCoverOut. The step clock restarts after
+-- the load so the long frame isn't caught up afterwards.
+function Game:coverThen(action)
+	if self.cover then return end
+	self.cover = { t = 0, life = T.laneCoverIn or 0.18, action = action }
+end
+
+function Game:updateCover(dt)
+	local c = self.cover
+	if not c then return end
+	c.t = c.t + dt
+	if c.t < c.life then return end
+	self.cover = nil
+	-- the launch kept running under the cover and kept asking to go: that's
+	-- this action, so those asks are spent
+	self.pendingGate, self.pendingSite, self.pendingFlight, self.pendingArrive = nil, nil, nil, nil
+	c.action()
+	self.pendingGate, self.pendingSite, self.pendingFlight, self.pendingArrive = nil, nil, nil, nil
+	self.flash = { t = 0, life = T.laneCoverOut or 0.55, peak = 1 }
+	self.resetClock = true
 end
 
 -- Soft arena edge: brake outward motion, then drift gently inward.
 function Game:applyBoundary()
 	local R = self.arenaRadius
 	for _, e in ipairs(self.entities) do
-		local b = e.body
+		local b = e.kind ~= "asteroid" and e.body   -- (rock drifts on out)
+		if b then
 		local x, y = b:getPosition()
 		local d = sqrt(x * x + y * y)
 		-- only what people built is turned back (rocks drift on out), and
@@ -1829,6 +2071,7 @@ function Game:applyBoundary()
 			local m = b:getMass()
 			local f = softBoundary(d-R,out,m)
 			b:applyForce(nx * f, ny * f)
+		end
 		end
 	end
 end
@@ -2371,6 +2614,7 @@ end
 -- A container (or prop) drawn in the Shipyard, filled from its loot table
 -- or the one given (lootTable).
 function Game:spawnWreck(id, x, y, a, vx, vy, lootTable)
+	Game.buildYield()
 	local def = data.wrecks[id]
 	if not def then return nil end
 	local cargo = def.kind == "prop" and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
@@ -2664,16 +2908,8 @@ end
 
 -- Per-frame update for things that aren't simulation: effects, camera, toasts.
 function Game:frame(dt, aimX, aimY)
-	-- the launch and the lane's run-up take the zoom for a while
+	-- (the zoom is the player's alone: nothing here takes it over)
 	local p = self.player
-	if self.cineZoom and (not p or p.dead or not (p.launch or p.runup)) then
-		-- whatever was running it is over (died, or a load): the zoom stays
-		-- where it is, and it's yours again
-		self.cineZoom, self.savedZoom = nil, nil
-	end
-	if self.cineZoom then
-		self.camera.zoom = self.camera.zoom + (self.cineZoom - self.camera.zoom) * (1 - exp(-dt * 6))
-	end
 	if p and p.laneFade then
 		p.laneFade = p.laneFade - dt / 1.5
 		if p.laneFade <= 0 then p.laneFade = nil end
@@ -2682,6 +2918,18 @@ function Game:frame(dt, aimX, aimY)
 		self.flash.t = self.flash.t + dt
 		if self.flash.t >= self.flash.life then self.flash = nil end
 	end
+	self:ageEffects(dt)
+	self:updateStaging()
+	self:updateLaneStage()
+	for j = #self.toasts, 1, -1 do
+		local t = self.toasts[j]
+		t.t = t.t + dt
+		if t.t >= t.life then table.remove(self.toasts, j) end
+	end
+	self:followCamera(dt, aimX, aimY)
+end
+
+function Game:ageEffects(dt)
 	local i = 1
 	while i <= #self.effects do
 		local fx = self.effects[i]
@@ -2697,13 +2945,10 @@ function Game:frame(dt, aimX, aimY)
 			i = i + 1
 		end
 	end
-	for j = #self.toasts, 1, -1 do
-		local t = self.toasts[j]
-		t.t = t.t + dt
-		if t.t >= t.life then table.remove(self.toasts, j) end
-	end
+end
 
-	p = self.player
+function Game:followCamera(dt, aimX, aimY)
+	local p = self.player
 	local follow = self.debugFollow
 	if follow and (follow.dead or follow.removed or not follow.body or follow.body:isDestroyed()) then self.debugFollow, follow = nil, nil end
 	if follow then

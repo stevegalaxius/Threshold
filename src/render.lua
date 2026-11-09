@@ -659,15 +659,7 @@ local function drawLane(game)
 	if #pts < 4 then return end
 	-- the road fades out over its last stretch as the planet comes up
 	local fade = max(0, min(1, (lane.half - cs) / 15000))
-	lg.setBlendMode("add")
-	local bands = 6
-	for k = bands, 1, -1 do
-		local half = W + T.laneRamp * (k - 1) / bands
-		lg.setColor(0.35, 0.6, 0.9, (k == 1 and 0.05 or 0.018) * fade)
-		lg.setLineWidth(half * 2)
-		lg.line(pts)
-	end
-	lg.setBlendMode("alpha")
+	-- (no glow under the road: the lane is just space, and its rocks)
 	-- the far end
 	if lane.half - cs < view then
 		local x1, y1 = game:fromLane(lane.half, -W)
@@ -718,7 +710,10 @@ end
 -- The lane buff: a crackling outline round any ship inside a transit
 -- lane.
 local function drawLaneBuff(e)
-	local buff = e.driverProtected and 1 or e.laneBuff or e.laneFade
+	-- the mass driver's glow: while it's firing you, then fading off as
+	-- its kick settles in the lane (not just for being in a lane)
+	local K = e.laneKick
+	local buff = e.driverProtected and 1 or K and max(0, 1 - K.t / T.laneKickTime) or e.laneFade
 	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
 	local x, y = e.body:getPosition()
 	local size = e.halfLength
@@ -1356,7 +1351,8 @@ local function drawFieldWorld(game, F, px, py)
 end
 
 function Render.world(game, overlay, boundaryAngle)
-	local restorePreview = overlay and require("src.preview").begin(game)
+	-- (a live side scene is stepped, so its bodies are where they are)
+	local restorePreview = overlay and not game.live and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
 		Render.background(game.camera)
@@ -1364,37 +1360,33 @@ function Render.world(game, overlay, boundaryAngle)
 		drawGrid(game)
 		game.camera:release()
 	end
-	local preview = game.arrivalPreview
-	if preview then
-		local scene = preview.game
-		scene.camera.x, scene.camera.y = game.camera.x - preview.x, game.camera.y - preview.y
-		scene.camera.zoom = game.camera.zoom
-		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		local mouth=preview.back and -game.lane.half or game.lane.half
-		local ex,ey=game:fromLane(mouth,0)
-		Render.world(scene, true, math.atan2(ey-preview.y,ex-preview.x))
-	end
-	local trip = game.trip
-	if trip and trip.originScene and (not preview or not preview.back) then
-		local scene, o = trip.originScene, trip.origin
-		scene.time = game.time
-		scene.camera.x, scene.camera.y = game.camera.x - o.x, game.camera.y - o.y
-		scene.camera.zoom = game.camera.zoom
-		scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
-		local ex,ey=game:fromLane(-game.lane.half,0)
-		Render.world(scene, true, math.atan2(ey-o.y,ex-o.x))
+	-- the maps alive beside this one (src/transit.lua): the one you left
+	-- behind the lane's mouth, the one ahead built for you to fly into, the
+	-- lane behind you once you're out of it. Each is drawn at its offset,
+	-- under this map's own things.
+	if not overlay and game.sideScenes then
+		for _, side in ipairs(game:sideScenes()) do
+			local scene = side.scene
+			scene.time = game.time
+			scene.camera.x, scene.camera.y = game.camera.x - side.x, game.camera.y - side.y
+			scene.camera.zoom = game.camera.zoom
+			scene.camera.ox, scene.camera.oy = game.camera.ox, game.camera.oy
+			local angle
+			if game.lane and not side.trail then
+				local ex, ey = game:fromLane(side.origin and -game.lane.half or game.lane.half, 0)
+				angle = math.atan2(ey - side.y, ex - side.x)
+			end
+			Render.world(scene, true, angle)
+		end
 	end
 	game.camera:apply()
 	drawLocalBoundary(game,boundaryAngle)
 	if game.lane then
-		-- the planet you're heading for, where it'll be when you arrive
-		-- (moon trips only: a mass driver's lane shows no planets)
+		-- the planet you left off the edge of (a moon trip loaded from a
+		-- save, whose map isn't kept alive behind the mouth)
 		if game.trip and game.trip.moon then
-			local px, py, F = game:laneDestination()
-			if not preview or preview.back then drawFieldWorld(game, F, px, py) end
-			-- the one you left off the edge of (a moon trip)
 			local o = game.trip.origin
-			if o and not game.trip.originScene and (not preview or not preview.back) then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
+			if o and not game.trip.originScene then drawFieldWorld(game, require("src.fields")[game.trip.from], o.x, o.y) end
 		end
 		drawLane(game)
 	end
@@ -1422,8 +1414,9 @@ function Render.world(game, overlay, boundaryAngle)
 		end
 	end
 	for _, e in ipairs(game.sleepers or {}) do
-		local x, y = game:sleeperPos(e)
-		debris(e, x, y)
+		-- (most of it, past a map's edge and down a lane, never moves)
+		if e.sleep.still then debris(e, e.body.x, e.body.y)
+		else debris(e, game:sleeperPos(e)) end
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" and not e.giant and e.line then

@@ -82,6 +82,20 @@ function Game:updateMoonGates(dt)
  -- through a moon exit on the way must not hijack it
  if p.launch or p.driverTractor or self.driverMenu or self.pendingFlight then return end
  local x,y=p.body:getPosition()
+ local r=math.sqrt(x*x+y*y)
+ -- coming up on a moon exit: lay its lane out ahead of you, beside the
+ -- map, so it's there (rocks and all) as you cross (Game:stageLane)
+ local ahead=self:viewReach()+10000
+ if r<self.arenaRadius and r>self.arenaRadius-ahead then
+  local vx,vy=p.body:getLinearVelocity()
+  local g=vx*x+vy*y>0 and self:moonGateAt(x,y)
+  if g then
+   local R=self.arenaRadius
+   self:stageLane(g.to,{bearing=math.atan2(y,x),length=g.length},nil,x/r*R,y/r*R)
+  end
+ elseif self.laneStage and r<self.arenaRadius-ahead*1.5 then
+  self:dropLaneStage()
+ end
  if x*x+y*y<self.arenaRadius^2 then return end
  local vx,vy=p.body:getLinearVelocity()
  if vx*x+vy*y<=0 then return end

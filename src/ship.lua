@@ -417,7 +417,7 @@ function Ship.fly(e, dt)
 	local burner = powered>0 and it.boost and s.thrust > 0
 		-- the lane's buff replaces it, except on turn-helm hulls (manual
 		-- bearing), which need the extra push to get anywhere on the road
-		and (not e.laneBuff or e.hull.helm == "turn")
+		and (not e.laneBuff or e.laneFrame or e.hull.helm == "turn")
 	local reserve = s.powerCap * T.boostRelight
 	if not burner and e.power > reserve then e.burnerLocked = false end
 	if burner then
@@ -453,7 +453,10 @@ function Ship.fly(e, dt)
 	local jets = max(0, fwd) * aux
 	-- in a transit lane (e.laneBuff, src/transit.lua) every thruster hits
 	-- far harder (the afterburner gets no extra on top)
-	local buff = e.laneBuff and 1 + (T.laneThrust - 1) * e.laneBuff or 1
+	-- (the player's ship gets no buff: the lane carries it instead,
+	-- e.laneFrame, src/transit.lua)
+	local lb = not e.laneFrame and e.laneBuff
+	local buff = lb and 1 + (T.laneThrust - 1) * lb or 1
 	local f = (max(engine, jets) + min(0, fwd) * retro) * scale * buff
 	local l = side * aux * scale * buff
 	if f ~= 0 or l ~= 0 then b:applyForce(fx * f + rx * l, fy * f + ry * l) end
@@ -470,7 +473,7 @@ function Ship.fly(e, dt)
 	local vx, vy = b:getLinearVelocity()
 	vx, vy = vx - (e.flowX or 0), vy - (e.flowY or 0)
 	local speed = sqrt(vx * vx + vy * vy)
-	local k = e.hull.drag * T.dragScale * (e.laneBuff and 1 + (T.laneDrag - 1) * e.laneBuff or 1)
+	local k = e.hull.drag * T.dragScale * (lb and 1 + (T.laneDrag - 1) * lb or 1)
 	if e.coasting then k = 0 end                   -- just fired from a mass driver
 	b:applyForce(-k * speed * vx, -k * speed * vy)
 	b:setLinearDamping(T.linearDamping)

@@ -478,10 +478,19 @@ local function drawPickupTip(game)
 end
 
 function HUD.draw(game, aimX, aimY, uiOpen)
+	-- a level swap hidden in the lane's glow: washing over (game.cover),
+	-- then clearing once the new level is in (game.flash)
+	local wash = 0
+	if game.cover then
+		local u = math.min(1, game.cover.t / game.cover.life)
+		wash = u * u
+	end
 	if game.flash then
-		-- the cut into the lane, hidden in a flash off the driver
 		local a = 1 - game.flash.t / game.flash.life
-		lg.setColor(0.85, 0.95, 1, 0.8 * a * a)
+		wash = math.max(wash, (game.flash.peak or 0.8) * a * a)
+	end
+	if wash > 0 then
+		lg.setColor(0.85, 0.95, 1, wash)
 		lg.rectangle("fill", 0, 0, lg.getDimensions())
 	end
 	drawOffscreen(game)

@@ -10,7 +10,8 @@
 	            (src/persistence.lua). Wrecks, containers and loose cargo follow
 	            the orbital current while unloaded. Scenery and unmanaged NPCs regenerate on visits;
 	            Station traders persist as A-Life records (src/alife.lua);
-	            transit lanes remain temporary.
+	            a lane's contents are laid out fresh, but a save made in one
+	            loads you back into it (state.trip).
 	  travel    mass drivers and the transit lane between planets: see
 	            src/transit.lua.
 	  hangar    every station has a hangar bay: a grid (T.hangarW x
@@ -411,9 +412,14 @@ function Game:saveState()
 	require("src.mining").captureResources(self)
 	self:captureALife(false)
 	self:captureArea()
-	if self.trip and self.trip.originScene then
-		self.trip.originScene:syncAreaMotion()
-		self.trip.originScene:captureArea()
+	-- the maps alive beside this one (src/transit.lua) are saved as they are
+	for _, side in ipairs(self:sideScenes()) do
+		local scene = side.scene
+		if not side.trail then
+			require("src.mining").captureResources(scene)
+			scene:captureALife(false)
+			scene:captureArea()
+		end
 	end
 	local stations = {}
 	for key, r in pairs(self.universe.stations) do
@@ -424,9 +430,16 @@ function Game:saveState()
 		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings) }
 	end
 	local u = self.universe
-	-- saved mid-transit: you'll be at the far end's driver when you load
-	local field = self.flight and self.flight.to or self.trip and self.trip.to or self.fieldId
-	local state = { field = field, kills = self.kills, home = u.home, stations = stations,
+	-- saved mid-lane: you load back into the same lane (state.trip), where
+	-- you were on it; the warp trip (self.flight) still lands you at the catch
+	local field = self.flight and self.flight.to or self.fieldId
+	local trip = self.trip
+	local state_trip = nil
+	if trip and self.lane and not self.flight then
+		state_trip = { from = trip.from, to = trip.to, au = trip.au, length = trip.length, rot = trip.rot,
+			moon = trip.moon, origin = trip.origin and { x = trip.origin.x, y = trip.origin.y } }
+	end
+	local state = { field = field, trip = state_trip, kills = self.kills, home = u.home, stations = stations,
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
@@ -446,7 +459,9 @@ function Game:saveState()
 			local x, y = p.body:getPosition()
 			local vx, vy = p.body:getLinearVelocity()
 			where = { x = x, y = y, angle = p.body:getAngle(), vx = vx, vy = vy }
-			if self.trip then where = { driver = self.trip.from, exit = self:laneExit() } end
+			-- in a lane, x/y are the lane's own coordinates (rebuilt from state.trip)
+			if self.trip and not self.lane then where = { driver = self.trip.from, exit = self:laneExit() } end
+			if self.lane then where.laneEntered = p.laneEntered end
 			if self.flight or p.catching then where = { catch = true } end
 		end
 		state.player = { ship = saveShip(Ship.record(p)), at = where }
@@ -456,6 +471,10 @@ end
 
 function Game:loadState(state)
  state=require("src.world_migration").ids(state)
+ -- the maps kept alive beside a lane go with the game they belonged to
+ for _,side in ipairs(self:sideScenes()) do side.scene:releaseScene(true) end
+ self.trail,self.laneStage=nil,nil
+ if self.trip then self.trip.originScene,self.trip.dest,self.trip.returning=nil,nil,nil end
  -- Detach the outgoing scene while it still owns its universe. Capturing old
  -- bodies after installing the snapshot can overwrite incoming NPC/resource data.
  require('src.mining').unload(self)
@@ -504,7 +523,17 @@ function Game:loadState(state)
 	self.universe.nextSiteId = state.nextSiteId or 0
 	local Sites = require("src.sites")
 	Sites.restore(self.universe)
-	Sites.prune(self.universe, state.field)
+	-- saved mid-lane: back into the same lane, if both its ends still exist
+	-- (a site can have closed); otherwise out at the far end as before
+	local trip = state.trip
+	local laneOk = state.field == "lane" and trip and Fields[trip.to] and Fields[trip.from]
+	Sites.prune(self.universe, laneOk and trip.to or state.field)
+	laneOk = laneOk and Fields[trip.to] and Fields[trip.from]
+	if state.field == "lane" and not laneOk then
+		state.field = trip and Fields[trip.to] and trip.to or Fields.start
+		if state.player then state.player.at = nil end
+	end
+	self.trip = laneOk and Persistence.copy(trip) or nil
 	local field = Fields[state.field] and state.field or Fields.start
 	local pl = state.player
  if pl and pl.at and pl.at.station then
@@ -517,6 +546,9 @@ function Game:loadState(state)
  end
 	self:loadField(field, { player = pl and loadShip(pl.ship), at = pl and pl.at, skipCapture = true })
 	local p = self.player
+	if p and self.lane and pl.at then
+		p.laneEntered = pl.at.laneEntered
+	end
 	local st = p and p.dockState and p.dockState.station
 	if st and pl.at.bay and self:hangarFree(st, p, p.hull.id, pl.at.bay) then p.bay = pl.at.bay end
 	if not pl then self.state = "dead" end
