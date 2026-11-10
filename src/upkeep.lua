@@ -117,6 +117,7 @@ end
 -- Plan a visit if one is due. Only while travelling within a region, and
 -- never mid-fight or during a reconciliation.
 function U.plan(r,clock,e)
+ local u=Supplies.universe
  if r.service or not (r.state=='travel' or r.state=='idle') or not r.area or not r.route or not r.route[r.index] then return false end
  if r.state=='idle' and not r.node then return false end
  if r.encounter or r.worldRecovery or r.waitingForHome or r.driverState then return false end
@@ -194,7 +195,7 @@ function U.plan(r,clock,e)
   r.offset={x=x-bx,y=y-by,progress=p};r.pose=nil
   require('src.queue').leg(r)
  elseif not idle then r.index=2;require('src.queue').leg(r)   -- the leg under way is kept: same depart, same arrive; it books the service dock
- elseif #route==1 then r.index=1;r.state='docked';Repairs.begin(r,at,clock,T.alifeStay)
+ elseif #route==1 then r.index=1;r.state='docked';Repairs.begin(r,at,clock,T.alifeStay,u)
  else r.index=1;deps.start(r,clock,2) end
  return true
 end
@@ -222,12 +223,12 @@ function U.advance(r,clock,u)
    if clock<at then return true end
    r.offset,r.pose=nil,nil
    if U.isStation(r,r.route[r.index]) and not r.serviced then
-    r.state='docked';r.node=r.route[r.index];Repairs.begin(r,r.node,at,T.alifeStay)
+    r.state='docked';r.node=r.route[r.index];Repairs.begin(r,r.node,at,T.alifeStay,u)
    elseif r.index>=#r.route then
     r.serviced=nil;U.finish(r,at);return false
    else deps.start(r,at,r.index+1) end
   elseif r.state=='docked' then
-   Repairs.advance(r,clock,r.node)
+   Repairs.advance(r,clock,r.node,u)
    Fuel.observe(u,r,clock)
    if clock<r.untilTime then return true end
    r.serviced=true

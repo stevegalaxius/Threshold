@@ -13,7 +13,7 @@ return function(game)
  local first,second=worker('actions/1'),worker('actions/2')
  local u={clock=0,npcs={[first.id]=first,[second.id]=second}}
  local scene=setmetatable({universe=u},{__index=game})
- local resource={id='action-loot',kind='loot',area='earth',item='scrap',count=3,x=x+1200,y=y,vx=0,vy=0,clock=0}
+ local resource={id='action-loot',kind='loot',area='earth',item='water_ice',count=3,x=x+1200,y=y,vx=0,vy=0,clock=0}
  Loose.records(u)[resource.id]=resource
  local spec={kind='work',operation='collect',target={provider='resource',id=resource.id}}
  local function ctx(r,clock) u.clock=clock;return {game=scene,u=u,r=r,clock=clock} end
@@ -29,7 +29,7 @@ return function(game)
  A.step(ctx(first,10));local arrival=first.action.arriveAt
  assert(resource.count==3 and arrival>10,'resume continues approach without charging paused time as work')
  A.step(ctx(first,arrival+1))
- assert(not Loose.records(u)[resource.id] and first.ship.cargo.scrap==3 and first.salvageCargo.scrap==3,'completion transfers one authoritative resource')
+ assert(not Loose.records(u)[resource.id] and first.ship.cargo.water_ice==3 and first.salvageCargo.water_ice==3,'completion transfers one authoritative resource')
  -- Recovery uses the same approach runner and preserves nested cargo.
  local Hold=require('src.inventory.hold')
  scene.fieldId='pluto';scene.entities={};scene.pickups={};scene.sideScenes=function()return {}end

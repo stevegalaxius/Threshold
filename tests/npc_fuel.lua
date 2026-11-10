@@ -29,11 +29,11 @@ return function(game)
  local u={clock=0,npcs={[r.id]=r}}
  local source=L.stations('earth','trade')[1]
  -- one ordinary haul on the board (nothing is authored by default any more)
- Tasks.post(u,{kind='transport',source=source,target=L.stations('mars','trade')[1],item='scrap',amount=5})
+ Tasks.post(u,{kind='transport',source=source,target=L.stations('mars','trade')[1],item='water_ice',amount=5})
  -- Pick a normal delivery through the real reservation API.
  local task=assert(Tasks.choose(u,r,source,0));local taskId=task.id
  r.route=assert(Tasks.plan(r,source,0));r.index=2;r.state='travel';r.depart=0;r.arrive=100;r.fuelClock=0
- local route=Save.encode(r.route);local cargo=r.ship.cargo.scrap
+ local route=Save.encode(r.route);local cargo=r.ship.cargo.water_ice
  check(F.observe(u,r,0)=='normal' and transitions(u)==0,'healthy NPC emitted a spurious fuel event')
  r.ship.cargo[F.item()]=0;r.ship.fuelCharge=1
  check(F.observe(u,r,0)=='low' and transitions(u,'low')==1,'low reserve was not detected')
@@ -49,7 +49,7 @@ return function(game)
  local progress=(1-r.depart)/(r.arrive-r.depart)
  A.advance(r,2,u);A.advance(r,3,u)
  check(math.abs((3-r.depart)/(r.arrive-r.depart)-progress)<1e-6,'stranded record advanced along its route')
- check(r.task.id==taskId and Save.encode(r.route)==route and r.ship.cargo.scrap==cargo,'stranding replaced duty, route or cargo')
+ check(r.task.id==taskId and Save.encode(r.route)==route and r.ship.cargo.water_ice==cargo,'stranding replaced duty, route or cargo')
  check(u.tasks.offers[taskId].owner==r.id and require('src.population').count(u,'earth','trader')==1,'stranded NPC lost ownership or population identity')
  check(transitions(u,'stranded')==1,'repeated offline updates duplicated the stranding')
  -- Materialize, serialize through the real game save, and reload while stranded.
@@ -78,7 +78,7 @@ return function(game)
  check(transitions(game.universe)==events+1,'recovery was not recorded exactly once')
  AI.think(game,live,1/120)
  check(live.intent.thrust~=0 or live.intent.strafe~=0,'refueled ship did not resume its route')
- check(r.task.id==taskId and live.cargo.scrap==cargo,'recovery discarded the interrupted shipment')
+ check(r.task.id==taskId and live.cargo.water_ice==cargo,'recovery discarded the interrupted shipment')
  Ship.fly(live,1/120);game:captureALife(true)
  local clock=game.universe.clock+1
  A.advance(r,clock,game.universe)

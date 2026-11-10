@@ -22,10 +22,10 @@ return function(game)
  r.pose={x=100000,y=0,a=0,vx=0,vy=0,w=0,clock=game.universe.clock}
  game.universe.npcs[r.id]=r
  local e=require('src.alife').wake(game,r);local weapon=assert(W.weapon(e))
- local carriedScrap=e.cargo.scrap or 0
+ local carriedScrap=e.cargo.water_ice or 0
  weapon.group='secondary';weapon.stagger=0
  local function wreck()
-  local hold=Hold.new({{key='cargo',w=8,h=8}});Hold.add(hold,'scrap',8)
+  local hold=Hold.new({{key='cargo',w=8,h=8}});Hold.add(hold,'water_ice',8)
   local h=game:spawnHusk(e,100700,0,0,0,0,0,hold)
   h.pieces=nil;h.hp=1;h.origin={id='test'};return h
  end
@@ -49,19 +49,22 @@ return function(game)
   if h.removed then break end
  end
  assert(sawSecondary and h.removed,'gun-only recovery did not fire its assigned trigger and break the wreck')
- assert((e.cargo.scrap or 0)==carriedScrap,'gun-equipped cleaner bypassed shooting by transferring intact wreck cargo')
- local scrap=0
- for _,p in ipairs(game.pickups) do if p.item=='scrap' then scrap=scrap+p.count end end
- assert(scrap==0,'shot wreck ignored recovery loss')
+ assert((e.cargo.water_ice or 0)==carriedScrap,'gun-equipped cleaner bypassed shooting by transferring intact wreck cargo')
+ local water_ice=0
+ for _,p in ipairs(game.pickups) do if p.item=='water_ice' then water_ice=water_ice+p.count end end
+ assert(water_ice==0,'shot wreck ignored recovery loss')
  A.cancel(ctx,'fixture finished')
  local drilled=wreck();game:damage(drilled,10,e,'drill');game:reap()
- for _,p in ipairs(game.pickups) do if p.item=='scrap' then scrap=scrap+p.count end end
+ for _,p in ipairs(game.pickups) do if p.item=='water_ice' then water_ice=water_ice+p.count end end
  T.wreckShotRecovery=oldChance
- assert(scrap==8,'drilled wreck did not preserve its contents')
+ assert(water_ice==8,'drilled wreck did not preserve its contents')
+ local steel=0
+ for _,p in ipairs(game.pickups) do if p.item=='steel_plate' then steel=steel+p.count end end
+ assert(steel>0,'drilling a wreck did not recover steel plates')
  -- Tractor range also governs readiness, even outside the steering goal.
  local x,y=e.body:getPosition()
  local distance=Ship.tractorRange(e)*.5+e.halfLength+50
- game:spawnPickup(x+distance,y,'scrap',1);local pickup=game.pickups[#game.pickups]
+ game:spawnPickup(x+distance,y,'water_ice',1);local pickup=game.pickups[#game.pickups]
  A.request(ctx,{kind='work',operation='collect',target={provider='resource',id=pickup.looseId,expected='loot'}})
  A.step(ctx)
  assert(e.intent.tractor and e.tractorTarget==pickup,'reachable cargo waited outside the standoff tolerance')

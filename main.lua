@@ -110,6 +110,7 @@ function love.load(args)
 		["--ammotest"] = "tests.weapon_ammo", ["--economytest"] = "tests.economy", ["--ramtest"] = "tests.collisions",
 		["--sitestest"] = "tests.sites",
 		["--foodtest"] = "tests.food",
+		["--steeltest"] = "tests.steel",
 	}
 	for _, a in ipairs(args or {}) do
 		if suites[a] then

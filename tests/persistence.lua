@@ -48,7 +48,7 @@ return function(game)
 	check(Hold.placeStack(freighter.hold, { id = "cargo_container", n = 1, inner = inner }), "could not seed nested cargo")
 	freighter.loot = Hold.totals(freighter.hold)
 	local box = game:spawnContainer(1400, 1900, "cargo_container", false)
-	Hold.add(box.hold, "scrap", 3)
+	Hold.add(box.hold, "water_ice", 3)
 	box.loot = Hold.totals(box.hold)
 	game:containerMass(box)
 	box.hp = box.hp * 0.5
@@ -91,7 +91,7 @@ return function(game)
 	local decoded, err = Save.decode(Save.encode(saved))
 	check(decoded ~= nil, err)
 	check(Save.upgrade(decoded).version == Save.VERSION, "save version not upgraded")
-	local abandoned = game:spawnPickup(0, 0, "scrap", 99)
+	local abandoned = game:spawnPickup(0, 0, "water_ice", 99)
 	game:loadState(decoded)
 	check(not Loose.records(game.universe)[abandoned.looseId] and records("asteroids", "rounds_s") == 1,
 		"load overwrote saved state with the abandoned live scene")
@@ -131,7 +131,7 @@ return function(game)
 	check(#game.entities > 0 and #game:captureArea().objects == 0, "unloaded area's empty snapshot was lost")
 	-- Real moon travel releases the original world, then recreates its objects.
 	game:loadField("earth")
-	local id = game:spawnPickup(30000, 0, "scrap", 5).looseId
+	local id = game:spawnPickup(30000, 0, "water_ice", 5).looseId
 	local oldWorld = game.world
 	game:launchTrip("luna", { bearing = 0, length = Fields.moons.luna.gap })
 	local mid = assert(Save.decode(Save.encode(game:saveState())))
@@ -176,7 +176,7 @@ return function(game)
   game.pickups={}
   local savedCloud={}
   for _,radius in ipairs({21900,22100}) do
-   local pickup=game:spawnPickup(radius,0,'scrap',1)
+   local pickup=game:spawnPickup(radius,0,'water_ice',1)
    pickup.vx,pickup.vy=game:flowAt(radius,0)
    pickup.vx=pickup.vx+kick
    local record=Loose.records(game.universe)[pickup.looseId]

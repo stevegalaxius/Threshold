@@ -32,7 +32,7 @@ return function(game)
  Tasks.state(game.universe).offers={}
  -- and no station orders (src/economy.lua) to pull it elsewhere
  game.universe.economyNext=math.huge
- Tasks.post(game.universe,{kind='transport',source=Fields.earth.stationIds[1],target=Fields.luna.stationIds[1],item='scrap',amount=5})
+ Tasks.post(game.universe,{kind='transport',source=Fields.earth.stationIds[1],target=Fields.luna.stationIds[1],item='water_ice',amount=5})
  for i=#game.entities,1,-1 do
   local e=game.entities[i]
   if e~=game.player and (e.kind=='ship' or e.kind=='asteroid' or e.kind=='container' or e.kind=='husk') then game:remove(e) end

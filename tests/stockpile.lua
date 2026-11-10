@@ -138,10 +138,10 @@ return function(game)
    Tasks.post(w,{kind='salvage',source=ven,target=ven,system='venus',cooldown=30})
    assert(Tasks.choose(w,r,ven,w.clock),'either identity can accept salvage')
    assert(NPC.docksAt(r,ven) and Scavenge.profile(r).clears,'active salvage job supplies collection and docking')
-   r.ship.cargo.scrap=1;Scavenge.took(r,'scrap',1,w.clock)
+   r.ship.cargo.water_ice=1;Scavenge.took(r,'water_ice',1,w.clock)
    local credits=r.credits or 0
    assert(Tasks.arrive(w,r,ven,w.clock,scene),'salvage completes through the same task path')
-   assert(r.credits>credits and r.ship.cargo.scrap==0 and not r.salvageReturn and not Scavenge.profile(r),'salvage is sold and collection state ends with the job')
+   assert(r.credits>credits and r.ship.cargo.water_ice==0 and not r.salvageReturn and not Scavenge.profile(r),'salvage is sold and collection state ends with the job')
    assert(r.populationGroup==role,'taking other work does not replace the NPC identity')
   end
  end

@@ -852,9 +852,11 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		if Cargo.tab == "repair" then
 			local act = Repair.mousepressed(game, mx, my, button)
 			local st = game.player.dockState.station
-			if act and act.repair then
+			if act and act.cancelRepair then
+				act.cancelRepair.repairOrder=nil;game:toast('REPAIRS CANCELLED',1.4)
+			elseif act and act.repair then
 				local pts, paid = game:repairShip(st, act.repair)
-				if pts then game:toast(("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()), 1.4)
+				if pts then game:toast(("REPAIRING %d ARMOR, UP TO %s"):format(pts, HUD.credits(paid):upper()), 1.4)
 				else game:toast(paid, 1.4) end
 			elseif act and act.repairAll then
 				local owners = { game.player }
@@ -864,7 +866,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 					local a, b = game:repairShip(st, o)
 					if a then pts, paid = pts + a, paid + b end
 				end
-				game:toast(pts > 0 and ("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()) or "NOTHING REPAIRED", 1.4)
+				game:toast(pts > 0 and ("REPAIRING %d ARMOR, UP TO %s"):format(pts, HUD.credits(paid):upper()) or "NO REPAIR ORDERS STARTED", 1.4)
 			end
 			return true
 		end
@@ -1314,8 +1316,11 @@ local function drawEquipment(game, L, mx, my)
 			lg.rectangle("fill", t.x, t.y, t.w, t.h, 4, 4)
 			local col = have and HUD.INK or HUD.WARN
 			lg.setColor(col[1], col[2], col[3], (#opts > 1 and 1 or 0.55) * alpha)
-			lg.setFont(HUD.font(10))
-			lg.printf(data.items[id].name, t.x + 2, t.y + (t.h - 10) / 2 - 1, t.w - 4, "center")
+			local item=data.items[id];local label=item.shortName or item.name
+			local font=HUD.font(10)
+			if font:getWidth(label)>t.w-4 then font=HUD.font(8) end
+			lg.setFont(font)
+			lg.printf(label, t.x + 2, t.y + (t.h - font:getHeight()) / 2, t.w - 4, "center")
 		end
 		if r.trig then
 			local t, on = r.trig, inRect(r.trig, mx, my)

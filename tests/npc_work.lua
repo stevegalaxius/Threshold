@@ -77,7 +77,7 @@ return function(game)
   local NPC,P=require('src.npc'),require('src.piracy')
   local node=require('src.fields').earth.buoyIds[1]
   r.node=node;r.route={node,node};r.index=1;r.speed=600;r.task={id='fixture',kind='raid'}
-  r.ship.cargo.scrap=3;r.stolenCargo={scrap=3};r.ship.hold=nil
+  r.ship.cargo.water_ice=3;r.stolenCargo={water_ice=3};r.ship.hold=nil
   r.homeStation=L.station(nil,'pirateBase')
   local w={clock=0,npcs={[r.id]=r},stations={}}
   local scene=setmetatable({universe=w},{__index=game})
@@ -89,7 +89,7 @@ return function(game)
   end
   assert(r.state=='docked' and r.node==r.homeStation,'shared travel reaches the fencing station')
   w.clock=r.untilTime+1;NPC.advance(r,w.clock,w,scene)
-  assert(w.piracy.stashes[r.homeStation].scrap==3 and not r.ship.cargo.scrap,'the common controller unloads stolen cargo once')
+  assert(w.piracy.stashes[r.homeStation].water_ice==3 and not r.ship.cargo.water_ice,'the common controller unloads stolen cargo once')
   supplies.universe=original
  end
  print('npc work: authority and freelance patrol ok')

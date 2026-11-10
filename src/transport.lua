@@ -183,7 +183,7 @@ function Transport.seed(u)
   if t and t.kind=='transport' then Transport.quote(t,u.clock) end
  end
  -- Nothing is authored any more: every haul is a station's order
- -- (src/economy.lua). Syncing an empty list clears the old scrap and
+ -- (src/economy.lua). Syncing an empty list clears the old cargo and
  -- freight runs from saves, leaving reserved trips to finish.
  local specs={}
  Tasks.sync(u,'transport',specs,function(o)return o.kind=='transport' end)

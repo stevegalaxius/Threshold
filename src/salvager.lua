@@ -29,7 +29,8 @@ function S.sell(game,r,node,clock)
   if n>0 then
    local stack={id=id,n=n,resale=(clock or game.universe.clock)+T.resaleTime}
    shelf=shelf or game:stationMarket({key=node,locationId=node},1).hold
-   Hold.placeStack(shelf,stack) -- full shelves sell stock onward, like player trade
+   if id=='steel_plate' then require('src.stockpile').add(game.universe,node,id,n)
+   else Hold.placeStack(shelf,stack) end -- other goods remain ordinary resale
    total=total+game.sellPrice(stack);sold[id]=n
    if h then Hold.take(h,id,n) else cargo[id]=cargo[id]-n end
   end
@@ -131,10 +132,10 @@ Tasks.register('salvage',{
   local root=Fields.moons[area] and Fields.moons[area].parent or area
   if node~=o.source or o.system~=root or not L.byId[o.source] or not L.byId[o.target] then return false end
   local h=r.ship.hold and Hold.deserialize(r.ship.hold)
-  if h then return Hold.room(h,'scrap',1)>0 end
+  if h then return Hold.room(h,'steel_plate',1)>0 end
   local used=0
   for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
-  return (data.hulls[r.ship.hull].hold or 0)-used>=data.items.scrap.volume
+  return (data.hulls[r.ship.hull].hold or 0)-used>=data.items.steel_plate.volume
  end,
  feasible=function(u,r,o,node,clock) return G.itinerary(o.source,o.target,clock)~=nil end,
  score=function(u,r,o)

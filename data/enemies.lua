@@ -100,7 +100,7 @@ enemy {
  id = "pirate_wisp", team = 2, name = "Independent Pirate", hull = "intaki_wisp",
  livery = { primary = { 1, 0.4, 0.25 } },
  loadout = { "gun_s_base", "gun_s_base", "flit_engine", "ember_reactor", false, false },
- cargo = { rounds_s = 300, scrap = 3 },
+ cargo = { rounds_s = 300 },
  ai = { style = "orbit", range = 700, accuracy = 0.55, throttle = 0.8, cruise = 650 },
  salvage = { 2, 4 },
 }

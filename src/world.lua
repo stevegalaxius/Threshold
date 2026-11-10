@@ -363,6 +363,7 @@ local function saveShip(rec)
 	return {
 		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads, armor = rec.armor, color = rec.color, bay = rec.bay, mooring=rec.mooring,
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
+		repairOrder=rec.repairOrder,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
 	}
 end
@@ -404,6 +405,7 @@ local function loadShip(t)
 	return {
 		hull = t.hull, loadout = t.loadout, triggers = t.triggers, loads = t.loads, armor = t.armor, color = t.color, bay = t.bay, mooring=t.mooring,
 		fuelCharge=t.fuelCharge, fuelInitialized=t.fuelInitialized, power=t.power,
+		repairOrder=t.repairOrder,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
 	}
 end
@@ -428,7 +430,7 @@ function Game:saveState()
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
 		local shops = {}
 		for i, m in pairs(r.shops or {}) do shops[i] = { hold = m.hold and Hold.serialize(m.hold), next = m.next, stock = Persistence.copy(m.stock) } end
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings) }
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial }
 	end
 	local u = self.universe
 	-- saved mid-lane: you load back into the same lane (state.trip), where
@@ -523,7 +525,7 @@ function Game:loadState(state)
 		self.universe.stations[key] = {
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
-			hangar = hangar, moorings=Persistence.copy(r.moorings),
+			hangar = hangar, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,
 			shop = r.shop,
 		}
 		-- shops; a save from before shops had one market, which is shop 1
