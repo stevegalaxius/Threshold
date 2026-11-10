@@ -19,7 +19,7 @@ local D={}
 local function isFuel(id) return id==Fuel.item() end
 -- Would h answer r's call? For now anyone with fuel to spare helps anyone;
 -- factions will narrow this later.
-local function helps(h,r) return h.role~=nil end
+local function helps(h,r) return h.ship~=nil end
 -- Units a ship would like to receive / can give away.
 local function want(r) return math.max(1,math.ceil((Supplies.targets(r)[Fuel.item()] or 1)*T.distressShare)) end
 local function spare(r,cargo)

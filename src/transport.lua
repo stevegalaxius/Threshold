@@ -74,7 +74,7 @@ local function reachable(a,b,clock,sameArea)
  return reach[key]
 end
 Tasks.register('transport',{
- roles={trader=true,courier=true,salvager=true},
+ requires={capabilities={'cargo'}},
  plan=function(t,station,clock)
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
   return Transport.route(station,t.target,clock)

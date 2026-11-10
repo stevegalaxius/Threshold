@@ -104,14 +104,8 @@ function Rep.ofNode(nodeId)
 end
 function Rep.ofArea(area) return area and Rep.AREAS[area] or nil end
 
--- An NPC record's faction: patrols serve whoever owns their home; every
--- other role is a loner. A record may carry an explicit faction.
-function Rep.ofRecord(r)
-	if not r then return nil end
-	if r.faction ~= nil then return r.faction or nil end
-	if r.role ~= "patrol" then return nil end
-	return Rep.ofNode(r.homeNode or r.homeStation) or Rep.ofArea(r.home or r.area)
-end
+-- Affiliation is authored independently of occupation or active work.
+function Rep.ofRecord(r) return r and r.affiliation or nil end
 
 ---------------------------------------------------------------- reads
 
@@ -180,7 +174,7 @@ end
 function Rep.shipKilled(u, r, area)
 	local f = Rep.ofRecord(r)
 	if f then Rep.addStanding(u, f, Rep.T.standingPerKill)
-	elseif r and r.role == "pirate" then Rep.addStanding(u, Rep.ofArea(area), Rep.T.standingPirateKill) end
+	elseif r and (r.deathOutlaw or require("src.npc_access").raiding(r)) then Rep.addStanding(u, Rep.ofArea(area), Rep.T.standingPirateKill) end
 end
 
 -- Helping, heard from the world's event log (src/simulation_history.lua):

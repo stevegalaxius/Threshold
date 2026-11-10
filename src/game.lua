@@ -1311,7 +1311,7 @@ function Game:updateDocking(dt)
 			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
-			local trader = e.def and e.def.ai.style == "trader" or (e.alifeRole and e.route ~= nil)
+			local trader = e.def and e.def.ai.style == "trader" or (e.alifeId and e.route ~= nil)
 			if (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
@@ -1376,8 +1376,9 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
-  if e.alifeRole=="patrol" then
-   ds.stay=T.patrolDockStay
+  if e.alifeRecord then
+   local work=require('src.npc').work(e.alifeRecord)
+   ds.stay=work and work.stay and work.stay(e.alifeRecord,st.locationId) or T.alifeStay
   end
   if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
@@ -2187,7 +2188,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- a neutral that gets shot remembers who did it, and shoots back
 	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
 	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
-	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
+	if (e.team == 3 or e.alifeId) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
@@ -2575,7 +2576,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	-- Who this was, for the loot window: hull, ship type and the A-Life record.
 	if ship.def or ship.alifeId then
 		local rec = ship.alifeId and self.universe and self.universe.npcs and self.universe.npcs[ship.alifeId]
-		h.origin = { hull = hull.name, type = ship.def and ship.def.name, role = rec and rec.role or ship.alifeRole, npc = ship.alifeId }
+		h.origin = { hull = hull.name, type = ship.def and ship.def.name, role = rec and rec.label, npc = ship.alifeId }
 	end
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
 	if #hull.parts > 1 then

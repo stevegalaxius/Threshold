@@ -98,10 +98,11 @@ end
 function S.create(game,area,node,clock)
  local def=data.enemies.salvager_packhorse;local hull=data.hulls[def.hull]
  local u=game.universe;u.nextNpcId=(u.nextNpcId or 0)+1
- local r={id='npc/'..u.nextNpcId,role='salvager',workProfile='scavenger',archetype=def.id,home=area,area=area,
+ local r={id='npc/'..u.nextNpcId,archetype=def.id,home=area,area=area,
   state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=NPC.cruise(def.id),
   spread=0,taskWorker=true,credits=0,salvageCargo={},salvageGoal=node,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ require('src.npc_templates').apply(r,'salvager',area)
  require('src.personality').ensure(r)
  Homes.assign(r,node);u.npcs[r.id]=r
  Fuel.withRecord(r,function() end);r.fuelClock=clock
@@ -133,7 +134,7 @@ function S.seed(game)
  end
 end
 Tasks.register('salvage',{
- roles={salvager=true,trader=true,courier=true},
+ requires={capabilities={'cargo'}},
  docks=function(r,id) return L.canonical(id)==L.canonical(r.salvageGoal) end,
  think=S.think,
  stay=function() return T.salvagerStay end,
@@ -145,7 +146,8 @@ Tasks.register('salvage',{
  eligible=function(u,r,o,node)
   -- staying put is only a job where there are buoys to sweep on the way
   if o.source==o.target and #(Fields[L.get(o.target).area].buoyIds or {})==0 then return false end
-  local root=Fields.moons[r.home] and Fields.moons[r.home].parent or r.home
+  local area=L.get(node).area
+  local root=Fields.moons[area] and Fields.moons[area].parent or area
   if node~=o.source or o.system~=root or not L.byId[o.source] or not L.byId[o.target] then return false end
   local h=r.ship.hold and Hold.deserialize(r.ship.hold)
   if h then return Hold.room(h,'scrap',1)>0 end
@@ -155,7 +157,7 @@ Tasks.register('salvage',{
  end,
  feasible=function(u,r,o,node,clock) return G.itinerary(o.source,o.target,clock)~=nil end,
  score=function(u,r,o)
-  local areas=S.system(r.home);local wanted=areas[(r.salvageVisit or 0)%#areas+1]
+  local areas=S.system(o.system);local wanted=areas[(r.salvageVisit or 0)%#areas+1]
   return (L.get(o.target).area==wanted and 10000 or 0)-(o.target==r.lastSalvageTarget and 100 or 0)
  end,
  prepare=function(u,r,t,node,clock)

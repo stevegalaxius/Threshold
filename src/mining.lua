@@ -14,31 +14,39 @@ local Fuel=require('src.reactor_fuel')
 local M={}
 local sin,cos,sqrt,min,max,pi=math.sin,math.cos,math.sqrt,math.min,math.max,math.pi
 function M.state(u) return Jobs.state(u) end
-function M.isMiner(r)return r and r.role=='miner' end
--- Miners fly straight between their base and a rock field and drill there;
--- that world model is theirs. Upkeep, fuel and speed are the shared loop's.
-require('src.npc').job('miner',{
- match=M.isMiner,
- docks=function(r,id) return id==r.base end,
- next=function() return nil end,
- advance=function(game,r,clock) return M.advance(game,r,clock) end,
-})
+function M.active(r)return r and r.task and r.task.kind=='mine' or false end
 function M.workPoint(site)
  return L.position(site.id,0)
 end
 
 Tasks.register('mine',{
- roles={miner=true},
- eligible=function(u,r,o,node)return o.source==node and o.area==r.home end,
+ requires={capabilities={'cargo','drill'}},
+ docks=function(r,id) return L.canonical(id)==L.canonical(r.task.source) end,
+ eligible=function(u,r,o,node)
+  if o.source~=node or not M.state(u).sites[o.target] then return false end
+  if r.ship.hold then return Hold.room(Hold.deserialize(r.ship.hold),o.item,1)>0 end
+  local used=0
+  for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
+  return (data.hulls[r.ship.hull].hold or 0)-used>=data.items[o.item].volume
+ end,
  score=function(u,r,o)return r.lastMine==o.target and -1 or 0 end,
- prepare=function(u,r,t)t.phase='mining';return true end,
+ prepare=function(u,r,t)
+  r.base=t.source;r.mineSite=copy(M.state(u).sites[t.target]);r.nextMiningAt=u.clock+T.miningOfflineEvery
+  t.retainedCargo=(r.ship.cargo or {})[t.item] or 0
+  t.phase='mining';return true
+ end,
  plan=function(t)return {t.source,t.target} end,
  complete=function(u,r,t,node)
   if node~=t.source then return false end
-  local cargo=r.ship.cargo or {};local n=cargo[t.item] or 0
-  if n<=0 then return false end
+  local cargo=r.ship.cargo or {};local n=math.max(0,(cargo[t.item] or 0)-(t.retainedCargo or 0))
+  if n<=0 then
+   if r.repairReturn then t.phase='mining';r.repairReturn=nil
+   elseif t.phase=='delivery' then Tasks.release(u,r,'no ore delivered',u.clock) end
+   return false
+  end
   Jobs.deliver(u,node,t.item,n);require('src.economy').stat(u,'made',t.item,n)
-  cargo[t.item]=nil
+  cargo[t.item]=(cargo[t.item] or 0)-n
+  if cargo[t.item]<=0 then cargo[t.item]=nil end
   if r.ship.hold then
    local h=Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
    Hold.sync(h,cargo);r.ship.hold=Hold.serialize(h)
@@ -81,29 +89,19 @@ function M.create(game,area,clock)
  local home=available.source
  local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
  u.nextNpcId=u.nextNpcId+1
- local r={id='npc/'..u.nextNpcId,role='miner',archetype='miner_packhorse',home=area,area=area,
+ local r={id='npc/'..u.nextNpcId,archetype='miner_packhorse',home=area,area=area,
   base=home,node=home,route={home,home},index=1,
   state='idle',speed=require('src.npc').cruise('miner_packhorse'),spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ require('src.npc_templates').apply(r,'miner',area)
  require('src.personality').ensure(r)
  Homes.assign(r,home)
  u.npcs[r.id]=r
- M.advance(game,r,clock)
+ require('src.npc').advance(r,clock,u,game)
  return r
 end
 function M.seed(game)
  local u=game.universe;local state=M.state(u)
- -- Upgrade existing workers without replacing their identity, task or cargo.
- for _,r in pairs(u.npcs) do
-  if M.isMiner(r) and r.ship.hull=='intaki_wisp' then
-   local def=data.enemies.miner_packhorse
-   local old=Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
-   local fitted=Stats.compute(data.hulls[def.hull],def.loadout)
-   r.ship.armor=fitted.armor*min(1,(r.ship.armor or old.armor)/old.armor)
-   r.ship.hull,r.ship.loadout=def.hull,copy(def.loadout)
-   r.archetype,r.speed=def.id,require('src.npc').cruise(def.id)
-  end
- end
  -- Drop sites whose source is gone (Ring Station's rocks moved to the
  -- Quarry), or their rigs keep drawing and ejecting with nothing to mine.
  for id in pairs(state.sites) do
@@ -345,7 +343,7 @@ function M.materialize(game)
   if (x-px)^2+(y-py)^2<range^2 then return true end
   for id,e in pairs(game.alifeOnline or {}) do
    local worker=game.universe.npcs[id]
-   if M.isMiner(worker) and worker.task and worker.task.phase=='mining'
+   if M.active(worker) and worker.task and worker.task.phase=='mining'
     and not e.dead and not e.removed and not e.dockState and not e.body:isDestroyed() then
     local ex,ey=e.body:getPosition()
     if (x-ex)^2+(y-ey)^2<range^2 then return true end
@@ -430,21 +428,15 @@ end
 function M.advance(game,r,clock)
  local u=game.universe
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
- if r.state=='docked' then Repairs.advance(r,clock,r.base) end
- if r.state=='docked' and clock>=(r.untilTime or 0) then
-  if r.repairReturn and r.task and (r.ship.cargo[r.task.item] or 0)==0 then
-   r.task.phase='mining';r.state='idle'
-  else Tasks.arrive(u,r,r.base,clock);r.state='idle';r.task=nil end
-  r.repairReturn=nil
-  Supplies.refill(r,r.base)
- end
- if not r.task then r.task=Tasks.choose(u,r,r.base,clock);r.nextMiningAt=clock+T.miningOfflineEvery end
- if not r.task then
-  r.state='docked';r.node=r.base;r.route={r.base,r.base};r.index=1;r.untilTime=clock+10;return
+ if r.state=='docked' then
+  Repairs.advance(r,clock,r.base)
+  if clock<(r.untilTime or 0) then return end
+  require('src.npc').decide(u,r,r.base,clock,game)
+  if not M.active(r) then return end
  end
  r.mineSite=copy(M.state(u).sites[r.task.target])
  if r.task.phase=='mining' and ((Repairs.needs(r) and Repairs.supports(r.base)) or (Supplies.needs(r) and Supplies.supports(r.base))) then r.repairReturn=true;M.returnHome(game,r,M.point(u,r,clock)) end
- if r.task.phase=='mining' then r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
+ if r.task.phase=='mining' then r.state='idle';r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
  if r.task.phase=='delivery' then
   if r.state~='docked' and clock>=r.arrive then r.state='docked';Repairs.begin(r,r.base,r.arrive,T.alifeStay) end
   return
@@ -488,7 +480,7 @@ function M.advance(game,r,clock)
   end
   if rock.hp<=0 then rock.kind,rock.count='loot',rock.yield end
  end
- if (r.ship.cargo[r.task.item] or 0)>=T.minerLoad or room(r,r.task.item)<=0 then
+ if (r.ship.cargo[r.task.item] or 0)-(r.task.retainedCargo or 0)>=T.minerLoad or room(r,r.task.item)<=0 then
   M.returnHome(game,r,M.point(u,r,clock))
  end
 end
@@ -532,21 +524,6 @@ function M.bind(game,e,r)
  if r.task and r.task.phase=='delivery' then e.route={work,home}
  else e.route={home,work} end
 end
-function M.depart(game,e,station)
- local r=game.universe.npcs[e.alifeId]
- r.ship.cargo=copy(e.cargo)
- if r.repairReturn and r.task and (e.cargo[r.task.item] or 0)==0 then r.task.phase='mining' end
- r.repairReturn=nil
- Tasks.arrive(game.universe,r,L.canonical(station.locationId),game.universe.clock)
- Supplies.refill(r,L.canonical(station.locationId))
- e.cargo=copy(r.ship.cargo);Ship.updateMass(e)
- Tasks.choose(game.universe,r,r.base,game.universe.clock)
- r.mineSite=r.task and copy(M.state(game.universe).sites[r.task.target])
- r.state='idle';r.nextMiningAt=game.universe.clock+T.miningOfflineEvery
- if r.task then r.route={r.base,r.task.target};r.index=2;r.node=r.task.target end
- M.bind(game,e,r)
- return r.task~=nil
-end
 local function follow(game,e,AI,x,y,vx,vy,stand,ignore)
  local bx,by=e.body:getPosition();local dx,dy=x-bx,y-by;local d=max(.001,sqrt(dx*dx+dy*dy))
  local Nav=require('src.local_navigation')
@@ -561,12 +538,7 @@ local function follow(game,e,AI,x,y,vx,vy,stand,ignore)
 end
 function M.think(game,e,dt,AI)
  local r=game.universe.npcs[e.alifeId]
- if not M.isMiner(r) then return false end
- if not r.task then
-  Tasks.choose(game.universe,r,r.base,game.universe.clock)
-  r.mineSite=r.task and copy(M.state(game.universe).sites[r.task.target]);M.bind(game,e,r)
- end
- if not r.task then return true end
+ if not M.active(r) then return false end
  r.mineSite=r.mineSite or copy(M.state(game.universe).sites[r.task.target])
  if e.aggressor and not e.aggressor.dead and not e.aggressor.removed then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;return false
@@ -578,7 +550,7 @@ function M.think(game,e,dt,AI)
  if r.task.phase=='delivery' then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
  end
- if (e.cargo[r.task.item] or 0)>=T.minerLoad or Ship.canFit(e,r.task.item,1)<=0 then
+ if (e.cargo[r.task.item] or 0)-(r.task.retainedCargo or 0)>=T.minerLoad or Ship.canFit(e,r.task.item,1)<=0 then
   e.miningTarget,e.miningPickup,e.miningResource,e.tractorTarget=nil,nil,nil,nil;e.intent.tractor=false
   M.returnHome(game,r,e.body:getPosition());M.bind(game,e,r);AI.trade(game,e,dt);return true
  end
@@ -730,4 +702,6 @@ Population.register('miner',{
  nodes=function(game,area) return Fields[area].drillIds end,
  create=function(game,area,node,clock) return M.create(game,area,clock) end,
 })
+local work=Tasks.definitions.mine
+work.advance=M.advance;work.think=M.think;work.bind=M.bind;work.capture=M.capture;work.point=M.point
 return M

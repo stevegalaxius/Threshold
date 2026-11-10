@@ -263,7 +263,7 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock and not stop.hold and not queued then
-			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
+			if e.alifeId and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" and stop.driver then
 				if game:requestDriver(e,stop.driver,stop.destination) then
 				 it.thrust,it.strafe=0,0;return
@@ -377,27 +377,24 @@ function AI.think(game, e, dt)
    if Upkeep.plan(record,game.universe.clock,e) then A.bindRoute(game,e,record) else record.index=index end
   end
  end
- if record and record.service then return trade(game,e,dt) end
- if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
-	if e.alifeId and require("src.npc").thinkWork(game,e,dt,AI) then return end
-	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
-	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
-	if ai.style == "trader" then return trade(game, e, dt) end
-
-	local x, y = e.body:getPosition()
-	local target
-	if e.alifeRole then
-		target = Security.target(game,e)
-		if target and e.alifeRole=='pirate' and not require("src.robbery").consider(game,e,target) then
-			-- demanding cargo: close in, guns quiet
-			if not require("src.robbery").pending(e) then target=nil;e.combatTarget=nil end
-		end
-		if not target then
-			Security.updateOnline(game,e,require("src.alife"))
-			if Security.hold(game,e,AI) then return end
-			return trade(game,e,dt)
-		end
-	else target = pickTarget(game, e, x, y) end
+ local x,y=e.body:getPosition()
+ local target
+ if record then
+  target=Security.target(game,e)
+  if target and require('src.npc_access').raiding(record) and not require('src.robbery').consider(game,e,target) then
+   if not require('src.robbery').pending(e) then target=nil;e.combatTarget=nil end
+  end
+  if not target then
+   if record.service or record.worldRecovery or record.waitingForHome then return trade(game,e,dt) end
+   if require('src.npc').thinkWork(game,e,dt,AI) then return end
+   Security.updateOnline(game,e,require('src.alife'))
+   if Security.hold(game,e,AI) then return end
+   return trade(game,e,dt)
+  end
+ else
+  if ai.style=='trader' then return trade(game,e,dt) end
+  target=pickTarget(game,e,x,y)
+ end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil
@@ -475,7 +472,7 @@ function AI.think(game, e, dt)
 	-- Self-preservation: a badly damaged ship backs off to well past its
 	-- preferred range and fights from there.
 	local hurt = e.armor < e.stats.armor * 0.35
-	local style = hurt and "kite" or ai.style
+	local style = (hurt or ai.style=="trader") and "kite" or ai.style
 
 	-- Where it wants to go, in world space.
 	local r = hurt and ai.range * 1.8 or ai.range
@@ -578,7 +575,7 @@ function AI.think(game,e,dt)
 	if e.asked then require("src.robbery").respond(game,e) end
 	if e.asked and require("src.distress").helper(game,e,dt,AI) then return end
 	think(game,e,dt)
-	if e.alifeRole=='pirate' and require("src.robbery").pending(e) then
+	if record and require('src.npc_access').raiding(record) and require("src.robbery").pending(e) then
 		local it=e.intent
 		it.firePrimary,it.fireSecondary,it.fireTertiary=false,false,false
 	end

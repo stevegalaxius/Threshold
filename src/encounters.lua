@@ -12,6 +12,7 @@ local T=require('src.tuning')
 local History=require('src.simulation_history')
 local Fuel=require('src.reactor_fuel')
 local Personality=require('src.personality')
+local Access=require('src.npc_access')
 local E={}
 local function active(r)
  return r and (r.state=='travel' or r.state=='idle') and not r.driverState and r.area~=nil
@@ -82,8 +83,7 @@ end
 --  * a side breaks at its morale threshold: civilians surrender cargo,
 --    pirates take it home, anyone else withdraws. Kills happen only when
 --    a side is wrecked before it breaks.
-local CIVILIAN={trader=true,courier=true,miner=true,salvager=true}
-E.civilian=CIVILIAN
+E.civilian=Access.civilian
 local function cargoOf(r)
  local hold=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
  return hold,hold and Hold.totals(hold) or r.ship.cargo or {}
@@ -125,7 +125,7 @@ function E.hitChance(attacker,target)
 end
 -- Morale: the armour fraction at which a side breaks off.
 function E.breakPoint(r)
- local base=CIVILIAN[r.role] and T.offlineCivilianBreak or r.role=='pirate' and T.offlinePirateBreak or T.offlinePatrolBreak
+ local base=Access.raiding(r) and T.offlinePirateBreak or Access.defending(r,r.area) and T.offlinePatrolBreak or T.offlineCivilianBreak
  return Personality.breakPoint(r,base)
 end
 -- Damage one side deals in a round. Spends real ammunition (carried back
@@ -212,7 +212,7 @@ E.coveringStation=coveringStation
 local function wreck(u,r,clock)
  local fight=r.encounter
  u.alifeWrecks=u.alifeWrecks or {}
- u.alifeWrecks[r.id]={id=r.id,role=r.role,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
+ u.alifeWrecks[r.id]={id=r.id,label=r.label,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
   progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
   ship=copy(r.ship),archetype=r.archetype}
  r.state='dead';r.ship.armor=0
@@ -250,8 +250,8 @@ function E.update(game,clock)
    for _,sid in ipairs(ids) do
     local s=records[sid];local f=s.encounter
     if f and f.support and not online[sid] then
-     if f.target==a.id and a.role=='pirate' then db=db+E.damage(s,T.offlineCombatTick,random(fight),a)
-     elseif f.target==b.id and b.role=='pirate' then da=da+E.damage(s,T.offlineCombatTick,random(fight),b) end
+     if f.target==a.id and Access.raiding(a) then db=db+E.damage(s,T.offlineCombatTick,random(fight),a)
+     elseif f.target==b.id and Access.raiding(b) then da=da+E.damage(s,T.offlineCombatTick,random(fight),b) end
     end
    end
    -- a covering station fires on the pirate side
@@ -259,7 +259,7 @@ function E.update(game,clock)
    if guns>0 then
     local roll=random(fight)
     local shot=guns*T.offlineCombatTick*T.offlineStationAccuracy*(.75+.5*roll)*T.offlineCombatHit
-    if a.role=='pirate' and b.role~='pirate' then db=db+shot elseif b.role=='pirate' and a.role~='pirate' then da=da+shot end
+    if Access.raiding(a) and not Access.raiding(b) then db=db+shot elseif Access.raiding(b) and not Access.raiding(a) then da=da+shot end
    end
    a.ship.armor=math.max(0,a.ship.armor-db);b.ship.armor=math.max(0,b.ship.armor-da)
    fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
@@ -274,7 +274,7 @@ function E.update(game,clock)
      -- the side further past its breaking point gives way
      local loser=(fa-E.breakPoint(a))<(fb-E.breakPoint(b)) and a or b
      local winner=loser==a and b or a
-     if CIVILIAN[loser.role] and winner.role=='pirate' then
+     if Access.civilian(loser) and Access.raiding(winner) then
       surrender(game,winner,loser)
       require('src.alife_trace').note(loser,clock,'encounter','broke, surrendered cargo to '..winner.id)
       require('src.alife_trace').note(winner,clock,'encounter','robbed '..loser.id..' -> heading home')
@@ -292,10 +292,10 @@ function E.update(game,clock)
  -- A patrol passing a pirate's fight joins it on the victim's side.
  for _,id in ipairs(ids) do
   local p=records[id]
-  if p.role=='patrol' and not p.encounter and not online[id] and fit(p,clock) then
+  if Access.defending(p,p.area) and not p.encounter and not online[id] and fit(p,clock) then
    for _,xid in ipairs(ids) do
     local x=records[xid];local f=x.encounter;local v=f and records[f.target]
-    if x.role=='pirate' and f and not f.support and v and v.role~='pirate' and x.area==p.area
+    if Access.raiding(x) and f and not f.support and v and not Access.raiding(v) and x.area==p.area
      and (close(p,x,clock) or close(p,v,clock)) then
      p.encounter={target=x.id,support=true,progress=fraction(p,clock),nextAt=clock,round=0,seed=f.seed}
      p.targetId=x.id;p.taskStatus='defending '..v.id
@@ -316,13 +316,13 @@ function E.update(game,clock)
  end
  for _,group in pairs(areas) do
   for _,a in ipairs(group) do
-   if a.role=='pirate' and not a.encounter and not a.piracy and Fuel.condition(a)~='stranded'
+   if Access.raiding(a) and not a.encounter and not a.piracy and Fuel.condition(a)~='stranded'
     and (a.offlineEyed or {})[1]~=math.floor(clock/T.offlineEngageWindow) then
     -- pick the softest prey in reach; patrols only if nothing else
     local target,best
     for _,b in ipairs(group) do
-     if (CIVILIAN[b.role] or b.role=='patrol') and not b.encounter and close(a,b,clock) then
-      local odds=E.odds(a,b)-(b.role=='patrol' and 1 or 0)
+     if (not Access.raiding(b)) and not b.encounter and close(a,b,clock) then
+      local odds=E.odds(a,b)-(Access.defending(b,b.area) and 1 or 0)
       if not best or odds>best then target,best=b,odds end
      end
     end
@@ -374,8 +374,8 @@ function E.syncOnline(game)
    -- next target scan quietly dropping it.
    local other=game.universe.npcs[r.encounter.target]
    e.aggressor=target;target.aggressor=e
-   if r.role~='trader' then e.combatTarget=target;e.securityThink=game.time+T.securityThink end
-   if other.role~='trader' then target.combatTarget=e;target.securityThink=game.time+T.securityThink end
+   if r then e.combatTarget=target;e.securityThink=game.time+T.securityThink end
+   if other then target.combatTarget=e;target.securityThink=game.time+T.securityThink end
    -- Once both bodies exist, ordinary AI owns the encounter completely.
    -- Do not leave frozen graph duties behind after a physical disengagement.
    History.begin(game.universe,r.id,other.id,game.universe.clock,r.area)
@@ -422,7 +422,7 @@ function E.materialize(game,px,py,clock)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
     local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
     ship.body:destroy();husk.alifeWreckId=id;husk.historyWreckId=w.historyWreckId
-    husk.origin=husk.origin or {};husk.origin.npc=w.npcId or id;husk.origin.role=w.role or husk.origin.role
+    husk.origin=husk.origin or {};husk.origin.npc=w.npcId or id;husk.origin.role=w.label or husk.origin.role
     u.alifeWrecks[id]=nil
    end
   end

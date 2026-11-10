@@ -9,19 +9,20 @@ return function(game)
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true
  local r
- for _,record in pairs(game.universe.npcs) do if record.role=='salvager' and record.home=='earth' then r=record;break end end
+ for _,record in pairs(game.universe.npcs) do if record.populationGroup=='salvager' and record.home=='earth' then r=record;break end end
  assert(r,'no initial Earth salvager')
  -- This fixture exercises salvage execution; mixed work selection is covered
  -- by stockpile.lua. Pin the usual work rather than assuming every selection.
  local function onlySalvage(r)
-  r.workWeights={salvage=1,transport=0}
-  if r.task and r.task.kind~='salvage' then
+  r.workWeights={salvage=1,transport=0,mine=0,patrol=0}
+  if not r.task or r.task.kind~='salvage' then
    local t=r.task
-   if t.kind=='transport' and t.phase=='delivery' then
+   if t and t.kind=='transport' and t.phase=='delivery' then
     r.ship.cargo[t.item]=math.max(0,(r.ship.cargo[t.item] or 0)-t.amount)
    end
    Tasks.release(game.universe,r,'fixture work',game.universe.clock)
    r.ship.hold=nil;r.state='docked'
+   game.universe.clock=game.universe.clock+3 -- allow the shared decision budget to advance
    require('src.npc').decide(game.universe,r,L.station('earth','trade'),game.universe.clock,game)
   end
  end

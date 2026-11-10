@@ -22,7 +22,7 @@ return function(game)
   nextId=nextId+1
   local node=Fields[area].buoyIds[1] or Fields[area].stationIds[1]
   local h=hull or 'intaki_wisp'
-  local r={id='offline-loot/'..nextId,home=area,area=area,role='pirate',archetype='pirate_wisp',speed=600,
+  local r={id='offline-loot/'..nextId,home=area,area=area,task={kind='raid'},archetype='pirate_wisp',speed=600,
    route={node,node},node=node,index=1,state='idle',untilTime=clock+100,
    ship={hull=h,loadout=data.hulls[h].loadout,cargo={},armor=data.hulls[h].armor}}
   u.npcs[r.id]=r

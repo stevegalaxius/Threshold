@@ -948,17 +948,31 @@ threshold online against NPC opponents and offline; retaliation is unaffected.
 Roles, weapon damage, and fuel requirements do not change.
 
 
-Traders and salvagers now share the civilian controller and can accept either
-freight or salvage. Their saved `workProfile` references shared preferences:
-`freight_regular` favors transport 9:1, and `scavenger` favors salvage 9:1.
-When both categories have suitable work, a stable weighted choice picks the
-category; existing opportunity scores select the job within it. Only accepting
-a job advances `jobsStarted`, so idle retries cannot reroll the choice. Per-NPC
-`workWeights` can override profile weights (zero disables a category). F6 shows
-the profile alongside the active job. Collection, docking, sales and offline
-loot follow the active task, so a salvager delivering freight does not scavenge
-or sell that shipment. Mining and security work remain separate in this first
-step. This change targets fresh saves; no old-save migration is provided.
+All persistent NPCs use one controller (`src/npc.lua`). Freight, salvage,
+mining, patrol, raid and fencing are task handlers; an NPC's identity never
+selects a controller or grants access to work. Population templates seed a
+ship, equipment, home, affiliation, authorization and `workProfile`. Population
+groups count replenishment only. Profiles favor freight, salvage, industrial,
+police or raiding work; `workWeights` can override each category, with zero
+disabling it. The stable weighted choice advances only on job acceptance.
+Capabilities and authorization are checked before ranking; opportunity scoring
+and route checks then pick a feasible offer. Mining resource handling and
+steering are task-specific, while completion and selection use the common loop.
+
+Faction police receive explicit grants, for example
+`{kind="police", issuer="zhuhai", jurisdiction="mars"}`. A patrol offer declares
+its `issuer`, `jurisdiction`, and `requires={authorization="police"}`. Both issuer
+and jurisdiction must match a grant; affiliation or preference alone grants no
+authority. All patrol work requires an armed ship. A freelance patrol offer can
+omit the authorization requirement and use the same handler, without granting
+police powers. Freelance contracts protect their declared jurisdiction while
+active; permanent police remain on call while doing other work, including
+service returns. Police enforcement uses standing with the grant's issuer;
+affiliation affects personal reputation independently of occupation.
+No faction-to-faction diplomacy is introduced.
+
+F6 shows identity, preferences, affiliation, authorizations and the active task.
+This architecture targets fresh saves; no old-role save migration is provided.
 
 
 ## Tests

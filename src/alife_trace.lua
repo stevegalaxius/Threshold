@@ -29,6 +29,6 @@ function Tr.controller(game,r,e)
  if r.worldRecovery then return 'world recovery' end
  if r.piracy then return 'piracy: '..r.piracy.phase end
  if r.offlineLoot then return 'collecting loot ('..r.offlineLoot.kind..')' end
- return r.task and ('job: '..r.task.kind) or 'looking for work: '..(r.workProfile or r.role or '?')
+ return r.task and ('job: '..r.task.kind) or 'looking for work: '..(r.workProfile or r.label or '?')
 end
 return Tr

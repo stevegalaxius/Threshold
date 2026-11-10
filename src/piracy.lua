@@ -1,4 +1,4 @@
--- Cargo acquisition and return duties for the existing persistent pirates.
+-- Cargo acquisition and return-to-storage work.
 local T=require('src.tuning')
 local L=require('src.locations')
 local G=require('src.travelgraph')
@@ -67,6 +67,7 @@ function P.returnRecord(game,r)
  r.service,r.serviced=nil,nil
  require('src.alife_trace').note(r,game.universe.clock,'piracy','returning to '..base)
  r.piracy={phase='escape',base=base,origin=L.rally(r.home,source,game.universe.clock) or L.station(r.home,'trade'),started=game.universe.clock}
+ r.task={id='fence/'..r.id..'/'..game.universe.clock,kind='fence',source=source,target=base}
  r.taskWorker=true;r.taskStatus='returning to '..L.get(base).name
  if r.state=='travel' then
   local previous=r.route[(r.index-2)%#r.route+1]
@@ -90,7 +91,7 @@ function P.beginReturn(game,e,r)
 end
 -- Pirates carrying loot: home to the base, unload, then back to the hunting
 -- grounds. Movement, docking and upkeep are the shared NPC loop's (src/npc.lua);
--- once back on the raid network the pirate is a 'security' job again.
+-- after returning, the shared controller selects the next eligible job.
 local NPC=require('src.npc')
 local function next(c)
  local u,r,clock=c.u,c.r,c.clock
@@ -113,16 +114,16 @@ local function next(c)
  local area=L.get(c.node).area
  local rally=L.rally(area,c.node,clock)
  local path=rally and itinerary(c.node,rally,clock)
- r.piracy=nil;r.taskWorker=nil;r.taskStatus=nil;r.area=area
+ r.piracy=nil;Tasks.release(u,r,'completed',clock);r.taskWorker=true;r.taskStatus=nil;r.area=area
  if path and #path>1 then return {route=path} end
  return nil -- the shared loop roams it to a buoy
 end
-NPC.job('piracy',{
- match=function(r) return r.piracy~=nil end,
+Tasks.register('fence',{
+ requires={capabilities={'cargo'}},
  docks=function(r,id) return r.piracy and r.piracy.phase=='escape' and L.canonical(id)==L.canonical(r.piracy.base or Homes.get(r)) end,
  stay=function() return T.pirateRest end,
- next=next,
- roam=function(r,node) local f=Fields[L.get(node).area];return f and f.buoyIds or {} end,
+ complete=function() return false end,
+ continue=next,
 })
 -- Kept for callers outside the loop: finish the current stop now.
 function P.depart(u,r,clock)
@@ -130,8 +131,8 @@ function P.depart(u,r,clock)
 end
 function P.advance(r,clock,u) return NPC.advance(r,clock,u) end
 function P.think(game,e,dt,AI)
- if e.alifeRole~='pirate' then return false end
- local r=game.universe.npcs[e.alifeId];if not r then return false end
+ local r=game.universe.npcs[e.alifeId]
+ if not r or not (r.piracy or r.task and r.task.kind=='raid') then return false end
  Ship.ensureGridHold(e)
  if r.piracy then
   e.tractorTarget=nil;e.intent.tractor=false
@@ -148,4 +149,5 @@ function P.think(game,e,dt,AI)
  if hurt and Scavenge.taken(r)>0 then e.tractorTarget=nil;e.intent.tractor=false;return false end
  return Scavenge.think(game,e,dt,AI,r,NPC)
 end
+Tasks.definitions.fence.think=P.think
 return P

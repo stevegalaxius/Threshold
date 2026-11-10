@@ -1,5 +1,5 @@
 -- Two saved traits, 0..1, generated without changing the world's random stream.
--- Roles still decide what an NPC does; traits adjust choices within that role.
+-- Profiles favor kinds of work; traits adjust choices within eligible work.
 local T=require('src.tuning')
 local P={}
 function P.ensure(r)

@@ -45,7 +45,7 @@ return function(game)
  -- an idle trader flies empty to work elsewhere, loads there, then delivers
  local copy=require('src.persistence').copy
  local template
- for _,r in pairs(u.npcs or {}) do if r.role=='trader' and r.taskWorker and r.home~='mars' then template=copy(r);break end end
+ for _,r in pairs(u.npcs or {}) do if r.populationGroup=='trader' and r.taskWorker and r.home~='mars' then template=copy(r);break end end
  assert(template,'no trader fixture')
  do
   local r=template;r.id='npc/990001';r.task=nil;r.ship.hold=nil;r.ship.cargo={}
@@ -120,7 +120,7 @@ return function(game)
   local NPC=require('src.npc')
   local Scavenge=require('src.scavenge')
   for _,role in ipairs({'trader','salvager'}) do
-   local r=copy(template);r.id='npc/mixed/'..role;r.role=role;r.home='venus'
+   local r=copy(template);r.id='npc/mixed/'..role;r.populationGroup=role;r.home='venus'
    r.task=nil;r.workProfile=nil;r.ship.hold=nil;r.ship.cargo={}
    r.workWeights={transport=1,salvage=0}
    local w={clock=u.clock,npcs={[r.id]=r},stations={}}
@@ -130,19 +130,19 @@ return function(game)
    local t=assert(Tasks.choose(w,r,jup,w.clock))
    local started=r.jobsStarted
    assert(Tasks.choose(w,r,jup,w.clock)==t and r.jobsStarted==started,'accepted work is not reconsidered')
-   assert(NPC.jobOf(r).name=='civilian' and NPC.docksAt(r,ven) and not Scavenge.profile(r),'freight uses shared docking and cannot scavenge')
+   assert(NPC.docksAt(r,ven) and not Scavenge.profile(r),'freight uses shared docking and cannot scavenge')
    assert(Tasks.arrive(w,r,ven,w.clock,scene),'either identity can deliver freight')
    r.workWeights={transport=0,salvage=0};started=r.jobsStarted
    assert(not Tasks.choose(w,r,ven,w.clock) and r.jobsStarted==started,'idle retries do not advance the preference cycle')
    r.workWeights={transport=0,salvage=1}
    Tasks.post(w,{kind='salvage',source=ven,target=ven,system='venus',cooldown=30})
    assert(Tasks.choose(w,r,ven,w.clock),'either identity can accept salvage')
-   assert(NPC.jobOf(r).name=='civilian' and NPC.docksAt(r,ven) and Scavenge.profile(r).clears,'active salvage job supplies collection and docking')
+   assert(NPC.docksAt(r,ven) and Scavenge.profile(r).clears,'active salvage job supplies collection and docking')
    r.ship.cargo.scrap=1;Scavenge.took(r,'scrap',1,w.clock)
    local credits=r.credits or 0
    assert(Tasks.arrive(w,r,ven,w.clock,scene),'salvage completes through the same task path')
    assert(r.credits>credits and r.ship.cargo.scrap==0 and not r.salvageReturn and not Scavenge.profile(r),'salvage is sold and collection state ends with the job')
-   assert(r.role==role,'taking other work does not replace the NPC identity')
+   assert(r.populationGroup==role,'taking other work does not replace the NPC identity')
   end
  end
  print(('stockpile: ok (Mars made %d canisters in an hour; %d commodity hauls)'):format(made,hauls))

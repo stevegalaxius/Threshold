@@ -12,9 +12,9 @@ The world should make interesting situations on its own. Every event the player 
 
 1. **Records are the truth, bodies are temporary.** Records save directly. A body is built from a record and folded back into it.
 2. **Online and offline are the same rules.** Any behaviour added online (who pirates target, who docks, who holds grudges) needs a matching offline version, and the other way round.
-3. **Fixed archetypes.** An NPC is one role for life. Nobody switches jobs (for example a trader who turns pirate when broke), because it's too hard to balance.
-4. **Loners are the default population.** Most NPCs belong to no faction. Sovereign powers are mostly backdrop: owned space, guards and local rules. Faction-flagged NPCs are rare set pieces.
-5. **The job board is for contract work.** Hauling, mining and bounties go on one shared `Tasks` board that NPCs and the player can both take, so the player competes with the world for work. Each archetype's own loop drives everything else (patrolling, lurking, wandering), with no posting needed. There are no special cases per planet.
+3. **Persistent preferences.** Every NPC uses one controller. Shared preference profiles make individuals favor particular kinds of work, while allowing occasional alternatives. Equipment, circumstances and authorizations determine eligibility; the active task determines execution. Ambition and aggression vary individual decisions.
+4. **Loners are the default population.** Most NPCs belong to no faction. Sovereign powers are mostly backdrop: owned space, guards and local rules. Affiliated NPCs provide flavor. Local faction police have explicit, scoped authorization; affiliation alone grants no police powers. There is no faction-to-faction diplomacy.
+5. **The job board is for contract work.** Hauling, mining and bounties go on one shared `Tasks` board that NPCs and the player can both take, so the player competes with the world for work. Patrol and raid duties use task handlers on the same board. Issuer and jurisdiction requirements distinguish faction police duties from freelance patrol work. There are no special cases per planet.
    To keep it from making behaviour samey:
    - **Boards are local, not global.** Each station posts its own jobs, shaped by its owner and type. A mining outpost offers different work from a court. An NPC only sees the boards where it docks.
    - **NPCs pick by temperament.** Each record has a few preference weights (risk, distance, pay, cargo type), so two haulers looking at the same board choose differently, and some walk away.
@@ -39,17 +39,24 @@ The world should make interesting situations on its own. Every event the player 
 
 The band has a gap (near/far) so ships don't flicker. A ship coming online mid-edge appears at its interpolated pose with cruise velocity.
 
-## Roles
+## Work and identity
 
-| Role | Loop | Board task |
+NPCs have no behavioral role. Population templates choose starting equipment,
+residence, affiliation, scoped authorizations and a preference profile. The
+shared controller selects eligible work, commits to it, handles upkeep and
+movement, and dispatches the active task's execution hooks.
+
+| Work | Execution | Requirements |
 |---|---|---|
-| Trader | Haul between stations | `transport` (placeholder cargo for now) |
-| Miner | Belt/site to home station | `mine` |
-| Salvager | Sweep loose cargo around a planet and its moons, sell locally | `salvage` |
-| Patrol | Loop and dock at owned stations, hunt pirates | none (own loop; may take bounties) |
-| Pirate | Lurk on busy edges, raid, return to base to fence | none (own loop) |
+| Freight | Collect and deliver station stock | Cargo capacity |
+| Mining | Work finite resources and return the collected ore | Drill and free hold space |
+| Salvage | Collect loose items and sell the recovery manifest | Free hold space |
+| Patrol | Visit the offered nodes and respond to local aggression | Armed; police duties also require matching issuer/jurisdiction authorization |
+| Raid / fence | Hunt, acquire cargo, return it to storage | Armed for raiding; return is a continuation task |
 
-`src/population.lua` keeps each area topped up per role, using saved spawn timers.
+Permanent police authority stays active within its jurisdiction even during
+other assignments. Freelance patrol contracts do not grant that authority.
+Population replenishment counts birth templates, independently of current work.
 
 ## Economy
 
@@ -105,7 +112,7 @@ Build this after fights and wrecks exist (build step 3), because before that the
 |---|---|---|---|
 | Online band | 7,000 / 8,000 px, same as debris | `T.alifeNear/Far = 18000/22000`, separate from debris (7,000/6,000) | Code looks deliberate, so the doc should follow the code |
 | Courier role | Couriers use mass drivers between planets | No courier role. Traders cross planets via drivers and moon gates | Resolved: folded into trader |
-| Factions on records | `faction` field, patrols loop their faction's nodes | No faction field on records | Fits "loners default", but patrols still need an owner |
+| Factions on records | Affiliation independent of work | `affiliation` and scoped `authorizations` on NPC records | Police authority is distinct from affiliation |
 | Disposition / heat | Specced | Not built. The only grudges are weak-keyed, online-only station grudges (`game.lua:958`, `:1845`) | Station grudges break principle 2 (no offline twin) |
 | Task generation (layers / arbiter) | Specced | Not built. `src/events.lua` is only an event bus, and the board only carries NPC work | Planned |
 | Instances | Fifth-faction sites as sub-graphs | `Fields[area].instance` flag exists, and population skips instances | Fifth faction not built yet |
@@ -113,7 +120,7 @@ Build this after fights and wrecks exist (build step 3), because before that the
 | Online vs offline pirate prey | Same rules | Online `security.lua` picks prey by `ai.style=="trader"`, offline `encounters.lua` also targets miners and patrols | Audit item. Check whether PR #37 fully closed it |
 | Fight log | `fight_log` on records | Not built | Needed for task generation |
 
-| Job board scope | Contract work shared by NPCs and player | Board holds `patrol` and `raid` too, and the player can't take board jobs | Move patrol/raid to role loops, open the board to the player |
+| Job board scope | All NPC work uses task handlers; player access planned | Board supports freight, mining, salvage, patrol and raid; police duties require authorization | Player access remains future work |
 
 ## Open questions
 

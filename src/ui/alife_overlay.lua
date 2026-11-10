@@ -104,7 +104,7 @@ function O.draw(game,toScreen,font)
   if label and n.id~=st.selected then
    if font then lg.setFont(font) end
    -- the old N overlay's readout: who, what's driving it, what it's doing
-   lg.setColor(c[1],c[2],c[3],.85);lg.print(n.id..' '..(n.r.role or '')..'  '..Trace.controller(game,n.r,n.e),x+6,y-6)
+   lg.setColor(c[1],c[2],c[3],.85);lg.print(n.id..' '..(n.r.label or '')..'  '..Trace.controller(game,n.r,n.e),x+6,y-6)
    local status=require('src.reactor_fuel').activity(n.r)
    status=require('src.queue').label(n.r,clock) or status
    local stop=heading(n.r,n.e)
@@ -160,7 +160,7 @@ function O.draw(game,toScreen,font)
   end
   lg.setColor(1,.85,.4);lg.circle('line',sel.x,sel.y,10)
   if font then lg.setFont(font) end
-  lg.print(n.id..'  '..(r.role or '')..'  '..Trace.controller(game,r,e),sel.x+14,sel.y-8)
+  lg.print(n.id..'  '..(r.label or '')..'  '..Trace.controller(game,r,e),sel.x+14,sel.y-8)
   local status=require('src.reactor_fuel').activity(r)
   status=require('src.queue').label(r,clock) or status
   local stop=heading(r,e)

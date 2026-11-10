@@ -47,7 +47,7 @@ end
 -- The pirate has (re)chosen target; returns true if it should still shoot it.
 function R.consider(game,pirate,target)
  if not target or target.dead then return true end
- local civilian=target.isPlayer or target.npcRole and require('src.security').prey(target)
+ local civilian=target.isPlayer or require('src.security').prey(target)
  if not civilian then return true end
  pirate.spared=pirate.spared or setmetatable({},{__mode='k'})
  local d=demandOf(pirate)

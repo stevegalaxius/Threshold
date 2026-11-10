@@ -123,45 +123,6 @@ local function neighbours(area)
  return result
 end
 
-local chooseClock,chooseCount=nil,0
--- Traders: the job board's transport work. Movement, docking and upkeep are
--- the shared NPC loop's (src/npc.lua).
-NPC.job('civilian',{
- match=function(r) return true end, -- registered last: any other civilian
- docks=function(r,id)
-  id=L.canonical(id)
-  -- a pickup loads at its source: a live ship that only passed by it
-  -- circled the station's inspection point forever, never loading
-  local t=r.task
-  -- on the empty leg to a pickup only the source counts: passing through
-  -- the delivery target (often on the way) docked there, then left and
-  -- docked again on the next pass, over and over
-  if t and t.phase=='pickup' then return id==t.source end
-  return not t or id==t.target
- end,
- complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
- next=function(c)
-  local u,r,clock=c.u,c.r,c.clock
-  local station=L.canonical(c.node)
-  r.taskWorker=true
-  if (r.nextTaskAt or 0)>clock then return {wait=r.nextTaskAt-clock} end
-  -- Stagger job hunting: a few traders per tick, the rest try again shortly,
-  -- so a new game's whole fleet doesn't weigh the job board in one frame.
-  if not r.task then
-   if chooseClock~=clock then chooseClock,chooseCount=clock,0 end
-   if chooseCount>=T.taskChoosePerTick then return {wait=love.math.random()*2} end
-   chooseCount=chooseCount+1
-  end
-  local task=Tasks.choose(u,r,station,clock)
-  if not task then return {wait=8+love.math.random()*4} end
-  r.nextTaskAt=nil
-  local route=Tasks.plan(r,station,clock)
-  if not route then Tasks.release(u,r,'no route',clock);return {wait=10} end
-  r.onRoundTrip=nil;r.tripRoute=nil;r.tripDestination=nil
-  return {route=route}
- end,
-})
-
 function A.createTrader(game,area,i)
  local u,f=game.universe,Fields[area]
  local kinds={'freighter','packhorse_trader','runner_trader'}
@@ -171,10 +132,11 @@ function A.createTrader(game,area,i)
  local id='npc/'..u.nextNpcId
  local loadout=copy(def.loadout or hull.loadout)
  local stats=Stats.compute(hull,loadout)
- local r={id=id,area=area,home=area,role='trader',workProfile='freight_regular',archetype=kind,
+ local r={id=id,area=area,home=area,archetype=kind,
   route=copy(f.traderRoute),speed=NPC.cruise(kind),
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
+ require('src.npc_templates').apply(r,'trader',area)
  require('src.personality').ensure(r)
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
  -- Every trader works the dispatch board (transport jobs to other regions,
@@ -215,7 +177,7 @@ function A.seed(game)
  -- Saves with plain circuit traders: they join the board at their next
  -- docking stop (a round trip under way finishes first).
  for _,r in pairs(u.npcs) do
-  if r.role=='trader' and not r.piracy then r.taskWorker=true end
+  if r.mobile and not r.piracy then r.taskWorker=true end
   if r.job then
    if r.job.phase=='delivery' and r.ship.cargo then r.ship.cargo.martian_ore=nil end
    r.job,r.jobStatus,r.onRoundTrip,r.tripDestination,r.tripRoute=nil,nil,nil,nil,nil
@@ -243,7 +205,7 @@ function A.seed(game)
    if area~='mars' and Fields[area].driverId and L.station(area,'trade') then
     local worker
     for _,r in pairs(u.npcs) do
-     if r.role=='trader' and r.home==area and not r.onRoundTrip and not r.tripDestination
+     if r.mobile and r.home==area and not r.onRoundTrip and not r.tripDestination
       and r.state~='dead' and r.state~='escaped' and (not worker or r.id<worker.id) then worker=r end
     end
     if worker then worker.taskWorker=true end
@@ -393,13 +355,13 @@ end
 
 function A.point(r,clock)
  local x,y=A.trackPoint(r,clock)
- if not x or r.state=='docked' or r.offlineLoot or Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return x,y end
+ if not x or r.state=='docked' or r.offlineLoot or (NPC.work(r) and NPC.work(r).point) and not (r.worldRecovery or r.waitingForHome) then return x,y end
  local sx,sy=A.spread(r)
  return x+sx,y+sy
 end
 function A.trackPoint(r,clock)
  if r.offlineLoot then local x,y=require("src.offline_loot").position(r,clock);if x then return x,y end end
- if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return Mining.point(nil,r,clock) end
+ if (NPC.work(r) and NPC.work(r).point) and not (r.worldRecovery or r.waitingForHome) then return NPC.work(r).point(nil,r,clock) end
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  if r.state=='idle' then
@@ -519,8 +481,8 @@ function A.capture(game,e,remote)
   r.pose=not remote and {x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock} or nil
   return
  end
- if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return Mining.capture(game,e,r,remote) end
- if Security.isRole(r) and not r.piracy and not r.worldRecovery and not Security.shouldDock(r,r.route[r.index]) then return Security.capture(game,e,r,remote) end
+ local work=NPC.work(r)
+ if work and work.capture and not (r.service or r.worldRecovery or r.waitingForHome) and work.capture(game,e,r,remote)~=false then return end
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
   local previous=r.transit.departure
@@ -566,7 +528,7 @@ function A.capture(game,e,remote)
   end
   r.index=index
   r.state='docked'
-  if r.role=='patrol' then r.node=ds.station.locationId end
+  r.node=ds.station.locationId
   r.untilTime=clock+(ds.done and math.max(0,(ds.stay or T.alifeStay)-ds.t) or T.alifeStay)
   -- Preserve an in-progress physical docking operation for immediate save/load.
   r.docking={}
@@ -610,7 +572,9 @@ function A.capture(game,e,remote)
 end
 
 local function bindRoute(game,e,r)
- if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome or r.service) then return Mining.bind(game,e,r) end
+ e.team=require('src.npc_access').raiding(r) and 2 or 3
+ local work=NPC.work(r)
+ if work and work.bind and not (r.service or r.worldRecovery or r.waitingForHome) then return work.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
@@ -670,8 +634,6 @@ function A.wake(game,r)
  e.alifeId=r.id
  e.npcCruise=r.speed
  Fuel.observe(game.universe,r,game.universe.clock,e)
- e.alifeRole=Security.isRole(r) and r.role or nil
- e.npcRole=r.role
  e.alifeRecord=r;e.alifeGame=game
  e.fleeing=r.fleeing
  if egress then
@@ -821,7 +783,6 @@ function A.install(Game)
    serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock
   end
   local r=self.universe.npcs[e.alifeId]
-  if Mining.isMiner(r) and not r.worldRecovery then return Mining.depart(self,e,station) end
   if not r then return true end
   return NPC.departOnline(self,e,station)
  end
@@ -833,7 +794,6 @@ function A.install(Game)
    start(r,self.universe.clock,r.index%#r.route+1);bindRoute(self,e,r);return
   end
   local r=self.universe.npcs[e.alifeId]
-  if Mining.isMiner(r) and not r.worldRecovery then return Mining.bind(self,e,r) end
   if e.npcDeparture then
    -- the record left when the ship asked to undock: its leg starts now
    e.npcDeparture=nil

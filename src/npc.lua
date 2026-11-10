@@ -16,33 +16,45 @@ local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Trace=require('src.alife_trace')
 local Tasks=require('src.tasks')
-local N={jobs={},order={}}
+local N={}
 local deps={}
 function N.install(d) for k,v in pairs(d) do deps[k]=v end end
 
--- Jobs ----------------------------------------------------------------------
--- definition = {
---   match(r)                       -> this record does this job
---   docks(r,node)                  -> docks (true) or holds (false) at the end of a leg
---   stay(r,node)                   -> seconds to stay after arriving (default T.alifeStay)
---   complete(ctx)                  -> work done on arrival (deliveries, sales, unloading)
---   next(ctx)                      -> {route=..., wait=...} or nil when there's nothing to do
---   before(ctx)                    -> optional, runs each advance before the loop
---   advance(game,r,clock)          -> optional: the job keeps its own world model (miners)
--- }
--- ctx = {u=,game=,r=,node=,clock=}
-function N.job(name,definition)
- definition.name=name
- if not N.jobs[name] then N.order[#N.order+1]=name end
- N.jobs[name]=definition
-end
-function N.jobOf(r)
- if not r then return end
- for _,name in ipairs(N.order) do
-  local j=N.jobs[name]
-  if j.match(r) then return j end
- end
-end
+-- One decision controller. Task handlers supply execution hooks, not AI loops.
+local chooseClock,chooseCount
+N.controller={name='npc',
+ docks=function(r,id)
+  local t=r.task
+  return not t or L.canonical(id)==L.canonical(t.phase=='pickup' and t.source or t.target)
+ end,
+ complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
+ next=function(c)
+  local u,r,node,clock=c.u,c.r,L.canonical(c.node),c.clock
+  local work=N.work(r)
+  if work and work.continue then
+   local plan=work.continue(c)
+   if plan then return plan end
+  end
+  if (r.nextTaskAt or 0)>clock then return {wait=r.nextTaskAt-clock} end
+  if not r.task then
+   if chooseClock~=clock then chooseClock,chooseCount=clock,0 end
+   if chooseCount>=T.taskChoosePerTick then return {wait=2} end
+   chooseCount=chooseCount+1
+  end
+  local task=Tasks.choose(u,r,node,clock)
+  if not task then return end
+  r.taskWorker=true;r.nextTaskAt=nil
+  local route=Tasks.plan(r,node,clock)
+  if not route then Tasks.release(u,r,'no route',clock);return end
+  return {route=route,wait=task.duration,dock=task.dock}
+ end,
+ roam=function(r,node)
+  local f=Fields[L.get(node).area];local nodes={}
+  for _,id in ipairs(f.buoyIds or {}) do nodes[#nodes+1]=id end
+  for _,id in ipairs(L.stations(f.id or L.get(node).area,'trade')) do nodes[#nodes+1]=id end
+  return nodes
+ end,
+}
 
 -- Speed -----------------------------------------------------------------------
 -- One cruise speed for every NPC. Hulls only nudge it (±15%), so a pirate,
@@ -77,7 +89,7 @@ function N.docksAt(r,id)
  if r.service then return require('src.upkeep').isStation(r,id) end
  local work=N.work(r)
  if work and work.docks then return work.docks(r,id) and L.get(id).kind=='station' end
- local j=N.jobOf(r)
+ local j=N.controller
  if j and j.docks then return j.docks(r,id) and L.get(id).kind=='station' end
  return false
 end
@@ -88,7 +100,7 @@ function N.arrive(r,node,at)
  r.offset,r.pose=nil,nil
  r.node=node;r.area=L.get(node).area;r.transit=nil
  r.route={node,node};r.index=1
- local j=N.jobOf(r)
+ local j=N.controller
  local work=N.work(r)
  local stay=(work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
  if L.get(node).kind=='station' and N.docksAt(r,node) then
@@ -113,7 +125,7 @@ N.go=go
 -- A ship with nothing to do still moves: it wanders to a nearby node of its
 -- job, so nothing sits forever at one buoy because the board is busy.
 local function wander(r,node,at)
- local j=N.jobOf(r)
+ local j=N.controller
  local nodes=j and j.roam and j.roam(r,node) or {}
  local choices={}
  for _,id in ipairs(nodes) do if id~=node and L.byId[id] then choices[#choices+1]=id end end
@@ -131,7 +143,7 @@ end
 -- Decide what to do next, standing at `node` at time `at`. Returns true when
 -- the ship has started moving (or was given something to wait for).
 function N.decide(u,r,node,at,game)
- local j=N.jobOf(r);if not j then return false end
+ local j=N.controller;if not j then return false end
  local ctx={u=u,game=game,r=r,node=node,clock=at}
  if j.complete then j.complete(ctx) end
  if L.get(node).kind=='station' then Supplies.refill(r,node) end
@@ -167,9 +179,9 @@ end
 -- The offline loop: complete every event up to `clock`.
 function N.advance(r,clock,u,game)
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
- local j=N.jobOf(r)
- if j and j.advance and not r.worldRecovery then return j.advance(game or {universe=u},r,clock) end
+ local j=N.controller
  local work=N.work(r)
+ if work and work.advance and not r.worldRecovery then return work.advance(game or {universe=u},r,clock) end
  if work and work.before then work.before({u=u,game=game,r=r,clock=clock})
  elseif j and j.before then j.before({u=u,game=game,r=r,clock=clock}) end
  for _=1,128 do

@@ -92,9 +92,9 @@ function R.begin(u,r,clock,start)
  end
  r.waitingForHome=nil;r.taskStatus=keep and 'rerouting delivery' or 'returning to home station'
  r.worldRecovery={target=target,delivery=not not keep}
- if r.role~='pirate' then r.home=L.get(home).area end
- if r.role=='miner' then r.base=home;r.mineSite=nil end
- if r.role=='pirate' then
+ if not r.roamingHome then r.home=L.get(home).area end
+ if r.task and r.task.kind=='mine' then r.base=home;r.mineSite=nil end
+ if r.piracy~=nil then
   r.taskWorker=true
   r.piracy=r.piracy or {phase='escape',origin=L.rally(r.home,node,clock) or node}
   r.piracy.base=home;r.piracy.phase='escape'
@@ -123,12 +123,7 @@ end
 function R.resume(u,r,clock)
  local duty=r.worldRecovery;if not duty then return end
  r.worldRecovery=nil;r.taskStatus=nil;r.node=duty.target;r.state='docked';r.untilTime=clock or u.clock
- if r.role=='trader' or r.role=='courier' then
-  if not r.taskWorker then
-   r.route=copy(F[r.area].traderRoute);r.index=1
-   for i,id in ipairs(r.route) do if id==duty.target then r.index=i;break end end
-  end
- end
+
 end
 function R.prepare(game,start)
  local u,clock=game.universe,game.universe.clock
@@ -147,7 +142,7 @@ function R.prepare(game,start)
    local invalid=not validRoute(r) or not taskValid(r.task) or r.waitingForHome
    for _,id in ipairs(r.route or {}) do if not samePlace(u,id) then invalid=true end end
    if oldHome and oldHome~=home then invalid=true end
-   if home and r.role~='pirate' and L.get(home).area~=r.home then invalid=true end
+   if home and not r.roamingHome and L.get(home).area~=r.home then invalid=true end
    if invalid then R.begin(u,r,clock,start) end
   end
  end

@@ -12,7 +12,7 @@ return function(game)
  assert(Rep.ofNode('station:uranus_1')=='bowman','Uranus is Bowman Atmospherics')
  assert(Rep.ofNode('station:triton_1')==nil,'Neptune is unowned')
  assert(Rep.ofRecord({role='trader',home='earth'})==nil,'traders are loners')
- assert(Rep.ofRecord({role='patrol',home='earth'})=='estates','patrols serve their home')
+ assert(Rep.ofRecord({affiliation='estates',home='earth'})=='estates','explicit affiliation determines standing')
  local node='station:earth_1'
  assert(not Rep.hostile(Rep.stationAttitude(u,node)),'neutral to start')
  for _=1,4 do Rep.stationHit(u,node) end
@@ -26,14 +26,14 @@ return function(game)
  assert(state.reputation and state.reputation.standing.estates,'standing is saved')
  Rep.addStanding(u,'estates',-80)
  assert(Rep.hostile(Rep.stationAttitude(u,node)),'low standing alone is hostile')
- local patrol={role='patrol',home='earth'}
+ local patrol={affiliation='estates',home='earth'}
  assert(Rep.hostile(Rep.attitude(u,patrol)),'and so are its patrols')
  u.clock=u.clock+3600*100
  assert(Rep.tier(Rep.standing(u,'estates')).id=='neutral','standing forgives with time')
  local trader={role='trader'}
  Rep.shipHit(u,trader);Rep.shipHit(u,trader);Rep.shipHit(u,trader)
  assert(Rep.tier(Rep.attitude(u,trader)).id=='hostile','a ship remembers being shot')
- Rep.shipKilled(u,{role='pirate'},'saturn')
+ Rep.shipKilled(u,{task={kind='raid'}},'saturn')
  assert(Rep.standing(u,'diwan')>0,'killing pirates in their space pleases the owner')
  Rep.addStanding(u,'diwan',60)
  assert(Rep.priceFactor(u,'station:saturn_1')<1 and Rep.priceFactor(u,'station:mars_1')==1,'friends get discounts')

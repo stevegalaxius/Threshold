@@ -3,17 +3,19 @@
 -- inside it. Offer counts cannot drown out a preference, and idle retries do
 -- not reroll it. Missing preferred work leaves other eligible work available.
 local W={profiles={
- freight_regular={transport=9,salvage=1},
- scavenger={transport=1,salvage=9},
+ freight_regular={transport=9,salvage=1,mine=1,patrol=1},
+ scavenger={transport=1,salvage=9,mine=1,patrol=1},
+ industrial={transport=1,salvage=1,mine=9,patrol=1},
+ local_police={transport=1,salvage=1,mine=1,patrol=9},
+ raider={transport=1,salvage=1,mine=1,raid=9},
+ generalist={transport=1,salvage=1,mine=1,patrol=1},
 }}
-local defaults={trader='freight_regular',courier='freight_regular',salvager='scavenger'}
 function W.profile(r)
- r.workProfile=r.workProfile or defaults[r.role]
- return r.workProfile and W.profiles[r.workProfile]
+ r.workProfile=r.workProfile or 'generalist'
+ return assert(W.profiles[r.workProfile],'unknown NPC work profile '..r.workProfile)
 end
 function W.weight(r,kind)
  local profile=W.profile(r)
- if not profile then return nil end -- other controllers are not opted in yet
  return r.workWeights and r.workWeights[kind] or profile[kind] or 0
 end
 function W.rank(r,kind)

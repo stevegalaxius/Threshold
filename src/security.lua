@@ -1,4 +1,4 @@
--- Fixed-role duties use the same reservation/task lifecycle as transport.
+-- Patrol/raid tasks, scoped police authority, and shared combat policy.
 local Tasks=require('src.tasks')
 local G=require('src.travelgraph')
 local L=require('src.locations')
@@ -10,8 +10,8 @@ local copy=require('src.persistence').copy
 local Population=require('src.population')
 local Homes=require('src.npc_home')
 local NPC=require('src.npc')
+local Access=require('src.npc_access')
 local S={}
-function S.isRole(r) return r and (r.role=='patrol' or r.role=='pirate') end
 local function route(source,target,clock)
  if source==target then return {source,source} end
  local path=G.route(G.build(L.get(source).area),source,target,clock)
@@ -54,22 +54,24 @@ local armorMax=Repairs.maximum
 local needsRepair=Repairs.needs
 local function dockStay(r,node) return Repairs.stay(r,node,T.patrolDockStay) end
 for _,kind in ipairs({'patrol','raid'}) do
- local role=kind=='patrol' and 'patrol' or 'pirate'
  Tasks.register(kind,{
-  roles={[role]=true},
+  requires={capabilities={'armed'}},
+  docks=function(r,id) return kind=='patrol' and r.task.dock and L.canonical(id)==L.canonical(r.task.target) end,
+  stay=function(r) return r.task.duration or T.patrolInspect end,
   eligible=function(u,r,o,node,clock)
    -- A multi-buoy raid should travel, rather than reserve a minute of waiting
    -- at its current buoy. Driver-only regions still have a holding duty.
    if kind=='raid' and not raidLeg(r.area,o.source,o.target,clock) then return false end
-   return L.canonical(node)==L.canonical(o.source) and route(node,o.target,clock)~=nil
+   return (not o.jurisdiction or o.jurisdiction==r.area) and L.canonical(node)==L.canonical(o.source)
   end,
+  feasible=function(u,r,o,node,clock) return route(node,o.target,clock)~=nil end,
   score=function(u,r,o,node,clock)
    return clock-(o.readyAt or 0)-(r.lastDutyTarget==o.target and 10000 or 0)
-    +(role=='patrol' and ((needsRepair(r) and repairStation(o.target)) or (Supplies.needs(r) and Supplies.supports(o.target))) and 1000000 or 0)
+    +(kind=='patrol' and ((needsRepair(r) and repairStation(o.target)) or (Supplies.needs(r) and Supplies.supports(o.target))) and 1000000 or 0)
   end,
   prepare=function(u,r,t)
    t.phase=kind=='patrol' and 'patrolling' or 'raiding'
-   if role=='patrol' and L.get(t.target).kind=='station' then
+   if kind=='patrol' and L.get(t.target).kind=='station' then
     local visits=(r.patrolStationVisits or ((tonumber(r.id:match('%d+$')) or 0)%T.patrolDockEvery))+1
     r.patrolStationVisits=visits
     local repair=needsRepair(r) and repairStation(t.target)
@@ -102,13 +104,12 @@ local function ensureOffers(u,area,kind,nodes)
   for _,from in ipairs(nodes) do for _,to in ipairs(nodes) do
    if kind=='raid' and (from~=to or #nodes==1) or kind=='patrol' and from~=to then
     specs[#specs+1]={kind=kind,source=from,target=to,cooldown=0,
-     duration=kind=='raid' and T.pirateLinger or T.patrolInspect}
+     duration=kind=='raid' and T.pirateLinger or T.patrolInspect,
+     issuer=kind=='patrol' and Access.owner(area) or nil,jurisdiction=area,
+     requires=kind=='patrol' and {authorization='police'} or nil}
    end
   end end
-  Tasks.sync(u,scope,specs,function(o)
-   local source=L.byId[o.source]
-   return o.kind==kind and source and source.area==area
-  end)
+  Tasks.sync(u,scope,specs)
   state.navigationDuties[scope]=signature
  end
  return nodes
@@ -118,22 +119,24 @@ function S.ensureRaids(u,area)
  if nodes then return ensureOffers(u,area,'raid',nodes) end
 end
 function S.ensurePatrols(u,area)
+ if not Access.owner(area) then return {} end
  return ensureOffers(u,area,'patrol',S.patrolNodes(area))
 end
 
 local function create(game,area,role,node,clock,start)
  local u=game.universe
- local archetype=role=='patrol' and 'patrol_wisp' or 'pirate_wisp'
+ local archetype=require('src.npc_templates')[role].archetype
  local def=data.enemies[archetype];local hull=data.hulls[def.hull]
  local loadout=copy(def.loadout or hull.loadout)
  local stats=Stats.compute(hull,loadout)
  u.nextNpcId=u.nextNpcId+1
- local r={id='npc/'..u.nextNpcId,home=area,area=area,role=role,archetype=archetype,
+ local r={id='npc/'..u.nextNpcId,home=area,area=area,archetype=archetype,
   speed=NPC.cruise(archetype),spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor}}
+ require('src.npc_templates').apply(r,role,area)
  require('src.personality').ensure(r)
  local home
- if role=='pirate' then home=L.station(nil,'pirateBase') else home=L.station(area,'trade') end
+ home=L.station(area,r.homePurpose) or L.station(nil,r.homePurpose)
  if home then Homes.assign(r,home) end
  u.npcs[r.id]=r
  NPC.advance(r,clock,u,game)
@@ -153,7 +156,9 @@ local function ensureDuty(u,area,role,node,nodes,clock)
    if id~=node and (role~='pirate' or raidLeg(area,node,id,clock)) then target=id;break end
   end
   Tasks.post(u,{kind=kind,source=node,target=target,cooldown=0,
-   duration=role=='pirate' and T.pirateLinger or T.patrolInspect})
+   duration=role=='pirate' and T.pirateLinger or T.patrolInspect,
+   issuer=kind=='patrol' and Access.owner(area) or nil,jurisdiction=area,
+   requires=kind=='patrol' and {authorization='police'} or nil})
  end
 end
 function S.spawnPirate(game,area,nearPlayer) return Population.spawn(game,area,'pirate',nearPlayer) end
@@ -169,7 +174,8 @@ function S.seed(game,start)
   if f.alifeSecurity and not state.securityAreas[area] then
    state.securityAreas[area]=true
    for _,role in ipairs({'patrol','pirate'}) do
-    for i=1,f.alifeSecurity[role] do
+    local count=role=='patrol' and not Access.owner(area) and 0 or f.alifeSecurity[role]
+    for i=1,count do
      local node=f.buoyIds[(i-1)%#f.buoyIds+1]
      local r=create(game,area,role,node,u.clock,start)
      if r.state=='travel' then
@@ -182,7 +188,7 @@ function S.seed(game,start)
  end
 end
 function S.shouldDock(r,node)
- return r and r.role=='patrol' and r.task and r.task.kind=='patrol' and r.task.dock and L.canonical(r.task.target)==L.canonical(node)
+ return r and r.task and r.task.kind=='patrol' and r.task.dock and L.canonical(r.task.target)==L.canonical(node)
 end
 -- Choose a station-local holding point outside its hull and every runway.
 function S.inspectionPoint(game,station,e)
@@ -214,47 +220,15 @@ function S.inspectionPoint(game,station,e)
  local vx,vy=station.body:getLinearVelocityFromWorldPoint(x,y)
  return x,y,vx,vy
 end
--- Patrols and raiding pirates: duties from the task board. Movement, docking
--- and upkeep are the shared NPC loop's (src/npc.lua).
-require('src.piracy') -- a pirate carrying loot home is matched before this job
-local function roam(r,node)
- local area=L.get(node).area
- if r.role=='pirate' then
-  local field=Fields[area]
-  local nodes=require('src.locations').get(node).kind=='buoy' and nearestBuoys(area,node,r.untilTime) or {}
-  -- off the raid network (a station, a gate): go back to any of its buoys
-  if #nodes==0 then for _,id in ipairs(field.buoyIds) do nodes[#nodes+1]=id end end
-  return nodes
+-- Work execution hooks; all selection, commitment and movement use NPC.
+local Piracy=require('src.piracy')
+Tasks.definitions.raid.think=Piracy.think
+Tasks.definitions.raid.before=function(c)
+ local r=c.r
+ if r.state=='idle' and r.task.source==r.task.target and #Fields[r.area].buoyIds>1 then
+  r.untilTime=math.min(r.untilTime or c.clock,c.clock)
  end
- return S.patrolNodes(area)
 end
-NPC.job('security',{
- match=S.isRole,
- docks=function(r,id) return S.shouldDock(r,id) end,
- stay=function(r,node)
-  if S.shouldDock(r,node) then return T.patrolDockStay end
-  return r.task and r.task.duration or T.patrolInspect
- end,
- before=function(c)
-  local r=c.r
-  -- A raid holding duty at one buoy shouldn't keep a pirate parked when the
-  -- region has a raid network to work.
-  if r.role=='pirate' and r.state=='idle' and r.task and r.task.source==r.task.target
-   and #Fields[r.area].buoyIds>1 then r.untilTime=math.min(r.untilTime,c.clock) end
- end,
- complete=function(c) Tasks.arrive(c.u,c.r,c.node,c.clock) end,
- next=function(c)
-  local u,r,node,at=c.u,c.r,c.node,c.clock
-  local task=Tasks.choose(u,r,node,at)
-  if not task then return nil end
-  r.repairAt=nil
-  local path=Tasks.plan(r,node,at)
-  if not path then Tasks.release(u,r,'no route',at);return nil end
-  if task.target==node then return {route={node},wait=task.duration,dock=task.dock} end
-  return {route=path}
- end,
- roam=roam,
-})
 function S.arrive(r,node,clock) NPC.arrive(r,node,clock) end
 function S.advance(r,clock,u) return NPC.advance(r,clock,u) end
 function S.capture(game,e,r,remote)
@@ -284,28 +258,30 @@ function S.capture(game,e,r,remote)
   r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
  end
 end
--- Civilian A-Life ships pirates hunt; matches offline encounters.lua.
-local PREY={trader=true,courier=true,miner=true,salvager=true}
-function S.prey(o) return o.npcRole and PREY[o.npcRole] or false end
+-- Combat policy comes from current work and scoped authority, never identity.
+function S.prey(o) return o.alifeRecord and Access.civilian(o.alifeRecord) or false end
 function S.hostile(game,e,o)
  if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
  if o==e.aggressor then return true end
- -- patrols read the player's standing with their faction, their own
- -- goodwill and the heat where they are (Reputation)
- if e.alifeRole=='patrol' and o.isPlayer then
-  local Rep=require('src.reputation');local r=game.universe.npcs[e.alifeId]
-  return Rep.hostile(Rep.attitude(game.universe,r,r and r.node))
+ local r=e.alifeRecord
+ local grant=Access.policeGrant(r,game.fieldId)
+ if grant and o.isPlayer then
+  local Rep=require('src.reputation')
+  local u=game.universe
+  return Rep.hostile(Rep.goodwill(u,r)+Rep.standing(u,grant.issuer)-Rep.heat(u,r.node))
  end
- -- patrols answer aggression (as stations do, and as offline does)
- if e.alifeRole=='patrol' then return o.team==2 and o.aggressedAt~=nil and game.time-o.aggressedAt<30 end
- if e.alifeRole=='pirate' then
-  return o.team~=2 and (o.isPlayer or o.alifeRole=='patrol' or S.prey(o)) and not require('src.robbery').isSpared(game,e,o)
+ if Access.defending(r,game.fieldId) then
+  return (Access.raiding(o.alifeRecord) or o.alifeRecord and o.alifeRecord.piracy or not o.alifeRecord and o.team==2)
+   and o.aggressedAt~=nil and game.time-o.aggressedAt<30
+ end
+ if Access.raiding(r) then
+  return not Access.raiding(o.alifeRecord) and (o.isPlayer or o.alifeRecord~=nil)
+   and not require('src.robbery').isSpared(game,e,o)
  end
  return false
 end
 function S.target(game,e)
  local record=game.universe.npcs[e.alifeId]
- if e.alifeRole=='patrol' and record and Supplies.needs(record,e) then e.combatTarget=nil;e.lock=nil;return nil end
  if game.time<(e.securityThink or 0) then return S.hostile(game,e,e.combatTarget) and e.combatTarget or nil end
  e.securityThink=game.time+T.securityThink
  local x,y=e.body:getPosition()
@@ -313,13 +289,13 @@ function S.target(game,e)
  for _,o in ipairs(game.entities) do
   if S.hostile(game,e,o) then
    local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
-   local rank=o==e.aggressor and 3 or e.alifeRole=='pirate' and S.prey(o) and 2 or 1
+   local rank=o==e.aggressor and 3 or Access.raiding(record) and S.prey(o) and 2 or 1
    if d<T.securityRange^2 and (rank>bestRank or rank==bestRank and d<bestDistance) then best,bestRank,bestDistance=o,rank,d end
   end
  end
  -- Evaluate a new NPC opponent once per target scan, using the same odds
  -- and station support as offline combat. Retaliation is never filtered.
- if best and record and e.alifeRole=='pirate' and best~=e.aggressor and best~=e.combatTarget then
+ if best and record and Access.raiding(record) and best~=e.aggressor and best~=e.combatTarget then
   local other=best.alifeId and game.universe.npcs[best.alifeId]
   if other then
    local E=require('src.encounters')
@@ -336,7 +312,7 @@ end
 function S.updateOnline(game,e,A)
  local r=game.universe.npcs[e.alifeId]
  if r.piracy then return end
- if r.role=='pirate' and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target,game.universe.clock) then r.untilTime=game.universe.clock end
+ if Access.raiding(r) and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target,game.universe.clock) then r.untilTime=game.universe.clock end
  NPC.updateOnline(game,e)
 end
 function S.hold(game,e,AI)
@@ -375,12 +351,12 @@ function S.visit(game,e,stop,A)
 end
 for _,role in ipairs({'pirate','patrol'}) do
  Population.register(role,{
-  target=function(f)
+  target=function(f,area)
    if role=='pirate' then
     local override=f.navigation and f.navigation.population and f.navigation.population.pirate
     return raidNodes(f) and (override~=nil and override or T.population.pirate.target)
    end
-   return f.alifeSecurity and f.alifeSecurity.patrol
+   return Access.owner(area) and f.alifeSecurity and f.alifeSecurity.patrol
   end,
   nodes=function(game,area)
    if role=='pirate' then return S.ensureRaids(game.universe,area) end
@@ -392,5 +368,11 @@ for _,role in ipairs({'pirate','patrol'}) do
    return create(game,area,role,node,clock,require('src.alife').start)
   end,
  })
+end
+for _,kind in ipairs({'patrol','raid'}) do
+ Tasks.definitions[kind].capture=function(game,e,r,remote)
+  if S.shouldDock(r,r.route[r.index]) then return false end
+  S.capture(game,e,r,remote)
+ end
 end
 return S

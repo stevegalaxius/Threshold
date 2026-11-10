@@ -1,10 +1,10 @@
--- Shared replenishment: role definitions provide ships/work; this module owns
+-- Shared replenishment: population templates provide starting ships; this module owns
 -- saved arrival timers, population limits and warp placement.
 local Fields,L,T=require('src.fields'),require('src.locations'),require('src.tuning')
-local P={roles={},order={}}
+local P={templates={},order={}}
 function P.register(role,definition)
- assert(not P.roles[role],'duplicate population role '..role)
- P.roles[role]=definition;P.order[#P.order+1]=role
+ assert(not P.templates[role],'duplicate population template '..role)
+ P.templates[role]=definition;P.order[#P.order+1]=role
 end
 function P.state(u)
  u.populationSpawns=u.populationSpawns or {}
@@ -17,22 +17,22 @@ function P.state(u)
  return u.populationSpawns
 end
 function P.target(area,role)
- local f,def=Fields[area],P.roles[role]
+ local f,def=Fields[area],P.templates[role]
  if not f or f.instance or f.transit or not def then return 0 end
  return def.target(f,area) or 0
 end
 -- Traders are free agents: they count where they are, not where they
 -- first arrived, so an area its ships have left gets new ones.
-function P.where(r) return r.role=='trader' and (r.area or r.home) or r.home end
+function P.where(r) return r.mobile and (r.area or r.home) or r.home end
 function P.total(u,role)
  local n=0
- for _,r in pairs(u.npcs or {}) do if r.role==role and r.state~='dead' and r.state~='escaped' then n=n+1 end end
+ for _,r in pairs(u.npcs or {}) do if r.populationGroup==role and r.state~='dead' and r.state~='escaped' then n=n+1 end end
  return n
 end
 function P.count(u,area,role)
  local n=0
  for _,r in pairs(u.npcs or {}) do
-  if P.where(r)==area and r.role==role and r.state~='dead' and r.state~='escaped' then n=n+1 end
+  if P.where(r)==area and r.populationGroup==role and r.state~='dead' and r.state~='escaped' then n=n+1 end
  end
  return n
 end
@@ -82,7 +82,7 @@ local function entryPoint(game)
  end
 end
 function P.spawn(game,area,role,nearPlayer)
- local def=P.roles[role]
+ local def=P.templates[role]
  if P.target(area,role)<=0 then return nil,'No '..role..' population in this region.' end
  local nodes=def.nodes(game,area)
  if not nodes or #nodes==0 then return nil,'No '..role..' navigation route in this region.' end
@@ -150,7 +150,7 @@ function P.update(game,clock)
  local u=game.universe;local counts={}
  for _,r in pairs(u.npcs) do
   if r.state~='dead' and r.state~='escaped' then
-   local key=P.where(r)..'/'..r.role;counts[key]=(counts[key] or 0)+1
+   local key=P.where(r)..'/'..r.populationGroup;counts[key]=(counts[key] or 0)+1
   end
  end
  for _,area in ipairs(Fields.list) do
@@ -160,7 +160,7 @@ function P.update(game,clock)
     local timer=timers[role]
     if timer and clock>=timer.nextAt then
      timer.sequence=timer.sequence+1;timer.nextAt=clock+delay(area,role,timer.sequence)
-     local def=P.roles[role]
+     local def=P.templates[role]
      -- a role with a world-wide budget (traders) also stops at that
      if (counts[area..'/'..role] or 0)<P.target(area,role) and (not def.budget or P.total(u,role)<def.budget()) then P.spawn(game,area,role,false) end
     end

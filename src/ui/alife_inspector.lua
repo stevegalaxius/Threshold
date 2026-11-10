@@ -25,7 +25,7 @@ local function matches(game,id,r)
  local gone=r.state=='dead' or r.state=='escaped'
  if f=='dead' then return gone end
  if gone then return false end
- if I.search~='' and not (id:find(I.search,1,true) or (r.role or ''):find(I.search,1,true) or (r.area or ''):find(I.search,1,true)) then return false end
+ if I.search~='' and not (id:find(I.search,1,true) or (r.label or ''):find(I.search,1,true) or (r.area or ''):find(I.search,1,true)) then return false end
  if f=='all' then return true end
  if f=='here' then return r.area==game.fieldId end
  if f=='online' then return e~=nil end
@@ -51,7 +51,7 @@ local function list(game)
  for i,id in ipairs(ids) do
   local r=game.universe.npcs[id];local e=game.alifeOnline and game.alifeOnline[id]
   Slab.BeginListBoxItem('alife_item'..i,{Selected=Overlay.state.selected==id})
-  Slab.Text(('%s%s  %s  %s  %s'):format(e and '* ' or '  ',id,r.role or '?',r.area or 'transit',Trace.controller(game,r,e)))
+  Slab.Text(('%s%s  %s  %s  %s'):format(e and '* ' or '  ',id,r.label or '?',r.area or 'transit',Trace.controller(game,r,e)))
   if Slab.IsListBoxItemClicked() then Overlay.select(id,game) end
   Slab.EndListBoxItem()
  end
@@ -95,11 +95,15 @@ local function details(game)
  local e=game.alifeOnline and game.alifeOnline[r.id]
  Slab.Separator()
  local hull=data.hulls[r.ship.hull]
- Slab.Text(('%s  %s  %s  (%s)'):format(r.id,r.role or '?',hull and hull.name or r.ship.hull,e and 'online' or 'offline'))
+ Slab.Text(('%s  %s  %s  (%s)'):format(r.id,r.label or '?',hull and hull.name or r.ship.hull,e and 'online' or 'offline'))
  require('src.personality').ensure(r)
  Slab.Text(('Personality: ambition %.2f   aggression %.2f'):format(r.ambition,r.aggression))
  require('src.work_preferences').profile(r)
- Slab.Text('Work profile: '..(r.workProfile or r.role or '?'))
+ Slab.Text('Work profile: '..(r.workProfile or '?'))
+ Slab.Text('Affiliation: '..(r.affiliation or 'independent'))
+ for _,grant in ipairs(r.authorizations or {}) do
+  Slab.Text(('Authority: %s / %s / %s'):format(grant.kind,tostring(grant.issuer),tostring(grant.jurisdiction)))
+ end
  Slab.Text('Driven by: '..Trace.controller(game,r,e))
  Slab.Text(('State: %s in %s   status: %s'):format(r.state,r.area or 'transit',tostring(r.taskStatus)))
  Slab.Text(('Credits: %d   freight earnings: %d'):format(r.credits or 0,r.freightEarnings or 0))

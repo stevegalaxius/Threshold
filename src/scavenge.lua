@@ -1,7 +1,7 @@
 --[[
 	Scavenging: the one loot loop for every NPC that picks things up.
 	Pirates and salvagers share it, online and off (src/offline_loot.lua is
-	the offline half). A role differs only by its profile:
+	the offline half). The active work selects its profile:
 
 	  manifest   record field listing what it has taken (sold or fenced later)
 	  deadline   record field: when it stops looking and heads to market
@@ -30,7 +30,7 @@ S.PROFILES = {
 }
 function S.profile(r)
  if not r then return end
- if r.role=='pirate' then return S.PROFILES.pirate end
+ if r.piracy or r.task and r.task.kind=='raid' then return S.PROFILES.pirate end
  if r.task and r.task.kind=='salvage' then return S.PROFILES.salvager end
 end
 -- how far it looks: clean-up crews work their whole area, pirates their patch
@@ -209,7 +209,7 @@ end
 require('src.events').on('pickup', function(e, item, n, stack)
 	local r = e.alifeRecord
 	if not r or not S.profile(r) or r.piracy or r.salvageReturn then return end
-	if r.role == 'pirate' and stack and (stack.inner or stack.wear ~= nil) then stack.stolen = true end
+	if S.profile(r)==S.PROFILES.pirate and stack and (stack.inner or stack.wear ~= nil) then stack.stolen = true end
 	S.took(r, item, n, e.alifeGame.universe.clock)
 end)
 

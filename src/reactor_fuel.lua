@@ -58,10 +58,10 @@ function F.observe(u,r,clock,e)
   r.untilTime=r.untilTime+math.max(0,clock-r.fuelObservedAt)
  end
  r.fuelObservedAt=clock
- if previous=='stranded' and status~='stranded' and r.role=='miner' then
+ if previous=='stranded' and status~='stranded' and r.task and r.task.kind=='mine' then
   r.fuelClock=clock;r.nextMiningAt=clock+T.miningOfflineEvery
  end
- if status=='stranded' and r.role=='miner' then r.fuelClock=clock end
+ if status=='stranded' and r.task and r.task.kind=='mine' then r.fuelClock=clock end
  if status~=previous then
   r.fuelStatus=status;r.fuelStatusSince=clock
   if previous then require('src.alife_trace').note(r,clock,'fuel',previous..' -> '..status..(' (%.0f fuel)'):format(F.remaining(e or r.ship))) end
@@ -131,7 +131,7 @@ function F.advance(r,clock,u)
  if r.state=='dead' or r.state=='escaped' then return end
  if not r.ship.fuelInitialized then F.withRecord(r,function() end);r.fuelClock=clock end
  -- Mining accounts for its continuous drill load in its own work slice.
- if r.role=='miner' and r.task and r.task.phase=='mining' and r.state=='idle' then
+ if r.task and r.task.kind=='mine' and r.task and r.task.phase=='mining' and r.state=='idle' then
   return F.observe(u,r,clock)
  end
  local previous=r.fuelClock or clock;r.fuelClock=clock

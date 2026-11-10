@@ -6,7 +6,7 @@ return function(game)
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true;game:loadField('earth')
  local template
- for _,r in pairs(game.universe.npcs) do if r.home=='earth' and r.role=='pirate' then template=copy(r);break end end
+ for _,r in pairs(game.universe.npcs) do if r.home=='earth' and r.populationGroup=='pirate' then template=copy(r);break end end
  assert(template)
  game:captureALife(true);game.universe.npcs={}
  game.travelGraphView=G.build('earth')

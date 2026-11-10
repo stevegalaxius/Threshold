@@ -64,7 +64,7 @@ function M.snapshot(game,includeMoons)
     phase=phase..' at '..name..' (local space, not in lane)'
    end
    local ship=e or r.ship
-   local n={id=id,role=r.role,state=r.state,phase=phase,stranded=stranded,from=from,to=to,kind=kind,
+   local n={id=id,role=r.label,state=r.state,phase=phase,stranded=stranded,from=from,to=to,kind=kind,
     progress=progress,eta=eta,depart=r.depart,arrive=r.arrive,online=e~=nil,
     hull=e and e.hull.name or (data.hulls[r.ship.hull] and data.hulls[r.ship.hull].name or r.ship.hull),cargo=cargo(ship),
     task=r.task and (r.task.id..' / '..r.task.kind..' / '..r.task.phase)
@@ -222,7 +222,7 @@ function M.draw(game)
   if n.depart and n.arrive then detail(('Leg clock: %.1f > %.1f'):format(n.depart,n.arrive)) end
   if n.launchTime then detail(('Driver: %s / %.2fs'):format(n.launchPhase,n.launchTime)) end
   detail('Current area: '..name(n.localArea or (n.state=='transit' and 'transit')))
-  detail('Role: '..tostring(n.role))
+  detail('Identity: '..tostring(n.role))
   if n.homeStation then detail('Home: '..L.get(n.homeStation).name..' ('..n.homeStation..')') end
   detail('Task: '..n.task)
   detail('Cargo: '..n.cargo)
