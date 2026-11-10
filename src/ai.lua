@@ -196,6 +196,21 @@ local function trade(game, e, dt)
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
 		local queued = e.alifeId and require("src.queue").holding(game, e, stop)
 		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex) end
+		-- the driver is taken (the player sitting in it, or a ship launching)
+		-- and this one has no turn booked to wait for: line up behind it anyway
+		-- rather than flying into the breech, first come first served
+		local record = e.alifeId and game.universe.npcs[e.alifeId]
+		local g = not queued and record and record.route and stop.kind == "driver" and stop.driver
+		if g and g.driverShip and g.driverShip ~= e and not g.driverShip.dead and not g.driverShip.removed then
+			e.busyWait, e.busyWaitSince = g, e.busyWaitSince or game.universe.clock
+			local place, Q, key = 1, require("src.queue"), require("src.locations").canonical(stop.locationId)
+			for _, r in pairs(game.universe.npcs) do if r.queue and r.queue.key == key and Q.waiting(r, game.universe.clock) then place = place + 1 end end
+			for _, o in ipairs(game.entities) do
+				if o ~= e and o.busyWait == g and not o.dead and (o.busyWaitSince < e.busyWaitSince or o.busyWaitSince == e.busyWaitSince and tostring(o.alifeId) < tostring(e.alifeId)) then place = place + 1 end
+			end
+			queued = record
+			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place)
+		else e.busyWait, e.busyWaitSince = nil, nil end
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
 		-- the chord (which would run through the rock belt): aim a little

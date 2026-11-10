@@ -117,7 +117,7 @@ end
 
 -- Its place in line: 1 is next in, 2 behind that, and so on.
 function Q.place(r,clock)
- local q=r.queue
+ local q=r.queue;if not q then return 1 end
  local qs=state();local list=qs and qs[q.key] or {}
  local ahead=0
  local npcs=Q.universe and Q.universe.npcs or {}
@@ -131,7 +131,7 @@ end
 
 -- Where it holds: back along the way it came, T.queueStart from the
 -- chokepoint for the first in line and T.queueGap further for each behind.
-function Q.holdPoint(r,clock,index)
+function Q.holdPoint(r,clock,index,place)
  index=index or r.index
  local id=r.route[index]
  local x,y=L.position(id,clock)
@@ -141,7 +141,7 @@ function Q.holdPoint(r,clock,index)
  local dx,dy
  if fx and (fx-x)^2+(fy-y)^2>1 then dx,dy=fx-x,fy-y else dx,dy=x,y end -- else: straight out from the planet
  local d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
- local back=T.queueStart+T.queueGap*(Q.place(r,clock)-1)
+ local back=T.queueStart+T.queueGap*((place or Q.place(r,clock))-1)
  return x+dx/d*back,y+dy/d*back
 end
 
