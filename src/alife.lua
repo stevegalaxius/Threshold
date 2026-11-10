@@ -199,9 +199,19 @@ function A.seed(game)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if r.taskWorker then -- start docked, where work is handed out
      r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil
-     local station=L.stations(area,'trade')[(i-1)%#L.stations(area,'trade')+1]
+     local stations=L.stations(area,'trade')
+     local station=stations[(i-1)%#stations+1]
+     -- start docked where there's a place for the hull, else waiting
+     -- outside the station it was given
+     local Room=require('src.dock_room')
+     for k=0,#stations-1 do
+      local s=stations[(i-1+k)%#stations+1]
+      if Room.room(u,r,s) then station=s;break end
+     end
      for index,id in ipairs(r.route) do if id==station then r.index=index;break end end
-     r.state='docked';r.untilTime=u.clock+i*2
+     if Room.room(u,r,station) then r.state='docked'
+     else r.state='idle';r.node=station;r.route={station,station};r.index=1 end
+     r.untilTime=u.clock+i*2
     end
    end
   end

@@ -141,11 +141,12 @@ function Game:dockInstantly(e, st, placement)
   for _,candidate in ipairs(st.docks or {st.dock}) do if self:fitsDock(e,candidate) then d=candidate;break end end
  end
  self:applyParking(e,parking);e.bayStation=st.key
-	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth }
+	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth,
+		mooring = berth and self:berthPose(st, berth, e.hull.id) or nil }
  for i,candidate in ipairs(st.docks or {st.dock}) do if candidate==d then e.dockState.dockIndex=i end end
 	e.body:setActive(false)
 	if berth then
-		local b = st.def.berths[berth]
+		local b = e.dockState.mooring or st.def.berths[berth]
 		e.body:setPosition(st.body:getWorldPoint(b.x, b.y))
 		e.body:setAngle(st.body:getAngle() + math.rad(b.heading))
 	else

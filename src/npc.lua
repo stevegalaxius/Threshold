@@ -153,7 +153,9 @@ function N.arrive(r,node,at,u,game)
  local j=N.controller
  local work=N.work(r)
  local stay=(work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
- if L.get(node).kind=='station' and N.docksAt(r,node) then
+ -- (a station with no place left for this hull: it holds off outside for
+ -- the visit instead of docking on top of the ships already there)
+ if L.get(node).kind=='station' and N.docksAt(r,node) and require('src.dock_room').room(u,r,node) then
   r.state='docked'
   Supplies.refill(r,node)
   Repairs.begin(r,node,at,stay)

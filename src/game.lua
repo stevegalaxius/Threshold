@@ -1427,8 +1427,8 @@ function Game:updateDockedShip(e, dt)
 			local berth=not interior and self:freeBerth(st,e)
 			e.bay=interior or nil;e.bayStation=st.key
 			if berth then
-    local bd=st.def.berths[berth]
-    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,nil
+    local bd=self:berthPose(st,berth,e.hull.id) or st.def.berths[berth]
+    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,self:berthPose(st,berth,e.hull.id)
 				ds.lx,ds.ly=sb:getLocalPoint(x,y)
 				ds.la=b:getAngle()-sb:getAngle()
 				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
