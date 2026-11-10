@@ -62,8 +62,12 @@ return function(game)
  assert(farmWorld.economyStats.made[Food.item]==20,'one fertilizer made more or less than twenty food crates')
  -- Fertilizer makers use the ordinary recipe/input mechanism.
  local sourceWorld={clock=0,stations={}}
- local source='station:jupiter_2'
+ local source='station:belt_1'
  Stock.count(sourceWorld,source,Food.fertilizer)
+ -- Isolate the fertilizer recipe from the fuel recipe sharing this input.
+ for _,item in ipairs({'iron_ore','empty_canister','water_ice'}) do
+  Stock.take(sourceWorld,source,item,Stock.count(sourceWorld,source,item))
+ end
  Stock.add(sourceWorld,source,'water_ice',10)
  sourceWorld.clock=900
  assert(Stock.count(sourceWorld,source,Food.fertilizer)==10 and Stock.count(sourceWorld,source,'water_ice')==0,'fertilizer did not consume its production input')

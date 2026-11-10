@@ -38,7 +38,7 @@ W.stations = {
 	},
 	jupiter = {
 		{ id = "station:jupiter_1", industry = { skim_deuterium = 600, skim_hydrogen = 10 }, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
-		{ id = "station:jupiter_2", industry = { skim_deuterium = 600, skim_hydrogen = 10, make_fertilizer = 40 }, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
+		{ id = "station:jupiter_2", industry = { skim_deuterium = 600, skim_hydrogen = 10 }, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
 				
 	},
 
