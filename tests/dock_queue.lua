@@ -46,5 +46,17 @@ return function(game)
  assert(not Q.holding(game,second,st),'completed docking did not release the runway')
  first.dockState=nil;first.dockExit={station=st,dock=dock}
  assert(Q.holding(game,second,st),'outbound ship did not hold arrivals')
+ -- A failed service allocation must release the unusable stop and retain work.
+ local copy=require('src.persistence').copy
+ local onward=require('src.fields').earth.buoyIds[1]
+ r.task={id='service/rejection',kind='patrol'}
+ r.service={station=L.canonical(st.locationId),need='repair',saved={route={st.locationId,onward},index=2}}
+ first.dockState,first.dockExit=nil,nil
+ local U=require('src.upkeep')
+ assert(U.rejected(game,first,st),'service rejection was not handled')
+ assert(not r.service or r.service.station~=L.canonical(st.locationId),'rejected service dock was immediately selected again')
+ assert(r.task.id=='service/rejection','service rejection discarded the current job')
+ local route=r.service and r.service.saved.route or r.route
+ assert(route[2]==onward,'service rejection lost the interrupted route')
  print('DOCK QUEUE: free approaches, arrival order and occupied runways passed')
 end

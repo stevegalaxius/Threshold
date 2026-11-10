@@ -1437,6 +1437,7 @@ function Game:updateDockedShip(e, dt)
 				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
 			else
 				e.dockState,e.dockCooldown=nil,3
+				if e.alifeId then require('src.upkeep').rejected(self,e,st) end
 				if e==self.player then self:toast('NO SUITABLE FREE BERTH',2) end
 				return
 			end

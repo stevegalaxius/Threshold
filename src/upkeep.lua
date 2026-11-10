@@ -35,6 +35,17 @@ local function serves(need,station)
  return Supplies.supports(station)
 end
 U.serves=serves
+local function canDock(r,e,id,clock)
+ if r.serviceRejected and (r.serviceRejected[L.canonical(id)] or 0)>clock then return false end
+ local game=e and e.alifeGame
+ local st=game and game:locationEntity(id,e.body:getPosition())
+ if not st or st.kind~='station' then return true end
+ local interior=game:hangarFit(st,e.hull.id,e)
+ if interior then
+  for _,dock in ipairs(st.docks or {st.dock}) do if game:fitsDock(e,dock) then return true end end
+ end
+ return game:freeBerth(st,e)~=nil
+end
 
 function U.active(r) return r and r.service~=nil end
 function U.isStation(r,id) return r.service~=nil and L.canonical(id)==r.service.station end
@@ -125,7 +136,7 @@ function U.plan(r,clock,e)
  if not need then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
-  if serves(need,id) then
+  if serves(need,id) and canDock(r,e,id,clock) then
    local go=id==L.canonical(at) and {legs={},duration=0} or Graph.route(g,at,id,clock,r.speed)
    local ret=go and (#go.legs==0 and {legs={}} or Graph.route(g,id,at,clock,r.speed))
    if ret and (not best or go.duration<best) then best,out,back,station=go.duration,go,ret,id end
@@ -133,7 +144,7 @@ function U.plan(r,clock,e)
  end
  local trip -- node lists out and back, for a stop in a neighbouring region
  if not out then
-  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) end,r.speed)
+  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) and canDock(r,e,id,clock) end,r.speed)
   if not station then r.nextServiceAt=clock+T.npcFuelStopRetry
    require('src.alife_trace').note(r,clock,'upkeep','needs '..need..', no station in or next to '..r.area..' can serve it');return false end
  end
@@ -209,6 +220,27 @@ end
 function U.canDepart(game,e,r)
  e.serviceDockedAt=e.serviceDockedAt or game.time
  return not U.need(r,e) or game.time-e.serviceDockedAt>T.alifeStay
+end
+
+-- A rejected tractor allocation must not send the ship through the same
+-- unusable dock indefinitely. Preserve the job and choose another service stop.
+function U.rejected(game,e,station)
+ local r=e.alifeRecord
+ if not r or not U.isStation(r,station.locationId) then return false end
+ local saved=copy(r.service.saved);local clock=game.universe.clock
+ r.serviceRejected=r.serviceRejected or {}
+ r.serviceRejected[L.canonical(station.locationId)]=clock+T.npcFuelStopRetry
+ r.service,r.serviced,r.nextServiceAt=nil,nil,nil
+ r.state='idle';r.node=station.locationId;r.route={r.node,r.node};r.index=1;r.untilTime=clock
+ require('src.alife_trace').note(r,clock,'upkeep','docking unavailable at '..station.locationId..' -> reconsider service stop')
+ U.plan(r,clock,e)
+ if r.service then r.service.saved=saved
+ else
+  r.route=saved.route;r.index=saved.index;r.node=saved.node
+  r.state=saved.idle and 'idle' or 'travel';r.untilTime=clock;r.depart=clock;r.arrive=clock
+ end
+ require('src.alife').bindRoute(game,e,r)
+ return true
 end
 
 function U.label(r)
