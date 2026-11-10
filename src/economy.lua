@@ -117,6 +117,8 @@ function E.target(u,key,item,supplier)
  local want=math.max(E.rate(u,key,item),capacityUse(u,key,item))*(supplier and E.reserveHours or E.hours)
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
+ local P=require('src.repair_materials')
+ if item==P.item and P.supports(key) then want=math.max(want,P.floor) end
  return math.ceil(want)
 end
 -- The goods that move: every commodity, its inputs, what the drills dig,
@@ -126,7 +128,7 @@ local function goods()
  local set,list={},{}
  local function add(item) if item and not set[item] then set[item]=true;list[#list+1]=item end end
  for _,c in ipairs(C.list) do add(c.item);for _,input in ipairs(C.inputs(c)) do add(input.item) end end
- for _,item in pairs(require('src.ore').items) do if item~='scrap' then add(item) end end
+ for _,item in pairs(require('src.ore').items) do add(item) end
  add(require('src.reactor_fuel').item())
  table.sort(list)
  return list

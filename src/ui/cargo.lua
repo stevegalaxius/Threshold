@@ -852,9 +852,11 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		if Cargo.tab == "repair" then
 			local act = Repair.mousepressed(game, mx, my, button)
 			local st = game.player.dockState.station
-			if act and act.repair then
+			if act and act.cancelRepair then
+				act.cancelRepair.repairOrder=nil;game:toast('REPAIRS CANCELLED',1.4)
+			elseif act and act.repair then
 				local pts, paid = game:repairShip(st, act.repair)
-				if pts then game:toast(("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()), 1.4)
+				if pts then game:toast(("REPAIRING %d ARMOR, UP TO %s"):format(pts, HUD.credits(paid):upper()), 1.4)
 				else game:toast(paid, 1.4) end
 			elseif act and act.repairAll then
 				local owners = { game.player }
@@ -864,7 +866,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 					local a, b = game:repairShip(st, o)
 					if a then pts, paid = pts + a, paid + b end
 				end
-				game:toast(pts > 0 and ("REPAIRED %d ARMOR FOR %s"):format(pts, HUD.credits(paid):upper()) or "NOTHING REPAIRED", 1.4)
+				game:toast(pts > 0 and ("REPAIRING %d ARMOR, UP TO %s"):format(pts, HUD.credits(paid):upper()) or "NO REPAIR ORDERS STARTED", 1.4)
 			end
 			return true
 		end

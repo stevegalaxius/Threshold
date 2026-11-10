@@ -35,7 +35,7 @@ market { id = "market:mars_1", station = "Station Alpha", ships = { "brute_anvil
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
 } }
 market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
-	{ "martian_ore", 8 }, { "salvage_kit", 3 }, { "scrap", 6 },
+	{ "martian_ore", 8 }, { "salvage_kit", 3 },
 	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
 market { id = "market:mars_2", station = "Station Beta", sells = {   -- missiles and drones

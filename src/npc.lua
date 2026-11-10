@@ -156,7 +156,7 @@ function N.arrive(r,node,at,u,game)
  if L.get(node).kind=='station' and N.docksAt(r,node) then
   r.state='docked'
   Supplies.refill(r,node)
-  Repairs.begin(r,node,at,stay)
+  Repairs.begin(r,node,at,stay,u)
  else
   r.state='idle';r.untilTime=at+stay
  end
@@ -255,7 +255,7 @@ function N.decide(u,r,node,at,game)
   r.stuckSince=nil
   if #plan.route<=1 or (#plan.route==2 and plan.route[1]==plan.route[2]) then
    -- work right here: hold (or stay docked) for its duration
-   if plan.dock and L.get(node).kind=='station' then r.state='docked';Repairs.begin(r,node,at,plan.wait or T.alifeStay)
+   if plan.dock and L.get(node).kind=='station' then r.state='docked';Repairs.begin(r,node,at,plan.wait or T.alifeStay,u)
    else r.state='idle';r.untilTime=at+(plan.wait or T.patrolInspect) end
    r.node=node;r.route={node,node};r.index=1
    return true
@@ -292,7 +292,7 @@ function N.advance(r,clock,u,game)
    else N.arrive(r,r.route[r.index],at,u,game) end
   elseif r.state=='docked' or r.state=='idle' then
    local node=r.node or r.route[r.index]
-   if r.state=='docked' then Repairs.advance(r,clock,node) end
+   if r.state=='docked' then Repairs.advance(r,clock,node,u) end
    require('src.reactor_fuel').observe(u,r,clock)
    if clock<(r.untilTime or 0) then return end
    local at=r.untilTime or clock

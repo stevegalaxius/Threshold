@@ -304,6 +304,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
+	p.repairOrder=rec.repairOrder
 	table.insert(self.entities, p)
 	self.player = p
 	self.state = "playing"
@@ -1377,7 +1378,7 @@ function Game:finishDocking(e, ds, st)
    local work=require('src.npc').work(e.alifeRecord)
    ds.stay=work and work.stay and work.stay(e.alifeRecord,st.locationId) or T.alifeStay
   end
-  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
+  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,require('src.repair_materials').duration(self.universe,st.key or st.locationId,e.stats.armor-e.armor,T.npcRepairPerSecond)) end
 	end
  if e.alifeRecord and e.alifeRecord.action and e.alifeRecord.action.kind=='dock' then
   e.alifeRecord.node=st.locationId;e.alifeRecord.state='docked';e.alifeRecord.area=self.fieldId
@@ -1390,6 +1391,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
  require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.dock or ds.station.dock
@@ -1527,6 +1529,7 @@ end
 function Game:undockShip(e)
 	local ds = e.dockState
 	if not ds or not ds.done then return end
+ if e==self.player then e.repairOrder=nil end
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local sb = st.body
 	local side = ds.side or 1
@@ -2445,9 +2448,9 @@ function Game:reap()
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
 			-- (unless an atomic blast vaporized it, contents and all)
-			-- drilled apart, a wreck gives up its hull alloy (shot apart, it's slag)
-			if e.kind == "husk" and e.drilled and not e.vaporized and (e.alloy or 0) > 0 then
-				self:spawnPickup(x, y, "hull_alloy", e.alloy)
+			-- drilled apart, a wreck gives up its hull steel (shot apart, it's slag)
+			if e.kind == "husk" and e.drilled and not e.vaporized and (e.steel or 0) > 0 then
+				self:spawnPickup(x, y, "steel_plate", e.steel)
 			end
 			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
 			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
@@ -2534,7 +2537,7 @@ local function lootOf(e)
 			e.salvagedSlots[i] = id
 		end
 	end
-	-- no rolled salvage: a wreck's metal comes from drilling it (hull alloy)
+	-- no rolled salvage: a wreck's metal comes from drilling it (hull steel)
 	return loot
 end
 
@@ -2564,11 +2567,11 @@ end
 -- the loot window exists), and can be shot apart, which spills the loot as
 -- pickups.
 Game.huskHold=huskHold
--- Hull alloy a wreck yields when drilled apart: set by the hull alone, and
+-- Hull steel a wreck yields when drilled apart: set by the hull alone, and
 -- shared out among its parts when they break off, so a wreck gives the
 -- same total however many pieces it ends up in.
-function Game.wreckAlloy(hull)
-	return math.max(2, math.floor((hull and hull.mass or 80) * T.wreckAlloyPerTonne + 0.5))
+function Game.wreckSteel(hull)
+	return math.max(2, math.floor((hull and hull.mass or 80) * T.wreckSteelPerTonne + 0.5))
 end
 function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local hull = ship.hull
@@ -2579,7 +2582,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
-		alloy = Game.wreckAlloy(hull),
+		steel = Game.wreckSteel(hull),
 	}
 	-- Who this was, for the loot window: hull, ship type and the A-Life record.
 	if ship.def or ship.alifeId then
@@ -2729,12 +2732,12 @@ function Game:breakablePieces(h, ship)
 		table.insert(h.pieces, piece)
 		if carries(part) then lootTotal = lootTotal + part.area end
 	end
-	-- hull alloy: each breakable part carries its share; the core the rest
-	local alloy, given = h.alloy or 0, 0
+	-- hull steel: each breakable part carries its share; the core the rest
+	local steel, given = h.steel or 0, 0
 	for _, pc in ipairs(h.pieces) do
-		if not pc.core then pc.alloy = math.floor(alloy * pc.frac); given = given + pc.alloy end
+		if not pc.core then pc.steel = math.floor(steel * pc.frac); given = given + pc.steel end
 	end
-	h.alloy = alloy - given
+	h.steel = steel - given
 	-- mass tag: a part's share of the wreck's weight, when it breaks away
 	local massTotal = 0
 	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
@@ -2843,7 +2846,7 @@ function Game:breakOff(h, piece)
 		flicker = random() * 10,
 	}
 	bits.loot = Hold.totals(bits.hold)
-	bits.alloy, bits.drilled, bits.origin = piece.alloy or 0, h.drilled, h.origin
+	bits.steel, bits.drilled, bits.origin = piece.steel or 0, h.drilled, h.origin
 	bits.shotSalvage=h.shotSalvage
 	partFixtures(body, part, bits, part.cx, part.cy)
 	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))

@@ -110,19 +110,38 @@ function Game:repairQuote(st, owner)
 	return missing, missing * Game.repairRate(st), max
 end
 
--- Repair as much as credits allow. Returns points repaired and paid, or
--- nil and why not.
+-- Queue work at the station's rate; payment happens as work completes.
+-- Returns requested points and their maximum quote, or nil and why not.
 function Game:repairShip(st, owner)
 	if not Game.stationServices(st).repair then return nil, "NO REPAIR BAY HERE" end
-	local missing, _, max = self:repairQuote(st, owner)
+	local missing = self:repairQuote(st, owner)
 	if missing <= 0 then return nil, "NOTHING TO REPAIR" end
+	if owner.repairOrder then return nil, "REPAIRS ALREADY IN PROGRESS" end
 	local rate = Game.repairRate(st)
 	local points = rate > 0 and math.min(missing, floor(self.universe.credits / rate)) or missing
 	if points <= 0 then return nil, "NOT ENOUGH CREDITS" end
-	local paid = points * rate
-	owner.armor = math.min(max, (owner.armor or max) + points)
-	self.universe.credits = self.universe.credits - paid
-	return points, paid
+	owner.repairOrder={key=Stock.key(st),remaining=points,rate=rate,at=self.universe.clock}
+	return points, points*rate
+end
+
+-- Repair orders are paid as work completes. Stored ships catch up when the
+-- station is visited; undocking cancels the flying ship's unpaid remainder.
+function Game:updateRepairs(st)
+ local key=Stock.key(st)
+ local function work(owner)
+  local order=owner.repairOrder
+  if not order or order.key~=key then return end
+  local elapsed=math.max(0,self.universe.clock-order.at);order.at=self.universe.clock
+  local missing,_,maximum=self:repairQuote(st,owner)
+  local budget=order.rate>0 and self.universe.credits/order.rate or order.remaining
+  local points=require('src.repair_materials').restore(self.universe,key,math.min(missing,order.remaining,budget),elapsed,T.npcRepairPerSecond)
+  owner.armor=math.min(maximum,(owner.armor or maximum)+points)
+  self.universe.credits=math.max(0,self.universe.credits-points*order.rate)
+  order.remaining=math.max(0,order.remaining-points)
+  if order.remaining<1e-6 or maximum-owner.armor<1e-6 or budget<=points+1e-6 then owner.repairOrder=nil end
+ end
+ work(self.player)
+ for _,owner in ipairs(self:stationRecord(st).hangar) do work(owner) end
 end
 
 function Game.marketDefinition(st) return Stock.definition(st) end
@@ -199,6 +218,7 @@ function Game:shopTick(st, i, shop, away)
   if shop.unlimited then mk.next[id]=now end
 		local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
 		local function have() return stock and (stock[id] or 0) or stockCount(mk.hold, id) + (away and away[id] or 0) end
+		if id=='steel_plate' then mk.next[id]=nil else
 		-- the timed restock stands in for production until stations make goods
 		while have() < want and mk.next[id] and mk.next[id] <= now do
 			if stock then
@@ -211,6 +231,7 @@ function Game:shopTick(st, i, shop, away)
 		end
 		if have() >= want then mk.next[id] = nil
 		elseif not mk.next[id] then mk.next[id] = now + every end
+		end
 	end
 	local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
 	if stock then Stock.syncShelf(mk.hold, stock, away) end
@@ -327,7 +348,8 @@ function Game:completeTrade(st, trade)
 	for _, s in ipairs(selling) do
 		-- resale: it can be bought back until it's sold on
 		-- (no room on the shelf: it's sold on straight away)
-		if not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
+		if s.id=='steel_plate' and not s.inner then Stock.add(u,st,s.id,s.n)
+		elseif not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end

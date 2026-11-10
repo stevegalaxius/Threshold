@@ -274,12 +274,12 @@ local function take(ctx,target)
   if n==0 then
    n,id,moved=Loot.takeStack(dest,h)
    if n==0 and clearable(prof,source) and not next(Hold.totals(h)) then
-    -- stripped bare: the clean-up crew drills the hull apart for its alloy
-    -- (the same fixed yield a live wreck gives: Game.wreckAlloy)
+    -- stripped bare: the clean-up crew drills the hull apart for its steel
+    -- (the same fixed yield a live wreck gives: Game.wreckSteel)
     local hullId=source.kind=='combat' and record.ship and record.ship.hull or source.kind=='live' and record.hull.id or record.hull
-    local alloy=source.kind=='live' and (record.alloy or 0) or require('src.game').wreckAlloy(data.hulls[hullId])
-    local got=drilled and Hold.add(dest,'hull_alloy',alloy) or 0
-    if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Actions.pickedUp(ctx,'hull_alloy',got) end
+    local steel=source.kind=='live' and (record.steel or 0) or require('src.game').wreckSteel(data.hulls[hullId])
+    local got=drilled and Hold.add(dest,'steel_plate',steel) or 0
+    if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Actions.pickedUp(ctx,'steel_plate',got) end
     if source.kind=='combat' then game.universe.alifeWrecks[source.id]=nil else remove(game,source) end
     require('src.events').emit('wreck_cleared',r,source.record)
     return 'done'

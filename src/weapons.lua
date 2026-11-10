@@ -158,7 +158,7 @@ local function fire(game, e, slot, dt)
 		if hit then
 			local t = hit.entity
 			local rock = t.kind == "asteroid"
-			-- drills bite rock and wreck hulls alike (a drilled wreck yields hull alloy)
+			-- drills bite rock and wreck hulls alike (a drilled wreck yields steel plates)
 			local cuts = rock or t.kind == "husk"
 			if cuts then t.drilled = true end
 			game:damage(t, w.damage * dt * (cuts and (w.rockDamage or 1) or 1), e, "drill", hit.x, hit.y)
