@@ -112,6 +112,7 @@ function love.load(args)
 		["--handofftest"] = "tests.npc_handoff",
 		["--foodtest"] = "tests.food",
 		["--chemicaltest"] = "tests.chemicals",
+		["--freighttest"] = "tests.freight_capacity",
 		["--ammunitiontest"] = "tests.ammunition",
 		["--steeltest"] = "tests.steel",
 	}

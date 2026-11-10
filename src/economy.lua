@@ -199,7 +199,7 @@ function E.update(u,clock)
   local spare,buyers={},{}
   local participants=item==Food.item and inhabited or all
   for _,s in ipairs(participants) do
-   local have=Stock.count(u,s,item)
+   local have=math.max(0,Stock.count(u,s,item)-Transport.reserved(u,s,item,nil,true))
    if makes(s,item) then spare[s]=have-E.target(u,s,item,true)
    else
     local want=E.target(u,s,item)
@@ -237,11 +237,14 @@ function E.update(u,clock)
      if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
      break
     end
-    local n=math.min(E.lot,short,spare[best])
+    local n=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
+    local critical=item==Food.item or item==require('src.reactor_fuel').item()
+    local production=capacityUse(u,c,item)>0
+    local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock},clock,u))
+     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
   end

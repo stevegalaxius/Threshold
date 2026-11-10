@@ -60,7 +60,7 @@ return function(game)
   local legacy=Transport.quote({source=jup,target=ven,amount=10,creditsPerUnit=2},w.clock)
   assert(legacy.creditsPerUnit==2,'existing flat-rate contracts retain their price')
   local rate=quote.creditsPerUnit
-  local paid=math.floor(6*rate+1e-7)
+  local paid=math.floor(10*rate+1e-7)+math.floor(5*rate+1e-7)
   local credits=r.credits or 0
   local earnings=r.freightEarnings or 0
   Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true,creditsPerUnit=rate,routeAU=au})
@@ -69,12 +69,11 @@ return function(game)
   local t=Tasks.choose(w,r,ven,w.clock)
   assert(t and t.phase=='pickup','trader takes remote work as a pickup')
   local route=Tasks.plan(r,ven,w.clock);assert(route and route[#route]==jup,'pickup route ends at the source')
-  assert(t.amount==15 and (r.credits or 0)==credits,'matching orders merge without pickup payment')
-  -- Another visitor takes stock while this trader is flying to the pickup.
-  J.take(w,jup,'hydrogen_canister',J.available(w,jup,'hydrogen_canister')-6)
+  assert(#t.manifest==2 and t.manifest[1].amount+t.manifest[2].amount==15 and (r.credits or 0)==credits,'matching orders merge without pickup payment')
+  assert(Transport.reserved(w,jup,'hydrogen_canister')==15,'remote pickup reserves its source cargo')
   local before=J.available(w,jup,'hydrogen_canister')
   Tasks.arrive(w,r,jup,w.clock)
-  assert(r.task.phase=='delivery' and J.available(w,jup,'hydrogen_canister')==before-6 and t.amount==6,'loads only the remaining stock')
+  assert(r.task.phase=='delivery' and J.available(w,jup,'hydrogen_canister')==before-15,'loads reserved manifest')
   local leg=Tasks.plan(r,jup,w.clock);assert(leg and leg[#leg]==ven,'then heads for the target')
   assert((r.credits or 0)==credits,'loading does not pay')
   local Save=require('src.save')
@@ -84,18 +83,18 @@ return function(game)
   local task=r.task;local stock=J.available(w,ven,task.item)
   assert(Tasks.arrive(w,r,ven,w.clock),'and delivers')
   assert(r.credits==credits+paid and r.freightEarnings==earnings+paid,'pays for actual delivered quantity')
-  assert(J.available(w,ven,task.item)==stock+6,'destination receives the load')
+  assert(J.available(w,ven,task.item)==stock+15,'destination receives the load')
   Tasks.definitions.transport.complete(w,r,task,ven,w.clock)
-  assert(r.credits==credits+paid and J.available(w,ven,task.item)==stock+6,'repeated completion changes nothing')
+  assert(r.credits==credits+paid and J.available(w,ven,task.item)==stock+15,'repeated completion changes nothing')
   local history=require('src.simulation_history').recent(w,{kind='freight_delivered'})
-  assert(#history==1 and history[1].result.payment==paid and history[1].result.routeAU==au,'one delivery outcome records the payment')
+  assert(#history==2 and history[1].result.payment+history[2].result.payment==paid and history[1].result.routeAU==au,'one delivery outcome records the payment')
   -- A later shipment loses cargo: no payout and the order is released.
   J.deliver(w,jup,'hydrogen_canister',10)
   local offer=Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true})
   local lost=assert(Tasks.choose(w,r,jup,w.clock))
   r.ship.cargo[lost.item]=lost.amount-1
   assert(not Tasks.arrive(w,r,ven,w.clock) and not r.task,'lost cargo fails delivery')
-  assert(offer.state=='available' and r.credits==credits+paid and J.available(w,ven,lost.item)==stock+6,'failed delivery pays nothing and moves no stock')
+  assert(not Tasks.state(w).offers[offer.id] and r.credits==credits+paid and J.available(w,ven,lost.item)==stock+15,'failed delivery pays nothing and moves no stock')
  end
  -- Personality changes choices without adding more job/route evaluations.
  do
@@ -107,8 +106,9 @@ return function(game)
   assert(restored.ambition==r.ambition and restored.aggression==r.aggression,'saved personality remains stable')
   local low={id='npc/cautious',role='trader',ambition=0,aggression=0}
   local high={id='npc/ambitious',role='trader',ambition=1,aggression=1}
-  local near={source=ven,target=jup,order=true,amount=10,creditsPerUnit=2,routeAU=0}
-  local far={source=jup,target=ven,order=true,amount=10,creditsPerUnit=20,routeAU=18}
+  low.ship=copy(template.ship);high.ship=copy(template.ship)
+  local near={item='hydrogen_canister',source=ven,target=jup,order=true,amount=10,creditsPerUnit=2,routeAU=0}
+  local far={item='hydrogen_canister',source=jup,target=ven,order=true,amount=10,creditsPerUnit=20,routeAU=18}
   local score=Tasks.definitions.transport.score
   assert(score(u,low,near,ven,u.clock)>score(u,low,far,ven,u.clock),'low ambition prefers nearby work')
   assert(score(u,high,far,ven,u.clock)>score(u,high,near,ven,u.clock),'high ambition pursues the richer remote run')

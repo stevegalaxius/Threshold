@@ -17,4 +17,4 @@ Each recipe stores up to eight batches. Full storage or missing ingredients does
 
 NPC rearming respects each weapon's selected ammunition and takes only what the station has. Shortages leave ships partially supplied. Player purchases consume the same finite stock; sales replenish it. These products bypass automatic shop restocking. Debug supplies remain unlimited. Missiles, torpedoes, drones and flares retain their existing supply behavior.
 
-F6's factory production and prices panel shows allocations, stock, prices, margins and customer demand. The focused check is `love . --ammunitiontest`; it also runs in the smoke suite. Freight arbitration and NPC population rules are unchanged.
+F6's factory production and prices panel shows allocations, stock, prices, margins and customer demand. The focused check is `love . --ammunitiontest`; it also runs in the smoke suite. Freight handling and population planning are described in [freight-capacity.md](freight-capacity.md).

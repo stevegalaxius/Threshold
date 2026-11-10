@@ -45,8 +45,12 @@ function Tasks.release(u,r,reason,clock)
  local t=r.task or r.suspendedTask
  if not t then return end
  local o=Tasks.state(u).offers[t.id]
+ for _,line in ipairs(t.manifest or {}) do
+  local extra=Tasks.state(u).offers[line.id]
+  if extra and extra.owner==r.id then extra.owner=nil;extra.state='available';extra.manifestRoot=nil;extra.loaded=nil;extra.readyAt=clock+(extra.cooldown or 120);if t.phase=='delivery' then Tasks.state(u).offers[line.id]=nil end end
+ end
  if o and o.owner==r.id then
-  o.owner=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
+  o.owner=nil;o.manifestRoot=nil;o.loaded=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
  end
  r.lastTask={id=t.id,kind=t.kind,status=reason,clock=clock}
  r.task=nil;r.suspendedTask=nil;r.suspendedTaskStatus=nil
@@ -77,8 +81,9 @@ function Tasks.clean(u,clock)
  for _,o in pairs(Tasks.state(u).offers) do
   local r=o.owner and u.npcs[o.owner]
   local task=r and (r.task or r.suspendedTask)
-  if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not task or task.id~=o.id) then
-   o.owner=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
+  if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not task or task.id~=(o.manifestRoot or o.id)) then
+   if o.loaded then Tasks.state(u).offers[o.id]=nil
+   else o.owner=nil;o.manifestRoot=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120) end
   end
  end
 end
