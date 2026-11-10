@@ -200,7 +200,7 @@ function Game:shopTick(st, i, shop, away)
 		local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
 		local function have() return stock and (stock[id] or 0) or stockCount(mk.hold, id) + (away and away[id] or 0) end
 		-- Provisions come from farms and shipments, never the legacy shop timer.
-		if id=='food_crate' then mk.next[id]=nil else
+		if id=='food_crate' or id=='fertilizer' then mk.next[id]=nil else
 		-- the timed restock stands in for production until stations make goods
 		while have() < want and mk.next[id] and mk.next[id] <= now do
 			if stock then

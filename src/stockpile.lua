@@ -108,6 +108,7 @@ function S.stock(u,st,i)
     stock[id]=math.floor(n*(.25+.5*(h%1000)/999))
    end
    if S.shopFor(key,'food_crate')==i then stock.food_crate=require('src.food').initial(key) end
+   if S.shopFor(key,'fertilizer')==i then stock.fertilizer=require('src.food').initialFertilizer(key) end
   end
   m.stock=stock
   -- fold in the old per-station logistics stock once

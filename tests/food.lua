@@ -43,6 +43,38 @@ return function(game)
  u.clock=u.clock+3600
  assert(Stock.count(u,farm,Food.item)==initial+make-eat,'farm failed to produce and eat separately')
  assert(u.economyStats.used[Food.item]-used==eat,'farm consumption was hidden by net production')
+ -- Fertilizer is real cargo: an empty farm stops and keeps ordering it.
+ local farmWorld={clock=0,stations={}}
+ local farmStock=Stock.stock(farmWorld,farm,Stock.shopFor(farm,Food.item))
+ farmStock[Food.item]=nil;farmStock[Food.fertilizer]=nil
+ farmWorld.clock=3600
+ assert(Food.status(farmWorld,farm).stock==0 and Food.output(farmWorld,farm)==.5,'farm made food without fertilizer')
+ assert(E.target(farmWorld,farm,Food.fertilizer)==make/Food.yield*E.hours,'empty farm lost fertilizer demand')
+ local shipment={id='fertilizer-shipment',source='station:belt_1',target=farm,item=Food.fertilizer,amount=1,stocked=true,phase='delivery'}
+ local carrier={id='fertilizer-hauler',ship={cargo={[Food.fertilizer]=1}}}
+ assert(complete(farmWorld,carrier,shipment,farm,farmWorld.clock),'fertilizer freight failed')
+ farmWorld.clock=farmWorld.clock+30
+ assert(Stock.count(farmWorld,farm,Food.item)==2 and Stock.count(farmWorld,farm,Food.fertilizer)==0,'farm did not use delivered fertilizer')
+ farmWorld=assert(Save.decode(Save.encode(farmWorld)));farmWorld.clock=farmWorld.clock+30
+ assert(Stock.count(farmWorld,farm,Food.item)==4,'save/load lost the fertilizer remaining in the crop batch')
+ farmWorld.clock=farmWorld.clock+3600
+ Food.status(farmWorld,farm)
+ assert(farmWorld.economyStats.made[Food.item]==20,'one fertilizer made more or less than twenty food crates')
+ -- Fertilizer makers use the ordinary recipe/input mechanism.
+ local sourceWorld={clock=0,stations={}}
+ local source='station:jupiter_2'
+ Stock.count(sourceWorld,source,Food.fertilizer)
+ Stock.add(sourceWorld,source,'water_ice',10)
+ sourceWorld.clock=900
+ assert(Stock.count(sourceWorld,source,Food.fertilizer)==10 and Stock.count(sourceWorld,source,'water_ice')==0,'fertilizer did not consume its production input')
+ local reserve=Stock.count(sourceWorld,farm,Food.fertilizer)
+ Stock.take(sourceWorld,farm,Food.fertilizer,reserve)
+ E.update(sourceWorld,sourceWorld.clock)
+ local fertilizerOrder=false
+ for _,o in pairs(Tasks.state(sourceWorld).offers) do
+  if o.item==Food.fertilizer and o.target==farm then fertilizerOrder=true end
+ end
+ assert(fertilizerOrder,'farm did not order fertilizer through ordinary freight')
  local ladder='station:mars_3'
  local opening=Stock.count(u,ladder,Food.item)
  u.clock=u.clock+3600
@@ -64,6 +96,9 @@ return function(game)
  food(0);market.next[Food.item]=u.clock-10000
  game:shopTick(st,shop,Stock.shops(st)[shop])
  assert(Stock.count(u,key,Food.item)==0,'market timer conjured food during a shortage')
+ market.next[Food.fertilizer]=u.clock-10000
+ game:shopTick(st,shop,Stock.shops(st)[shop])
+ assert(Stock.count(u,key,Food.fertilizer)==0,'market timer conjured fertilizer')
  game.universe=old
  print('FOOD: consumption, shortage, production, freight, persistence and recovery passed')
 end

@@ -99,6 +99,7 @@ salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, pric
 
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
 salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 30, w = 1, h = 1, stack = 4 }
+salvage { id = "fertilizer", name = "Fertilizer", volume = 0.25, mass = 0.25, price = 40, w = 1, h = 1, stack = 4 }
 salvage { id = "empty_canister", name = "Empty canister", volume = 0.25, mass = 0.08, price = 15, w = 1, h = 1, stack = 4 }
 salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, mass = 0.1, price = 40, w = 1, h = 1, stack = 4 }
 -- Reactor fuel: ice from Ceres, cracked into deuterium and sealed in a

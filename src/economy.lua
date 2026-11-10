@@ -99,6 +99,7 @@ end
 local function capacityUse(u,key,item)
  local place=L.byId[key];if not place then return 0 end
  local n=item==Food.item and Food.rates(key) or 0
+ if item==Food.fertilizer then n=n+Food.fertilizerUse(key) end
  for _,c in ipairs(C.list) do
   n=n+(c.use[key] or 0)*(c.item==item and 1 or 0)
   for _,input in ipairs(C.inputs(c)) do

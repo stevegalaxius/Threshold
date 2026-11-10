@@ -378,6 +378,11 @@ function Debug.update(dt, game)
 				for _,id in ipairs(L.stations(g.fieldId)) do
 					Slab.Text(L.get(id).name)
 					Slab.Text('  '..require('src.food').label(g.universe,id))
+					local Food=require('src.food')
+					local use=Food.fertilizerUse(id)
+					if use>0 then
+						Slab.Text(('  Fertilizer: %d units; %.1f/h at full food production'):format(require('src.stockpile').count(g.universe,id,Food.fertilizer),use))
+					end
 				end
 			end, game)
 		end

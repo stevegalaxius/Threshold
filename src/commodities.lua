@@ -12,6 +12,8 @@
 -- and how fast, is the station's own (its industry in src/world_layout.lua:
 -- recipe id = units an hour, a negative rate uses the item up).
 local C={list={
+ -- processing mineral-bearing ice into agricultural nutrients
+ {id='make_fertilizer',item='fertilizer',cap=240,input={item='water_ice',n=1}},
  -- pressing empty canisters out of ore
  {id='press_canisters',item='empty_canister',amount=10,cap=1500,input={item='iron_ore',n=1}},
  -- filling them with hydrogen skimmed from a gas giant
