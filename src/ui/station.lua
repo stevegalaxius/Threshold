@@ -1,6 +1,15 @@
 -- Station controls use the existing player inventory presentation.
 local HUD=require('src.hud')
 local S={}
+-- One frame for every station tab (and the in-flight inventory), so the
+-- header and tab row never move when the tab changes.
+function S.frameW()
+ return math.min(love.graphics.getWidth()-48,1400)
+end
+function S.frame()
+ local w=S.frameW()
+ return math.floor((love.graphics.getWidth()-w)/2),w
+end
 -- Use the same frames and button treatment as the player inventory.
 function S.panel(x,y,w,h)
  HUD.panel(x,y,w,h)
