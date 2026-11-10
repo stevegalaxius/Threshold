@@ -50,10 +50,21 @@ return function(game)
  do
   local r=template;r.id='npc/990001';r.task=nil;r.ship.hold=nil;r.ship.cargo={}
   local w={clock=u.clock,npcs={[r.id]=r},stations=u.stations,mining=u.mining}
+  local Transport=require('src.transport')
+  local T=require('src.tuning')
+  local quote=Transport.quote({source=jup,target=ven,amount=10},w.clock)
+  local au=math.floor(require('src.fields').distance('jupiter','venus',w.clock)*100+.5)/100
+  assert(quote.routeAU==au and quote.creditsPerUnit==math.floor((T.freightCreditsPerUnit+au*T.freightCreditsPerAU)*100+.5)/100,'freight price follows quoted route AU')
+  local localQuote=Transport.quote({source=mars,target=node,amount=10},w.clock)
+  assert(localQuote.routeAU==0 and localQuote.creditsPerUnit==T.freightCreditsPerUnit,'local freight uses the base rate')
+  local legacy=Transport.quote({source=jup,target=ven,amount=10,creditsPerUnit=2},w.clock)
+  assert(legacy.creditsPerUnit==2,'existing flat-rate contracts retain their price')
+  local rate=quote.creditsPerUnit
+  local paid=math.floor(6*rate+1e-7)
   local credits=r.credits or 0
   local earnings=r.freightEarnings or 0
-  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true,creditsPerUnit=7})
-  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=5,stocked=true,order=true,creditsPerUnit=7})
+  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true,creditsPerUnit=rate,routeAU=au})
+  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=5,stocked=true,order=true,creditsPerUnit=rate,routeAU=au})
   J.deliver(w,jup,'hydrogen_canister',20)
   local t=Tasks.choose(w,r,ven,w.clock)
   assert(t and t.phase=='pickup','trader takes remote work as a pickup')
@@ -68,22 +79,23 @@ return function(game)
   assert((r.credits or 0)==credits,'loading does not pay')
   local Save=require('src.save')
   r.task=assert(Save.decode(Save.encode(r.task)))
-  assert(r.task.creditsPerUnit==7,'saved shipment retains its quoted rate')
+  Transport.quote(r.task,w.clock+100000)
+  assert(r.task.creditsPerUnit==rate and r.task.routeAU==au,'saved shipment retains its quote as planets move')
   local task=r.task;local stock=J.available(w,ven,task.item)
   assert(Tasks.arrive(w,r,ven,w.clock),'and delivers')
-  assert(r.credits==credits+42 and r.freightEarnings==earnings+42,'pays for actual delivered quantity')
+  assert(r.credits==credits+paid and r.freightEarnings==earnings+paid,'pays for actual delivered quantity')
   assert(J.available(w,ven,task.item)==stock+6,'destination receives the load')
   Tasks.definitions.transport.complete(w,r,task,ven,w.clock)
-  assert(r.credits==credits+42 and J.available(w,ven,task.item)==stock+6,'repeated completion changes nothing')
+  assert(r.credits==credits+paid and J.available(w,ven,task.item)==stock+6,'repeated completion changes nothing')
   local history=require('src.simulation_history').recent(w,{kind='freight_delivered'})
-  assert(#history==1 and history[1].result.payment==42,'one delivery outcome records the payment')
+  assert(#history==1 and history[1].result.payment==paid and history[1].result.routeAU==au,'one delivery outcome records the payment')
   -- A later shipment loses cargo: no payout and the order is released.
   J.deliver(w,jup,'hydrogen_canister',10)
   local offer=Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true})
   local lost=assert(Tasks.choose(w,r,jup,w.clock))
   r.ship.cargo[lost.item]=lost.amount-1
   assert(not Tasks.arrive(w,r,ven,w.clock) and not r.task,'lost cargo fails delivery')
-  assert(offer.state=='available' and r.credits==credits+42 and J.available(w,ven,lost.item)==stock+6,'failed delivery pays nothing and moves no stock')
+  assert(offer.state=='available' and r.credits==credits+paid and J.available(w,ven,lost.item)==stock+6,'failed delivery pays nothing and moves no stock')
  end
  print(('stockpile: ok (Mars made %d canisters in an hour; %d commodity hauls)'):format(made,hauls))
 end

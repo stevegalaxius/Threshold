@@ -26,6 +26,7 @@
 local L=require('src.locations')
 local Fields=require('src.fields')
 local Tasks=require('src.tasks')
+local Transport=require('src.transport')
 local Stock=require('src.stockpile')
 local C=require('src.commodities')
 local T=require('src.tuning')
@@ -214,8 +215,8 @@ function E.update(u,clock)
     local n=math.min(E.lot,short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
-    Tasks.post(u,{kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock,creditsPerUnit=T.freightCreditsPerUnit})
+    Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
+     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock},clock))
     spare[best]=spare[best]-n;short=short-n
    end
   end

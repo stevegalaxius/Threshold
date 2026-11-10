@@ -124,7 +124,9 @@ local function details(game)
   Slab.Text(('Job: %s %s  %s > %s  (%s%s%s)'):format(t.kind,what,place(t.source),place(t.target),
    tostring(t.phase),t.order and ', station order' or '',r.suspendedTask and ', suspended' or ''))
   if t.kind=='transport' then
-   Slab.Text(('Delivery payment: %d cr%s'):format(require('src.transport').payment(t),t.phase=='pickup' and ' (subject to loaded quantity)' or ''))
+   local payment=require('src.transport').payment(t)
+   Slab.Text(('Delivery: %.2f AU; %d x %.2f cr/unit = %d cr%s'):format(t.routeAU,t.amount,t.creditsPerUnit,payment,
+    t.phase=='pickup' and ' (subject to loaded quantity)' or ''))
   end
   -- The route above is only this map's legs. Where the job takes it after
   -- them: the maps on the way to its next job stop (the pickup, then the

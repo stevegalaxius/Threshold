@@ -925,12 +925,16 @@ When that task kind is registered again, the same assignment resumes without
 running pickup preparation again. Explicit cancellation or the worker's death
 still releases its reservation normally.
 
-Freight orders pay NPC haulers 2 credits per delivered unit (tunable through
-`T.freightCreditsPerUnit`). The destination commissions the shipment from an
+Freight orders pay NPC haulers `(2 + route AU) × delivered units` credits,
+rounded down to whole credits. `T.freightCreditsPerUnit` controls the base rate;
+`T.freightCreditsPerAU` controls the AU surcharge. Route AU sums the delivery's
+mass-driver legs at posting time, quoted to hundredths. Local and planet–moon
+runs use the base rate. Empty pickup travel and service detours add no charge.
+Existing flat-rate contracts retain their agreed price. The destination commissions the shipment from an
 unlimited operating budget; haulers do not purchase the goods. The quoted rate
 survives saves and service detours. Pickup earns nothing, lost cargo earns
 nothing, and reduced loads earn proportionally. F6 shows each NPC's credits,
-freight earnings and active delivery payment. Successful deliveries record a
+freight earnings, quoted AU, unit rate and active delivery payment. Successful deliveries record a
 `freight_delivered` simulation outcome with cargo, route and payment.
 
 
