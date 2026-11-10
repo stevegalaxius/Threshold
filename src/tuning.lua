@@ -231,6 +231,7 @@ T.population = {
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
+T.npcArrivalWidth = 4000     -- px across (and half that deep) the band driver arrivals spread over, by id
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Berth ship capacity is independent of the authored pad/editor marker size.

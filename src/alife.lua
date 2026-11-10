@@ -99,7 +99,13 @@ local function start(r,clock,index)
    local b=math.atan2(by-ay,bx-ax)
    local edge=(here.radius or 10000)+T.npcArrivalBeyondEdge
    -- side by side across the bearing, not all on one line
-   local across=((r.spread or 0)/math.max(1,T.alifeSpread))*T.catchOffset
+   -- (by id: many NPCs have no spread of their own, and they all came in
+   -- on one spot, inside each other)
+   local id=tostring(r.id or '');local n=tonumber(id:match('%d+$')) or 0
+   for i=1,#id do n=n+id:byte(i)*i*7 end
+   local across=(((n*.618034)%1)*2-1)*T.npcArrivalWidth/2
+   local depth=((n*.414214)%1)*T.npcArrivalWidth/2
+   edge=edge+depth
    local ex,ey=math.cos(b)*edge-math.sin(b)*across,math.sin(b)*edge+math.cos(b)*across
    local x,y=L.position(leg.from,clock)
    r.offset={x=ex-x,y=ey-y,progress=0}
@@ -705,7 +711,27 @@ function A.wake(game,r)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
-  if st and st.kind=='station' and st.def then game:dockInstantly(e,st,r.docking)
+  if st and st.kind=='station' and st.def then
+   if game:dockInstantly(e,st,r.docking)==false then
+    -- More ships are docked here offline than the station has free berths
+    -- for them. dockInstantly leaves each at the dock's entrance, every one
+    -- on the same spot: they woke inside each other and broke each other
+    -- up. Hold them in line out along the approach instead, one behind
+    -- the other.
+    local x,y=e.body:getPosition()
+    local sx,sy=st.body:getPosition()
+    local dx,dy=x-sx,y-sy;local d=math.max(1,math.sqrt(dx*dx+dy*dy))
+    st.overflowLine=st.overflowLine or {}
+    local n=0
+    for other in pairs(st.overflowLine) do
+     if other.removed or other.dead or not other.body or other.body:isDestroyed() or other.dockState then st.overflowLine[other]=nil else n=n+1 end
+    end
+    st.overflowLine[e]=true
+    local back=T.queueStart+T.queueGap*n
+    x,y=sx+dx/d*(d+back),sy+dy/d*(d+back)
+    e.body:setPosition(x,y);e.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(x,y))
+    require('src.alife_trace').note(r,game.universe.clock,'wake','no free berth at '..tostring(r.route[r.index])..', holding in line')
+   end
   else
    -- docked at something that isn't a dockable station here (e.g. an
    -- access point resolved to another entity): leave it in open space
