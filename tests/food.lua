@@ -54,9 +54,12 @@ return function(game)
  local carrier={id='fertilizer-hauler',ship={cargo={[Food.fertilizer]=1}}}
  assert(complete(farmWorld,carrier,shipment,farm,farmWorld.clock),'fertilizer freight failed')
  farmWorld.clock=farmWorld.clock+30
- assert(Stock.count(farmWorld,farm,Food.item)==2 and Stock.count(farmWorld,farm,Food.fertilizer)==0,'farm did not use delivered fertilizer')
+ Food.status(farmWorld,farm)
+ local batch=math.floor(make*30/3600)
+ assert(farmWorld.economyStats.made[Food.item]==batch and Stock.count(farmWorld,farm,Food.fertilizer)==0,'farm did not use delivered fertilizer')
  farmWorld=assert(Save.decode(Save.encode(farmWorld)));farmWorld.clock=farmWorld.clock+30
- assert(Stock.count(farmWorld,farm,Food.item)==4,'save/load lost the fertilizer remaining in the crop batch')
+ Food.status(farmWorld,farm)
+ assert(farmWorld.economyStats.made[Food.item]==batch*2,'save/load lost the fertilizer remaining in the crop batch')
  farmWorld.clock=farmWorld.clock+3600
  Food.status(farmWorld,farm)
  assert(farmWorld.economyStats.made[Food.item]==20,'one fertilizer made more or less than twenty food crates')
@@ -79,6 +82,13 @@ return function(game)
   if o.item==Food.fertilizer and o.target==farm then fertilizerOrder=true end
  end
  assert(fertilizerOrder,'farm did not order fertilizer through ordinary freight')
+ -- Saturn's moon plants produce directly; Ceres alone processes ice.
+ for _,source in ipairs({'station:enceladus_1','station:titan_2'}) do
+  local moon={clock=0,stations={}}
+  Stock.count(moon,source,Food.fertilizer)
+  moon.clock=3600
+  assert(Stock.count(moon,source,Food.fertilizer)==40,'Saturn moon plant required an input or failed to produce fertilizer')
+ end
  local ladder='station:mars_3'
  local opening=Stock.count(u,ladder,Food.item)
  u.clock=u.clock+3600

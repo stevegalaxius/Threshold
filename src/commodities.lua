@@ -14,6 +14,8 @@
 local C={list={
  -- processing mineral-bearing ice into agricultural nutrients
  {id='make_fertilizer',item='fertilizer',cap=240,input={item='water_ice',n=1}},
+ -- Saturn's moon stations supply fertilizer directly, without imported inputs
+ {id='produce_fertilizer',item='fertilizer',cap=240},
  -- pressing empty canisters out of ore
  {id='press_canisters',item='empty_canister',amount=10,cap=1500,input={item='iron_ore',n=1}},
  -- filling them with hydrogen skimmed from a gas giant

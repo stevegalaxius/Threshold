@@ -1,12 +1,12 @@
 -- Food is an operating cost, not a population simulation. Rates are crates
 -- per game hour; farms turn delivered fertilizer into food.
 local L=require('src.locations')
-local F={item='food_crate',fertilizer='fertilizer',yield=20,transition=3600,minOutput=.5,cap=1000}
+local F={item='food_crate',fertilizer='fertilizer',yield=20,transition=3600,minOutput=.5,cap=4000}
 function F.rates(key)
  local place=L.byId[L.canonical(key)]
  if not place or place.kind~='station' then return 0,0 end
  local spec=place.food or {}
- return spec.use or require('src.world_layout').defaults.foodUse or 8,spec.make or 0
+ return spec.use or require('src.world_layout').defaults.foodUse or 32,spec.make or 0
 end
 function F.initial(key)
  local use,make=F.rates(key)
