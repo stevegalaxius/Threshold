@@ -2181,7 +2181,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
-		if e.hp <= 0 then e.dead = true; e.vaporized = cause == "atomic" end
+		if e.hp <= 0 then e.dead = true end
 		return
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
@@ -2201,7 +2201,6 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e.armor <= 0 then
 		e.armor = 0
 		e.dead = true
-		e.vaporized = cause == "atomic"      -- nothing left to be a wreck
 	end
 end
 
@@ -2220,6 +2219,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local edge = (e.kind == "ship") and Ship.distanceTo(e, x, y) or (d - e.radius)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
+			if cause=='airburst' then fall=fall*fall end
 			if fall > 0 then
 				self:damage(e, damage * fall, owner, cause or "splash", x, y)
 				if d > 1 and e.kind == "ship" and not e.driverProtected then
@@ -2230,16 +2230,19 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 		end
 		return true
 	end)
-	local nuke = cause == "atomic"
-	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = nuke and 1.2 or 0.22, t = 0, nuke = nuke })
+	if cause=='airburst' then
+		self:addEffect({kind='airburst',x=x,y=y,r=radius,life=.2,t=0})
+		return
+	end
+	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = 0.22, t = 0 })
 	-- a weapon's blast reads big: a white-hot gradient flash for a split
 	-- second, then a shockwave ring racing out past the blast (missiles and
 	-- torpedoes larger still)
 	if damage > 0 then
-		local big = (cause == "missile" or cause == "torpedo" or nuke) and 1.6 or 1
+		local big = (cause == "missile" or cause == "torpedo") and 1.6 or 1
 		local r = max(50, radius) * big
-		self:addEffect({ kind = "flash", x = x, y = y, r = r * 1.5, life = nuke and 0.3 or 0.09, t = 0 })
-		self:addEffect({ kind = "shockwave", x = x, y = y, r = r * 2.4, life = nuke and 0.9 or 0.28, t = 0 })
+		self:addEffect({ kind = "flash", x = x, y = y, r = r * 1.5, life = 0.09, t = 0 })
+		self:addEffect({ kind = "shockwave", x = x, y = y, r = r * 2.4, life = 0.28, t = 0 })
 	end
 	self:spark(x, y, 10 + floor(radius / 8), { 1, 0.7, 0.35 })
 	if self.player and not self.player.dead then
@@ -2444,13 +2447,12 @@ function Game:reap()
 			self:explode(x, y, e.halfLength, 0, 0)
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
-			-- (unless an atomic blast vaporized it, contents and all)
 			-- drilled apart, a wreck gives up its hull alloy (shot apart, it's slag)
-			if e.kind == "husk" and e.drilled and not e.vaporized and (e.alloy or 0) > 0 then
+			if e.kind == "husk" and e.drilled and (e.alloy or 0) > 0 then
 				self:spawnPickup(x, y, "hull_alloy", e.alloy)
 			end
 			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
-			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
+			for _, g in ipairs(e.hold.grids) do
 				for _, st in ipairs(g.stacks) do
 					require('src.wreck_salvage').scatter(self,x,y,st,e.kind=='container' or e.drilled or e.shotSalvage)
 				end
@@ -2501,9 +2503,7 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
-			if e.vaporized then
-				self:spark(x, y, 40, { 1, 0.95, 0.8 })
-			elseif not e.drone then
+			if not e.drone then
 				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
 				if e.isPlayer then self.playerHusk = husk end
 				local r=e.alifeId and self.universe.npcs[e.alifeId]

@@ -1314,8 +1314,11 @@ local function drawEquipment(game, L, mx, my)
 			lg.rectangle("fill", t.x, t.y, t.w, t.h, 4, 4)
 			local col = have and HUD.INK or HUD.WARN
 			lg.setColor(col[1], col[2], col[3], (#opts > 1 and 1 or 0.55) * alpha)
-			lg.setFont(HUD.font(10))
-			lg.printf(data.items[id].name, t.x + 2, t.y + (t.h - 10) / 2 - 1, t.w - 4, "center")
+			local item=data.items[id];local label=item.shortName or item.name
+			local font=HUD.font(10)
+			if font:getWidth(label)>t.w-4 then font=HUD.font(8) end
+			lg.setFont(font)
+			lg.printf(label, t.x + 2, t.y + (t.h - font:getHeight()) / 2, t.w - 4, "center")
 		end
 		if r.trig then
 			local t, on = r.trig, inRect(r.trig, mx, my)

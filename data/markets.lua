@@ -27,7 +27,7 @@
 ]]
 
 market { id = "market:venus_1", station = "Hub Station", ships = { "intaki_wisp", "ferrous_runner" }, sells = {   -- general store
-	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
+	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
 market { id = "market:mars_1", station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
@@ -43,9 +43,9 @@ market { id = "market:mars_2", station = "Station Beta", sells = {   -- missiles
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
 market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy weapons
-	{ name = "Kinetic armory", description = "Guns, shotguns, heavy artillery and shells.", sells = {
+	{ name = "Kinetic armory", description = "Guns, artillery, solid and airburst rounds, explosive and scatter shells.", sells = {
 		{ "gun_m_base", 2 }, { "gun_l_base", 1 }, { "artillery_l_base", 1 }, { "shell_l", 4 },
-		{ "shotgun_s_base", 1 }, { "shotgun_m_base", 1 }, { "shotgun_l_base", 1 },
+		{ "rounds_s", 6 }, { "rounds_m", 4 }, { "airburst_s", 4 }, { "airburst_m", 3 },
 		{ "shot_s", 4 }, { "shot_m", 4 }, { "shot_l", 3 },
 	} },
 	{ name = "Beam works", description = "Lasers and beam weapons. No ammo needed, just power.", sells = {
@@ -55,7 +55,7 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 } }
 market { id = "market:earth_2", station = "Orbital Two", ships = { "estates_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
-	{ "torp_l", 1 }, { "atomic_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
+	{ "torp_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
 } }
 

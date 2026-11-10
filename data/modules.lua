@@ -27,7 +27,7 @@
 	              beam = true it burns while held: damage and powerPerSecond
 	              per second.
 	  beams       lasers: lines fired at once, each doing full damage
-	              (a shotgun laser); beamSpread = fan width in degrees, an
+	              (a multi-beam laser); beamSpread = fan width in degrees, an
 	              even fan unless beamRandom = true scatters them in it.
 	  color       lasers: beam color { r, g, b } (0..1); beamWidth scales
 	              how thick it's drawn.
@@ -38,11 +38,11 @@
 	  control     drone bays: how many drones it flies at once, counted by
 	              size (S drone 1, M 2, L 4). S bay 1, M bay 2, L bay 4.
 	  chambers    the ammo families it can load, first = default: "gun"
-	              (rounds), "artillery" (shells), "shotgun" (shot), like
-	              { "shotgun", "gun" }. Unset: cannons rounds, missile racks
+	              (rounds), "artillery" (explosive or scatter shells), like
+	              { "artillery", "gun" }. Unset: cannons rounds, missile racks
 	              missiles and torpedoes. It fires at its own fireRate
 	              whatever is loaded; the ammo changes the hit, not the cadence.
-	              (Old kinds gun, artillery and shotgun load as a cannon
+	              (Old kinds gun and artillery load as a cannon
 	              chambering that ammo; torpedo as a missile rack.)
 	  fireRate    shots per second           spread    random spread in degrees
 	  caliber     ammo size a gun fires, if not its own (twin mounts)
