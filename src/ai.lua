@@ -195,8 +195,9 @@ local function trade(game, e, dt)
 		end
 		local sx, sy = stopPoint(stop, e)
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
-		local queued = e.alifeId and require("src.queue").holding(game, e, stop)
-		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex) end
+		local queued,queuePlace
+		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
+		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex,queuePlace) end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway
 		-- rather than flying into the breech, first come first served

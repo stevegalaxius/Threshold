@@ -106,7 +106,7 @@ function O.draw(game,toScreen,font)
    -- the old N overlay's readout: who, what's driving it, what it's doing
    lg.setColor(c[1],c[2],c[3],.85);lg.print(n.id..' '..(n.r.label or '')..'  '..Trace.controller(game,n.r,n.e),x+6,y-6)
    local status=require('src.reactor_fuel').activity(n.r)
-   status=require('src.queue').label(n.r,clock) or status
+   status=require('src.queue').label(n.r,clock,game) or status
    local stop=heading(n.r,n.e)
    if stop and n.r.state~='docked' then status=(status and status..'  ' or '')..'-> '..stopName(stop) end
    if status then lg.setColor(c[1],c[2],c[3],.6);lg.print(status,x+6,y+7) end
@@ -147,8 +147,9 @@ function O.draw(game,toScreen,font)
    end
   end
   -- its place in line at a driver or a dock
-  if require('src.queue').waiting(r,clock) then
-   local hx,hy=toScreen(game,require('src.queue').holdPoint(r,clock))
+  if require('src.queue').waiting(r,clock,game) then
+   local Q=require('src.queue')
+   local hx,hy=toScreen(game,Q.holdPoint(r,clock,nil,Q.place(r,clock,game)))
    lg.setColor(1,.5,.2,.9);lg.rectangle('line',hx-5,hy-5,10,10)
   end
   -- who it is dealing with
@@ -162,7 +163,7 @@ function O.draw(game,toScreen,font)
   if font then lg.setFont(font) end
   lg.print(n.id..'  '..(r.label or '')..'  '..Trace.controller(game,r,e),sel.x+14,sel.y-8)
   local status=require('src.reactor_fuel').activity(r)
-  status=require('src.queue').label(r,clock) or status
+  status=require('src.queue').label(r,clock,game) or status
   local stop=heading(r,e)
   if stop and r.state~='docked' then status=(status and status..'  ' or '')..'-> '..stopName(stop) end
   if status then lg.setColor(1,.85,.4,.8);lg.print(status,sel.x+14,sel.y+6) end
