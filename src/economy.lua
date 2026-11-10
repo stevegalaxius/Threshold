@@ -70,10 +70,7 @@ local function supportsSupplies(id) return require('src.supplies').supports(id) 
 -- How hard a station runs each recipe, against its authored rate: it
 -- speeds up while buyers of what it makes go short and it ships all it
 -- makes, and slows down while its own stock sits unwanted (E.adjust).
-function E.scale(u,key,c)
- if c.factory then return require('src.chemical_economy').scale(u,key,c.item) end
- local t=u.industry and u.industry[key];return t and t[c.id] or 1
-end
+function E.scale(u,key,c) return require('src.industry').scale(u,key,c) end
 local function fed(u,key,c)
  for _,input in ipairs(C.inputs(c)) do
   if Stock.count(u,key,input.item)<(c.make[key] or 0)*input.n*.25 then return false end
@@ -83,7 +80,7 @@ end
 local function adjust(u,unmet)
  u.industry=u.industry or {}
  for _,c in ipairs(C.list) do
-  if not c.factory then
+  if c.adaptive then
   for key in pairs(c.make) do
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
@@ -102,11 +99,10 @@ end
 local function capacityUse(u,key,item)
  local place=L.byId[key];if not place then return 0 end
  local n=item==Food.item and Food.rates(key) or 0
- if item==Food.fertilizer then n=n+Food.fertilizerUse(key) end
  for _,c in ipairs(C.list) do
   n=n+(c.use[key] or 0)*(c.item==item and 1 or 0)
   for _,input in ipairs(C.inputs(c)) do
-   if input.item==item then n=n+(c.make[key] or 0)*E.scale(u,key,c)*input.n end
+   if input.item==item then n=n+(c.make[key] or 0)*E.scale(u,key,c)*input.n/(c.time or 1) end
   end
  end
  return n
@@ -116,20 +112,27 @@ end
 local function makes(key,item)
  local place=L.byId[key];if not place then return false end
  if item==Food.item then local _,make=Food.rates(key);return make>0 end
- for _,c in ipairs(C.list) do if c.item==item and (c.make[key] or 0)>0 then return true end end
+ for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do if output.item==item and (c.make[key] or 0)>0 then return true end end end
  return false
 end
 function E.target(u,key,item,supplier)
  local want=math.max(E.rate(u,key,item),capacityUse(u,key,item))*(supplier and E.reserveHours or E.hours)
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
- local P=require('src.repair_materials')
- if item==P.item and P.supports(key) then want=math.max(want,P.floor) end
- want=math.max(want,require('src.ammunition').reserve(key,item))
+ want=math.max(want,require('src.reserves').minimum(key,item))
  local place=L.byId[key]
- if place then want=math.max(want,place.chemicalReserves and place.chemicalReserves[item] or 0) end
- if item=='nitrates' then want=math.max(want,(place and place.chemicalCapacity or 0)*E.hours) end
- return math.ceil(want)
+ if place then want=math.max(want,place.reserves and place.reserves[item] or 0) end
+ local inputReserve=0
+ -- Installed facility input reserves are independent of its current allocation.
+ for id,installation in pairs(require('src.industry').installations(key)) do
+  local def=require('src.industry').definition(id,installation);local maximum=0
+  for _,recipe in ipairs(def.recipes) do
+   local c=C.byId[recipe]
+   for _,input in ipairs(C.inputs(c)) do if input.item==item then maximum=math.max(maximum,installation.capacity*input.n/(c.time or 1)) end end
+  end
+  if def.policy=='profit' then inputReserve=inputReserve+maximum*E.hours*(installation.inputReserveScale or 1) end
+ end
+ return math.ceil(math.max(want,inputReserve))
 end
 -- The goods that move: every commodity, its inputs, what the drills dig,
 -- and reactor fuel. Every trade station can hold, sell and buy any of them;
@@ -137,7 +140,7 @@ end
 local function goods()
  local set,list={},{}
  local function add(item) if item and not set[item] then set[item]=true;list[#list+1]=item end end
- for _,c in ipairs(C.list) do add(c.item);for _,input in ipairs(C.inputs(c)) do add(input.item) end end
+ for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do add(output.item) end;for _,input in ipairs(C.inputs(c)) do add(input.item) end end
  for _,item in pairs(require('src.ore').items) do add(item) end
  add(require('src.reactor_fuel').item())
  add(Food.item)
@@ -198,7 +201,7 @@ function E.update(u,clock)
  local reach={}
  local all=stations()
  local inhabited=stations(true)
- require('src.chemical_economy').update(u,clock,all,committed)
+ require('src.markets').update(u,clock,all,committed)
  -- what buyers wanted that no station could supply, by good
  local unmet={}
  for _,item in ipairs(goods()) do
@@ -231,7 +234,7 @@ function E.update(u,clock)
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
        local score=distance(s,c,clock)*100-spare[s]
-       local Chemicals=require('src.chemical_economy')
+       local Chemicals=require('src.markets')
        if Chemicals.items[item] then
         score=Chemicals.price(u,s,item)+Transport.quote({source=s,target=c,amount=1},clock).creditsPerUnit-spare[s]*1e-6
        end

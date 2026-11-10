@@ -1,13 +1,13 @@
 -- Bounded manufacture -> freight -> finite NPC rearming scenario.
 return function(game)
- local A,S,C=require('src.ammunition'),require('src.stockpile'),require('src.chemical_economy')
+ local A,S,C=require('src.ammunition'),require('src.stockpile'),require('src.markets')
  local E,Tasks,Supplies=require('src.economy'),require('src.tasks'),require('src.supplies')
  local plant='station:mars_1';local destination='station:earth_1'
  local function set(u,key,item,n) S.stock(u,key,S.shopFor(key,item))[item]=n>0 and n or nil end
  local function world(item)
   local u={clock=0,stations={},npcs={},industry={[plant]={press_canisters=0,roll_steel=0}}}
-  local mix=C.factory(u,plant).mix
-  for _,id in ipairs(A.products) do S.count(u,plant,id);mix[id]=item and (id==item and 1 or 0) or 1/#A.products end
+  local mix=require('src.industry').state(u,plant,'ammunition').mix
+  for _,id in ipairs(A.products) do S.count(u,plant,id);mix['make_'..id]=item and (id==item and 1 or 0) or 1/#A.products end
   set(u,plant,'steel_plate',1000);set(u,plant,'explosives',1000)
   return u
  end

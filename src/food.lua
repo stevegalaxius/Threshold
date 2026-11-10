@@ -1,12 +1,14 @@
 -- Food is an operating cost, not a population simulation. Rates are crates
 -- per game hour; farms turn delivered fertilizer into food.
 local L=require('src.locations')
-local F={item='food_crate',fertilizer='fertilizer',yield=20,transition=3600,minOutput=.5,cap=4000}
+local policy=require('data.industry').consumption.food
+local recipe=require('src.commodities').byId[policy.recipe]
+local F={item=policy.item,fertilizer=recipe.inputs[1].item,yield=1/recipe.inputs[1].n,transition=policy.transition,minOutput=policy.minOutput,cap=recipe.cap}
 function F.rates(key)
  local place=L.byId[L.canonical(key)]
  if not place or place.kind~='station' then return 0,0 end
  local spec=place.food or {}
- return spec.use or require('src.world_layout').defaults.foodUse or 32,spec.make or 0
+ return spec.use or require('src.world_layout').defaults.foodUse or 32,((place.facilities or {})[policy.facility] or {}).capacity or 0
 end
 function F.initial(key)
  local use,make=F.rates(key)
@@ -39,21 +41,15 @@ function F.flow(u,key,m,dt)
   return whole
  end
  local wanted=units(use,'foodUseCarry')
- local made=math.min(units(make,'foodMakeCarry'),math.max(0,F.cap-have-reserved+wanted))
  local E=require('src.economy')
  local Stock=require('src.stockpile')
- local short=0
+ local made,short=0,0
  if make>0 then
-  -- A fertilizer unit feeds twenty crates. Persist the unused nutrients,
-  -- so frequent small updates cost the same as an offline catch-up.
-  local credit=m.foodNutrients or 0
+  local recipe=require('src.commodities').byId[policy.recipe]
+  m.recipes=m.recipes or {};local progress=m.recipes[recipe.id] or {carry=0,credit={}};m.recipes[recipe.id]=progress
+  local credit=(progress.credit and progress.credit[F.fertilizer] or 0)*F.yield
   local fertilizer=Stock.available(u,key,F.fertilizer)
-  made=math.min(made,credit+fertilizer*F.yield)
-  local spent=math.max(0,math.ceil((made-credit)/F.yield))
-  if spent>0 then Stock.take(u,key,F.fertilizer,spent);E.consume(u,key,F.fertilizer,spent) end
-  m.foodNutrients=credit+spent*F.yield-made
-  -- Fertilizer runs out after this much crop output; calculate hunger
-  -- after that point rather than treating the whole interval as supplied.
+  made=require('src.industry').flow(u,key,recipe,m,dt,make,math.max(0,F.cap-have-reserved+wanted))
   local active=math.min(dt,(credit+fertilizer*F.yield)/make*3600)
   local net=make-use
   if net<0 then short=math.max(0,active-have/-net*3600) end
@@ -63,7 +59,7 @@ function F.flow(u,key,m,dt)
  local eaten=math.min(wanted,have+made)
  local remaining=have+made-eaten
  m.stock[F.item]=remaining+reserved>0 and remaining+reserved or nil
- E.stat(u,'made',F.item,made);E.consume(u,key,F.item,eaten)
+ E.consume(u,key,F.item,eaten)
  local record=require('src.stockpile').record(u,key)
  local state=record.food or {output=1};record.food=state
  -- Integrate the supplied part first, then the time spent without food.

@@ -582,10 +582,9 @@ function Fields.configureLocations(area)
         place.layout,place.wheel,place.adapter=layout,wheel,entry.adapter
         place.marketId=entry.marketId or WorldLayout.defaults.marketId
         -- what this station offers and makes belong to the place, not its design
-        place.services,place.industry=entry.services,entry.industry
+        place.services,place.facilities=entry.services,entry.facilities
         place.food=entry.food
-        place.chemicalCapacity,place.chemicalReserves=entry.chemicalCapacity,entry.chemicalReserves
-        place.ammunitionCapacity=entry.ammunitionCapacity
+        place.reserves=entry.reserves
         place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}
         for purpose,enabled in pairs(entry.uses or {}) do place.uses[purpose]=enabled end
     end

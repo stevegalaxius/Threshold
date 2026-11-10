@@ -113,6 +113,7 @@ function love.load(args)
 		["--foodtest"] = "tests.food",
 		["--chemicaltest"] = "tests.chemicals",
 		["--freighttest"] = "tests.freight_capacity",
+		["--industrytest"] = "tests.industry",
 		["--ammunitiontest"] = "tests.ammunition",
 		["--steeltest"] = "tests.steel",
 	}

@@ -450,7 +450,7 @@ function Game:saveState()
 			moon = trip.moon, origin = trip.origin and { x = trip.origin.x, y = trip.origin.y } }
 	end
 	local state = { field = field, trip = state_trip, kills = self.kills, home = u.home, stations = stations,
-		chemicalEconomy=Persistence.copy(u.chemicalEconomy),
+		markets=Persistence.copy(u.markets),facilities=Persistence.copy(u.facilities),
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
@@ -505,7 +505,8 @@ function Game:loadState(state)
  self.universe.worldLocations=Persistence.copy(state.worldLocations or state.worldStations)
 	self.universe.mining = Persistence.copy(state.mining)
 	self.universe.jobs = Persistence.copy(state.jobs)
-	self.universe.chemicalEconomy=Persistence.copy(state.chemicalEconomy)
+	self.universe.markets=Persistence.copy(state.markets)
+ self.universe.facilities=Persistence.copy(state.facilities)
 	self.universe.tasks = Persistence.copy(state.tasks)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})

@@ -56,7 +56,7 @@ function Transport.quote(t,clock,u)
  if t.creditsPerUnit==nil then
   t.creditsPerUnit=math.floor((T.freightCreditsPerUnit+t.routeAU*T.freightCreditsPerAU)*100+.5)/100
  end
- local Chemicals=require('src.chemical_economy')
+ local Chemicals=require('src.markets')
  if u and Chemicals.items[t.item] then
   t.commodityBuyPrice=t.commodityBuyPrice or Chemicals.price(u,t.source,t.item)
   t.commoditySellPrice=t.commoditySellPrice or Chemicals.price(u,t.target,t.item)

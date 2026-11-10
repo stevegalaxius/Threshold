@@ -1,6 +1,6 @@
 -- Bounded economic scenarios, not a world soak.
 return function(game)
- local C,E,S=require('src.chemical_economy'),require('src.economy'),require('src.stockpile')
+ local C,E,S=require('src.markets'),require('src.economy'),require('src.stockpile')
  local L,F=require('src.locations'),require('src.fields')
  local Tasks,Transport=require('src.tasks'),require('src.transport')
  local Save=require('src.save')
@@ -23,10 +23,10 @@ return function(game)
  for _,key in ipairs({'station:mars_1','station:mars_2'}) do set(u,key,'explosives',1000) end
  set(u,plant,'nitrates',1000);set(u,'station:titan_2','nitrates',1000)
  E.update(u,0)
- local first=C.factory(u,plant).mix.fertilizer
+ local first=require('src.industry').state(u,plant,'chemicals').mix.make_fertilizer
  assert(first>.5 and first<1,'fertilizer demand did not gradually attract factory time')
  for _=1,20 do u.clock=u.clock+60;E.update(u,u.clock) end
- assert(C.factory(u,plant).mix.fertilizer>.9,'factory did not respond to the fertilizer shortage')
+ assert(require('src.industry').state(u,plant,'chemicals').mix.make_fertilizer>.9,'factory did not respond to the fertilizer shortage')
  local fertilizerOrder=false
  for _,o in pairs(Tasks.state(u).offers) do
   if o.item=='fertilizer' and o.target==farm then
@@ -38,10 +38,10 @@ return function(game)
  for _,key in ipairs({'station:mars_1','station:mars_2'}) do set(u,key,'explosives',0) end
  for _=1,22 do
   u.clock=u.clock+60;supplied();E.update(u,u.clock)
-  local mix=C.factory(u,plant).mix
-  assert(mix.fertilizer+mix.explosives<=1.000001,'allocation created extra factory capacity')
+  local mix=require('src.industry').state(u,plant,'chemicals').mix
+  assert(mix.make_fertilizer+mix.make_explosives<=1.000001,'allocation created extra factory capacity')
  end
- assert(C.factory(u,plant).mix.explosives>.9,'explosives demand failed to pull capacity away from fertilizer')
+ assert(require('src.industry').state(u,plant,'chemicals').mix.make_explosives>.9,'explosives demand failed to pull capacity away from fertilizer')
  -- Incoming reserved supply reduces the shortage premium.
  local empty={clock=0,stations={}};local incoming={clock=0,stations={}}
  set(empty,farm,'fertilizer',0);set(incoming,farm,'fertilizer',0)
@@ -58,7 +58,7 @@ return function(game)
  local order=Tasks.post(u,quote)
  local old=game.universe;game.universe=u
  local snapshot=assert(Save.decode(Save.encode(game:saveState())))
- assert(snapshot.chemicalEconomy.factories[plant].mix.explosives==C.factory(u,plant).mix.explosives,'save lost the factory allocation')
+ assert(snapshot.facilities[plant..'|chemicals'].mix.make_explosives==require('src.industry').state(u,plant,'chemicals').mix.make_explosives,'save lost the factory allocation')
  local i=S.shopFor(plant,'explosives')
  assert(snapshot.stations[plant].shops[i].flowAt==u.clock,'save omitted the chemical production clock')
  game:loadState(snapshot);u=game.universe;order=Tasks.state(u).offers[order.id]
@@ -75,8 +75,8 @@ return function(game)
   for _,id in ipairs({'station:mars_1','station:mars_2'}) do set(u,id,'explosives',1000) end
   E.update(u,u.clock)
  end
- local mix=C.factory(u,plant).mix
- assert(mix.fertilizer<.001 and mix.explosives<.001,'factory kept producing without profitable customers')
+ local mix=require('src.industry').state(u,plant,'chemicals').mix
+ assert(mix.make_fertilizer<.001 and mix.make_explosives<.001,'factory kept producing without profitable customers')
  for _,prices in pairs(C.state(u).prices) do for _,v in pairs(prices) do assert(v>=.5 and v<=2,'price escaped its bounds') end end
  game.universe=old
  print('CHEMICAL ECONOMY: shared inputs/capacity, priced demand, switching, freight quotes and save/load passed')
