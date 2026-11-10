@@ -106,6 +106,8 @@ return function(game)
  A.capture(game,e,false);check(S.returnRecord(game,r),'physical collector had no local return route');A.bindRoute(game,e,r)
  local station=game:locationEntity(r.salvageGoal)
  game:dockInstantly(e,station)
+ game:finishDocking(e,e.dockState,station)
+ u.clock=require('src.npc').readyAt(r)
  local shelf=game:stationMarket(station,1).hold;local before=Hold.count(shelf,'salvage_kit')
  local wallet=u.credits;local income=r.credits
  check(game:traderCanDepart(e,station),'docked salvager did not sell and choose another job')

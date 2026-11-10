@@ -58,6 +58,7 @@ local function progress(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
+ r.nextDecisionAt=nil
  r.index=index; r.depart=clock
  local leg=edge(r)
  local from,to=L.get(leg.from),L.get(leg.to)
@@ -549,7 +550,9 @@ function A.capture(game,e,remote)
  if action and not action.pausedAt and (action.kind=='work' or action.kind=='approach') and not (r.service or r.worldRecovery) then
   local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
   r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
-  action.origin={x=x,y=y};action.goal={x=x,y=y};action.started=clock;action.arriveAt=clock
+  -- Rebase the remaining approach; becoming remote cannot complete it.
+  action.rebase={x=x,y=y};action.origin,action.goal,action.arriveAt=nil,nil,nil
+  action.started,action.lastClock,action.lastWork=clock,clock,clock
   return
  end
  if e.alifeEgress then
@@ -598,12 +601,16 @@ function A.capture(game,e,remote)
   r.index=index
   r.state='docked'
   r.node=ds.station.locationId
-  r.untilTime=clock+(ds.done and math.max(0,(ds.stay or T.alifeStay)-ds.t) or T.alifeStay)
+  if ds.done then
+   r.untilTime=ds.departAt or clock+math.max(0,(ds.stay or T.alifeStay)-ds.t)
+   ds.departAt=r.untilTime
+   if remote then r.nextDecisionAt=math.max(r.nextDecisionAt or 0,clock) end
+  else r.untilTime=clock+T.alifeStay end
   -- Preserve an in-progress physical docking operation for immediate save/load.
   r.docking={}
   for k,v in pairs(ds) do if type(v)~='table' and type(v)~='userdata' then r.docking[k]=v end end
   r.docking.mooring=copy(ds.mooring)
- else
+ elseif r.state~='idle' then
   r.state='travel'
   local x,y=e.body:getPosition()
   -- The ship is flying on this map; a record bound here from between regions
@@ -687,7 +694,6 @@ A.bindRoute=bindRoute
 
 function A.wake(game,r)
  Fuel.withRecord(r,function() end);r.fuelClock=game.universe.clock
- require('src.npc_actions').cancel({u=game.universe,game=game,r=r,clock=game.universe.clock},'representation changed')
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
  local egress=A.egressSample(game,r,game.universe.clock)
@@ -775,12 +781,14 @@ function A.wake(game,r)
   end
   if e.dockState then
    e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
+   e.dockState.departAt=r.untilTime
    if exact and r.docking and r.docking.berth==e.dockState.berth then
     local dock=e.dockState.dock
     e.dockState=copy(r.docking); e.dockState.station=st;e.dockState.dock=dock
     e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
     e.body:setActive(e.dockState.phase=='tractor')
    end
+   e.dockState.departAt=r.untilTime
   end
  end
  if not exact and not lane and r.state=='travel' then
@@ -875,7 +883,10 @@ function A.install(Game)
  function Game:traderCanDepart(e,station)
   local serviced=self.universe.npcs[e.alifeId]
   if serviced and serviced.service and Upkeep.isStation(serviced,station.locationId) then
-   if not Upkeep.canDepart(self,e,serviced) then return false end
+   if not Upkeep.canDepart(self,e,serviced) then
+    serviced.nextDecisionAt=self.universe.clock+T.alifeLocalTick
+    return false
+   end
    -- The visit is done here: hand the route back now and plan the next
    -- leg like any departure (its job may start right here). Ending it on
    -- undock instead never fired: undocking wraps the live route index to
@@ -884,7 +895,7 @@ function A.install(Game)
    A.capture(self,e,false);e.serviceDockedAt=nil
    serviced.index=#serviced.route;Upkeep.passed(serviced,#serviced.route)
    -- still docked here, now as itself
-   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock
+   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock;serviced.nextDecisionAt=nil
   end
   local r=self.universe.npcs[e.alifeId]
   if not r then return true end

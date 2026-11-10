@@ -106,6 +106,9 @@ local function details(game)
  end
  Slab.Text('Driven by: '..Trace.controller(game,r,e))
  Slab.Text(('State: %s in %s   status: %s'):format(r.state,r.area or 'transit',tostring(r.taskStatus)))
+ if r.state=='docked' or r.state=='idle' then
+  Slab.Text(('Minimum stay: %.1fs   Next decision: %.1fs'):format(math.max(0,(r.untilTime or 0)-game.universe.clock),math.max(0,require('src.npc').readyAt(r)-game.universe.clock)))
+ end
  if r.action then
   local a=r.action
   Slab.Text(('Action: %s%s / %s%s'):format(a.kind,a.operation and ':'..a.operation or '',a.phase or 'running',

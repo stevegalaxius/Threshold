@@ -1375,14 +1375,13 @@ function Game:finishDocking(e, ds, st)
 	else
 		ds.stay = 30 + random() * 60
   if e.alifeRecord then
-   local work=require('src.npc').work(e.alifeRecord)
-   ds.stay=work and work.stay and work.stay(e.alifeRecord,st.locationId) or T.alifeStay
+   e.alifeRecord.ship.armor=e.armor
+   require('src.npc').beginDocked(e.alifeRecord,st.locationId,self.universe.clock,self.universe)
+   ds.departAt=e.alifeRecord.untilTime
+   ds.stay=math.max(0,ds.departAt-self.universe.clock)
   end
-  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,require('src.repair_materials').duration(self.universe,st.key or st.locationId,e.stats.armor-e.armor,T.npcRepairPerSecond)) end
 	end
  if e.alifeRecord and e.alifeRecord.action and e.alifeRecord.action.kind=='dock' then
-  e.alifeRecord.node=st.locationId;e.alifeRecord.state='docked';e.alifeRecord.area=self.fieldId
-  e.alifeRecord.untilTime=self.universe.clock+ds.stay
   require('src.npc_actions').complete({u=self.universe,game=self,r=e.alifeRecord,e=e,clock=self.universe.clock})
  end
 	events.emit("dock", e, st)
@@ -1484,11 +1483,13 @@ function Game:updateDockedShip(e, dt)
 	end
 	-- Hold departure while the launch point is occupied; checked before the
 	-- trader's departure planning so that only runs when it can actually leave.
-	-- A ship with nothing to leave for asks again about twice a second,
-	-- not every frame: departure planning cleans the whole task board.
-	if ds.stay and ds.t >= ds.stay and self.time >= (ds.departRetry or 0) and not self:launchBlocker(e) then
+	-- Persistent ships share the record's clocks with offline simulation.
+	local record=e.alifeRecord
+	local ready=record and self.universe.clock>=require('src.npc').readyAt(record)
+	 or not record and ds.stay and ds.t>=ds.stay
+	if ready and not self:launchBlocker(e) then
 		if not e.alifeId or self:traderCanDepart(e,ds.station) then self:undockShip(e)
-		else ds.departRetry = self.time + 0.5 + love.math.random() * 0.5 end
+		end
 	end
 end
 

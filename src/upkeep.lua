@@ -251,8 +251,10 @@ end
 -- Online dock at the service station: leave once the need is met (or the
 -- station has done what it can).
 function U.canDepart(game,e,r)
- e.serviceDockedAt=e.serviceDockedAt or game.time
- return not U.need(r,e) or game.time-e.serviceDockedAt>T.alifeStay
+ -- Repairs can extend this deadline in either representation. Completing a
+ -- visit otherwise follows the same saved clock as U.advance, without an
+ -- additional live-only timeout that restarts when the body is recreated.
+ return game.universe.clock>=(r.untilTime or 0)
 end
 
 -- A rejected tractor allocation must not send the ship through the same
