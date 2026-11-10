@@ -102,7 +102,13 @@ local function start(r,clock,index)
    local across=((r.spread or 0)/math.max(1,T.alifeSpread))*T.catchOffset
    local ex,ey=math.cos(b)*edge-math.sin(b)*across,math.sin(b)*edge+math.cos(b)*across
    local x,y=L.position(leg.from,clock)
-   r.offset={x=ex-x,y=ey-y,progress=0,ease=.35}
+   r.offset={x=ex-x,y=ey-y,progress=0}
+   -- the leg is now flown from out there, so it takes as long as that
+   -- distance at cruise speed (sized from the driver it was far too short,
+   -- and the ship crossed the map at many times its speed)
+   local tx,ty=L.position(leg.to,clock)
+   local distance=math.sqrt((tx-ex)^2+(ty-ey)^2)
+   r.arrive=math.max(r.arrive,clock+distance/r.speed)
   end
  end
  r.driverState,r.cityExit=nil,nil
@@ -405,9 +411,6 @@ function A.trackPoint(r,clock)
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
-  -- an arrival off a driver lane holds out longer: the corridor leaves the
-  -- driver slowly, and the ship shouldn't be drawn in across the gun
-  if r.offset.ease then fade=fade^r.offset.ease end
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
  end
  return x,y
