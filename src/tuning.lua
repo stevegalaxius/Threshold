@@ -190,6 +190,7 @@ T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12
 T.npcDecisionInterval,T.npcControlInterval,T.npcCombatInterval=1,.2,.1
 T.npcCruiseInterval=1
+T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
 T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
