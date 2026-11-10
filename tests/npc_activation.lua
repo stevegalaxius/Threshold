@@ -26,7 +26,9 @@ return function(game)
  game.player.body:setPosition(x+500,y)
  game.camera.x=x+500;game.camera.y=y;game.camera.zoom=.7
  game.alifeNext=0
- assert(A.inView(game,x,y,600),'activation fixtures must be on-screen')
+ local sx,sy=game.camera:toScreen(x,y)
+ local width,height=love.graphics.getDimensions()
+ assert(sx>=0 and sx<=width and sy>=0 and sy<=height,'activation fixtures must be on-screen')
  game:updateALife()
  for id in pairs(records) do
   assert(game.alifeOnline[id],'visible nearby NPC stayed offline: '..id)

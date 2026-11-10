@@ -21,7 +21,7 @@ return function(game)
  assert(template,'no trader for lifecycle fixture')
  local r=template;r.id='npc/880001';r.state='docked';r.area='earth';r.taskWorker=true
  r.task=nil;r.nextTaskAt=nil;r.encounter=nil;r.piracy=nil;r.worldRecovery=nil
- r.service=nil;r.serviced=nil;r.nextServiceAt=nil;r.distress=nil;r.nextDistressAt=nil
+ r.service=nil;r.serviced=nil;r.nextServiceAt=nil;r.distress=nil;r.nextDistressAt=1e9 -- isolate save/load from automatic NPC rescue
  r.driverState=nil;r.pose=nil;r.offset=nil;r.fuelStatus=nil;r.fuelObservedAt=nil
  r.ship.hold=nil;r.ship.cargo={[F.item()]=40};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
  local s=require('src.stats').compute(require('src.data').hulls[r.ship.hull],r.ship.loadout)
@@ -55,6 +55,9 @@ return function(game)
  -- Materialize, serialize through the real game save, and reload while stranded.
  game.universe.npcs=u.npcs;game.universe.tasks=u.tasks;game.universe.simulationHistory=u.simulationHistory
  game.universe.clock=3
+ -- Keep the stranded ship away from a station's automatic docking capture.
+ r.pose={x=20000,y=20000,a=0,vx=0,vy=0,w=0,clock=3}
+ game.player.body:setPosition(21000,20000)
  local live=A.wake(game,r)
  check(live.fuelStatus=='stranded' and transitions(game.universe,'stranded')==1,'wake changed or repeated the condition')
  local snap=assert(Save.decode(Save.encode(game:saveState())))

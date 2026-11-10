@@ -4,7 +4,8 @@ return function(game)
  local H=require('src.simulation_history')
  local Rep=require('src.reputation')
  local u=game.universe
- u.clock=u.clock or 0
+ -- Game.new may already have observed this tick; let the new fixtures be seen.
+ u.clock=(u.clock or 0)+1
  u.npcs=u.npcs or {}
  local node='station:saturn_1'
  local t={id='t_evt',role='trader',state='docked',area='saturn',node=node}
