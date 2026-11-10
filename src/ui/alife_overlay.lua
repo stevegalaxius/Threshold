@@ -149,7 +149,8 @@ function O.draw(game,toScreen,font)
   -- its place in line at a driver or a dock
   if require('src.queue').waiting(r,clock,game) then
    local Q=require('src.queue')
-   local hx,hy=toScreen(game,Q.holdPoint(r,clock,nil,Q.place(r,clock,game)))
+   local index=e and e.route and (e.routeIndex or 1) or r.index
+   local hx,hy=toScreen(game,Q.holdPoint(r,clock,index,Q.place(r,clock,game)))
    lg.setColor(1,.5,.2,.9);lg.rectangle('line',hx-5,hy-5,10,10)
   end
   -- who it is dealing with

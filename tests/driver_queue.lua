@@ -19,7 +19,12 @@ return function(game)
   ships[i]=A.wake(game,r)
  end
  assert(not Q.holding(game,ships[1],ships[1].route[2]),'first ship should approach free driver')
+ assert(not Q.waiting(game.universe.npcs[ships[1].alifeId],clock,game),'free approach displayed as waiting')
+ ships[1].routeIndex=1
+ assert(not Q.waiting(game.universe.npcs[ships[1].alifeId],clock,game),'travel toward a buoy displayed as waiting')
+ ships[1].routeIndex=2
  assert(Q.holding(game,ships[2],ships[2].route[2]),'expired bookings let the second ship enter with the first')
+ assert(Q.waiting(game.universe.npcs[ships[2].alifeId],clock,game),'queued ship did not display as waiting')
  assert(Q.holding(game,ships[3],ships[3].route[2]),'third ship did not queue')
  AI.trade(game,ships[1],1/120)
  assert(ships[1].driverTractor,'first ship did not capture')

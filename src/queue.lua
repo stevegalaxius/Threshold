@@ -123,7 +123,7 @@ end
 function Q.waiting(r,clock,game)
  local e=game and game.alifeOnline and game.alifeOnline[r.id]
  if e and r.queue then
-  return Q.holding(game,e,e.route and e.route[e.routeIndex or 1])~=nil
+  return not not Q.holding(game,e,e.route and e.route[e.routeIndex or 1])
  end
  local q=r.queue
  -- (a turn that came free on time is no wait at all)
