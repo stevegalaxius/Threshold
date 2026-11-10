@@ -1311,7 +1311,7 @@ function Game:updateDocking(dt)
 			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
-			local trader = e.def and e.def.ai.style == "trader" or (e.alifeRole and e.route ~= nil)
+			local trader = e.def and e.def.ai.style == "trader" or (e.alifeId and e.route ~= nil)
 			if (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
@@ -1319,10 +1319,7 @@ function Game:updateDocking(dt)
 					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
 						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
 						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						-- an NPC waits while the player is in that dock's beam
-						local p = self.player
-						local playerIn = trader and p and p.dockState and p.dockState.phase == "tractor" and p.dockState.dock == dock
-						if inZone and not playerIn then
+						if inZone and not require('src.queue').dockBusy(self,st,dock,e) then
 							self:beginDocking(e, st, side, dock)
 							break
 						end
@@ -1376,11 +1373,17 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
-  if e.alifeRole=="patrol" then
-   ds.stay=T.patrolDockStay
+  if e.alifeRecord then
+   local work=require('src.npc').work(e.alifeRecord)
+   ds.stay=work and work.stay and work.stay(e.alifeRecord,st.locationId) or T.alifeStay
   end
   if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
+ if e.alifeRecord and e.alifeRecord.action and e.alifeRecord.action.kind=='dock' then
+  e.alifeRecord.node=st.locationId;e.alifeRecord.state='docked';e.alifeRecord.area=self.fieldId
+  e.alifeRecord.untilTime=self.universe.clock+ds.stay
+  require('src.npc_actions').complete({u=self.universe,game=self,r=e.alifeRecord,e=e,clock=self.universe.clock})
+ end
 	events.emit("dock", e, st)
 end
 
@@ -1434,6 +1437,7 @@ function Game:updateDockedShip(e, dt)
 				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
 			else
 				e.dockState,e.dockCooldown=nil,3
+				if e.alifeId then require('src.upkeep').rejected(self,e,st) end
 				if e==self.player then self:toast('NO SUITABLE FREE BERTH',2) end
 				return
 			end
@@ -2170,7 +2174,10 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
-	if e and e.kind == "husk" and e.pieces and not e.dead and amount > 0 and self:damagePiece(e, amount, hx, hy) then return end
+	if e and e.kind=='husk' and not e.dead and amount>0 then
+		e.drilled=cause=='drill';e.lastHitBy=source
+		if e.pieces and self:damagePiece(e,amount,hx,hy) then return end
+	end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
@@ -2187,7 +2194,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- a neutral that gets shot remembers who did it, and shoots back
 	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
 	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
-	if (e.team == 3 or e.alifeRole) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
+	if (e.team == 3 or e.alifeId) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
@@ -2444,7 +2451,9 @@ function Game:reap()
 			end
 			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
 			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
-				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
+				for _, st in ipairs(g.stacks) do
+					require('src.wreck_salvage').scatter(self,x,y,st,e.kind=='container' or e.drilled or e.shotSalvage)
+				end
 			end
 		elseif e.recalled then
 			-- a drone back in its bay: into the owner's hold, wear and all
@@ -2575,7 +2584,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	-- Who this was, for the loot window: hull, ship type and the A-Life record.
 	if ship.def or ship.alifeId then
 		local rec = ship.alifeId and self.universe and self.universe.npcs and self.universe.npcs[ship.alifeId]
-		h.origin = { hull = hull.name, type = ship.def and ship.def.name, role = rec and rec.role or ship.alifeRole, npc = ship.alifeId }
+		h.origin = { hull = hull.name, type = ship.def and ship.def.name, role = rec and rec.label, npc = ship.alifeId }
 	end
 	local s1, s2, r = ship.spine[1], ship.spine[2], hull.radius
 	if #hull.parts > 1 then
@@ -2657,7 +2666,7 @@ function Game:restoreHusk(r, hull, hold)
 	local h = { kind = "husk", id = self:nextId(), team = 0, hull = hull, body = body,
 		hold = hold, loot = Hold.totals(hold), color = r.color, spine = r.spine,
 		noseX = r.noseX, tailX = r.tailX, halfLength = r.halfLength, radius = r.radius,
-		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin }
+		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin,shotSalvage=r.shotSalvage }
 	if r.part then
 		h.part = hull.parts[r.part]
 		if not h.part then body:destroy(); return nil end
@@ -2814,8 +2823,9 @@ function Game:breakOff(h, piece)
 	local x, y = h.body:getWorldPoint(part.cx, part.cy)
 	if part.explode then
 		-- this part bursts instead of drifting off: its share scatters
-		for id, n in pairs(taken) do self:spawnPickup(x, y, id, n) end
-		for _, st in ipairs(stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
+		local salvage=require('src.wreck_salvage')
+		for id,n in pairs(taken) do salvage.scatter(self,x,y,{id=id,n=n},h.drilled or h.shotSalvage) end
+		for _,st in ipairs(stacks) do salvage.scatter(self,x,y,st,h.drilled or h.shotSalvage) end
 		self:spark(x, y, 28, { 1, 0.7, 0.35 })
 		self:explode(x, y, part.reach * 1.2, 0, 0)
 		return
@@ -2834,6 +2844,7 @@ function Game:breakOff(h, piece)
 	}
 	bits.loot = Hold.totals(bits.hold)
 	bits.alloy, bits.drilled, bits.origin = piece.alloy or 0, h.drilled, h.origin
+	bits.shotSalvage=h.shotSalvage
 	partFixtures(body, part, bits, part.cx, part.cy)
 	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))
 	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)

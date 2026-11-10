@@ -10,9 +10,9 @@ return function(game)
  local checks=0
  for id,r in pairs(u.npcs) do
   if r.state~='dead' and r.state~='escaped' then
-   assert(r.speed>=low and r.speed<=high,('%s (%s) cruises at %s, outside the shared speed'):format(id,r.role,tostring(r.speed)))
+   assert(r.speed>=low and r.speed<=high,('%s (%s) cruises at %s, outside the shared speed'):format(id,r.populationGroup,tostring(r.speed)))
    checks=checks+1
-   assert(N.jobOf(r),id..' has no job')
+   assert(not r.task or N.work(r),id..' has unknown work')
   end
  end
  local start=u.clock
@@ -25,11 +25,11 @@ return function(game)
  end
  local stuck={};local lonely
  for id,r in pairs(u.npcs) do
-  local role=r.piracy and 'pirate' or r.role
+  local role=r.piracy and 'pirate' or r.populationGroup
   if r.state~='dead' and r.state~='escaped' and (role=='pirate' or role=='patrol' or role=='salvager') then
    count[role]=(count[role] or 0)+1
    -- a ship whose job has nowhere else to go here can't be expected to move
-   local j=N.jobOf(r);local here=r.node or r.route[r.index];local elsewhere=false
+   local j=N.controller;local here=r.node or r.route[r.index];local elsewhere=false
    for _,other in ipairs(j.roam and j.roam(r,here) or {}) do if other~=here then elsewhere=true end end
    if not moved[id] and not elsewhere then lonely=(lonely or 0)+1
    elseif not moved[id] then stuck[#stuck+1]=('%s %s at %s (%s, %s)'):format(role,id,tostring(r.node or r.route[r.index]),r.state,tostring(r.taskStatus)) end
@@ -42,9 +42,9 @@ return function(game)
  local E=require('src.encounters');local copy=require('src.persistence').copy
  local pirate,patrol,victim
  for _,r in pairs(u.npcs) do
-  if r.role=='pirate' and not pirate and r.state~='dead' then pirate=r end
-  if r.role=='patrol' and not patrol and r.state~='dead' then patrol=r end
-  if r.role=='trader' and not victim and r.state~='dead' then victim=r end
+  if r.populationGroup=='pirate' and not pirate and r.state~='dead' then pirate=r end
+  if r.populationGroup=='patrol' and not patrol and r.state~='dead' then patrol=r end
+  if r.populationGroup=='trader' and not victim and r.state~='dead' then victim=r end
  end
  local function park(r,id,node)
   r=copy(r);r.id=id;r.area=pirate.area;r.state='idle';r.node=node;r.route={node,node};r.index=1
@@ -53,6 +53,8 @@ return function(game)
  end
  local node=pirate.node or pirate.route[pirate.index]
  local P=park(pirate,'npc/970001',node);local V=park(victim,'npc/970002',node);local S=park(patrol,'npc/970003',node)
+ P.task={kind='raid',source=node,target=node};V.task={kind='transport'}
+ S.authorizations={{kind='police',issuer='test_authority',jurisdiction=P.area}}
  E.begin(P,V,u.clock)
  u.encounterNext=0;E.update(game,u.clock)
  assert(S.encounter and S.encounter.support and S.encounter.target==P.id,'patrol did not join the fight')

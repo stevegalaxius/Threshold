@@ -47,7 +47,7 @@ end
 -- The pirate has (re)chosen target; returns true if it should still shoot it.
 function R.consider(game,pirate,target)
  if not target or target.dead then return true end
- local civilian=target.isPlayer or target.npcRole and require('src.security').prey(target)
+ local civilian=target.isPlayer or require('src.security').prey(target)
  if not civilian then return true end
  pirate.spared=pirate.spared or setmetatable({},{__mode='k'})
  local d=demandOf(pirate)
@@ -104,7 +104,7 @@ function R.respond(game,e)
   local _,guns=E.coveringStation(mine,theirs,game.universe.clock)
   odds=E.odds(mine,theirs,guns*T.offlineStationAccuracy)
  end
- if odds>=T.offlineEngageOdds then e.aggressor=pirate
+ if odds>=require('src.personality').engageOdds(mine) then e.aggressor=pirate
   require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> refuse and fight'):format(odds*100));return end
  require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> comply'):format(odds*100))
  -- comply: dump the demanded share of goods

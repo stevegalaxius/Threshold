@@ -9,8 +9,24 @@ return function(game)
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true
  local r
- for _,record in pairs(game.universe.npcs) do if record.role=='salvager' and record.home=='earth' then r=record;break end end
+ for _,record in pairs(game.universe.npcs) do if record.populationGroup=='salvager' and record.home=='earth' then r=record;break end end
  assert(r,'no initial Earth salvager')
+ -- This fixture exercises salvage execution; mixed work selection is covered
+ -- by stockpile.lua. Pin the usual work rather than assuming every selection.
+ local function onlySalvage(r)
+  r.workWeights={salvage=1,transport=0,mine=0,patrol=0}
+  if not r.task or r.task.kind~='salvage' then
+   local t=r.task
+   if t and t.kind=='transport' and t.phase=='delivery' then
+    r.ship.cargo[t.item]=math.max(0,(r.ship.cargo[t.item] or 0)-t.amount)
+   end
+   Tasks.release(game.universe,r,'fixture work',game.universe.clock)
+   r.ship.hold=nil;r.state='docked'
+   game.universe.clock=game.universe.clock+3 -- allow the shared decision budget to advance
+   require('src.npc').decide(game.universe,r,L.station('earth','trade'),game.universe.clock,game)
+  end
+ end
+ onlySalvage(r)
  check(r.task and r.task.kind=='salvage' and game.universe.tasks.offers[r.task.id].owner==r.id,'salvager has no reserved board job')
  local id=r.id;local population=game.universe.nextNpcId
  S.seed(game)
@@ -19,11 +35,12 @@ return function(game)
  for _,node in ipairs(r.route) do check(allowed[L.get(node).area],'salvager left its planet/moon system') end
  -- Two independent workers cannot reserve the same board assignment or pickup.
  local competitor=S.create(game,'earth',L.station('earth','trade'),game.universe.clock)
+ onlySalvage(competitor)
  check(competitor.task.id~=r.task.id,'two salvagers reserved one board job')
  game:loadField('venus');game:captureALife(true)
  local u=game.universe;u.npcs={[id]=r,[competitor.id]=competitor};u.populationSpawns={}
  r.ship.hold=nil;r.ship.cargo={[Fuel.item()]=20};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
- r.lootCheckAt=nil;r.offlineLoot=nil;r.salvageReturn=nil;r.salvageUntil=nil
+ r.lootCheckAt=nil;r.action=nil;r.salvageReturn=nil;r.salvageUntil=nil
  r.area='earth';r.state='travel';r.index=2;r.depart=u.clock;r.arrive=u.clock+100;r.pose=nil;r.offset=nil;r.encounter=nil
  local x,y=A.point(r,u.clock)
  u.areas.earth={capturedAt=u.clock,objects={}}
@@ -31,7 +48,7 @@ return function(game)
  local ground={id='test/991',area='earth',kind='loot',item='scrap',count=4,x=x,y=y,vx=0,vy=0,spin=0,clock=u.clock}
  Loose.records(u)[ground.id]=ground
  competitor.area='earth';competitor.state='travel';competitor.route=copy(r.route);competitor.index=r.index
- competitor.depart=r.depart;competitor.arrive=r.arrive;competitor.offset=nil;competitor.pose=nil;competitor.lootCheckAt=nil;competitor.offlineLoot=nil
+ competitor.depart=r.depart;competitor.arrive=r.arrive;competitor.offset=nil;competitor.pose=nil;competitor.lootCheckAt=nil;competitor.action=nil
  check(O.update(game,r,u.clock),'remote salvager did not approach a real saved pickup')
  check(not O.update(game,competitor,u.clock),'remote competitors claimed the same source')
  local collectedAt=u.clock+2
@@ -41,7 +58,8 @@ return function(game)
  Tasks.release(u,competitor,'fixture ended',u.clock)
  for _,o in pairs(u.tasks.offers) do if not o.owner then o.readyAt=0 end end
  u.npcs[competitor.id]=nil
- O.update(game,r,collectedAt+T.salvagerCollectTime+1)
+ u.clock=collectedAt+T.salvagerCollectTime+1
+ A.advance(r,u.clock,u,game)
  check(r.salvageReturn and r.task.phase=='selling','loaded salvager did not return to a local market')
  local target=r.salvageGoal
  check(L.get(target).area=='earth','salvager returned to a nonlocal station')
@@ -63,7 +81,7 @@ return function(game)
  -- Physical pickup: fly toward an out-of-range item, then exercise the real beam.
  game:loadField('earth');game:captureALife(true);u=game.universe
  r=u.npcs[id];Tasks.release(u,r,'local fixture',u.clock)
- r.salvageVisit=0;r.salvageReturn=nil;r.salvageGoal=target;r.area='earth';r.state='docked'
+ r.salvageVisit=0;r.salvageReturn=nil;r.salvageGoal=target;r.area='earth';r.state='docked';r.lootCheckAt=nil
  r.ship.cargo={[Fuel.item()]=20};r.ship.hold=nil;r.ship.fuelCharge=0;r.power=100
  for _,o in pairs(u.tasks.offers) do if not o.owner then o.readyAt=0 end end
  check(S.depart(game,r,target,u.clock),'local board offered no new collection job')
@@ -73,9 +91,11 @@ return function(game)
  game:spawnPickup(px+e.halfLength+1500,py,'salvage_kit',1)
  local pickup=game.pickups[#game.pickups]
  AI.think(game,e,1/120)
- check(e.scavengePickup==pickup and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
+ check(r.action and r.action.operation=='collect' and r.action.target.id==pickup.looseId and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
  check((e.cargo.salvage_kit or 0)==0,'pursuit copied a distant item into cargo')
- pickup.x,pickup.y=px,py;e.scavengeThink=0
+ pickup.x,pickup.y=px,py
+ -- Let the next scheduled movement plan observe the relocated fixture.
+ u.clock=u.clock+T.npcControlInterval;game.time=game.time+T.npcControlInterval
  AI.think(game,e,1/120);game:updatePickups(1/120)
  check(e.cargo.salvage_kit==1 and r.salvageCargo.salvage_kit==1 and #game.pickups==0,'beam pickup did not conserve the item')
  local carrying=assert(Save.decode(Save.encode(game:saveState())))

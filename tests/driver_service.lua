@@ -12,7 +12,7 @@ return function(game)
  local u=game.universe;local clock=u.clock
  local driver=Fields.mars.driverId
  local template
- for _,r in pairs(u.npcs) do if r.role=='trader' and r.home=='mars' then template=r;break end end
+ for _,r in pairs(u.npcs) do if (r.populationGroup or r.role)=='trader' and r.home=='mars' then template=r;break end end
  assert(template,'no Mars trader')
  local home=L.station('mars','trade')
  local path=G.itinerary(home,L.station('earth','trade'),clock)

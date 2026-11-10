@@ -113,7 +113,7 @@ local function record(game, e)
 		mass = { mx, my, mass, inertia }, linearDamping = body:getLinearDamping(),
 		angularDamping = body:getAngularDamping(), hp = e.hp, radius = e.radius,
 		hold = Hold.serialize(e.hold), historyWreckId=e.historyWreckId, origin = P.copy(e.origin),
-		alloy = e.alloy, drilled = e.drilled }
+		alloy = e.alloy, drilled = e.drilled,shotSalvage=e.shotSalvage }
 	if e.kind == "container" then
 		r.item = e.item
 	else

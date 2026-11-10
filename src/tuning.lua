@@ -62,6 +62,7 @@ T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 
 -- Share of a dead ship's fitted modules that survive in its husk.
 T.moduleSalvage = 0.75
+T.wreckShotRecovery = 0.5 -- each cargo unit survives shooting a wreck; drilling preserves all
 
 -- Station storage grid, in 1 m3 cells (every station has its own).
 T.storageW, T.storageH = 16, 12
@@ -187,6 +188,8 @@ T.alifeSpread = 1500  -- persistent cross-track variation, fading at destination
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12
+T.npcDecisionInterval,T.npcControlInterval,T.npcCombatInterval=1,.2,.1
+T.npcCruiseInterval=1
 T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
@@ -337,7 +340,9 @@ T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.fuelEmergency=2
-T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take   -- canisters an NPC running dry gets free at an empty station
+T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
+T.freightCreditsPerUnit=2 -- base payment per delivered unit
+T.freightCreditsPerAU=1 -- additional credits per AU per delivered unit
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

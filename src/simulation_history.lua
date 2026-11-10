@@ -99,7 +99,7 @@ function H.finish(u,a,b,clock,reason,fled)
  -- a pirate killed while it had someone else in its sights: they were rescued
  for _,dead in ipairs(result.dead) do
   local r=u.npcs and u.npcs[dead]
-  if r and r.role=='pirate' then
+  if r and r.deathOutlaw then
    local killer=r.deathKiller
    for k2,other in pairs(s.fights) do
     local victim=other.participants[1]==dead and other.participants[2] or other.participants[2]==dead and other.participants[1]
@@ -118,6 +118,10 @@ end
 function H.death(u,r,clock,area,killer)
  if r.deathOutcomeId then return end
  r.deathKiller=killer
+ -- Reaping may release the task before logging death; retain the activity
+ -- at death so cleanup cannot erase crime/rescue consequences.
+ local work=r.task or r.lastTask
+ r.deathOutlaw=r.piracy~=nil or work and (work.kind=='raid' or work.kind=='fence') or false
  local entry=append(u,'npc_died',clock,area,{r.id},{killer=killer},nil,r.node)
  r.deathOutcomeId=entry.id
  return entry
@@ -150,14 +154,14 @@ function H.observe(u,clock)
   local now={state=r.state,area=r.area,node=r.node}
   if seen and r.state~='dead' and r.state~='escaped' then
    if seen.state=='docked' and r.state~='docked' then
-    append(u,'undocked',clock,seen.area,{id},{role=r.role},nil,seen.node)
+    append(u,'undocked',clock,seen.area,{id},{label=r.label},nil,seen.node)
    elseif seen.state~='docked' and r.state=='docked' then
-    append(u,'docked',clock,r.area,{id},{role=r.role},nil,r.node)
+    append(u,'docked',clock,r.area,{id},{label=r.label},nil,r.node)
    end
    if seen.area and not r.area then
-    append(u,'left_area',clock,seen.area,{id},{role=r.role},nil,seen.node)
+    append(u,'left_area',clock,seen.area,{id},{label=r.label},nil,seen.node)
    elseif r.area and seen.area~=r.area then
-    append(u,'arrived',clock,r.area,{id},{role=r.role,from=seen.area},nil,r.node)
+    append(u,'arrived',clock,r.area,{id},{label=r.label,from=seen.area},nil,r.node)
    end
   end
   r.seen=now

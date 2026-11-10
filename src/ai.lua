@@ -18,6 +18,7 @@
 
 local Ship = require("src.ship")
 local T = require("src.tuning")
+local Personality = require("src.personality")
 local data = require("src.data")
 
 local Security=require("src.security")
@@ -78,7 +79,18 @@ end
 
 -- Share the existing trader velocity controller across local flight,
 -- powered departure, and lane cruise, including turn-helm haulers.
+function AI.faceDirection(e,mx,my)
+ if mx*mx+my*my<1e-8 then e.intent.strafe=0;return 1 end
+ local diff=wrap(atan2(my,mx)-e.body:getAngle())
+ local torque,cap=Ship.turnLimits(e)
+ local brake=sqrt(2*.8*torque/math.max(1,e.body:getInertia())*math.abs(diff))
+ local spin=min(cap,math.abs(diff)*T.aimGain,brake)*(diff<0 and -1 or 1)
+ e.intent.strafe=cap>0 and spin/cap or 0
+ return cos(diff)
+end
 function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
+ local control=e.aiVelocity or {};e.aiVelocity=control
+ control.x,control.y,control.mx,control.my,control.throttle,control.combat=wvx,wvy,mx,my,throttle,false
  local it = e.intent
  local x, y = e.body:getPosition()
  local vx, vy = e.body:getLinearVelocity()
@@ -86,20 +98,10 @@ function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
 	local a = e.body:getAngle()
 	local nx, ny = cos(a), sin(a)
 	if e.hull.helm == "turn" then
-		-- Turn the hull toward the correction it needs, unless that's
-		-- mostly backwards: then keep pointing down the route and use
-		-- the retro thrusters.
-		local backing = (sx * nx + sy * ny) < -0.3 * min(1, err / T.aiResponse)
-		local hx2, hy2 = sx, sy
-		if backing or err < 40 then hx2, hy2 = mx, my end
-		local diff = wrap(atan2(hy2, hx2) - a)
-		it.strafe = max(-1, min(1, diff * 2.5))
-		local facing = cos(diff)
-		if backing then
-			it.thrust = -min(1, err / T.aiResponse)
-		else
-			it.thrust = facing > 0.6 and throttle * facing * min(1, err / T.aiResponse) or 0
-		end
+		-- Keep the nose on the route while retro thrust handles braking.
+		-- A small velocity error must not reverse the requested heading.
+		local facing=AI.faceDirection(e,mx,my)
+		it.thrust=facing>.6 and (sx*nx+sy*ny)*throttle or 0
 	else
 		-- a nimbler hull points down the route (or at whoever's shooting
 		-- at it) and uses every thruster to match the velocity it wants
@@ -107,6 +109,14 @@ function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
 		it.thrust, it.strafe = tx, ty
 		e.routeAimX, e.routeAimY = x + mx * 300, y + my * 300
 	end
+end
+
+function AI.driveCombatVelocity(e,vx,vy,throttle)
+ local control=e.aiVelocity or {};e.aiVelocity=control
+ control.x,control.y,control.throttle,control.combat=vx,vy,throttle,true
+ local currentX,currentY=e.body:getLinearVelocity()
+ local x,y=steerVelocity(vx,vy,currentX,currentY)
+ e.intent.thrust,e.intent.strafe=Ship.toLocal(e,x*throttle,y*throttle)
 end
 
 -- How hard a ship can slow down along a line: its retro thrusters, or
@@ -194,8 +204,9 @@ local function trade(game, e, dt)
 		end
 		local sx, sy = stopPoint(stop, e)
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
-		local queued = e.alifeId and require("src.queue").holding(game, e, stop)
-		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex) end
+		local queued,queuePlace
+		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
+		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex,queuePlace) end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway
 		-- rather than flying into the breech, first come first served
@@ -212,6 +223,7 @@ local function trade(game, e, dt)
 			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place)
 		else e.busyWait, e.busyWaitSince = nil, nil end
 		local _, _, d = norm(sx - x, sy - y)
+		e.aiApproach=not queued and d<1200 and (stop.dock or stop.driver or stop.kind=='moon_gate')
 		-- Around a planet, follow the arc of the track instead of cutting
 		-- the chord (which would run through the rock belt): aim a little
 		-- way ahead along the circle until the stop is close.
@@ -262,7 +274,7 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		if d < 450 and not stop.dock and not stop.hold and not queued then
-			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
+			if e.alifeId and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" and stop.driver then
 				if game:requestDriver(e,stop.driver,stop.destination) then
 				 it.thrust,it.strafe=0,0;return
@@ -276,7 +288,7 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
-		local pass = queued and 0 or (stop.dock or stop.inspection) and 60 or cruise * 0.6
+		local pass = queued and 0 or (stop.dock or stop.inspection or stop.kind=='driver') and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
@@ -327,6 +339,7 @@ local function trade(game, e, dt)
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
 	if foe then
+		e.aiAimTarget,e.aiAimTrade=foe,true
 		local fx, fy = foe.body:getPosition()
 		local fvx, fvy = foe.body:getLinearVelocity()
 		local _, _, dist = norm(fx - x, fy - y)
@@ -335,7 +348,7 @@ local function trade(game, e, dt)
 		local lead = dist / shotSpeed * ai.accuracy
 		it.aimX, it.aimY = fx + (fvx - vx) * lead, fy + (fvy - vy) * lead
 		local burstOn, burstOff = ai.burstOn or 1.0, ai.burstOff or 1.4
-		e.burstClock = ((e.burstClock or 0) + dt) % (burstOn + burstOff)
+		e.burstClock = ((e.burstClock or 0) + (e.aiControlDT or dt)) % (burstOn + burstOff)
 		it.firePrimary = dist < ai.range and e.burstClock < burstOn
 		it.targetDist = dist
 	elseif e.hull.helm ~= "turn" and e.routeAimX then
@@ -351,6 +364,7 @@ end
 AI.trade=trade
 
 function AI.think(game, e, dt)
+	e.recoveryWeapon,e.recoveryTarget=nil,nil
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
@@ -362,7 +376,7 @@ function AI.think(game, e, dt)
   require("src.distress").stranded(game,e,record,dt)
   return
  end
- if record and e.route and not e.dockState then
+ if record and e.route and not e.dockState and e.aiDecision~=false then
   -- Upkeep before any role: plan a service visit when one is due; hand the
   -- role its route back once the visit has returned to it.
   local A=require("src.alife");local Upkeep=require("src.upkeep")
@@ -376,27 +390,26 @@ function AI.think(game, e, dt)
    if Upkeep.plan(record,game.universe.clock,e) then A.bindRoute(game,e,record) else record.index=index end
   end
  end
- if record and record.service then return trade(game,e,dt) end
- if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
-	if e.alifeId and require("src.salvager").think(game,e,dt,AI) then return end
-	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
-	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
-	if ai.style == "trader" then return trade(game, e, dt) end
-
-	local x, y = e.body:getPosition()
-	local target
-	if e.alifeRole then
-		target = Security.target(game,e)
-		if target and e.alifeRole=='pirate' and not require("src.robbery").consider(game,e,target) then
-			-- demanding cargo: close in, guns quiet
-			if not require("src.robbery").pending(e) then target=nil;e.combatTarget=nil end
-		end
-		if not target then
-			Security.updateOnline(game,e,require("src.alife"))
-			if Security.hold(game,e,AI) then return end
-			return trade(game,e,dt)
-		end
-	else target = pickTarget(game, e, x, y) end
+ local x,y=e.body:getPosition()
+ local target
+ if record then
+  target=e.aiDecision~=false and Security.target(game,e) or Security.hostile(game,e,e.combatTarget) and e.combatTarget or nil
+  if target and require('src.npc_access').raiding(record) and not require('src.robbery').consider(game,e,target) then
+   if not require('src.robbery').pending(e) then target=nil;e.combatTarget=nil end
+  end
+  if not target then
+   if record.service or record.worldRecovery or record.waitingForHome then
+    require('src.npc_actions').pause({u=game.universe,game=game,r=record,e=e,clock=game.universe.clock},'service or recovery')
+    return trade(game,e,dt)
+   end
+   return require('src.npc').thinkWork(game,e,dt,AI)
+  end
+ else
+  if ai.style=='trader' then return trade(game,e,dt) end
+  target=pickTarget(game,e,x,y)
+ end
+ e.aiCombat=target and not target.dead
+ if record and target then require('src.npc_actions').pause({u=game.universe,game=game,r=record,e=e,clock=game.universe.clock},'combat') end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil
@@ -430,10 +443,10 @@ function AI.think(game, e, dt)
 
 	local vx, vy = e.body:getLinearVelocity()
 
-	-- Bail out: an enemy down to 10% armor gives up and runs for the edge
+	-- Bail out: around 10% armor (adjusted by aggression), run for the edge
 	-- of the arena, afterburner lit, and leaves (Game:reap lets it go once
 	-- it's well outside). It doesn't fire while running.
-	if not e.drone and (e.fleeing or e.armor <= e.stats.armor * 0.1) then
+	if not e.drone and (e.fleeing or e.armor <= e.stats.armor * Personality.breakPoint(record,0.1)) then
 		if not e.fleeing then
 			e.fleeing = true
 			game:toast(((e.def.name or "ENEMY") .. " is running"):upper(), 1.5)
@@ -474,7 +487,7 @@ function AI.think(game, e, dt)
 	-- Self-preservation: a badly damaged ship backs off to well past its
 	-- preferred range and fights from there.
 	local hurt = e.armor < e.stats.armor * 0.35
-	local style = hurt and "kite" or ai.style
+	local style = (hurt or ai.style=="trader") and "kite" or ai.style
 
 	-- Where it wants to go, in world space.
 	local r = hurt and ai.range * 1.8 or ai.range
@@ -539,8 +552,6 @@ function AI.think(game, e, dt)
 	danger=risk
 	mx,my=routeX*min(wl,1.6)*scale,routeY*min(wl,1.6)*scale
 	local nmx, nmy, ml = norm(steerVelocity(tvx + mx * cruise, tvy + my * cruise, vx, vy))
-	ml = min(1, ml)
-
 	-- Turn and burn: a ship with weak side thrusters that needs to get
 	-- somewhere other than "toward the target" points its nose that way.
 	local weak = e.stats.sideThrust < e.stats.thrust * 0.35
@@ -551,17 +562,17 @@ function AI.think(game, e, dt)
 		it.aimX, it.aimY = x + nmx * 300, y + nmy * 300
 	else
 		it.aimX, it.aimY = aimX, aimY
+		e.aiAimTarget,e.aiAimJitter=target,true
 	end
 
 	-- Avoiding a crash or running hurt: full throttle.
-	local th = ((danger > 0.3 or hurt) and 1 or ai.throttle) * ml
-	it.thrust, it.strafe = Ship.toLocal(e, nmx * th, nmy * th)
+	AI.driveCombatVelocity(e,tvx+mx*cruise,tvy+my*cruise,(danger>.3 or hurt) and 1 or ai.throttle)
 	Nav.boost(e,routeX,routeY,cruise,dist,clear,danger,dist>r*2)
 
 	-- Fire in bursts, only when not turning away and roughly facing the
 	-- target (turrets don't need to face it).
 	local burstOn, burstOff = ai.burstOn or 1.0, ai.burstOff or 1.4
-	e.burstClock = ((e.burstClock or random() * (burstOn + burstOff)) + dt) % (burstOn + burstOff)
+	e.burstClock = ((e.burstClock or random() * (burstOn + burstOff)) + (e.aiControlDT or dt)) % (burstOn + burstOff)
 	local a = e.body:getAngle()
 	local fx, fy = cos(a), sin(a)
 	local ax, ay = norm(aimX - x, aimY - y)
@@ -573,11 +584,13 @@ end
 
 -- A pirate waiting on a robbery demand keeps its guns quiet.
 local think=AI.think
+AI.plan=think
 function AI.think(game,e,dt)
 	if e.asked then require("src.robbery").respond(game,e) end
 	if e.asked and require("src.distress").helper(game,e,dt,AI) then return end
-	think(game,e,dt)
-	if e.alifeRole=='pirate' and require("src.robbery").pending(e) then
+	require('src.npc_scheduler').update(game,e,dt,AI,AI.plan)
+	local record=e.alifeId and game.universe.npcs[e.alifeId]
+	if record and require('src.npc_access').raiding(record) and require("src.robbery").pending(e) then
 		local it=e.intent
 		it.firePrimary,it.fireSecondary,it.fireTertiary=false,false,false
 	end
