@@ -228,15 +228,15 @@ W.navigation={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
  }},
- venus={buoys={
+ venus={drivers=2,buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
  }},
- earth={buoys={
+ earth={drivers=2,buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
  }},
- mars={buoys={
+ mars={drivers=4,buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
  }},
@@ -433,7 +433,9 @@ function W.connect(f)
   return {list[1][1],list[2][1]}
  end
  for _,id in ipairs(f.drillIds) do link(byId[id].motion.home,id) end
- for _,id in ipairs(buoyOnly and #f.buoyIds>0 and f.driverId and nearBuoys(f.driverId) or {f.tradeHome or f.holdingId}) do link(f.driverId,id) end
+ for _,driver in ipairs(f.driverIds or {}) do
+  for _,id in ipairs(buoyOnly and #f.buoyIds>0 and nearBuoys(driver) or {f.tradeHome or f.holdingId}) do link(driver,id) end
+ end
  if f.ladderIds then
   for k,id in ipairs(f.ladderIds) do
    -- each anchor is its own way in from the buoys; anchors are not linked
@@ -442,7 +444,7 @@ function W.connect(f)
    -- and straight to the region's other stations and its mass driver, so
    -- traffic leaves an anchor outward instead of skirting the ladder
    for _,to in ipairs(f.stationIds) do if not byId[to].accessOf and to~=f.ladderIds[1] then link(id,to) end end
-   if f.driverId then link(id,f.driverId) end
+   for _,driver in ipairs(f.driverIds or {}) do link(id,driver) end
   end
  end
  for _,p in ipairs(f.locations) do

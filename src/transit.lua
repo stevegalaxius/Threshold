@@ -56,7 +56,7 @@ function Game:driverFare(to)
 	return math.floor((T.driverFare + T.driverFarePerAU * au) / 10 + 0.5) * 10
 end
 
--- One driver per planet map, at the edge of the map, riding a slow track
+-- Drivers at the edge of the map, riding a slow track
 -- round the planet like the stations do (where it is on the track follows
 -- the universe clock, so it's the same after a save). Its barrel points
 -- outward until you buy a passage; then it swings round to the bearing of
@@ -66,21 +66,23 @@ function Game:spawnDrivers()
 	if not Fields.orbits[self.fieldId] then return end
 	local d = self.arenaRadius - T.driverBarrel - 100
 	local speed = self:currentSpeed(d) * T.driverOrbitScale
-	local x, y, a = Locations.position(self.field.driverId, self.universe.clock)
-	for k = #self.entities, 1, -1 do
-		local o = self.entities[k]
-		if o.kind == "asteroid" then
-			local ox, oy = o.body:getPosition()
-			if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.driverRadius + 1200) ^ 2 then self:remove(o) end
+	for _,id in ipairs(self.field.driverIds) do
+		local x, y, a = Locations.position(id, self.universe.clock)
+		for k = #self.entities, 1, -1 do
+			local o = self.entities[k]
+			if o.kind == "asteroid" then
+				local ox, oy = o.body:getPosition()
+				if (ox - x) ^ 2 + (oy - y) ^ 2 < (o.radius + T.driverRadius + 1200) ^ 2 then self:remove(o) end
+			end
 		end
+		local body = love.physics.newBody(self.world, x, y, "kinematic")
+		local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body,
+			radius = T.driverRadius, name = Locations.get(id).name, angle = a }
+		body:setUserData(g)
+		table.insert(self.entities, g)
+		self:bindLocation(g, id)
+		self:setOrbit(g, 0, 0, speed)
 	end
-	local body = love.physics.newBody(self.world, x, y, "kinematic")
-	local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body,
-		radius = T.driverRadius, name = "Mass driver", angle = a }
-	body:setUserData(g)
-	table.insert(self.entities, g)
-	self:bindLocation(g, self.field.driverId)
-	self:setOrbit(g, 0, 0, speed)
 	-- the braking rings are only for the warp-and-catch way of travelling
 	if T.travelMode == "flight" then self:spawnCatchRings() end
 end
@@ -156,10 +158,11 @@ end
 -- Back out of the targeting window: you drift free of the ring.
 function Game:closeDriverMenu()
 	local p = self.player
+	local g = self.driverMenu and self.driverMenu.driver
 	self.driverMenu = nil
 	if p then
 	 p.driverCooldown=T.driverCooldown;p.driverProtected=nil
-	 local g=self:findDriver();if g and g.driverShip==p then g.driverShip=nil end
+	 if g and g.driverShip==p then g.driverShip=nil end
 	end
 end
 

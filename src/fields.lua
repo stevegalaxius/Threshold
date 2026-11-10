@@ -640,8 +640,15 @@ function Fields.configureLocations(area)
 	end
 	if Fields.orbits[area] then
 		local d = F.radius - T.driverBarrel - 100
-		F.driverId = add("mass_driver", "Mass driver", "driver", { type = "orbit", radius = d + T.driverBarrel / 2,
-			surface = F.planetR, flowRadius = d, speedScale = T.driverOrbitScale, phase = -pi / 2 + 0.6 })
+		F.driverIds = {}
+		local count=F.navigation.drivers or 1
+		for i=1,count do
+			F.driverIds[i] = add(i==1 and 'mass_driver' or ('mass_driver_'..i),
+				count==1 and 'Mass driver' or (F.name..' mass driver '..i),'driver',
+				{type='orbit',radius=d+T.driverBarrel/2,surface=F.planetR,flowRadius=d,
+				 speedScale=T.driverOrbitScale,phase=-pi/2+.6+(i-1)*pi*2/count})
+		end
+		F.driverId = F.driverIds[1]
 	end
 	do -- moon gates (also the Quarry's, off Ring Station, which has no planet)
 		local function gate(to, moon, back)
