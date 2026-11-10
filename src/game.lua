@@ -2173,7 +2173,10 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
-	if e and e.kind == "husk" and e.pieces and not e.dead and amount > 0 and self:damagePiece(e, amount, hx, hy) then return end
+	if e and e.kind=='husk' and not e.dead and amount>0 then
+		e.drilled=cause=='drill';e.lastHitBy=source
+		if e.pieces and self:damagePiece(e,amount,hx,hy) then return end
+	end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
@@ -2447,7 +2450,9 @@ function Game:reap()
 			end
 			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
 			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
-				for _, st in ipairs(g.stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
+				for _, st in ipairs(g.stacks) do
+					require('src.wreck_salvage').scatter(self,x,y,st,e.kind=='container' or e.drilled or e.shotSalvage)
+				end
 			end
 		elseif e.recalled then
 			-- a drone back in its bay: into the owner's hold, wear and all
@@ -2660,7 +2665,7 @@ function Game:restoreHusk(r, hull, hold)
 	local h = { kind = "husk", id = self:nextId(), team = 0, hull = hull, body = body,
 		hold = hold, loot = Hold.totals(hold), color = r.color, spine = r.spine,
 		noseX = r.noseX, tailX = r.tailX, halfLength = r.halfLength, radius = r.radius,
-		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin }
+		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin,shotSalvage=r.shotSalvage }
 	if r.part then
 		h.part = hull.parts[r.part]
 		if not h.part then body:destroy(); return nil end
@@ -2817,8 +2822,9 @@ function Game:breakOff(h, piece)
 	local x, y = h.body:getWorldPoint(part.cx, part.cy)
 	if part.explode then
 		-- this part bursts instead of drifting off: its share scatters
-		for id, n in pairs(taken) do self:spawnPickup(x, y, id, n) end
-		for _, st in ipairs(stacks) do self:spawnPickup(x, y, st.id, st.n, st.inner) end
+		local salvage=require('src.wreck_salvage')
+		for id,n in pairs(taken) do salvage.scatter(self,x,y,{id=id,n=n},h.drilled or h.shotSalvage) end
+		for _,st in ipairs(stacks) do salvage.scatter(self,x,y,st,h.drilled or h.shotSalvage) end
 		self:spark(x, y, 28, { 1, 0.7, 0.35 })
 		self:explode(x, y, part.reach * 1.2, 0, 0)
 		return
@@ -2837,6 +2843,7 @@ function Game:breakOff(h, piece)
 	}
 	bits.loot = Hold.totals(bits.hold)
 	bits.alloy, bits.drilled, bits.origin = piece.alloy or 0, h.drilled, h.origin
+	bits.shotSalvage=h.shotSalvage
 	partFixtures(body, part, bits, part.cx, part.cy)
 	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))
 	body:setMassData(0, 0, m, m * part.reach * part.reach * 0.4)

@@ -57,6 +57,8 @@ return function(game)
  -- Prepared combat wreck inventories are authoritative when materialized later.
  area.objects={};clearLoot()
  local looter,wx,wy=pirate('earth')
+ looter.ship.loadout=require('src.persistence').copy(looter.ship.loadout)
+ looter.ship.loadout[1]='drill_s_base' -- full-yield recovery fixture
  local cargo=Hold.new({{key='wreck',w=12,h=10}});Hold.add(cargo,'scrap',6)
  local node=looter.node
  local w={id='offline-victim',area='earth',from=node,to=node,progress=0,clock=clock,expires=clock+1800,
@@ -73,6 +75,18 @@ return function(game)
  local wreck
  for _,e in ipairs(game.entities) do if e.alifeWreckId==w.id then wreck=e end end
  check(wreck and Hold.count(wreck.hold,'scrap')==0 and not u.alifeWrecks[w.id],'materializing a looted wreck regenerated cargo')
+ -- Gun recovery loses cargo once, including when another update revisits it.
+ local shooter=pirate('earth')
+ shooter.ship.loadout={'gun_s_base'};shooter.ship.cargo={rounds_s=10}
+ local shot=require('src.persistence').copy(w);shot.id='shot-victim';shot.clock=clock;shot.expires=clock+1800
+ local shotHold=Hold.new({{key='shot',w=8,h=8}});Hold.add(shotHold,'scrap',8)
+ shot.lootHold=Hold.serialize(shotHold);u.alifeWrecks[shot.id]=shot
+ local chance=T.wreckShotRecovery;T.wreckShotRecovery=0
+ O.update(game,shooter,clock);clock=clock+2;u.clock=clock;O.update(game,shooter,clock)
+ T.wreckShotRecovery=chance
+ check(shot.shotSalvage and Hold.count(Hold.deserialize(shot.lootHold),'scrap')==0 and not shooter.ship.cargo.scrap,'remote gun recovery bypassed cargo loss')
+ O.update(game,shooter,clock+2)
+ check(Hold.count(Hold.deserialize(shot.lootHold),'scrap')==0,'remote wreck cargo rerolled after stripping')
  -- An item with a live view belongs to the scene until it is captured back;
  -- remote NPCs only ever consume records nobody is viewing.
  local localPirate,lx,ly=pirate('pluto')

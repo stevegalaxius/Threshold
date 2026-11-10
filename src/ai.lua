@@ -365,6 +365,7 @@ end
 AI.trade=trade
 
 function AI.think(game, e, dt)
+	e.recoveryWeapon,e.recoveryTarget=nil,nil
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false

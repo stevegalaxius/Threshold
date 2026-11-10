@@ -421,6 +421,7 @@ function E.materialize(game,px,py,clock)
     local vx,vy=game:flowAt(x,y)
     if w.lootHold then ship.salvagedSlots=copy(w.salvagedSlots or {}) end
     local husk=game:spawnHusk(ship,x,y,math.atan2(vy,vx),vx,vy,0,w.lootHold and Hold.deserialize(w.lootHold))
+    husk.shotSalvage=w.shotSalvage
     ship.body:destroy();husk.alifeWreckId=id;husk.historyWreckId=w.historyWreckId
     husk.origin=husk.origin or {};husk.origin.npc=w.npcId or id;husk.origin.role=w.label or husk.origin.role
     u.alifeWrecks[id]=nil

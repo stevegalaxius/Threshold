@@ -125,3 +125,11 @@ and action completion request an immediate plan. Flight actuation, aiming,
 weapon firing, docking beams and physics continue each simulation step. Equipment
 effects must use the elapsed `dt` supplied by the runner, rather than assuming
 one call per physics step.
+
+Wreck recovery prefers a fitted drill, otherwise a laser or a cannon with ammo.
+The shared recovery operation selects its firing group and a suitable standoff;
+ships with neither tool skip wreck targets but can still collect loose cargo.
+Shooting preserves each cargo unit with probability `T.wreckShotRecovery` (0.5);
+drilling preserves every unit and remains the source of hull alloy. Packed
+containers survive or are lost whole. Remote recovery saves its cargo-loss roll
+with the source, so retries and materialization do not reroll its contents.

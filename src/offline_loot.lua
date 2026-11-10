@@ -10,6 +10,7 @@ local Loot=require('src.loot')
 local Loose=require('src.loose')
 local Scavenge=require('src.scavenge')
 local Actions=require('src.npc_actions')
+local Wreck=require('src.wreck_salvage')
 require('src.npc_operations')
 local O={}
 local function retained(game,area)
@@ -133,7 +134,8 @@ local function sourceTarget(ctx,source)
  local vx,vy=0,0
  if source.kind=='live' then vx,vy=record.body:getLinearVelocity() end
  return {record=record,source=source,entity=source.kind=='live' and record or nil,
-  x=source.x,y=source.y,vx=vx,vy=vy,radius=record.radius or 0}
+  x=source.x,y=source.y,vx=vx,vy=vy,radius=record.radius or 0,
+  done=(source.kind=='combat' or record.kind=='husk') and not Wreck.weapon(ctx.e or ctx.r.ship)}
 end
 Actions.registerTarget('loot',{resolve=function(ctx,t)
  local game=world(ctx)
@@ -165,6 +167,8 @@ function O.find(ctx)
   local spec=descriptor(source,ctx.r.area)
   local target=Actions.resolve(ctx,{target=spec})
   if not target or not Actions.available(ctx,target) then return end
+  local s=target.source
+  if s and (s.kind=='combat' or s.record.kind=='husk') and not Wreck.weapon(ctx.e or r.ship) then return end
   local d=(target.x-x)^2+(target.y-y)^2
   if d<best then best=d;selected=spec end
  end
@@ -210,6 +214,23 @@ local function take(ctx,target)
  else
   local h=holdOf(game,source)
   local oldMass=cargoMass(h)
+  local wreck=source.kind=='combat' or record.kind=='husk'
+  local weapon=wreck and Wreck.weapon(r.ship)
+  if wreck and not weapon then return 'failed','no usable wreck-breaking weapon' end
+  local drilled=weapon and weapon.w.kind=='drill'
+  if wreck and not drilled then record.drilled=false end
+  if wreck and not drilled and not record.shotSalvage then
+   -- Remote stripping uses the same yield, rolled once and saved with the
+   -- source so loading the area or claiming it again cannot reroll its cargo.
+   for _,g in ipairs(h.grids) do for i=#g.stacks,1,-1 do
+    local stack=g.stacks[i];stack.n=Wreck.survivors(stack.n,false)
+    if stack.n==0 then require('src.inventory.grid').remove(g,stack) end
+   end end
+   record.shotSalvage=true
+   if source.kind=='combat' then record.lootHold=Hold.serialize(h)
+   elseif source.kind=='live' then record.loot=Hold.totals(h)
+   else record.hold=Hold.serialize(h) end
+  end
   if record.kind=='container' then
    moved={id=record.item,n=1,inner=h}
    if Hold.placeStack(dest,moved) then n,id=1,record.item;remove(game,source) else moved=nil end
@@ -221,7 +242,7 @@ local function take(ctx,target)
     -- (the same fixed yield a live wreck gives: Game.wreckAlloy)
     local hullId=source.kind=='combat' and record.ship and record.ship.hull or source.kind=='live' and record.hull.id or record.hull
     local alloy=source.kind=='live' and (record.alloy or 0) or require('src.game').wreckAlloy(data.hulls[hullId])
-    local got=Hold.add(dest,'hull_alloy',alloy)
+    local got=drilled and Hold.add(dest,'hull_alloy',alloy) or 0
     if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Actions.pickedUp(ctx,'hull_alloy',got) end
     if source.kind=='combat' then game.universe.alifeWrecks[source.id]=nil else remove(game,source) end
     require('src.events').emit('wreck_cleared',r,source.record)
@@ -242,7 +263,10 @@ local function take(ctx,target)
    end
   end
  end
- if n==0 then return 'failed','hold full' end
+ if n==0 then
+  if record.shotSalvage and not next(Hold.totals(holdOf(game,source))) then return 'done' end
+  return 'failed','hold full'
+ end
  if ctx.r.action.markStolen and moved and (moved.inner or moved.wear~=nil) then moved.stolen=true end
  r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest)
  Actions.pickedUp(ctx,id,n,moved)
@@ -253,15 +277,19 @@ local function recoverLive(ctx,target,dt,a)
  local e,object=ctx.e,target.entity
  if not object then return Actions.recordOperation(ctx,function() return take(ctx,target) end) end
  Ship.ensureGridHold(e)
- e.intent.firePrimary=false;e.intent.tractor=false;e.tractorTarget=nil
+ e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
+ e.recoveryWeapon,e.recoveryTarget=nil,nil;e.intent.tractor=false;e.tractorTarget=nil
  if object.kind=='container' then
   if not Loot.canTake(e,object) then return 'failed','nothing recoverable or hold full' end
   object.lootCollector=e
   local n=Loot.pull(ctx.game,e,object,dt)
   return n>0 and 'done' or 'running'
  end
+ local weapon=Wreck.weapon(e)
+ if not weapon then return 'failed','no usable wreck-breaking weapon' end
+ ctx.r.taskStatus=weapon.w.kind=='drill' and 'stripping a wreck' or 'shooting a wreck'
  local prof={clears=a.clearWreck}
- if prof.clears and object.hold and next(object.loot or {}) then
+ if prof.clears and weapon.w.kind=='drill' and object.hold and next(object.loot or {}) then
   if ctx.clock<(a.nextTransfer or 0) then return 'running' end
   a.nextTransfer=ctx.clock+.5
   local n,id,moved=Loot.takeStack(e.hold,object.hold)
@@ -271,9 +299,20 @@ local function recoverLive(ctx,target,dt,a)
   return 'done'
  end
  local x,y=e.body:getPosition();local angle=e.body:getAngle()
- local diff=(math.atan2(target.y-y,target.x-x)-angle+math.pi)%(2*math.pi)-math.pi
- local hit=ctx.game:raycast(x+math.cos(angle)*e.halfLength,y+math.sin(angle)*e.halfLength,target.x,target.y,e.team)
- e.intent.firePrimary=math.abs(diff)<.3 and (not hit or hit.entity==object)
+ local bearing=math.atan2(target.y-y,target.x-x)
+ e.intent.aimX,e.intent.aimY=target.x,target.y
+ if e.hull.helm=='turn' then
+  local turn=(bearing-angle+math.pi)%(2*math.pi)-math.pi
+  e.intent.strafe=math.max(-1,math.min(1,turn*2.5))
+ end
+ local diff=(bearing-angle-(weapon.aim or 0)+math.pi)%(2*math.pi)-math.pi
+ local wx,wy=Ship.hardpoint(e,weapon.slot)
+ local hit=ctx.game:raycast(wx,wy,target.x,target.y,e.team)
+ e.recoveryWeapon=weapon
+ e.recoveryTarget=object
+ local trigger=({primary='firePrimary',secondary='fireSecondary',tertiary='fireTertiary'})[weapon.group]
+ if trigger then e.intent[trigger]=math.abs(diff)<.2 and (not hit or hit.entity==object) end
+ e.intent.targetDist=nil
  return 'running'
 end
 Actions.registerOperation('recover',{
@@ -282,6 +321,10 @@ Actions.registerOperation('recover',{
   if not ctx.e then return 0 end
   local e=ctx.e
   local prof={clears=ctx.r.action.clearWreck}
+  local weapon=target.entity and target.entity.kind=='husk' and Wreck.weapon(e)
+  if weapon and weapon.w.kind~='drill' then
+   return math.max((target.radius or 0)+(e.halfLength or 0)+80,math.min(700,require('src.weapons').range(weapon)*.6))
+  end
   if target.entity and target.entity.kind=='husk' and not prof.clears then
    return math.max((target.radius or 0)+(e.halfLength or 0)+25,(e.def.ai.range or 700)*.6)
   end

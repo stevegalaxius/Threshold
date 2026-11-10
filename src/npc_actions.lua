@@ -31,6 +31,10 @@ local function release(ctx,action)
  if target and target.record and target.record.actionOwner==ctx.r.id then target.record.actionOwner=nil;target.record.actionKey=nil end
  if ctx.e then
   ctx.e.tractorTarget=nil;ctx.e.intent.tractor=false;ctx.e.intent.firePrimary=false
+  if ctx.e.recoveryWeapon then
+   ctx.e.intent.fireSecondary,ctx.e.intent.fireTertiary=false,false
+   ctx.e.recoveryWeapon,ctx.e.recoveryTarget=nil,nil
+  end
  end
 end
 function A.position(r,clock)
