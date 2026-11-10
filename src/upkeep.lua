@@ -139,6 +139,18 @@ function U.plan(r,clock,e)
  end
  local route={idle and at or prev,at}
  if idle then route={at} end
+ -- Heading out of the region (into a mass driver or a moon gate): the
+ -- crossing is no place to turn round. Offline that put the ship's leg to
+ -- the station starting at the driver itself, so it woke inside the gun.
+ -- It turns round where it is instead, back by the node it left, and the
+ -- visit's last leg brings it to the crossing again.
+ local nextStop=not idle and r.route[r.index+1]
+ local crossing=not idle and (L.get(at).kind=='driver' or L.get(at).kind=='moon_gate' or nextStop and L.get(nextStop).area~=r.area)
+ if crossing and not trip then
+  local go=L.canonical(prev)==station and {legs={}} or Graph.route(g,prev,station,clock,r.speed)
+  local ret=go and Graph.route(g,station,at,clock,r.speed)
+  if go and ret then out,back=go,ret;route={at,prev} else crossing=false end
+ elseif crossing then crossing=false end
  if trip then
   for i=2,#trip.out do route[#route+1]=trip.out[i] end
   for i=2,#trip.back do route[#route+1]=trip.back[i] end
@@ -146,11 +158,31 @@ function U.plan(r,clock,e)
   for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
   for _,leg in ipairs(back.legs) do route[#route+1]=leg.edge.to end
  end
+ -- where the ship is now, on the leg it's leaving (before the route changes)
+ local here
+ if crossing then
+  here={}
+  if e and e.body and not e.body:isDestroyed() then here.x,here.y=e.body:getPosition()
+  else here.x,here.y=require('src.alife').trackPoint(r,clock) end
+ end
  r.service={station=L.canonical(station),need=need,saved={route=copy(r.route),index=r.index,
   idle=idle or nil,node=idle and r.node or nil,untilTime=idle and r.untilTime or nil}}
  r.route=route
  require('src.alife_trace').note(r,clock,'upkeep','needs '..need..' -> service visit at '..station)
- if not idle then r.index=2;require('src.queue').leg(r)   -- the leg under way is kept: same depart, same arrive; it books the service dock
+ if crossing then
+  -- the leg under way becomes crossing -> the node it left, picked up at the
+  -- ship's present spot (online, the live ship just flies to the new stop)
+  local A=require('src.alife')
+  local x,y=here.x,here.y
+  r.index=2
+  local leg={from=at,to=prev}
+  local duration=math.max(.1,Graph.length(g,leg,clock)/r.speed)
+  local p=math.min(.99,Graph.project(g,leg,x,y,clock))
+  r.depart=clock-p*duration;r.arrive=r.depart+duration
+  local bx,by=A.journeyPoint(r,p,clock)
+  r.offset={x=x-bx,y=y-by,progress=p};r.pose=nil
+  require('src.queue').leg(r)
+ elseif not idle then r.index=2;require('src.queue').leg(r)   -- the leg under way is kept: same depart, same arrive; it books the service dock
  elseif #route==1 then r.index=1;r.state='docked';Repairs.begin(r,at,clock,T.alifeStay)
  else r.index=1;deps.start(r,clock,2) end
  return true

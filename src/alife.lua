@@ -299,6 +299,7 @@ local function journeyPoint(r,p,clock)
  local x,y=Graph.point(g,leg,p,clock)
  return Graph.withSpread(x,y,p,r.spread)
 end
+A.journeyPoint=journeyPoint
 
 -- Repair already-saved moon itineraries too. Rebase the same ship's current
 -- leg at its existing position rather than retaining a stale driver detour.
@@ -421,13 +422,6 @@ function A.trackPoint(r,clock)
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
  end
  return x,y
-end
--- Is world point x,y on screen (or within `margin` of its edge)?
-function A.inView(game,x,y,margin)
- local c=game.camera;if not c or not love.graphics then return false end
- local w,h=love.graphics.getDimensions()
- local hw,hh=w/2/c.zoom+(margin or 0),h/2/c.zoom+(margin or 0)
- return math.abs(x-c.x)<hw and math.abs(y-c.y)<hh
 end
 function A.sample(r,clock)
  local x,y=A.point(r,clock)
@@ -741,6 +735,11 @@ function A.wake(game,r)
    local x,y=st.body:getPosition()
    return (p.x-x)^2+(p.y-y)^2<((st.radius or st.def.radius or 1000)+e.halfLength)^2
   end
+  local function nearDriver(g)
+   if not g or g.kind~='driver' then return false end
+   local x,y=g.body:getPosition()
+   return (p.x-x)^2+(p.y-y)^2<((g.barrel or T.driverBarrel)+(g.radius or T.driverRadius)+e.halfLength)^2
+  end
   local g=source and source.kind=='driver' and source
   local fresh=r.driverArrival and game.universe.clock-r.driverArrival<T.npcDriverArrivalTime
   if g and fresh then
@@ -754,6 +753,23 @@ function A.wake(game,r)
    e.body:setPosition(gx+ox*d-oy*off,gy+oy*d+ox*off);e.body:setAngle(ia)
    e.body:setLinearVelocity(math.cos(ia)*r.speed,math.sin(ia)*r.speed)
    r.driverArrival=nil
+  elseif nearDriver(source) or nearDriver(destination) then
+   -- A driver on the graph is one point, the middle of the gun; the ship
+   -- really waits off its breech. Never materialize inside it: come up at
+   -- the approach, first in line on the way in, or that far out on the way
+   -- off it (a leg that turned round there).
+   local d=nearDriver(destination) and destination or source
+   local gx,gy=d.body:getPosition()
+   local ox,oy
+   if d==destination then ox,oy=require('src.queue').holdPoint(r,game.universe.clock,r.index,1)
+   else
+    local tx,ty=L.position(leg.to,game.universe.clock)
+    local dx,dy=tx-gx,ty-gy;local len=math.max(1,math.sqrt(dx*dx+dy*dy))
+    ox,oy=gx+dx/len*T.queueStart,gy+dy/len*T.queueStart
+   end
+   e.body:setPosition(ox,oy)
+   local bx,by=game:driverBreech(d)
+   e.body:setAngle(math.atan2(by-oy,bx-ox)+(d==source and math.pi or 0))
   elseif close(source) and dockingStop(r,leg.from) then
    e.routeIndex=(r.index-2)%#r.route+1
    game:dockInstantly(e,source)
@@ -927,12 +943,7 @@ function A.install(Game)
      local x,y
      if egress then x,y=egress.x,egress.y elseif lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
-     -- never pop into existence on screen: a ship that turns up inside the
-     -- view (off a turned-round leg, a driver's breech, a spawn) stays in
-     -- its offline model until it's out of sight; docked ones appear in
-     -- their berth and fresh driver arrivals come in along the rail
-     local hidden=force or r.savedOnline or r.state=='docked' or (r.driverArrival and clock-r.driverArrival<T.npcDriverArrivalTime) or egress or lane or not A.inView(self,x,y,600)
-     if (x-px)^2+(y-py)^2<threshold^2 and hidden then A.wake(self,r) end
+         if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
     end
    end
   end
