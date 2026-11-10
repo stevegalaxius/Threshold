@@ -396,8 +396,11 @@ function Ship.fly(e, dt)
 		or e.hull.helm ~= "turn" and abs(wrapAngle(atan2(it.aimY-y,it.aimX-x)-b:getAngle()))>.01
 		or abs(b:getAngularVelocity())>.01
 	local thrusting = (it.thrust or 0)~=0 or (e.hull.helm ~= "turn" and (it.strafe or 0)~=0) or it.boost or e.spool>.001
-	-- turning alone is a light load next to the main drive
-	local moving = thrusting and 1 or turning and T.turnDrain or false
+	-- The drive load follows the throttle: an NPC's small steering corrections
+	-- cost what they push, not a full burn (the player's keys are all-or-nothing,
+	-- so this is still 1 for them). Turning alone is a light load.
+	local throttle = it.boost and 1 or min(1, max(abs(it.thrust or 0), e.hull.helm ~= "turn" and abs(it.strafe or 0) or 0, e.spool or 0))
+	local moving = thrusting and max(throttle, turning and T.turnDrain or 0) or turning and T.turnDrain or false
 	local powered=Fuel.step(e,s,dt,moving)
 	if e.massDirty then Ship.updateMass(e) end
 

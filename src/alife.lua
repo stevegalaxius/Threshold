@@ -25,6 +25,17 @@ local Homes=require('src.npc_home')
 local Reconcile=require('src.world_reconcile')
 local NPC=require('src.npc')
 local A = {}
+-- Each NPC keeps its own small offset from the shared track, so two ships on
+-- the same leg at the same time (or holding at the same buoy) aren't drawn on
+-- top of each other on the map, and don't wake up inside each other.
+function A.spread(r)
+ local id=tostring(r.id or '')
+ local n=tonumber(id:match('%d+$')) or 0
+ for i=1,#id do n=n+id:byte(i)*i*7 end
+ -- the golden angle: consecutive ids land far apart round the circle
+ local a=n*2.399963;local d=T.npcSpread*(.4+.6*((n*.618034)%1))
+ return math.cos(a)*d,math.sin(a)*d
+end
 local graphs = {}
 local function graph(area)
  if not graphs[area] or graphs[area].version~=Fields[area].navigationVersion then graphs[area]=Graph.build(area) end
@@ -70,6 +81,8 @@ local function start(r,clock,index)
   r.state='travel'; r.area=to.area; r.transit=nil
   r.arrive=clock+math.max(.1,Graph.length(graph(r.area),leg,clock)/r.speed)
  end
+ -- a leg into a mass driver or a dock books its turn there
+ if r.state=='travel' then require('src.queue').leg(r) else r.queue=nil end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
  r.driverState,r.cityExit=nil,nil
 end
@@ -175,6 +188,7 @@ end
 function A.seed(game)
  local u=game.universe
  require('src.supplies').universe=u
+ require('src.queue').universe=u
  u.npcs=u.npcs or {}; u.npcAreas=u.npcAreas or {}; u.nextNpcId=u.nextNpcId or 0
  Reconcile.prepare(game,start)
  -- All populations exist before visiting their regions. Do not refill departed
@@ -326,7 +340,7 @@ function A.repairMoonRoutes(game)
       local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
       r.depart=clock-p*duration; r.arrive=r.depart+duration
       local bx,by=journeyPoint(r,p,clock)
-      r.offset={x=x-bx,y=y-by,progress=p}
+      local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
      end
     end
    end
@@ -368,7 +382,7 @@ function A.repairApproachRoutes(game)
      local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
      r.depart=clock-p*duration;r.arrive=r.depart+duration
      local bx,by=journeyPoint(r,p,clock)
-     r.offset={x=x-bx,y=y-by,progress=p}
+     local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
     end
    end
   end
@@ -376,6 +390,12 @@ function A.repairApproachRoutes(game)
 end
 
 function A.point(r,clock)
+ local x,y=A.trackPoint(r,clock)
+ if not x or r.state=='docked' or r.offlineLoot or Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return x,y end
+ local sx,sy=A.spread(r)
+ return x+sx,y+sy
+end
+function A.trackPoint(r,clock)
  if r.offlineLoot then local x,y=require("src.offline_loot").position(r,clock);if x then return x,y end end
  if Mining.isMiner(r) and not (r.worldRecovery or r.waitingForHome) then return Mining.point(nil,r,clock) end
  if r.state=='transit' then return nil end
@@ -384,13 +404,30 @@ function A.point(r,clock)
   local x,y=L.inspectionPosition(r.route[r.index],clock)
   return x+(r.offset and r.offset.x or 0),y+(r.offset and r.offset.y or 0)
  end
+ -- through with the leg and waiting its turn at a driver or a dock: in line
+ -- (it stops there on the way in, once it gets that close)
+ local Q=require('src.queue')
  local p=progress(r,clock)
+ if Q.waiting(r,clock) then
+  local hx,hy=Q.holdPoint(r,clock)
+  local nx,ny=L.position(r.route[r.index],clock)
+  local x,y=journeyPoint(r,p,clock)
+  if clock>=r.arrive or (x-nx)^2+(y-ny)^2<=(hx-nx)^2+(hy-ny)^2 then return hx,hy end
+  return x,y
+ end
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
  end
  return x,y
+end
+-- Is world point x,y on screen (or within `margin` of its edge)?
+function A.inView(game,x,y,margin)
+ local c=game.camera;if not c or not love.graphics then return false end
+ local w,h=love.graphics.getDimensions()
+ local hw,hh=w/2/c.zoom+(margin or 0),h/2/c.zoom+(margin or 0)
+ return math.abs(x-c.x)<hw and math.abs(y-c.y)<hh
 end
 function A.sample(r,clock)
  local x,y=A.point(r,clock)
@@ -517,7 +554,15 @@ function A.capture(game,e,remote)
  if ds then
   local index
   for i,id in ipairs(r.route) do if id==ds.station.locationId then index=i; break end end
-  r.index=assert(index,'trader docked outside its itinerary')
+  if not index then
+   -- docked somewhere its route doesn't name (its itinerary changed while
+   -- it was on the runway): put the station in as a stop just before the
+   -- one it was heading for, rather than crash
+   require('src.alife_trace').note(r,clock,'capture','docked at '..tostring(ds.station.locationId)..' outside its route; inserted as a stop')
+   index=math.max(1,math.min(r.index or 1,#r.route+1))
+   table.insert(r.route,index,ds.station.locationId)
+  end
+  r.index=index
   r.state='docked'
   if r.role=='patrol' then r.node=ds.station.locationId end
   r.untilTime=clock+(ds.done and math.max(0,(ds.stay or T.alifeStay)-ds.t) or T.alifeStay)
@@ -552,7 +597,7 @@ function A.capture(game,e,remote)
   r.depart=clock-p*duration; r.arrive=r.depart+duration
   if not remote and known then
    local bx,by=journeyPoint(r,p,clock)
-   r.offset={x=x-bx,y=y-by,progress=p}
+   local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
   end
  end
  r.pose=nil
@@ -823,6 +868,7 @@ function A.install(Game)
   local records=self.universe.npcs or {}
   Tasks.clean(self.universe,clock)
   require('src.supplies').universe=self.universe
+  require('src.queue').universe=self.universe
   require('src.arbiter').update(self.universe,clock)
   require('src.economy').update(self.universe,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
@@ -881,7 +927,12 @@ function A.install(Game)
      local x,y
      if egress then x,y=egress.x,egress.y elseif lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
-     if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
+     -- never pop into existence on screen: a ship that turns up inside the
+     -- view (off a turned-round leg, a driver's breech, a spawn) stays in
+     -- its offline model until it's out of sight; docked ones appear in
+     -- their berth and fresh driver arrivals come in along the rail
+     local hidden=force or r.savedOnline or r.state=='docked' or (r.driverArrival and clock-r.driverArrival<T.npcDriverArrivalTime) or egress or lane or not A.inView(self,x,y,600)
+     if (x-px)^2+(y-py)^2<threshold^2 and hidden then A.wake(self,r) end
     end
    end
   end

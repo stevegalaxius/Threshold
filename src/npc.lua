@@ -160,8 +160,9 @@ function N.advance(r,clock,u,game)
  if j and j.before then j.before({u=u,game=game,r=r,clock=clock}) end
  for _=1,128 do
   if r.state=='travel' or r.state=='transit' then
-   if clock<r.arrive then return end
-   local at=r.arrive
+   -- (a ship queued at a driver or a dock waits its turn at the end of the leg)
+   local at=require('src.queue').due(r)
+   if clock<at then return end
    if r.index<#r.route and not N.docksAt(r,r.route[r.index]) then deps.start(r,at,r.index+1)
    else N.arrive(r,r.route[r.index],at) end
   elseif r.state=='docked' or r.state=='idle' then

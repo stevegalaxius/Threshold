@@ -610,7 +610,8 @@ local function drawDriver(game, e)
 	end
 	-- runway lights back along the approach, strobes chasing in to the
 	-- breech; off while someone's in it (the gun swings, they'd only mislead)
-	local rw = hw + 10
+	-- drawn on the edges of the zone that actually catches you
+	local rw = e.zoneWidth or T.driverZoneWidth
 	local step = 75
 	local n = floor((e.zone or T.driverZone) / step)
 	for i = 0, (busy or locked) and -1 or n do

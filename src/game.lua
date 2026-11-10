@@ -1316,9 +1316,13 @@ function Game:updateDocking(dt)
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
-					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st)) then
+					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
+						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
 						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						if inZone then
+						-- an NPC waits while the player is in that dock's beam
+						local p = self.player
+						local playerIn = trader and p and p.dockState and p.dockState.phase == "tractor" and p.dockState.dock == dock
+						if inZone and not playerIn then
 							self:beginDocking(e, st, side, dock)
 							break
 						end
@@ -1394,9 +1398,7 @@ function Game:updateDockedShip(e, dt)
 		local x, y = b:getPosition()
 		local lx, ly = dockLocal(st, side, x, y, d)
 		local doorX = d.x2 + e.halfLength + 40
-		-- grip grows over the first second and as the ship nears the door
 		local near = 1 - max(0, min(1, (lx - doorX) / d.runway))
-		local grip = min(1, ds.t / 1.0) * (0.35 + 0.65 * near)
 		-- wanted velocity, in the station's frame: onto the centre line and
 		-- in toward the door, slowing as it arrives
 		local gap = lx - doorX
@@ -1405,30 +1407,17 @@ function Game:updateDockedShip(e, dt)
 		local wx, wy = dockVector(st, side, inward, across, d)
 		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
 		local vx, vy = b:getLinearVelocity()
-		local k = 2.2 * grip
-		local m = b:getMass()
-		local ax, ay = (svx + wx - vx) * k, (svy + wy - vy) * k
-		if e == self.player then
-			-- the player's beam has a limited grip, like a mass driver's
-			local a = sqrt(ax * ax + ay * ay)
-			local cap = T.driverGrip * (0.5 + 0.5 * grip)
-			if a > cap then ax, ay = ax / a * cap, ay / a * cap end
-			if lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2,(d.capture or d.hw*1.3)*1.5) then
-				e.dockState, e.dockCooldown = nil, 3
-				self:toast("TRACTOR LOST", 1.4)
-				return
-			end
+		-- the player can slide out of the beam; an NPC is held
+		if e == self.player and (lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2,(d.capture or d.hw*1.3)*1.5)) then
+			e.dockState, e.dockCooldown = nil, 3
+			self:toast("TRACTOR LOST", 1.4)
+			return
 		end
 		-- The beam supports every captured ship against cloud-top gravity.
-		if st.city then
-			local gx, gy = self:surfacePullAt(x, y)
-			ax, ay = ax - gx, ay - gy
-		end
-		b:applyForce(ax * m, ay * m)
-		-- nose toward the door
-		local want = dockAngle(st, side, d) + pi
-		local turn = wrapAngle(want - b:getAngle()) * 1.4 * grip + sb:getAngularVelocity()
-		b:setAngularVelocity(b:getAngularVelocity() + (turn - b:getAngularVelocity()) * min(1, 3 * dt))
+		local gx, gy
+		if st.city then gx, gy = self:surfacePullAt(x, y) end
+		require("src.beam").hold(self, e, { t = ds.t, near = near, fvx = svx, fvy = svy, wx = wx, wy = wy,
+			nose = dockAngle(st, side, d) + pi, spin = sb:getAngularVelocity(), gx = gx, gy = gy, dt = dt })
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
@@ -1577,7 +1566,7 @@ local function updateDockExit(self, e, dt)
 	local vx, vy = b:getLinearVelocity()
 	local ax, ay = (svx + wx - vx) * 2.2, (svy + wy - vy) * 2.2
 	local a = sqrt(ax * ax + ay * ay)
-	if a > T.driverGrip then ax, ay = ax / a * T.driverGrip, ay / a * T.driverGrip end
+	if a > T.beamGrip then ax, ay = ax / a * T.beamGrip, ay / a * T.beamGrip end
 	local gx, gy = self:surfacePullAt(x, y)
 	b:applyForce((ax - gx) * b:getMass(), (ay - gy) * b:getMass())
 end
@@ -1947,6 +1936,10 @@ function Game:step(dt)
 				e.intent.aimX,e.intent.aimY=x+cos(a)*300,y+sin(a)*300
 				e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
 				Ship.fly(e,dt)
+			elseif e == self.player and e.driverTractor and not e.launch and not self.driverMenu then
+				-- like a station's runway, the player flies on under a driver's
+				-- beam and can pull out of it
+				Ship.fly(e, dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				Fuel.step(e,e.stats,dt,false)
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0

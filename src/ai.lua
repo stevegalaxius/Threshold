@@ -193,13 +193,31 @@ local function trade(game, e, dt)
 			table.remove(route, e.routeIndex); e.routeIndex = 1; return
 		end
 		local sx, sy = stopPoint(stop, e)
+		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
+		local queued = e.alifeId and require("src.queue").holding(game, e, stop)
+		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex) end
+		-- the driver is taken (the player sitting in it, or a ship launching)
+		-- and this one has no turn booked to wait for: line up behind it anyway
+		-- rather than flying into the breech, first come first served
+		local record = e.alifeId and game.universe.npcs[e.alifeId]
+		local g = not queued and record and record.route and stop.kind == "driver" and stop.driver
+		if g and g.driverShip and g.driverShip ~= e and not g.driverShip.dead and not g.driverShip.removed then
+			e.busyWait, e.busyWaitSince = g, e.busyWaitSince or game.universe.clock
+			local place, Q, key = 1, require("src.queue"), require("src.locations").canonical(stop.locationId)
+			for _, r in pairs(game.universe.npcs) do if r.queue and r.queue.key == key and Q.waiting(r, game.universe.clock) then place = place + 1 end end
+			for _, o in ipairs(game.entities) do
+				if o ~= e and o.busyWait == g and not o.dead and (o.busyWaitSince < e.busyWaitSince or o.busyWaitSince == e.busyWaitSince and tostring(o.alifeId) < tostring(e.alifeId)) then place = place + 1 end
+			end
+			queued = record
+			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place)
+		else e.busyWait, e.busyWaitSince = nil, nil end
 		local _, _, d = norm(sx - x, sy - y)
 		-- Around a planet, follow the arc of the track instead of cutting
 		-- the chord (which would run through the rock belt): aim a little
 		-- way ahead along the circle until the stop is close.
 		local hx, hy = sx, sy
 		local w = game.well
-		local gateApproach = e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
+		local gateApproach = not queued and e.alifeId and (stop.kind == "moon_gate" or e.taskWorker and stop.kind == "driver") and e.travelGraph
 		if gateApproach then
 			local G = require("src.travelgraph")
 			local previous = route[(e.routeIndex-2)%#route+1]
@@ -243,7 +261,7 @@ local function trade(game, e, dt)
 		local ux, uy = norm(hx - x, hy - y)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
-		if d < 450 and not stop.dock and not stop.hold then
+		if d < 450 and not stop.dock and not stop.hold and not queued then
 			if e.alifeRole and Security.visit(game,e,stop,require("src.alife")) then return end
 			if e.alifeId and e.taskWorker and stop.kind=="driver" and stop.driver then
 				if game:requestDriver(e,stop.driver,stop.destination) then
@@ -258,7 +276,7 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
-		local pass = (stop.dock or stop.inspection) and 60 or cruise * 0.6
+		local pass = queued and 0 or (stop.dock or stop.inspection) and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
@@ -269,12 +287,21 @@ local function trade(game, e, dt)
 			-- Do not carry unrelated orbital drift into the launch.
 			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
-		if stop.dock or stop.inspection then
-			-- Final approach is relative to the moving dock, not the orbital
-			-- current. In particular, a surface mine has no sideways motion.
-			local blend = max(0, min(1, 1 - (d - 600) / 1800))
-			local dx, dy = stop.body:getLinearVelocityFromWorldPoint(sx, sy)
-			fx0, fy0 = fx0 + (dx - fx0) * blend, fy0 + (dy - fy0) * blend
+		if not gateApproach then
+			-- Final approach is relative to the stop, not the orbital current.
+			-- Inside its braking distance the ship is slowing for the stop, and
+			-- measured against the current that slow approach can be slower
+			-- than the current itself: a stop that doesn't ride it (the
+			-- Heaven-Ladder, a surface mine) would drift away for ever.
+			local reach = cruise * cruise / (2 * brakeAccel(e) * 0.6) + 150
+			local blend = max(0, min(1, (reach * 1.5 - d) / (reach * 0.5)))
+			if stop.dock or stop.inspection then blend = max(blend, min(1, 1 - (d - 600) / 1800)) end
+			if blend > 0 then
+				local dx, dy
+				if stop.body.getLinearVelocityFromWorldPoint then dx, dy = stop.body:getLinearVelocityFromWorldPoint(sx, sy)
+				elseif stop.driver then dx, dy = stop.driver.body:getLinearVelocity() end
+				if dx then fx0, fy0 = fx0 + (dx - fx0) * blend, fy0 + (dy - fy0) * blend end
+			end
 		end
 		local inGravity=w and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius+min(T.surfacePullRange,w.radius*.5)+500
 		local climbing=w and ux*(x-w.x)+uy*(y-w.y)>sqrt((x-w.x)^2+(y-w.y)^2)*.4
@@ -286,6 +313,8 @@ local function trade(game, e, dt)
 		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
 		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
+		-- for the A-Life overlay: where it is actually steering, and for which stop
+		e.navAim={x=wx,y=wy,stop=stop.locationId,sx=sx,sy=sy}
 		ux,uy=norm(wx-x,wy-y)
 		local leg=sqrt((wx-x)^2+(wy-y)^2)
 		if detour then want=min(want,sqrt(60^2+brakeAccel(e)*max(0,leg-100))) end

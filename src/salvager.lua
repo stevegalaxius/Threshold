@@ -77,7 +77,7 @@ function S.returnRecord(game,r,maintenance)
  if r.task then r.task.phase='selling';r.task.target=target end
  if r.state=='travel' then
   local previous=r.route[(r.index-2)%#r.route+1]
-  r.route={previous};for _,id in ipairs(tail) do r.route[#r.route+1]=id end;r.index=2
+  r.route={previous};for _,id in ipairs(tail) do r.route[#r.route+1]=id end;r.index=2;require('src.queue').leg(r)
  else
   r.route=tail;r.index=1
   if #tail>1 then require('src.alife').start(r,game.universe.clock,2)

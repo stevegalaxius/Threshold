@@ -104,7 +104,7 @@ function R.begin(u,r,clock,start)
   local destination=r.route[r.index];local tail=G.itinerary(destination,target,clock)
   if tail then
    local source=r.route[(r.index-2)%#r.route+1]
-   r.route={source};for _,id in ipairs(tail) do r.route[#r.route+1]=id end;r.index=2
+   r.route={source};for _,id in ipairs(tail) do r.route[#r.route+1]=id end;r.index=2;require('src.queue').leg(r)
    return true
   end
  end

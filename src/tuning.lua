@@ -87,10 +87,13 @@ T.driverRadius = 260
 -- The approach behind the breech where its tractor takes you (length and
 -- half-width), how fast it reels you in, and the most it can slow you
 -- (px/s^2): come in faster than it can stop and you overshoot.
-T.driverZone, T.driverZoneWidth = 1500, 250
+T.driverZone, T.driverZoneWidth = 600, 110
 T.driverBarrel = 1000                -- the barrel's length
 T.driverReel = 450
-T.driverGrip = 320
+-- The tractor beam that catches ships (src/beam.lua): the most it can slow
+-- the player (px/s^2) at a station's runway or a driver's breech. NPCs are
+-- held without a cap.
+T.beamGrip = 360
 T.driverAlign, T.driverFire = 1.2, 0.25
 -- how fast a driver's barrel swings round to its firing bearing (rad/s),
 -- and its speed round the planet as a share of the current there
@@ -330,13 +333,23 @@ T.miningScan,T.miningOfflineEvery=.5,12
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',6000
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.fuelEmergency=2
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take   -- canisters an NPC running dry gets free at an empty station
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
+-- Average throttle of an NPC flying a leg (live flights on Mars, Earth,
+-- Saturn and the Belt measured .25-.34): what offline travel is billed at.
+T.npcTravelThrottle=.3
+-- How far (px) an NPC's own offset from a shared track or holding point can be
+T.npcSpread=220
+-- Queues at mass drivers and docks (src/queue.lua): how long one ship has the
+-- beam (s), and where the line holds: the first spot this far back from the
+-- chokepoint along the way in (px), each after it this much further.
+T.queueService={driver=10,dock=14}
+T.queueStart,T.queueGap=2200,600
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
 -- ...or sooner, when what's left wouldn't cover the rest of the leg plus the
 -- trip to the nearest fuel stop (times the margin, plus slack seconds).

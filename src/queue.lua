@@ -1,0 +1,160 @@
+-- Queues at chokepoints: a mass driver an NPC is about to fire from, and a
+-- station dock it is about to dock at. One beam serves one ship at a time
+-- (a station serves as many at once as it has docks), so a ship arriving
+-- while it's busy waits its turn in a numbered holding spot lined up behind
+-- the approach, instead of piling onto the breech or the runway.
+--
+-- Turns are booked when the leg towards the chokepoint starts, from the time
+-- the ship will get there: universe.queues[node] is a list of bookings
+-- {start, finish, id}. The record keeps its own: r.queue = {key, ready,
+-- service}. Offline, the ship finishes its leg at r.arrive and then waits
+-- until r.queue.ready; online it holds at the same spot until then. Same
+-- numbers either way, so where a sleeping NPC is drawn is where it wakes.
+local L=require('src.locations')
+local T=require('src.tuning')
+local Q={universe=nil,docks={}}
+
+local function state()
+ local u=Q.universe;if not u then return nil end
+ u.queues=u.queues or {}
+ return u.queues
+end
+
+-- The chokepoint the leg ending at route[index] leads into, if any:
+-- returns its key, kind and how many it serves at once.
+function Q.chokepoint(r,index)
+ local id=r.route and r.route[index];local place=id and L.byId[id]
+ if not place then return end
+ if place.kind=='driver' then
+  local nextId=r.route[index+1]
+  -- a service visit's route ends back at the driver the role was heading
+  -- for: what comes after it is in the route the visit saved
+  local saved=not nextId and r.service and r.service.saved
+  if saved and saved.route and saved.route[saved.index]==id then nextId=saved.route[saved.index+1] end
+  local nextPlace=nextId and L.byId[nextId]
+  if nextPlace and nextPlace.area~=place.area then return id,'driver',1 end
+  return
+ end
+ if place.kind=='station' and require('src.npc').docksAt(r,id) then
+  local key=L.canonical(id)
+  if Q.docks[key] then return key,'dock',Q.docks[key] end
+  -- one at a time per dock; a station with access points (the Heaven-
+  -- Ladder's anchors) has its docks spread across them
+  local docks=0
+  for other,p in pairs(L.byId) do
+   if (other==key or p.accessOf==key) and p.kind=='station' then
+    local ok,def=pcall(L.stationDefinition,other)
+    docks=docks+(ok and def and def.docks and #def.docks or 1)
+   end
+  end
+  Q.docks[key]=math.max(1,docks)
+  return key,'dock',Q.docks[key]
+ end
+end
+
+-- Book the earliest turn at `key` at or after `at` while fewer than
+-- `capacity` other bookings overlap it. Returns its start.
+local function book(key,id,at,service,capacity)
+ local qs=state();if not qs then return at end
+ local list=qs[key] or {};qs[key]=list
+ -- forget finished turns, and this ship's own old booking
+ for i=#list,1,-1 do local b=list[i];if b.finish<at-600 or b.id==id then table.remove(list,i) end end
+ local candidates={at}
+ for _,b in ipairs(list) do if b.finish>at then candidates[#candidates+1]=b.finish end end
+ table.sort(candidates)
+ for _,t in ipairs(candidates) do
+  local busy=0
+  for _,b in ipairs(list) do if b.start<t+service and b.finish>t then busy=busy+1 end end
+  if busy<capacity then
+   list[#list+1]={start=t,finish=t+service,id=id}
+   return t
+  end
+ end
+ return at
+end
+
+-- A leg has just started towards route[r.index] arriving at r.arrive: book
+-- its turn if that's a chokepoint. (Clears any old booking otherwise.)
+function Q.leg(r)
+ local key,kind,capacity=Q.chokepoint(r,r.index)
+ if not key then r.queue=nil;return end
+ local service=T.queueService[kind]
+ local ready=book(key,r.id,r.arrive,service,capacity)
+ r.queue={key=key,kind=kind,ready=ready,at=r.arrive,service=service,capacity=capacity}
+end
+
+-- Something outside the line (the player) has the chokepoint: nobody's turn
+-- comes while it does. Every turn not yet started slides back by dt, and the
+-- ships holding those turns with it, so they stay in line where they are.
+function Q.hold(key,dt,clock)
+ local qs=state();local list=qs and qs[key]
+ if not list then return end
+ local npcs=Q.universe.npcs or {}
+ for _,b in ipairs(list) do
+  if b.finish>clock then
+   if b.start<clock then b.start=clock end
+   b.start,b.finish=b.start+dt,b.finish+dt
+   local r=npcs[b.id]
+   if r and r.queue and r.queue.key==key then r.queue.ready=b.start end
+  end
+ end
+end
+
+-- When the ship's turn comes: the end of its leg, or later if it's queued.
+function Q.due(r)
+ local q=r.queue
+ return q and q.ready>r.arrive and q.ready or r.arrive
+end
+
+-- Still waiting for its turn at the chokepoint its route is on.
+function Q.waiting(r,clock)
+ local q=r.queue
+ -- (a turn that came free on time is no wait at all)
+ return q and q.ready>(q.at or 0)+.5 and r.route and r.route[r.index] and L.canonical(r.route[r.index])==q.key and clock<q.ready
+end
+
+-- Online: is the live ship e holding for its turn at route stop `stop`?
+function Q.holding(game,e,stop)
+ local r=e.alifeId and game.universe.npcs[e.alifeId]
+ local q=r and r.queue
+ return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and L.canonical(stop.locationId)==q.key and game.universe.clock<q.ready and r or nil
+end
+
+-- Its place in line: 1 is next in, 2 behind that, and so on.
+function Q.place(r,clock)
+ local q=r.queue;if not q then return 1 end
+ local qs=state();local list=qs and qs[q.key] or {}
+ local ahead=0
+ local npcs=Q.universe and Q.universe.npcs or {}
+ for _,b in ipairs(list) do
+  local o=npcs[b.id]
+  -- only ships actually still lined up here count as ahead
+  if b.id~=r.id and b.start<q.ready and b.finish>clock and o and o.queue and o.queue.key==q.key then ahead=ahead+1 end
+ end
+ return math.floor(ahead/(q.capacity or 1))+1
+end
+
+-- Where it holds: back along the way it came, T.queueStart from the
+-- chokepoint for the first in line and T.queueGap further for each behind.
+function Q.holdPoint(r,clock,index,place)
+ index=index or r.index
+ local id=r.route[index]
+ local x,y=L.position(id,clock)
+ local from=r.route[index-1]
+ local fx,fy
+ if from and L.byId[from] and L.byId[from].area==L.byId[id].area then fx,fy=L.position(from,clock) end
+ local dx,dy
+ if fx and (fx-x)^2+(fy-y)^2>1 then dx,dy=fx-x,fy-y else dx,dy=x,y end -- else: straight out from the planet
+ local d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
+ local back=T.queueStart+T.queueGap*((place or Q.place(r,clock))-1)
+ return x+dx/d*back,y+dy/d*back
+end
+
+function Q.label(r,clock)
+ if not Q.waiting(r,clock) then return end
+ local n=Q.place(r,clock)
+ local suffix=n==1 and 'st' or n==2 and 'nd' or n==3 and 'rd' or 'th'
+ local place=L.byId[r.route[r.index]]
+ return ('queued %d%s for %s (%.0fs)'):format(n,suffix,place and place.name or r.route[r.index],r.queue.ready-clock)
+end
+return Q
