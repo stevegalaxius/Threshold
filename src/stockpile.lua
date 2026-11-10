@@ -32,13 +32,15 @@ function S.definition(st)
 end
 
 function S.shops(st)
- local mk=S.definition(st);local shops={};local supplied,fueled=false,false
+ local mk=S.definition(st);local shops={};local supplied,fueled,food=false,false,false
  local fuel=require('src.reactor_fuel').item()
  local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
  for _,shop in ipairs(existing) do
   shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies'
   fueled=fueled or not shop.unlimited and S.lists(shop,fuel)
+  food=food or not shop.unlimited and S.lists(shop,'food_crate')
  end
+ if not food then shops[#shops+1]=require('src.food').shop() end
  -- the real fuel storefront, unless a shop here already stocks fuel
  if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
  if not supplied then shops[#shops+1]=require('src.supplies').shop() end
@@ -105,6 +107,7 @@ function S.stock(u,st,i)
     for c=1,#k do h=(h*31+k:byte(c))%1000003 end
     stock[id]=math.floor(n*(.25+.5*(h%1000)/999))
    end
+   if S.shopFor(key,'food_crate')==i then stock.food_crate=require('src.food').initial(key) end
   end
   m.stock=stock
   -- fold in the old per-station logistics stock once
@@ -125,12 +128,18 @@ end
 -- the shop that holds them for NPCs (shopFor).
 function S.flow(u,key,i,m)
  local place=L.byId[key]
- if not place or not place.uses or not place.uses.trade then return end
+ if not place or place.kind~='station' then return end
  local now=u.clock;local last=m.flowAt or now;m.flowAt=now
  local dt=now-last;if dt<=0 then return end
+ local Food=require('src.food')
+ local foodShop=S.shopFor(key,Food.item)
+ if i==foodShop then Food.flow(u,key,m,dt)
+ else S.stock(u,key,foodShop) end
+ if not place.uses or not place.uses.trade then return end
  local C=require('src.commodities')
  for _,c in ipairs(C.list) do
   local rate=C.rate(c,key)*require('src.economy').scale(u,key,c)
+  if rate>0 then rate=rate*Food.output(u,key) end
   if rate~=0 and S.shopFor(key,c.item)==i then
    local stock=m.stock;local have=stock[c.item] or 0
    m.flowCarry=m.flowCarry or {}

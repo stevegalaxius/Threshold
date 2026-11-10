@@ -583,6 +583,7 @@ function Fields.configureLocations(area)
         place.marketId=entry.marketId or WorldLayout.defaults.marketId
         -- what this station offers and makes belong to the place, not its design
         place.services,place.industry=entry.services,entry.industry
+        place.food=entry.food
         place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}
         for purpose,enabled in pairs(entry.uses or {}) do place.uses[purpose]=enabled end
     end
@@ -617,6 +618,7 @@ function Fields.configureLocations(area)
 			local place = F.locations[#F.locations]
 			place.heading,place.layout,place.uses = a,"ladder_anchor",{patrol=true}
             place.marketId=WorldLayout.specials.heavenLadder.marketId
+            place.food=WorldLayout.specials.heavenLadder.food
 			if k > 0 then place.accessOf = F.ladderIds[1] end
 			F.ladderIds[k + 1] = lid
 		end

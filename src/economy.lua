@@ -29,6 +29,7 @@ local Tasks=require('src.tasks')
 local Transport=require('src.transport')
 local Stock=require('src.stockpile')
 local C=require('src.commodities')
+local Food=require('src.food')
 local T=require('src.tuning')
 local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 -- Every trade station keeps at least this much of these on hand.
@@ -97,7 +98,7 @@ end
 -- What a station's recipes would use an hour, running flat out.
 local function capacityUse(u,key,item)
  local place=L.byId[key];if not place then return 0 end
- local n=0
+ local n=item==Food.item and Food.rates(key) or 0
  for _,c in ipairs(C.list) do
   n=n+(c.use[key] or 0)*(c.item==item and 1 or 0)
   for _,input in ipairs(C.inputs(c)) do
@@ -110,6 +111,7 @@ end
 -- is for shipping, and hoarding hours of local sales starves everyone else.
 local function makes(key,item)
  local place=L.byId[key];if not place then return false end
+ if item==Food.item then local _,make=Food.rates(key);return make>0 end
  for _,c in ipairs(C.list) do if c.item==item and (c.make[key] or 0)>0 then return true end end
  return false
 end
@@ -128,13 +130,16 @@ local function goods()
  for _,c in ipairs(C.list) do add(c.item);for _,input in ipairs(C.inputs(c)) do add(input.item) end end
  for _,item in pairs(require('src.ore').items) do if item~='scrap' then add(item) end end
  add(require('src.reactor_fuel').item())
+ add(Food.item)
  table.sort(list)
  return list
 end
 E.goods=goods
-local function stations()
+local function stations(food)
  local list={}
- for _,area in ipairs(Fields.list) do for _,id in ipairs(tradeStations(area)) do list[#list+1]=id end end
+ for _,area in ipairs(Fields.list) do
+  for _,id in ipairs(food and L.stations(area) or tradeStations(area)) do list[#list+1]=id end
+ end
  return list
 end
 
@@ -169,6 +174,7 @@ function E.update(u,clock)
  end
  local reach={}
  local all=stations()
+ local inhabited=stations(true)
  -- what buyers wanted that no station could supply, by good
  local unmet={}
  for _,item in ipairs(goods()) do
@@ -177,7 +183,8 @@ function E.update(u,clock)
   -- its use; below that it buys back up to twice that, and anything over
   -- twice that is spare (a mine, a quarry, a hub that collected stock).
   local spare,buyers={},{}
-  for _,s in ipairs(all) do
+  local participants=item==Food.item and inhabited or all
+  for _,s in ipairs(participants) do
    local have=Stock.count(u,s,item)
    if makes(s,item) then spare[s]=have-E.target(u,s,item,true)
    else
@@ -193,7 +200,7 @@ function E.update(u,clock)
    local c,short=entry.c,entry.short;local need=entry.need
    while short>0 do
     local best,bestScore
-    for _,s in ipairs(all) do
+    for _,s in ipairs(participants) do
      if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
@@ -207,7 +214,7 @@ function E.update(u,clock)
      -- only real scarcity counts: spare stock that just can't reach this
      -- buyer is a hauling problem, not a reason to make or dig more
      local anywhere=false
-     for _,s in ipairs(all) do if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then anywhere=true;break end end
+     for _,s in ipairs(participants) do if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then anywhere=true;break end end
      -- counted against its target, not the reorder level
      if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
      break
