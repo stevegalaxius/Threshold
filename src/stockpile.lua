@@ -172,14 +172,14 @@ function S.flow(u,key,i,m)
    if rate>0 and #inputs>0 then
     -- making it uses up its inputs from the same station's stock
     for _,input in ipairs(inputs) do
-     local can=math.floor(S.count(u,key,input.item)/input.n)
+     local can=math.floor(S.available(u,key,input.item)/input.n)
      if can<whole then whole=can;carry=whole end
     end
     if whole>0 then for _,input in ipairs(inputs) do
      S.take(u,key,input.item,whole*input.n);require('src.economy').consume(u,key,input.item,whole*input.n)
     end end
    end
-   if rate<0 then whole=math.max(whole,-have);require('src.economy').consume(u,key,c.item,-whole) end
+   if rate<0 then whole=math.max(whole,-math.max(0,have-S.reserved(u,key,c.item)));require('src.economy').consume(u,key,c.item,-whole) end
    if rate>0 then require('src.economy').stat(u,'made',c.item,whole*batch) end
    if rate>0 and have>=c.cap then carry=0 end
    m.flowCarry[c.item]=carry-whole
@@ -193,16 +193,35 @@ function S.count(u,st,id,i)
  local stock=S.stock(u,st,i or S.shopFor(st,id))
  return stock and stock[id] or 0
 end
+-- Physical stock remains authoritative for storage; consumers see only
+-- goods not committed to a freight pickup.
+function S.reserved(u,st,id,except)
+ local n=0;local key=S.key(st)
+ for _,o in pairs(u.tasks and u.tasks.offers or {}) do
+  if o.order and o.source==key and o.item==id and not o.loaded and o.state~='available'
+   and (not except or o.id~=except and o.manifestRoot~=except) then n=n+o.amount end
+ end
+ return n
+end
+function S.available(u,st,id,i,except)
+ return math.max(0,S.count(u,st,id,i)-S.reserved(u,st,id,except))
+end
+function S.shelf(u,st,i)
+ local stock=S.stock(u,st,i);if not stock then return end
+ local result={}
+ for id,n in pairs(stock) do result[id]=math.max(0,n-S.reserved(u,st,id)) end
+ return result
+end
 function S.add(u,st,id,n,i)
  local stock=S.stock(u,st,i or S.shopFor(st,id))
  if not stock then return false end
  stock[id]=(stock[id] or 0)+n
  return true
 end
-function S.take(u,st,id,n,i)
+function S.take(u,st,id,n,i,reservation)
  if n<=0 then return true end
  local stock=S.stock(u,st,i or S.shopFor(st,id))
- if not stock or (stock[id] or 0)<n then return false end
+ if not stock or S.available(u,st,id,i,reservation)<n then return false end
  stock[id]=stock[id]-n
  if stock[id]==0 then stock[id]=nil end
  return true

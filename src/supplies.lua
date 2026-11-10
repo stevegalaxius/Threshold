@@ -80,7 +80,7 @@ end
 -- to reach the next station (T.fuelEmergency canisters), on the house.
 local function fuelAvailable(u,key,r,e)
  if not u or not key then return math.huge end
- local have=require('src.stockpile').count(u,key,Fuel.item())
+ local have=require('src.stockpile').available(u,key,Fuel.item())
  if have>0 then return have,false end
  if Fuel.condition(r,e)~='normal' then return T.fuelEmergency or 2,true end
  return 0,false
@@ -101,7 +101,7 @@ local function fill(r,e,h,cargo,u,key)
   if id==Fuel.item() then
    local can;can,free=fuelAvailable(u,key,r,e);missing=math.min(missing,can)
   elseif require('src.ammunition').byItem[id] and u and key then
-   missing=math.min(missing,require('src.stockpile').count(u,key,id))
+   missing=math.min(missing,require('src.stockpile').available(u,key,id))
   end
   if missing==0 then n=0
   elseif h then n=Hold.add(h,id,missing,{pristine=true})

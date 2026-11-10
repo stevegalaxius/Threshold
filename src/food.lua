@@ -31,14 +31,15 @@ end
 -- Production and consumption stay separate, including at a surplus producer.
 function F.flow(u,key,m,dt)
  local use,make=F.rates(key)
- local have=m.stock[F.item] or 0
+ local reserved=require('src.stockpile').reserved(u,key,F.item)
+ local have=math.max(0,(m.stock[F.item] or 0)-reserved)
  local function units(rate,field)
   local n=rate*dt/3600+(m[field] or 0)
   local whole=math.floor(n+1e-9);m[field]=n-whole
   return whole
  end
  local wanted=units(use,'foodUseCarry')
- local made=math.min(units(make,'foodMakeCarry'),math.max(0,F.cap-have+wanted))
+ local made=math.min(units(make,'foodMakeCarry'),math.max(0,F.cap-have-reserved+wanted))
  local E=require('src.economy')
  local Stock=require('src.stockpile')
  local short=0
@@ -46,7 +47,7 @@ function F.flow(u,key,m,dt)
   -- A fertilizer unit feeds twenty crates. Persist the unused nutrients,
   -- so frequent small updates cost the same as an offline catch-up.
   local credit=m.foodNutrients or 0
-  local fertilizer=Stock.count(u,key,F.fertilizer)
+  local fertilizer=Stock.available(u,key,F.fertilizer)
   made=math.min(made,credit+fertilizer*F.yield)
   local spent=math.max(0,math.ceil((made-credit)/F.yield))
   if spent>0 then Stock.take(u,key,F.fertilizer,spent);E.consume(u,key,F.fertilizer,spent) end
@@ -61,7 +62,7 @@ function F.flow(u,key,m,dt)
  elseif use>0 then short=math.max(0,dt-have/use*3600) end
  local eaten=math.min(wanted,have+made)
  local remaining=have+made-eaten
- m.stock[F.item]=remaining>0 and remaining or nil
+ m.stock[F.item]=remaining+reserved>0 and remaining+reserved or nil
  E.stat(u,'made',F.item,made);E.consume(u,key,F.item,eaten)
  local record=require('src.stockpile').record(u,key)
  local state=record.food or {output=1};record.food=state

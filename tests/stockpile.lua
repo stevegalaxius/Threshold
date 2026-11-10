@@ -109,7 +109,7 @@ return function(game)
   low.ship=copy(template.ship);high.ship=copy(template.ship)
   local near={item='hydrogen_canister',source=ven,target=jup,order=true,amount=10,creditsPerUnit=2,routeAU=0}
   local far={item='hydrogen_canister',source=jup,target=ven,order=true,amount=10,creditsPerUnit=20,routeAU=18}
-  local score=Tasks.definitions.transport.score
+  local function score(_,r,o,station,clock) return Tasks.definitions.transport.score({clock=clock,stations={}},r,o,station,clock) end
   assert(score(u,low,near,ven,u.clock)>score(u,low,far,ven,u.clock),'low ambition prefers nearby work')
   assert(score(u,high,far,ven,u.clock)>score(u,high,near,ven,u.clock),'high ambition pursues the richer remote run')
   local E=require('src.encounters')

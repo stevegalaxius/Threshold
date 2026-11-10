@@ -12,7 +12,7 @@ end
 function P.available(u,key)
  key=L.canonical(key)
  local S=require('src.stockpile')
- return S.count(u,key,P.item)*P.points+(S.record(u,key).repairMaterial or 0)
+ return S.available(u,key,P.item)*P.points+(S.record(u,key).repairMaterial or 0)
 end
 function P.duration(u,key,missing,rate)
  local normal=math.min(missing,P.available(u,key))

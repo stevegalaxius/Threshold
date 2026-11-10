@@ -98,6 +98,19 @@ local function reachable(a,b,clock,sameArea)
  end
  return reach[key]
 end
+function Transport.usable(u,r,o,clock)
+ if r.suspendedTask or r.service or r.worldRecovery or r.action or r.state=='stranded' then return 0 end
+ if r.fuelStatus=='stranded' or r.fuelStatus=='empty' then return 0 end
+ if require('src.reactor_fuel').remaining(r.ship)<=0 then return 0 end
+ if (require('src.work_preferences').weight(r,'transport') or 0)<=0 then return 0 end
+ local access=require('src.npc_access');local capabilities=access.capabilities(r)
+ if not access.eligible(r,o,capabilities) or not access.eligible(r,Tasks.definitions.transport,capabilities) then return 0 end
+ local station=r.node or r.station
+ if not L.byId[station] then return 0 end
+ local def=Tasks.definitions.transport
+ if not def.eligible(u,r,o,station,clock) or not def.feasible(u,r,o,station,clock) then return 0 end
+ return math.min(data.hulls[r.ship.hull].hold or 0,room(r,o.item,1000000)*data.items[o.item].volume)
+end
 function Transport.load(u,r,t)
  local saved=require('src.persistence').copy(r.ship);local totals={}
  for _,line in ipairs(lines(t)) do
@@ -107,7 +120,7 @@ function Transport.load(u,r,t)
  end
  r.ship=saved
  for _,line in ipairs(lines(t)) do
-  if line.mine or line.stocked then assert(J.take(u,line.source,line.item,line.amount)) end
+  if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
   cargo(r,line.item,line.amount)
   local o=Tasks.state(u).offers[line.id];if o then o.loaded=true end
  end
@@ -144,7 +157,8 @@ Tasks.register('transport',{
   local amount=math.min(o.amount,room(r,o.item,o.amount))
   local reward=amount*o.creditsPerUnit/Transport.duration(o,station,clock)
   local ambition=Personality.ensure(r).ambition
-  local age=math.max(0,clock-(o.placed or o.readyAt or clock))
+  local age=require('src.economy').shortageAge(u,o.target,o.item,clock)
+  age=math.max(age,math.max(0,clock-(o.placed or o.readyAt or clock)))
   return (o.order and 1000000 or 0)+(o.urgency or o.priority or 0)*10000
    +age*100+math.min(5000,reward*100)*(0.5+ambition)-(station~=o.source and 50*(1-ambition) or 0)
  end,

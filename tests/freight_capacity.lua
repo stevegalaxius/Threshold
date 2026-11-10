@@ -46,12 +46,42 @@ return function(game)
  local arb=require('src.arbiter')
  arb.update(small,60);arb.update(large,60)
  assert(large.arbiter.freight.mars.work>small.arbiter.freight.mars.work,'arbiter still counts orders')
- local idle=trader('idle');small.npcs.idle=idle;small.arbiter.next=0;arb.update(small,61)
+ local idle=trader('idle');idle.node=source;idle.ship.fuelCharge=1000;small.npcs.idle=idle;small.arbiter.next=0;arb.update(small,61)
  assert(small.arbiter.freight.mars.shortage==0,'idle capacity ignored')
  local empty=world();arb.update(empty,60)
  assert(not empty.arbiter.extra.mars,'missing production spawned haulers')
  local low=post(empty,'rounds_s',10);low.urgency=0;local urgent=copy(low);urgent.urgency=3
  assert(def.score(empty,idle,urgent,source,60)>def.score(empty,idle,low,source,60),'urgency lost')
  assert(def.score(empty,idle,low,source,3600)>def.score(empty,idle,urgent,source,60),'aging cannot prevent starvation')
+ -- Reservation protection uses the same API as repairs, factories and rearming.
+ local protected=world();local offer=post(protected,'rounds_s',80)
+ offer.state='reserved';offer.owner='reserved-hauler'
+ assert(S.count(protected,source,'rounds_s')==100 and S.available(protected,source,'rounds_s')==20)
+ assert(not S.take(protected,source,'rounds_s',21),'consumer stole reserved cargo')
+ assert(S.take(protected,source,'rounds_s',20) and S.take(protected,source,'rounds_s',80,nil,offer.id),'owner could not load reservation')
+ local E=require('src.economy')
+ E.shortage(protected,target,'rounds_s',0,100,10)
+ protected.tasks.offers={}
+ E.shortage(protected,target,'rounds_s',5,100,500)
+ assert(E.shortageAge(protected,target,'rounds_s',600)==590,'replacement reset shortage age')
+ local Save=require('src.save');protected=assert(Save.decode(Save.encode(protected)))
+ assert(E.shortageAge(protected,target,'rounds_s',700)==690,'shortage age lost on save')
+ E.shortage(protected,target,'rounds_s',100,100,701)
+ assert(E.shortageAge(protected,target,'rounds_s',702)==0,'resupply did not clear shortage')
+ idle.ship.fuelCharge=0
+ assert(Transport.usable(small,idle,next(Tasks.state(small).offers) and select(2,next(Tasks.state(small).offers)),61)==0,'unfuelled ship credited')
+ idle.ship.fuelCharge=1000;idle.workWeights={transport=0}
+ assert(Transport.usable(small,idle,select(2,next(Tasks.state(small).offers)),61)==0,'unwilling ship credited')
+ idle.workWeights=nil;idle.ship.cargo={steel_plate=10000}
+ assert(Transport.usable(small,idle,select(2,next(Tasks.state(small).offers)),61)==0,'full hold credited')
+ idle.ship.cargo={};idle.node='missing-station'
+ assert(Transport.usable(small,idle,select(2,next(Tasks.state(small).offers)),61)==0,'unreachable pickup credited')
+ local original=game.universe
+ S.stock(original,target,S.shopFor(target,'rounds_s')).rounds_s=nil
+ E.shortage(original,target,'rounds_s',100,100,9)
+ E.shortage(original,target,'rounds_s',0,100,10)
+ local snapshot=assert(Save.decode(Save.encode(game:saveState())))
+ game:loadState(snapshot)
+ assert(S.record(game.universe,target).shortages.rounds_s==10,'game save/load lost shortage age')
  print('FREIGHT CAPACITY: reservations, mixed manifests, settlement, urgency and workload passed')
 end

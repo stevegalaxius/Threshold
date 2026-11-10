@@ -202,7 +202,7 @@ function Game:stationMarket(st, i)
 		m.hold = Game.newShelf(); m.next = m.next or {}
 	end
 	local stock = Stock.stock(self.universe, st, i)
-	if stock then Stock.syncShelf(m.hold, stock) end
+	if stock then Stock.syncShelf(m.hold, Stock.shelf(self.universe,st,i)) end
 	return m
 end
 
@@ -246,7 +246,7 @@ function Game:shopTick(st, i, shop, away)
 		end
 	end
 	local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
-	if stock then Stock.syncShelf(mk.hold, stock, away) end
+	if stock then Stock.syncShelf(mk.hold, Stock.shelf(self.universe,st,i), away) end
 end
 
 -- Seconds until the next stack of an item comes in, or nil.
@@ -325,6 +325,13 @@ function Game:tradeProblem(st, trade)
 	for _, s in ipairs(buying) do
 		if not ShipEntry.item(s.id) and not deliver(s, th, ts) then return "NO ROOM" end
 	end
+ local wanted={};local shop=Game.marketShops(st)[self:currentShop(st)]
+ for _,s in ipairs(buying) do
+  if not shop.unlimited and not s.resale and not s.inner and not ShipEntry.item(s.id) then
+   wanted[s.id]=(wanted[s.id] or 0)+s.n
+   if wanted[s.id]>Stock.available(self.universe,st,s.id,self:currentShop(st)) then return 'STOCK RESERVED OR NO LONGER AVAILABLE' end
+  end
+ end
  local plan,why=shipPlan(self,st,buying,selling)
  if not plan then return why end
  return nil
@@ -355,7 +362,7 @@ function Game:completeTrade(st, trade)
 	local stock = not shop.unlimited and Stock.stock(u, st, shopIndex)
  for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then
   deliver(s,p.hold,storage)
-  if stock and not s.resale and not s.inner and stock[s.id] then stock[s.id]=math.max(0,stock[s.id]-s.n);if stock[s.id]==0 then stock[s.id]=nil end end
+  if stock and not s.resale and not s.inner then assert(Stock.take(u,st,s.id,s.n,shopIndex)) end
   if stock and not s.resale and require('src.ammunition').byItem[s.id] then require('src.economy').consume(u,st.key,s.id,s.n) end
  end end
 	local mk = self:stationMarket(st)

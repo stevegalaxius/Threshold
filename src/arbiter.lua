@@ -31,15 +31,16 @@ function A.update(u,clock)
  local Transport=require('src.transport')
  local data=require('src.data')
  local open,capacity={},{}
- local lanes={}
+ local lanes={};local offers={}
  for _,o in pairs(Tasks.state(u).offers) do
   if o.order and o.state=='available' and (o.readyAt or 0)<=clock then
    local place=L.byId[o.source]
-   if place then
+   if place and Transport.available(u,o.source,o.item,o.id)>0 then
+    offers[#offers+1]=o
     local area=place.area;local key=o.source..'>'..o.target
     local lane=lanes[key] or {area=area,volume=0,time=Transport.duration(o,nil,clock),age=0};lanes[key]=lane
     lane.volume=lane.volume+o.amount*data.items[o.item].volume
-    lane.age=math.max(lane.age,clock-(o.placed or clock))
+    lane.age=math.max(lane.age,math.max(require('src.economy').shortageAge(u,o.target,o.item,clock),clock-(o.placed or clock)))
    end
   end
  end
@@ -56,9 +57,23 @@ function A.update(u,clock)
    if area then
     capacity[area]=capacity[area] or {idle=0,busy=0,idleCapacity=0,busyCapacity=0}
     local c=capacity[area]
-    local size=math.max(0,(data.hulls[r.ship.hull].hold or 0)/30)
-    if not task then c.idle=c.idle+1;c.idleCapacity=c.idleCapacity+size
-    elseif task.kind=='transport' then c.busy=c.busy+1;c.busyCapacity=c.busyCapacity+size end
+    local size=0
+    if not task then
+     c.present=(c.present or 0)+1
+     for _,o in ipairs(offers) do
+      if L.byId[o.source].area==area then size=math.max(size,Transport.usable(u,r,o,clock)/30) end
+     end
+     if size>0 then c.idle=c.idle+1;c.idleCapacity=c.idleCapacity+size end
+    elseif task.kind=='transport' then
+     c.present=(c.present or 0)+1;c.busy=c.busy+1
+     if not r.suspendedTask and not r.service and r.fuelStatus~='stranded' and r.fuelStatus~='empty' and require('src.reactor_fuel').remaining(r.ship)>0 then
+      local remaining=Transport.duration(task,task.phase=='pickup' and r.node or nil,clock)
+      if r.action and r.action.arriveAt then remaining=math.max(remaining,r.action.arriveAt-clock) end
+      if task.phase=='pickup' then remaining=remaining+180 end
+      size=(data.hulls[r.ship.hull].hold or 0)/30
+      c.busyCapacity=c.busyCapacity+size*math.min(.25,600/(600+remaining)*.25)
+     end
+    else c.present=(c.present or 0)+1 end
    end
   end
  end
@@ -69,12 +84,12 @@ function A.update(u,clock)
  s.freight={}
  for area in pairs(areas) do
   local c=capacity[area] or {idle=0,busy=0,idleCapacity=0,busyCapacity=0}
-  -- Clear a ten-minute backlog with idle ships; a busy ship contributes
-  -- half its next interval. Existing extras count toward the target.
+  -- Clear a ten-minute backlog with usable idle ships; busy ships receive
+  -- conservative credit discounted by their remaining phase. Existing extras count toward the target.
   local have=s.extra[area] or 0
-  local shortage=math.max(0,(open[area] or 0)/600-c.idleCapacity-c.busyCapacity*.5)
+  local shortage=math.max(0,(open[area] or 0)/600-c.idleCapacity-c.busyCapacity)
   local base=require('src.fields')[area].alifeTraders or 0
-  local pending=math.max(0,base+have-c.idle-c.busy)
+  local pending=math.max(0,base+have-(c.present or 0))
   local want=math.min(A.maxExtra,shortage>0 and math.max(0,math.ceil(have+shortage-pending)) or math.max(0,have-c.idle*.5))
   if not open[area] then want=0 end
   local v=want>have and math.min(want,have+dt/60) or math.max(want,have-dt*A.decay)
@@ -115,7 +130,7 @@ function A.panel(game,Slab)
  for area in pairs(s.freight or {}) do keys[#keys+1]=area end;table.sort(keys)
  for _,area in ipairs(keys) do
   local f=s.freight[area]
-  Slab.Text(('%s: %.1f ship-min waiting | %d idle, %d hauling | %.1f extra target'):format(area,f.work/60,f.idle,f.busy,f.target))
+  Slab.Text(('%s: %.1f ship-min waiting | %d usable idle, %d hauling | %.1f extra target'):format(area,f.work/60,f.idle,f.busy,f.target))
  end
  for item,n in pairs(u.economyUnmet or {}) do
   if n>0 then Slab.Text(('No surplus production: %s %.0f'):format(item,n)) end

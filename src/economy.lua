@@ -166,6 +166,16 @@ local function reachable(a,b,clock)
  return a~=b and require('src.travelgraph').itinerary(a,b,clock)~=nil
 end
 
+-- Shortage lifetime belongs to the destination, not a replaceable offer.
+function E.shortageAge(u,key,item,clock)
+ local at=(Stock.record(u,key).shortages or {})[item]
+ return at and math.max(0,clock-at) or 0
+end
+function E.shortage(u,key,item,have,want,clock)
+ local record=Stock.record(u,key);record.shortages=record.shortages or {}
+ if want>0 and have<want then record.shortages[item]=record.shortages[item] or clock
+ else record.shortages[item]=nil end
+end
 -- Orders -----------------------------------------------------------------
 
 function E.update(u,clock)
@@ -203,6 +213,7 @@ function E.update(u,clock)
    if makes(s,item) then spare[s]=have-E.target(u,s,item,true)
    else
     local want=E.target(u,s,item)
+    E.shortage(u,s,item,Stock.count(u,s,item),want,clock)
     spare[s]=have-want*2
     local coming=have+(inbound[s..'|'..item] or 0)
     if want>0 and coming<want then buyers[#buyers+1]={c=s,short=want*2-coming,need=want-coming,fill=coming/want} end
