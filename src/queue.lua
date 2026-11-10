@@ -26,7 +26,12 @@ function Q.chokepoint(r,index)
  local id=r.route and r.route[index];local place=id and L.byId[id]
  if not place then return end
  if place.kind=='driver' then
-  local nextId=r.route[index+1];local nextPlace=nextId and L.byId[nextId]
+  local nextId=r.route[index+1]
+  -- a service visit's route ends back at the driver the role was heading
+  -- for: what comes after it is in the route the visit saved
+  local saved=not nextId and r.service and r.service.saved
+  if saved and saved.route and saved.route[saved.index]==id then nextId=saved.route[saved.index+1] end
+  local nextPlace=nextId and L.byId[nextId]
   if nextPlace and nextPlace.area~=place.area then return id,'driver',1 end
   return
  end

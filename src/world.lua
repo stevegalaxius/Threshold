@@ -446,7 +446,7 @@ function Game:saveState()
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
 		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId,
-		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId }
+		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues) }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -499,6 +499,23 @@ function Game:loadState(state)
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
 	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
 	self.universe.nextNpcId = state.nextNpcId or 0
+	self.universe.queues = Persistence.copy(state.queues or {})
+	do -- saves from before bookings were kept: rebuild them from the records,
+	   -- and book the legs under way that never got a turn (src/queue.lua)
+		local Q = require("src.queue"); Q.universe = self.universe
+		local rebuild = not state.queues
+		for id, r in pairs(self.universe.npcs) do
+			if r.state == "travel" and r.route then
+				if r.queue and rebuild then
+					local list = self.universe.queues[r.queue.key] or {}; self.universe.queues[r.queue.key] = list
+					list[#list + 1] = { start = r.queue.ready, finish = r.queue.ready + r.queue.service, id = id }
+				end
+			end
+		end
+		for _, r in pairs(self.universe.npcs) do
+			if r.state == "travel" and r.route and not r.queue then Q.leg(r) end
+		end
+	end
 	for key, r in pairs(state.stations or {}) do
 		local hangar = {}
 		for _, t in ipairs(r.hangar or {}) do table.insert(hangar, loadShip(t)) end
