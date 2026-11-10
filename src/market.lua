@@ -356,6 +356,7 @@ function Game:completeTrade(st, trade)
  for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then
   deliver(s,p.hold,storage)
   if stock and not s.resale and not s.inner and stock[s.id] then stock[s.id]=math.max(0,stock[s.id]-s.n);if stock[s.id]==0 then stock[s.id]=nil end end
+  if stock and not s.resale and require('src.ammunition').byItem[s.id] then require('src.economy').consume(u,st.key,s.id,s.n) end
  end end
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do

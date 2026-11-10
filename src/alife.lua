@@ -504,6 +504,7 @@ end
 local function shipRecord(e)
  local s=Ship.record(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
+  loads=copy(s.loads),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,
   cargo=copy(s.cargo or e.cargo or {}),hold=s.hold and Hold.serialize(s.hold)}
 end
@@ -700,7 +701,7 @@ function A.wake(game,r)
  local p=egress or lane or A.sample(r,game.universe.clock)
  local exact=r.pose and math.abs(r.pose.clock-game.universe.clock)<.001 and r.pose
  if exact and lane and exact.lane~=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot) then exact=nil end
- local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,cargo=s.cargo,
+ local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,loads=s.loads,cargo=s.cargo,
   hold=s.hold and Hold.deserialize(s.hold,function(id) return data.items[id]~=nil end),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,power=r.power,
   armor=s.armor,color=copy(s.color),team=data.enemies[r.archetype].team,

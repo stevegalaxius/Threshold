@@ -1,12 +1,22 @@
 -- Local quotes and shared factory time. Updated with the economy, never per
 -- frame; stock catch-up uses the preceding interval's saved allocation.
 local L=require('src.locations')
-local C={items={nitrates=true,fertilizer=true,explosives=true},products={'fertilizer','explosives'},smooth=600,shift=.05}
+local Ammo=require('src.ammunition')
+local C={items={nitrates=true,fertilizer=true,explosives=true,steel_plate=true},products={'fertilizer','explosives'},smooth=600,shift=.05}
+C.groups={chemicals={'fertilizer','explosives'},ammunition=Ammo.products}
+for _,item in ipairs(Ammo.products) do C.products[#C.products+1]=item;C.items[item]=true end
 function C.state(u)
  u.chemicalEconomy=u.chemicalEconomy or {prices={},factories={},bids={}}
  return u.chemicalEconomy
 end
-function C.capacity(key) local p=L.byId[L.canonical(key)];return p and p.chemicalCapacity or 0 end
+function C.capacity(key) local p=L.byId[L.canonical(key)];return p and (p.chemicalCapacity or p.ammunitionCapacity) or 0 end
+function C.productsFor(key)
+ local p=L.byId[L.canonical(key)]
+ return p and p.ammunitionCapacity and C.groups.ammunition or C.groups.chemicals
+end
+function C.recipe(item)
+ return Ammo.byItem[item] or require('src.commodities').byId[item=='fertilizer' and 'make_fertilizer' or 'make_explosives']
+end
 function C.price(u,key,item)
  local s=C.state(u);local prices=s.prices[L.canonical(key)]
  local multiplier=prices and prices[item] or 1
@@ -14,7 +24,11 @@ function C.price(u,key,item)
 end
 function C.factory(u,key)
  local factories=C.state(u).factories
- factories[key]=factories[key] or {mix={fertilizer=.5,explosives=.5},profit={}}
+ if not factories[key] then
+  local products=C.productsFor(key);local mix={}
+  for _,item in ipairs(products) do mix[item]=1/#products end
+  factories[key]={mix=mix,profit={}}
+ end
  return factories[key]
 end
 function C.scale(u,key,item)
@@ -38,7 +52,8 @@ function C.update(u,clock,stations,inbound)
   snapshot[key]={}
   for item in pairs(C.items) do snapshot[key][item]=S.count(u,key,item) end
  end
- local bids={fertilizer={},explosives={}}
+ local bids={}
+ for _,item in ipairs(C.products) do bids[item]={} end
  for _,key in ipairs(stations) do
   local prices=state.prices[key] or {};state.prices[key]=prices
   for item in pairs(C.items) do
@@ -51,7 +66,8 @@ function C.update(u,clock,stations,inbound)
     target=ratio<1 and 2-ratio or math.max(.5,1-.5*(ratio-1))
    else
     -- No local use means no scarcity premium, including an empty factory shelf.
-    target=math.max(.5,1-have/math.max(1,C.capacity(key)*2))
+    local recipe=Ammo.byItem[item]
+    target=math.max(.5,1-have/math.max(1,C.capacity(key)*2*(recipe and recipe.batch or 1)))
    end
    local alpha=1-math.exp(-dt/C.smooth)
    prices[item]=math.max(.5,math.min(2,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
@@ -65,7 +81,8 @@ function C.update(u,clock,stations,inbound)
  for _,key in ipairs(stations) do
   if C.capacity(key)>0 then
    local plant=C.factory(u,key);local best,bestProfit
-   for _,item in ipairs(C.products) do
+   local products=C.productsFor(key)
+   for _,item in ipairs(products) do
     local revenue,demand=0,0
     for _,bid in ipairs(bids[item]) do
      if bid.target~=key and G.itinerary(key,bid.target,clock) then
@@ -75,26 +92,26 @@ function C.update(u,clock,stations,inbound)
      end
     end
     if snapshot[key][item]>=demand then revenue=0 end
-    local recipe=require('src.commodities').byId[item=='fertilizer' and 'make_fertilizer' or 'make_explosives']
+    local recipe=C.recipe(item)
     local cost=0
     for _,input in ipairs(require('src.commodities').inputs(recipe)) do cost=cost+C.price(u,key,input.item)*input.n end
-    plant.profit[item]=revenue-cost
+    plant.profit[item]=revenue*(recipe.batch or 1)-cost
     if revenue>0 and plant.profit[item]>0 and (not bestProfit or plant.profit[item]>bestProfit) then best,bestProfit=item,plant.profit[item] end
    end
-   local target={fertilizer=0,explosives=0}
+   local target={};for _,item in ipairs(products) do target[item]=0 end
    if best then
-    local other=best=='fertilizer' and 'explosives' or 'fertilizer'
-    if plant.profit[other]>0 and math.abs(bestProfit-plant.profit[other])<=math.max(1,bestProfit*.1) then
-     local total=plant.mix.fertilizer+plant.mix.explosives
-     if total>0 then for _,item in ipairs(C.products) do target[item]=plant.mix[item]/total end
-     else target.fertilizer,target.explosives=.5,.5 end
-    else target[best]=1 end
+    local tied,total={},0
+    for _,item in ipairs(products) do
+     if plant.profit[item]>0 and bestProfit-plant.profit[item]<=math.max(1,bestProfit*.1) then
+      tied[#tied+1]=item;total=total+(plant.mix[item] or 0)
+     end
+    end
+    for _,item in ipairs(tied) do target[item]=total>0 and (plant.mix[item] or 0)/total or 1/#tied end
    end
    local step=math.min(1,C.shift*dt/E.tick)
-   for _,item in ipairs(C.products) do plant.mix[item]=move(plant.mix[item],target[item],step) end
-   -- Increasing an idle recipe while its peer ramps down must not exceed capacity.
-   local total=plant.mix.fertilizer+plant.mix.explosives
-   if total>1 then for _,item in ipairs(C.products) do plant.mix[item]=plant.mix[item]/total end end
+   for _,item in ipairs(products) do plant.mix[item]=move(plant.mix[item] or 0,target[item],step) end
+   local total=0;for _,item in ipairs(products) do total=total+plant.mix[item] end
+   if total>1 then for _,item in ipairs(products) do plant.mix[item]=plant.mix[item]/total end end
   end
  end
 end
@@ -104,15 +121,18 @@ function C.panel(game,Slab)
  table.sort(keys)
  for _,key in ipairs(keys) do
   local plant=state.factories[key];local S=require('src.stockpile')
-  Slab.Text(L.get(key).name..' — '..C.capacity(key)..' units/hour shared capacity')
-  Slab.Text(('  Nitrates: %d at %.2f cr'):format(S.count(u,key,'nitrates'),C.price(u,key,'nitrates')))
-  for _,item in ipairs(C.products) do
-   Slab.Text(('  %s: %.0f%% capacity | stock %d | price %.2f | margin %.2f cr/unit'):format(item,100*plant.mix[item],S.count(u,key,item),C.price(u,key,item),plant.profit[item] or 0))
+  local ammo=L.get(key).ammunitionCapacity~=nil
+  Slab.Text(L.get(key).name..' — '..C.capacity(key)..(ammo and ' batches/hour' or ' units/hour')..' shared capacity')
+  for _,input in ipairs(ammo and {'steel_plate','explosives'} or {'nitrates'}) do
+   Slab.Text(('  %s: %d at %.2f cr'):format(require('src.data').items[input].name,S.count(u,key,input),C.price(u,key,input)))
+  end
+  for _,item in ipairs(C.productsFor(key)) do
+   Slab.Text(('  %s: %.0f%% capacity | stock %d | price %.2f | margin %.2f cr/batch'):format(require('src.data').items[item].name,100*plant.mix[item],S.count(u,key,item),C.price(u,key,item),plant.profit[item] or 0))
   end
  end
  for _,item in ipairs(C.products) do
   local total=0;for _,bid in ipairs(state.bids[item] or {}) do total=total+bid.amount end
-  Slab.Text(('Customer demand: %d %s'):format(total,item))
+  Slab.Text(('Customer demand: %d %s'):format(total,require('src.data').items[item].name))
  end
 end
 return C

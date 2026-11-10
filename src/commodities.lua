@@ -32,6 +32,7 @@ local C={list={
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',item='hydrogen_canister',amount=10,cap=60},
 }}
+for _,recipe in ipairs(require('src.ammunition').recipes) do C.list[#C.list+1]=recipe end
 C.byId={}
 for _,c in ipairs(C.list) do C.byId[c.id]=c end
 -- Fill each recipe's per-station rates (make / use) from the world layout.
@@ -41,7 +42,8 @@ function C.load()
  for _,entries in pairs(W.stations) do
   for _,entry in ipairs(entries) do
    for _,c in ipairs(C.list) do
-    if c.factory and entry.chemicalCapacity then c.make[entry.id]=entry.chemicalCapacity end
+    local capacity=c.factory=='chemicals' and entry.chemicalCapacity or c.factory=='ammunition' and entry.ammunitionCapacity
+    if capacity then c.make[entry.id]=capacity end
    end
    for id,rate in pairs(entry.industry or {}) do
     local c=assert(C.byId[id],'unknown recipe '..tostring(id)..' at '..entry.id)

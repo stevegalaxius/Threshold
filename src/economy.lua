@@ -125,9 +125,10 @@ function E.target(u,key,item,supplier)
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  local P=require('src.repair_materials')
  if item==P.item and P.supports(key) then want=math.max(want,P.floor) end
+ want=math.max(want,require('src.ammunition').reserve(key,item))
  local place=L.byId[key]
  if place then want=math.max(want,place.chemicalReserves and place.chemicalReserves[item] or 0) end
- if item=='nitrates' then want=math.max(want,require('src.chemical_economy').capacity(key)*E.hours) end
+ if item=='nitrates' then want=math.max(want,(place and place.chemicalCapacity or 0)*E.hours) end
  return math.ceil(want)
 end
 -- The goods that move: every commodity, its inputs, what the drills dig,

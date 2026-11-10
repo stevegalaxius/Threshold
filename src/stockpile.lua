@@ -33,6 +33,7 @@ end
 
 function S.shops(st)
  local mk=S.definition(st);local shops={};local supplied,fueled,food,steel,chemicals=false,false,false,false,false
+ local ammo=false
  local fuel=require('src.reactor_fuel').item()
  local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
  for _,shop in ipairs(existing) do
@@ -41,10 +42,12 @@ function S.shops(st)
   food=food or not shop.unlimited and S.lists(shop,'food_crate')
   steel=steel or not shop.unlimited and S.lists(shop,'steel_plate')
   chemicals=chemicals or not shop.unlimited and S.lists(shop,'nitrates') and S.lists(shop,'explosives')
+  ammo=ammo or shop.id=='ammunition'
  end
  if not food then shops[#shops+1]=require('src.food').shop() end
  if not steel then shops[#shops+1]=require('src.repair_materials').shop() end
  if not chemicals then shops[#shops+1]=require('src.chemical_economy').shop() end
+ if not ammo then shops[#shops+1]=require('src.ammunition').shop() end
  -- the real fuel storefront, unless a shop here already stocks fuel
  if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
  if not supplied then shops[#shops+1]=require('src.supplies').shop() end
@@ -118,8 +121,12 @@ function S.stock(u,st,i)
    local P=require('src.repair_materials')
    stock[P.item]=P.supports(key) and P.floor*2 or nil
   end
-  if S.shopFor(key,'nitrates')==i then stock.nitrates=require('src.chemical_economy').capacity(key)*2 end
+  if S.shopFor(key,'nitrates')==i then stock.nitrates=(L.byId[key] and L.byId[key].chemicalCapacity or 0)*2 end
   if S.shopFor(key,'explosives')==i then stock.explosives=nil end
+  local Ammo=require('src.ammunition')
+  for _,item in ipairs(Ammo.products) do
+   if S.shopFor(key,item)==i then stock[item]=Ammo.reserve(key,item) end
+  end
   m.stock=stock
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]
@@ -156,7 +163,11 @@ function S.flow(u,key,i,m)
    m.flowCarry=m.flowCarry or {}
    local carry=(m.flowCarry[c.item] or 0)+rate*dt/3600
    local whole=carry>=0 and math.floor(carry) or math.ceil(carry)
-   if rate>0 then whole=math.max(0,math.min(whole,c.cap-have)) end
+   local batch=c.batch or 1
+   if rate>0 then
+    local room=math.max(0,math.floor((c.cap-have)/batch))
+    if whole>=room then whole=room;carry=whole end
+   end
    local inputs=C.inputs(c)
    if rate>0 and #inputs>0 then
     -- making it uses up its inputs from the same station's stock
@@ -169,10 +180,10 @@ function S.flow(u,key,i,m)
     end end
    end
    if rate<0 then whole=math.max(whole,-have);require('src.economy').consume(u,key,c.item,-whole) end
-   if rate>0 then require('src.economy').stat(u,'made',c.item,whole) end
+   if rate>0 then require('src.economy').stat(u,'made',c.item,whole*batch) end
    if rate>0 and have>=c.cap then carry=0 end
    m.flowCarry[c.item]=carry-whole
-   have=have+whole
+   have=have+whole*batch
    stock[c.item]=have>0 and have or nil
   end
  end

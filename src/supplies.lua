@@ -35,15 +35,17 @@ function S.targets(r,e)
  local ship=r.ship;local hull=e and e.hull or data.hulls[ship.hull]
  local loadout=e and e.loadout or ship.loadout or hull.loadout
  local key=(r.archetype or '')..':'..#data.list.items
- for i=1,#hull.slots do key=key..'/'..tostring(loadout[i]) end
+ for i=1,#hull.slots do key=key..'/'..tostring(loadout[i])..':'..tostring((e and e.loads or ship.loads or {})[i]) end
  local preset=data.enemies[r.archetype] or {}
  local reserve=r.ammoReserve or preset.ammoReserve
  if not reserve and profiles[key] then return profiles[key] end
  local rates,targets={},{}
- for _,id in pairs(loadout) do
+ for index,id in pairs(loadout) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w and w.kind~='laser' and w.kind~='drill' then
    local ammo=data.ammoFor(m)
+   local pick=(e and e.loads or ship.loads or {})[index]
+   if pick then for _,option in ipairs(data.ammoOptions(m)) do if option==pick then ammo=pick;break end end end
    if ammo then rates[ammo]=(rates[ammo] or 0)+(w.fireRate or 1) end
   end
   if m and m.flares then rates.flare=1 end
@@ -98,12 +100,14 @@ local function fill(r,e,h,cargo,u,key)
   local free
   if id==Fuel.item() then
    local can;can,free=fuelAvailable(u,key,r,e);missing=math.min(missing,can)
+  elseif require('src.ammunition').byItem[id] and u and key then
+   missing=math.min(missing,require('src.stockpile').count(u,key,id))
   end
   if missing==0 then n=0
   elseif h then n=Hold.add(h,id,missing,{pristine=true})
   else n=math.min(missing,room(r,e,nil,id)) end
   if n>0 then cargo[id]=(cargo[id] or 0)+n;added=added+n end
-  if n>0 and id==Fuel.item() and u and key then
+  if n>0 and (id==Fuel.item() or require('src.ammunition').byItem[id]) and u and key then
    -- a spent canister is gone: new empties only come from Mars
    if not free then require('src.stockpile').take(u,key,id,n) end
    require('src.economy').consume(u,key,id,n)
