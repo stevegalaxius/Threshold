@@ -580,6 +580,7 @@ end
 
 local function bindRoute(game,e,r)
  require('src.queue').invalidate(game)
+ e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
  e.team=require('src.npc_access').raiding(r) and 2 or 3
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map

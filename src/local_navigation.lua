@@ -248,6 +248,8 @@ end
 
 -- Boost only into a clear corridor, with the nose aligned and stopping room.
 function Nav.boost(e,dx,dy,want,distance,clear,danger,allow)
+ local plan=e.aiBoostPlan or {};e.aiBoostPlan=plan
+ plan.x,plan.y,plan.want,plan.distance,plan.clear,plan.danger,plan.allow=dx,dy,want,distance,clear,danger,allow
  local it=e.intent
  if not allow or not clear or danger>.15 or e.stats.thrust<=0 or it.thrust<.5 then e.aiBoost=false;it.boost=false;return end
  local a=e.body:getAngle();local facing=cos(a)*dx+sin(a)*dy

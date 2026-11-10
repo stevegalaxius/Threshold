@@ -116,3 +116,12 @@ preserve position and reacquire targets, rather than retaining stale bodies.
 F6 shows action kind/operation, target, phase and interruption reason. Each NPC
 retains `lastAction` and a bounded decision trace. Global simulation history
 continues recording meaningful job outcomes rather than every action tick.
+
+Live planning runs through `src/npc_scheduler.lua`. Routine job/target/upkeep
+decisions and clear-route cruise plans run once per second, close approaches
+and active equipment work at 5 Hz, and combat at 10 Hz. Deadlines are staggered
+per NPC. Route changes, new aggression, fuel changes, driver occupancy changes
+and action completion request an immediate plan. Flight actuation, aiming,
+weapon firing, docking beams and physics continue each simulation step. Equipment
+effects must use the elapsed `dt` supplied by the runner, rather than assuming
+one call per physics step.

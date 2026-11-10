@@ -86,13 +86,14 @@ function N.runActions(ctx)
   Actions.cancel(ctx,'replan work after docking');current=nil
  end
  if current and Actions.definitions[current.kind].route and current.fromJob then return Actions.step(ctx) end
- if current and not Actions.definitions[current.kind].route then
+ if current and not Actions.definitions[current.kind].route
+  and not (current.kind=='hold' and not current.fromJob and ctx.decide~=false) then
   local fromJob=current.fromJob
   local handled=Actions.step(ctx)
   return fromJob or handled and ctx.r.action~=nil
  end
  local work=N.work(ctx.r)
- if work and work.nextAction then
+ if work and work.nextAction and ctx.decide~=false then
   local spec=work.nextAction(ctx)
   if spec then
    local a=Actions.request(ctx,spec);a.fromJob=true
@@ -114,14 +115,15 @@ function N.thinkWork(game,e,dt,AI)
  local r=game.universe.npcs[e.alifeId];if not r then return false end
  e.tractorTarget=nil;e.intent.tractor=false
  local ctx=N.context(game,r,game.universe.clock,e,dt,AI)
+ ctx.decide=e.aiDecision
  if e.alifeEgress or e.driverTractor or e.launch or e.dockState then
   Actions.pause(ctx,'controlled transit');AI.trade(game,e,dt);return true
  end
  if r.action and r.action.completed then Actions.step(ctx) end
  local work=N.work(r)
- if work and work.before then work.before(ctx) end
+ if work and work.before and ctx.decide~=false then work.before(ctx) end
  if N.runActions(ctx) then return true end
- N.updateOnline(game,e)
+ if ctx.decide~=false then N.updateOnline(game,e) end
  N.routeAction(ctx)
  return Actions.step(ctx)
 end

@@ -93,7 +93,9 @@ return function(game)
  AI.think(game,e,1/120)
  check(r.action and r.action.operation=='collect' and r.action.target.id==pickup.looseId and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
  check((e.cargo.salvage_kit or 0)==0,'pursuit copied a distant item into cargo')
- pickup.x,pickup.y=px,py;e.scavengeThink=0
+ pickup.x,pickup.y=px,py
+ -- Let the next scheduled movement plan observe the relocated fixture.
+ u.clock=u.clock+T.npcControlInterval;game.time=game.time+T.npcControlInterval
  AI.think(game,e,1/120);game:updatePickups(1/120)
  check(e.cargo.salvage_kit==1 and r.salvageCargo.salvage_kit==1 and #game.pickups==0,'beam pickup did not conserve the item')
  local carrying=assert(Save.decode(Save.encode(game:saveState())))
