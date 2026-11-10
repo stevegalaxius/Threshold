@@ -428,8 +428,34 @@ function A.trackPoint(r,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
+  -- an offset blended in a straight line can cut through the planet (an
+  -- arrival from the far side, a pose taken low down by the Heaven-Ladder):
+  -- keep it above the surface, or it wakes inside the rock and dies
+  x,y=A.aboveSurface(r,x,y,clock)
  end
  return x,y
+end
+-- Hold a point out of the planet and its pull band, but no higher than the
+-- leg's own ends (a Heaven-Ladder anchor sits down in the band).
+function A.aboveSurface(r,x,y,clock)
+ local f=Fields[r.area or '']
+ local R=f and f.planetR
+ if not R or R<=0 then return x,y end
+ local safe=R+math.min(T.surfacePullRange,R*.5)+500
+ local leg=r.route and edge(r)
+ if leg then
+  for _,id in ipairs({leg.from,leg.to}) do
+   local place=L.byId[id]
+   if place and place.area==r.area then
+    local ex,ey=L.position(id,clock);safe=math.min(safe,math.sqrt(ex*ex+ey*ey))
+   end
+  end
+ end
+ safe=math.max(safe,R+300)
+ local d=math.sqrt(x*x+y*y)
+ if d>=safe then return x,y end
+ if d<1 then return safe,0 end
+ return x/d*safe,y/d*safe
 end
 function A.sample(r,clock)
  local x,y=A.point(r,clock)
