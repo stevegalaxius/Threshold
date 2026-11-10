@@ -116,11 +116,6 @@ function U.plan(r,clock,e)
  -- the leg under way must be a plain in-region one
  local prev=not idle and r.route[r.index-1]
  if not idle and (not prev or L.get(prev).area~=r.area) then return false end
- -- nor one heading out of the region through a mass driver or gate: the
- -- visit would end that leg at the crossing itself (in the driver's breech)
- -- and turn round there. It plans on the far side instead.
- local nextStop=not idle and r.route[r.index+1]
- if nextStop and L.get(nextStop).area~=r.area then return false end
  local g=deps.graph(r.area)
  local need=U.need(r,e)
  if not need and (r.fuelRangeCheckAt or 0)<=clock then

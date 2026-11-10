@@ -422,6 +422,13 @@ function A.trackPoint(r,clock)
  end
  return x,y
 end
+-- Is world point x,y on screen (or within `margin` of its edge)?
+function A.inView(game,x,y,margin)
+ local c=game.camera;if not c or not love.graphics then return false end
+ local w,h=love.graphics.getDimensions()
+ local hw,hh=w/2/c.zoom+(margin or 0),h/2/c.zoom+(margin or 0)
+ return math.abs(x-c.x)<hw and math.abs(y-c.y)<hh
+end
 function A.sample(r,clock)
  local x,y=A.point(r,clock)
  local xx,yy=A.point(r,clock+.02)
@@ -912,7 +919,12 @@ function A.install(Game)
      local x,y
      if egress then x,y=egress.x,egress.y elseif lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
-     if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
+     -- never pop into existence on screen: a ship that turns up inside the
+     -- view (off a turned-round leg, a driver's breech, a spawn) stays in
+     -- its offline model until it's out of sight; docked ones appear in
+     -- their berth and fresh driver arrivals come in along the rail
+     local hidden=force or r.savedOnline or r.state=='docked' or (r.driverArrival and clock-r.driverArrival<T.npcDriverArrivalTime) or egress or lane or not A.inView(self,x,y,600)
+     if (x-px)^2+(y-py)^2<threshold^2 and hidden then A.wake(self,r) end
     end
    end
   end
