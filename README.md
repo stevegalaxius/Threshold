@@ -956,8 +956,8 @@ groups count replenishment only. Profiles favor freight, salvage, industrial,
 police or raiding work; `workWeights` can override each category, with zero
 disabling it. The stable weighted choice advances only on job acceptance.
 Capabilities and authorization are checked before ranking; opportunity scoring
-and route checks then pick a feasible offer. Mining resource handling and
-steering are task-specific, while completion and selection use the common loop.
+and route checks then pick a feasible offer. Jobs choose destinations and operations. Shared actions handle steering,
+positioning, claims, execution timing, interruption and completion.
 
 Faction police receive explicit grants, for example
 `{kind="police", issuer="zhuhai", jurisdiction="mars"}`. A patrol offer declares
@@ -973,6 +973,14 @@ No faction-to-faction diplomacy is introduced.
 
 F6 shows identity, preferences, affiliation, authorizations and the active task.
 This architecture targets fresh saves; no old-role save migration is provided.
+
+
+NPC execution uses registered `travel`, `dock`, `hold`, `approach` and `work`
+actions. Mining and salvage share their approach and work runner, including
+online/offline resource ownership and cancellation. Operations (`drill`,
+`collect`, `recover`) change resources and inventory; they do not steer ships.
+F6 shows the current action, target, phase and pause/failure reason. See
+[Adding NPC jobs and actions](docs/npc-actions.md) for the extension contracts.
 
 
 ## Tests

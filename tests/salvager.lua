@@ -40,7 +40,7 @@ return function(game)
  game:loadField('venus');game:captureALife(true)
  local u=game.universe;u.npcs={[id]=r,[competitor.id]=competitor};u.populationSpawns={}
  r.ship.hold=nil;r.ship.cargo={[Fuel.item()]=20};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
- r.lootCheckAt=nil;r.offlineLoot=nil;r.salvageReturn=nil;r.salvageUntil=nil
+ r.lootCheckAt=nil;r.action=nil;r.salvageReturn=nil;r.salvageUntil=nil
  r.area='earth';r.state='travel';r.index=2;r.depart=u.clock;r.arrive=u.clock+100;r.pose=nil;r.offset=nil;r.encounter=nil
  local x,y=A.point(r,u.clock)
  u.areas.earth={capturedAt=u.clock,objects={}}
@@ -48,7 +48,7 @@ return function(game)
  local ground={id='test/991',area='earth',kind='loot',item='scrap',count=4,x=x,y=y,vx=0,vy=0,spin=0,clock=u.clock}
  Loose.records(u)[ground.id]=ground
  competitor.area='earth';competitor.state='travel';competitor.route=copy(r.route);competitor.index=r.index
- competitor.depart=r.depart;competitor.arrive=r.arrive;competitor.offset=nil;competitor.pose=nil;competitor.lootCheckAt=nil;competitor.offlineLoot=nil
+ competitor.depart=r.depart;competitor.arrive=r.arrive;competitor.offset=nil;competitor.pose=nil;competitor.lootCheckAt=nil;competitor.action=nil
  check(O.update(game,r,u.clock),'remote salvager did not approach a real saved pickup')
  check(not O.update(game,competitor,u.clock),'remote competitors claimed the same source')
  local collectedAt=u.clock+2

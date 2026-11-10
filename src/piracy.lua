@@ -3,12 +3,10 @@ local T=require('src.tuning')
 local L=require('src.locations')
 local G=require('src.travelgraph')
 local Fields=require('src.fields')
-local Ship=require('src.ship')
 local Hold=require('src.inventory.hold')
 local Tasks=require('src.tasks')
 local Loot=require('src.loot')
 local Grid=require('src.inventory.grid')
-local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Homes=require('src.npc_home')
 local P={}
@@ -69,16 +67,7 @@ function P.returnRecord(game,r)
  r.piracy={phase='escape',base=base,origin=L.rally(r.home,source,game.universe.clock) or L.station(r.home,'trade'),started=game.universe.clock}
  r.task={id='fence/'..r.id..'/'..game.universe.clock,kind='fence',source=source,target=base}
  r.taskWorker=true;r.taskStatus='returning to '..L.get(base).name
- if r.state=='travel' then
-  local previous=r.route[(r.index-2)%#r.route+1]
-  r.route={previous};for _,id in ipairs(path) do r.route[#r.route+1]=id end;r.index=2
-  require('src.queue').leg(r) -- the leg under way may now end at a driver or a dock
- else
-  r.route=path;r.index=1
-  if #path>1 then A.start(r,game.universe.clock,2)
-  else r.state='docked';r.node=base;Repairs.begin(r,r.node,game.universe.clock,T.pirateRest) end
- end
- return true
+ return require('src.npc').travel(game,r,base,game.universe.clock)
 end
 function P.beginReturn(game,e,r)
  if r.piracy then return true end
@@ -130,24 +119,17 @@ function P.depart(u,r,clock)
  return NPC.decide(u,r,r.node or r.route[r.index],clock)
 end
 function P.advance(r,clock,u) return NPC.advance(r,clock,u) end
-function P.think(game,e,dt,AI)
- local r=game.universe.npcs[e.alifeId]
- if not r or not (r.piracy or r.task and r.task.kind=='raid') then return false end
- Ship.ensureGridHold(e)
- if r.piracy then
-  e.tractorTarget=nil;e.intent.tractor=false
-  if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
-  AI.trade(game,e,dt);return true
- end
- -- Loot: the shared scavenging loop (src/scavenge.lua), then home to fence it.
+function P.before(ctx)
+ local r=ctx.r
+ if r.piracy then return end
  local Scavenge=require('src.scavenge')
- local now=game.universe.clock
- local hurt=e.armor<e.stats.armor*T.pirateRetreatHealth
- if Scavenge.taken(r)>0 and (Scavenge.done(r,now) or hurt) then
-  if P.beginReturn(game,e,r) then AI.trade(game,e,dt);return true end
+ local hurt=ctx.e and ctx.e.armor<ctx.e.stats.armor*T.pirateRetreatHealth
+ if Scavenge.taken(r)>0 and (Scavenge.done(r,ctx.clock) or hurt) then
+  P.returnRecord(ctx.game,r);return
  end
- if hurt and Scavenge.taken(r)>0 then e.tractorTarget=nil;e.intent.tractor=false;return false end
- return Scavenge.think(game,e,dt,AI,r,NPC)
 end
-Tasks.definitions.fence.think=P.think
+function P.nextAction(ctx)
+ P.before(ctx)
+ if not ctx.r.piracy then return require('src.scavenge').nextAction(ctx) end
+end
 return P

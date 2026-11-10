@@ -9,6 +9,8 @@ local Persistence=require('src.persistence')
 local Loot=require('src.loot')
 local Loose=require('src.loose')
 local Scavenge=require('src.scavenge')
+local Actions=require('src.npc_actions')
+require('src.npc_operations')
 local O={}
 local function retained(game,area)
  if game.fieldId==area then return true end
@@ -91,32 +93,8 @@ local function remove(game,source)
  if source.kind=='live' then game:remove(source.record);return end
  if source.list then for i,s in ipairs(source.list) do if s==source.record then table.remove(source.list,i);break end end end
 end
-local function available(game,r,s)
- local owner=s.record.lootOwner and game.universe.npcs[s.record.lootOwner]
- return not owner or owner==r or owner.state=='dead' or owner.state=='escaped' or not owner.offlineLoot
-  or owner.offlineLoot.kind~=s.kind or owner.offlineLoot.id~=s.id or owner.area~=r.area
-end
-function O.position(r,clock)
- local job=r.offlineLoot
- if not job or not job.x then return end
- local fraction=math.max(0,math.min(1,(clock-job.started)/math.max(.01,job.approachAt-job.started)))
- return job.x+(job.tx-job.x)*fraction,job.y+(job.ty-job.y)*fraction
-end
 function O.release(game,r,clock)
- if not r.offlineLoot then return end
- local job=r.offlineLoot
- local x,y=O.position(r,clock)
- for _,s in ipairs(candidates(game,r,clock)) do if s.kind==job.kind and s.id==job.id and s.record.lootOwner==r.id then s.record.lootOwner=nil end end
- r.offlineLoot=nil
- if x and r.area then
-  r.offset=nil
-  local bx,by=require('src.alife').point(r,clock)
-  if bx then
-   local progress=math.max(0,math.min(1,(clock-(r.depart or clock))/math.max(.01,(r.arrive or clock)-(r.depart or clock))))
-   r.offset={x=x-bx,y=y-by,progress=progress}
-   r.pose={x=x,y=y,a=0,vx=0,vy=0,w=0,clock=clock}
-  end
- end
+ Actions.cancel({game=game,u=game.universe,r=r,clock=clock},'collection ended')
 end
 -- Wrecks of ships that died (not authored derelicts): a clean-up crew
 -- strips these and hauls the hull away.
@@ -142,55 +120,88 @@ local function canTake(game,dest,s)
 end
 -- Shared availability query for deciding whether a collector's local sweep is done.
 function O.hasLoot(game,r,clock)
- local dest=recipient(r);if not dest then return false end
- local x,y=require('src.alife').point(r,clock)
- if not x then return false end
- local range=Scavenge.range(Scavenge.profile(r))^2
- for _,source in ipairs(candidates(game,r,clock)) do
-  local prof=Scavenge.profile(r)
-  if (source.x-x)^2+(source.y-y)^2<=range and available(game,r,source)
-   and (canTake(game,dest,source) or clearable(prof,source) and bare(game,source)) then return true end
- end
- return false
+ local ctx={game=game,u=game.universe,r=r,clock=clock,e=game.alifeOnline and game.alifeOnline[r.id]}
+ return O.find(ctx)~=nil
 end
-function O.update(game,r,clock)
- local prof=Scavenge.profile(r)
- local salvager=prof==Scavenge.PROFILES.salvager
- local returner=salvager and require('src.salvager').returnRecord or require('src.piracy').returnRecord
- if not prof or r.piracy or r.salvageReturn or r.encounter or r.state~='idle' and r.state~='travel'
-  or game.alifeOnline and game.alifeOnline[r.id] then O.release(game,r,clock);return false end
- if Scavenge.done(r,clock) then
-  O.release(game,r,clock)
-  if returner(game,r) then return true end
-  if salvager then return false end
- end
- if not r.offlineLoot and clock<(r.lootCheckAt or 0) then return false end
- local dest=recipient(r);if not dest then O.release(game,r,clock);return false end
- local sources=candidates(game,r,clock);local source
- if r.offlineLoot then
-  for _,s in ipairs(sources) do if s.kind==r.offlineLoot.kind and s.id==r.offlineLoot.id and available(game,r,s) then source=s;break end end
-  if not source then O.release(game,r,clock);return false end
- else
-  if clock<(r.lootCheckAt or 0) then return false end
-  r.lootCheckAt=clock+2
-  local x,y=require('src.alife').point(r,clock);if not x then return false end
-  local reach,best=Scavenge.range(prof)^2,math.huge
-  for _,s in ipairs(sources) do
-   local d=(s.x-x)^2+(s.y-y)^2
-   if d<best and d<reach and available(game,r,s)
-    and (canTake(game,dest,s) or clearable(prof,s) and bare(game,s)) then best=d;source=s end
+local function world(ctx) return ctx.game or {universe=ctx.u} end
+local function descriptor(source,area)
+ if source.kind=='pickups' then return {provider='resource',id=source.id,expected='loot'} end
+ return {provider='loot',source=source.kind,id=source.id,area=area}
+end
+local function sourceTarget(ctx,source)
+ local record=source.record
+ local vx,vy=0,0
+ if source.kind=='live' then vx,vy=record.body:getLinearVelocity() end
+ return {record=record,source=source,entity=source.kind=='live' and record or nil,
+  x=source.x,y=source.y,vx=vx,vy=vy,radius=record.radius or 0}
+end
+Actions.registerTarget('loot',{resolve=function(ctx,t)
+ local game=world(ctx)
+ if t.source=='live' then
+  if t.area~=ctx.r.area or game.fieldId~=t.area then return end
+  for _,e in ipairs(game.entities or {}) do
+   if (e.id==t.id or e.liveLootId==t.id) and not e.dead and not e.removed and e.body and not e.body:isDestroyed() then
+    local x,y=e.body:getPosition()
+    if not ctx.e and game.player and not game.player.dead then
+     local px,py=game.player.body:getPosition()
+     if (x-px)^2+(y-py)^2<T.alifeNear^2 then return end
+    end
+    return sourceTarget(ctx,{kind='live',id=t.id,record=e,x=x,y=y})
+   end
   end
-  if not source then return false end
-  source.record.lootOwner=r.id
-  local arrival=clock+math.max(1,math.sqrt(best)/math.max(1,r.speed))
-  r.offlineLoot={id=source.id,kind=source.kind,readyAt=arrival,approachAt=arrival,started=clock,x=x,y=y,tx=source.x,ty=source.y,tick=clock}
-  r.taskStatus='approaching saved loot'
+  return
  end
- r.offlineLoot.tx,r.offlineLoot.ty=source.x,source.y
- -- Pause the graph duty while spending actual simulated time approaching/looting.
- local elapsed=math.max(0,clock-r.offlineLoot.tick);r.offlineLoot.tick=clock
- if r.state=='travel' then r.depart=r.depart+elapsed;r.arrive=r.arrive+elapsed else r.untilTime=(r.untilTime or clock)+elapsed end
- if clock<r.offlineLoot.readyAt then return true end
+ for _,source in ipairs(candidates(game,ctx.r,ctx.clock)) do
+  if source.kind==t.source and source.id==t.id then return sourceTarget(ctx,source) end
+ end
+end})
+function O.find(ctx)
+ local r,game=ctx.r,world(ctx)
+ local prof=Scavenge.profile(r);if not prof then return end
+ local dest=recipient(r);if not dest then return end
+ local x,y=Actions.actorPosition(ctx);if not x then return end
+ local best=Scavenge.range(prof)^2;local selected
+ local function consider(source)
+  local spec=descriptor(source,ctx.r.area)
+  local target=Actions.resolve(ctx,{target=spec})
+  if not target or not Actions.available(ctx,target) then return end
+  local d=(target.x-x)^2+(target.y-y)^2
+  if d<best then best=d;selected=spec end
+ end
+ if ctx.e then
+  for _,p in ipairs(game.pickups or {}) do
+   if p.looseId and not p.inner and p.count>0 and Ship.canFit(ctx.e,p.item,1)>0 then consider({kind='pickups',id=p.looseId}) end
+  end
+  for _,e in ipairs(game.entities or {}) do
+   if not e.dead and not e.removed and e.body and not e.body:isDestroyed() and e~=game.looting then
+    if e.kind=='container' and Loot.canTake(ctx.e,e) or e.kind=='husk' and prof.wrecks and (not prof.clears or e.origin) and (prof.clears or next(e.loot or {})) then
+     consider({kind='live',id=e.id})
+    end
+   end
+  end
+ else
+  for _,source in ipairs(candidates(game,r,ctx.clock)) do
+   if canTake(game,dest,source) or clearable(prof,source) and bare(game,source) then consider(source) end
+  end
+ end
+ return selected
+end
+function O.nextAction(ctx)
+ local r=ctx.r
+ if r.piracy or r.salvageReturn or r.service or r.worldRecovery or r.state=='docked' or Scavenge.done(r,ctx.clock) then return end
+ if r.action and r.action.kind=='work' then return r.action end
+ if ctx.clock<(r.lootCheckAt or 0) then return end
+ r.lootCheckAt=ctx.clock+T.securityThink
+ local target=O.find(ctx);if not target then return end
+ local prof=Scavenge.profile(r)
+ return {kind='work',operation=target.provider=='resource' and 'collect' or 'recover',target=target,
+  clearWreck=prof.clears,markStolen=prof==Scavenge.PROFILES.pirate}
+end
+-- Inventory effects only. The shared runner owns approach, claims and time.
+local function take(ctx,target)
+ local game,r,clock=world(ctx),ctx.r,ctx.clock
+ local source=target.source;local prof={clears=ctx.r.action.clearWreck}
+ local dest=recipient(r);if not dest then return 'failed','no hold' end
  local n,id,moved=0
  local record=source.record
  if source.kind=='pickups' then
@@ -211,10 +222,10 @@ function O.update(game,r,clock)
     local hullId=source.kind=='combat' and record.ship and record.ship.hull or source.kind=='live' and record.hull.id or record.hull
     local alloy=source.kind=='live' and (record.alloy or 0) or require('src.game').wreckAlloy(data.hulls[hullId])
     local got=Hold.add(dest,'hull_alloy',alloy)
-    if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Scavenge.took(r,'hull_alloy',got,clock) end
+    if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Actions.pickedUp(ctx,'hull_alloy',got) end
     if source.kind=='combat' then game.universe.alifeWrecks[source.id]=nil else remove(game,source) end
     require('src.events').emit('wreck_cleared',r,source.record)
-    O.release(game,r,clock);return true
+    return 'done'
    end
    if n>0 then
     if source.kind=='combat' then
@@ -231,17 +242,60 @@ function O.update(game,r,clock)
    end
   end
  end
- if n==0 then O.release(game,r,clock);return false end
- if moved and (moved.inner or moved.wear~=nil) then moved.stolen=true end
+ if n==0 then return 'failed','hold full' end
+ if ctx.r.action.markStolen and moved and (moved.inner or moved.wear~=nil) then moved.stolen=true end
  r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest)
- Scavenge.took(r,id,n,clock)
+ Actions.pickedUp(ctx,id,n,moved)
  r.taskStatus=prof.clears and 'stripping a wreck' or 'looting saved cargo'
- r.offlineLoot.readyAt=clock+1
- -- a clean-up crew stays on a wreck it has emptied to haul the hull off
- local empty=clearable(prof,source) and bare(game,source)
- if Scavenge.done(r,clock) or not empty and not canTake(game,dest,source) then
-  O.release(game,r,clock);returner(game,r)
+ return 'done'
+end
+local function recoverLive(ctx,target,dt,a)
+ local e,object=ctx.e,target.entity
+ if not object then return Actions.recordOperation(ctx,function() return take(ctx,target) end) end
+ Ship.ensureGridHold(e)
+ e.intent.firePrimary=false;e.intent.tractor=false;e.tractorTarget=nil
+ if object.kind=='container' then
+  if not Loot.canTake(e,object) then return 'failed','nothing recoverable or hold full' end
+  object.lootCollector=e
+  local n=Loot.pull(ctx.game,e,object,dt)
+  return n>0 and 'done' or 'running'
  end
- return true
+ local prof={clears=a.clearWreck}
+ if prof.clears and object.hold and next(object.loot or {}) then
+  if ctx.clock<(a.nextTransfer or 0) then return 'running' end
+  a.nextTransfer=ctx.clock+.5
+  local n,id,moved=Loot.takeStack(e.hold,object.hold)
+  if n<=0 then return 'failed','hold full' end
+  e.cargo=Hold.totals(e.hold);Ship.updateMass(e);object.loot=Hold.totals(object.hold)
+  require('src.events').emit('pickup',e,id,n,moved)
+  return 'done'
+ end
+ local x,y=e.body:getPosition();local angle=e.body:getAngle()
+ local diff=(math.atan2(target.y-y,target.x-x)-angle+math.pi)%(2*math.pi)-math.pi
+ local hit=ctx.game:raycast(x+math.cos(angle)*e.halfLength,y+math.sin(angle)*e.halfLength,target.x,target.y,e.team)
+ e.intent.firePrimary=math.abs(diff)<.3 and (not hit or hit.entity==object)
+ return 'running'
+end
+Actions.registerOperation('recover',{
+ keepDistance=function(ctx,target) return target.entity and target.entity.kind=='husk' end,
+ distance=function(ctx,target)
+  if not ctx.e then return 0 end
+  local e=ctx.e
+  local prof={clears=ctx.r.action.clearWreck}
+  if target.entity and target.entity.kind=='husk' and not prof.clears then
+   return math.max((target.radius or 0)+(e.halfLength or 0)+25,(e.def.ai.range or 700)*.6)
+  end
+  if target.entity and target.entity.kind=='husk' and not next(target.entity.loot or {}) then
+   return (target.radius or 0)+(e.noseX or e.halfLength)+25
+  end
+  return math.max((target.radius or 0)+(e.halfLength or 0)+25,Ship.tractorRange(e)*.5+(e.halfLength or 0))
+ end,
+ offline=take,
+ online=recoverLive,
+ missing=function(ctx,a) return (a.progress or 0)>0 and 'done' or 'failed','target disappeared' end,
+})
+-- Convenience entry for resource/debug callers, using the common action runner.
+function O.update(game,r,clock)
+ return require('src.npc').runActions({game=game,u=game.universe,r=r,clock=clock})
 end
 return O

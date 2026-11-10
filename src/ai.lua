@@ -385,16 +385,17 @@ function AI.think(game, e, dt)
    if not require('src.robbery').pending(e) then target=nil;e.combatTarget=nil end
   end
   if not target then
-   if record.service or record.worldRecovery or record.waitingForHome then return trade(game,e,dt) end
-   if require('src.npc').thinkWork(game,e,dt,AI) then return end
-   Security.updateOnline(game,e,require('src.alife'))
-   if Security.hold(game,e,AI) then return end
-   return trade(game,e,dt)
+   if record.service or record.worldRecovery or record.waitingForHome then
+    require('src.npc_actions').pause({u=game.universe,game=game,r=record,e=e,clock=game.universe.clock},'service or recovery')
+    return trade(game,e,dt)
+   end
+   return require('src.npc').thinkWork(game,e,dt,AI)
   end
  else
   if ai.style=='trader' then return trade(game,e,dt) end
   target=pickTarget(game,e,x,y)
  end
+ if record and target then require('src.npc_actions').pause({u=game.universe,game=game,r=record,e=e,clock=game.universe.clock},'combat') end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then
 		it.targetDist = nil

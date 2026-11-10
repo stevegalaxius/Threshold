@@ -106,6 +106,15 @@ local function details(game)
  end
  Slab.Text('Driven by: '..Trace.controller(game,r,e))
  Slab.Text(('State: %s in %s   status: %s'):format(r.state,r.area or 'transit',tostring(r.taskStatus)))
+ if r.action then
+  local a=r.action
+  Slab.Text(('Action: %s%s / %s%s'):format(a.kind,a.operation and ':'..a.operation or '',a.phase or 'running',
+   a.pausedAt and (' (paused: '..tostring(a.pauseReason)..')') or ''))
+  if a.target then Slab.Text(('Target: %s / %s'):format(a.target.provider,tostring(a.target.id))) end
+ elseif r.lastAction then
+  Slab.Text(('Last action: %s / %s%s'):format(r.lastAction.kind,r.lastAction.status,
+   r.lastAction.reason and (' / '..r.lastAction.reason) or ''))
+ end
  Slab.Text(('Credits: %d   freight earnings: %d'):format(r.credits or 0,r.freightEarnings or 0))
  Slab.Text('Fuel: '..fuelLine(r,e))
  local maxArmor=require('src.npc_repair').maximum(r)

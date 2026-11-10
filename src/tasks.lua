@@ -41,6 +41,7 @@ function Tasks.sync(u,scope,specs,legacy)
 end
 
 function Tasks.release(u,r,reason,clock)
+ require('src.npc_actions').cancel({u=u,r=r,clock=clock},reason)
  local t=r.task or r.suspendedTask
  if not t then return end
  local o=Tasks.state(u).offers[t.id]

@@ -28,7 +28,7 @@ function Tr.controller(game,r,e)
  if r.service then return 'upkeep: '..r.service.need..' at '..r.service.station end
  if r.worldRecovery then return 'world recovery' end
  if r.piracy then return 'piracy: '..r.piracy.phase end
- if r.offlineLoot then return 'collecting loot ('..r.offlineLoot.kind..')' end
+ if r.action then return 'action: '..r.action.kind..(r.action.operation and ':'..r.action.operation or '')..(r.action.pausedAt and ' (paused)' or '') end
  return r.task and ('job: '..r.task.kind) or 'looking for work: '..(r.workProfile or r.label or '?')
 end
 return Tr

@@ -44,7 +44,9 @@ The band has a gap (near/far) so ships don't flicker. A ship coming online mid-e
 NPCs have no behavioral role. Population templates choose starting equipment,
 residence, affiliation, scoped authorizations and a preference profile. The
 shared controller selects eligible work, commits to it, handles upkeep and
-movement, and dispatches the active task's execution hooks.
+movement, and executes registered actions requested by the active task. Actions own
+steering, positioning, claims, timing and interruption; equipment operations
+own resource effects. See [NPC action extensions](npc-actions.md).
 
 | Work | Execution | Requirements |
 |---|---|---|

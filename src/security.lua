@@ -222,40 +222,14 @@ function S.inspectionPoint(game,station,e)
 end
 -- Work execution hooks; all selection, commitment and movement use NPC.
 local Piracy=require('src.piracy')
-Tasks.definitions.raid.think=Piracy.think
+Tasks.definitions.raid.nextAction=Piracy.nextAction
+Tasks.definitions.raid.pickedUp=require('src.scavenge').pickedUp
 Tasks.definitions.raid.before=function(c)
+ Piracy.before(c)
+ if not c.r.task or c.r.task.kind~='raid' then return end
  local r=c.r
  if r.state=='idle' and r.task.source==r.task.target and #Fields[r.area].buoyIds>1 then
   r.untilTime=math.min(r.untilTime or c.clock,c.clock)
- end
-end
-function S.arrive(r,node,clock) NPC.arrive(r,node,clock) end
-function S.advance(r,clock,u) return NPC.advance(r,clock,u) end
-function S.capture(game,e,r,remote)
- local clock=game.universe.clock
- r.index=e.routeIndex or r.index
- if r.state=='travel' then
-  local edge={from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index]}
-  local graph=G.build(r.area)
-  local x,y=e.body:getPosition()
-  local p=math.min(.99,G.project(graph,edge,x,y,clock))
-  local duration=math.max(.1,G.length(graph,edge,clock)/r.speed)
-  r.depart=clock-p*duration;r.arrive=r.depart+duration
-  if r.encounter then r.encounter.progress=p end
-  r.offset=nil
-  if not remote then
-   local bx,by=G.point(graph,edge,p,clock)
-   r.offset={x=x-bx,y=y-by,progress=p}
-  end
- elseif not remote then
-  local x,y=e.body:getPosition();local bx,by=L.inspectionPosition(r.node,clock)
-  r.offset={x=x-bx,y=y-by}
- end
- r.fleeing=e.fleeing or nil
- r.pose=nil
- if not remote then
-  local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
-  r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
  end
 end
 -- Combat policy comes from current work and scoped authority, never identity.
@@ -309,36 +283,6 @@ function S.target(game,e)
  if r then r.targetId=best and (best.alifeId or best.isPlayer and 'player') or nil end
  return best
 end
-function S.updateOnline(game,e,A)
- local r=game.universe.npcs[e.alifeId]
- if r.piracy then return end
- if Access.raiding(r) and r.state=='idle' and r.task and not raidLeg(r.area,r.task.source,r.task.target,game.universe.clock) then r.untilTime=game.universe.clock end
- NPC.updateOnline(game,e)
-end
-function S.hold(game,e,AI)
- local r=game.universe.npcs[e.alifeId]
- if r.state~='idle' then return false end
- local x,y=e.body:getPosition();local tx,ty=L.position(r.node,game.universe.clock)
- local vx,vy=L.velocity(r.node,game.universe.clock)
- local station=game:locationEntity(r.node)
- if station and station.kind=='station' then
-  tx,ty,vx,vy=S.inspectionPoint(game,station,e)
- end
- -- Distinct holding offsets keep ships assigned to the same place from
- -- continually pushing toward the exact same point. These are not graph nodes.
- local seed=tonumber(r.id:match('%d+$')) or e.id
- local angle=seed*2.3999632297
- local spacing=e.halfLength+120
- if not station or station.kind~='station' then
-  tx,ty=tx+math.cos(angle)*spacing,ty+math.sin(angle)*spacing
- end
- local dx,dy=tx-x,ty-y;local d=math.sqrt(dx*dx+dy*dy)
- local a=e.body:getAngle()
- AI.navigate(game,e,dx,dy,d>T.aiBoostStopMargin*2 and NPC.liveCruise(e) or math.min(150,d*.5),vx,vy,d>T.aiBoostStopMargin*2 and d or nil)
- e.intent.aimX,e.intent.aimY=x+math.cos(a)*300,y+math.sin(a)*300
- return true
-end
-
 function S.visit(game,e,stop,A)
  local r=game.universe.npcs[e.alifeId]
  if r.worldRecovery then return false end
@@ -368,11 +312,5 @@ for _,role in ipairs({'pirate','patrol'}) do
    return create(game,area,role,node,clock,require('src.alife').start)
   end,
  })
-end
-for _,kind in ipairs({'patrol','raid'}) do
- Tasks.definitions[kind].capture=function(game,e,r,remote)
-  if S.shouldDock(r,r.route[r.index]) then return false end
-  S.capture(game,e,r,remote)
- end
 end
 return S

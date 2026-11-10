@@ -22,7 +22,7 @@ return function(game)
   nextId=nextId+1
   local node=Fields[area].buoyIds[1] or Fields[area].stationIds[1]
   local h=hull or 'intaki_wisp'
-  local r={id='offline-loot/'..nextId,home=area,area=area,task={kind='raid'},archetype='pirate_wisp',speed=600,
+  local r={id='offline-loot/'..nextId,home=area,area=area,homeStation=pirateBase,homePurpose='pirateBase',workProfile='raider',task={kind='raid'},archetype='pirate_wisp',speed=600,
    route={node,node},node=node,index=1,state='idle',untilTime=clock+100,
    ship={hull=h,loadout=data.hulls[h].loadout,cargo={},armor=data.hulls[h].armor}}
   u.npcs[r.id]=r
@@ -32,9 +32,9 @@ return function(game)
  local r,x,y=pirate('earth');local other=pirate('earth')
  local item=loot('earth',1001,8,x,y)
  local area=u.areas.earth
- check(O.update(game,r,clock) and r.offlineLoot,'pirate did not approach saved loose loot')
+ check(O.update(game,r,clock) and r.action,'pirate did not approach saved loose loot')
  check(item.count==8 and not r.ship.cargo.scrap,'approach transferred cargo instantly')
- check(not O.update(game,other,clock) and not other.offlineLoot,'two pirates claimed the same resource')
+ check(not O.update(game,other,clock) and not other.action,'two pirates claimed the same resource')
  clock=clock+2;u.clock=clock;O.update(game,r,clock)
  check(not Loose.records(u)[item.id] and r.ship.cargo.scrap==8,'offline pickup transfer lost or duplicated cargo')
  check(r.piracy and r.route[#r.route]==pirateBase,'offline looter did not return to Milliways')
@@ -95,7 +95,7 @@ return function(game)
  local target=loot('earth',1006,4,ax+1200,ay)
  O.update(game,approaching,clock)
  local pending=assert(Save.decode(Save.encode(game:saveState())))
- check(pending.npcs[approaching.id].offlineLoot.id==target.id and pending.mining.resources[target.id].lootOwner==approaching.id,'save lost pending loot reservation')
+ check(pending.npcs[approaching.id].action.target.id==target.id and pending.mining.resources[target.id].actionOwner==approaching.id,'save lost pending loot reservation')
  local resumed={universe=pending,fieldId='pluto',alifeOnline={}}
  pending.clock=clock+3
  O.update(resumed,pending.npcs[approaching.id],pending.clock)
@@ -104,8 +104,8 @@ return function(game)
  check(px>ax and px<ax+1200,'offline loot approach had no intermediate position')
  O.release(game,approaching,clock+1)
  local hx,hy=A.point(approaching,clock+1)
- check(math.abs(hx-px)<.01 and math.abs(hy-py)<.01 and not approaching.offlineLoot,'live handoff moved pirate or retained its loot claim')
- check(not target.lootOwner,'live handoff did not release saved resource')
+ check(math.abs(hx-px)<.01 and math.abs(hy-py)<.01 and not approaching.action,'live handoff moved pirate or retained its loot claim')
+ check(not target.actionOwner,'live handoff did not release saved resource')
  -- Reload the saved depleted world to verify revisit/save restoration.
  game:loadState(saved)
  check(not Loose.records(game.universe)[item.id],'load regenerated consumed loose items')

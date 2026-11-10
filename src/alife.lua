@@ -20,6 +20,7 @@ local Upkeep=require('src.upkeep')
 local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
 local Salvager=require('src.salvager')
+require('src.offline_loot') -- register recovery targets/operations before any job requests them
 local Population=require('src.population')
 local Homes=require('src.npc_home')
 local Reconcile=require('src.world_reconcile')
@@ -231,14 +232,15 @@ local dockingStop=NPC.docksAt
 
 function A.advance(r,clock,u,game)
  local fuelStatus=Fuel.advance(r,clock,u)
+ if fuelStatus=='stranded' then require('src.npc_actions').pause({u=u,game=game,r=r,clock=clock},'fuel') end
  if fuelStatus=='stranded' and require('src.distress').advance(game,r,clock) then fuelStatus=r.fuelStatus end
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
  if r.state=='dead' or r.state=='escaped' then return end
  -- Upkeep comes before every job: a due service visit owns the ship.
  if not r.service then Upkeep.plan(r,clock) end
+ if r.service then require('src.npc_actions').pause({u=u,game=game,r=r,clock=clock},'service') end
  if r.service and Upkeep.advance(r,clock,u) then return end
- if game and not r.worldRecovery and not r.piracy and require("src.offline_loot").update(game,r,clock) then return end
  local result=NPC.advance(r,clock,u,game)
  Fuel.observe(u,r,clock)
  return result
@@ -355,13 +357,13 @@ end
 
 function A.point(r,clock)
  local x,y=A.trackPoint(r,clock)
- if not x or r.state=='docked' or r.offlineLoot or (NPC.work(r) and NPC.work(r).point) and not (r.worldRecovery or r.waitingForHome) then return x,y end
+ if not x or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
  local sx,sy=A.spread(r)
  return x+sx,y+sy
 end
 function A.trackPoint(r,clock)
- if r.offlineLoot then local x,y=require("src.offline_loot").position(r,clock);if x then return x,y end end
- if (NPC.work(r) and NPC.work(r).point) and not (r.worldRecovery or r.waitingForHome) then return NPC.work(r).point(nil,r,clock) end
+ local ax,ay=require('src.npc_actions').position(r,clock)
+ if ax then return ax,ay end
  if r.state=='transit' then return nil end
  if r.state=='docked' then return L.position(r.route[r.index],clock) end
  if r.state=='idle' then
@@ -481,8 +483,13 @@ function A.capture(game,e,remote)
   r.pose=not remote and {x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock} or nil
   return
  end
- local work=NPC.work(r)
- if work and work.capture and not (r.service or r.worldRecovery or r.waitingForHome) and work.capture(game,e,r,remote)~=false then return end
+ local action=r.action
+ if action and not action.pausedAt and (action.kind=='work' or action.kind=='approach') and not (r.service or r.worldRecovery) then
+  local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
+  r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
+  action.origin={x=x,y=y};action.goal={x=x,y=y};action.started=clock;action.arriveAt=clock
+  return
+ end
  if e.alifeEgress then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
   local previous=r.transit.departure
@@ -573,8 +580,6 @@ end
 
 local function bindRoute(game,e,r)
  e.team=require('src.npc_access').raiding(r) and 2 or 3
- local work=NPC.work(r)
- if work and work.bind and not (r.service or r.worldRecovery or r.waitingForHome) then return work.bind(game,e,r) end
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
@@ -618,7 +623,7 @@ A.bindRoute=bindRoute
 
 function A.wake(game,r)
  Fuel.withRecord(r,function() end);r.fuelClock=game.universe.clock
- require("src.offline_loot").release(game,r,game.universe.clock)
+ require('src.npc_actions').cancel({u=game.universe,game=game,r=r,clock=game.universe.clock},'representation changed')
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
  local egress=A.egressSample(game,r,game.universe.clock)

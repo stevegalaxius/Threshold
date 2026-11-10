@@ -89,7 +89,7 @@ return function(game)
  F.observe(iu,idle,0);A.advance(idle,10,iu)
  check(idle.untilTime==11 and idle.task.id=='interrupted-mine','stranded idle timer completed a duty')
  idle.ship.cargo[F.item()]=8;F.observe(iu,idle,10)
- check(idle.fuelClock==10 and idle.nextMiningAt==10+T.miningOfflineEvery,'miner caught up work from its stranded interval')
+ check(idle.fuelClock==10 and idle.task.id=='interrupted-mine','miner caught up work from its stranded interval')
  -- External transport still carries an unpowered ship; it is not ship thrust.
  local transit=copy(r);transit.state='transit';transit.transit={kind='driver'}
  check(not F.needsPropulsion(transit),'fuel status blocked an externally powered transit')

@@ -65,36 +65,11 @@ function S.returnRecord(game,r,maintenance)
  require('src.offline_loot').release(game,r,game.universe.clock)
  r.salvageReturn=true;r.salvageGoal=target;r.taskStatus='returning to sell salvage'
  if r.task then r.task.phase='selling';r.task.target=target end
- if r.state=='travel' then
-  local previous=r.route[(r.index-2)%#r.route+1]
-  r.route={previous};for _,id in ipairs(tail) do r.route[#r.route+1]=id end;r.index=2;require('src.queue').leg(r)
- else
-  r.route=tail;r.index=1
-  if #tail>1 then require('src.alife').start(r,game.universe.clock,2)
-  else r.state='docked';r.node=target;Repairs.begin(r,target,game.universe.clock,T.salvagerStay) end
- end
+ if not NPC.travel(game,r,target,game.universe.clock) then return false end
  if r.task then r.task.route=copy(r.route) end
  return true
 end
 function S.advance(game,r,clock) return NPC.advance(r,clock,game.universe,game) end
-function S.think(game,e,dt,AI)
- local r=e.alifeRecord
- if not r or not r.task or r.task.kind~='salvage' then return false end
- if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
- if not r.salvageReturn and Scavenge.done(r,game.universe.clock) then
-  local A=require('src.alife');A.capture(game,e,false)
-  if S.returnRecord(game,r,false) then A.bindRoute(game,e,r) end
-  e.tractorTarget=nil;e.intent.tractor=false;AI.trade(game,e,dt);return true
- end
- if r.salvageReturn then e.intent.tractor=false;e.tractorTarget=nil;AI.trade(game,e,dt);return true end
- if Scavenge.think(game,e,dt,AI,r,NPC) then return true end
- e.tractorTarget=nil;e.intent.tractor=false
- if units(r)>0 then
-  local A=require('src.alife');A.capture(game,e,false)
-  if S.returnRecord(game,r) then A.bindRoute(game,e,r) end
- end
- AI.trade(game,e,dt);return true
-end
 function S.create(game,area,node,clock)
  local def=data.enemies.salvager_packhorse;local hull=data.hulls[def.hull]
  local u=game.universe;u.nextNpcId=(u.nextNpcId or 0)+1
@@ -136,12 +111,18 @@ end
 Tasks.register('salvage',{
  requires={capabilities={'cargo'}},
  docks=function(r,id) return L.canonical(id)==L.canonical(r.salvageGoal) end,
- think=S.think,
+ nextAction=Scavenge.nextAction,
+ pickedUp=Scavenge.pickedUp,
  stay=function() return T.salvagerStay end,
  before=function(c)
   local r,game,clock=c.r,c.game or {universe=c.u},c.clock
-  if not r.salvageReturn and r.area and (Scavenge.done(r,clock)
-   or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
+  if r.salvageReturn or not r.area then return end
+  local done=Scavenge.done(r,clock)
+  if not done and units(r)>0 and not (r.action and r.action.kind=='work') and clock>=(r.salvageCheckAt or 0) then
+   r.salvageCheckAt=clock+T.securityThink
+   done=not require('src.offline_loot').hasLoot(game,r,clock)
+  end
+  if done then S.returnRecord(game,r,false) end
  end,
  eligible=function(u,r,o,node)
   -- staying put is only a job where there are buoys to sweep on the way

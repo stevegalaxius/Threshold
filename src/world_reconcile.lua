@@ -72,7 +72,8 @@ function R.begin(u,r,clock,start)
  if not node then return false end
  local keep=r.task and r.task.kind=='transport' and taskValid(r.task)
  if not keep then Tasks.release(u,r,'world layout changed',clock) end
- r.encounter,r.targetId,r.offlineLoot,r.job=nil,nil,nil,nil
+ require('src.npc_actions').cancel({u=u,r=r,clock=clock},'world layout changed')
+ r.encounter,r.targetId,r.job=nil,nil,nil
  r.tripRoute,r.onRoundTrip,r.tripDestination,r.tradeHome=nil,nil,nil,nil
  if keep then r.taskWorker=true end
  r.driverState,r.cityExit,r.docking,r.repairReturn=nil,nil,nil,nil
@@ -93,7 +94,7 @@ function R.begin(u,r,clock,start)
  r.waitingForHome=nil;r.taskStatus=keep and 'rerouting delivery' or 'returning to home station'
  r.worldRecovery={target=target,delivery=not not keep}
  if not r.roamingHome then r.home=L.get(home).area end
- if r.task and r.task.kind=='mine' then r.base=home;r.mineSite=nil end
+ if r.task and r.task.kind=='mine' then r.base=home end
  if r.piracy~=nil then
   r.taskWorker=true
   r.piracy=r.piracy or {phase='escape',origin=L.rally(r.home,node,clock) or node}

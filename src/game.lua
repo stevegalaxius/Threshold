@@ -1382,6 +1382,11 @@ function Game:finishDocking(e, ds, st)
   end
   if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
+ if e.alifeRecord and e.alifeRecord.action and e.alifeRecord.action.kind=='dock' then
+  e.alifeRecord.node=st.locationId;e.alifeRecord.state='docked';e.alifeRecord.area=self.fieldId
+  e.alifeRecord.untilTime=self.universe.clock+ds.stay
+  require('src.npc_actions').complete({u=self.universe,game=self,r=e.alifeRecord,e=e,clock=self.universe.clock})
+ end
 	events.emit("dock", e, st)
 end
 

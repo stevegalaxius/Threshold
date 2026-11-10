@@ -54,8 +54,14 @@ return function(game)
   state.sites[siteId]={id=siteId,area='phobos',home=home,x=spec.x,y=spec.y,radius=spec.radius,angle=0,item='iron_ore'}
   Tasks.post(w,{kind='mine',source=home,target=siteId,item='iron_ore',area='phobos'})
   assert(NPC.decide(w,r,home,0,scene) and M.active(r),'common controller accepts equipped mining work')
-  state.resources.test={id='test',site=siteId,kind='loot',item='iron_ore',count=T.minerLoad}
-  w.clock=T.miningOfflineEvery;NPC.advance(r,w.clock,w,scene)
+  local x,y=L.position(siteId,0)
+  state.resources.test={id='test',site=siteId,area='phobos',kind='rock',item='iron_ore',hp=1,yield=T.minerLoad,radius=1,x=x,y=y,vx=0,vy=0,clock=0}
+  w.clock=r.arrive;NPC.advance(r,w.clock,w,scene)
+  w.clock=r.action.arriveAt+1;NPC.advance(r,w.clock,w,scene)
+  assert(state.resources.test.kind=='loot','shared work action drills the actual resource')
+  w.clock=w.clock+1;NPC.advance(r,w.clock,w,scene)
+  w.clock=r.action.arriveAt+1;NPC.advance(r,w.clock,w,scene)
+  w.clock=w.clock+1;NPC.advance(r,w.clock,w,scene)
   assert(r.task.phase=='delivery' and not state.resources.test,'mining collects the actual finite resource and returns it')
   w.clock=r.arrive;NPC.advance(r,w.clock,w,scene)
   r.workWeights={mine=0,transport=1,salvage=0,patrol=0}
