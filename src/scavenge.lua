@@ -28,7 +28,11 @@ S.PROFILES = {
 	salvager = { manifest = 'salvageCargo', deadline = 'salvageUntil', range = 'salvagerRange',
 		time = 'salvagerCollectTime', wrecks = true, clears = true },
 }
-function S.profile(r) return r and S.PROFILES[r.role] end
+function S.profile(r)
+ if not r then return end
+ if r.role=='pirate' then return S.PROFILES.pirate end
+ if r.task and r.task.kind=='salvage' then return S.PROFILES.salvager end
+end
 -- how far it looks: clean-up crews work their whole area, pirates their patch
 function S.range(p) return p.clears and math.huge or T[p.range] end
 function S.time(p) return T[p.time] end

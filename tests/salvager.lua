@@ -11,6 +11,21 @@ return function(game)
  local r
  for _,record in pairs(game.universe.npcs) do if record.role=='salvager' and record.home=='earth' then r=record;break end end
  assert(r,'no initial Earth salvager')
+ -- This fixture exercises salvage execution; mixed work selection is covered
+ -- by stockpile.lua. Pin the usual work rather than assuming every selection.
+ local function onlySalvage(r)
+  r.workWeights={salvage=1,transport=0}
+  if r.task and r.task.kind~='salvage' then
+   local t=r.task
+   if t.kind=='transport' and t.phase=='delivery' then
+    r.ship.cargo[t.item]=math.max(0,(r.ship.cargo[t.item] or 0)-t.amount)
+   end
+   Tasks.release(game.universe,r,'fixture work',game.universe.clock)
+   r.ship.hold=nil;r.state='docked'
+   require('src.npc').decide(game.universe,r,L.station('earth','trade'),game.universe.clock,game)
+  end
+ end
+ onlySalvage(r)
  check(r.task and r.task.kind=='salvage' and game.universe.tasks.offers[r.task.id].owner==r.id,'salvager has no reserved board job')
  local id=r.id;local population=game.universe.nextNpcId
  S.seed(game)
@@ -19,6 +34,7 @@ return function(game)
  for _,node in ipairs(r.route) do check(allowed[L.get(node).area],'salvager left its planet/moon system') end
  -- Two independent workers cannot reserve the same board assignment or pickup.
  local competitor=S.create(game,'earth',L.station('earth','trade'),game.universe.clock)
+ onlySalvage(competitor)
  check(competitor.task.id~=r.task.id,'two salvagers reserved one board job')
  game:loadField('venus');game:captureALife(true)
  local u=game.universe;u.npcs={[id]=r,[competitor.id]=competitor};u.populationSpawns={}

@@ -35,7 +35,7 @@ function S.sell(game,r,node,clock)
   end
  end
  if h then r.ship.hold=Hold.serialize(h);cargo=Hold.totals(h) end
- r.ship.cargo=cargo;r.salvageCargo={};r.salvageUntil=nil
+ r.ship.cargo=cargo;r.salvageCargo={};r.salvageUntil=nil;r.salvageReturn=nil;r.salvageGoal=nil
  r.credits=(r.credits or 0)+total;r.salvageEarnings=(r.salvageEarnings or 0)+total
  r.salvageSales=r.salvageSales or {}
  for id,n in pairs(sold) do r.salvageSales[id]=(r.salvageSales[id] or 0)+n end
@@ -50,18 +50,8 @@ local function pathVia(source,waypoint,target,clock)
  if #first==1 then first[2]=first[1] end
  return first
 end
-function S.depart(game,r,node,clock)
- -- Somewhere other than the goal (a recovery, a service stop): this is
- -- where it is now, so work from here instead of waiting for ever.
- if r.salvageGoal and L.byId[r.salvageGoal] and node~=r.salvageGoal then r.salvageGoal=node end
- Tasks.arrive(game.universe,r,node,clock,game)
- Supplies.refill(r,node)
- local task=Tasks.choose(game.universe,r,node,clock)
- if not task then r.taskStatus='waiting for salvage work';r.untilTime=clock+10;return false end
- r.salvageGoal=task.target;r.salvageReturn=nil;r.route=copy(task.route);r.index=1
- r.taskStatus='roaming '..Fields[L.get(task.target).area].name
- return true
-end
+-- Debug callers use the shared controller for completion, upkeep and selection.
+function S.depart(game,r,node,clock) return NPC.decide(game.universe,r,node,clock,game) end
 function S.returnRecord(game,r,maintenance)
  if r.salvageReturn then return true end
  if not r.area or r.state~='travel' and r.state~='idle' then return false end
@@ -86,34 +76,10 @@ function S.returnRecord(game,r,maintenance)
  if r.task then r.task.route=copy(r.route) end
  return true
 end
--- Salvagers: roam for loose cargo, sell it at a station. Movement, docking
--- and upkeep are the shared NPC loop's (src/npc.lua).
-NPC.job('salvager',{
- match=function(r) return r.role=='salvager' end,
- docks=function(r,id) return id==r.salvageGoal end,
- stay=function() return T.salvagerStay end,
- roam=function(r,node)
-  local nodes={}
-  for _,area in ipairs(S.system(r.home)) do
-   for _,id in ipairs(L.stations(area,'trade')) do nodes[#nodes+1]=id end
-  end
-  return nodes
- end,
- before=function(c)
-  local r,game,clock=c.r,c.game or {universe=c.u},c.clock
-  if not r.salvageReturn and r.area and (Scavenge.done(r,clock)
-   or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
- end,
- next=function(c)
-  local game=c.game or {universe=c.u}
-  if not S.depart(game,c.r,c.node,c.clock) then return {wait=10} end
-  return {route=c.r.route}
- end,
-})
 function S.advance(game,r,clock) return NPC.advance(r,clock,game.universe,game) end
 function S.think(game,e,dt,AI)
  local r=e.alifeRecord
- if not r or r.role~='salvager' then return false end
+ if not r or not r.task or r.task.kind~='salvage' then return false end
  if e.alifeEgress or e.driverTractor or e.launch then AI.trade(game,e,dt);return true end
  if not r.salvageReturn and Scavenge.done(r,game.universe.clock) then
   local A=require('src.alife');A.capture(game,e,false)
@@ -132,7 +98,7 @@ end
 function S.create(game,area,node,clock)
  local def=data.enemies.salvager_packhorse;local hull=data.hulls[def.hull]
  local u=game.universe;u.nextNpcId=(u.nextNpcId or 0)+1
- local r={id='npc/'..u.nextNpcId,role='salvager',archetype=def.id,home=area,area=area,
+ local r={id='npc/'..u.nextNpcId,role='salvager',workProfile='scavenger',archetype=def.id,home=area,area=area,
   state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=NPC.cruise(def.id),
   spread=0,taskWorker=true,credits=0,salvageCargo={},salvageGoal=node,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
@@ -167,13 +133,27 @@ function S.seed(game)
  end
 end
 Tasks.register('salvage',{
- roles={salvager=true},
+ roles={salvager=true,trader=true,courier=true},
+ docks=function(r,id) return L.canonical(id)==L.canonical(r.salvageGoal) end,
+ think=S.think,
+ stay=function() return T.salvagerStay end,
+ before=function(c)
+  local r,game,clock=c.r,c.game or {universe=c.u},c.clock
+  if not r.salvageReturn and r.area and (Scavenge.done(r,clock)
+   or units(r)>0 and not require('src.offline_loot').hasLoot(game,r,clock)) then S.returnRecord(game,r,false) end
+ end,
  eligible=function(u,r,o,node)
   -- staying put is only a job where there are buoys to sweep on the way
   if o.source==o.target and #(Fields[L.get(o.target).area].buoyIds or {})==0 then return false end
-  return node==o.source and o.system==r.home and L.byId[o.source] and L.byId[o.target]
-   and G.itinerary(o.source,o.target,u.clock)~=nil
+  local root=Fields.moons[r.home] and Fields.moons[r.home].parent or r.home
+  if node~=o.source or o.system~=root or not L.byId[o.source] or not L.byId[o.target] then return false end
+  local h=r.ship.hold and Hold.deserialize(r.ship.hold)
+  if h then return Hold.room(h,'scrap',1)>0 end
+  local used=0
+  for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
+  return (data.hulls[r.ship.hull].hold or 0)-used>=data.items.scrap.volume
  end,
+ feasible=function(u,r,o,node,clock) return G.itinerary(o.source,o.target,clock)~=nil end,
  score=function(u,r,o)
   local areas=S.system(r.home);local wanted=areas[(r.salvageVisit or 0)%#areas+1]
   return (L.get(o.target).area==wanted and 10000 or 0)-(o.target==r.lastSalvageTarget and 100 or 0)
@@ -185,6 +165,7 @@ Tasks.register('salvage',{
   t.route=pathVia(node,waypoint,t.target,clock)
   if not t.route then return false end
   r.salvageVisit=visit;r.lastSalvageTarget=t.target;t.phase='collecting'
+  r.salvageGoal=t.target;r.salvageReturn=nil
   return true
  end,
  plan=function(t)return copy(t.route) end,

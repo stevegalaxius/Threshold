@@ -15,6 +15,7 @@ local data=require('src.data')
 local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
 local Trace=require('src.alife_trace')
+local Tasks=require('src.tasks')
 local N={jobs={},order={}}
 local deps={}
 function N.install(d) for k,v in pairs(d) do deps[k]=v end end
@@ -61,11 +62,21 @@ function N.approach(e,d,stand)
  return math.min(N.liveCruise(e),math.max(20,(d-(stand or 0))*.6))
 end
 
+-- Active work supplies execution hooks; a ship's identity does not select them.
+function N.work(r) return r and r.task and Tasks.definitions[r.task.kind] end
+function N.thinkWork(game,e,dt,AI)
+ local r=e.alifeRecord
+ local work=N.work(r)
+ return work and work.think and work.think(game,e,dt,AI) or false
+end
+
 -- Docking ---------------------------------------------------------------------
 -- Does the ship stop (dock) at `id`? Shared rules first, then the job's.
 function N.docksAt(r,id)
  if r.worldRecovery then return id==r.worldRecovery.target end
  if r.service then return require('src.upkeep').isStation(r,id) end
+ local work=N.work(r)
+ if work and work.docks then return work.docks(r,id) and L.get(id).kind=='station' end
  local j=N.jobOf(r)
  if j and j.docks then return j.docks(r,id) and L.get(id).kind=='station' end
  return false
@@ -78,7 +89,8 @@ function N.arrive(r,node,at)
  r.node=node;r.area=L.get(node).area;r.transit=nil
  r.route={node,node};r.index=1
  local j=N.jobOf(r)
- local stay=(j and j.stay and j.stay(r,node)) or T.alifeStay
+ local work=N.work(r)
+ local stay=(work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
  if L.get(node).kind=='station' and N.docksAt(r,node) then
   r.state='docked'
   Supplies.refill(r,node)
@@ -157,7 +169,9 @@ function N.advance(r,clock,u,game)
  if r.state=='dead' or r.state=='escaped' or r.encounter then return end
  local j=N.jobOf(r)
  if j and j.advance and not r.worldRecovery then return j.advance(game or {universe=u},r,clock) end
- if j and j.before then j.before({u=u,game=game,r=r,clock=clock}) end
+ local work=N.work(r)
+ if work and work.before then work.before({u=u,game=game,r=r,clock=clock})
+ elseif j and j.before then j.before({u=u,game=game,r=r,clock=clock}) end
  for _=1,128 do
   if r.state=='travel' or r.state=='transit' then
    -- (a ship queued at a driver or a dock waits its turn at the end of the leg)

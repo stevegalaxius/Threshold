@@ -126,7 +126,7 @@ end
 local chooseClock,chooseCount=nil,0
 -- Traders: the job board's transport work. Movement, docking and upkeep are
 -- the shared NPC loop's (src/npc.lua).
-NPC.job('trader',{
+NPC.job('civilian',{
  match=function(r) return true end, -- registered last: any other civilian
  docks=function(r,id)
   id=L.canonical(id)
@@ -171,7 +171,7 @@ function A.createTrader(game,area,i)
  local id='npc/'..u.nextNpcId
  local loadout=copy(def.loadout or hull.loadout)
  local stats=Stats.compute(hull,loadout)
- local r={id=id,area=area,home=area,role='trader',archetype=kind,
+ local r={id=id,area=area,home=area,role='trader',workProfile='freight_regular',archetype=kind,
   route=copy(f.traderRoute),speed=NPC.cruise(kind),
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}

@@ -155,7 +155,7 @@ function O.hasLoot(game,r,clock)
 end
 function O.update(game,r,clock)
  local prof=Scavenge.profile(r)
- local salvager=r.role=='salvager'
+ local salvager=prof==Scavenge.PROFILES.salvager
  local returner=salvager and require('src.salvager').returnRecord or require('src.piracy').returnRecord
  if not prof or r.piracy or r.salvageReturn or r.encounter or r.state~='idle' and r.state~='travel'
   or game.alifeOnline and game.alifeOnline[r.id] then O.release(game,r,clock);return false end

@@ -948,6 +948,19 @@ threshold online against NPC opponents and offline; retaliation is unaffected.
 Roles, weapon damage, and fuel requirements do not change.
 
 
+Traders and salvagers now share the civilian controller and can accept either
+freight or salvage. Their saved `workProfile` references shared preferences:
+`freight_regular` favors transport 9:1, and `scavenger` favors salvage 9:1.
+When both categories have suitable work, a stable weighted choice picks the
+category; existing opportunity scores select the job within it. Only accepting
+a job advances `jobsStarted`, so idle retries cannot reroll the choice. Per-NPC
+`workWeights` can override profile weights (zero disables a category). F6 shows
+the profile alongside the active job. Collection, docking, sales and offline
+loot follow the active task, so a salvager delivering freight does not scavenge
+or sell that shipment. Mining and security work remain separate in this first
+step. This change targets fresh saves; no old-save migration is provided.
+
+
 ## Tests
 
 `love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

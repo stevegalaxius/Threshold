@@ -115,5 +115,35 @@ return function(game)
   local E=require('src.encounters')
   assert(P.engageOdds(low)>P.engageOdds(high) and E.breakPoint(low)>E.breakPoint(high),'aggression lowers engagement and surrender thresholds')
  end
+ -- Both identities execute both jobs through the same civilian controller.
+ do
+  local NPC=require('src.npc')
+  local Scavenge=require('src.scavenge')
+  for _,role in ipairs({'trader','salvager'}) do
+   local r=copy(template);r.id='npc/mixed/'..role;r.role=role;r.home='venus'
+   r.task=nil;r.workProfile=nil;r.ship.hold=nil;r.ship.cargo={}
+   r.workWeights={transport=1,salvage=0}
+   local w={clock=u.clock,npcs={[r.id]=r},stations={}}
+   local scene=setmetatable({universe=w},{__index=game})
+   J.deliver(w,jup,'hydrogen_canister',10)
+   Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true})
+   local t=assert(Tasks.choose(w,r,jup,w.clock))
+   local started=r.jobsStarted
+   assert(Tasks.choose(w,r,jup,w.clock)==t and r.jobsStarted==started,'accepted work is not reconsidered')
+   assert(NPC.jobOf(r).name=='civilian' and NPC.docksAt(r,ven) and not Scavenge.profile(r),'freight uses shared docking and cannot scavenge')
+   assert(Tasks.arrive(w,r,ven,w.clock,scene),'either identity can deliver freight')
+   r.workWeights={transport=0,salvage=0};started=r.jobsStarted
+   assert(not Tasks.choose(w,r,ven,w.clock) and r.jobsStarted==started,'idle retries do not advance the preference cycle')
+   r.workWeights={transport=0,salvage=1}
+   Tasks.post(w,{kind='salvage',source=ven,target=ven,system='venus',cooldown=30})
+   assert(Tasks.choose(w,r,ven,w.clock),'either identity can accept salvage')
+   assert(NPC.jobOf(r).name=='civilian' and NPC.docksAt(r,ven) and Scavenge.profile(r).clears,'active salvage job supplies collection and docking')
+   r.ship.cargo.scrap=1;Scavenge.took(r,'scrap',1,w.clock)
+   local credits=r.credits or 0
+   assert(Tasks.arrive(w,r,ven,w.clock,scene),'salvage completes through the same task path')
+   assert(r.credits>credits and r.ship.cargo.scrap==0 and not r.salvageReturn and not Scavenge.profile(r),'salvage is sold and collection state ends with the job')
+   assert(r.role==role,'taking other work does not replace the NPC identity')
+  end
+ end
  print(('stockpile: ok (Mars made %d canisters in an hour; %d commodity hauls)'):format(made,hauls))
 end

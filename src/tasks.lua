@@ -1,5 +1,6 @@
 -- Role-neutral task board. Definitions execute code; saves contain plain records.
 local copy=require('src.persistence').copy
+local Work=require('src.work_preferences')
 local Tasks={definitions={},feasibleTries=4}
 function Tasks.register(kind,definition)
  assert(not Tasks.definitions[kind],'duplicate task kind')
@@ -85,15 +86,20 @@ function Tasks.choose(u,r,station,clock)
  Tasks.clean(u,clock)
  -- Cheap checks and scores for everything on the board; the costly check
 -- (feasible: route planning) runs only on the best few, in score order.
- local list={}
+ local list,ranks={},{}
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
   if o.state=='available' and (o.readyAt or 0)<=clock and def and def.roles[r.role]
+   and (Work.weight(r,o.kind) or 1)>0
    and def.eligible(u,r,o,station,clock) then
-   list[#list+1]={o=o,v=def.score and def.score(u,r,o,station,clock) or 0}
+   if ranks[o.kind]==nil then ranks[o.kind]=Work.rank(r,o.kind) end
+   list[#list+1]={o=o,preference=ranks[o.kind],v=def.score and def.score(u,r,o,station,clock) or 0}
   end
  end
- table.sort(list,function(a,b) return a.v>b.v or a.v==b.v and a.o.id<b.o.id end)
+ table.sort(list,function(a,b)
+  if a.preference~=b.preference then return a.preference>b.preference end
+  return a.v>b.v or a.v==b.v and a.o.id<b.o.id
+ end)
  local best
  for i=1,math.min(#list,Tasks.feasibleTries) do
   local o=list[i].o;local def=Tasks.definitions[o.kind]
@@ -105,6 +111,7 @@ function Tasks.choose(u,r,station,clock)
  local def=Tasks.definitions[t.kind]
  if def.prepare and not def.prepare(u,r,t,station,clock) then return end
  best.owner=r.id;best.state='reserved'
+ r.jobsStarted=(r.jobsStarted or 0)+1
  r.task=t;r.taskStatus=nil
  return t
 end

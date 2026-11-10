@@ -379,7 +379,7 @@ function AI.think(game, e, dt)
  end
  if record and record.service then return trade(game,e,dt) end
  if record and (record.worldRecovery or record.waitingForHome) then return trade(game,e,dt) end
-	if e.alifeId and require("src.salvager").think(game,e,dt,AI) then return end
+	if e.alifeId and require("src.npc").thinkWork(game,e,dt,AI) then return end
 	if e.alifeId and require("src.piracy").think(game,e,dt,AI) then return end
 	if e.alifeId and require("src.mining").think(game,e,dt,AI) then return end
 	if ai.style == "trader" then return trade(game, e, dt) end
