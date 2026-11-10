@@ -8,8 +8,8 @@
 -- the ship will get there: universe.queues[node] is a list of bookings
 -- {start, finish, id}. The record keeps its own: r.queue = {key, ready,
 -- service}. Offline, the ship finishes its leg at r.arrive and then waits
--- until r.queue.ready. Live station approaches instead admit ships by
--- actual availability and arrival order; driver bookings still use time slots.
+-- until r.queue.ready. Live approaches instead admit ships by actual
+-- availability and arrival order, including when their ETA bookings expired.
 local L=require('src.locations')
 local T=require('src.tuning')
 local Q={universe=nil,docks={}}
@@ -109,7 +109,7 @@ end
 -- Still waiting for its turn at the chokepoint its route is on.
 function Q.waiting(r,clock,game)
  local e=game and game.alifeOnline and game.alifeOnline[r.id]
- if e and r.queue and r.queue.kind=='dock' then
+ if e and r.queue then
   return Q.holding(game,e,e.route and e.route[e.routeIndex or 1])~=nil
  end
  local q=r.queue
@@ -131,27 +131,34 @@ function Q.dockBusy(game,st,dock,e)
  return false
 end
 
-local function dockLine(game,e,stop)
+local function liveLine(game,e,stop)
  local AI=require('src.ai')
- local dock=AI.approachDock(e,stop)
+ local driver=stop.kind=='driver' and stop.driver
+ local dock=not driver and AI.approachDock(e,stop)
+ local kind=driver and 'driver' or 'dock'
  local clock=game.universe.clock
  local line={}
  for id,other in pairs(game.alifeOnline or {}) do
   local r=game.universe.npcs[id];local q=r and r.queue
-  if q and q.kind=='dock' and q.key==L.canonical(stop.locationId)
+  local target=other.route and other.route[other.routeIndex or 1]
+  if q and q.kind==kind and q.key==L.canonical(stop.locationId)
    and not other.dead and not other.removed and not other.dockState and not other.dockExit
-   and other.route and other.route[other.routeIndex or 1]==stop then
-   local sx,sy=AI.stopPoint(stop,other);local x,y=other.body:getPosition()
+   and not other.driverTractor and not other.launch
+   and (target==stop or driver and target and target.driver==driver) then
+   local sx,sy=AI.stopPoint(target,other);local x,y=other.body:getPosition()
    local reach=T.queueStart+T.queueGap*4
    if (x-sx)^2+(y-sy)^2<=reach^2 then
     q.entered=q.entered or clock
-    if AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
+    if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
    else q.entered=nil end
   end
  end
  table.sort(line,function(a,b) return a.at<b.at or a.at==b.at and a.id<b.id end)
+ local occupant=driver and driver.driverShip
+ local busy=driver and occupant and occupant~=e and not occupant.dead and not occupant.removed
+ if not driver then busy=Q.dockBusy(game,stop,dock,e) end
  for i,candidate in ipairs(line) do
-  if candidate.e==e then return Q.dockBusy(game,stop,dock,e) or i>1,i end
+  if candidate.e==e then return busy or i>1,i end
  end
  return false,1
 end
@@ -160,8 +167,9 @@ end
 function Q.holding(game,e,stop)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  local q=r and r.queue
- if q and q.kind=='dock' and stop and stop.dock and stop.locationId and L.canonical(stop.locationId)==q.key then
-  local waiting,place=dockLine(game,e,stop)
+ if q and stop and (q.kind=='dock' and stop.dock or q.kind=='driver' and stop.driver)
+  and stop.locationId and L.canonical(stop.locationId)==q.key then
+  local waiting,place=liveLine(game,e,stop)
   return waiting and r or nil,place
  end
  return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and L.canonical(stop.locationId)==q.key and game.universe.clock<q.ready and r or nil
@@ -170,7 +178,7 @@ end
 -- Its place in line: 1 is next in, 2 behind that, and so on.
 function Q.place(r,clock,game)
  local e=game and game.alifeOnline and game.alifeOnline[r.id]
- if e and r.queue and r.queue.kind=='dock' then
+ if e and r.queue then
   local _,place=Q.holding(game,e,e.route and e.route[e.routeIndex or 1]);return place or 1
  end
  local q=r.queue;if not q then return 1 end
@@ -208,6 +216,6 @@ function Q.label(r,clock,game)
  local place=L.byId[r.route[r.index]]
  local text=('queued %d%s for %s'):format(n,suffix,place and place.name or r.route[r.index])
  local live=game and game.alifeOnline and game.alifeOnline[r.id]
- return live and r.queue.kind=='dock' and text or text..(' (%.0fs)'):format(r.queue.ready-clock)
+ return live and text or text..(' (%.0fs)'):format(r.queue.ready-clock)
 end
 return Q

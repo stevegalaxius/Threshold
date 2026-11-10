@@ -278,7 +278,7 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
-		local pass = queued and 0 or (stop.dock or stop.inspection) and 60 or cruise * 0.6
+		local pass = queued and 0 or (stop.dock or stop.inspection or stop.kind=='driver') and 60 or cruise * 0.6
 		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
