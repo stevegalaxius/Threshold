@@ -131,11 +131,32 @@ local function descriptor(source,area)
 end
 local function sourceTarget(ctx,source)
  local record=source.record
+ local x,y=source.x,source.y
  local vx,vy=0,0
- if source.kind=='live' then vx,vy=record.body:getLinearVelocity() end
+ local noSurface=false
+ if source.kind=='live' then
+  if ctx.e and record.kind=='husk' then
+   -- A dismantled/hollow hull need not have a fixture at its body origin.
+   -- Aim at a remaining collision surface, cached until that piece breaks.
+   local aim=ctx.e.recoveryAim
+   if not aim or aim.object~=record or aim.fixture:isDestroyed() then
+    aim=nil;local sx,sy=ctx.e.body:getPosition();local best=math.huge
+    for _,fixture in ipairs(record.body:getFixtures()) do
+     if not fixture:isSensor() then
+      local lx,ly=fixture:getShape():computeMass(1)
+      local wx,wy=record.body:getWorldPoint(lx,ly);local distance=(wx-sx)^2+(wy-sy)^2
+      if distance<best then best=distance;aim={object=record,fixture=fixture,x=lx,y=ly} end
+     end
+    end
+    ctx.e.recoveryAim=aim
+   end
+   if aim then x,y=record.body:getWorldPoint(aim.x,aim.y) else noSurface=true end
+  end
+  vx,vy=record.body:getLinearVelocityFromWorldPoint(x,y)
+ end
  return {record=record,source=source,entity=source.kind=='live' and record or nil,
-  x=source.x,y=source.y,vx=vx,vy=vy,radius=record.radius or 0,
-  done=(source.kind=='combat' or record.kind=='husk') and not Wreck.weapon(ctx.e or ctx.r.ship)}
+  x=x,y=y,vx=vx,vy=vy,radius=record.radius or 0,
+  done=noSurface or (source.kind=='combat' or record.kind=='husk') and not Wreck.weapon(ctx.e or ctx.r.ship)}
 end
 Actions.registerTarget('loot',{resolve=function(ctx,t)
  local game=world(ctx)
@@ -166,7 +187,22 @@ function O.find(ctx)
  local function consider(source)
   local spec=descriptor(source,ctx.r.area)
   local target=Actions.resolve(ctx,{target=spec})
-  if not target or not Actions.available(ctx,target) then return end
+  -- A broken-off piece can cover the centre of the wreck it came from.
+  -- Recover the occluding piece first instead of claiming an unreachable core.
+  if ctx.e and target and target.entity and target.entity.kind=='husk' then
+   local weapon=Wreck.weapon(ctx.e);if not weapon then return end
+   local wx,wy=Ship.hardpoint(ctx.e,weapon.slot);local seen={}
+   while target and target.entity and target.entity.kind=='husk' do
+    if seen[target.entity] then return end
+    seen[target.entity]=true
+    local hit=game:raycast(wx,wy,target.x,target.y,ctx.e.team)
+    if not hit or hit.entity==target.entity or hit.entity.kind~='husk' then break end
+    if not prof.wrecks or prof.clears and not hit.entity.origin then return end
+    spec=descriptor({kind='live',id=hit.entity.id},ctx.r.area)
+    target=Actions.resolve(ctx,{target=spec})
+   end
+  end
+  if not target or target.done or not Actions.available(ctx,target) then return end
   local s=target.source
   if s and (s.kind=='combat' or s.record.kind=='husk') and not Wreck.weapon(ctx.e or r.ship) then return end
   local d=(target.x-x)^2+(target.y-y)^2
@@ -287,6 +323,9 @@ local function recoverLive(ctx,target,dt,a)
  end
  local weapon=Wreck.weapon(e)
  if not weapon then return 'failed','no usable wreck-breaking weapon' end
+ local wx,wy=Ship.hardpoint(e,weapon.slot)
+ local hit=ctx.game:raycast(wx,wy,target.x,target.y,e.team)
+ if hit and hit.entity~=object and hit.entity.kind=='husk' then return 'failed','another wreck blocks recovery' end
  ctx.r.taskStatus=weapon.w.kind=='drill' and 'stripping a wreck' or 'shooting a wreck'
  local prof={clears=a.clearWreck}
  if prof.clears and weapon.w.kind=='drill' and object.hold and next(object.loot or {}) then
@@ -306,16 +345,32 @@ local function recoverLive(ctx,target,dt,a)
   e.intent.strafe=math.max(-1,math.min(1,turn*2.5))
  end
  local diff=(bearing-angle-(weapon.aim or 0)+math.pi)%(2*math.pi)-math.pi
- local wx,wy=Ship.hardpoint(e,weapon.slot)
- local hit=ctx.game:raycast(wx,wy,target.x,target.y,e.team)
  e.recoveryWeapon=weapon
  e.recoveryTarget=object
+ e.recoveryLocalX,e.recoveryLocalY=object.body:getLocalPoint(target.x,target.y)
  local trigger=({primary='firePrimary',secondary='fireSecondary',tertiary='fireTertiary'})[weapon.group]
  if trigger then e.intent[trigger]=math.abs(diff)<.2 and (not hit or hit.entity==object) end
  e.intent.targetDist=nil
  return 'running'
 end
 Actions.registerOperation('recover',{
+ inRange=function(ctx,target,a)
+  local e=ctx.e;local object=target.entity
+  if not object or object.kind=='container' then
+   return Ship.distanceTo(e,target.x,target.y)-(target.radius or 0)<=Ship.tractorRange(e)
+  end
+  local weapon=Wreck.weapon(e)
+  if not weapon then return true end -- let the operation finish with its reason
+  if a.clearWreck and weapon.w.kind=='drill' and next(object.loot or {}) then
+   return Ship.distanceTo(e,target.x,target.y)-(target.radius or 0)<=Ship.tractorRange(e)
+  end
+  local wx,wy=Ship.hardpoint(e,weapon.slot)
+  local hit=ctx.game:raycast(wx,wy,target.x,target.y,e.team)
+  if hit and hit.entity~=object and hit.entity.kind=='husk' then return true end -- release/reselect the obstructed target
+  if not hit or hit.entity~=object then return false end
+  local reach=weapon.w.kind=='drill' and require('src.weapons').drillLength(e,weapon.w) or require('src.weapons').range(weapon)
+  return (hit.x-wx)^2+(hit.y-wy)^2<=reach*reach
+ end,
  keepDistance=function(ctx,target) return target.entity and target.entity.kind=='husk' end,
  distance=function(ctx,target)
   if not ctx.e then return 0 end

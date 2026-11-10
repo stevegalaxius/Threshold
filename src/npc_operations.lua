@@ -23,17 +23,22 @@ local function collect(ctx,target)
  local r=target.record
  local n=add(ctx.r,r.item,r.count)
  if n<=0 then return 'failed','hold full' end
- r.count=r.count-n;A.pickedUp(ctx,r.item,n)
+ r.count=r.count-n
+ ctx.r.taskStatus='collecting '..(data.items[r.item].name or r.item)
+ A.pickedUp(ctx,r.item,n)
  if r.count<=0 then A.targets[ctx.r.action.target.provider].remove(ctx,ctx.r.action.target);return 'done' end
  return 'running'
 end
 A.registerOperation('collect',{
  distance=function(ctx) return ctx.e and Ship.tractorRange(ctx.e)*.5+(ctx.e.halfLength or 0) or 0 end,
+ inRange=function(ctx,target) return Ship.distanceTo(ctx.e,target.x,target.y)<=Ship.tractorRange(ctx.e) end,
  offline=collect,
  online=function(ctx,target)
   if not target.entity then return A.recordOperation(ctx,function()return collect(ctx,target)end) end
   local p=target.entity
   if p.count<=0 then return 'done' end
+  if Ship.canFit(ctx.e,p.item,1)<=0 then return 'failed','hold full' end
+  ctx.r.taskStatus='collecting '..(data.items[p.item].name or p.item)
   p.collector=ctx.e;ctx.e.tractorTarget=p;ctx.e.intent.tractor=true;ctx.e.intent.firePrimary=false
   return 'running'
  end,

@@ -33,6 +33,12 @@ return function(game)
  local ctx={game=game,u=game.universe,r=r,e=e,clock=game.universe.clock,dt=1/120,AI=require('src.ai')}
  local target={provider='loot',source='live',id=h.id,area='earth'}
  A.request(ctx,{kind='work',operation='recover',target=target,clearWreck=true})
+ local resolved=A.resolve(ctx,{target=target})
+ local stand=A.operations.recover.distance(ctx,resolved)
+ e.body:setPosition(resolved.x-stand-50,resolved.y)
+ e.body:setLinearVelocity(150,0);h.body:setLinearVelocity(150,0)
+ A.step(ctx)
+ assert(r.action and r.action.phase=='working','reachable moving wreck waited for an exact standoff')
  local sawSecondary=false
  for _=1,240 do
   ctx.clock=ctx.clock+1/120;game.universe.clock=ctx.clock
@@ -52,5 +58,36 @@ return function(game)
  for _,p in ipairs(game.pickups) do if p.item=='scrap' then scrap=scrap+p.count end end
  T.wreckShotRecovery=oldChance
  assert(scrap==8,'drilled wreck did not preserve its contents')
- print('WRECK SALVAGE: gun-only recovery, trigger selection and cargo yield passed')
+ -- Tractor range also governs readiness, even outside the steering goal.
+ local x,y=e.body:getPosition()
+ local distance=Ship.tractorRange(e)*.5+e.halfLength+50
+ game:spawnPickup(x+distance,y,'scrap',1);local pickup=game.pickups[#game.pickups]
+ A.request(ctx,{kind='work',operation='collect',target={provider='resource',id=pickup.looseId,expected='loot'}})
+ A.step(ctx)
+ assert(e.intent.tractor and e.tractorTarget==pickup,'reachable cargo waited outside the standoff tolerance')
+ A.cancel(ctx,'fixture finished')
+ -- A hollow wreck is aimed at a real surface, and a destroyed piece invalidates it.
+ local hollow=wreck()
+ for _,f in ipairs(hollow.body:getFixtures()) do f:destroy() end
+ local fixture=love.physics.newFixture(hollow.body,love.physics.newRectangleShape(300,200,40,40,0))
+ fixture:setUserData(hollow)
+ local spec={provider='loot',source='live',id=hollow.id,area='earth'}
+ local point=A.resolve(ctx,{target=spec})
+ assert(fixture:testPoint(point.x,point.y),'recovery aimed at the empty body origin of a hollow wreck')
+ fixture:destroy()
+ fixture=love.physics.newFixture(hollow.body,love.physics.newRectangleShape(400,200,40,40,0));fixture:setUserData(hollow)
+ local changed=A.resolve(ctx,{target=spec})
+ assert(fixture:testPoint(changed.x,changed.y) and changed.x~=point.x,'recovery retained a destroyed wreck surface')
+ -- Release an occluded core and choose the intervening wreck section first.
+ local blocker=wreck()
+ for _,f in ipairs(blocker.body:getFixtures()) do f:destroy() end
+ local obstruction=love.physics.newFixture(blocker.body,love.physics.newRectangleShape(40,40))
+ obstruction:setUserData(blocker);blocker.body:setPosition(100500,200)
+ e.body:setPosition(100000,200);e.body:setAngle(0);pickup.count=0
+ A.request(ctx,{kind='work',operation='recover',target=spec,clearWreck=true})
+ A.step(ctx)
+ assert(not r.action and r.lastAction.reason=='another wreck blocks recovery','obstructed recovery retained its claim forever')
+ local selected=require('src.offline_loot').find(ctx)
+ assert(selected and selected.id==blocker.id,'recovery did not choose the intervening wreck section')
+ print('WRECK SALVAGE: equipment reach, surface targeting, obstruction handling and yield passed')
 end

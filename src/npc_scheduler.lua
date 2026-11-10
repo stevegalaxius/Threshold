@@ -27,7 +27,7 @@ local function actuate(game,e,dt,AI)
  if boost then Nav.boost(e,boost.x,boost.y,boost.want,boost.distance,boost.clear,boost.danger,boost.allow) end
  local wreck=e.recoveryTarget
  if e.recoveryWeapon and wreck and not wreck.dead and not wreck.removed then
-  local x,y=e.body:getPosition();local tx,ty=wreck.body:getPosition()
+  local x,y=e.body:getPosition();local tx,ty=wreck.body:getWorldPoint(e.recoveryLocalX or 0,e.recoveryLocalY or 0)
   e.intent.aimX,e.intent.aimY=tx,ty
   if e.hull.helm=='turn' then
    local diff=(math.atan2(ty-y,tx-x)-e.body:getAngle()+math.pi)%(2*math.pi)-math.pi

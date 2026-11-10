@@ -31,6 +31,7 @@ local function release(ctx,action)
  if target and target.record and target.record.actionOwner==ctx.r.id then target.record.actionOwner=nil;target.record.actionKey=nil end
  if ctx.e then
   ctx.e.tractorTarget=nil;ctx.e.intent.tractor=false;ctx.e.intent.firePrimary=false
+  ctx.e.recoveryAim=nil
   if ctx.e.recoveryWeapon then
    ctx.e.intent.fireSecondary,ctx.e.intent.fireTertiary=false,false
    ctx.e.recoveryWeapon,ctx.e.recoveryTarget=nil,nil
@@ -173,6 +174,9 @@ local function interaction(ctx,a,elapsed,approachOnly)
   local keep=a.keepDistance or op and op.keepDistance
   if type(keep)=='function' then keep=keep(ctx,target) end
   local near=ctx.r.state=='docked' and op.allowDocked or A.move(ctx,target,stand,keep)
+  -- Standoff is a steering goal, not an equipment gate. Moving targets and
+  -- orbital drag can leave a persistent position error inside usable range.
+  if op and op.inRange and not approachOnly then near=op.inRange(ctx,target,a) end
   a.phase=near and 'working' or 'approaching'
   if not near then return 'running' end
   if approachOnly then return 'done' end

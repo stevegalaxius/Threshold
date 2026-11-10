@@ -91,6 +91,9 @@ Operations require `online(ctx, target, dt, action)` and
 action. Optional fields:
 
 - `distance(ctx, target)` gives a center-to-center working distance.
+- `inRange(ctx, target, action)` optionally gates online equipment use by actual
+  reach instead of the steering standoff tolerance. Collection and wreck recovery
+  use this so moving targets do not stall just outside an ideal approach point.
 - `keepDistance` (boolean or function) maintains a standoff for drilling/shooting;
   collection coasts once in range, allowing the tractor to close the gap.
 - `maxStep` bounds a remote work slice (default 12 seconds).
@@ -133,3 +136,6 @@ Shooting preserves each cargo unit with probability `T.wreckShotRecovery` (0.5);
 drilling preserves every unit and remains the source of hull alloy. Packed
 containers survive or are lost whole. Remote recovery saves its cargo-loss roll
 with the source, so retries and materialization do not reroll its contents.
+Live wreck targets use a remaining collision surface rather than the hull's
+potentially empty origin. When a detached section blocks a claimed wreck, the
+claim is released and selection considers the intervening section first.
