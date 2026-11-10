@@ -30,10 +30,7 @@ function Repair.layout(game)
 	local st = p and p.dockState and p.dockState.station
 	if not st then return nil end
 	local sw, sh = lg.getDimensions()
-	local y = 112
-	local ph = max(360, sh - y - 80)
-	local tw = min(sw - 48, 820)
-	local x = floor((sw - tw) / 2)
+	local x, y, tw, ph = require("src.ui.station").body()
 	local L = { x = x, y = y, w = tw, h = ph, station = st, rows = {} }
 	local owners = { p }
 	for _, rec in ipairs(game:hangar(st)) do owners[#owners + 1] = rec end

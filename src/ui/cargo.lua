@@ -238,12 +238,13 @@ local function layout(game)
 	local cs = 30
 	while cs > 6 do
 		local tw, ph = measure(cs)
-		if tw <= Station.frameW() and ph + 190 <= sh then break end
+		if tw <= Station.frameW() and ph <= select(4, Station.body()) then break end
 		cs = cs - 1
 	end
 
 	local L = { cs = cs, sides = list, grids = {} }
 	local tw, ph = measure(cs)
+	ph = max(ph, select(4, Station.body()))   -- panels reach the footer, like every tab
 	for _, side in ipairs(list) do side.w, side.h = size(side, cs) end
 	local x = floor((sw - tw) / 2)
 	local y = 112
@@ -605,10 +606,10 @@ end
 function Cargo.workspace(game)
  local fx,fw=Station.frame()
  if Cargo.tab=='hangar' or Cargo.tab=='shipyard' or Cargo.tab=='repair' then
-  local h=(Cargo.tab=='hangar' and Hangar or Cargo.tab=='repair' and Repair or Shipyard).layout(game);return {x=fx,w=fw,bottom=h.y+h.h}
+  local _,by,_,bh=Station.body();return {x=fx,w=fw,bottom=by+bh}
  end
- local l=layout(game)
- return {x=fx,w=fw,bottom=l and l.bottom or 112}
+ local _,by,_,bh=Station.body()
+ return {x=fx,w=fw,bottom=by+bh}
 end
 function tabRects(game)
  local frame=Cargo.workspace(game);local out={}
@@ -1390,25 +1391,19 @@ function Cargo.draw(game)
 			Hangar.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
 			lg.setColor(HUD.DIM)
-			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
-			lg.setColor(HUD.INK);lg.print('Drag a ship to another spot in the bay or onto a free berth outside.',f.x+14,f.bottom+22)
-			lg.setColor(HUD.DIM);lg.print('Click selects  \194\183  R rotates while dragging  \194\183  Double-click flies  \194\183  Mouse wheel scrolls berths',f.x+14,f.bottom+43)
+			Station.footer('Drag a ship to another spot in the bay or onto a free berth outside.','Click selects  \194\183  R rotates while dragging  \194\183  Double-click flies  \194\183  Mouse wheel scrolls berths')
 			return
 		end
 		if Cargo.tab == "repair" then
 			Repair.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
-			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
-			lg.setColor(HUD.INK);lg.print('Repairs restore armor at this station\'s rate per point.',f.x+14,f.bottom+22)
-			lg.setColor(HUD.DIM);lg.print('Short on credits? Repair fixes as much as you can pay for.',f.x+14,f.bottom+43)
+			Station.footer('Repairs restore armor at this station\'s rate per point.','Short on credits? Repair fixes as much as you can pay for.')
 			return
 		end
 		if Cargo.tab == "shipyard" then
 			Shipyard.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
-			local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
-			lg.setColor(HUD.INK);lg.print('Pick a hull, then a factory paint. New ships come with the stock fit shown.',f.x+14,f.bottom+22)
-			lg.setColor(HUD.DIM);lg.print('Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab',f.x+14,f.bottom+43)
+			Station.footer('Pick a hull, then a factory paint. New ships come with the stock fit shown.','Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab')
 			return
 		end
 	end
@@ -1573,29 +1568,18 @@ function Cargo.draw(game)
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
 		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
 	end
- if docked then
-  local f=Cargo.workspace(game);Station.panel(f.x,f.bottom+12,f.w,56)
+ do
   local r,cx,cy=cellAt(L,mx,my);local selected=Cargo.hand or r and Grid.at(r.g,cx,cy)
   if selected and not Cargo.hand and r.side.market and not stockMatch(selected) then selected=nil end
-  local title=Ship.launchProblem(p) or ('Mass %.0f t'):format(p.body:getMass())
-  local details='Drag to move • R rotate • Shift split • Right-click transfer'
+  local problem=docked and Ship.launchProblem(p)
+  local title=problem and ("Can't launch: "..problem) or ('Mass %.0f t'):format(p.body:getMass())
+  local details=hint
   if selected then
    local item=itemFor(selected.id);title=item.name
    details=('%d units • %d × %d cells'):format(selected.n,selected.w,selected.h)
    if market then local tag=marketTag(Cargo.hand and Cargo.hand.side or r.side,selected);details=details..' • '..(tag.station and 'Buy ' or 'Sell ')..HUD.credits(tag.value) end
   end
-  lg.setFont(HUD.font(14));lg.setColor(HUD.INK);lg.print(title,f.x+14,f.bottom+21)
-  lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(details,f.x+14,f.bottom+43)
- else
-	local problem = docked and Ship.launchProblem(p)
-	if problem then
-		lg.setColor(HUD.WARN)
-		lg.printf(("Mass %.0f t      Can't launch: %s"):format(p.body:getMass(), problem), 0, L.bottom + 10, sw, "center")
-	else
-		lg.printf(("Mass %.0f t"):format(p.body:getMass()), 0, L.bottom + 10, sw, "center")
-	end
-	lg.setColor(HUD.DIM)
-	lg.printf(hint, 0, L.bottom + 30, sw, "center")
+  Station.footer(title,details,problem and not selected)
 
  end
 
@@ -1714,9 +1698,7 @@ Cargo.layout = layout       -- for the autotest
 -- Where toasts go while the screen is up: under the window and its help.
 function Cargo.toastY(game)
 	local sh = lg.getHeight()
-	if game.state == "docked" and (Cargo.tab == "hangar" or Cargo.tab == "shipyard" or Cargo.tab == "repair") then return sh - 110 end
-	local L = layout(game)
-	return L and min(L.bottom + 54, sh - 60) or sh - 110
+	return sh - 110
 end
 
 return Cargo

@@ -10,6 +10,21 @@ function S.frame()
  local w=S.frameW()
  return math.floor((love.graphics.getWidth()-w)/2),w
 end
+-- The body every tab draws in: under the tab row, down to the footer.
+function S.body()
+ local x,w=S.frame()
+ local y=112
+ return x,y,w,math.max(360,love.graphics.getHeight()-y-80)
+end
+-- The footer bar under the body, the same on every tab: a title line and
+-- a dimmer details line.
+function S.footer(title,details,warn)
+ local lg=love.graphics
+ local x,y,w,h=S.body();y=y+h+12
+ S.panel(x,y,w,56)
+ lg.setFont(HUD.font(14));lg.setColor(warn and HUD.WARN or HUD.INK);lg.print(title or '',x+14,y+9)
+ lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(details or '',x+14,y+31)
+end
 -- Use the same frames and button treatment as the player inventory.
 function S.panel(x,y,w,h)
  HUD.panel(x,y,w,h)

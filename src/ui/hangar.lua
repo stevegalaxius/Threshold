@@ -52,20 +52,19 @@ local function layout(game)
 	if not st then return nil end
 	local sw, sh = lg.getDimensions()
 	local W, H = game.hangarSize(st)
-	local y = 112
-	local ph = max(360, sh - y - 80)
+	local fx, y, fw, ph = require("src.ui.station").body()
 	-- cells: as big as fits beside the moorings and the card, 8..30 px
-	local room = min(sw - 48, 1400) - CARD_W - GAP - PAD * 2 - AIRLOCK - GAP - MOOR_W
+	local room = fw - CARD_W - GAP - PAD * 2 - AIRLOCK - GAP - MOOR_W
 	local cs = max(8, min(30, floor(room / W), floor((ph - HEAD - PAD) / H)))
 	local bw = PAD * 2 + W * cs + AIRLOCK + GAP + MOOR_W
-	local tw = bw + GAP + CARD_W
-	local x = floor((sw - tw) / 2)
+	-- the card takes whatever width the bay leaves
+	local tw, x = fw, fx
 	local L = { x = x, y = y, w = tw, h = ph, cs = cs, station = st, list = game:hangar(st), gridW = W, gridH = H }
 	L.bay = { x = x, y = y, w = bw, h = ph }
 	L.gx, L.gy = x + PAD, y + HEAD
 	L.airlock = { x = L.gx + W * cs, y = L.gy, w = AIRLOCK, h = H * cs }
 	L.moor = { x = L.airlock.x + AIRLOCK + GAP, y = L.gy, w = MOOR_W, h = ph - HEAD - PAD }
-	L.info = { x = x + bw + GAP, y = y, w = CARD_W, h = ph }
+	L.info = { x = x + bw + GAP, y = y, w = tw - bw - GAP, h = ph }
 	L.ships, L.berths = {}, {}
 
 	local slots = game:stationMoorings(st)
@@ -106,7 +105,7 @@ local function layout(game)
 
 	-- the card's buttons, bottom up
 	local I = L.info
-	local bx, bw2 = I.x + PAD, CARD_W - PAD * 2
+	local bx, bw2 = I.x + PAD, I.w - PAD * 2
 	local half = floor((bw2 - 8) / 2)
 	L.sell = { x = bx, y = I.y + I.h - PAD - 30, w = bw2, h = 30 }
 	L.cargo = { x = bx, y = L.sell.y - 38, w = half, h = 30 }
