@@ -387,6 +387,20 @@ function Ship.hardpoint(e, slot)
 	return x + sx * cos(a) - sy * sin(a), y + sx * sin(a) + sy * cos(a)
 end
 
+-- Shared angular authority for the flight model and NPC heading controller.
+function Ship.turnLimits(e,powered)
+ powered=powered or 1
+ local aux=e.stats.sideThrust*T.sideScale
+ local torque=e.stats.turn*T.TORQUE_PER_TURN*T.turnScale*powered
+ local cap=min(T.maxTurnRate,e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+ if e.hull.helm=='turn' and aux>0 then
+  local jet=aux*T.FORCE_PER_KN*T.thrustScale*powered*e.hull.radius
+  cap=cap*(1+min(.5,.5*jet/max(torque,1)))
+  torque=torque+jet
+ end
+ return torque,cap
+end
+
 -- Turn intent into forces. Runs once per physics step, before the world updates.
 function Ship.fly(e, dt)
 	local b, s, it = e.body, e.stats, e.intent
@@ -498,13 +512,7 @@ function Ship.fly(e, dt)
 	-- On a turn-helm hull the side jets can't strafe, so they help it turn:
 	-- their thrust at the hull's edge adds torque and lifts the spin cap.
 	local inertia = b:getInertia()
-	local maxTorque = s.turn * T.TORQUE_PER_TURN * T.turnScale * powered
-	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
-	if e.hull.helm == "turn" and aux > 0 then
-		local jet = aux * scale * e.hull.radius
-		cap = cap * (1 + min(0.5, 0.5 * jet / max(maxTorque, 1)))
-		maxTorque = maxTorque + jet
-	end
+	local maxTorque,cap=Ship.turnLimits(e,powered)
 	local targetW
 	if e.hull.helm == "turn" then
 		targetW = steer * cap

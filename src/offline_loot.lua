@@ -341,8 +341,7 @@ local function recoverLive(ctx,target,dt,a)
  local bearing=math.atan2(target.y-y,target.x-x)
  e.intent.aimX,e.intent.aimY=target.x,target.y
  if e.hull.helm=='turn' then
-  local turn=(bearing-angle+math.pi)%(2*math.pi)-math.pi
-  e.intent.strafe=math.max(-1,math.min(1,turn*2.5))
+  ctx.AI.faceDirection(e,target.x-x,target.y-y)
  end
  local diff=(bearing-angle-(weapon.aim or 0)+math.pi)%(2*math.pi)-math.pi
  e.recoveryWeapon=weapon

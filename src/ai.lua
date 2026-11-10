@@ -79,6 +79,15 @@ end
 
 -- Share the existing trader velocity controller across local flight,
 -- powered departure, and lane cruise, including turn-helm haulers.
+function AI.faceDirection(e,mx,my)
+ if mx*mx+my*my<1e-8 then e.intent.strafe=0;return 1 end
+ local diff=wrap(atan2(my,mx)-e.body:getAngle())
+ local torque,cap=Ship.turnLimits(e)
+ local brake=sqrt(2*.8*torque/math.max(1,e.body:getInertia())*math.abs(diff))
+ local spin=min(cap,math.abs(diff)*T.aimGain,brake)*(diff<0 and -1 or 1)
+ e.intent.strafe=cap>0 and spin/cap or 0
+ return cos(diff)
+end
 function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
  local control=e.aiVelocity or {};e.aiVelocity=control
  control.x,control.y,control.mx,control.my,control.throttle,control.combat=wvx,wvy,mx,my,throttle,false
@@ -89,20 +98,10 @@ function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
 	local a = e.body:getAngle()
 	local nx, ny = cos(a), sin(a)
 	if e.hull.helm == "turn" then
-		-- Turn the hull toward the correction it needs, unless that's
-		-- mostly backwards: then keep pointing down the route and use
-		-- the retro thrusters.
-		local backing = (sx * nx + sy * ny) < -0.3 * min(1, err / T.aiResponse)
-		local hx2, hy2 = sx, sy
-		if backing or err < 40 then hx2, hy2 = mx, my end
-		local diff = wrap(atan2(hy2, hx2) - a)
-		it.strafe = max(-1, min(1, diff * 2.5))
-		local facing = cos(diff)
-		if backing then
-			it.thrust = -min(1, err / T.aiResponse)
-		else
-			it.thrust = facing > 0.6 and throttle * facing * min(1, err / T.aiResponse) or 0
-		end
+		-- Keep the nose on the route while retro thrust handles braking.
+		-- A small velocity error must not reverse the requested heading.
+		local facing=AI.faceDirection(e,mx,my)
+		it.thrust=facing>.6 and (sx*nx+sy*ny)*throttle or 0
 	else
 		-- a nimbler hull points down the route (or at whoever's shooting
 		-- at it) and uses every thruster to match the velocity it wants

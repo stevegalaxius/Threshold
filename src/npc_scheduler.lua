@@ -23,6 +23,7 @@ local function actuate(game,e,dt,AI)
   if control.combat then AI.driveCombatVelocity(e,control.x,control.y,control.throttle)
   else AI.driveVelocity(e,control.x,control.y,control.mx,control.my,control.throttle) end
  end
+ if e.aiRouteAim then e.intent.aimX,e.intent.aimY=e.routeAimX,e.routeAimY end
  local boost=e.aiBoostPlan
  if boost then Nav.boost(e,boost.x,boost.y,boost.want,boost.distance,boost.clear,boost.danger,boost.allow) end
  local wreck=e.recoveryTarget
@@ -30,8 +31,7 @@ local function actuate(game,e,dt,AI)
   local x,y=e.body:getPosition();local tx,ty=wreck.body:getWorldPoint(e.recoveryLocalX or 0,e.recoveryLocalY or 0)
   e.intent.aimX,e.intent.aimY=tx,ty
   if e.hull.helm=='turn' then
-   local diff=(math.atan2(ty-y,tx-x)-e.body:getAngle()+math.pi)%(2*math.pi)-math.pi
-   e.intent.strafe=math.max(-1,math.min(1,diff*2.5))
+   AI.faceDirection(e,tx-x,ty-y)
   end
  end
  local target=e.aiAimTarget
@@ -80,6 +80,7 @@ function S.update(game,e,dt,AI,plan)
  e.aiVelocity,e.aiBoostPlan,e.aiAimTarget=nil,nil,nil
  e.aiAimJitter,e.aiAimTrade,e.aiApproach,e.aiCombat=nil,nil,nil,nil
  plan(game,e,elapsed)
+ e.aiRouteAim=e.routeAimX~=nil and e.intent.aimX==e.routeAimX and e.intent.aimY==e.routeAimY
  r=e.alifeId and game.universe.npcs[e.alifeId]
  g=driver(e)
  local action=r and r.action
