@@ -104,7 +104,7 @@ function R.respond(game,e)
   local _,guns=E.coveringStation(mine,theirs,game.universe.clock)
   odds=E.odds(mine,theirs,guns*T.offlineStationAccuracy)
  end
- if odds>=T.offlineEngageOdds then e.aggressor=pirate
+ if odds>=require('src.personality').engageOdds(mine) then e.aggressor=pirate
   require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> refuse and fight'):format(odds*100));return end
  require('src.alife_trace').entity(game,e,'robbery',('odds %.0f%% -> comply'):format(odds*100))
  -- comply: dump the demanded share of goods

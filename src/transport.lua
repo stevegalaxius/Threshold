@@ -9,6 +9,7 @@ local Hold=require('src.inventory.hold')
 local data=require('src.data')
 local J=require('src.jobs')
 local T=require('src.tuning')
+local Personality=require('src.personality')
 local Transport={}
 local function hold(r)
  return r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
@@ -99,12 +100,14 @@ Tasks.register('transport',{
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
  end,
  score=function(u,r,o,station,clock)
-  -- Oldest dispatch first.
-  -- Work at this station before work elsewhere.
+  -- Urgency stays first. Ambition weighs reward and distance against an
+  -- empty pickup flight; age still breaks ties and keeps old work moving.
+  Transport.quote(o,clock)
   -- A station's order for something it's short of beats placeholder work.
   -- A return trip is fine for orders (that's how empties get back to the
   -- makers); only placeholder work avoids shuttling straight back.
-  return clock-(o.readyAt or 0)-(not o.order and r.lastOrigin==o.target and 100000 or 0)-(station~=o.source and 1000000 or 0)
+  return clock-(o.readyAt or 0)-(not o.order and r.lastOrigin==o.target and 100000 or 0)
+   +Personality.freightScore(r,o.creditsPerUnit,o.routeAU,station~=o.source)
    +(o.order and 10000000*(1+(o.priority or 0)) or 0)
  end,
  prepare=function(u,r,t,station,clock)

@@ -131,6 +131,7 @@ local function create(game,area,role,node,clock,start)
  local r={id='npc/'..u.nextNpcId,home=area,area=area,role=role,archetype=archetype,
   speed=NPC.cruise(archetype),spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor}}
+ require('src.personality').ensure(r)
  local home
  if role=='pirate' then home=L.station(nil,'pirateBase') else home=L.station(area,'trade') end
  if home then Homes.assign(r,home) end
@@ -314,6 +315,17 @@ function S.target(game,e)
    local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
    local rank=o==e.aggressor and 3 or e.alifeRole=='pirate' and S.prey(o) and 2 or 1
    if d<T.securityRange^2 and (rank>bestRank or rank==bestRank and d<bestDistance) then best,bestRank,bestDistance=o,rank,d end
+  end
+ end
+ -- Evaluate a new NPC opponent once per target scan, using the same odds
+ -- and station support as offline combat. Retaliation is never filtered.
+ if best and record and e.alifeRole=='pirate' and best~=e.aggressor and best~=e.combatTarget then
+  local other=best.alifeId and game.universe.npcs[best.alifeId]
+  if other then
+   local E=require('src.encounters')
+   record.ship.armor=e.armor;other.ship.armor=best.armor
+   local _,guns=E.coveringStation(record,other,game.universe.clock)
+   if E.odds(record,other,guns*T.offlineStationAccuracy)<require('src.personality').engageOdds(record) then best=nil end
   end
  end
  e.combatTarget=best;e.lock=best

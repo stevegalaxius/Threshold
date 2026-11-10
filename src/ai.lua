@@ -18,6 +18,7 @@
 
 local Ship = require("src.ship")
 local T = require("src.tuning")
+local Personality = require("src.personality")
 local data = require("src.data")
 
 local Security=require("src.security")
@@ -430,10 +431,10 @@ function AI.think(game, e, dt)
 
 	local vx, vy = e.body:getLinearVelocity()
 
-	-- Bail out: an enemy down to 10% armor gives up and runs for the edge
+	-- Bail out: around 10% armor (adjusted by aggression), run for the edge
 	-- of the arena, afterburner lit, and leaves (Game:reap lets it go once
 	-- it's well outside). It doesn't fire while running.
-	if not e.drone and (e.fleeing or e.armor <= e.stats.armor * 0.1) then
+	if not e.drone and (e.fleeing or e.armor <= e.stats.armor * Personality.breakPoint(record,0.1)) then
 		if not e.fleeing then
 			e.fleeing = true
 			game:toast(((e.def.name or "ENEMY") .. " is running"):upper(), 1.5)

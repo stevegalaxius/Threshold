@@ -11,6 +11,7 @@ local copy=require('src.persistence').copy
 local T=require('src.tuning')
 local History=require('src.simulation_history')
 local Fuel=require('src.reactor_fuel')
+local Personality=require('src.personality')
 local E={}
 local function active(r)
  return r and (r.state=='travel' or r.state=='idle') and not r.driverState and r.area~=nil
@@ -124,7 +125,8 @@ function E.hitChance(attacker,target)
 end
 -- Morale: the armour fraction at which a side breaks off.
 function E.breakPoint(r)
- return CIVILIAN[r.role] and T.offlineCivilianBreak or r.role=='pirate' and T.offlinePirateBreak or T.offlinePatrolBreak
+ local base=CIVILIAN[r.role] and T.offlineCivilianBreak or r.role=='pirate' and T.offlinePirateBreak or T.offlinePatrolBreak
+ return Personality.breakPoint(r,base)
 end
 -- Damage one side deals in a round. Spends real ammunition (carried back
 -- into physical combat) and recharges laser power.
@@ -329,7 +331,7 @@ function E.update(game,clock)
     if target then guns=select(2,coveringStation(a,target,clock)) end
     local odds=target and E.odds(a,target,guns*T.offlineStationAccuracy)
     if target then require('src.alife_trace').note(a,clock,'encounter',('sized up %s: odds %.0f%%%s'):format(target.id,odds*100,guns>0 and ' (under station guns)' or '')) end
-    if target and odds>=T.offlineEngageOdds then
+    if target and odds>=Personality.engageOdds(a) then
      local pa,pb=E.profile(a),E.profile(target)
      local fight=a.id..target.id..math.floor(clock/T.offlineEngageWindow)
      local roll=random({seed=(#fight*7919+math.floor(clock))%2147483647})

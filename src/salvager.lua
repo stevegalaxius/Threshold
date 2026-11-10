@@ -136,6 +136,7 @@ function S.create(game,area,node,clock)
   state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=NPC.cruise(def.id),
   spread=0,taskWorker=true,credits=0,salvageCargo={},salvageGoal=node,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ require('src.personality').ensure(r)
  Homes.assign(r,node);u.npcs[r.id]=r
  Fuel.withRecord(r,function() end);r.fuelClock=clock
  NPC.advance(r,clock,u,game)

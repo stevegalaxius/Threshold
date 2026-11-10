@@ -938,6 +938,16 @@ freight earnings, quoted AU, unit rate and active delivery payment. Successful d
 `freight_delivered` simulation outcome with cargo, route and payment.
 
 
+NPCs have saved `ambition` and `aggression` traits from 0 to 1, visible in F6.
+They are generated from each NPC's ID, including existing saves, without
+consuming the simulation's random sequence. Ambition shifts freight selection
+between nearby work and longer, better-paying shipments; urgency and feasibility
+still take precedence. Aggression modestly adjusts combat engagement odds,
+robbery resistance and armour retreat thresholds. Pirates use the same odds
+threshold online against NPC opponents and offline; retaliation is unaffected.
+Roles, weapon damage, and fuel requirements do not change.
+
+
 ## Tests
 
 `love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

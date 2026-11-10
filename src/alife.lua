@@ -175,6 +175,7 @@ function A.createTrader(game,area,i)
   route=copy(f.traderRoute),speed=NPC.cruise(kind),
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
+ require('src.personality').ensure(r)
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
  -- Every trader works the dispatch board (transport jobs to other regions,
  -- and Mars's ore runs from Phobos and Deimos). The old fixed local circuit
@@ -252,6 +253,7 @@ function A.seed(game)
   Mining.seed(game)
   Salvager.seed(game)
   for _,r in pairs(u.npcs) do
+   require('src.personality').ensure(r)
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
    -- every NPC flies at the shared cruise speed (older saves kept per-hull speeds)
    if r.archetype then r.speed=NPC.cruise(r.archetype) end

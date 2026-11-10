@@ -97,5 +97,23 @@ return function(game)
   assert(not Tasks.arrive(w,r,ven,w.clock) and not r.task,'lost cargo fails delivery')
   assert(offer.state=='available' and r.credits==credits+paid and J.available(w,ven,lost.item)==stock+6,'failed delivery pays nothing and moves no stock')
  end
+ -- Personality changes choices without adding more job/route evaluations.
+ do
+  local P=require('src.personality')
+  local Save=require('src.save')
+  local r=P.ensure({id='npc/personality',role='trader'})
+  local restored=assert(Save.decode(Save.encode(r)))
+  P.ensure(restored)
+  assert(restored.ambition==r.ambition and restored.aggression==r.aggression,'saved personality remains stable')
+  local low={id='npc/cautious',role='trader',ambition=0,aggression=0}
+  local high={id='npc/ambitious',role='trader',ambition=1,aggression=1}
+  local near={source=ven,target=jup,order=true,amount=10,creditsPerUnit=2,routeAU=0}
+  local far={source=jup,target=ven,order=true,amount=10,creditsPerUnit=20,routeAU=18}
+  local score=Tasks.definitions.transport.score
+  assert(score(u,low,near,ven,u.clock)>score(u,low,far,ven,u.clock),'low ambition prefers nearby work')
+  assert(score(u,high,far,ven,u.clock)>score(u,high,near,ven,u.clock),'high ambition pursues the richer remote run')
+  local E=require('src.encounters')
+  assert(P.engageOdds(low)>P.engageOdds(high) and E.breakPoint(low)>E.breakPoint(high),'aggression lowers engagement and surrender thresholds')
+ end
  print(('stockpile: ok (Mars made %d canisters in an hour; %d commodity hauls)'):format(made,hauls))
 end
