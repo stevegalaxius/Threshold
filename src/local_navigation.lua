@@ -5,34 +5,23 @@ local Nav={}
 local pi,cos,sin,sqrt,abs,min,max=math.pi,math.cos,math.sin,math.sqrt,math.abs,math.min,math.max
 local ANGLES={0,.35,-.35,.7,-.7,1.1,-1.1,pi/2,-pi/2,2.2,-2.2,2.65,-2.65,pi}
 local function wrap(a)return (a+pi)%(2*pi)-pi end
-local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
- local x,y=e.body:getPosition();local result={};local seen={}
- game.world:queryBoundingBox(x-reach,y-reach,x+reach,y+reach,function(fixture)
-  -- Box2D reports a chain fixture once per overlapping child edge. Expanding
-  -- the whole chain for every callback makes terrain avoidance quadratic.
-  if seen[fixture] then return true end
-  seen[fixture]=true
-  local body=fixture:getBody();local o=fixture:getUserData() or body:getUserData()
-  if (not staticOnly or body:getType()~='dynamic') and body~=e.body and o~=ignore and not fixture:isSensor() and not (o and (o.dead or o.removed))
-   and not (allowSurface and o and o.kind=='planet') then
-   local shape=fixture:getShape();local kind=shape:getType()
-   local vx,vy=body:getLinearVelocity()
-   local ship=body:getType()=='dynamic' or nil
-   if kind=='circle' then
-    local cx,cy=body:getWorldPoint(shape:getPoint())
-    result[#result+1]={x=cx,y=cy,r=shape:getRadius(),vx=vx,vy=vy,loose=ship}
-   elseif kind=='polygon' or kind=='edge' or kind=='chain' then
-    local points={body:getWorldPoints(shape:getPoints())}
-    if kind=='chain' then
-     for i=1,#points-2,2 do result[#result+1]={p={points[i],points[i+1],points[i+2],points[i+3]},vx=vx,vy=vy,loose=ship} end
-    else result[#result+1]={p=points,vx=vx,vy=vy,loose=ship} end
-   end
-  end
-  return true
- end)
- -- Gas giants have no fixture, but transit traffic should stay above the clouds.
- local w=game.well
- if w and w.gas and not allowSurface then result[#result+1]={x=w.x,y=w.y,r=w.radius+T.surfacePullRange,vx=0,vy=0,virtual=true} end
+-- All nearby NPCs can query the same fixture. Reuse world geometry until
+-- its transform or velocity changes; weak keys release destroyed fixtures.
+local fixtureGeometry=setmetatable({},{__mode='k'})
+local function geometryFor(fixture,body,state)
+ local x,y,angle,vx,vy,loose=state.x,state.y,state.angle,state.vx,state.vy,state.loose
+ local old=fixtureGeometry[fixture]
+ if old and old.x==x and old.y==y and old.angle==angle and old.vx==vx and old.vy==vy and old.loose==loose then return old.shapes end
+ local result={};local shape=fixture:getShape();local kind=shape:getType()
+ if kind=='circle' then
+  local cx,cy=body:getWorldPoint(shape:getPoint())
+  result[1]={x=cx,y=cy,r=shape:getRadius(),vx=vx,vy=vy,loose=loose}
+ elseif kind=='polygon' or kind=='edge' or kind=='chain' then
+  local points={body:getWorldPoints(shape:getPoints())}
+  if kind=='chain' then
+   for i=1,#points-2,2 do result[#result+1]={p={points[i],points[i+1],points[i+2],points[i+3]},vx=vx,vy=vy,loose=loose} end
+  else result[1]={p=points,vx=vx,vy=vy,loose=loose} end
+ end
  for _,o in ipairs(result) do
   if o.r then o.minx,o.miny,o.maxx,o.maxy=o.x-o.r,o.y-o.r,o.x+o.r,o.y+o.r
   else
@@ -42,6 +31,35 @@ local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
     o.miny,o.maxy=min(o.miny,o.p[i+1]),max(o.maxy,o.p[i+1])
    end
   end
+ end
+ fixtureGeometry[fixture]={x=x,y=y,angle=angle,vx=vx,vy=vy,loose=loose,shapes=result}
+ return result
+end
+local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
+ local x,y=e.body:getPosition();local result={};local seen={};local bodies={}
+ game.world:queryBoundingBox(x-reach,y-reach,x+reach,y+reach,function(fixture)
+  -- Box2D reports a chain fixture once per overlapping child edge. Expanding
+  -- the whole chain for every callback makes terrain avoidance quadratic.
+  if seen[fixture] then return true end
+  seen[fixture]=true
+  local body=fixture:getBody();local o=fixture:getUserData() or body:getUserData()
+  local state=bodies[body]
+  if not state then
+   local bx,by=body:getPosition();local vx,vy=body:getLinearVelocity()
+   state={x=bx,y=by,angle=body:getAngle(),vx=vx,vy=vy,loose=body:getType()=='dynamic' or nil}
+   bodies[body]=state
+  end
+  if (not staticOnly or not state.loose) and body~=e.body and o~=ignore and not fixture:isSensor() and not (o and (o.dead or o.removed))
+   and not (allowSurface and o and o.kind=='planet') then
+   for _,primitive in ipairs(geometryFor(fixture,body,state)) do result[#result+1]=primitive end
+  end
+  return true
+ end)
+ -- Gas giants have no fixture, but transit traffic should stay above the clouds.
+ local w=game.well
+ if w and w.gas and not allowSurface then
+  local r=w.radius+T.surfacePullRange
+  result[#result+1]={x=w.x,y=w.y,r=r,vx=0,vy=0,virtual=true,minx=w.x-r,maxx=w.x+r,miny=w.y-r,maxy=w.y+r}
  end
  return result
 end
@@ -158,19 +176,28 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  -- the current. The collision pushes them apart; steering ignores it meanwhile.
  for i=#geometry,1,-1 do
   local o=geometry[i]
-  if o.loose and Sweep.sweepCircle(x,y,radius,o,0,0,1)==0 then table.remove(geometry,i) end
+  if o.loose and x+radius>=o.minx and x-radius<=o.maxx and y+radius>=o.miny and y-radius<=o.maxy
+   and Sweep.sweepCircle(x,y,radius,o,0,0,1)==0 then table.remove(geometry,i) end
  end
  local spine=e.spine or {0,0}
  local offsets={spine[1],0,spine[2]}
+ -- Reject an obstacle against the swept bounds of the entire spine before
+ -- running the three exact circle sweeps. This only skips impossible hits.
+ local minx,maxx=x+min(c*spine[1],0,c*spine[2])-radius,x+max(c*spine[1],0,c*spine[2])+radius
+ local miny,maxy=y+min(s*spine[1],0,s*spine[2])-radius,y+max(s*spine[1],0,s*spine[2])+radius
  local function freeTime(dx,dy,ahead,physicalOnly)
   ahead=ahead or horizon
   local time=ahead
   for _,o in ipairs(geometry) do
    if not physicalOnly or not o.virtual then
-   for _,offset in ipairs(offsets) do
-    local hit=Sweep.sweepCircle(x+c*offset,y+s*offset,radius,o,dx-o.vx,dy-o.vy,time)
-    if hit and hit<time then time=hit;if time==0 then return 0 end end
-   end
+    local rx,ry=dx-o.vx,dy-o.vy
+    if maxx+max(0,rx*time)>=o.minx-1e-6 and minx+min(0,rx*time)<=o.maxx+1e-6
+     and maxy+max(0,ry*time)>=o.miny-1e-6 and miny+min(0,ry*time)<=o.maxy+1e-6 then
+     for _,offset in ipairs(offsets) do
+      local hit=Sweep.sweepCircle(x+c*offset,y+s*offset,radius,o,rx,ry,time)
+      if hit and hit<time then time=hit;if time==0 then return 0 end end
+     end
+    end
    end
   end
   return time
@@ -201,7 +228,13 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  best.danger=1-current/horizon
  best.scale=best.clear and 1 or max(.15,min(.65,best.fraction*.8))
  if best.danger>.7 and speed>100 then best.scale=min(best.scale,.5) end
- best.untilTime=(game.time or 0)+T.aiSteerEvery
+ -- Ships waking together must not all redo avoidance on the same tick.
+ -- Give each one a stable phase, keeping the existing maximum refresh age.
+ local interval=T.aiSteerEvery
+ local id=tonumber(tostring(e.alifeId or e.id or 0):match('%d+$')) or 0
+ local phase=(id*.61803398875%1)*interval
+ local now=game.time or 0
+ best.untilTime=old and now+interval or now+interval-(now-phase)%interval
  e.navigation=best
  return cos(best.heading),sin(best.heading),best.scale,best.danger,best.clear
 end
