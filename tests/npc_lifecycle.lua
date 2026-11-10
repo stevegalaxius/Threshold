@@ -6,7 +6,7 @@ return function(game)
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true;game:loadField('earth')
  local template
- for _,r in pairs(game.universe.npcs) do if r.home=='earth' and r.role=='pirate' then template=copy(r);break end end
+ for _,r in pairs(game.universe.npcs) do if r.home=='earth' and r.populationGroup=='pirate' then template=copy(r);break end end
  assert(template)
  game:captureALife(true);game.universe.npcs={}
  game.travelGraphView=G.build('earth')
@@ -23,6 +23,7 @@ return function(game)
   local r=copy(template)
   r.id=id;r.state='idle';r.route={node,node};r.index=1;r.node=node;r.untilTime=game.universe.clock+600
   r.task=nil;r.encounter=nil;r.pose=nil;r.offset=nil;r.fleeing=nil
+  r.service,r.serviced,r.action,r.worldRecovery=nil,nil,nil,nil
   game.universe.npcs[id]=r
   game.player.body:setPosition(x+3000,y)
   local e=A.wake(game,r)
@@ -63,7 +64,7 @@ return function(game)
  e.body:setPosition(x+100,y)
  local armor=e.armor;task=r.task and r.task.id
  game.player.body:setPosition(0,0);game:updateALife(true)
- check(not game.alifeOnline[r.id] and r.state=='idle','culling marked a living NPC escaped')
+ check(not game.alifeOnline[r.id] and r.state~='escaped' and r.state~='dead','culling marked a living NPC escaped')
  check(r.ship.armor==armor and (not task or r.task and r.task.id==task),'culling lost ship state or duty')
  draw()
  local xx,yy=A.point(r,game.universe.clock)
@@ -71,8 +72,9 @@ return function(game)
  local awake=game.alifeOnline[r.id]
  check(awake and awake~=e and not awake.body:isDestroyed(),'culled NPC did not rematerialize')
  check(awake.armor==armor,'rematerialized NPC lost damage')
+ local awakeState=r.state
  game:remove(e)
- check(game.alifeOnline[r.id]==awake and r.state=='idle','stale removal detached a newer representation')
+ check(game.alifeOnline[r.id]==awake and r.state==awakeState,'stale removal detached a newer representation')
  draw()
 
  -- Unreferenced dead records are dropped after their linger; referenced ones stay.

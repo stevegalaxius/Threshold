@@ -35,6 +35,17 @@ local function serves(need,station)
  return Supplies.supports(station)
 end
 U.serves=serves
+local function canDock(r,e,id,clock)
+ if r.serviceRejected and (r.serviceRejected[L.canonical(id)] or 0)>clock then return false end
+ local game=e and e.alifeGame
+ local st=game and game:locationEntity(id,e.body:getPosition())
+ if not st or st.kind~='station' then return true end
+ local interior=game:hangarFit(st,e.hull.id,e)
+ if interior then
+  for _,dock in ipairs(st.docks or {st.dock}) do if game:fitsDock(e,dock) then return true end end
+ end
+ return game:freeBerth(st,e)~=nil
+end
 
 function U.active(r) return r and r.service~=nil end
 function U.isStation(r,id) return r.service~=nil and L.canonical(id)==r.service.station end
@@ -125,7 +136,7 @@ function U.plan(r,clock,e)
  if not need then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
-  if serves(need,id) then
+  if serves(need,id) and canDock(r,e,id,clock) then
    local go=id==L.canonical(at) and {legs={},duration=0} or Graph.route(g,at,id,clock,r.speed)
    local ret=go and (#go.legs==0 and {legs={}} or Graph.route(g,id,at,clock,r.speed))
    if ret and (not best or go.duration<best) then best,out,back,station=go.duration,go,ret,id end
@@ -133,12 +144,24 @@ function U.plan(r,clock,e)
  end
  local trip -- node lists out and back, for a stop in a neighbouring region
  if not out then
-  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) end,r.speed)
+  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) and canDock(r,e,id,clock) end,r.speed)
   if not station then r.nextServiceAt=clock+T.npcFuelStopRetry
    require('src.alife_trace').note(r,clock,'upkeep','needs '..need..', no station in or next to '..r.area..' can serve it');return false end
  end
  local route={idle and at or prev,at}
  if idle then route={at} end
+ -- Heading out of the region (into a mass driver or a moon gate): the
+ -- crossing is no place to turn round. Offline that put the ship's leg to
+ -- the station starting at the driver itself, so it woke inside the gun.
+ -- It turns round where it is instead, back by the node it left, and the
+ -- visit's last leg brings it to the crossing again.
+ local nextStop=not idle and r.route[r.index+1]
+ local crossing=not idle and (L.get(at).kind=='driver' or L.get(at).kind=='moon_gate' or nextStop and L.get(nextStop).area~=r.area)
+ if crossing and not trip then
+  local go=L.canonical(prev)==station and {legs={}} or Graph.route(g,prev,station,clock,r.speed)
+  local ret=go and Graph.route(g,station,at,clock,r.speed)
+  if go and ret then out,back=go,ret;route={at,prev} else crossing=false end
+ elseif crossing then crossing=false end
  if trip then
   for i=2,#trip.out do route[#route+1]=trip.out[i] end
   for i=2,#trip.back do route[#route+1]=trip.back[i] end
@@ -146,11 +169,31 @@ function U.plan(r,clock,e)
   for _,leg in ipairs(out.legs) do route[#route+1]=leg.edge.to end
   for _,leg in ipairs(back.legs) do route[#route+1]=leg.edge.to end
  end
+ -- where the ship is now, on the leg it's leaving (before the route changes)
+ local here
+ if crossing then
+  here={}
+  if e and e.body and not e.body:isDestroyed() then here.x,here.y=e.body:getPosition()
+  else here.x,here.y=require('src.alife').trackPoint(r,clock) end
+ end
  r.service={station=L.canonical(station),need=need,saved={route=copy(r.route),index=r.index,
   idle=idle or nil,node=idle and r.node or nil,untilTime=idle and r.untilTime or nil}}
  r.route=route
  require('src.alife_trace').note(r,clock,'upkeep','needs '..need..' -> service visit at '..station)
- if not idle then r.index=2;require('src.queue').leg(r)   -- the leg under way is kept: same depart, same arrive; it books the service dock
+ if crossing then
+  -- the leg under way becomes crossing -> the node it left, picked up at the
+  -- ship's present spot (online, the live ship just flies to the new stop)
+  local A=require('src.alife')
+  local x,y=here.x,here.y
+  r.index=2
+  local leg={from=at,to=prev}
+  local duration=math.max(.1,Graph.length(g,leg,clock)/r.speed)
+  local p=math.min(.99,Graph.project(g,leg,x,y,clock))
+  r.depart=clock-p*duration;r.arrive=r.depart+duration
+  local bx,by=A.journeyPoint(r,p,clock)
+  r.offset={x=x-bx,y=y-by,progress=p};r.pose=nil
+  require('src.queue').leg(r)
+ elseif not idle then r.index=2;require('src.queue').leg(r)   -- the leg under way is kept: same depart, same arrive; it books the service dock
  elseif #route==1 then r.index=1;r.state='docked';Repairs.begin(r,at,clock,T.alifeStay)
  else r.index=1;deps.start(r,clock,2) end
  return true
@@ -209,6 +252,27 @@ end
 function U.canDepart(game,e,r)
  e.serviceDockedAt=e.serviceDockedAt or game.time
  return not U.need(r,e) or game.time-e.serviceDockedAt>T.alifeStay
+end
+
+-- A rejected tractor allocation must not send the ship through the same
+-- unusable dock indefinitely. Preserve the job and choose another service stop.
+function U.rejected(game,e,station)
+ local r=e.alifeRecord
+ if not r or not U.isStation(r,station.locationId) then return false end
+ local saved=copy(r.service.saved);local clock=game.universe.clock
+ r.serviceRejected=r.serviceRejected or {}
+ r.serviceRejected[L.canonical(station.locationId)]=clock+T.npcFuelStopRetry
+ r.service,r.serviced,r.nextServiceAt=nil,nil,nil
+ r.state='idle';r.node=station.locationId;r.route={r.node,r.node};r.index=1;r.untilTime=clock
+ require('src.alife_trace').note(r,clock,'upkeep','docking unavailable at '..station.locationId..' -> reconsider service stop')
+ U.plan(r,clock,e)
+ if r.service then r.service.saved=saved
+ else
+  r.route=saved.route;r.index=saved.index;r.node=saved.node
+  r.state=saved.idle and 'idle' or 'travel';r.untilTime=clock;r.depart=clock;r.arrive=clock
+ end
+ require('src.alife').bindRoute(game,e,r)
+ return true
 end
 
 function U.label(r)

@@ -4,11 +4,12 @@ return function(game)
  local H=require('src.simulation_history')
  local Rep=require('src.reputation')
  local u=game.universe
- u.clock=u.clock or 0
+ -- Game.new may already have observed this tick; let the new fixtures be seen.
+ u.clock=(u.clock or 0)+1
  u.npcs=u.npcs or {}
  local node='station:saturn_1'
  local t={id='t_evt',role='trader',state='docked',area='saturn',node=node}
- local p={id='p_evt',role='pirate',state='travel',area='saturn',node=node}
+ local p={id='p_evt',task={kind='raid'},state='travel',area='saturn',node=node}
  u.npcs.t_evt,u.npcs.p_evt=t,p
  H.observe(u,u.clock)              -- first look: nothing to report
  assert(#H.recent(u,{participant='t_evt'})==0,'first sighting is silent')
@@ -24,7 +25,7 @@ return function(game)
  local before=Rep.goodwill(u,t)
  H.begin(u,'t_evt','p_evt',u.clock,'saturn','p_evt')
  H.begin(u,'p_evt','player',u.clock,'saturn','player')
- p.state='dead';H.death(u,p,u.clock,'saturn','player')
+ p.state='dead';require('src.tasks').release(u,p,'dead',u.clock);H.death(u,p,u.clock,'saturn','player')
  H.finish(u,'p_evt','player',u.clock,'death')
  local rescue=H.recent(u,{kind='rescued'})[1]
  assert(rescue and rescue.participants[1]=='t_evt' and rescue.result.rescuer=='player','killing its attacker rescues the trader')

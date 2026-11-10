@@ -1,5 +1,7 @@
 -- Role-neutral task board. Definitions execute code; saves contain plain records.
 local copy=require('src.persistence').copy
+local Work=require('src.work_preferences')
+local Access=require('src.npc_access')
 local Tasks={definitions={},feasibleTries=4}
 function Tasks.register(kind,definition)
  assert(not Tasks.definitions[kind],'duplicate task kind')
@@ -39,6 +41,7 @@ function Tasks.sync(u,scope,specs,legacy)
 end
 
 function Tasks.release(u,r,reason,clock)
+ require('src.npc_actions').cancel({u=u,r=r,clock=clock},reason)
  local t=r.task or r.suspendedTask
  if not t then return end
  local o=Tasks.state(u).offers[t.id]
@@ -85,19 +88,44 @@ function Tasks.choose(u,r,station,clock)
  Tasks.clean(u,clock)
  -- Cheap checks and scores for everything on the board; the costly check
 -- (feasible: route planning) runs only on the best few, in score order.
- local list={}
+ local list,ranks={},{}
+ local capabilities=Access.capabilities(r)
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
-  if o.state=='available' and (o.readyAt or 0)<=clock and def and def.roles[r.role]
+  if o.state=='available' and (o.readyAt or 0)<=clock and def
+   and Access.eligible(r,o,capabilities)
+   and Access.eligible(r,def,capabilities)
+   and (Work.weight(r,o.kind) or 1)>0
    and def.eligible(u,r,o,station,clock) then
-   list[#list+1]={o=o,v=def.score and def.score(u,r,o,station,clock) or 0}
+   if ranks[o.kind]==nil then ranks[o.kind]=Work.rank(r,o.kind) end
+   list[#list+1]={o=o,preference=ranks[o.kind],v=def.score and def.score(u,r,o,station,clock) or 0}
   end
  end
- table.sort(list,function(a,b) return a.v>b.v or a.v==b.v and a.o.id<b.o.id end)
- local best
- for i=1,math.min(#list,Tasks.feasibleTries) do
-  local o=list[i].o;local def=Tasks.definitions[o.kind]
-  if not def.feasible or def.feasible(u,r,o,station,clock) then best=o;break end
+ table.sort(list,function(a,b)
+  if a.preference~=b.preference then return a.preference>b.preference end
+  return a.v>b.v or a.v==b.v and a.o.id<b.o.id
+ end)
+ -- Within the same four-check budget, try the leading offer of each kind
+ -- before another of the same kind. A blocked preferred route must not hide
+ -- otherwise usable work. Category order is still the saved preference race.
+ local groups,order={},{}
+ for _,candidate in ipairs(list) do
+  local kind=candidate.o.kind
+  if not groups[kind] then groups[kind]={};order[#order+1]=kind end
+  groups[kind][#groups[kind]+1]=candidate.o
+ end
+ local best,tries=nil,0
+ for depth=1,Tasks.feasibleTries do
+  for _,kind in ipairs(order) do
+   local o=groups[kind][depth]
+   if o then
+    tries=tries+1
+    local def=Tasks.definitions[kind]
+    if not def.feasible or def.feasible(u,r,o,station,clock) then best=o;break end
+    if tries>=Tasks.feasibleTries then break end
+   end
+  end
+  if best or tries>=Tasks.feasibleTries then break end
  end
  if not best then r.taskStatus='waiting for work';return end
  local t=copy(best);t.phase='prepare';t.assigned=clock;t.state=nil
@@ -105,6 +133,7 @@ function Tasks.choose(u,r,station,clock)
  local def=Tasks.definitions[t.kind]
  if def.prepare and not def.prepare(u,r,t,station,clock) then return end
  best.owner=r.id;best.state='reserved'
+ r.jobsStarted=(r.jobsStarted or 0)+1
  r.task=t;r.taskStatus=nil
  return t
 end

@@ -925,6 +925,66 @@ When that task kind is registered again, the same assignment resumes without
 running pickup preparation again. Explicit cancellation or the worker's death
 still releases its reservation normally.
 
+Freight orders pay NPC haulers `(2 + route AU) × delivered units` credits,
+rounded down to whole credits. `T.freightCreditsPerUnit` controls the base rate;
+`T.freightCreditsPerAU` controls the AU surcharge. Route AU sums the delivery's
+mass-driver legs at posting time, quoted to hundredths. Local and planet–moon
+runs use the base rate. Empty pickup travel and service detours add no charge.
+Existing flat-rate contracts retain their agreed price. The destination commissions the shipment from an
+unlimited operating budget; haulers do not purchase the goods. The quoted rate
+survives saves and service detours. Pickup earns nothing, lost cargo earns
+nothing, and reduced loads earn proportionally. F6 shows each NPC's credits,
+freight earnings, quoted AU, unit rate and active delivery payment. Successful deliveries record a
+`freight_delivered` simulation outcome with cargo, route and payment.
+
+
+NPCs have saved `ambition` and `aggression` traits from 0 to 1, visible in F6.
+They are generated from each NPC's ID, including existing saves, without
+consuming the simulation's random sequence. Ambition shifts freight selection
+between nearby work and longer, better-paying shipments; urgency and feasibility
+still take precedence. Aggression modestly adjusts combat engagement odds,
+robbery resistance and armour retreat thresholds. Pirates use the same odds
+threshold online against NPC opponents and offline; retaliation is unaffected.
+Roles, weapon damage, and fuel requirements do not change.
+
+
+All persistent NPCs use one controller (`src/npc.lua`). Freight, salvage,
+mining, patrol, raid and fencing are task handlers; an NPC's identity never
+selects a controller or grants access to work. Population templates seed a
+ship, equipment, home, affiliation, authorization and `workProfile`. Population
+groups count replenishment only. Profiles favor freight, salvage, industrial,
+police or raiding work; `workWeights` can override each category, with zero
+disabling it. The stable weighted choice advances only on job acceptance.
+Capabilities and authorization are checked before ranking; opportunity scoring
+and route checks then pick a feasible offer. Jobs choose destinations and operations. Shared actions handle steering,
+positioning, claims, execution timing, interruption and completion.
+
+Faction police receive explicit grants, for example
+`{kind="police", issuer="zhuhai", jurisdiction="mars"}`. A patrol offer declares
+its `issuer`, `jurisdiction`, and `requires={authorization="police"}`. Both issuer
+and jurisdiction must match a grant; affiliation or preference alone grants no
+authority. All patrol work requires an armed ship. A freelance patrol offer can
+omit the authorization requirement and use the same handler, without granting
+police powers. Freelance contracts protect their declared jurisdiction while
+active; permanent police remain on call while doing other work, including
+service returns. Police enforcement uses standing with the grant's issuer;
+affiliation affects personal reputation independently of occupation.
+No faction-to-faction diplomacy is introduced.
+
+F6 shows identity, preferences, affiliation, authorizations and the active task.
+This architecture targets fresh saves; no old-role save migration is provided.
+
+
+NPC execution uses registered `travel`, `dock`, `hold`, `approach` and `work`
+actions. Mining and salvage share their approach and work runner, including
+online/offline resource ownership and cancellation. Operations (`drill`,
+`collect`, `recover`) change resources and inventory; they do not steer ships.
+F6 shows the current action, target, phase and pause/failure reason. See
+[Adding NPC jobs and actions](docs/npc-actions.md) for the extension contracts.
+
+
 ## Tests
+
+`love . --actiontest` runs a bounded real-engine action smoke pass: action lifecycle, authorization, salvage pickup/sale and a physical mining drill/tractor check.
 
 `love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

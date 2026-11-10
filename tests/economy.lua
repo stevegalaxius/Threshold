@@ -50,9 +50,9 @@ return function(game)
    worst[item]=math.max(worst[item] or 0,n)
   end
   lastDry,lastTotal=dry,total
-  local tr=0 for _,r in pairs(u.npcs) do if r.role=='trader' and r.state~='dead' and r.state~='escaped' then tr=tr+1 end end
+  local tr=0 for _,r in pairs(u.npcs) do if r.populationGroup=='trader' and r.state~='dead' and r.state~='escaped' then tr=tr+1 end end
   goods[#goods+1]='traders '..tr
-  local mn=0 for _,r in pairs(u.npcs) do if r.role=='miner' and r.state~='dead' and r.state~='escaped' then mn=mn+1 end end
+  local mn=0 for _,r in pairs(u.npcs) do if r.populationGroup=='miner' and r.state~='dead' and r.state~='escaped' then mn=mn+1 end end
   goods[#goods+1]='miners '..mn
   -- what limits the system: per good, this hour's flow and what's waiting
   local stats=u.economyStats or {};local last=prev or {}
@@ -72,7 +72,7 @@ return function(game)
   end
   prev=require('src.persistence').copy(stats)
   local busy,idle=0,0
-  for _,r in pairs(u.npcs) do if r.role=='trader' and r.state~='dead' and r.state~='escaped' then if r.task then busy=busy+1 else idle=idle+1 end end end
+  for _,r in pairs(u.npcs) do if r.populationGroup=='trader' and r.state~='dead' and r.state~='escaped' then if r.task then busy=busy+1 else idle=idle+1 end end end
   print(('  traders %d busy, %d idle'):format(busy,idle))
   print(('hour %3d  fuel %5d at %d stations, %2d dry  orders %3d  | %s'):format(hour,total,#stations,dry,orders,table.concat(goods,', ')))
  end

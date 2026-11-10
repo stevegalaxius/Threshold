@@ -25,7 +25,7 @@ local function matches(game,id,r)
  local gone=r.state=='dead' or r.state=='escaped'
  if f=='dead' then return gone end
  if gone then return false end
- if I.search~='' and not (id:find(I.search,1,true) or (r.role or ''):find(I.search,1,true) or (r.area or ''):find(I.search,1,true)) then return false end
+ if I.search~='' and not (id:find(I.search,1,true) or (r.label or ''):find(I.search,1,true) or (r.area or ''):find(I.search,1,true)) then return false end
  if f=='all' then return true end
  if f=='here' then return r.area==game.fieldId end
  if f=='online' then return e~=nil end
@@ -51,7 +51,7 @@ local function list(game)
  for i,id in ipairs(ids) do
   local r=game.universe.npcs[id];local e=game.alifeOnline and game.alifeOnline[id]
   Slab.BeginListBoxItem('alife_item'..i,{Selected=Overlay.state.selected==id})
-  Slab.Text(('%s%s  %s  %s  %s'):format(e and '* ' or '  ',id,r.role or '?',r.area or 'transit',Trace.controller(game,r,e)))
+  Slab.Text(('%s%s  %s  %s  %s'):format(e and '* ' or '  ',id,r.label or '?',r.area or 'transit',Trace.controller(game,r,e)))
   if Slab.IsListBoxItemClicked() then Overlay.select(id,game) end
   Slab.EndListBoxItem()
  end
@@ -95,9 +95,27 @@ local function details(game)
  local e=game.alifeOnline and game.alifeOnline[r.id]
  Slab.Separator()
  local hull=data.hulls[r.ship.hull]
- Slab.Text(('%s  %s  %s  (%s)'):format(r.id,r.role or '?',hull and hull.name or r.ship.hull,e and 'online' or 'offline'))
+ Slab.Text(('%s  %s  %s  (%s)'):format(r.id,r.label or '?',hull and hull.name or r.ship.hull,e and 'online' or 'offline'))
+ require('src.personality').ensure(r)
+ Slab.Text(('Personality: ambition %.2f   aggression %.2f'):format(r.ambition,r.aggression))
+ require('src.work_preferences').profile(r)
+ Slab.Text('Work profile: '..(r.workProfile or '?'))
+ Slab.Text('Affiliation: '..(r.affiliation or 'independent'))
+ for _,grant in ipairs(r.authorizations or {}) do
+  Slab.Text(('Authority: %s / %s / %s'):format(grant.kind,tostring(grant.issuer),tostring(grant.jurisdiction)))
+ end
  Slab.Text('Driven by: '..Trace.controller(game,r,e))
  Slab.Text(('State: %s in %s   status: %s'):format(r.state,r.area or 'transit',tostring(r.taskStatus)))
+ if r.action then
+  local a=r.action
+  Slab.Text(('Action: %s%s / %s%s'):format(a.kind,a.operation and ':'..a.operation or '',a.phase or 'running',
+   a.pausedAt and (' (paused: '..tostring(a.pauseReason)..')') or ''))
+  if a.target then Slab.Text(('Target: %s / %s'):format(a.target.provider,tostring(a.target.id))) end
+ elseif r.lastAction then
+  Slab.Text(('Last action: %s / %s%s'):format(r.lastAction.kind,r.lastAction.status,
+   r.lastAction.reason and (' / '..r.lastAction.reason) or ''))
+ end
+ Slab.Text(('Credits: %d   freight earnings: %d'):format(r.credits or 0,r.freightEarnings or 0))
  Slab.Text('Fuel: '..fuelLine(r,e))
  local maxArmor=require('src.npc_repair').maximum(r)
  Slab.Text(('Hull: %.0f / %.0f   needs: %s'):format(e and e.armor or r.ship.armor or 0,maxArmor,tostring(require('src.upkeep').need(r,e) or 'none')))
@@ -122,6 +140,11 @@ local function details(game)
   local what=t.item and ('%d %s'):format(t.amount or 0,data.items[t.item] and data.items[t.item].name or t.item) or ''
   Slab.Text(('Job: %s %s  %s > %s  (%s%s%s)'):format(t.kind,what,place(t.source),place(t.target),
    tostring(t.phase),t.order and ', station order' or '',r.suspendedTask and ', suspended' or ''))
+  if t.kind=='transport' then
+   local payment=require('src.transport').payment(t)
+   Slab.Text(('Delivery: %.2f AU; %d x %.2f cr/unit = %d cr%s'):format(t.routeAU,t.amount,t.creditsPerUnit,payment,
+    t.phase=='pickup' and ' (subject to loaded quantity)' or ''))
+  end
   -- The route above is only this map's legs. Where the job takes it after
   -- them: the maps on the way to its next job stop (the pickup, then the
   -- delivery), so a trader crossing Saturn to reach Ceres reads as such.
@@ -146,7 +169,7 @@ local function details(game)
  for id,n in pairs(cargo) do if n>0 then items[#items+1]=('%s x%d'):format(data.items[id] and data.items[id].name or id,n) end end
  table.sort(items)
  Slab.Text('Inventory: '..(#items>0 and table.concat(items,', ') or 'empty'))
- do local ql=require('src.queue').label(r,game.universe.clock);if ql then Slab.Text('Queue: '..ql) end end
+ do local ql=require('src.queue').label(r,game.universe.clock,game);if ql then Slab.Text('Queue: '..ql) end end
  if r.service then Slab.Text(('Service: %s at %s, then back to %s'):format(r.service.need,r.service.station,r.service.saved.route[r.service.saved.index] or '?')) end
  if r.distress then Slab.Text(('Distress: %s bringing %d fuel at %.0fs'):format(r.distress.helper,r.distress.amount,r.distress.at)) end
  local req=e and (e.asked or e.request)

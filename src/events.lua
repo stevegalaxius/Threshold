@@ -12,7 +12,7 @@
 	Simulation history also emits simulation_outcome(entry), a plain-data copy of
 	a saved observation shared by online and offline simulation. Its kinds:
 	combat_started, combat_ended (aggressor, dead, fled, wrecks), npc_died,
-	wreck_created, fuel_condition_changed, rescued (victim saved by killing
+	wreck_created, freight_delivered (task, cargo, route and payment), fuel_condition_changed, rescued (victim saved by killing
 	its attacker), docked, undocked, left_area, arrived. Each has a clock,
 	area, node (when known) and participant ids ('player' for you).
 	Quests and random events read the same log with

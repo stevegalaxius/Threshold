@@ -16,12 +16,12 @@ return function(game)
  game:captureALife(true)
  local template
  for _,r in pairs(game.universe.npcs) do
-  if r.role=='trader' and r.home=='earth' then template=copy(r);break end
+  if r.populationGroup=='trader' and r.home=='earth' then template=copy(r);break end
  end
  assert(template,'no trader for lifecycle fixture')
  local r=template;r.id='npc/880001';r.state='docked';r.area='earth';r.taskWorker=true
  r.task=nil;r.nextTaskAt=nil;r.encounter=nil;r.piracy=nil;r.worldRecovery=nil
- r.service=nil;r.serviced=nil;r.nextServiceAt=nil;r.distress=nil;r.nextDistressAt=nil
+ r.service=nil;r.serviced=nil;r.nextServiceAt=nil;r.distress=nil;r.nextDistressAt=1e9 -- isolate save/load from automatic NPC rescue
  r.driverState=nil;r.pose=nil;r.offset=nil;r.fuelStatus=nil;r.fuelObservedAt=nil
  r.ship.hold=nil;r.ship.cargo={[F.item()]=40};r.ship.fuelCharge=0;r.ship.fuelInitialized=true
  local s=require('src.stats').compute(require('src.data').hulls[r.ship.hull],r.ship.loadout)
@@ -55,6 +55,9 @@ return function(game)
  -- Materialize, serialize through the real game save, and reload while stranded.
  game.universe.npcs=u.npcs;game.universe.tasks=u.tasks;game.universe.simulationHistory=u.simulationHistory
  game.universe.clock=3
+ -- Keep the stranded ship away from a station's automatic docking capture.
+ r.pose={x=20000,y=20000,a=0,vx=0,vy=0,w=0,clock=3}
+ game.player.body:setPosition(21000,20000)
  local live=A.wake(game,r)
  check(live.fuelStatus=='stranded' and transitions(game.universe,'stranded')==1,'wake changed or repeated the condition')
  local snap=assert(Save.decode(Save.encode(game:saveState())))
@@ -81,7 +84,7 @@ return function(game)
  A.advance(r,clock,game.universe)
  check(r.fuelStatus=='normal' and r.task.id==taskId and transitions(game.universe,'stranded')==1,'returning offline re-stranded or replaced a recovered NPC')
  -- Idle timers and mining work must not finish during a fuel outage.
- local idle=copy(r);idle.id='npc/880002';idle.role='miner';idle.state='idle';idle.untilTime=1
+ local idle=copy(r);idle.id='npc/880002';idle.task={kind='mine'};idle.state='idle';idle.untilTime=1
  idle.task={id='interrupted-mine',kind='mine',phase='mining'}
  idle.ship.cargo={};idle.ship.hold=nil;idle.ship.fuelCharge=0;idle.power=0
  idle.fuelStatus=nil;idle.fuelObservedAt=nil;idle.fuelClock=0
@@ -89,7 +92,7 @@ return function(game)
  F.observe(iu,idle,0);A.advance(idle,10,iu)
  check(idle.untilTime==11 and idle.task.id=='interrupted-mine','stranded idle timer completed a duty')
  idle.ship.cargo[F.item()]=8;F.observe(iu,idle,10)
- check(idle.fuelClock==10 and idle.nextMiningAt==10+T.miningOfflineEvery,'miner caught up work from its stranded interval')
+ check(idle.fuelClock==10 and idle.task.id=='interrupted-mine','miner caught up work from its stranded interval')
  -- External transport still carries an unpowered ship; it is not ship thrust.
  local transit=copy(r);transit.state='transit';transit.transit={kind='driver'}
  check(not F.needsPropulsion(transit),'fuel status blocked an externally powered transit')

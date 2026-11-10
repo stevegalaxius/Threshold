@@ -58,10 +58,6 @@ function F.observe(u,r,clock,e)
   r.untilTime=r.untilTime+math.max(0,clock-r.fuelObservedAt)
  end
  r.fuelObservedAt=clock
- if previous=='stranded' and status~='stranded' and r.role=='miner' then
-  r.fuelClock=clock;r.nextMiningAt=clock+T.miningOfflineEvery
- end
- if status=='stranded' and r.role=='miner' then r.fuelClock=clock end
  if status~=previous then
   r.fuelStatus=status;r.fuelStatusSince=clock
   if previous then require('src.alife_trace').note(r,clock,'fuel',previous..' -> '..status..(' (%.0f fuel)'):format(F.remaining(e or r.ship))) end
@@ -130,13 +126,12 @@ end
 function F.advance(r,clock,u)
  if r.state=='dead' or r.state=='escaped' then return end
  if not r.ship.fuelInitialized then F.withRecord(r,function() end);r.fuelClock=clock end
- -- Mining accounts for its continuous drill load in its own work slice.
- if r.role=='miner' and r.task and r.task.phase=='mining' and r.state=='idle' then
-  return F.observe(u,r,clock)
- end
  local previous=r.fuelClock or clock;r.fuelClock=clock
  local seconds=math.max(0,clock-previous)
  local moving=r.state=='travel' or r.state=='transit' and r.transit and r.transit.kind~='driver'
+ local action=r.action
+ local positioning=action and require('src.npc_actions').definitions[action.kind].positioning
+ if positioning and not action.pausedAt then moving=action.phase~='working' end
  if r.state=='docked' then return F.observe(u,r,clock) end -- dockside maintenance, no flight load
  -- Offline travel is billed at the AI's average throttle while it flies a
  -- leg (measured from live flights), not a full burn the whole way.
@@ -145,6 +140,7 @@ function F.advance(r,clock,u)
   -- Freeze abstract route progress for the time propulsion could not be powered.
   local delay=seconds*(1-scale)
   r.depart=(r.depart or clock)+delay;r.arrive=(r.arrive or clock)+delay
+  if positioning and action.arriveAt and not action.pausedAt then action.started=action.started+delay;action.arriveAt=action.arriveAt+delay end
  end
  return F.observe(u,r,clock)
 end

@@ -103,7 +103,7 @@ function love.load(args)
 	game = Game.new()
 	-- Test runs: the A-Life smoke test, one navigation test, and the editor's.
 	local suites = {
-		["--smoketest"] = "tests.smoke", ["--navtest"] = "tests.trader_navigation",
+		["--smoketest"] = "tests.smoke", ["--actiontest"] = "tests.actions_smoke", ["--navtest"] = "tests.trader_navigation",
 		["--editortest"] = "tests.editor_loadout", ["--editorfoldertest"] = "tests.editor_folders",
 		["--weaponeditortest"] = "tests.weapon_editor", ["--dockeditortest"] = "tests.dock_editor",
 		["--lighttooltest"] = "tests.light_tool", ["--painttest"] = "tests.paint",

@@ -66,7 +66,7 @@ return function(game)
  check(near(parked[#parked].fuelCharge,321.25),'hangar save/load lost active fuel charge')
  -- The same burn function applies to remote records and survives materialization.
  local r
- for _,record in pairs(game.universe.npcs) do if record.role=='trader' and record.area==game.fieldId and record.state~='dead' then r=record;break end end
+ for _,record in pairs(game.universe.npcs) do if record.populationGroup=='trader' and record.area==game.fieldId and record.state~='dead' then r=record;break end end
  assert(r,'no local NPC fixture')
  game:captureALife(true)
  r.ship.cargo={[item]=1};r.ship.hold=nil;r.ship.fuelCharge=0;r.ship.fuelInitialized=true;r.power=0
