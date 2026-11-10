@@ -554,7 +554,15 @@ function A.capture(game,e,remote)
  if ds then
   local index
   for i,id in ipairs(r.route) do if id==ds.station.locationId then index=i; break end end
-  r.index=assert(index,'trader docked outside its itinerary')
+  if not index then
+   -- docked somewhere its route doesn't name (its itinerary changed while
+   -- it was on the runway): put the station in as a stop just before the
+   -- one it was heading for, rather than crash
+   require('src.alife_trace').note(r,clock,'capture','docked at '..tostring(ds.station.locationId)..' outside its route; inserted as a stop')
+   index=math.max(1,math.min(r.index or 1,#r.route+1))
+   table.insert(r.route,index,ds.station.locationId)
+  end
+  r.index=index
   r.state='docked'
   if r.role=='patrol' then r.node=ds.station.locationId end
   r.untilTime=clock+(ds.done and math.max(0,(ds.stay or T.alifeStay)-ds.t) or T.alifeStay)
