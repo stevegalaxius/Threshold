@@ -13,6 +13,19 @@
 local L=require('src.locations')
 local T=require('src.tuning')
 local Q={universe=nil,docks={}}
+local liveQueues=setmetatable({},{__mode='k'})
+function Q.invalidate(game) liveQueues[game]=nil end
+local function liveCache(game)
+ local cache=liveQueues[game]
+ if not cache or cache.clock~=game.universe.clock then
+  cache={clock=game.universe.clock,lines={},ships={}}
+  for _,e in ipairs(game.entities) do
+   if e.kind=='ship' then cache.ships[#cache.ships+1]=e end
+  end
+  liveQueues[game]=cache
+ end
+ return cache
+end
 
 local function state()
  local u=Q.universe;if not u then return nil end
@@ -120,7 +133,7 @@ end
 -- Live docks serve the ships actually nearby, not future reservations.
 -- Keep arrival order for each runway; another runway can admit independently.
 function Q.dockBusy(game,st,dock,e)
- for _,other in ipairs(game.entities) do
+ for _,other in ipairs(liveCache(game).ships) do
   if other~=e and other.kind=='ship' and not other.dead and not other.removed then
    local ds=other.dockState
    local exit=other.dockExit
@@ -137,28 +150,40 @@ local function liveLine(game,e,stop)
  local dock=not driver and AI.approachDock(e,stop)
  local kind=driver and 'driver' or 'dock'
  local clock=game.universe.clock
- local line={}
- for id,other in pairs(game.alifeOnline or {}) do
-  local r=game.universe.npcs[id];local q=r and r.queue
-  local target=other.route and other.route[other.routeIndex or 1]
-  if q and q.kind==kind and q.key==L.canonical(stop.locationId)
-   and not other.dead and not other.removed and not other.dockState and not other.dockExit
-   and not other.driverTractor and not other.launch
-   and (target==stop or driver and target and target.driver==driver) then
-   local sx,sy=AI.stopPoint(target,other);local x,y=other.body:getPosition()
-   local reach=T.queueStart+T.queueGap*4
-   if (x-sx)^2+(y-sy)^2<=reach^2 then
-    q.entered=q.entered or clock
-    if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
-   else q.entered=nil end
+ local cache=liveCache(game)
+ local resource=driver or dock
+ local line=cache.lines[resource]
+ if not line then
+  line={};cache.lines[resource]=line
+  for id,other in pairs(game.alifeOnline or {}) do
+   local r=game.universe.npcs[id];local q=r and r.queue
+   local target=other.route and other.route[other.routeIndex or 1]
+   if q and q.kind==kind and q.key==L.canonical(stop.locationId)
+    and not other.dead and not other.removed and not other.dockState and not other.dockExit
+    and not other.driverTractor and not other.launch
+    and (target==stop or driver and target and target.driver==driver) then
+    local sx,sy=AI.stopPoint(target,other);local x,y=other.body:getPosition()
+    local reach=T.queueStart+T.queueGap*4
+    if (x-sx)^2+(y-sy)^2<=reach^2 then
+     q.entered=q.entered or clock
+     if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
+    else q.entered=nil end
+   end
   end
+  table.sort(line,function(a,b) return a.at<b.at or a.at==b.at and a.id<b.id end)
  end
- table.sort(line,function(a,b) return a.at<b.at or a.at==b.at and a.id<b.id end)
  local occupant=driver and driver.driverShip
  local busy=driver and occupant and occupant~=e and not occupant.dead and not occupant.removed
  if not driver then busy=Q.dockBusy(game,stop,dock,e) end
- for i,candidate in ipairs(line) do
-  if candidate.e==e then return busy or i>1,i end
+ local place=0
+ for _,candidate in ipairs(line) do
+  local other=candidate.e
+  -- Capture or removal can happen after the line was built this tick.
+  if not other.dead and not other.removed and not other.dockState and not other.dockExit
+   and not other.driverTractor and not other.launch then
+   place=place+1
+   if other==e then return busy or place>1,place end
+  end
  end
  return false,1
 end

@@ -38,6 +38,28 @@ local function outline(w)
 	return max(w, w * 0.7 * screenPx)
 end
 
+-- Conservative bounds include station approach lights and rotating parts.
+-- Layouts are fixed for an entity's lifetime; editor rebuilds create new ones.
+local function stationDrawRadius(e)
+ if e.drawRadius then return e.drawRadius end
+ local radius=e.radius
+ for _,d in ipairs(e.docks or {e.dock}) do
+  local x=math.abs(d.xc or 0)+math.abs(d.x2)+d.runway+40
+  local y=math.abs(d.yc or 0)+d.hw*1.3
+  radius=max(radius,sqrt(x*x+y*y))
+ end
+ for _,r in ipairs(e.rotors or {}) do
+  radius=max(radius,e.radius+2*sqrt(r.x*r.x+r.y*r.y))
+ end
+ for _,b in ipairs(e.def.berths or {}) do
+  local length=b.maxLength or b.size*T.berthShipScale*2
+  local width=b.maxWidth or b.size*T.berthShipScale*1.1
+  radius=max(radius,sqrt(b.x*b.x+b.y*b.y)+sqrt(length*length+width*width)/2)
+ end
+ e.drawRadius=radius
+ return radius
+end
+
 
 -- Paint jobs the player can pick from (debug panel for now). Enemies get
 -- their color from data/enemies.lua.
@@ -1400,6 +1422,17 @@ function Render.world(game, overlay, boundaryAngle)
 	local sw, sh = lg.getDimensions()
 	local hw, hh = sw / 2 / cam.zoom + 300, sh / 2 / cam.zoom + 300
 	local cx, cy = cam.x, cam.y
+	local function visible(e)
+		local x,y=e.body:getPosition()
+		local radius=e.radius or 0
+		if e.kind=='structure' then
+			-- Structures store their polygon centre in body-local coordinates,
+			-- including static ladder pieces whose body itself is at (0,0).
+			x,y=e.body:getWorldPoint(e.cx,e.cy)
+		elseif e.kind=='station' then radius=stationDrawRadius(e)
+		elseif e.kind=='ship' then radius=e.halfLength+e.hull.radius end
+		return math.abs(x-cx)<hw+radius and math.abs(y-cy)<hh+radius
+	end
 	-- sleeping debris: where its orbit has carried it
 	-- debris too small to see as a shape on screen is drawn as one batch of
 	-- points instead (a ring zoomed out is thousands of them)
@@ -1430,9 +1463,12 @@ function Render.world(game, overlay, boundaryAngle)
 				end
 			end
 		elseif e.kind == "asteroid" then drawAsteroid(e,game.time)
-		elseif e.kind == "structure" then drawStructure(game, e)
+		elseif e.kind == "structure" then if visible(e) then drawStructure(game, e) end
 		elseif e.kind == "planet" then drawPlanet(game, e)
-		elseif e.kind == "station" then if e.city then drawCity(game, e) else drawStation(game, e) end
+		elseif e.kind == "station" then
+			if visible(e) then
+				if e.city then drawCity(game, e) else drawStation(game, e) end
+			end
 		elseif e.kind == "buoy" then drawBuoy(game, e)
 		elseif e.kind == "driver" then drawDriver(game, e)
 		elseif e.kind == "catchring" then drawCatchRing(game, e)
@@ -1456,7 +1492,7 @@ function Render.world(game, overlay, boundaryAngle)
 	end
 	drawProjectiles(game)
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" then drawShip(game, e) end
+		if e.kind == "ship" and visible(e) then drawShip(game, e) end
 	end
 	drawBeams(game)
 	drawEffects(game)

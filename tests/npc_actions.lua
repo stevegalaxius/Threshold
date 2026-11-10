@@ -54,6 +54,14 @@ return function(game)
  A.request(ctx(first,23),{kind='travel',target={provider='location',id=L.station('earth','trade')}})
  assert(first.state=='travel' and first.route[#first.route]==L.station('earth','trade'),'a route action starts shared navigation')
  A.cancel(ctx(first,23),'fixture ended')
+ -- A normal route must steer once, even when no job supplies nextAction.
+ local traveller=worker('actions/route');traveller.task=nil;traveller.state='travel'
+ traveller.index=2;u.npcs[traveller.id]=traveller
+ A.request(ctx(traveller,24),{kind='travel',target={provider='location',id=node}})
+ local steering=0
+ local actor={alifeId=traveller.id,intent={},body={getPosition=function()return x,y end}}
+ require('src.npc').thinkWork(scene,actor,1/120,{trade=function()steering=steering+1 end})
+ assert(steering==1,'ordinary travel executed steering more than once in one NPC update')
  -- Stay alongside a tractored object without chasing its pull velocity.
  local wanted
  local e={body={getPosition=function()return 0,0 end,getLinearVelocity=function()return 10,20 end},intent={},def={ai={throttle=1}}}

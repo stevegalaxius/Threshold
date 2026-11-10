@@ -99,7 +99,9 @@ function N.runActions(ctx)
    Actions.step(ctx);return true
   end
  end
- if ctx.r.action then Actions.step(ctx) end
+ -- thinkWork refreshes ordinary live routes and steps them below. Offline
+ -- advancement and departure decisions still process their action here.
+ if ctx.r.action and ctx.dt==nil then Actions.step(ctx) end
  return false
 end
 function N.routeAction(ctx)

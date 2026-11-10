@@ -32,5 +32,13 @@ return function(game)
  g.driverShip=game.player
  assert(Q.holding(game,ships[2],ships[2].route[2]),'player occupancy did not hold the line')
  g.driverShip=nil
+ -- Repeated queries share one line calculation until the next simulation tick.
+ local stopPoint=AI.stopPoint;local samples=0
+ AI.stopPoint=function(...)samples=samples+1;return stopPoint(...)end
+ game.universe.clock=game.universe.clock+1/120
+ Q.holding(game,ships[2],ships[2].route[2]);local firstSamples=samples
+ Q.holding(game,ships[3],ships[3].route[2]);Q.holding(game,ships[2],ships[2].route[2])
+ AI.stopPoint=stopPoint
+ assert(firstSamples>0 and samples==firstSamples,'same-tick queue queries recalculated the line')
  print('DRIVER QUEUE: expired bookings, spaced holding points and ordered admission passed')
 end
