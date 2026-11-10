@@ -85,6 +85,26 @@ local function start(r,clock,index)
  -- a leg into a mass driver or a dock books its turn there
  if r.state=='travel' then require('src.queue').leg(r) else r.queue=nil end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
+ if r.driverArrival then
+  -- Off a driver's lane the ship comes in over the map's edge from the
+  -- bearing of the planet it set out from (where that planet is on the
+  -- orrery now), the way the lane really runs, and never out of the gun
+  -- itself, which is where the graph puts the driver. The offset fades as
+  -- the leg goes on, so the offline track (the system map, a wake) starts
+  -- out there and joins the corridor smoothly.
+  local origin=L.byId[r.route[(index-3)%#r.route+1]]
+  local here=Fields[r.area]
+  if origin and origin.area~=r.area and here then
+   local ax,ay=Fields.orbitPos(r.area,clock);local bx,by=Fields.orbitPos(origin.area,clock)
+   local b=math.atan2(by-ay,bx-ax)
+   local edge=(here.radius or 10000)+T.npcArrivalBeyondEdge
+   -- side by side across the bearing, not all on one line
+   local across=((r.spread or 0)/math.max(1,T.alifeSpread))*T.catchOffset
+   local ex,ey=math.cos(b)*edge-math.sin(b)*across,math.sin(b)*edge+math.cos(b)*across
+   local x,y=L.position(leg.from,clock)
+   r.offset={x=ex-x,y=ey-y,progress=0,ease=.35}
+  end
+ end
  r.driverState,r.cityExit=nil,nil
 end
 
@@ -385,6 +405,9 @@ function A.trackPoint(r,clock)
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
+  -- an arrival off a driver lane holds out longer: the corridor leaves the
+  -- driver slowly, and the ship shouldn't be drawn in across the gun
+  if r.offset.ease then fade=fade^r.offset.ease end
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
  end
  return x,y
@@ -714,15 +737,8 @@ function A.wake(game,r)
   local g=source and source.kind=='driver' and source
   local fresh=r.driverArrival and game.universe.clock-r.driverArrival<T.npcDriverArrivalTime
   if g and fresh then
-   -- off the lane: in from out along the rail, beyond the catch rings,
-   -- lined up on the breech, as the player arrives (Game:placeForCatch)
-   local gx,gy=game:driverBreech(g)
-   local d=math.floor(T.catchRings+.5)*T.catchSpacing+T.catchApproach
-   local off=(love.math.random()*2-1)*T.catchOffset
-   local ox,oy=math.cos(g.angle),math.sin(g.angle)
-   local ia=g.angle+math.pi
-   e.body:setPosition(gx+ox*d-oy*off,gy+oy*d+ox*off);e.body:setAngle(ia)
-   e.body:setLinearVelocity(math.cos(ia)*r.speed,math.sin(ia)*r.speed)
+   -- off the lane: it wakes where its offline track has it, coming in
+   -- over the edge from its origin's bearing (see start())
    r.driverArrival=nil
   elseif nearDriver(source) or nearDriver(destination) then
    -- A driver on the graph is one point, the middle of the gun; the ship
