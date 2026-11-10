@@ -58,7 +58,8 @@ return function(game)
  Tasks.release(u,competitor,'fixture ended',u.clock)
  for _,o in pairs(u.tasks.offers) do if not o.owner then o.readyAt=0 end end
  u.npcs[competitor.id]=nil
- O.update(game,r,collectedAt+T.salvagerCollectTime+1)
+ u.clock=collectedAt+T.salvagerCollectTime+1
+ A.advance(r,u.clock,u,game)
  check(r.salvageReturn and r.task.phase=='selling','loaded salvager did not return to a local market')
  local target=r.salvageGoal
  check(L.get(target).area=='earth','salvager returned to a nonlocal station')
@@ -80,7 +81,7 @@ return function(game)
  -- Physical pickup: fly toward an out-of-range item, then exercise the real beam.
  game:loadField('earth');game:captureALife(true);u=game.universe
  r=u.npcs[id];Tasks.release(u,r,'local fixture',u.clock)
- r.salvageVisit=0;r.salvageReturn=nil;r.salvageGoal=target;r.area='earth';r.state='docked'
+ r.salvageVisit=0;r.salvageReturn=nil;r.salvageGoal=target;r.area='earth';r.state='docked';r.lootCheckAt=nil
  r.ship.cargo={[Fuel.item()]=20};r.ship.hold=nil;r.ship.fuelCharge=0;r.power=100
  for _,o in pairs(u.tasks.offers) do if not o.owner then o.readyAt=0 end end
  check(S.depart(game,r,target,u.clock),'local board offered no new collection job')
@@ -90,7 +91,7 @@ return function(game)
  game:spawnPickup(px+e.halfLength+1500,py,'salvage_kit',1)
  local pickup=game.pickups[#game.pickups]
  AI.think(game,e,1/120)
- check(e.scavengePickup==pickup and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
+ check(r.action and r.action.operation=='collect' and r.action.target.id==pickup.looseId and not e.intent.tractor and (e.intent.thrust~=0 or e.intent.strafe~=0),'salvager did not physically pursue a distant item')
  check((e.cargo.salvage_kit or 0)==0,'pursuit copied a distant item into cargo')
  pickup.x,pickup.y=px,py;e.scavengeThink=0
  AI.think(game,e,1/120);game:updatePickups(1/120)

@@ -149,7 +149,7 @@ function P.update(game,clock)
  if game.preview then return end
  local u=game.universe;local counts={}
  for _,r in pairs(u.npcs) do
-  if r.state~='dead' and r.state~='escaped' then
+  if r.populationGroup and r.state~='dead' and r.state~='escaped' then
    local key=P.where(r)..'/'..r.populationGroup;counts[key]=(counts[key] or 0)+1
   end
  end

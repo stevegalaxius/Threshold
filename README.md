@@ -985,4 +985,6 @@ F6 shows the current action, target, phase and pause/failure reason. See
 
 ## Tests
 
+`love . --actiontest` runs a bounded real-engine action smoke pass: action lifecycle, authorization, salvage pickup/sale and a physical mining drill/tractor check.
+
 `love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

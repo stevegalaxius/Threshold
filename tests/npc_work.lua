@@ -47,13 +47,13 @@ return function(game)
    ship={hull=def.hull,loadout=loadout,cargo={[Fuel.item()]=30,iron_ore=5},fuelInitialized=true,fuelCharge=T.reactorFuelEnergy,
     armor=Stats.compute(data.hulls[def.hull],loadout).armor}}
   Templates.apply(r,'miner','phobos');r.homeStation=home;r.workWeights={mine=1,transport=0,salvage=0,patrol=0}
-  local w={clock=0,npcs={[r.id]=r},stations={}}
+  local w={clock=1,npcs={[r.id]=r},stations={}}
   local scene=setmetatable({universe=w},{__index=game})
   local supplies=require('src.supplies');local original=supplies.universe;supplies.universe=w
   local state=M.state(w)
   state.sites[siteId]={id=siteId,area='phobos',home=home,x=spec.x,y=spec.y,radius=spec.radius,angle=0,item='iron_ore'}
   Tasks.post(w,{kind='mine',source=home,target=siteId,item='iron_ore',area='phobos'})
-  assert(NPC.decide(w,r,home,0,scene) and M.active(r),'common controller accepts equipped mining work')
+  assert(NPC.decide(w,r,home,w.clock,scene) and M.active(r),'common controller accepts equipped mining work')
   local x,y=L.position(siteId,0)
   state.resources.test={id='test',site=siteId,area='phobos',kind='rock',item='iron_ore',hp=1,yield=T.minerLoad,radius=1,x=x,y=y,vx=0,vy=0,clock=0}
   w.clock=r.arrive;NPC.advance(r,w.clock,w,scene)
