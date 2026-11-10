@@ -385,6 +385,7 @@ function Debug.update(dt, game)
 					end
 				end
 			end, game)
+			section('dbg_chemicals','Chemical production and prices',function(g) require('src.chemical_economy').panel(g,Slab) end,game)
 		end
 		Slab.EndWindow()
 	end

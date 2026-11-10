@@ -584,6 +584,7 @@ function Fields.configureLocations(area)
         -- what this station offers and makes belong to the place, not its design
         place.services,place.industry=entry.services,entry.industry
         place.food=entry.food
+        place.chemicalCapacity,place.chemicalReserves=entry.chemicalCapacity,entry.chemicalReserves
         place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}
         for purpose,enabled in pairs(entry.uses or {}) do place.uses[purpose]=enabled end
     end

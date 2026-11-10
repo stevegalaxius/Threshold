@@ -144,6 +144,9 @@ local function details(game)
   Slab.Text(('Job: %s %s  %s > %s  (%s%s%s)'):format(t.kind,what,place(t.source),place(t.target),
    tostring(t.phase),t.order and ', station order' or '',r.suspendedTask and ', suspended' or ''))
   if t.kind=='transport' then
+   if t.commodityBuyPrice then
+    Slab.Text(('Cargo unit quote: %.2f cr at source / %.2f cr at destination'):format(t.commodityBuyPrice,t.commoditySellPrice))
+   end
    local payment=require('src.transport').payment(t)
    Slab.Text(('Delivery: %.2f AU; %d x %.2f cr/unit = %d cr%s'):format(t.routeAU,t.amount,t.creditsPerUnit,payment,
     t.phase=='pickup' and ' (subject to loaded quantity)' or ''))

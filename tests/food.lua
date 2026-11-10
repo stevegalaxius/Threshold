@@ -66,14 +66,15 @@ return function(game)
  -- Fertilizer makers use the ordinary recipe/input mechanism.
  local sourceWorld={clock=0,stations={}}
  local source='station:belt_1'
- Stock.count(sourceWorld,source,Food.fertilizer)
+ Stock.count(sourceWorld,source,'nitrates')
  -- Isolate the fertilizer recipe from the fuel recipe sharing this input.
  for _,item in ipairs({'iron_ore','empty_canister','water_ice'}) do
   Stock.take(sourceWorld,source,item,Stock.count(sourceWorld,source,item))
  end
  Stock.add(sourceWorld,source,'water_ice',10)
  sourceWorld.clock=900
- assert(Stock.count(sourceWorld,source,Food.fertilizer)==10 and Stock.count(sourceWorld,source,'water_ice')==0,'fertilizer did not consume its production input')
+ assert(Stock.count(sourceWorld,source,'nitrates')==10 and Stock.count(sourceWorld,source,'water_ice')==0,'Ceres nitrates did not consume ice')
+ Stock.add(sourceWorld,'station:callisto_2',Food.fertilizer,10)
  local reserve=Stock.count(sourceWorld,farm,Food.fertilizer)
  Stock.take(sourceWorld,farm,Food.fertilizer,reserve)
  E.update(sourceWorld,sourceWorld.clock)
@@ -83,11 +84,12 @@ return function(game)
  end
  assert(fertilizerOrder,'farm did not order fertilizer through ordinary freight')
  -- Saturn's moon plants produce directly; Ceres alone processes ice.
- for _,source in ipairs({'station:enceladus_1','station:titan_2'}) do
+ for _,source in ipairs({'station:enceladus_1','station:titan_1','station:ganymede_1'}) do
   local moon={clock=0,stations={}}
-  Stock.count(moon,source,Food.fertilizer)
+  Stock.count(moon,source,'nitrates')
   moon.clock=3600
-  assert(Stock.count(moon,source,Food.fertilizer)==40,'Saturn moon plant required an input or failed to produce fertilizer')
+  local rate=require('src.commodities').byId.produce_nitrates.make[source]
+  assert(Stock.count(moon,source,'nitrates')==rate,'chemical-rich moon required an input or failed to produce nitrates')
  end
  local ladder='station:mars_3'
  local opening=Stock.count(u,ladder,Food.item)

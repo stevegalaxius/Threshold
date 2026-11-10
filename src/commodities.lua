@@ -12,10 +12,12 @@
 -- and how fast, is the station's own (its industry in src/world_layout.lua:
 -- recipe id = units an hour, a negative rate uses the item up).
 local C={list={
- -- processing mineral-bearing ice into agricultural nutrients
- {id='make_fertilizer',item='fertilizer',cap=240,input={item='water_ice',n=1}},
- -- Saturn's moon stations supply fertilizer directly, without imported inputs
- {id='produce_fertilizer',item='fertilizer',cap=240},
+ -- Raw nitrates: Ceres processes ice, chemical-rich moons supply directly.
+ {id='process_nitrates',item='nitrates',cap=480,input={item='water_ice',n=1}},
+ {id='produce_nitrates',item='nitrates',cap=480},
+ -- Each unit uses one unit of a plant's shared chemical processing time.
+ {id='make_fertilizer',item='fertilizer',factory='chemicals',cap=240,input={item='nitrates',n=1}},
+ {id='make_explosives',item='explosives',factory='chemicals',cap=240,input={item='nitrates',n=2}},
  -- rolled steel shares the same item as plates recovered from wrecks
  {id='roll_steel',item='steel_plate',cap=240,input={item='iron_ore',n=2}},
  -- pressing empty canisters out of ore
@@ -38,6 +40,9 @@ function C.load()
  for _,c in ipairs(C.list) do c.make,c.use={},{} end
  for _,entries in pairs(W.stations) do
   for _,entry in ipairs(entries) do
+   for _,c in ipairs(C.list) do
+    if c.factory and entry.chemicalCapacity then c.make[entry.id]=entry.chemicalCapacity end
+   end
    for id,rate in pairs(entry.industry or {}) do
     local c=assert(C.byId[id],'unknown recipe '..tostring(id)..' at '..entry.id)
     if rate>0 then c.make[entry.id]=rate else c.use[entry.id]=-rate end

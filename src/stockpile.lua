@@ -32,7 +32,7 @@ function S.definition(st)
 end
 
 function S.shops(st)
- local mk=S.definition(st);local shops={};local supplied,fueled,food,steel=false,false,false,false
+ local mk=S.definition(st);local shops={};local supplied,fueled,food,steel,chemicals=false,false,false,false,false
  local fuel=require('src.reactor_fuel').item()
  local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
  for _,shop in ipairs(existing) do
@@ -40,9 +40,11 @@ function S.shops(st)
   fueled=fueled or not shop.unlimited and S.lists(shop,fuel)
   food=food or not shop.unlimited and S.lists(shop,'food_crate')
   steel=steel or not shop.unlimited and S.lists(shop,'steel_plate')
+  chemicals=chemicals or not shop.unlimited and S.lists(shop,'nitrates') and S.lists(shop,'explosives')
  end
  if not food then shops[#shops+1]=require('src.food').shop() end
  if not steel then shops[#shops+1]=require('src.repair_materials').shop() end
+ if not chemicals then shops[#shops+1]=require('src.chemical_economy').shop() end
  -- the real fuel storefront, unless a shop here already stocks fuel
  if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
  if not supplied then shops[#shops+1]=require('src.supplies').shop() end
@@ -116,6 +118,8 @@ function S.stock(u,st,i)
    local P=require('src.repair_materials')
    stock[P.item]=P.supports(key) and P.floor*2 or nil
   end
+  if S.shopFor(key,'nitrates')==i then stock.nitrates=require('src.chemical_economy').capacity(key)*2 end
+  if S.shopFor(key,'explosives')==i then stock.explosives=nil end
   m.stock=stock
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]

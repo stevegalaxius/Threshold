@@ -71,6 +71,7 @@ local function supportsSupplies(id) return require('src.supplies').supports(id) 
 -- speeds up while buyers of what it makes go short and it ships all it
 -- makes, and slows down while its own stock sits unwanted (E.adjust).
 function E.scale(u,key,c)
+ if c.factory then return require('src.chemical_economy').scale(u,key,c.item) end
  local t=u.industry and u.industry[key];return t and t[c.id] or 1
 end
 local function fed(u,key,c)
@@ -82,6 +83,7 @@ end
 local function adjust(u,unmet)
  u.industry=u.industry or {}
  for _,c in ipairs(C.list) do
+  if not c.factory then
   for key in pairs(c.make) do
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
@@ -92,6 +94,7 @@ local function adjust(u,unmet)
    -- capacity would just raise its own input orders, round and round
    elseif (unmet[c.item] or 0)>0 and have<E.lot and fed(u,key,c) then v=v*(1+E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
+  end
   end
  end
 end
@@ -122,6 +125,9 @@ function E.target(u,key,item,supplier)
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  local P=require('src.repair_materials')
  if item==P.item and P.supports(key) then want=math.max(want,P.floor) end
+ local place=L.byId[key]
+ if place then want=math.max(want,place.chemicalReserves and place.chemicalReserves[item] or 0) end
+ if item=='nitrates' then want=math.max(want,require('src.chemical_economy').capacity(key)*E.hours) end
  return math.ceil(want)
 end
 -- The goods that move: every commodity, its inputs, what the drills dig,
@@ -168,16 +174,20 @@ function E.update(u,clock)
  -- count what's ordered or on the way; an order nobody has taken in
  -- E.expire seconds is withdrawn, to be placed again from wherever the
  -- stock is now
- local inbound={}
+ local inbound,committed={},{}
  for id,o in pairs(state.offers) do
   if o.layoutScope==E.scope then
    if o.state=='available' and clock-(o.placed or clock)>E.expire then state.offers[id]=nil
-   else local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount end
+   else
+    local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount
+    if o.state~='available' then committed[k]=(committed[k] or 0)+o.amount end
+   end
   end
  end
  local reach={}
  local all=stations()
  local inhabited=stations(true)
+ require('src.chemical_economy').update(u,clock,all,committed)
  -- what buyers wanted that no station could supply, by good
  local unmet={}
  for _,item in ipairs(goods()) do
@@ -209,6 +219,10 @@ function E.update(u,clock)
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
        local score=distance(s,c,clock)*100-spare[s]
+       local Chemicals=require('src.chemical_economy')
+       if Chemicals.items[item] then
+        score=Chemicals.price(u,s,item)+Transport.quote({source=s,target=c,amount=1},clock).creditsPerUnit-spare[s]*1e-6
+       end
        if not bestScore or score<bestScore then best,bestScore=s,score end
       end
      end
@@ -226,7 +240,7 @@ function E.update(u,clock)
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock},clock))
+     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
   end

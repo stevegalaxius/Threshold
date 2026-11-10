@@ -59,10 +59,21 @@ end
 
 -- Game.priceFactor: the docked station's reputation discount or markup (src/reputation.lua), set by stationMarket.
 Game.priceFactor=1
-function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or Game.stackValue(s.id,s.n,s.inner))*Game.priceFactor) end
-function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(Game.stackValue(s.id,s.n,s.inner)*T.sellRate) end
+local function tradeValue(s)
+ local C=require('src.chemical_economy')
+ if C.items[s.id] and not s.inner and Game.marketUniverse and Game.marketStation then
+  return C.price(Game.marketUniverse,Game.marketStation,s.id)*s.n
+ end
+ return Game.stackValue(s.id,s.n,s.inner)
+end
+function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or tradeValue(s))*Game.priceFactor) end
+function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(tradeValue(s)*T.sellRate) end
 
 function Game:credits() return self.universe.credits end
+function Game:setMarketPrices(st)
+ Game.marketUniverse,Game.marketStation=self.universe,Stock.key(st)
+ Game.priceFactor=require('src.reputation').priceFactor(self.universe,st.key or st.locationId)
+end
 
 -- Seconds for one more stack of a catalogue entry to come in.
 local function restockTime(e)
@@ -180,7 +191,7 @@ end
 -- that stockpile, and what you sell goes to the shop you sold it to.
 function Game:stationMarket(st, i)
 	local r = self:stationRecord(st)
-	Game.priceFactor = require("src.reputation").priceFactor(self.universe, st.key or st.locationId)
+	self:setMarketPrices(st)
 	i = i or self:currentShop(st)
 	r.shops = r.shops or {}
 	local m = r.shops[i]
@@ -219,7 +230,7 @@ function Game:shopTick(st, i, shop, away)
 		local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
 		local function have() return stock and (stock[id] or 0) or stockCount(mk.hold, id) + (away and away[id] or 0) end
 		-- Food, fertilizer and steel come from production or recovery.
-		if id=='food_crate' or id=='fertilizer' or id=='steel_plate' then mk.next[id]=nil else
+		if id=='food_crate' or id=='steel_plate' or require('src.chemical_economy').items[id] then mk.next[id]=nil else
 		-- the timed restock stands in for production until stations make goods
 		while have() < want and mk.next[id] and mk.next[id] <= now do
 			if stock then
@@ -305,6 +316,7 @@ end
 -- Why the trade can't go through, or nil if it can: you can't cover the
 -- difference, or what you're buying won't fit in your hold and storage.
 function Game:tradeProblem(st, trade)
+	self:setMarketPrices(st)
 	local buying, selling = split(trade)
 	if #buying + #selling == 0 then return "NOTHING ON THE TABLE" end
 	local get, pay = Game.tradeTotals(trade)
@@ -349,7 +361,7 @@ function Game:completeTrade(st, trade)
 	for _, s in ipairs(selling) do
 		-- resale: it can be bought back until it's sold on
 		-- (no room on the shelf: it's sold on straight away)
-		if s.id=='steel_plate' and not s.inner then Stock.add(u,st,s.id,s.n)
+		if (s.id=='steel_plate' or require('src.chemical_economy').items[s.id]) and not s.inner then Stock.add(u,st,s.id,s.n)
 		elseif not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
 	end
 	for _, g in ipairs(trade.grids) do

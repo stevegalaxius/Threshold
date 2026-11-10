@@ -39,7 +39,7 @@ end
 -- Quote the delivery route, excluding empty travel to pickup and service detours.
 -- Only mass-driver legs cover AU; local and moon-gate legs use the base rate.
 -- AU is quoted to hundredths so the displayed distance explains the price.
-function Transport.quote(t,clock)
+function Transport.quote(t,clock,u)
  clock=t.placed or t.assigned or clock or 0
  if t.routeAU==nil then
   local route=Transport.route(t.source,t.target,clock) or {}
@@ -55,6 +55,11 @@ function Transport.quote(t,clock)
  -- Existing flat-rate contracts retain their agreed price.
  if t.creditsPerUnit==nil then
   t.creditsPerUnit=math.floor((T.freightCreditsPerUnit+t.routeAU*T.freightCreditsPerAU)*100+.5)/100
+ end
+ local Chemicals=require('src.chemical_economy')
+ if u and Chemicals.items[t.item] then
+  t.commodityBuyPrice=t.commodityBuyPrice or Chemicals.price(u,t.source,t.item)
+  t.commoditySellPrice=t.commoditySellPrice or Chemicals.price(u,t.target,t.item)
  end
  return t
 end
@@ -111,7 +116,7 @@ Tasks.register('transport',{
    +(o.order and 10000000*(1+(o.priority or 0)) or 0)
  end,
  prepare=function(u,r,t,station,clock)
-  Transport.quote(t,clock)
+  Transport.quote(t,clock,u)
   if t.order then
    -- fold in the other open orders on the same run, so one trip carries a
    -- full hold instead of a few canisters
@@ -119,8 +124,9 @@ Tasks.register('transport',{
    for id,o in pairs(offers) do
     if id~=t.id and o.order and o.state=='available' and o.source==t.source and o.target==t.target
      and o.item==t.item and t.amount+o.amount<=fit then
-     Transport.quote(o,clock)
-     if o.creditsPerUnit==t.creditsPerUnit and o.routeAU==t.routeAU then
+     Transport.quote(o,clock,u)
+     if o.creditsPerUnit==t.creditsPerUnit and o.routeAU==t.routeAU
+      and o.commodityBuyPrice==t.commodityBuyPrice and o.commoditySellPrice==t.commoditySellPrice then
       t.amount=t.amount+o.amount;offers[id]=nil
      end
     end
@@ -141,7 +147,7 @@ Tasks.register('transport',{
  end,
  complete=function(u,r,t,station,clock)
   if t.settled then return true end
-  Transport.quote(t,clock)
+  Transport.quote(t,clock,u)
   if t.phase=='pickup' then
    -- Arrived empty at the source: load up, then carry on to the target.
    if station~=t.source then return false end
@@ -170,7 +176,8 @@ Tasks.register('transport',{
   r.freightEarnings=(r.freightEarnings or 0)+paid
   t.settled=true
   require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
-   {taskId=t.id,source=t.source,target=t.target,item=t.item,amount=t.amount,routeAU=t.routeAU,creditsPerUnit=t.creditsPerUnit,payment=paid},station)
+   {taskId=t.id,source=t.source,target=t.target,item=t.item,amount=t.amount,routeAU=t.routeAU,creditsPerUnit=t.creditsPerUnit,payment=paid,
+    commodityBuyPrice=t.commodityBuyPrice,commoditySellPrice=t.commoditySellPrice},station)
   return true
  end
 })

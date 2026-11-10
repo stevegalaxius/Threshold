@@ -29,7 +29,7 @@ function S.sell(game,r,node,clock)
   if n>0 then
    local stack={id=id,n=n,resale=(clock or game.universe.clock)+T.resaleTime}
    shelf=shelf or game:stationMarket({key=node,locationId=node},1).hold
-   if id=='steel_plate' then require('src.stockpile').add(game.universe,node,id,n)
+   if id=='steel_plate' or require('src.chemical_economy').items[id] then require('src.stockpile').add(game.universe,node,id,n)
    else Hold.placeStack(shelf,stack) end -- other goods remain ordinary resale
    total=total+game.sellPrice(stack);sold[id]=n
    if h then Hold.take(h,id,n) else cargo[id]=cargo[id]-n end

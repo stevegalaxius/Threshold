@@ -368,6 +368,13 @@ local function saveShip(rec)
 	}
 end
 
+local function saveShop(m)
+ local out={}
+ for k,v in pairs(m) do if k~='hold' then out[k]=Persistence.copy(v) end end
+ out.hold=m.hold and Hold.serialize(m.hold)
+ return out
+end
+
 local function known(id) return data.items[id] ~= nil end
 
 -- NPC records keep their ship as plain ids. Renamed hulls and modules take
@@ -429,8 +436,8 @@ function Game:saveState()
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
 		local shops = {}
-		for i, m in pairs(r.shops or {}) do shops[i] = { hold = m.hold and Hold.serialize(m.hold), next = m.next, stock = Persistence.copy(m.stock) } end
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial }
+		for i, m in pairs(r.shops or {}) do shops[i] = saveShop(m) end
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial, food=Persistence.copy(r.food),usage=Persistence.copy(r.usage) }
 	end
 	local u = self.universe
 	-- saved mid-lane: you load back into the same lane (state.trip), where
@@ -443,6 +450,7 @@ function Game:saveState()
 			moon = trip.moon, origin = trip.origin and { x = trip.origin.x, y = trip.origin.y } }
 	end
 	local state = { field = field, trip = state_trip, kills = self.kills, home = u.home, stations = stations,
+		chemicalEconomy=Persistence.copy(u.chemicalEconomy),
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
@@ -497,6 +505,7 @@ function Game:loadState(state)
  self.universe.worldLocations=Persistence.copy(state.worldLocations or state.worldStations)
 	self.universe.mining = Persistence.copy(state.mining)
 	self.universe.jobs = Persistence.copy(state.jobs)
+	self.universe.chemicalEconomy=Persistence.copy(state.chemicalEconomy)
 	self.universe.tasks = Persistence.copy(state.tasks)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
@@ -525,13 +534,16 @@ function Game:loadState(state)
 		self.universe.stations[key] = {
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
-			hangar = hangar, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,
+			hangar = hangar, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),
 			shop = r.shop,
 		}
 		-- shops; a save from before shops had one market, which is shop 1
 		local shops = {}
 		for i, m in pairs(r.shops or (r.market and { r.market }) or {}) do
-			shops[tonumber(i)] = { hold = m.hold and Hold.deserialize(m.hold, known), next = m.next or {}, stock = Persistence.copy(m.stock) }
+			local restored={}
+			for k,v in pairs(m) do if k~='hold' then restored[k]=Persistence.copy(v) end end
+			restored.hold=m.hold and Hold.deserialize(m.hold,known);restored.next=restored.next or {}
+			shops[tonumber(i)]=restored
 		end
 		self.universe.stations[key].shops = shops
 	end

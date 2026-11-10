@@ -111,6 +111,7 @@ function love.load(args)
 		["--sitestest"] = "tests.sites",
 		["--handofftest"] = "tests.npc_handoff",
 		["--foodtest"] = "tests.food",
+		["--chemicaltest"] = "tests.chemicals",
 		["--steeltest"] = "tests.steel",
 	}
 	for _, a in ipairs(args or {}) do
