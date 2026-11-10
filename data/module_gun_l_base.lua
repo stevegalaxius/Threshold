@@ -14,7 +14,7 @@ module {
 		fireRate = 8,
 		gimbal = 10,
 		chambers = { "gun" }, kind = "cannon",
-		recoilPct = 17.5,
+		recoilPct = 3,
 		spread = 1,
 	},
 	art = {

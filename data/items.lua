@@ -34,9 +34,9 @@
 ]]
 
 ammo { id = "rounds_s", name = "Solid Rounds S", shortName = "Solid S", default = true,  maker = "Halcyon Arms",       family = "gun",       size = "S", volume = 0.02, mass = 0.02, price = 3, w = 1, h = 1, stack = 50,
-	shot = { damage = 12, speed = 4600, range = 8600, knockback = 40 } }
+	shot = { damage = 12, speed = 4600, range = 8600, knockback = 250 } }
 ammo { id = "rounds_m", name = "Solid Rounds M", shortName = "Solid M", default = true,  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
-	shot = { damage = 36, speed = 4800, range = 9800, knockback = 70 } }
+	shot = { damage = 36, speed = 4800, range = 9800, knockback = 400 } }
 
 -- Fixed-fuse gun rounds: forgiving coverage, less damage even on a direct hit.
 ammo { id = "airburst_s", name = "Airburst Rounds S", shortName = "Airburst S", maker = "Halcyon Arms", family = "gun", size = "S", volume = 0.02, mass = 0.02, price = 4, w = 1, h = 1, stack = 50,
@@ -52,11 +52,11 @@ ammo { id = "shell_l", name = "Explosive Shells L", shortName = "Explosive L", d
 	shot = { damage = 180, splash = 130, speed = 6800, range = 13000, knockback = 26000 } }
 
 ammo { id = "shot_s", name = "Scatter Shells S", shortName = "Scatter S", maker = "Halcyon Arms",    family = "artillery", size = "S", volume = 0.06, mass = 0.05, price = 8, w = 1, h = 1, stack = 16,
-	shot = { damage = 9, pellets = 6, pelletSpread = 7, speed = 5400, range = 3000, knockback = 20 } }
+	shot = { damage = 9, pellets = 6, pelletSpread = 7, speed = 5400, range = 3000, knockback = 120 } }
 ammo { id = "shot_m", name = "Scatter Shells M", shortName = "Scatter M", maker = "Brute Industries",  family = "artillery", size = "M", volume = 0.12, mass = 0.10, price = 18, w = 1, h = 1, stack = 8,
-	shot = { damage = 16, pellets = 7, pelletSpread = 6, speed = 5600, range = 3600, knockback = 35 } }
+	shot = { damage = 16, pellets = 7, pelletSpread = 6, speed = 5600, range = 3600, knockback = 220 } }
 ammo { id = "shot_l", name = "Scatter Shells L", shortName = "Scatter L", maker = "Brute Industries", family = "artillery", size = "L", volume = 0.25, mass = 0.20, price = 40, w = 2, h = 1, stack = 6,
-	shot = { damage = 28, pellets = 8, pelletSpread = 5, speed = 5800, range = 4200, knockback = 60 } }
+	shot = { damage = 28, pellets = 8, pelletSpread = 5, speed = 5800, range = 4200, knockback = 400 } }
 
 ammo { id = "missile_s", name = "Missile S", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.08, mass = 0.06, price = 15, w = 2, h = 1, stack = 20,
 	shot = { armTime = 1.0, damage = 14, splash = 35, speed = 6100, range = 12600, knockback = 5000, accel = 2200, turnRate = 5 } }
