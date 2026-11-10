@@ -215,7 +215,7 @@ function E.update(u,clock)
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     Tasks.post(u,{kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock})
+     layoutScope=E.scope,order=true,priority=priority,cooldown=30,placed=clock,creditsPerUnit=T.freightCreditsPerUnit})
     spare[best]=spare[best]-n;short=short-n
    end
   end

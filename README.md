@@ -925,6 +925,15 @@ When that task kind is registered again, the same assignment resumes without
 running pickup preparation again. Explicit cancellation or the worker's death
 still releases its reservation normally.
 
+Freight orders pay NPC haulers 2 credits per delivered unit (tunable through
+`T.freightCreditsPerUnit`). The destination commissions the shipment from an
+unlimited operating budget; haulers do not purchase the goods. The quoted rate
+survives saves and service detours. Pickup earns nothing, lost cargo earns
+nothing, and reduced loads earn proportionally. F6 shows each NPC's credits,
+freight earnings and active delivery payment. Successful deliveries record a
+`freight_delivered` simulation outcome with cargo, route and payment.
+
+
 ## Tests
 
 `love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.

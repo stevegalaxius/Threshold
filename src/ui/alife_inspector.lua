@@ -98,6 +98,7 @@ local function details(game)
  Slab.Text(('%s  %s  %s  (%s)'):format(r.id,r.role or '?',hull and hull.name or r.ship.hull,e and 'online' or 'offline'))
  Slab.Text('Driven by: '..Trace.controller(game,r,e))
  Slab.Text(('State: %s in %s   status: %s'):format(r.state,r.area or 'transit',tostring(r.taskStatus)))
+ Slab.Text(('Credits: %d   freight earnings: %d'):format(r.credits or 0,r.freightEarnings or 0))
  Slab.Text('Fuel: '..fuelLine(r,e))
  local maxArmor=require('src.npc_repair').maximum(r)
  Slab.Text(('Hull: %.0f / %.0f   needs: %s'):format(e and e.armor or r.ship.armor or 0,maxArmor,tostring(require('src.upkeep').need(r,e) or 'none')))
@@ -122,6 +123,9 @@ local function details(game)
   local what=t.item and ('%d %s'):format(t.amount or 0,data.items[t.item] and data.items[t.item].name or t.item) or ''
   Slab.Text(('Job: %s %s  %s > %s  (%s%s%s)'):format(t.kind,what,place(t.source),place(t.target),
    tostring(t.phase),t.order and ', station order' or '',r.suspendedTask and ', suspended' or ''))
+  if t.kind=='transport' then
+   Slab.Text(('Delivery payment: %d cr%s'):format(require('src.transport').payment(t),t.phase=='pickup' and ' (subject to loaded quantity)' or ''))
+  end
   -- The route above is only this map's legs. Where the job takes it after
   -- them: the maps on the way to its next job stop (the pickup, then the
   -- delivery), so a trader crossing Saturn to reach Ceres reads as such.

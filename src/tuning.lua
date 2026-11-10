@@ -337,7 +337,8 @@ T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.fuelEmergency=2
-T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take   -- canisters an NPC running dry gets free at an empty station
+T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
+T.freightCreditsPerUnit=2 -- destination pays per delivered unit; no pickup fee
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

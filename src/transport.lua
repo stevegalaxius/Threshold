@@ -1,5 +1,6 @@
 -- Transport tasks: carry a station's order (src/economy.lua) from the
--- station that has the goods to the one that wants them. No prices yet.
+-- station that has the goods to the one that wants them. The destination
+-- commissions the shipment; its operating budget is unlimited for now.
 local Tasks=require('src.tasks')
 local Fields=require('src.fields')
 local L=require('src.locations')
@@ -9,6 +10,12 @@ local data=require('src.data')
 local J=require('src.jobs')
 local T=require('src.tuning')
 local Transport={}
+-- Accepted work keeps its rate across saves and tuning changes. Old manifests
+-- acquire the default once, without resetting their phase or cargo.
+function Transport.payment(t)
+ if t.creditsPerUnit==nil then t.creditsPerUnit=T.freightCreditsPerUnit end
+ return math.floor(t.amount*t.creditsPerUnit)
+end
 local function hold(r)
  return r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
 end
@@ -81,13 +88,15 @@ Tasks.register('transport',{
    +(o.order and 10000000*(1+(o.priority or 0)) or 0)
  end,
  prepare=function(u,r,t,station,clock)
+  Transport.payment(t)
   if t.order then
    -- fold in the other open orders on the same run, so one trip carries a
    -- full hold instead of a few canisters
    local offers=Tasks.state(u).offers;local fit=room(r,t.item,1e6)
    for id,o in pairs(offers) do
     if id~=t.id and o.order and o.state=='available' and o.source==t.source and o.target==t.target
-     and o.item==t.item and t.amount+o.amount<=fit then
+     and o.item==t.item and (o.creditsPerUnit or T.freightCreditsPerUnit)==t.creditsPerUnit
+     and t.amount+o.amount<=fit then
      t.amount=t.amount+o.amount;offers[id]=nil
     end
    end
@@ -106,6 +115,8 @@ Tasks.register('transport',{
   return true
  end,
  complete=function(u,r,t,station,clock)
+  if t.settled then return true end
+  Transport.payment(t)
   if t.phase=='pickup' then
    -- Arrived empty at the source: load up, then carry on to the target.
    if station~=t.source then return false end
@@ -113,6 +124,7 @@ Tasks.register('transport',{
    if room(r,t.item,t.amount)<t.amount or ((t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount)) then
     Tasks.release(u,r,'nothing to pick up',clock);return false
    end
+   local offer=Tasks.state(u).offers[t.id];if offer then offer.amount=t.amount end
    cargo(r,t.item,t.amount);t.phase='delivery';t.route=Transport.route(t.source,t.target,clock)
    return false
   end
@@ -128,12 +140,23 @@ Tasks.register('transport',{
   local state=Tasks.state(u);state.delivered=state.delivered or {}
   state.delivered[station]=(state.delivered[station] or 0)+t.amount
   r.lastDestination=station;r.lastOrigin=t.source
+  local paid=Transport.payment(t)
+  r.credits=(r.credits or 0)+paid
+  r.freightEarnings=(r.freightEarnings or 0)+paid
+  t.settled=true
+  require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
+   {taskId=t.id,source=t.source,target=t.target,item=t.item,amount=t.amount,payment=paid},station)
   return true
  end
 })
 function Transport.seed(u)
  local state=Tasks.state(u)
  state.transportSeeded=true
+ for _,o in pairs(state.offers) do if o.kind=='transport' then Transport.payment(o) end end
+ for _,r in pairs(u.npcs or {}) do
+  local t=r.task or r.suspendedTask
+  if t and t.kind=='transport' then Transport.payment(t) end
+ end
  -- Nothing is authored any more: every haul is a station's order
  -- (src/economy.lua). Syncing an empty list clears the old scrap and
  -- freight runs from saves, leaving reserved trips to finish.

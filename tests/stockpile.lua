@@ -50,16 +50,40 @@ return function(game)
  do
   local r=template;r.id='npc/990001';r.task=nil;r.ship.hold=nil;r.ship.cargo={}
   local w={clock=u.clock,npcs={[r.id]=r},stations=u.stations,mining=u.mining}
-  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,cap=60})
+  local credits=r.credits or 0
+  local earnings=r.freightEarnings or 0
+  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true,creditsPerUnit=7})
+  Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=5,stocked=true,order=true,creditsPerUnit=7})
   J.deliver(w,jup,'hydrogen_canister',20)
   local t=Tasks.choose(w,r,ven,w.clock)
   assert(t and t.phase=='pickup','trader takes remote work as a pickup')
   local route=Tasks.plan(r,ven,w.clock);assert(route and route[#route]==jup,'pickup route ends at the source')
+  assert(t.amount==15 and (r.credits or 0)==credits,'matching orders merge without pickup payment')
+  -- Another visitor takes stock while this trader is flying to the pickup.
+  J.take(w,jup,'hydrogen_canister',J.available(w,jup,'hydrogen_canister')-6)
   local before=J.available(w,jup,'hydrogen_canister')
   Tasks.arrive(w,r,jup,w.clock)
-  assert(r.task.phase=='delivery' and J.available(w,jup,'hydrogen_canister')==before-10,'loads at the source')
+  assert(r.task.phase=='delivery' and J.available(w,jup,'hydrogen_canister')==before-6 and t.amount==6,'loads only the remaining stock')
   local leg=Tasks.plan(r,jup,w.clock);assert(leg and leg[#leg]==ven,'then heads for the target')
+  assert((r.credits or 0)==credits,'loading does not pay')
+  local Save=require('src.save')
+  r.task=assert(Save.decode(Save.encode(r.task)))
+  assert(r.task.creditsPerUnit==7,'saved shipment retains its quoted rate')
+  local task=r.task;local stock=J.available(w,ven,task.item)
   assert(Tasks.arrive(w,r,ven,w.clock),'and delivers')
+  assert(r.credits==credits+42 and r.freightEarnings==earnings+42,'pays for actual delivered quantity')
+  assert(J.available(w,ven,task.item)==stock+6,'destination receives the load')
+  Tasks.definitions.transport.complete(w,r,task,ven,w.clock)
+  assert(r.credits==credits+42 and J.available(w,ven,task.item)==stock+6,'repeated completion changes nothing')
+  local history=require('src.simulation_history').recent(w,{kind='freight_delivered'})
+  assert(#history==1 and history[1].result.payment==42,'one delivery outcome records the payment')
+  -- A later shipment loses cargo: no payout and the order is released.
+  J.deliver(w,jup,'hydrogen_canister',10)
+  local offer=Tasks.post(w,{kind='transport',source=jup,target=ven,item='hydrogen_canister',amount=10,stocked=true,order=true})
+  local lost=assert(Tasks.choose(w,r,jup,w.clock))
+  r.ship.cargo[lost.item]=lost.amount-1
+  assert(not Tasks.arrive(w,r,ven,w.clock) and not r.task,'lost cargo fails delivery')
+  assert(offer.state=='available' and r.credits==credits+42 and J.available(w,ven,lost.item)==stock+6,'failed delivery pays nothing and moves no stock')
  end
  print(('stockpile: ok (Mars made %d canisters in an hour; %d commodity hauls)'):format(made,hauls))
 end
