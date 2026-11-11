@@ -34,7 +34,11 @@ local function copy(t) local o = {}; for k, v in pairs(t or {}) do o[k] = v end;
 
 function D.def(st)
 	local mk = require("src.stockpile").definition(st)
-	return mk and mk.dealer
+	if mk and mk.dealer then return mk.dealer end
+ local place=require('src.locations').byId[require('src.stockpile').key(st)]
+ if place and place.kind=='station' and not place.accessOf then
+  return {name='Used ship exchange',hulls={'intaki_wisp'},lots=4,restock=8,usedOnly=true}
+ end
 end
 
 local function fitValue(hull, loadout)
@@ -84,9 +88,28 @@ function D.roll(def, state, hullId)
 		id = state.serial, hull = hull.id, dealerStock=true, trim = trim.id, trimName = trim.name,
 		paint = paints[rand(#paints)], loadout = trim.loadout,
 		price = D.price(hull, trim.loadout, def.markup),
+  cargo={[require('src.reactor_fuel').item()]=2},
+  armor=require('src.stats').compute(hull,trim.loadout).armor,
 	}
 end
 
+function D.rollUsed(def,state)
+ local policy=require('data.industry').usedShips
+ local preset=data.enemies[policy.presets[rand(#policy.presets)]]
+ local lot=D.roll({hulls={preset.hull},trims={'stock'},markup=policy.markup},state,preset.hull)
+ lot.loadout=copy(preset.loadout or data.hulls[preset.hull].loadout)
+ lot.used=true;lot.condition=policy.minCondition+(policy.maxCondition-policy.minCondition)*rand(1000)/1000
+ lot.trimName='Used';lot.price=D.price(data.hulls[lot.hull],lot.loadout,policy.markup*lot.condition)
+ local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
+ lot.armor=stats.armor*lot.condition
+ lot.cargo={[require('src.reactor_fuel').item()]=2}
+ return lot
+end
+local function park(u,key,s,lot)
+ local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+ if not parking then return false end
+ lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot;return true
+end
 -- Read/initialize dealer inventory. Reads never advance replenishment.
 function D.state(u, st)
 	local def = D.def(st)
@@ -100,7 +123,7 @@ function D.state(u, st)
 		s = { lots = {}, next = clock + (def.restock or 10) * HOUR }
 		u.dealers[key] = s
 		for _=1,math.ceil(cap*.6) do
-   local lot=D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+   local lot=def.assembly and D.roll(def,s) or D.rollUsed(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
    if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
   end
 	end
@@ -111,14 +134,13 @@ end
 
 -- Scheduled by industry, never by UI/read access.
 function D.update(u,key,clock)
- local s,def=D.state(u,key);if not s or def.assembly then return end
- local step=(def.restock or 10)*HOUR
+ local s,def=D.state(u,key);if not s then return end
+ local policy=require('data.industry').usedShips
+ local step=(def.assembly and policy.intervalHours or def.restock or policy.intervalHours)*HOUR
+ s.next=s.next or clock+step
  local elapsed=math.max(0,math.floor((clock-s.next)/step)+1)
  local count=math.min(elapsed,math.max(0,(def.lots or 6)-#s.lots))
- for _=1,count do
-  local lot=D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
-  if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
- end
+ for _=1,count do park(u,key,s,D.rollUsed(def,s)) end
  s.next=s.next+elapsed*step
 end
 function D.room(u,key,hull)
@@ -167,6 +189,33 @@ function D.take(u, st, id)
 	local s = D.state(u, st)
 	local _, i = D.find(u, st, id)
 	if i then return table.remove(s.lots, i) end
+end
+
+function D.ship(lot)
+ return {hull=lot.hull,loadout=copy(lot.loadout),cargo=copy(lot.cargo),armor=lot.armor,
+  color=Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
+end
+function D.purchaseCandidate(u,area,policy)
+ local L=require('src.locations');local best
+ for _,key in ipairs(L.stations(area)) do
+  for _,lot in ipairs(D.lots(u,key)) do
+   local r={ship=D.ship(lot)};local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
+   local capabilities=require('src.npc_access').capabilities(r);local eligible=lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
+   if (stats.hold or 0)<(policy.minCargo or 0) then eligible=false end
+   for capability in pairs(policy.requires or {}) do if not capabilities[capability] then eligible=false end end
+   if eligible and (not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station) then best={station=key,lot=lot} end
+  end
+ end
+ return best
+end
+function D.buyForNpc(u,r,candidate,policy)
+ local lot=D.find(u,candidate.station,candidate.lot.id)
+ if lot~=candidate.lot then return false end
+ D.take(u,candidate.station,lot.id)
+ r.shipAcquisition={station=candidate.station,lot=lot.id,price=lot.price,budget=policy.budget,used=lot.used or false}
+ r.credits=(r.credits or 0)+policy.budget-lot.price
+ require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=lot.price,lot=lot.id},candidate.station)
+ return true
 end
 
 return D

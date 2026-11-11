@@ -1,0 +1,15 @@
+# Used ships and NPC acquisition
+
+Station sales inventory is shared by the player and replenishment arrivals. Stations without a named dealer have a four-space used-ship exchange; its Shipyard tab is exposed to the player. Named dealerships keep their configured lot capacity. Red Furnace also continues manufacturing new ships.
+
+The economy's existing schedule occasionally delivers used ships, including to Red Furnace. `D.usedShips` in `data/industry.lua` defines the incoming fit pool, default eight-hour interval, discount, and 70–95% armor condition. Ordinary named dealers keep their configured interval. Fits are drawn from declared ship presets, without tying a sale to the identity of its eventual buyer. Price reflects actual fit, discount and condition. Ships include two fuel canisters. Hulls, fits, paint, condition, price and parking persist with each lot.
+
+All arrivals and opening stock require commercial parking; guest reserves remain protected. Time spent without space does not bank a later flood of deliveries. Opening ordinary inventory is used stock; manufactured outputs remain new. Player purchases preserve actual armor condition and fuel rather than replacing a used ship with a pristine instance.
+
+Population targets and arrival intervals are unchanged. Before creating a replenishment NPC, the population system looks at local station inventories. Declarative acquisition policies in `npc_templates.lua` supply a budget and required capabilities, with a minimum hold capacity where applicable. Offers must also have propulsion, reactor power and fuel. The cheapest suitable affordable lot is selected deterministically. If none qualifies, the arrival waits for its normal retry instead of creating a fallback hull; the saved population timer records the reason and F6's freight/population panel displays it.
+
+The acquired record is installed before the NPC controller selects work. Its identity, preferences, faction affiliation and authority still come from the population template. The NPC purchases that specific lot, which is removed from the player's list and releases its commercial parking. Acquisition provenance and a simulation-history outcome record the station, lot and payment. The acquisition budget is separate from player funds; its unspent balance becomes the arriving NPC's operating credits. This abstracts the NPC's pre-arrival financing rather than adding debt or off-screen income simulation.
+
+Starting-world population seeding remains pre-existing ownership; subsequent arrivals through `Population.spawn` use purchases. Initial scene construction does not retroactively buy the existing population from the opening sales lots. Player trade-ins and direct ship sales retain their existing sale behavior; this change does not add a buyback market for those records.
+
+`love . --usedshiptest` checks shared inventory, affordability, an actual population arrival purchase, empty-market deferral without an NPC ID allocation, saved provenance, player access to the exchange, and a specific missing-electronics production explanation. The scenario is included in the smoke suite.

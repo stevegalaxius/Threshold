@@ -103,7 +103,9 @@ end
 Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
 function Game.stationServices(st)
  local L=require('src.locations');local id=st and (st.locationId or st.key)
- return require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
+ local services=require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
+ if id and require('src.dealers').def(id) then services.shipyard=true end
+ return services
 end
 
 -- Repairs: credits per armor point here, and what fixing a ship costs.
@@ -458,7 +460,7 @@ function Game:buyShip(st, lot, opts)
   if tradeIndex then table.insert(list,tradeIndex,tradeIn) end
   return nil,'NO SUITABLE FREE PARKING'
  end
- local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,color=lot.paint and require('src.paint').preset(lot.paint) or nil})
+ local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.paint and require('src.paint').preset(lot.paint) or nil})
  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,parking)
  list[#list+1]=rec
  require('src.dealers').take(self.universe,st,lot.id)

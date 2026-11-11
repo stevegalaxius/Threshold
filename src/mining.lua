@@ -92,6 +92,7 @@ function M.create(game,area,clock)
   base=home,node=home,route={home,home},index=1,
   state='idle',speed=require('src.npc').cruise('miner_packhorse'),spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,'miner',area)
  require('src.personality').ensure(r)
  Homes.assign(r,home)

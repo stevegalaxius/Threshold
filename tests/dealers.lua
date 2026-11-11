@@ -15,8 +15,8 @@ return function(game)
  assert(#D.lots(u,hub)==6,'restock overfilled or stalled: '..#D.lots(u,hub))
  local used=D.lots(u,'station:ring_1')
  for _,lot in ipairs(used) do
-  assert(lot.trim=='stripped','used lot rolled a trim it does not sell')
-  assert(lot.price<data.hulls[lot.hull].price,'used stripped ship not discounted')
+  assert(lot.used and lot.condition>=.7 and lot.condition<=.95,'used lot lacks condition')
+  assert(lot.price>0 and lot.armor>0,'invalid used ship')
  end
  -- Red Furnace assembles dealer inventory from delivered frames
  local works='station:mars_1'

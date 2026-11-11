@@ -170,6 +170,7 @@ function A.createTrader(game,area,i)
   route=copy(f.traderRoute),speed=NPC.cruise(kind),
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
+ if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,'trader',area)
  require('src.personality').ensure(r)
  Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))

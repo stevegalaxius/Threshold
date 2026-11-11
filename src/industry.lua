@@ -161,6 +161,36 @@ function I.allocate(u,clock,stations,market,dt)
   end
  end
 end
+-- Player-facing reasons, derived from the same limits as the executor.
+function I.status(u,key,id,c)
+ local S,C,data=require('src.stockpile'),require('src.commodities'),require('src.data')
+ local def=I.definition(id,I.installations(key)[id])
+ if (c.use[key] or 0)>0 then return 'Consuming '..data.items[c.item].name end
+ if def.policy=='orders' and (I.state(u,key,id).selected or def.recipes[1])~=c.id then return 'Waiting for another assembly job' end
+ for _,o in ipairs(C.outputs(c)) do
+  if require('src.industry_outputs').room(u,key,c,o)<1 then
+   if o.kind=='ship' then
+    local state,dealer=require('src.dealers').state(u,key)
+    if state and #state.lots>=(dealer.lots or 6) then return 'Paused: sales lot full' end
+    return 'Paused: no suitable commercial parking (guest space reserved)'
+   end
+   return 'Paused: '..data.items[o.item].name..' storage full'
+  end
+ end
+ if I.scale(u,key,c)<=0 then return 'Idle: no profitable customer demand' end
+ local progress
+ if c.stockless then progress=I.state(u,key,id).recipes
+ else for _,shop in pairs(S.record(u,key).shops or {}) do if shop.recipes and shop.recipes[c.id] then progress=shop.recipes;break end end end
+ for _,input in ipairs(C.inputs(c)) do
+  if S.available(u,key,input.item)+((progress and progress[c.id] and progress[c.id].credit or {})[input.item] or 0)<input.n then
+   local reserved=S.reserved(u,key,input.item)
+   return ('Waiting for %s%s'):format(data.items[input.item].name,reserved>0 and ' (stock reserved for freight)' or '')
+  end
+ end
+ local carry=progress and progress[c.id] and progress[c.id].carry or 0
+ local label=c.stockless and 'Building '..data.hulls[c.outputs[1].hull].name or 'Producing'
+ return ('%s: %.0f%% of next batch%s'):format(label,carry*100,require('src.food').output(u,key)<1 and ' (slowed by food shortage)' or '')
+end
 function I.panel(game,Slab)
  local L,C,S=require('src.locations'),require('src.commodities'),require('src.stockpile')
  local keys={};for key,p in pairs(L.byId) do if p.facilities then keys[#keys+1]=key end end;table.sort(keys)
@@ -170,6 +200,8 @@ function I.panel(game,Slab)
    Slab.Text(L.get(key).name..' / '..id..': '..installation.capacity..' processing units/hour ('..def.policy..')')
    for _,recipe in ipairs(def.recipes) do
     local c=C.byId[recipe]
+    if not c.stockless then S.count(game.universe,key,c.item) end
+    Slab.Text('  '..I.status(game.universe,key,id,c))
     Slab.Text(('  %s: %.0f%% | margin %.2f / processing unit'):format(recipe,I.scale(game.universe,key,c)*100,def.policy=='profit' and I.state(game.universe,key,id).profit[recipe] or 0))
     for _,o in ipairs(C.outputs(c)) do if o.kind=='ship' then Slab.Text('    Ship output: '..require('src.data').hulls[o.hull].name..' -> dealership') else Slab.Text(('    %s: stock %d | price %.2f'):format(require('src.data').items[o.item].name,S.count(game.universe,key,o.item),require('src.markets').price(game.universe,key,o.item))) end end
     for _,input in ipairs(C.inputs(c)) do Slab.Text(('    Input %s: %d available / %d physical'):format(require('src.data').items[input.item].name,S.available(game.universe,key,input.item),S.count(game.universe,key,input.item))) end

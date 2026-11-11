@@ -78,6 +78,7 @@ function S.create(game,area,node,clock)
   state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=NPC.cruise(def.id),
   spread=0,taskWorker=true,credits=0,salvageCargo={},salvageGoal=node,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
+ if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,'salvager',area)
  require('src.personality').ensure(r)
  Homes.assign(r,node);u.npcs[r.id]=r

@@ -135,6 +135,9 @@ function A.panel(game,Slab)
  for item,n in pairs(u.economyUnmet or {}) do
   if n>0 then Slab.Text(('No surplus production: %s %.0f'):format(item,n)) end
  end
+ for area,timers in pairs(u.populationSpawns or {}) do for group,timer in pairs(timers) do
+  if timer.status then Slab.Text(area..' / '..group..': '..timer.status) end
+ end end
  local pickup,moving=0,0
  for _,o in pairs(Tasks.state(u).offers) do
   if o.order and o.state~='available' then
