@@ -538,6 +538,10 @@ function A.update(game, dt)
 		require("src.ui.cargo").tab = "shipyard"
 		shot("12a_shipyard")
 	end) end
+	if t >= 35.715 then once("industry_tab", function()
+		require("src.ui.cargo").tab = "industry"
+		shot("12c_industry")
+	end) end
 	if t >= 35.73 then once("shipyard_lot_done", function() require("src.ui.cargo").tab = "hangar" end) end
 	if t >= 35.75 then once("hangar_cargo", function()
 		local Cargo = require("src.ui.cargo")
