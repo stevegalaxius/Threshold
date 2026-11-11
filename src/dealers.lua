@@ -81,7 +81,7 @@ function D.roll(def, state, hullId)
 	local paints = Paint.pool(hull)
 	state.serial = (state.serial or 0) + 1
 	return {
-		id = state.serial, hull = hull.id, trim = trim.id, trimName = trim.name,
+		id = state.serial, hull = hull.id, dealerStock=true, trim = trim.id, trimName = trim.name,
 		paint = paints[rand(#paints)], loadout = trim.loadout,
 		price = D.price(hull, trim.loadout, def.markup),
 	}
@@ -99,9 +99,13 @@ function D.state(u, st)
 	if not s then
 		s = { lots = {}, next = clock + (def.restock or 10) * HOUR }
 		u.dealers[key] = s
-		for _ = 1, math.ceil(cap * 0.6) do s.lots[#s.lots + 1] = D.roll(def, s) end
+		for _=1,math.ceil(cap*.6) do
+   local lot=D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+   if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
+  end
 	end
 
+ for _,lot in ipairs(s.lots) do lot.dealerStock=true end
 	return s, def
 end
 
@@ -111,18 +115,26 @@ function D.update(u,key,clock)
  local step=(def.restock or 10)*HOUR
  local elapsed=math.max(0,math.floor((clock-s.next)/step)+1)
  local count=math.min(elapsed,math.max(0,(def.lots or 6)-#s.lots))
- for _=1,count do s.lots[#s.lots+1]=D.roll(def,s) end
+ for _=1,count do
+  local lot=D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+  if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
+ end
  s.next=s.next+elapsed*step
 end
 function D.room(u,key,hull)
  local s,def=D.state(u,key);if not s then return 0 end
  local allowed=false;for _,id in ipairs(def.hulls) do if id==hull then allowed=true end end
- return allowed and math.max(0,(def.lots or 6)-#s.lots) or 0
+ if not allowed then return 0 end
+ return #require('src.dealer_parking').plan(u,key,hull,math.max(0,(def.lots or 6)-#s.lots))
 end
 function D.output(u,key,hull,n)
  local s,def=D.state(u,key)
  assert(D.room(u,key,hull)>=n,'dealer output overflow')
- for _=1,n do s.lots[#s.lots+1]=D.roll(def,s,hull) end
+ local placements=require('src.dealer_parking').plan(u,key,hull,n)
+ assert(#placements==n,'no physical space for manufactured ship')
+ for i=1,n do
+  local lot=D.roll(def,s,hull);lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
+ end
 end
 -- Only empty sales slots request incoming frames; full lots have no
 -- standing construction demand. Inventory queries need not build ships.
@@ -130,13 +142,16 @@ function D.frameTarget(u,key)
  local def=D.def(key);if not def or not def.assembly then return 0 end
  local installation=require('src.industry').installations(key)[def.assembly]
  if not installation then return 0 end
- local s=D.state(u,key);local maximum=0
+ local s=D.state(u,key);local maximum,slots=0,0
  for _,id in ipairs(require('src.industry').definition(def.assembly,installation).recipes) do
-  for _,input in ipairs(require('src.commodities').inputs(require('src.commodities').byId[id])) do
-   if input.item==D.FRAME then maximum=math.max(maximum,input.n) end
+  local recipe=require('src.commodities').byId[id]
+  local room=D.room(u,key,recipe.outputs[1].hull)
+  if room>0 then
+   slots=math.max(slots,room)
+   for _,input in ipairs(require('src.commodities').inputs(recipe)) do if input.item==D.FRAME then maximum=math.max(maximum,input.n) end end
   end
  end
- return math.max(0,(def.lots or 6)-#s.lots)*maximum
+ return math.min(math.max(0,(def.lots or 6)-#s.lots),slots)*maximum
 end
 function D.lots(u, st)
 	local s = D.state(u, st)

@@ -8,9 +8,9 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 
 | Recipe | Inputs per batch | Outputs per batch | Processing time | Storage limit |
 |---|---|---|---:|---|
-| `assemble_brute_anvil` | 2 Hull frame | 1 Anvil → dealer inventory | 2 | Dealer lot limit |
-| `assemble_brute_nautilus` | 4 Hull frame | 1 Nautilus → dealer inventory | 4 | Dealer lot limit |
-| `assemble_brute_runt` | 2 Hull frame | 1 Runt → dealer inventory | 2 | Dealer lot limit |
+| `assemble_brute_anvil` | 2 Hull frame | 1 Anvil → dealer inventory | 2 | Available dealer parking and lot limit |
+| `assemble_brute_nautilus` | 4 Hull frame | 1 Nautilus → dealer inventory | 4 | Available dealer parking and lot limit |
+| `assemble_brute_runt` | 2 Hull frame | 1 Runt → dealer inventory | 2 | Available dealer parking and lot limit |
 | `assemble_hull_frames` | 6 Steel plates | 1 Hull frame | 1 | 12 Hull frame |
 | `crack_ice` | 1 Water ice, 1 Empty canister | 1 Deuterium canister | 1 | 1000 Deuterium canister |
 | `grow_food` | 0.05 Fertilizer | 1 Food crate | 1 | 4000 Food crate |
@@ -85,5 +85,5 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 
 Negative capacity entries are consumption, not manufacturing output. Food is also consumed separately at every inhabited station; repairs, rearming and fuel sales are event-driven consumers.
 
-Finished ships include the dealership-selected trim, paint and fitted modules. Modules are not yet separately consumed by ship assembly. Opening dealer inventory is seeded world stock; subsequent manufactured ships require recipe inputs and processing time. Sales-lot capacity governs output; physical parking allocation remains separate, and ships may await a berth.
+Finished ships include the dealership-selected trim, paint and fitted modules. Modules are not yet separately consumed by ship assembly. Opening dealer inventory is seeded world stock; subsequent manufactured ships require recipe inputs and processing time. Output requires a real free bay or berth within the sales-lot limit. Dealers cannot occupy the bottom quarter of the hangar or the two largest exterior berths, which remain available to guests. Blocked output consumes no frames and banks no replacement work.
 

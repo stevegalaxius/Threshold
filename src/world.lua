@@ -265,6 +265,7 @@ function Game:hangarGrid(st, ignore)
 			put(e,e.hull.id,e.bay)
 		end
 	end
+ if ignore and ignore.dealerStock then require('src.dealer_parking').mask(st,g) end
 	return g
 end
 
@@ -286,6 +287,7 @@ end
 -- Can this ship (a record, the player, or an NPC) sit at bay?
 function Game:hangarFree(st, owner, hullId, bay)
 	local w, h = Game.hangarFootprint(hullId, bay.rot)
+ if owner and owner.dealerStock and not require('src.dealer_parking').bayAllowed(st,bay,w,h) then return false end
 	return Grid.isFree(self:hangarGrid(st, owner), bay.x, bay.y, w, h)
 end
 

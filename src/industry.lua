@@ -101,6 +101,11 @@ function I.update(u,clock,stations)
    if scheduled then
     local state=I.state(u,key,id);local previous=state.at or clock;state.at=clock
     state.selected=state.selected or def.recipes[1]
+    if def.policy=='orders' and I.scale(u,key,C.byId[state.selected])==0 then
+     for _,recipe in ipairs(def.recipes) do
+      if require('src.dealers').room(u,key,C.byId[recipe].outputs[1].hull)>0 then state.selected=recipe;break end
+     end
+    end
     local total=0
     for _,recipe in ipairs(def.recipes) do
      local c=C.byId[recipe]

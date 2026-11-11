@@ -11,7 +11,7 @@ function M.markdown()
    local inputs,outputs,caps={},{},{}
    for _,input in ipairs(C.inputs(c)) do inputs[#inputs+1]=input.n..' '..data.items[input.item].name end
    for _,o in ipairs(C.outputs(c)) do
-    if o.kind=='ship' then outputs[#outputs+1]=o.n..' '..data.hulls[o.hull].name..' → dealer inventory';caps[#caps+1]='Dealer lot limit'
+    if o.kind=='ship' then outputs[#outputs+1]=o.n..' '..data.hulls[o.hull].name..' → dealer inventory';caps[#caps+1]='Available dealer parking and lot limit'
     else outputs[#outputs+1]=o.n..' '..data.items[o.item].name;caps[#caps+1]=(o.cap or c.cap)..' '..data.items[o.item].name end
    end
    lines[#lines+1]=('| `%s` | %s | %s | %s | %s |'):format(c.id,#inputs>0 and table.concat(inputs,', ') or 'Local extraction',table.concat(outputs,', '),c.time or 1,table.concat(caps,', '))
@@ -28,7 +28,7 @@ function M.markdown()
   end
  end
  lines[#lines+1]='';lines[#lines+1]='Negative capacity entries are consumption, not manufacturing output. Food is also consumed separately at every inhabited station; repairs, rearming and fuel sales are event-driven consumers.'
- lines[#lines+1]='';lines[#lines+1]='Finished ships include the dealership-selected trim, paint and fitted modules. Modules are not yet separately consumed by ship assembly. Opening dealer inventory is seeded world stock; subsequent manufactured ships require recipe inputs and processing time. Sales-lot capacity governs output; physical parking allocation remains separate, and ships may await a berth.'
+ lines[#lines+1]='';lines[#lines+1]='Finished ships include the dealership-selected trim, paint and fitted modules. Modules are not yet separately consumed by ship assembly. Opening dealer inventory is seeded world stock; subsequent manufactured ships require recipe inputs and processing time. Output requires a real free bay or berth within the sales-lot limit. Dealers cannot occupy the bottom quarter of the hangar or the two largest exterior berths, which remain available to guests. Blocked output consumes no frames and banks no replacement work.'
  return table.concat(lines,'\n')..'\n'
 end
 return M
