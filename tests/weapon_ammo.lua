@@ -10,28 +10,54 @@ return function(game)
  check(data.modules.gun_m_base==gun and data.modules.maul_tube==data.modules.missile_s_base,'old ids do not resolve')
  check(gun.weapon.kind=='cannon' and mortar.weapon.kind=='cannon' and mortar.weapon.chambers[1]=='artillery','guns and artillery should be cannons that chamber their ammo')
  local g,m,r=data.ammoOptions(gun),data.ammoOptions(mortar),data.ammoOptions(rack)
- check(#g==1 and g[1]=='rounds_m','a plain gun should chamber only its rounds')
- check(#m==1 and m[1]=='shell_m','a plain mortar should chamber only its shells')
+ check(#g==2 and g[1]=='rounds_m' and has(g,'airburst_m'),'gun should default to solid rounds and accept airburst')
+ check(#m==2 and m[1]=='shell_m' and has(m,'shot_m'),'artillery should default to explosive shells and accept scatter')
  check(r[1]=='missile_m' and has(r,'torp_m') and has(r,'torp_s') and not has(r,'torp_l'),'rack ammo options wrong')
  for id,mod in pairs(data.modules) do check(not (mod.weapon and mod.weapon.kind=='torpedo'),'torpedo weapon left: '..id) end
  -- a gun that lists more families chambers them, its own first
- local combo={ id='t', size='M', family='weapon', weapon={ kind='cannon', fireRate=3, chambers={ 'gun', 'shotgun' } } }
+ local combo={ id='t', size='M', family='weapon', weapon={ kind='cannon', fireRate=3, chambers={ 'gun', 'artillery' } } }
  local c=data.ammoOptions(combo)
- check(c[1]=='rounds_m' and has(c,'shot_m') and not has(c,'shell_m'),'chambers list ignored')
+ check(c[1]=='rounds_m' and has(c,'shot_m') and has(c,'shell_m'),'chambers list ignored')
  check(data.fireRate==nil,'per-ammo fire rate still there')
- -- a shotgun fires a fan of pellets that fly as rounds
- local sg=data.modules.shotgun_m_base
- check(sg and data.ammoOptions(sg)[1]=='shot_m','shotgun does not load shot')
+ -- Scatter shells fire a fan through an ordinary artillery mount.
+ check(not data.modules.shotgun_m_base and data.items.shot_m.family=='artillery','standalone shotgun category remains')
  do
-  local en=Ship.new(game,{hull='brute_anvil',loadout={'shotgun_m_base',false,false,false,'mule_engine','kiln_reactor',false},x=5000,y=5000})
+  local en=Ship.new(game,{hull='brute_anvil',loadout={'artillery_m_base',false,false,false,'mule_engine','kiln_reactor',false},x=5000,y=5000})
+  Ship.setLoad(en,en.weapons[1].index,'shot_m')
   en.cargo.shot_m=5
   en.intent=en.intent or {}
   en.intent.aimX,en.intent.aimY=6000,5000
   local before=#game.projectiles
   Weapons.fire(game,en,en.weapons[1],0.016)
   local n=#game.projectiles-before
-  check(n==data.items.shot_m.shot.pellets,'shotgun fired '..n..' pellets')
+  check(n==data.items.shot_m.shot.pellets,'scatter shell fired '..n..' pellets')
   check(game.projectiles[#game.projectiles].kind=='gun' and en.cargo.shot_m==4,'pellets should fly as rounds and take one shell')
+ end
+ -- Airbursts use a fixed fuse, one damage application and a compact effect.
+ do
+  local en=Ship.new(game,{hull='brute_anvil',loadout={'gun_m_base',false,false,false,'mule_engine','kiln_reactor',false},x=90000,y=90000})
+  Ship.setLoad(en,en.weapons[1].index,'airburst_m');en.cargo.airburst_m=5
+  en.intent.aimX,en.intent.aimY=100000,90000
+  local oldProjectiles=game.projectiles;game.projectiles={}
+  Weapons.fire(game,en,en.weapons[1],.016)
+  local p=assert(game.projectiles[1])
+  check(p.airburst and p.burst and not p.fuse and en.cargo.airburst_m==4,'airburst must use one round and no proximity fuse')
+  local x,y=p.x+p.vx*p.life,p.y+p.vy*p.life
+  local victim=Ship.new(game,{hull='brute_anvil',loadout=data.hulls.brute_anvil.loadout,x=x,y=y,team=2})
+  local armor=victim.armor;local hits=0
+  local raycast,damage=game.raycast,game.damage
+  game.raycast=function()return nil end
+  game.damage=function(self,target,...)if target==victim then hits=hits+1 end;return damage(self,target,...) end
+  Weapons.updateProjectiles(game,p.life+.5)
+  game.raycast,game.damage=raycast,damage
+  check(#game.projectiles==0 and math.abs(p.x-x)<.001 and math.abs(p.y-y)<.001,'airburst overshot its fixed fuse on a long step')
+  check(hits==1 and math.abs(armor-victim.armor-p.damage)<.001,'airburst double-hit a hull or changed direct damage')
+  check(p.damage<data.items.rounds_m.shot.damage,'airburst direct hit outdamages solid rounds')
+  check(game.effects[#game.effects].kind=='airburst','airburst used the generic heavy explosion effect')
+  game.projectiles=oldProjectiles
+ end
+ for _,size in ipairs({'s','m','l'}) do
+  check(data.items['shell_'..size].shot.speed>data.items.rounds_m.shot.speed,'artillery shell slower than gun rounds')
  end
  -- missile racks: tubes hold capacity in S units, re-arm per round
  do
@@ -65,7 +91,7 @@ return function(game)
   sl.w.beams, sl.w.beamSpread, sl.w.color = 5, 20, { 1, 0.2, 0.2 }
   en.power=1000; en.intent=en.intent or {}; en.intent.aimX,en.intent.aimY=13000,12000
   Weapons.fire(game,en,sl,0.016)
-  check(sl.beams and #sl.beams.lines==5 and sl.beams.color[2]==0.2,'shotgun laser should fire 5 colored lines')
+  check(sl.beams and #sl.beams.lines==5 and sl.beams.color[2]==0.2,'multi-beam laser should fire 5 colored lines')
   -- below the reserve floor lasers still fire, at reduced output
   local T=require('src.tuning')
   en.power=en.stats.powerCap; sl.cooldown=0; sl.beams=nil
@@ -78,19 +104,7 @@ return function(game)
   check(en.power==before,'lasers on reserve should not drain the capacitor')
   en.burnerLocked=nil
  end
- -- atomic warheads: a missile that vaporizes what it kills (no wreck)
- do
-  check(data.items.atomic_l.family=='missile' and has(data.ammoOptions(data.modules.missile_l_base),'atomic_l'),'atomic should be L missile ammo')
-  local victim=Ship.new(game,{hull='brute_anvil',loadout=data.hulls.brute_anvil.loadout,x=20000,y=20000,team=2})
-  local listed=false; for _,e in ipairs(game.entities) do if e==victim then listed=true end end
-  if not listed then table.insert(game.entities,victim) end
-  local husks=0; for _,e in ipairs(game.entities) do if e.kind=='husk' then husks=husks+1 end end
-  game:explode(20000,20000,3000,25000,0,nil,victim,'atomic')
-  check(victim.dead and victim.vaporized,'atomic blast should vaporize')
-  game:reap()
-  local after=0; for _,e in ipairs(game.entities) do if e.kind=='husk' then after=after+1 end end
-  check(after==husks,'a vaporized ship left a husk')
- end
+ check(not data.items.atomic_l,'atomic missile remains')
  -- a slot can face backwards (heading 180): fixed mounts fire that way
  do
   local hull={}; for k,v in pairs(data.hulls.brute_anvil) do hull[k]=v end

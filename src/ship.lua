@@ -132,6 +132,7 @@ function Ship.record(e)
 	return {
 		hull = e.hull.id, loadout = copy(e.loadout), triggers = copy(e.triggers or {}), loads = copy(e.loads or {}), hold = e.hold, cargo = not e.hold and copy(e.cargo) or nil,
 		fuelCharge=e.fuelCharge, fuelInitialized=e.fuelInitialized, power=e.power,
+		repairOrder=e.repairOrder and copy(e.repairOrder) or nil,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
 	}
 end

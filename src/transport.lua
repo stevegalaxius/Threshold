@@ -39,7 +39,7 @@ end
 -- Quote the delivery route, excluding empty travel to pickup and service detours.
 -- Only mass-driver legs cover AU; local and moon-gate legs use the base rate.
 -- AU is quoted to hundredths so the displayed distance explains the price.
-function Transport.quote(t,clock)
+function Transport.quote(t,clock,u)
  clock=t.placed or t.assigned or clock or 0
  if t.routeAU==nil then
   local route=Transport.route(t.source,t.target,clock) or {}
@@ -56,12 +56,37 @@ function Transport.quote(t,clock)
  if t.creditsPerUnit==nil then
   t.creditsPerUnit=math.floor((T.freightCreditsPerUnit+t.routeAU*T.freightCreditsPerAU)*100+.5)/100
  end
+ local Chemicals=require('src.markets')
+ if u and Chemicals.items[t.item] then
+  t.commodityBuyPrice=t.commodityBuyPrice or Chemicals.price(u,t.source,t.item)
+  t.commoditySellPrice=t.commoditySellPrice or Chemicals.price(u,t.target,t.item)
+ end
  return t
 end
 function Transport.payment(t)
  Transport.quote(t)
  return math.floor(t.amount*t.creditsPerUnit+1e-7)
 end
+-- Reservations remain on the board until pickup; loaded cargo is no longer
+-- counted at the source. No duplicate stock ledger needs save reconciliation.
+function Transport.reserved(u,source,item,except,includeOpen)
+ local n=0
+ for _,o in pairs(Tasks.state(u).offers) do
+  if o.order and o.source==source and o.item==item and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except)
+   and (includeOpen or o.state~='available') then n=n+o.amount end
+ end
+ return n
+end
+function Transport.available(u,source,item,except)
+ return math.max(0,J.available(u,source,item)-Transport.reserved(u,source,item,except))
+end
+-- A cheap estimate for comparison and fleet planning, in game seconds.
+function Transport.duration(o,station,clock)
+ local a,b=L.byId[o.source],L.byId[o.target]
+ local localTime=a and b and a.area==b.area and 120 or 300
+ return localTime+(o.routeAU or 0)*120+(station and station~=o.source and 180 or 0)
+end
+local function lines(t) return t.manifest or {t} end
 -- Whether a route exists, remembered for a while: idle traders weigh every
 -- job on the board, and planning each one in full was a lag spike.
 local reach,reachAt={},nil
@@ -72,6 +97,34 @@ local function reachable(a,b,clock,sameArea)
   reach[key]=(sameArea and G.itinerary(a,b,clock) or Transport.route(a,b,clock))~=nil
  end
  return reach[key]
+end
+function Transport.usable(u,r,o,clock)
+ if r.suspendedTask or r.service or r.worldRecovery or r.action or r.state=='stranded' then return 0 end
+ if r.fuelStatus=='stranded' or r.fuelStatus=='empty' then return 0 end
+ if require('src.reactor_fuel').remaining(r.ship)<=0 then return 0 end
+ if (require('src.work_preferences').weight(r,'transport') or 0)<=0 then return 0 end
+ local access=require('src.npc_access');local capabilities=access.capabilities(r)
+ if not access.eligible(r,o,capabilities) or not access.eligible(r,Tasks.definitions.transport,capabilities) then return 0 end
+ local station=r.node or r.station
+ if not L.byId[station] then return 0 end
+ local def=Tasks.definitions.transport
+ if not def.eligible(u,r,o,station,clock) or not def.feasible(u,r,o,station,clock) then return 0 end
+ return math.min(data.hulls[r.ship.hull].hold or 0,room(r,o.item,1000000)*data.items[o.item].volume)
+end
+function Transport.load(u,r,t)
+ local saved=require('src.persistence').copy(r.ship);local totals={}
+ for _,line in ipairs(lines(t)) do
+  if room(r,line.item,line.amount)<line.amount
+   or ((line.mine or line.stocked) and Transport.available(u,line.source,line.item,t.id)<line.amount+(totals[line.item] or 0)) then r.ship=saved;return false end
+  cargo(r,line.item,line.amount);totals[line.item]=(totals[line.item] or 0)+line.amount
+ end
+ r.ship=saved
+ for _,line in ipairs(lines(t)) do
+  if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
+  cargo(r,line.item,line.amount)
+  local o=Tasks.state(u).offers[line.id];if o then o.loaded=true end
+ end
+ t.phase='delivery';return true
 end
 Tasks.register('transport',{
  requires={capabilities={'cargo'}},
@@ -94,83 +147,90 @@ Tasks.register('transport',{
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
   return room(r,o.item,need)>=need
-   and (not (o.mine or o.stocked) or J.available(u,o.source,o.item)>=need)
+   and (not (o.mine or o.stocked) or Transport.available(u,o.source,o.item,o.id)>=need)
  end,
  feasible=function(u,r,o,station,clock)
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
  end,
  score=function(u,r,o,station,clock)
-  -- Urgency stays first. Ambition weighs reward and distance against an
-  -- empty pickup flight; age still breaks ties and keeps old work moving.
   Transport.quote(o,clock)
-  -- A station's order for something it's short of beats placeholder work.
-  -- A return trip is fine for orders (that's how empties get back to the
-  -- makers); only placeholder work avoids shuttling straight back.
-  return clock-(o.readyAt or 0)-(not o.order and r.lastOrigin==o.target and 100000 or 0)
-   +Personality.freightScore(r,o.creditsPerUnit,o.routeAU,station~=o.source)
-   +(o.order and 10000000*(1+(o.priority or 0)) or 0)
+  local amount=math.min(o.amount,room(r,o.item,o.amount))
+  local reward=amount*o.creditsPerUnit/Transport.duration(o,station,clock)
+  local ambition=Personality.ensure(r).ambition
+  local age=require('src.economy').shortageAge(u,o.target,o.item,clock)
+  age=math.max(age,math.max(0,clock-(o.placed or o.readyAt or clock)))
+  return (o.order and 1000000 or 0)+(o.urgency or o.priority or 0)*10000
+   +age*100+math.min(5000,reward*100)*(0.5+ambition)-(station~=o.source and 50*(1-ambition) or 0)
  end,
  prepare=function(u,r,t,station,clock)
-  Transport.quote(t,clock)
+  Transport.quote(t,clock,u)
+  t.route=Transport.route(t.source,t.target,clock)
+  if not t.route then return false end
   if t.order then
-   -- fold in the other open orders on the same run, so one trip carries a
-   -- full hold instead of a few canisters
-   local offers=Tasks.state(u).offers;local fit=room(r,t.item,1e6)
-   for id,o in pairs(offers) do
-    if id~=t.id and o.order and o.state=='available' and o.source==t.source and o.target==t.target
-     and o.item==t.item and t.amount+o.amount<=fit then
-     Transport.quote(o,clock)
-     if o.creditsPerUnit==t.creditsPerUnit and o.routeAU==t.routeAU then
-      t.amount=t.amount+o.amount;offers[id]=nil
-     end
+   local offers=Tasks.state(u).offers
+   local candidates={t};local others={}
+   for _,o in pairs(offers) do
+    if o.id~=t.id and o.order and o.state=='available' and (o.readyAt or 0)<=clock
+     and o.source==t.source and o.target==t.target then others[#others+1]=o end
+   end
+   table.sort(others,function(a,b)return a.id<b.id end)
+   for _,o in ipairs(others) do candidates[#candidates+1]=o end
+   local saved=require('src.persistence').copy(r.ship)
+   local manifest={};local planned={}
+   for _,o in ipairs(candidates) do
+    local n=math.min(o.amount,room(r,o.item,o.amount),Transport.available(u,o.source,o.item,o.id)-(planned[o.item] or 0))
+    if n>0 then
+     local line=require('src.persistence').copy(o);line.amount=n
+     Transport.quote(line,clock,u);manifest[#manifest+1]=line;planned[o.item]=(planned[o.item] or 0)+n
+     cargo(r,line.item,n) -- reserve grid space while fitting the other lines
     end
    end
-   -- size the load to the hold (and to what's there), and say so on the
-   -- order, so the station counts only what's really coming
-   t.amount=math.min(t.amount,room(r,t.item,t.amount))
-   if station==t.source then t.amount=math.min(t.amount,J.available(u,t.source,t.item)) end
-   if t.amount<=0 then return false end
-   local o=Tasks.state(u).offers[t.id];if o then o.amount=t.amount end
+   r.ship=saved
+   if #manifest==0 or manifest[1].id~=t.id then return false end
+   t.manifest=manifest;t.amount=manifest[1].amount
+   for _,line in ipairs(manifest) do
+    local o=offers[line.id];o.amount=line.amount;o.owner=r.id;o.state='reserved';o.manifestRoot=t.id
+   end
+  elseif room(r,t.item,t.amount)<t.amount then return false end
+  t.phase='pickup'
+  if station~=t.source then return true end
+  if Transport.load(u,r,t) then return true end
+  for _,line in ipairs(lines(t)) do
+   local o=Tasks.state(u).offers[line.id];if o then o.owner=nil;o.state='available';o.manifestRoot=nil end
   end
-  t.route=Transport.route(t.source,t.target,clock)
-  if not t.route or room(r,t.item,t.amount)<t.amount then return false end
-  if station~=t.source then t.phase='pickup';return true end
-  if (t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount) then return false end
-  cargo(r,t.item,t.amount);t.phase='delivery'
-  return true
+  return false
  end,
  complete=function(u,r,t,station,clock)
   if t.settled then return true end
-  Transport.quote(t,clock)
+  Transport.quote(t,clock,u)
   if t.phase=='pickup' then
-   -- Arrived empty at the source: load up, then carry on to the target.
    if station~=t.source then return false end
-   if t.order then t.amount=math.min(t.amount,math.max(1,J.available(u,t.source,t.item))) end
-   if room(r,t.item,t.amount)<t.amount or ((t.mine or t.stocked) and not J.take(u,t.source,t.item,t.amount)) then
-    Tasks.release(u,r,'nothing to pick up',clock);return false
-   end
-   local offer=Tasks.state(u).offers[t.id];if offer then offer.amount=t.amount end
-   cargo(r,t.item,t.amount);t.phase='delivery';t.route=Transport.route(t.source,t.target,clock)
+   if not Transport.load(u,r,t) then Tasks.release(u,r,'nothing to pick up',clock) end
    return false
   end
   if station~=t.target then return false end
-  local h=hold(r)
-  local amount=h and Hold.count(h,t.item) or (r.ship.cargo or {})[t.item] or 0
-  if amount<t.amount then
-   Tasks.release(u,r,'cargo lost',clock);return false
+  local required={}
+  for _,line in ipairs(lines(t)) do
+   required[line.item]=(required[line.item] or 0)+line.amount
+   local count=(r.ship.cargo or {})[line.item] or 0
+   if count<required[line.item] then Tasks.release(u,r,'cargo lost',clock);return false end
   end
-  cargo(r,t.item,-t.amount)
-  if t.mine or t.stocked then J.deliver(u,station,t.item,t.amount) end
-  require('src.economy').stat(u,'hauled',t.item,t.amount)
-  local state=Tasks.state(u);state.delivered=state.delivered or {}
-  state.delivered[station]=(state.delivered[station] or 0)+t.amount
+  local paid,total=0,0
+  for _,line in ipairs(lines(t)) do
+   cargo(r,line.item,-line.amount)
+   if line.mine or line.stocked then J.deliver(u,station,line.item,line.amount) end
+   require('src.economy').stat(u,'hauled',line.item,line.amount)
+   local payment=Transport.payment(line);paid=paid+payment;total=total+line.amount
+   require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
+    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
+   if line.id~=t.id then Tasks.state(u).offers[line.id]=nil end
+  end
+  local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total
   r.lastDestination=station;r.lastOrigin=t.source
-  local paid=Transport.payment(t)
   r.credits=(r.credits or 0)+paid
   r.freightEarnings=(r.freightEarnings or 0)+paid
   t.settled=true
-  require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
-   {taskId=t.id,source=t.source,target=t.target,item=t.item,amount=t.amount,routeAU=t.routeAU,creditsPerUnit=t.creditsPerUnit,payment=paid},station)
+
   return true
  end
 })
@@ -183,7 +243,7 @@ function Transport.seed(u)
   if t and t.kind=='transport' then Transport.quote(t,u.clock) end
  end
  -- Nothing is authored any more: every haul is a station's order
- -- (src/economy.lua). Syncing an empty list clears the old scrap and
+ -- (src/economy.lua). Syncing an empty list clears the old cargo and
  -- freight runs from saves, leaving reserved trips to finish.
  local specs={}
  Tasks.sync(u,'transport',specs,function(o)return o.kind=='transport' end)

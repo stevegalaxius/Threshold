@@ -304,6 +304,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
+	p.repairOrder=rec.repairOrder
 	table.insert(self.entities, p)
 	self.player = p
 	self.state = "playing"
@@ -1374,14 +1375,13 @@ function Game:finishDocking(e, ds, st)
 	else
 		ds.stay = 30 + random() * 60
   if e.alifeRecord then
-   local work=require('src.npc').work(e.alifeRecord)
-   ds.stay=work and work.stay and work.stay(e.alifeRecord,st.locationId) or T.alifeStay
+   e.alifeRecord.ship.armor=e.armor
+   require('src.npc').beginDocked(e.alifeRecord,st.locationId,self.universe.clock,self.universe)
+   ds.departAt=e.alifeRecord.untilTime
+   ds.stay=math.max(0,ds.departAt-self.universe.clock)
   end
-  if e.alifeId and self.stationServices(st).repair then ds.stay=math.max(ds.stay,(e.stats.armor-e.armor)/T.npcRepairPerSecond) end
 	end
  if e.alifeRecord and e.alifeRecord.action and e.alifeRecord.action.kind=='dock' then
-  e.alifeRecord.node=st.locationId;e.alifeRecord.state='docked';e.alifeRecord.area=self.fieldId
-  e.alifeRecord.untilTime=self.universe.clock+ds.stay
   require('src.npc_actions').complete({u=self.universe,game=self,r=e.alifeRecord,e=e,clock=self.universe.clock})
  end
 	events.emit("dock", e, st)
@@ -1390,6 +1390,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
  require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
 	local st, d = ds.station, ds.dock or ds.station.dock
@@ -1427,8 +1428,8 @@ function Game:updateDockedShip(e, dt)
 			local berth=not interior and self:freeBerth(st,e)
 			e.bay=interior or nil;e.bayStation=st.key
 			if berth then
-    local bd=st.def.berths[berth]
-    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,nil
+    local bd=self:berthPose(st,berth,e.hull.id) or st.def.berths[berth]
+    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,self:berthPose(st,berth,e.hull.id)
 				ds.lx,ds.ly=sb:getLocalPoint(x,y)
 				ds.la=b:getAngle()-sb:getAngle()
 				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
@@ -1482,11 +1483,13 @@ function Game:updateDockedShip(e, dt)
 	end
 	-- Hold departure while the launch point is occupied; checked before the
 	-- trader's departure planning so that only runs when it can actually leave.
-	-- A ship with nothing to leave for asks again about twice a second,
-	-- not every frame: departure planning cleans the whole task board.
-	if ds.stay and ds.t >= ds.stay and self.time >= (ds.departRetry or 0) and not self:launchBlocker(e) then
+	-- Persistent ships share the record's clocks with offline simulation.
+	local record=e.alifeRecord
+	local ready=record and self.universe.clock>=require('src.npc').readyAt(record)
+	 or not record and ds.stay and ds.t>=ds.stay
+	if ready and not self:launchBlocker(e) then
 		if not e.alifeId or self:traderCanDepart(e,ds.station) then self:undockShip(e)
-		else ds.departRetry = self.time + 0.5 + love.math.random() * 0.5 end
+		end
 	end
 end
 
@@ -1527,6 +1530,7 @@ end
 function Game:undockShip(e)
 	local ds = e.dockState
 	if not ds or not ds.done then return end
+ if e==self.player then e.repairOrder=nil end
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local sb = st.body
 	local side = ds.side or 1
@@ -2181,7 +2185,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
 		e.hp = e.hp - amount
-		if e.hp <= 0 then e.dead = true; e.vaporized = cause == "atomic" end
+		if e.hp <= 0 then e.dead = true end
 		return
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
@@ -2201,7 +2205,6 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e.armor <= 0 then
 		e.armor = 0
 		e.dead = true
-		e.vaporized = cause == "atomic"      -- nothing left to be a wreck
 	end
 end
 
@@ -2220,6 +2223,7 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local edge = (e.kind == "ship") and Ship.distanceTo(e, x, y) or (d - e.radius)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
+			if cause=='airburst' then fall=fall*fall end
 			if fall > 0 then
 				self:damage(e, damage * fall, owner, cause or "splash", x, y)
 				if d > 1 and e.kind == "ship" and not e.driverProtected then
@@ -2230,16 +2234,19 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 		end
 		return true
 	end)
-	local nuke = cause == "atomic"
-	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = nuke and 1.2 or 0.22, t = 0, nuke = nuke })
+	if cause=='airburst' then
+		self:addEffect({kind='airburst',x=x,y=y,r=radius,life=.2,t=0})
+		return
+	end
+	self:addEffect({ kind = "explosion", x = x, y = y, r = radius, life = 0.22, t = 0 })
 	-- a weapon's blast reads big: a white-hot gradient flash for a split
 	-- second, then a shockwave ring racing out past the blast (missiles and
 	-- torpedoes larger still)
 	if damage > 0 then
-		local big = (cause == "missile" or cause == "torpedo" or nuke) and 1.6 or 1
+		local big = (cause == "missile" or cause == "torpedo") and 1.6 or 1
 		local r = max(50, radius) * big
-		self:addEffect({ kind = "flash", x = x, y = y, r = r * 1.5, life = nuke and 0.3 or 0.09, t = 0 })
-		self:addEffect({ kind = "shockwave", x = x, y = y, r = r * 2.4, life = nuke and 0.9 or 0.28, t = 0 })
+		self:addEffect({ kind = "flash", x = x, y = y, r = r * 1.5, life = 0.09, t = 0 })
+		self:addEffect({ kind = "shockwave", x = x, y = y, r = r * 2.4, life = 0.28, t = 0 })
 	end
 	self:spark(x, y, 10 + floor(radius / 8), { 1, 0.7, 0.35 })
 	if self.player and not self.player.dead then
@@ -2444,13 +2451,12 @@ function Game:reap()
 			self:explode(x, y, e.halfLength, 0, 0)
 			self:spark(x, y, 16, { 0.8, 0.7, 0.6 })
 			-- one pickup per stack, so a burst husk scatters what it held
-			-- (unless an atomic blast vaporized it, contents and all)
-			-- drilled apart, a wreck gives up its hull alloy (shot apart, it's slag)
-			if e.kind == "husk" and e.drilled and not e.vaporized and (e.alloy or 0) > 0 then
-				self:spawnPickup(x, y, "hull_alloy", e.alloy)
+			-- drilled apart, a wreck gives up its hull steel (shot apart, it's slag)
+			if e.kind == "husk" and e.drilled and (e.steel or 0) > 0 then
+				self:spawnPickup(x, y, "steel_plate", e.steel)
 			end
 			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
-			for _, g in ipairs(not e.vaporized and e.hold.grids or {}) do
+			for _, g in ipairs(e.hold.grids) do
 				for _, st in ipairs(g.stacks) do
 					require('src.wreck_salvage').scatter(self,x,y,st,e.kind=='container' or e.drilled or e.shotSalvage)
 				end
@@ -2501,9 +2507,7 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)
-			if e.vaporized then
-				self:spark(x, y, 40, { 1, 0.95, 0.8 })
-			elseif not e.drone then
+			if not e.drone then
 				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
 				if e.isPlayer then self.playerHusk = husk end
 				local r=e.alifeId and self.universe.npcs[e.alifeId]
@@ -2534,7 +2538,7 @@ local function lootOf(e)
 			e.salvagedSlots[i] = id
 		end
 	end
-	-- no rolled salvage: a wreck's metal comes from drilling it (hull alloy)
+	-- no rolled salvage: a wreck's metal comes from drilling it (hull steel)
 	return loot
 end
 
@@ -2564,11 +2568,11 @@ end
 -- the loot window exists), and can be shot apart, which spills the loot as
 -- pickups.
 Game.huskHold=huskHold
--- Hull alloy a wreck yields when drilled apart: set by the hull alone, and
+-- Hull steel a wreck yields when drilled apart: set by the hull alone, and
 -- shared out among its parts when they break off, so a wreck gives the
 -- same total however many pieces it ends up in.
-function Game.wreckAlloy(hull)
-	return math.max(2, math.floor((hull and hull.mass or 80) * T.wreckAlloyPerTonne + 0.5))
+function Game.wreckSteel(hull)
+	return math.max(2, math.floor((hull and hull.mass or 80) * T.wreckSteelPerTonne + 0.5))
 end
 function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local hull = ship.hull
@@ -2579,7 +2583,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
-		alloy = Game.wreckAlloy(hull),
+		steel = Game.wreckSteel(hull),
 	}
 	-- Who this was, for the loot window: hull, ship type and the A-Life record.
 	if ship.def or ship.alifeId then
@@ -2729,12 +2733,12 @@ function Game:breakablePieces(h, ship)
 		table.insert(h.pieces, piece)
 		if carries(part) then lootTotal = lootTotal + part.area end
 	end
-	-- hull alloy: each breakable part carries its share; the core the rest
-	local alloy, given = h.alloy or 0, 0
+	-- hull steel: each breakable part carries its share; the core the rest
+	local steel, given = h.steel or 0, 0
 	for _, pc in ipairs(h.pieces) do
-		if not pc.core then pc.alloy = math.floor(alloy * pc.frac); given = given + pc.alloy end
+		if not pc.core then pc.steel = math.floor(steel * pc.frac); given = given + pc.steel end
 	end
-	h.alloy = alloy - given
+	h.steel = steel - given
 	-- mass tag: a part's share of the wreck's weight, when it breaks away
 	local massTotal = 0
 	for _, pc in ipairs(h.pieces) do massTotal = massTotal + pc.part.area * (pc.part.mass or 1) end
@@ -2843,7 +2847,7 @@ function Game:breakOff(h, piece)
 		flicker = random() * 10,
 	}
 	bits.loot = Hold.totals(bits.hold)
-	bits.alloy, bits.drilled, bits.origin = piece.alloy or 0, h.drilled, h.origin
+	bits.steel, bits.drilled, bits.origin = piece.steel or 0, h.drilled, h.origin
 	bits.shotSalvage=h.shotSalvage
 	partFixtures(body, part, bits, part.cx, part.cy)
 	local m = max(1, h.body:getMass() * (piece.massFrac or piece.frac))

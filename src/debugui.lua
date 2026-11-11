@@ -373,6 +373,20 @@ function Debug.update(dt, game)
 			Slab.Separator()
 			section("dbg_region", "This region", regionSection, game)
 			section("dbg_history", "Outcome log", function(g) require("src.simulation_history").panel(g,Slab) end, game)
+			section("dbg_food", "Station food reserves", function(g)
+				local L=require('src.locations')
+				for _,id in ipairs(L.stations(g.fieldId)) do
+					Slab.Text(L.get(id).name)
+					Slab.Text('  '..require('src.food').label(g.universe,id))
+					local Food=require('src.food')
+					local use=Food.fertilizerUse(id)
+					if use>0 then
+						Slab.Text(('  Fertilizer: %d units; %.1f/h at full food production'):format(require('src.stockpile').count(g.universe,id,Food.fertilizer),use))
+					end
+				end
+			end, game)
+			section('dbg_freight','Freight capacity',function(g) require('src.arbiter').panel(g,Slab) end,game)
+			section('dbg_chemicals','Factory production and prices',function(g) require('src.industry').panel(g,Slab) end,game)
 		end
 		Slab.EndWindow()
 	end

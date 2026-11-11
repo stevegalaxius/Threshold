@@ -1,6 +1,30 @@
 return function(game)
  local A=require('src.alife');local Q=require('src.queue');local AI=require('src.ai');local copy=require('src.persistence').copy
  game:loadField('mars');game:captureALife(true)
+ local Fields,L,G=require('src.fields'),require('src.locations'),require('src.travelgraph')
+ assert(#Fields.mars.driverIds==4 and #Fields.earth.driverIds==2 and #Fields.venus.driverIds==2,'inner planet driver counts')
+ local seen={}
+ for _,id in ipairs(Fields.mars.driverIds) do
+  local driver=game:locationEntity(id)
+  assert(driver and driver.kind=='driver' and driver.locationId==id,'Mars driver was not spawned separately')
+ end
+ local destination=L.station('earth','trade')
+ for _,source in ipairs(Fields.mars.ladderIds) do
+  local route=assert(G.itinerary(source,destination,game.universe.clock))
+  for i,id in ipairs(route) do
+   if L.get(id).kind=='driver' and L.get(id).area=='mars' then
+    seen[id]=true
+    assert(route[i+1] and G.transit(id,route[i+1],game.universe.clock),'new driver cannot launch interplanetary traffic')
+    break
+   end
+  end
+ end
+ local used=0;for _ in pairs(seen) do used=used+1 end
+ assert(used>=3,'Mars routes did not spread across drivers from different anchors')
+ for _,id in ipairs(Fields.mars.driverIds) do
+  local route=assert(G.itinerary(id,destination,game.universe.clock))
+  assert(route[1]==id and L.get(route[2]).area=='earth','traffic already at a driver was routed to another one')
+ end
  local template
  for _,r in pairs(game.universe.npcs)do if r.home=='mars' and r.archetype then template=copy(r);break end end
  assert(template)
@@ -37,6 +61,10 @@ return function(game)
  g.driverShip=game.player
  assert(Q.holding(game,ships[2],ships[2].route[2]),'player occupancy did not hold the line')
  g.driverShip=nil
+ local second=game:locationEntity(Fields.mars.driverIds[2])
+ second.driverShip=game.player;game.driverMenu={driver=second}
+ game:closeDriverMenu()
+ assert(not second.driverShip,'closing the second driver menu left it occupied')
  -- Repeated queries share one line calculation until the next simulation tick.
  local stopPoint=AI.stopPoint;local samples=0
  AI.stopPoint=function(...)samples=samples+1;return stopPoint(...)end

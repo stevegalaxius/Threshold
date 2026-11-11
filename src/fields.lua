@@ -582,7 +582,9 @@ function Fields.configureLocations(area)
         place.layout,place.wheel,place.adapter=layout,wheel,entry.adapter
         place.marketId=entry.marketId or WorldLayout.defaults.marketId
         -- what this station offers and makes belong to the place, not its design
-        place.services,place.industry=entry.services,entry.industry
+        place.services,place.facilities=entry.services,entry.facilities
+        place.food=entry.food
+        place.reserves=entry.reserves
         place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}
         for purpose,enabled in pairs(entry.uses or {}) do place.uses[purpose]=enabled end
     end
@@ -617,6 +619,7 @@ function Fields.configureLocations(area)
 			local place = F.locations[#F.locations]
 			place.heading,place.layout,place.uses = a,"ladder_anchor",{patrol=true}
             place.marketId=WorldLayout.specials.heavenLadder.marketId
+            place.food=WorldLayout.specials.heavenLadder.food
 			if k > 0 then place.accessOf = F.ladderIds[1] end
 			F.ladderIds[k + 1] = lid
 		end
@@ -640,8 +643,15 @@ function Fields.configureLocations(area)
 	end
 	if Fields.orbits[area] then
 		local d = F.radius - T.driverBarrel - 100
-		F.driverId = add("mass_driver", "Mass driver", "driver", { type = "orbit", radius = d + T.driverBarrel / 2,
-			surface = F.planetR, flowRadius = d, speedScale = T.driverOrbitScale, phase = -pi / 2 + 0.6 })
+		F.driverIds = {}
+		local count=F.navigation.drivers or 1
+		for i=1,count do
+			F.driverIds[i] = add(i==1 and 'mass_driver' or ('mass_driver_'..i),
+				count==1 and 'Mass driver' or (F.name..' mass driver '..i),'driver',
+				{type='orbit',radius=d+T.driverBarrel/2,surface=F.planetR,flowRadius=d,
+				 speedScale=T.driverOrbitScale,phase=-pi/2+.6+(i-1)*pi*2/count})
+		end
+		F.driverId = F.driverIds[1]
 	end
 	do -- moon gates (also the Quarry's, off Ring Station, which has no planet)
 		local function gate(to, moon, back)

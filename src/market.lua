@@ -59,10 +59,21 @@ end
 
 -- Game.priceFactor: the docked station's reputation discount or markup (src/reputation.lua), set by stationMarket.
 Game.priceFactor=1
-function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or Game.stackValue(s.id,s.n,s.inner))*Game.priceFactor) end
-function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(Game.stackValue(s.id,s.n,s.inner)*T.sellRate) end
+local function tradeValue(s)
+ local C=require('src.markets')
+ if C.items[s.id] and not s.inner and Game.marketUniverse and Game.marketStation then
+  return C.price(Game.marketUniverse,Game.marketStation,s.id)*s.n
+ end
+ return Game.stackValue(s.id,s.n,s.inner)
+end
+function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or tradeValue(s))*Game.priceFactor) end
+function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(tradeValue(s)*T.sellRate) end
 
 function Game:credits() return self.universe.credits end
+function Game:setMarketPrices(st)
+ Game.marketUniverse,Game.marketStation=self.universe,Stock.key(st)
+ Game.priceFactor=require('src.reputation').priceFactor(self.universe,st.key or st.locationId)
+end
 
 -- Seconds for one more stack of a catalogue entry to come in.
 local function restockTime(e)
@@ -110,19 +121,38 @@ function Game:repairQuote(st, owner)
 	return missing, missing * Game.repairRate(st), max
 end
 
--- Repair as much as credits allow. Returns points repaired and paid, or
--- nil and why not.
+-- Queue work at the station's rate; payment happens as work completes.
+-- Returns requested points and their maximum quote, or nil and why not.
 function Game:repairShip(st, owner)
 	if not Game.stationServices(st).repair then return nil, "NO REPAIR BAY HERE" end
-	local missing, _, max = self:repairQuote(st, owner)
+	local missing = self:repairQuote(st, owner)
 	if missing <= 0 then return nil, "NOTHING TO REPAIR" end
+	if owner.repairOrder then return nil, "REPAIRS ALREADY IN PROGRESS" end
 	local rate = Game.repairRate(st)
 	local points = rate > 0 and math.min(missing, floor(self.universe.credits / rate)) or missing
 	if points <= 0 then return nil, "NOT ENOUGH CREDITS" end
-	local paid = points * rate
-	owner.armor = math.min(max, (owner.armor or max) + points)
-	self.universe.credits = self.universe.credits - paid
-	return points, paid
+	owner.repairOrder={key=Stock.key(st),remaining=points,rate=rate,at=self.universe.clock}
+	return points, points*rate
+end
+
+-- Repair orders are paid as work completes. Stored ships catch up when the
+-- station is visited; undocking cancels the flying ship's unpaid remainder.
+function Game:updateRepairs(st)
+ local key=Stock.key(st)
+ local function work(owner)
+  local order=owner.repairOrder
+  if not order or order.key~=key then return end
+  local elapsed=math.max(0,self.universe.clock-order.at);order.at=self.universe.clock
+  local missing,_,maximum=self:repairQuote(st,owner)
+  local budget=order.rate>0 and self.universe.credits/order.rate or order.remaining
+  local points=require('src.repair_materials').restore(self.universe,key,math.min(missing,order.remaining,budget),elapsed,T.npcRepairPerSecond)
+  owner.armor=math.min(maximum,(owner.armor or maximum)+points)
+  self.universe.credits=math.max(0,self.universe.credits-points*order.rate)
+  order.remaining=math.max(0,order.remaining-points)
+  if order.remaining<1e-6 or maximum-owner.armor<1e-6 or budget<=points+1e-6 then owner.repairOrder=nil end
+ end
+ work(self.player)
+ for _,owner in ipairs(self:stationRecord(st).hangar) do work(owner) end
 end
 
 function Game.marketDefinition(st) return Stock.definition(st) end
@@ -161,7 +191,7 @@ end
 -- that stockpile, and what you sell goes to the shop you sold it to.
 function Game:stationMarket(st, i)
 	local r = self:stationRecord(st)
-	Game.priceFactor = require("src.reputation").priceFactor(self.universe, st.key or st.locationId)
+	self:setMarketPrices(st)
 	i = i or self:currentShop(st)
 	r.shops = r.shops or {}
 	local m = r.shops[i]
@@ -172,7 +202,7 @@ function Game:stationMarket(st, i)
 		m.hold = Game.newShelf(); m.next = m.next or {}
 	end
 	local stock = Stock.stock(self.universe, st, i)
-	if stock then Stock.syncShelf(m.hold, stock) end
+	if stock then Stock.syncShelf(m.hold, Stock.shelf(self.universe,st,i)) end
 	return m
 end
 
@@ -199,6 +229,8 @@ function Game:shopTick(st, i, shop, away)
   if shop.unlimited then mk.next[id]=now end
 		local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
 		local function have() return stock and (stock[id] or 0) or stockCount(mk.hold, id) + (away and away[id] or 0) end
+		-- Food, fertilizer and steel come from production or recovery.
+		if id=='food_crate' or id=='steel_plate' or require('src.markets').items[id] then mk.next[id]=nil else
 		-- the timed restock stands in for production until stations make goods
 		while have() < want and mk.next[id] and mk.next[id] <= now do
 			if stock then
@@ -211,9 +243,10 @@ function Game:shopTick(st, i, shop, away)
 		end
 		if have() >= want then mk.next[id] = nil
 		elseif not mk.next[id] then mk.next[id] = now + every end
+		end
 	end
 	local stock = not shop.unlimited and Stock.stock(self.universe, st, i)
-	if stock then Stock.syncShelf(mk.hold, stock, away) end
+	if stock then Stock.syncShelf(mk.hold, Stock.shelf(self.universe,st,i), away) end
 end
 
 -- Seconds until the next stack of an item comes in, or nil.
@@ -283,6 +316,7 @@ end
 -- Why the trade can't go through, or nil if it can: you can't cover the
 -- difference, or what you're buying won't fit in your hold and storage.
 function Game:tradeProblem(st, trade)
+	self:setMarketPrices(st)
 	local buying, selling = split(trade)
 	if #buying + #selling == 0 then return "NOTHING ON THE TABLE" end
 	local get, pay = Game.tradeTotals(trade)
@@ -291,6 +325,13 @@ function Game:tradeProblem(st, trade)
 	for _, s in ipairs(buying) do
 		if not ShipEntry.item(s.id) and not deliver(s, th, ts) then return "NO ROOM" end
 	end
+ local wanted={};local shop=Game.marketShops(st)[self:currentShop(st)]
+ for _,s in ipairs(buying) do
+  if not shop.unlimited and not s.resale and not s.inner and not ShipEntry.item(s.id) then
+   wanted[s.id]=(wanted[s.id] or 0)+s.n
+   if wanted[s.id]>Stock.available(self.universe,st,s.id,self:currentShop(st)) then return 'STOCK RESERVED OR NO LONGER AVAILABLE' end
+  end
+ end
  local plan,why=shipPlan(self,st,buying,selling)
  if not plan then return why end
  return nil
@@ -321,13 +362,15 @@ function Game:completeTrade(st, trade)
 	local stock = not shop.unlimited and Stock.stock(u, st, shopIndex)
  for _,s in ipairs(buying) do if not ShipEntry.item(s.id) then
   deliver(s,p.hold,storage)
-  if stock and not s.resale and not s.inner and stock[s.id] then stock[s.id]=math.max(0,stock[s.id]-s.n);if stock[s.id]==0 then stock[s.id]=nil end end
+  if stock and not s.resale and not s.inner then assert(Stock.take(u,st,s.id,s.n,shopIndex)) end
+  if stock and not s.resale and require('src.ammunition').byItem[s.id] then require('src.economy').consume(u,st.key,s.id,s.n) end
  end end
 	local mk = self:stationMarket(st)
 	for _, s in ipairs(selling) do
 		-- resale: it can be bought back until it's sold on
 		-- (no room on the shelf: it's sold on straight away)
-		if not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
+		if (s.id=='steel_plate' or require('src.markets').items[s.id]) and not s.inner then Stock.add(u,st,s.id,s.n)
+		elseif not ShipEntry.item(s.id) then Hold.placeStack(mk.hold, { id = s.id, n = s.n, inner = s.inner, wear = s.wear, resale = u.clock + T.resaleTime }) end
 	end
 	for _, g in ipairs(trade.grids) do
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end

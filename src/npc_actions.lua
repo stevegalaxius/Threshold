@@ -214,7 +214,7 @@ A.registerTarget('location',{resolve=function(ctx,t)
  return {x=x,y=y,vx=vx,vy=vy,station=station}
 end})
 A.register('hold',{update=function(ctx,a)
- if not a.fromJob then a.untilTime=ctx.r.untilTime end
+ if not a.fromJob then a.untilTime=require('src.npc').readyAt(ctx.r) end
  if ctx.clock>=(a.untilTime or math.huge) then return 'done' end
  if ctx.e then
   local target=A.resolve(ctx,a);if not target then return 'failed','location disappeared' end

@@ -1,0 +1,11 @@
+-- Factory time is measured in batches; ingredients are whole cargo units.
+local A={products={},recipes={},byItem={}}
+for _,c in ipairs(require('data.industry').recipes) do
+ if c.group=='ammunition' then A.products[#A.products+1]=c.item;A.recipes[#A.recipes+1]=c;A.byItem[c.item]=c end
+end
+function A.shop()
+ local sells={};for _,id in ipairs(A.products) do sells[#sells+1]={id,1} end
+ return {id='ammunition',name='Ballistic ammunition',description='Manufactured solid and airburst rounds; explosive and scatter shells.',sells=sells}
+end
+function A.reserve(key,item) return require('src.reserves').minimum(key,item) end
+return A

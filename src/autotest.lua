@@ -134,7 +134,7 @@ function A.update(game, dt)
 		for _ = 1, 2 do
 			game:spawnEnemy("swarmer", x + 1000 + love.math.random() * 300, y + (love.math.random() - 0.5) * 700)
 		end
-		log("phase A (like wave 1): 2 scrap drones")
+		log("phase A (like wave 1): 2 water_ice drones")
 	end) end
 	if t >= 7 then once("shot_fight", function() shot("02_fight") end) end
 	if t >= 12 then once("phaseB", function()
@@ -198,7 +198,7 @@ function A.update(game, dt)
 		A.laserTarget.def = nil          -- hold still: no AI
 		A.powerBefore = w.power
 		-- loot drops right on top of us
-		game:spawnPickup(x, y, "scrap", 1)
+		game:spawnPickup(x, y, "water_ice", 1)
 		game:spawnPickup(x, y, "rounds_s", 40)
 		A.holdBefore = w.holdUsed
 	end) end
@@ -207,14 +207,14 @@ function A.update(game, dt)
 		local d = A.laserTarget
 		log("lasers: target %s (armor %.0f/%.0f), power %.0f -> %.0f",
 			d.dead and "destroyed" or "alive", d.armor, d.stats.armor, A.powerBefore, w.power)
-		log("pickups: hold %.2f -> %.2f m3, scrap %d, light rounds %d", A.holdBefore, w.holdUsed, w.cargo.scrap or 0, w.cargo.rounds_s or 0)
+		log("pickups: hold %.2f -> %.2f m3, water_ice %d, light rounds %d", A.holdBefore, w.holdUsed, w.cargo.water_ice or 0, w.cargo.rounds_s or 0)
 		-- Grid hold: layout, adding until it's full, and husk holds.
 		for _, g in ipairs(w.hold.grids) do log("grid: %s %d x %d, %d stacks", g.name, g.w, g.h, #g.stacks) end
-		local got = Ship.addCargo(w, "scrap", 3)
-		log("grid: +%d scrap, hold %d / %d m3", got, w.holdUsed, Ship.holdCapacity(w))
+		local got = Ship.addCargo(w, "water_ice", 3)
+		log("grid: +%d water_ice, hold %d / %d m3", got, w.holdUsed, Ship.holdCapacity(w))
 		got = Ship.addCargo(w, "rounds_s", 100000)
 		log("grid: filled with %d light rounds, hold %d / %d m3, missiles %d, mass %.1f t", got, w.holdUsed, Ship.holdCapacity(w), w.cargo.missile_s or 0, w.body:getMass())
-		log("grid: room for %d more scrap", Ship.canFit(w, "scrap"))
+		log("grid: room for %d more water_ice", Ship.canFit(w, "water_ice"))
 		for _, e in ipairs(game.entities) do
 			if e.kind == "husk" then
 				local n, parts = 0, {}
@@ -325,7 +325,7 @@ function A.update(game, dt)
 		dbl(ex, ey)
 		log("equip: refitted engine %s, built-in side thrust %.0f", tostring(w.loadout[eng.i]), w.stats.sideThrust)
 		local util = slotRow("utility")
-		Hold.add(w.hold, "scrap", 1)
+		Hold.add(w.hold, "water_ice", 1)
 		local podGrid = w.hold.grids[2]
 		local podHas = #podGrid.stacks
 		Cargo.mousepressed(game, util.x + 10, util.y + 10, 1)
@@ -430,7 +430,7 @@ function A.update(game, dt)
 				local H = require("src.inventory.hold")
 				local item = require("src.data").items.cargo_container
 				local inner = H.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
-				H.fill(inner, { scrap = 20, salvage_kit = 6 })
+				H.fill(inner, { water_ice = 20, salvage_kit = 6 })
 				require("src.ship").ensureGridHold(e)
 				assert(H.placeStack(e.hold, { id = "cargo_container", n = 1, inner = inner }), "no room in the Hauler for a container")
 				game:damage(e, 1e9)
@@ -617,14 +617,14 @@ function A.update(game, dt)
 		local back = Save.decode(text)
 		log("save: %d bytes, round trip %s", #text, tostring(back and Save.encode(back) == text))
 		Save.write("autotest", state)
-		Hold.add(game:stationStorage(A.st), "scrap", 2)
+		Hold.add(game:stationStorage(A.st), "water_ice", 2)
 		game:spawnPlayer("estates_bastion")
 		game:loadFrom("autotest")
 		p = game.player
 		local st = p.dockState and p.dockState.station
-		log("save: loaded -> field %s, flying %s (hold %d m3), docked at %s, hangar %d (%s, hold %d m3), storage scrap %d",
+		log("save: loaded -> field %s, flying %s (hold %d m3), docked at %s, hangar %d (%s, hold %d m3), storage water_ice %d",
 			game.fieldId, p.hull.name, (Hold.cells(p.hold)), st and st.name or "-", #game:hangar(st), game:hangar(st)[1].hull,
-			(Hold.cells(game:hangar(st)[1].hold)), Hold.count(game:stationStorage(st), "scrap"))
+			(Hold.cells(game:hangar(st)[1].hold)), Hold.count(game:stationStorage(st), "water_ice"))
 	end) end
 	if t >= 35.89 then once("market", function()
 		local Cargo = require("src.ui.cargo")

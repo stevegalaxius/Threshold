@@ -39,7 +39,7 @@ loot_table {
 	id = "site_cache", rolls = { 2, 3 },
 	entries = {
 		{ item = "salvage_kit", min = 1, max = 2, weight = 3 },
-		{ item = "scrap", min = 2, max = 6, weight = 3 },
+		{ item = "steel_plate", min = 2, max = 6, weight = 3 },
 		{ item = "missile_m", min = 4, max = 10, weight = 2 },
 		{ item = "shell_m", min = 3, max = 9, weight = 1 },
 	},
