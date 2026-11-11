@@ -795,6 +795,12 @@ function A.update(game, dt)
 	if t >= 36.1 then once("travel_pick", function()
 		log("travel: driver window open %s; fares venus %d, mars %d, jupiter %d cr", tostring(game.driverMenu ~= nil),
 			game:driverFare("venus"), game:driverFare("mars"), game:driverFare("jupiter"))
+		-- the Destinations pane: an instance and a discovered hidden place
+		local Sites = require("src.sites")
+		Sites.spawn(game.universe, "iron_vault", { home = "mars", lifetime = 5400 })
+		local hidden = Sites.spawn(game.universe, "dark_dock", { home = "jupiter" })
+		log("sites: hidden dock listed before discovery %s, discovered %s",
+			tostring(#select(2, Sites.destinations(game.universe)) > 0), tostring(Sites.discover(game.universe, hidden)))
 		shot("13b_orrery")
 	end) end
 	if t >= 36.2 then once("travel_fire", function()

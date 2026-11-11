@@ -5,6 +5,10 @@
 	be fired toward it, or Esc to back out. Distances on the map are on a
 	squashed scale (Fields.mapScale) so Mercury and Neptune both fit.
 
+	The right-hand pane, Destinations, lists the places off the planet
+	map: instanced sites (raids, dungeons, meetups) and hidden places the
+	player has discovered (Sites.discover). Click one to be fired there.
+
 	game.driverMenu = { driver } while it's open (src/transit.lua).
 ]]
 
@@ -35,7 +39,8 @@ local function layout(game)
 	local w, h = lg.getDimensions()
 	local n = #planets()
 	local rowH = math.max(40, math.min(54, math.floor((h - 190) / n)))
-	local pw, ph = 760, 150 + n * rowH
+	local PANE = 320
+	local pw, ph = 760 + PANE, 150 + n * rowH
 	local x, y = (w - pw) / 2, (h - ph) / 2
 	local R = math.min(220, (ph - 110) / 2)
 	local cx, cy = x + 250, y + 70 + R
@@ -69,6 +74,24 @@ local function layout(game)
 				fare = Sites.fare(inst) }
 		end
 	end
+	-- the Destinations pane: instances, then discoveries, one row each
+	L.pane = { x = x + 760, y = y + 16, w = PANE - 20, h = ph - 32 }
+	L.dest = {}
+	local instances, found = Sites.destinations(game.universe)
+	local ry = L.pane.y + 40
+	local function section(title, list, empty)
+		L.dest[#L.dest + 1] = { header = title, y = ry, empty = #list == 0 and empty or nil }
+		ry = ry + (#list == 0 and 44 or 22)
+		for _, inst in ipairs(list) do
+			if ry + 48 <= L.pane.y + L.pane.h then
+				L.dest[#L.dest + 1] = { inst = inst, fare = Sites.fare(inst), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
+			end
+			ry = ry + 48
+		end
+		ry = ry + 10
+	end
+	section("INSTANCES", instances, "No open instances right now.")
+	section("DISCOVERED", found, "Nothing found off the map yet.")
 	L.cancel = { x = x + 500, y = y + ph - 60, w = 240, h = 40 }
 	return L
 end
@@ -78,6 +101,12 @@ local function inside(r, mx, my) return mx >= r.x and mx <= r.x + r.w and my >= 
 local function hoveredSite(L, mx, my)
 	for _, s in ipairs(L.sites) do
 		if (mx - s.dx) ^ 2 + (my - s.dy) ^ 2 < 9 ^ 2 then return s end
+	end
+end
+
+local function hoveredDest(L, mx, my)
+	for _, d in ipairs(L.dest) do
+		if d.inst and inside(d, mx, my) then return d end
 	end
 end
 
@@ -174,6 +203,44 @@ function Orrery.draw(game)
 		lg.setColor(game.universe.credits >= hs.fare and HUD.INK or HUD.WARN)
 		lg.print(sub, tx + 10, ty + 20)
 	end
+	-- Destinations pane
+	local P = L.pane
+	lg.setColor(0, 0, 0, 0.25)
+	lg.rectangle("fill", P.x, P.y, P.w, P.h, 6, 6)
+	lg.setFont(font(15))
+	lg.setColor(HUD.AQUA)
+	lg.print("DESTINATIONS", P.x + 10, P.y + 10)
+	local hd = hoveredDest(L, mx, my)
+	for _, d in ipairs(L.dest) do
+		if d.header then
+			lg.setFont(font(11))
+			lg.setColor(HUD.DIM)
+			lg.print(d.header, P.x + 10, d.y)
+			if d.empty then lg.setFont(font(12)); lg.print(d.empty, P.x + 10, d.y + 18) end
+		else
+			local inst, def = d.inst, Sites.template(d.inst)
+			local col = Sites.color(inst)
+			lg.setColor(0, 0, 0, (d == hd or d.inst == (hs and hs.inst)) and 0.55 or 0.3)
+			lg.rectangle("fill", d.x, d.y, d.w, d.h, 6, 6)
+			local k, kx, ky = 5, d.x + 14, d.y + 13
+			lg.setColor(col)
+			lg.polygon("fill", kx, ky - k, kx + k, ky, kx, ky + k, kx - k, ky)
+			lg.setFont(font(14))
+			lg.print(Sites.name(inst), d.x + 26, d.y + 4)
+			lg.setFont(font(11))
+			lg.setColor(HUD.DIM)
+			lg.printf((def.kind or "site"):upper(), d.x, d.y + 6, d.w - 10, "right")
+			lg.setFont(font(12))
+			lg.setColor(game.universe.credits >= d.fare and HUD.INK or HUD.WARN)
+			lg.print(("near %s   %s   %d cr"):format(Fields[inst.home] and Fields[inst.home].name or inst.home,
+				clockText(Sites.timeLeft(game.universe, inst)), d.fare), d.x + 26, d.y + 24)
+		end
+	end
+	if hd then   -- point at it on the orrery too
+		for _, s in ipairs(L.sites) do if s.inst == hd.inst then
+			lg.setColor(HUD.INK); lg.circle("line", s.dx, s.dy, 10)
+		end end
+	end
 	local c = L.cancel
 	lg.setColor(0, 0, 0, inside(c, mx, my) and 0.5 or 0.3)
 	lg.rectangle("fill", c.x, c.y, c.w, c.h, 6, 6)
@@ -190,14 +257,14 @@ function Orrery.mousepressed(game, mx, my, button)
 	if not game.driverMenu or (button ~= 1 and button ~= 2) then return false end
 	local L = layout(game)
 	if button == 2 then
-		local s=hoveredSite(L,mx,my)
+		local s=hoveredSite(L,mx,my) or hoveredDest(L,mx,my)
 		if s then game:closeDriverMenu();game:enterSite(s.inst.id);return true end
 		local target=hovered(L,mx,my)
 		if target then require('src.debugtravel').go(game,target.id) end
 		return true
 	end
 	if inside(L.cancel, mx, my) then game:closeDriverMenu() return true end
-	local s = hoveredSite(L, mx, my)
+	local s = hoveredSite(L, mx, my) or hoveredDest(L, mx, my)
 	if s then game:fireDriverToSite(s.inst.id) return true end
 	choose(game, hovered(L, mx, my))
 	return true
