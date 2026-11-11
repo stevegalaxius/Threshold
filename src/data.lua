@@ -414,6 +414,13 @@ function api.market(def)
 			if type(shop.sells) ~= "table" then fail(("market '%s' shop '%s' is missing 'sells'"):format(def.station, shop.name)) end
 		end
 	elseif type(def.sells) ~= "table" then fail(("market '%s' is missing 'sells' (or 'shops')"):format(def.station)) end
+	if def.ships ~= nil then fail(("market '%s': ships is gone; use dealer = { name, hulls, lots, ... } (src/dealers.lua)"):format(def.station)) end
+	if def.dealer ~= nil then
+		local d = def.dealer
+		if type(d) ~= "table" or type(d.hulls) ~= "table" or #d.hulls == 0 then fail(("market '%s': dealer needs a hulls list"):format(def.station)) end
+		d.name = d.name or (def.station .. " shipyard")
+		d.lots = d.lots or 6
+	end
 	def.source = currentFile
 	data.markets[def.id or def.location] = def
 end

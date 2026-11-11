@@ -18,19 +18,21 @@
 	           it's under max. Left out, it comes from the item: ammo
 	           T.restockAmmo, small modules T.restockS, and so on.
 
-	ships = { hull ids } (optional): the station's shipyard. Each sells new,
-	with its stock fit, at the hull's price; there's no stock to run out.
+	dealer = { ... } (optional): the station's ship dealership, a lot of
+	specific ships in limited number, each with its own trim, paint and
+	price, refilled over time (or built from hull frames, for a
+	manufacturer). src/dealers.lua has the fields.
 
 	Prices are the items' own (data/items.lua, data/modules.lua). Anything
 	you sell a station sits on its shelf as resale for T.resaleTime
 	seconds, then it's sold on.
 ]]
 
-market { id = "market:venus_1", station = "Hub Station", ships = { "intaki_wisp", "ferrous_runner" }, sells = {   -- general store
+market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "intaki_wisp", "ferrous_runner", "briggs_stiletto", "ferrous_pony" }, lots = 6, restock = 8 }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
-market { id = "market:mars_1", station = "Station Alpha", ships = { "brute_anvil" }, sells = {   -- artillery
+market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Brute Industries Works", hulls = { "brute_anvil", "brute_runt", "brute_nautilus" }, lots = 4, manufacturer = "shipworks", markup = 0.95 }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
 } }
@@ -53,7 +55,7 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 		{ "beam_s_base", 2 }, { "beam_m_base", 1 }, { "beam_l_base", 1 },
 	} },
 } }
-market { id = "market:earth_2", station = "Orbital Two", ships = { "estates_bastion", "ferrous_freighter", "ferrous_mule" }, sells = {   -- capital gear
+market { id = "market:earth_2", station = "Orbital Two", dealer = { name = "Elysium Fleet Brokers", hulls = { "estates_bastion", "intaki_archangel", "intaki_praetor", "ferrous_freighter", "ferrous_mule", "ferrous_bison" }, lots = 5, restock = 16, markup = 1.1, trims = { "stock" } }, sells = {   -- capital gear
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
 	{ "torp_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
@@ -125,7 +127,7 @@ market { id = "market:titania_2", station = "Messina Research Station", sells = 
 } }
 
 -- Ring Station and its Quarry.
-market { id = "market:ring_1", station = "Ring Station", ships = { "intaki_wisp", "ferrous_pony" }, sells = {   -- belt crossroads
+market { id = "market:ring_1", station = "Ring Station", dealer = { name = "Ring Station Used Hulls", hulls = { "intaki_wisp", "ferrous_pony", "ferrous_runner", "ferrous_mule" }, lots = 5, restock = 12, markup = 0.85, trims = { "stripped" } }, sells = {   -- belt crossroads
 	{ "iron_ore", 4 },
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },

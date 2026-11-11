@@ -1,11 +1,11 @@
 --[[
-	The Shipyard tab of the station screen: the hulls this station sells
-	(Game.shipyard) as a list, and the selected one in detail.
+	The Shipyard tab of the station screen: the ships on this station's
+	dealer lot (src/dealers.lua, via Game:shipyard) as a list, and the
+	selected one in detail.
 
-	  list        silhouette in its first factory paint, maker and class,
-	              price, and where it would park here (or that it won't fit)
-	  detail      the hull with its slots numbered, its factory paint pool
-	              (hull.paints) to pick from, the stock fit slot by slot,
+	  list        silhouette in its paint, trim, maker and class, price, and
+	              where it would park here (or that it won't fit)
+	  detail      the hull with its slots numbered, its paint, its fit slot by slot,
 	              its numbers against the ship you're flying, a map of the
 	              bay with the new ship's footprint where it will park, an
 	              optional trade-in from your stored ships, and Buy
@@ -22,7 +22,9 @@ local Station = require("src.ui.station")
 local Sheet = require("src.ui.shipsheet")
 local Hangar = require("src.ui.hangar")
 
-local Yard = { sel = nil, paint = nil, tradeIn = nil, scroll = 0, confirm = false }
+local Dealers = require("src.dealers")
+
+local Yard = { sel = nil, tradeIn = nil, scroll = 0, confirm = false }
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
@@ -46,16 +48,10 @@ local function tradeable(game, st)
 end
 
 local function valid(game, st)
-	local stock = game.shipyard(st)
+	local stock = game:shipyard(st)
 	local found = false
-	for _, id in ipairs(stock) do if id == Yard.sel then found = true end end
-	if not found then Yard.sel = stock[1]; Yard.paint = nil end
-	if Yard.sel then
-		local pool = Paint.pool(data.hulls[Yard.sel])
-		local ok = false
-		for _, n in ipairs(pool) do if n == Yard.paint then ok = true end end
-		if not ok then Yard.paint = pool[1] end
-	end
+	for _, lot in ipairs(stock) do if lot.id == Yard.sel then found = true end end
+	if not found then Yard.sel = stock[1] and stock[1].id end
 	if Yard.tradeIn then
 		local here = false
 		for _, rec in ipairs(game:hangar(st)) do if rec == Yard.tradeIn then here = true end end
@@ -69,7 +65,7 @@ function Yard.layout(game)
 	valid(game, st)
 	local sw, sh = lg.getDimensions()
 	local x, y, tw, ph = require("src.ui.station").body()
-	local L = { x = x, y = y, w = tw, h = ph, station = st, stock = game.shipyard(st) }
+	local L = { x = x, y = y, w = tw, h = ph, station = st, stock = game:shipyard(st) }
 	L.list = { x = x, y = y, w = LIST_W, h = ph }
 	L.detail = { x = x + LIST_W + GAP, y = y, w = tw - LIST_W - GAP, h = ph }
 	-- list rows
@@ -78,22 +74,20 @@ function Yard.layout(game)
 	Yard.scroll = max(0, min(Yard.scroll, #L.stock - visible))
 	L.visibleRows = visible
 	L.rows = {}
-	for i, id in ipairs(L.stock) do
+	for i, lot in ipairs(L.stock) do
 		local k = i - Yard.scroll
+		if lot.id == Yard.sel then L.lot = lot end
 		if k >= 1 and k <= visible then
-			table.insert(L.rows, { id = id, x = x + 4, y = top + (k - 1) * ROW_H, w = LIST_W - 8, h = ROW_H - 2 })
+			table.insert(L.rows, { id = lot.id, lot = lot, x = x + 4, y = top + (k - 1) * ROW_H, w = LIST_W - 8, h = ROW_H - 2 })
 		end
 	end
-	if not Yard.sel then return L end
+	if not L.lot then return L end
 	-- detail: left column (hull, paint, fit), right column (numbers, parking, buy)
 	local D = L.detail
 	L.lx, L.lw = D.x + PAD, LEFT_W
 	L.rx = D.x + PAD + LEFT_W + 24
 	L.rw = D.x + D.w - PAD - L.rx
-	L.swatches = {}
-	for i, name in ipairs(Paint.pool(data.hulls[Yard.sel])) do
-		L.swatches[i] = { name = name, x = L.lx + (i - 1) * 32, y = D.y + 188, w = 26, h = 26 }
-	end
+	L.paintY = D.y + 188
 	L.buy = { x = L.rx, y = D.y + D.h - PAD - 34, w = L.rw, h = 34 }
 	L.tiPrev = { x = L.rx, y = L.buy.y - 104, w = 26, h = 24 }
 	L.tiNext = { x = L.rx + L.rw - 26, y = L.tiPrev.y, w = 26, h = 24 }
@@ -116,17 +110,22 @@ local function drawList(game, L, mx, my)
 	Station.panel(P.x, P.y, P.w, P.h)
 	lg.setFont(HUD.font(18))
 	lg.setColor(HUD.INK)
-	lg.print("For sale here", P.x + PAD, P.y + 12)
-	lg.setFont(HUD.font(14))
+	local def = Dealers.def(L.station)
+	lg.print(def and def.name or "For sale here", P.x + PAD, P.y + 8)
+	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
-	lg.printf(("%d hulls"):format(#L.stock), P.x, P.y + 15, P.w - PAD, "right")
+	lg.print(def and (def.manufacturer and "Manufacturer" or "Dealer") or "No dealer", P.x + PAD, P.y + 27)
+	lg.printf(("%d / %d on the lot"):format(#L.stock, def and def.lots or 0), P.x, P.y + 27, P.w - PAD, "right")
 	if #L.stock == 0 then
-		lg.printf("This station has no ships for sale.\n\nYou can still sell your stored ships from their card on the Hangar tab.",
+		lg.printf((def and (def.manufacturer and "The lot is empty. New ships roll out as the works finishes hull frames."
+				or "The lot is empty. More ships come in over time.") or "This station has no ships for sale.")
+			.. "\n\nYou can still sell your stored ships from their card on the Hangar tab.",
 			P.x + PAD, P.y + 56, P.w - PAD * 2)
 		return
 	end
 	for _, r in ipairs(L.rows) do
-		local hull = data.hulls[r.id]
+		local lot = r.lot
+		local hull = data.hulls[lot.hull]
 		local on, hot = r.id == Yard.sel, inRect(r, mx, my)
 		if on or hot then
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], on and 0.16 or 0.07)
@@ -134,18 +133,18 @@ local function drawList(game, L, mx, my)
 		end
 		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.08)
 		lg.line(r.x + 6, r.y + r.h + 0.5, r.x + r.w - 6, r.y + r.h + 0.5)
-		local paint = Paint.preset(Paint.pool(hull)[1])
+		local paint = Paint.preset(lot.paint)
 		Hangar.drawHull(hull, r.x + 6, r.y + 8, 70, r.h - 16, false, paint, 1)
 		lg.setFont(HUD.font(16))
 		lg.setColor(HUD.INK)
 		lg.print(hull.name, r.x + 86, r.y + 8)
 		lg.setFont(HUD.font(13))
 		lg.setColor(HUD.DIM)
-		lg.print(("%s \194\183 %s"):format(hull.maker, hull.class), r.x + 86, r.y + 25)
+		lg.print(("%s \194\183 %s"):format(lot.trimName or lot.trim, hull.class), r.x + 86, r.y + 25)
 		lg.setFont(HUD.font(15))
-		lg.setColor(game:credits() >= (hull.price or 0) and HUD.INK or HUD.WARN)
-		lg.printf(HUD.credits(hull.price or 0), r.x, r.y + 8, r.w - 8, "right")
-		local text, col = parkingText(parkingFor(game, L.station, r.id))
+		lg.setColor(game:credits() >= lot.price and HUD.INK or HUD.WARN)
+		lg.printf(HUD.credits(lot.price), r.x, r.y + 8, r.w - 8, "right")
+		local text, col = parkingText(parkingFor(game, L.station, lot.hull))
 		lg.setFont(HUD.font(12))
 		lg.setColor(col)
 		lg.print(text, r.x + 86, r.y + 42)
@@ -197,9 +196,10 @@ end
 local function drawDetail(game, L, mx, my)
 	local D = L.detail
 	Station.panel(D.x, D.y, D.w, D.h)
-	if not Yard.sel then return end
-	local hull = data.hulls[Yard.sel]
-	local paint = Paint.preset(Yard.paint)
+	local lot = L.lot
+	if not lot then return end
+	local hull = data.hulls[lot.hull]
+	local paint = Paint.preset(lot.paint)
 	local p = game.player
 
 	-- left: identity, hull, paint, stock fit
@@ -209,24 +209,16 @@ local function drawDetail(game, L, mx, my)
 	lg.setColor(HUD.INK)
 	lg.print(hull.name, x, y)
 	y = Sheet.outline(hull, paint, x, y + 30, w, 108)
-	Sheet.label("Factory paint \194\183 " .. Yard.paint, x, L.swatches[1].y - 17)
-	for _, s in ipairs(L.swatches) do
-		local c = Paint.preset(s.name)
-		lg.setColor(c[1], c[2], c[3])
-		lg.rectangle("fill", s.x, s.y, s.w, s.h, 4, 4)
-		if s.name == Yard.paint then
-			lg.setColor(HUD.INK)
-			lg.setLineWidth(2)
-			lg.rectangle("line", s.x - 2, s.y - 2, s.w + 4, s.h + 4, 5, 5)
-			lg.setLineWidth(1)
-		elseif inRect(s, mx, my) then
-			lg.setColor(HUD.AQUA)
-			lg.rectangle("line", s.x - 1.5, s.y - 1.5, s.w + 3, s.h + 3, 5, 5)
-		end
-	end
-	y = L.swatches[1].y + 40
-	y = Sheet.label(("Stock fit \194\183 %d slots"):format(#hull.slots), x, y)
-	Sheet.slots(hull, hull.loadout, x, y, w, D.y + D.h - PAD)
+	Sheet.label("Paint", x, L.paintY - 17)
+	local c = Paint.preset(lot.paint)
+	lg.setColor(c[1], c[2], c[3])
+	lg.rectangle("fill", x, L.paintY, 26, 26, 4, 4)
+	lg.setFont(HUD.font(14))
+	lg.setColor(HUD.INK)
+	lg.print(lot.paint, x + 36, L.paintY + 5)
+	y = L.paintY + 40
+	y = Sheet.label(("%s fit \194\183 %d slots"):format(lot.trimName or lot.trim, #hull.slots), x, y)
+	Sheet.slots(hull, lot.loadout, x, y, w, D.y + D.h - PAD)
 
 	-- right: numbers against what you fly
 	local rx, rw = L.rx, L.rw
@@ -240,11 +232,11 @@ local function drawDetail(game, L, mx, my)
 	lg.printf("both empty, as fitted", rx, D.y + 17, rw, "right")
 	y = D.y + 42
 	local mine = Sheet.numbers(p.hull, p.loadout)
-	y = Sheet.compare(Sheet.numbers(hull, hull.loadout), mine, rx, y, rw) + 14
+	y = Sheet.compare(Sheet.numbers(hull, lot.loadout), mine, rx, y, rw) + 14
 
 	-- parking preview
 	Sheet.label("Where it parks", rx, y)
-	local gridBottom, park = drawParking(game, L, Yard.sel, rx, y + 14, rw, L.tiPrev.y - y - 50)
+	local gridBottom, park = drawParking(game, L, lot.hull, rx, y + 14, rw, L.tiPrev.y - y - 50)
 
 	-- trade-in and price
 	local T = L.tiPrev
@@ -257,7 +249,7 @@ local function drawDetail(game, L, mx, my)
 	lg.setColor(ti and HUD.INK or HUD.DIM)
 	lg.printf(ti and data.hulls[ti.hull].name .. (ti.color and ti.color.name and (" \194\183 " .. ti.color.name) or "")
 		or (#list > 0 and "None" or "No stored ships"), T.x + 30, T.y + 5, rw - 60, "center")
-	local price = hull.price or 0
+	local price = lot.price
 	local credit = ti and game.shipSellPrice(ti) or 0
 	local cost = price - credit
 	local yy = T.y + 32
@@ -273,7 +265,7 @@ local function drawDetail(game, L, mx, my)
 	if ti then row("Trade-in (with its hold)", "- " .. HUD.credits(credit)) end
 	row(cost >= 0 and "You pay" or "You receive", HUD.credits(math.abs(cost)), { 1, 0.83, 0.42 })
 
-	local problem = game:shipBuyProblem(L.station, Yard.sel, ti)
+	local problem = game:shipBuyProblem(L.station, lot, ti)
 	local label = problem and (problem == "NOT ENOUGH CREDITS" and "Not enough credits"
 			or problem == "NO SUITABLE FREE PARKING" and "No room to park it here" or problem)
 		or (ti and (Yard.confirm and "Click again to trade in & buy" or "Trade in & buy " .. hull.name))
@@ -288,7 +280,7 @@ function Yard.draw(game, mx, my)
 	drawDetail(game, L, mx, my)
 end
 
--- What a click asks for: { buy = hullId, paint = name, tradeIn = rec } or nil.
+-- What a click asks for: { buy = lot, tradeIn = rec } or nil.
 function Yard.mousepressed(game, mx, my, button)
 	local L = Yard.layout(game)
 	if not L or button ~= 1 then return nil end
@@ -296,14 +288,11 @@ function Yard.mousepressed(game, mx, my, button)
 	Yard.confirm = false
 	for _, r in ipairs(L.rows) do
 		if inRect(r, mx, my) then
-			if r.id ~= Yard.sel then Yard.sel, Yard.paint = r.id, nil end
+			Yard.sel = r.id
 			return nil
 		end
 	end
-	if not Yard.sel then return nil end
-	for _, s in ipairs(L.swatches) do
-		if inRect(s, mx, my) then Yard.paint = s.name; return nil end
-	end
+	if not L.lot then return nil end
 	local list = tradeable(game, L.station)
 	local function step(d)
 		if #list == 0 then return end
@@ -315,9 +304,9 @@ function Yard.mousepressed(game, mx, my, button)
 	if inRect(L.tiPrev, mx, my) then step(-1); return nil end
 	if inRect(L.tiNext, mx, my) then step(1); return nil end
 	if inRect(L.buy, mx, my) then
-		if game:shipBuyProblem(L.station, Yard.sel, Yard.tradeIn) then return nil end
+		if game:shipBuyProblem(L.station, L.lot, Yard.tradeIn) then return nil end
 		if Yard.tradeIn and not confirm then Yard.confirm = true; return nil end
-		return { buy = Yard.sel, paint = Yard.paint, tradeIn = Yard.tradeIn }
+		return { buy = L.lot, tradeIn = Yard.tradeIn }
 	end
 	return nil
 end

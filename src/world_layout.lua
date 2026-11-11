@@ -22,8 +22,8 @@ W.stations = {
 		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 	},
 	mars = {
-		{ id = "station:mars_1", reserves = {explosives=60}, facilities={press_canisters={capacity=1200},roll_steel={capacity=60},ammunition={capacity=12,inputReserveScale=0}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
-		{ id = "station:mars_2", reserves = {explosives=60}, facilities={press_canisters={capacity=1200},roll_steel={capacity=60},ammunition={capacity=12,inputReserveScale=0}}, services = { "market", "shipyard", "hangar" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
+		{ id = "station:mars_1", reserves = {explosives=60}, facilities={press_canisters={capacity=1200},roll_steel={capacity=60},ammunition={capacity=12,inputReserveScale=0},shipworks={capacity=1}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
+		{ id = "station:mars_2", reserves = {explosives=60}, facilities={press_canisters={capacity=1200},roll_steel={capacity=60},ammunition={capacity=12,inputReserveScale=0},shipworks={capacity=1}}, services = { "market", "shipyard", "hangar" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
 	},
 	phobos = {
 		{ id = "station:phobos_1", services = { "market", "shipyard", "hangar", "repair" }, primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },

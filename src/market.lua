@@ -303,7 +303,7 @@ local function shipPlan(game,st,buying,selling)
  local record={hangar=roster,moorings=original.moorings}
  local proxy=setmetatable({stationRecord=function() return record end},{__index=game})
  for _,s in ipairs(buying) do local item=ShipEntry.item(s.id);if item then
-  local available=false;for _,id in ipairs(game.shipyard(st)) do if id==item.hull then available=true end end
+  local available=false;for _,lot in ipairs(require('src.dealers').lots(game.universe,st)) do if lot.hull==item.hull then available=true end end
   if not available then return nil,'SHIP NO LONGER FOR SALE' end
   local parking=proxy:shipParkingFit(st,item.hull)
   if not parking then return nil,'NO SUITABLE FREE PARKING' end
@@ -422,31 +422,28 @@ end
 
 function Game.shipSellPrice(rec) return floor(Game.shipValue(rec) * T.sellRate) end
 
--- The hull ids this station's shipyard sells (may be empty).
-function Game.shipyard(st)
-	local mk = Game.marketDefinition(st)
-	return mk and mk.ships or {}
+-- The ships on this station's dealer lot (src/dealers.lua; may be empty).
+function Game:shipyard(st)
+	return require("src.dealers").lots(self.universe, st)
 end
 
--- Why this ship can't be bought here, or nil if it can. tradeIn (a
+-- Why this lot ship can't be bought here, or nil if it can. tradeIn (a
 -- stored ship record) counts toward the price and frees its parking.
-function Game:shipBuyProblem(st, hullId, tradeIn)
-	local hull = data.hulls[hullId]
-	if not hull then return "UNKNOWN SHIP" end
+function Game:shipBuyProblem(st, lot, tradeIn)
+	if not lot or not require("src.dealers").find(self.universe, st, lot.id) then return "NO LONGER FOR SALE" end
 	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
-	if self.universe.credits + credit < (hull.price or 0) then return "NOT ENOUGH CREDITS" end
-	if not self:shipParkingFit(st, hullId, tradeIn) then return "NO SUITABLE FREE PARKING" end
+	if self.universe.credits + credit < lot.price then return "NOT ENOUGH CREDITS" end
+	if not self:shipParkingFit(st, lot.hull, tradeIn) then return "NO SUITABLE FREE PARKING" end
 	return nil
 end
 
--- Buy a new ship of a hull: paid for and parked at this station.
--- opts.paint names one of the hull's factory paints; opts.tradeIn is a
--- stored ship here, sold (with its hold) toward the price. Returns the
--- record, or nil and why not (then nothing changes).
-function Game:buyShip(st, hullId, opts)
+-- Buy a ship off the dealer lot: paid for and parked at this station, in
+-- its own paint and fit. opts.tradeIn is a stored ship here, sold (with
+-- its hold) toward the price. Returns the record, or nil and why not.
+function Game:buyShip(st, lot, opts)
 	opts = opts or {}
 	local tradeIn = opts.tradeIn
-	local problem = self:shipBuyProblem(st, hullId, tradeIn)
+	local problem = self:shipBuyProblem(st, lot, tradeIn)
 	if problem then return nil, problem end
 	local list = self:hangar(st)
 	local tradeIndex
@@ -455,13 +452,14 @@ function Game:buyShip(st, hullId, opts)
 		if not tradeIndex then return nil, "NO SUCH SHIP" end
 		table.remove(list, tradeIndex)
 	end
-	local rec = self:addToHangar(st, hullId, opts.paint)
+	local rec = self:addToHangar(st, lot.hull, lot.paint, lot.loadout)
 	if not rec then
 		if tradeIndex then table.insert(list, tradeIndex, tradeIn) end
 		return nil, "NO SUITABLE FREE PARKING"
 	end
+	require("src.dealers").take(self.universe, st, lot.id)
 	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
-	self.universe.credits = self.universe.credits + credit - (data.hulls[hullId].price or 0)
+	self.universe.credits = self.universe.credits + credit - lot.price
 	if tradeIn then events.emit("sellship", tradeIn, st) end
 	events.emit("buyship", rec, st)
 	return rec

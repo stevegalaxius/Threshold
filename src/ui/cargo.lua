@@ -1484,7 +1484,7 @@ function Cargo.draw(game)
 		if Cargo.tab == "shipyard" then
 			Shipyard.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
-			Station.footer('Pick a hull, then a factory paint. New ships come with the stock fit shown.','Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab')
+			Station.footer('Every ship on the lot is one of a kind: its own trim, paint and fit. Sold ships are gone until the dealer restocks.','Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab')
 			return
 		end
 	end
@@ -1619,7 +1619,7 @@ function Cargo.draw(game)
   if r.side.market and r.side.shipEntries and #r.g.stacks==0 then
    lg.setFont(HUD.font(12));lg.setColor(HUD.DIM)
    local st=r.side.station
-   local message=#game.shipyard(st)==0 and 'This station has no ships for sale.\nStored ships can still be sold here.' or 'Ships for sale are in your trade offer.'
+   local message=#game:shipyard(st)==0 and 'This station has no ships for sale.\nStored ships can still be sold here.' or 'Ships for sale are in your trade offer.'
    lg.printf(message,r.x+8,r.y+12,r.g.w*cs-16,'left')
   end
 		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
