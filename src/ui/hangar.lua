@@ -55,7 +55,7 @@ local function layout(game)
 	local fx, y, fw, ph = require("src.ui.station").body()
 	-- cells: as big as fits beside the moorings and the card, 8..30 px
 	local room = fw - CARD_W - GAP - PAD * 2 - AIRLOCK - GAP - MOOR_W
-	local cs = max(8, min(30, floor(room / W), floor((ph - HEAD - PAD) / H)))
+	local cs = max(8, min(require("src.ui.station").CELL, floor(room / W), floor((ph - HEAD - PAD) / H)))
 	local bw = PAD * 2 + W * cs + AIRLOCK + GAP + MOOR_W
 	-- the card takes whatever width the bay leaves
 	local tw, x = fw, fx

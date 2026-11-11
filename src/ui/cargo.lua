@@ -235,7 +235,7 @@ local function layout(game)
 		end
 		return tw, max(th + HEAD + PAD * 2, eh)
 	end
-	local cs = 30
+	local cs = Station.CELL
 	while cs > 6 do
 		local tw, ph = measure(cs)
 		if tw <= Station.frameW() and ph <= select(4, Station.body()) then break end

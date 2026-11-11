@@ -1,6 +1,8 @@
 -- Station controls use the existing player inventory presentation.
 local HUD=require('src.hud')
 local S={}
+-- Largest inventory cell, in px (grids shrink below this only to fit the screen).
+S.CELL=45
 -- One frame for every station tab (and the in-flight inventory), so the
 -- header and tab row never move when the tab changes.
 function S.frameW()
