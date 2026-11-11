@@ -95,8 +95,13 @@ function Yard.layout(game)
 end
 
 -- Where a hull would park here: "inside", "mooring N" or nil.
-local function parkingFor(game, st, hullId, ignore)
-	return game:shipParkingFit(st, hullId, ignore)
+
+local SALE = { 1, 0.78, 0.3 }
+-- Where a lot ship stands on display: inside, at a berth, or still waiting.
+local function displayText(lot)
+	if lot.bay then return "On display in the hangar", SALE end
+	if lot.mooring then return ("On display at berth %d"):format(lot.mooring), SALE end
+	return "Arriving: waiting for space", HUD.DIM
 end
 
 local function parkingText(p)
@@ -114,7 +119,7 @@ local function drawList(game, L, mx, my)
 	lg.print(def and def.name or "For sale here", P.x + PAD, P.y + 8)
 	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
-	lg.print(def and (def.assembly and "Manufacturer & used exchange" or "Used ship dealer") or "No dealer", P.x + PAD, P.y + 27)
+	lg.print(def and (def.assembly and "Factory dealer" or "Used ship dealer") or "No dealer", P.x + PAD, P.y + 27)
 	lg.printf(("%d / %d on the lot"):format(#L.stock, def and def.lots or 0), P.x, P.y + 27, P.w - PAD, "right")
 	if #L.stock == 0 then
 		lg.printf((def and (def.manufacturer and "The lot is empty. New ships roll out as the works finishes hull frames."
@@ -144,7 +149,7 @@ local function drawList(game, L, mx, my)
 		lg.setFont(HUD.font(15))
 		lg.setColor(game:credits() >= lot.price and HUD.INK or HUD.WARN)
 		lg.printf(HUD.credits(lot.price), r.x, r.y + 8, r.w - 8, "right")
-		local text, col = parkingText(parkingFor(game, L.station, lot.hull))
+		local text, col = displayText(lot)
 		lg.setFont(HUD.font(12))
 		lg.setColor(col)
 		lg.print(text, r.x + 86, r.y + 42)
@@ -157,10 +162,11 @@ local function drawList(game, L, mx, my)
 end
 
 -- The bay in miniature with the new ship's footprint where it will go.
-local function drawParking(game, L, hullId, x, y, w, h)
+local function drawParking(game, L, lot, x, y, w, h)
 	local st = L.station
-	local p = parkingFor(game, st, hullId, Yard.tradeIn)
-	local text, col = parkingText(p)
+	local hullId = lot.hull
+	local p = game:purchaseParking(st, lot, Yard.tradeIn)
+	local text, col = displayText(lot)
 	lg.setFont(HUD.font(14))
 	lg.setColor(col)
 	lg.printf(text, x, y - 15, w, "right")
@@ -183,6 +189,10 @@ local function drawParking(game, L, hullId, x, y, w, h)
 		if rec ~= Yard.tradeIn then block(rec, rec.hull, rec.bay, HUD.DIM, 0.35) end
 	end
 	block(game.player, game.player.hull.id, game.player.bay, HUD.DIM, 0.35)
+	-- the rest of the lot on display, in the dealer's colour
+	for _, other in ipairs(L.stock) do
+		if other ~= lot then block(other, other.hull, other.bay, SALE, 0.3) end
+	end
 	if p and p.bay then
 		local fw, fh = game.hangarFootprint(hullId, p.bay.rot)
 		lg.setColor(0.4, 1, 0.55, 0.3)
@@ -235,8 +245,8 @@ local function drawDetail(game, L, mx, my)
 	y = Sheet.compare(Sheet.numbers(hull, lot.loadout), mine, rx, y, rw) + 14
 
 	-- parking preview
-	Sheet.label("Where it parks", rx, y)
-	local gridBottom, park = drawParking(game, L, lot.hull, rx, y + 14, rw, L.tiPrev.y - y - 50)
+	Sheet.label("On the lot", rx, y)
+	local gridBottom, park = drawParking(game, L, lot, rx, y + 14, rw, L.tiPrev.y - y - 50)
 
 	-- trade-in and price
 	local T = L.tiPrev

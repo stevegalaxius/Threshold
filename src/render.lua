@@ -6,6 +6,22 @@
 ]]
 
 local data = require("src.data")
+
+-- A dealer's lot ship moored outside: an amber FOR SALE placard over it,
+-- upright whatever the berth's heading.
+local function forSaleSign(x,y,hull,stationAngle)
+ local lg=love.graphics;local HUD=require('src.hud')
+ lg.push();lg.translate(x,y);lg.rotate(-(stationAngle or 0));x,y=0,0
+ local r=0;for i=1,#hull.shape,2 do r=math.max(r,math.abs(hull.shape[i]),math.abs(hull.shape[i+1])) end
+ local font=HUD.font(28);local text='FOR SALE'
+ local w,h=font:getWidth(text)+24,font:getHeight()+10
+ local sy=y-r*0.6-h
+ lg.setColor(0.12,0.08,0.02,0.85);lg.rectangle('fill',x-w/2,sy,w,h,6,6)
+ lg.setColor(1,0.78,0.3,0.95);lg.setLineWidth(2);lg.rectangle('line',x-w/2,sy,w,h,6,6)
+ lg.setFont(font);lg.print(text,x-w/2+12,sy+5)
+ lg.pop()
+end
+
 local Ship = require("src.ship")
 local EngineVisual = require("src.engine_visual")
 local T = require("src.tuning")
@@ -529,6 +545,8 @@ local function drawStation(game, e)
 	end
 	end
  local record=game.universe.stations[e.key]
+ local forSale={}
+ for _,lot in ipairs(require('src.dealers').lots(game.universe,e)) do forSale[lot]=true end
  for _,rec in ipairs(game:stationRoster(e)) do
   local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
   if slot then
@@ -538,6 +556,7 @@ local function drawStation(game, e)
    HullShape.draw(data.hulls[rec.hull],tint,function(c)return {c[1]*.22,c[2]*.22,c[3]*.22}end,
     function(c)return c end,outline(1.5))
    lg.pop()
+   if forSale[rec] then forSaleSign(pose.x,pose.y,data.hulls[rec.hull],e.body:getAngle()) end
   end
  end
 	lg.pop()
