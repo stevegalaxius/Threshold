@@ -9,7 +9,7 @@
 	    restock  = 10,                  game hours for one more ship to arrive
 	    markup   = 1.0,                 on list price (0.85 for a used lot)
 	    trims    = { "stock", ... },    which trims it rolls (default all)
-	    frameSupply = true,            optional: consume delivered hull frames;
+	    assembly = "ship_assembly",     optional: installed assembly facility;
 	                                    ships roll out of finished hull_frame
 	                                    stock instead of arriving on a timer
 	  }
@@ -65,9 +65,6 @@ function D.price(hull, loadout, markup)
 	return floor(max(0, v) * (markup or 1) / 10 + 0.5) * 10
 end
 
--- Hull frames a hull takes to build: one per 20k of list price.
-function D.frames(hull) return max(1, math.ceil((hull.price or 0) / 20000)) end
-
 local function rand(n) return love and love.math and love.math.random(n) or math.random(n) end
 
 function D.roll(def, state, hullId)
@@ -90,31 +87,7 @@ function D.roll(def, state, hullId)
 	}
 end
 
--- Hulls a manufacturer can build from the frames it has.
-local function buildable(def, frames)
-	local out = {}
-	for _, id in ipairs(def.hulls) do
-		local h = data.hulls[id]
-		if h and D.frames(h) <= frames then out[#out + 1] = id end
-	end
-	return out
-end
-
-local function manufacture(u, key, def, s)
-	local S = require("src.stockpile")
-	while #s.lots < (def.lots or 6) do
-		local have = S.available(u, key, D.FRAME)
-		local ids = buildable(def, have)
-		if #ids == 0 then return end
-		local id = ids[rand(#ids)]
-		local amount=D.frames(data.hulls[id])
-		assert(S.take(u,key,D.FRAME,amount))
-		require('src.economy').consume(u,key,D.FRAME,amount)
-		s.lots[#s.lots + 1] = D.roll(def, s, id)
-	end
-end
-
--- The station's lot, caught up to now. nil if it has no dealer.
+-- Read/initialize dealer inventory. Reads never advance replenishment.
 function D.state(u, st)
 	local def = D.def(st)
 	if not def then return nil end
@@ -128,27 +101,42 @@ function D.state(u, st)
 		u.dealers[key] = s
 		for _ = 1, math.ceil(cap * 0.6) do s.lots[#s.lots + 1] = D.roll(def, s) end
 	end
-	if def.frameSupply then
-		manufacture(u, key, def, s)
-	else
-		local step = (def.restock or 10) * HOUR
-		while clock >= s.next do
-			if #s.lots < cap then s.lots[#s.lots + 1] = D.roll(def, s) end
-			s.next = s.next + step
-		end
-	end
+
 	return s, def
 end
 
+-- Scheduled by industry, never by UI/read access.
+function D.update(u,key,clock)
+ local s,def=D.state(u,key);if not s or def.assembly then return end
+ local step=(def.restock or 10)*HOUR
+ local elapsed=math.max(0,math.floor((clock-s.next)/step)+1)
+ local count=math.min(elapsed,math.max(0,(def.lots or 6)-#s.lots))
+ for _=1,count do s.lots[#s.lots+1]=D.roll(def,s) end
+ s.next=s.next+elapsed*step
+end
+function D.room(u,key,hull)
+ local s,def=D.state(u,key);if not s then return 0 end
+ local allowed=false;for _,id in ipairs(def.hulls) do if id==hull then allowed=true end end
+ return allowed and math.max(0,(def.lots or 6)-#s.lots) or 0
+end
+function D.output(u,key,hull,n)
+ local s,def=D.state(u,key)
+ assert(D.room(u,key,hull)>=n,'dealer output overflow')
+ for _=1,n do s.lots[#s.lots+1]=D.roll(def,s,hull) end
+end
 -- Only empty sales slots request incoming frames; full lots have no
 -- standing construction demand. Inventory queries need not build ships.
 function D.frameTarget(u,key)
- local def=D.def(key);if not def or not def.frameSupply then return 0 end
- local state=u.dealers and u.dealers[key]
- local empty=math.max(0,(def.lots or 6)-(state and #state.lots or 0))
- local largest=1
- for _,id in ipairs(def.hulls) do largest=math.max(largest,D.frames(data.hulls[id])) end
- return empty*largest
+ local def=D.def(key);if not def or not def.assembly then return 0 end
+ local installation=require('src.industry').installations(key)[def.assembly]
+ if not installation then return 0 end
+ local s=D.state(u,key);local maximum=0
+ for _,id in ipairs(require('src.industry').definition(def.assembly,installation).recipes) do
+  for _,input in ipairs(require('src.commodities').inputs(require('src.commodities').byId[id])) do
+   if input.item==D.FRAME then maximum=math.max(maximum,input.n) end
+  end
+ end
+ return math.max(0,(def.lots or 6)-#s.lots)*maximum
 end
 function D.lots(u, st)
 	local s = D.state(u, st)

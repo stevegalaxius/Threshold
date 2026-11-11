@@ -118,6 +118,9 @@ function love.load(args)
 		["--ammunitiontest"] = "tests.ammunition",
 		["--steeltest"] = "tests.steel",
 	}
+ for _,a in ipairs(args or {}) do
+  if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
+ end
 	for _, a in ipairs(args or {}) do
 		if suites[a] then
 			game.autosaveOff = true

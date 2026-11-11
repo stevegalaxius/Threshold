@@ -202,6 +202,7 @@ function E.update(u,clock)
  local reach={}
  local all=stations()
  local inhabited=stations(true)
+ require('src.industry').update(u,clock,inhabited)
  require('src.markets').update(u,clock,all,committed)
  -- what buyers wanted that no station could supply, by good
  local unmet={}

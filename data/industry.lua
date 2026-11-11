@@ -40,8 +40,14 @@ recipe('shot_s',64,1,1);recipe('shot_m',32,2,1);recipe('shot_l',24,4,2)
 -- Guided ammunition: electronics, steel casing and explosive warheads.
 recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l',12,4,4,2,2)
 recipe('torp_s',4,4,8,2,2);recipe('torp_m',2,6,12,3,3);recipe('torp_l',1,8,16,4,4)
+-- Finished ships are typed outputs delivered to dealer inventory, not cargo.
+for _,spec in ipairs({{'brute_anvil',2},{'brute_runt',2},{'brute_nautilus',4}}) do
+ D.recipes[#D.recipes+1]={id='assemble_'..spec[1],group='ship_assembly',market=false,storefront=false,stockless=true,time=spec[2],
+  inputs={{item='hull_frame',n=spec[2]}},outputs={{kind='ship',hull=spec[1],n=1}}}
+end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.facilities={
+ ship_assembly={policy='orders',recipes={'assemble_brute_anvil','assemble_brute_runt','assemble_brute_nautilus'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},

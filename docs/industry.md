@@ -32,6 +32,7 @@ Policies:
 
 - `fixed`: equal shares across supported recipes.
 - `profit`: allocations gradually follow reachable customer revenue minus freight and local input costs, per processing unit. Near-equal positive margins preserve the existing mix. No profitable demand eventually idles the facility.
+- `orders`: choose one declared recipe at a time, rotating after completed output. Used for finished ships supplied to a dealership; a full sales lot idles assembly.
 - `adaptive`: the existing single-product industry response, slowing with stock accumulation and accelerating with unmet demand when inputs are present. Authored capacity is multiplied by the existing 0.25–4 adjustment. Multiple recipes divide that capacity equally before their adjustments.
 
 New recipe outputs participate in local pricing by default; set `market=false` to retain catalogue prices. Legacy fuel and food definitions retain their original pricing behavior. All recipe inputs and outputs automatically participate in the goods list and receive a stocked storefront if the station's shops don't already list them. Freight generation and saving need no item-specific additions.
@@ -61,3 +62,13 @@ Facility mixes and margins are saved in `universe.facilities`, keyed by station/
 F6 lists each installed facility, capacity, policy, recipe allocation/margin, output stock/prices, and available versus physical inputs.
 
 Validation: `love . --industrytest` exercises a definition-only facility with multiple outputs, independent consumption, processing time, reserved inputs, both output caps and saved progress. Existing food, chemicals, steel, ammunition and freight scenarios cover the migrated chains. Long simulation soaks are not required for this refactor.
+
+## Typed ship outputs
+
+Recipes with `stockless=true` and `storefront=false` can declare `outputs={{kind='ship',hull='brute_anvil',n=1}}` instead of a primary cargo item. Inputs and processing time still use the shared executor. The output adapter in `src/industry_outputs.lua` checks dealer capacity and appends a specific ship with its fit, paint and quoted price. No cargo item is created for the finished ship.
+
+Red Furnace installs the `ship_assembly` facility; the dealership references that installation with `assembly="ship_assembly"`. Frame costs and times are explicit recipe data, not derived from a ship's sale price. Manufacturing is scheduled with the economy for all inhabited stations. Ordinary dealers' timed replenishment also runs on that schedule. Reading a dealer list, drawing a hangar, or looking up a lot never advances production or restocking.
+
+Scheduled recipe carries and selected work save with the facility; ship outputs save with dealer inventory. Full lots and missing/reserved inputs discard blocked whole-batch time. Current assembly capacity is two processing units/hour: one Anvil or Runt per hour, or one Nautilus per two hours, before food penalties and supply limits. The sale lot, rather than physical parking, is the storage bound.
+
+[manufacturing-outputs.md](manufacturing-outputs.md) is the generated complete output and installation catalogue. Regenerate it with `love . --industrycatalogue > docs/manufacturing-outputs.md`.

@@ -4,7 +4,7 @@ for _,c in ipairs(C.list) do
  assert(not C.byId[c.id],'duplicate recipe '..c.id)
  assert((c.time or 1)>0,'invalid recipe processing time')
  c.item=c.item or c.outputs and c.outputs[1].item
- assert(c.item,'recipe requires a primary output')
+ assert(c.item or c.stockless,'recipe requires a primary cargo output or stockless destination')
  C.byId[c.id]=c
 end
 -- Fill each recipe's per-station rates (make / use) from the world layout.

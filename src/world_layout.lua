@@ -22,7 +22,7 @@ W.stations = {
 		{ id = "station:luna_2", facilities={silicon_refinery={capacity=12}}, services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 	},
 	mars = {
-		{ id = "station:mars_1", facilities={}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
+		{ id = "station:mars_1", facilities={ship_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
 		{ id = "station:mars_2", reserves={explosives=120}, facilities={ammunition={capacity=24,inputReserveScale=0}}, services = { "market", "shipyard", "hangar" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
 	},
 	phobos = {

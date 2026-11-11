@@ -34,6 +34,11 @@ function I.scale(u,key,c)
  for id,installation in pairs(I.installations(key)) do
   local def=I.definition(id,installation)
   for _,recipe in ipairs(def.recipes) do if recipe==c.id then
+   if def.policy=='orders' then
+    local state=I.state(u,key,id)
+    local selected=state.selected or def.recipes[1]
+    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull)>0 and 1 or 0
+   end
    if def.policy=='profit' then return I.state(u,key,id).mix[recipe] or 0 end
    if def.policy=='adaptive' then return (u.industry and u.industry[key] and u.industry[key][recipe] or 1)/#def.recipes end
    return 1/#def.recipes
@@ -48,7 +53,7 @@ function I.produce(u,key,c,requested,progress,roomOverride)
  progress.credit=progress.credit or {}
  local n=math.max(0,math.floor(requested+1e-9))
  for _,output in ipairs(C.outputs(c)) do
-  local room=math.max(0,math.floor(((output.cap or c.cap)-S.count(u,key,output.item))/output.n))
+  local room=require('src.industry_outputs').room(u,key,c,output)
   if roomOverride and output.item==c.item then room=roomOverride end
   n=math.min(n,room)
  end
@@ -62,7 +67,7 @@ function I.produce(u,key,c,requested,progress,roomOverride)
   progress.credit[input.item]=credit+spent-n*input.n
  end
  for _,output in ipairs(C.outputs(c)) do
-  if n>0 then S.add(u,key,output.item,n*output.n);E.stat(u,'made',output.item,n*output.n) end
+  if n>0 then require('src.industry_outputs').add(u,key,output,n) end
  end
  return n
 end
@@ -78,10 +83,41 @@ function I.flow(u,key,c,m,dt,rate,roomOverride)
  state.carry=done<whole and 0 or work-whole
  if rate>0 and not roomOverride then
   for _,output in ipairs(require('src.commodities').outputs(c)) do
-   if (output.cap or c.cap)-S.count(u,key,output.item)<output.n then state.carry=0 end
+   if require('src.industry_outputs').room(u,key,c,output)<1 then state.carry=0 end
   end
  end
  return done
+end
+-- Scheduled station facilities run independently of visibility or stock reads.
+function I.update(u,clock,stations)
+ local C=require('src.commodities');local Dealers=require('src.dealers')
+ for _,key in ipairs(stations) do
+  Dealers.update(u,key,clock)
+  require('src.stockpile').count(u,key,require('src.food').item)
+  for id,installation in pairs(I.installations(key)) do
+   local def=I.definition(id,installation)
+   local scheduled=false
+   for _,recipe in ipairs(def.recipes) do if C.byId[recipe].stockless then scheduled=true end end
+   if scheduled then
+    local state=I.state(u,key,id);local previous=state.at or clock;state.at=clock
+    state.selected=state.selected or def.recipes[1]
+    local total=0
+    for _,recipe in ipairs(def.recipes) do
+     local c=C.byId[recipe]
+     if c.stockless then
+      local rate=installation.capacity*I.scale(u,key,c)*require('src.food').output(u,key)
+      total=total+I.flow(u,key,c,state,math.max(0,clock-previous),rate)
+     end
+    end
+    state.completed=(state.completed or 0)+total
+    if def.policy=='orders' and total>0 then
+     local nextIndex=1
+     for i,recipe in ipairs(def.recipes) do if recipe==state.selected then nextIndex=i%#def.recipes+1;break end end
+     state.selected=def.recipes[nextIndex]
+    end
+   end
+  end
+ end
 end
 local function move(v,target,step) return target>v and math.min(target,v+step) or math.max(target,v-step) end
 function I.allocate(u,clock,stations,market,dt)
@@ -130,7 +166,7 @@ function I.panel(game,Slab)
    for _,recipe in ipairs(def.recipes) do
     local c=C.byId[recipe]
     Slab.Text(('  %s: %.0f%% | margin %.2f / processing unit'):format(recipe,I.scale(game.universe,key,c)*100,def.policy=='profit' and I.state(game.universe,key,id).profit[recipe] or 0))
-    for _,o in ipairs(C.outputs(c)) do Slab.Text(('    %s: stock %d | price %.2f'):format(require('src.data').items[o.item].name,S.count(game.universe,key,o.item),require('src.markets').price(game.universe,key,o.item))) end
+    for _,o in ipairs(C.outputs(c)) do if o.kind=='ship' then Slab.Text('    Ship output: '..require('src.data').hulls[o.hull].name..' -> dealership') else Slab.Text(('    %s: stock %d | price %.2f'):format(require('src.data').items[o.item].name,S.count(game.universe,key,o.item),require('src.markets').price(game.universe,key,o.item))) end end
     for _,input in ipairs(C.inputs(c)) do Slab.Text(('    Input %s: %d available / %d physical'):format(require('src.data').items[input.item].name,S.available(game.universe,key,input.item),S.count(game.universe,key,input.item))) end
    end
   end

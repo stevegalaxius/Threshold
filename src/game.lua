@@ -1922,7 +1922,7 @@ end
 function Game:step(dt)
  if self.universe and self.universe.clock>=(self.dealerParkingNext or 0) then
   self.dealerParkingNext=self.universe.clock+1
-  for _,st in ipairs(self.entities) do if st.kind=='station' and not st.dead then require('src.dealers').state(self.universe,st);self:hangar(st) end end
+  for _,st in ipairs(self.entities) do if st.kind=='station' and not st.dead then self:hangar(st) end end
  end
 	if self.flight then self:updateFlight(dt); self:updateALife(); return end
 	self.time = self.time + dt

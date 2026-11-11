@@ -168,7 +168,7 @@ function S.flow(u,key,i,m)
  local C=require('src.commodities')
  -- Reading a co-product must settle its recipe's primary shop as well.
  for _,c in ipairs(C.list) do
-  if c.make[key] and c.outputs then
+  if c.make[key] and c.outputs and not c.stockless then
    for _,output in ipairs(c.outputs) do
     local primary=S.shopFor(key,c.item)
     if S.shopFor(key,output.item)==i and primary~=i then S.stock(u,key,primary) end
@@ -178,7 +178,7 @@ function S.flow(u,key,i,m)
  for _,c in ipairs(C.list) do
   local rate=C.rate(c,key)*require('src.economy').scale(u,key,c)
   if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
-  if not c.consumption and rate~=0 and S.shopFor(key,c.item)==i then
+  if not c.consumption and not c.stockless and rate~=0 and S.shopFor(key,c.item)==i then
    require('src.industry').flow(u,key,c,m,dt,rate)
   end
  end
