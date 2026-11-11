@@ -30,8 +30,8 @@ hull {
 	turnSpeed = 50,
 	turretTurn = 150,
 	parts = {
-		{ name = "part 3", shape = { -124, -60, -136, -28, -48, -28, -24, -56 }, mirror = true },
-		{ name = "part 2", shape = { -96, -64, 32, -40, 160, -32, 160, -12, -128, -12 }, mirror = true, lights = {
+		{ name = "part 3", shape = { -124, -60, -136, -28, -48, -28, -24, -56 }, paint = "secondary", mirror = true },
+		{ name = "part 2", shape = { -96, -64, 32, -40, 160, -32, 160, -12, -128, -12 }, paint = "primary", mirror = true, lights = {
 			{ kind = "nav", x = -96, y = -60 },
 			{ kind = "strobe", rate = 1, x = 156, y = -28 },
 			{ kind = "strobe", rate = 1, x = 0, y = -28 },
@@ -42,5 +42,9 @@ hull {
 			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -88, y = 8 },
 		} },
 		{ name = "part 5", shape = { 144, -12, 152, -12, 152, 12, 144, 12 }, mirror = true },
+		{ name = "part 6", shape = { -88, -28, -52, -28, -52, -40, -76, -40 }, lights = {
+			{ h = 1.5, kind = "window", w = 2, x = -56, y = -36 },
+			{ h = 1.5, kind = "window", w = 2, x = -56, y = -32 },
+		} },
 	},
 }

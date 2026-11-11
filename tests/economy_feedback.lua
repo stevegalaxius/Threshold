@@ -10,7 +10,7 @@ return function(game)
  end
  local a,b,c=scarce('steel_plate');local d,e,f=scarce('empty_canister')
  assert(a==d and b==e and c==f,'stock query order changed resource allocation')
- assert(a>0 and b>0 and a*2+b==10,'scarce ore was lost or entirely monopolized')
+ assert(a>0 and b>0 and a*2+math.ceil(b*.5-1e-9)==10,'scarce ore was lost or entirely monopolized')
  local u=world();local ceres='station:belt_1'
  set(u,ceres,'empty_canister',0);set(u,key,'empty_canister',1000)
  E.update(u,0)

@@ -9,7 +9,7 @@
 	    restock  = 10,                  game hours for one more ship to arrive
 	    markup   = 1.0,                 on list price (0.85 for a used lot)
 	    trims    = { "stock", ... },    which trims it rolls (default all)
-	    assembly = "ship_assembly",     optional: installed assembly facility;
+	    assembly = "intaki_assembly",   optional: installed assembly facility;
 	                                    ships roll out of finished hull_frame
 	                                    stock instead of arriving on a timer
 	  }
@@ -39,6 +39,17 @@ function D.def(st)
  if place and place.kind=='station' and not place.accessOf then
   return {name='Used ship exchange',hulls={'intaki_wisp'},lots=4,restock=8,usedOnly=true}
  end
+end
+
+-- Used exchanges fill gaps in ship sales, never a factory's output space.
+function D.buildsShips(st)
+ local I=require('src.industry');local C=require('src.commodities')
+ for id,installation in pairs(I.installations(require('src.stockpile').key(st))) do
+  for _,recipe in ipairs(I.definition(id,installation).recipes) do
+   for _,output in ipairs(C.byId[recipe].outputs or {}) do if output.kind=='ship' then return true end end
+  end
+ end
+ return false
 end
 
 local function fitValue(hull, loadout)
@@ -122,8 +133,9 @@ function D.state(u, st)
 	if not s then
 		s = { lots = {}, next = clock + (def.restock or 10) * HOUR }
 		u.dealers[key] = s
-		for _=1,math.ceil(cap*.6) do
-   local lot=def.assembly and D.roll(def,s) or D.rollUsed(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+		local opening=def.usedOnly and D.buildsShips(key) and 0 or math.ceil(cap*.6)
+		for _=1,opening do
+   local lot=def.usedOnly and D.rollUsed(def,s) or D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
    if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
   end
 	end
@@ -135,12 +147,14 @@ end
 -- Scheduled by industry, never by UI/read access.
 function D.update(u,key,clock)
  local s,def=D.state(u,key);if not s then return end
+ require('src.npc_ship_supply').wholesale(u,key,s,def,clock)
+ if D.buildsShips(key) then return end
  local policy=require('data.industry').usedShips
- local step=(def.assembly and policy.intervalHours or def.restock or policy.intervalHours)*HOUR
+ local step=(def.restock or policy.intervalHours)*HOUR
  s.next=s.next or clock+step
  local elapsed=math.max(0,math.floor((clock-s.next)/step)+1)
  local count=math.min(elapsed,math.max(0,(def.lots or 6)-#s.lots))
- for _=1,count do park(u,key,s,D.rollUsed(def,s)) end
+ for _=1,count do park(u,key,s,def.usedOnly and D.rollUsed(def,s) or D.roll(def,s)) end
  s.next=s.next+elapsed*step
 end
 function D.room(u,key,hull)
@@ -155,8 +169,9 @@ function D.output(u,key,hull,n)
  local placements=require('src.dealer_parking').plan(u,key,hull,n)
  assert(#placements==n,'no physical space for manufactured ship')
  for i=1,n do
-  local lot=D.roll(def,s,hull);lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
+  local lot=D.roll(def,s,hull);lot.manufacturedAt=u.clock;lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
  end
+ require('src.npc_ship_supply').produced(u,key,hull,n)
 end
 -- Only empty sales slots request incoming frames; full lots have no
 -- standing construction demand. Inventory queries need not build ships.
@@ -195,12 +210,12 @@ function D.ship(lot)
  return {hull=lot.hull,loadout=copy(lot.loadout),cargo=copy(lot.cargo),armor=lot.armor,
   color=Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
 end
-function D.purchaseCandidate(u,area,policy)
+function D.purchaseCandidate(u,area,policy,usedOnly)
  local L=require('src.locations');local best
  for _,key in ipairs(L.stations(area)) do
   for _,lot in ipairs(D.lots(u,key)) do
    local r={ship=D.ship(lot)};local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
-   local capabilities=require('src.npc_access').capabilities(r);local eligible=lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
+   local capabilities=require('src.npc_access').capabilities(r);local eligible=(not usedOnly or lot.used) and lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
    if (stats.hold or 0)<(policy.minCargo or 0) then eligible=false end
    for capability in pairs(policy.requires or {}) do if not capabilities[capability] then eligible=false end end
    if eligible and (not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station) then best={station=key,lot=lot} end

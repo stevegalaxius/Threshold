@@ -5,15 +5,15 @@ return function(game)
  local data,L,Game=require('src.data'),require('src.locations'),require('src.game')
  local key='station:mars_1';local place=L.get(key);local original=data.stations[place.layout]
  local market=S.definition(key);local oldDealer=market.dealer
- local oldRecipes=require('data.industry').facilities.ship_assembly.recipes
+ local oldRecipes=require('data.industry').facilities.intaki_assembly.recipes
  local w,h=Game.hangarFootprint('intaki_wisp',false)
  local def={hangar={w=w*2,h=h*2},docks={{hw=1000}},parts={},berths={}}
  for i=1,4 do def.berths[i]={x=i*2000,y=0,heading=0,maxLength=1000,maxWidth=1000} end
  data.stations[place.layout]=def
- market.dealer={hulls={'intaki_wisp'},lots=20,assembly='ship_assembly'}
+ market.dealer={hulls={'intaki_wisp'},lots=20,assembly='intaki_assembly'}
  local recipe={id='test_parked_ship',stockless=true,storefront=false,market=false,inputs={{item='hull_frame',n=1}},outputs={{kind='ship',hull='intaki_wisp',n=1}},make={[key]=2},use={}}
  C.list[#C.list+1]=recipe;C.byId[recipe.id]=recipe
- require('data.industry').facilities.ship_assembly.recipes={recipe.id}
+ require('data.industry').facilities.intaki_assembly.recipes={recipe.id}
  local u={clock=0,stations={},npcs={},dealers={[key]={lots={},serial=0}}}
  local remote=P.plan(u,key,'intaki_wisp',20)
  assert(#remote==4,'unexpected commercial bay/berth capacity')
@@ -70,7 +70,7 @@ return function(game)
  assert(bought.mooring==1 and not bought.dealerStock,'purchase failed to transfer into the guest berth')
  assert(not D.find(u,key,lot.id),'purchase retained the sale lot')
  body:destroy();world:destroy()
- require('data.industry').facilities.ship_assembly.recipes=oldRecipes
+ require('data.industry').facilities.intaki_assembly.recipes=oldRecipes
  table.remove(C.list);C.byId[recipe.id]=nil
  market.dealer=oldDealer;data.stations[place.layout]=original
  print('DEALER PARKING: shared remote/live geometry, guest reserves, full-space blocking, resumption and saving passed')

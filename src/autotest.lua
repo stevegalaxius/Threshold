@@ -448,7 +448,7 @@ function A.update(game, dt)
 		-- The Hauler's wreck: its cargo is packed in containers.
 		local husk
 		for _, e in ipairs(game.entities) do
-			if e.kind == "husk" and e.hull.id == "ferrous_freighter" then husk = e end
+			if e.kind == "husk" and e.hull.id == "ferrous_bison" then husk = e end
 		end
 		local packed, loose, inside = 0, 0, 0
 		if not husk then log("loot: no Hauler wreck this run (it wasn't killed)") end
@@ -537,6 +537,10 @@ function A.update(game, dt)
 	if t >= 35.7 then once("shipyard_lot", function()
 		require("src.ui.cargo").tab = "shipyard"
 		shot("12a_shipyard")
+	end) end
+	if t >= 35.715 then once("industry_tab", function()
+		require("src.ui.cargo").tab = "industry"
+		shot("12c_industry")
 	end) end
 	if t >= 35.73 then once("shipyard_lot_done", function() require("src.ui.cargo").tab = "hangar" end) end
 	if t >= 35.75 then once("hangar_cargo", function()
@@ -791,6 +795,12 @@ function A.update(game, dt)
 	if t >= 36.1 then once("travel_pick", function()
 		log("travel: driver window open %s; fares venus %d, mars %d, jupiter %d cr", tostring(game.driverMenu ~= nil),
 			game:driverFare("venus"), game:driverFare("mars"), game:driverFare("jupiter"))
+		-- the Destinations pane: an instance and a discovered hidden place
+		local Sites = require("src.sites")
+		Sites.spawn(game.universe, "iron_vault", { home = "mars", lifetime = 5400 })
+		local hidden = Sites.spawn(game.universe, "dark_dock", { home = "jupiter" })
+		log("sites: hidden dock listed before discovery %s, discovered %s",
+			tostring(#select(2, Sites.destinations(game.universe)) > 0), tostring(Sites.discover(game.universe, hidden)))
 		shot("13b_orrery")
 	end) end
 	if t >= 36.2 then once("travel_fire", function()

@@ -38,13 +38,65 @@ local function release(ctx,action)
   end
  end
 end
+-- Offline, a work or approach move (out to a wreck, loot, a rock) goes
+-- round the planet, not through it. It used to be a straight line from
+-- where the ship was to the target: for a target on the far side of Mars
+-- that ran through the rock, the ship was drawn there and woke there,
+-- inside the planet, and died. It now follows the arc round the planet,
+-- easing its altitude from one end to the other, and never dips into the
+-- planet or its pull band.
+local function planetOf(r)
+ local f=r and require('src.fields')[r.area or '']
+ local R=f and f.planetR
+ if not R or R<=0 then return nil end
+ return R+math.min(T.surfacePullRange,R*.5)+500
+end
+local function wrap(a) return (a+math.pi)%(2*math.pi)-math.pi end
+local function arcPoint(r,ox,oy,gx,gy,p)
+ local safe=planetOf(r)
+ if not safe then return ox+(gx-ox)*p,oy+(gy-oy)*p end
+ local r0,r1=math.sqrt(ox*ox+oy*oy),math.sqrt(gx*gx+gy*gy)
+ -- a target down in the band (a surface site) is still reached
+ local floor=math.min(safe,r0,r1)
+ local x,y=ox+(gx-ox)*p,oy+(gy-oy)*p
+ -- the straight line is fine while it stays clear of the planet
+ local minR=math.huge
+ local dx,dy=gx-ox,gy-oy;local len2=dx*dx+dy*dy
+ if len2>1 then
+  local t=math.max(0,math.min(1,-(ox*dx+oy*dy)/len2))
+  minR=math.sqrt((ox+dx*t)^2+(oy+dy*t)^2)
+ end
+ if minR>=floor then return x,y end
+ local a0,a1=math.atan2(oy,ox),math.atan2(gy,gx)
+ local a=a0+wrap(a1-a0)*p
+ local rad=math.max(floor,r0+(r1-r0)*p)
+ return math.cos(a)*rad,math.sin(a)*rad
+end
+A.arcPoint=arcPoint
+-- Loose cargo and wrecks drift down through a planet's pull band toward the
+-- surface. A hauler sent after them is dragged into the rock with them, so
+-- anything below the safe altitude is not worth fetching (surface-mining
+-- moons excepted: their ground is meant to be worked).
+function A.sinking(r,x,y)
+ local f=r and require('src.fields')[r.area or '']
+ if not f or f.surfaceMine then return false end
+ local safe=planetOf(r)
+ return safe and x*x+y*y<safe*safe or false
+end
+-- How far that move really is (round the planet when it has to go round).
+function A.arcLength(r,ox,oy,gx,gy)
+ local n,len=16,0
+ local px,py=ox,oy
+ for i=1,n do local x,y=arcPoint(r,ox,oy,gx,gy,i/n);len=len+math.sqrt((x-px)^2+(y-py)^2);px,py=x,y end
+ return len
+end
 function A.position(r,clock)
  local a=r.action
  if not a or a.pausedAt then return end
  if a.rebase then return a.rebase.x,a.rebase.y end
  if not a.origin or not a.goal then return end
  local p=math.max(0,math.min(1,(clock-a.started)/math.max(.001,(a.arriveAt or a.started)-a.started)))
- return a.origin.x+(a.goal.x-a.origin.x)*p,a.origin.y+(a.goal.y-a.origin.y)*p
+ return arcPoint(r,a.origin.x,a.origin.y,a.goal.x,a.goal.y,p)
 end
 function A.actorPosition(ctx)
  if ctx.e then return ctx.e.body:getPosition() end
@@ -165,6 +217,8 @@ local function interaction(ctx,a,elapsed,approachOnly)
  end
  if target.done then return 'done' end
  if not A.available(ctx,target) then return 'failed','target claimed' end
+ local provider=a.target and a.target.provider
+ if (provider=='loot' or provider=='resource') and A.sinking(ctx.r,target.x,target.y) then return 'failed','target sinking into the planet' end
  if target.record then target.record.actionOwner=ctx.r.id;target.record.actionKey=a.key end
  local op=a.operation and A.operations[a.operation]
  local stand=a.distance or (op and op.distance and op.distance(ctx,target)) or 0
@@ -187,7 +241,7 @@ local function interaction(ctx,a,elapsed,approachOnly)
   local x,y=A.actorPosition(ctx);if not x then return 'failed','no position' end
   a.rebase=nil
   a.origin={x=x,y=y};a.started=ctx.clock
-  local dx,dy=target.x-x,target.y-y;local d=math.sqrt(dx*dx+dy*dy)
+  local d=A.arcLength(ctx.r,x,y,target.x,target.y)
   a.arriveAt=ctx.clock+math.max(1,(d-stand)/math.max(1,ctx.r.speed))
  end
  local dx,dy=target.x-a.origin.x,target.y-a.origin.y

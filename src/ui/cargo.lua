@@ -63,6 +63,7 @@ local HUD = require("src.hud")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
+local IndustryView = require("src.ui.industry")
 local Repair = require("src.ui.repair")
 local Station=require("src.ui.station")
 local stats = require("src.stats")
@@ -572,12 +573,12 @@ end
 
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
-local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'}}
+local TABS={{id='cargo',label='Storage'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'}}
 -- The tabs this station offers: Storage, then its services (Game.stationServices).
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or have[t.id] then out[#out+1]=t end end
+ for _,t in ipairs(TABS) do if t.id=='cargo' or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -605,7 +606,7 @@ function Cargo.setTab(game,id)
 end
 function Cargo.workspace(game)
  local fx,fw=Station.frame()
- if Cargo.tab=='hangar' or Cargo.tab=='shipyard' or Cargo.tab=='repair' then
+ if Cargo.tab=='hangar' or Cargo.tab=='shipyard' or Cargo.tab=='repair' or Cargo.tab=='industry' then
   local _,by,_,bh=Station.body();return {x=fx,w=fw,bottom=by+bh}
  end
  local _,by,_,bh=Station.body()
@@ -848,6 +849,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			end
 			return true
 		end
+		if Cargo.tab == "industry" then return true end
 		if Cargo.tab == "repair" then
 			local act = Repair.mousepressed(game, mx, my, button)
 			local st = game.player.dockState.station
@@ -1481,6 +1483,12 @@ function Cargo.draw(game)
 			Station.footer('Repairs restore armor at this station\'s rate per point.','Short on credits? Repair fixes as much as you can pay for.')
 			return
 		end
+		if Cargo.tab == "industry" then
+			IndustryView.draw(game, mx, my)
+			lg.setFont(HUD.font(14))
+			Station.footer('What this station makes, what it is waiting on, and where its output goes.','Shares move with the facility policy  \194\183  Inputs arrive by freight  \194\183  Mouse wheel scrolls')
+			return
+		end
 		if Cargo.tab == "shipyard" then
 			Shipyard.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
@@ -1769,6 +1777,7 @@ function Cargo.wheelmoved(game,y)
  if not Cargo.isOpen(game) then return false end
  if game.state=='docked' and Cargo.tab=='hangar' then Hangar.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='shipyard' then Shipyard.wheelmoved(game,y) end
+ if game.state=='docked' and Cargo.tab=='industry' then IndustryView.wheelmoved(game,y) end
  return true
 end
 Cargo.tabs=TABS

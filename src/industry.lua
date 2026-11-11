@@ -30,13 +30,47 @@ function I.state(u,key,id)
  end
  return u.facilities[k]
 end
+-- An orders facility builds one job at a time. When it has none, it picks
+-- the hull the lot is shortest of (ties go round-robin after the last
+-- one built) among those with room on the lot, and sticks with it until
+-- that ship rolls out, so a heavy hull is never starved by light ones.
+function I.job(u,key,id,def)
+ local state=I.state(u,key,id)
+ local D,C=require('src.dealers'),require('src.commodities')
+ -- keep the current job unless nowhere on the lot can take that hull
+ local current=state.selected and C.byId[state.selected]
+ if current and D.room(u,key,current.outputs[1].hull)>0 then return state.selected end
+ if current and (state.recipes and state.recipes[state.selected] and (state.recipes[state.selected].carry or 0)>0) then return state.selected end
+ local lot=D.state(u,key);local count={}
+ for _,l in ipairs(lot and lot.lots or {}) do count[l.hull]=(count[l.hull] or 0)+1 end
+ local start=0;for i,r in ipairs(def.recipes) do if r==state.last then start=i end end
+ local best,bestN
+ for k=1,#def.recipes do
+  local r=def.recipes[(start+k-1)%#def.recipes+1];local c=C.byId[r]
+  local hull=c and c.outputs and c.outputs[1].hull
+  if hull and D.room(u,key,hull)>0 then
+   local n=count[hull] or 0
+   if not bestN or n<bestN then best,bestN=r,n end
+  end
+ end
+ state.selected=best
+ return best or def.recipes[1]
+end
+-- A finished ship frees its facility to pick the next job.
+function I.finished(u,key,recipe)
+ for id,installation in pairs(I.installations(key)) do
+  local def=I.definition(id,installation)
+  if def.policy=='orders' then for _,r in ipairs(def.recipes) do if r==recipe then
+   local state=I.state(u,key,id);state.selected=nil;state.last=recipe
+  end end end
+ end
+end
 function I.scale(u,key,c)
  for id,installation in pairs(I.installations(key)) do
   local def=I.definition(id,installation)
   for _,recipe in ipairs(def.recipes) do if recipe==c.id then
    if def.policy=='orders' then
-    local state=I.state(u,key,id)
-    local selected=state.selected or def.recipes[1]
+    local selected=I.job(u,key,id,def)
     return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull)>0 and 1 or 0
    end
    if def.policy=='profit' then return I.state(u,key,id).mix[recipe] or 0 end
@@ -69,7 +103,7 @@ function I.produce(u,key,c,requested,progress,roomOverride)
   progress.credit[input.item]=credit+spent-n*input.n
  end
  for _,output in ipairs(C.outputs(c)) do
-  if n>0 then require('src.industry_outputs').add(u,key,output,n) end
+  if n>0 then require('src.industry_outputs').add(u,key,output,n,c) end
  end
  return n
 end
@@ -104,26 +138,18 @@ function I.update(u,clock,stations)
    for _,recipe in ipairs(def.recipes) do if C.byId[recipe].stockless then scheduled=true end end
    if scheduled then
     local state=I.state(u,key,id);local previous=state.at or clock;state.at=clock
-    state.selected=state.selected or def.recipes[1]
-    if def.policy=='orders' and I.scale(u,key,C.byId[state.selected])==0 then
-     for _,recipe in ipairs(def.recipes) do
-      if require('src.dealers').room(u,key,C.byId[recipe].outputs[1].hull)>0 then state.selected=recipe;break end
-     end
-    end
+    -- Select once for this interval. Completion clears the job for the next
+    -- update; another recipe must not receive the same elapsed work.
+    local selected=def.policy=='orders' and I.job(u,key,id,def)
     local total=0
     for _,recipe in ipairs(def.recipes) do
      local c=C.byId[recipe]
-     if c.stockless then
+     if c.stockless and (not selected or recipe==selected) then
       local rate=installation.capacity*I.scale(u,key,c)*require('src.food').output(u,key)
       total=total+I.flow(u,key,c,state,math.max(0,clock-previous),rate)
      end
     end
     state.completed=(state.completed or 0)+total
-    if def.policy=='orders' and total>0 then
-     local nextIndex=1
-     for i,recipe in ipairs(def.recipes) do if recipe==state.selected then nextIndex=i%#def.recipes+1;break end end
-     state.selected=def.recipes[nextIndex]
-    end
    end
   end
  end
@@ -170,7 +196,10 @@ function I.status(u,key,id,c)
  local S,C,data=require('src.stockpile'),require('src.commodities'),require('src.data')
  local def=I.definition(id,I.installations(key)[id])
  if (c.use[key] or 0)>0 then return 'Consuming '..data.items[c.item].name end
- if def.policy=='orders' and (I.state(u,key,id).selected or def.recipes[1])~=c.id then return 'Waiting for another assembly job' end
+ if def.policy=='orders' and I.job(u,key,id,def)~=c.id then
+  local next=require('src.commodities').byId[I.job(u,key,id,def)]
+  return 'Queued: building '..(next and require('src.data').hulls[next.outputs[1].hull].name or 'another hull')..' first'
+ end
  for _,o in ipairs(C.outputs(c)) do
   if require('src.industry_outputs').room(u,key,c,o)<1 then
    if o.kind=='ship' then

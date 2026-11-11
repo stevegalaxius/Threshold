@@ -472,6 +472,13 @@ function A.laneDirection(game,r)
  if t.from==trip.from and t.to==trip.to then return 1 end
  if t.from==trip.to and t.to==trip.from then return -1 end
 end
+function A.shotBlocked(game,e)
+ local vx,vy=e.body:getLinearVelocity()
+ local s=math.sqrt(vx*vx+vy*vy)
+ if s<1 then return false end
+ local x,y=e.body:getPosition()
+ return game:solidAhead(x,y,vx/s,vy/s)<s*.8+2000
+end
 function A.egressSample(game,r,clock)
  local entry=r.state=='transit' and r.transit.departure
  if not entry or game.lane or game.flight or entry.area~=game.fieldId then return end
@@ -988,6 +995,14 @@ function A.install(Game)
     e.intent=Ship.emptyIntent()
     A.capture(self,e,true)
     end
+   elseif e.alifeEgress and e.driverProtected and A.shotBlocked(self,e) then
+    -- A driver shot whose bearing points back across the map: the ghosted
+    -- ship would coast straight into the planet (and die on it). Cut it to
+    -- its crossing here, as the player's shot is cut, with no leftover
+    -- departure line for the map to wake it on again.
+    A.capture(self,e,true)
+    if records[id] and records[id].transit then records[id].transit.departure=nil end
+    self:remove(e,true);self.alifeOnline[id]=nil
    elseif not e.driverTractor and not e.launch and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2) then
     A.capture(self,e,false)
     if not e.removed then self:remove(e,true) end

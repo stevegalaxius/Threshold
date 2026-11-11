@@ -13,7 +13,11 @@ return function(game)
  u.clock=8*3600*20
  require('src.industry').update(u,u.clock,{hub})
  assert(#D.lots(u,hub)==6,'restock overfilled or stalled: '..#D.lots(u,hub))
- local used=D.lots(u,'station:ring_1')
+ for _,lot in ipairs(D.lots(u,hub)) do
+  local allowed=false;for _,hull in ipairs(D.def(hub).hulls) do if lot.hull==hull then allowed=true end end
+  assert(not lot.used and allowed,'named dealer received generated used stock outside its lineup')
+ end
+ local used=D.lots(u,'station:earth_1')
  for _,lot in ipairs(used) do
   assert(lot.used and lot.condition>=.7 and lot.condition<=.95,'used lot lacks condition')
   assert(lot.price>0 and lot.armor>0,'invalid used ship')
@@ -22,6 +26,9 @@ return function(game)
  local works='station:mars_1'
  local s=D.state(u,works)
  local before=#s.lots
+ local later={clock=0,stations={},npcs={}};D.state(later,works).lots={}
+ later.clock=24*3600;D.update(later,works,later.clock)
+ assert(#D.lots(later,works)==0,'ship factory received a timed delivery instead of manufacturing')
  S.stock(u,works,S.shopFor(works,D.FRAME))[D.FRAME]=0
  s.lots={};require('src.industry').update(u,u.clock,{works})
  assert(#s.lots==0,'manufacturer made ships without frames')
@@ -29,24 +36,25 @@ return function(game)
  assert(#D.lots(u,works)==0,'reading inventory built a ship')
  u.clock=u.clock+3600;require('src.industry').update(u,u.clock,{works})
  assert(#s.lots>=1,'manufacturer did not roll out a ship from frames')
+ assert(s.production and s.production[s.lots[1].hull].count>0,'completed assembly did not feed NPC supply weights')
  local Save=require('src.save');u=assert(Save.decode(Save.encode(u)))
  assert(u.dealers[works],'lot not saved')
  for _,shop in ipairs(S.shops(works)) do assert(not S.lists(shop,D.FRAME),'hull frames got a storefront') end
  -- Mars specializes: Heaven-Ladder supplies frames through real freight.
  local C,E,Tasks=require('src.commodities'),require('src.economy'),require('src.tasks')
  local ladder='station:mars_3';local weaponWorks='station:mars_2'
- assert(C.byId.assemble_hull_frames.make[ladder]==2 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
- assert(C.byId.roll_steel.make[ladder]==120 and C.byId.press_canisters.make[ladder]==2400,'basic industry did not move intact')
+ assert(C.byId.assemble_hull_frames.make[ladder]==6 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
+ assert(C.byId.roll_steel.make[ladder]==120 and C.byId.press_canisters.make[ladder]==12000,'basic industry did not move intact')
  assert(C.byId.make_rounds_s.make[weaponWorks]==24 and not C.byId.make_rounds_s.make[works],'ammunition did not consolidate at Zhongke')
  local chain={clock=0,stations={},npcs={}}
  local dealer=D.state(chain,works);dealer.lots={}
  assert(S.count(chain,works,D.FRAME)==0 and S.count(chain,'station:earth_1',D.FRAME)==0,'frames seeded outside their producer')
- S.stock(chain,ladder,S.shopFor(ladder,D.FRAME))[D.FRAME]=12
+ S.stock(chain,ladder,S.shopFor(ladder,D.FRAME))[D.FRAME]=60
  E.update(chain,0)
  local order
  for _,o in pairs(Tasks.state(chain).offers) do if o.item==D.FRAME and o.target==works then order=o;break end end
  assert(order and order.source==ladder,'Red Furnace did not order Heaven-Ladder frames')
- local needed=C.byId.assemble_brute_anvil.inputs[1].n
+ local needed=C.byId.assemble_intaki_praetor.inputs[1].n
  S.add(chain,works,D.FRAME,needed);chain.clock=3600;E.update(chain,chain.clock)
  assert(#dealer.lots>0 and chain.economyStats.used[D.FRAME]>0,'delivered frames did not become dealer inventory')
  while #dealer.lots<D.def(works).lots do dealer.lots[#dealer.lots+1]=D.roll(D.def(works),dealer) end
@@ -56,18 +64,18 @@ return function(game)
  local Industry=require('src.industry')
  local timed={clock=0,stations={},npcs={}}
  local timedLot=D.state(timed,works);timedLot.lots={}
- local facility=Industry.state(timed,works,'ship_assembly');facility.selected='assemble_brute_nautilus'
+ local facility=Industry.state(timed,works,'intaki_assembly');facility.selected='assemble_intaki_archangel'
  Industry.update(timed,0,{works});S.stock(timed,works,S.shopFor(works,D.FRAME))[D.FRAME]=4
  timed.clock=3600;Industry.update(timed,timed.clock,{works})
  assert(#timedLot.lots==0 and S.count(timed,works,D.FRAME)==4,'assembly ignored processing time')
  local oldUniverse=game.universe;game.universe=timed
  local assemblySave=assert(Save.decode(Save.encode(game:saveState())))
  game.universe=oldUniverse
- assert(assemblySave.facilities[works..'|ship_assembly'].recipes.assemble_brute_nautilus.carry==.5,'game save omitted assembly progress')
+ assert(assemblySave.facilities[works..'|intaki_assembly'].recipes.assemble_intaki_archangel.carry==.5,'game save omitted assembly progress')
  local restored=assert(Save.decode(Save.encode(timed)))
  restored.clock=7200;Industry.update(restored,restored.clock,{works})
- assert(#restored.dealers[works].lots==1 and restored.dealers[works].lots[1].hull=='brute_nautilus','saved assembly failed to produce its selected hull')
- assert(S.count(restored,works,D.FRAME)==0 and restored.economyStats.used[D.FRAME]==4 and restored.economyStats.madeShips.brute_nautilus==1,'ship output bypassed stock or production accounting')
+ assert(#restored.dealers[works].lots==1 and restored.dealers[works].lots[1].hull=='intaki_archangel','saved assembly failed to produce its selected hull')
+ assert(S.count(restored,works,D.FRAME)==0 and restored.economyStats.used[D.FRAME]==4 and restored.economyStats.madeShips.intaki_archangel==1,'ship output bypassed stock or production accounting')
  Industry.update(restored,restored.clock,{works})
  assert(#restored.dealers[works].lots==1,'same-tick assembly duplicated output')
  local full=restored.dealers[works]
@@ -109,5 +117,37 @@ return function(game)
  assert(not D.find(game.universe,st,displayed.id),'purchased display remained on sale')
  local occurrences=0;for _,owner in ipairs(game:stationRoster(st)) do if owner==rec then occurrences=occurrences+1 end end
  assert(occurrences==1,'purchase duplicated the parked ship')
+ -- Orders: the hall picks the hull the lot is shortest of and keeps it until built.
+ do
+  local Industry=require('src.industry');local q={clock=0,stations={},npcs={}}
+  local lot=D.state(q,works);lot.lots={D.roll(D.def(works),lot,'intaki_wisp'),D.roll(D.def(works),lot,'intaki_praetor')}
+  local room=D.room;D.room=function() return 1 end
+  local def=Industry.definition('intaki_assembly',Industry.installations(works).intaki_assembly)
+  assert(Industry.job(q,works,'intaki_assembly',def)=='assemble_intaki_archangel','heavy hull starved by lighter jobs')
+  Industry.finished(q,works,'assemble_intaki_archangel')
+  lot.lots[#lot.lots+1]=D.roll(D.def(works),lot,'intaki_archangel')
+  assert(Industry.job(q,works,'intaki_assembly',def)=='assemble_intaki_wisp','orders did not rotate after a ship rolled out')
+  D.room=room
+ end
+ -- Consecutive real executor updates must build the middle lineup entry too.
+ do
+  local Industry=require('src.industry');local q={clock=0,stations={},npcs={}}
+  local factory='station:mercury_2';local stock=D.state(q,factory);stock.lots={};stock.wholesaleAt=1e12
+  local room,output=D.room,D.output;local completed={}
+  D.room=function()return 1 end
+  D.output=function(_,_,hull,n)
+   completed[hull]=(completed[hull] or 0)+n
+   for _=1,n do stock.lots[#stock.lots+1]={hull=hull} end
+  end
+  for clock=0,4*3600,60 do
+   q.clock=clock
+   S.stock(q,factory,S.shopFor(factory,D.FRAME))[D.FRAME]=100
+   S.stock(q,factory,S.shopFor(factory,'food_crate')).food_crate=1000
+   Industry.update(q,clock,{factory})
+  end
+  D.room,D.output=room,output
+  for _,hull in ipairs(require('data.industry').lineups.brute) do assert((completed[hull] or 0)>0,'assembly repeatedly skipped '..hull) end
+  assert(q.economyStats.used[D.FRAME]<=8,'assembly credited the same elapsed work to multiple jobs')
+ end
  print('DEALERS: limited lots, restock, trims, manufacturer frames and saving passed ('..before..' opening at the works)')
 end

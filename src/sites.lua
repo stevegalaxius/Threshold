@@ -119,6 +119,25 @@ function Sites.visible(u)
 	return out
 end
 
+-- Mark a hidden site found (a mission, a scan, a tip-off): it joins the
+-- driver's Destinations pane and the orrery. Returns true if it was new.
+function Sites.discover(u, inst)
+	if inst.discovered then return false end
+	inst.discovered, inst.discoveredAt = true, u.clock or 0
+	return true
+end
+
+-- The driver's Destinations pane: open sites split into instances (on
+-- the public list) and discoveries (hidden templates the player found).
+function Sites.destinations(u)
+	local instances, found = {}, {}
+	for _, inst in ipairs(Sites.visible(u)) do
+		local def = Sites.template(inst)
+		table.insert(def.hidden and found or instances, inst)
+	end
+	return instances, found
+end
+
 -- Where a site is, in AU from the Sun: a little way off its home planet,
 -- riding round with it.
 function Sites.position(inst, clock)

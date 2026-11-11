@@ -1,5 +1,7 @@
 # Economy development balance
 
+Historical stabilization review: the temporary 10,000-energy setting described below was subsequently reverted to 2,500 for the PR #83 follow-up soak.
+
 This is a temporary stabilization pass to keep traffic moving ahead of the next dealership expansion. It does not establish long-term economic equilibrium.
 
 One deuterium canister now provides 10,000 energy instead of 2,500, for both players and NPCs. This deliberately lowers fuel demand while ship supply and replacement fleets are developed. Revisit this tuning once that work is in place. Stations no longer hand out free emergency canisters: refueling withdraws real inventory.
