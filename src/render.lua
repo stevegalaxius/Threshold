@@ -553,8 +553,13 @@ local function drawStation(game, e)
    local pose=game:berthPose(e,rec.mooring,rec.hull) or slot
    lg.push();lg.translate(pose.x,pose.y);lg.rotate(math.rad(pose.heading or 0))
    local tint=rec.color or rec.paint and require('src.paint').preset(rec.paint) or {.55,.8,.85}
-   HullShape.draw(data.hulls[rec.hull],tint,function(c)return {c[1]*.22,c[2]*.22,c[3]*.22}end,
+   local hull=data.hulls[rec.hull];local loadout=rec.loadout or hull.loadout
+   local dark={tint[1]*.22,tint[2]*.22,tint[3]*.22}
+   local weapons=require('src.weapon_visual')
+   weapons.drawLoadout(hull,loadout,tint,dark,outline(1.5),false)
+   HullShape.draw(hull,tint,function(c)return {c[1]*.22,c[2]*.22,c[3]*.22}end,
     function(c)return c end,outline(1.5))
+   weapons.drawLoadout(hull,loadout,tint,dark,outline(1.5),true)
    lg.pop()
    if forSale[rec] then forSaleSign(pose.x,pose.y,data.hulls[rec.hull],e.body:getAngle()) end
   end

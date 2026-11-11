@@ -123,4 +123,19 @@ function V.muzzle(module, slot)
 	local p = m[slot.muzzleN]
 	return p[1] or p.x or 0, p[2] or p.y or 0
 end
+-- Static parked records use the same mount artwork as live ships, without
+-- creating a physics entity or giving the display weapons combat state.
+function V.drawLoadout(hull, loadout, col, dark, lineWidth, turrets)
+ local data=require('src.data')
+ for i,slot in ipairs(hull.slots) do
+  local module=loadout[i] and data.modules[loadout[i]]
+  if module and module.weapon then
+   local mount=slot.mount or hull.mount or 'gimbal'
+   if (mount=='turret')==turrets then
+    V.draw({slot=slot,module=module,w=module.weapon,bay=module.family=='bay',
+     mount=mount,aim=math.rad(slot.heading or 0)},col,dark,lineWidth)
+   end
+  end
+ end
+end
 return V
