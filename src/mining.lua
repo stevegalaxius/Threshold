@@ -65,8 +65,7 @@ function M.ejecta(site,sequence)
  return {radius=T.drillRockMin+(T.drillRockMax-T.drillRockMin)*size*size,
   speed=throw*T.miningChunkDamping,
   spread=(rng:random()*2-1)*T.drillSpread,
-  spin=(rng:random()*2-1)*.12,angle=rng:random()*pi*2,
-  delay=T.drillIntervalMin+(T.drillIntervalMax-T.drillIntervalMin)*rng:random()}
+  spin=(rng:random()*2-1)*.12,angle=rng:random()*pi*2}
 end
 local function rigLength() return T.drillRockMax*3+40 end
 function M.chunkDamping(area)
@@ -123,7 +122,7 @@ function M.seed(game)
      if s.planet then angle=angle+pi end
      state.sites[id]={id=id,area=area,x=s.x,y=s.y,radius=s.radius,planet=s.planet,
       angle=angle,ore=s.ore or 'rock',item=Ore.items[s.ore or 'rock'],
-      nextAt=u.clock+M.ejecta({id=id},1).delay,sequence=0,home=home}
+      productionAt=u.clock,productionCarry=0,nextAt=u.clock+(T.drillIntervalMin+T.drillIntervalMax)/2,sequence=0,home=home}
 
     end
     local site=state.sites[id];site.home=L.get(id).motion.home
@@ -223,67 +222,48 @@ local function pointAtBody(site,game)
  end
  return site.x+nx*radius,site.y+ny*radius,nx,ny
 end
--- Any ship in the drill's line of fire: the cone out from the muzzle to
--- past the far end of the spoil field.
-local function lineOccupied(game,x,y,nx,ny)
- local reach=rigLength()+T.drillThrowMax+T.drillRockMax*2+200
- for _,e in ipairs(game.entities) do
-  if e.kind=='ship' and not e.dead and not e.removed and not e.dockState then
-   local ex,ey=e.body:getPosition();local dx,dy=ex-x,ey-y
-   local along=dx*nx+dy*ny;local across=math.abs(-dx*ny+dy*nx)
-   if along>-100 and along<reach and across<T.drillRockMax*2+(e.halfLength or 40)+along*T.drillSpread then return true end
-  end
+-- Fixed average production rate, independent of scene visibility or update
+-- frequency. Only outstanding resources count against the site's buffer.
+function M.advanceProduction(u,clock,onlySite)
+ local state=M.state(u);local sites=state.sites
+ if onlySite then
+  local site=sites[onlySite];if not site or (site.productionAt or -1)>=clock then return end
+  sites={[onlySite]=site}
  end
- return false
-end
-function M.produce(game,clock)
- local state=M.state(game.universe)
  local counts={}
  for _,resource in pairs(state.resources) do if resource.site then counts[resource.site]=(counts[resource.site] or 0)+1 end end
- for id,site in pairs(state.sites) do
-  if clock>=site.nextAt then
-   -- One irregular ejection, never a catch-up volley after travel or loading.
-   local spec=M.ejecta(site,site.sequence+1)
-   -- a drill runs faster as the arbiter adds crews to dig for it
-   local crews=1+require('src.arbiter').extraMiners(site.area)/math.max(1,T.minersPerArea)
-   site.lastAt=clock;site.nextAt=clock+spec.delay/crews
-   local count=(counts[id] or 0)<T.drillCap and 1 or 0
-   -- a drill idles while its station's shelf is full of what it digs and
-   -- nobody is buying: the arbiter's crews start it up again on demand
-   if site.home and site.item and require('src.stockpile').count(game.universe,site.home,site.item)>=T.drillStockCap then count=0 end
-   local x,y,nx,ny=site.x+cos(site.angle)*site.radius,site.y+sin(site.angle)*site.radius,cos(site.angle),sin(site.angle)
-   if site.area==game.fieldId then
-    x,y,nx,ny=pointAtBody(site,game)
-    -- hold fire while a ship is in the line of fire (miners going in to
-    -- pick up, or anyone flying past the muzzle)
-    if count>0 and lineOccupied(game,x,y,nx,ny) then count=0;site.nextAt=clock+1 end
-   end
-   if count>0 then
-    site.sequence=site.sequence+1
-    local key=id..'/chunk/'..site.sequence
-    local radius=spec.radius
-    local item,yield=Ore.drop(site.ore or 'rock',radius)
-    -- straight out along the rail; on a planet the throw is relative to
-    -- the local current, so the chunk settles into it where it stops
-    local a=math.atan2(ny,nx)+spec.spread
-    local dx,dy=cos(a),sin(a)
-    state.resources[key]={id=key,site=id,area=site.area,kind='rock',debris=site.ore or 'rock',item=item,yield=yield,
-     x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
-     vx=dx*spec.speed,vy=dy*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
-     angle=spec.angle,spin=spec.spin,clock=clock,readyAt=clock+T.miningSettleTime,relativeFlow=true}
-   end
-   if count>0 and site.area==game.fieldId and game.player and not game.player.dead
-    and not game.player.removed and not game.player.body:isDestroyed() then
-    local px,py=game.player.body:getPosition()
-    if (px-x)^2+(py-y)^2<T.sleepNear^2 then
-     local ex,ey=x+nx*rigLength(),y+ny*rigLength()
-     game:spark(ex,ey,8,{1,.7,.25})
-     game:addEffect({kind='explosion',x=ex,y=ey,r=spec.radius*.8,t=0,life=.3,dust=true})
-    end
-   end
+ for id,site in pairs(sites) do
+  local period=(T.drillIntervalMin+T.drillIntervalMax)/2
+  local crews=1+require('src.arbiter').extraMiners(site.area)/max(1,T.minersPerArea)
+  period=period/crews
+  local previous=site.productionAt or clock
+  local dt=max(0,clock-previous);site.productionAt=clock
+  local carry=site.productionCarry or 0
+  local work=carry+dt/period
+  local whole=math.floor(work+1e-9)
+  local room=max(0,T.drillCap-(counts[id] or 0))
+  if site.home and site.item and require('src.stockpile').count(u,site.home,site.item)>=T.drillStockCap then room=0 end
+  local n=min(whole,room)
+  for i=1,n do
+   site.sequence=(site.sequence or 0)+1
+   local spec=M.ejecta(site,site.sequence);local radius=spec.radius
+   local key=id..'/chunk/'..site.sequence
+   local nx,ny=cos(site.angle),sin(site.angle)
+   local x,y=site.x+nx*site.radius,site.y+ny*site.radius
+   local a=site.angle+spec.spread
+   local item,yield=Ore.drop(site.ore or 'rock',radius)
+   local birth=previous+(i-carry)*period
+   state.resources[key]={id=key,site=id,area=site.area,kind='rock',debris=site.ore or 'rock',item=item,yield=yield,
+    x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
+    vx=cos(a)*spec.speed,vy=sin(a)*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
+    angle=spec.angle,spin=spec.spin,clock=birth,readyAt=birth+T.miningSettleTime,relativeFlow=true}
+   site.lastAt=birth
   end
+  site.productionCarry=(whole>=room) and 0 or max(0,work-whole)
+  site.nextAt=clock+(1-site.productionCarry)*period
  end
 end
+function M.produce(game,clock) M.advanceProduction(game.universe,clock) end
 function M.captureResources(game)
  if game.preview then return end
  local resources=M.state(game.universe).resources
@@ -317,6 +297,7 @@ end
 function M.breakRock(game,e,pickup)
  if not e.miningId then return end
  local state=M.state(game.universe);local r=state.resources[e.miningId]
+ if r then M.advanceProduction(game.universe,game.universe.clock,r.site) end
  if r and r.kind=='rock' then
   Actions.targetResult(game.universe,r,pickup~=nil,'resource destroyed')
   if pickup and pickup.looseId then
@@ -367,7 +348,7 @@ function M.materialize(game)
  for id,r in pairs(state.resources) do
   if r.area==game.fieldId and not game.miningLive[id] then
    local x,y,vx,vy=M.position(r,game.universe.clock)
-   if needed(x,y,near) then
+   if needed(x,y,near) and (r.kind~='rock' or game:isClear(x,y,r.radius+10)) then
     if r.relativeFlow and not game.well then local fx,fy=game:flowAt(x,y);vx,vy=vx+fx,vy+fy end
     r.relativeFlow=nil
     if r.kind=='rock' then
@@ -421,7 +402,7 @@ Actions.registerTarget('resource',{
   return {record=record,entity=entity,x=x,y=y,vx=vx,vy=vy,radius=entity and entity.radius or record.radius,
    done=t.expected and record.kind~=t.expected or entity and (entity.dead or entity.removed)}
  end,
- remove=function(ctx,t) M.state(ctx.u).resources[t.id]=nil end,
+ remove=function(ctx,t) local record=M.state(ctx.u).resources[t.id];if record and record.site then M.advanceProduction(ctx.u,ctx.clock,record.site) end;M.state(ctx.u).resources[t.id]=nil end,
 })
 function M.nextAction(ctx)
  local r,t=ctx.r,ctx.r.task

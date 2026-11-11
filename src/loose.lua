@@ -45,7 +45,10 @@ end
 
 -- Write a live pickup back to its record (or retire the record when empty).
 function Lo.write(game,record,p)
- if p.count<=0 or p.gone then Lo.records(game.universe)[record.id]=nil;return end
+ if p.count<=0 or p.gone then
+  if record.site then require('src.mining').advanceProduction(game.universe,game.universe.clock,record.site) end
+  Lo.records(game.universe)[record.id]=nil;return
+ end
  record.x,record.y,record.vx,record.vy,record.count=p.x,p.y,p.vx,p.vy,p.count
  record.spin,record.clock=p.spin,game.universe.clock
  record.orbit=persistence().orbit(game,p.x,p.y)
@@ -64,5 +67,9 @@ function Lo.offline(game,area,clock)
  end
  return result
 end
-function Lo.remove(u,id) Lo.records(u)[id]=nil end
+function Lo.remove(u,id)
+ local record=Lo.records(u)[id]
+ if record and record.site then require('src.mining').advanceProduction(u,u.clock,record.site) end
+ Lo.records(u)[id]=nil
+end
 return Lo
