@@ -33,12 +33,12 @@ W.stations = {
 	},
 	
 	belt = {
-		{ id = "station:belt_1", facilities={press_canisters={capacity=300},crack_ice={capacity=300},process_nitrates={capacity=80}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
+		{ id = "station:belt_1", facilities={press_canisters={capacity=1200},crack_ice={capacity=1200},process_nitrates={capacity=80}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
 		{ id = "station:belt_2", facilities={mack_assembly={capacity=2}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, marketId = "market:belt_2", name = "MACK Industrial Freight", layout = "customs_1" },
 	},
 	jupiter = {
-		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=600},skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
-		{ id = "station:jupiter_2", facilities={skim_deuterium={capacity=600},skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
+		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
+		{ id = "station:jupiter_2", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
 				
 	},
 
@@ -74,8 +74,8 @@ W.stations = {
 		{ id = "station:titania_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
 	},
 	uranus = {
-		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=600},skim_hydrogen={capacity=6}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
-		{ id = "station:uranus_2", facilities={skim_deuterium={capacity=600},skim_hydrogen={capacity=6}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
+		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=6}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
+		{ id = "station:uranus_2", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=6}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
 		},
 	triton = {
 		{ id = "station:triton_1", services = { "market", "hangar", "repair" }, marketId = "market:triton_1", spin = -0.05, phase = 2.3415926535897933, name = "Neptune's Bounty"   },
@@ -101,7 +101,7 @@ W.stations = {
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
 W.defaults={marketId='market:venus_1',foodUse=32,foodReserveHours=4}
-W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={press_canisters={capacity=2400},roll_steel={capacity=120},shipworks={capacity=6}},
+W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={press_canisters={capacity=12000},roll_steel={capacity=120},shipworks={capacity=6}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
 W.aliases={

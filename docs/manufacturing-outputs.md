@@ -21,7 +21,7 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | `assemble_mack_burro` | 2 Hull frame | 1 Burro → dealer inventory | 2 | Available dealer parking and lot limit |
 | `assemble_mack_longhorn` | 3 Hull frame | 1 Longhorn → dealer inventory | 3 | Available dealer parking and lot limit |
 | `assemble_mack_mustang` | 2 Hull frame | 1 Mustang → dealer inventory | 2 | Available dealer parking and lot limit |
-| `crack_ice` | 1 Water ice, 1 Empty canister | 1 Deuterium canister | 1 | 1000 Deuterium canister |
+| `crack_ice` | 1 Water ice, 1 Empty canister | 1 Deuterium canister | 1 | 4000 Deuterium canister |
 | `grow_food` | 0.05 Fertilizer | 1 Food crate | 1 | 4000 Food crate |
 | `make_airburst_m` | 1 Steel plates, 3 Explosives | 100 Airburst Rounds M | 1 | 800 Airburst Rounds M |
 | `make_airburst_s` | 1 Steel plates, 3 Explosives | 200 Airburst Rounds S | 1 | 1600 Airburst Rounds S |
@@ -42,21 +42,21 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | `make_torp_l` | 8 Steel plates, 16 Explosives, 4 Electronics | 1 Torpedo L | 4 | 8 Torpedo L |
 | `make_torp_m` | 6 Steel plates, 12 Explosives, 3 Electronics | 2 Torpedo M | 3 | 16 Torpedo M |
 | `make_torp_s` | 4 Steel plates, 8 Explosives, 2 Electronics | 4 Torpedo S | 2 | 32 Torpedo S |
-| `press_canisters` | 1 Iron ore | 1 Empty canister | 1 | 1500 Empty canister |
+| `press_canisters` | 0.5 Iron ore | 1 Empty canister | 1 | 6000 Empty canister |
 | `process_nitrates` | 1 Water ice | 1 Nitrates | 1 | 480 Nitrates |
 | `produce_acids` | Local extraction | 1 Industrial acids | 1 | 64 Industrial acids |
 | `produce_nitrates` | Local extraction | 1 Nitrates | 1 | 480 Nitrates |
 | `refine_silicon` | Local extraction | 1 Silicon | 1 | 96 Silicon |
 | `roll_steel` | 2 Iron ore | 1 Steel plates | 1 | 240 Steel plates |
-| `skim_deuterium` | 1 Empty canister | 1 Deuterium canister | 1 | 1000 Deuterium canister |
+| `skim_deuterium` | 1 Empty canister | 1 Deuterium canister | 1 | 4000 Deuterium canister |
 | `skim_hydrogen` | 1 Empty canister | 1 Hydrogen canister | 1 | 60 Hydrogen canister |
 
 ## Installed capacities
 
 | Location | Installation | Policy | Capacity/hour | Recipes |
 |---|---|---|---:|---|
-| Ceres Dock (`station:belt_1`) | `crack_ice` | adaptive | 300 | crack_ice |
-| Ceres Dock (`station:belt_1`) | `press_canisters` | adaptive | 300 | press_canisters |
+| Ceres Dock (`station:belt_1`) | `crack_ice` | adaptive | 1200 | crack_ice |
+| Ceres Dock (`station:belt_1`) | `press_canisters` | adaptive | 1200 | press_canisters |
 | Ceres Dock (`station:belt_1`) | `process_nitrates` | adaptive | 80 | process_nitrates |
 | MACK Industrial Freight (`station:belt_2`) | `mack_assembly` | orders | 2 | assemble_mack_mustang, assemble_mack_burro, assemble_mack_longhorn |
 | Asgard Station (`station:callisto_2`) | `chemicals` | profit | 80 | make_fertilizer, make_explosives |
@@ -66,15 +66,15 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Sinai Deep (`station:enceladus_1`) | `produce_nitrates` | adaptive | 40 | produce_nitrates |
 | Galileo Regio (`station:ganymede_1`) | `produce_nitrates` | adaptive | 80 | produce_nitrates |
 | Pele Works (`station:io_1`) | `acid_works` | fixed | 8 | produce_acids |
-| Olympus (`station:jupiter_1`) | `skim_deuterium` | adaptive | 600 | skim_deuterium |
+| Olympus (`station:jupiter_1`) | `skim_deuterium` | adaptive | 2400 | skim_deuterium |
 | Olympus (`station:jupiter_1`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
-| Kyrakos (`station:jupiter_2`) | `skim_deuterium` | adaptive | 600 | skim_deuterium |
+| Kyrakos (`station:jupiter_2`) | `skim_deuterium` | adaptive | 2400 | skim_deuterium |
 | Kyrakos (`station:jupiter_2`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
 | Thule Prime (`station:luna_1`) | `electronics` | profit | 4 | make_electronics |
 | The Apollo Heritage Foundation (`station:luna_2`) | `silicon_refinery` | fixed | 12 | refine_silicon |
 | Red Furnace Shipyard (`station:mars_1`) | `intaki_assembly` | orders | 2 | assemble_intaki_wisp, assemble_intaki_praetor, assemble_intaki_archangel |
 |  Zhongke Intelligent Manufacturing (`station:mars_2`) | `ammunition` | profit | 24 | make_rounds_s, make_rounds_m, make_airburst_s, make_airburst_m, make_shell_s, make_shell_m, make_shell_l, make_shot_s, make_shot_m, make_shot_l, make_missile_s, make_missile_m, make_missile_l, make_torp_s, make_torp_m, make_torp_l |
-| Heaven-Ladder (`station:mars_3`) | `press_canisters` | adaptive | 2400 | press_canisters |
+| Heaven-Ladder (`station:mars_3`) | `press_canisters` | adaptive | 12000 | press_canisters |
 | Heaven-Ladder (`station:mars_3`) | `roll_steel` | adaptive | 120 | roll_steel |
 | Heaven-Ladder (`station:mars_3`) | `shipworks` | fixed | 6 | assemble_hull_frames |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
@@ -86,9 +86,9 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Ephraim's Bounty (`station:titan_1`) | `farm` | fixed | 960 | grow_food |
 | Ephraim's Bounty (`station:titan_1`) | `produce_nitrates` | adaptive | 40 | produce_nitrates |
 | Abaddon (`station:titan_2`) | `chemicals` | profit | 80 | make_fertilizer, make_explosives |
-| UAE-4 (`station:uranus_1`) | `skim_deuterium` | adaptive | 600 | skim_deuterium |
+| UAE-4 (`station:uranus_1`) | `skim_deuterium` | adaptive | 2400 | skim_deuterium |
 | UAE-4 (`station:uranus_1`) | `skim_hydrogen` | adaptive | 6 | skim_hydrogen |
-| UAE-7 (`station:uranus_2`) | `skim_deuterium` | adaptive | 600 | skim_deuterium |
+| UAE-7 (`station:uranus_2`) | `skim_deuterium` | adaptive | 2400 | skim_deuterium |
 | UAE-7 (`station:uranus_2`) | `skim_hydrogen` | adaptive | 6 | skim_hydrogen |
 | Hub Station (`station:venus_1`) | `acid_works` | fixed | 8 | produce_acids |
 | Hub Station (`station:venus_1`) | `burn_hydrogen` | adaptive | -16 | burn_hydrogen |
