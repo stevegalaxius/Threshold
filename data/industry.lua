@@ -78,6 +78,7 @@ for _,c in ipairs(D.recipes) do
 end
 D.shops={chemicals={id='chemicals',name='Chemicals',description='Nitrates, agricultural fertilizer and industrial explosives.',sells={{'nitrates',1},{'fertilizer',1},{'explosives',1}}}}
 D.usedShips={intervalHours=8,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'}}
+D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1,wholesaleHours=2}
 D.dealerParking={guestHangarFraction=.25,guestBerths=2}
 D.reserves={steel_plate={service='repair',minimum=8,openingMultiplier=2}}
 D.consumption={food={recipe='grow_food',facility='farm',item='food_crate',reserveHours=4,transition=3600,minOutput=.5}}

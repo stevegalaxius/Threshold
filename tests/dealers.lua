@@ -29,6 +29,7 @@ return function(game)
  assert(#D.lots(u,works)==0,'reading inventory built a ship')
  u.clock=u.clock+3600;require('src.industry').update(u,u.clock,{works})
  assert(#s.lots>=1,'manufacturer did not roll out a ship from frames')
+ assert(s.production and s.production[s.lots[1].hull].count>0,'completed assembly did not feed NPC supply weights')
  local Save=require('src.save');u=assert(Save.decode(Save.encode(u)))
  assert(u.dealers[works],'lot not saved')
  for _,shop in ipairs(S.shops(works)) do assert(not S.lists(shop,D.FRAME),'hull frames got a storefront') end

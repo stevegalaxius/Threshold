@@ -128,13 +128,14 @@ function P.spawn(game,area,role,nearPlayer)
   if not x then return nil,'No clear space for an NPC arrival.' end
  end
  local policy=require('src.npc_templates').purchase(role)
- local Dealers=require('src.dealers');local candidate=Dealers.purchaseCandidate(game.universe,area,policy)
- if not candidate then return nil,'No suitable ship for sale within acquisition budget.' end
- game.arrivalShip=Dealers.ship(candidate.lot)
+ local Supply=require('src.npc_ship_supply')
+ local ship,acquisition=Supply.acquire(game.universe,area,policy)
+ if not ship then return nil,'No suitable manufactured hull within acquisition budget.' end
+ game.arrivalShip=ship
  local r=def.create(game,area,node,clock)
  game.arrivalShip=nil
  if not r then return nil,'No starting work for '..role..'.' end
- assert(Dealers.buyForNpc(game.universe,r,candidate,policy),'arrival ship sale changed during creation')
+ Supply.complete(game.universe,r,acquisition,policy)
  local A=require('src.alife')
  r.spawnedAt=clock;r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp'
  if x then

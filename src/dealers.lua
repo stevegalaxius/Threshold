@@ -135,6 +135,7 @@ end
 -- Scheduled by industry, never by UI/read access.
 function D.update(u,key,clock)
  local s,def=D.state(u,key);if not s then return end
+ require('src.npc_ship_supply').wholesale(u,key,s,def,clock)
  local policy=require('data.industry').usedShips
  local step=(def.assembly and policy.intervalHours or def.restock or policy.intervalHours)*HOUR
  s.next=s.next or clock+step
@@ -155,8 +156,9 @@ function D.output(u,key,hull,n)
  local placements=require('src.dealer_parking').plan(u,key,hull,n)
  assert(#placements==n,'no physical space for manufactured ship')
  for i=1,n do
-  local lot=D.roll(def,s,hull);lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
+  local lot=D.roll(def,s,hull);lot.manufacturedAt=u.clock;lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
  end
+ require('src.npc_ship_supply').produced(u,key,hull,n)
 end
 -- Only empty sales slots request incoming frames; full lots have no
 -- standing construction demand. Inventory queries need not build ships.
@@ -195,12 +197,12 @@ function D.ship(lot)
  return {hull=lot.hull,loadout=copy(lot.loadout),cargo=copy(lot.cargo),armor=lot.armor,
   color=Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
 end
-function D.purchaseCandidate(u,area,policy)
+function D.purchaseCandidate(u,area,policy,usedOnly)
  local L=require('src.locations');local best
  for _,key in ipairs(L.stations(area)) do
   for _,lot in ipairs(D.lots(u,key)) do
    local r={ship=D.ship(lot)};local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
-   local capabilities=require('src.npc_access').capabilities(r);local eligible=lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
+   local capabilities=require('src.npc_access').capabilities(r);local eligible=(not usedOnly or lot.used) and lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
    if (stats.hold or 0)<(policy.minCargo or 0) then eligible=false end
    for capability in pairs(policy.requires or {}) do if not capabilities[capability] then eligible=false end end
    if eligible and (not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station) then best={station=key,lot=lot} end
