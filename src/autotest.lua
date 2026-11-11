@@ -514,17 +514,18 @@ function A.update(game, dt)
 		game:playerDocked(st)
 		-- the ship market: buy a Wisp (credits topped up), then sell it back
 		local orig = game:credits()
-		game.universe.credits = 20000
+		game.universe.credits = 200000
 		local c0 = game:credits()
-		local bought, why = game:buyShip(st, "intaki_wisp")
+		local lot = game:shipyard(st)[1]
+		local bought, why = game:buyShip(st, lot)
 		local c1 = game:credits()
 		local i = #game:hangar(st)
 		local paid = game:sellShip(st, i)
-		log("shipmarket: bought Wisp %s (%s) %d -> %d cr; sold for %s -> %d cr; hangar %d; shipyard here: %s",
+		log("shipmarket: bought lot ship %s (%s) %d -> %d cr; sold for %s -> %d cr; hangar %d; shipyard here: %s",
 			tostring(bought ~= nil), tostring(why), c0, c1, tostring(paid), game:credits(), #game:hangar(st),
-			table.concat(game.shipyard(st), ","))
+			#game:shipyard(st) .. " on the lot")
 		game.universe.credits = 0
-		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, "intaki_wisp")))
+		log("shipmarket: broke buy refused: %s", tostring(game:shipBuyProblem(st, game:shipyard(st)[1])))
 		game.universe.credits = orig
 		game:addToHangar(st, "brute_anvil")
 		Cargo.tab = "hangar"
@@ -533,6 +534,11 @@ function A.update(game, dt)
 		game:addToHangar(st, "estates_bastion")
 		shot("12_hangar")
 	end) end
+	if t >= 35.7 then once("shipyard_lot", function()
+		require("src.ui.cargo").tab = "shipyard"
+		shot("12a_shipyard")
+	end) end
+	if t >= 35.73 then once("shipyard_lot_done", function() require("src.ui.cargo").tab = "hangar" end) end
 	if t >= 35.75 then once("hangar_cargo", function()
 		local Cargo = require("src.ui.cargo")
 		local Hangar = require("src.ui.hangar")

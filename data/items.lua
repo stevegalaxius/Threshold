@@ -81,6 +81,9 @@ ammo { id = "drone_l", name = "Drone L",  maker = "Nova Syndicate", family = "dr
 
 salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 0.3, price = 260, w = 1, h = 1, stack = 1 }
 -- Cut from a wreck's hull with a drill: a fixed amount per hull (Game.wreckSteel).
+-- A finished ship hull frame from a manufacturer's shipworks (data/industry.lua);
+-- its dealer rolls frames out as new ships (src/dealers.lua).
+salvage { id = "hull_frame", name = "Hull frame", volume = 16, mass = 20, price = 2400, w = 4, h = 4, stack = 1 }
 salvage { id = "steel_plate",  name = "Steel plates", volume = 0.25, mass = 0.5, price = 180, w = 1, h = 1, stack = 4 }
 
 -- Standard cargo container. Empty, it's an 8 x 5 item, too big for a

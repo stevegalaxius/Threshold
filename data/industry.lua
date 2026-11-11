@@ -17,6 +17,8 @@ local D={recipes={
   inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
  -- skimming deuterium straight from a gas giant's air: just canisters
  {id='skim_deuterium',market=false,item='deuterium_canister',cap=1000,input={item='empty_canister',n=1}},
+ -- welding hull frames for a manufacturer's dealer lot (src/dealers.lua)
+ {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=2,cap=12,input={item='steel_plate',n=6}},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}
@@ -34,6 +36,7 @@ D.facilities={
  chemicals={policy='profit',openingInputs={nitrates=1},recipes={'make_fertilizer','make_explosives'}},
  ammunition={policy='profit',recipes={}},
  farm={policy='fixed',recipes={'grow_food'}},
+ shipworks={policy='fixed',openingInputs={steel_plate=8},recipes={'assemble_hull_frames'}},
 }
 for _,c in ipairs(D.recipes) do
  if c.group=='ammunition' then D.facilities.ammunition.recipes[#D.facilities.ammunition.recipes+1]=c.id end

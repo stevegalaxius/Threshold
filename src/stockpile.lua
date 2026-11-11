@@ -54,6 +54,7 @@ function S.shops(st)
  local missing,seen={},{}
  for _,recipe in ipairs(require('src.commodities').list) do
   local entries={}
+  if recipe.storefront==false then goto continue end
   for _,output in ipairs(require('src.commodities').outputs(recipe)) do entries[#entries+1]=output.item end
   for _,input in ipairs(require('src.commodities').inputs(recipe)) do entries[#entries+1]=input.item end
   for _,item in ipairs(entries) do
@@ -61,6 +62,7 @@ function S.shops(st)
    for _,shop in ipairs(shops) do if not shop.unlimited and S.lists(shop,item) then listed=true;break end end
    if not listed and not seen[item] then missing[#missing+1]={item,0};seen[item]=true end
   end
+  ::continue::
  end
  if #missing>0 then shops[#shops+1]={id='industry',name='Industrial goods',sells=missing} end
  -- the real fuel storefront, unless a shop here already stocks fuel

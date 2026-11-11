@@ -299,10 +299,10 @@ end
 -- A brand-new ship of a hull, parked in this station's hangar (the debug
 -- panel's way of getting ships until there's a market). nil if the bay
 -- has no room for it.
-function Game:addToHangar(st, hullId, paintName)
+function Game:addToHangar(st, hullId, paintName, loadout)
 	local parking=self:shipParkingFit(st,hullId)
 	if not parking then self:toast("NO SUITABLE FREE PARKING",1.4) return nil end
-	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, color = paintName and Paint.preset(paintName) or nil })
+	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, loadout = loadout, color = paintName and Paint.preset(paintName) or nil })
 	local rec = Ship.record(e)
 	e.body:destroy()
 	self:applyParking(rec,parking)
