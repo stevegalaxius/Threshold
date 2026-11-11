@@ -1547,6 +1547,8 @@ function Game:undockShip(e)
 	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
+	-- (an NPC leaving a berth inside a bay flies out the way it came in: src/ai.lua)
+	e.bayExit = bd and e.alifeId and st or nil
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
 	if e.alifeId then self:traderUndocked(e, st) end
 	events.emit("undock", e, st)
