@@ -9,7 +9,7 @@
 	    restock  = 10,                  game hours for one more ship to arrive
 	    markup   = 1.0,                 on list price (0.85 for a used lot)
 	    trims    = { "stock", ... },    which trims it rolls (default all)
-	    manufacturer = "shipworks",     optional: an industry facility here;
+	    frameSupply = true,            optional: consume delivered hull frames;
 	                                    ships roll out of finished hull_frame
 	                                    stock instead of arriving on a timer
 	  }
@@ -103,11 +103,13 @@ end
 local function manufacture(u, key, def, s)
 	local S = require("src.stockpile")
 	while #s.lots < (def.lots or 6) do
-		local have = S.count(u, key, D.FRAME)
+		local have = S.available(u, key, D.FRAME)
 		local ids = buildable(def, have)
 		if #ids == 0 then return end
 		local id = ids[rand(#ids)]
-		assert(S.take(u, key, D.FRAME, D.frames(data.hulls[id])))
+		local amount=D.frames(data.hulls[id])
+		assert(S.take(u,key,D.FRAME,amount))
+		require('src.economy').consume(u,key,D.FRAME,amount)
 		s.lots[#s.lots + 1] = D.roll(def, s, id)
 	end
 end
@@ -126,7 +128,7 @@ function D.state(u, st)
 		u.dealers[key] = s
 		for _ = 1, math.ceil(cap * 0.6) do s.lots[#s.lots + 1] = D.roll(def, s) end
 	end
-	if def.manufacturer then
+	if def.frameSupply then
 		manufacture(u, key, def, s)
 	else
 		local step = (def.restock or 10) * HOUR
@@ -138,6 +140,16 @@ function D.state(u, st)
 	return s, def
 end
 
+-- Only empty sales slots request incoming frames; full lots have no
+-- standing construction demand. Inventory queries need not build ships.
+function D.frameTarget(u,key)
+ local def=D.def(key);if not def or not def.frameSupply then return 0 end
+ local state=u.dealers and u.dealers[key]
+ local empty=math.max(0,(def.lots or 6)-(state and #state.lots or 0))
+ local largest=1
+ for _,id in ipairs(def.hulls) do largest=math.max(largest,D.frames(data.hulls[id])) end
+ return empty*largest
+end
 function D.lots(u, st)
 	local s = D.state(u, st)
 	return s and s.lots or {}

@@ -4,7 +4,7 @@ return function(game)
  local Save=require('src.save')
  assert(not require('src.data').items.scrap and not require('src.data').items.hull_alloy,'obsolete salvage metals remain')
  assert(not require('src.ore').drop('junk',100),'junk still drops a commodity')
- local key='station:mars_1'
+ local key='station:mars_3'
  -- Isolate rolling from the canister press competing for the same ore.
  local u={clock=0,stations={},credits=100000,industry={[key]={press_canisters=0}}}
  local stock=S.stock(u,key,S.shopFor(key,P.item));stock[P.item]=nil
@@ -25,6 +25,7 @@ return function(game)
  require('src.salvager').sell(game,recovery,key,u.clock)
  assert(S.count(u,key,P.item)==available+3 and recovery.ship.cargo[P.item]==0,'salvaged plates did not enter repair stock')
  game.universe=oldUniverse
+ key='station:mars_1' -- Red Furnace retains the existing repair service.
  -- Exercise the real player repair API and save/load, including partial payment.
  local old=game.universe;game.universe=u
  local p=game.player;local maximum=p.stats.armor

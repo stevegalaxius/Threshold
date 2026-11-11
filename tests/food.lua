@@ -3,7 +3,7 @@ return function(game)
  local Food,Stock,E=require('src.food'),require('src.stockpile'),require('src.economy')
  local L,Tasks=require('src.locations'),require('src.tasks')
  local Save=require('src.save')
- local key='station:mars_1'
+ local key='station:mars_3'
  local u={clock=0,stations={}}
  local function food(n)
   local stock=Stock.stock(u,key,Stock.shopFor(key,Food.item));stock[Food.item]=n
@@ -24,7 +24,7 @@ return function(game)
  Stock.add(u,key,'iron_ore',10000)
  local before=Stock.count(u,key,'empty_canister')
  u.clock=u.clock+600
- assert(Stock.count(u,key,'empty_canister')-before==100,'shortage did not halve canister production')
+ assert(Stock.count(u,key,'empty_canister')-before==200,'shortage did not halve canister production')
  -- A normal transport completion feeds the same stock, once.
  local r={id='food-hauler',ship={cargo={[Food.item]=use*3}}}
  local t={id='food-shipment',source='station:earth_2',target=key,item=Food.item,amount=use*3,stocked=true,phase='delivery'}

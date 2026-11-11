@@ -1,6 +1,6 @@
 # Ammunition manufacturing
 
-Both Mars industrial stations share 12 batches per game hour across their ballistic ammunition recipes. Local input prices and reachable customer bids, less freight, determine profit per batch and gradually shift factory allocations. Industry shortages reduce production through the existing food system. Production requires actual steel plates and explosives.
+Zhongke Intelligent Manufacturing shares 24 batches per game hour across their ballistic ammunition recipes. Local input prices and reachable customer bids, less freight, determine profit per batch and gradually shift factory allocations. Industry shortages reduce production through the existing food system. Production requires actual steel plates and explosives.
 
 | Product | Output per batch | Steel plates | Explosives |
 |---|---:|---:|---:|

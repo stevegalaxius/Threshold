@@ -17,7 +17,7 @@ return function(game)
   assert(lot.trim=='stripped','used lot rolled a trim it does not sell')
   assert(lot.price<data.hulls[lot.hull].price,'used stripped ship not discounted')
  end
- -- manufacturer: lot only grows from hull frames
+ -- Red Furnace assembles dealer inventory from delivered frames
  local works='station:mars_1'
  local s=D.state(u,works)
  local before=#s.lots
@@ -30,6 +30,25 @@ return function(game)
  local Save=require('src.save');u=assert(Save.decode(Save.encode(u)))
  assert(u.dealers[works],'lot not saved')
  for _,shop in ipairs(S.shops(works)) do assert(not S.lists(shop,D.FRAME),'hull frames got a storefront') end
+ -- Mars specializes: Heaven-Ladder supplies frames through real freight.
+ local C,E,Tasks=require('src.commodities'),require('src.economy'),require('src.tasks')
+ local ladder='station:mars_3';local weaponWorks='station:mars_2'
+ assert(C.byId.assemble_hull_frames.make[ladder]==2 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
+ assert(C.byId.roll_steel.make[ladder]==120 and C.byId.press_canisters.make[ladder]==2400,'basic industry did not move intact')
+ assert(C.byId.make_rounds_s.make[weaponWorks]==24 and not C.byId.make_rounds_s.make[works],'ammunition did not consolidate at Zhongke')
+ local chain={clock=0,stations={},npcs={}}
+ local dealer=D.state(chain,works);dealer.lots={}
+ assert(S.count(chain,works,D.FRAME)==0 and S.count(chain,'station:earth_1',D.FRAME)==0,'frames seeded outside their producer')
+ S.stock(chain,ladder,S.shopFor(ladder,D.FRAME))[D.FRAME]=12
+ E.update(chain,0)
+ local order
+ for _,o in pairs(Tasks.state(chain).offers) do if o.item==D.FRAME and o.target==works then order=o;break end end
+ assert(order and order.source==ladder,'Red Furnace did not order Heaven-Ladder frames')
+ local needed=D.frames(data.hulls[D.def(works).hulls[1]])
+ S.add(chain,works,D.FRAME,needed);D.state(chain,works)
+ assert(#dealer.lots>0 and chain.economyStats.used[D.FRAME]>0,'delivered frames did not become dealer inventory')
+ while #dealer.lots<D.def(works).lots do dealer.lots[#dealer.lots+1]=D.roll(D.def(works),dealer) end
+ assert(E.target(chain,works,D.FRAME)==0,'full dealership keeps requesting frames')
  -- Dealer lots share physical parking, but remain outside player ownership.
  game:loadField('venus');game:captureALife(true)
  local st=assert(game:locationEntity(hub));game.universe.credits=10^8

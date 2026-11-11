@@ -117,6 +117,7 @@ local function makes(key,item)
 end
 function E.target(u,key,item,supplier)
  local want=math.max(E.rate(u,key,item),capacityUse(u,key,item))*(supplier and E.reserveHours or E.hours)
+ if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  want=math.max(want,require('src.reserves').minimum(key,item))

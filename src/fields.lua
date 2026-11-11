@@ -620,6 +620,7 @@ function Fields.configureLocations(area)
 			place.heading,place.layout,place.uses = a,"ladder_anchor",{patrol=true}
             place.marketId=WorldLayout.specials.heavenLadder.marketId
             place.food=WorldLayout.specials.heavenLadder.food
+            if k==0 then place.facilities=WorldLayout.specials.heavenLadder.facilities;place.uses.trade=true;place.uses.mining=true end
 			if k > 0 then place.accessOf = F.ladderIds[1] end
 			F.ladderIds[k + 1] = lid
 		end

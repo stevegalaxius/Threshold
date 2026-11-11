@@ -12,7 +12,12 @@ function C.load()
  if package.loaded['src.stockpile'] then package.loaded['src.stockpile'].shopCache={} end
  local W=require('src.world_layout')
  for _,c in ipairs(C.list) do c.make,c.use={},{} end
- for _,entries in pairs(W.stations) do
+ local groups={}
+ for _,entries in pairs(W.stations) do groups[#groups+1]=entries end
+ local specials={}
+ for _,entry in pairs(W.specials) do if entry.id then specials[#specials+1]=entry end end
+ groups[#groups+1]=specials
+ for _,entries in ipairs(groups) do
   for _,entry in ipairs(entries) do
    for id,installation in pairs(entry.facilities or {}) do
     local def=assert(require('data.industry').facilities[installation.type or id],'unknown facility '..id)

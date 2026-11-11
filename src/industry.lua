@@ -9,6 +9,7 @@ function I.initial(key)
  local out=require('src.reserves').opening(key);local C=require('src.commodities')
  for _,recipe in ipairs(C.list) do if recipe.opening~=nil then out[recipe.item]=recipe.opening end end
  for id,installation in pairs(I.installations(key)) do
+  for item,n in pairs(I.definition(id,installation).openingOutputs or {}) do out[item]=(out[item] or 0)+n end
   for item,hours in pairs(I.definition(id,installation).openingInputs or {}) do
    local maximum=0
    for _,recipe in ipairs(I.definition(id,installation).recipes) do
