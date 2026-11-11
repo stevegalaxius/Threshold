@@ -247,7 +247,7 @@ local function layout(game)
 	ph = max(ph, select(4, Station.body()))   -- panels reach the footer, like every tab
 	for _, side in ipairs(list) do side.w, side.h = size(side, cs) end
 	local x = floor((sw - tw) / 2)
-	local y = 112
+	local y = Station.BODY_Y
 
 	-- Equipment: the hull outline with numbered hardpoints, then a row per slot.
 	local equipmentWidth=EW
@@ -627,7 +627,7 @@ local function spaceTabs(game)
  local fx,fw=Station.frame()
  local out={}
  for i,t in ipairs(SPACE_TABS) do out[i]={id=t.id,label=t.label,x=fx+14+(i-1)*120,y=66,w=112,h=28} end
- return out,{x=fx,y=112,w=fw}
+ return out,{x=fx,y=Station.BODY_Y,w=fw}
 end
 Cargo.spaceTabs=spaceTabs
 
@@ -1410,9 +1410,8 @@ end
 function drawTabs(game,mx,my)
  local p=game.player;local st=p.dockState.station;local f=Cargo.workspace(game)
  Station.panel(f.x,12,f.w,88)
- lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print(st.name,f.x+14,23)
- lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.print(game:shipParkingLabel(st,p),f.x+14,44)
- lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,27,190,'right')
+ Station.ledgerText(f.x,12,st.name,game:shipParkingLabel(st,p))
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,21,190,'right')
  Station.button({x=f.x+f.w-130,y=24,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))
  for _,t in ipairs(tabRects(game)) do Station.button(t,t.label,Cargo.tab==t.id) end
@@ -1490,10 +1489,9 @@ function Cargo.draw(game)
 		local fx, fw = Station.frame()
 		local p = game.player
 		Station.panel(fx, 12, fw, 88)
-		lg.setFont(HUD.font(16)); lg.setColor(HUD.INK); lg.print(p.hull.name, fx + 14, 23)
-		lg.setFont(HUD.font(12)); lg.setColor(HUD.DIM); lg.print(Cargo.loot and "Looting" or "In flight 9483 dock at a station to refit", fx + 14, 44)
-		lg.setFont(HUD.font(16)); lg.setColor(HUD.INK); lg.printf(HUD.credits(game:credits()), fx + fw - 340, 27, 190, "right")
-		lg.setFont(HUD.font(12)); lg.setColor(HUD.DIM); lg.printf("Tab / Esc closes", fx + fw - 140, 33, 126, "right")
+		Station.ledgerText(fx, 12, p.hull.name, Cargo.loot and "Looting" or "In flight \194\183 dock at a station to refit")
+		lg.setFont(HUD.font(16)); lg.setColor(HUD.INK); lg.printf(HUD.credits(game:credits()), fx + fw - 340, 21, 190, "right")
+		lg.setFont(HUD.font(12)); lg.setColor(HUD.DIM); lg.printf("Tab / Esc closes", fx + fw - 140, 24, 126, "right")
 	end
 	if stabs then
 		lg.setFont(HUD.font(14))
