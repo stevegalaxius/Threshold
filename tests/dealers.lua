@@ -109,5 +109,17 @@ return function(game)
  assert(not D.find(game.universe,st,displayed.id),'purchased display remained on sale')
  local occurrences=0;for _,owner in ipairs(game:stationRoster(st)) do if owner==rec then occurrences=occurrences+1 end end
  assert(occurrences==1,'purchase duplicated the parked ship')
+ -- Orders: the hall picks the hull the lot is shortest of and keeps it until built.
+ do
+  local Industry=require('src.industry');local q={clock=0,stations={},npcs={}}
+  local lot=D.state(q,works);lot.lots={D.roll(D.def(works),lot,'intaki_wisp'),D.roll(D.def(works),lot,'intaki_praetor')}
+  local room=D.room;D.room=function() return 1 end
+  local def=Industry.definition('intaki_assembly',Industry.installations(works).intaki_assembly)
+  assert(Industry.job(q,works,'intaki_assembly',def)=='assemble_intaki_archangel','heavy hull starved by lighter jobs')
+  Industry.finished(q,works,'assemble_intaki_archangel')
+  lot.lots[#lot.lots+1]=D.roll(D.def(works),lot,'intaki_archangel')
+  assert(Industry.job(q,works,'intaki_assembly',def)=='assemble_intaki_wisp','orders did not rotate after a ship rolled out')
+  D.room=room
+ end
  print('DEALERS: limited lots, restock, trims, manufacturer frames and saving passed ('..before..' opening at the works)')
 end

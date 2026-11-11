@@ -47,7 +47,7 @@ end
 
 local function statusColor(text)
 	if text:find("^Producing") or text:find("^Building") or text:find("^Consuming") then return GOOD end
-	if text:find("^Waiting") or text:find("^Paused") or text:find("^Idle") then return WAIT end
+	if text:find("^Waiting") or text:find("^Queued") or text:find("^Paused") or text:find("^Idle") then return WAIT end
 	return HUD.DIM
 end
 
