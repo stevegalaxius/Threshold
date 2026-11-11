@@ -448,7 +448,7 @@ function A.update(game, dt)
 		-- The Hauler's wreck: its cargo is packed in containers.
 		local husk
 		for _, e in ipairs(game.entities) do
-			if e.kind == "husk" and e.hull.id == "ferrous_freighter" then husk = e end
+			if e.kind == "husk" and e.hull.id == "ferrous_bison" then husk = e end
 		end
 		local packed, loose, inside = 0, 0, 0
 		if not husk then log("loot: no Hauler wreck this run (it wasn't killed)") end

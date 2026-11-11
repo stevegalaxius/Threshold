@@ -63,8 +63,15 @@ enemy {
 -- leaves you alone. It leaves port with only its own ammunition; anything
 -- else in its hold is real cargo it loaded for a dispatch job.
 enemy {
-	id = "freighter", team = 3, name = "Hauler", hull = "ferrous_freighter",
+	id = "freighter", team = 3, name = "Hauler", hull = "ferrous_bison",
 	cargo = { rounds_m = 200 },
+	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
+	salvage = { 4, 8 },
+}
+
+-- The MACK bulk hauler: a Longhorn, all hold and engines, no guns.
+enemy {
+	id = "longhorn_hauler", team = 3, name = "Longhorn Hauler", hull = "mack_longhorn",
 	ai = { style = "trader", range = 1400, accuracy = 0.5, throttle = 0.85, burstOn = 1.5, burstOff = 0.8 },
 	salvage = { 4, 8 },
 }
