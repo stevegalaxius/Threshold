@@ -206,9 +206,19 @@ end
 
 -- Hangar ----------------------------------------------------------------------
 
+-- Physical occupancy includes dealer stock without granting player ownership.
+function Game:stationRoster(st)
+ local list={}
+ for _,rec in ipairs(self:stationRecord(st).hangar) do list[#list+1]=rec end
+ local key=require('src.stockpile').key(st)
+ local dealer=self.universe.dealers and self.universe.dealers[key]
+ if not dealer then dealer=require('src.dealers').state(self.universe,st) end
+ for _,lot in ipairs(dealer and dealer.lots or {}) do list[#list+1]=lot end
+ return list
+end
 function Game:hangar(st)
  local list=self:stationRecord(st).hangar
- for _,rec in ipairs(list) do
+ for _,rec in ipairs(self:stationRoster(st)) do
   if rec.bay and not self:hangarFree(st,rec,rec.hull,rec.bay) then rec.bay=nil end
   if rec.mooring and not self:mooringFits(st,rec.mooring,rec.hull,rec) then rec.mooring=nil end
   if not rec.bay and not rec.mooring then self:applyParking(rec,self:shipParkingFit(st,rec.hull,rec)) end
@@ -249,7 +259,7 @@ function Game:hangarGrid(st, ignore)
 		local w, h = Game.hangarFootprint(hullId, bay.rot)
 		if Grid.isFree(g, bay.x, bay.y, w, h) then Grid.place(g, { x = bay.x, y = bay.y, w = w, h = h, owner = owner }) end
 	end
-	for _, rec in ipairs(self:stationRecord(st).hangar) do put(rec, rec.hull, rec.bay) end
+	for _, rec in ipairs(self:stationRoster(st)) do put(rec, rec.hull, rec.bay) end
 	for _,e in ipairs(self.entities) do
 		if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station.key==st.key then
 			put(e,e.hull.id,e.bay)
@@ -450,7 +460,7 @@ function Game:saveState()
 			moon = trip.moon, origin = trip.origin and { x = trip.origin.x, y = trip.origin.y } }
 	end
 	local state = { field = field, trip = state_trip, kills = self.kills, home = u.home, stations = stations,
-		markets=Persistence.copy(u.markets),facilities=Persistence.copy(u.facilities),
+		dealers=Persistence.copy(u.dealers),markets=Persistence.copy(u.markets),facilities=Persistence.copy(u.facilities),
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
 		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
@@ -505,7 +515,8 @@ function Game:loadState(state)
  self.universe.worldLocations=Persistence.copy(state.worldLocations or state.worldStations)
 	self.universe.mining = Persistence.copy(state.mining)
 	self.universe.jobs = Persistence.copy(state.jobs)
-	self.universe.markets=Persistence.copy(state.markets)
+	self.universe.dealers=Persistence.copy(state.dealers)
+ self.universe.markets=Persistence.copy(state.markets)
  self.universe.facilities=Persistence.copy(state.facilities)
 	self.universe.tasks = Persistence.copy(state.tasks)
 	self.universe.npcs = Persistence.copy(state.npcs or {})

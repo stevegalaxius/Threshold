@@ -453,7 +453,7 @@ local function drawStation(game, e)
 			if ds and ds.station == e and ds.berth then taken[ds.berth] = true end
 		end
   local record=game.universe.stations[e.key]
-  for _,rec in ipairs(record and record.hangar or {}) do
+  for _,rec in ipairs(game:stationRoster(e)) do
    local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
    if slot and slot.berth then taken[slot.berth]=true end
   end
@@ -529,11 +529,12 @@ local function drawStation(game, e)
 	end
 	end
  local record=game.universe.stations[e.key]
- for _,rec in ipairs(record and record.hangar or {}) do
+ for _,rec in ipairs(game:stationRoster(e)) do
   local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
   if slot then
-   lg.push();lg.translate(slot.x,slot.y);lg.rotate(math.rad(slot.heading or 0))
-   local tint=rec.color or {.55,.8,.85}
+   local pose=game:berthPose(e,rec.mooring,rec.hull) or slot
+   lg.push();lg.translate(pose.x,pose.y);lg.rotate(math.rad(pose.heading or 0))
+   local tint=rec.color or rec.paint and require('src.paint').preset(rec.paint) or {.55,.8,.85}
    HullShape.draw(data.hulls[rec.hull],tint,function(c)return {c[1]*.22,c[2]*.22,c[3]*.22}end,
     function(c)return c end,outline(1.5))
    lg.pop()

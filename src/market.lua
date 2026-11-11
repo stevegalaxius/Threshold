@@ -433,7 +433,7 @@ function Game:shipBuyProblem(st, lot, tradeIn)
 	if not lot or not require("src.dealers").find(self.universe, st, lot.id) then return "NO LONGER FOR SALE" end
 	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
 	if self.universe.credits + credit < lot.price then return "NOT ENOUGH CREDITS" end
-	if not self:shipParkingFit(st, lot.hull, tradeIn) then return "NO SUITABLE FREE PARKING" end
+	if not self:shipParkingValid(st,lot,lot.hull) and not self:shipParkingFit(st, lot.hull, tradeIn or lot) then return "NO SUITABLE FREE PARKING" end
 	return nil
 end
 
@@ -452,12 +452,16 @@ function Game:buyShip(st, lot, opts)
 		if not tradeIndex then return nil, "NO SUCH SHIP" end
 		table.remove(list, tradeIndex)
 	end
-	local rec = self:addToHangar(st, lot.hull, lot.paint, lot.loadout)
-	if not rec then
-		if tradeIndex then table.insert(list, tradeIndex, tradeIn) end
-		return nil, "NO SUITABLE FREE PARKING"
-	end
-	require("src.dealers").take(self.universe, st, lot.id)
+ local parking=lot.bay and {bay=lot.bay} or lot.mooring and {mooring=lot.mooring}
+ parking=parking or self:shipParkingFit(st,lot.hull,lot)
+ if not parking then
+  if tradeIndex then table.insert(list,tradeIndex,tradeIn) end
+  return nil,'NO SUITABLE FREE PARKING'
+ end
+ local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,color=lot.paint and require('src.paint').preset(lot.paint) or nil})
+ local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,parking)
+ list[#list+1]=rec
+ require('src.dealers').take(self.universe,st,lot.id)
 	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
 	self.universe.credits = self.universe.credits + credit - lot.price
 	if tradeIn then events.emit("sellship", tradeIn, st) end

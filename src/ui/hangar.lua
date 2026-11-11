@@ -91,6 +91,12 @@ local function layout(game)
 			x = L.gx + bay.x * cs, y = L.gy + bay.y * cs, w = w * cs, h = h * cs })
 	end
 	for i, rec in ipairs(L.list) do add(rec, rec.hull, rec.bay, i) end
+ L.dealerWaiting=0
+ for _,lot in ipairs(require('src.dealers').lots(game.universe,st)) do
+  if not lot.bay and not lot.mooring then L.dealerWaiting=L.dealerWaiting+1 end
+  add(lot,lot.hull,lot.bay)
+  for _,ship in ipairs(L.ships) do if ship.owner==lot then ship.dealer=true end end
+ end
 	add(p, p.hull.id, p.bay)
 	-- Visiting NPC ships docked inside occupy cells too; show them so the
 	-- space they block isn't a mystery. They can't be selected or moved.
@@ -116,7 +122,7 @@ end
 
 local function shipAt(L, mx, my)
 	for _, s in ipairs(L.ships) do
-		if inRect(s, mx, my) then return s end
+		if not s.dealer and inRect(s, mx, my) then return s end
 	end
 end
 
@@ -171,7 +177,7 @@ local ACTIVE = { 0.4, 1, 0.55 }
 
 local function shipColor(game, owner)
 	if owner == game.player then return ACTIVE end
-	return owner.color or game.player.color
+	return owner.color or owner.paint and require('src.paint').preset(owner.paint) or game.player.color
 end
 
 -- Ship name on its tile; small tiles get a smaller font, never nothing.
@@ -209,7 +215,7 @@ local function drawBerths(game, L, mx, my, sel)
 		inside, used, L.gridW * L.gridH, freeMoor, #L.berths), B.x, B.y + 15, B.w - PAD, "right")
 
 	Sheet.label(("Interior bay  %d \195\151 %d"):format(L.gridW, L.gridH), L.gx, L.gy - 18)
-	Sheet.label("Outside berths", L.moor.x, L.gy - 18)
+	Sheet.label("Outside berths"..(L.dealerWaiting>0 and (" / "..L.dealerWaiting.." for sale awaiting space") or ""), L.moor.x, L.gy - 18)
 
 	-- grid
 	lg.setColor(0, 0, 0, 0.35)
@@ -278,7 +284,7 @@ local function drawBerths(game, L, mx, my, sel)
 		lg.setLineWidth(sel == s and 2 or 1)
 		lg.rectangle("line", s.x + 2.5, s.y + 2.5, s.w - 5, s.h - 5, 4, 4)
 		lg.setLineWidth(1)
-		local name = data.hulls[s.hull].name
+		local name = (s.dealer and "For sale: " or "")..data.hulls[s.hull].name
 		if s.exterior then
 			drawHull(data.hulls[s.hull], s.x + 90, s.y + 4, s.w - 96, s.h - 8, false, col, alpha)
 			lg.setFont(HUD.font(14))

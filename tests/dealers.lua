@@ -30,5 +30,31 @@ return function(game)
  local Save=require('src.save');u=assert(Save.decode(Save.encode(u)))
  assert(u.dealers[works],'lot not saved')
  for _,shop in ipairs(S.shops(works)) do assert(not S.lists(shop,D.FRAME),'hull frames got a storefront') end
+ -- Dealer lots share physical parking, but remain outside player ownership.
+ game:loadField('venus');game:captureALife(true)
+ local st=assert(game:locationEntity(hub));game.universe.credits=10^8
+ game:hangar(st)
+ local displayed
+ for _,lot in ipairs(D.lots(game.universe,st)) do if lot.bay or lot.mooring then displayed=lot;break end end
+ assert(displayed,'dealer has no physically displayed ships')
+ for _,owned in ipairs(game:hangar(st)) do assert(owned~=displayed,'dealer stock became player property') end
+ local bay,mooring=displayed.bay,displayed.mooring
+ if bay then assert(not game:hangarFree(st,{},displayed.hull,bay),'dealer bay did not block occupancy') end
+ if mooring then assert(game:mooringTaken(st,mooring),'dealer berth did not block occupancy') end
+ local state=assert(Save.decode(Save.encode(game:saveState())))
+ local saved=state.dealers[hub].lots
+ local found=false;for _,lot in ipairs(saved) do if lot.id==displayed.id then found=lot.bay~=nil or lot.mooring~=nil end end
+ assert(found,'dealer parking was not saved')
+ local displayedId=displayed.id
+ game:loadState(state);st=assert(game:locationEntity(hub))
+ displayed=assert(D.find(game.universe,st,displayedId),'saved dealer ship disappeared')
+ assert(displayed.bay or displayed.mooring,'loaded dealer lost parking')
+ bay,mooring=displayed.bay,displayed.mooring
+ local rec,why=game:buyShip(st,displayed)
+ assert(rec,why)
+ assert(rec.bay==bay and rec.mooring==mooring,'purchase did not transfer its displayed space')
+ assert(not D.find(game.universe,st,displayed.id),'purchased display remained on sale')
+ local occurrences=0;for _,owner in ipairs(game:stationRoster(st)) do if owner==rec then occurrences=occurrences+1 end end
+ assert(occurrences==1,'purchase duplicated the parked ship')
  print('DEALERS: limited lots, restock, trims, manufacturer frames and saving passed ('..before..' opening at the works)')
 end
