@@ -46,6 +46,29 @@ return function(game)
  assert(#D.lots(u,key)==4 and S.count(u,key,D.FRAME)==9,'freed parking did not allow manufacturing to resume')
  local saved=assert(require('src.save').decode(require('src.save').encode(u)))
  assert(D.room(saved,key,'intaki_wisp')==0,'save/load lost commercial occupancy')
+ -- A buyer can use the guest berth released by a trade-in even though
+ -- the incoming lot is marked as dealer stock. Fill every other space.
+ local stock=u.dealers[key];stock.lots={}
+ local owned=S.record(u,key).hangar;for i=#owned,1,-1 do owned[i]=nil end
+ while true do
+  local rec={hull='intaki_wisp'};local bay=live:hangarFit(station,rec.hull,rec)
+  if not bay then break end
+  rec.bay=bay;owned[#owned+1]=rec
+ end
+ local tradeIn
+ for i=1,4 do
+  local rec={hull='intaki_wisp',mooring=i}
+  owned[#owned+1]=rec;if i==1 then tradeIn=rec end
+ end
+ local lot=D.roll(market.dealer,stock,'intaki_wisp');stock.lots={lot}
+ u.credits=1000000;live.world=world;live.idCounter=0
+ assert(not live:shipParkingFit(station,lot.hull,lot),'fixture unexpectedly has commercial parking')
+ assert(live:shipBuyProblem(station,lot,nil),'purchase should require the trade-in space')
+ assert(not live:shipBuyProblem(station,lot,tradeIn),'preview rejected the freed guest berth')
+ local bought,why=live:buyShip(station,lot,{tradeIn=tradeIn})
+ assert(bought,why)
+ assert(bought.mooring==1 and not bought.dealerStock,'purchase failed to transfer into the guest berth')
+ assert(not D.find(u,key,lot.id),'purchase retained the sale lot')
  body:destroy();world:destroy()
  require('data.industry').facilities.ship_assembly.recipes=oldRecipes
  table.remove(C.list);C.byId[recipe.id]=nil
