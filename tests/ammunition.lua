@@ -8,21 +8,22 @@ return function(game)
   local u={clock=0,stations={},npcs={},industry={[plant]={press_canisters=0,roll_steel=0}}}
   local mix=require('src.industry').state(u,plant,'ammunition').mix
   for _,id in ipairs(A.products) do S.count(u,plant,id);mix['make_'..id]=item and (id==item and 1 or 0) or 1/#A.products end
-  set(u,plant,'steel_plate',1000);set(u,plant,'explosives',1000)
+  set(u,plant,'steel_plate',1000);set(u,plant,'explosives',1000);set(u,plant,'electronics',1000)
   return u
  end
  for _,recipe in ipairs(A.recipes) do
   local u=world(recipe.item)
-  u.clock=150
+  u.clock=150*(recipe.time or 1)
   assert(S.count(u,plant,recipe.item)==recipe.batch,'recipe did not produce a complete ammunition batch: '..recipe.item)
   assert(S.count(u,plant,'steel_plate')==1000-recipe.inputs[1].n and S.count(u,plant,'explosives')==1000-recipe.inputs[2].n,'ammunition did not use both material inputs')
-  set(u,plant,'explosives',0);u.clock=300
+  if recipe.inputs[3] then assert(S.count(u,plant,'electronics')==1000-recipe.inputs[3].n,'guided ammunition did not consume electronics') end
+  set(u,plant,'explosives',0);u.clock=u.clock+150*(recipe.time or 1)
   assert(S.count(u,plant,recipe.item)==recipe.batch,'ammunition appeared without explosives')
  end
  assert(A.byItem.airburst_s.inputs[2].n>A.byItem.rounds_s.inputs[2].n and A.byItem.shell_s.inputs[2].n>A.byItem.shot_s.inputs[2].n,'special ammunition did not require more explosives')
  local u=world();u.clock=3600
  local batches=0
- for _,recipe in ipairs(A.recipes) do batches=batches+S.count(u,plant,recipe.item)/recipe.batch end
+ for _,recipe in ipairs(A.recipes) do batches=batches+S.count(u,plant,recipe.item)/recipe.batch*(recipe.time or 1) end
  assert(batches<=24,'ammunition recipes each received the full shared capacity')
  -- A full store cannot bank unused factory time for instantaneous production.
  local capped=world('rounds_s');set(capped,plant,'rounds_s',A.byItem.rounds_s.cap)

@@ -5,7 +5,7 @@ for _,c in ipairs(require('data.industry').recipes) do
 end
 function A.shop()
  local sells={};for _,id in ipairs(A.products) do sells[#sells+1]={id,1} end
- return {id='ammunition',name='Ballistic ammunition',description='Manufactured solid and airburst rounds; explosive and scatter shells.',sells=sells}
+ return {id='ammunition',name='Manufactured ammunition',description='Solid and airburst rounds, explosive and scatter shells, missiles and torpedoes.',sells=sells}
 end
 function A.reserve(key,item) return require('src.reserves').minimum(key,item) end
 return A

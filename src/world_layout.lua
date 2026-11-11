@@ -5,21 +5,21 @@ local W={}
 W.stations = {
 
 	mercury = {
-		{ id = "station:mercury_1", facilities={burn_hydrogen={capacity=-12}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
+		{ id = "station:mercury_1", facilities={burn_hydrogen={capacity=-12},silicon_refinery={capacity=12}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
 		{ id = "station:mercury_2", facilities={burn_hydrogen={capacity=-12}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Haephestus Logistics", layout = "customs_1"  },
 	},
 	venus = {
-		{ id = "station:venus_1", facilities={burn_hydrogen={capacity=-16}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
+		{ id = "station:venus_1", facilities={burn_hydrogen={capacity=-16},acid_works={capacity=8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
 		{ id = "station:venus_2", food = {use=64}, facilities={burn_hydrogen={capacity=-16},farm={capacity=640}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
 	},
 	earth = {
-		{ id = "station:earth_1", food = {use=96}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1" },
+		{ id = "station:earth_1", food = {use=96}, facilities={electronics={capacity=4}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1" },
 		{ id = "station:earth_2", food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 2.3415926535897933, name = "Elysium", layout = "estates_palace"  },
 	},
 	
 	luna = {
-		{ id = "station:luna_1", services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
-		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
+		{ id = "station:luna_1", facilities={electronics={capacity=4}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_2", facilities={silicon_refinery={capacity=12}}, services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
@@ -43,7 +43,7 @@ W.stations = {
 	},
 
 	io = {
-		{ id = "station:io_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works" },
+		{ id = "station:io_1", facilities={acid_works={capacity=8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works" },
 		{ id = "station:io_2", services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
 	},
 	europa = {

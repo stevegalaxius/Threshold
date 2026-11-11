@@ -102,6 +102,11 @@ salvage { id = "flare", name = "Flare charge", volume = 0.1, mass = 0.05, price 
 salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 25, w = 1, h = 1, stack = 4 }
 salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 15, w = 1, h = 1, stack = 4 }
 
+-- Industrial inputs and manufactured electronics.
+salvage { id = "silicon", name = "Silicon", volume = 0.25, mass = 0.25, price = 30, w = 1, h = 1, stack = 4 }
+salvage { id = "industrial_acids", name = "Industrial acids", volume = 0.25, mass = 0.25, price = 40, w = 1, h = 1, stack = 4 }
+salvage { id = "electronics", name = "Electronics", volume = 0.1, mass = 0.05, price = 160, w = 1, h = 1, stack = 10 }
+
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
 salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 30, w = 1, h = 1, stack = 4 }
 salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
