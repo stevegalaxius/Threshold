@@ -248,8 +248,10 @@ end
 -- and movement are already charged by the common fuel update.
 function A.power(ctx,dt,requested)
  return require('src.reactor_fuel').withRecord(ctx.r,function(e,stats)
-  local s={};for k,v in pairs(stats) do s[k]=v end;s.powerDraw=0
-  local _,delivered=require('src.reactor_fuel').step(e,s,dt,false,requested)
+  -- The common fuel update has already generated power for this interval.
+  -- Work spends that capacitor; it cannot run a second reactor timestep.
+  local delivered=math.min(math.max(0,requested),e.power or 0)
+  e.power=math.max(0,(e.power or 0)-delivered)
   return delivered
  end)
 end

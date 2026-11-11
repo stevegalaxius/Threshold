@@ -9,14 +9,14 @@ local D={recipes={
  -- rolled steel shares the same item as plates recovered from wrecks
  {id='roll_steel',item='steel_plate',cap=240,input={item='iron_ore',n=2}},
  -- pressing empty canisters out of ore
- {id='press_canisters',market=false,item='empty_canister',cap=1500,input={item='iron_ore',n=1}},
+ {id='press_canisters',inputWeight=4,market=false,item='empty_canister',cap=1500,input={item='iron_ore',n=1}},
  -- filling them with hydrogen skimmed from a gas giant
  {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=60,input={item='empty_canister',n=1}},
  -- cracking ice into deuterium, one canister of it per ice
- {id='crack_ice',market=false,item='deuterium_canister',cap=1000,
+ {id='crack_ice',inputWeight=4,market=false,item='deuterium_canister',cap=1000,
   inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
  -- skimming deuterium straight from a gas giant's air: just canisters
- {id='skim_deuterium',market=false,item='deuterium_canister',cap=1000,input={item='empty_canister',n=1}},
+ {id='skim_deuterium',inputWeight=4,market=false,item='deuterium_canister',cap=1000,input={item='empty_canister',n=1}},
  -- welding hull frames for a manufacturer's dealer lot (src/dealers.lua)
  {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=12,input={item='steel_plate',n=6}},
  -- Refined local resources: abstract station extraction, no extra ore chain.

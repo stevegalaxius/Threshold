@@ -58,7 +58,9 @@ function I.produce(u,key,c,requested,progress,roomOverride)
   n=math.min(n,room)
  end
  for _,input in ipairs(C.inputs(c)) do
-  n=math.min(n,math.floor((S.available(u,key,input.item)+(progress.credit[input.item] or 0))/input.n+1e-9))
+  local available=S.available(u,key,input.item)
+  if progress.budget then available=math.min(available,progress.budget[input.item] or 0) end
+  n=math.min(n,math.floor((available+(progress.credit[input.item] or 0))/input.n+1e-9))
  end
  for _,input in ipairs(C.inputs(c)) do
   local credit=progress.credit[input.item] or 0
@@ -75,6 +77,7 @@ function I.flow(u,key,c,m,dt,rate,roomOverride)
  local S,E=require('src.stockpile'),require('src.economy')
  m.recipes=m.recipes or {};local state=m.recipes[c.id] or {carry=0};m.recipes[c.id]=state
  local work=state.carry+math.abs(rate)*dt/3600/(c.time or 1)
+ state.budget=m.inputBudget and m.inputBudget[c.id]
  local whole=math.floor(work+1e-9);local done
  if rate<0 then
   done=math.min(whole,S.available(u,key,c.item));assert(S.take(u,key,c.item,done));E.consume(u,key,c.item,done)
@@ -86,6 +89,7 @@ function I.flow(u,key,c,m,dt,rate,roomOverride)
    if require('src.industry_outputs').room(u,key,c,output)<1 then state.carry=0 end
   end
  end
+ state.budget=nil
  return done
 end
 -- Scheduled station facilities run independently of visibility or stock reads.
