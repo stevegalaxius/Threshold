@@ -58,6 +58,7 @@ local function progress(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
+ r.nextDecisionAt=nil
  r.index=index; r.depart=clock
  local leg=edge(r)
  local from,to=L.get(leg.from),L.get(leg.to)
@@ -85,6 +86,38 @@ local function start(r,clock,index)
  -- a leg into a mass driver or a dock books its turn there
  if r.state=='travel' then require('src.queue').leg(r) else r.queue=nil end
  r.offset,r.pose,r.docking,r.savedOnline=nil,nil,nil,nil
+ if r.driverArrival then
+  -- Off a driver's lane the ship comes in over the map's edge from the
+  -- bearing of the planet it set out from (where that planet is on the
+  -- orrery now), the way the lane really runs, and never out of the gun
+  -- itself, which is where the graph puts the driver. The offset fades as
+  -- the leg goes on, so the offline track (the system map, a wake) starts
+  -- out there and joins the corridor smoothly.
+  local origin=L.byId[r.route[(index-3)%#r.route+1]]
+  local here=Fields[r.area]
+  if origin and origin.area~=r.area and here then
+   local ax,ay=Fields.orbitPos(r.area,clock);local bx,by=Fields.orbitPos(origin.area,clock)
+   local b=math.atan2(by-ay,bx-ax)
+   local edge=(here.radius or 10000)+T.npcArrivalBeyondEdge
+   -- side by side across the bearing, not all on one line
+   -- (by id: many NPCs have no spread of their own, and they all came in
+   -- on one spot, inside each other)
+   local id=tostring(r.id or '');local n=tonumber(id:match('%d+$')) or 0
+   for i=1,#id do n=n+id:byte(i)*i*7 end
+   local across=(((n*.618034)%1)*2-1)*T.npcArrivalWidth/2
+   local depth=((n*.414214)%1)*T.npcArrivalWidth/2
+   edge=edge+depth
+   local ex,ey=math.cos(b)*edge-math.sin(b)*across,math.sin(b)*edge+math.cos(b)*across
+   local x,y=L.position(leg.from,clock)
+   r.offset={x=ex-x,y=ey-y,progress=0}
+   -- the leg is now flown from out there, so it takes as long as that
+   -- distance at cruise speed (sized from the driver it was far too short,
+   -- and the ship crossed the map at many times its speed)
+   local tx,ty=L.position(leg.to,clock)
+   local distance=math.sqrt((tx-ex)^2+(ty-ey)^2)
+   r.arrive=math.max(r.arrive,clock+distance/r.speed)
+  end
+ end
  r.driverState,r.cityExit=nil,nil
 end
 
@@ -167,9 +200,19 @@ function A.seed(game)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if r.taskWorker then -- start docked, where work is handed out
      r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil
-     local station=L.stations(area,'trade')[(i-1)%#L.stations(area,'trade')+1]
+     local stations=L.stations(area,'trade')
+     local station=stations[(i-1)%#stations+1]
+     -- start docked where there's a place for the hull, else waiting
+     -- outside the station it was given
+     local Room=require('src.dock_room')
+     for k=0,#stations-1 do
+      local s=stations[(i-1+k)%#stations+1]
+      if Room.room(u,r,s) then station=s;break end
+     end
      for index,id in ipairs(r.route) do if id==station then r.index=index;break end end
-     r.state='docked';r.untilTime=u.clock+i*2
+     if Room.room(u,r,station) then r.state='docked'
+     else r.state='idle';r.node=station;r.route={station,station};r.index=1 end
+     r.untilTime=u.clock+i*2
     end
    end
   end
@@ -386,8 +429,34 @@ function A.trackPoint(r,clock)
  if r.offset then
   local fade=(1-p)/math.max(.001,1-r.offset.progress)
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
+  -- an offset blended in a straight line can cut through the planet (an
+  -- arrival from the far side, a pose taken low down by the Heaven-Ladder):
+  -- keep it above the surface, or it wakes inside the rock and dies
+  x,y=A.aboveSurface(r,x,y,clock)
  end
  return x,y
+end
+-- Hold a point out of the planet and its pull band, but no higher than the
+-- leg's own ends (a Heaven-Ladder anchor sits down in the band).
+function A.aboveSurface(r,x,y,clock)
+ local f=Fields[r.area or '']
+ local R=f and f.planetR
+ if not R or R<=0 then return x,y end
+ local safe=R+math.min(T.surfacePullRange,R*.5)+500
+ local leg=r.route and edge(r)
+ if leg then
+  for _,id in ipairs({leg.from,leg.to}) do
+   local place=L.byId[id]
+   if place and place.area==r.area then
+    local ex,ey=L.position(id,clock);safe=math.min(safe,math.sqrt(ex*ex+ey*ey))
+   end
+  end
+ end
+ safe=math.max(safe,R+300)
+ local d=math.sqrt(x*x+y*y)
+ if d>=safe then return x,y end
+ if d<1 then return safe,0 end
+ return x/d*safe,y/d*safe
 end
 function A.sample(r,clock)
  local x,y=A.point(r,clock)
@@ -435,6 +504,7 @@ end
 local function shipRecord(e)
  local s=Ship.record(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
+  loads=copy(s.loads),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,
   cargo=copy(s.cargo or e.cargo or {}),hold=s.hold and Hold.serialize(s.hold)}
 end
@@ -481,7 +551,9 @@ function A.capture(game,e,remote)
  if action and not action.pausedAt and (action.kind=='work' or action.kind=='approach') and not (r.service or r.worldRecovery) then
   local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
   r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
-  action.origin={x=x,y=y};action.goal={x=x,y=y};action.started=clock;action.arriveAt=clock
+  -- Rebase the remaining approach; becoming remote cannot complete it.
+  action.rebase={x=x,y=y};action.origin,action.goal,action.arriveAt=nil,nil,nil
+  action.started,action.lastClock,action.lastWork=clock,clock,clock
   return
  end
  if e.alifeEgress then
@@ -530,12 +602,16 @@ function A.capture(game,e,remote)
   r.index=index
   r.state='docked'
   r.node=ds.station.locationId
-  r.untilTime=clock+(ds.done and math.max(0,(ds.stay or T.alifeStay)-ds.t) or T.alifeStay)
+  if ds.done then
+   r.untilTime=ds.departAt or clock+math.max(0,(ds.stay or T.alifeStay)-ds.t)
+   ds.departAt=r.untilTime
+   if remote then r.nextDecisionAt=math.max(r.nextDecisionAt or 0,clock) end
+  else r.untilTime=clock+T.alifeStay end
   -- Preserve an in-progress physical docking operation for immediate save/load.
   r.docking={}
   for k,v in pairs(ds) do if type(v)~='table' and type(v)~='userdata' then r.docking[k]=v end end
   r.docking.mooring=copy(ds.mooring)
- else
+ elseif r.state~='idle' then
   r.state='travel'
   local x,y=e.body:getPosition()
   -- The ship is flying on this map; a record bound here from between regions
@@ -619,14 +695,13 @@ A.bindRoute=bindRoute
 
 function A.wake(game,r)
  Fuel.withRecord(r,function() end);r.fuelClock=game.universe.clock
- require('src.npc_actions').cancel({u=game.universe,game=game,r=r,clock=game.universe.clock},'representation changed')
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
  local egress=A.egressSample(game,r,game.universe.clock)
  local p=egress or lane or A.sample(r,game.universe.clock)
  local exact=r.pose and math.abs(r.pose.clock-game.universe.clock)<.001 and r.pose
  if exact and lane and exact.lane~=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot) then exact=nil end
- local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,cargo=s.cargo,
+ local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,loads=s.loads,cargo=s.cargo,
   hold=s.hold and Hold.deserialize(s.hold,function(id) return data.items[id]~=nil end),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,power=r.power,
   armor=s.armor,color=copy(s.color),team=data.enemies[r.archetype].team,
@@ -679,7 +754,27 @@ function A.wake(game,r)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
-  if st and st.kind=='station' and st.def then game:dockInstantly(e,st,r.docking)
+  if st and st.kind=='station' and st.def then
+   if game:dockInstantly(e,st,r.docking)==false then
+    -- More ships are docked here offline than the station has free berths
+    -- for them. dockInstantly leaves each at the dock's entrance, every one
+    -- on the same spot: they woke inside each other and broke each other
+    -- up. Hold them in line out along the approach instead, one behind
+    -- the other.
+    local x,y=e.body:getPosition()
+    local sx,sy=st.body:getPosition()
+    local dx,dy=x-sx,y-sy;local d=math.max(1,math.sqrt(dx*dx+dy*dy))
+    st.overflowLine=st.overflowLine or {}
+    local n=0
+    for other in pairs(st.overflowLine) do
+     if other.removed or other.dead or not other.body or other.body:isDestroyed() or other.dockState then st.overflowLine[other]=nil else n=n+1 end
+    end
+    st.overflowLine[e]=true
+    local back=T.queueStart+T.queueGap*n
+    x,y=sx+dx/d*(d+back),sy+dy/d*(d+back)
+    e.body:setPosition(x,y);e.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(x,y))
+    require('src.alife_trace').note(r,game.universe.clock,'wake','no free berth at '..tostring(r.route[r.index])..', holding in line')
+   end
   else
    -- docked at something that isn't a dockable station here (e.g. an
    -- access point resolved to another entity): leave it in open space
@@ -687,12 +782,14 @@ function A.wake(game,r)
   end
   if e.dockState then
    e.dockState.stay=math.max(0,r.untilTime-game.universe.clock)
+   e.dockState.departAt=r.untilTime
    if exact and r.docking and r.docking.berth==e.dockState.berth then
     local dock=e.dockState.dock
     e.dockState=copy(r.docking); e.dockState.station=st;e.dockState.dock=dock
     e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
     e.body:setActive(e.dockState.phase=='tractor')
    end
+   e.dockState.departAt=r.untilTime
   end
  end
  if not exact and not lane and r.state=='travel' then
@@ -714,15 +811,8 @@ function A.wake(game,r)
   local g=source and source.kind=='driver' and source
   local fresh=r.driverArrival and game.universe.clock-r.driverArrival<T.npcDriverArrivalTime
   if g and fresh then
-   -- off the lane: in from out along the rail, beyond the catch rings,
-   -- lined up on the breech, as the player arrives (Game:placeForCatch)
-   local gx,gy=game:driverBreech(g)
-   local d=math.floor(T.catchRings+.5)*T.catchSpacing+T.catchApproach
-   local off=(love.math.random()*2-1)*T.catchOffset
-   local ox,oy=math.cos(g.angle),math.sin(g.angle)
-   local ia=g.angle+math.pi
-   e.body:setPosition(gx+ox*d-oy*off,gy+oy*d+ox*off);e.body:setAngle(ia)
-   e.body:setLinearVelocity(math.cos(ia)*r.speed,math.sin(ia)*r.speed)
+   -- off the lane: it wakes where its offline track has it, coming in
+   -- over the edge from its origin's bearing (see start())
    r.driverArrival=nil
   elseif nearDriver(source) or nearDriver(destination) then
    -- A driver on the graph is one point, the middle of the gun; the ship
@@ -794,7 +884,10 @@ function A.install(Game)
  function Game:traderCanDepart(e,station)
   local serviced=self.universe.npcs[e.alifeId]
   if serviced and serviced.service and Upkeep.isStation(serviced,station.locationId) then
-   if not Upkeep.canDepart(self,e,serviced) then return false end
+   if not Upkeep.canDepart(self,e,serviced) then
+    serviced.nextDecisionAt=self.universe.clock+T.alifeLocalTick
+    return false
+   end
    -- The visit is done here: hand the route back now and plan the next
    -- leg like any departure (its job may start right here). Ending it on
    -- undock instead never fired: undocking wraps the live route index to
@@ -803,7 +896,7 @@ function A.install(Game)
    A.capture(self,e,false);e.serviceDockedAt=nil
    serviced.index=#serviced.route;Upkeep.passed(serviced,#serviced.route)
    -- still docked here, now as itself
-   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock
+   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock;serviced.nextDecisionAt=nil
   end
   local r=self.universe.npcs[e.alifeId]
   if not r then return true end

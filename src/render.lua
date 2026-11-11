@@ -1145,6 +1145,7 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
+local AIRBURST_COLOR={.55,.9,1,1}
 local TORPEDO = { S = 4, M = 10, L = 16 }
 local MISSILE = { S = 3, M = 5, L = 8 }
 
@@ -1204,7 +1205,7 @@ local function drawProjectiles(game)
 	for _, p in ipairs(game.projectiles) do
 		if p.kind == "gun" then
 			-- rounds fade out as they lose punch over their range
-			local c = COLORS.gun
+			local c = p.airburst and AIRBURST_COLOR or COLORS.gun
 			local fade = p.maxLife and (0.15 + 0.85 * max(0, p.life / p.maxLife)) or 1
 			lg.setColor(c[1], c[2], c[3], (c[4] or 1) * fade)
 			lg.line(p.x - p.vx * 0.014 * trail, p.y - p.vy * 0.014 * trail, p.x, p.y)
@@ -1319,15 +1320,18 @@ local function drawEffects(game)
 		elseif fx.kind == "explosion" and fx.dust then
 			lg.setColor(0.6, 0.6, 0.65, (1 - k) * 0.35)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.5 + k * 0.8))
-		elseif fx.kind == "explosion" and fx.nuke then
-			-- atomic: a white-hot flash that swells into a fading fireball and shock ring
-			lg.setColor(1, 1, 0.95, max(0, 1 - k * 4) * 0.9)
-			lg.circle("fill", fx.x, fx.y, fx.r * (0.2 + k * 0.6))
-			lg.setColor(1, 0.6, 0.25, (1 - k) * 0.35)
-			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))
-			lg.setColor(1, 0.9, 0.7, (1 - k) * 0.8)
-			lg.setLineWidth(12 * (1 - k) + 2)
-			lg.circle("line", fx.x, fx.y, fx.r * (0.2 + k))
+		elseif fx.kind == "airburst" then
+			lg.setBlendMode('add')
+			lg.setColor(.55,.85,1,(1-k)^2*.65)
+			glowAt(fx.x,fx.y,fx.r*(.12+k*.3))
+			lg.setColor(.8,.95,1,(1-k)^2)
+			lg.setLineWidth(outline(1.5))
+			for j=1,8 do
+				local a=j*pi/4+fx.x*.01
+				local inner,outer=fx.r*(.05+k*.45),fx.r*(.18+k*.6)
+				lg.line(fx.x+cos(a)*inner,fx.y+sin(a)*inner,fx.x+cos(a)*outer,fx.y+sin(a)*outer)
+			end
+			lg.setBlendMode('alpha')
 		elseif fx.kind == "explosion" then
 			lg.setColor(1, 0.75, 0.4, (1 - k) * 0.25)
 			lg.circle("fill", fx.x, fx.y, fx.r * (0.3 + k * 0.7))

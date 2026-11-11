@@ -68,10 +68,7 @@ function Yard.layout(game)
 	if not st then return nil end
 	valid(game, st)
 	local sw, sh = lg.getDimensions()
-	local y = 112
-	local ph = max(360, sh - y - 80)
-	local tw = min(sw - 48, 1240)
-	local x = floor((sw - tw) / 2)
+	local x, y, tw, ph = require("src.ui.station").body()
 	local L = { x = x, y = y, w = tw, h = ph, station = st, stock = game.shipyard(st) }
 	L.list = { x = x, y = y, w = LIST_W, h = ph }
 	L.detail = { x = x + LIST_W + GAP, y = y, w = tw - LIST_W - GAP, h = ph }

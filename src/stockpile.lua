@@ -20,7 +20,7 @@ local L=require('src.locations')
 local Shapes=require('src.inventory.shapes')
 local Hold=require('src.inventory.hold')
 local T=require('src.tuning')
-local S={}
+local S={shopCache={}}
 
 function S.key(st) return L.canonical(type(st)=='table' and st.key or st) end
 
@@ -32,16 +32,41 @@ function S.definition(st)
 end
 
 function S.shops(st)
- local mk=S.definition(st);local shops={};local supplied,fueled=false,false
+ local mk=S.definition(st);local cacheKey=S.key(st) or mk
+ if S.shopCache[cacheKey] then return S.shopCache[cacheKey] end
+ local shops={};local supplied,fueled,food,steel,chemicals=false,false,false,false,false
+ local ammo=false
  local fuel=require('src.reactor_fuel').item()
  local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
  for _,shop in ipairs(existing) do
   shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies'
   fueled=fueled or not shop.unlimited and S.lists(shop,fuel)
+  food=food or not shop.unlimited and S.lists(shop,'food_crate')
+  steel=steel or not shop.unlimited and S.lists(shop,'steel_plate')
+  chemicals=chemicals or not shop.unlimited and S.lists(shop,'nitrates') and S.lists(shop,'explosives')
+  ammo=ammo or shop.id=='ammunition'
  end
+ if not food then shops[#shops+1]=require('src.food').shop() end
+ if not steel then shops[#shops+1]=require('src.repair_materials').shop() end
+ if not chemicals then shops[#shops+1]=require('data.industry').shops.chemicals end
+ if not ammo then shops[#shops+1]=require('src.ammunition').shop() end
+ -- Any new industry good gets a real shelf without changing market code.
+ local missing,seen={},{}
+ for _,recipe in ipairs(require('src.commodities').list) do
+  local entries={}
+  for _,output in ipairs(require('src.commodities').outputs(recipe)) do entries[#entries+1]=output.item end
+  for _,input in ipairs(require('src.commodities').inputs(recipe)) do entries[#entries+1]=input.item end
+  for _,item in ipairs(entries) do
+   local listed=false
+   for _,shop in ipairs(shops) do if not shop.unlimited and S.lists(shop,item) then listed=true;break end end
+   if not listed and not seen[item] then missing[#missing+1]={item,0};seen[item]=true end
+  end
+ end
+ if #missing>0 then shops[#shops+1]={id='industry',name='Industrial goods',sells=missing} end
  -- the real fuel storefront, unless a shop here already stocks fuel
  if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
  if not supplied then shops[#shops+1]=require('src.supplies').shop() end
+ S.shopCache[cacheKey]=shops
  return shops
 end
 
@@ -105,7 +130,12 @@ function S.stock(u,st,i)
     for c=1,#k do h=(h*31+k:byte(c))%1000003 end
     stock[id]=math.floor(n*(.25+.5*(h%1000)/999))
    end
+   if S.shopFor(key,'food_crate')==i then stock.food_crate=require('src.food').initial(key) end
+   if S.shopFor(key,'fertilizer')==i then stock.fertilizer=require('src.food').initialFertilizer(key) end
   end
+  local initial=require('src.industry').initial(key)
+  for item,n in pairs(initial) do if S.shopFor(key,item)==i then stock[item]=n end end
+  if S.shopFor(key,'explosives')==i then stock.explosives=nil end
   m.stock=stock
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]
@@ -125,35 +155,29 @@ end
 -- the shop that holds them for NPCs (shopFor).
 function S.flow(u,key,i,m)
  local place=L.byId[key]
- if not place or not place.uses or not place.uses.trade then return end
+ if not place or place.kind~='station' then return end
  local now=u.clock;local last=m.flowAt or now;m.flowAt=now
  local dt=now-last;if dt<=0 then return end
+ local Food=require('src.food')
+ local foodShop=S.shopFor(key,Food.item)
+ if i==foodShop then Food.flow(u,key,m,dt)
+ else S.stock(u,key,foodShop) end
+ if not place.uses or not place.uses.trade then return end
  local C=require('src.commodities')
+ -- Reading a co-product must settle its recipe's primary shop as well.
+ for _,c in ipairs(C.list) do
+  if c.make[key] and c.outputs then
+   for _,output in ipairs(c.outputs) do
+    local primary=S.shopFor(key,c.item)
+    if S.shopFor(key,output.item)==i and primary~=i then S.stock(u,key,primary) end
+   end
+  end
+ end
  for _,c in ipairs(C.list) do
   local rate=C.rate(c,key)*require('src.economy').scale(u,key,c)
-  if rate~=0 and S.shopFor(key,c.item)==i then
-   local stock=m.stock;local have=stock[c.item] or 0
-   m.flowCarry=m.flowCarry or {}
-   local carry=(m.flowCarry[c.item] or 0)+rate*dt/3600
-   local whole=carry>=0 and math.floor(carry) or math.ceil(carry)
-   if rate>0 then whole=math.max(0,math.min(whole,c.cap-have)) end
-   local inputs=C.inputs(c)
-   if rate>0 and #inputs>0 then
-    -- making it uses up its inputs from the same station's stock
-    for _,input in ipairs(inputs) do
-     local can=math.floor(S.count(u,key,input.item)/input.n)
-     if can<whole then whole=can;carry=whole end
-    end
-    if whole>0 then for _,input in ipairs(inputs) do
-     S.take(u,key,input.item,whole*input.n);require('src.economy').consume(u,key,input.item,whole*input.n)
-    end end
-   end
-   if rate<0 then whole=math.max(whole,-have);require('src.economy').consume(u,key,c.item,-whole) end
-   if rate>0 then require('src.economy').stat(u,'made',c.item,whole) end
-   if rate>0 and have>=c.cap then carry=0 end
-   m.flowCarry[c.item]=carry-whole
-   have=have+whole
-   stock[c.item]=have>0 and have or nil
+  if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
+  if not c.consumption and rate~=0 and S.shopFor(key,c.item)==i then
+   require('src.industry').flow(u,key,c,m,dt,rate)
   end
  end
 end
@@ -162,16 +186,35 @@ function S.count(u,st,id,i)
  local stock=S.stock(u,st,i or S.shopFor(st,id))
  return stock and stock[id] or 0
 end
+-- Physical stock remains authoritative for storage; consumers see only
+-- goods not committed to a freight pickup.
+function S.reserved(u,st,id,except)
+ local n=0;local key=S.key(st)
+ for _,o in pairs(u.tasks and u.tasks.offers or {}) do
+  if o.order and o.source==key and o.item==id and not o.loaded and o.state~='available'
+   and (not except or o.id~=except and o.manifestRoot~=except) then n=n+o.amount end
+ end
+ return n
+end
+function S.available(u,st,id,i,except)
+ return math.max(0,S.count(u,st,id,i)-S.reserved(u,st,id,except))
+end
+function S.shelf(u,st,i)
+ local stock=S.stock(u,st,i);if not stock then return end
+ local result={}
+ for id,n in pairs(stock) do result[id]=math.max(0,n-S.reserved(u,st,id)) end
+ return result
+end
 function S.add(u,st,id,n,i)
  local stock=S.stock(u,st,i or S.shopFor(st,id))
  if not stock then return false end
  stock[id]=(stock[id] or 0)+n
  return true
 end
-function S.take(u,st,id,n,i)
+function S.take(u,st,id,n,i,reservation)
  if n<=0 then return true end
  local stock=S.stock(u,st,i or S.shopFor(st,id))
- if not stock or (stock[id] or 0)<n then return false end
+ if not stock or S.available(u,st,id,i,reservation)<n then return false end
  stock[id]=stock[id]-n
  if stock[id]==0 then stock[id]=nil end
  return true

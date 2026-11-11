@@ -175,6 +175,62 @@ end
 
 AI.stopPoint = stopPoint
 
+-- How far a station's hull reaches from its centre (its fixtures' furthest
+-- corner), worked out once.
+local function hullRadius(st)
+	if st.navRadius then return st.navRadius end
+	local r = 0
+	for _, f in ipairs(st.body:getFixtures()) do
+		local shape = f:getShape()
+		if not f:isSensor() and shape:getType() == "polygon" then
+			local pts = { shape:getPoints() }
+			for i = 1, #pts, 2 do r = max(r, sqrt(pts[i] ^ 2 + pts[i + 1] ^ 2)) end
+		elseif not f:isSensor() and shape:getType() == "circle" then
+			local cx, cy = shape:getPoint()
+			r = max(r, sqrt(cx * cx + cy * cy) + shape:getRadius())
+		end
+	end
+	st.navRadius = r
+	return r
+end
+
+-- Go round a station rather than through it. A ship whose straight line to
+-- where it's going (a stop beyond the station, or a runway on the station's
+-- far side) crosses the station's hull aims at a point on a circle clear of
+-- the hull instead, a step at a time round towards its target's bearing.
+-- Docking traders came in from behind and flew into the hull at speed;
+-- passing traffic cut across stations the same way.
+local function aroundStations(game, e, x, y, hx, hy)
+	local margin = (e.halfLength or 100) + T.npcStationClearance
+	for _, st in ipairs(game.entities) do
+		if st.kind == "station" and not st.city and not st.removed and st.body then
+			local cx, cy = st.body:getPosition()
+			local R = hullRadius(st) + margin
+			local dx, dy = hx - x, hy - y
+			local len2 = dx * dx + dy * dy
+			if len2 > 1 and (cx - x) ^ 2 + (cy - y) ^ 2 < (sqrt(len2) + R) ^ 2 then
+				local t = max(0, min(1, ((cx - x) * dx + (cy - y) * dy) / len2))
+				local px, py = x + dx * t, y + dy * t
+				local ds = sqrt((x - cx) ^ 2 + (y - cy) ^ 2)
+				-- crosses the hull's circle part-way along (a ship already inside it
+				-- is steered back out round it too)
+				if (px - cx) ^ 2 + (py - cy) ^ 2 < R * R and t > 0 and t < 1 and ds > R * 0.9 then
+					local a0 = atan2(y - cy, x - cx)
+					local a1 = atan2(hy - cy, hx - cx)
+					local gap = wrap(a1 - a0)
+					if math.abs(gap) > 0.15 then
+						local a = a0 + (gap > 0 and 1 or -1) * min(math.abs(gap), 0.5)
+						local rr = max(R * 1.1, ds)
+						return cx + cos(a) * rr, cy + sin(a) * rr, true
+					end
+				end
+			end
+		end
+	end
+	return hx, hy, false
+end
+AI.aroundStations = aroundStations
+
 -- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
 -- strafe intent turns the hull), easing off when it isn't facing where
 -- it's going. Its turrets track and fire on whoever last attacked it,
@@ -203,6 +259,25 @@ local function trade(game, e, dt)
 			table.remove(route, e.routeIndex); e.routeIndex = 1; return
 		end
 		local sx, sy = stopPoint(stop, e)
+		-- A dock is flown into along its axis: from anywhere else the ship
+		-- first makes for a marker well out on that axis, clear of the hull,
+		-- and only turns in once it's lined up in the cone before the door.
+		-- Straight at the runway, a hauler coming from the side or behind
+		-- swung across the station and into its hull.
+		if stop.dock and stop.body and e.alifeId then
+			local d = approachDock(e, stop)
+			local lx, ly = stop.body:getLocalPoint(x, y)
+			local a = d.a or 0
+			local c, s = cos(a), sin(a)
+			local rx, ry = lx * c + ly * s - (d.xc or 0), -lx * s + ly * c - (d.yc or 0)
+			local lined = rx > d.x2 + 100 and math.abs(ry) < max(d.hw * 1.5, (rx - d.x2) * T.npcDockCone)
+			if not lined then
+				local mx = max(d.x2 + d.runway * 1.5, hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker)
+				local px, py = mx + (d.xc or 0), d.yc or 0
+				sx, sy = stop.body:getWorldPoint(px * c - py * s, px * s + py * c)
+				e.dockMarker = true
+			else e.dockMarker = nil end
+		end
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
 		local queued,queuePlace
 		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
@@ -262,6 +337,7 @@ local function trade(game, e, dt)
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
+		if not queued then hx, hy = aroundStations(game, e, x, y, hx, hy) end
 		if w and not stop.city and not stop.surfaceMine then
 			local rx,ry=x-w.x,y-w.y;local r=sqrt(rx*rx+ry*ry)
 			local safe=w.radius+min(T.surfacePullRange,w.radius*.5)+500

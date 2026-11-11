@@ -158,7 +158,7 @@ local function fire(game, e, slot, dt)
 		if hit then
 			local t = hit.entity
 			local rock = t.kind == "asteroid"
-			-- drills bite rock and wreck hulls alike (a drilled wreck yields hull alloy)
+			-- drills bite rock and wreck hulls alike (a drilled wreck yields steel plates)
 			local cuts = rock or t.kind == "husk"
 			if cuts then t.drilled = true end
 			game:damage(t, w.damage * dt * (cuts and (w.rockDamage or 1) or 1), e, "drill", hit.x, hit.y)
@@ -175,7 +175,7 @@ local function fire(game, e, slot, dt)
 	end
 
 	-- Lasers: hit instantly along each of w.beams lines (fanned over
-	-- w.beamSpread degrees; a shotgun laser has several), each doing the
+	-- w.beamSpread degrees; a multi-beam laser has several), each doing the
 	-- full damage. A pulse fires once per shot and lingers w.pulse seconds;
 	-- a beam burns while the trigger is held, per second.
 	if Weapons.isLaser(w) then
@@ -306,16 +306,18 @@ local function fire(game, e, slot, dt)
 		vx = svx + dx * ws.speed, vy = svy + dy * ws.speed,
 		damage = ws.damage, splash = ws.splash, knockback = (ws.knockback or 0),
 		size = data.items[slot.ammo].size,
-		cause = ws.vaporize and "atomic" or nil,   -- atomic warheads leave no wreck
+		cause = ws.airburst and "airburst" or nil,
+		airburst = ws.airburst,
 		born = game.time,                           -- (launch glow)
 		ox = wx, oy = wy,                           -- where it left the barrel (trails stop there)
 	}
 
-	if kind == "gun" or kind == "shotgun" then
+	if kind == "gun" or ws.pellets then
 		p.kind = "gun"                             -- pellets fly and hit like rounds
 		p.life = ws.range / ws.speed
 		p.maxLife = p.life
 		p.damage = ws.damage * mult.primaryDamage
+		p.burst = ws.airburst or nil
 	elseif kind == "artillery" then
 		p.life = ws.range / ws.speed
 		p.damage = ws.damage * mult.primaryDamage
@@ -346,8 +348,8 @@ local function fire(game, e, slot, dt)
 	end
 
 	table.insert(game.projectiles, p)
-	-- A shotgun shell is several pellets, fanned across pelletSpread.
-	if kind == "shotgun" then
+	-- Scatter ammunition works in any artillery mount, one shell per fan.
+	if ws.pellets then
 		local fan = rad(ws.pelletSpread or 8)
 		for _ = 2, ws.pellets or 1 do
 			local a = angle + (random() * 2 - 1) * fan
@@ -363,7 +365,7 @@ local function fire(game, e, slot, dt)
 	local r = (w.recoilPct and (ws.knockback or 0) * w.recoilPct / 100 or (w.recoil or 0) * (ws.recoil or 1)) * T.recoilScale
 	if r > 0 then e.body:applyLinearImpulse(-dx * r, -dy * r, wx, wy) end
 	if kind == "artillery" or kind == "torpedo" then game:muzzle(wx, wy, angle, 1.6) else game:muzzle(wx, wy, angle, 0.6) end
-	if e.isPlayer and (kind == "artillery" or kind == "shotgun") then game:shake(0.18) end
+	if e.isPlayer and kind == "artillery" then game:shake(0.18) end
 	events.emit("fire", e, slot)
 end
 
@@ -552,7 +554,9 @@ function Weapons.updateProjectiles(game, dt)
 		local p = list[i]
 		if p.kind == "missile" or (p.kind == "torpedo" and p.turnRate and p.turnRate > 0) then steerMissile(game, p, dt) end
 		p.px, p.py = p.x, p.y
-		local nx, ny = p.x + p.vx * dt, p.y + p.vy * dt
+		-- The fixed fuse ends flight exactly here, even on a long update.
+		local travel = p.airburst and min(dt,max(0,p.life)) or dt
+		local nx, ny = p.x + p.vx * travel, p.y + p.vy * travel
 		local hit = game:raycast(p.x, p.y, nx, ny, p.team)
 		local done = false
 

@@ -22,7 +22,13 @@ local deps={}
 function N.install(d) for k,v in pairs(d) do deps[k]=v end end
 
 -- One decision controller. Task handlers supply execution hooks, not AI loops.
-local chooseClock,chooseCount
+local searches=setmetatable({},{__mode='k'})
+-- Physical dwell and job-search throttling have independent saved clocks.
+function N.readyAt(r) return math.max(r.untilTime or 0,r.nextDecisionAt or 0) end
+local function defer(u,r,at,seconds)
+ r.untilTime=r.untilTime or at
+ r.nextDecisionAt=math.max(at,u.clock or at)+seconds
+end
 N.controller={name='npc',
  docks=function(r,id)
   local t=r.task
@@ -38,9 +44,11 @@ N.controller={name='npc',
   end
   if (r.nextTaskAt or 0)>clock then return {wait=r.nextTaskAt-clock} end
   if not r.task then
-   if chooseClock~=clock then chooseClock,chooseCount=clock,0 end
-   if chooseCount>=T.taskChoosePerTick then return {wait=2} end
-   chooseCount=chooseCount+1
+   local tick=math.floor((u.clock or clock)/T.alifeLocalTick)
+   local budget=searches[u]
+   if not budget or budget.tick~=tick then budget={tick=tick,count=0};searches[u]=budget end
+   if budget.count>=T.taskChoosePerTick then return {wait=2} end
+   budget.count=budget.count+1
   end
   local task=Tasks.choose(u,r,node,clock)
   if not task then return end
@@ -109,7 +117,7 @@ function N.routeAction(ctx)
  local r=ctx.r;local target=r.route and r.route[#r.route]
  if not target then return end
  local kind=r.state=='idle' and 'hold' or N.docksAt(r,target) and 'dock' or 'travel'
- Actions.request(ctx,{kind=kind,target={provider='location',id=target},untilTime=r.untilTime})
+ Actions.request(ctx,{kind=kind,target={provider='location',id=target},untilTime=N.readyAt(r)})
 end
 function N.thinkWork(game,e,dt,AI)
  local r=game.universe.npcs[e.alifeId];if not r then return false end
@@ -146,17 +154,26 @@ end
 
 -- Arrive at the end of a leg: dock at a station the job wants, otherwise hold
 -- position. Docking always repairs and restocks, whatever the job.
+local function visitStay(r,node)
+ if r.service then return T.alifeStay end
+ local work=N.work(r);local j=N.controller
+ return (work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
+end
+function N.beginDocked(r,node,at,u,minimum)
+ r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil
+ Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
+end
 function N.arrive(r,node,at,u,game)
  r.offset,r.pose=nil,nil
  r.node=node;r.area=L.get(node).area;r.transit=nil
  r.route={node,node};r.index=1
- local j=N.controller
- local work=N.work(r)
- local stay=(work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
- if L.get(node).kind=='station' and N.docksAt(r,node) then
-  r.state='docked'
+ r.nextDecisionAt=nil
+ local stay=visitStay(r,node)
+ -- (a station with no place left for this hull: it holds off outside for
+ -- the visit instead of docking on top of the ships already there)
+ if L.get(node).kind=='station' and N.docksAt(r,node) and require('src.dock_room').room(u,r,node) then
   Supplies.refill(r,node)
-  Repairs.begin(r,node,at,stay)
+  N.beginDocked(r,node,at,u,stay)
  else
   r.state='idle';r.untilTime=at+stay
  end
@@ -171,6 +188,7 @@ local function go(r,route,at,ctx)
  ctx=ctx or {u={},r=r,clock=at}
  local x,y=Actions.actorPosition(ctx)
  if not ctx.startingAction then Actions.cancel(ctx,'new route') end
+ r.nextDecisionAt=nil
  if #route==1 then route={route[1],route[1]} end
  r.route=route;r.index=1;r.offset=nil;r.pose=nil
  deps.start(r,at,2)
@@ -239,6 +257,8 @@ end
 -- Decide what to do next, standing at `node` at time `at`. Returns true when
 -- the ship has started moving (or was given something to wait for).
 function N.decide(u,r,node,at,game)
+ if at<N.readyAt(r) then return false end
+ r.nextDecisionAt=nil
  local j=N.controller;if not j then return false end
  local ctx=N.context(game or {universe=u},r,at,game and game.alifeOnline and game.alifeOnline[r.id],nil,nil,u)
  ctx.node=node
@@ -255,7 +275,7 @@ function N.decide(u,r,node,at,game)
   r.stuckSince=nil
   if #plan.route<=1 or (#plan.route==2 and plan.route[1]==plan.route[2]) then
    -- work right here: hold (or stay docked) for its duration
-   if plan.dock and L.get(node).kind=='station' then r.state='docked';Repairs.begin(r,node,at,plan.wait or T.alifeStay)
+   if plan.dock and L.get(node).kind=='station' then N.beginDocked(r,node,at,u,plan.wait or T.alifeStay)
    else r.state='idle';r.untilTime=at+(plan.wait or T.patrolInspect) end
    r.node=node;r.route={node,node};r.index=1
    return true
@@ -263,7 +283,7 @@ function N.decide(u,r,node,at,game)
   return go(r,plan.route,at,ctx)
  end
  if plan and plan.wait then
-  r.untilTime=at+plan.wait
+  defer(u,r,at,plan.wait)
   r.state=L.get(node).kind=='station' and N.docksAt(r,node) and 'docked' or 'idle'
   return true
  end
@@ -271,7 +291,7 @@ function N.decide(u,r,node,at,game)
  r.stuckSince=r.stuckSince or at
  if j.roam and at-r.stuckSince>=T.npcIdleRoam and wander(r,node,at,ctx) then r.stuckSince=nil;return true end
  r.state=L.get(node).kind=='station' and N.docksAt(r,node) and 'docked' or 'idle'
- r.untilTime=at+(j.retry or 10)
+ defer(u,r,at,j.retry or 10)
  return false
 end
 
@@ -292,10 +312,10 @@ function N.advance(r,clock,u,game)
    else N.arrive(r,r.route[r.index],at,u,game) end
   elseif r.state=='docked' or r.state=='idle' then
    local node=r.node or r.route[r.index]
-   if r.state=='docked' then Repairs.advance(r,clock,node) end
+   if r.state=='docked' then Repairs.advance(r,clock,node,u) end
    require('src.reactor_fuel').observe(u,r,clock)
-   if clock<(r.untilTime or 0) then return end
-   local at=r.untilTime or clock
+   if clock<N.readyAt(r) then return end
+   local at=N.readyAt(r)
    if r.worldRecovery then require('src.world_reconcile').resume(u,r,at) end
    if not N.decide(u,r,node,at,game) then return end
    if r.state~='travel' and r.state~='transit' and (r.untilTime or 0)<=at then return end
@@ -307,6 +327,7 @@ end
 -- the offline loop makes; the live ship then follows the record's new route.
 function N.departOnline(game,e,station)
  local r=game.universe.npcs[e.alifeId]
+ if game.universe.clock<N.readyAt(r) then return false end
  local A=require('src.alife')
  A.capture(game,e,false)
  local node=L.canonical(station.locationId)
@@ -336,7 +357,7 @@ end
 -- Online: a live ship holding position whose stay is over.
 function N.updateOnline(game,e)
  local r=game.universe.npcs[e.alifeId]
- if not r or r.state~='idle' or r.encounter or game.universe.clock<(r.untilTime or 0) then return end
+ if not r or r.state~='idle' or r.encounter or game.universe.clock<N.readyAt(r) then return end
  local A=require('src.alife')
  A.capture(game,e,false)
  r.ship.armor=e.armor;r.ship.cargo=require('src.persistence').copy(e.cargo)

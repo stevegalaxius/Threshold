@@ -92,7 +92,7 @@ local WSTAT = {
 	width = { "shaft width (px)", 1, 40, 0.5, 1, "Thickness of the shaft. Unset: 6." },
 	bitSize = { "bit size (px)", 2, 60, 0.5, 1, "Radius of the spinning bit at the tip. Unset: 9 / 13 / 17 by size." },
 	control = { "control", 1, 8, 1, 0, "Drone control budget." },
-	beams = { "beams", 1, 12, 1, 0, "Lines it fires at once, each doing the full damage (several = a shotgun laser)." },
+	beams = { "beams", 1, 12, 1, 0, "Lines it fires at once, each doing the full damage (several = a multi-beam laser)." },
 	beamSpread = { "beam spread (deg)", 0, 90, 0.5, 1, "How wide the beams fan out, edge to edge." },
 	beamWidth = { "beam width", 0.2, 4, 0.05, 2, "Thickness of the drawn beam (1 = normal)." },
 	capacity = { "tube capacity", 1, 32, 1, 0, "How much its tubes hold, in S rounds: an M round takes 2, an L round 4. It fires only what's armed, and re-arms one round at a time (each ammo's arm time)." },
@@ -501,7 +501,7 @@ function weaponSections(E, d)
 		combo("yard_wcal", w.caliber or "same as size", copts, function(z) E.pushUndo(); w.caliber = z or nil end, 80)
 	end
 	-- which ammo families it chambers, in the order ticked (first = default)
-	local FAMS = { cannon = { "gun", "artillery", "shotgun" }, missile = { "missile", "torpedo" } }
+	local FAMS = { cannon = { "gun", "artillery" }, missile = { "missile", "torpedo" } }
 	if FAMS[w.kind] then
 		local list = {}
 		for _, f in ipairs(data.chambers(w)) do table.insert(list, f) end
@@ -546,7 +546,7 @@ function weaponSections(E, d)
 	end
 	-- laser color, 0..1 per channel
 	if w.kind == "laser" then
-		check(E, w.beamRandom == true, "Random spread (scatter beams across the spread, like a shotgun)", function(on) w.beamRandom = on or nil end)
+		check(E, w.beamRandom == true, "Random spread (scatter beams across the spread, across a fan)", function(on) w.beamRandom = on or nil end)
 		local c = w.color or require("src.weapons").LASER_COLOR
 		for ch, label in ipairs({ "red", "green", "blue" }) do
 			num("yard_wcol" .. ch, "beam " .. label, c[ch], 0, 1, 0.02, 2, "Beam color (0..1).", function(v)

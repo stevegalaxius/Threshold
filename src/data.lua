@@ -28,17 +28,17 @@ local MODULE_FAMILIES = { weapon = true, bay = true, engine = true, reactor = tr
 local SIZES = { S = 1, M = 2, L = 3, any = 0 }   -- "any": shared slots every hull class uses alike
 local WEAPON_KINDS = { cannon = true, laser = true, drill = true, missile = true, drone = true }
 -- The ammo families a weapon chambers when it doesn't list its own
--- (weapon.chambers = { "artillery" }, { "shotgun", "gun" }). A cannon is any
--- hardpoint weapon that fires ammo: what it chambers makes it an autocannon,
--- a mortar or a shotgun. Lasers and drills take none.
+-- (weapon.chambers = { "artillery" }, { "artillery", "gun" }). A cannon is any
+-- hardpoint weapon that fires ammo: what it chambers makes it a gun
+-- or artillery. Lasers and drills take none.
 data.CHAMBERS = { cannon = { "gun" }, missile = { "missile", "torpedo" }, drone = { "drone" } }
--- Older weapon kinds: a gun, artillery piece or shotgun is a cannon that
+-- Older weapon kinds: a gun or artillery piece is a cannon that
 -- chambers that ammo; a torpedo tube is a missile rack.
 -- One laser kind with two ways to fire: a pulse (per-shot damage and
 -- power, fireRate shots a second) or, with beam = true, a beam (per-second
 -- damage and power while held). They fire down separate paths in Weapons.fire.
 data.LASERS = { laser = true }
-local OLD_KINDS = { gun = { "cannon", "gun" }, artillery = { "cannon", "artillery" }, shotgun = { "cannon", "shotgun" }, torpedo = { "missile" } }
+local OLD_KINDS = { gun = { "cannon", "gun" }, artillery = { "cannon", "artillery" }, torpedo = { "missile" } }
 local MOUNTS = { fixed = true, gimbal = true, turret = true }
 data.FAMILIES, data.SIZES = FAMILIES, SIZES
 
@@ -368,7 +368,7 @@ function api.module(def)
 		if old[2] and not def.weapon.chambers then def.weapon.chambers = { old[2] } end
 	end
 	if def.weapon and def.weapon.chambers ~= nil and type(def.weapon.chambers) ~= "table" then
-		fail(("module '%s': chambers should be a list of ammo families, like { \"gun\", \"shotgun\" }"):format(def.id))
+		fail(("module '%s': chambers should be a list of ammo families, like { \"gun\", \"artillery\" }"):format(def.id))
 	end
 	if def.weapon and not WEAPON_KINDS[def.weapon.kind] then
 		fail(("module '%s' has unknown weapon kind '%s'"):format(def.id, tostring(def.weapon.kind)))
@@ -494,7 +494,7 @@ end
 
 -- Every ammo a weapon module can load: a family it chambers, in its exact
 -- caliber (hardpoint weapons) or its size or smaller (bay launchers). Its
--- first chambered family comes first, then biggest first.
+-- first chambered family comes first, then biggest and standard rounds first.
 function data.ammoOptions(module)
 	local w = module.weapon
 	local out = {}
@@ -513,7 +513,8 @@ function data.ammoOptions(module)
 		local ia, ib = data.items[a], data.items[b]
 		if ia.family ~= ib.family then return rank[ia.family] < rank[ib.family] end
 		if ia.size ~= ib.size then return SIZES[ia.size] > SIZES[ib.size] end
-		if (ia.price or 0) ~= (ib.price or 0) then return (ia.price or 0) < (ib.price or 0) end   -- cheapest is the default
+		if not not ia.default ~= not not ib.default then return not not ia.default end
+		if (ia.price or 0) ~= (ib.price or 0) then return (ia.price or 0) < (ib.price or 0) end   -- price breaks remaining ties
 		return a < b
 	end)
 	return out

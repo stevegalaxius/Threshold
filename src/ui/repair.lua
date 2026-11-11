@@ -3,8 +3,8 @@
 	lists "repair" in services. Every ship you have here (the one you're
 	flying first, then stored ones) gets a row: armor meter, what's
 	missing and what fixing it costs at this station's rate
-	(Game.repairRate). Repair fixes as much as your credits cover; Repair
-	all does every ship in turn.
+	(Game.repairRate). Repair starts a paid-as-completed job; Repair all
+	starts one for each damaged ship. Plate shortages slow the work.
 
 	This only draws and reports clicks; src/ui/cargo.lua owns the tabs.
 ]]
@@ -30,10 +30,7 @@ function Repair.layout(game)
 	local st = p and p.dockState and p.dockState.station
 	if not st then return nil end
 	local sw, sh = lg.getDimensions()
-	local y = 112
-	local ph = max(360, sh - y - 80)
-	local tw = min(sw - 48, 820)
-	local x = floor((sw - tw) / 2)
+	local x, y, tw, ph = require("src.ui.station").body()
 	local L = { x = x, y = y, w = tw, h = ph, station = st, rows = {} }
 	local owners = { p }
 	for _, rec in ipairs(game:hangar(st)) do owners[#owners + 1] = rec end
@@ -51,6 +48,7 @@ function Repair.layout(game)
 end
 
 local function buttonLabel(game, st, owner)
+	if owner.repairOrder then return ('Cancel (%d pts left)'):format(math.ceil(owner.repairOrder.remaining)),true end
 	local missing, cost = game:repairQuote(st, owner)
 	if missing <= 0 then return "No damage", false end
 	local rate = game.repairRate(st)
@@ -71,6 +69,11 @@ function Repair.draw(game, mx, my)
 	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.DIM)
 	lg.printf(("%s per armor point"):format(HUD.credits(game.repairRate(st))), L.x, L.y + 16, L.w - PAD, "right")
+	local P=require('src.repair_materials')
+	local available=P.available(game.universe,st.key or st.locationId)
+	lg.setFont(HUD.font(11))
+	lg.print(('Steel on hand: %.1f plates | 1 plate / %d armor | %s'):format(available/P.points,P.points,
+	 available>0 and 'normal repair speed' or 'emergency repairs at quarter speed'),L.x+PAD,L.y+35)
 
 	local total = 0
 	for _, r in ipairs(L.rows) do
@@ -115,7 +118,7 @@ function Repair.mousepressed(game, mx, my, button)
 	local L = Repair.layout(game)
 	if not L or button ~= 1 then return nil end
 	for _, r in ipairs(L.rows) do
-		if inRect(r.button, mx, my) then return { repair = r.owner } end
+		if inRect(r.button, mx, my) then return r.owner.repairOrder and {cancelRepair=r.owner} or {repair=r.owner} end
 	end
 	if inRect(L.all, mx, my) then return { repairAll = true } end
 end

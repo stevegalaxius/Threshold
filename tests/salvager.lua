@@ -45,14 +45,14 @@ return function(game)
  local x,y=A.point(r,u.clock)
  u.areas.earth={capturedAt=u.clock,objects={}}
  local Loose=require('src.loose')
- local ground={id='test/991',area='earth',kind='loot',item='scrap',count=4,x=x,y=y,vx=0,vy=0,spin=0,clock=u.clock}
+ local ground={id='test/991',area='earth',kind='loot',item='water_ice',count=4,x=x,y=y,vx=0,vy=0,spin=0,clock=u.clock}
  Loose.records(u)[ground.id]=ground
  competitor.area='earth';competitor.state='travel';competitor.route=copy(r.route);competitor.index=r.index
  competitor.depart=r.depart;competitor.arrive=r.arrive;competitor.offset=nil;competitor.pose=nil;competitor.lootCheckAt=nil;competitor.action=nil
  check(O.update(game,r,u.clock),'remote salvager did not approach a real saved pickup')
  check(not O.update(game,competitor,u.clock),'remote competitors claimed the same source')
  local collectedAt=u.clock+2
- check(O.update(game,r,collectedAt) and r.ship.cargo.scrap==4 and r.salvageCargo.scrap==4,'remote pickup did not transfer finite cargo')
+ check(O.update(game,r,collectedAt) and r.ship.cargo.water_ice==4 and r.salvageCargo.water_ice==4,'remote pickup did not transfer finite cargo')
  check(not Loose.records(u)[ground.id],'remote collection left duplicate ground cargo')
  local taskId=r.task.id
  Tasks.release(u,competitor,'fixture ended',u.clock)
@@ -71,8 +71,8 @@ return function(game)
   if r.lastTask and r.lastTask.id==taskId then break end
  end
  check(r.lastTask and r.lastTask.status=='completed','remote sale did not finish its board job')
- check((r.ship.cargo.scrap or 0)==0 and Hold.count(market.hold,'scrap')==4,'sold cargo was not moved onto the resale shelf')
- check(r.credits==game.sellPrice({id='scrap',n=4}) and u.credits==credits,'sale credited the wrong wallet or price')
+ check((r.ship.cargo.water_ice or 0)==0 and Hold.count(market.hold,'water_ice')==4,'sold cargo was not moved onto the resale shelf')
+ check(r.credits==game.sellPrice({id='water_ice',n=4}) and u.credits==credits,'sale credited the wrong wallet or price')
  local earned=r.credits
  check(S.sell(game,r,target)==0 and r.credits==earned,'repeated unloading duplicated income')
  check((r.ship.cargo[Fuel.item()] or 0)>0 and (r.salvageSales[Fuel.item()] or 0)==0,'salvager sold its own supplies')
@@ -106,6 +106,8 @@ return function(game)
  A.capture(game,e,false);check(S.returnRecord(game,r),'physical collector had no local return route');A.bindRoute(game,e,r)
  local station=game:locationEntity(r.salvageGoal)
  game:dockInstantly(e,station)
+ game:finishDocking(e,e.dockState,station)
+ u.clock=require('src.npc').readyAt(r)
  local shelf=game:stationMarket(station,1).hold;local before=Hold.count(shelf,'salvage_kit')
  local wallet=u.credits;local income=r.credits
  check(game:traderCanDepart(e,station),'docked salvager did not sell and choose another job')

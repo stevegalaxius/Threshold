@@ -17,6 +17,26 @@ end
 local function invalid(target)
  return target and (target.dead or target.removed or target.dockState or target.driverProtected)
 end
+-- Is anything solid (another ship, a station or its structures, a rock)
+-- close enough that the ship could reach it before a cruise-rate replan?
+-- Then it replans at the control rate: at cruise speed a once-a-second
+-- plan covers several hundred px with no look at what's in the way.
+local solidKinds={ship=true,station=true,structure=true,asteroid=true,husk=true,container=true}
+local function crowded(game,e)
+ if not (game.world and e.body) then return false end
+ local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
+ local speed=math.sqrt(vx*vx+vy*vy)
+ local reach=(e.halfLength or 100)+speed*T.npcCruiseInterval*T.npcCrowdLook+T.npcCrowdMargin
+ local hit=false
+ game.world:queryBoundingBox(x-reach,y-reach,x+reach,y+reach,function(fixture)
+  local o=fixture:getUserData() or fixture:getBody():getUserData()
+  if o and o~=e and not fixture:isSensor() and solidKinds[o.kind] and not o.dead and not o.removed and not o.dockState then
+   hit=true;return false
+  end
+  return true
+ end)
+ return hit
+end
 local function actuate(game,e,dt,AI)
  local control=e.aiVelocity
  if control then
@@ -87,7 +107,7 @@ function S.update(game,e,dt,AI,plan)
  local working=action and (action.kind=='work' or action.kind=='approach')
  local danger=e.navigation and e.navigation.danger or 0
  local interval=(e.aiCombat or e.combatTarget or e.aggressor or e.asked or e.drone) and T.npcCombatInterval
-  or (working or e.aiApproach or danger>.7) and T.npcControlInterval or T.npcCruiseInterval
+  or (working or e.aiApproach or danger>.7) and T.npcControlInterval or crowded(game,e) and T.npcCombatInterval or T.npcCruiseInterval
  e.aiNextPlan=deadline(e,now,interval,e.aiNextPlan);e.aiLastPlan=now
  e.aiRoute,e.aiRouteIndex,e.aiTask,e.aiAction=e.route,e.routeIndex,r and r.task,r and r.action
  e.aiHit,e.aiAggressor,e.aiFuel,e.aiAsked=e.lastHitTime,e.aggressor,e.fuelStatus,e.asked

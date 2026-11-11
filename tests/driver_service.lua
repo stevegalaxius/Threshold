@@ -10,7 +10,7 @@ return function(game)
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true;game:loadField('mars')
  local u=game.universe;local clock=u.clock
- local driver=Fields.mars.driverId
+ local driver
  local template
  for _,r in pairs(u.npcs) do if (r.populationGroup or r.role)=='trader' and r.home=='mars' then template=r;break end end
  assert(template,'no Mars trader')
@@ -18,7 +18,9 @@ return function(game)
  local path=G.itinerary(home,L.station('earth','trade'),clock)
  assert(path,'no route Mars -> Earth')
  local at
- for i,id in ipairs(path) do if id==driver then at=i;break end end
+ for i,id in ipairs(path) do
+  if L.get(id).kind=='driver' and L.get(id).area=='mars' then driver,at=id,i;break end
+ end
  assert(at and at>1,'route does not leave through the driver')
  for _,p in ipairs({.3,.7,.95}) do
   local r=copy(template);r.id='npc/driver_service_'..p
@@ -49,7 +51,7 @@ return function(game)
   local snapshot=copy(r)
   local e=A.wake(game,r)
   local ex,ey=e.body:getPosition()
-  local drv=game:findDriver();local cx,cy=drv.body:getPosition()
+  local drv=game:locationEntity(driver);local cx,cy=drv.body:getPosition()
   check((ex-cx)^2+(ey-cy)^2>clear,('woke inside the driver at p=%s (%.0f px from its middle)'):format(p,math.sqrt((ex-cx)^2+(ey-cy)^2)))
   game.alifeOnline[r.id]=nil;game:remove(e,true)
   r=snapshot;u.npcs[r.id]=r

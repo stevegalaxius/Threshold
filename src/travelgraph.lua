@@ -136,7 +136,17 @@ plan=function(source,target,clock)
   if moon then
    return join(G.itinerary(source,moon.parent..'/to_'..b.area,clock),G.itinerary(b.area..'/to_'..moon.parent,target,clock))
   end
-  local from,to=Fields[a.area].driverId,Fields[b.area].driverId
+  -- Extra drivers share the interplanetary connection, but retain separate
+  -- approaches and queues. Choose each end by its local travel cost.
+  local function driver(area,node,outbound)
+   local best,cost
+   for _,id in ipairs(Fields[area].driverIds or {}) do
+    local path=G.route(G.build(area),outbound and node or id,outbound and id or node,clock)
+    if path and (not cost or path.duration<cost) then best,cost=id,path.duration end
+   end
+   return best
+  end
+  local from,to=driver(a.area,source,true),driver(b.area,target,false)
   if not from or not to then return end
   return join(G.itinerary(source,from,clock),G.itinerary(to,target,clock))
  end

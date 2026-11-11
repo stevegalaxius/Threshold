@@ -190,6 +190,9 @@ T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12
 T.npcDecisionInterval,T.npcControlInterval,T.npcCombatInterval=1,.2,.1
 T.npcCruiseInterval=1
+T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
+T.npcStationClearance=250  -- px beyond a station hull (plus the ship's half length) that traffic routes around
+T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per px out; marker distance beyond the hull
 T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
@@ -230,6 +233,8 @@ T.population = {
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
+T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
+T.npcArrivalWidth = 4000     -- px across (and half that deep) the band driver arrivals spread over, by id
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
 
 -- Berth ship capacity is independent of the authored pad/editor marker size.
@@ -369,7 +374,7 @@ T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 -- Seconds a dead/escaped NPC record lingers (unreferenced) before removal.
 T.alifeGoneLinger=300
 
-T.wreckAlloyPerTonne = 1 / 40   -- hull alloy a drilled wreck yields, per tonne of hull
+T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
 T.salvagerPopulation,T.salvagerCollectTime=1,180   -- salvagers fill their hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
 

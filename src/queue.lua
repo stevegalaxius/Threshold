@@ -197,6 +197,17 @@ function Q.holding(game,e,stop)
   local waiting,place=liveLine(game,e,stop)
   return waiting and r or nil,place
  end
+ -- No booking for this dock (it expired, or the visit never booked one):
+ -- while another ship is in its beam or coming out of it, wait off the
+ -- runway rather than flying on into the door and the hull round it.
+ if r and stop and stop.dock and not (q and q.kind=='dock') and not e.dockState then
+  local AI=require('src.ai')
+  local dock=AI.approachDock(e,stop)
+  if Q.dockBusy(game,stop,dock,e) then
+   local sx,sy=AI.stopPoint(stop,e);local x,y=e.body:getPosition()
+   if (x-sx)^2+(y-sy)^2<=(T.queueStart+T.queueGap*4)^2 then return r,1 end
+  end
+ end
  return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and L.canonical(stop.locationId)==q.key and game.universe.clock<q.ready and r or nil
 end
 
