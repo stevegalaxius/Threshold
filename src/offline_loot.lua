@@ -202,7 +202,7 @@ function O.find(ctx)
     target=Actions.resolve(ctx,{target=spec})
    end
   end
-  if not target or target.done or not Actions.available(ctx,target) then return end
+  if not target or target.done or not Actions.available(ctx,target) or Actions.sinking(ctx.r,target.x,target.y) then return end
   local s=target.source
   if s and (s.kind=='combat' or s.record.kind=='husk') and not Wreck.weapon(ctx.e or r.ship) then return end
   local d=(target.x-x)^2+(target.y-y)^2

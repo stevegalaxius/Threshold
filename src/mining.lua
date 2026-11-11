@@ -421,7 +421,7 @@ function M.nextAction(ctx)
  for id,record in pairs(M.state(ctx.u).resources) do
   if record.site==t.target and ctx.clock>=(record.readyAt or 0) then
    local target=Actions.targets.resource.resolve(ctx,{id=id})
-   if target and not target.done and Actions.available(ctx,target) then
+   if target and not target.done and Actions.available(ctx,target) and not Actions.sinking(ctx.r,target.x,target.y) then
     local d=(target.x-x)^2+(target.y-y)^2;local p=record.kind=='loot' and 1 or 0
     if not best or p>priority or p==priority and (d<distance or d==distance and id<best) then best,priority,distance=id,p,d end
    end
