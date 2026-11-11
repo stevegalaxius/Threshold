@@ -188,6 +188,10 @@ T.alifeSpread = 1500  -- persistent cross-track variation, fading at destination
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12
+-- A turn-helm hull slides with no side thrust: past this much speed
+-- error across its route it turns its engines onto the error (px/s), and
+-- goes back to facing the route once the error is under the release.
+T.aiSlideCorrect, T.aiSlideRelease = 80, 30
 T.npcDecisionInterval,T.npcControlInterval,T.npcCombatInterval=1,.2,.1
 T.npcCruiseInterval=1
 T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
