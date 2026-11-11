@@ -1145,29 +1145,106 @@ end
 local PRICE = { 0.45, 1, 0.55 }
 
 -- price: a line in green under the stats (at the market).
+-- The mouseover card: name and maker, a kind / size line, a description,
+-- the stack's numbers, then price and what you can do with it.
+local SIZE_NAME = { S = "Small", M = "Medium", L = "Large", any = "Any size" }
+local function kindLine(item)
+	local m = data.modules[item.id]
+	if item.kind == "ship" then return "Ship" end
+	if m then return "Module \194\183 " .. (m.family:gsub("^%l", string.upper)) end
+	if item.kind == "ammo" then return "Ammo \194\183 " .. ((item.family or "?"):gsub("^%l", string.upper)) end
+	if item.kind == "container" then return "Container" end
+	return (item.kind and item.kind:gsub("^%l", string.upper)) or "Item"
+end
+local function describe(item)
+	local m = data.modules[item.id]
+	local d = item.description or item.desc or (m and (m.description or m.desc))
+	if d then return d end
+	if item.kind == "ship" then return "Includes its installed modules and cargo." end
+	if item.kind == "ammo" and item.shot then
+		local sh, out = item.shot, {}
+		if item.family == "drone" then return "Launches a drone that fights for you and docks back afterwards." end
+		if sh.damage then out[#out + 1] = ("%d damage"):format(sh.damage) end
+		if sh.splash then out[#out + 1] = ("%d splash"):format(sh.splash) end
+		if sh.speed then out[#out + 1] = ("speed %d"):format(sh.speed) end
+		if sh.range then out[#out + 1] = ("range %d"):format(sh.range) end
+		local fits = item.family == "missile" and ("Fits %s launchers of size %s or bigger."):format(item.family, item.size)
+			or ("Fits %s weapons of caliber %s."):format(item.family, item.size or "?")
+		return table.concat(out, " \194\183 ") .. ". " .. fits
+	end
+	if m then
+		local out = {}
+		local w = m.weapon
+		if w then
+			if w.fireRate then out[#out + 1] = ("%.1f shots/s"):format(w.fireRate) end
+			if w.gimbal then out[#out + 1] = ("gimbal %d\194\176"):format(w.gimbal) end
+			if w.chambers then out[#out + 1] = "fires " .. table.concat(w.chambers, "/") .. " ammo" end
+		end
+		if m.powerDraw then out[#out + 1] = ("draws %s power"):format(m.powerDraw) end
+		if #out > 0 then return table.concat(out, " \194\183 ") .. "." end
+	end
+	return nil
+end
 local function tooltip(item, n, mx, my, hint, price)
-	local _, _, cap = Shapes.of(item.id)
-	local lines = {
-		item.name .. (item.maker and ("  \194\183  " .. item.maker) or ""),
-		item.kind=='ship' and 'Ship, including installed modules and cargo' or ("%d / %d per stack    %.2f m3    %.2f t"):format(n, cap, item.volume * n, item.mass * n),
+	local sw0, sh0, cap = Shapes.of(item.id)
+	local W, P = 300, 12
+	local big, small, tiny = HUD.font(15), HUD.font(12), HUD.font(11)
+	local size = item.size and (SIZE_NAME[item.size] or item.size)
+	local desc = describe(item)
+	local _, descLines = small:getWrap(desc or "", W - P * 2)
+	if not desc then descLines = {} end
+	local stats = item.kind == "ship" and {} or {
+		{ "Stack", ("%d / %d"):format(n, cap) },
+		{ "Volume", ("%.2f m3"):format(item.volume * n) },
+		{ "Mass", ("%.2f t"):format(item.mass * n) },
+		{ "Cells", ("%d x %d"):format(sw0 or item.w or 1, sh0 or item.h or 1) },
 	}
-	if price then table.insert(lines, price) end
-	if hint then table.insert(lines, hint) end
-	local f = HUD.font(12)
-	lg.setFont(f)
-	local w = 0
-	for _, l in ipairs(lines) do w = max(w, f:getWidth(l)) end
-	w = w + 20
-	local h = #lines * 16 + 12
+	local h = P + 20 + 18 + (#descLines > 0 and (#descLines * 15 + 8) or 0)
+		+ (#stats > 0 and 40 or 0) + (price and 20 or 0) + (hint and 24 or 0) + P - 4
 	local sw, sh = lg.getDimensions()
-	local x, y = min(mx + 18, sw - w - 4), min(my + 18, sh - h - 4)
-	lg.setColor(0.02, 0.06, 0.09, 0.95)
-	lg.rectangle("fill", x, y, w, h, 6, 6)
+	local x, y = min(mx + 18, sw - W - 4), min(my + 18, sh - h - 4)
+	lg.setColor(0.02, 0.06, 0.09, 0.96)
+	lg.rectangle("fill", x, y, W, h, 6, 6)
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
-	lg.rectangle("line", x + 0.5, y + 0.5, w - 1, h - 1, 6, 6)
-	for i, l in ipairs(lines) do
-		lg.setColor(i == 1 and HUD.INK or (price and i == 3) and PRICE or HUD.DIM)
-		lg.print(l, x + 10, y + 6 + (i - 1) * 16)
+	lg.rectangle("line", x + 0.5, y + 0.5, W - 1, h - 1, 6, 6)
+	local cy = y + P
+	-- name, and a size badge on the right
+	local badgeW = 0
+	if size then
+		badgeW = tiny:getWidth(size) + 14
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.25)
+		lg.rectangle("fill", x + W - P - badgeW, cy + 1, badgeW, 18, 4, 4)
+		lg.setFont(tiny); lg.setColor(HUD.INK)
+		lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
+	end
+	lg.setFont(big); lg.setColor(HUD.INK)
+	lg.printf(item.name, x + P, cy, W - P * 2 - badgeW - 6, "left")
+	cy = cy + 20
+	lg.setFont(small); lg.setColor(HUD.AQUA)
+	lg.print(kindLine(item) .. (item.maker and ("  \194\183  " .. item.maker) or ""), x + P, cy)
+	cy = cy + 18
+	if #descLines > 0 then
+		cy = cy + 4
+		lg.setColor(HUD.DIM)
+		for _, l in ipairs(descLines) do lg.print(l, x + P, cy); cy = cy + 15 end
+		cy = cy + 4
+	end
+	if #stats > 0 then
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
+		lg.line(x + P, cy + 4, x + W - P, cy + 4)
+		local cw = (W - P * 2) / #stats
+		for i, st in ipairs(stats) do
+			local sx = x + P + (i - 1) * cw
+			lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
+			lg.setFont(small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+		end
+		cy = cy + 40
+	end
+	if price then lg.setFont(small); lg.setColor(PRICE); lg.print(price, x + P, cy + 2); cy = cy + 20 end
+	if hint then
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
+		lg.line(x + P, cy + 4, x + W - P, cy + 4)
+		lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(hint, x + P, cy + 9)
 	end
 end
 
