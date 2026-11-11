@@ -100,7 +100,25 @@ function AI.driveVelocity(e, wvx, wvy, mx, my, throttle)
 	if e.hull.helm == "turn" then
 		-- Keep the nose on the route while retro thrust handles braking.
 		-- A small velocity error must not reverse the requested heading.
-		local facing=AI.faceDirection(e,mx,my)
+		-- But a turn-helm hull has no side thrust: velocity across its nose
+		-- never goes away while it keeps facing the route, so a hauler
+		-- coming in crabwise slid straight into the station it was
+		-- avoiding. When the error across the route is large, point the
+		-- engines along the error instead (the retros when they're strong
+		-- enough and that end is nearer the route), then go back to the route.
+		local fx,fy=mx,my
+		local along=(wvx-vx)*mx+(wvy-vy)*my
+		local lx,ly=(wvx-vx)-along*mx,(wvy-vy)-along*my
+		local lateral=sqrt(lx*lx+ly*ly)
+		local limit=e.aiSliding and T.aiSlideRelease or T.aiSlideCorrect
+		e.aiSliding=err>1 and lateral>limit or nil
+		if e.aiSliding then
+			local ex,ey=(wvx-vx)/err,(wvy-vy)/err
+			local s=e.stats
+			if s.retroThrust>=s.thrust*.5 and ex*mx+ey*my<0 or s.thrust<=0 then ex,ey=-ex,-ey end
+			fx,fy=ex,ey
+		end
+		local facing=AI.faceDirection(e,fx,fy)
 		it.thrust=facing>.6 and (sx*nx+sy*ny)*throttle or 0
 	else
 		-- a nimbler hull points down the route (or at whoever's shooting
