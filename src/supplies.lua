@@ -76,14 +76,10 @@ function S.needs(r,e)
  end
  return false
 end
--- Fuel from the station's stock; empty, an NPC that's low gets just enough
--- to reach the next station (T.fuelEmergency canisters), on the house.
-local function fuelAvailable(u,key,r,e)
+-- Rearming/refuelling withdraws physical stock only. A shortage stays visible.
+local function fuelAvailable(u,key)
  if not u or not key then return math.huge end
- local have=require('src.stockpile').available(u,key,Fuel.item())
- if have>0 then return have,false end
- if Fuel.condition(r,e)~='normal' then return T.fuelEmergency or 2,true end
- return 0,false
+ return require('src.stockpile').available(u,key,Fuel.item())
 end
 local function fill(r,e,h,cargo,u,key)
  local added=0
@@ -97,9 +93,8 @@ local function fill(r,e,h,cargo,u,key)
  for _,id in ipairs(order) do
   local target=targets[id]
   local missing=math.max(0,target-(cargo[id] or 0));local n
-  local free
   if id==Fuel.item() then
-   local can;can,free=fuelAvailable(u,key,r,e);missing=math.min(missing,can)
+   missing=math.min(missing,fuelAvailable(u,key))
   elseif require('src.ammunition').byItem[id] and u and key then
    missing=math.min(missing,require('src.stockpile').available(u,key,id))
   end
@@ -109,7 +104,7 @@ local function fill(r,e,h,cargo,u,key)
   if n>0 then cargo[id]=(cargo[id] or 0)+n;added=added+n end
   if n>0 and (id==Fuel.item() or require('src.ammunition').byItem[id]) and u and key then
    -- a spent canister is gone: new empties only come from Mars
-   if not free then require('src.stockpile').take(u,key,id,n) end
+   assert(require('src.stockpile').take(u,key,id,n),'supply stock changed during refill')
    require('src.economy').consume(u,key,id,n)
   end
  end

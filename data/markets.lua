@@ -32,7 +32,7 @@ market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub 
 	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
-market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Brute Industries Works", hulls = { "brute_anvil", "brute_runt", "brute_nautilus" }, lots = 4, manufacturer = "shipworks", markup = 0.95 }, sells = {   -- artillery
+market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Red Furnace Ship Dealership", hulls = { "brute_anvil", "brute_runt", "brute_nautilus" }, lots = 4, assembly = "ship_assembly", markup = 0.95 }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
 } }

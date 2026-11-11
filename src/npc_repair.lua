@@ -31,7 +31,7 @@ function R.begin(r,node,at,minimum,u)
 end
 function R.advance(r,clock,node,u)
  if r.state~='docked' or r.ship.armor==0 then return end
- require('src.supplies').refill(r,node)
+ require('src.supplies').refill(r,node,u)
  -- A ship waiting for its next job search is still parked and repairing.
  local at=math.min(clock,math.max(r.untilTime or clock,r.nextDecisionAt or 0))
  if R.supports(node) then

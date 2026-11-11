@@ -70,6 +70,15 @@ return function(Game)
    for _,p in ipairs({{x1-2,y1-2},{x2+2,y1-2},{x2+2,y2+2},{x1-2,y2+2}}) do
     rect[#rect+1]=cx+p[1]*c-p[2]*s;rect[#rect+1]=cy+p[1]*s+p[2]*c
    end
+   if not st.body then
+    for _,part in ipairs(st.def.parts or {}) do if part.collide~=false and not part.rotor then
+     for _,tri in ipairs(part.tris or {}) do
+      local area=math.abs((tri[3]-tri[1])*(tri[6]-tri[2])-(tri[5]-tri[1])*(tri[4]-tri[2]))
+      if area>4 and Sweep.sweepPolygon(rect,tri,0,0,0) then return false end
+     end
+    end end
+    return true
+   end
    for _,fixture in ipairs(st.body:getFixtures()) do
     local shape=fixture:getShape()
     if not fixture:isSensor() and shape:getType()=='polygon'
@@ -94,6 +103,9 @@ return function(Game)
  end
  function Game:mooringFits(st,index,hullId,ignore)
   local slot=self:stationMoorings(st)[index]
+  if ignore and ignore.dealerStock then
+   local _,reserved=require('src.dealer_parking').reserve(st);if reserved[index] then return false end
+  end
   if not slot or self:mooringTaken(st,index,ignore) then return false end
   local length,width=P.dimensions(hullId)
   return length<=slot.length and width<=slot.width and self:mooringClear(st,index,hullId)

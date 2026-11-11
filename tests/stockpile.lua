@@ -19,7 +19,8 @@ return function(game)
  assert(Stock.stock(u,st,shops)==nil,'supplies shop has no stockpile')
  -- commodities: Mars presses ore into canisters, gas giants fill them, Venus uses them
  local L=require('src.locations')
- local mars=L.stations('mars','trade')[1];local jup=L.stations('jupiter','trade')[1];local ven=L.stations('venus','trade')[1]
+ local mars='station:mars_3';local jup=L.stations('jupiter','trade')[1];local ven=L.stations('venus','trade')[1]
+ u.industry=u.industry or {};u.industry[mars]=u.industry[mars] or {};u.industry[mars].roll_steel=0
  u.clock=u.clock or 0
  J.available(u,mars,'iron_ore');J.available(u,jup,'empty_canister');J.available(u,ven,'hydrogen_canister')
  local e0=J.available(u,mars,'empty_canister')

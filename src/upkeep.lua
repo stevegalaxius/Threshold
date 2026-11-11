@@ -214,6 +214,10 @@ end
 
 -- Offline: advance an active visit through elapsed events. Returns true when
 -- upkeep owned this update (the role must not run).
+function U.fuelReady(r,e)
+ local condition=Fuel.condition(r,e)
+ return condition~='stranded' and condition~='empty' and (not r.service or r.service.need~='fuel' or condition=='normal')
+end
 function U.advance(r,clock,u)
  if not r.service then return false end
  if r.encounter then return true end
@@ -231,6 +235,9 @@ function U.advance(r,clock,u)
    Repairs.advance(r,clock,r.node,u)
    Fuel.observe(u,r,clock)
    if clock<r.untilTime then return true end
+   if not U.fuelReady(r) then r.service.waitingFuel=true;return true end
+   if r.service.waitingFuel then r.untilTime=clock end
+   r.service.waitingFuel=nil
    r.serviced=true
    if r.index>=#r.route then r.serviced=nil;U.finish(r,r.untilTime);return false end
    deps.start(r,r.untilTime,r.index+1)
@@ -254,6 +261,11 @@ function U.canDepart(game,e,r)
  -- Repairs can extend this deadline in either representation. Completing a
  -- visit otherwise follows the same saved clock as U.advance, without an
  -- additional live-only timeout that restarts when the body is recreated.
+ if not U.fuelReady(r,e) then r.service.waitingFuel=true;return false end
+ if r.service.waitingFuel then
+  r.untilTime=game.universe.clock;r.service.waitingFuel=nil
+  if e.dockState then e.dockState.departAt=r.untilTime end
+ end
  return game.universe.clock>=(r.untilTime or 0)
 end
 

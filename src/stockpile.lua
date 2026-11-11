@@ -156,32 +156,71 @@ end
 -- clock whenever the stock is looked at. Goods land in, and are used from,
 -- the shop that holds them for NPCs (shopFor).
 function S.flow(u,key,i,m)
- local place=L.byId[key]
- if not place or place.kind~='station' then return end
- local now=u.clock;local last=m.flowAt or now;m.flowAt=now
- local dt=now-last;if dt<=0 then return end
- local Food=require('src.food')
- local foodShop=S.shopFor(key,Food.item)
- if i==foodShop then Food.flow(u,key,m,dt)
- else S.stock(u,key,foodShop) end
- if not place.uses or not place.uses.trade then return end
- local C=require('src.commodities')
- -- Reading a co-product must settle its recipe's primary shop as well.
- for _,c in ipairs(C.list) do
-  if c.make[key] and c.outputs then
-   for _,output in ipairs(c.outputs) do
-    local primary=S.shopFor(key,c.item)
-    if S.shopFor(key,output.item)==i and primary~=i then S.stock(u,key,primary) end
+ local place=L.byId[key];if not place or place.kind~='station' then return end
+ local record=S.record(u,key)
+ if record.productionBusy then return end
+ record.productionBusy=true
+ local now=u.clock;local previous=record.productionAt or m.flowAt or now
+ record.productionAt=now
+ local shops={}
+ for index,shop in ipairs(S.shops(key)) do
+  if not shop.unlimited then S.stock(u,key,index);shops[index]=record.shops[index] end
+ end
+ for _,shop in pairs(shops) do shop.flowAt=now end
+ local dt=math.max(0,now-previous)
+ if dt>0 then
+  local Food,C,I=require('src.food'),require('src.commodities'),require('src.industry')
+  Food.flow(u,key,shops[S.shopFor(key,Food.item)],dt)
+  if place.uses and place.uses.trade then
+   local jobs,inputs={},{}
+   for _,c in ipairs(C.list) do
+    local rate=C.rate(c,key)*I.scale(u,key,c)
+    if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
+    if rate~=0 and not c.stockless and not c.consumption then
+     local shop=shops[S.shopFor(key,c.item)];shop.recipes=shop.recipes or {}
+     local progress=shop.recipes[c.id] or {carry=0};shop.recipes[c.id]=progress
+     local requested=math.floor((progress.carry or 0)+math.abs(rate)*dt/3600/(c.time or 1)+1e-9)
+     for _,output in ipairs(C.outputs(c)) do if rate>0 then requested=math.min(requested,require('src.industry_outputs').room(u,key,c,output)) end end
+     if rate>0 then for _,input in ipairs(C.inputs(c)) do
+      requested=math.min(requested,math.floor((S.available(u,key,input.item)+((progress.credit or {})[input.item] or 0))/input.n+1e-9))
+     end end
+     local job={c=c,shop=shop,rate=rate,requested=requested,budget={}}
+     jobs[#jobs+1]=job
+     if rate>0 then for _,input in ipairs(C.inputs(c)) do
+      inputs[input.item]=inputs[input.item] or {}
+      inputs[input.item][#inputs[input.item]+1]={job=job,need=math.max(0,math.ceil(requested*input.n-((progress.credit or {})[input.item] or 0)-1e-9))}
+     end end
+    end
+   end
+   -- Weighted fair sharing prevents recipe/shelf query order deciding who
+   -- gets the last units. Allocate whole input units, with stable tie breaks.
+   for item,requests in pairs(inputs) do
+    local available=S.available(u,key,item);local total=0
+    for _,request in ipairs(requests) do total=total+request.need end
+    if total<=available then for _,request in ipairs(requests) do request.job.budget[item]=request.need end
+    else
+     local remaining=available
+     for _,request in ipairs(requests) do request.given=0 end
+     while remaining>0 do
+      local best,score
+      for _,request in ipairs(requests) do if request.given<request.need then
+       local value=(request.given+1)/(request.job.c.inputWeight or 1)
+       if not score or value<score or value==score and request.job.c.id<best.job.c.id then best,score=request,value end
+      end end
+      if not best then break end
+      best.given=best.given+1;remaining=remaining-1
+     end
+     for _,request in ipairs(requests) do request.job.budget[item]=request.given end
+    end
+   end
+   for _,job in ipairs(jobs) do
+    job.shop.inputBudget=job.shop.inputBudget or {};job.shop.inputBudget[job.c.id]=job.budget
+    I.flow(u,key,job.c,job.shop,dt,job.rate)
+    job.shop.inputBudget=nil
    end
   end
  end
- for _,c in ipairs(C.list) do
-  local rate=C.rate(c,key)*require('src.economy').scale(u,key,c)
-  if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
-  if not c.consumption and rate~=0 and S.shopFor(key,c.item)==i then
-   require('src.industry').flow(u,key,c,m,dt,rate)
-  end
- end
+ record.productionBusy=nil
 end
 
 function S.count(u,st,id,i)

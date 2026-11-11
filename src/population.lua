@@ -127,8 +127,14 @@ function P.spawn(game,area,role,nearPlayer)
   end
   if not x then return nil,'No clear space for an NPC arrival.' end
  end
+ local policy=require('src.npc_templates').purchase(role)
+ local Dealers=require('src.dealers');local candidate=Dealers.purchaseCandidate(game.universe,area,policy)
+ if not candidate then return nil,'No suitable ship for sale within acquisition budget.' end
+ game.arrivalShip=Dealers.ship(candidate.lot)
  local r=def.create(game,area,node,clock)
+ game.arrivalShip=nil
  if not r then return nil,'No starting work for '..role..'.' end
+ assert(Dealers.buyForNpc(game.universe,r,candidate,policy),'arrival ship sale changed during creation')
  local A=require('src.alife')
  r.spawnedAt=clock;r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp'
  if x then
@@ -162,7 +168,10 @@ function P.update(game,clock)
      timer.sequence=timer.sequence+1;timer.nextAt=clock+delay(area,role,timer.sequence)
      local def=P.templates[role]
      -- a role with a world-wide budget (traders) also stops at that
-     if (counts[area..'/'..role] or 0)<P.target(area,role) and (not def.budget or P.total(u,role)<def.budget()) then P.spawn(game,area,role,false) end
+     if (counts[area..'/'..role] or 0)<P.target(area,role) and (not def.budget or P.total(u,role)<def.budget()) then
+      local spawned,reason=P.spawn(game,area,role,false);timer.status=spawned and nil or reason
+      if spawned then counts[area..'/'..role]=(counts[area..'/'..role] or 0)+1 end
+     end
     end
    end
   end

@@ -195,7 +195,7 @@ function L.install(Game)
 		local location = L.get(id)
 		assert(location.area == self.fieldId, "binding a location from another area")
 		e.locationId = id
-		if e.kind == "station" then e.key, e.name = id, location.name end
+		if e.kind == "station" then e.key, e.name = id, location.name;require("src.dealer_parking").bind(self.universe,self,e) end
 		local clock = self.universe.clock
 		e.body:setPosition(L.position(id, clock))
 		e.body:setAngle(L.coreHeading(e, id, clock))

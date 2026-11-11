@@ -103,7 +103,9 @@ end
 Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
 function Game.stationServices(st)
  local L=require('src.locations');local id=st and (st.locationId or st.key)
- return require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
+ local services=require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
+ if id and require('src.dealers').def(id) then services.shipyard=true end
+ return services
 end
 
 -- Repairs: credits per armor point here, and what fixing a ship costs.
@@ -429,11 +431,27 @@ end
 
 -- Why this lot ship can't be bought here, or nil if it can. tradeIn (a
 -- stored ship record) counts toward the price and frees its parking.
+-- A sale transfers ownership: commercial guest reserves must not constrain
+-- the buyer. Both the purchased lot and a valid trade-in release their space.
+function Game:purchaseParking(st,lot,tradeIn)
+ local roster={}
+ for _,owner in ipairs(self:stationRoster(st)) do
+  if owner~=lot and owner~=tradeIn then roster[#roster+1]=owner end
+ end
+ local proxy=setmetatable({stationRoster=function()return roster end},{__index=self})
+ local buyer={hull=lot.hull,bay=lot.bay,mooring=lot.mooring}
+ if proxy:shipParkingValid(st,buyer,lot.hull) then return buyer.bay and {bay=buyer.bay} or {mooring=buyer.mooring} end
+ return proxy:shipParkingFit(st,lot.hull,buyer)
+end
 function Game:shipBuyProblem(st, lot, tradeIn)
 	if not lot or not require("src.dealers").find(self.universe, st, lot.id) then return "NO LONGER FOR SALE" end
+ if tradeIn then
+  local owned=false;for _,rec in ipairs(self:stationRecord(st).hangar) do if rec==tradeIn then owned=true end end
+  if not owned then return 'NO SUCH SHIP' end
+ end
 	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
 	if self.universe.credits + credit < lot.price then return "NOT ENOUGH CREDITS" end
-	if not self:shipParkingValid(st,lot,lot.hull) and not self:shipParkingFit(st, lot.hull, tradeIn or lot) then return "NO SUITABLE FREE PARKING" end
+	if not self:purchaseParking(st,lot,tradeIn) then return "NO SUITABLE FREE PARKING" end
 	return nil
 end
 
@@ -450,15 +468,13 @@ function Game:buyShip(st, lot, opts)
 	if tradeIn then
 		for i, rec in ipairs(list) do if rec == tradeIn then tradeIndex = i end end
 		if not tradeIndex then return nil, "NO SUCH SHIP" end
-		table.remove(list, tradeIndex)
 	end
- local parking=lot.bay and {bay=lot.bay} or lot.mooring and {mooring=lot.mooring}
- parking=parking or self:shipParkingFit(st,lot.hull,lot)
+ local parking=self:purchaseParking(st,lot,tradeIn)
  if not parking then
-  if tradeIndex then table.insert(list,tradeIndex,tradeIn) end
   return nil,'NO SUITABLE FREE PARKING'
  end
- local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,color=lot.paint and require('src.paint').preset(lot.paint) or nil})
+ if tradeIndex then table.remove(list,tradeIndex) end
+ local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.paint and require('src.paint').preset(lot.paint) or nil})
  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,parking)
  list[#list+1]=rec
  require('src.dealers').take(self.universe,st,lot.id)

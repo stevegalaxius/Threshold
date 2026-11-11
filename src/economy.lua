@@ -71,12 +71,6 @@ local function supportsSupplies(id) return require('src.supplies').supports(id) 
 -- speeds up while buyers of what it makes go short and it ships all it
 -- makes, and slows down while its own stock sits unwanted (E.adjust).
 function E.scale(u,key,c) return require('src.industry').scale(u,key,c) end
-local function fed(u,key,c)
- for _,input in ipairs(C.inputs(c)) do
-  if Stock.count(u,key,input.item)<(c.make[key] or 0)*input.n*.25 then return false end
- end
- return true
-end
 local function adjust(u,unmet)
  u.industry=u.industry or {}
  for _,c in ipairs(C.list) do
@@ -87,13 +81,17 @@ local function adjust(u,unmet)
    local have=Stock.count(u,key,c.item)
    -- stock piling up here always slows it, whatever anyone else is short of
    if have>=E.lot*2 then v=v*(1-E.scaleStep)
-   -- speed up only with inputs on hand: a starved maker asking for more
-   -- capacity would just raise its own input orders, round and round
-   elseif (unmet[c.item] or 0)>0 and have<E.lot and fed(u,key,c) then v=v*(1+E.scaleStep) end
+   -- Unsupplied demand must propagate upstream even while inputs are scarce.
+   elseif (unmet[c.item] or 0)>0 and have<E.lot then v=v*(1+E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
   end
   end
  end
+ for _,c in ipairs(C.list) do for key,rate in pairs(c.use) do
+  local t=u.industry[key] or {};u.industry[key]=t
+  local target=math.max(E.scaleMin,math.min(1,Stock.available(u,key,c.item)/math.max(1,rate*E.hours)))
+  local v=t[c.id] or 1;t[c.id]=v+math.max(-E.scaleStep,math.min(E.scaleStep,target-v))
+ end end
 end
 -- What a station's recipes would use an hour, running flat out.
 local function capacityUse(u,key,item)
@@ -117,6 +115,7 @@ local function makes(key,item)
 end
 function E.target(u,key,item,supplier)
  local want=math.max(E.rate(u,key,item),capacityUse(u,key,item))*(supplier and E.reserveHours or E.hours)
+ if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  want=math.max(want,require('src.reserves').minimum(key,item))
@@ -201,6 +200,7 @@ function E.update(u,clock)
  local reach={}
  local all=stations()
  local inhabited=stations(true)
+ require('src.industry').update(u,clock,inhabited)
  require('src.markets').update(u,clock,all,committed)
  -- what buyers wanted that no station could supply, by good
  local unmet={}
@@ -213,14 +213,13 @@ function E.update(u,clock)
   local participants=item==Food.item and inhabited or all
   for _,s in ipairs(participants) do
    local have=math.max(0,Stock.count(u,s,item)-Transport.reserved(u,s,item,nil,true))
-   if makes(s,item) then spare[s]=have-E.target(u,s,item,true)
-   else
-    local want=E.target(u,s,item)
-    E.shortage(u,s,item,Stock.count(u,s,item),want,clock)
-    spare[s]=have-want*2
-    local coming=have+(inbound[s..'|'..item] or 0)
-    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=want*2-coming,need=want-coming,fill=coming/want} end
-   end
+   local producer=makes(s,item)
+   local want=E.target(u,s,item,producer)
+   E.shortage(u,s,item,Stock.count(u,s,item),want,clock)
+   local level=producer and want or want*2
+   spare[s]=have-level
+   local coming=have+(inbound[s..'|'..item] or 0)
+   if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
   end
   -- neediest first: the emptiest shelf against its target gets first call
   table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)

@@ -89,10 +89,10 @@ return function(game)
  local got=refill.ship.cargo[item] or 0
  check(got>0,'NPC dockside supplies omitted reactor fuel')
  check(Stock.count(game.universe,node,item)==10-got,'dockside fuel did not come out of station stock')
- -- an empty station still gives a dry NPC enough to move on
+ -- An empty station cannot manufacture fuel to conceal a supply failure.
  local dry=copy(stranded);Stock.take(game.universe,node,item,Stock.count(game.universe,node,item))
  Supplies.refill(dry,node,game.universe)
- check((dry.ship.cargo[item] or 0)>0,'empty station stranded a dry NPC')
+ check((dry.ship.cargo[item] or 0)==0,'empty station created emergency fuel')
  Stock.add(game.universe,node,item,80)
  -- Initial fuel is a one-time migration, never a reward for going online again.
  local old={hull=rec.hull,loadout=rec.loadout,cargo={}}

@@ -112,11 +112,15 @@ function love.load(args)
 		["--handofftest"] = "tests.npc_handoff",
 		["--foodtest"] = "tests.food",
 		["--chemicaltest"] = "tests.chemicals",
-		["--freighttest"] = "tests.freight_capacity",
-		["--industrytest"] = "tests.industry", ["--dealertest"] = "tests.dealers",
+		["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity",
+		["--electronicstest"] = "tests.electronics",
+		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
 		["--ammunitiontest"] = "tests.ammunition",
 		["--steeltest"] = "tests.steel",
 	}
+ for _,a in ipairs(args or {}) do
+  if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
+ end
 	for _, a in ipairs(args or {}) do
 		if suites[a] then
 			game.autosaveOff = true

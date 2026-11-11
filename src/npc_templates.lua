@@ -1,13 +1,14 @@
 -- Population templates seed identity and equipment preferences, never controllers.
 -- $owner and $area are resolved from the spawn location, without faction cases.
 local Templates={
- trader={label='Trader',profile='freight_regular',homePurpose='trade',mobile=true},
- salvager={label='Salvager',profile='scavenger',homePurpose='trade'},
- miner={label='Miner',profile='industrial',homePurpose='mining'},
- patrol={label='Faction Police',profile='local_police',homePurpose='trade',archetype='patrol_wisp',affiliation='$owner',
+ trader={purchase={budget=300000,minCargo=4,requires={cargo=true}},label='Trader',profile='freight_regular',homePurpose='trade',mobile=true},
+ salvager={purchase={budget=150000,requires={cargo=true,armed=true}},label='Salvager',profile='scavenger',homePurpose='trade'},
+ miner={purchase={budget=150000,requires={cargo=true,drill=true}},label='Miner',profile='industrial',homePurpose='mining'},
+ patrol={purchase={budget=150000,requires={armed=true}},label='Faction Police',profile='local_police',homePurpose='trade',archetype='patrol_wisp',affiliation='$owner',
   authorizations={{kind='police',issuer='$owner',jurisdiction='$area'}}},
- pirate={label='Raider',profile='raider',homePurpose='pirateBase',archetype='pirate_wisp',roamingHome=true},
+ pirate={purchase={budget=150000,requires={armed=true}},label='Raider',profile='raider',homePurpose='pirateBase',archetype='pirate_wisp',roamingHome=true},
 }
+function Templates.purchase(name) return assert(Templates[name]).purchase end
 function Templates.apply(r,name,area)
  local t=assert(Templates[name],'unknown NPC template '..name)
  r.populationGroup=name;r.label=t.label;r.workProfile=t.profile
