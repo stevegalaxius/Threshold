@@ -345,9 +345,7 @@ T.miningScan,T.miningOfflineEvery=.5,12
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
--- Provisional development balance: keep logistics moving while dealerships
--- and replacement fleets are expanded. Revisit with a fully supplied fleet.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',10000
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take

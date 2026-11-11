@@ -41,6 +41,17 @@ function D.def(st)
  end
 end
 
+-- Used exchanges fill gaps in ship sales, never a factory's output space.
+function D.buildsShips(st)
+ local I=require('src.industry');local C=require('src.commodities')
+ for id,installation in pairs(I.installations(require('src.stockpile').key(st))) do
+  for _,recipe in ipairs(I.definition(id,installation).recipes) do
+   for _,output in ipairs(C.byId[recipe].outputs or {}) do if output.kind=='ship' then return true end end
+  end
+ end
+ return false
+end
+
 local function fitValue(hull, loadout)
 	local v = 0
 	for i in ipairs(hull.slots) do
@@ -122,8 +133,9 @@ function D.state(u, st)
 	if not s then
 		s = { lots = {}, next = clock + (def.restock or 10) * HOUR }
 		u.dealers[key] = s
-		for _=1,math.ceil(cap*.6) do
-   local lot=def.assembly and D.roll(def,s) or D.rollUsed(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+		local opening=def.usedOnly and D.buildsShips(key) and 0 or math.ceil(cap*.6)
+		for _=1,opening do
+   local lot=def.usedOnly and D.rollUsed(def,s) or D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
    if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
   end
 	end
@@ -136,12 +148,13 @@ end
 function D.update(u,key,clock)
  local s,def=D.state(u,key);if not s then return end
  require('src.npc_ship_supply').wholesale(u,key,s,def,clock)
+ if D.buildsShips(key) then return end
  local policy=require('data.industry').usedShips
- local step=(def.assembly and policy.intervalHours or def.restock or policy.intervalHours)*HOUR
+ local step=(def.restock or policy.intervalHours)*HOUR
  s.next=s.next or clock+step
  local elapsed=math.max(0,math.floor((clock-s.next)/step)+1)
  local count=math.min(elapsed,math.max(0,(def.lots or 6)-#s.lots))
- for _=1,count do park(u,key,s,D.rollUsed(def,s)) end
+ for _=1,count do park(u,key,s,def.usedOnly and D.rollUsed(def,s) or D.roll(def,s)) end
  s.next=s.next+elapsed*step
 end
 function D.room(u,key,hull)

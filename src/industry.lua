@@ -138,26 +138,18 @@ function I.update(u,clock,stations)
    for _,recipe in ipairs(def.recipes) do if C.byId[recipe].stockless then scheduled=true end end
    if scheduled then
     local state=I.state(u,key,id);local previous=state.at or clock;state.at=clock
-    state.selected=state.selected or def.recipes[1]
-    if def.policy=='orders' and I.scale(u,key,C.byId[state.selected])==0 then
-     for _,recipe in ipairs(def.recipes) do
-      if require('src.dealers').room(u,key,C.byId[recipe].outputs[1].hull)>0 then state.selected=recipe;break end
-     end
-    end
+    -- Select once for this interval. Completion clears the job for the next
+    -- update; another recipe must not receive the same elapsed work.
+    local selected=def.policy=='orders' and I.job(u,key,id,def)
     local total=0
     for _,recipe in ipairs(def.recipes) do
      local c=C.byId[recipe]
-     if c.stockless then
+     if c.stockless and (not selected or recipe==selected) then
       local rate=installation.capacity*I.scale(u,key,c)*require('src.food').output(u,key)
       total=total+I.flow(u,key,c,state,math.max(0,clock-previous),rate)
      end
     end
     state.completed=(state.completed or 0)+total
-    if def.policy=='orders' and total>0 then
-     local nextIndex=1
-     for i,recipe in ipairs(def.recipes) do if recipe==state.selected then nextIndex=i%#def.recipes+1;break end end
-     state.selected=def.recipes[nextIndex]
-    end
    end
   end
  end

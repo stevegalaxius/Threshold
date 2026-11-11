@@ -13,7 +13,11 @@ return function(game)
  u.clock=8*3600*20
  require('src.industry').update(u,u.clock,{hub})
  assert(#D.lots(u,hub)==6,'restock overfilled or stalled: '..#D.lots(u,hub))
- local used=D.lots(u,'station:ring_1')
+ for _,lot in ipairs(D.lots(u,hub)) do
+  local allowed=false;for _,hull in ipairs(D.def(hub).hulls) do if lot.hull==hull then allowed=true end end
+  assert(not lot.used and allowed,'named dealer received generated used stock outside its lineup')
+ end
+ local used=D.lots(u,'station:earth_1')
  for _,lot in ipairs(used) do
   assert(lot.used and lot.condition>=.7 and lot.condition<=.95,'used lot lacks condition')
   assert(lot.price>0 and lot.armor>0,'invalid used ship')
@@ -22,6 +26,9 @@ return function(game)
  local works='station:mars_1'
  local s=D.state(u,works)
  local before=#s.lots
+ local later={clock=0,stations={},npcs={}};D.state(later,works).lots={}
+ later.clock=24*3600;D.update(later,works,later.clock)
+ assert(#D.lots(later,works)==0,'ship factory received a timed delivery instead of manufacturing')
  S.stock(u,works,S.shopFor(works,D.FRAME))[D.FRAME]=0
  s.lots={};require('src.industry').update(u,u.clock,{works})
  assert(#s.lots==0,'manufacturer made ships without frames')
@@ -121,6 +128,26 @@ return function(game)
   lot.lots[#lot.lots+1]=D.roll(D.def(works),lot,'intaki_archangel')
   assert(Industry.job(q,works,'intaki_assembly',def)=='assemble_intaki_wisp','orders did not rotate after a ship rolled out')
   D.room=room
+ end
+ -- Consecutive real executor updates must build the middle lineup entry too.
+ do
+  local Industry=require('src.industry');local q={clock=0,stations={},npcs={}}
+  local factory='station:mercury_2';local stock=D.state(q,factory);stock.lots={};stock.wholesaleAt=1e12
+  local room,output=D.room,D.output;local completed={}
+  D.room=function()return 1 end
+  D.output=function(_,_,hull,n)
+   completed[hull]=(completed[hull] or 0)+n
+   for _=1,n do stock.lots[#stock.lots+1]={hull=hull} end
+  end
+  for clock=0,4*3600,60 do
+   q.clock=clock
+   S.stock(q,factory,S.shopFor(factory,D.FRAME))[D.FRAME]=100
+   S.stock(q,factory,S.shopFor(factory,'food_crate')).food_crate=1000
+   Industry.update(q,clock,{factory})
+  end
+  D.room,D.output=room,output
+  for _,hull in ipairs(require('data.industry').lineups.brute) do assert((completed[hull] or 0)>0,'assembly repeatedly skipped '..hull) end
+  assert(q.economyStats.used[D.FRAME]<=8,'assembly credited the same elapsed work to multiple jobs')
  end
  print('DEALERS: limited lots, restock, trims, manufacturer frames and saving passed ('..before..' opening at the works)')
 end
