@@ -1344,7 +1344,7 @@ function Game:freeBerth(st, e)
 		local ods = o ~= e and not o.dead and not o.removed and o.dockState
 		if ods and ods.station == st and ods.berth then taken[ods.berth] = true end
 	end
-	for _,rec in ipairs(self:stationRecord(st).hangar) do
+	for _,rec in ipairs(self:stationRoster(st)) do
 		local slot=rec.mooring and self:stationMoorings(st)[rec.mooring]
 		if slot and slot.berth then taken[slot.berth]=true end
 	end
@@ -1920,6 +1920,10 @@ function Game:setPlayerIntent(intent)
 end
 
 function Game:step(dt)
+ if self.universe and self.universe.clock>=(self.dealerParkingNext or 0) then
+  self.dealerParkingNext=self.universe.clock+1
+  for _,st in ipairs(self.entities) do if st.kind=='station' and not st.dead then require('src.dealers').state(self.universe,st);self:hangar(st) end end
+ end
 	if self.flight then self:updateFlight(dt); self:updateALife(); return end
 	self.time = self.time + dt
 	if self.universe and not self.sideScene then self.universe.clock = self.universe.clock + dt end

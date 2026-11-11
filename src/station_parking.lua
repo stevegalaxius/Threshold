@@ -30,7 +30,7 @@ return function(Game)
   return r.moorings
  end
  function Game:mooringTaken(st,index,ignore)
-  for _,rec in ipairs(self:stationRecord(st).hangar) do
+  for _,rec in ipairs(self:stationRoster(st)) do
    if rec~=ignore and rec.mooring==index then return true end
   end
   for _,e in ipairs(self.entities) do
