@@ -9,9 +9,18 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Recipe | Inputs per batch | Outputs per batch | Processing time | Storage limit |
 |---|---|---|---:|---|
 | `assemble_brute_anvil` | 2 Hull frame | 1 Anvil → dealer inventory | 2 | Available dealer parking and lot limit |
-| `assemble_brute_nautilus` | 4 Hull frame | 1 Nautilus → dealer inventory | 4 | Available dealer parking and lot limit |
+| `assemble_brute_nautilus` | 3 Hull frame | 1 Nautilus → dealer inventory | 3 | Available dealer parking and lot limit |
 | `assemble_brute_runt` | 2 Hull frame | 1 Runt → dealer inventory | 2 | Available dealer parking and lot limit |
-| `assemble_hull_frames` | 6 Steel plates | 1 Hull frame | 1 | 12 Hull frame |
+| `assemble_ferrous_bison` | 3 Hull frame | 1 Bison → dealer inventory | 3 | Available dealer parking and lot limit |
+| `assemble_ferrous_mule` | 2 Hull frame | 1 Mule → dealer inventory | 2 | Available dealer parking and lot limit |
+| `assemble_ferrous_runner` | 1 Hull frame | 1 Runner → dealer inventory | 1 | Available dealer parking and lot limit |
+| `assemble_hull_frames` | 6 Steel plates | 1 Hull frame | 1 | 36 Hull frame |
+| `assemble_intaki_archangel` | 4 Hull frame | 1 Archangel → dealer inventory | 4 | Available dealer parking and lot limit |
+| `assemble_intaki_praetor` | 3 Hull frame | 1 Praetor → dealer inventory | 3 | Available dealer parking and lot limit |
+| `assemble_intaki_wisp` | 1 Hull frame | 1 Wisp → dealer inventory | 1 | Available dealer parking and lot limit |
+| `assemble_mack_burro` | 2 Hull frame | 1 Burro → dealer inventory | 2 | Available dealer parking and lot limit |
+| `assemble_mack_longhorn` | 3 Hull frame | 1 Longhorn → dealer inventory | 3 | Available dealer parking and lot limit |
+| `assemble_mack_mustang` | 2 Hull frame | 1 Mustang → dealer inventory | 2 | Available dealer parking and lot limit |
 | `crack_ice` | 1 Water ice, 1 Empty canister | 1 Deuterium canister | 1 | 1000 Deuterium canister |
 | `grow_food` | 0.05 Fertilizer | 1 Food crate | 1 | 4000 Food crate |
 | `make_airburst_m` | 1 Steel plates, 3 Explosives | 100 Airburst Rounds M | 1 | 800 Airburst Rounds M |
@@ -49,9 +58,11 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Ceres Dock (`station:belt_1`) | `crack_ice` | adaptive | 300 | crack_ice |
 | Ceres Dock (`station:belt_1`) | `press_canisters` | adaptive | 300 | press_canisters |
 | Ceres Dock (`station:belt_1`) | `process_nitrates` | adaptive | 80 | process_nitrates |
+| MACK Industrial Freight (`station:belt_2`) | `mack_assembly` | orders | 2 | assemble_mack_mustang, assemble_mack_burro, assemble_mack_longhorn |
 | Asgard Station (`station:callisto_2`) | `chemicals` | profit | 80 | make_fertilizer, make_explosives |
 | Jita Orbital Logistics (`station:earth_1`) | `electronics` | profit | 4 | make_electronics |
 | Elysium (`station:earth_2`) | `farm` | fixed | 960 | grow_food |
+| Elysium (`station:earth_2`) | `ferrous_assembly` | orders | 2 | assemble_ferrous_runner, assemble_ferrous_mule, assemble_ferrous_bison |
 | Sinai Deep (`station:enceladus_1`) | `produce_nitrates` | adaptive | 40 | produce_nitrates |
 | Galileo Regio (`station:ganymede_1`) | `produce_nitrates` | adaptive | 80 | produce_nitrates |
 | Pele Works (`station:io_1`) | `acid_works` | fixed | 8 | produce_acids |
@@ -61,13 +72,14 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Kyrakos (`station:jupiter_2`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
 | Thule Prime (`station:luna_1`) | `electronics` | profit | 4 | make_electronics |
 | The Apollo Heritage Foundation (`station:luna_2`) | `silicon_refinery` | fixed | 12 | refine_silicon |
-| Red Furnace Shipyard (`station:mars_1`) | `ship_assembly` | orders | 2 | assemble_brute_anvil, assemble_brute_runt, assemble_brute_nautilus |
+| Red Furnace Shipyard (`station:mars_1`) | `intaki_assembly` | orders | 2 | assemble_intaki_wisp, assemble_intaki_praetor, assemble_intaki_archangel |
 |  Zhongke Intelligent Manufacturing (`station:mars_2`) | `ammunition` | profit | 24 | make_rounds_s, make_rounds_m, make_airburst_s, make_airburst_m, make_shell_s, make_shell_m, make_shell_l, make_shot_s, make_shot_m, make_shot_l, make_missile_s, make_missile_m, make_missile_l, make_torp_s, make_torp_m, make_torp_l |
 | Heaven-Ladder (`station:mars_3`) | `press_canisters` | adaptive | 2400 | press_canisters |
 | Heaven-Ladder (`station:mars_3`) | `roll_steel` | adaptive | 120 | roll_steel |
-| Heaven-Ladder (`station:mars_3`) | `shipworks` | fixed | 2 | assemble_hull_frames |
+| Heaven-Ladder (`station:mars_3`) | `shipworks` | fixed | 6 | assemble_hull_frames |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Terminator Station (`station:mercury_1`) | `silicon_refinery` | fixed | 12 | refine_silicon |
+| Haephestus Logistics (`station:mercury_2`) | `brute_assembly` | orders | 2 | assemble_brute_runt, assemble_brute_anvil, assemble_brute_nautilus |
 | Haephestus Logistics (`station:mercury_2`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Zebulun's Bounty (`station:saturn_1`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
 | Shiloh (`station:saturn_2`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |

@@ -9,7 +9,7 @@
 	    restock  = 10,                  game hours for one more ship to arrive
 	    markup   = 1.0,                 on list price (0.85 for a used lot)
 	    trims    = { "stock", ... },    which trims it rolls (default all)
-	    assembly = "ship_assembly",     optional: installed assembly facility;
+	    assembly = "intaki_assembly",   optional: installed assembly facility;
 	                                    ships roll out of finished hull_frame
 	                                    stock instead of arriving on a timer
 	  }

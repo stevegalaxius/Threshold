@@ -18,7 +18,7 @@ local D={recipes={
  -- skimming deuterium straight from a gas giant's air: just canisters
  {id='skim_deuterium',inputWeight=4,market=false,item='deuterium_canister',cap=1000,input={item='empty_canister',n=1}},
  -- welding hull frames for a manufacturer's dealer lot (src/dealers.lua)
- {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=12,input={item='steel_plate',n=6}},
+ {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=36,input={item='steel_plate',n=6}},
  -- Refined local resources: abstract station extraction, no extra ore chain.
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=96},
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=64},
@@ -41,13 +41,24 @@ recipe('shot_s',64,1,1);recipe('shot_m',32,2,1);recipe('shot_l',24,4,2)
 recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l',12,4,4,2,2)
 recipe('torp_s',4,4,8,2,2);recipe('torp_m',2,6,12,3,3);recipe('torp_l',1,8,16,4,4)
 -- Finished ships are typed outputs delivered to dealer inventory, not cargo.
-for _,spec in ipairs({{'brute_anvil',2},{'brute_runt',2},{'brute_nautilus',4}}) do
- D.recipes[#D.recipes+1]={id='assemble_'..spec[1],group='ship_assembly',market=false,storefront=false,stockless=true,time=spec[2],
-  inputs={{item='hull_frame',n=spec[2]}},outputs={{kind='ship',hull=spec[1],n=1}}}
-end
+-- Factory lineups: each maker's assembly hall builds its own three hulls.
+-- Hull frames per ship (also its assembly time), roughly one per 25k of
+-- list price.
+D.lineups={
+ mack={'mack_mustang','mack_burro','mack_longhorn'},
+ ferrous={'ferrous_runner','ferrous_mule','ferrous_bison'},
+ brute={'brute_runt','brute_anvil','brute_nautilus'},
+ intaki={'intaki_wisp','intaki_praetor','intaki_archangel'},
+}
+D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_runner=1,ferrous_mule=2,ferrous_bison=3,
+ brute_runt=2,brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4}
+for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
+ local n=D.assemblyFrames[hull]
+ D.recipes[#D.recipes+1]={id='assemble_'..hull,group='ship_assembly',market=false,storefront=false,stockless=true,time=n,
+  inputs={{item='hull_frame',n=n}},outputs={{kind='ship',hull=hull,n=1}}}
+end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.facilities={
- ship_assembly={policy='orders',recipes={'assemble_brute_anvil','assemble_brute_runt','assemble_brute_nautilus'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
@@ -56,6 +67,10 @@ D.facilities={
  farm={policy='fixed',recipes={'grow_food'}},
  shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=8},recipes={'assemble_hull_frames'}},
 }
+for maker,hulls in pairs(D.lineups) do
+ local r={};for i,h in ipairs(hulls) do r[i]='assemble_'..h end
+ D.facilities[maker..'_assembly']={policy='orders',recipes=r}
+end
 for _,c in ipairs(D.recipes) do
  if c.group=='ammunition' then D.facilities.ammunition.recipes[#D.facilities.ammunition.recipes+1]=c.id end
  if not c.group and c.id~='grow_food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end
