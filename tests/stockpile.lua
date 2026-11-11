@@ -30,7 +30,8 @@ return function(game)
  local ore=J.available(u,mars,'iron_ore')
  u.clock=u.clock+3600
  local made=J.available(u,mars,'empty_canister')-e0
- assert(made>0 and J.available(u,mars,'iron_ore')==ore-made,'Mars makes canisters from ore')
+ -- (one ore presses two canisters: data/industry.lua press_canisters)
+ assert(made>0 and J.available(u,mars,'iron_ore')==ore-made/2,'Mars makes canisters from ore')
  assert(J.available(u,jup,'hydrogen_canister')>0 and J.available(u,jup,'empty_canister')<30,'Jupiter fills empties')
  assert(J.available(u,ven,'hydrogen_canister')<30,'Venus uses hydrogen')
  u.clock=u.clock+36000
