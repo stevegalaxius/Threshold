@@ -367,6 +367,13 @@ T.freightScoreJitter=.1
 T.freightRiskPerAU=.05
 -- market goods trade at the station's live price +- this share
 T.marketSpread=.05
+-- station prices (src/markets.lua): never under priceFloor; up to
+-- priceCrisisMax once a shortage has gone priceCrisisHours unserved;
+-- makers sell makerDiscount under their stock-based price
+T.priceFloor=.5
+T.priceCrisisHours=2
+T.priceCrisisMax=3
+T.makerDiscount=.1
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
