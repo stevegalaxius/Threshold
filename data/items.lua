@@ -84,7 +84,27 @@ salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 
 -- A finished ship hull frame from a manufacturer's shipworks (data/industry.lua);
 -- its dealer rolls frames out as new ships (src/dealers.lua).
 salvage { id = "hull_frame", name = "Hull frame", volume = 16, mass = 20, price = 2400, w = 4, h = 4, stack = 1 }
-salvage { id = "steel_plate",  name = "Steel plates", volume = 0.25, mass = 0.5, price = 180, w = 1, h = 1, stack = 4 }
+-- Usable in space for a field repair (src/item_use.lua): a station repair
+-- gets 100 armor from a plate (src/repair_materials.lua), a field patch half
+-- that, and only up to 75% of the hull's armor.
+salvage { id = "steel_plate",  name = "Steel plates", volume = 0.25, mass = 0.5, price = 180, w = 1, h = 1, stack = 4,
+	use = { label = "Field repair", cast = 3, group = "repair", cooldown = 2,
+		effects = { { "restore", "armor", 50, cap = 0.75 } } } }
+
+-- Usable items (src/item_use.lua). Each is only a combination of shared
+-- effects; see the header there for the format.
+salvage { id = "patch_kit", name = "Hull patch kit", description = "Quick-setting armor patches. Faster than plates, and good for a full repair.",
+	volume = 0.25, mass = 0.3, price = 420, w = 1, h = 1, stack = 4,
+	use = { label = "Patch hull", cast = 1, group = "repair", cooldown = 20,
+		effects = { { "restore", "armor", 150 } } } }
+salvage { id = "nanite_paste", name = "Nanite paste", description = "Repairs armor slowly over 20 seconds. Keeps working through a fight.",
+	volume = 0.1, mass = 0.05, price = 650, w = 1, h = 1, stack = 4,
+	use = { label = "Apply nanites", group = "repair", cooldown = 30, interruptible = false,
+		effects = { { "restore", "armor", 200, over = 20, key = "nanites" } } } }
+salvage { id = "overdrive_cell", name = "Overdrive cell", description = "Floods the engines: 50% more thrust for 8 seconds, and a full capacitor.",
+	volume = 0.1, mass = 0.1, price = 300, w = 1, h = 1, stack = 4,
+	use = { label = "Overdrive", group = "overdrive", cooldown = 45,
+		effects = { { "buff", "thrust", 1.5, dur = 8 }, { "buff", "sideThrust", 1.5, dur = 8 }, { "restore", "power", 1e9 } } } }
 
 -- Standard cargo container. Empty, it's an 8 x 5 item, too big for a
 -- Wisp's hold and only just fits an Anvil's. Out in space it's a box with
