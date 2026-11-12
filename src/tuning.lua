@@ -359,6 +359,14 @@ T.freightGapShare=.5
 T.freightUrgencyHours=2
 T.freightUrgencyMax=2
 T.freightPremiumCap=2
+-- NPC job scoring (src/transport.lua): reward (credits/s) is capped at
+-- freightScoreCap/100, varied per trader by +-freightScoreJitter, and cut
+-- by freightRiskPerAU per AU of interplanetary route for timid traders
+T.freightScoreCap=20000
+T.freightScoreJitter=.1
+T.freightRiskPerAU=.05
+-- market goods trade at the station's live price +- this share
+T.marketSpread=.05
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation

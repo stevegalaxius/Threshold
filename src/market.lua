@@ -66,8 +66,20 @@ local function tradeValue(s)
  end
  return Game.stackValue(s.id,s.n,s.inner)
 end
-function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or tradeValue(s))*Game.priceFactor) end
-function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(tradeValue(s)*T.sellRate) end
+-- A market good (one with a live station price) trades on a narrow spread
+-- either side of that price, so buying where it's cheap and selling where
+-- it's short pays; everything else keeps the flat resale rate.
+local function marketGood(s) return require('src.markets').items[s.id] and not s.inner and Game.marketUniverse and Game.marketStation end
+function Game.buyPrice(s)
+ local item=ShipEntry.item(s.id)
+ if not item and marketGood(s) then return floor(tradeValue(s)*(1+T.marketSpread)*Game.priceFactor+.5) end
+ return floor((item and item.price or tradeValue(s))*Game.priceFactor)
+end
+function Game.sellPrice(s)
+ if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end
+ if marketGood(s) then return floor(tradeValue(s)*(1-T.marketSpread)) end
+ return floor(tradeValue(s)*T.sellRate)
+end
 
 function Game:credits() return self.universe.credits end
 function Game:setMarketPrices(st)

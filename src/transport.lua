@@ -198,12 +198,22 @@ Tasks.register('transport',{
   Transport.quote(o,clock,u)
   local amount=math.min(o.amount,room(r,o.item,o.amount))
   local quote=require('src.persistence').copy(o);quote.amount=amount
+  -- credits per second of the whole job, the empty run to the pickup included
   local reward=Transport.payment(quote)/Transport.duration(o,station,clock)
-  local ambition=Personality.ensure(r).ambition
+  local p=Personality.ensure(r)
+  local ambition,aggression=p.ambition,p.aggression or .5
   local age=require('src.economy').shortageAge(u,o.target,o.item,clock)
   age=math.max(age,math.max(0,clock-(o.placed or o.readyAt or clock)))
+  -- a timid trader shies from long interplanetary runs (open space, pirates)
+  local risk=(o.routeAU or 0)*T.freightRiskPerAU*(1-aggression)
+  -- each trader reads the board a little differently, so a fleet doesn't
+  -- all chase the single best-paying job into one dock queue
+  local h=0;local key=tostring(r.id)..tostring(o.id)
+  for i=1,#key do h=(h*31+key:byte(i))%1000003 end
+  local taste=1+T.freightScoreJitter*((h%1000)/500-1)
   return (o.order and 1000000 or 0)+(o.urgency or o.priority or 0)*10000
-   +age*100+math.min(5000,reward*100)*(0.5+ambition)-(station~=o.source and 50*(1-ambition) or 0)
+   +age*100+math.min(T.freightScoreCap,reward*100*taste*(1-math.min(.9,risk)))*(0.5+ambition)
+   -(station~=o.source and 50*(1-ambition) or 0)
  end,
  prepare=function(u,r,t,station,clock)
   Transport.quote(t,clock,u)
