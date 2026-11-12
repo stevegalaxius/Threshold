@@ -112,7 +112,7 @@ function love.load(args)
 		["--hometest"] = "tests.npc_home", ["--handofftest"] = "tests.npc_handoff",
 		["--foodtest"] = "tests.food",
 		["--chemicaltest"] = "tests.chemicals",
-		["--contracttest"] = "tests.player_contracts", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity",
+		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity",
 		["--electronicstest"] = "tests.electronics",
 		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
 		["--ammunitiontest"] = "tests.ammunition",

@@ -147,8 +147,8 @@ local function details(game)
    if t.commodityBuyPrice then
     Slab.Text(('Cargo unit quote: %.2f cr at source / %.2f cr at destination'):format(t.commodityBuyPrice,t.commoditySellPrice))
    end
-   local payment=require('src.transport').payment(t)
-   Slab.Text(('Delivery: %.2f AU; %d x %.2f cr/unit = %d cr%s'):format(t.routeAU,t.amount,t.creditsPerUnit,payment,
+   local bill=require('src.transport').invoice(t)
+   Slab.Text(('Delivery: %.2f AU; %.2f m3 + %.2f cr handling = %d cr%s'):format(t.routeAU,bill.volume,bill.handling,bill.total,
     t.phase=='pickup' and ' (subject to loaded quantity)' or ''))
   end
   -- The route above is only this map's legs. Where the job takes it after

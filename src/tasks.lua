@@ -97,7 +97,7 @@ function Tasks.choose(u,r,station,clock)
  local capabilities=Access.capabilities(r)
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
-  if o.state=='available' and (o.readyAt or 0)<=clock and def
+  if o.state=='available' and (o.readyAt or 0)<=clock and (o.npcClaimAt or 0)<=clock and def
    and Access.eligible(r,o,capabilities)
    and Access.eligible(r,def,capabilities)
    and (Work.weight(r,o.kind) or 1)>0

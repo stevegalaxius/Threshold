@@ -349,8 +349,10 @@ T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
-T.freightCreditsPerUnit=2 -- base payment per delivered unit
-T.freightCreditsPerAU=1 -- additional credits per AU per delivered unit
+T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
+T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
+T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
+T.freightListingSeconds=30 -- public listing before NPC reservation
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

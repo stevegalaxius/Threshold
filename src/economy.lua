@@ -198,6 +198,7 @@ function E.update(u,clock)
  if clock<(u.economyNext or 0) then return end
  u.economyNext=clock+E.tick
  local state=Tasks.state(u)
+ Transport.refreshOffers(u,clock)
  -- count what's ordered or on the way; an order nobody has taken in
  -- E.expire seconds is withdrawn, to be placed again from wherever the
  -- stock is now
@@ -269,7 +270,8 @@ function E.update(u,clock)
        local score=distance(s,c,clock)*100-spare[s]
        local Chemicals=require('src.markets')
        if Chemicals.items[item] then
-        score=Chemicals.price(u,s,item)+Transport.quote({source=s,target=c,amount=1},clock).creditsPerUnit-spare[s]*1e-6
+        local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[s])
+        score=Chemicals.price(u,s,item)+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
        end
        if not bestScore or score<bestScore then best,bestScore=s,score end
       end
@@ -291,7 +293,7 @@ function E.update(u,clock)
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock},clock,u))
+     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
   end

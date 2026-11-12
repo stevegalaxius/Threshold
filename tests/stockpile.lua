@@ -54,11 +54,11 @@ return function(game)
   local w={clock=u.clock,npcs={[r.id]=r},stations=u.stations,mining=u.mining}
   local Transport=require('src.transport')
   local T=require('src.tuning')
-  local quote=Transport.quote({source=jup,target=ven,amount=10},w.clock)
+  local quote=Transport.quote({source=jup,target=ven,item='hydrogen_canister',amount=10},w.clock)
   local au=math.floor(require('src.fields').distance('jupiter','venus',w.clock)*100+.5)/100
-  assert(quote.routeAU==au and quote.creditsPerUnit==math.floor((T.freightCreditsPerUnit+au*T.freightCreditsPerAU)*100+.5)/100,'freight price follows quoted route AU')
-  local localQuote=Transport.quote({source=mars,target=node,amount=10},w.clock)
-  assert(localQuote.routeAU==0 and localQuote.creditsPerUnit==T.freightCreditsPerUnit,'local freight uses the base rate')
+  assert(quote.routeAU==au and quote.creditsPerUnit==require('src.data').items.hydrogen_canister.volume*(T.freightCreditsPerM3+au*T.freightCreditsPerM3AU),'freight price follows quoted route AU')
+  local localQuote=Transport.quote({source=mars,target=node,item='hydrogen_canister',amount=10},w.clock)
+  assert(localQuote.routeAU==0 and localQuote.creditsPerUnit==require('src.data').items.hydrogen_canister.volume*T.freightCreditsPerM3,'local freight uses the base rate')
   local legacy=Transport.quote({source=jup,target=ven,amount=10,creditsPerUnit=2},w.clock)
   assert(legacy.creditsPerUnit==2,'existing flat-rate contracts retain their price')
   local rate=quote.creditsPerUnit

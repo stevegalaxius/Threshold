@@ -48,7 +48,8 @@ function View.draw(game)
   local detail=pickup and 'Collect the reserved cargo at the pickup station.' or 'Deliver the cargo aboard your current ship to the destination.'
   if not pickup and (game.player.cargo[t.item] or 0)<t.amount then detail='Cargo missing: replace it before delivery or return.' end
   text(r.x+14,r.y+83,r.w-230,detail,13,HUD.DIM)
-  text(r.x+14,r.y+111,r.w-230,HUD.credits(require('src.transport').payment(t))..' on delivery · '..('%.2f AU'):format(t.routeAU or 0),13)
+  local bill=require('src.transport').invoice(t)
+  text(r.x+14,r.y+111,r.w-230,('%s on delivery · %.2f m3 · %.2f AU · %s handling included'):format(HUD.credits(bill.total),bill.volume,t.routeAU or 0,HUD.credits(bill.handling)),13)
   local destination=pickup and t.source or t.target
   Station.button(f.advance,pickup and 'Load cargo' or 'Deliver & collect',false,f.here==destination)
   Station.button(f.cancel,pickup and 'Cancel contract' or 'Return & cancel',false,f.here and (pickup or f.here==t.source))
@@ -66,7 +67,8 @@ function View.draw(game)
   text(row.x+14,row.y+10,row.w-220,name(o.source)..' to '..name(o.target),14)
   local amount=q and q.amount or o.amount
   local payment=q and q.payment or require('src.transport').payment(o)
-  local details=('%d%s %s · %s · %.2f AU'):format(amount,q and amount<o.amount and (' / '..o.amount) or '',item(o.item),HUD.credits(payment),o.routeAU or 0)
+  local volume=amount*data.items[o.item].volume
+  local details=('%d%s %s · %.2f m3 · %s · %.2f AU'):format(amount,q and amount<o.amount and (' / '..o.amount) or '',item(o.item),volume,HUD.credits(payment),o.routeAU or 0)
   text(row.x+14,row.y+53,row.w-225,details,13,HUD.DIM)
   Station.button(row.button,q and 'Accept freight' or 'Unavailable',false,q~=nil and not t)
   if not q then text(row.x+row.w-205,row.y+12,190,row.why,12,HUD.DIM) end

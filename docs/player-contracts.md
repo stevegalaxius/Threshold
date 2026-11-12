@@ -1,8 +1,18 @@
 # Player contracts
 
-Dock at any station and open **Contracts**. The global freight list reads the same offers as NPC task selection; it does not generate separate player jobs. Available pickups at the current station sort first. Scroll for the rest.
+Dock at any station and open **Contracts**. The global freight list reads the same offers as NPC task selection; it does not generate separate player jobs. Available pickups at the current station sort first. Scroll for the rest. Newly generated freight is visible to players immediately; NPCs can reserve it after a 30-second game-time listing window, including when bundling other orders. This provides a chance to accept work without guaranteeing a permanent backlog.
 
-Each row shows source, destination, cargo, delivery payment and quoted route distance in AU. The accepted quantity is limited to available source stock and space in the current ship’s actual grid hold. For a partial load, the row shows the load versus the full order quantity. The remainder stays on the shared board for other workers. Acceptance takes just the selected order, without NPC-style automatic bundling of other goods on the route.
+Each row shows source, destination, cargo quantity/volume, delivery payment and quoted route distance in AU. The accepted quantity is limited to available source stock and space in the current ship’s actual grid hold. For a partial load, the row shows the load versus the full order quantity. The remainder stays on the shared board for other workers. Acceptance takes just the selected order, without NPC-style automatic bundling of other goods on the route.
+
+## Payment
+
+New quotes use **200 credits handling + volume × (10 + 6 × route AU)**. Volume is cargo quantity multiplied by the item’s volume in m³. A full 30 m³ order pays 500 credits locally, 680 at 1 AU, or 1,400 at 5 AU. NPCs and players use the same invoice and rates.
+
+The original order’s handling allowance is divided across its quantity. Accepting half of an order earns half its handling allowance; the remainder retains the other half. Combining several orders on one trip caps total handling at 200 credits. Splitting an existing order never creates another allowance. Rounding down to whole credits can lose a fraction of a credit per line. The active contract displays its handling share within the total reward.
+
+Quotes freeze when created. Accepted contracts retain their price across saves and orbital changes; unclaimed older economy listings are refreshed to the new rates. Manufacturing and freight source selection use volume-based freight costs as well.
+
+## Taking a contract
 
 Only one player contract may be active at a time:
 

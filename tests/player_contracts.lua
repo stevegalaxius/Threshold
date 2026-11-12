@@ -15,12 +15,15 @@ return function()
  local function set(n) Stock.stock(game.universe,source,Stock.shopFor(source,'nitrates')).nitrates=n end
  local function post(n)
   return Tasks.post(game.universe,{kind='transport',source=source,target=target,item='nitrates',amount=n,
-   order=true,stocked=true,creditsPerUnit=7,routeAU=0,placed=game.universe.clock})
+   order=true,stocked=true,routeAU=0,placed=game.universe.clock,npcClaimAt=game.universe.clock+30})
  end
  resetHold();dock(target);set(1000)
  local u=game.universe;local n=Ship.canFit(game.player,'nitrates',1000);assert(n>0)
  local o=post(n+3);local initial=Stock.count(u,source,'nitrates')
- local q=assert(Board.quote(game,o));assert(q.amount==n and q.payment==n*7)
+ local q=assert(Board.quote(game,o));local payment=q.payment
+ assert(q.amount==n and payment==math.floor(n*2.5+200*n/(n+3)+1e-7),'partial player quote lost volume or handling share')
+ local found=false;for _,job in ipairs(Board.list(game)) do if job.id==o.id then found=true end end
+ assert(found,'public listing window hid work from the player')
  assert(Board.accept(game,o.id),'remote acceptance failed')
  assert(Board.active(game).phase=='pickup' and not game.player.cargo.nitrates,'remote acceptance loaded cargo')
  local remainder
@@ -60,9 +63,9 @@ return function()
  end
  local r=View.layout(game).advance
  Cargo.mousepressed(game,r.x+5,r.y+5,1)
- assert(not Board.active(game) and game:credits()==credits+n*7,'delivery button did not settle exact quote')
+ assert(not Board.active(game) and game:credits()==credits+payment,'delivery button did not settle exact quote')
  assert(Stock.count(u,target,'nitrates')==stock+n and not game.player.cargo.nitrates,'delivery did not transfer actual cargo')
- assert(not Board.advance(game) and game:credits()==credits+n*7,'delivery paid twice')
+ assert(not Board.advance(game) and game:credits()==credits+payment,'delivery paid twice')
  assert(not Tasks.state(u).offers[o.id],'completed order remained claimable')
  -- Before-pickup cancellation releases the same offer; after pickup returns stock.
  resetHold();dock(target);set(1000);o=post(2)

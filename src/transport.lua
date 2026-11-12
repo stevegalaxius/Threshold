@@ -52,9 +52,12 @@ function Transport.quote(t,clock,u)
   end
   t.routeAU=math.floor(au*100+.5)/100
  end
- -- Existing flat-rate contracts retain their agreed price.
+ -- Quotes are frozen. A partial load keeps its original handling share.
  if t.creditsPerUnit==nil then
-  t.creditsPerUnit=math.floor((T.freightCreditsPerUnit+t.routeAU*T.freightCreditsPerAU)*100+.5)/100
+  local volume=t.item and data.items[t.item] and data.items[t.item].volume or 1
+  t.creditsPerUnit=volume*(T.freightCreditsPerM3+t.routeAU*T.freightCreditsPerM3AU)
+  t.handlingPerUnit=T.freightHandling/math.max(1,t.amount or 1)
+  t.handlingLimit=T.freightHandling
  end
  local Chemicals=require('src.markets')
  if u and Chemicals.items[t.item] then
@@ -63,9 +66,30 @@ function Transport.quote(t,clock,u)
  end
  return t
 end
-function Transport.payment(t)
+-- Keep quote previews, manifest settlement and history on the same invoice.
+function Transport.invoice(t)
  Transport.quote(t)
- return math.floor(t.amount*t.creditsPerUnit+1e-7)
+ local manifest=t.manifest or {t};local budget=t.handlingLimit or 0
+ for _,line in ipairs(manifest) do Transport.quote(line);budget=math.max(budget,line.handlingLimit or 0) end
+ local bill={total=0,handling=0,volume=0,lines={}}
+ for _,line in ipairs(manifest) do
+  local handling=math.min(budget,line.amount*(line.handlingPerUnit or 0));budget=budget-handling
+  local payment=math.floor(line.amount*line.creditsPerUnit+handling+1e-7)
+  bill.lines[#bill.lines+1]={task=line,payment=payment,handling=handling}
+  bill.total=bill.total+payment;bill.handling=bill.handling+handling
+  bill.volume=bill.volume+line.amount*(data.items[line.item] and data.items[line.item].volume or 1)
+ end
+ return bill
+end
+function Transport.payment(t) return Transport.invoice(t).total end
+-- Upgrade unclaimed economy listings; accepted contracts retain their quote.
+function Transport.refreshOffers(u,clock)
+ for _,o in pairs(Tasks.state(u).offers) do
+  if o.kind=='transport' and o.layoutScope=='economy' and o.state=='available' and o.handlingPerUnit==nil then
+   o.creditsPerUnit=nil;Transport.quote(o,clock,u)
+   o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds)
+  end
+ end
 end
 -- Reservations remain on the board until pickup; loaded cargo is no longer
 -- counted at the source. No duplicate stock ledger needs save reconciliation.
@@ -155,7 +179,8 @@ Tasks.register('transport',{
  score=function(u,r,o,station,clock)
   Transport.quote(o,clock)
   local amount=math.min(o.amount,room(r,o.item,o.amount))
-  local reward=amount*o.creditsPerUnit/Transport.duration(o,station,clock)
+  local quote=require('src.persistence').copy(o);quote.amount=amount
+  local reward=Transport.payment(quote)/Transport.duration(o,station,clock)
   local ambition=Personality.ensure(r).ambition
   local age=require('src.economy').shortageAge(u,o.target,o.item,clock)
   age=math.max(age,math.max(0,clock-(o.placed or o.readyAt or clock)))
@@ -170,7 +195,7 @@ Tasks.register('transport',{
    local offers=Tasks.state(u).offers
    local candidates={t};local others={}
    for _,o in pairs(offers) do
-    if o.id~=t.id and o.order and o.state=='available' and (o.readyAt or 0)<=clock
+    if o.id~=t.id and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (o.npcClaimAt or 0)<=clock
      and not r.player and o.source==t.source and o.target==t.target then others[#others+1]=o end
    end
    table.sort(others,function(a,b)return a.id<b.id end)
@@ -215,14 +240,15 @@ Tasks.register('transport',{
    local count=(r.ship.cargo or {})[line.item] or 0
    if count<required[line.item] then Tasks.release(u,r,'cargo lost',clock);return false end
   end
-  local paid,total=0,0
-  for _,line in ipairs(lines(t)) do
+  local invoice=Transport.invoice(t);local paid,total=invoice.total,0
+  for _,charge in ipairs(invoice.lines) do
+   local line=charge.task
    cargo(r,line.item,-line.amount)
    if line.mine or line.stocked then J.deliver(u,station,line.item,line.amount) end
    require('src.economy').stat(u,'hauled',line.item,line.amount)
-   local payment=Transport.payment(line);paid=paid+payment;total=total+line.amount
+   local payment=charge.payment;total=total+line.amount
    require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
-    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
+    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
    if line.id~=t.id then Tasks.state(u).offers[line.id]=nil end
   end
   local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total
@@ -237,6 +263,7 @@ Tasks.register('transport',{
 function Transport.seed(u)
  local state=Tasks.state(u)
  state.transportSeeded=true
+ Transport.refreshOffers(u,u.clock)
  for _,o in pairs(state.offers) do if o.kind=='transport' then Transport.quote(o,u.clock) end end
  for _,r in pairs(u.npcs or {}) do
   local t=r.task or r.suspendedTask

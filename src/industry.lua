@@ -207,7 +207,8 @@ function I.allocate(u,clock,stations,market,dt)
       local unit,demand=0,0
       for _,bid in ipairs(market.state(u).bids[output.item] or {}) do
        if bid.target~=key and G.itinerary(key,bid.target,clock) then
-        unit=math.max(unit,bid.price-Transport.quote({source=key,target=bid.target,amount=1},clock).creditsPerUnit);demand=demand+bid.amount
+        local quote=Transport.quote({source=key,target=bid.target,item=output.item,amount=bid.amount},clock)
+        unit=math.max(unit,bid.price-Transport.payment(quote)/bid.amount);demand=demand+bid.amount
        end
       end
       if S.count(u,key,output.item)>=demand then unit=0 end
