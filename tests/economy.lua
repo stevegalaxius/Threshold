@@ -25,7 +25,7 @@ return function(game)
  local dryHours,lastDry,lastTotal={},0,0
  local prev
  local start=u.clock
- local worst={}
+ local worst,ammoShort={},{}
  for hour=1,hours do
   for clock=start+(hour-1)*3600,start+hour*3600-1,5 do
    u.clock=clock
@@ -70,6 +70,19 @@ return function(game)
    local w=waiting[item] or {open=0,moving=0}
    print(('  %-20s %7d %7d %7d %7d %7d %7d'):format(item,d('made'),d('used'),d('hauled'),stock,w.moving,w.open))
   end
+  -- Ammunition: every product should keep reaching the trade stations.
+  local Ammo=require('src.ammunition')
+  print(('  %-20s %7s %7s %7s %7s'):format('ammo','made','used','stock','short'))
+  for _,item in ipairs(Ammo.products) do
+   local function d(kind) return ((stats[kind] or {})[item] or 0)-(((last[kind] or {})[item]) or 0) end
+   local stock,short=0,0
+   for _,a in ipairs(Fields.list) do for _,id in ipairs(L.stations(a,'trade')) do
+    local n=Stock.count(u,id,item);stock=stock+n
+    if n<Econ.target(u,id,item) then short=short+1 end
+   end end
+   ammoShort[item]=short
+   print(('  %-20s %7d %7d %7d %7d'):format(item,d('made'),d('used'),stock,short))
+  end
   prev=require('src.persistence').copy(stats)
   local busy,idle=0,0
   for _,r in pairs(u.npcs) do if r.populationGroup=='trader' and r.state~='dead' and r.state~='escaped' then if r.task then busy=busy+1 else idle=idle+1 end end end
@@ -82,6 +95,14 @@ return function(game)
  print('stations dry over a quarter of the time: '..(#long>0 and table.concat(long,', ') or 'none'))
  -- A skeleton economy: fuel keeps being made and reaches at least half the
  -- system. Which outposts go short is reported above, not yet asserted.
+ -- Every ammunition product that is being used must also be made.
+ local stats=u.economyStats or {};local unmade={}
+ for _,item in ipairs(require('src.ammunition').products) do
+  local made,used=(stats.made or {})[item] or 0,(stats.used or {})[item] or 0
+  print(('ammo %-12s made %6d used %6d, %2d stations short'):format(item,made,used,ammoShort[item] or 0))
+  if used>0 and made==0 then unmade[#unmade+1]=item end
+ end
+ assert(#unmade==0,'ammunition used but never made: '..table.concat(unmade,', '))
  assert(lastTotal>0 and lastDry<=#stations*.5,'fuel stopped reaching most stations')
  print('ECONOMY TEST PASSED')
 end

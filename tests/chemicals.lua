@@ -21,7 +21,7 @@ return function(game)
   for _,id in ipairs(farms) do set(u,id,'fertilizer',1000) end
  end
  supplied();set(u,farm,'fertilizer',0)
- for _,key in ipairs({'station:mars_1','station:mars_2'}) do set(u,key,'explosives',1000) end
+ for _,key in ipairs({'station:mars_1','station:mars_2','station:titan_2'}) do set(u,key,'explosives',1000) end
  set(u,plant,'nitrates',1000);set(u,'station:titan_2','nitrates',1000)
  E.update(u,0)
  local first=require('src.industry').state(u,plant,'chemicals').mix.make_fertilizer
