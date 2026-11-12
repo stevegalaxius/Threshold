@@ -212,14 +212,13 @@ function I.allocate(u,clock,stations,market,dt)
        end
       end
       local short=demand-S.count(u,key,output.item)
-      if short<=0 then unit=0 else unmet=math.max(unmet,short/((c.cap or 1)*output.n)) end
+      if short<=0 then unit=0 else unmet=unmet+short*unit end
       revenue=revenue+unit*output.n
      end
      for _,input in ipairs(C.inputs(c)) do cost=cost+market.price(u,key,input.item)*input.n end
      local profit=(revenue-cost)/(c.time or 1);state.profit[recipe]=profit
-     -- Unmet demand in hours of this recipe's full capacity, capped so one
-     -- huge order cannot crowd every other good out.
-     weight[recipe]=revenue>0 and profit>0 and math.min(unmet,4) or 0
+     -- Unmet demand as the credits buyers are still waiting to pay for it.
+     weight[recipe]=revenue>0 and profit>0 and unmet or 0
      if weight[recipe]>0 and (not best or profit>best) then best=profit end
     end
     -- Share time among every profitable good by how short its buyers are,

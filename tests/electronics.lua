@@ -4,7 +4,7 @@ return function(game)
  local Tasks,Transport=require('src.tasks'),require('src.transport')
  local function set(u,key,item,n) S.stock(u,key,S.shopFor(key,item))[item]=n end
  local function world() return {clock=0,stations={},npcs={}} end
- local sources={{'station:mercury_1','silicon',12},{'station:luna_2','silicon',12},{'station:venus_1','industrial_acids',8},{'station:io_1','industrial_acids',8}}
+ local sources={{'station:mercury_1','silicon',24},{'station:luna_2','silicon',24},{'station:venus_1','industrial_acids',16},{'station:io_1','industrial_acids',16}}
  for _,source in ipairs(sources) do
   local u=world();assert(S.count(u,source[1],source[2])==0)
   u.clock=3600
