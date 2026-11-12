@@ -680,6 +680,26 @@ local function passLane(game,route,k)
 end
 A.passLane=passLane
 
+-- Step a spawn point further out along (dx,dy) until no other ship's hull
+-- is within reach of it.
+local function clearSpot(game,e,x,y,dx,dy)
+ local len=math.sqrt(dx*dx+dy*dy);if len<1 then dx,dy,len=1,0,1 end
+ dx,dy=dx/len,dy/len
+ for _=1,20 do
+  local blocked=false
+  for _,o in ipairs(game.entities) do
+   if o~=e and o.kind=='ship' and not o.dead and not o.removed and o.body and not o.dockState then
+    local ox,oy=o.body:getPosition()
+    local reach=(o.halfLength or 100)+(e.halfLength or 100)+100
+    if (ox-x)^2+(oy-y)^2<reach*reach then blocked=true;break end
+   end
+  end
+  if not blocked then break end
+  x,y=x+dx*T.queueGap,y+dy*T.queueGap
+ end
+ return x,y
+end
+
 local function bindRoute(game,e,r)
  require('src.queue').invalidate(game)
  e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
@@ -855,12 +875,21 @@ function A.wake(game,r)
    local d=nearDriver(destination) and destination or source
    local gx,gy=d.body:getPosition()
    local ox,oy
-   if d==destination then ox,oy=require('src.queue').holdPoint(r,game.universe.clock,r.index,1)
+   -- (its own place in line, not always first: a crowd of ships waking
+   -- at once all came up on the same spot, welded into each other)
+   local Q=require('src.queue')
+   local dx,dy
+   if d==destination then
+    local place=r.queue and Q.place(r,game.universe.clock) or 1
+    ox,oy=Q.holdPoint(r,game.universe.clock,r.index,place)
+    dx,dy=ox-gx,oy-gy
    else
     local tx,ty=L.position(leg.to,game.universe.clock)
-    local dx,dy=tx-gx,ty-gy;local len=math.max(1,math.sqrt(dx*dx+dy*dy))
+    dx,dy=tx-gx,ty-gy
+    local len=math.max(1,math.sqrt(dx*dx+dy*dy))
     ox,oy=gx+dx/len*T.queueStart,gy+dy/len*T.queueStart
    end
+   ox,oy=clearSpot(game,e,ox,oy,dx,dy)
    e.body:setPosition(ox,oy)
    local bx,by=game:driverBreech(d)
    e.body:setAngle(math.atan2(by-oy,bx-ox)+(d==source and math.pi or 0))
