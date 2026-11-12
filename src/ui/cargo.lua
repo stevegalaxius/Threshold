@@ -28,6 +28,8 @@
 	  R (dragging)    rotate
 	  Shift-drag      take half the stack
 	  Ctrl-click      quick move to the other side (docked)
+	  double-click    open a container, fit a module (docked), use a
+	                  usable item, or else quick move like Ctrl-click
 	  right-click     a menu of what you can do with the stack: use it
 	                  (src/item_use.lua), open, fit, move/take across,
 	                  split, eject one or all (in space)
@@ -1099,13 +1101,29 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local c = Cargo.lastClick
 	local double = c and c.g == r.g and c.x == s.x and c.y == s.y and c.id == s.id and now - c.t < 0.35
 	Cargo.lastClick = { g = r.g, x = s.x, y = s.y, id = s.id, t = now }
-	if double and trading() and game.state == "docked" then double = false end   -- no opening or fitting at the market
+	if button == 1 and double and trading() and game.state == "docked" then
+		Cargo.lastClick = nil
+		quickMove(game, L, r, s)                   -- at the market: onto the trade grid (or back)
+		return true
+	end
 	if button == 1 and double and itemFor(s.id).kind == "container" then
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
 		return true
 	end
 	if button == 1 and double and itemFor(s.id).kind == "module" then
 		if game.state == "docked" then quickFit(game, L, r, s) else game:toast("DOCK AT A STATION TO REFIT", 1.4) end
+		return true
+	end
+	-- anything else: use it if it's usable and yours, or else send it to the
+	-- other panel (never ejects; that's a drag out or the right-click menu)
+	if button == 1 and double then
+		Cargo.lastClick = nil
+		if r.side.ship == game.player and not r.side.trade and ItemUse.usable(s.id) then
+			local ok, why = ItemUse.begin(game, game.player, s.id)
+			if ok then changed(r.side) elseif why then game:toast(why, 1.5) end
+		elseif #L.sides > 1 then
+			quickMove(game, L, r, s)
+		end
 		return true
 	end
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
@@ -1804,12 +1822,12 @@ function Cargo.draw(game)
 	lg.setColor(HUD.INK)
 	local hint
 	if market then
-		hint = "Drag goods onto the trade grid   Ctrl-click move across   Right-click actions   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
+		hint = "Drag goods onto the trade grid   Ctrl-click or double-click move across   Right-click actions   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
 	elseif docked then
-		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click move across   Right-click actions   Drag or double-click a module to fit it   E, Enter or (A) launch"
+		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or double-click move across   Right-click actions   Drag or double-click a module to fit it   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
-		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click take   Right-click actions   Take All   E, Tab or Esc close" end
+		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or double-click take   Right-click actions   Take All   E, Tab or Esc close" end
 	end
  do
   local r,cx,cy=cellAt(L,mx,my);local selected=Cargo.hand or r and Grid.at(r.g,cx,cy)
