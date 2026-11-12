@@ -87,6 +87,14 @@ function Tasks.clean(u,clock)
   end
  end
 end
+-- Orders placed at the station the player is docked at are held for the
+-- player for T.playerFirstLookSeconds before NPCs may reserve them.
+function Tasks.npcMayClaim(u,o,clock)
+ if (o.npcClaimAt or 0)>clock then return false end
+ local here=u.playerDocked
+ if o.order and here and o.source==here and clock<(o.placed or 0)+require('src.tuning').playerFirstLookSeconds then return false end
+ return true
+end
 function Tasks.choose(u,r,station,clock)
  if not Tasks.resolve(u,r) then return end
  if r.task then return r.task end
@@ -97,7 +105,7 @@ function Tasks.choose(u,r,station,clock)
  local capabilities=Access.capabilities(r)
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
-  if o.state=='available' and (o.readyAt or 0)<=clock and (o.npcClaimAt or 0)<=clock and def
+  if o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock) and def
    and Access.eligible(r,o,capabilities)
    and Access.eligible(r,def,capabilities)
    and (Work.weight(r,o.kind) or 1)>0

@@ -354,6 +354,18 @@ T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
+T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
+-- Shortage deliveries (src/quests.lua): player-only work generated from
+-- stations that have been short of a good for a while.
+T.questShortageAge=900   -- a shortage must be this old (s) before it is posted
+T.questSlots=3           -- open shortage deliveries per station
+T.questMaxActive=3       -- deliveries the player can hold at once
+T.questOfferLife=1800    -- an unaccepted delivery is withdrawn after this
+T.questDeadline=3600     -- time to deliver once accepted
+T.questMaxVolume=60      -- m3 asked for in one delivery
+T.questPremium=1.5       -- reward per unit, as a multiple of the station's price
+T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
+T.questTick=60
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

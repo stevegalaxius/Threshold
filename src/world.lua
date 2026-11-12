@@ -485,7 +485,7 @@ function Game:saveState()
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
 		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId,
-		tasks = Persistence.copy(u.tasks), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues) }
+		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues) }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -537,6 +537,7 @@ function Game:loadState(state)
  self.universe.markets=Persistence.copy(state.markets)
  self.universe.facilities=Persistence.copy(state.facilities)
 	self.universe.tasks = Persistence.copy(state.tasks)
+	self.universe.quests = Persistence.copy(state.quests)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
 	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
