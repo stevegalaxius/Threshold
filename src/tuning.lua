@@ -374,6 +374,13 @@ T.priceFloor=.5
 T.priceCrisisHours=2
 T.priceCrisisMax=3
 T.makerDiscount=.1
+-- merchant houses (src/merchants.lua): how often they trade; a house
+-- under merchantBankrupt of its capital that has sold nothing for
+-- merchantStale seconds fails, and reopens merchantReopen later
+T.merchantTick=300
+T.merchantBankrupt=.1
+T.merchantStale=6*3600
+T.merchantReopen=12*3600
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation

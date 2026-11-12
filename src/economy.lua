@@ -409,6 +409,8 @@ function E.update(u,clock)
  u.economyUnmet=unmet
  adjust(u,unmet)
  planning=nil;hubPlan=nil
+ -- the speculators read the prices this update settled
+ require('src.merchants').update(u,clock)
 end
 
 return E
