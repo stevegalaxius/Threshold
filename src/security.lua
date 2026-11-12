@@ -190,18 +190,23 @@ function S.shouldDock(r,node)
  return r and r.task and r.task.kind=='patrol' and r.task.dock and L.canonical(r.task.target)==L.canonical(node)
 end
 -- Choose a station-local holding point outside its hull and every runway.
-function S.inspectionPoint(game,station,e)
+-- lane (optional): which side a ship passing through takes, 1 the outer
+-- side (away from the planet), -1 the inner. Traffic going opposite ways
+-- round the track gets opposite sides, so it never meets head on at one point.
+local LANE_OUTER={0,math.pi/3,-math.pi/3,math.pi*2/3,-math.pi*2/3,math.pi}
+local LANE_INNER={math.pi,math.pi*2/3,-math.pi*2/3,math.pi/3,-math.pi/3,0}
+function S.inspectionPoint(game,station,e,lane)
  if station.city then
   local x,y=L.inspectionPosition(station.locationId,game.universe.clock)
   local vx,vy=L.inspectionVelocity(station.locationId,game.universe.clock)
   return x,y,vx,vy
  end
  local cached=e.patrolInspection
- if not cached or cached.station~=station then
+ if not cached or cached.station~=station or cached.lane~=lane then
   local x,y=station.body:getPosition();local angle=math.atan2(y,x)-station.body:getAngle()
   local radius=station.radius+T.patrolStandOff+e.halfLength
   local chosen
-  for _,offset in ipairs({0,math.pi/3,-math.pi/3,math.pi*2/3,-math.pi*2/3,math.pi}) do
+  for _,offset in ipairs(lane==-1 and LANE_INNER or LANE_OUTER) do
    local a=angle+offset;local lx,ly=math.cos(a)*radius,math.sin(a)*radius
    local clear=true
    for _,d in ipairs(station.docks or {station.dock}) do
@@ -210,9 +215,9 @@ function S.inspectionPoint(game,station,e)
     if math.abs(across)<(d.capture or d.hw)+e.halfLength+T.patrolStandOff
      and (along>d.x2-e.halfLength or d.both and along<d.x1+e.halfLength) then clear=false;break end
    end
-   if clear then chosen={station=station,x=lx,y=ly};break end
+   if clear then chosen={station=station,lane=lane,x=lx,y=ly};break end
   end
-  cached=chosen or {station=station,x=math.cos(angle+math.pi/2)*radius,y=math.sin(angle+math.pi/2)*radius}
+  cached=chosen or {station=station,lane=lane,x=math.cos(angle+math.pi/2)*radius,y=math.sin(angle+math.pi/2)*radius}
   e.patrolInspection=cached
  end
  local x,y=station.body:getWorldPoint(cached.x,cached.y)

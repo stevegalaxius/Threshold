@@ -656,6 +656,30 @@ function A.capture(game,e,remote)
  else r.offset,r.docking=nil,nil end
 end
 
+-- Which side of a station a ship passing it by keeps to: the outer side
+-- when it's going round the planet one way, the inner when going the other.
+-- Every pass-through used to aim at the same point beside the station, so
+-- traffic both ways (a driver feeding a logistics hub past the primary
+-- port) met there head on at cruise speed. nil: not passing through, or no
+-- way to tell (the default side).
+local function passLane(game,route,k)
+ local id=route[k];local nextId=route[k+1]
+ if not nextId then return nil end
+ local area=L.get(id).area
+ local function bearing(node)
+  if not node or L.get(node).area~=area then return nil end
+  local x,y=L.position(node,game.universe.clock)
+  local w=game.well
+  return math.atan2(y-(w and w.y or 0),x-(w and w.x or 0))
+ end
+ local to=bearing(nextId);if not to then return nil end
+ local from=bearing(route[k-1]) or bearing(id)
+ local turn=(to-from+math.pi)%(2*math.pi)-math.pi
+ if math.abs(turn)<1e-6 then return nil end
+ return turn>0 and 1 or -1
+end
+A.passLane=passLane
+
 local function bindRoute(game,e,r)
  require('src.queue').invalidate(game)
  e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
@@ -663,16 +687,17 @@ local function bindRoute(game,e,r)
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
- for _,id in ipairs(r.route) do
+ for k,id in ipairs(r.route) do
   local place=L.get(id)
   -- a station with several access points: the one nearest the ship now
   local stop=place.area==game.fieldId and game:locationEntity(id,e.body:getPosition())
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
+   local lane=passLane(game,r.route,k)
    stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
-    return Security.inspectionPoint(game,station,e)
+    return Security.inspectionPoint(game,station,e,lane)
    end,getLinearVelocityFromWorldPoint=function(_,x,y)
-    local _,_,vx,vy=Security.inspectionPoint(game,station,e);return vx,vy
+    local _,_,vx,vy=Security.inspectionPoint(game,station,e,lane);return vx,vy
    end}}
   end
   if stop and place.kind=='driver' then
