@@ -171,7 +171,7 @@ Tasks.register('transport',{
    local candidates={t};local others={}
    for _,o in pairs(offers) do
     if o.id~=t.id and o.order and o.state=='available' and (o.readyAt or 0)<=clock
-     and o.source==t.source and o.target==t.target then others[#others+1]=o end
+     and not r.player and o.source==t.source and o.target==t.target then others[#others+1]=o end
    end
    table.sort(others,function(a,b)return a.id<b.id end)
    for _,o in ipairs(others) do candidates[#candidates+1]=o end
