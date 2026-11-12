@@ -366,6 +366,17 @@ T.questMaxVolume=60      -- m3 asked for in one delivery
 T.questPremium=1.5       -- reward per unit, as a multiple of the station's price
 T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
 T.questTick=60
+T.questKindMax=2         -- open offers of one kind per station
+T.questCooldown={shortage_delivery=300,rescue=120} -- per station, after posting that kind
+T.questWeights={rescue=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questStanding=2        -- giver faction standing for a finished job
+T.questFailStanding=1    -- and lost for a failed or abandoned one
+T.rescueMinAge=60        -- stranded this long before a station posts the rescue
+T.rescueBase=300         -- flat rescue pay, plus the fuel's worth below
+T.rescueFuelMultiple=3
+T.rescueRange=2500       -- px: you count as the rescuer if you were this close
+T.rescueCredit=120       -- s: ...this recently when it stopped being stranded
+T.rescueDeadline=1800
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

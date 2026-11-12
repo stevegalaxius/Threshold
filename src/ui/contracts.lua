@@ -24,15 +24,15 @@ function View.layout(game)
   top=top+48
  end
  out.listY=top+38
- if here then
+ do
   local u=game.universe;local Q=require('src.quests')
   local entries={}
-  local active,offers=Q.active(u),Q.offersAt(u,here)
+  local active,offers=Q.active(u),here and Q.offersAt(u,here) or {}
   out.quests=#active;out.questOffers=#offers
   for _,q in ipairs(active) do entries[#entries+1]={quest=q,active=true,h=84} end
   for _,q in ipairs(offers) do entries[#entries+1]={quest=q,h=84} end
-  entries[#entries+1]={header=true,h=36}
-  local list=Board.list(game);out.count=#list
+  local list=here and Board.list(game) or {};out.count=#list
+  if here then entries[#entries+1]={header=true,h=36} end
   for _,o in ipairs(list) do entries[#entries+1]={offer=o,h=104} end
   local total=0;for _,e in ipairs(entries) do total=total+e.h end
   local bottom=y+h
@@ -73,28 +73,38 @@ function View.draw(game)
   Station.panel(f.x,f.y,f.w,48)
   text(f.x+14,f.y+14,f.w-28,'No active freight contract. Accept one freight job at a time.',14,HUD.DIM)
  end
- if not f.here then
+ if not f.here and f.quests==0 then
   text(f.x+14,f.y+(t and 172 or 65),f.w-28,'Dock at any station to browse the global board and handle cargo.',14,HUD.DIM)
   return
  end
  local u=game.universe;local clock=u.clock
- text(f.x+14,f.listY-28,f.w-28,('SHORTAGE DELIVERIES · %d held · %d offered here'):format(f.quests,f.questOffers),14,HUD.DIM)
+ text(f.x+14,f.listY-28,f.w-28,('STATION JOBS · %d held · %d offered here'):format(f.quests,f.questOffers),14,HUD.DIM)
  for _,row in ipairs(f.rows) do
   if row.header then
    text(f.x+14,row.y+10,f.w-28,('GLOBAL FREIGHT BOARD · %d available · pickups here are held for you %ds before NPCs'):format(f.count,T.playerFirstLookSeconds),14,HUD.DIM)
   elseif row.quest then
    local q=row.quest;Station.panel(row.x,row.y,row.w,row.h)
    local left=q.amount-(q.delivered or 0)
-   local title=(row.active and 'DELIVER · ' or 'SHORTAGE · ')..left..' '..item(q.item)..' to '..name(q.giver)
+   local rescue=q.kind=='rescue'
+   local title=rescue and ((row.active and 'RESCUE · ' or 'STRANDED SHIP · ')..'bring fuel to the '..(q.name or 'ship')..' in '..q.area)
+    or (row.active and 'DELIVER · ' or 'SHORTAGE · ')..left..' '..item(q.item)..' to '..name(q.giver)
    text(row.x+14,row.y+10,row.w-220,title,14,row.active and HUD.AQUA or HUD.INK)
    local time=row.active and ('due in %dm'):format(math.max(0,math.ceil((q.deadline-clock)/60))) or ('offered for %dm'):format(math.max(0,math.ceil((q.expires-clock)/60)))
    local aboard=game.player.cargo[q.item] or 0
-   text(row.x+14,row.y+40,row.w-225,('%s per unit · %s total · %s · %d aboard'):format(HUD.credits(q.unit),HUD.credits(q.unit*left),time,aboard),13,HUD.DIM)
-   if row.active then
+   local who=name(q.giver)..' · '..require('src.reputation').tierName(require('src.quests').attitude(u,q.giver))
+   if rescue then
+    text(row.x+14,row.y+40,row.w-225,('%s on rescue · needs about %d %s · %s · %d aboard · %s'):format(HUD.credits(q.unit*q.amount),q.amount,item(q.item),time,aboard,who),13,HUD.DIM)
+   else
+    text(row.x+14,row.y+40,row.w-225,('%s per unit · %s total · %s · %d aboard · %s'):format(HUD.credits(q.unit),HUD.credits(q.unit*left),time,aboard,who),13,HUD.DIM)
+   end
+   if row.active and rescue then
+    Station.button(row.button,'Eject fuel beside it',false,false)
+    Station.button(row.abandon,'Abandon',false,true)
+   elseif row.active then
     Station.button(row.button,'Deliver',false,f.here==q.giver and aboard>0)
     Station.button(row.abandon,'Abandon',false,true)
    else
-    Station.button(row.button,'Accept delivery',false,f.quests<T.questMaxActive)
+    Station.button(row.button,q.kind=='rescue' and 'Accept rescue' or 'Accept delivery',false,f.quests<T.questMaxActive)
    end
   else
   local o,q=row.offer,row.quote;Station.panel(row.x,row.y,row.w,row.h)
@@ -110,7 +120,7 @@ function View.draw(game)
   if not q then text(row.x+row.w-205,row.y+12,190,row.why,12,HUD.DIM) end
   end
  end
- if f.count==0 and f.quests+f.questOffers==0 then text(f.x+14,f.listY+12,f.w-28,'No unclaimed freight orders right now. NPCs use this same board.',14,HUD.DIM) end
+ if f.here and f.count==0 and f.quests+f.questOffers==0 then text(f.x+14,f.listY+12,f.w-28,'No unclaimed freight orders right now. NPCs use this same board.',14,HUD.DIM) end
 end
 function View.mousepressed(game,x,y,button)
  if button~=1 then return true end
@@ -122,7 +132,7 @@ function View.mousepressed(game,x,y,button)
   for _,row in ipairs(f.rows) do
    if row.abandon and inside(row.abandon,x,y) then ok,message=Q.abandon(u,row.quest.id,u.clock);break end
    if row.button and inside(row.button,x,y) then
-    if row.quest and row.active then ok,message=Q.deliver(game,row.quest.id,f.here)
+    if row.quest and row.active then if row.quest.kind~='rescue' then ok,message=Q.deliver(game,row.quest.id,f.here) end
     elseif row.quest then ok,message=Q.accept(u,row.quest.id,u.clock)
     else ok,message=Board.accept(game,row.offer.id) end
     break
