@@ -49,17 +49,11 @@ function Q.chokepoint(r,index)
   return
  end
  if place.kind=='station' and require('src.npc').docksAt(r,id) then
-  local key=L.canonical(id)
+  local key=id
   if Q.docks[key] then return key,'dock',Q.docks[key] end
-  -- one at a time per dock; a station with access points (the Heaven-
-  -- Ladder's anchors) has its docks spread across them
-  local docks=0
-  for other,p in pairs(L.byId) do
-   if (other==key or p.accessOf==key) and p.kind=='station' then
-    local ok,def=pcall(L.stationDefinition,other)
-    docks=docks+(ok and def and def.docks and #def.docks or 1)
-   end
-  end
+  -- Access points are separate physical dock queues.
+  local ok,def=pcall(L.stationDefinition,id)
+  local docks=ok and def and def.docks and #def.docks or 1
   Q.docks[key]=math.max(1,docks)
   return key,'dock',Q.docks[key]
  end
@@ -127,7 +121,7 @@ function Q.waiting(r,clock,game)
  end
  local q=r.queue
  -- (a turn that came free on time is no wait at all)
- return q and q.ready>(q.at or 0)+.5 and r.route and r.route[r.index] and L.canonical(r.route[r.index])==q.key and clock<q.ready
+ return q and q.ready>(q.at or 0)+.5 and r.route and r.route[r.index] and r.route[r.index]==q.key and clock<q.ready
 end
 
 -- Live docks serve the ships actually nearby, not future reservations.
@@ -158,7 +152,7 @@ local function liveLine(game,e,stop)
   for id,other in pairs(game.alifeOnline or {}) do
    local r=game.universe.npcs[id];local q=r and r.queue
    local target=other.route and other.route[other.routeIndex or 1]
-   if q and q.kind==kind and q.key==L.canonical(stop.locationId)
+   if q and q.kind==kind and q.key==stop.locationId
     and not other.dead and not other.removed and not other.dockState and not other.dockExit
     and not other.driverTractor and not other.launch
     and (target==stop or driver and target and target.driver==driver) then
@@ -193,7 +187,7 @@ function Q.holding(game,e,stop)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  local q=r and r.queue
  if q and stop and (q.kind=='dock' and stop.dock or q.kind=='driver' and stop.driver)
-  and stop.locationId and L.canonical(stop.locationId)==q.key then
+  and stop.locationId and stop.locationId==q.key then
   local waiting,place=liveLine(game,e,stop)
   return waiting and r or nil,place
  end
@@ -208,7 +202,7 @@ function Q.holding(game,e,stop)
    if (x-sx)^2+(y-sy)^2<=(T.queueStart+T.queueGap*4)^2 then return r,1 end
   end
  end
- return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and L.canonical(stop.locationId)==q.key and game.universe.clock<q.ready and r or nil
+ return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and stop.locationId==q.key and game.universe.clock<q.ready and r or nil
 end
 
 -- Its place in line: 1 is next in, 2 behind that, and so on.

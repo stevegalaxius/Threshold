@@ -607,7 +607,7 @@ function Fields.configureLocations(area)
 	-- access points, each a location (and a travel-graph node) of its own.
 	-- The first is the station's identity; the others say accessOf it, so
 	-- routes to the Ladder end at whichever anchor is nearest, and all four
-	-- share its storage, hangar and market (see Game:spawnHeavenLadder).
+	-- share its storage and market, with independent anchor hangars (see Game:spawnHeavenLadder).
 	if area == "mars" and F.planetR and WorldLayout.specials.heavenLadder.enabled~=false then
 		local LR = F.planetR + 1100
 		F.ladderIds = {}

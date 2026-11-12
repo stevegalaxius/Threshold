@@ -191,6 +191,10 @@ function D.frameTarget(u,key)
  return math.min(math.max(0,(def.lots or 6)-#s.lots),slots)*maximum
 end
 function D.lots(u, st)
+ -- Sale stock is physically parked at the primary anchor, not cloned at
+ -- every access point that shares the station's market.
+ local id=type(st)=='table' and (st.locationId or st.key) or st
+ if require('src.locations').canonical(id)~=id then return {} end
 	local s = D.state(u, st)
 	return s and s.lots or {}
 end

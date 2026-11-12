@@ -35,7 +35,7 @@ local function context(u,key)
  for _,lot in ipairs(u.dealers and u.dealers[key] and u.dealers[key].lots or {}) do roster[#roster+1]=lot end
  local entities={};local online=live and binding.game.alifeOnline or {}
  if live then for _,e in ipairs(binding.game.entities) do
-  if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station.key==key then entities[#entities+1]=e end
+  if e.kind=='ship' and not e.dead and not e.removed and e.dockState and (e.dockState.station.locationId or e.dockState.station.key)==key then entities[#entities+1]=e end
  end end
  local proxy=setmetatable({universe=u,entities=entities,stationRoster=function()return roster end,stationRecord=function()return record end},{__index=Game})
  -- Remote docked NPCs do not have precise bay coordinates. Place them in a
@@ -43,7 +43,7 @@ local function context(u,key)
  local visitors={}
  for id,r in pairs(u.npcs or {}) do
   local node=r.node or r.route and r.route[r.index]
-  if r.state=='docked' and node and L.canonical(node)==key and not online[id] then visitors[#visitors+1]=r end
+  if r.state=='docked' and node and node==key and not online[id] then visitors[#visitors+1]=r end
  end
  table.sort(visitors,function(a,b)return a.id<b.id end)
  for _,r in ipairs(visitors) do

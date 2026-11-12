@@ -330,7 +330,7 @@ function N.departOnline(game,e,station)
  if game.universe.clock<N.readyAt(r) then return false end
  local A=require('src.alife')
  A.capture(game,e,false)
- local node=L.canonical(station.locationId)
+ local node=station.locationId
  if r.worldRecovery then require('src.world_reconcile').resume(game.universe,r,game.universe.clock) end
  r.state='docked';r.node=node
  N.decide(game.universe,r,node,game.universe.clock,game)

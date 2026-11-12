@@ -904,7 +904,7 @@ function A.install(Game)
    A.capture(self,e,false);e.serviceDockedAt=nil
    serviced.index=#serviced.route;Upkeep.passed(serviced,#serviced.route)
    -- still docked here, now as itself
-   serviced.state='docked';serviced.node=L.canonical(station.locationId);serviced.untilTime=self.universe.clock;serviced.nextDecisionAt=nil
+   serviced.state='docked';serviced.node=station.locationId;serviced.untilTime=self.universe.clock;serviced.nextDecisionAt=nil
   end
   local r=self.universe.npcs[e.alifeId]
   if not r then return true end

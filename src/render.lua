@@ -468,7 +468,7 @@ local function drawStation(game, e)
 			local ds = o.dockState
 			if ds and ds.station == e and ds.berth then taken[ds.berth] = true end
 		end
-  local record=game.universe.stations[e.key]
+  local record=game:stationParkingRecord(e)
   for _,rec in ipairs(game:stationRoster(e)) do
    local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
    if slot and slot.berth then taken[slot.berth]=true end
@@ -544,7 +544,7 @@ local function drawStation(game, e)
 		lg.pop()
 	end
 	end
- local record=game.universe.stations[e.key]
+ local record=game:stationParkingRecord(e)
  local forSale={}
  for _,lot in ipairs(require('src.dealers').lots(game.universe,e)) do forSale[lot]=true end
  for _,rec in ipairs(game:stationRoster(e)) do

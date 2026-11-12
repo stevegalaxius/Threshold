@@ -19,10 +19,10 @@ end
 
 -- Ships of `hullId` station `id` can hold at once.
 function R.capacity(id,hullId)
- local key=L.canonical(id)..'|'..tostring(hullId)
+ local key=id..'|'..tostring(hullId)
  if cache[key] then return cache[key] end
  local hull=data.hulls[hullId]
- local ok,def=pcall(L.stationDefinition,L.canonical(id))
+ local ok,def=pcall(L.stationDefinition,id)
  if not hull or not ok or not def then cache[key]=math.huge;return math.huge end
  local length,width=dimensions(hull)
  local n=0
@@ -46,11 +46,11 @@ end
 
 -- Records docked at station `id` now (other than `except`), by hull.
 local function docked(u,id,except)
- local key=L.canonical(id);local byHull={};local total=0
+ local key=id;local byHull={};local total=0
  for _,o in pairs(u.npcs or {}) do
   if o~=except and o.state=='docked' then
    local at=o.node or (o.route and o.route[o.index])
-   if at and L.byId[at] and L.canonical(at)==key then
+   if at and L.byId[at] and at==key then
     local h=o.ship and o.ship.hull or '?'
     byHull[h]=(byHull[h] or 0)+1;total=total+1
    end

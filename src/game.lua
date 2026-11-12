@@ -1426,7 +1426,7 @@ function Game:updateDockedShip(e, dt)
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
 			local berth=not interior and self:freeBerth(st,e)
-			e.bay=interior or nil;e.bayStation=st.key
+			e.bay=interior or nil;e.bayStation=st.locationId or st.key
 			if berth then
     local bd=self:berthPose(st,berth,e.hull.id) or st.def.berths[berth]
     ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,self:berthPose(st,berth,e.hull.id)
