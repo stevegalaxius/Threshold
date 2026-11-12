@@ -11,7 +11,9 @@
 	T.questPremium of its price plus up to T.questAgeBonus more as the
 	shortage ages. Delivered goods go into station stock, so the economy's
 	own order trim cancels matching freight on its next tick. Partial
-	deliveries pay pro rata. Once accepted, a delivery holds until its
+	deliveries pay pro rata. A shortage is only posted while some other
+	station holds spare stock of the good, so it can always be sourced.
+	Once accepted, a delivery holds until its
 	deadline even if the shortage clears.
 
 	Later generators (rescue, bounty, wreck recovery, escort) post the same
@@ -38,6 +40,14 @@ function Q.unitReward(u,key,item,age)
  local bonus=T.questAgeBonus*math.min(1,math.max(0,age-T.questShortageAge)/3600)
  return math.max(1,math.floor(price(u,key,item)*(T.questPremium+bonus)+.5))
 end
+-- Somewhere else must hold more than it needs, or the player could never
+-- fill the delivery (the economy records goods nobody makes as shortages too).
+local function sourced(u,E,list,st,item,n)
+ for _,s in ipairs(list) do
+  if s~=st and Stock.count(u,s,item)-E.target(u,s,item)>=n then return true end
+ end
+ return false
+end
 local function key(q) return q.giver..'|'..q.item end
 
 -- Withdraw stale offers, fail overdue active deliveries, post new ones.
@@ -60,7 +70,8 @@ function Q.update(u,clock)
    q.unit=Q.unitReward(u,q.giver,q.item,age)
   end
  end
- for _,st in ipairs(stations()) do
+ local all=stations()
+ for _,st in ipairs(all) do
   local shortages=(Stock.record(u,st).shortages or {})
   local list={}
   for item,since in pairs(shortages) do
@@ -74,7 +85,7 @@ function Q.update(u,clock)
    local short=want-Stock.count(u,st,c.item)
    local cap=math.max(1,math.floor(T.questMaxVolume/math.max(.001,data.items[c.item].volume)))
    local amount=math.min(short,cap)
-   if amount>=1 then
+   if amount>=1 and sourced(u,E,all,st,c.item,math.min(amount,T.orderMinLoad)) then
     s.nextId=s.nextId+1
     local id='quest/'..s.nextId
     s.offers[id]={id=id,kind='shortage_delivery',giver=st,item=c.item,amount=amount,

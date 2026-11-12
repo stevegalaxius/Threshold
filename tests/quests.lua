@@ -11,6 +11,7 @@ return function()
  end
  -- a shortage older than the threshold posts one delivery, once
  Stock.stock(u,st,Stock.shopFor(st,item))[item]=0
+ local src='station:mars_1';Stock.stock(u,src,Stock.shopFor(src,item))[item]=1000
  local rec=Stock.record(u,st);rec.shortages=rec.shortages or {};rec.shortages[item]=u.clock-T.questShortageAge-1
  local real=require('src.economy').target;require('src.economy').target=function() return 40 end
  Q.state(u).next=0;Q.update(u,u.clock)
