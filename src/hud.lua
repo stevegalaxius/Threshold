@@ -183,6 +183,8 @@ local HELP = {
 	"(pick each slot's fire group and ammo in the hold)",
 	"E tractor beam",
 	"G fly a drone (drone uplink)",
+	"Q field repair (steel plates, patch kits)",
+	"U in the hold: use the item under the mouse",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold   M local map",
 	"Shift afterburner",
@@ -204,6 +206,44 @@ end
 
 -- y: where the list starts (default near the top; screens over the
 -- game pass a spot that doesn't cover them)
+-- The bar under the ship while an item is being used (src/item_use.lua),
+-- and a line per running effect (nanites, overdrive).
+local function drawCast(game)
+	local p = game.player
+	if not p or p.dead then return end
+	local w, h = lg.getDimensions()
+	local y = h * 0.62
+	local c = p.casting
+	if c then
+		local bw = 220
+		local x = (w - bw) / 2
+		panel(x - 8, y - 6, bw + 16, 34)
+		lg.setColor(DIM)
+		lg.rectangle("line", x, y + 14, bw, 8)
+		lg.setColor(AQUA)
+		lg.rectangle("fill", x, y + 14, bw * min(1, c.t / c.time), 8)
+		lg.setFont(font(12))
+		lg.setColor(INK)
+		lg.printf(c.label, x, y - 2, bw, "center")
+		y = y + 40
+	end
+	if p.auras then
+		lg.setFont(font(11))
+		local data = require("src.data")
+		local seen = {}
+		for _, a in ipairs(p.auras) do
+			local item = data.items[a.source]
+			local name = item and item.use and item.use.label or (item and item.name) or "?"
+			if not seen[name] then
+				seen[name] = true
+				lg.setColor(AQUA)
+				lg.printf(("%s  %ds"):format(name, math.ceil(a.dur - a.t)), 0, y, w, "center")
+				y = y + 14
+			end
+		end
+	end
+end
+
 local function drawToasts(game, y)
 	local w = lg.getWidth()
 	y = y or 70
@@ -501,6 +541,7 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 	drawDeath(game)
 	if uiOpen then return end            -- the cargo screen covers the rest; main draws toasts on top of it
 	drawStatus(game)
+	drawCast(game)
 	drawHelp()
 	drawToasts(game)
 	drawReticle(game, aimX, aimY)

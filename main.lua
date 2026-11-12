@@ -116,7 +116,7 @@ function love.load(args)
 		["--electronicstest"] = "tests.electronics",
 		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
 		["--ammunitiontest"] = "tests.ammunition",
-		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench",
+		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench", ["--itemusetest"] = "tests.item_use",
 	}
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
@@ -264,6 +264,9 @@ function love.keypressed(key)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
 	elseif key == "g" then game:toggleDroneControl()
+	elseif key == "q" and game.player and not game.player.dead then
+		local ok, why = require("src.item_use").quick(game, game.player, "repair")
+		if not ok and why then game:toast(why, 1.5) end
 	elseif key == "f2" then Editor.toggle(game)
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
