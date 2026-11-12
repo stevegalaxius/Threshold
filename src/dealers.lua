@@ -36,8 +36,12 @@ function D.def(st)
 	local mk = require("src.stockpile").definition(st)
 	if mk and mk.dealer then return mk.dealer end
  local place=require('src.locations').byId[require('src.stockpile').key(st)]
- if place and place.kind=='station' and not place.accessOf then
-  return {name='Used ship exchange',hulls={'intaki_wisp'},lots=4,restock=8,usedOnly=true}
+ -- a used lot only where there's a yard to sell from, and a small one:
+ -- the dealerships are where the ships are
+ local yard=false;for _,sv in ipairs(place and place.services or {}) do if sv=='shipyard' then yard=true end end
+ if place and place.kind=='station' and not place.accessOf and yard then
+  local policy=require('data.industry').usedShips
+  return {name='Used ship exchange',hulls={'intaki_wisp'},lots=policy.lots,restock=policy.intervalHours,usedOnly=true}
  end
 end
 
@@ -133,7 +137,7 @@ function D.state(u, st)
 	if not s then
 		s = { lots = {}, next = clock + (def.restock or 10) * HOUR }
 		u.dealers[key] = s
-		local opening=def.usedOnly and D.buildsShips(key) and 0 or math.ceil(cap*.6)
+		local opening=def.usedOnly and (D.buildsShips(key) and 0 or 1) or cap
 		for _=1,opening do
    local lot=def.usedOnly and D.rollUsed(def,s) or D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
    if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end

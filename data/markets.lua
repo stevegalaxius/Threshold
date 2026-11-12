@@ -75,7 +75,7 @@ market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate
 	{ "martian_ore", 8 }, { "salvage_kit", 3 },
 	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
-market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 3, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
+market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "missile_s_base", 2 }, { "missile_m_base", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
@@ -184,14 +184,14 @@ market { id = "market:belt_1", station = "Ceres Dock", sells = {   -- deuterium 
 	{ "deuterium_canister", 6 }, { "empty_canister", 2 }, { "water_ice", 2 },
 	{ "rounds_s", 4 }, { "drill_s_base", 1 },
 } }
-market { id = "market:belt_2", station = "MACK Industrial Works", dealer = { name = "MACK Industrial Works", hulls = { "mack_mustang", "mack_burro", "mack_longhorn" }, lots = 5, assembly = "mack_assembly", markup = 0.95 }, sells = {   -- belt freight forwarder
+market { id = "market:belt_2", station = "MACK Industrial Works", dealer = { name = "MACK Industrial Works", hulls = { "mack_mustang", "mack_burro", "mack_longhorn" }, lots = 7, assembly = "mack_assembly", markup = 0.95 }, sells = {   -- belt freight forwarder
 	{ "iron_ore", 4 }, { "cargo_container", 4 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }
 
-market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer = { name = "Brute Industries Works", hulls = { "brute_runt", "brute_anvil", "brute_nautilus" }, lots = 4, assembly = "brute_assembly", markup = 0.95 }, sells = {
+market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer = { name = "Brute Industries Works", hulls = { "brute_runt", "brute_anvil", "brute_nautilus" }, lots = 6, assembly = "brute_assembly", markup = 0.95 }, sells = {
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
 
-market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_runner", "ferrous_mule", "ferrous_bison" }, lots = 5, assembly = "ferrous_assembly" }, sells = {
+market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_runner", "ferrous_mule", "ferrous_bison" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
