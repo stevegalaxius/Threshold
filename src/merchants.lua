@@ -5,8 +5,8 @@
 	and goods in warehouses, reads station prices, and acts through the
 	same stock and freight board everyone else uses.
 
-	  buy       at its own warehouses (and the Ring Station exchange, open to
-	            every house) a good priced under its buyBelow is bought out
+	  buy       at its hub warehouse, any of its own faction's stations, and
+	            the Ring Station exchange (open to every house) a good priced under its buyBelow is bought out
 	            of the station's spare stock at the market price +spread,
 	            into the house's warehouse. That pulls the shelf down and the
 	            price back up.
@@ -43,7 +43,7 @@ M.houses={
  {id='house:triton',faction='neptune',name='Black Hexagon Group',
   -- Neptune's corporation: the outer system's money. No territory to protect, so
   -- they go anywhere, buy deep and sell only into real pain.
-  warehouses={'station:triton_1'},buyBelow=.7,sellAbove=1.8,lot=120,hold=600,reach='any',capital=400000},
+  warehouses={'station:triton_3'},buyBelow=.7,sellAbove=1.8,lot=120,hold=600,reach='any',capital=400000},
  {id='house:estates',faction='estates',name='Venusian Trust',
   -- old money: patient hoarders, big positions, sell late and only at home
   warehouses={'station:venus_1'},buyBelow=.8,sellAbove=1.6,lot=200,hold=1200,reach='own',capital=900000},
@@ -72,9 +72,14 @@ end
 
 -- Warehouses a house may use: its own plus the exchange.
 local function sites(h)
- local list={}
- for _,id in ipairs(h.warehouses) do if exists(id) then list[#list+1]=id end end
- if exists(M.exchange) then list[#list+1]=M.exchange end
+ local list,seen={},{}
+ local function add(id) if exists(id) and not seen[id] then seen[id]=true;list[#list+1]=id end end
+ for _,id in ipairs(h.warehouses) do add(id) end
+ add(M.exchange)
+ -- an invisible hand: it can act through any of its own faction's stations
+ for _,area in ipairs(Fields.list) do for _,id in ipairs(L.stations(area,'trade')) do
+  if factionOf(id)==h.faction then add(id) end
+ end end
  return list
 end
 local function held(rec,site,item) return (rec.stock[site] or {})[item] or 0 end
