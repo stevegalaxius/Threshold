@@ -45,6 +45,25 @@ market { id = "market:jupiter_3", station = "Jovian Logistics", sells = {
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
+-- Moon customs: each moon's exports leave, and its imports arrive, here.
+market { id = "market:io_3", station = "Io Customs", sells = {
+	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:europa_3", station = "Europa Customs", sells = {
+	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:ganymede_3", station = "Ganymede Customs", sells = {
+	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:callisto_3", station = "Callisto Customs", sells = {
+	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:enceladus_3", station = "Enceladus Customs", sells = {
+	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:titan_4", station = "Titan Customs", sells = {
+	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
 market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Intaki Zhuhai Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 3, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },

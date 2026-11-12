@@ -18,6 +18,10 @@
 	            first, each from the nearest station with enough spare, in
 	            orders of up to E.lot. Unclaimed orders expire after E.expire
 	            and are placed again, so they follow wherever the stock is.
+	  customs   a moon with a customs station (world_layout customs=true)
+	            trades off the moon only through it: its factories ship
+	            exports there, it passes them on to the planet's hub (or
+	            the planet's stations), and goods for the moon arrive there.
 	  hubs      a planet system with a logistics hub (world_layout hub=true)
 	            trades with other systems only through it. The hub keeps a
 	            depot of what its system uses but doesn't make (imports),
@@ -248,6 +252,27 @@ local function hubWants(u,all)
   for _,item in ipairs(goods()) do if makes(s,item) then plan.made[r][item]=true end end
  end
  for _,h in pairs(plan.hubs) do plan.want[h],plan.kind[h]={},{} end
+ -- moon customs: the depot every good leaving or reaching a moon goes
+ -- through (on to its planet's hub). It holds what the moon imports for
+ -- its stations and collects what the moon makes for export.
+ plan.customs={}
+ for _,s in ipairs(all) do
+  local p=L.byId[s]
+  if p.customs and (not plan.customs[p.area] or s<plan.customs[p.area]) then plan.customs[p.area]=s end
+ end
+ for area,cs in pairs(plan.customs) do
+  plan.want[cs],plan.kind[cs]={},{}
+  local made={}
+  for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
+  for _,item in ipairs(goods()) do
+   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*4,'export'
+   else
+    local n=0
+    for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+E.target(u,s,item,false) end end
+    if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
+   end
+  end
+ end
  for _,item in ipairs(goods()) do
   local imported,total={},0
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
@@ -276,7 +301,20 @@ function E.hubFor(id)
 end
 -- Whether s may sell item to c under hub routing.
 local function routed(plan,s,c,item)
- local rs,rc=root(L.byId[s].area),root(L.byId[c].area)
+ local as,ac=L.byId[s].area,L.byId[c].area
+ local customs=plan.customs or {}
+ local cs,cc=customs[as],customs[ac]
+ if as==ac then
+  -- a customs depot passes its moon's exports outward, never back in
+  if s==cs and plan.kind[s][item]=='export' then return false end
+ else
+  -- off a moon only through its customs, onto a moon only into it
+  if cs and s~=cs then return false end
+  if cc and c~=cc then return false end
+  -- customs sells its moon's imports only to that moon
+  if s==cs and plan.kind[s][item]=='import' then return false end
+ end
+ local rs,rc=root(as),root(ac)
  local hs,hc=plan.hubs[rs],plan.hubs[rc]
  local kind=s==hs and plan.kind[s][item]
  if rs==rc then return kind~='export' or makes(s,item) end
