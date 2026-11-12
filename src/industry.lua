@@ -80,6 +80,45 @@ function I.scale(u,key,c)
  end
  return 0
 end
+-- Short operating buffers follow allocated work and actual output room.
+-- Idle profit facilities keep at most a starter batch per input, so missing
+-- inputs cannot permanently prevent the first profitable recipe selection.
+function I.inputPlan(u,key)
+ local C,O=require('src.commodities'),require('src.industry_outputs')
+ local plan={buffers={},rates={}}
+ for id,installation in pairs(I.installations(key)) do
+  local def=I.definition(id,installation)
+  local hours=installation.inputHours or def.inputHours or D.inputHours
+  local allocated,starter,rates={},{},{}
+  for _,recipe in ipairs(def.recipes) do
+   local c=C.byId[recipe]
+   if #(C.inputs(c))>0 then
+    local room=math.huge
+    for _,output in ipairs(C.outputs(c)) do
+     local n=O.room(u,key,c,output)
+     if c.consumption=='food' then n=n+require('src.food').rates(key)*hours/(output.n or 1) end
+     room=math.min(room,n)
+    end
+    if room>0 then
+     local rate=(c.make[key] or 0)*I.scale(u,key,c)/(c.time or 1)
+     if not c.foodIndependent then rate=rate*require('src.food').output(u,key) end
+     local work=math.min(room,rate*hours)
+     for _,input in ipairs(C.inputs(c)) do
+      allocated[input.item]=(allocated[input.item] or 0)+work*input.n
+      rates[input.item]=(rates[input.item] or 0)+math.min(rate,room/hours)*input.n
+      if def.policy=='profit' or rate>0 then starter[input.item]=math.max(starter[input.item] or 0,input.n) end
+     end
+    end
+   end
+  end
+  for item,n in pairs(starter) do allocated[item]=math.max(allocated[item] or 0,n) end
+  for item,n in pairs(allocated) do
+   plan.buffers[item]=(plan.buffers[item] or 0)+n
+   plan.rates[item]=(plan.rates[item] or 0)+math.max(rates[item] or 0,(starter[item] or 0)/hours)
+  end
+ end
+ return plan
+end
 -- Execute whole batches. Input credits permit recipes to use fractions of a
 -- cargo unit without fractional stock (e.g. one fertilizer feeds 20 food).
 function I.produce(u,key,c,requested,progress,roomOverride)
@@ -99,7 +138,7 @@ function I.produce(u,key,c,requested,progress,roomOverride)
  for _,input in ipairs(C.inputs(c)) do
   local credit=progress.credit[input.item] or 0
   local spent=math.max(0,math.ceil(n*input.n-credit-1e-9))
-  if spent>0 then assert(S.take(u,key,input.item,spent));E.consume(u,key,input.item,spent) end
+  if spent>0 then assert(S.take(u,key,input.item,spent));E.consume(u,key,input.item,spent,true) end
   progress.credit[input.item]=credit+spent-n*input.n
  end
  for _,output in ipairs(C.outputs(c)) do
@@ -114,7 +153,7 @@ function I.flow(u,key,c,m,dt,rate,roomOverride)
  state.budget=m.inputBudget and m.inputBudget[c.id]
  local whole=math.floor(work+1e-9);local done
  if rate<0 then
-  done=math.min(whole,S.available(u,key,c.item));assert(S.take(u,key,c.item,done));E.consume(u,key,c.item,done)
+  done=math.min(whole,S.available(u,key,c.item));assert(S.take(u,key,c.item,done));E.consume(u,key,c.item,done,true)
  else done=I.produce(u,key,c,whole,state,roomOverride) end
  -- Blocked time cannot accumulate into an instant burst after resupply.
  state.carry=done<whole and 0 or work-whole
@@ -168,7 +207,8 @@ function I.allocate(u,clock,stations,market,dt)
       local unit,demand=0,0
       for _,bid in ipairs(market.state(u).bids[output.item] or {}) do
        if bid.target~=key and G.itinerary(key,bid.target,clock) then
-        unit=math.max(unit,bid.price-Transport.quote({source=key,target=bid.target,amount=1},clock).creditsPerUnit);demand=demand+bid.amount
+        local quote=Transport.quote({source=key,target=bid.target,item=output.item,amount=bid.amount},clock)
+        unit=math.max(unit,bid.price-Transport.payment(quote)/bid.amount);demand=demand+bid.amount
        end
       end
       if S.count(u,key,output.item)>=demand then unit=0 end

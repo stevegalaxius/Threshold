@@ -21,10 +21,14 @@ return function(game)
  assert(Food.status(u,key).stock==0 and E.target(u,key,Food.item)>=use*2 and target>=use*2,
   'starvation erased food demand or accrued negative inventory')
  -- Real recipe output is reduced, while inputs remain available.
+ -- (The opening ore buffer has long since filled the canister store to
+ -- its cap, so empty it first or there is no room to measure into.)
  Stock.add(u,key,'iron_ore',10000)
+ Stock.stock(u,key,Stock.shopFor(key,'empty_canister')).empty_canister=0
  local before=Stock.count(u,key,'empty_canister')
  u.clock=u.clock+600
- assert(Stock.count(u,key,'empty_canister')-before==200,'shortage did not halve canister production')
+ -- Heaven-Ladder presses 12,000 an hour: 2,000 in ten minutes, halved
+ assert(Stock.count(u,key,'empty_canister')-before==1000,'shortage did not halve canister production')
  -- A normal transport completion feeds the same stock, once.
  local r={id='food-hauler',ship={cargo={[Food.item]=use*3}}}
  local t={id='food-shipment',source='station:earth_2',target=key,item=Food.item,amount=use*3,stocked=true,phase='delivery'}
@@ -49,7 +53,7 @@ return function(game)
  farmStock[Food.item]=nil;farmStock[Food.fertilizer]=nil
  farmWorld.clock=3600
  assert(Food.status(farmWorld,farm).stock==0 and Food.output(farmWorld,farm)==.5,'farm made food without fertilizer')
- assert(E.target(farmWorld,farm,Food.fertilizer)==make/Food.yield*E.hours,'empty farm lost fertilizer demand')
+ assert(E.target(farmWorld,farm,Food.fertilizer)==make/Food.yield*require('data.industry').inputHours,'empty farm lost fertilizer demand')
  local shipment={id='fertilizer-shipment',source='station:belt_1',target=farm,item=Food.fertilizer,amount=1,stocked=true,phase='delivery'}
  local carrier={id='fertilizer-hauler',ship={cargo={[Food.fertilizer]=1}}}
  assert(complete(farmWorld,carrier,shipment,farm,farmWorld.clock),'fertilizer freight failed')

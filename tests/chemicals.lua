@@ -6,14 +6,15 @@ return function(game)
  local Save=require('src.save')
  local plant='station:callisto_2';local farm='station:earth_2'
  local function set(u,key,item,n) local stock=S.stock(u,key,S.shopFor(key,item));stock[item]=n>0 and n or nil end
- -- Both recipes share eighty units/hour, and compete for real input stock.
+ -- Both recipes share the installed processing capacity, and compete for real input stock.
+ local half=require('src.industry').installations(plant).chemicals.capacity/2
  local w={clock=0,stations={}}
  S.count(w,plant,'fertilizer');S.count(w,plant,'explosives');set(w,plant,'nitrates',1000)
  w.clock=3600
- assert(S.count(w,plant,'fertilizer')==40 and S.count(w,plant,'explosives')==40,'chemical recipes exceeded or failed to share capacity')
- assert(w.economyStats.used.nitrates==120,'fertilizer/explosives used incorrect nitrate quantities')
+ assert(S.count(w,plant,'fertilizer')==half and S.count(w,plant,'explosives')==half,'chemical recipes exceeded or failed to share capacity')
+ assert(w.economyStats.used.nitrates==half*3,'fertilizer/explosives used incorrect nitrate quantities')
  set(w,plant,'nitrates',0);w.clock=7200
- assert(S.count(w,plant,'fertilizer')==40 and S.count(w,plant,'explosives')==40,'factory produced without nitrates')
+ assert(S.count(w,plant,'fertilizer')==half and S.count(w,plant,'explosives')==half,'factory produced without nitrates')
  local u={clock=0,stations={},npcs={}}
  local farms={'station:earth_2','station:venus_2','station:titan_1'}
  local function supplied()
@@ -36,8 +37,9 @@ return function(game)
  assert(fertilizerOrder,'factory output did not generate ordinary freight to the hungry farm')
  supplied()
  for _,key in ipairs({'station:mars_1','station:mars_2'}) do set(u,key,'explosives',0) end
+ -- Buyers keep collecting output while the demand-switch response is measured.
  for _=1,22 do
-  u.clock=u.clock+60;supplied();E.update(u,u.clock)
+  u.clock=u.clock+60;supplied();set(u,plant,'explosives',0);E.update(u,u.clock)
   local mix=require('src.industry').state(u,plant,'chemicals').mix
   assert(mix.make_fertilizer+mix.make_explosives<=1.000001,'allocation created extra factory capacity')
  end
@@ -55,6 +57,7 @@ return function(game)
  C.state(u).prices['station:mars_1'].explosives=.5
  Transport.quote(quote,u.clock+1000,u)
  assert(quote.commodityBuyPrice==buy and quote.commoditySellPrice==sell,'moving prices changed an agreed shipment quote')
+ quote.layoutScope='test_quote' -- explicit quote, independent of generated restocking
  local order=Tasks.post(u,quote)
  local old=game.universe;game.universe=u
  local snapshot=assert(Save.decode(Save.encode(game:saveState())))

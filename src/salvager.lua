@@ -81,7 +81,7 @@ function S.create(game,area,node,clock)
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,'salvager',area)
  require('src.personality').ensure(r)
- Homes.assign(r,node);u.npcs[r.id]=r
+ Homes.choose(u,r);u.npcs[r.id]=r
  Fuel.withRecord(r,function() end);r.fuelClock=clock
  NPC.advance(r,clock,u,game)
  return r

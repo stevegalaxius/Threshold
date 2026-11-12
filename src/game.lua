@@ -1426,7 +1426,7 @@ function Game:updateDockedShip(e, dt)
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
 			local berth=not interior and self:freeBerth(st,e)
-			e.bay=interior or nil;e.bayStation=st.key
+			e.bay=interior or nil;e.bayStation=st.locationId or st.key
 			if berth then
     local bd=self:berthPose(st,berth,e.hull.id) or st.def.berths[berth]
     ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,self:berthPose(st,berth,e.hull.id)
@@ -1547,6 +1547,8 @@ function Game:undockShip(e)
 	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
+	-- (an NPC leaving a berth inside a bay flies out the way it came in: src/ai.lua)
+	e.bayExit = bd and e.alifeId and st or nil
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
 	if e.alifeId then self:traderUndocked(e, st) end
 	events.emit("undock", e, st)

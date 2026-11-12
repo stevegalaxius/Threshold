@@ -18,6 +18,42 @@ return function(game)
  local unclaimed=world();post(unclaimed,'rounds_s',40)
  assert(Transport.reserved(unclaimed,source,'rounds_s',nil,true)==40,'unclaimed outgoing commitments ignored')
  local def=Tasks.definitions.transport
+ -- Volume pricing and one handling allowance survive splits and bundling.
+ local function quoted(item,n,au)
+  return Transport.quote({kind='transport',source=source,target=target,item=item,amount=n,order=true,stocked=true,routeAU=au},0)
+ end
+ for au,payment in pairs({[0]=500,[1]=680,[5]=1400}) do
+  assert(Transport.payment(quoted('nitrates',120,au))==payment,'30 m3 delivery price is incorrect')
+ end
+ local whole=quoted('nitrates',120,0);local half=copy(whole);half.amount=60
+ assert(Transport.payment(half)*2==Transport.payment(whole),'splitting cargo multiplied the handling fee')
+ local upgrade=world();local unbooked=post(upgrade,'nitrates',120,2);unbooked.routeAU=0;unbooked.layoutScope='economy'
+ local agreed=post(upgrade,'nitrates',120,2);agreed.routeAU=0;agreed.layoutScope='economy';agreed.state='reserved'
+ Transport.refreshOffers(upgrade,100)
+ assert(Transport.payment(unbooked)==500 and unbooked.npcClaimAt==130,'unclaimed listings did not receive new rates and listing window')
+ assert(Transport.payment(agreed)==240,'repricing changed an accepted contract')
+ local bundle=world();set(bundle,'nitrates',120);set(bundle,'steel_plate',120)
+ local first=Tasks.post(bundle,quoted('nitrates',60,1))
+ local second=Tasks.post(bundle,quoted('steel_plate',60,1))
+ first.npcClaimAt=30;second.npcClaimAt=30
+ local worker=trader('priced-freight');worker.ship.hull='ferrous_bison';bundle.npcs[worker.id]=worker
+ assert(not Tasks.choose(bundle,worker,target,0) and not Tasks.choose(bundle,worker,target,29),'NPC took a job during its public listing window')
+ local booked=assert(Tasks.choose(bundle,worker,target,30))
+ assert(#booked.manifest==2 and Transport.payment(booked)==680,'bundled orders received multiple handling fees')
+ local serialized=assert(require('src.save').decode(require('src.save').encode(booked)))
+ assert(Transport.payment(serialized)==680,'saved manifest changed its invoice')
+ assert(not def.complete(bundle,worker,booked,source,31) and booked.phase=='delivery')
+ assert(def.complete(bundle,worker,booked,target,32) and worker.credits==680,'NPC settlement disagrees with quote')
+ assert(def.complete(bundle,worker,booked,target,33) and worker.credits==680,'handling fee paid twice')
+ local fees,paid=0,0
+ for _,entry in ipairs(require('src.simulation_history').recent(bundle,{kind='freight_delivered'})) do
+  fees=fees+entry.result.handling;paid=paid+entry.result.payment
+ end
+ assert(fees==200 and paid==680,'history disagrees with the shipment invoice')
+ -- An old eligible root must not bundle a newly published companion early.
+ local delayed=world();local root=post(delayed,'rounds_s',10);local fresh=post(delayed,'airburst_s',10)
+ fresh.npcClaimAt=30;local r0=trader('listing-root');delayed.npcs[r0.id]=r0
+ assert(#assert(Tasks.choose(delayed,r0,target,0)).manifest==1 and fresh.state=='available','bundling bypassed listing delay')
  local u=world();local a=post(u,'rounds_s',50,2);local b=post(u,'airburst_s',50,4)
  local r=trader('freight-a');u.npcs[r.id]=r
  local t=copy(a);t.assigned=0

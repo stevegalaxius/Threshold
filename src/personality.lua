@@ -17,7 +17,7 @@ end
 -- reward and distance can outweigh convenience, but never station urgency.
 function P.freightScore(r,rate,au,remote)
  local drive=P.ensure(r).ambition*2-1
- local reward=(rate-T.freightCreditsPerUnit)/math.max(1,rate,T.freightCreditsPerUnit)
+ local reward=(rate-T.freightCreditsPerM3)/math.max(1,rate,T.freightCreditsPerM3)
  local distance=au/(1+au)
  return 1000000*(drive*(reward+distance)/2-(remote and (1-.5*drive) or 0))
 end

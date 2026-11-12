@@ -73,5 +73,44 @@ return function(game)
  require('data.industry').facilities.intaki_assembly.recipes=oldRecipes
  table.remove(C.list);C.byId[recipe.id]=nil
  market.dealer=oldDealer;data.stations[place.layout]=original
- print('DEALER PARKING: shared remote/live geometry, guest reserves, full-space blocking, resumption and saving passed')
+ -- Heaven-Ladder shares trade identity, but each anchor owns its parking.
+ game:loadField('mars');game:captureALife(true)
+ local ladder=require('src.fields').mars.ladderIds;local anchors,ships={},{}
+ D.state(game.universe,ladder[1]).lots={}
+ for i=1,4 do
+  anchors[i]=assert(game:findStation(ladder[1],i))
+  ships[i]=assert(game:addToHangar(anchors[i],'intaki_wisp'))
+  assert(game:hangar(anchors[i])[1]==ships[i] and #game:hangar(anchors[i])==1,'anchor duplicated another hangar roster')
+  assert(game:stationStorage(anchors[i])==game:stationStorage(anchors[1]),'anchor split the shared economy storage')
+ end
+ local a,b=anchors[1],anchors[2]
+ ships[1].loadout[1]=false
+ ships[1].bay=nil;ships[1].mooring=1
+ assert(game:mooringTaken(a,1) and not game:mooringTaken(b,1),'berth occupancy leaked between anchors')
+ ships[2].bay=nil;ships[2].mooring=1
+ assert(game:mooringTaken(a,1) and game:mooringTaken(b,1),'anchors cannot independently use the same berth number')
+ local Room=require('src.dock_room');local crowded={npcs={}}
+ local capacity=Room.capacity(ladder[1],'intaki_wisp')
+ assert(capacity<math.huge,'missing anchor docking capacity')
+ for i=1,capacity do crowded.npcs[i]={state='docked',node=ladder[1],ship={hull='intaki_wisp'}} end
+ local visitor={ship={hull='intaki_wisp'}}
+ assert(not Room.room(crowded,visitor,ladder[1]) and Room.room(crowded,visitor,ladder[2]),'offline anchor occupancy was combined')
+ local Queue,NPC=require('src.queue'),require('src.npc');local docksAt=NPC.docksAt
+ NPC.docksAt=function()return true end
+ local first,_,firstCapacity=Queue.chokepoint({route={ladder[1]}},1)
+ local second,_,secondCapacity=Queue.chokepoint({route={ladder[2]}},1)
+ NPC.docksAt=docksAt
+ assert(first==ladder[1] and second==ladder[2] and first~=second,'anchor queues share a booking key')
+ assert(firstCapacity==#a.docks and secondCapacity==#b.docks,'anchor queue combined every entrance')
+ assert(game:dockInstantly(game.player,anchors[3]),'player could not dock at third anchor')
+ assert(game.player.bayStation==ladder[3],'player parking identity lost its anchor')
+ local Save=require('src.save');local state=assert(Save.decode(Save.encode(game:saveState())))
+ game:loadState(state)
+ assert(game.player.dockState.station.accessIndex==3,'save/load docked player at wrong anchor')
+ a,b=game:findStation(ladder[1],1),game:findStation(ladder[1],2)
+ local firstShips,secondShips=game:hangar(a),game:hangar(b)
+ assert(#firstShips==1 and #secondShips==1 and firstShips[1]~=secondShips[1],'save/load merged anchor rosters')
+ assert(firstShips[1].loadout[1]==false and secondShips[1].loadout[1]~=false,'save/load moved ships between anchors')
+ assert(firstShips[1].mooring==1 and secondShips[1].mooring==1,'save/load lost independent berths')
+ print('DEALER PARKING: shared remote/live geometry, guest reserves, full-space blocking, resumption, independent anchor hangars/queues and saving passed')
 end

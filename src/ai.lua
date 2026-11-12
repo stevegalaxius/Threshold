@@ -218,10 +218,10 @@ end
 -- the hull instead, a step at a time round towards its target's bearing.
 -- Docking traders came in from behind and flew into the hull at speed;
 -- passing traffic cut across stations the same way.
-local function aroundStations(game, e, x, y, hx, hy)
+local function aroundStations(game, e, x, y, hx, hy, docking)
 	local margin = (e.halfLength or 100) + T.npcStationClearance
 	for _, st in ipairs(game.entities) do
-		if st.kind == "station" and not st.city and not st.removed and st.body then
+		if st.kind == "station" and st ~= docking and not st.city and not st.removed and st.body then
 			local cx, cy = st.body:getPosition()
 			local R = hullRadius(st) + margin
 			local dx, dy = hx - x, hy - y
@@ -248,6 +248,42 @@ local function aroundStations(game, e, x, y, hx, hy)
 	return hx, hy, false
 end
 AI.aroundStations = aroundStations
+
+-- A ship in a dock's runway corridor, inside the hull's circle, of a station
+-- it isn't docking at (just undocked, or passing through): the way out is
+-- the way in, straight down the axis to the marker. The Ring Station's dock
+-- sits deep in its horseshoe, and a hauler heading off from there for a far
+-- stop turned across the inside of the horseshoe and rammed its walls.
+local function outOfRunway(game, e, x, y, docking)
+	for _, st in ipairs(game.entities) do
+		if st.kind == "station" and st ~= docking and not st.city and not st.removed and st.body and (st.docks or st.dock) then
+			local cx, cy = st.body:getPosition()
+			local R = hullRadius(st)
+			if (x - cx) ^ 2 + (y - cy) ^ 2 < R * R then
+				local lx, ly = st.body:getLocalPoint(x, y)
+				for _, d in ipairs(st.docks or { st.dock }) do
+					local a = d.a or 0
+					local c, s = cos(a), sin(a)
+					local rx, ry = lx * c + ly * s - (d.xc or 0), -lx * s + ly * c - (d.yc or 0)
+					local px, py
+					if rx > d.x2 - 50 and math.abs(ry) < max(d.hw * 1.5, (rx - d.x2) * T.npcDockCone) then
+						px = max(d.x2 + d.runway * 1.5, R + (e.halfLength or 100) + T.npcDockMarker)
+					elseif e.bayExit == st then
+						-- just off a berth round the inside of the bay: out to the
+						-- middle of the bay first, onto the dock's axis
+						px = max(rx, d.x2 + d.runway) + 300
+					end
+					if px then
+						px, py = px + (d.xc or 0), d.yc or 0
+						return st.body:getWorldPoint(px * c - py * s, px * s + py * c)
+					end
+				end
+			elseif e.bayExit == st then e.bayExit = nil end
+		end
+	end
+end
+AI.outOfRunway = outOfRunway
+AI.hullRadius = hullRadius
 
 -- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
 -- strafe intent turns the hull), easing off when it isn't facing where
@@ -355,7 +391,15 @@ local function trade(game, e, dt)
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
-		if not queued then hx, hy = aroundStations(game, e, x, y, hx, hy) end
+		-- Once lined up in the cone it flies in to its own dock, which can sit
+		-- well inside the hull's circle (the Ring Station's is deep in the
+		-- horseshoe): steering round that station there turned it away from
+		-- the door every time and left it circling for ever.
+		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil
+		if not queued then
+			local ox, oy = outOfRunway(game, e, x, y, docking)
+			if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy, docking) end
+		end
 		if w and not stop.city and not stop.surfaceMine then
 			local rx,ry=x-w.x,y-w.y;local r=sqrt(rx*rx+ry*ry)
 			local safe=w.radius+min(T.surfacePullRange,w.radius*.5)+500

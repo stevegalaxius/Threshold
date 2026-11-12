@@ -45,7 +45,9 @@ Fractional input quantities use saved material credits. Farming, for example, co
 
 Station `reserves={item=quantity}` sets explicit local reserve floors. `D.reserves` and recipe `reserve` entries specify minimum service stock, either `minimum` units or `stacks`, an optional service requirement, producer exclusion, and an `openingMultiplier`. Ammunition uses two stacks at supplied customer stations; repair services retain their steel floor. Fuel retains its existing service floor.
 
-Factory input demand follows allocated capacity. Profit facilities can additionally retain enough inputs for the most demanding alternative recipe using `inputReserveScale`; alternative recipes are not added as if each owned the whole factory. Independent facilities' input reserves add together. The migrated chemical and ammunition facilities explicitly preserve their preceding reserve policies.
+Factory input demand follows allocated work and output room, using a half-hour operating buffer (`D.inputHours`, overridable per facility type or installation). Profit facilities keep a starter batch for each usable ingredient so an idle recipe can restart. Independent facilities’ buffers add together. Full output stores stop new input demand; farms allow for food consumed during the buffer interval. Dealerships order frames for their next selected assembly job.
+
+Factory consumption is tracked separately from service consumption. Past factory throughput cannot maintain a large input target after production stops; repair, ammunition and fuel service reserves still apply. Each economy update trims unclaimed excess freight when demand falls, preserving accepted shipments and cargo already in transit. Ordinary buyers can order up to twice their target, so the default operating buffer supports roughly 30–60 minutes of work. Fuel recipes use the same input allocation weight as other recipes.
 
 `openingInputs={item=hours}` on a facility type seeds input stock according to its most input-intensive recipe. Recipe `opening` supplies a default initial primary-output quantity. These are opening world stock, not periodic restocking.
 

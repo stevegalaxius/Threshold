@@ -2,6 +2,18 @@
 return function(game)
  local D,S,data=require('src.dealers'),require('src.stockpile'),require('src.data')
  local u={clock=0,stations={},npcs={},credits=10^7}
+ local L=require('src.locations')
+ for _,spec in ipairs({{'mercury','brute'},{'earth','ferrous'}}) do
+  local area,maker=spec[1],spec[2];local id='station:'..area..'_3'
+  assert(#L.stations(area)==3,'dedicated shipyard did not make three stations in '..area)
+  assert(D.def(id).assembly==maker..'_assembly','dealer did not move to its shipyard')
+  assert(not D.buildsShips('station:'..area..'_2'),'assembly remained at the old hub')
+  assert(require('src.travelgraph').itinerary('station:mars_3',id,0),'new shipyard is unreachable for frame freight')
+ end
+ assert(#L.stations('mars')==3,'Mars should retain Red Furnace, Zhongke and Heaven-Ladder')
+ assert(L.get('station:belt_2').layout=='shipyard_2','MACK did not use the supplied shipyard')
+ D.state(u,'station:belt_2').lots={}
+ for _,hull in ipairs(require('data.industry').lineups.mack) do assert(D.room(u,'station:belt_2',hull)>0,'MACK shipyard cannot park '..hull) end
  local hub='station:venus_1'
  local lots=D.lots(u,hub)
  assert(#lots==math.ceil(6*0.6),'dealer did not open part-stocked: '..#lots)
@@ -43,8 +55,8 @@ return function(game)
  -- Mars specializes: Heaven-Ladder supplies frames through real freight.
  local C,E,Tasks=require('src.commodities'),require('src.economy'),require('src.tasks')
  local ladder='station:mars_3';local weaponWorks='station:mars_2'
- assert(C.byId.assemble_hull_frames.make[ladder]==6 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
- assert(C.byId.roll_steel.make[ladder]==120 and C.byId.press_canisters.make[ladder]==12000,'basic industry did not move intact')
+ assert(C.byId.assemble_hull_frames.make[ladder]==10 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
+ assert(C.byId.roll_steel.make[ladder]==480 and C.byId.press_canisters.make[ladder]==12000,'basic industry did not move intact')
  assert(C.byId.make_rounds_s.make[weaponWorks]==24 and not C.byId.make_rounds_s.make[works],'ammunition did not consolidate at Zhongke')
  local chain={clock=0,stations={},npcs={}}
  local dealer=D.state(chain,works);dealer.lots={}
@@ -132,7 +144,7 @@ return function(game)
  -- Consecutive real executor updates must build the middle lineup entry too.
  do
   local Industry=require('src.industry');local q={clock=0,stations={},npcs={}}
-  local factory='station:mercury_2';local stock=D.state(q,factory);stock.lots={};stock.wholesaleAt=1e12
+  local factory='station:mercury_3';local stock=D.state(q,factory);stock.lots={};stock.wholesaleAt=1e12
   local room,output=D.room,D.output;local completed={}
   D.room=function()return 1 end
   D.output=function(_,_,hull,n)

@@ -1801,10 +1801,9 @@ function Game:spawnHeavenLadder(cx, cy, R)
 			cx + ux * top - nx * tw, cy + uy * top - ny * tw,
 			cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
 		}, { role = "tether" })
-		-- one station, four access points: they share its location ID and
-		-- key (so its storage, hangar and market), and Game:locationEntity
-		-- picks the nearest when given a position. The first is bound to the
-		-- location; the rest hold still where they are.
+		-- One economic station, four physical access locations. The canonical
+		-- key shares storage and markets; hangars use each access location ID.
+		-- Game:locationEntity picks the nearest when given a position.
 		local ids = self.field and self.field.ladderIds
 		local id = ids and ids[i + 1]
 		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0, false, id)

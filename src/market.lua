@@ -154,7 +154,7 @@ function Game:updateRepairs(st)
   if order.remaining<1e-6 or maximum-owner.armor<1e-6 or budget<=points+1e-6 then owner.repairOrder=nil end
  end
  work(self.player)
- for _,owner in ipairs(self:stationRecord(st).hangar) do work(owner) end
+ for _,owner in ipairs(self:stationParkingRecord(st).hangar) do work(owner) end
 end
 
 function Game.marketDefinition(st) return Stock.definition(st) end
@@ -292,7 +292,7 @@ end
 
 -- Plan parking on an isolated roster so sold ships can free space for purchases.
 local function shipPlan(game,st,buying,selling)
- local original=game:stationRecord(st);local roster,sold,planned={},{},{}
+ local original=game:stationParkingRecord(st);local roster,sold,planned={},{},{}
  for _,s in ipairs(selling) do if ShipEntry.item(s.id) then
   local found=false
   for _,rec in ipairs(original.hangar) do if rec==s.shipRecord then found=true end end
@@ -303,7 +303,7 @@ local function shipPlan(game,st,buying,selling)
   local c={};for k,v in pairs(rec) do c[k]=v end;roster[#roster+1]=c
  end end
  local record={hangar=roster,moorings=original.moorings}
- local proxy=setmetatable({stationRecord=function() return record end},{__index=game})
+ local proxy=setmetatable({stationParkingRecord=function() return record end},{__index=game})
  for _,s in ipairs(buying) do local item=ShipEntry.item(s.id);if item then
   local available=false;for _,lot in ipairs(require('src.dealers').lots(game.universe,st)) do if lot.hull==item.hull then available=true end end
   if not available then return nil,'SHIP NO LONGER FOR SALE' end
@@ -356,7 +356,7 @@ function Game:completeTrade(st, trade)
   local e=Ship.new(self,{hull=purchase.hull,team=1,grid=true})
   local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,purchase.parking);records[#records+1]=rec
  end
- local roster=self:stationRecord(st).hangar
+ local roster=self:stationParkingRecord(st).hangar
  for i=#roster,1,-1 do if plan.sold[roster[i]] then table.remove(roster,i) end end
  for _,rec in ipairs(records) do roster[#roster+1]=rec end
  local shopIndex = self:currentShop(st)
@@ -446,7 +446,7 @@ end
 function Game:shipBuyProblem(st, lot, tradeIn)
 	if not lot or not require("src.dealers").find(self.universe, st, lot.id) then return "NO LONGER FOR SALE" end
  if tradeIn then
-  local owned=false;for _,rec in ipairs(self:stationRecord(st).hangar) do if rec==tradeIn then owned=true end end
+  local owned=false;for _,rec in ipairs(self:stationParkingRecord(st).hangar) do if rec==tradeIn then owned=true end end
   if not owned then return 'NO SUCH SHIP' end
  end
 	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0

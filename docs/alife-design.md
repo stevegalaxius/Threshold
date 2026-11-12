@@ -122,7 +122,7 @@ Build this after fights and wrecks exist (build step 3), because before that the
 | Online vs offline pirate prey | Same rules | Online `security.lua` picks prey by `ai.style=="trader"`, offline `encounters.lua` also targets miners and patrols | Audit item. Check whether PR #37 fully closed it |
 | Fight log | `fight_log` on records | Not built | Needed for task generation |
 
-| Job board scope | All NPC work uses task handlers; player access planned | Board supports freight, mining, salvage, patrol and raid; police duties require authorization | Player access remains future work |
+| Job board scope | All NPC work uses task handlers; player access planned | Board supports freight, mining, salvage, patrol and raid; police duties require authorization. Players can accept global sourced freight orders at stations. | See [Player contracts](player-contracts.md); other NPC duties need player completion/reward definitions |
 
 ## Open questions
 

@@ -210,7 +210,7 @@ T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
 T.directLinkAngle=math.pi*2/3 -- NPCs fly straight (round the planet) between ordinary nodes up to this far apart;
 -- kept well short of half the planet, where 'which way round' flips frame to frame
 T.ramAggroShare=.15 -- a ram this share of max armour (or more) makes the victim hostile
-T.npcIdleRoam=60 -- seconds with no work before an NPC roams to another node of its job
+T.npcIdleHomeDelay=60 -- seconds without work before returning to the assigned home station
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 -- Offline combat rule (encounters.lua): pirates attack only at these odds or
@@ -350,8 +350,10 @@ T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
-T.freightCreditsPerUnit=2 -- base payment per delivered unit
-T.freightCreditsPerAU=1 -- additional credits per AU per delivered unit
+T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
+T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
+T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
+T.freightListingSeconds=30 -- public listing before NPC reservation
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

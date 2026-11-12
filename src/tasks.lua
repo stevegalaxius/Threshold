@@ -79,7 +79,7 @@ end
 function Tasks.clean(u,clock)
  for _,r in pairs(u.npcs or {}) do Tasks.resolve(u,r) end
  for _,o in pairs(Tasks.state(u).offers) do
-  local r=o.owner and u.npcs[o.owner]
+  local r=o.owner=='player' and Tasks.state(u).player or o.owner and (u.npcs or {})[o.owner]
   local task=r and (r.task or r.suspendedTask)
   if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not task or task.id~=(o.manifestRoot or o.id)) then
    if o.loaded then Tasks.state(u).offers[o.id]=nil
@@ -97,7 +97,7 @@ function Tasks.choose(u,r,station,clock)
  local capabilities=Access.capabilities(r)
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
-  if o.state=='available' and (o.readyAt or 0)<=clock and def
+  if o.state=='available' and (o.readyAt or 0)<=clock and (o.npcClaimAt or 0)<=clock and def
    and Access.eligible(r,o,capabilities)
    and Access.eligible(r,def,capabilities)
    and (Work.weight(r,o.kind) or 1)>0

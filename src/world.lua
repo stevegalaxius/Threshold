@@ -70,6 +70,16 @@ function Game:stationRecord(st)
 	return r
 end
 
+-- Economy/storage use the canonical station; physical parking uses its anchor.
+function Game:stationParkingRecord(st)
+ local record=self:stationRecord(st)
+ local access=st.locationId or st.key
+ if access==st.key then return record end
+ record.accessHangars=record.accessHangars or {}
+ record.accessHangars[access]=record.accessHangars[access] or {hangar={}}
+ return record.accessHangars[access]
+end
+
 -- access: which access point of a station that has several (the
 -- Heaven-Ladder's anchors); left out, the first found.
 function Game:findStation(key, access)
@@ -140,7 +150,7 @@ function Game:dockInstantly(e, st, placement)
  if parking and parking.bay and not self:fitsDock(e,d) then
   for _,candidate in ipairs(st.docks or {st.dock}) do if self:fitsDock(e,candidate) then d=candidate;break end end
  end
- self:applyParking(e,parking);e.bayStation=st.key
+ self:applyParking(e,parking);e.bayStation=st.locationId or st.key
 	e.dockState = { station = st, phase = "done", done = true, t = 0, dock = d, side = side, berth = berth,
 		mooring = berth and self:berthPose(st, berth, e.hull.id) or nil }
  for i,candidate in ipairs(st.docks or {st.dock}) do if candidate==d then e.dockState.dockIndex=i end end
@@ -158,7 +168,7 @@ function Game:dockInstantly(e, st, placement)
 	if e == self.player then
 		self.state = "docked"
 		self.camera.x, self.camera.y = e.body:getPosition()
-		if parking then self:applyParking(e,parking);e.bayStation=st.key else self:givePlayerBay(st) end
+		if parking then self:applyParking(e,parking);e.bayStation=st.locationId or st.key else self:givePlayerBay(st) end
 	end
  return true
 end
@@ -209,7 +219,8 @@ end
 -- Physical occupancy includes dealer stock without granting player ownership.
 function Game:stationRoster(st)
  local list={}
- for _,rec in ipairs(self:stationRecord(st).hangar) do list[#list+1]=rec end
+ for _,rec in ipairs(self:stationParkingRecord(st).hangar) do list[#list+1]=rec end
+ if st.locationId and st.locationId~=st.key then return list end
  local key=require('src.stockpile').key(st)
  local dealer=self.universe.dealers and self.universe.dealers[key]
  if not dealer then dealer=require('src.dealers').state(self.universe,st) end
@@ -217,7 +228,7 @@ function Game:stationRoster(st)
  return list
 end
 function Game:hangar(st)
- local list=self:stationRecord(st).hangar
+ local list=self:stationParkingRecord(st).hangar
  for _,rec in ipairs(self:stationRoster(st)) do
   if rec.bay and not self:hangarFree(st,rec,rec.hull,rec.bay) then rec.bay=nil end
   if rec.mooring and not self:mooringFits(st,rec.mooring,rec.hull,rec) then rec.mooring=nil end
@@ -261,7 +272,7 @@ function Game:hangarGrid(st, ignore)
 	end
 	for _, rec in ipairs(self:stationRoster(st)) do put(rec, rec.hull, rec.bay) end
 	for _,e in ipairs(self.entities) do
-		if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station.key==st.key then
+		if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station==st then
 			put(e,e.hull.id,e.bay)
 		end
 	end
@@ -296,8 +307,8 @@ end
 -- not on the grid.
 function Game:givePlayerBay(st)
  local p=self.player
- if p.bayStation==st.key and self:shipParkingValid(st,p,p.hull.id) then return end
- p.bayStation=st.key
+ if p.bayStation==(st.locationId or st.key) and self:shipParkingValid(st,p,p.hull.id) then return end
+ p.bayStation=st.locationId or st.key
  local ds=p.dockState
  local selected
  if ds and ds.berth then
@@ -346,7 +357,7 @@ function Game:flyFromHangar(i)
  self:applyParking(old,oldParking)
  list[i]=old
  local ship=self:spawnPlayer(rec)
- self:applyParking(ship,newParking);ship.bayStation=st.key
+ self:applyParking(ship,newParking);ship.bayStation=st.locationId or st.key
  self:dockInstantly(ship,st,self:parkingPlacement(st,newParking))
 	events.emit("swapship", ship, st)
 	return true
@@ -447,9 +458,14 @@ function Game:saveState()
 	for key, r in pairs(self.universe.stations) do
 		local hangar = {}
 		for _, rec in ipairs(r.hangar) do table.insert(hangar, saveShip(rec)) end
+  local accessHangars={}
+  for id,parking in pairs(r.accessHangars or {}) do
+   local ships={};for _,rec in ipairs(parking.hangar) do ships[#ships+1]=saveShip(rec) end
+   accessHangars[id]={hangar=ships,moorings=Persistence.copy(parking.moorings)}
+  end
 		local shops = {}
 		for i, m in pairs(r.shops or {}) do shops[i] = saveShop(m) end
-		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial, food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),shortages=Persistence.copy(r.shortages) }
+		stations[key] = { storage = Hold.serialize(r.storage), hangar = hangar, accessHangars=accessHangars, shops = shops, shop = r.shop, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial, food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),shortages=Persistence.copy(r.shortages) }
 	end
 	local u = self.universe
 	-- saved mid-lane: you load back into the same lane (state.trip), where
@@ -545,10 +561,15 @@ function Game:loadState(state)
 	for key, r in pairs(state.stations or {}) do
 		local hangar = {}
 		for _, t in ipairs(r.hangar or {}) do table.insert(hangar, loadShip(t)) end
+  local accessHangars={}
+  for id,parking in pairs(r.accessHangars or {}) do
+   local ships={};for _,rec in ipairs(parking.hangar or {}) do ships[#ships+1]=loadShip(rec) end
+   accessHangars[id]={hangar=ships,moorings=Persistence.copy(parking.moorings)}
+  end
 		self.universe.stations[key] = {
 			storage = r.storage and Hold.deserialize(r.storage, known)
 				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
-			hangar = hangar, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),shortages=Persistence.copy(r.shortages),
+			hangar = hangar, accessHangars=accessHangars, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),shortages=Persistence.copy(r.shortages),
 			shop = r.shop,
 		}
 		-- shops; a save from before shops had one market, which is shop 1

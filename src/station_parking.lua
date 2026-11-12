@@ -17,7 +17,7 @@ return function(Game)
   return h.w or T.hangarW,h.h or T.hangarH
  end
  function Game:stationMoorings(st)
-  local r=self:stationRecord(st)
+  local r=self:stationParkingRecord(st)
   r.moorings=r.moorings or {}
   for i,b in ipairs(st.def.berths or {}) do
    local slot=r.moorings[i] or {};r.moorings[i]=slot

@@ -179,18 +179,18 @@ function D.frameTarget(u,key)
  local def=D.def(key);if not def or not def.assembly then return 0 end
  local installation=require('src.industry').installations(key)[def.assembly]
  if not installation then return 0 end
- local s=D.state(u,key);local maximum,slots=0,0
- for _,id in ipairs(require('src.industry').definition(def.assembly,installation).recipes) do
-  local recipe=require('src.commodities').byId[id]
-  local room=D.room(u,key,recipe.outputs[1].hull)
-  if room>0 then
-   slots=math.max(slots,room)
-   for _,input in ipairs(require('src.commodities').inputs(recipe)) do if input.item==D.FRAME then maximum=math.max(maximum,input.n) end end
-  end
- end
- return math.min(math.max(0,(def.lots or 6)-#s.lots),slots)*maximum
+ local I,C=require('src.industry'),require('src.commodities')
+ local selected=I.job(u,key,def.assembly,I.definition(def.assembly,installation))
+ local recipe=C.byId[selected]
+ if not recipe or D.room(u,key,recipe.outputs[1].hull)<1 then return 0 end
+ for _,input in ipairs(C.inputs(recipe)) do if input.item==D.FRAME then return math.ceil(input.n) end end
+ return 0
 end
 function D.lots(u, st)
+ -- Sale stock is physically parked at the primary anchor, not cloned at
+ -- every access point that shares the station's market.
+ local id=type(st)=='table' and (st.locationId or st.key) or st
+ if require('src.locations').canonical(id)~=id then return {} end
 	local s = D.state(u, st)
 	return s and s.lots or {}
 end
