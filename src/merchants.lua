@@ -18,9 +18,11 @@
 	  flavour   each house belongs to a faction and trades like it: its
 	            thresholds, lot size, reach and appetite differ, and it
 	            prefers to sell into its own faction's stations.
-	  money     every house has credits; a house that goes broke on bad
-	            bets winds up and reopens later with its start capital.
-	            Its flows are booked on the economy ledger under its id.
+	  money     every house has credits. A house that goes broke on bad
+	            bets turns insolvent: it stops buying and fire-sells its
+	            stock until it recovers, or someone bails it out
+	            (M.bailout). Its flows are booked on the economy ledger
+	            under its id.
 
 	Runs on the universe table alone (offline too), from Economy.update.
 ]]
@@ -38,15 +40,15 @@ M.exchange='station:ring_1'
 -- warehouse; reach: 'own' sells only into its faction's stations, 'any'
 -- sells anywhere (own faction first).
 M.houses={
- {id='house:triton',faction='neptune',name='The Triton Syndicate',
-  -- Neptune's own: the outer system's money. No territory to protect, so
+ {id='house:triton',faction='neptune',name='Black Hexagon Group',
+  -- Neptune's corporation: the outer system's money. No territory to protect, so
   -- they go anywhere, buy deep and sell only into real pain.
   warehouses={'station:triton_1'},buyBelow=.7,sellAbove=1.8,lot=120,hold=600,reach='any',capital=400000},
  {id='house:estates',faction='estates',name='Venusian Trust',
   -- old money: patient hoarders, big positions, sell late and only at home
   warehouses={'station:venus_1'},buyBelow=.8,sellAbove=1.6,lot=200,hold=1200,reach='own',capital=900000},
- {id='house:diwan',faction='diwan',name='House of Weights',
-  -- the Diwan's assayers: small, frequent, careful arbitrage
+ {id='house:diwan',faction='diwan',name='Hyrum & Cohen',
+  -- the Diwan's merchant bankers: small, frequent, careful arbitrage
   warehouses={'station:saturn_3'},buyBelow=.75,sellAbove=1.3,lot=60,hold=300,reach='any',capital=300000},
 }
 M.byId={};for _,h in ipairs(M.houses) do M.byId[h.id]=h end
@@ -154,10 +156,8 @@ function M.update(u,clock)
  for _,area in ipairs(Fields.list) do for _,id in ipairs(L.stations(area,'trade')) do stations[#stations+1]=id end end
  for _,h in ipairs(M.houses) do
   local rec=s.houses[h.id]
-  if rec.closedUntil and clock<rec.closedUntil then goto continue end
-  rec.closedUntil=nil
   for _,item in ipairs(items) do
-   for _,site in ipairs(sites(h)) do buy(u,h,rec,site,item,clock) end
+   if not rec.insolvent then for _,site in ipairs(sites(h)) do buy(u,h,rec,site,item,clock) end end
    -- own faction first, then (if it reaches) everyone else
    local own,other={}, {}
    for _,id in ipairs(stations) do
@@ -165,14 +165,34 @@ function M.update(u,clock)
    end
    for _,list in ipairs({own,other}) do for _,id in ipairs(list) do sell(u,h,rec,id,item,clock) end end
   end
-  -- broke: nearly out of cash and nothing sold for a long while (its
-  -- stock bought too dear to move). The stock is written off and the
-  -- house reopens later with its start capital.
-  if rec.credits<h.capital*T.merchantBankrupt and clock-(rec.lastSale or clock)>T.merchantStale then
-   rec.stock={};rec.credits=h.capital;rec.lastSale=clock+T.merchantReopen;rec.closedUntil=clock+T.merchantReopen;rec.failures=(rec.failures or 0)+1
-   require('src.simulation_history').note(u,'merchant_failed',clock,nil,{},{house=h.id})
+  -- Insolvent: nearly out of cash and nothing sold for a long while (its
+  -- stock bought too dear to move). It stays in business, which is the
+  -- point: it stops buying and dumps stock at any price over list to
+  -- raise cash, and the quest layer can pick that up (a fire sale to
+  -- profit from, creditors to settle, a rescue: M.bailout). It recovers
+  -- once its cash is back over merchantRecover of its capital.
+  if not rec.insolvent and rec.credits<h.capital*T.merchantBankrupt and clock-(rec.lastSale or clock)>T.merchantStale then
+   rec.insolvent=clock;rec.failures=(rec.failures or 0)+1
+   require('src.simulation_history').note(u,'merchant_insolvent',clock,nil,{},{house=h.id,credits=rec.credits})
+   require('src.events').emit('merchant_insolvent',h.id,rec)
+  elseif rec.insolvent and rec.credits>=h.capital*T.merchantRecover then
+   rec.insolvent=nil
+   require('src.simulation_history').note(u,'merchant_recovered',clock,nil,{},{house=h.id,credits=rec.credits})
+   require('src.events').emit('merchant_recovered',h.id,rec)
   end
-  ::continue::
  end
+end
+-- Someone (the player, a faction, a quest) puts credits into a house.
+function M.bailout(u,id,credits)
+ local rec=M.state(u).houses[id];if not rec or credits<=0 then return false end
+ rec.credits=rec.credits+credits;rec.lastSale=u.clock
+ require('src.economy').ledger(u,id,'bailout',credits)
+ return true
+end
+-- Houses currently insolvent: { {house=def, record=rec}, ... }
+function M.insolvent(u)
+ local out={}
+ for _,h in ipairs(M.houses) do local rec=M.state(u).houses[h.id];if rec.insolvent then out[#out+1]={house=h,record=rec} end end
+ return out
 end
 return M

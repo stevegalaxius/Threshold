@@ -61,6 +61,10 @@ function Transport.quote(t,clock,u)
  if t.creditsPerUnit==nil then
   local volume=t.item and data.items[t.item] and data.items[t.item].volume or 1
   local base=volume*(T.freightCreditsPerM3+t.routeAU*T.freightCreditsPerM3AU)
+  -- valuable cargo pays more to carry (the courier carries the risk)
+  local d=t.item and data.items[t.item]
+  local worth=t.commodityBuyPrice or (d and d.price) or 0
+  base=base+worth*T.freightValueShare
   t.premiumPerUnit=u and Transport.premium(u,t,base,clock) or 0
   t.creditsPerUnit=base+t.premiumPerUnit
   if t.handlingPerUnit==nil then

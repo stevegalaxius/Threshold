@@ -376,11 +376,16 @@ T.priceCrisisMax=3
 T.makerDiscount=.1
 -- merchant houses (src/merchants.lua): how often they trade; a house
 -- under merchantBankrupt of its capital that has sold nothing for
--- merchantStale seconds fails, and reopens merchantReopen later
+-- merchantStale seconds turns insolvent, sells at anything over
+-- merchantFireSale x list, and recovers at merchantRecover of capital
 T.merchantTick=300
 T.merchantBankrupt=.1
 T.merchantStale=6*3600
-T.merchantReopen=12*3600
+T.merchantFireSale=1
+T.merchantRecover=.3
+-- freight pay also covers the cargo's worth: this share of its value
+-- (live market price, else list) per unit carried
+T.freightValueShare=.05
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
