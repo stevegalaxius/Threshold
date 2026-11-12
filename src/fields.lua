@@ -585,6 +585,8 @@ function Fields.configureLocations(area)
         place.services,place.facilities=entry.services,entry.facilities
         place.food=entry.food
         place.reserves=entry.reserves
+        -- a logistics hub: its planet's depot and trunk-freight terminal
+        place.hub=entry.hub
         place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}
         for purpose,enabled in pairs(entry.uses or {}) do place.uses[purpose]=enabled end
     end

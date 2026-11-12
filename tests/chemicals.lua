@@ -30,7 +30,8 @@ return function(game)
  assert(require('src.industry').state(u,plant,'chemicals').mix.make_fertilizer>.9,'factory did not respond to the fertilizer shortage')
  local fertilizerOrder=false
  for _,o in pairs(Tasks.state(u).offers) do
-  if o.item=='fertilizer' and o.target==farm then
+  -- Callisto to Earth goes through Jovian Logistics first
+  if o.item=='fertilizer' and (o.target==farm or o.target==E.hubFor(farm) or o.target==E.hubFor(plant)) then
    fertilizerOrder=true;assert(o.commodityBuyPrice and o.commoditySellPrice,'chemical freight omitted cargo quotes')
   end
  end

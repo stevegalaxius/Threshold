@@ -20,6 +20,11 @@ local D={recipes={
  -- welding hull frames for a manufacturer's dealer lot (src/dealers.lua)
  {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=36,input={item='steel_plate',n=6}},
  -- Refined local resources: abstract station extraction, no extra ore chain.
+ -- Water: every station drinks it (world_layout defaults.waterUse); Ceres
+ -- melts ice for it, and the ice moons pump it straight from their oceans.
+ {id='use_water',market=false,item='water',cap=200},
+ {id='melt_water',item='water',opening=0,cap=1200,input={item='water_ice',n=1}},
+ {id='pump_water',group='resources',item='water',opening=0,cap=1200},
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
@@ -64,6 +69,9 @@ for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
 end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.facilities={
+ water={policy='fixed',recipes={'use_water'}},
+ water_melter={policy='fixed',recipes={'melt_water'}},
+ water_wells={policy='fixed',recipes={'pump_water'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},

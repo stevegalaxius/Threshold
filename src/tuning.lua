@@ -354,6 +354,8 @@ T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
+T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
+T.trunkMinHold=200 -- hold a ship needs to take trunk runs
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,
