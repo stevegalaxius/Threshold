@@ -385,6 +385,9 @@ T.merchantFireSale=1
 T.merchantRecover=.3
 -- the markup a house wants over what it paid before it will sell
 T.merchantMargin=.15
+-- adaptive plants (fuel, canisters...) speed up while all trade stations
+-- together hold less than this many times their combined target
+T.adaptiveCushion=1.5
 -- freight pay also covers the cargo's worth: this share of its value
 -- (live market price, else list) per unit carried
 T.freightValueShare=.05

@@ -115,16 +115,29 @@ local function supportsSupplies(id) return require('src.supplies').supports(id) 
 -- speeds up while buyers of what it makes go short and it ships all it
 -- makes, and slows down while its own stock sits unwanted (E.adjust).
 function E.scale(u,key,c) return require('src.industry').scale(u,key,c) end
-local function adjust(u,unmet)
+-- Whether the whole system is running down its stock of an item: all the
+-- trade stations together hold less than T.adaptiveCushion times what
+-- they want. A maker whose own shelf is full while everyone else drains
+-- (the stock just hasn't been hauled away yet) must not throttle down.
+local function draining(u,item,all)
+ local have,want=0,0
+ for _,s in ipairs(all) do have=have+Stock.count(u,s,item);want=want+E.target(u,s,item) end
+ return want>0 and have<want*T.adaptiveCushion
+end
+local function adjust(u,unmet,all)
  u.industry=u.industry or {}
+ local low={}
  for _,c in ipairs(C.list) do
   if c.adaptive then
+  if low[c.item]==nil then low[c.item]=all and draining(u,c.item,all) or false end
   for key in pairs(c.make) do
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
-   -- stock piling up here always slows it, whatever anyone else is short of
-   if have>=E.lot*2 then v=v*(1-E.scaleStep)
+   -- the system is running short: make more, unless its own storage is full
+   if low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+   -- stock piling up here slows it while the system is comfortable
+   elseif have>=E.lot*2 then v=v*(1-E.scaleStep)
    -- Unsupplied demand must propagate upstream even while inputs are scarce.
    elseif (unmet[c.item] or 0)>0 and have<E.lot then v=v*(1+E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
@@ -407,7 +420,7 @@ function E.update(u,clock)
   end
  end
  u.economyUnmet=unmet
- adjust(u,unmet)
+ adjust(u,unmet,all)
  planning=nil;hubPlan=nil
  -- the speculators read the prices this update settled
  require('src.merchants').update(u,clock)
