@@ -826,6 +826,7 @@ end
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
 -- planet's field so you can see which way it drags you.
 
+local cloudBands = {}
 local function drawPlanet(game, e)
 	local x, y = e.body:getPosition()
 	local R, c = e.radius, e.hue
@@ -891,23 +892,33 @@ local function drawPlanet(game, e)
 	end
 	lg.setColor(c[1] * 0.35, c[2] * 0.35, c[3] * 0.4)
 	lg.draw(disc(floor(R)), x, y)
-	-- cloud bands, clipped to the disc
+	-- cloud bands, clipped to the disc (triangulated once per radius:
+	-- love.math.triangulate every frame was the planet's main cost)
 	lg.setColor(c[1] * 0.45, c[2] * 0.45, c[3] * 0.5)
-	for k = -2, 2 do
-		local y1, y2 = k * R * 0.3 - R * 0.05, k * R * 0.3 + R * 0.05
-		local pts = {}
-		for i = 0, 32 do
-			local yy = y1 + (y2 - y1) * i / 32
-			pts[#pts + 1] = x + sqrt(max(0, R * R - yy * yy)) * 0.98
-			pts[#pts + 1] = y + yy
+	local bands = cloudBands[R]
+	if not bands then
+		bands = {}
+		for k = -2, 2 do
+			local y1, y2 = k * R * 0.3 - R * 0.05, k * R * 0.3 + R * 0.05
+			local pts = {}
+			for i = 0, 32 do
+				local yy = y1 + (y2 - y1) * i / 32
+				pts[#pts + 1] = sqrt(max(0, R * R - yy * yy)) * 0.98
+				pts[#pts + 1] = yy
+			end
+			for i = 32, 0, -1 do
+				local yy = y1 + (y2 - y1) * i / 32
+				pts[#pts + 1] = -sqrt(max(0, R * R - yy * yy)) * 0.98
+				pts[#pts + 1] = yy
+			end
+			for _, t in ipairs(love.math.triangulate(pts)) do bands[#bands + 1] = t end
 		end
-		for i = 32, 0, -1 do
-			local yy = y1 + (y2 - y1) * i / 32
-			pts[#pts + 1] = x - sqrt(max(0, R * R - yy * yy)) * 0.98
-			pts[#pts + 1] = y + yy
-		end
-		for _, t in ipairs(love.math.triangulate(pts)) do lg.polygon("fill", t) end
+		cloudBands[R] = bands
 	end
+	lg.push()
+	lg.translate(x, y)
+	for _, t in ipairs(bands) do lg.polygon("fill", t) end
+	lg.pop()
 	lg.setColor(c[1], c[2], c[3], 0.9)
 	lg.setLineWidth(outline(3))
 	lg.circle("line", x, y, R, PLANET_SEGMENTS)

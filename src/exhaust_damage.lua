@@ -38,7 +38,16 @@ local function overlaps(triangle,fixture)
  end
  return false
 end
+-- Run at 40 Hz with the time since the last pass, not every 120 Hz step:
+-- the same damage per second, at a third of the fixture queries (every
+-- burning engine queries the world, which adds up with hundreds of ships).
+local EVERY=3
 function Exhaust.update(game,dt)
+ game.exhaustSteps=(game.exhaustSteps or 0)+1
+ game.exhaustTime=(game.exhaustTime or 0)+dt
+ if game.exhaustSteps<EVERY then return end
+ dt=game.exhaustTime
+ game.exhaustSteps,game.exhaustTime=0,0
  for _,source in ipairs(game.entities) do
   if source.kind=='ship' and not source.dead and not source.removed and not source.dockState
    and (source.mainBurn or 0)>.05 and source.body:isActive() then

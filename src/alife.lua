@@ -942,12 +942,50 @@ function A.install(Game)
    self.alifeActiveArea=nil
   end
  end
+
+ -- one record's offline visit (see updateALife)
+ function Game:alifeVisit(id,r,clock,px,py,remote,force)
+   -- (a record the map ahead has woken is that map's: src/transit.lua)
+   if not self.alifeOnline[id] and not (self.sideOwns and self:sideOwns(id)) then
+    local localArea=r.area==self.fieldId and not self.lane and not self.flight
+    if localArea or A.laneDirection(self,r) or remote then A.advance(r,clock,self.universe,self) end
+    local lane=A.laneSample(self,r,clock)
+    local egress=A.egressSample(self,r,clock)
+    localArea=r.area==self.fieldId and not self.lane and not self.flight
+    if px and (egress or lane or localArea and r.state~='dead' and r.state~='escaped' and r.state~='transit') then
+     local x,y
+     if egress then x,y=egress.x,egress.y elseif lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
+     local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
+     -- Existing records must become physical when nearby, even on-screen
+     -- (for example after teleporting). Population handles new spawn placement.
+     if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
+    end
+   end
+ end
+ function Game:alifeSweepStep(count)
+  local sweep=self.alifeSweep
+  if not sweep then return end
+  local records=self.universe.npcs or {}
+  local clock=self.universe.clock
+  local px,py
+  if self.player and not self.player.dead and self.player.body and not self.player.body:isDestroyed() then px,py=self.player.body:getPosition() end
+  local ids,n=sweep.ids,0
+  while sweep.i<=#ids and n<count do
+   local id=ids[sweep.i];sweep.i=sweep.i+1
+   local r=records[id]
+   if r then n=n+1;self:alifeVisit(id,r,clock,px,py,sweep.remote,sweep.force) end
+  end
+  if sweep.i>#ids then self.alifeSweep=nil end
+ end
  function Game:updateALife(force)
   if self.preview then return end
   self.alifeActiveArea=self.fieldId
   self.alifeOnline=self.alifeOnline or {}
   local clock=self.universe.clock
-  if not force and clock<(self.alifeNext or 0) then return end
+  if not force and clock<(self.alifeNext or 0) then
+   if self.alifeSweep then self:alifeSweepStep(self.alifeSweep.per) end
+   return
+  end
   self.alifeNext=clock+T.alifeLocalTick
   Mining.update(self)
   Population.update(self,clock)
@@ -1009,24 +1047,17 @@ function A.install(Game)
     self.alifeOnline[id]=nil
    end
   end
-  for id,r in pairs(records) do
-   -- (a record the map ahead has woken is that map's: src/transit.lua)
-   if not self.alifeOnline[id] and not (self.sideOwns and self:sideOwns(id)) then
-    local localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if localArea or A.laneDirection(self,r) or force or clock>=(self.alifeRemoteNext or 0) then A.advance(r,clock,self.universe,self) end
-    local lane=A.laneSample(self,r,clock)
-    local egress=A.egressSample(self,r,clock)
-    localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if px and (egress or lane or localArea and r.state~='dead' and r.state~='escaped' and r.state~='transit') then
-     local x,y
-     if egress then x,y=egress.x,egress.y elseif lane then x,y=lane.x,lane.y else x,y=A.point(r,clock) end
-     local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
-     -- Existing records must become physical when nearby, even on-screen
-     -- (for example after teleporting). Population handles new spawn placement.
-     if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
-    end
-   end
-  end
+  -- Every offline record is visited once per tick: advanced along its
+  -- track, and woken if it has come near. Hundreds of records all at once
+  -- made one step in every 60 a long one, a visible hitch, so the visits
+  -- are spread over the steps until the next tick. (force: all now.)
+  local remoteDue=force or clock>=(self.alifeRemoteNext or 0)
+  local sweep=self.alifeSweep
+  if sweep then self:alifeSweepStep(math.huge) end -- finish the last one first
+  local ids={}
+  for id in pairs(records) do ids[#ids+1]=id end
+  self.alifeSweep={ids=ids,i=1,remote=remoteDue,force=force,per=force and math.huge or math.max(1,math.ceil(#ids*T.alifeSweepStep/T.alifeLocalTick))}
+  self:alifeSweepStep(self.alifeSweep.per)
   Encounters.syncOnline(self)
   Encounters.update(self,clock)
   Encounters.materialize(self,px,py,clock)

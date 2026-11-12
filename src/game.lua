@@ -1920,6 +1920,8 @@ function Game:setPlayerIntent(intent)
 end
 
 function Game:step(dt)
+	-- one stamp per step: per-step caches (src/local_navigation.lua) key on it
+	self.navStamp = (self.navStamp or 0) + 1
 
 	if self.flight then self:updateFlight(dt); self:updateALife(); return end
 	self.time = self.time + dt

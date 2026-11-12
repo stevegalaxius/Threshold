@@ -212,6 +212,23 @@ function Q.holding(game,e,stop)
 end
 
 -- Its place in line: 1 is next in, 2 behind that, and so on.
+local startCache=setmetatable({},{__mode='k'})
+local function lineStarts(list,key,clock)
+ local c=startCache[list]
+ if c and c.clock==clock and c.n==#list and c.universe==Q.universe then return c.starts end
+ local npcs=Q.universe and Q.universe.npcs or {}
+ local starts={byId={}}
+ for _,b in ipairs(list) do
+  local o=npcs[b.id]
+  if b.finish>clock and o and o.queue and o.queue.key==key then
+   starts[#starts+1]=b
+   local own=starts.byId[b.id] or {};own[#own+1]=b.start;starts.byId[b.id]=own
+  end
+ end
+ table.sort(starts,function(a,b) return a.start<b.start end)
+ startCache[list]={clock=clock,n=#list,universe=Q.universe,starts=starts}
+ return starts
+end
 function Q.place(r,clock,game)
  local e=game and game.alifeOnline and game.alifeOnline[r.id]
  if e and r.queue then
@@ -219,13 +236,14 @@ function Q.place(r,clock,game)
  end
  local q=r.queue;if not q then return 1 end
  local qs=state();local list=qs and qs[q.key] or {}
- local ahead=0
- local npcs=Q.universe and Q.universe.npcs or {}
- for _,b in ipairs(list) do
-  local o=npcs[b.id]
-  -- only ships actually still lined up here count as ahead
-  if b.id~=r.id and b.start<q.ready and b.finish>clock and o and o.queue and o.queue.key==q.key then ahead=ahead+1 end
- end
+ -- only ships actually still lined up here count as ahead. The lined-up
+ -- starts are sorted once per key and clock (every record in the line asks,
+ -- which went quadratic in a long line), then counted by binary search.
+ local starts=lineStarts(list,q.key,clock)
+ local lo,hi=1,#starts
+ while lo<=hi do local mid=math.floor((lo+hi)/2);if starts[mid].start<q.ready then lo=mid+1 else hi=mid-1 end end
+ local ahead=lo-1
+ for _,start in ipairs(starts.byId[r.id] or {}) do if start<q.ready then ahead=ahead-1 end end
  return math.floor(ahead/(q.capacity or 1))+1
 end
 
