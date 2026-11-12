@@ -17,12 +17,12 @@ return function(game)
   u.clock=1800
   assert(S.count(u,key,'electronics')==8,'electronics appeared without input supply')
  end
- local u=world();local source='station:earth_1';local works='station:titan_2'
+ local u=world();local source='station:earth_1';local works='station:titan_3'
  set(u,source,'electronics',100);set(u,works,'electronics',0)
  E.update(u,0)
  local order
  for _,o in pairs(Tasks.state(u).offers) do if o.item=='electronics' and o.source==source and o.target==works then order=o;break end end
- assert(order and order.commodityBuyPrice and order.commoditySellPrice,'missing quoted electronics freight to the Abaddon guided munitions works')
+ assert(order and order.commodityBuyPrice and order.commoditySellPrice,'missing quoted electronics freight to the Gilgal Arsenal')
  local carrier={id='electronics-hauler',ship={cargo={electronics=order.amount}},credits=0}
  order.phase='delivery';Tasks.definitions.transport.complete(u,carrier,order,works,0)
  assert(S.count(u,works,'electronics')==order.amount,'electronics delivery failed')

@@ -2,7 +2,7 @@
 return function(game)
  local A,S,C=require('src.ammunition'),require('src.stockpile'),require('src.markets')
  local E,Tasks,Supplies=require('src.economy'),require('src.tasks'),require('src.supplies')
- local plants={ammunition='station:mars_2',guided_munitions='station:titan_2',drones='station:earth_1'}
+ local plants={ammunition='station:mars_2',guided_munitions='station:titan_3',drones='station:earth_4'}
  local plant=plants.ammunition;local destination='station:earth_2'
  local function set(u,key,item,n) S.stock(u,key,S.shopFor(key,item))[item]=n>0 and n or nil end
  local function world(item)

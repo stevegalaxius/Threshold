@@ -89,6 +89,12 @@ market { id = "market:titan_1", station = "Kraken Station", sells = {   -- Calip
 market { id = "market:titan_2", station = "Huygens Station", sells = {
 	{ "missile_m", 3 }, { "missile_m_base", 1 }, { "fire_computer", 1 },
 } }
+market { id = "market:titan_3", station = "Gilgal Arsenal", sells = {   -- Diwan missile works
+	{ "missile_s_base", 1 }, { "missile_m_base", 1 }, { "guidance_computer", 1 },
+} }
+market { id = "market:earth_4", station = "Ashgrove Drone Foundry", sells = {   -- Estates drone works
+	{ "drone_s_base", 1 }, { "drone_m_base", 1 },
+} }
 market { id = "market:triton_1", station = "Cipango Station", sells = {   -- frontier outpost
 	{ "rounds_s", 4 }, { "artillery_s_base", 1 }, { "flit_engine", 1 },
 } }
