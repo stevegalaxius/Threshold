@@ -10,7 +10,16 @@ function I.initial(key)
  for _,recipe in ipairs(C.list) do if recipe.opening~=nil then out[recipe.item]=recipe.opening end end
  for id,installation in pairs(I.installations(key)) do
   for item,n in pairs(I.definition(id,installation).openingOutputs or {}) do out[item]=(out[item] or 0)+n end
-  for item,hours in pairs(I.definition(id,installation).openingInputs or {}) do
+  -- A new world opens with every factory already holding its working input
+  -- buffer, so production starts at its running rate instead of ramping up.
+  local def=I.definition(id,installation);local opening=def.openingInputs
+  if not opening and def.policy=='profit' then
+   opening={}
+   for _,recipe in ipairs(def.recipes) do for _,input in ipairs(C.inputs(C.byId[recipe])) do
+    opening[input.item]=installation.inputHours or def.inputHours or D.inputHours
+   end end
+  end
+  for item,hours in pairs(opening or {}) do
    local maximum=0
    for _,recipe in ipairs(I.definition(id,installation).recipes) do
     for _,input in ipairs(C.inputs(C.byId[recipe])) do if input.item==item then maximum=math.max(maximum,input.n) end end
@@ -200,9 +209,9 @@ function I.allocate(u,clock,stations,market,dt)
   for id,installation in pairs(I.installations(key)) do
    local def=I.definition(id,installation)
    if def.policy=='profit' then
-    local state=I.state(u,key,id);local best=nil
+    local state=I.state(u,key,id);local best,weight=nil,{}
     for _,recipe in ipairs(def.recipes) do
-     local c=C.byId[recipe];local revenue,cost=0,0
+     local c=C.byId[recipe];local revenue,cost,unmet=0,0,0
      for _,output in ipairs(C.outputs(c)) do
       local unit,demand=0,0
       for _,bid in ipairs(market.state(u).bids[output.item] or {}) do
@@ -211,19 +220,26 @@ function I.allocate(u,clock,stations,market,dt)
         unit=math.max(unit,bid.price-Transport.payment(quote)/bid.amount);demand=demand+bid.amount
        end
       end
-      if S.count(u,key,output.item)>=demand then unit=0 end
+      local short=demand-S.count(u,key,output.item)
+      if short<=0 then unit=0 else unmet=unmet+short*unit end
       revenue=revenue+unit*output.n
      end
      for _,input in ipairs(C.inputs(c)) do cost=cost+market.price(u,key,input.item)*input.n end
      local profit=(revenue-cost)/(c.time or 1);state.profit[recipe]=profit
-     if revenue>0 and profit>0 and (not best or profit>best) then best=profit end
+     -- Unmet demand as the credits buyers are still waiting to pay for it.
+     weight[recipe]=revenue>0 and profit>0 and unmet or 0
+     if weight[recipe]>0 and (not best or profit>best) then best=profit end
     end
-    local target,tied,total={}, {},0
+    -- Share time among every profitable good by how short its buyers are,
+    -- so a multi-product factory rotates instead of only making the single
+    -- best-margin item. Margin scales each share, so thin-margin goods with
+    -- idle shelves cannot crowd out the goods buyers are paying most for.
+    local target,total={},0
     for _,recipe in ipairs(def.recipes) do
-     target[recipe]=0
-     if best and state.profit[recipe]>0 and best-state.profit[recipe]<=math.max(1,best*.1) then tied[#tied+1]=recipe;total=total+(state.mix[recipe] or 0) end
+     local w=weight[recipe]>0 and weight[recipe]*state.profit[recipe]/best or 0
+     target[recipe]=w;total=total+w
     end
-    for _,recipe in ipairs(tied) do target[recipe]=total>0 and (state.mix[recipe] or 0)/total or 1/#tied end
+    for _,recipe in ipairs(def.recipes) do target[recipe]=total>0 and target[recipe]/total or 0 end
     local sum=0
     for _,recipe in ipairs(def.recipes) do state.mix[recipe]=move(state.mix[recipe] or 0,target[recipe],math.min(1,.05*dt/60));sum=sum+state.mix[recipe] end
     if sum>1 then for _,recipe in ipairs(def.recipes) do state.mix[recipe]=state.mix[recipe]/sum end end

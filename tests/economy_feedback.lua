@@ -29,7 +29,7 @@ return function(game)
  -- Operating buffers follow output room, not historical input consumption.
  local factory='station:earth_1';local v=world()
  set(v,factory,'electronics',0);set(v,factory,'silicon',0);set(v,factory,'industrial_acids',0)
- assert(E.target(v,factory,'silicon')==4 and E.target(v,factory,'industrial_acids')==2,'factory requested more than its half-hour input buffer')
+ assert(E.target(v,factory,'silicon')==8 and E.target(v,factory,'industrial_acids')==4,'factory requested more than its half-hour input buffer')
  E.consume(v,factory,'silicon',100,true)
  set(v,factory,'electronics',require('src.commodities').byId.make_electronics.cap)
  assert(E.target(v,factory,'silicon')==0 and E.target(v,factory,'industrial_acids')==0,'full output kept ordering historical inputs')

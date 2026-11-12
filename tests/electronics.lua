@@ -4,7 +4,7 @@ return function(game)
  local Tasks,Transport=require('src.tasks'),require('src.transport')
  local function set(u,key,item,n) S.stock(u,key,S.shopFor(key,item))[item]=n end
  local function world() return {clock=0,stations={},npcs={}} end
- local sources={{'station:mercury_1','silicon',12},{'station:luna_2','silicon',12},{'station:venus_1','industrial_acids',8},{'station:io_1','industrial_acids',8}}
+ local sources={{'station:mercury_1','silicon',24},{'station:luna_2','silicon',24},{'station:venus_1','industrial_acids',16},{'station:io_1','industrial_acids',16}}
  for _,source in ipairs(sources) do
   local u=world();assert(S.count(u,source[1],source[2])==0)
   u.clock=3600
@@ -17,19 +17,19 @@ return function(game)
   u.clock=1800
   assert(S.count(u,key,'electronics')==8,'electronics appeared without input supply')
  end
- local u=world();local source='station:earth_1';local works='station:mars_2'
+ local u=world();local source='station:earth_1';local works='station:titan_3'
  set(u,source,'electronics',100);set(u,works,'electronics',0)
  E.update(u,0)
  local order
  for _,o in pairs(Tasks.state(u).offers) do if o.item=='electronics' and o.source==source and o.target==works then order=o;break end end
- assert(order and order.commodityBuyPrice and order.commoditySellPrice,'missing quoted electronics freight to Zhongke')
+ assert(order and order.commodityBuyPrice and order.commoditySellPrice,'missing quoted electronics freight to the Gilgal Arsenal')
  local carrier={id='electronics-hauler',ship={cargo={electronics=order.amount}},credits=0}
  order.phase='delivery';Tasks.definitions.transport.complete(u,carrier,order,works,0)
  assert(S.count(u,works,'electronics')==order.amount,'electronics delivery failed')
  -- Guided recipes are blocked by electronics, not just casing/warheads.
  local guided={'missile_s','missile_m','missile_l','torp_s','torp_m','torp_l'}
  for _,item in ipairs(guided) do
-  local w=world();local mix=I.state(w,works,'ammunition').mix
+  local w=world();local mix=I.state(w,works,'guided_munitions').mix
   for id in pairs(mix) do mix[id]=id=='make_'..item and 1 or 0 end
   set(w,works,'steel_plate',1000);set(w,works,'explosives',1000);set(w,works,'electronics',0);S.count(w,works,item)
   w.clock=3600
