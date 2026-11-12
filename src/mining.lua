@@ -94,7 +94,7 @@ function M.create(game,area,clock)
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,'miner',area)
  require('src.personality').ensure(r)
- Homes.assign(r,home)
+ Homes.choose(u,r)
  u.npcs[r.id]=r
  require('src.npc').advance(r,clock,u,game)
  return r

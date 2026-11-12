@@ -139,3 +139,13 @@ with the source, so retries and materialization do not reroll its contents.
 Live wreck targets use a remaining collision surface rather than the hull's
 potentially empty origin. When a detached section blocks a claimed wreck, the
 claim is released and selection considers the intervening section first.
+
+## Homes and idle behavior
+
+NPCs receive a persistent physical home station/access point. Assignment first considers stations in their home region with the template's `homePurpose`, suitable hull parking and a reachable route. It prefers stations below their resident capacity, then fewer assigned living residents, with stable station-ID ties. Reachable stations elsewhere are a fallback when no local candidate fits. Parking can still be occupied on arrival; assignment does not reserve a berth permanently.
+
+After 60 simulated seconds without a job, the shared controller returns the NPC home. Fuel, repair and resupply retain priority. At home it stays docked and checks for work on the normal retry cadence (normally ten seconds). Full homes leave the NPC waiting for parking rather than wandering to another station. A new job resumes ordinary work. Active jobs are not abandoned merely because an action is waiting.
+
+Home trips target the exact physical access point. Heaven-Ladder's anchors therefore have separate home assignments and resident counts, while retaining one station economy. Trade routes retain their usual nearest-access behavior. Existing living NPCs receive the distribution once; the saved `homeDistributed` flag preserves their assignments on subsequent loads. Population targets and the arbiter's area accounting are unchanged.
+
+`love . --hometest` covers distribution, suitability, one-time assignment, persistence, exact-anchor routing, idle timing, full parking, and resuming work. It is part of the bounded action suite.

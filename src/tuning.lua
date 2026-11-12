@@ -209,7 +209,7 @@ T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
 T.directLinkAngle=math.pi*2/3 -- NPCs fly straight (round the planet) between ordinary nodes up to this far apart;
 -- kept well short of half the planet, where 'which way round' flips frame to frame
 T.ramAggroShare=.15 -- a ram this share of max armour (or more) makes the victim hostile
-T.npcIdleRoam=60 -- seconds with no work before an NPC roams to another node of its job
+T.npcIdleHomeDelay=60 -- seconds without work before returning to the assigned home station
 T.offlineCombatTick, T.offlineCombatHit, T.offlineCombatRounds = 4, 0.15, 12
 T.offlineCombatSegment, T.offlineRetreat = 0.12, 90
 -- Offline combat rule (encounters.lua): pirates attack only at these odds or

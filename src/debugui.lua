@@ -301,9 +301,10 @@ end
 
 -- Region numbers for the A-Life suite: residents, stashes, loose objects.
 local function regionSection(game)
- for _,station in ipairs(Locations.stations(game.fieldId)) do
+ for _,place in ipairs(Locations.list(game.fieldId)) do if place.kind=='station' then
+  local station=place.id
   Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
- end
+ end end
  for id,stash in pairs(game.universe.piracy and game.universe.piracy.stashes or {}) do
   local place=Locations.byId[id]
   Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')

@@ -109,7 +109,7 @@ function love.load(args)
 		["--lighttooltest"] = "tests.light_tool", ["--painttest"] = "tests.paint",
 		["--ammotest"] = "tests.weapon_ammo", ["--economytest"] = "tests.economy", ["--ramtest"] = "tests.collisions",
 		["--sitestest"] = "tests.sites",
-		["--handofftest"] = "tests.npc_handoff",
+		["--hometest"] = "tests.npc_home", ["--handofftest"] = "tests.npc_handoff",
 		["--foodtest"] = "tests.food",
 		["--chemicaltest"] = "tests.chemicals",
 		["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity",

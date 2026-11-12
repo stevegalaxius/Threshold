@@ -136,9 +136,7 @@ local function create(game,area,role,node,clock,start)
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,role,area)
  require('src.personality').ensure(r)
- local home
- home=L.station(area,r.homePurpose) or L.station(nil,r.homePurpose)
- if home then Homes.assign(r,home) end
+ Homes.choose(u,r)
  u.npcs[r.id]=r
  NPC.advance(r,clock,u,game)
  return r

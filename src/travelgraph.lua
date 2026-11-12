@@ -104,17 +104,19 @@ end
 -- and each caller gets its own copy to change.
 local plans,plansAt={},nil
 local plan
-function G.itinerary(source,target,clock)
+-- exact keeps physical endpoints (e.g. a particular home anchor); ordinary
+-- trade destinations can still use any access point of the shared station.
+function G.itinerary(source,target,clock,exact)
  clock=clock or 0
  if not plansAt or clock<plansAt or clock-plansAt>60 then plans,plansAt={},clock end
- local key=source..'|'..target
+ local key=source..'|'..target..(exact and '|exact' or '')
  local hit=plans[key]
- if hit==nil then hit=plan(source,target,clock) or false;plans[key]=hit end
+ if hit==nil then hit=plan(source,target,clock,exact) or false;plans[key]=hit end
  if not hit then return nil end
  local copy={};for i,id in ipairs(hit) do copy[i]=id end
  return copy
 end
-plan=function(source,target,clock)
+plan=function(source,target,clock,exact)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b then return nil end
  if source==target then return {source} end
@@ -127,30 +129,30 @@ plan=function(source,target,clock)
   local moon=Fields.moons[a.area]
   local other=Fields.moons[b.area]
   if moon and other and moon.parent==other.parent then
-   return join(G.itinerary(source,a.area..'/to_'..b.area,clock),G.itinerary(b.area..'/to_'..a.area,target,clock))
+   return join(G.itinerary(source,a.area..'/to_'..b.area,clock,exact),G.itinerary(b.area..'/to_'..a.area,target,clock,exact))
   end
   if moon then
-   return join(G.itinerary(source,a.area..'/to_'..moon.parent,clock),G.itinerary(moon.parent..'/to_'..a.area,target,clock))
+   return join(G.itinerary(source,a.area..'/to_'..moon.parent,clock,exact),G.itinerary(moon.parent..'/to_'..a.area,target,clock,exact))
   end
   moon=Fields.moons[b.area]
   if moon then
-   return join(G.itinerary(source,moon.parent..'/to_'..b.area,clock),G.itinerary(b.area..'/to_'..moon.parent,target,clock))
+   return join(G.itinerary(source,moon.parent..'/to_'..b.area,clock,exact),G.itinerary(b.area..'/to_'..moon.parent,target,clock,exact))
   end
   -- Extra drivers share the interplanetary connection, but retain separate
   -- approaches and queues. Choose each end by its local travel cost.
   local function driver(area,node,outbound)
    local best,cost
    for _,id in ipairs(Fields[area].driverIds or {}) do
-    local path=G.route(G.build(area),outbound and node or id,outbound and id or node,clock)
+    local path=G.route(G.build(area),outbound and node or id,outbound and id or node,clock,nil,exact)
     if path and (not cost or path.duration<cost) then best,cost=id,path.duration end
    end
    return best
   end
   local from,to=driver(a.area,source,true),driver(b.area,target,false)
   if not from or not to then return end
-  return join(G.itinerary(source,from,clock),G.itinerary(to,target,clock))
+  return join(G.itinerary(source,from,clock,exact),G.itinerary(to,target,clock,exact))
  end
- local path=G.route(G.build(a.area),source,target,clock)
+ local path=G.route(G.build(a.area),source,target,clock,nil,exact)
  if not path then return end
  local route={source}
  for _,leg in ipairs(path.legs) do route[#route+1]=leg.edge.to end
@@ -244,9 +246,10 @@ function G.neighbours(graph,id,clock)
  return result
 end
 
-function G.route(graph,from,to,clock,speed)
+function G.route(graph,from,to,clock,speed,exact)
  assert(speed==nil or speed>0,'travel speed must be positive')
  local starts, goals=graph.destinations[from],graph.destinations[to]
+ if exact and starts and goals then starts,goals={from},{to} end
  if not starts or not goals then return nil,'destination is outside this local graph' end
  local attachments={}
  for _,id in ipairs(graph.order) do

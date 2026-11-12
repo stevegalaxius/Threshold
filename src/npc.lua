@@ -57,12 +57,7 @@ N.controller={name='npc',
   if not route then Tasks.release(u,r,'no route',clock);return end
   return {route=route,wait=task.duration,dock=task.dock}
  end,
- roam=function(r,node)
-  local f=Fields[L.get(node).area];local nodes={}
-  for _,id in ipairs(f.buoyIds or {}) do nodes[#nodes+1]=id end
-  for _,id in ipairs(L.stations(f.id or L.get(node).area,'trade')) do nodes[#nodes+1]=id end
-  return nodes
- end,
+
 }
 
 -- Speed -----------------------------------------------------------------------
@@ -89,6 +84,7 @@ function N.context(game,r,clock,e,dt,AI,u)
  return {game=game,u=u or game.universe,r=r,clock=clock,e=e,dt=dt,AI=AI}
 end
 function N.runActions(ctx)
+ if ctx.r.task then ctx.r.stuckSince=nil;ctx.r.waitingHomeBerth=nil end
  local current=ctx.r.action
  if current and current.pausedAt and ctx.r.state=='docked' and Actions.definitions[current.kind].positioning then
   Actions.cancel(ctx,'replan work after docking');current=nil
@@ -116,7 +112,7 @@ end
 function N.routeAction(ctx)
  local r=ctx.r;local target=r.route and r.route[#r.route]
  if not target then return end
- local kind=r.state=='idle' and 'hold' or N.docksAt(r,target) and 'dock' or 'travel'
+ local kind=r.state=='idle' and not r.waitingHomeBerth and 'hold' or N.docksAt(r,target) and 'dock' or 'travel'
  Actions.request(ctx,{kind=kind,target={provider='location',id=target},untilTime=N.readyAt(r)})
 end
 function N.thinkWork(game,e,dt,AI)
@@ -160,7 +156,7 @@ local function visitStay(r,node)
  return (work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
 end
 function N.beginDocked(r,node,at,u,minimum)
- r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil
+ r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil
  Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
 end
 function N.arrive(r,node,at,u,game)
@@ -174,8 +170,10 @@ function N.arrive(r,node,at,u,game)
  if L.get(node).kind=='station' and N.docksAt(r,node) and require('src.dock_room').room(u,r,node) then
   Supplies.refill(r,node)
   N.beginDocked(r,node,at,u,stay)
+  if not r.task and r.homeStation==node then r.taskStatus='idle at home' end
  else
   r.state='idle';r.untilTime=at+stay
+  if not r.task and r.homeStation==node then r.waitingHomeBerth=true;r.taskStatus='waiting for home parking' end
  end
  if r.action and (r.action.kind=='travel' or r.action.kind=='dock') then
   Actions.complete({u=u or {},game=game,r=r,clock=at})
@@ -236,22 +234,20 @@ function N.travel(game,r,target,clock)
  return true
 end
 
--- A ship with nothing to do still moves: it wanders to a nearby node of its
--- job, so nothing sits forever at one buoy because the board is busy.
-local function wander(r,node,at,ctx)
- local j=N.controller
- local nodes=j and j.roam and j.roam(r,node) or {}
- local choices={}
- for _,id in ipairs(nodes) do if id~=node and L.byId[id] then choices[#choices+1]=id end end
- if #choices==0 then return false end
- r.wanderCount=(r.wanderCount or 0)+1
- local seed=(tonumber(tostring(r.id):match('%d+$')) or 0)+r.wanderCount
- local target=choices[seed%#choices+1]
- local route=G.itinerary(node,target,at)
- if not route then return false end
- Trace.note(r,at,'npc','no work at '..node..' -> wandering to '..target)
- r.taskStatus='looking for work'
+-- Idle ships have a persistent base rather than an endless local circuit.
+local function returnHome(r,node,at,ctx)
+ local home=require('src.npc_home').get(r,ctx.u)
+ if not home or home==node then return false end
+ local route=G.itinerary(node,home,at,true)
+ if not route then r.taskStatus='waiting for a route home';return false end
+ Trace.note(r,at,'npc','no work at '..node..' -> returning home to '..home)
+ r.taskStatus='returning home';r.waitingHomeBerth=nil
+ r.stuckSince=nil
  return go(r,route,at,ctx)
+end
+local function idleState(u,r,node)
+ return L.get(node).kind=='station' and N.docksAt(r,node)
+  and require('src.dock_room').room(u,r,node) and 'docked' or 'idle'
 end
 
 -- Decide what to do next, standing at `node` at time `at`. Returns true when
@@ -272,7 +268,7 @@ function N.decide(u,r,node,at,game)
  if Upkeep.plan(r,at) then return true end
  local plan=j.next(ctx)
  if plan and plan.route then
-  r.stuckSince=nil
+  r.stuckSince=nil;r.waitingHomeBerth=nil
   if #plan.route<=1 or (#plan.route==2 and plan.route[1]==plan.route[2]) then
    -- work right here: hold (or stay docked) for its duration
    if plan.dock and L.get(node).kind=='station' then N.beginDocked(r,node,at,u,plan.wait or T.alifeStay)
@@ -284,13 +280,18 @@ function N.decide(u,r,node,at,game)
  end
  if plan and plan.wait then
   defer(u,r,at,plan.wait)
-  r.state=L.get(node).kind=='station' and N.docksAt(r,node) and 'docked' or 'idle'
+  r.state=idleState(u,r,node)
   return true
  end
- -- Nothing to do. Don't sit still for ever: after a while, roam.
+ -- Existing work keeps ownership; only genuinely jobless ships go home.
  r.stuckSince=r.stuckSince or at
- if j.roam and at-r.stuckSince>=T.npcIdleRoam and wander(r,node,at,ctx) then r.stuckSince=nil;return true end
- r.state=L.get(node).kind=='station' and N.docksAt(r,node) and 'docked' or 'idle'
+ if not r.task then
+  local home=require('src.npc_home').get(r,u)
+  if at-r.stuckSince>=T.npcIdleHomeDelay and returnHome(r,node,at,ctx) then return true end
+  r.waitingHomeBerth=home==node and not require('src.dock_room').room(u,r,node) or nil
+  if home==node then r.taskStatus=r.waitingHomeBerth and 'waiting for home parking' or 'idle at home' end
+ end
+ r.state=idleState(u,r,node)
  defer(u,r,at,j.retry or 10)
  return false
 end

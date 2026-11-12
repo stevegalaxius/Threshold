@@ -173,7 +173,7 @@ function A.createTrader(game,area,i)
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  require('src.npc_templates').apply(r,'trader',area)
  require('src.personality').ensure(r)
- Homes.assign(r,assert(L.station(area,'trade'),'trader region has no trading station'))
+ Homes.choose(u,r)
  -- Every trader works the dispatch board (transport jobs to other regions,
  -- and Mars's ore runs from Phobos and Deimos). The old fixed local circuit
  -- is only the route it starts docked on.

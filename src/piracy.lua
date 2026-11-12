@@ -105,7 +105,7 @@ local function next(c)
  local path=rally and itinerary(c.node,rally,clock)
  r.piracy=nil;Tasks.release(u,r,'completed',clock);r.taskWorker=true;r.taskStatus=nil;r.area=area
  if path and #path>1 then return {route=path} end
- return nil -- the shared loop roams it to a buoy
+ return nil -- the shared idle policy returns it to its home base
 end
 Tasks.register('fence',{
  requires={capabilities={'cargo'}},
