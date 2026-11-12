@@ -2,6 +2,17 @@
 
 Station sales inventory is shared by the player and replenishment arrivals. Stations without a named dealer have a four-space used-ship exchange; its Shipyard tab is exposed to the player. Named dealerships keep their configured lot capacity. The four factory dealerships also manufacture new ships.
 
+Factory dealerships have dedicated stations:
+
+| Maker | Location | Layout |
+|---|---|---|
+| Intaki | Red Furnace Shipyard, Mars (`station:mars_1`) | `shipyard_1` |
+| Brute | Brute Industries Shipyard, Mercury (`station:mercury_3`) | `shipyard_1` |
+| Ferrous | Ferrous Collective Shipyard, Earth (`station:earth_3`) | `shipyard_1` |
+| MACK | MACK Industrial Works, Ceres (`station:belt_2`) | supplied `shipyard_2` |
+
+Mercury and Earth each have three stations. Mars keeps its three existing stations including Heaven-Ladder. Haephestus Logistics retains its hydrogen industry and equipment store; Elysium retains its farm and general market. Their assembly facilities and factory dealer definitions moved to the dedicated shipyards, which receive frames through ordinary freight. Assembly capacities, maker lineups, pricing and sales-lot limits are unchanged.
+
 The economy's existing schedule occasionally delivers used ships only to fallback exchanges at stations without a configured dealership or ship-production facility. Named resellers replenish new ships from their configured lineups; factories receive no timed ship deliveries and replenish through assembly. Existing owned lots and player transactions are preserved. `D.usedShips` in `data/industry.lua` defines the incoming fit pool, default eight-hour interval, discount, and 70–95% armor condition. Ordinary named dealers keep their configured interval. Fits are drawn from declared ship presets, without tying a sale to the identity of its eventual buyer. Price reflects actual fit, discount and condition. Ships include two fuel canisters. Hulls, fits, paint, condition, price and parking persist with each lot.
 
 All arrivals and opening stock require commercial parking; guest reserves remain protected. Time spent without space does not bank a later flood of deliveries. Opening fallback exchange inventory is used stock; named dealership inventory is new stock from its configured lineup. Manufactured outputs remain new. Player purchases preserve actual armor condition and fuel rather than replacing a used ship with a pristine instance.

@@ -58,11 +58,11 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Ceres Dock (`station:belt_1`) | `crack_ice` | adaptive | 1200 | crack_ice |
 | Ceres Dock (`station:belt_1`) | `press_canisters` | adaptive | 1200 | press_canisters |
 | Ceres Dock (`station:belt_1`) | `process_nitrates` | adaptive | 80 | process_nitrates |
-| MACK Industrial Freight (`station:belt_2`) | `mack_assembly` | orders | 2 | assemble_mack_mustang, assemble_mack_burro, assemble_mack_longhorn |
+| MACK Industrial Works (`station:belt_2`) | `mack_assembly` | orders | 2 | assemble_mack_mustang, assemble_mack_burro, assemble_mack_longhorn |
 | Asgard Station (`station:callisto_2`) | `chemicals` | profit | 80 | make_fertilizer, make_explosives |
 | Jita Orbital Logistics (`station:earth_1`) | `electronics` | profit | 4 | make_electronics |
 | Elysium (`station:earth_2`) | `farm` | fixed | 960 | grow_food |
-| Elysium (`station:earth_2`) | `ferrous_assembly` | orders | 2 | assemble_ferrous_runner, assemble_ferrous_mule, assemble_ferrous_bison |
+| Ferrous Collective Shipyard (`station:earth_3`) | `ferrous_assembly` | orders | 2 | assemble_ferrous_runner, assemble_ferrous_mule, assemble_ferrous_bison |
 | Sinai Deep (`station:enceladus_1`) | `produce_nitrates` | adaptive | 40 | produce_nitrates |
 | Galileo Regio (`station:ganymede_1`) | `produce_nitrates` | adaptive | 80 | produce_nitrates |
 | Pele Works (`station:io_1`) | `acid_works` | fixed | 8 | produce_acids |
@@ -79,8 +79,8 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Heaven-Ladder (`station:mars_3`) | `shipworks` | fixed | 6 | assemble_hull_frames |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Terminator Station (`station:mercury_1`) | `silicon_refinery` | fixed | 12 | refine_silicon |
-| Haephestus Logistics (`station:mercury_2`) | `brute_assembly` | orders | 2 | assemble_brute_runt, assemble_brute_anvil, assemble_brute_nautilus |
 | Haephestus Logistics (`station:mercury_2`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
+| Brute Industries Shipyard (`station:mercury_3`) | `brute_assembly` | orders | 2 | assemble_brute_runt, assemble_brute_anvil, assemble_brute_nautilus |
 | Zebulun's Bounty (`station:saturn_1`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
 | Shiloh (`station:saturn_2`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
 | Ephraim's Bounty (`station:titan_1`) | `farm` | fixed | 960 | grow_food |
