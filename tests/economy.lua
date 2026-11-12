@@ -87,6 +87,19 @@ return function(game)
   local busy,idle=0,0
   for _,r in pairs(u.npcs) do if r.populationGroup=='trader' and r.state~='dead' and r.state~='escaped' then if r.task then busy=busy+1 else idle=idle+1 end end end
   print(('  traders %d busy, %d idle'):format(busy,idle))
+  -- money: what stations paid out and took in this hour (budgets are
+  -- unlimited, so this is the credits the economy created)
+  local book=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
+  print(('  credits  freight %d (premium %d)  bought %d  sold %d  net created %d'):format(
+   book.freight or 0,book.premium or 0,book.bought or 0,book.sold or 0,
+   (book.freight or 0)+(book.bought or 0)-(book.sold or 0)))
+  local Merchants=require('src.merchants')
+  local ms=Merchants.state(u)
+  for _,h in ipairs(Merchants.houses) do
+   local rec=ms.houses[h.id];local units=0
+   for _,w in pairs(rec.stock) do for _,n in pairs(w) do units=units+n end end
+   print(('  house %-22s credits %8d  stock %6d  deals %4d%s'):format(h.name,rec.credits,units,rec.deals,rec.insolvent and '  INSOLVENT' or ''))
+  end
   print(('hour %3d  fuel %5d at %d stations, %2d dry  orders %3d  | %s'):format(hour,total,#stations,dry,orders,table.concat(goods,', ')))
  end
  local long={}
