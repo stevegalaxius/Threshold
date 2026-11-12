@@ -368,7 +368,7 @@ function E.update(u,clock)
     local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or 30)/require('src.data').items[item].volume)),short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
-    local critical=item==Food.item or item==require('src.reactor_fuel').item()
+    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,

@@ -36,7 +36,7 @@ W.stations = {
 	},
 	
 	belt = {
-		{ id = "station:belt_1", facilities={press_canisters={capacity=1200},crack_ice={capacity=1200},process_nitrates={capacity=80}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
+		{ id = "station:belt_1", facilities={press_canisters={capacity=1200},crack_ice={capacity=1200},water_melter={capacity=320},process_nitrates={capacity=80}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:belt_1", name = "Ceres Dock" },
 		{ id = "station:belt_2", facilities={mack_assembly={capacity=2}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, marketId = "market:belt_2", name = "MACK Industrial Works", layout = "shipyard_2" },
 		{ id = "station:belt_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:belt_3", name = "Ceres Logistics", layout = "customs_1", hub = true },
 	},
@@ -52,7 +52,7 @@ W.stations = {
 		{ id = "station:io_2", services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
 	},
 	europa = {
-		{ id = "station:europa_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station" },
+		{ id = "station:europa_1", facilities={water_wells={capacity=320}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station" },
 		{ id = "station:europa_2", services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station" },
 	},
 	ganymede = {
@@ -69,7 +69,7 @@ W.stations = {
 		{ id = "station:saturn_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
 	},
 	enceladus = {
-		{ id = "station:enceladus_1", facilities={produce_nitrates={capacity=340}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
+		{ id = "station:enceladus_1", facilities={produce_nitrates={capacity=340},water_wells={capacity=320}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
 		{ id = "station:enceladus_2", services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
 	},
 	titan = {
@@ -107,7 +107,7 @@ W.stations = {
 }
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
-W.defaults={marketId='market:venus_1',foodUse=32,foodReserveHours=4}
+W.defaults={marketId='market:venus_1',waterUse=16,foodUse=32,foodReserveHours=4}
 W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
@@ -463,4 +463,15 @@ function W.connect(f)
  f.traderRoute=home and {home,home} or {}
  f.navigationVersion=(f.navigationVersion or 0)+1
 end
+-- Every station drinks water like it eats food: defaults.waterUse tanks a
+-- game hour, or the entry's own water = { use = n } (0 for none).
+local function drinks(entry)
+ local use=(entry.water or {}).use or W.defaults.waterUse
+ if use>0 then entry.facilities=entry.facilities or {};entry.facilities.water=entry.facilities.water or {capacity=-use} end
+end
+function W.applyDefaults()
+ for _,entries in pairs(W.stations) do for _,entry in ipairs(entries) do drinks(entry) end end
+ for _,entry in pairs(W.specials) do if entry.id then drinks(entry) end end
+end
+W.applyDefaults()
 return W
