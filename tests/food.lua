@@ -77,18 +77,21 @@ return function(game)
  end
  Stock.add(sourceWorld,source,'water_ice',10)
  sourceWorld.clock=900
- assert(Stock.count(sourceWorld,source,'nitrates')==10 and Stock.count(sourceWorld,source,'water_ice')==0,'Ceres nitrates did not consume ice')
+ -- the ice is shared with the water melter, so count both products
+ assert(Stock.count(sourceWorld,source,'water_ice')==0 and Stock.count(sourceWorld,source,'nitrates')>0
+  and Stock.count(sourceWorld,source,'nitrates')+Stock.count(sourceWorld,source,'water')-(sourceWorld.waterStart or 0)>=10,'Ceres nitrates did not consume ice')
  Stock.add(sourceWorld,'station:callisto_2',Food.fertilizer,10)
  local reserve=Stock.count(sourceWorld,farm,Food.fertilizer)
  Stock.take(sourceWorld,farm,Food.fertilizer,reserve)
  E.update(sourceWorld,sourceWorld.clock)
  local fertilizerOrder=false
  for _,o in pairs(Tasks.state(sourceWorld).offers) do
-  if o.item==Food.fertilizer and o.target==farm then fertilizerOrder=true end
+  -- across systems the order may be the first leg, to a logistics hub
+  if o.item==Food.fertilizer and (o.target==farm or o.target==E.hubFor(farm) or o.target==E.hubFor('station:callisto_2')) then fertilizerOrder=true end
  end
  assert(fertilizerOrder,'farm did not order fertilizer through ordinary freight')
- -- Saturn's moon plants produce directly; Ceres alone processes ice.
- for _,source in ipairs({'station:enceladus_1','station:titan_1','station:ganymede_1'}) do
+ -- Moon nitrates arrive at Saturn's and Jupiter's hubs without input; Ceres alone processes ice.
+ for _,source in ipairs({'station:saturn_3','station:jupiter_3'}) do
   local moon={clock=0,stations={}}
   Stock.count(moon,source,'nitrates')
   moon.clock=3600
