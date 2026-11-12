@@ -14,7 +14,7 @@
 	  in space  Tab opens and closes it (Esc closes too). Just your hold.
 	            The game keeps running, and you can still fly with the keys.
 	  looting   a tap of E on a wreck or container in range opens it next
-	            to your hold. Take All, Ctrl-click or right-click takes;
+	            to your hold. Take All or Ctrl-click takes (or the right-click menu);
 	            your tractor beam tries to keep it in reach, and the
 	            window closes if it slips out of range anyway.
 
@@ -28,9 +28,9 @@
 	  R (dragging)    rotate
 	  Shift-drag      take half the stack
 	  Ctrl-click      quick move to the other side (docked)
-	  right-click     quick move to the other panel, like Ctrl-click; in
-	                  space with just your hold up: eject the stack out
-	                  behind the ship
+	  right-click     a menu of what you can do with the stack: use it
+	                  (src/item_use.lua), open, fit, move/take across,
+	                  split, eject one or all (in space)
 	  drop outside    in space: eject it
 	  Sort            tidy a hold (biggest items first, grouped by type)
 
@@ -516,6 +516,7 @@ function Cargo.toggle(game)
 end
 
 function Cargo.close(game)
+	Cargo.menu = nil
 	finish(game, layout(game))
 	Cargo.open, Cargo.loot = false, nil
 end
@@ -800,9 +801,142 @@ Cargo.quickFit = function(game, x, y)
 	if s then quickFit(game, L, r, s) end
 end
 
+
+-- Right-click menu --------------------------------------------------------
+
+-- Right-clicking a stack opens a small menu of what you can do with it.
+-- Cargo.menu = { x, y, items = { {label, run, why} }, r, s }; an item with
+-- `why` is shown greyed out with the reason.
+local MENU_W, MENU_ROW = 190, 24
+
+local function stillThere(m)
+	local s = m.s
+	return Grid.at(m.r.g, s.x, s.y) == s
+end
+
+local function menuItems(game, L, r, s, mx, my)
+	local items, p = {}, game.player
+	local item = itemFor(s.id)
+	local docked = game.state == "docked"
+	local atMarket = trading() and docked
+	local own = r.side.ship == p and not r.side.trade
+	local function add(label, run, why) items[#items + 1] = { label = label, run = run, why = why } end
+	if own and ItemUse.usable(s.id) then
+		local ok, why = ItemUse.can(game, p, s.id)
+		add("Use: " .. ItemUse.label(s.id), function()
+			local ok2, why2 = ItemUse.begin(game, p, s.id)
+			if ok2 then changed(r.side) elseif why2 then game:toast(why2, 1.5) end
+		end, not ok and why or nil)
+	end
+	if item.kind == "container" and not atMarket then
+		add("Open", function()
+			if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
+		end, not s.inner and "empty" or nil)
+	end
+	if item.kind == "module" and not atMarket then
+		add("Fit to ship", function() quickFit(game, L, r, s) end, not docked and "dock to refit" or nil)
+	end
+	if #L.sides > 1 or atMarket then
+		local label = (r.side.entity or r.side.innerOf) and "Take"
+			or r.side.market and "Put on trade grid"
+			or atMarket and "Move to trade grid"
+			or "Move to other panel"
+		add(label, function() quickMove(game, L, r, s) end)
+	end
+	if s.n > 1 and not r.side.market then
+		add("Split stack", function()
+			Cargo.lastClick = nil
+			Cargo.mousepressed(game, mx, my, 1, { shift = true })
+		end)
+	end
+	if r.side.ship and not docked and not r.side.trade then
+		local function eject(n)
+			return function()
+				n = min(n, s.n)
+				s.n = s.n - n
+				if s.n <= 0 then Grid.remove(r.g, s) end
+				changed(r.side)
+				game:eject(r.side.ship, s.id, n, s.n <= 0 and s.inner or nil)
+			end
+		end
+		if s.n > 1 then add("Eject one", eject(1)) end
+		add(s.n > 1 and ("Eject all (" .. s.n .. ")") or "Eject", eject(s.n))
+	end
+	return items
+end
+
+local function menuRects(m)
+	local sw, sh = lg.getDimensions()
+	local h = #m.items * MENU_ROW + 8
+	local x = min(m.x, sw - MENU_W - 4)
+	local y = min(m.y, sh - h - 4)
+	local rects = {}
+	for i, it in ipairs(m.items) do
+		rects[i] = { x = x + 4, y = y + 4 + (i - 1) * MENU_ROW, w = MENU_W - 8, h = MENU_ROW, it = it }
+	end
+	return { x = x, y = y, w = MENU_W, h = h }, rects
+end
+
+-- Returns true if the click was taken by the menu (always, while it's open).
+local function menuClick(game, mx, my, button)
+	local m = Cargo.menu
+	Cargo.menu = nil
+	if button ~= 1 then return true end
+	local _, rects = menuRects(m)
+	for _, b in ipairs(rects) do
+		if inRect(b, mx, my) then
+			if b.it.why then game:toast(string.upper(b.it.why), 1.2)
+			elseif stillThere(m) then b.it.run() end
+			return true
+		end
+	end
+	return true
+end
+
+-- Pick the open menu's first item whose label starts with `prefix` (for
+-- the autotest). Returns true if it ran.
+function Cargo.menuChoose(game, prefix)
+	local m = Cargo.menu
+	if not m then return false end
+	local _, rects = menuRects(m)
+	for _, b in ipairs(rects) do
+		if b.it.label:sub(1, #prefix) == prefix then
+			menuClick(game, b.x + 2, b.y + 2, 1)
+			return not b.it.why
+		end
+	end
+	Cargo.menu = nil
+	return false
+end
+
+local function drawMenu(game)
+	local m = Cargo.menu
+	if not m then return end
+	if not stillThere(m) then Cargo.menu = nil return end
+	local mx, my = love.mouse.getPosition()
+	local box, rects = menuRects(m)
+	lg.setColor(0.03, 0.07, 0.1, 0.97)
+	lg.rectangle("fill", box.x, box.y, box.w, box.h, 5, 5)
+	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+	lg.rectangle("line", box.x, box.y, box.w, box.h, 5, 5)
+	lg.setFont(HUD.font(13))
+	for _, b in ipairs(rects) do
+		if not b.it.why and inRect(b, mx, my) then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.22)
+			lg.rectangle("fill", b.x, b.y, b.w, b.h, 4, 4)
+		end
+		lg.setColor(b.it.why and HUD.DIM or HUD.INK)
+		local label = b.it.label .. (b.it.why and ("  (" .. b.it.why .. ")") or "")
+		local f = HUD.font(13)
+		while #label > 3 and f:getWidth(label) > b.w - 16 do label = label:sub(1, -5) .. "..." end
+		lg.print(label, b.x + 8, b.y + 4)
+	end
+end
+
 -- mods: { ctrl, shift } to stand in for the keyboard (the autotest uses it).
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
+	if Cargo.menu then return menuClick(game, mx, my, button) end
 	-- an open shop menu takes the click: pick a shop, or close it
 	if button == 1 then
 		local tabs = spaceTabs(game)
@@ -977,12 +1111,9 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
 	local atMarket = trading() and game.state == "docked"
-	if button == 2 and (#L.sides > 1 or atMarket) then
-		quickMove(game, L, r, s)                   -- right-click: to the other panel
-	elseif button == 2 and game.state ~= "docked" then
-		Grid.remove(r.g, s)                        -- just your hold, in space: eject it
-		changed(r.side)
-		game:eject(r.side.ship, s.id, s.n, s.inner)
+	if button == 2 then
+		local items = menuItems(game, L, r, s, mx, my)        -- right-click: what you can do with it
+		if #items > 0 then Cargo.menu = { x = mx + 2, y = my + 2, r = r, s = s, items = items } end
 	elseif button == 1 and ctrl then
 		quickMove(game, L, r, s)
 	elseif button == 1 then
@@ -1095,6 +1226,7 @@ function Cargo.keypressed(game, key)
 		h.dx, h.dy = min(h.dy, h.w - 1), min(h.dx, h.h - 1)
 		return true
 	end
+	if key == "escape" and Cargo.menu then Cargo.menu = nil; return true end
 	if key == "escape" and game.state ~= "docked" then Cargo.close(game); return true end
 	if key == "e" and Cargo.loot then Cargo.close(game); return true end
 	if key == "u" and not Cargo.hand then
@@ -1672,12 +1804,12 @@ function Cargo.draw(game)
 	lg.setColor(HUD.INK)
 	local hint
 	if market then
-		hint = "Drag goods onto the trade grid   Ctrl-click or right-click move across   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
+		hint = "Drag goods onto the trade grid   Ctrl-click move across   Right-click actions   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
 	elseif docked then
-		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   E, Enter or (A) launch"
+		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click move across   Right-click actions   Drag or double-click a module to fit it   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
-		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
+		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click take   Right-click actions   Take All   E, Tab or Esc close" end
 	end
  do
   local r,cx,cy=cellAt(L,mx,my);local selected=Cargo.hand or r and Grid.at(r.g,cx,cy)
@@ -1749,7 +1881,7 @@ function Cargo.draw(game)
 		end
 		local r, cx, cy = cellAt(L, mx, my)
 		local s = r and Grid.at(r.g, cx, cy)
-		if s and (not r.side.market or stockMatch(s)) then
+		if s and not Cargo.menu and (not r.side.market or stockMatch(s)) then
 			local item = itemFor(s.id)
 			local hint2, price
 			if market then
@@ -1766,8 +1898,7 @@ function Cargo.draw(game)
 				local k, m = 0, 0
 				for id, n in pairs(Hold.totals(s.inner)) do k, m = k + n, m + data.items[id].mass * n end
 				hint2 = ("Loaded: %d items, %.1f t   Double-click to open"):format(k, m)
-			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
-			elseif not docked and #L.sides == 1 then hint2 = "Right-click: eject" end
+			else hint2 = "Right-click: actions" end
 			if r.side.ship == game.player and ItemUse.usable(s.id) then
 				local ok, why = ItemUse.can(game, game.player, s.id)
 				local use = "U: " .. ItemUse.label(s.id) .. (ok and "" or " (" .. why .. ")")
@@ -1799,6 +1930,7 @@ function Cargo.draw(game)
 			end
 		end
 	end
+	drawMenu(game)
 end
 
 function Cargo.wheelmoved(game,y)
