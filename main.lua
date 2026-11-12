@@ -23,6 +23,7 @@ local Traffic=require("src.ui.npc_traffic")
 local TransitView = require("src.ui.transitview")
 local Pause = require("src.ui.pause")
 local Editor = require("src.editor")
+local Intro = require("src.ui.intro")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -95,6 +96,23 @@ function love.load(args)
 			end
 		end
 	end
+	-- A plain launch shows the title intro and does the slow start-up
+	-- (content, universe, save) behind its zoom; test runs load straight away.
+	local plain = true
+	for _, a in ipairs(args or {}) do
+		if a:match("^%-%-") then plain = false end
+	end
+	if plain then
+		love.mouse.setVisible(false)
+		Intro.start(function()
+			data.load()
+			Debug.init()
+			game = Game.new()
+			if require("src.save").newest() then game:loadFrom() end
+			game.resetClock = true
+		end)
+		return
+	end
 	data.load()
 	for _, a in ipairs(args or {}) do
 		if a == "--autotest" then autotest = require("src.autotest") end
@@ -112,11 +130,11 @@ function love.load(args)
 		["--hometest"] = "tests.npc_home", ["--handofftest"] = "tests.npc_handoff",
 		["--foodtest"] = "tests.food",
 		["--chemicaltest"] = "tests.chemicals",
-		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--questtest"] = "tests.quests", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity",
+		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--questtest"] = "tests.quests", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity", ["--hubtest"] = "tests.logistics_hubs",
 		["--electronicstest"] = "tests.electronics",
 		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
 		["--ammunitiontest"] = "tests.ammunition",
-		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench",
+		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench", ["--itemusetest"] = "tests.item_use",
 	}
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
@@ -264,6 +282,9 @@ function love.keypressed(key)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
 	elseif key == "r" then relaunch()
 	elseif key == "g" then game:toggleDroneControl()
+	elseif key == "q" and game.player and not game.player.dead then
+		local ok, why = require("src.item_use").quick(game, game.player, "repair")
+		if not ok and why then game:toast(why, 1.5) end
 	elseif key == "f2" then Editor.toggle(game)
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
@@ -305,6 +326,26 @@ function love.wheelmoved(x, y)
 	if LocalMap.wheelmoved(game, y) then return end
 	if Cargo.wheelmoved(game,y) then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
+end
+
+-- While the title intro is up there's no game yet: it gets the screen and
+-- input to itself, then fades out over the first frames of play.
+do
+	local update, draw = love.update, love.draw
+	function love.update(dt)
+		if Intro.blocking() then Intro.update(math.min(dt, 1 / 15)) return end
+		update(dt)
+		Intro.update(math.min(dt, 1 / 15))
+	end
+	function love.draw()
+		if Intro.blocking() then Intro.draw() return end
+		draw()
+		Intro.draw()
+	end
+	for _, name in ipairs({ "textinput", "keypressed", "gamepadpressed", "mousepressed", "mousereleased", "wheelmoved" }) do
+		local f = love[name]
+		love[name] = function(...) if not Intro.blocking() then return f(...) end end
+	end
 end
 
 -- F7 frame profiler: counts frames and draws on top of everything

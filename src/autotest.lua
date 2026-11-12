@@ -241,7 +241,8 @@ function A.update(game, dt)
 		local s = Grid.at(g, g.w - 1, g.h - 1)
 		local mx, my = at(main, g.w - 1, g.h - 1)
 		Cargo.mousepressed(game, mx, my, 2)
-		log("cargo: right-click ejected %s x%d, pickups %d -> %d, hold %d / %d", s.id, s.n, pickups, #game.pickups, w.holdUsed, Ship.holdCapacity(w))
+		if not Cargo.menuChoose(game, "Eject all") then Cargo.menuChoose(game, "Eject") end
+		log("cargo: right-click menu ejected %s x%d, pickups %d -> %d, hold %d / %d", s.id, s.n, pickups, #game.pickups, w.holdUsed, Ship.holdCapacity(w))
 		local src = Grid.at(g, g.w - 1, g.h - 2)
 		local before = src.n
 		local sx, sy = at(main, g.w - 1, g.h - 2)
@@ -283,8 +284,8 @@ function A.update(game, dt)
 		end
 		local r, s = find("ship", "rounds_s")
 		local x, y = at(r, s)
-		Cargo.mousepressed(game, x, y, 2)
-		log("cargo: right-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
+		Cargo.mousepressed(game, x, y, 1, { ctrl = true })
+		log("cargo: ctrl-click moved light rounds to storage, storage has %d, ship has %d, hold %d / %d", Hold.count(storage, "rounds_s"), w.cargo.rounds_s or 0, w.holdUsed, Ship.holdCapacity(w))
 		r, s = find("ship", "missile_s")
 		x, y = at(r, s)
 		local tx, ty
@@ -654,7 +655,7 @@ function A.update(game, dt)
 		for _, s in ipairs(mine.g.stacks) do if s.id == "salvage_kit" then kit = s end end
 		local function at(gr, cx, cy) return gr.x + (cx + 0.5) * L.cs, gr.y + (cy + 0.5) * L.cs end
 		local kx, ky = at(mine, kit.x, kit.y)
-		Cargo.mousepressed(game, kx, ky, 2)       -- right-click: onto the trade grid
+		Cargo.mousepressed(game, kx, ky, 1, { ctrl = true })   -- ctrl-click: onto the trade grid
 		-- drag the shelf's first stack onto the trade grid
 		local want = shelf.g.stacks[1]
 		A.boughtId, A.credits0 = want.id, game.universe.credits

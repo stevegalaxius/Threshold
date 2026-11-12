@@ -29,6 +29,7 @@ local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
 local ALife = require("src.alife")
 local Fuel = require("src.reactor_fuel")
+local ItemUse = require("src.item_use")
 local Mining = require("src.mining")
 
 local Game = {}
@@ -1931,6 +1932,7 @@ function Game:step(dt)
 
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead then
+			if e.casting or e.auras then ItemUse.update(self, e, dt) end
 			if e.life then
 				e.life = e.life - dt
 				if e.life <= 0 then e.dead = true end
