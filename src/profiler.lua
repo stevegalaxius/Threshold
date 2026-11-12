@@ -25,7 +25,8 @@ end
 
 local MODULES = { "src.render", "src.hud", "src.ui.cargo", "src.ai", "src.alife", "src.encounters",
 	"src.security", "src.population", "src.economy", "src.arbiter", "src.jobs", "src.tasks",
-	"src.travelgraph", "src.weapons", "src.ship", "src.mining", "src.piracy", "src.reputation" }
+	"src.travelgraph", "src.weapons", "src.ship", "src.mining", "src.piracy", "src.reputation",
+	"src.local_navigation", "src.queue", "src.npc_scheduler", "src.locations", "src.security", "src.fields" }
 
 function P.toggle(Game)
 	P.on = not P.on

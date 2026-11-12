@@ -186,6 +186,7 @@ T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round t
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
+T.alifeSweepStep = 1 / 120 -- offline record visits are spread over the tick in steps this long (see Game:updateALife)
 T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12
 -- A turn-helm hull slides with no side thrust: past this much speed

@@ -35,34 +35,106 @@ local function geometryFor(fixture,body,state)
  fixtureGeometry[fixture]={x=x,y=y,angle=angle,vx=vx,vy=vy,loose=loose,shapes=result}
  return result
 end
+-- Obstacles are gathered per body, not per fixture. A ship hull is a dozen
+-- or more polygons; with hundreds of ships in an area every steering plan
+-- used to walk thousands of fixtures through queryBoundingBox. Each step
+-- the bodies are listed once (shared by every ship planning that step) with
+-- a bounding circle; a plan only expands the fixtures of bodies its sweep
+-- can actually reach.
+local bodyReach=setmetatable({},{__mode='k'})
+-- (re-measured now and then: listing fixtures allocates, and a hull only
+-- gains or loses parts rarely; losing one leaves the circle a little large)
+local function radiusOf(body,stamp)
+ local cached=bodyReach[body]
+ if cached and stamp and stamp-cached.stamp<120 and stamp>=cached.stamp then return cached.r end
+ local fixtures=body:getFixtures()
+ local r
+ for _,f in ipairs(fixtures) do
+  if not f:isSensor() then
+   local shape=f:getShape();local kind=shape:getType()
+   local fr=0
+   if kind=='circle' then local cx,cy=shape:getPoint();fr=sqrt(cx*cx+cy*cy)+shape:getRadius()
+   else
+    local pts={shape:getPoints()}
+    for i=1,#pts,2 do fr=max(fr,sqrt(pts[i]^2+pts[i+1]^2)) end
+   end
+   r=max(r or 0,fr+1)
+  end
+ end
+ bodyReach[body]={stamp=stamp or -math.huge,r=r}
+ return r
+end
+local index={}
+local function bodies(game)
+ local stamp=game.navStamp
+ if stamp and index.world==game.world and index.stamp==stamp then return index.groups end
+ local groups={}
+ for _,body in ipairs(game.world:getBodies()) do
+  if not body:isDestroyed() and body:isActive() then
+   local r=radiusOf(body,stamp)
+   if r then
+    local x,y=body:getPosition();local vx,vy=body:getLinearVelocity()
+    groups[#groups+1]={body=body,x=x,y=y,angle=body:getAngle(),vx=vx,vy=vy,loose=body:getType()=='dynamic' or nil,
+     minx=x-r,miny=y-r,maxx=x+r,maxy=y+r,owner=body:getUserData()}
+   end
+  end
+ end
+ index.world,index.stamp,index.groups=game.world,stamp,groups
+ return groups
+end
+local function expand(group)
+ local prims=group.prims
+ if prims then return prims end
+ prims={}
+ for _,fixture in ipairs(group.body:getFixtures()) do
+  if not fixture:isSensor() then
+   local o=fixture:getUserData() or group.owner
+   if o and (o.dead or o.removed ) then group.anyGone=true end
+   for _,primitive in ipairs(geometryFor(fixture,group.body,group)) do
+    prims[#prims+1]=primitive;primitive.owner=o
+   end
+  end
+ end
+ group.prims=prims
+ return prims
+end
+-- A primitive this plan should steer round.
+local function counts(o,ignore,allowSurface)
+ return o~=ignore and not (o and (o.dead or o.removed)) and not (allowSurface and o and o.kind=='planet')
+end
+-- Bodies near the ship that the plan should consider. Their fixtures are
+-- expanded (prims) only when a sweep actually reaches the body's bounds.
 local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
- local x,y=e.body:getPosition();local result={};local seen={};local bodies={}
- game.world:queryBoundingBox(x-reach,y-reach,x+reach,y+reach,function(fixture)
-  -- Box2D reports a chain fixture once per overlapping child edge. Expanding
-  -- the whole chain for every callback makes terrain avoidance quadratic.
-  if seen[fixture] then return true end
-  seen[fixture]=true
-  local body=fixture:getBody();local o=fixture:getUserData() or body:getUserData()
-  local state=bodies[body]
-  if not state then
-   local bx,by=body:getPosition();local vx,vy=body:getLinearVelocity()
-   state={x=bx,y=by,angle=body:getAngle(),vx=vx,vy=vy,loose=body:getType()=='dynamic' or nil}
-   bodies[body]=state
-  end
-  if (not staticOnly or not state.loose) and body~=e.body and o~=ignore and not fixture:isSensor() and not (o and (o.dead or o.removed))
-   and not (allowSurface and o and o.kind=='planet') then
-   for _,primitive in ipairs(geometryFor(fixture,body,state)) do result[#result+1]=primitive end
-  end
-  return true
- end)
+ local x,y=e.body:getPosition();local result={}
+ local lx,ly,hx,hy=x-reach,y-reach,x+reach,y+reach
+ for _,g in ipairs(bodies(game)) do
+  if g.maxx>=lx and g.minx<=hx and g.maxy>=ly and g.miny<=hy and g.body~=e.body and (not staticOnly or not g.loose)
+   and not g.body:isDestroyed() then result[#result+1]=g end
+ end
+ result.ignore,result.allowSurface=ignore,allowSurface
  -- Gas giants have no fixture, but transit traffic should stay above the clouds.
  local w=game.well
  if w and w.gas and not allowSurface then
   local r=w.radius+T.surfacePullRange
-  result[#result+1]={x=w.x,y=w.y,r=r,vx=0,vy=0,virtual=true,minx=w.x-r,maxx=w.x+r,miny=w.y-r,maxy=w.y+r}
+  local o={x=w.x,y=w.y,r=r,vx=0,vy=0,virtual=true,minx=w.x-r,maxx=w.x+r,miny=w.y-r,maxy=w.y+r}
+  result[#result+1]={minx=o.minx,miny=o.miny,maxx=o.maxx,maxy=o.maxy,vx=0,vy=0,virtual=true,prims={o}}
  end
  return result
 end
+-- The fixtures of one body this plan counts as obstacles.
+local function primsOf(g,list)
+ local prims=g.prims or expand(g)
+ local ignore,allowSurface=list.ignore,list.allowSurface
+ if g.virtual or (ignore==nil and not allowSurface and not g.anyGone) then return prims end
+ list.kept=list.kept or {}
+ local keep=list.kept[g]
+ if keep then return keep end
+ keep={}
+ for _,p in ipairs(prims) do if counts(p.owner,ignore,allowSurface) then keep[#keep+1]=p end end
+ list.kept[g]=keep
+ return keep
+end
+Nav.obstacleGroups=obstacles
 -- Commit to a detour around scenery instead of repeatedly aiming into it.
 -- Dynamic traffic still uses the predictive steering below.
 function Nav.waypoint(game,e,gx,gy,options)
@@ -84,9 +156,13 @@ function Nav.waypoint(game,e,gx,gy,options)
  local function clear(ax,ay,bx,by)
   local loX,hiX=min(ax,bx)-radius,max(ax,bx)+radius
   local loY,hiY=min(ay,by)-radius,max(ay,by)+radius
-  for _,o in ipairs(geometry) do
-   if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY
-    and Sweep.sweepCircle(ax,ay,radius,o,bx-ax,by-ay,1) then return false end
+  for _,g in ipairs(geometry) do
+   if g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
+    for _,o in ipairs(primsOf(g,geometry)) do
+     if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY
+      and Sweep.sweepCircle(ax,ay,radius,o,bx-ax,by-ay,1) then return false end
+    end
+   end
   end
   return true
  end
@@ -174,10 +250,14 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  -- same spot, or the wreck of one) blocks every heading at time 0, which
  -- left the ship crawling at the minimum speed for ever, drifting off with
  -- the current. The collision pushes them apart; steering ignores it meanwhile.
- for i=#geometry,1,-1 do
-  local o=geometry[i]
-  if o.loose and x+radius>=o.minx and x-radius<=o.maxx and y+radius>=o.miny and y-radius<=o.maxy
-   and Sweep.sweepCircle(x,y,radius,o,0,0,1)==0 then table.remove(geometry,i) end
+ local overlapping
+ for _,g in ipairs(geometry) do
+  if g.loose and x+radius>=g.minx and x-radius<=g.maxx and y+radius>=g.miny and y-radius<=g.maxy then
+   for _,o in ipairs(primsOf(g,geometry)) do
+    if x+radius>=o.minx and x-radius<=o.maxx and y+radius>=o.miny and y-radius<=o.maxy
+     and Sweep.sweepCircle(x,y,radius,o,0,0,1)==0 then overlapping=overlapping or {};overlapping[o]=true end
+   end
+  end
  end
  local spine=e.spine or {0,0}
  local offsets={spine[1],0,spine[2]}
@@ -185,17 +265,34 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  -- running the three exact circle sweeps. This only skips impossible hits.
  local minx,maxx=x+min(c*spine[1],0,c*spine[2])-radius,x+max(c*spine[1],0,c*spine[2])+radius
  local miny,maxy=y+min(s*spine[1],0,s*spine[2])-radius,y+max(s*spine[1],0,s*spine[2])+radius
+ -- Drop bodies no heading can reach within the horizon, once, instead of
+ -- re-testing them for every candidate heading.
+ do
+  local V=max(sqrt(vx*vx+vy*vy),sqrt(flowX*flowX+flowY*flowY)+want)
+  local near={ignore=geometry.ignore,allowSurface=geometry.allowSurface}
+  for _,g in ipairs(geometry) do
+   local m=(V+sqrt(g.vx*g.vx+g.vy*g.vy))*horizon
+   if maxx+m>=g.minx and minx-m<=g.maxx and maxy+m>=g.miny and miny-m<=g.maxy then near[#near+1]=g end
+  end
+  geometry=near
+ end
  local function freeTime(dx,dy,ahead,physicalOnly)
   ahead=ahead or horizon
   local time=ahead
-  for _,o in ipairs(geometry) do
-   if not physicalOnly or not o.virtual then
-    local rx,ry=dx-o.vx,dy-o.vy
-    if maxx+max(0,rx*time)>=o.minx-1e-6 and minx+min(0,rx*time)<=o.maxx+1e-6
-     and maxy+max(0,ry*time)>=o.miny-1e-6 and miny+min(0,ry*time)<=o.maxy+1e-6 then
-     for _,offset in ipairs(offsets) do
-      local hit=Sweep.sweepCircle(x+c*offset,y+s*offset,radius,o,rx,ry,time)
-      if hit and hit<time then time=hit;if time==0 then return 0 end end
+  for _,g in ipairs(geometry) do
+   if not physicalOnly or not g.virtual then
+    local rx,ry=dx-g.vx,dy-g.vy
+    if maxx+max(0,rx*time)>=g.minx-1e-6 and minx+min(0,rx*time)<=g.maxx+1e-6
+     and maxy+max(0,ry*time)>=g.miny-1e-6 and miny+min(0,ry*time)<=g.maxy+1e-6 then
+     for _,o in ipairs(primsOf(g,geometry)) do
+      if not (overlapping and overlapping[o])
+       and maxx+max(0,rx*time)>=o.minx-1e-6 and minx+min(0,rx*time)<=o.maxx+1e-6
+       and maxy+max(0,ry*time)>=o.miny-1e-6 and miny+min(0,ry*time)<=o.maxy+1e-6 then
+       for _,offset in ipairs(offsets) do
+        local hit=Sweep.sweepCircle(x+c*offset,y+s*offset,radius,o,rx,ry,time)
+        if hit and hit<time then time=hit;if time==0 then return 0 end end
+       end
+      end
      end
     end
    end

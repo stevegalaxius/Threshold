@@ -116,7 +116,7 @@ function love.load(args)
 		["--electronicstest"] = "tests.electronics",
 		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
 		["--ammunitiontest"] = "tests.ammunition",
-		["--steeltest"] = "tests.steel",
+		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench",
 	}
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
