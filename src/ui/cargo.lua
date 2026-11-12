@@ -57,6 +57,7 @@ local function loadOptions(p, i)
 end
 local Grid = require("src.inventory.grid")
 local Hold = require("src.inventory.hold")
+local ItemUse = require("src.item_use")
 local Shapes = require("src.inventory.shapes")
 local HullShape = require("src.hullshape")
 local HUD = require("src.hud")
@@ -1096,6 +1097,18 @@ function Cargo.keypressed(game, key)
 	end
 	if key == "escape" and game.state ~= "docked" then Cargo.close(game); return true end
 	if key == "e" and Cargo.loot then Cargo.close(game); return true end
+	if key == "u" and not Cargo.hand then
+		-- use the hovered stack (only from your own hold)
+		local L = layout(game)
+		local mx, my = love.mouse.getPosition()
+		local r, cx, cy = L and cellAt(L, mx, my)
+		local s = r and Grid.at(r.g, cx, cy)
+		if s and r.side.ship == game.player and ItemUse.usable(s.id) then
+			local ok, why = ItemUse.begin(game, game.player, s.id)
+			if ok then changed(r.side) elseif why then game:toast(why, 1.5) end
+			return true
+		end
+	end
 	return false
 end
 
@@ -1755,6 +1768,11 @@ function Cargo.draw(game)
 				hint2 = ("Loaded: %d items, %.1f t   Double-click to open"):format(k, m)
 			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
 			elseif not docked and #L.sides == 1 then hint2 = "Right-click: eject" end
+			if r.side.ship == game.player and ItemUse.usable(s.id) then
+				local ok, why = ItemUse.can(game, game.player, s.id)
+				local use = "U: " .. ItemUse.label(s.id) .. (ok and "" or " (" .. why .. ")")
+				hint2 = hint2 and (use .. "   " .. hint2) or use
+			end
 			tooltip(item, s.n, mx, my, hint2, price)
 		end
 	end

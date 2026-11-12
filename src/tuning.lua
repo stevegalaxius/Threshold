@@ -356,6 +356,29 @@ T.freightHandling=200 -- once per shipment; partial orders earn a proportional s
 T.freightListingSeconds=30 -- public listing before NPC reservation
 T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
 T.trunkMinHold=200 -- hold a ship needs to take trunk runs
+T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
+-- Shortage deliveries (src/quests.lua): player-only work generated from
+-- stations that have been short of a good for a while.
+T.questShortageAge=900   -- a shortage must be this old (s) before it is posted
+T.questSlots=3           -- open shortage deliveries per station
+T.questMaxActive=3       -- deliveries the player can hold at once
+T.questOfferLife=1800    -- an unaccepted delivery is withdrawn after this
+T.questDeadline=3600     -- time to deliver once accepted
+T.questMaxVolume=60      -- m3 asked for in one delivery
+T.questPremium=1.5       -- reward per unit, as a multiple of the station's price
+T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
+T.questTick=60
+T.questKindMax=2         -- open offers of one kind per station
+T.questCooldown={shortage_delivery=300,rescue=120} -- per station, after posting that kind
+T.questWeights={rescue=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questStanding=2        -- giver faction standing for a finished job
+T.questFailStanding=1    -- and lost for a failed or abandoned one
+T.rescueMinAge=60        -- stranded this long before a station posts the rescue
+T.rescueBase=300         -- flat rescue pay, plus the fuel's worth below
+T.rescueFuelMultiple=3
+T.rescueRange=2500       -- px: you count as the rescuer if you were this close
+T.rescueCredit=120       -- s: ...this recently when it stopped being stranded
+T.rescueDeadline=1800
 T.reactorFuelStart,T.reactorFuelReserveSeconds=8,600
 T.laserReserve=.5 -- laser damage and opacity below the capacitor reserve floor
 -- Average throttle of an NPC flying a leg (live flights on Mars, Earth,

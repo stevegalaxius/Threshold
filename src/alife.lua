@@ -995,6 +995,8 @@ function A.install(Game)
   require('src.queue').universe=self.universe
   require('src.arbiter').update(self.universe,clock)
   require('src.economy').update(self.universe,clock)
+  self.universe.playerDocked=require('src.player_contracts').station(self)
+  require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
