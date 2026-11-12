@@ -18,6 +18,13 @@
 	            first, each from the nearest station with enough spare, in
 	            orders of up to E.lot. Unclaimed orders expire after E.expire
 	            and are placed again, so they follow wherever the stock is.
+	  hubs      a planet system with a logistics hub (world_layout hub=true)
+	            trades with other systems only through it. The hub keeps a
+	            depot of what its system uses but doesn't make (imports),
+	            and collects what its system makes that other hubs import
+	            (exports). Hub to hub is a trunk run: bigger lots, for bulk
+	            freighters (T.trunkLot, T.trunkMinHold). Local stations
+	            reorder from their hub instead of across the system.
 	  stats     E.stat counts what was made, used and hauled of each good,
 	            for the economy test's hourly table.
 
@@ -182,6 +189,73 @@ local function reachable(a,b,clock)
  return a~=b and require('src.travelgraph').itinerary(a,b,clock)~=nil
 end
 
+
+-- Logistics hubs ---------------------------------------------------------
+
+-- One plan per update: hubs[root]=station, want[hub][item] and kind
+-- [hub][item] ('import' or 'export'), and made[root][item].
+local hubPlan
+local function hubWants(u,all)
+ local plan={hubs={},want={},kind={},made={},u=u}
+ for _,s in ipairs(all) do
+  local p=L.byId[s]
+  if p.hub then local r=root(p.area);if not plan.hubs[r] or s<plan.hubs[r] then plan.hubs[r]=s end end
+ end
+ if not next(plan.hubs) then return plan end
+ for _,s in ipairs(all) do
+  local r=root(L.byId[s].area);plan.made[r]=plan.made[r] or {}
+  for _,item in ipairs(goods()) do if makes(s,item) then plan.made[r][item]=true end end
+ end
+ for _,h in pairs(plan.hubs) do plan.want[h],plan.kind[h]={},{} end
+ for _,item in ipairs(goods()) do
+  local imported,total={},0
+  for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
+   local n=0
+   for _,s in ipairs(all) do
+    if s~=h and root(L.byId[s].area)==r then n=n+E.target(u,s,item,false) end
+   end
+   imported[r]=n;total=total+n
+  end end
+  for r,h in pairs(plan.hubs) do
+   if imported[r] then plan.want[h][item],plan.kind[h][item]=imported[r],'import'
+   else plan.want[h][item],plan.kind[h][item]=total,'export' end
+  end
+ end
+ return plan
+end
+E.hubWants=hubWants
+-- The hub that serves a station's planet system, if it has one.
+function E.hubFor(id)
+ local p=L.byId[id];if not p then return end
+ local r,best=root(p.area)
+ for _,place in pairs(L.byId) do
+  if place.kind=='station' and place.hub and root(place.area)==r and (not best or place.id<best) then best=place.id end
+ end
+ return best
+end
+-- Whether s may sell item to c under hub routing.
+local function routed(plan,s,c,item)
+ local rs,rc=root(L.byId[s].area),root(L.byId[c].area)
+ local hs,hc=plan.hubs[rs],plan.hubs[rc]
+ local kind=s==hs and plan.kind[s][item]
+ if rs==rc then return kind~='export' or makes(s,item) end
+ if kind=='import' then return false end
+ -- a station in a system without a hub still buys straight from the
+ -- maker; a hubbed system only takes deliveries at its hub, and between
+ -- two hubbed systems it is hub to hub
+ if hc and c~=hc then return false end
+ if hs and hc and s~=hs then return false end
+ return true
+end
+local function hubTarget(u,key,item,supplier)
+ local plan=hubPlan
+ if plan and plan.u==u and plan.want[key] then
+  return math.max(plan.want[key][item] or 0,E.target(u,key,item,supplier))
+ end
+ return E.target(u,key,item,supplier)
+end
+E.hubTarget=hubTarget
+
 -- Shortage lifetime belongs to the destination, not a replaceable offer.
 function E.shortageAge(u,key,item,clock)
  local at=(Stock.record(u,key).shortages or {})[item]
@@ -219,6 +293,7 @@ function E.update(u,clock)
  planning={u=u,stations={}}
  require('src.markets').update(u,clock,all,committed)
  planning.stations={}
+ hubPlan=hubWants(u,all)
  -- Output bins may have filled since these orders were posted. Keep
  -- committed cargo, but release unclaimed excess rather than tying up sources.
  local remaining,availableOrders={},{}
@@ -227,7 +302,7 @@ function E.update(u,clock)
  for _,entry in ipairs(availableOrders) do
   local o=entry.o;local k=o.target..'|'..o.item
   if remaining[k]==nil then
-   local producer=makes(o.target,o.item);local want=E.target(u,o.target,o.item,producer)
+   local producer=makes(o.target,o.item);local want=hubTarget(u,o.target,o.item,producer)
    remaining[k]=math.max(0,want*(producer and 1 or 2)-Stock.count(u,o.target,o.item)-(committed[k] or 0))
   end
   local amount=math.min(o.amount,remaining[k])
@@ -249,10 +324,12 @@ function E.update(u,clock)
   for _,s in ipairs(participants) do
    local have=math.max(0,Stock.count(u,s,item)-Transport.reserved(u,s,item,nil,true))
    local producer=makes(s,item)
-   local want=E.target(u,s,item,producer)
+   local want=hubTarget(u,s,item,producer)
    E.shortage(u,s,item,Stock.count(u,s,item),want,clock)
    local level=producer and want or want*2
-   spare[s]=have-level
+   -- a hub's stock is all for passing on: imports to its own system,
+   -- exports to other hubs (routed decides which way)
+   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or level)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
   end
@@ -263,7 +340,7 @@ function E.update(u,clock)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
-     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then
+     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
@@ -286,21 +363,24 @@ function E.update(u,clock)
      if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
      break
     end
-    local n=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[best])
+    -- hub to hub is a trunk run: a bulk lot for a big freighter
+    local trunk=hubPlan.kind[best]~=nil and hubPlan.kind[c]~=nil and root(L.byId[best].area)~=root(L.byId[c].area)
+    local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or 30)/require('src.data').items[item].volume)),short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
-    local critical=item==Food.item or item==require('src.reactor_fuel').item()
+    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
+     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     trunk=trunk or nil,requires=trunk and {capabilities={'cargo','bulk'}} or nil},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
   end
  end
  u.economyUnmet=unmet
  adjust(u,unmet)
- planning=nil
+ planning=nil;hubPlan=nil
 end
 
 return E
