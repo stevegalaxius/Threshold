@@ -439,6 +439,9 @@ function W.connect(f)
  for _,id in ipairs(f.drillIds) do link(byId[id].motion.home,id) end
  for _,driver in ipairs(f.driverIds or {}) do
   for _,id in ipairs(buoyOnly and #f.buoyIds>0 and nearBuoys(driver) or {f.tradeHome or f.holdingId}) do link(driver,id) end
+  -- and straight to the planet's logistics hub: trunk freight lands there,
+  -- and routing it all past the primary port jammed traffic at that one station
+  for _,id in ipairs(f.stationIds) do if byId[id].hub then link(driver,id) end end
  end
  if f.ladderIds then
   for k,id in ipairs(f.ladderIds) do
