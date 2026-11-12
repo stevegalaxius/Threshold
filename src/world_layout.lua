@@ -29,7 +29,10 @@ W.stations = {
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
-		{ id = "station:mars_2", facilities={ammunition={capacity=24}}, services = { "market", "shipyard", "hangar" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "customs_1",   name = " Zhongke Intelligent Manufacturing" },
+		{ id = "station:mars_2", services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
+		-- Zhuhai's logistics hub: Mars's production is on the Heaven-Ladder,
+		-- the two orbital stations are shipyards, and freight meets here
+		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
 	},
 	phobos = {
 		{ id = "station:phobos_1", services = { "market", "shipyard", "hangar", "repair" }, primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
@@ -117,7 +120,7 @@ W.stations = {
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
 W.defaults={marketId='market:venus_1',waterUse=16,foodUse=32,foodReserveHours=4}
-W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
+W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammunition={capacity=24},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
 W.aliases={

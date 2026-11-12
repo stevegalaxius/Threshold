@@ -47,6 +47,10 @@ M.houses={
  {id='house:estates',faction='estates',name='Venusian Trust',
   -- old money: patient hoarders, big positions, sell late and only at home
   warehouses={'station:venus_1'},buyBelow=.8,sellAbove=1.6,lot=200,hold=1200,reach='own',capital=900000},
+ {id='house:zhuhai',faction='zhuhai',name='Zhuhai Mandate Trading',
+  -- Mars's state traders: thin margins, fast turnover, buy raw goods cheap
+  -- and sell into shortages anywhere
+  warehouses={'station:mars_4'},buyBelow=.85,sellAbove=1.2,lot=150,hold=500,reach='any',capital=500000},
  {id='house:diwan',faction='diwan',name='Hyrum & Cohen',
   -- the Diwan's merchant bankers: small, frequent, careful arbitrage
   warehouses={'station:saturn_3'},buyBelow=.75,sellAbove=1.3,lot=60,hold=300,reach='any',capital=300000},
