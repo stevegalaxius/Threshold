@@ -42,6 +42,12 @@ market { id = "market:belt_3", station = "Ceres Logistics", sells = {
 market { id = "market:jupiter_3", station = "Jovian Logistics", sells = {
 	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
+market { id = "market:uranus_3", station = "Uranian Logistics", sells = {
+	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:triton_3", station = "Triton Logistics", sells = {
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
@@ -56,12 +62,6 @@ market { id = "market:ganymede_3", station = "Ganymede Customs", sells = {
 	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
 market { id = "market:callisto_3", station = "Callisto Customs", sells = {
-	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
-} }
-market { id = "market:enceladus_3", station = "Enceladus Customs", sells = {
-	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
-} }
-market { id = "market:titan_4", station = "Titan Customs", sells = {
 	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
 market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Intaki Zhuhai Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 3, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- artillery
