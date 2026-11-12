@@ -404,6 +404,19 @@ Actions.registerTarget('resource',{
  end,
  remove=function(ctx,t) local record=M.state(ctx.u).resources[t.id];if record and record.site then M.advanceProduction(ctx.u,ctx.clock,record.site) end;M.state(ctx.u).resources[t.id]=nil end,
 })
+-- Authored surface-drill ejecta is meant to be worked in the pull band.
+-- Reject material inside the solid body, rather than treating all of it as
+-- sinking salvage and leaving the site's entire production buffer untouched.
+local function mineable(ctx,record,target)
+ local site=M.state(ctx.u).sites[record.site]
+ if site and site.planet then
+  local dx,dy=target.x-site.x,target.y-site.y
+  local clear=(site.radius or 0)+(target.radius or 0)
+  return dx*dx+dy*dy>=clear*clear
+ end
+ return not Actions.sinking(ctx.r,target.x,target.y)
+end
+Actions.targets.resource.safe=function(ctx,target)return mineable(ctx,target.record,target)end
 function M.nextAction(ctx)
  local r,t=ctx.r,ctx.r.task
  if t.phase=='delivery' or r.state~='idle' or r.node~=t.target then return end
@@ -421,7 +434,7 @@ function M.nextAction(ctx)
  for id,record in pairs(M.state(ctx.u).resources) do
   if record.site==t.target and ctx.clock>=(record.readyAt or 0) then
    local target=Actions.targets.resource.resolve(ctx,{id=id})
-   if target and not target.done and Actions.available(ctx,target) and not Actions.sinking(ctx.r,target.x,target.y) then
+   if target and not target.done and Actions.available(ctx,target) and Actions.targets.resource.safe(ctx,target) then
     local d=(target.x-x)^2+(target.y-y)^2;local p=record.kind=='loot' and 1 or 0
     if not best or p>priority or p==priority and (d<distance or d==distance and id<best) then best,priority,distance=id,p,d end
    end

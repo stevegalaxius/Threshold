@@ -1,28 +1,28 @@
 -- Recipes and facility types. Capacities are batches per game hour.
 local D={recipes={
  -- Raw nitrates: Ceres processes ice, chemical-rich moons supply directly.
- {id='process_nitrates',item='nitrates',opening=0,cap=480,input={item='water_ice',n=1}},
- {id='produce_nitrates',item='nitrates',opening=0,cap=480},
+ {id='process_nitrates',item='nitrates',opening=0,cap=960,input={item='water_ice',n=1}},
+ {id='produce_nitrates',item='nitrates',opening=0,cap=960},
  -- Each unit uses one unit of a plant's shared chemical processing time.
- {id='make_fertilizer',item='fertilizer',group='chemicals',cap=240,input={item='nitrates',n=1}},
- {id='make_explosives',item='explosives',group='chemicals',cap=240,input={item='nitrates',n=2}},
+ {id='make_fertilizer',item='fertilizer',group='chemicals',cap=480,input={item='nitrates',n=1}},
+ {id='make_explosives',item='explosives',group='chemicals',cap=720,input={item='nitrates',n=2}},
  -- rolled steel shares the same item as plates recovered from wrecks
- {id='roll_steel',item='steel_plate',cap=240,input={item='iron_ore',n=2}},
+ {id='roll_steel',item='steel_plate',cap=1200,input={item='iron_ore',n=2}},
  -- One ore presses two empty canisters; fractional credits keep stock whole.
- {id='press_canisters',inputWeight=4,market=false,item='empty_canister',cap=6000,input={item='iron_ore',n=.5}},
+ {id='press_canisters',market=false,item='empty_canister',cap=6000,input={item='iron_ore',n=.5}},
  -- filling them with hydrogen skimmed from a gas giant
  {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=60,input={item='empty_canister',n=1}},
  -- cracking ice into deuterium, one canister of it per ice
- {id='crack_ice',inputWeight=4,market=false,item='deuterium_canister',cap=4000,
+ {id='crack_ice',market=false,item='deuterium_canister',cap=4000,
   inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
  -- skimming deuterium straight from a gas giant's air: just canisters
- {id='skim_deuterium',inputWeight=4,market=false,item='deuterium_canister',cap=4000,input={item='empty_canister',n=1}},
+ {id='skim_deuterium',market=false,item='deuterium_canister',cap=4000,input={item='empty_canister',n=1}},
  -- welding hull frames for a manufacturer's dealer lot (src/dealers.lua)
  {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=36,input={item='steel_plate',n=6}},
  -- Refined local resources: abstract station extraction, no extra ore chain.
- {id='refine_silicon',group='resources',item='silicon',opening=0,cap=96},
- {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=64},
- {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=128,
+ {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},
+ {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
+ {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
@@ -62,10 +62,10 @@ D.facilities={
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
- chemicals={policy='profit',openingInputs={nitrates=1},recipes={'make_fertilizer','make_explosives'}},
+ chemicals={policy='profit',openingInputs={nitrates=.5},recipes={'make_fertilizer','make_explosives'}},
  ammunition={policy='profit',recipes={}},
  farm={policy='fixed',recipes={'grow_food'}},
- shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=8},recipes={'assemble_hull_frames'}},
+ shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }
 for maker,hulls in pairs(D.lineups) do
  local r={};for i,h in ipairs(hulls) do r[i]='assemble_'..h end
@@ -76,6 +76,7 @@ for _,c in ipairs(D.recipes) do
  if not c.group and c.id~='grow_food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end
  if c.market==nil then c.market=true end
 end
+D.inputHours=.5 -- reorder at thirty minutes, refill toward one hour
 D.shops={chemicals={id='chemicals',name='Chemicals',description='Nitrates, agricultural fertilizer and industrial explosives.',sells={{'nitrates',1},{'fertilizer',1},{'explosives',1}}}}
 D.usedShips={intervalHours=8,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','longhorn_hauler','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'}}
 D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1,wholesaleHours=2}

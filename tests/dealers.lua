@@ -55,8 +55,8 @@ return function(game)
  -- Mars specializes: Heaven-Ladder supplies frames through real freight.
  local C,E,Tasks=require('src.commodities'),require('src.economy'),require('src.tasks')
  local ladder='station:mars_3';local weaponWorks='station:mars_2'
- assert(C.byId.assemble_hull_frames.make[ladder]==6 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
- assert(C.byId.roll_steel.make[ladder]==120 and C.byId.press_canisters.make[ladder]==12000,'basic industry did not move intact')
+ assert(C.byId.assemble_hull_frames.make[ladder]==10 and not C.byId.assemble_hull_frames.make[works] and not C.byId.assemble_hull_frames.make[weaponWorks],'frames assigned to the wrong Mars station')
+ assert(C.byId.roll_steel.make[ladder]==480 and C.byId.press_canisters.make[ladder]==12000,'basic industry did not move intact')
  assert(C.byId.make_rounds_s.make[weaponWorks]==24 and not C.byId.make_rounds_s.make[works],'ammunition did not consolidate at Zhongke')
  local chain={clock=0,stations={},npcs={}}
  local dealer=D.state(chain,works);dealer.lots={}

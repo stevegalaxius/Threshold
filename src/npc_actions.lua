@@ -218,7 +218,10 @@ local function interaction(ctx,a,elapsed,approachOnly)
  if target.done then return 'done' end
  if not A.available(ctx,target) then return 'failed','target claimed' end
  local provider=a.target and a.target.provider
- if (provider=='loot' or provider=='resource') and A.sinking(ctx.r,target.x,target.y) then return 'failed','target sinking into the planet' end
+ local policy=provider and A.targets[provider]
+ if policy and policy.safe then
+  if not policy.safe(ctx,target) then return 'failed','target inside the mined body' end
+ elseif (provider=='loot' or provider=='resource') and A.sinking(ctx.r,target.x,target.y) then return 'failed','target sinking into the planet' end
  if target.record then target.record.actionOwner=ctx.r.id;target.record.actionKey=a.key end
  local op=a.operation and A.operations[a.operation]
  local stand=a.distance or (op and op.distance and op.distance(ctx,target)) or 0

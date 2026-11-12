@@ -53,7 +53,7 @@ return function(game)
  farmStock[Food.item]=nil;farmStock[Food.fertilizer]=nil
  farmWorld.clock=3600
  assert(Food.status(farmWorld,farm).stock==0 and Food.output(farmWorld,farm)==.5,'farm made food without fertilizer')
- assert(E.target(farmWorld,farm,Food.fertilizer)==make/Food.yield*E.hours,'empty farm lost fertilizer demand')
+ assert(E.target(farmWorld,farm,Food.fertilizer)==make/Food.yield*require('data.industry').inputHours,'empty farm lost fertilizer demand')
  local shipment={id='fertilizer-shipment',source='station:belt_1',target=farm,item=Food.fertilizer,amount=1,stocked=true,phase='delivery'}
  local carrier={id='fertilizer-hauler',ship={cargo={[Food.fertilizer]=1}}}
  assert(complete(farmWorld,carrier,shipment,farm,farmWorld.clock),'fertilizer freight failed')

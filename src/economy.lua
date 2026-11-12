@@ -6,10 +6,10 @@
 	  usage     every station keeps a decaying per-hour rate of what it uses
 	            up (E.consume): fuel sold at Supplies, a commodity's use, a
 	            recipe's inputs. Hauling stock out is not use.
-	  target    how much a station wants on hand: E.hours of its usage, or
-	            of what its recipes would use running flat out (so a
-	            starved maker keeps ordering instead of forgetting it ever
-	            needed anything), and never below E.floor for the good.
+	  target    how much a station wants on hand: service-use reserves plus
+	            short factory buffers for allocated work with output room,
+	            and never below service floors. Historical factory usage
+	            does not keep importing inputs into a blocked factory.
 	  orders    every E.tick seconds, for every good and every trade
 	            station alike: a station that makes the good keeps
 	            E.reserveHours of its use and offers the rest; any other
@@ -47,13 +47,22 @@ function E.stat(u,kind,item,n)
  local t=u.economyStats[kind] or {};u.economyStats[kind]=t
  t[item]=(t[item] or 0)+n
 end
-function E.consume(u,key,item,n)
+function E.consume(u,key,item,n,industrial)
  if n<=0 or not u.clock then return end
  E.stat(u,'used',item,n)
  local m=record(u,key);local e=m[item] or {rate=0,at=u.clock}
  local dt=math.max(0,u.clock-e.at)
  -- an exponentially weighted rate, in units an hour
  local k=math.exp(-dt/E.halfLife)
+ -- Older usage ledgers did not distinguish factory inputs from service.
+ local inputs=e.inputRate
+ if inputs==nil then
+  inputs=0
+  for _,c in ipairs(C.list) do if (c.make[key] or 0)>0 then
+   for _,input in ipairs(C.inputs(c)) do if input.item==item then inputs=e.rate end end
+  end end
+ end
+ e.inputRate=inputs*k+(industrial and n*3600/E.halfLife or 0)
  e.rate=e.rate*k;e.at=u.clock
  e.rate=e.rate+n*3600/E.halfLife
  m[item]=e
@@ -93,17 +102,29 @@ local function adjust(u,unmet)
   local v=t[c.id] or 1;t[c.id]=v+math.max(-E.scaleStep,math.min(E.scaleStep,target-v))
  end end
 end
--- What a station's recipes would use an hour, running flat out.
+-- One planning snapshot per station and phase of the minute update.
+local planning
+local function inputPlan(u,key)
+ if not planning or planning.u~=u then return require('src.industry').inputPlan(u,key) end
+ local plan=planning.stations[key]
+ if not plan then plan=require('src.industry').inputPlan(u,key);planning.stations[key]=plan end
+ return plan
+end
 local function capacityUse(u,key,item)
- local place=L.byId[key];if not place then return 0 end
  local n=item==Food.item and Food.rates(key) or 0
- for _,c in ipairs(C.list) do
-  n=n+(c.use[key] or 0)*(c.item==item and 1 or 0)
-  for _,input in ipairs(C.inputs(c)) do
-   if input.item==item then n=n+(c.make[key] or 0)*E.scale(u,key,c)*input.n/(c.time or 1) end
-  end
+ for _,c in ipairs(C.list) do if c.item==item then n=n+(c.use[key] or 0) end end
+ return n+(inputPlan(u,key).rates[item] or 0)
+end
+local function serviceUse(u,key,item)
+ local e=record(u,key)[item];if not e then return 0 end
+ local inputs=e.inputRate
+ if inputs==nil then
+  inputs=0
+  for _,c in ipairs(C.list) do if (c.make[key] or 0)>0 then
+   for _,input in ipairs(C.inputs(c)) do if input.item==item then inputs=e.rate end end
+  end end
  end
- return n
+ return math.max(0,e.rate-inputs)*math.exp(-math.max(0,u.clock-e.at)/E.halfLife)
 end
 -- A supplier keeps only E.reserveHours of its own use back: what it makes
 -- is for shipping, and hoarding hours of local sales starves everyone else.
@@ -114,24 +135,17 @@ local function makes(key,item)
  return false
 end
 function E.target(u,key,item,supplier)
- local want=math.max(E.rate(u,key,item),capacityUse(u,key,item))*(supplier and E.reserveHours or E.hours)
+ local use=serviceUse(u,key,item)
+ if item==Food.item then use=math.max(use,Food.rates(key)) end
+ for _,c in ipairs(C.list) do if c.item==item then use=math.max(use,c.use[key] or 0) end end
+ local want=use*(supplier and E.reserveHours or E.hours)+(inputPlan(u,key).buffers[item] or 0)
  if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
  want=math.max(want,require('src.reserves').minimum(key,item))
  local place=L.byId[key]
  if place then want=math.max(want,place.reserves and place.reserves[item] or 0) end
- local inputReserve=0
- -- Installed facility input reserves are independent of its current allocation.
- for id,installation in pairs(require('src.industry').installations(key)) do
-  local def=require('src.industry').definition(id,installation);local maximum=0
-  for _,recipe in ipairs(def.recipes) do
-   local c=C.byId[recipe]
-   for _,input in ipairs(C.inputs(c)) do if input.item==item then maximum=math.max(maximum,installation.capacity*input.n/(c.time or 1)) end end
-  end
-  if def.policy=='profit' then inputReserve=inputReserve+maximum*E.hours*(installation.inputReserveScale or 1) end
- end
- return math.ceil(math.max(want,inputReserve))
+ return math.ceil(want)
 end
 -- The goods that move: every commodity, its inputs, what the drills dig,
 -- and reactor fuel. Every trade station can hold, sell and buy any of them;
@@ -201,7 +215,27 @@ function E.update(u,clock)
  local all=stations()
  local inhabited=stations(true)
  require('src.industry').update(u,clock,inhabited)
+ planning={u=u,stations={}}
  require('src.markets').update(u,clock,all,committed)
+ planning.stations={}
+ -- Output bins may have filled since these orders were posted. Keep
+ -- committed cargo, but release unclaimed excess rather than tying up sources.
+ local remaining,availableOrders={},{}
+ for id,o in pairs(state.offers) do if o.layoutScope==E.scope and o.state=='available' then availableOrders[#availableOrders+1]={id=id,o=o} end end
+ table.sort(availableOrders,function(a,b)return tostring(a.id)<tostring(b.id) end)
+ for _,entry in ipairs(availableOrders) do
+  local o=entry.o;local k=o.target..'|'..o.item
+  if remaining[k]==nil then
+   local producer=makes(o.target,o.item);local want=E.target(u,o.target,o.item,producer)
+   remaining[k]=math.max(0,want*(producer and 1 or 2)-Stock.count(u,o.target,o.item)-(committed[k] or 0))
+  end
+  local amount=math.min(o.amount,remaining[k])
+  if amount<=0 then state.offers[entry.id]=nil else o.amount=amount;remaining[k]=remaining[k]-amount end
+ end
+ inbound={}
+ for _,o in pairs(state.offers) do if o.layoutScope==E.scope then
+  local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount
+ end end
  -- what buyers wanted that no station could supply, by good
  local unmet={}
  for _,item in ipairs(goods()) do
@@ -264,6 +298,7 @@ function E.update(u,clock)
  end
  u.economyUnmet=unmet
  adjust(u,unmet)
+ planning=nil
 end
 
 return E
