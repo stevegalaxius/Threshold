@@ -10,7 +10,16 @@ function I.initial(key)
  for _,recipe in ipairs(C.list) do if recipe.opening~=nil then out[recipe.item]=recipe.opening end end
  for id,installation in pairs(I.installations(key)) do
   for item,n in pairs(I.definition(id,installation).openingOutputs or {}) do out[item]=(out[item] or 0)+n end
-  for item,hours in pairs(I.definition(id,installation).openingInputs or {}) do
+  -- A new world opens with every factory already holding its working input
+  -- buffer, so production starts at its running rate instead of ramping up.
+  local def=I.definition(id,installation);local opening=def.openingInputs
+  if not opening and def.policy=='profit' then
+   opening={}
+   for _,recipe in ipairs(def.recipes) do for _,input in ipairs(C.inputs(C.byId[recipe])) do
+    opening[input.item]=installation.inputHours or def.inputHours or D.inputHours
+   end end
+  end
+  for item,hours in pairs(opening or {}) do
    local maximum=0
    for _,recipe in ipairs(I.definition(id,installation).recipes) do
     for _,input in ipairs(C.inputs(C.byId[recipe])) do if input.item==item then maximum=math.max(maximum,input.n) end end
