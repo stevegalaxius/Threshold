@@ -35,6 +35,16 @@ market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub 
 market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   -- logistics equipment store
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "artillery_s_base", 1 }, { "cinder_drive", 1 }, { "forge_reactor", 1 }, { "hold_pod_s", 1 },
 } }
+-- Logistics hubs: trunk-freight terminals, one per hubbed planet system.
+market { id = "market:belt_3", station = "Ceres Logistics", sells = {
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:jupiter_3", station = "Jovian Logistics", sells = {
+	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
+market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
 market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Intaki Zhuhai Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 3, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
