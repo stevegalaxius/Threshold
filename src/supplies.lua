@@ -110,6 +110,18 @@ local function fill(r,e,h,cargo,u,key)
  end
  return added
 end
+-- A ship joining the world arrives already stocked to its own reserve
+-- targets (ammunition, flares, fuel), out of the abstract arrival rather
+-- than any station: a fleet appearing at once used to buy every shelf in
+-- the system bare in its first hour.
+function S.provision(r)
+ if not r or not r.ship then return 0 end
+ local h=r.ship.hold and Hold.deserialize(r.ship.hold)
+ r.ship.cargo=h and Hold.totals(h) or r.ship.cargo or {}
+ local n=fill(r,nil,h,r.ship.cargo,nil,nil)
+ if h and n>0 then r.ship.hold=Hold.serialize(h) end
+ return n
+end
 function S.refill(r,node,u)
  if not S.supports(node) then return 0 end
  local h=r.ship.hold and Hold.deserialize(r.ship.hold)

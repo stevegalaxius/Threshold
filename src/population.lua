@@ -136,6 +136,7 @@ function P.spawn(game,area,role,nearPlayer)
  game.arrivalShip=nil
  if not r then return nil,'No starting work for '..role..'.' end
  Supply.complete(game.universe,r,acquisition,policy)
+ require('src.supplies').provision(r)
  local A=require('src.alife')
  r.spawnedAt=clock;r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp'
  if x then
