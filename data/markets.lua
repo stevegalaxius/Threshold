@@ -67,7 +67,7 @@ market { id = "market:ganymede_3", station = "Ganymede Customs", sells = {
 market { id = "market:callisto_3", station = "Callisto Customs", sells = {
 	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
-market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Intaki Zhuhai Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 3, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- artillery
+market { id = "market:mars_1", station = "Station Alpha", sells = {   -- artillery
 	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
 } }
@@ -75,7 +75,7 @@ market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate
 	{ "martian_ore", 8 }, { "salvage_kit", 3 },
 	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
-market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Hull Yards", hulls = { "ferrous_runner", "ferrous_mule", "brute_runt", "brute_anvil", "mack_burro" }, lots = 5, restock = 10 }, sells = {   -- missiles and drones
+market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 3, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "missile_s_base", 2 }, { "missile_m_base", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
 } }
