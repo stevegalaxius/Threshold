@@ -51,6 +51,7 @@ M.houses={
   -- the Diwan's merchant bankers: small, frequent, careful arbitrage
   warehouses={'station:saturn_3'},buyBelow=.75,sellAbove=1.3,lot=60,hold=300,reach='any',capital=300000},
 }
+M.peak={}
 M.byId={};for _,h in ipairs(M.houses) do M.byId[h.id]=h end
 
 local function factionOf(id)
@@ -87,6 +88,9 @@ local function buy(u,h,rec,site,item,clock)
  local price=Markets.price(u,site,item)
  local d=require('src.data').items[item]
  if price>=(d.price or 0)*h.buyBelow then return end
+ -- only with somewhere to sell it: a glut everywhere (ammo nobody fires)
+ -- is dead money, not a bargain
+ if (M.peak[item] or 0)<price*(1+T.merchantMargin)*(1+T.marketSpread)/(1-T.marketSpread) then return end
  -- only what the station holds over its own target: a house buys up a
  -- glut, it doesn't strip a shelf bare
  local spare=S.available(u,site,item)-E.target(u,site,item)
@@ -95,6 +99,10 @@ local function buy(u,h,rec,site,item,clock)
  n=math.min(n,math.floor(rec.credits/math.max(.01,unit)))
  if n<1 or not S.take(u,site,item,n) then return end
  local cost=math.floor(n*unit+.5)
+ -- average cost of what it holds of this good, to know a profit when it sees one
+ rec.cost=rec.cost or {}
+ local before=0;for _,w in pairs(rec.stock) do before=before+(w[item] or 0) end
+ rec.cost[item]=((rec.cost[item] or 0)*before+unit*n)/(before+n)
  rec.credits=rec.credits-cost;hold(rec,site,item,n);rec.deals=rec.deals+1
  E.ledger(u,site,'sold',cost,item);E.ledger(u,h.id,'spent',cost,item)
  require('src.simulation_history').note(u,'merchant_bought',clock,L.byId[site].area,{},{house=h.id,item=item,amount=n,price=unit},site)
@@ -108,11 +116,17 @@ local function sell(u,h,rec,target,item,clock)
  local Transport,Tasks=require('src.transport'),require('src.tasks')
  local price=Markets.price(u,target,item)
  local d=require('src.data').items[item]
- if price<=(d.price or 0)*h.sellAbove then return end
- local want=E.target(u,target,item)
- local short=math.max(0,want-S.count(u,target,item))
- if short<1 then return end
  local unit=price*(1-T.marketSpread)
+ -- its own line, or any clear profit on what it paid (or, insolvent, any
+ -- price over list: cash now)
+ local line=(d.price or 0)*(rec.insolvent and T.merchantFireSale or h.sellAbove)
+ local paid=rec.cost and rec.cost[item]
+ if paid and not rec.insolvent then line=math.min(line,paid*(1+T.merchantMargin)) end
+ if price<=line then return end
+ -- a station takes what it would reorder anyway (up to twice its target)
+ local want=E.target(u,target,item)
+ local short=math.max(0,want*2-S.count(u,target,item))
+ if short<1 then return end
  for _,site in ipairs(sites(h)) do
   local n=math.min(held(rec,site,item),h.lot,short)
   if n>=1 then
@@ -154,6 +168,13 @@ function M.update(u,clock)
  table.sort(items)
  local stations={}
  for _,area in ipairs(Fields.list) do for _,id in ipairs(L.stations(area,'trade')) do stations[#stations+1]=id end end
+ -- the best price each good fetches anywhere right now
+ M.peak={}
+ for _,item in ipairs(items) do
+  local best=0
+  for _,id in ipairs(stations) do best=math.max(best,Markets.price(u,id,item)) end
+  M.peak[item]=best
+ end
  for _,h in ipairs(M.houses) do
   local rec=s.houses[h.id]
   for _,item in ipairs(items) do

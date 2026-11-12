@@ -383,6 +383,8 @@ T.merchantBankrupt=.1
 T.merchantStale=6*3600
 T.merchantFireSale=1
 T.merchantRecover=.3
+-- the markup a house wants over what it paid before it will sell
+T.merchantMargin=.15
 -- freight pay also covers the cargo's worth: this share of its value
 -- (live market price, else list) per unit carried
 T.freightValueShare=.05
