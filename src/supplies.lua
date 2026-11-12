@@ -39,7 +39,7 @@ function S.targets(r,e)
  local preset=data.enemies[r.archetype] or {}
  local reserve=r.ammoReserve or preset.ammoReserve
  if not reserve and profiles[key] then return profiles[key] end
- local rates,targets={},{}
+ local rates,targets,salvo={},{},{}
  for index,id in pairs(loadout) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w and w.kind~='laser' and w.kind~='drill' then
@@ -47,12 +47,20 @@ function S.targets(r,e)
    local pick=(e and e.loads or ship.loads or {})[index]
    if pick then for _,option in ipairs(data.ammoOptions(m)) do if option==pick then ammo=pick;break end end end
    if ammo then rates[ammo]=(rates[ammo] or 0)+(w.fireRate or 1) end
+   if ammo and w.capacity then
+    local tubes=math.max(1,math.floor(w.capacity/(({S=1,M=2,L=4})[data.items[ammo].size] or 1)))
+    salvo[ammo]=(salvo[ammo] or 0)+tubes
+   end
   end
   if m and m.flares then rates.flare=1 end
  end
  for id,rate in pairs(rates) do
   local amount=reserve and reserve[id] or preset.cargo and preset.cargo[id]
-  targets[id]=math.max(0,amount or math.max(data.items[id].stack or 1,math.ceil(rate*T.npcAmmoSeconds)))
+  local fallback=math.ceil(rate*T.npcAmmoSeconds)
+  -- guided munitions fire in salvos: carry a few magazines, not 30 s of
+  -- continuous fire (75 medium missiles a rack)
+  if salvo[id] then fallback=math.min(fallback,salvo[id]*T.npcMissileSalvos) end
+  targets[id]=math.max(0,amount or math.max(data.items[id].stack or 1,fallback))
  end
  local stats=e and e.stats or Stats.compute(hull,loadout)
  if stats.powerOut>0 then targets[Fuel.item()]=math.max(1,math.ceil(stats.powerOut*T.reactorFuelReserveSeconds/T.reactorFuelEnergy)) end

@@ -388,6 +388,10 @@ T.merchantMargin=.15
 -- adaptive plants (fuel, canisters...) speed up while all trade stations
 -- together hold less than this many times their combined target
 T.adaptiveCushion=1.5
+-- guided munitions: offline a rack fires one load of its tubes every
+-- offlineSalvoRounds combat rounds; NPCs carry npcMissileSalvos tube loads
+T.offlineSalvoRounds=3
+T.npcMissileSalvos=6
 -- freight pay also covers the cargo's worth: this share of its value
 -- (live market price, else list) per unit carried
 T.freightValueShare=.05
