@@ -54,6 +54,34 @@ function E.stat(u,kind,item,n)
  local t=u.economyStats[kind] or {};u.economyStats[kind]=t
  t[item]=(t[item] or 0)+n
 end
+-- Station credits. Budgets are unlimited, but every credit a station pays
+-- out (freight, buying from players) or takes in (selling to players) is
+-- counted, per station and per game hour, so pay rates can be tuned
+-- against the money they create. kind: 'freight', 'premium' (the scarcity
+-- share of freight, also inside 'freight'), 'bought' (paid out), 'sold'
+-- (taken in).
+E.ledgerHours=48
+function E.ledger(u,key,kind,n,item)
+ if not n or n<=0 or not key then return end
+ local book=u.economyLedger or {stations={},hours={}};u.economyLedger=book
+ key=L.canonical(key)
+ local s=book.stations[key] or {};book.stations[key]=s
+ s[kind]=(s[kind] or 0)+n
+ local hour=math.floor((u.clock or 0)/3600)
+ local h=book.hours[hour]
+ if not h then
+  h={};book.hours[hour]=h
+  for old in pairs(book.hours) do if old<=hour-E.ledgerHours then book.hours[old]=nil end end
+ end
+ h[kind]=(h[kind] or 0)+n
+ if item then local byItem=h.items or {};h.items=byItem;local k=kind..':'..item;byItem[k]=(byItem[k] or 0)+n end
+end
+-- Net credits stations created in a game hour (paid out minus taken in).
+function E.minted(u,hour)
+ local h=u.economyLedger and u.economyLedger.hours[hour or math.floor((u.clock or 0)/3600)]
+ if not h then return 0 end
+ return (h.freight or 0)+(h.bought or 0)-(h.sold or 0)
+end
 function E.consume(u,key,item,n,industrial)
  if n<=0 or not u.clock then return end
  E.stat(u,'used',item,n)

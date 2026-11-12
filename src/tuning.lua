@@ -351,6 +351,14 @@ T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
+-- scarcity premium (src/transport.lua): the share of the source-to-target
+-- price gap the destination adds to freight pay, growing by 1x per
+-- freightUrgencyHours its shortage goes unserved (to freightUrgencyMax),
+-- and never more than freightPremiumCap times the base pay
+T.freightGapShare=.5
+T.freightUrgencyHours=2
+T.freightUrgencyMax=2
+T.freightPremiumCap=2
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation

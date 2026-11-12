@@ -378,6 +378,9 @@ function Game:completeTrade(st, trade)
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end
 	end
 	u.credits = u.credits + get - pay
+	local Economy = require("src.economy")
+	Economy.ledger(u, st.key or st.locationId, "bought", get)
+	Economy.ledger(u, st.key or st.locationId, "sold", pay)
 	p.cargo = Hold.totals(p.hold)
 	Ship.updateMass(p)
  for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end
