@@ -23,6 +23,7 @@ local Traffic=require("src.ui.npc_traffic")
 local TransitView = require("src.ui.transitview")
 local Pause = require("src.ui.pause")
 local Editor = require("src.editor")
+local Intro = require("src.ui.intro")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -94,6 +95,23 @@ function love.load(args)
 				os.exit(1)
 			end
 		end
+	end
+	-- A plain launch shows the title intro and does the slow start-up
+	-- (content, universe, save) behind its zoom; test runs load straight away.
+	local plain = true
+	for _, a in ipairs(args or {}) do
+		if a:match("^%-%-") then plain = false end
+	end
+	if plain then
+		love.mouse.setVisible(false)
+		Intro.start(function()
+			data.load()
+			Debug.init()
+			game = Game.new()
+			if require("src.save").newest() then game:loadFrom() end
+			game.resetClock = true
+		end)
+		return
 	end
 	data.load()
 	for _, a in ipairs(args or {}) do
@@ -308,6 +326,26 @@ function love.wheelmoved(x, y)
 	if LocalMap.wheelmoved(game, y) then return end
 	if Cargo.wheelmoved(game,y) then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
+end
+
+-- While the title intro is up there's no game yet: it gets the screen and
+-- input to itself, then fades out over the first frames of play.
+do
+	local update, draw = love.update, love.draw
+	function love.update(dt)
+		if Intro.blocking() then Intro.update(math.min(dt, 1 / 15)) return end
+		update(dt)
+		Intro.update(math.min(dt, 1 / 15))
+	end
+	function love.draw()
+		if Intro.blocking() then Intro.draw() return end
+		draw()
+		Intro.draw()
+	end
+	for _, name in ipairs({ "textinput", "keypressed", "gamepadpressed", "mousepressed", "mousereleased", "wheelmoved" }) do
+		local f = love[name]
+		love[name] = function(...) if not Intro.blocking() then return f(...) end end
+	end
 end
 
 -- F7 frame profiler: counts frames and draws on top of everything
