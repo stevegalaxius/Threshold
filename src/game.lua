@@ -1320,7 +1320,8 @@ function Game:updateDocking(dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
 			local trader = e.def and e.def.ai.style == "trader" or (e.alifeId and e.route ~= nil)
-			if (e == self.player or trader) and e.dockCooldown == 0 then
+			-- (surface shuttles only look like they dock: src/shuttles.lua)
+			if (e == self.player or trader) and not e.shuttle and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
@@ -1381,7 +1382,6 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
-		if e.shuttle then require("src.shuttles").docked(self, e, ds, st) end
   if e.alifeRecord then
    e.alifeRecord.ship.armor=e.armor
    require('src.npc').beginDocked(e.alifeRecord,st.locationId,self.universe.clock,self.universe)

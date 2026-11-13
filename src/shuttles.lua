@@ -134,9 +134,62 @@ local function cruiseR(game)
 	return w.radius + min(T.surfacePullRange, w.radius * 0.5) + 500
 end
 
+-- Pods are cosmetic traffic: always sensors, so nothing bumps them or is
+-- bumped by them (shots still find them, Game:raycast sees sensors), and
+-- kinematic while a script flies them.
 local function setGhost(e, on)
-	for _, f in ipairs(e.body:getFixtures()) do f:setSensor(on) end
+	for _, f in ipairs(e.body:getFixtures()) do f:setSensor(true) end
 	e.body:setType(on and "kinematic" or "dynamic")
+end
+
+-- A station dock's door and runway point, in the world, for the dock nearest x, y.
+local function dockPoints(game, st, x, y)
+	local best, bestD
+	for _, d in ipairs(st.docks or { st.dock }) do
+		local px, py = game.dockWorld(st, 1, d.x2 + d.runway * 0.6, 0, d)
+		local dd = (px - x) ^ 2 + (py - y) ^ 2
+		if not best or dd < bestD then best, bestD = d, dd end
+	end
+	local d = best
+	local dx, dy = game.dockWorld(st, 1, d.x2 - 20, 0, d)
+	local rx, ry = game.dockWorld(st, 1, d.x2 + d.runway * 0.6, 0, d)
+	return dx, dy, rx, ry, game.dockAngle(st, 1, d)
+end
+
+-- Into the station's door and straight back out: no tractor, no dock
+-- booked, nothing a real ship waits on. The load is stocked at the door.
+local function animateDock(game, e, dt)
+	local sh = e.shuttle
+	local st = sh.station
+	if not st or st.removed then sh.gone = true; return end
+	sh.t = sh.t + dt
+	local f = min(1, sh.t / T.shuttleDockTime)
+	local x, y = e.body:getPosition()
+	local dx, dy, rx, ry, a = dockPoints(game, st, sh.fromX or x, sh.fromY or y)
+	sh.fromX, sh.fromY = sh.fromX or x, sh.fromY or y
+	local inward = sh.phase == "enter"
+	local k = f * f * (3 - 2 * f)
+	local from_x, from_y = inward and sh.fromX or dx, inward and sh.fromY or dy
+	local to_x, to_y = inward and dx or rx, inward and dy or ry
+	local tx, ty = from_x + (to_x - from_x) * k, from_y + (to_y - from_y) * k
+	e.body:setLinearVelocity((tx - x) / dt, (ty - y) / dt)
+	e.body:setAngle(inward and a + pi or a)
+	e.body:setAngularVelocity(0)
+	e.drawScale = inward and 1 - 0.4 * k or 0.6 + 0.4 * k
+	e.mainBurn = inward and 0.2 or 0.6
+	e.retroBurn, e.sideBurn, e.foreBurn, e.turnBurn = 0, 0, 0, 0
+	if f >= 1 then
+		sh.t, sh.fromX, sh.fromY = 0, nil, nil
+		if inward then
+			S.docked(game, e, st)
+			sh.phase = "leave"
+		else
+			sh.phase, e.drawScale = nil, nil
+			setGhost(e, false)
+			local vx, vy = st.body:getLinearVelocityFromWorldPoint(tx, ty)
+			e.body:setLinearVelocity(vx + cos(a) * 80, vy + sin(a) * 80)
+		end
+	end
 end
 
 -- A landing pad a little way round from the station's bearing.
@@ -177,6 +230,7 @@ end
 -- from a speck on the ground to full size as it rises (and shrinks as it
 -- comes down), engine lit, riding round with the planet's current.
 function S.animate(game, e, dt)
+	if e.shuttle.phase == "enter" or e.shuttle.phase == "leave" then return animateDock(game, e, dt) end
 	local sh, w = e.shuttle, game.well
 	if not w then sh.phase = nil; setGhost(e, false); return end
 	sh.t = sh.t + dt
@@ -214,14 +268,13 @@ function S.animate(game, e, dt)
 	end
 end
 
--- Docked at its station (from Game:finishDocking): the load goes into stock,
--- and after a short stop it will head back down to a pad.
-function S.docked(game, e, ds, st)
+-- At its station's door: the load goes into stock, and it heads back down
+-- to a pad.
+function S.docked(game, e, st)
 	local sh = e.shuttle
 	local s = state(game.universe)
 	local flight = s.flights[sh.flight]
 	if flight then deliver(game.universe, flight.key, flight.cargo); s.flights[sh.flight] = nil end
-	ds.stay = T.shuttleStay * (0.7 + random() * 0.6)
 	sh.down = true
 	local a = padBearing(game, st)
 	sh.padA = a
@@ -231,7 +284,7 @@ function S.docked(game, e, ds, st)
 		getPosition = function() return w.x + cos(a) * R, w.y + sin(a) * R end,
 		getLinearVelocityFromWorldPoint = function() return game:flowAt(w.x + cos(a) * R, w.y + sin(a) * R) end,
 	} }
-	e.route = { st, pad }
+	e.route, e.routeIndex = { pad }, 1
 end
 
 -- The player hit or killed one: the area's faction takes it personally.
@@ -290,6 +343,21 @@ function S.update(game, dt)
 	for i = #game.entities, 1, -1 do
 		local e = game.entities[i]
 		if e.shuttle and e.shuttle.gone and not e.removed then game:remove(e) end
+	end
+	-- up: on its station's runway, it slips in at the door
+	for _, e in ipairs(game.entities) do
+		local sh = e.shuttle
+		if sh and not sh.down and not sh.phase and not e.dead and not e.removed then
+			local st = e.route and e.route[1]
+			if st and not st.removed and st.body then
+				local x, y = e.body:getPosition()
+				local _, _, rx, ry = dockPoints(game, st, x, y)
+				if (x - rx) ^ 2 + (y - ry) ^ 2 < 350 ^ 2 then
+					sh.phase, sh.t, sh.station = "enter", 0, st
+					setGhost(e, true)
+				end
+			end
+		end
 	end
 	if game.well then
 		for _, e in ipairs(game.entities) do
