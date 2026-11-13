@@ -104,6 +104,7 @@ local function driverLocal(g, x, y)
 	local rx, ry = x - gx, y - gy
 	return rx * dx + ry * dy, -rx * dy + ry * dx
 end
+function Game:driverLocal(g, x, y) return driverLocal(g, x, y) end
 
 function Game:findDriver()
 	for _, g in ipairs(self.entities) do

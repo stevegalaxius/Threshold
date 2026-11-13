@@ -391,6 +391,33 @@ local function trade(game, e, dt)
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
+		-- A mass driver only takes a ship from its loading zone, a narrow
+		-- strip behind the breech along the barrel (Game:requestDriver).
+		-- Following the travel graph's edge, which ends at the driver's middle,
+		-- the ship came alongside or in over the barrel, missed the strip,
+		-- and sat pushing at the gun. Close in, it comes round to the back of
+		-- the breech instead and flies up the barrel's axis.
+		if stop.kind == "driver" and stop.driver and not queued then
+			local g = stop.driver
+			local bx, by = game:driverBreech(g)
+			if (x - bx) ^ 2 + (y - by) ^ 2 < 2500 ^ 2 then
+				local lx, ly = game:driverLocal(g, x, y)
+				local zl, zw = g.zone or T.driverZone, g.zoneWidth or T.driverZoneWidth
+				local side = ly >= 0 and 1 or -1
+				local tx, ty
+				if lx < 150 and lx > -zl and math.abs(ly) < zw * 0.7 then
+					tx, ty = 0, 0                              -- lined up: in to the breech
+				elseif lx < -zl * 0.3 then
+					tx, ty = -zl * 0.6, 0                      -- behind it: onto the axis
+				elseif math.abs(ly) < zw + 300 then
+					tx, ty = lx, side * (zw + 500)             -- over the barrel: out to the side first
+				else
+					tx, ty = -zl * 0.6, side * (zw + 400)      -- beside it: round to the back
+				end
+				local dx, dy = cos(g.angle), sin(g.angle)
+				hx, hy = bx + dx * tx - dy * ty, by + dy * tx + dx * ty
+			end
+		end
 		-- Once lined up in the cone it flies in to its own dock, which can sit
 		-- well inside the hull's circle (the Ring Station's is deep in the
 		-- horseshoe): steering round that station there turned it away from
