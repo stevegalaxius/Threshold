@@ -318,7 +318,7 @@ local function trade(game, e, dt)
 		-- and only turns in once it's lined up in the cone before the door.
 		-- Straight at the runway, a hauler coming from the side or behind
 		-- swung across the station and into its hull.
-		if stop.dock and stop.body and e.alifeId then
+		if stop.dock and stop.body and (e.alifeId or e.shuttle) then
 			local d = approachDock(e, stop)
 			local lx, ly = stop.body:getLocalPoint(x, y)
 			local a = d.a or 0
@@ -422,7 +422,7 @@ local function trade(game, e, dt)
 		-- well inside the hull's circle (the Ring Station's is deep in the
 		-- horseshoe): steering round that station there turned it away from
 		-- the door every time and left it circling for ever.
-		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil
+		local docking = stop.dock and (e.alifeId or e.shuttle) and not e.dockMarker and stop or nil
 		if not queued then
 			local ox, oy = outOfRunway(game, e, x, y, docking)
 			if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy, docking) end
