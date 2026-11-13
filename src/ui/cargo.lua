@@ -1359,66 +1359,159 @@ local function describe(item)
 	end
 	return nil
 end
-local function tooltip(item, n, mx, my, hint, price)
-	local sw0, sh0, cap = Shapes.of(item.id)
+-- Module stats, one line each, for the mouseover: { label, value, format,
+-- better } where better is 1 if more is better, -1 if less is.
+local MODULE_STATS = {
+	{ "thrust", "Thrust", "%d kN", 1 }, { "sideThrust", "Maneuvering", "%d kN", 1 },
+	{ "turn", "Turn", "%d", 1 }, { "powerOut", "Power output", "%g/s", 1 },
+	{ "powerCap", "Power storage", "%d", 1 }, { "armor", "Armor", "%d", 1 },
+	{ "hold", "Hold", "%d m3", 1 }, { "tractorRange", "Tractor range", "%d px", 1 },
+	{ "tractorPower", "Tractor power", "%g", 1 }, { "radarRange", "Radar range", "%d px", 1 },
+	{ "uplinkRange", "Uplink range", "%d px", 1 }, { "controlLimit", "Drones", "%d", 1 },
+	{ "lockCone", "Lock cone", "%d\194\176", 1 }, { "predictionTime", "Lead prediction", "%gs", 1 },
+	{ "lookahead", "Lookahead", "%gs", 1 },
+}
+local WEAPON_STATS = {
+	{ "fireRate", "Fire rate", "%g/s", 1 }, { "damage", "Damage", "%g", 1 }, { "range", "Range", "%d px", 1 },
+	{ "gimbal", "Gimbal", "%d\194\176", 1 }, { "spread", "Spread", "%g\194\176", -1 },
+	{ "beams", "Beams", "%d", 1 }, { "powerPerShot", "Power per shot", "%g", -1 },
+	{ "powerPerSecond", "Power per second", "%g", -1 },
+}
+local function moduleLines(m)
+	local out = {}
+	local w = m.weapon
+	if w then
+		for _, st in ipairs(WEAPON_STATS) do
+			local v = w[st[1]]
+			if type(v) == "number" then out[#out + 1] = { key = "w." .. st[1], label = st[2], value = v, fmt = st[3], better = st[4] } end
+		end
+		if w.chambers then out[#out + 1] = { label = "Fires", text = table.concat(w.chambers, " / ") .. " ammo" } end
+	end
+	for _, st in ipairs(MODULE_STATS) do
+		local v = m[st[1]]
+		if type(v) == "number" and v ~= 0 then out[#out + 1] = { key = st[1], label = st[2], value = v, fmt = st[3], better = st[4] } end
+	end
+	if m.flares then out[#out + 1] = { label = "Countermeasures", text = "Flares" } end
+	out[#out + 1] = { key = "powerDraw", label = "Power draw", value = m.powerDraw or 0, fmt = "%g/s", better = -1 }
+	out[#out + 1] = { key = "mass", label = "Mass", value = m.mass or 0, fmt = "%g t", better = -1 }
+	return out
+end
+local GOOD, BAD, FLAVOR = { 0.35, 1, 0.45 }, { 1, 0.4, 0.35 }, { 1, 0.82, 0.45 }
+
+-- A mouseover card in the style of an RPG item tooltip: name and size,
+-- kind and maker, one line per stat (with the change against what's fitted
+-- in green or red), flavour text, then price and what you can do.
+-- Returns w, h, draw(x, y).
+local function card(item, n, hint, price, against, header)
 	local W, P = 300, 12
 	local big, small, tiny = HUD.font(15), HUD.font(12), HUD.font(11)
+	local m = data.modules[item.id]
 	local size = item.size and (SIZE_NAME[item.size] or item.size)
+	local lines = m and moduleLines(m) or nil
+	local diff = {}
+	local am = against and against ~= item.id and data.modules[against]
+	if lines and am then
+		local was = {}
+		for _, l in ipairs(moduleLines(am)) do if l.key then was[l.key] = l.value end end
+		for _, l in ipairs(lines) do if l.key then diff[l.key] = l.value - (was[l.key] or 0) end end
+	end
 	local desc = describe(item)
-	local _, descLines = small:getWrap(desc or "", W - P * 2)
-	if not desc then descLines = {} end
-	local stats = item.kind == "ship" and {} or {
-		{ "Stack", ("%d / %d"):format(n, cap) },
+	if m then desc = item.description or item.desc or m.description or m.desc end
+	if m and not desc then
+		desc = ("Placeholder description: the %s is a %s waiting on its real flavour text. This line is long enough to wrap so the layout can be checked."):format(item.name, kindLine(item):lower())
+	end
+	local descLines = {}
+	if desc and desc ~= "" then _, descLines = small:getWrap((m and '"' .. desc .. '"') or desc, W - P * 2) end
+	local stats = (item.kind == "ship" or m) and {} or {
+		{ "Stack", ("%d / %d"):format(n, select(3, Shapes.of(item.id)) or n) },
 		{ "Volume", ("%.2f m3"):format(item.volume * n) },
 		{ "Mass", ("%.2f t"):format(item.mass * n) },
-		{ "Cells", ("%d x %d"):format(sw0 or item.w or 1, sh0 or item.h or 1) },
+		{ "Cells", ("%d x %d"):format(select(1, Shapes.of(item.id)) or item.w or 1, select(2, Shapes.of(item.id)) or item.h or 1) },
 	}
-	local h = P + 20 + 18 + (#descLines > 0 and (#descLines * 15 + 8) or 0)
-		+ (#stats > 0 and 40 or 0) + (price and 20 or 0) + (hint and 24 or 0) + P - 4
-	local sw, sh = lg.getDimensions()
-	local x, y = min(mx + 18, sw - W - 4), min(my + 18, sh - h - 4)
-	lg.setColor(0.02, 0.06, 0.09, 0.96)
-	lg.rectangle("fill", x, y, W, h, 6, 6)
-	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
-	lg.rectangle("line", x + 0.5, y + 0.5, W - 1, h - 1, 6, 6)
-	local cy = y + P
-	-- name, and a size badge on the right
-	local badgeW = 0
-	if size then
-		badgeW = tiny:getWidth(size) + 14
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.25)
-		lg.rectangle("fill", x + W - P - badgeW, cy + 1, badgeW, 18, 4, 4)
-		lg.setFont(tiny); lg.setColor(HUD.INK)
-		lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
-	end
-	lg.setFont(big); lg.setColor(HUD.INK)
-	lg.printf(item.name, x + P, cy, W - P * 2 - badgeW - 6, "left")
-	cy = cy + 20
-	lg.setFont(small); lg.setColor(HUD.AQUA)
-	lg.print(kindLine(item) .. (item.maker and ("  \194\183  " .. item.maker) or ""), x + P, cy)
-	cy = cy + 18
-	if #descLines > 0 then
-		cy = cy + 4
-		lg.setColor(HUD.DIM)
-		for _, l in ipairs(descLines) do lg.print(l, x + P, cy); cy = cy + 15 end
-		cy = cy + 4
-	end
-	if #stats > 0 then
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
-		lg.line(x + P, cy + 4, x + W - P, cy + 4)
-		local cw = (W - P * 2) / #stats
-		for i, st in ipairs(stats) do
-			local sx = x + P + (i - 1) * cw
-			lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
-			lg.setFont(small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+	local h = P + (header and 16 or 0) + 20 + 18 + (lines and (#lines * 16 + 6) or 0)
+		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
+		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
+	return W, h, function(x, y)
+		lg.setColor(0.02, 0.06, 0.09, 0.96)
+		lg.rectangle("fill", x, y, W, h, 6, 6)
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+		lg.rectangle("line", x + 0.5, y + 0.5, W - 1, h - 1, 6, 6)
+		local cy = y + P
+		if header then lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(header, x + P, cy); cy = cy + 16 end
+		local badgeW = 0
+		if size then
+			badgeW = tiny:getWidth(size) + 14
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.25)
+			lg.rectangle("fill", x + W - P - badgeW, cy + 1, badgeW, 18, 4, 4)
+			lg.setFont(tiny); lg.setColor(HUD.INK)
+			lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
 		end
-		cy = cy + 40
+		lg.setFont(big); lg.setColor(HUD.INK)
+		lg.printf(item.name, x + P, cy, W - P * 2 - badgeW - 6, "left")
+		cy = cy + 20
+		lg.setFont(small); lg.setColor(HUD.AQUA)
+		lg.print(kindLine(item), x + P, cy)
+		if item.maker then lg.setColor(HUD.DIM); lg.printf(item.maker, x + P, cy, W - P * 2, "right") end
+		cy = cy + 18
+		if lines then
+			cy = cy + 2
+			lg.setFont(small)
+			for _, l in ipairs(lines) do
+				lg.setColor(HUD.DIM); lg.print(l.label, x + P, cy)
+				local text = l.text or l.fmt:format(l.value)
+				local d = l.key and diff[l.key]
+				local dx = 0
+				if d and math.abs(d) > 1e-6 then
+					local good = d * l.better > 0
+					local ds = (d > 0 and "+" or "-") .. l.fmt:format(math.abs(d))
+					lg.setColor(good and GOOD or BAD)
+					lg.printf(ds, x + P, cy, W - P * 2, "right")
+					dx = small:getWidth(ds) + 10
+				end
+				lg.setColor(HUD.INK); lg.printf(text, x + P, cy, W - P * 2 - dx, "right")
+				cy = cy + 16
+			end
+			cy = cy + 4
+		end
+		if #descLines > 0 then
+			cy = cy + 4
+			lg.setFont(small); lg.setColor(m and FLAVOR or HUD.DIM)
+			for _, l in ipairs(descLines) do lg.print(l, x + P, cy); cy = cy + 15 end
+			cy = cy + 4
+		end
+		if #stats > 0 then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
+			lg.line(x + P, cy + 4, x + W - P, cy + 4)
+			local cw = (W - P * 2) / #stats
+			for i, st in ipairs(stats) do
+				local sx = x + P + (i - 1) * cw
+				lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
+				lg.setFont(small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+			end
+			cy = cy + 40
+		end
+		if price then lg.setFont(small); lg.setColor(PRICE); lg.print(price, x + P, cy + 2); cy = cy + 20 end
+		if hint then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
+			lg.line(x + P, cy + 4, x + W - P, cy + 4)
+			lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(hint, x + P, cy + 9)
+		end
 	end
-	if price then lg.setFont(small); lg.setColor(PRICE); lg.print(price, x + P, cy + 2); cy = cy + 20 end
-	if hint then
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
-		lg.line(x + P, cy + 4, x + W - P, cy + 4)
-		lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(hint, x + P, cy + 9)
+end
+
+-- against: the module id this one would replace; its own card ("Currently
+-- fitted") is drawn alongside so the two can be read side by side.
+local function tooltip(item, n, mx, my, hint, price, against)
+	local sw, sh = lg.getDimensions()
+	local w, h, draw = card(item, n, hint, price, against)
+	local x, y = min(mx + 18, sw - w - 4), min(my + 18, sh - h - 4)
+	draw(x, y)
+	local am = against and against ~= item.id and data.items[against]
+	if am then
+		local w2, h2, draw2 = card(am, 1, nil, nil, nil, "Currently fitted")
+		local x2 = x + w + 6
+		if x2 + w2 > sw - 4 then x2 = x - w2 - 6 end
+		draw2(x2, min(y, sh - h2 - 4))
 	end
 end
 
@@ -1937,7 +2030,16 @@ function Cargo.draw(game)
 				local use = "U: " .. ItemUse.label(s.id) .. (ok and "" or " (" .. why .. ")")
 				hint2 = hint2 and (use .. "   " .. hint2) or use
 			end
-			tooltip(item, s.n, mx, my, hint2, price)
+			-- a module is compared with what's fitted where it would go
+			local against
+			local im = data.modules[s.id]
+			if im and game.player then
+				local pl = game.player
+				for k, slot in ipairs(pl.hull.slots) do
+					if data.fits(slot, im) then against = pl.loadout[k] or nil; if against then break end end
+				end
+			end
+			tooltip(item, s.n, mx, my, hint2, price, against)
 		end
 	end
 	-- the open shop menu, over everything else
