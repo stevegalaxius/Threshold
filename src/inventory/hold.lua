@@ -374,4 +374,18 @@ function Hold.deserialize(t, known)
 	return h
 end
 
+-- Grow a saved grid to at least w x h (the grid sizes grew with bigger
+-- modules), keeping every stack where it was.
+function Hold.atLeast(h, w, ht)
+	for i, g in ipairs(h.grids) do
+		if g.w < w or g.h < ht then
+			local ng = Grid.new(math.max(g.w, w), math.max(g.h, ht), g.name)
+			for k, v in pairs(g) do if k ~= "w" and k ~= "h" and k ~= "cells" and k ~= "stacks" then ng[k] = v end end
+			for _, s in ipairs(g.stacks) do Grid.place(ng, s) end
+			h.grids[i] = ng
+		end
+	end
+	return h
+end
+
 return Hold
