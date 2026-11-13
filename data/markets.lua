@@ -75,6 +75,13 @@ market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate
 	{ "martian_ore", 8 }, { "salvage_kit", 3 },
 	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
+-- Space elevators: freight up from the surface, and a counter for crews waiting on a climber.
+market { id = "market:earth_5", station = "Quito Elevator", sells = {
+	{ "water_ice", 4 }, { "iron_ore", 4 }, { "salvage_kit", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "rounds_s", 4 },
+} }
+market { id = "market:venus_3", station = "Aphrodite Elevator", sells = {
+	{ "iron_ore", 4 }, { "salvage_kit", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "rounds_s", 4 },
+} }
 market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "missile_s_base", 2 }, { "missile_m_base", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },

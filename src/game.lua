@@ -798,8 +798,13 @@ function Game:applyCurrent(dt)
 				local tx, ty = dy / r, -dx / r
 				local f = self:currentSpeed(r)
 				e.flowX, e.flowY = tx * f, ty * f
-				local vt = vx * tx + vy * ty
-				local c = max(0, vt) * max(0, vt) / r
+				-- Hold only the part of the ship's motion that is riding the
+				-- current. Holding all of it (vt^2 / r) pulled a fast ship
+				-- down toward the planet harder the faster it went: at
+				-- 800 px/s, 16000 px out, that was 40 px/s^2 of unasked-for
+				-- pull, more than the surface pull itself.
+				local vt = max(0, min(vx * tx + vy * ty, f))
+				local c = vt * vt / r
 				ax, ay = dx / r * c, dy / r * c
 			else
 				ax, ay = self:currentAt(x, y, vx, vy, true)

@@ -1714,11 +1714,12 @@ end
 -- The Heaven-Ladder ----------------------------------------------------------
 
 -- An orbital ring of radius R round (cx, cy), cut by gaps to fly through,
--- turning slowly (Game:updateRotors spins it from the clock). Four elevator
--- anchors (data/stations/ladder_anchor.lua) hold still where the tethers
--- come up from the surface; the ring runs through them, and each has a
--- dock and berths for the traffic waiting on the Ladder.
-local LADDER_SPIN = 0.006   -- radians a second (about 50 px/s at the rim)
+-- turning slowly against the planet's current (Game:updateRotors spins it
+-- from the clock). Four elevator anchors (data/stations/ladder_anchor.lua)
+-- sit where the tethers come up from the surface and turn with the ring,
+-- which runs through them; each has a dock and berths for the traffic
+-- waiting on the Ladder. Turning: -T.elevatorSpin radians a second (about
+-- 50 px/s at the rim), anticlockwise on screen where the current runs clockwise.
 function Game:spawnHeavenLadder(cx, cy, R)
 	local w = self.well
 	local surface = w and w.radius or R - 1000
@@ -1788,34 +1789,70 @@ function Game:spawnHeavenLadder(cx, cy, R)
 			segments[#segments + 1] = e
 		end
 	end
-	self.ladder = { segments = segments, spin = LADDER_SPIN, cx = cx, cy = cy }
+	self.ladder = { segments = segments, spin = -T.elevatorSpin, cx = cx, cy = cy }
 	-- the elevators: still anchors on the ring, tethers down to the surface
 	for i = 0, 3 do
 		local a = (i * 2 + 1) / gaps * pi * 2
 		local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
 		local tw = 24
 		local top = R - 560   -- the anchor's tether head
-		self:addStructure({
+		local tether = self:addStructure({
 			cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
 			cx + ux * top + nx * tw, cy + uy * top + ny * tw,
 			cx + ux * top - nx * tw, cy + uy * top - ny * tw,
 			cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
 		}, { role = "tether" })
+		-- built where it is at clock 0; it turns with the ring
+		tether.body:setType("kinematic")
+		segments[#segments + 1] = tether
 		-- One economic station, four physical access locations. The canonical
 		-- key shares storage and markets; hangars use each access location ID.
 		-- Game:locationEntity picks the nearest when given a position.
 		local ids = self.field and self.field.ladderIds
 		local id = ids and ids[i + 1]
 		local st = self:spawnStation("ladder_anchor", cx + ux * R, cy + uy * R, 0, false, id)
-		st.body:setAngle(a)
-		st.body:setAngularVelocity(0)
 		st.accessIndex = i + 1
+		if id then
+			-- carried round on its location's orbit (src/fields.lua), facing out
+			self:setOrbit(st, cx, cy, -T.elevatorSpin * R)
+		else
+			st.body:setAngle(a)
+		end
 		if id then
 			-- each anchor is its own location; the station record is the Ladder's
 			st.key = ids[1]
 			st.name = require("src.locations").get(ids[1]).name .. (" (anchor %d)"):format(i + 1)
 		end
 	end
+end
+
+
+-- A single space elevator (Earth, Venus): an anchor station
+-- (data/stations/elevator_anchor.lua) on its location's slow orbit, against
+-- the current, and a tether from the surface up to its tether head. The
+-- tether turns through self.ladder like the Heaven-Ladder's ring, so
+-- Game:updateRotors keeps it under the anchor from the clock alone.
+function Game:spawnSpaceElevator(locationId)
+	local L = require("src.locations")
+	local place = L.get(locationId)
+	local m = place.motion
+	local cx, cy, R, a = m.cx or 0, m.cy or 0, m.radius, m.phase
+	local w = self.well
+	local surface = w and w.radius or R - 1000
+	local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
+	local tw, top = 24, R - 560   -- top: the anchor's tether head
+	local tether = self:addStructure({
+		cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
+		cx + ux * top + nx * tw, cy + uy * top + ny * tw,
+		cx + ux * top - nx * tw, cy + uy * top - ny * tw,
+		cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
+	}, { role = "tether" })
+	tether.body:setType("kinematic")
+	self.ladder = self.ladder or { segments = {}, spin = L.rate(m), cx = cx, cy = cy }
+	table.insert(self.ladder.segments, tether)
+	local st = self:spawnStation(place.layout, cx + ux * R, cy + uy * R, 0, false, locationId)
+	self:setOrbit(st, cx, cy, L.rate(m) * R)
+	return st
 end
 
 end

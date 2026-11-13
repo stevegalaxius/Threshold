@@ -131,6 +131,10 @@ T.mapOuter = 16000
 -- share of a map's radius, in from its edge, over which the current eases
 -- off to nothing (so it's still at the edge and beyond)
 T.edgeCurrentFade = 0.3
+-- how fast the space elevators (the Heaven-Ladder, and Earth's and Venus's
+-- single elevators) turn about their planet, in radians a second. They run
+-- against the planet's current (which turns clockwise on screen).
+T.elevatorSpin = 0.006
 T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road

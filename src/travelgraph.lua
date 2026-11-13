@@ -274,7 +274,7 @@ function G.route(graph,from,to,clock,speed,exact)
     and (L.get(edge.to).kind~='moon_gate' or edge.to==to)
     -- the Heaven-Ladder's anchors sit in the planet's pull: only ships
     -- bound for the ladder go there, never as a shortcut across Mars
-    and (L.get(edge.to).layout~='ladder_anchor' or goalSet[edge.to]) then
+    and (not L.get(edge.to).radial or goalSet[edge.to]) then
     local nextCost=cost+G.length(graph,edge,clock)/(speed or 600)
     if not dist[edge.to] or nextCost<dist[edge.to] then
      dist[edge.to]=nextCost; prev[edge.to]={edge=edge,duration=nextCost-cost}

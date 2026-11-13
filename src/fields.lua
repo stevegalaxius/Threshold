@@ -327,6 +327,7 @@ local function planetField(o)
                 local buoy=game:spawnBuoy(0,0,id);local m=Locations.get(id).motion
                 game:setOrbit(buoy,m.cx or 0,m.cy or 0,Locations.rate(m)*m.radius)
             end
+            if field.elevatorId then game:spawnSpaceElevator(field.elevatorId) end
             if o.extra then o.extra(game,R) end
 
 			-- The belt (or rings), already circling with the current.
@@ -529,7 +530,7 @@ local WorldLayout=require('src.world_layout')
 function Fields.configureLocations(area)
 	local F = Fields[area]
 	F.locations, F.stationIds, F.buoyIds = {}, {}, {}
- F.ladderId,F.ladderIds=nil,nil
+ F.ladderId,F.ladderIds,F.elevatorId=nil,nil,nil
 	local function add(id, name, kind, motion, spin, destination)
 		local full = kind=="station" and id or area .. "/" .. id
 		F.locations[#F.locations + 1] = { id = full, area = area, name = name, kind = kind,
@@ -619,9 +620,10 @@ function Fields.configureLocations(area)
 			local a = (k * 2 + 1) / 8 * pi * 2
 			local lid = add(WorldLayout.specials.heavenLadder.access[k+1],
 				k == 0 and "Heaven-Ladder" or ("Heaven-Ladder anchor " .. (k + 1)), "station",
-				{ type = "fixed", x = cos(a) * LR, y = sin(a) * LR }, 0)
+				{ type = "orbit", radius = LR, phase = a, rate = -T.elevatorSpin }, 0)
 			local place = F.locations[#F.locations]
-			place.heading,place.layout,place.uses = a,"ladder_anchor",{patrol=true}
+			-- the anchors turn with the ring, against the planet's current
+			place.heading,place.layout,place.uses,place.radial = a,"ladder_anchor",{patrol=true},true
             place.marketId=WorldLayout.specials.heavenLadder.marketId
             place.food=WorldLayout.specials.heavenLadder.food
             if k==0 then place.facilities=WorldLayout.specials.heavenLadder.facilities;place.uses.trade=true;place.uses.mining=true end
@@ -629,6 +631,20 @@ function Fields.configureLocations(area)
 			F.ladderIds[k + 1] = lid
 		end
 		F.ladderId = F.ladderIds[1]
+	end
+	-- Earth's and Venus's space elevators: one anchor each (data/stations/
+	-- elevator_anchor.lua) on a tether from the surface, turning slowly
+	-- against the current like the Heaven-Ladder (see Game:spawnSpaceElevator).
+	local elevator = WorldLayout.specials.elevators[area]
+	if elevator and F.planetR and elevator.enabled ~= false then
+		local ER = F.planetR + 1100
+		local eid = add(elevator.id, elevator.name, "station",
+			{ type = "orbit", radius = ER, phase = elevator.phase, rate = -T.elevatorSpin }, 0)
+		local place = F.locations[#F.locations]
+		place.heading,place.layout,place.radial = elevator.phase,"elevator_anchor",true
+		place.marketId,place.services,place.facilities,place.food = elevator.marketId,elevator.services,elevator.facilities,elevator.food
+		place.uses = { trade = true, patrol = true }
+		F.elevatorId = eid
 	end
 	if F.stationTrack then
         local specs=F.navigation.buoys

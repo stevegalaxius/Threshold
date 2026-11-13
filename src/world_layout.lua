@@ -121,7 +121,13 @@ W.stations = {
 -- station is renamed, retuned or moved; markets reuse their station's slug.
 W.defaults={marketId='market:venus_1',waterUse=16,foodUse=32,foodReserveHours=4}
 W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammunition={capacity=24},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
- access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
+ access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}},
+ -- single space elevators (src/fields.lua, Game:spawnSpaceElevator); phase is
+ -- the anchor's bearing at clock 0
+ elevators={
+  earth={id='station:earth_5',name='Quito Elevator',marketId='market:earth_5',phase=math.pi/2,services={'market','hangar','repair'}},
+  venus={id='station:venus_3',name='Aphrodite Elevator',marketId='market:venus_3',phase=math.pi/2,services={'market','hangar','repair'}},
+ }}
 -- Read-only compatibility aliases for saves from before independent station IDs.
 W.aliases={
  ["phobos/strip_mine"]="station:phobos_1",
@@ -458,14 +464,17 @@ function W.connect(f)
   -- and routing it all past the primary port jammed traffic at that one station
   for _,id in ipairs(f.stationIds) do if byId[id].hub then link(driver,id) end end
  end
- if f.ladderIds then
-  for k,id in ipairs(f.ladderIds) do
+ local anchors={}
+ for _,id in ipairs(f.ladderIds or {}) do anchors[#anchors+1]=id end
+ if f.elevatorId then anchors[#anchors+1]=f.elevatorId end
+ do
+  for k,id in ipairs(anchors) do
    -- each anchor is its own way in from the buoys; anchors are not linked
    -- to each other (that ring ran straight through the ladder's cables)
    for _,to in ipairs(f.buoyIds) do link(id,to) end
    -- and straight to the region's other stations and its mass driver, so
    -- traffic leaves an anchor outward instead of skirting the ladder
-   for _,to in ipairs(f.stationIds) do if not byId[to].accessOf and to~=f.ladderIds[1] then link(id,to) end end
+   for _,to in ipairs(f.stationIds) do if not byId[to].accessOf and to~=(f.ladderIds and f.ladderIds[1]) and to~=id then link(id,to) end end
    for _,driver in ipairs(f.driverIds or {}) do link(id,driver) end
   end
  end
