@@ -21,8 +21,8 @@ local STATS = {
 	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
 	{ "hold", "hold (m3)", "Cargo space in cubic metres.", 0, 1000, 1, 0 },
 	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
-	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier.", 0, 20000, 50, 0 },
-	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque.", 10, 720, 5, 0 },
+	{ "turnSpeed", "turn rate (deg/s)", "Top spin speed.", 10, 720, 5, 0 },
+	{ "turnResponse", "turn response (s)", "Seconds to reach the turn rate from still, empty hold and stock fit. Cargo and heavier modules stretch it by the extra mass. Unset: measured from the old torque model.", 0.02, 10, 0.01, 2 },
 	{ "sideThrust", "maneuvering (kN)", "Built-in side thrust; turn-mode hulls use it for turning.", 0, 5000, 10, 0 },
 	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
 	{ "toughness", "toughness", "Crash damage is divided by this (default 1; 2 = half). Light ships already take the most, since their speed changes most.", 0.1, 10, 0.05, 2 },
@@ -846,6 +846,9 @@ local function designWindow(E, Editor)
 			Slab.SameLine()
 			local own = d.stats[key]
 			local v = E.stat(key)
+			if v == nil and key == "turnResponse" and data.hulls[d.base] then
+				v = require("src.ship").agility(data.hulls[d.base]).response
+			end
 			Slab.Text(label .. (own ~= nil and " *" or ""))
 			Slab.SameLine({ Pad = 4 })
 			-- drag sideways or type; each stat has a sensible range and step

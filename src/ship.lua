@@ -388,12 +388,42 @@ function Ship.hardpoint(e, slot)
 	return x + sx * cos(a) - sy * sin(a), y + sx * sin(a) + sy * cos(a)
 end
 
+-- Agility. A hull states how it should feel:
+--   turnRate      top spin, degrees a second (turnSpeed in older files)
+--   turnResponse  seconds to reach it from still, with an empty hold
+-- and the torque is worked out from its inertia, so any size or shape of
+-- hull turns as written. Cargo and heavier modules stretch the response in
+-- proportion to the extra mass. Modules' "turn" counts against the stock
+-- fit's: an engine with twice the stock turn halves the response.
+-- Hulls without turnResponse get one measured from the old torque model
+-- with their stock fit, so they fly as they did.
+local function spinInertia(hull, mass)
+	local r = hull.spinRadius or hull.radius
+	return mass * T.massScale * r * r * 0.5
+end
+
+function Ship.agility(hull)
+	if hull.agility then return hull.agility end
+	local stock = stats.compute(hull, hull.loadout or {})
+	local rate = hull.turnRate or hull.turnSpeed
+	rate = rate and rad(rate) or T.maxTurnRate
+	local response = hull.turnResponse
+	if not response then
+		local torque = max(1, stock.turn * T.TORQUE_PER_TURN)
+		response = rate * spinInertia(hull, stock.mass) / torque
+	end
+	hull.agility = { rate = rate, response = max(0.02, response), stockTurn = stock.turn }
+	return hull.agility
+end
+
 -- Shared angular authority for the flight model and NPC heading controller.
 function Ship.turnLimits(e,powered)
  powered=powered or 1
+ local ag=Ship.agility(e.hull)
  local aux=e.stats.sideThrust*T.sideScale
- local torque=e.stats.turn*T.TORQUE_PER_TURN*T.turnScale*powered
- local cap=min(T.maxTurnRate,e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
+ local cap=min(T.maxTurnRate,ag.rate)
+ local fit=ag.stockTurn>0 and e.stats.turn/ag.stockTurn or 1
+ local torque=spinInertia(e.hull,e.stats.mass)*ag.rate/ag.response*fit*T.turnScale*powered
  if e.hull.helm=='turn' and aux>0 then
   local jet=aux*T.FORCE_PER_KN*T.thrustScale*powered*e.hull.radius
   cap=cap*(1+min(.5,.5*jet/max(torque,1)))
@@ -543,14 +573,8 @@ function Ship.performance(e)
 	local thrust = max(e.stats.thrust, e.stats.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale
 	local k = e.hull.drag * T.dragScale
 	local aux = e.stats.sideThrust * T.FORCE_PER_KN * T.thrustScale * T.sideScale
-	local torque = e.stats.turn * T.TORQUE_PER_TURN * T.turnScale
-	local cap = min(T.maxTurnRate, e.hull.turnSpeed and rad(e.hull.turnSpeed) or T.maxTurnRate)
 	local turnHelm = e.hull.helm == "turn"
-	if turnHelm and aux > 0 then                 -- same as in Ship.fly
-		local jet = aux * e.hull.radius
-		cap = cap * (1 + min(0.5, 0.5 * jet / max(torque, 1)))
-		torque = torque + jet
-	end
+	local torque, cap = Ship.turnLimits(e)
 	return {
 		mass = m,
 		accel = thrust / m,

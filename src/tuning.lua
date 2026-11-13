@@ -21,7 +21,7 @@ T.specs = {
 	{ key = "turnScale",      label = "Turn torque",            min = 0.1, max = 3,    value = 1,    precision = 2 },
 	{ key = "maxTurnRate",    label = "Max turn rate (rad/s)",  min = 1,   max = 15,   value = 6.5,  precision = 1 },
 	{ key = "aimGain",        label = "Aim snappiness",         min = 1,   max = 30,   value = 9,    precision = 1 },
-	{ key = "turnResponse",   label = "Turn response",          min = 1,   max = 60,   value = 18,   precision = 1 },
+	{ key = "turnResponse",   label = "Turn controller gain",   min = 1,   max = 60,   value = 18,   precision = 1 },
 	{ key = "knockbackScale", label = "Hit knockback",          min = 0,   max = 4,    value = 1,    precision = 2 },
 	{ key = "recoilScale",    label = "Recoil",                 min = 0,   max = 4,    value = 3,    precision = 2 },
 	{ key = "ramDamage",      label = "Ram damage (x mass x speed change^2)", min = 0, max = 0.00003, value = 0.0000028, precision = 7 },
