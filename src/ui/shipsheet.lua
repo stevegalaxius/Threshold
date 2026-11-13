@@ -1,7 +1,7 @@
 --[[
 	Pieces the Hangar and Shipyard tabs share for showing one ship:
 
-	  Sheet.outline   the hull, nose right, with its weapon mounts marked
+	  Sheet.outline   the hull, nose right, with its slots marked in family colours
 	                  (the same markers as the Equipment panel)
 	  Sheet.slots     a row per slot, in canonical order: family and size, module
 	  Sheet.numbers   handling numbers for a hull, loadout and cargo mass
@@ -28,6 +28,14 @@ local LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
 function Sheet.slotLabel(slot)
 	return LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
 end
+
+-- One colour per slot family: a marker on the hull outline and its row
+-- in the slot list share it, so you can see which module sits where.
+Sheet.FAMILY_COLOR = {
+	hardpoint = { 1, 0.55, 0.42 }, bay = { 0.88, 0.6, 1 }, engine = { 0.45, 0.8, 1 },
+	reactor = { 0.55, 1, 0.6 }, computer = { 0.85, 0.85, 1 }, utility = { 0.85, 0.85, 1 },
+}
+function Sheet.familyColor(slot) return Sheet.FAMILY_COLOR[slot.family] or HUD.AQUA end
 
 function Sheet.isWeapon(slot) return slot.family == "hardpoint" or slot.family == "bay" end
 
@@ -80,13 +88,16 @@ function Sheet.outline(hull, paint, x, y, w, h, alpha)
 	lg.setLineWidth(1)
 	lg.setFont(HUD.font(12))
 	for i, slot in ipairs(hull.slots) do
-		-- weapon mounts only, unnumbered
-		if slot.x and Sheet.isWeapon(slot) then
+		-- every placed slot, unnumbered, in its family's colour
+		if slot.x then
 			local sx, sy = ox + slot.x * sc, oy + (slot.y or 0) * sc
+			local c = Sheet.familyColor(slot)
 			lg.setColor(0.02, 0.06, 0.09, 0.9 * alpha)
-			lg.circle("fill", sx, sy, 5)
-			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.8 * alpha)
-			lg.circle("line", sx, sy, 5)
+			lg.circle("fill", sx, sy, 6)
+			lg.setColor(c[1], c[2], c[3], 0.95 * alpha)
+			lg.setLineWidth(1.5)
+			lg.circle("line", sx, sy, 6)
+			lg.setLineWidth(1)
 		end
 	end
 	return y + h
@@ -108,7 +119,7 @@ function Sheet.slots(hull, loadout, x, y, w, maxY)
 		lg.setColor(0, 0, 0, 0.3)
 		lg.rectangle("fill", x, y, w, RH - 2, 3, 3)
 		lg.setFont(HUD.font(12))
-		lg.setColor(Sheet.isWeapon(slot) and HUD.AQUA or HUD.DIM)
+		lg.setColor(Sheet.familyColor(slot))
 		lg.print(Sheet.slotLabel(slot), x + 5, y + 2)
 		lg.setFont(HUD.font(13))
 		if m then lg.setColor(HUD.INK) else lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.8) end

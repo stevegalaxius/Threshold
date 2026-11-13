@@ -63,6 +63,7 @@ local ItemUse = require("src.item_use")
 local Shapes = require("src.inventory.shapes")
 local HullShape = require("src.hullshape")
 local HUD = require("src.hud")
+local Sheet = require("src.ui.shipsheet")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
@@ -708,6 +709,8 @@ end
 local function slotAt(L, mx, my)
 	for _, r in ipairs(L.equip.slots) do
 		if inRect(r, mx, my) then return r end
+		-- or its marker on the hull outline
+		if r.mx and (r.mx - mx) ^ 2 + (r.my - my) ^ 2 <= 81 then return r end
 	end
 end
 
@@ -1511,16 +1514,26 @@ local function drawEquipment(game, L, mx, my)
 	local hover = slotAt(L, mx, my)
 	lg.setFont(HUD.font(10))
 	for _, r in ipairs(E.slots) do
-		-- weapon mounts get an unnumbered marker; internal slots aren't drawn
-		if r.slot.x and (r.slot.family == "hardpoint" or r.slot.family == "bay") then
+		-- every placed slot gets an unnumbered marker in its family's colour;
+		-- hovering its row (or the marker) highlights it and draws a leader
+		if r.slot.x then
 			local sx, sy = ox + r.slot.x * sc, oy + (r.slot.y or 0) * sc
+			r.mx, r.my = sx, sy
 			local fits = hm and data.fits(r.slot, hm)
-			local col = fits and { 0.4, 1, 0.55 } or HUD.AQUA
+			local col = fits and { 0.4, 1, 0.55 } or Sheet.familyColor(r.slot)
+			local big = hover == r or fits
 			lg.setColor(0.02, 0.06, 0.09, 0.9)
-			lg.circle("fill", sx, sy, hover == r and 7 or 5)
-			lg.setColor(col[1], col[2], col[3], (hover == r or fits) and 1 or 0.7)
-			lg.circle("line", sx, sy, hover == r and 7 or 5)
+			lg.circle("fill", sx, sy, big and 8 or 6)
+			lg.setColor(col[1], col[2], col[3], big and 1 or 0.85)
+			lg.setLineWidth(big and 2 or 1.5)
+			lg.circle("line", sx, sy, big and 8 or 6)
+			lg.setLineWidth(1)
 		end
+	end
+	if hover and hover.mx then
+		local c = Sheet.familyColor(hover.slot)
+		lg.setColor(c[1], c[2], c[3], 0.6)
+		lg.line(hover.x + 2, hover.y + hover.h / 2, hover.mx, hover.my)
 	end
 
 	-- One row per slot.
@@ -1543,6 +1556,8 @@ local function drawEquipment(game, L, mx, my)
 		lg.rectangle("line", r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, 5, 5)
 		lg.setFont(HUD.font(10))
 		lg.setColor(HUD.DIM[1], HUD.DIM[2], HUD.DIM[3], alpha)
+		local fc = Sheet.familyColor(r.slot)
+		lg.setColor(fc[1], fc[2], fc[3], alpha)
 		lg.print(slotLabel(r.slot), r.x + 6, r.y + 2)
 		lg.setFont(HUD.font(12))
 		if m then

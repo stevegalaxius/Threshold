@@ -260,7 +260,7 @@ function I.status(u,key,id,c)
   if require('src.industry_outputs').room(u,key,c,o)<1 then
    if o.kind=='ship' then
     local state,dealer=require('src.dealers').state(u,key)
-    if state and #state.lots>=(dealer.lots or 6) then return 'Paused: sales lot full' end
+    if state and not require('src.dealers').buildsShips(key) and #state.lots>=(dealer.lots or 6) then return 'Paused: sales lot full' end
     return 'Paused: no suitable commercial parking (guest space reserved)'
    end
    return 'Paused: '..data.items[o.item].name..' storage full'
