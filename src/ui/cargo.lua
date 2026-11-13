@@ -74,7 +74,7 @@ local Station=require("src.ui.station")
 local stats = require("src.stats")
 local T = require("src.tuning")
 
-local Cargo = { open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
+local Cargo = { scroll = setmetatable({}, { __mode = "k" }), open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
 
 local function trading() return Cargo.tab=='market' end
 
@@ -204,16 +204,17 @@ local function layout(game)
 	local eh = showEquip and (HEAD + HULL_H + #p.hull.slots * ROW + PAD) or 0
 	local function size(side, cs)
 		local g1 = side.hold.grids[1]
+		local g1h = side.rows or g1.h      -- rows shown; the rest scroll
 		local w, rowW, rowH = g1.w * cs, 0, 0
 		for i = 2, #side.hold.grids do
 			local g = side.hold.grids[i]
 			if side.trade then rowW=max(rowW,g.w*cs);rowH=rowH+g.h*cs+(i>2 and 24 or 0)
    else rowW = rowW + (i > 2 and GAP or 0) + g.w * cs;rowH = max(rowH, g.h * cs) end
 		end
-		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 194 or 0)
+		local h
   do
    local header=(side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58
-   h=g1.h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
+   h=g1h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
   end
 		return max(w, rowW, (side.innerOf or side.parked) and 380 or side.market and 360 or (side.entity or side.station) and 340 or 300), h
 	end
@@ -241,10 +242,30 @@ local function layout(game)
 		end
 		return tw, max(th + HEAD + PAD * 2, eh)
 	end
+	-- Cells stay full size where they can: a grid too tall for the screen
+	-- shows fewer rows and scrolls (mouse wheel); only width shrinks cells.
+	local bodyH = select(4, Station.body())
+	local function fitRows(cs)
+		for _, col in ipairs(cols) do
+			for _, side in ipairs(col) do side.rows = nil end
+			while true do
+				local _, ch = column(col, cs)
+				if ch + HEAD + PAD * 2 <= bodyH then break end
+				local big
+				for _, side in ipairs(col) do
+					local r = side.rows or side.hold.grids[1].h
+					if r > 4 and (not big or r > (big.rows or big.hold.grids[1].h)) then big = side end
+				end
+				if not big then break end
+				big.rows = (big.rows or big.hold.grids[1].h) - 1
+			end
+		end
+	end
 	local cs = Station.CELL
 	while cs > 6 do
+		fitRows(cs)
 		local tw, ph = measure(cs)
-		if tw <= Station.frameW() and ph <= select(4, Station.body()) then break end
+		if tw <= Station.frameW() and ph <= bodyH then break end
 		cs = cs - 1
 	end
 
@@ -333,11 +354,14 @@ local function layout(game)
 		end
 		local gx, gy = x+PAD,y+((side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58)
 		local g1 = side.hold.grids[1]
-		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
-		local rx, ry = gx, gy + g1.h * cs + 24
+		local rows = min(side.rows or g1.h, g1.h)
+		local off = max(0, min(Cargo.scroll[g1] or 0, g1.h - rows))
+		Cargo.scroll[g1] = off
+		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy - off * cs, vy = gy, vh = rows * cs, label = g1.name })
+		local rx, ry = gx, gy + rows * cs + 24
 		for i = 2, #side.hold.grids do
 			local g = side.hold.grids[i]
-			table.insert(L.grids, { side = side, g = g, x = rx, y = ry, label = g.name })
+			table.insert(L.grids, { side = side, g = g, x = rx, y = ry, vy = ry, vh = g.h * cs, label = g.name })
 			if side.trade then ry=ry+g.h*cs+24 else rx = rx + g.w * cs + GAP end
 		end
 	end
@@ -354,7 +378,7 @@ end
 local function cellAt(L, mx, my)
 	for _, r in ipairs(L.grids) do
 		local cx, cy = floor((mx - r.x) / L.cs), floor((my - r.y) / L.cs)
-		if cx >= 0 and cy >= 0 and cx < r.g.w and cy < r.g.h then return r, cx, cy end
+		if cx >= 0 and cy >= 0 and cx < r.g.w and cy < r.g.h and my >= r.vy and my < r.vy + r.vh then return r, cx, cy end
 	end
 end
 
@@ -1934,8 +1958,9 @@ function Cargo.draw(game)
      label=label..'...'
     end
    end
-   lg.print(label,r.x,r.y-17)
+   lg.print(label,r.x,r.vy-17)
   end
+		lg.setScissor(r.x, r.vy, r.g.w * cs, r.vh)
 		lg.setColor(0, 0, 0, 0.35)
 		lg.rectangle("fill", r.x, r.y, r.g.w * cs, r.g.h * cs)
   if r.side.market and r.side.shipEntries and #r.g.stacks==0 then
@@ -1954,6 +1979,18 @@ function Cargo.draw(game)
 			local alpha = (r.side.market and Cargo.filter ~= "all" and filterOf(s.id) ~= Cargo.filter) and 0.25 or 1
    if r.side.market and not stockMatch(s) then alpha=0 end
 			drawStack(itemFor(s.id), s.n, r.x + s.x * cs, r.y + s.y * cs, s.w * cs, s.h * cs, cs, alpha, tag,s)
+		end
+		lg.setScissor()
+		-- scrollbar when rows are hidden
+		local total = r.g.h * cs
+		if total > r.vh + 0.5 then
+			local bx = r.x + r.g.w * cs + 3
+			local bh = r.vh * r.vh / total
+			local by = r.vy + (r.vy - r.y) / (total - r.vh) * (r.vh - bh)
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
+			lg.rectangle("fill", bx, r.vy, 4, r.vh, 2, 2)
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+			lg.rectangle("fill", bx, by, 4, bh, 2, 2)
 		end
 	end
 
@@ -1989,6 +2026,7 @@ function Cargo.draw(game)
 	if h then
 		-- Footprint preview: green where it fits, red where it doesn't.
 		local r, x, y, how = dropSpot(L, mx, my)
+		if r then lg.setScissor(r.x, r.vy, r.g.w * cs, r.vh) end
 		if r then
 			local ok = how ~= "blocked"
 			lg.setColor(ok and 0.3 or 1, ok and 1 or 0.35, ok and 0.5 or 0.3, 0.28)
@@ -2005,6 +2043,7 @@ function Cargo.draw(game)
 					end
 				end
 			end
+			lg.setScissor()
 		elseif not overPanel(L, mx, my) and not docked then
 			lg.setColor(HUD.WARN)
 			lg.setFont(HUD.font(13))
@@ -2103,6 +2142,18 @@ end
 
 function Cargo.wheelmoved(game,y)
  if not Cargo.isOpen(game) then return false end
+ if Cargo.tab=='cargo' or Cargo.tab=='market' or game.state~='docked' then
+  local L=layout(game)
+  if L then
+   local mx,my=love.mouse.getPosition()
+   for _,r in ipairs(L.grids) do
+    if mx>=r.x and mx<r.x+r.g.w*L.cs+8 and my>=r.vy and my<r.vy+r.vh and r.g.h*L.cs>r.vh+0.5 then
+     Cargo.scroll[r.g]=(Cargo.scroll[r.g] or 0)-y*2   -- clamped by the next layout
+     return true
+    end
+   end
+  end
+ end
  if game.state=='docked' and Cargo.tab=='hangar' then Hangar.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='shipyard' then Shipyard.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='industry' then IndustryView.wheelmoved(game,y) end

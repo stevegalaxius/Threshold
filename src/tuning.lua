@@ -65,7 +65,8 @@ T.moduleSalvage = 0.75
 T.wreckShotRecovery = 0.5 -- each cargo unit survives shooting a wreck; drilling preserves all
 
 -- Station storage grid, in 1 m3 cells (every station has its own).
-T.storageW, T.storageH = 24, 16
+-- default station storage; a station sets its own with storage = { w, h }
+T.storageW, T.storageH = 16, 12
 
 -- Looting and towing. A tap of the tractor key (shorter than tapTime
 -- seconds) on a wreck or container opens it; holding it tows a container
