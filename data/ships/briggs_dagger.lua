@@ -8,6 +8,7 @@ hull {
 	hold = 60,
 	loadout = { "missile_s_base", "missile_s_base", "flit_engine", "ember_reactor", "tug_beam", "nav_computer" },
 	maker = "Briggs MFG",
+	description = "Briggs' missile boat: two small racks and a tug beam on a small frame.",
 	mass = 95,
 	mount = "fixed",
 	paints = { "Moss" },

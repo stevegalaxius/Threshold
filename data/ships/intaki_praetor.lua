@@ -9,6 +9,7 @@ hull {
 	hold = 50,
 	loadout = { "gun_m_base", "pulse_m_base", "flit_engine", "flit_engine", "kiln_reactor", "tug_beam", "nav_computer", "fire_computer" },
 	maker = "Intaki",
+	turnResponse = 0.5,
 	mass = 345,
 	mount = "gimbal",
 	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },

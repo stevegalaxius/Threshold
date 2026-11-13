@@ -9,6 +9,7 @@ hull {
 	hold = 130,
 	loadout = { "gun_m_base", "gun_m_base", "missile_l_base", "mule_engine", "kiln_reactor", "tug_beam", "nav_computer" },
 	maker = "Angelmaschinenwerft",
+	description = "Diwan police frigate, built by Angelmaschinenwerft.",
 	mass = 285,
 	mount = "turret",
 	paints = { "Bone", "Ash", "Charcoal", "Old Gold", "Champagne" },
@@ -28,7 +29,7 @@ hull {
 	spoolTime = 0.1,
 	turn = 3100,
 	turnResponse = 0.75,
-	turnSpeed = 270,
+	turnSpeed = 150,
 	turretTurn = 140,
 	parts = {
 		{ name = "part 4", shape = { -86, -14, -86, 14, -102, 10, -102, -10 } },

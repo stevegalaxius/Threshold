@@ -6,8 +6,9 @@ hull {
 	class = "Shuttle",
 	drag = 0.12,
 	hold = 45,
-	loadout = { "drone_s_base", false, "ember_reactor", false, false },
+	loadout = { "drone_s_base", "flit_engine", "ember_reactor", false, "nav_computer" },
 	maker = "Angelmaschinenwerft",
+	description = "The Sperrig Sprint swaps some handling for armour and a larger hold.",
 	mass = 75,
 	mount = "fixed",
 	paints = { "Champagne" },
@@ -24,7 +25,7 @@ hull {
 	},
 	spoolTime = 0.08,
 	turn = 200,
-	turnResponse = 0.15,
+	turnResponse = 0.2,
 	turnSpeed = 250,
 	parts = {
 		{ name = "nose", shape = { 10, -10, 40, -8, 59, 0, 40, 8, 10, 10 }, paint = "primary", lights = {

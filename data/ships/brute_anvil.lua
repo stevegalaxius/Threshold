@@ -8,6 +8,8 @@ hull {
 	hold = 50,
 	loadout = { false, false, "drill_m_base", "drone_m_base", "mule_engine", "kiln_reactor", "tug_beam", "nav_computer" },
 	maker = "Brute Industries",
+	turnResponse = 0.7,
+	description = "Brute's medium mining workhorse, drill and drone bay up front.",
 	mass = 240,
 	mount = "gimbal",
 	paints = { "Moss" },

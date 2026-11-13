@@ -9,6 +9,7 @@ hull {
 	hold = 60,
 	loadout = { "artillery_l_base", "gun_S_base", "gun_S_base", "mule_engine", "kiln_reactor", "tug_beam", "nav_computer" },
 	maker = "Estates Military",
+	turnResponse = 0.8,
 	mass = 275,
 	mount = "fixed",
 	paints = { "Charcoal" },

@@ -8,6 +8,8 @@ hull {
 	hold = 90,
 	loadout = { false, "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
+	turnResponse = 0.3,
+	description = "A small Ferrous errand runner for short cargo hops.",
 	mass = 120,
 	mount = "gimbal",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },

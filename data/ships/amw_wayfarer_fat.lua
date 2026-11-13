@@ -8,6 +8,7 @@ hull {
 	hold = 75,
 	loadout = { "missile_S_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
 	maker = "Angelmaschinenwerft",
+	description = "The Sperrig cut of the Wayfarer trades a little agility for more armour and hold.",
 	mass = 245,
 	mount = "gimbal",
 	paints = { "Sage", "Forest", "Cobalt", "Khaki", "Taupe" },
@@ -26,7 +27,7 @@ hull {
 	},
 	spoolTime = 0.18,
 	turn = 3200,
-	turnResponse = 0.13,
+	turnResponse = 0.42,
 	turnSpeed = 180,
 	parts = {
 		{ name = "part 1", shape = { 76, 0, 48, 14, 0, 18, -46, 16, -66, 8, -66, -8, -46, -16, 0, -18, 48, -14 }, paint = "primary", cargo = true, core = true },

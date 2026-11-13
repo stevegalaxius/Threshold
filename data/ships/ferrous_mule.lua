@@ -8,6 +8,8 @@ hull {
 	hold = 200,
 	loadout = { "gun_m_base", "gun_m_base", "missile_m_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
+	turnResponse = 1.0,
+	description = "An armed Ferrous courier with a solid hold for its size.",
 	mass = 420,
 	mount = "turret",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },

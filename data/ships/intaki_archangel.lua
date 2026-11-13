@@ -10,6 +10,7 @@ hull {
 	hold = 175,
 	loadout = { "gun_l_base", "missile_l_base", "missile_l_base", "cinder_drive", "cinder_drive", "forge_reactor", false, "nav_computer" },
 	maker = "Intaki",
+	turnResponse = 1.4,
 	mass = 800,
 	mount = "turret",
 	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },

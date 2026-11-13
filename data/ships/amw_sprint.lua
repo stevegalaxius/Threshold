@@ -8,6 +8,7 @@ hull {
 	hold = 25,
 	loadout = { "drone_s_base", "flit_engine", "ember_reactor", "flare_pod", "nav_computer" },
 	maker = "Vantage Orbital",
+	description = "A light sport runabout: quick, fragile and fun.",
 	mass = 60,
 	mount = "fixed",
 	paints = { "Champagne" },

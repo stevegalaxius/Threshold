@@ -9,6 +9,8 @@ hull {
 	hold = 400,
 	loadout = { "gun_m_base", "gun_m_base", "cinder_drive", "forge_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
+	turnResponse = 2.0,
+	description = "Ferrous Collective's bulk freighter. Huge hold, glacial turns.",
 	mass = 900,
 	mount = "turret",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
