@@ -66,7 +66,7 @@ T.wreckShotRecovery = 0.5 -- each cargo unit survives shooting a wreck; drilling
 
 -- Station storage grid, in 1 m3 cells (every station has its own).
 -- default station storage; a station sets its own with storage = { w, h }
-T.storageW, T.storageH = 12, 16
+T.storageW, T.storageH = 16, 18
 
 -- Looting and towing. A tap of the tractor key (shorter than tapTime
 -- seconds) on a wreck or container opens it; holding it tows a container
@@ -267,9 +267,9 @@ T.startCredits = 5000
 -- How far the camera zooms out (mouse wheel), as a scale.
 T.minZoom = 0.17 / 1.5   -- pulled out with T.mapScale
 
-T.tradeW, T.tradeH = 8, 10
--- narrow and tall: cells stay full size and the shelf scrolls
-T.marketW, T.marketH = 10, 32
+T.tradeW, T.tradeH = 12, 10
+-- original widths, taller for bigger modules: tall grids scroll
+T.marketW, T.marketH = 14, 24
 T.resaleTime = 600
 T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 
