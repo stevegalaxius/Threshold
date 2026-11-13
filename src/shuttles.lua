@@ -257,7 +257,7 @@ function S.update(game, dt)
 			deliver(u, key, cargo); s.waiting[key] = nil
 		elseif total(cargo) > 0 then
 			s.next[key] = s.next[key] or clock + T.shuttleFirst * random()
-			if flying < T.shuttleMax and (total(cargo) >= T.shuttleLoad or clock >= s.next[key]) then
+			if flying < T.shuttleMax and clock >= s.next[key] then
 				-- one load at a time, the waiting goods shared out by kind
 				local load, room = {}, T.shuttleLoad
 				for id, n in pairs(cargo) do

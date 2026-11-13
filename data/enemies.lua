@@ -83,12 +83,12 @@ enemy {
 	salvage = { 1, 3 },
 }
 
--- A surface shuttle (src/shuttles.lua): a Pony lifting a load of the
--- surface's goods up to its station and dropping back down. Unarmed; the
--- area's faction guards it with its standing instead.
+-- A surface shuttle (src/shuttles.lua): a little cargo pod lifting a crate
+-- or two of the surface's goods up to its station and dropping back down.
+-- Unarmed; the area's faction guards it with its standing instead.
 enemy {
-	id = "surface_shuttle", team = 3, name = "Surface shuttle", hull = "ferrous_pony",
-	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 0.9, cruise = 500, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
+	id = "surface_shuttle", team = 3, name = "Surface shuttle", hull = "cargo_pod",
+	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 450, horizon = 2, burstOn = 1.0, burstOff = 1.0 },
 	salvage = { 0, 1 },
 }
 

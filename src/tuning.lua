@@ -135,15 +135,15 @@ T.edgeCurrentFade = 0.3
 -- against the planet's current (which turns clockwise on screen).
 T.elevatorSpin = 0.006
 -- surface shuttles (src/shuttles.lua)
-T.shuttleLoad = 30                 -- units a shuttle lifts at most
-T.shuttleMax = 3                   -- in the air at once in an area
-T.shuttleInterval = { 40, 90 }     -- seconds between lift-offs from one station's surface
-T.shuttleFirst = 20                -- the first leaves within this many seconds of arriving
-T.shuttleStay = 12                 -- seconds docked before heading back down
+T.shuttleLoad = 2                  -- units a pod lifts at most
+T.shuttleMax = 8                   -- in the air at once in an area
+T.shuttleInterval = { 3, 8 }       -- seconds between lift-offs from one station's surface
+T.shuttleFirst = 3                 -- the first leaves within this many seconds of arriving
+T.shuttleStay = 6                  -- seconds docked before heading back down
 T.shuttleSpread = 1.0              -- radians either way of the station a pad may be
 T.shuttleLaunchTime = 9            -- seconds from pad to cruising height
 T.shuttleLandTime = 8              -- and back down
-T.shuttleGroundScale = 0.3         -- how small it's drawn sitting on the ground
+T.shuttleGroundScale = 0.45        -- how small it's drawn sitting on the ground
 T.shuttleStandingPerHit = -3       -- standing lost per hit (a normal NPC costs 1)
 T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
