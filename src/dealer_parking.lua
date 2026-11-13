@@ -55,7 +55,17 @@ local function context(u,key)
  end
  return proxy,station,roster
 end
-function P.plan(u,key,hull,count)
+-- Where a ship goes: prefer "outside" (a berth first, then the hangar),
+-- "inside" (the hangar first), or nil for the usual hangar-first.
+local function fit(proxy,station,hull,owner,prefer)
+ if prefer=='outside' then
+  local m=proxy:mooringFit(station,hull,owner);if m then return {mooring=m} end
+  local b=proxy:hangarFit(station,hull,owner);if b then return {bay=b} end
+  return nil
+ end
+ return proxy:shipParkingFit(station,hull,owner)
+end
+function P.plan(u,key,hull,count,prefer)
  local proxy,station,roster=context(u,key);if not proxy then return {} end
  local placements={}
  -- A ship already here whose spot no longer works (never assigned one,
@@ -72,7 +82,7 @@ function P.plan(u,key,hull,count)
  end
  for _=1,count do
   local owner={hull=hull,dealerStock=true}
-  local parking=proxy:shipParkingFit(station,hull,owner)
+  local parking=fit(proxy,station,hull,owner,prefer)
   if not parking then break end
   proxy:applyParking(owner,parking);roster[#roster+1]=owner;placements[#placements+1]=parking
  end

@@ -121,7 +121,9 @@ function D.rollUsed(def,state)
  return lot
 end
 local function park(u,key,s,lot)
- local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+ -- used ships sit wherever: about half outside on the berths, half inside
+ local h=0;for c in tostring(lot.id or #s.lots):gmatch('.') do h=(h*31+c:byte())%997 end
+ local parking=require('src.dealer_parking').plan(u,key,lot.hull,1,h%2==0 and 'outside' or 'inside')[1]
  if not parking then return false end
  lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot;return true
 end
@@ -139,7 +141,7 @@ function D.state(u, st)
 		u.dealers[key] = s
 		local opening=def.usedOnly and (D.buildsShips(key) and 0 or 1) or cap
 		for _=1,opening do
-   local lot=def.usedOnly and D.rollUsed(def,s) or D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1)[1]
+   local lot=def.usedOnly and D.rollUsed(def,s) or D.roll(def,s);local parking=require('src.dealer_parking').plan(u,key,lot.hull,1,(not def.usedOnly and D.buildsShips(key) or #s.lots%2==0) and 'outside' or 'inside')[1]
    if parking then lot.bay,lot.mooring=parking.bay,parking.mooring;s.lots[#s.lots+1]=lot end
   end
 	end
@@ -168,12 +170,13 @@ function D.room(u,key,hull)
  -- A factory dealer fills whatever commercial parking it has (the guest
  -- share stays reserved); "lots" only caps restocking dealers.
  local cap=D.buildsShips(key) and 64 or math.max(0,(def.lots or 6)-#s.lots)
- return #require('src.dealer_parking').plan(u,key,hull,cap)
+ return #require('src.dealer_parking').plan(u,key,hull,cap,'outside')
 end
 function D.output(u,key,hull,n)
  local s,def=D.state(u,key)
  assert(D.room(u,key,hull)>=n,'dealer output overflow')
- local placements=require('src.dealer_parking').plan(u,key,hull,n)
+ -- new ships go on display outside, on the berths, while there's room
+ local placements=require('src.dealer_parking').plan(u,key,hull,n,'outside')
  assert(#placements==n,'no physical space for manufactured ship')
  for i=1,n do
   local lot=D.roll(def,s,hull);lot.manufacturedAt=u.clock;lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
