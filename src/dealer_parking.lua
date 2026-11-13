@@ -49,17 +49,26 @@ local function context(u,key)
  for _,r in ipairs(visitors) do
   local owner={hull=r.ship.hull}
   local parking=proxy:shipParkingFit(station,owner.hull,owner)
-  if not parking then return nil end -- Existing visitors already exceed physical capacity.
-  proxy:applyParking(owner,parking);roster[#roster+1]=owner
+  -- a visitor with no room is out at the docking queue, not in a space;
+  -- it mustn't stop the dealer using the spaces that are free
+  if parking then proxy:applyParking(owner,parking);roster[#roster+1]=owner end
  end
  return proxy,station,roster
 end
 function P.plan(u,key,hull,count)
  local proxy,station,roster=context(u,key);if not proxy then return {} end
  local placements={}
- -- Refuse to hide unallocated existing inventory behind more production.
+ -- A ship already here whose spot no longer works (never assigned one,
+ -- overlaps another, or its hull was redesigned to a new size) is re-parked
+ -- first; that new spot sticks. Only if it can't be housed at all does
+ -- production wait, so unallocated inventory is never hidden behind more.
  for _,owner in ipairs(roster) do
-  if not proxy:shipParkingValid(station,owner,owner.hull) then return placements end
+  if not proxy:shipParkingValid(station,owner,owner.hull) then
+   proxy:applyParking(owner,nil)
+   local parking=proxy:shipParkingFit(station,owner.hull,owner)
+   if not parking then return placements end
+   proxy:applyParking(owner,parking)
+  end
  end
  for _=1,count do
   local owner={hull=hull,dealerStock=true}
