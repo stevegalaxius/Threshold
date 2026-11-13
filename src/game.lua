@@ -2170,7 +2170,10 @@ end
 
 -- Closest thing hit along a segment, ignoring one team.
 function Game:raycast(x1, y1, x2, y2, ignoreTeam)
-	if x1 == x2 and y1 == y2 then return nil end
+	-- Box2D asserts on a segment its float32 maths sees as zero length (a
+	-- shot that barely moved this step), and on NaN
+	local ls = (x2 - x1) ^ 2 + (y2 - y1) ^ 2
+	if not (ls > 1e-6) or x1 ~= x1 or y1 ~= y1 then return nil end
 	local best
 	self.world:rayCast(x1, y1, x2, y2, function(fixture, x, y, xn, yn, fraction)
 		local e = fixture:getUserData()
