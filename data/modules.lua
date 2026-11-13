@@ -10,6 +10,7 @@
 	           "ordnance", "guidance" (radarRange px) or "drone" (uplinkRange
 	           px); see src/computers.lua.
 	  utility  hold (cubic metres), tractorRange (pixels), tractorPower (tractor strength added to the basic beam's 1: looting pull and top towing speed). Several stack. Utility modules are
+	           deprecated as a slot family: they fit computer slots (the utility slot reads as a computer slot). They are
 	           size "any" and fit any hull's utility slot.
 	  weapon   (cannons, lasers, drills) fits a hull's hardpoint slot.
 	  bay      (missile racks and drone bays) fits a bay slot.

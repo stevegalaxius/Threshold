@@ -47,8 +47,61 @@ data.FAMILIES, data.SIZES = FAMILIES, SIZES
 function data.migrateSlot(slot)
 	if slot.family == "primary" then slot.family = "hardpoint"
 	elseif slot.family == "secondary" then slot.family, slot.trigger = "hardpoint", slot.trigger or "secondary"
-	elseif slot.family == "auxiliary" then slot.family = "bay" end
+	elseif slot.family == "auxiliary" then slot.family = "bay"
+	-- The utility slot is deprecated: it reads as a computer slot, and
+	-- utility modules (pods, tug beam, flares) fit computer slots.
+	elseif slot.family == "utility" then slot.family = "computer" end
 	return slot
+end
+
+-- Every hull lists its slots in one order, so slot numbers mean the same
+-- thing on every ship: weapons first (numbered as on the hull outline),
+-- then bays, engines, reactors and computers. Within a family the authored
+-- order stands.
+data.SLOT_ORDER = { "hardpoint", "bay", "engine", "reactor", "computer", "utility" }
+local SLOT_RANK = {}
+for i, f in ipairs(data.SLOT_ORDER) do SLOT_RANK[f] = i end
+function data.slotRank(slot) return SLOT_RANK[slot.family] or #data.SLOT_ORDER + 1 end
+
+-- The canonical order of a slot list, as a permutation: perm[old] = new.
+-- Returns nil when the list is already in order.
+function data.slotPermutation(slots)
+	local idx = {}
+	for i = 1, #slots do idx[i] = i end
+	table.sort(idx, function(a, b)
+		local ra, rb = data.slotRank(slots[a]), data.slotRank(slots[b])
+		if ra ~= rb then return ra < rb end
+		return a < b
+	end)
+	local perm, moved = {}, false
+	for new, old in ipairs(idx) do perm[old] = new; if old ~= new then moved = true end end
+	return moved and perm or nil
+end
+
+-- A table keyed by slot number (loadout, triggers, loads) under a permutation.
+function data.permuteSlots(t, perm)
+	if type(t) ~= "table" or not perm then return t end
+	local out = {}
+	for k, v in pairs(t) do
+		if type(k) == "number" and perm[k] then out[perm[k]] = v else out[k] = v end
+	end
+	return out
+end
+
+-- Put a slot list (and the loadout that goes with it) in canonical order,
+-- in place. Returns the permutation used, or nil if nothing moved.
+function data.sortSlots(slots, loadout)
+	local perm = data.slotPermutation(slots)
+	if not perm then return nil end
+	local s = {}
+	for old, new in pairs(perm) do s[new] = slots[old] end
+	for i = 1, #s do slots[i] = s[i] end
+	if loadout then
+		local l = data.permuteSlots(loadout, perm)
+		for k in pairs(loadout) do loadout[k] = nil end
+		for k, v in pairs(l) do loadout[k] = v end
+	end
+	return perm
 end
 
 -- Does a module fit a hull slot?
@@ -56,6 +109,8 @@ function data.fits(slot, m)
 	-- a module sized "any" fits a slot of any size (computers and utilities)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "hardpoint" end
+	-- deprecated utility modules ride in computer slots
+	if m.family == "utility" then return slot.family == "computer" or slot.family == "utility" end
 	return m.family == slot.family
 end
 
@@ -158,6 +213,15 @@ local function prepareHull(def)
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if slot.trigger and slot.trigger ~= "primary" and slot.trigger ~= "secondary" and slot.trigger ~= "tertiary" then fail(("hull '%s' slot %d has unknown trigger '%s' (use primary, secondary or tertiary)"):format(def.id, i, tostring(slot.trigger))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
+		-- weapon slots always sit on the hull (an unplaced one fires from
+		-- the centre, so that's where its marker goes)
+		if (slot.family == "hardpoint" or slot.family == "bay") and not slot.x then slot.x, slot.y = 0, 0 end
+	end
+	-- canonical slot order; the file's own order is kept as slotRemap
+	-- (file index -> slot number) so other data and old saves can follow
+	def.slotRemap = data.sortSlots(def.slots, def.loadout)
+	if def.slotRemap then
+		for _, v in ipairs(def.variants or {}) do v.loadout = data.permuteSlots(v.loadout, def.slotRemap) end
 	end
 end
 
@@ -700,6 +764,13 @@ function data.load()
 		end
 	end
 	addModuleItems()
+	-- enemy loadouts were written against the hull files' slot order
+	for _, e in pairs(data.enemies) do
+		local h = data.hulls[e.hull]
+		if h and h.slotRemap and e.loadout and not e.slotsSorted then
+			e.loadout, e.slotsSorted = data.permuteSlots(e.loadout, h.slotRemap), true
+		end
+	end
 	-- Old weapon ids (before the Shipyard <kind>_<size>_base designs) still
 	-- resolve, so saves holding them load. Lookup only: not in the lists.
 	for old, new in pairs(data.renamedModules) do

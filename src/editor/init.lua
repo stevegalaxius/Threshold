@@ -128,6 +128,15 @@ function E.ensureLoadout()
  return E.design.loadout
 end
 
+-- Keep the design's slots in the game's canonical order (data.sortSlots),
+-- carrying the default loadout and the slot selection along.
+function E.sortSlots()
+ local d = E.design
+ if not d.slots then return end
+ local perm = data.sortSlots(d.slots, d.loadout)
+ if perm and E.slotSel then E.slotSel = perm[E.slotSel] end
+end
+
 function E.validateSlotDefault(i)
  local loadout = E.ensureLoadout()
  local module = loadout[i] and data.modules[loadout[i]]
@@ -295,6 +304,59 @@ function E.movePart(i, delta)
 	E.pushUndo()
 	parts[i], parts[j] = parts[j], parts[i]
 	if E.sel == i then E.sel = j elseif E.sel == j then E.sel = i end
+end
+
+-- The selected parts (E.sel plus the shift-clicked E.multi), lowest first.
+function E.selectedParts()
+	local out, seen = {}, {}
+	if E.sel and E.design.parts[E.sel] then out[1], seen[E.sel] = E.sel, true end
+	for i in pairs(E.multi or {}) do
+		if not seen[i] and E.design.parts[i] then out[#out + 1], seen[i] = i, true end
+	end
+	table.sort(out)
+	return out
+end
+
+-- Restack the selected parts as one block, keeping their order among
+-- themselves. how: "back" / "front" (to the ends of the list), "backward" /
+-- "forward" (one place past the nearest unselected part), or a number, the
+-- list position the block's first part should land on.
+function E.restack(how)
+	local parts = E.design.parts
+	local sel = E.selectedParts()
+	if #sel == 0 or #sel == #parts then return end
+	local picked, isSel = {}, {}
+	for _, i in ipairs(sel) do picked[#picked + 1] = parts[i]; isSel[i] = true end
+	local rest = {}
+	for i, p in ipairs(parts) do if not isSel[i] then rest[#rest + 1] = p end end
+	-- where the block goes, as "after this many unselected parts"
+	local at
+	if how == "back" then at = 0
+	elseif how == "front" then at = #rest
+	elseif how == "backward" or how == "forward" then
+		local before = 0
+		for i = 1, sel[1] - 1 do if not isSel[i] then before = before + 1 end end
+		at = how == "backward" and before - 1 or before + 1
+	else at = math.floor(tonumber(how) or 1) - 1 end
+	at = math.max(0, math.min(#rest, at))
+	local out = {}
+	for i = 1, at do out[#out + 1] = rest[i] end
+	local first = #out + 1
+	for _, p in ipairs(picked) do out[#out + 1] = p end
+	for i = at + 1, #rest do out[#out + 1] = rest[i] end
+	local changed = false
+	for i = 1, #out do if out[i] ~= parts[i] then changed = true break end end
+	if not changed then return end
+	E.pushUndo()
+	for i = 1, #out do parts[i] = out[i] end
+	-- keep the same parts selected at their new places
+	E.multi = {}
+	for k = 1, #picked do
+		local i = first + k - 1
+		if k == 1 then E.sel = i else E.multi[i] = true end
+	end
+	E.vsel, E.vmulti = nil, {}
+	return true
 end
 
 -- Apply fn(x, y) -> x, y to every point of the selected part.
@@ -609,6 +671,8 @@ function Editor.keypressed(key)
 	elseif key == "b" then E.tool = "rect"; E.drawing = nil
 	elseif key == "l" then E.tool = "light"; E.drawing = nil
 	elseif key == "g" then E.snap = not E.snap
+	elseif key == "[" or key == "]" then
+		if shift then E.restack(key == "[" and "back" or "front") else E.restack(key == "[" and "backward" or "forward") end
 	elseif key == "m" and E.sel then
 		E.pushUndo()
 		local p = E.design.parts[E.sel]
