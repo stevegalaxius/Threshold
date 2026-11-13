@@ -387,6 +387,9 @@ T.merchantRecover=.3
 T.merchantMargin=.15
 -- the most of one good a house buffers at its hub warehouse
 T.merchantBuffer=3000
+-- a globalPrice plant (crack_ice) speeds up while the universal price of
+-- its good is this far over list, and slows while it's this far under
+T.globalPriceBand=.1
 -- adaptive plants (fuel, canisters...) speed up while all trade stations
 -- together hold less than this many times their combined target
 T.adaptiveCushion=1.5

@@ -13,7 +13,7 @@ local D={recipes={
  -- filling them with hydrogen skimmed from a gas giant
  {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=60,input={item='empty_canister',n=1}},
  -- cracking ice into deuterium, one canister of it per ice
- {id='crack_ice',market=false,item='deuterium_canister',cap=4000,
+ {id='crack_ice',market=false,globalPrice=true,item='deuterium_canister',cap=4000,
   inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
  -- skimming deuterium straight from a gas giant's air: just canisters
  {id='skim_deuterium',market=false,item='deuterium_canister',cap=4000,input={item='empty_canister',n=1}},

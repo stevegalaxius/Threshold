@@ -128,6 +128,14 @@ local function draining(u,item,all)
  for _,s in ipairs(all) do have=have+Stock.count(u,s,item);want=want+E.target(u,s,item) end
  return want>0 and have<want*T.adaptiveCushion
 end
+-- The system-wide price of a good against its list price: the mean of
+-- every trade station's price multiplier (1 = list).
+function E.priceRatio(u,item,all)
+ local Markets=require('src.markets');local list=require('src.data').items[item].price or 0
+ if list<=0 or #all==0 then return end
+ local sum=0;for _,s in ipairs(all) do sum=sum+Markets.price(u,s,item) end
+ return sum/#all/list
+end
 local function adjust(u,unmet,all)
  u.industry=u.industry or {}
  local low={}
@@ -138,8 +146,14 @@ local function adjust(u,unmet,all)
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
+   -- some plants answer to the whole system's price of what they make
+   -- (crack_ice: the universal price of fuel), not to their own shelf
+   local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
+   if ratio then
+    if ratio>1+T.globalPriceBand and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+    elseif ratio<1-T.globalPriceBand or have>=(c.cap or math.huge)*.9 then v=v*(1-E.scaleStep) end
    -- the system is running short: make more, unless its own storage is full
-   if low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+   elseif low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
    -- stock piling up here slows it while the system is comfortable
    elseif have>=E.lot*2 then v=v*(1-E.scaleStep)
    -- Unsupplied demand must propagate upstream even while inputs are scarce.
