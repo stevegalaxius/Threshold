@@ -374,11 +374,25 @@ function Hold.deserialize(t, known)
 	return h
 end
 
--- Grow a saved grid to at least w x h (the grid sizes grew with bigger
--- modules), keeping every stack where it was.
+-- Fit a saved grid to w wide and at least ht tall (grid sizes changed with
+-- bigger modules). Same width: stacks stay put and rows are added. Other
+-- width: everything is packed again, adding rows until it all fits.
 function Hold.atLeast(h, w, ht)
 	for i, g in ipairs(h.grids) do
-		if g.w < w or g.h < ht then
+		if g.w ~= w then
+			local gw = w
+			for _, s in ipairs(g.stacks) do
+				local sw, sh = Shapes.of(s.id)
+				gw = math.max(gw, math.min(sw, sh))   -- wide enough for everything, rotated if need be
+			end
+			local ng = Grid.new(gw, ht, g.name)
+			for k, v in pairs(g) do if k ~= "w" and k ~= "h" and k ~= "cells" and k ~= "stacks" then ng[k] = v end end
+			local tmp = { grids = { ng } }
+			for _, s in ipairs(g.stacks) do
+				while not Hold.placeStack(tmp, s) do Grid.addRows(ng, 4) end
+			end
+			h.grids[i] = ng
+		elseif g.h < ht then
 			local ng = Grid.new(math.max(g.w, w), math.max(g.h, ht), g.name)
 			for k, v in pairs(g) do if k ~= "w" and k ~= "h" and k ~= "cells" and k ~= "stacks" then ng[k] = v end end
 			for _, s in ipairs(g.stacks) do Grid.place(ng, s) end
