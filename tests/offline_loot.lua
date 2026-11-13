@@ -42,7 +42,7 @@ return function(game)
  local saved=assert(Save.decode(Save.encode(game:saveState())))
  check(not saved.mining.resources[item.id] and saved.npcs[r.id].ship.cargo.water_ice==8,'save lost offline resource depletion')
  -- Intact saved containers preserve nested inventory and disappear only once.
- local big,bx,by=pirate('earth','ferrous_freighter')
+ local big,bx,by=pirate('earth','ferrous_bison')
  local inner=Hold.new({{key='box',w=8,h=4}});Hold.add(inner,'rounds_s',25)
  local box={id=1002,kind='container',item='cargo_container',x=bx,y=by,vx=0,vy=0,
   hold=Hold.serialize(inner),mass={0,0,20,200},hp=90,radius=30}

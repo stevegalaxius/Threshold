@@ -751,6 +751,7 @@ end
 data.renamedHulls = {
 	halcyon_wisp = "intaki_wisp", ferrous_bastion = "estates_bastion", brute_praetor = "intaki_praetor",
 	Intaki_Archangel = "intaki_archangel", Intaki_wisp = "intaki_wisp", ferrous_Bison = "ferrous_bison",
+	ferrous_runner = "ferrous_pony", ferrous_freighter = "ferrous_bison",   -- retired designs
 }
 
 function data.load()
