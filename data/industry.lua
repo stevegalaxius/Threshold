@@ -56,11 +56,11 @@ recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe
 -- list price.
 D.lineups={
  mack={'mack_mustang','mack_burro','mack_longhorn'},
- ferrous={'ferrous_runner','ferrous_mule','ferrous_bison'},
+ ferrous={'ferrous_pony','ferrous_runner','ferrous_mule','ferrous_bison'},
  brute={'brute_runt','brute_anvil','brute_nautilus'},
  intaki={'intaki_wisp','intaki_praetor','intaki_archangel'},
 }
-D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_runner=1,ferrous_mule=2,ferrous_bison=3,
+D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_pony=1,ferrous_runner=1,ferrous_mule=2,ferrous_bison=3,
  brute_runt=2,brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4}
 for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
  local n=D.assemblyFrames[hull]
