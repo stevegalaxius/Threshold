@@ -1415,7 +1415,7 @@ local function card(item, n, hint, price, against, header)
 		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
 	elseif item.kind == "ammo" then
 		-- ammo says what it is and its size: "Small rounds", "Medium shells"
-		local WHAT = { gun = "rounds", artillery = "shells", missile = "tube", torpedo = "torpedo tube", drone = "drone" }
+		local WHAT = { gun = "rounds", artillery = "shells", missile = "tube", torpedo = "tube", drone = "drone" }
 		local what = WHAT[item.family] or item.family or "ammo"
 		size = item.size and ((SIZE_NAME[item.size] or item.size) .. " " .. what) or (what:gsub("^%l", string.upper))
 	end

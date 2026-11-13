@@ -361,7 +361,7 @@ end
 -- flight (Render COLORS), so a gun, its rounds and its tracer all read alike.
 -- Slot overlays (SLOT_COLOR) use hues none of these use.
 local KIND_COLOR = {
-	gun = { 0.92, 0.84, 0.55 }, artillery = { 0.92, 0.65, 0.48 }, laser = { 0.55, 0.85, 0.85 },
+	gun = { 0.92, 0.88, 0.66 }, artillery = { 0.88, 0.72, 0.4 }, laser = { 0.55, 0.85, 0.85 },
 	missile = { 0.88, 0.55, 0.55 }, torpedo = { 0.85, 0.58, 0.78 }, drone = { 0.72, 0.62, 0.92 },
 	airburst = { 0.55, 0.72, 0.92 },
 	crate = { 0.6, 0.65, 0.75 }, salvage = { 0.65, 0.48, 0.35 },
@@ -375,7 +375,6 @@ local SLOT_COLOR = {
 }
 local function itemColor(item)
 	if item.kind == "ammo" then
-		if item.shot and item.shot.airburst then return KIND_COLOR.airburst end
 		return KIND_COLOR[item.family] or INK
 	end
 	local w = item.weapon
