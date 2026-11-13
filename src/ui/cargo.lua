@@ -1377,7 +1377,7 @@ local MODULE_STATS = {
 local WEAPON_STATS = {
 	{ "fireRate", "Fire rate", "%g/s", 1 }, { "damage", "Damage", "%g", 1 }, { "range", "Range", "%d px", 1 },
 	{ "gimbal", "Gimbal", "%d\194\176", 1 }, { "spread", "Spread", "%g\194\176", -1 },
-	{ "beams", "Beams", "%d", 1 }, { "powerPerShot", "Power per shot", "%g", -1 },
+	{ "beams", "Beams", "%d", 1 }, { "capacity", "Tubes (S rounds)", "%d", 1 }, { "recoil", "Recoil", "%g", -1 }, { "powerPerShot", "Power per shot", "%g", -1 },
 	{ "powerPerSecond", "Power per second", "%g", -1 },
 }
 local function moduleLines(m)
@@ -1418,7 +1418,10 @@ local function card(item, n, hint, price, against, header)
 	if not m and item.kind == "ammo" and item.shot then
 		-- ammo gets stat lines like a module
 		lines = {}
-		for _, st in ipairs({ { "damage", "Damage", "%g" }, { "splash", "Splash", "%g" }, { "speed", "Speed", "%d px/s" }, { "range", "Range", "%d px" } }) do
+		for _, st in ipairs({ { "damage", "Damage", "%g" }, { "splash", "Splash radius", "%g px" }, { "speed", "Speed", "%d px/s" },
+			{ "accel", "Acceleration", "%d px/s2" }, { "turnRate", "Turn", "%.1f rad/s" }, { "range", "Range", "%d px" },
+			{ "armTime", "Arm time", "%gs" }, { "fuse", "Proximity fuse", "%d px" }, { "pellets", "Pellets", "%d" },
+			{ "knockback", "Knockback", "%d" } }) do
 			local v = item.shot[st[1]]
 			if type(v) == "number" then lines[#lines + 1] = { label = st[2], value = v, fmt = st[3] } end
 		end
@@ -1443,15 +1446,14 @@ local function card(item, n, hint, price, against, header)
 	local category = (item.kind or "item"):gsub("^%l", string.upper)
 	local stats = item.kind == "ship" and {} or {
 		{ "Category", category },
-		{ "Maker", item.maker or "\226\128\148" },
 		{ "Mass", ("%g t"):format(math.floor((item.mass or (m and m.mass) or 0) * n * 100 + 0.5) / 100) },
 	}
 	-- the bar's mass shows the change against the fitted module too
 	if am and #stats > 0 then
 		local d = (m.mass or 0) - (am.mass or 0)
-		if math.abs(d) > 1e-6 then stats[3].diff, stats[3].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
+		if math.abs(d) > 1e-6 then stats[2].diff, stats[2].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
 	end
-	local h = P + (header and 16 or 0) + 20 + 4 + (lines and (#lines * 16 + 6) or 0)
+	local h = P + (header and 16 or 0) + 20 + 4 + (item.maker and 16 or 0) + (lines and (#lines * 16 + 6) or 0)
 		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
 
 		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
@@ -1474,6 +1476,12 @@ local function card(item, n, hint, price, against, header)
 		lg.setFont(big); lg.setColor(item.kind == "ship" and HUD.AQUA or HUD.itemColor(item))
 		lg.printf(item.name .. (n and n > 1 and ("  \195\151" .. n) or ""), x + P, cy, W - P * 2 - badgeW - 6, "left")
 		cy = cy + 20
+		-- the maker under the name, in a soft blue-grey
+		if item.maker then
+			lg.setFont(small); lg.setColor(0.62, 0.7, 0.82)
+			lg.print(item.maker, x + P, cy - 1)
+			cy = cy + 16
+		end
 		cy = cy + 4
 		if lines then
 			cy = cy + 2
