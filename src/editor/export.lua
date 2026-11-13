@@ -26,7 +26,9 @@ Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirr
 local EDITOR_FIELDS = { "hidden", "locked" }
 
 -- Hull fields that come from the shape, not the base hull.
-local SHAPE_KEYS = { parts = true, shape = true, source = true, id = true, name = true }
+local SHAPE_KEYS = { parts = true, shape = true, source = true, id = true, name = true,
+	-- worked out when the hull loads (data.lua, Ship.agility); never copied
+	agility = true, slotRemap = true, spinRadius = true }
 
 local function round(v)
 	if math.abs(v - math.floor(v + 0.5)) < 1e-6 then return tostring(math.floor(v + 0.5)) end

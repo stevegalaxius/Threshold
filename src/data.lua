@@ -165,6 +165,7 @@ local api = {}
 
 local function prepareHull(def)
 	if type(def) ~= "table" then fail("hull expects a table") end
+	def.agility = nil   -- derived handling (Ship.agility) is redone from the stats
 	need(def, "id", "hull"); need(def, "name", "hull")
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end

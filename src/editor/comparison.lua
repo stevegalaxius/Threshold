@@ -50,28 +50,42 @@ function C.compare(design,id,empty)
  return {current=current,reference=other,currentError=currentError,referenceError=otherError}
 end
 function C.rows(ship)
- local p=Ship.performance(ship);local s=ship.stats
+ local p=Ship.performance(ship);local s=ship.stats;local h=ship.hull
+ local ag=Ship.agility(h)
+ local guns,bays=0,0
+ for _,slot in ipairs(h.slots) do if slot.family=='hardpoint' then guns=guns+1 elseif slot.family=='bay' then bays=bays+1 end end
+ local capRad=math.rad(p.turnSpeed)
  return {
+  {'Price',h.price or 0,'%.0f cr'},
   {'Mass',p.mass,'%.0f t'},
   {'Dry mass',s.mass*T.massScale,'%.0f t'},
   {'Cargo mass',ship.cargoMass*T.massScale,'%.0f t'},
+  {'Length x width',(ship.noseX-ship.tailX),'%.0f px long'},
+  {'',h.radius*2,'%.0f px wide'},
   {'Acceleration',p.accel,'%.0f px/s2'},
   {'Top speed',p.topSpeed,'%.0f px/s'},
   {'Max afterburner speed',p.afterburnTopSpeed,'%.0f px/s'},
-  {'Turn acceleration',p.turnAccel,'%.1f rad/s2'},
-  {'Max turn speed',p.turnSpeed,'%.0f deg/s'},
   {'Side acceleration',p.sideAccel,'%.0f px/s2'},
+  {'Drag',h.drag or 0,'%.2f'},
+  {'Turn rate (stat)',math.deg(ag.rate),'%.0f deg/s'},
+  {'Turn response (stat)',ag.response,'%.2f s'},
+  {'Max turn speed (as fitted)',p.turnSpeed,'%.0f deg/s'},
+  {'Time to full turn (as loaded)',p.turnAccel>0 and capRad/p.turnAccel or 0,'%.2f s'},
+  {'Turn acceleration',p.turnAccel,'%.1f rad/s2'},
   {'Main thrust',s.thrust,'%.0f kN'},
   {'Maneuvering thrust',s.sideThrust,'%.0f kN'},
-  {'Reverse thrust',s.retroThrust,'%.0f kN'},
+  {'Engine spool time',h.spoolTime or 0,'%.2f s'},
+  {'Helm',h.helm=='turn' and 1 or 0,h.helm=='turn' and 'turn' or 'strafe'},
+  {'Hardpoints / bays',guns,'%d hardpoints'},
+  {'',bays,'%d bays'},
+  {'Default mount',0,h.mount or 'gimbal'},
   {'Armor',s.armor,'%.0f'},
+  {'Crash toughness',h.toughness or 1,'x%.2f'},
   {'Power output',s.powerOut,'%.0f/s'},
   {'Power draw',s.powerDraw,'%.0f/s'},
   {'Power storage',s.powerCap,'%.0f'},
   {'Hold used',ship.holdUsed,'%.1f m3'},
   {'Hold capacity',Ship.holdCapacity(ship),'%.0f m3'},
-  {'Engine spool time',ship.hull.spoolTime or 0,'%.2f s'},
-  {'Crash toughness',ship.hull.toughness or 1,'x%.2f'},
  }
 end
 function C.update(E)
