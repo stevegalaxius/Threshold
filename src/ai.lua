@@ -583,6 +583,9 @@ function AI.think(game, e, dt)
 		-- A drone with nothing to fight stays near whoever launched it,
 		-- and after T.droneRecall seconds of that, docks back into its hold.
 		local o = e.owner
+		-- an owner that was removed (docked away, left the area) has a
+		-- destroyed body: treat it as gone
+		if o and (o.dead or o.removed or o.body:isDestroyed()) then o = nil end
 		if e.drone then
 			e.idleTime = (e.idleTime or 0) + dt
 			if e.idleTime >= T.droneRecall and o and not o.dead then
