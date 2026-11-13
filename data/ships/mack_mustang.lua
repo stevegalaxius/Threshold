@@ -1,7 +1,7 @@
 -- Made in the Shipyard (F2). Base hull: mack_longhorn
 hull {
 	id = "mack_mustang", name = "Mustang",
-	armor = 450,
+	armor = 900,
 	bonuses = {},
 	class = "Errand-class",
 	drag = 0.95,
@@ -12,7 +12,7 @@ hull {
 	mass = 325,
 	mount = "turret",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
-	price = 32000,
+	price = 70000,
 	retroThrust = 1100,
 	sideThrust = 1186,
 	slots = {
@@ -21,7 +21,7 @@ hull {
 		{ family = "reactor", size = "L" },
 		{ family = "utility", size = "any" },
 		{ family = "utility", size = "any" },
-		{ family = "utility", size = "any" },
+		{ family = "computer", size = "any" },
 		{ family = "engine", size = "M", x = 4, y = 36 },
 	},
 	spoolTime = 0.6,
