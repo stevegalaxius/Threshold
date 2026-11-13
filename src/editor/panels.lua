@@ -921,7 +921,6 @@ local function designWindow(E, Editor)
 					slot.heading = v ~= 0 and v or nil
 				end
 			end
-			end
 			-- weapon slots always sit on the hull; internal ones (engine
 			-- exhausts and the like) can be placed or left off
 			if slot.family ~= "hardpoint" and slot.family ~= "bay" then
