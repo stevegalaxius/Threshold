@@ -392,6 +392,8 @@ T.merchantRecover=.3
 T.merchantMargin=.15
 -- the most of one good a house buffers at its hub warehouse
 T.merchantBuffer=3000
+-- the most unclaimed freight jobs one house keeps posted at once
+T.merchantOpenMax=12
 -- a globalPrice plant (crack_ice) speeds up while the universal price of
 -- its good is this far over list, and slows while it's this far under
 T.globalPriceBand=.1

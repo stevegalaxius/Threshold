@@ -132,9 +132,11 @@ local function sell(u,h,rec,target,item,clock)
  local paid=rec.cost and rec.cost[item]
  if paid and not rec.insolvent then line=math.min(line,paid*(1+T.merchantMargin)) end
  if price<=line then return end
- -- a station takes what it would reorder anyway (up to twice its target)
+ -- a station takes what it is short of its target. Intake only pulls
+ -- above twice the target, so the band between keeps a house from
+ -- pulling a shelf down and selling it straight back.
  local want=E.target(u,target,item)
- local short=math.max(0,want*2-S.count(u,target,item))
+ local short=math.max(0,want-S.count(u,target,item))
  if short<1 then return end
  for _,site in ipairs(sites(h)) do
   local n=math.min(held(rec,site,item),h.lot,short)
@@ -143,7 +145,7 @@ local function sell(u,h,rec,target,item,clock)
    if site==target then
     hold(rec,site,item,-n);S.add(u,site,item,n)
    else
-    if not Transport.route(site,target,clock) then n=0
+    if (rec.open or 0)>=T.merchantOpenMax or not Transport.route(site,target,clock) then n=0
     else
      -- the goods go back on the warehouse station's shelf, reserved by an
      -- ordinary freight job to the buyer; the house pays the courier
@@ -153,7 +155,7 @@ local function sell(u,h,rec,target,item,clock)
      local fee=Transport.payment(offer)
      if fee>=income then n=0
      else
-      hold(rec,site,item,-n);S.add(u,site,item,n);Tasks.post(u,offer)
+      hold(rec,site,item,-n);S.add(u,site,item,n);Tasks.post(u,offer);rec.open=(rec.open or 0)+1
       income=income-fee;E.ledger(u,h.id,'freight',fee,item)
      end
     end
@@ -181,6 +183,7 @@ local function intake(u,h,rec,site,item,clock)
  rec.inbound=rec.inbound or {}
  local spare=S.available(u,site,item)-math.max(E.target(u,site,item)*2,E.lot or 120)
  local room=T.merchantBuffer-held(rec,hub,item)-(rec.inbound[item] or 0)
+ if (rec.open or 0)>=T.merchantOpenMax then return end
  local n=math.floor(math.min(h.lot*2,spare,room))
  if n<h.lot*.25 or not Transport.route(site,hub,clock) then return end
  local unit=Markets.price(u,site,item)*(1+T.marketSpread)
@@ -197,7 +200,7 @@ local function intake(u,h,rec,site,item,clock)
  rec.cost=rec.cost or {}
  local before=0;for _,w in pairs(rec.stock) do before=before+(w[item] or 0) end
  rec.cost[item]=((rec.cost[item] or 0)*before+unit*n)/(before+n)
- Tasks.post(u,offer)
+ Tasks.post(u,offer);rec.open=(rec.open or 0)+1
  E.ledger(u,site,'sold',cost,item);E.ledger(u,h.id,'spent',cost,item);E.ledger(u,h.id,'freight',fee,item)
  require('src.simulation_history').note(u,'merchant_intake',clock,L.byId[site].area,{},{house=h.id,item=item,amount=n,price=unit,to=hub},site)
  return true
@@ -227,8 +230,12 @@ function M.update(u,clock)
   for _,id in ipairs(stations) do best=math.max(best,Markets.price(u,id,item)) end
   M.peak[item]=best
  end
+ -- freight jobs each house has out (posted, not yet delivered)
+ local open={}
+ for _,o in pairs(require('src.tasks').state(u).offers) do if o.house then open[o.house]=(open[o.house] or 0)+1 end end
  for _,h in ipairs(M.houses) do
   local rec=s.houses[h.id]
+  rec.open=open[h.id] or 0
   for _,item in ipairs(items) do
    if not rec.insolvent then for _,site in ipairs(sites(h)) do
     if not buy(u,h,rec,site,item,clock) then intake(u,h,rec,site,item,clock) end
