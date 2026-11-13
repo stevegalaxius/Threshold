@@ -428,7 +428,9 @@ function A.trackPoint(r,clock)
  end
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
-  local fade=(1-p)/math.max(.001,1-r.offset.progress)
+  -- clamped: an offset taken at the very end of a leg (progress 1) would
+  -- otherwise multiply up to 1000x before the leg's next sample
+  local fade=math.max(0,math.min(1,(1-p)/math.max(.001,1-r.offset.progress)))
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
   -- an offset blended in a straight line can cut through the planet (an
   -- arrival from the far side, a pose taken low down by the Heaven-Ladder):
@@ -830,7 +832,16 @@ function A.wake(game,r)
   end
  end
  e.power=r.power or e.power
- e.body:setLinearVelocity(exact and exact.vx or p.vx,exact and exact.vy or p.vy)
+ -- A sampled abstract velocity can be far over cruise: a leftover pose
+ -- offset blends out over the last few percent of a leg, and its fade
+ -- reads as thousands per second. Waking at that speed fired ships into
+ -- whatever was ahead. Wake no faster than the ship flies.
+ local vx,vy=exact and exact.vx or p.vx,exact and exact.vy or p.vy
+ if not exact then
+  local v=math.sqrt(vx*vx+vy*vy);local cap=(r.speed or 600)*T.alifeWakeSpeed
+  if v>cap then vx,vy=vx/v*cap,vy/v*cap end
+ end
+ e.body:setLinearVelocity(vx,vy)
  e.body:setAngularVelocity(exact and exact.w or 0)
  table.insert(game.entities,e)
  if r.state=='docked' then
