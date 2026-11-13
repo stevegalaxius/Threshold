@@ -1407,6 +1407,11 @@ local function card(item, n, hint, price, against, header)
 	local big, small, tiny = HUD.font(15), HUD.font(12), HUD.font(11)
 	local m = data.modules[item.id]
 	local size = item.size and (SIZE_NAME[item.size] or item.size)
+	if m then
+		-- the badge says what slot it takes: "Medium engine", "Small bay"
+		local fam = m.family == "weapon" and "weapon" or m.family == "utility" and "computer" or m.family
+		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
+	end
 	local lines = m and moduleLines(m) or nil
 	local diff = {}
 	local am = against and against ~= item.id and data.modules[against]
