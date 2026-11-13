@@ -781,6 +781,23 @@ function data.load()
 			e.loadout, e.slotsSorted = data.permuteSlots(e.loadout, h.slotRemap), true
 		end
 	end
+	-- Enemy loadouts name modules by slot number, which breaks whenever a
+	-- hull is redesigned. Fit each one to its hull by what fits where
+	-- (data.fitLoadout keeps modules already in a fitting slot and moves the
+	-- rest); a module with no room left is dropped with a warning, not a crash.
+	for id, e in pairs(data.enemies) do
+		local h = data.hulls[e.hull]
+		if h and e.loadout then
+			local fitted, want, have = data.fitLoadout(h, e.loadout), {}, {}
+			for _, m in pairs(e.loadout) do if m and data.modules[m] then want[m] = (want[m] or 0) + 1 end end
+			for _, m in pairs(fitted) do have[m] = (have[m] or 0) + 1 end
+			for m, n in pairs(want) do
+				if (have[m] or 0) < n then print(("[data] enemy '%s': no room for %s on %s, left off"):format(id, m, e.hull)) end
+			end
+			for i = 1, #h.slots do if fitted[i] == nil then fitted[i] = false end end
+			e.loadout = fitted
+		end
+	end
 	-- Old weapon ids (before the Shipyard <kind>_<size>_base designs) still
 	-- resolve, so saves holding them load. Lookup only: not in the lists.
 	for old, new in pairs(data.renamedModules) do
