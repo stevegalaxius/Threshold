@@ -265,7 +265,7 @@ local function layout(game)
 	while cs > 6 do
 		fitRows(cs)
 		local tw, ph = measure(cs)
-		if tw <= Station.frameW() and ph <= bodyH then break end
+		if tw <= sw - 32 and ph <= bodyH then break end   -- grids may use the whole screen width, past the header frame
 		cs = cs - 1
 	end
 
