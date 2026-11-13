@@ -11,7 +11,7 @@ local D={recipes={
  -- One ore presses two empty canisters; fractional credits keep stock whole.
  {id='press_canisters',market=false,item='empty_canister',cap=6000,input={item='iron_ore',n=.5}},
  -- filling them with hydrogen skimmed from a gas giant
- {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=60,input={item='empty_canister',n=1}},
+ {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=600,input={item='empty_canister',n=1}},
  -- cracking ice into deuterium, one canister of it per ice
  {id='crack_ice',market=false,globalPrice=true,item='deuterium_canister',cap=4000,
   inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
@@ -29,6 +29,10 @@ local D={recipes={
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
+ -- Ice: the ice moons cut it from their crusts (abstract extraction, like
+ -- the water wells), and Venus's terraforming works swallow it by the ton
+ {id='cut_ice',group='resources',item='water_ice',opening=0,cap=1600},
+ {id='use_ice',market=false,item='water_ice',cap=400},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}
@@ -72,6 +76,7 @@ D.facilities={
  water={policy='fixed',recipes={'use_water'}},
  water_melter={policy='fixed',recipes={'melt_water'}},
  water_wells={policy='fixed',recipes={'pump_water'}},
+ ice_wells={policy='fixed',recipes={'cut_ice'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
