@@ -1393,7 +1393,6 @@ local function moduleLines(m)
 	end
 	if m.flares then out[#out + 1] = { label = "Countermeasures", text = "Flares" } end
 	out[#out + 1] = { key = "powerDraw", label = "Power draw", value = m.powerDraw or 0, fmt = "%g/s", better = -1 }
-	out[#out + 1] = { key = "mass", label = "Mass", value = m.mass or 0, fmt = "%g t", better = -1 }
 	return out
 end
 local GOOD, BAD, FLAVOR = { 0.35, 1, 0.45 }, { 1, 0.4, 0.35 }, { 1, 0.82, 0.45 }
@@ -1427,7 +1426,12 @@ local function card(item, n, hint, price, against, header)
 	end
 	local descLines = {}
 	if desc and desc ~= "" then _, descLines = small:getWrap((m and '"' .. desc .. '"') or desc, W - P * 2) end
-	local stats = (item.kind == "ship" or m) and {} or {
+	-- the generic bar under the description: modules get category and mass
+	local category = (item.kind or "item"):gsub("^%l", string.upper)
+	local stats = item.kind == "ship" and {} or m and {
+		{ "Category", category },
+		{ "Mass", ("%g t"):format((item.mass or m.mass or 0) * n) },
+	} or {
 		{ "Stack", ("%d / %d"):format(n, select(3, Shapes.of(item.id)) or n) },
 		{ "Volume", ("%.2f m3"):format(item.volume * n) },
 		{ "Mass", ("%.2f t"):format(item.mass * n) },
@@ -1435,6 +1439,7 @@ local function card(item, n, hint, price, against, header)
 	}
 	local h = P + (header and 16 or 0) + 20 + 18 + (lines and (#lines * 16 + 6) or 0)
 		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
+		+ ((m and item.maker) and 18 or 0)
 		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
 	return W, h, function(x, y)
 		lg.setColor(0.02, 0.06, 0.09, 0.96)
@@ -1456,7 +1461,7 @@ local function card(item, n, hint, price, against, header)
 		cy = cy + 20
 		lg.setFont(small); lg.setColor(HUD.AQUA)
 		lg.print(kindLine(item), x + P, cy)
-		if item.maker then lg.setColor(HUD.DIM); lg.printf(item.maker, x + P, cy, W - P * 2, "right") end
+		if item.maker and not m then lg.setColor(HUD.DIM); lg.printf(item.maker, x + P, cy, W - P * 2, "right") end
 		cy = cy + 18
 		if lines then
 			cy = cy + 2
@@ -1477,6 +1482,12 @@ local function card(item, n, hint, price, against, header)
 				cy = cy + 16
 			end
 			cy = cy + 4
+		end
+		-- a module's maker sits just above its description
+		if m and item.maker then
+			lg.setFont(small); lg.setColor(HUD.DIM)
+			lg.print("Made by " .. item.maker, x + P, cy + 2)
+			cy = cy + 18
 		end
 		if #descLines > 0 then
 			cy = cy + 4
