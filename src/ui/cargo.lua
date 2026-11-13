@@ -1442,6 +1442,11 @@ local function card(item, n, hint, price, against, header)
 		{ "Category", category },
 		{ "Mass", ("%g t"):format(math.floor((item.mass or (m and m.mass) or 0) * n * 100 + 0.5) / 100) },
 	}
+	-- the bar's mass shows the change against the fitted module too
+	if am and #stats > 0 then
+		local d = (m.mass or 0) - (am.mass or 0)
+		if math.abs(d) > 1e-6 then stats[2].diff, stats[2].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
+	end
 	local h = P + (header and 16 or 0) + 20 + 18 + (lines and (#lines * 16 + 6) or 0)
 		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
 		+ (item.maker and 18 or 0)
@@ -1507,6 +1512,10 @@ local function card(item, n, hint, price, against, header)
 				local sx = x + P + (i - 1) * cw
 				lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
 				lg.setFont(small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+				if st.diff then
+					lg.setColor(st.good and GOOD or BAD)
+					lg.print(st.diff, sx + small:getWidth(st[2]) + 8, cy + 23)
+				end
 			end
 			cy = cy + 40
 		end
