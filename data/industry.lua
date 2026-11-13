@@ -61,11 +61,13 @@ recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe
 D.lineups={
  mack={'mack_mustang','mack_burro','mack_longhorn'},
  ferrous={'ferrous_pony','ferrous_mule','ferrous_bison'},
- brute={'brute_runt','brute_anvil','brute_nautilus'},
+ brute={'brute_anvil','brute_nautilus'},
+ redfu={'redfu_crane','redfu_pelican','redfu_gila'},
  intaki={'intaki_wisp','intaki_praetor','intaki_archangel'},
 }
 D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_pony=1,ferrous_mule=2,ferrous_bison=3,
- brute_runt=2,brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4}
+ brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4,
+ redfu_crane=1,redfu_pelican=2,redfu_gila=3}
 for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
  local n=D.assemblyFrames[hull]
  D.recipes[#D.recipes+1]={id='assemble_'..hull,group='ship_assembly',market=false,storefront=false,stockless=true,time=n,
@@ -99,7 +101,9 @@ for _,c in ipairs(D.recipes) do
 end
 D.inputHours=.5 -- reorder at thirty minutes, refill toward one hour
 D.shops={chemicals={id='chemicals',name='Chemicals',description='Nitrates, agricultural fertilizer and industrial explosives.',sells={{'nitrates',1},{'fertilizer',1},{'explosives',1}}}}
-D.usedShips={lots=2,intervalHours=16,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','longhorn_hauler','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'}}
+D.usedShips={lots=2,intervalHours=16,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','longhorn_hauler','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'},
+ -- Decommissioned police hulls: rarely, a used lot is one of these.
+ rarePresets={'surplus_estates','surplus_diwan'},rareChance=.04}
 D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1,wholesaleHours=2}
 D.dealerParking={guestHangarFraction=.25,guestBerths=2}
 -- Fuel-chain throughput supports the original 2,500-energy canister. The

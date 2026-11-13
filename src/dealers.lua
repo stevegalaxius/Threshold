@@ -110,7 +110,9 @@ end
 
 function D.rollUsed(def,state)
  local policy=require('data.industry').usedShips
- local preset=data.enemies[policy.presets[rand(#policy.presets)]]
+ local pool=policy.presets
+ if policy.rarePresets and rand(1000)<=(policy.rareChance or 0)*1000 then pool=policy.rarePresets end
+ local preset=data.enemies[pool[rand(#pool)]]
  local lot=D.roll({hulls={preset.hull},trims={'stock'},markup=policy.markup},state,preset.hull)
  lot.loadout=copy(preset.loadout or data.hulls[preset.hull].loadout)
  lot.used=true;lot.condition=policy.minCondition+(policy.maxCondition-policy.minCondition)*rand(1000)/1000

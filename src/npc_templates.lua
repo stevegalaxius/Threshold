@@ -4,7 +4,9 @@ local Templates={
  trader={purchase={budget=300000,minCargo=4,requires={cargo=true}},label='Trader',profile='freight_regular',homePurpose='trade',mobile=true},
  salvager={purchase={budget=150000,requires={cargo=true,armed=true}},label='Salvager',profile='scavenger',homePurpose='trade'},
  miner={purchase={budget=150000,requires={cargo=true,drill=true}},label='Miner',profile='industrial',homePurpose='mining'},
- patrol={purchase={budget=150000,requires={armed=true}},label='Faction Police',profile='local_police',homePurpose='trade',archetype='patrol_wisp',affiliation='$owner',
+ patrol={purchase={budget=150000,requires={armed=true},
+  -- Faction police fly their own service hulls, never bought off a lot.
+  fleets={estates={'estates_whisper','estates_rapier','estates_bastion'},diwan={'diwan_cherubim','diwan_seraph'}}},label='Faction Police',profile='local_police',homePurpose='trade',archetype='patrol_wisp',affiliation='$owner',
   authorizations={{kind='police',issuer='$owner',jurisdiction='$area'}}},
  pirate={purchase={budget=150000,requires={armed=true}},label='Raider',profile='raider',homePurpose='pirateBase',archetype='pirate_wisp',roamingHome=true},
 }
