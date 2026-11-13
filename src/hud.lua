@@ -376,13 +376,15 @@ local function itemColor(item)
 	if item.kind == "ammo" then
 		return KIND_COLOR[item.family] or INK
 	end
-	local w = item.weapon
+	-- a module's item card carries only its id; its weapon and family are on the module
+	local m = item.kind == "module" and data.modules[item.module or item.id] or item
+	local w = m.weapon
 	if w then
 		if data.LASERS[w.kind] then return KIND_COLOR.laser end
 		local fam = data.chambers(w)[1]
 		if fam and KIND_COLOR[fam] then return KIND_COLOR[fam] end
 	end
-	if item.kind == "module" and SLOT_COLOR[item.family] then return SLOT_COLOR[item.family] end
+	if item.kind == "module" and SLOT_COLOR[m.family] then return SLOT_COLOR[m.family] end
 	return KIND_COLOR[item.kind] or INK
 end
 
