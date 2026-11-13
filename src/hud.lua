@@ -362,7 +362,7 @@ end
 -- Slot overlays (SLOT_COLOR) use hues none of these use.
 local KIND_COLOR = {
 	gun = { 0.92, 0.88, 0.66 }, artillery = { 0.88, 0.72, 0.4 }, laser = { 0.55, 0.85, 0.85 },
-	missile = { 0.88, 0.55, 0.55 }, torpedo = { 0.85, 0.58, 0.78 }, drone = { 0.72, 0.62, 0.92 },
+	missile = { 0.88, 0.55, 0.55 }, torpedo = { 0.85, 0.58, 0.78 }, drone = { 0.5, 0.82, 0.6 },
 	airburst = { 0.55, 0.72, 0.92 },
 	crate = { 0.6, 0.65, 0.75 }, salvage = { 0.65, 0.48, 0.35 },
 	module = { 0.95, 0.95, 0.95 }, container = { 0.95, 0.55, 0.2 },
@@ -371,7 +371,7 @@ local KIND_COLOR = {
 -- a bay the missile's red. The rest pick hues no ammo uses.
 local SLOT_COLOR = {
 	hardpoint = KIND_COLOR.gun, bay = KIND_COLOR.missile, engine = { 0.5, 0.6, 0.9 },
-	reactor = { 0.6, 0.85, 0.55 }, utility = { 0.78, 0.72, 0.6 }, computer = { 0.78, 0.72, 0.6 },
+	reactor = { 0.72, 0.62, 0.92 }, utility = { 0.78, 0.72, 0.6 }, computer = { 0.78, 0.72, 0.6 },
 }
 local function itemColor(item)
 	if item.kind == "ammo" then
