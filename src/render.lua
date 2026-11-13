@@ -944,6 +944,8 @@ local function drawShip(game, e)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(a)
+	-- a surface shuttle near the ground, seen from far above (src/shuttles.lua)
+	if e.drawScale then lg.scale(e.drawScale) end
 
 	-- Everything below is in the ship's own frame: +x is the nose, +y its right side.
 	local R = hull.radius

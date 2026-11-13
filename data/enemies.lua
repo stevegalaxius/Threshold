@@ -83,6 +83,15 @@ enemy {
 	salvage = { 1, 3 },
 }
 
+-- A surface shuttle (src/shuttles.lua): a Pony lifting a load of the
+-- surface's goods up to its station and dropping back down. Unarmed; the
+-- area's faction guards it with its standing instead.
+enemy {
+	id = "surface_shuttle", team = 3, name = "Surface shuttle", hull = "ferrous_pony",
+	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 0.9, cruise = 500, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
+	salvage = { 0, 1 },
+}
+
 -- The everyday trader in a Packhorse: a fair hold and enough guns to
 -- make a lone pirate think twice.
 enemy {

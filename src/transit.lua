@@ -1828,32 +1828,4 @@ function Game:spawnHeavenLadder(cx, cy, R)
 end
 
 
--- A single space elevator (Earth, Venus): an anchor station
--- (data/stations/elevator_anchor.lua) on its location's slow orbit, against
--- the current, and a tether from the surface up to its tether head. The
--- tether turns through self.ladder like the Heaven-Ladder's ring, so
--- Game:updateRotors keeps it under the anchor from the clock alone.
-function Game:spawnSpaceElevator(locationId)
-	local L = require("src.locations")
-	local place = L.get(locationId)
-	local m = place.motion
-	local cx, cy, R, a = m.cx or 0, m.cy or 0, m.radius, m.phase
-	local w = self.well
-	local surface = w and w.radius or R - 1000
-	local ux, uy, nx, ny = cos(a), sin(a), -sin(a), cos(a)
-	local tw, top = 24, R - 560   -- top: the anchor's tether head
-	local tether = self:addStructure({
-		cx + ux * surface + nx * tw, cy + uy * surface + ny * tw,
-		cx + ux * top + nx * tw, cy + uy * top + ny * tw,
-		cx + ux * top - nx * tw, cy + uy * top - ny * tw,
-		cx + ux * surface - nx * tw, cy + uy * surface - ny * tw,
-	}, { role = "tether" })
-	tether.body:setType("kinematic")
-	self.ladder = self.ladder or { segments = {}, spin = L.rate(m), cx = cx, cy = cy }
-	table.insert(self.ladder.segments, tether)
-	local st = self:spawnStation(place.layout, cx + ux * R, cy + uy * R, 0, false, locationId)
-	self:setOrbit(st, cx, cy, L.rate(m) * R)
-	return st
-end
-
 end

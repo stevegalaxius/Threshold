@@ -898,7 +898,8 @@ function Game:updateAtmosphere(dt)
 	if not w or not w.atmo then return end
 	for _, e in ipairs(self.entities) do
 		local b = e.body
-		e.reentry = nil
+		-- (a surface shuttle's climb sets its own burn: src/shuttles.lua)
+		if not (e.shuttle and e.shuttle.phase) then e.reentry = nil end
 		if not e.removed and not e.dockState and b:getType() == "dynamic" and (e.kind == "ship" or e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") then
 			local x, y = b:getPosition()
 			local dx, dy = w.x - x, w.y - y
@@ -1380,6 +1381,7 @@ function Game:finishDocking(e, ds, st)
 		self:playerDocked(st)
 	else
 		ds.stay = 30 + random() * 60
+		if e.shuttle then require("src.shuttles").docked(self, e, ds, st) end
   if e.alifeRecord then
    e.alifeRecord.ship.armor=e.armor
    require('src.npc').beginDocked(e.alifeRecord,st.locationId,self.universe.clock,self.universe)
@@ -1972,6 +1974,9 @@ function Game:step(dt)
 				-- like a station's runway, the player flies on under a driver's
 				-- beam and can pull out of it
 				Ship.fly(e, dt)
+			elseif e.shuttle and e.shuttle.phase then
+				-- a surface shuttle lifting off or landing (src/shuttles.lua)
+				require("src.shuttles").animate(self, e, dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				Fuel.step(e,e.stats,dt,false)
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
@@ -1992,6 +1997,7 @@ function Game:step(dt)
 	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:updateALife()
+	require("src.shuttles").update(self, dt)
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:applySurfacePull()
@@ -2192,7 +2198,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and source and source.isPlayer and amount > 0 and cause ~= "ram" and e ~= source then
 		local Rep = require("src.reputation")
 		if e.kind == "station" and e.weapons then Rep.stationHit(self.universe, e.key or e.locationId)
-		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId]) end
+		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId])
+		elseif e.kind == "ship" and e.shuttle then require("src.shuttles").hit(self.universe, e) end
 	end
 	-- remember who starts shooting at other ships (stations answer it)
 	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
@@ -2514,6 +2521,7 @@ function Game:reap()
 				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
 				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
 			end
+			if e.shuttle and e.lastHitBy and e.lastHitBy.isPlayer then require("src.shuttles").killed(self.universe, e) end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
