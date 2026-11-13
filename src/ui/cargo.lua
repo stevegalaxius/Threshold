@@ -886,8 +886,11 @@ end
 local function menuClick(game, mx, my, button)
 	local m = Cargo.menu
 	Cargo.menu = nil
+	local box, rects = menuRects(m)
+	-- a right-click elsewhere reopens the menu there (the click goes on to
+	-- the normal handler); on the menu itself it just closes it
+	if button == 2 then return inRect(box, mx, my) end
 	if button ~= 1 then return true end
-	local _, rects = menuRects(m)
 	for _, b in ipairs(rects) do
 		if inRect(b, mx, my) then
 			if b.it.why then game:toast(string.upper(b.it.why), 1.2)
@@ -941,7 +944,7 @@ end
 -- mods: { ctrl, shift } to stand in for the keyboard (the autotest uses it).
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
-	if Cargo.menu then return menuClick(game, mx, my, button) end
+	if Cargo.menu and menuClick(game, mx, my, button) then return true end
 	-- an open shop menu takes the click: pick a shop, or close it
 	if button == 1 then
 		local tabs = spaceTabs(game)
