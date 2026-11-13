@@ -102,6 +102,11 @@ function L.heading(id, clock)
 		local _, _, a = L.position(id, clock)
 		return a + pi / 2
 	end
+	-- a space elevator's anchor: it turns with its tether, always facing out
+	if location.radial then
+		local _, _, a = L.position(id, clock)
+		return a
+	end
 	return (location.heading or 0) + (location.spin or 0) * clock
 end
 
@@ -109,7 +114,7 @@ end
 -- rotors take the location's spin instead.
 function L.coreHeading(e, id, clock)
 	local location = L.get(id)
-	if e.rotors and location.motion.type ~= "cloud" then return location.heading or 0 end
+	if e.rotors and location.motion.type ~= "cloud" and not location.radial then return location.heading or 0 end
 	return L.heading(id, clock)
 end
 
@@ -200,7 +205,7 @@ function L.install(Game)
 		e.body:setPosition(L.position(id, clock))
 		e.body:setAngle(L.coreHeading(e, id, clock))
 		e.body:setLinearVelocity(L.velocity(id, clock))
-		e.body:setAngularVelocity(e.rotors and 0 or location.spin or 0)
+		e.body:setAngularVelocity(location.radial and L.rate(location.motion) or e.rotors and 0 or location.spin or 0)
 		for _, r in ipairs(e.rotors or {}) do
 			if not r.fixed then r.spin = location.spin or 0 end
 		end

@@ -1,0 +1,43 @@
+-- Made in the Shipyard (F2). Base hull: amw_wayfarer_fat
+hull {
+	id = "amw_wayfarer_fat", name = "Wayfarer Sperrig",
+	armor = 310,
+	bonuses = {},
+	class = "Yacht",
+	drag = 0.35,
+	hold = 75,
+	loadout = { "missile_S_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
+	maker = "Angelmaschinenwerft",
+	mass = 245,
+	mount = "gimbal",
+	paints = { "Sage", "Forest", "Cobalt", "Khaki", "Taupe" },
+	price = 42000,
+	ramSpeed = 190,
+	retroThrust = 790,
+	sideThrust = 760,
+	slots = {
+		{ family = "bay", size = "S", x = 8, y = 0 },
+		{ family = "engine", size = "M", x = -68, y = 0 },
+		{ family = "reactor", size = "M", x = -44, y = 0 },
+		{ family = "utility", size = "any", x = -12, y = 0 },
+		{ family = "utility", size = "any", x = -12, y = 0 },
+		{ family = "utility", size = "any", x = -12, y = 0 },
+		{ family = "utility", size = "any", x = -12, y = 0 },
+	},
+	spoolTime = 0.18,
+	turn = 3200,
+	turnResponse = 0.13,
+	turnSpeed = 180,
+	parts = {
+		{ name = "part 1", shape = { 76, 0, 48, 14, 0, 18, -46, 16, -66, 8, -66, -8, -46, -16, 0, -18, 48, -14 }, paint = "primary", cargo = true, core = true },
+		{ name = "part 2", shape = { 22, -16, -12, -32, -44, -34, -46, -16, -16, -14 }, paint = "secondary", mirror = true, cargo = true, lights = {
+			{ kind = "nav", x = -44, y = -34 },
+		} },
+		{ name = "part 3", shape = { 32, -8, 56, -6, 64, 0, 56, 6, 32, 8, 20, 0 }, paint = "secondary", lights = {
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 46, y = -4 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 46, y = 4 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 54, y = 0 },
+		} },
+		{ name = "part 4", shape = { -66, 8, -72, 6, -72, -6, -66, -8 } },
+	},
+}

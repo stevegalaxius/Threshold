@@ -1,0 +1,41 @@
+-- Made in the Shipyard (F2). Base hull: estates_whisper
+hull {
+	id = "estates_whisper", name = "Whisper",
+	armor = 70,
+	bonuses = {},
+	class = "Interceptor",
+	description = "High performance interceptor built by the Estates military",
+	drag = 0.1,
+	hold = 20,
+	loadout = { "missile_s_base", "flit_engine", "ember_reactor", "flare_pod", "nav_computer" },
+	maker = "Estates Military",
+	mass = 60,
+	mount = "fixed",
+	paints = { "Charcoal" },
+	price = 41000,
+	ramSpeed = 160,
+	retroThrust = 450,
+	sideThrust = 460,
+	slots = {
+		{ family = "bay", size = "S", trigger = "primary", x = 34, y = 0 },
+		{ family = "engine", size = "S", x = -44, y = 0 },
+		{ family = "reactor", size = "S", x = 8, y = 0 },
+		{ family = "computer", size = "any" },
+		{ family = "computer", size = "any" },
+	},
+	spoolTime = 0.05,
+	turn = 50,
+	turnResponse = 0.06,
+	turnSpeed = 370,
+	parts = {
+		{ name = "wedge", shape = { 58, 0, 20, 8, -46, 4, -46, -4, 20, -8 }, paint = "primary", lights = {
+			{ color = { 0.6, 0.8, 1 }, h = 0.8, kind = "window", w = 1, x = 30, y = 2 },
+			{ kind = "nav", x = 20, y = -8 },
+			{ kind = "nav", x = 20, y = 8 },
+		} },
+		{ name = "spine", shape = { 20, -2, 20, 2, -40, 2, -40, -2 }, paint = "secondary" },
+		{ name = "tail", shape = { -46, -4, -58, -2, -58, 2, -46, 4 }, paint = "secondary", lights = {
+			{ kind = "strobe", rate = 2, x = 58, y = 0 },
+		} },
+	},
+}

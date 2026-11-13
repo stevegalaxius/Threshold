@@ -619,9 +619,10 @@ function Fields.configureLocations(area)
 			local a = (k * 2 + 1) / 8 * pi * 2
 			local lid = add(WorldLayout.specials.heavenLadder.access[k+1],
 				k == 0 and "Heaven-Ladder" or ("Heaven-Ladder anchor " .. (k + 1)), "station",
-				{ type = "fixed", x = cos(a) * LR, y = sin(a) * LR }, 0)
+				{ type = "orbit", radius = LR, phase = a, rate = -T.elevatorSpin }, 0)
 			local place = F.locations[#F.locations]
-			place.heading,place.layout,place.uses = a,"ladder_anchor",{patrol=true}
+			-- the anchors turn with the ring, against the planet's current
+			place.heading,place.layout,place.uses,place.radial = a,"ladder_anchor",{patrol=true},true
             place.marketId=WorldLayout.specials.heavenLadder.marketId
             place.food=WorldLayout.specials.heavenLadder.food
             if k==0 then place.facilities=WorldLayout.specials.heavenLadder.facilities;place.uses.trade=true;place.uses.mining=true end
@@ -630,6 +631,7 @@ function Fields.configureLocations(area)
 		end
 		F.ladderId = F.ladderIds[1]
 	end
+
 	if F.stationTrack then
         local specs=F.navigation.buoys
         local count=type(specs)=="table" and #specs or assert(specs,"rotating region needs a buoy definition: "..area)

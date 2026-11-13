@@ -798,8 +798,13 @@ function Game:applyCurrent(dt)
 				local tx, ty = dy / r, -dx / r
 				local f = self:currentSpeed(r)
 				e.flowX, e.flowY = tx * f, ty * f
-				local vt = vx * tx + vy * ty
-				local c = max(0, vt) * max(0, vt) / r
+				-- Hold only the part of the ship's motion that is riding the
+				-- current. Holding all of it (vt^2 / r) pulled a fast ship
+				-- down toward the planet harder the faster it went: at
+				-- 800 px/s, 16000 px out, that was 40 px/s^2 of unasked-for
+				-- pull, more than the surface pull itself.
+				local vt = max(0, min(vx * tx + vy * ty, f))
+				local c = vt * vt / r
 				ax, ay = dx / r * c, dy / r * c
 			else
 				ax, ay = self:currentAt(x, y, vx, vy, true)
@@ -893,7 +898,8 @@ function Game:updateAtmosphere(dt)
 	if not w or not w.atmo then return end
 	for _, e in ipairs(self.entities) do
 		local b = e.body
-		e.reentry = nil
+		-- (a surface shuttle's climb sets its own burn: src/shuttles.lua)
+		if not (e.shuttle and e.shuttle.phase) then e.reentry = nil end
 		if not e.removed and not e.dockState and b:getType() == "dynamic" and (e.kind == "ship" or e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") then
 			local x, y = b:getPosition()
 			local dx, dy = w.x - x, w.y - y
@@ -1314,7 +1320,8 @@ function Game:updateDocking(dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
 			local trader = e.def and e.def.ai.style == "trader" or (e.alifeId and e.route ~= nil)
-			if (e == self.player or trader) and e.dockCooldown == 0 then
+			-- (surface shuttles only look like they dock: src/shuttles.lua)
+			if (e == self.player or trader) and not e.shuttle and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
@@ -1423,6 +1430,18 @@ function Game:updateDockedShip(e, dt)
 		if st.city then gx, gy = self:surfacePullAt(x, y) end
 		require("src.beam").hold(self, e, { t = ds.t, near = near, fvx = svx, fvy = svy, wx = wx, wy = wy,
 			nose = dockAngle(st, side, d) + pi, spin = sb:getAngularVelocity(), gx = gx, gy = gy, dt = dt })
+		-- An NPC the beam can't bring in (wedged on the hull beside the
+		-- runway) held the dock for ever, and the whole queue behind it
+		-- waited. After a while the beam just sets it at the door.
+		if e ~= self.player and ds.t > 20 then
+			x, y = dockWorld(st, side, doorX, 0, d)
+			b:setPosition(x, y)
+			b:setAngle(dockAngle(st, side, d) + pi)
+			svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
+			b:setLinearVelocity(svx, svy)
+			b:setAngularVelocity(0)
+			lx, ly, vx, vy = doorX, 0, svx, svy
+		end
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
@@ -1955,6 +1974,9 @@ function Game:step(dt)
 				-- like a station's runway, the player flies on under a driver's
 				-- beam and can pull out of it
 				Ship.fly(e, dt)
+			elseif e.shuttle and e.shuttle.phase then
+				-- a surface shuttle lifting off or landing (src/shuttles.lua)
+				require("src.shuttles").animate(self, e, dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				Fuel.step(e,e.stats,dt,false)
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
@@ -1975,6 +1997,7 @@ function Game:step(dt)
 	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:updateALife()
+	require("src.shuttles").update(self, dt)
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:applySurfacePull()
@@ -2147,11 +2170,14 @@ end
 
 -- Closest thing hit along a segment, ignoring one team.
 function Game:raycast(x1, y1, x2, y2, ignoreTeam)
-	if x1 == x2 and y1 == y2 then return nil end
+	-- Box2D asserts on a segment its float32 maths sees as zero length (a
+	-- shot that barely moved this step), and on NaN
+	local ls = (x2 - x1) ^ 2 + (y2 - y1) ^ 2
+	if not (ls > 1e-6) or x1 ~= x1 or y1 ~= y1 then return nil end
 	local best
 	self.world:rayCast(x1, y1, x2, y2, function(fixture, x, y, xn, yn, fraction)
 		local e = fixture:getUserData()
-		if not e or e.dead or e.team == ignoreTeam then return -1 end
+		if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
 		best = { entity = e, x = x, y = y, nx = xn, ny = yn, fraction = fraction }
 		return fraction
 	end)
@@ -2175,7 +2201,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and source and source.isPlayer and amount > 0 and cause ~= "ram" and e ~= source then
 		local Rep = require("src.reputation")
 		if e.kind == "station" and e.weapons then Rep.stationHit(self.universe, e.key or e.locationId)
-		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId]) end
+		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId])
+		elseif e.kind == "ship" and e.shuttle then require("src.shuttles").hit(self.universe, e) end
 	end
 	-- remember who starts shooting at other ships (stations answer it)
 	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
@@ -2497,6 +2524,7 @@ function Game:reap()
 				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
 				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
 			end
+			if e.shuttle and e.lastHitBy and e.lastHitBy.isPlayer then require("src.shuttles").killed(self.universe, e) end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()

@@ -318,7 +318,7 @@ local function trade(game, e, dt)
 		-- and only turns in once it's lined up in the cone before the door.
 		-- Straight at the runway, a hauler coming from the side or behind
 		-- swung across the station and into its hull.
-		if stop.dock and stop.body and e.alifeId then
+		if stop.dock and stop.body and (e.alifeId or e.shuttle) then
 			local d = approachDock(e, stop)
 			local lx, ly = stop.body:getLocalPoint(x, y)
 			local a = d.a or 0
@@ -391,11 +391,38 @@ local function trade(game, e, dt)
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
+		-- A mass driver only takes a ship from its loading zone, a narrow
+		-- strip behind the breech along the barrel (Game:requestDriver).
+		-- Following the travel graph's edge, which ends at the driver's middle,
+		-- the ship came alongside or in over the barrel, missed the strip,
+		-- and sat pushing at the gun. Close in, it comes round to the back of
+		-- the breech instead and flies up the barrel's axis.
+		if stop.kind == "driver" and stop.driver and not queued then
+			local g = stop.driver
+			local bx, by = game:driverBreech(g)
+			if (x - bx) ^ 2 + (y - by) ^ 2 < 2500 ^ 2 then
+				local lx, ly = game:driverLocal(g, x, y)
+				local zl, zw = g.zone or T.driverZone, g.zoneWidth or T.driverZoneWidth
+				local side = ly >= 0 and 1 or -1
+				local tx, ty
+				if lx < 150 and lx > -zl and math.abs(ly) < zw * 0.7 then
+					tx, ty = 0, 0                              -- lined up: in to the breech
+				elseif lx < -zl * 0.3 then
+					tx, ty = -zl * 0.6, 0                      -- behind it: onto the axis
+				elseif math.abs(ly) < zw + 300 then
+					tx, ty = lx, side * (zw + 500)             -- over the barrel: out to the side first
+				else
+					tx, ty = -zl * 0.6, side * (zw + 400)      -- beside it: round to the back
+				end
+				local dx, dy = cos(g.angle), sin(g.angle)
+				hx, hy = bx + dx * tx - dy * ty, by + dy * tx + dx * ty
+			end
+		end
 		-- Once lined up in the cone it flies in to its own dock, which can sit
 		-- well inside the hull's circle (the Ring Station's is deep in the
 		-- horseshoe): steering round that station there turned it away from
 		-- the door every time and left it circling for ever.
-		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil
+		local docking = stop.dock and (e.alifeId or e.shuttle) and not e.dockMarker and stop or nil
 		if not queued then
 			local ox, oy = outOfRunway(game, e, x, y, docking)
 			if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy, docking) end
@@ -556,6 +583,9 @@ function AI.think(game, e, dt)
 		-- A drone with nothing to fight stays near whoever launched it,
 		-- and after T.droneRecall seconds of that, docks back into its hold.
 		local o = e.owner
+		-- an owner that was removed (docked away, left the area) has a
+		-- destroyed body: treat it as gone
+		if o and (o.dead or o.removed or o.body:isDestroyed()) then o = nil end
 		if e.drone then
 			e.idleTime = (e.idleTime or 0) + dt
 			if e.idleTime >= T.droneRecall and o and not o.dead then

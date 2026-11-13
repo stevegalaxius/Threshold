@@ -1,7 +1,7 @@
 -- Made in the Shipyard (F2). Base hull: mack_longhorn
 hull {
 	id = "mack_burro", name = "Burro",
-	armor = 650,
+	armor = 900,
 	bonuses = {},
 	class = "Courier-class",
 	drag = 0.95,
@@ -12,7 +12,7 @@ hull {
 	mass = 570,
 	mount = "turret",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
-	price = 50000,
+	price = 70000,
 	retroThrust = 1100,
 	sideThrust = 1186,
 	slots = {
@@ -21,7 +21,7 @@ hull {
 		{ family = "reactor", size = "L" },
 		{ family = "utility", size = "any" },
 		{ family = "utility", size = "any" },
-		{ family = "utility", size = "any" },
+		{ family = "computer", size = "any" },
 		{ family = "engine", size = "M", x = 60, y = 36 },
 	},
 	spoolTime = 0.6,

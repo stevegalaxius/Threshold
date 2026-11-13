@@ -1,0 +1,46 @@
+-- Made in the Shipyard (F2). Base hull: briggs_dagger
+hull {
+	id = "briggs_dagger", name = "Dagger",
+	armor = 150,
+	bonuses = {},
+	class = "small",
+	drag = 0.3,
+	hold = 60,
+	loadout = { "missile_s_base", "missile_s_base", "flit_engine", "ember_reactor", "tug_beam", "nav_computer" },
+	maker = "Briggs MFG",
+	mass = 95,
+	mount = "fixed",
+	paints = { "Moss" },
+	price = 19000,
+	retroThrust = 390,
+	sideThrust = 609,
+	slots = {
+		{ family = "bay", mount = "fixed", size = "S", trigger = "primary", x = 8, y = -12 },
+		{ family = "bay", mount = "fixed", size = "S", trigger = "primary", x = 8, y = 12 },
+		{ family = "engine", size = "S", x = -40, y = 0 },
+		{ family = "reactor", size = "S", x = -28, y = 0 },
+		{ family = "utility", size = "any", x = 17, y = -4 },
+		{ family = "utility", size = "any", x = 17, y = 3 },
+	},
+	spoolTime = 0.1,
+	turn = 250,
+	turnResponse = 0.16,
+	turnSpeed = 200,
+	parts = {
+		{ name = "part 5", shape = { 8, -8, 8, 8, 44, 4, 44, -4 }, paint = "secondary", lights = {
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 12, y = -4 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 12, y = 4 },
+			{ kind = "strobe", rate = 1, x = 40, y = 0 },
+		} },
+		{ name = "part 6", shape = { 0, -16, 0, 16, 8, 16, 8, -16 }, paint = "secondary" },
+		{ name = "part 2", shape = { -4, -18, 8, -20, 8, 20, -4, 18 }, paint = "primary", core = true, breakable = false, lights = {
+			{ kind = "nav", x = 8, y = -20 },
+			{ kind = "nav", x = 8, y = 20 },
+		} },
+		{ name = "part 3", shape = { -16, -8, -40, -8, -40, 8, -16, 8 }, paint = "primary", core = true, breakable = false },
+		{ name = "part 4", shape = { -40, -4, -16, -4, -16, 4, -40, 4 }, core = true, breakable = false, lights = {
+			{ kind = "strobe", rate = 1, x = -38, y = 0 },
+		} },
+		{ name = "part 7", shape = { -16, 8, -10, 4, 8, 4, 8, -4, -10, -4, -16, -8 } },
+	},
+}
