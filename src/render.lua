@@ -37,10 +37,10 @@ local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
 	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
-	gun = { 1.0, 0.88, 0.35 },
-	artillery = { 1.0, 0.55, 0.2 },
-	missile = { 1.0, 0.4, 0.45 },
-	laser = { 0.4, 1.0, 1.0 },
+	gun = { 1.0, 0.92, 0.55 },
+	artillery = { 1.0, 0.6, 0.25 },
+	missile = { 1.0, 0.95, 0.9 },
+	laser = { 0.6, 1.0, 1.0 },
 	ammo = { 1.0, 0.78, 0.25 },
 	salvage = { 0.45, 0.95, 0.85 },
 	container = { 0.95, 0.55, 0.2 },
@@ -1181,7 +1181,7 @@ local function drawBeams(game)
 end
 
 local SHELL = { S = 3, M = 4, L = 6 }
-local AIRBURST_COLOR={.5,.8,1,1}
+local AIRBURST_COLOR={.55,.9,1,1}
 local TORPEDO = { S = 4, M = 10, L = 16 }
 local MISSILE = { S = 3, M = 5, L = 8 }
 
