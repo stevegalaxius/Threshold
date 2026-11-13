@@ -135,9 +135,9 @@ T.edgeCurrentFade = 0.3
 -- against the planet's current (which turns clockwise on screen).
 T.elevatorSpin = 0.006
 -- surface shuttles (src/shuttles.lua)
-T.shuttleLoad = 2                  -- units a pod lifts at most
+T.shuttlePodsPerUnit = 10          -- pods each unit made is shared out over
 T.shuttleMax = 8                   -- in the air at once in an area
-T.shuttleInterval = { 3, 8 }       -- seconds between lift-offs from one station's surface
+T.shuttleInterval = { 2, 6 }       -- seconds between lift-offs from one station's surface
 T.shuttleFirst = 3                 -- the first leaves within this many seconds of arriving
 T.shuttleStay = 6                  -- seconds docked before heading back down
 T.shuttleSpread = 1.0              -- radians either way of the station a pad may be

@@ -10,8 +10,8 @@
 	station and docks; the cargo goes into stock when it does. Then it
 	launches again, flies back down and lands.
 
-	Kill one on the way up and the station never gets that cargo: it's in
-	the wreck. Shuttles are the area's own protected traffic, so shooting one
+	Kill one on the way up and the station never gets that cargo; every
+	whole unit's worth of pods shot down drops that unit for the taking. Shuttles are the area's own protected traffic, so shooting one
 	costs standing with the faction that owns the area and raises heat at its
 	station (src/reputation.lua).
 
@@ -35,11 +35,40 @@ end
 local function addTo(t, cargo) for id, n in pairs(cargo) do if n > 0 then t[id] = (t[id] or 0) + n end end end
 local function total(cargo) local n = 0; for _, v in pairs(cargo) do n = n + v end; return n end
 
--- Into the station's stock, as the facility would have put it.
+-- Into the station's stock, as the facility would have put it. Each unit
+-- made is shared out over T.shuttlePodsPerUnit pods (the facilities make a
+-- unit every few minutes; one pod a unit was hardly any traffic), so a pod
+-- carries a share; shares add up in u.shuttles.credit and whole units go on
+-- the shelf.
 local function deliver(u, key, cargo)
 	local Stock = require("src.stockpile")
+	local s = state(u)
+	s.credit = s.credit or {}
+	local c = s.credit[key] or {}
+	s.credit[key] = c
 	for id, n in pairs(cargo) do
-		if n > 0 then Stock.add(u, key, id, n); require("src.economy").stat(u, "made", id, n) end
+		if n > 0 then
+			c[id] = (c[id] or 0) + n
+			local whole = math.floor(c[id] + 1e-6)
+			if whole > 0 then
+				c[id] = max(0, c[id] - whole)
+				Stock.add(u, key, id, whole); require("src.economy").stat(u, "made", id, whole)
+			end
+		end
+	end
+end
+-- A pod shot down: its share is lost to the station, and once the shares
+-- lost add up to a whole unit, that unit falls out of the wreck.
+local function lose(game, e, key, cargo)
+	local s = state(game.universe)
+	s.lost = s.lost or {}
+	local c = s.lost[key] or {}
+	s.lost[key] = c
+	local x, y = e.body:getPosition()
+	for id, n in pairs(cargo) do
+		c[id] = (c[id] or 0) + n
+		local whole = math.floor(c[id] + 1e-6)
+		if whole > 0 then c[id] = max(0, c[id] - whole); game:spawnPickup(x, y, id, whole) end
 	end
 end
 
@@ -127,19 +156,12 @@ local function launch(game, key, cargo)
 	local a = padBearing(game, st)
 	local r0 = surfaceR(game, a) - 20
 	local Ship = require("src.ship")
-	local e = Ship.new(game, { hull = def.hull, loadout = def.loadout, cargo = cargo, team = def.team or 3,
+	-- its share of a unit rides in the flight record, not the hold
+	local e = Ship.new(game, { hull = def.hull, loadout = def.loadout, cargo = {}, team = def.team or 3,
 		x = w.x + cos(a) * r0, y = w.y + sin(a) * r0, angle = a, enemy = def })
-	-- whatever didn't fit stays on the ground for the next one
-	local back = {}
-	for id, n in pairs(e.holdOverflow or {}) do back[id] = n end
-	e.holdOverflow = {}
-	local carried = {}
-	for id, n in pairs(cargo) do carried[id] = n - (back[id] or 0) end
-	if total(carried) <= 0 then return false end
 	local s = state(u)
-	for id, n in pairs(back) do s.waiting[key][id] = (s.waiting[key][id] or 0) + n end
 	s.n = s.n + 1
-	local flight = { id = "shuttle/" .. s.n, key = key, cargo = carried }
+	local flight = { id = "shuttle/" .. s.n, key = key, cargo = cargo }
 	s.flights[flight.id] = flight
 	table.insert(game.entities, e)
 	e.name = def.name
@@ -205,8 +227,6 @@ function S.docked(game, e, ds, st)
 	local s = state(game.universe)
 	local flight = s.flights[sh.flight]
 	if flight then deliver(game.universe, flight.key, flight.cargo); s.flights[sh.flight] = nil end
-	e.cargo = {}
-	if e.hold then require("src.inventory.hold").sync(e.hold, {}) end
 	ds.stay = T.shuttleStay * (0.7 + random() * 0.6)
 	sh.down = true
 	local a = padBearing(game, st)
@@ -244,7 +264,8 @@ function S.update(game, dt)
 	for id, f in pairs(s.flights) do
 		local e = live[id]
 		if e and e.dead then
-			s.flights[id] = nil                         -- the cargo is in its wreck
+			if not e.removed then lose(game, e, f.key, f.cargo) end
+			s.flights[id] = nil
 		elseif not e or e.removed then
 			deliver(u, f.key, f.cargo); s.flights[id] = nil
 		end
@@ -257,9 +278,10 @@ function S.update(game, dt)
 			deliver(u, key, cargo); s.waiting[key] = nil
 		elseif total(cargo) > 0 then
 			s.next[key] = s.next[key] or clock + T.shuttleFirst * random()
-			if flying < T.shuttleMax and clock >= s.next[key] then
-				-- one load at a time, the waiting goods shared out by kind
-				local load, room = {}, T.shuttleLoad
+			local share = 1 / T.shuttlePodsPerUnit
+			if flying < T.shuttleMax and clock >= s.next[key] and total(cargo) >= share - 1e-6 then
+				-- one pod's share at a time, the waiting goods taken by kind
+				local load, room = {}, share
 				for id, n in pairs(cargo) do
 					local take = min(n, room); if take > 0 then load[id] = take; cargo[id] = n - take; room = room - take end
 				end
