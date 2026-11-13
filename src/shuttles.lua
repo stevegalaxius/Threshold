@@ -137,7 +137,6 @@ end
 local function setGhost(e, on)
 	for _, f in ipairs(e.body:getFixtures()) do f:setSensor(on) end
 	e.body:setType(on and "kinematic" or "dynamic")
-	e.driverProtected = on or nil   -- nothing fires from a shuttle mid-climb
 end
 
 -- A landing pad a little way round from the station's bearing.
@@ -176,8 +175,7 @@ end
 
 -- The scripted climb from the pad and descent onto it: the shuttle grows
 -- from a speck on the ground to full size as it rises (and shrinks as it
--- comes down), engine lit, with a burn through the air on a world that
--- has an atmosphere, riding round with the planet's current.
+-- comes down), engine lit, riding round with the planet's current.
 function S.animate(game, e, dt)
 	local sh, w = e.shuttle, game.well
 	if not w then sh.phase = nil; setGhost(e, false); return end
@@ -200,11 +198,7 @@ function S.animate(game, e, dt)
 	e.mainBurn = up and 1 or (0.4 + 0.6 * (1 - height))
 	e.retroBurn, e.sideBurn, e.foreBurn, e.turnBurn = 0, 0, 0, 0
 	e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
-	if w.atmo and height < 0.45 then
-		-- through the air: the sheath on the side it's moving toward
-		e.reentry = (0.45 - height) / 0.45 * 0.7
-		e.reentryX, e.reentryY = (up and 1 or -1) * cos(sh.a), (up and 1 or -1) * sin(sh.a)
-	else e.reentry = nil end
+	e.reentry = nil
 	if f >= 1 then
 		e.reentry, e.drawScale = nil, nil
 		if up then
