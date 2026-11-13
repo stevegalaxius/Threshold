@@ -23,7 +23,7 @@ local lg = love.graphics
 local max, min = math.max, math.min
 
 local LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "COMPUTER", computer = "COMPUTER" }
+	reactor = "REACTOR", utility = "UTILITY", computer = "UTILITY" }
 
 function Sheet.slotLabel(slot)
 	return LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")

@@ -29,7 +29,7 @@ local STATS = {
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
-local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "computer" }   -- utility is deprecated (reads as computer)
+local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "computer" }   -- "computer" is shown as "utility"
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
 local SIZELESS = { utility = true, computer = true }
@@ -885,8 +885,8 @@ local function designWindow(E, Editor)
 			if Slab.TextSelectable(("%s%d."):format(selected and ">" or " ", i), { IsSelectableTextOnly = true, Color = c }) then E.slotSel = i end
 			Slab.SameLine()
 			local fopts = {}
-			for _, f in ipairs(FAMILIES) do table.insert(fopts, { label = f, value = f }) end
-			combo("yard_slotfam" .. i, slot.family, fopts, function(f)
+			for _, f in ipairs(FAMILIES) do table.insert(fopts, { label = f == "computer" and "utility" or f, value = f }) end
+			combo("yard_slotfam" .. i, slot.family == "computer" and "utility" or slot.family, fopts, function(f)
 				E.pushUndo()
 				slot.family = f
 				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end

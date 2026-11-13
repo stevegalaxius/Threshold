@@ -1325,7 +1325,7 @@ local SIZE_NAME = { S = "Small", M = "Medium", L = "Large", any = "Any size" }
 local function kindLine(item)
 	local m = data.modules[item.id]
 	if item.kind == "ship" then return "Ship" end
-	if m then return "Module \194\183 " .. (m.family:gsub("^%l", string.upper)) end
+	if m then return "Module \194\183 " .. (m.computer and "Computer" or ((m.family == "computer" or m.family == "utility") and "Utility" or m.family:gsub("^%l", string.upper))) end
 	if item.kind == "ammo" then return "Ammo \194\183 " .. ((item.family or "?"):gsub("^%l", string.upper)) end
 	if item.kind == "container" then return "Container" end
 	return (item.kind and item.kind:gsub("^%l", string.upper)) or "Item"
@@ -1409,7 +1409,7 @@ local function card(item, n, hint, price, against, header)
 	local size = item.size and (SIZE_NAME[item.size] or item.size)
 	if m then
 		-- the badge says what slot it takes: "Medium engine", "Small bay"
-		local fam = m.family == "weapon" and "weapon" or m.family == "utility" and "computer" or m.family
+		local fam = m.family == "computer" and "utility" or m.family
 		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
 	end
 	local lines = m and moduleLines(m) or nil
@@ -1521,7 +1521,7 @@ local function tooltip(item, n, mx, my, hint, price, against)
 end
 
 local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "COMPUTER", computer = "COMPUTER" }
+	reactor = "REACTOR", utility = "UTILITY", computer = "UTILITY" }
 
 local function slotLabel(slot)
 	return SLOT_LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
