@@ -1570,21 +1570,6 @@ local function slotLabel(slot)
 	return SLOT_LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
 end
 
--- Handling numbers for a hull with a loadout and cargo mass (tonnes).
-local function handling(hull, loadout, cargoMass)
-	local s = stats.compute(hull, loadout)
-	local m = (s.mass + cargoMass) * T.massScale
-	local thrust = math.max(s.thrust, s.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale   -- jets stand in for a missing engine
-	return {
-		{ "Top speed", math.sqrt(thrust / (hull.drag * T.dragScale)), "%.0f px/s" },
-		{ "Acceleration", thrust / m, "%.0f px/s2" },
-		{ "Turn", s.turn, "%.0f" },
-		{ "Spare power", s.powerNet, "%+.0f/s" },
-		{ "Mass", m, "%.0f t" },
-	}
-end
-
--- The before -> after readout while a module hovers over a slot it fits.
 local function drawReadout(game, i, x, y)
 	local p, h = game.player, Cargo.hand
 	local after = {}
@@ -1592,12 +1577,12 @@ local function drawReadout(game, i, x, y)
 	local old = after[i]
 	after[i] = h.id
 	if h.from.slot then after[h.from.slot] = old or false end
-	local cargoMass = p.cargoMass + (old and not h.from.slot and data.modules[old].mass or 0)
 	local before = {}
 	for k, v in pairs(p.loadout) do before[k] = v end
 	if h.from.slot then before[h.from.slot] = h.id end
-	local a = handling(p.hull, before, p.cargoMass + (h.from.slot and 0 or itemFor(h.id).mass))
-	local b = handling(p.hull, after, cargoMass)
+	-- the same numbers the ship sheet and shipyard show, so they agree
+	local a = Sheet.numbers(p.hull, before)
+	local b = Sheet.numbers(p.hull, after)
 	local w, rh = 300, 18
 	local ph = #a * rh + 16
 	lg.setColor(0.02, 0.06, 0.09, 0.95)
@@ -1611,8 +1596,8 @@ local function drawReadout(game, i, x, y)
 		lg.setColor(HUD.DIM)
 		lg.print(row[1], x + 10, ny)
 		lg.printf(row[3]:format(before), x, ny, 170, "right")
-		local better = (row[1] == "Mass") and now < before - 0.5 or now > before + 0.5
-		local worse = (row[1] == "Mass") and now > before + 0.5 or now < before - 0.5
+		local better = row.lower and now < before - 0.5 or (not row.lower and now > before + 0.5)
+		local worse = row.lower and now > before + 0.5 or (not row.lower and now < before - 0.5)
 		lg.setColor(better and { 0.5, 1, 0.6 } or (worse and HUD.WARN or HUD.INK))
 		lg.printf("-> " .. row[3]:format(now), x, ny, w - 10, "right")
 	end
