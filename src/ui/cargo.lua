@@ -1413,7 +1413,14 @@ local function card(item, n, hint, price, against, header)
 		-- the badge says what slot it takes: "Medium engine", "Small bay"
 		local fam = m.family == "computer" and "utility" or m.family   -- (old name)
 		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
+	elseif item.kind == "ammo" then
+		-- ammo says what it is and its size: "Small rounds", "Medium shells"
+		local WHAT = { gun = "rounds", artillery = "shells", missile = "missiles", torpedo = "torpedoes", drone = "drones" }
+		local what = WHAT[item.family] or item.family or "ammo"
+		size = item.size and ((SIZE_NAME[item.size] or item.size) .. " " .. what) or (what:gsub("^%l", string.upper))
 	end
+	-- the category badge sits above the type badge
+	local category = (item.kind or "item"):gsub("^%l", string.upper)
 	local lines = m and moduleLines(m) or nil
 	if not m and item.kind == "ammo" and item.shot then
 		-- ammo gets stat lines like a module
@@ -1442,18 +1449,22 @@ local function card(item, n, hint, price, against, header)
 	end
 	local descLines = {}
 	if desc and desc ~= "" then _, descLines = small:getWrap('"' .. desc .. '"', W - P * 2) end
-	-- the generic bar under the description: modules get category and mass
-	local category = (item.kind or "item"):gsub("^%l", string.upper)
+	-- the bar under the description: mass, and price when you're trading
 	local stats = item.kind == "ship" and {} or {
-		{ "Category", category },
 		{ "Mass", ("%g t"):format(math.floor((item.mass or (m and m.mass) or 0) * n * 100 + 0.5) / 100) },
 	}
+	-- price joins the bar only at a market: "Buy for" / "Sells for"
+	if price and item.kind ~= "ship" then
+		local label, value = price:match("^(%a+ for) (.*)$")
+		stats[#stats + 1] = { label or "Price", value or price, color = PRICE }
+		price = nil
+	end
 	-- the bar's mass shows the change against the fitted module too
 	if am and #stats > 0 then
 		local d = (m.mass or 0) - (am.mass or 0)
-		if math.abs(d) > 1e-6 then stats[2].diff, stats[2].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
+		if math.abs(d) > 1e-6 then stats[1].diff, stats[1].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
 	end
-	local h = P + (header and 16 or 0) + 20 + 4 + (item.maker and 16 or 0) + (lines and (#lines * 16 + 6) or 0)
+	local h = P + (header and 16 or 0) + 20 + 4 + ((item.maker or size) and 18 or 0) + (lines and (#lines * 16 + 6) or 0)
 		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
 
 		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
@@ -1464,14 +1475,17 @@ local function card(item, n, hint, price, against, header)
 		lg.rectangle("line", x + 0.5, y + 0.5, W - 1, h - 1, 6, 6)
 		local cy = y + P
 		if header then lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(header, x + P, cy); cy = cy + 16 end
-		local badgeW = 0
-		if size then
-			badgeW = tiny:getWidth(size) + 14
-			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.25)
-			lg.rectangle("fill", x + W - P - badgeW, cy + 1, badgeW, 18, 4, 4)
-			lg.setFont(tiny); lg.setColor(HUD.INK)
-			lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
+		-- badges on the right: category on top, type and size under it
+		local function badge(text, by, strong)
+			local bw = tiny:getWidth(text) + 14
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], strong and 0.25 or 0.12)
+			lg.rectangle("fill", x + W - P - bw, by, bw, 16, 4, 4)
+			lg.setFont(tiny); lg.setColor(strong and HUD.INK or HUD.DIM)
+			lg.printf(text, x + W - P - bw, by + 2, bw, "center")
+			return bw
 		end
+		local badgeW = item.kind ~= "ship" and badge(category, cy + 1, false) or 0
+		local sizeW = size and badge(size, cy + 20, true) or 0
 		-- the name in the item's own colour, as it shows in the hold
 		lg.setFont(big); lg.setColor(item.kind == "ship" and HUD.AQUA or HUD.itemColor(item))
 		lg.printf(item.name .. (n and n > 1 and ("  \195\151" .. n) or ""), x + P, cy, W - P * 2 - badgeW - 6, "left")
@@ -1479,9 +1493,9 @@ local function card(item, n, hint, price, against, header)
 		-- the maker under the name, in a soft blue-grey
 		if item.maker then
 			lg.setFont(small); lg.setColor(0.62, 0.7, 0.82)
-			lg.print(item.maker, x + P, cy - 1)
-			cy = cy + 16
+			lg.printf(item.maker, x + P, cy + 1, W - P * 2 - sizeW - 6, "left")
 		end
+		if item.maker or size then cy = cy + 18 end
 		cy = cy + 4
 		if lines then
 			cy = cy + 2
@@ -1516,7 +1530,7 @@ local function card(item, n, hint, price, against, header)
 			for i, st in ipairs(stats) do
 				local sx = x + P + (i - 1) * cw
 				lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
-				lg.setFont(small:getWidth(st[2]) > cw - 6 and tiny or small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+				lg.setFont(small:getWidth(st[2]) > cw - 6 and tiny or small); lg.setColor(st.color or HUD.INK); lg.print(st[2], sx, cy + 23)
 				if st.diff then
 					lg.setColor(st.good and GOOD or BAD)
 					lg.print(st.diff, sx + small:getWidth(st[2]) + 8, cy + 23)
