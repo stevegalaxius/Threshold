@@ -1319,11 +1319,28 @@ local function partWindow(E)
 	if E.design.kind ~= "station" and E.design.kind ~= "weapon" then
 		Slab.Separator()
 		Slab.Text("Wreck")
+		-- loot: the parts ticked here, or every part if none is
+		local carriers = 0
+		for _, q in ipairs(E.design.parts) do if q.cargo then carriers = carriers + 1 end end
 		check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
-		Slab.Text("  (no part tagged: every part carries)", { Color = { 0.6, 0.6, 0.6 } })
-		check(E, p.core == true, "Core (stays when the rest is shot off)", function(on) p.core = on or nil end)
-		check(E, p.breakable ~= false, "Can be shot off", function(on) if on then p.breakable = nil else p.breakable = false end end)
-		check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
+		Slab.Text(carriers == 0 and "  (none ticked on any part: every part carries)"
+			or ("  (%d part%s carr%s the loot)"):format(carriers, carriers == 1 and "" or "s", carriers == 1 and "ies" or "y"), { Color = { 0.6, 0.6, 0.6 } })
+		-- the core: one part, the wreck's main body. Ticking it here moves
+		-- it off any other part; with none ticked the biggest part is core.
+		local isCore = i == E.coreIndex
+		check(E, p.core == true, "Core: the wreck's main body (one per ship)", function(on)
+			for _, q in ipairs(E.design.parts) do q.core = nil end
+			p.core = on or nil
+		end)
+		if isCore and not p.core then Slab.Text("  (core now: the biggest part, since none is ticked)", { Color = { 0.6, 0.6, 0.6 } }) end
+		if isCore then
+			Slab.Text("  The core never breaks off; the other parts do.", { Color = { 0.6, 0.6, 0.6 } })
+		else
+			check(E, p.breakable ~= false, "Can be shot off (untick to keep it welded to the core)", function(on) if on then p.breakable = nil else p.breakable = false end end)
+			if p.breakable ~= false then
+				check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
+			end
+		end
 		Slab.Text("Mass multiplier (when it breaks away)")
 		slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)
 		Slab.Text("Armour multiplier")
