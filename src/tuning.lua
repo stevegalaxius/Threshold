@@ -140,6 +140,7 @@ T.shuttleMax = 8                   -- in the air at once in an area
 T.shuttleInterval = { 0, 0 }       -- seconds between lift-offs from one station's surface (0: as each unit is made)
 T.shuttleFirst = 0                 -- the first leaves within this many seconds of arriving
 T.shuttleDockTime = 2.5            -- seconds to slip in at the door, and to come back out
+T.shuttleStay = { 10, 90 }         -- seconds it stays inside before heading back down
 T.shuttleSpread = 1.0              -- radians either way of the station a pad may be
 T.shuttleLaunchTime = 9            -- seconds from pad to cruising height
 T.shuttleLandTime = 8              -- and back down

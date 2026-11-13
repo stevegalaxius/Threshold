@@ -2174,7 +2174,7 @@ function Game:raycast(x1, y1, x2, y2, ignoreTeam)
 	local best
 	self.world:rayCast(x1, y1, x2, y2, function(fixture, x, y, xn, yn, fraction)
 		local e = fixture:getUserData()
-		if not e or e.dead or e.team == ignoreTeam then return -1 end
+		if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
 		best = { entity = e, x = x, y = y, nx = xn, ny = yn, fraction = fraction }
 		return fraction
 	end)

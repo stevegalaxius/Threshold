@@ -933,6 +933,7 @@ end
 local function drawShip(game, e)
 	-- inside a station: not drawn (parked on a berth: drawn)
 	if e.dockState and e.dockState.done and not e.dockState.berth then return end
+	if e.podHidden then return end   -- a surface shuttle inside its station
 	drawReentry(e, e.halfLength)
 	drawLaneBuff(e)
 	local x, y = e.body:getPosition()

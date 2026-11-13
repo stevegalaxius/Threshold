@@ -163,6 +163,15 @@ local function animateDock(game, e, dt)
 	local st = sh.station
 	if not st or st.removed then sh.gone = true; return end
 	sh.t = sh.t + dt
+	if sh.phase == "inside" then
+		-- out of sight in the station a while, riding along at its door
+		local x, y = e.body:getPosition()
+		local dx, dy = dockPoints(game, st, x, y)
+		e.body:setLinearVelocity((dx - x) / dt, (dy - y) / dt)
+		e.mainBurn = 0
+		if sh.t >= sh.stay then sh.phase, sh.t, e.podHidden = "leave", 0, nil end
+		return
+	end
 	local f = min(1, sh.t / T.shuttleDockTime)
 	local x, y = e.body:getPosition()
 	local dx, dy, rx, ry, a = dockPoints(game, st, sh.fromX or x, sh.fromY or y)
@@ -182,7 +191,7 @@ local function animateDock(game, e, dt)
 		sh.t, sh.fromX, sh.fromY = 0, nil, nil
 		if inward then
 			S.docked(game, e, st)
-			sh.phase = "leave"
+			sh.phase, sh.stay, e.podHidden = "inside", T.shuttleStay[1] + random() * (T.shuttleStay[2] - T.shuttleStay[1]), true
 		else
 			sh.phase, e.drawScale = nil, nil
 			setGhost(e, false)
@@ -230,7 +239,8 @@ end
 -- from a speck on the ground to full size as it rises (and shrinks as it
 -- comes down), engine lit, riding round with the planet's current.
 function S.animate(game, e, dt)
-	if e.shuttle.phase == "enter" or e.shuttle.phase == "leave" then return animateDock(game, e, dt) end
+	local ph = e.shuttle.phase
+	if ph == "enter" or ph == "inside" or ph == "leave" then return animateDock(game, e, dt) end
 	local sh, w = e.shuttle, game.well
 	if not w then sh.phase = nil; setGhost(e, false); return end
 	sh.t = sh.t + dt
