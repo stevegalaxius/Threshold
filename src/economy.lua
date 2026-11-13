@@ -18,6 +18,10 @@
 	            first, each from the nearest station with enough spare, in
 	            orders of up to E.lot. Unclaimed orders expire after E.expire
 	            and are placed again, so they follow wherever the stock is.
+	  customs   a moon with a customs station (world_layout customs=true)
+	            trades off the moon only through it: its factories ship
+	            exports there, it passes them on to the planet's hub (or
+	            the planet's stations), and goods for the moon arrive there.
 	  hubs      a planet system with a logistics hub (world_layout hub=true)
 	            trades with other systems only through it. The hub keeps a
 	            depot of what its system uses but doesn't make (imports),
@@ -54,6 +58,34 @@ function E.stat(u,kind,item,n)
  local t=u.economyStats[kind] or {};u.economyStats[kind]=t
  t[item]=(t[item] or 0)+n
 end
+-- Station credits. Budgets are unlimited, but every credit a station pays
+-- out (freight, buying from players) or takes in (selling to players) is
+-- counted, per station and per game hour, so pay rates can be tuned
+-- against the money they create. kind: 'freight', 'premium' (the scarcity
+-- share of freight, also inside 'freight'), 'bought' (paid out), 'sold'
+-- (taken in).
+E.ledgerHours=48
+function E.ledger(u,key,kind,n,item)
+ if not n or n<=0 or not key then return end
+ local book=u.economyLedger or {stations={},hours={}};u.economyLedger=book
+ key=L.canonical(key)
+ local s=book.stations[key] or {};book.stations[key]=s
+ s[kind]=(s[kind] or 0)+n
+ local hour=math.floor((u.clock or 0)/3600)
+ local h=book.hours[hour]
+ if not h then
+  h={};book.hours[hour]=h
+  for old in pairs(book.hours) do if old<=hour-E.ledgerHours then book.hours[old]=nil end end
+ end
+ h[kind]=(h[kind] or 0)+n
+ if item then local byItem=h.items or {};h.items=byItem;local k=kind..':'..item;byItem[k]=(byItem[k] or 0)+n end
+end
+-- Net credits stations created in a game hour (paid out minus taken in).
+function E.minted(u,hour)
+ local h=u.economyLedger and u.economyLedger.hours[hour or math.floor((u.clock or 0)/3600)]
+ if not h then return 0 end
+ return (h.freight or 0)+(h.bought or 0)-(h.sold or 0)
+end
 function E.consume(u,key,item,n,industrial)
  if n<=0 or not u.clock then return end
  E.stat(u,'used',item,n)
@@ -87,16 +119,43 @@ local function supportsSupplies(id) return require('src.supplies').supports(id) 
 -- speeds up while buyers of what it makes go short and it ships all it
 -- makes, and slows down while its own stock sits unwanted (E.adjust).
 function E.scale(u,key,c) return require('src.industry').scale(u,key,c) end
-local function adjust(u,unmet)
+-- Whether the whole system is running down its stock of an item: all the
+-- trade stations together hold less than T.adaptiveCushion times what
+-- they want. A maker whose own shelf is full while everyone else drains
+-- (the stock just hasn't been hauled away yet) must not throttle down.
+local function draining(u,item,all)
+ local have,want=0,0
+ for _,s in ipairs(all) do have=have+Stock.count(u,s,item);want=want+E.target(u,s,item) end
+ return want>0 and have<want*T.adaptiveCushion
+end
+-- The system-wide price of a good against its list price: the mean of
+-- every trade station's price multiplier (1 = list).
+function E.priceRatio(u,item,all)
+ local Markets=require('src.markets');local list=require('src.data').items[item].price or 0
+ if list<=0 or #all==0 then return end
+ local sum=0;for _,s in ipairs(all) do sum=sum+Markets.price(u,s,item) end
+ return sum/#all/list
+end
+local function adjust(u,unmet,all)
  u.industry=u.industry or {}
+ local low={}
  for _,c in ipairs(C.list) do
   if c.adaptive then
+  if low[c.item]==nil then low[c.item]=all and draining(u,c.item,all) or false end
   for key in pairs(c.make) do
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
-   -- stock piling up here always slows it, whatever anyone else is short of
-   if have>=E.lot*2 then v=v*(1-E.scaleStep)
+   -- some plants answer to the whole system's price of what they make
+   -- (crack_ice: the universal price of fuel), not to their own shelf
+   local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
+   if ratio then
+    if ratio>1+T.globalPriceBand and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+    elseif ratio<1-T.globalPriceBand or have>=(c.cap or math.huge)*.9 then v=v*(1-E.scaleStep) end
+   -- the system is running short: make more, unless its own storage is full
+   elseif low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+   -- stock piling up here slows it while the system is comfortable
+   elseif have>=E.lot*2 then v=v*(1-E.scaleStep)
    -- Unsupplied demand must propagate upstream even while inputs are scarce.
    elseif (unmet[c.item] or 0)>0 and have<E.lot then v=v*(1+E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
@@ -207,6 +266,27 @@ local function hubWants(u,all)
   for _,item in ipairs(goods()) do if makes(s,item) then plan.made[r][item]=true end end
  end
  for _,h in pairs(plan.hubs) do plan.want[h],plan.kind[h]={},{} end
+ -- moon customs: the depot every good leaving or reaching a moon goes
+ -- through (on to its planet's hub). It holds what the moon imports for
+ -- its stations and collects what the moon makes for export.
+ plan.customs={}
+ for _,s in ipairs(all) do
+  local p=L.byId[s]
+  if p.customs and (not plan.customs[p.area] or s<plan.customs[p.area]) then plan.customs[p.area]=s end
+ end
+ for area,cs in pairs(plan.customs) do
+  plan.want[cs],plan.kind[cs]={},{}
+  local made={}
+  for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
+  for _,item in ipairs(goods()) do
+   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*4,'export'
+   else
+    local n=0
+    for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+E.target(u,s,item,false) end end
+    if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
+   end
+  end
+ end
  for _,item in ipairs(goods()) do
   local imported,total={},0
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
@@ -235,7 +315,20 @@ function E.hubFor(id)
 end
 -- Whether s may sell item to c under hub routing.
 local function routed(plan,s,c,item)
- local rs,rc=root(L.byId[s].area),root(L.byId[c].area)
+ local as,ac=L.byId[s].area,L.byId[c].area
+ local customs=plan.customs or {}
+ local cs,cc=customs[as],customs[ac]
+ if as==ac then
+  -- a customs depot passes its moon's exports outward, never back in
+  if s==cs and plan.kind[s][item]=='export' then return false end
+ else
+  -- off a moon only through its customs, onto a moon only into it
+  if cs and s~=cs then return false end
+  if cc and c~=cc then return false end
+  -- customs sells its moon's imports only to that moon
+  if s==cs and plan.kind[s][item]=='import' then return false end
+ end
+ local rs,rc=root(as),root(ac)
  local hs,hc=plan.hubs[rs],plan.hubs[rc]
  local kind=s==hs and plan.kind[s][item]
  if rs==rc then return kind~='export' or makes(s,item) end
@@ -379,8 +472,10 @@ function E.update(u,clock)
   end
  end
  u.economyUnmet=unmet
- adjust(u,unmet)
+ adjust(u,unmet,all)
  planning=nil;hubPlan=nil
+ -- the speculators read the prices this update settled
+ require('src.merchants').update(u,clock)
 end
 
 return E

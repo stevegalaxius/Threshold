@@ -11,9 +11,9 @@ local D={recipes={
  -- One ore presses two empty canisters; fractional credits keep stock whole.
  {id='press_canisters',market=false,item='empty_canister',cap=6000,input={item='iron_ore',n=.5}},
  -- filling them with hydrogen skimmed from a gas giant
- {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=60,input={item='empty_canister',n=1}},
+ {id='skim_hydrogen',market=false,item='hydrogen_canister',cap=600,input={item='empty_canister',n=1}},
  -- cracking ice into deuterium, one canister of it per ice
- {id='crack_ice',market=false,item='deuterium_canister',cap=4000,
+ {id='crack_ice',market=false,globalPrice=true,item='deuterium_canister',cap=4000,
   inputs={{item='water_ice',n=1},{item='empty_canister',n=1}}},
  -- skimming deuterium straight from a gas giant's air: just canisters
  {id='skim_deuterium',market=false,item='deuterium_canister',cap=4000,input={item='empty_canister',n=1}},
@@ -29,6 +29,10 @@ local D={recipes={
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
+ -- Ice: the ice moons cut it from their crusts (abstract extraction, like
+ -- the water wells), and Venus's terraforming works swallow it by the ton
+ {id='cut_ice',group='resources',item='water_ice',opening=0,cap=1600},
+ {id='use_ice',market=false,item='water_ice',cap=400},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}
@@ -56,11 +60,11 @@ recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe
 -- list price.
 D.lineups={
  mack={'mack_mustang','mack_burro','mack_longhorn'},
- ferrous={'ferrous_runner','ferrous_mule','ferrous_bison'},
+ ferrous={'ferrous_pony','ferrous_runner','ferrous_mule','ferrous_bison'},
  brute={'brute_runt','brute_anvil','brute_nautilus'},
  intaki={'intaki_wisp','intaki_praetor','intaki_archangel'},
 }
-D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_runner=1,ferrous_mule=2,ferrous_bison=3,
+D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_pony=1,ferrous_runner=1,ferrous_mule=2,ferrous_bison=3,
  brute_runt=2,brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4}
 for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
  local n=D.assemblyFrames[hull]
@@ -72,6 +76,7 @@ D.facilities={
  water={policy='fixed',recipes={'use_water'}},
  water_melter={policy='fixed',recipes={'melt_water'}},
  water_wells={policy='fixed',recipes={'pump_water'}},
+ ice_wells={policy='fixed',recipes={'cut_ice'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
@@ -94,7 +99,7 @@ for _,c in ipairs(D.recipes) do
 end
 D.inputHours=.5 -- reorder at thirty minutes, refill toward one hour
 D.shops={chemicals={id='chemicals',name='Chemicals',description='Nitrates, agricultural fertilizer and industrial explosives.',sells={{'nitrates',1},{'fertilizer',1},{'explosives',1}}}}
-D.usedShips={intervalHours=8,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','longhorn_hauler','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'}}
+D.usedShips={lots=2,intervalHours=16,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','longhorn_hauler','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'}}
 D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1,wholesaleHours=2}
 D.dealerParking={guestHangarFraction=.25,guestBerths=2}
 -- Fuel-chain throughput supports the original 2,500-energy canister. The
