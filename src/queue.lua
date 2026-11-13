@@ -157,7 +157,13 @@ local function liveLine(game,e,stop)
     and not other.driverTractor and not other.launch
     and (target==stop or driver and target and target.driver==driver) then
     local sx,sy=AI.stopPoint(target,other);local x,y=other.body:getPosition()
+    -- Joining takes being within reach of the chokepoint; staying in line
+    -- doesn't. Fifth in line and on hold their spots (Q.holdPoint) were past
+    -- that reach, so a ship that got there dropped out of the line, flew
+    -- back in to rejoin at the end, was sent out to its spot again, and
+    -- shuttled back and forth through the line for ever.
     local reach=T.queueStart+T.queueGap*4
+    if q.entered then reach=T.queueStart+T.queueGap*(#cache.ships+4) end
     if (x-sx)^2+(y-sy)^2<=reach^2 then
      q.entered=q.entered or clock
      if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
