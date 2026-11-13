@@ -182,17 +182,21 @@ local function intake(u,h,rec,site,item,clock)
  local Transport,Tasks=require('src.transport'),require('src.tasks')
  rec.inbound=rec.inbound or {}
  local spare=S.available(u,site,item)-math.max(E.target(u,site,item)*2,E.lot or 120)
- local room=T.merchantBuffer-held(rec,hub,item)-(rec.inbound[item] or 0)
+ local room=math.min(T.merchantBuffer,h.hold*2)-held(rec,hub,item)-(rec.inbound[item] or 0)
  if (rec.open or 0)>=T.merchantOpenMax then return end
  local n=math.floor(math.min(h.lot*2,spare,room))
  if n<h.lot*.25 or not Transport.route(site,hub,clock) then return end
- local unit=Markets.price(u,site,item)*(1+T.marketSpread)
+ local price=Markets.price(u,site,item)
+ -- only a glut priced at or under list: a buffer bought dear never sells
+ if price>(require('src.data').items[item].price or 0) then return end
+ local unit=price*(1+T.marketSpread)
  local offer=Transport.quote({kind='transport',source=site,target=hub,item=item,amount=n,stocked=true,
   layoutScope='merchant',house=h.id,intake=h.id,order=true,priority=0,urgency=1,cooldown=30,placed=clock,
   npcClaimAt=clock+T.freightListingSeconds},clock,u)
  local fee=Transport.payment(offer)
  local cost=math.floor(n*unit+.5)
- if cost+fee>rec.credits then return end
+ -- buffering is a sideline: never below a working reserve of capital
+ if rec.credits-cost-fee<h.capital*T.merchantReserve then return end
  -- the goods stay on the factory shelf, reserved by the freight job; the
  -- house owns them from now on and books them in when they land
  rec.credits=rec.credits-cost-fee;rec.deals=rec.deals+1
