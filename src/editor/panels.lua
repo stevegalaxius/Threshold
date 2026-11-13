@@ -15,7 +15,7 @@ local LAYERS = { "hull", "detail", "glow" }
 local GRIDS = { 1, 2, 4, 8, 16 }
 local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", ["break"] = "Break apart" }
 
--- Hull stats the design can set over its base hull (see data/hulls.lua).
+-- Hull stats the design can set over its base hull (see data/hulls.lua and data/ships/).
 local STATS = {
 	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn.", 1, 5000, 5, 0 },
 	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
