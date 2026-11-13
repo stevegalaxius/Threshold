@@ -188,6 +188,8 @@ T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round t
 -- of the stop's orbital radius. .2 rad keeps the chord's sag under 0.5%
 -- of the radius (400 at Saturn's track, inside the Cassini division).
 T.alifeArcStep,T.alifeArcBand=.2,.06
+-- a ship woken from the abstract sim starts at no more than this x its cruise
+T.alifeWakeSpeed=1
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
