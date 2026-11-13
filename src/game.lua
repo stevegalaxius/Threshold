@@ -1428,6 +1428,18 @@ function Game:updateDockedShip(e, dt)
 		if st.city then gx, gy = self:surfacePullAt(x, y) end
 		require("src.beam").hold(self, e, { t = ds.t, near = near, fvx = svx, fvy = svy, wx = wx, wy = wy,
 			nose = dockAngle(st, side, d) + pi, spin = sb:getAngularVelocity(), gx = gx, gy = gy, dt = dt })
+		-- An NPC the beam can't bring in (wedged on the hull beside the
+		-- runway) held the dock for ever, and the whole queue behind it
+		-- waited. After a while the beam just sets it at the door.
+		if e ~= self.player and ds.t > 20 then
+			x, y = dockWorld(st, side, doorX, 0, d)
+			b:setPosition(x, y)
+			b:setAngle(dockAngle(st, side, d) + pi)
+			svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
+			b:setLinearVelocity(svx, svy)
+			b:setAngularVelocity(0)
+			lx, ly, vx, vy = doorX, 0, svx, svy
+		end
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
