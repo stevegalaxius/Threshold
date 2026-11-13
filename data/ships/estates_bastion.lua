@@ -26,7 +26,7 @@ hull {
 		{ family = "engine", size = "L", x = -132, y = 0 },
 		{ family = "reactor", size = "L" },
 		{ family = "utility", size = "any" },
-		{ family = "computer", size = "any" },
+		{ family = "utility", size = "any" },
 	},
 	spoolTime = 0.45,
 	turn = 3200,

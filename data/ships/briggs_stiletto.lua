@@ -20,7 +20,7 @@ hull {
 		{ family = "engine", size = "S", x = -26, y = 0 },
 		{ family = "reactor", size = "S" },
 		{ family = "utility", size = "any" },
-		{ family = "computer", size = "any" },
+		{ family = "utility", size = "any" },
 	},
 	turn = 450,
 	parts = {

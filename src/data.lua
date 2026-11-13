@@ -50,7 +50,8 @@ function data.migrateSlot(slot)
 	elseif slot.family == "auxiliary" then slot.family = "bay"
 	-- The utility slot is deprecated: it reads as a computer slot, and
 	-- utility modules (pods, tug beam, flares) fit computer slots.
-	elseif slot.family == "utility" then slot.family = "computer" end
+	-- the computer slot is called utility now; old files read the same
+	elseif slot.family == "computer" then slot.family = "utility" end
 	return slot
 end
 
@@ -58,7 +59,7 @@ end
 -- thing on every ship: weapons first (numbered as on the hull outline),
 -- then bays, engines, reactors and computers. Within a family the authored
 -- order stands.
-data.SLOT_ORDER = { "hardpoint", "bay", "engine", "reactor", "computer", "utility" }
+data.SLOT_ORDER = { "hardpoint", "bay", "engine", "reactor", "utility" }
 local SLOT_RANK = {}
 for i, f in ipairs(data.SLOT_ORDER) do SLOT_RANK[f] = i end
 function data.slotRank(slot) return SLOT_RANK[slot.family] or #data.SLOT_ORDER + 1 end
@@ -110,7 +111,8 @@ function data.fits(slot, m)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "hardpoint" end
 	-- deprecated utility modules ride in computer slots
-	if m.family == "utility" then return slot.family == "computer" or slot.family == "utility" end
+	-- computers, pods, tug beams and flares all go in utility slots
+	if m.family == "utility" or m.family == "computer" then return slot.family == "utility" or slot.family == "computer" end
 	return m.family == slot.family
 end
 
@@ -420,7 +422,8 @@ function api.module(def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
 	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
-	if def.family=="computer" then
+	if def.family == "computer" then def.family = "utility" end   -- old name
+	if def.computer then
 		for _,field in ipairs({"radarRange","uplinkRange","lookahead","predictionTime","lockCone","controlLimit"}) do
 			local value=def[field]
 			if value~=nil and (type(value)~="number" or value~=value or value<=0 or value==math.huge) then

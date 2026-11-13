@@ -1409,7 +1409,7 @@ local function card(item, n, hint, price, against, header)
 	local size = item.size and (SIZE_NAME[item.size] or item.size)
 	if m then
 		-- the badge says what slot it takes: "Medium engine", "Small bay"
-		local fam = m.family == "computer" and "utility" or m.family
+		local fam = m.family == "computer" and "utility" or m.family   -- (old name)
 		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
 	end
 	local lines = m and moduleLines(m) or nil

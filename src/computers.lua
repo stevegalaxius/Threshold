@@ -1,5 +1,5 @@
 --[[
-	Ship computers: modules in the "computer" slot every playable hull has.
+	Ship computers: modules with computer = ... in a utility slot.
 	A module's `computer` field says which one it is:
 
 	  nav       warns of a collision: when your course (velocity relative
