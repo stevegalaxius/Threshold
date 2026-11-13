@@ -707,7 +707,9 @@ end
 -- ship is on the track and the stop is far round it, the stop's point is
 -- a carrot T.alifeArcStep radians ahead of the ship along the orbit.
 local function followOrbit(game,e,stop)
- local w=game.well;if not w or not stop.body or not stop.body.getPosition then return end
+ -- only our own waypoint tables: a real entity's body is Box2D userdata
+ -- (and the entity itself is what the ship docks with)
+ local w=game.well;if not w or type(stop.body)~='table' or not stop.body.getPosition then return end
  local get=stop.body.getPosition
  stop.body.getPosition=function(self,...)
   local tx,ty=get(self,...)
