@@ -34,6 +34,7 @@ function P.toggle(Game)
 		for k in pairs(P.acc) do P.acc[k] = nil end
 		for k in pairs(P.calls) do P.calls[k] = nil end
 		P.frames, P.since, P.shown = 0, clock(), {}
+		wrap(love.graphics, "present", "present (vsync wait)")
 		for name in pairs(Game) do wrap(Game, name, "Game:" .. name) end
 		for _, m in ipairs(MODULES) do
 			local ok, mod = pcall(require, m)
@@ -73,9 +74,14 @@ function P.draw()
 	lg.setFont(require("src.hud").font(12))
 	local n = math.min(24, #P.shown)
 	lg.setColor(0, 0, 0, 0.75)
-	lg.rectangle("fill", 8, 8, 430, 30 + n * 15)
+	lg.rectangle("fill", 8, 8, 560, 30 + n * 15)
 	lg.setColor(1, 1, 1)
-	lg.print(("PROFILER  %.0f fps  (ms/frame, inclusive, calls/frame)"):format(P.fps or 0), 14, 12)
+	-- With vsync on, the frame rate can't pass the display's refresh rate, and
+	-- the wait for it lands in whatever touches the GPU first next frame
+	-- (usually render.world), not only in present: so show what we're synced to.
+	local _, _, mode = love.window.getMode()
+	local sync = (mode.vsync or 0) ~= 0 and ("vsync on, display %dHz"):format(mode.refreshrate or 0) or "vsync off"
+	lg.print(("PROFILER  %.0f fps  %s  (ms/frame, inclusive, calls/frame)"):format(P.fps or 0, sync), 14, 12)
 	for i = 1, n do
 		local r = P.shown[i]
 		lg.print(("%6.2f  %6.1f  %s"):format(r.ms, r.n, r.name), 14, 14 + i * 15)
