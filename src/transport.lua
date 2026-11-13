@@ -277,6 +277,7 @@ Tasks.register('transport',{
    local line=charge.task
    cargo(r,line.item,-line.amount)
    if line.mine or line.stocked then J.deliver(u,station,line.item,line.amount) end
+   if line.intake then require('src.merchants').received(u,line.intake,station,line.item,line.amount) end
    require('src.economy').stat(u,'hauled',line.item,line.amount)
    local payment=charge.payment;total=total+line.amount
    require('src.economy').ledger(u,station,'freight',payment,line.item)

@@ -168,6 +168,49 @@ local function sell(u,h,rec,target,item,clock)
  end
 end
 
+-- The buffer: a factory's surplus doesn't sit on its own shelf. A house
+-- buys what one of its own faction's stations holds over twice its target
+-- and has it hauled to the house's hub warehouse (warehouses[1]), where it
+-- waits as house stock until some station is short (sell). Up to
+-- T.merchantBuffer of each good, counting what is already on the way.
+local function intake(u,h,rec,site,item,clock)
+ local hub=h.warehouses[1]
+ if site==hub or site==M.exchange or not exists(hub) then return end
+ local Markets,S,E=require('src.markets'),require('src.stockpile'),require('src.economy')
+ local Transport,Tasks=require('src.transport'),require('src.tasks')
+ rec.inbound=rec.inbound or {}
+ local spare=S.available(u,site,item)-math.max(E.target(u,site,item)*2,E.lot or 120)
+ local room=T.merchantBuffer-held(rec,hub,item)-(rec.inbound[item] or 0)
+ local n=math.floor(math.min(h.lot*2,spare,room))
+ if n<h.lot*.25 or not Transport.route(site,hub,clock) then return end
+ local unit=Markets.price(u,site,item)*(1+T.marketSpread)
+ local offer=Transport.quote({kind='transport',source=site,target=hub,item=item,amount=n,stocked=true,
+  layoutScope='merchant',house=h.id,intake=h.id,order=true,priority=0,urgency=1,cooldown=30,placed=clock,
+  npcClaimAt=clock+T.freightListingSeconds},clock,u)
+ local fee=Transport.payment(offer)
+ local cost=math.floor(n*unit+.5)
+ if cost+fee>rec.credits then return end
+ -- the goods stay on the factory shelf, reserved by the freight job; the
+ -- house owns them from now on and books them in when they land
+ rec.credits=rec.credits-cost-fee;rec.deals=rec.deals+1
+ rec.inbound[item]=(rec.inbound[item] or 0)+n
+ rec.cost=rec.cost or {}
+ local before=0;for _,w in pairs(rec.stock) do before=before+(w[item] or 0) end
+ rec.cost[item]=((rec.cost[item] or 0)*before+unit*n)/(before+n)
+ Tasks.post(u,offer)
+ E.ledger(u,site,'sold',cost,item);E.ledger(u,h.id,'spent',cost,item);E.ledger(u,h.id,'freight',fee,item)
+ require('src.simulation_history').note(u,'merchant_intake',clock,L.byId[site].area,{},{house=h.id,item=item,amount=n,price=unit,to=hub},site)
+ return true
+end
+-- A house's intake freight has landed at its hub: off the shelf, into stock.
+function M.received(u,id,station,item,n)
+ local h=M.byId[id];local rec=M.state(u).houses[id];if not h or not rec then return end
+ local S=require('src.stockpile')
+ rec.inbound=rec.inbound or {}
+ rec.inbound[item]=math.max(0,(rec.inbound[item] or 0)-n)
+ if S.take(u,station,item,n) then hold(rec,station,item,n) end
+end
+
 function M.update(u,clock)
  local s=M.state(u)
  if clock<(s.next or 0) then return end
@@ -187,7 +230,9 @@ function M.update(u,clock)
  for _,h in ipairs(M.houses) do
   local rec=s.houses[h.id]
   for _,item in ipairs(items) do
-   if not rec.insolvent then for _,site in ipairs(sites(h)) do buy(u,h,rec,site,item,clock) end end
+   if not rec.insolvent then for _,site in ipairs(sites(h)) do
+    if not buy(u,h,rec,site,item,clock) then intake(u,h,rec,site,item,clock) end
+   end end
    -- own faction first, then (if it reaches) everyone else
    local own,other={}, {}
    for _,id in ipairs(stations) do

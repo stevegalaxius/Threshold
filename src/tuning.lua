@@ -338,7 +338,7 @@ T.drillThrowMin,T.drillThrowMax,T.drillSpread=450,1150,.12
 T.miningSettleTime=3
 T.mineWorkAltitude=1500
 T.mineWorkSide=1100
-T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,1.1
+T.minersPerArea,T.minerLoad,T.miningChunkDamping=3,36,1.1
 T.miningOrbitDamping=1.1
 T.miningScan,T.miningOfflineEvery=.5,12
 
@@ -385,6 +385,8 @@ T.merchantFireSale=1
 T.merchantRecover=.3
 -- the markup a house wants over what it paid before it will sell
 T.merchantMargin=.15
+-- the most of one good a house buffers at its hub warehouse
+T.merchantBuffer=3000
 -- adaptive plants (fuel, canisters...) speed up while all trade stations
 -- together hold less than this many times their combined target
 T.adaptiveCushion=1.5
