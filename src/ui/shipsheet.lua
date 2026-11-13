@@ -31,10 +31,7 @@ end
 
 -- One colour per slot family: a marker on the hull outline and its row
 -- in the slot list share it, so you can see which module sits where.
-Sheet.FAMILY_COLOR = {
-	hardpoint = { 1, 0.55, 0.42 }, bay = { 0.88, 0.6, 1 }, engine = { 0.45, 0.8, 1 },
-	reactor = { 0.55, 1, 0.6 }, computer = { 0.85, 0.85, 1 }, utility = { 0.85, 0.85, 1 },
-}
+Sheet.FAMILY_COLOR = HUD.SLOT_COLOR
 function Sheet.familyColor(slot) return Sheet.FAMILY_COLOR[slot.family] or HUD.AQUA end
 
 function Sheet.isWeapon(slot) return slot.family == "hardpoint" or slot.family == "bay" end

@@ -62,7 +62,7 @@ function Game:stationRecord(st)
 	local r = u[st.key]
 	if not r then
 		r = {
-			storage = Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
+			storage = require("src.stockpile").newStorage(st.key),
 			hangar = {},
 		}
 		u[st.key] = r
@@ -568,8 +568,8 @@ function Game:loadState(state)
    accessHangars[id]={hangar=ships,moorings=Persistence.copy(parking.moorings)}
   end
 		self.universe.stations[key] = {
-			storage = r.storage and Hold.deserialize(r.storage, known)
-				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
+			storage = r.storage and Hold.atLeast(Hold.deserialize(r.storage, known), require("src.stockpile").storageSize(key))
+				or require("src.stockpile").newStorage(key),
 			hangar = hangar, accessHangars=accessHangars, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),shortages=Persistence.copy(r.shortages),
 			shop = r.shop,
 		}
@@ -578,7 +578,7 @@ function Game:loadState(state)
 		for i, m in pairs(r.shops or (r.market and { r.market }) or {}) do
 			local restored={}
 			for k,v in pairs(m) do if k~='hold' then restored[k]=Persistence.copy(v) end end
-			restored.hold=m.hold and Hold.deserialize(m.hold,known);restored.next=restored.next or {}
+			restored.hold=m.hold and Hold.atLeast(Hold.deserialize(m.hold,known),T.marketW,T.marketH);restored.next=restored.next or {}
 			shops[tonumber(i)]=restored
 		end
 		self.universe.stations[key].shops = shops

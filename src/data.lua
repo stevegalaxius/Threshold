@@ -720,11 +720,24 @@ local function crossCheck()
 end
 
 -- Every module is also an item, so spares can sit in a hold, in station
--- storage or in a husk. Its shape comes from its size (S 2 x 1, M 2 x 2,
--- L 3 x 2, any 2 x 1), its volume matches the shape and its mass is the
--- module's own. Module items stay out of data.list.items so they don't
--- show up in ammo lists.
-local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
+-- storage or in a husk. Its footprint (w x h hold cells) depends on what it
+-- is and its size: S about 8-10 cells, M 15-20, L 20-30. Guns are long
+-- and skinny. Its volume matches the shape and its mass is the module's own.
+-- Module items stay out of data.list.items so they don't show up in ammo lists.
+local MODULE_SHAPES = {
+	gun     = { S = { 5, 2 }, M = { 8, 2 }, L = { 10, 3 } },
+	laser   = { S = { 4, 2 }, M = { 6, 3 }, L = { 8, 3 } },
+	bay     = { S = { 3, 3 }, M = { 5, 3 }, L = { 6, 4 } },
+	engine  = { S = { 4, 2 }, M = { 5, 3 }, L = { 7, 4 } },
+	reactor = { S = { 3, 3 }, M = { 4, 4 }, L = { 5, 5 } },
+	utility = { S = { 4, 2 }, M = { 6, 3 }, L = { 6, 4 } },
+}
+local function moduleShape(m)
+	local kind = m.family
+	if m.family == "weapon" then kind = data.LASERS[m.weapon and m.weapon.kind] and "laser" or "gun"
+	elseif m.family == "computer" or not MODULE_SHAPES[m.family] then kind = "utility" end
+	return MODULE_SHAPES[kind][m.size] or { 3, 3 }
+end
 function addModuleItems()
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]
@@ -732,7 +745,7 @@ function addModuleItems()
 		if existing and existing.kind ~= "module" then
 			error(("module '%s' has the same id as an item"):format(id), 0)
 		end
-		local shape = MODULE_SHAPES[m.size]
+		local shape = moduleShape(m)
 		data.items[id] = {
 			id = id, kind = "module", module = id, name = m.name, maker = m.maker, size = m.size,
 			w = shape[1], h = shape[2], stack = 1, volume = shape[1] * shape[2], mass = m.mass, price = m.price or 0,

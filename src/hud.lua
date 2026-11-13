@@ -357,14 +357,34 @@ end
 
 -- Read-only view of the player's grid hold (debug panel: Show hold grid).
 -- A first look at the packing; the real inventory screen comes later.
+-- Ammo and weapons share one colour per ammo family, matching the shot in
+-- flight (Render COLORS), so a gun, its rounds and its tracer all read alike.
+-- Slot overlays (SLOT_COLOR) use hues none of these use.
 local KIND_COLOR = {
-	gun = { 0.45, 0.75, 1 }, artillery = { 1, 0.55, 0.4 }, missile = { 0.4, 0.9, 0.65 },
-	torpedo = { 0.95, 0.8, 0.35 }, drone = { 0.8, 0.55, 1 }, crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
+	gun = { 0.92, 0.88, 0.66 }, artillery = { 0.88, 0.72, 0.4 }, laser = { 0.95, 0.6, 0.68 },
+	missile = { 0.55, 0.72, 0.95 }, torpedo = { 0.45, 0.8, 0.82 }, drone = { 0.5, 0.82, 0.6 },
+	crate = { 0.6, 0.65, 0.75 }, salvage = { 0.65, 0.48, 0.35 },
 	module = { 0.95, 0.95, 0.95 }, container = { 0.95, 0.55, 0.2 },
 }
-
+-- Hardpoint weapons are warm (cream, gold, rose), bay weapons cool (blue,
+-- teal, green); a slot takes its first weapon's colour. The rest pick hues no ammo uses.
+local SLOT_COLOR = {
+	hardpoint = KIND_COLOR.gun, bay = KIND_COLOR.missile, engine = { 0.8, 0.47, 0.37 },
+	reactor = { 0.95, 0.82, 0.35 }, utility = { 0.8, 0.8, 0.82 }, computer = { 0.8, 0.8, 0.82 },
+}
 local function itemColor(item)
-	if item.kind == "ammo" then return KIND_COLOR[item.family] or INK end
+	if item.kind == "ammo" then
+		return KIND_COLOR[item.family] or INK
+	end
+	-- a module's item card carries only its id; its weapon and family are on the module
+	local m = item.kind == "module" and data.modules[item.module or item.id] or item
+	local w = m.weapon
+	if w then
+		if data.LASERS[w.kind] then return KIND_COLOR.laser end
+		local fam = data.chambers(w)[1]
+		if fam and KIND_COLOR[fam] then return KIND_COLOR[fam] end
+	end
+	if item.kind == "module" and SLOT_COLOR[m.family] then return SLOT_COLOR[m.family] end
 	return KIND_COLOR[item.kind] or INK
 end
 
@@ -412,6 +432,7 @@ end
 
 -- Shared with the cargo screen (src/ui/cargo.lua) so it looks the same.
 HUD.panel, HUD.font, HUD.itemColor = panel, font, itemColor
+HUD.KIND_COLOR, HUD.SLOT_COLOR = KIND_COLOR, SLOT_COLOR
 HUD.AQUA, HUD.INK, HUD.DIM, HUD.WARN = AQUA, INK, DIM, WARN
 
 -- uiOpen: the cargo screen is up, so no aim reticle.

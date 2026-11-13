@@ -346,16 +346,58 @@ end
 
 function Hold.deserialize(t, known)
 	local h = { grids = {} }
+	local reshaped = {}
 	for _, sg in ipairs(t.grids or {}) do
 		local g = Grid.new(sg.w, sg.h, sg.name)
 		g.key = sg.key
 		for _, s in ipairs(sg.stacks or {}) do
-			if (not known or known(s.id)) and Grid.isFree(g, s.x, s.y, s.w, s.h) then
-				Grid.place(g, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
-					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen })
+			if not known or known(s.id) then
+				local st = { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
+					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen }
+				-- an item whose shape changed since the save (bigger modules)
+				-- is packed again once everything else is in
+				local w, ht = Shapes.of(s.id)
+				if not ((s.w == w and s.h == ht) or (s.w == ht and s.h == w)) then
+					table.insert(reshaped, { st, g })
+				elseif Grid.isFree(g, s.x, s.y, s.w, s.h) then
+					Grid.place(g, st)
+				end
 			end
 		end
 		table.insert(h.grids, g)
+	end
+	for _, r in ipairs(reshaped) do
+		local st, g = r[1], r[2]
+		-- no room in its new shape: keep the old footprint rather than lose it
+		if not Hold.placeStack(h, st) and Grid.isFree(g, st.x, st.y, st.w, st.h) then Grid.place(g, st) end
+	end
+	return h
+end
+
+-- Fit a saved grid to w wide and at least ht tall (grid sizes changed with
+-- bigger modules). Same width: stacks stay put and rows are added. Other
+-- width: everything is packed again, adding rows until it all fits.
+function Hold.atLeast(h, w, ht)
+	for i, g in ipairs(h.grids) do
+		if g.w ~= w then
+			local gw = w
+			for _, s in ipairs(g.stacks) do
+				local sw, sh = Shapes.of(s.id)
+				gw = math.max(gw, math.min(sw, sh))   -- wide enough for everything, rotated if need be
+			end
+			local ng = Grid.new(gw, ht, g.name)
+			for k, v in pairs(g) do if k ~= "w" and k ~= "h" and k ~= "cells" and k ~= "stacks" then ng[k] = v end end
+			local tmp = { grids = { ng } }
+			for _, s in ipairs(g.stacks) do
+				while not Hold.placeStack(tmp, s) do Grid.addRows(ng, 4) end
+			end
+			h.grids[i] = ng
+		elseif g.h < ht then
+			local ng = Grid.new(math.max(g.w, w), math.max(g.h, ht), g.name)
+			for k, v in pairs(g) do if k ~= "w" and k ~= "h" and k ~= "cells" and k ~= "stacks" then ng[k] = v end end
+			for _, s in ipairs(g.stacks) do Grid.place(ng, s) end
+			h.grids[i] = ng
+		end
 	end
 	return h
 end

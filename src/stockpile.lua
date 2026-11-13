@@ -72,11 +72,23 @@ function S.shops(st)
  return shops
 end
 
+-- A station's storage grid size: its definition's storage = { w, h },
+-- else the default.
+function S.storageSize(key)
+ local ok,def=pcall(function() return require('src.locations').stationDefinition(key) end)
+ local s=ok and def and def.storage
+ if s then return s[1] or s.w, s[2] or s.h end
+ return T.storageW,T.storageH
+end
+function S.newStorage(key)
+ local w,h=S.storageSize(key)
+ return Hold.new({{key='storage',name='Station storage',w=w,h=h}})
+end
 function S.record(u,key)
  u.stations=u.stations or {}
  local r=u.stations[key]
  if not r then
-  r={storage=Hold.new({{key='storage',name='Station storage',w=T.storageW,h=T.storageH}}),hangar={}}
+  r={storage=S.newStorage(key),hangar={}}
   u.stations[key]=r
  end
  return r
