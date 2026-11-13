@@ -1,5 +1,6 @@
 -- Local market quotes, independent of the production controller.
 local L=require('src.locations')
+local T=require('src.tuning')
 local C={items={},products={},smooth=600}
 for _,recipe in ipairs(require('data.industry').recipes) do
  if recipe.market then
@@ -14,6 +15,39 @@ function C.price(u,key,item)
  local s=C.state(u);local prices=s.prices[L.canonical(key)]
  local multiplier=prices and prices[item] or 1
  return math.floor(require('src.data').items[item].price*multiplier*100+.5)/100
+end
+-- Where a station sits in its system's supply chain bends its price:
+--  crisis   a shortage left unserved past T.priceCrisisHours may climb
+--           to T.priceCrisisMax instead of 2x;
+--  maker    a station that makes the good sells it T.makerDiscount under
+--           what its stock alone would say;
+--  landed   a station that imports through its system's hub never prices
+--           the good below the hub's price plus the local freight to bring
+--           it over, so goods get dearer the further they travel.
+local function makes(key,item)
+ for _,recipe in ipairs(require('src.commodities').list) do
+  if (recipe.make[key] or 0)>0 then
+   for _,output in ipairs(require('src.commodities').outputs(recipe)) do if output.item==item then return true end end
+  end
+ end
+ return false
+end
+local hubs={}   -- station -> its hub (fixed by the world layout)
+function C.shape(u,key,item,target,want,clock,state)
+ local E=require('src.economy')
+ if want>0 and E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 then
+  local age=E.shortageAge(u,key,item,clock)/(T.priceCrisisHours*3600)
+  target=target+(T.priceCrisisMax-2)*math.min(1,age-1)
+ end
+ if makes(key,item) then return target*(1-T.makerDiscount) end
+ local hub=hubs[key];if hub==nil then hub=E.hubFor(key) or false;hubs[key]=hub end
+ if hub and hub~=key and want>0 then
+  local d=require('src.data').items[item]
+  local hubPrice=(state.prices[hub] or {})[item] or 1
+  local freight=(d.volume or 1)*T.freightCreditsPerM3/math.max(1,d.price or 1)
+  target=math.max(target,hubPrice+freight)
+ end
+ return target
 end
 function C.update(u,clock,stations,inbound)
  local S,E=require('src.stockpile'),require('src.economy')
@@ -47,8 +81,10 @@ function C.update(u,clock,stations,inbound)
     end
     target=math.max(.5,1-have/math.max(1,reference*2))
    end
+   target=C.shape(u,key,item,target,want,clock,state)
    local alpha=1-math.exp(-dt/C.smooth)
-   prices[item]=math.max(.5,math.min(2,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
+   local top=want>0 and E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 and T.priceCrisisMax or 2
+   prices[item]=math.max(T.priceFloor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
    if bids[item] and want>0 and have<want*2 then
     bids[item][#bids[item]+1]={target=key,amount=math.ceil(want*2-have),price=C.price(u,key,item)}
    end

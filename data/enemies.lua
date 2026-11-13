@@ -76,10 +76,9 @@ enemy {
 	salvage = { 4, 8 },
 }
 
--- A courier in a Runner: small hold, quick, and it runs rather than fights.
+-- A courier in a Pony: small hold, quick, unarmed. It runs rather than fights.
 enemy {
-	id = "runner_trader", team = 3, name = "Runner", hull = "ferrous_pony",
-	cargo = { rounds_s = 100 },
+	id = "runner_trader", team = 3, name = "Courier", hull = "ferrous_pony",
 	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 900, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
 	salvage = { 1, 3 },
 }

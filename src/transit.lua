@@ -1715,7 +1715,7 @@ end
 
 -- An orbital ring of radius R round (cx, cy), cut by gaps to fly through,
 -- turning slowly (Game:updateRotors spins it from the clock). Four elevator
--- anchors (data/station_ladder_anchor.lua) hold still where the tethers
+-- anchors (data/stations/ladder_anchor.lua) hold still where the tethers
 -- come up from the surface; the ring runs through them, and each has a
 -- dock and berths for the traffic waiting on the Ladder.
 local LADDER_SPIN = 0.006   -- radians a second (about 50 px/s at the rim)

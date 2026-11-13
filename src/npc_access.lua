@@ -7,7 +7,8 @@ function A.owner(area)
  return node and Rep.ofNode(node) or Rep.ofArea(area)
 end
 function A.capabilities(r)
- local c={cargo=(data.hulls[r.ship.hull].hold or 0)>0}
+ local hold=data.hulls[r.ship.hull].hold or 0
+ local c={cargo=hold>0,bulk=hold>=require('src.tuning').trunkMinHold}
  for _,id in pairs(r.ship.loadout or {}) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w then

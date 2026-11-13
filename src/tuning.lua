@@ -183,6 +183,11 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- A-Life prototype, separate from the debris sleep band.
 T.alifeNear, T.alifeFar = 18000, 22000
 T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round trip
+-- Legs between stops on one orbit follow it (src/alife.lua followOrbit):
+-- a carrot this many radians ahead while the ship is within this fraction
+-- of the stop's orbital radius. .2 rad keeps the chord's sag under 0.5%
+-- of the radius (400 at Saturn's track, inside the Cassini division).
+T.alifeArcStep,T.alifeArcBand=.2,.06
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
@@ -338,7 +343,7 @@ T.drillThrowMin,T.drillThrowMax,T.drillSpread=450,1150,.12
 T.miningSettleTime=3
 T.mineWorkAltitude=1500
 T.mineWorkSide=1100
-T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,1.1
+T.minersPerArea,T.minerLoad,T.miningChunkDamping=3,36,1.1
 T.miningOrbitDamping=1.1
 T.miningScan,T.miningOfflineEvery=.5,12
 
@@ -351,9 +356,64 @@ T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
+-- scarcity premium (src/transport.lua): the share of the source-to-target
+-- price gap the destination adds to freight pay, growing by 1x per
+-- freightUrgencyHours its shortage goes unserved (to freightUrgencyMax),
+-- and never more than freightPremiumCap times the base pay
+T.freightGapShare=.5
+T.freightUrgencyHours=2
+T.freightUrgencyMax=2
+T.freightPremiumCap=2
+-- NPC job scoring (src/transport.lua): reward (credits/s) is capped at
+-- freightScoreCap/100, varied per trader by +-freightScoreJitter, and cut
+-- by freightRiskPerAU per AU of interplanetary route for timid traders
+T.freightScoreCap=20000
+T.freightScoreJitter=.1
+T.freightRiskPerAU=.05
+-- market goods trade at the station's live price +- this share
+T.marketSpread=.05
+-- station prices (src/markets.lua): never under priceFloor; up to
+-- priceCrisisMax once a shortage has gone priceCrisisHours unserved;
+-- makers sell makerDiscount under their stock-based price
+T.priceFloor=.5
+T.priceCrisisHours=2
+T.priceCrisisMax=3
+T.makerDiscount=.1
+-- merchant houses (src/merchants.lua): how often they trade; a house
+-- under merchantBankrupt of its capital that has sold nothing for
+-- merchantStale seconds turns insolvent, sells at anything over
+-- merchantFireSale x list, and recovers at merchantRecover of capital
+T.merchantTick=300
+T.merchantBankrupt=.1
+T.merchantStale=6*3600
+T.merchantFireSale=1
+T.merchantRecover=.3
+-- the markup a house wants over what it paid before it will sell
+T.merchantMargin=.15
+-- the most of one good a house buffers at its hub warehouse
+T.merchantBuffer=3000
+-- the most unclaimed freight jobs one house keeps posted at once
+T.merchantOpenMax=12
+-- a house stops buffering surplus below this share of its capital
+T.merchantReserve=.5
+-- a globalPrice plant (crack_ice) speeds up while the universal price of
+-- its good is this far over list, and slows while it's this far under
+T.globalPriceBand=.1
+-- adaptive plants (fuel, canisters...) speed up while all trade stations
+-- together hold less than this many times their combined target
+T.adaptiveCushion=1.5
+-- guided munitions: offline a rack fires one load of its tubes every
+-- offlineSalvoRounds combat rounds; NPCs carry npcMissileSalvos tube loads
+T.offlineSalvoRounds=3
+T.npcMissileSalvos=6
+-- freight pay also covers the cargo's worth: this share of its value
+-- (live market price, else list) per unit carried
+T.freightValueShare=.05
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
+T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
+T.trunkMinHold=200 -- hold a ship needs to take trunk runs
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
 -- Shortage deliveries (src/quests.lua): player-only work generated from
 -- stations that have been short of a good for a while.
