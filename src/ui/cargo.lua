@@ -1440,16 +1440,17 @@ local function card(item, n, hint, price, against, header)
 	local category = (item.kind or "item"):gsub("^%l", string.upper)
 	local stats = item.kind == "ship" and {} or {
 		{ "Category", category },
+		{ "Maker", item.maker or "\226\128\148" },
 		{ "Mass", ("%g t"):format(math.floor((item.mass or (m and m.mass) or 0) * n * 100 + 0.5) / 100) },
 	}
 	-- the bar's mass shows the change against the fitted module too
 	if am and #stats > 0 then
 		local d = (m.mass or 0) - (am.mass or 0)
-		if math.abs(d) > 1e-6 then stats[2].diff, stats[2].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
+		if math.abs(d) > 1e-6 then stats[3].diff, stats[3].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
 	end
-	local h = P + (header and 16 or 0) + 20 + 18 + (lines and (#lines * 16 + 6) or 0)
+	local h = P + (header and 16 or 0) + 20 + 4 + (lines and (#lines * 16 + 6) or 0)
 		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
-		+ (item.maker and 18 or 0)
+
 		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
 	return W, h, function(x, y)
 		lg.setColor(0.02, 0.06, 0.09, 0.96)
@@ -1466,12 +1467,11 @@ local function card(item, n, hint, price, against, header)
 			lg.setFont(tiny); lg.setColor(HUD.INK)
 			lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
 		end
-		lg.setFont(big); lg.setColor(HUD.INK)
+		-- the name in the item's own colour, as it shows in the hold
+		lg.setFont(big); lg.setColor(item.kind == "ship" and HUD.AQUA or HUD.itemColor(item))
 		lg.printf(item.name .. (n and n > 1 and ("  \195\151" .. n) or ""), x + P, cy, W - P * 2 - badgeW - 6, "left")
 		cy = cy + 20
-		lg.setFont(small); lg.setColor(HUD.AQUA)
-		lg.print(kindLine(item), x + P, cy)
-		cy = cy + 18
+		cy = cy + 4
 		if lines then
 			cy = cy + 2
 			lg.setFont(small)
@@ -1492,12 +1492,6 @@ local function card(item, n, hint, price, against, header)
 			end
 			cy = cy + 4
 		end
-		-- the maker sits just above the description
-		if item.maker then
-			lg.setFont(small); lg.setColor(HUD.DIM)
-			lg.print("Made by " .. item.maker, x + P, cy + 2)
-			cy = cy + 18
-		end
 		if #descLines > 0 then
 			cy = cy + 4
 			lg.setFont(small); lg.setColor(FLAVOR)
@@ -1511,7 +1505,7 @@ local function card(item, n, hint, price, against, header)
 			for i, st in ipairs(stats) do
 				local sx = x + P + (i - 1) * cw
 				lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
-				lg.setFont(small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+				lg.setFont(small:getWidth(st[2]) > cw - 6 and tiny or small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
 				if st.diff then
 					lg.setColor(st.good and GOOD or BAD)
 					lg.print(st.diff, sx + small:getWidth(st[2]) + 8, cy + 23)
