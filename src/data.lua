@@ -724,7 +724,8 @@ end
 -- L 3 x 2, any 2 x 1), its volume matches the shape and its mass is the
 -- module's own. Module items stay out of data.list.items so they don't
 -- show up in ammo lists.
-local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
+-- footprints in hold cells: S 9, M 16, L 24
+local MODULE_SHAPES = { S = { 3, 3 }, M = { 4, 4 }, L = { 6, 4 }, any = { 3, 3 } }
 function addModuleItems()
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]

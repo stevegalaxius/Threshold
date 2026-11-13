@@ -346,16 +346,30 @@ end
 
 function Hold.deserialize(t, known)
 	local h = { grids = {} }
+	local reshaped = {}
 	for _, sg in ipairs(t.grids or {}) do
 		local g = Grid.new(sg.w, sg.h, sg.name)
 		g.key = sg.key
 		for _, s in ipairs(sg.stacks or {}) do
-			if (not known or known(s.id)) and Grid.isFree(g, s.x, s.y, s.w, s.h) then
-				Grid.place(g, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
-					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen })
+			if not known or known(s.id) then
+				local st = { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,
+					inner = s.inner and Hold.deserialize(s.inner, known) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen }
+				-- an item whose shape changed since the save (bigger modules)
+				-- is packed again once everything else is in
+				local w, ht = Shapes.of(s.id)
+				if not ((s.w == w and s.h == ht) or (s.w == ht and s.h == w)) then
+					table.insert(reshaped, { st, g })
+				elseif Grid.isFree(g, s.x, s.y, s.w, s.h) then
+					Grid.place(g, st)
+				end
 			end
 		end
 		table.insert(h.grids, g)
+	end
+	for _, r in ipairs(reshaped) do
+		local st, g = r[1], r[2]
+		-- no room in its new shape: keep the old footprint rather than lose it
+		if not Hold.placeStack(h, st) and Grid.isFree(g, st.x, st.y, st.w, st.h) then Grid.place(g, st) end
 	end
 	return h
 end
