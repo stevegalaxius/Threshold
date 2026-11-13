@@ -50,7 +50,8 @@ function data.migrateSlot(slot)
 	elseif slot.family == "auxiliary" then slot.family = "bay"
 	-- The utility slot is deprecated: it reads as a computer slot, and
 	-- utility modules (pods, tug beam, flares) fit computer slots.
-	elseif slot.family == "utility" then slot.family = "computer" end
+	-- the computer slot is called utility now; old files read the same
+	elseif slot.family == "computer" then slot.family = "utility" end
 	return slot
 end
 
@@ -58,7 +59,7 @@ end
 -- thing on every ship: weapons first (numbered as on the hull outline),
 -- then bays, engines, reactors and computers. Within a family the authored
 -- order stands.
-data.SLOT_ORDER = { "hardpoint", "bay", "engine", "reactor", "computer", "utility" }
+data.SLOT_ORDER = { "hardpoint", "bay", "engine", "reactor", "utility" }
 local SLOT_RANK = {}
 for i, f in ipairs(data.SLOT_ORDER) do SLOT_RANK[f] = i end
 function data.slotRank(slot) return SLOT_RANK[slot.family] or #data.SLOT_ORDER + 1 end
@@ -110,7 +111,8 @@ function data.fits(slot, m)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "hardpoint" end
 	-- deprecated utility modules ride in computer slots
-	if m.family == "utility" then return slot.family == "computer" or slot.family == "utility" end
+	-- computers, pods, tug beams and flares all go in utility slots
+	if m.family == "utility" or m.family == "computer" then return slot.family == "utility" or slot.family == "computer" end
 	return m.family == slot.family
 end
 
@@ -165,6 +167,7 @@ local api = {}
 
 local function prepareHull(def)
 	if type(def) ~= "table" then fail("hull expects a table") end
+	def.agility = nil   -- derived handling (Ship.agility) is redone from the stats
 	need(def, "id", "hull"); need(def, "name", "hull")
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
@@ -419,7 +422,8 @@ function api.module(def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
 	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
-	if def.family=="computer" then
+	if def.family == "computer" then def.family = "utility" end   -- old name
+	if def.computer then
 		for _,field in ipairs({"radarRange","uplinkRange","lookahead","predictionTime","lockCone","controlLimit"}) do
 			local value=def[field]
 			if value~=nil and (type(value)~="number" or value~=value or value<=0 or value==math.huge) then
@@ -778,6 +782,23 @@ function data.load()
 		local h = data.hulls[e.hull]
 		if h and h.slotRemap and e.loadout and not e.slotsSorted then
 			e.loadout, e.slotsSorted = data.permuteSlots(e.loadout, h.slotRemap), true
+		end
+	end
+	-- Enemy loadouts name modules by slot number, which breaks whenever a
+	-- hull is redesigned. Fit each one to its hull by what fits where
+	-- (data.fitLoadout keeps modules already in a fitting slot and moves the
+	-- rest); a module with no room left is dropped with a warning, not a crash.
+	for id, e in pairs(data.enemies) do
+		local h = data.hulls[e.hull]
+		if h and e.loadout then
+			local fitted, want, have = data.fitLoadout(h, e.loadout), {}, {}
+			for _, m in pairs(e.loadout) do if m and data.modules[m] then want[m] = (want[m] or 0) + 1 end end
+			for _, m in pairs(fitted) do have[m] = (have[m] or 0) + 1 end
+			for m, n in pairs(want) do
+				if (have[m] or 0) < n then print(("[data] enemy '%s': no room for %s on %s, left off"):format(id, m, e.hull)) end
+			end
+			for i = 1, #h.slots do if fitted[i] == nil then fitted[i] = false end end
+			e.loadout = fitted
 		end
 	end
 	-- Old weapon ids (before the Shipyard <kind>_<size>_base designs) still

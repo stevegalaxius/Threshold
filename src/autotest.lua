@@ -327,7 +327,7 @@ function A.update(game, dt)
 		log("equip: refitted engine %s, built-in side thrust %.0f", tostring(w.loadout[eng.i]), w.stats.sideThrust)
 		local util
 		for _, er in ipairs(L.equip.slots) do if w.loadout[er.i] == "hold_pod_s" then util = er break end end
-		util = util or slotRow("computer")
+		util = util or slotRow("utility")
 		Hold.add(w.hold, "water_ice", 1)
 		local podGrid = w.hold.grids[2]
 		local podHas = #podGrid.stacks

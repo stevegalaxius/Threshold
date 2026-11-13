@@ -22,7 +22,7 @@ hull {
 		{ family = "reactor", size = "M" },
 		{ family = "utility", size = "any" },
 		{ family = "utility", size = "any" },
-		{ family = "computer", size = "any" },
+		{ family = "utility", size = "any" },
 	},
 	spoolTime = 0.35,
 	turn = 2400,

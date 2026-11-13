@@ -1359,12 +1359,17 @@ local function drawEffects(game)
 		elseif fx.kind == "airburst" then
 			lg.setBlendMode('add')
 			lg.setColor(.55,.85,1,(1-k)^2*.65)
-			glowAt(fx.x,fx.y,fx.r*(.12+k*.3))
+			-- sized to the blast: the flash and streaks reach the full
+			-- radius that does damage, with a faint ring marking its edge
+			glowAt(fx.x,fx.y,fx.r*(.3+k*.7))
+			lg.setColor(.8,.95,1,(1-k)^2*.5)
+			lg.setLineWidth(outline(1))
+			lg.circle('line',fx.x,fx.y,fx.r*(.6+k*.4))
 			lg.setColor(.8,.95,1,(1-k)^2)
 			lg.setLineWidth(outline(1.5))
 			for j=1,8 do
 				local a=j*pi/4+fx.x*.01
-				local inner,outer=fx.r*(.05+k*.45),fx.r*(.18+k*.6)
+				local inner,outer=fx.r*(.1+k*.6),fx.r*(.35+k*.65)
 				lg.line(fx.x+cos(a)*inner,fx.y+sin(a)*inner,fx.x+cos(a)*outer,fx.y+sin(a)*outer)
 			end
 			lg.setBlendMode('alpha')

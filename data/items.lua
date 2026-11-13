@@ -38,11 +38,14 @@ ammo { id = "rounds_s", name = "Solid Rounds S", shortName = "Solid S", default 
 ammo { id = "rounds_m", name = "Solid Rounds M", shortName = "Solid M", default = true,  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
 	shot = { damage = 36, speed = 4800, range = 9800, knockback = 400 } }
 
--- Fixed-fuse gun rounds: forgiving coverage, less damage even on a direct hit.
+-- Flak gun rounds: a proximity fuse bursts them beside an enemy (fuse px,
+-- default 0.6 x splash), so a stream of near misses still does damage. Less
+-- per hit than solid rounds and a little slower and shorter-ranged, but far
+-- more forgiving to aim.
 ammo { id = "airburst_s", name = "Airburst Rounds S", shortName = "Airburst S", maker = "Halcyon Arms", family = "gun", size = "S", volume = 0.02, mass = 0.02, price = 4, w = 1, h = 1, stack = 50,
- shot = { damage = 7, splash = 70, speed = 3600, range = 3200, knockback = 10, airburst = true } }
+ shot = { damage = 8, splash = 80, fuse = 50, speed = 4000, range = 5000, knockback = 10, airburst = true } }
 ammo { id = "airburst_m", name = "Airburst Rounds M", shortName = "Airburst M", maker = "Brute Industries", family = "gun", size = "M", volume = 0.04, mass = 0.04, price = 8, w = 1, h = 1, stack = 25,
- shot = { damage = 20, splash = 95, speed = 3800, range = 3800, knockback = 18, airburst = true } }
+ shot = { damage = 24, splash = 105, fuse = 65, speed = 4200, range = 5800, knockback = 18, airburst = true } }
 
 ammo { id = "shell_s", name = "Explosive Shells S", shortName = "Explosive S", default = true,    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25, w = 1, h = 1, stack = 6,
 	shot = { damage = 45, splash = 60, speed = 6200, range = 9000, knockback = 6000 } }

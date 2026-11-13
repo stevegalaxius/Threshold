@@ -6,12 +6,12 @@
 	Stat fields by family:
 	  engine   thrust (kN), turn, exhaust (visual settings; see Engines below)
 	  reactor  powerOut (per second), powerCap (stored power)
-	  computer universal (size "any"), one per hull. computer = "nav",
-	           "ordnance", "guidance" (radarRange px) or "drone" (uplinkRange
-	           px); see src/computers.lua.
-	  utility  hold (cubic metres), tractorRange (pixels), tractorPower (tractor strength added to the basic beam's 1: looting pull and top towing speed). Several stack. Utility modules are
-	           deprecated as a slot family: they fit computer slots (the utility slot reads as a computer slot). They are
-	           size "any" and fit any hull's utility slot.
+	  utility  size "any", fits any hull's utility slots. Computers set
+	           computer = "nav", "ordnance", "guidance" (radarRange px) or
+	           "drone" (uplinkRange px); see src/computers.lua. Others give
+	           hold (cubic metres), tractorRange (pixels) or tractorPower
+	           (added to the basic beam's 1: looting pull and towing speed),
+	           and several stack. ("computer" is still read as utility.)
 	  weapon   (cannons, lasers, drills) fits a hull's hardpoint slot.
 	  bay      (missile racks and drone bays) fits a bay slot.
 	           Either fires on whichever trigger its slot is set to, and
@@ -180,8 +180,8 @@ module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",     
 -- scanner: radarRange (how far it reads what's inside wrecks and containers).
 -- drone: uplinkRange, controlLimit (largest drone control cost for direct piloting:
 -- S=1, M=2, L=4; does not replace the launching bay's capacity).
-module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 1, computer = "nav", radarRange = 12000, lookahead = 2, price = 2500 }
-module { id = "fire_computer", name = "Ordnance Computer", maker = "Estates Military",   family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", radarRange = 6000, predictionTime = 4, price = 6000 }
-module { id = "guidance_computer", name = "Missile Guidance", maker = "Estates Military", family = "computer", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, lockCone = 25, price = 7000 }
-module { id = "scanner",       name = "Deep Scanner",      maker = "Halcyon Arms",       family = "computer", size = "any", mass = 1, powerDraw = 2, computer = "scanner", radarRange = 3000, price = 4500 }
-module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "computer", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, controlLimit = 4, price = 9000 }
+module { id = "nav_computer",  name = "Nav Computer",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 1, powerDraw = 1, computer = "nav", radarRange = 12000, lookahead = 2, price = 2500 }
+module { id = "fire_computer", name = "Ordnance Computer", maker = "Estates Military",   family = "utility", size = "any", mass = 1, powerDraw = 2, computer = "ordnance", radarRange = 6000, predictionTime = 4, price = 6000 }
+module { id = "guidance_computer", name = "Missile Guidance", maker = "Estates Military", family = "utility", size = "any", mass = 2, powerDraw = 2, computer = "guidance", radarRange = 4000, lockCone = 25, price = 7000 }
+module { id = "scanner",       name = "Deep Scanner",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 1, powerDraw = 2, computer = "scanner", radarRange = 3000, price = 4500 }
+module { id = "drone_uplink",  name = "Drone Uplink",      maker = "Nova Syndicate",     family = "utility", size = "any", mass = 3, powerDraw = 3, computer = "drone", uplinkRange = 4000, controlLimit = 4, price = 9000 }

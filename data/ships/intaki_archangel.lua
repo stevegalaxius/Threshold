@@ -20,7 +20,7 @@ hull {
 		{ family = "engine", size = "L", x = -128, y = -44 },
 		{ family = "reactor", size = "L" },
 		{ family = "utility", size = "any" },
-		{ family = "computer", size = "any" },
+		{ family = "utility", size = "any" },
 		{ family = "bay", mount = "gimbal", size = "L", x = -32, y = -48 },
 		{ family = "bay", mount = "gimbal", size = "L", x = -32, y = 48 },
 		{ family = "hardpoint", mount = "turret", size = "L", x = -108, y = 0 },
