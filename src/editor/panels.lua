@@ -15,7 +15,7 @@ local LAYERS = { "hull", "detail", "glow" }
 local GRIDS = { 1, 2, 4, 8, 16 }
 local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", ["break"] = "Break apart" }
 
--- Hull stats the design can set over its base hull (see data/hulls.lua).
+-- Hull stats the design can set over its base hull (see data/hulls.lua and data/ships/).
 local STATS = {
 	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn.", 1, 5000, 5, 0 },
 	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
@@ -30,7 +30,7 @@ local STATS = {
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
-local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "utility", "computer" }
+local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "computer" }   -- utility is deprecated (reads as computer)
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
 local SIZELESS = { utility = true, computer = true }
@@ -469,7 +469,32 @@ function fileBrowser(E, cat, builtIn)
 end
 
 -- The Weapons tab: the module's stats, then the art tools.
-function weaponSections(E, d)
+local function restackControls(E, id)
+	local sel = E.selectedParts()
+	local n = #E.design.parts
+	if #sel == 0 then
+		Slab.Text("Select a part to change its layer", { Color = { 0.6, 0.6, 0.6 } })
+		return
+	end
+	local function btn(label, how, tip)
+		if Slab.Button(label, { W = 64, H = 20, Tooltip = tip }) then E.restack(how) end
+	end
+	btn("To back", "back", "Draw first, under everything (Shift+[)")
+	Slab.SameLine()
+	btn("Back", "backward", "One step further back ([)")
+	Slab.SameLine()
+	btn("Forward", "forward", "One step further forward (])")
+	Slab.SameLine()
+	btn("To front", "front", "Draw last, over everything (Shift+])")
+	Slab.Text(#sel > 1 and ("%d parts, layer"):format(#sel) or "layer"); Slab.SameLine()
+	if Slab.InputNumberDrag(id, sel[1], 1, n, 1, { W = 60, Precision = 0, Tooltip = "Position in the list: 1 is the back, " .. n .. " the front" }) then
+		E.restack(math.floor(Slab.GetInputNumber() + 0.5))
+	end
+	Slab.SameLine()
+	Slab.Text(("of %d"):format(n), { Color = { 0.6, 0.6, 0.6 } })
+end
+
+local function weaponSections(E, d)
 	local m = d.module
 	m.weapon = m.weapon or { kind = "cannon" }
 	local w = m.weapon
@@ -595,10 +620,9 @@ function weaponSections(E, d)
 	combo("yard_wgrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
 	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
+	restackControls(E, "yard_wlayer")
 	for i, p in ipairs(d.parts) do
-		if Slab.Button("^", { W = 18, H = 18, Tooltip = "Draw earlier (further back)" }) then E.movePart(i, -1) end
-		Slab.SameLine()
-		if Slab.Button("v", { W = 18, H = 18, Tooltip = "Draw later (further forward)" }) then E.movePart(i, 1) end
+		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		local tags = (p.barrel and "  (barrel)" or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
 		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
@@ -866,6 +890,7 @@ local function designWindow(E, Editor)
 				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end
 				if f ~= "hardpoint" and f ~= "bay" then slot.mount, slot.trigger = nil, nil end
 				E.validateSlotDefault(i)
+				E.sortSlots()
 			end, 95)
 			if not SIZELESS[slot.family] then
 				Slab.SameLine()
@@ -896,11 +921,15 @@ local function designWindow(E, Editor)
 					slot.heading = v ~= 0 and v or nil
 				end
 			end
-			Slab.SameLine()
-			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
-				E.pushUndo()
-				if slot.x then slot.x, slot.y = nil, nil else slot.x, slot.y = 0, 0 end
-			end
+			-- weapon slots always sit on the hull; internal ones (engine
+			-- exhausts and the like) can be placed or left off
+			if slot.family ~= "hardpoint" and slot.family ~= "bay" then
+				Slab.SameLine()
+				if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull" or "Put it on the hull at the origin" }) then
+					E.pushUndo()
+					if slot.x then slot.x, slot.y = nil, nil else slot.x, slot.y = 0, 0 end
+				end
+			elseif not slot.x then slot.x, slot.y = 0, 0 end
 			Slab.SameLine()
 			if Slab.Button("x", { W = 18, H = 18, Tooltip = "Remove this slot" }) then remove = i end
 			Slab.Text("Default item"); Slab.SameLine()
@@ -921,6 +950,7 @@ local function designWindow(E, Editor)
 			table.insert(d.slots, { family = "hardpoint", size = "S", x = 0, y = 0 })
 			defaults[#d.slots] = false
 			E.slotSel = #d.slots
+			E.sortSlots()
 		end
 		Slab.Text("Modules that no longer fit a slot are", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("left empty when you test fly.", { Color = { 0.6, 0.6, 0.6 } })
@@ -944,15 +974,14 @@ local function designWindow(E, Editor)
 	E.coreIndex = tagged or biggest
 	E.totalArea = total
 	Slab.Text(("Parts (%d), drawn top to bottom"):format(#d.parts))
-	Slab.Text("click a name to select it", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("click a name to select it, shift-click for more", { Color = { 0.6, 0.6, 0.6 } })
+	restackControls(E, "yard_layer")
 	for i, p in ipairs(d.parts) do
 		Slab.PushID("yard_part" .. i)
-		local selected = E.sel == i
-		-- one row per part: order, visibility and lock as small toggles,
+		local selected = E.sel == i or (E.multi and E.multi[i]) or false
+		-- one row per part: layer number, visibility and lock as small toggles,
 		-- then the name, highlighted when selected
-		if Slab.Button("^", { W = 18, H = 18 }) then E.movePart(i, -1) end
-		Slab.SameLine()
-		if Slab.Button("v", { W = 18, H = 18 }) then E.movePart(i, 1) end
+		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		if Slab.Button(p.hidden and "-" or "o", { W = 18, H = 18, Tooltip = p.hidden and "Hidden: click to show" or "Visible: click to hide" }) then
 			p.hidden = not p.hidden or nil
@@ -965,7 +994,14 @@ local function designWindow(E, Editor)
 		local tags = (p.mirror and " [mirror]" or "") .. (i == E.coreIndex and " [core]" or "") .. (E.errors[i] and " [!]" or "")
 		local label = (selected and "> " or "  ") .. (p.name or ("part " .. i)) .. tags
 		local color = E.errors[i] and { 1, 0.45, 0.45 } or selected and { 1, 0.85, 0.3 } or (p.hidden and { 0.5, 0.5, 0.5 } or nil)
-		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then E.sel, E.vsel, E.lsel = i, nil, nil end
+		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then
+			if love.keyboard.isDown("lshift", "rshift") and E.sel and E.sel ~= i then
+				E.multi = E.multi or {}
+				E.multi[i] = (not E.multi[i]) or nil
+			else
+				E.sel, E.vsel, E.lsel, E.multi = i, nil, nil, {}
+			end
+		end
 		Slab.PopID()
 	end
 	Slab.EndWindow()

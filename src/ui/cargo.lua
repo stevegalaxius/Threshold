@@ -1420,7 +1420,7 @@ local function tooltip(item, n, mx, my, hint, price)
 end
 
 local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "UTILITY", computer = "COMPUTER" }
+	reactor = "REACTOR", utility = "COMPUTER", computer = "COMPUTER" }
 
 local function slotLabel(slot)
 	return SLOT_LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
@@ -1511,15 +1511,15 @@ local function drawEquipment(game, L, mx, my)
 	local hover = slotAt(L, mx, my)
 	lg.setFont(HUD.font(10))
 	for _, r in ipairs(E.slots) do
-		if r.slot.x then
+		-- weapon mounts get an unnumbered marker; internal slots aren't drawn
+		if r.slot.x and (r.slot.family == "hardpoint" or r.slot.family == "bay") then
 			local sx, sy = ox + r.slot.x * sc, oy + (r.slot.y or 0) * sc
 			local fits = hm and data.fits(r.slot, hm)
 			local col = fits and { 0.4, 1, 0.55 } or HUD.AQUA
 			lg.setColor(0.02, 0.06, 0.09, 0.9)
-			lg.circle("fill", sx, sy, 7)
+			lg.circle("fill", sx, sy, hover == r and 7 or 5)
 			lg.setColor(col[1], col[2], col[3], (hover == r or fits) and 1 or 0.7)
-			lg.circle("line", sx, sy, 7)
-			lg.printf(r.i, sx - 7, sy - 6, 14, "center")
+			lg.circle("line", sx, sy, hover == r and 7 or 5)
 		end
 	end
 
@@ -1543,7 +1543,7 @@ local function drawEquipment(game, L, mx, my)
 		lg.rectangle("line", r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, 5, 5)
 		lg.setFont(HUD.font(10))
 		lg.setColor(HUD.DIM[1], HUD.DIM[2], HUD.DIM[3], alpha)
-		lg.print((r.slot.x and (r.i .. "  ") or "") .. slotLabel(r.slot), r.x + 6, r.y + 2)
+		lg.print(slotLabel(r.slot), r.x + 6, r.y + 2)
 		lg.setFont(HUD.font(12))
 		if m then
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)

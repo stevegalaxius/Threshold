@@ -1,5 +1,5 @@
 -- World authoring: stable station identities and navigation topology.
--- Station designs/services live in data/station_*.lua. Special construction stays
+-- Station designs/services live in data/stations/<id>.lua. Special construction stays
 -- in its existing adapter; ordinary layout changes belong here.
 local W={}
 W.stations = {

@@ -226,7 +226,7 @@ local function drawDetail(game, L, mx, my)
 	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.INK)
 	lg.print(lot.paint, x + 36, L.paintY + 5)
-	y = L.paintY + 40
+	y = Sheet.paragraph(Sheet.description(hull), x, L.paintY + 36, w, 4) + 8
 	y = Sheet.label(("%s fit \194\183 %d slots"):format(lot.trimName or lot.trim, #hull.slots), x, y)
 	Sheet.slots(hull, lot.loadout, x, y, w, D.y + D.h - PAD)
 

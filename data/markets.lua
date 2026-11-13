@@ -28,7 +28,7 @@
 	seconds, then it's sold on.
 ]]
 
-market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_runner", "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp", "brute_runt" }, lots = 6, restock = 8 }, sells = {   -- general store
+market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp", "brute_runt" }, lots = 6, restock = 8 }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
@@ -168,7 +168,7 @@ market { id = "market:titania_2", station = "Messina Research Station", sells = 
 } }
 
 -- Ring Station and its Quarry.
-market { id = "market:ring_1", station = "Ring Station", dealer = { name = "Ring Station Used Hulls", hulls = { "mack_mustang", "mack_burro", "mack_longhorn", "ferrous_runner", "ferrous_mule" }, lots = 5, restock = 12, markup = 0.85, trims = { "stripped" } }, sells = {   -- belt crossroads
+market { id = "market:ring_1", station = "Ring Station", dealer = { name = "Ring Station Used Hulls", hulls = { "mack_mustang", "mack_burro", "mack_longhorn", "ferrous_mule" }, lots = 5, restock = 12, markup = 0.85, trims = { "stripped" } }, sells = {   -- belt crossroads
 	{ "iron_ore", 4 },
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },
@@ -192,6 +192,6 @@ market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer 
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
 
-market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_pony", "ferrous_runner", "ferrous_mule", "ferrous_bison" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
+market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_pony", "ferrous_mule", "ferrous_bison" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }

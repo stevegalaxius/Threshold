@@ -1,9 +1,9 @@
 --[[
 	Pieces the Hangar and Shipyard tabs share for showing one ship:
 
-	  Sheet.outline   the hull, nose right, with its hardpoints numbered
+	  Sheet.outline   the hull, nose right, with its weapon mounts marked
 	                  (the same markers as the Equipment panel)
-	  Sheet.slots     a row per slot: number, family and size, module
+	  Sheet.slots     a row per slot, in canonical order: family and size, module
 	  Sheet.numbers   handling numbers for a hull, loadout and cargo mass
 	  Sheet.compare   a label / value / difference table
 	  Sheet.bar       a labelled meter (armor, hold)
@@ -23,13 +23,42 @@ local lg = love.graphics
 local max, min = math.max, math.min
 
 local LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "UTILITY", computer = "COMPUTER" }
+	reactor = "REACTOR", utility = "COMPUTER", computer = "COMPUTER" }
 
 function Sheet.slotLabel(slot)
 	return LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
 end
 
 function Sheet.isWeapon(slot) return slot.family == "hardpoint" or slot.family == "bay" end
+
+-- A hull's blurb: its own description, else a line made from its numbers.
+function Sheet.description(hull)
+	if type(hull.description) == "string" and hull.description:match("%S") then return hull.description end
+	local guns, bays = 0, 0
+	for _, slot in ipairs(hull.slots) do
+		if slot.family == "hardpoint" then guns = guns + 1 elseif slot.family == "bay" then bays = bays + 1 end
+	end
+	local arms = {}
+	if guns > 0 then arms[#arms + 1] = ("%d hardpoint%s"):format(guns, guns == 1 and "" or "s") end
+	if bays > 0 then arms[#arms + 1] = ("%d launcher bay%s"):format(bays, bays == 1 and "" or "s") end
+	return ("%s %s from %s, with %s and a %d m3 hold."):format(
+		(hull.class or "A"):match("^[AEIOU]") and "An" or "A", hull.class or "hull", hull.maker or "an unknown yard",
+		#arms > 0 and table.concat(arms, " and ") or "no weapon mounts", hull.hold or 0)
+end
+
+-- Wrapped text in the box's width; returns the y under it (at most maxLines).
+function Sheet.paragraph(text, x, y, w, maxLines)
+	local font = HUD.font(12)
+	lg.setFont(font)
+	local _, lines = font:getWrap(text, w)
+	if maxLines and #lines > maxLines then
+		lines = { unpack(lines, 1, maxLines) }
+		lines[maxLines] = lines[maxLines]:gsub("%s*%S*$", "") .. "..."
+	end
+	lg.setColor(HUD.DIM)
+	for k, line in ipairs(lines) do lg.print(line, x, y + (k - 1) * 15) end
+	return y + #lines * 15
+end
 
 -- Hull outline centred in the box, with numbered markers on placed slots.
 function Sheet.outline(hull, paint, x, y, w, h, alpha)
@@ -51,13 +80,13 @@ function Sheet.outline(hull, paint, x, y, w, h, alpha)
 	lg.setLineWidth(1)
 	lg.setFont(HUD.font(12))
 	for i, slot in ipairs(hull.slots) do
-		if slot.x then
+		-- weapon mounts only, unnumbered
+		if slot.x and Sheet.isWeapon(slot) then
 			local sx, sy = ox + slot.x * sc, oy + (slot.y or 0) * sc
 			lg.setColor(0.02, 0.06, 0.09, 0.9 * alpha)
-			lg.circle("fill", sx, sy, 7)
+			lg.circle("fill", sx, sy, 5)
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.8 * alpha)
-			lg.circle("line", sx, sy, 7)
-			lg.printf(i, sx - 7, sy - 6, 14, "center")
+			lg.circle("line", sx, sy, 5)
 		end
 	end
 	return y + h
@@ -80,7 +109,7 @@ function Sheet.slots(hull, loadout, x, y, w, maxY)
 		lg.rectangle("fill", x, y, w, RH - 2, 3, 3)
 		lg.setFont(HUD.font(12))
 		lg.setColor(Sheet.isWeapon(slot) and HUD.AQUA or HUD.DIM)
-		lg.print((slot.x and (i .. " ") or "  ") .. Sheet.slotLabel(slot), x + 5, y + 2)
+		lg.print(Sheet.slotLabel(slot), x + 5, y + 2)
 		lg.setFont(HUD.font(13))
 		if m then lg.setColor(HUD.INK) else lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.8) end
 		lg.printf(m and m.name or "empty", x, y + 1, w - 5, "right")
