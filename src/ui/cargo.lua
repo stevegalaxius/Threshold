@@ -1412,6 +1412,15 @@ local function card(item, n, hint, price, against, header)
 		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
 	end
 	local lines = m and moduleLines(m) or nil
+	if not m and item.kind == "ammo" and item.shot then
+		-- ammo gets stat lines like a module
+		lines = {}
+		for _, st in ipairs({ { "damage", "Damage", "%g" }, { "splash", "Splash", "%g" }, { "speed", "Speed", "%d px/s" }, { "range", "Range", "%d px" } }) do
+			local v = item.shot[st[1]]
+			if type(v) == "number" then lines[#lines + 1] = { label = st[2], value = v, fmt = st[3] } end
+		end
+		lines[#lines + 1] = { label = "Fits", text = ("%s %s"):format(SIZE_NAME[item.size] or item.size or "?", item.family or "") }
+	end
 	local diff = {}
 	local am = against and against ~= item.id and data.modules[against]
 	if lines and am then
@@ -1419,27 +1428,23 @@ local function card(item, n, hint, price, against, header)
 		for _, l in ipairs(moduleLines(am)) do if l.key then was[l.key] = l.value end end
 		for _, l in ipairs(lines) do if l.key then diff[l.key] = l.value - (was[l.key] or 0) end end
 	end
-	local desc = describe(item)
-	if m then desc = item.description or item.desc or m.description or m.desc end
-	if m and not desc then
-		desc = ("Placeholder description: the %s is a %s waiting on its real flavour text. This line is long enough to wrap so the layout can be checked."):format(item.name, kindLine(item):lower())
+	-- every card: the item's own description, else a placeholder
+	local desc = item.description or item.desc or (m and (m.description or m.desc))
+	if item.kind == "ship" and not desc then desc = describe(item) end
+	if not desc then
+		desc = ("Placeholder description: %s is a %s waiting on its real flavour text. This line is long enough to wrap so the layout can be checked."):format(item.name, kindLine(item):lower())
 	end
 	local descLines = {}
-	if desc and desc ~= "" then _, descLines = small:getWrap((m and '"' .. desc .. '"') or desc, W - P * 2) end
+	if desc and desc ~= "" then _, descLines = small:getWrap('"' .. desc .. '"', W - P * 2) end
 	-- the generic bar under the description: modules get category and mass
 	local category = (item.kind or "item"):gsub("^%l", string.upper)
-	local stats = item.kind == "ship" and {} or m and {
+	local stats = item.kind == "ship" and {} or {
 		{ "Category", category },
-		{ "Mass", ("%g t"):format((item.mass or m.mass or 0) * n) },
-	} or {
-		{ "Stack", ("%d / %d"):format(n, select(3, Shapes.of(item.id)) or n) },
-		{ "Volume", ("%.2f m3"):format(item.volume * n) },
-		{ "Mass", ("%.2f t"):format(item.mass * n) },
-		{ "Cells", ("%d x %d"):format(select(1, Shapes.of(item.id)) or item.w or 1, select(2, Shapes.of(item.id)) or item.h or 1) },
+		{ "Mass", ("%g t"):format(math.floor((item.mass or (m and m.mass) or 0) * n * 100 + 0.5) / 100) },
 	}
 	local h = P + (header and 16 or 0) + 20 + 18 + (lines and (#lines * 16 + 6) or 0)
 		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
-		+ ((m and item.maker) and 18 or 0)
+		+ (item.maker and 18 or 0)
 		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
 	return W, h, function(x, y)
 		lg.setColor(0.02, 0.06, 0.09, 0.96)
@@ -1457,11 +1462,10 @@ local function card(item, n, hint, price, against, header)
 			lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
 		end
 		lg.setFont(big); lg.setColor(HUD.INK)
-		lg.printf(item.name, x + P, cy, W - P * 2 - badgeW - 6, "left")
+		lg.printf(item.name .. (n and n > 1 and ("  \195\151" .. n) or ""), x + P, cy, W - P * 2 - badgeW - 6, "left")
 		cy = cy + 20
 		lg.setFont(small); lg.setColor(HUD.AQUA)
 		lg.print(kindLine(item), x + P, cy)
-		if item.maker and not m then lg.setColor(HUD.DIM); lg.printf(item.maker, x + P, cy, W - P * 2, "right") end
 		cy = cy + 18
 		if lines then
 			cy = cy + 2
@@ -1483,15 +1487,15 @@ local function card(item, n, hint, price, against, header)
 			end
 			cy = cy + 4
 		end
-		-- a module's maker sits just above its description
-		if m and item.maker then
+		-- the maker sits just above the description
+		if item.maker then
 			lg.setFont(small); lg.setColor(HUD.DIM)
 			lg.print("Made by " .. item.maker, x + P, cy + 2)
 			cy = cy + 18
 		end
 		if #descLines > 0 then
 			cy = cy + 4
-			lg.setFont(small); lg.setColor(m and FLAVOR or HUD.DIM)
+			lg.setFont(small); lg.setColor(FLAVOR)
 			for _, l in ipairs(descLines) do lg.print(l, x + P, cy); cy = cy + 15 end
 			cy = cy + 4
 		end
