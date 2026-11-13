@@ -7,9 +7,9 @@
 	Units used everywhere in data/:
 	  mass   tonnes          thrust  kN (engines)
 	  armor  hit points      turn    turning torque (bigger = snappier)
-	  retroThrust kN of built-in reverse thrusters (the main engine only
-	              pushes forward)
-	  sideThrust  kN of built-in maneuvering thrust (strafe or turn assistance).
+	  sideThrust  kN of built-in maneuvering thrust: strafing, braking and
+	              reverse (the main engine only pushes forward), or turn
+	              assistance. retroThrust is retired and ignored.
 	  spoolTime   seconds for the main engine to reach full thrust; a slight
 	              ramp-up makes heavy hulls feel heavy (default 0, instant)
 	  helm   how A/D steer it: "strafe" (default) fires the side thrusters,

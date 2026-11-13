@@ -196,6 +196,14 @@ local function prepareHull(def)
 		for k = 2, #def.shape, 2 do w = math.max(w, math.abs(def.shape[k])) end
 		def.radius = math.max(4, math.floor(w + 0.5))
 	end
+	-- spinRadius: what turning inertia is worked out from (m * r^2 / 2).
+	-- Half the width alone made a ship wider than it is long spin like a
+	-- huge disc; take the smaller of half the width and half the length, so
+	-- long ships turn as before and wide ones turn like a long ship turned
+	-- sideways.
+	local nose, tail = 0, 0
+	for k = 1, #def.shape, 2 do nose, tail = math.max(nose, def.shape[k]), math.min(tail, def.shape[k]) end
+	def.spinRadius = math.max(4, math.min(def.radius, (nose - tail) / 2))
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"

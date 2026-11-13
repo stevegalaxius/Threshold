@@ -8,7 +8,7 @@ local T = {}
 
 T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
-	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1.5,    precision = 2 },
+	{ key = "sideScale",      label = "Maneuvering thrusters",   min = 0,   max = 3,    value = 1.5,    precision = 2 },
 	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.03,   precision = 2 },
 	{ key = "navLookahead",   label = "Nav fallback: lookahead (s)", min = 1, max = 8, value = 2, precision = 1 },
 	{ key = "guidanceCone",   label = "Guidance fallback: cone (deg)", min = 5, max = 90, value = 25, precision = 0 },

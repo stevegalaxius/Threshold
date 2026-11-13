@@ -283,7 +283,7 @@ function Ship.updateMass(e)
 	end
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
-	local r = e.hull.radius
+	local r = e.hull.spinRadius or e.hull.radius
 	e.body:setMassData(0, 0, m, m * r * r * 0.5)
 	e.massDirty = false
 end
@@ -421,9 +421,8 @@ function Ship.fly(e, dt)
 
 	-- Thrust is relative to the nose. The main engine only pushes forward,
 	-- and spools up over the hull's spoolTime (winding down twice as fast),
-	-- which makes heavy hulls feel heavy. Reverse comes from built-in retro
-	-- thrusters (retroThrust), sideways only from maneuvering thrusters
-	-- (sideThrust). On a hull with helm = "turn", A/D turn the hull instead.
+	-- which makes heavy hulls feel heavy. Reverse and sideways both come
+	-- from the maneuvering thrusters (sideThrust; retroThrust mirrors it). On a hull with helm = "turn", A/D turn the hull instead.
 	local fwd = max(-1, min(1, it.thrust or 0))
 	local side = max(-1, min(1, it.strafe or 0))
 	local steer = 0
