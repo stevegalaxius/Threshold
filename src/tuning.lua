@@ -183,6 +183,11 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- A-Life prototype, separate from the debris sleep band.
 T.alifeNear, T.alifeFar = 18000, 22000
 T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round trip
+-- Legs between stops on one orbit follow it (src/alife.lua followOrbit):
+-- a carrot this many radians ahead while the ship is within this fraction
+-- of the stop's orbital radius. .2 rad keeps the chord's sag under 0.5%
+-- of the radius (400 at Saturn's track, inside the Cassini division).
+T.alifeArcStep,T.alifeArcBand=.2,.06
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60

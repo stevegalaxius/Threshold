@@ -700,6 +700,31 @@ local function clearSpot(game,e,x,y,dx,dy)
  return x,y
 end
 
+-- Two stops on the same orbit (a station track) are flown round the
+-- orbit, not straight across: a straight leg is a chord that sags inward,
+-- and round a ringed giant the track sits in a gap (Saturn's Cassini
+-- division), so the chord dives into the dense ring beside it. While the
+-- ship is on the track and the stop is far round it, the stop's point is
+-- a carrot T.alifeArcStep radians ahead of the ship along the orbit.
+local function followOrbit(game,e,stop)
+ local w=game.well;if not w or not stop.body or not stop.body.getPosition then return end
+ local get=stop.body.getPosition
+ stop.body.getPosition=function(self,...)
+  local tx,ty=get(self,...)
+  if not tx or not e.body or e.dead or e.removed then return tx,ty end
+  local sx,sy=e.body:getPosition()
+  local ax,ay,bx,by=sx-w.x,sy-w.y,tx-w.x,ty-w.y
+  local rs,rt=math.sqrt(ax*ax+ay*ay),math.sqrt(bx*bx+by*by)
+  if rt<1 or math.abs(rs-rt)>rt*T.alifeArcBand then return tx,ty end
+  local a,b=math.atan2(ay,ax),math.atan2(by,bx)
+  local turn=(b-a+math.pi)%(2*math.pi)-math.pi
+  if math.abs(turn)<=T.alifeArcStep then return tx,ty end
+  local step=turn>0 and T.alifeArcStep or -T.alifeArcStep
+  local r=rs+(rt-rs)*math.abs(step/turn)
+  return w.x+math.cos(a+step)*r,w.y+math.sin(a+step)*r
+ end
+end
+
 local function bindRoute(game,e,r)
  require('src.queue').invalidate(game)
  e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
@@ -740,6 +765,7 @@ local function bindRoute(game,e,r)
    for i,node in ipairs(r.route) do if node==id and r.route[i+1] then stop.destination=L.get(r.route[i+1]).area;break end end
   end
   if r.waitingForHome then stop.hold=true;stop.inspection=true end
+  followOrbit(game,e,stop)
   e.route[#e.route+1]=stop
  end
 end
