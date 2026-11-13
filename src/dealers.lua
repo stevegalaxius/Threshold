@@ -165,7 +165,10 @@ function D.room(u,key,hull)
  local s,def=D.state(u,key);if not s then return 0 end
  local allowed=false;for _,id in ipairs(def.hulls) do if id==hull then allowed=true end end
  if not allowed then return 0 end
- return #require('src.dealer_parking').plan(u,key,hull,math.max(0,(def.lots or 6)-#s.lots))
+ -- A factory dealer fills whatever commercial parking it has (the guest
+ -- share stays reserved); "lots" only caps restocking dealers.
+ local cap=D.buildsShips(key) and 64 or math.max(0,(def.lots or 6)-#s.lots)
+ return #require('src.dealer_parking').plan(u,key,hull,cap)
 end
 function D.output(u,key,hull,n)
  local s,def=D.state(u,key)
