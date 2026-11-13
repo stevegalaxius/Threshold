@@ -969,11 +969,13 @@ local function designWindow(E, Editor)
 	for i, p in ipairs(d.parts) do
 		if not p.hidden then
 			total = total + areaOf(p)
-			if p.core then tagged = tagged or i end
+			if p.core or p.breakable == false then tagged = tagged or i end
 			if p.collide ~= false and (not biggest or Canvas.area(p.shape) > Canvas.area(d.parts[biggest].shape)) then biggest = i end
 		end
 	end
+	-- with no part ticked core, the biggest part stays on as the body
 	E.coreIndex = tagged or biggest
+	E.anyCore = tagged ~= nil
 	E.totalArea = total
 	Slab.Text(("Parts (%d), drawn top to bottom"):format(#d.parts))
 	Slab.Text("click a name to select it, shift-click for more", { Color = { 0.6, 0.6, 0.6 } })
@@ -993,7 +995,7 @@ local function designWindow(E, Editor)
 			p.locked = not p.locked or nil
 		end
 		Slab.SameLine()
-		local tags = (p.mirror and " [mirror]" or "") .. (i == E.coreIndex and " [core]" or "") .. (E.errors[i] and " [!]" or "")
+		local tags = (p.mirror and " [mirror]" or "") .. ((p.core or p.breakable == false or (not E.anyCore and i == E.coreIndex)) and " [core]" or "") .. (E.errors[i] and " [!]" or "")
 		local label = (selected and "> " or "  ") .. (p.name or ("part " .. i)) .. tags
 		local color = E.errors[i] and { 1, 0.45, 0.45 } or selected and { 1, 0.85, 0.3 } or (p.hidden and { 0.5, 0.5, 0.5 } or nil)
 		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then
@@ -1325,21 +1327,24 @@ local function partWindow(E)
 		check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
 		Slab.Text(carriers == 0 and "  (none ticked on any part: every part carries)"
 			or ("  (%d part%s carr%s the loot)"):format(carriers, carriers == 1 and "" or "s", carriers == 1 and "ies" or "y"), { Color = { 0.6, 0.6, 0.6 } })
-		-- the core: one part, the wreck's main body. Ticking it here moves
-		-- it off any other part; with none ticked the biggest part is core.
-		local isCore = i == E.coreIndex
-		check(E, p.core == true, "Core: the wreck's main body (one per ship)", function(on)
-			for _, q in ipairs(E.design.parts) do q.core = nil end
-			p.core = on or nil
+		-- core parts never break off; every other part can be shot away
+		local core = p.core == true or p.breakable == false
+		check(E, core, "Core (never shot off)", function(on)
+			p.core, p.breakable, p.coreSide = on or nil, nil, nil
 		end)
-		if isCore and not p.core then Slab.Text("  (core now: the biggest part, since none is ticked)", { Color = { 0.6, 0.6, 0.6 } }) end
-		if isCore then
-			Slab.Text("  The core never breaks off; the other parts do.", { Color = { 0.6, 0.6, 0.6 } })
-		else
-			check(E, p.breakable ~= false, "Can be shot off (untick to keep it welded to the core)", function(on) if on then p.breakable = nil else p.breakable = false end end)
-			if p.breakable ~= false then
-				check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
-			end
+		if core and p.mirror then
+			local names = { both = "both sides", original = "this side only", twin = "mirrored side only" }
+			local opts = {}
+			for _, k in ipairs({ "both", "original", "twin" }) do table.insert(opts, { label = names[k], value = k }) end
+			Slab.Text("  core on"); Slab.SameLine()
+			combo("yard_coreside" .. i, names[p.coreSide or "both"], opts, function(v) E.pushUndo(); p.coreSide = v ~= "both" and v or nil end, 140)
+			if p.coreSide then Slab.Text("  the other side can be shot off", { Color = { 0.6, 0.6, 0.6 } }) end
+		end
+		if not core and not E.anyCore and i == E.coreIndex then
+			Slab.Text("  (no part is core, so this, the biggest, stays on)", { Color = { 0.6, 0.6, 0.6 } })
+		end
+		if not core or (p.mirror and p.coreSide) then
+			check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
 		end
 		Slab.Text("Mass multiplier (when it breaks away)")
 		slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)

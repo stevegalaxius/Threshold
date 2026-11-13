@@ -2713,12 +2713,15 @@ end
 
 function Game:breakablePieces(h, ship)
 	local hull = ship.hull
-	-- the core: a part tagged core, else the biggest one that collides.
-	-- Loot goes to the parts tagged cargo, or to every part if none is.
+	-- Core parts (HullShape.isCore) never break off. The wreck's body is
+	-- the biggest core part, else the biggest part that collides, which
+	-- then stays on too. Loot goes to the parts tagged cargo, or to every
+	-- part if none is.
+	local isCore = HullShape.isCore
 	local total, core, tagged = 0, nil, nil
 	for _, part in ipairs(hull.parts) do
 		total = total + part.area
-		if part.core then tagged = tagged or part end
+		if isCore(part) and (not tagged or part.area > tagged.area) then tagged = part end
 		if part.collide ~= false and (not core or part.area > core.area) then core = part end
 	end
 	core = tagged or core
@@ -2733,7 +2736,7 @@ function Game:breakablePieces(h, ship)
 	local lootTotal = 0
 	for _, part in ipairs(hull.parts) do
 		-- parts that never break off count as the core
-		local fixed = part == core or part.breakable == false or part.collide == false
+		local fixed = part == core or isCore(part) or part.collide == false
 		local piece = { part = part, core = fixed, frac = part.area / total, share = {} }
 		piece.hp = h.armorBase * piece.frac * (part.armor or 1)
 		piece.fixtures = partFixtures(h.body, part, h, 0, 0)

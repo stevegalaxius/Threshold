@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
+Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 

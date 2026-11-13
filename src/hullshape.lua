@@ -77,6 +77,17 @@ function HullShape.check(s)
 	return s, tris
 end
 
+-- Is this part core (welded on, never shot off)? A mirrored part's
+-- coreSide picks which copy: nil both, "original" or "twin" just one.
+-- The old breakable = false means the same.
+function HullShape.isCore(part)
+	if part.breakable == false then return true end
+	if not part.core then return false end
+	if part.coreSide == "original" then return not part.twin end
+	if part.coreSide == "twin" then return part.twin == true end
+	return true
+end
+
 -- The mirror image of a part across the ship's axis, as its own part.
 local function reflect(part)
 	local twin = {}
