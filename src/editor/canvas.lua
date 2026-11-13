@@ -18,11 +18,7 @@ local VERTEX_PX = 8      -- how close the mouse has to be to grab a vertex
 local EDGE_PX = 6        -- or an edge, to insert a point on it
 local SLOT_PX = 7        -- radius of a slot's hardpoint marker
 
-local SLOT_COLORS = {
-	hardpoint = { 1, 0.45, 0.35 }, bay = { 0.9, 0.5, 1 },
-	engine = { 0.4, 0.8, 1 }, reactor = { 0.5, 1, 0.5 }, utility = { 0.8, 0.8, 0.8 },
-	computer = { 0.8, 0.8, 1 },
-}
+local SLOT_COLORS = require("src.hud").SLOT_COLOR
 Canvas.SLOT_COLORS = SLOT_COLORS
 
 -- The placed slot under a screen point.

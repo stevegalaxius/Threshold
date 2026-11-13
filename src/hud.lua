@@ -357,14 +357,31 @@ end
 
 -- Read-only view of the player's grid hold (debug panel: Show hold grid).
 -- A first look at the packing; the real inventory screen comes later.
+-- Ammo and weapons share one colour per ammo family, matching the shot in
+-- flight (Render COLORS), so a gun, its rounds and its tracer all read alike.
+-- Slot overlays (SLOT_COLOR) use hues none of these use.
 local KIND_COLOR = {
-	gun = { 0.45, 0.75, 1 }, artillery = { 1, 0.55, 0.4 }, missile = { 0.4, 0.9, 0.65 },
-	torpedo = { 0.95, 0.8, 0.35 }, drone = { 0.8, 0.55, 1 }, crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
+	gun = { 1, 0.92, 0.55 }, artillery = { 1, 0.6, 0.25 }, missile = { 0.92, 0.95, 0.98 },
+	torpedo = { 0.35, 0.9, 0.75 }, drone = { 0.8, 0.55, 1 }, laser = { 0.6, 1, 1 },
+	airburst = { 0.55, 0.9, 1 },
+	crate = { 0.6, 0.65, 0.75 }, salvage = { 0.75, 0.6, 0.45 },
 	module = { 0.95, 0.95, 0.95 }, container = { 0.95, 0.55, 0.2 },
 }
-
+local SLOT_COLOR = {
+	hardpoint = { 1, 0.3, 0.35 }, bay = { 1, 0.4, 0.8 }, engine = { 0.35, 0.5, 1 },
+	reactor = { 0.45, 1, 0.35 }, utility = { 0.7, 0.7, 0.75 }, computer = { 0.7, 0.7, 0.75 },
+}
 local function itemColor(item)
-	if item.kind == "ammo" then return KIND_COLOR[item.family] or INK end
+	if item.kind == "ammo" then
+		if item.shot and item.shot.airburst then return KIND_COLOR.airburst end
+		return KIND_COLOR[item.family] or INK
+	end
+	local w = item.weapon
+	if w then
+		if data.LASERS[w.kind] then return KIND_COLOR.laser end
+		local fam = data.chambers(w)[1]
+		if fam and KIND_COLOR[fam] then return KIND_COLOR[fam] end
+	end
 	return KIND_COLOR[item.kind] or INK
 end
 
@@ -412,6 +429,7 @@ end
 
 -- Shared with the cargo screen (src/ui/cargo.lua) so it looks the same.
 HUD.panel, HUD.font, HUD.itemColor = panel, font, itemColor
+HUD.KIND_COLOR, HUD.SLOT_COLOR = KIND_COLOR, SLOT_COLOR
 HUD.AQUA, HUD.INK, HUD.DIM, HUD.WARN = AQUA, INK, DIM, WARN
 
 -- uiOpen: the cargo screen is up, so no aim reticle.
