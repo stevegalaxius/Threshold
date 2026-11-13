@@ -2230,7 +2230,8 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local edge = (e.kind == "ship") and Ship.distanceTo(e, x, y) or (d - e.radius)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
-			if cause=='airburst' then fall=fall*fall end
+			-- (airburst falls off linearly like any blast; the squared falloff
+			-- made its edges near useless)
 			if fall > 0 then
 				self:damage(e, damage * fall, owner, cause or "splash", x, y)
 				if d > 1 and e.kind == "ship" and not e.driverProtected then
