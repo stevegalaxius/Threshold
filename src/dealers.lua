@@ -165,18 +165,21 @@ function D.update(u,key,clock)
  for _=1,count do park(u,key,s,def.usedOnly and D.rollUsed(def,s) or D.roll(def,s)) end
  s.next=s.next+elapsed*step
 end
-function D.room(u,key,hull)
+-- need: stop counting once this many spaces are found (planning every
+-- space of a big shipworks is expensive; most callers only ask 'any room?').
+function D.room(u,key,hull,need)
  local s,def=D.state(u,key);if not s then return 0 end
  local allowed=false;for _,id in ipairs(def.hulls) do if id==hull then allowed=true end end
  if not allowed then return 0 end
  -- A factory dealer fills whatever commercial parking it has (the guest
  -- share stays reserved); "lots" only caps restocking dealers.
  local cap=D.buildsShips(key) and 64 or math.max(0,(def.lots or 6)-#s.lots)
+ if need then cap=math.min(cap,need) end
  return #require('src.dealer_parking').plan(u,key,hull,cap,'outside')
 end
 function D.output(u,key,hull,n)
  local s,def=D.state(u,key)
- assert(D.room(u,key,hull)>=n,'dealer output overflow')
+ assert(D.room(u,key,hull,n)>=n,'dealer output overflow')
  -- new ships go on display outside, on the berths, while there's room
  local placements=require('src.dealer_parking').plan(u,key,hull,n,'outside')
  assert(#placements==n,'no physical space for manufactured ship')
@@ -194,7 +197,7 @@ function D.frameTarget(u,key)
  local I,C=require('src.industry'),require('src.commodities')
  local selected=I.job(u,key,def.assembly,I.definition(def.assembly,installation))
  local recipe=C.byId[selected]
- if not recipe or D.room(u,key,recipe.outputs[1].hull)<1 then return 0 end
+ if not recipe or D.room(u,key,recipe.outputs[1].hull,1)<1 then return 0 end
  for _,input in ipairs(C.inputs(recipe)) do if input.item==D.FRAME then return math.ceil(input.n) end end
  return 0
 end
@@ -239,7 +242,7 @@ function D.purchaseCandidate(u,area,policy,usedOnly)
  -- A buyer with a job takes the best ship for it, not the cheapest.
  if policy.role and #options>0 then
   local pick=require('src.ship_fit').best(u,area,policy.role,options)
-  best={station=pick.station,lot=pick.lot,fit=pick.fit}
+  best={station=pick.station,lot=pick.lot,fit=pick.fit,danger=require('src.ship_fit').danger(u,area)}
  end
  return best
 end
@@ -247,7 +250,7 @@ function D.buyForNpc(u,r,candidate,policy)
  local lot=D.find(u,candidate.station,candidate.lot.id)
  if lot~=candidate.lot then return false end
  D.take(u,candidate.station,lot.id)
- r.shipAcquisition={station=candidate.station,lot=lot.id,price=lot.price,budget=policy.budget,used=lot.used or false}
+ r.shipAcquisition={station=candidate.station,lot=lot.id,price=lot.price,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}
  r.credits=(r.credits or 0)+policy.budget-lot.price
  require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=lot.price,lot=lot.id},candidate.station)
  return true

@@ -156,7 +156,7 @@ local function visitStay(r,node)
  return (work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
 end
 function N.beginDocked(r,node,at,u,minimum)
- r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil
+ r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil;r.dockedAt=at
  Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
 end
 function N.arrive(r,node,at,u,game)

@@ -99,7 +99,7 @@ end
 -- choices: { {hull=id, loadout=, base=weight?}, ... }. Each gets .fit (0..1)
 -- and .weight (fit relative to the best, sharpened, times regional bias
 -- and any base weight such as factory output).
-function F.rank(u,area,role,choices,stock)
+function F.rank(u,area,role,choices,stock,sharpness)
  local danger=F.danger(u,area);local ref={}
  for _,c in ipairs(choices) do
   c.metrics=F.metrics(data.hulls[c.hull],c.loadout)
@@ -110,7 +110,7 @@ function F.rank(u,area,role,choices,stock)
  local here=regionalHulls(u,area)
  for _,c in ipairs(choices) do
   local rel=best>0 and c.fit/best or 1
-  c.weight=rel^F.sharpness*(c.base or 1)*(here[c.hull] and F.localHull or 1)*scarcity(c.loadout,stock)
+  c.weight=rel^(sharpness or F.sharpness)*(c.base or 1)*(here[c.hull] and F.localHull or 1)*scarcity(c.loadout,stock)
  end
  return choices,danger
 end

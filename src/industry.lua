@@ -48,7 +48,7 @@ function I.job(u,key,id,def)
  local D,C=require('src.dealers'),require('src.commodities')
  -- keep the current job unless nowhere on the lot can take that hull
  local current=state.selected and C.byId[state.selected]
- if current and D.room(u,key,current.outputs[1].hull)>0 then return state.selected end
+ if current and D.room(u,key,current.outputs[1].hull,1)>0 then return state.selected end
  if current and (state.recipes and state.recipes[state.selected] and (state.recipes[state.selected].carry or 0)>0) then return state.selected end
  local lot=D.state(u,key);local count={}
  for _,l in ipairs(lot and lot.lots or {}) do count[l.hull]=(count[l.hull] or 0)+1 end
@@ -57,7 +57,7 @@ function I.job(u,key,id,def)
  for k=1,#def.recipes do
   local r=def.recipes[(start+k-1)%#def.recipes+1];local c=C.byId[r]
   local hull=c and c.outputs and c.outputs[1].hull
-  if hull and D.room(u,key,hull)>0 then
+  if hull and D.room(u,key,hull,1)>0 then
    local n=count[hull] or 0
    if not bestN or n<bestN then best,bestN=r,n end
   end

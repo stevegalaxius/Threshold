@@ -43,6 +43,7 @@ function R.advance(r,clock,node,u)
   extendVisit(r,clock,at,maximum,u,node)
  end
  r.repairAt=at;r.patrolRepairAt=nil
+ require('src.npc_refit').dock(r,node,u,at)
 end
 function R.online(game,e,dt)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
