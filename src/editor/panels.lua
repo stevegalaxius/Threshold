@@ -479,18 +479,17 @@ end
 -- Boxes: 3D blocks in the 3/4 crate view (src/icons.lua), in cells. The
 -- faces are rebuilt every frame from the numbers, so they are never edited
 -- by hand and always fill the footprint.
+-- Colours stay with the item's kind colour (the hold background), so a box
+-- is that colour, a darker or lighter shade of it, or plain metal.
 local BOX_COLORS = {
-	{ "kind colour", nil }, { "olive", { 0.62, 0.7, 0.45 } }, { "amber", { 0.9, 0.62, 0.3 } },
-	{ "steel", { 0.62, 0.68, 0.75 } }, { "red", { 0.9, 0.38, 0.3 } }, { "brass", { 1, 0.85, 0.5 } },
-	{ "white", { 0.9, 0.9, 0.88 } },
+	{ "kind colour", {} }, { "kind, dark", { paint = "secondary" } }, { "kind, light", { shade = 1.35 } },
+	{ "metal", { color = { 0.62, 0.66, 0.7 } } },
 }
-local function colorName(c)
-	if not c then return "kind colour" end
-	for _, o in ipairs(BOX_COLORS) do
-		local v = o[2]
-		if v and math.abs(v[1] - c[1]) < 1e-3 and math.abs(v[2] - c[2]) < 1e-3 and math.abs(v[3] - c[3]) < 1e-3 then return o[1] end
-	end
-	return "custom"
+local function colorName(b)
+	if b.color then return "metal" end
+	if b.paint == "secondary" then return "kind, dark" end
+	if b.shade then return "kind, light" end
+	return "kind colour"
 end
 local function boxSection(E, d)
 	local Icons = require("src.icons")
@@ -538,8 +537,8 @@ local function boxSection(E, d)
 		local opts = {}
 		for _, o in ipairs(BOX_COLORS) do table.insert(opts, { label = o[1], value = o }) end
 		Slab.Text("colour"); Slab.SameLine()
-		combo("yard_boxcol", colorName(b.color), opts, function(o)
-			E.pushUndo(); b.color = o[2] and { o[2][1], o[2][2], o[2][3] } or nil
+		combo("yard_boxcol", colorName(b), opts, function(o)
+			E.pushUndo(); b.color, b.paint, b.shade = o[2].color and Export.copy(o[2].color), o[2].paint, o[2].shade
 		end, 120)
 		Slab.Text("faces"); Slab.SameLine()
 		for _, f in ipairs({ "front", "side", "top" }) do

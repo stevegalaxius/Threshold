@@ -43,7 +43,9 @@ local lg = love.graphics
 	(x along the width, y depth, z height, from the near bottom left
 	corner). Each box becomes three parts (front, side, top) ahead of the
 	icon's drawn parts, in list order (later boxes draw on top), and the lot is scaled to fill
-	the footprint. Optional per box: name, color { r, g, b }, paint, and
+	the footprint. A box is the item's kind colour (the hold background's)
+	unless it sets paint = "secondary" (darker), shade (x brightness) or
+	color { r, g, b }. Optional per box: name, and
 	open = true (no top face, for an open carton), hide = { front = true,
 	side = true, top = true } to leave faces out. ]]
 Icons.DEPTH = 0.315    -- screen x and -y per unit of depth
@@ -69,7 +71,7 @@ function Icons.boxParts(boxes, bw, bh)
 				shape[#shape + 1], shape[#shape + 2] = sx, sy
 				x0, x1, y0, y1 = math.min(x0, sx), math.max(x1, sx), math.min(y0, sy), math.max(y1, sy)
 			end
-			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = b.color, paint = b.paint,
+			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = b.color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade,
 				fill = Icons.FACE[kind], fromBox = true, box = bi, face = kind }
 		end
 		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })
