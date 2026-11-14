@@ -123,7 +123,8 @@ end
 
 -- Just the art, in art units around the current origin. col is the
 -- primary paint (default: the item's kind colour). Parts draw in list
--- order like a weapon's art: hull parts outlined, detail darker, glow
+-- order like a weapon's art: hull parts outlined, detail drawn without an
+-- outline (in its own colour, unlike weapon art, which darkens it), glow
 -- additive.
 local triCache = setmetatable({}, { __mode = "k" })
 local function triangles(shape, fresh)
@@ -151,7 +152,6 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 		if p.shape and #p.shape >= 6 then
 			local layer = p.layer or "hull"
 			local pc = Visual.partColor(p, paint)
-			if layer == "detail" then pc = { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
 			if layer == "glow" then lg.setBlendMode("add") end
 			for _, s in ipairs({ p.shape, p.mirror and mirrored(p.shape) or nil }) do
 				local tris = triangles(s, fresh)
