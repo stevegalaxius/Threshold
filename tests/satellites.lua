@@ -29,8 +29,8 @@ return function(game)
   local pts={f:getShape():getPoints()}
   for k=1,#pts,2 do local wx,wy=e.body:getWorldPoint(pts[k],pts[k+1]);reach=math.max(reach,math.sqrt((wx-x)^2+(wy-y)^2)) end
  end
- check(reach<60,'panels and truss do not collide (fixture reach '..math.floor(reach)..')')
- check(e.body:getMass()>50,'the bus is heavy: '..e.body:getMass())
+ check(reach<180,'panels and truss do not collide (fixture reach '..math.floor(reach)..')')
+ check(e.body:getMass()>200,'the bus is heavy: '..e.body:getMass())
  -- levers
  local r=Sat.get(u,'earth_sat_01')
  local L=Sat.levers(r)

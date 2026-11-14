@@ -2326,7 +2326,7 @@ function Game:updatePickups(dt)
 		if not best then
 			local lootD = math.huge
 			for _, e in ipairs(self.entities) do
-				if (e.kind == "husk" or e.kind == "container") and not e.dead then
+				if (e.kind == "husk" or e.kind == "container") and not e.dead and not e.sat then
 					local ex, ey = e.body:getPosition()
 					local d = sqrt((ex - it.aimX) ^ 2 + (ey - it.aimY) ^ 2)
 					if d < e.radius + grab and d < lootD and Ship.distanceTo(p, ex, ey) - e.radius < range then
