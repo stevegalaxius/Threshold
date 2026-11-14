@@ -466,7 +466,12 @@ local function pressed(E, sx, sy, button)
 			if E.sel then E.multi[E.sel] = true end
 			E.sel = i
 		end
+	elseif i and E.design.parts[i].fromBox then
+		-- a box face: pick its box (the numbers are in the Boxes list); Delete hides the face
+		local q = E.design.parts[i]
+		E.sel, E.multi, E.boxSel, E.faceSel = nil, {}, q.box, q.face
 	elseif i then
+		E.boxSel, E.faceSel = nil, nil
 		-- clicking inside the selection keeps it, to drag the group
 		if i ~= E.sel and not E.multi[i] then E.multi = {} end
 		if E.multi[i] then E.multi[i] = nil; E.multi[E.sel] = true end
@@ -475,6 +480,7 @@ local function pressed(E, sx, sy, button)
 		E.drag = { kind = "part", lx = px, ly = py, pushed = false }
 	else
 		-- empty space: drag a box to select every part inside it
+		E.boxSel, E.faceSel = nil, nil
 		-- what the box takes: parts, lights, or the selected part's points
 		local mode = E.boxMode or "parts"
 		if mode == "points" and not E.sel then mode = "parts" end
@@ -818,7 +824,7 @@ function Canvas.draw(E)
 				else
 					local pc = HullShape.color(q, col)
 					local wreck = E.preview == "wreck" or E.preview == "break"
-					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * 0.22, pc[2] * 0.22, pc[3] * 0.22 }
+					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * (q.fill or 0.22), pc[2] * (q.fill or 0.22), pc[3] * (q.fill or 0.22) }
 					if q.layer == "glow" then fillCol = wreck and { 0.05, 0.05, 0.05 } or pc end
 					if q.layer == "detail" then fillCol = wreck and fillCol or (E.design.kind == "icon" and { 0, 0, 0, 0 }) or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
 					if E.preview == "collision" and q.collide == false then fillCol = { 0.15, 0.15, 0.15, 0.4 } end
@@ -829,6 +835,11 @@ function Canvas.draw(E)
 					if q.layer == nil or q.layer == "hull" or (q.layer == "detail" and E.design.kind == "icon") then
 						lg.setColor(wreck and { pc[1] * 0.35, pc[2] * 0.35, pc[3] * 0.35 } or pc)
 						lg.setLineWidth(1.5 / v.zoom)
+						lg.polygon("line", s)
+					end
+					if q.fromBox and q.box == E.boxSel and (E.faceSel == nil or q.face == E.faceSel) then
+						lg.setColor(1, 1, 1, 0.9)
+						lg.setLineWidth(3 / v.zoom)
 						lg.polygon("line", s)
 					end
 					if E.preview == "collision" and q.collide ~= false then

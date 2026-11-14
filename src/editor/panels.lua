@@ -476,6 +476,32 @@ function fileBrowser(E, cat, builtIn)
 	end, 280)
 end
 
+-- Boxes: 3D blocks in the 3/4 crate view (src/icons.lua), in cells. The
+-- faces are rebuilt every frame from the numbers, so they are never edited
+-- by hand and always fill the footprint.
+local function boxSection(E, d)
+	local Icons = require("src.icons")
+	Slab.Separator()
+	Slab.Text("Boxes (3/4 crate view)")
+	Slab.Text("Pick one to edit it in the Box window.", { Color = GREY })
+	if Slab.Button("Add box") then
+		E.pushUndo()
+		d.boxes = d.boxes or {}
+		local fw = d.w or (Icons.footprint(d.item))
+		table.insert(d.boxes, { name = "box " .. (#d.boxes + 1), x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
+		E.boxSel, E.faceSel, E.sel, E.multi = #d.boxes, nil, nil, {}
+	end
+	if d.boxes and Slab.Button("Refit boxes to footprint", { Tooltip = "Scale and centre the boxes to fill the footprint again (adding or removing boxes keeps the scale)" }) then
+		E.pushUndo(); d.boxView = nil
+	end
+	for i, bx in ipairs(d.boxes or {}) do
+		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
+			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel, E.faceSel, E.sel, E.multi = i, nil, nil, {} end
+	end
+	if d.boxes and #d.boxes == 0 then d.boxes = nil end
+	Icons.syncBoxes(d)
+end
+
 -- The Icons tab: which item, its footprint, then the art tools.
 local function iconSections(E, d)
 	local Icons = require("src.icons")
@@ -526,6 +552,7 @@ local function iconSections(E, d)
 			end
 		end
 	end
+	boxSection(E, d)
 	if Slab.Button("Drop some ahead of me", { Tooltip = "Registers the icon now and drops three of the item in front of your ship" }) then E.testFly() end
 	Slab.SameLine()
 	if Slab.Button("Copy source") then E.copySource() end
@@ -553,10 +580,12 @@ local function iconSections(E, d)
 	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
 	restackControls(E, "yard_ilayer")
 	for i, p in ipairs(d.parts) do
+		if p.fromBox then goto nextPart end
 		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		local tags = (p.paint and ("  (" .. p.paint .. ")") or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
-		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
+		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi, E.boxSel, E.faceSel = i, nil, {}, nil, nil end
+		::nextPart::
 	end
 end
 
@@ -1257,6 +1286,110 @@ end
 
 -- Right: the selected part -------------------------------------------------
 
+-- Shade, tint and fixed colour: on a part, or on an icon box (whose faces
+-- take them).
+local function colourControls(E, p, i)
+	slider(E, "yard_shade" .. i, p.shade or 1, 0, 1.5, function(v) p.shade = v end)
+	Slab.Text("Tint (added to the paint)")
+	local tint = p.tint or { 0, 0, 0 }
+	for c, name in ipairs({ "r", "g", "b" }) do
+		Slab.Text(name); Slab.SameLine()
+		slider(E, "yard_tint" .. name .. i, tint[c], -1, 1, function(v)
+			local t = p.tint or { 0, 0, 0 }
+			t[c] = v
+			p.tint = (t[1] == 0 and t[2] == 0 and t[3] == 0) and nil or t
+		end)
+	end
+	check(E, p.color ~= nil, "Fixed colour (ignores the paint)", function(on)
+		local c = E.previewPaint(); p.color = on and { c[1], c[2], c[3] } or nil
+	end)
+	if p.color then
+		for c, name in ipairs({ "r", "g", "b" }) do
+			Slab.Text(name); Slab.SameLine()
+			slider(E, "yard_col" .. name .. i, p.color[c], 0, 1, function(v) p.color[c] = v end)
+		end
+	end
+end
+
+-- The selected icon box (Icons tab), in the Part window's place.
+local function boxWindow(E)
+	local d = E.design
+	local b = d.kind == "icon" and E.boxSel and d.boxes and d.boxes[E.boxSel]
+	if not b then return end
+	local Icons = require("src.icons")
+	local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+	Slab.BeginWindow("yard_part", {
+		Title = "Box", X = w - 300, Y = 10, W = 290, H = h - 20,
+		AutoSizeWindow = false, AllowResize = true,
+	})
+	local i = "box" .. E.boxSel
+	Slab.Text("name"); Slab.SameLine()
+	textField(E, "yard_bname" .. i, b.name or "", function(t) b.name = t end, 200)
+	Slab.Separator()
+	Slab.Text("Size and place (cells)")
+	Slab.Text("x across, y depth, z up", { Color = GREY })
+	local function num(label, key, lo, hi, default)
+		Slab.Text(label); Slab.SameLine()
+		if Slab.InputNumberDrag("yard_box_" .. key, b[key] or default, lo, hi, 0.05, { W = 60, Precision = 2 }) then
+			E.pushUndoCoalesced("yard_box_" .. key)
+			local v = math.floor(Slab.GetInputNumber() * 20 + 0.5) / 20
+			if key == "w" or key == "d" or key == "h" then v = math.max(0.05, v) end
+			b[key] = v
+		end
+	end
+	num("x", "x", -20, 20, 0); Slab.SameLine(); num("y", "y", -20, 20, 0); Slab.SameLine(); num("z", "z", -20, 20, 0)
+	num("w", "w", 0.05, 20, 1); Slab.SameLine(); num("d", "d", 0.05, 20, 1); Slab.SameLine(); num("h", "h", 0.05, 20, 1)
+	Slab.Text("faces"); Slab.SameLine()
+	for _, f in ipairs({ "front", "side", "top" }) do
+		local shown = not (b.hide and b.hide[f]) and not (f == "top" and b.open)
+		if Slab.CheckBox(shown, f) then
+			E.pushUndo()
+			if f == "top" then b.open = nil end
+			b.hide = b.hide or {}
+			b.hide[f] = shown or nil
+			if not next(b.hide) then b.hide = nil end
+		end
+		Slab.SameLine()
+	end
+	Slab.NewLine()
+	Slab.Text("Click a face and press Delete to hide it.", { Color = GREY })
+	Slab.Separator()
+	Slab.Text("Look")
+	Slab.Text("The item's kind colour unless changed.", { Color = GREY })
+	Slab.Text("Lighten (towards white, same hue)")
+	slider(E, "yard_light" .. i, b.light or 0, 0, 1, function(v) b.light = v > 0.001 and v or nil end)
+	Slab.Text("Shade (below 1 darkens)")
+	colourControls(E, b, i)
+	Slab.Separator()
+	if Slab.Button("Copy box") then
+		E.pushUndo()
+		local c = Export.copy(b); c.name = (b.name or "box") .. " copy"; c.z = (b.z or 0) + (b.h or 1)
+		table.insert(d.boxes, c); E.boxSel, E.faceSel = #d.boxes, nil
+	end
+	Slab.SameLine()
+	if Slab.Button("Turn into parts", { Tooltip = "Replaces this box with its faces as ordinary parts you can move and reshape" }) then
+		E.pushUndo()
+		local faces = {}
+		for _, q in ipairs(d.parts) do
+			if q.fromBox and q.box == E.boxSel then
+				local c = Export.copy(q); c.fromBox, c.box, c.face = nil, nil, nil
+				faces[#faces + 1] = c
+			end
+		end
+		table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
+		if #d.boxes == 0 then d.boxes = nil end
+		Icons.syncBoxes(d)
+		for _, c in ipairs(faces) do table.insert(d.parts, c) end
+	end
+	Slab.SameLine()
+	if Slab.Button("Delete box") then
+		E.pushUndo(); table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
+		if #d.boxes == 0 then d.boxes = nil end
+		Icons.syncBoxes(d)
+	end
+	Slab.EndWindow()
+end
+
 local function partWindow(E)
 	local p = E.sel and E.design.parts[E.sel]
 	if not p then return end
@@ -1354,26 +1487,7 @@ local function partWindow(E)
 			for _, k in ipairs(Canvas.selection(E)) do E.design.parts[k].paint = v2 end
 		end, 120)
 	end
-	slider(E, "yard_shade" .. i, p.shade or 1, 0, 1.5, function(v) p.shade = v end)
-	Slab.Text("Tint (added to the paint)")
-	local tint = p.tint or { 0, 0, 0 }
-	for c, name in ipairs({ "r", "g", "b" }) do
-		Slab.Text(name); Slab.SameLine()
-		slider(E, "yard_tint" .. name .. i, tint[c], -1, 1, function(v)
-			local t = p.tint or { 0, 0, 0 }
-			t[c] = v
-			p.tint = (t[1] == 0 and t[2] == 0 and t[3] == 0) and nil or t
-		end)
-	end
-	check(E, p.color ~= nil, "Fixed colour (ignores the paint)", function(on)
-		local c = E.previewPaint(); p.color = on and { c[1], c[2], c[3] } or nil
-	end)
-	if p.color then
-		for c, name in ipairs({ "r", "g", "b" }) do
-			Slab.Text(name); Slab.SameLine()
-			slider(E, "yard_col" .. name .. i, p.color[c], 0, 1, function(v) p.color[c] = v end)
-		end
-	end
+	colourControls(E, p, i)
 	do
 	Slab.Text("Layer")
 	local lopts = {}
@@ -1486,6 +1600,7 @@ end
 function Panels.update(E, Editor)
 	designWindow(E, Editor)
 	partWindow(E)
+	boxWindow(E)
 	rotorWindow(E)
 	paintWindow(E)
 	require("src.editor.comparison").update(E)

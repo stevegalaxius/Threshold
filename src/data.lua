@@ -483,7 +483,19 @@ local function prepareIcon(def)
 	if type(def) ~= "table" then fail("icon expects a table, like icon { id = ..., item = ..., parts = { ... } }") end
 	need(def, "item", "icon")
 	def.id = def.id or ("icon_" .. def.item)
-	if type(def.parts) ~= "table" then fail(("icon '%s' needs parts"):format(def.id)) end
+	def.parts = def.parts or (def.boxes and {}) or nil
+	if type(def.parts) ~= "table" then fail(("icon '%s' needs parts or boxes"):format(def.id)) end
+	if def.boxes ~= nil then
+		if type(def.boxes) ~= "table" then fail(("icon '%s': boxes should be a list"):format(def.id)) end
+		for i, b in ipairs(def.boxes) do
+			for _, f in ipairs({ "x", "y", "z", "w", "d", "h" }) do
+				if b[f] ~= nil and type(b[f]) ~= "number" then fail(("icon '%s' box %d: %s should be a number"):format(def.id, i, f)) end
+			end
+			for _, f in ipairs({ "w", "d", "h" }) do
+				if b[f] ~= nil and b[f] <= 0 then fail(("icon '%s' box %d: %s should be above 0"):format(def.id, i, f)) end
+			end
+		end
+	end
 	local LAYERS = { hull = true, detail = true, glow = true }
 	for i, part in ipairs(def.parts) do
 		local function bad(what) fail(("icon '%s' part %d: %s"):format(def.id, i, what)) end
@@ -498,6 +510,7 @@ local function prepareIcon(def)
 		if v ~= nil and (type(v) ~= "number" or v < 1 or v % 1 ~= 0) then fail(("icon '%s': %s should be a whole number of cells"):format(def.id, f)) end
 	end
 	def.reach = nil
+	if def.boxes then require("src.icons").syncBoxes(def) end
 	return def
 end
 

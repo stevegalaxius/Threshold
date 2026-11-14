@@ -1,13 +1,13 @@
--- Made in the Shipyard (F2), Icons tab. Art for Missile L: a crate of them.
+-- Made in the Shipyard (F2), Icons tab. Art for missile_l: a heavy capped crate.
 icon {
 	id = "icon_missile_l", item = "missile_l",
-	parts = {
-		{ name = "crate", shape = { -23.2, -7.2, 23.2, -7.2, 23.2, 7.2, -23.2, 7.2 }, color = { 0.55, 0.62, 0.75 } },
-		{ name = "lid", shape = { -21.6, -5.6, 21.6, -5.6, 21.6, 5.6, -21.6, 5.6 }, color = { 0.55, 0.62, 0.75 }, layer = "detail" },
-		{ name = "end left", shape = { -23.2, -7.2, -21.6, -7.2, -21.6, 7.2, -23.2, 7.2 }, color = { 0.55, 0.62, 0.75 }, layer = "detail" },
-		{ name = "end right", shape = { 21.6, -7.2, 23.2, -7.2, 23.2, 7.2, 21.6, 7.2 }, color = { 0.55, 0.62, 0.75 }, layer = "detail" },
-		{ name = "fin", shape = { -9.86, -1.79, -6.18, -1.79, -8.86, -3.36, -10.3, -3.36 }, color = { 0.55, 0.7, 1 }, mirror = true },
-		{ name = "body", shape = { -9.86, -1.79, 6, -1.79, 6, 1.79, -9.86, 1.79 }, color = { 0.78, 0.8, 0.84 } },
-		{ name = "nose", shape = { 6, -1.79, 8.15, -1.25, 10.3, 0, 8.15, 1.25, 6, 1.79 }, color = { 0.55, 0.75, 1 } },
+	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
+		{ name = "crate", x = 0, y = 0, z = 0, w = 3, d = 1, h = 0.9 },
+		{ name = "band", x = 0.9, y = -0.02, z = -0.02, w = 0.2, d = 1.04, h = 0.94, shade = 0.6 },
+		{ name = "band", x = 1.9, y = -0.02, z = -0.02, w = 0.2, d = 1.04, h = 0.94, shade = 0.6 },
+		{ name = "end cap left", x = -0.04, y = -0.04, z = -0.04, w = 0.2, d = 1.08, h = 0.98, shade = 0.6 },
+		{ name = "end cap right", x = 2.84, y = -0.04, z = -0.04, w = 0.2, d = 1.08, h = 0.98, shade = 0.6 },
+		{ name = "stencil", x = 1.1, y = -0.04, z = 0.27, w = 0.8, d = 0.02, h = 0.342, light = 0.45 },
 	},
+	parts = {},
 }

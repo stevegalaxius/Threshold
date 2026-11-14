@@ -1,16 +1,16 @@
--- Made in the Shipyard (F2), Icons tab. Art for Scatter Shells S: a crate of them.
+-- Made in the Shipyard (F2), Icons tab. Art for shot_s: a scatter shell crate.
 icon {
 	id = "icon_shot_s", item = "shot_s",
-	parts = {
-		{ name = "crate", shape = { -7.2, -7.2, 7.2, -7.2, 7.2, 7.2, -7.2, 7.2 }, color = { 0.66, 0.6, 0.42 } },
-		{ name = "lid", shape = { -5.6, -5.6, 5.6, -5.6, 5.6, 5.6, -5.6, 5.6 }, color = { 0.66, 0.6, 0.42 }, layer = "detail" },
-		{ name = "end left", shape = { -7.2, -7.2, -5.6, -7.2, -5.6, 7.2, -7.2, 7.2 }, color = { 0.66, 0.6, 0.42 }, layer = "detail" },
-		{ name = "end right", shape = { 5.6, -7.2, 7.2, -7.2, 7.2, 7.2, 5.6, 7.2 }, color = { 0.66, 0.6, 0.42 }, layer = "detail" },
-		{ name = "base", shape = { -3.61, -3.67, -1.59, -3.67, -1.59, -0.53, -3.61, -0.53 }, color = { 0.85, 0.66, 0.3 } },
-		{ name = "hull", shape = { -1.59, -3.67, 3.61, -3.67, 3.61, -0.53, -1.59, -0.53 }, color = { 0.95, 0.35, 0.3 } },
-		{ name = "crimp", shape = { 2.89, -3.67, 2.89, -3.67, 2.89, -0.53, 2.89, -0.53 }, color = { 0.95, 0.35, 0.3 }, layer = "detail" },
-		{ name = "base", shape = { -3.61, 0.53, -1.59, 0.53, -1.59, 3.67, -3.61, 3.67 }, color = { 0.85, 0.66, 0.3 } },
-		{ name = "hull", shape = { -1.59, 0.53, 3.61, 0.53, 3.61, 3.67, -1.59, 3.67 }, color = { 0.95, 0.35, 0.3 } },
-		{ name = "crimp", shape = { 2.89, 0.53, 2.89, 0.53, 2.89, 3.67, 2.89, 3.67 }, color = { 0.95, 0.35, 0.3 }, layer = "detail" },
+	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
+		{ name = "crate", x = 0, y = 0, z = 0, w = 1, d = 1, h = 0.6 },
+		{ name = "lid seam", x = 0.05, y = 0.33, z = 0.6, w = 0.9, d = 0.04, h = 0.01, shade = 0.6 },
+		{ name = "lid seam", x = 0.05, y = 0.66, z = 0.6, w = 0.9, d = 0.04, h = 0.01, shade = 0.6 },
+		{ name = "rope end left", x = -0.06, y = 0.3, z = 0.25, w = 0.06, d = 0.4, h = 0.12, light = 0.45 },
+		{ name = "rope end right", x = 1, y = 0.3, z = 0.25, w = 0.06, d = 0.4, h = 0.12, light = 0.45 },
+		{ name = "skid", x = 0.1, y = -0.02, z = -0.02, w = 0.8, d = 0.04, h = 0.1, shade = 0.6 },
+		{ name = "dot", x = 0.2, y = -0.03, z = 0.28, w = 0.12, d = 0.02, h = 0.12, light = 0.45 },
+		{ name = "dot", x = 0.42, y = -0.03, z = 0.28, w = 0.12, d = 0.02, h = 0.12, light = 0.45 },
+		{ name = "dot", x = 0.64, y = -0.03, z = 0.28, w = 0.12, d = 0.02, h = 0.12, light = 0.45 },
 	},
+	parts = {},
 }

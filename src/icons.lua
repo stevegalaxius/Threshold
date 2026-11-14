@@ -33,9 +33,91 @@ local Visual = require("src.weapon_visual")
 local Icons = {}
 
 Icons.CELL = 16      -- art units per hold cell (1 m)
-Icons.WORLD = 0.5    -- world px per art unit in space: 8 px per hold cell
+Icons.WORLD = 0.25   -- world px per art unit in space: 4 px per hold cell
 
 local lg = love.graphics
+
+--[[ Boxes: 3D blocks drawn in a 3/4 oblique view (width straight across,
+	depth receding up and to the right, height up), the way crates are
+	drawn. An icon may list boxes = { { x, y, z, w, d, h, ... } } in cells
+	(x along the width, y depth, z height, from the near bottom left
+	corner). Each box becomes three parts (front, side, top) ahead of the
+	icon's drawn parts, in list order (later boxes draw on top), and the lot is scaled to fill
+	the footprint. A box is the item's kind colour (the hold background's)
+	unless it sets shade (below 1: darker), light (0..1: towards white) or
+	color { r, g, b }. Optional per box: name, and
+	open = true (no top face, for an open carton), hide = { front = true,
+	side = true, top = true } to leave faces out. ]]
+Icons.DEPTH = 0.315    -- screen x and -y per unit of depth
+Icons.RISE = 0.55      -- screen -y per unit of height
+Icons.FACE = { front = 0.24, side = 0.16, top = 0.34 }   -- fill brightness per face
+
+local function project(x, y, z)
+	return x + y * Icons.DEPTH, -(z * Icons.RISE + y * Icons.DEPTH)
+end
+
+function Icons.boxParts(boxes, bw, bh, kc, view)
+	local list = boxes or {}
+	local faces = {}
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for bi, b in ipairs(list) do
+		local bx, by, bz = b.x or 0, b.y or 0, b.z or 0
+		local X, Y, Z = bx + (b.w or 1), by + (b.d or 1), bz + (b.h or 1)
+		local function face(kind, pts)
+			if b.hide and b.hide[kind] then return end
+			local shape = {}
+			for _, q in ipairs(pts) do
+				local sx, sy = project(q[1], q[2], q[3])
+				shape[#shape + 1], shape[#shape + 2] = sx, sy
+				x0, x1, y0, y1 = math.min(x0, sx), math.max(x1, sx), math.min(y0, sy), math.max(y1, sy)
+			end
+			local color = b.color
+			if not color and b.light and kc then
+				-- lighter towards white, keeping the hue (a shade above 1 clips and shifts it)
+				local t = b.light
+				color = { kc[1] + (1 - kc[1]) * t, kc[2] + (1 - kc[2]) * t, kc[3] + (1 - kc[3]) * t }
+			end
+			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade, tint = b.tint,
+				fill = Icons.FACE[kind], fromBox = true, box = bi, face = kind }
+		end
+		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })
+		face("side", { { X, by, bz }, { X, Y, bz }, { X, Y, Z }, { X, by, Z } })
+		if not b.open then face("top", { { bx, by, Z }, { X, by, Z }, { X, Y, Z }, { bx, Y, Z } }) end
+	end
+	if #faces == 0 then return faces, view end
+	-- view: a fixed { k, cx, cy } (art units per cell and the centre), so
+	-- adding or removing a box doesn't rescale the rest; else fill the
+	-- footprint, centred, keeping proportions
+	if not view then
+		local pad = 0.5
+		view = { math.min((bw - pad) * 2 / math.max(x1 - x0, 1e-6), (bh - pad) * 2 / math.max(y1 - y0, 1e-6)), (x0 + x1) / 2, (y0 + y1) / 2 }
+	end
+	local k, cx, cy = view[1], view[2], view[3]
+	for _, f in ipairs(faces) do
+		for j = 1, #f.shape - 1, 2 do
+			f.shape[j], f.shape[j + 1] = (f.shape[j] - cx) * k, (f.shape[j + 1] - cy) * k
+		end
+	end
+	return faces, view
+end
+
+-- Replace an icon's box faces (parts marked fromBox) with fresh ones built
+-- from its boxes. own: the icon or editor design (w, h win over the item's).
+function Icons.syncBoxes(icon)
+	local kept = {}
+	for _, p in ipairs(icon.parts or {}) do if not p.fromBox then kept[#kept + 1] = p end end
+	local bw, bh = Icons.box(icon.item, icon)
+	local def = data.items[icon.item]
+	local kc = def and require("src.hud").itemColor(def) or nil
+	local parts, view = Icons.boxParts(icon.boxes, bw, bh, kc, icon.boxView)
+	if icon.boxes and #icon.boxes > 0 then
+		icon.boxView = view and { math.floor(view[1] * 1000 + 0.5) / 1000, math.floor(view[2] * 1000 + 0.5) / 1000, math.floor(view[3] * 1000 + 0.5) / 1000 }
+	end
+	for _, p in ipairs(kept) do parts[#parts + 1] = p end
+	icon.parts = parts
+	icon.reach = nil
+	return icon
+end
 
 -- Art made from a hull: its parts in their factory paint, scaled to fit
 -- the item's footprint (drones are drawn as the drone itself).
@@ -173,7 +255,7 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 					lg.setBlendMode("alpha")
 				else
 					if layer == "hull" and tris then
-						local f = Icons.FILL
+						local f = p.fill or Icons.FILL
 						lg.setColor(pc[1] * f, pc[2] * f, pc[3] * f, alpha)
 						for _, tri in ipairs(tris) do lg.polygon("fill", tri) end
 					end
@@ -222,9 +304,8 @@ function Icons.drawWorld(itemId, x, y, angle, alpha, lineWidth)
 	return true
 end
 
--- World px per art unit for an item floating in space: its physical
--- size (Icons.WORLD), scaled up so the longest side is at least
--- Icons.MIN_WORLD px, or a bullet would be a speck.
+-- World px per art unit for an item floating in space: the same for
+-- every item, so its size afloat is its hold footprint and nothing else.
 function Icons.worldScale(itemId)
 	return Icons.WORLD
 end

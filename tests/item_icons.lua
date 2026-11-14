@@ -6,6 +6,7 @@ return function(game)
  local Icons=require('src.icons')
  local Editor=require('src.editor')
  local Export=require('src.editor.export')
+ local Visual=require('src.weapon_visual')
  local E=Editor.state
  local checks=0
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
@@ -14,7 +15,7 @@ return function(game)
  check(w==3 and h==1,'missile footprint')
  local bw,bh=Icons.box('missile_m')
  check(bw==24 and bh==8,'box is cells x CELL')
- check(Icons.worldReach('missile_m')>10 and Icons.worldReach('patch_kit')==nil,'reach')
+ check(Icons.worldReach('missile_m')>4 and Icons.worldReach('patch_kit')==nil,'reach')
  -- drones are drawn as their own hull, until someone saves art for them
  local dr=Icons.get('drone_m')
  check(dr and dr.hull==data.items.drone_m.shot.hull and #dr.parts>0,'drone uses its hull')
@@ -94,7 +95,7 @@ return function(game)
  -- the hold, with a few drawn items in it
  local Hold=require('src.inventory.hold')
  if p.hold then
-  for _,id in ipairs({'missile_m','shell_s','hydrogen_canister','drone_m'}) do Hold.add(p.hold,id,2) end
+  for _,id in ipairs({'missile_m','rounds_s','torp_l','hydrogen_canister','drone_m'}) do Hold.add(p.hold,id,2) end
   local Cargo=require('src.ui.cargo')
   Cargo.toggle(game)
   shot('icons-in-hold',function() require('src.render').world(game); Cargo.draw(game) end)
@@ -102,9 +103,54 @@ return function(game)
  end
  Editor.open(game)
  E.openHull('icon_missile_m')
+ E.boxSel=1
  local Slab=require('lib.Slab')
  for _=1,4 do Slab.Update(1/60); Editor.update(1/60); lg.origin(); lg.clear(0,0,0); Editor.draw(); Slab.Draw(); lg.present() end
  shot('icon-editor',function() Slab.Update(1/60); Editor.update(1/60); Editor.draw(); Slab.Draw() end)
+ Editor.close()
+ -- boxes: 3/4 view blocks become front/side/top faces that fill the footprint
+ local mi=data.icons.missile_m
+ check(mi.boxes and #mi.parts==#mi.boxes*3,'each box gives three faces')
+ local mbw,mbh=Icons.box('missile_m')
+ for _,q in ipairs(mi.parts) do for k=1,#q.shape-1,2 do check(math.abs(q.shape[k])<=mbw+1e-6 and math.abs(q.shape[k+1])<=mbh+1e-6,'box art fits the footprint') end end
+ do local t=Icons.boxParts({{w=1,d=1,h=1,open=true}},8,8); check(#t==2,'open box has no top') end
+ E.openHull('icon_missile_m')
+ local n=#E.design.parts
+ local bsrc=Export.source(E.design)
+ check(bsrc:find('boxes = {',1,true) and not bsrc:find('crate front',1,true),'source keeps boxes, not their faces')
+ local bgot; local bc=assert(loadstring(bsrc)); setfenv(bc,{icon=function(d) bgot=d end}); bc()
+ check(#bgot.boxes==#mi.boxes and #bgot.parts==0,'box source round trip')
+ E.design.boxes[1].h=2; Icons.syncBoxes(E.design)
+ check(#E.design.parts==n,'resync replaces faces, never piles them up')
+ -- clicking a face picks its box; Delete hides that face
+ local Canvas=require('src.editor.canvas')
+ local f1=E.design.parts[1]
+ E.boxSel,E.faceSel=f1.box,f1.face
+ E.deleteSelected(); Icons.syncBoxes(E.design)
+ check(#E.design.parts==n-1 and E.design.boxes[f1.box].hide[f1.face],'deleting a face hides it')
+ check(Export.source(E.design):find('hide = {',1,true),'hidden face saved')
+ -- deleting a box (Delete with no face picked) removes it and leaves the rest where they were
+ local nb=#E.design.boxes
+ local last=E.design.parts[#E.design.parts]
+ local lx,ly=last.shape[1],last.shape[2]
+ E.boxSel,E.faceSel=1,nil
+ E.deleteSelected()
+ check(#E.design.boxes==nb-1 and E.boxSel==nil,'Delete removes the box from the list')
+ local last2=E.design.parts[#E.design.parts]
+ check(math.abs(last2.shape[1]-lx)<1e-6 and math.abs(last2.shape[2]-ly)<1e-6,'other boxes keep their place and scale')
+ check(Export.source(E.design):find('boxView = {',1,true),'scale saved with the icon')
+ -- box colours: dark and light shades differ from the kind colour on the canvas and in game
+ local HullShape=require('src.hullshape')
+ local kc=E.previewPaint()
+ E.design.boxes[1].shade=0.6; Icons.syncBoxes(E.design)
+ local dk=HullShape.color(E.design.parts[1],kc)
+ local gk=Visual.partColor(E.design.parts[1],kc)
+ check(dk[1]<kc[1]-0.05 and math.abs(dk[1]-gk[1])<1e-6,'dark shade shows on canvas and in game')
+ E.design.boxes[1].shade=nil; E.design.boxes[1].light=0.45; Icons.syncBoxes(E.design)
+ local lt=HullShape.color(E.design.parts[1],kc)
+ local function hue(c) local mx,mn=math.max(c[1],c[2],c[3]),math.min(c[1],c[2],c[3]); return {(c[1]-mn)/(mx-mn+1e-9),(c[2]-mn)/(mx-mn+1e-9),(c[3]-mn)/(mx-mn+1e-9)} end
+ local h1,h2=hue(kc),hue(lt)
+ check(lt[1]+lt[2]+lt[3]>kc[1]+kc[2]+kc[3]+0.1 and math.abs(h1[1]-h2[1])+math.abs(h1[2]-h2[2])+math.abs(h1[3]-h2[3])<0.05,'light keeps the hue')
  Editor.close()
  print(('item icons: %d checks passed'):format(checks))
 end
