@@ -12,7 +12,7 @@ hull {
 	mass = 60,
 	mount = "fixed",
 	paints = { "Charcoal" },
-	price = 41000,
+	price = 29000,
 	ramSpeed = 160,
 	retroThrust = 450,
 	sideThrust = 460,

@@ -15,7 +15,7 @@ hull {
 	paints = { "Moss" },
 	price = 38000,
 	retroThrust = 600,
-	sideThrust = 779,
+	sideThrust = 660,
 	slots = {
 		{ family = "hardpoint", mount = "gimbal", size = "M", x = 36, y = -28 },
 		{ family = "hardpoint", mount = "gimbal", size = "M", x = 36, y = 28 },

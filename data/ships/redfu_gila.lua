@@ -4,7 +4,7 @@ hull {
 	armor = 760,
 	bonuses = {},
 	class = "Freighter-class",
-	drag = 1.26,
+	drag = 1.05,
 	helm = "turn",
 	hold = 261,
 	loadout = { "pulse_m_base", "drone_l_base", "drone_l_base", "mule_engine", "mule_engine", "forge_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },

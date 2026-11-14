@@ -13,7 +13,7 @@ hull {
 	mass = 285,
 	mount = "turret",
 	paints = { "Bone", "Ash", "Charcoal", "Old Gold", "Champagne" },
-	price = 38500,
+	price = 62000,
 	ramSpeed = 200,
 	retroThrust = 950,
 	sideThrust = 900,

@@ -6,7 +6,7 @@ hull {
 	class = "Yacht",
 	drag = 0.28,
 	hold = 50,
-	loadout = { "missile_S_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
+	loadout = { "missile_s_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
 	maker = "Angelmaschinenwerft",
 	description = "A nimble mid-size luxury cruiser from Angelmaschinenwerft, built to travel in comfort and still dance.",
 	mass = 200,

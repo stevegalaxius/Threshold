@@ -6,7 +6,7 @@ hull {
 	class = "Yacht",
 	drag = 0.35,
 	hold = 75,
-	loadout = { "missile_S_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
+	loadout = { "missile_s_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
 	maker = "Angelmaschinenwerft",
 	description = "The Sperrig cut of the Wayfarer trades a little agility for more armour and hold.",
 	mass = 245,

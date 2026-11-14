@@ -4,7 +4,7 @@ hull {
 	armor = 170,
 	bonuses = {},
 	class = "Errand-class",
-	drag = 0.45,
+	drag = 0.38,
 	helm = "strafe",
 	hold = 110,
 	loadout = { "drill_s_base", "drill_s_base", "flit_engine", "ember_reactor", "hold_pod_s", "hold_pod_s", "nav_computer" },
