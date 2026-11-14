@@ -176,4 +176,37 @@ function Sat.lost(game, e)
 	if r then r.lost = true end
 end
 
+-- Blown apart: the bus and each panel strip fly off as their own small
+-- wrecks. Those parts are drawn-only on a working satellite (you fly
+-- through the panels), so for the breakup they get a collision shape, and
+-- each piece carries the drawn details that sit on it (cells, racks).
+function Sat.shatter(game, e)
+	Sat.lost(game, e)
+	if not e.body or e.body:isDestroyed() then return end
+	local parts = e.hull.parts
+	local function inside(p, q)
+		local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+		for k = 1, #q.shape, 2 do
+			x0, x1 = math.min(x0, q.shape[k]), math.max(x1, q.shape[k])
+			y0, y1 = math.min(y0, q.shape[k + 1]), math.max(y1, q.shape[k + 1])
+		end
+		return p.cx >= x0 and p.cx <= x1 and p.cy >= y0 and p.cy <= y1
+	end
+	for _, part in ipairs(parts) do
+		if part.name == "panel frame" or part.core then
+			local group = {}
+			for _, q in ipairs(parts) do
+				if q == part or (q.collide == false and q.name ~= "panel frame" and inside(q, part)) then group[#group + 1] = q end
+			end
+			local was = part.collide
+			part.collide = nil
+			local before = #game.entities
+			game:breakOff(e, { part = part, share = {}, fixtures = {}, frac = 0.02, massFrac = 0.02 })
+			part.collide = was
+			local bits = game.entities[#game.entities]
+			if #game.entities > before and bits.part == part then bits.group = group end
+		end
+	end
+end
+
 return Sat

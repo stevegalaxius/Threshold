@@ -54,5 +54,14 @@ return function(game)
  check(Sat.levers(Sat.get(u,'earth_sat_01')).dock=='player','quest override survives')
  Sat.revoke(u,'earth_sat_01')
  check(Sat.levers(Sat.get(u,'earth_sat_01')).dock==Sat.kinds[r.kind].dock,'revoke restores the kind')
+ -- shot to death: breaks into the bus and the panel strips, not nothing
+ local target=by2['earth_sat_03'] or select(2,next(by2))
+ local count=#game.entities
+ target.dead=true
+ game:step(1/60)
+ local bits=0
+ for _,o in ipairs(game.entities) do if o.kind=='husk' and o.group then bits=bits+1 end end
+ check(bits>=10,'a destroyed satellite breaks into pieces: '..bits)
+ check(Sat.get(u,target.sat).lost,'and is marked lost')
  print(('satellites: %d checks passed'):format(checks))
 end

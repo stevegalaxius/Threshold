@@ -2494,7 +2494,8 @@ function Game:reap()
 			e.removed = true
 			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
 		elseif e.dead and (e.kind == "husk" or e.kind == "container") then
-			table.remove(self.entities, i)
+			if e.sat then require("src.satellites").shatter(self, e) end
+			for k = #self.entities, 1, -1 do if self.entities[k] == e then table.remove(self.entities, k); break end end
 			local x, y = e.body:getPosition()
 			e.body:destroy()
 			e.removed = true
