@@ -2475,6 +2475,8 @@ function Game:breakAsteroid(e)
 	if e.drilled and ore and data.items[ore] then
 		pickup=self:spawnPickup(x, y, ore, n)
 	end
+	-- a mining site's rare chunk: its ore to whoever broke it (two if drilled)
+	if e.miningId and e.rare then self:spawnPickup(x, y, e.rare, e.drilled and T.drillOreMult or 1) end
 	Mining.breakRock(self,e,pickup)
 	self:spark(x, y, 8 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
 	self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })

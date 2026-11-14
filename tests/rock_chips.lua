@@ -79,5 +79,18 @@ return function(game)
  clear()
  check(ice>8,'ring-sized ice can hold a crystal ('..ice..'/400)')
  check(big>4 and big<60,'big rocks carry one now and then ('..big..'/400)')
+ -- NPC miners: a few site chunks carry rare ore, and they sell it at home
+ local M=require('src.mining')
+ local hits=0;for q=1,5000 do if M.rareRoll(q) then hits=hits+1 end end
+ check(hits>5000*T.npcRareChance*0.6 and hits<5000*T.npcRareChance*1.4,'site chunks carry rare ore at about the set rate ('..hits..'/5000)')
+ local home;for _,site in pairs(M.state(game.universe).sites) do if site.home then home=site.home;break end end
+ check(home~=nil,'some mining site has a home station')
+ local Stock=require('src.stockpile')
+ local before=Stock.count(game.universe,require('src.locations').canonical(home),'gold_ore')
+ local r={id='test_miner',ship={hull='ferrous_pony',cargo={gold_ore=2,iron_ore=5}}}
+ local got=M.sellRare(game.universe,r,home,r.ship.cargo)
+ check(got==2*require('src.data').items.gold_ore.price and r.credits==got,'a miner is paid for the gold it brings home')
+ check(r.ship.cargo.gold_ore==nil and r.ship.cargo.iron_ore==5,'only the rare ore is sold')
+ check(Stock.count(game.universe,require('src.locations').canonical(home),'gold_ore')==before+2,'the gold goes on the station shelf')
  print('rock chips: '..checks..' checks passed')
 end

@@ -122,12 +122,9 @@ C.inside = inside
 
 ---------------------------------------------------------------- rare ore
 
--- On spawn: roll for a gold core (rock) or a crystal (ice) in a big piece.
-function C.seed(e)
-	if not C.chips(e) then return end
-	local rare = Ore.rare[e.debris or 'rock']
-	local kind = e.debris or 'rock'
-	if not rare or e.radius < T.rareMinRadius[kind] or random() >= T.rareChance[kind] then return end
+-- Put a core of rare ore in e (rock: a hidden gold core with veins running
+-- in to it; ice: a crystal seen through it).
+function C.giveCore(e, rare)
 	local R = e.radius
 	local ox, oy = (random() - 0.5) * R * 0.3, (random() - 0.5) * R * 0.3
 	local core = {}
@@ -138,9 +135,8 @@ function C.seed(e)
 		core[#core + 1] = ox + cos(ang) * rr
 		core[#core + 1] = oy + sin(ang) * rr
 	end
-	if not love.math.isConvex(core) then return end
-	e.rare, e.core = rare, core
-	-- a rock's hint: veins running from the core out toward the surface
+	if not love.math.isConvex(core) then core = { ox + R * 0.3, oy, ox, oy + R * 0.3, ox - R * 0.3, oy, ox, oy - R * 0.3 } end
+	e.rare, e.core, e.veins = rare, core, nil
 	if e.debris ~= 'ice' then
 		e.veins = {}
 		local a0 = random() * pi * 2
@@ -157,6 +153,15 @@ function C.seed(e)
 			e.veins[k] = line
 		end
 	end
+end
+
+-- On spawn: roll for a gold core (rock) or a crystal (ice) in a big piece.
+function C.seed(e)
+	if not C.chips(e) then return end
+	local rare = Ore.rare[e.debris or 'rock']
+	local kind = e.debris or 'rock'
+	if not rare or e.radius < T.rareMinRadius[kind] or random() >= T.rareChance[kind] then return end
+	C.giveCore(e, rare)
 end
 
 -- Has a cut reached the core (so it shows, and pieces off it are rare)?
