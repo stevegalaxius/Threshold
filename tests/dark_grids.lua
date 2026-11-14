@@ -6,8 +6,26 @@ return function(game)
  local checks=0
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  local u=game.universe
- local grids={milliways={'pluto',1},shoals={'belt',3},cordelia={'uranus',1}}
+ local grids={milliways={'pluto',1},cordelia={'uranus',1}}
  local saved=Dark.DEBUG_CHARTED;Dark.DEBUG_CHARTED={}
+ -- the Shoals: its own place on the belt's orbit, between Ceres and Ring
+ -- Station, reached by mass driver once found
+ do
+  local o,b,ring=Fields.orbits.shoals,Fields.orbits.belt,Fields.orbits.ring
+  check(o and o.dark and not Fields.moons.shoals and o.au==b.au,'the Shoals are not on the belt orbit')
+  local function gap(a,c) return math.abs((a-c+math.pi)%(2*math.pi)-math.pi) end
+  check(math.abs(gap(o.phase,b.phase)-gap(o.phase,ring.phase))<1e-6,'the Shoals are not halfway between Ceres and Ring Station')
+  check(#Fields.shoals.stationIds==3 and Fields.shoals.driverId,'the Shoals lack stations or a mass driver')
+  u.discovered={}
+  check(not Dark.charted(u,'shoals'),'the Shoals start charted')
+  game:loadField('belt')
+  game.driverMenu={driver={}}
+  check(not game:fireDriver('shoals'),'the driver fired at uncharted Shoals')
+  game.driverMenu=nil
+  check(G.itinerary(Fields.belt.driverId,Fields.shoals.stationIds[1],u.clock),'no NPC route from Ceres to the Shoals')
+  Dark.discover(u,'shoals')
+  check(Dark.charted(u,'shoals'),'the Shoals did not chart once found')
+ end
  for area,spec in pairs(grids) do
   local parent,n=spec[1],spec[2]
   check(Dark.isDarkArea(area) and Fields.moons[area] and Fields.moons[area].parent==parent,area..' is not a dark moon of '..parent)

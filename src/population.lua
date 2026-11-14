@@ -108,10 +108,14 @@ local function arriveFromEdge(game,r,area,clock)
  local pool=#gates>0 and gates or drivers
  if #pool==0 then return false end
  local entry=pool[love.math.random(#pool)]
- if entry==S then return false,'already at the entry' end
- local path=G.itinerary(entry,S,clock)
- if not path or #path<2 then return false,'no route '..entry..' -> '..S end
  local driver=L.get(entry).kind=='driver'
+ local path
+ if entry==S then
+  -- starting right at a corridor's mouth is already the map edge
+  if not driver then r.arrivedFrom=entry;return true end
+  path={entry,entry}   -- at a driver: still come in off its lane
+ else path=G.itinerary(entry,S,clock) end
+ if not path or #path<2 then return false,'no route '..entry..' -> '..S end
  if driver then
   -- a driver's gun sits inside the map: come in off its lane instead,
   -- over the edge from another planet's bearing (alife start(), driverArrival)

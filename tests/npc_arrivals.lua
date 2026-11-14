@@ -5,7 +5,7 @@ return function(game)
  local checks=0
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  local u=game.universe
- local cases={{'belt','trader'},{'belt','pirate'},{'shoals','miner'},{'shoals','pirate'},{'earth','patrol'},{'mars','trader'},{'uranus','pirate'},{'titania','trader'},{'venus','trader'},{'mercury','trader'}}
+ local cases={{'belt','trader'},{'belt','pirate'},{'shoals','miner'},{'shoals','pirate'},{'shoals','trader'},{'earth','patrol'},{'mars','trader'},{'uranus','pirate'},{'titania','trader'},{'venus','trader'},{'mercury','trader'}}
  for _,c in ipairs(cases) do
   local area,role=c[1],c[2]
   if P.target(area,role)>0 then
@@ -18,7 +18,7 @@ return function(game)
     check(r.spawnOrigin=='edge',('%s %s did not arrive from the edge (%s: %s)'):format(area,role,tostring(r.spawnOrigin),tostring(r.arrivalSkip)))
     local from=L.get(r.arrivedFrom)
     check(from and (from.kind=='moon_gate' or from.kind=='driver') and from.area==area,area..' '..role..' arrived from '..tostring(r.arrivedFrom))
-    check(r.state=='travel' and A.point(r,u.clock)~=nil,area..' '..role..' has no inbound position')
+    check((r.state=='travel' or r.arrivedFrom==(r.node or r.route[r.index])) and A.point(r,u.clock)~=nil,area..' '..role..' has no inbound position')
     local x,y=A.point(r,u.clock)
     local R=Fields[area].radius or 10000
     check(x*x+y*y>(R*.6)^2,('%s %s starts %.0f px from the centre of a %.0f map'):format(area,role,math.sqrt(x*x+y*y),R))
