@@ -46,6 +46,7 @@ function S.shops(st)
   chemicals=chemicals or not shop.unlimited and S.lists(shop,'nitrates') and S.lists(shop,'explosives')
   ammo=ammo or shop.id=='ammunition'
  end
+ if mk and mk.bare then S.shopCache[cacheKey]=shops;return shops end
  if not food then shops[#shops+1]=require('src.food').shop() end
  if not steel then shops[#shops+1]=require('src.repair_materials').shop() end
  if not chemicals then shops[#shops+1]=require('data.industry').shops.chemicals end

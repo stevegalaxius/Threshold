@@ -4,6 +4,7 @@
 -- persist, and that a destroyed one stays gone.
 return function(game)
  local Sat,data=require('src.satellites'),require('src.data')
+ local Game=require('src.game')
  local checks=0
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
  local u=game.universe
@@ -67,5 +68,42 @@ return function(game)
  local before=#game.entities
  game:breakOff(target,piece)
  check(#game.entities==before+1,'and then breaks apart like any wreck')
+ -- docking: a closed satellite refuses; a fuel buoy beams you to a berth
+ -- and docks you with only its services
+ game:loadField('earth')
+ local by3=sats()
+ local closed,buoy
+ for id,o in pairs(by3) do
+  local rr=Sat.get(u,id)
+  if rr.kind=='passive' and not rr.dock then closed=closed or o end
+  if rr.kind=='fuel' then buoy=buoy or o end
+ end
+ check(closed and buoy,'earth has a closed passive sat and a fuel buoy')
+ local p=game.player
+ local bx,by=buoy.body:getPosition()
+ p.body:setPosition(bx+300,by+300);p.body:setLinearVelocity(buoy.body:getLinearVelocity())
+ check(not Sat.request(game,closed) and not p.dockState,'a closed satellite refuses')
+ check(Sat.request(game,buoy) and p.dockState and p.dockState.phase=='tractor','a fuel buoy takes you in on the tractor beam')
+ for _=1,600 do game:step(1/60);if game.state=='docked' then break end end
+ check(game.state=='docked' and p.dockState.done,'and docks you at its berth')
+ local st=p.dockState.station
+ local svc=Game.stationServices(st)
+ local ks={} for k in pairs(svc) do ks[#ks+1]=k end
+ check(svc.market and not svc.shipyard and not svc.hangar,'with only its own services: '..table.concat(ks,','))
+ local shops=Game.marketShops(st)
+ check(#shops==1 and shops[1].sells[1][1]=='deuterium_canister','and a bare fuel shelf')
+ for _=1,30 do game:step(1/60) end
+ local px,py=p.body:getPosition();local nx,ny=buoy.body:getPosition()
+ check(math.sqrt((px-nx)^2+(py-ny)^2)<buoy.radius,'it holds you at the berth')
+ game:undock()
+ check(game.state=='playing' and not p.dockState and not buoy.satHeld,'launch leaves the berth')
+ -- a quest opens a closed one
+ Sat.allow(u,closed.sat,{dock='player',actions={'vend'}})
+ check(Sat.request(game,closed),'a quest-opened satellite lets you in')
+ p.dockState=nil;closed.satHeld=nil
+ -- satellite records go into the save file
+ local Save=require('src.save')
+ local state=assert(Save.decode(Save.encode(game:saveState())))
+ check(state.satellites and state.satellites[closed.sat] and state.satellites[closed.sat].dock=='player','satellite records are saved')
  print(('satellites: %d checks passed'):format(checks))
 end

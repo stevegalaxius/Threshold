@@ -116,7 +116,7 @@ Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
 function Game.stationServices(st)
  local L=require('src.locations');local id=st and (st.locationId or st.key)
  local services=require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
- if id and require('src.dealers').def(id) then services.shipyard=true end
+ if id and not st.sat and require('src.dealers').def(id) then services.shipyard=true end
  return services
 end
 

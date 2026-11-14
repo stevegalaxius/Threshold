@@ -485,11 +485,11 @@ function Game:saveState()
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
 		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId, discovered = Persistence.copy(u.discovered),
-		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues) }
+		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites) }
 	local p = self.player
 	if p and not p.dead then
 		local where
-		if p.dockState and p.dockState.station then
+		if p.dockState and p.dockState.station and not p.dockState.station.sat then
 			local ds = p.dockState
 			local dockIndex
 			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
@@ -543,6 +543,7 @@ function Game:loadState(state)
 	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
 	self.universe.nextNpcId = state.nextNpcId or 0
 	self.universe.queues = Persistence.copy(state.queues or {})
+	self.universe.satellites = Persistence.copy(state.satellites or {})
 	do -- saves from before bookings were kept: rebuild them from the records,
 	   -- and book the legs under way that never got a turn (src/queue.lua)
 		local Q = require("src.queue"); Q.universe = self.universe

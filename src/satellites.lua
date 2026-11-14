@@ -193,4 +193,129 @@ function Sat.damage(game, e, amount)
 	end
 end
 
+-- Docking ------------------------------------------------------------------
+--
+-- A satellite docks like a small station: tap the tractor key on it in
+-- range and, if its dock lever lets you in, the tractor beam (src/beam.lua)
+-- pulls you to a berth beside the bus. Arrived, you're docked
+-- (game.state = "docked") and the usual station screen opens with only the
+-- tabs its services give. Launch leaves the berth. One ship at a time.
+
+-- The satellite's services, as station service ids (Game.stationServices).
+Sat.services = { vend = "market", repair = "repair" }
+
+function Sat.permits(game, r, ship)
+	local L = Sat.levers(r)
+	local player = ship == game.player
+	if L.dock == "anyone" then return true end
+	if L.dock == "player" then return player end
+	if L.dock == "rep" and player and r.owner then
+		return (require("src.reputation").standing(game.universe, r.owner) or 0) >= (r.minRep or 10)
+	end
+	if L.dock == "owner" then return not player and ship.faction ~= nil and ship.faction == r.owner end
+	return false
+end
+
+-- The station the docked screen sees: the satellite's own name, storage
+-- key and services, with its body as the station's.
+function Sat.station(game, e)
+	local r = Sat.get(game.universe, e.sat)
+	if not r then return nil end
+	local L = Sat.levers(r)
+	local services = {}
+	for _, a in ipairs(L.actions or {}) do
+		if Sat.services[a] then services[#services + 1] = Sat.services[a] end
+	end
+	e.satStation = e.satStation or {}
+	local st = e.satStation
+	st.sat, st.key, st.name, st.body, st.entity = r.id, "sat:" .. r.id, r.name, e.body, e
+	st.marketId = "sat:" .. r.kind
+	st.def = { services = services, marketId = st.marketId, repairRate = 2 }
+	return st
+end
+
+-- Where the berth is, in the satellite's frame: off the side of the bus the
+-- ship came from.
+local function berthOffset(e, ship)
+	local lx, ly = e.body:getLocalPoint(ship.body:getPosition())
+	local side = ly < 0 and -1 or 1
+	return 0, side * ((e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40)
+end
+
+function Sat.request(game, e)
+	local r = Sat.get(game.universe, e.sat)
+	local p = game.player
+	if not r or not p or p.dead or p.dockState then return false end
+	if e.satHeld and e.satHeld ~= p and not e.satHeld.dead and e.satHeld.dockState then game:toast("BERTH OCCUPIED", 1.4); return false end
+	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
+	local st = Sat.station(game, e)
+	local bx, by = berthOffset(e, p)
+	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by } }
+	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
+	e.satHeld = p
+	game:toast("TRACTOR LOCK", 1.4)
+	return true
+end
+
+-- One step of a ship docking at or docked beside a satellite.
+function Sat.updateDock(game, ship, dt)
+	local ds = ship.dockState
+	local st = ds.station
+	local e = st.entity
+	if not e or e.removed or e.dead or not e.sat or not e.body or e.body:isDestroyed() then
+		ship.dockState = nil
+		if ship == game.player and game.state == "docked" then game.state = "playing" end
+		return
+	end
+	ds.t = ds.t + dt
+	local b, sb = ship.body, e.body
+	local wx, wy = sb:getWorldPoint(ds.satBerth[1], ds.satBerth[2])
+	local fvx, fvy = sb:getLinearVelocityFromWorldPoint(wx, wy)
+	if ds.phase == "tractor" then
+		local x, y = b:getPosition()
+		local dx, dy = wx - x, wy - y
+		local d = math.sqrt(dx * dx + dy * dy)
+		if d > (e.radius or 300) * 2.5 then
+			ship.dockState, ship.dockCooldown, e.satHeld = nil, 3, nil
+			game:toast("TRACTOR LOST", 1.4)
+			return
+		end
+		local speed = math.min(260, math.max(40, d * 0.8))
+		local near = 1 - math.min(1, d / ((e.radius or 300) * 2))
+		require("src.beam").hold(game, ship, { t = ds.t, near = near, fvx = fvx, fvy = fvy,
+			wx = dx / math.max(d, 1) * speed, wy = dy / math.max(d, 1) * speed,
+			nose = sb:getAngle(), spin = sb:getAngularVelocity(), dt = dt })
+		local vx, vy = b:getLinearVelocity()
+		if d < 30 and (vx - fvx) ^ 2 + (vy - fvy) ^ 2 < 60 ^ 2 then
+			ds.phase, ds.done, ds.t = "done", true, 0
+			if ship == game.player then game.state = "docked" end
+			require("src.events").emit("dock", ship, st)
+		end
+	else
+		-- moored: ride along at the berth
+		b:setPosition(wx, wy)
+		b:setLinearVelocity(fvx, fvy)
+		b:setAngularVelocity(sb:getAngularVelocity())
+	end
+end
+
+-- Launch from a satellite berth: a gentle push away from the bus.
+function Sat.undock(game, ship)
+	local ds = ship.dockState
+	local e = ds and ds.station.entity
+	ship.dockState, ship.dockCooldown = nil, 2
+	if e then
+		e.satHeld = nil
+		if e.body and not e.body:isDestroyed() then
+			local x, y = ship.body:getPosition()
+			local cx, cy = e.body:getPosition()
+			local dx, dy = x - cx, y - cy
+			local d = math.max(1, math.sqrt(dx * dx + dy * dy))
+			local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
+			ship.body:setLinearVelocity(vx + dx / d * 60, vy + dy / d * 60)
+		end
+	end
+	require("src.events").emit("undock", ship, ds and ds.station)
+end
+
 return Sat

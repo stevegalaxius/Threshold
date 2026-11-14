@@ -1403,6 +1403,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ if e.dockState.station.sat then return require('src.satellites').updateDock(self,e,dt) end
  if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
  require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
@@ -1616,6 +1617,12 @@ function Game:undock()
 	if not p or not p.dockState or not p.dockState.done then return end
 	local missing = Ship.launchProblem(p)
 	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
+	if p.dockState.station.sat then
+		require("src.satellites").undock(self, p)
+		self.state = "playing"
+		self:toast("LAUNCHED", 1)
+		return
+	end
 	if self:launchBlocker(p) then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
@@ -2351,6 +2358,18 @@ function Game:updatePickups(dt)
 		-- Tap to open, hold to tow.
 		local pressed, released = it.tractor and not p.tractorHeld, p.tractorHeld and not it.tractor
 		p.tractorHeld = it.tractor
+		-- a satellite under the cursor: a tap asks it for a berth (src/satellites.lua)
+		if pressed and not best and not self.hoverLoot then
+			for _, o in ipairs(self.entities) do
+				if o.sat and not o.dead and not o.removed then
+					local ox, oy = o.body:getPosition()
+					local d = sqrt((ox - it.aimX) ^ 2 + (oy - it.aimY) ^ 2)
+					if d < o.radius * 0.6 + grab and Ship.distanceTo(p, ox, oy) - o.radius < range then
+						require("src.satellites").request(self, o); break
+					end
+				end
+			end
+		end
 		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil } end
 		local press = p.tractorPress
 		local e = press and press.loot
