@@ -33,7 +33,7 @@ local Visual = require("src.weapon_visual")
 local Icons = {}
 
 Icons.CELL = 16      -- art units per hold cell (1 m)
-Icons.WORLD = 0.5    -- world px per art unit in space: 8 px per hold cell
+Icons.WORLD = 0.25   -- world px per art unit in space: 4 px per hold cell
 
 local lg = love.graphics
 
@@ -222,9 +222,8 @@ function Icons.drawWorld(itemId, x, y, angle, alpha, lineWidth)
 	return true
 end
 
--- World px per art unit for an item floating in space: its physical
--- size (Icons.WORLD), scaled up so the longest side is at least
--- Icons.MIN_WORLD px, or a bullet would be a speck.
+-- World px per art unit for an item floating in space: the same for
+-- every item, so its size afloat is its hold footprint and nothing else.
 function Icons.worldScale(itemId)
 	return Icons.WORLD
 end
