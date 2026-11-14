@@ -23,7 +23,7 @@
 local Dark = {}
 
 -- Grids shown as found while they're being built and tested.
-Dark.DEBUG_CHARTED = { milliways = true, shoals = true, cordelia = true }
+Dark.DEBUG_CHARTED = { milliways = true, shoals = true, cordelia = true, antichthon = true }
 
 -- function(u, area) called after a grid is discovered.
 Dark.listeners = {}

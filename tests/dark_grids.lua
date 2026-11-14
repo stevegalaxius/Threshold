@@ -26,6 +26,19 @@ return function(game)
   Dark.discover(u,'shoals')
   check(Dark.charted(u,'shoals'),'the Shoals did not chart once found')
  end
+ -- Antichthon: Earth's orbit opposite Earth, a driver stop with a farm
+ do
+  local o,e=Fields.orbits.antichthon,Fields.orbits.earth
+  check(o and o.dark and o.au==e.au and math.abs((o.phase-e.phase)%(2*math.pi)-math.pi)<1e-6,'Antichthon is not opposite Earth')
+  check(Fields.antichthon.driverId and #Fields.antichthon.stationIds==1,'Antichthon lacks its driver or farm')
+  check(L.get(Fields.antichthon.stationIds[1]).facilities.farm,'Antichthon Gardens grows nothing')
+  check(require('src.reputation').AREAS.antichthon=='milliways','Antichthon is not pirate-held')
+ end
+ -- the dark chain's factories
+ local function has(id,f) return (L.get(id).facilities or {})[f]~=nil end
+ check(has('station:shoals_1','roll_steel') and has('station:shoals_1','press_canisters') and has('station:shoals_1','water_melter'),'Slag Harbor is missing steel, canisters or water')
+ check(has('station:shoals_2','ammunition') and has('station:shoals_2','chemicals') and has('station:shoals_2','process_nitrates'),'Cinder Works cannot make its own explosives')
+ check(has('station:cordelia_1','crack_ice') and has('station:cordelia_1','ice_wells'),'Cordelia makes no deuterium')
  for area,spec in pairs(grids) do
   local parent,n=spec[1],spec[2]
   check(Dark.isDarkArea(area) and Fields.moons[area] and Fields.moons[area].parent==parent,area..' is not a dark moon of '..parent)

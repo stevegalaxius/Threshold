@@ -39,7 +39,7 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "shoals", "jupiter", "io", "europa", "ganymede", "callisto",
+Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "shoals", "antichthon", "jupiter", "io", "europa", "ganymede", "callisto",
 	"saturn", "enceladus", "titan", "uranus", "titania", "cordelia", "neptune", "triton", "pluto", "milliways", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
@@ -60,6 +60,9 @@ Fields.orbits = {
 	-- dark = true: an unlisted place with its own mass driver (src/dark.lua),
 	-- a driver destination only once found. The Shoals ride the belt's orbit
 	-- halfway between Ceres and Ring Station.
+	-- Antichthon: Earth's orbit, directly opposite it across the Sun, where
+	-- nobody looks. The pirates' hydroponics farm.
+	antichthon = { au = 1.0, year = 1.0, phase = math.pi, dark = true, color = { 0.45, 0.75, 0.45 } },
 	shoals = { au = 2.77, year = 4.6, phase = 3.0 + math.pi / 2, dark = true, color = { 0.75, 0.45, 0.4 } },
 }
 
@@ -514,6 +517,24 @@ do
 		end
 	end
 end
+
+-- Antichthon: a quiet dark pocket on Earth's orbit, behind the Sun. One
+-- farm station in open space, thin rock and ice out to the edge.
+Fields.antichthon = {
+	name = "Antichthon",
+	dark = true,
+	spawn = { 0, 3000 * T.mapScale },
+	radius = 18000 * T.mapScale,
+	mix = { ice = 5, rock = 5 },
+	enemies = { { "interceptor", 1 } },
+	build = function(game)
+		for _,id in ipairs(Fields.antichthon.stationIds) do require("src.locations").spawnStation(game,id) end
+		local S = T.mapScale
+		local area = pi * ((18000 * S) ^ 2 - (6000 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.06 * T.mapDensity), 6000 * S)
+		game:spawnContainers(T.fieldContainers, 5000)
+	end,
+}
 
 -- Cordelia Drift: a dark pocket in Uranus's inner ring debris, one
 -- freeport in cleared ice, rock and ice out to the edge.

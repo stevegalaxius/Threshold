@@ -206,7 +206,10 @@ The dark grids are:
 
 - `milliways` off Pluto: Milliways Freeport, the pirates' main base.
 - `shoals` on the belt's orbit, halfway between Ceres and Ring Station, with its own mass driver (it joins the driver window's DISCOVERED list once found): the Shoals, a pirate industrial quarry. Slag Harbor rolls steel and presses canisters from the rock its miners haul in, Cinder Works makes ammunition, and Shoals Freeport is a pirate base with a shipyard.
-- `cordelia` off Uranus: Cordelia Freeport, a pirate base in the ring debris.
+- `cordelia` off Uranus: Cordelia Freeport, a pirate base in the ring debris. It cuts ring ice and cracks it into deuterium: the dark fuel depot.
+- `antichthon` on Earth's orbit, opposite Earth across the Sun, with its own mass driver: Antichthon Gardens, the pirates' hydroponics farm.
+
+The dark chain covers the basics: Slag Harbor rolls steel, presses canisters and melts water; Cinder Works makes nitrates, explosives and fertilizer and turns steel and explosives into ammunition; Cordelia makes deuterium; Antichthon grows food. Electronics, guided munitions, silicon and new hulls are deliberately missing: they come only from raids, fences or smugglers.
 
 While they're being built, `Dark.DEBUG_CHARTED` lists them all as already found; take one out of that table to make it start hidden.
 
