@@ -125,7 +125,7 @@ W.stations = {
 	},
 	-- Antichthon: the pirates' hydroponics farm, on Earth's orbit behind the Sun.
 	antichthon = {
-		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=480}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
+		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
 	},
 	cordelia = {
 		{ id = "station:cordelia_1", facilities={ice_wells={capacity=600},crack_ice={capacity=600},water_melter={capacity=160}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },
