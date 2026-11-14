@@ -124,6 +124,10 @@ salvage { id = "flare", name = "Flare charge", volume = 0.1, mass = 0.05, price 
 -- What a mining drill gets out of the rock it breaks (src/game.lua ORE).
 salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 25, w = 1, h = 1, stack = 4 }
 salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 15, w = 1, h = 1, stack = 4 }
+-- Rare ore: from a vein in a big rock, or a crystal frozen in big ice
+-- (src/rock_chips.lua).
+salvage { id = "gold_ore", name = "Gold ore", volume = 0.25, mass = 0.5, price = 220, w = 1, h = 1, stack = 4 }
+salvage { id = "cryo_crystal", name = "Cryo crystal", volume = 0.25, mass = 0.2, price = 180, w = 1, h = 1, stack = 4 }
 
 -- Industrial inputs and manufactured electronics.
 salvage { id = "silicon", name = "Silicon", volume = 0.25, mass = 0.25, price = 30, w = 1, h = 1, stack = 4 }
