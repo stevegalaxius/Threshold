@@ -248,6 +248,7 @@ function love.draw()
 	if game.state ~= "docked" then
 		HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
 	end
+	if game.state ~= "docked" then Cargo.drawPickupTooltip(game) end
 	if Cargo.isOpen(game) then
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
