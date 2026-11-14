@@ -54,19 +54,18 @@ return function(game)
  check(Sat.levers(Sat.get(u,'earth_sat_01')).dock=='player','quest override survives')
  Sat.revoke(u,'earth_sat_01')
  check(Sat.levers(Sat.get(u,'earth_sat_01')).dock==Sat.kinds[r.kind].dock,'revoke restores the kind')
- -- panels are shot off like a ship's parts
+ -- a working satellite takes hits as a whole; knocked out, it's a wreck
  local target=by2['earth_sat_03'] or select(2,next(by2))
- local sensors=0
- for _,f in ipairs(target.body:getFixtures()) do if f:isSensor() then sensors=sensors+1 end end
- check(sensors>0,'panels are shootable sensors')
+ local parts=#target.pieces
+ game:damage(target,50,nil,'gun')
+ check(#target.pieces==parts and target.sat and not target.dead,'a working satellite loses no parts to fire')
+ local tid=target.sat
+ game:damage(target,1e6,nil,'gun')
+ check(not target.sat and not target.dead and Sat.get(u,tid).lost,'knocked out, it becomes a plain wreck and is marked lost')
  local piece
  for _,pc in ipairs(target.pieces) do if pc.part.name=='panel' then piece=pc break end end
- check(piece and not piece.core,'a panel strip can break off')
  local before=#game.entities
  game:breakOff(target,piece)
- check(#game.entities==before+1,'and flies off as its own wreck')
- target.dead=true
- game:step(1/60)
- check(Sat.get(u,target.sat).lost,'a destroyed satellite is marked lost')
+ check(#game.entities==before+1,'and then breaks apart like any wreck')
  print(('satellites: %d checks passed'):format(checks))
 end

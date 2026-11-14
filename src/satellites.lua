@@ -176,4 +176,21 @@ function Sat.lost(game, e)
 	if r then r.lost = true end
 end
 
+-- Damage to a working satellite: off its own armor (the record's hp), the
+-- whole thing at once. At zero it's knocked out: it goes dark and becomes an
+-- ordinary wreck, which then breaks apart part by part when shot.
+function Sat.damage(game, e, amount)
+	local r = Sat.get(game.universe, e.sat)
+	if not r then e.sat = nil; return end
+	local def = data.wrecks[r.design]
+	r.hp = (r.hp or (def and def.armor or 200)) - amount
+	e.flash = 0.08
+	if r.hp <= 0 then
+		r.lost = true
+		e.sat, e.name = nil, nil
+		game:spark(e.body:getX(), e.body:getY(), 24, { 1, 0.7, 0.35 })
+		game:explode(e.body:getX(), e.body:getY(), (e.radius or 100) * 0.3, 0, 0)
+	end
+end
+
 return Sat

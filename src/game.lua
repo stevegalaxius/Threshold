@@ -2219,6 +2219,13 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
+	-- a working satellite takes hits as a whole, like a ship; once it's
+	-- knocked out it's a wreck and breaks apart like one (src/satellites.lua)
+	if e and e.sat and not e.dead and amount>0 then
+		e.lastHitBy=source
+		require("src.satellites").damage(self,e,amount)
+		return
+	end
 	if e and e.kind=='husk' and not e.dead and amount>0 then
 		e.drilled=cause=='drill';e.lastHitBy=source
 		if e.pieces and self:damagePiece(e,amount,hx,hy) then return end
