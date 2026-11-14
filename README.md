@@ -198,6 +198,12 @@ Phobos and Deimos retain their irregular rocky moon bodies (radii 1,400 and
 800 pixels). Mars keeps the Heaven-Ladder and its existing stations, with nine
 local traders and much less rock debris.
 
+## Dark grids
+
+Some areas are off the public charts (`src/dark.lua`). A dark grid has `dark = true` on its `Fields.orbits` entry and its field; it is simulated like anywhere else (stations trade, NPCs route there, it has a mass driver) but the driver window and lane view hide it until the player discovers it. Discovery is saved in `universe.discovered`; arriving on the grid discovers it, and `Dark.discover(u, area)` is the hook for tip-offs, scans and quests. `Dark.isDarkArea`/`isDarkNode` are there for public systems (freight board, contracts) to keep dark stations off their listings once a dark economy exists.
+
+Milliways Freeport lives on the first one, `milliways`, riding just ahead of Pluto. While it's being built, `Dark.DEBUG_CHARTED` lists it as already found; take it out of that table to make it start hidden.
+
 ## Known gaps (on purpose for this milestone)
 
 - Combat NPCs and background asteroids still regenerate; highway debris is transient. Station traders persist.

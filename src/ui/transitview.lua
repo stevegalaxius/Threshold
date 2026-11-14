@@ -86,7 +86,9 @@ function TransitView.draw(game)
 		return ox + cos(a) * r, oy + sin(a) * r, r
 	end
 	local clock = game.universe.clock + T_clock(f, k)
+	local Dark = require("src.dark")
 	for id in pairs(Fields.orbits) do
+		if Dark.charted(game.universe, id) or id == f.from or id == f.to then
 		local x, y, r = at(id, clock)
 		lg.setColor(0.55, 0.7, 0.78, 0.3)
 		lg.setLineWidth(1)
@@ -94,6 +96,7 @@ function TransitView.draw(game)
 		local c = color(id) or { 1, 1, 1 }
 		lg.setColor(c)
 		lg.circle("fill", x, y, 5)
+		end
 	end
 	-- your path: a gentle arc from where you left to where you'll arrive
 	local x1, y1 = at(f.from, game.universe.clock)

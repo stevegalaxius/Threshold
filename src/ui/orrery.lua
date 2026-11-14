@@ -15,6 +15,7 @@
 local HUD = require("src.hud")
 local Fields = require("src.fields")
 local Sites = require("src.sites")
+local Dark = require("src.dark")
 
 local Orrery = {}
 
@@ -26,9 +27,11 @@ local function color(id) return Fields.orbits[id] and Fields.orbits[id].color en
 function Orrery.isOpen(game) return game.driverMenu ~= nil end
 
 -- Every planet with an orbit, inner to outer.
-local function planets()
+-- Dark grids (src/dark.lua) only once the player knows where they are.
+local function planets(game)
 	local list = {}
-	for id in pairs(Fields.orbits) do table.insert(list, id) end
+	local u = game and game.universe
+	for id in pairs(Fields.orbits) do if Dark.charted(u, id) or id == (game and game.fieldId) then table.insert(list, id) end end
 	table.sort(list, function(a, b) return Fields.orbits[a].au < Fields.orbits[b].au end)
 	return list
 end
@@ -37,7 +40,7 @@ end
 -- and its row in the list.
 local function layout(game)
 	local w, h = lg.getDimensions()
-	local n = #planets()
+	local n = #planets(game)
 	local rowH = math.max(40, math.min(54, math.floor((h - 190) / n)))
 	local PANE = 320
 	local pw, ph = 760 + PANE, 150 + n * rowH
@@ -48,7 +51,7 @@ local function layout(game)
 	for _, o in pairs(Fields.orbits) do maxAU = math.max(maxAU, o.au) end
 	local L = { x = x, y = y, w = pw, h = ph, cx = cx, cy = cy, R = R, items = {} }
 	local clock = game.universe.clock
-	for i, id in ipairs(planets()) do
+	for i, id in ipairs(planets(game)) do
 		local px, py = Fields.orbitPos(id, clock)
 		local au = Fields.orbits[id].au
 		local a = math.atan2(py, px)

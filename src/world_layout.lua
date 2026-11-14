@@ -104,8 +104,10 @@ W.stations = {
 		{ id = "station:triton_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = -0.8, marketId = "market:triton_3", name = "Triton Logistics", layout = "customs_1", hub = true },
 	
 	},
-	pluto = {
-		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
+	-- Milliways moved off Pluto onto its own dark grid (Fields.milliways,
+	-- src/dark.lua). Same station id, so saves and reputation carry over.
+	milliways = {
+		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
 	},
 	ring = {
 		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
