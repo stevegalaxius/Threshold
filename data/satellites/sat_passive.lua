@@ -1,10 +1,11 @@
--- Generated from the satellite mockups (v4 template). Edit freely in the
--- Shipyard: panel strips are sensors (shot off like ship parts, never bumped), the truss is drawn only.
+-- Made in the Shipyard (F2).
 satellite {
 	id = "sat_passive", name = "Satellite",
-	armor = 300, mass = 3000,
+	armor = 300,
+	hold = 20,
+	mass = 3000,
 	parts = {
-		{ name = "bus", shape = { -42, -42, 42, -42, 42, 42, -42, 42 }, color = { 0.29, 0.3, 0.33 }, core = true, lights = { { color = { 0.9, 0.35, 0.3 }, x = 0, y = 0, kind = "strobe", size = 6, rate = 0.7 } } },
+		{ name = "bus", shape = { -42, -42, 42, -42, 42, 42, -42, 42 }, color = { 0.29, 0.3, 0.33 }, core = true },
 		{ name = "equipment", shape = { -33, -33, -3, -33, -3, -3, -33, -3 }, color = { 0.36, 0.37, 0.41 }, layer = "detail", collide = false },
 		{ name = "equipment", shape = { 3, 3, 33, 3, 33, 33, 3, 33 }, color = { 0.36, 0.37, 0.41 }, layer = "detail", collide = false },
 		{ name = "owner stripe", shape = { -42, 27, 42, 27, 42, 42, -42, 42 }, color = { 0.75, 0.59, 0.24 }, layer = "detail", collide = false },
@@ -25,8 +26,28 @@ satellite {
 		{ name = "truss", shape = { 60.83, -4.5, 65.33, -4.5, 51.17, 4.5, 46.67, 4.5 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
 		{ name = "truss", shape = { 65.33, -4.5, 69.83, -4.5, 84, 4.5, 79.5, 4.5 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
 		{ name = "spar", shape = { -324, -2.25, -84, -2.25, -84, 2.25, -324, 2.25 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
-		{ name = "panel", shape = { -324, -135, -270.75, -135, -270.75, -6, -324, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
-		{ name = "panel", shape = { -324, 6, -270.75, 6, -270.75, 135, -324, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
+		{ name = "panel", shape = { -324, -135, -270.75, -135, -270.75, -6, -324, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2, lights = {
+			{
+				color = { 1, 0.36, 0.36 },
+				kind = "strobe",
+				phase = 0,
+				rate = 0.25,
+				size = 8,
+				x = -324,
+				y = -136,
+			},
+		} },
+		{ name = "panel", shape = { -324, 6, -270.75, 6, -270.75, 135, -324, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2, lights = {
+			{
+				color = { 1, 0.6, 0.35 },
+				kind = "strobe",
+				phase = 0.75,
+				rate = 0.25,
+				size = 8,
+				x = -320,
+				y = 128,
+			},
+		} },
 		{ name = "panel", shape = { -261.75, -135, -208.5, -135, -208.5, -6, -261.75, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
 		{ name = "panel", shape = { -261.75, 6, -208.5, 6, -208.5, 135, -261.75, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
 		{ name = "panel", shape = { -199.5, -135, -146.25, -135, -146.25, -6, -199.5, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
@@ -40,7 +61,27 @@ satellite {
 		{ name = "panel", shape = { 146.25, 6, 199.5, 6, 199.5, 135, 146.25, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
 		{ name = "panel", shape = { 208.5, -135, 261.75, -135, 261.75, -6, 208.5, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
 		{ name = "panel", shape = { 208.5, 6, 261.75, 6, 261.75, 135, 208.5, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
-		{ name = "panel", shape = { 270.75, -135, 324, -135, 324, -6, 270.75, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
-		{ name = "panel", shape = { 270.75, 6, 324, 6, 324, 135, 270.75, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2 },
+		{ name = "panel", shape = { 270.75, -135, 324, -135, 324, -6, 270.75, -6 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2, lights = {
+			{
+				color = { 1, 0.35, 0.35 },
+				kind = "strobe",
+				phase = 0.25,
+				rate = 0.25,
+				size = 8,
+				x = 324,
+				y = -136,
+			},
+		} },
+		{ name = "panel", shape = { 270.75, 6, 324, 6, 324, 135, 270.75, 135 }, color = { 0.09, 0.14, 0.29 }, sensor = true, mass = 0.2, lights = {
+			{
+				color = { 1, 0.35, 0.35 },
+				kind = "strobe",
+				phase = 0.5,
+				rate = 0.25,
+				size = 8,
+				x = 324,
+				y = 136,
+			},
+		} },
 	},
 }
