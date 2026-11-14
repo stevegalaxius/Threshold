@@ -69,6 +69,7 @@ local CATEGORIES = {
 	{ "wreck", "Containers", "Containers and props placed in the world" },
 	{ "station", "Stations", "Station layouts" },
 	{ "weapon", "Weapons", "Guns, launchers and bays: stats and art" },
+	{ "icon", "Icons", "Item art: the icon in the hold and the cargo floating in space" },
 }
 
 -- Weapon stats by kind: key, label, lo, hi, step, precision, tooltip.
@@ -366,12 +367,14 @@ end
 
 -- Left: the design ------------------------------------------------------
 
-local fileBrowser
+local fileBrowser, restackControls
 
 local GREY = { 0.6, 0.6, 0.6 }
 
 -- Which category an exported id belongs to, from what's loaded (nil: not loaded yet).
 local function categoryOf(id)
+	local iconItem = id:match("^icon_(.+)$")
+	if iconItem and data.icons[iconItem] and data.icons[iconItem].id == id then return "icon" end
 	if data.stations[id] and not data.hulls[id] then return "station" end
 	if data.wrecks[id] and not data.hulls[id] then return "wreck" end
 	if data.hulls[id] then return "hull" end
@@ -393,6 +396,8 @@ function fileBrowser(E, cat, builtIn)
 		if Slab.Button("New container", { Tooltip = "An object that holds loot, filled from a loot table" }) then E.newDesign("container") end
 		Slab.SameLine()
 		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a container, no loot" }) then E.newDesign("prop") end
+	elseif cat == "icon" then
+		if Slab.Button("New icon", { Tooltip = "Art for the first item that has none yet (pick another item below)" }) then E.newDesign("icon") end
 	elseif cat == "weapon" then
 		if Slab.Button("New weapon", { Tooltip = "A gun or launcher module" }) then E.newDesign("weapon") end
 	else
@@ -400,9 +405,9 @@ function fileBrowser(E, cat, builtIn)
 	end
 	Slab.SameLine()
 	if Slab.Button("Save", { Tooltip = "Writes " .. d.id .. ".lua into the folder below.\nSaving over the same id replaces it; saving into another folder moves it." }) then
-		E.pushUndo(); d.folder = dir; E.export()
+		E.pushUndo(); d.folder = (dir == "" and cat == "icon") and "icons" or dir; E.export()
 	end
-	Slab.Text("Saves to " .. Export.path(dir) .. "/" .. d.id .. ".lua", { Color = GREY })
+	Slab.Text("Saves to " .. Export.path((dir == "" and cat == "icon") and "icons" or dir) .. "/" .. d.id .. ".lua", { Color = GREY })
 
 	-- where you are, and the way up
 	Slab.Text("Folder: " .. (dir == "" and "shipyard" or dir:match("^@") and dir:gsub("^@([^/]+)", "mod %1") or "shipyard/" .. dir))
@@ -440,7 +445,8 @@ function fileBrowser(E, cat, builtIn)
 			local label
 			if e.dir then label = "[" .. e.name .. "]"
 			else
-				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
+				local ic = c == "icon" and data.icons[e.id:sub(6)]
+				local def = (ic and { name = (data.items[ic.item] and data.items[ic.item].name or ic.item) .. " icon", source = ic.source }) or data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
 				label = def and (def.name .. "  (" .. e.id .. ")") or (e.id .. "  (loads on restart)")
 				-- two files with one id: the later-loaded one is the one in the game
 				if def and def.source and def.source ~= e.path then label = label .. "  (duplicate id: " .. def.source:gsub("^mods/", ""):gsub("/data/", "/") .. " is the one in use)" end
@@ -464,11 +470,98 @@ function fileBrowser(E, cat, builtIn)
 	if shown == 0 then Slab.Text(dir == "" and "Nothing saved yet." or "Empty folder.", { Color = GREY }) end
 
 	-- the game's own designs, to start from
-	combo("yard_open_" .. cat, "Open a built-in design...", builtIn, function(id) E.openHull(id) end, 280)
+	combo("yard_open_" .. cat, cat == "icon" and "Open an item's icon (* has one)..." or "Open a built-in design...", builtIn, function(id)
+		local item = id:match("^item:(.+)$")
+		if item then E.openIcon(item) else E.openHull(id) end
+	end, 280)
+end
+
+-- The Icons tab: which item, its footprint, then the art tools.
+local function iconSections(E, d)
+	local Icons = require("src.icons")
+	local item = data.items[d.item]
+	local w, h = Icons.footprint(d.item)
+	Slab.Text("item: " .. (item and item.name or tostring(d.item)) .. "  (" .. tostring(d.item) .. ")")
+	Slab.Text(("footprint %d x %d cells (%d x %d units)"):format(w, h, w * Icons.CELL, h * Icons.CELL), { Color = GREY })
+	Slab.Text("The box is the hold footprint; draw the", { Color = GREY })
+	Slab.Text("outline inside it.", { Color = GREY })
+	-- the item's grid size, which is also its size in space
+	Slab.Text("size (cells)"); Slab.SameLine()
+	local function size(id, key, other)
+		if Slab.InputNumberDrag(id, d[key] or (key == "w" and w or h), 1, 12, 0.1, { W = 50, Precision = 0 }) then
+			E.pushUndoCoalesced(id)
+			d[key] = math.max(1, math.floor(Slab.GetInputNumber() + 0.5))
+			d[other] = d[other] or (other == "w" and w or h)
+		end
+	end
+	size("yard_iw", "w", "h"); Slab.SameLine(); Slab.Text("x"); Slab.SameLine(); size("yard_ih", "h", "w")
+	local cw, ch = d.w or w, d.h or h
+	Slab.Text(("%d x %d px in space (a Wisp is 72 long)"):format(cw * Icons.CELL * Icons.WORLD, ch * Icons.CELL * Icons.WORLD), { Color = GREY })
+	if item and item.volume and item.stack and cw * ch < item.volume * item.stack - 1e-6 then
+		Slab.Text(("Too small: a stack of %d needs %g cells"):format(item.stack, item.volume * item.stack), { Color = { 1, 0.6, 0.4 } })
+	end
+	if d.w and (d.w ~= w or d.h ~= h) then Slab.Text("Saving the icon sets the item to this size.", { Color = GREY }) end
+	Slab.Text("Paint primary = the item's kind colour.", { Color = GREY })
+	-- art that no longer fits the footprint (the item's w/h changed)
+	local bw, bh = Icons.box(d.item, d)
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in ipairs(d.parts) do
+		for k = 1, #p.shape - 1, 2 do
+			x0, x1 = math.min(x0, p.shape[k]), math.max(x1, p.shape[k])
+			local y = math.abs(p.shape[k + 1])
+			y0, y1 = math.min(y0, p.mirror and -y or p.shape[k + 1]), math.max(y1, p.mirror and y or p.shape[k + 1])
+		end
+	end
+	if x1 > x0 and (x0 < -bw - 0.01 or x1 > bw + 0.01 or y0 < -bh - 0.01 or y1 > bh + 0.01) then
+		Slab.Text("The art spills out of the footprint.", { Color = { 1, 0.6, 0.4 } })
+		if Slab.Button("Fit art to footprint", { Tooltip = "Scales every part (keeping its proportions) so the art fills the box" }) then
+			E.pushUndo()
+			local s = math.min(bw * 2 / (x1 - x0), bh * 2 / (y1 - y0))
+			local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+			for _, p in ipairs(d.parts) do
+				for k = 1, #p.shape - 1, 2 do
+					p.shape[k] = (p.shape[k] - cx) * s
+					p.shape[k + 1] = p.mirror and p.shape[k + 1] * s or (p.shape[k + 1] - cy) * s
+				end
+			end
+		end
+	end
+	if Slab.Button("Drop some ahead of me", { Tooltip = "Registers the icon now and drops three of the item in front of your ship" }) then E.testFly() end
+	Slab.SameLine()
+	if Slab.Button("Copy source") then E.copySource() end
+	if Slab.Button("Undo") then E.undoStep() end
+	Slab.SameLine()
+	if Slab.Button("Redo") then E.redoStep() end
+
+	Slab.Separator()
+	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" } }
+	local current = 1
+	if E.tool ~= "select" and E.tool ~= "draw" and E.tool ~= "rect" then E.tool = "select" end
+	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
+	for i, t in ipairs(tools) do
+		if Slab.RadioButton(t[2], { Index = i, SelectedIndex = current }) then
+			E.tool = t[1]
+			if t[1] ~= "draw" then E.drawing = nil end
+		end
+	end
+	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
+	Slab.Text("grid"); Slab.SameLine()
+	local gopts = {}
+	for _, g in ipairs({ 0.5, 1, 2, 4 }) do table.insert(gopts, { label = tostring(g), value = g }) end
+	combo("yard_igrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
+	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
+	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
+	restackControls(E, "yard_ilayer")
+	for i, p in ipairs(d.parts) do
+		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
+		Slab.SameLine()
+		local tags = (p.paint and ("  (" .. p.paint .. ")") or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
+		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
+	end
 end
 
 -- The Weapons tab: the module's stats, then the art tools.
-local function restackControls(E, id)
+function restackControls(E, id)
 	local sel = E.selectedParts()
 	local n = #E.design.parts
 	if #sel == 0 then
@@ -643,9 +736,9 @@ local function designWindow(E, Editor)
 	-- one tab per category, each with its own design, list and new buttons
 	local cat = E.category()
 	for i, t in ipairs(CATEGORIES) do
-		if i > 1 then Slab.SameLine() end
+		if i > 1 and i ~= 4 then Slab.SameLine() end   -- two rows of tabs
 		local on = cat == t[1]
-		if Slab.Button(on and ("[" .. t[2] .. "]") or t[2], { W = 72, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
+		if Slab.Button(on and ("[" .. t[2] .. "]") or t[2], { W = 92, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
 	end
 	Slab.Separator()
 	local openOpts = {}
@@ -655,6 +748,12 @@ local function designWindow(E, Editor)
 		for _, id in ipairs(data.list.modules) do
 			local m = data.modules[id]
 			if m.weapon then table.insert(openOpts, { label = ("%s  (%s %s, %s)"):format(m.name, m.size, m.weapon.kind, id), value = id }) end
+		end
+	elseif cat == "icon" then
+		for _, id in ipairs(data.list.items) do
+			local it = data.items[id]
+			local w, h = require("src.icons").footprint(id)
+			table.insert(openOpts, { label = ("%s%s  (%s, %dx%d)"):format(data.icons[id] and "* " or "", it.name, it.kind or "?", w, h), value = "item:" .. id })
 		end
 	elseif cat == "wreck" then
 		for _, id in ipairs(data.list.wrecks) do
@@ -668,13 +767,14 @@ local function designWindow(E, Editor)
 	end
 	fileBrowser(E, cat, openOpts)
 	Slab.Separator()
-	Slab.Text(("This design: a %s"):format(d.kind or "hull"))
+	Slab.Text(("This design: %s %s"):format(d.kind == "icon" and "an" or "a", d.kind or "hull"))
 	Slab.Text("id"); Slab.SameLine()
 	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
 	d.stats = d.stats or {}
 	if cat == "weapon" then weaponSections(E, d) Slab.EndWindow() return end
+	if cat == "icon" then iconSections(E, d) Slab.EndWindow() return end
 	if (d.kind or "hull") == "hull" then
 		Slab.Text("class"); Slab.SameLine()
 		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)

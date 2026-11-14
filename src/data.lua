@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {} },
 }
 
 -- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
@@ -475,6 +475,51 @@ function api.container(def)
 	for _, f in ipairs({ "volume", "mass", "price", "w", "h", "grid", "hp", "body" }) do need(def, f, "container") end
 	def.kind, def.stack = "container", 1
 	def.fill = def.fill or {}
+end
+
+-- Item art (src/icons.lua): drawn in the Shipyard's Icons tab, keyed by the
+-- item it's for. A later file for the same item replaces the earlier one.
+local function prepareIcon(def)
+	if type(def) ~= "table" then fail("icon expects a table, like icon { id = ..., item = ..., parts = { ... } }") end
+	need(def, "item", "icon")
+	def.id = def.id or ("icon_" .. def.item)
+	if type(def.parts) ~= "table" then fail(("icon '%s' needs parts"):format(def.id)) end
+	local LAYERS = { hull = true, detail = true, glow = true }
+	for i, part in ipairs(def.parts) do
+		local function bad(what) fail(("icon '%s' part %d: %s"):format(def.id, i, what)) end
+		if type(part.shape) ~= "table" or #part.shape < 6 or #part.shape % 2 ~= 0 then bad("shape should be at least three x, y points") end
+		if part.layer ~= nil and not LAYERS[part.layer] then bad("unknown layer '" .. tostring(part.layer) .. "' (use hull, detail or glow)") end
+		if part.color ~= nil and (type(part.color) ~= "table" or #part.color < 3) then bad("color should be { r, g, b }") end
+		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
+		if part.paint ~= nil and part.paint ~= "primary" and part.paint ~= "secondary" then bad("paint should be primary or secondary") end
+	end
+	for _, f in ipairs({ "w", "h" }) do
+		local v = def[f]
+		if v ~= nil and (type(v) ~= "number" or v < 1 or v % 1 ~= 0) then fail(("icon '%s': %s should be a whole number of cells"):format(def.id, f)) end
+	end
+	def.reach = nil
+	return def
+end
+
+function api.icon(def)
+	prepareIcon(def)
+	def.source = currentFile
+	-- the icon's footprint (from the editor's size boxes) is the item's grid size
+	local item = data.items[def.item]
+	if item and def.w and def.h then
+		item.w, item.h = def.w, def.h
+		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
+	end
+	if not data.icons[def.item] then table.insert(data.list.icons, def.item) end
+	data.icons[def.item] = def
+	return def
+end
+
+-- Register an icon from the Shipyard now: def, or nil, error.
+function data.defineIcon(def)
+	local ok, err = pcall(api.icon, def)
+	if not ok then return nil, err end
+	return def
 end
 
 -- Market profiles have their own identity; station placements reference them explicitly.

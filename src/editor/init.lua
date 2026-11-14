@@ -144,8 +144,57 @@ function E.validateSlotDefault(i)
 end
 
 
+-- Zoom the canvas so the icon's footprint fills it.
+function E.fitIconView()
+	local bw, bh = require("src.icons").box(E.design.item)
+	E.view.x, E.view.y = 0, 0
+	E.view.zoom = math.max(2, math.min(24, (love.graphics.getWidth() - 360) / (bw * 2.6), love.graphics.getHeight() / (bh * 3.2)))
+end
+
+-- A new icon for an item (default: the first item without one).
+function E.newIcon(item)
+	if not item then
+		for _, id in ipairs(data.list.items) do
+			if not require("src.icons").get(id) then item = id break end
+		end
+		item = item or data.list.items[1]
+	end
+	local def = data.items[item]
+	E.design = { id = "icon_" .. item, name = (def and def.name or item) .. " icon", item = item, kind = "icon",
+		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
+	-- a starting block the size of the footprint, to reshape
+	local bw, bh = require("src.icons").box(item)
+	E.design.parts[1] = { name = "body", shape = { -bw + 1, -bh + 1, bw - 1, -bh + 1, bw - 1, bh - 1, -bw + 1, bh - 1 }, paint = "primary" }
+	E.fitIconView()
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
+end
+
+-- Open the icon for an item: its saved one, else a new one.
+function E.openIcon(item)
+	if not data.icons[item] then
+		E.newIcon(item)
+		-- a drone starts from its hull's art (saving it makes it its own)
+		local fromHull = require("src.icons").get(item)
+		if fromHull then
+			E.design.parts = {}
+			for _, p in ipairs(fromHull.parts) do E.design.parts[#E.design.parts + 1] = Export.copy(p) end
+			say("New icon for " .. data.items[item].name .. ", starting from its hull " .. fromHull.hull)
+			return
+		end
+		say("New icon for " .. (data.items[item] and data.items[item].name or item))
+		return
+	end
+	E.design = Export.fromIcon(item)
+	E.design.folder = Export.folderOf(E.design.id)
+	if E.design.folder then E.browseDir = E.design.folder end
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
+	E.fitIconView()
+	say("Opened the icon for " .. (data.items[item] and data.items[item].name or item))
+end
+
 function E.newDesign(kind)
 	kind = kind or "hull"
+	if kind == "icon" then return E.newIcon() end
 	E.design = { id = "new_" .. kind, name = "New " .. kind, base = data.list.hulls[1], parts = {}, kind = kind ~= "hull" and kind or nil,
 		loot = (kind == "container" or kind == "wreck") and {} or nil }
 	if kind == "weapon" then
@@ -164,6 +213,8 @@ function E.newDesign(kind)
 end
 
 function E.openHull(id)
+	local iconItem = id:match("^icon_(.+)$")
+	if iconItem and data.icons[iconItem] and not data.hulls[id] then return E.openIcon(iconItem) end
 	if data.modules[id] and data.modules[id].weapon and not data.hulls[id] then
 		E.design = Export.fromModule(id)
 		E.design.folder = Export.folderOf(id)
@@ -422,6 +473,7 @@ local function categoryOf(kind)
 	if kind == "wreck" or kind == "container" or kind == "prop" then return "wreck" end
 	if kind == "station" then return "station" end
 	if kind == "weapon" then return "weapon" end
+	if kind == "icon" then return "icon" end
 	return "hull"
 end
 E.byCategory = {}
@@ -441,6 +493,7 @@ function E.switchCategory(cat)
 		E.newDesign(cat)
 		E.view.x, E.view.y = 0, 0
 		E.view.zoom = cat == "station" and 0.25 or (cat == "weapon" and 12 or 3)
+		if cat == "icon" then E.fitIconView() end
 	end
 	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 	if E.tool == "muzzle" and cat ~= "weapon" then E.tool = "select" end
@@ -454,6 +507,7 @@ end
 -- Register the design with the game now: nil, error if it doesn't load.
 function E.define()
 	local def = Export.def(E.design)
+	if E.design.kind == "icon" then return data.defineIcon(def) end
 	if E.design.kind == "weapon" then return data.defineModule(def) end
 	if E.design.kind == "station" then return data.defineStation(def) end
 	if E.isPlaced() then return data.defineWreck(def) end
@@ -489,7 +543,7 @@ end
 
 function E.copySource()
 	love.system.setClipboardText(Export.source(E.design))
-	say(("Copied the %s { } source to the clipboard"):format(E.design.kind == "weapon" and "module" or E.isPlaced() and E.design.kind or "hull"))
+	say(("Copied the %s { } source to the clipboard"):format(E.design.kind == "weapon" and "module" or E.design.kind == "icon" and "icon" or E.isPlaced() and E.design.kind or "hull"))
 end
 
 -- Register the design right now and try it: fly a hull, or drop a wreck
@@ -500,6 +554,18 @@ function E.testFly()
 	local game = Editor.game
 	if not game then return end
 	if E.design.kind == "weapon" then return E.testWeapon(def) end
+	if E.design.kind == "icon" then
+		-- drop a few of the item ahead of you, to see it floating
+		local p = game.player
+		if not p or p.dead then say("Need a live ship to drop it next to") return end
+		Editor.close()
+		local x, y = p.body:getPosition()
+		local a = p.body:getAngle()
+		local d = (p.halfLength or 40) + 80
+		for k = -1, 1 do game:spawnPickup(x + math.cos(a) * d - math.sin(a) * k * 30, y + math.sin(a) * d + math.cos(a) * k * 30, def.item, 1) end
+		say(("Dropped %s ahead of you (F2 to go back)"):format(data.items[def.item] and data.items[def.item].name or def.item))
+		return
+	end
 	if E.isPlaced() then
 		local p = game.player
 		if not p or p.dead then say("Need a live ship to spawn it next to") return end
@@ -688,6 +754,7 @@ end
 -- What the canvas paints the design with: a hull wears its factory preset,
 -- anything else the preview colour picked in the Preview section.
 function E.previewPaint()
+	if E.design.kind == "icon" then return require("src.hud").itemColor(data.items[E.design.item] or {}) end
 	if (E.design.kind or "hull") == "hull" then local Paint = require("src.paint"); return Paint.preset(Paint.pool({ paints = E.stat("paints") })[1]) end
 	return E.paint
 end

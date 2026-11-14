@@ -6,6 +6,7 @@
 ]]
 
 local data = require("src.data")
+local Icons = require("src.icons")
 
 -- A dealer's lot ship moored outside: an amber FOR SALE placard over it,
 -- upright whatever the berth's heading.
@@ -1300,11 +1301,14 @@ local function drawPickups(game)
 		local item = data.items[k.item] or { kind = "salvage" }   -- an id no longer in the game
 		local c = (item.kind == "salvage") and COLORS.salvage or COLORS.ammo
 		local blink = 1
+		local reach = Icons.worldReach(k.item)
 		if k == game.hoverPickup then
 			lg.setColor(1, 1, 1, 0.6)
 			lg.setLineWidth(outline(1.5))
-			lg.circle("line", k.x, k.y, 16)
+			lg.circle("line", k.x, k.y, reach and math.max(12, reach + 6) or 16)
 		end
+		-- drawn art: the item at its real size, tumbling
+		if Icons.drawWorld(k.item, k.x, k.y, k.spin, blink, outline(1)) then goto continue end
 		lg.push()
 		lg.translate(k.x, k.y)
 		lg.rotate(k.spin)
@@ -1314,6 +1318,7 @@ local function drawPickups(game)
 		lg.setLineWidth(outline(2))
 		lg.rectangle("line", -5, -5, 10, 10)
 		lg.pop()
+		::continue::
 	end
 end
 
