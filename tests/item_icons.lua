@@ -24,7 +24,7 @@ return function(game)
  Editor.open(game)
  E.byCategory={}; E.newDesign('hull')
  E.switchCategory('icon')
- check(E.design.kind=='icon' and E.design.item and not data.icons[E.design.item],'new icon goes to an item without one')
+ check(E.design.kind=='icon' and E.design.item and not Icons.get(E.design.item),'new icon goes to an item without art (drones have theirs)')
  local item=E.design.item
  check(item~='silicon' and item~='patch_kit','test items stay free')
  E.design.parts[1].paint='primary'

@@ -155,7 +155,7 @@ end
 function E.newIcon(item)
 	if not item then
 		for _, id in ipairs(data.list.items) do
-			if not data.icons[id] then item = id break end
+			if not require("src.icons").get(id) then item = id break end
 		end
 		item = item or data.list.items[1]
 	end
