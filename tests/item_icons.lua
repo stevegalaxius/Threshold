@@ -14,7 +14,7 @@ return function(game)
  check(w==3 and h==1,'missile footprint')
  local bw,bh=Icons.box('missile_m')
  check(bw==24 and bh==8,'box is cells x CELL')
- check(Icons.worldReach('missile_m')>10 and Icons.worldReach('patch_kit')==nil,'reach')
+ check(Icons.worldReach('missile_m')>4 and Icons.worldReach('patch_kit')==nil,'reach')
  -- drones are drawn as their own hull, until someone saves art for them
  local dr=Icons.get('drone_m')
  check(dr and dr.hull==data.items.drone_m.shot.hull and #dr.parts>0,'drone uses its hull')
@@ -94,7 +94,7 @@ return function(game)
  -- the hold, with a few drawn items in it
  local Hold=require('src.inventory.hold')
  if p.hold then
-  for _,id in ipairs({'missile_m','shell_s','hydrogen_canister','drone_m'}) do Hold.add(p.hold,id,2) end
+  for _,id in ipairs({'missile_m','rounds_s','torp_l','hydrogen_canister','drone_m'}) do Hold.add(p.hold,id,2) end
   local Cargo=require('src.ui.cargo')
   Cargo.toggle(game)
   shot('icons-in-hold',function() require('src.render').world(game); Cargo.draw(game) end)
@@ -105,6 +105,21 @@ return function(game)
  local Slab=require('lib.Slab')
  for _=1,4 do Slab.Update(1/60); Editor.update(1/60); lg.origin(); lg.clear(0,0,0); Editor.draw(); Slab.Draw(); lg.present() end
  shot('icon-editor',function() Slab.Update(1/60); Editor.update(1/60); Editor.draw(); Slab.Draw() end)
+ Editor.close()
+ -- boxes: 3/4 view blocks become front/side/top faces that fill the footprint
+ local mi=data.icons.missile_m
+ check(mi.boxes and #mi.parts==#mi.boxes*3,'each box gives three faces')
+ local mbw,mbh=Icons.box('missile_m')
+ for _,q in ipairs(mi.parts) do for k=1,#q.shape-1,2 do check(math.abs(q.shape[k])<=mbw+1e-6 and math.abs(q.shape[k+1])<=mbh+1e-6,'box art fits the footprint') end end
+ check(#data.icons.rounds_s.parts==#data.icons.rounds_s.boxes*3-1,'open box has no top')
+ E.openHull('icon_missile_m')
+ local n=#E.design.parts
+ local bsrc=Export.source(E.design)
+ check(bsrc:find('boxes = {',1,true) and not bsrc:find('crate front',1,true),'source keeps boxes, not their faces')
+ local bgot; local bc=assert(loadstring(bsrc)); setfenv(bc,{icon=function(d) bgot=d end}); bc()
+ check(#bgot.boxes==#mi.boxes and #bgot.parts==0,'box source round trip')
+ E.design.boxes[1].h=2; Icons.syncBoxes(E.design)
+ check(#E.design.parts==n,'resync replaces faces, never piles them up')
  Editor.close()
  print(('item icons: %d checks passed'):format(checks))
 end

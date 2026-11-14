@@ -476,6 +476,77 @@ function fileBrowser(E, cat, builtIn)
 	end, 280)
 end
 
+-- Boxes: 3D blocks in the 3/4 crate view (src/icons.lua), in cells. The
+-- faces are rebuilt every frame from the numbers, so they are never edited
+-- by hand and always fill the footprint.
+local BOX_COLORS = {
+	{ "kind colour", nil }, { "olive", { 0.62, 0.7, 0.45 } }, { "amber", { 0.9, 0.62, 0.3 } },
+	{ "steel", { 0.62, 0.68, 0.75 } }, { "red", { 0.9, 0.38, 0.3 } }, { "brass", { 1, 0.85, 0.5 } },
+	{ "white", { 0.9, 0.9, 0.88 } },
+}
+local function colorName(c)
+	if not c then return "kind colour" end
+	for _, o in ipairs(BOX_COLORS) do
+		local v = o[2]
+		if v and math.abs(v[1] - c[1]) < 1e-3 and math.abs(v[2] - c[2]) < 1e-3 and math.abs(v[3] - c[3]) < 1e-3 then return o[1] end
+	end
+	return "custom"
+end
+local function boxSection(E, d)
+	local Icons = require("src.icons")
+	d.boxes = d.boxes or {}
+	Slab.Separator()
+	Slab.Text("Boxes (3/4 crate view, in cells)")
+	Slab.Text("x across, y depth, z up. They fill the", { Color = GREY })
+	Slab.Text("footprint; lower in the list draws on top.", { Color = GREY })
+	if Slab.Button("Add box") then
+		E.pushUndo()
+		local fw = d.w or (Icons.footprint(d.item))
+		table.insert(d.boxes, { name = "box " .. (#d.boxes + 1), x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
+		E.boxSel = #d.boxes
+	end
+	local b = E.boxSel and d.boxes[E.boxSel]
+	if b then
+		Slab.SameLine()
+		if Slab.Button("Copy box") then
+			E.pushUndo()
+			local c = Export.copy(b); c.name = (b.name or "box") .. " copy"; c.z = (b.z or 0) + (b.h or 1)
+			table.insert(d.boxes, c); E.boxSel = #d.boxes; b = c
+		end
+		Slab.SameLine()
+		if Slab.Button("Delete box") then
+			E.pushUndo(); table.remove(d.boxes, E.boxSel); E.boxSel = nil; b = nil
+		end
+	end
+	for i, bx in ipairs(d.boxes) do
+		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
+			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel = i end
+	end
+	if b then
+		textField(E, "yard_boxname", b.name or "", function(v) b.name = v end, 160)
+		local function num(label, key, lo, hi, default)
+			Slab.Text(label); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_box_" .. key, b[key] or default, lo, hi, 0.05, { W = 60, Precision = 2 }) then
+				E.pushUndoCoalesced("yard_box_" .. key)
+				local v = math.floor(Slab.GetInputNumber() * 20 + 0.5) / 20
+				if key == "w" or key == "d" or key == "h" then v = math.max(0.05, v) end
+				b[key] = v
+			end
+		end
+		num("x", "x", -20, 20, 0); Slab.SameLine(); num("y", "y", -20, 20, 0); Slab.SameLine(); num("z", "z", -20, 20, 0)
+		num("w", "w", 0.05, 20, 1); Slab.SameLine(); num("d", "d", 0.05, 20, 1); Slab.SameLine(); num("h", "h", 0.05, 20, 1)
+		local opts = {}
+		for _, o in ipairs(BOX_COLORS) do table.insert(opts, { label = o[1], value = o }) end
+		Slab.Text("colour"); Slab.SameLine()
+		combo("yard_boxcol", colorName(b.color), opts, function(o)
+			E.pushUndo(); b.color = o[2] and { o[2][1], o[2][2], o[2][3] } or nil
+		end, 120)
+		if Slab.CheckBox(b.open, "Open top (no lid face)") then E.pushUndo(); b.open = (not b.open) or nil end
+	end
+	if #d.boxes == 0 then d.boxes = nil end
+	Icons.syncBoxes(d)
+end
+
 -- The Icons tab: which item, its footprint, then the art tools.
 local function iconSections(E, d)
 	local Icons = require("src.icons")
@@ -526,6 +597,7 @@ local function iconSections(E, d)
 			end
 		end
 	end
+	boxSection(E, d)
 	if Slab.Button("Drop some ahead of me", { Tooltip = "Registers the icon now and drops three of the item in front of your ship" }) then E.testFly() end
 	Slab.SameLine()
 	if Slab.Button("Copy source") then E.copySource() end
@@ -553,10 +625,12 @@ local function iconSections(E, d)
 	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
 	restackControls(E, "yard_ilayer")
 	for i, p in ipairs(d.parts) do
+		if p.fromBox then goto nextPart end
 		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		local tags = (p.paint and ("  (" .. p.paint .. ")") or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
 		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
+		::nextPart::
 	end
 end
 

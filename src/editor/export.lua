@@ -205,11 +205,14 @@ end
 
 -- An item icon (the Icons tab): just the art, keyed by its item.
 function Export.iconDef(design)
-	local def = { id = design.id, item = design.item, w = design.w, h = design.h, parts = {} }
+	local def = { id = design.id, item = design.item, w = design.w, h = design.h, parts = {},
+		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil }
 	for _, part in ipairs(design.parts) do
+		if part.fromBox then goto continue end
 		local p = Export.cleanPart(part)
 		-- only what an icon draws with
 		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer })
+		::continue::
 	end
 	return def
 end
@@ -220,7 +223,11 @@ function Export.fromIcon(item)
 	local def = data.items[item]
 	local design = { id = ic.id, item = item, w = ic.w, h = ic.h, name = (def and def.name or item) .. " icon", kind = "icon",
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
-	for _, part in ipairs(ic.parts) do table.insert(design.parts, Export.cleanPart(part)) end
+	design.boxes = ic.boxes and copy(ic.boxes) or nil
+	for _, part in ipairs(ic.parts) do
+		if not part.fromBox then table.insert(design.parts, Export.cleanPart(part)) end
+	end
+	if design.boxes then require("src.icons").syncBoxes(design) end
 	return design
 end
 
@@ -273,6 +280,11 @@ local function iconSource(design)
 	local out = { "-- Made in the Shipyard (F2), Icons tab." .. (item and (" Art for " .. item.name .. ".") or ""), "icon {",
 		("\tid = %q, item = %q,"):format(def.id, def.item) }
 	if def.w and def.h then table.insert(out, ("\tw = %d, h = %d,   -- the item's grid size (cells); also its size in space"):format(def.w, def.h)) end
+	if def.boxes then
+		table.insert(out, "\tboxes = {   -- 3/4 view blocks in cells: x across, y depth, z up")
+		for _, b in ipairs(def.boxes) do table.insert(out, "\t\t" .. serialize(b, "\t\t") .. ",") end
+		table.insert(out, "\t},")
+	end
 	table.insert(out, "\tparts = {")
 	for _, part in ipairs(def.parts) do table.insert(out, (partLine(part, "\t\t"))) end
 	table.insert(out, "\t},")

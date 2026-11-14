@@ -37,6 +37,69 @@ Icons.WORLD = 0.25   -- world px per art unit in space: 4 px per hold cell
 
 local lg = love.graphics
 
+--[[ Boxes: 3D blocks drawn in a 3/4 oblique view (width straight across,
+	depth receding up and to the right, height up), the way crates are
+	drawn. An icon may list boxes = { { x, y, z, w, d, h, ... } } in cells
+	(x along the width, y depth, z height, from the near bottom left
+	corner). Each box becomes three parts (front, side, top) ahead of the
+	icon's drawn parts, in list order (later boxes draw on top), and the lot is scaled to fill
+	the footprint. Optional per box: name, color { r, g, b }, paint, and
+	open = true (no top face, for an open carton). ]]
+Icons.DEPTH = 0.315    -- screen x and -y per unit of depth
+Icons.RISE = 0.55      -- screen -y per unit of height
+Icons.FACE = { front = 0.24, side = 0.16, top = 0.34 }   -- fill brightness per face
+
+local function project(x, y, z)
+	return x + y * Icons.DEPTH, -(z * Icons.RISE + y * Icons.DEPTH)
+end
+
+function Icons.boxParts(boxes, bw, bh)
+	local list = boxes or {}
+	local faces = {}
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, b in ipairs(list) do
+		local bx, by, bz = b.x or 0, b.y or 0, b.z or 0
+		local X, Y, Z = bx + (b.w or 1), by + (b.d or 1), bz + (b.h or 1)
+		local function face(kind, pts)
+			local shape = {}
+			for _, q in ipairs(pts) do
+				local sx, sy = project(q[1], q[2], q[3])
+				shape[#shape + 1], shape[#shape + 2] = sx, sy
+				x0, x1, y0, y1 = math.min(x0, sx), math.max(x1, sx), math.min(y0, sy), math.max(y1, sy)
+			end
+			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = b.color, paint = b.paint,
+				fill = Icons.FACE[kind], fromBox = true }
+		end
+		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })
+		face("side", { { X, by, bz }, { X, Y, bz }, { X, Y, Z }, { X, by, Z } })
+		if not b.open then face("top", { { bx, by, Z }, { X, by, Z }, { X, Y, Z }, { bx, Y, Z } }) end
+	end
+	if #faces == 0 then return faces end
+	-- fill the footprint, centred, keeping proportions
+	local pad = 0.5
+	local k = math.min((bw - pad) * 2 / math.max(x1 - x0, 1e-6), (bh - pad) * 2 / math.max(y1 - y0, 1e-6))
+	local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+	for _, f in ipairs(faces) do
+		for j = 1, #f.shape - 1, 2 do
+			f.shape[j], f.shape[j + 1] = (f.shape[j] - cx) * k, (f.shape[j + 1] - cy) * k
+		end
+	end
+	return faces
+end
+
+-- Replace an icon's box faces (parts marked fromBox) with fresh ones built
+-- from its boxes. own: the icon or editor design (w, h win over the item's).
+function Icons.syncBoxes(icon)
+	local kept = {}
+	for _, p in ipairs(icon.parts or {}) do if not p.fromBox then kept[#kept + 1] = p end end
+	local bw, bh = Icons.box(icon.item, icon)
+	local parts = Icons.boxParts(icon.boxes, bw, bh)
+	for _, p in ipairs(kept) do parts[#parts + 1] = p end
+	icon.parts = parts
+	icon.reach = nil
+	return icon
+end
+
 -- Art made from a hull: its parts in their factory paint, scaled to fit
 -- the item's footprint (drones are drawn as the drone itself).
 local derived = {}
@@ -173,7 +236,7 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 					lg.setBlendMode("alpha")
 				else
 					if layer == "hull" and tris then
-						local f = Icons.FILL
+						local f = p.fill or Icons.FILL
 						lg.setColor(pc[1] * f, pc[2] * f, pc[3] * f, alpha)
 						for _, tri in ipairs(tris) do lg.polygon("fill", tri) end
 					end

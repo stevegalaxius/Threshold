@@ -1,16 +1,19 @@
--- Made in the Shipyard (F2), Icons tab. Art for Solid Rounds S: a crate of them.
+-- Made in the Shipyard (F2), Icons tab. Art for Solid Rounds S: an open carton.
 icon {
 	id = "icon_rounds_s", item = "rounds_s",
-	parts = {
-		{ name = "crate", shape = { -7.2, -7.2, 7.2, -7.2, 7.2, 7.2, -7.2, 7.2 }, color = { 0.62, 0.66, 0.5 } },
-		{ name = "lid", shape = { -5.6, -5.6, 5.6, -5.6, 5.6, 5.6, -5.6, 5.6 }, color = { 0.62, 0.66, 0.5 }, layer = "detail" },
-		{ name = "end left", shape = { -7.2, -7.2, -5.6, -7.2, -5.6, 7.2, -7.2, 7.2 }, color = { 0.62, 0.66, 0.5 }, layer = "detail" },
-		{ name = "end right", shape = { 5.6, -7.2, 7.2, -7.2, 7.2, 7.2, 5.6, 7.2 }, color = { 0.62, 0.66, 0.5 }, layer = "detail" },
-		{ name = "case", shape = { -2.8, -3.92, 0.45, -3.92, 0.45, -1.68, -2.8, -1.68 }, color = { 0.85, 0.66, 0.3 } },
-		{ name = "head", shape = { 0.45, -3.75, 1.62, -3.61, 2.8, -2.8, 1.62, -1.99, 0.45, -1.85 }, color = { 0.9, 0.55, 0.35 } },
-		{ name = "case", shape = { -2.8, -1.12, 0.45, -1.12, 0.45, 1.12, -2.8, 1.12 }, color = { 0.85, 0.66, 0.3 } },
-		{ name = "head", shape = { 0.45, -0.95, 1.62, -0.81, 2.8, 0, 1.62, 0.81, 0.45, 0.95 }, color = { 0.9, 0.55, 0.35 } },
-		{ name = "case", shape = { -2.8, 1.68, 0.45, 1.68, 0.45, 3.92, -2.8, 3.92 }, color = { 0.85, 0.66, 0.3 } },
-		{ name = "head", shape = { 0.45, 1.85, 1.62, 1.99, 2.8, 2.8, 1.62, 3.61, 0.45, 3.75 }, color = { 0.9, 0.55, 0.35 } },
+	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
+		{ name = "carton", x = 0, y = 0, z = 0, w = 1, d = 1, h = 0.6, open = true, color = { 0.9, 0.62, 0.3 } },
+		{ name = "round", x = 0.10, y = 0.70, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.40, y = 0.70, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.70, y = 0.70, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.10, y = 0.40, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.40, y = 0.40, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.70, y = 0.40, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.10, y = 0.10, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.40, y = 0.10, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "round", x = 0.70, y = 0.10, z = 0.4, w = 0.2, d = 0.2, h = 0.2, color = { 1, 0.85, 0.5 } },
+		{ name = "front wall", x = 0, y = 0, z = 0, w = 1, d = 0.05, h = 0.6, color = { 0.9, 0.62, 0.3 } },
+		{ name = "stencil", x = 0.15, y = -0.02, z = 0.15, w = 0.45, d = 0.02, h = 0.25, color = { 0.9, 0.38, 0.3 } },
 	},
+	parts = {},
 }
