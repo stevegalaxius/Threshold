@@ -484,7 +484,7 @@ function Game:saveState()
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
-		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId,
+		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId, discovered = Persistence.copy(u.discovered),
 		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues) }
 	local p = self.player
 	if p and not p.dead then
@@ -589,6 +589,7 @@ function Game:loadState(state)
 	self.kills = state.kills or 0
 	self.universe.sites = Persistence.copy(state.sites or {})
 	self.universe.nextSiteId = state.nextSiteId or 0
+	self.universe.discovered = Persistence.copy(state.discovered or {})
 	local Sites = require("src.sites")
 	Sites.restore(self.universe)
 	-- saved mid-lane: back into the same lane, if both its ends still exist

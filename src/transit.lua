@@ -122,6 +122,7 @@ function Game:fireDriver(to)
 	local menu, p = self.driverMenu, self.player
 	if not menu or not p or p.dead then return false end
 	if menu.driver.driverShip and menu.driver.driverShip~=p then return false end
+	if not require("src.dark").charted(self.universe, to) then return false end
 	local fare = self:driverFare(to)
 	if self.universe.credits < fare then
 		self:toast(("PASSAGE TO %s IS %d CR"):format(Fields[to].name:upper(), fare), 2)

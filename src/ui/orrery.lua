@@ -15,6 +15,7 @@
 local HUD = require("src.hud")
 local Fields = require("src.fields")
 local Sites = require("src.sites")
+local Dark = require("src.dark")
 
 local Orrery = {}
 
@@ -26,9 +27,11 @@ local function color(id) return Fields.orbits[id] and Fields.orbits[id].color en
 function Orrery.isOpen(game) return game.driverMenu ~= nil end
 
 -- Every planet with an orbit, inner to outer.
-local function planets()
+-- Public planets only: dark grids (src/dark.lua) go in the Destinations
+-- pane's DISCOVERED list once found, not here.
+local function planets(game)
 	local list = {}
-	for id in pairs(Fields.orbits) do table.insert(list, id) end
+	for id in pairs(Fields.orbits) do if not Dark.isDarkArea(id) then table.insert(list, id) end end
 	table.sort(list, function(a, b) return Fields.orbits[a].au < Fields.orbits[b].au end)
 	return list
 end
@@ -37,7 +40,7 @@ end
 -- and its row in the list.
 local function layout(game)
 	local w, h = lg.getDimensions()
-	local n = #planets()
+	local n = #planets(game)
 	local rowH = math.max(40, math.min(54, math.floor((h - 190) / n)))
 	local PANE = 320
 	local pw, ph = 760 + PANE, 150 + n * rowH
@@ -48,7 +51,7 @@ local function layout(game)
 	for _, o in pairs(Fields.orbits) do maxAU = math.max(maxAU, o.au) end
 	local L = { x = x, y = y, w = pw, h = ph, cx = cx, cy = cy, R = R, items = {} }
 	local clock = game.universe.clock
-	for i, id in ipairs(planets()) do
+	for i, id in ipairs(planets(game)) do
 		local px, py = Fields.orbitPos(id, clock)
 		local au = Fields.orbits[id].au
 		local a = math.atan2(py, px)
@@ -79,12 +82,18 @@ local function layout(game)
 	L.dest = {}
 	local instances, found = Sites.destinations(game.universe)
 	local ry = L.pane.y + 40
+	-- found dark grids join the discoveries, as fixed places
+	for _, area in ipairs(Dark.areas()) do
+		if area ~= game.fieldId and Dark.charted(game.universe, area) then found[#found + 1] = { area = area } end
+	end
 	local function section(title, list, empty)
 		L.dest[#L.dest + 1] = { header = title, y = ry, empty = #list == 0 and empty or nil }
 		ry = ry + (#list == 0 and 44 or 22)
 		for _, inst in ipairs(list) do
 			if ry + 48 <= L.pane.y + L.pane.h then
-				L.dest[#L.dest + 1] = { inst = inst, fare = Sites.fare(inst), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
+				L.dest[#L.dest + 1] = inst.area
+					and { inst = inst, area = inst.area, fare = game:driverFare(inst.area), au = Fields.distance(game.fieldId, inst.area, game.universe.clock), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
+					or { inst = inst, fare = Sites.fare(inst), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
 			end
 			ry = ry + 48
 		end
@@ -217,6 +226,21 @@ function Orrery.draw(game)
 			lg.setColor(HUD.DIM)
 			lg.print(d.header, P.x + 10, d.y)
 			if d.empty then lg.setFont(font(12)); lg.print(d.empty, P.x + 10, d.y + 18) end
+		elseif d.area then
+			local col = Fields.orbits[d.area].color or { 0.8, 0.4, 0.6 }
+			lg.setColor(0, 0, 0, d == hd and 0.55 or 0.3)
+			lg.rectangle("fill", d.x, d.y, d.w, d.h, 6, 6)
+			local k, kx, ky = 5, d.x + 14, d.y + 13
+			lg.setColor(col)
+			lg.polygon("fill", kx, ky - k, kx + k, ky, kx, ky + k, kx - k, ky)
+			lg.setFont(font(14))
+			lg.print(Fields[d.area].name, d.x + 26, d.y + 4)
+			lg.setFont(font(11))
+			lg.setColor(HUD.DIM)
+			lg.printf("UNLISTED", d.x, d.y + 6, d.w - 10, "right")
+			lg.setFont(font(12))
+			lg.setColor(game.universe.credits >= d.fare and HUD.INK or HUD.WARN)
+			lg.print(("%.2f AU   %d cr"):format(d.au, d.fare), d.x + 26, d.y + 24)
 		else
 			local inst, def = d.inst, Sites.template(d.inst)
 			local col = Sites.color(inst)
@@ -258,6 +282,7 @@ function Orrery.mousepressed(game, mx, my, button)
 	local L = layout(game)
 	if button == 2 then
 		local s=hoveredSite(L,mx,my) or hoveredDest(L,mx,my)
+		if s and s.area then require('src.debugtravel').go(game,s.area);return true end
 		if s then game:closeDriverMenu();game:enterSite(s.inst.id);return true end
 		local target=hovered(L,mx,my)
 		if target then require('src.debugtravel').go(game,target.id) end
@@ -265,6 +290,7 @@ function Orrery.mousepressed(game, mx, my, button)
 	end
 	if inside(L.cancel, mx, my) then game:closeDriverMenu() return true end
 	local s = hoveredSite(L, mx, my) or hoveredDest(L, mx, my)
+	if s and s.area then game:fireDriver(s.area) return true end
 	if s then game:fireDriverToSite(s.inst.id) return true end
 	choose(game, hovered(L, mx, my))
 	return true

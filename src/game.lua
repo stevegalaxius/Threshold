@@ -242,6 +242,8 @@ function Game:loadField(id, opts)
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
+	-- arriving on a dark grid puts it on your charts (src/dark.lua)
+	if self.field.dark and self.universe and not self.preview then require("src.dark").discover(self.universe, id) end
 	self.arenaRadius = self.field.radius or 10000
 	self.well, self.lane, self.driverMenu, self.ladder = nil, nil, nil, nil
 	if not self.field.transit then self.trip = nil end

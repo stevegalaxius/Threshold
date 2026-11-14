@@ -40,7 +40,7 @@ local Fields = {}
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
 Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "jupiter", "io", "europa", "ganymede", "callisto",
-	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "asteroids", "giant", "station" }
+	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "milliways", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
 -- Orbits: distance from the Sun in AU, year length in Earth years, where
@@ -57,6 +57,9 @@ Fields.orbits = {
 	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 	pluto = { au = 39.48, year = 248, phase = 3.8, color = { 0.75, 0.65, 0.6 } },
+	-- dark = true: an unlisted grid (src/dark.lua). It rides with Pluto, a
+	-- little ahead of it, and stays off the driver's list until found.
+	milliways = { au = 39.48, year = 248, phase = 3.8 + 0.012, dark = true, color = { 0.85, 0.35, 0.55 } },
 }
 
 -- Moons: each is its own small map, reached by flying off the edge of
@@ -376,6 +379,25 @@ Fields.ring = {
 		local area = pi * ((26000 * S) ^ 2 - (9000 * S) ^ 2) / 1e6
 		game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 9000 * S)
 		game:spawnContainers(T.fieldContainers, 6000)
+	end,
+}
+
+-- Milliways: a dark grid off Pluto, no planet, no beacons. The freeport
+-- sits in a pocket of cleared ice with loose rock out to the edge. It's
+-- off the public charts (src/dark.lua) until the player finds it.
+Fields.milliways = {
+	name = "Milliways",
+	dark = true,
+	spawn = { 0, 3200 * T.mapScale },
+	radius = 20000 * T.mapScale,
+	mix = { ice = 7, rock = 3 },
+	enemies = { { "sniper", 1 }, { "interceptor", 2 } },
+	build = function(game)
+		for _,id in ipairs(Fields.milliways.stationIds) do require("src.locations").spawnStation(game,id) end
+		local S = T.mapScale
+		local area = pi * ((20000 * S) ^ 2 - (6000 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.12 * T.mapDensity), 6000 * S)
+		game:spawnContainers(T.fieldContainers, 5000)
 	end,
 }
 
