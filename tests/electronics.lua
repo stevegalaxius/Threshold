@@ -4,8 +4,8 @@ return function(game)
  local Tasks,Transport=require('src.tasks'),require('src.transport')
  local function set(u,key,item,n) S.stock(u,key,S.shopFor(key,item))[item]=n end
  local function world() return {clock=0,stations={},npcs={}} end
- -- planetary resources land at each system's logistics hub (Venus has none)
- local sources={{'station:mercury_2','silicon',24},{'station:earth_1','silicon',24},{'station:luna_1','silicon',64},{'station:venus_1','industrial_acids',16},{'station:jupiter_3','industrial_acids',16}}
+ -- planetary resources land where they're made: system hubs, Luna, Venus, and Io's moon works
+ local sources={{'station:mercury_2','silicon',24},{'station:earth_1','silicon',24},{'station:luna_1','silicon',64},{'station:venus_1','industrial_acids',16},{'station:io_1','industrial_acids',16}}
  for _,source in ipairs(sources) do
   local u=world();set(u,source[1],source[2],0);set(u,source[1],'electronics',0)
   local s=S.stock(u,source[1],S.shopFor(source[1],source[2]))
@@ -17,15 +17,16 @@ return function(game)
  for _,key in ipairs({'station:earth_1','station:venus_1'}) do
   local u=world();set(u,key,'silicon',2);set(u,key,'industrial_acids',1);S.count(u,key,'electronics')
   local made=I.installations(key).silicon_refinery and 6 or 0 -- the hub's own refinery runs too
+  local acids=I.installations(key).acid_works and 4 or 0 -- and Venus's own acid works
   u.clock=900
-  assert(S.count(u,key,'electronics')==8 and S.count(u,key,'silicon')==made and S.count(u,key,'industrial_acids')==0,'electronics ignored inputs or batch rate')
+  assert(S.count(u,key,'electronics')==8 and S.count(u,key,'silicon')==made and S.count(u,key,'industrial_acids')==acids,'electronics ignored inputs or batch rate')
   u.clock=1800
   assert(S.count(u,key,'electronics')==8,'electronics appeared without input supply')
  end
  local u=world();local source='station:earth_1';local works='station:titan_3'
  -- Earth to Saturn is a trunk run: Jita to Saturn's hub, which serves the arsenal
  local hub=E.hubFor(works)
- set(u,source,'electronics',100);set(u,works,'electronics',0)
+ set(u,source,'electronics',1000);set(u,works,'electronics',0)
  E.update(u,0)
  local order
  for _,o in pairs(Tasks.state(u).offers) do if o.item=='electronics' and o.source==source and o.target==hub then order=o;break end end
