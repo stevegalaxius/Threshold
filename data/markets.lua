@@ -188,7 +188,7 @@ market { id = "market:belt_2", station = "MACK Industrial Works", dealer = { nam
 	{ "iron_ore", 4 }, { "cargo_container", 4 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }
 
-market { id = "market:venus_3", station = "Angelmaschinenwerft Atelier", dealer = { name = "Angelmaschinenwerft Atelier", hulls = { "amw_sprint_fat", "amw_wayfarer", "amw_wayfarer_fat" }, lots = 5, assembly = "amw_assembly", markup = 1.25, trims = { "stock" } }, sells = {
+market { id = "market:venus_3", station = "Angelmaschinenwerft Atelier", dealer = { name = "Angelmaschinenwerft Atelier", hulls = { "amw_sprint", "amw_sprint_fat", "amw_wayfarer", "amw_wayfarer_fat" }, lots = 5, assembly = "amw_assembly", markup = 1.25, trims = { "stock" } }, sells = {
  { "nav_computer", 1 }, { "flare_pod", 1 },
 } }
 market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer = { name = "Brute Industries Works", hulls = { "brute_anvil", "brute_nautilus" }, lots = 6, assembly = "brute_assembly", markup = 0.95 }, sells = {
