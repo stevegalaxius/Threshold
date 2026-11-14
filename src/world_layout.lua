@@ -113,10 +113,12 @@ W.stations = {
 		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
 	},
 	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
+	-- The Shoals has no planet to orbit, so its three stations sit at fixed
+	-- spots inside the quarry's widened clear zone (9,750 px), ~6,000 px apart.
 	shoals = {
-		{ id = "station:shoals_1", facilities={roll_steel={capacity=240},press_canisters={capacity=600}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
-		{ id = "station:shoals_2", facilities={ammunition={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 2.2, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
-		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, spin = -0.05, phase = 4.4, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
+		{ id = "station:shoals_1", position = { x = 0, y = 0 }, facilities={roll_steel={capacity=240},press_canisters={capacity=600}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
+		{ id = "station:shoals_2", facilities={ammunition={capacity=12}}, services = { "market", "hangar", "repair" }, position = { x = 5200, y = -3400 }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
+		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -5200, y = -3400 }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
 	},
 	cordelia = {
 		{ id = "station:cordelia_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },

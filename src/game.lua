@@ -1177,6 +1177,8 @@ function Game:stationHostile(st, o)
 		local Rep = require("src.reputation")
 		return Rep.hostile(Rep.stationAttitude(self.universe, st.key or st.locationId))
 	end
+	-- a station's drones (any station's) are never its targets
+	if o.drone and o.owner and o.owner.kind == "station" then return false end
 	local g = st.grudge and st.grudge[o]
 	if g and self.time - g < GRUDGE_TIME then return true end
 	return o.team == 2 and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
@@ -2194,7 +2196,9 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- a station remembers who shot it (and its turrets answer)
 	-- (not for bumps, and not from traders: their crossfire at pirates and
 	-- their docking scrapes are accidents, not attacks)
+	-- (nor from a station's own drones, whose strays can clip it)
 	if e and e.grudge and source and source.kind == "ship" and amount > 0 and cause ~= "ram"
+		and not (source.drone and source.owner and source.owner.kind == "station")
 		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
 		e.grudge[source] = self.time
 	end

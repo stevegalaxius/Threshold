@@ -409,7 +409,7 @@ Fields.milliways = {
 -- A quarry: a station's mining field, its own map off the edge of its
 -- parent's (Fields.moons). Thick belt rock, a few huge rocks the drill
 -- crews work, and an ore depot they haul back to.
-local function quarryField(id, name, dark)
+local function quarryField(id, name, dark, clear)
 	local f
 	f = {
 		miningAsteroids = {},
@@ -423,10 +423,10 @@ local function quarryField(id, name, dark)
 			for _,sid in ipairs(f.stationIds) do require("src.locations").spawnStation(game,sid) end
 			for _,s in ipairs(f.miningAsteroids) do game:spawnGiantAsteroid(s.x,s.y,s.radius) end
 			-- thick rock from the depot's clear zone out to the edge
-			local S = T.mapScale
-			local area = pi * ((22000 * S) ^ 2 - (4500 * S) ^ 2) / 1e6
-			game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 4500 * S)
-			game:spawnContainers(T.fieldContainers, 4500)
+			local S, c = T.mapScale, clear or 4500
+			local area = pi * ((22000 * S) ^ 2 - (c * S) ^ 2) / 1e6
+			game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), c * S)
+			game:spawnContainers(T.fieldContainers, c)
 		end,
 	}
 	for k = 0, 3 do
@@ -439,7 +439,7 @@ quarryField("quarry", "Ring Quarry")
 quarryField("ceres_quarry", "Ceres Quarry")
 -- The Shoals: a dark quarry in the belt. Pirate-run depots crush the rock
 -- into steel, canisters and ammunition for the shadow economy.
-quarryField("shoals", "The Shoals", true)
+quarryField("shoals", "The Shoals", true, 6500)   -- a wider clear zone: three stations
 
 -- Cordelia Drift: a dark pocket in Uranus's inner ring debris, one
 -- freeport in cleared ice, rock and ice out to the edge.
@@ -624,6 +624,11 @@ function Fields.configureLocations(area)
             spin=spin or (orbitIndex==1 and .05 or -.05)
         else
             motion=motion or {type='fixed',x=0,y=0};spin=spin or .04
+        end
+        -- Out of any planet's well (quarries, dark grids) nothing holds a
+        -- station still: give it a slow drift-spin so it reads as floating.
+        if not F.stationTrack and not F.planetR and not entry.adapter and (spin or 0)==0 then
+            spin=(i%2==1 and 1 or -1)*T.freeStationSpin
         end
         F.stations[i]=entry.name or id
         F.stationIds[i]=add(id,F.stations[i],'station',motion,spin)
