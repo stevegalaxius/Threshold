@@ -71,6 +71,12 @@ T.drillOreMult = 2        -- ore from a chip a drill broke, against 1 when shot
 T.rareChance = { rock = 0.06, ice = 0.08 }   -- chance a big rock has a gold core, big ice a crystal
 T.rareMinRadius = { rock = 55, ice = 30 }    -- only pieces this big carry one (ring ice runs small)
 T.rareCovetRange = 6000   -- miners go after loose rare ore this close
+-- NPCs detouring for rare ore (src/prospect.lua)
+T.prospectRange = 2500    -- how close it has to pass to notice
+T.prospectThink = 1.5     -- seconds between looks
+T.prospectStandoff = 320  -- a gun's distance from the rock it cuts
+T.prospectEager = { miner = 1, pirate = 1, trader = 0.35, patrol = 0, other = 0.35 }
+T.prospectOffline = 0.06  -- offline: chance per leg into a belt, for a keen ship
 T.rareCore = 0.4          -- the core's size, as a share of the rock's radius
 T.rareChipShare = 0.3     -- a chip this much core is rare ore
 T.chunkRadius = 14        -- a cut-off piece this big is a rock that chips on

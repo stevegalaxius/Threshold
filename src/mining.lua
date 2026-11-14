@@ -19,26 +19,8 @@ function M.workPoint(site)
  return L.position(site.id,0)
 end
 
--- A miner sells any rare ore it brought home, for its own money: it goes on
--- the station's shelf like any other good (never into an industry chain).
-function M.sellRare(u,r,node,cargo)
- local total,sold=0,{}
- for _,item in pairs(Ore.rare) do
-  local n=cargo[item] or 0
-  if n>0 then
-   Jobs.deliver(u,node,item,n);cargo[item]=nil;sold[item]=n
-   total=total+n*(data.items[item].price or 0)
-  end
- end
- if total<=0 then return 0 end
- if r.ship.hold then
-  local h=Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
-  Hold.sync(h,cargo);r.ship.hold=Hold.serialize(h)
- end
- r.credits=(r.credits or 0)+total;r.rareEarnings=(r.rareEarnings or 0)+total
- require('src.events').emit('rare_sale',r.id,node,sold,total)
- return total
-end
+-- A miner sells any rare ore it brought home (src/prospect.lua).
+function M.sellRare(u,r,node,cargo) return require('src.prospect').sell(u,r,node) end
 Tasks.register('mine',{
  requires={capabilities={'cargo','drill'}},
  docks=function(r,id) return L.canonical(id)==L.canonical(r.task.source) end,
@@ -58,8 +40,8 @@ Tasks.register('mine',{
  plan=function(t,node,clock) return require('src.travelgraph').itinerary(node,t.phase=='delivery' and t.source or t.target,clock) end,
  complete=function(u,r,t,node)
   if node~=t.source then return false end
+  M.sellRare(u,r,node)
   local cargo=r.ship.cargo or {}
-  M.sellRare(u,r,node,cargo)
   local n=math.max(0,(cargo[t.item] or 0)-(t.retainedCargo or 0))
   if n<=0 then
    if t.phase=='delivery' then Tasks.release(u,r,'no ore delivered',u.clock) end
