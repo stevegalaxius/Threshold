@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "fill", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
+Export.PART_FIELDS = { "name", "shape", "shade", "fill", "tint", "color", "paint", "mirror", "layer", "collide", "sensor", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -238,7 +238,7 @@ function Export.def(design)
 	if design.kind == "icon" then return Export.iconDef(design) end
 	if design.kind == "weapon" then return Export.weaponDef(design) end
 	if design.kind == "station" then return Export.stationDef(design) end
-	if design.kind == "wreck" or design.kind == "container" or design.kind == "prop" then return Export.wreckDef(design) end
+	if design.kind == "wreck" or design.kind == "container" or design.kind == "prop" or design.kind == "satellite" then return Export.wreckDef(design) end
 	return Export.hullDef(design)
 end
 
@@ -300,7 +300,7 @@ function Export.source(design)
 	if design.kind == "icon" then return iconSource(design) end
 	local def = Export.def(design)
 	local kind = (design.kind == "wreck" or design.kind == "container") and "container"
-		or (design.kind == "prop" or design.kind == "station") and design.kind or "hull"
+		or (design.kind == "prop" or design.kind == "satellite" or design.kind == "station") and design.kind or "hull"
 	local keys = {}
 	for k in pairs(def) do if k ~= "parts" and k ~= "id" and k ~= "name" and k ~= "kind" then table.insert(keys, k) end end
 	table.sort(keys)

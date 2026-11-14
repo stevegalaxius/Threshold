@@ -489,6 +489,7 @@ end
 -- The editor's tabs: each category keeps its own design and undo history.
 local function categoryOf(kind)
 	if kind == "wreck" or kind == "container" or kind == "prop" then return "wreck" end
+	if kind == "satellite" then return "satellite" end
 	if kind == "station" then return "station" end
 	if kind == "weapon" then return "weapon" end
 	if kind == "icon" then return "icon" end
@@ -519,7 +520,7 @@ end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
 function E.isPlaced()
-	return E.design.kind == "wreck" or E.design.kind == "container" or E.design.kind == "prop" or E.design.kind == "station"
+	return E.design.kind == "wreck" or E.design.kind == "container" or E.design.kind == "prop" or E.design.kind == "satellite" or E.design.kind == "station"
 end
 
 -- Register the design with the game now: nil, error if it doesn't load.

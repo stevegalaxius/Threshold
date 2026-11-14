@@ -1,14 +1,16 @@
 -- Generated from the satellite mockups (v4 template). Edit freely in the
 -- Shipyard: panel strips are sensors (shot off like ship parts, never bumped), the truss is drawn only.
-prop {
-	id = "sat_fuel_buoy", name = "Fuel buoy",
+satellite {
+	id = "sat_passive", name = "Satellite",
 	armor = 300, mass = 3000,
 	parts = {
-		{ name = "core", shape = { -27, -21, 27, -21, 27, 21, -27, 21 }, color = { 0.29, 0.3, 0.33 }, core = true, lights = { { color = { 1, 0.75, 0.24 }, x = 0, y = 0, kind = "strobe", size = 6, rate = 0.7 } } },
-		{ name = "tank", shape = { 31.5, -42, 27.28, -26.25, 15.75, -14.72, -0, -10.5, -15.75, -14.72, -27.28, -26.25, -31.5, -42, -27.28, -57.75, -15.75, -69.28, 0, -73.5, 15.75, -69.28, 27.28, -57.75 }, color = { 0.55, 0.39, 0.16 } },
-		{ name = "tank", shape = { 31.5, 42, 27.28, 57.75, 15.75, 69.28, -0, 73.5, -15.75, 69.28, -27.28, 57.75, -31.5, 42, -27.28, 26.25, -15.75, 14.72, 0, 10.5, 15.75, 14.72, 27.28, 26.25 }, color = { 0.55, 0.39, 0.16 } },
-		{ name = "nozzle boom", shape = { -2.25, 72, 2.25, 72, 2.25, 102, -2.25, 102 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
-		{ name = "nozzle", shape = { 9, 108, 6.36, 114.36, -0, 117, -6.36, 114.36, -9, 108, -6.36, 101.64, 0, 99, 6.36, 101.64 }, color = { 1, 0.75, 0.24 }, layer = "glow", collide = false },
+		{ name = "bus", shape = { -42, -42, 42, -42, 42, 42, -42, 42 }, color = { 0.29, 0.3, 0.33 }, core = true, lights = { { color = { 0.9, 0.35, 0.3 }, x = 0, y = 0, kind = "strobe", size = 6, rate = 0.7 } } },
+		{ name = "equipment", shape = { -33, -33, -3, -33, -3, -3, -33, -3 }, color = { 0.36, 0.37, 0.41 }, layer = "detail", collide = false },
+		{ name = "equipment", shape = { 3, 3, 33, 3, 33, 33, 3, 33 }, color = { 0.36, 0.37, 0.41 }, layer = "detail", collide = false },
+		{ name = "owner stripe", shape = { -42, 27, 42, 27, 42, 42, -42, 42 }, color = { 0.75, 0.59, 0.24 }, layer = "detail", collide = false },
+		{ name = "sensor pod", shape = { 42, -18, 60, -18, 60, 0, 42, 0 }, color = { 0.47, 0.49, 0.53 } },
+		{ name = "dish mast", shape = { -1.5, -78, 1.5, -78, 1.5, -42, -1.5, -42 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
+		{ name = "dish", shape = { -27, -90, 27, -90, 18, -78, -18, -78 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
 		{ name = "truss", shape = { -84, -9, 84, -9, 84, -4.5, -84, -4.5 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
 		{ name = "truss", shape = { -84, 4.5, 84, 4.5, 84, 9, -84, 9 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },
 		{ name = "truss", shape = { -84, -4.5, -79.5, -4.5, -79.5, 4.5, -84, 4.5 }, color = { 0.67, 0.69, 0.74 }, layer = "detail", collide = false },

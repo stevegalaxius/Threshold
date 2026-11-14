@@ -310,8 +310,11 @@ function api.site(def)
 	def.color = def.color or { 0.6, 0.8, 1 }
 end
 function api.prop(def) def.loot = {}; wreckLike("prop", def) end
+-- A satellite design (data/satellites/): built and spawned like a prop, but
+-- listed on its own in the Shipyard. src/satellites.lua places and runs them.
+function api.satellite(def) def.loot = {}; wreckLike("satellite", def) end
 
--- Satellites in a field's orbit (src/satellites.lua, data/satellites.lua).
+-- Satellites in a field's orbit (src/satellites.lua, data/satellite_orbits.lua).
 -- One entry per field; a later one (a mod) replaces it.
 function api.satellites(def)
 	if type(def) ~= "table" or type(def.field) ~= "string" then fail("satellites expects { field = id, ... }") end
@@ -323,7 +326,7 @@ end
 function data.defineWreck(def)
 	local was = currentFile
 	currentFile = "shipyard"
-	local ok, err = pcall(def.kind == "prop" and api.prop or api.wreck, def)
+	local ok, err = pcall(def.kind == "prop" and api.prop or def.kind == "satellite" and api.satellite or api.wreck, def)
 	currentFile = was
 	if not ok then return nil, err end
 	return def

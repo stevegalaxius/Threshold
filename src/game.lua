@@ -2701,7 +2701,7 @@ function Game:spawnWreck(id, x, y, a, vx, vy, lootTable)
 	Game.buildYield()
 	local def = data.wrecks[id]
 	if not def then return nil end
-	local cargo = def.kind == "prop" and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
+	local cargo = (def.kind == "prop" or def.kind == "satellite") and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
 	-- a stand-in for the ship a husk normally comes from
 	local noseX, tailX = 0, 0
 	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end

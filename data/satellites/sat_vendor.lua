@@ -1,6 +1,6 @@
 -- Generated from the satellite mockups (v4 template). Edit freely in the
 -- Shipyard: panel strips are sensors (shot off like ship parts, never bumped), the truss is drawn only.
-prop {
+satellite {
 	id = "sat_vendor", name = "Vending satellite",
 	armor = 320, mass = 3000,
 	parts = {

@@ -1,7 +1,7 @@
 --[[
 	Satellites (src/satellites.lua): owned, persistent props in a planet's
 	orbit, kept on the map for quests and for a few small utility services.
-	Each one is a prop design in data/wrecks/ (edit them in the Shipyard):
+	Each one is a satellite design in data/satellites/ (edit them in the Shipyard):
 	the panels and truss are drawn only, the bus collides and is heavy.
 
 	satellites {

@@ -1,7 +1,7 @@
 --[[
-	Satellites: owned, persistent props in a planet's orbit (data/satellites.lua).
+	Satellites: owned, persistent props in a planet's orbit (data/satellite_orbits.lua).
 
-	Each is a prop design from data/wrecks/ spawned as a husk, so it flies,
+	Each is a satellite design from data/satellites/ spawned as a husk, so it flies,
 	takes hits and is saved with its area like any placed wreck
 	(src/persistence.lua). On top of that it carries:
 

@@ -8,7 +8,11 @@ return function(game)
  local checks=0
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
  local u=game.universe
- for _,id in ipairs({'sat_passive','sat_fuel_buoy','sat_vendor'}) do check(data.wrecks[id] and data.wrecks[id].kind=='prop','design '..id..' loads as a prop') end
+ for _,id in ipairs({'sat_passive','sat_fuel_buoy','sat_vendor'}) do check(data.wrecks[id] and data.wrecks[id].kind=='satellite','design '..id..' loads as a satellite') end
+ -- the Shipyard round-trips a satellite: its own kind, panels stay sensors
+ local Export=require('src.editor.export')
+ local src=Export.source(Export.fromWreck('sat_passive'))
+ check(src:find('\nsatellite {',1,true) and src:find('sensor = true',1,true),'the Shipyard saves satellites as satellite { } with sensor panels')
  game:loadField('earth')
  local function sats()
   local by,n={},0
