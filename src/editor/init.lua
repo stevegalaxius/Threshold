@@ -251,8 +251,8 @@ function E.openHull(id)
 	say("Opened " .. data.hulls[id].name)
 end
 
-function E.addPart(shape)
-	E.pushUndo()
+function E.addPart(shape, noUndo)
+	if not noUndo then E.pushUndo() end
 	-- a name no other part has
 	local used = {}
 	for _, q in ipairs(E.design.parts) do if q.name then used[q.name] = true end end

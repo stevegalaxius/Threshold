@@ -124,7 +124,7 @@ function love.load(args)
 		["--smoketest"] = "tests.smoke", ["--actiontest"] = "tests.actions_smoke", ["--navtest"] = "tests.trader_navigation",
 		["--editortest"] = "tests.editor_loadout", ["--editorfoldertest"] = "tests.editor_folders",
 		["--weaponeditortest"] = "tests.weapon_editor", ["--dockeditortest"] = "tests.dock_editor",
-		["--lighttooltest"] = "tests.light_tool", ["--painttest"] = "tests.paint",
+		["--lighttooltest"] = "tests.light_tool", ["--trusstest"] = "tests.truss_tool", ["--painttest"] = "tests.paint",
 		["--ammotest"] = "tests.weapon_ammo", ["--economytest"] = "tests.economy", ["--ramtest"] = "tests.collisions",
 		["--sitestest"] = "tests.sites", ["--garrisontest"] = "tests.garrison",
 		["--hometest"] = "tests.npc_home", ["--handofftest"] = "tests.npc_handoff",

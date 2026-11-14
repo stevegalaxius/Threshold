@@ -502,6 +502,31 @@ local function boxSection(E, d)
 	Icons.syncBoxes(d)
 end
 
+-- The Primitive tool's shape and its settings, shared by every tab.
+local function primitiveOptions(E)
+	if E.tool ~= "rect" then return end
+	Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
+	local popts = { { label = "rectangle", value = "rect" }, { label = "ellipse / circle", value = "ellipse" }, { label = "chamfered box", value = "chamfer" }, { label = "truss / scaffold", value = "truss" } }
+	local names = { rect = "rectangle", ellipse = "ellipse / circle", chamfer = "chamfered box", truss = "truss / scaffold" }
+	combo("yard_prim", names[E.primitive or "rect"], popts, function(k) E.primitive = k end, 160)
+	if E.primitive == "ellipse" then
+		Slab.Text("sides")
+		if Slab.InputNumberDrag("yard_primsides", E.primSides or 24, 6, 64, 1, { W = 90 }) then E.primSides = math.floor(Slab.GetInputNumber()) end
+	elseif E.primitive == "chamfer" then
+		Slab.Text("corner cut")
+		if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
+	elseif E.primitive == "truss" then
+		Slab.Text("Runs along the box's long side; one part per member", { Color = { 0.6, 0.6, 0.6 } })
+		local topts = { { label = "zig-zag", value = "warren" }, { label = "X-braced", value = "x" }, { label = "ladder", value = "ladder" } }
+		local tnames = { warren = "zig-zag", x = "X-braced", ladder = "ladder" }
+		combo("yard_trusspat", tnames[E.trussPattern or "warren"], topts, function(k) E.trussPattern = k end, 160)
+		Slab.Text("bay length")
+		if Slab.InputNumberDrag("yard_trussbay", E.trussBay or 16, 2, 512, 1, { W = 90 }) then E.trussBay = Slab.GetInputNumber() end
+		Slab.Text("member thickness")
+		if Slab.InputNumberDrag("yard_trussthick", E.trussThick or 2, 0.5, 64, 0.5, { W = 90 }) then E.trussThick = Slab.GetInputNumber() end
+	end
+end
+
 -- The Icons tab: which item, its footprint, then the art tools.
 local function iconSections(E, d)
 	local Icons = require("src.icons")
@@ -571,6 +596,7 @@ local function iconSections(E, d)
 			if t[1] ~= "draw" then E.drawing = nil end
 		end
 	end
+	primitiveOptions(E)
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
 	Slab.Text("grid"); Slab.SameLine()
 	local gopts = {}
@@ -729,6 +755,7 @@ local function weaponSections(E, d)
 			if t[1] ~= "draw" then E.drawing = nil end
 		end
 	end
+	primitiveOptions(E)
 	if E.tool == "muzzle" then
 		Slab.Text("Click to add one, right click removes.", { Color = GREY })
 		Slab.Text("Shots take turns between them.", { Color = GREY })
@@ -894,19 +921,7 @@ local function designWindow(E, Editor)
 		if Slab.InputNumberDrag("yard_wden", E.windowDensity or 0.6, 0.05, 1, 0.01, { W = 70 }) then E.windowDensity = Slab.GetInputNumber() end
 		if p and Slab.Button("Fill (replaces its lights; again to reroll)") then E.pushUndo(); fillWindows(E, p) end
 	end
-	if E.tool == "rect" then
-		Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
-		local popts = { { label = "rectangle", value = "rect" }, { label = "ellipse / circle", value = "ellipse" }, { label = "chamfered box", value = "chamfer" } }
-		local names = { rect = "rectangle", ellipse = "ellipse / circle", chamfer = "chamfered box" }
-		combo("yard_prim", names[E.primitive or "rect"], popts, function(k) E.primitive = k end, 160)
-		if E.primitive == "ellipse" then
-			Slab.Text("sides")
-			if Slab.InputNumberDrag("yard_primsides", E.primSides or 24, 6, 64, 1, { W = 90 }) then E.primSides = math.floor(Slab.GetInputNumber()) end
-		elseif E.primitive == "chamfer" then
-			Slab.Text("corner cut")
-			if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
-		end
-	end
+	primitiveOptions(E)
 	if E.tool == "select" then
 		Slab.Text("Shift-click adds to the selection", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("Drag on empty space to box select:")
