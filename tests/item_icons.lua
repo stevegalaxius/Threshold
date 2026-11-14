@@ -129,6 +129,16 @@ return function(game)
  E.deleteSelected(); Icons.syncBoxes(E.design)
  check(#E.design.parts==n-1 and E.design.boxes[f1.box].hide[f1.face],'deleting a face hides it')
  check(Export.source(E.design):find('hide = {',1,true),'hidden face saved')
+ -- deleting a box (Delete with no face picked) removes it and leaves the rest where they were
+ local nb=#E.design.boxes
+ local last=E.design.parts[#E.design.parts]
+ local lx,ly=last.shape[1],last.shape[2]
+ E.boxSel,E.faceSel=1,nil
+ E.deleteSelected()
+ check(#E.design.boxes==nb-1 and E.boxSel==nil,'Delete removes the box from the list')
+ local last2=E.design.parts[#E.design.parts]
+ check(math.abs(last2.shape[1]-lx)<1e-6 and math.abs(last2.shape[2]-ly)<1e-6,'other boxes keep their place and scale')
+ check(Export.source(E.design):find('boxView = {',1,true),'scale saved with the icon')
  -- box colours: dark and light shades differ from the kind colour on the canvas and in game
  local HullShape=require('src.hullshape')
  local kc=E.previewPaint()

@@ -206,7 +206,8 @@ end
 -- An item icon (the Icons tab): just the art, keyed by its item.
 function Export.iconDef(design)
 	local def = { id = design.id, item = design.item, w = design.w, h = design.h, parts = {},
-		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil }
+		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil,
+		boxView = design.boxes and #design.boxes > 0 and design.boxView and copy(design.boxView) or nil }
 	for _, part in ipairs(design.parts) do
 		if part.fromBox then goto continue end
 		local p = Export.cleanPart(part)
@@ -224,6 +225,7 @@ function Export.fromIcon(item)
 	local design = { id = ic.id, item = item, w = ic.w, h = ic.h, name = (def and def.name or item) .. " icon", kind = "icon",
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
 	design.boxes = ic.boxes and copy(ic.boxes) or nil
+	design.boxView = ic.boxView and copy(ic.boxView) or nil
 	for _, part in ipairs(ic.parts) do
 		if not part.fromBox then table.insert(design.parts, Export.cleanPart(part)) end
 	end
@@ -284,6 +286,7 @@ local function iconSource(design)
 		table.insert(out, "\tboxes = {   -- 3/4 view blocks in cells: x across, y depth, z up")
 		for _, b in ipairs(def.boxes) do table.insert(out, "\t\t" .. serialize(b, "\t\t") .. ",") end
 		table.insert(out, "\t},")
+		if def.boxView then table.insert(out, ("\tboxView = { %g, %g, %g },   -- art units per cell, centre x, y (Refit recomputes)"):format(def.boxView[1], def.boxView[2], def.boxView[3])) end
 	end
 	table.insert(out, "\tparts = {")
 	for _, part in ipairs(def.parts) do table.insert(out, (partLine(part, "\t\t"))) end

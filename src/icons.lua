@@ -56,7 +56,7 @@ local function project(x, y, z)
 	return x + y * Icons.DEPTH, -(z * Icons.RISE + y * Icons.DEPTH)
 end
 
-function Icons.boxParts(boxes, bw, bh, kc)
+function Icons.boxParts(boxes, bw, bh, kc, view)
 	local list = boxes or {}
 	local faces = {}
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
@@ -84,17 +84,21 @@ function Icons.boxParts(boxes, bw, bh, kc)
 		face("side", { { X, by, bz }, { X, Y, bz }, { X, Y, Z }, { X, by, Z } })
 		if not b.open then face("top", { { bx, by, Z }, { X, by, Z }, { X, Y, Z }, { bx, Y, Z } }) end
 	end
-	if #faces == 0 then return faces end
-	-- fill the footprint, centred, keeping proportions
-	local pad = 0.5
-	local k = math.min((bw - pad) * 2 / math.max(x1 - x0, 1e-6), (bh - pad) * 2 / math.max(y1 - y0, 1e-6))
-	local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+	if #faces == 0 then return faces, view end
+	-- view: a fixed { k, cx, cy } (art units per cell and the centre), so
+	-- adding or removing a box doesn't rescale the rest; else fill the
+	-- footprint, centred, keeping proportions
+	if not view then
+		local pad = 0.5
+		view = { math.min((bw - pad) * 2 / math.max(x1 - x0, 1e-6), (bh - pad) * 2 / math.max(y1 - y0, 1e-6)), (x0 + x1) / 2, (y0 + y1) / 2 }
+	end
+	local k, cx, cy = view[1], view[2], view[3]
 	for _, f in ipairs(faces) do
 		for j = 1, #f.shape - 1, 2 do
 			f.shape[j], f.shape[j + 1] = (f.shape[j] - cx) * k, (f.shape[j + 1] - cy) * k
 		end
 	end
-	return faces
+	return faces, view
 end
 
 -- Replace an icon's box faces (parts marked fromBox) with fresh ones built
@@ -105,7 +109,10 @@ function Icons.syncBoxes(icon)
 	local bw, bh = Icons.box(icon.item, icon)
 	local def = data.items[icon.item]
 	local kc = def and require("src.hud").itemColor(def) or nil
-	local parts = Icons.boxParts(icon.boxes, bw, bh, kc)
+	local parts, view = Icons.boxParts(icon.boxes, bw, bh, kc, icon.boxView)
+	if icon.boxes and #icon.boxes > 0 then
+		icon.boxView = view and { math.floor(view[1] * 1000 + 0.5) / 1000, math.floor(view[2] * 1000 + 0.5) / 1000, math.floor(view[3] * 1000 + 0.5) / 1000 }
+	end
 	for _, p in ipairs(kept) do parts[#parts + 1] = p end
 	icon.parts = parts
 	icon.reach = nil

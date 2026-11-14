@@ -281,6 +281,15 @@ function E.deleteSelected()
 		E.faceSel = nil
 		return
 	end
+	-- a picked box with no face picked: delete the box
+	if b then
+		E.pushUndo()
+		table.remove(E.design.boxes, E.boxSel)
+		if #E.design.boxes == 0 then E.design.boxes = nil end
+		E.boxSel = nil
+		require("src.icons").syncBoxes(E.design)
+		return
+	end
 	if E.tsel and E.design.turrets and E.design.turrets[E.tsel] then
 		E.pushUndo()
 		table.remove(E.design.turrets, E.tsel)

@@ -491,6 +491,9 @@ local function boxSection(E, d)
 		table.insert(d.boxes, { name = "box " .. (#d.boxes + 1), x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
 		E.boxSel, E.faceSel, E.sel, E.multi = #d.boxes, nil, nil, {}
 	end
+	if d.boxes and Slab.Button("Refit boxes to footprint", { Tooltip = "Scale and centre the boxes to fill the footprint again (adding or removing boxes keeps the scale)" }) then
+		E.pushUndo(); d.boxView = nil
+	end
 	for i, bx in ipairs(d.boxes or {}) do
 		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
 			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel, E.faceSel, E.sel, E.multi = i, nil, nil, {} end
@@ -1382,6 +1385,7 @@ local function boxWindow(E)
 	if Slab.Button("Delete box") then
 		E.pushUndo(); table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
 		if #d.boxes == 0 then d.boxes = nil end
+		Icons.syncBoxes(d)
 	end
 	Slab.EndWindow()
 end
