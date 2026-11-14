@@ -210,6 +210,7 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
+	self.satLock = nil
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
@@ -2025,6 +2026,7 @@ function Game:step(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
+	require("src.satellites").update(self, dt)
 	self:reap()
 	if self.sideScene then return end
 	self:stepSides(dt)
@@ -2344,6 +2346,20 @@ function Game:updatePickups(dt)
 		-- Tap to open, hold to tow.
 		local pressed, released = it.tractor and not p.tractorHeld, p.tractorHeld and not it.tractor
 		p.tractorHeld = it.tractor
+		-- a satellite under the cursor: a tap asks it for a lock (src/satellites.lua)
+		if pressed and not best and not self.hoverLoot then
+			local Sat = require("src.satellites")
+			if self.satLock then Sat.release(self)
+			else
+				for _, o in ipairs(self.entities) do
+					if o.sat and not o.dead and not o.removed then
+						local ox, oy = o.body:getPosition()
+						local d = sqrt((ox - it.aimX) ^ 2 + (oy - it.aimY) ^ 2)
+						if d < o.radius * 0.6 + grab and Ship.distanceTo(p, ox, oy) - o.radius < range then Sat.request(self, o); break end
+					end
+				end
+			end
+		end
 		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil } end
 		local press = p.tractorPress
 		local e = press and press.loot

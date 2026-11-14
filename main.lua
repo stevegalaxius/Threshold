@@ -251,6 +251,7 @@ function love.draw()
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
 	end
+	if game.state ~= "docked" then require("src.satellites").draw(game) end
 	if game.state ~= "docked" then Orrery.draw(game) end
 	Pause.draw(game)
 	Debug.draw()
@@ -277,6 +278,7 @@ function love.keypressed(key)
 	if Orrery.keypressed(game, key) then return end
 	if LocalMap.keypressed(game, key) then return end
 	if Cargo.keypressed(game, key) then return end
+	if require("src.satellites").keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp

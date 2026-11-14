@@ -68,5 +68,41 @@ return function(game)
  target.dead=true
  game:step(1/60)
  check(Sat.get(u,target.sat).lost,'a destroyed satellite is marked lost')
+ -- docking: a closed satellite refuses, a fuel buoy locks you on and vends
+ game:loadField('earth')
+ local by3=sats()
+ local closed,buoy
+ for id,o in pairs(by3) do
+  local rr=Sat.get(u,id)
+  if rr.kind=='passive' and not rr.dock then closed=closed or o end
+  if rr.kind=='fuel' then buoy=buoy or o end
+ end
+ check(closed and buoy,'earth has a closed passive sat and a fuel buoy')
+ check(not Sat.request(game,closed) and not game.satLock,'a closed satellite refuses the lock')
+ check(Sat.request(game,buoy) and game.satLock and game.satLock.e==buoy,'a fuel buoy locks you on')
+ local rows=Sat.menu(game)
+ check(rows[1].kind=='vend' and rows[1].item=='deuterium_canister','it vends fuel')
+ u.credits=1000
+ local had=game.player.cargo.deuterium_canister or 0
+ Sat.choose(game,rows[1])
+ check((game.player.cargo.deuterium_canister or 0)==had+1 and u.credits==1000-rows[1].price,'buying takes credits and fills the hold')
+ local bx,by=buoy.body:getPosition()
+ for _=1,60 do game:step(1/60) end
+ local px,py=game.player.body:getPosition()
+ local nx,ny=buoy.body:getPosition()
+ check(math.sqrt((px-nx)^2+(py-ny)^2)<buoy.radius,'the lock holds you beside it')
+ Sat.release(game)
+ check(not game.satLock and not buoy.satHeld,'and lets go')
+ -- quests open a closed one and get the uplink
+ local cid=closed.sat
+ Sat.allow(u,cid,{dock='player',actions={'quest'}})
+ local said
+ Sat.onQuest(cid,function(g,rr) said=rr.id;return 'Next leg: Mars' end)
+ check(Sat.request(game,closed),'a quest-opened satellite lets you in')
+ local q=Sat.menu(game)
+ check(q[1].kind=='quest','and offers the uplink')
+ Sat.choose(game,q[1])
+ check(said==cid and game.satLock.note=='Next leg: Mars','the quest hook fires')
+ Sat.release(game)
  print(('satellites: %d checks passed'):format(checks))
 end

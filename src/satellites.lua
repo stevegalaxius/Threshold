@@ -176,4 +176,152 @@ function Sat.lost(game, e)
 	if r then r.lost = true end
 end
 
+-- Docking ------------------------------------------------------------------
+--
+-- Tap the tractor key with the cursor on a satellite in tractor range to
+-- ask for a lock. If its dock lever lets you in, it holds your ship in place
+-- beside it (game.satLock) and shows its menu; tap again, or press E, to
+-- leave. One ship at a time.
+
+Sat.markup = 1.25        -- vending price over an item's base price
+Sat.hooks = {}           -- [satellite id] = function(game, record) -> text?
+
+-- Quest scripting: what happens when the player picks "quest" on this
+-- satellite. The function may return a line to show. Set nil to clear.
+function Sat.onQuest(id, fn) Sat.hooks[id] = fn end
+
+function Sat.permits(game, r, ship)
+	local L = Sat.levers(r)
+	local player = ship == game.player
+	if L.dock == "anyone" then return true end
+	if L.dock == "player" then return player end
+	if L.dock == "rep" and player and r.owner then
+		local Rep = require("src.reputation")
+		return (Rep.standing(game.universe, r.owner) or 0) >= (r.minRep or 10)
+	end
+	if L.dock == "owner" then return not player and ship.faction ~= nil and ship.faction == r.owner end
+	return false
+end
+
+function Sat.request(game, e)
+	local r = Sat.get(game.universe, e.sat)
+	local p = game.player
+	if not r or not p or p.dead then return false end
+	if game.satLock then Sat.release(game); return false end
+	if e.satHeld and e.satHeld ~= p then game:toast(r.name:upper() .. ": BUSY", 1.4); return false end
+	if not Sat.permits(game, r, p) then game:toast(r.name:upper() .. ": DOCKING REFUSED", 1.6); return false end
+	local lx, ly = e.body:getLocalPoint(p.body:getPosition())
+	local d = math.sqrt(lx * lx + ly * ly)
+	local want = (e.radius or 100) * 0.35 + (p.halfLength or 30) + 30
+	if d < 1 then lx, ly, d = 0, 1, 1 end
+	lx, ly = lx / d * want, ly / d * want
+	game.satLock = { e = e, r = r, lx = lx, ly = ly, pick = 1, note = nil }
+	e.satHeld = p
+	game:toast(r.name:upper() .. ": LOCKED ON", 1.2)
+	return true
+end
+
+function Sat.release(game)
+	local lock = game.satLock
+	if not lock then return end
+	if lock.e then lock.e.satHeld = nil end
+	game.satLock = nil
+end
+
+-- Each step: hold the ship beside the satellite (and drop the lock if
+-- either is gone).
+function Sat.update(game, dt)
+	local lock = game.satLock
+	if not lock then return end
+	local e, p = lock.e, game.player
+	if not p or p.dead or p.removed or e.removed or e.dead or not e.body or e.body:isDestroyed() then Sat.release(game); return end
+	local wx, wy = e.body:getWorldPoint(lock.lx, lock.ly)
+	local px, py = p.body:getPosition()
+	local k = math.min(1, dt * 6)
+	p.body:setPosition(px + (wx - px) * k, py + (wy - py) * k)
+	p.body:setLinearVelocity(e.body:getLinearVelocityFromWorldPoint(wx, wy))
+end
+
+-- The menu's rows: { label, kind, item? }.
+function Sat.menu(game)
+	local lock = game.satLock
+	if not lock then return {} end
+	local L, rows = Sat.levers(lock.r), {}
+	for _, a in ipairs(L.actions or {}) do
+		if a == "vend" then
+			for _, id in ipairs(L.vend or {}) do
+				local it = data.items[id]
+				if it then rows[#rows + 1] = { label = it.name, kind = "vend", item = id, price = math.floor((it.price or 0) * Sat.markup + 0.5) } end
+			end
+		elseif a == "quest" then
+			rows[#rows + 1] = { label = "Uplink", kind = "quest" }
+		end
+	end
+	rows[#rows + 1] = { label = "Release lock", kind = "leave" }
+	return rows
+end
+
+function Sat.choose(game, row)
+	local lock = game.satLock
+	if not lock or not row then return end
+	if row.kind == "leave" then Sat.release(game); return end
+	if row.kind == "vend" then
+		local Ship = require("src.ship")
+		local u = game.universe
+		if (u.credits or 0) < row.price then lock.note = "Not enough credits"; return end
+		if Ship.canFit(game.player, row.item, 1) < 1 then lock.note = "No room in the hold"; return end
+		Ship.addCargo(game.player, row.item, 1)
+		u.credits = u.credits - row.price
+		lock.note = ("Bought %s for %d cr"):format(row.label, row.price)
+	elseif row.kind == "quest" then
+		local hook = Sat.hooks[lock.r.id]
+		local text = hook and hook(game, lock.r)
+		require("src.events").emit("satellite_uplink", lock.r, game)
+		lock.note = text or "No traffic on this channel"
+	end
+end
+
+function Sat.keypressed(game, key)
+	local lock = game.satLock
+	if not lock then return false end
+	local rows = Sat.menu(game)
+	if key == "e" or key == "escape" then Sat.release(game); return true end
+	if key == "up" or key == "w" then lock.pick = (lock.pick - 2) % #rows + 1; return true end
+	if key == "down" or key == "s" then lock.pick = lock.pick % #rows + 1; return true end
+	if key == "return" or key == "kpenter" or key == "space" then Sat.choose(game, rows[lock.pick]); return true end
+	local n = tonumber(key)
+	if n and rows[n] then lock.pick = n; Sat.choose(game, rows[n]); return true end
+	return false
+end
+
+function Sat.draw(game)
+	local lock = game.satLock
+	if not lock then return end
+	local lg = love.graphics
+	local rows = Sat.menu(game)
+	local font = lg.getFont()
+	local lh = font:getHeight() + 6
+	local w, h = 320, 52 + #rows * lh + (lock.note and lh or 0)
+	local x, y = lg.getWidth() - w - 24, lg.getHeight() / 2 - h / 2
+	lg.setColor(0.04, 0.05, 0.08, 0.9)
+	lg.rectangle("fill", x, y, w, h, 4)
+	lg.setColor(0.45, 0.55, 0.75)
+	lg.rectangle("line", x, y, w, h, 4)
+	lg.setColor(0.9, 0.92, 0.96)
+	lg.print(lock.r.name, x + 12, y + 10)
+	lg.setColor(0.55, 0.6, 0.7)
+	lg.printf(("%d cr"):format(game.universe.credits or 0), x, y + 10, w - 12, "right")
+	for i, row in ipairs(rows) do
+		local ry = y + 40 + (i - 1) * lh
+		if i == lock.pick then lg.setColor(0.2, 0.3, 0.5, 0.6); lg.rectangle("fill", x + 6, ry - 2, w - 12, lh) end
+		lg.setColor(0.85, 0.88, 0.94)
+		lg.print(("%d  %s"):format(i, row.label), x + 12, ry)
+		if row.price then lg.printf(row.price .. " cr", x, ry, w - 12, "right") end
+	end
+	if lock.note then
+		lg.setColor(1, 0.8, 0.45)
+		lg.print(lock.note, x + 12, y + 40 + #rows * lh + 4)
+	end
+end
+
 return Sat
