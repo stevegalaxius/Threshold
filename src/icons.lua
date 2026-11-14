@@ -168,154 +168,6 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 	end
 end
 
--- Baked icons ---------------------------------------------------------------
--- Every icon is rendered once into a sprite at a fixed resolution (RES px
--- per art unit), so all items share one line weight and one look however
--- big they are drawn. The bake adds, in order:
---   glow      a soft halo in the item's kind colour behind the art
---   lighting  a gentle top-left to bottom-right gradient over the fill
---   bevel     a bright rim on edges facing the light, a dark one opposite
--- Tune them here; Icons.clearCache() rebakes.
-Icons.RES = 4            -- sprite px per art unit (64 px per hold cell)
-Icons.LINE = 1.5         -- outline width, sprite px
-Icons.GLOW = { radius = 7, strength = 0.55 }
-Icons.LIGHT = { gradient = 0.22, rim = 0.45, shadow = 0.35, width = 2 }
-local PAD = 12           -- sprite px of room around the art for the glow
-
-local cache = setmetatable({}, { __mode = "k" })   -- icon -> sprite
-local scratch = {}                                 -- w.."x"..h -> { a, b }
-function Icons.clearCache() cache = setmetatable({}, { __mode = "k" }) end
-
-local blurShader, shadeShader
-local function shaders()
-	if blurShader then return end
-	blurShader = lg.newShader([[
-		extern vec2 dir;      // one texel step along the blur
-		extern float radius;
-		vec4 effect(vec4 col, Image tex, vec2 uv, vec2 sc) {
-			float a = 0.0, wsum = 0.0;
-			for (int i = -16; i <= 16; i++) {
-				float x = float(i);
-				if (abs(x) > radius) continue;
-				float w = exp(-x * x / (radius * radius * 0.5));
-				a += Texel(tex, uv + dir * x).a * w;
-				wsum += w;
-			}
-			return vec4(col.rgb, col.a * a / wsum);
-		}
-	]])
-	shadeShader = lg.newShader([[
-		extern vec2 texel;    // one sprite px in uv
-		extern vec2 light;    // toward the light, in px
-		extern float gradient, rim, shadow;
-		vec4 effect(vec4 col, Image tex, vec2 uv, vec2 sc) {
-			vec4 c = Texel(tex, uv);
-			if (c.a <= 0.0) return c;
-			// overall light falloff across the sprite
-			float g = 1.0 + gradient * (0.5 - dot(uv - 0.5, normalize(vec2(1.0, 1.0))));
-			// edges: inside here, outside a step toward / away from the light
-			float toward = Texel(tex, uv + light * texel).a;
-			float away = Texel(tex, uv - light * texel).a;
-			float lit = max(0.0, c.a - toward);
-			float dark = max(0.0, c.a - away);
-			vec3 rgb = c.rgb * g;
-			rgb = mix(rgb, vec3(1.0), lit * rim);
-			rgb = rgb * (1.0 - dark * shadow);
-			return vec4(rgb, c.a) * col;
-		}
-	]])
-end
-
-local function scratchPair(w, h)
-	local key = w .. "x" .. h
-	local s = scratch[key]
-	if not s then
-		s = { lg.newCanvas(w, h), lg.newCanvas(w, h) }
-		scratch[key] = s
-	end
-	return s[1], s[2]
-end
-
--- Render an icon to a sprite canvas (centre = art 0,0). fresh: don't
--- reuse a cached one (the editor, whose parts change under it).
-function Icons.bake(icon, fresh, col)
-	local sprite = not fresh and cache[icon]
-	if sprite then return sprite end
-	shaders()
-	local bw, bh = Icons.box(icon.item)
-	-- art that spills out of its box still gets room
-	local r = Icons.reach(icon)
-	if fresh then
-		r = 4
-		for _, p in ipairs(icon.parts or {}) do
-			for k = 1, #(p.shape or {}) - 1, 2 do r = math.max(r, math.abs(p.shape[k]), math.abs(p.shape[k + 1])) end
-		end
-	end
-	local hw, hh = math.max(bw, math.min(r, bw * 1.5)), math.max(bh, math.min(r, bh * 1.5))
-	local W = math.ceil(hw * 2 * Icons.RES) + PAD * 2
-	local H = math.ceil(hh * 2 * Icons.RES) + PAD * 2
-	local c = col or kindColor(data.items[icon.item] or {})
-	local art, tmp = scratchPair(W, H)
-	local out = (not fresh and lg.newCanvas(W, H)) or Icons.editorCanvas(W, H)
-	lg.push("all")
-	lg.origin()
-	-- 1. the art, flat
-	lg.setCanvas(art); lg.clear(0, 0, 0, 0)
-	lg.push(); lg.translate(W / 2, H / 2); lg.scale(Icons.RES)
-	Icons.drawArt(icon, c, 1, Icons.LINE / Icons.RES, fresh)
-	lg.pop()
-	-- 2. glow: blur the silhouette both ways, tinted with the kind colour
-	lg.setShader(blurShader)
-	blurShader:send("radius", Icons.GLOW.radius)
-	lg.setCanvas(tmp); lg.clear(0, 0, 0, 0)
-	blurShader:send("dir", { 1 / W, 0 })
-	lg.setColor(1, 1, 1, 1)
-	lg.draw(art)
-	lg.setCanvas(out); lg.clear(0, 0, 0, 0)
-	blurShader:send("dir", { 0, 1 / H })
-	lg.setColor(c[1], c[2], c[3], Icons.GLOW.strength)
-	lg.draw(tmp)
-	-- 3. the art on top, lit
-	lg.setShader(shadeShader)
-	local L = Icons.LIGHT
-	shadeShader:send("texel", { 1 / W, 1 / H })
-	shadeShader:send("light", { -L.width, -L.width })
-	shadeShader:send("gradient", L.gradient)
-	shadeShader:send("rim", L.rim)
-	shadeShader:send("shadow", L.shadow)
-	lg.setColor(1, 1, 1, 1)
-	lg.setBlendMode("alpha", "premultiplied")
-	lg.draw(art)
-	lg.pop()
-	sprite = { canvas = out, w = W, h = H }
-	if not fresh then cache[icon] = sprite end
-	return sprite
-end
-
--- One reusable output canvas per size for the editor's live preview.
-local editorOut = {}
-function Icons.editorCanvas(w, h)
-	local key = w .. "x" .. h
-	editorOut[key] = editorOut[key] or lg.newCanvas(w, h)
-	return editorOut[key]
-end
-
--- Draw a baked sprite centred on the current origin, at art scale `s`
--- (screen px per art unit).
-local function drawSprite(sprite, s, alpha)
-	alpha = alpha or 1
-	lg.setColor(alpha, alpha, alpha, alpha)   -- premultiplied: fade rgb too
-	lg.setBlendMode("alpha", "premultiplied")
-	local k = s / Icons.RES
-	lg.draw(sprite.canvas, 0, 0, 0, k, k, sprite.w / 2, sprite.h / 2)
-	lg.setBlendMode("alpha")
-end
-
--- An icon, baked and drawn at art scale s around the current origin.
-function Icons.drawBaked(icon, s, alpha, fresh, col)
-	drawSprite(Icons.bake(icon, fresh, col), s, alpha)
-end
-
 -- Draw an item's icon filling the rect x, y, w, h (screen px), turned a
 -- quarter if rot. Returns false if the item has no icon.
 function Icons.drawInRect(itemId, x, y, w, h, rot, alpha, pad)
@@ -330,20 +182,22 @@ function Icons.drawInRect(itemId, x, y, w, h, rot, alpha, pad)
 	lg.push()
 	lg.translate(x + w / 2, y + h / 2)
 	if rot then lg.rotate(math.pi / 2) end
-	Icons.drawBaked(icon, s, alpha)
+	lg.scale(s)
+	Icons.drawArt(icon, nil, alpha, 1 / s)
 	lg.pop()
 	return true
 end
 
 -- Draw an item floating in space at x, y turned to angle (world space).
 -- Returns false if it has no icon.
-function Icons.drawWorld(itemId, x, y, angle, alpha)
+function Icons.drawWorld(itemId, x, y, angle, alpha, lineWidth)
 	local icon = Icons.get(itemId)
 	if not icon then return false end
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(angle or 0)
-	Icons.drawBaked(icon, Icons.WORLD, alpha)
+	lg.scale(Icons.WORLD)
+	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / Icons.WORLD)
 	lg.pop()
 	return true
 end
