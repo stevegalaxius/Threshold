@@ -5,7 +5,7 @@ return function(game)
  local function set(u,key,item,n) S.stock(u,key,S.shopFor(key,item))[item]=n end
  local function world() return {clock=0,stations={},npcs={}} end
  -- planetary resources land at each system's logistics hub (Venus has none)
- local sources={{'station:mercury_2','silicon',24},{'station:earth_1','silicon',24},{'station:venus_1','industrial_acids',16},{'station:jupiter_3','industrial_acids',16}}
+ local sources={{'station:mercury_2','silicon',24},{'station:earth_1','silicon',24},{'station:luna_1','silicon',64},{'station:venus_1','industrial_acids',16},{'station:jupiter_3','industrial_acids',16}}
  for _,source in ipairs(sources) do
   local u=world();set(u,source[1],source[2],0);set(u,source[1],'electronics',0)
   local s=S.stock(u,source[1],S.shopFor(source[1],source[2]))
@@ -14,7 +14,7 @@ return function(game)
   local used=(u.economyStats and u.economyStats.used or {})[source[2]] or 0
   assert(S.count(u,source[1],source[2])+used==source[3],'wrong raw resource source or rate')
  end
- for _,key in ipairs({'station:earth_1','station:luna_1'}) do
+ for _,key in ipairs({'station:earth_1','station:venus_1'}) do
   local u=world();set(u,key,'silicon',2);set(u,key,'industrial_acids',1);S.count(u,key,'electronics')
   local made=I.installations(key).silicon_refinery and 6 or 0 -- the hub's own refinery runs too
   u.clock=900

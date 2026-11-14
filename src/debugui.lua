@@ -387,6 +387,7 @@ function Debug.update(dt, game)
 				end
 			end, game)
 			section('dbg_freight','Freight capacity',function(g) require('src.arbiter').panel(g,Slab) end,game)
+			section('dbg_availability','Regional availability',function(g) require('src.availability').panel(g,Slab) end,game)
 			section('dbg_chemicals','Factory production and prices',function(g) require('src.industry').panel(g,Slab) end,game)
 		end
 		Slab.EndWindow()

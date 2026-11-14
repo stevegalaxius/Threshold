@@ -133,3 +133,17 @@ enemy {
  loadout={"drill_m_base","drill_m_base",false,"mule_engine","kiln_reactor","tug_beam",false,false},
  cargo={},ai={style="trader",cruise=600,range=1200,accuracy=.5,throttle=.9},salvage={1,2},
 }
+
+-- Decommissioned police hulls that turn up, rarely, on used lots.
+enemy {
+ id = "surplus_estates", team = 3, name = "Ex-Estates Whisper", hull = "estates_whisper",
+ livery = { primary = { 0.6, 0.6, 0.65 } },
+ ai = { style = "orbit", range = 900, accuracy = 0.6, throttle = 0.85, cruise = 750 },
+ salvage = { 2, 3 },
+}
+enemy {
+ id = "surplus_diwan", team = 3, name = "Ex-Diwan Cherubim", hull = "diwan_cherubim",
+ livery = { primary = { 0.6, 0.6, 0.65 } },
+ ai = { style = "orbit", range = 900, accuracy = 0.6, throttle = 0.85, cruise = 700 },
+ salvage = { 2, 4 },
+}

@@ -9,6 +9,8 @@ hull {
 	hold = 120,
 	loadout = { "artillery_l_base", "artillery_l_base", "gun_m_base", "gun_m_base", "gun_m_base", "gun_m_base", "cinder_drive", "forge_reactor", "nav_computer", "fire_computer" },
 	maker = "Estates Military",
+	turnResponse = 2.0,
+	description = "Estates Military's battlecruiser: an artillery platform with a wall of armour.",
 	mass = 735,
 	mount = "turret",
 	paints = { "Gunmetal" },

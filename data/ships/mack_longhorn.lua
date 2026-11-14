@@ -9,10 +9,12 @@ hull {
 	hold = 350,
 	loadout = { false, "mule_engine", "forge_reactor", "hold_pod_s", "hold_pod_s", "nav_computer", "mule_engine" },
 	maker = "MACK",
+	turnResponse = 1.8,
+	description = "The large module of MACK's modular line.",
 	mass = 800,
 	mount = "turret",
 	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
-	price = 70000,
+	price = 72000,
 	retroThrust = 1100,
 	sideThrust = 1186,
 	slots = {

@@ -16,22 +16,23 @@ W.stations = {
 		{ id = "station:mercury_3", facilities={brute_assembly={capacity=2}}, marketId = "market:mercury_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Brute Industries Shipyard", layout = "shipyard_1" },
 	},
 	venus = {
-		{ id = "station:venus_1", facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
+		{ id = "station:venus_1", facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},acid_works={capacity=16,surface=true},electronics={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
 		{ id = "station:venus_2", food = {use=64}, facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},farm={capacity=640}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
+		{ id = "station:venus_3", facilities={amw_assembly={capacity=2}}, marketId = "market:venus_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 4.4, name = "Angelmaschinenwerft Atelier", layout = "shipyard_1" },
 	},
 	earth = {
-		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},electronics={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
+		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},electronics={capacity=12}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
 		{ id = "station:earth_2", food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace"  },
 		{ id = "station:earth_3", facilities={ferrous_assembly={capacity=2}}, marketId = "market:earth_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Ferrous Collective Shipyard", layout = "shipyard_1" },
 		{ id = "station:earth_4", facilities={drones={capacity=8}}, marketId = "market:earth_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
 	},
 	
 	luna = {
-		{ id = "station:luna_1", facilities={electronics={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_1", facilities={silicon_refinery={capacity=64,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
 		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 	},
 	mars = {
-		{ id = "station:mars_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
+		{ id = "station:mars_1", facilities={redfu_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
 		{ id = "station:mars_2", facilities={intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
 		-- Zhuhai's logistics hub: Mars's production is on the Heaven-Ladder,
 		-- the two orbital stations are shipyards, and freight meets here

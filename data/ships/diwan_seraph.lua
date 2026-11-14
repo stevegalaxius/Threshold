@@ -1,14 +1,15 @@
 -- Made in the Shipyard (F2). Base hull: amw_seraph
 hull {
 	id = "diwan_seraph", name = "Seraph",
-	armor = 500,
+	armor = 700,
 	bonuses = {},
 	class = "Diwan Destroyer",
-	drag = 0.35,
+	drag = 0.28,
 	helm = "strafe",
 	hold = 175,
 	loadout = { "gun_l_base", "missile_l_base", "missile_l_base", "flit_engine", "flit_engine", "kiln_reactor", "tug_beam", "nav_computer" },
 	maker = "Angelmaschinenwerft",
+	description = "Diwan police destroyer, built by Angelmaschinenwerft.",
 	mass = 425,
 	mount = "turret",
 	paints = { "Bone", "Ash", "Charcoal", "Old Gold", "Champagne" },

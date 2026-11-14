@@ -67,7 +67,8 @@ end
 function S.generated(u,policy,roll)
  local choices,total={},0
  local ids={}
- for _,lineup in pairs(require('data.industry').lineups) do for _,id in ipairs(lineup) do ids[#ids+1]=id end end
+ if policy.hulls then for _,id in ipairs(policy.hulls) do ids[#ids+1]=id end
+ else for _,lineup in pairs(require('data.industry').lineups) do for _,id in ipairs(lineup) do ids[#ids+1]=id end end end
  table.sort(ids)
  for _,id in ipairs(ids) do
   local loadout,price=fitted(data.hulls[id],policy)
@@ -100,6 +101,13 @@ function S.generated(u,policy,roll)
 end
 function S.acquire(u,area,policy,roll)
  roll=roll or random
+ -- A faction with its own service fleet issues those hulls directly.
+ local fleet=policy.fleets and policy.fleets[require('src.npc_access').owner(area) or '']
+ if fleet then
+  local p={};for k,v in pairs(policy) do p[k]=v end;p.hulls=fleet
+  local ship,acq=S.generated(u,p,roll)
+  if ship then return ship,acq end
+ end
  if roll()<config().usedChance then
   local candidate=require('src.dealers').purchaseCandidate(u,area,policy,true)
   if candidate then return require('src.dealers').ship(candidate.lot),{source='used',candidate=candidate} end
