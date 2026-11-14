@@ -1308,7 +1308,7 @@ local function drawPickups(game)
 			lg.circle("line", k.x, k.y, reach and math.max(12, reach + 6) or 16)
 		end
 		-- drawn art: the item at its real size, tumbling
-		if Icons.drawWorld(k.item, k.x, k.y, k.spin, blink, outline(1)) then goto continue end
+		if Icons.drawWorld(k.item, k.x, k.y, k.spin, blink) then goto continue end
 		lg.push()
 		lg.translate(k.x, k.y)
 		lg.rotate(k.spin)

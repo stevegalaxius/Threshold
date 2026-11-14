@@ -1201,8 +1201,7 @@ function Canvas.drawIconPreview(E)
 		local s = math.min((w - 6) / (bw * 2), (h - 6) / (bh * 2))
 		lg.push()
 		lg.translate(x + w / 2, y0 + 24 + h / 2)
-		lg.scale(s)
-		Icons.drawArt(icon, c, 1, 1 / s, true)
+		Icons.drawBaked(icon, s, 1, true, c)
 		lg.pop()
 		x = x + w + 10
 	end
@@ -1215,8 +1214,7 @@ function Canvas.drawIconPreview(E)
 	lg.push()
 	lg.translate(x0 + 210, sy)
 	lg.rotate(love.timer.getTime() * 0.4)
-	lg.scale(Icons.WORLD)
-	Icons.drawArt(icon, c, 1, 1 / Icons.WORLD, true)
+	Icons.drawBaked(icon, Icons.WORLD, 1, true, c)
 	lg.pop()
 end
 
