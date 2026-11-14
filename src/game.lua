@@ -2472,8 +2472,16 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 		elseif e.fleeing and not e.dead and e.body:getX() ^ 2 + e.body:getY() ^ 2 > (self.arenaRadius + 600) ^ 2 then
-			-- A fleeing enemy that made it well past the edge is gone for good.
-			ALife.detach(self,e,"escaped")
+			-- A fleeing enemy that made it well past the edge is gone for good;
+			-- a garrison NPC that runs lives on, out in the world.
+			local r = e.alifeId and self.universe.npcs and self.universe.npcs[e.alifeId]
+			if r and r.garrison then
+				ALife.capture(self, e, false)
+				require("src.garrison").release(self, r, "fled")
+				if self.alifeOnline then self.alifeOnline[e.alifeId] = nil end
+			else
+				ALife.detach(self,e,"escaped")
+			end
 			table.remove(self.entities, i)
 			e.body:destroy()
 			e.removed = true
@@ -2919,6 +2927,7 @@ function Game:clearEnemies()
 		if e.kind == "ship" and e.team == 2 then self:remove(e) end
 	end
 	self.projectiles = {}
+	for _, r in ipairs(require("src.garrison").members(self.universe, self.fieldId)) do r.state = "dead" end
 end
 
 -- Visual effects (don't affect the simulation) -------------------------------

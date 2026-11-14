@@ -535,6 +535,8 @@ function AI.think(game, e, dt)
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
 	local record=e.alifeId and game.universe.npcs[e.alifeId]
+	-- a site garrison fights like the enemy it flies as, until its duty ends
+	if record and record.garrison then record=nil end
  if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
   local x,y=e.body:getPosition();local a=e.body:getAngle()
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100

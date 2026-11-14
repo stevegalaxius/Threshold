@@ -17,6 +17,11 @@ return function(game)
  -- in through the driver
  check(game:enterSite(inst.id),'a driver can fire you into a site')
  check(game.fieldId==Sites.fieldId(inst.id,1) and inst.from=='saturn','you arrive in pocket 1 and it remembers where from')
+ local Garrison=require('src.garrison')
+ local garrison=Garrison.members(u,game.fieldId)
+ check(#garrison==5,'pocket enemies are real A-Life records: '..#garrison)
+ check(garrison[1].garrison.site==inst.id and garrison[1].rank and garrison[1].homePurpose=='pirateBase','with a duty, a rank and a pirate home')
+ game:updateALife(true)
  local gates,enemies={},0
  for _,e in ipairs(game.entities) do
   if e.gate then gates[e.gate.to]=e end
