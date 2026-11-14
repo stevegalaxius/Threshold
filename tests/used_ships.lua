@@ -40,6 +40,10 @@ return function(game)
  local at=u.clock;u.clock=at+config.productionHalfLifeHours*3600
  assert(math.abs(supply.weight(u,'mack_mustang')-(baseline+10))<1e-6,'production influence did not decay')
  u.clock=at
+ -- Role fit now shapes the roll too (src/ship_fit.lua), so make production
+ -- overwhelming to check it still multiplies into the hull's weight.
+ local weight=supply.weight
+ supply.weight=function(q,hull) return hull=='mack_mustang' and 10^6 or weight(q,hull) end
  for _,role in ipairs({'trader','miner','salvager','patrol','pirate'}) do
   local policy=require('src.npc_templates').purchase(role)
   local ship,origin=supply.generated(u,policy,function()return .5 end)
@@ -50,6 +54,7 @@ return function(game)
   assert(origin.price<=policy.budget,'generated ship exceeded budget')
   for i,id in ipairs(ship.loadout) do if id then assert(data.fits(data.hulls[ship.hull].slots[i],data.modules[id]),'generated fit incompatible') end end
  end
+ supply.weight=weight
  local q={clock=0,stations={},npcs={}};local factory='station:mars_1'
  for id,place in pairs(L.byId) do if place.facilities and place.facilities.intaki_assembly then factory=id;break end end
  local factoryDef=D.def(factory);assert(factoryDef.assembly)
