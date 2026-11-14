@@ -19,6 +19,8 @@ function M.workPoint(site)
  return L.position(site.id,0)
 end
 
+-- A miner sells any rare ore it brought home (src/prospect.lua).
+function M.sellRare(u,r,node,cargo) return require('src.prospect').sell(u,r,node) end
 Tasks.register('mine',{
  requires={capabilities={'cargo','drill'}},
  docks=function(r,id) return L.canonical(id)==L.canonical(r.task.source) end,
@@ -38,7 +40,9 @@ Tasks.register('mine',{
  plan=function(t,node,clock) return require('src.travelgraph').itinerary(node,t.phase=='delivery' and t.source or t.target,clock) end,
  complete=function(u,r,t,node)
   if node~=t.source then return false end
-  local cargo=r.ship.cargo or {};local n=math.max(0,(cargo[t.item] or 0)-(t.retainedCargo or 0))
+  M.sellRare(u,r,node)
+  local cargo=r.ship.cargo or {}
+  local n=math.max(0,(cargo[t.item] or 0)-(t.retainedCargo or 0))
   if n<=0 then
    if t.phase=='delivery' then Tasks.release(u,r,'no ore delivered',u.clock) end
    return false
@@ -354,6 +358,8 @@ function M.materialize(game)
     if r.kind=='rock' then
      local e=game:spawnAsteroid(x,y,r.radius,r.debris or 'rock',r.verts)
      e.miningId,e.hp,e.drilled=r.id,r.hp,r.drilled;e.body:setAngle(r.angle);e.body:setAngularVelocity(r.spin)
+     -- site rock never carries rare ore (a fresh body may have rolled one)
+     e.rare,e.core,e.veins=nil,nil,nil
      e.body:setLinearVelocity(vx,vy);e.body:setLinearDamping(M.chunkDamping(r.area))
      game.miningLive[id]={kind='rock',object=e}
     else
@@ -437,6 +443,13 @@ function M.nextAction(ctx)
    if target and not target.done and Actions.available(ctx,target) and Actions.targets.resource.safe(ctx,target) then
     local d=(target.x-x)^2+(target.y-y)^2;local p=record.kind=='loot' and 1 or 0
     if not best or p>priority or p==priority and (d<distance or d==distance and id<best) then best,priority,distance=id,p,d end
+   end
+  -- loose rare ore nearby, whoever dropped it: worth more than anything
+  elseif record.kind=='loot' and not record.site and Ore.isRare(record.item) and record.area==ctx.r.area and record.count>0 then
+   local target=Actions.targets.resource.resolve(ctx,{id=id})
+   if target and not target.done and Actions.available(ctx,target) then
+    local d=(target.x-x)^2+(target.y-y)^2
+    if d<T.rareCovetRange^2 and (not best or 2>priority or 2==priority and d<distance) then best,priority,distance=id,2,d end
    end
   end
  end

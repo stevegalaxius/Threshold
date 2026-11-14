@@ -249,6 +249,8 @@ local function take(ctx,target)
   if record.count==0 then remove(game,source) end
  else
   local h=holdOf(game,source)
+  -- nothing left inside (an emptied container or a stripped wreck)
+  if not h then return 'done' end
   local oldMass=cargoMass(h)
   local wreck=source.kind=='combat' or record.kind=='husk'
   local weapon=wreck and Wreck.weapon(r.ship)

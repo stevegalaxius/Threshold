@@ -500,6 +500,7 @@ local DEBRIS = {
 Game.DEBRIS = DEBRIS
 -- What a drilled piece of each kind of debris drops when it breaks.
 local Ore = require("src.ore")
+local RockChips = require("src.rock_chips")
 
 -- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
 -- same kind of list, counter-clockwise (monotone chain).
@@ -618,6 +619,7 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
+	if not savedVerts then RockChips.seed(e) end
 	local angle, spin = random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6)
 	if asleep then
 		e.body = setmetatable({ x = x, y = y, a = angle }, Ghost)
@@ -2224,6 +2226,11 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
+		if e.kind == "asteroid" then
+			-- a chip only breaks to weapons: bumps would waste the ore in it
+			if e.chip and not RockChips.weapon(cause) and cause ~= nil then return end
+			RockChips.hit(self, e, cause, source, hx, hy)
+		end
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
 		return
@@ -2436,11 +2443,19 @@ function Game:pickupBody(k)
 	k.syncX, k.syncY = k.x, k.y
 end
 
--- An asteroid that took too much damage splits into two to four smaller
+-- Loose rock and ice chip away under fire instead (src/rock_chips.lua);
+-- what's left here is junk, and mining-site rock. Those, broken, split
+-- into two to four smaller
 -- rocks flying apart; pieces too small to matter just crumble to dust.
 function Game:breakAsteroid(e)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
+	-- loose rock and ice chip away instead of splitting (src/rock_chips.lua)
+	if RockChips.breakRock(self, e, x, y, vx, vy) then
+		self:spark(x, y, 4 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
+		self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
+		return
+	end
 	local breaks = (DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks
 	if e.miningId then breaks=nil end
 	local n = breaks and random(2, 4) or 0
@@ -2467,12 +2482,18 @@ end
 
 -- Remove the dead. Ships explode and (unless they're drones) leave a husk
 -- holding everything they carried; a destroyed husk bursts into pickups.
--- Broken asteroids split apart.
+-- Broken asteroids split apart or crumble into chips.
 function Game:reap()
 	local i = 1
 	while i <= #self.entities do
 		local e = self.entities[i]
-		if e.dead and e.kind == "asteroid" then
+		-- a rock taking fire sheds chips as it goes (src/rock_chips.lua)
+		if e.kind == "asteroid" and not e.dead and e.maxHp then RockChips.update(self, e) end
+		if e.kind == "asteroid" and not e.dead and RockChips.expired(self, e) then
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
+		elseif e.dead and e.kind == "asteroid" then
 			table.remove(self.entities, i)
 			self:breakAsteroid(e)          -- reads the body, so before destroying it
 			e.body:destroy()

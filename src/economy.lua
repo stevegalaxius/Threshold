@@ -222,6 +222,7 @@ local function goods()
  local function add(item) if item and not set[item] then set[item]=true;list[#list+1]=item end end
  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do add(output.item) end;for _,input in ipairs(C.inputs(c)) do add(input.item) end end
  for _,item in pairs(require('src.ore').items) do add(item) end
+ for _,item in pairs(require('src.ore').rare) do add(item) end
  add(require('src.reactor_fuel').item())
  add(Food.item)
  table.sort(list)

@@ -80,6 +80,7 @@ local function trading() return Cargo.tab=='market' end
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
+local Icons = require("src.icons")
 
 local GAP, PAD, HEAD = 16, 14, 40
 local tabRects, drawTabs, sendHome, drawTrade, targetKey
@@ -1589,6 +1590,29 @@ local function tooltip(item, n, mx, my, hint, price, against)
 		if x2 + w2 > sw - 4 then x2 = x - w2 - 6 end
 		draw2(x2, min(y, sh - h2 - 4))
 	end
+end
+
+-- Loose cargo in tractor range under the cursor, out in space: the same
+-- card the hold shows, beside the pickup, with the item's icon to its left.
+function Cargo.drawPickupTooltip(game)
+	local k = game.hoverPickup
+	local item = k and data.items[k.item]
+	if not item or Cargo.isOpen(game) then return end
+	local sx, sy = game.camera:toScreen(k.x, k.y)
+	local sw, sh = lg.getDimensions()
+	local w, h, draw = card(item, k.count or 1, nil, nil, nil)
+	local S = 72                         -- the icon's square
+	local x = min(sx + 24 + S + 6, sw - w - 4)
+	local y = max(4, min(sy - h / 2, sh - h - 4))
+	draw(x, y)
+	local ix, iy = x - S - 6, y
+	lg.setColor(0.02, 0.06, 0.09, 0.95)
+	lg.rectangle("fill", ix, iy, S, S, 6, 6)
+	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+	lg.setLineWidth(1)
+	lg.rectangle("line", ix + 0.5, iy + 0.5, S - 1, S - 1, 6, 6)
+	lg.setColor(1, 1, 1)
+	Icons.drawInRect(k.item, ix, iy, S, S, nil, 1, 10)
 end
 
 local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
