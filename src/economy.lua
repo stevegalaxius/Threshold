@@ -42,6 +42,7 @@ local Stock=require('src.stockpile')
 local C=require('src.commodities')
 local Food=require('src.food')
 local T=require('src.tuning')
+local Dark=require('src.dark')
 local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 -- Every trade station keeps at least this much of these on hand.
 E.floor={deuterium_canister=40}
@@ -428,25 +429,36 @@ function E.update(u,clock)
   end
   -- neediest first: the emptiest shelf against its target gets first call
   table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
+  -- Two passes: first every buyer fills from its own network (white or
+  -- dark), then what's still short may buy across. A dark farm feeds the
+  -- dark stations before its surplus goes out to the white market.
+  for pass=1,2 do
   for _,entry in ipairs(buyers) do
-   local c,short=entry.c,entry.short;local need=entry.need
+   local c,short=entry.c,entry.left or entry.short;local need=entry.need
+   local darkBuyer=Dark.isDarkNode(c)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
-     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) and routed(hubPlan,s,c,item) then
+     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
-       local score=distance(s,c,clock)*100-spare[s]
+       -- crossing between the white and dark networks costs like a long
+       -- haul: each side buys from its own first and trades across only
+       -- for what its own network can't spare
+       local crossing=Dark.isDarkNode(s)~=Dark.isDarkNode(c) and T.darkCrossingAU or 0
+       local score=(distance(s,c,clock)+crossing)*100-spare[s]
        local Chemicals=require('src.markets')
-       if Chemicals.items[item] then
+       if Chemicals.items[item] or Chemicals.floats(c,item) then
         local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[s])
         score=Chemicals.price(u,s,item)+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
+        if crossing>0 then score=score*(1+T.darkCrossingMarkup) end
        end
        if not bestScore or score<bestScore then best,bestScore=s,score end
       end
      end
     end
+    if not best and pass==1 then break end
     if not best then
      -- only real scarcity counts: spare stock that just can't reach this
      -- buyer is a hauling problem, not a reason to make or dig more
@@ -469,6 +481,8 @@ function E.update(u,clock)
      trunk=trunk or nil,requires=trunk and {capabilities={'cargo','bulk'}} or nil},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
+   entry.left=short
+  end
   end
  end
  u.economyUnmet=unmet

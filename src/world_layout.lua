@@ -2,6 +2,7 @@
 -- Station designs/services live in data/stations/<id>.lua. Special construction stays
 -- in its existing adapter; ordinary layout changes belong here.
 local W={}
+local T_SHOALS=math.pi*2/1800   -- rad/s: the Shoals' stations lap their centre every 30 min
 W.stations = {
 
 	-- Planetary industry (refining, acids, nitrates, ocean water) ships up to
@@ -111,6 +112,23 @@ W.stations = {
 	},
 	ring = {
 		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
+	},
+	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
+	-- The Shoals has no planet: its three stations slowly circle their common
+	-- centre along the cleared channel through the rock (Fields.shoalsShape),
+	-- 13,000 px out and 120 degrees apart (~22,500 px from each other), one
+	-- lap every 30 minutes.
+	shoals = {
+		{ id = "station:shoals_1", position = { x = 0, y = -13000, rate = T_SHOALS }, facilities={roll_steel={capacity=240},press_canisters={capacity=600},water_melter={capacity=160}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
+		{ id = "station:shoals_2", facilities={ammunition={capacity=12},process_nitrates={capacity=80},chemicals={capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
+		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -11258, y = 6500, rate = T_SHOALS }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
+	},
+	-- Antichthon: the pirates' hydroponics farm, on Earth's orbit behind the Sun.
+	antichthon = {
+		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
+	},
+	cordelia = {
+		{ id = "station:cordelia_1", facilities={ice_wells={capacity=600},crack_ice={capacity=600},water_melter={capacity=160}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },
 	},
 	ceres_quarry = {
 		{ id = "station:ceres_quarry_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },

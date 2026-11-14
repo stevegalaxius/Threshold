@@ -38,7 +38,7 @@ Rep.AREAS = {
 	jupiter = "jove", io = "jove", europa = "jove", ganymede = "jove", callisto = "jove",
 	saturn = "diwan", enceladus = "diwan", titan = "diwan",
 	uranus = "bowman", titania = "bowman",
-	milliways = "milliways",
+	milliways = "milliways", shoals = "milliways", cordelia = "milliways", antichthon = "milliways",
 }
 -- Single nodes that differ from their area (secondary factions' holdings).
 Rep.NODES = {

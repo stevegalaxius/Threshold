@@ -257,7 +257,6 @@ T.population = {
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  miner={minDelay=180,maxDelay=300},
- salvager={minDelay=180,maxDelay=300},
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
@@ -483,7 +482,7 @@ T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 T.alifeGoneLinger=300
 
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
-T.salvagerPopulation,T.salvagerCollectTime=1,180   -- salvagers fill their hold (src/scavenge.lua)
+T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
 
 -- Playable area: every planet map's open space (edge, belts, rings,
@@ -491,6 +490,12 @@ T.salvagerRange,T.salvagerStay=6000,30
 -- are thinned by mapDensity (1/mapScale^2 keeps rock counts unchanged;
 -- lower thins further). Pre-alpha test values.
 T.mapScale = 1.5
+-- rad/s: stations outside a planet's well tumble whole, core and all, at
+-- one of these rates (src/fields.lua place.drift); a turn every 3-5 minutes
+T.freeStationDrift = { 0.022, 0.03, 0.018 }
+T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
+T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
+T.darkAccessShare = 0.3 -- white haulers and miners who also work the dark grids (raiders always do)
 T.mapDensity = 0.3
 
 -- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).

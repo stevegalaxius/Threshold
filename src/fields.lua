@@ -39,8 +39,8 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "jupiter", "io", "europa", "ganymede", "callisto",
-	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "milliways", "asteroids", "giant", "station" }
+Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "shoals", "antichthon", "jupiter", "io", "europa", "ganymede", "callisto",
+	"saturn", "enceladus", "titan", "uranus", "titania", "cordelia", "neptune", "triton", "pluto", "milliways", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
 -- Orbits: distance from the Sun in AU, year length in Earth years, where
@@ -57,9 +57,13 @@ Fields.orbits = {
 	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 	pluto = { au = 39.48, year = 248, phase = 3.8, color = { 0.75, 0.65, 0.6 } },
-	-- dark = true: an unlisted grid (src/dark.lua). It rides with Pluto, a
-	-- little ahead of it, and stays off the driver's list until found.
-	milliways = { au = 39.48, year = 248, phase = 3.8 + 0.012, dark = true, color = { 0.85, 0.35, 0.55 } },
+	-- dark = true: an unlisted place with its own mass driver (src/dark.lua),
+	-- a driver destination only once found. The Shoals ride the belt's orbit
+	-- halfway between Ceres and Ring Station.
+	-- Antichthon: Earth's orbit, directly opposite it across the Sun, where
+	-- nobody looks. The pirates' hydroponics farm.
+	antichthon = { au = 1.0, year = 1.0, phase = math.pi, dark = true, color = { 0.45, 0.75, 0.45 } },
+	shoals = { au = 2.77, year = 4.6, phase = 3.0 + math.pi / 2, dark = true, color = { 0.75, 0.45, 0.4 } },
 }
 
 -- Moons: each is its own small map, reached by flying off the edge of
@@ -89,6 +93,12 @@ Fields.moons = {
 	quarry = { parent = "ring", period = 1, phase = 0.9, gap = 16000, color = { 0.7, 0.62, 0.5 } },
 	-- and Ceres's: Ceres itself is drilled for ice, rock comes from here
 	ceres_quarry = { parent = "belt", period = 1, phase = 2.4, gap = 14000, color = { 0.66, 0.6, 0.52 } },
+	-- Dark grids (src/dark.lua): unlisted places reached like a moon. Their
+	-- way out from the parent's map only opens once the player has found
+	-- them (Game:spawnMoonGates); NPCs know the way regardless.
+	milliways = { parent = "pluto", period = 0.2, phase = 1.3, gap = 26000, dark = true, color = { 0.85, 0.35, 0.55 } },
+	-- Cordelia Drift: a pirate freeport in Uranus's inner ring debris
+	cordelia = { parent = "uranus", period = 0.03, phase = 5.0, gap = 20000, dark = true, color = { 0.6, 0.4, 0.75 } },
 }
 
 -- The moons of a planet, in a fixed order.
@@ -382,7 +392,7 @@ Fields.ring = {
 	end,
 }
 
--- Milliways: a dark grid off Pluto, no planet, no beacons. The freeport
+-- Milliways: a dark grid off Pluto (a hidden moon hop), no planet, no beacons. The freeport
 -- sits in a pocket of cleared ice with loose rock out to the edge. It's
 -- off the public charts (src/dark.lua) until the player finds it.
 Fields.milliways = {
@@ -404,11 +414,12 @@ Fields.milliways = {
 -- A quarry: a station's mining field, its own map off the edge of its
 -- parent's (Fields.moons). Thick belt rock, a few huge rocks the drill
 -- crews work, and an ore depot they haul back to.
-local function quarryField(id, name)
+local function quarryField(id, name, dark, clear)
 	local f
 	f = {
 		miningAsteroids = {},
 		name = name,
+		dark = dark or nil,
 		spawn = { 0, 3000 * T.mapScale },
 		radius = 22000 * T.mapScale,
 		mix = MIX.belt,
@@ -417,10 +428,10 @@ local function quarryField(id, name)
 			for _,sid in ipairs(f.stationIds) do require("src.locations").spawnStation(game,sid) end
 			for _,s in ipairs(f.miningAsteroids) do game:spawnGiantAsteroid(s.x,s.y,s.radius) end
 			-- thick rock from the depot's clear zone out to the edge
-			local S = T.mapScale
-			local area = pi * ((22000 * S) ^ 2 - (4500 * S) ^ 2) / 1e6
-			game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), 4500 * S)
-			game:spawnContainers(T.fieldContainers, 4500)
+			local S, c = T.mapScale, clear or 4500
+			local area = pi * ((22000 * S) ^ 2 - (c * S) ^ 2) / 1e6
+			game:spawnAsteroids(floor(area * 0.18 * T.mapDensity), c * S)
+			game:spawnContainers(T.fieldContainers, c)
 		end,
 	}
 	for k = 0, 3 do
@@ -431,6 +442,117 @@ local function quarryField(id, name)
 end
 quarryField("quarry", "Ring Quarry")
 quarryField("ceres_quarry", "Ceres Quarry")
+-- The Shoals: a dark quarry on the belt's orbit, between Ceres and Ring
+-- Station, with its own mass driver. Pirate-run depots crush the rock
+-- into steel, canisters and ammunition for the shadow economy.
+-- The Shoals' shape: a settled channel through the rock. A rocky core with
+-- drill rocks, a cleared ring road (the channel) the three stations circle
+-- along, and a thick outer wall with more drill rocks, cut by one lane in
+-- from the mass driver. The stations' orbit radius lives in world_layout.
+local SHOALS = {
+	radius = 34000,
+	channel = { 9500, 16500 },     -- the cleared ring the stations travel
+	orbit = 13000,                 -- where they ride in it
+	lane = 1800,                   -- half-width of the driver's way in
+	core = { n = 3, d = 4200, r = { 1100, 1400 } },
+	wall = { n = 5, d = 24000, r = { 1300, 1800 } },
+}
+Fields.shoalsShape = SHOALS
+Fields.shoals = {
+	miningAsteroids = {},
+	name = "The Shoals",
+	dark = true,
+	radius = SHOALS.radius,
+	spawn = { 0, -(SHOALS.channel[1] + 400) },   -- in the channel, inside the stations' track
+	mix = MIX.belt,
+	enemies = { { "swarmer", 2 }, { "interceptor", 2 }, { "gunner", 1 } },
+	build = function(game)
+		local f = Fields.shoals
+		for _, sid in ipairs(f.stationIds) do require("src.locations").spawnStation(game, sid) end
+		for _, src in ipairs(f.miningAsteroids) do game:spawnGiantAsteroid(src.x, src.y, src.radius) end
+		-- the driver's lane: a straight cut from the channel out to the gun
+		local dx, dy
+		if f.driverId then
+			local x, y = require("src.locations").position(f.driverId, game.universe and game.universe.clock or 0)
+			local len = math.sqrt(x * x + y * y)
+			dx, dy = x / len, y / len
+		end
+		local function open(x, y)
+			local d = math.sqrt(x * x + y * y)
+			if d > SHOALS.channel[1] and d < SHOALS.channel[2] then return true end
+			if dx and d >= SHOALS.channel[1] and x * dx + y * dy > 0 and math.abs(x * dy - y * dx) < SHOALS.lane then return true end
+			return false
+		end
+		-- dense rock everywhere that isn't the channel or the lane: a heavy
+		-- core and a heavier outer wall, so the settlement reads as a pocket
+		local function scatter(inner, outer, density)
+			local area = pi * (outer ^ 2 - inner ^ 2) / 1e6
+			local n, placed = floor(area * density * T.mapDensity), 0
+			for _ = 1, n * 8 do
+				if placed >= n then break end
+				local kind = game:pickDebris()
+				local radius = kind == "rock" and 28 + random() ^ 2 * 140 or game:debrisSize(kind)
+				local a = random() * pi * 2
+				local d = math.sqrt(inner ^ 2 + random() * (outer ^ 2 - inner ^ 2))
+				local x, y = cos(a) * d, sin(a) * d
+				if not open(x, y) and game:isClear(x, y, radius + 60) then game:spawnAsteroid(x, y, radius, kind); placed = placed + 1 end
+			end
+		end
+		scatter(1500, SHOALS.channel[1] - 300, 0.9)
+		scatter(SHOALS.channel[2] + 300, SHOALS.radius - 150, 0.5)
+		game:spawnContainers(T.fieldContainers, SHOALS.channel[1])
+	end,
+}
+do
+	local f, rng = Fields.shoals, love.math.newRandomGenerator(4471)
+	for _, ring in ipairs({ SHOALS.core, SHOALS.wall }) do
+		for k = 0, ring.n - 1 do
+			local a = k / ring.n * pi * 2 + 0.35 + rng:random() * 0.4
+			-- keep the outer wall's drill rocks out of the driver's lane
+			-- (a lone driver sits at -pi/2 + .6, see the driver block below)
+			local off = (a - (-pi / 2 + .6) + pi) % (2 * pi) - pi
+			if ring == SHOALS.wall and math.abs(off) < 0.3 then a = a + (off >= 0 and 0.3 or -0.3) end
+			local d = ring.d * (0.9 + rng:random() * 0.2)
+			f.miningAsteroids[#f.miningAsteroids + 1] = { x = cos(a) * d, y = sin(a) * d, radius = ring.r[1] + rng:random() * (ring.r[2] - ring.r[1]) }
+		end
+	end
+end
+
+-- Antichthon: a quiet dark pocket on Earth's orbit, behind the Sun. One
+-- farm station in open space, thin rock and ice out to the edge.
+Fields.antichthon = {
+	name = "Antichthon",
+	dark = true,
+	spawn = { 0, 3000 * T.mapScale },
+	radius = 18000 * T.mapScale,
+	mix = { ice = 5, rock = 5 },
+	enemies = { { "interceptor", 1 } },
+	build = function(game)
+		for _,id in ipairs(Fields.antichthon.stationIds) do require("src.locations").spawnStation(game,id) end
+		local S = T.mapScale
+		local area = pi * ((18000 * S) ^ 2 - (6000 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.06 * T.mapDensity), 6000 * S)
+		game:spawnContainers(T.fieldContainers, 5000)
+	end,
+}
+
+-- Cordelia Drift: a dark pocket in Uranus's inner ring debris, one
+-- freeport in cleared ice, rock and ice out to the edge.
+Fields.cordelia = {
+	name = "Cordelia Drift",
+	dark = true,
+	spawn = { 0, 3000 * T.mapScale },
+	radius = 18000 * T.mapScale,
+	mix = { ice = 6, rock = 4 },
+	enemies = { { "sniper", 1 }, { "interceptor", 2 } },
+	build = function(game)
+		for _,id in ipairs(Fields.cordelia.stationIds) do require("src.locations").spawnStation(game,id) end
+		local S = T.mapScale
+		local area = pi * ((18000 * S) ^ 2 - (5500 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.12 * T.mapDensity), 5500 * S)
+		game:spawnContainers(T.fieldContainers, 5000)
+	end,
+}
 
 -- Authored industrial sites, shared by the catalogue and the simulation.
 function Fields.miningSources(area)
@@ -574,6 +696,10 @@ function Fields.configureLocations(area)
                 local radius=math.sqrt(p.x*p.x+p.y*p.y)
                 assert(radius>0,'orbiting station must be outside the planet centre')
                 motion={type='orbit',radius=radius,phase=math.atan2(p.y,p.x),surface=F.planetR}
+            elseif p.rate then
+                -- no planet: stations circling their common centre at a set rate (rad/s)
+                local radius=math.sqrt(p.x*p.x+p.y*p.y)
+                motion={type='orbit',radius=radius,phase=math.atan2(p.y,p.x),rate=p.rate}
             else motion={type='fixed',x=p.x,y=p.y} end
         end
         local wheel=entry.wheel or {900,120}
@@ -601,6 +727,14 @@ function Fields.configureLocations(area)
         F.stations[i]=entry.name or id
         F.stationIds[i]=add(id,F.stations[i],'station',motion,spin)
         local place=F.locations[#F.locations]
+        -- Out of any planet's well (quarries, dark grids) nothing holds a
+        -- station still: the whole station, core and all, slowly tumbles
+        -- (drift), on top of whatever its rotors do with spin. Each one
+        -- at its own rate, alternating direction.
+        if not F.stationTrack and not F.planetR and not entry.adapter then
+            local rates=T.freeStationDrift
+            place.drift=entry.drift or (i%2==1 and 1 or -1)*rates[(i-1)%#rates+1]
+        end
         place.layout,place.wheel,place.adapter=layout,wheel,entry.adapter
         place.marketId=entry.marketId or WorldLayout.defaults.marketId
         -- what this station offers and makes belong to the place, not its design

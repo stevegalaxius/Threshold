@@ -8,9 +8,23 @@ return function(game)
  local checks=0
  local function check(ok,msg)assert(ok,msg);checks=checks+1 end
  game.autosaveOff=true
- local r
- for _,record in pairs(game.universe.npcs) do if record.populationGroup=='salvager' and record.home=='earth' then r=record;break end end
- assert(r,'no initial Earth salvager')
+ -- Salvage is board work for haulers; build a scavenger-tempered one at Earth.
+ local function hauler()
+  local u=game.universe
+  local h=A.createTrader(game,'earth',u.nextNpcId+1)
+  h.workProfile='scavenger';h.taskWorker=true
+  local station=L.station('earth','trade')
+  h.area='earth';h.state='docked';h.node=station;h.route={station,station};h.index=1;h.untilTime=u.clock
+  h.salvageCargo={};h.salvageGoal=station;h.credits=0;h.ship.cargo={};h.ship.hold=nil;h.task=nil;h.nextDecisionAt=nil
+  -- the old salvager fit: a packhorse needing no ammunition restock
+  local def=require('src.data').enemies.salvager_packhorse;local hull=require('src.data').hulls[def.hull]
+  h.archetype=def.id;h.ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=require('src.stats').compute(hull,def.loadout).armor}
+  h.ship.fuelInitialized=nil;Fuel.withRecord(h,function() end);h.fuelClock=u.clock
+  return h
+ end
+ for _,record in pairs(game.universe.npcs) do check(record.populationGroup~='salvager','a salvager population still spawned') end
+ local r=hauler()
+ check(r.job=='hauler' and r.network=='white','hauler lacks its job/network')
  -- This fixture exercises salvage execution; mixed work selection is covered
  -- by stockpile.lua. Pin the usual work rather than assuming every selection.
  local function onlySalvage(r)
@@ -21,20 +35,20 @@ return function(game)
     r.ship.cargo[t.item]=math.max(0,(r.ship.cargo[t.item] or 0)-t.amount)
    end
    Tasks.release(game.universe,r,'fixture work',game.universe.clock)
-   r.ship.hold=nil;r.state='docked'
+   r.ship.hold=nil;r.state='docked';r.nextDecisionAt=nil;r.untilTime=game.universe.clock
    game.universe.clock=game.universe.clock+3 -- allow the shared decision budget to advance
    require('src.npc').decide(game.universe,r,L.station('earth','trade'),game.universe.clock,game)
   end
  end
  onlySalvage(r)
- check(r.task and r.task.kind=='salvage' and game.universe.tasks.offers[r.task.id].owner==r.id,'salvager has no reserved board job')
+ check(r.task and r.task.kind=='salvage' and game.universe.tasks.offers[r.task.id].owner==r.id,'salvager has no reserved board job: '..tostring(r.taskStatus)..' '..tostring(r.task and r.task.kind))
  local id=r.id;local population=game.universe.nextNpcId
  S.seed(game)
  check(game.universe.nextNpcId==population,'loading board duties duplicated the population')
  local allowed={};for _,area in ipairs(S.system('earth')) do allowed[area]=true end
  for _,node in ipairs(r.route) do check(allowed[L.get(node).area],'salvager left its planet/moon system') end
  -- Two independent workers cannot reserve the same board assignment or pickup.
- local competitor=S.create(game,'earth',L.station('earth','trade'),game.universe.clock)
+ local competitor=hauler()
  onlySalvage(competitor)
  check(competitor.task.id~=r.task.id,'two salvagers reserved one board job')
  game:loadField('venus');game:captureALife(true)
@@ -102,7 +116,6 @@ return function(game)
  game:loadState(carrying);u=game.universe;r=u.npcs[id]
  e=game.alifeOnline[id] or A.wake(game,r)
  check(r.salvageCargo.salvage_kit==1 and e.cargo.salvage_kit==1,'save/load lost recovered cargo or its sale manifest')
- check(Population.count(u,'earth','salvager')==1,'saved salvager was duplicated')
  A.capture(game,e,false);check(S.returnRecord(game,r),'physical collector had no local return route');A.bindRoute(game,e,r)
  local station=game:locationEntity(r.salvageGoal)
  game:dockInstantly(e,station)
@@ -115,7 +128,7 @@ return function(game)
  check(r.credits==income+game.sellPrice({id='salvage_kit',n=1}) and u.credits==wallet,'physical sale used the player wallet')
  game:traderUndocked(e,station)
  local saved=assert(Save.decode(Save.encode(game:saveState())))
- check(saved.salvage.seeded.earth and saved.npcs[id].credits==r.credits,'save omitted salvager lifecycle or earnings')
+ check(saved.npcs[id].credits==r.credits,'save omitted salvager lifecycle or earnings')
  check(saved.tasks.offers[r.task.id].owner==id,'save omitted the next reserved salvage job')
  r.state='dead';Tasks.clean(u,u.clock)
  check(not u.tasks.offers[r.task.id].owner,'dead salvager retained a board reservation')

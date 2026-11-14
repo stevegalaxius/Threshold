@@ -177,6 +177,22 @@ market { id = "market:quarry_1", station = "Quarry Ore Depot", sells = {   -- dr
 	{ "iron_ore", 4 },
 	{ "rounds_s", 4 }, { "tug_beam", 1 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },
 } }
+-- dark stations (src/dark.lua)
+market { id = "market:shoals_1", station = "Slag Harbor", sells = {   -- pirate ore depot
+	{ "iron_ore", 4 }, { "steel_plate", 3 }, { "empty_canister", 2 }, { "rounds_s", 4 }, { "drill_s_base", 1 },
+} }
+market { id = "market:shoals_2", station = "Cinder Works", sells = {   -- pirate munitions
+	{ "rounds_s", 6 }, { "shell_s", 4 }, { "steel_plate", 2 },
+} }
+market { id = "market:shoals_3", station = "Shoals Freeport", sells = {
+	{ "rounds_s", 4 }, { "shell_s", 2 }, { "artillery_s_base", 1 }, { "hold_pod_s", 1 },
+} }
+market { id = "market:antichthon_1", station = "Antichthon Gardens", sells = {   -- pirate farm
+	{ "food_crate", 6 }, { "fertilizer", 2 }, { "water", 2 },
+} }
+market { id = "market:cordelia_1", station = "Cordelia Freeport", sells = {
+	{ "rounds_s", 4 }, { "missile_s", 2 }, { "deuterium_canister", 4 }, { "nav_computer", 1 },
+} }
 market { id = "market:ceres_quarry_1", station = "Ceres Quarry Depot", sells = {   -- drill crews' supply
 	{ "iron_ore", 4 }, { "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 2 }, { "tug_beam", 1 },
 } }

@@ -44,7 +44,7 @@ return function(game)
  -- overwhelming to check it still multiplies into the hull's weight.
  local weight=supply.weight
  supply.weight=function(q,hull) return hull=='mack_mustang' and 10^6 or weight(q,hull) end
- for _,role in ipairs({'trader','miner','salvager','patrol','pirate'}) do
+ for _,role in ipairs({'trader','miner','patrol','pirate'}) do
   local policy=require('src.npc_templates').purchase(role)
   local ship,origin=supply.generated(u,policy,function()return .5 end)
   assert(ship,'no generated ship for '..role)

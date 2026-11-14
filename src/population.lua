@@ -81,6 +81,60 @@ local function entryPoint(game)
   if clearArrival(game,px,py,200) then return px,py end
  end
 end
+-- The ways into an area: its moon-gate corridors and mass drivers. A new
+-- ship arrives through one of them, from the map's edge, never out of thin
+-- air beside a station.
+function P.entries(area)
+ local gates,drivers={},{}
+ for _,place in ipairs(Fields[area] and Fields[area].locations or {}) do
+  if place.kind=='moon_gate' then gates[#gates+1]=place.id
+  elseif place.kind=='driver' then drivers[#drivers+1]=place.id end
+ end
+ return gates,drivers
+end
+-- Put a freshly made record on an inbound leg: from an entry point to
+-- wherever its first decision put it (S), then on with its work. Offline
+-- that is an ordinary travel leg; online it flies in over the edge.
+local function arriveFromEdge(game,r,area,clock)
+ if r.state=='transit' or r.state=='dead' or not r.route then return false,'state '..tostring(r.state) end
+ local G=require('src.travelgraph')
+ local A=require('src.alife')
+ local S
+ -- where its own first leg starts (index 1 on a looped route is heading for
+ -- route[1] from the far end, so start it there)
+ if r.state=='travel' then S=r.route[r.index-1] or r.route[r.index] else S=r.node or r.route[r.index] end
+ if not S or L.get(S).area~=area then return false,'start '..tostring(S)..' not in '..area end
+ local gates,drivers=P.entries(area)
+ local pool=#gates>0 and gates or drivers
+ if #pool==0 then return false end
+ local entry=pool[love.math.random(#pool)]
+ local driver=L.get(entry).kind=='driver'
+ local path
+ if entry==S then
+  -- starting right at a corridor's mouth is already the map edge
+  if not driver then r.arrivedFrom=entry;return true end
+  path={entry,entry}   -- at a driver: still come in off its lane
+ else path=G.itinerary(entry,S,clock) end
+ if not path or #path<2 then return false,'no route '..entry..' -> '..S end
+ if driver then
+  -- a driver's gun sits inside the map: come in off its lane instead,
+  -- over the edge from another planet's bearing (alife start(), driverArrival)
+  local origins={}
+  for _,other in ipairs(Fields.list) do
+   local f=Fields[other]
+   if other~=area and Fields.orbits[other] and f and f.driverId then origins[#origins+1]=f.driverId end
+  end
+  if #origins==0 then return false end
+  table.insert(path,1,origins[love.math.random(#origins)])
+ end
+ r.route=path;r.node=nil;r.untilTime=nil;r.nextDecisionAt=nil
+ r.service=nil;r.action=nil;r.dockedAt=nil
+ r.state=driver and 'transit' or 'travel'
+ A.start(r,clock,driver and 3 or 2)
+ r.arrivedFrom=entry
+ return true
+end
+P.arriveFromEdge=arriveFromEdge
 function P.spawn(game,area,role,nearPlayer)
  local def=P.templates[role]
  if P.target(area,role)<=0 then return nil,'No '..role..' population in this region.' end
@@ -103,7 +157,7 @@ function P.spawn(game,area,role,nearPlayer)
    if d<distance then node,distance=candidate,d end
   end
  end
- if localArea and not x then
+ if localArea and not x and #(select(1,P.entries(area)))+#(select(2,P.entries(area)))==0 then
   -- A-Life is persistent: a new ship arrives out of the player's sight,
   -- at a station or waypoint off-screen, never in front of them
   local pl=game.player
@@ -141,14 +195,21 @@ function P.spawn(game,area,role,nearPlayer)
  Supply.complete(game.universe,r,acquisition,policy)
  require('src.supplies').provision(r)
  local A=require('src.alife')
- r.spawnedAt=clock;r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp'
- if x then
+ r.spawnedAt=clock
+ local edge,why=false,'debug arrival'
+ if not x then edge,why=arriveFromEdge(game,r,area,clock) end
+ if edge then r.spawnOrigin='edge'
+ else r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp';r.arrivalSkip=why end
+ -- a ship whose first move already took it out of the area (into a lane,
+ -- state 'transit') has no point here: no arrival pose, nothing to wake
+ local here=A.point(r,clock)~=nil
+ if x and here then
   local nx,ny=A.point(r,clock)
   r.offset={x=x-nx,y=y-ny,progress=0}
   local vx,vy=game:flowAt(x,y)
   r.pose={x=x,y=y,a=math.atan2(-y,-x),vx=vx,vy=vy,w=0,clock=clock}
  end
- if localArea and game.player and not game.player.dead then
+ if here and localArea and game.player and not game.player.dead then
   local px,py=game.player.body:getPosition()
   local sx,sy=x,y
   if not sx then sx,sy=A.point(r,clock) end

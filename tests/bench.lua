@@ -5,7 +5,7 @@ return function(game)
  local P=require('src.population');local Prof=require('src.profiler');local Game=require('src.game')
  local Render=require('src.render')
  local want=tonumber(os.getenv('BENCH_NPCS') or '') or 200
- local roles={'trader','miner','salvager','trader'}
+ local roles={'trader','miner','trader'}
  local made,tries=0,0
  if not game.player then game:spawnPlayer(game.playerHull) end
  game.alifeOnline=game.alifeOnline or {}

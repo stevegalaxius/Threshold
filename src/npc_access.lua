@@ -32,7 +32,15 @@ function A.policeGrant(r,area)
  end
 end
 function A.police(r,area) return A.policeGrant(r,area)~=nil end
+-- Does this offer touch a dark grid (its stations or its area)?
+function A.darkOffer(offer)
+ local Dark=require('src.dark')
+ return (offer.source and Dark.isDarkNode(offer.source)) or (offer.target and Dark.isDarkNode(offer.target))
+  or (offer.area and Dark.isDarkArea(offer.area)) or false
+end
+function A.darkAccess(r) return r~=nil and require('src.npc_templates').darkAccess(r) end
 function A.eligible(r,offer,capabilities)
+ if offer.kind and not A.darkAccess(r) and A.darkOffer(offer) then return false end
  local req=offer.requires or {}
  for _,name in ipairs(req.capabilities or {}) do if not capabilities[name] then return false end end
  if req.authorization and not A.authorized(r,req.authorization,offer.issuer,offer.jurisdiction) then return false end

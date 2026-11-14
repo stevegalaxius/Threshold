@@ -260,6 +260,7 @@ function A.seed(game)
   Mining.seed(game)
   Salvager.seed(game)
   for _,r in pairs(u.npcs) do
+   require('src.npc_templates').migrate(r) -- job/network on older saves
    require('src.personality').ensure(r)
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
    -- every NPC flies at the shared cruise speed (older saves kept per-hull speeds)

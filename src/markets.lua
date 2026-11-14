@@ -10,6 +10,13 @@ for _,recipe in ipairs(require('data.industry').recipes) do
   end
  end
 end
+-- Does this station's price for this good float with its stock? Market
+-- goods float everywhere. On a dark grid nothing has a fixed price: the
+-- shadow market bids up whatever it's short of, food and fuel included,
+-- and that bid is what draws smugglers in.
+function C.floats(key,item)
+ return C.items[item] or (key~=nil and require('src.dark').isDarkNode(key)) or false
+end
 function C.state(u) u.markets=u.markets or {prices={},bids={}};return u.markets end
 function C.price(u,key,item)
  local s=C.state(u);local prices=s.prices[L.canonical(key)]
@@ -58,13 +65,23 @@ function C.update(u,clock,stations,inbound)
  for _,key in ipairs(stations) do
   snapshot[key]={}
   for item in pairs(C.items) do snapshot[key][item]=S.count(u,key,item) end
+  if require('src.dark').isDarkNode(key) then for _,item in ipairs(E.goods()) do snapshot[key][item]=S.count(u,key,item) end end
  end
  local bids={}
  for _,item in ipairs(C.products) do bids[item]={} end
  for _,key in ipairs(stations) do
   local prices=state.prices[key] or {};state.prices[key]=prices
-  for item in pairs(C.items) do
-   local want=E.target(u,key,item)
+  local floating=C.items
+  if require('src.dark').isDarkNode(key) then
+   floating={};for item in pairs(C.items) do floating[item]=true end
+   for _,item in ipairs(E.goods()) do floating[item]=true end
+  end
+  local dark=floating~=C.items
+  for item in pairs(floating) do
+   -- a dark maker prices against the stock it keeps for itself, not its
+   -- whole buffer, so a full farm sells cheap and the gap to a hungry
+   -- station is what pays the smuggler
+   local want=E.target(u,key,item,dark and not C.items[item] and (makes(key,item) or item==require('src.food').item and select(2,require('src.food').rates(key))>0) or nil)
    local coming=(inbound[key..'|'..item] or 0)
    local have=snapshot[key][item]+coming
    local target

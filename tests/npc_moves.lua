@@ -1,6 +1,6 @@
 -- One NPC AI: every job keeps moving, at the shared cruise speed.
 -- Runs the whole seeded world offline for two hours and checks that no
--- pirate, patrol or salvager sits at one place for the whole run.
+-- pirate or patrol sits at one place for the whole run.
 return function(game)
  local A,T,N=require('src.alife'),require('src.tuning'),require('src.npc')
  local u=game.universe
@@ -26,7 +26,7 @@ return function(game)
  local stuck={};local lonely
  for id,r in pairs(u.npcs) do
   local role=r.piracy and 'pirate' or r.populationGroup
-  if r.state~='dead' and r.state~='escaped' and (role=='pirate' or role=='patrol' or role=='salvager') then
+  if r.state~='dead' and r.state~='escaped' and (role=='pirate' or role=='patrol') then
    count[role]=(count[role] or 0)+1
    -- a ship whose job has nowhere else to go here can't be expected to move
    local j=N.controller;local here=r.node or r.route[r.index];local elsewhere=false
