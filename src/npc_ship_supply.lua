@@ -83,7 +83,7 @@ function S.generated(u,policy,roll,area)
  -- Role fit decides; factory output, regional lots, local stock and recent
  -- danger shade it (src/ship_fit.lua). Nothing here consumes stock.
  local danger
- if policy.role then danger=select(2,require('src.ship_fit').rank(u,area,policy.role,choices,stock))
+ if policy.role then danger=select(2,require('src.ship_fit').rank(u,area,policy.role,choices,stock,policy.sharpness))
  else for _,c in ipairs(choices) do c.weight=c.base end end
  for _,c in ipairs(choices) do total=total+c.weight end
  if total<=0 then return end
@@ -124,6 +124,7 @@ function S.acquire(u,area,policy,roll)
  return S.generated(u,policy,roll,area)
 end
 function S.complete(u,r,acquisition,policy)
+ if policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
  if acquisition.source=='used' then
   assert(require('src.dealers').buyForNpc(u,r,acquisition.candidate,policy),'arrival ship sale changed during creation')
   r.shipAcquisition.source='used'

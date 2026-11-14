@@ -101,6 +101,11 @@ local function details(game)
  require('src.work_preferences').profile(r)
  Slab.Text('Work profile: '..(r.workProfile or '?'))
  Slab.Text('Affiliation: '..(r.affiliation or 'independent'))
+ do local Rank=require('src.npc_rank')
+  Slab.Text(('Rank: %s  (xp %d)'):format(Rank.get(r).name,r.rankXp or 0))
+  local f=r.lastRefit
+  if f then Slab.Text(('Last refit: slot %d %s -> %s  %d cr  fit %.2f -> %.2f'):format(f.slot,tostring(f.from),f.to,f.cost,f.was,f.fit)) end
+ end
  do -- why this hull: role fit at acquisition (src/ship_fit.lua)
   local a=r.shipAcquisition or {}
   local function n(v) return v and ('%.2f'):format(v) or '-' end
