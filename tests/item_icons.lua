@@ -120,6 +120,13 @@ return function(game)
  check(#bgot.boxes==#mi.boxes and #bgot.parts==0,'box source round trip')
  E.design.boxes[1].h=2; Icons.syncBoxes(E.design)
  check(#E.design.parts==n,'resync replaces faces, never piles them up')
+ -- clicking a face picks its box; Delete hides that face
+ local Canvas=require('src.editor.canvas')
+ local f1=E.design.parts[1]
+ E.boxSel,E.faceSel=f1.box,f1.face
+ E.deleteSelected(); Icons.syncBoxes(E.design)
+ check(#E.design.parts==n-1 and E.design.boxes[f1.box].hide[f1.face],'deleting a face hides it')
+ check(Export.source(E.design):find('hide = {',1,true),'hidden face saved')
  Editor.close()
  print(('item icons: %d checks passed'):format(checks))
 end

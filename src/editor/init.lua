@@ -272,6 +272,15 @@ function E.finishDrawing()
 end
 
 function E.deleteSelected()
+	-- a picked box face (Icons tab): hide that face
+	local b = E.design.kind == "icon" and E.boxSel and E.design.boxes and E.design.boxes[E.boxSel]
+	if b and E.faceSel then
+		E.pushUndo()
+		b.hide = b.hide or {}
+		b.hide[E.faceSel] = true
+		E.faceSel = nil
+		return
+	end
 	if E.tsel and E.design.turrets and E.design.turrets[E.tsel] then
 		E.pushUndo()
 		table.remove(E.design.turrets, E.tsel)

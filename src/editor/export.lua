@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
+Export.PART_FIELDS = { "name", "shape", "shade", "fill", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -211,7 +211,7 @@ function Export.iconDef(design)
 		if part.fromBox then goto continue end
 		local p = Export.cleanPart(part)
 		-- only what an icon draws with
-		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer })
+		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, fill = p.fill, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer })
 		::continue::
 	end
 	return def

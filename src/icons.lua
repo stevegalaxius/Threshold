@@ -44,7 +44,8 @@ local lg = love.graphics
 	corner). Each box becomes three parts (front, side, top) ahead of the
 	icon's drawn parts, in list order (later boxes draw on top), and the lot is scaled to fill
 	the footprint. Optional per box: name, color { r, g, b }, paint, and
-	open = true (no top face, for an open carton). ]]
+	open = true (no top face, for an open carton), hide = { front = true,
+	side = true, top = true } to leave faces out. ]]
 Icons.DEPTH = 0.315    -- screen x and -y per unit of depth
 Icons.RISE = 0.55      -- screen -y per unit of height
 Icons.FACE = { front = 0.24, side = 0.16, top = 0.34 }   -- fill brightness per face
@@ -57,10 +58,11 @@ function Icons.boxParts(boxes, bw, bh)
 	local list = boxes or {}
 	local faces = {}
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
-	for _, b in ipairs(list) do
+	for bi, b in ipairs(list) do
 		local bx, by, bz = b.x or 0, b.y or 0, b.z or 0
 		local X, Y, Z = bx + (b.w or 1), by + (b.d or 1), bz + (b.h or 1)
 		local function face(kind, pts)
+			if b.hide and b.hide[kind] then return end
 			local shape = {}
 			for _, q in ipairs(pts) do
 				local sx, sy = project(q[1], q[2], q[3])
@@ -68,7 +70,7 @@ function Icons.boxParts(boxes, bw, bh)
 				x0, x1, y0, y1 = math.min(x0, sx), math.max(x1, sx), math.min(y0, sy), math.max(y1, sy)
 			end
 			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = b.color, paint = b.paint,
-				fill = Icons.FACE[kind], fromBox = true }
+				fill = Icons.FACE[kind], fromBox = true, box = bi, face = kind }
 		end
 		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })
 		face("side", { { X, by, bz }, { X, Y, bz }, { X, Y, Z }, { X, by, Z } })

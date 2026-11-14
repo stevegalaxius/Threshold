@@ -520,7 +520,7 @@ local function boxSection(E, d)
 	end
 	for i, bx in ipairs(d.boxes) do
 		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
-			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel = i end
+			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel, E.faceSel = i, nil end
 	end
 	if b then
 		textField(E, "yard_boxname", b.name or "", function(v) b.name = v end, 160)
@@ -541,7 +541,34 @@ local function boxSection(E, d)
 		combo("yard_boxcol", colorName(b.color), opts, function(o)
 			E.pushUndo(); b.color = o[2] and { o[2][1], o[2][2], o[2][3] } or nil
 		end, 120)
-		if Slab.CheckBox(b.open, "Open top (no lid face)") then E.pushUndo(); b.open = (not b.open) or nil end
+		Slab.Text("faces"); Slab.SameLine()
+		for _, f in ipairs({ "front", "side", "top" }) do
+			local shown = not (b.hide and b.hide[f]) and not (f == "top" and b.open)
+			if Slab.CheckBox(shown, f) then
+				E.pushUndo()
+				if f == "top" then b.open = nil end
+				b.hide = b.hide or {}
+				b.hide[f] = shown or nil
+				if not next(b.hide) then b.hide = nil end
+			end
+			Slab.SameLine()
+		end
+		Slab.NewLine()
+		Slab.Text("Click a face on the canvas and press Delete to hide it.", { Color = GREY })
+		if Slab.Button("Turn into parts", { Tooltip = "Replaces this box with its faces as ordinary parts you can move and reshape" }) then
+			E.pushUndo()
+			local faces = {}
+			for _, q in ipairs(d.parts) do
+				if q.fromBox and q.box == E.boxSel then
+					local c = Export.copy(q); c.fromBox, c.box, c.face = nil, nil, nil
+					faces[#faces + 1] = c
+				end
+			end
+			table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
+			Icons.syncBoxes(d)
+			for _, c in ipairs(faces) do table.insert(d.parts, c) end
+			b = nil
+		end
 	end
 	if #d.boxes == 0 then d.boxes = nil end
 	Icons.syncBoxes(d)
