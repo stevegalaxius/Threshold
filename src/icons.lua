@@ -77,7 +77,7 @@ function Icons.boxParts(boxes, bw, bh, kc)
 				local t = b.light
 				color = { kc[1] + (1 - kc[1]) * t, kc[2] + (1 - kc[2]) * t, kc[3] + (1 - kc[3]) * t }
 			end
-			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade,
+			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade, tint = b.tint,
 				fill = Icons.FACE[kind], fromBox = true, box = bi, face = kind }
 		end
 		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })

@@ -471,6 +471,7 @@ local function pressed(E, sx, sy, button)
 		local q = E.design.parts[i]
 		E.sel, E.multi, E.boxSel, E.faceSel = nil, {}, q.box, q.face
 	elseif i then
+		E.boxSel, E.faceSel = nil, nil
 		-- clicking inside the selection keeps it, to drag the group
 		if i ~= E.sel and not E.multi[i] then E.multi = {} end
 		if E.multi[i] then E.multi[i] = nil; E.multi[E.sel] = true end
@@ -479,6 +480,7 @@ local function pressed(E, sx, sy, button)
 		E.drag = { kind = "part", lx = px, ly = py, pushed = false }
 	else
 		-- empty space: drag a box to select every part inside it
+		E.boxSel, E.faceSel = nil, nil
 		-- what the box takes: parts, lights, or the selected part's points
 		local mode = E.boxMode or "parts"
 		if mode == "points" and not E.sel then mode = "parts" end

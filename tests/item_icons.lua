@@ -103,6 +103,7 @@ return function(game)
  end
  Editor.open(game)
  E.openHull('icon_missile_m')
+ E.boxSel=1
  local Slab=require('lib.Slab')
  for _=1,4 do Slab.Update(1/60); Editor.update(1/60); lg.origin(); lg.clear(0,0,0); Editor.draw(); Slab.Draw(); lg.present() end
  shot('icon-editor',function() Slab.Update(1/60); Editor.update(1/60); Editor.draw(); Slab.Draw() end)
