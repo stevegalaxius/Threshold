@@ -11,7 +11,8 @@ return function(game)
  lot.price=10000;lot.cargo={[require('src.reactor_fuel').item()]=2}
  state.lots={lot}
  -- No other Earth inventory can be chosen behind the test's back.
- for _,id in ipairs(L.stations('earth')) do if id~=key then D.state(u,id).lots={} end end
+ -- (earth_4, the drone foundry, has no dealer)
+ for _,id in ipairs(L.stations('earth')) do local s=id~=key and D.state(u,id);if s then s.lots={} end end
  local policy=require('src.npc_templates').purchase('trader')
  local candidate=D.purchaseCandidate(u,'earth',policy)
  assert(candidate and candidate.lot==lot,'eligible shared lot not offered to NPC')
@@ -64,11 +65,12 @@ return function(game)
  assert(copy.shipAcquisition.lot==lot.id,'acquisition provenance lost on save')
  local saved=assert(require('src.save').decode(require('src.save').encode(game:saveState())))
  assert(saved.dealers[key].production.mack_mustang.count==20,'production influence was not saved')
- local works='station:mars_2';local recipe=require('src.commodities').byId.make_missile_s
+ local works='station:titan_3';local recipe=require('src.commodities').byId.make_missile_s -- guided ammo is made at Gilgal Arsenal
+ S.stock(u,works,S.shopFor(works,'missile_s')).missile_s=0
  S.stock(u,works,S.shopFor(works,'steel_plate')).steel_plate=1000
  S.stock(u,works,S.shopFor(works,'explosives')).explosives=1000
  S.stock(u,works,S.shopFor(works,'electronics')).electronics=0
- local label=I.status(u,works,'ammunition',recipe)
+ local label=I.status(u,works,'guided_munitions',recipe)
  assert(label:find('Waiting for Electronics'),'missing electronics reason was not shown: '..label)
  assert(game.stationServices({key='station:mercury_1',locationId='station:mercury_1'}).shipyard,'used exchange unavailable to the player')
  print('USED SHIPS: shared stock, affordability, NPC purchase, generated fallback, production weights, wholesale, provenance and production reasons passed')
