@@ -2494,8 +2494,8 @@ function Game:reap()
 			e.removed = true
 			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
 		elseif e.dead and (e.kind == "husk" or e.kind == "container") then
-			if e.sat then require("src.satellites").shatter(self, e) end
-			for k = #self.entities, 1, -1 do if self.entities[k] == e then table.remove(self.entities, k); break end end
+			if e.sat then require("src.satellites").lost(self, e) end
+			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
 			e.body:destroy()
 			e.removed = true
@@ -2710,6 +2710,8 @@ local function partFixtures(body, part, h, ox, oy)
 			f:setRestitution(0.2)
 			f:setFriction(0.5)
 			f:setUserData(h)
+			-- a sensor part is hit by shots but nothing bumps into it
+			if part.sensor then f:setSensor(true) end
 			table.insert(list, f)
 		end
 	end

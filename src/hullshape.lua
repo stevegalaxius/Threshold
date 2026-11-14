@@ -24,6 +24,8 @@
 	             "glow" (no outline, drawn additively)
 	  collide    false: drawn only, no physics shape on the wreck, never
 	             takes hits and never breaks off (antennae, fins, glow)
+	  sensor     true: shots hit it and it breaks off as usual, but nothing
+	             bumps into it (satellite panels you fly through)
 	  cargo      true: carries loot. If no part says cargo, every part does.
 	  core       true: this part is the wreck's core instead of the biggest
 	  breakable  false: never shoots off; stays with the core

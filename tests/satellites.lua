@@ -25,10 +25,10 @@ return function(game)
  check(e,'stable ids')
  local x,y=e.body:getPosition()
  local reach=0
- for _,f in ipairs(e.body:getFixtures()) do
+ for _,f in ipairs(e.body:getFixtures()) do if not f:isSensor() then
   local pts={f:getShape():getPoints()}
   for k=1,#pts,2 do local wx,wy=e.body:getWorldPoint(pts[k],pts[k+1]);reach=math.max(reach,math.sqrt((wx-x)^2+(wy-y)^2)) end
- end
+ end end
  check(reach<180,'panels and truss do not collide (fixture reach '..math.floor(reach)..')')
  check(e.body:getMass()>200,'the bus is heavy: '..e.body:getMass())
  -- levers
@@ -54,14 +54,19 @@ return function(game)
  check(Sat.levers(Sat.get(u,'earth_sat_01')).dock=='player','quest override survives')
  Sat.revoke(u,'earth_sat_01')
  check(Sat.levers(Sat.get(u,'earth_sat_01')).dock==Sat.kinds[r.kind].dock,'revoke restores the kind')
- -- shot to death: breaks into the bus and the panel strips, not nothing
+ -- panels are shot off like a ship's parts
  local target=by2['earth_sat_03'] or select(2,next(by2))
- local count=#game.entities
+ local sensors=0
+ for _,f in ipairs(target.body:getFixtures()) do if f:isSensor() then sensors=sensors+1 end end
+ check(sensors>0,'panels are shootable sensors')
+ local piece
+ for _,pc in ipairs(target.pieces) do if pc.part.name=='panel' then piece=pc break end end
+ check(piece and not piece.core,'a panel strip can break off')
+ local before=#game.entities
+ game:breakOff(target,piece)
+ check(#game.entities==before+1,'and flies off as its own wreck')
  target.dead=true
  game:step(1/60)
- local bits=0
- for _,o in ipairs(game.entities) do if o.kind=='husk' and o.group then bits=bits+1 end end
- check(bits>=10,'a destroyed satellite breaks into pieces: '..bits)
- check(Sat.get(u,target.sat).lost,'and is marked lost')
+ check(Sat.get(u,target.sat).lost,'a destroyed satellite is marked lost')
  print(('satellites: %d checks passed'):format(checks))
 end
