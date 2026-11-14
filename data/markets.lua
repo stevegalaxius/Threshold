@@ -28,7 +28,7 @@
 	seconds, then it's sold on.
 ]]
 
-market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp", "brute_anvil" }, lots = 6, restock = 8 }, sells = {   -- general store
+market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp", "briggs_dagger" }, lots = 6, restock = 8 }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
