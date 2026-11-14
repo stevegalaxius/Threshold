@@ -442,8 +442,78 @@ quarryField("ceres_quarry", "Ceres Quarry")
 -- The Shoals: a dark quarry on the belt's orbit, between Ceres and Ring
 -- Station, with its own mass driver. Pirate-run depots crush the rock
 -- into steel, canisters and ammunition for the shadow economy.
-quarryField("shoals", "The Shoals", true, 6500)   -- a wider clear zone: three stations
-Fields.shoals.spawn = { 0, 0 }   -- the stations circle the middle, so arrive there
+-- The Shoals' shape: a settled channel through the rock. A rocky core with
+-- drill rocks, a cleared ring road (the channel) the three stations circle
+-- along, and a thick outer wall with more drill rocks, cut by one lane in
+-- from the mass driver. The stations' orbit radius lives in world_layout.
+local SHOALS = {
+	radius = 34000,
+	channel = { 9500, 16500 },     -- the cleared ring the stations travel
+	orbit = 13000,                 -- where they ride in it
+	lane = 1800,                   -- half-width of the driver's way in
+	core = { n = 3, d = 4200, r = { 1100, 1400 } },
+	wall = { n = 5, d = 24000, r = { 1300, 1800 } },
+}
+Fields.shoalsShape = SHOALS
+Fields.shoals = {
+	miningAsteroids = {},
+	name = "The Shoals",
+	dark = true,
+	radius = SHOALS.radius,
+	spawn = { 0, -(SHOALS.channel[1] + 400) },   -- in the channel, inside the stations' track
+	mix = MIX.belt,
+	enemies = { { "swarmer", 2 }, { "interceptor", 2 }, { "gunner", 1 } },
+	build = function(game)
+		local f = Fields.shoals
+		for _, sid in ipairs(f.stationIds) do require("src.locations").spawnStation(game, sid) end
+		for _, src in ipairs(f.miningAsteroids) do game:spawnGiantAsteroid(src.x, src.y, src.radius) end
+		-- the driver's lane: a straight cut from the channel out to the gun
+		local dx, dy
+		if f.driverId then
+			local x, y = require("src.locations").position(f.driverId, game.universe and game.universe.clock or 0)
+			local len = math.sqrt(x * x + y * y)
+			dx, dy = x / len, y / len
+		end
+		local function open(x, y)
+			local d = math.sqrt(x * x + y * y)
+			if d > SHOALS.channel[1] and d < SHOALS.channel[2] then return true end
+			if dx and d >= SHOALS.channel[1] and x * dx + y * dy > 0 and math.abs(x * dy - y * dx) < SHOALS.lane then return true end
+			return false
+		end
+		-- dense rock everywhere that isn't the channel or the lane: a heavy
+		-- core and a heavier outer wall, so the settlement reads as a pocket
+		local function scatter(inner, outer, density)
+			local area = pi * (outer ^ 2 - inner ^ 2) / 1e6
+			local n, placed = floor(area * density * T.mapDensity), 0
+			for _ = 1, n * 8 do
+				if placed >= n then break end
+				local kind = game:pickDebris()
+				local radius = kind == "rock" and 28 + random() ^ 2 * 140 or game:debrisSize(kind)
+				local a = random() * pi * 2
+				local d = math.sqrt(inner ^ 2 + random() * (outer ^ 2 - inner ^ 2))
+				local x, y = cos(a) * d, sin(a) * d
+				if not open(x, y) and game:isClear(x, y, radius + 60) then game:spawnAsteroid(x, y, radius, kind); placed = placed + 1 end
+			end
+		end
+		scatter(1500, SHOALS.channel[1] - 300, 0.9)
+		scatter(SHOALS.channel[2] + 300, SHOALS.radius - 150, 0.5)
+		game:spawnContainers(T.fieldContainers, SHOALS.channel[1])
+	end,
+}
+do
+	local f, rng = Fields.shoals, love.math.newRandomGenerator(4471)
+	for _, ring in ipairs({ SHOALS.core, SHOALS.wall }) do
+		for k = 0, ring.n - 1 do
+			local a = k / ring.n * pi * 2 + 0.35 + rng:random() * 0.4
+			-- keep the outer wall's drill rocks out of the driver's lane
+			-- (a lone driver sits at -pi/2 + .6, see the driver block below)
+			local off = (a - (-pi / 2 + .6) + pi) % (2 * pi) - pi
+			if ring == SHOALS.wall and math.abs(off) < 0.3 then a = a + (off >= 0 and 0.3 or -0.3) end
+			local d = ring.d * (0.9 + rng:random() * 0.2)
+			f.miningAsteroids[#f.miningAsteroids + 1] = { x = cos(a) * d, y = sin(a) * d, radius = ring.r[1] + rng:random() * (ring.r[2] - ring.r[1]) }
+		end
+	end
+end
 
 -- Cordelia Drift: a dark pocket in Uranus's inner ring debris, one
 -- freeport in cleared ice, rock and ice out to the edge.
