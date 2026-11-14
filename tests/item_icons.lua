@@ -113,7 +113,7 @@ return function(game)
  check(mi.boxes and #mi.parts==#mi.boxes*3,'each box gives three faces')
  local mbw,mbh=Icons.box('missile_m')
  for _,q in ipairs(mi.parts) do for k=1,#q.shape-1,2 do check(math.abs(q.shape[k])<=mbw+1e-6 and math.abs(q.shape[k+1])<=mbh+1e-6,'box art fits the footprint') end end
- check(#data.icons.rounds_s.parts==#data.icons.rounds_s.boxes*3-1,'open box has no top')
+ do local t=Icons.boxParts({{w=1,d=1,h=1,open=true}},8,8); check(#t==2,'open box has no top') end
  E.openHull('icon_missile_m')
  local n=#E.design.parts
  local bsrc=Export.source(E.design)
