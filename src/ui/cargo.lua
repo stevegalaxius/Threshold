@@ -1303,6 +1303,10 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
 	lg.setColor(c[1], c[2], c[3], 0.95 * alpha)
 	lg.setLineWidth(1)
 	lg.rectangle("line", x + 2.5, y + 2.5, w - 5, h - 5, 3, 3)
+	if item.kind ~= 'ship' and item.id then
+		-- the item's drawn art, turned with the stack; the name sits on top
+		require("src.icons").drawInRect(item.id, x, y, w, h, entry and entry.rot, alpha)
+	end
 	if item.kind=='ship' then
   local Paint=require('src.paint');local hull=data.hulls[item.hull]
   local paint=entry and entry.shipRecord and entry.shipRecord.color or Paint.preset(Paint.pool(hull)[1])

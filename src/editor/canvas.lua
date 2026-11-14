@@ -1140,6 +1140,24 @@ function Canvas.draw(E)
 		end
 	end
 
+	-- icons: the hold footprint (one box per cell), and the art as the
+	-- game draws it: in a hold stack, and floating in space at true size
+	if E.design.kind == "icon" then
+		local Icons = require("src.icons")
+		local fw, fh = Icons.footprint(E.design.item)
+		local bw, bh = Icons.box(E.design.item)
+		local ax, ay = Canvas.toScreen(E, -bw, -bh)
+		local bx, by = Canvas.toScreen(E, bw, bh)
+		lg.setLineWidth(1)
+		lg.setColor(1, 0.85, 0.4, 0.18)
+		for i = 1, fw - 1 do local x = ax + (bx - ax) * i / fw; lg.line(x, ay, x, by) end
+		for j = 1, fh - 1 do local y = ay + (by - ay) * j / fh; lg.line(ax, y, bx, y) end
+		lg.setColor(1, 0.85, 0.4, 0.7)
+		lg.rectangle("line", ax, ay, bx - ax, by - ay)
+		lg.print(("%d x %d cells"):format(fw, fh), ax, ay - 16)
+		Canvas.drawIconPreview(E)
+	end
+
 	-- the cursor's position in ship space
 	local wx, wy = Canvas.snap(E, Canvas.toWorld(E, mx, my))
 	lg.setColor(1, 1, 1, 0.6)
@@ -1147,5 +1165,59 @@ function Canvas.draw(E)
 	lg.pop()
 end
 
+
+-- The icon preview, bottom right: the art in a hold stack at the cargo
+-- screen's two cell sizes, and tumbling in space at its real size beside
+-- a ship for scale.
+function Canvas.drawIconPreview(E)
+	local Icons = require("src.icons")
+	local HUD = require("src.hud")
+	local d = E.design
+	local icon = { item = d.item, parts = {} }
+	for _, p in ipairs(d.parts) do
+		if not p.hidden and HullShape.check(p.shape) then icon.parts[#icon.parts + 1] = p end
+	end
+	local fw, fh = Icons.footprint(d.item)
+	local item = data.items[d.item] or {}
+	local c = HUD.itemColor(item) or { 1, 1, 1 }
+	local W, H = 360, 230
+	local x0, y0 = lg.getWidth() - W - 12, lg.getHeight() - H - 34
+	lg.setColor(0.02, 0.025, 0.035, 0.92)
+	lg.rectangle("fill", x0, y0, W, H, 4, 4)
+	lg.setColor(1, 1, 1, 0.25)
+	lg.rectangle("line", x0 + 0.5, y0 + 0.5, W - 1, H - 1, 4, 4)
+	lg.setColor(1, 1, 1, 0.6)
+	lg.print("Preview: hold", x0 + 8, y0 + 6)
+	-- hold stacks, as the cargo screen draws them
+	local x = x0 + 8
+	for _, cs in ipairs({ 22, 34 }) do
+		local w, h = fw * cs, fh * cs
+		if x + w > x0 + W - 8 then break end
+		lg.setColor(c[1], c[2], c[3], 0.32)
+		lg.rectangle("fill", x + 2, y0 + 26, w - 4, h - 4, 3, 3)
+		lg.setColor(c[1], c[2], c[3], 0.95)
+		lg.rectangle("line", x + 2.5, y0 + 26.5, w - 5, h - 5, 3, 3)
+		local bw, bh = Icons.box(d.item)
+		local s = math.min((w - 6) / (bw * 2), (h - 6) / (bh * 2))
+		lg.push()
+		lg.translate(x + w / 2, y0 + 24 + h / 2)
+		lg.scale(s)
+		Icons.drawArt(icon, c, 1, 1 / s, true)
+		lg.pop()
+		x = x + w + 10
+	end
+	-- in space, at its physical size (camera zoom 1) next to a 100 px ship
+	local sy = y0 + H - 60
+	lg.setColor(1, 1, 1, 0.6)
+	lg.print("Preview: in space (zoom 1, ship for scale)", x0 + 8, sy - 50)
+	lg.setColor(0.4, 0.45, 0.5, 0.5)
+	lg.polygon("line", x0 + 20, sy - 8, x0 + 110, sy, x0 + 20, sy + 8)
+	lg.push()
+	lg.translate(x0 + 210, sy)
+	lg.rotate(love.timer.getTime() * 0.4)
+	lg.scale(Icons.WORLD)
+	Icons.drawArt(icon, c, 1, 1 / Icons.WORLD, true)
+	lg.pop()
+end
 
 return Canvas

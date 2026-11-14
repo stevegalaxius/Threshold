@@ -203,8 +203,30 @@ function Export.weaponDef(design)
 	return def
 end
 
+-- An item icon (the Icons tab): just the art, keyed by its item.
+function Export.iconDef(design)
+	local def = { id = design.id, item = design.item, parts = {} }
+	for _, part in ipairs(design.parts) do
+		local p = Export.cleanPart(part)
+		-- only what an icon draws with
+		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer })
+	end
+	return def
+end
+
+-- A design from a loaded icon.
+function Export.fromIcon(item)
+	local ic = data.icons[item]
+	local def = data.items[item]
+	local design = { id = ic.id, item = item, name = (def and def.name or item) .. " icon", kind = "icon",
+		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
+	for _, part in ipairs(ic.parts) do table.insert(design.parts, Export.cleanPart(part)) end
+	return design
+end
+
 -- The definition for whatever kind the design is.
 function Export.def(design)
+	if design.kind == "icon" then return Export.iconDef(design) end
 	if design.kind == "weapon" then return Export.weaponDef(design) end
 	if design.kind == "station" then return Export.stationDef(design) end
 	if design.kind == "wreck" or design.kind == "container" or design.kind == "prop" then return Export.wreckDef(design) end
@@ -245,8 +267,20 @@ local function weaponSource(design)
 	return table.concat(out, "\n") .. "\n"
 end
 
+local function iconSource(design)
+	local def = Export.iconDef(design)
+	local item = data.items[def.item]
+	local out = { "-- Made in the Shipyard (F2), Icons tab." .. (item and (" Art for " .. item.name .. ".") or ""), "icon {",
+		("\tid = %q, item = %q,"):format(def.id, def.item), "\tparts = {" }
+	for _, part in ipairs(def.parts) do table.insert(out, (partLine(part, "\t\t"))) end
+	table.insert(out, "\t},")
+	table.insert(out, "}")
+	return table.concat(out, "\n") .. "\n"
+end
+
 function Export.source(design)
 	if design.kind == "weapon" then return weaponSource(design) end
+	if design.kind == "icon" then return iconSource(design) end
 	local def = Export.def(design)
 	local kind = (design.kind == "wreck" or design.kind == "container") and "container"
 		or (design.kind == "prop" or design.kind == "station") and design.kind or "hull"
@@ -393,7 +427,7 @@ end
 -- there's never two files with the same id.
 function Export.write(design)
 	local old = Export.folderOf(design.id)
-	local folder = Export.cleanFolder(design.folder or old or "")
+	local folder = Export.cleanFolder(design.folder or old or (design.kind == "icon" and "icons" or ""))
 	love.filesystem.createDirectory(full(folder))
 	local path = full(folder) .. "/" .. design.id .. ".lua"
 	local ok, err = love.filesystem.write(path, Export.source(design))
@@ -455,7 +489,7 @@ function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
 		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate, storage = design.storage,
-		module = design.module, muzzles = design.muzzles }
+		module = design.module, muzzles = design.muzzles, item = design.item }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

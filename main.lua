@@ -133,7 +133,7 @@ function love.load(args)
 		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--questtest"] = "tests.quests", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity", ["--hubtest"] = "tests.logistics_hubs",
 		["--electronicstest"] = "tests.electronics", ["--availabilitytest"] = "tests.availability",
 		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--shipfittest"] = "tests.ship_fit", ["--ranktest"] = "tests.npc_rank", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
-		["--ammunitiontest"] = "tests.ammunition",
+		["--ammunitiontest"] = "tests.ammunition", ["--icontest"] = "tests.item_icons",
 		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench", ["--itemusetest"] = "tests.item_use",
 	}
  for _,a in ipairs(args or {}) do
