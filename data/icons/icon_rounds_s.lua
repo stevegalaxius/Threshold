@@ -13,7 +13,7 @@ icon {
 		{ name = "round", x = 0.40, y = 0.10, z = 0.4, w = 0.2, d = 0.2, h = 0.2, shade = 1.35 },
 		{ name = "round", x = 0.70, y = 0.10, z = 0.4, w = 0.2, d = 0.2, h = 0.2, shade = 1.35 },
 		{ name = "front wall", x = 0, y = 0, z = 0, w = 1, d = 0.05, h = 0.6 },
-		{ name = "stencil", x = 0.15, y = -0.02, z = 0.15, w = 0.45, d = 0.02, h = 0.25, paint = "secondary" },
+		{ name = "stencil", x = 0.15, y = -0.02, z = 0.15, w = 0.45, d = 0.02, h = 0.25, shade = 0.6 },
 	},
 	parts = {},
 }

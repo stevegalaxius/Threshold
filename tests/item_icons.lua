@@ -6,6 +6,7 @@ return function(game)
  local Icons=require('src.icons')
  local Editor=require('src.editor')
  local Export=require('src.editor.export')
+ local Visual=require('src.weapon_visual')
  local E=Editor.state
  local checks=0
  local function check(ok,msg) assert(ok,msg);checks=checks+1 end
@@ -127,6 +128,13 @@ return function(game)
  E.deleteSelected(); Icons.syncBoxes(E.design)
  check(#E.design.parts==n-1 and E.design.boxes[f1.box].hide[f1.face],'deleting a face hides it')
  check(Export.source(E.design):find('hide = {',1,true),'hidden face saved')
+ -- box colours: dark and light shades differ from the kind colour on the canvas and in game
+ local HullShape=require('src.hullshape')
+ local kc=E.previewPaint()
+ E.design.boxes[1].shade=0.6; Icons.syncBoxes(E.design)
+ local dk=HullShape.color(E.design.parts[1],kc)
+ local gk=Visual.partColor(E.design.parts[1],kc)
+ check(dk[1]<kc[1]-0.05 and math.abs(dk[1]-gk[1])<1e-6,'dark shade shows on canvas and in game')
  Editor.close()
  print(('item icons: %d checks passed'):format(checks))
 end
