@@ -53,7 +53,7 @@ function Transport.quote(t,clock,u)
   t.routeAU=math.floor(au*100+.5)/100
  end
  local Chemicals=require('src.markets')
- if u and Chemicals.items[t.item] then
+ if u and t.item and (Chemicals.items[t.item] or Chemicals.floats(t.target,t.item) or Chemicals.floats(t.source,t.item)) then
   t.commodityBuyPrice=t.commodityBuyPrice or Chemicals.price(u,t.source,t.item)
   t.commoditySellPrice=t.commoditySellPrice or Chemicals.price(u,t.target,t.item)
  end

@@ -61,7 +61,7 @@ end
 Game.priceFactor=1
 local function tradeValue(s)
  local C=require('src.markets')
- if C.items[s.id] and not s.inner and Game.marketUniverse and Game.marketStation then
+ if not s.inner and Game.marketUniverse and Game.marketStation and C.floats(Game.marketStation,s.id) then
   return C.price(Game.marketUniverse,Game.marketStation,s.id)*s.n
  end
  return Game.stackValue(s.id,s.n,s.inner)
@@ -69,7 +69,7 @@ end
 -- A market good (one with a live station price) trades on a narrow spread
 -- either side of that price, so buying where it's cheap and selling where
 -- it's short pays; everything else keeps the flat resale rate.
-local function marketGood(s) return require('src.markets').items[s.id] and not s.inner and Game.marketUniverse and Game.marketStation end
+local function marketGood(s) return not s.inner and Game.marketUniverse and Game.marketStation and require('src.markets').floats(Game.marketStation,s.id) and true end
 function Game.buyPrice(s)
  local item=ShipEntry.item(s.id)
  if not item and marketGood(s) then return floor(tradeValue(s)*(1+T.marketSpread)*Game.priceFactor+.5) end

@@ -24,6 +24,9 @@ return function(game)
  check(not Access.darkOffer({kind='transport',source='station:mars_1',target='station:earth_1'}),'white offer seen as dark')
  check(Access.eligible(yes,offer,{cargo=true}) and not Access.eligible(no,offer,{cargo=true}),'dark offer gate wrong')
  check(Access.eligible({player=true},offer,{cargo=true}),'player kept off a dark offer')
+ -- every good floats in price on a dark grid, only market goods elsewhere
+ local M=require('src.markets')
+ check(M.floats('station:shoals_1','food_crate') and not M.floats('station:mars_1','food_crate'),'food price floats in the wrong places')
  -- old saves: someone already homed on a dark grid keeps access
  local old=Templates.migrate({id=no.id,populationGroup='trader',homeStation='station:shoals_1'})
  check(old.darkAccess,'dark-homed old record lost its access')

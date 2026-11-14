@@ -493,6 +493,8 @@ T.mapScale = 1.5
 -- rad/s: stations outside a planet's well tumble whole, core and all, at
 -- one of these rates (src/fields.lua place.drift); a turn every 3-5 minutes
 T.freeStationDrift = { 0.022, 0.03, 0.018 }
+T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
+T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
 T.darkAccessShare = 0.3 -- white haulers and miners who also work the dark grids (raiders always do)
 T.mapDensity = 0.3
 

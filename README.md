@@ -213,6 +213,8 @@ The dark chain covers the basics: Slag Harbor rolls steel, presses canisters and
 
 Only NPCs with dark access work the dark grids (`Templates.darkAccess`, `Access.darkOffer`): every raider, plus a fixed share of white haulers and miners (`T.darkAccessShare`, picked by id). Those smugglers carry the dark grids' imports and exports; without access an NPC can't take a job that starts or ends at a dark station, mine there, or make its home there. Raiders don't haul freight. The player isn't gated.
 
+The two networks trade with each other but prefer their own: the economy fills every shortage from the buyer's own network first and only then buys across (`T.darkCrossingAU` also makes a crossing run count as a longer haul). On a dark grid every good floats in price with its stock (`Markets.floats`), food and fuel included, so a short dark station bids up what it needs, and that gap in price is what raises the freight pay smugglers chase.
+
 While they're being built, `Dark.DEBUG_CHARTED` lists them all as already found; take one out of that table to make it start hidden.
 
 ## Known gaps (on purpose for this milestone)
