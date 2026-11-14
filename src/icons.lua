@@ -44,7 +44,7 @@ local lg = love.graphics
 	corner). Each box becomes three parts (front, side, top) ahead of the
 	icon's drawn parts, in list order (later boxes draw on top), and the lot is scaled to fill
 	the footprint. A box is the item's kind colour (the hold background's)
-	unless it sets paint = "secondary" (darker), shade (x brightness) or
+	unless it sets shade (below 1: darker), light (0..1: towards white) or
 	color { r, g, b }. Optional per box: name, and
 	open = true (no top face, for an open carton), hide = { front = true,
 	side = true, top = true } to leave faces out. ]]
@@ -56,7 +56,7 @@ local function project(x, y, z)
 	return x + y * Icons.DEPTH, -(z * Icons.RISE + y * Icons.DEPTH)
 end
 
-function Icons.boxParts(boxes, bw, bh)
+function Icons.boxParts(boxes, bw, bh, kc)
 	local list = boxes or {}
 	local faces = {}
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
@@ -71,7 +71,13 @@ function Icons.boxParts(boxes, bw, bh)
 				shape[#shape + 1], shape[#shape + 2] = sx, sy
 				x0, x1, y0, y1 = math.min(x0, sx), math.max(x1, sx), math.min(y0, sy), math.max(y1, sy)
 			end
-			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = b.color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade,
+			local color = b.color
+			if not color and b.light and kc then
+				-- lighter towards white, keeping the hue (a shade above 1 clips and shifts it)
+				local t = b.light
+				color = { kc[1] + (1 - kc[1]) * t, kc[2] + (1 - kc[2]) * t, kc[3] + (1 - kc[3]) * t }
+			end
+			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade,
 				fill = Icons.FACE[kind], fromBox = true, box = bi, face = kind }
 		end
 		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })
@@ -97,7 +103,9 @@ function Icons.syncBoxes(icon)
 	local kept = {}
 	for _, p in ipairs(icon.parts or {}) do if not p.fromBox then kept[#kept + 1] = p end end
 	local bw, bh = Icons.box(icon.item, icon)
-	local parts = Icons.boxParts(icon.boxes, bw, bh)
+	local def = data.items[icon.item]
+	local kc = def and require("src.hud").itemColor(def) or nil
+	local parts = Icons.boxParts(icon.boxes, bw, bh, kc)
 	for _, p in ipairs(kept) do parts[#parts + 1] = p end
 	icon.parts = parts
 	icon.reach = nil

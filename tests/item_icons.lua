@@ -135,6 +135,11 @@ return function(game)
  local dk=HullShape.color(E.design.parts[1],kc)
  local gk=Visual.partColor(E.design.parts[1],kc)
  check(dk[1]<kc[1]-0.05 and math.abs(dk[1]-gk[1])<1e-6,'dark shade shows on canvas and in game')
+ E.design.boxes[1].shade=nil; E.design.boxes[1].light=0.45; Icons.syncBoxes(E.design)
+ local lt=HullShape.color(E.design.parts[1],kc)
+ local function hue(c) local mx,mn=math.max(c[1],c[2],c[3]),math.min(c[1],c[2],c[3]); return {(c[1]-mn)/(mx-mn+1e-9),(c[2]-mn)/(mx-mn+1e-9),(c[3]-mn)/(mx-mn+1e-9)} end
+ local h1,h2=hue(kc),hue(lt)
+ check(lt[1]+lt[2]+lt[3]>kc[1]+kc[2]+kc[3]+0.1 and math.abs(h1[1]-h2[1])+math.abs(h1[2]-h2[2])+math.abs(h1[3]-h2[3])<0.05,'light keeps the hue')
  Editor.close()
  print(('item icons: %d checks passed'):format(checks))
 end
