@@ -14,7 +14,7 @@ return function(game)
  check(w==3 and h==1,'missile footprint')
  local bw,bh=Icons.box('missile_m')
  check(bw==24 and bh==8,'box is cells x CELL')
- check(Icons.worldReach('missile_m')>20 and Icons.worldReach('rounds_s')==nil,'reach')
+ check(Icons.worldReach('missile_m')>20 and Icons.worldReach('patch_kit')==nil,'reach')
  -- drones are drawn as their own hull, until someone saves art for them
  local dr=Icons.get('drone_m')
  check(dr and dr.hull==data.items.drone_m.shot.hull and #dr.parts>0,'drone uses its hull')
@@ -68,6 +68,24 @@ return function(game)
  Editor.close()
  game.camera.zoom=4; game.camera.x,game.camera.y=x+140,y
  shot('icons-in-space',function() require('src.render').world(game) end)
+ -- every item with art, as hold stacks (34 px cells) and at world size
+ local CS=tonumber(os.getenv('THRESHOLD_ICON_CELL') or 34)
+ shot('icon-sheet',function()
+  local x,y=10,10
+  local HUD=require('src.hud')
+  for _,id in ipairs(data.list.items) do
+   if Icons.get(id) then
+    local fw,fh=Icons.footprint(id)
+    if x+fw*CS+120>lg.getWidth() then x,y=10,y+CS*1.4+70 end
+    local c=HUD.itemColor(data.items[id])
+    lg.setColor(c[1],c[2],c[3],0.32); lg.rectangle('fill',x,y+14,fw*CS,fh*CS,3,3)
+    Icons.drawInRect(id,x,y+14,fw*CS,fh*CS,false,1)
+    Icons.drawWorld(id,x+fw*CS/2,y+14+fh*CS+30,0,1,1)
+    lg.setColor(1,1,1,0.7); lg.print(id,x,y)
+    x=x+math.max(fw*CS,90)+14
+   end
+  end
+ end)
  -- the hold, with a few drawn items in it
  local Hold=require('src.inventory.hold')
  if p.hold then
