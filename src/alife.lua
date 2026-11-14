@@ -281,6 +281,7 @@ function A.advance(r,clock,u,game)
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
  if r.state=='dead' or r.state=='escaped' then return end
+ if r.garrison and require('src.garrison').advance(r,clock,u,game) then return end
  -- Upkeep comes before every job: a due service visit owns the ship.
  if not r.service then Upkeep.plan(r,clock) end
  if r.service then require('src.npc_actions').pause({u=u,game=game,r=r,clock=clock},'service') end
@@ -402,11 +403,12 @@ end
 
 function A.point(r,clock)
  local x,y=A.trackPoint(r,clock)
- if not x or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
+ if not x or r.garrison or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
  local sx,sy=A.spread(r)
  return x+sx,y+sy
 end
 function A.trackPoint(r,clock)
+ if r.garrison then return require('src.garrison').point(r) end
  local ax,ay=require('src.npc_actions').position(r,clock)
  if ax then return ax,ay end
  if r.state=='transit' then return nil end
@@ -551,6 +553,12 @@ function A.capture(game,e,remote)
  end
  r.ship=shipRecord(e); r.power=e.power;r.fuelClock=clock
  Fuel.observe(game.universe,r,clock,e)
+ if r.garrison then
+  -- it holds the post where it was left
+  local x,y=e.body:getPosition()
+  r.garrison.x,r.garrison.y=x,y;r.pose=nil
+  return
+ end
  if r.waitingForHome then
   r.state='idle';r.node=r.route[r.index]
   local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
@@ -811,6 +819,8 @@ function A.wake(game,r)
    r.laneOffset=lane.n*lane.dir
    r.transit.departure=nil
   end
+ elseif r.garrison then
+  require('src.garrison').woke(game,e,r)
  else
   bindRoute(game,e,r)
   if exact and r.cityExit then
