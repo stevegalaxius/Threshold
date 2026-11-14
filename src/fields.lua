@@ -440,6 +440,7 @@ quarryField("ceres_quarry", "Ceres Quarry")
 -- The Shoals: a dark quarry in the belt. Pirate-run depots crush the rock
 -- into steel, canisters and ammunition for the shadow economy.
 quarryField("shoals", "The Shoals", true, 6500)   -- a wider clear zone: three stations
+Fields.shoals.spawn = { 0, 0 }   -- the stations circle the middle, so arrive there
 
 -- Cordelia Drift: a dark pocket in Uranus's inner ring debris, one
 -- freeport in cleared ice, rock and ice out to the edge.
@@ -601,6 +602,10 @@ function Fields.configureLocations(area)
                 local radius=math.sqrt(p.x*p.x+p.y*p.y)
                 assert(radius>0,'orbiting station must be outside the planet centre')
                 motion={type='orbit',radius=radius,phase=math.atan2(p.y,p.x),surface=F.planetR}
+            elseif p.rate then
+                -- no planet: stations circling their common centre at a set rate (rad/s)
+                local radius=math.sqrt(p.x*p.x+p.y*p.y)
+                motion={type='orbit',radius=radius,phase=math.atan2(p.y,p.x),rate=p.rate}
             else motion={type='fixed',x=p.x,y=p.y} end
         end
         local wheel=entry.wheel or {900,120}
@@ -625,14 +630,17 @@ function Fields.configureLocations(area)
         else
             motion=motion or {type='fixed',x=0,y=0};spin=spin or .04
         end
-        -- Out of any planet's well (quarries, dark grids) nothing holds a
-        -- station still: give it a slow drift-spin so it reads as floating.
-        if not F.stationTrack and not F.planetR and not entry.adapter and (spin or 0)==0 then
-            spin=(i%2==1 and 1 or -1)*T.freeStationSpin
-        end
         F.stations[i]=entry.name or id
         F.stationIds[i]=add(id,F.stations[i],'station',motion,spin)
         local place=F.locations[#F.locations]
+        -- Out of any planet's well (quarries, dark grids) nothing holds a
+        -- station still: the whole station, core and all, slowly tumbles
+        -- (drift), on top of whatever its rotors do with spin. Each one
+        -- at its own rate, alternating direction.
+        if not F.stationTrack and not F.planetR and not entry.adapter then
+            local rates=T.freeStationDrift
+            place.drift=entry.drift or (i%2==1 and 1 or -1)*rates[(i-1)%#rates+1]
+        end
         place.layout,place.wheel,place.adapter=layout,wheel,entry.adapter
         place.marketId=entry.marketId or WorldLayout.defaults.marketId
         -- what this station offers and makes belong to the place, not its design

@@ -490,7 +490,9 @@ T.salvagerRange,T.salvagerStay=6000,30
 -- are thinned by mapDensity (1/mapScale^2 keeps rock counts unchanged;
 -- lower thins further). Pre-alpha test values.
 T.mapScale = 1.5
-T.freeStationSpin = 0.012   -- rad/s: stations outside a planet's well slowly turn (src/fields.lua)
+-- rad/s: stations outside a planet's well tumble whole, core and all, at
+-- one of these rates (src/fields.lua place.drift); a turn every 3-5 minutes
+T.freeStationDrift = { 0.022, 0.03, 0.018 }
 T.mapDensity = 0.3
 
 -- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).

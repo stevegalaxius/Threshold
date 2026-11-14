@@ -142,13 +142,16 @@ function P.spawn(game,area,role,nearPlayer)
  require('src.supplies').provision(r)
  local A=require('src.alife')
  r.spawnedAt=clock;r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp'
- if x then
+ -- a ship whose first move already took it out of the area (into a lane,
+ -- state 'transit') has no point here: no arrival pose, nothing to wake
+ local here=A.point(r,clock)~=nil
+ if x and here then
   local nx,ny=A.point(r,clock)
   r.offset={x=x-nx,y=y-ny,progress=0}
   local vx,vy=game:flowAt(x,y)
   r.pose={x=x,y=y,a=math.atan2(-y,-x),vx=vx,vy=vy,w=0,clock=clock}
  end
- if localArea and game.player and not game.player.dead then
+ if here and localArea and game.player and not game.player.dead then
   local px,py=game.player.body:getPosition()
   local sx,sy=x,y
   if not sx then sx,sy=A.point(r,clock) end

@@ -2,6 +2,7 @@
 -- Station designs/services live in data/stations/<id>.lua. Special construction stays
 -- in its existing adapter; ordinary layout changes belong here.
 local W={}
+local T_SHOALS=math.pi*2/1800   -- rad/s: the Shoals' stations lap their centre every 30 min
 W.stations = {
 
 	-- Planetary industry (refining, acids, nitrates, ocean water) ships up to
@@ -113,12 +114,13 @@ W.stations = {
 		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },
 	},
 	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
-	-- The Shoals has no planet to orbit, so its three stations sit at fixed
-	-- spots inside the quarry's widened clear zone (9,750 px), ~6,000 px apart.
+	-- The Shoals has no planet: its three stations slowly circle their common
+	-- centre, 5,000 px out and 120 degrees apart (~8,700 px from each other),
+	-- one lap every 30 minutes, inside the quarry's widened clear zone.
 	shoals = {
-		{ id = "station:shoals_1", position = { x = 0, y = 0 }, facilities={roll_steel={capacity=240},press_canisters={capacity=600}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
-		{ id = "station:shoals_2", facilities={ammunition={capacity=12}}, services = { "market", "hangar", "repair" }, position = { x = 5200, y = -3400 }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
-		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -5200, y = -3400 }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
+		{ id = "station:shoals_1", position = { x = 0, y = -5000, rate = T_SHOALS }, facilities={roll_steel={capacity=240},press_canisters={capacity=600}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
+		{ id = "station:shoals_2", facilities={ammunition={capacity=12}}, services = { "market", "hangar", "repair" }, position = { x = 4330, y = 2500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
+		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -4330, y = 2500, rate = T_SHOALS }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
 	},
 	cordelia = {
 		{ id = "station:cordelia_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },

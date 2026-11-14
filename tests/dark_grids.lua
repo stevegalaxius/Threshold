@@ -37,8 +37,9 @@ return function(game)
  -- the Shoals' stations stand apart and slowly turn (no planet to hold them)
  local spots={}
  for _,id in ipairs(Fields.shoals.stationIds) do
-  local p=L.get(id);check((p.spin or 0)~=0,id..' does not turn')
+  local p=L.get(id);check((p.drift or 0)~=0 and L.coreHeading({rotors={}},id,100)~=L.coreHeading({rotors={}},id,0),id..' does not turn')
   local x,y=L.position(id,u.clock);spots[#spots+1]={x,y,id}
+  local x2,y2=L.position(id,u.clock+600);check(math.abs(x2-x)+math.abs(y2-y)>500,id..' does not circle the centre')
  end
  for i=1,#spots do for j=i+1,#spots do
   local d=math.sqrt((spots[i][1]-spots[j][1])^2+(spots[i][2]-spots[j][2])^2)
