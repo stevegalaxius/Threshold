@@ -121,7 +121,7 @@ return function(game)
  do
   local NPC=require('src.npc')
   local Scavenge=require('src.scavenge')
-  for _,role in ipairs({'trader','salvager'}) do
+  for _,role in ipairs({'trader'}) do
    local r=copy(template);r.id='npc/mixed/'..role;r.populationGroup=role;r.home='venus'
    r.task=nil;r.workProfile=nil;r.ship.hold=nil;r.ship.cargo={}
    r.workWeights={transport=1,salvage=0}

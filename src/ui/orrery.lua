@@ -86,21 +86,31 @@ local function layout(game)
 	for _, area in ipairs(Dark.areas()) do
 		if area ~= game.fieldId and Dark.charted(game.universe, area) then found[#found + 1] = { area = area } end
 	end
-	local function section(title, list, empty)
+	-- Rows that don't fit are counted on a "+N more" line rather than
+	-- dropped silently (they used to push DISCOVERED off the bottom).
+	local bottom = L.pane.y + L.pane.h
+	local function section(title, list, empty, reserve)
 		L.dest[#L.dest + 1] = { header = title, y = ry, empty = #list == 0 and empty or nil }
 		ry = ry + (#list == 0 and 44 or 22)
-		for _, inst in ipairs(list) do
-			if ry + 48 <= L.pane.y + L.pane.h then
-				L.dest[#L.dest + 1] = inst.area
-					and { inst = inst, area = inst.area, fare = game:driverFare(inst.area), au = Fields.distance(game.fieldId, inst.area, game.universe.clock), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
-					or { inst = inst, fare = Sites.fare(inst), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
+		local limit = bottom - (reserve or 0)
+		for i, inst in ipairs(list) do
+			-- keep room for the "+N more" line unless this is the last row
+			if ry + 48 + (i == #list and 0 or 20) > limit then
+				L.dest[#L.dest + 1] = { more = #list - i + 1, y = ry }
+				ry = ry + 20
+				break
 			end
+			L.dest[#L.dest + 1] = inst.area
+				and { inst = inst, area = inst.area, fare = game:driverFare(inst.area), au = Fields.distance(game.fieldId, inst.area, game.universe.clock), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
+				or { inst = inst, fare = Sites.fare(inst), x = L.pane.x + 10, y = ry, w = L.pane.w - 20, h = 44 }
 			ry = ry + 48
 		end
 		ry = ry + 10
 	end
-	section("INSTANCES", instances, "No open instances right now.")
+	-- Permanent places first, so short-lived instances can never crowd
+	-- them out; instances fill whatever room is left.
 	section("DISCOVERED", found, "Nothing found off the map yet.")
+	section("INSTANCES", instances, "No open instances right now.")
 	L.cancel = { x = x + 500, y = y + ph - 60, w = 240, h = 40 }
 	return L
 end
@@ -226,6 +236,10 @@ function Orrery.draw(game)
 			lg.setColor(HUD.DIM)
 			lg.print(d.header, P.x + 10, d.y)
 			if d.empty then lg.setFont(font(12)); lg.print(d.empty, P.x + 10, d.y + 18) end
+		elseif d.more then
+			lg.setFont(font(12))
+			lg.setColor(HUD.DIM)
+			lg.print(("+%d more"):format(d.more), P.x + 14, d.y + 2)
 		elseif d.area then
 			local col = Fields.orbits[d.area].color or { 0.8, 0.4, 0.6 }
 			lg.setColor(0, 0, 0, d == hd and 0.55 or 0.3)

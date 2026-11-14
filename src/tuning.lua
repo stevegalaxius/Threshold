@@ -257,7 +257,6 @@ T.population = {
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  miner={minDelay=180,maxDelay=300},
- salvager={minDelay=180,maxDelay=300},
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
@@ -483,7 +482,7 @@ T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 T.alifeGoneLinger=300
 
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
-T.salvagerPopulation,T.salvagerCollectTime=1,180   -- salvagers fill their hold (src/scavenge.lua)
+T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
 
 -- Playable area: every planet map's open space (edge, belts, rings,

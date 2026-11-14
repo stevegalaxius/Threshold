@@ -1,9 +1,11 @@
--- Civilian scavengers: loose cargo -> local station resale, never spawned loot.
+-- Salvage board work: loose cargo -> local station resale, never spawned loot.
+-- Any hauler can take it (scavenger-tempered haulers prefer it); there is no
+-- separate salvager job or population.
 local Fields,L,G=require('src.fields'),require('src.locations'),require('src.travelgraph')
 local T,data,Stats=require('src.tuning'),require('src.data'),require('src.stats')
 local Ship,Hold=require('src.ship'),require('src.inventory.hold')
-local Homes,Population=require('src.npc_home'),require('src.population')
 local Repairs,Supplies=require('src.npc_repair'),require('src.supplies')
+local Homes=require('src.npc_home')
 local Fuel=require('src.reactor_fuel')
 local Tasks=require('src.tasks')
 local copy=require('src.persistence').copy
@@ -71,25 +73,15 @@ function S.returnRecord(game,r,maintenance)
  return true
 end
 function S.advance(game,r,clock) return NPC.advance(r,clock,game.universe,game) end
-function S.create(game,area,node,clock)
- local def=data.enemies.salvager_packhorse;local hull=data.hulls[def.hull]
- local u=game.universe;u.nextNpcId=(u.nextNpcId or 0)+1
- local r={id='npc/'..u.nextNpcId,archetype=def.id,home=area,area=area,
-  state='docked',node=node,route={node,node},index=1,untilTime=clock,speed=NPC.cruise(def.id),
-  spread=0,taskWorker=true,credits=0,salvageCargo={},salvageGoal=node,
-  ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
- if game.arrivalShip then r.ship=copy(game.arrivalShip) end
- require('src.npc_templates').apply(r,'salvager',area)
- require('src.personality').ensure(r)
- Homes.choose(u,r);u.npcs[r.id]=r
- Fuel.withRecord(r,function() end);r.fuelClock=clock
- NPC.advance(r,clock,u,game)
- return r
+-- Planet systems with a driver and a trade station post salvage work.
+function S.hasWork(area)
+ local f=Fields[area]
+ return f and not f.instance and not Fields.moons[area] and f.driverId and L.station(area,'trade') and true or false
 end
 function S.seed(game)
  local specs={}
  for _,root in ipairs(Fields.list) do
-  if Population.target(root,'salvager')>0 then
+  if S.hasWork(root) then
    local stations={}
    for _,area in ipairs(S.system(root)) do
     for _,node in ipairs(L.stations(area,'trade')) do stations[#stations+1]=node end
@@ -100,15 +92,6 @@ function S.seed(game)
   end
  end
  Tasks.sync(game.universe,'salvage',specs,function(o)return o.kind=='salvage' end)
- local u=game.universe;u.salvage=u.salvage or {seeded={}}
- for _,area in ipairs(Fields.list) do
-  if Population.target(area,'salvager')>0 and not u.salvage.seeded[area] then
-   u.salvage.seeded[area]=true
-   for _=Population.count(u,area,'salvager')+1,Population.target(area,'salvager') do
-    S.create(game,area,L.station(area,'trade'),u.clock)
-   end
-  end
- end
 end
 Tasks.register('salvage',{
  requires={capabilities={'cargo'}},
@@ -160,10 +143,5 @@ Tasks.register('salvage',{
   S.sell(assert(game,'salvager needs its current game context'),r,node,clock)
   return true
  end,
-})
-Population.register('salvager',{
- target=function(f,area) return not f.instance and not Fields.moons[area] and f.driverId and L.station(area,'trade') and T.salvagerPopulation end,
- nodes=function(game,area)return L.stations(area,'trade') end,
- create=function(game,area,node,clock)return S.create(game,area,node,clock) end,
 })
 return S

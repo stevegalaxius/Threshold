@@ -6,7 +6,7 @@ return function(game)
  local records={}
  local node=require('src.fields').earth.buoyIds[1]
  local x,y=L.position(node,game.universe.clock)
- for _,group in ipairs({'patrol','salvager'}) do
+ for _,group in ipairs({'patrol','trader'}) do
   local template
   for _,r in pairs(game.universe.npcs) do
    if r.home=='earth' and r.populationGroup==group then template=r;break end
@@ -33,5 +33,5 @@ return function(game)
  for id in pairs(records) do
   assert(game.alifeOnline[id],'visible nearby NPC stayed offline: '..id)
  end
- print('NPC ACTIVATION: visible police and salvager woke without force')
+ print('NPC ACTIVATION: visible police and hauler woke without force')
 end
