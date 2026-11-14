@@ -28,6 +28,9 @@ return function(game)
  local dock=AI.approachDock(first,st)
  game.player.dockState={station=st,dock=dock,phase='tractor'}
  assert(Q.holding(game,first,st),'occupied player beam did not hold arrivals')
+ -- held behind a busy runway, it takes the station's free one instead
+ assert(first.approach.dock~=dock,'held ship stayed behind a busy runway while another was free')
+ first.approach={stop=st,dock=dock}
  game.player.dockState=nil
  game.universe.clock=game.universe.clock+1
  local _,second=ship('dock/second')
