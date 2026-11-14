@@ -41,6 +41,23 @@ function Templates.job(r)
 end
 function Templates.network(r) return r.network or (Templates[r.populationGroup] or {}).network or 'white' end
 function Templates.isDark(r) return Templates.network(r)=='dark' end
+-- Dark access: who may trade, work and berth on the dark grids. Every dark
+-- NPC (raiders) has it; a fixed share of white haulers and miners do too,
+-- picked by id so it never changes. Those are the smugglers and wildcat
+-- miners who fill the shadow economy's gaps. Guards never get it.
+local function roll(id,salt)
+ local seed=salt
+ for i=1,#(id or '') do seed=(seed*31+id:byte(i))%2147483647 end
+ -- a few Lehmer steps so neighbouring ids (npc/41, npc/42) don't land together
+ for _=1,3 do seed=(seed*48271)%2147483647 end
+ return seed/2147483647
+end
+function Templates.darkAccess(r)
+ if r.player or Templates.isDark(r) then return true end
+ if r.darkAccess~=nil then return r.darkAccess end
+ local job=Templates.job(r)
+ return (job=='hauler' or job=='miner') and roll(r.id,13)<require('src.tuning').darkAccessShare or false
+end
 -- Fill job/network on records saved before they existed, and fold retired
 -- groups into their replacement. Safe to call every load.
 function Templates.migrate(r)
@@ -52,12 +69,19 @@ function Templates.migrate(r)
  end
  local t=Templates[r.populationGroup]
  if t then r.job=r.job or t.job;r.network=r.network or t.network end
+ if r.darkAccess==nil and r.job then
+  -- someone already living on a dark grid keeps living there
+  local home=r.homeStation and require('src.locations').byId[r.homeStation]
+  r.darkAccess=Templates.darkAccess(r) or (home~=nil and require('src.dark').isDarkArea(home.area))
+ end
  return r
 end
 function Templates.apply(r,name,area)
  local t=assert(Templates[name],'unknown NPC template '..name)
  r.populationGroup=name;r.label=t.label;r.workProfile=profileFor(t,r.id)
- r.job=t.job;r.network=t.network
+ r.job=t.job;r.network=t.network;r.darkAccess=nil
+ -- born on a dark grid: whoever it is, it knows the way
+ r.darkAccess=Templates.darkAccess(r) or (area~=nil and require('src.dark').isDarkArea(area))
  r.homePurpose=t.homePurpose;r.mobile=t.mobile;r.roamingHome=t.roamingHome
  local owner=require('src.npc_access').owner(area)
  local function resolve(v) if v=='$owner' then return owner elseif v=='$area' then return area else return v end end

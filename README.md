@@ -211,6 +211,8 @@ The dark grids are:
 
 The dark chain covers the basics: Slag Harbor rolls steel, presses canisters and melts water; Cinder Works makes nitrates, explosives and fertilizer and turns steel and explosives into ammunition; Cordelia makes deuterium; Antichthon grows food. Electronics, guided munitions, silicon and new hulls are deliberately missing: they come only from raids, fences or smugglers.
 
+Only NPCs with dark access work the dark grids (`Templates.darkAccess`, `Access.darkOffer`): every raider, plus a fixed share of white haulers and miners (`T.darkAccessShare`, picked by id). Those smugglers carry the dark grids' imports and exports; without access an NPC can't take a job that starts or ends at a dark station, mine there, or make its home there. Raiders don't haul freight. The player isn't gated.
+
 While they're being built, `Dark.DEBUG_CHARTED` lists them all as already found; take one out of that table to make it start hidden.
 
 ## Known gaps (on purpose for this milestone)
