@@ -69,10 +69,30 @@ D.lineups={
 D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_pony=1,ferrous_mule=2,ferrous_bison=3,
  brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4,
  amw_sprint=1,amw_sprint_fat=1,amw_wayfarer=2,amw_wayfarer_fat=2,redfu_crane=1,redfu_pelican=2,redfu_gila=3}
+-- Parts per ship beyond its frames: two electronics per 5k of list price,
+-- one steel plate per 50 mass (generated from data/ships).
+D.assemblyParts={mack_mustang={electronics=13,steel=7},
+ mack_burro={electronics=20,steel=12},
+ mack_longhorn={electronics=29,steel=16},
+ ferrous_pony={electronics=9,steel=3},
+ ferrous_mule={electronics=20,steel=9},
+ ferrous_bison={electronics=28,steel=18},
+ brute_anvil={electronics=16,steel=5},
+ brute_nautilus={electronics=29,steel=16},
+ amw_sprint={electronics=11,steel=2},
+ amw_sprint_fat={electronics=11,steel=2},
+ amw_wayfarer={electronics=17,steel=4},
+ amw_wayfarer_fat={electronics=17,steel=5},
+ redfu_crane={electronics=8,steel=4},
+ redfu_pelican={electronics=16,steel=9},
+ redfu_gila={electronics=25,steel=17},
+ intaki_wisp={electronics=12,steel=2},
+ intaki_praetor={electronics=22,steel=7},
+ intaki_archangel={electronics=38,steel=16}}
 for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
- local n=D.assemblyFrames[hull]
+ local n=D.assemblyFrames[hull];local parts=D.assemblyParts[hull]
  D.recipes[#D.recipes+1]={id='assemble_'..hull,group='ship_assembly',market=false,storefront=false,stockless=true,time=n,
-  inputs={{item='hull_frame',n=n}},outputs={{kind='ship',hull=hull,n=1}}}
+  inputs={{item='hull_frame',n=n},{item='electronics',n=parts.electronics},{item='steel_plate',n=parts.steel}},outputs={{kind='ship',hull=hull,n=1}}}
 end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.facilities={
