@@ -689,7 +689,13 @@ function Canvas.mousereleased(E, sx, sy, button)
 		local x1, x2 = min(d.x1, d.x2), max(d.x1, d.x2)
 		local y1, y2 = min(d.y1, d.y2), max(d.y1, d.y2)
 		if x2 - x1 >= 1 and y2 - y1 >= 1 then
-			E.addPart(Canvas.primitive(E, x1, y1, x2, y2))
+			if (E.primitive or "rect") == "truss" then
+				local shapes = Canvas.truss(E, x1, y1, x2, y2)
+				E.pushUndo()
+				for _, v in ipairs(shapes) do E.addPart(v, true) end
+			else
+				E.addPart(Canvas.primitive(E, x1, y1, x2, y2))
+			end
 		end
 	end
 end
@@ -714,6 +720,63 @@ function Canvas.primitive(E, x1, y1, x2, y2)
 		return { x1 + c, y1, x2 - c, y1, x2, y1 + c, x2, y2 - c, x2 - c, y2, x1 + c, y2, x1, y2 - c, x1, y1 + c }
 	end
 	return { x1, y1, x2, y1, x2, y2, x1, y2 }
+end
+
+-- Scaffolding: a lattice truss filling a dragged box. It runs along the
+-- box's long side as two rails with struts between them, one part per
+-- member so the gaps stay see-through. Patterns: "warren" (zig-zag),
+-- "x" (cross-braced bays) or "ladder" (rungs only). Returns a list of
+-- outlines.
+function Canvas.truss(E, x1, y1, x2, y2)
+	local along = x2 - x1 >= y2 - y1          -- true: runs left to right
+	local L = along and (x2 - x1) or (y2 - y1)
+	local W = along and (y2 - y1) or (x2 - x1)
+	local t = min(E.trussThick or 2, W / 2)
+	local bay = max(E.trussBay or 16, 2)
+	local n = max(1, floor(L / bay + 0.5))
+	local step = L / n
+	local pattern = E.trussPattern or "warren"
+	-- u along the truss, w across it; map back to world points
+	local function pt(v, u, w)
+		if along then v[#v + 1], v[#v + 2] = x1 + u, y1 + w
+		else v[#v + 1], v[#v + 2] = x1 + w, y1 + u end
+	end
+	local shapes = {}
+	local function quad(a, b, c, d)   -- each {u, w}
+		local v = {}
+		pt(v, a[1], a[2]); pt(v, b[1], b[2]); pt(v, c[1], c[2]); pt(v, d[1], d[2])
+		shapes[#shapes + 1] = v
+	end
+	-- the two rails
+	quad({ 0, 0 }, { L, 0 }, { L, t }, { 0, t })
+	quad({ 0, W - t }, { L, W - t }, { L, W }, { 0, W })
+	if W - 2 * t < 0.5 then return shapes end
+	local top, bot = t, W - t
+	local function rung(u)
+		u = max(0, min(L - t, u - t / 2))
+		quad({ u, top }, { u + t, top }, { u + t, bot }, { u, bot })
+	end
+	local function diag(ua, ub)      -- from (ua, top) to (ub, bot)
+		local h = t / 2
+		quad({ ua - h, top }, { ua + h, top }, { ub + h, bot }, { ub - h, bot })
+	end
+	local h = t / 2
+	if pattern == "ladder" then
+		for k = 0, n do rung(k * step) end
+	elseif pattern == "x" then
+		for k = 0, n do rung(k * step) end
+		for k = 0, n - 1 do
+			local a, b = k * step + h, (k + 1) * step - h
+			diag(a, b); diag(b, a)
+		end
+	else
+		rung(0); rung(L)
+		for k = 0, n - 1 do
+			local a, b = k * step + h, (k + 1) * step - h
+			if k % 2 == 0 then diag(a, b) else diag(b, a) end
+		end
+	end
+	return shapes
 end
 
 -- Drawing -------------------------------------------------------------------
@@ -1086,10 +1149,13 @@ function Canvas.draw(E)
 		lg.setColor(0.5, 1, 0.6)
 		local x1, y1, x2, y2 = min(d.x1, d.x2), min(d.y1, d.y2), max(d.x1, d.x2), max(d.y1, d.y2)
 		if x2 - x1 >= 1 and y2 - y1 >= 1 then
-			local v = Canvas.primitive(E, x1, y1, x2, y2)
-			local sv = {}
-			for k = 1, #v, 2 do sv[k], sv[k + 1] = Canvas.toScreen(E, v[k], v[k + 1]) end
-			lg.polygon("line", sv)
+			local list = (E.primitive or "rect") == "truss" and Canvas.truss(E, x1, y1, x2, y2)
+				or { Canvas.primitive(E, x1, y1, x2, y2) }
+			for _, v in ipairs(list) do
+				local sv = {}
+				for k = 1, #v, 2 do sv[k], sv[k + 1] = Canvas.toScreen(E, v[k], v[k + 1]) end
+				lg.polygon("line", sv)
+			end
 		else
 			lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
 		end
