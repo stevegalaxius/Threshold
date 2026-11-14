@@ -63,7 +63,6 @@ T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 -- Share of a dead ship's fitted modules that survive in its husk.
 T.moduleSalvage = 0.75
 -- Rock chips and rare ore (src/rock_chips.lua).
-T.chipRadius = 9          -- a chip: the smallest piece of rock
 T.chipHp = 4              -- one more hit pops it
 T.chipPerRadius = 10      -- a rock sheds one chip per this many px of radius
 T.chipMax = 12            -- ...but never more than this many
@@ -71,7 +70,10 @@ T.chipLife = 180          -- seconds before a chip nobody collects fades
 T.drillOreMult = 2        -- ore from a chip a drill broke, against 1 when shot
 T.rareChance = 0.06       -- chance a big rock has a vein, or big ice a crystal
 T.rareMinRadius = 55      -- only rocks at least this big carry one
-T.rareExposeAt = 0.7      -- reached once health falls to this share
+T.rareCore = 0.4          -- the core's size, as a share of the rock's radius
+T.rareChipShare = 0.3     -- a chip this much core is rare ore
+T.chunkRadius = 14        -- a cut-off piece this big is a rock that chips on
+T.cutMin, T.cutMax = 0.15, 0.55   -- how deep one cut goes, as a share of radius
 T.wreckShotRecovery = 0.5 -- each cargo unit survives shooting a wreck; drilling preserves all
 
 -- Station storage grid, in 1 m3 cells (every station has its own).

@@ -230,7 +230,7 @@ local RARE_LOOK = {
 	gold_ore = { line = { 0.92, 0.74, 0.32 }, fleck = { 1, 0.92, 0.62 }, chip = { 0.62, 0.48, 0.2 } },
 	cryo_crystal = { fill = { 0.47, 0.27, 0.63 }, line = { 0.78, 0.6, 1 } },
 }
-local CHIP_CRYSTAL = { 0.3, 0, 0.1, 0.32, -0.25, 0.22, -0.3, -0.05, -0.05, -0.3, 0.22, -0.2 }
+local RockChips = require("src.rock_chips")
 local function drawAsteroid(e,time)
  if e.exhaustHit and e.verts and time and time-e.exhaustHit<.3 then
   local x,y=e.body:getPosition()
@@ -253,18 +253,32 @@ local function drawAsteroid(e,time)
 			polyA[i], polyA[i + 1] = x + rx * k, y + ry * k
 			polyB[i], polyB[i + 1] = x + rx, y + ry
 		end
-		for i = n + 1, #polyA do polyA[i], polyB[i] = nil, nil end
+		for i = n + 1, max(#polyA, #polyB) do polyA[i], polyB[i] = nil, nil end
 		local R = e.radius
 		-- a point given in units of the radius, turned with the rock
-		local function at(px, py) px, py = px * R, py * R; return x + px * c - py * sn, y + px * sn + py * c end
 		local rare = e.rare and RARE_LOOK[e.rare]
+		-- a shape in the rock's own frame, turned and placed
+		local function place(p)
+			for i = 1, #p, 2 do
+				local px, py = p[i], p[i + 1]
+				polyA[i], polyA[i + 1] = x + px * c - py * sn, y + px * sn + py * c
+			end
+			for i = #p + 1, #polyA do polyA[i] = nil end
+			return polyA
+		end
 		if e.debris == "ice" then
 			-- clear ice: the stars show through it, and so does a crystal
 			-- frozen inside (src/rock_chips.lua)
-			if rare then
-				local cr = e.chip and CHIP_CRYSTAL or e.rareArt.crystal
-				for i = 1, #cr, 2 do polyA[i], polyA[i + 1] = at(cr[i], cr[i + 1]) end
-				for i = #cr + 1, #polyA do polyA[i] = nil end
+			if rare and e.chip then
+				lg.setColor(rare.fill)
+				lg.polygon("fill", polyB)
+				lg.setColor(rare.line)
+				lg.setLineWidth(outline(1.5))
+				lg.polygon("line", polyB)
+				return
+			end
+			if rare and e.core then
+				place(e.core)
 				lg.setColor(rare.fill)
 				lg.polygon("fill", polyA)
 				lg.setColor(rare.line)
@@ -278,8 +292,8 @@ local function drawAsteroid(e,time)
 			lg.polygon("line", polyB)
 			-- a frost glint across the face
 			lg.setColor(1, 1, 1, 0.14)
-			local gx, gy = at(-0.25, -0.25)
-			lg.circle("fill", gx, gy, R * 0.3, 12)
+			local gx, gy = -R * 0.25, -R * 0.25
+			lg.circle("fill", x + gx * c - gy * sn, y + gx * sn + gy * c, R * 0.3, 12)
 			return
 		end
 		lg.setColor(l[1] * s, l[2] * s, l[3] * s)
@@ -291,22 +305,35 @@ local function drawAsteroid(e,time)
 			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
 		end
 		lg.polygon("fill", polyB)
-		if rare and not e.chip then
-			-- a vein across the face, with a few flecks either side
-			local art = e.rareArt
-			lg.setColor(rare.line)
-			lg.setLineWidth(max(1, R * 0.05))
-			local v = art.vein
-			local px, py = at(v[1], v[2])
-			for i = 3, #v, 2 do
-				local qx, qy = at(v[i], v[i + 1])
-				lg.line(px, py, qx, qy)
-				px, py = qx, qy
+		if rare and not e.chip and e.core then
+			if e.opened then
+				-- cut open: the core is a gold face in the stone
+				place(e.core)
+				lg.setColor(rare.chip)
+				lg.polygon("fill", polyA)
+				lg.setColor(rare.line)
+				lg.setLineWidth(outline(1.5))
+				lg.polygon("line", polyA)
 			end
-			lg.setColor(rare.fleck)
-			for _, p in ipairs(art.flecks) do
-				local fx, fy = at(p[1], p[2])
-				lg.circle("fill", fx, fy, max(1.2, R * 0.035), 6)
+			-- veins running in toward it (where the stone is still there)
+			local v, inside = e.verts, RockChips.inside
+			lg.setColor(rare.line)
+			lg.setLineWidth(max(1, e.radius0 and e.radius0 * 0.04 or R * 0.04))
+			for _, line in ipairs(e.veins or {}) do
+				for i = 1, #line - 2, 2 do
+					local ax, ay, bx, by = line[i], line[i + 1], line[i + 2], line[i + 3]
+					if inside(v, ax, ay) and inside(v, bx, by) then
+						lg.line(x + ax * c - ay * sn, y + ax * sn + ay * c, x + bx * c - by * sn, y + bx * sn + by * c)
+					end
+				end
+			end
+			if not e.opened then
+				-- a glint where each vein meets the core
+				lg.setColor(rare.fleck)
+				for _, line in ipairs(e.veins or {}) do
+					local ax, ay = line[3], line[4]
+					if inside(v, ax, ay) then lg.circle("fill", x + ax * c - ay * sn, y + ax * sn + ay * c, max(1.5, R * 0.04), 6) end
+				end
 			end
 		end
 		return
