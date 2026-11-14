@@ -64,8 +64,6 @@ local function drill(ctx,target,dt)
  end
  if record.hp<=0 then
   record.x,record.y,record.vx,record.vy=target.x,target.y,target.vx or 0,target.vy or 0;record.clock=ctx.clock
-  -- a rare chunk's ore goes straight into the miner's hold
-  if record.rare then local Tn=require('src.tuning');add(ctx.r,record.rare,Tn.drillOreMult);record.rare=nil end
   record.kind,record.count='loot',record.yield;return 'done'
  end
  return 'running'

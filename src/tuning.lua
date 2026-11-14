@@ -70,7 +70,6 @@ T.chipLife = 180          -- seconds before a chip nobody collects fades
 T.drillOreMult = 2        -- ore from a chip a drill broke, against 1 when shot
 T.rareChance = { rock = 0.06, ice = 0.08 }   -- chance a big rock has a gold core, big ice a crystal
 T.rareMinRadius = { rock = 55, ice = 30 }    -- only pieces this big carry one (ring ice runs small)
-T.npcRareChance = 0.04    -- a mining site's chunk carries rare ore
 T.rareCovetRange = 6000   -- miners go after loose rare ore this close
 T.rareCore = 0.4          -- the core's size, as a share of the rock's radius
 T.rareChipShare = 0.3     -- a chip this much core is rare ore

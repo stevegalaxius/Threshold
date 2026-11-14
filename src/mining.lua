@@ -76,10 +76,6 @@ Tasks.register('mine',{
   return true
  end,
 })
--- Does this ejection carry rare ore? Hashed from its sequence, like ejecta.
-function M.rareRoll(sequence)
- return ((sequence*2654435761)%100003)/100003<T.npcRareChance
-end
 -- Deterministic per ejection, independent of visit order and unrelated RNG.
 -- Small fragments are common; large field rocks are occasional.
 function M.ejecta(site,sequence)
@@ -279,9 +275,7 @@ function M.advanceProduction(u,clock,onlySite)
    local a=site.angle+spec.spread
    local item,yield=Ore.drop(site.ore or 'rock',radius)
    local birth=previous+(i-carry)*period
-   -- now and then a chunk carries rare ore, which miners go after first
-   local rare=M.rareRoll(site.sequence) and Ore.rare[site.ore or 'rock'] or nil
-   state.resources[key]={id=key,site=id,area=site.area,kind='rock',debris=site.ore or 'rock',item=item,yield=yield,rare=rare,
+   state.resources[key]={id=key,site=id,area=site.area,kind='rock',debris=site.ore or 'rock',item=item,yield=yield,
     x=x+nx*(radius+rigLength()+20),y=y+ny*(radius+rigLength()+20),
     vx=cos(a)*spec.speed,vy=sin(a)*spec.speed,radius=radius,hp=radius*radius*T.asteroidToughness,
     angle=spec.angle,spin=spec.spin,clock=birth,readyAt=birth+T.miningSettleTime,relativeFlow=true}
@@ -382,12 +376,8 @@ function M.materialize(game)
     if r.kind=='rock' then
      local e=game:spawnAsteroid(x,y,r.radius,r.debris or 'rock',r.verts)
      e.miningId,e.hp,e.drilled=r.id,r.hp,r.drilled;e.body:setAngle(r.angle);e.body:setAngularVelocity(r.spin)
-     -- a rare chunk shows its gold or crystal; no other site rock does
+     -- site rock never carries rare ore (a fresh body may have rolled one)
      e.rare,e.core,e.veins=nil,nil,nil
-     if r.rare then
-      if r.core then e.rare,e.core,e.veins=r.rare,copy(r.core),copy(r.veins)
-      else require('src.rock_chips').giveCore(e,r.rare);r.core,r.veins=copy(e.core),copy(e.veins) end
-     end
      e.body:setLinearVelocity(vx,vy);e.body:setLinearDamping(M.chunkDamping(r.area))
      game.miningLive[id]={kind='rock',object=e}
     else
@@ -469,7 +459,7 @@ function M.nextAction(ctx)
   if record.site==t.target and ctx.clock>=(record.readyAt or 0) then
    local target=Actions.targets.resource.resolve(ctx,{id=id})
    if target and not target.done and Actions.available(ctx,target) and Actions.targets.resource.safe(ctx,target) then
-    local d=(target.x-x)^2+(target.y-y)^2;local p=record.kind=='loot' and 1 or (record.rare and .5 or 0)
+    local d=(target.x-x)^2+(target.y-y)^2;local p=record.kind=='loot' and 1 or 0
     if not best or p>priority or p==priority and (d<distance or d==distance and id<best) then best,priority,distance=id,p,d end
    end
   -- loose rare ore nearby, whoever dropped it: worth more than anything

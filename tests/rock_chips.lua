@@ -79,10 +79,8 @@ return function(game)
  clear()
  check(ice>8,'ring-sized ice can hold a crystal ('..ice..'/400)')
  check(big>4 and big<60,'big rocks carry one now and then ('..big..'/400)')
- -- NPC miners: a few site chunks carry rare ore, and they sell it at home
+ -- NPC miners sell the rare ore they pick up at home
  local M=require('src.mining')
- local hits=0;for q=1,5000 do if M.rareRoll(q) then hits=hits+1 end end
- check(hits>5000*T.npcRareChance*0.6 and hits<5000*T.npcRareChance*1.4,'site chunks carry rare ore at about the set rate ('..hits..'/5000)')
  local home;for _,site in pairs(M.state(game.universe).sites) do if site.home then home=site.home;break end end
  check(home~=nil,'some mining site has a home station')
  local Stock=require('src.stockpile')
