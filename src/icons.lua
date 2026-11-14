@@ -121,11 +121,16 @@ local function kindColor(itemDef)
 	return HUD.itemColor(itemDef) or { 0.75, 0.78, 0.82 }
 end
 
--- Just the art, in art units around the current origin. col is the
--- primary paint (default: the item's kind colour). Parts draw in list
--- order like a weapon's art: hull parts outlined, detail drawn without an
--- outline (in its own colour, unlike weapon art, which darkens it), glow
--- additive.
+-- Just the art, in art units around the current origin, in the game's
+-- own look: like a hull, a part is a dark fill (its colour x 0.22) inside a
+-- bright contour in its colour, with a faint additive bloom along the
+-- contour. lineWidth is the contour width in art units (callers pass a
+-- fixed number of screen px divided by their scale, so every item's
+-- contours match the ships'). Layers:
+--   hull    dark fill + bright contour (default)
+--   detail  contour only, no fill (bands, seams, panel lines)
+--   glow    filled bright and additive (lights, fuses, hot bits)
+-- col is the primary paint (default: the item's kind colour).
 local triCache = setmetatable({}, { __mode = "k" })
 local function triangles(shape, fresh)
 	local t = triCache[shape]
@@ -143,29 +148,54 @@ local function mirrored(shape)
 	return m
 end
 
+Icons.FILL = 0.22        -- fill brightness, as hulls (src/render.lua)
+Icons.BLOOM = 0.16       -- alpha of the faint bloom along contours (0 = off)
+
 -- fresh: the parts may have changed since last frame (the editor).
 function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 	alpha = alpha or 1
+	lineWidth = lineWidth or 1
 	local c = col or kindColor(data.items[icon.item] or {})
 	local paint = { c[1], c[2], c[3] }
+	local contours = {}
+	lg.setLineJoin("bevel")
 	for _, p in ipairs(icon.parts or {}) do
 		if p.shape and #p.shape >= 6 then
 			local layer = p.layer or "hull"
 			local pc = Visual.partColor(p, paint)
-			if layer == "glow" then lg.setBlendMode("add") end
 			for _, s in ipairs({ p.shape, p.mirror and mirrored(p.shape) or nil }) do
 				local tris = triangles(s, fresh)
-				lg.setColor(pc[1], pc[2], pc[3], alpha)
-				if tris then for _, tri in ipairs(tris) do lg.polygon("fill", tri) end end
-				if layer == "hull" then
-					lg.setColor(pc[1] * 0.3, pc[2] * 0.3, pc[3] * 0.3, alpha)
-					lg.setLineWidth(lineWidth or 1)
+				if layer == "glow" then
+					lg.setBlendMode("add")
+					lg.setColor(pc[1], pc[2], pc[3], alpha)
+					if tris then for _, tri in ipairs(tris) do lg.polygon("fill", tri) end end
+					lg.setBlendMode("alpha")
+				else
+					if layer == "hull" and tris then
+						local f = Icons.FILL
+						lg.setColor(pc[1] * f, pc[2] * f, pc[3] * f, alpha)
+						for _, tri in ipairs(tris) do lg.polygon("fill", tri) end
+					end
+					lg.setColor(pc[1], pc[2], pc[3], alpha)
+					lg.setLineWidth(lineWidth)
 					lg.polygon("line", s)
+					contours[#contours + 1] = { s, pc }
 				end
 			end
-			if layer == "glow" then lg.setBlendMode("alpha") end
 		end
 	end
+	-- the faint bloom: the contours again, wider and additive
+	if Icons.BLOOM > 0 then
+		lg.setBlendMode("add")
+		lg.setLineWidth(lineWidth * 3)
+		for _, k in ipairs(contours) do
+			local pc = k[2]
+			lg.setColor(pc[1], pc[2], pc[3], Icons.BLOOM * alpha)
+			lg.polygon("line", k[1])
+		end
+		lg.setBlendMode("alpha")
+	end
+	lg.setLineJoin("miter")
 end
 
 -- Draw an item's icon filling the rect x, y, w, h (screen px), turned a
@@ -183,7 +213,7 @@ function Icons.drawInRect(itemId, x, y, w, h, rot, alpha, pad)
 	lg.translate(x + w / 2, y + h / 2)
 	if rot then lg.rotate(math.pi / 2) end
 	lg.scale(s)
-	Icons.drawArt(icon, nil, alpha, 1 / s)
+	Icons.drawArt(icon, nil, alpha, 1.5 / s)
 	lg.pop()
 	return true
 end
