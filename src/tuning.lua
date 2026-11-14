@@ -68,8 +68,8 @@ T.chipPerRadius = 10      -- a rock sheds one chip per this many px of radius
 T.chipMax = 12            -- ...but never more than this many
 T.chipLife = 180          -- seconds before a chip nobody collects fades
 T.drillOreMult = 2        -- ore from a chip a drill broke, against 1 when shot
-T.rareChance = 0.06       -- chance a big rock has a vein, or big ice a crystal
-T.rareMinRadius = 55      -- only rocks at least this big carry one
+T.rareChance = { rock = 0.06, ice = 0.08 }   -- chance a big rock has a gold core, big ice a crystal
+T.rareMinRadius = { rock = 55, ice = 30 }    -- only pieces this big carry one (ring ice runs small)
 T.rareCore = 0.4          -- the core's size, as a share of the rock's radius
 T.rareChipShare = 0.3     -- a chip this much core is rare ore
 T.chunkRadius = 14        -- a cut-off piece this big is a rock that chips on

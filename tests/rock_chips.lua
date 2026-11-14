@@ -74,6 +74,10 @@ return function(game)
  for _=1,200 do local a=game:spawnAsteroid(X,Y,30,'rock');if a.rare then small=small+1 end end
  clear()
  check(small==0,'small rocks never carry a core')
+ local ice=0
+ for _=1,400 do local a=game:spawnAsteroid(X,Y,35,'ice');if a.rare then ice=ice+1 end end
+ clear()
+ check(ice>8,'ring-sized ice can hold a crystal ('..ice..'/400)')
  check(big>4 and big<60,'big rocks carry one now and then ('..big..'/400)')
  print('rock chips: '..checks..' checks passed')
 end

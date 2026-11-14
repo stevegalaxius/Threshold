@@ -126,7 +126,8 @@ C.inside = inside
 function C.seed(e)
 	if not C.chips(e) then return end
 	local rare = Ore.rare[e.debris or 'rock']
-	if not rare or e.radius < T.rareMinRadius or random() >= T.rareChance then return end
+	local kind = e.debris or 'rock'
+	if not rare or e.radius < T.rareMinRadius[kind] or random() >= T.rareChance[kind] then return end
 	local R = e.radius
 	local ox, oy = (random() - 0.5) * R * 0.3, (random() - 0.5) * R * 0.3
 	local core = {}
