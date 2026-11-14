@@ -35,10 +35,57 @@ Icons.WORLD = 1      -- world px per art unit when floating in space
 
 local lg = love.graphics
 
--- The icon drawn for an item id, or nil.
-function Icons.get(item)
-	return data.icons and data.icons[item]
+-- Art made from a hull: its parts in their factory paint, scaled to fit
+-- the item's footprint (drones are drawn as the drone itself).
+local derived = {}
+function Icons.fromHull(item, hullId)
+	local hull = data.hulls[hullId]
+	if not hull or not hull.parts then return nil end
+	local Paint, HullShape = require("src.paint"), require("src.hullshape")
+	local paint = Paint.preset(Paint.pool(hull)[1])
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in ipairs(hull.parts) do
+		for k = 1, #p.shape - 1, 2 do
+			x0, x1 = math.min(x0, p.shape[k]), math.max(x1, p.shape[k])
+			y0, y1 = math.min(y0, p.shape[k + 1]), math.max(y1, p.shape[k + 1])
+		end
+	end
+	if x1 <= x0 or y1 <= y0 then return nil end
+	local bw, bh = Icons.box(item)
+	local sc = math.min((bw - 1) * 2 / (x1 - x0), (bh - 1) * 2 / (y1 - y0))
+	local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+	local icon = { id = "icon_" .. item, item = item, hull = hullId, parts = {} }
+	-- twins (mirror copies) are already in hull.parts, so nothing mirrors again
+	for _, p in ipairs(hull.parts) do
+		local shape = {}
+		for k = 1, #p.shape - 1, 2 do
+			shape[k], shape[k + 1] = (p.shape[k] - cx) * sc, (p.shape[k + 1] - cy) * sc
+		end
+		icon.parts[#icon.parts + 1] = { name = p.name, shape = shape, color = HullShape.color(p, paint), layer = p.layer }
+	end
+	return icon
 end
+
+-- The hull an item stands for (a drone's), or nil.
+local function hullOf(def)
+	return def and def.kind == "ammo" and def.family == "drone" and def.shot and def.shot.hull
+end
+
+-- The icon drawn for an item id, or nil: its own drawn art first, else
+-- (for a drone) the drone's hull.
+function Icons.get(item)
+	local own = data.icons and data.icons[item]
+	if own then return own end
+	local h = hullOf(data.items[item])
+	if not h then return nil end
+	local d = derived[item]
+	if d == nil or d.hull ~= h then
+		d = Icons.fromHull(item, h) or false
+		derived[item] = d
+	end
+	return d or nil
+end
+Icons.hullOf = function(item) return hullOf(data.items[item]) end
 
 -- The footprint (w, h cells) an item's art is drawn on.
 function Icons.footprint(item)

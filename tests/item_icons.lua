@@ -15,6 +15,11 @@ return function(game)
  local bw,bh=Icons.box('missile_m')
  check(bw==24 and bh==8,'box is cells x CELL')
  check(Icons.worldReach('missile_m')>20 and Icons.worldReach('rounds_s')==nil,'reach')
+ -- drones are drawn as their own hull, until someone saves art for them
+ local dr=Icons.get('drone_m')
+ check(dr and dr.hull==data.items.drone_m.shot.hull and #dr.parts>0,'drone uses its hull')
+ local dbw,dbh=Icons.box('drone_m')
+ for _,q in ipairs(dr.parts) do for k=1,#q.shape-1,2 do check(math.abs(q.shape[k])<=dbw and math.abs(q.shape[k+1])<=dbh,'drone art fits its footprint') end end
  -- the editor's Icons tab (from a clean start, not the last autosave)
  Editor.open(game)
  E.byCategory={}; E.newDesign('hull')
@@ -50,7 +55,7 @@ return function(game)
  game.pickups={}
  local p=game.player
  local x,y=p.body:getPosition()
- for i,id in ipairs({'missile_m','shell_s','hydrogen_canister','patch_kit',item}) do
+ for i,id in ipairs({'missile_m','shell_s','hydrogen_canister','drone_s','patch_kit',item}) do
   local k=game:pickupView(x+60+i*40,y,id,1); k.spin=i
  end
  local shots=os.getenv('THRESHOLD_SHOTS')
@@ -66,7 +71,7 @@ return function(game)
  -- the hold, with a few drawn items in it
  local Hold=require('src.inventory.hold')
  if p.hold then
-  for _,id in ipairs({'missile_m','shell_s','hydrogen_canister'}) do Hold.add(p.hold,id,2) end
+  for _,id in ipairs({'missile_m','shell_s','hydrogen_canister','drone_m'}) do Hold.add(p.hold,id,2) end
   local Cargo=require('src.ui.cargo')
   Cargo.toggle(game)
   shot('icons-in-hold',function() require('src.render').world(game); Cargo.draw(game) end)

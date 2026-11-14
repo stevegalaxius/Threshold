@@ -173,6 +173,14 @@ end
 function E.openIcon(item)
 	if not data.icons[item] then
 		E.newIcon(item)
+		-- a drone starts from its hull's art (saving it makes it its own)
+		local fromHull = require("src.icons").get(item)
+		if fromHull then
+			E.design.parts = {}
+			for _, p in ipairs(fromHull.parts) do E.design.parts[#E.design.parts + 1] = Export.copy(p) end
+			say("New icon for " .. data.items[item].name .. ", starting from its hull " .. fromHull.hull)
+			return
+		end
 		say("New icon for " .. (data.items[item] and data.items[item].name or item))
 		return
 	end
