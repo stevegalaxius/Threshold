@@ -946,8 +946,16 @@ function A.wake(game,r)
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
    local station=close(destination) and destination or source
-   if station.city then e.body:setPosition(L.inspectionPosition(station.locationId,game.universe.clock))
-   else e.body:setPosition(require('src.ai').stopPoint(station,e)) end
+   local x,y
+   if station.city then x,y=L.inspectionPosition(station.locationId,game.universe.clock)
+   else x,y=require('src.ai').stopPoint(station,e) end
+   -- That approach is one point. Ships waking there together (a teleport
+   -- into the area, several just off a cloud city's runway) all came up on
+   -- it, welded into a ball: step each one clear, out along its leg.
+   local other=station==destination and leg.from or leg.to
+   local tx,ty=L.position(other,game.universe.clock)
+   x,y=clearSpot(game,e,x,y,tx-x,ty-y)
+   e.body:setPosition(x,y)
   end
  end
 
