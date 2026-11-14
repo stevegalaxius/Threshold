@@ -77,10 +77,14 @@ function S.generated(u,policy,roll,area)
  for _,id in ipairs(ids) do
   local loadout,price=fitted(data.hulls[id],policy,u,area,stock)
   if loadout then
-   local weight=S.weight(u,id);total=total+weight
-   choices[#choices+1]={hull=id,loadout=loadout,price=price,weight=weight}
+   choices[#choices+1]={hull=id,loadout=loadout,price=price,base=S.weight(u,id)}
   end
  end
+ -- Role fit decides; factory output, regional lots, local stock and recent
+ -- danger shade it (src/ship_fit.lua). Nothing here consumes stock.
+ if policy.role then require('src.ship_fit').rank(u,area,policy.role,choices,stock)
+ else for _,c in ipairs(choices) do c.weight=c.base end end
+ for _,c in ipairs(choices) do total=total+c.weight end
  if total<=0 then return end
  local pick=(roll or random)()*total;local choice=choices[#choices]
  for _,candidate in ipairs(choices) do pick=pick-candidate.weight;if pick<0 then choice=candidate;break end end
@@ -101,7 +105,7 @@ function S.generated(u,policy,roll,area)
    ship.cargo[ammo]=n;used=used+n*data.items[ammo].volume
   end
  end
- return ship,{source='generated',hull=ship.hull,price=choice.price,weight=choice.weight}
+ return ship,{source='generated',hull=ship.hull,price=choice.price,weight=choice.weight,fit=choice.fit}
 end
 function S.acquire(u,area,policy,roll)
  roll=roll or random
@@ -126,7 +130,7 @@ function S.complete(u,r,acquisition,policy)
   r.shipAcquisition=acquisition
   r.credits=(r.credits or 0)+policy.budget-acquisition.price
   require('src.simulation_history').note(u,'npc_ship_generated',u.clock,r.area,{r.id},
-   {hull=r.ship.hull,price=acquisition.price,weight=acquisition.weight})
+   {hull=r.ship.hull,price=acquisition.price,weight=acquisition.weight,fit=acquisition.fit})
  end
 end
 return S

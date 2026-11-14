@@ -223,15 +223,23 @@ function D.ship(lot)
   color=Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
 end
 function D.purchaseCandidate(u,area,policy,usedOnly)
- local L=require('src.locations');local best
+ local L=require('src.locations');local best,options=nil,{}
  for _,key in ipairs(L.stations(area)) do
   for _,lot in ipairs(D.lots(u,key)) do
    local r={ship=D.ship(lot)};local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
    local capabilities=require('src.npc_access').capabilities(r);local eligible=(not usedOnly or lot.used) and lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
    if (stats.hold or 0)<(policy.minCargo or 0) then eligible=false end
    for capability in pairs(policy.requires or {}) do if not capabilities[capability] then eligible=false end end
-   if eligible and (not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station) then best={station=key,lot=lot} end
+   if eligible then
+    if policy.role then options[#options+1]={station=key,lot=lot,hull=lot.hull,loadout=lot.loadout,price=lot.price,key=key..'/'..tostring(lot.id)}
+    elseif not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station then best={station=key,lot=lot} end
+   end
   end
+ end
+ -- A buyer with a job takes the best ship for it, not the cheapest.
+ if policy.role and #options>0 then
+  local pick=require('src.ship_fit').best(u,area,policy.role,options)
+  best={station=pick.station,lot=pick.lot,fit=pick.fit}
  end
  return best
 end

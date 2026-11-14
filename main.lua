@@ -132,7 +132,7 @@ function love.load(args)
 		["--chemicaltest"] = "tests.chemicals",
 		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--questtest"] = "tests.quests", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity", ["--hubtest"] = "tests.logistics_hubs",
 		["--electronicstest"] = "tests.electronics", ["--availabilitytest"] = "tests.availability",
-		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
+		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--shipfittest"] = "tests.ship_fit", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
 		["--ammunitiontest"] = "tests.ammunition",
 		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench", ["--itemusetest"] = "tests.item_use",
 	}
