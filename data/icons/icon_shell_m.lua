@@ -1,10 +1,13 @@
--- Made in the Shipyard (F2), Icons tab. Art for Explosive Shells M.
+-- Made in the Shipyard (F2), Icons tab. Art for Explosive Shells M: a crate of them.
 icon {
 	id = "icon_shell_m", item = "shell_m",
 	parts = {
-		{ name = "case", shape = { -7.5, -4.2, 0.75, -4.2, 0.75, 4.2, -7.5, 4.2 }, color = { 0.85, 0.66, 0.3 } },
-		{ name = "band", shape = { -0.15, -4.2, 0.75, -4.2, 0.75, 4.2, -0.15, 4.2 }, color = { 0.3, 0.22, 0.1 }, layer = "detail" },
-		{ name = "head", shape = { 0.75, -3.99, 3.45, -3.39, 6.49, -1.6, 7.5, 0, 6.49, 1.6, 3.45, 3.39, 0.75, 3.99 }, color = { 0.42, 0.46, 0.3 } },
-		{ name = "stripe", shape = { 1.56, -3.79, 2.24, -3.79, 2.24, 3.79, 1.56, 3.79 }, color = { 0.48, 0.42, 0.1 }, layer = "detail" },
+		{ name = "crate", shape = { -7.2, -7.2, 7.2, -7.2, 7.2, 7.2, -7.2, 7.2 }, color = { 0.66, 0.6, 0.42 } },
+		{ name = "lid", shape = { -5.6, -5.6, 5.6, -5.6, 5.6, 5.6, -5.6, 5.6 }, color = { 0.66, 0.6, 0.42 }, layer = "detail" },
+		{ name = "end left", shape = { -7.2, -7.2, -5.6, -7.2, -5.6, 7.2, -7.2, 7.2 }, color = { 0.66, 0.6, 0.42 }, layer = "detail" },
+		{ name = "end right", shape = { 5.6, -7.2, 7.2, -7.2, 7.2, 7.2, 5.6, 7.2 }, color = { 0.66, 0.6, 0.42 }, layer = "detail" },
+		{ name = "case", shape = { -3.61, -2.05, 0.36, -2.05, 0.36, 2.05, -3.61, 2.05 }, color = { 0.85, 0.66, 0.3 } },
+		{ name = "head", shape = { 0.36, -1.94, 1.82, -1.65, 3.61, 0, 1.82, 1.65, 0.36, 1.94 }, color = { 0.62, 0.7, 0.42 } },
+		{ name = "band", shape = { 0.85, -1.75, 1.17, -1.75, 1.17, 1.75, 0.85, 1.75 }, color = { 0.95, 0.85, 0.3 }, layer = "detail" },
 	},
 }

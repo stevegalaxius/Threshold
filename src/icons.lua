@@ -19,8 +19,10 @@
 	from x = -24 to 24 and y = -8 to 8. The art doesn't have to fill the box:
 	the outline is the item's real silhouette.
 
-	In space the same art is drawn at its physical size, Icons.WORLD world
-	pixels per unit. In the hold it is scaled to fill the stack's cells and
+	In space the size comes from the grid: Icons.WORLD world px per art
+	unit, so every hold cell is the same size afloat and a 5 x 1 item is
+	five times as long as a 1 x 1. An icon file can set the item's
+	footprint (w, h): the editor's size boxes write it there. In the hold it is scaled to fill the stack's cells and
 	turned with the stack when it's rotated. Items without an icon keep
 	their old look (a tinted box in the hold, a spinning square in space).
 ]]
@@ -31,7 +33,7 @@ local Visual = require("src.weapon_visual")
 local Icons = {}
 
 Icons.CELL = 16      -- art units per hold cell (1 m)
-Icons.WORLD = 1      -- world px per art unit when floating in space
+Icons.WORLD = 0.5    -- world px per art unit in space: 8 px per hold cell
 
 local lg = love.graphics
 
@@ -87,8 +89,10 @@ function Icons.get(item)
 end
 Icons.hullOf = function(item) return hullOf(data.items[item]) end
 
--- The footprint (w, h cells) an item's art is drawn on.
-function Icons.footprint(item)
+-- The footprint (w, h cells) an item's art is drawn on. own: a design or
+-- icon whose w, h (set in the editor) win over the item's.
+function Icons.footprint(item, own)
+	if own and own.w and own.h then return own.w, own.h end
 	local def = type(item) == "table" and item or data.items[item]
 	if not def then return 1, 1 end
 	local ok, w, h = pcall(require("src.inventory.shapes").of, def.id)
@@ -97,8 +101,8 @@ function Icons.footprint(item)
 end
 
 -- The art box in art units: half width, half height.
-function Icons.box(item)
-	local w, h = Icons.footprint(item)
+function Icons.box(item, own)
+	local w, h = Icons.footprint(item, own)
 	return w * Icons.CELL / 2, h * Icons.CELL / 2
 end
 
@@ -123,8 +127,7 @@ end
 
 -- Just the art, in art units around the current origin, in the game's
 -- own look: like a hull, a part is a dark fill (its colour x 0.22) inside a
--- bright contour in its colour, with a faint additive bloom along the
--- contour. lineWidth is the contour width in art units (callers pass a
+-- bright contour in its colour. lineWidth is the contour width in art units (callers pass a
 -- fixed number of screen px divided by their scale, so every item's
 -- contours match the ships'). Layers:
 --   hull    dark fill + bright contour (default)
@@ -149,7 +152,6 @@ local function mirrored(shape)
 end
 
 Icons.FILL = 0.22        -- fill brightness, as hulls (src/render.lua)
-Icons.BLOOM = 0.16       -- alpha of the faint bloom along contours (0 = off)
 
 -- fresh: the parts may have changed since last frame (the editor).
 function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
@@ -157,7 +159,6 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 	lineWidth = lineWidth or 1
 	local c = col or kindColor(data.items[icon.item] or {})
 	local paint = { c[1], c[2], c[3] }
-	local contours = {}
 	lg.setLineJoin("bevel")
 	for _, p in ipairs(icon.parts or {}) do
 		if p.shape and #p.shape >= 6 then
@@ -179,21 +180,9 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 					lg.setColor(pc[1], pc[2], pc[3], alpha)
 					lg.setLineWidth(lineWidth)
 					lg.polygon("line", s)
-					contours[#contours + 1] = { s, pc }
 				end
 			end
 		end
-	end
-	-- the faint bloom: the contours again, wider and additive
-	if Icons.BLOOM > 0 then
-		lg.setBlendMode("add")
-		lg.setLineWidth(lineWidth * 3)
-		for _, k in ipairs(contours) do
-			local pc = k[2]
-			lg.setColor(pc[1], pc[2], pc[3], Icons.BLOOM * alpha)
-			lg.polygon("line", k[1])
-		end
-		lg.setBlendMode("alpha")
 	end
 	lg.setLineJoin("miter")
 end
@@ -226,16 +215,24 @@ function Icons.drawWorld(itemId, x, y, angle, alpha, lineWidth)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(angle or 0)
-	lg.scale(Icons.WORLD)
-	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / Icons.WORLD)
+	local k = Icons.worldScale(itemId)
+	lg.scale(k)
+	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / k)
 	lg.pop()
 	return true
+end
+
+-- World px per art unit for an item floating in space: its physical
+-- size (Icons.WORLD), scaled up so the longest side is at least
+-- Icons.MIN_WORLD px, or a bullet would be a speck.
+function Icons.worldScale(itemId)
+	return Icons.WORLD
 end
 
 -- World px from an item's centre to the edge of its art (or nil).
 function Icons.worldReach(itemId)
 	local icon = Icons.get(itemId)
-	return icon and Icons.reach(icon) * Icons.WORLD
+	return icon and Icons.reach(icon) * Icons.worldScale(itemId)
 end
 
 return Icons

@@ -1144,8 +1144,8 @@ function Canvas.draw(E)
 	-- game draws it: in a hold stack, and floating in space at true size
 	if E.design.kind == "icon" then
 		local Icons = require("src.icons")
-		local fw, fh = Icons.footprint(E.design.item)
-		local bw, bh = Icons.box(E.design.item)
+		local fw, fh = Icons.footprint(E.design.item, E.design)
+		local bw, bh = Icons.box(E.design.item, E.design)
 		local ax, ay = Canvas.toScreen(E, -bw, -bh)
 		local bx, by = Canvas.toScreen(E, bw, bh)
 		lg.setLineWidth(1)
@@ -1177,7 +1177,7 @@ function Canvas.drawIconPreview(E)
 	for _, p in ipairs(d.parts) do
 		if not p.hidden and HullShape.check(p.shape) then icon.parts[#icon.parts + 1] = p end
 	end
-	local fw, fh = Icons.footprint(d.item)
+	local fw, fh = Icons.footprint(d.item, d)
 	local item = data.items[d.item] or {}
 	local c = HUD.itemColor(item) or { 1, 1, 1 }
 	local W, H = 360, 230
@@ -1197,7 +1197,7 @@ function Canvas.drawIconPreview(E)
 		lg.rectangle("fill", x + 2, y0 + 26, w - 4, h - 4, 3, 3)
 		lg.setColor(c[1], c[2], c[3], 0.95)
 		lg.rectangle("line", x + 2.5, y0 + 26.5, w - 5, h - 5, 3, 3)
-		local bw, bh = Icons.box(d.item)
+		local bw, bh = Icons.box(d.item, d)
 		local s = math.min((w - 6) / (bw * 2), (h - 6) / (bh * 2))
 		lg.push()
 		lg.translate(x + w / 2, y0 + 24 + h / 2)
@@ -1206,17 +1206,28 @@ function Canvas.drawIconPreview(E)
 		lg.pop()
 		x = x + w + 10
 	end
-	-- in space, at its physical size (camera zoom 1) next to a 100 px ship
+	-- in space, at the size it floats at, beside a Wisp (zoom 2)
+	local Z = 2
 	local sy = y0 + H - 60
 	lg.setColor(1, 1, 1, 0.6)
-	lg.print("Preview: in space (zoom 1, ship for scale)", x0 + 8, sy - 50)
-	lg.setColor(0.4, 0.45, 0.5, 0.5)
-	lg.polygon("line", x0 + 20, sy - 8, x0 + 110, sy, x0 + 20, sy + 8)
+	lg.print("Preview: in space (zoom 2, beside a Wisp)", x0 + 8, sy - 50)
+	local wisp = data.hulls.intaki_wisp
+	if wisp then
+		lg.push()
+		lg.translate(x0 + 90, sy)
+		lg.scale(Z)
+		HullShape.draw(wisp, { 0.6, 0.65, 0.7 }, function(pc) return { pc[1] * 0.22, pc[2] * 0.22, pc[3] * 0.22 } end, function(pc) return pc end, 1 / Z)
+		lg.pop()
+	end
+	local r = 4
+	for _, p in ipairs(icon.parts) do for k = 1, #p.shape - 1, 2 do r = math.max(r, math.sqrt(p.shape[k] ^ 2 + p.shape[k + 1] ^ 2)) end end
+	icon.reach = r
+	local k = Icons.WORLD * Z
 	lg.push()
-	lg.translate(x0 + 210, sy)
+	lg.translate(x0 + 250, sy)
 	lg.rotate(love.timer.getTime() * 0.4)
-	lg.scale(Icons.WORLD)
-	Icons.drawArt(icon, c, 1, 2 / Icons.WORLD, true)
+	lg.scale(k)
+	Icons.drawArt(icon, c, 1, 1.5 / k, true)
 	lg.pop()
 end
 

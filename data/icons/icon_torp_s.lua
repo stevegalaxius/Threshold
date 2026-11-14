@@ -1,11 +1,13 @@
--- Made in the Shipyard (F2), Icons tab. Art for Torpedo S.
+-- Made in the Shipyard (F2), Icons tab. Art for Torpedo S: a crate of them.
 icon {
 	id = "icon_torp_s", item = "torp_s",
 	parts = {
-		{ name = "shroud", shape = { -15, -3.36, -13.2, -3.36, -13.2, 3.36, -15, 3.36 }, color = { 0.35, 0.35, 0.38 } },
-		{ name = "body", shape = { -13.2, -4.2, 8.28, -4.2, 12.31, -3.36, 15, -1.26, 15, 1.26, 12.31, 3.36, 8.28, 4.2, -13.2, 4.2 }, color = { 0.42, 0.46, 0.5 } },
-		{ name = "warhead", shape = { 8.28, -4.2, 12.31, -3.36, 15, -1.26, 15, 1.26, 12.31, 3.36, 8.28, 4.2 }, paint = "primary" },
-		{ name = "band", shape = { -6, -4.2, -4.8, -4.2, -4.8, 4.2, -6, 4.2 }, color = { 0.18, 0.4, 0.42 }, layer = "detail" },
-		{ name = "fin", shape = { -13.2, -4.2, -10.8, -4.2, -12.6, -6.3, -13.8, -6.3 }, color = { 0.35, 0.35, 0.38 }, mirror = true },
+		{ name = "crate", shape = { -15.2, -7.2, 15.2, -7.2, 15.2, 7.2, -15.2, 7.2 }, color = { 0.5, 0.66, 0.66 } },
+		{ name = "lid", shape = { -13.6, -5.6, 13.6, -5.6, 13.6, 5.6, -13.6, 5.6 }, color = { 0.5, 0.66, 0.66 }, layer = "detail" },
+		{ name = "end left", shape = { -15.2, -7.2, -13.6, -7.2, -13.6, 7.2, -15.2, 7.2 }, color = { 0.5, 0.66, 0.66 }, layer = "detail" },
+		{ name = "end right", shape = { 13.6, -7.2, 15.2, -7.2, 15.2, 7.2, 13.6, 7.2 }, color = { 0.5, 0.66, 0.66 }, layer = "detail" },
+		{ name = "body", shape = { -10.49, -2.8, 6.02, -2.8, 8.7, -2.24, 10.49, -0.84, 10.49, 0.84, 8.7, 2.24, 6.02, 2.8, -10.49, 2.8 }, color = { 0.62, 0.68, 0.74 } },
+		{ name = "warhead", shape = { 6.02, -2.8, 6.02, -2.8, 6.02, 2.8, 6.02, 2.8 }, color = { 0.45, 0.85, 0.9 }, layer = "detail" },
+		{ name = "band", shape = { -4.2, -2.8, -4.2, -2.8, -4.2, 2.8, -4.2, 2.8 }, color = { 0.45, 0.85, 0.9 }, layer = "detail" },
 	},
 }

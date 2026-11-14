@@ -493,6 +493,10 @@ local function prepareIcon(def)
 		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
 		if part.paint ~= nil and part.paint ~= "primary" and part.paint ~= "secondary" then bad("paint should be primary or secondary") end
 	end
+	for _, f in ipairs({ "w", "h" }) do
+		local v = def[f]
+		if v ~= nil and (type(v) ~= "number" or v < 1 or v % 1 ~= 0) then fail(("icon '%s': %s should be a whole number of cells"):format(def.id, f)) end
+	end
 	def.reach = nil
 	return def
 end
@@ -500,6 +504,12 @@ end
 function api.icon(def)
 	prepareIcon(def)
 	def.source = currentFile
+	-- the icon's footprint (from the editor's size boxes) is the item's grid size
+	local item = data.items[def.item]
+	if item and def.w and def.h then
+		item.w, item.h = def.w, def.h
+		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
+	end
 	if not data.icons[def.item] then table.insert(data.list.icons, def.item) end
 	data.icons[def.item] = def
 	return def

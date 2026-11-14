@@ -1,11 +1,13 @@
--- Made in the Shipyard (F2), Icons tab. Art for Missile S.
+-- Made in the Shipyard (F2), Icons tab. Art for Missile S: a crate of them.
 icon {
 	id = "icon_missile_s", item = "missile_s",
 	parts = {
-		{ name = "fin", shape = { -14, -2.2, -9.6, -2.2, -13.2, -5.7, -15, -5.7 }, paint = "secondary", mirror = true },
-		{ name = "body", shape = { -14, -2.2, 10.16, -2.2, 10.16, 2.2, -14, 2.2 }, color = { 0.78, 0.8, 0.84 } },
-		{ name = "nose", shape = { 10.16, -2.2, 12.58, -1.54, 15, 0, 12.58, 1.54, 10.16, 2.2 }, paint = "primary" },
-		{ name = "band", shape = { 7.16, -2.2, 8.36, -2.2, 8.36, 2.2, 7.16, 2.2 }, color = { 0.28, 0.36, 0.55 }, layer = "detail" },
-		{ name = "exhaust", shape = { -15, -1.43, -14, -1.43, -14, 1.43, -15, 1.43 }, color = { 0.35, 0.35, 0.38 } },
+		{ name = "crate", shape = { -15.2, -7.2, 15.2, -7.2, 15.2, 7.2, -15.2, 7.2 }, color = { 0.55, 0.62, 0.75 } },
+		{ name = "lid", shape = { -13.6, -5.6, 13.6, -5.6, 13.6, 5.6, -13.6, 5.6 }, color = { 0.55, 0.62, 0.75 }, layer = "detail" },
+		{ name = "end left", shape = { -15.2, -7.2, -13.6, -7.2, -13.6, 7.2, -15.2, 7.2 }, color = { 0.55, 0.62, 0.75 }, layer = "detail" },
+		{ name = "end right", shape = { 13.6, -7.2, 15.2, -7.2, 15.2, 7.2, 13.6, 7.2 }, color = { 0.55, 0.62, 0.75 }, layer = "detail" },
+		{ name = "fin", shape = { -9.05, -1.42, -5.82, -1.42, -8.34, -3.36, -9.69, -3.36 }, color = { 0.55, 0.7, 1 }, mirror = true },
+		{ name = "body", shape = { -9.05, -1.42, 6.28, -1.42, 6.28, 1.42, -9.05, 1.42 }, color = { 0.78, 0.8, 0.84 } },
+		{ name = "nose", shape = { 6.28, -1.42, 7.99, -1, 9.69, 0, 7.99, 1, 6.28, 1.42 }, color = { 0.55, 0.75, 1 } },
 	},
 }

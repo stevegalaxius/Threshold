@@ -205,7 +205,7 @@ end
 
 -- An item icon (the Icons tab): just the art, keyed by its item.
 function Export.iconDef(design)
-	local def = { id = design.id, item = design.item, parts = {} }
+	local def = { id = design.id, item = design.item, w = design.w, h = design.h, parts = {} }
 	for _, part in ipairs(design.parts) do
 		local p = Export.cleanPart(part)
 		-- only what an icon draws with
@@ -218,7 +218,7 @@ end
 function Export.fromIcon(item)
 	local ic = data.icons[item]
 	local def = data.items[item]
-	local design = { id = ic.id, item = item, name = (def and def.name or item) .. " icon", kind = "icon",
+	local design = { id = ic.id, item = item, w = ic.w, h = ic.h, name = (def and def.name or item) .. " icon", kind = "icon",
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
 	for _, part in ipairs(ic.parts) do table.insert(design.parts, Export.cleanPart(part)) end
 	return design
@@ -271,7 +271,9 @@ local function iconSource(design)
 	local def = Export.iconDef(design)
 	local item = data.items[def.item]
 	local out = { "-- Made in the Shipyard (F2), Icons tab." .. (item and (" Art for " .. item.name .. ".") or ""), "icon {",
-		("\tid = %q, item = %q,"):format(def.id, def.item), "\tparts = {" }
+		("\tid = %q, item = %q,"):format(def.id, def.item) }
+	if def.w and def.h then table.insert(out, ("\tw = %d, h = %d,   -- the item's grid size (cells); also its size in space"):format(def.w, def.h)) end
+	table.insert(out, "\tparts = {")
 	for _, part in ipairs(def.parts) do table.insert(out, (partLine(part, "\t\t"))) end
 	table.insert(out, "\t},")
 	table.insert(out, "}")
@@ -489,7 +491,7 @@ function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
 		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate, storage = design.storage,
-		module = design.module, muzzles = design.muzzles, item = design.item }
+		module = design.module, muzzles = design.muzzles, item = design.item, w = design.w, h = design.h }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

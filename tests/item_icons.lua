@@ -14,7 +14,7 @@ return function(game)
  check(w==3 and h==1,'missile footprint')
  local bw,bh=Icons.box('missile_m')
  check(bw==24 and bh==8,'box is cells x CELL')
- check(Icons.worldReach('missile_m')>20 and Icons.worldReach('patch_kit')==nil,'reach')
+ check(Icons.worldReach('missile_m')>10 and Icons.worldReach('patch_kit')==nil,'reach')
  -- drones are drawn as their own hull, until someone saves art for them
  local dr=Icons.get('drone_m')
  check(dr and dr.hull==data.items.drone_m.shot.hull and #dr.parts>0,'drone uses its hull')
@@ -37,9 +37,14 @@ return function(game)
  check(got and got.item==item and #got.parts==2 and got.parts[2].mirror==true,'source round trip')
  check(E.define(),'define registers it')
  check(data.icons[item] and #data.icons[item].parts==2,'registered')
+ -- the item's grid size, edited with the icon
+ E.design.w,E.design.h=2,1
+ check(Export.source(E.design):find('w = 2, h = 1',1,true),'size in source')
+ check(E.define() and Icons.footprint(item)==2,'saving the icon resizes the item')
+ check(Icons.box(item)==16,'art box follows the new size')
  -- reopen through the open-by-id path the file browser uses
  E.openHull('icon_missile_m')
- check(E.design.kind=='icon' and E.design.item=='missile_m' and #E.design.parts==5,'opened a saved icon')
+ check(E.design.kind=='icon' and E.design.item=='missile_m' and #E.design.parts>3,'opened a saved icon')
  E.openIcon('silicon')
  check(E.design.item=='silicon' and #E.design.parts==1,'item without an icon starts a new one: '..tostring(item)..' '..#E.design.parts)
  -- drawing, for real

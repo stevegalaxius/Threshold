@@ -484,11 +484,26 @@ local function iconSections(E, d)
 	Slab.Text("item: " .. (item and item.name or tostring(d.item)) .. "  (" .. tostring(d.item) .. ")")
 	Slab.Text(("footprint %d x %d cells (%d x %d units)"):format(w, h, w * Icons.CELL, h * Icons.CELL), { Color = GREY })
 	Slab.Text("The box is the hold footprint; draw the", { Color = GREY })
-	Slab.Text("real outline inside it. In space it's", { Color = GREY })
-	Slab.Text(("drawn at %g px per unit."):format(Icons.WORLD), { Color = GREY })
+	Slab.Text("outline inside it.", { Color = GREY })
+	-- the item's grid size, which is also its size in space
+	Slab.Text("size (cells)"); Slab.SameLine()
+	local function size(id, key, other)
+		if Slab.InputNumberDrag(id, d[key] or (key == "w" and w or h), 1, 12, 0.1, { W = 50, Precision = 0 }) then
+			E.pushUndoCoalesced(id)
+			d[key] = math.max(1, math.floor(Slab.GetInputNumber() + 0.5))
+			d[other] = d[other] or (other == "w" and w or h)
+		end
+	end
+	size("yard_iw", "w", "h"); Slab.SameLine(); Slab.Text("x"); Slab.SameLine(); size("yard_ih", "h", "w")
+	local cw, ch = d.w or w, d.h or h
+	Slab.Text(("%d x %d px in space (a Wisp is 72 long)"):format(cw * Icons.CELL * Icons.WORLD, ch * Icons.CELL * Icons.WORLD), { Color = GREY })
+	if item and item.volume and item.stack and cw * ch < item.volume * item.stack - 1e-6 then
+		Slab.Text(("Too small: a stack of %d needs %g cells"):format(item.stack, item.volume * item.stack), { Color = { 1, 0.6, 0.4 } })
+	end
+	if d.w and (d.w ~= w or d.h ~= h) then Slab.Text("Saving the icon sets the item to this size.", { Color = GREY }) end
 	Slab.Text("Paint primary = the item's kind colour.", { Color = GREY })
 	-- art that no longer fits the footprint (the item's w/h changed)
-	local bw, bh = Icons.box(d.item)
+	local bw, bh = Icons.box(d.item, d)
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
 	for _, p in ipairs(d.parts) do
 		for k = 1, #p.shape - 1, 2 do
