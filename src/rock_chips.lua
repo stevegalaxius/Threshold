@@ -6,7 +6,8 @@
 	cut, a random depth, so what flies off is anything from a sliver to a
 	chunk. A piece big enough is a rock of its own and chips on in turn; a
 	small one is a chip, the smallest unit, which pops into ore when shot
-	(one, or two if a drill broke it). Whatever's left when the rock's
+	(plain iron or ice only to a drill, two units; rare ore to any
+	weapon, one shot or two drilled). Whatever's left when the rock's
 	health runs out is cut in two a last time.
 
 	Rare ore: now and then a big rock holds a gold core, or big ice a
@@ -314,9 +315,10 @@ end
 -- From Game:breakAsteroid. Returns true when it handled the break.
 function C.breakRock(game, e, x, y, vx, vy)
 	if e.chip then
-		if e.lastWeapon or e.lastCause == nil then
-			local n = (e.drilled or e.drillHit) and T.drillOreMult or 1
-			game:spawnPickup(x, y, e.chip, n)
+		-- only a drill recovers plain iron or ice; guns get just the rare ore
+		local drilled = e.drilled or e.drillHit
+		if (e.lastWeapon or e.lastCause == nil) and (drilled or e.rare) then
+			game:spawnPickup(x, y, e.chip, drilled and T.drillOreMult or 1)
 		end
 		return true
 	end

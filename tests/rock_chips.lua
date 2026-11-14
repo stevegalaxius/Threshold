@@ -35,7 +35,7 @@ return function(game)
  check(#list>0,'everything should end as chips')
  for _,c in ipairs(list) do check(c.chip=='iron_ore','plain rock chips are iron') end
  local before=count('iron_ore');hit(list[1],100,'laser')
- check(count('iron_ore')==before+1,'a shot chip gives one iron ore')
+ check(count('iron_ore')==before,'a shot iron chip gives nothing: only drills recover iron')
  before=count('iron_ore');hit(list[2],100,'drill')
  check(count('iron_ore')==before+2,'a drilled chip gives two')
  -- bumps neither cut a rock nor break a chip
@@ -57,6 +57,10 @@ return function(game)
   for _,c in ipairs(chips()) do if c.chip=='gold_ore' then gold=gold+1 end end
   clear()
  end
+ e=rock('rock',20);e.rare='gold_ore'
+ local g=game:spawnAsteroid(X,Y,5,'rock');g.chip,g.rare,g.hp='gold_ore','gold_ore',1
+ local gb=count('gold_ore');hit(g,10,'laser')
+ check(count('gold_ore')==gb+1,'a shot gold chip gives one gold ore')
  check(gold>=20,'cutting through a core gives gold ('..gold..' chips over 20 rocks)')
  -- mining-site rock keeps the drill rule
  clear()
