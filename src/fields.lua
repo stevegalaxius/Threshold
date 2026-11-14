@@ -39,8 +39,8 @@ local Fields = {}
 
 local cos, sin, pi, floor, random = math.cos, math.sin, math.pi, math.floor, love.math.random
 
-Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "jupiter", "io", "europa", "ganymede", "callisto",
-	"saturn", "enceladus", "titan", "uranus", "titania", "neptune", "triton", "pluto", "milliways", "asteroids", "giant", "station" }
+Fields.list = { "mercury", "venus", "earth", "luna", "mars", "phobos", "deimos", "belt", "ring", "quarry", "ceres_quarry", "shoals", "jupiter", "io", "europa", "ganymede", "callisto",
+	"saturn", "enceladus", "titan", "uranus", "titania", "cordelia", "neptune", "triton", "pluto", "milliways", "asteroids", "giant", "station" }
 Fields.start = "earth"
 
 -- Orbits: distance from the Sun in AU, year length in Earth years, where
@@ -57,9 +57,6 @@ Fields.orbits = {
 	uranus = { au = 19.2, year = 84.0, phase = 2.8, color = { 0.6, 0.9, 0.95 } },
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 	pluto = { au = 39.48, year = 248, phase = 3.8, color = { 0.75, 0.65, 0.6 } },
-	-- dark = true: an unlisted grid (src/dark.lua). It rides with Pluto, a
-	-- little ahead of it, and stays off the driver's list until found.
-	milliways = { au = 39.48, year = 248, phase = 3.8 + 0.012, dark = true, color = { 0.85, 0.35, 0.55 } },
 }
 
 -- Moons: each is its own small map, reached by flying off the edge of
@@ -89,6 +86,14 @@ Fields.moons = {
 	quarry = { parent = "ring", period = 1, phase = 0.9, gap = 16000, color = { 0.7, 0.62, 0.5 } },
 	-- and Ceres's: Ceres itself is drilled for ice, rock comes from here
 	ceres_quarry = { parent = "belt", period = 1, phase = 2.4, gap = 14000, color = { 0.66, 0.6, 0.52 } },
+	-- Dark grids (src/dark.lua): unlisted places reached like a moon. Their
+	-- way out from the parent's map only opens once the player has found
+	-- them (Game:spawnMoonGates); NPCs know the way regardless.
+	milliways = { parent = "pluto", period = 0.2, phase = 1.3, gap = 26000, dark = true, color = { 0.85, 0.35, 0.55 } },
+	-- the Shoals: a pirate industrial zone in the belt, off Ceres
+	shoals = { parent = "belt", period = 1, phase = 5.3, gap = 18000, dark = true, color = { 0.75, 0.45, 0.4 } },
+	-- Cordelia Drift: a pirate freeport in Uranus's inner ring debris
+	cordelia = { parent = "uranus", period = 0.03, phase = 5.0, gap = 20000, dark = true, color = { 0.6, 0.4, 0.75 } },
 }
 
 -- The moons of a planet, in a fixed order.
@@ -382,7 +387,7 @@ Fields.ring = {
 	end,
 }
 
--- Milliways: a dark grid off Pluto, no planet, no beacons. The freeport
+-- Milliways: a dark grid off Pluto (a hidden moon hop), no planet, no beacons. The freeport
 -- sits in a pocket of cleared ice with loose rock out to the edge. It's
 -- off the public charts (src/dark.lua) until the player finds it.
 Fields.milliways = {
@@ -404,11 +409,12 @@ Fields.milliways = {
 -- A quarry: a station's mining field, its own map off the edge of its
 -- parent's (Fields.moons). Thick belt rock, a few huge rocks the drill
 -- crews work, and an ore depot they haul back to.
-local function quarryField(id, name)
+local function quarryField(id, name, dark)
 	local f
 	f = {
 		miningAsteroids = {},
 		name = name,
+		dark = dark or nil,
 		spawn = { 0, 3000 * T.mapScale },
 		radius = 22000 * T.mapScale,
 		mix = MIX.belt,
@@ -431,6 +437,27 @@ local function quarryField(id, name)
 end
 quarryField("quarry", "Ring Quarry")
 quarryField("ceres_quarry", "Ceres Quarry")
+-- The Shoals: a dark quarry in the belt. Pirate-run depots crush the rock
+-- into steel, canisters and ammunition for the shadow economy.
+quarryField("shoals", "The Shoals", true)
+
+-- Cordelia Drift: a dark pocket in Uranus's inner ring debris, one
+-- freeport in cleared ice, rock and ice out to the edge.
+Fields.cordelia = {
+	name = "Cordelia Drift",
+	dark = true,
+	spawn = { 0, 3000 * T.mapScale },
+	radius = 18000 * T.mapScale,
+	mix = { ice = 6, rock = 4 },
+	enemies = { { "sniper", 1 }, { "interceptor", 2 } },
+	build = function(game)
+		for _,id in ipairs(Fields.cordelia.stationIds) do require("src.locations").spawnStation(game,id) end
+		local S = T.mapScale
+		local area = pi * ((18000 * S) ^ 2 - (5500 * S) ^ 2) / 1e6
+		game:spawnAsteroids(floor(area * 0.12 * T.mapDensity), 5500 * S)
+		game:spawnContainers(T.fieldContainers, 5000)
+	end,
+}
 
 -- Authored industrial sites, shared by the catalogue and the simulation.
 function Fields.miningSources(area)

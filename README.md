@@ -200,9 +200,15 @@ local traders and much less rock debris.
 
 ## Dark grids
 
-Some areas are off the public charts (`src/dark.lua`). A dark grid has `dark = true` on its `Fields.orbits` entry and its field; it is simulated like anywhere else (stations trade, NPCs route there, it has a mass driver) but the driver window and lane view hide it until the player discovers it. Discovery is saved in `universe.discovered`; arriving on the grid discovers it, and `Dark.discover(u, area)` is the hook for tip-offs, scans and quests. `Dark.isDarkArea`/`isDarkNode` are there for public systems (freight board, contracts) to keep dark stations off their listings once a dark economy exists.
+Some areas are off the public charts (`src/dark.lua`). A dark grid is a moon-like hop off a planet's map: it has `dark = true` on its `Fields.moons` entry and its field, and is simulated like anywhere else (stations trade, NPCs route there through its corridor). The player's way out to it from the parent's map (`Game:spawnMoonGates`) only opens once it's discovered. Discovery is saved in `universe.discovered`; arriving on the grid discovers it, and `Dark.discover(u, area)` is the hook for tip-offs, scans and quests. `Dark.isDarkArea`/`isDarkNode` are there for public systems (freight board, contracts) to keep dark stations off their listings once a dark economy exists.
 
-Milliways Freeport lives on the first one, `milliways`, riding just ahead of Pluto. While it's being built, `Dark.DEBUG_CHARTED` lists it as already found; take it out of that table to make it start hidden.
+The dark grids are:
+
+- `milliways` off Pluto: Milliways Freeport, the pirates' main base.
+- `shoals` off Ceres: the Shoals, a pirate industrial quarry. Slag Harbor rolls steel and presses canisters from the rock its miners haul in, Cinder Works makes ammunition, and Shoals Freeport is a pirate base with a shipyard.
+- `cordelia` off Uranus: Cordelia Freeport, a pirate base in the ring debris.
+
+While they're being built, `Dark.DEBUG_CHARTED` lists them all as already found; take one out of that table to make it start hidden.
 
 ## Known gaps (on purpose for this milestone)
 

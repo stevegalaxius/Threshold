@@ -83,8 +83,9 @@ local function layout(game)
 	local instances, found = Sites.destinations(game.universe)
 	local ry = L.pane.y + 40
 	-- found dark grids join the discoveries, as fixed places
+	-- (dark moons are reached through their planet's map, not from here)
 	for _, area in ipairs(Dark.areas()) do
-		if area ~= game.fieldId and Dark.charted(game.universe, area) then found[#found + 1] = { area = area } end
+		if area ~= game.fieldId and Fields.orbits[area] and Dark.charted(game.universe, area) then found[#found + 1] = { area = area } end
 	end
 	-- Rows that don't fit are counted on a "+N more" line rather than
 	-- dropped silently (they used to push DISCOVERED off the bottom).
