@@ -270,6 +270,7 @@ function Game:loadField(id, opts)
 		self:restoreArea(self.restoringArea)
 		if Game.staging then Game.staging.noYield = nil end
 		self.restoringArea = nil
+		require("src.satellites").populate(self)
 		self:spawnFieldEnemies()
 		self:spawnOuterBelt()
 	end

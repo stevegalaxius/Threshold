@@ -13,7 +13,7 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {}, satellites = {},
 	-- definition order, so menus list things the way the data files do
 	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {} },
 }
@@ -310,6 +310,14 @@ function api.site(def)
 	def.color = def.color or { 0.6, 0.8, 1 }
 end
 function api.prop(def) def.loot = {}; wreckLike("prop", def) end
+
+-- Satellites in a field's orbit (src/satellites.lua, data/satellites.lua).
+-- One entry per field; a later one (a mod) replaces it.
+function api.satellites(def)
+	if type(def) ~= "table" or type(def.field) ~= "string" then fail("satellites expects { field = id, ... }") end
+	def.source = currentFile
+	data.satellites[def.field] = def
+end
 
 -- A wreck or prop made at runtime (the Shipyard's test spawn).
 function data.defineWreck(def)
