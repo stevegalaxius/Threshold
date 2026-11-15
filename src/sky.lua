@@ -187,31 +187,41 @@ local function drawLook(look, cam, alpha, w, h)
 	end
 end
 
+-- Between planets: plain deep space, none of either planet's colour.
+Sky.looks.void = { space = { 0.012, 0.014, 0.022 }, hazeA = { 0.4, 0.45, 0.6 }, hazeB = { 0.3, 0.3, 0.45 }, haze = 0.12, stars = 1.2, warm = 0, band = 0.7 }
+
+local function mix(a, b, t, cam)
+	local w, h = lg.getDimensions()
+	local o, s = a.space, b.space
+	lg.clear(o[1] + (s[1] - o[1]) * t, o[2] + (s[2] - o[2]) * t, o[3] + (s[3] - o[3]) * t)
+	if t < 1 then drawLook(a, cam, 1 - t, w, h) end
+	if t > 0 then drawLook(b, cam, t, w, h) end
+	lg.setColor(1, 1, 1)
+end
+
 local now, before, changed = nil, nil, 0
-Sky.fade = 2.5   -- seconds from one look to the next
-function Sky.draw(cam, area)
-	local id = lookId(area) or now or "earth"
+Sky.fade = 2.5   -- seconds from one look to the next (debug teleports, loads)
+-- area: the map you're in. toward and arrived (0..1): on a lane, where it
+-- leads and how far you've slowed toward it. The planet you left is gone
+-- the moment the lane takes you; the next one comes up as you slow down,
+-- and it's fully there when you arrive, so arriving changes nothing.
+function Sky.draw(cam, area, toward, arrived)
 	local time = love.timer.getTime()
+	local dest = toward and lookId(toward)
+	if dest then
+		now, before = dest, nil
+		mix(lookOf("void"), lookOf(dest), max(0, min(1, arrived or 0)), cam)
+		return
+	end
+	local id = lookId(area) or now or "earth"
 	if id ~= now then
 		before, changed = now, time
 		now = id
 	end
 	local t = before and min(1, (time - changed) / Sky.fade) or 1
 	if t >= 1 then before = nil end
-	local look = lookOf(now)
-	local w, h = lg.getDimensions()
-	local s = look.space
-	if before then
-		local old = lookOf(before)
-		local o = old.space
-		lg.clear(o[1] + (s[1] - o[1]) * t, o[2] + (s[2] - o[2]) * t, o[3] + (s[3] - o[3]) * t)
-		drawLook(old, cam, 1 - t, w, h)
-		drawLook(look, cam, t, w, h)
-	else
-		lg.clear(s[1], s[2], s[3])
-		drawLook(look, cam, 1, w, h)
-	end
-	lg.setColor(1, 1, 1)
+	if before then mix(lookOf(before), lookOf(now), t, cam)
+	else mix(lookOf(now), lookOf(now), 1, cam) end
 end
 
 return Sky

@@ -82,8 +82,18 @@ end
 Render.PAINTS = require("src.paint").PRESETS
 
 -- The backdrop: each place's own look of space (src/sky.lua).
-function Render.background(cam, area)
-	require("src.sky").draw(cam, area)
+function Render.background(cam, area, game)
+	-- (on a lane: how far you've slowed, from the launch speed down to the
+	-- speed you arrive at, brings up the destination's look)
+	local toward, arrived
+	if game and game.lane and game.trip and game.player and game.player.body and not game.player.body:isDestroyed() then
+		toward = game.trip.to
+		local s = game:toLane(game.player.body:getPosition())
+		local v0, v1 = game:shotLaunch(), T.laneEntrySpeed
+		arrived = v0 > v1 and 1 - (game:shotSpeed(s) - v1) / (v0 - v1) or 0
+		arrived = max(0, min(1, arrived)) ^ 2   -- (faint while you're still fast, most of it in the last stretch)
+	end
+	require("src.sky").draw(cam, area, toward, arrived)
 end
 
 local function drawLocalBoundary(game, labelAngle)
@@ -1554,7 +1564,7 @@ function Render.world(game, overlay, boundaryAngle)
 	local restorePreview = overlay and not game.live and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
-		Render.background(game.camera, game.fieldId)
+		Render.background(game.camera, game.fieldId, game)
 	end
 	-- the maps alive beside this one (src/transit.lua): the one you left
 	-- behind the lane's mouth, the one ahead built for you to fly into, the
