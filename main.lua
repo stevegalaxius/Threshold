@@ -236,6 +236,7 @@ function love.draw()
 	if game.state ~= "docked" then Orrery.draw(game) end
 	Pause.draw(game)
 	Debug.draw()
+	require("src.perfsnap").afterDraw(game)
 end
 
 local function relaunch()
@@ -258,6 +259,7 @@ function love.keypressed(key)
 	if LocalMap.isOpen(game) and LocalMap.keypressed(game, key) then return end
 	if Orrery.keypressed(game, key) then return end
 	if LocalMap.keypressed(game, key) then return end
+	if key == "f8" then require("src.perfsnap").snap(); return end
 	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
