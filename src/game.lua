@@ -2230,7 +2230,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
 	-- a hit on a ship riding a carrier's berth damages that ship instead
-	if e and e.carried and amount > 0 and require('src.berths').hit(self, e, amount, hx, hy) then return end
+	if e and e.carried and amount > 0 and require('src.berths').hit(self, e, amount, hx, hy, source) then return end
 	-- a working satellite takes hits as a whole, like a ship; once it's
 	-- knocked out it's a wreck and breaks apart like one (src/satellites.lua)
 	if e and e.sat and not e.dead and amount>0 then

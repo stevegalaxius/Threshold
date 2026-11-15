@@ -166,8 +166,14 @@ function B.syncFixtures(e)
 	for i, rec in pairs(e.carried or {}) do sig[#sig + 1] = i .. "=" .. tostring(rec) end
 	table.sort(sig)
 	sig = table.concat(sig, ",")
+	if body:getWorld():isLocked() then
+		if sig ~= (e.berthSig or "") or e.berthLost then e.massDirty = true end
+		return
+	end
+	-- ships torn off their berths: each leaves a husk where it rode
+	for _, lost in ipairs(e.berthLost or {}) do B.spawnHusk(lost.game, e, lost.rec, lost.berth, lost) end
+	e.berthLost = nil
 	if sig == (e.berthSig or "") then return end
-	if body:getWorld():isLocked() then e.massDirty = true return end
 	for _, f in ipairs(e.berthFixtures or {}) do if not f:isDestroyed() then f:destroy() end end
 	e.berthFixtures, e.berthSig = {}, sig
 	local T = require("src.tuning")
@@ -196,11 +202,32 @@ function B.syncFixtures(e)
 	end
 end
 
+-- The husk of carried ship rec, torn off berth b of carrier e: a dead
+-- ship of that hull and fit where it rode, drifting with the carrier,
+-- with its hold to loot.
+function B.spawnHusk(game, e, rec, b, lost)
+	if not (game and game.spawnHusk and data.hulls[rec.hull]) then return end
+	local bx, by = pose(b)
+	local x, y = e.body:getWorldPoint(bx, by)
+	local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
+	local a = e.body:getAngle() + math.rad(b.heading or 0)
+	-- a real ship, dead on arrival: it dies the way any ship does (the
+	-- explosion, then a husk with its whole hold and surviving modules)
+	local Ship = require("src.ship")
+	local ship = Ship.new(game, { hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads,
+		cargo = rec.cargo, hold = rec.hold, armor = 0, color = rec.color, fuelCharge = rec.fuelCharge,
+		fuelInitialized = rec.fuelInitialized, power = rec.power, team = 0, x = x, y = y, angle = a })
+	ship.body:setLinearVelocity(vx, vy)
+	ship.body:setAngularVelocity(e.body:getAngularVelocity())
+	ship.armor, ship.dead, ship.lastHitBy = 0, true, lost and lost.source
+	table.insert(game.entities, ship)
+end
+
 -- A hit on carrier e at world point hx, hy: if it lands on a carried
 -- ship, that ship takes it (its own armor) and the carrier doesn't.
 -- A carried ship whose armor runs out is torn off its berth and lost.
 -- Returns true when a carried ship took the hit.
-function B.hit(game, e, amount, hx, hy)
+function B.hit(game, e, amount, hx, hy, source)
 	if not (e.carried and next(e.carried) and hx and e.body) then return false end
 	local lx, ly = e.body:getLocalPoint(hx, hy)
 	for i, rec in pairs(e.carried) do
@@ -219,6 +246,9 @@ function B.hit(game, e, amount, hx, hy)
 				rec.armor = (rec.armor or full) - amount
 				if rec.armor <= 0 then
 					e.carried[i] = nil
+					-- its husk is spawned next step, outside the physics step
+					e.berthLost = e.berthLost or {}
+					table.insert(e.berthLost, { game = game, rec = rec, berth = b, source = source })
 					e.massDirty = true   -- next step drops its mass and fixtures
 					if game.spark then game:spark(hx, hy, 24) end
 					if e.isPlayer and game.toast then game:toast(("%s ON BERTH %d DESTROYED"):format(hull.name:upper(), i), 1.6) end
