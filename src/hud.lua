@@ -229,12 +229,14 @@ local function detour(planets, px, py, wx, wy)
 	return wx, wy, false
 end
 
--- Nav strip: the nearest destinations as evenly spaced chips, ordered left
--- to right by which side of you they're on so they never overlap, each with
--- an arrow turned to where you'd steer (around planets) and its distance.
--- T / Shift+T picks one; only the picked one gets a marker at the screen edge.
+-- Compass strip along the top, moving as one piece with the ship's nose:
+-- 15-degree ticks, N/E/S/W (N is screen-up) and a pip for each destination
+-- at the bearing you'd steer (around a planet if the line goes through it).
+-- Labels sit on up to three rows under the strip so they never overlap;
+-- the nearest win a spot and the rest show just their pip. T / Shift+T
+-- picks a destination: it's always labelled, and keeps the edge marker.
 HUD.navTarget = nil
-local NAV_MAX = 5
+local STRIP_SPAN = math.pi * 2 / 3          -- +-60 degrees either side of the nose
 local navList = {}
 function HUD.cycleNav(dir)
 	if #navList == 0 then return end
@@ -248,8 +250,32 @@ local function drawStrip(game)
 	local p = game.player
 	navList = {}
 	if not p or p.dead or not p.body or p.body:isDestroyed() or game.state == "docked" then return end
+	local w = lg.getWidth()
+	local sw, sh = 440, 26
+	local x0, y0 = max(412, (w - sw) / 2), 12
 	local px, py = p.body:getPosition()
 	local nose = p.body:getAngle()
+	local function rel(a) return (a - nose + math.pi) % (2 * math.pi) - math.pi end
+	local function sx(a) return x0 + sw / 2 + rel(a) / STRIP_SPAN * sw end
+	panel(x0, y0, sw, sh)
+	lg.setScissor(x0 - 60, y0, sw + 120, sh + 60)
+	lg.setFont(font(12))
+	for i = 0, 23 do
+		local a = -math.pi / 2 + i * math.pi / 12
+		if math.abs(rel(a)) <= STRIP_SPAN / 2 then
+			local x = sx(a)
+			local card = ({ [0] = "N", [6] = "E", [12] = "S", [18] = "W" })[i]
+			lg.setColor(DIM)
+			if card then
+				lg.setColor(INK)
+				lg.printf(card, x - 10, y0 + 6, 20, "center")
+			else
+				lg.line(x, y0 + sh - (i % 2 == 0 and 9 or 5), x, y0 + sh - 2)
+			end
+		end
+	end
+	lg.setColor(INK)
+	lg.polygon("fill", x0 + sw / 2, y0 + sh - 6, x0 + sw / 2 - 5, y0 + sh + 1, x0 + sw / 2 + 5, y0 + sh + 1)
 	local planets = planetsOf(game)
 	local all = destinations(game)
 	local picked
@@ -257,55 +283,55 @@ local function drawStrip(game)
 		local dx, dy = d.x - px, d.y - py
 		d.dist = sqrt(dx * dx + dy * dy)
 		local tx, ty, around = detour(planets, px, py, d.x, d.y)
-		d.around = around
-		d.rel = (atan2(ty - py, tx - px) - nose + math.pi) % (2 * math.pi) - math.pi
+		d.around, d.a = around, atan2(ty - py, tx - px)
 		if d.label == HUD.navTarget then picked = d end
 	end
 	if HUD.navTarget and not picked then HUD.navTarget = nil end
-	table.sort(all, function(a, b) return a.dist < b.dist end)
-	local has = false
-	for i = 1, math.min(NAV_MAX, #all) do
-		navList[i] = all[i]
-		if all[i] == picked then has = true end
-	end
-	if picked and not has then navList[#navList] = picked end
-	if #navList == 0 then return end
-	local shown = {}
-	for i, d in ipairs(navList) do shown[i] = d end
-	table.sort(shown, function(a, b) return a.rel < b.rel end)
-	local w = lg.getWidth()
-	local cw, gap = 116, 4
-	local sw = #shown * (cw + gap) - gap
-	local x0, y0 = max(412, (w - sw) / 2), 12
-	for i, d in ipairs(shown) do
-		local x = x0 + (i - 1) * (cw + gap)
+	table.sort(all, function(a, b)
+		if (a == picked) ~= (b == picked) then return a == picked end
+		return a.dist < b.dist
+	end)
+	navList = all
+	local rows = { {}, {}, {} }
+	lg.setFont(font(10))
+	local f = lg.getFont()
+	for k = #all, 1, -1 do             -- far ones first, so near pips draw on top
+		local d = all[k]
+		local r = rel(d.a)
+		local inView = math.abs(r) <= STRIP_SPAN / 2
+		local x = inView and sx(d.a) or (r > 0 and x0 + sw - 6 or x0 + 6)
+		d.px, d.inView = x, inView
 		local sel = d == picked
-		panel(x, y0, cw, 36)
-		if sel then
-			lg.setColor(d.col[1], d.col[2], d.col[3], 0.9)
-			lg.setLineWidth(2)
-			lg.rectangle("line", x, y0, cw, 36, 6)
-			lg.setLineWidth(1)
+		lg.setColor(d.col[1], d.col[2], d.col[3], (sel or inView) and 1 or 0.45)
+		if sel then lg.rectangle("fill", x - 3, y0 + 1, 6, sh - 2)
+		else lg.rectangle("fill", x - 2, y0 + 2, 4, 7) end
+	end
+	for _, d in ipairs(all) do         -- nearest (and the pick) claim label room first
+		if d.inView or d == picked then
+			local text = ("%s %.1fk%s"):format(d.label, d.dist / 1000, d.around and " ~" or "")
+			local tw = f:getWidth(text)
+			local lx = d.px - tw / 2
+			for ri, row in ipairs(rows) do
+				local free = true
+				for _, span in ipairs(row) do
+					if lx < span[2] + 6 and lx + tw > span[1] - 6 then free = false break end
+				end
+				if free then
+					row[#row + 1] = { lx, lx + tw }
+					local ly = y0 + sh + 3 + (ri - 1) * 13
+					lg.setColor(d.col[1], d.col[2], d.col[3], d == picked and 1 or 0.8)
+					if ri > 1 then lg.line(d.px, y0 + sh, d.px, ly + 1) end
+					lg.print(text, lx, ly)
+					break
+				end
+			end
 		end
-		-- arrow: up = dead ahead, turned by how far you'd have to steer
-		local ax, ay, a = x + 14, y0 + 18, d.rel - math.pi / 2
-		lg.setColor(d.col[1], d.col[2], d.col[3], sel and 1 or 0.75)
-		lg.polygon("fill",
-			ax + cos(a) * 8, ay + sin(a) * 8,
-			ax + cos(a + 2.5) * 6, ay + sin(a + 2.5) * 6,
-			ax + cos(a - 2.5) * 6, ay + sin(a - 2.5) * 6)
-		lg.setFont(font(11))
-		local f, name = lg.getFont(), d.label
-		while #name > 3 and f:getWidth(name .. ".") > cw - 30 do name = name:sub(1, -2) end
-		if name ~= d.label then name = name .. "." end
-		lg.setColor(sel and INK or DIM)
-		lg.print(name, x + 26, y0 + 3)
-		lg.print(("%.1fk%s"):format(d.dist / 1000, d.around and "  around" or ""), x + 26, y0 + 18)
 	end
 	if not picked then
-		lg.setFont(font(10)); lg.setColor(DIM)
-		lg.printf("T: pick a destination", x0, y0 + 40, sw, "center")
+		lg.setColor(DIM)
+		lg.printf("T: pick a destination", x0, y0 + sh + 44, sw, "center")
 	end
+	lg.setScissor()
 end
 
 local HELP = {
