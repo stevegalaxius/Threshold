@@ -48,7 +48,10 @@ N.controller={name='npc',
    local budget=searches[u]
    if not budget or budget.tick~=tick then budget={tick=tick,count=0};searches[u]=budget end
    if budget.count>=T.taskChoosePerTick then return {wait=2} end
-   budget.count=budget.count+1
+   -- (and one a step: reading the whole board is the longest thing a
+   -- record does, and two in one step was a step you could see)
+   if budget.clock==u.clock then return {wait=T.alifeLocalTick} end
+   budget.count=budget.count+1;budget.clock=u.clock
   end
   local task=Tasks.choose(u,r,node,clock)
   if not task then return end
