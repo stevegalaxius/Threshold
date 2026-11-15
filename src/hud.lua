@@ -272,23 +272,80 @@ local function drawOffscreen(game)
 	-- where you can go: mass drivers and stations, labelled at the edge
 	-- of the screen when they're off it, or under them when they're on it
 	lg.setFont(font(12))
+	local fnt = lg.getFont()
+	local planets = {}
+	for _, e in ipairs(game.entities) do
+		if e.kind == "planet" and e.body and e.radius then
+			local x, y = e.body:getPosition()
+			planets[#planets + 1] = { x = x, y = y, r = e.radius }
+		end
+	end
+	local px, py = cam.x, cam.y
+	if game.player and game.player.body then px, py = game.player.body:getPosition() end
+	-- a straight line to the target that cuts through a planet points at a
+	-- spot just off the limb instead, on the side the line passes nearest
+	local function detour(wx, wy)
+		for _, P in ipairs(planets) do
+			local dx, dy = wx - px, wy - py
+			local L2 = dx * dx + dy * dy
+			if L2 > 0 then
+				local t = ((P.x - px) * dx + (P.y - py) * dy) / L2
+				if t > 0 and t < 1 then
+					local qx, qy = px + dx * t - P.x, py + dy * t - P.y
+					local d = sqrt(qx * qx + qy * qy)
+					if d < P.r * 1.05 then
+						if d < 1 then qx, qy, d = -dy, dx, sqrt(L2) end
+						local k = P.r * 1.3 / d
+						return P.x + qx * k, P.y + qy * k
+					end
+				end
+			end
+		end
+		return wx, wy
+	end
+	local placed = {}
+	-- nudge a label down/up until it clears the ones already drawn
+	local function place(lx, ly, lw, dir)
+		for _ = 1, 8 do
+			local hit = false
+			for _, r in ipairs(placed) do
+				if lx < r[1] + r[3] and lx + lw > r[1] and ly < r[2] + 14 and ly + 14 > r[2] then hit = true break end
+			end
+			if not hit then break end
+			ly = ly + 14 * dir
+		end
+		placed[#placed + 1] = { lx, ly, lw }
+		return ly
+	end
+	local m = 40
 	local function mark(label, wx, wy, radius, col)
 		local sx, sy = cam:toScreen(wx, wy)
-		if sx < 0 or sx > w or sy < 0 or sy > h then
-			local a = atan2(sy - cy, sx - cx)
-			local m = 40
-			local tx = cos(a) > 0 and (w - m - cx) / cos(a) or (m - cx) / cos(a)
-			local ty = sin(a) > 0 and (h - m - cy) / sin(a) or (m - cy) / sin(a)
-			local t = min(math.abs(tx), math.abs(ty))
+		local r = radius * cam.zoom
+		-- visible if any of it is on screen, not just its centre
+		if sx + r < 0 or sx - r > w or sy + r < 0 or sy - r > h then
+			local tx, ty = cam:toScreen(detour(wx, wy))
+			local a = atan2(ty - cy, tx - cx)
+			local ex = cos(a) ~= 0 and ((cos(a) > 0 and w - m or m) - cx) / cos(a) or math.huge
+			local ey = sin(a) ~= 0 and ((sin(a) > 0 and h - m or m) - cy) / sin(a) or math.huge
+			local t = min(ex, ey)
 			local ax, ay = cx + cos(a) * t, cy + sin(a) * t
-			lg.setColor(col[1], col[2], col[3], 0.8)
-			lg.circle("line", ax, ay, 6)
-			local fw = lg.getFont():getWidth(label)
-			lg.print(label, math.max(4, min(w - fw - 4, ax - fw / 2)), ay + (ay > cy and -24 or 10))
+			lg.setColor(col[1], col[2], col[3], 0.85)
+			lg.setLineWidth(1.5)
+			lg.circle("line", ax, ay, 6, 24)
+			lg.polygon("fill",
+				ax + cos(a) * 13, ay + sin(a) * 13,
+				ax + cos(a + 0.5) * 8, ay + sin(a + 0.5) * 8,
+				ax + cos(a - 0.5) * 8, ay + sin(a - 0.5) * 8)
+			lg.setLineWidth(1)
+			local fw = fnt:getWidth(label)
+			local lx = max(4, min(w - fw - 4, ax - fw / 2))
+			local dir = ay > cy and -1 or 1
+			lg.print(label, lx, place(lx, ay + (dir < 0 and -24 or 10), fw, dir))
 		else
-			local r = radius * cam.zoom
 			lg.setColor(col[1], col[2], col[3], 0.8)
-			lg.printf(label, sx - 150, sy + r + 10, 300, "center")
+			local fw = min(300, fnt:getWidth(label))
+			local lx = sx - fw / 2
+			lg.printf(label, lx, place(lx, sy + r + 10, fw, 1), fw, "center")
 		end
 	end
 	for _, e in ipairs(game.entities) do
