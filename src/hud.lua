@@ -481,7 +481,7 @@ drawScanTip = function(game, mx, my)
 	local px, py = p.body:getPosition()
 	local target
 	for _, e in ipairs(game.entities) do
-		if (e.kind == "husk" or e.kind == "container") and not e.dead and e.hold then
+		if (e.kind == "husk" or e.kind == "container") and not e.dead and e.hold and not e.sat then
 			local ex, ey = e.body:getPosition()
 			if (ex - wx) ^ 2 + (ey - wy) ^ 2 < (e.radius + 20) ^ 2 and (ex - px) ^ 2 + (ey - py) ^ 2 < sc.radarRange ^ 2 then target = e end
 		end

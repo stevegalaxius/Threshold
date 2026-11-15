@@ -214,3 +214,11 @@ market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer 
 market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_pony", "ferrous_mule", "ferrous_bison" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
+
+-- Satellites (src/satellites.lua): small fixed vending lists, no extra
+-- shops (bare). The fuel buoy sells fuel, the vending sat ammo and patches.
+market { id = "sat:fuel", station = "Fuel buoy", bare = true, shops = { { name = "Fuel", description = "", sells = { { "deuterium_canister", 6 } } } } }
+market { id = "sat:vendor", station = "Vending satellite", bare = true, shops = { { name = "Vending", description = "", sells = {
+	{ "rounds_s", 4 }, { "rounds_m", 3 }, { "shell_s", 2 }, { "patch_kit", 3 }, { "deuterium_canister", 3 },
+} } } }
+market { id = "sat:passive", station = "Satellite", bare = true, sells = {} }

@@ -1166,6 +1166,14 @@ local function drawHusk(game, h)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(h.body:getAngle())
+	-- a working satellite (src/satellites.lua) is lit and in full colour
+	if h.sat and not h.part then
+		HullShape.draw(h.hull, h.color, function(c) return c end,
+			function(c) return { min(1, c[1] * 1.25), min(1, c[2] * 1.25), min(1, c[3] * 1.25) } end, outline(1), h.partsLeft)
+		HullShape.drawLights(h.hull, game.time, 1 / game.camera.zoom, h.partsLeft)
+		lg.pop()
+		return
+	end
 	-- a whole wreck, or one part broken off (drawn about its own centre)
 	HullShape.draw(h.hull, h.color, function() return { 0.06, 0.06, 0.07 } end,
 		function(c) return { c[1] * 0.35, c[2] * 0.35, c[3] * 0.35 } end, outline(2),

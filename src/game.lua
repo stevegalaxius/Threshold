@@ -270,6 +270,7 @@ function Game:loadField(id, opts)
 		self:restoreArea(self.restoringArea)
 		if Game.staging then Game.staging.noYield = nil end
 		self.restoringArea = nil
+		require("src.satellites").populate(self)
 		self:spawnFieldEnemies()
 		self:spawnOuterBelt()
 	end
@@ -1404,6 +1405,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ if e.dockState.station.sat then return require('src.satellites').updateDock(self,e,dt) end
  if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
  require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
@@ -1617,6 +1619,12 @@ function Game:undock()
 	if not p or not p.dockState or not p.dockState.done then return end
 	local missing = Ship.launchProblem(p)
 	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
+	if p.dockState.station.sat then
+		require("src.satellites").undock(self, p)
+		self.state = "playing"
+		self:toast("LAUNCHED", 1)
+		return
+	end
 	if self:launchBlocker(p) then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
@@ -2220,6 +2228,13 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
+	-- a working satellite takes hits as a whole, like a ship; once it's
+	-- knocked out it's a wreck and breaks apart like one (src/satellites.lua)
+	if e and e.sat and not e.dead and amount>0 then
+		e.lastHitBy=source
+		require("src.satellites").damage(self,e,amount)
+		return
+	end
 	if e and e.kind=='husk' and not e.dead and amount>0 then
 		e.drilled=cause=='drill';e.lastHitBy=source
 		if e.pieces and self:damagePiece(e,amount,hx,hy) then return end
@@ -2332,7 +2347,7 @@ function Game:updatePickups(dt)
 		if not best then
 			local lootD = math.huge
 			for _, e in ipairs(self.entities) do
-				if (e.kind == "husk" or e.kind == "container") and not e.dead then
+				if (e.kind == "husk" or e.kind == "container") and not e.dead and not e.sat then
 					local ex, ey = e.body:getPosition()
 					local d = sqrt((ex - it.aimX) ^ 2 + (ey - it.aimY) ^ 2)
 					if d < e.radius + grab and d < lootD and Ship.distanceTo(p, ex, ey) - e.radius < range then
@@ -2350,6 +2365,18 @@ function Game:updatePickups(dt)
 		-- Tap to open, hold to tow.
 		local pressed, released = it.tractor and not p.tractorHeld, p.tractorHeld and not it.tractor
 		p.tractorHeld = it.tractor
+		-- a satellite under the cursor: a tap asks it for a berth (src/satellites.lua)
+		if pressed and not best and not self.hoverLoot then
+			for _, o in ipairs(self.entities) do
+				if o.sat and not o.dead and not o.removed then
+					local ox, oy = o.body:getPosition()
+					local d = sqrt((ox - it.aimX) ^ 2 + (oy - it.aimY) ^ 2)
+					if d < o.radius * 0.6 + grab and Ship.distanceTo(p, ox, oy) - o.radius < range then
+						require("src.satellites").request(self, o); break
+					end
+				end
+			end
+		end
 		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil } end
 		local press = p.tractorPress
 		local e = press and press.loot
@@ -2514,6 +2541,7 @@ function Game:reap()
 			e.removed = true
 			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
 		elseif e.dead and (e.kind == "husk" or e.kind == "container") then
+			if e.sat then require("src.satellites").lost(self, e) end
 			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
 			e.body:destroy()
@@ -2694,7 +2722,7 @@ function Game:spawnWreck(id, x, y, a, vx, vy, lootTable)
 	Game.buildYield()
 	local def = data.wrecks[id]
 	if not def then return nil end
-	local cargo = def.kind == "prop" and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
+	local cargo = (def.kind == "prop" or def.kind == "satellite") and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
 	-- a stand-in for the ship a husk normally comes from
 	local noseX, tailX = 0, 0
 	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end
@@ -2729,6 +2757,8 @@ local function partFixtures(body, part, h, ox, oy)
 			f:setRestitution(0.2)
 			f:setFriction(0.5)
 			f:setUserData(h)
+			-- a sensor part is hit by shots but nothing bumps into it
+			if part.sensor then f:setSensor(true) end
 			table.insert(list, f)
 		end
 	end

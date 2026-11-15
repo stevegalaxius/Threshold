@@ -67,6 +67,7 @@ end
 local CATEGORIES = {
 	{ "hull", "Ships", "Hulls you can fly" },
 	{ "wreck", "Containers", "Containers and props placed in the world" },
+	{ "satellite", "Satellites", "Satellites in planet orbits: the panels are sensors, the bus is solid" },
 	{ "station", "Stations", "Station layouts" },
 	{ "weapon", "Weapons", "Guns, launchers and bays: stats and art" },
 	{ "icon", "Icons", "Item art: the icon in the hold and the cargo floating in space" },
@@ -305,7 +306,7 @@ local function placedSections(E, d)
 		Slab.Text(("= %d x %d px"):format((bay.w or T.hangarW) * T.hangarCell, (bay.h or T.hangarH) * T.hangarCell), { Color = { 0.6, 0.6, 0.6 } })
 		return
 	end
-	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then
+	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or d.kind == "satellite" and "Satellite" or "Wreck") .. " stats" }) then
 		for _, st in ipairs(WRECK_STATS) do
 			local key, label, lo, hi, step, prec, help = unpack(st)
 			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
@@ -376,7 +377,7 @@ local function categoryOf(id)
 	local iconItem = id:match("^icon_(.+)$")
 	if iconItem and data.icons[iconItem] and data.icons[iconItem].id == id then return "icon" end
 	if data.stations[id] and not data.hulls[id] then return "station" end
-	if data.wrecks[id] and not data.hulls[id] then return "wreck" end
+	if data.wrecks[id] and not data.hulls[id] then return data.wrecks[id].kind == "satellite" and "satellite" or "wreck" end
 	if data.hulls[id] then return "hull" end
 	if data.modules[id] then return "weapon" end
 end
@@ -396,6 +397,8 @@ function fileBrowser(E, cat, builtIn)
 		if Slab.Button("New container", { Tooltip = "An object that holds loot, filled from a loot table" }) then E.newDesign("container") end
 		Slab.SameLine()
 		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a container, no loot" }) then E.newDesign("prop") end
+	elseif cat == "satellite" then
+		if Slab.Button("New satellite", { Tooltip = "A satellite design: tag panel parts Sensor so ships fly through them" }) then E.newDesign("satellite") end
 	elseif cat == "icon" then
 		if Slab.Button("New icon", { Tooltip = "Art for the first item that has none yet (pick another item below)" }) then E.newDesign("icon") end
 	elseif cat == "weapon" then
@@ -811,10 +814,12 @@ local function designWindow(E, Editor)
 			local w, h = require("src.icons").footprint(id)
 			table.insert(openOpts, { label = ("%s%s  (%s, %dx%d)"):format(data.icons[id] and "* " or "", it.name, it.kind or "?", w, h), value = "item:" .. id })
 		end
-	elseif cat == "wreck" then
+	elseif cat == "wreck" or cat == "satellite" then
 		for _, id in ipairs(data.list.wrecks) do
 			local w = data.wrecks[id]
-			table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+			if (w.kind == "satellite") == (cat == "satellite") then
+				table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+			end
 		end
 	else
 		for _, id in ipairs(data.list.stations) do
@@ -1586,6 +1591,7 @@ local function partWindow(E)
 	Slab.Text("Shape")
 	check(E, p.mirror == true, "Mirrored: drawn again flipped across the centre line (M)", function(on) p.mirror = on or nil end)
 	if E.design.kind ~= "weapon" then check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) if on then p.collide = nil else p.collide = false end end) end
+	if E.design.kind ~= "weapon" and p.collide ~= false then check(E, p.sensor == true, "Sensor (shot, never bumped)", function(on) p.sensor = on or nil end) end
 	if Slab.Button("Flip nose-tail") then E.transformSelected(function(x, y) return -x, y end, true) end
 	Slab.SameLine()
 	if Slab.Button("Flip sides") then E.transformSelected(function(x, y) return x, -y end, true) end

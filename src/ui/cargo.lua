@@ -111,11 +111,12 @@ local function sides(game)
 	if game.state == "docked" and p.dockState then
 		-- station storage, then a parked ship's hold if one is open (Cargo.other)
 		local st = p.dockState.station
-		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
+		-- (a satellite has no storage: src/satellites.lua)
+		if not st.sat then table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st }) end
 		if trading() then
 			-- the market: your hold or storage (one at a time, picked with the
 			-- panel's own tabs), the trade grid, then the station's shelf
-			if Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
+			if st.sat then Cargo.marketLeft = "hold" elseif Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
    list[1].pick = true
 			Cargo.tradeStation = st
 			table.insert(list, { title = "Trade", hold = tradeHold(), trade = true, station = st })
@@ -323,6 +324,7 @@ local function layout(game)
 				{ id = "hold", label = "Ship hold", x = x + PAD, y = y + 48, w = 96, h = 24 },
 				{ id = "storage", label = "Station storage", x = x + PAD + 100, y = y + 48, w = 124, h = 24 },
 			}
+			if side.station and side.station.sat then side.picks[2] = nil end
 		end
 		if side.market then
 			-- filter buttons along the grid's label row
@@ -609,7 +611,7 @@ local TABS={{id='cargo',label='Storage'},{id='contracts',label='Contracts'},{id=
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='contracts' or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
+ for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='contracts' and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -1777,7 +1779,7 @@ end
 function drawTabs(game,mx,my)
  local p=game.player;local st=p.dockState.station;local f=Cargo.workspace(game)
  Station.panel(f.x,12,f.w,88)
- Station.ledgerText(f.x,12,st.name,game:shipParkingLabel(st,p)..'  \194\183  '..require('src.food').label(game.universe,st.key or st.locationId))
+ Station.ledgerText(f.x,12,st.name,st.sat and 'Satellite berth' or game:shipParkingLabel(st,p)..'  \194\183  '..require('src.food').label(game.universe,st.key or st.locationId))
  lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,21,190,'right')
  Station.button({x=f.x+f.w-130,y=24,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))
