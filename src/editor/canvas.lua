@@ -929,13 +929,13 @@ function Canvas.draw(E)
 					local wreck = E.preview == "wreck" or E.preview == "break"
 					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * (q.fill or 0.22), pc[2] * (q.fill or 0.22), pc[3] * (q.fill or 0.22) }
 					if q.layer == "glow" then fillCol = wreck and { 0.05, 0.05, 0.05 } or pc end
-					if q.layer == "detail" then fillCol = wreck and fillCol or (E.design.kind == "icon" and { 0, 0, 0, 0 }) or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
+					if q.layer == "detail" then fillCol = wreck and fillCol or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
 					if E.preview == "collision" and q.collide == false then fillCol = { 0.15, 0.15, 0.15, 0.4 } end
 					lg.setColor(fillCol)
 					if q.layer == "glow" and not wreck then lg.setBlendMode("add") end
 					for _, t in ipairs(tris) do lg.polygon("fill", t) end
 					lg.setBlendMode("alpha")
-					if q.layer == nil or q.layer == "hull" or (q.layer == "detail" and E.design.kind == "icon") then
+					if q.layer == nil or q.layer == "hull" then
 						lg.setColor(wreck and { pc[1] * 0.35, pc[2] * 0.35, pc[3] * 0.35 } or pc)
 						lg.setLineWidth(1.5 / v.zoom)
 						lg.polygon("line", s)
