@@ -9,6 +9,7 @@ local W={profiles={
  local_police={transport=1,salvage=1,mine=1,patrol=9},
  raider={transport=0,salvage=1,mine=1,raid=9}, -- too criminal to haul freight; dark-access haulers smuggle
  generalist={transport=1,salvage=1,mine=1,patrol=1},
+ ship_hauler={ship_delivery=9,transport=1},
 }}
 function W.profile(r)
  r.workProfile=r.workProfile or 'generalist'

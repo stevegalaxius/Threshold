@@ -156,12 +156,23 @@ end
 function D.update(u,key,clock)
  local s,def=D.state(u,key);if not s then return end
  require('src.npc_ship_supply').wholesale(u,key,s,def,clock)
+ local SD=require('src.ship_delivery')
+ -- (the board of ship deliveries, refreshed every ten game minutes)
+ if clock>=(u.shipDeliveryRefresh or 0) then u.shipDeliveryRefresh=clock+600;SD.refresh(u,clock) end
  if D.buildsShips(key) then return end
  local policy=require('data.industry').usedShips
  local step=(def.restock or policy.intervalHours)*HOUR
  s.next=s.next or clock+step
  local elapsed=math.max(0,math.floor((clock-s.next)/step)+1)
  local count=math.min(elapsed,math.max(0,(def.lots or 6)-#s.lots))
+ -- a ship a hauler is bringing (or may yet take) fills its lot instead
+ if not def.usedOnly then
+  local waiting=0
+  for _,o in pairs(require('src.tasks').state(u).offers) do
+   if o.kind=='ship_delivery' and o.target==key and SD.waiting(u,key,o.hull,clock) then waiting=waiting+1 end
+  end
+  count=math.max(0,count-waiting)
+ end
  for _=1,count do park(u,key,s,def.usedOnly and D.rollUsed(def,s) or D.roll(def,s)) end
  s.next=s.next+elapsed*step
 end
