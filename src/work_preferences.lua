@@ -3,12 +3,12 @@
 -- inside it. Offer counts cannot drown out a preference, and idle retries do
 -- not reroll it. Missing preferred work leaves other eligible work available.
 local W={profiles={
- freight_regular={transport=9,salvage=1,mine=1,patrol=1},
- scavenger={transport=1,salvage=9,mine=1,patrol=1},
- industrial={transport=1,salvage=1,mine=9,patrol=1},
+ freight_regular={transport=9,salvage=1,mine=1,patrol=1,satrepair=1,satlaunch=1},
+ scavenger={transport=1,salvage=9,mine=1,patrol=1,satrepair=3,satlaunch=3},
+ industrial={transport=1,salvage=1,mine=9,patrol=1,satrepair=3,satlaunch=3},
  local_police={transport=1,salvage=1,mine=1,patrol=9},
  raider={transport=0,salvage=1,mine=1,raid=9}, -- too criminal to haul freight; dark-access haulers smuggle
- generalist={transport=1,salvage=1,mine=1,patrol=1},
+ generalist={transport=1,salvage=1,mine=1,patrol=1,satrepair=1,satlaunch=1},
  ship_hauler={ship_delivery=9,transport=1},
 }}
 function W.profile(r)

@@ -240,7 +240,7 @@ T.npcCruiseInterval=1
 T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
 T.npcStationClearance=250  -- px beyond a station hull (plus the ship's half length) that traffic routes around
 T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per px out; marker distance beyond the hull
-T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
+T.aiBoostCruise, T.aiBoostStopMargin = 3, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
@@ -291,6 +291,11 @@ T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC wakin
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
 T.npcArrivalWidth = 4000     -- px across (and half that deep) the band driver arrivals spread over, by id
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+-- Cloud-city launches: how long the city's beam carries a departing NPC up
+-- out of the cloud-top pull at most (Game:cloudClimbing), in seconds.
+T.cloudClimbTime = 60
+-- and how near a cloud city its inbound traffic is held up the same way (px)
+T.cloudHoldRange = 4000
 
 -- Berth ship capacity is independent of the authored pad/editor marker size.
 T.berthShipScale = 3
@@ -474,7 +479,7 @@ T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
 T.questTick=60
 T.questKindMax=2         -- open offers of one kind per station
 T.questCooldown={shortage_delivery=300,rescue=120} -- per station, after posting that kind
-T.questWeights={rescue=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questWeights={rescue=2,sat_launch=2,sat_repair=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
 T.questStanding=2        -- giver faction standing for a finished job
 T.questFailStanding=1    -- and lost for a failed or abandoned one
 T.rescueMinAge=60        -- stranded this long before a station posts the rescue

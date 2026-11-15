@@ -20,6 +20,7 @@ local Upkeep=require('src.upkeep')
 local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
 local Salvager=require('src.salvager')
+require('src.sat_jobs') -- satellite repair work on the task board
 require('src.offline_loot') -- register recovery targets/operations before any job requests them
 local Population=require('src.population')
 local Homes=require('src.npc_home')
@@ -1101,7 +1102,7 @@ function A.install(Game)
    -- the economy's minute update, a piece a step (src/economy.lua)
    if not self.sideScene then require('src.economy').pump(self.universe) end
    -- shared background work, a little a step (src/director.lua)
-   if not self.sideScene then require('src.director').update(self.universe) end
+   if not self.sideScene then require('src.director').update(self.universe);require('src.satellites').wear(self.universe,self) end
    -- the rest of this tick's chores, one a step
    if self.alifeStage then self:alifeChore(clock) end
    return

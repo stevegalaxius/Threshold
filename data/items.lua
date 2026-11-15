@@ -99,7 +99,7 @@ salvage { id = "steel_plate",  name = "Steel plates", volume = 0.25, mass = 0.5,
 salvage { id = "patch_kit", name = "Hull patch kit", description = "Quick-setting armor patches. Faster than plates, and good for a full repair.",
 	volume = 0.25, mass = 0.3, price = 420, w = 1, h = 1, stack = 4,
 	use = { label = "Patch hull", cast = 1, group = "repair", cooldown = 20,
-		effects = { { "restore", "armor", 150 } } } }
+		effects = { { "restore", "armor", 150 }, { "quest", item = "patch_kit" } } } }
 salvage { id = "nanite_paste", name = "Nanite paste", description = "Repairs armor slowly over 20 seconds. Keeps working through a fight.",
 	volume = 0.1, mass = 0.05, price = 650, w = 1, h = 1, stack = 4,
 	use = { label = "Apply nanites", group = "repair", cooldown = 30, interruptible = false,
@@ -148,5 +148,10 @@ salvage { id = "empty_canister", name = "Empty canister", volume = 0.25, mass = 
 salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, mass = 0.1, price = 40, w = 1, h = 1, stack = 4 }
 -- Reactor fuel: ice from Ceres, cracked into deuterium and sealed in a
 -- canister there (src/commodities.lua). Every ship's reactor burns it.
+-- A stand-in for a whole satellite: replacement-launch jobs hand you one,
+-- and you use it at the old satellite's spot (src/sat_quests.lua).
+salvage { id = "satellite_package", name = "Satellite package", description = "A folded replacement satellite. Use it at the job site to launch it.",
+	volume = 1, mass = 1, price = 1, w = 2, h = 2, stack = 1,
+	use = { label = "Launch satellite", cast = 3, effects = { { "quest", item = "satellite_package" } } } }
 salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 60, w = 1, h = 1, stack = 4 }
 salvage { id = "martian_ore", name = "Martian ore", volume = 1, mass = 1, price = 30, w = 1, h = 1, stack = 1 }

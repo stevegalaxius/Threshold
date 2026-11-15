@@ -143,6 +143,30 @@ local function brakeAccel(e)
  return Nav.brakeAccel(e)
 end
 
+-- Braking left over for a stop inside a planet's gravity band. Diving at
+-- a cloud city, the cloud-top pull (and the air's sink) works against the
+-- brakes all the way down: planned with the full brake figure a ship
+-- arrived far too fast and rammed the hull or sank past it.
+local function stopBrake(game,e,x,y,sx,sy)
+ local brake=brakeAccel(e)
+ local w=game.well
+ if not w then return brake end
+ local dx,dy,d=sx-x,sy-y,sqrt((sx-x)^2+(sy-y)^2)
+ if d<1 then return brake end
+ dx,dy=dx/d,dy/d
+ local pull=0
+ for _,p in ipairs({{x,y},{sx,sy},{(x+sx)/2,(y+sy)/2}}) do
+  local gx,gy=game:surfacePullAt(p[1],p[2])
+  local r=sqrt((p[1]-w.x)^2+(p[2]-w.y)^2)
+  if w.atmo and r>1 then
+   local depth=max(0,min(1,1-(r-w.radius)/w.atmo))
+   gx,gy=gx-(p[1]-w.x)/r*70*depth,gy-(p[2]-w.y)/r*70*depth
+  end
+  pull=max(pull,gx*dx+gy*dy)
+ end
+ return max(brake*.25,brake-pull/.6)
+end
+
 function AI.navigate(game,e,dx,dy,want,fx,fy,boostDistance)
  if want<1 then
   local a=e.body:getAngle()
@@ -454,7 +478,8 @@ local function trade(game, e, dt)
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
 		local pass = queued and 0 or (stop.dock or stop.inspection or stop.kind=='driver') and 60 or cruise * 0.6
-		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
+		local sb = stopBrake(game, e, x, y, sx, sy)
+		local want = min(cruise, sqrt(pass * pass + 2 * sb * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
 		-- outweigh the route, and slows down while something's in the way.
@@ -482,11 +507,18 @@ local function trade(game, e, dt)
 		end
 		local inGravity=w and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius+min(T.surfacePullRange,w.radius*.5)+500
 		local climbing=w and ux*(x-w.x)+uy*(y-w.y)>sqrt((x-w.x)^2+(y-w.y)^2)*.4
-		local boosting=d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
+		-- Down in a gas giant's clouds any heading upward is a climb out of
+		-- the crush: the afterburner is for that too, however near the stop.
+		-- (A Gila sinking below a cloud city lit it only once the hull was
+		-- buckling.)
+		local deep=w and w.gas and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius and ux*(x-w.x)+uy*(y-w.y)>0
+		local boosting=deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
 		if boosting then
+			-- On a long clear leg, cruise near what the hull can really do
+			-- rather than a little over the base cruise speed.
 			local top=Ship.performance(e).topSpeed
 			cruise=max(cruise,min(cruise*T.aiBoostCruise,top*.85))
-			want=min(cruise,sqrt(pass*pass+2*brakeAccel(e)*.6*max(0,d-150)))
+			want=min(cruise,sqrt(pass*pass+2*sb*.6*max(0,d-150)))
 		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
 		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
@@ -499,7 +531,7 @@ local function trade(game, e, dt)
 			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
 		want=want*scale
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
-		Nav.boost(e,mx,my,want,leg,clear,danger,boosting)
+		Nav.boost(e,mx,my,want,deep and math.huge or leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end

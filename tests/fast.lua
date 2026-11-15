@@ -61,5 +61,32 @@ return function(game)
  end
  assert(stations>0,'no trade stations')
  print('ok  economy: 1h across '..stations..' stations')
+
+ -- 5. Satellites: one fails offline, a hauler's repair job fixes it.
+ local Sat=require('src.satellites')
+ local sid
+ for id,r in pairs(u.satellites or {}) do if not r.lost and r.field~=game.fieldId then sid=id;break end end
+ if not sid then
+  for id,r in pairs(u.satellites or {}) do if not r.lost then sid=id;break end end
+ end
+ assert(sid,'no satellite records')
+ local rec=u.satellites[sid]
+ assert(Sat.knockOut(u,sid,u.clock,'test'),'knock out failed')
+ assert(Sat.levers(rec).dock=='none','broken satellite still docks')
+ local job
+ for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satrepair' and o.sat==sid then job=o end end
+ assert(job,'no repair job posted')
+ assert(Sat.fix(u,sid,'test') and not rec.broken,'repair failed')
+ Sat.markLost(u,rec)
+ -- the same job on the player's station board
+ local Q=require('src.quests');Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.update(u,u.clock,game)
+ local posted
+ for _,q in pairs(Q.state(u).offers) do if q.kind=='sat_launch' and q.subject==sid then posted=q end end
+ assert(posted,'no launch job on the station board')
+ local launch
+ for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
+ assert(launch,'no launch job posted')
+ assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
+ print('ok  satellites: wear, repair and replacement jobs')
  print('ALL TESTS PASSED')
 end
