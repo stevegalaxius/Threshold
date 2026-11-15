@@ -334,6 +334,12 @@ function Game:tradeProblem(st, trade)
 	local buying, selling = split(trade)
 	if #buying + #selling == 0 then return "NOTHING ON THE TABLE" end
 	local get, pay = Game.tradeTotals(trade)
+	-- stolen goods sell only at a fence or on a dark grid
+	local key = Stock.key(st)
+	local Dark = require("src.dark")
+	if not (Dark.isFence(key) or Dark.isDarkNode(key)) then
+		for _, s in ipairs(selling) do if s.stolen then return "STOLEN GOODS: FIND A FENCE" end end
+	end
 	if self.universe.credits + get < pay then return "NOT ENOUGH CREDITS" end
 	local th, ts = Hold.clone(self.player.hold), Hold.clone(self:stationStorage(st))
 	for _, s in ipairs(buying) do
