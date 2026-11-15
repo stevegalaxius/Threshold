@@ -286,9 +286,6 @@ and NPCs**, then open **M**. Blue lines are declared connections. Labels show
 actual trader identity, state, and destination; the debug panel also lists
 travellers in connecting highways. The map shows contacts sharing your highway.
 
-`love . --navtest` runs a real physical departure from a station to a fixed moon
-exit, checks that the ship does not first head to the perimeter, and follows and
-attacks it during powered departure.
 
 Preview poses are render-only; repeated physics transforms on an unstepped world previously caused a native broad-phase crash on return.
 
@@ -446,7 +443,7 @@ offsets; mirrors reflect both heading and entrance position. All settings surviv
 export, reopen and autosave. Automatic geometry remains available for ring
 stations. Data fields: `dockHeading`, `dockX`, `dockY`, `dockWidth`,
 `dockDepth`, `dockRunway`, `dockCapture` (tractor half-width), `dockWall`,
-and `dockBoth`. Run `love . --dockeditortest` for editor/runtime regressions.
+and `dockBoth`.
 
 Circular map edges and transit side boundaries share one response: brake outward
 velocity, then apply the same small inward drift regardless of distance outside.

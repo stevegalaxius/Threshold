@@ -26,4 +26,4 @@ The owner/task lives in `universe.tasks.player`, alongside the normal offers. Ca
 
 This first board exposes real, sourced freight orders. Mining, salvage, patrol and raid entries currently describe ongoing NPC duties without equivalent player contract rewards/completion conditions; those are not advertised as player contracts.
 
-Validation: `love . --test` exercises a partial remote acceptance, NPC competition, reservation cleanup/economy updates, pickup, real save/load, missing cargo, exact and single payment, both cancellation paths, authorization and the rendered station/in-flight UI. `love . --test` checks the existing NPC freight behavior. The contract suite is included in `--smoketest`.
+Run `love . --test` for the fast check suite.

@@ -63,7 +63,7 @@ Facility mixes and margins are saved in `universe.facilities`, keyed by station/
 
 F6 lists each installed facility, capacity, policy, recipe allocation/margin, output stock/prices, and available versus physical inputs.
 
-Validation: `love . --test` exercises a definition-only facility with multiple outputs, independent consumption, processing time, reserved inputs, both output caps and saved progress. Existing food, chemicals, steel, ammunition and freight scenarios cover the migrated chains. Long simulation soaks are not required for this refactor.
+Run `love . --test` for the fast check suite.
 
 ## Typed ship outputs
 
