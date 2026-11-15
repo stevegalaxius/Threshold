@@ -21,12 +21,14 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "tint", "color", "paint", "mirror", "layer", "collide", "cargo", "core", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
+Export.PART_FIELDS = { "name", "shape", "shade", "fill", "tint", "color", "paint", "mirror", "layer", "collide", "sensor", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
 -- Hull fields that come from the shape, not the base hull.
-local SHAPE_KEYS = { parts = true, shape = true, source = true, id = true, name = true }
+local SHAPE_KEYS = { parts = true, shape = true, source = true, id = true, name = true,
+	-- worked out when the hull loads (data.lua, Ship.agility); never copied
+	agility = true, slotRemap = true, spinRadius = true }
 
 local function round(v)
 	if math.abs(v - math.floor(v + 0.5)) < 1e-6 then return tostring(math.floor(v + 0.5)) end
@@ -169,7 +171,7 @@ end
 function Export.stationDef(design)
 	local def = { id = design.id, name = design.name, kind = "station", parts = {},
 		color = design.color and copy(design.color), haze = design.haze, role = design.role, rotors = design.rotors and copy(design.rotors),
-  hangar=design.hangar and copy(design.hangar), services=design.services and copy(design.services), repairRate=design.repairRate }
+  hangar=design.hangar and copy(design.hangar), services=design.services and copy(design.services), repairRate=design.repairRate, storage=design.storage and copy(design.storage) }
 	if design.turrets and #design.turrets > 0 then
 		def.turrets = {}
 		for _, t in ipairs(design.turrets) do
@@ -201,11 +203,42 @@ function Export.weaponDef(design)
 	return def
 end
 
+-- An item icon (the Icons tab): just the art, keyed by its item.
+function Export.iconDef(design)
+	local def = { id = design.id, item = design.item, w = design.w, h = design.h, parts = {},
+		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil,
+		boxView = design.boxes and #design.boxes > 0 and design.boxView and copy(design.boxView) or nil }
+	for _, part in ipairs(design.parts) do
+		if part.fromBox then goto continue end
+		local p = Export.cleanPart(part)
+		-- only what an icon draws with
+		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, fill = p.fill, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer })
+		::continue::
+	end
+	return def
+end
+
+-- A design from a loaded icon.
+function Export.fromIcon(item)
+	local ic = data.icons[item]
+	local def = data.items[item]
+	local design = { id = ic.id, item = item, w = ic.w, h = ic.h, name = (def and def.name or item) .. " icon", kind = "icon",
+		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
+	design.boxes = ic.boxes and copy(ic.boxes) or nil
+	design.boxView = ic.boxView and copy(ic.boxView) or nil
+	for _, part in ipairs(ic.parts) do
+		if not part.fromBox then table.insert(design.parts, Export.cleanPart(part)) end
+	end
+	if design.boxes then require("src.icons").syncBoxes(design) end
+	return design
+end
+
 -- The definition for whatever kind the design is.
 function Export.def(design)
+	if design.kind == "icon" then return Export.iconDef(design) end
 	if design.kind == "weapon" then return Export.weaponDef(design) end
 	if design.kind == "station" then return Export.stationDef(design) end
-	if design.kind == "wreck" or design.kind == "container" or design.kind == "prop" then return Export.wreckDef(design) end
+	if design.kind == "wreck" or design.kind == "container" or design.kind == "prop" or design.kind == "satellite" then return Export.wreckDef(design) end
 	return Export.hullDef(design)
 end
 
@@ -243,11 +276,31 @@ local function weaponSource(design)
 	return table.concat(out, "\n") .. "\n"
 end
 
+local function iconSource(design)
+	local def = Export.iconDef(design)
+	local item = data.items[def.item]
+	local out = { "-- Made in the Shipyard (F2), Icons tab." .. (item and (" Art for " .. item.name .. ".") or ""), "icon {",
+		("\tid = %q, item = %q,"):format(def.id, def.item) }
+	if def.w and def.h then table.insert(out, ("\tw = %d, h = %d,   -- the item's grid size (cells); also its size in space"):format(def.w, def.h)) end
+	if def.boxes then
+		table.insert(out, "\tboxes = {   -- 3/4 view blocks in cells: x across, y depth, z up")
+		for _, b in ipairs(def.boxes) do table.insert(out, "\t\t" .. serialize(b, "\t\t") .. ",") end
+		table.insert(out, "\t},")
+		if def.boxView then table.insert(out, ("\tboxView = { %g, %g, %g },   -- art units per cell, centre x, y (Refit recomputes)"):format(def.boxView[1], def.boxView[2], def.boxView[3])) end
+	end
+	table.insert(out, "\tparts = {")
+	for _, part in ipairs(def.parts) do table.insert(out, (partLine(part, "\t\t"))) end
+	table.insert(out, "\t},")
+	table.insert(out, "}")
+	return table.concat(out, "\n") .. "\n"
+end
+
 function Export.source(design)
 	if design.kind == "weapon" then return weaponSource(design) end
+	if design.kind == "icon" then return iconSource(design) end
 	local def = Export.def(design)
 	local kind = (design.kind == "wreck" or design.kind == "container") and "container"
-		or (design.kind == "prop" or design.kind == "station") and design.kind or "hull"
+		or (design.kind == "prop" or design.kind == "satellite" or design.kind == "station") and design.kind or "hull"
 	local keys = {}
 	for k in pairs(def) do if k ~= "parts" and k ~= "id" and k ~= "name" and k ~= "kind" then table.insert(keys, k) end end
 	table.sort(keys)
@@ -391,7 +444,7 @@ end
 -- there's never two files with the same id.
 function Export.write(design)
 	local old = Export.folderOf(design.id)
-	local folder = Export.cleanFolder(design.folder or old or "")
+	local folder = Export.cleanFolder(design.folder or old or (design.kind == "icon" and "icons" or ""))
 	love.filesystem.createDirectory(full(folder))
 	local path = full(folder) .. "/" .. design.id .. ".lua"
 	local ok, err = love.filesystem.write(path, Export.source(design))
@@ -430,7 +483,7 @@ function Export.fromStation(id)
 	local st = data.stations[id]
 	local design = { id = id, name = st.name, kind = "station", base = data.list.hulls[1], parts = {}, slots = {}, stats = {},
 		color = st.color and copy(st.color), haze = st.haze, role = st.role, rotors = st.rotors and copy(st.rotors), berths = st.berths and copy(st.berths),hangar=st.hangar and copy(st.hangar),
-		services = st.services and copy(st.services), repairRate = st.repairRate,
+		services = st.services and copy(st.services), repairRate = st.repairRate, storage = st.storage and copy(st.storage),
 		turrets = st.turrets and copy(st.turrets) }
 	for _, part in ipairs(st.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
@@ -452,8 +505,8 @@ end
 function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
-		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate,
-		module = design.module, muzzles = design.muzzles }
+		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate, storage = design.storage,
+		module = design.module, muzzles = design.muzzles, item = design.item, w = design.w, h = design.h }
 	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end

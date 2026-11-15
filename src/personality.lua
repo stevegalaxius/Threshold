@@ -24,10 +24,12 @@ end
 -- An aggressive NPC accepts closer odds and breaks later, within safe bounds.
 function P.engageOdds(r)
  local aggression=r and P.ensure(r).aggression or .5
- return math.max(.5,math.min(.9,T.offlineEngageOdds+(.5-aggression)*.2))
+ local nerve=r and require('src.npc_rank').get(r).nerve or 0
+ return math.max(.5,math.min(.9,T.offlineEngageOdds+(.5-aggression)*.2-nerve))
 end
 function P.breakPoint(r,base)
  local aggression=r and P.ensure(r).aggression or .5
- return math.max(.05,math.min(.9,base+(.5-aggression)*.1))
+ local nerve=r and require('src.npc_rank').get(r).nerve or 0
+ return math.max(.05,math.min(.9,base+(.5-aggression)*.1-nerve))
 end
 return P

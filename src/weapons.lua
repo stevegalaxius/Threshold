@@ -318,6 +318,9 @@ local function fire(game, e, slot, dt)
 		p.maxLife = p.life
 		p.damage = ws.damage * mult.primaryDamage
 		p.burst = ws.airburst or nil
+		-- airburst rounds are flak: a proximity fuse sets them off beside
+		-- an enemy, so near misses from a stream of fire still land
+		if ws.airburst then p.fuse = ws.fuse or (ws.splash or 40) * 0.6 end
 	elseif kind == "artillery" then
 		p.life = ws.range / ws.speed
 		p.damage = ws.damage * mult.primaryDamage

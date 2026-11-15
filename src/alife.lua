@@ -260,6 +260,7 @@ function A.seed(game)
   Mining.seed(game)
   Salvager.seed(game)
   for _,r in pairs(u.npcs) do
+   require('src.npc_templates').migrate(r) -- job/network on older saves
    require('src.personality').ensure(r)
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
    -- every NPC flies at the shared cruise speed (older saves kept per-hull speeds)
@@ -281,6 +282,7 @@ function A.advance(r,clock,u,game)
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
  if r.state=='dead' or r.state=='escaped' then return end
+ if r.garrison and require('src.garrison').advance(r,clock,u,game) then return end
  -- Upkeep comes before every job: a due service visit owns the ship.
  if not r.service then Upkeep.plan(r,clock) end
  if r.service then require('src.npc_actions').pause({u=u,game=game,r=r,clock=clock},'service') end
@@ -402,11 +404,12 @@ end
 
 function A.point(r,clock)
  local x,y=A.trackPoint(r,clock)
- if not x or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
+ if not x or r.garrison or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
  local sx,sy=A.spread(r)
  return x+sx,y+sy
 end
 function A.trackPoint(r,clock)
+ if r.garrison then return require('src.garrison').point(r) end
  local ax,ay=require('src.npc_actions').position(r,clock)
  if ax then return ax,ay end
  if r.state=='transit' then return nil end
@@ -428,7 +431,9 @@ function A.trackPoint(r,clock)
  end
  local x,y=journeyPoint(r,p,clock)
  if r.offset then
-  local fade=(1-p)/math.max(.001,1-r.offset.progress)
+  -- clamped: an offset taken at the very end of a leg (progress 1) would
+  -- otherwise multiply up to 1000x before the leg's next sample
+  local fade=math.max(0,math.min(1,(1-p)/math.max(.001,1-r.offset.progress)))
   x,y=x+r.offset.x*fade,y+r.offset.y*fade
   -- an offset blended in a straight line can cut through the planet (an
   -- arrival from the far side, a pose taken low down by the Heaven-Ladder):
@@ -549,6 +554,12 @@ function A.capture(game,e,remote)
  end
  r.ship=shipRecord(e); r.power=e.power;r.fuelClock=clock
  Fuel.observe(game.universe,r,clock,e)
+ if r.garrison then
+  -- it holds the post where it was left
+  local x,y=e.body:getPosition()
+  r.garrison.x,r.garrison.y=x,y;r.pose=nil
+  return
+ end
  if r.waitingForHome then
   r.state='idle';r.node=r.route[r.index]
   local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
@@ -656,6 +667,77 @@ function A.capture(game,e,remote)
  else r.offset,r.docking=nil,nil end
 end
 
+-- Which side of a station a ship passing it by keeps to: the outer side
+-- when it's going round the planet one way, the inner when going the other.
+-- Every pass-through used to aim at the same point beside the station, so
+-- traffic both ways (a driver feeding a logistics hub past the primary
+-- port) met there head on at cruise speed. nil: not passing through, or no
+-- way to tell (the default side).
+local function passLane(game,route,k)
+ local id=route[k];local nextId=route[k+1]
+ if not nextId then return nil end
+ local area=L.get(id).area
+ local function bearing(node)
+  if not node or L.get(node).area~=area then return nil end
+  local x,y=L.position(node,game.universe.clock)
+  local w=game.well
+  return math.atan2(y-(w and w.y or 0),x-(w and w.x or 0))
+ end
+ local to=bearing(nextId);if not to then return nil end
+ local from=bearing(route[k-1]) or bearing(id)
+ local turn=(to-from+math.pi)%(2*math.pi)-math.pi
+ if math.abs(turn)<1e-6 then return nil end
+ return turn>0 and 1 or -1
+end
+A.passLane=passLane
+
+-- Step a spawn point further out along (dx,dy) until no other ship's hull
+-- is within reach of it.
+local function clearSpot(game,e,x,y,dx,dy)
+ local len=math.sqrt(dx*dx+dy*dy);if len<1 then dx,dy,len=1,0,1 end
+ dx,dy=dx/len,dy/len
+ for _=1,20 do
+  local blocked=false
+  for _,o in ipairs(game.entities) do
+   if o~=e and o.kind=='ship' and not o.dead and not o.removed and o.body and not o.dockState then
+    local ox,oy=o.body:getPosition()
+    local reach=(o.halfLength or 100)+(e.halfLength or 100)+100
+    if (ox-x)^2+(oy-y)^2<reach*reach then blocked=true;break end
+   end
+  end
+  if not blocked then break end
+  x,y=x+dx*T.queueGap,y+dy*T.queueGap
+ end
+ return x,y
+end
+
+-- Two stops on the same orbit (a station track) are flown round the
+-- orbit, not straight across: a straight leg is a chord that sags inward,
+-- and round a ringed giant the track sits in a gap (Saturn's Cassini
+-- division), so the chord dives into the dense ring beside it. While the
+-- ship is on the track and the stop is far round it, the stop's point is
+-- a carrot T.alifeArcStep radians ahead of the ship along the orbit.
+local function followOrbit(game,e,stop)
+ -- only our own waypoint tables: a real entity's body is Box2D userdata
+ -- (and the entity itself is what the ship docks with)
+ local w=game.well;if not w or type(stop.body)~='table' or not stop.body.getPosition then return end
+ local get=stop.body.getPosition
+ stop.body.getPosition=function(self,...)
+  local tx,ty=get(self,...)
+  if not tx or not e.body or e.dead or e.removed then return tx,ty end
+  local sx,sy=e.body:getPosition()
+  local ax,ay,bx,by=sx-w.x,sy-w.y,tx-w.x,ty-w.y
+  local rs,rt=math.sqrt(ax*ax+ay*ay),math.sqrt(bx*bx+by*by)
+  if rt<1 or math.abs(rs-rt)>rt*T.alifeArcBand then return tx,ty end
+  local a,b=math.atan2(ay,ax),math.atan2(by,bx)
+  local turn=(b-a+math.pi)%(2*math.pi)-math.pi
+  if math.abs(turn)<=T.alifeArcStep then return tx,ty end
+  local step=turn>0 and T.alifeArcStep or -T.alifeArcStep
+  local r=rs+(rt-rs)*math.abs(step/turn)
+  return w.x+math.cos(a+step)*r,w.y+math.sin(a+step)*r
+ end
+end
+
 local function bindRoute(game,e,r)
  require('src.queue').invalidate(game)
  e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
@@ -663,16 +745,17 @@ local function bindRoute(game,e,r)
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
- for _,id in ipairs(r.route) do
+ for k,id in ipairs(r.route) do
   local place=L.get(id)
   -- a station with several access points: the one nearest the ship now
   local stop=place.area==game.fieldId and game:locationEntity(id,e.body:getPosition())
   if stop and place.kind=='station' and not dockingStop(r,id) then
    local station=stop
+   local lane=passLane(game,r.route,k)
    stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
-    return Security.inspectionPoint(game,station,e)
+    return Security.inspectionPoint(game,station,e,lane)
    end,getLinearVelocityFromWorldPoint=function(_,x,y)
-    local _,_,vx,vy=Security.inspectionPoint(game,station,e);return vx,vy
+    local _,_,vx,vy=Security.inspectionPoint(game,station,e,lane);return vx,vy
    end}}
   end
   if stop and place.kind=='driver' then
@@ -695,6 +778,7 @@ local function bindRoute(game,e,r)
    for i,node in ipairs(r.route) do if node==id and r.route[i+1] then stop.destination=L.get(r.route[i+1]).area;break end end
   end
   if r.waitingForHome then stop.hold=true;stop.inspection=true end
+  followOrbit(game,e,stop)
   e.route[#e.route+1]=stop
  end
 end
@@ -736,6 +820,8 @@ function A.wake(game,r)
    r.laneOffset=lane.n*lane.dir
    r.transit.departure=nil
   end
+ elseif r.garrison then
+  require('src.garrison').woke(game,e,r)
  else
   bindRoute(game,e,r)
   if exact and r.cityExit then
@@ -757,7 +843,16 @@ function A.wake(game,r)
   end
  end
  e.power=r.power or e.power
- e.body:setLinearVelocity(exact and exact.vx or p.vx,exact and exact.vy or p.vy)
+ -- A sampled abstract velocity can be far over cruise: a leftover pose
+ -- offset blends out over the last few percent of a leg, and its fade
+ -- reads as thousands per second. Waking at that speed fired ships into
+ -- whatever was ahead. Wake no faster than the ship flies.
+ local vx,vy=exact and exact.vx or p.vx,exact and exact.vy or p.vy
+ if not exact then
+  local v=math.sqrt(vx*vx+vy*vy);local cap=(r.speed or 600)*T.alifeWakeSpeed
+  if v>cap then vx,vy=vx/v*cap,vy/v*cap end
+ end
+ e.body:setLinearVelocity(vx,vy)
  e.body:setAngularVelocity(exact and exact.w or 0)
  table.insert(game.entities,e)
  if r.state=='docked' then
@@ -830,12 +925,21 @@ function A.wake(game,r)
    local d=nearDriver(destination) and destination or source
    local gx,gy=d.body:getPosition()
    local ox,oy
-   if d==destination then ox,oy=require('src.queue').holdPoint(r,game.universe.clock,r.index,1)
+   -- (its own place in line, not always first: a crowd of ships waking
+   -- at once all came up on the same spot, welded into each other)
+   local Q=require('src.queue')
+   local dx,dy
+   if d==destination then
+    local place=r.queue and Q.place(r,game.universe.clock) or 1
+    ox,oy=Q.holdPoint(r,game.universe.clock,r.index,place)
+    dx,dy=ox-gx,oy-gy
    else
     local tx,ty=L.position(leg.to,game.universe.clock)
-    local dx,dy=tx-gx,ty-gy;local len=math.max(1,math.sqrt(dx*dx+dy*dy))
+    dx,dy=tx-gx,ty-gy
+    local len=math.max(1,math.sqrt(dx*dx+dy*dy))
     ox,oy=gx+dx/len*T.queueStart,gy+dy/len*T.queueStart
    end
+   ox,oy=clearSpot(game,e,ox,oy,dx,dy)
    e.body:setPosition(ox,oy)
    local bx,by=game:driverBreech(d)
    e.body:setAngle(math.atan2(by-oy,bx-ox)+(d==source and math.pi or 0))
@@ -853,8 +957,16 @@ function A.wake(game,r)
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
    local station=close(destination) and destination or source
-   if station.city then e.body:setPosition(L.inspectionPosition(station.locationId,game.universe.clock))
-   else e.body:setPosition(require('src.ai').stopPoint(station,e)) end
+   local x,y
+   if station.city then x,y=L.inspectionPosition(station.locationId,game.universe.clock)
+   else x,y=require('src.ai').stopPoint(station,e) end
+   -- That approach is one point. Ships waking there together (a teleport
+   -- into the area, several just off a cloud city's runway) all came up on
+   -- it, welded into a ball: step each one clear, out along its leg.
+   local other=station==destination and leg.from or leg.to
+   local tx,ty=L.position(other,game.universe.clock)
+   x,y=clearSpot(game,e,x,y,tx-x,ty-y)
+   e.body:setPosition(x,y)
   end
  end
 
@@ -984,19 +1096,45 @@ function A.install(Game)
   local clock=self.universe.clock
   if not force and clock<(self.alifeNext or 0) then
    if self.alifeSweep then self:alifeSweepStep(self.alifeSweep.per) end
+   -- the economy's minute update, a piece a step (src/economy.lua)
+   if not self.sideScene then require('src.economy').pump(self.universe) end
+   -- shared background work, a little a step (src/director.lua)
+   if not self.sideScene then require('src.director').update(self.universe) end
+   -- the rest of this tick's chores, one a step
+   if self.alifeStage then self:alifeChore(clock) end
    return
   end
   self.alifeNext=clock+T.alifeLocalTick
-  Mining.update(self)
-  Population.update(self,clock)
+  -- The tick's chores, in this order: the drills, arrivals, the board and
+  -- the arbiter, the economy and quests, then the ships and records
+  -- themselves. All in the one step they made it a long one twice a second
+  -- (and longer whenever two of them had real work at once), so each takes
+  -- a step of its own, the tick's step first. (force: all now.)
+  self.alifeStage=1
+  if force then while self.alifeStage do self:alifeChore(clock,true) end
+  else self:alifeChore(clock) end
+ end
+ function Game:alifeChore(clock,force)
+  local stage=self.alifeStage
+  self.alifeStage=stage<5 and stage+1 or nil
+  if stage==1 then Mining.update(self) return end
+  if stage==2 then Population.update(self,clock) return end
+  if stage==3 then
+   Tasks.clean(self.universe,clock)
+   require('src.supplies').universe=self.universe
+   require('src.queue').universe=self.universe
+   require('src.arbiter').update(self.universe,clock)
+   return
+  end
+  if stage==4 then
+   -- (spread over the next steps, unless everything is wanted now)
+   if force or self.sideScene then require('src.economy').update(self.universe,clock)
+   else require('src.economy').spread(self.universe,clock) end
+   self.universe.playerDocked=require('src.player_contracts').station(self)
+   require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
+   return
+  end
   local records=self.universe.npcs or {}
-  Tasks.clean(self.universe,clock)
-  require('src.supplies').universe=self.universe
-  require('src.queue').universe=self.universe
-  require('src.arbiter').update(self.universe,clock)
-  require('src.economy').update(self.universe,clock)
-  self.universe.playerDocked=require('src.player_contracts').station(self)
-  require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end

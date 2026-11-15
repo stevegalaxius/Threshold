@@ -198,6 +198,25 @@ Phobos and Deimos retain their irregular rocky moon bodies (radii 1,400 and
 800 pixels). Mars keeps the Heaven-Ladder and its existing stations, with nine
 local traders and much less rock debris.
 
+## Dark grids
+
+Some areas are off the public charts (`src/dark.lua`). A dark grid is either a moon-like hop off a planet's map (`dark = true` on its `Fields.moons` entry and its field) or a place on an orbit with its own mass driver (`dark = true` on its `Fields.orbits` entry), and is simulated like anywhere else (stations trade, NPCs route there through its corridor). The player's way out to a hidden moon (`Game:spawnMoonGates`) only opens once it's discovered, and a dark orbit only appears as a mass driver destination (under DISCOVERED) once found. Discovery is saved in `universe.discovered`; arriving on the grid discovers it, and `Dark.discover(u, area)` is the hook for tip-offs, scans and quests. `Dark.isDarkArea`/`isDarkNode` are there for public systems (freight board, contracts) to keep dark stations off their listings once a dark economy exists.
+
+The dark grids are:
+
+- `milliways` off Pluto: Milliways Freeport, the pirates' main base.
+- `shoals` on the belt's orbit, halfway between Ceres and Ring Station, with its own mass driver (it joins the driver window's DISCOVERED list once found): the Shoals, a pirate industrial quarry. Slag Harbor rolls steel and presses canisters from the rock its miners haul in, Cinder Works makes ammunition, and Shoals Freeport is a pirate base with a shipyard.
+- `cordelia` off Uranus: Cordelia Freeport, a pirate base in the ring debris. It cuts ring ice and cracks it into deuterium: the dark fuel depot.
+- `antichthon` on Earth's orbit, opposite Earth across the Sun, with its own mass driver: Antichthon Gardens, the pirates' hydroponics farm.
+
+The dark chain covers the basics: Slag Harbor rolls steel, presses canisters and melts water; Cinder Works makes nitrates, explosives and fertilizer and turns steel and explosives into ammunition; Cordelia makes deuterium; Antichthon grows food. Electronics, guided munitions, silicon and new hulls are deliberately missing: they come only from raids, fences or smugglers.
+
+Only NPCs with dark access work the dark grids (`Templates.darkAccess`, `Access.darkOffer`): every raider, plus a fixed share of white haulers and miners (`T.darkAccessShare`, picked by id). Those smugglers carry the dark grids' imports and exports; without access an NPC can't take a job that starts or ends at a dark station, mine there, or make its home there. Raiders don't haul freight. The player isn't gated.
+
+The two networks trade with each other but prefer their own: the economy fills every shortage from the buyer's own network first and only then buys across (`T.darkCrossingAU` also makes a crossing run count as a longer haul). On a dark grid every good floats in price with its stock (`Markets.floats`), food and fuel included, so a short dark station bids up what it needs, and that gap in price is what raises the freight pay smugglers chase.
+
+While they're being built, `Dark.DEBUG_CHARTED` lists them all as already found; take one out of that table to make it start hidden.
+
 ## Known gaps (on purpose for this milestone)
 
 - Combat NPCs and background asteroids still regenerate; highway debris is transient. Station traders persist.
@@ -267,9 +286,6 @@ and NPCs**, then open **M**. Blue lines are declared connections. Labels show
 actual trader identity, state, and destination; the debug panel also lists
 travellers in connecting highways. The map shows contacts sharing your highway.
 
-`love . --navtest` runs a real physical departure from a station to a fixed moon
-exit, checks that the ship does not first head to the perimeter, and follows and
-attacks it during powered departure.
 
 Preview poses are render-only; repeated physics transforms on an unstepped world previously caused a native broad-phase crash on return.
 
@@ -427,7 +443,7 @@ offsets; mirrors reflect both heading and entrance position. All settings surviv
 export, reopen and autosave. Automatic geometry remains available for ring
 stations. Data fields: `dockHeading`, `dockX`, `dockY`, `dockWidth`,
 `dockDepth`, `dockRunway`, `dockCapture` (tractor half-width), `dockWall`,
-and `dockBoth`. Run `love . --dockeditortest` for editor/runtime regressions.
+and `dockBoth`.
 
 Circular map edges and transit side boundaries share one response: brake outward
 velocity, then apply the same small inward drift regardless of distance outside.
@@ -985,6 +1001,4 @@ F6 shows the current action, target, phase and pause/failure reason. See
 
 ## Tests
 
-`love . --actiontest` runs a bounded real-engine action smoke pass: action lifecycle, authorization, salvage pickup/sale and a physical mining drill/tractor check.
-
-`love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.
+`love . --test` runs the whole suite (`tests/fast.lua`) in about half a minute: every map loads and runs for a second, ten seconds of play on the starting map, a save/load round trip, and one simulated hour of markets. Keep it that small; don't add long soak tests to it.

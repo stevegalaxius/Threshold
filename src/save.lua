@@ -12,7 +12,7 @@
 	one per slot: save_<slot>.lua.
 ]]
 
-local Save = { VERSION = 3 }
+local Save = { VERSION = 4 }
 
 local function isIdent(k)
 	return type(k) == "string" and k:match("^[%a_][%w_]*$") ~= nil
@@ -87,6 +87,33 @@ function Save.decode(src)
 	return v
 end
 
+-- Walk a save and renumber every ship record ({ hull = id, loadout = ... })
+-- whose hull's slots were reordered: loadout, triggers, loads and the
+-- hold's per-pod grids.
+function Save.remapSlots(state)
+	local data = require("src.data")
+	local seen = {}
+	local function walk(t)
+		if seen[t] then return end
+		seen[t] = true
+		local hull = type(t.hull) == "string" and data.hulls[t.hull]
+		local perm = hull and hull.slotRemap
+		if perm and type(t.loadout) == "table" then
+			t.loadout = data.permuteSlots(t.loadout, perm)
+			t.triggers = data.permuteSlots(t.triggers, perm)
+			t.loads = data.permuteSlots(t.loads, perm)
+			if type(t.hold) == "table" and type(t.hold.grids) == "table" then
+				for _, g in ipairs(t.hold.grids) do
+					local n = type(g.key) == "string" and tonumber(g.key:match("^slot(%d+)$"))
+					if n and perm[n] then g.key = "slot" .. perm[n] end
+				end
+			end
+		end
+		for _, v in pairs(t) do if type(v) == "table" then walk(v) end end
+	end
+	walk(state)
+end
+
 -- Bring an older save up to the current version. Each step upgrades one
 -- version. Version 2 adds world-object snapshots; version 3 adds NPC records.
 function Save.upgrade(state)
@@ -95,6 +122,9 @@ function Save.upgrade(state)
 	state.nextObjectId = state.nextObjectId or 0
 	state.npcs, state.npcAreas = state.npcs or {}, state.npcAreas or {}
 	state.nextNpcId = state.nextNpcId or 0
+	-- Version 4 puts every hull's slots in one order (data.sortSlots): any
+	-- ship record keyed by the old slot numbers follows its hull's remap.
+	if (state.version or 0) < 4 then Save.remapSlots(state) end
 	state.version = Save.VERSION
 	return state
 end

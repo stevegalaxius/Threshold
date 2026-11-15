@@ -37,9 +37,11 @@ function S.wholesale(u,key,state,def,clock)
   end
  end
 end
-local function fitted(hull,policy)
+local function fitted(hull,policy,u,area,stock)
  local D=require('src.dealers');local loadout={}
  for i,id in ipairs(hull.loadout) do loadout[i]=id end
+ -- Fit from what the arrival region actually stocks (src/availability.lua).
+ if u and area then loadout=require('src.availability').regionalFit(u,area,hull,loadout,stock) end
  -- Capability requests select compatible equipment, independent of maker.
  for _,capability in ipairs({'drill','armed'}) do
   if (policy.requires or {})[capability] then
@@ -51,6 +53,7 @@ local function fitted(hull,policy)
     for i,slot in ipairs(hull.slots) do
      local id=(capability=='drill' and 'drill_' or 'gun_')..slot.size:lower()..'_base'
      local module=data.modules[id]
+     if module and u and area then id=require('src.availability').regionalFit(u,area,{slots={slot}},{id},stock)[1];module=data.modules[id] end
      if module and data.fits(slot,module) then loadout[i]=id;installed=true;break end
     end
     if not installed or not has() then return end
@@ -64,18 +67,25 @@ local function fitted(hull,policy)
  for name in pairs(policy.requires or {}) do if not capabilities[name] then return end end
  return loadout,price
 end
-function S.generated(u,policy,roll)
+function S.generated(u,policy,roll,area)
  local choices,total={},0
+ local stock=area and require('src.availability').modules(u,area)
  local ids={}
- for _,lineup in pairs(require('data.industry').lineups) do for _,id in ipairs(lineup) do ids[#ids+1]=id end end
+ if policy.hulls then for _,id in ipairs(policy.hulls) do ids[#ids+1]=id end
+ else for _,lineup in pairs(require('data.industry').lineups) do for _,id in ipairs(lineup) do ids[#ids+1]=id end end end
  table.sort(ids)
  for _,id in ipairs(ids) do
-  local loadout,price=fitted(data.hulls[id],policy)
+  local loadout,price=fitted(data.hulls[id],policy,u,area,stock)
   if loadout then
-   local weight=S.weight(u,id);total=total+weight
-   choices[#choices+1]={hull=id,loadout=loadout,price=price,weight=weight}
+   choices[#choices+1]={hull=id,loadout=loadout,price=price,base=S.weight(u,id)}
   end
  end
+ -- Role fit decides; factory output, regional lots, local stock and recent
+ -- danger shade it (src/ship_fit.lua). Nothing here consumes stock.
+ local danger
+ if policy.role then danger=select(2,require('src.ship_fit').rank(u,area,policy.role,choices,stock,policy.sharpness))
+ else for _,c in ipairs(choices) do c.weight=c.base end end
+ for _,c in ipairs(choices) do total=total+c.weight end
  if total<=0 then return end
  local pick=(roll or random)()*total;local choice=choices[#choices]
  for _,candidate in ipairs(choices) do pick=pick-candidate.weight;if pick<0 then choice=candidate;break end end
@@ -96,17 +106,25 @@ function S.generated(u,policy,roll)
    ship.cargo[ammo]=n;used=used+n*data.items[ammo].volume
   end
  end
- return ship,{source='generated',hull=ship.hull,price=choice.price,weight=choice.weight}
+ return ship,{source='generated',hull=ship.hull,price=choice.price,weight=choice.weight,fit=choice.fit,danger=danger}
 end
 function S.acquire(u,area,policy,roll)
  roll=roll or random
+ -- A faction with its own service fleet issues those hulls directly.
+ local fleet=policy.fleets and policy.fleets[require('src.npc_access').owner(area) or '']
+ if fleet then
+  local p={};for k,v in pairs(policy) do p[k]=v end;p.hulls=fleet
+  local ship,acq=S.generated(u,p,roll,area)
+  if ship then return ship,acq end
+ end
  if roll()<config().usedChance then
   local candidate=require('src.dealers').purchaseCandidate(u,area,policy,true)
   if candidate then return require('src.dealers').ship(candidate.lot),{source='used',candidate=candidate} end
  end
- return S.generated(u,policy,roll)
+ return S.generated(u,policy,roll,area)
 end
 function S.complete(u,r,acquisition,policy)
+ if policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
  if acquisition.source=='used' then
   assert(require('src.dealers').buyForNpc(u,r,acquisition.candidate,policy),'arrival ship sale changed during creation')
   r.shipAcquisition.source='used'
@@ -114,7 +132,7 @@ function S.complete(u,r,acquisition,policy)
   r.shipAcquisition=acquisition
   r.credits=(r.credits or 0)+policy.budget-acquisition.price
   require('src.simulation_history').note(u,'npc_ship_generated',u.clock,r.area,{r.id},
-   {hull=r.ship.hull,price=acquisition.price,weight=acquisition.weight})
+   {hull=r.ship.hull,price=acquisition.price,weight=acquisition.weight,fit=acquisition.fit})
  end
 end
 return S

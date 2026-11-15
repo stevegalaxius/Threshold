@@ -128,6 +128,15 @@ function E.ensureLoadout()
  return E.design.loadout
 end
 
+-- Keep the design's slots in the game's canonical order (data.sortSlots),
+-- carrying the default loadout and the slot selection along.
+function E.sortSlots()
+ local d = E.design
+ if not d.slots then return end
+ local perm = data.sortSlots(d.slots, d.loadout)
+ if perm and E.slotSel then E.slotSel = perm[E.slotSel] end
+end
+
 function E.validateSlotDefault(i)
  local loadout = E.ensureLoadout()
  local module = loadout[i] and data.modules[loadout[i]]
@@ -135,8 +144,57 @@ function E.validateSlotDefault(i)
 end
 
 
+-- Zoom the canvas so the icon's footprint fills it.
+function E.fitIconView()
+	local bw, bh = require("src.icons").box(E.design.item)
+	E.view.x, E.view.y = 0, 0
+	E.view.zoom = math.max(2, math.min(24, (love.graphics.getWidth() - 360) / (bw * 2.6), love.graphics.getHeight() / (bh * 3.2)))
+end
+
+-- A new icon for an item (default: the first item without one).
+function E.newIcon(item)
+	if not item then
+		for _, id in ipairs(data.list.items) do
+			if not require("src.icons").get(id) then item = id break end
+		end
+		item = item or data.list.items[1]
+	end
+	local def = data.items[item]
+	E.design = { id = "icon_" .. item, name = (def and def.name or item) .. " icon", item = item, kind = "icon",
+		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
+	-- a starting block the size of the footprint, to reshape
+	local bw, bh = require("src.icons").box(item)
+	E.design.parts[1] = { name = "body", shape = { -bw + 1, -bh + 1, bw - 1, -bh + 1, bw - 1, bh - 1, -bw + 1, bh - 1 }, paint = "primary" }
+	E.fitIconView()
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
+end
+
+-- Open the icon for an item: its saved one, else a new one.
+function E.openIcon(item)
+	if not data.icons[item] then
+		E.newIcon(item)
+		-- a drone starts from its hull's art (saving it makes it its own)
+		local fromHull = require("src.icons").get(item)
+		if fromHull then
+			E.design.parts = {}
+			for _, p in ipairs(fromHull.parts) do E.design.parts[#E.design.parts + 1] = Export.copy(p) end
+			say("New icon for " .. data.items[item].name .. ", starting from its hull " .. fromHull.hull)
+			return
+		end
+		say("New icon for " .. (data.items[item] and data.items[item].name or item))
+		return
+	end
+	E.design = Export.fromIcon(item)
+	E.design.folder = Export.folderOf(E.design.id)
+	if E.design.folder then E.browseDir = E.design.folder end
+	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
+	E.fitIconView()
+	say("Opened the icon for " .. (data.items[item] and data.items[item].name or item))
+end
+
 function E.newDesign(kind)
 	kind = kind or "hull"
+	if kind == "icon" then return E.newIcon() end
 	E.design = { id = "new_" .. kind, name = "New " .. kind, base = data.list.hulls[1], parts = {}, kind = kind ~= "hull" and kind or nil,
 		loot = (kind == "container" or kind == "wreck") and {} or nil }
 	if kind == "weapon" then
@@ -155,6 +213,8 @@ function E.newDesign(kind)
 end
 
 function E.openHull(id)
+	local iconItem = id:match("^icon_(.+)$")
+	if iconItem and data.icons[iconItem] and not data.hulls[id] then return E.openIcon(iconItem) end
 	if data.modules[id] and data.modules[id].weapon and not data.hulls[id] then
 		E.design = Export.fromModule(id)
 		E.design.folder = Export.folderOf(id)
@@ -191,8 +251,8 @@ function E.openHull(id)
 	say("Opened " .. data.hulls[id].name)
 end
 
-function E.addPart(shape)
-	E.pushUndo()
+function E.addPart(shape, noUndo)
+	if not noUndo then E.pushUndo() end
 	-- a name no other part has
 	local used = {}
 	for _, q in ipairs(E.design.parts) do if q.name then used[q.name] = true end end
@@ -212,6 +272,24 @@ function E.finishDrawing()
 end
 
 function E.deleteSelected()
+	-- a picked box face (Icons tab): hide that face
+	local b = E.design.kind == "icon" and E.boxSel and E.design.boxes and E.design.boxes[E.boxSel]
+	if b and E.faceSel then
+		E.pushUndo()
+		b.hide = b.hide or {}
+		b.hide[E.faceSel] = true
+		E.faceSel = nil
+		return
+	end
+	-- a picked box with no face picked: delete the box
+	if b then
+		E.pushUndo()
+		table.remove(E.design.boxes, E.boxSel)
+		if #E.design.boxes == 0 then E.design.boxes = nil end
+		E.boxSel = nil
+		require("src.icons").syncBoxes(E.design)
+		return
+	end
 	if E.tsel and E.design.turrets and E.design.turrets[E.tsel] then
 		E.pushUndo()
 		table.remove(E.design.turrets, E.tsel)
@@ -297,6 +375,59 @@ function E.movePart(i, delta)
 	if E.sel == i then E.sel = j elseif E.sel == j then E.sel = i end
 end
 
+-- The selected parts (E.sel plus the shift-clicked E.multi), lowest first.
+function E.selectedParts()
+	local out, seen = {}, {}
+	if E.sel and E.design.parts[E.sel] then out[1], seen[E.sel] = E.sel, true end
+	for i in pairs(E.multi or {}) do
+		if not seen[i] and E.design.parts[i] then out[#out + 1], seen[i] = i, true end
+	end
+	table.sort(out)
+	return out
+end
+
+-- Restack the selected parts as one block, keeping their order among
+-- themselves. how: "back" / "front" (to the ends of the list), "backward" /
+-- "forward" (one place past the nearest unselected part), or a number, the
+-- list position the block's first part should land on.
+function E.restack(how)
+	local parts = E.design.parts
+	local sel = E.selectedParts()
+	if #sel == 0 or #sel == #parts then return end
+	local picked, isSel = {}, {}
+	for _, i in ipairs(sel) do picked[#picked + 1] = parts[i]; isSel[i] = true end
+	local rest = {}
+	for i, p in ipairs(parts) do if not isSel[i] then rest[#rest + 1] = p end end
+	-- where the block goes, as "after this many unselected parts"
+	local at
+	if how == "back" then at = 0
+	elseif how == "front" then at = #rest
+	elseif how == "backward" or how == "forward" then
+		local before = 0
+		for i = 1, sel[1] - 1 do if not isSel[i] then before = before + 1 end end
+		at = how == "backward" and before - 1 or before + 1
+	else at = math.floor(tonumber(how) or 1) - 1 end
+	at = math.max(0, math.min(#rest, at))
+	local out = {}
+	for i = 1, at do out[#out + 1] = rest[i] end
+	local first = #out + 1
+	for _, p in ipairs(picked) do out[#out + 1] = p end
+	for i = at + 1, #rest do out[#out + 1] = rest[i] end
+	local changed = false
+	for i = 1, #out do if out[i] ~= parts[i] then changed = true break end end
+	if not changed then return end
+	E.pushUndo()
+	for i = 1, #out do parts[i] = out[i] end
+	-- keep the same parts selected at their new places
+	E.multi = {}
+	for k = 1, #picked do
+		local i = first + k - 1
+		if k == 1 then E.sel = i else E.multi[i] = true end
+	end
+	E.vsel, E.vmulti = nil, {}
+	return true
+end
+
 -- Apply fn(x, y) -> x, y to every point of the selected part.
 function E.transformSelected(fn, reverse)
 	local p = E.sel and E.design.parts[E.sel]
@@ -358,8 +489,10 @@ end
 -- The editor's tabs: each category keeps its own design and undo history.
 local function categoryOf(kind)
 	if kind == "wreck" or kind == "container" or kind == "prop" then return "wreck" end
+	if kind == "satellite" then return "satellite" end
 	if kind == "station" then return "station" end
 	if kind == "weapon" then return "weapon" end
+	if kind == "icon" then return "icon" end
 	return "hull"
 end
 E.byCategory = {}
@@ -379,6 +512,7 @@ function E.switchCategory(cat)
 		E.newDesign(cat)
 		E.view.x, E.view.y = 0, 0
 		E.view.zoom = cat == "station" and 0.25 or (cat == "weapon" and 12 or 3)
+		if cat == "icon" then E.fitIconView() end
 	end
 	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 	if E.tool == "muzzle" and cat ~= "weapon" then E.tool = "select" end
@@ -386,12 +520,13 @@ end
 
 -- Is the design a wreck or prop (placed in the world) rather than a hull?
 function E.isPlaced()
-	return E.design.kind == "wreck" or E.design.kind == "container" or E.design.kind == "prop" or E.design.kind == "station"
+	return E.design.kind == "wreck" or E.design.kind == "container" or E.design.kind == "prop" or E.design.kind == "satellite" or E.design.kind == "station"
 end
 
 -- Register the design with the game now: nil, error if it doesn't load.
 function E.define()
 	local def = Export.def(E.design)
+	if E.design.kind == "icon" then return data.defineIcon(def) end
 	if E.design.kind == "weapon" then return data.defineModule(def) end
 	if E.design.kind == "station" then return data.defineStation(def) end
 	if E.isPlaced() then return data.defineWreck(def) end
@@ -427,7 +562,7 @@ end
 
 function E.copySource()
 	love.system.setClipboardText(Export.source(E.design))
-	say(("Copied the %s { } source to the clipboard"):format(E.design.kind == "weapon" and "module" or E.isPlaced() and E.design.kind or "hull"))
+	say(("Copied the %s { } source to the clipboard"):format(E.design.kind == "weapon" and "module" or E.design.kind == "icon" and "icon" or E.isPlaced() and E.design.kind or "hull"))
 end
 
 -- Register the design right now and try it: fly a hull, or drop a wreck
@@ -438,6 +573,18 @@ function E.testFly()
 	local game = Editor.game
 	if not game then return end
 	if E.design.kind == "weapon" then return E.testWeapon(def) end
+	if E.design.kind == "icon" then
+		-- drop a few of the item ahead of you, to see it floating
+		local p = game.player
+		if not p or p.dead then say("Need a live ship to drop it next to") return end
+		Editor.close()
+		local x, y = p.body:getPosition()
+		local a = p.body:getAngle()
+		local d = (p.halfLength or 40) + 80
+		for k = -1, 1 do game:spawnPickup(x + math.cos(a) * d - math.sin(a) * k * 30, y + math.sin(a) * d + math.cos(a) * k * 30, def.item, 1) end
+		say(("Dropped %s ahead of you (F2 to go back)"):format(data.items[def.item] and data.items[def.item].name or def.item))
+		return
+	end
 	if E.isPlaced() then
 		local p = game.player
 		if not p or p.dead then say("Need a live ship to spawn it next to") return end
@@ -609,6 +756,8 @@ function Editor.keypressed(key)
 	elseif key == "b" then E.tool = "rect"; E.drawing = nil
 	elseif key == "l" then E.tool = "light"; E.drawing = nil
 	elseif key == "g" then E.snap = not E.snap
+	elseif key == "[" or key == "]" then
+		if shift then E.restack(key == "[" and "back" or "front") else E.restack(key == "[" and "backward" or "forward") end
 	elseif key == "m" and E.sel then
 		E.pushUndo()
 		local p = E.design.parts[E.sel]
@@ -624,6 +773,7 @@ end
 -- What the canvas paints the design with: a hull wears its factory preset,
 -- anything else the preview colour picked in the Preview section.
 function E.previewPaint()
+	if E.design.kind == "icon" then return require("src.hud").itemColor(data.items[E.design.item] or {}) end
 	if (E.design.kind or "hull") == "hull" then local Paint = require("src.paint"); return Paint.preset(Paint.pool({ paints = E.stat("paints") })[1]) end
 	return E.paint
 end

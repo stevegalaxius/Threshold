@@ -34,7 +34,10 @@ return function(Game)
 function Game:spawnMoonGates()
 	self.moonGates = {}
 	local id, F = self.fieldId, self.field
+	local Dark = require("src.dark")
 	local function add(to, length)
+		-- an unfound dark grid has no way out to it on the player's map
+		if not Dark.charted(self.universe, to) then return end
 		table.insert(self.moonGates, { to = to, label = Fields[to].name, locationId = id .. "/to_" .. to, length = length })
 	end
 	for _, m in ipairs(Fields.moonsOf(id)) do

@@ -86,7 +86,8 @@ function Sites.spawn(u, templateId, opts)
 end
 
 -- Close a site: its fields and saved pockets go.
-function Sites.close(u, inst)
+function Sites.close(u, inst, game)
+	if game then require("src.garrison").disband(game, inst.id, "site closed") end
 	Sites.unregister(inst)
 	for n = 1, #(Sites.template(inst) or { pockets = {} }).pockets do
 		if u.areas then u.areas[Sites.fieldId(inst.id, n)] = nil end
@@ -204,19 +205,20 @@ function builders.station(game, pc, ctx)
 	if pc.name then st.name = pc.name end
 end
 
+-- Site enemies are real A-Life NPCs (src/garrison.lua): the pocket keeps
+-- whoever survived your last visit and tops each group back up with new
+-- recruits, and they come online through A-Life like any other NPC.
 function builders.enemies(game, pc, ctx)
 	if ctx.state.cleared then return end
-	for _, g in ipairs(pc.groups or {}) do
-		for _ = 1, g[2] or 1 do
-			local x, y
-			for _ = 1, 20 do
-				x, y = around(pc, game)
-				if game:isClear(x, y, 150) then break end
-			end
-			local e = game:spawnEnemy(g[1], x, y, { idle = true })
-			if e then e.siteEnemy, e.siteTag = true, pc.tag end
+	local function place()
+		local x, y
+		for _ = 1, 20 do
+			x, y = around(pc, game)
+			if game:isClear(x, y, 150) then break end
 		end
+		return x, y
 	end
+	require("src.garrison").muster(game, ctx.inst, ctx.n, pc, place)
 end
 
 function builders.containers(game, pc, ctx)
@@ -410,9 +412,10 @@ function Game:updateSites(dt)
 	local state = inst.pockets[n] or {}
 	inst.pockets[n] = state
 	if not state.cleared then
-		local left = false
+		local left = require("src.garrison").held(self.universe, self.fieldId)
 		for _, e in ipairs(self.entities) do
-			if e.kind == "ship" and e.siteEnemy and not e.dead and not e.removed then left = true break end
+			if left then break end
+			if e.kind == "ship" and e.siteEnemy and not e.dead and not e.removed then left = true end
 		end
 		if not left then
 			state.cleared = true

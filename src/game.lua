@@ -29,6 +29,7 @@ local Shapes = require("src.inventory.shapes")
 local Persistence = require("src.persistence")
 local ALife = require("src.alife")
 local Fuel = require("src.reactor_fuel")
+local ItemUse = require("src.item_use")
 local Mining = require("src.mining")
 
 local Game = {}
@@ -212,7 +213,7 @@ function Game:loadField(id, opts)
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
-	self.alifeNext, self.alifeRemoteNext = nil, nil
+	self.alifeNext, self.alifeRemoteNext, self.alifeStage = nil, nil, nil
 	if not opts.skipCapture then self:captureArea() end
 	-- Side scenes the trip kept (the planet behind the lane, the one built
 	-- ahead) go with the lane, unless one is the map being adopted.
@@ -241,6 +242,8 @@ function Game:loadField(id, opts)
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
+	-- arriving on a dark grid puts it on your charts (src/dark.lua)
+	if self.field.dark and self.universe and not self.preview then require("src.dark").discover(self.universe, id) end
 	self.arenaRadius = self.field.radius or 10000
 	self.well, self.lane, self.driverMenu, self.ladder = nil, nil, nil, nil
 	if not self.field.transit then self.trip = nil end
@@ -267,6 +270,7 @@ function Game:loadField(id, opts)
 		self:restoreArea(self.restoringArea)
 		if Game.staging then Game.staging.noYield = nil end
 		self.restoringArea = nil
+		require("src.satellites").populate(self)
 		self:spawnFieldEnemies()
 		self:spawnOuterBelt()
 	end
@@ -497,6 +501,7 @@ local DEBRIS = {
 Game.DEBRIS = DEBRIS
 -- What a drilled piece of each kind of debris drops when it breaks.
 local Ore = require("src.ore")
+local RockChips = require("src.rock_chips")
 
 -- The convex hull of a flat list of points (x1, y1, x2, y2, ...), as the
 -- same kind of list, counter-clockwise (monotone chain).
@@ -615,6 +620,7 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
+	if not savedVerts then RockChips.seed(e) end
 	local angle, spin = random() * pi * 2, (random() - 0.5) * (kind == "sat" and 0.2 or 0.6)
 	if asleep then
 		e.body = setmetatable({ x = x, y = y, a = angle }, Ghost)
@@ -797,8 +803,13 @@ function Game:applyCurrent(dt)
 				local tx, ty = dy / r, -dx / r
 				local f = self:currentSpeed(r)
 				e.flowX, e.flowY = tx * f, ty * f
-				local vt = vx * tx + vy * ty
-				local c = max(0, vt) * max(0, vt) / r
+				-- Hold only the part of the ship's motion that is riding the
+				-- current. Holding all of it (vt^2 / r) pulled a fast ship
+				-- down toward the planet harder the faster it went: at
+				-- 800 px/s, 16000 px out, that was 40 px/s^2 of unasked-for
+				-- pull, more than the surface pull itself.
+				local vt = max(0, min(vx * tx + vy * ty, f))
+				local c = vt * vt / r
 				ax, ay = dx / r * c, dy / r * c
 			else
 				ax, ay = self:currentAt(x, y, vx, vy, true)
@@ -866,6 +877,30 @@ function Game:surfacePullAt(x, y)
 	return -dx / r * pull, -dy / r * pull
 end
 
+-- An NPC just launched from a cloud city is carried by the city's beam
+-- until it is out of the pull and the air (or T.cloudClimbTime runs out):
+-- no cloud-top pull and no sinking, only the air's drag.
+-- Traffic coming in to a cloud city is held the same way once it is
+-- within T.cloudHoldRange of it: a hauler weaker than the pull down there
+-- could not brake its dive, fell past the city and was crushed.
+function Game:cloudClimbing(e)
+	if e.isPlayer or e.kind ~= "ship" then return false end
+	local stop = e.route and e.route[e.routeIndex or 1]
+	if stop and stop.city and stop.body and not stop.removed and e.alifeId then
+		local x, y = e.body:getPosition()
+		local sx, sy = stop.body:getPosition()
+		if (x - sx) ^ 2 + (y - sy) ^ 2 < T.cloudHoldRange ^ 2 then return true end
+	end
+	local until_ = e.cloudClimb
+	if not until_ then return false end
+	local w = self.well
+	if not w or e.dead or e.removed or self.time > until_ then e.cloudClimb = nil; return false end
+	local x, y = e.body:getPosition()
+	local r = sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
+	if r > w.radius + max(w.atmo or 0, min(T.surfacePullRange, w.radius * 0.5)) + 200 then e.cloudClimb = nil; return false end
+	return true
+end
+
 function Game:applySurfacePull()
 	for _, e in ipairs(self.entities) do
 		-- Docked ships ride the station. The tractor approach remains exposed
@@ -874,8 +909,10 @@ function Game:applySurfacePull()
 			and (not e.dockState or e.dockState.phase == "tractor")
 			and not e.launch and not e.runup then
 			local b = e.body
-			local ax, ay = self:surfacePullAt(b:getPosition())
-			b:applyForce(ax * b:getMass(), ay * b:getMass())
+			if not self:cloudClimbing(e) then
+				local ax, ay = self:surfacePullAt(b:getPosition())
+				b:applyForce(ax * b:getMass(), ay * b:getMass())
+			end
 		end
 	end
 end
@@ -892,7 +929,8 @@ function Game:updateAtmosphere(dt)
 	if not w or not w.atmo then return end
 	for _, e in ipairs(self.entities) do
 		local b = e.body
-		e.reentry = nil
+		-- (a surface shuttle's climb sets its own burn: src/shuttles.lua)
+		if not (e.shuttle and e.shuttle.phase) then e.reentry = nil end
 		if not e.removed and not e.dockState and b:getType() == "dynamic" and (e.kind == "ship" or e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") then
 			local x, y = b:getPosition()
 			local dx, dy = w.x - x, w.y - y
@@ -907,7 +945,8 @@ function Game:updateAtmosphere(dt)
 				local rvx, rvy = vx - ny * f, vy + nx * f
 				local m = b:getMass()
 				local k = REENTRY_DRAG * depth
-				b:applyForce((-rvx * k + nx * REENTRY_SINK * depth) * m, (-rvy * k + ny * REENTRY_SINK * depth) * m)
+				local sink = self:cloudClimbing(e) and 0 or REENTRY_SINK * depth
+				b:applyForce((-rvx * k + nx * sink) * m, (-rvy * k + ny * sink) * m)
 				local rs = sqrt(rvx * rvx + rvy * rvy)
 				-- the glow builds as soon as you're in, and with speed
 				local heat = min(1, depth * 1.6) * (0.45 + 0.55 * min(1, rs / 300))
@@ -917,7 +956,7 @@ function Game:updateAtmosphere(dt)
 					local fx, fy = rvx / max(rs, 1), rvy / max(rs, 1)
 					if rs < 60 then fx, fy = nx, ny end
 					e.reentry, e.reentryX, e.reentryY = heat, fx, fy
-					if e.kind == "ship" then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
+					if e.kind == "ship" and sink > 0 then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
 				end
 			end
 		end
@@ -1168,6 +1207,8 @@ function Game:stationHostile(st, o)
 		local Rep = require("src.reputation")
 		return Rep.hostile(Rep.stationAttitude(self.universe, st.key or st.locationId))
 	end
+	-- a station's drones (any station's) are never its targets
+	if o.drone and o.owner and o.owner.kind == "station" then return false end
 	local g = st.grudge and st.grudge[o]
 	if g and self.time - g < GRUDGE_TIME then return true end
 	return o.team == 2 and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
@@ -1313,7 +1354,8 @@ function Game:updateDocking(dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
 			local trader = e.def and e.def.ai.style == "trader" or (e.alifeId and e.route ~= nil)
-			if (e == self.player or trader) and e.dockCooldown == 0 then
+			-- (surface shuttles only look like they dock: src/shuttles.lua)
+			if (e == self.player or trader) and not e.shuttle and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
@@ -1390,6 +1432,7 @@ end
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ if e.dockState.station.sat then return require('src.satellites').updateDock(self,e,dt) end
  if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
  require("src.npc_repair").online(self,e,dt)
 	local ds = e.dockState
@@ -1422,6 +1465,18 @@ function Game:updateDockedShip(e, dt)
 		if st.city then gx, gy = self:surfacePullAt(x, y) end
 		require("src.beam").hold(self, e, { t = ds.t, near = near, fvx = svx, fvy = svy, wx = wx, wy = wy,
 			nose = dockAngle(st, side, d) + pi, spin = sb:getAngularVelocity(), gx = gx, gy = gy, dt = dt })
+		-- An NPC the beam can't bring in (wedged on the hull beside the
+		-- runway) held the dock for ever, and the whole queue behind it
+		-- waited. After a while the beam just sets it at the door.
+		if e ~= self.player and ds.t > 20 then
+			x, y = dockWorld(st, side, doorX, 0, d)
+			b:setPosition(x, y)
+			b:setAngle(dockAngle(st, side, d) + pi)
+			svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
+			b:setLinearVelocity(svx, svy)
+			b:setAngularVelocity(0)
+			lx, ly, vx, vy = doorX, 0, svx, svy
+		end
 		local rvx, rvy = vx - svx, vy - svy
 		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
 			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
@@ -1561,13 +1616,20 @@ local function updateDockExit(self, e, dt)
 	if not assist then return end
 	local st, d, side = assist.station, assist.dock, assist.side
 	assist.t = assist.t + dt
-	if e.dead or st.removed or assist.t > (e.isPlayer and 10 or 22) then e.dockExit = nil; return end
+	-- An NPC let go deep in the clouds is handed on to the climb assist
+	-- (Game:cloudClimbing): a slow hauler can't outpull the cloud tops on
+	-- its own engines, and sank, burning, until it died.
+	local function release()
+		e.dockExit = nil
+		if not e.isPlayer and not e.dead then e.cloudClimb = self.time + T.cloudClimbTime end
+	end
+	if e.dead or st.removed or assist.t > (e.isPlayer and 10 or 22) then release(); return end
 	local b = e.body
 	local x, y = b:getPosition()
 	local lx, ly = dockLocal(st, side, x, y, d)
 	local clearance=e.isPlayer and d.runway or max(d.runway,st.radius)
 	if lx > d.x2 + clearance + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
-		e.dockExit, e.dockCooldown = nil, 2
+		release(); e.dockCooldown = 2
 		return
 	end
 	e.dockCooldown = max(e.dockCooldown or 0, 0.5)
@@ -1591,6 +1653,12 @@ function Game:undock()
 	if not p or not p.dockState or not p.dockState.done then return end
 	local missing = Ship.launchProblem(p)
 	if missing then self:toast(("CAN'T LAUNCH: %s"):format(missing:upper()), 1.6) return end
+	if p.dockState.station.sat then
+		require("src.satellites").undock(self, p)
+		self.state = "playing"
+		self:toast("LAUNCHED", 1)
+		return
+	end
 	if self:launchBlocker(p) then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6) return end
 	self:undockShip(p)
 	self.state = "playing"
@@ -1931,6 +1999,7 @@ function Game:step(dt)
 
 	for _, e in ipairs(self.entities) do
 		if e.kind == "ship" and not e.dead then
+			if e.casting or e.auras then ItemUse.update(self, e, dt) end
 			if e.life then
 				e.life = e.life - dt
 				if e.life <= 0 then e.dead = true end
@@ -1953,6 +2022,9 @@ function Game:step(dt)
 				-- like a station's runway, the player flies on under a driver's
 				-- beam and can pull out of it
 				Ship.fly(e, dt)
+			elseif e.shuttle and e.shuttle.phase then
+				-- a surface shuttle lifting off or landing (src/shuttles.lua)
+				require("src.shuttles").animate(self, e, dt)
 			elseif e.driverTractor or e.launch or (e==self.player and self.driverMenu) then
 				Fuel.step(e,e.stats,dt,false)
 				e.mainBurn=e.launch and e.launch.ghost and 1 or 0
@@ -1973,6 +2045,7 @@ function Game:step(dt)
 	self:updateStationGuns(dt)
 	self:updateSleepers()
 	self:updateALife()
+	require("src.shuttles").update(self, dt)
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	self:applySurfacePull()
@@ -2145,11 +2218,14 @@ end
 
 -- Closest thing hit along a segment, ignoring one team.
 function Game:raycast(x1, y1, x2, y2, ignoreTeam)
-	if x1 == x2 and y1 == y2 then return nil end
+	-- Box2D asserts on a segment its float32 maths sees as zero length (a
+	-- shot that barely moved this step), and on NaN
+	local ls = (x2 - x1) ^ 2 + (y2 - y1) ^ 2
+	if not (ls > 1e-6) or x1 ~= x1 or y1 ~= y1 then return nil end
 	local best
 	self.world:rayCast(x1, y1, x2, y2, function(fixture, x, y, xn, yn, fraction)
 		local e = fixture:getUserData()
-		if not e or e.dead or e.team == ignoreTeam then return -1 end
+		if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
 		best = { entity = e, x = x, y = y, nx = xn, ny = yn, fraction = fraction }
 		return fraction
 	end)
@@ -2164,7 +2240,9 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- a station remembers who shot it (and its turrets answer)
 	-- (not for bumps, and not from traders: their crossfire at pirates and
 	-- their docking scrapes are accidents, not attacks)
+	-- (nor from a station's own drones, whose strays can clip it)
 	if e and e.grudge and source and source.kind == "ship" and amount > 0 and cause ~= "ram"
+		and not (source.drone and source.owner and source.owner.kind == "station")
 		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
 		e.grudge[source] = self.time
 	end
@@ -2173,7 +2251,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and source and source.isPlayer and amount > 0 and cause ~= "ram" and e ~= source then
 		local Rep = require("src.reputation")
 		if e.kind == "station" and e.weapons then Rep.stationHit(self.universe, e.key or e.locationId)
-		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId]) end
+		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId])
+		elseif e.kind == "ship" and e.shuttle then require("src.shuttles").hit(self.universe, e) end
 	end
 	-- remember who starts shooting at other ships (stations answer it)
 	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
@@ -2183,12 +2262,24 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
+	-- a working satellite takes hits as a whole, like a ship; once it's
+	-- knocked out it's a wreck and breaks apart like one (src/satellites.lua)
+	if e and e.sat and not e.dead and amount>0 then
+		e.lastHitBy=source
+		require("src.satellites").damage(self,e,amount)
+		return
+	end
 	if e and e.kind=='husk' and not e.dead and amount>0 then
 		e.drilled=cause=='drill';e.lastHitBy=source
 		if e.pieces and self:damagePiece(e,amount,hx,hy) then return end
 	end
 	if e and (e.kind == "asteroid" or e.kind == "husk" or e.kind == "container") and not e.dead and amount > 0 then
 		if cause=="exhaust" then e.exhaustHit=self.time end
+		if e.kind == "asteroid" then
+			-- a chip only breaks to weapons: bumps would waste the ore in it
+			if e.chip and not RockChips.weapon(cause) and cause ~= nil then return end
+			RockChips.hit(self, e, cause, source, hx, hy)
+		end
 		e.hp = e.hp - amount
 		if e.hp <= 0 then e.dead = true end
 		return
@@ -2228,7 +2319,8 @@ function Game:explode(x, y, radius, damage, knockback, owner, direct, cause)
 			local edge = (e.kind == "ship") and Ship.distanceTo(e, x, y) or (d - e.radius)
 			local fall = 1 - max(0, min(1, edge / radius))
 			if e == direct then fall = 1 end
-			if cause=='airburst' then fall=fall*fall end
+			-- (airburst falls off linearly like any blast; the squared falloff
+			-- made its edges near useless)
 			if fall > 0 then
 				self:damage(e, damage * fall, owner, cause or "splash", x, y)
 				if d > 1 and e.kind == "ship" and not e.driverProtected then
@@ -2289,7 +2381,7 @@ function Game:updatePickups(dt)
 		if not best then
 			local lootD = math.huge
 			for _, e in ipairs(self.entities) do
-				if (e.kind == "husk" or e.kind == "container") and not e.dead then
+				if (e.kind == "husk" or e.kind == "container") and not e.dead and not e.sat then
 					local ex, ey = e.body:getPosition()
 					local d = sqrt((ex - it.aimX) ^ 2 + (ey - it.aimY) ^ 2)
 					if d < e.radius + grab and d < lootD and Ship.distanceTo(p, ex, ey) - e.radius < range then
@@ -2307,6 +2399,18 @@ function Game:updatePickups(dt)
 		-- Tap to open, hold to tow.
 		local pressed, released = it.tractor and not p.tractorHeld, p.tractorHeld and not it.tractor
 		p.tractorHeld = it.tractor
+		-- a satellite under the cursor: a tap asks it for a berth (src/satellites.lua)
+		if pressed and not best and not self.hoverLoot then
+			for _, o in ipairs(self.entities) do
+				if o.sat and not o.dead and not o.removed then
+					local ox, oy = o.body:getPosition()
+					local d = sqrt((ox - it.aimX) ^ 2 + (oy - it.aimY) ^ 2)
+					if d < o.radius * 0.6 + grab and Ship.distanceTo(p, ox, oy) - o.radius < range then
+						require("src.satellites").request(self, o); break
+					end
+				end
+			end
+		end
 		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil } end
 		local press = p.tractorPress
 		local e = press and press.loot
@@ -2400,11 +2504,19 @@ function Game:pickupBody(k)
 	k.syncX, k.syncY = k.x, k.y
 end
 
--- An asteroid that took too much damage splits into two to four smaller
+-- Loose rock and ice chip away under fire instead (src/rock_chips.lua);
+-- what's left here is junk, and mining-site rock. Those, broken, split
+-- into two to four smaller
 -- rocks flying apart; pieces too small to matter just crumble to dust.
 function Game:breakAsteroid(e)
 	local x, y = e.body:getPosition()
 	local vx, vy = e.body:getLinearVelocity()
+	-- loose rock and ice chip away instead of splitting (src/rock_chips.lua)
+	if RockChips.breakRock(self, e, x, y, vx, vy) then
+		self:spark(x, y, 4 + floor(e.radius / 4), e.line or { 0.65, 0.65, 0.7 })
+		self:addEffect({ kind = "explosion", x = x, y = y, r = e.radius * 0.8, life = 0.3, t = 0, dust = true })
+		return
+	end
 	local breaks = (DEBRIS[e.debris or "rock"] or DEBRIS.rock).breaks
 	if e.miningId then breaks=nil end
 	local n = breaks and random(2, 4) or 0
@@ -2431,24 +2543,39 @@ end
 
 -- Remove the dead. Ships explode and (unless they're drones) leave a husk
 -- holding everything they carried; a destroyed husk bursts into pickups.
--- Broken asteroids split apart.
+-- Broken asteroids split apart or crumble into chips.
 function Game:reap()
 	local i = 1
 	while i <= #self.entities do
 		local e = self.entities[i]
-		if e.dead and e.kind == "asteroid" then
+		-- a rock taking fire sheds chips as it goes (src/rock_chips.lua)
+		if e.kind == "asteroid" and not e.dead and e.maxHp then RockChips.update(self, e) end
+		if e.kind == "asteroid" and not e.dead and RockChips.expired(self, e) then
+			table.remove(self.entities, i)
+			e.body:destroy()
+			e.removed = true
+		elseif e.dead and e.kind == "asteroid" then
 			table.remove(self.entities, i)
 			self:breakAsteroid(e)          -- reads the body, so before destroying it
 			e.body:destroy()
 			e.removed = true
 		elseif e.fleeing and not e.dead and e.body:getX() ^ 2 + e.body:getY() ^ 2 > (self.arenaRadius + 600) ^ 2 then
-			-- A fleeing enemy that made it well past the edge is gone for good.
-			ALife.detach(self,e,"escaped")
+			-- A fleeing enemy that made it well past the edge is gone for good;
+			-- a garrison NPC that runs lives on, out in the world.
+			local r = e.alifeId and self.universe.npcs and self.universe.npcs[e.alifeId]
+			if r and r.garrison then
+				ALife.capture(self, e, false)
+				require("src.garrison").release(self, r, "fled")
+				if self.alifeOnline then self.alifeOnline[e.alifeId] = nil end
+			else
+				ALife.detach(self,e,"escaped")
+			end
 			table.remove(self.entities, i)
 			e.body:destroy()
 			e.removed = true
 			self:toast(((e.def.name or "ENEMY") .. " escaped"):upper(), 1.5)
 		elseif e.dead and (e.kind == "husk" or e.kind == "container") then
+			if e.sat then require("src.satellites").lost(self, e) end
 			table.remove(self.entities, i)
 			local x, y = e.body:getPosition()
 			e.body:destroy()
@@ -2494,6 +2621,7 @@ function Game:reap()
 				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
 				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
 			end
+			if e.shuttle and e.lastHitBy and e.lastHitBy.isPlayer then require("src.shuttles").killed(self.universe, e) end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
 			local vx, vy = e.body:getLinearVelocity()
@@ -2628,7 +2756,7 @@ function Game:spawnWreck(id, x, y, a, vx, vy, lootTable)
 	Game.buildYield()
 	local def = data.wrecks[id]
 	if not def then return nil end
-	local cargo = def.kind == "prop" and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
+	local cargo = (def.kind == "prop" or def.kind == "satellite") and {} or require("src.loot_tables").fill(def, { area = self.fieldId }, lootTable)
 	-- a stand-in for the ship a husk normally comes from
 	local noseX, tailX = 0, 0
 	for k = 1, #def.shape, 2 do noseX, tailX = max(noseX, def.shape[k]), min(tailX, def.shape[k]) end
@@ -2663,6 +2791,8 @@ local function partFixtures(body, part, h, ox, oy)
 			f:setRestitution(0.2)
 			f:setFriction(0.5)
 			f:setUserData(h)
+			-- a sensor part is hit by shots but nothing bumps into it
+			if part.sensor then f:setSensor(true) end
 			table.insert(list, f)
 		end
 	end
@@ -2711,12 +2841,15 @@ end
 
 function Game:breakablePieces(h, ship)
 	local hull = ship.hull
-	-- the core: a part tagged core, else the biggest one that collides.
-	-- Loot goes to the parts tagged cargo, or to every part if none is.
+	-- Core parts (HullShape.isCore) never break off. The wreck's body is
+	-- the biggest core part, else the biggest part that collides, which
+	-- then stays on too. Loot goes to the parts tagged cargo, or to every
+	-- part if none is.
+	local isCore = HullShape.isCore
 	local total, core, tagged = 0, nil, nil
 	for _, part in ipairs(hull.parts) do
 		total = total + part.area
-		if part.core then tagged = tagged or part end
+		if isCore(part) and (not tagged or part.area > tagged.area) then tagged = part end
 		if part.collide ~= false and (not core or part.area > core.area) then core = part end
 	end
 	core = tagged or core
@@ -2731,7 +2864,7 @@ function Game:breakablePieces(h, ship)
 	local lootTotal = 0
 	for _, part in ipairs(hull.parts) do
 		-- parts that never break off count as the core
-		local fixed = part == core or part.breakable == false or part.collide == false
+		local fixed = part == core or isCore(part) or part.collide == false
 		local piece = { part = part, core = fixed, frac = part.area / total, share = {} }
 		piece.hp = h.armorBase * piece.frac * (part.armor or 1)
 		piece.fixtures = partFixtures(h.body, part, h, 0, 0)
@@ -2885,6 +3018,7 @@ function Game:clearEnemies()
 		if e.kind == "ship" and e.team == 2 then self:remove(e) end
 	end
 	self.projectiles = {}
+	for _, r in ipairs(require("src.garrison").members(self.universe, self.fieldId)) do r.state = "dead" end
 end
 
 -- Visual effects (don't affect the simulation) -------------------------------

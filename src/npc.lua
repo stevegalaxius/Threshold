@@ -48,7 +48,10 @@ N.controller={name='npc',
    local budget=searches[u]
    if not budget or budget.tick~=tick then budget={tick=tick,count=0};searches[u]=budget end
    if budget.count>=T.taskChoosePerTick then return {wait=2} end
-   budget.count=budget.count+1
+   -- (and one a step: reading the whole board is the longest thing a
+   -- record does, and two in one step was a step you could see)
+   if budget.clock==u.clock then return {wait=T.alifeLocalTick} end
+   budget.count=budget.count+1;budget.clock=u.clock
   end
   local task=Tasks.choose(u,r,node,clock)
   if not task then return end
@@ -95,6 +98,14 @@ function N.runActions(ctx)
   local fromJob=current.fromJob
   local handled=Actions.step(ctx)
   return fromJob or handled and ctx.r.action~=nil
+ end
+ -- a detour for rare ore it passes, whatever the job (src/prospect.lua)
+ if ctx.e and ctx.decide~=false then
+  local spec=require('src.prospect').nextAction(ctx)
+  if spec then
+   local a=Actions.request(ctx,spec);a.fromJob=true;a.prospect=true
+   Actions.step(ctx);return true
+  end
  end
  local work=N.work(ctx.r)
  if work and work.nextAction and ctx.decide~=false then
@@ -156,11 +167,14 @@ local function visitStay(r,node)
  return (work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
 end
 function N.beginDocked(r,node,at,u,minimum)
- r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil
+ r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil;r.dockedAt=at
+ require('src.prospect').sell(u,r,node)
  Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
 end
 function N.arrive(r,node,at,u,game)
  r.offset,r.pose=nil,nil
+ -- offline, a leg through a belt sometimes turns up rare ore
+ if not (game and game.alifeOnline and game.alifeOnline[r.id]) and r.area then require('src.prospect').offlineFind(u,r,r.area) end
  r.node=node;r.area=L.get(node).area;r.transit=nil
  r.route={node,node};r.index=1
  r.nextDecisionAt=nil

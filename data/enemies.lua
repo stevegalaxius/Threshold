@@ -76,12 +76,20 @@ enemy {
 	salvage = { 4, 8 },
 }
 
--- A courier in a Runner: small hold, quick, and it runs rather than fights.
+-- A courier in a Pony: small hold, quick, unarmed. It runs rather than fights.
 enemy {
-	id = "runner_trader", team = 3, name = "Runner", hull = "ferrous_runner",
-	cargo = { rounds_s = 100 },
+	id = "runner_trader", team = 3, name = "Courier", hull = "ferrous_pony",
 	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 900, horizon = 2.5, burstOn = 1.0, burstOff = 1.0 },
 	salvage = { 1, 3 },
+}
+
+-- A surface shuttle (src/shuttles.lua): a little cargo pod lifting a crate
+-- or two of the surface's goods up to its station and dropping back down.
+-- Unarmed; the area's faction guards it with its standing instead.
+enemy {
+	id = "surface_shuttle", team = 3, name = "Surface shuttle", hull = "cargo_pod",
+	ai = { style = "trader", range = 900, accuracy = 0.5, throttle = 1.0, cruise = 450, horizon = 2, burstOn = 1.0, burstOff = 1.0 },
+	salvage = { 0, 1 },
 }
 
 -- The everyday trader in a Packhorse: a fair hold and enough guns to
@@ -124,4 +132,18 @@ enemy {
  id="salvager_packhorse",team=3,name="Independent Salvager",hull="ferrous_mule",
  loadout={"drill_m_base","drill_m_base",false,"mule_engine","kiln_reactor","tug_beam",false,false},
  cargo={},ai={style="trader",cruise=600,range=1200,accuracy=.5,throttle=.9},salvage={1,2},
+}
+
+-- Decommissioned police hulls that turn up, rarely, on used lots.
+enemy {
+ id = "surplus_estates", team = 3, name = "Ex-Estates Whisper", hull = "estates_whisper",
+ livery = { primary = { 0.6, 0.6, 0.65 } },
+ ai = { style = "orbit", range = 900, accuracy = 0.6, throttle = 0.85, cruise = 750 },
+ salvage = { 2, 3 },
+}
+enemy {
+ id = "surplus_diwan", team = 3, name = "Ex-Diwan Cherubim", hull = "diwan_cherubim",
+ livery = { primary = { 0.6, 0.6, 0.65 } },
+ ai = { style = "orbit", range = 900, accuracy = 0.6, throttle = 0.85, cruise = 700 },
+ salvage = { 2, 4 },
 }

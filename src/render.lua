@@ -6,6 +6,7 @@
 ]]
 
 local data = require("src.data")
+local Icons = require("src.icons")
 
 -- A dealer's lot ship moored outside: an amber FOR SALE placard over it,
 -- upright whatever the berth's heading.
@@ -35,7 +36,6 @@ local cos, sin, floor, max, min, pi, sqrt = math.cos, math.sin, math.floor, math
 
 local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
-	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
 	gun = { 1.0, 0.92, 0.55 },
 	artillery = { 1.0, 0.6, 0.25 },
@@ -81,62 +81,19 @@ end
 -- their color from data/enemies.lua.
 Render.PAINTS = require("src.paint").PRESETS
 
--- Starfield: three parallax layers of fixed random stars, tiled. Each layer
--- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers
--- barely react to the wheel while near ones follow the world closely.
-local TILE = 1024
-local layers
-local function buildStars()
-	layers = {}
-	local rng = love.math.newRandomGenerator(7)
-	for li, depth in ipairs({ 0.15, 0.35, 0.6 }) do
-		local stars = {}
-		for _ = 1, 140 do
-			table.insert(stars, { rng:random() * TILE, rng:random() * TILE, 0.25 + rng:random() * 0.5 * li / 3 })
-		end
-		layers[li] = { depth = depth, stars = stars, size = li }
+-- The backdrop: each place's own look of space (src/sky.lua).
+function Render.background(cam, area, game)
+	-- (on a lane: how far you've slowed, from the launch speed down to the
+	-- speed you arrive at, brings up the destination's look)
+	local toward, arrived
+	if game and game.lane and game.trip and game.player and game.player.body and not game.player.body:isDestroyed() then
+		toward = game.trip.to
+		local s = game:toLane(game.player.body:getPosition())
+		local v0, v1 = game:shotLaunch(), T.laneEntrySpeed
+		arrived = v0 > v1 and 1 - (game:shotSpeed(s) - v1) / (v0 - v1) or 0
+		arrived = max(0, min(1, arrived)) ^ 2   -- (faint while you're still fast, most of it in the last stretch)
 	end
-end
-
-function Render.background(cam)
-	if not layers then buildStars() end
-	local w, h = lg.getDimensions()
-	local hw, hh = w / 2, h / 2
-	lg.clear(COLORS.space)
-	for _, layer in ipairs(layers) do
-		local scale = cam.zoom ^ layer.depth
-		local cx, cy = (cam.x + (cam.backgroundX or 0)) * layer.depth, (cam.y + (cam.backgroundY or 0)) * layer.depth
-		local size = max(1, layer.size * scale)
-		-- Range of tiles covering the screen, in this layer's coordinates.
-		local tx1, tx2 = floor((cx - hw / scale) / TILE), floor((cx + hw / scale) / TILE)
-		local ty1, ty2 = floor((cy - hh / scale) / TILE), floor((cy + hh / scale) / TILE)
-		for tx = tx1, tx2 do
-			for ty = ty1, ty2 do
-				for _, s in ipairs(layer.stars) do
-					local x = hw + (s[1] + tx * TILE - cx) * scale
-					local y = hh + (s[2] + ty * TILE - cy) * scale
-					if x >= 0 and x <= w and y >= 0 and y <= h then
-						lg.setColor(0.7, 0.9, 1, s[3])
-						lg.rectangle("fill", floor(x), floor(y), size, size)
-					end
-				end
-			end
-		end
-	end
-end
-
-local function drawGrid(game)
-	local cam = game.camera
-	local w, h = lg.getDimensions()
-	local x1, y1 = cam:toWorld(0, 0)
-	local x2, y2 = cam:toWorld(w, h)
-	local step = 256
-	lg.setColor(COLORS.grid)
-	lg.setLineWidth(1)
-	local bx, by = cam.backgroundX or 0, cam.backgroundY or 0
-	for x = floor((x1 + bx) / step) * step - bx, x2, step do lg.line(x, y1, x, y2) end
-	for y = floor((y1 + by) / step) * step - by, y2, step do lg.line(x1, y, x2, y) end
-
+	require("src.sky").draw(cam, area, toward, arrived)
 end
 
 local function drawLocalBoundary(game, labelAngle)
@@ -224,6 +181,12 @@ local ROCK_FILL, ROCK_LINE = { 0.24, 0.24, 0.27 }, { 0.6, 0.62, 0.68 }
 -- a single draw call however many there are, where outlines (lines) are
 -- built shape by shape on the CPU.
 local polyA, polyB = {}, {}
+-- How rare ore shows in rock and ice (src/rock_chips.lua).
+local RARE_LOOK = {
+	gold_ore = { line = { 0.92, 0.74, 0.32 }, fleck = { 1, 0.92, 0.62 }, chip = { 0.62, 0.48, 0.2 } },
+	cryo_crystal = { fill = { 0.47, 0.27, 0.63 }, line = { 0.78, 0.6, 1 } },
+}
+local RockChips = require("src.rock_chips")
 local function drawAsteroid(e,time)
  if e.exhaustHit and e.verts and time and time-e.exhaustHit<.3 then
   local x,y=e.body:getPosition()
@@ -246,17 +209,88 @@ local function drawAsteroid(e,time)
 			polyA[i], polyA[i + 1] = x + rx * k, y + ry * k
 			polyB[i], polyB[i + 1] = x + rx, y + ry
 		end
-		for i = n + 1, #polyA do polyA[i], polyB[i] = nil, nil end
+		for i = n + 1, max(#polyA, #polyB) do polyA[i], polyB[i] = nil, nil end
+		local R = e.radius
+		-- a point given in units of the radius, turned with the rock
+		local rare = e.rare and RARE_LOOK[e.rare]
+		-- a shape in the rock's own frame, turned and placed
+		local function place(p)
+			for i = 1, #p, 2 do
+				local px, py = p[i], p[i + 1]
+				polyA[i], polyA[i + 1] = x + px * c - py * sn, y + px * sn + py * c
+			end
+			for i = #p + 1, #polyA do polyA[i] = nil end
+			return polyA
+		end
+		if e.debris == "ice" then
+			-- clear ice: the stars show through it, and so does a crystal
+			-- frozen inside (src/rock_chips.lua)
+			if rare and e.chip then
+				lg.setColor(rare.fill)
+				lg.polygon("fill", polyB)
+				lg.setColor(rare.line)
+				lg.setLineWidth(outline(1.5))
+				lg.polygon("line", polyB)
+				return
+			end
+			if rare and e.core then
+				place(e.core)
+				lg.setColor(rare.fill)
+				lg.polygon("fill", polyA)
+				lg.setColor(rare.line)
+				lg.setLineWidth(outline(1.5))
+				lg.polygon("line", polyA)
+			end
+			lg.setColor(f[1] * s, f[2] * s, f[3] * s, 0.55)
+			lg.polygon("fill", polyB)
+			lg.setColor(l[1] * s, l[2] * s, l[3] * s)
+			lg.setLineWidth(outline(2))
+			lg.polygon("line", polyB)
+			-- a frost glint across the face
+			lg.setColor(1, 1, 1, 0.14)
+			local gx, gy = -R * 0.25, -R * 0.25
+			lg.circle("fill", x + gx * c - gy * sn, y + gx * sn + gy * c, R * 0.3, 12)
+			return
+		end
 		lg.setColor(l[1] * s, l[2] * s, l[3] * s)
 		lg.polygon("fill", polyA)
-		lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+		if rare and e.chip then
+			-- a rare chip is the ore itself
+			lg.setColor(rare.chip)
+		else
+			lg.setColor(f[1] * s, f[2] * s, f[3] * s)
+		end
 		lg.polygon("fill", polyB)
-		if e.debris == "ice" then
-			-- a frost glint across the face
-			local ox, oy = -e.radius * 0.25, -e.radius * 0.25
-			local c, sn = cos(a), sin(a)
-			lg.setColor(1, 1, 1, 0.18)
-			lg.circle("fill", x + ox * c - oy * sn, y + ox * sn + oy * c, e.radius * 0.3, 12)
+		if rare and not e.chip and e.core then
+			if e.opened then
+				-- cut open: the core is a gold face in the stone
+				place(e.core)
+				lg.setColor(rare.chip)
+				lg.polygon("fill", polyA)
+				lg.setColor(rare.line)
+				lg.setLineWidth(outline(1.5))
+				lg.polygon("line", polyA)
+			end
+			-- veins running in toward it (where the stone is still there)
+			local v, inside = e.verts, RockChips.inside
+			lg.setColor(rare.line)
+			lg.setLineWidth(max(1, e.radius0 and e.radius0 * 0.04 or R * 0.04))
+			for _, line in ipairs(e.veins or {}) do
+				for i = 1, #line - 2, 2 do
+					local ax, ay, bx, by = line[i], line[i + 1], line[i + 2], line[i + 3]
+					if inside(v, ax, ay) and inside(v, bx, by) then
+						lg.line(x + ax * c - ay * sn, y + ax * sn + ay * c, x + bx * c - by * sn, y + bx * sn + by * c)
+					end
+				end
+			end
+			if not e.opened then
+				-- a glint where each vein meets the core
+				lg.setColor(rare.fleck)
+				for _, line in ipairs(e.veins or {}) do
+					local ax, ay = line[3], line[4]
+					if inside(v, ax, ay) then lg.circle("fill", x + ax * c - ay * sn, y + ax * sn + ay * c, max(1.5, R * 0.04), 6) end
+				end
+			end
 		end
 		return
 	end
@@ -828,13 +862,99 @@ local function disc(r)
 	return m
 end
 
+-- A gas giant's body: twelve see-through discs, each smaller than the last,
+-- as one mesh of rings whose opacity is what that many discs add up to.
+-- (Twelve discs drawn over each other blended most of the screen twelve
+-- times whenever the planet was in view.)
+local gasBodies = {}
+local function gasBody(R)
+	local m = gasBodies[R]
+	if m then return m end
+	local v, map = {}, {}
+	for k = 1, 12 do
+		local outer = floor(R * (1 - (k - 1) / 13))
+		local inner = k < 12 and floor(R * (1 - k / 13)) or 0
+		local alpha = 1 - (1 - 0.045) ^ k
+		local base = #v
+		for i = 0, PLANET_SEGMENTS do
+			local a = i / PLANET_SEGMENTS * pi * 2
+			v[#v + 1] = { cos(a) * outer, sin(a) * outer, 0, 0, 1, 1, 1, alpha }
+			v[#v + 1] = { cos(a) * inner, sin(a) * inner, 0, 0, 1, 1, 1, alpha }
+		end
+		for i = 0, PLANET_SEGMENTS - 1 do
+			local n = base + i * 2
+			map[#map + 1] = n + 1; map[#map + 1] = n + 2; map[#map + 1] = n + 3
+			map[#map + 1] = n + 2; map[#map + 1] = n + 4; map[#map + 1] = n + 3
+		end
+	end
+	m = lg.newMesh(v, "triangles", "static")
+	m:setVertexMap(map)
+	gasBodies[R] = m
+	return m
+end
+
+-- A big circle's outline, only the part of it on screen. (All 2048 sides
+-- were worked into a line every frame, though up close a few dozen show.)
+local unit
+local function circleOutline(game, x, y, R)
+	if not unit then
+		unit = {}
+		for i = 0, PLANET_SEGMENTS do
+			local a = i / PLANET_SEGMENTS * pi * 2
+			unit[i * 2 + 1], unit[i * 2 + 2] = cos(a), sin(a)
+		end
+	end
+	local cam = game.camera
+	local sw, sh = lg.getDimensions()
+	local side = 2 * pi * R / PLANET_SEGMENTS
+	local hw, hh = sw / 2 / cam.zoom + side + 8 * screenPx, sh / 2 / cam.zoom + side + 8 * screenPx
+	local cx, cy = cam.x, cam.y
+	local run, was, px, py = nil, false, nil, nil
+	local whole = true
+	for i = 0, PLANET_SEGMENTS do
+		local qx, qy = x + unit[i * 2 + 1] * R, y + unit[i * 2 + 2] * R
+		local on = math.abs(qx - cx) < hw and math.abs(qy - cy) < hh
+		if on then
+			if not run then
+				run = {}
+				if px then run[1], run[2] = px, py end   -- (the side coming in from off screen)
+			end
+			run[#run + 1] = qx; run[#run + 1] = qy
+		else
+			whole = false
+			if run then
+				run[#run + 1] = qx; run[#run + 1] = qy   -- (and the side going out)
+				if #run >= 4 then lg.line(run) end
+				run = nil
+			end
+		end
+		px, py = qx, qy
+	end
+	if run then
+		if whole then lg.circle("line", x, y, R, PLANET_SEGMENTS)
+		elseif #run >= 4 then lg.line(run) end
+	end
+end
+
 -- The planet, with a hazy atmosphere and dashed rings that turn with the
 -- planet's field so you can see which way it drags you.
 
 local cloudBands = {}
+local viewX, viewY, viewW, viewH
 local function drawPlanet(game, e)
 	local x, y = e.body:getPosition()
 	local R, c = e.radius, e.hue
+	-- nothing of it on screen (its drift rings reach R + 6000, a gas giant's
+	-- own rings further): most of a map is out of sight of its planet, and
+	-- the hazes and dashes were drawn all the same
+	do
+		local reach = R + 6200
+		for _, band in ipairs(e.rings or {}) do if band[2] + 200 > reach then reach = band[2] + 200 end end
+		local cam = game.camera
+		local sw, sh = lg.getDimensions()
+		if math.abs(x - cam.x) > sw / 2 / cam.zoom + reach or math.abs(y - cam.y) > sh / 2 / cam.zoom + reach then return end
+		viewX, viewY, viewW, viewH = cam.x, cam.y, sw / 2 / cam.zoom, sh / 2 / cam.zoom
+	end
 	local w = game.well
 	local dir = (w and w.swirl or 0) >= 0 and 1 or -1
 	-- dashed rings that drift the way the well turns
@@ -844,9 +964,16 @@ local function drawPlanet(game, e)
 		local n = floor(pi * rr / 900) * 2
 		local turn = dir * game.time * 150 / rr
 		lg.setColor(c[1], c[2], c[3], 0.16 - k * 0.025)
+		-- (only the dashes on screen: a big planet has hundreds a ring)
+		local dash = 2 * pi * rr / n
+		local dw, dh = viewW + dash, viewH + dash
 		for i = 0, n - 1, 2 do
-			local a1, a2 = turn + i / n * pi * 2, turn + (i + 1) / n * pi * 2
-			lg.line(x + cos(a1) * rr, y + sin(a1) * rr, x + cos(a2) * rr, y + sin(a2) * rr)
+			local a1 = turn + i / n * pi * 2
+			local x1, y1 = x + cos(a1) * rr, y + sin(a1) * rr
+			if math.abs(x1 - viewX) < dw and math.abs(y1 - viewY) < dh then
+				local a2 = turn + (i + 1) / n * pi * 2
+				lg.line(x1, y1, x + cos(a2) * rr, y + sin(a2) * rr)
+			end
 		end
 	end
 	if e.rock then
@@ -881,13 +1008,11 @@ local function drawPlanet(game, e)
 			lg.draw(annulus(band[1], band[2]), x, y)
 		end
 		-- a gas giant: see-through bands thickening toward the middle
-		for k = 1, 12 do
-			lg.setColor(c[1], c[2], c[3], 0.045)
-			lg.draw(disc(floor(R * (1 - (k - 1) / 13))), x, y)
-		end
+		lg.setColor(c[1], c[2], c[3], 1)
+		lg.draw(gasBody(R), x, y)
 		lg.setColor(c[1], c[2], c[3], 0.5)
 		lg.setLineWidth(outline(3))
-		lg.circle("line", x, y, R, PLANET_SEGMENTS)
+		circleOutline(game, x, y, R)
 		return
 	end
 	-- atmosphere haze
@@ -926,13 +1051,14 @@ local function drawPlanet(game, e)
 	lg.pop()
 	lg.setColor(c[1], c[2], c[3], 0.9)
 	lg.setLineWidth(outline(3))
-	lg.circle("line", x, y, R, PLANET_SEGMENTS)
+	circleOutline(game, x, y, R)
 end
 
 
 local function drawShip(game, e)
 	-- inside a station: not drawn (parked on a berth: drawn)
 	if e.dockState and e.dockState.done and not e.dockState.berth then return end
+	if e.podHidden then return end   -- a surface shuttle inside its station
 	drawReentry(e, e.halfLength)
 	drawLaneBuff(e)
 	local x, y = e.body:getPosition()
@@ -944,6 +1070,8 @@ local function drawShip(game, e)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(a)
+	-- a surface shuttle near the ground, seen from far above (src/shuttles.lua)
+	if e.drawScale then lg.scale(e.drawScale) end
 
 	-- Everything below is in the ship's own frame: +x is the nose, +y its right side.
 	local R = hull.radius
@@ -1085,6 +1213,14 @@ local function drawHusk(game, h)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(h.body:getAngle())
+	-- a working satellite (src/satellites.lua) is lit and in full colour
+	if h.sat and not h.part then
+		HullShape.draw(h.hull, h.color, function(c) return c end,
+			function(c) return { min(1, c[1] * 1.25), min(1, c[2] * 1.25), min(1, c[3] * 1.25) } end, outline(1), h.partsLeft)
+		HullShape.drawLights(h.hull, game.time, 1 / game.camera.zoom, h.partsLeft)
+		lg.pop()
+		return
+	end
 	-- a whole wreck, or one part broken off (drawn about its own centre)
 	HullShape.draw(h.hull, h.color, function() return { 0.06, 0.06, 0.07 } end,
 		function(c) return { c[1] * 0.35, c[2] * 0.35, c[3] * 0.35 } end, outline(2),
@@ -1280,6 +1416,7 @@ end
 
 -- Countermeasure flares: hot, flickering points.
 local function drawDecoys(game)
+	if not game.decoys or #game.decoys == 0 then return end   -- (a blend switch ends the batch)
 	lg.setBlendMode("add")
 	for _, d in ipairs(game.decoys or {}) do
 		local k = math.min(1, d.life)
@@ -1293,15 +1430,32 @@ local function drawDecoys(game)
 end
 
 local function drawPickups(game)
+	local p = game.player
+	local live = p and not p.dead and not p.dockState and p.body
+	local range = live and Ship.tractorRange(p)
+	local pulse = 0.5 + 0.5 * math.sin((game.time or 0) * 3)
 	for _, k in ipairs(game.pickups) do
 		local item = data.items[k.item] or { kind = "salvage" }   -- an id no longer in the game
 		local c = (item.kind == "salvage") and COLORS.salvage or COLORS.ammo
 		local blink = 1
+		local reach = Icons.worldReach(k.item)
+		local r = reach and math.max(6, reach) or 8
+		-- a dark backing so the item reads against the starfield
+		lg.setColor(0, 0, 0, 0.35)
+		lg.circle("fill", k.x, k.y, r + 3)
+		-- in tractor range: a faint breathing halo, the hint that it can be caught
+		if range and Ship.distanceTo(p, k.x, k.y) < range then
+			lg.setColor(c[1], c[2], c[3], 0.10 + 0.12 * pulse)
+			lg.setLineWidth(outline(1))
+			lg.circle("line", k.x, k.y, r + 4 + pulse * 1.5)
+		end
 		if k == game.hoverPickup then
 			lg.setColor(1, 1, 1, 0.6)
 			lg.setLineWidth(outline(1.5))
-			lg.circle("line", k.x, k.y, 16)
+			lg.circle("line", k.x, k.y, reach and math.max(12, reach + 6) or 16)
 		end
+		-- drawn art: the item at its real size, tumbling
+		if Icons.drawWorld(k.item, k.x, k.y, k.spin, blink, outline(1)) then goto continue end
 		lg.push()
 		lg.translate(k.x, k.y)
 		lg.rotate(k.spin)
@@ -1311,6 +1465,7 @@ local function drawPickups(game)
 		lg.setLineWidth(outline(2))
 		lg.rectangle("line", -5, -5, 10, 10)
 		lg.pop()
+		::continue::
 	end
 end
 
@@ -1359,12 +1514,17 @@ local function drawEffects(game)
 		elseif fx.kind == "airburst" then
 			lg.setBlendMode('add')
 			lg.setColor(.55,.85,1,(1-k)^2*.65)
-			glowAt(fx.x,fx.y,fx.r*(.12+k*.3))
+			-- sized to the blast: the flash and streaks reach the full
+			-- radius that does damage, with a faint ring marking its edge
+			glowAt(fx.x,fx.y,fx.r*(.3+k*.7))
+			lg.setColor(.8,.95,1,(1-k)^2*.5)
+			lg.setLineWidth(outline(1))
+			lg.circle('line',fx.x,fx.y,fx.r*(.6+k*.4))
 			lg.setColor(.8,.95,1,(1-k)^2)
 			lg.setLineWidth(outline(1.5))
 			for j=1,8 do
 				local a=j*pi/4+fx.x*.01
-				local inner,outer=fx.r*(.05+k*.45),fx.r*(.18+k*.6)
+				local inner,outer=fx.r*(.1+k*.6),fx.r*(.35+k*.65)
 				lg.line(fx.x+cos(a)*inner,fx.y+sin(a)*inner,fx.x+cos(a)*outer,fx.y+sin(a)*outer)
 			end
 			lg.setBlendMode('alpha')
@@ -1418,10 +1578,7 @@ function Render.world(game, overlay, boundaryAngle)
 	local restorePreview = overlay and not game.live and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
-		Render.background(game.camera)
-		game.camera:apply()
-		drawGrid(game)
-		game.camera:release()
+		Render.background(game.camera, game.fieldId, game)
 	end
 	-- the maps alive beside this one (src/transit.lua): the one you left
 	-- behind the lane's mouth, the one ahead built for you to fly into, the
@@ -1473,6 +1630,13 @@ function Render.world(game, overlay, boundaryAngle)
 		elseif e.kind=='ship' then radius=e.halfLength+e.hull.radius end
 		return math.abs(x-cx)<hw+radius and math.abs(y-cy)<hh+radius
 	end
+	local function nearPoint(x, y, reach)
+		return math.abs(x - cx) < hw + reach and math.abs(y - cy) < hh + reach
+	end
+	local function near(e, reach)
+		local x, y = e.body:getPosition()
+		return nearPoint(x, y, reach)
+	end
 	-- sleeping debris: where its orbit has carried it
 	-- debris too small to see as a shape on screen is drawn as one batch of
 	-- points instead (a ring zoomed out is thousands of them)
@@ -1487,10 +1651,19 @@ function Render.world(game, overlay, boundaryAngle)
 			end
 		end
 	end
+	-- (how near and how far the screen is from the well's middle: debris
+	-- circling nearer or further than that can't be on it, and isn't placed)
+	local well, nearest, furthest = game.well, nil, nil
+	if well then
+		local ax, ay = math.abs(well.x - cx), math.abs(well.y - cy)
+		local ix, iy = max(ax - hw, 0), max(ay - hh, 0)
+		nearest, furthest = sqrt(ix * ix + iy * iy), sqrt((ax + hw) ^ 2 + (ay + hh) ^ 2)
+	end
 	for _, e in ipairs(game.sleepers or {}) do
+		local o = e.sleep
 		-- (most of it, past a map's edge and down a lane, never moves)
-		if e.sleep.still then debris(e, e.body.x, e.body.y)
-		else debris(e, game:sleeperPos(e)) end
+		if o.still then debris(e, e.body.x, e.body.y)
+		elseif not (nearest and o.r and (o.r < nearest or o.r > furthest)) then debris(e, game:sleeperPos(e)) end
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" and not e.giant and e.line then
@@ -1509,11 +1682,14 @@ function Render.world(game, overlay, boundaryAngle)
 			if visible(e) then
 				if e.city then drawCity(game, e) else drawStation(game, e) end
 			end
-		elseif e.kind == "buoy" then drawBuoy(game, e)
-		elseif e.kind == "driver" then drawDriver(game, e)
-		elseif e.kind == "catchring" then drawCatchRing(game, e)
-		elseif e.kind == "husk" then drawHusk(game, e)
-		elseif e.kind == "container" then drawContainer(game, e) end
+		-- (the rest, too, only when some of it could be on screen)
+		elseif e.kind == "buoy" then if near(e, 1500) then drawBuoy(game, e) end
+		elseif e.kind == "driver" then
+			local bx, by = game:driverBreech(e)
+			if nearPoint(bx, by, (e.barrel or T.driverBarrel) + (e.zone or T.driverZone) + 400) then drawDriver(game, e) end
+		elseif e.kind == "catchring" then if near(e, (e.radius or 0) + 400) then drawCatchRing(game, e) end
+		elseif e.kind == "husk" then if near(e, 1200) then drawHusk(game, e) end
+		elseif e.kind == "container" then if near(e, 600) then drawContainer(game, e) end end
 	end
 	if #dots > 0 then
 		lg.setColor(0.62, 0.7, 0.76)

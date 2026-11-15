@@ -18,11 +18,7 @@ local VERTEX_PX = 8      -- how close the mouse has to be to grab a vertex
 local EDGE_PX = 6        -- or an edge, to insert a point on it
 local SLOT_PX = 7        -- radius of a slot's hardpoint marker
 
-local SLOT_COLORS = {
-	hardpoint = { 1, 0.45, 0.35 }, bay = { 0.9, 0.5, 1 },
-	engine = { 0.4, 0.8, 1 }, reactor = { 0.5, 1, 0.5 }, utility = { 0.8, 0.8, 0.8 },
-	computer = { 0.8, 0.8, 1 },
-}
+local SLOT_COLORS = require("src.hud").SLOT_COLOR
 Canvas.SLOT_COLORS = SLOT_COLORS
 
 -- The placed slot under a screen point.
@@ -470,7 +466,12 @@ local function pressed(E, sx, sy, button)
 			if E.sel then E.multi[E.sel] = true end
 			E.sel = i
 		end
+	elseif i and E.design.parts[i].fromBox then
+		-- a box face: pick its box (the numbers are in the Boxes list); Delete hides the face
+		local q = E.design.parts[i]
+		E.sel, E.multi, E.boxSel, E.faceSel = nil, {}, q.box, q.face
 	elseif i then
+		E.boxSel, E.faceSel = nil, nil
 		-- clicking inside the selection keeps it, to drag the group
 		if i ~= E.sel and not E.multi[i] then E.multi = {} end
 		if E.multi[i] then E.multi[i] = nil; E.multi[E.sel] = true end
@@ -479,6 +480,7 @@ local function pressed(E, sx, sy, button)
 		E.drag = { kind = "part", lx = px, ly = py, pushed = false }
 	else
 		-- empty space: drag a box to select every part inside it
+		E.boxSel, E.faceSel = nil, nil
 		-- what the box takes: parts, lights, or the selected part's points
 		local mode = E.boxMode or "parts"
 		if mode == "points" and not E.sel then mode = "parts" end
@@ -687,7 +689,13 @@ function Canvas.mousereleased(E, sx, sy, button)
 		local x1, x2 = min(d.x1, d.x2), max(d.x1, d.x2)
 		local y1, y2 = min(d.y1, d.y2), max(d.y1, d.y2)
 		if x2 - x1 >= 1 and y2 - y1 >= 1 then
-			E.addPart(Canvas.primitive(E, x1, y1, x2, y2))
+			if (E.primitive or "rect") == "truss" then
+				local shapes = Canvas.truss(E, x1, y1, x2, y2)
+				E.pushUndo()
+				for _, v in ipairs(shapes) do E.addPart(v, true) end
+			else
+				E.addPart(Canvas.primitive(E, x1, y1, x2, y2))
+			end
 		end
 	end
 end
@@ -712,6 +720,101 @@ function Canvas.primitive(E, x1, y1, x2, y2)
 		return { x1 + c, y1, x2 - c, y1, x2, y1 + c, x2, y2 - c, x2 - c, y2, x1 + c, y2, x1, y2 - c, x1, y1 + c }
 	end
 	return { x1, y1, x2, y1, x2, y2, x1, y2 }
+end
+
+-- Scaffolding: a lattice truss filling a dragged box. It runs along the
+-- box's long side as two rails with struts between them, one part per
+-- member so the gaps stay see-through. Patterns: "warren" (zig-zag),
+-- "x" (cross-braced bays) or "ladder" (rungs only). Returns a list of
+-- outlines.
+function Canvas.truss(E, x1, y1, x2, y2)
+	local along = x2 - x1 >= y2 - y1          -- true: runs left to right
+	local L = along and (x2 - x1) or (y2 - y1)
+	local W = along and (y2 - y1) or (x2 - x1)
+	local t = min(E.trussThick or 2, W / 2)
+	local bay = max(E.trussBay or 16, 2)
+	local n = max(1, floor(L / bay + 0.5))
+	local step = L / n
+	local pattern = E.trussPattern or "warren"
+	-- u along the truss, w across it; map back to world points
+	local function pt(v, u, w)
+		if along then v[#v + 1], v[#v + 2] = x1 + u, y1 + w
+		else v[#v + 1], v[#v + 2] = x1 + w, y1 + u end
+	end
+	local shapes = {}
+	local function quad(a, b, c, d)   -- each {u, w}
+		local v = {}
+		pt(v, a[1], a[2]); pt(v, b[1], b[2]); pt(v, c[1], c[2]); pt(v, d[1], d[2])
+		shapes[#shapes + 1] = v
+	end
+	-- the two rails
+	quad({ 0, 0 }, { L, 0 }, { L, t }, { 0, t })
+	quad({ 0, W - t }, { L, W - t }, { L, W }, { 0, W })
+	if W - 2 * t < 0.5 then return shapes end
+	local top, bot = t, W - t
+	local function rung(u)
+		u = max(0, min(L - t, u - t / 2))
+		quad({ u, top }, { u + t, top }, { u + t, bot }, { u, bot })
+	end
+	local function diag(ua, ub)      -- from (ua, top) to (ub, bot)
+		local h = t / 2
+		quad({ ua - h, top }, { ua + h, top }, { ub + h, bot }, { ub - h, bot })
+	end
+	local h = t / 2
+	if pattern == "ladder" then
+		for k = 0, n do rung(k * step) end
+	elseif pattern == "x" then
+		for k = 0, n do rung(k * step) end
+		for k = 0, n - 1 do
+			local a, b = k * step + h, (k + 1) * step - h
+			diag(a, b); diag(b, a)
+		end
+	else
+		rung(0); rung(L)
+		for k = 0, n - 1 do
+			local a, b = k * step + h, (k + 1) * step - h
+			if k % 2 == 0 then diag(a, b) else diag(b, a) end
+		end
+	end
+	return shapes
+end
+
+-- Scale keeping -------------------------------------------------------------
+
+-- every point of a hull's parts, mirrors included
+local function extent(parts)
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in ipairs(parts or {}) do
+		local s = p.shape or {}
+		for k = 1, #s - 1, 2 do
+			local x, y = s[k], s[k + 1]
+			x0, x1 = min(x0, x), max(x1, x)
+			y0, y1 = min(y0, y, p.mirror and -y or y), max(y1, y, p.mirror and -y or y)
+		end
+	end
+	if x0 > x1 then return nil end
+	return x0, x1, y0, y1
+end
+Canvas.extent = extent
+
+-- the reference ship from the Compare window, faint, behind the design
+local function drawGhost(E, hull)
+	lg.setLineWidth(1.5 / E.view.zoom)
+	for _, p in ipairs(hull.parts or {}) do
+		if p.shape and #p.shape >= 6 then
+			lg.setColor(1, 0.8, 0.4, 0.06)
+			pcall(lg.polygon, "fill", p.shape)
+			lg.setColor(1, 0.8, 0.4, 0.35)
+			lg.polygon("line", p.shape)
+			if p.mirror then
+				local r = Canvas.reflected(p.shape)
+				lg.setColor(1, 0.8, 0.4, 0.06)
+				pcall(lg.polygon, "fill", r)
+				lg.setColor(1, 0.8, 0.4, 0.35)
+				lg.polygon("line", r)
+			end
+		end
+	end
 end
 
 -- Drawing -------------------------------------------------------------------
@@ -755,6 +858,8 @@ function Canvas.draw(E)
 	lg.push()
 	lg.translate(lg.getWidth() / 2 - v.x * v.zoom, lg.getHeight() / 2 - v.y * v.zoom)
 	lg.scale(v.zoom)
+	local ghost = not E.design.kind and require("src.editor.comparison").ghostHull()
+	if ghost then drawGhost(E, ghost) end
 
 	-- Use the chosen default equipment and the same geometry as live ships.
 	local weapons = {}
@@ -822,17 +927,22 @@ function Canvas.draw(E)
 				else
 					local pc = HullShape.color(q, col)
 					local wreck = E.preview == "wreck" or E.preview == "break"
-					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * 0.22, pc[2] * 0.22, pc[3] * 0.22 }
+					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * (q.fill or 0.22), pc[2] * (q.fill or 0.22), pc[3] * (q.fill or 0.22) }
 					if q.layer == "glow" then fillCol = wreck and { 0.05, 0.05, 0.05 } or pc end
-					if q.layer == "detail" then fillCol = wreck and fillCol or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
+					if q.layer == "detail" then fillCol = wreck and fillCol or (E.design.kind == "icon" and { 0, 0, 0, 0 }) or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
 					if E.preview == "collision" and q.collide == false then fillCol = { 0.15, 0.15, 0.15, 0.4 } end
 					lg.setColor(fillCol)
 					if q.layer == "glow" and not wreck then lg.setBlendMode("add") end
 					for _, t in ipairs(tris) do lg.polygon("fill", t) end
 					lg.setBlendMode("alpha")
-					if q.layer == nil or q.layer == "hull" then
+					if q.layer == nil or q.layer == "hull" or (q.layer == "detail" and E.design.kind == "icon") then
 						lg.setColor(wreck and { pc[1] * 0.35, pc[2] * 0.35, pc[3] * 0.35 } or pc)
 						lg.setLineWidth(1.5 / v.zoom)
+						lg.polygon("line", s)
+					end
+					if q.fromBox and q.box == E.boxSel and (E.faceSel == nil or q.face == E.faceSel) then
+						lg.setColor(1, 1, 1, 0.9)
+						lg.setLineWidth(3 / v.zoom)
 						lg.polygon("line", s)
 					end
 					if E.preview == "collision" and q.collide ~= false then
@@ -1079,10 +1189,13 @@ function Canvas.draw(E)
 		lg.setColor(0.5, 1, 0.6)
 		local x1, y1, x2, y2 = min(d.x1, d.x2), min(d.y1, d.y2), max(d.x1, d.x2), max(d.y1, d.y2)
 		if x2 - x1 >= 1 and y2 - y1 >= 1 then
-			local v = Canvas.primitive(E, x1, y1, x2, y2)
-			local sv = {}
-			for k = 1, #v, 2 do sv[k], sv[k + 1] = Canvas.toScreen(E, v[k], v[k + 1]) end
-			lg.polygon("line", sv)
+			local list = (E.primitive or "rect") == "truss" and Canvas.truss(E, x1, y1, x2, y2)
+				or { Canvas.primitive(E, x1, y1, x2, y2) }
+			for _, v in ipairs(list) do
+				local sv = {}
+				for k = 1, #v, 2 do sv[k], sv[k + 1] = Canvas.toScreen(E, v[k], v[k + 1]) end
+				lg.polygon("line", sv)
+			end
 		else
 			lg.rectangle("line", min(ax, bx), min(ay, by), abs(bx - ax), abs(by - ay))
 		end
@@ -1144,12 +1257,105 @@ function Canvas.draw(E)
 		end
 	end
 
+	-- icons: the hold footprint (one box per cell), and the art as the
+	-- game draws it: in a hold stack, and floating in space at true size
+	if E.design.kind == "icon" then
+		local Icons = require("src.icons")
+		local fw, fh = Icons.footprint(E.design.item, E.design)
+		local bw, bh = Icons.box(E.design.item, E.design)
+		local ax, ay = Canvas.toScreen(E, -bw, -bh)
+		local bx, by = Canvas.toScreen(E, bw, bh)
+		lg.setLineWidth(1)
+		lg.setColor(1, 0.85, 0.4, 0.18)
+		for i = 1, fw - 1 do local x = ax + (bx - ax) * i / fw; lg.line(x, ay, x, by) end
+		for j = 1, fh - 1 do local y = ay + (by - ay) * j / fh; lg.line(ax, y, bx, y) end
+		lg.setColor(1, 0.85, 0.4, 0.7)
+		lg.rectangle("line", ax, ay, bx - ax, by - ay)
+		lg.print(("%d x %d cells"):format(fw, fh), ax, ay - 16)
+		Canvas.drawIconPreview(E)
+	end
+
 	-- the cursor's position in ship space
 	local wx, wy = Canvas.snap(E, Canvas.toWorld(E, mx, my))
 	lg.setColor(1, 1, 1, 0.6)
 	lg.print(("%d, %d   zoom %.1fx"):format(wx, wy, v.zoom), 340, lg.getHeight() - 22)
+	-- the design's size, and the reference's, so scale is never a guess
+	if not E.design.kind then
+		local function size(parts)
+			local x0, x1, y0, y1 = extent(parts)
+			return x0 and ("%d x %d px"):format(x1 - x0, y1 - y0) or "--"
+		end
+		local text = "size " .. size(E.design.parts)
+		if ghost then text = text .. ("    outline: %s %s"):format(ghost.name or ghost.id, size(ghost.parts)) end
+		lg.print(text, 340, lg.getHeight() - 40)
+	end
 	lg.pop()
 end
 
+
+-- The icon preview, bottom right: the art in a hold stack at the cargo
+-- screen's two cell sizes, and tumbling in space at its real size beside
+-- a ship for scale.
+function Canvas.drawIconPreview(E)
+	local Icons = require("src.icons")
+	local HUD = require("src.hud")
+	local d = E.design
+	local icon = { item = d.item, parts = {} }
+	for _, p in ipairs(d.parts) do
+		if not p.hidden and HullShape.check(p.shape) then icon.parts[#icon.parts + 1] = p end
+	end
+	local fw, fh = Icons.footprint(d.item, d)
+	local item = data.items[d.item] or {}
+	local c = HUD.itemColor(item) or { 1, 1, 1 }
+	local W, H = 360, 230
+	local x0, y0 = lg.getWidth() - W - 12, lg.getHeight() - H - 34
+	lg.setColor(0.02, 0.025, 0.035, 0.92)
+	lg.rectangle("fill", x0, y0, W, H, 4, 4)
+	lg.setColor(1, 1, 1, 0.25)
+	lg.rectangle("line", x0 + 0.5, y0 + 0.5, W - 1, H - 1, 4, 4)
+	lg.setColor(1, 1, 1, 0.6)
+	lg.print("Preview: hold", x0 + 8, y0 + 6)
+	-- hold stacks, as the cargo screen draws them
+	local x = x0 + 8
+	for _, cs in ipairs({ 22, 34 }) do
+		local w, h = fw * cs, fh * cs
+		if x + w > x0 + W - 8 then break end
+		lg.setColor(c[1], c[2], c[3], 0.32)
+		lg.rectangle("fill", x + 2, y0 + 26, w - 4, h - 4, 3, 3)
+		lg.setColor(c[1], c[2], c[3], 0.95)
+		lg.rectangle("line", x + 2.5, y0 + 26.5, w - 5, h - 5, 3, 3)
+		local bw, bh = Icons.box(d.item, d)
+		local s = math.min((w - 6) / (bw * 2), (h - 6) / (bh * 2))
+		lg.push()
+		lg.translate(x + w / 2, y0 + 24 + h / 2)
+		lg.scale(s)
+		Icons.drawArt(icon, c, 1, 1.5 / s, true)
+		lg.pop()
+		x = x + w + 10
+	end
+	-- in space, at the size it floats at, beside a Wisp (zoom 2)
+	local Z = 2
+	local sy = y0 + H - 60
+	lg.setColor(1, 1, 1, 0.6)
+	lg.print("Preview: in space (zoom 2, beside a Wisp)", x0 + 8, sy - 50)
+	local wisp = data.hulls.intaki_wisp
+	if wisp then
+		lg.push()
+		lg.translate(x0 + 90, sy)
+		lg.scale(Z)
+		HullShape.draw(wisp, { 0.6, 0.65, 0.7 }, function(pc) return { pc[1] * 0.22, pc[2] * 0.22, pc[3] * 0.22 } end, function(pc) return pc end, 1 / Z)
+		lg.pop()
+	end
+	local r = 4
+	for _, p in ipairs(icon.parts) do for k = 1, #p.shape - 1, 2 do r = math.max(r, math.sqrt(p.shape[k] ^ 2 + p.shape[k + 1] ^ 2)) end end
+	icon.reach = r
+	local k = Icons.WORLD * Z
+	lg.push()
+	lg.translate(x0 + 250, sy)
+	lg.rotate(love.timer.getTime() * 0.4)
+	lg.scale(k)
+	Icons.drawArt(icon, c, 1, 1.5 / k, true)
+	lg.pop()
+end
 
 return Canvas

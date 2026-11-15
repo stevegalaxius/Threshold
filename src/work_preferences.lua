@@ -7,7 +7,7 @@ local W={profiles={
  scavenger={transport=1,salvage=9,mine=1,patrol=1},
  industrial={transport=1,salvage=1,mine=9,patrol=1},
  local_police={transport=1,salvage=1,mine=1,patrol=9},
- raider={transport=1,salvage=1,mine=1,raid=9},
+ raider={transport=0,salvage=1,mine=1,raid=9}, -- too criminal to haul freight; dark-access haulers smuggle
  generalist={transport=1,salvage=1,mine=1,patrol=1},
 }}
 function W.profile(r)

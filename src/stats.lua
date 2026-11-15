@@ -49,6 +49,9 @@ function stats.compute(hull, loadout)
 	}
 
 	s.powerNet = s.powerOut - s.powerDraw   -- what's left to recharge with
+	-- Retro thrust is folded into maneuvering: the side thrusters brake and
+	-- reverse too. (Old data's retroThrust is ignored.)
+	s.retroThrust = s.sideThrust
 	return s
 end
 

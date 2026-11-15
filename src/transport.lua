@@ -52,19 +52,37 @@ function Transport.quote(t,clock,u)
   end
   t.routeAU=math.floor(au*100+.5)/100
  end
- -- Quotes are frozen. A partial load keeps its original handling share.
- if t.creditsPerUnit==nil then
-  local volume=t.item and data.items[t.item] and data.items[t.item].volume or 1
-  t.creditsPerUnit=volume*(T.freightCreditsPerM3+t.routeAU*T.freightCreditsPerM3AU)
-  t.handlingPerUnit=T.freightHandling/math.max(1,t.amount or 1)
-  t.handlingLimit=T.freightHandling
- end
  local Chemicals=require('src.markets')
- if u and Chemicals.items[t.item] then
+ if u and t.item and (Chemicals.items[t.item] or Chemicals.floats(t.target,t.item) or Chemicals.floats(t.source,t.item)) then
   t.commodityBuyPrice=t.commodityBuyPrice or Chemicals.price(u,t.source,t.item)
   t.commoditySellPrice=t.commoditySellPrice or Chemicals.price(u,t.target,t.item)
  end
+ -- Quotes are frozen once taken. A partial load keeps its original handling share.
+ if t.creditsPerUnit==nil then
+  local volume=t.item and data.items[t.item] and data.items[t.item].volume or 1
+  local base=volume*(T.freightCreditsPerM3+t.routeAU*T.freightCreditsPerM3AU)
+  -- valuable cargo pays more to carry (the courier carries the risk)
+  local d=t.item and data.items[t.item]
+  local worth=t.commodityBuyPrice or (d and d.price) or 0
+  base=base+worth*T.freightValueShare
+  t.premiumPerUnit=u and Transport.premium(u,t,base,clock) or 0
+  t.creditsPerUnit=base+t.premiumPerUnit
+  if t.handlingPerUnit==nil then
+   t.handlingPerUnit=T.freightHandling/math.max(1,t.amount or 1)
+   t.handlingLimit=T.freightHandling
+  end
+ end
  return t
+end
+-- Scarcity premium per unit: the destination shares part of the price gap
+-- between source and target with whoever hauls it, more the longer its
+-- shortage has gone unserved. Goods without a market price earn none.
+function Transport.premium(u,t,base,clock)
+ local buy,sell=t.commodityBuyPrice,t.commoditySellPrice
+ if not (buy and sell) or sell<=buy then return 0 end
+ local age=require('src.economy').shortageAge(u,t.target,t.item,clock or u.clock or 0)
+ local urgency=math.min(T.freightUrgencyMax,1+age/(T.freightUrgencyHours*3600))
+ return math.min((sell-buy)*T.freightGapShare*urgency,base*T.freightPremiumCap)
 end
 -- Keep quote previews, manifest settlement and history on the same invoice.
 function Transport.invoice(t)
@@ -85,24 +103,82 @@ function Transport.payment(t) return Transport.invoice(t).total end
 -- Upgrade unclaimed economy listings; accepted contracts retain their quote.
 function Transport.refreshOffers(u,clock)
  for _,o in pairs(Tasks.state(u).offers) do
-  if o.kind=='transport' and o.layoutScope=='economy' and o.state=='available' and o.handlingPerUnit==nil then
-   o.creditsPerUnit=nil;Transport.quote(o,clock,u)
-   o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds)
+  if o.kind=='transport' and o.layoutScope=='economy' and o.state=='available' then
+   local fresh=o.handlingPerUnit==nil
+   -- an unclaimed listing follows today's prices, so its premium tracks
+   -- the shortage; taking the job freezes the quote
+   o.creditsPerUnit,o.commodityBuyPrice,o.commoditySellPrice=nil,nil,nil
+   Transport.quote(o,clock,u)
+   if fresh then o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds) end
   end
  end
 end
 -- Reservations remain on the board until pickup; loaded cargo is no longer
 -- counted at the source. No duplicate stock ledger needs save reconciliation.
+-- What's promised out of a source walks the whole board, and a trader
+-- weighing the board asks it for every offer on it: the board squared, in
+-- one step. While a scan is open (Transport.beginScan .. endScan, around a
+-- stretch that only reads the board), the orders are sorted by source and
+-- good once and each question reads just its own few.
+local scan
+-- (true if this call opened it: only the one that opened it closes it. A
+-- scan never outlives the instant it was opened in, and Tasks.post, the one
+-- way an order joins the board, has it sorted again: Transport.rescan)
+-- (still: the caller only reads, stock included, so counts can be kept too)
+function Transport.beginScan(u,still)
+ if scan and scan.u==u and scan.clock==u.clock then return false end
+ scan={u=u,clock=u.clock,still=still};return true
+end
+function Transport.endScan() scan=nil end
+function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil end end
+local none={}
+local function ordersFrom(u,source,item)
+ if not scan or scan.u~=u or scan.clock~=u.clock or source==nil or item==nil then return nil end
+ local groups=scan.groups
+ if not groups then
+  groups={};scan.groups=groups
+  for _,o in pairs(Tasks.state(u).offers) do
+   if o.order and not o.loaded and o.source~=nil and o.item~=nil then
+    local byItem=groups[o.source];if not byItem then byItem={};groups[o.source]=byItem end
+    local list=byItem[o.item];if not list then list={};byItem[o.item]=list end
+    list[#list+1]=o
+   end
+  end
+ end
+ return groups[source] and groups[source][item] or none
+end
 function Transport.reserved(u,source,item,except,includeOpen)
  local n=0
+ local group=ordersFrom(u,source,item)
+ if group then
+  local offers=Tasks.state(u).offers
+  for _,o in ipairs(group) do
+   -- (still on the board, still not loaded: either may have changed since the sort)
+   if offers[o.id]==o and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+o.amount end
+  end
+  return n
+ end
  for _,o in pairs(Tasks.state(u).offers) do
   if o.order and o.source==source and o.item==item and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except)
    and (includeOpen or o.state~='available') then n=n+o.amount end
  end
  return n
 end
+function Transport.scanning(u) return scan~=nil and scan.u==u and scan.clock==u.clock end
 function Transport.available(u,source,item,except)
- return math.max(0,J.available(u,source,item)-Transport.reserved(u,source,item,except))
+ -- (a trader reading the board asks this once per offer, and most offers
+ -- share a source and good: a scan opened as still moves no stock, so
+ -- each pair is counted once)
+ local have
+ if scan and scan.still and scan.u==u and scan.clock==u.clock and source~=nil and item~=nil then
+  local stock=scan.stock;if not stock then stock={};scan.stock=stock end
+  local at=stock[source];if not at then at={};stock[source]=at end
+  have=at[item]
+  if not have then have=J.available(u,source,item);at[item]=have end
+ else
+  have=J.available(u,source,item)
+ end
+ return math.max(0,have-Transport.reserved(u,source,item,except))
 end
 -- A cheap estimate for comparison and fleet planning, in game seconds.
 function Transport.duration(o,station,clock)
@@ -177,15 +253,33 @@ Tasks.register('transport',{
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
  end,
  score=function(u,r,o,station,clock)
-  Transport.quote(o,clock)
+  Transport.quote(o,clock,u)
   local amount=math.min(o.amount,room(r,o.item,o.amount))
-  local quote=require('src.persistence').copy(o);quote.amount=amount
-  local reward=Transport.payment(quote)/Transport.duration(o,station,clock)
-  local ambition=Personality.ensure(r).ambition
+  -- credits per second of the whole job, the empty run to the pickup included
+  local pay
+  if o.manifest or o.creditsPerUnit==nil then
+   local quote=require('src.persistence').copy(o);quote.amount=amount
+   pay=Transport.payment(quote)
+  else
+   -- (a plain quoted listing: the same sum Transport.invoice makes, without
+   -- copying the offer to change its amount; this runs for every job read)
+   pay=math.floor(amount*o.creditsPerUnit+math.min(o.handlingLimit or 0,amount*(o.handlingPerUnit or 0))+1e-7)
+  end
+  local reward=pay/Transport.duration(o,station,clock)
+  local p=Personality.ensure(r)
+  local ambition,aggression=p.ambition,p.aggression or .5
   local age=require('src.economy').shortageAge(u,o.target,o.item,clock)
   age=math.max(age,math.max(0,clock-(o.placed or o.readyAt or clock)))
+  -- a timid trader shies from long interplanetary runs (open space, pirates)
+  local risk=(o.routeAU or 0)*T.freightRiskPerAU*(1-aggression)
+  -- each trader reads the board a little differently, so a fleet doesn't
+  -- all chase the single best-paying job into one dock queue
+  local h=0;local key=tostring(r.id)..tostring(o.id)
+  for i=1,#key do h=(h*31+key:byte(i))%1000003 end
+  local taste=1+T.freightScoreJitter*((h%1000)/500-1)
   return (o.order and 1000000 or 0)+(o.urgency or o.priority or 0)*10000
-   +age*100+math.min(5000,reward*100)*(0.5+ambition)-(station~=o.source and 50*(1-ambition) or 0)
+   +age*100+math.min(T.freightScoreCap,reward*100*taste*(1-math.min(.9,risk)))*(0.5+ambition)
+   -(station~=o.source and 50*(1-ambition) or 0)
  end,
  prepare=function(u,r,t,station,clock)
   Transport.quote(t,clock,u)
@@ -245,10 +339,13 @@ Tasks.register('transport',{
    local line=charge.task
    cargo(r,line.item,-line.amount)
    if line.mine or line.stocked then J.deliver(u,station,line.item,line.amount) end
+   if line.intake then require('src.merchants').received(u,line.intake,station,line.item,line.amount) end
    require('src.economy').stat(u,'hauled',line.item,line.amount)
    local payment=charge.payment;total=total+line.amount
+   require('src.economy').ledger(u,station,'freight',payment,line.item)
+   if (line.premiumPerUnit or 0)>0 then require('src.economy').ledger(u,station,'premium',math.floor(line.amount*line.premiumPerUnit),line.item) end
    require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
-    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
+    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,premiumPerUnit=line.premiumPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
    if line.id~=t.id then Tasks.state(u).offers[line.id]=nil end
   end
   local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total

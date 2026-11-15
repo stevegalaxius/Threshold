@@ -141,6 +141,16 @@ function E.damage(r,seconds,roll,target)
   local m=id and data.modules[id];local w=m and m.weapon
   if w and w.kind~='drone' then
    local shots=math.max(1,math.floor((w.fireRate or 1)*seconds))
+   -- a missile rack or torpedo tube fires one magazine (its capacity) and
+   -- then reloads: offline it gets one salvo every offlineSalvoRounds
+   -- rounds, not its fire rate the whole fight (that emptied a ship's
+   -- whole missile reserve in every scrap)
+   if w.capacity then
+    local ammo=data.ammoFor(m);local size=ammo and data.items[ammo].size
+    local tubes=math.max(1,math.floor(w.capacity/(({S=1,M=2,L=4})[size] or 1)))
+    r.salvoRound=(r.salvoRound or 0)+1
+    shots=(r.salvoRound-1)%T.offlineSalvoRounds==0 and math.min(shots,tubes) or 0
+   end
    local hit=w.damage or 0
    if w.kind~='laser' then
     local ammo=data.ammoFor(m)
@@ -323,6 +333,8 @@ function E.update(game,clock)
     for _,b in ipairs(group) do
      if (not Access.raiding(b)) and not b.encounter and close(a,b,clock) then
       local odds=E.odds(a,b)-(Access.defending(b,b.area) and 1 or 0)
+      -- cargo its home station is short of is worth a worse fight
+      local Piracy=require('src.piracy');if Piracy.wants(u,Piracy.home(a),b) then odds=odds+T.raidShortageBias end
       if not best or odds>best then target,best=b,odds end
      end
     end

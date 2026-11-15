@@ -76,7 +76,7 @@ local function cards(game, st)
 					if o.kind == "ship" then
 						local lot, dealer = require("src.dealers").state(u, key)
 						r.lines[#r.lines + 1] = { "out", "1 " .. data.hulls[o.hull].name,
-							lot and ("to the lot \194\183 %d / %d there"):format(#lot.lots, dealer.lots or 6) or "to the dealership" }
+							lot and ("to the lot \194\183 %d there"):format(#lot.lots) or "to the dealership" }
 					else
 						local price = c.market ~= false and require("src.markets").price(u, key, o.item)
 						r.lines[#r.lines + 1] = { "out", ("%d %s"):format(o.n, itemName(o.item)),

@@ -1,0 +1,41 @@
+-- Made in the Shipyard (F2). Base hull: intaki_wisp
+hull {
+	id = "intaki_wisp", name = "Wisp",
+	armor = 120,
+	bonuses = {},
+	class = "light",
+	drag = 0.14,
+	hold = 24,
+	loadout = { "beam_s_base", "gun_s_base", "flit_engine", "flit_engine", "ember_reactor", false, "nav_computer" },
+	maker = "Intaki",
+	turnSpeed = 260,
+	spoolTime = 0.06,
+	description = "Intaki's twin-engine light fighter, fast and lightly armoured.",
+	mass = 58,
+	mount = "fixed",
+	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },
+	price = 30000,
+	retroThrust = 340,
+	sideThrust = 430,
+	slots = {
+		{ family = "hardpoint", size = "S", x = 4, y = 16 },
+		{ family = "hardpoint", size = "S", trigger = "secondary", x = 4, y = -16 },
+		{ family = "engine", size = "S", x = -28, y = 10 },
+		{ family = "engine", size = "S", x = -28, y = -10 },
+		{ family = "reactor", size = "S" },
+		{ family = "computer", size = "any" },
+		{ family = "computer", size = "any" },
+	},
+	turn = 500,
+	turnResponse = 0.15,
+	parts = {
+		{ name = "part 2", shape = { -28, -12, -16, -16, -16, -4, -28, -8 }, mirror = true },
+		{ name = "part 3", shape = { -16, -4, -24, -16, -8, -20, 12, -12, 44, -4 }, paint = "primary", mirror = true, lights = {
+			{ kind = "nav", size = 2, x = -8, y = -20 },
+		} },
+		{ name = "part 4", shape = { -16, -4, -16, 4, 8, 4, 13, 2, 13, -2, 8, -4 }, lights = {
+			{ h = 1.5, kind = "window", w = 2, x = 9, y = -2 },
+			{ h = 1.5, kind = "window", w = 2, x = 9, y = 2 },
+		} },
+	},
+}

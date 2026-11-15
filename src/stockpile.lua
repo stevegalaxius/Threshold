@@ -20,7 +20,7 @@ local L=require('src.locations')
 local Shapes=require('src.inventory.shapes')
 local Hold=require('src.inventory.hold')
 local T=require('src.tuning')
-local S={shopCache={}}
+local S={shopCache={},flowEvery=2,flowLate=10,flowed=0}
 
 function S.key(st) return L.canonical(type(st)=='table' and st.key or st) end
 
@@ -46,6 +46,7 @@ function S.shops(st)
   chemicals=chemicals or not shop.unlimited and S.lists(shop,'nitrates') and S.lists(shop,'explosives')
   ammo=ammo or shop.id=='ammunition'
  end
+ if mk and mk.bare then S.shopCache[cacheKey]=shops;return shops end
  if not food then shops[#shops+1]=require('src.food').shop() end
  if not steel then shops[#shops+1]=require('src.repair_materials').shop() end
  if not chemicals then shops[#shops+1]=require('data.industry').shops.chemicals end
@@ -72,11 +73,23 @@ function S.shops(st)
  return shops
 end
 
+-- A station's storage grid size: its definition's storage = { w, h },
+-- else the default.
+function S.storageSize(key)
+ local ok,def=pcall(function() return require('src.locations').stationDefinition(key) end)
+ local s=ok and def and def.storage
+ if s then return s[1] or s.w, s[2] or s.h end
+ return T.storageW,T.storageH
+end
+function S.newStorage(key)
+ local w,h=S.storageSize(key)
+ return Hold.new({{key='storage',name='Station storage',w=w,h=h}})
+end
 function S.record(u,key)
  u.stations=u.stations or {}
  local r=u.stations[key]
  if not r then
-  r={storage=Hold.new({{key='storage',name='Station storage',w=T.storageW,h=T.storageH}}),hangar={}}
+  r={storage=S.newStorage(key),hangar={}}
   u.stations[key]=r
  end
  return r
@@ -88,10 +101,18 @@ function S.lists(shop,id)
 end
 
 -- Which shop an NPC's goods of this item go to and come from.
+-- (asked on every stock count: remembered per shop list, which S.shops
+-- builds once per station and replaces whenever its cache is cleared)
+local shopIndex=setmetatable({},{__mode='k'})
 function S.shopFor(st,id)
  local shops=S.shops(st)
- for i,shop in ipairs(shops) do if not shop.unlimited and S.lists(shop,id) then return i end end
- return 1
+ local index=shopIndex[shops];if not index then index={};shopIndex[shops]=index end
+ local found=id~=nil and index[id]
+ if found then return found end
+ found=1
+ for i,shop in ipairs(shops) do if not shop.unlimited and S.lists(shop,id) then found=i;break end end
+ if id~=nil then index[id]=found end
+ return found
 end
 
 local function shelfCount(hold,id)
@@ -159,6 +180,20 @@ function S.flow(u,key,i,m)
  local place=L.byId[key];if not place or place.kind~='station' then return end
  local record=S.record(u,key)
  if record.productionBusy then return end
+ -- Caught up within the last S.flowEvery seconds of game time (and every shop seeded by
+ -- that pass): leave it. Stock is counted many times a step, by the economy
+ -- and by every NPC weighing a job, and settling every recipe at every
+ -- station on each count was most of the cost of looking. The time skipped
+ -- isn't lost: the next pass runs from where the last one stopped.
+ local since=record.productionAt and m.flowAt and u.clock-record.productionAt
+ if since and since>=0 and since<S.flowEvery then return end
+ -- Past that and still within S.flowLate, leave it to the director
+ -- (src/director.lua), which catches every station up in turn, a few a
+ -- step: a trader reading the board, or the drills, look at every station
+ -- at once, and catching them up there and then made that a long step.
+ -- (Rates are per hour: a few seconds make nothing.) Where the director
+ -- isn't running, a station past S.flowLate is caught up by whoever looks.
+ if since and since>=0 and since<S.flowLate and not S.directed then return end
  record.productionBusy=true
  local now=u.clock;local previous=record.productionAt or m.flowAt or now
  record.productionAt=now
@@ -168,13 +203,21 @@ function S.flow(u,key,i,m)
  end
  for _,shop in pairs(shops) do shop.flowAt=now end
  local dt=math.max(0,now-previous)
+ -- (every input of every recipe asks what's promised out of here: the
+ -- freight board is sorted once for the lot, src/transport.lua)
+ local Transport=dt>0 and require('src.transport')
+ local opened=Transport and Transport.beginScan(u)
  if dt>0 then
+  S.flowed=S.flowed+1
   local Food,C,I=require('src.food'),require('src.commodities'),require('src.industry')
   Food.flow(u,key,shops[S.shopFor(key,Food.item)],dt)
   if place.uses and place.uses.trade then
    local jobs,inputs={},{}
    for _,c in ipairs(C.list) do
-    local rate=C.rate(c,key)*I.scale(u,key,c)
+    -- (only the recipes this station runs: asking how hard it runs each
+    -- of the others was most of the cost of catching a station up)
+    local rate=C.rate(c,key)
+    if rate~=0 then rate=rate*I.scale(u,key,c) end
     if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
     if rate~=0 and not c.stockless and not c.consumption then
      local shop=shops[S.shopFor(key,c.item)];shop.recipes=shop.recipes or {}
@@ -220,6 +263,7 @@ function S.flow(u,key,i,m)
    end
   end
  end
+ if opened then Transport.endScan() end
  record.productionBusy=nil
 end
 
@@ -231,6 +275,9 @@ end
 -- goods not committed to a freight pickup.
 function S.reserved(u,st,id,except)
  local n=0;local key=S.key(st)
+ -- (the same sum the freight board keeps sorted while it's being read)
+ local Transport=package.loaded['src.transport']
+ if Transport and Transport.scanning(u) then return Transport.reserved(u,key,id,except,false) end
  for _,o in pairs(u.tasks and u.tasks.offers or {}) do
   if o.order and o.source==key and o.item==id and not o.loaded and o.state~='available'
    and (not except or o.id~=except and o.manifestRoot~=except) then n=n+o.amount end

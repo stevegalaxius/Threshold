@@ -143,6 +143,30 @@ local function brakeAccel(e)
  return Nav.brakeAccel(e)
 end
 
+-- Braking left over for a stop inside a planet's gravity band. Diving at
+-- a cloud city, the cloud-top pull (and the air's sink) works against the
+-- brakes all the way down: planned with the full brake figure a ship
+-- arrived far too fast and rammed the hull or sank past it.
+local function stopBrake(game,e,x,y,sx,sy)
+ local brake=brakeAccel(e)
+ local w=game.well
+ if not w then return brake end
+ local dx,dy,d=sx-x,sy-y,sqrt((sx-x)^2+(sy-y)^2)
+ if d<1 then return brake end
+ dx,dy=dx/d,dy/d
+ local pull=0
+ for _,p in ipairs({{x,y},{sx,sy},{(x+sx)/2,(y+sy)/2}}) do
+  local gx,gy=game:surfacePullAt(p[1],p[2])
+  local r=sqrt((p[1]-w.x)^2+(p[2]-w.y)^2)
+  if w.atmo and r>1 then
+   local depth=max(0,min(1,1-(r-w.radius)/w.atmo))
+   gx,gy=gx-(p[1]-w.x)/r*70*depth,gy-(p[2]-w.y)/r*70*depth
+  end
+  pull=max(pull,gx*dx+gy*dy)
+ end
+ return max(brake*.25,brake-pull/.6)
+end
+
 function AI.navigate(game,e,dx,dy,want,fx,fy,boostDistance)
  if want<1 then
   local a=e.body:getAngle()
@@ -318,7 +342,7 @@ local function trade(game, e, dt)
 		-- and only turns in once it's lined up in the cone before the door.
 		-- Straight at the runway, a hauler coming from the side or behind
 		-- swung across the station and into its hull.
-		if stop.dock and stop.body and e.alifeId then
+		if stop.dock and stop.body and (e.alifeId or e.shuttle) then
 			local d = approachDock(e, stop)
 			local lx, ly = stop.body:getLocalPoint(x, y)
 			local a = d.a or 0
@@ -391,11 +415,38 @@ local function trade(game, e, dt)
 				hx, hy = w.x + cos(ah) * lookR, w.y + sin(ah) * lookR
 			end
 		end
+		-- A mass driver only takes a ship from its loading zone, a narrow
+		-- strip behind the breech along the barrel (Game:requestDriver).
+		-- Following the travel graph's edge, which ends at the driver's middle,
+		-- the ship came alongside or in over the barrel, missed the strip,
+		-- and sat pushing at the gun. Close in, it comes round to the back of
+		-- the breech instead and flies up the barrel's axis.
+		if stop.kind == "driver" and stop.driver and not queued then
+			local g = stop.driver
+			local bx, by = game:driverBreech(g)
+			if (x - bx) ^ 2 + (y - by) ^ 2 < 2500 ^ 2 then
+				local lx, ly = game:driverLocal(g, x, y)
+				local zl, zw = g.zone or T.driverZone, g.zoneWidth or T.driverZoneWidth
+				local side = ly >= 0 and 1 or -1
+				local tx, ty
+				if lx < 150 and lx > -zl and math.abs(ly) < zw * 0.7 then
+					tx, ty = 0, 0                              -- lined up: in to the breech
+				elseif lx < -zl * 0.3 then
+					tx, ty = -zl * 0.6, 0                      -- behind it: onto the axis
+				elseif math.abs(ly) < zw + 300 then
+					tx, ty = lx, side * (zw + 500)             -- over the barrel: out to the side first
+				else
+					tx, ty = -zl * 0.6, side * (zw + 400)      -- beside it: round to the back
+				end
+				local dx, dy = cos(g.angle), sin(g.angle)
+				hx, hy = bx + dx * tx - dy * ty, by + dy * tx + dx * ty
+			end
+		end
 		-- Once lined up in the cone it flies in to its own dock, which can sit
 		-- well inside the hull's circle (the Ring Station's is deep in the
 		-- horseshoe): steering round that station there turned it away from
 		-- the door every time and left it circling for ever.
-		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil
+		local docking = stop.dock and (e.alifeId or e.shuttle) and not e.dockMarker and stop or nil
 		if not queued then
 			local ox, oy = outOfRunway(game, e, x, y, docking)
 			if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy, docking) end
@@ -427,7 +478,8 @@ local function trade(game, e, dt)
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
 		local pass = queued and 0 or (stop.dock or stop.inspection or stop.kind=='driver') and 60 or cruise * 0.6
-		local want = min(cruise, sqrt(pass * pass + 2 * brakeAccel(e) * 0.6 * max(0, d - 150)))
+		local sb = stopBrake(game, e, x, y, sx, sy)
+		local want = min(cruise, sqrt(pass * pass + 2 * sb * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
 		-- far, so it looks much further ahead than a fighter, lets avoidance
 		-- outweigh the route, and slows down while something's in the way.
@@ -455,11 +507,18 @@ local function trade(game, e, dt)
 		end
 		local inGravity=w and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius+min(T.surfacePullRange,w.radius*.5)+500
 		local climbing=w and ux*(x-w.x)+uy*(y-w.y)>sqrt((x-w.x)^2+(y-w.y)^2)*.4
-		local boosting=d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
+		-- Down in a gas giant's clouds any heading upward is a climb out of
+		-- the crush: the afterburner is for that too, however near the stop.
+		-- (A Gila sinking below a cloud city lit it only once the hull was
+		-- buckling.)
+		local deep=w and w.gas and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius and ux*(x-w.x)+uy*(y-w.y)>0
+		local boosting=deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
 		if boosting then
+			-- On a long clear leg, cruise near what the hull can really do
+			-- rather than a little over the base cruise speed.
 			local top=Ship.performance(e).topSpeed
 			cruise=max(cruise,min(cruise*T.aiBoostCruise,top*.85))
-			want=min(cruise,sqrt(pass*pass+2*brakeAccel(e)*.6*max(0,d-150)))
+			want=min(cruise,sqrt(pass*pass+2*sb*.6*max(0,d-150)))
 		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
 		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
@@ -472,7 +531,7 @@ local function trade(game, e, dt)
 			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
 		want=want*scale
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
-		Nav.boost(e,mx,my,want,leg,clear,danger,boosting)
+		Nav.boost(e,mx,my,want,deep and math.huge or leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
@@ -508,6 +567,8 @@ function AI.think(game, e, dt)
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
 	it.thrust, it.strafe = 0, 0
 	local record=e.alifeId and game.universe.npcs[e.alifeId]
+	-- a site garrison fights like the enemy it flies as, until its duty ends
+	if record and record.garrison then record=nil end
  if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
   local x,y=e.body:getPosition();local a=e.body:getAngle()
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100
@@ -556,6 +617,9 @@ function AI.think(game, e, dt)
 		-- A drone with nothing to fight stays near whoever launched it,
 		-- and after T.droneRecall seconds of that, docks back into its hold.
 		local o = e.owner
+		-- an owner that was removed (docked away, left the area) has a
+		-- destroyed body: treat it as gone
+		if o and (o.dead or o.removed or o.body:isDestroyed()) then o = nil end
 		if e.drone then
 			e.idleTime = (e.idleTime or 0) + dt
 			if e.idleTime >= T.droneRecall and o and not o.dead then

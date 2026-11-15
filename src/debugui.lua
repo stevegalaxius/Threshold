@@ -282,7 +282,7 @@ local function readout(game)
 		("Turn accel       %.1f rad/s2"):format(perf.turnAccel),
 		("Max turn speed   %.0f deg/s"):format(perf.turnSpeed),
 		("Side accel       %.0f px/s2  (maneuvering thrusters)"):format(perf.sideAccel),
-		("Thrust           %.0f kN main, %.0f side, %.0f retro"):format(s.thrust, s.sideThrust, s.retroThrust),
+		("Thrust           %.0f kN main, %.0f maneuvering"):format(s.thrust, s.sideThrust),
 		("Armor            %.0f"):format(s.armor),
 		("Power            %.0f out, %.0f draw, %.0f stored"):format(s.powerOut, s.powerDraw, s.powerCap),
 		("Hold             %.1f / %.0f m3"):format(p.holdUsed, Ship.holdCapacity(p)),
@@ -299,16 +299,17 @@ local function section(id, label, fn, ...)
 	end
 end
 
--- Region numbers for the A-Life suite: residents, stashes, loose objects.
+-- Region numbers for the A-Life suite: residents, fencing, loose objects.
 local function regionSection(game)
  for _,place in ipairs(Locations.list(game.fieldId)) do if place.kind=='station' then
   local station=place.id
   Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
  end end
- for id,stash in pairs(game.universe.piracy and game.universe.piracy.stashes or {}) do
-  local place=Locations.byId[id]
-  Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')
-  for item,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[item].name,n)) end
+ -- fenced loot is ordinary station stock now; show what each house paid out
+ local book=game.universe.economyLedger and game.universe.economyLedger.stations or {}
+ for _,place in ipairs(Locations.list(game.fieldId)) do
+  local fenced=place.kind=='station' and (book[place.id] or {}).fenced
+  if fenced then Slab.Text(('%s fenced: %d cr paid to pirates'):format(place.name,fenced)) end
  end
  local mining=game.universe.mining
  if mining then
@@ -387,6 +388,7 @@ function Debug.update(dt, game)
 				end
 			end, game)
 			section('dbg_freight','Freight capacity',function(g) require('src.arbiter').panel(g,Slab) end,game)
+			section('dbg_availability','Regional availability',function(g) require('src.availability').panel(g,Slab) end,game)
 			section('dbg_chemicals','Factory production and prices',function(g) require('src.industry').panel(g,Slab) end,game)
 		end
 		Slab.EndWindow()

@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {}, satellites = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {} },
 }
 
 -- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
@@ -47,8 +47,62 @@ data.FAMILIES, data.SIZES = FAMILIES, SIZES
 function data.migrateSlot(slot)
 	if slot.family == "primary" then slot.family = "hardpoint"
 	elseif slot.family == "secondary" then slot.family, slot.trigger = "hardpoint", slot.trigger or "secondary"
-	elseif slot.family == "auxiliary" then slot.family = "bay" end
+	elseif slot.family == "auxiliary" then slot.family = "bay"
+	-- The utility slot is deprecated: it reads as a computer slot, and
+	-- utility modules (pods, tug beam, flares) fit computer slots.
+	-- the computer slot is called utility now; old files read the same
+	elseif slot.family == "computer" then slot.family = "utility" end
 	return slot
+end
+
+-- Every hull lists its slots in one order, so slot numbers mean the same
+-- thing on every ship: weapons first (numbered as on the hull outline),
+-- then bays, engines, reactors and computers. Within a family the authored
+-- order stands.
+data.SLOT_ORDER = { "hardpoint", "bay", "engine", "reactor", "utility" }
+local SLOT_RANK = {}
+for i, f in ipairs(data.SLOT_ORDER) do SLOT_RANK[f] = i end
+function data.slotRank(slot) return SLOT_RANK[slot.family] or #data.SLOT_ORDER + 1 end
+
+-- The canonical order of a slot list, as a permutation: perm[old] = new.
+-- Returns nil when the list is already in order.
+function data.slotPermutation(slots)
+	local idx = {}
+	for i = 1, #slots do idx[i] = i end
+	table.sort(idx, function(a, b)
+		local ra, rb = data.slotRank(slots[a]), data.slotRank(slots[b])
+		if ra ~= rb then return ra < rb end
+		return a < b
+	end)
+	local perm, moved = {}, false
+	for new, old in ipairs(idx) do perm[old] = new; if old ~= new then moved = true end end
+	return moved and perm or nil
+end
+
+-- A table keyed by slot number (loadout, triggers, loads) under a permutation.
+function data.permuteSlots(t, perm)
+	if type(t) ~= "table" or not perm then return t end
+	local out = {}
+	for k, v in pairs(t) do
+		if type(k) == "number" and perm[k] then out[perm[k]] = v else out[k] = v end
+	end
+	return out
+end
+
+-- Put a slot list (and the loadout that goes with it) in canonical order,
+-- in place. Returns the permutation used, or nil if nothing moved.
+function data.sortSlots(slots, loadout)
+	local perm = data.slotPermutation(slots)
+	if not perm then return nil end
+	local s = {}
+	for old, new in pairs(perm) do s[new] = slots[old] end
+	for i = 1, #s do slots[i] = s[i] end
+	if loadout then
+		local l = data.permuteSlots(loadout, perm)
+		for k in pairs(loadout) do loadout[k] = nil end
+		for k, v in pairs(l) do loadout[k] = v end
+	end
+	return perm
 end
 
 -- Does a module fit a hull slot?
@@ -56,6 +110,9 @@ function data.fits(slot, m)
 	-- a module sized "any" fits a slot of any size (computers and utilities)
 	if m.size ~= slot.size and m.size ~= "any" then return false end
 	if m.family == "weapon" then return slot.family == "hardpoint" end
+	-- deprecated utility modules ride in computer slots
+	-- computers, pods, tug beams and flares all go in utility slots
+	if m.family == "utility" or m.family == "computer" then return slot.family == "utility" or slot.family == "computer" end
 	return m.family == slot.family
 end
 
@@ -110,6 +167,7 @@ local api = {}
 
 local function prepareHull(def)
 	if type(def) ~= "table" then fail("hull expects a table") end
+	def.agility = nil   -- derived handling (Ship.agility) is redone from the stats
 	need(def, "id", "hull"); need(def, "name", "hull")
 	for _, f in ipairs({ "mass", "armor", "hold", "drag", "slots" }) do need(def, f, "hull") end
 	if not def.shape and not def.parts then fail(("hull '%s' needs a shape or parts"):format(def.id)) end
@@ -141,6 +199,14 @@ local function prepareHull(def)
 		for k = 2, #def.shape, 2 do w = math.max(w, math.abs(def.shape[k])) end
 		def.radius = math.max(4, math.floor(w + 0.5))
 	end
+	-- spinRadius: what turning inertia is worked out from (m * r^2 / 2).
+	-- Half the width alone made a ship wider than it is long spin like a
+	-- huge disc; take the smaller of half the width and half the length, so
+	-- long ships turn as before and wide ones turn like a long ship turned
+	-- sideways.
+	local nose, tail = 0, 0
+	for k = 1, #def.shape, 2 do nose, tail = math.max(nose, def.shape[k]), math.min(tail, def.shape[k]) end
+	def.spinRadius = math.max(4, math.min(def.radius, (nose - tail) / 2))
 	def.turn = def.turn or 0
 	def.bonuses = def.bonuses or {}
 	def.mount = def.mount or "gimbal"
@@ -158,6 +224,15 @@ local function prepareHull(def)
 		if not FAMILIES[slot.family] then fail(("hull '%s' slot %d has unknown family '%s'"):format(def.id, i, tostring(slot.family))) end
 		if slot.trigger and slot.trigger ~= "primary" and slot.trigger ~= "secondary" and slot.trigger ~= "tertiary" then fail(("hull '%s' slot %d has unknown trigger '%s' (use primary, secondary or tertiary)"):format(def.id, i, tostring(slot.trigger))) end
 		if not SIZES[slot.size] then fail(("hull '%s' slot %d has unknown size '%s' (use S, M, L or any)"):format(def.id, i, tostring(slot.size))) end
+		-- weapon slots always sit on the hull (an unplaced one fires from
+		-- the centre, so that's where its marker goes)
+		if (slot.family == "hardpoint" or slot.family == "bay") and not slot.x then slot.x, slot.y = 0, 0 end
+	end
+	-- canonical slot order; the file's own order is kept as slotRemap
+	-- (file index -> slot number) so other data and old saves can follow
+	def.slotRemap = data.sortSlots(def.slots, def.loadout)
+	if def.slotRemap then
+		for _, v in ipairs(def.variants or {}) do v.loadout = data.permuteSlots(v.loadout, def.slotRemap) end
 	end
 end
 
@@ -235,12 +310,23 @@ function api.site(def)
 	def.color = def.color or { 0.6, 0.8, 1 }
 end
 function api.prop(def) def.loot = {}; wreckLike("prop", def) end
+-- A satellite design (data/satellites/): built and spawned like a prop, but
+-- listed on its own in the Shipyard. src/satellites.lua places and runs them.
+function api.satellite(def) def.loot = {}; wreckLike("satellite", def) end
+
+-- Satellites in a field's orbit (src/satellites.lua, data/satellite_orbits.lua).
+-- One entry per field; a later one (a mod) replaces it.
+function api.satellites(def)
+	if type(def) ~= "table" or type(def.field) ~= "string" then fail("satellites expects { field = id, ... }") end
+	def.source = currentFile
+	data.satellites[def.field] = def
+end
 
 -- A wreck or prop made at runtime (the Shipyard's test spawn).
 function data.defineWreck(def)
 	local was = currentFile
 	currentFile = "shipyard"
-	local ok, err = pcall(def.kind == "prop" and api.prop or api.wreck, def)
+	local ok, err = pcall(def.kind == "prop" and api.prop or def.kind == "satellite" and api.satellite or api.wreck, def)
 	currentFile = was
 	if not ok then return nil, err end
 	return def
@@ -347,7 +433,8 @@ function api.module(def)
 	need(def, "family", "module"); need(def, "size", "module"); need(def, "mass", "module")
 	if not MODULE_FAMILIES[def.family] then fail(("module '%s' has unknown family '%s'"):format(def.id, tostring(def.family))) end
 	if not SIZES[def.size] then fail(("module '%s' has unknown size '%s'"):format(def.id, tostring(def.size))) end
-	if def.family=="computer" then
+	if def.family == "computer" then def.family = "utility" end   -- old name
+	if def.computer then
 		for _,field in ipairs({"radarRange","uplinkRange","lookahead","predictionTime","lockCone","controlLimit"}) do
 			local value=def[field]
 			if value~=nil and (type(value)~="number" or value~=value or value<=0 or value==math.huge) then
@@ -399,6 +486,64 @@ function api.container(def)
 	for _, f in ipairs({ "volume", "mass", "price", "w", "h", "grid", "hp", "body" }) do need(def, f, "container") end
 	def.kind, def.stack = "container", 1
 	def.fill = def.fill or {}
+end
+
+-- Item art (src/icons.lua): drawn in the Shipyard's Icons tab, keyed by the
+-- item it's for. A later file for the same item replaces the earlier one.
+local function prepareIcon(def)
+	if type(def) ~= "table" then fail("icon expects a table, like icon { id = ..., item = ..., parts = { ... } }") end
+	need(def, "item", "icon")
+	def.id = def.id or ("icon_" .. def.item)
+	def.parts = def.parts or (def.boxes and {}) or nil
+	if type(def.parts) ~= "table" then fail(("icon '%s' needs parts or boxes"):format(def.id)) end
+	if def.boxes ~= nil then
+		if type(def.boxes) ~= "table" then fail(("icon '%s': boxes should be a list"):format(def.id)) end
+		for i, b in ipairs(def.boxes) do
+			for _, f in ipairs({ "x", "y", "z", "w", "d", "h" }) do
+				if b[f] ~= nil and type(b[f]) ~= "number" then fail(("icon '%s' box %d: %s should be a number"):format(def.id, i, f)) end
+			end
+			for _, f in ipairs({ "w", "d", "h" }) do
+				if b[f] ~= nil and b[f] <= 0 then fail(("icon '%s' box %d: %s should be above 0"):format(def.id, i, f)) end
+			end
+		end
+	end
+	local LAYERS = { hull = true, detail = true, glow = true }
+	for i, part in ipairs(def.parts) do
+		local function bad(what) fail(("icon '%s' part %d: %s"):format(def.id, i, what)) end
+		if type(part.shape) ~= "table" or #part.shape < 6 or #part.shape % 2 ~= 0 then bad("shape should be at least three x, y points") end
+		if part.layer ~= nil and not LAYERS[part.layer] then bad("unknown layer '" .. tostring(part.layer) .. "' (use hull, detail or glow)") end
+		if part.color ~= nil and (type(part.color) ~= "table" or #part.color < 3) then bad("color should be { r, g, b }") end
+		if part.tint ~= nil and (type(part.tint) ~= "table" or #part.tint < 3) then bad("tint should be { r, g, b }") end
+		if part.paint ~= nil and part.paint ~= "primary" and part.paint ~= "secondary" then bad("paint should be primary or secondary") end
+	end
+	for _, f in ipairs({ "w", "h" }) do
+		local v = def[f]
+		if v ~= nil and (type(v) ~= "number" or v < 1 or v % 1 ~= 0) then fail(("icon '%s': %s should be a whole number of cells"):format(def.id, f)) end
+	end
+	def.reach = nil
+	if def.boxes then require("src.icons").syncBoxes(def) end
+	return def
+end
+
+function api.icon(def)
+	prepareIcon(def)
+	def.source = currentFile
+	-- the icon's footprint (from the editor's size boxes) is the item's grid size
+	local item = data.items[def.item]
+	if item and def.w and def.h then
+		item.w, item.h = def.w, def.h
+		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
+	end
+	if not data.icons[def.item] then table.insert(data.list.icons, def.item) end
+	data.icons[def.item] = def
+	return def
+end
+
+-- Register an icon from the Shipyard now: def, or nil, error.
+function data.defineIcon(def)
+	local ok, err = pcall(api.icon, def)
+	if not ok then return nil, err end
+	return def
 end
 
 -- Market profiles have their own identity; station placements reference them explicitly.
@@ -644,11 +789,24 @@ local function crossCheck()
 end
 
 -- Every module is also an item, so spares can sit in a hold, in station
--- storage or in a husk. Its shape comes from its size (S 2 x 1, M 2 x 2,
--- L 3 x 2, any 2 x 1), its volume matches the shape and its mass is the
--- module's own. Module items stay out of data.list.items so they don't
--- show up in ammo lists.
-local MODULE_SHAPES = { S = { 2, 1 }, M = { 2, 2 }, L = { 3, 2 }, any = { 2, 1 } }
+-- storage or in a husk. Its footprint (w x h hold cells) depends on what it
+-- is and its size: S about 8-10 cells, M 15-20, L 20-30. Guns are long
+-- and skinny. Its volume matches the shape and its mass is the module's own.
+-- Module items stay out of data.list.items so they don't show up in ammo lists.
+local MODULE_SHAPES = {
+	gun     = { S = { 5, 2 }, M = { 8, 2 }, L = { 10, 3 } },
+	laser   = { S = { 4, 2 }, M = { 6, 3 }, L = { 8, 3 } },
+	bay     = { S = { 3, 3 }, M = { 5, 3 }, L = { 6, 4 } },
+	engine  = { S = { 4, 2 }, M = { 5, 3 }, L = { 7, 4 } },
+	reactor = { S = { 3, 3 }, M = { 4, 4 }, L = { 5, 5 } },
+	utility = { S = { 4, 2 }, M = { 6, 3 }, L = { 6, 4 } },
+}
+local function moduleShape(m)
+	local kind = m.family
+	if m.family == "weapon" then kind = data.LASERS[m.weapon and m.weapon.kind] and "laser" or "gun"
+	elseif m.family == "computer" or not MODULE_SHAPES[m.family] then kind = "utility" end
+	return MODULE_SHAPES[kind][m.size] or { 3, 3 }
+end
 function addModuleItems()
 	for _, id in ipairs(data.list.modules) do
 		local m = data.modules[id]
@@ -656,7 +814,7 @@ function addModuleItems()
 		if existing and existing.kind ~= "module" then
 			error(("module '%s' has the same id as an item"):format(id), 0)
 		end
-		local shape = MODULE_SHAPES[m.size]
+		local shape = moduleShape(m)
 		data.items[id] = {
 			id = id, kind = "module", module = id, name = m.name, maker = m.maker, size = m.size,
 			w = shape[1], h = shape[2], stack = 1, volume = shape[1] * shape[2], mass = m.mass, price = m.price or 0,
@@ -687,6 +845,7 @@ end
 data.renamedHulls = {
 	halcyon_wisp = "intaki_wisp", ferrous_bastion = "estates_bastion", brute_praetor = "intaki_praetor",
 	Intaki_Archangel = "intaki_archangel", Intaki_wisp = "intaki_wisp", ferrous_Bison = "ferrous_bison",
+	ferrous_runner = "ferrous_pony", ferrous_freighter = "ferrous_bison",   -- retired designs
 }
 
 function data.load()
@@ -700,6 +859,30 @@ function data.load()
 		end
 	end
 	addModuleItems()
+	-- enemy loadouts were written against the hull files' slot order
+	for _, e in pairs(data.enemies) do
+		local h = data.hulls[e.hull]
+		if h and h.slotRemap and e.loadout and not e.slotsSorted then
+			e.loadout, e.slotsSorted = data.permuteSlots(e.loadout, h.slotRemap), true
+		end
+	end
+	-- Enemy loadouts name modules by slot number, which breaks whenever a
+	-- hull is redesigned. Fit each one to its hull by what fits where
+	-- (data.fitLoadout keeps modules already in a fitting slot and moves the
+	-- rest); a module with no room left is dropped with a warning, not a crash.
+	for id, e in pairs(data.enemies) do
+		local h = data.hulls[e.hull]
+		if h and e.loadout then
+			local fitted, want, have = data.fitLoadout(h, e.loadout), {}, {}
+			for _, m in pairs(e.loadout) do if m and data.modules[m] then want[m] = (want[m] or 0) + 1 end end
+			for _, m in pairs(fitted) do have[m] = (have[m] or 0) + 1 end
+			for m, n in pairs(want) do
+				if (have[m] or 0) < n then print(("[data] enemy '%s': no room for %s on %s, left off"):format(id, m, e.hull)) end
+			end
+			for i = 1, #h.slots do if fitted[i] == nil then fitted[i] = false end end
+			e.loadout = fitted
+		end
+	end
 	-- Old weapon ids (before the Shipyard <kind>_<size>_base designs) still
 	-- resolve, so saves holding them load. Lookup only: not in the lists.
 	for old, new in pairs(data.renamedModules) do

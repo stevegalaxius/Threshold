@@ -23,6 +23,7 @@ local Traffic=require("src.ui.npc_traffic")
 local TransitView = require("src.ui.transitview")
 local Pause = require("src.ui.pause")
 local Editor = require("src.editor")
+local Intro = require("src.ui.intro")
 
 local STEP = 1 / 120
 local accumulator = 0
@@ -88,12 +89,30 @@ function love.load(args)
 	-- Headless test runs: print an error and quit instead of showing the
 	-- error screen, which waits for a click and never exits.
 	for _, a in ipairs(args or {}) do
-		if a:match("^%-%-%a+test$") then
+		if (a == "--test" or a:match("^%-%-%a+test$")) then
 			love.errorhandler = function(msg)
 				print("Error: " .. tostring(msg) .. "\n" .. debug.traceback("", 2))
 				os.exit(1)
 			end
 		end
+	end
+	-- A plain launch shows the title intro and does the slow start-up
+	-- (content, universe, save) behind its zoom; test runs load straight away.
+	local plain = true
+	for _, a in ipairs(args or {}) do
+		if a:match("^%-%-") then plain = false end
+	end
+	if plain then
+		love.mouse.setVisible(false)
+		Intro.start(function()
+			data.load()
+			Debug.init()
+			game = Game.new()
+			require("src.worker").start()   -- the background thread (not for test runs: they stay on one)
+			if require("src.save").newest() then game:loadFrom() end
+			game.resetClock = true
+		end)
+		return
 	end
 	data.load()
 	for _, a in ipairs(args or {}) do
@@ -101,23 +120,8 @@ function love.load(args)
 	end
 	Debug.init()
 	game = Game.new()
-	-- Test runs: the A-Life smoke test, one navigation test, and the editor's.
-	local suites = {
-		["--smoketest"] = "tests.smoke", ["--actiontest"] = "tests.actions_smoke", ["--navtest"] = "tests.trader_navigation",
-		["--editortest"] = "tests.editor_loadout", ["--editorfoldertest"] = "tests.editor_folders",
-		["--weaponeditortest"] = "tests.weapon_editor", ["--dockeditortest"] = "tests.dock_editor",
-		["--lighttooltest"] = "tests.light_tool", ["--painttest"] = "tests.paint",
-		["--ammotest"] = "tests.weapon_ammo", ["--economytest"] = "tests.economy", ["--ramtest"] = "tests.collisions",
-		["--sitestest"] = "tests.sites",
-		["--hometest"] = "tests.npc_home", ["--handofftest"] = "tests.npc_handoff",
-		["--foodtest"] = "tests.food",
-		["--chemicaltest"] = "tests.chemicals",
-		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--questtest"] = "tests.quests", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity",
-		["--electronicstest"] = "tests.electronics",
-		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
-		["--ammunitiontest"] = "tests.ammunition",
-		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench",
-	}
+	-- Test run: love . --test (tests/fast.lua, about half a minute).
+	local suites = { ["--test"] = "tests.fast" }
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
  end
@@ -131,6 +135,7 @@ function love.load(args)
 		end
 	end
 	love.mouse.setVisible(false)
+	require("src.worker").start()
 	if autotest then
 		autotest.start(game)
 	elseif require("src.save").newest() then
@@ -140,6 +145,7 @@ end
 
 -- Closing the game saves it (unless you're dead or it's the autotest).
 function love.quit()
+	require("src.worker").stop("quit")
 	if not autotest and game and game.player and not game.player.dead then
 		Cargo.clearTrade(game)          -- goods out on the trade grid go home first
 		game:autosave()
@@ -148,6 +154,7 @@ end
 
 function love.update(dt)
 	dt = math.min(dt, 1 / 15)
+	require("src.worker").update()   -- answers from the background thread
 	Debug.update(dt, game)
 	LocalMap.update(game)
 	if Editor.isOpen() then
@@ -229,6 +236,7 @@ function love.draw()
 	if game.state ~= "docked" then
 		HUD.draw(game, lastIntent.aimX, lastIntent.aimY, Cargo.isOpen(game))
 	end
+	if game.state ~= "docked" then Cargo.drawPickupTooltip(game) end
 	if Cargo.isOpen(game) then
 		Cargo.draw(game)
 		HUD.drawToasts(game, Cargo.toastY(game))
@@ -264,8 +272,12 @@ function love.keypressed(key)
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
+	elseif key == "t" then HUD.cycleNav(love.keyboard.isDown("lshift", "rshift") and -1 or 1)
 	elseif key == "r" then relaunch()
 	elseif key == "g" then game:toggleDroneControl()
+	elseif key == "q" and game.player and not game.player.dead then
+		local ok, why = require("src.item_use").quick(game, game.player, "repair")
+		if not ok and why then game:toast(why, 1.5) end
 	elseif key == "f2" then Editor.toggle(game)
 	elseif key == "f5" then Cargo.clearTrade(game); game:saveTo("quick")
 	elseif key == "f9" then Cargo.close(game); game:loadFrom()
@@ -307,6 +319,26 @@ function love.wheelmoved(x, y)
 	if LocalMap.wheelmoved(game, y) then return end
 	if Cargo.wheelmoved(game,y) then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
+end
+
+-- While the title intro is up there's no game yet: it gets the screen and
+-- input to itself, then fades out over the first frames of play.
+do
+	local update, draw = love.update, love.draw
+	function love.update(dt)
+		if Intro.blocking() then Intro.update(math.min(dt, 1 / 15)) return end
+		update(dt)
+		Intro.update(math.min(dt, 1 / 15))
+	end
+	function love.draw()
+		if Intro.blocking() then Intro.draw() return end
+		draw()
+		Intro.draw()
+	end
+	for _, name in ipairs({ "textinput", "keypressed", "gamepadpressed", "mousepressed", "mousereleased", "wheelmoved" }) do
+		local f = love[name]
+		love[name] = function(...) if not Intro.blocking() then return f(...) end end
+	end
 end
 
 -- F7 frame profiler: counts frames and draws on top of everything

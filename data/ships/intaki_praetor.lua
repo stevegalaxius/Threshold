@@ -1,0 +1,47 @@
+-- Made in the Shipyard (F2). Base hull: intaki_praetor
+hull {
+	id = "intaki_praetor", name = "Praetor",
+	armor = 400,
+	bonuses = {},
+	class = "medium",
+	description = "Intaki pushes a  frame to its absolute limits with two independent fusion powertrains and a top speed approaching if not exceeding even some interceptors",
+	drag = 0.25,
+	hold = 50,
+	loadout = { "gun_m_base", "pulse_m_base", "flit_engine", "flit_engine", "kiln_reactor", "tug_beam", "nav_computer", "fire_computer" },
+	maker = "Intaki",
+	turnResponse = 0.5,
+	mass = 345,
+	mount = "gimbal",
+	paints = { "Khaki", "Sage", "Old Gold", "Champagne" },
+	price = 54500,
+	retroThrust = 800,
+	sideThrust = 800,
+	slots = {
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 0, y = -24 },
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 0, y = 24 },
+		{ family = "engine", size = "S", x = -70, y = -24 },
+		{ family = "engine", size = "S", x = -68, y = 24 },
+		{ family = "reactor", size = "M" },
+		{ family = "computer", size = "any" },
+		{ family = "computer", size = "any" },
+		{ family = "computer", size = "any" },
+	},
+	spoolTime = 0.2,
+	turn = 2750,
+	turnSpeed = 150,
+	turretTurn = 30,
+	parts = {
+		{ name = "part 4", shape = { 100, -6, 108, -6, 108, 6, 100, 6 }, mirror = true },
+		{ name = "part 3", shape = { -64, -8, -48, -8, -48, 8, -64, 8 }, lights = {
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -52, y = -4 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = -52, y = 4 },
+		} },
+		{ name = "part 2", shape = { -80, -32, -64, -16, 28, -16, -8, -32 }, paint = "secondary", mirror = true, lights = {
+			{ kind = "nav", x = -8, y = -30 },
+			{ kind = "strobe", phase = 0.5, rate = 1, x = -80, y = -32 },
+		} },
+		{ name = "part 5", shape = { -64, -8, -56, -36, 32, -16, 144, -4 }, paint = "primary", mirror = true, lights = {
+			{ kind = "strobe", rate = 1, x = 144, y = -4 },
+		} },
+	},
+}

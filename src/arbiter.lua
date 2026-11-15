@@ -18,7 +18,7 @@
 ]]
 local L=require('src.locations')
 local Tasks=require('src.tasks')
-local A={tick=60,maxExtra=12,decay=1/300,orePerMiner=100,maxExtraMiners=6,universe=nil}
+local A={tick=60,maxExtra=12,decay=1/300,orePerMiner=100,maxExtraMiners=12,universe=nil}
 
 function A.state(u) u.arbiter=u.arbiter or {extra={},next=0};return u.arbiter end
 

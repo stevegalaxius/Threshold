@@ -120,7 +120,7 @@ local function drawList(game, L, mx, my)
 	lg.setFont(HUD.font(12))
 	lg.setColor(HUD.DIM)
 	lg.print(def and (def.assembly and "Factory dealer" or "Used ship dealer") or "No dealer", P.x + PAD, P.y + 27)
-	lg.printf(("%d / %d on the lot"):format(#L.stock, def and def.lots or 0), P.x, P.y + 27, P.w - PAD, "right")
+	lg.printf(def and def.assembly and ("%d on the lot"):format(#L.stock) or ("%d / %d on the lot"):format(#L.stock, def and def.lots or 0), P.x, P.y + 27, P.w - PAD, "right")
 	if #L.stock == 0 then
 		lg.printf((def and (def.manufacturer and "The lot is empty. New ships roll out as the works finishes hull frames."
 				or "The lot is empty. More ships come in over time.") or "This station has no ships for sale.")
@@ -226,7 +226,7 @@ local function drawDetail(game, L, mx, my)
 	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.INK)
 	lg.print(lot.paint, x + 36, L.paintY + 5)
-	y = L.paintY + 40
+	y = Sheet.paragraph(Sheet.description(hull), x, L.paintY + 36, w, 4) + 8
 	y = Sheet.label(("%s fit \194\183 %d slots"):format(lot.trimName or lot.trim, #hull.slots), x, y)
 	Sheet.slots(hull, lot.loadout, x, y, w, D.y + D.h - PAD)
 

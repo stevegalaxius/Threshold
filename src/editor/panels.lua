@@ -15,22 +15,21 @@ local LAYERS = { "hull", "detail", "glow" }
 local GRIDS = { 1, 2, 4, 8, 16 }
 local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", ["break"] = "Break apart" }
 
--- Hull stats the design can set over its base hull (see data/hulls.lua).
+-- Hull stats the design can set over its base hull (see data/hulls.lua and data/ships/).
 local STATS = {
 	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn.", 1, 5000, 5, 0 },
 	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
 	{ "hold", "hold (m3)", "Cargo space in cubic metres.", 0, 1000, 1, 0 },
 	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
-	{ "turn", "turn torque", "How hard it rotates. Bigger = snappier.", 0, 20000, 50, 0 },
-	{ "turnSpeed", "turn cap (deg/s)", "Optional top spin speed, so a heavy hull comes about slowly even with lots of torque.", 10, 720, 5, 0 },
+	{ "turnSpeed", "turn rate (deg/s)", "Top spin speed.", 10, 720, 5, 0 },
+	{ "turnResponse", "turn response (s)", "Seconds to reach the turn rate from still, empty hold and stock fit. Cargo and heavier modules stretch it by the extra mass. Unset: measured from the old torque model.", 0.02, 10, 0.01, 2 },
 	{ "sideThrust", "maneuvering (kN)", "Built-in side thrust; turn-mode hulls use it for turning.", 0, 5000, 10, 0 },
-	{ "retroThrust", "retro (kN)", "Built-in reverse thrusters (the main engine only pushes forward).", 0, 3000, 10, 0 },
 	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
 	{ "toughness", "toughness", "Crash damage is divided by this (default 1; 2 = half). Light ships already take the most, since their speed changes most.", 0.1, 10, 0.05, 2 },
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
 	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
-local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "utility", "computer" }
+local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "utility" }
 local SIZES = { "S", "M", "L" }
 -- Families with no sizes: their slots are always "any" (data/hulls.lua).
 local SIZELESS = { utility = true, computer = true }
@@ -68,8 +67,10 @@ end
 local CATEGORIES = {
 	{ "hull", "Ships", "Hulls you can fly" },
 	{ "wreck", "Containers", "Containers and props placed in the world" },
+	{ "satellite", "Satellites", "Satellites in planet orbits: the panels are sensors, the bus is solid" },
 	{ "station", "Stations", "Station layouts" },
 	{ "weapon", "Weapons", "Guns, launchers and bays: stats and art" },
+	{ "icon", "Icons", "Item art: the icon in the hold and the cargo floating in space" },
 }
 
 -- Weapon stats by kind: key, label, lo, hi, step, precision, tooltip.
@@ -305,7 +306,7 @@ local function placedSections(E, d)
 		Slab.Text(("= %d x %d px"):format((bay.w or T.hangarW) * T.hangarCell, (bay.h or T.hangarH) * T.hangarCell), { Color = { 0.6, 0.6, 0.6 } })
 		return
 	end
-	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or "Wreck") .. " stats" }) then
+	if Slab.BeginTree("yard_wstats", { Label = (d.kind == "prop" and "Prop" or d.kind == "satellite" and "Satellite" or "Wreck") .. " stats" }) then
 		for _, st in ipairs(WRECK_STATS) do
 			local key, label, lo, hi, step, prec, help = unpack(st)
 			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
@@ -367,14 +368,16 @@ end
 
 -- Left: the design ------------------------------------------------------
 
-local fileBrowser
+local fileBrowser, restackControls
 
 local GREY = { 0.6, 0.6, 0.6 }
 
 -- Which category an exported id belongs to, from what's loaded (nil: not loaded yet).
 local function categoryOf(id)
+	local iconItem = id:match("^icon_(.+)$")
+	if iconItem and data.icons[iconItem] and data.icons[iconItem].id == id then return "icon" end
 	if data.stations[id] and not data.hulls[id] then return "station" end
-	if data.wrecks[id] and not data.hulls[id] then return "wreck" end
+	if data.wrecks[id] and not data.hulls[id] then return data.wrecks[id].kind == "satellite" and "satellite" or "wreck" end
 	if data.hulls[id] then return "hull" end
 	if data.modules[id] then return "weapon" end
 end
@@ -394,6 +397,10 @@ function fileBrowser(E, cat, builtIn)
 		if Slab.Button("New container", { Tooltip = "An object that holds loot, filled from a loot table" }) then E.newDesign("container") end
 		Slab.SameLine()
 		if Slab.Button("New prop", { Tooltip = "Debris or scenery: like a container, no loot" }) then E.newDesign("prop") end
+	elseif cat == "satellite" then
+		if Slab.Button("New satellite", { Tooltip = "A satellite design: tag panel parts Sensor so ships fly through them" }) then E.newDesign("satellite") end
+	elseif cat == "icon" then
+		if Slab.Button("New icon", { Tooltip = "Art for the first item that has none yet (pick another item below)" }) then E.newDesign("icon") end
 	elseif cat == "weapon" then
 		if Slab.Button("New weapon", { Tooltip = "A gun or launcher module" }) then E.newDesign("weapon") end
 	else
@@ -401,9 +408,9 @@ function fileBrowser(E, cat, builtIn)
 	end
 	Slab.SameLine()
 	if Slab.Button("Save", { Tooltip = "Writes " .. d.id .. ".lua into the folder below.\nSaving over the same id replaces it; saving into another folder moves it." }) then
-		E.pushUndo(); d.folder = dir; E.export()
+		E.pushUndo(); d.folder = (dir == "" and cat == "icon") and "icons" or dir; E.export()
 	end
-	Slab.Text("Saves to " .. Export.path(dir) .. "/" .. d.id .. ".lua", { Color = GREY })
+	Slab.Text("Saves to " .. Export.path((dir == "" and cat == "icon") and "icons" or dir) .. "/" .. d.id .. ".lua", { Color = GREY })
 
 	-- where you are, and the way up
 	Slab.Text("Folder: " .. (dir == "" and "shipyard" or dir:match("^@") and dir:gsub("^@([^/]+)", "mod %1") or "shipyard/" .. dir))
@@ -441,7 +448,8 @@ function fileBrowser(E, cat, builtIn)
 			local label
 			if e.dir then label = "[" .. e.name .. "]"
 			else
-				local def = data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
+				local ic = c == "icon" and data.icons[e.id:sub(6)]
+				local def = (ic and { name = (data.items[ic.item] and data.items[ic.item].name or ic.item) .. " icon", source = ic.source }) or data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
 				label = def and (def.name .. "  (" .. e.id .. ")") or (e.id .. "  (loads on restart)")
 				-- two files with one id: the later-loaded one is the one in the game
 				if def and def.source and def.source ~= e.path then label = label .. "  (duplicate id: " .. def.source:gsub("^mods/", ""):gsub("/data/", "/") .. " is the one in use)" end
@@ -465,11 +473,178 @@ function fileBrowser(E, cat, builtIn)
 	if shown == 0 then Slab.Text(dir == "" and "Nothing saved yet." or "Empty folder.", { Color = GREY }) end
 
 	-- the game's own designs, to start from
-	combo("yard_open_" .. cat, "Open a built-in design...", builtIn, function(id) E.openHull(id) end, 280)
+	combo("yard_open_" .. cat, cat == "icon" and "Open an item's icon (* has one)..." or "Open a built-in design...", builtIn, function(id)
+		local item = id:match("^item:(.+)$")
+		if item then E.openIcon(item) else E.openHull(id) end
+	end, 280)
+end
+
+-- Boxes: 3D blocks in the 3/4 crate view (src/icons.lua), in cells. The
+-- faces are rebuilt every frame from the numbers, so they are never edited
+-- by hand and always fill the footprint.
+local function boxSection(E, d)
+	local Icons = require("src.icons")
+	Slab.Separator()
+	Slab.Text("Boxes (3/4 crate view)")
+	Slab.Text("Pick one to edit it in the Box window.", { Color = GREY })
+	if Slab.Button("Add box") then
+		E.pushUndo()
+		d.boxes = d.boxes or {}
+		local fw = d.w or (Icons.footprint(d.item))
+		table.insert(d.boxes, { name = "box " .. (#d.boxes + 1), x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
+		E.boxSel, E.faceSel, E.sel, E.multi = #d.boxes, nil, nil, {}
+	end
+	if d.boxes and Slab.Button("Refit boxes to footprint", { Tooltip = "Scale and centre the boxes to fill the footprint again (adding or removing boxes keeps the scale)" }) then
+		E.pushUndo(); d.boxView = nil
+	end
+	for i, bx in ipairs(d.boxes or {}) do
+		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
+			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel, E.faceSel, E.sel, E.multi = i, nil, nil, {} end
+	end
+	if d.boxes and #d.boxes == 0 then d.boxes = nil end
+	Icons.syncBoxes(d)
+end
+
+-- The Primitive tool's shape and its settings, shared by every tab.
+local function primitiveOptions(E)
+	if E.tool ~= "rect" then return end
+	Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
+	local popts = { { label = "rectangle", value = "rect" }, { label = "ellipse / circle", value = "ellipse" }, { label = "chamfered box", value = "chamfer" }, { label = "truss / scaffold", value = "truss" } }
+	local names = { rect = "rectangle", ellipse = "ellipse / circle", chamfer = "chamfered box", truss = "truss / scaffold" }
+	combo("yard_prim", names[E.primitive or "rect"], popts, function(k) E.primitive = k end, 160)
+	if E.primitive == "ellipse" then
+		Slab.Text("sides")
+		if Slab.InputNumberDrag("yard_primsides", E.primSides or 24, 6, 64, 1, { W = 90 }) then E.primSides = math.floor(Slab.GetInputNumber()) end
+	elseif E.primitive == "chamfer" then
+		Slab.Text("corner cut")
+		if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
+	elseif E.primitive == "truss" then
+		Slab.Text("Runs along the box's long side; one part per member", { Color = { 0.6, 0.6, 0.6 } })
+		local topts = { { label = "zig-zag", value = "warren" }, { label = "X-braced", value = "x" }, { label = "ladder", value = "ladder" } }
+		local tnames = { warren = "zig-zag", x = "X-braced", ladder = "ladder" }
+		combo("yard_trusspat", tnames[E.trussPattern or "warren"], topts, function(k) E.trussPattern = k end, 160)
+		Slab.Text("bay length")
+		if Slab.InputNumberDrag("yard_trussbay", E.trussBay or 16, 2, 512, 1, { W = 90 }) then E.trussBay = Slab.GetInputNumber() end
+		Slab.Text("member thickness")
+		if Slab.InputNumberDrag("yard_trussthick", E.trussThick or 2, 0.5, 64, 0.5, { W = 90 }) then E.trussThick = Slab.GetInputNumber() end
+	end
+end
+
+-- The Icons tab: which item, its footprint, then the art tools.
+local function iconSections(E, d)
+	local Icons = require("src.icons")
+	local item = data.items[d.item]
+	local w, h = Icons.footprint(d.item)
+	Slab.Text("item: " .. (item and item.name or tostring(d.item)) .. "  (" .. tostring(d.item) .. ")")
+	Slab.Text(("footprint %d x %d cells (%d x %d units)"):format(w, h, w * Icons.CELL, h * Icons.CELL), { Color = GREY })
+	Slab.Text("The box is the hold footprint; draw the", { Color = GREY })
+	Slab.Text("outline inside it.", { Color = GREY })
+	-- the item's grid size, which is also its size in space
+	Slab.Text("size (cells)"); Slab.SameLine()
+	local function size(id, key, other)
+		if Slab.InputNumberDrag(id, d[key] or (key == "w" and w or h), 1, 12, 0.1, { W = 50, Precision = 0 }) then
+			E.pushUndoCoalesced(id)
+			d[key] = math.max(1, math.floor(Slab.GetInputNumber() + 0.5))
+			d[other] = d[other] or (other == "w" and w or h)
+		end
+	end
+	size("yard_iw", "w", "h"); Slab.SameLine(); Slab.Text("x"); Slab.SameLine(); size("yard_ih", "h", "w")
+	local cw, ch = d.w or w, d.h or h
+	Slab.Text(("%d x %d px in space (a Wisp is 72 long)"):format(cw * Icons.CELL * Icons.WORLD, ch * Icons.CELL * Icons.WORLD), { Color = GREY })
+	if item and item.volume and item.stack and cw * ch < item.volume * item.stack - 1e-6 then
+		Slab.Text(("Too small: a stack of %d needs %g cells"):format(item.stack, item.volume * item.stack), { Color = { 1, 0.6, 0.4 } })
+	end
+	if d.w and (d.w ~= w or d.h ~= h) then Slab.Text("Saving the icon sets the item to this size.", { Color = GREY }) end
+	Slab.Text("Paint primary = the item's kind colour.", { Color = GREY })
+	-- art that no longer fits the footprint (the item's w/h changed)
+	local bw, bh = Icons.box(d.item, d)
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in ipairs(d.parts) do
+		for k = 1, #p.shape - 1, 2 do
+			x0, x1 = math.min(x0, p.shape[k]), math.max(x1, p.shape[k])
+			local y = math.abs(p.shape[k + 1])
+			y0, y1 = math.min(y0, p.mirror and -y or p.shape[k + 1]), math.max(y1, p.mirror and y or p.shape[k + 1])
+		end
+	end
+	if x1 > x0 and (x0 < -bw - 0.01 or x1 > bw + 0.01 or y0 < -bh - 0.01 or y1 > bh + 0.01) then
+		Slab.Text("The art spills out of the footprint.", { Color = { 1, 0.6, 0.4 } })
+		if Slab.Button("Fit art to footprint", { Tooltip = "Scales every part (keeping its proportions) so the art fills the box" }) then
+			E.pushUndo()
+			local s = math.min(bw * 2 / (x1 - x0), bh * 2 / (y1 - y0))
+			local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+			for _, p in ipairs(d.parts) do
+				for k = 1, #p.shape - 1, 2 do
+					p.shape[k] = (p.shape[k] - cx) * s
+					p.shape[k + 1] = p.mirror and p.shape[k + 1] * s or (p.shape[k + 1] - cy) * s
+				end
+			end
+		end
+	end
+	boxSection(E, d)
+	if Slab.Button("Drop some ahead of me", { Tooltip = "Registers the icon now and drops three of the item in front of your ship" }) then E.testFly() end
+	Slab.SameLine()
+	if Slab.Button("Copy source") then E.copySource() end
+	if Slab.Button("Undo") then E.undoStep() end
+	Slab.SameLine()
+	if Slab.Button("Redo") then E.redoStep() end
+
+	Slab.Separator()
+	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" } }
+	local current = 1
+	if E.tool ~= "select" and E.tool ~= "draw" and E.tool ~= "rect" then E.tool = "select" end
+	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
+	for i, t in ipairs(tools) do
+		if Slab.RadioButton(t[2], { Index = i, SelectedIndex = current }) then
+			E.tool = t[1]
+			if t[1] ~= "draw" then E.drawing = nil end
+		end
+	end
+	primitiveOptions(E)
+	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
+	Slab.Text("grid"); Slab.SameLine()
+	local gopts = {}
+	for _, g in ipairs({ 0.5, 1, 2, 4 }) do table.insert(gopts, { label = tostring(g), value = g }) end
+	combo("yard_igrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
+	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
+	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
+	restackControls(E, "yard_ilayer")
+	for i, p in ipairs(d.parts) do
+		if p.fromBox then goto nextPart end
+		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
+		Slab.SameLine()
+		local tags = (p.paint and ("  (" .. p.paint .. ")") or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
+		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi, E.boxSel, E.faceSel = i, nil, {}, nil, nil end
+		::nextPart::
+	end
 end
 
 -- The Weapons tab: the module's stats, then the art tools.
-function weaponSections(E, d)
+function restackControls(E, id)
+	local sel = E.selectedParts()
+	local n = #E.design.parts
+	if #sel == 0 then
+		Slab.Text("Select a part to change its layer", { Color = { 0.6, 0.6, 0.6 } })
+		return
+	end
+	local function btn(label, how, tip)
+		if Slab.Button(label, { W = 64, H = 20, Tooltip = tip }) then E.restack(how) end
+	end
+	btn("To back", "back", "Draw first, under everything (Shift+[)")
+	Slab.SameLine()
+	btn("Back", "backward", "One step further back ([)")
+	Slab.SameLine()
+	btn("Forward", "forward", "One step further forward (])")
+	Slab.SameLine()
+	btn("To front", "front", "Draw last, over everything (Shift+])")
+	Slab.Text(#sel > 1 and ("%d parts, layer"):format(#sel) or "layer"); Slab.SameLine()
+	if Slab.InputNumberDrag(id, sel[1], 1, n, 1, { W = 60, Precision = 0, Tooltip = "Position in the list: 1 is the back, " .. n .. " the front" }) then
+		E.restack(math.floor(Slab.GetInputNumber() + 0.5))
+	end
+	Slab.SameLine()
+	Slab.Text(("of %d"):format(n), { Color = { 0.6, 0.6, 0.6 } })
+end
+
+local function weaponSections(E, d)
 	local m = d.module
 	m.weapon = m.weapon or { kind = "cannon" }
 	local w = m.weapon
@@ -583,6 +758,7 @@ function weaponSections(E, d)
 			if t[1] ~= "draw" then E.drawing = nil end
 		end
 	end
+	primitiveOptions(E)
 	if E.tool == "muzzle" then
 		Slab.Text("Click to add one, right click removes.", { Color = GREY })
 		Slab.Text("Shots take turns between them.", { Color = GREY })
@@ -595,10 +771,9 @@ function weaponSections(E, d)
 	combo("yard_wgrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
 	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
 	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
+	restackControls(E, "yard_wlayer")
 	for i, p in ipairs(d.parts) do
-		if Slab.Button("^", { W = 18, H = 18, Tooltip = "Draw earlier (further back)" }) then E.movePart(i, -1) end
-		Slab.SameLine()
-		if Slab.Button("v", { W = 18, H = 18, Tooltip = "Draw later (further forward)" }) then E.movePart(i, 1) end
+		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		local tags = (p.barrel and "  (barrel)" or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
 		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi = i, nil, {} end
@@ -620,9 +795,9 @@ local function designWindow(E, Editor)
 	-- one tab per category, each with its own design, list and new buttons
 	local cat = E.category()
 	for i, t in ipairs(CATEGORIES) do
-		if i > 1 then Slab.SameLine() end
+		if i > 1 and i ~= 4 then Slab.SameLine() end   -- two rows of tabs
 		local on = cat == t[1]
-		if Slab.Button(on and ("[" .. t[2] .. "]") or t[2], { W = 72, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
+		if Slab.Button(on and ("[" .. t[2] .. "]") or t[2], { W = 92, Tooltip = t[3] }) and not on then E.switchCategory(t[1]) end
 	end
 	Slab.Separator()
 	local openOpts = {}
@@ -633,10 +808,18 @@ local function designWindow(E, Editor)
 			local m = data.modules[id]
 			if m.weapon then table.insert(openOpts, { label = ("%s  (%s %s, %s)"):format(m.name, m.size, m.weapon.kind, id), value = id }) end
 		end
-	elseif cat == "wreck" then
+	elseif cat == "icon" then
+		for _, id in ipairs(data.list.items) do
+			local it = data.items[id]
+			local w, h = require("src.icons").footprint(id)
+			table.insert(openOpts, { label = ("%s%s  (%s, %dx%d)"):format(data.icons[id] and "* " or "", it.name, it.kind or "?", w, h), value = "item:" .. id })
+		end
+	elseif cat == "wreck" or cat == "satellite" then
 		for _, id in ipairs(data.list.wrecks) do
 			local w = data.wrecks[id]
-			table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+			if (w.kind == "satellite") == (cat == "satellite") then
+				table.insert(openOpts, { label = ("%s  (%s, %s)"):format(w.name, w.kind, id), value = id })
+			end
 		end
 	else
 		for _, id in ipairs(data.list.stations) do
@@ -645,13 +828,14 @@ local function designWindow(E, Editor)
 	end
 	fileBrowser(E, cat, openOpts)
 	Slab.Separator()
-	Slab.Text(("This design: a %s"):format(d.kind or "hull"))
+	Slab.Text(("This design: %s %s"):format(d.kind == "icon" and "an" or "a", d.kind or "hull"))
 	Slab.Text("id"); Slab.SameLine()
 	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
 	d.stats = d.stats or {}
 	if cat == "weapon" then weaponSections(E, d) Slab.EndWindow() return end
+	if cat == "icon" then iconSections(E, d) Slab.EndWindow() return end
 	if (d.kind or "hull") == "hull" then
 		Slab.Text("class"); Slab.SameLine()
 		textField(E, "yard_class", E.stat("class"), function(t) d.stats.class = t end, 150)
@@ -742,19 +926,7 @@ local function designWindow(E, Editor)
 		if Slab.InputNumberDrag("yard_wden", E.windowDensity or 0.6, 0.05, 1, 0.01, { W = 70 }) then E.windowDensity = Slab.GetInputNumber() end
 		if p and Slab.Button("Fill (replaces its lights; again to reroll)") then E.pushUndo(); fillWindows(E, p) end
 	end
-	if E.tool == "rect" then
-		Slab.Text("Drag a box; shift makes an ellipse a circle", { Color = { 0.6, 0.6, 0.6 } })
-		local popts = { { label = "rectangle", value = "rect" }, { label = "ellipse / circle", value = "ellipse" }, { label = "chamfered box", value = "chamfer" } }
-		local names = { rect = "rectangle", ellipse = "ellipse / circle", chamfer = "chamfered box" }
-		combo("yard_prim", names[E.primitive or "rect"], popts, function(k) E.primitive = k end, 160)
-		if E.primitive == "ellipse" then
-			Slab.Text("sides")
-			if Slab.InputNumberDrag("yard_primsides", E.primSides or 24, 6, 64, 1, { W = 90 }) then E.primSides = math.floor(Slab.GetInputNumber()) end
-		elseif E.primitive == "chamfer" then
-			Slab.Text("corner cut")
-			if Slab.InputNumberDrag("yard_primcham", E.primChamfer or 16, 1, 256, 1, { W = 90 }) then E.primChamfer = Slab.GetInputNumber() end
-		end
-	end
+	primitiveOptions(E)
 	if E.tool == "select" then
 		Slab.Text("Shift-click adds to the selection", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("Drag on empty space to box select:")
@@ -823,6 +995,9 @@ local function designWindow(E, Editor)
 			Slab.SameLine()
 			local own = d.stats[key]
 			local v = E.stat(key)
+			if v == nil and key == "turnResponse" and data.hulls[d.base] then
+				v = require("src.ship").agility(data.hulls[d.base]).response
+			end
 			Slab.Text(label .. (own ~= nil and " *" or ""))
 			Slab.SameLine({ Pad = 4 })
 			-- drag sideways or type; each stat has a sensible range and step
@@ -860,12 +1035,14 @@ local function designWindow(E, Editor)
 			Slab.SameLine()
 			local fopts = {}
 			for _, f in ipairs(FAMILIES) do table.insert(fopts, { label = f, value = f }) end
+			data.migrateSlot(slot)
 			combo("yard_slotfam" .. i, slot.family, fopts, function(f)
 				E.pushUndo()
 				slot.family = f
 				if SIZELESS[f] then slot.size = "any" elseif slot.size == "any" then slot.size = "S" end
 				if f ~= "hardpoint" and f ~= "bay" then slot.mount, slot.trigger = nil, nil end
 				E.validateSlotDefault(i)
+				E.sortSlots()
 			end, 95)
 			if not SIZELESS[slot.family] then
 				Slab.SameLine()
@@ -896,11 +1073,15 @@ local function designWindow(E, Editor)
 					slot.heading = v ~= 0 and v or nil
 				end
 			end
-			Slab.SameLine()
-			if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull (not drawn, fires from the centre)" or "Put a hardpoint on the hull at the origin" }) then
-				E.pushUndo()
-				if slot.x then slot.x, slot.y = nil, nil else slot.x, slot.y = 0, 0 end
-			end
+			-- weapon slots always sit on the hull; internal ones (engine
+			-- exhausts and the like) can be placed or left off
+			if slot.family ~= "hardpoint" and slot.family ~= "bay" then
+				Slab.SameLine()
+				if Slab.Button(slot.x and "on hull" or "place", { W = 58, H = 18, Tooltip = slot.x and "Click to take it off the hull" or "Put it on the hull at the origin" }) then
+					E.pushUndo()
+					if slot.x then slot.x, slot.y = nil, nil else slot.x, slot.y = 0, 0 end
+				end
+			elseif not slot.x then slot.x, slot.y = 0, 0 end
 			Slab.SameLine()
 			if Slab.Button("x", { W = 18, H = 18, Tooltip = "Remove this slot" }) then remove = i end
 			Slab.Text("Default item"); Slab.SameLine()
@@ -921,6 +1102,7 @@ local function designWindow(E, Editor)
 			table.insert(d.slots, { family = "hardpoint", size = "S", x = 0, y = 0 })
 			defaults[#d.slots] = false
 			E.slotSel = #d.slots
+			E.sortSlots()
 		end
 		Slab.Text("Modules that no longer fit a slot are", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("left empty when you test fly.", { Color = { 0.6, 0.6, 0.6 } })
@@ -937,22 +1119,23 @@ local function designWindow(E, Editor)
 	for i, p in ipairs(d.parts) do
 		if not p.hidden then
 			total = total + areaOf(p)
-			if p.core then tagged = tagged or i end
+			if p.core or p.breakable == false then tagged = tagged or i end
 			if p.collide ~= false and (not biggest or Canvas.area(p.shape) > Canvas.area(d.parts[biggest].shape)) then biggest = i end
 		end
 	end
+	-- with no part ticked core, the biggest part stays on as the body
 	E.coreIndex = tagged or biggest
+	E.anyCore = tagged ~= nil
 	E.totalArea = total
 	Slab.Text(("Parts (%d), drawn top to bottom"):format(#d.parts))
-	Slab.Text("click a name to select it", { Color = { 0.6, 0.6, 0.6 } })
+	Slab.Text("click a name to select it, shift-click for more", { Color = { 0.6, 0.6, 0.6 } })
+	restackControls(E, "yard_layer")
 	for i, p in ipairs(d.parts) do
 		Slab.PushID("yard_part" .. i)
-		local selected = E.sel == i
-		-- one row per part: order, visibility and lock as small toggles,
+		local selected = E.sel == i or (E.multi and E.multi[i]) or false
+		-- one row per part: layer number, visibility and lock as small toggles,
 		-- then the name, highlighted when selected
-		if Slab.Button("^", { W = 18, H = 18 }) then E.movePart(i, -1) end
-		Slab.SameLine()
-		if Slab.Button("v", { W = 18, H = 18 }) then E.movePart(i, 1) end
+		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		if Slab.Button(p.hidden and "-" or "o", { W = 18, H = 18, Tooltip = p.hidden and "Hidden: click to show" or "Visible: click to hide" }) then
 			p.hidden = not p.hidden or nil
@@ -962,10 +1145,17 @@ local function designWindow(E, Editor)
 			p.locked = not p.locked or nil
 		end
 		Slab.SameLine()
-		local tags = (p.mirror and " [mirror]" or "") .. (i == E.coreIndex and " [core]" or "") .. (E.errors[i] and " [!]" or "")
+		local tags = (p.mirror and " [mirror]" or "") .. ((p.core or p.breakable == false or (not E.anyCore and i == E.coreIndex)) and " [core]" or "") .. (E.errors[i] and " [!]" or "")
 		local label = (selected and "> " or "  ") .. (p.name or ("part " .. i)) .. tags
 		local color = E.errors[i] and { 1, 0.45, 0.45 } or selected and { 1, 0.85, 0.3 } or (p.hidden and { 0.5, 0.5, 0.5 } or nil)
-		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then E.sel, E.vsel, E.lsel = i, nil, nil end
+		if Slab.TextSelectable(label, { IsSelectableTextOnly = true, IsSelected = selected, Color = color }) then
+			if love.keyboard.isDown("lshift", "rshift") and E.sel and E.sel ~= i then
+				E.multi = E.multi or {}
+				E.multi[i] = (not E.multi[i]) or nil
+			else
+				E.sel, E.vsel, E.lsel, E.multi = i, nil, nil, {}
+			end
+		end
 		Slab.PopID()
 	end
 	Slab.EndWindow()
@@ -1116,6 +1306,110 @@ end
 
 -- Right: the selected part -------------------------------------------------
 
+-- Shade, tint and fixed colour: on a part, or on an icon box (whose faces
+-- take them).
+local function colourControls(E, p, i)
+	slider(E, "yard_shade" .. i, p.shade or 1, 0, 1.5, function(v) p.shade = v end)
+	Slab.Text("Tint (added to the paint)")
+	local tint = p.tint or { 0, 0, 0 }
+	for c, name in ipairs({ "r", "g", "b" }) do
+		Slab.Text(name); Slab.SameLine()
+		slider(E, "yard_tint" .. name .. i, tint[c], -1, 1, function(v)
+			local t = p.tint or { 0, 0, 0 }
+			t[c] = v
+			p.tint = (t[1] == 0 and t[2] == 0 and t[3] == 0) and nil or t
+		end)
+	end
+	check(E, p.color ~= nil, "Fixed colour (ignores the paint)", function(on)
+		local c = E.previewPaint(); p.color = on and { c[1], c[2], c[3] } or nil
+	end)
+	if p.color then
+		for c, name in ipairs({ "r", "g", "b" }) do
+			Slab.Text(name); Slab.SameLine()
+			slider(E, "yard_col" .. name .. i, p.color[c], 0, 1, function(v) p.color[c] = v end)
+		end
+	end
+end
+
+-- The selected icon box (Icons tab), in the Part window's place.
+local function boxWindow(E)
+	local d = E.design
+	local b = d.kind == "icon" and E.boxSel and d.boxes and d.boxes[E.boxSel]
+	if not b then return end
+	local Icons = require("src.icons")
+	local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+	Slab.BeginWindow("yard_part", {
+		Title = "Box", X = w - 300, Y = 10, W = 290, H = h - 20,
+		AutoSizeWindow = false, AllowResize = true,
+	})
+	local i = "box" .. E.boxSel
+	Slab.Text("name"); Slab.SameLine()
+	textField(E, "yard_bname" .. i, b.name or "", function(t) b.name = t end, 200)
+	Slab.Separator()
+	Slab.Text("Size and place (cells)")
+	Slab.Text("x across, y depth, z up", { Color = GREY })
+	local function num(label, key, lo, hi, default)
+		Slab.Text(label); Slab.SameLine()
+		if Slab.InputNumberDrag("yard_box_" .. key, b[key] or default, lo, hi, 0.05, { W = 60, Precision = 2 }) then
+			E.pushUndoCoalesced("yard_box_" .. key)
+			local v = math.floor(Slab.GetInputNumber() * 20 + 0.5) / 20
+			if key == "w" or key == "d" or key == "h" then v = math.max(0.05, v) end
+			b[key] = v
+		end
+	end
+	num("x", "x", -20, 20, 0); Slab.SameLine(); num("y", "y", -20, 20, 0); Slab.SameLine(); num("z", "z", -20, 20, 0)
+	num("w", "w", 0.05, 20, 1); Slab.SameLine(); num("d", "d", 0.05, 20, 1); Slab.SameLine(); num("h", "h", 0.05, 20, 1)
+	Slab.Text("faces"); Slab.SameLine()
+	for _, f in ipairs({ "front", "side", "top" }) do
+		local shown = not (b.hide and b.hide[f]) and not (f == "top" and b.open)
+		if Slab.CheckBox(shown, f) then
+			E.pushUndo()
+			if f == "top" then b.open = nil end
+			b.hide = b.hide or {}
+			b.hide[f] = shown or nil
+			if not next(b.hide) then b.hide = nil end
+		end
+		Slab.SameLine()
+	end
+	Slab.NewLine()
+	Slab.Text("Click a face and press Delete to hide it.", { Color = GREY })
+	Slab.Separator()
+	Slab.Text("Look")
+	Slab.Text("The item's kind colour unless changed.", { Color = GREY })
+	Slab.Text("Lighten (towards white, same hue)")
+	slider(E, "yard_light" .. i, b.light or 0, 0, 1, function(v) b.light = v > 0.001 and v or nil end)
+	Slab.Text("Shade (below 1 darkens)")
+	colourControls(E, b, i)
+	Slab.Separator()
+	if Slab.Button("Copy box") then
+		E.pushUndo()
+		local c = Export.copy(b); c.name = (b.name or "box") .. " copy"; c.z = (b.z or 0) + (b.h or 1)
+		table.insert(d.boxes, c); E.boxSel, E.faceSel = #d.boxes, nil
+	end
+	Slab.SameLine()
+	if Slab.Button("Turn into parts", { Tooltip = "Replaces this box with its faces as ordinary parts you can move and reshape" }) then
+		E.pushUndo()
+		local faces = {}
+		for _, q in ipairs(d.parts) do
+			if q.fromBox and q.box == E.boxSel then
+				local c = Export.copy(q); c.fromBox, c.box, c.face = nil, nil, nil
+				faces[#faces + 1] = c
+			end
+		end
+		table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
+		if #d.boxes == 0 then d.boxes = nil end
+		Icons.syncBoxes(d)
+		for _, c in ipairs(faces) do table.insert(d.parts, c) end
+	end
+	Slab.SameLine()
+	if Slab.Button("Delete box") then
+		E.pushUndo(); table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
+		if #d.boxes == 0 then d.boxes = nil end
+		Icons.syncBoxes(d)
+	end
+	Slab.EndWindow()
+end
+
 local function partWindow(E)
 	local p = E.sel and E.design.parts[E.sel]
 	if not p then return end
@@ -1213,26 +1507,7 @@ local function partWindow(E)
 			for _, k in ipairs(Canvas.selection(E)) do E.design.parts[k].paint = v2 end
 		end, 120)
 	end
-	slider(E, "yard_shade" .. i, p.shade or 1, 0, 1.5, function(v) p.shade = v end)
-	Slab.Text("Tint (added to the paint)")
-	local tint = p.tint or { 0, 0, 0 }
-	for c, name in ipairs({ "r", "g", "b" }) do
-		Slab.Text(name); Slab.SameLine()
-		slider(E, "yard_tint" .. name .. i, tint[c], -1, 1, function(v)
-			local t = p.tint or { 0, 0, 0 }
-			t[c] = v
-			p.tint = (t[1] == 0 and t[2] == 0 and t[3] == 0) and nil or t
-		end)
-	end
-	check(E, p.color ~= nil, "Fixed colour (ignores the paint)", function(on)
-		local c = E.previewPaint(); p.color = on and { c[1], c[2], c[3] } or nil
-	end)
-	if p.color then
-		for c, name in ipairs({ "r", "g", "b" }) do
-			Slab.Text(name); Slab.SameLine()
-			slider(E, "yard_col" .. name .. i, p.color[c], 0, 1, function(v) p.color[c] = v end)
-		end
-	end
+	colourControls(E, p, i)
 	do
 	Slab.Text("Layer")
 	local lopts = {}
@@ -1281,11 +1556,31 @@ local function partWindow(E)
 	if E.design.kind ~= "station" and E.design.kind ~= "weapon" then
 		Slab.Separator()
 		Slab.Text("Wreck")
+		-- loot: the parts ticked here, or every part if none is
+		local carriers = 0
+		for _, q in ipairs(E.design.parts) do if q.cargo then carriers = carriers + 1 end end
 		check(E, p.cargo == true, "Carries cargo", function(on) p.cargo = on or nil end)
-		Slab.Text("  (no part tagged: every part carries)", { Color = { 0.6, 0.6, 0.6 } })
-		check(E, p.core == true, "Core (stays when the rest is shot off)", function(on) p.core = on or nil end)
-		check(E, p.breakable ~= false, "Can be shot off", function(on) if on then p.breakable = nil else p.breakable = false end end)
-		check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
+		Slab.Text(carriers == 0 and "  (none ticked on any part: every part carries)"
+			or ("  (%d part%s carr%s the loot)"):format(carriers, carriers == 1 and "" or "s", carriers == 1 and "ies" or "y"), { Color = { 0.6, 0.6, 0.6 } })
+		-- core parts never break off; every other part can be shot away
+		local core = p.core == true or p.breakable == false
+		check(E, core, "Core (never shot off)", function(on)
+			p.core, p.breakable, p.coreSide = on or nil, nil, nil
+		end)
+		if core and p.mirror then
+			local names = { both = "both sides", original = "this side only", twin = "mirrored side only" }
+			local opts = {}
+			for _, k in ipairs({ "both", "original", "twin" }) do table.insert(opts, { label = names[k], value = k }) end
+			Slab.Text("  core on"); Slab.SameLine()
+			combo("yard_coreside" .. i, names[p.coreSide or "both"], opts, function(v) E.pushUndo(); p.coreSide = v ~= "both" and v or nil end, 140)
+			if p.coreSide then Slab.Text("  the other side can be shot off", { Color = { 0.6, 0.6, 0.6 } }) end
+		end
+		if not core and not E.anyCore and i == E.coreIndex then
+			Slab.Text("  (no part is core, so this, the biggest, stays on)", { Color = { 0.6, 0.6, 0.6 } })
+		end
+		if not core or (p.mirror and p.coreSide) then
+			check(E, p.explode == true, "Bursts into loot when shot off", function(on) p.explode = on or nil end)
+		end
 		Slab.Text("Mass multiplier (when it breaks away)")
 		slider(E, "yard_mass" .. i, p.mass or 1, 0.1, 5, function(v) p.mass = v end)
 		Slab.Text("Armour multiplier")
@@ -1296,6 +1591,7 @@ local function partWindow(E)
 	Slab.Text("Shape")
 	check(E, p.mirror == true, "Mirrored: drawn again flipped across the centre line (M)", function(on) p.mirror = on or nil end)
 	if E.design.kind ~= "weapon" then check(E, p.collide ~= false, "Collides (off: drawn only)", function(on) if on then p.collide = nil else p.collide = false end end) end
+	if E.design.kind ~= "weapon" and p.collide ~= false then check(E, p.sensor == true, "Sensor (shot, never bumped)", function(on) p.sensor = on or nil end) end
 	if Slab.Button("Flip nose-tail") then E.transformSelected(function(x, y) return -x, y end, true) end
 	Slab.SameLine()
 	if Slab.Button("Flip sides") then E.transformSelected(function(x, y) return x, -y end, true) end
@@ -1325,6 +1621,7 @@ end
 function Panels.update(E, Editor)
 	designWindow(E, Editor)
 	partWindow(E)
+	boxWindow(E)
 	rotorWindow(E)
 	paintWindow(E)
 	require("src.editor.comparison").update(E)

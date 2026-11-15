@@ -24,6 +24,8 @@
 	             "glow" (no outline, drawn additively)
 	  collide    false: drawn only, no physics shape on the wreck, never
 	             takes hits and never breaks off (antennae, fins, glow)
+	  sensor     true: shots hit it and it breaks off as usual, but nothing
+	             bumps into it (satellite panels you fly through)
 	  cargo      true: carries loot. If no part says cargo, every part does.
 	  core       true: this part is the wreck's core instead of the biggest
 	  breakable  false: never shoots off; stays with the core
@@ -75,6 +77,17 @@ function HullShape.check(s)
 	local ok, tris = pcall(love.math.triangulate, s)
 	if not ok then return nil, "its outline crosses itself" end
 	return s, tris
+end
+
+-- Is this part core (welded on, never shot off)? A mirrored part's
+-- coreSide picks which copy: nil both, "original" or "twin" just one.
+-- The old breakable = false means the same.
+function HullShape.isCore(part)
+	if part.breakable == false then return true end
+	if not part.core then return false end
+	if part.coreSide == "original" then return not part.twin end
+	if part.coreSide == "twin" then return part.twin == true end
+	return true
 end
 
 -- The mirror image of a part across the ship's axis, as its own part.

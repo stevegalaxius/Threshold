@@ -6,7 +6,7 @@ Saved site state contains `productionAt` and fractional `productionCarry`. Produ
 
 A site's active scene, physical outline and ships crossing the muzzle no longer change its production schedule or spawn records. Bodies materialize from those records at their current simulated positions, waiting if the position is obstructed. Effects use the existing emission timestamps rather than replaying a burst of physical ejections after visiting an area. Old saves without a production timestamp begin accounting at their first update; no historical production is invented.
 
-`love . --miningclocktest` compares frequent/coarse calls and visible/remote contexts, and checks saved fractional progress, resource caps, collection-time advancement and blocked production. It is in the smoke suite. Existing live-mining action checks and the bounded smoke/action suites pass.
+Run `love . --test` for the fast check suite.
 
 ## Before/after comparison
 

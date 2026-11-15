@@ -48,7 +48,7 @@ function E.import(game,text)
  local definition,err=Save.decode(text)
  if not definition then return nil,err end
  if type(definition.stations)~='table' or type(definition.navigation)~='table' then return nil,'world definition needs stations and navigation tables' end
- return E.apply(game,function()W.stations=definition.stations;W.navigation=definition.navigation;W.specials=definition.specials or W.specials;W.defaults=definition.defaults or W.defaults end)
+ return E.apply(game,function()W.stations=definition.stations;W.navigation=definition.navigation;W.specials=definition.specials or W.specials;W.defaults=definition.defaults or W.defaults;W.applyDefaults() end)
 end
 function E.save(path)
  return love.filesystem.write(path or 'world_layout.lua',W.export())

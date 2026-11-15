@@ -62,7 +62,7 @@ function Game:stationRecord(st)
 	local r = u[st.key]
 	if not r then
 		r = {
-			storage = Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
+			storage = require("src.stockpile").newStorage(st.key),
 			hangar = {},
 		}
 		u[st.key] = r
@@ -442,6 +442,7 @@ end
 
 -- The whole game as one plain table (see src/save.lua).
 function Game:saveState()
+	require("src.economy").finish(self.universe)   -- a half-done minute update can't be saved
 	require("src.mining").captureResources(self)
 	self:captureALife(false)
 	self:captureArea()
@@ -484,12 +485,12 @@ function Game:saveState()
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
-		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId,
-		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues) }
+		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId, discovered = Persistence.copy(u.discovered),
+		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites) }
 	local p = self.player
 	if p and not p.dead then
 		local where
-		if p.dockState and p.dockState.station then
+		if p.dockState and p.dockState.station and not p.dockState.station.sat then
 			local ds = p.dockState
 			local dockIndex
 			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
@@ -543,6 +544,7 @@ function Game:loadState(state)
 	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
 	self.universe.nextNpcId = state.nextNpcId or 0
 	self.universe.queues = Persistence.copy(state.queues or {})
+	self.universe.satellites = Persistence.copy(state.satellites or {})
 	do -- saves from before bookings were kept: rebuild them from the records,
 	   -- and book the legs under way that never got a turn (src/queue.lua)
 		local Q = require("src.queue"); Q.universe = self.universe
@@ -568,8 +570,8 @@ function Game:loadState(state)
    accessHangars[id]={hangar=ships,moorings=Persistence.copy(parking.moorings)}
   end
 		self.universe.stations[key] = {
-			storage = r.storage and Hold.deserialize(r.storage, known)
-				or Hold.new({ { key = "storage", name = "Station storage", w = T.storageW, h = T.storageH } }),
+			storage = r.storage and Hold.atLeast(Hold.deserialize(r.storage, known), require("src.stockpile").storageSize(key))
+				or require("src.stockpile").newStorage(key),
 			hangar = hangar, accessHangars=accessHangars, moorings=Persistence.copy(r.moorings), repairMaterial=r.repairMaterial,food=Persistence.copy(r.food),usage=Persistence.copy(r.usage),shortages=Persistence.copy(r.shortages),
 			shop = r.shop,
 		}
@@ -578,7 +580,7 @@ function Game:loadState(state)
 		for i, m in pairs(r.shops or (r.market and { r.market }) or {}) do
 			local restored={}
 			for k,v in pairs(m) do if k~='hold' then restored[k]=Persistence.copy(v) end end
-			restored.hold=m.hold and Hold.deserialize(m.hold,known);restored.next=restored.next or {}
+			restored.hold=m.hold and Hold.atLeast(Hold.deserialize(m.hold,known),T.marketW,T.marketH);restored.next=restored.next or {}
 			shops[tonumber(i)]=restored
 		end
 		self.universe.stations[key].shops = shops
@@ -589,6 +591,7 @@ function Game:loadState(state)
 	self.kills = state.kills or 0
 	self.universe.sites = Persistence.copy(state.sites or {})
 	self.universe.nextSiteId = state.nextSiteId or 0
+	self.universe.discovered = Persistence.copy(state.discovered or {})
 	local Sites = require("src.sites")
 	Sites.restore(self.universe)
 	-- saved mid-lane: back into the same lane, if both its ends still exist

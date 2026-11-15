@@ -138,10 +138,10 @@ function Q.dockBusy(game,st,dock,e)
  return false
 end
 
-local function liveLine(game,e,stop)
+local function liveLine(game,e,stop,dock)
  local AI=require('src.ai')
  local driver=stop.kind=='driver' and stop.driver
- local dock=not driver and AI.approachDock(e,stop)
+ dock=not driver and (dock or AI.approachDock(e,stop))
  local kind=driver and 'driver' or 'dock'
  local clock=game.universe.clock
  local cache=liveCache(game)
@@ -157,7 +157,13 @@ local function liveLine(game,e,stop)
     and not other.driverTractor and not other.launch
     and (target==stop or driver and target and target.driver==driver) then
     local sx,sy=AI.stopPoint(target,other);local x,y=other.body:getPosition()
+    -- Joining takes being within reach of the chokepoint; staying in line
+    -- doesn't. Fifth in line and on hold their spots (Q.holdPoint) were past
+    -- that reach, so a ship that got there dropped out of the line, flew
+    -- back in to rejoin at the end, was sent out to its spot again, and
+    -- shuttled back and forth through the line for ever.
     local reach=T.queueStart+T.queueGap*4
+    if q.entered then reach=T.queueStart+T.queueGap*(#cache.ships+4) end
     if (x-sx)^2+(y-sy)^2<=reach^2 then
      q.entered=q.entered or clock
      if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
@@ -179,7 +185,30 @@ local function liveLine(game,e,stop)
    if other==e then return busy or place>1,place end
   end
  end
- return false,1
+ return false,1,place,busy
+end
+
+-- A ship waiting behind a busy runway takes another runway of the same
+-- station when fewer ships are ahead there. Without this every arrival kept
+-- the runway nearest where it first came in, so one dock served the whole
+-- line while the station's other docks sat empty.
+local function shorterRunway(game,e,stop,place)
+ local AI=require('src.ai')
+ local docks=stop.docks
+ if not docks or #docks<2 or not e.approach or e.approach.stop~=stop then return end
+ local mine=e.approach.dock
+ -- (a free runway with a ship ahead is just arrival order: that one goes next)
+ if not Q.dockBusy(game,stop,mine,e) then return end
+ local ahead=place
+ local best,bestLoad
+ for _,d in ipairs(docks) do
+  if d~=mine then
+   local _,_,count,busy=liveLine(game,e,stop,d)
+   local load=(count or 0)+(busy and 1 or 0)
+   if load<ahead and (not bestLoad or load<bestLoad) then best,bestLoad=d,load end
+  end
+ end
+ if best then e.approach.dock=best;return true end
 end
 
 -- Online: is the live ship e holding for its turn at route stop `stop`?
@@ -189,6 +218,8 @@ function Q.holding(game,e,stop)
  if q and stop and (q.kind=='dock' and stop.dock or q.kind=='driver' and stop.driver)
   and stop.locationId and stop.locationId==q.key then
   local waiting,place=liveLine(game,e,stop)
+  -- (it joins the new runway's line next tick, when the line is rebuilt)
+  if waiting and stop.docks and shorterRunway(game,e,stop,place) then return r,place end
   return waiting and r or nil,place
  end
  -- No booking for this dock (it expired, or the visit never booked one):

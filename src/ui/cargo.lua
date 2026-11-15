@@ -14,7 +14,7 @@
 	  in space  Tab opens and closes it (Esc closes too). Just your hold.
 	            The game keeps running, and you can still fly with the keys.
 	  looting   a tap of E on a wreck or container in range opens it next
-	            to your hold. Take All, Ctrl-click or right-click takes;
+	            to your hold. Take All or Ctrl-click takes (or the right-click menu);
 	            your tractor beam tries to keep it in reach, and the
 	            window closes if it slips out of range anyway.
 
@@ -28,9 +28,11 @@
 	  R (dragging)    rotate
 	  Shift-drag      take half the stack
 	  Ctrl-click      quick move to the other side (docked)
-	  right-click     quick move to the other panel, like Ctrl-click; in
-	                  space with just your hold up: eject the stack out
-	                  behind the ship
+	  double-click    open a container, fit a module (docked), use a
+	                  usable item, or else quick move like Ctrl-click
+	  right-click     a menu of what you can do with the stack: use it
+	                  (src/item_use.lua), open, fit, move/take across,
+	                  split, eject one or all (in space)
 	  drop outside    in space: eject it
 	  Sort            tidy a hold (biggest items first, grouped by type)
 
@@ -57,9 +59,11 @@ local function loadOptions(p, i)
 end
 local Grid = require("src.inventory.grid")
 local Hold = require("src.inventory.hold")
+local ItemUse = require("src.item_use")
 local Shapes = require("src.inventory.shapes")
 local HullShape = require("src.hullshape")
 local HUD = require("src.hud")
+local Sheet = require("src.ui.shipsheet")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
@@ -70,12 +74,13 @@ local Station=require("src.ui.station")
 local stats = require("src.stats")
 local T = require("src.tuning")
 
-local Cargo = { open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
+local Cargo = { scroll = setmetatable({}, { __mode = "k" }), open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
 
 local function trading() return Cargo.tab=='market' end
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
+local Icons = require("src.icons")
 
 local GAP, PAD, HEAD = 16, 14, 40
 local tabRects, drawTabs, sendHome, drawTrade, targetKey
@@ -106,11 +111,12 @@ local function sides(game)
 	if game.state == "docked" and p.dockState then
 		-- station storage, then a parked ship's hold if one is open (Cargo.other)
 		local st = p.dockState.station
-		table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st })
+		-- (a satellite has no storage: src/satellites.lua)
+		if not st.sat then table.insert(list, { title = "Station storage", hold = game:stationStorage(st), storage = true, station = st }) end
 		if trading() then
 			-- the market: your hold or storage (one at a time, picked with the
 			-- panel's own tabs), the trade grid, then the station's shelf
-			if Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
+			if st.sat then Cargo.marketLeft = "hold" elseif Cargo.marketLeft == "storage" then table.remove(list, 1) else table.remove(list, 2) end
    list[1].pick = true
 			Cargo.tradeStation = st
 			table.insert(list, { title = "Trade", hold = tradeHold(), trade = true, station = st })
@@ -200,16 +206,17 @@ local function layout(game)
 	local eh = showEquip and (HEAD + HULL_H + #p.hull.slots * ROW + PAD) or 0
 	local function size(side, cs)
 		local g1 = side.hold.grids[1]
+		local g1h = side.rows or g1.h      -- rows shown; the rest scroll
 		local w, rowW, rowH = g1.w * cs, 0, 0
 		for i = 2, #side.hold.grids do
 			local g = side.hold.grids[i]
 			if side.trade then rowW=max(rowW,g.w*cs);rowH=rowH+g.h*cs+(i>2 and 24 or 0)
    else rowW = rowW + (i > 2 and GAP or 0) + g.w * cs;rowH = max(rowH, g.h * cs) end
 		end
-		local h = 18 + g1.h * cs + (rowH > 0 and (24 + rowH) or 0) + (side.trade and 194 or 0)
+		local h
   do
    local header=(side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58
-   h=g1.h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
+   h=g1h*cs+(rowH>0 and (24+rowH) or 0)+header+(side.trade and 194 or 14)-HEAD-PAD*2
   end
 		return max(w, rowW, (side.innerOf or side.parked) and 380 or side.market and 360 or (side.entity or side.station) and 340 or 300), h
 	end
@@ -237,10 +244,30 @@ local function layout(game)
 		end
 		return tw, max(th + HEAD + PAD * 2, eh)
 	end
+	-- Cells stay full size where they can: a grid too tall for the screen
+	-- shows fewer rows and scrolls (mouse wheel); only width shrinks cells.
+	local bodyH = select(4, Station.body())
+	local function fitRows(cs)
+		for _, col in ipairs(cols) do
+			for _, side in ipairs(col) do side.rows = nil end
+			while true do
+				local _, ch = column(col, cs)
+				if ch + HEAD + PAD * 2 <= bodyH then break end
+				local big
+				for _, side in ipairs(col) do
+					local r = side.rows or side.hold.grids[1].h
+					if r > 4 and (not big or r > (big.rows or big.hold.grids[1].h)) then big = side end
+				end
+				if not big then break end
+				big.rows = (big.rows or big.hold.grids[1].h) - 1
+			end
+		end
+	end
 	local cs = Station.CELL
 	while cs > 6 do
+		fitRows(cs)
 		local tw, ph = measure(cs)
-		if tw <= Station.frameW() and ph <= select(4, Station.body()) then break end
+		if tw <= sw - 32 and ph <= bodyH then break end   -- grids may use the whole screen width, past the header frame
 		cs = cs - 1
 	end
 
@@ -297,6 +324,7 @@ local function layout(game)
 				{ id = "hold", label = "Ship hold", x = x + PAD, y = y + 48, w = 96, h = 24 },
 				{ id = "storage", label = "Station storage", x = x + PAD + 100, y = y + 48, w = 124, h = 24 },
 			}
+			if side.station and side.station.sat then side.picks[2] = nil end
 		end
 		if side.market then
 			-- filter buttons along the grid's label row
@@ -329,11 +357,14 @@ local function layout(game)
 		end
 		local gx, gy = x+PAD,y+((side.pick or side.market) and (side.market and 142 or 98) or side.trade and 70 or 58)
 		local g1 = side.hold.grids[1]
-		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy, label = g1.name })
-		local rx, ry = gx, gy + g1.h * cs + 24
+		local rows = min(side.rows or g1.h, g1.h)
+		local off = max(0, min(Cargo.scroll[g1] or 0, g1.h - rows))
+		Cargo.scroll[g1] = off
+		table.insert(L.grids, { side = side, g = g1, x = gx, y = gy - off * cs, vy = gy, vh = rows * cs, label = g1.name })
+		local rx, ry = gx, gy + rows * cs + 24
 		for i = 2, #side.hold.grids do
 			local g = side.hold.grids[i]
-			table.insert(L.grids, { side = side, g = g, x = rx, y = ry, label = g.name })
+			table.insert(L.grids, { side = side, g = g, x = rx, y = ry, vy = ry, vh = g.h * cs, label = g.name })
 			if side.trade then ry=ry+g.h*cs+24 else rx = rx + g.w * cs + GAP end
 		end
 	end
@@ -350,7 +381,7 @@ end
 local function cellAt(L, mx, my)
 	for _, r in ipairs(L.grids) do
 		local cx, cy = floor((mx - r.x) / L.cs), floor((my - r.y) / L.cs)
-		if cx >= 0 and cy >= 0 and cx < r.g.w and cy < r.g.h then return r, cx, cy end
+		if cx >= 0 and cy >= 0 and cx < r.g.w and cy < r.g.h and my >= r.vy and my < r.vy + r.vh then return r, cx, cy end
 	end
 end
 
@@ -515,6 +546,7 @@ function Cargo.toggle(game)
 end
 
 function Cargo.close(game)
+	Cargo.menu = nil
 	finish(game, layout(game))
 	Cargo.open, Cargo.loot = false, nil
 end
@@ -579,7 +611,7 @@ local TABS={{id='cargo',label='Storage'},{id='contracts',label='Contracts'},{id=
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='contracts' or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
+ for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='contracts' and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -704,6 +736,8 @@ end
 local function slotAt(L, mx, my)
 	for _, r in ipairs(L.equip.slots) do
 		if inRect(r, mx, my) then return r end
+		-- or its marker on the hull outline
+		if r.mx and (r.mx - mx) ^ 2 + (r.my - my) ^ 2 <= 81 then return r end
 	end
 end
 
@@ -799,9 +833,145 @@ Cargo.quickFit = function(game, x, y)
 	if s then quickFit(game, L, r, s) end
 end
 
+
+-- Right-click menu --------------------------------------------------------
+
+-- Right-clicking a stack opens a small menu of what you can do with it.
+-- Cargo.menu = { x, y, items = { {label, run, why} }, r, s }; an item with
+-- `why` is shown greyed out with the reason.
+local MENU_W, MENU_ROW = 190, 24
+
+local function stillThere(m)
+	local s = m.s
+	return Grid.at(m.r.g, s.x, s.y) == s
+end
+
+local function menuItems(game, L, r, s, mx, my)
+	local items, p = {}, game.player
+	local item = itemFor(s.id)
+	local docked = game.state == "docked"
+	local atMarket = trading() and docked
+	local own = r.side.ship == p and not r.side.trade
+	local function add(label, run, why) items[#items + 1] = { label = label, run = run, why = why } end
+	if own and ItemUse.usable(s.id) then
+		local ok, why = ItemUse.can(game, p, s.id)
+		add("Use: " .. ItemUse.label(s.id), function()
+			local ok2, why2 = ItemUse.begin(game, p, s.id)
+			if ok2 then changed(r.side) elseif why2 then game:toast(why2, 1.5) end
+		end, not ok and why or nil)
+	end
+	if item.kind == "container" and not atMarket then
+		add("Open", function()
+			if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
+		end, not s.inner and "empty" or nil)
+	end
+	if item.kind == "module" and not atMarket then
+		add("Fit to ship", function() quickFit(game, L, r, s) end, not docked and "dock to refit" or nil)
+	end
+	if #L.sides > 1 or atMarket then
+		local label = (r.side.entity or r.side.innerOf) and "Take"
+			or r.side.market and "Put on trade grid"
+			or atMarket and "Move to trade grid"
+			or "Move to other panel"
+		add(label, function() quickMove(game, L, r, s) end)
+	end
+	if s.n > 1 and not r.side.market then
+		add("Split stack", function()
+			Cargo.lastClick = nil
+			Cargo.mousepressed(game, mx, my, 1, { shift = true })
+		end)
+	end
+	if r.side.ship and not docked and not r.side.trade then
+		local function eject(n)
+			return function()
+				n = min(n, s.n)
+				s.n = s.n - n
+				if s.n <= 0 then Grid.remove(r.g, s) end
+				changed(r.side)
+				game:eject(r.side.ship, s.id, n, s.n <= 0 and s.inner or nil)
+			end
+		end
+		if s.n > 1 then add("Eject one", eject(1)) end
+		add(s.n > 1 and ("Eject all (" .. s.n .. ")") or "Eject", eject(s.n))
+	end
+	return items
+end
+
+local function menuRects(m)
+	local sw, sh = lg.getDimensions()
+	local h = #m.items * MENU_ROW + 8
+	local x = min(m.x, sw - MENU_W - 4)
+	local y = min(m.y, sh - h - 4)
+	local rects = {}
+	for i, it in ipairs(m.items) do
+		rects[i] = { x = x + 4, y = y + 4 + (i - 1) * MENU_ROW, w = MENU_W - 8, h = MENU_ROW, it = it }
+	end
+	return { x = x, y = y, w = MENU_W, h = h }, rects
+end
+
+-- Returns true if the click was taken by the menu (always, while it's open).
+local function menuClick(game, mx, my, button)
+	local m = Cargo.menu
+	Cargo.menu = nil
+	local box, rects = menuRects(m)
+	-- a right-click elsewhere reopens the menu there (the click goes on to
+	-- the normal handler); on the menu itself it just closes it
+	if button == 2 then return inRect(box, mx, my) end
+	if button ~= 1 then return true end
+	for _, b in ipairs(rects) do
+		if inRect(b, mx, my) then
+			if b.it.why then game:toast(string.upper(b.it.why), 1.2)
+			elseif stillThere(m) then b.it.run() end
+			return true
+		end
+	end
+	return true
+end
+
+-- Pick the open menu's first item whose label starts with `prefix` (for
+-- the autotest). Returns true if it ran.
+function Cargo.menuChoose(game, prefix)
+	local m = Cargo.menu
+	if not m then return false end
+	local _, rects = menuRects(m)
+	for _, b in ipairs(rects) do
+		if b.it.label:sub(1, #prefix) == prefix then
+			menuClick(game, b.x + 2, b.y + 2, 1)
+			return not b.it.why
+		end
+	end
+	Cargo.menu = nil
+	return false
+end
+
+local function drawMenu(game)
+	local m = Cargo.menu
+	if not m then return end
+	if not stillThere(m) then Cargo.menu = nil return end
+	local mx, my = love.mouse.getPosition()
+	local box, rects = menuRects(m)
+	lg.setColor(0.03, 0.07, 0.1, 0.97)
+	lg.rectangle("fill", box.x, box.y, box.w, box.h, 5, 5)
+	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+	lg.rectangle("line", box.x, box.y, box.w, box.h, 5, 5)
+	lg.setFont(HUD.font(13))
+	for _, b in ipairs(rects) do
+		if not b.it.why and inRect(b, mx, my) then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.22)
+			lg.rectangle("fill", b.x, b.y, b.w, b.h, 4, 4)
+		end
+		lg.setColor(b.it.why and HUD.DIM or HUD.INK)
+		local label = b.it.label .. (b.it.why and ("  (" .. b.it.why .. ")") or "")
+		local f = HUD.font(13)
+		while #label > 3 and f:getWidth(label) > b.w - 16 do label = label:sub(1, -5) .. "..." end
+		lg.print(label, b.x + 8, b.y + 4)
+	end
+end
+
 -- mods: { ctrl, shift } to stand in for the keyboard (the autotest uses it).
 function Cargo.mousepressed(game, mx, my, button, mods)
 	if not Cargo.isOpen(game) then return false end
+	if Cargo.menu and menuClick(game, mx, my, button) then return true end
 	-- an open shop menu takes the click: pick a shop, or close it
 	if button == 1 then
 		local tabs = spaceTabs(game)
@@ -964,7 +1134,11 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 	local c = Cargo.lastClick
 	local double = c and c.g == r.g and c.x == s.x and c.y == s.y and c.id == s.id and now - c.t < 0.35
 	Cargo.lastClick = { g = r.g, x = s.x, y = s.y, id = s.id, t = now }
-	if double and trading() and game.state == "docked" then double = false end   -- no opening or fitting at the market
+	if button == 1 and double and trading() and game.state == "docked" then
+		Cargo.lastClick = nil
+		quickMove(game, L, r, s)                   -- at the market: onto the trade grid (or back)
+		return true
+	end
 	if button == 1 and double and itemFor(s.id).kind == "container" then
 		if s.inner then Cargo.inner = s.inner else game:toast("IT'S EMPTY", 1) end
 		return true
@@ -973,15 +1147,24 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		if game.state == "docked" then quickFit(game, L, r, s) else game:toast("DOCK AT A STATION TO REFIT", 1.4) end
 		return true
 	end
+	-- anything else: use it if it's usable and yours, or else send it to the
+	-- other panel (never ejects; that's a drag out or the right-click menu)
+	if button == 1 and double then
+		Cargo.lastClick = nil
+		if r.side.ship == game.player and not r.side.trade and ItemUse.usable(s.id) then
+			local ok, why = ItemUse.begin(game, game.player, s.id)
+			if ok then changed(r.side) elseif why then game:toast(why, 1.5) end
+		elseif #L.sides > 1 then
+			quickMove(game, L, r, s)
+		end
+		return true
+	end
 	local ctrl = mods and mods.ctrl or love.keyboard.isDown("lctrl", "rctrl")
 	local shift = mods and mods.shift or love.keyboard.isDown("lshift", "rshift")
 	local atMarket = trading() and game.state == "docked"
-	if button == 2 and (#L.sides > 1 or atMarket) then
-		quickMove(game, L, r, s)                   -- right-click: to the other panel
-	elseif button == 2 and game.state ~= "docked" then
-		Grid.remove(r.g, s)                        -- just your hold, in space: eject it
-		changed(r.side)
-		game:eject(r.side.ship, s.id, s.n, s.inner)
+	if button == 2 then
+		local items = menuItems(game, L, r, s, mx, my)        -- right-click: what you can do with it
+		if #items > 0 then Cargo.menu = { x = mx + 2, y = my + 2, r = r, s = s, items = items } end
 	elseif button == 1 and ctrl then
 		quickMove(game, L, r, s)
 	elseif button == 1 then
@@ -1094,8 +1277,21 @@ function Cargo.keypressed(game, key)
 		h.dx, h.dy = min(h.dy, h.w - 1), min(h.dx, h.h - 1)
 		return true
 	end
+	if key == "escape" and Cargo.menu then Cargo.menu = nil; return true end
 	if key == "escape" and game.state ~= "docked" then Cargo.close(game); return true end
 	if key == "e" and Cargo.loot then Cargo.close(game); return true end
+	if key == "u" and not Cargo.hand then
+		-- use the hovered stack (only from your own hold)
+		local L = layout(game)
+		local mx, my = love.mouse.getPosition()
+		local r, cx, cy = L and cellAt(L, mx, my)
+		local s = r and Grid.at(r.g, cx, cy)
+		if s and r.side.ship == game.player and ItemUse.usable(s.id) then
+			local ok, why = ItemUse.begin(game, game.player, s.id)
+			if ok then changed(r.side) elseif why then game:toast(why, 1.5) end
+			return true
+		end
+	end
 	return false
 end
 
@@ -1110,6 +1306,10 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
 	lg.setColor(c[1], c[2], c[3], 0.95 * alpha)
 	lg.setLineWidth(1)
 	lg.rectangle("line", x + 2.5, y + 2.5, w - 5, h - 5, 3, 3)
+	if item.kind ~= 'ship' and item.id then
+		-- the item's drawn art, turned with the stack; the name sits on top
+		require("src.icons").drawInRect(item.id, x, y, w, h, entry and entry.rot, alpha)
+	end
 	if item.kind=='ship' then
   local Paint=require('src.paint');local hull=data.hulls[item.hull]
   local paint=entry and entry.shipRecord and entry.shipRecord.color or Paint.preset(Paint.pool(hull)[1])
@@ -1159,7 +1359,7 @@ local SIZE_NAME = { S = "Small", M = "Medium", L = "Large", any = "Any size" }
 local function kindLine(item)
 	local m = data.modules[item.id]
 	if item.kind == "ship" then return "Ship" end
-	if m then return "Module \194\183 " .. (m.family:gsub("^%l", string.upper)) end
+	if m then return "Module \194\183 " .. (m.computer and "Computer" or ((m.family == "computer" or m.family == "utility") and "Utility" or m.family:gsub("^%l", string.upper))) end
 	if item.kind == "ammo" then return "Ammo \194\183 " .. ((item.family or "?"):gsub("^%l", string.upper)) end
 	if item.kind == "container" then return "Container" end
 	return (item.kind and item.kind:gsub("^%l", string.upper)) or "Item"
@@ -1193,91 +1393,237 @@ local function describe(item)
 	end
 	return nil
 end
-local function tooltip(item, n, mx, my, hint, price)
-	local sw0, sh0, cap = Shapes.of(item.id)
+-- Module stats, one line each, for the mouseover: { label, value, format,
+-- better } where better is 1 if more is better, -1 if less is.
+local MODULE_STATS = {
+	{ "thrust", "Thrust", "%d kN", 1 }, { "sideThrust", "Maneuvering", "%d kN", 1 },
+	{ "turn", "Turn", "%d", 1 }, { "powerOut", "Power output", "%g/s", 1 },
+	{ "powerCap", "Power storage", "%d", 1 }, { "armor", "Armor", "%d", 1 },
+	{ "hold", "Hold", "%d m3", 1 }, { "tractorRange", "Tractor range", "%d px", 1 },
+	{ "tractorPower", "Tractor power", "%g", 1 }, { "radarRange", "Radar range", "%d px", 1 },
+	{ "uplinkRange", "Uplink range", "%d px", 1 }, { "controlLimit", "Drones", "%d", 1 },
+	{ "lockCone", "Lock cone", "%d\194\176", 1 }, { "predictionTime", "Lead prediction", "%gs", 1 },
+	{ "lookahead", "Lookahead", "%gs", 1 },
+}
+local WEAPON_STATS = {
+	{ "fireRate", "Fire rate", "%g/s", 1 }, { "damage", "Damage", "%g", 1 }, { "range", "Range", "%d px", 1 },
+	{ "gimbal", "Gimbal", "%d\194\176", 1 }, { "spread", "Spread", "%g\194\176", -1 },
+	{ "beams", "Beams", "%d", 1 }, { "capacity", "Tubes (S rounds)", "%d", 1 }, { "recoil", "Recoil", "%g", -1 }, { "powerPerShot", "Power per shot", "%g", -1 },
+	{ "powerPerSecond", "Power per second", "%g", -1 },
+}
+local function moduleLines(m)
+	local out = {}
+	local w = m.weapon
+	if w then
+		for _, st in ipairs(WEAPON_STATS) do
+			local v = w[st[1]]
+			if type(v) == "number" then out[#out + 1] = { key = "w." .. st[1], label = st[2], value = v, fmt = st[3], better = st[4] } end
+		end
+		if w.chambers then out[#out + 1] = { label = "Fires", text = table.concat(w.chambers, " / ") .. " ammo" } end
+	end
+	for _, st in ipairs(MODULE_STATS) do
+		local v = m[st[1]]
+		if type(v) == "number" and v ~= 0 then out[#out + 1] = { key = st[1], label = st[2], value = v, fmt = st[3], better = st[4] } end
+	end
+	if m.flares then out[#out + 1] = { label = "Countermeasures", text = "Flares" } end
+	out[#out + 1] = { key = "powerDraw", label = "Power draw", value = m.powerDraw or 0, fmt = "%g/s", better = -1 }
+	return out
+end
+local GOOD, BAD, FLAVOR = { 0.35, 1, 0.45 }, { 1, 0.4, 0.35 }, { 1, 0.82, 0.45 }
+
+-- A mouseover card in the style of an RPG item tooltip: name and size,
+-- kind and maker, one line per stat (with the change against what's fitted
+-- in green or red), flavour text, then price and what you can do.
+-- Returns w, h, draw(x, y).
+local function card(item, n, hint, price, against, header)
 	local W, P = 300, 12
 	local big, small, tiny = HUD.font(15), HUD.font(12), HUD.font(11)
+	local m = data.modules[item.id]
 	local size = item.size and (SIZE_NAME[item.size] or item.size)
-	local desc = describe(item)
-	local _, descLines = small:getWrap(desc or "", W - P * 2)
-	if not desc then descLines = {} end
-	local stats = item.kind == "ship" and {} or {
-		{ "Stack", ("%d / %d"):format(n, cap) },
-		{ "Volume", ("%.2f m3"):format(item.volume * n) },
-		{ "Mass", ("%.2f t"):format(item.mass * n) },
-		{ "Cells", ("%d x %d"):format(sw0 or item.w or 1, sh0 or item.h or 1) },
-	}
-	local h = P + 20 + 18 + (#descLines > 0 and (#descLines * 15 + 8) or 0)
-		+ (#stats > 0 and 40 or 0) + (price and 20 or 0) + (hint and 24 or 0) + P - 4
-	local sw, sh = lg.getDimensions()
-	local x, y = min(mx + 18, sw - W - 4), min(my + 18, sh - h - 4)
-	lg.setColor(0.02, 0.06, 0.09, 0.96)
-	lg.rectangle("fill", x, y, W, h, 6, 6)
-	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
-	lg.rectangle("line", x + 0.5, y + 0.5, W - 1, h - 1, 6, 6)
-	local cy = y + P
-	-- name, and a size badge on the right
-	local badgeW = 0
-	if size then
-		badgeW = tiny:getWidth(size) + 14
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.25)
-		lg.rectangle("fill", x + W - P - badgeW, cy + 1, badgeW, 18, 4, 4)
-		lg.setFont(tiny); lg.setColor(HUD.INK)
-		lg.printf(size, x + W - P - badgeW, cy + 4, badgeW, "center")
+	if m then
+		-- the badge says what slot it takes: "Medium engine", "Small bay"
+		local fam = m.family == "computer" and "utility" or m.family   -- (old name)
+		size = (m.size == "any" or not m.size) and (fam:gsub("^%l", string.upper)) or ((SIZE_NAME[m.size] or m.size) .. " " .. fam)
+	elseif item.kind == "ammo" then
+		-- ammo says what it is and its size: "Small rounds", "Medium shells"
+		local WHAT = { gun = "rounds", artillery = "shells", missile = "tube", torpedo = "tube", drone = "drone" }
+		local what = WHAT[item.family] or item.family or "ammo"
+		size = item.size and ((SIZE_NAME[item.size] or item.size) .. " " .. what) or (what:gsub("^%l", string.upper))
 	end
-	lg.setFont(big); lg.setColor(HUD.INK)
-	lg.printf(item.name, x + P, cy, W - P * 2 - badgeW - 6, "left")
-	cy = cy + 20
-	lg.setFont(small); lg.setColor(HUD.AQUA)
-	lg.print(kindLine(item) .. (item.maker and ("  \194\183  " .. item.maker) or ""), x + P, cy)
-	cy = cy + 18
-	if #descLines > 0 then
-		cy = cy + 4
-		lg.setColor(HUD.DIM)
-		for _, l in ipairs(descLines) do lg.print(l, x + P, cy); cy = cy + 15 end
-		cy = cy + 4
-	end
-	if #stats > 0 then
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
-		lg.line(x + P, cy + 4, x + W - P, cy + 4)
-		local cw = (W - P * 2) / #stats
-		for i, st in ipairs(stats) do
-			local sx = x + P + (i - 1) * cw
-			lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
-			lg.setFont(small); lg.setColor(HUD.INK); lg.print(st[2], sx, cy + 23)
+	-- the category badge sits above the type badge
+	local category = (item.kind or "item"):gsub("^%l", string.upper)
+	local lines = m and moduleLines(m) or nil
+	if not m and item.kind == "ammo" and item.shot then
+		-- ammo gets stat lines like a module
+		lines = {}
+		for _, st in ipairs({ { "damage", "Damage", "%g" }, { "splash", "Splash radius", "%g px" }, { "speed", "Speed", "%d px/s" },
+			{ "accel", "Acceleration", "%d px/s2" }, { "turnRate", "Turn", "%.1f rad/s" }, { "range", "Range", "%d px" },
+			{ "armTime", "Arm time", "%gs" }, { "fuse", "Proximity fuse", "%d px" }, { "pellets", "Pellets", "%d" },
+			{ "knockback", "Knockback", "%d" } }) do
+			local v = item.shot[st[1]]
+			if type(v) == "number" then lines[#lines + 1] = { label = st[2], value = v, fmt = st[3] } end
 		end
-		cy = cy + 40
+		lines[#lines + 1] = { label = "Fits", text = ("%s %s"):format(SIZE_NAME[item.size] or item.size or "?", item.family or "") }
 	end
-	if price then lg.setFont(small); lg.setColor(PRICE); lg.print(price, x + P, cy + 2); cy = cy + 20 end
-	if hint then
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
-		lg.line(x + P, cy + 4, x + W - P, cy + 4)
-		lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(hint, x + P, cy + 9)
+	local diff = {}
+	local am = against and against ~= item.id and data.modules[against]
+	if lines and am then
+		local was = {}
+		for _, l in ipairs(moduleLines(am)) do if l.key then was[l.key] = l.value end end
+		for _, l in ipairs(lines) do if l.key then diff[l.key] = l.value - (was[l.key] or 0) end end
+	end
+	-- every card: the item's own description, else a placeholder
+	local desc = item.description or item.desc or (m and (m.description or m.desc))
+	if item.kind == "ship" and not desc then desc = describe(item) end
+	if not desc then
+		desc = ("Placeholder description: %s is a %s waiting on its real flavour text. This line is long enough to wrap so the layout can be checked."):format(item.name, kindLine(item):lower())
+	end
+	local descLines = {}
+	if desc and desc ~= "" then _, descLines = small:getWrap('"' .. desc .. '"', W - P * 2) end
+	-- the bar under the description: mass, and price when you're trading
+	local stats = item.kind == "ship" and {} or {
+		{ "Mass", ("%g t"):format(math.floor((item.mass or (m and m.mass) or 0) * n * 100 + 0.5) / 100) },
+	}
+	-- price joins the bar only at a market: "Buy for" / "Sells for"
+	if price and item.kind ~= "ship" then
+		local label, value = price:match("^(%a+ for) (.*)$")
+		stats[#stats + 1] = { label or "Price", value or price, color = PRICE }
+		price = nil
+	end
+	-- the bar's mass shows the change against the fitted module too
+	if am and #stats > 0 then
+		local d = (m.mass or 0) - (am.mass or 0)
+		if math.abs(d) > 1e-6 then stats[1].diff, stats[1].good = (d > 0 and "+" or "-") .. ("%g t"):format(math.abs(d)), d < 0 end
+	end
+	local h = P + (header and 16 or 0) + 20 + 4 + ((item.maker or size) and 18 or 0) + (lines and (#lines * 16 + 6) or 0)
+		+ (#descLines > 0 and (#descLines * 15 + 8) or 0) + (#stats > 0 and 40 or 0)
+
+		+ (price and 20 or 0) + (hint and 24 or 0) + P - 4
+	return W, h, function(x, y)
+		lg.setColor(0.02, 0.06, 0.09, 0.96)
+		lg.rectangle("fill", x, y, W, h, 6, 6)
+		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+		lg.rectangle("line", x + 0.5, y + 0.5, W - 1, h - 1, 6, 6)
+		local cy = y + P
+		if header then lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(header, x + P, cy); cy = cy + 16 end
+		-- badges on the right: category on top, type and size under it
+		local function badge(text, by, strong)
+			local bw = tiny:getWidth(text) + 14
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], strong and 0.25 or 0.12)
+			lg.rectangle("fill", x + W - P - bw, by, bw, 16, 4, 4)
+			lg.setFont(tiny); lg.setColor(strong and HUD.INK or HUD.DIM)
+			lg.printf(text, x + W - P - bw, by + 2, bw, "center")
+			return bw
+		end
+		local badgeW = item.kind ~= "ship" and badge(category, cy + 1, false) or 0
+		local sizeW = size and badge(size, cy + 20, true) or 0
+		-- the name in the item's own colour, as it shows in the hold
+		lg.setFont(big); lg.setColor(item.kind == "ship" and HUD.AQUA or HUD.itemColor(item))
+		lg.printf(item.name .. (n and n > 1 and ("  \195\151" .. n) or ""), x + P, cy, W - P * 2 - badgeW - 6, "left")
+		cy = cy + 20
+		-- the maker under the name, in a soft blue-grey
+		if item.maker then
+			lg.setFont(small); lg.setColor(0.62, 0.7, 0.82)
+			lg.printf(item.maker, x + P, cy + 1, W - P * 2 - sizeW - 6, "left")
+		end
+		if item.maker or size then cy = cy + 18 end
+		cy = cy + 4
+		if lines then
+			cy = cy + 2
+			lg.setFont(small)
+			for _, l in ipairs(lines) do
+				lg.setColor(HUD.DIM); lg.print(l.label, x + P, cy)
+				local text = l.text or l.fmt:format(l.value)
+				local d = l.key and diff[l.key]
+				local dx = 0
+				if d and math.abs(d) > 1e-6 then
+					local good = d * l.better > 0
+					local ds = (d > 0 and "+" or "-") .. l.fmt:format(math.abs(d))
+					lg.setColor(good and GOOD or BAD)
+					lg.printf(ds, x + P, cy, W - P * 2, "right")
+					dx = small:getWidth(ds) + 10
+				end
+				lg.setColor(HUD.INK); lg.printf(text, x + P, cy, W - P * 2 - dx, "right")
+				cy = cy + 16
+			end
+			cy = cy + 4
+		end
+		if #descLines > 0 then
+			cy = cy + 4
+			lg.setFont(small); lg.setColor(FLAVOR)
+			for _, l in ipairs(descLines) do lg.print(l, x + P, cy); cy = cy + 15 end
+			cy = cy + 4
+		end
+		if #stats > 0 then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
+			lg.line(x + P, cy + 4, x + W - P, cy + 4)
+			local cw = (W - P * 2) / #stats
+			for i, st in ipairs(stats) do
+				local sx = x + P + (i - 1) * cw
+				lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(st[1], sx, cy + 10)
+				lg.setFont(small:getWidth(st[2]) > cw - 6 and tiny or small); lg.setColor(st.color or HUD.INK); lg.print(st[2], sx, cy + 23)
+				if st.diff then
+					lg.setColor(st.good and GOOD or BAD)
+					lg.print(st.diff, sx + small:getWidth(st[2]) + 8, cy + 23)
+				end
+			end
+			cy = cy + 40
+		end
+		if price then lg.setFont(small); lg.setColor(PRICE); lg.print(price, x + P, cy + 2); cy = cy + 20 end
+		if hint then
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.2)
+			lg.line(x + P, cy + 4, x + W - P, cy + 4)
+			lg.setFont(tiny); lg.setColor(HUD.DIM); lg.print(hint, x + P, cy + 9)
+		end
 	end
 end
 
+-- against: the module id this one would replace; its own card ("Currently
+-- fitted") is drawn alongside so the two can be read side by side.
+local function tooltip(item, n, mx, my, hint, price, against)
+	local sw, sh = lg.getDimensions()
+	local w, h, draw = card(item, n, hint, price, against)
+	local x, y = min(mx + 18, sw - w - 4), min(my + 18, sh - h - 4)
+	draw(x, y)
+	local am = against and against ~= item.id and data.items[against]
+	if am then
+		local w2, h2, draw2 = card(am, 1, nil, nil, nil, "Currently fitted")
+		local x2 = x + w + 6
+		if x2 + w2 > sw - 4 then x2 = x - w2 - 6 end
+		draw2(x2, min(y, sh - h2 - 4))
+	end
+end
+
+-- Loose cargo in tractor range under the cursor, out in space: the same
+-- card the hold shows, beside the pickup, with the item's icon to its left.
+function Cargo.drawPickupTooltip(game)
+	local k = game.hoverPickup
+	local item = k and data.items[k.item]
+	if not item or Cargo.isOpen(game) then return end
+	local sx, sy = game.camera:toScreen(k.x, k.y)
+	local sw, sh = lg.getDimensions()
+	local w, h, draw = card(item, k.count or 1, nil, nil, nil)
+	local S = 72                         -- the icon's square
+	local x = min(sx + 24 + S + 6, sw - w - 4)
+	local y = max(4, min(sy - h / 2, sh - h - 4))
+	draw(x, y)
+	local ix, iy = x - S - 6, y
+	lg.setColor(0.02, 0.06, 0.09, 0.95)
+	lg.rectangle("fill", ix, iy, S, S, 6, 6)
+	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+	lg.setLineWidth(1)
+	lg.rectangle("line", ix + 0.5, iy + 0.5, S - 1, S - 1, 6, 6)
+	lg.setColor(1, 1, 1)
+	Icons.drawInRect(k.item, ix, iy, S, S, nil, 1, 10)
+end
+
 local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
-	reactor = "REACTOR", utility = "UTILITY", computer = "COMPUTER" }
+	reactor = "REACTOR", utility = "UTILITY", computer = "UTILITY" }
 
 local function slotLabel(slot)
 	return SLOT_LABEL[slot.family] .. (slot.size ~= "any" and (" " .. slot.size) or "")
 end
 
--- Handling numbers for a hull with a loadout and cargo mass (tonnes).
-local function handling(hull, loadout, cargoMass)
-	local s = stats.compute(hull, loadout)
-	local m = (s.mass + cargoMass) * T.massScale
-	local thrust = math.max(s.thrust, s.sideThrust * T.sideScale) * T.FORCE_PER_KN * T.thrustScale   -- jets stand in for a missing engine
-	return {
-		{ "Top speed", math.sqrt(thrust / (hull.drag * T.dragScale)), "%.0f px/s" },
-		{ "Acceleration", thrust / m, "%.0f px/s2" },
-		{ "Turn", s.turn, "%.0f" },
-		{ "Spare power", s.powerNet, "%+.0f/s" },
-		{ "Mass", m, "%.0f t" },
-	}
-end
-
--- The before -> after readout while a module hovers over a slot it fits.
 local function drawReadout(game, i, x, y)
 	local p, h = game.player, Cargo.hand
 	local after = {}
@@ -1285,12 +1631,12 @@ local function drawReadout(game, i, x, y)
 	local old = after[i]
 	after[i] = h.id
 	if h.from.slot then after[h.from.slot] = old or false end
-	local cargoMass = p.cargoMass + (old and not h.from.slot and data.modules[old].mass or 0)
 	local before = {}
 	for k, v in pairs(p.loadout) do before[k] = v end
 	if h.from.slot then before[h.from.slot] = h.id end
-	local a = handling(p.hull, before, p.cargoMass + (h.from.slot and 0 or itemFor(h.id).mass))
-	local b = handling(p.hull, after, cargoMass)
+	-- the same numbers the ship sheet and shipyard show, so they agree
+	local a = Sheet.numbers(p.hull, before)
+	local b = Sheet.numbers(p.hull, after)
 	local w, rh = 300, 18
 	local ph = #a * rh + 16
 	lg.setColor(0.02, 0.06, 0.09, 0.95)
@@ -1304,8 +1650,8 @@ local function drawReadout(game, i, x, y)
 		lg.setColor(HUD.DIM)
 		lg.print(row[1], x + 10, ny)
 		lg.printf(row[3]:format(before), x, ny, 170, "right")
-		local better = (row[1] == "Mass") and now < before - 0.5 or now > before + 0.5
-		local worse = (row[1] == "Mass") and now > before + 0.5 or now < before - 0.5
+		local better = row.lower and now < before - 0.5 or (not row.lower and now > before + 0.5)
+		local worse = row.lower and now > before + 0.5 or (not row.lower and now < before - 0.5)
 		lg.setColor(better and { 0.5, 1, 0.6 } or (worse and HUD.WARN or HUD.INK))
 		lg.printf("-> " .. row[3]:format(now), x, ny, w - 10, "right")
 	end
@@ -1348,16 +1694,26 @@ local function drawEquipment(game, L, mx, my)
 	local hover = slotAt(L, mx, my)
 	lg.setFont(HUD.font(10))
 	for _, r in ipairs(E.slots) do
+		-- every placed slot gets an unnumbered marker in its family's colour;
+		-- hovering its row (or the marker) highlights it and draws a leader
 		if r.slot.x then
 			local sx, sy = ox + r.slot.x * sc, oy + (r.slot.y or 0) * sc
+			r.mx, r.my = sx, sy
 			local fits = hm and data.fits(r.slot, hm)
-			local col = fits and { 0.4, 1, 0.55 } or HUD.AQUA
+			local col = fits and { 0.4, 1, 0.55 } or Sheet.familyColor(r.slot)
+			local big = hover == r or fits
 			lg.setColor(0.02, 0.06, 0.09, 0.9)
-			lg.circle("fill", sx, sy, 7)
-			lg.setColor(col[1], col[2], col[3], (hover == r or fits) and 1 or 0.7)
-			lg.circle("line", sx, sy, 7)
-			lg.printf(r.i, sx - 7, sy - 6, 14, "center")
+			lg.circle("fill", sx, sy, big and 8 or 6)
+			lg.setColor(col[1], col[2], col[3], big and 1 or 0.85)
+			lg.setLineWidth(big and 2 or 1.5)
+			lg.circle("line", sx, sy, big and 8 or 6)
+			lg.setLineWidth(1)
 		end
+	end
+	if hover and hover.mx then
+		local c = Sheet.familyColor(hover.slot)
+		lg.setColor(c[1], c[2], c[3], 0.6)
+		lg.line(hover.x + 2, hover.y + hover.h / 2, hover.mx, hover.my)
 	end
 
 	-- One row per slot.
@@ -1380,7 +1736,9 @@ local function drawEquipment(game, L, mx, my)
 		lg.rectangle("line", r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, 5, 5)
 		lg.setFont(HUD.font(10))
 		lg.setColor(HUD.DIM[1], HUD.DIM[2], HUD.DIM[3], alpha)
-		lg.print((r.slot.x and (r.i .. "  ") or "") .. slotLabel(r.slot), r.x + 6, r.y + 2)
+		local fc = Sheet.familyColor(r.slot)
+		lg.setColor(fc[1], fc[2], fc[3], alpha)
+		lg.print(slotLabel(r.slot), r.x + 6, r.y + 2)
 		lg.setFont(HUD.font(12))
 		if m then
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
@@ -1421,7 +1779,7 @@ end
 function drawTabs(game,mx,my)
  local p=game.player;local st=p.dockState.station;local f=Cargo.workspace(game)
  Station.panel(f.x,12,f.w,88)
- Station.ledgerText(f.x,12,st.name,game:shipParkingLabel(st,p)..'  \194\183  '..require('src.food').label(game.universe,st.key or st.locationId))
+ Station.ledgerText(f.x,12,st.name,st.sat and 'Satellite berth' or game:shipParkingLabel(st,p)..'  \194\183  '..require('src.food').label(game.universe,st.key or st.locationId))
  lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,21,190,'right')
  Station.button({x=f.x+f.w-130,y=24,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))
@@ -1630,8 +1988,9 @@ function Cargo.draw(game)
      label=label..'...'
     end
    end
-   lg.print(label,r.x,r.y-17)
+   lg.print(label,r.x,r.vy-17)
   end
+		lg.setScissor(r.x, r.vy, r.g.w * cs, r.vh)
 		lg.setColor(0, 0, 0, 0.35)
 		lg.rectangle("fill", r.x, r.y, r.g.w * cs, r.g.h * cs)
   if r.side.market and r.side.shipEntries and #r.g.stacks==0 then
@@ -1651,6 +2010,18 @@ function Cargo.draw(game)
    if r.side.market and not stockMatch(s) then alpha=0 end
 			drawStack(itemFor(s.id), s.n, r.x + s.x * cs, r.y + s.y * cs, s.w * cs, s.h * cs, cs, alpha, tag,s)
 		end
+		lg.setScissor()
+		-- scrollbar when rows are hidden
+		local total = r.g.h * cs
+		if total > r.vh + 0.5 then
+			local bx = r.x + r.g.w * cs + 3
+			local bh = r.vh * r.vh / total
+			local by = r.vy + (r.vy - r.y) / (total - r.vh) * (r.vh - bh)
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
+			lg.rectangle("fill", bx, r.vy, 4, r.vh, 2, 2)
+			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.5)
+			lg.rectangle("fill", bx, by, 4, bh, 2, 2)
+		end
 	end
 
 	-- Status and help along the bottom.
@@ -1659,12 +2030,12 @@ function Cargo.draw(game)
 	lg.setColor(HUD.INK)
 	local hint
 	if market then
-		hint = "Drag goods onto the trade grid   Ctrl-click or right-click move across   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
+		hint = "Drag goods onto the trade grid   Ctrl-click or double-click move across   Right-click actions   Shift-drag split   Complete trade to settle   Tab switch tabs   E launch"
 	elseif docked then
-		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click move across   Drag or double-click a module to fit it   E, Enter or (A) launch"
+		hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or double-click move across   Right-click actions   Drag or double-click a module to fit it   E, Enter or (A) launch"
 	else
 		hint = "Drag to move   R rotate   Shift-drag split   Right-click or drag out to eject   Tab or Esc close"
-		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or right-click take   Take All   E, Tab or Esc close" end
+		if Cargo.loot then hint = "Drag to move   R rotate   Shift-drag split   Ctrl-click or double-click take   Right-click actions   Take All   E, Tab or Esc close" end
 	end
  do
   local r,cx,cy=cellAt(L,mx,my);local selected=Cargo.hand or r and Grid.at(r.g,cx,cy)
@@ -1685,6 +2056,7 @@ function Cargo.draw(game)
 	if h then
 		-- Footprint preview: green where it fits, red where it doesn't.
 		local r, x, y, how = dropSpot(L, mx, my)
+		if r then lg.setScissor(r.x, r.vy, r.g.w * cs, r.vh) end
 		if r then
 			local ok = how ~= "blocked"
 			lg.setColor(ok and 0.3 or 1, ok and 1 or 0.35, ok and 0.5 or 0.3, 0.28)
@@ -1701,6 +2073,7 @@ function Cargo.draw(game)
 					end
 				end
 			end
+			lg.setScissor()
 		elseif not overPanel(L, mx, my) and not docked then
 			lg.setColor(HUD.WARN)
 			lg.setFont(HUD.font(13))
@@ -1736,7 +2109,7 @@ function Cargo.draw(game)
 		end
 		local r, cx, cy = cellAt(L, mx, my)
 		local s = r and Grid.at(r.g, cx, cy)
-		if s and (not r.side.market or stockMatch(s)) then
+		if s and not Cargo.menu and (not r.side.market or stockMatch(s)) then
 			local item = itemFor(s.id)
 			local hint2, price
 			if market then
@@ -1753,9 +2126,22 @@ function Cargo.draw(game)
 				local k, m = 0, 0
 				for id, n in pairs(Hold.totals(s.inner)) do k, m = k + n, m + data.items[id].mass * n end
 				hint2 = ("Loaded: %d items, %.1f t   Double-click to open"):format(k, m)
-			elseif r.side.entity or r.side.innerOf then hint2 = "Right-click: take"
-			elseif not docked and #L.sides == 1 then hint2 = "Right-click: eject" end
-			tooltip(item, s.n, mx, my, hint2, price)
+			else hint2 = "Right-click: actions" end
+			if r.side.ship == game.player and ItemUse.usable(s.id) then
+				local ok, why = ItemUse.can(game, game.player, s.id)
+				local use = "U: " .. ItemUse.label(s.id) .. (ok and "" or " (" .. why .. ")")
+				hint2 = hint2 and (use .. "   " .. hint2) or use
+			end
+			-- a module is compared with what's fitted where it would go
+			local against
+			local im = data.modules[s.id]
+			if im and game.player then
+				local pl = game.player
+				for k, slot in ipairs(pl.hull.slots) do
+					if data.fits(slot, im) then against = pl.loadout[k] or nil; if against then break end end
+				end
+			end
+			tooltip(item, s.n, mx, my, hint2, price, against)
 		end
 	end
 	-- the open shop menu, over everything else
@@ -1781,10 +2167,23 @@ function Cargo.draw(game)
 			end
 		end
 	end
+	drawMenu(game)
 end
 
 function Cargo.wheelmoved(game,y)
  if not Cargo.isOpen(game) then return false end
+ if Cargo.tab=='cargo' or Cargo.tab=='market' or game.state~='docked' then
+  local L=layout(game)
+  if L then
+   local mx,my=love.mouse.getPosition()
+   for _,r in ipairs(L.grids) do
+    if mx>=r.x and mx<r.x+r.g.w*L.cs+8 and my>=r.vy and my<r.vy+r.vh and r.g.h*L.cs>r.vh+0.5 then
+     Cargo.scroll[r.g]=(Cargo.scroll[r.g] or 0)-y*2   -- clamped by the next layout
+     return true
+    end
+   end
+  end
+ end
  if game.state=='docked' and Cargo.tab=='hangar' then Hangar.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='shipyard' then Shipyard.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='industry' then IndustryView.wheelmoved(game,y) end

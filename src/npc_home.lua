@@ -25,12 +25,14 @@ function H.choose(u,r)
    counts[other.homeStation]=(counts[other.homeStation] or 0)+1
   end
  end
+ local Access,Dark=require('src.npc_access'),require('src.dark')
+ local dark=Access.darkAccess(r)
  local function select(localOnly)
   local best,count,full
   for _,place in pairs(L.byId) do
    local parent=L.byId[L.canonical(place.id)]
    if place.kind=='station' and (not localOnly or place.area==region)
-    and parent.uses and parent.uses[purpose] then
+    and parent.uses and parent.uses[purpose] and (dark or not Dark.isDarkArea(place.area)) then
     local capacity=Room.capacity(place.id,r.ship.hull)
     local n=counts[place.id] or 0;local crowded=n>=capacity
     if capacity>0 and (not best or full and not crowded or full==crowded and (n<count or n==count and place.id<best))

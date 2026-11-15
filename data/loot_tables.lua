@@ -10,7 +10,7 @@ local INNER = { mercury = true, venus = true, earth = true, luna = true, station
 local MARS = { mars = true, phobos = true, deimos = true }
 local BELT = { belt = true, ceres_quarry = true, quarry = true, ring = true }
 local GIANTS = { jupiter = true, io = true, europa = true, ganymede = true, callisto = true,
-	saturn = true, enceladus = true, titan = true, titania = true, uranus = true, triton = true, pluto = true }
+	saturn = true, enceladus = true, titan = true, titania = true, uranus = true, triton = true, pluto = true, milliways = true }
 
 -- What a hauler in this part of space would have been carrying: the goods
 -- the local economy actually moves.

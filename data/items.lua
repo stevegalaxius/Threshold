@@ -38,11 +38,14 @@ ammo { id = "rounds_s", name = "Solid Rounds S", shortName = "Solid S", default 
 ammo { id = "rounds_m", name = "Solid Rounds M", shortName = "Solid M", default = true,  maker = "Brute Industries",   family = "gun",       size = "M", volume = 0.04, mass = 0.04, price = 6, w = 1, h = 1, stack = 25,
 	shot = { damage = 36, speed = 4800, range = 9800, knockback = 400 } }
 
--- Fixed-fuse gun rounds: forgiving coverage, less damage even on a direct hit.
+-- Flak gun rounds: a proximity fuse bursts them beside an enemy (fuse px,
+-- default 0.6 x splash), so a stream of near misses still does damage. Less
+-- per hit than solid rounds and a little slower and shorter-ranged, but far
+-- more forgiving to aim.
 ammo { id = "airburst_s", name = "Airburst Rounds S", shortName = "Airburst S", maker = "Halcyon Arms", family = "gun", size = "S", volume = 0.02, mass = 0.02, price = 4, w = 1, h = 1, stack = 50,
- shot = { damage = 7, splash = 70, speed = 3600, range = 3200, knockback = 10, airburst = true } }
+ shot = { damage = 8, splash = 80, fuse = 50, speed = 4000, range = 5000, knockback = 10, airburst = true } }
 ammo { id = "airburst_m", name = "Airburst Rounds M", shortName = "Airburst M", maker = "Brute Industries", family = "gun", size = "M", volume = 0.04, mass = 0.04, price = 8, w = 1, h = 1, stack = 25,
- shot = { damage = 20, splash = 95, speed = 3800, range = 3800, knockback = 18, airburst = true } }
+ shot = { damage = 24, splash = 105, fuse = 65, speed = 4200, range = 5800, knockback = 18, airburst = true } }
 
 ammo { id = "shell_s", name = "Explosive Shells S", shortName = "Explosive S", default = true,    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25, w = 1, h = 1, stack = 6,
 	shot = { damage = 45, splash = 60, speed = 6200, range = 9000, knockback = 6000 } }
@@ -84,7 +87,27 @@ salvage { id = "salvage_kit", name = "Salvaged circuitry", volume = 1.0, mass = 
 -- A finished ship hull frame from a manufacturer's shipworks (data/industry.lua);
 -- its dealer rolls frames out as new ships (src/dealers.lua).
 salvage { id = "hull_frame", name = "Hull frame", volume = 16, mass = 20, price = 2400, w = 4, h = 4, stack = 1 }
-salvage { id = "steel_plate",  name = "Steel plates", volume = 0.25, mass = 0.5, price = 180, w = 1, h = 1, stack = 4 }
+-- Usable in space for a field repair (src/item_use.lua): a station repair
+-- gets 100 armor from a plate (src/repair_materials.lua), a field patch half
+-- that, and only up to 75% of the hull's armor.
+salvage { id = "steel_plate",  name = "Steel plates", volume = 0.25, mass = 0.5, price = 180, w = 1, h = 1, stack = 4,
+	use = { label = "Field repair", cast = 3, group = "repair", cooldown = 2,
+		effects = { { "restore", "armor", 50, cap = 0.75 } } } }
+
+-- Usable items (src/item_use.lua). Each is only a combination of shared
+-- effects; see the header there for the format.
+salvage { id = "patch_kit", name = "Hull patch kit", description = "Quick-setting armor patches. Faster than plates, and good for a full repair.",
+	volume = 0.25, mass = 0.3, price = 420, w = 1, h = 1, stack = 4,
+	use = { label = "Patch hull", cast = 1, group = "repair", cooldown = 20,
+		effects = { { "restore", "armor", 150 } } } }
+salvage { id = "nanite_paste", name = "Nanite paste", description = "Repairs armor slowly over 20 seconds. Keeps working through a fight.",
+	volume = 0.1, mass = 0.05, price = 650, w = 1, h = 1, stack = 4,
+	use = { label = "Apply nanites", group = "repair", cooldown = 30, interruptible = false,
+		effects = { { "restore", "armor", 200, over = 20, key = "nanites" } } } }
+salvage { id = "overdrive_cell", name = "Overdrive cell", description = "Floods the engines: 50% more thrust for 8 seconds, and a full capacitor.",
+	volume = 0.1, mass = 0.1, price = 300, w = 1, h = 1, stack = 4,
+	use = { label = "Overdrive", group = "overdrive", cooldown = 45,
+		effects = { { "buff", "thrust", 1.5, dur = 8 }, { "buff", "sideThrust", 1.5, dur = 8 }, { "restore", "power", 1e9 } } } }
 
 -- Standard cargo container. Empty, it's an 8 x 5 item, too big for a
 -- Wisp's hold and only just fits an Anvil's. Out in space it's a box with
@@ -101,6 +124,10 @@ salvage { id = "flare", name = "Flare charge", volume = 0.1, mass = 0.05, price 
 -- What a mining drill gets out of the rock it breaks (src/game.lua ORE).
 salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 25, w = 1, h = 1, stack = 4 }
 salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 15, w = 1, h = 1, stack = 4 }
+-- Rare ore: from a vein in a big rock, or a crystal frozen in big ice
+-- (src/rock_chips.lua).
+salvage { id = "gold_ore", name = "Gold ore", volume = 0.25, mass = 0.5, price = 220, w = 1, h = 1, stack = 4 }
+salvage { id = "cryo_crystal", name = "Cryo crystal", volume = 0.25, mass = 0.2, price = 180, w = 1, h = 1, stack = 4 }
 
 -- Industrial inputs and manufactured electronics.
 salvage { id = "silicon", name = "Silicon", volume = 0.25, mass = 0.25, price = 30, w = 1, h = 1, stack = 4 }
@@ -108,6 +135,7 @@ salvage { id = "industrial_acids", name = "Industrial acids", volume = 0.25, mas
 salvage { id = "electronics", name = "Electronics", volume = 0.1, mass = 0.05, price = 160, w = 1, h = 1, stack = 10 }
 
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
+salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
 salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 30, w = 1, h = 1, stack = 4 }
 salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
 salvage { id = "explosives", name = "Explosives", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }

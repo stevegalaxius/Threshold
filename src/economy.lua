@@ -18,6 +18,17 @@
 	            first, each from the nearest station with enough spare, in
 	            orders of up to E.lot. Unclaimed orders expire after E.expire
 	            and are placed again, so they follow wherever the stock is.
+	  customs   a moon with a customs station (world_layout customs=true)
+	            trades off the moon only through it: its factories ship
+	            exports there, it passes them on to the planet's hub (or
+	            the planet's stations), and goods for the moon arrive there.
+	  hubs      a planet system with a logistics hub (world_layout hub=true)
+	            trades with other systems only through it. The hub keeps a
+	            depot of what its system uses but doesn't make (imports),
+	            and collects what its system makes that other hubs import
+	            (exports). Hub to hub is a trunk run: bigger lots, for bulk
+	            freighters (T.trunkLot, T.trunkMinHold). Local stations
+	            reorder from their hub instead of across the system.
 	  stats     E.stat counts what was made, used and hauled of each good,
 	            for the economy test's hourly table.
 
@@ -31,9 +42,11 @@ local Stock=require('src.stockpile')
 local C=require('src.commodities')
 local Food=require('src.food')
 local T=require('src.tuning')
+local Dark=require('src.dark')
 local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 -- Every trade station keeps at least this much of these on hand.
 E.floor={deuterium_canister=40}
+E.sliceFlows=6   -- stations caught up per piece of a spread update (E.spread)
 
 -- Usage ----------------------------------------------------------------
 
@@ -46,6 +59,34 @@ function E.stat(u,kind,item,n)
  u.economyStats=u.economyStats or {}
  local t=u.economyStats[kind] or {};u.economyStats[kind]=t
  t[item]=(t[item] or 0)+n
+end
+-- Station credits. Budgets are unlimited, but every credit a station pays
+-- out (freight, buying from players) or takes in (selling to players) is
+-- counted, per station and per game hour, so pay rates can be tuned
+-- against the money they create. kind: 'freight', 'premium' (the scarcity
+-- share of freight, also inside 'freight'), 'bought' (paid out), 'sold'
+-- (taken in).
+E.ledgerHours=48
+function E.ledger(u,key,kind,n,item)
+ if not n or n<=0 or not key then return end
+ local book=u.economyLedger or {stations={},hours={}};u.economyLedger=book
+ key=L.canonical(key)
+ local s=book.stations[key] or {};book.stations[key]=s
+ s[kind]=(s[kind] or 0)+n
+ local hour=math.floor((u.clock or 0)/3600)
+ local h=book.hours[hour]
+ if not h then
+  h={};book.hours[hour]=h
+  for old in pairs(book.hours) do if old<=hour-E.ledgerHours then book.hours[old]=nil end end
+ end
+ h[kind]=(h[kind] or 0)+n
+ if item then local byItem=h.items or {};h.items=byItem;local k=kind..':'..item;byItem[k]=(byItem[k] or 0)+n end
+end
+-- Net credits stations created in a game hour (paid out minus taken in).
+function E.minted(u,hour)
+ local h=u.economyLedger and u.economyLedger.hours[hour or math.floor((u.clock or 0)/3600)]
+ if not h then return 0 end
+ return (h.freight or 0)+(h.bought or 0)-(h.sold or 0)
 end
 function E.consume(u,key,item,n,industrial)
  if n<=0 or not u.clock then return end
@@ -80,16 +121,43 @@ local function supportsSupplies(id) return require('src.supplies').supports(id) 
 -- speeds up while buyers of what it makes go short and it ships all it
 -- makes, and slows down while its own stock sits unwanted (E.adjust).
 function E.scale(u,key,c) return require('src.industry').scale(u,key,c) end
-local function adjust(u,unmet)
+-- Whether the whole system is running down its stock of an item: all the
+-- trade stations together hold less than T.adaptiveCushion times what
+-- they want. A maker whose own shelf is full while everyone else drains
+-- (the stock just hasn't been hauled away yet) must not throttle down.
+local function draining(u,item,all)
+ local have,want=0,0
+ for _,s in ipairs(all) do have=have+Stock.count(u,s,item);want=want+E.target(u,s,item) end
+ return want>0 and have<want*T.adaptiveCushion
+end
+-- The system-wide price of a good against its list price: the mean of
+-- every trade station's price multiplier (1 = list).
+function E.priceRatio(u,item,all)
+ local Markets=require('src.markets');local list=require('src.data').items[item].price or 0
+ if list<=0 or #all==0 then return end
+ local sum=0;for _,s in ipairs(all) do sum=sum+Markets.price(u,s,item) end
+ return sum/#all/list
+end
+local function adjust(u,unmet,all)
  u.industry=u.industry or {}
+ local low={}
  for _,c in ipairs(C.list) do
   if c.adaptive then
+  if low[c.item]==nil then low[c.item]=all and draining(u,c.item,all) or false end
   for key in pairs(c.make) do
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
-   -- stock piling up here always slows it, whatever anyone else is short of
-   if have>=E.lot*2 then v=v*(1-E.scaleStep)
+   -- some plants answer to the whole system's price of what they make
+   -- (crack_ice: the universal price of fuel), not to their own shelf
+   local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
+   if ratio then
+    if ratio>1+T.globalPriceBand and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+    elseif ratio<1-T.globalPriceBand or have>=(c.cap or math.huge)*.9 then v=v*(1-E.scaleStep) end
+   -- the system is running short: make more, unless its own storage is full
+   elseif low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+   -- stock piling up here slows it while the system is comfortable
+   elseif have>=E.lot*2 then v=v*(1-E.scaleStep)
    -- Unsupplied demand must propagate upstream even while inputs are scarce.
    elseif (unmet[c.item] or 0)>0 and have<E.lot then v=v*(1+E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
@@ -128,11 +196,29 @@ local function serviceUse(u,key,item)
 end
 -- A supplier keeps only E.reserveHours of its own use back: what it makes
 -- is for shipping, and hoarding hours of local sales starves everyone else.
-local function makes(key,item)
+-- (the minute update asks this for every good at every station, many times
+-- over: it remembers the answers until it's done, in memo)
+local memo
+local function makesNow(key,item)
  local place=L.byId[key];if not place then return false end
  if item==Food.item then local _,make=Food.rates(key);return make>0 end
  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do if output.item==item and (c.make[key] or 0)>0 then return true end end end
  return false
+end
+local function makes(key,item)
+ if not memo then return makesNow(key,item) end
+ if item==Food.item or not L.byId[key] then return makesNow(key,item) end
+ local makers=memo.makers
+ if not makers then
+  -- every recipe once: who makes each good
+  makers={};memo.makers=makers
+  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do if output.item then
+   local set=makers[output.item];if not set then set={};makers[output.item]=set end
+   for maker,rate in pairs(c.make) do if rate>0 then set[maker]=true end end
+  end end end
+ end
+ local set=makers[item]
+ return set~=nil and set[key]==true
 end
 function E.target(u,key,item,supplier)
  local use=serviceUse(u,key,item)
@@ -151,13 +237,16 @@ end
 -- and reactor fuel. Every trade station can hold, sell and buy any of them;
 -- nobody is listed by hand as a supplier or a user.
 local function goods()
+ if memo and memo.goods then return memo.goods end
  local set,list={},{}
  local function add(item) if item and not set[item] then set[item]=true;list[#list+1]=item end end
  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do add(output.item) end;for _,input in ipairs(C.inputs(c)) do add(input.item) end end
  for _,item in pairs(require('src.ore').items) do add(item) end
+ for _,item in pairs(require('src.ore').rare) do add(item) end
  add(require('src.reactor_fuel').item())
  add(Food.item)
  table.sort(list)
+ if memo then memo.goods=list end
  return list
 end
 E.goods=goods
@@ -172,6 +261,11 @@ end
 -- Distance between two stations, for picking the nearest supplier: the AU
 -- between their planets (a moon counts as its planet), and 0 for the same.
 local function root(area) local m=Fields.moons[area];return m and m.parent or area end
+-- For hub routing the dark grids are one system: the dark network, whose
+-- hub (Milliways, hub=true) is the one door between it and the white
+-- systems. Distances still use the real planet (root).
+local function hubRoot(area) if Dark.isDarkArea(area) then return 'dark' end return root(area) end
+E.hubRoot=hubRoot
 local function distance(a,b,clock)
  local ra,rb=root(L.byId[a].area),root(L.byId[b].area)
  if ra==rb then return 0 end
@@ -181,6 +275,113 @@ end
 local function reachable(a,b,clock)
  return a~=b and require('src.travelgraph').itinerary(a,b,clock)~=nil
 end
+
+
+-- Logistics hubs ---------------------------------------------------------
+
+-- One plan per update: hubs[root]=station, want[hub][item] and kind
+-- [hub][item] ('import' or 'export'), and made[root][item].
+local hubPlan
+local function hubWants(u,all,pause)
+ local plan={hubs={},want={},kind={},made={},u=u}
+ for _,s in ipairs(all) do
+  local p=L.byId[s]
+  if p.hub then local r=hubRoot(p.area);if not plan.hubs[r] or s<plan.hubs[r] then plan.hubs[r]=s end end
+ end
+ if not next(plan.hubs) then return plan end
+ for _,s in ipairs(all) do
+  local r=hubRoot(L.byId[s].area);plan.made[r]=plan.made[r] or {}
+  for _,item in ipairs(goods()) do if makes(s,item) then plan.made[r][item]=true end end
+ end
+ for _,h in pairs(plan.hubs) do plan.want[h],plan.kind[h]={},{} end
+ -- moon customs: the depot every good leaving or reaching a moon goes
+ -- through (on to its planet's hub). It holds what the moon imports for
+ -- its stations and collects what the moon makes for export.
+ plan.customs={}
+ for _,s in ipairs(all) do
+  local p=L.byId[s]
+  if p.customs and (not plan.customs[p.area] or s<plan.customs[p.area]) then plan.customs[p.area]=s end
+ end
+ for area,cs in pairs(plan.customs) do
+  plan.want[cs],plan.kind[cs]={},{}
+  local made={}
+  for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
+  for _,item in ipairs(goods()) do
+   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*4,'export'
+   else
+    local n=0
+    for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+E.target(u,s,item,false) end end
+    if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
+   end
+  end
+  if pause then pause() end
+ end
+ for _,item in ipairs(goods()) do
+  if pause then pause() end
+  local imported,total={},0
+  for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
+   local n=0
+   for _,s in ipairs(all) do
+    if s~=h and hubRoot(L.byId[s].area)==r then n=n+E.target(u,s,item,false) end
+   end
+   imported[r]=n;total=total+n
+  end end
+  for r,h in pairs(plan.hubs) do
+   if imported[r] then plan.want[h][item],plan.kind[h][item]=imported[r],'import'
+   else plan.want[h][item],plan.kind[h][item]=total,'export' end
+  end
+ end
+ return plan
+end
+E.hubWants=hubWants
+-- The hub that serves a station's planet system, if it has one.
+function E.hubFor(id)
+ local p=L.byId[id];if not p then return end
+ local r,best=hubRoot(p.area)
+ for _,place in pairs(L.byId) do
+  if place.kind=='station' and place.hub and hubRoot(place.area)==r and (not best or place.id<best) then best=place.id end
+ end
+ return best
+end
+-- Whether s may sell item to c under hub routing.
+local function routed(plan,s,c,item)
+ local as,ac=L.byId[s].area,L.byId[c].area
+ -- dark goods enter the white network only at a fence, straight from
+ -- any dark station; from there the white rules below move them on
+ local darkS,darkC=Dark.isDarkNode(s),Dark.isDarkNode(c)
+ if darkS and not darkC then return Dark.isFence(c) end
+ local customs=plan.customs or {}
+ local cs,cc=customs[as],customs[ac]
+ if as==ac then
+  -- a customs depot passes its moon's exports outward, never back in
+  if s==cs and plan.kind[s][item]=='export' then return false end
+ else
+  -- off a moon only through its customs, onto a moon only into it
+  if cs and s~=cs then return false end
+  if cc and c~=cc then return false end
+  -- customs sells its moon's imports only to that moon
+  if s==cs and plan.kind[s][item]=='import' then return false end
+ end
+ local rs,rc=hubRoot(as),hubRoot(ac)
+ local hs,hc=plan.hubs[rs],plan.hubs[rc]
+ local kind=s==hs and plan.kind[s][item]
+ if rs==rc then return kind~='export' or makes(s,item) end
+ if kind=='import' then return false end
+ -- a station in a system without a hub still buys straight from the
+ -- maker; a hubbed system only takes deliveries at its hub, and between
+ -- two hubbed systems it is hub to hub
+ if hc and c~=hc then return false end
+ if hs and hc and s~=hs then return false end
+ return true
+end
+local function hubTarget(u,key,item,supplier)
+ local plan=hubPlan
+ if plan and plan.u==u and plan.want[key] then
+  return math.max(plan.want[key][item] or 0,E.target(u,key,item,supplier))
+ end
+ return E.target(u,key,item,supplier)
+end
+E.hubTarget=hubTarget
 
 -- Shortage lifetime belongs to the destination, not a replaceable offer.
 function E.shortageAge(u,key,item,clock)
@@ -194,9 +395,11 @@ function E.shortage(u,key,item,have,want,clock)
 end
 -- Orders -----------------------------------------------------------------
 
-function E.update(u,clock)
- if clock<(u.economyNext or 0) then return end
- u.economyNext=clock+E.tick
+-- The minute update, whole. pause (optional) is called between its pieces
+-- (a station, a good): see E.spread, which uses it to run one piece a step.
+local function run(u,clock,pause)
+ pause=pause or function() end
+ memo={}
  local state=Tasks.state(u)
  Transport.refreshOffers(u,clock)
  -- count what's ordered or on the way; an order nobody has taken in
@@ -214,11 +417,18 @@ function E.update(u,clock)
  end
  local reach={}
  local all=stations()
+ local fences=Dark.fences()
  local inhabited=stations(true)
- require('src.industry').update(u,clock,inhabited)
+ require('src.industry').update(u,clock,inhabited,pause)
+ pause()
  planning={u=u,stations={}}
- require('src.markets').update(u,clock,all,committed)
+ require('src.markets').update(u,clock,all,committed,pause)
+ pause()
  planning.stations={}
+ hubPlan=nil
+ local wants=hubWants(u,all,pause)
+ hubPlan=wants
+ pause()
  -- Output bins may have filled since these orders were posted. Keep
  -- committed cargo, but release unclaimed excess rather than tying up sources.
  local remaining,availableOrders={},{}
@@ -227,7 +437,7 @@ function E.update(u,clock)
  for _,entry in ipairs(availableOrders) do
   local o=entry.o;local k=o.target..'|'..o.item
   if remaining[k]==nil then
-   local producer=makes(o.target,o.item);local want=E.target(u,o.target,o.item,producer)
+   local producer=makes(o.target,o.item);local want=hubTarget(u,o.target,o.item,producer)
    remaining[k]=math.max(0,want*(producer and 1 or 2)-Stock.count(u,o.target,o.item)-(committed[k] or 0))
   end
   local amount=math.min(o.amount,remaining[k])
@@ -247,36 +457,50 @@ function E.update(u,clock)
   local spare,buyers={},{}
   local participants=item==Food.item and inhabited or all
   for _,s in ipairs(participants) do
+   pause(true)
    local have=math.max(0,Stock.count(u,s,item)-Transport.reserved(u,s,item,nil,true))
    local producer=makes(s,item)
-   local want=E.target(u,s,item,producer)
+   local want=hubTarget(u,s,item,producer)
    E.shortage(u,s,item,Stock.count(u,s,item),want,clock)
    local level=producer and want or want*2
-   spare[s]=have-level
+   -- a hub's stock is all for passing on: imports to its own system,
+   -- exports to other hubs (routed decides which way)
+   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or level)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
   end
   -- neediest first: the emptiest shelf against its target gets first call
   table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
+  -- Two passes: first every buyer fills from its own network (white or
+  -- dark), then what's still short may buy across. A dark farm feeds the
+  -- dark stations before its surplus goes out to the white market.
+  for pass=1,2 do
   for _,entry in ipairs(buyers) do
-   local c,short=entry.c,entry.short;local need=entry.need
+   local c,short=entry.c,entry.left or entry.short;local need=entry.need
+   local darkBuyer=Dark.isDarkNode(c)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
-     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then
+     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
-       local score=distance(s,c,clock)*100-spare[s]
+       -- crossing between the white and dark networks costs like a long
+       -- haul: each side buys from its own first and trades across only
+       -- for what its own network can't spare
+       local crossing=Dark.isDarkNode(s)~=Dark.isDarkNode(c) and T.darkCrossingAU or 0
+       local score=(distance(s,c,clock)+crossing)*100-spare[s]
        local Chemicals=require('src.markets')
-       if Chemicals.items[item] then
+       if Chemicals.items[item] or Chemicals.floats(c,item) then
         local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[s])
         score=Chemicals.price(u,s,item)+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
+        if crossing>0 then score=score*(1+T.darkCrossingMarkup) end
        end
        if not bestScore or score<bestScore then best,bestScore=s,score end
       end
      end
     end
+    if not best and pass==1 then break end
     if not best then
      -- only real scarcity counts: spare stock that just can't reach this
      -- buyer is a hauling problem, not a reason to make or dig more
@@ -286,21 +510,112 @@ function E.update(u,clock)
      if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
      break
     end
-    local n=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[best])
+    -- hub to hub is a trunk run: a bulk lot for a big freighter
+    local trunk=hubPlan.kind[best]~=nil and hubPlan.kind[c]~=nil and root(L.byId[best].area)~=root(L.byId[c].area)
+    local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or 30)/require('src.data').items[item].volume)),short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
-    local critical=item==Food.item or item==require('src.reactor_fuel').item()
+    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
+     layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     trunk=trunk or nil,requires=trunk and {capabilities={'cargo','bulk'}} or nil},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
+   entry.left=short
   end
+  end
+  -- Fences: each keeps T.fenceStock m3 of every good the dark stations
+  -- have over what they need, bought from the one with most to spare. Its
+  -- stock over its own needs is spare like any white station's, so the
+  -- passes above sell it on into the white network.
+  for _,f in ipairs(fences) do if spare[f]~=nil then
+   local vol=require('src.data').items[item].volume
+   local lot=math.max(1,math.floor(T.trunkLot/vol))
+   local room=math.floor(T.fenceStock/vol)-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
+   while room>=math.min(T.orderMinLoad,lot) do
+    local best,most
+    for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
+     local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
+     local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)
+     if excess>=math.min(T.orderMinLoad,lot) and (not most or excess>most) then
+      local k=s..'>'..f
+      if reach[k]==nil then reach[k]=reachable(s,f,clock) end
+      if reach[k] then best,most=s,excess end
+     end
+    end end
+    if not best then break end
+    -- a full bulk load per run
+    local n=math.min(lot,room,most)
+    Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
+     layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     trunk=true,requires={capabilities={'cargo','bulk'}}},clock,u))
+    spare[best]=spare[best]-n;room=room-n
+   end
+  end end
+  pause()
  end
  u.economyUnmet=unmet
- adjust(u,unmet)
- planning=nil
+ adjust(u,unmet,all)
+ hubPlan=nil
+ -- the speculators read the prices this update settled (with a planning
+ -- snapshot of their own: without one every target they ask for worked out
+ -- its station's whole input plan again, dealer lot and all)
+ planning={u=u,stations={}}
+ require('src.merchants').update(u,clock,pause)
+ planning=nil;memo=nil
 end
+-- All of it now (tests, forced catch-ups).
+function E.update(u,clock)
+ E.finish(u)
+ if clock<(u.economyNext or 0) then return end
+ u.economyNext=clock+E.tick
+ run(u,clock)
+end
+-- The same update a piece a step. All at once it was the longest step of
+-- every minute by far (every good at every station): a hitch you could set
+-- your watch by. E.spread starts it when it's due, E.pump runs the next
+-- piece (Game:updateALife calls it every step), E.finish runs what's left
+-- (before a save, or anything else that needs the books closed). Between
+-- pieces the planning snapshots are put away, so everyone else reads live
+-- numbers as usual. (Kept outside the universe table: a coroutine can't be
+-- saved, and a universe that's dropped takes its half-done update with it.)
+local spreading=setmetatable({},{__mode='k'})
+local function resume(u,job)
+ planning,hubPlan,memo=job.planning,job.hubPlan,job.memo
+ local ok,err=coroutine.resume(job.co)
+ job.planning,job.hubPlan,job.memo=planning,hubPlan,memo
+ planning,hubPlan,memo=nil,nil,nil
+ if not ok then spreading[u]=nil;error(debug.traceback(job.co,tostring(err)),0) end
+ if coroutine.status(job.co)=='dead' then spreading[u]=nil end
+end
+function E.spread(u,clock)
+ if spreading[u] then return E.pump(u) end
+ if clock<(u.economyNext or 0) then return end
+ u.economyNext=clock+E.tick
+ -- A piece ends at each station or good, and sooner (pause(true), asked
+ -- inside the long loops) once it has done real work: planned a route or
+ -- caught up a few stations' production. Counted, not timed, so the same
+ -- game always splits the same way.
+ local G=require('src.travelgraph')
+ local plans,flows=G.planned,Stock.flowed
+ local function pause(soft)
+  if soft and G.planned==plans and Stock.flowed-flows<E.sliceFlows then return end
+  coroutine.yield()
+  plans,flows=G.planned,Stock.flowed
+ end
+ local job={co=coroutine.create(function() run(u,clock,pause) end)}
+ spreading[u]=job
+ resume(u,job)
+end
+function E.pump(u)
+ local job=spreading[u]
+ if job then resume(u,job) end
+end
+function E.finish(u)
+ while spreading[u] do resume(u,spreading[u]) end
+end
+function E.spreading(u) return spreading[u]~=nil end
 
 return E

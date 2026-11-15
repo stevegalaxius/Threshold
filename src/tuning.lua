@@ -8,7 +8,7 @@ local T = {}
 
 T.specs = {
 	{ key = "thrustScale",    label = "Thrust",                 min = 0.2, max = 3,    value = 1,    precision = 2 },
-	{ key = "sideScale",      label = "Side/retro thrusters",   min = 0,   max = 3,    value = 1.5,    precision = 2 },
+	{ key = "sideScale",      label = "Maneuvering thrusters",   min = 0,   max = 3,    value = 1.5,    precision = 2 },
 	{ key = "dragScale",      label = "Drag (sets top speed)",  min = 0,   max = 3,    value = 0.03,   precision = 2 },
 	{ key = "navLookahead",   label = "Nav fallback: lookahead (s)", min = 1, max = 8, value = 2, precision = 1 },
 	{ key = "guidanceCone",   label = "Guidance fallback: cone (deg)", min = 5, max = 90, value = 25, precision = 0 },
@@ -21,7 +21,7 @@ T.specs = {
 	{ key = "turnScale",      label = "Turn torque",            min = 0.1, max = 3,    value = 1,    precision = 2 },
 	{ key = "maxTurnRate",    label = "Max turn rate (rad/s)",  min = 1,   max = 15,   value = 6.5,  precision = 1 },
 	{ key = "aimGain",        label = "Aim snappiness",         min = 1,   max = 30,   value = 9,    precision = 1 },
-	{ key = "turnResponse",   label = "Turn response",          min = 1,   max = 60,   value = 18,   precision = 1 },
+	{ key = "turnResponse",   label = "Turn controller gain",   min = 1,   max = 60,   value = 18,   precision = 1 },
 	{ key = "knockbackScale", label = "Hit knockback",          min = 0,   max = 4,    value = 1,    precision = 2 },
 	{ key = "recoilScale",    label = "Recoil",                 min = 0,   max = 4,    value = 3,    precision = 2 },
 	{ key = "ramDamage",      label = "Ram damage (x mass x speed change^2)", min = 0, max = 0.00003, value = 0.0000028, precision = 7 },
@@ -62,10 +62,30 @@ T.TORQUE_PER_TURN = 1000  -- 1 point of "turn" = this much torque
 
 -- Share of a dead ship's fitted modules that survive in its husk.
 T.moduleSalvage = 0.75
+-- Rock chips and rare ore (src/rock_chips.lua).
+T.chipHp = 4              -- one more hit pops it
+T.chipPerRadius = 10      -- a rock sheds one chip per this many px of radius
+T.chipMax = 12            -- ...but never more than this many
+T.chipLife = 180          -- seconds before a chip nobody collects fades
+T.drillOreMult = 2        -- ore from a chip a drill broke, against 1 when shot
+T.rareChance = { rock = 0.06, ice = 0.08 }   -- chance a big rock has a gold core, big ice a crystal
+T.rareMinRadius = { rock = 55, ice = 30 }    -- only pieces this big carry one (ring ice runs small)
+T.rareCovetRange = 6000   -- miners go after loose rare ore this close
+-- NPCs detouring for rare ore (src/prospect.lua)
+T.prospectRange = 2500    -- how close it has to pass to notice
+T.prospectThink = 1.5     -- seconds between looks
+T.prospectStandoff = 320  -- a gun's distance from the rock it cuts
+T.prospectEager = { miner = 1, pirate = 1, trader = 0.35, patrol = 0, other = 0.35 }
+T.prospectOffline = 0.06  -- offline: chance per leg into a belt, for a keen ship
+T.rareCore = 0.4          -- the core's size, as a share of the rock's radius
+T.rareChipShare = 0.3     -- a chip this much core is rare ore
+T.chunkRadius = 14        -- a cut-off piece this big is a rock that chips on
+T.cutMin, T.cutMax = 0.15, 0.55   -- how deep one cut goes, as a share of radius
 T.wreckShotRecovery = 0.5 -- each cargo unit survives shooting a wreck; drilling preserves all
 
 -- Station storage grid, in 1 m3 cells (every station has its own).
-T.storageW, T.storageH = 16, 12
+-- default station storage; a station sets its own with storage = { w, h }
+T.storageW, T.storageH = 16, 18
 
 -- Looting and towing. A tap of the tractor key (shorter than tapTime
 -- seconds) on a wreck or container opens it; holding it tows a container
@@ -130,6 +150,21 @@ T.mapOuter = 16000
 -- share of a map's radius, in from its edge, over which the current eases
 -- off to nothing (so it's still at the edge and beyond)
 T.edgeCurrentFade = 0.3
+-- how fast the Heaven-Ladder's ring and elevators turn about Mars, in radians a second. They run
+-- against the planet's current (which turns clockwise on screen).
+T.elevatorSpin = 0.006
+-- surface shuttles (src/shuttles.lua)
+T.shuttlePodsPerUnit = 1           -- pods each unit made is shared out over (1: a pod per unit)
+T.shuttleMax = 8                   -- in the air at once in an area
+T.shuttleInterval = { 0, 0 }       -- seconds between lift-offs from one station's surface (0: as each unit is made)
+T.shuttleFirst = 0                 -- the first leaves within this many seconds of arriving
+T.shuttleDockTime = 2.5            -- seconds to slip in at the door, and to come back out
+T.shuttleStay = { 10, 90 }         -- seconds it stays inside before heading back down
+T.shuttleSpread = 1.0              -- radians either way of the station a pad may be
+T.shuttleLaunchTime = 9            -- seconds from pad to cruising height
+T.shuttleLandTime = 8              -- and back down
+T.shuttleGroundScale = 0.45        -- how small it's drawn sitting on the ground
+T.shuttleStandingPerHit = -3       -- standing lost per hit (a normal NPC costs 1)
 T.mapOuterDensity = 14
 -- seconds over which lane drag comes back after you enter, so the kick
 -- carries you a good way down the road
@@ -183,6 +218,13 @@ T.cityDriftAcross, T.cityDriftAcrossPeriod, T.cityDriftUp = 2500, 330, 260
 -- A-Life prototype, separate from the debris sleep band.
 T.alifeNear, T.alifeFar = 18000, 22000
 T.alifeMoonEvery = 3  -- one in this many traders takes an eligible moon round trip
+-- Legs between stops on one orbit follow it (src/alife.lua followOrbit):
+-- a carrot this many radians ahead while the ship is within this fraction
+-- of the stop's orbital radius. .2 rad keeps the chord's sag under 0.5%
+-- of the radius (400 at Saturn's track, inside the Cassini division).
+T.alifeArcStep,T.alifeArcBand=.2,.06
+-- a ship woken from the abstract sim starts at no more than this x its cruise
+T.alifeWakeSpeed=1
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
@@ -198,13 +240,20 @@ T.npcCruiseInterval=1
 T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
 T.npcStationClearance=250  -- px beyond a station hull (plus the ship's half length) that traffic routes around
 T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per px out; marker distance beyond the hull
-T.aiBoostCruise, T.aiBoostStopMargin = 1.6, 1800
+T.aiBoostCruise, T.aiBoostStopMargin = 3, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
+-- Fencing (piracy.lua): share of its home station's bid a pirate gets for stolen goods
+T.pirateFenceRate=.6
+-- Raid targeting (piracy.lua P.wants): odds bonus for prey carrying what the raider's home station is short of
+T.raidShortageBias=.25
+-- Pirate berths (security.lua S.berths): a dark base with a shipyard keeps as
+-- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
+T.pirateBerths={max=6,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
 T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
 T.directLinkAngle=math.pi*2/3 -- NPCs fly straight (round the planet) between ordinary nodes up to this far apart;
@@ -230,17 +279,22 @@ T.offlineStationAccuracy = 0.5   -- turret hit chance offline
 T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800
 T.population = {
- pirate={minDelay=180,maxDelay=300,target=2},
+ -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
+ pirate={minDelay=180,maxDelay=300},
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  miner={minDelay=180,maxDelay=300},
- salvager={minDelay=180,maxDelay=300},
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
 T.npcArrivalWidth = 4000     -- px across (and half that deep) the band driver arrivals spread over, by id
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+-- Cloud-city launches: how long the city's beam carries a departing NPC up
+-- out of the cloud-top pull at most (Game:cloudClimbing), in seconds.
+T.cloudClimbTime = 60
+-- and how near a cloud city its inbound traffic is held up the same way (px)
+T.cloudHoldRange = 4000
 
 -- Berth ship capacity is independent of the authored pad/editor marker size.
 T.berthShipScale = 3
@@ -259,8 +313,9 @@ T.startCredits = 5000
 -- How far the camera zooms out (mouse wheel), as a scale.
 T.minZoom = 0.17 / 1.5   -- pulled out with T.mapScale
 
-T.tradeW, T.tradeH = 12, 6
-T.marketW, T.marketH = 14, 12
+T.tradeW, T.tradeH = 12, 10
+-- original widths, taller for bigger modules: tall grids scroll
+T.marketW, T.marketH = 14, 24
 T.resaleTime = 600
 T.restockAmmo, T.restockS, T.restockM, T.restockL = 180, 300, 600, 1200
 
@@ -338,7 +393,7 @@ T.drillThrowMin,T.drillThrowMax,T.drillSpread=450,1150,.12
 T.miningSettleTime=3
 T.mineWorkAltitude=1500
 T.mineWorkSide=1100
-T.minersPerArea,T.minerLoad,T.miningChunkDamping=2,12,1.1
+T.minersPerArea,T.minerLoad,T.miningChunkDamping=3,36,1.1
 T.miningOrbitDamping=1.1
 T.miningScan,T.miningOfflineEvery=.5,12
 
@@ -351,9 +406,64 @@ T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
+-- scarcity premium (src/transport.lua): the share of the source-to-target
+-- price gap the destination adds to freight pay, growing by 1x per
+-- freightUrgencyHours its shortage goes unserved (to freightUrgencyMax),
+-- and never more than freightPremiumCap times the base pay
+T.freightGapShare=.5
+T.freightUrgencyHours=2
+T.freightUrgencyMax=2
+T.freightPremiumCap=2
+-- NPC job scoring (src/transport.lua): reward (credits/s) is capped at
+-- freightScoreCap/100, varied per trader by +-freightScoreJitter, and cut
+-- by freightRiskPerAU per AU of interplanetary route for timid traders
+T.freightScoreCap=20000
+T.freightScoreJitter=.1
+T.freightRiskPerAU=.05
+-- market goods trade at the station's live price +- this share
+T.marketSpread=.05
+-- station prices (src/markets.lua): never under priceFloor; up to
+-- priceCrisisMax once a shortage has gone priceCrisisHours unserved;
+-- makers sell makerDiscount under their stock-based price
+T.priceFloor=.5
+T.priceCrisisHours=2
+T.priceCrisisMax=3
+T.makerDiscount=.1
+-- merchant houses (src/merchants.lua): how often they trade; a house
+-- under merchantBankrupt of its capital that has sold nothing for
+-- merchantStale seconds turns insolvent, sells at anything over
+-- merchantFireSale x list, and recovers at merchantRecover of capital
+T.merchantTick=300
+T.merchantBankrupt=.1
+T.merchantStale=6*3600
+T.merchantFireSale=1
+T.merchantRecover=.3
+-- the markup a house wants over what it paid before it will sell
+T.merchantMargin=.15
+-- the most of one good a house buffers at its hub warehouse
+T.merchantBuffer=3000
+-- the most unclaimed freight jobs one house keeps posted at once
+T.merchantOpenMax=12
+-- a house stops buffering surplus below this share of its capital
+T.merchantReserve=.5
+-- a globalPrice plant (crack_ice) speeds up while the universal price of
+-- its good is this far over list, and slows while it's this far under
+T.globalPriceBand=.1
+-- adaptive plants (fuel, canisters...) speed up while all trade stations
+-- together hold less than this many times their combined target
+T.adaptiveCushion=1.5
+-- guided munitions: offline a rack fires one load of its tubes every
+-- offlineSalvoRounds combat rounds; NPCs carry npcMissileSalvos tube loads
+T.offlineSalvoRounds=3
+T.npcMissileSalvos=6
+-- freight pay also covers the cargo's worth: this share of its value
+-- (live market price, else list) per unit carried
+T.freightValueShare=.05
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
+T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
+T.trunkMinHold=200 -- hold a ship needs to take trunk runs
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
 -- Shortage deliveries (src/quests.lua): player-only work generated from
 -- stations that have been short of a good for a while.
@@ -404,7 +514,7 @@ T.collideShip,T.collidePickup,T.pickupRadius=2,3,6
 T.alifeGoneLinger=300
 
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
-T.salvagerPopulation,T.salvagerCollectTime=1,180   -- salvagers fill their hold (src/scavenge.lua)
+T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
 
 -- Playable area: every planet map's open space (edge, belts, rings,
@@ -412,6 +522,13 @@ T.salvagerRange,T.salvagerStay=6000,30
 -- are thinned by mapDensity (1/mapScale^2 keeps rock counts unchanged;
 -- lower thins further). Pre-alpha test values.
 T.mapScale = 1.5
+-- rad/s: stations outside a planet's well tumble whole, core and all, at
+-- one of these rates (src/fields.lua place.drift); a turn every 3-5 minutes
+T.freeStationDrift = { 0.022, 0.03, 0.018 }
+T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
+T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
+T.fenceStock = 300 -- m3 of each dark surplus good a fence keeps in its back room to sell on
+T.darkAccessShare = 0.3 -- white haulers and miners who also work the dark grids (raiders always do)
 T.mapDensity = 0.3
 
 -- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).

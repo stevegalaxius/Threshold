@@ -160,6 +160,15 @@ local function ensureDuty(u,area,role,node,nodes,clock)
    requires=kind=='patrol' and {authorization='police'} or nil})
  end
 end
+-- A raider bought at a dark base: homed there, then sent out to hunt.
+function S.launchPirate(game,area,base,clock)
+ local u=game.universe
+ local r=create(game,area,'pirate',base,clock,require('src.alife').start)
+ Homes.assign(r,base)
+ local hunt=S.huntingGround(u,base,clock)
+ if hunt then require('src.piracy').deploy(game,r,base,hunt) end
+ return r
+end
 function S.spawnPirate(game,area,nearPlayer) return Population.spawn(game,area,'pirate',nearPlayer) end
 function S.pirateCount(u,area) return Population.count(u,area,'pirate') end
 function S.updateSpawns(game,clock) return Population.update(game,clock) end
@@ -190,18 +199,23 @@ function S.shouldDock(r,node)
  return r and r.task and r.task.kind=='patrol' and r.task.dock and L.canonical(r.task.target)==L.canonical(node)
 end
 -- Choose a station-local holding point outside its hull and every runway.
-function S.inspectionPoint(game,station,e)
+-- lane (optional): which side a ship passing through takes, 1 the outer
+-- side (away from the planet), -1 the inner. Traffic going opposite ways
+-- round the track gets opposite sides, so it never meets head on at one point.
+local LANE_OUTER={0,math.pi/3,-math.pi/3,math.pi*2/3,-math.pi*2/3,math.pi}
+local LANE_INNER={math.pi,math.pi*2/3,-math.pi*2/3,math.pi/3,-math.pi/3,0}
+function S.inspectionPoint(game,station,e,lane)
  if station.city then
   local x,y=L.inspectionPosition(station.locationId,game.universe.clock)
   local vx,vy=L.inspectionVelocity(station.locationId,game.universe.clock)
   return x,y,vx,vy
  end
  local cached=e.patrolInspection
- if not cached or cached.station~=station then
+ if not cached or cached.station~=station or cached.lane~=lane then
   local x,y=station.body:getPosition();local angle=math.atan2(y,x)-station.body:getAngle()
   local radius=station.radius+T.patrolStandOff+e.halfLength
   local chosen
-  for _,offset in ipairs({0,math.pi/3,-math.pi/3,math.pi*2/3,-math.pi*2/3,math.pi}) do
+  for _,offset in ipairs(lane==-1 and LANE_INNER or LANE_OUTER) do
    local a=angle+offset;local lx,ly=math.cos(a)*radius,math.sin(a)*radius
    local clear=true
    for _,d in ipairs(station.docks or {station.dock}) do
@@ -210,9 +224,9 @@ function S.inspectionPoint(game,station,e)
     if math.abs(across)<(d.capture or d.hw)+e.halfLength+T.patrolStandOff
      and (along>d.x2-e.halfLength or d.both and along<d.x1+e.halfLength) then clear=false;break end
    end
-   if clear then chosen={station=station,x=lx,y=ly};break end
+   if clear then chosen={station=station,lane=lane,x=lx,y=ly};break end
   end
-  cached=chosen or {station=station,x=math.cos(angle+math.pi/2)*radius,y=math.sin(angle+math.pi/2)*radius}
+  cached=chosen or {station=station,lane=lane,x=math.cos(angle+math.pi/2)*radius,y=math.sin(angle+math.pi/2)*radius}
   e.patrolInspection=cached
  end
  local x,y=station.body:getWorldPoint(cached.x,cached.y)
@@ -263,6 +277,8 @@ function S.target(game,e)
   if S.hostile(game,e,o) then
    local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
    local rank=o==e.aggressor and 3 or Access.raiding(record) and S.prey(o) and 2 or 1
+   -- prey carrying what the raider's home station is short of comes first
+   if rank==2 and o.alifeRecord and require('src.piracy').wants(game.universe,require('src.piracy').home(record),o.alifeRecord) then rank=2.5 end
    if d<T.securityRange^2 and (rank>bestRank or rank==bestRank and d<bestDistance) then best,bestRank,bestDistance=o,rank,d end
   end
  end
@@ -292,24 +308,95 @@ function S.visit(game,e,stop,A)
  if r.state=='travel' then NPC.holdOnline(game,e,stop.locationId) end
  return true
 end
+-- Pirates are not a quota on the white map. Each dark station with a
+-- shipyard keeps berths: as many raiders as its own fuel stock can send out
+-- (T.pirateBerths). New pirates are bought, fitted and fuelled there, from
+-- that region's lots and shelves (npc_ship_supply, Supplies.refill), and fly
+-- out to the hunting grounds with the most prey for the fewest raiders. So a
+-- base that fences a lot of fuel launches more; one starved of it stops.
+local function fuelFor()
+ local def=data.enemies[require('src.npc_templates').pirate.archetype]
+ local need=Supplies.targets({archetype=def.id,ship={hull=def.hull,loadout=def.loadout or data.hulls[def.hull].loadout}})
+ return math.max(1,need[require('src.reactor_fuel').item()] or 1)
+end
+function S.berths(u,station)
+ local place=L.byId[station]
+ if not place or place.kind~='station' or not (place.uses and place.uses.pirateBase) then return 0 end
+ if not L.stationServices(station).shipyard then return 0 end
+ local fuel=require('src.stockpile').available(u,station,require('src.reactor_fuel').item())
+ return math.min(T.pirateBerths.max,math.floor(fuel/(fuelFor()*T.pirateBerths.fuelReserves)))
+end
+function S.bases(area)
+ local list={}
+ for _,id in ipairs(L.stations(area,'pirateBase')) do list[#list+1]=id end
+ table.sort(list)
+ return list
+end
+-- Where a new raider hunts: a white region with raid duties it can reach,
+-- scored by prey per raider already there, nearer first.
+function S.huntingGround(u,from,clock)
+ local prey,raiders={},{}
+ for _,o in pairs(u.npcs or {}) do
+  if o.state~='dead' and o.state~='escaped' and o.area then
+   local job=require('src.npc_templates').job(o)
+   if job=='raider' then raiders[o.area]=(raiders[o.area] or 0)+1
+   elseif job=='hauler' or job=='miner' then
+    -- a ship carrying what this base is short of counts extra
+    local w=require('src.piracy').wants(u,from,o) and 1+T.raidShortageBias*4 or 1
+    prey[o.area]=(prey[o.area] or 0)+w
+   end
+  end
+ end
+ local Dark=require('src.dark');local origin=L.get(from).area
+ local best,score
+ for _,area in ipairs(Fields.list) do
+  local f=Fields[area]
+  if f.alifeSecurity and raidNodes(f) and not Dark.isDarkArea(area) then
+   local rally=L.rally(area,from,clock)
+   if rally and G.itinerary(from,rally,clock,true) then
+    local root=function(a) local m=Fields.moons[a];return m and m.parent or a end
+    local d=Fields.orbits[root(origin)] and Fields.orbits[root(area)] and Fields.distance(root(origin),root(area),clock) or 0
+    local value=((prey[area] or 0)+1)/((raiders[area] or 0)+1)/(1+d)
+    if not score or value>score or value==score and area<best then best,score=area,value end
+   end
+  end
+ end
+ return best
+end
 for _,role in ipairs({'pirate','patrol'}) do
  Population.register(role,{
   target=function(f,area)
    if role=='pirate' then
-    local override=f.navigation and f.navigation.population and f.navigation.population.pirate
-    return raidNodes(f) and (override~=nil and override or T.population.pirate.target)
+    local u=Population.universe;if not u then return 0 end
+    local n=0
+    for _,id in ipairs(S.bases(area)) do n=n+S.berths(u,id) end
+    return n
    end
    return Access.owner(area) and f.alifeSecurity and f.alifeSecurity.patrol
   end,
+  -- a raider belongs to the base that launched it, wherever it hunts
+  where=role=='pirate' and function(r) local home=r.homeStation and L.byId[r.homeStation];return home and home.area or r.home end or nil,
+  launches=role=='pirate' or nil,
   nodes=function(game,area)
-   if role=='pirate' then return S.ensureRaids(game.universe,area) end
+   if role=='pirate' then
+    -- the base with the most free berths launches next
+    local best,free
+    for _,id in ipairs(S.bases(area)) do
+     local n=S.berths(game.universe,id)-#Homes.residents(game.universe,id)
+     if n>0 and (not free or n>free) then best,free=id,n end
+    end
+    return best and {best} or {}
+   end
    return Fields[area].buoyIds
   end,
   create=function(game,area,node,clock)
-   local nodes=role=='pirate' and S.ensureRaids(game.universe,area) or Fields[area].buoyIds
+   if role=='pirate' then return S.launchPirate(game,area,node,clock) end
+   local nodes=Fields[area].buoyIds
    ensureDuty(game.universe,area,role,node,nodes,clock)
    return create(game,area,role,node,clock,require('src.alife').start)
   end,
+  -- fuel and ammunition come off the launching base's own shelves
+  provision=role=='pirate' and function(game,r) return Supplies.refill(r,r.homeStation,game.universe) end or nil,
  })
 end
 return S

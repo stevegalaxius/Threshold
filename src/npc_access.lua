@@ -7,7 +7,8 @@ function A.owner(area)
  return node and Rep.ofNode(node) or Rep.ofArea(area)
 end
 function A.capabilities(r)
- local c={cargo=(data.hulls[r.ship.hull].hold or 0)>0}
+ local hold=data.hulls[r.ship.hull].hold or 0
+ local c={cargo=hold>0,bulk=hold>=require('src.tuning').trunkMinHold}
  for _,id in pairs(r.ship.loadout or {}) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w then
@@ -31,8 +32,26 @@ function A.policeGrant(r,area)
  end
 end
 function A.police(r,area) return A.policeGrant(r,area)~=nil end
+-- Does this offer touch a dark grid (its stations or its area)?
+function A.darkOffer(offer)
+ local Dark=require('src.dark')
+ return (offer.source and Dark.isDarkNode(offer.source)) or (offer.target and Dark.isDarkNode(offer.target))
+  or (offer.area and Dark.isDarkArea(offer.area)) or false
+end
+function A.darkAccess(r) return r~=nil and require('src.npc_templates').darkAccess(r) end
 function A.eligible(r,offer,capabilities)
- local req=offer.requires or {}
+ if offer.kind then
+  -- (whether this NPC works the dark side is the same for every offer it
+  -- weighs: asked once and kept with its capabilities)
+  local dark=capabilities and capabilities.darkAccess
+  if dark==nil then
+   dark=A.darkAccess(r)
+   if capabilities then capabilities.darkAccess=dark end
+  end
+  if not dark and A.darkOffer(offer) then return false end
+ end
+ local req=offer.requires
+ if not req then return true end
  for _,name in ipairs(req.capabilities or {}) do if not capabilities[name] then return false end end
  if req.authorization and not A.authorized(r,req.authorization,offer.issuer,offer.jurisdiction) then return false end
  return true
