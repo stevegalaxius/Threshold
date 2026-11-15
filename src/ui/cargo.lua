@@ -1647,6 +1647,14 @@ function Cargo.drawSatTooltip(game)
 			if dx * dx + dy * dy < r * r then hit = e break end
 		end
 	end
+	-- only within tractor range, like loose cargo
+	local p = game.player
+	if hit and not (p and not p.dead and p.body) then hit = nil end
+	if hit then
+		local Ship = require("src.ship")
+		local range = Ship.tractorRange(p)
+		if Ship.distanceTo(p, hit.body:getX(), hit.body:getY()) > range + (hit.radius or 0) then hit = nil end
+	end
 	local r = hit and Sat.get(game.universe, hit.sat)
 	if not r then return end
 	local lines = { { r.name or hit.name or "Satellite", HUD.INK or { 1, 1, 1 } },
