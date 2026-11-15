@@ -82,48 +82,9 @@ end
 -- their color from data/enemies.lua.
 Render.PAINTS = require("src.paint").PRESETS
 
--- Starfield: three parallax layers of fixed random stars, tiled. Each layer
--- pans by `depth` of the camera motion and zooms by zoom^depth, so far layers
--- barely react to the wheel while near ones follow the world closely.
-local TILE = 1024
-local layers
-local function buildStars()
-	layers = {}
-	local rng = love.math.newRandomGenerator(7)
-	for li, depth in ipairs({ 0.15, 0.35, 0.6 }) do
-		local stars = {}
-		for _ = 1, 140 do
-			table.insert(stars, { rng:random() * TILE, rng:random() * TILE, 0.25 + rng:random() * 0.5 * li / 3 })
-		end
-		-- one tile of stars as a mesh of points, drawn once per tile on screen
-		-- (a rectangle call for every star was half the cost of a quiet frame)
-		local v = {}
-		for i, s in ipairs(stars) do v[i] = { s[1], s[2], 0, 0, 0.7, 0.9, 1, s[3] } end
-		layers[li] = { depth = depth, stars = stars, size = li, mesh = lg.newMesh(v, "points", "static") }
-	end
-end
-
-function Render.background(cam)
-	if not layers then buildStars() end
-	local w, h = lg.getDimensions()
-	local hw, hh = w / 2, h / 2
-	lg.clear(COLORS.space)
-	lg.setColor(1, 1, 1)
-	for _, layer in ipairs(layers) do
-		local scale = cam.zoom ^ layer.depth
-		local cx, cy = (cam.x + (cam.backgroundX or 0)) * layer.depth, (cam.y + (cam.backgroundY or 0)) * layer.depth
-		local size = max(1, layer.size * scale)
-		-- Range of tiles covering the screen, in this layer's coordinates.
-		local tx1, tx2 = floor((cx - hw / scale) / TILE), floor((cx + hw / scale) / TILE)
-		local ty1, ty2 = floor((cy - hh / scale) / TILE), floor((cy + hh / scale) / TILE)
-		lg.setPointSize(size)
-		for tx = tx1, tx2 do
-			for ty = ty1, ty2 do
-				-- (a point is centred; the rectangle it replaces had its corner on a whole pixel)
-				lg.draw(layer.mesh, hw + (tx * TILE - cx) * scale + size / 2 - 0.5, hh + (ty * TILE - cy) * scale + size / 2 - 0.5, 0, scale, scale)
-			end
-		end
-	end
+-- The backdrop: each place's own look of space (src/sky.lua).
+function Render.background(cam, area)
+	require("src.sky").draw(cam, area)
 end
 
 local function drawGrid(game)
@@ -1608,7 +1569,7 @@ function Render.world(game, overlay, boundaryAngle)
 	local restorePreview = overlay and not game.live and require("src.preview").begin(game)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
-		Render.background(game.camera)
+		Render.background(game.camera, game.fieldId)
 		game.camera:apply()
 		drawGrid(game)
 		game.camera:release()
