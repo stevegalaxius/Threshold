@@ -54,9 +54,8 @@ function Dark.areas()
 end
 
 -- Is this a fence: a white station (uses.fence) whose back room buys
--- stolen goods? The only white stations dark stock is sold into
--- (src/economy.lua), and the only white markets that take stolen
--- stacks from the player (src/market.lua tradeProblem).
+-- from the dark side? The only white stations dark stock is sold into
+-- (src/economy.lua).
 function Dark.isFence(id)
 	local place = require("src.locations").byId[id]
 	return place ~= nil and place.uses ~= nil and place.uses.fence == true and not Dark.isDarkArea(place.area)
