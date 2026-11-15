@@ -495,27 +495,31 @@ function E.update(u,clock)
    entry.left=short
   end
   end
-  -- Fences: each keeps T.fenceStock of every good the dark stations have
-  -- over what they need, bought from the one with most to spare. Its
+  -- Fences: each keeps T.fenceStock m3 of every good the dark stations
+  -- have over what they need, bought from the one with most to spare. Its
   -- stock over its own needs is spare like any white station's, so the
   -- passes above sell it on into the white network.
   for _,f in ipairs(fences) do if spare[f]~=nil then
-   local room=T.fenceStock-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
-   while room>=T.orderMinLoad do
+   local vol=require('src.data').items[item].volume
+   local lot=math.max(1,math.floor(T.trunkLot/vol))
+   local room=math.floor(T.fenceStock/vol)-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
+   while room>=math.min(T.orderMinLoad,lot) do
     local best,most
     for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
      local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
      local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)
-     if excess>=T.orderMinLoad and (not most or excess>most) then
+     if excess>=math.min(T.orderMinLoad,lot) and (not most or excess>most) then
       local k=s..'>'..f
       if reach[k]==nil then reach[k]=reachable(s,f,clock) end
       if reach[k] then best,most=s,excess end
      end
     end end
     if not best then break end
-    local n=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),room,most)
+    -- a full bulk load per run
+    local n=math.min(lot,room,most)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
+     layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     trunk=true,requires={capabilities={'cargo','bulk'}}},clock,u))
     spare[best]=spare[best]-n;room=room-n
    end
   end end
