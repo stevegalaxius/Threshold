@@ -439,7 +439,13 @@ function Hangar.mousepressed(game, mx, my, button)
 	end
 
 	local s = shipAt(L, mx, my)
-	if not s then return nil end
+	if not s then
+		-- a ship for sale: open it in the Shipyard to buy
+		for _, d in ipairs(L.ships) do
+			if d.dealer and inRect(d, mx, my) then return { shop = d.owner } end
+		end
+		return nil
+	end
 	local now = love.timer.getTime()
 	local c = Hangar.lastClick
 	local double = c and c.owner == s.owner and now - c.t < 0.35

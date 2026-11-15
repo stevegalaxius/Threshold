@@ -1016,6 +1016,10 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 					if Cargo.other == rec then Cargo.other = nil end
 					game:toast(("SOLD FOR %d CR"):format(paid), 1.4)
 				else game:toast(why, 1.4) end
+			elseif act and act.shop then
+				Cargo.setTab(game, "shipyard")
+				local Yard = require("src.ui.shipyard")
+				Yard.sel = act.shop.id
 			elseif act and (act.load or act.unload) then
 				local B, st = require('src.berths'), game.player.dockState.station
 				local ok, why
