@@ -270,6 +270,7 @@ function love.keypressed(key)
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
 	elseif key == "h" then HUD.showHelp = not HUD.showHelp
+	elseif key == "t" then HUD.cycleNav(love.keyboard.isDown("lshift", "rshift") and -1 or 1)
 	elseif key == "r" then relaunch()
 	elseif key == "g" then game:toggleDroneControl()
 	elseif key == "q" and game.player and not game.player.dead then
