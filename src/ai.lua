@@ -507,8 +507,15 @@ local function trade(game, e, dt)
 		end
 		local inGravity=w and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius+min(T.surfacePullRange,w.radius*.5)+500
 		local climbing=w and ux*(x-w.x)+uy*(y-w.y)>sqrt((x-w.x)^2+(y-w.y)^2)*.4
-		local boosting=d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
+		-- Down in a gas giant's clouds any heading upward is a climb out of
+		-- the crush: the afterburner is for that too, however near the stop.
+		-- (A Gila sinking below a cloud city lit it only once the hull was
+		-- buckling.)
+		local deep=w and w.gas and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius and ux*(x-w.x)+uy*(y-w.y)>0
+		local boosting=deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
 		if boosting then
+			-- On a long clear leg, cruise near what the hull can really do
+			-- rather than a little over the base cruise speed.
 			local top=Ship.performance(e).topSpeed
 			cruise=max(cruise,min(cruise*T.aiBoostCruise,top*.85))
 			want=min(cruise,sqrt(pass*pass+2*sb*.6*max(0,d-150)))
@@ -524,7 +531,7 @@ local function trade(game, e, dt)
 			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
 		want=want*scale
 		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
-		Nav.boost(e,mx,my,want,leg,clear,danger,boosting)
+		Nav.boost(e,mx,my,want,deep and math.huge or leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor
 	if foe and (foe.dead or foe.removed or foe.dockState) then e.aggressor, foe = nil, nil end
