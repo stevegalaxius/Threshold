@@ -20,8 +20,7 @@ local L=require('src.locations')
 local Shapes=require('src.inventory.shapes')
 local Hold=require('src.inventory.hold')
 local T=require('src.tuning')
-local S={shopCache={},flowEvery=2,flowLate=10,flowsPerStep=3,flowed=0}
-local flowTurn=setmetatable({},{__mode='v'})
+local S={shopCache={},flowEvery=2,flowLate=10,flowed=0}
 
 function S.key(st) return L.canonical(type(st)=='table' and st.key or st) end
 
@@ -188,15 +187,13 @@ function S.flow(u,key,i,m)
  -- isn't lost: the next pass runs from where the last one stopped.
  local since=record.productionAt and m.flowAt and u.clock-record.productionAt
  if since and since>=0 and since<S.flowEvery then return end
- -- And only a few stations in any one step: a trader reading the board, or
- -- the drills, look at every station at once, and catching them all up
- -- together was a long step. The rest wait their turn (rates are per hour:
- -- a few seconds make nothing), up to S.flowLate.
- if since and since>=0 and since<S.flowLate then
-  if flowTurn.u~=u or flowTurn.clock~=u.clock then flowTurn.u,flowTurn.clock,flowTurn.n=u,u.clock,0 end
-  if flowTurn.n>=S.flowsPerStep then return end
-  flowTurn.n=flowTurn.n+1
- end
+ -- Past that and still within S.flowLate, leave it to the director
+ -- (src/director.lua), which catches every station up in turn, a few a
+ -- step: a trader reading the board, or the drills, look at every station
+ -- at once, and catching them up there and then made that a long step.
+ -- (Rates are per hour: a few seconds make nothing.) Where the director
+ -- isn't running, a station past S.flowLate is caught up by whoever looks.
+ if since and since>=0 and since<S.flowLate and not S.directed then return end
  record.productionBusy=true
  local now=u.clock;local previous=record.productionAt or m.flowAt or now
  record.productionAt=now

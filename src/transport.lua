@@ -124,12 +124,13 @@ local scan
 -- (true if this call opened it: only the one that opened it closes it. A
 -- scan never outlives the instant it was opened in, and Tasks.post, the one
 -- way an order joins the board, has it sorted again: Transport.rescan)
-function Transport.beginScan(u)
+-- (still: the caller only reads, stock included, so counts can be kept too)
+function Transport.beginScan(u,still)
  if scan and scan.u==u and scan.clock==u.clock then return false end
- scan={u=u,clock=u.clock};return true
+ scan={u=u,clock=u.clock,still=still};return true
 end
 function Transport.endScan() scan=nil end
-function Transport.rescan() if scan then scan.groups=nil end end
+function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil end end
 local none={}
 local function ordersFrom(u,source,item)
  if not scan or scan.u~=u or scan.clock~=u.clock or source==nil or item==nil then return nil end
@@ -165,7 +166,19 @@ function Transport.reserved(u,source,item,except,includeOpen)
 end
 function Transport.scanning(u) return scan~=nil and scan.u==u and scan.clock==u.clock end
 function Transport.available(u,source,item,except)
- return math.max(0,J.available(u,source,item)-Transport.reserved(u,source,item,except))
+ -- (a trader reading the board asks this once per offer, and most offers
+ -- share a source and good: a scan opened as still moves no stock, so
+ -- each pair is counted once)
+ local have
+ if scan and scan.still and scan.u==u and scan.clock==u.clock and source~=nil and item~=nil then
+  local stock=scan.stock;if not stock then stock={};scan.stock=stock end
+  local at=stock[source];if not at then at={};stock[source]=at end
+  have=at[item]
+  if not have then have=J.available(u,source,item);at[item]=have end
+ else
+  have=J.available(u,source,item)
+ end
+ return math.max(0,have-Transport.reserved(u,source,item,except))
 end
 -- A cheap estimate for comparison and fleet planning, in game seconds.
 function Transport.duration(o,station,clock)
@@ -242,9 +255,17 @@ Tasks.register('transport',{
  score=function(u,r,o,station,clock)
   Transport.quote(o,clock,u)
   local amount=math.min(o.amount,room(r,o.item,o.amount))
-  local quote=require('src.persistence').copy(o);quote.amount=amount
   -- credits per second of the whole job, the empty run to the pickup included
-  local reward=Transport.payment(quote)/Transport.duration(o,station,clock)
+  local pay
+  if o.manifest or o.creditsPerUnit==nil then
+   local quote=require('src.persistence').copy(o);quote.amount=amount
+   pay=Transport.payment(quote)
+  else
+   -- (a plain quoted listing: the same sum Transport.invoice makes, without
+   -- copying the offer to change its amount; this runs for every job read)
+   pay=math.floor(amount*o.creditsPerUnit+math.min(o.handlingLimit or 0,amount*(o.handlingPerUnit or 0))+1e-7)
+  end
+  local reward=pay/Transport.duration(o,station,clock)
   local p=Personality.ensure(r)
   local ambition,aggression=p.ambition,p.aggression or .5
   local age=require('src.economy').shortageAge(u,o.target,o.item,clock)

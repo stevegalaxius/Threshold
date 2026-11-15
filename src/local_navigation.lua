@@ -261,47 +261,39 @@ function Nav.waypoint(game,e,gx,gy,options)
  end
  if clear(x,y,gx,gy) then return save({{gx,gy}},.8) end
  if not clear(gx,gy,gx,gy) then return save({{gx,gy}},2) end
- local step=max(180,radius*2,(direct+padding*2)/36)
- local minx,miny=min(x,gx)-padding,min(y,gy)-padding
- local nx=math.ceil((math.abs(gx-x)+padding*2)/step)
- local ny=math.ceil((math.abs(gy-y)+padding*2)/step)
- local function heuristic(px,py)return distance(px,py,gx,gy) end
- local start={x=x,y=y,cost=0};start.score=direct
- local open={start};local nodes={};local finish
- local directions={{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}}
- for _=1,1600 do
-  if #open==0 then break end
-  local best=1
-  for i=2,#open do if open[i].score<open[best].score then best=i end end
-  local current=table.remove(open,best);current.closed=true
-  if heuristic(current.x,current.y)<step*2 and clear(current.x,current.y,gx,gy) then finish=current;break end
-  local ix=math.floor((current.x-minx)/step+.5)
-  local iy=math.floor((current.y-miny)/step+.5)
-  for _,v in ipairs(directions) do
-   local cx,cy=ix+v[1],iy+v[2]
-   if cx>=0 and cx<=nx and cy>=0 and cy<=ny then
-    local key=cx+cy*(nx+1);local node=nodes[key]
-    if not node or not node.closed then
-     local px,py=minx+cx*step,miny+cy*step
-     local cost=current.cost+distance(current.x,current.y,px,py)
-     if (not node or cost<node.cost) and clear(current.x,current.y,px,py) then
-      if not node then node={x=px,y=py};nodes[key]=node;open[#open+1]=node end
-      node.cost,node.score,node.parent=cost,cost+heuristic(px,py),current
-     end
-    end
+ -- The search itself (src/pathsearch.lua) works from just the obstacles
+ -- that reach into the stretch it searches, as plain shapes...
+ local Path=require('src.pathsearch')
+ local step=Path.step(radius,padding,direct)
+ local loX,hiX=min(x,gx)-padding-radius,max(x,gx)+padding+step+radius
+ local loY,hiY=min(y,gy)-padding-radius,max(y,gy)+padding+step+radius
+ local prims={}
+ for _,g in ipairs(geometry) do
+  if g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
+   for _,o in ipairs(primsOf(g,geometry)) do
+    if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY then prims[#prims+1]=o end
    end
   end
  end
- if not finish then return save({{gx,gy}},2) end
- local reverse={{gx,gy}}
- while finish.parent do reverse[#reverse+1]={finish.x,finish.y};finish=finish.parent end
- local path={};local ax,ay=x,y;local i=#reverse
- while i>=1 do
-  local nextIndex=i
-  for j=1,i do if clear(ax,ay,reverse[j][1],reverse[j][2]) then nextIndex=j;break end end
-  local point=reverse[nextIndex];path[#path+1]=point;ax,ay=point[1],point[2];i=nextIndex-1
+ -- ...so the background thread can do it (src/worker.lua): up to 1600
+ -- points each swept against every obstacle was the longest single thing
+ -- a step did. The ship heads straight for now (its steering still keeps
+ -- it off things) and takes the path when it comes back, a few frames on.
+ local Worker=require('src.worker')
+ if Worker.active() then
+  local ask={}
+  e.pathAsk=ask
+  local ignore,surface=options.ignore,options.allowSurface
+  Worker.ask('path',{x,y,gx,gy,radius,padding,direct,Path.pack(prims)},function(found)
+   if e.pathAsk~=ask or e.dead or e.removed then return end
+   e.pathAsk=nil
+   e.detour={gx=requestedX,gy=requestedY,ignore=ignore,surface=surface,
+    path=found.path,index=1,expires=(game.time or 0)+found.ttl}
+  end)
+  return save({{gx,gy}},1.5)
  end
- return save(path,8)
+ local found=Path.search(x,y,gx,gy,radius,padding,direct,prims)
+ return save(found.path,found.ttl)
 end
 function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  options=options or {};flowX,flowY=flowX or 0,flowY or 0

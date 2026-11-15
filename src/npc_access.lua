@@ -40,8 +40,18 @@ function A.darkOffer(offer)
 end
 function A.darkAccess(r) return r~=nil and require('src.npc_templates').darkAccess(r) end
 function A.eligible(r,offer,capabilities)
- if offer.kind and not A.darkAccess(r) and A.darkOffer(offer) then return false end
- local req=offer.requires or {}
+ if offer.kind then
+  -- (whether this NPC works the dark side is the same for every offer it
+  -- weighs: asked once and kept with its capabilities)
+  local dark=capabilities and capabilities.darkAccess
+  if dark==nil then
+   dark=A.darkAccess(r)
+   if capabilities then capabilities.darkAccess=dark end
+  end
+  if not dark and A.darkOffer(offer) then return false end
+ end
+ local req=offer.requires
+ if not req then return true end
  for _,name in ipairs(req.capabilities or {}) do if not capabilities[name] then return false end end
  if req.authorization and not A.authorized(r,req.authorization,offer.issuer,offer.jurisdiction) then return false end
  return true
