@@ -1631,6 +1631,43 @@ function Cargo.drawPickupTooltip(game)
 	Icons.drawInRect(k.item, ix, iy, S, S, nil, 1, 10)
 end
 
+-- A satellite under the cursor, out in space: its name, kind, owner and
+-- whether it's working, so you can tell one from another without docking.
+local SAT_KIND = { passive = "Relay satellite", fuel = "Fuel buoy", vendor = "Vending satellite" }
+function Cargo.drawSatTooltip(game)
+	if Cargo.isOpen(game) or game.hoverPickup or not game.camera then return end
+	local Sat = require("src.satellites")
+	local mx, my = love.mouse.getPosition()
+	local wx, wy = game.camera:toWorld(mx, my)
+	local hit
+	for _, e in ipairs(game.entities or {}) do
+		if e.sat and not e.removed and e.body then
+			local dx, dy = e.body:getX() - wx, e.body:getY() - wy
+			local r = (e.radius or 100)
+			if dx * dx + dy * dy < r * r then hit = e break end
+		end
+	end
+	local r = hit and Sat.get(game.universe, hit.sat)
+	if not r then return end
+	local lines = { { r.name or hit.name or "Satellite", HUD.INK or { 1, 1, 1 } },
+		{ SAT_KIND[r.kind] or "Satellite", HUD.DIM } }
+	if r.owner then local place = require("src.locations").byId[r.owner]
+		lines[#lines + 1] = { "Owner: " .. (place and place.name or tostring(r.owner)), HUD.DIM } end
+	local lv = Sat.levers(r)
+	lines[#lines + 1] = r.broken and { "Out of service", { 1, 0.45, 0.35 } }
+		or { lv.dock == "none" and "No docking" or "Docking open", HUD.AQUA }
+	local f = HUD.font(13)
+	local w = 0
+	for _, l in ipairs(lines) do w = max(w, f:getWidth(l[1])) end
+	local h
+	w, h = w + 20, #lines * 17 + 12
+	local sw, sh = lg.getDimensions()
+	local x, y = min(mx + 18, sw - w - 4), max(4, min(my - h / 2, sh - h - 4))
+	HUD.panel(x, y, w, h)
+	lg.setFont(f)
+	for i, l in ipairs(lines) do lg.setColor(l[2]); lg.print(l[1], x + 10, y + 6 + (i - 1) * 17) end
+end
+
 local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
 	reactor = "REACTOR", utility = "UTILITY", computer = "UTILITY" }
 
