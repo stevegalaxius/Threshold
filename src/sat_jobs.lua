@@ -1,6 +1,6 @@
 -- Satellite repair work on the task board (src/tasks.lua).
 --
--- When raiders knock a satellite out (Sat.knockOut in src/satellites.lua) its
+-- When a satellite fails (Sat.knockOut in src/satellites.lua) its
 -- system's trade station posts one "satrepair" order: fly from there to the
 -- station nearest the satellite, spend a while on the job, and the satellite
 -- is back up. Any hauler can take it; scavenger and industrial tempers lean

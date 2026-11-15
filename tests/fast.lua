@@ -62,7 +62,7 @@ return function(game)
  assert(stations>0,'no trade stations')
  print('ok  economy: 1h across '..stations..' stations')
 
- -- 5. Satellites: a raider knocks one out offline, a hauler's repair job fixes it.
+ -- 5. Satellites: one fails offline, a hauler's repair job fixes it.
  local Sat=require('src.satellites')
  local sid
  for id,r in pairs(u.satellites or {}) do if not r.lost and r.field~=game.fieldId then sid=id;break end end

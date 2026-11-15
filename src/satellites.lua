@@ -94,7 +94,7 @@ function Sat.get(universe, id) return universe and universe.satellites and unive
 -- What it allows right now: the quest override if there is one, else its kind's.
 function Sat.levers(r)
 	local K = Sat.kinds[r.kind] or Sat.kinds.passive
-	-- knocked out by raiders: closed until someone repairs it (a quest that
+	-- failed: closed until someone repairs it (a quest that
 	-- opened it to the player still gets them in)
 	if r.broken then
 		return { dock = r.dock == "player" and "player" or "none", actions = r.actions or {}, vend = {} }
@@ -108,8 +108,8 @@ end
 
 -- NPCs and satellites ------------------------------------------------------
 --
--- Raiders knock working satellites out while you're away (Sat.raid, rolled
--- once when a raid duty finishes, never per step), and the satellite's
+-- Satellites wear out while you're away (Sat.wear, a slow roll from the
+-- A-Life director), and the satellite's
 -- system posts a one-off "satrepair" job on the task board (src/sat_jobs.lua)
 -- that ordinary haulers take. A broken satellite refuses docking and sells
 -- nothing until the repair job is done.
@@ -132,27 +132,30 @@ function Sat.fix(universe, id, by)
 	return true
 end
 
--- A raider finished a raid leg in its area: maybe hit a satellite there.
--- Only fields nobody is watching (the loaded map keeps its fights real), and
--- never more than Sat.maxBroken down in one field at once.
-Sat.raidChance, Sat.maxBroken = 0.15, 3
-function Sat.raid(universe, npc, clock, game, roll)
-	local area = npc and npc.area
-	if not area or not universe.satellites then return false end
-	if game and game.fieldId == area then return false end
-	if (roll or love.math.random()) >= Sat.raidChance then return false end
-	local pick, broken, n = nil, 0, 0
-	for id, r in pairs(universe.satellites) do
-		if r.field == area and not r.lost then
-			if r.broken then broken = broken + 1
-			else
-				n = n + 1
-				if love.math.random(n) == 1 then pick = id end
-			end
+-- Wear: every Sat.wearEvery game seconds one random working satellite may
+-- fail (Sat.wearChance), unless its field is the loaded map or that field
+-- already has Sat.maxBroken down. Called from the A-Life director; one
+-- pick per roll, never a per-step scan.
+Sat.wearEvery, Sat.wearChance, Sat.maxBroken = 120, 0.5, 3
+function Sat.wear(universe, game, roll)
+	local all, clock = universe and universe.satellites, universe and universe.clock
+	if not all or not clock then return false end
+	if not universe.satWearAt or universe.satWearAt > clock + Sat.wearEvery then universe.satWearAt = clock + Sat.wearEvery end
+	if clock < universe.satWearAt then return false end
+	universe.satWearAt = clock + Sat.wearEvery
+	if (roll or love.math.random()) >= Sat.wearChance then return false end
+	local pick, n = nil, 0
+	for id, r in pairs(all) do
+		if not r.lost and not r.broken and not (game and game.fieldId == r.field) then
+			n = n + 1
+			if love.math.random(n) == 1 then pick = r end
 		end
 	end
-	if not pick or broken >= Sat.maxBroken then return false end
-	return Sat.knockOut(universe, pick, clock, npc.id)
+	if not pick then return false end
+	local down = 0
+	for _, r in pairs(all) do if r.field == pick.field and r.broken then down = down + 1 end end
+	if down >= Sat.maxBroken then return false end
+	return Sat.knockOut(universe, pick.id, clock, "wear")
 end
 
 -- Quest scripting: open a satellite up (or change what it offers) and
