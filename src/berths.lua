@@ -205,32 +205,109 @@ end
 -- The husk of carried ship rec, torn off berth b of carrier e: a dead
 -- ship of that hull and fit where it rode, drifting with the carrier,
 -- with its hold to loot.
-function B.spawnHusk(game, e, rec, b, lost)
-	if not (game and game.spawnHusk and data.hulls[rec.hull]) then return end
+-- Carried ship rec thrown off berth b of carrier e as a ship of its own:
+-- moving with the carrier and pushed out from its centre through the
+-- berth (sideways for a berth on the spine), so it doesn't sit in the
+-- cradle or get run down. dead: it dies the way any ship does (the
+-- explosion, then a husk with its whole hold and surviving modules);
+-- otherwise it's an unpiloted ship, drifting, that a carrier with a free
+-- berth can tractor back aboard.
+local PUSH = 90
+function B.throwOff(game, e, rec, b, dead, source)
+	if not (game and data.hulls[rec.hull]) then return end
 	local bx, by = pose(b)
 	local x, y = e.body:getWorldPoint(bx, by)
 	local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
 	local a = e.body:getAngle() + math.rad(b.heading or 0)
-	-- a real ship, dead on arrival: it dies the way any ship does (the
-	-- explosion, then a husk with its whole hold and surviving modules)
 	local Ship = require("src.ship")
 	local ship = Ship.new(game, { hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads,
-		cargo = rec.cargo, hold = rec.hold, armor = 0, color = rec.color, fuelCharge = rec.fuelCharge,
-		fuelInitialized = rec.fuelInitialized, power = rec.power, team = 0, x = x, y = y, angle = a })
-	-- thrown clear of the carrier: out from its centre through the berth
-	-- (sideways for a berth on the spine), so the husk doesn't sit in the
-	-- cradle or get run down. The death path keeps 60% of a dead ship's
-	-- velocity, so this is scaled up to leave the husk at the carrier's
-	-- speed plus the push.
+		cargo = rec.cargo, hold = rec.hold, armor = dead and 0 or rec.armor, color = rec.color, fuelCharge = rec.fuelCharge,
+		fuelInitialized = rec.fuelInitialized, power = rec.power, team = 0, x = x, y = y, angle = a, grid = rec.hold ~= nil })
 	local cx, cy = e.body:getPosition()
 	local ox, oy = x - cx, y - cy
 	local d = math.sqrt(ox * ox + oy * oy)
 	if d < 1 then ox, oy, d = math.cos(a + math.pi / 2), math.sin(a + math.pi / 2), 1 end
-	local push = 90
-	ship.body:setLinearVelocity((vx + ox / d * push) / 0.6, (vy + oy / d * push) / 0.6)
+	-- (the death path keeps 60% of a dead ship's velocity: scaled up so
+	-- the husk leaves at the carrier's speed plus the push)
+	local k = dead and 1 / 0.6 or 1
+	ship.body:setLinearVelocity((vx + ox / d * PUSH) * k, (vy + oy / d * PUSH) * k)
 	ship.body:setAngularVelocity(e.body:getAngularVelocity())
-	ship.armor, ship.dead, ship.lastHitBy = 0, true, lost and lost.source
+	ship.repairOrder = rec.repairOrder
+	if dead then ship.armor, ship.dead, ship.lastHitBy = 0, true, source
+	else ship.unpiloted = true end
 	table.insert(game.entities, ship)
+	return ship
+end
+
+function B.spawnHusk(game, e, rec, b, lost)
+	return B.throwOff(game, e, rec, b, true, lost and lost.source)
+end
+
+-- Carrier e is dying: every ship on its berths flies off unpiloted.
+function B.release(game, e)
+	for i, rec in pairs(e.carried or {}) do
+		local b = B.list(e.hull)[i]
+		if b then B.throwOff(game, e, rec, b, false) end
+	end
+	e.carried = nil
+end
+
+-- Tractoring an unpiloted ship aboard: the player holds the beam on it
+-- (game.lua's updatePickups starts this, updateTow steps it). It's pulled
+-- slowly to the berth it fits, ignoring collisions with ships on the way
+-- in, turned to the berth's heading, and clamped on when it gets there.
+B.TOW_SPEED, B.CATCH = 45, 10
+
+function B.towable(p, o)
+	return o and o.unpiloted and not o.dead and not o.removed and B.free(p, o.hull.id)
+end
+
+function B.startTow(p, o)
+	local slot = B.towable(p, o)
+	if not slot then return false end
+	o.berthTow = slot
+	for _, f in ipairs(o.body:getFixtures()) do f:setMask(require("src.tuning").collideShip) end
+	return true
+end
+
+function B.stopTow(o)
+	if not o or o.removed or not o.body or o.body:isDestroyed() then return end
+	o.berthTow = nil
+	for _, f in ipairs(o.body:getFixtures()) do f:setMask() end
+end
+
+-- One step of the tow. Returns "done" once it's aboard, "lost" if the
+-- berth was taken or it got away, or nil while it's still coming.
+function B.stepTow(game, p, o, dt)
+	local slot = o.berthTow
+	local b = slot and B.list(p.hull)[slot]
+	p.carried = p.carried or {}
+	if not b or p.carried[slot] or not B.fits(p.hull, slot, o.hull.id) then B.stopTow(o) return "lost" end
+	local bx, by = pose(b)
+	local tx, ty = p.body:getWorldPoint(bx, by)
+	local ox, oy = o.body:getPosition()
+	local dx, dy = tx - ox, ty - oy
+	local d = math.sqrt(dx * dx + dy * dy)
+	if d > require("src.ship").tractorRange(p) * 1.3 + (p.halfLength or 0) then B.stopTow(o) return "lost" end
+	local pvx, pvy = p.body:getLinearVelocityFromWorldPoint(tx, ty)
+	local want = math.min(B.TOW_SPEED * require("src.ship").tractorPower(p), d * 2)
+	local nx, ny = d > 0 and dx / d or 0, d > 0 and dy / d or 0
+	local vx, vy = o.body:getLinearVelocity()
+	local blend = math.min(1, dt * 3)
+	o.body:setLinearVelocity(vx + (pvx + nx * want - vx) * blend, vy + (pvy + ny * want - vy) * blend)
+	-- turn to lie along the berth
+	local ta = p.body:getAngle() + math.rad(b.heading or 0)
+	local da = (ta - o.body:getAngle() + math.pi) % (2 * math.pi) - math.pi
+	o.body:setAngularVelocity(p.body:getAngularVelocity() + da * 2)
+	if d < B.CATCH and math.abs(da) < 0.15 then
+		local Ship = require("src.ship")
+		local rec = Ship.record(o)
+		rec.bay, rec.mooring = nil, nil
+		p.carried[slot] = rec
+		game:remove(o)
+		Ship.updateMass(p)
+		return "done"
+	end
 end
 
 -- A hit on carrier e at world point hx, hy: if it lands on a carried
