@@ -217,7 +217,17 @@ function B.spawnHusk(game, e, rec, b, lost)
 	local ship = Ship.new(game, { hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads,
 		cargo = rec.cargo, hold = rec.hold, armor = 0, color = rec.color, fuelCharge = rec.fuelCharge,
 		fuelInitialized = rec.fuelInitialized, power = rec.power, team = 0, x = x, y = y, angle = a })
-	ship.body:setLinearVelocity(vx, vy)
+	-- thrown clear of the carrier: out from its centre through the berth
+	-- (sideways for a berth on the spine), so the husk doesn't sit in the
+	-- cradle or get run down. The death path keeps 60% of a dead ship's
+	-- velocity, so this is scaled up to leave the husk at the carrier's
+	-- speed plus the push.
+	local cx, cy = e.body:getPosition()
+	local ox, oy = x - cx, y - cy
+	local d = math.sqrt(ox * ox + oy * oy)
+	if d < 1 then ox, oy, d = math.cos(a + math.pi / 2), math.sin(a + math.pi / 2), 1 end
+	local push = 90
+	ship.body:setLinearVelocity((vx + ox / d * push) / 0.6, (vy + oy / d * push) / 0.6)
 	ship.body:setAngularVelocity(e.body:getAngularVelocity())
 	ship.armor, ship.dead, ship.lastHitBy = 0, true, lost and lost.source
 	table.insert(game.entities, ship)
