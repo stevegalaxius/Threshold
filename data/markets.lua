@@ -214,7 +214,7 @@ market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer 
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
 
-market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_pony", "ferrous_mule", "ferrous_bison" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
+market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_pony", "ferrous_mule", "ferrous_bison", "ferrous_bison_carrier" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
 

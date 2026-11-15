@@ -309,6 +309,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	p.repairOrder=rec.repairOrder
+	if rec.carried then p.carried=rec.carried;Ship.updateMass(p) end
 	table.insert(self.entities, p)
 	self.player = p
 	self.state = "playing"

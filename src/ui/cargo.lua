@@ -1016,6 +1016,14 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 					if Cargo.other == rec then Cargo.other = nil end
 					game:toast(("SOLD FOR %d CR"):format(paid), 1.4)
 				else game:toast(why, 1.4) end
+			elseif act and (act.load or act.unload) then
+				local B, st = require('src.berths'), game.player.dockState.station
+				local ok, why
+				if act.load then ok, why = B.load(game, st, act.load) else ok, why = B.unload(game, st) end
+				if ok then
+					Hangar.sel = game.player
+					game:toast(act.load and "SHIP LOADED ONTO BERTH" or "SHIP UNLOADED", 1.2)
+				else game:toast(why, 1.4) end
 			elseif act and act.move then
     local ok,why=game:moveStationShip(game.player.dockState.station,act.move,act.outside)
     if not ok then game:toast(why,1.4) end

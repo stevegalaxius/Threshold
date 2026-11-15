@@ -1,0 +1,66 @@
+-- The Bison with its cargo blocks swapped for four open ship berths.
+-- Base hull: ferrous_bison
+hull {
+	id = "ferrous_bison_carrier", name = "Bison Carrier",
+	armor = 900,
+	bonuses = {},
+	class = "Freighter-class",
+	drag = 1.1,
+	helm = "turn",
+	hold = 60,
+	-- four cradles along the spine, two a side, each for a small ship
+	-- (up to 112 long and 44 wide: Wisp, Dagger, Sprint, Pony and the like)
+	berths = {
+		{ x = -50, y = -38, heading = 0, length = 112, width = 44 },
+		{ x = 62, y = -38, heading = 0, length = 112, width = 44 },
+		{ x = -50, y = 38, heading = 0, length = 112, width = 44 },
+		{ x = 62, y = 38, heading = 0, length = 112, width = 44 },
+	},
+	loadout = { "gun_m_base", "gun_m_base", "cinder_drive", "forge_reactor", "nav_computer" },
+	maker = "Ferrous Collective",
+	turnResponse = 2.0,
+	description = "A Bison built to haul hulls: four open berths for small ships, a token hold.",
+	mass = 780,
+	mount = "turret",
+	paints = { "Terracotta", "Olive Drab", "Forest", "Champagne", "Signal", "Tanker", "Cargo Blue" },
+	price = 82000,
+	retroThrust = 800,
+	sideThrust = 1416,
+	slots = {
+		{ family = "hardpoint", size = "M", x = 128, y = 0 },
+		{ family = "hardpoint", size = "M", x = -112, y = 0 },
+		{ family = "engine", size = "L", x = -140, y = 0 },
+		{ family = "reactor", size = "L" },
+		{ family = "utility", size = "any" },
+		{ family = "utility", size = "any" },
+		{ family = "utility", size = "any" },
+	},
+	spoolTime = 0.6,
+	turn = 3600,
+	turnSpeed = 40,
+	turretTurn = 120,
+	parts = {
+		{ name = "part 3", shape = { -112, -16, 116, -16, 116, -8, -112, -8 }, mirror = true, core = true, breakable = false },
+		{ name = "part 2", shape = { 96, -20, 124, -20, 136, -12, 136, 12, 124, 20, 96, 20 }, paint = "secondary", lights = {
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 116, y = -16 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 116, y = -8 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 116, y = 0 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 116, y = 8 },
+			{ color = { 1, 0.95, 0.85 }, h = 1.5, kind = "window", w = 2, x = 116, y = 16 },
+			{ kind = "strobe", rate = 1, x = 124, y = -20 },
+			{ kind = "strobe", rate = 1, x = 124, y = 20 },
+		} },
+		{ name = "part 7", shape = { -128, -28, -140, -28, -140, 28, -128, 28 } },
+		{ name = "part 6", shape = { -96, -32, -96, 32, -128, 32, -132, 8, -132, -8, -128, -32 }, paint = "secondary", core = true, breakable = false, lights = {
+			{ kind = "strobe", phase = 0.5, rate = 1, x = -128, y = -32 },
+			{ kind = "strobe", phase = 0.5, rate = 1, x = -128, y = 32 },
+		} },
+		{ name = "cradle rail", shape = { -108, -60, 120, -60, 120, -56, -108, -56 }, mirror = true, paint = "secondary", lights = {
+			{ kind = "nav", x = -106, y = -60 },
+			{ kind = "nav", x = 118, y = -60 },
+		} },
+		{ name = "cradle strut", shape = { -108, -56, -102, -56, -102, -16, -108, -16 }, mirror = true },
+		{ name = "cradle strut mid", shape = { 3, -56, 9, -56, 9, -16, 3, -16 }, mirror = true },
+		{ name = "cradle strut fore", shape = { 114, -56, 120, -56, 120, -16, 114, -16 }, mirror = true },
+	},
+}

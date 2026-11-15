@@ -134,6 +134,7 @@ function Ship.record(e)
 		fuelCharge=e.fuelCharge, fuelInitialized=e.fuelInitialized, power=e.power,
 		repairOrder=e.repairOrder and copy(e.repairOrder) or nil,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
+		carried = e.carried and next(e.carried) and e.carried or nil,   -- ships on its berths (src/berths.lua)
 	}
 end
 
@@ -305,6 +306,7 @@ function Ship.updateMass(e)
 		e.holdUsed, e.holdCap = Hold.cells(e.hold)
 		cargoMass = cargoMass + Hold.innerMass(e.hold, data.items)   -- what loaded containers carry
 	end
+	cargoMass = cargoMass + require('src.berths').mass(e)   -- ships riding on its berths
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.spinRadius or e.hull.radius

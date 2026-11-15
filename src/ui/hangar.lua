@@ -117,6 +117,11 @@ local function layout(game)
 	L.cargo = { x = bx, y = L.sell.y - 38, w = half, h = 30 }
 	L.move = { x = bx + half + 8, y = L.cargo.y, w = bw2 - half - 8, h = 30 }
 	L.fly = { x = bx, y = L.cargo.y - 38, w = bw2, h = 30 }
+	-- a carrier gets a berth button beside Fly (src/berths.lua)
+	if require('src.berths').count(p.hull) > 0 then
+		L.fly.w = half
+		L.berth = { x = bx + half + 8, y = L.fly.y, w = bw2 - half - 8, h = 30 }
+	end
 	return L
 end
 
@@ -374,6 +379,18 @@ local function drawCard(game, L, mx, my, sel)
 		or not owner.bay and game:hangarFit(L.station, hull.id, owner)
 	Sheet.button(L.fly, flying and "Flying this ship" or "Fly this ship", not busy and inRect(L.fly, mx, my),
 		Sheet.GREEN, not flying)
+	if L.berth then
+		local B = require('src.berths')
+		local label, ok
+		if flying then
+			local n = B.aboard(p)
+			label, ok = n > 0 and ("Unload ship (%d aboard)"):format(n) or "Berths empty", n > 0
+		else
+			ok = B.free(p, hull.id) ~= nil
+			label = ok and "Load onto a berth" or "No berth fits"
+		end
+		Sheet.button(L.berth, label, not busy and inRect(L.berth, mx, my), nil, ok)
+	end
 	Sheet.button(L.cargo, flying and "Fit & cargo" or "Open hold", not busy and inRect(L.cargo, mx, my))
 	Sheet.button(L.move, owner.bay and "Move outside" or "Move inside", not busy and inRect(L.move, mx, my),
 		nil, not not canMove)
@@ -411,6 +428,10 @@ function Hangar.mousepressed(game, mx, my, button)
 		return nil
 	end
 	if inRect(L.move, mx, my) then return { move = owner, outside = owner.bay ~= nil } end
+	if L.berth and inRect(L.berth, mx, my) then
+		if parked then return { load = parked } end
+		return { unload = true }
+	end
 	if inRect(L.fly, mx, my) then return parked and { fly = parked } or nil end
 	if inRect(L.cargo, mx, my) then
 		if parked then return { cargo = owner } end

@@ -382,12 +382,14 @@ end
 
 -- Saving ----------------------------------------------------------------------
 
-local function saveShip(rec)
+local saveShip
+function saveShip(rec)
 	return {
 		hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads, armor = rec.armor, color = rec.color, bay = rec.bay, mooring=rec.mooring,
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
 		repairOrder=rec.repairOrder,
 		hold = rec.hold and Hold.serialize(rec.hold) or nil, cargo = rec.cargo,
+		carried = require('src.berths').save(rec.carried, saveShip),
 	}
 end
 
@@ -423,7 +425,8 @@ local function repairNpcShip(r)
 	end
 end
 
-local function loadShip(t)
+local loadShip
+function loadShip(t)
 	if t and data.renamedHulls[t.hull] then t.hull = data.renamedHulls[t.hull] end
 	if not t or not data.hulls[t.hull] then return { hull = T.starterHull } end
 	-- the Cargo Pod XL is gone: a save that fitted one gets a Cargo Pod
@@ -437,6 +440,7 @@ local function loadShip(t)
 		fuelCharge=t.fuelCharge, fuelInitialized=t.fuelInitialized, power=t.power,
 		repairOrder=t.repairOrder,
 		hold = t.hold and Hold.deserialize(t.hold, known) or nil, cargo = t.cargo,
+		carried = require('src.berths').load_saved(t.carried, loadShip),
 	}
 end
 
