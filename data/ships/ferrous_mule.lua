@@ -17,10 +17,10 @@ hull {
 	retroThrust = 650,
 	sideThrust = 1003,
 	slots = {
-		{ family = "hardpoint", mount = "gimbal", size = "M", x = 108, y = -18 },
-		{ family = "hardpoint", mount = "gimbal", size = "M", x = 108, y = 18 },
-		{ family = "bay", size = "M", x = -78, y = 0 },
-		{ family = "engine", size = "M", x = -90, y = 0 },
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 92, y = -15 },
+		{ family = "hardpoint", mount = "gimbal", size = "M", x = 92, y = 15 },
+		{ family = "bay", size = "M", x = -66, y = 0 },
+		{ family = "engine", size = "M", x = -76, y = 0 },
 		{ family = "reactor", size = "M" },
 		{ family = "utility", size = "any" },
 		{ family = "utility", size = "any" },
@@ -31,20 +31,20 @@ hull {
 	turnSpeed = 90,
 	turretTurn = 140,
 	parts = {
-		{ name = "part 3", shape = { -78, 24, 108, 24, 108, 28, -78, 28 }, mirror = true, core = true },
-		{ name = "part 8", shape = { -90, -26, -90, 26, -98, 22, -98, -22 } },
-		{ name = "part 2", shape = { -80, -44, -92, -30, -92, 30, -80, 44, -64, 42, -64, -42 }, paint = "secondary", core = true, lights = {
-			{ kind = "nav", x = -80, y = -44 },
-			{ kind = "nav", x = -80, y = 44 },
-			{ kind = "strobe", rate = 1, x = -88, y = 0 },
+		{ name = "part 3", shape = { -66, 20, 92, 20, 92, 24, -66, 24 }, mirror = true, core = true },
+		{ name = "part 8", shape = { -76, -22, -76, 22, -83, 19, -83, -19 } },
+		{ name = "part 2", shape = { -68, -37, -78, -26, -78, 26, -68, 37, -54, 36, -54, -36 }, paint = "secondary", core = true, lights = {
+			{ kind = "nav", x = -68, y = -37 },
+			{ kind = "nav", x = -68, y = 37 },
+			{ kind = "strobe", rate = 1, x = -75, y = 0 },
 		} },
-		{ name = "part 7", shape = { 82, -30, 98, -30, 102, -26, 102, 26, 98, 30, 82, 30, 78, 26, 78, -26 }, paint = "primary" },
-		{ name = "part 4", shape = { 128, 16, 128, -16, 112, -32, 96, -32, 96, 32, 112, 32 }, paint = "secondary", core = true, lights = {
-			{ kind = "strobe", phase = 0.5, rate = 1, x = 126, y = 0 },
+		{ name = "part 7", shape = { 70, -26, 83, -26, 87, -22, 87, 22, 83, 26, 70, 26, 66, 22, 66, -22 }, paint = "primary" },
+		{ name = "part 4", shape = { 109, 14, 109, -14, 95, -27, 82, -27, 82, 27, 95, 27 }, paint = "secondary", core = true, lights = {
+			{ kind = "strobe", phase = 0.5, rate = 1, x = 107, y = 0 },
 		} },
-		{ name = "part 5", shape = { -56, -42, 0, -42, 4, -38, 4, 38, 0, 42, -56, 42, -60, 38, -60, -38 }, paint = "primary", mirror = true, cargo = true },
-		{ name = "part 6", shape = { 12, -42, 68, -42, 72, -38, 72, 38, 68, 42, 12, 42, 8, 38, 8, -38 }, paint = "primary", cargo = true },
-		{ name = "part 9", shape = { 98, -22, 108, -22, 108, -14, 98, -14 }, paint = "primary" },
-		{ name = "part 10", shape = { 98, 14, 108, 14, 108, 22, 98, 22 }, paint = "primary" },
+		{ name = "part 5", shape = { -48, -36, 0, -36, 3, -32, 3, 32, 0, 36, -48, 36, -51, 32, -51, -32 }, paint = "primary", mirror = true, cargo = true },
+		{ name = "part 6", shape = { 10, -36, 58, -36, 61, -32, 61, 32, 58, 36, 10, 36, 7, 32, 7, -32 }, paint = "primary", cargo = true },
+		{ name = "part 9", shape = { 83, -19, 92, -19, 92, -12, 83, -12 }, paint = "primary" },
+		{ name = "part 10", shape = { 83, 12, 92, 12, 92, 19, 83, 19 }, paint = "primary" },
 	},
 }
