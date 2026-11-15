@@ -108,6 +108,7 @@ function love.load(args)
 			data.load()
 			Debug.init()
 			game = Game.new()
+			require("src.worker").start()   -- the background thread (not for test runs: they stay on one)
 			if require("src.save").newest() then game:loadFrom() end
 			game.resetClock = true
 		end)
@@ -134,6 +135,7 @@ function love.load(args)
 		end
 	end
 	love.mouse.setVisible(false)
+	require("src.worker").start()
 	if autotest then
 		autotest.start(game)
 	elseif require("src.save").newest() then
@@ -143,6 +145,7 @@ end
 
 -- Closing the game saves it (unless you're dead or it's the autotest).
 function love.quit()
+	require("src.worker").stop("quit")
 	if not autotest and game and game.player and not game.player.dead then
 		Cargo.clearTrade(game)          -- goods out on the trade grid go home first
 		game:autosave()
@@ -151,6 +154,7 @@ end
 
 function love.update(dt)
 	dt = math.min(dt, 1 / 15)
+	require("src.worker").update()   -- answers from the background thread
 	Debug.update(dt, game)
 	LocalMap.update(game)
 	if Editor.isOpen() then

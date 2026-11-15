@@ -105,13 +105,24 @@ end
 local plans,plansAt={},nil
 G.planned=0
 local plan
+function G.plan(source,target,clock,exact) return plan(source,target,clock,exact) end
 -- exact keeps physical endpoints (e.g. a particular home anchor); ordinary
 -- trade destinations can still use any access point of the shared station.
--- (each answer keeps for 60 to 90 seconds, a different while for each pair:
+-- (each answer keeps for 75 to 105 seconds, a different while for each pair:
 -- when they were all dropped together every minute, the next step that
 -- asked anything planned the whole map again at once. Now and then the
 -- ones nobody has asked for since are swept out.)
 local planTurn=0
+-- With the background thread (src/worker.lua) an answer past 45 seconds old
+-- is still given, and a fresh one asked of the thread to take its place:
+-- pairs that are asked about again and again (the economy's, every minute)
+-- are then never planned on the main thread after the first time.
+local function navigationVersion(id)
+ local place=L.byId[id];local f=place and Fields[place.area]
+ return f and f.navigationVersion or 0
+end
+function G.versionOf(source,target) return navigationVersion(source)..':'..navigationVersion(target) end
+local staleMap=false
 function G.itinerary(source,target,clock,exact)
  clock=clock or 0
  if not plansAt or clock<plansAt then plans,plansAt={},clock end
@@ -123,8 +134,21 @@ function G.itinerary(source,target,clock,exact)
  local entry=plans[key]
  if not entry or clock>entry.fresh or clock<entry.at then
   planTurn=(planTurn+7)%31
-  entry={at=clock,fresh=clock+60+planTurn,path=plan(source,target,clock,exact) or false}
+  entry={at=clock,soft=clock+45,fresh=clock+75+planTurn,path=plan(source,target,clock,exact) or false}
   plans[key]=entry
+ elseif clock>entry.soft and not entry.asked and not staleMap then
+  local Worker=require('src.worker')
+  if Worker.active() then
+   entry.asked=true
+   local table_=plans
+   Worker.ask('route',{source,target,clock,exact or false,G.versionOf(source,target)},function(path)
+    -- (the thread's map isn't this one: plan here from now on)
+    if path=='stale' then staleMap=true;return end
+    if plans~=table_ then return end
+    planTurn=(planTurn+7)%31
+    plans[key]={at=clock,soft=clock+45,fresh=clock+75+planTurn,path=path}
+   end)
+  end
  end
  local hit=entry.path
  if not hit then return nil end

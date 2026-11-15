@@ -105,7 +105,7 @@ function Tasks.choose(u,r,station,clock)
  local list,ranks={},{}
  local capabilities=Access.capabilities(r)
  -- (nothing below changes which orders exist until the list is built)
- local Transport=require('src.transport');local opened=Transport.beginScan(u)
+ local Transport=require('src.transport');local opened=Transport.beginScan(u,true)
  local kinds={}
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]

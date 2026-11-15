@@ -174,6 +174,31 @@ function S.stock(u,st,i)
  return m.stock
 end
 
+-- Catching stations up a little at a time, one every few steps, so that a
+-- trader reading the whole board doesn't find a dozen of them overdue and
+-- settle the lot in its own step (Game:updateALife calls this every step).
+local round={}
+S.keepUpEvery=10
+function S.keepUp(u)
+ if not u or not u.clock then return end
+ if round.u~=u then round.u,round.list,round.i,round.wait=u,nil,1,0 end
+ round.wait=round.wait+1
+ if round.wait<S.keepUpEvery then return end
+ round.wait=0
+ if not round.list or round.i>#round.list then
+  local list={}
+  for _,area in ipairs(require('src.fields').list) do
+   for _,id in ipairs(L.stations(area,'trade')) do list[#list+1]=id end
+  end
+  round.list,round.i=list,1
+ end
+ local key=round.list[round.i];round.i=round.i+1
+ if not key then return end
+ for index,shop in ipairs(S.shops(key)) do
+  if not shop.unlimited then S.stock(u,key,index);return end
+ end
+end
+
 -- Commodity production and use (src/commodities.lua), caught up to the
 -- clock whenever the stock is looked at. Goods land in, and are used from,
 -- the shop that holds them for NPCs (shopFor).
