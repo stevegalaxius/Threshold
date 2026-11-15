@@ -290,6 +290,11 @@ T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC wakin
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
 T.npcArrivalWidth = 4000     -- px across (and half that deep) the band driver arrivals spread over, by id
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+-- Cloud-city launches: how long the city's beam carries a departing NPC up
+-- out of the cloud-top pull at most (Game:cloudClimbing), in seconds.
+T.cloudClimbTime = 60
+-- and how near a cloud city its inbound traffic is held up the same way (px)
+T.cloudHoldRange = 4000
 
 -- Berth ship capacity is independent of the authored pad/editor marker size.
 T.berthShipScale = 3
