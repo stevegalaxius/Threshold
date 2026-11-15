@@ -306,7 +306,9 @@ function Ship.updateMass(e)
 		e.holdUsed, e.holdCap = Hold.cells(e.hold)
 		cargoMass = cargoMass + Hold.innerMass(e.hold, data.items)   -- what loaded containers carry
 	end
-	cargoMass = cargoMass + require('src.berths').mass(e)   -- ships riding on its berths
+	local Berths = require('src.berths')
+	cargoMass = cargoMass + Berths.mass(e)   -- ships riding on its berths
+	if e.body and (e.carried or e.berthFixtures) then Berths.syncFixtures(e) end
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.spinRadius or e.hull.radius

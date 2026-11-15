@@ -149,6 +149,87 @@ function B.draw(e, outline)
 	end
 end
 
+-- Physics: each carried ship collides as part of its carrier. Its hull's
+-- triangles go on the carrier's body at the berth's pose, tagged with the
+-- berth (fixture user data is still the carrier, so every weapon and ram
+-- finds it). Rebuilt only when what's aboard changes, and never while
+-- the world is mid-step.
+local function pose(b)
+	local a = math.rad(b.heading or 0)
+	return b[1] or b.x or 0, b[2] or b.y or 0, math.cos(a), math.sin(a)
+end
+
+function B.syncFixtures(e)
+	local body = e.body
+	if not body or body:isDestroyed() then return end
+	local sig = {}
+	for i, rec in pairs(e.carried or {}) do sig[#sig + 1] = i .. "=" .. tostring(rec) end
+	table.sort(sig)
+	sig = table.concat(sig, ",")
+	if sig == (e.berthSig or "") then return end
+	if body:getWorld():isLocked() then e.massDirty = true return end
+	for _, f in ipairs(e.berthFixtures or {}) do if not f:isDestroyed() then f:destroy() end end
+	e.berthFixtures, e.berthSig = {}, sig
+	local T = require("src.tuning")
+	for i, rec in pairs(e.carried or {}) do
+		local b, hull = B.list(e.hull)[i], data.hulls[rec.hull]
+		if b and hull then
+			local bx, by, c, s = pose(b)
+			for _, part in ipairs(hull.parts or {}) do
+				if part.collide ~= false then
+					for _, t in ipairs(part.tris or {}) do
+						local p = {}
+						for k = 1, 6, 2 do
+							p[k], p[k + 1] = bx + t[k] * c - t[k + 1] * s, by + t[k] * s + t[k + 1] * c
+						end
+						local a2 = math.abs((p[3] - p[1]) * (p[6] - p[2]) - (p[5] - p[1]) * (p[4] - p[2]))
+						if a2 > 4 then
+							local f = love.physics.newFixture(body, love.physics.newPolygonShape(p), 0)
+							f:setRestitution(0.35); f:setFriction(0.3)
+							f:setUserData(e); f:setCategory(T.collideShip)
+							e.berthFixtures[#e.berthFixtures + 1] = f
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+-- A hit on carrier e at world point hx, hy: if it lands on a carried
+-- ship, that ship takes it (its own armor) and the carrier doesn't.
+-- A carried ship whose armor runs out is torn off its berth and lost.
+-- Returns true when a carried ship took the hit.
+function B.hit(game, e, amount, hx, hy)
+	if not (e.carried and next(e.carried) and hx and e.body) then return false end
+	local lx, ly = e.body:getLocalPoint(hx, hy)
+	for i, rec in pairs(e.carried) do
+		local b, hull = B.list(e.hull)[i], data.hulls[rec.hull]
+		if b and hull and hull.shape then
+			local bx, by, c, s = pose(b)
+			local dx, dy = lx - bx, ly - by
+			local u, v = dx * c + dy * s, -dx * s + dy * c   -- into the carried ship's frame
+			local x1, y1, x2, y2 = 0, 0, 0, 0
+			for k = 1, #hull.shape, 2 do
+				x1, y1 = math.min(x1, hull.shape[k]), math.min(y1, hull.shape[k + 1])
+				x2, y2 = math.max(x2, hull.shape[k]), math.max(y2, hull.shape[k + 1])
+			end
+			if u >= x1 - 3 and u <= x2 + 3 and v >= y1 - 3 and v <= y2 + 3 then
+				local full = stats.compute(hull, rec.loadout or hull.loadout).armor
+				rec.armor = (rec.armor or full) - amount
+				if rec.armor <= 0 then
+					e.carried[i] = nil
+					e.massDirty = true   -- next step drops its mass and fixtures
+					if game.spark then game:spark(hx, hy, 24) end
+					if e.isPlayer and game.toast then game:toast(("%s ON BERTH %d DESTROYED"):format(hull.name:upper(), i), 1.6) end
+				elseif game.spark then game:spark(hx, hy, 4) end
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- Save and load: carried records go through the caller's ship saver.
 function B.save(carried, saveShip)
 	if not carried or not next(carried) then return nil end
