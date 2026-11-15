@@ -20,6 +20,7 @@ local Upkeep=require('src.upkeep')
 local Fuel=require('src.reactor_fuel')
 local Mining=require('src.mining')
 local Salvager=require('src.salvager')
+require('src.sat_jobs') -- satellite repair work on the task board
 require('src.offline_loot') -- register recovery targets/operations before any job requests them
 local Population=require('src.population')
 local Homes=require('src.npc_home')

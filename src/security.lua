@@ -82,7 +82,12 @@ for _,kind in ipairs({'patrol','raid'}) do
    return true
   end,
   plan=function(t,node,clock) return route(node,t.target,clock) end,
-  complete=function(u,r,t,node) if L.canonical(node)~=L.canonical(t.target) then return false end;r.lastDutyTarget=node;return true end,
+  complete=function(u,r,t,node,clock,game)
+   if L.canonical(node)~=L.canonical(t.target) then return false end
+   r.lastDutyTarget=node
+   if kind=='raid' then require('src.satellites').raid(u,r,clock,game) end
+   return true
+  end,
  })
 end
 local function raidNodes(f)
