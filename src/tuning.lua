@@ -249,6 +249,8 @@ T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 -- Fencing (piracy.lua): share of its home station's bid a pirate gets for stolen goods
 T.pirateFenceRate=.6
+-- Raid targeting (piracy.lua P.wants): odds bonus for prey carrying what the raider's home station is short of
+T.raidShortageBias=.25
 -- Pirate berths (security.lua S.berths): a dark base with a shipyard keeps as
 -- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
 T.pirateBerths={max=6,fuelReserves=2}
@@ -520,6 +522,7 @@ T.mapScale = 1.5
 T.freeStationDrift = { 0.022, 0.03, 0.018 }
 T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
 T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
+T.fenceStock = 300 -- m3 of each dark surplus good a fence keeps in its back room to sell on
 T.darkAccessShare = 0.3 -- white haulers and miners who also work the dark grids (raiders always do)
 T.mapDensity = 0.3
 

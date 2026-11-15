@@ -277,6 +277,8 @@ function S.target(game,e)
   if S.hostile(game,e,o) then
    local ox,oy=o.body:getPosition();local d=(ox-x)^2+(oy-y)^2
    local rank=o==e.aggressor and 3 or Access.raiding(record) and S.prey(o) and 2 or 1
+   -- prey carrying what the raider's home station is short of comes first
+   if rank==2 and o.alifeRecord and require('src.piracy').wants(game.universe,require('src.piracy').home(record),o.alifeRecord) then rank=2.5 end
    if d<T.securityRange^2 and (rank>bestRank or rank==bestRank and d<bestDistance) then best,bestRank,bestDistance=o,rank,d end
   end
  end
@@ -338,7 +340,11 @@ function S.huntingGround(u,from,clock)
   if o.state~='dead' and o.state~='escaped' and o.area then
    local job=require('src.npc_templates').job(o)
    if job=='raider' then raiders[o.area]=(raiders[o.area] or 0)+1
-   elseif job=='hauler' or job=='miner' then prey[o.area]=(prey[o.area] or 0)+1 end
+   elseif job=='hauler' or job=='miner' then
+    -- a ship carrying what this base is short of counts extra
+    local w=require('src.piracy').wants(u,from,o) and 1+T.raidShortageBias*4 or 1
+    prey[o.area]=(prey[o.area] or 0)+w
+   end
   end
  end
  local Dark=require('src.dark');local origin=L.get(from).area

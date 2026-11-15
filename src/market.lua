@@ -61,25 +61,13 @@ end
 Game.priceFactor=1
 local function tradeValue(s)
  local C=require('src.markets')
- if not s.inner and Game.marketUniverse and Game.marketStation and C.floats(Game.marketStation,s.id) then
+ if C.items[s.id] and not s.inner and Game.marketUniverse and Game.marketStation then
   return C.price(Game.marketUniverse,Game.marketStation,s.id)*s.n
  end
  return Game.stackValue(s.id,s.n,s.inner)
 end
--- A market good (one with a live station price) trades on a narrow spread
--- either side of that price, so buying where it's cheap and selling where
--- it's short pays; everything else keeps the flat resale rate.
-local function marketGood(s) return not s.inner and Game.marketUniverse and Game.marketStation and require('src.markets').floats(Game.marketStation,s.id) and true end
-function Game.buyPrice(s)
- local item=ShipEntry.item(s.id)
- if not item and marketGood(s) then return floor(tradeValue(s)*(1+T.marketSpread)*Game.priceFactor+.5) end
- return floor((item and item.price or tradeValue(s))*Game.priceFactor)
-end
-function Game.sellPrice(s)
- if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end
- if marketGood(s) then return floor(tradeValue(s)*(1-T.marketSpread)) end
- return floor(tradeValue(s)*T.sellRate)
-end
+function Game.buyPrice(s) local item=ShipEntry.item(s.id);return floor((item and item.price or tradeValue(s))*Game.priceFactor) end
+function Game.sellPrice(s) if ShipEntry.item(s.id) then return s.shipRecord and Game.shipSellPrice(s.shipRecord) or 0 end;return floor(tradeValue(s)*T.sellRate) end
 
 function Game:credits() return self.universe.credits end
 function Game:setMarketPrices(st)
@@ -116,7 +104,7 @@ Game.SERVICES = { "market", "shipyard", "hangar", "repair" }
 function Game.stationServices(st)
  local L=require('src.locations');local id=st and (st.locationId or st.key)
  local services=require('src.station_services').get(st and st.def,id and L.byId[L.canonical(id)])
- if id and not st.sat and require('src.dealers').def(id) then services.shipyard=true end
+ if id and require('src.dealers').def(id) then services.shipyard=true end
  return services
 end
 
@@ -390,9 +378,6 @@ function Game:completeTrade(st, trade)
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end
 	end
 	u.credits = u.credits + get - pay
-	local Economy = require("src.economy")
-	Economy.ledger(u, st.key or st.locationId, "bought", get)
-	Economy.ledger(u, st.key or st.locationId, "sold", pay)
 	p.cargo = Hold.totals(p.hold)
 	Ship.updateMass(p)
  for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end

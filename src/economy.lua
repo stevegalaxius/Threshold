@@ -323,6 +323,10 @@ end
 -- Whether s may sell item to c under hub routing.
 local function routed(plan,s,c,item)
  local as,ac=L.byId[s].area,L.byId[c].area
+ -- dark goods enter the white network only at a fence, straight from
+ -- any dark station; from there the white rules below move them on
+ local darkS,darkC=Dark.isDarkNode(s),Dark.isDarkNode(c)
+ if darkS and not darkC then return Dark.isFence(c) end
  local customs=plan.customs or {}
  local cs,cc=customs[as],customs[ac]
  if as==ac then
@@ -388,6 +392,7 @@ function E.update(u,clock)
  end
  local reach={}
  local all=stations()
+ local fences=Dark.fences()
  local inhabited=stations(true)
  require('src.industry').update(u,clock,inhabited)
  planning={u=u,stations={}}
@@ -490,6 +495,34 @@ function E.update(u,clock)
    entry.left=short
   end
   end
+  -- Fences: each keeps T.fenceStock m3 of every good the dark stations
+  -- have over what they need, bought from the one with most to spare. Its
+  -- stock over its own needs is spare like any white station's, so the
+  -- passes above sell it on into the white network.
+  for _,f in ipairs(fences) do if spare[f]~=nil then
+   local vol=require('src.data').items[item].volume
+   local lot=math.max(1,math.floor(T.trunkLot/vol))
+   local room=math.floor(T.fenceStock/vol)-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
+   while room>=math.min(T.orderMinLoad,lot) do
+    local best,most
+    for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
+     local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
+     local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)
+     if excess>=math.min(T.orderMinLoad,lot) and (not most or excess>most) then
+      local k=s..'>'..f
+      if reach[k]==nil then reach[k]=reachable(s,f,clock) end
+      if reach[k] then best,most=s,excess end
+     end
+    end end
+    if not best then break end
+    -- a full bulk load per run
+    local n=math.min(lot,room,most)
+    Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
+     layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     trunk=true,requires={capabilities={'cargo','bulk'}}},clock,u))
+    spare[best]=spare[best]-n;room=room-n
+   end
+  end end
  end
  u.economyUnmet=unmet
  adjust(u,unmet,all)

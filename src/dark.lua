@@ -14,7 +14,10 @@
 	so they can be tested from the driver without playing to them. Remove
 	an entry to make that grid start hidden.
 
-	Hooks for a dark economy (not built yet): Dark.isDarkArea / isDarkNode
+	Fences (uses.fence on a white station) are the door from the dark
+	network into the white one: see Dark.isFence.
+
+	Hooks for a dark economy: Dark.isDarkArea / isDarkNode
 	tell public systems (freight board, contracts, price listings) to keep
 	a grid's stations off public listings, and Dark.listeners lets other
 	systems react when the player finds one.
@@ -47,6 +50,24 @@ end
 function Dark.areas()
 	local out = {}
 	for _, area in ipairs(fields().list) do if Dark.isDarkArea(area) then out[#out + 1] = area end end
+	return out
+end
+
+-- Is this a fence: a white station (uses.fence) whose back room buys
+-- from the dark side? The only white stations dark stock is sold into
+-- (src/economy.lua).
+function Dark.isFence(id)
+	local place = require("src.locations").byId[id]
+	return place ~= nil and place.uses ~= nil and place.uses.fence == true and not Dark.isDarkArea(place.area)
+end
+
+function Dark.fences()
+	local out = {}
+	for _, area in ipairs(fields().list) do
+		for _, id in ipairs(require("src.locations").stations(area, "fence")) do
+			if Dark.isFence(id) then out[#out + 1] = id end
+		end
+	end
 	return out
 end
 
