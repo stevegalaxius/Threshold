@@ -66,7 +66,28 @@ function Sheet.paragraph(text, x, y, w, maxLines)
 end
 
 -- Hull outline centred in the box, with numbered markers on placed slots.
-function Sheet.outline(hull, paint, x, y, w, h, alpha)
+-- The ships riding on a carrier's berths (src/berths.lua), drawn in the
+-- carrier's own frame at its berth poses: call inside the outline's
+-- transform, with the line width it uses.
+function Sheet.carried(hull, carried, alpha, lineWidth)
+	if not carried or not next(carried) then return end
+	local data = require("src.data")
+	for i, rec in pairs(carried) do
+		local b = hull.berths and hull.berths[i]
+		local ch = b and data.hulls[rec.hull]
+		if ch then
+			lg.push()
+			lg.translate(b.x or b[1] or 0, b.y or b[2] or 0)
+			lg.rotate(math.rad(b.heading or 0))
+			local c = rec.color or { 0.55, 0.8, 0.85 }
+			HullShape.draw(ch, c, function(pc) return { pc[1], pc[2], pc[3], 0.18 * alpha } end,
+				function(pc) return { pc[1], pc[2], pc[3], 0.7 * alpha } end, lineWidth)
+			lg.pop()
+		end
+	end
+end
+
+function Sheet.outline(hull, paint, x, y, w, h, alpha, carried)
 	alpha = alpha or 1
 	local shape = hull.shape
 	local x1, y1, x2, y2 = math.huge, math.huge, -math.huge, -math.huge
@@ -81,6 +102,7 @@ function Sheet.outline(hull, paint, x, y, w, h, alpha)
 	lg.scale(sc)
 	HullShape.draw(hull, paint, function(c) return { c[1], c[2], c[3], 0.12 * alpha } end,
 		function(c) return { c[1], c[2], c[3], 0.85 * alpha } end, 1.5 / sc)
+	Sheet.carried(hull, carried, alpha, 1.5 / sc)
 	lg.pop()
 	lg.setLineWidth(1)
 	lg.setFont(HUD.font(12))

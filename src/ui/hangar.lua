@@ -332,7 +332,7 @@ local function drawCard(game, L, mx, my, sel)
 	Station.panel(I.x, I.y, I.w, I.h)
 	local owner = sel and sel.owner or p
 	local flying = owner == p
-	local rec = flying and { hull = p.hull.id, loadout = p.loadout, hold = p.hold, armor = p.armor } or owner
+	local rec = flying and { hull = p.hull.id, loadout = p.loadout, hold = p.hold, armor = p.armor, carried = p.carried } or owner
 	local hull = data.hulls[rec.hull]
 	local loadout = rec.loadout or hull.loadout
 	local s = stats.compute(hull, loadout)
@@ -350,7 +350,9 @@ local function drawCard(game, L, mx, my, sel)
 	lg.printf(("%s \194\183 %s \194\183 %d\195\151%d cells"):format(hull.maker, hull.class, fw, fh), x, y, w)
 	y = y + 18
 	local col = flying and p.color or owner.color or p.color
-	y = Sheet.outline(hull, col, x, y, w, 58) + 2
+	-- the same size as the Equipment panel's outline, ships on its berths too
+	local ow = math.min(w, 260 - PAD * 2)   -- the Equipment panel's hull box, 232x94
+	y = Sheet.outline(hull, col, x + (w - ow) / 2, y, ow, 94, nil, rec.carried) + 2
 	if col.name then
 		lg.setColor(col[1], col[2], col[3])
 		lg.rectangle("fill", x, y + 2, 10, 10, 2, 2)

@@ -1701,6 +1701,7 @@ local function drawEquipment(game, L, mx, my)
 	lg.scale(sc)
 	HullShape.draw(p.hull, c, function(pc) return { pc[1], pc[2], pc[3], 0.12 } end,
 		function(pc) return { pc[1], pc[2], pc[3], 0.8 } end, 1.5 / sc)
+	Sheet.carried(p.hull, p.carried, 1, 1.5 / sc)   -- ships on its berths
 	lg.pop()
 	lg.setLineWidth(1)
 
