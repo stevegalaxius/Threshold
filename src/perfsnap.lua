@@ -45,8 +45,42 @@ function S.afterDraw(game)
 		w and w:getBodyCount() or -1, w and w:getContactCount() or -1, #(game.entities or {}),
 		table.concat(ks, " "), table.concat(top, " "))
 	print(line)
+	S.dump(game)
 	love.filesystem.append("perf_log.txt", line)
-	pcall(game.toast, game, "perf snapshot saved to perf_log.txt", 2)
+	pcall(game.toast, game, "perf snapshot + state dump saved", 2)
+end
+
+-- A flat dump of the live game state (path = value or table size), so a
+-- dump taken while something is broken can be diffed against one taken
+-- right after F9 reloads the same save: whatever differs is runtime-only
+-- state that the save drops.
+function S.dump(game)
+	local out, seen = {}, {}
+	local function walk(t, path, depth)
+		if seen[t] then return end
+		seen[t] = true
+		local keys = {}
+		for k in pairs(t) do if type(k) == "string" or type(k) == "number" then keys[#keys + 1] = k end end
+		table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+		for i, k in ipairs(keys) do
+			if i > 100 or #out > 200000 then out[#out + 1] = path .. ".… " .. (#keys - i + 1) .. " more"; break end
+			local v, p = t[k], path .. "." .. tostring(k)
+			local tv = type(v)
+			if tv == "table" then
+				out[#out + 1] = ("%s = {%d}"):format(p, count(v))
+				if depth < 3 then walk(v, p, depth + 1) end
+			elseif tv == "number" or tv == "boolean" then out[#out + 1] = p .. " = " .. tostring(v)
+			elseif tv == "string" then out[#out + 1] = p .. " = " .. v:sub(1, 60)
+			elseif tv == "userdata" then
+				local ok, ty = pcall(function() return v:type() end)
+				out[#out + 1] = p .. " = <" .. (ok and tostring(ty) or "userdata") .. ">"
+			end
+		end
+	end
+	walk(game, "game", 0)
+	local name = ("perf_dump_%d.txt"):format(os.time())
+	love.filesystem.write(name, table.concat(out, "\n"))
+	print("[perfsnap] wrote " .. name)
 end
 
 return S
