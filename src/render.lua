@@ -36,7 +36,6 @@ local cos, sin, floor, max, min, pi, sqrt = math.cos, math.sin, math.floor, math
 
 local COLORS = {
 	space = { 0.02, 0.035, 0.06 },
-	grid = { 0.35, 0.75, 0.85, 0.06 },
 	edge = { 0.4, 0.9, 1.0, 0.35 },
 	gun = { 1.0, 0.92, 0.55 },
 	artillery = { 1.0, 0.6, 0.25 },
@@ -85,20 +84,6 @@ Render.PAINTS = require("src.paint").PRESETS
 -- The backdrop: each place's own look of space (src/sky.lua).
 function Render.background(cam, area)
 	require("src.sky").draw(cam, area)
-end
-
-local function drawGrid(game)
-	local cam = game.camera
-	local w, h = lg.getDimensions()
-	local x1, y1 = cam:toWorld(0, 0)
-	local x2, y2 = cam:toWorld(w, h)
-	local step = 256
-	lg.setColor(COLORS.grid)
-	lg.setLineWidth(1)
-	local bx, by = cam.backgroundX or 0, cam.backgroundY or 0
-	for x = floor((x1 + bx) / step) * step - bx, x2, step do lg.line(x, y1, x, y2) end
-	for y = floor((y1 + by) / step) * step - by, y2, step do lg.line(x1, y, x2, y) end
-
 end
 
 local function drawLocalBoundary(game, labelAngle)
@@ -1570,9 +1555,6 @@ function Render.world(game, overlay, boundaryAngle)
 	screenPx = 1 / game.camera.zoom
 	if not overlay then
 		Render.background(game.camera, game.fieldId)
-		game.camera:apply()
-		drawGrid(game)
-		game.camera:release()
 	end
 	-- the maps alive beside this one (src/transit.lua): the one you left
 	-- behind the lane's mouth, the one ahead built for you to fly into, the

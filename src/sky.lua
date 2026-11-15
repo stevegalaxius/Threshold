@@ -9,9 +9,8 @@
 -- A look is drawn as layers that slide past at different speeds (depth 0 is
 -- fixed to the screen, 1 moves with the world):
 --   haze   big soft clouds in the look's two colours, almost fixed
---   stars  five layers from many faint far ones to a few big near ones,
+--   stars  five layers from many faint far ones to a few nearer ones,
 --          gathered into a wavy band (the look's own Milky Way)
---   dust   faint specks close to the camera, the strongest sense of speed
 -- Each layer is a tile built once into a mesh, so a frame is a few dozen
 -- draws whatever the look.
 --
@@ -23,23 +22,22 @@
 --   stars  number   how many stars (1 is ordinary)
 --   warm   -1..1    star colour, from cold blue to warm amber
 --   band   0..1     how much the stars gather into the band
---   dust   0..1     how much near dust
 local Fields = require("src.fields")
 local lg = love.graphics
 local floor, max, min, sin, cos, pi, exp = math.floor, math.max, math.min, math.sin, math.cos, math.pi, math.exp
 local Sky = {}
 
 Sky.looks = {
-	mercury = { space = { 0.05, 0.035, 0.025 }, hazeA = { 1.0, 0.75, 0.4 }, hazeB = { 0.9, 0.45, 0.2 }, haze = 0.9, stars = 0.45, warm = 0.8, band = 0.2, dust = 0.3 },
-	venus = { space = { 0.05, 0.045, 0.025 }, hazeA = { 0.95, 0.8, 0.4 }, hazeB = { 0.8, 0.55, 0.25 }, haze = 0.8, stars = 0.6, warm = 0.6, band = 0.3, dust = 0.5 },
-	earth = { space = { 0.02, 0.035, 0.065 }, hazeA = { 0.25, 0.5, 0.9 }, hazeB = { 0.3, 0.75, 0.7 }, haze = 0.45, stars = 1.0, warm = 0, band = 0.6, dust = 0.4 },
-	mars = { space = { 0.05, 0.028, 0.025 }, hazeA = { 0.85, 0.38, 0.24 }, hazeB = { 0.6, 0.3, 0.4 }, haze = 0.6, stars = 0.9, warm = 0.5, band = 0.5, dust = 0.9 },
-	belt = { space = { 0.03, 0.03, 0.035 }, hazeA = { 0.55, 0.5, 0.45 }, hazeB = { 0.35, 0.4, 0.5 }, haze = 0.3, stars = 1.2, warm = 0.1, band = 0.8, dust = 1.0 },
-	jupiter = { space = { 0.04, 0.03, 0.03 }, hazeA = { 0.85, 0.6, 0.35 }, hazeB = { 0.7, 0.35, 0.3 }, haze = 0.7, stars = 1.0, warm = 0.3, band = 0.6, dust = 0.5 },
-	saturn = { space = { 0.04, 0.036, 0.028 }, hazeA = { 0.9, 0.8, 0.5 }, hazeB = { 0.6, 0.55, 0.7 }, haze = 0.55, stars = 1.1, warm = 0.2, band = 0.7, dust = 0.6 },
-	uranus = { space = { 0.015, 0.04, 0.05 }, hazeA = { 0.4, 0.85, 0.85 }, hazeB = { 0.3, 0.55, 0.9 }, haze = 0.6, stars = 1.3, warm = -0.4, band = 0.8, dust = 0.3 },
-	neptune = { space = { 0.012, 0.02, 0.06 }, hazeA = { 0.25, 0.4, 0.95 }, hazeB = { 0.5, 0.3, 0.85 }, haze = 0.7, stars = 1.4, warm = -0.7, band = 0.9, dust = 0.2 },
-	pluto = { space = { 0.012, 0.012, 0.025 }, hazeA = { 0.5, 0.4, 0.7 }, hazeB = { 0.3, 0.35, 0.55 }, haze = 0.25, stars = 1.8, warm = -0.3, band = 1.0, dust = 0.1 },
+	mercury = { space = { 0.05, 0.035, 0.025 }, hazeA = { 1.0, 0.75, 0.4 }, hazeB = { 0.9, 0.45, 0.2 }, haze = 0.9, stars = 0.45, warm = 0.8, band = 0.2 },
+	venus = { space = { 0.05, 0.045, 0.025 }, hazeA = { 0.95, 0.8, 0.4 }, hazeB = { 0.8, 0.55, 0.25 }, haze = 0.8, stars = 0.6, warm = 0.6, band = 0.3 },
+	earth = { space = { 0.02, 0.035, 0.065 }, hazeA = { 0.25, 0.5, 0.9 }, hazeB = { 0.3, 0.75, 0.7 }, haze = 0.45, stars = 1.0, warm = 0, band = 0.6 },
+	mars = { space = { 0.05, 0.028, 0.025 }, hazeA = { 0.85, 0.38, 0.24 }, hazeB = { 0.6, 0.3, 0.4 }, haze = 0.6, stars = 0.9, warm = 0.5, band = 0.5 },
+	belt = { space = { 0.03, 0.03, 0.035 }, hazeA = { 0.55, 0.5, 0.45 }, hazeB = { 0.35, 0.4, 0.5 }, haze = 0.3, stars = 1.2, warm = 0.1, band = 0.8 },
+	jupiter = { space = { 0.04, 0.03, 0.03 }, hazeA = { 0.85, 0.6, 0.35 }, hazeB = { 0.7, 0.35, 0.3 }, haze = 0.7, stars = 1.0, warm = 0.3, band = 0.6 },
+	saturn = { space = { 0.04, 0.036, 0.028 }, hazeA = { 0.9, 0.8, 0.5 }, hazeB = { 0.6, 0.55, 0.7 }, haze = 0.55, stars = 1.1, warm = 0.2, band = 0.7 },
+	uranus = { space = { 0.015, 0.04, 0.05 }, hazeA = { 0.4, 0.85, 0.85 }, hazeB = { 0.3, 0.55, 0.9 }, haze = 0.6, stars = 1.3, warm = -0.4, band = 0.8 },
+	neptune = { space = { 0.012, 0.02, 0.06 }, hazeA = { 0.25, 0.4, 0.95 }, hazeB = { 0.5, 0.3, 0.85 }, haze = 0.7, stars = 1.4, warm = -0.7, band = 0.9 },
+	pluto = { space = { 0.012, 0.012, 0.025 }, hazeA = { 0.5, 0.4, 0.7 }, hazeB = { 0.3, 0.35, 0.55 }, haze = 0.25, stars = 1.8, warm = -0.3, band = 1.0 },
 }
 
 -- Which look a map uses: its own, or its planet's, or (a lane) none of its own.
@@ -62,19 +60,22 @@ local function derived(area)
 	return {
 		space = { hue[1] * dim, hue[2] * dim, hue[3] * dim + 0.015 },
 		hazeA = hue, hazeB = { hue[3], hue[1], hue[2] },
-		haze = 0.6 - 0.3 * far, stars = 0.7 + far, warm = 0.5 - far, band = 0.4 + 0.5 * far, dust = 0.5,
+		haze = 0.6 - 0.3 * far, stars = 0.7 + far, warm = 0.5 - far, band = 0.4 + 0.5 * far,
 	}
 end
 
+-- Everything here stays well behind the play field: depths are small (a
+-- layer near depth 1 moves and zooms almost like the world, and reads as
+-- things floating over it), stars are never bigger than two pixels and never
+-- as bright as debris.
 local STARS = {   -- far to near: depth, tile size, point size, how many, brightness
-	{ depth = 0.02, tile = 2048, size = 1, n = 2600, alpha = 0.5, band = 1.0 },
-	{ depth = 0.05, tile = 2048, size = 1, n = 900, alpha = 0.75, band = 0.7 },
-	{ depth = 0.11, tile = 2048, size = 2, n = 130, alpha = 0.7, band = 0.3 },
-	{ depth = 0.22, tile = 2048, size = 2, n = 40, alpha = 0.95, band = 0 },
-	{ depth = 0.38, tile = 2048, size = 3, n = 10, alpha = 1, band = 0 },
+	{ depth = 0.01, tile = 2048, size = 1, n = 2600, alpha = 0.4, band = 1.0 },
+	{ depth = 0.025, tile = 2048, size = 1, n = 900, alpha = 0.6, band = 0.7 },
+	{ depth = 0.05, tile = 2048, size = 1, n = 260, alpha = 0.8, band = 0.3 },
+	{ depth = 0.09, tile = 2048, size = 2, n = 60, alpha = 0.55, band = 0 },
+	{ depth = 0.14, tile = 2048, size = 2, n = 14, alpha = 0.75, band = 0 },
 }
-local HAZE = { depth = 0.012, tile = 2048, reach = 900 }
-local DUST = { depth = 0.8, tile = 1024, n = 60 }
+local HAZE = { depth = 0.006, tile = 2048, reach = 900 }
 
 local function seedOf(id)
 	local h = 7
@@ -146,15 +147,6 @@ local function build(id)
 		end
 		look.haze = lg.newMesh(v, "triangles", "static")
 	end
-	do
-		local v = {}
-		local c = spec.hazeA
-		for i = 1, floor(DUST.n * spec.dust) do
-			v[i] = { rng:random() * DUST.tile, rng:random() * DUST.tile, 0, 0,
-				0.6 + c[1] * 0.4, 0.6 + c[2] * 0.4, 0.6 + c[3] * 0.4, 0.1 + rng:random() * 0.14 }
-		end
-		look.dust = #v > 0 and lg.newMesh(v, "points", "static") or nil
-	end
 	return look
 end
 
@@ -192,10 +184,6 @@ local function drawLook(look, cam, alpha, w, h)
 			lg.setPointSize(size)
 			tiles(layer.mesh, cam, layer.depth, layer.tile, 0, w, h, size)
 		end
-	end
-	if look.dust then
-		lg.setPointSize(1)
-		tiles(look.dust, cam, DUST.depth, DUST.tile, 0, w, h, 1)
 	end
 end
 
