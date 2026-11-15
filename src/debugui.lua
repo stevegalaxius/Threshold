@@ -299,16 +299,17 @@ local function section(id, label, fn, ...)
 	end
 end
 
--- Region numbers for the A-Life suite: residents, stashes, loose objects.
+-- Region numbers for the A-Life suite: residents, fencing, loose objects.
 local function regionSection(game)
  for _,place in ipairs(Locations.list(game.fieldId)) do if place.kind=='station' then
   local station=place.id
   Slab.Text(('%s: %d resident NPCs'):format(Locations.get(station).name,#require('src.npc_home').residents(game.universe,station)))
  end end
- for id,stash in pairs(game.universe.piracy and game.universe.piracy.stashes or {}) do
-  local place=Locations.byId[id]
-  Slab.Text((place and place.name or ('Unavailable station '..id))..' pirate stash:')
-  for item,n in pairs(stash) do Slab.Text(('  %s: %d'):format(data.items[item].name,n)) end
+ -- fenced loot is ordinary station stock now; show what each house paid out
+ local book=game.universe.economyLedger and game.universe.economyLedger.stations or {}
+ for _,place in ipairs(Locations.list(game.fieldId)) do
+  local fenced=place.kind=='station' and (book[place.id] or {}).fenced
+  if fenced then Slab.Text(('%s fenced: %d cr paid to pirates'):format(place.name,fenced)) end
  end
  local mining=game.universe.mining
  if mining then

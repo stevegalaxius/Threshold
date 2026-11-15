@@ -107,8 +107,10 @@ W.stations = {
 	},
 	-- Milliways moved off Pluto onto its own dark grid (Fields.milliways,
 	-- src/dark.lua). Same station id, so saves and reputation carry over.
+	-- It is the dark network's logistics hub (src/economy.lua hubRoot): every
+	-- dark grid trades with the white systems only through it.
 	milliways = {
-		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport" },
+		{ id = "station:pluto_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, layout = "jovian_kink", marketId = "market:pluto_1", name = "Milliways Freeport", hub = true },
 	},
 	ring = {
 		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe" },

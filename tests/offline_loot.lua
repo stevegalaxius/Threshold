@@ -51,9 +51,11 @@ return function(game)
  check(#area.objects==0,'looted saved container remained in the world snapshot')
  local h=Hold.deserialize(big.ship.hold);local stack=h.grids[1].stacks[1]
  check(stack.inner and stack.stolen and Hold.count(stack.inner,'rounds_s')==25,'offline container lost nested cargo or provenance')
- P.unload(u,big)
- local stored=u.piracy.containers[pirateBase]
- check(Hold.count(Hold.deserialize(stored[#stored].inner),'rounds_s')==25,'offline crate lost contents at stash')
+ local St=require('src.stockpile')
+ local before,crates=St.count(u,pirateBase,'rounds_s'),St.count(u,pirateBase,'cargo_container')
+ local sold=P.unload(u,big)
+ check(sold.rounds_s==25 and St.count(u,pirateBase,'rounds_s')==before+25,'fenced crate contents did not join the base stock')
+ check(St.count(u,pirateBase,'cargo_container')==crates+1,'fenced crate itself did not join the base stock')
  -- Prepared combat wreck inventories are authoritative when materialized later.
  area.objects={};clearLoot()
  local looter,wx,wy=pirate('earth')
