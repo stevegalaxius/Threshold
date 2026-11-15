@@ -176,63 +176,136 @@ local function drawTopBar(game)
 	end
 end
 
--- Bearing strip along the top: centred on where the ship points, it shows
--- the cardinal directions (N is screen-up) and pips for the planet, mass
--- drivers, stations and exits, each with its distance.
-local STRIP_SPAN = math.pi * 2 / 3          -- +-60 degrees either side of the nose
-local function drawStrip(game)
-	local p = game.player
-	if not p or p.dead or not p.body or p.body:isDestroyed() or game.state == "docked" then return end
-	local w = lg.getWidth()
-	local sw, sh = 440, 26
-	local x0, y0 = max(412, (w - sw) / 2), 12
-	local px, py = p.body:getPosition()
-	local nose = p.body:getAngle()
-	local function rel(a) return (a - nose + math.pi) % (2 * math.pi) - math.pi end
-	local function sx(a) return x0 + sw / 2 + rel(a) / STRIP_SPAN * sw end
-	panel(x0, y0, sw, sh)
-	lg.setScissor(x0, y0, sw, sh + 40)
-	lg.setFont(font(12))
-	-- ticks every 15 degrees, letters on the cardinals (N = -y)
-	for i = 0, 23 do
-		local a = -math.pi / 2 + i * math.pi / 12
-		if math.abs(rel(a)) <= STRIP_SPAN / 2 then
-			local x = sx(a)
-			local card = ({ [0] = "N", [6] = "E", [12] = "S", [18] = "W" })[i]
-			lg.setColor(DIM)
-			if card then
-				lg.setColor(INK)
-				lg.printf(card, x - 10, y0 + 6, 20, "center")
-			else
-				lg.line(x, y0 + sh - (i % 2 == 0 and 9 or 5), x, y0 + sh - 2)
+-- Where you can go: drivers, docks, the next braking ring and moon exits.
+local function destinations(game)
+	local out = {}
+	for _, e in ipairs(game.entities) do
+		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
+		if e.body and not e.body:isDestroyed() and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
+			local x, y = e.body:getPosition()
+			out[#out + 1] = {
+				label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and (e.gate and e.name or "Mass driver") or e.name,
+				x = x, y = y, radius = e.radius or e.ringR or 0,
+				col = e.kind == "driver" and (e.color or { 0.55, 0.85, 1 }) or { 1, 0.8, 0.45 },
+			}
+		end
+	end
+	for _, g in ipairs(game.moonGates or {}) do
+		out[#out + 1] = { label = g.label, x = g.x, y = g.y, radius = 0, col = { 0.6, 0.85, 1 } }
+	end
+	return out
+end
+
+local function planetsOf(game)
+	local out = {}
+	for _, e in ipairs(game.entities) do
+		if e.kind == "planet" and e.body and not e.body:isDestroyed() and e.radius then
+			local x, y = e.body:getPosition()
+			out[#out + 1] = { x = x, y = y, r = e.radius }
+		end
+	end
+	return out
+end
+
+-- A straight line to the target that cuts through a planet steers to a
+-- spot just off the limb instead, on the side the line passes nearest.
+local function detour(planets, px, py, wx, wy)
+	for _, P in ipairs(planets) do
+		local dx, dy = wx - px, wy - py
+		local L2 = dx * dx + dy * dy
+		if L2 > 0 then
+			local t = ((P.x - px) * dx + (P.y - py) * dy) / L2
+			if t > 0 and t < 1 then
+				local qx, qy = px + dx * t - P.x, py + dy * t - P.y
+				local d = sqrt(qx * qx + qy * qy)
+				if d < P.r * 1.05 then
+					if d < 1 then qx, qy, d = -dy, dx, sqrt(L2) end
+					local k = P.r * 1.3 / d
+					return P.x + qx * k, P.y + qy * k, true
+				end
 			end
 		end
 	end
-	lg.setColor(INK)
-	lg.polygon("fill", x0 + sw / 2, y0 + sh - 6, x0 + sw / 2 - 5, y0 + sh + 1, x0 + sw / 2 + 5, y0 + sh + 1)
-	local function pip(wx, wy, col, label)
-		local dx, dy = wx - px, wy - py
-		local a = atan2(dy, dx)
-		local r = rel(a)
-		local x = math.abs(r) <= STRIP_SPAN / 2 and sx(a) or (r > 0 and x0 + sw - 6 or x0 + 6)
-		local d = sqrt(dx * dx + dy * dy)
-		lg.setColor(col[1], col[2], col[3], math.abs(r) <= STRIP_SPAN / 2 and 0.95 or 0.45)
-		lg.rectangle("fill", x - 2, y0 + 2, 4, 6)
-		if math.abs(r) <= STRIP_SPAN / 2 and label then
-			lg.setFont(font(10))
-			lg.printf(label .. " " .. floor(d / 100) / 10 .. "k", x - 60, y0 + sh + 3, 120, "center")
-			lg.setFont(font(12))
-		end
+	return wx, wy, false
+end
+
+-- Nav strip: the nearest destinations as evenly spaced chips, ordered left
+-- to right by which side of you they're on so they never overlap, each with
+-- an arrow turned to where you'd steer (around planets) and its distance.
+-- T / Shift+T picks one; only the picked one gets a marker at the screen edge.
+HUD.navTarget = nil
+local NAV_MAX = 5
+local navList = {}
+function HUD.cycleNav(dir)
+	if #navList == 0 then return end
+	local i = 0
+	for k, d in ipairs(navList) do if d.label == HUD.navTarget then i = k end end
+	i = (i + dir) % (#navList + 1)      -- one past the end clears the pick
+	HUD.navTarget = navList[i] and navList[i].label or nil
+end
+
+local function drawStrip(game)
+	local p = game.player
+	navList = {}
+	if not p or p.dead or not p.body or p.body:isDestroyed() or game.state == "docked" then return end
+	local px, py = p.body:getPosition()
+	local nose = p.body:getAngle()
+	local planets = planetsOf(game)
+	local all = destinations(game)
+	local picked
+	for _, d in ipairs(all) do
+		local dx, dy = d.x - px, d.y - py
+		d.dist = sqrt(dx * dx + dy * dy)
+		local tx, ty, around = detour(planets, px, py, d.x, d.y)
+		d.around = around
+		d.rel = (atan2(ty - py, tx - px) - nose + math.pi) % (2 * math.pi) - math.pi
+		if d.label == HUD.navTarget then picked = d end
 	end
-	for _, e in ipairs(game.entities) do
-		if e.body and not e.body:isDestroyed() and (e.kind == "planet" or e.kind == "driver" or (e.kind == "station" and e.dock)) then
-			local x, y = e.body:getPosition()
-			local col = e.kind == "planet" and { 0.9, 0.7, 0.5 } or e.kind == "driver" and (e.color or { 0.55, 0.85, 1 }) or { 1, 0.8, 0.45 }
-			pip(x, y, col, e.kind == "planet" and (e.name or "Planet") or e.kind == "driver" and (e.gate and e.name or "Driver") or e.name)
-		end
+	if HUD.navTarget and not picked then HUD.navTarget = nil end
+	table.sort(all, function(a, b) return a.dist < b.dist end)
+	local has = false
+	for i = 1, math.min(NAV_MAX, #all) do
+		navList[i] = all[i]
+		if all[i] == picked then has = true end
 	end
-	for _, g in ipairs(game.moonGates or {}) do pip(g.x, g.y, { 0.6, 0.85, 1 }, g.label) end
-	lg.setScissor()
+	if picked and not has then navList[#navList] = picked end
+	if #navList == 0 then return end
+	local shown = {}
+	for i, d in ipairs(navList) do shown[i] = d end
+	table.sort(shown, function(a, b) return a.rel < b.rel end)
+	local w = lg.getWidth()
+	local cw, gap = 116, 4
+	local sw = #shown * (cw + gap) - gap
+	local x0, y0 = max(412, (w - sw) / 2), 12
+	for i, d in ipairs(shown) do
+		local x = x0 + (i - 1) * (cw + gap)
+		local sel = d == picked
+		panel(x, y0, cw, 36)
+		if sel then
+			lg.setColor(d.col[1], d.col[2], d.col[3], 0.9)
+			lg.setLineWidth(2)
+			lg.rectangle("line", x, y0, cw, 36, 6)
+			lg.setLineWidth(1)
+		end
+		-- arrow: up = dead ahead, turned by how far you'd have to steer
+		local ax, ay, a = x + 14, y0 + 18, d.rel - math.pi / 2
+		lg.setColor(d.col[1], d.col[2], d.col[3], sel and 1 or 0.75)
+		lg.polygon("fill",
+			ax + cos(a) * 8, ay + sin(a) * 8,
+			ax + cos(a + 2.5) * 6, ay + sin(a + 2.5) * 6,
+			ax + cos(a - 2.5) * 6, ay + sin(a - 2.5) * 6)
+		lg.setFont(font(11))
+		local f, name = lg.getFont(), d.label
+		while #name > 3 and f:getWidth(name .. ".") > cw - 30 do name = name:sub(1, -2) end
+		if name ~= d.label then name = name .. "." end
+		lg.setColor(sel and INK or DIM)
+		lg.print(name, x + 26, y0 + 3)
+		lg.print(("%.1fk%s"):format(d.dist / 1000, d.around and "  around" or ""), x + 26, y0 + 18)
+	end
+	if not picked then
+		lg.setFont(font(10)); lg.setColor(DIM)
+		lg.printf("T: pick a destination", x0, y0 + 40, sw, "center")
+	end
 end
 
 local HELP = {
@@ -246,6 +319,7 @@ local HELP = {
 	"U in the hold: use the item under the mouse",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold   M local map",
+	"T / Shift+T pick a nav destination",
 	"Shift afterburner",
 	"wheel zoom   F1 debug panel",
 	"fly into a mass driver to travel   F1 debug travel   F2 shipyard",
@@ -332,36 +406,9 @@ local function drawOffscreen(game)
 	-- of the screen when they're off it, or under them when they're on it
 	lg.setFont(font(12))
 	local fnt = lg.getFont()
-	local planets = {}
-	for _, e in ipairs(game.entities) do
-		if e.kind == "planet" and e.body and not e.body:isDestroyed() and e.radius then
-			local x, y = e.body:getPosition()
-			planets[#planets + 1] = { x = x, y = y, r = e.radius }
-		end
-	end
+	local planets = planetsOf(game)
 	local px, py = cam.x, cam.y
 	if game.player and game.player.body and not game.player.body:isDestroyed() then px, py = game.player.body:getPosition() end
-	-- a straight line to the target that cuts through a planet points at a
-	-- spot just off the limb instead, on the side the line passes nearest
-	local function detour(wx, wy)
-		for _, P in ipairs(planets) do
-			local dx, dy = wx - px, wy - py
-			local L2 = dx * dx + dy * dy
-			if L2 > 0 then
-				local t = ((P.x - px) * dx + (P.y - py) * dy) / L2
-				if t > 0 and t < 1 then
-					local qx, qy = px + dx * t - P.x, py + dy * t - P.y
-					local d = sqrt(qx * qx + qy * qy)
-					if d < P.r * 1.05 then
-						if d < 1 then qx, qy, d = -dy, dx, sqrt(L2) end
-						local k = P.r * 1.3 / d
-						return P.x + qx * k, P.y + qy * k
-					end
-				end
-			end
-		end
-		return wx, wy
-	end
 	local placed = {}
 	-- nudge a label down/up until it clears the ones already drawn
 	local function place(lx, ly, lw, dir)
@@ -382,7 +429,8 @@ local function drawOffscreen(game)
 		local r = radius * cam.zoom
 		-- visible if any of it is on screen, not just its centre
 		if sx + r < 0 or sx - r > w or sy + r < 0 or sy - r > h then
-			local tx, ty = cam:toScreen(detour(wx, wy))
+			if label ~= HUD.navTarget then return end
+			local tx, ty = cam:toScreen(detour(planets, px, py, wx, wy))
 			local a = atan2(ty - cy, tx - cx)
 			local ex = cos(a) ~= 0 and ((cos(a) > 0 and w - m or m) - cx) / cos(a) or math.huge
 			local ey = sin(a) ~= 0 and ((sin(a) > 0 and h - m or m + 40) - cy) / sin(a) or math.huge
@@ -407,19 +455,8 @@ local function drawOffscreen(game)
 			lg.printf(label, lx, place(lx, sy + r + 10, fw, 1), fw, "center")
 		end
 	end
-	for _, e in ipairs(game.entities) do
-		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
-		if game.state ~= "docked" and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
-			local label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and (e.gate and e.name or "Mass driver") or e.name
-			local x, y = e.body:getPosition()
-			mark(label, x, y, e.radius or e.ringR or 0, e.kind == "driver" and (e.color or { 0.55, 0.85, 1 }) or { 1, 0.8, 0.45 })
-		end
-	end
-	-- the ways out to moons (or back to the planet): src/moons.lua
 	if game.state ~= "docked" then
-		for _, g in ipairs(game.moonGates or {}) do
-			mark(g.label, g.x, g.y, 0, { 0.6, 0.85, 1 })
-		end
+		for _, d in ipairs(destinations(game)) do mark(d.label, d.x, d.y, d.radius, d.col) end
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" and e.team == 2 and not e.dead and e.aggro then
@@ -670,12 +707,12 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 		lg.setColor(0.85, 0.95, 1, wash)
 		lg.rectangle("fill", 0, 0, lg.getDimensions())
 	end
+	drawStrip(game)
 	drawOffscreen(game)
 	drawTrip(game)
 	drawCatch(game)
 	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
-	drawStrip(game)
 	drawDeath(game)
 	if uiOpen then return end            -- the cargo screen covers the rest; main draws toasts on top of it
 	drawStatus(game)
