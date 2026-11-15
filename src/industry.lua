@@ -80,7 +80,8 @@ function I.scale(u,key,c)
   for _,recipe in ipairs(def.recipes) do if recipe==c.id then
    if def.policy=='orders' then
     local selected=I.job(u,key,id,def)
-    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull)>0 and 1 or 0
+    -- (room for one is all this asks: no need to plan the whole lot full)
+    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull,1)>0 and 1 or 0
    end
    if def.policy=='profit' then return I.state(u,key,id).mix[recipe] or 0 end
    if def.policy=='adaptive' then return (u.industry and u.industry[key] and u.industry[key][recipe] or 1)/#def.recipes end
@@ -175,9 +176,10 @@ function I.flow(u,key,c,m,dt,rate,roomOverride)
  return done
 end
 -- Scheduled station facilities run independently of visibility or stock reads.
-function I.update(u,clock,stations)
+function I.update(u,clock,stations,pause)
  local C=require('src.commodities');local Dealers=require('src.dealers')
- for _,key in ipairs(stations) do
+ for i,key in ipairs(stations) do
+  if pause and i>1 then pause() end
   Dealers.update(u,key,clock)
   require('src.stockpile').count(u,key,require('src.food').item)
   for id,installation in pairs(I.installations(key)) do
@@ -203,18 +205,21 @@ function I.update(u,clock,stations)
  end
 end
 local function move(v,target,step) return target>v and math.min(target,v+step) or math.max(target,v-step) end
-function I.allocate(u,clock,stations,market,dt)
+function I.allocate(u,clock,stations,market,dt,pause)
  local C,S,G,Transport=require('src.commodities'),require('src.stockpile'),require('src.travelgraph'),require('src.transport')
- for _,key in ipairs(stations) do
+ for i,key in ipairs(stations) do
+  if pause and i>1 then pause() end
   for id,installation in pairs(I.installations(key)) do
    local def=I.definition(id,installation)
    if def.policy=='profit' then
     local state=I.state(u,key,id);local best,weight=nil,{}
     for _,recipe in ipairs(def.recipes) do
+     if pause then pause() end
      local c=C.byId[recipe];local revenue,cost,unmet=0,0,0
      for _,output in ipairs(C.outputs(c)) do
       local unit,demand=0,0
       for _,bid in ipairs(market.state(u).bids[output.item] or {}) do
+       if pause then pause(true) end
        if bid.target~=key and G.itinerary(key,bid.target,clock) then
         local quote=Transport.quote({source=key,target=bid.target,item=output.item,amount=bid.amount},clock)
         unit=math.max(unit,bid.price-Transport.payment(quote)/bid.amount);demand=demand+bid.amount

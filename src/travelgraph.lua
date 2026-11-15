@@ -103,20 +103,36 @@ end
 -- Answers are reused for a minute of game time (corridors rotate slowly),
 -- and each caller gets its own copy to change.
 local plans,plansAt={},nil
+G.planned=0
 local plan
 -- exact keeps physical endpoints (e.g. a particular home anchor); ordinary
 -- trade destinations can still use any access point of the shared station.
+-- (each answer keeps for 60 to 90 seconds, a different while for each pair:
+-- when they were all dropped together every minute, the next step that
+-- asked anything planned the whole map again at once. Now and then the
+-- ones nobody has asked for since are swept out.)
+local planTurn=0
 function G.itinerary(source,target,clock,exact)
  clock=clock or 0
- if not plansAt or clock<plansAt or clock-plansAt>60 then plans,plansAt={},clock end
+ if not plansAt or clock<plansAt then plans,plansAt={},clock end
+ if clock-plansAt>300 then
+  for k,entry in pairs(plans) do if clock>entry.fresh then plans[k]=nil end end
+  plansAt=clock
+ end
  local key=source..'|'..target..(exact and '|exact' or '')
- local hit=plans[key]
- if hit==nil then hit=plan(source,target,clock,exact) or false;plans[key]=hit end
+ local entry=plans[key]
+ if not entry or clock>entry.fresh or clock<entry.at then
+  planTurn=(planTurn+7)%31
+  entry={at=clock,fresh=clock+60+planTurn,path=plan(source,target,clock,exact) or false}
+  plans[key]=entry
+ end
+ local hit=entry.path
  if not hit then return nil end
  local copy={};for i,id in ipairs(hit) do copy[i]=id end
  return copy
 end
 plan=function(source,target,clock,exact)
+ G.planned=G.planned+1   -- (work done, for whoever is rationing it: src/economy.lua)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b then return nil end
  if source==target then return {source} end

@@ -17,6 +17,7 @@ function Tasks.post(u,offer)
  state.nextId=state.nextId+1
  local o=copy(offer);o.id='task/'..state.nextId;o.state='available'
  state.offers[o.id]=o
+ local Transport=package.loaded['src.transport'];if Transport then Transport.rescan() end
  return o
 end
 -- Reconcile generated world duties without replacing reservations or reposting
@@ -103,17 +104,26 @@ function Tasks.choose(u,r,station,clock)
 -- (feasible: route planning) runs only on the best few, in score order.
  local list,ranks={},{}
  local capabilities=Access.capabilities(r)
+ -- (nothing below changes which orders exist until the list is built)
+ local Transport=require('src.transport');local opened=Transport.beginScan(u)
+ local kinds={}
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
-  if o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock) and def
+  -- (whether this NPC does this kind of work at all is the same for every
+  -- offer of the kind: asked once, it drops most of a long board at a glance)
+  local does=kinds[o.kind]
+  if does==nil then
+   does=def~=nil and Access.eligible(r,def,capabilities) and (Work.weight(r,o.kind) or 1)>0 or false
+   kinds[o.kind]=does
+  end
+  if does and o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock)
    and Access.eligible(r,o,capabilities)
-   and Access.eligible(r,def,capabilities)
-   and (Work.weight(r,o.kind) or 1)>0
    and def.eligible(u,r,o,station,clock) then
    if ranks[o.kind]==nil then ranks[o.kind]=Work.rank(r,o.kind) end
    list[#list+1]={o=o,preference=ranks[o.kind],v=def.score and def.score(u,r,o,station,clock) or 0}
   end
  end
+ if opened then Transport.endScan() end
  table.sort(list,function(a,b)
   if a.preference~=b.preference then return a.preference>b.preference end
   return a.v>b.v or a.v==b.v and a.o.id<b.o.id

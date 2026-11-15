@@ -442,6 +442,7 @@ end
 
 -- The whole game as one plain table (see src/save.lua).
 function Game:saveState()
+	require("src.economy").finish(self.universe)   -- a half-done minute update can't be saved
 	require("src.mining").captureResources(self)
 	self:captureALife(false)
 	self:captureArea()

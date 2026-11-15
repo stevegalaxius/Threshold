@@ -46,6 +46,7 @@ local Dark=require('src.dark')
 local E={scaleMin=.25,scaleMax=4,scaleStep=.05,tick=60,lot=120,hours=2,halfLife=4*3600,expire=1200,reserveHours=1,scope='economy'}
 -- Every trade station keeps at least this much of these on hand.
 E.floor={deuterium_canister=40}
+E.sliceFlows=6   -- stations caught up per piece of a spread update (E.spread)
 
 -- Usage ----------------------------------------------------------------
 
@@ -195,11 +196,29 @@ local function serviceUse(u,key,item)
 end
 -- A supplier keeps only E.reserveHours of its own use back: what it makes
 -- is for shipping, and hoarding hours of local sales starves everyone else.
-local function makes(key,item)
+-- (the minute update asks this for every good at every station, many times
+-- over: it remembers the answers until it's done, in memo)
+local memo
+local function makesNow(key,item)
  local place=L.byId[key];if not place then return false end
  if item==Food.item then local _,make=Food.rates(key);return make>0 end
  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do if output.item==item and (c.make[key] or 0)>0 then return true end end end
  return false
+end
+local function makes(key,item)
+ if not memo then return makesNow(key,item) end
+ if item==Food.item or not L.byId[key] then return makesNow(key,item) end
+ local makers=memo.makers
+ if not makers then
+  -- every recipe once: who makes each good
+  makers={};memo.makers=makers
+  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do if output.item then
+   local set=makers[output.item];if not set then set={};makers[output.item]=set end
+   for maker,rate in pairs(c.make) do if rate>0 then set[maker]=true end end
+  end end end
+ end
+ local set=makers[item]
+ return set~=nil and set[key]==true
 end
 function E.target(u,key,item,supplier)
  local use=serviceUse(u,key,item)
@@ -218,6 +237,7 @@ end
 -- and reactor fuel. Every trade station can hold, sell and buy any of them;
 -- nobody is listed by hand as a supplier or a user.
 local function goods()
+ if memo and memo.goods then return memo.goods end
  local set,list={},{}
  local function add(item) if item and not set[item] then set[item]=true;list[#list+1]=item end end
  for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do add(output.item) end;for _,input in ipairs(C.inputs(c)) do add(input.item) end end
@@ -226,6 +246,7 @@ local function goods()
  add(require('src.reactor_fuel').item())
  add(Food.item)
  table.sort(list)
+ if memo then memo.goods=list end
  return list
 end
 E.goods=goods
@@ -261,7 +282,7 @@ end
 -- One plan per update: hubs[root]=station, want[hub][item] and kind
 -- [hub][item] ('import' or 'export'), and made[root][item].
 local hubPlan
-local function hubWants(u,all)
+local function hubWants(u,all,pause)
  local plan={hubs={},want={},kind={},made={},u=u}
  for _,s in ipairs(all) do
   local p=L.byId[s]
@@ -293,8 +314,10 @@ local function hubWants(u,all)
     if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
    end
   end
+  if pause then pause() end
  end
  for _,item in ipairs(goods()) do
+  if pause then pause() end
   local imported,total={},0
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
    local n=0
@@ -372,9 +395,11 @@ function E.shortage(u,key,item,have,want,clock)
 end
 -- Orders -----------------------------------------------------------------
 
-function E.update(u,clock)
- if clock<(u.economyNext or 0) then return end
- u.economyNext=clock+E.tick
+-- The minute update, whole. pause (optional) is called between its pieces
+-- (a station, a good): see E.spread, which uses it to run one piece a step.
+local function run(u,clock,pause)
+ pause=pause or function() end
+ memo={}
  local state=Tasks.state(u)
  Transport.refreshOffers(u,clock)
  -- count what's ordered or on the way; an order nobody has taken in
@@ -394,11 +419,16 @@ function E.update(u,clock)
  local all=stations()
  local fences=Dark.fences()
  local inhabited=stations(true)
- require('src.industry').update(u,clock,inhabited)
+ require('src.industry').update(u,clock,inhabited,pause)
+ pause()
  planning={u=u,stations={}}
- require('src.markets').update(u,clock,all,committed)
+ require('src.markets').update(u,clock,all,committed,pause)
+ pause()
  planning.stations={}
- hubPlan=hubWants(u,all)
+ hubPlan=nil
+ local wants=hubWants(u,all,pause)
+ hubPlan=wants
+ pause()
  -- Output bins may have filled since these orders were posted. Keep
  -- committed cargo, but release unclaimed excess rather than tying up sources.
  local remaining,availableOrders={},{}
@@ -427,6 +457,7 @@ function E.update(u,clock)
   local spare,buyers={},{}
   local participants=item==Food.item and inhabited or all
   for _,s in ipairs(participants) do
+   pause(true)
    local have=math.max(0,Stock.count(u,s,item)-Transport.reserved(u,s,item,nil,true))
    local producer=makes(s,item)
    local want=hubTarget(u,s,item,producer)
@@ -523,12 +554,68 @@ function E.update(u,clock)
     spare[best]=spare[best]-n;room=room-n
    end
   end end
+  pause()
  end
  u.economyUnmet=unmet
  adjust(u,unmet,all)
- planning=nil;hubPlan=nil
- -- the speculators read the prices this update settled
- require('src.merchants').update(u,clock)
+ hubPlan=nil
+ -- the speculators read the prices this update settled (with a planning
+ -- snapshot of their own: without one every target they ask for worked out
+ -- its station's whole input plan again, dealer lot and all)
+ planning={u=u,stations={}}
+ require('src.merchants').update(u,clock,pause)
+ planning=nil;memo=nil
 end
+-- All of it now (tests, forced catch-ups).
+function E.update(u,clock)
+ E.finish(u)
+ if clock<(u.economyNext or 0) then return end
+ u.economyNext=clock+E.tick
+ run(u,clock)
+end
+-- The same update a piece a step. All at once it was the longest step of
+-- every minute by far (every good at every station): a hitch you could set
+-- your watch by. E.spread starts it when it's due, E.pump runs the next
+-- piece (Game:updateALife calls it every step), E.finish runs what's left
+-- (before a save, or anything else that needs the books closed). Between
+-- pieces the planning snapshots are put away, so everyone else reads live
+-- numbers as usual. (Kept outside the universe table: a coroutine can't be
+-- saved, and a universe that's dropped takes its half-done update with it.)
+local spreading=setmetatable({},{__mode='k'})
+local function resume(u,job)
+ planning,hubPlan,memo=job.planning,job.hubPlan,job.memo
+ local ok,err=coroutine.resume(job.co)
+ job.planning,job.hubPlan,job.memo=planning,hubPlan,memo
+ planning,hubPlan,memo=nil,nil,nil
+ if not ok then spreading[u]=nil;error(debug.traceback(job.co,tostring(err)),0) end
+ if coroutine.status(job.co)=='dead' then spreading[u]=nil end
+end
+function E.spread(u,clock)
+ if spreading[u] then return E.pump(u) end
+ if clock<(u.economyNext or 0) then return end
+ u.economyNext=clock+E.tick
+ -- A piece ends at each station or good, and sooner (pause(true), asked
+ -- inside the long loops) once it has done real work: planned a route or
+ -- caught up a few stations' production. Counted, not timed, so the same
+ -- game always splits the same way.
+ local G=require('src.travelgraph')
+ local plans,flows=G.planned,Stock.flowed
+ local function pause(soft)
+  if soft and G.planned==plans and Stock.flowed-flows<E.sliceFlows then return end
+  coroutine.yield()
+  plans,flows=G.planned,Stock.flowed
+ end
+ local job={co=coroutine.create(function() run(u,clock,pause) end)}
+ spreading[u]=job
+ resume(u,job)
+end
+function E.pump(u)
+ local job=spreading[u]
+ if job then resume(u,job) end
+end
+function E.finish(u)
+ while spreading[u] do resume(u,spreading[u]) end
+end
+function E.spreading(u) return spreading[u]~=nil end
 
 return E
