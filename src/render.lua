@@ -1430,11 +1430,25 @@ local function drawDecoys(game)
 end
 
 local function drawPickups(game)
+	local p = game.player
+	local live = p and not p.dead and not p.dockState and p.body
+	local range = live and Ship.tractorRange(p)
+	local pulse = 0.5 + 0.5 * math.sin((game.time or 0) * 3)
 	for _, k in ipairs(game.pickups) do
 		local item = data.items[k.item] or { kind = "salvage" }   -- an id no longer in the game
 		local c = (item.kind == "salvage") and COLORS.salvage or COLORS.ammo
 		local blink = 1
 		local reach = Icons.worldReach(k.item)
+		local r = reach and math.max(6, reach) or 8
+		-- a dark backing so the item reads against the starfield
+		lg.setColor(0, 0, 0, 0.35)
+		lg.circle("fill", k.x, k.y, r + 3)
+		-- in tractor range: a faint breathing halo, the hint that it can be caught
+		if range and Ship.distanceTo(p, k.x, k.y) < range then
+			lg.setColor(c[1], c[2], c[3], 0.10 + 0.12 * pulse)
+			lg.setLineWidth(outline(1))
+			lg.circle("line", k.x, k.y, r + 4 + pulse * 1.5)
+		end
 		if k == game.hoverPickup then
 			lg.setColor(1, 1, 1, 0.6)
 			lg.setLineWidth(outline(1.5))
