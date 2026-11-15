@@ -240,6 +240,11 @@ end
 -- Distance between two stations, for picking the nearest supplier: the AU
 -- between their planets (a moon counts as its planet), and 0 for the same.
 local function root(area) local m=Fields.moons[area];return m and m.parent or area end
+-- For hub routing the dark grids are one system: the dark network, whose
+-- hub (Milliways, hub=true) is the one door between it and the white
+-- systems. Distances still use the real planet (root).
+local function hubRoot(area) if Dark.isDarkArea(area) then return 'dark' end return root(area) end
+E.hubRoot=hubRoot
 local function distance(a,b,clock)
  local ra,rb=root(L.byId[a].area),root(L.byId[b].area)
  if ra==rb then return 0 end
@@ -260,11 +265,11 @@ local function hubWants(u,all)
  local plan={hubs={},want={},kind={},made={},u=u}
  for _,s in ipairs(all) do
   local p=L.byId[s]
-  if p.hub then local r=root(p.area);if not plan.hubs[r] or s<plan.hubs[r] then plan.hubs[r]=s end end
+  if p.hub then local r=hubRoot(p.area);if not plan.hubs[r] or s<plan.hubs[r] then plan.hubs[r]=s end end
  end
  if not next(plan.hubs) then return plan end
  for _,s in ipairs(all) do
-  local r=root(L.byId[s].area);plan.made[r]=plan.made[r] or {}
+  local r=hubRoot(L.byId[s].area);plan.made[r]=plan.made[r] or {}
   for _,item in ipairs(goods()) do if makes(s,item) then plan.made[r][item]=true end end
  end
  for _,h in pairs(plan.hubs) do plan.want[h],plan.kind[h]={},{} end
@@ -294,7 +299,7 @@ local function hubWants(u,all)
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
    local n=0
    for _,s in ipairs(all) do
-    if s~=h and root(L.byId[s].area)==r then n=n+E.target(u,s,item,false) end
+    if s~=h and hubRoot(L.byId[s].area)==r then n=n+E.target(u,s,item,false) end
    end
    imported[r]=n;total=total+n
   end end
@@ -309,9 +314,9 @@ E.hubWants=hubWants
 -- The hub that serves a station's planet system, if it has one.
 function E.hubFor(id)
  local p=L.byId[id];if not p then return end
- local r,best=root(p.area)
+ local r,best=hubRoot(p.area)
  for _,place in pairs(L.byId) do
-  if place.kind=='station' and place.hub and root(place.area)==r and (not best or place.id<best) then best=place.id end
+  if place.kind=='station' and place.hub and hubRoot(place.area)==r and (not best or place.id<best) then best=place.id end
  end
  return best
 end
@@ -330,7 +335,7 @@ local function routed(plan,s,c,item)
   -- customs sells its moon's imports only to that moon
   if s==cs and plan.kind[s][item]=='import' then return false end
  end
- local rs,rc=root(as),root(ac)
+ local rs,rc=hubRoot(as),hubRoot(ac)
  local hs,hc=plan.hubs[rs],plan.hubs[rc]
  local kind=s==hs and plan.kind[s][item]
  if rs==rc then return kind~='export' or makes(s,item) end

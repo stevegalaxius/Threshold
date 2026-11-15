@@ -16,14 +16,20 @@ function P.state(u)
  u.pirateSpawns=nil
  return u.populationSpawns
 end
-function P.target(area,role)
+function P.target(area,role,u)
  local f,def=Fields[area],P.templates[role]
+ -- targets that follow stock (pirate berths) read the universe being run
+ if u then P.universe=u end
  if not f or f.instance or f.transit or not def then return 0 end
  return def.target(f,area) or 0
 end
 -- Traders are free agents: they count where they are, not where they
 -- first arrived, so an area its ships have left gets new ones.
-function P.where(r) return r.mobile and (r.area or r.home) or r.home end
+function P.where(r)
+ local def=P.templates[r.populationGroup]
+ if def and def.where then return def.where(r) end
+ return r.mobile and (r.area or r.home) or r.home
+end
 function P.total(u,role)
  local n=0
  for _,r in pairs(u.npcs or {}) do if r.populationGroup==role and r.state~='dead' and r.state~='escaped' then n=n+1 end end
@@ -48,7 +54,7 @@ function P.schedule(game,clock)
  local state=P.state(game.universe)
  for _,area in ipairs(Fields.list) do
   for _,role in ipairs(P.order) do
-   if P.target(area,role)>0 then
+   if P.target(area,role,game.universe)>0 or P.templates[role].launches then
     state[area]=state[area] or {}
     if not state[area][role] then state[area][role]={nextAt=clock+delay(area,role,0),sequence=0} end
    end
@@ -137,7 +143,7 @@ end
 P.arriveFromEdge=arriveFromEdge
 function P.spawn(game,area,role,nearPlayer)
  local def=P.templates[role]
- if P.target(area,role)<=0 then return nil,'No '..role..' population in this region.' end
+ if P.target(area,role,game.universe)<=0 then return nil,'No '..role..' population in this region.' end
  local nodes=def.nodes(game,area)
  if not nodes or #nodes==0 then return nil,'No '..role..' navigation route in this region.' end
  local clock=game.universe.clock
@@ -193,13 +199,18 @@ function P.spawn(game,area,role,nearPlayer)
  game.arrivalShip=nil
  if not r then return nil,'No starting work for '..role..'.' end
  Supply.complete(game.universe,r,acquisition,policy)
- require('src.supplies').provision(r)
+ if def.provision then def.provision(game,r) else require('src.supplies').provision(r) end
  local A=require('src.alife')
  r.spawnedAt=clock
  local edge,why=false,'debug arrival'
- if not x then edge,why=arriveFromEdge(game,r,area,clock) end
- if edge then r.spawnOrigin='edge'
- else r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp';r.arrivalSkip=why end
+ if def.launches then
+  -- bought and fitted at a station: it undocks from there, no arrival leg
+  r.spawnOrigin='launch';x=nil
+ else
+  if not x then edge,why=arriveFromEdge(game,r,area,clock) end
+  if edge then r.spawnOrigin='edge'
+  else r.warpUntil=clock+T.npcWarpDuration;r.spawnOrigin='warp';r.arrivalSkip=why end
+ end
  -- a ship whose first move already took it out of the area (into a lane,
  -- state 'transit') has no point here: no arrival pose, nothing to wake
  local here=A.point(r,clock)~=nil
@@ -234,7 +245,7 @@ function P.update(game,clock)
      timer.sequence=timer.sequence+1;timer.nextAt=clock+delay(area,role,timer.sequence)
      local def=P.templates[role]
      -- a role with a world-wide budget (traders) also stops at that
-     if (counts[area..'/'..role] or 0)<P.target(area,role) and (not def.budget or P.total(u,role)<def.budget()) then
+     if (counts[area..'/'..role] or 0)<P.target(area,role,u) and (not def.budget or P.total(u,role)<def.budget()) then
       local spawned,reason=P.spawn(game,area,role,false);timer.status=spawned and nil or reason
       if spawned then counts[area..'/'..role]=(counts[area..'/'..role] or 0)+1 end
      end
