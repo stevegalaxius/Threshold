@@ -147,6 +147,15 @@ function Export.hullDef(design)
 		end
 		def.loadout = loadout
 	end
+	-- ship berths (src/berths.lua): the design's own list, or none
+	def.berths = nil
+	if design.berths and #design.berths > 0 then
+		def.berths = {}
+		for _, b in ipairs(design.berths) do
+			local len, wid = require("src.berths").size(b)
+			table.insert(def.berths, { x = b.x, y = b.y, heading = (b.heading or 0) ~= 0 and b.heading or nil, maxLength = len, maxWidth = wid })
+		end
+	end
 	def.parts = {}
 	for _, part in ipairs(design.parts) do table.insert(def.parts, Export.cleanPart(part)) end
 	return def
@@ -459,7 +468,7 @@ end
 -- they mirror keeps mirror = true) and minus everything prepare added.
 function Export.fromHull(id)
 	local hull = data.hulls[id]
-	local design = { id = id, name = hull.name, base = id, parts = {}, stats = {}, slots = copy(hull.slots), loadout = copy(hull.loadout) }
+	local design = { id = id, name = hull.name, base = id, parts = {}, stats = {}, slots = copy(hull.slots), loadout = copy(hull.loadout), berths = hull.berths and copy(hull.berths) }
 	for _, part in ipairs(hull.parts) do
 		if not part.twin then table.insert(design.parts, Export.cleanPart(part)) end
 	end

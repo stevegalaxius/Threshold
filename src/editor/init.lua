@@ -514,7 +514,8 @@ function E.switchCategory(cat)
 		E.view.zoom = cat == "station" and 0.25 or (cat == "weapon" and 12 or 3)
 		if cat == "icon" then E.fitIconView() end
 	end
-	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
+	if E.tool == "berth" and cat ~= "station" and cat ~= "hull" then E.tool = "select" end
+	if (E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 	if E.tool == "muzzle" and cat ~= "weapon" then E.tool = "select" end
 end
 

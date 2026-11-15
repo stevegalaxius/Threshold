@@ -387,7 +387,7 @@ local function drawCard(game, L, mx, my, sel)
 			label, ok = n > 0 and ("Unload ship (%d aboard)"):format(n) or "Berths empty", n > 0
 		else
 			ok = B.free(p, hull.id) ~= nil
-			label = ok and "Load onto a berth" or "No berth fits"
+			label = ok and "Load onto a ship" or "No berth fits"
 		end
 		Sheet.button(L.berth, label, not busy and inRect(L.berth, mx, my), nil, ok)
 	end

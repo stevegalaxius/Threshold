@@ -2,7 +2,9 @@
 	Berths: clamps on the outside of a hull that carry whole ships, like an
 	auto-transport trailer. A hull lists them in hull.berths:
 
-	  berths = { { x, y, heading = deg, length = px, width = px }, ... }
+	  berths = { { x, y, heading = deg, maxLength = px, maxWidth = px }, ... }
+
+	The Shipyard edits them with the Ship berths tool.
 
 	x, y and heading are in the carrier's own frame (+x the nose). A ship
 	fits a berth when its hull is no longer and no wider than the berth,
@@ -33,13 +35,25 @@ end
 function B.list(hull) return hull and hull.berths or {} end
 function B.count(hull) return #B.list(hull) end
 
+-- A berth's length and width in px: maxLength / maxWidth, or from its
+-- size the way the Shipyard draws a new pad (2 x size by 1.1 x size).
+function B.size(b)
+	local s = b.size or 40
+	return b.maxLength or b.length or s * 2, b.maxWidth or b.width or s * 1.1
+end
+
+-- Does a ship of hullId fit berth b (a table)?
+function B.fitsSize(b, hullId)
+	local h = data.hulls[hullId]
+	if not b or not h or not h.shape or (h.berths and #h.berths > 0) then return false end
+	local len, wid = extents(h)
+	local bl, bw = B.size(b)
+	return len <= bl and wid <= bw
+end
+
 -- Can a ship of hullId ride on berth i of carrier hull?
 function B.fits(hull, i, hullId)
-	local b = B.list(hull)[i]
-	local h = data.hulls[hullId]
-	if not b or not h or (h.berths and #h.berths > 0) then return false end
-	local len, wid = extents(h)
-	return len <= (b.length or 0) and wid <= (b.width or 0)
+	return B.fitsSize(B.list(hull)[i], hullId)
 end
 
 -- First free berth on carrier e that takes hullId, or nil.

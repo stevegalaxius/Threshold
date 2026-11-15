@@ -869,6 +869,7 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	Slab.Text("Tool")
 	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" }, { "light", "Lights (L)" } }
+	if not E.design.kind then table.insert(tools, { "berth", "Ship berths" }) end   -- hulls: berths that carry ships (src/berths.lua)
 	if E.design.kind == "station" then
 		table.insert(tools, { "berth", "Berths" })
 		table.insert(tools, { "turret", "Turrets" })
@@ -951,6 +952,22 @@ local function designWindow(E, Editor)
 		Slab.Text("Right click a berth to remove it", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("size for new berths")
 		if Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
+		-- a hull's berths: the biggest ship each one carries, in px
+		local b = not E.design.kind and E.bsel and E.design.berths and E.design.berths[E.bsel]
+		if b then
+			Slab.Text(("Berth %d: biggest ship it carries"):format(E.bsel))
+			local B = require("src.berths")
+			local len, wid = B.size(b)
+			Slab.Text("length"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_berthlen", len, 10, 600, 1, { W = 70 }) then b.maxLength = Slab.GetInputNumber() end
+			Slab.SameLine(); Slab.Text("width"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_berthwid", wid, 10, 400, 1, { W = 70 }) then b.maxWidth = Slab.GetInputNumber() end
+			local fits = {}
+			for _, id in ipairs(data.list.hulls) do
+				if B.fitsSize(b, id) and data.hulls[id].playable ~= false then fits[#fits + 1] = data.hulls[id].name end
+			end
+			Slab.Textf("Fits: " .. (#fits > 0 and table.concat(fits, ", ") or "nothing"), { W = 260, Color = { 0.6, 0.6, 0.6 } })
+		end
 	end
 	if Slab.CheckBox(E.mirrorNew, "Mirror new parts (default for the M box)") then E.mirrorNew = not E.mirrorNew end
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
