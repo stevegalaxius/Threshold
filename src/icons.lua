@@ -213,7 +213,7 @@ end
 -- fixed number of screen px divided by their scale, so every item's
 -- contours match the ships'). Layers:
 --   hull    dark fill + bright contour (default)
---   detail  contour only, no fill (bands, seams, panel lines)
+--   detail  flat darker fill, no contour (bands, seams, panel lines)
 --   glow    filled bright and additive (lights, fuses, hot bits)
 -- col is the primary paint (default: the item's kind colour).
 local triCache = setmetatable({}, { __mode = "k" })
@@ -253,6 +253,12 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
 					lg.setColor(pc[1], pc[2], pc[3], alpha)
 					if tris then for _, tri in ipairs(tris) do lg.polygon("fill", tri) end end
 					lg.setBlendMode("alpha")
+				elseif layer == "detail" then
+					-- a flat, darker fill with no contour, as on hulls and weapons
+					if tris then
+						lg.setColor(pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5, alpha)
+						for _, tri in ipairs(tris) do lg.polygon("fill", tri) end
+					end
 				else
 					if layer == "hull" and tris then
 						local f = p.fill or Icons.FILL

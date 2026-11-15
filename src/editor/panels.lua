@@ -830,7 +830,26 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	Slab.Text(("This design: %s %s"):format(d.kind == "icon" and "an" or "a", d.kind or "hull"))
 	Slab.Text("id"); Slab.SameLine()
-	textField(E, "yard_id", d.id, function(t) d.id = t:gsub("[^%w_]", "_") end, 220)
+	textField(E, "yard_id", d.id, function(t)
+		d.id = t:gsub("[^%w_]", "_")
+		-- an icon's id names its item: keep the two in step
+		local it = d.kind == "icon" and d.id:match("^icon_(.+)$")
+		if it and data.items[it] then d.item = it end
+	end, 220)
+	if d.kind == "icon" then
+		-- re-use this art for another item: pick it, then save
+		Slab.Text("item"); Slab.SameLine()
+		local opts = {}
+		for _, id in ipairs(data.list.items) do
+			local has = data.icons[id] and id ~= d.item and "  (has an icon)" or ""
+			opts[#opts + 1] = { label = (data.items[id].name or id) .. has, value = id }
+		end
+		combo("yard_icon_item", data.items[d.item] and data.items[d.item].name or d.item, opts, function(v)
+			E.pushUndo()
+			d.item, d.id, d.name = v, "icon_" .. v, (data.items[v].name or v) .. " icon"
+			E.say("This art is now the icon for " .. (data.items[v].name or v) .. "; save to keep it")
+		end, 220)
+	end
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_name", d.name, function(t) d.name = t end, 220)
 	d.stats = d.stats or {}
