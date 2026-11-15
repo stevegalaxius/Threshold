@@ -103,6 +103,8 @@ function Tasks.choose(u,r,station,clock)
 -- (feasible: route planning) runs only on the best few, in score order.
  local list,ranks={},{}
  local capabilities=Access.capabilities(r)
+ -- (nothing below changes which orders exist until the list is built)
+ local Transport=require('src.transport');Transport.beginScan(u)
  for _,o in pairs(Tasks.state(u).offers) do
   local def=Tasks.definitions[o.kind]
   if o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock) and def
@@ -114,6 +116,7 @@ function Tasks.choose(u,r,station,clock)
    list[#list+1]={o=o,preference=ranks[o.kind],v=def.score and def.score(u,r,o,station,clock) or 0}
   end
  end
+ Transport.endScan()
  table.sort(list,function(a,b)
   if a.preference~=b.preference then return a.preference>b.preference end
   return a.v>b.v or a.v==b.v and a.o.id<b.o.id

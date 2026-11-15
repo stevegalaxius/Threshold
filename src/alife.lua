@@ -1096,6 +1096,8 @@ function A.install(Game)
   local clock=self.universe.clock
   if not force and clock<(self.alifeNext or 0) then
    if self.alifeSweep then self:alifeSweepStep(self.alifeSweep.per) end
+   -- the economy's minute update, a piece a step (src/economy.lua)
+   if not self.sideScene then require('src.economy').pump(self.universe) end
    return
   end
   self.alifeNext=clock+T.alifeLocalTick
@@ -1106,7 +1108,9 @@ function A.install(Game)
   require('src.supplies').universe=self.universe
   require('src.queue').universe=self.universe
   require('src.arbiter').update(self.universe,clock)
-  require('src.economy').update(self.universe,clock)
+  -- (spread over the next steps, unless everything is wanted now)
+  if force or self.sideScene then require('src.economy').update(self.universe,clock)
+  else require('src.economy').spread(self.universe,clock) end
   self.universe.playerDocked=require('src.player_contracts').station(self)
   require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)

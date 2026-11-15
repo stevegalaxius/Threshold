@@ -115,14 +115,46 @@ function Transport.refreshOffers(u,clock)
 end
 -- Reservations remain on the board until pickup; loaded cargo is no longer
 -- counted at the source. No duplicate stock ledger needs save reconciliation.
+-- What's promised out of a source walks the whole board, and a trader
+-- weighing the board asks it for every offer on it: the board squared, in
+-- one step. While a scan is open (Transport.beginScan .. endScan, around a
+-- stretch that only reads the board), the orders are sorted by source and
+-- good once and each question reads just its own few.
+local scan
+function Transport.beginScan(u) scan={u=u} end
+function Transport.endScan() scan=nil end
+local none={}
+local function ordersFrom(u,source,item)
+ if not scan or scan.u~=u or source==nil or item==nil then return nil end
+ local groups=scan.groups
+ if not groups then
+  groups={};scan.groups=groups
+  for _,o in pairs(Tasks.state(u).offers) do
+   if o.order and not o.loaded and o.source~=nil and o.item~=nil then
+    local byItem=groups[o.source];if not byItem then byItem={};groups[o.source]=byItem end
+    local list=byItem[o.item];if not list then list={};byItem[o.item]=list end
+    list[#list+1]=o
+   end
+  end
+ end
+ return groups[source] and groups[source][item] or none
+end
 function Transport.reserved(u,source,item,except,includeOpen)
  local n=0
+ local group=ordersFrom(u,source,item)
+ if group then
+  for _,o in ipairs(group) do
+   if (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+o.amount end
+  end
+  return n
+ end
  for _,o in pairs(Tasks.state(u).offers) do
   if o.order and o.source==source and o.item==item and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except)
    and (includeOpen or o.state~='available') then n=n+o.amount end
  end
  return n
 end
+function Transport.scanning(u) return scan~=nil and scan.u==u end
 function Transport.available(u,source,item,except)
  return math.max(0,J.available(u,source,item)-Transport.reserved(u,source,item,except))
 end

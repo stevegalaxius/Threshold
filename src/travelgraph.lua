@@ -103,6 +103,7 @@ end
 -- Answers are reused for a minute of game time (corridors rotate slowly),
 -- and each caller gets its own copy to change.
 local plans,plansAt={},nil
+G.planned=0
 local plan
 -- exact keeps physical endpoints (e.g. a particular home anchor); ordinary
 -- trade destinations can still use any access point of the shared station.
@@ -117,6 +118,7 @@ function G.itinerary(source,target,clock,exact)
  return copy
 end
 plan=function(source,target,clock,exact)
+ G.planned=G.planned+1   -- (work done, for whoever is rationing it: src/economy.lua)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b then return nil end
  if source==target then return {source} end

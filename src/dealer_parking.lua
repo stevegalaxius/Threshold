@@ -37,7 +37,9 @@ local function context(u,key)
  if live then for _,e in ipairs(binding.game.entities) do
   if e.kind=='ship' and not e.dead and not e.removed and e.dockState and (e.dockState.station.locationId or e.dockState.station.key)==key then entities[#entities+1]=e end
  end end
- local proxy=setmetatable({universe=u,entities=entities,stationRoster=function()return roster end,stationRecord=function()return record end},{__index=Game})
+ -- the guest berths, worked out once for every fit this plan tries
+ local _,guestBerths=P.reserve(station)
+ local proxy=setmetatable({universe=u,entities=entities,dealerReserved=guestBerths,dealerReservedFor=station,stationRoster=function()return roster end,stationRecord=function()return record end},{__index=Game})
  -- Remote docked NPCs do not have precise bay coordinates. Place them in a
  -- deterministic temporary occupancy map; never reserve their space for sale.
  local visitors={}

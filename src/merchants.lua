@@ -218,7 +218,7 @@ function M.received(u,id,station,item,n)
  if S.take(u,station,item,n) then hold(rec,station,item,n) end
 end
 
-function M.update(u,clock)
+function M.update(u,clock,pause)
  local s=M.state(u)
  if clock<(s.next or 0) then return end
  s.next=clock+T.merchantTick
@@ -241,6 +241,7 @@ function M.update(u,clock)
   local rec=s.houses[h.id]
   rec.open=open[h.id] or 0
   for _,item in ipairs(items) do
+   if pause then pause() end   -- (a piece of the economy's spread update)
    if not rec.insolvent then for _,site in ipairs(sites(h)) do
     if not buy(u,h,rec,site,item,clock) then intake(u,h,rec,site,item,clock) end
    end end

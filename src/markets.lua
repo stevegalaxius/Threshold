@@ -56,13 +56,14 @@ function C.shape(u,key,item,target,want,clock,state)
  end
  return target
 end
-function C.update(u,clock,stations,inbound)
+function C.update(u,clock,stations,inbound,pause)
  local S,E=require('src.stockpile'),require('src.economy')
  local state=C.state(u);local dt=state.at and math.max(0,clock-state.at) or E.tick
  -- Read all inventory before changing any prices or allocation. This settles
  -- elapsed production against its old settings and keeps results query-order independent.
  local snapshot={}
- for _,key in ipairs(stations) do
+ for i,key in ipairs(stations) do
+  if pause and i>1 then pause() end
   snapshot[key]={}
   for item in pairs(C.items) do snapshot[key][item]=S.count(u,key,item) end
   if require('src.dark').isDarkNode(key) then for _,item in ipairs(E.goods()) do snapshot[key][item]=S.count(u,key,item) end end
@@ -70,6 +71,7 @@ function C.update(u,clock,stations,inbound)
  local bids={}
  for _,item in ipairs(C.products) do bids[item]={} end
  for _,key in ipairs(stations) do
+  if pause then pause() end
   local prices=state.prices[key] or {};state.prices[key]=prices
   local floating=C.items
   if require('src.dark').isDarkNode(key) then
@@ -108,6 +110,7 @@ function C.update(u,clock,stations,inbound)
   end
  end
  state.bids=bids;state.at=clock
- require('src.industry').allocate(u,clock,stations,C,dt)
+ if pause then pause() end
+ require('src.industry').allocate(u,clock,stations,C,dt,pause)
 end
 return C

@@ -104,7 +104,10 @@ return function(Game)
  function Game:mooringFits(st,index,hullId,ignore)
   local slot=self:stationMoorings(st)[index]
   if ignore and ignore.dealerStock then
-   local _,reserved=require('src.dealer_parking').reserve(st);if reserved[index] then return false end
+   -- (a dealer plan works the guest berths out once: self.dealerReserved)
+   local _,reserved=nil,self.dealerReserved
+   if not reserved or self.dealerReservedFor~=st then _,reserved=require('src.dealer_parking').reserve(st) end
+   if reserved[index] then return false end
   end
   if not slot or self:mooringTaken(st,index,ignore) then return false end
   local length,width=P.dimensions(hullId)

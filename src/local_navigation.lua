@@ -42,11 +42,12 @@ end
 -- a bounding circle; a plan only expands the fixtures of bodies its sweep
 -- can actually reach.
 local bodyReach=setmetatable({},{__mode='k'})
+local reachTurn=0
 -- (re-measured now and then: listing fixtures allocates, and a hull only
 -- gains or loses parts rarely; losing one leaves the circle a little large)
 local function radiusOf(body,stamp)
  local cached=bodyReach[body]
- if cached and stamp and stamp-cached.stamp<120 and stamp>=cached.stamp then return cached.r end
+ if cached and stamp and stamp<cached.fresh and stamp>=cached.stamp then return cached.r end
  local fixtures=body:getFixtures()
  local r
  for _,f in ipairs(fixtures) do
@@ -61,7 +62,11 @@ local function radiusOf(body,stamp)
    r=max(r or 0,fr+1)
   end
  end
- bodyReach[body]={stamp=stamp or -math.huge,r=r}
+ -- (each keeps its measure a different while, 60 to 120 steps: a map's
+ -- bodies are all first seen on one step, and measuring them all again
+ -- together a second later, every second, was a step several times as long)
+ reachTurn=(reachTurn+37)%61
+ bodyReach[body]={stamp=stamp or -math.huge,fresh=(stamp or -math.huge)+60+reachTurn,r=r}
  return r
 end
 local index={}
