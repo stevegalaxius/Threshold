@@ -77,6 +77,11 @@ return function(game)
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satrepair' and o.sat==sid then job=o end end
  assert(job,'no repair job posted')
  assert(Sat.fix(u,sid,'test') and not rec.broken,'repair failed')
- print('ok  satellites: knock-out and repair job')
+ Sat.markLost(u,rec)
+ local launch
+ for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
+ assert(launch,'no launch job posted')
+ assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
+ print('ok  satellites: wear, repair and replacement jobs')
  print('ALL TESTS PASSED')
 end

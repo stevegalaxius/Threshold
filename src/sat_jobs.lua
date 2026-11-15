@@ -3,7 +3,8 @@
 -- When a satellite fails (Sat.knockOut in src/satellites.lua) its
 -- system's trade station posts one "satrepair" order: fly from there to the
 -- station nearest the satellite, spend a while on the job, and the satellite
--- is back up. Any hauler can take it; scavenger and industrial tempers lean
+-- is back up. A destroyed satellite posts "satlaunch" the same way, and
+-- finishing it puts a replacement in its slot (free for now). Any hauler can take it; scavenger and industrial tempers lean
 -- towards it (src/work_preferences.lua). The order is removed once done.
 local Fields,L,G=require('src.fields'),require('src.locations'),require('src.travelgraph')
 local Tasks=require('src.tasks')
@@ -20,33 +21,42 @@ function J.places(field)
  return source,here or source
 end
 
-function J.post(u,r)
+function J.post(u,r,kind)
  local source,target=J.places(r.field)
  if not source then return end
- return Tasks.post(u,{kind='satrepair',source=source,target=target,sat=r.id,order=true,cooldown=60})
+ return Tasks.post(u,{kind=kind or 'satrepair',source=source,target=target,sat=r.id,order=true,cooldown=60})
 end
 
-Tasks.register('satrepair',{
+-- satrepair: fix a failed satellite. satlaunch: replace a destroyed one.
+local function wanted(kind,s)
+ if kind=='satlaunch' then return s.lost end
+ return s.broken and not s.lost
+end
+for _,kind in ipairs({'satrepair','satlaunch'}) do
+Tasks.register(kind,{
  requires={capabilities={'cargo'}},
  docks=function(r,id) return r.task and L.canonical(id)==L.canonical(r.task.target) end,
  stay=function() return J.stay end,
  eligible=function(u,r,o,node)
   local s=u.satellites and u.satellites[o.sat]
-  return s and s.broken and not s.lost and L.canonical(node)==L.canonical(o.source) or false
+  return s and wanted(kind,s) and L.canonical(node)==L.canonical(o.source) or false
  end,
  feasible=function(u,r,o,node,clock) return o.source==o.target or G.itinerary(o.source,o.target,clock)~=nil end,
  score=function(u,r,o,node,clock) return clock-(o.readyAt or 0) end,
  prepare=function(u,r,t,node,clock)
   t.route=t.source==t.target and {node,node} or G.itinerary(node,t.target,clock)
   if not t.route then return false end
-  t.route=copy(t.route);t.phase='repairing satellite'
+  t.route=copy(t.route);t.phase=kind=='satlaunch' and 'launching satellite' or 'repairing satellite'
   return true
  end,
  plan=function(t) return copy(t.route) end,
  complete=function(u,r,t,node)
   if L.canonical(node)~=L.canonical(t.target) then return false end
-  if require('src.satellites').fix(u,t.sat,r.id) then r.credits=(r.credits or 0)+J.pay end
+  local Sat=require('src.satellites')
+  local ok=kind=='satlaunch' and Sat.relaunch(u,t.sat,r.id) or kind=='satrepair' and Sat.fix(u,t.sat,r.id)
+  if ok then r.credits=(r.credits or 0)+J.pay end
   return true
  end,
 })
+end
 return J
