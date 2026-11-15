@@ -16,7 +16,6 @@ local function root(area) return Fields.moons[area] and Fields.moons[area].paren
 -- station in the satellite's own field, else the start).
 function J.places(field)
  local source=L.station(root(field),'trade') or L.station(field,'trade')
- source=source and source.id
  local here=L.stations(field)[1]
  return source,here or source
 end
