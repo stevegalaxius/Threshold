@@ -20,4 +20,4 @@ Idle capacity is credited only for reachable, eligible freight that fits the cur
 
 F6's Freight capacity panel shows waiting ship-minutes, idle/busy traders, additional population targets, goods without surplus production, reserved units awaiting pickup and units in transit. These are tuning estimates; gameplay observation should guide the clearance window and nominal load size.
 
-`love . --freighttest` checks reservations, cleanup/cancellation, mixed pickup/delivery, per-contract settlement, urgency/aging and workload sensitivity. It is also included in the smoke suite.
+`love . --test` checks reservations, cleanup/cancellation, mixed pickup/delivery, per-contract settlement, urgency/aging and workload sensitivity. It is also included in the smoke suite.
