@@ -255,9 +255,17 @@ Tasks.register('transport',{
  score=function(u,r,o,station,clock)
   Transport.quote(o,clock,u)
   local amount=math.min(o.amount,room(r,o.item,o.amount))
-  local quote=require('src.persistence').copy(o);quote.amount=amount
   -- credits per second of the whole job, the empty run to the pickup included
-  local reward=Transport.payment(quote)/Transport.duration(o,station,clock)
+  local pay
+  if o.manifest or o.creditsPerUnit==nil then
+   local quote=require('src.persistence').copy(o);quote.amount=amount
+   pay=Transport.payment(quote)
+  else
+   -- (a plain quoted listing: the same sum Transport.invoice makes, without
+   -- copying the offer to change its amount; this runs for every job read)
+   pay=math.floor(amount*o.creditsPerUnit+math.min(o.handlingLimit or 0,amount*(o.handlingPerUnit or 0))+1e-7)
+  end
+  local reward=pay/Transport.duration(o,station,clock)
   local p=Personality.ensure(r)
   local ambition,aggression=p.ambition,p.aggression or .5
   local age=require('src.economy').shortageAge(u,o.target,o.item,clock)

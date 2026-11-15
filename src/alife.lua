@@ -1098,8 +1098,8 @@ function A.install(Game)
    if self.alifeSweep then self:alifeSweepStep(self.alifeSweep.per) end
    -- the economy's minute update, a piece a step (src/economy.lua)
    if not self.sideScene then require('src.economy').pump(self.universe) end
-   -- station stock kept caught up, a station at a time (src/stockpile.lua)
-   if not self.sideScene then require('src.stockpile').keepUp(self.universe) end
+   -- shared background work, a little a step (src/director.lua)
+   if not self.sideScene then require('src.director').update(self.universe) end
    -- the rest of this tick's chores, one a step
    if self.alifeStage then self:alifeChore(clock) end
    return

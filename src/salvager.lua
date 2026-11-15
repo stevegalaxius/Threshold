@@ -110,6 +110,8 @@ Tasks.register('salvage',{
   if done then S.returnRecord(game,r,false) end
  end,
  eligible=function(u,r,o,node)
+  -- (salvage is taken where it's posted: most of a long board ends here)
+  if node~=o.source then return false end
   -- staying put is only a job where there are buoys to sweep on the way
   if o.source==o.target and #(Fields[L.get(o.target).area].buoyIds or {})==0 then return false end
   local area=L.get(node).area

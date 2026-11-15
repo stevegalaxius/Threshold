@@ -20,8 +20,7 @@ local L=require('src.locations')
 local Shapes=require('src.inventory.shapes')
 local Hold=require('src.inventory.hold')
 local T=require('src.tuning')
-local S={shopCache={},flowEvery=2,flowLate=10,flowsPerStep=3,flowed=0}
-local flowTurn=setmetatable({},{__mode='v'})
+local S={shopCache={},flowEvery=2,flowLate=10,flowed=0}
 
 function S.key(st) return L.canonical(type(st)=='table' and st.key or st) end
 
@@ -174,31 +173,6 @@ function S.stock(u,st,i)
  return m.stock
 end
 
--- Catching stations up a little at a time, one every few steps, so that a
--- trader reading the whole board doesn't find a dozen of them overdue and
--- settle the lot in its own step (Game:updateALife calls this every step).
-local round={}
-S.keepUpEvery=10
-function S.keepUp(u)
- if not u or not u.clock then return end
- if round.u~=u then round.u,round.list,round.i,round.wait=u,nil,1,0 end
- round.wait=round.wait+1
- if round.wait<S.keepUpEvery then return end
- round.wait=0
- if not round.list or round.i>#round.list then
-  local list={}
-  for _,area in ipairs(require('src.fields').list) do
-   for _,id in ipairs(L.stations(area,'trade')) do list[#list+1]=id end
-  end
-  round.list,round.i=list,1
- end
- local key=round.list[round.i];round.i=round.i+1
- if not key then return end
- for index,shop in ipairs(S.shops(key)) do
-  if not shop.unlimited then S.stock(u,key,index);return end
- end
-end
-
 -- Commodity production and use (src/commodities.lua), caught up to the
 -- clock whenever the stock is looked at. Goods land in, and are used from,
 -- the shop that holds them for NPCs (shopFor).
@@ -213,15 +187,13 @@ function S.flow(u,key,i,m)
  -- isn't lost: the next pass runs from where the last one stopped.
  local since=record.productionAt and m.flowAt and u.clock-record.productionAt
  if since and since>=0 and since<S.flowEvery then return end
- -- And only a few stations in any one step: a trader reading the board, or
- -- the drills, look at every station at once, and catching them all up
- -- together was a long step. The rest wait their turn (rates are per hour:
- -- a few seconds make nothing), up to S.flowLate.
- if since and since>=0 and since<S.flowLate then
-  if flowTurn.u~=u or flowTurn.clock~=u.clock then flowTurn.u,flowTurn.clock,flowTurn.n=u,u.clock,0 end
-  if flowTurn.n>=S.flowsPerStep then return end
-  flowTurn.n=flowTurn.n+1
- end
+ -- Past that and still within S.flowLate, leave it to the director
+ -- (src/director.lua), which catches every station up in turn, a few a
+ -- step: a trader reading the board, or the drills, look at every station
+ -- at once, and catching them up there and then made that a long step.
+ -- (Rates are per hour: a few seconds make nothing.) Where the director
+ -- isn't running, a station past S.flowLate is caught up by whoever looks.
+ if since and since>=0 and since<S.flowLate and not S.directed then return end
  record.productionBusy=true
  local now=u.clock;local previous=record.productionAt or m.flowAt or now
  record.productionAt=now
