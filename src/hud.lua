@@ -310,7 +310,7 @@ local function drawStrip(game)
 	end
 	for _, d in ipairs(all) do         -- nearest (and the pick) claim label room first
 		if d.inView or d == picked then
-			local text = ("%s %.1fk%s"):format(d.label, d.dist / 1000, "")
+			local text = ("%s %.1fk%s"):format(d.label, d.dist / 1000, d.around and ", far side" or "")
 			local tw = f:getWidth(text)
 			local lx = d.px - tw / 2
 			for ri, row in ipairs(rows) do
