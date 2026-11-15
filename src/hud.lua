@@ -303,12 +303,18 @@ local function drawStrip(game)
 		d.px, d.inView = x, inView
 		local sel = d == picked
 		lg.setColor(d.col[1], d.col[2], d.col[3], (sel or inView) and 1 or 0.45)
-		if sel then lg.rectangle("fill", x - 3, y0 + 1, 6, sh - 2)
-		else lg.rectangle("fill", x - 2, y0 + 2, 4, 7) end
+		-- across the planet: a hollow pip with a little planet disc under it
+		local mode = d.around and "line" or "fill"
+		if sel then lg.rectangle(mode, x - 3, y0 + 1, 6, sh - 2)
+		else lg.rectangle(mode, x - 2, y0 + 2, 4, 7) end
+		if d.around then
+			lg.setColor(0.9, 0.7, 0.5, (sel or inView) and 0.9 or 0.4)
+			lg.arc("fill", x, y0 + sh - 1, 5, math.pi, 2 * math.pi)
+		end
 	end
 	for _, d in ipairs(all) do         -- nearest (and the pick) claim label room first
 		if d.inView or d == picked then
-			local text = ("%s %.1fk%s"):format(d.label, d.dist / 1000, d.around and " ~" or "")
+			local text = ("%s %.1fk%s"):format(d.label, d.dist / 1000, d.around and ", far side" or "")
 			local tw = f:getWidth(text)
 			local lx = d.px - tw / 2
 			for ri, row in ipairs(rows) do
