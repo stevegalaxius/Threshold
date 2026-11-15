@@ -478,7 +478,7 @@ T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
 T.questTick=60
 T.questKindMax=2         -- open offers of one kind per station
 T.questCooldown={shortage_delivery=300,rescue=120} -- per station, after posting that kind
-T.questWeights={rescue=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questWeights={rescue=2,sat_launch=2,sat_repair=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
 T.questStanding=2        -- giver faction standing for a finished job
 T.questFailStanding=1    -- and lost for a failed or abandoned one
 T.rescueMinAge=60        -- stranded this long before a station posts the rescue

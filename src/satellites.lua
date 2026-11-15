@@ -94,11 +94,69 @@ function Sat.get(universe, id) return universe and universe.satellites and unive
 -- What it allows right now: the quest override if there is one, else its kind's.
 function Sat.levers(r)
 	local K = Sat.kinds[r.kind] or Sat.kinds.passive
+	-- failed: closed until someone repairs it (a quest that
+	-- opened it to the player still gets them in)
+	if r.broken then
+		return { dock = r.dock == "player" and "player" or "none", actions = r.actions or {}, vend = {} }
+	end
 	return {
 		dock = r.dock or K.dock,
 		actions = r.actions or K.actions,
 		vend = r.vend or K.vend,
 	}
+end
+
+-- NPCs and satellites ------------------------------------------------------
+--
+-- Satellites wear out while you're away (Sat.wear, a slow roll from the
+-- A-Life director), and the satellite's
+-- system posts a one-off "satrepair" job on the task board (src/sat_jobs.lua)
+-- that ordinary haulers take. A broken satellite refuses docking and sells
+-- nothing until the repair job is done.
+
+-- Knock a satellite out and post its repair job. Returns true if it broke.
+function Sat.knockOut(universe, id, clock, by)
+	local r = Sat.get(universe, id)
+	if not r or r.lost or r.broken then return false end
+	r.broken, r.brokenAt, r.brokenBy = true, clock or universe.clock or 0, by
+	require("src.events").emit("sat_knocked_out", id, by)
+	require("src.sat_jobs").post(universe, r)
+	return true
+end
+
+function Sat.fix(universe, id, by)
+	local r = Sat.get(universe, id)
+	if not r or not r.broken then return false end
+	r.broken, r.brokenAt, r.brokenBy, r.hp = nil, nil, nil, nil
+	require("src.events").emit("sat_repaired", id, by)
+	require("src.sat_jobs").clear(universe, id)
+	return true
+end
+
+-- Wear: every Sat.wearEvery game seconds one random working satellite may
+-- fail (Sat.wearChance), unless its field is the loaded map or that field
+-- already has Sat.maxBroken down. Called from the A-Life director; one
+-- pick per roll, never a per-step scan.
+Sat.wearEvery, Sat.wearChance, Sat.maxBroken = 120, 0.5, 3
+function Sat.wear(universe, game, roll)
+	local all, clock = universe and universe.satellites, universe and universe.clock
+	if not all or not clock then return false end
+	if not universe.satWearAt or universe.satWearAt > clock + Sat.wearEvery then universe.satWearAt = clock + Sat.wearEvery end
+	if clock < universe.satWearAt then return false end
+	universe.satWearAt = clock + Sat.wearEvery
+	if (roll or love.math.random()) >= Sat.wearChance then return false end
+	local pick, n = nil, 0
+	for id, r in pairs(all) do
+		if not r.lost and not r.broken and not (game and game.fieldId == r.field) then
+			n = n + 1
+			if love.math.random(n) == 1 then pick = r end
+		end
+	end
+	if not pick then return false end
+	local down = 0
+	for _, r in pairs(all) do if r.field == pick.field and r.broken then down = down + 1 end end
+	if down >= Sat.maxBroken then return false end
+	return Sat.knockOut(universe, pick.id, clock, "wear")
 end
 
 -- Quest scripting: open a satellite up (or change what it offers) and
@@ -146,7 +204,7 @@ function Sat.populate(game)
 		local r = Sat.record(game.universe, slot, game.fieldId)
 		local e = present[slot.id]
 		-- a satellite saved in this area but not restored was destroyed
-		if not e and not r.lost and r.spawnedAt and saved and (saved.capturedAt or 0) >= r.spawnedAt then r.lost = true end
+		if not e and not r.lost and r.spawnedAt and saved and (saved.capturedAt or 0) >= r.spawnedAt then Sat.markLost(game.universe, r) end
 		if not e and not r.lost and data.wrecks[r.design] then
 			local x, y = cx + math.cos(slot.angle) * slot.alt, cy + math.sin(slot.angle) * slot.alt
 			local v = game.currentSpeed and game:currentSpeed(slot.alt) or 0
@@ -173,7 +231,26 @@ end
 -- Mark destroyed satellites: called when a husk with a sat id dies.
 function Sat.lost(game, e)
 	local r = e.sat and Sat.get(game.universe, e.sat)
-	if r then r.lost = true end
+	if r then Sat.markLost(game.universe, r) end
+end
+
+-- Gone for good: its system posts a job to launch a replacement (free for
+-- now). The replacement keeps the id, name and kind, so quests still find it.
+function Sat.markLost(universe, r)
+	if r.lost then return end
+	r.lost, r.broken = true, nil
+	require("src.sat_jobs").post(universe, r, "satlaunch")
+end
+
+-- The launch job is done: the slot is live again, and the next load of its
+-- field spawns a fresh satellite at its home orbit.
+function Sat.relaunch(universe, id, by)
+	local r = Sat.get(universe, id)
+	if not r or not r.lost then return false end
+	r.lost, r.broken, r.hp, r.spawnedAt, r.brokenAt, r.brokenBy = nil, nil, nil, nil, nil, nil
+	require("src.events").emit("sat_launched", id, by)
+	require("src.sat_jobs").clear(universe, id)
+	return true
 end
 
 -- Damage to a working satellite: off its own armor (the record's hp), the
@@ -186,7 +263,7 @@ function Sat.damage(game, e, amount)
 	r.hp = (r.hp or (def and def.armor or 200)) - amount
 	e.flash = 0.08
 	if r.hp <= 0 then
-		r.lost = true
+		Sat.markLost(game.universe, r)
 		e.sat, e.name = nil, nil
 		game:spark(e.body:getX(), e.body:getY(), 24, { 1, 0.7, 0.35 })
 		game:explode(e.body:getX(), e.body:getY(), (e.radius or 100) * 0.3, 0, 0)

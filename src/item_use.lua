@@ -151,10 +151,17 @@ end
 
 local function complete(game, e, id, cfg)
 	if not spend(e, id, cfg.consume or 1) then return false end
+	-- an exclusive effect that applies (a job's use: "quest") is the only one
+	local only
 	for _, line in ipairs(cfg.effects or {}) do
 		local a = args(line)
 		local fx = U.effects[a.kind]
-		local ok = not fx.check or fx.check(game, e, a, cfg)
+		if fx.exclusive and (not fx.check or fx.check(game, e, a, cfg)) then only = line; break end
+	end
+	for _, line in ipairs(cfg.effects or {}) do
+		local a = args(line)
+		local fx = U.effects[a.kind]
+		local ok = (not only or line == only) and (not fx.check or fx.check(game, e, a, cfg))
 		if ok then
 			local aura = fx.apply(game, e, a, cfg)
 			if aura then
@@ -330,6 +337,17 @@ U.effect("buff", {
 			if e.stats == stats then stats[stat] = base end
 		end }
 	end,
+})
+
+-- Use at a job site: counts for the player's active site quest that wants
+-- this item here (src/quest_sites.lua). { "quest", item = <this item's id> }
+U.effect("quest", {
+	exclusive = true,
+	check = function(game, e, a)
+		if require("src.quests").siteFor(game, e, a.item) then return true end
+		return false, "Not at a job site"
+	end,
+	apply = function(game, e, a) require("src.quests").useAt(game, e, a.item) end,
 })
 
 return U

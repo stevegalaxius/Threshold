@@ -86,25 +86,31 @@ function View.draw(game)
    local q=row.quest;Station.panel(row.x,row.y,row.w,row.h)
    local left=q.amount-(q.delivered or 0)
    local rescue=q.kind=='rescue'
-   local title=rescue and ((row.active and 'RESCUE · ' or 'STRANDED SHIP · ')..'bring fuel to the '..(q.name or 'ship')..' in '..q.area)
+   local site=q.title~=nil
+   local title=site and ((row.active and 'JOB · ' or '')..q.title) or rescue and ((row.active and 'RESCUE · ' or 'STRANDED SHIP · ')..'bring fuel to the '..(q.name or 'ship')..' in '..q.area)
     or (row.active and 'DELIVER · ' or 'SHORTAGE · ')..left..' '..item(q.item)..' to '..name(q.giver)
    text(row.x+14,row.y+10,row.w-220,title,14,row.active and HUD.AQUA or HUD.INK)
    local time=row.active and ('due in %dm'):format(math.max(0,math.ceil((q.deadline-clock)/60))) or ('offered for %dm'):format(math.max(0,math.ceil((q.expires-clock)/60)))
    local aboard=game.player.cargo[q.item] or 0
    local who=name(q.giver)..' · '..require('src.reputation').tierName(require('src.quests').attitude(u,q.giver))
-   if rescue then
+   if site then
+    text(row.x+14,row.y+40,row.w-225,('%s · %s · %s · %s'):format(HUD.credits(q.unit),q.detail or '',time,who),13,HUD.DIM)
+   elseif rescue then
     text(row.x+14,row.y+40,row.w-225,('%s on rescue · needs about %d %s · %s · %d aboard · %s'):format(HUD.credits(q.unit*q.amount),q.amount,item(q.item),time,aboard,who),13,HUD.DIM)
    else
     text(row.x+14,row.y+40,row.w-225,('%s per unit · %s total · %s · %d aboard · %s'):format(HUD.credits(q.unit),HUD.credits(q.unit*left),time,aboard,who),13,HUD.DIM)
    end
-   if row.active and rescue then
+   if row.active and site then
+    Station.button(row.button,'Use '..item(q.item)..' on site',false,false)
+    Station.button(row.abandon,'Abandon',false,true)
+   elseif row.active and rescue then
     Station.button(row.button,'Eject fuel beside it',false,false)
     Station.button(row.abandon,'Abandon',false,true)
    elseif row.active then
     Station.button(row.button,'Deliver',false,f.here==q.giver and aboard>0)
     Station.button(row.abandon,'Abandon',false,true)
    else
-    Station.button(row.button,q.kind=='rescue' and 'Accept rescue' or 'Accept delivery',false,f.quests<T.questMaxActive)
+    Station.button(row.button,site and 'Accept job' or q.kind=='rescue' and 'Accept rescue' or 'Accept delivery',false,f.quests<T.questMaxActive)
    end
   else
   local o,q=row.offer,row.quote;Station.panel(row.x,row.y,row.w,row.h)
@@ -130,10 +136,10 @@ function View.mousepressed(game,x,y,button)
  else
   local u=game.universe;local Q=require('src.quests')
   for _,row in ipairs(f.rows) do
-   if row.abandon and inside(row.abandon,x,y) then ok,message=Q.abandon(u,row.quest.id,u.clock);break end
+   if row.abandon and inside(row.abandon,x,y) then ok,message=Q.abandon(u,row.quest.id,u.clock,game);break end
    if row.button and inside(row.button,x,y) then
-    if row.quest and row.active then if row.quest.kind~='rescue' then ok,message=Q.deliver(game,row.quest.id,f.here) end
-    elseif row.quest then ok,message=Q.accept(u,row.quest.id,u.clock)
+    if row.quest and row.active then if row.quest.kind=='shortage_delivery' then ok,message=Q.deliver(game,row.quest.id,f.here) end
+    elseif row.quest then ok,message=Q.accept(u,row.quest.id,u.clock,game)
     else ok,message=Board.accept(game,row.offer.id) end
     break
    end

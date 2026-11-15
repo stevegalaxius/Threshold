@@ -193,6 +193,12 @@ local function destinations(game)
 	for _, g in ipairs(game.moonGates or {}) do
 		out[#out + 1] = { label = g.label, x = g.x, y = g.y, radius = 0, col = { 0.6, 0.85, 1 } }
 	end
+	-- active site jobs on this map (src/quest_sites.lua)
+	if game.universe then
+		for _, m in ipairs(require("src.quests").markers(game)) do
+			out[#out + 1] = { label = m.label, x = m.x, y = m.y, radius = 0, col = { 0.55, 1, 0.6 } }
+		end
+	end
 	return out
 end
 
