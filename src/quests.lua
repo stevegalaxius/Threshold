@@ -49,6 +49,8 @@ local function sourced(u,E,list,st,item,n)
  return false
 end
 local function shortageKey(q) return q.giver..'|'..q.item end
+-- What makes two quests the same job: a site job's own key, else by kind.
+local function takenKey(q) return q.key or q.kind=='rescue' and 'rescue|'..q.subject or shortageKey(q) end
 
 -- Generators ---------------------------------------------------------------
 -- Each one proposes candidate quests for a station; the arbiter below picks
@@ -140,7 +142,7 @@ local function rep() return require('src.reputation') end
 function Q.attitude(u,station) return rep().stationAttitude(u,station) end
 -- Hostile stations offer you nothing; the rest do.
 function Q.willOffer(u,station) return not rep().hostile(Q.attitude(u,station)) end
-local function settle(u,q,status,clock,game)
+local function settle(u,q,status,clock,game,text)
  local s=Q.state(u);s.active[q.id]=nil;q.state=status;s.last={id=q.id,status=status,clock=clock}
  local faction=rep().ofNode(q.giver)
  if status=='done' then
@@ -148,6 +150,7 @@ local function settle(u,q,status,clock,game)
    local pay=q.unit*q.amount;u.credits=u.credits+pay;q.paid=pay
    rep().addGoodwill(u,(u.npcs or {})[q.subject],rep().T.goodwillRescue)
   end
+  if Q.sites and Q.sites[q.kind] then local pay=q.unit*q.amount;u.credits=u.credits+pay;q.paid=pay end
   rep().addStanding(u,faction,T.questStanding)
   require('src.events').emit('quest_completed',q)
  else
@@ -156,8 +159,11 @@ local function settle(u,q,status,clock,game)
  end
  if game and game.toast and q.kind=='rescue' then
   game:toast(status=='done' and ('Rescue complete: paid %d CR'):format(q.paid or 0) or 'Rescue failed',3)
+ elseif game and game.toast and Q.sites and Q.sites[q.kind] then
+  game:toast(status=='done' and ('%s: paid %d CR'):format(q.title,q.paid or 0) or (text or 'Job failed'),3)
  end
 end
+Q.settle=settle
 
 -- Arbiter -----------------------------------------------------------------------
 -- Per station: up to T.questSlots open offers, at most T.questKindMax of one
@@ -191,7 +197,7 @@ local function arbitrate(u,st,clock,ctx,s)
     local id='quest/'..s.nextId
     c.id=id;c.age=nil;c.posted=clock;c.expires=clock+T.questOfferLife
     s.offers[id]=c
-    ctx.taken[c.kind=='rescue' and 'rescue|'..c.subject or shortageKey(c)]=true
+    ctx.taken[takenKey(c)]=true
     open=open+1;count[kind]=(count[kind] or 0)+1
     cool[kind]=clock+(T.questCooldown[kind] or 0);s.lastKind[st]=kind
     posted=true;break
@@ -209,16 +215,21 @@ function Q.update(u,clock,game)
  local ctx={taken={},perStation={},perKind={},stations=stations(),stranded={}}
  for id,q in pairs(s.active) do
   local g=Q.generators[q.kind]
-  local status=g and g.resolve and game and g.resolve(game,q,clock)
-  if status then settle(u,q,status,clock,game)
+  local status,text
+  if g and g.resolve and game then status,text=g.resolve(game,q,clock) end
+  if status then settle(u,q,status,clock,game,text)
   elseif clock>q.deadline then settle(u,q,'failed',clock,game)
-  else ctx.taken[q.kind=='rescue' and 'rescue|'..q.subject or shortageKey(q)]=true end
+  else ctx.taken[takenKey(q)]=true end
+ end
+ for _,kind in ipairs(Q.order) do
+  local g=Q.generators[kind]
+  if g.prepare then g.prepare(u,clock,ctx) end
  end
  for id,q in pairs(s.offers) do
   local g=Q.generators[q.kind]
   if clock>q.expires or not g or not g.keep(u,q,clock) then s.offers[id]=nil
   else
-   ctx.taken[q.kind=='rescue' and 'rescue|'..q.subject or shortageKey(q)]=true
+   ctx.taken[takenKey(q)]=true
    ctx.perStation[q.giver]=(ctx.perStation[q.giver] or 0)+1
    local k=ctx.perKind[q.giver] or {};ctx.perKind[q.giver]=k;k[q.kind]=(k[q.kind] or 0)+1
   end
@@ -254,21 +265,35 @@ function Q.active(u)
  table.sort(out,function(a,b) return a.deadline<b.deadline or a.deadline==b.deadline and a.id<b.id end)
  return out
 end
-function Q.accept(u,id,clock)
+-- game: needed for jobs that hand you gear (q.give) on accepting.
+function Q.accept(u,id,clock,game)
  local s=Q.state(u);local q=s.offers[id]
  if not q then return nil,'Delivery no longer offered' end
  local n=0;for _ in pairs(s.active) do n=n+1 end
  if n>=T.questMaxActive then return nil,('You can hold %d jobs at once'):format(T.questMaxActive) end
  if not Q.willOffer(u,q.giver) then return nil,'This station will not work with you' end
+ if q.give then
+  local p=game and game.player
+  if not p or require('src.ship').canFit(p,q.item,1)<1 then return nil,'No room in the hold for the '..(data.items[q.item].name or q.item) end
+  require('src.ship').addCargo(p,q.item,1)
+ end
  s.offers[id]=nil
  q.state='active';q.accepted=clock;q.deadline=clock+(q.kind=='rescue' and T.rescueDeadline or T.questDeadline);q.delivered=0
  s.active[id]=q
+ if q.title then return true,'Accepted: '..q.title end
  if q.kind=='rescue' then return true,'Rescue accepted: bring fuel to the stranded '..(q.name or 'ship')..' in '..q.area end
  return true,'Delivery accepted: bring '..q.amount..' '..(data.items[q.item].name or q.item)..' here'
 end
-function Q.abandon(u,id,clock)
+function Q.abandon(u,id,clock,game)
  local s=Q.state(u);local q=s.active[id]
  if not q then return nil,'No such delivery' end
+ -- gear the job gave you goes back
+ local p=game and game.player
+ if q.give and p and (p.cargo[q.item] or 0)>0 then
+  local Hold=require('src.inventory.hold')
+  if p.hold then Hold.take(p.hold,q.item,1);p.cargo=Hold.totals(p.hold) else p.cargo[q.item]=p.cargo[q.item]-1;if p.cargo[q.item]<=0 then p.cargo[q.item]=nil end end
+  require('src.ship').updateMass(p)
+ end
  s.active[id]=nil;s.last={id=id,status='abandoned',clock=clock}
  rep().addStanding(u,rep().ofNode(q.giver),-T.questFailStanding)
  return true,'Job abandoned'
@@ -293,4 +318,7 @@ function Q.deliver(game,id,station)
  if q.delivered>=q.amount then settle(u,q,'done',u.clock,game) end
  return true,('Delivered %d: paid %d CR'):format(n,pay)
 end
+package.loaded['src.quests']=Q -- (the site jobs below require this module)
+require('src.quest_sites')(Q)
+require('src.sat_quests')
 return Q

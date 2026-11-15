@@ -78,6 +78,11 @@ return function(game)
  assert(job,'no repair job posted')
  assert(Sat.fix(u,sid,'test') and not rec.broken,'repair failed')
  Sat.markLost(u,rec)
+ -- the same job on the player's station board
+ local Q=require('src.quests');Q.state(u).next=0;Q.update(u,u.clock,game)
+ local posted
+ for _,q in pairs(Q.state(u).offers) do if q.kind=='sat_launch' and q.subject==sid then posted=q end end
+ assert(posted,'no launch job on the station board')
  local launch
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
  assert(launch,'no launch job posted')

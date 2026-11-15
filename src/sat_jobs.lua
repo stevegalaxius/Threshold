@@ -59,4 +59,11 @@ Tasks.register(kind,{
  end,
 })
 end
+-- The job is done (by anyone): drop the NPC orders for it nobody has taken.
+function J.clear(u,id)
+ local offers=Tasks.state(u).offers
+ for oid,o in pairs(offers) do
+  if o.sat==id and o.state=='available' then offers[oid]=nil end
+ end
+end
 return J

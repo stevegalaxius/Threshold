@@ -129,6 +129,7 @@ function Sat.fix(universe, id, by)
 	if not r or not r.broken then return false end
 	r.broken, r.brokenAt, r.brokenBy, r.hp = nil, nil, nil, nil
 	require("src.events").emit("sat_repaired", id, by)
+	require("src.sat_jobs").clear(universe, id)
 	return true
 end
 
@@ -248,6 +249,7 @@ function Sat.relaunch(universe, id, by)
 	if not r or not r.lost then return false end
 	r.lost, r.broken, r.hp, r.spawnedAt, r.brokenAt, r.brokenBy = nil, nil, nil, nil, nil, nil
 	require("src.events").emit("sat_launched", id, by)
+	require("src.sat_jobs").clear(universe, id)
 	return true
 end
 
