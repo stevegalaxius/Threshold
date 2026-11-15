@@ -8,11 +8,14 @@ return function(game)
  local cases={{'belt','trader'},{'belt','pirate'},{'shoals','miner'},{'shoals','pirate'},{'shoals','trader'},{'earth','patrol'},{'mars','trader'},{'uranus','pirate'},{'titania','trader'},{'venus','trader'},{'mercury','trader'}}
  for _,c in ipairs(cases) do
   local area,role=c[1],c[2]
-  if P.target(area,role)>0 then
+  if P.target(area,role,u)>0 then
    local r,why=P.spawn(game,area,role,false)
    -- (a ship whose first move already took it to another area, e.g. to a
    -- home berth elsewhere, has nothing to fly in to here)
-   if r and r.spawnOrigin~='edge' and tostring(r.arrivalSkip):match('not in') then
+   if r and P.templates[role].launches then
+    -- raiders are bought at a dark base and undock from it
+    check(r.spawnOrigin=='launch' and L.get(r.homeStation).area==area,area..' '..role..' did not launch from its base')
+   elseif r and r.spawnOrigin~='edge' and tostring(r.arrivalSkip):match('not in') then
     print('arrival: '..area..' '..role..' left at once: '..r.arrivalSkip)
    elseif r then
     check(r.spawnOrigin=='edge',('%s %s did not arrive from the edge (%s: %s)'):format(area,role,tostring(r.spawnOrigin),tostring(r.arrivalSkip)))

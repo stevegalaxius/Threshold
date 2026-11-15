@@ -247,6 +247,11 @@ T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
+-- Fencing (piracy.lua): share of its home station's bid a pirate gets for stolen goods
+T.pirateFenceRate=.6
+-- Pirate berths (security.lua S.berths): a dark base with a shipyard keeps as
+-- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
+T.pirateBerths={max=6,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
 T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
 T.directLinkAngle=math.pi*2/3 -- NPCs fly straight (round the planet) between ordinary nodes up to this far apart;
@@ -272,7 +277,8 @@ T.offlineStationAccuracy = 0.5   -- turret hit chance offline
 T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
 T.alifeWreckLifetime = 1800
 T.population = {
- pirate={minDelay=180,maxDelay=300,target=2},
+ -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
+ pirate={minDelay=180,maxDelay=300},
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  miner={minDelay=180,maxDelay=300},

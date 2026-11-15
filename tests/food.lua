@@ -87,7 +87,8 @@ return function(game)
  local fertilizerOrder=false
  for _,o in pairs(Tasks.state(sourceWorld).offers) do
   -- across systems the order may be the first leg, to a logistics hub
-  if o.item==Food.fertilizer and (o.target==farm or o.target==E.hubFor(farm) or o.target==E.hubFor('station:callisto_2')) then fertilizerOrder=true end
+  -- (the farm's, or the supplier's own: every planet system has one)
+  if o.item==Food.fertilizer and (o.target==farm or o.target==E.hubFor(farm) or o.target==E.hubFor('station:callisto_2') or o.source and o.target==E.hubFor(o.source)) then fertilizerOrder=true end
  end
  assert(fertilizerOrder,'farm did not order fertilizer through ordinary freight')
  -- Moon nitrates arrive at Saturn's and Jupiter's hubs without input; Ceres alone processes ice.

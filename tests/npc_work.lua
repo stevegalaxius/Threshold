@@ -88,8 +88,11 @@ return function(game)
    if r.state=='docked' then break end
   end
   assert(r.state=='docked' and r.node==r.homeStation,'shared travel reaches the fencing station')
+  local St=require('src.stockpile');local before=St.count(w,r.homeStation,'water_ice');local credits=r.credits or 0
   w.clock=r.untilTime+1;NPC.advance(r,w.clock,w,scene)
-  assert(w.piracy.stashes[r.homeStation].water_ice==3 and not r.ship.cargo.water_ice,'the common controller unloads stolen cargo once')
+  -- (the station's own industry may use some of it as the clock moves)
+  assert(St.count(w,r.homeStation,'water_ice')>before and not r.ship.cargo.water_ice,'the common controller fences stolen cargo into station stock once')
+  assert((r.credits or 0)>credits and not w.piracy,'the fence paid nothing, or left a dead stash')
   supplies.universe=original
  end
  print('npc work: authority and freelance patrol ok')
