@@ -913,6 +913,16 @@ local cloudBands = {}
 local function drawPlanet(game, e)
 	local x, y = e.body:getPosition()
 	local R, c = e.radius, e.hue
+	-- nothing of it on screen (its drift rings reach R + 6000, a gas giant's
+	-- own rings further): most of a map is out of sight of its planet, and
+	-- the hazes and dashes were drawn all the same
+	do
+		local reach = R + 6200
+		for _, band in ipairs(e.rings or {}) do if band[2] + 200 > reach then reach = band[2] + 200 end end
+		local cam = game.camera
+		local sw, sh = lg.getDimensions()
+		if math.abs(x - cam.x) > sw / 2 / cam.zoom + reach or math.abs(y - cam.y) > sh / 2 / cam.zoom + reach then return end
+	end
 	local w = game.well
 	local dir = (w and w.swirl or 0) >= 0 and 1 or -1
 	-- dashed rings that drift the way the well turns
@@ -1369,6 +1379,7 @@ end
 
 -- Countermeasure flares: hot, flickering points.
 local function drawDecoys(game)
+	if not game.decoys or #game.decoys == 0 then return end   -- (a blend switch ends the batch)
 	lg.setBlendMode("add")
 	for _, d in ipairs(game.decoys or {}) do
 		local k = math.min(1, d.life)
@@ -1571,6 +1582,13 @@ function Render.world(game, overlay, boundaryAngle)
 		elseif e.kind=='ship' then radius=e.halfLength+e.hull.radius end
 		return math.abs(x-cx)<hw+radius and math.abs(y-cy)<hh+radius
 	end
+	local function nearPoint(x, y, reach)
+		return math.abs(x - cx) < hw + reach and math.abs(y - cy) < hh + reach
+	end
+	local function near(e, reach)
+		local x, y = e.body:getPosition()
+		return nearPoint(x, y, reach)
+	end
 	-- sleeping debris: where its orbit has carried it
 	-- debris too small to see as a shape on screen is drawn as one batch of
 	-- points instead (a ring zoomed out is thousands of them)
@@ -1607,11 +1625,14 @@ function Render.world(game, overlay, boundaryAngle)
 			if visible(e) then
 				if e.city then drawCity(game, e) else drawStation(game, e) end
 			end
-		elseif e.kind == "buoy" then drawBuoy(game, e)
-		elseif e.kind == "driver" then drawDriver(game, e)
-		elseif e.kind == "catchring" then drawCatchRing(game, e)
-		elseif e.kind == "husk" then drawHusk(game, e)
-		elseif e.kind == "container" then drawContainer(game, e) end
+		-- (the rest, too, only when some of it could be on screen)
+		elseif e.kind == "buoy" then if near(e, 1500) then drawBuoy(game, e) end
+		elseif e.kind == "driver" then
+			local bx, by = game:driverBreech(e)
+			if nearPoint(bx, by, (e.barrel or T.driverBarrel) + (e.zone or T.driverZone) + 400) then drawDriver(game, e) end
+		elseif e.kind == "catchring" then if near(e, (e.radius or 0) + 400) then drawCatchRing(game, e) end
+		elseif e.kind == "husk" then if near(e, 1200) then drawHusk(game, e) end
+		elseif e.kind == "container" then if near(e, 600) then drawContainer(game, e) end end
 	end
 	if #dots > 0 then
 		lg.setColor(0.62, 0.7, 0.76)
