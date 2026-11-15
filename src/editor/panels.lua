@@ -1035,8 +1035,58 @@ local function designWindow(E, Editor)
 		Slab.Text("Unchanged stats come from")
 		combo("yard_base", base and base.name or "?", opts, function(id) E.pushUndo(); E.setBase(id) end, 200)
 		Slab.Text("Picking one resets stats and slots, keeps the shape.", { Color = { 0.6, 0.6, 0.6 } })
+		local function climateRow()
+			-- a climate-controlled compartment (src/ship.lua holdLayout): the only
+			-- place delicate cargo rides; w x h cells on top of the hold
+			local comps = E.stat("compartments") or {}
+			local cw, ch = 0, 0
+			for _, c in ipairs(comps) do if c.kind == "climate" then cw, ch = c[1] or c.w or 0, c[2] or c.h or 0 end end
+			Slab.Button("?", { W = 18, H = 18, Tooltip = "A climate-controlled hold: w x h cells (1 m3 each) on top of the main hold.\nDelicate cargo (medical supplies) only rides here or in a Climate Pod.\n0 x 0: none." })
+			Slab.SameLine()
+			Slab.Text("climate hold" .. (d.stats.compartments ~= nil and " *" or "")); Slab.SameLine({ Pad = 4 })
+			local function setClimate(w, h)
+				E.pushUndo()
+				local out = {}
+				for _, c in ipairs(comps) do if c.kind ~= "climate" then out[#out + 1] = c end end
+				if w > 0 and h > 0 then out[#out + 1] = { kind = "climate", w, h, name = "Climate hold" } end
+				d.stats.compartments = out
+			end
+			if Slab.InputNumberDrag("yard_climate_w", cw, 0, 40, 1, { W = 50, Precision = 0 }) then setClimate(math.floor(Slab.GetInputNumber()), math.max(ch, 1)) end
+			Slab.SameLine(); Slab.Text("x"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_climate_h", ch, 0, 40, 1, { W = 50, Precision = 0 }) then setClimate(math.max(cw, 1), math.floor(Slab.GetInputNumber())) end
+			if d.stats.compartments ~= nil then
+				Slab.SameLine()
+				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's climate hold" }) then E.pushUndo(); d.stats.compartments = nil end
+			end
+		end
+		-- the main hold as a grid, w x h cells of 1 m3 (hull.holdGrid); its
+		-- volume (hold) follows
+		local function holdRow()
+			local Shapes = require("src.inventory.shapes")
+			local g = E.stat("holdGrid")
+			local hw, hh
+			if g then hw, hh = g[1], g[2] else hw, hh = Shapes.gridFor(E.stat("hold") or 0) end
+			if (E.stat("hold") or 0) <= 0 and not g then hw, hh = 0, 0 end
+			Slab.Button("?", { W = 18, H = 18, Tooltip = "The main hold: w x h cells, 1 m3 each. Cargo Pods add grids of their own.\n0 x 0: no hold." })
+			Slab.SameLine()
+			local own = d.stats.holdGrid ~= nil or d.stats.hold ~= nil
+			Slab.Text("hold (m3) " .. hw * hh .. (own and " *" or "")); Slab.SameLine({ Pad = 4 })
+			local function setHold(w, h)
+				E.pushUndo()
+				if w > 0 and h > 0 then d.stats.holdGrid, d.stats.hold = { w, h }, w * h
+				else d.stats.holdGrid, d.stats.hold = nil, 0 end
+			end
+			if Slab.InputNumberDrag("yard_hold_w", hw, 0, 60, 1, { W = 50, Precision = 0 }) then setHold(math.floor(Slab.GetInputNumber()), math.max(hh, 1)) end
+			Slab.SameLine(); Slab.Text("x"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_hold_h", hh, 0, 60, 1, { W = 50, Precision = 0 }) then setHold(math.max(hw, 1), math.floor(Slab.GetInputNumber())) end
+			if own then
+				Slab.SameLine()
+				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's value" }) then E.pushUndo(); d.stats.holdGrid, d.stats.hold = nil, nil end
+			end
+		end
 		for _, st in ipairs(STATS) do
 			local key, label, help = st[1], st[2], st[3]
+			if key == "hold" then holdRow(); climateRow() else
 			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
 			Slab.SameLine()
 			local own = d.stats[key]
@@ -1056,6 +1106,7 @@ local function designWindow(E, Editor)
 				Slab.SameLine()
 				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's value" }) then E.pushUndo(); d.stats[key] = nil end
 			end
+			end
 		end
 		local mopts = {}
 		for _, m in ipairs({ "fixed", "gimbal", "turret" }) do table.insert(mopts, { label = m, value = m }) end
@@ -1068,28 +1119,6 @@ local function designWindow(E, Editor)
 		Slab.SameLine()
 		Slab.Text("helm"); Slab.SameLine()
 		combo("yard_helm", E.stat("helm") or "strafe", hopts, function(m) E.pushUndo(); d.stats.helm = m end, 120)
-		-- a climate-controlled compartment (src/ship.lua holdLayout): the only
-		-- place delicate cargo rides; w x h cells on top of the hold
-		local comps = E.stat("compartments") or {}
-		local cw, ch = 0, 0
-		for _, c in ipairs(comps) do if c.kind == "climate" then cw, ch = c[1] or c.w or 0, c[2] or c.h or 0 end end
-		Slab.Button("?", { W = 18, H = 18, Tooltip = "A climate-controlled hold: w x h cells (1 m3 each) on top of the main hold.\nDelicate cargo (medical supplies) only rides here or in a Climate Pod.\n0 x 0: none." })
-		Slab.SameLine()
-		Slab.Text("climate hold" .. (d.stats.compartments ~= nil and " *" or "")); Slab.SameLine({ Pad = 4 })
-		local function setClimate(w, h)
-			E.pushUndo()
-			local out = {}
-			for _, c in ipairs(comps) do if c.kind ~= "climate" then out[#out + 1] = c end end
-			if w > 0 and h > 0 then out[#out + 1] = { kind = "climate", w, h, name = "Climate hold" } end
-			d.stats.compartments = out
-		end
-		if Slab.InputNumberDrag("yard_climate_w", cw, 0, 40, 1, { W = 50, Precision = 0 }) then setClimate(math.floor(Slab.GetInputNumber()), math.max(ch, 1)) end
-		Slab.SameLine(); Slab.Text("x"); Slab.SameLine()
-		if Slab.InputNumberDrag("yard_climate_h", ch, 0, 40, 1, { W = 50, Precision = 0 }) then setClimate(math.max(cw, 1), math.floor(Slab.GetInputNumber())) end
-		if d.stats.compartments ~= nil then
-			Slab.SameLine()
-			if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's climate hold" }) then E.pushUndo(); d.stats.compartments = nil end
-		end
 		Slab.EndTree()
 	end
 	if Slab.BeginTree("yard_slots", { Label = ("Slots (%d), drag markers on the canvas"):format(#d.slots) }) then
