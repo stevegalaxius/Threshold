@@ -877,6 +877,30 @@ function Game:surfacePullAt(x, y)
 	return -dx / r * pull, -dy / r * pull
 end
 
+-- An NPC just launched from a cloud city is carried by the city's beam
+-- until it is out of the pull and the air (or T.cloudClimbTime runs out):
+-- no cloud-top pull and no sinking, only the air's drag.
+-- Traffic coming in to a cloud city is held the same way once it is
+-- within T.cloudHoldRange of it: a hauler weaker than the pull down there
+-- could not brake its dive, fell past the city and was crushed.
+function Game:cloudClimbing(e)
+	if e.isPlayer or e.kind ~= "ship" then return false end
+	local stop = e.route and e.route[e.routeIndex or 1]
+	if stop and stop.city and stop.body and not stop.removed and e.alifeId then
+		local x, y = e.body:getPosition()
+		local sx, sy = stop.body:getPosition()
+		if (x - sx) ^ 2 + (y - sy) ^ 2 < T.cloudHoldRange ^ 2 then return true end
+	end
+	local until_ = e.cloudClimb
+	if not until_ then return false end
+	local w = self.well
+	if not w or e.dead or e.removed or self.time > until_ then e.cloudClimb = nil; return false end
+	local x, y = e.body:getPosition()
+	local r = sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
+	if r > w.radius + max(w.atmo or 0, min(T.surfacePullRange, w.radius * 0.5)) + 200 then e.cloudClimb = nil; return false end
+	return true
+end
+
 function Game:applySurfacePull()
 	for _, e in ipairs(self.entities) do
 		-- Docked ships ride the station. The tractor approach remains exposed
@@ -885,8 +909,10 @@ function Game:applySurfacePull()
 			and (not e.dockState or e.dockState.phase == "tractor")
 			and not e.launch and not e.runup then
 			local b = e.body
-			local ax, ay = self:surfacePullAt(b:getPosition())
-			b:applyForce(ax * b:getMass(), ay * b:getMass())
+			if not self:cloudClimbing(e) then
+				local ax, ay = self:surfacePullAt(b:getPosition())
+				b:applyForce(ax * b:getMass(), ay * b:getMass())
+			end
 		end
 	end
 end
@@ -919,7 +945,8 @@ function Game:updateAtmosphere(dt)
 				local rvx, rvy = vx - ny * f, vy + nx * f
 				local m = b:getMass()
 				local k = REENTRY_DRAG * depth
-				b:applyForce((-rvx * k + nx * REENTRY_SINK * depth) * m, (-rvy * k + ny * REENTRY_SINK * depth) * m)
+				local sink = self:cloudClimbing(e) and 0 or REENTRY_SINK * depth
+				b:applyForce((-rvx * k + nx * sink) * m, (-rvy * k + ny * sink) * m)
 				local rs = sqrt(rvx * rvx + rvy * rvy)
 				-- the glow builds as soon as you're in, and with speed
 				local heat = min(1, depth * 1.6) * (0.45 + 0.55 * min(1, rs / 300))
@@ -929,7 +956,7 @@ function Game:updateAtmosphere(dt)
 					local fx, fy = rvx / max(rs, 1), rvy / max(rs, 1)
 					if rs < 60 then fx, fy = nx, ny end
 					e.reentry, e.reentryX, e.reentryY = heat, fx, fy
-					if e.kind == "ship" then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
+					if e.kind == "ship" and sink > 0 then self:damage(e, REENTRY_HEAT * heat * (1 + rs / 300) * dt, nil, "heat") end
 				end
 			end
 		end
@@ -1589,13 +1616,20 @@ local function updateDockExit(self, e, dt)
 	if not assist then return end
 	local st, d, side = assist.station, assist.dock, assist.side
 	assist.t = assist.t + dt
-	if e.dead or st.removed or assist.t > (e.isPlayer and 10 or 22) then e.dockExit = nil; return end
+	-- An NPC let go deep in the clouds is handed on to the climb assist
+	-- (Game:cloudClimbing): a slow hauler can't outpull the cloud tops on
+	-- its own engines, and sank, burning, until it died.
+	local function release()
+		e.dockExit = nil
+		if not e.isPlayer and not e.dead then e.cloudClimb = self.time + T.cloudClimbTime end
+	end
+	if e.dead or st.removed or assist.t > (e.isPlayer and 10 or 22) then release(); return end
 	local b = e.body
 	local x, y = b:getPosition()
 	local lx, ly = dockLocal(st, side, x, y, d)
 	local clearance=e.isPlayer and d.runway or max(d.runway,st.radius)
 	if lx > d.x2 + clearance + e.halfLength + 120 or lx < d.x2 or math.abs(ly) > d.hw * 2 then
-		e.dockExit, e.dockCooldown = nil, 2
+		release(); e.dockCooldown = 2
 		return
 	end
 	e.dockCooldown = max(e.dockCooldown or 0, 0.5)
