@@ -333,6 +333,8 @@ function E.update(game,clock)
     for _,b in ipairs(group) do
      if (not Access.raiding(b)) and not b.encounter and close(a,b,clock) then
       local odds=E.odds(a,b)-(Access.defending(b,b.area) and 1 or 0)
+      -- cargo its home station is short of is worth a worse fight
+      local Piracy=require('src.piracy');if Piracy.wants(u,Piracy.home(a),b) then odds=odds+T.raidShortageBias end
       if not best or odds>best then target,best=b,odds end
      end
     end

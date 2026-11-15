@@ -31,6 +31,16 @@ local function fenceHold(u,base,inner,sold)
  end end
 end
 P.fenceHold=fenceHold
+-- Raid targeting by shortage: does this ship carry something the dark
+-- station is short of (src/economy.lua records shortages per station)?
+-- Raiders prefer such prey and hunt where it flies.
+function P.wants(u,home,prey)
+ local short=home and (require('src.stockpile').record(u,home).shortages)
+ if not short or not next(short) or not prey or not prey.ship then return false end
+ for id,n in pairs(prey.ship.cargo or {}) do if n>0 and short[id] then return true end end
+ return false
+end
+function P.home(r) return r.piracy and r.piracy.base or Homes.get(r) end
 -- Saves from before fencing kept loot in a dead stash; stock it once.
 function P.settle(u)
  local old=u.piracy;if not old then return end

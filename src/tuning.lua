@@ -249,6 +249,8 @@ T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 -- Fencing (piracy.lua): share of its home station's bid a pirate gets for stolen goods
 T.pirateFenceRate=.6
+-- Raid targeting (piracy.lua P.wants): odds bonus for prey carrying what the raider's home station is short of
+T.raidShortageBias=.25
 -- Pirate berths (security.lua S.berths): a dark base with a shipyard keeps as
 -- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
 T.pirateBerths={max=6,fuelReserves=2}
