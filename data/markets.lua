@@ -30,10 +30,10 @@
 
 market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp", "briggs_dagger" }, lots = 6, restock = 8 }, sells = {   -- general store
 	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
-	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 }, { "cargo_container", 2 },
 } }
 market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   -- logistics equipment store
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "artillery_s_base", 1 }, { "cinder_drive", 1 }, { "forge_reactor", 1 }, { "hold_pod_s", 1 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "artillery_s_base", 1 }, { "cinder_drive", 1 }, { "forge_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 },
 } }
 -- Logistics hubs: trunk-freight terminals, one per hubbed planet system.
 market { id = "market:belt_3", station = "Ceres Logistics", sells = {

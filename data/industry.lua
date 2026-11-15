@@ -27,6 +27,10 @@ local D={recipes={
  {id='pump_water',group='resources',item='water',opening=0,cap=1200},
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
+ -- Medical supplies: made at Earth from electronics and water, used up
+ -- by the far stations; delicate, so only climate holds carry them.
+ {id='make_medical',item='medical_supplies',opening=0,batch=4,cap=128,inputs={{item='electronics',n=1},{item='water',n=1}}},
+ {id='use_medical',market=false,item='medical_supplies',cap=96},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
  -- Ice: the ice moons cut it from their crusts (abstract extraction, like

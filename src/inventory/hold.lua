@@ -15,6 +15,12 @@
 	A stack can carry wear (0..1): the share of armour a docked drone had
 	lost. Taking prefers unworn stacks.
 
+	A grid can be climate controlled (g.climate). In a hold with climate
+	rules (h.climateRules: ship holds), delicate items (item.delicate:
+	medical supplies, passengers) only go into climate grids, and
+	everything else tries the ordinary grids first. Holds without the
+	rules (husks, storage, shelves) take anything anywhere.
+
 	A stack can carry a hold of its own (stack.inner): a loaded cargo
 	container. Those are never split up or rebuilt from counts; sorting and
 	relayouts move the stack itself (placeStack), so what's inside stays.
@@ -27,14 +33,39 @@ local Hold = {}
 
 local min = math.min
 
-function Hold.new(layout)
-	local h = { grids = {} }
+function Hold.new(layout, climateRules)
+	local h = { grids = {}, climateRules = climateRules or nil }
 	for _, l in ipairs(layout) do
 		local g = Grid.new(l.w, l.h, l.name)
-		g.key = l.key
+		g.key, g.climate = l.key, l.climate or nil
 		table.insert(h.grids, g)
 	end
 	return h
+end
+
+local function delicate(id)
+	local item = require("src.data").items[id]
+	return item and item.delicate or false
+end
+Hold.delicate = delicate
+
+-- Can this item go into grid g of hold h at all?
+function Hold.accepts(h, g, id)
+	if not (h and h.climateRules) or g.climate then return true end
+	return not delicate(id)
+end
+
+-- The grids an item may use, in the order to try them: for a hold with
+-- climate rules, delicate items get only the climate grids, and other
+-- items the ordinary grids before the climate ones.
+local function gridsFor(h, id)
+	if not h.climateRules then return h.grids end
+	local d, plain, warm = delicate(id), {}, {}
+	for _, g in ipairs(h.grids) do
+		if g.climate then warm[#warm + 1] = g elseif not d then plain[#plain + 1] = g end
+	end
+	for _, g in ipairs(warm) do plain[#plain + 1] = g end
+	return plain
 end
 
 function Hold.count(h, id)
@@ -69,10 +100,12 @@ end
 -- Where a new w x h stack can go: the first grid with room, unrotated
 -- first. With rand (a random(a, b) function) it tries a few random spots
 -- before that, for loosely packed holds.
-local function findSpot(h, w, ht, rand)
+local function findSpot(h, w, ht, rand, id)
+	local grids = id and gridsFor(h, id) or h.grids
+	if #grids == 0 then return nil end
 	if rand then
 		for _ = 1, 12 do
-			local g = h.grids[rand(1, #h.grids)]
+			local g = grids[rand(1, #grids)]
 			local rot = w ~= ht and rand(0, 1) == 1
 			local fw, fh = w, ht
 			if rot then fw, fh = ht, w end
@@ -82,12 +115,12 @@ local function findSpot(h, w, ht, rand)
 			end
 		end
 	end
-	for _, g in ipairs(h.grids) do
+	for _, g in ipairs(grids) do
 		local x, y = Grid.firstFit(g, w, ht)
 		if x then return g, x, y, w, ht, false end
 	end
 	if w ~= ht then
-		for _, g in ipairs(h.grids) do
+		for _, g in ipairs(grids) do
 			local x, y = Grid.firstFit(g, ht, w)
 			if x then return g, x, y, ht, w, true end
 		end
@@ -100,7 +133,7 @@ end
 -- Returns true if it went in.
 function Hold.placeStack(h, s, rand)
 	local w, ht = Shapes.of(s.id)
-	local g, x, y, fw, fh, rot = findSpot(h, w, ht, rand)
+	local g, x, y, fw, fh, rot = findSpot(h, w, ht, rand, s.id)
 	if not g then return false end
 	s.x, s.y, s.w, s.h, s.rot = x, y, fw, fh, rot
 	Grid.place(g, s)
@@ -138,7 +171,7 @@ function Hold.add(h, id, n, opts)
 	if n <= 0 then return 0 end
 	local w, ht, cap = Shapes.of(id)
 	local left = n
-	for _, g in ipairs(h.grids) do
+	for _, g in ipairs(gridsFor(h, id)) do
 		for _, s in ipairs(g.stacks) do
 			if s.id == id and s.n < cap and (not (opts and opts.pristine) or not (s.stolen or s.resale or s.wear or s.inner)) then
 				local k = min(cap - s.n, left)
@@ -149,7 +182,7 @@ function Hold.add(h, id, n, opts)
 	end
 	local rand = opts and opts.random
 	while left > 0 do
-		local g, x, y, fw, fh, rot = findSpot(h, w, ht, rand)
+		local g, x, y, fw, fh, rot = findSpot(h, w, ht, rand, id)
 		if not g then break end
 		local k = min(cap, left)
 		Grid.place(g, { id = id, n = k, x = x, y = y, w = fw, h = fh, rot = rot })
@@ -231,10 +264,10 @@ end
 
 -- A copy to try things on without touching the real one.
 function Hold.clone(h)
-	local c = { grids = {} }
+	local c = { grids = {}, climateRules = h.climateRules }
 	for _, g in ipairs(h.grids) do
 		local cg = Grid.new(g.w, g.h, g.name)
-		cg.key = g.key
+		cg.key, cg.climate = g.key, g.climate
 		for _, s in ipairs(g.stacks) do
 			Grid.place(cg, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot, inner = s.inner, resale = s.resale, wear = s.wear, stolen = s.stolen })
 		end
@@ -253,8 +286,8 @@ end
 -- returns false.
 function Hold.sort(h)
 	local layout = {}
-	for _, g in ipairs(h.grids) do table.insert(layout, { key = g.key, name = g.name, w = g.w, h = g.h }) end
-	local n = Hold.new(layout)
+	for _, g in ipairs(h.grids) do table.insert(layout, { key = g.key, name = g.name, w = g.w, h = g.h, climate = g.climate }) end
+	local n = Hold.new(layout, h.climateRules)
 	local carried, counts = split(h)
 	local saved = {}
 	for _, s in ipairs(carried) do saved[s] = { s.x, s.y, s.w, s.h, s.rot } end
@@ -275,13 +308,13 @@ end
 -- come across untouched; the stacks from the rest are packed back in.
 -- Returns the new hold and a { id = count } of whatever didn't fit.
 function Hold.relayout(h, layout)
-	local nh = Hold.new(layout)
+	local nh = Hold.new(layout, h.climateRules)
 	local old = {}
 	for _, g in ipairs(h.grids) do old[g.key] = g end
 	local moved = {}
 	for i, g in ipairs(nh.grids) do
 		local o = old[g.key]
-		if o and o.w == g.w and o.h == g.h then
+		if o and o.w == g.w and o.h == g.h and (o.climate or false) == (g.climate or false) then
 			nh.grids[i] = o
 			old[g.key] = nil
 		end
@@ -332,9 +365,9 @@ end
 -- that no longer exist (a mod was removed) are dropped; known tells
 -- whether an id exists.
 function Hold.serialize(h)
-	local out = { grids = {} }
+	local out = { grids = {}, climateRules = h.climateRules }
 	for _, g in ipairs(h.grids) do
-		local sg = { key = g.key, name = g.name, w = g.w, h = g.h, stacks = {} }
+		local sg = { key = g.key, name = g.name, w = g.w, h = g.h, climate = g.climate, stacks = {} }
 		for _, s in ipairs(g.stacks) do
 			table.insert(sg.stacks, { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or nil,
 				inner = s.inner and Hold.serialize(s.inner) or nil, resale = s.resale, wear = s.wear, stolen = s.stolen })
@@ -345,11 +378,11 @@ function Hold.serialize(h)
 end
 
 function Hold.deserialize(t, known)
-	local h = { grids = {} }
+	local h = { grids = {}, climateRules = t.climateRules }
 	local reshaped = {}
 	for _, sg in ipairs(t.grids or {}) do
 		local g = Grid.new(sg.w, sg.h, sg.name)
-		g.key = sg.key
+		g.key, g.climate = sg.key, sg.climate
 		for _, s in ipairs(sg.stacks or {}) do
 			if not known or known(s.id) then
 				local st = { id = s.id, n = s.n, x = s.x, y = s.y, w = s.w, h = s.h, rot = s.rot or false,

@@ -1204,6 +1204,8 @@ local function dropSpot(L, mx, my)
 	if h.owner == "station" and not (r.side.market or r.side.trade) then return r, x, y, "blocked" end
  if r.side.trade and r.g.tradeOwner~=h.owner then return r,x,y,'blocked' end
 	if not r.side.trade and (not not ShipEntry.item(h.id))~=(not not r.side.shipEntries) then return r,x,y,'blocked' end
+	-- delicate cargo only into a climate-controlled grid
+	if r.side.hold and not Hold.accepts(r.side.hold, r.g, h.id) then return r, x, y, "blocked" end
  local target = Grid.at(r.g, cx, cy)
 	local _, _, cap = Shapes.of(h.id)
 	if target and target.id == h.id and target.n < cap and not target.inner and not h.inner
@@ -1980,6 +1982,7 @@ function Cargo.draw(game)
 		lg.setColor(HUD.DIM)
 		if not r.side.market then
    local label=("%s  %d x %d"):format(r.label,r.g.w,r.g.h)
+   if r.g.climate then lg.setColor(0.55,0.8,1) end
    if docked then
     local width=r.g.w*cs
     if lg.getFont():getWidth(label)>width then label=r.label end
@@ -1993,6 +1996,10 @@ function Cargo.draw(game)
 		lg.setScissor(r.x, r.vy, r.g.w * cs, r.vh)
 		lg.setColor(0, 0, 0, 0.35)
 		lg.rectangle("fill", r.x, r.y, r.g.w * cs, r.g.h * cs)
+		if r.g.climate then   -- climate-controlled: a cool blue wash
+			lg.setColor(0.25, 0.55, 0.85, 0.14)
+			lg.rectangle("fill", r.x, r.y, r.g.w * cs, r.g.h * cs)
+		end
   if r.side.market and r.side.shipEntries and #r.g.stacks==0 then
    lg.setFont(HUD.font(12));lg.setColor(HUD.DIM)
    local st=r.side.station

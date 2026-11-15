@@ -12,11 +12,17 @@ local T=require('src.tuning')
 local Personality=require('src.personality')
 local Transport={}
 local function hold(r)
- return r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
+ local h=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
+ if h then h.climateRules=true end   -- a ship's hold: delicate cargo only in climate grids
+ return h
 end
 local function room(r,item,amount)
  local h=hold(r)
  if h then return Hold.room(h,item,amount) end
+ if data.items[item].delicate then
+  local space=require('src.ship').climateSpace(data.hulls[r.ship.hull],r.ship.loadout)
+  return math.max(0,math.floor(space/data.items[item].volume))
+ end
  local used=0
  for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
  return math.max(0,math.floor(((data.hulls[r.ship.hull].hold or 0)-used)/data.items[item].volume))
@@ -40,6 +46,8 @@ end
 -- Only mass-driver legs cover AU; local and moon-gate legs use the base rate.
 -- AU is quoted to hundredths so the displayed distance explains the price.
 function Transport.quote(t,clock,u)
+ -- delicate cargo needs a climate-controlled hold
+ if t.item and data.items[t.item] and data.items[t.item].delicate then t.requires={capabilities={'cargo','climate'}} end
  clock=t.placed or t.assigned or clock or 0
  if t.routeAU==nil then
   local route=Transport.route(t.source,t.target,clock) or {}
