@@ -148,4 +148,4 @@ After 60 simulated seconds without a job, the shared controller returns the NPC 
 
 Home trips target the exact physical access point. Heaven-Ladder's anchors therefore have separate home assignments and resident counts, while retaining one station economy. Trade routes retain their usual nearest-access behavior. Existing living NPCs receive the distribution once; the saved `homeDistributed` flag preserves their assignments on subsequent loads. Population targets and the arbiter's area accounting are unchanged.
 
-`love . --hometest` covers distribution, suitability, one-time assignment, persistence, exact-anchor routing, idle timing, full parking, and resuming work. It is part of the bounded action suite.
+Run `love . --test` for the fast check suite.

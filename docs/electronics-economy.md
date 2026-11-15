@@ -28,4 +28,4 @@ All six types use the same service reserve policy as the other manufactured ammu
 
 There is no automatic electronics or raw-material opening stock. Facilities must receive their inputs through existing freight. Rates and batch sizes are initial gameplay tuning values; no new population or arbiter rules are introduced.
 
-`love . --electronicstest` checks source geography/rates, both electronics inputs, electronics freight to Zhongke, missing-electronics blocking for all guided types, and finite missile/torpedo rearming. The existing ammunition check now exercises all sixteen recipes and their shared processing budget.
+Run `love . --test` for the fast check suite.

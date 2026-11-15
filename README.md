@@ -286,9 +286,6 @@ and NPCs**, then open **M**. Blue lines are declared connections. Labels show
 actual trader identity, state, and destination; the debug panel also lists
 travellers in connecting highways. The map shows contacts sharing your highway.
 
-`love . --navtest` runs a real physical departure from a station to a fixed moon
-exit, checks that the ship does not first head to the perimeter, and follows and
-attacks it during powered departure.
 
 Preview poses are render-only; repeated physics transforms on an unstepped world previously caused a native broad-phase crash on return.
 
@@ -446,7 +443,7 @@ offsets; mirrors reflect both heading and entrance position. All settings surviv
 export, reopen and autosave. Automatic geometry remains available for ring
 stations. Data fields: `dockHeading`, `dockX`, `dockY`, `dockWidth`,
 `dockDepth`, `dockRunway`, `dockCapture` (tractor half-width), `dockWall`,
-and `dockBoth`. Run `love . --dockeditortest` for editor/runtime regressions.
+and `dockBoth`.
 
 Circular map edges and transit side boundaries share one response: brake outward
 velocity, then apply the same small inward drift regardless of distance outside.
@@ -1004,6 +1001,4 @@ F6 shows the current action, target, phase and pause/failure reason. See
 
 ## Tests
 
-`love . --actiontest` runs a bounded real-engine action smoke pass: action lifecycle, authorization, salvage pickup/sale and a physical mining drill/tractor check.
-
-`love . --itemusetest` checks usable items (casts, interrupts, cooldowns, field repair limits, buffs). `love . --ramtest` checks crash damage. `love . --smoketest` is a quick A-Life smoke test: NPC lifecycles, faction reputation, reactor fuel and stranding, loose-object records and area persistence, and offline salvage. `love . --navtest` flies a trader on a real physical departure. The Shipyard has its own (`--editortest`, `--editorfoldertest`, `--weaponeditortest`, `--dockeditortest`, `--lighttooltest`, `--painttest`). They check that the systems work, not exact numbers, so rewrite them as the design moves.
+`love . --test` runs the whole suite (`tests/fast.lua`) in about half a minute: every map loads and runs for a second, ten seconds of play on the starting map, a save/load round trip, and one simulated hour of markets. Keep it that small; don't add long soak tests to it.

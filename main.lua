@@ -89,7 +89,7 @@ function love.load(args)
 	-- Headless test runs: print an error and quit instead of showing the
 	-- error screen, which waits for a click and never exits.
 	for _, a in ipairs(args or {}) do
-		if a:match("^%-%-%a+test$") then
+		if (a == "--test" or a:match("^%-%-%a+test$")) then
 			love.errorhandler = function(msg)
 				print("Error: " .. tostring(msg) .. "\n" .. debug.traceback("", 2))
 				os.exit(1)
@@ -119,24 +119,8 @@ function love.load(args)
 	end
 	Debug.init()
 	game = Game.new()
-	-- Test runs: the A-Life smoke test, one navigation test, and the editor's.
-	local suites = {
-		["--smoketest"] = "tests.smoke", ["--actiontest"] = "tests.actions_smoke", ["--navtest"] = "tests.trader_navigation",
-		["--editortest"] = "tests.editor_loadout", ["--editorfoldertest"] = "tests.editor_folders",
-		["--weaponeditortest"] = "tests.weapon_editor", ["--dockeditortest"] = "tests.dock_editor",
-		["--lighttooltest"] = "tests.light_tool", ["--trusstest"] = "tests.truss_tool", ["--satellitetest"] = "tests.satellites", ["--painttest"] = "tests.paint",
-		["--ammotest"] = "tests.weapon_ammo", ["--economytest"] = "tests.economy", ["--ramtest"] = "tests.collisions",
-		["--sitestest"] = "tests.sites", ["--garrisontest"] = "tests.garrison",
-		["--hometest"] = "tests.npc_home", ["--handofftest"] = "tests.npc_handoff",
-		["--foodtest"] = "tests.food",
-		["--chemicaltest"] = "tests.chemicals",
-		["--stockpiletest"] = "tests.stockpile", ["--contracttest"] = "tests.player_contracts", ["--questtest"] = "tests.quests", ["--feedbacktest"] = "tests.economy_feedback", ["--freighttest"] = "tests.freight_capacity", ["--hubtest"] = "tests.logistics_hubs",
-		["--electronicstest"] = "tests.electronics", ["--availabilitytest"] = "tests.availability",
-		["--miningclocktest"] = "tests.mining_clock", ["--industrytest"] = "tests.industry", ["--usedshiptest"] = "tests.used_ships", ["--shipfittest"] = "tests.ship_fit", ["--ranktest"] = "tests.npc_rank", ["--dealertest"] = "tests.dealers", ["--dealerparkingtest"] = "tests.dealer_parking",
-		["--ammunitiontest"] = "tests.ammunition", ["--icontest"] = "tests.item_icons",
-		["--steeltest"] = "tests.steel", ["--benchtest"] = "tests.bench", ["--itemusetest"] = "tests.item_use",
-		["--rockchiptest"] = "tests.rock_chips", ["--prospecttest"] = "tests.prospect",
-	}
+	-- Test run: love . --test (tests/fast.lua, about half a minute).
+	local suites = { ["--test"] = "tests.fast" }
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
  end
