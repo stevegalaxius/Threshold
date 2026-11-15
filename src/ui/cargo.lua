@@ -1631,30 +1631,46 @@ function Cargo.drawPickupTooltip(game)
 	Icons.drawInRect(k.item, ix, iy, S, S, nil, 1, 10)
 end
 
--- A satellite under the cursor, out in space: its name, kind, owner and
--- whether it's working, so you can tell one from another without docking.
-local SAT_KIND = { passive = "Relay satellite", fuel = "Fuel buoy", vendor = "Vending satellite" }
-function Cargo.drawSatTooltip(game)
-	if Cargo.isOpen(game) or game.hoverPickup or not game.camera then return end
-	local Sat = require("src.satellites")
+-- The entity under the cursor that pick(e) accepts, out in space and
+-- within the player's tractor range (like loose cargo), or nil.
+local function hoveredInRange(game, pick)
+	if Cargo.isOpen(game) or game.hoverPickup or not game.camera then return nil end
+	local p = game.player
+	if not (p and not p.dead and p.body) then return nil end
+	local Ship = require("src.ship")
+	local range = Ship.tractorRange(p)
 	local mx, my = love.mouse.getPosition()
 	local wx, wy = game.camera:toWorld(mx, my)
-	local hit
 	for _, e in ipairs(game.entities or {}) do
-		if e.sat and not e.removed and e.body then
-			local dx, dy = e.body:getX() - wx, e.body:getY() - wy
-			local r = (e.radius or 100)
-			if dx * dx + dy * dy < r * r then hit = e break end
+		if e ~= p and not e.removed and not e.dead and e.body and pick(e) then
+			local ex, ey = e.body:getX(), e.body:getY()
+			local r = e.radius or e.halfLength or 100
+			if (ex - wx) ^ 2 + (ey - wy) ^ 2 < r * r and Ship.distanceTo(p, ex, ey) <= range + r then return e end
 		end
 	end
-	-- only within tractor range, like loose cargo
-	local p = game.player
-	if hit and not (p and not p.dead and p.body) then hit = nil end
-	if hit then
-		local Ship = require("src.ship")
-		local range = Ship.tractorRange(p)
-		if Ship.distanceTo(p, hit.body:getX(), hit.body:getY()) > range + (hit.radius or 0) then hit = nil end
-	end
+end
+
+-- A small card of { text, colour } lines beside the cursor.
+local function hoverCard(lines)
+	local f = HUD.font(13)
+	local w = 0
+	for _, l in ipairs(lines) do w = max(w, f:getWidth(l[1])) end
+	local h
+	w, h = w + 20, #lines * 17 + 12
+	local mx, my = love.mouse.getPosition()
+	local sw, sh = lg.getDimensions()
+	local x, y = min(mx + 18, sw - w - 4), max(4, min(my - h / 2, sh - h - 4))
+	HUD.panel(x, y, w, h)
+	lg.setFont(f)
+	for i, l in ipairs(lines) do lg.setColor(l[2]); lg.print(l[1], x + 10, y + 6 + (i - 1) * 17) end
+end
+
+-- A satellite under the cursor: its name, kind, owner and whether it's
+-- working, so you can tell one from another without docking.
+local SAT_KIND = { passive = "Relay satellite", fuel = "Fuel buoy", vendor = "Vending satellite" }
+function Cargo.drawSatTooltip(game)
+	local Sat = require("src.satellites")
+	local hit = hoveredInRange(game, function(e) return e.sat end)
 	local r = hit and Sat.get(game.universe, hit.sat)
 	if not r then return end
 	local lines = { { r.name or hit.name or "Satellite", HUD.INK or { 1, 1, 1 } },
@@ -1664,16 +1680,32 @@ function Cargo.drawSatTooltip(game)
 	local lv = Sat.levers(r)
 	lines[#lines + 1] = r.broken and { "Out of service", { 1, 0.45, 0.35 } }
 		or { lv.dock == "none" and "No docking" or "Docking open", HUD.AQUA }
-	local f = HUD.font(13)
-	local w = 0
-	for _, l in ipairs(lines) do w = max(w, f:getWidth(l[1])) end
-	local h
-	w, h = w + 20, #lines * 17 + 12
-	local sw, sh = lg.getDimensions()
-	local x, y = min(mx + 18, sw - w - 4), max(4, min(my - h / 2, sh - h - 4))
-	HUD.panel(x, y, w, h)
-	lg.setFont(f)
-	for i, l in ipairs(lines) do lg.setColor(l[2]); lg.print(l[1], x + 10, y + 6 + (i - 1) * 17) end
+	hoverCard(lines)
+end
+
+-- A ship under the cursor: its hull and maker, who flies it and from
+-- where, and how much armor it has left.
+function Cargo.drawShipTooltip(game)
+	local hit = hoveredInRange(game, function(e) return e.kind == "ship" and e.hull end)
+	if not hit then return end
+	local hull = hit.hull
+	local lines = { { hull.name or hull.id or "Ship", HUD.INK or { 1, 1, 1 } } }
+	local sub = table.concat({ hull.maker or "", hull.class or "" }, hull.maker and hull.class and ", " or "")
+	if sub ~= "" then lines[#lines + 1] = { sub, HUD.DIM } end
+	local r = hit.alifeId and game.universe and game.universe.npcs and game.universe.npcs[hit.alifeId]
+	if hit.unpiloted then
+		lines[#lines + 1] = { "Unmanned", HUD.DIM }
+	elseif r then
+		local home = r.home and require("src.locations").byId[r.home]
+		lines[#lines + 1] = { (r.label or "Pilot") .. (home and (" from " .. home.name) or ""), HUD.DIM }
+	end
+	if hit.team == 2 then lines[#lines + 1] = { "Hostile", { 1, 0.45, 0.35 } } end
+	local full = hit.stats and hit.stats.armor or 0
+	if full > 0 then
+		local pct = math.floor(100 * (hit.armor or full) / full + 0.5)
+		lines[#lines + 1] = { ("Armor %d%%"):format(pct), pct < 35 and { 1, 0.45, 0.35 } or HUD.AQUA }
+	end
+	hoverCard(lines)
 end
 
 local SLOT_LABEL = { hardpoint = "HARDPOINT", bay = "BAY", engine = "ENGINE",
