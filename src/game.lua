@@ -213,7 +213,7 @@ function Game:loadField(id, opts)
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
-	self.alifeNext, self.alifeRemoteNext = nil, nil
+	self.alifeNext, self.alifeRemoteNext, self.alifeStage = nil, nil, nil
 	if not opts.skipCapture then self:captureArea() end
 	-- Side scenes the trip kept (the planet behind the lane, the one built
 	-- ahead) go with the lane, unless one is the map being adopted.

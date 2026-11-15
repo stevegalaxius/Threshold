@@ -1098,21 +1098,41 @@ function A.install(Game)
    if self.alifeSweep then self:alifeSweepStep(self.alifeSweep.per) end
    -- the economy's minute update, a piece a step (src/economy.lua)
    if not self.sideScene then require('src.economy').pump(self.universe) end
+   -- the rest of this tick's chores, one a step
+   if self.alifeStage then self:alifeChore(clock) end
    return
   end
   self.alifeNext=clock+T.alifeLocalTick
-  Mining.update(self)
-  Population.update(self,clock)
+  -- The tick's chores, in this order: the drills, arrivals, the board and
+  -- the arbiter, the economy and quests, then the ships and records
+  -- themselves. All in the one step they made it a long one twice a second
+  -- (and longer whenever two of them had real work at once), so each takes
+  -- a step of its own, the tick's step first. (force: all now.)
+  self.alifeStage=1
+  if force then while self.alifeStage do self:alifeChore(clock,true) end
+  else self:alifeChore(clock) end
+ end
+ function Game:alifeChore(clock,force)
+  local stage=self.alifeStage
+  self.alifeStage=stage<5 and stage+1 or nil
+  if stage==1 then Mining.update(self) return end
+  if stage==2 then Population.update(self,clock) return end
+  if stage==3 then
+   Tasks.clean(self.universe,clock)
+   require('src.supplies').universe=self.universe
+   require('src.queue').universe=self.universe
+   require('src.arbiter').update(self.universe,clock)
+   return
+  end
+  if stage==4 then
+   -- (spread over the next steps, unless everything is wanted now)
+   if force or self.sideScene then require('src.economy').update(self.universe,clock)
+   else require('src.economy').spread(self.universe,clock) end
+   self.universe.playerDocked=require('src.player_contracts').station(self)
+   require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
+   return
+  end
   local records=self.universe.npcs or {}
-  Tasks.clean(self.universe,clock)
-  require('src.supplies').universe=self.universe
-  require('src.queue').universe=self.universe
-  require('src.arbiter').update(self.universe,clock)
-  -- (spread over the next steps, unless everything is wanted now)
-  if force or self.sideScene then require('src.economy').update(self.universe,clock)
-  else require('src.economy').spread(self.universe,clock) end
-  self.universe.playerDocked=require('src.player_contracts').station(self)
-  require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end

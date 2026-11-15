@@ -80,7 +80,8 @@ function I.scale(u,key,c)
   for _,recipe in ipairs(def.recipes) do if recipe==c.id then
    if def.policy=='orders' then
     local selected=I.job(u,key,id,def)
-    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull)>0 and 1 or 0
+    -- (room for one is all this asks: no need to plan the whole lot full)
+    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull,1)>0 and 1 or 0
    end
    if def.policy=='profit' then return I.state(u,key,id).mix[recipe] or 0 end
    if def.policy=='adaptive' then return (u.industry and u.industry[key] and u.industry[key][recipe] or 1)/#def.recipes end

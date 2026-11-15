@@ -7,32 +7,92 @@ local ANGLES={0,.35,-.35,.7,-.7,1.1,-1.1,pi/2,-pi/2,2.2,-2.2,2.65,-2.65,pi}
 local function wrap(a)return (a+pi)%(2*pi)-pi end
 -- All nearby NPCs can query the same fixture. Reuse world geometry until
 -- its transform or velocity changes; weak keys release destroyed fixtures.
-local fixtureGeometry=setmetatable({},{__mode='k'})
+-- (kept per body, and held there: a fixture handle nobody else keeps is
+-- collected between steps, and a table keyed weakly by fixture alone forgot
+-- every outline as soon as it was made. The body's entry goes with the body.)
+local bodyGeometry=setmetatable({},{__mode='k'})
+-- A fixture's outline in its body's frame never changes, so it is read from
+-- the physics once. Each time the body has moved the world outline is worked
+-- out from that here, into the same tables: a turning station is hundreds
+-- of fixtures, and asking the physics for each one's world points afresh
+-- (and making new tables for them) every step a ship came near was the
+-- larger part of a steering plan.
+local function localShape(fixture)
+ local shape=fixture:getShape();local kind=shape:getType()
+ if kind=='circle' then
+  local cx,cy=shape:getPoint()
+  return {circle=true,x=cx,y=cy,r=shape:getRadius()}
+ elseif kind=='polygon' or kind=='edge' or kind=='chain' then
+  return {chain=kind=='chain',points={shape:getPoints()}}
+ end
+ return {}
+end
+local function bound(o)
+ if o.r then o.minx,o.miny,o.maxx,o.maxy=o.x-o.r,o.y-o.r,o.x+o.r,o.y+o.r
+ else
+  local p=o.p
+  local minx,miny,maxx,maxy=math.huge,math.huge,-math.huge,-math.huge
+  for i=1,#p,2 do
+   local px,py=p[i],p[i+1]
+   if px<minx then minx=px end
+   if px>maxx then maxx=px end
+   if py<miny then miny=py end
+   if py>maxy then maxy=py end
+  end
+  o.minx,o.miny,o.maxx,o.maxy=minx,miny,maxx,maxy
+ end
+end
 local function geometryFor(fixture,body,state)
  local x,y,angle,vx,vy,loose=state.x,state.y,state.angle,state.vx,state.vy,state.loose
- local old=fixtureGeometry[fixture]
+ local store=state.store
+ if not store then
+  store=bodyGeometry[body];if not store then store={n=0,fixtures={}};bodyGeometry[body]=store end
+  state.store=store
+ end
+ local old=store.fixtures[fixture]
  if old and old.x==x and old.y==y and old.angle==angle and old.vx==vx and old.vy==vy and old.loose==loose then return old.shapes end
- local result={};local shape=fixture:getShape();local kind=shape:getType()
- if kind=='circle' then
-  local cx,cy=body:getWorldPoint(shape:getPoint())
-  result[1]={x=cx,y=cy,r=shape:getRadius(),vx=vx,vy=vy,loose=loose}
- elseif kind=='polygon' or kind=='edge' or kind=='chain' then
-  local points={body:getWorldPoints(shape:getPoints())}
-  if kind=='chain' then
-   for i=1,#points-2,2 do result[#result+1]={p={points[i],points[i+1],points[i+2],points[i+3]},vx=vx,vy=vy,loose=loose} end
-  else result[1]={p=points,vx=vx,vy=vy,loose=loose} end
- end
- for _,o in ipairs(result) do
-  if o.r then o.minx,o.miny,o.maxx,o.maxy=o.x-o.r,o.y-o.r,o.x+o.r,o.y+o.r
-  else
-   o.minx,o.miny,o.maxx,o.maxy=math.huge,math.huge,-math.huge,-math.huge
-   for i=1,#o.p,2 do
-    o.minx,o.maxx=min(o.minx,o.p[i]),max(o.maxx,o.p[i])
-    o.miny,o.maxy=min(o.miny,o.p[i+1]),max(o.maxy,o.p[i+1])
+ if not old then old={shape=localShape(fixture)};store.fixtures[fixture]=old;store.n=store.n+1 end
+ local shape=old.shape
+ local c,s=state.cos,state.sin
+ if not c then c,s=cos(angle),sin(angle);state.cos,state.sin=c,s end
+ local result=old.shapes
+ if shape.circle then
+  local o=result and result[1]
+  if not o then o={r=shape.r};result={o} end
+  o.x,o.y=x+shape.x*c-shape.y*s,y+shape.x*s+shape.y*c
+  o.vx,o.vy,o.loose=vx,vy,loose
+  bound(o)
+ elseif shape.points then
+  local points=shape.points
+  if shape.chain then
+   -- one segment per link
+   if not result then
+    result={}
+    for i=1,#points-2,2 do result[#result+1]={p={0,0,0,0}} end
    end
+   local k=0
+   for i=1,#points-2,2 do
+    k=k+1
+    local o=result[k];local p=o.p
+    p[1],p[2]=x+points[i]*c-points[i+1]*s,y+points[i]*s+points[i+1]*c
+    p[3],p[4]=x+points[i+2]*c-points[i+3]*s,y+points[i+2]*s+points[i+3]*c
+    o.vx,o.vy,o.loose=vx,vy,loose
+    bound(o)
+   end
+  else
+   local o=result and result[1]
+   if not o then o={p={}};result={o} end
+   local p=o.p
+   for i=1,#points,2 do
+    p[i],p[i+1]=x+points[i]*c-points[i+1]*s,y+points[i]*s+points[i+1]*c
+   end
+   o.vx,o.vy,o.loose=vx,vy,loose
+   bound(o)
   end
+ else
+  result=result or {}
  end
- fixtureGeometry[fixture]={x=x,y=y,angle=angle,vx=vx,vy=vy,loose=loose,shapes=result}
+ old.x,old.y,old.angle,old.vx,old.vy,old.loose,old.shapes=x,y,angle,vx,vy,loose,result
  return result
 end
 -- Obstacles are gathered per body, not per fixture. A ship hull is a dozen
@@ -65,8 +125,12 @@ local function radiusOf(body,stamp)
  -- (each keeps its measure a different while, 60 to 120 steps: a map's
  -- bodies are all first seen on one step, and measuring them all again
  -- together a second later, every second, was a step several times as long)
+ -- (and what doesn't fly, stations and structures with their hundreds of
+ -- fixtures, keeps it a minute: those were most of the measuring)
  reachTurn=(reachTurn+37)%61
- bodyReach[body]={stamp=stamp or -math.huge,fresh=(stamp or -math.huge)+60+reachTurn,r=r}
+ local keep=60+reachTurn
+ if body:getType()~='dynamic' then keep=keep*60 end
+ bodyReach[body]={stamp=stamp or -math.huge,fresh=(stamp or -math.huge)+keep,r=r}
  return r
 end
 local index={}
@@ -91,7 +155,15 @@ local function expand(group)
  local prims=group.prims
  if prims then return prims end
  prims={}
- for _,fixture in ipairs(group.body:getFixtures()) do
+ local fixtures=group.body:getFixtures()
+ -- (outlines of fixtures the body has since lost: let them go)
+ local store=bodyGeometry[group.body]
+ if store and store.n>#fixtures then
+  for fixture in pairs(store.fixtures) do
+   if fixture:isDestroyed() then store.fixtures[fixture]=nil;store.n=store.n-1 end
+  end
+ end
+ for _,fixture in ipairs(fixtures) do
   if not fixture:isSensor() then
    local o=fixture:getUserData() or group.owner
    if o and (o.dead or o.removed ) then group.anyGone=true end

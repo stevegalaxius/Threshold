@@ -121,11 +121,18 @@ end
 -- stretch that only reads the board), the orders are sorted by source and
 -- good once and each question reads just its own few.
 local scan
-function Transport.beginScan(u) scan={u=u} end
+-- (true if this call opened it: only the one that opened it closes it. A
+-- scan never outlives the instant it was opened in, and Tasks.post, the one
+-- way an order joins the board, has it sorted again: Transport.rescan)
+function Transport.beginScan(u)
+ if scan and scan.u==u and scan.clock==u.clock then return false end
+ scan={u=u,clock=u.clock};return true
+end
 function Transport.endScan() scan=nil end
+function Transport.rescan() if scan then scan.groups=nil end end
 local none={}
 local function ordersFrom(u,source,item)
- if not scan or scan.u~=u or source==nil or item==nil then return nil end
+ if not scan or scan.u~=u or scan.clock~=u.clock or source==nil or item==nil then return nil end
  local groups=scan.groups
  if not groups then
   groups={};scan.groups=groups
@@ -143,8 +150,10 @@ function Transport.reserved(u,source,item,except,includeOpen)
  local n=0
  local group=ordersFrom(u,source,item)
  if group then
+  local offers=Tasks.state(u).offers
   for _,o in ipairs(group) do
-   if (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+o.amount end
+   -- (still on the board, still not loaded: either may have changed since the sort)
+   if offers[o.id]==o and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+o.amount end
   end
   return n
  end
@@ -154,7 +163,7 @@ function Transport.reserved(u,source,item,except,includeOpen)
  end
  return n
 end
-function Transport.scanning(u) return scan~=nil and scan.u==u end
+function Transport.scanning(u) return scan~=nil and scan.u==u and scan.clock==u.clock end
 function Transport.available(u,source,item,except)
  return math.max(0,J.available(u,source,item)-Transport.reserved(u,source,item,except))
 end

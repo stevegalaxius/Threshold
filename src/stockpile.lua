@@ -20,7 +20,8 @@ local L=require('src.locations')
 local Shapes=require('src.inventory.shapes')
 local Hold=require('src.inventory.hold')
 local T=require('src.tuning')
-local S={shopCache={},flowEvery=.25,flowed=0}
+local S={shopCache={},flowEvery=2,flowLate=10,flowsPerStep=3,flowed=0}
+local flowTurn=setmetatable({},{__mode='v'})
 
 function S.key(st) return L.canonical(type(st)=='table' and st.key or st) end
 
@@ -180,13 +181,22 @@ function S.flow(u,key,i,m)
  local place=L.byId[key];if not place or place.kind~='station' then return end
  local record=S.record(u,key)
  if record.productionBusy then return end
- -- Caught up within the last S.flowEvery seconds (and every shop seeded by
+ -- Caught up within the last S.flowEvery seconds of game time (and every shop seeded by
  -- that pass): leave it. Stock is counted many times a step, by the economy
  -- and by every NPC weighing a job, and settling every recipe at every
  -- station on each count was most of the cost of looking. The time skipped
  -- isn't lost: the next pass runs from where the last one stopped.
  local since=record.productionAt and m.flowAt and u.clock-record.productionAt
  if since and since>=0 and since<S.flowEvery then return end
+ -- And only a few stations in any one step: a trader reading the board, or
+ -- the drills, look at every station at once, and catching them all up
+ -- together was a long step. The rest wait their turn (rates are per hour:
+ -- a few seconds make nothing), up to S.flowLate.
+ if since and since>=0 and since<S.flowLate then
+  if flowTurn.u~=u or flowTurn.clock~=u.clock then flowTurn.u,flowTurn.clock,flowTurn.n=u,u.clock,0 end
+  if flowTurn.n>=S.flowsPerStep then return end
+  flowTurn.n=flowTurn.n+1
+ end
  record.productionBusy=true
  local now=u.clock;local previous=record.productionAt or m.flowAt or now
  record.productionAt=now
@@ -196,6 +206,10 @@ function S.flow(u,key,i,m)
  end
  for _,shop in pairs(shops) do shop.flowAt=now end
  local dt=math.max(0,now-previous)
+ -- (every input of every recipe asks what's promised out of here: the
+ -- freight board is sorted once for the lot, src/transport.lua)
+ local Transport=dt>0 and require('src.transport')
+ local opened=Transport and Transport.beginScan(u)
  if dt>0 then
   S.flowed=S.flowed+1
   local Food,C,I=require('src.food'),require('src.commodities'),require('src.industry')
@@ -203,7 +217,10 @@ function S.flow(u,key,i,m)
   if place.uses and place.uses.trade then
    local jobs,inputs={},{}
    for _,c in ipairs(C.list) do
-    local rate=C.rate(c,key)*I.scale(u,key,c)
+    -- (only the recipes this station runs: asking how hard it runs each
+    -- of the others was most of the cost of catching a station up)
+    local rate=C.rate(c,key)
+    if rate~=0 then rate=rate*I.scale(u,key,c) end
     if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
     if rate~=0 and not c.stockless and not c.consumption then
      local shop=shops[S.shopFor(key,c.item)];shop.recipes=shop.recipes or {}
@@ -249,6 +266,7 @@ function S.flow(u,key,i,m)
    end
   end
  end
+ if opened then Transport.endScan() end
  record.productionBusy=nil
 end
 
