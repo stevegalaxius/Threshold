@@ -393,12 +393,6 @@ function E.update(u,clock)
  local reach={}
  local all=stations()
  local fences=Dark.fences()
- local toFence={}
- for _,o in pairs(state.offers) do
-  if o.layoutScope==E.scope and o.state=='available' and o.source and Dark.isFence(o.target) and Dark.isDarkNode(o.source) then
-   local k=o.source..'|'..o.item;toFence[k]=(toFence[k] or 0)+o.amount
-  end
- end
  local inhabited=stations(true)
  require('src.industry').update(u,clock,inhabited)
  planning={u=u,stations={}}
@@ -501,30 +495,30 @@ function E.update(u,clock)
    entry.left=short
   end
   end
-  -- Fences: whatever a dark station holds over its own needs is hauled
-  -- to the nearest fence in bulk lots. There it is spare like any white
-  -- station's stock, so the passes above sell it on into the white network.
-  if #fences>0 then for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
-   local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
-   -- less what is already posted to a fence and not yet picked up
-   local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)-(toFence[s..'|'..item] or 0)
-   if excess>=T.orderMinLoad then
-    local best,bestD
-    for _,f in ipairs(fences) do
-     local k=s..'>'..f
-     if reach[k]==nil then reach[k]=reachable(s,f,clock) end
-     if reach[k] then local d=distance(s,f,clock);if not bestD or d<bestD then best,bestD=f,d end end
-    end
-    local lot=math.max(1,math.floor(T.trunkLot/require('src.data').items[item].volume))
-    while best and excess>=T.orderMinLoad do
-     local n=math.min(lot,excess)
-     Tasks.post(u,Transport.quote({kind='transport',source=s,target=best,item=item,amount=n,stocked=true,
-      layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
-      trunk=true,requires={capabilities={'cargo','bulk'}}},clock,u))
-     spare[s]=spare[s]-n;excess=excess-n
-    end
+  -- Fences: each keeps T.fenceStock of every good the dark stations have
+  -- over what they need, bought from the one with most to spare. Its
+  -- stock over its own needs is spare like any white station's, so the
+  -- passes above sell it on into the white network.
+  for _,f in ipairs(fences) do if spare[f]~=nil then
+   local room=T.fenceStock-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
+   while room>=T.orderMinLoad do
+    local best,most
+    for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
+     local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
+     local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)
+     if excess>=T.orderMinLoad and (not most or excess>most) then
+      local k=s..'>'..f
+      if reach[k]==nil then reach[k]=reachable(s,f,clock) end
+      if reach[k] then best,most=s,excess end
+     end
+    end end
+    if not best then break end
+    local n=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),room,most)
+    Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
+     layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
+    spare[best]=spare[best]-n;room=room-n
    end
-  end end end
+  end end
  end
  u.economyUnmet=unmet
  adjust(u,unmet,all)
