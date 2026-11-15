@@ -40,6 +40,7 @@ local E = {
 	lsel = nil,              -- selected light (index into the selected part's lights)
 	bsel = nil,              -- selected berth (index into design.berths; stations)
 	berthSize = 80,          -- size for new berths
+	shipBerthSize = 40,      -- size for new ship berths on a hull (src/berths.lua)
 	tsel = nil,              -- selected turret (index into design.turrets; stations)
 	turretModule = "gun_m_base",   -- weapon for new turrets
 	view = { x = 0, y = 0, zoom = 3 },

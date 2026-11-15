@@ -681,7 +681,7 @@ function Canvas.mousereleased(E, sx, sy, button)
 	if d and d.kind == "berth" then
 		E.pushUndo()
 		E.design.berths = E.design.berths or {}
-		table.insert(E.design.berths, { x = d.x1, y = d.y1, heading = berthHeading(d.x1, d.y1, d.x2, d.y2), size = E.berthSize })
+		table.insert(E.design.berths, { x = d.x1, y = d.y1, heading = berthHeading(d.x1, d.y1, d.x2, d.y2), size = E.design.kind and E.berthSize or E.shipBerthSize })
 		E.bsel = #E.design.berths
 		return
 	end
@@ -996,7 +996,7 @@ function Canvas.draw(E)
 		end
 		if E.drag and E.drag.kind == "berth" then
 			local d = E.drag
-			pad(d.x1, d.y1, berthHeading(d.x1, d.y1, d.x2, d.y2), E.berthSize, true, 0.5)
+			pad(d.x1, d.y1, berthHeading(d.x1, d.y1, d.x2, d.y2), { size = E.shipBerthSize }, true, 0.5)
 		end
 	end
 	if E.design.kind == "station" then

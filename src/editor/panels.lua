@@ -951,22 +951,51 @@ local function designWindow(E, Editor)
 		Slab.Text("(no drag: it faces out from the centre)", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("Right click a berth to remove it", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("size for new berths")
-		if Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
-		-- a hull's berths: the biggest ship each one carries, in px
-		local b = not E.design.kind and E.bsel and E.design.berths and E.design.berths[E.bsel]
+		if not E.design.kind then
+			if Slab.InputNumberDrag("yard_shipberthsize", E.shipBerthSize, 10, 300, 1, { W = 90 }) then E.shipBerthSize = Slab.GetInputNumber() end
+		elseif Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
+	end
+	-- a hull's ship berths (src/berths.lua): edited like a station's, with
+	-- the Select tool, plus the biggest ship each one carries
+	if not E.design.kind then
+		Slab.Separator()
+		local B = require("src.berths")
+		local berths = E.design.berths or {}
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Ship berths carry whole ships on the outside of this hull.\nDocked, a parked ship that fits loads onto a free berth.\nSize sets the pad: it carries ships up to 2 x size long and 1.1 x size wide.\nLength and width fine-tune that." })
+		Slab.SameLine()
+		Slab.Text(#berths > 0 and ("Ship berths: %d"):format(#berths) or "Ship berths: none")
+		local b = E.bsel and berths[E.bsel]
 		if b then
-			Slab.Text(("Berth %d: biggest ship it carries"):format(E.bsel))
-			local B = require("src.berths")
+			Slab.Text(("Berth %d"):format(E.bsel), { Color = { 0.95, 0.75, 0.25 } })
+			Slab.Text("heading"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthheading", b.heading or 0, 0, 359, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthheading"); b.heading = Slab.GetInputNumber()
+			end
+			Slab.SameLine()
+			Slab.Text("size"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthsz", b.size or 40, 10, 300, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthsz"); b.size = Slab.GetInputNumber(); b.maxLength, b.maxWidth = nil, nil
+			end
 			local len, wid = B.size(b)
-			Slab.Text("length"); Slab.SameLine()
-			if Slab.InputNumberDrag("yard_berthlen", len, 10, 600, 1, { W = 70 }) then b.maxLength = Slab.GetInputNumber() end
-			Slab.SameLine(); Slab.Text("width"); Slab.SameLine()
-			if Slab.InputNumberDrag("yard_berthwid", wid, 10, 400, 1, { W = 70 }) then b.maxWidth = Slab.GetInputNumber() end
+			Slab.Text("length"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthlen", len, 10, 600, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthlen"); b.maxLength = Slab.GetInputNumber()
+			end
+			Slab.SameLine()
+			Slab.Text("width"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthwid", wid, 10, 400, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthwid"); b.maxWidth = Slab.GetInputNumber()
+			end
 			local fits = {}
 			for _, id in ipairs(data.list.hulls) do
-				if B.fitsSize(b, id) and data.hulls[id].playable ~= false then fits[#fits + 1] = data.hulls[id].name end
+				if data.hulls[id].playable ~= false and B.fitsSize(b, id) then fits[#fits + 1] = data.hulls[id].name end
 			end
 			Slab.Textf("Fits: " .. (#fits > 0 and table.concat(fits, ", ") or "nothing"), { W = 260, Color = { 0.6, 0.6, 0.6 } })
+			if Slab.Button("Remove berth") then E.deleteSelected() end
+		elseif #berths > 0 then
+			Slab.Text("Select tool: click a berth to edit or move it", { Color = { 0.6, 0.6, 0.6 } })
+		else
+			Slab.Text("Use the Ship berths tool to place some", { Color = { 0.6, 0.6, 0.6 } })
 		end
 	end
 	if Slab.CheckBox(E.mirrorNew, "Mirror new parts (default for the M box)") then E.mirrorNew = not E.mirrorNew end

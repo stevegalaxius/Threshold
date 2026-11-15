@@ -11,10 +11,10 @@ hull {
 	-- four cradles along the spine, two a side, each for a small ship
 	-- (up to 112 long and 44 wide: Wisp, Dagger, Sprint, Pony and the like)
 	berths = {
-		{ x = -50, y = -38, heading = 0, maxLength = 112, maxWidth = 44 },
-		{ x = 62, y = -38, heading = 0, maxLength = 112, maxWidth = 44 },
-		{ x = -50, y = 38, heading = 0, maxLength = 112, maxWidth = 44 },
-		{ x = 62, y = 38, heading = 0, maxLength = 112, maxWidth = 44 },
+		{ x = -50, y = -38, heading = 0, size = 56, maxWidth = 44 },
+		{ x = 62, y = -38, heading = 0, size = 56, maxWidth = 44 },
+		{ x = -50, y = 38, heading = 0, size = 56, maxWidth = 44 },
+		{ x = 62, y = 38, heading = 0, size = 56, maxWidth = 44 },
 	},
 	loadout = { "gun_m_base", "gun_m_base", "cinder_drive", "forge_reactor", "nav_computer" },
 	maker = "Ferrous Collective",

@@ -152,8 +152,8 @@ function Export.hullDef(design)
 	if design.berths and #design.berths > 0 then
 		def.berths = {}
 		for _, b in ipairs(design.berths) do
-			local len, wid = require("src.berths").size(b)
-			table.insert(def.berths, { x = b.x, y = b.y, heading = (b.heading or 0) ~= 0 and b.heading or nil, maxLength = len, maxWidth = wid })
+			table.insert(def.berths, { x = b.x, y = b.y, heading = (b.heading or 0) ~= 0 and b.heading or nil, size = b.size,
+				maxLength = b.maxLength, maxWidth = b.maxWidth })
 		end
 	end
 	def.parts = {}
