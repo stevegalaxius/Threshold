@@ -275,7 +275,7 @@ local function drawStrip(game)
 		end
 	end
 	lg.setColor(INK)
-	lg.polygon("fill", x0 + sw / 2, y0 + sh - 6, x0 + sw / 2 - 5, y0 + sh + 1, x0 + sw / 2 + 5, y0 + sh + 1)
+	lg.ellipse("fill", x0 + sw / 2, y0 + sh - 1, 6, 3)
 	local planets = planetsOf(game)
 	local all = destinations(game)
 	local picked
