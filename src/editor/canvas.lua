@@ -969,10 +969,12 @@ function Canvas.draw(E)
 		local cx, cy = Canvas.toScreen(E, x, y)
 		local a = math.rad(heading)
 		local c, sn = math.cos(a), math.sin(a)
-		local L, W = size * v.zoom, size * 0.55 * v.zoom
+		local L, W
 		if type(size) == "table" then   -- a hull berth: its own length and width
 			local bl, bw = require("src.berths").size(size)
 			L, W = bl * 0.5 * v.zoom, bw * 0.5 * v.zoom
+		else
+			L, W = size * v.zoom, size * 0.55 * v.zoom
 		end
 		local function pt(u, w) return cx + u * c - w * sn, cy + u * sn + w * c end
 		local x1, y1 = pt(-L, -W); local x2, y2 = pt(L, -W); local x3, y3 = pt(L, W); local x4, y4 = pt(-L, W)
