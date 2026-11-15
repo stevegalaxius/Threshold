@@ -779,6 +779,44 @@ function Canvas.truss(E, x1, y1, x2, y2)
 	return shapes
 end
 
+-- Scale keeping -------------------------------------------------------------
+
+-- every point of a hull's parts, mirrors included
+local function extent(parts)
+	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in ipairs(parts or {}) do
+		local s = p.shape or {}
+		for k = 1, #s - 1, 2 do
+			local x, y = s[k], s[k + 1]
+			x0, x1 = min(x0, x), max(x1, x)
+			y0, y1 = min(y0, y, p.mirror and -y or y), max(y1, y, p.mirror and -y or y)
+		end
+	end
+	if x0 > x1 then return nil end
+	return x0, x1, y0, y1
+end
+Canvas.extent = extent
+
+-- the reference ship from the Compare window, faint, behind the design
+local function drawGhost(E, hull)
+	lg.setLineWidth(1.5 / E.view.zoom)
+	for _, p in ipairs(hull.parts or {}) do
+		if p.shape and #p.shape >= 6 then
+			lg.setColor(1, 0.8, 0.4, 0.06)
+			pcall(lg.polygon, "fill", p.shape)
+			lg.setColor(1, 0.8, 0.4, 0.35)
+			lg.polygon("line", p.shape)
+			if p.mirror then
+				local r = Canvas.reflected(p.shape)
+				lg.setColor(1, 0.8, 0.4, 0.06)
+				pcall(lg.polygon, "fill", r)
+				lg.setColor(1, 0.8, 0.4, 0.35)
+				lg.polygon("line", r)
+			end
+		end
+	end
+end
+
 -- Drawing -------------------------------------------------------------------
 
 local function grid(E)
@@ -820,6 +858,8 @@ function Canvas.draw(E)
 	lg.push()
 	lg.translate(lg.getWidth() / 2 - v.x * v.zoom, lg.getHeight() / 2 - v.y * v.zoom)
 	lg.scale(v.zoom)
+	local ghost = not E.design.kind and require("src.editor.comparison").ghostHull()
+	if ghost then drawGhost(E, ghost) end
 
 	-- Use the chosen default equipment and the same geometry as live ships.
 	local weapons = {}
@@ -1239,6 +1279,16 @@ function Canvas.draw(E)
 	local wx, wy = Canvas.snap(E, Canvas.toWorld(E, mx, my))
 	lg.setColor(1, 1, 1, 0.6)
 	lg.print(("%d, %d   zoom %.1fx"):format(wx, wy, v.zoom), 340, lg.getHeight() - 22)
+	-- the design's size, and the reference's, so scale is never a guess
+	if not E.design.kind then
+		local function size(parts)
+			local x0, x1, y0, y1 = extent(parts)
+			return x0 and ("%d x %d px"):format(x1 - x0, y1 - y0) or "--"
+		end
+		local text = "size " .. size(E.design.parts)
+		if ghost then text = text .. ("    outline: %s %s"):format(ghost.name or ghost.id, size(ghost.parts)) end
+		lg.print(text, 340, lg.getHeight() - 40)
+	end
 	lg.pop()
 end
 

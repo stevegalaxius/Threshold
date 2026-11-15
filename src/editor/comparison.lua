@@ -4,7 +4,7 @@ local data=require('src.data')
 local Ship=require('src.ship')
 local T=require('src.tuning')
 local Export=require('src.editor.export')
-local C={open=false,emptyHolds=false,previews={}}
+local C={open=false,emptyHolds=false,ghost=false,previews={}}
 local function world()
  if not C.world or C.world:isDestroyed() then
   C.world=love.physics.newWorld(0,0,true)
@@ -102,6 +102,7 @@ function C.update(E)
    end
    Slab.EndComboBox()
   end
+  if Slab.CheckBox(C.ghost,'Show its outline on the canvas (stays when this window closes)') then C.ghost=not C.ghost end
   if Slab.CheckBox(C.emptyHolds,'Empty holds on both ships') then C.emptyHolds=not C.emptyHolds end
   Slab.Text('Uses fitted default modules. Handling matches F1; speeds are relative to the local current.')
   Slab.Text('Afterburner speed is the full-power maximum before capacitor reserve mode.')
@@ -133,5 +134,9 @@ function C.update(E)
  end
  Slab.EndWindow()
  if not C.open then C.clear() end
+end
+-- The ship picked above, as the canvas should draw it behind the design.
+function C.ghostHull()
+ return C.ghost and C.selected and data.hulls[C.selected] or nil
 end
 return C
