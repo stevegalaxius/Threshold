@@ -349,7 +349,7 @@ local HELP = {
 	"(pick each slot's fire group and ammo in the hold)",
 	"E tractor beam",
 	"G fly a drone (drone uplink)",
-	"Q field repair (steel plates, patch kits)",
+	"Q patch hull (patch kits)",
 	"U in the hold: use the item under the mouse",
 	"tap E open wreck/container   hold E tow",
 	"Tab cargo hold   M local map",
@@ -374,7 +374,7 @@ end
 -- y: where the list starts (default near the top; screens over the
 -- game pass a spot that doesn't cover them)
 -- The bar under the ship while an item is being used (src/item_use.lua),
--- and a line per running effect (nanites, overdrive).
+-- and a line per running effect (a heal or buff over time).
 local function drawCast(game)
 	local p = game.player
 	if not p or p.dead then return end

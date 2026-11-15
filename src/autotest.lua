@@ -433,7 +433,7 @@ function A.update(game, dt)
 				local H = require("src.inventory.hold")
 				local item = require("src.data").items.cargo_container
 				local inner = H.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
-				H.fill(inner, { water_ice = 20, salvage_kit = 6 })
+				H.fill(inner, { water_ice = 20, gold_ore = 6 })
 				require("src.ship").ensureGridHold(e)
 				assert(H.placeStack(e.hold, { id = "cargo_container", n = 1, inner = inner }), "no room in the Hauler for a container")
 				game:damage(e, 1e9)
@@ -645,7 +645,7 @@ function A.update(game, dt)
 		local p = game.player
 		Cargo.tab = "market"
 		Cargo.update(game)
-		Hold.add(p.hold, "salvage_kit", 1)
+		Hold.add(p.hold, "gold_ore", 1)
 		local L = Cargo.layout(game)
 		local mine, trade, shelf
 		for _, gr in ipairs(L.grids) do
@@ -654,7 +654,7 @@ function A.update(game, dt)
 			if gr.side.market then shelf = gr end
 		end
 		local kit
-		for _, s in ipairs(mine.g.stacks) do if s.id == "salvage_kit" then kit = s end end
+		for _, s in ipairs(mine.g.stacks) do if s.id == "gold_ore" then kit = s end end
 		local function at(gr, cx, cy) return gr.x + (cx + 0.5) * L.cs, gr.y + (cy + 0.5) * L.cs end
 		local kx, ky = at(mine, kit.x, kit.y)
 		Cargo.mousepressed(game, kx, ky, 1, { ctrl = true })   -- ctrl-click: onto the trade grid
