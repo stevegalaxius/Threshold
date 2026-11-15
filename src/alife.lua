@@ -158,7 +158,7 @@ local function neighbours(area)
  return result
 end
 
-function A.createTrader(game,area,i)
+function A.createTrader(game,area,i,group)
  local u,f=game.universe,Fields[area]
  local kinds={'freighter','packhorse_trader','runner_trader'}
  local kind=kinds[(i-1)%#kinds+1]
@@ -172,7 +172,7 @@ function A.createTrader(game,area,i)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
- require('src.npc_templates').apply(r,'trader',area)
+ require('src.npc_templates').apply(r,group or 'trader',area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)
  -- Every trader works the dispatch board (transport jobs to other regions,
@@ -520,7 +520,8 @@ local function shipRecord(e)
  return {hull=s.hull,loadout=copy(s.loadout),armor=s.armor,color=copy(s.color),
   loads=copy(s.loads),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,
-  cargo=copy(s.cargo or e.cargo or {}),hold=s.hold and Hold.serialize(s.hold)}
+  cargo=copy(s.cargo or e.cargo or {}),hold=s.hold and Hold.serialize(s.hold),
+  carried=s.carried and copy(s.carried) or nil}   -- ships on its berths (src/berths.lua)
 end
 -- End ownership before destroying a body; drawing can run before the next tick.
 -- A nil reason only unloads the representation, preserving its live record.
@@ -802,6 +803,7 @@ function A.wake(game,r)
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
  e.npcCruise=r.speed
+ if s.carried then e.carried=copy(s.carried);Ship.updateMass(e) end   -- ships on its berths
  Fuel.observe(game.universe,r,game.universe.clock,e)
  e.alifeRecord=r;e.alifeGame=game
  e.fleeing=r.fleeing
@@ -1206,6 +1208,7 @@ function A.install(Game)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end
+require('src.ship_delivery')   -- ship haulers: their population and task
 Population.register('trader',{
  -- the area's base, plus whatever the arbiter says its open hauls need
  target=function(f,area) return L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) end,

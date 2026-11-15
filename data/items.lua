@@ -136,6 +136,10 @@ salvage { id = "electronics", name = "Electronics", volume = 0.1, mass = 0.05, p
 
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
 salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
+-- Delicate cargo (delicate = true) only rides in a climate-controlled
+-- compartment: a hull's climate hold or a fitted Climate Pod.
+salvage { id = "medical_supplies", name = "Medical supplies", delicate = true, volume = 0.25, mass = 0.1, price = 320, w = 1, h = 1, stack = 4,
+	description = "Vaccines, blood and tissue cultures. Spoils outside a climate-controlled hold." }
 salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 30, w = 1, h = 1, stack = 4 }
 salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
 salvage { id = "explosives", name = "Explosives", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }

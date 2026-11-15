@@ -40,6 +40,7 @@ local E = {
 	lsel = nil,              -- selected light (index into the selected part's lights)
 	bsel = nil,              -- selected berth (index into design.berths; stations)
 	berthSize = 80,          -- size for new berths
+	shipBerthSize = 40,      -- size for new ship berths on a hull (src/berths.lua)
 	tsel = nil,              -- selected turret (index into design.turrets; stations)
 	turretModule = "gun_m_base",   -- weapon for new turrets
 	view = { x = 0, y = 0, zoom = 3 },
@@ -514,7 +515,8 @@ function E.switchCategory(cat)
 		E.view.zoom = cat == "station" and 0.25 or (cat == "weapon" and 12 or 3)
 		if cat == "icon" then E.fitIconView() end
 	end
-	if (E.tool == "berth" or E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
+	if E.tool == "berth" and cat ~= "station" and cat ~= "hull" then E.tool = "select" end
+	if (E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 	if E.tool == "muzzle" and cat ~= "weapon" then E.tool = "select" end
 end
 

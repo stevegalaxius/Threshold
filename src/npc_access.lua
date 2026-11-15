@@ -8,7 +8,9 @@ function A.owner(area)
 end
 function A.capabilities(r)
  local hold=data.hulls[r.ship.hull].hold or 0
- local c={cargo=hold>0,bulk=hold>=require('src.tuning').trunkMinHold}
+ local c={cargo=hold>0,bulk=hold>=require('src.tuning').trunkMinHold,
+  climate=require('src.ship').climateSpace(data.hulls[r.ship.hull],r.ship.loadout)>0,
+  berths=#(data.hulls[r.ship.hull].berths or {})>0}   -- carries ships (src/berths.lua)
  for _,id in pairs(r.ship.loadout or {}) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w then

@@ -27,6 +27,10 @@ local D={recipes={
  {id='pump_water',group='resources',item='water',opening=0,cap=1200},
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
+ -- Medical supplies: made at Earth from electronics and water, used up
+ -- by the far stations; delicate, so only climate holds carry them.
+ {id='make_medical',item='medical_supplies',opening=0,batch=4,cap=128,inputs={{item='electronics',n=1},{item='water',n=1}}},
+ {id='use_medical',market=false,item='medical_supplies',cap=96},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
  -- Ice: the ice moons cut it from their crusts (abstract extraction, like
@@ -60,13 +64,13 @@ recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe
 -- list price.
 D.lineups={
  mack={'mack_mustang','mack_burro','mack_longhorn'},
- ferrous={'ferrous_pony','ferrous_mule','ferrous_bison'},
+ ferrous={'ferrous_pony','ferrous_mule','ferrous_bison','ferrous_bison_carrier'},
  brute={'brute_anvil','brute_nautilus'},
  amw={'amw_sprint','amw_sprint_fat','amw_wayfarer','amw_wayfarer_fat'},
  redfu={'redfu_crane','redfu_pelican','redfu_gila'},
  intaki={'intaki_wisp','intaki_praetor','intaki_archangel'},
 }
-D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_pony=1,ferrous_mule=2,ferrous_bison=3,
+D.assemblyFrames={mack_mustang=2,mack_burro=2,mack_longhorn=3,ferrous_pony=1,ferrous_mule=2,ferrous_bison=3,ferrous_bison_carrier=3,
  brute_anvil=2,brute_nautilus=3,intaki_wisp=1,intaki_praetor=3,intaki_archangel=4,
  amw_sprint=1,amw_sprint_fat=1,amw_wayfarer=2,amw_wayfarer_fat=2,redfu_crane=1,redfu_pelican=2,redfu_gila=3}
 -- Parts per ship beyond its frames: two electronics per 5k of list price,
@@ -77,6 +81,7 @@ D.assemblyParts={mack_mustang={electronics=13,steel=7},
  ferrous_pony={electronics=9,steel=3},
  ferrous_mule={electronics=20,steel=9},
  ferrous_bison={electronics=28,steel=18},
+ ferrous_bison_carrier={electronics=30,steel=16},
  brute_anvil={electronics=16,steel=5},
  brute_nautilus={electronics=29,steel=16},
  amw_sprint={electronics=11,steel=2},

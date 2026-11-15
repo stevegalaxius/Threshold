@@ -284,6 +284,7 @@ T.population = {
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  miner={minDelay=180,maxDelay=300},
+ ship_hauler={minDelay=240,maxDelay=420},
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail

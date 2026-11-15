@@ -491,6 +491,7 @@ function Game:sellShip(st, i)
 	local list = self:hangar(st)
 	local rec = list[i]
 	if not rec then return nil, "NO SUCH SHIP" end
+	if rec.carried and next(rec.carried) then return nil, "UNLOAD ITS BERTHS FIRST" end
 	local paid = Game.shipSellPrice(rec)
 	table.remove(list, i)
 	self.universe.credits = self.universe.credits + paid

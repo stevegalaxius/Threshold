@@ -192,7 +192,7 @@ function Canvas.berthAt(E, sx, sy)
 	for i, b in ipairs(E.design.berths or {}) do
 		local bx, by = Canvas.toScreen(E, b.x, b.y)
 		local d = sqrt((bx - sx) ^ 2 + (by - sy) ^ 2)
-		local reach = max(10, b.size * 0.5 * E.view.zoom)
+		local reach = max(10, (b.size or b.maxLength or 80) * 0.5 * E.view.zoom)
 		if d <= reach and (not bd or d < bd) then best, bd = i, d end
 	end
 	return best
@@ -681,7 +681,7 @@ function Canvas.mousereleased(E, sx, sy, button)
 	if d and d.kind == "berth" then
 		E.pushUndo()
 		E.design.berths = E.design.berths or {}
-		table.insert(E.design.berths, { x = d.x1, y = d.y1, heading = berthHeading(d.x1, d.y1, d.x2, d.y2), size = E.berthSize })
+		table.insert(E.design.berths, { x = d.x1, y = d.y1, heading = berthHeading(d.x1, d.y1, d.x2, d.y2), size = E.design.kind and E.berthSize or E.shipBerthSize })
 		E.bsel = #E.design.berths
 		return
 	end
@@ -969,7 +969,13 @@ function Canvas.draw(E)
 		local cx, cy = Canvas.toScreen(E, x, y)
 		local a = math.rad(heading)
 		local c, sn = math.cos(a), math.sin(a)
-		local L, W = size * v.zoom, size * 0.55 * v.zoom
+		local L, W
+		if type(size) == "table" then   -- a hull berth: its own length and width
+			local bl, bw = require("src.berths").size(size)
+			L, W = bl * 0.5 * v.zoom, bw * 0.5 * v.zoom
+		else
+			L, W = size * v.zoom, size * 0.55 * v.zoom
+		end
 		local function pt(u, w) return cx + u * c - w * sn, cy + u * sn + w * c end
 		local x1, y1 = pt(-L, -W); local x2, y2 = pt(L, -W); local x3, y3 = pt(L, W); local x4, y4 = pt(-L, W)
 		lg.setColor(0.95, 0.75, 0.25, alpha)
@@ -981,6 +987,17 @@ function Canvas.draw(E)
 		local hx, hy = pt(max(L, 8) + 2, -5); local kx, ky = pt(max(L, 8) + 2, 5)
 		lg.line(hx, hy, ax, ay, kx, ky)
 		lg.circle("fill", cx, cy, sel and 4 or 3)
+	end
+	if not E.design.kind then   -- a hull's ship berths
+		for i, b in ipairs(E.design.berths or {}) do
+			pad(b.x, b.y, b.heading or 0, b, E.bsel == i, E.bsel == i and 1 or 0.7)
+			local cx, cy = Canvas.toScreen(E, b.x, b.y)
+			lg.print("B" .. i, cx + 6, cy + 4)
+		end
+		if E.drag and E.drag.kind == "berth" then
+			local d = E.drag
+			pad(d.x1, d.y1, berthHeading(d.x1, d.y1, d.x2, d.y2), { size = E.shipBerthSize }, true, 0.5)
+		end
 	end
 	if E.design.kind == "station" then
 		for i, b in ipairs(E.design.berths or {}) do

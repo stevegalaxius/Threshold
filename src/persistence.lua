@@ -15,7 +15,8 @@ function P.copy(value)
 end
 
 local function known(id) return data.items[id] ~= nil end
-local function selected(e) return e.kind == "husk" or e.kind == "container" end
+-- (unpiloted ships: thrown off a dead carrier's berths, src/berths.lua)
+local function selected(e) return e.kind == "husk" or e.kind == "container" or (e.kind == "ship" and e.unpiloted) end
 local function partIndex(hull, part)
 	for i, p in ipairs(hull.parts) do if p == part then return i end end
 end
@@ -107,6 +108,14 @@ local function record(game, e)
 	local body = e.body
 	local x, y = body:getPosition()
 	local vx, vy = body:getLinearVelocity()
+	if e.kind == "ship" then
+		-- an unpiloted ship: its whole ship record, as plain tables
+		local s = require("src.ship").record(e)
+		s.hold = s.hold and Hold.serialize(s.hold) or nil
+		return { kind = "ship", id = identify(game, e), x = x, y = y, vx = vx, vy = vy,
+			angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
+			radius = e.halfLength, ship = P.copy(s) }
+	end
 	local mx, my, mass, inertia = body:getMassData()
 	local r = { kind = e.kind, id = identify(game, e), x = x, y = y, vx = vx, vy = vy,
 		angle = body:getAngle(), spin = body:getAngularVelocity(), orbit = orbit(game, x, y),
@@ -223,8 +232,21 @@ function P.install(Game)
 		for _, saved in ipairs(snapshot.objects or {}) do
 			local r = advanced(self, saved, math.max(0, self.universe.clock - snapshot.capturedAt))
 			local e
-			local hold = Hold.deserialize(r.hold, known)
-			if r.kind == "container" and known(r.item) then
+			local hold = r.hold and Hold.deserialize(r.hold, known)
+			if r.kind == "ship" then
+				local s = r.ship or {}
+				if data.hulls[s.hull] then
+					local ship = require("src.ship").new(self, { hull = s.hull, loadout = s.loadout, triggers = s.triggers, loads = s.loads,
+						cargo = s.cargo, hold = s.hold and Hold.deserialize(s.hold, known), armor = s.armor, color = s.color,
+						fuelCharge = s.fuelCharge, fuelInitialized = s.fuelInitialized, power = s.power, team = 0,
+						x = r.x, y = r.y, angle = r.angle })
+					ship.unpiloted, ship.repairOrder, ship.persistenceId = true, s.repairOrder, r.id
+					ship.body:setLinearVelocity(r.vx, r.vy)
+					ship.body:setAngularVelocity(r.spin or 0)
+					table.insert(self.entities, ship)
+					self:stepOutOfStations(ship)
+				end
+			elseif r.kind == "container" and known(r.item) then
 				e = self:spawnContainer(r.x, r.y, r.item, false, hold)
 			elseif r.kind == "husk" then
 				local hull = (r.source == "wreck" and data.wrecks or data.hulls)[r.hull]

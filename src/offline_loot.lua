@@ -38,8 +38,8 @@ end
 local function recipient(r)
  local hull=data.hulls[r.ship.hull]
  local actor={hull=hull,loadout=r.ship.loadout,cargo=r.ship.cargo or {},stats=Stats.compute(hull,r.ship.loadout)}
- if r.ship.hold then actor.hold=Hold.deserialize(r.ship.hold) else
-  actor.hold=Hold.new(Ship.holdLayout(actor))
+ if r.ship.hold then actor.hold=Hold.deserialize(r.ship.hold);actor.hold.climateRules=true else
+  actor.hold=Hold.new(Ship.holdLayout(actor),true)
   for id,n in pairs(actor.cargo) do if Hold.add(actor.hold,id,n)~=n then return end end
  end
  return actor.hold

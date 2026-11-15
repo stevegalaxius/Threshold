@@ -19,6 +19,10 @@ local Templates={
   authorizations={{kind='police',issuer='$owner',jurisdiction='$area'}}},
  pirate={job='raider',network='dark',purchase={role='pirate',budget=150000,requires={armed=true}},label='Raider',profile='raider',homePurpose='pirateBase',archetype='pirate_wisp',roamingHome=true},
 }
+-- Ship haulers buy any hull with berths (src/berths.lua) and move new
+-- ships from the shipyards to dealer lots (src/ship_delivery.lua).
+Templates.ship_hauler={job='hauler',network='white',purchase={role='trader',budget=400000,requires={berths=true}},label='Ship Hauler',
+ profile='ship_hauler',homePurpose='trade',mobile=true}
 Templates.JOBS={hauler=true,miner=true,raider=true,guard=true}
 Templates.NETWORKS={white=true,dark=true}
 -- Older saves: the retired salvager group becomes a scavenging hauler.

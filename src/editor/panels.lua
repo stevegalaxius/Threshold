@@ -17,17 +17,17 @@ local PREVIEWS = { normal = "Normal", wreck = "Wreck", collision = "Collision", 
 
 -- Hull stats the design can set over its base hull (see data/hulls.lua and data/ships/).
 local STATS = {
+	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 	{ "mass", "mass (t)", "Dry weight in tonnes. Heavier = slower to accelerate and turn.", 1, 5000, 5, 0 },
 	{ "armor", "armor", "Hit points of the hull itself.", 10, 5000, 10, 0 },
+	{ "toughness", "toughness", "Crash damage is divided by this (default 1; 2 = half). Light ships already take the most, since their speed changes most.", 0.1, 10, 0.05, 2 },
 	{ "hold", "hold (m3)", "Cargo space in cubic metres.", 0, 1000, 1, 0 },
 	{ "drag", "drag", "Quadratic drag. Top speed = sqrt(thrust x 100 / drag), so lower drag = faster.", 0.01, 5, 0.01, 2 },
 	{ "turnSpeed", "turn rate (deg/s)", "Top spin speed.", 10, 720, 5, 0 },
 	{ "turnResponse", "turn response (s)", "Seconds to reach the turn rate from still, empty hold and stock fit. Cargo and heavier modules stretch it by the extra mass. Unset: measured from the old torque model.", 0.02, 10, 0.01, 2 },
 	{ "sideThrust", "maneuvering (kN)", "Built-in side thrust; turn-mode hulls use it for turning.", 0, 5000, 10, 0 },
 	{ "spoolTime", "spool (s)", "Seconds for the main engine to reach full thrust. A slight ramp makes heavy hulls feel heavy. 0 = instant.", 0, 3, 0.05, 2 },
-	{ "toughness", "toughness", "Crash damage is divided by this (default 1; 2 = half). Light ships already take the most, since their speed changes most.", 0.1, 10, 0.05, 2 },
 	{ "turretTurn", "turret (deg/s)", "How fast turret-mounted guns swing round. Only matters when mount is turret.", 10, 720, 5, 0 },
-	{ "price", "price", "Credits to buy it.", 0, 1000000, 500, 0 },
 }
 local FAMILIES = { "hardpoint", "bay", "engine", "reactor", "utility" }
 local SIZES = { "S", "M", "L" }
@@ -869,6 +869,7 @@ local function designWindow(E, Editor)
 	Slab.Separator()
 	Slab.Text("Tool")
 	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" }, { "light", "Lights (L)" } }
+	if not E.design.kind then table.insert(tools, { "berth", "Ship berths" }) end   -- hulls: berths that carry ships (src/berths.lua)
 	if E.design.kind == "station" then
 		table.insert(tools, { "berth", "Berths" })
 		table.insert(tools, { "turret", "Turrets" })
@@ -950,7 +951,52 @@ local function designWindow(E, Editor)
 		Slab.Text("(no drag: it faces out from the centre)", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("Right click a berth to remove it", { Color = { 0.6, 0.6, 0.6 } })
 		Slab.Text("size for new berths")
-		if Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
+		if not E.design.kind then
+			if Slab.InputNumberDrag("yard_shipberthsize", E.shipBerthSize, 10, 300, 1, { W = 90 }) then E.shipBerthSize = Slab.GetInputNumber() end
+		elseif Slab.InputNumberDrag("yard_berthsize", E.berthSize, 20, 400, 2, { W = 90 }) then E.berthSize = Slab.GetInputNumber() end
+	end
+	-- a hull's ship berths (src/berths.lua): edited like a station's, with
+	-- the Select tool, plus the biggest ship each one carries
+	if not E.design.kind then
+		Slab.Separator()
+		local B = require("src.berths")
+		local berths = E.design.berths or {}
+		Slab.Button("?", { W = 18, H = 18, Tooltip = "Ship berths carry whole ships on the outside of this hull.\nDocked, a parked ship that fits loads onto a free berth.\nSize sets the pad: it carries ships up to 2 x size long and 1.1 x size wide.\nLength and width fine-tune that." })
+		Slab.SameLine()
+		Slab.Text(#berths > 0 and ("Ship berths: %d"):format(#berths) or "Ship berths: none")
+		local b = E.bsel and berths[E.bsel]
+		if b then
+			Slab.Text(("Berth %d"):format(E.bsel), { Color = { 0.95, 0.75, 0.25 } })
+			Slab.Text("heading"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthheading", b.heading or 0, 0, 359, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthheading"); b.heading = Slab.GetInputNumber()
+			end
+			Slab.SameLine()
+			Slab.Text("size"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthsz", b.size or 40, 10, 300, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthsz"); b.size = Slab.GetInputNumber(); b.maxLength, b.maxWidth = nil, nil
+			end
+			local len, wid = B.size(b)
+			Slab.Text("length"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthlen", len, 10, 600, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthlen"); b.maxLength = Slab.GetInputNumber()
+			end
+			Slab.SameLine()
+			Slab.Text("width"); Slab.SameLine({ Pad = 4 })
+			if Slab.InputNumberDrag("yard_shipberthwid", wid, 10, 400, 1, { W = 70 }) then
+				E.pushUndoCoalesced("yard_shipberthwid"); b.maxWidth = Slab.GetInputNumber()
+			end
+			local fits = {}
+			for _, id in ipairs(data.list.hulls) do
+				if data.hulls[id].playable ~= false and B.fitsSize(b, id) then fits[#fits + 1] = data.hulls[id].name end
+			end
+			Slab.Textf("Fits: " .. (#fits > 0 and table.concat(fits, ", ") or "nothing"), { W = 260, Color = { 0.6, 0.6, 0.6 } })
+			if Slab.Button("Remove berth") then E.deleteSelected() end
+		elseif #berths > 0 then
+			Slab.Text("Select tool: click a berth to edit or move it", { Color = { 0.6, 0.6, 0.6 } })
+		else
+			Slab.Text("Use the Ship berths tool to place some", { Color = { 0.6, 0.6, 0.6 } })
+		end
 	end
 	if Slab.CheckBox(E.mirrorNew, "Mirror new parts (default for the M box)") then E.mirrorNew = not E.mirrorNew end
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
@@ -989,8 +1035,58 @@ local function designWindow(E, Editor)
 		Slab.Text("Unchanged stats come from")
 		combo("yard_base", base and base.name or "?", opts, function(id) E.pushUndo(); E.setBase(id) end, 200)
 		Slab.Text("Picking one resets stats and slots, keeps the shape.", { Color = { 0.6, 0.6, 0.6 } })
+		local function climateRow()
+			-- a climate-controlled compartment (src/ship.lua holdLayout): the only
+			-- place delicate cargo rides; w x h cells on top of the hold
+			local comps = E.stat("compartments") or {}
+			local cw, ch = 0, 0
+			for _, c in ipairs(comps) do if c.kind == "climate" then cw, ch = c[1] or c.w or 0, c[2] or c.h or 0 end end
+			Slab.Button("?", { W = 18, H = 18, Tooltip = "A climate-controlled hold: w x h cells (1 m3 each) on top of the main hold.\nDelicate cargo (medical supplies) only rides here or in a Climate Pod.\n0 x 0: none." })
+			Slab.SameLine()
+			Slab.Text("climate hold" .. (d.stats.compartments ~= nil and " *" or "")); Slab.SameLine({ Pad = 4 })
+			local function setClimate(w, h)
+				E.pushUndo()
+				local out = {}
+				for _, c in ipairs(comps) do if c.kind ~= "climate" then out[#out + 1] = c end end
+				if w > 0 and h > 0 then out[#out + 1] = { kind = "climate", w, h, name = "Climate hold" } end
+				d.stats.compartments = out
+			end
+			if Slab.InputNumberDrag("yard_climate_w", cw, 0, 40, 1, { W = 50, Precision = 0 }) then setClimate(math.floor(Slab.GetInputNumber()), math.max(ch, 1)) end
+			Slab.SameLine(); Slab.Text("x"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_climate_h", ch, 0, 40, 1, { W = 50, Precision = 0 }) then setClimate(math.max(cw, 1), math.floor(Slab.GetInputNumber())) end
+			if d.stats.compartments ~= nil then
+				Slab.SameLine()
+				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's climate hold" }) then E.pushUndo(); d.stats.compartments = nil end
+			end
+		end
+		-- the main hold as a grid, w x h cells of 1 m3 (hull.holdGrid); its
+		-- volume (hold) follows
+		local function holdRow()
+			local Shapes = require("src.inventory.shapes")
+			local g = E.stat("holdGrid")
+			local hw, hh
+			if g then hw, hh = g[1], g[2] else hw, hh = Shapes.gridFor(E.stat("hold") or 0) end
+			if (E.stat("hold") or 0) <= 0 and not g then hw, hh = 0, 0 end
+			Slab.Button("?", { W = 18, H = 18, Tooltip = "The main hold: w x h cells, 1 m3 each. Cargo Pods add grids of their own.\n0 x 0: no hold." })
+			Slab.SameLine()
+			local own = d.stats.holdGrid ~= nil or d.stats.hold ~= nil
+			Slab.Text("hold (m3) " .. hw * hh .. (own and " *" or "")); Slab.SameLine({ Pad = 4 })
+			local function setHold(w, h)
+				E.pushUndo()
+				if w > 0 and h > 0 then d.stats.holdGrid, d.stats.hold = { w, h }, w * h
+				else d.stats.holdGrid, d.stats.hold = nil, 0 end
+			end
+			if Slab.InputNumberDrag("yard_hold_w", hw, 0, 60, 1, { W = 50, Precision = 0 }) then setHold(math.floor(Slab.GetInputNumber()), math.max(hh, 1)) end
+			Slab.SameLine(); Slab.Text("x"); Slab.SameLine()
+			if Slab.InputNumberDrag("yard_hold_h", hh, 0, 60, 1, { W = 50, Precision = 0 }) then setHold(math.max(hw, 1), math.floor(Slab.GetInputNumber())) end
+			if own then
+				Slab.SameLine()
+				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's value" }) then E.pushUndo(); d.stats.holdGrid, d.stats.hold = nil, nil end
+			end
+		end
 		for _, st in ipairs(STATS) do
 			local key, label, help = st[1], st[2], st[3]
+			if key == "hold" then holdRow(); climateRow() else
 			Slab.Button("?", { W = 18, H = 18, Tooltip = help })
 			Slab.SameLine()
 			local own = d.stats[key]
@@ -1009,6 +1105,7 @@ local function designWindow(E, Editor)
 			if own ~= nil then
 				Slab.SameLine()
 				if Slab.Button("x", { W = 18, H = 18, Tooltip = "Back to the base hull's value" }) then E.pushUndo(); d.stats[key] = nil end
+			end
 			end
 		end
 		local mopts = {}

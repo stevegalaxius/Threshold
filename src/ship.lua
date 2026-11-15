@@ -134,6 +134,7 @@ function Ship.record(e)
 		fuelCharge=e.fuelCharge, fuelInitialized=e.fuelInitialized, power=e.power,
 		repairOrder=e.repairOrder and copy(e.repairOrder) or nil,
 		armor = e.armor, color = e.color and copy(e.color) or nil,
+		carried = e.carried and next(e.carried) and e.carried or nil,   -- ships on its berths (src/berths.lua)
 	}
 end
 
@@ -235,7 +236,11 @@ end
 
 -- The grids a ship's hold is made of: the hull's main hold (hull.holdGrid
 -- = { w, h }, or a shape picked from its size), then one grid per fitted
--- module with hold space (Cargo Pods), in slot order.
+-- module with hold space (Cargo Pods, Climate Pods), in slot order.
+-- Compartments: a hull can list extra built-in grids in
+-- hull.compartments = { { kind = "climate", w, h, name } }; a climate
+-- compartment (or a Climate Pod, module.climate) is the only place
+-- delicate cargo can ride. Their cells are on top of hull.hold.
 function Ship.holdLayout(e)
 	local layout, pods = {}, 0
 	for i in ipairs(e.hull.slots) do
@@ -243,14 +248,31 @@ function Ship.holdLayout(e)
 		if m and (m.hold or 0) > 0 then
 			pods = pods + m.hold
 			local w, h = Shapes.gridFor(m.hold)
-			table.insert(layout, { key = "slot" .. i, name = m.name, w = w, h = h })
+			table.insert(layout, { key = "slot" .. i, name = m.name, w = w, h = h, climate = m.climate or nil })
 		end
 	end
 	local g = e.hull.holdGrid
 	local w, h
 	if g then w, h = g[1], g[2] else w, h = Shapes.gridFor(e.stats.hold - pods) end
 	table.insert(layout, 1, { key = "hull", name = "Main hold", w = w, h = h })
+	for i, c in ipairs(e.hull.compartments or {}) do
+		table.insert(layout, 1 + i, { key = "comp" .. i, name = c.name or (c.kind == "climate" and "Climate hold" or "Hold"),
+			w = c[1] or c.w, h = c[2] or c.h, climate = c.kind == "climate" or nil })
+	end
 	return layout
+end
+
+-- Cubic metres of climate-controlled space a hull and loadout have.
+function Ship.climateSpace(hull, loadout)
+	local n = 0
+	for _, c in ipairs(hull.compartments or {}) do
+		if c.kind == "climate" then n = n + (c[1] or c.w) * (c[2] or c.h) end
+	end
+	for _, id in pairs(loadout or {}) do
+		local m = id and data.modules[id]
+		if m and m.climate then n = n + (m.hold or 0) end
+	end
+	return n
 end
 
 -- Build the grid hold, or rebuild it after a refit. Grids that didn't
@@ -262,7 +284,7 @@ function Ship.layoutHold(e)
 	if e.hold then
 		e.hold, left = Hold.relayout(e.hold, Ship.holdLayout(e))
 	else
-		e.hold = Hold.new(Ship.holdLayout(e))
+		e.hold = Hold.new(Ship.holdLayout(e), true)
 		left = Hold.fill(e.hold, e.cargo)
 	end
 	e.holdOverflow = e.holdOverflow or {}
@@ -274,13 +296,19 @@ end
 -- A grid hold first catches up with any change made to e.cargo (weapons
 -- firing, the debug panel), and then counts cells instead of volume.
 function Ship.updateMass(e)
-	if e.hold then Hold.sync(e.hold, e.cargo) end
+	if e.hold then
+		e.hold.climateRules = true   -- (holds saved before compartments)
+		Hold.sync(e.hold, e.cargo)
+	end
 	local volume, cargoMass = stats.cargo(e.cargo)
 	e.holdUsed = volume
 	if e.hold then
 		e.holdUsed, e.holdCap = Hold.cells(e.hold)
 		cargoMass = cargoMass + Hold.innerMass(e.hold, data.items)   -- what loaded containers carry
 	end
+	local Berths = require('src.berths')
+	cargoMass = cargoMass + Berths.mass(e)   -- ships riding on its berths
+	if e.body and (e.carried or e.berthFixtures) then Berths.syncFixtures(e) end
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.spinRadius or e.hull.radius
@@ -339,7 +367,7 @@ end
 -- Upgrade a count-only NPC hold only when every existing item fits the real grids.
 function Ship.ensureGridHold(e)
  if e.hold then return true end
- local hold=Hold.new(Ship.holdLayout(e))
+ local hold=Hold.new(Ship.holdLayout(e),true)
  for id,n in pairs(e.cargo or {}) do if Hold.add(hold,id,n)~=n then return false end end
  e.hold=hold;e.gridHold=true
  return true

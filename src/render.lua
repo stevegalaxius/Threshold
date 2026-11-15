@@ -1122,6 +1122,7 @@ local function drawShip(game, e)
 	for _, w in ipairs(e.weapons) do
 		if w.mount == "turret" then barrel(w) end
 	end
+	require('src.berths').draw(e, outline)   -- ships riding on its berths
 	lg.pop()
 
 	-- Armor bar for damaged enemies

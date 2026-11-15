@@ -309,6 +309,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	p.repairOrder=rec.repairOrder
+	if rec.carried then p.carried=rec.carried;Ship.updateMass(p) end
 	table.insert(self.entities, p)
 	self.player = p
 	self.state = "playing"
@@ -1907,7 +1908,17 @@ function Game:updateTow(dt)
 	local p = self.player
 	local c = p and not p.dead and p.towTarget
 	if not c then return end
-	if c.removed or c.dead or p.dockState then p.towTarget = nil return end
+	if c.removed or c.dead or p.dockState then
+		if c.berthTow then require("src.berths").stopTow(c) end
+		p.towTarget = nil return
+	end
+	-- an unpiloted ship being tractored onto a berth (src/berths.lua)
+	if c.berthTow then
+		local r = require("src.berths").stepTow(self, p, c, dt)
+		if r == "done" then self:toast(c.hull.name:upper() .. " CLAMPED ON", 1.4); p.towTarget = nil
+		elseif r == "lost" then self:toast("TOW LOST", 1.2); p.towTarget = nil end
+		return
+	end
 	local px, py = p.body:getPosition()
 	local cx, cy = c.body:getPosition()
 	local dx, dy = px - cx, py - cy
@@ -2262,6 +2273,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
 	if e and (e.invulnerable or e.dockState) then return end
+	-- a hit on a ship riding a carrier's berth damages that ship instead
+	if e and e.carried and amount > 0 and require('src.berths').hit(self, e, amount, hx, hy, source) then return end
 	-- a working satellite takes hits as a whole, like a ship; once it's
 	-- knocked out it's a wreck and breaks apart like one (src/satellites.lua)
 	if e and e.sat and not e.dead and amount>0 then
@@ -2411,11 +2424,34 @@ function Game:updatePickups(dt)
 				end
 			end
 		end
-		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil } end
+		-- an unpiloted ship under the cursor, with a berth of yours it fits:
+		-- hold the beam to reel it aboard (src/berths.lua)
+		local berthShip
+		if pressed and not best and not self.hoverLoot then
+			local B = require("src.berths")
+			for _, o in ipairs(self.entities) do
+				if o.kind == "ship" and o.unpiloted and not o.dead and not o.removed then
+					local ox, oy = o.body:getPosition()
+					local d = sqrt((ox - it.aimX) ^ 2 + (oy - it.aimY) ^ 2)
+					if d < (o.halfLength or 30) + grab and Ship.distanceTo(p, ox, oy) - (o.halfLength or 30) < range then
+						if B.towable(p, o) then berthShip = o else self:toast("NO FREE BERTH FITS IT", 1.2) end
+						break
+					end
+				end
+			end
+		end
+		if pressed then p.tractorPress = { t = self.time, loot = (not best) and self.hoverLoot or nil, berthShip = berthShip } end
 		local press = p.tractorPress
 		local e = press and press.loot
 		if e and (e.removed or e.dead) then
 			p.tractorPress, e = nil, nil
+		end
+		local bs = press and press.berthShip
+		if bs and it.tractor and self.time - press.t >= T.tapTime and p.towTarget ~= bs and not bs.removed then
+			if require("src.berths").startTow(p, bs) then
+				p.towTarget = bs
+				self:toast("TRACTORING ONTO YOUR BERTH", 1.2)
+			end
 		end
 		if e then
 			local held = self.time - press.t
@@ -2427,7 +2463,10 @@ function Game:updatePickups(dt)
 				self.openLoot = e
 			end
 		end
-		if released then p.tractorPress, p.towTarget = nil, nil end
+		if released then
+			if p.towTarget and p.towTarget.berthTow then require("src.berths").stopTow(p.towTarget) end
+			p.tractorPress, p.towTarget = nil, nil
+		end
 	end
 
 	local target = alive and p.tractorTarget
@@ -2637,6 +2676,8 @@ function Game:reap()
 				self:shake(1)
 				events.emit("death", e)
 			end
+			-- ships on its berths fly off unpiloted (src/berths.lua)
+			if e.carried then require("src.berths").release(self, e) end
 			e.body:destroy()
 			e.removed = true
 			table.remove(self.entities, i)

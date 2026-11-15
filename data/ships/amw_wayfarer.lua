@@ -6,6 +6,8 @@ hull {
 	class = "Yacht",
 	drag = 0.28,
 	hold = 50,
+	-- a heated passenger and medical bay beside the main hold
+	compartments = { { kind = "climate", 4, 2, name = "Climate hold" } },
 	loadout = { "missile_s_base", "mule_engine", "kiln_reactor", "hold_pod_s", "hold_pod_s", "tug_beam", "nav_computer" },
 	maker = "Angelmaschinenwerft",
 	description = "A nimble mid-size luxury cruiser from Angelmaschinenwerft, built to travel in comfort and still dance.",
