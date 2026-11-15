@@ -204,28 +204,61 @@ function G.wreckPoint(w,clock)
  return G.point(G.build(w.area),{from=w.from,to=w.to},w.progress,clock)
 end
 
-function G.length(graph,edge,clock)
- if endpoint(edge.from) or endpoint(edge.to) then
+local function lengthBetween(x,y,xx,yy,fromEnd,toEnd)
+ if fromEnd or toEnd then
   -- Integrate speed along the polar curve without sampling NPC positions:
   -- remote simulation only needs a duration, not a flight-path pose.
-  local x,y=G.position(graph,edge.from,clock)
-  local xx,yy=G.position(graph,edge.to,clock)
   local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
   local angle=delta(atan2(y,x),atan2(yy,xx))
-  local outgoing=endpoint(edge.to)
   local length=0
   for i=1,64 do
    local p=(i-.5)/64
-   local turnRate=3*(outgoing and (1-p)^2 or p^2)
+   local turnRate=3*(toEnd and (1-p)^2 or p^2)
    length=length+sqrt((rr-r)^2+((r+(rr-r)*p)*angle*turnRate)^2)/64
   end
   return length
  end
- local x,y=G.position(graph,edge.from,clock)
- local xx,yy=G.position(graph,edge.to,clock)
  local r,rr=sqrt(x*x+y*y),sqrt(xx*xx+yy*yy)
  local arc=delta(atan2(y,x),atan2(yy,xx))*(r+rr)/2
  return sqrt((rr-r)^2+arc^2)
+end
+function G.length(graph,edge,clock)
+ local x,y=G.position(graph,edge.from,clock)
+ local xx,yy=G.position(graph,edge.to,clock)
+ return lengthBetween(x,y,xx,yy,endpoint(edge.from),endpoint(edge.to))
+end
+
+-- Where everything in an area is at one instant, worked out once and shared
+-- by every route planned there at that instant. A plan asks where each node
+-- is for every node it passes, and a burst of plans (the economy's pairs, a
+-- trader weighing jobs) all ask at the same clock: placing every node again
+-- for each was most of what planning cost. Neighbours, corridor attachments
+-- and leg lengths are filled in as they're first asked for.
+local function snapshot(graph,clock)
+ local s=graph.snap
+ if s and s.clock==clock then return s end
+ s={clock=clock,x={},y={},angle={},neighbours={},attachment={},length={}}
+ for _,id in ipairs(graph.order) do
+  local x,y=G.position(graph,id,clock)
+  s.x[id],s.y[id],s.angle[id]=x,y,atan2(y,x)
+ end
+ if not graph.ends then
+  -- (what kind of node each is never changes while the graph stands)
+  graph.ends,graph.ladder={},{}
+  for _,id in ipairs(graph.order) do graph.ends[id]=endpoint(id) end
+  for _,a in ipairs(Fields[graph.area].ladderIds or {}) do graph.ladder[a]=true end
+ end
+ graph.snap=s
+ return s
+end
+local function legLength(graph,s,edge)
+ local from=s.length[edge.from];if not from then from={};s.length[edge.from]=from end
+ local n=from[edge.to]
+ if not n then
+  n=lengthBetween(s.x[edge.from],s.y[edge.from],s.x[edge.to],s.y[edge.to],graph.ends[edge.from],graph.ends[edge.to])
+  from[edge.to]=n
+ end
+ return n
 end
 
 -- Recover progress on the ship's existing journey, without changing topology.
@@ -265,24 +298,27 @@ end
 -- T.directLinkAngle. Flights follow the planet's curve, so they never cross
 -- it; gates and mass drivers keep their authored approaches, and ladder
 -- anchors never link to each other (the cables run between them).
-local function ordinary(id) return not endpoint(id) end
+-- (the list is shared between plans at the same instant: read it, don't change it)
 function G.neighbours(graph,id,clock)
+ local s=snapshot(graph,clock)
+ local result=s.neighbours[id]
+ if result then return result end
  local links=graph.nodes[id].links
- if not ordinary(id) then return links end
+ if graph.ends[id] then s.neighbours[id]=links;return links end
  local T=require('src.tuning')
- local f=Fields[graph.area];local ladder={}
- for _,a in ipairs(f.ladderIds or {}) do ladder[a]=true end
- local x,y=G.position(graph,id,clock)
- local result,seen={},{}
+ local ladder=graph.ladder
+ local angle=s.angle[id]
+ local seen={}
+ result={}
  for _,edge in ipairs(links) do result[#result+1]=edge;seen[edge.to]=true end
  for _,other in ipairs(graph.order) do
-  if other~=id and not seen[other] and ordinary(other) and not (ladder[id] and ladder[other]) then
-   local xx,yy=G.position(graph,other,clock)
-   if math.abs(delta(atan2(y,x),atan2(yy,xx)))<=T.directLinkAngle then
+  if other~=id and not seen[other] and not graph.ends[other] and not (ladder[id] and ladder[other]) then
+   if math.abs(delta(angle,s.angle[other]))<=T.directLinkAngle then
     result[#result+1]={from=id,to=other,direct=true}
    end
   end
  end
+ s.neighbours[id]=result
  return result
 end
 
@@ -291,9 +327,11 @@ function G.route(graph,from,to,clock,speed,exact)
  local starts, goals=graph.destinations[from],graph.destinations[to]
  if exact and starts and goals then starts,goals={from},{to} end
  if not starts or not goals then return nil,'destination is outside this local graph' end
- local attachments={}
- for _,id in ipairs(graph.order) do
-  attachments[id]=G.attachment(graph,id,clock)
+ local s=snapshot(graph,clock)
+ local attachments=s.attachment
+ if not s.attached then
+  for _,id in ipairs(graph.order) do attachments[id]=G.attachment(graph,id,clock) end
+  s.attached=true
  end
  local dist,prev,done={}, {}, {}
  for _,id in ipairs(starts) do dist[id]=0 end
@@ -315,7 +353,7 @@ function G.route(graph,from,to,clock,speed,exact)
     -- the Heaven-Ladder's anchors sit in the planet's pull: only ships
     -- bound for the ladder go there, never as a shortcut across Mars
     and (not L.get(edge.to).radial or goalSet[edge.to]) then
-    local nextCost=cost+G.length(graph,edge,clock)/(speed or 600)
+    local nextCost=cost+legLength(graph,s,edge)/(speed or 600)
     if not dist[edge.to] or nextCost<dist[edge.to] then
      dist[edge.to]=nextCost; prev[edge.to]={edge=edge,duration=nextCost-cost}
     end
