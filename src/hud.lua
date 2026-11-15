@@ -176,6 +176,65 @@ local function drawTopBar(game)
 	end
 end
 
+-- Bearing strip along the top: centred on where the ship points, it shows
+-- the cardinal directions (N is screen-up) and pips for the planet, mass
+-- drivers, stations and exits, each with its distance.
+local STRIP_SPAN = math.pi * 2 / 3          -- +-60 degrees either side of the nose
+local function drawStrip(game)
+	local p = game.player
+	if not p or p.dead or not p.body or p.body:isDestroyed() or game.state == "docked" then return end
+	local w = lg.getWidth()
+	local sw, sh = 440, 26
+	local x0, y0 = max(412, (w - sw) / 2), 12
+	local px, py = p.body:getPosition()
+	local nose = p.body:getAngle()
+	local function rel(a) return (a - nose + math.pi) % (2 * math.pi) - math.pi end
+	local function sx(a) return x0 + sw / 2 + rel(a) / STRIP_SPAN * sw end
+	panel(x0, y0, sw, sh)
+	lg.setScissor(x0, y0, sw, sh + 40)
+	lg.setFont(font(12))
+	-- ticks every 15 degrees, letters on the cardinals (N = -y)
+	for i = 0, 23 do
+		local a = -math.pi / 2 + i * math.pi / 12
+		if math.abs(rel(a)) <= STRIP_SPAN / 2 then
+			local x = sx(a)
+			local card = ({ [0] = "N", [6] = "E", [12] = "S", [18] = "W" })[i]
+			lg.setColor(DIM)
+			if card then
+				lg.setColor(INK)
+				lg.printf(card, x - 10, y0 + 6, 20, "center")
+			else
+				lg.line(x, y0 + sh - (i % 2 == 0 and 9 or 5), x, y0 + sh - 2)
+			end
+		end
+	end
+	lg.setColor(INK)
+	lg.polygon("fill", x0 + sw / 2, y0 + sh - 6, x0 + sw / 2 - 5, y0 + sh + 1, x0 + sw / 2 + 5, y0 + sh + 1)
+	local function pip(wx, wy, col, label)
+		local dx, dy = wx - px, wy - py
+		local a = atan2(dy, dx)
+		local r = rel(a)
+		local x = math.abs(r) <= STRIP_SPAN / 2 and sx(a) or (r > 0 and x0 + sw - 6 or x0 + 6)
+		local d = sqrt(dx * dx + dy * dy)
+		lg.setColor(col[1], col[2], col[3], math.abs(r) <= STRIP_SPAN / 2 and 0.95 or 0.45)
+		lg.rectangle("fill", x - 2, y0 + 2, 4, 6)
+		if math.abs(r) <= STRIP_SPAN / 2 and label then
+			lg.setFont(font(10))
+			lg.printf(label .. " " .. floor(d / 100) / 10 .. "k", x - 60, y0 + sh + 3, 120, "center")
+			lg.setFont(font(12))
+		end
+	end
+	for _, e in ipairs(game.entities) do
+		if e.body and not e.body:isDestroyed() and (e.kind == "planet" or e.kind == "driver" or (e.kind == "station" and e.dock)) then
+			local x, y = e.body:getPosition()
+			local col = e.kind == "planet" and { 0.9, 0.7, 0.5 } or e.kind == "driver" and (e.color or { 0.55, 0.85, 1 }) or { 1, 0.8, 0.45 }
+			pip(x, y, col, e.kind == "planet" and (e.name or "Planet") or e.kind == "driver" and (e.gate and e.name or "Driver") or e.name)
+		end
+	end
+	for _, g in ipairs(game.moonGates or {}) do pip(g.x, g.y, { 0.6, 0.85, 1 }, g.label) end
+	lg.setScissor()
+end
+
 local HELP = {
 	"W engine  S retro  A/D side",
 	"mouse aim (ship points at it)",
@@ -275,13 +334,13 @@ local function drawOffscreen(game)
 	local fnt = lg.getFont()
 	local planets = {}
 	for _, e in ipairs(game.entities) do
-		if e.kind == "planet" and e.body and e.radius then
+		if e.kind == "planet" and e.body and not e.body:isDestroyed() and e.radius then
 			local x, y = e.body:getPosition()
 			planets[#planets + 1] = { x = x, y = y, r = e.radius }
 		end
 	end
 	local px, py = cam.x, cam.y
-	if game.player and game.player.body then px, py = game.player.body:getPosition() end
+	if game.player and game.player.body and not game.player.body:isDestroyed() then px, py = game.player.body:getPosition() end
 	-- a straight line to the target that cuts through a planet points at a
 	-- spot just off the limb instead, on the side the line passes nearest
 	local function detour(wx, wy)
@@ -326,7 +385,7 @@ local function drawOffscreen(game)
 			local tx, ty = cam:toScreen(detour(wx, wy))
 			local a = atan2(ty - cy, tx - cx)
 			local ex = cos(a) ~= 0 and ((cos(a) > 0 and w - m or m) - cx) / cos(a) or math.huge
-			local ey = sin(a) ~= 0 and ((sin(a) > 0 and h - m or m) - cy) / sin(a) or math.huge
+			local ey = sin(a) ~= 0 and ((sin(a) > 0 and h - m or m + 40) - cy) / sin(a) or math.huge
 			local t = min(ex, ey)
 			local ax, ay = cx + cos(a) * t, cy + sin(a) * t
 			lg.setColor(col[1], col[2], col[3], 0.85)
@@ -616,6 +675,7 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 	drawCatch(game)
 	if not uiOpen then drawHoldGrid(game) end
 	drawTopBar(game)
+	drawStrip(game)
 	drawDeath(game)
 	if uiOpen then return end            -- the cargo screen covers the rest; main draws toasts on top of it
 	drawStatus(game)
