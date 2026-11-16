@@ -4,9 +4,8 @@ icon {
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
 		{ name = "crate", x = 0, y = 0, z = 0, w = 1, d = 0.6, h = 0.7, color = { 0.7, 0.72, 0.74 } },
 		{ name = "lid", x = -0.03, y = -0.03, z = 0.7, w = 1.06, d = 0.66, h = 0.1, color = { 0.8, 0.82, 0.84 } },
-		{ name = "handle", x = 0.3, y = 0.24, z = 0.8, w = 0.4, d = 0.12, h = 0.04, color = { 0.36, 0.37, 0.4 } },
-		{ name = "skid", x = 0.08, y = -0.02, z = -0.02, w = 0.84, d = 0.04, h = 0.08, color = { 0.36, 0.37, 0.4 } },
-		{ name = "band", x = 0, y = -0.02, z = 0.3, w = 1, d = 0.02, h = 0.12, color = { 0.3, 0.45, 0.7 } },
+		{ name = "handle", x = 0.3, y = 0.24, z = 0.8, w = 0.4, d = 0.12, h = 0.04, color = { 0.36, 0.37, 0.4 }, layer = "detail" },
+		{ name = "band", x = 0, y = -0.01, z = 0.3, w = 1, d = 0.01, h = 0.12, color = { 0.3, 0.45, 0.7 }, layer = "detail" },
 	},
 	parts = {
 		{ name = "heap", shape = { 1.8, 7.6, 3.2, 5.2, 5, 3.6, 6.8, 5.2, 8.2, 7.6 }, color = { 0.92, 0.94, 0.97 }, badge = true },
