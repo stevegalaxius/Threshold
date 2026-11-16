@@ -262,13 +262,55 @@ function Sat.ensureHubs(universe)
 		end
 	end
 end
+-- The hub is launched beside its buoy (the buoy itself is unchanged),
+-- Sat.hubOffset further out from the planet, into a free orbit: a physical
+-- satellite like the rest, of data/wrecks/trade_hub.lua, that drifts, can
+-- be bumped and shot, and is saved with the area. Destroyed, it gets a
+-- launch job like any satellite, and the replacement goes up by its buoy.
+Sat.hubOffset = 1100
 function Sat.hubs(game)
-	Sat.ensureHubs(game.universe)
+	local u = game.universe
+	Sat.ensureHubs(u)
+	local present = {}
 	for _, e in ipairs(game.entities) do
-		if e.kind == "buoy" and e.locationId and not e.removed then
-			local r = Sat.get(game.universe, Sat.hubId(e.locationId))
-			if r then e.sat, e.name = r.id, r.name end
+		if e.sat and e.hubOf and not e.removed then present[e.sat] = e end
+		if e.sat and not e.hubOf and not e.removed and e.kind ~= "buoy" and e.sat:match("^hub:") then present[e.sat] = e end
+		if e.kind == "buoy" and e.sat then e.sat, e.name = nil, nil end -- builds before the hub had its own body
+	end
+	for _, b in ipairs(game.entities) do
+		if b.kind == "buoy" and b.locationId and not b.removed then
+			local r = Sat.get(u, Sat.hubId(b.locationId))
+			if r and data.wrecks[r.design] then
+				local e = present[r.id]
+				if not e and not r.lost then
+					local x, y = Sat.hubPosition(game, b.locationId)
+					local w = game.well
+					local cx, cy = w and w.x or 0, w and w.y or 0
+					local alt, a = math.sqrt((x - cx) ^ 2 + (y - cy) ^ 2), math.atan2(y - cy, x - cx)
+					-- launched at its buoy's angular rate, so it keeps company
+					local bvx, bvy = require("src.locations").velocity(b.locationId, u.clock)
+					local k = alt / math.max(1, alt - Sat.hubOffset)
+					e = game:spawnWreck(r.design, x, y, a + math.pi / 2, bvx * k, bvy * k)
+					if e then r.spawnedAt = u.clock or 0 end
+				end
+				if e then
+					Sat.adopt(e, r)
+					e.hubOf = b.locationId
+				end
+			end
 		end
+	end
+end
+function Sat.hubPosition(game, locationId)
+	local x, y = require("src.locations").position(locationId, game.universe.clock)
+	local d = math.max(1, math.sqrt(x * x + y * y))
+	return x + x / d * Sat.hubOffset, y + y / d * Sat.hubOffset
+end
+-- The hub's live body for a buoy node, if its map is loaded.
+function Sat.hubEntity(game, node)
+	local id = Sat.hubId(node)
+	for _, e in ipairs(game.entities or {}) do
+		if e.sat == id and e.hubOf and not e.removed and e.body and not e.body:isDestroyed() then return e end
 	end
 end
 
@@ -336,7 +378,7 @@ end
 function Sat.npcDock(game, e, stop)
 	local u = game.universe
 	local r = e.alifeId and u.npcs[e.alifeId]
-	if not r or e.dockState or not stop.sat or not Sat.hubRoom(u, stop.locationId, r) then return false end
+	if not r or e.dockState or not stop.hubOf or not Sat.hubRoom(u, stop.hubOf, r) then return false end
 	local taken = {}
 	for _, o in ipairs(game.entities) do
 		local ds = o ~= e and not o.dead and not o.removed and o.dockState
@@ -419,7 +461,11 @@ end
 -- its seeded layout slot, about the planet (the map's origin).
 function Sat.home(universe, r, game)
 	local L = require("src.locations")
-	if r.hub then return L.position(r.hub, universe.clock or 0) end
+	if r.hub then
+		local x, y = L.position(r.hub, universe.clock or 0)
+		local d = math.max(1, math.sqrt(x * x + y * y))
+		return x + x / d * Sat.hubOffset, y + y / d * Sat.hubOffset
+	end
 	if not r.alt then
 		local Fields = require("src.fields")
 		for _, slot in ipairs(Sat.layout(r.field, Fields[r.field])) do
@@ -491,9 +537,9 @@ end
 -- berths are either side of the bus.
 local function berthOffset(e, ship, side)
 	local lx, ly = e.body:getLocalPoint(ship.body:getPosition())
-	if e.kind == "buoy" then
+	if e.hubOf then
 		side = side or (lx < 0 and -1 or 1)
-		return side * (340 * (e.propScale or 1) + (ship.halfLength or 40) + 30), 0
+		return side * (340 + (ship.halfLength or 40) + 30), 0
 	end
 	side = side or (ly < 0 and -1 or 1)
 	return 0, side * ((e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40)
@@ -506,11 +552,11 @@ function Sat.request(game, e)
 	if not r or not p or p.dead or p.dockState then return false end
 	local held = e.satHeld
 	local npcOn = held and held.alifeRecord and held.alifeRecord.action and held.alifeRecord.action.operation == "satservice"
-	if e.kind ~= "buoy" and held and held ~= p and not held.dead and not held.removed and (held.dockState or npcOn) then game:toast("BERTH OCCUPIED", 1.4); return false end
+	if not e.hubOf and held and held ~= p and not held.dead and not held.removed and (held.dockState or npcOn) then game:toast("BERTH OCCUPIED", 1.4); return false end
 	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
 	local st = Sat.station(game, e)
 	local side
-	if e.kind == "buoy" then
+	if e.hubOf then
 		local taken = {}
 		for _, o in ipairs(game.entities) do
 			local ds = o ~= p and not o.dead and not o.removed and o.dockState

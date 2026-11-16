@@ -463,10 +463,15 @@ local function trade(game, e, dt)
 		-- buoys are passed by; stations are docked at (Game:updateDocking
 		-- catches it on the runway and moves it on after it launches)
 		-- a trade-buoy hub on a service visit: lock on at a berth (src/satellites.lua)
-		if e.alifeId and stop.kind=="buoy" and stop.sat and d < (stop.radius or 450)+600 then
+		if e.alifeId and stop.kind=="buoy" and d < 2500 then
 			local rec=game.universe.npcs[e.alifeId]
-			if rec and rec.service and require("src.upkeep").isStation(rec,stop.locationId)
-				and require("src.satellites").npcDock(game,e,stop) then it.thrust,it.strafe=0,0;return end
+			local Sat=require("src.satellites")
+			local hub=rec and rec.service and require("src.upkeep").isStation(rec,stop.locationId) and Sat.hubEntity(game,stop.locationId)
+			-- (it drifts in its own orbit: dock only if it's still near its buoy)
+			if hub then
+				local hx,hy=hub.body:getPosition()
+				if (hx-x)^2+(hy-y)^2<4000^2 and Sat.npcDock(game,e,hub) then it.thrust,it.strafe=0,0;return end
+			end
 		end
 		if d < 450 and not stop.dock and not stop.hold and not queued then
 			if e.alifeId and Security.visit(game,e,stop,require("src.alife")) then return end

@@ -629,12 +629,9 @@ local function drawBuoy(game, e)
   local scale=e.propScale or 1
   local col=def.color or {.55,.63,.74}
   lg.push();lg.translate(x,y);lg.rotate(e.body:getAngle());lg.scale(scale)
-  -- a trade-buoy hub out of fuel (src/satellites.lua) goes dim
-  local r=e.sat and game.universe and game.universe.satellites and game.universe.satellites[e.sat]
-  local dry=r and r.fuel and r.fuel<=0
   HullShape.draw(def,col,function(c)return {c[1]*.37,c[2]*.37,c[3]*.37} end,
-   function(c)return dry and {c[1]*.6,c[2]*.6,c[3]*.6} or c end,outline(2)/scale)
-  HullShape.drawLights(def,game.time,screenPx/scale,nil,nil,nil,dry and {damage=.85} or nil)
+   function(c)return c end,outline(2)/scale)
+  HullShape.drawLights(def,game.time,screenPx/scale)
   lg.pop()
   return
  end
