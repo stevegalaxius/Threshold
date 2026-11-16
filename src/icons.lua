@@ -223,8 +223,8 @@ end
 --   hull    dark fill + bright contour (default)
 --   detail  flat darker fill, no contour (bands, seams, panel lines)
 --   glow    filled bright and additive (lights, fuses, hot bits)
---   glass   see-through: a translucent tint over what's behind, with a
---           faint edge, so lines behind it stay their colour, only tinted
+--   glass   see-through: a dark tint over what's behind (dimmed to a
+--           quarter) inside an outline in its colour
 -- col is the primary paint (default: the item's kind colour).
 -- A part with badge = true is a hold-only marker (what's in a generic
 -- crate): drawn in the hold and the editor, left out when space is true.
@@ -262,11 +262,13 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh, space)
 				local tris = triangles(s, fresh)
 				if layer == "glass" then
 					if tris then
-						lg.setColor(pc[1], pc[2], pc[3], alpha * 0.45)
+						-- mostly opaque and darker than its edge: what's behind shows
+						-- through dimmed, never brighter than the glass's own outline
+						lg.setColor(pc[1] * 0.45, pc[2] * 0.45, pc[3] * 0.45, alpha * 0.75)
 						for _, tri in ipairs(tris) do lg.polygon("fill", tri) end
 					end
-					lg.setColor(pc[1], pc[2], pc[3], alpha * 0.8)
-					lg.setLineWidth(lineWidth * 0.6)
+					lg.setColor(pc[1], pc[2], pc[3], alpha)
+					lg.setLineWidth(lineWidth)
 					lg.polygon("line", s)
 				elseif layer == "glow" then
 					lg.setBlendMode("add")
