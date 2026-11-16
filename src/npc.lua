@@ -225,7 +225,7 @@ function N.beginRoute(ctx,action)
   if not require('src.alife').redirect(r,target,ctx.clock,x,y) then return false end
  else
   local from=r.node or r.route[r.index]
-  local route=G.itinerary(from,target,ctx.clock);if not route then return false end
+  local route=G.live(from,target,ctx.clock);if not route then return false end
   ctx.startingAction=true;go(r,route,ctx.clock,ctx);ctx.startingAction=nil
  end
  if ctx.e then require('src.alife').bindRoute(ctx.game,ctx.e,r) end
@@ -241,7 +241,7 @@ function N.travel(game,r,target,clock)
   Actions.cancel(ctx,'new destination')
   N.routeAction(ctx)
  else
-  local route=G.itinerary(r.node or r.route[r.index],target,clock)
+  local route=G.live(r.node or r.route[r.index],target,clock)
   if not route then return false end
   go(r,route,clock,ctx)
  end
@@ -253,7 +253,7 @@ end
 local function returnHome(r,node,at,ctx)
  local home=require('src.npc_home').get(r,ctx.u)
  if not home or home==node then return false end
- local route=G.itinerary(node,home,at,true)
+ local route=G.live(node,home,at,true)
  if not route then r.taskStatus='waiting for a route home';return false end
  Trace.note(r,at,'npc','no work at '..node..' -> returning home to '..home)
  r.taskStatus='returning home';r.waitingHomeBerth=nil

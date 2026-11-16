@@ -175,6 +175,25 @@ function U.plan(r,clock,e)
    out,route,crossing=go,{at,prev},true
   end
  end
+ -- Rejoin the role's route where it's quickest from the station, not
+ -- always at `at`: when the way on lies past the station, coming back to
+ -- `at` first flew the ship back over ground it was about to cover again.
+ local rejoin=r.index
+ if not idle and not trip then
+  local saved=r.route;local along=0;local best
+  for k=r.index,#saved do
+   local id=saved[k]
+   if L.get(id).area~=r.area then break end
+   if k>r.index then
+    local kind=L.get(saved[k-1]).kind
+    if kind=='driver' or kind=='moon_gate' then break end
+    along=along+Graph.length(g,{from=saved[k-1],to=id},clock)/r.speed
+   end
+   local ret=k==r.index and back or (L.canonical(id)==station and {legs={},duration=0} or Graph.route(g,station,id,clock,r.speed))
+   local d=ret and (ret.duration or 0)
+   if d and (not best or d-along<best) then best,back,rejoin=d-along,ret,k end
+  end
+ end
  if trip then
   for i=2,#trip.out do route[#route+1]=trip.out[i] end
   for i=2,#trip.back do route[#route+1]=trip.back[i] end
@@ -189,7 +208,7 @@ function U.plan(r,clock,e)
   if e and e.body and not e.body:isDestroyed() then here.x,here.y=e.body:getPosition()
   else here.x,here.y=require('src.alife').trackPoint(r,clock) end
  end
- r.service={station=L.canonical(station),need=need,saved={route=copy(r.route),index=r.index,
+ r.service={station=L.canonical(station),need=need,saved={route=copy(r.route),index=rejoin,
   idle=idle or nil,node=idle and r.node or nil,untilTime=idle and r.untilTime or nil}}
  r.route=route
  require('src.alife_trace').note(r,clock,'upkeep','needs '..need..' -> service visit at '..station)

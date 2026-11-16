@@ -69,7 +69,7 @@ local function start(r,clock,index)
    -- Two nodes in different regions with no direct lane between them (a
    -- one-way route wrapping round to its start, say). Route there properly
    -- through the gates and drivers instead of crashing.
-   local path=Graph.itinerary(leg.from,leg.to,clock)
+   local path=Graph.live(leg.from,leg.to,clock)
    assert(path and #path>1,'invalid inter-region journey '..tostring(leg.from)..' -> '..tostring(leg.to))
    print(('A-Life: %s rerouted %s -> %s'):format(tostring(r.id),leg.from,leg.to))
    r.route=path;r.onRoundTrip=nil;r.tripRoute=nil
@@ -334,13 +334,13 @@ A.pathTime=pathTime
 -- Returns false (route untouched) when there is no way to `target`.
 function A.redirect(r,target,clock,x,y)
  local leg=edge(r);local prev,dest=leg.from,leg.to
- local onward=Graph.itinerary(dest,target,clock)
+ local onward=Graph.live(dest,target,clock)
  local back
  local a,b=L.byId[prev],L.byId[dest]
  -- (a leg into or off a crossing is no place to turn round)
  if r.state=='travel' and not r.encounter and a and b and a.area==r.area and b.area==r.area
   and a.kind~='driver' and a.kind~='moon_gate' and b.kind~='driver' and b.kind~='moon_gate' then
-  back=Graph.itinerary(prev,target,clock)
+  back=Graph.live(prev,target,clock)
  end
  if not onward and not back then return false end
  local p=progress(r,clock);local span=math.max(.01,r.arrive-r.depart);local speed=r.speed or 600

@@ -90,7 +90,7 @@ Tasks.register(kind,{
  end,
  score=function(u,r,o,node,clock) return clock-(o.readyAt or 0) end,
  prepare=function(u,r,t,node,clock)
-  t.route=t.source==t.target and {node,node} or G.itinerary(node,t.target,clock)
+  t.route=t.source==t.target and {node,node} or G.live(node,t.target,clock)
   if not t.route then return false end
   t.route=copy(t.route);t.phase=kind=='satlaunch' and 'launching satellite' or 'refuelling satellite'
   -- take the job's cargo aboard at the station that posted it: a refuel's
