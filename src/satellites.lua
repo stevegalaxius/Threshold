@@ -25,6 +25,7 @@
 local data = require("src.data")
 
 local Sat = {}
+local berthOffsetFor
 
 Sat.kinds = {
 	passive = { design = "sat_passive", dock = "none", actions = {} },
@@ -268,21 +269,6 @@ function Sat.hubs(game)
 	end
 end
 
--- A ship passing a trade buoy tops up its fuel and ammunition off the hub's
--- shelf, if the hub has power. Each ship served burns a little of the hub's
--- own fuel (Sat.hubServeCost), so busy hubs need refuelling sooner.
-Sat.hubServeCost = 0.01
-function Sat.serve(universe, ship, node)
-	local r = Sat.hubAt(universe, node)
-	if not r or Sat.fuel(universe, r) <= 0 then return 0 end
-	local n = require("src.supplies").refillAtHub(ship)
-	if n > 0 then
-		r.fuel = math.max(0, r.fuel - Sat.hubServeCost)
-		r.served = (r.served or 0) + 1
-	end
-	return n
-end
-
 -- The hub at a buoy node, working (fuelled) or not; nil if there's none yet.
 function Sat.hubAt(universe, node)
 	return Sat.get(universe, Sat.hubId(node))
@@ -341,6 +327,41 @@ function Sat.damage(game, e, amount)
 	end
 end
 
+-- Where things are, for NPC work out at a satellite (src/sat_jobs.lua) ------
+
+-- The live husk (or hub buoy) of a satellite on the loaded map.
+function Sat.entity(game, id)
+	for _, e in ipairs(game.entities or {}) do
+		if e.sat == id and not e.removed and not e.dead and e.body and not e.body:isDestroyed() then return e end
+	end
+end
+
+-- Its home position: a hub rides its buoy's track; an orbiting satellite
+-- its seeded layout slot, about the planet (the map's origin).
+function Sat.home(universe, r, game)
+	local L = require("src.locations")
+	if r.hub then return L.position(r.hub, universe.clock or 0) end
+	if not r.alt then
+		local Fields = require("src.fields")
+		for _, slot in ipairs(Sat.layout(r.field, Fields[r.field])) do
+			if slot.id == r.id then r.alt, r.angle = slot.alt, slot.angle end
+		end
+		if not r.alt then return end
+	end
+	local w = game and game.fieldId == r.field and game.well
+	local cx, cy = w and w.x or 0, w and w.y or 0
+	return cx + math.cos(r.angle) * r.alt, cy + math.sin(r.angle) * r.alt
+end
+
+-- The berth beside a satellite for `ship`, in world space, with the
+-- berth's velocity (it turns and drifts with the satellite).
+function Sat.berthPoint(e, ship)
+	local bx, by = berthOffsetFor(e, ship)
+	local x, y = e.body:getWorldPoint(bx, by)
+	local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
+	return x, y, vx, vy
+end
+
 -- Docking ------------------------------------------------------------------
 --
 -- A satellite docks like a small station: tap the tractor key on it in
@@ -389,12 +410,15 @@ local function berthOffset(e, ship)
 	local side = ly < 0 and -1 or 1
 	return 0, side * ((e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40)
 end
+berthOffsetFor = berthOffset
 
 function Sat.request(game, e)
 	local r = Sat.get(game.universe, e.sat)
 	local p = game.player
 	if not r or not p or p.dead or p.dockState then return false end
-	if e.satHeld and e.satHeld ~= p and not e.satHeld.dead and e.satHeld.dockState then game:toast("BERTH OCCUPIED", 1.4); return false end
+	local held = e.satHeld
+	local npcOn = held and held.alifeRecord and held.alifeRecord.action and held.alifeRecord.action.operation == "satservice"
+	if held and held ~= p and not held.dead and not held.removed and (held.dockState or npcOn) then game:toast("BERTH OCCUPIED", 1.4); return false end
 	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
 	local st = Sat.station(game, e)
 	local bx, by = berthOffset(e, p)

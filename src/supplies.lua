@@ -139,15 +139,6 @@ function S.refill(r,node,u)
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
  return n
 end
--- A trade-buoy hub's shelf (src/satellites.lua): the same reserve targets,
--- off the hub's own stores rather than a station stockpile.
-function S.refillAtHub(r)
- local h=r.ship.hold and Hold.deserialize(r.ship.hold)
- r.ship.cargo=h and Hold.totals(h) or r.ship.cargo or {}
- local n=fill(r,nil,h,r.ship.cargo,nil,nil)
- if h and n>0 then r.ship.hold=Hold.serialize(h) end
- return n
-end
 function S.online(game,e)
  local ds=e.dockState
  local r=e.alifeId and game.universe.npcs[e.alifeId]

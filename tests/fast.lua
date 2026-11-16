@@ -73,13 +73,31 @@ return function(game)
  end
  assert(hubNode,'no trade buoys')
  hub=Sat.hubAt(u,hubNode);Sat.refuel(u,hub.id,'test')
+ -- a hauler takes a refuel job and flies out to the satellite (offline)
+ local Tasks=require('src.tasks');local Actions=require('src.npc_actions')
  local npc
- for _,r in pairs(u.npcs or {}) do if r.ship and r.ship.cargo and not r.dead then npc=r;break end end
- if npc then
-  local F=require('src.reactor_fuel').item();npc.ship.cargo[F]=0
-  if npc.ship.hold then local Hold=require('src.inventory.hold');local h=Hold.deserialize(npc.ship.hold);Hold.take(h,F,Hold.count(h,F));npc.ship.hold=Hold.serialize(h) end
-  assert(Sat.serve(u,npc,hubNode)>0 and hub.fuel<1,'hub did not serve a passing ship')
+ for _,r in pairs(u.npcs or {}) do if r.ship and r.state~='dead' and r.area then npc=r;break end end
+ assert(npc,'no NPC for the refuel job')
+ local Jobs=require('src.sat_jobs')
+ local sat
+ for id,r in pairs(u.satellites) do if not r.hub and not r.lost and Jobs.places(r.field) then sat=r;break end end
+ sat.fuelAt=u.clock-Sat.fuelLife*0.9;Sat.fuel(u,sat)
+ local offer=Jobs.post(u,sat,'satrefuel')
+ local _,here=Jobs.places(sat.field)
+ local savedTask,savedState,savedNode,savedAction=npc.task,npc.state,npc.node,npc.action
+ npc.action=nil;npc.task={kind='satrefuel',id=offer.id,sat=sat.id,source=offer.source,target=here,cargo={item='deuterium_canister',amount=1}}
+ npc.state,npc.node,npc.area='idle',here,require('src.locations').get(here).area
+ local def=Tasks.definitions.satrefuel
+ local clock=u.clock
+ for _=1,400 do
+  local ctx={u=u,r=npc,clock=clock,game={universe=u}}
+  if not npc.action then local spec=def.nextAction(ctx);if not spec then break end;Actions.request(ctx,spec).fromJob=true end
+  Actions.step(ctx);clock=clock+5
  end
+ assert(npc.task.serviced and sat.fuel==1,'hauler did not refuel the satellite out at its berth')
+ assert(npc.lastAction and npc.lastAction.operation=='satservice' and npc.lastAction.status=='done','refuel was not a work action at the satellite')
+ npc.task,npc.state,npc.node,npc.action=savedTask,savedState,savedNode,savedAction
+ Jobs.clear(u,sat.id)
  local sid
  for id,r in pairs(u.satellites or {}) do if not r.lost and not r.hub and r.field~=game.fieldId then sid=id;break end end
  if not sid then
