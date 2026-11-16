@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2), Icons tab. Art for rounds_m: a large military ammo can.
 icon {
 	id = "icon_rounds_m", item = "rounds_m",
+	paint = "Olive Drab",   -- primary paint: a preset from src/paint.lua, or { r, g, b }
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
 		{ name = "can", x = 0, y = 0, z = 0, w = 1, d = 0.55, h = 0.75 },
 		{ name = "lid", x = -0.03, y = -0.03, z = 0.75, w = 1.06, d = 0.61, h = 0.1, light = 0.25 },

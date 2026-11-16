@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2), Icons tab. Art for torp_s: a short sealed crate.
 icon {
 	id = "icon_torp_s", item = "torp_s",
+	paint = "Tanker",   -- primary paint: a preset from src/paint.lua, or { r, g, b }
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
 		{ name = "crate", x = 0.25, y = 0, z = 0, w = 1.5, d = 1, h = 0.75 },
 		{ name = "band", x = 0.925, y = -0.02, z = -0.02, w = 0.15, d = 1.04, h = 0.79, shade = 0.6 },

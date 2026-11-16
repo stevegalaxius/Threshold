@@ -856,7 +856,7 @@ end
 -- What the canvas paints the design with: a hull wears its factory preset,
 -- anything else the preview colour picked in the Preview section.
 function E.previewPaint()
-	if E.design.kind == "icon" then return require("src.hud").itemColor(data.items[E.design.item] or {}) end
+	if E.design.kind == "icon" then return require("src.icons").paint(E.design) end
 	if (E.design.kind or "hull") == "hull" then local Paint = require("src.paint"); return Paint.preset(Paint.pool({ paints = E.stat("paints") })[1]) end
 	return E.paint
 end

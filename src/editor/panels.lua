@@ -555,6 +555,16 @@ local function iconSections(E, d)
 	local w, h = Icons.footprint(d.item)
 	Slab.Text("item: " .. (item and item.name or tostring(d.item)) .. "  (" .. tostring(d.item) .. ")")
 	Slab.Text(("footprint %d x %d cells (%d x %d units)"):format(w, h, w * Icons.CELL, h * Icons.CELL), { Color = GREY })
+	-- primary paint, as on ships: a factory preset (unpainted boxes and parts wear it)
+	Slab.Text("paint"); Slab.SameLine()
+	local Paint = require("src.paint")
+	local popts = { { label = "bare metal", value = false } }
+	for _, pr in ipairs(Paint.PRESETS) do popts[#popts + 1] = { label = pr.name, value = pr.name } end
+	combo("yard_icon_paint", type(d.paint) == "string" and d.paint or (d.paint and "custom" or "bare metal"), popts, function(v)
+		E.pushUndo()
+		d.paint = v or nil
+		if d.boxes then Icons.syncBoxes(d) end
+	end, 160)
 	Slab.Text("The box is the hold footprint; draw the", { Color = GREY })
 	Slab.Text("outline inside it.", { Color = GREY })
 	-- the item's grid size, which is also its size in space

@@ -1325,7 +1325,7 @@ function Canvas.drawIconPreview(E)
 	end
 	local fw, fh = Icons.footprint(d.item, d)
 	local item = data.items[d.item] or {}
-	local c = HUD.itemColor(item) or { 1, 1, 1 }
+	local c = Icons.paint(d)
 	local W, H = 360, 230
 	local x0, y0 = lg.getWidth() - W - 12, lg.getHeight() - H - 34
 	lg.setColor(0.02, 0.025, 0.035, 0.92)
