@@ -235,6 +235,74 @@ return function(game)
  launch.owner=nil
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
  print('ok  satellites: hubs, fuel, refuel and replacement jobs')
+
+ -- Routing: no route doubles back. Gates used to join only their nearest
+ -- node (a trader bound for Triton flew out to Neptune's far buoy first),
+ -- stations just over 120 degrees apart went the long way round, and drill
+ -- sites, drivers and gates were used as waypoints.
+ do
+  local G=require('src.travelgraph')
+  local function d(a,b) return (b-a+math.pi)%(2*math.pi)-math.pi end
+  for _,area in ipairs(Fields.list) do
+   local f=Fields[area];local graph=G.build(area)
+   for clock=0,1800,300 do
+    local function bearing(id) local x,y=G.position(graph,id,clock);return math.atan2(y,x) end
+    for _,a in ipairs(f.locations) do for _,b in ipairs(f.locations) do
+     if a~=b and a.kind~='mining_site' and b.kind~='mining_site' then
+      local r=assert(G.route(graph,a.id,b.id,clock,600),'no route '..a.id..' -> '..b.id)
+      local ids={r.start};for _,leg in ipairs(r.legs) do ids[#ids+1]=leg.edge.to end
+      local turned=0
+      for i=2,#ids do
+       local k=L.get(ids[i]).kind
+       assert(i==#ids or (k~='moon_gate' and k~='driver' and k~='mining_site') or r.through,'route passes through '..ids[i]..': '..table.concat(ids,' > '))
+       turned=turned+math.abs(d(bearing(ids[i-1]),bearing(ids[i])))
+      end
+      local extra=turned-math.abs(d(bearing(ids[1]),bearing(ids[#ids])))
+      assert(extra<.6,('detour of %.2f rad at %d: %s'):format(extra,clock,table.concat(ids,' > ')))
+     end
+    end end
+   end
+  end
+ end
+ -- A ship just out of earth_1 for earth_2 that is sent to earth_4 (back
+ -- past earth_1) turns round where it is, instead of flying on to earth_2
+ -- and doubling back, and doesn't jump doing it.
+ do
+  local A,G=require('src.alife'),require('src.travelgraph')
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  local keep=require('src.persistence').copy(r)
+  r.state='travel';r.area='earth';r.encounter=nil;r.speed=600
+  r.route={'station:earth_1','station:earth_2'};r.index=2
+  local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_2'},0)/600
+  r.depart=-.1*span;r.arrive=r.depart+span
+  local x,y=A.trackPoint(r,0)
+  assert(A.redirect(r,'station:earth_4',0),'no way to earth_4')
+  assert(r.route[r.index]=='station:earth_1','flew on to '..r.route[r.index]..' before turning: '..table.concat(r.route,' > '))
+  local xx,yy=A.trackPoint(r,0)
+  assert(math.abs(x-xx)+math.abs(y-yy)<1,'ship jumped turning round')
+  for k in pairs(r) do r[k]=nil end;for k,v in pairs(keep) do r[k]=v end
+ end
+ -- A repair stop past the node it was heading for: the ship rejoins its
+ -- route at the station instead of coming back to that node first.
+ do
+  local U,G,Repairs=require('src.upkeep'),require('src.travelgraph'),require('src.npc_repair')
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  local keep=require('src.persistence').copy(r)
+  r.state='travel';r.area='earth';r.encounter=nil;r.worldRecovery=nil;r.waitingForHome=nil;r.driverState=nil
+  r.service=nil;r.nextServiceAt=nil;r.speed=600
+  r.route={'station:earth_1','station:earth_4','earth/trade_buoy_b','station:earth_3'};r.index=2
+  local clock=game.universe.clock
+  local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_4'},clock)/600
+  r.depart=clock-.9*span;r.arrive=r.depart+span
+  local need,supports=U.need,Repairs.supports
+  U.need=function() return 'repair' end;Repairs.supports=function(id) return id=='station:earth_3' end
+  local ok=U.plan(r,clock)
+  U.need,Repairs.supports=need,supports
+  assert(ok and r.service,'no repair visit planned')
+  assert(r.route[#r.route]=='station:earth_3' and r.service.saved.index==4,'repair visit doubles back: '..table.concat(r.route,' > '))
+  for k in pairs(r) do r[k]=nil end;for k,v in pairs(keep) do r[k]=v end
+ end
+ print('ok  routing: no detours, turns round when re-tasked, repair stops rejoin')
  -- 6. Jobs: wreck bounties pay whoever clears a ship wreck, ore contracts
  -- go up where drills ship home, and the Jobs tab lays them all out.
  do

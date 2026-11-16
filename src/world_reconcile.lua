@@ -84,7 +84,7 @@ function R.begin(u,r,clock,start)
   return false
  end
  local target=keep and r.task.target or home
- local path=G.itinerary(node,target,clock)
+ local path=G.live(node,target,clock)
  if not path then
   r.waitingForHome=true;r.worldRecovery=nil;r.taskStatus='waiting for a route to a home station'
   r.state='idle';r.area=region;r.node=node;r.route={node,node};r.index=1;r.untilTime=clock+10
@@ -102,7 +102,7 @@ function R.begin(u,r,clock,start)
   if not L.byId[r.piracy.origin] then r.piracy.origin=L.rally(r.home,node,clock) or node end
  end
  if r.state=='transit' and r.transit and r.route and L.byId[r.route[r.index]] then
-  local destination=r.route[r.index];local tail=G.itinerary(destination,target,clock)
+  local destination=r.route[r.index];local tail=G.live(destination,target,clock)
   if tail then
    local source=r.route[(r.index-2)%#r.route+1]
    r.route={source};for _,id in ipairs(tail) do r.route[#r.route+1]=id end;r.index=2;require('src.queue').leg(r)

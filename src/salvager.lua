@@ -46,8 +46,8 @@ function S.sell(game,r,node,clock)
  return total
 end
 local function pathVia(source,waypoint,target,clock)
- local first=G.itinerary(source,waypoint,clock)
- local second=G.itinerary(waypoint,target,clock)
+ local first=G.live(source,waypoint,clock)
+ local second=G.live(waypoint,target,clock)
  if not first or not second then return end
  for i=2,#second do first[#first+1]=second[i] end
  if #first==1 then first[2]=first[1] end

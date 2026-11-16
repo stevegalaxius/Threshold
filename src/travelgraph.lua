@@ -106,6 +106,12 @@ local plans,plansAt={},nil
 G.planned=0
 local plan
 function G.plan(source,target,clock,exact) return plan(source,target,clock,exact) end
+-- A route a ship is about to fly, planned now rather than taken from the
+-- cache: a cached answer can be up to 105 seconds old, and in that time the
+-- buoys and stations have moved round, so the ship bent toward where a node
+-- used to be (or took a node that's since fallen behind it). The cache stays
+-- for the many what-if questions (economy, job feasibility); flying uses this.
+function G.live(source,target,clock,exact) return plan(source,target,clock,exact,true) end
 -- exact keeps physical endpoints (e.g. a particular home anchor); ordinary
 -- trade destinations can still use any access point of the shared station.
 -- (each answer keeps for 75 to 105 seconds, a different while for each pair:
@@ -155,7 +161,8 @@ function G.itinerary(source,target,clock,exact)
  local copy={};for i,id in ipairs(hit) do copy[i]=id end
  return copy
 end
-plan=function(source,target,clock,exact)
+plan=function(source,target,clock,exact,live)
+ local function sub(a,b) if live then return plan(a,b,clock,exact,true) end return G.itinerary(a,b,clock,exact) end
  G.planned=G.planned+1   -- (work done, for whoever is rationing it: src/economy.lua)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b then return nil end
@@ -169,14 +176,14 @@ plan=function(source,target,clock,exact)
   local moon=Fields.moons[a.area]
   local other=Fields.moons[b.area]
   if moon and other and moon.parent==other.parent then
-   return join(G.itinerary(source,a.area..'/to_'..b.area,clock,exact),G.itinerary(b.area..'/to_'..a.area,target,clock,exact))
+   return join(sub(source,a.area..'/to_'..b.area),sub(b.area..'/to_'..a.area,target))
   end
   if moon then
-   return join(G.itinerary(source,a.area..'/to_'..moon.parent,clock,exact),G.itinerary(moon.parent..'/to_'..a.area,target,clock,exact))
+   return join(sub(source,a.area..'/to_'..moon.parent),sub(moon.parent..'/to_'..a.area,target))
   end
   moon=Fields.moons[b.area]
   if moon then
-   return join(G.itinerary(source,moon.parent..'/to_'..b.area,clock,exact),G.itinerary(b.area..'/to_'..moon.parent,target,clock,exact))
+   return join(sub(source,moon.parent..'/to_'..b.area),sub(b.area..'/to_'..moon.parent,target))
   end
   -- Extra drivers share the interplanetary connection, but retain separate
   -- approaches and queues. Choose each end by its local travel cost.
@@ -190,7 +197,7 @@ plan=function(source,target,clock,exact)
   end
   local from,to=driver(a.area,source,true),driver(b.area,target,false)
   if not from or not to then return end
-  return join(G.itinerary(source,from,clock,exact),G.itinerary(to,target,clock,exact))
+  return join(sub(source,from),sub(to,target))
  end
  local path=G.route(G.build(a.area),source,target,clock,nil,exact)
  if not path then return end
@@ -237,7 +244,7 @@ end
 local function snapshot(graph,clock)
  local s=graph.snap
  if s and s.clock==clock then return s end
- s={clock=clock,x={},y={},angle={},neighbours={},attachment={},length={}}
+ s={clock=clock,x={},y={},angle={},neighbours={},length={}}
  for _,id in ipairs(graph.order) do
   local x,y=G.position(graph,id,clock)
   s.x[id],s.y[id],s.angle[id]=x,y,atan2(y,x)
@@ -279,40 +286,30 @@ function G.project(graph,edge,x,y,clock)
  return math.max(0,math.min(1,p))
 end
 
--- An external destination joins the corridor at its closest existing node.
--- Evaluate at planning time because the corridor rotates beneath fixed exits.
-function G.attachment(graph,id,clock)
- if L.get(id).kind~='moon_gate' then return end
- local x,y=G.position(graph,id,clock)
- local best,distance=nil,math.huge
- for _,edge in ipairs(graph.nodes[id].links) do
-  local nx,ny=G.position(graph,edge.to,clock)
-  local d=(nx-x)^2+(ny-y)^2
-  if d<distance then best,distance=edge.to,d end
- end
- return best
-end
-
 -- Line of sight: besides its authored links, a node can fly straight to any
--- other ordinary node whose bearing (where both are now) is within
--- T.directLinkAngle. Flights follow the planet's curve, so they never cross
--- it; gates and mass drivers keep their authored approaches, and ladder
--- anchors never link to each other (the cables run between them).
+-- other node whose bearing (where both are now) is within T.directLinkAngle.
+-- Flights follow the planet's curve, so they never cross it. Gates and mass
+-- drivers are endpoints: a ship may leave or arrive by one from any node in
+-- sight of it (plus its authored approaches), but never passes through one
+-- on the way somewhere else (G.route). Ladder anchors never link to each
+-- other (the cables run between them).
+-- Endpoints used to join the corridor at only their single nearest node, so
+-- every route in or out was forced through that one buoy or station even
+-- when it lay behind the ship: it flew out to it and doubled back.
 -- (the list is shared between plans at the same instant: read it, don't change it)
 function G.neighbours(graph,id,clock)
  local s=snapshot(graph,clock)
  local result=s.neighbours[id]
  if result then return result end
  local links=graph.nodes[id].links
- if graph.ends[id] then s.neighbours[id]=links;return links end
  local T=require('src.tuning')
- local ladder=graph.ladder
+ local ladder,ends=graph.ladder,graph.ends
  local angle=s.angle[id]
  local seen={}
  result={}
  for _,edge in ipairs(links) do result[#result+1]=edge;seen[edge.to]=true end
  for _,other in ipairs(graph.order) do
-  if other~=id and not seen[other] and not graph.ends[other] and not (ladder[id] and ladder[other]) then
+  if other~=id and not seen[other] and not (ladder[id] and ladder[other]) then
    if math.abs(delta(angle,s.angle[other]))<=T.directLinkAngle then
     result[#result+1]={from=id,to=other,direct=true}
    end
@@ -328,11 +325,9 @@ function G.route(graph,from,to,clock,speed,exact)
  if exact and starts and goals then starts,goals={from},{to} end
  if not starts or not goals then return nil,'destination is outside this local graph' end
  local s=snapshot(graph,clock)
- local attachments=s.attachment
- if not s.attached then
-  for _,id in ipairs(graph.order) do attachments[id]=G.attachment(graph,id,clock) end
-  s.attached=true
- end
+ local ends=graph.ends
+ local through=false
+ ::search::
  local dist,prev,done={}, {}, {}
  for _,id in ipairs(starts) do dist[id]=0 end
  local goalSet={}; for _,id in ipairs(goals) do goalSet[id]=true end
@@ -342,14 +337,18 @@ function G.route(graph,from,to,clock,speed,exact)
   for _,id in ipairs(graph.order) do
    if not done[id] and dist[id] and dist[id]<cost then best,cost=id,dist[id] end
   end
-  if not best then return nil,'no route' end
+  if not best then
+   -- Two opposite buoys and nothing else (Neptune, Pluto) can only reach each
+   -- other round by the mass driver: let an endpoint be passed only then.
+   if not through then through=true;goto search end
+   return nil,'no route'
+  end
   if goalSet[best] then finish=best; break end
   done[best]=true
   for _,edge in ipairs(G.neighbours(graph,best,clock)) do
-   -- Gates are endpoints, never shortcuts between corridor nodes.
-   if (not attachments[best] or attachments[best]==edge.to)
-    and (not attachments[edge.to] or attachments[edge.to]==best)
-    and (L.get(edge.to).kind~='moon_gate' or edge.to==to)
+   -- Gates and drivers are endpoints, never shortcuts between other nodes.
+   -- and drill sites are places to work, not waypoints to fly by
+   if (through or not (ends[edge.to] or L.get(edge.to).kind=='mining_site') or goalSet[edge.to])
     -- the Heaven-Ladder's anchors sit in the planet's pull: only ships
     -- bound for the ladder go there, never as a shortcut across Mars
     and (not L.get(edge.to).radial or goalSet[edge.to]) then
@@ -362,7 +361,7 @@ function G.route(graph,from,to,clock,speed,exact)
  end
  local legs,at={},finish
  while prev[at] do table.insert(legs,1,prev[at]); at=prev[at].edge.from end
- return {from=from,to=to,start=at,finish=finish,legs=legs,duration=dist[finish],plannedAt=clock}
+ return {from=from,to=to,start=at,finish=finish,legs=legs,duration=dist[finish],plannedAt=clock,through=through or nil}
 end
 
 local function samplePoint(graph,route,elapsed,clock)
