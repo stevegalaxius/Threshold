@@ -73,6 +73,16 @@ return function(game)
  end
  assert(hubNode,'no trade buoys')
  hub=Sat.hubAt(u,hubNode);Sat.refuel(u,hub.id,'test')
+ -- a working hub is an upkeep stop with its own shelf; a dry one isn't
+ require('src.supplies').universe=u
+ local F=require('src.reactor_fuel').item()
+ assert(require('src.supplies').supports(hubNode),'working hub is not a service stop')
+ local listed=false;for _,id in ipairs(require('src.upkeep').stops(require('src.locations').get(hubNode).area)) do if id==hubNode then listed=true end end
+ assert(listed,'hub missing from upkeep stops')
+ assert(require('src.stockpile').count(u,hubNode,F)>0,'hub shelf opens without fuel')
+ hub.fuelAt=u.clock-Sat.fuelLife*2;Sat.fuel(u,hub)
+ assert(not require('src.supplies').supports(hubNode),'dry hub still serves')
+ Sat.refuel(u,hub.id,'test')
  -- a hauler takes a refuel job and flies out to the satellite (offline)
  local Tasks=require('src.tasks');local Actions=require('src.npc_actions')
  local npc

@@ -34,9 +34,18 @@ local function serves(need,station)
  if need=='repair' then return Repairs.supports(station) end
  return Supplies.supports(station)
 end
+-- Service stops in a region: its stations, then its trade-buoy hubs
+-- (src/satellites.lua), which serve fuel and supplies but not repairs.
+local function stops(area)
+ local ids=L.stations(area)
+ for _,id in ipairs(require('src.fields')[area] and require('src.fields')[area].buoyIds or {}) do ids[#ids+1]=id end
+ return ids
+end
+U.stops=stops
 U.serves=serves
 local function canDock(r,e,id,clock)
  if r.serviceRejected and (r.serviceRejected[L.canonical(id)] or 0)>clock then return false end
+ if L.get(id).kind=='buoy' then return require('src.satellites').hubRoom(Supplies.universe,id,r) end
  local game=e and e.alifeGame
  local st=game and game:locationEntity(id,e.body:getPosition())
  if not st or st.kind~='station' then return true end
@@ -66,7 +75,7 @@ function U.neighbourStop(area,at,clock,ok,speed)
  local g=deps.graph(area)
  local best,station,trip
  for _,other in ipairs(neighbours(area)) do
-  for _,id in ipairs(L.stations(other)) do
+  for _,id in ipairs(stops(other)) do
    if ok(id) then
     local go=Graph.itinerary(at,id,clock);local ret=go and Graph.itinerary(id,at,clock)
     if ret then
@@ -97,7 +106,7 @@ function U.shortOfFuel(r,e,g,at,clock)
  local full=(Supplies.targets(r,e)[Fuel.item()] or 0)*T.reactorFuelEnergy
  if have>=full then return false end
  local best
- for _,id in ipairs(L.stations(r.area)) do
+ for _,id in ipairs(stops(r.area)) do
   if Supplies.supports(id) then
    local go=id==L.canonical(at) and {duration=0} or Graph.route(g,at,id,clock,r.speed)
    if go and (not best or go.duration<best) then best=go.duration end
@@ -136,7 +145,7 @@ function U.plan(r,clock,e)
  end
  if not need then return false end
  local best,out,back,station
- for _,id in ipairs(L.stations(r.area)) do
+ for _,id in ipairs(stops(r.area)) do
   if serves(need,id) and canDock(r,e,id,clock) then
    local go=id==L.canonical(at) and {legs={},duration=0} or Graph.route(g,at,id,clock,r.speed)
    local ret=go and (#go.legs==0 and {legs={}} or Graph.route(g,id,at,clock,r.speed))
@@ -235,6 +244,7 @@ function U.advance(r,clock,u)
    Repairs.advance(r,clock,r.node,u)
    Fuel.observe(u,r,clock)
    if clock<r.untilTime then return true end
+   if U.hubShort(r,u) then U.abandonHub(r,clock);return true end
    if not U.fuelReady(r) then r.service.waitingFuel=true;return true end
    if r.service.waitingFuel then r.untilTime=clock end
    r.service.waitingFuel=nil
@@ -288,6 +298,28 @@ function U.rejected(game,e,station)
  end
  require('src.alife').bindRoute(game,e,r)
  return true
+end
+
+-- Docked at a trade-buoy hub that has run out of what the ship came for:
+-- give up on it (for a while) and look for another stop, rather than wait
+-- at the berth for a refuel hauler.
+function U.hubShort(r,u)
+ local s=r.service;local node=s and s.station
+ if not node or L.get(node).kind~='buoy' or not u then return false end
+ if U.fuelReady(r) then return false end
+ return require('src.stockpile').available(u,node,Fuel.item())<=0 or not require('src.satellites').hubWorking(u,node)
+end
+function U.abandonHub(r,clock,e)
+ local s=r.service;if not s then return end
+ r.serviceRejected=r.serviceRejected or {}
+ r.serviceRejected[s.station]=clock+T.npcFuelStopRetry
+ local saved=s.saved
+ r.service,r.serviced=nil,nil
+ r.route,r.index=saved.route,saved.index
+ require('src.alife_trace').note(r,clock,'upkeep','hub at '..s.station..' has nothing to give -> look elsewhere')
+ r.state='idle';r.node=s.station;r.untilTime=clock;r.nextServiceAt=nil
+ r.route={s.station,s.station};r.index=1
+ U.plan(r,clock,e)
 end
 
 function U.label(r)

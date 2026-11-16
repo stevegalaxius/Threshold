@@ -18,6 +18,7 @@ local Fields,L,G=require('src.fields'),require('src.locations'),require('src.tra
 local Tasks=require('src.tasks')
 local copy=require('src.persistence').copy
 local Actions=require('src.npc_actions')
+local function Supplies() return require('src.supplies').universe end
 local J={pay=900,stay=25}
 -- What each job hands the hauler to carry out to the satellite: the same
 -- item the player's version of the quest uses (src/sat_quests.lua).
@@ -45,7 +46,10 @@ end
 -- satrefuel: top up a low satellite. satlaunch: replace a destroyed one.
 local function wanted(kind,s)
  if kind=='satlaunch' then return s.lost end
- return not s.lost and (s.fuel or 1)<require('src.satellites').refuelAt
+ if s.lost then return false end
+ local Sat=require('src.satellites')
+ if (s.fuel or 1)<Sat.refuelAt then return true end
+ return s.hub and require('src.stockpile').available(Supplies(),s.hub,'deuterium_canister')<Sat.hubLowStock or false
 end
 for _,kind in ipairs({'satrefuel','satlaunch'}) do
 Tasks.register(kind,{
@@ -142,6 +146,7 @@ local function service(ctx,target,dt,a)
   end
  elseif kind=='satrefuel' then
   t.done=Sat.refuel(ctx.u,target.sat.id,ctx.r.id)
+  if t.done then Sat.restockHub(ctx.u,target.sat) end
  end
  return 'done'
 end

@@ -5,7 +5,7 @@ for _,recipe in ipairs(require('data.industry').recipes) do if recipe.reserve th
 function R.minimum(key,item)
  local policy=R.policies[item];if not policy then return 0 end
  local L=require('src.locations');local place=L.byId[key]
- if not place then return 0 end
+ if not place or place.kind~='station' then return 0 end -- (a trade-buoy hub's shelf has no reserves)
  if policy.service=='supplies' then
   if not require('src.supplies').supports(key) then return 0 end
  elseif policy.service and not L.stationServices(key)[policy.service] then return 0 end

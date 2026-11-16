@@ -28,6 +28,8 @@ function S.fuelShop()
 end
 function S.supports(node)
  local place=node and L.byId[node]
+ -- a trade buoy's hub, while it has power (src/satellites.lua)
+ if place and place.kind=='buoy' then return S.universe and require('src.satellites').hubWorking(S.universe,node) or false end
  return place and place.kind=='station' and L.stationServices(node).market or false
 end
 local profiles={}
@@ -137,6 +139,7 @@ function S.refill(r,node,u)
  u=u or S.universe
  local n=fill(r,nil,h,r.ship.cargo,u,u and L.canonical(node))
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
+ if n>0 and u and L.byId[node].kind=='buoy' then require('src.satellites').hubServed(u,node) end
  return n
 end
 function S.online(game,e)
@@ -146,6 +149,7 @@ function S.online(game,e)
  if not game.stationServices(ds.station).market then return end
  local n=fill(r,e,e.hold,e.cargo,game.universe,L.canonical(ds.station.key))
  ds.supplied=true
+ if n>0 and ds.station.sat and ds.station.locationId then require('src.satellites').hubServed(game.universe,ds.station.locationId) end
  if n>0 then
   Ship.updateMass(e)
   r.ship.cargo=require('src.persistence').copy(e.cargo)

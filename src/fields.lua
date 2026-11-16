@@ -802,6 +802,9 @@ function Fields.configureLocations(area)
             if place.prop==nil then place.prop=F.navigation.buoyProp end
             if place.prop==nil then place.prop=WorldLayout.defaults.buoyProp end
             place.scale,place.heading=spec.scale or 1,spec.heading or 0
+            -- every trade buoy carries a trade hub (src/satellites.lua): its
+            -- shelf is this buoy's own stock
+            place.marketId='sat:hub'
 		end
 	end
 	if Fields.orbits[area] then
