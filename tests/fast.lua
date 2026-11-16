@@ -223,5 +223,34 @@ return function(game)
  assert(launch,'no launch job posted')
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
  print('ok  satellites: hubs, fuel, refuel and replacement jobs')
+
+ -- Routing: ships head for a region's exit (moon gate or mass driver) the
+ -- way it lies. Gates used to join only their nearest node, so a trader
+ -- bound for Triton flew out to Neptune's far buoy first and doubled back.
+ do
+  local G=require('src.travelgraph')
+  local function d(a,b) return (b-a+math.pi)%(2*math.pi)-math.pi end
+  for _,area in ipairs(Fields.list) do
+   local f=Fields[area];local graph=G.build(area)
+   for clock=0,1800,300 do
+    local function bearing(id) local x,y=G.position(graph,id,clock);return math.atan2(y,x) end
+    for _,a in ipairs(f.locations) do for _,b in ipairs(f.locations) do
+     if (b.kind=='moon_gate' or b.kind=='driver') and (a.kind=='station' or a.kind=='buoy') then
+      local r=assert(G.route(graph,a.id,b.id,clock,600),'no route '..a.id..' -> '..b.id)
+      local ids={r.start};for _,leg in ipairs(r.legs) do ids[#ids+1]=leg.edge.to end
+      local turned=0
+      for i=2,#ids do
+       local k=L.get(ids[i]).kind
+       assert(i==#ids or (k~='moon_gate' and k~='driver'),'route passes through '..ids[i]..': '..table.concat(ids,' > '))
+       turned=turned+math.abs(d(bearing(ids[i-1]),bearing(ids[i])))
+      end
+      local extra=turned-math.abs(d(bearing(ids[1]),bearing(ids[#ids])))
+      assert(extra<2.5,('detour of %.2f rad at %d: %s'):format(extra,clock,table.concat(ids,' > ')))
+     end
+    end end
+   end
+  end
+ end
+ print('ok  routing: no detours to exits')
  print('ALL TESTS PASSED')
 end
