@@ -87,7 +87,7 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Valhalla Port (`station:callisto_1`) | `farm` | fixed | 640 | grow_food |
 | UAE-9 (`station:titania_1`) | `process_nitrates` | adaptive | 80 | process_nitrates |
 | UAE-9 (`station:titania_1`) | `chemicals` | profit | 160 | make_fertilizer, make_explosives |
-| Messina Research Station (`station:titania_2`) | `make_medical` | adaptive | 8 | make_medical |
+| Uruk Station (`station:ganymede_2`) | `make_medical` | adaptive | 8 | make_medical |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Terminator Station (`station:mercury_1`) | `silicon_refinery` | fixed | 12 | refine_silicon |
 | Haephestus Logistics (`station:mercury_2`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
