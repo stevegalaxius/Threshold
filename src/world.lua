@@ -490,7 +490,9 @@ function Game:saveState()
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
 		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId, discovered = Persistence.copy(u.discovered),
-		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites) }
+		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites),
+		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
+		arbiter = Persistence.copy(u.arbiter), satWearAt = u.satWearAt }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -549,6 +551,19 @@ function Game:loadState(state)
 	self.universe.nextNpcId = state.nextNpcId or 0
 	self.universe.queues = Persistence.copy(state.queues or {})
 	self.universe.satellites = Persistence.copy(state.satellites or {})
+	self.universe.merchants = Persistence.copy(state.merchants)
+	self.universe.industry = Persistence.copy(state.industry)
+	self.universe.arbiter = Persistence.copy(state.arbiter)
+	self.universe.satWearAt = state.satWearAt
+	do -- loose items keep their ids (src/loose.lua); older saves never stored the
+	   -- counter, so start past the highest id already on record
+		local n = state.nextLooseId or 0
+		for id in pairs(require("src.loose").records(self.universe)) do
+			local k = type(id) == "string" and tonumber(id:match("^loot/(%d+)$"))
+			if k and k > n then n = k end
+		end
+		self.universe.nextLooseId = n
+	end
 	do -- saves from before bookings were kept: rebuild them from the records,
 	   -- and book the legs under way that never got a turn (src/queue.lua)
 		local Q = require("src.queue"); Q.universe = self.universe
