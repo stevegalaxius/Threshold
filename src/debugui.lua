@@ -136,6 +136,41 @@ local function shipSection(game)
 			end
 		end
 	end
+	-- Item spawner: any item, into the hold or floating beside the ship
+	Slab.Separator()
+	Slab.Text("Spawn item")
+	local opts = {}
+	for _, id in ipairs(data.list.items) do
+		local it = data.items[id]
+		opts[#opts + 1] = { label = ("%s (%s)"):format(it.name or id, id), value = id }
+	end
+	table.sort(opts, function(a, b) return a.label < b.label end)
+	Debug.spawnItem = data.items[Debug.spawnItem or ""] and Debug.spawnItem or (opts[1] and opts[1].value)
+	local cur = data.items[Debug.spawnItem]
+	combo("debug_spawn_item", cur and ("%s (%s)"):format(cur.name or Debug.spawnItem, Debug.spawnItem) or "", opts,
+		function(v) Debug.spawnItem = v end)
+	if cur then
+		local stack = cur.stack or 1
+		local function give(n)
+			local got = Ship.addCargo(p, Debug.spawnItem, n)
+			if got < n then game:toast(("Hold full: added %d of %d"):format(got, n), 1.5) end
+		end
+		Slab.PushID("spawnitem")
+		if Slab.Button("+1") then give(1) end
+		Slab.SameLine()
+		if Slab.Button("+stack (" .. stack .. ")") then give(stack) end
+		Slab.SameLine()
+		if Slab.Button("+10 stacks") then give(stack * 10) end
+		Slab.SameLine()
+		if Slab.Button("Drop in space") then
+			local x, y = p.body:getPosition()
+			local a = p.body:getAngle()
+			local d = (p.halfLength or 40) + 60
+			game:spawnPickup(x + math.cos(a) * d, y + math.sin(a) * d, Debug.spawnItem, stack)
+		end
+		Slab.PopID()
+	end
+	Slab.Separator()
 	if Slab.Button("Empty hold") then
 		p.cargo = {}
 		Ship.updateMass(p)
