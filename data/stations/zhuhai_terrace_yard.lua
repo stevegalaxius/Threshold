@@ -6,17 +6,18 @@ station {
 	services = { "market", "shipyard", "hangar", "repair" },
 	color = { 0.86, 0.46, 0.34 },
 	berths = {
-		{ heading = 260, size = 94, x = -2216, y = -372 },
-		{ heading = 0, size = 94, x = -1772, y = 0 },
-		{ heading = 100, size = 94, x = -2216, y = 372 },
-		{ heading = 270, size = 150, x = -900, y = -480 },
-		{ heading = 90, size = 150, x = -900, y = 480 },
-		{ heading = 270, size = 150, x = -450, y = -480 },
-		{ heading = 90, size = 150, x = -450, y = 480 },
-		{ heading = 270, size = 150, x = 25, y = -480 },
-		{ heading = 90, size = 150, x = 25, y = 480 },
-		{ heading = 270, size = 150, x = 475, y = -480 },
-		{ heading = 90, size = 150, x = 475, y = 480 },
+		{ heading = 255, size = 120, x = -2435, y = -1063 },
+		{ heading = 310, size = 120, x = -1443, y = -843 },
+		{ heading = 50, size = 120, x = -1443, y = 843 },
+		{ heading = 105, size = 120, x = -2435, y = 1063 },
+		{ heading = 270, size = 100, x = -900, y = -560 },
+		{ heading = 90, size = 100, x = -900, y = 560 },
+		{ heading = 270, size = 100, x = -450, y = -560 },
+		{ heading = 90, size = 100, x = -450, y = 560 },
+		{ heading = 270, size = 100, x = 25, y = -560 },
+		{ heading = 90, size = 100, x = 25, y = 560 },
+		{ heading = 270, size = 100, x = 475, y = -560 },
+		{ heading = 90, size = 100, x = 475, y = 560 },
 	},
 	turrets = {
 		{ module = "gun_m_base", x = -1475, y = 0 },
@@ -266,35 +267,35 @@ station {
 		{ name = "east gate roof hip 2", shape = { 1446.4, -183.6, 1326.4, -63.6, 1333.6, -56.4, 1453.6, -176.4 }, shade = 1.35, layer = "detail", collide = false },
 		{ name = "east gate roof hip 3", shape = { 1453.6, 176.4, 1333.6, 56.4, 1326.4, 63.6, 1446.4, 183.6 }, shade = 1.35, layer = "detail", collide = false },
 		{ name = "east gate roof hip 4", shape = { 1213.6, 183.6, 1333.6, 63.6, 1326.4, 56.4, 1206.4, 176.4 }, shade = 1.35, layer = "detail", collide = false },
-		{ name = "slip pier 0 -1", shape = { -1116, -600, -1084, -600, -1084, -230, -1116, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -1100, y = -590 },
+		{ name = "slip pier 0 -1", shape = { -1116, -880, -1084, -880, -1084, -230, -1116, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -1100, y = -870 },
 		} },
-		{ name = "slip pier 0 1", shape = { -1116, 230, -1084, 230, -1084, 600, -1116, 600 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -1100, y = 590 },
+		{ name = "slip pier 0 1", shape = { -1116, 230, -1084, 230, -1084, 880, -1116, 880 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -1100, y = 870 },
 		} },
-		{ name = "slip pier 1 -1", shape = { -716, -600, -684, -600, -684, -230, -716, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -700, y = -590 },
+		{ name = "slip pier 1 -1", shape = { -716, -880, -684, -880, -684, -230, -716, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -700, y = -870 },
 		} },
-		{ name = "slip pier 1 1", shape = { -716, 230, -684, 230, -684, 600, -716, 600 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -700, y = 590 },
+		{ name = "slip pier 1 1", shape = { -716, 230, -684, 230, -684, 880, -716, 880 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -700, y = 870 },
 		} },
-		{ name = "slip pier 2 -1", shape = { -216, -600, -184, -600, -184, -230, -216, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -200, y = -590 },
+		{ name = "slip pier 2 -1", shape = { -216, -880, -184, -880, -184, -230, -216, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -200, y = -870 },
 		} },
-		{ name = "slip pier 2 1", shape = { -216, 230, -184, 230, -184, 600, -216, 600 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -200, y = 590 },
+		{ name = "slip pier 2 1", shape = { -216, 230, -184, 230, -184, 880, -216, 880 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = -200, y = 870 },
 		} },
-		{ name = "slip pier 3 -1", shape = { 234, -600, 266, -600, 266, -230, 234, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 250, y = -590 },
+		{ name = "slip pier 3 -1", shape = { 234, -880, 266, -880, 266, -230, 234, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 250, y = -870 },
 		} },
-		{ name = "slip pier 3 1", shape = { 234, 230, 266, 230, 266, 600, 234, 600 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 250, y = 590 },
+		{ name = "slip pier 3 1", shape = { 234, 230, 266, 230, 266, 880, 234, 880 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 250, y = 870 },
 		} },
-		{ name = "slip pier 4 -1", shape = { 684, -600, 716, -600, 716, -230, 684, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 700, y = -590 },
+		{ name = "slip pier 4 -1", shape = { 684, -880, 716, -880, 716, -230, 684, -230 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 700, y = -870 },
 		} },
-		{ name = "slip pier 4 1", shape = { 684, 230, 716, 230, 716, 600, 684, 600 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
-			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 700, y = 590 },
+		{ name = "slip pier 4 1", shape = { 684, 230, 716, 230, 716, 880, 684, 880 }, shade = 0.75, tint = { -0.1, -0.05, 0 }, lights = {
+			{ color = { 1, 0.85, 0.4 }, kind = "nav", size = 4, x = 700, y = 870 },
 		} },
 	},
 }

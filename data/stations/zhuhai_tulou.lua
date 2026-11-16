@@ -6,11 +6,11 @@ station {
 	services = { "market", "hangar", "repair" },
 	color = { 0.86, 0.46, 0.34 },
 	berths = {
-		{ heading = 80, size = 120, x = 122, y = 691 },
-		{ heading = 130, size = 120, x = -451, y = 538 },
-		{ heading = 180, size = 120, x = -702, y = 0 },
-		{ heading = 230, size = 120, x = -451, y = -538 },
-		{ heading = 280, size = 120, x = 122, y = -691 },
+		{ heading = 80, size = 120, x = 295, y = 1674 },
+		{ heading = 130, size = 120, x = -1093, y = 1302 },
+		{ heading = 180, size = 120, x = -1700, y = 0 },
+		{ heading = 230, size = 120, x = -1093, y = -1302 },
+		{ heading = 280, size = 120, x = 295, y = -1674 },
 	},
 	turrets = {
 		{ module = "gun_m_base", x = 0, y = 1275 },
