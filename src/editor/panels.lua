@@ -1536,6 +1536,7 @@ local function boxWindow(E)
 	Slab.Text("Layer")
 	local lopts = {}
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
+	table.insert(lopts, { label = "glass", value = "glass" })   -- icon boxes only: see-through, tints what's behind
 	combo("yard_boxlayer" .. i, b.layer or "hull", lopts, function(l) E.pushUndo(); b.layer = l ~= "hull" and l or nil end, 140)
 	Slab.Text("hull: dark fill and outline. detail: flat", { Color = GREY })
 	Slab.Text("fill, no outline. glow: bright, additive.", { Color = GREY })
@@ -1671,6 +1672,7 @@ local function partWindow(E)
 	Slab.Text("Layer")
 	local lopts = {}
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
+	if E.design.kind == "icon" then table.insert(lopts, { label = "glass", value = "glass" }) end
 	combo("yard_layer" .. i, p.layer or "hull", lopts, function(l) E.pushUndo(); p.layer = l ~= "hull" and l or nil end, 140)
 	end
 	if E.design.kind == "icon" then
