@@ -1690,6 +1690,12 @@ local function partWindow(E)
 		check(E, p.badge == true, "Badge (hold only, hidden in space)", function(v) p.badge = v or nil end)
 	end
 
+	if E.design.kind == "satellite" then
+		-- a berth just off this part's outer side (src/satellites.lua): no
+		-- runway, the ship is pulled straight to it
+		Slab.Separator()
+		check(E, p.dock == true, "Docking module (a berth off its outer side)", function(on) p.dock = on or nil end)
+	end
 	if E.design.kind == "station" then
 		Slab.Separator()
 		if not p.dock and p.rotor then Slab.Text("Rotor: " .. p.rotor .. " (see the Rotors window)") end

@@ -323,7 +323,6 @@ end
 -- Tag a husk as this satellite.
 function Sat.adopt(e, r)
 	e.sat, e.name = r.id, r.name
-	e.hubBerths = r.kind == "hub" or nil
 	if e.body and not e.body:isDestroyed() then
 		e.body:setAngularVelocity(0)
 		e.body:setAngularDamping(2)
@@ -401,8 +400,8 @@ end
 
 -- The berth beside a satellite for `ship`, in world space, with the
 -- berth's velocity (it turns and drifts with the satellite).
-function Sat.berthPoint(e, ship, side)
-	local bx, by = berthOffsetFor(e, ship, side)
+function Sat.berthPoint(e, ship, i)
+	local bx, by = berthOffsetFor(e, ship, i)
 	local x, y = e.body:getWorldPoint(bx, by)
 	local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
 	return x, y, vx, vy
@@ -410,22 +409,41 @@ end
 
 -- Berths -------------------------------------------------------------------
 --
--- A hub has Sat.hubBerthCount berths (one off each docking arm), any other
--- satellite one. Each berth is claimed on its own: an NPC through its work
+-- A satellite's berths come from its design: every part ticked "Docking
+-- module" in the editor has one berth, just off that part's outer side
+-- (away from the satellite's centre). No runway, no tractor zone: a ship
+-- locks on and is pulled to the berth. A design without one can't be
+-- docked at. Each berth is claimed on its own: an NPC through its work
 -- action's claim on the berth record (r.berths[i], saved with the
 -- satellite), the player through the live husk's e.berthHeld[i] while
 -- locked on. Neither takes a berth the other holds.
-Sat.hubBerthCount = 2
-function Sat.berthCount(r) return r.kind == "hub" and Sat.hubBerthCount or 1 end
+local dockCache = setmetatable({}, { __mode = "k" })
+-- The design's docking parts: { cx, cy (part centre), ux, uy (outward),
+-- reach (how far the part extends that way from its centre) }.
+function Sat.docks(def)
+	if not def then return {} end
+	if dockCache[def] then return dockCache[def] end
+	local out = {}
+	for _, part in ipairs(def.parts or {}) do
+		if part.dock and part.shape then
+			local sh, cx, cy, n = part.shape, 0, 0, #part.shape / 2
+			for k = 1, #sh, 2 do cx, cy = cx + sh[k], cy + sh[k + 1] end
+			cx, cy = cx / n, cy / n
+			local d = math.sqrt(cx * cx + cy * cy)
+			local ux, uy = d > 1 and cx / d or 0, d > 1 and cy / d or 1
+			local reach = 0
+			for k = 1, #sh, 2 do reach = math.max(reach, (sh[k] - cx) * ux + (sh[k + 1] - cy) * uy) end
+			out[#out + 1] = { cx = cx, cy = cy, ux = ux, uy = uy, reach = reach }
+		end
+	end
+	dockCache[def] = out
+	return out
+end
+function Sat.berthCount(r) return #Sat.docks(data.wrecks[r.design]) end
 function Sat.berth(r, i)
 	r.berths = r.berths or {}
 	r.berths[i] = r.berths[i] or {}
 	return r.berths[i]
-end
--- Which side of the satellite berth i is on (nil: whichever the ship is on).
-function Sat.berthSide(r, i)
-	if Sat.berthCount(r) == 1 then return nil end
-	return i == 1 and -1 or 1
 end
 -- The live player on berth i, if any.
 function Sat.playerOn(e, i)
@@ -486,14 +504,14 @@ end
 -- ship came from.
 -- side: -1 or 1, which berth; nil picks the one nearer the ship. A hub has
 -- a berth pad off each docking arm; other satellites, either side of the bus.
-local function berthOffset(e, ship, side)
-	local lx, ly = e.body:getLocalPoint(ship.body:getPosition())
-	if e.hubBerths then
-		side = side or (lx < 0 and -1 or 1)
-		return side * (340 + (ship.halfLength or 40) + 30), 0
-	end
-	side = side or (ly < 0 and -1 or 1)
-	return 0, side * ((e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40)
+-- Berth i, in the satellite's frame: off the outer side of its docking
+-- part, far enough out for this ship's hull.
+local function berthOffset(e, ship, i)
+	local d = Sat.docks(e.hull)[i or 1]
+	-- (no docking module: a service ship holds just off the bus)
+	if not d then return 0, (e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40 end
+	local out = d.reach + (ship.halfLength or 40) + 30
+	return d.cx + d.ux * out, d.cy + d.uy * out
 end
 berthOffsetFor = berthOffset
 
@@ -501,18 +519,22 @@ function Sat.request(game, e)
 	local r = Sat.get(game.universe, e.sat)
 	local p = game.player
 	if not r or not p or p.dead or p.dockState then return false end
-	-- a free berth: neither an NPC's nor already the player's; on a hub, the
-	-- one on the player's side first
-	local free
-	local lx = e.body:getLocalPoint(p.body:getPosition())
-	local order = Sat.berthCount(r) == 2 and (lx < 0 and { 1, 2 } or { 2, 1 }) or { 1 }
-	for _, i in ipairs(order) do
-		if not free and not Sat.playerOn(e, i) and not Sat.npcOn(game.universe, r, i) then free = i end
+	-- the nearest free berth: neither an NPC's nor already the player's
+	local count = Sat.berthCount(r)
+	if count == 0 then game:toast("NO BERTH", 1.4); return false end
+	local free, best
+	for i = 1, count do
+		if not Sat.playerOn(e, i) and not Sat.npcOn(game.universe, r, i) then
+			local bx, by = e.body:getWorldPoint(berthOffset(e, p, i))
+			local px, py = p.body:getPosition()
+			local d = (bx - px) ^ 2 + (by - py) ^ 2
+			if not best or d < best then free, best = i, d end
+		end
 	end
 	if not free then game:toast("BERTH OCCUPIED", 1.4); return false end
 	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
 	local st = Sat.station(game, e)
-	local bx, by = berthOffset(e, p, Sat.berthSide(r, free))
+	local bx, by = berthOffset(e, p, free)
 	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by }, satBerthIndex = free }
 	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
 	e.berthHeld = e.berthHeld or {}

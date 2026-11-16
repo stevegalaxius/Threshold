@@ -159,7 +159,7 @@ Actions.registerTarget('satellite',{resolve=function(ctx,t)
  if ctx.e and game and game.fieldId==s.field then
   local e=Sat.entity(game,t.id)
   if e then
-   local x,y,vx,vy=Sat.berthPoint(e,ctx.e,Sat.berthSide(s,i))
+   local x,y,vx,vy=Sat.berthPoint(e,ctx.e,i)
    return {x=x,y=y,vx=vx,vy=vy,entity=e,record=berth,sat=s,berth=i}
   end
  end
@@ -170,7 +170,8 @@ end})
 function J.freeBerth(ctx,s,operation)
  local Sat=require('src.satellites')
  local e=ctx.game and ctx.game.fieldId==s.field and Sat.entity(ctx.game,s.id)
- for i=1,Sat.berthCount(s) do
+ -- (a satellite with no docking module still has one spot to work from)
+ for i=1,math.max(1,Sat.berthCount(s)) do
   local spec={kind='work',operation=operation,target={provider='satellite',id=s.id,berth=i}}
   local target=Actions.targets.satellite.resolve(ctx,spec.target)
   if target and Actions.available(ctx,target) and not Sat.playerOn(e,i) then return spec end
@@ -232,7 +233,6 @@ Actions.registerOperation('satservice',{
   if target.entity then
    local ex,ey=target.entity.body:getPosition()
    e.intent.aimX,e.intent.aimY=ex,ey
-   e.tractorTarget=target.entity;e.intent.tractor=true
   end
   return service(ctx,target,dt,a)
  end,

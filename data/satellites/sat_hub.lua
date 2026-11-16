@@ -1,6 +1,6 @@
 -- Hub satellite (src/satellites.lua, kind "hub"): a larger satellite with a
 -- shop, a mini station for ships passing through. Fuel and supplies off its
--- shelf; a berth pad off each docking arm. Edit freely in the Shipyard.
+-- shelf. The berth pads are its docking modules: a berth off each. Edit freely in the Shipyard.
 satellite {
 	id = "sat_hub", name = "Hub satellite",
 	armor = 900, mass = 12000,
@@ -19,8 +19,8 @@ satellite {
 		{ name = "deck", shape = { 99.78, 41.33, 41.33, 99.78, -41.33, 99.78, -99.78, 41.33, -99.78, -41.33, -41.33, -99.78, 41.33, -99.78, 99.78, -41.33 }, color = { 0.36, 0.37, 0.41 }, layer = "detail", collide = false },
 		{ name = "shop sign", shape = { -70, -14, 70, -14, 70, 14, -70, 14 }, color = { 0.75, 0.55, 0.2 }, layer = "detail", collide = false, lights = { { x = -60, y = 0, size = 5, color = { 1, 0.75, 0.3 } }, { x = 60, y = 0, size = 5, color = { 1, 0.75, 0.3 } } } },
 		{ name = "docking arm", shape = { -300, -26, -150, -26, -150, 26, -300, 26 }, color = { 0.42, 0.45, 0.5 } },
-		{ name = "berth pad", shape = { -340, -60, -300, -60, -300, 60, -340, 60 }, color = { 0.5, 0.52, 0.56 }, lights = { { kind = "nav", color = { 1, 0.25, 0.2 }, x = -340, y = -60 }, { kind = "nav", color = { 1, 0.25, 0.2 }, x = -340, y = 60 } } },
+		{ name = "berth pad", dock = true, shape = { -340, -60, -300, -60, -300, 60, -340, 60 }, color = { 0.5, 0.52, 0.56 }, lights = { { kind = "nav", color = { 1, 0.25, 0.2 }, x = -340, y = -60 }, { kind = "nav", color = { 1, 0.25, 0.2 }, x = -340, y = 60 } } },
 		{ name = "docking arm", shape = { 150, -26, 300, -26, 300, 26, 150, 26 }, color = { 0.42, 0.45, 0.5 } },
-		{ name = "berth pad", shape = { 300, -60, 340, -60, 340, 60, 300, 60 }, color = { 0.5, 0.52, 0.56 }, lights = { { kind = "nav", color = { 0.3, 1, 0.4 }, x = 340, y = -60 }, { kind = "nav", color = { 0.3, 1, 0.4 }, x = 340, y = 60 } } },
+		{ name = "berth pad", dock = true, shape = { 300, -60, 340, -60, 340, 60, 300, 60 }, color = { 0.5, 0.52, 0.56 }, lights = { { kind = "nav", color = { 0.3, 1, 0.4 }, x = 340, y = -60 }, { kind = "nav", color = { 0.3, 1, 0.4 }, x = 340, y = 60 } } },
 	},
 }
