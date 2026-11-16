@@ -200,9 +200,11 @@ function Icons.reach(icon)
 	if icon.reach then return icon.reach end
 	local r = 0
 	for _, p in ipairs(icon.parts or {}) do
+		if p.badge then goto continue end   -- hold only: not part of the shape afloat
 		for k = 1, #(p.shape or {}) - 1, 2 do
 			r = math.max(r, math.sqrt(p.shape[k] ^ 2 + p.shape[k + 1] ^ 2))
 		end
+		::continue::
 	end
 	icon.reach = math.max(r, 4)
 	return icon.reach
@@ -222,6 +224,8 @@ end
 --   detail  flat darker fill, no contour (bands, seams, panel lines)
 --   glow    filled bright and additive (lights, fuses, hot bits)
 -- col is the primary paint (default: the item's kind colour).
+-- A part with badge = true is a hold-only marker (what's in a generic
+-- crate): drawn in the hold and the editor, left out when space is true.
 local triCache = setmetatable({}, { __mode = "k" })
 local function triangles(shape, fresh)
 	local t = triCache[shape]
@@ -242,14 +246,14 @@ end
 Icons.FILL = 0.22        -- fill brightness, as hulls (src/render.lua)
 
 -- fresh: the parts may have changed since last frame (the editor).
-function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
+function Icons.drawArt(icon, col, alpha, lineWidth, fresh, space)
 	alpha = alpha or 1
 	lineWidth = lineWidth or 1
 	local c = col or kindColor(data.items[icon.item] or {})
 	local paint = { c[1], c[2], c[3] }
 	lg.setLineJoin("bevel")
 	for _, p in ipairs(icon.parts or {}) do
-		if p.shape and #p.shape >= 6 then
+		if p.shape and #p.shape >= 6 and not (space and p.badge) then
 			local layer = p.layer or "hull"
 			local pc = Visual.partColor(p, paint)
 			for _, s in ipairs({ p.shape, p.mirror and mirrored(p.shape) or nil }) do
@@ -311,7 +315,7 @@ function Icons.drawWorld(itemId, x, y, angle, alpha, lineWidth)
 	lg.rotate(angle or 0)
 	local k = Icons.worldScale(itemId)
 	lg.scale(k)
-	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / k)
+	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / k, nil, true)
 	lg.pop()
 	return true
 end

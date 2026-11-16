@@ -1,13 +1,27 @@
--- Made in the Shipyard (F2), Icons tab. Art for Satellite package: a folded satellite: bus, stowed panels and dish.
+-- Made in the Shipyard (F2), Icons tab. Art for Satellite package: a folded satellite: foil bus, stowed solar wings, dish and launch strap.
 icon {
 	id = "icon_satellite_package", item = "satellite_package",
-	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
-		{ name = "bus", x = 0.25, y = 0.1, z = 0, w = 0.5, d = 0.5, h = 0.6, color = { 0.85, 0.7, 0.3 } },
-		{ name = "panel left", x = 0, y = 0.15, z = 0.05, w = 0.22, d = 0.4, h = 0.5, color = { 0.2, 0.3, 0.6 } },
-		{ name = "panel right", x = 0.78, y = 0.15, z = 0.05, w = 0.22, d = 0.4, h = 0.5, color = { 0.2, 0.3, 0.6 } },
-		{ name = "dish", x = 0.32, y = 0.18, z = 0.6, w = 0.36, d = 0.34, h = 0.08, color = { 0.92, 0.93, 0.9 } },
-		{ name = "antenna", x = 0.47, y = 0.3, z = 0.68, w = 0.06, d = 0.06, h = 0.2, color = { 0.45, 0.47, 0.52 } },
-		{ name = "beacon", x = 0.46, y = 0.29, z = 0.88, w = 0.08, d = 0.08, h = 0.05, color = { 1, 0.3, 0.3 }, layer = "glow" },
+	parts = {
+		{ name = "bus", shape = { -6, -6, 6, -6, 8, -4, 8, 8, 6, 10, -6, 10, -8, 8, -8, -4 }, color = { 0.88, 0.7, 0.3 } },
+		{ name = "foil crease", shape = { -6, -1, 6, -1, 6, 0, -6, 0 }, color = { 0.7, 0.55, 0.2 }, layer = "detail" },
+		{ name = "foil crease", shape = { -2, -5.5, -1, -5.5, -1, 9.5, -2, 9.5 }, color = { 0.7, 0.55, 0.2 }, layer = "detail" },
+		{ name = "panel stack", shape = { -15, -4, -9, -6, -9, 10, -15, 12 }, color = { 0.25, 0.4, 0.85 } },
+		{ name = "panel stack", shape = { 15, -4, 9, -6, 9, 10, 15, 12 }, color = { 0.25, 0.4, 0.85 } },
+		{ name = "cell line", shape = { -14.5, -1, -9.5, -2.3, -9.5, -1.7, -14.5, -0.4 }, color = { 0.15, 0.25, 0.55 }, layer = "detail" },
+		{ name = "cell line", shape = { 14.5, -1, 9.5, -2.3, 9.5, -1.7, 14.5, -0.4 }, color = { 0.15, 0.25, 0.55 }, layer = "detail" },
+		{ name = "cell line", shape = { -14.5, 3, -9.5, 1.7, -9.5, 2.3, -14.5, 3.6 }, color = { 0.15, 0.25, 0.55 }, layer = "detail" },
+		{ name = "cell line", shape = { 14.5, 3, 9.5, 1.7, 9.5, 2.3, 14.5, 3.6 }, color = { 0.15, 0.25, 0.55 }, layer = "detail" },
+		{ name = "cell line", shape = { -14.5, 7, -9.5, 5.7, -9.5, 6.3, -14.5, 7.6 }, color = { 0.15, 0.25, 0.55 }, layer = "detail" },
+		{ name = "cell line", shape = { 14.5, 7, 9.5, 5.7, 9.5, 6.3, 14.5, 7.6 }, color = { 0.15, 0.25, 0.55 }, layer = "detail" },
+		{ name = "hinge", shape = { -9.5, -2, -7.5, -2, -7.5, 0, -9.5, 0 }, color = { 0.5, 0.52, 0.57 } },
+		{ name = "hinge", shape = { -9.5, 5, -7.5, 5, -7.5, 7, -9.5, 7 }, color = { 0.5, 0.52, 0.57 } },
+		{ name = "hinge", shape = { 7.5, -2, 9.5, -2, 9.5, 0, 7.5, 0 }, color = { 0.5, 0.52, 0.57 } },
+		{ name = "hinge", shape = { 7.5, 5, 9.5, 5, 9.5, 7, 7.5, 7 }, color = { 0.5, 0.52, 0.57 } },
+		{ name = "dish", shape = { -6.5, -8, -6.18, -8.8, -5.26, -9.53, -3.82, -10.1, -2.01, -10.47, -0, -10.6, 2.01, -10.47, 3.82, -10.1, 5.26, -9.53, 6.18, -8.8, 6.5, -8, 6.18, -6.76, 5.26, -5.65, 3.82, -4.76, 2.01, -4.2, 0, -4, -2.01, -4.2, -3.82, -4.76, -5.26, -5.65, -6.18, -6.76 }, color = { 0.92, 0.92, 0.9 } },
+		{ name = "feed", shape = { -0.5, -14, 0.5, -14, 0.5, -8.5, -0.5, -8.5 }, color = { 0.5, 0.52, 0.57 } },
+		{ name = "feed tip", shape = { 1.1, -14.3, 0.78, -13.52, 0, -13.2, -0.78, -13.52, -1.1, -14.3, -0.78, -15.08, -0, -15.4, 0.78, -15.08 }, color = { 0.8, 0.8, 0.82 } },
+		{ name = "launch strap", shape = { -15, 2.2, 15, 2.2, 15, 3.6, -15, 3.6 }, color = { 0.85, 0.3, 0.25 } },
+		{ name = "beacon", shape = { 5, 6, 4.71, 6.71, 4, 7, 3.29, 6.71, 3, 6, 3.29, 5.29, 4, 5, 4.71, 5.29 }, color = { 1, 0.35, 0.3 }, layer = "glow" },
+		{ name = "status light", shape = { -3.2, 6, -3.43, 6.57, -4, 6.8, -4.57, 6.57, -4.8, 6, -4.57, 5.43, -4, 5.2, -3.43, 5.43 }, color = { 0.4, 1, 0.5 }, layer = "glow" },
 	},
-	parts = {},
 }

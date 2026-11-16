@@ -1673,6 +1673,10 @@ local function partWindow(E)
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
 	combo("yard_layer" .. i, p.layer or "hull", lopts, function(l) E.pushUndo(); p.layer = l ~= "hull" and l or nil end, 140)
 	end
+	if E.design.kind == "icon" then
+		-- a badge: drawn in the hold only, so a generic crate can say what is in it
+		check(E, p.badge == true, "Badge (hold only, hidden in space)", function(v) p.badge = v or nil end)
+	end
 
 	if E.design.kind == "station" then
 		Slab.Separator()
