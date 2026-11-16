@@ -38,7 +38,7 @@ salvage { id = "vault_key", name = "Vault key", volume = 0.1, mass = 0.1, price 
 loot_table {
 	id = "site_cache", rolls = { 2, 3 },
 	entries = {
-		{ item = "salvage_kit", min = 1, max = 2, weight = 3 },
+		{ item = "patch_kit", min = 1, max = 2, weight = 3 },
 		{ item = "steel_plate", min = 2, max = 6, weight = 3 },
 		{ item = "missile_m", min = 4, max = 10, weight = 2 },
 		{ item = "shell_m", min = 3, max = 9, weight = 1 },
@@ -53,7 +53,7 @@ loot_table {
 loot_table {
 	id = "vault_hoard", rolls = { 4, 6 },
 	entries = {
-		{ item = "salvage_kit", min = 2, max = 4, weight = 3 },
+		{ item = "patch_kit", min = 2, max = 4, weight = 3 },
 		{ item = "torp_s", min = 1, max = 2, weight = 1 },
 		{ item = "missile_l", min = 2, max = 4, weight = 2 },
 	},

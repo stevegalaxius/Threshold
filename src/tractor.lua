@@ -10,9 +10,21 @@ function Tractor.pull(game,ship,pickup,dt)
  local x,y=ship.body:getPosition();local vx,vy=ship.body:getLinearVelocity()
  local dx,dy=x-pickup.x,y-pickup.y;local d=math.max(1,math.sqrt(dx*dx+dy*dy))
  local want=math.min(600,d*4);local blend=math.min(1,dt*8)
- pickup.vx=pickup.vx+(vx+dx/d*want-pickup.vx)*blend
- pickup.vy=pickup.vy+(vy+dy/d*want-pickup.vy)*blend
- if edge<12 then
+ local ax,ay=(vx+dx/d*want-pickup.vx)*blend,(vy+dy/d*want-pickup.vy)*blend
+ -- the beam has a limited pull, as when looting (Game:updateLootHold):
+ -- lootHoldAccel on something your ship's own mass, times its tractor
+ -- power, so a heavy stack comes in slowly and tugs the ship back
+ local T=require('src.tuning')
+ local def=data.items[pickup.item];local m=math.max(0.01,(def and def.mass or 0.1)*(pickup.count or 1))
+ local body=ship.body:getMass()/math.max(T.massScale or 1,1e-6)
+ local cap=T.lootHoldAccel*dt*body/m*Ship.tractorPower(ship)
+ local a=math.sqrt(ax*ax+ay*ay)
+ if a>cap then ax,ay=ax/a*cap,ay/a*cap end
+ pickup.vx,pickup.vy=pickup.vx+ax,pickup.vy+ay
+ ship.body:applyLinearImpulse(-ax*m*(T.massScale or 1),-ay*m*(T.massScale or 1))
+ -- close in, the player's beam takes it aboard at once, rather than
+ -- dragging it into the hull first
+ if edge<12 or (ship.isPlayer and edge<(require('src.tuning').pickupInstant or 50)) then
   local n=Ship.addCargo(ship,pickup.item,pickup.count)
   if n>0 then
    pickup.count=pickup.count-n

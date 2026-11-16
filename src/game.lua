@@ -2403,6 +2403,11 @@ function Game:updatePickups(dt)
 				end
 			end
 		end
+		-- the E that just closed a loot window: ignore it until it's let go,
+		-- or its release reads as a tap and opens the container again
+		if self.eatTractor then
+			if it.tractor then it.tractor = false else self.eatTractor = nil end
+		end
 		if not it.tractor then
 			p.tractorTarget = nil
 		elseif not p.tractorTarget and not p.towTarget then

@@ -52,12 +52,19 @@ end
 recipe('rounds_s',200,1,1);recipe('rounds_m',100,1,1)
 recipe('airburst_s',200,1,3);recipe('airburst_m',100,1,3)
 recipe('shell_s',24,1,2);recipe('shell_m',12,2,3);recipe('shell_l',12,4,6)
+-- Flare charges: a steel casing and a pyrotechnic charge, made at the
+-- Diwan chemical works on Titan (Abaddon).
+recipe('flare',60,1,1,nil,nil,'pyrotechnics')
 recipe('shot_s',64,1,1);recipe('shot_m',32,2,1);recipe('shot_l',24,4,2)
 -- Guided ammunition: electronics, steel casing and explosive warheads.
 recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l',12,4,4,2,2)
 recipe('torp_s',4,4,8,2,2);recipe('torp_m',2,6,12,3,3);recipe('torp_l',1,8,16,4,4)
 -- Drones: mostly electronics in a steel frame, no warhead.
 recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe('drone_l',1,4,0,4,4,'drones')
+-- Hull patch kits: steel and an acid-cured sealant, made at the munitions
+-- works alongside ammunition and stocked at every station the same way.
+D.recipes[#D.recipes+1]={reserve={service='supplies',stacks=2,excludeProducers=true},id='make_patch_kit',item='patch_kit',batch=8,cap=64,group='ammunition',
+ inputs={{item='steel_plate',n=1},{item='industrial_acids',n=1}}}
 -- Finished ships are typed outputs delivered to dealer inventory, not cargo.
 -- Factory lineups: each maker's assembly hall builds its own three hulls.
 -- Hull frames per ship (also its assembly time), roughly one per 25k of
@@ -110,6 +117,7 @@ D.facilities={
  electronics={policy='profit',recipes={'make_electronics'}},
  chemicals={policy='profit',openingInputs={nitrates=.5},recipes={'make_fertilizer','make_explosives'}},
  ammunition={policy='profit',recipes={}},
+ pyrotechnics={policy='profit',recipes={}},
  -- Electronics come a long way to Saturn, so keep a longer input buffer.
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
@@ -121,7 +129,7 @@ for maker,hulls in pairs(D.lineups) do
  D.facilities[maker..'_assembly']={policy='orders',recipes=r}
 end
 for _,c in ipairs(D.recipes) do
- if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' then local f=D.facilities[c.group].recipes;f[#f+1]=c.id end
+ if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' or c.group=='pyrotechnics' then local f=D.facilities[c.group].recipes;f[#f+1]=c.id end
  if not c.group and c.id~='grow_food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end
  if c.market==nil then c.market=true end
 end

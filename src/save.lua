@@ -114,6 +114,28 @@ function Save.remapSlots(state)
 	walk(state)
 end
 
+-- Items taken out of the game: a save that still holds them drops them
+-- (hold stacks, cargo counts, stock), so it loads instead of failing on an
+-- unknown item.
+Save.RETIRED = { salvage_kit = true, overdrive_cell = true }
+function Save.dropRetired(state)
+	local seen = {}
+	local function walk(t, key)
+		if seen[t] then return end
+		seen[t] = true
+		for k in pairs(Save.RETIRED) do if type(t[k]) == "number" then t[k] = nil end end
+		if key == "stacks" then
+			-- a stack list closes up
+			for i = #t, 1, -1 do if type(t[i]) == "table" and Save.RETIRED[t[i].id] then table.remove(t, i) end end
+		else
+			-- anything else (a grid's cell map) just loses the entry
+			for k, v in pairs(t) do if type(v) == "table" and Save.RETIRED[v.id] then t[k] = nil end end
+		end
+		for k, v in pairs(t) do if type(v) == "table" then walk(v, k) end end
+	end
+	walk(state)
+end
+
 -- Bring an older save up to the current version. Each step upgrades one
 -- version. Version 2 adds world-object snapshots; version 3 adds NPC records.
 function Save.upgrade(state)
@@ -125,6 +147,7 @@ function Save.upgrade(state)
 	-- Version 4 puts every hull's slots in one order (data.sortSlots): any
 	-- ship record keyed by the old slot numbers follows its hull's remap.
 	if (state.version or 0) < 4 then Save.remapSlots(state) end
+	Save.dropRetired(state)
 	state.version = Save.VERSION
 	return state
 end
