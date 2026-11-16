@@ -162,13 +162,13 @@ function Transport.reserved(u,source,item,except,includeOpen)
   local offers=Tasks.state(u).offers
   for _,o in ipairs(group) do
    -- (still on the board, still not loaded: either may have changed since the sort)
-   if offers[o.id]==o and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+o.amount end
+   if offers[o.id]==o and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+(o.amount or 0) end
   end
   return n
  end
  for _,o in pairs(Tasks.state(u).offers) do
   if o.order and o.source==source and o.item==item and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except)
-   and (includeOpen or o.state~='available') then n=n+o.amount end
+   and (includeOpen or o.state~='available') then n=n+(o.amount or 0) end
  end
  return n
 end
