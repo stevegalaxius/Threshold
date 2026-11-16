@@ -141,7 +141,11 @@ W.stations = {
 		{ id = "station:quarry_1", facilities={roll_steel={capacity=120},shipworks={capacity=3}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
 	},
 	station = {
-		{ id = "station:station_1", services = { "market", "shipyard", "hangar" }, spin = 0.04, phase = -0.8, primary = true, name = "Hub Station", marketId = "market:venus_1", wheel = { 1400, 160 }, hub = true },
+		-- Debug instance only (Fields.station): no lanes, no market, nothing
+		-- eaten or drunk, no work, so the economy never counts it. Not Venus's
+		-- Hub Station (station:venus_1).
+		{ id = "station:station_1", services = { "shipyard", "hangar" }, spin = 0.04, phase = -0.8, primary = true, name = "Test Hub", wheel = { 1400, 160 },
+		  food = { use = 0 }, water = { use = 0 }, uses = { trade = false, mining = false, patrol = false } },
 	},
 
 }

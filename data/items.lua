@@ -145,4 +145,3 @@ salvage { id = "satellite_package", name = "Satellite package", description = "A
 	volume = 1, mass = 1, price = 1, w = 2, h = 2, stack = 1,
 	use = { label = "Launch satellite", cast = 3, effects = { { "quest", item = "satellite_package" } } } }
 salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 60, w = 1, h = 1, stack = 4 }
-salvage { id = "martian_ore", name = "Martian ore", volume = 1, mass = 1, price = 30, w = 1, h = 1, stack = 1 }
