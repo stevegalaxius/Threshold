@@ -25,10 +25,10 @@
 	Every satellite gets a stable id (<field>_sat_<n>) so quests can name it.
 ]]
 
--- Hubs go where a ship can be a long way from a market: Neptune and Pluto
--- have no market station at all, Titania only one, and the gas giants'
--- maps are the biggest in the system.
-local hubs = { jupiter = 1, saturn = 2, uranus = 1, neptune = 2, titania = 1, pluto = 1 }
+-- Hubs go to the quiet edges, where there's no market station at all:
+-- Neptune and Pluto. (The hub kind is meant to be reused, for instances
+-- and the like: add hubs = n wherever one should be.)
+local hubs = { neptune = 2, pluto = 1 }
 local common = { passive = 1 }
 for _, f in ipairs({ "mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune" }) do
 	satellites { field = f, count = { 12, 20 }, mix = common, hubs = hubs[f] }

@@ -26,11 +26,25 @@ J.cargo={satrefuel='deuterium_canister',satlaunch='satellite_package'}
 
 local function root(area) return Fields.moons[area] and Fields.moons[area].parent or area end
 
--- Where the job starts (the system's trade station) and where it's done (a
--- station in the satellite's own field, else the start).
+-- Where the job starts (the system's trade station; for a quiet region
+-- with none, like Neptune or Pluto, the one in the region next door) and
+-- the node in the satellite's own field it flies to before heading out to
+-- the satellite (a station there, else a buoy or the holding point).
+local function tradeStation(field)
+ local s=L.station(root(field),'trade') or L.station(field,'trade')
+ if s then return s end
+ local near={}
+ if Fields.moons[field] then near[#near+1]=Fields.moons[field].parent end
+ for _,m in ipairs(Fields.moonsOf(field)) do near[#near+1]=m end
+ for _,a in ipairs(near) do s=L.station(a,'trade') if s then return s end end
+ for _,a in ipairs(near) do
+  for _,id in ipairs(L.stations(a)) do if L.stationServices(id).market then return id end end
+ end
+end
 function J.places(field)
- local source=L.station(root(field),'trade') or L.station(field,'trade')
- local here=L.stations(field)[1]
+ local source=tradeStation(field)
+ local f=Fields[field]
+ local here=L.stations(field)[1] or f and (f.buoyIds and f.buoyIds[1] or f.holdingId)
  return source,here or source
 end
 
@@ -66,6 +80,8 @@ Tasks.register(kind,{
  feasible=function(u,r,o,node,clock)
   local c=o.cargo or {item=J.cargo[kind],amount=1}
   if require('src.npc_operations').room(r,c.item)<c.amount then return false end
+  -- a refuel's canister comes out of the posting station's own stock
+  if kind=='satrefuel' and require('src.stockpile').available(u,o.source,c.item)<c.amount then return false end
   return o.source==o.target or G.itinerary(o.source,o.target,clock)~=nil
  end,
  score=function(u,r,o,node,clock) return clock-(o.readyAt or 0) end,
@@ -73,9 +89,32 @@ Tasks.register(kind,{
   t.route=t.source==t.target and {node,node} or G.itinerary(node,t.target,clock)
   if not t.route then return false end
   t.route=copy(t.route);t.phase=kind=='satlaunch' and 'launching satellite' or 'refuelling satellite'
-  -- take the job's cargo aboard at the station that posted it
+  -- take the job's cargo aboard at the station that posted it: a refuel's
+  -- canister (and a hub's restock) out of that station's stock; a launch's
+  -- satellite package is still provided by the poster
   t.cargo=t.cargo or {item=J.cargo[kind],amount=1}
-  require('src.transport').carry(r,t.cargo.item,t.cargo.amount);t.cargoAboard=true
+  t.loads={}
+  local Stock,Transport=require('src.stockpile'),require('src.transport')
+  local function load(item,want)
+   local n=math.min(want,require('src.npc_operations').room(r,item))
+   if kind=='satrefuel' then n=math.min(n,Stock.available(u,t.source,item)) end
+   if n<=0 then return 0 end
+   if kind=='satrefuel' then assert(Stock.take(u,t.source,item,n)) end
+   Transport.carry(r,item,n);t.loads[item]=(t.loads[item] or 0)+n
+   return n
+  end
+  if load(t.cargo.item,t.cargo.amount)<t.cargo.amount then
+   -- (nothing to take after all: put back what was loaded)
+   for item,n in pairs(t.loads) do Transport.carry(r,item,-n);Stock.add(u,t.source,item,n) end
+   t.loads=nil;return false
+  end
+  local s=u.satellites and u.satellites[t.sat]
+  if kind=='satrefuel' and s then
+   for item,n in pairs(require('src.satellites').hubShortfall(u,s)) do
+    load(item,n)
+   end
+  end
+  t.cargoAboard=true
   return true
  end,
  plan=function(t) return copy(t.route) end,
@@ -85,9 +124,8 @@ Tasks.register(kind,{
   if r.action and r.action.kind=='work' then return r.action end
   local s=ctx.u.satellites and ctx.u.satellites[t.sat]
   if not s or not wanted(kind,s) then t.serviced=true;return end
-  local spec={kind='work',operation='satservice',target={provider='satellite',id=t.sat}}
-  local target=Actions.targets.satellite.resolve(ctx,spec.target)
-  if target and not Actions.available(ctx,target) then
+  local spec=J.freeBerth(ctx,s,'satservice')
+  if not spec then
    -- someone else is on the berth: wait off the station a while
    t.waitUntil=ctx.clock+J.stay
    return {kind='hold',key='satwait/'..t.sat..'/'..t.waitUntil,target={provider='location',id=t.target},untilTime=t.waitUntil}
@@ -101,53 +139,82 @@ Tasks.register(kind,{
  end,
  complete=function(u,r,t,node)
   if L.canonical(node)~=L.canonical(t.target) or not t.serviced then return false end
-  local Sat=require('src.satellites')
-  -- the cargo is spent on the satellite (or, if it's already fixed, kept)
-  local s=u.satellites and u.satellites[t.sat]
-  if t.cargoAboard and s and wanted(kind,s) then
-   require('src.transport').carry(r,t.cargo.item,-t.cargo.amount);t.cargoAboard=nil
-  end
+  -- (the cargo was spent out at the satellite; if the job turned out not to
+  -- be needed, the hauler keeps it)
   if t.done then r.credits=(r.credits or 0)+J.pay end
   return true
  end,
 })
 end
--- The satellite as an action target: online, its live husk (or, for a launch,
--- its empty slot), with the berth beside it as the place to stand; offline,
--- its home orbit slot. record = the satellite's record, so the action claim
--- keeps it to one ship at a time.
+-- A berth of a satellite as an action target (t.id, t.berth): online, the
+-- berth beside its live husk (or, for a launch, its empty slot); offline,
+-- its home orbit slot. record = that berth's record, so the action claim
+-- holds that one berth (a hub's other berth stays free).
 Actions.registerTarget('satellite',{resolve=function(ctx,t)
  local Sat=require('src.satellites')
  local s=Sat.get(ctx.u,t.id);if not s then return end
+ local i=t.berth or 1
+ local berth=Sat.berth(s,i)
  local game=ctx.game
  if ctx.e and game and game.fieldId==s.field then
   local e=Sat.entity(game,t.id)
   if e then
-   local x,y,vx,vy=Sat.berthPoint(e,ctx.e)
-   return {x=x,y=y,vx=vx,vy=vy,entity=e,record=s,sat=s}
+   local x,y,vx,vy=Sat.berthPoint(e,ctx.e,Sat.berthSide(s,i))
+   return {x=x,y=y,vx=vx,vy=vy,entity=e,record=berth,sat=s,berth=i}
   end
  end
  local x,y=Sat.home(ctx.u,s,game);if not x then return end
- return {x=x,y=y,vx=0,vy=0,record=s,sat=s}
+ return {x=x,y=y,vx=0,vy=0,record=berth,sat=s,berth=i}
 end})
+-- A free berth of satellite s for this ship's work, or nil.
+function J.freeBerth(ctx,s,operation)
+ local Sat=require('src.satellites')
+ local e=ctx.game and ctx.game.fieldId==s.field and Sat.entity(ctx.game,s.id)
+ for i=1,Sat.berthCount(s) do
+  local spec={kind='work',operation=operation,target={provider='satellite',id=s.id,berth=i}}
+  local target=Actions.targets.satellite.resolve(ctx,spec.target)
+  if target and Actions.available(ctx,target) and not Sat.playerOn(e,i) then return spec end
+ end
+end
+-- On the berth: wait while the player holds it, else mark it this ship's.
+local function onBerth(ctx,target)
+ local Sat=require('src.satellites')
+ if Sat.playerOn(target.entity,target.berth) then return false end
+ return true
+end
+-- Take up to n of item the job loaded back out of the hauler (online, off
+-- the live ship). Returns how many.
+function J.unload(ctx,t,item,n)
+ n=math.min(n,(t.loads or {})[item] or 0)
+ if n<=0 then return 0 end
+ t.loads[item]=t.loads[item]-n
+ if ctx.e then
+  Actions.recordOperation(ctx,function() require('src.transport').carry(ctx.r,item,-n);return 'done' end)
+ else require('src.transport').carry(ctx.r,item,-n) end
+ return n
+end
 -- Sit on the berth for J.stay seconds, then the job's effect.
 local function service(ctx,target,dt,a)
- local other=ctx.e and target.entity and target.entity.satHeld
- if other and other~=ctx.e and other.dockState and not other.dead then return 'running' end -- the player is on the berth
+ if not onBerth(ctx,target) then return 'running' end -- the player is on the berth
  a.held=(a.held or 0)+dt
- if ctx.e and target.entity then target.entity.satHeld=ctx.e end
  if a.held<J.stay then return 'running' end
- if ctx.e and target.entity and target.entity.satHeld==ctx.e then target.entity.satHeld=nil end
  local Sat,t=require('src.satellites'),ctx.r.task
  local kind=t and t.kind
  if kind=='satlaunch' then
   if Sat.relaunch(ctx.u,target.sat.id,ctx.r.id) then
-   t.done=true
+   t.done=true;J.unload(ctx,t,t.cargo.item,t.cargo.amount)
    if ctx.game and ctx.game.fieldId==target.sat.field and ctx.game.entities then Sat.populate(ctx.game) end
   end
  elseif kind=='satrefuel' then
   t.done=Sat.refuel(ctx.u,target.sat.id,ctx.r.id)
-  if t.done then Sat.restockHub(ctx.u,target.sat) end
+  if t.done then
+   J.unload(ctx,t,t.cargo.item,t.cargo.amount) -- the canister went into its tank
+   -- whatever else it brought goes onto a hub's shelf
+   for item,n in pairs(t.loads or {}) do
+    local k=J.unload(ctx,t,item,n)
+    if k>0 then Sat.stockHub(ctx.u,target.sat,item,k) end
+   end
+  end
  end
  return 'done'
 end
@@ -197,7 +264,17 @@ function J.preferredHub(ctx)
 end
 -- From upkeep's planning mid-leg: a hub is the better stop, so don't book a
 -- station visit now; the ship takes the hub at its next node (J.hubVisit).
+-- Never while the tank is empty, and never for more than J.hubWaitLimit
+-- game seconds in a row: a ship that keeps flying past nodes without
+-- stopping books its usual station visit after that.
+J.hubWaitLimit=180
 function J.holdForHub(r,clock,e)
+ local fuel=require('src.reactor_fuel').condition(r,e)
+ if fuel=='empty' or fuel=='stranded' then r.hubHeldSince=nil;return false end
+ if r.hubHeldSince and clock-r.hubHeldSince>J.hubWaitLimit then
+  if clock-r.hubHeldSince>J.hubWaitLimit*3 then r.hubHeldSince=nil end -- (a later need can try again)
+  return false
+ end
  if (r.hubCheckAt or 0)>clock then return r.hubHeld or false end
  r.hubCheckAt=clock+10
  local u=require('src.supplies').universe
@@ -213,10 +290,10 @@ function J.hubVisit(ctx)
  if need~='fuel' and need~='supplies' then return false end
  r.nextHubAt=ctx.clock+120
  local hub=J.preferredHub(ctx);if not hub then return false end
- local spec={kind='work',operation='hubservice',target={provider='satellite',id=hub.id}}
- local target=Actions.targets.satellite.resolve(ctx,spec.target)
- if not target or not Actions.available(ctx,target) then return false end
+ local spec=J.freeBerth(ctx,hub,'hubservice')
+ if not spec then return false end
  local a=Actions.request(ctx,spec);a.fromJob=true
+ r.hubHeldSince=nil
  r.taskStatus='stopping at '..(hub.name or 'a hub')
  Actions.step(ctx)
  return true
@@ -229,12 +306,9 @@ local function shop(ctx,target)
  return n
 end
 local function hubHold(ctx,target,dt,a)
- local other=ctx.e and target.entity and target.entity.satHeld
- if other and other~=ctx.e and other.dockState and not other.dead then return 'running' end
+ if not onBerth(ctx,target) then return 'running' end
  a.held=(a.held or 0)+dt
- if ctx.e and target.entity then target.entity.satHeld=ctx.e end
  if a.held<J.hubStay then return 'running' end
- if ctx.e and target.entity and target.entity.satHeld==ctx.e then target.entity.satHeld=nil end
  if ctx.e then Actions.recordOperation(ctx,function() shop(ctx,target);return 'done' end) else shop(ctx,target) end
  return 'done'
 end

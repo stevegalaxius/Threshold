@@ -281,20 +281,27 @@ function Sat.hubLow(universe, r)
 		require("src.reactor_fuel").item()) < Sat.hubLowStock
 end
 
--- The refuel hauler also restocks the shelf: each listed good back up to
--- at least half its listed amount.
-function Sat.restockHub(universe, r)
-	if r.kind ~= "hub" then return end
+-- What a hub's shelf is short of: each listed good up to half its listed
+-- amount. The refuel hauler brings it from its trade station's stock
+-- (src/sat_jobs.lua) and Sat.stockHub puts it on the shelf.
+function Sat.hubShortfall(universe, r)
+	local out = {}
+	if r.kind ~= "hub" then return out end
 	local Stock, Shapes = require("src.stockpile"), require("src.inventory.shapes")
 	local shelf = Sat.shelf(r)
 	for i, shop in ipairs(Stock.shops(shelf)) do
 		local stock = Stock.stock(universe, shelf, i)
 		for _, e in ipairs(shop.sells or {}) do
 			local _, _, cap = Shapes.of(e[1])
-			local want = math.floor(e[2] * cap / 2)
-			if stock and (stock[e[1]] or 0) < want then stock[e[1]] = want end
+			local want = math.floor(e[2] * cap / 2) - (stock and stock[e[1]] or 0)
+			if want > 0 then out[e[1]] = want end
 		end
 	end
+	return out
+end
+function Sat.stockHub(universe, r, item, n)
+	if r.kind ~= "hub" or n <= 0 then return end
+	require("src.stockpile").add(universe, Sat.shelf(r), item, n)
 end
 
 -- The nearest working hub on a map to (x, y). Hubs are only placed where
@@ -394,11 +401,44 @@ end
 
 -- The berth beside a satellite for `ship`, in world space, with the
 -- berth's velocity (it turns and drifts with the satellite).
-function Sat.berthPoint(e, ship)
-	local bx, by = berthOffsetFor(e, ship)
+function Sat.berthPoint(e, ship, side)
+	local bx, by = berthOffsetFor(e, ship, side)
 	local x, y = e.body:getWorldPoint(bx, by)
 	local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
 	return x, y, vx, vy
+end
+
+-- Berths -------------------------------------------------------------------
+--
+-- A hub has Sat.hubBerthCount berths (one off each docking arm), any other
+-- satellite one. Each berth is claimed on its own: an NPC through its work
+-- action's claim on the berth record (r.berths[i], saved with the
+-- satellite), the player through the live husk's e.berthHeld[i] while
+-- locked on. Neither takes a berth the other holds.
+Sat.hubBerthCount = 2
+function Sat.berthCount(r) return r.kind == "hub" and Sat.hubBerthCount or 1 end
+function Sat.berth(r, i)
+	r.berths = r.berths or {}
+	r.berths[i] = r.berths[i] or {}
+	return r.berths[i]
+end
+-- Which side of the satellite berth i is on (nil: whichever the ship is on).
+function Sat.berthSide(r, i)
+	if Sat.berthCount(r) == 1 then return nil end
+	return i == 1 and -1 or 1
+end
+-- The live player on berth i, if any.
+function Sat.playerOn(e, i)
+	local p = e and e.berthHeld and e.berthHeld[i]
+	if p and not p.dead and not p.removed and p.dockState and p.dockState.station and p.dockState.station.entity == e then return p end
+	if e and e.berthHeld then e.berthHeld[i] = nil end
+end
+-- An NPC's live claim on berth i.
+function Sat.npcOn(universe, r, i)
+	local b = r.berths and r.berths[i]
+	local owner = b and b.actionOwner and universe.npcs and universe.npcs[b.actionOwner]
+	local a = owner and owner.action
+	return owner and owner.state ~= "dead" and a and not a.pausedAt and a.key == b.actionKey or false
 end
 
 -- Docking ------------------------------------------------------------------
@@ -461,16 +501,22 @@ function Sat.request(game, e)
 	local r = Sat.get(game.universe, e.sat)
 	local p = game.player
 	if not r or not p or p.dead or p.dockState then return false end
-	local held = e.satHeld
-	local npcOn = held and held.alifeRecord and held.alifeRecord.action and held.alifeRecord.action.operation == "satservice"
-	if held and held ~= p and not held.dead and not held.removed and (held.dockState or npcOn) then game:toast("BERTH OCCUPIED", 1.4); return false end
+	-- a free berth: neither an NPC's nor already the player's; on a hub, the
+	-- one on the player's side first
+	local free
+	local lx = e.body:getLocalPoint(p.body:getPosition())
+	local order = Sat.berthCount(r) == 2 and (lx < 0 and { 1, 2 } or { 2, 1 }) or { 1 }
+	for _, i in ipairs(order) do
+		if not free and not Sat.playerOn(e, i) and not Sat.npcOn(game.universe, r, i) then free = i end
+	end
+	if not free then game:toast("BERTH OCCUPIED", 1.4); return false end
 	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
 	local st = Sat.station(game, e)
-	local side
-	local bx, by = berthOffset(e, p, side)
-	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by }, satSide = side }
+	local bx, by = berthOffset(e, p, Sat.berthSide(r, free))
+	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by }, satBerthIndex = free }
 	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
-	e.satHeld = p
+	e.berthHeld = e.berthHeld or {}
+	e.berthHeld[free] = p
 	game:toast("TRACTOR LOCK", 1.4)
 	return true
 end
@@ -494,7 +540,8 @@ function Sat.updateDock(game, ship, dt)
 		local dx, dy = wx - x, wy - y
 		local d = math.sqrt(dx * dx + dy * dy)
 		if d > (e.radius or 300) * 2.5 then
-			ship.dockState, ship.dockCooldown, e.satHeld = nil, 3, nil
+			if e.berthHeld and ds.satBerthIndex then e.berthHeld[ds.satBerthIndex] = nil end
+			ship.dockState, ship.dockCooldown = nil, 3
 			game:toast("TRACTOR LOST", 1.4)
 			return
 		end
@@ -523,7 +570,7 @@ function Sat.undock(game, ship)
 	local e = ds and ds.station.entity
 	ship.dockState, ship.dockCooldown = nil, 2
 	if e then
-		e.satHeld = nil
+		if e.berthHeld and ds.satBerthIndex then e.berthHeld[ds.satBerthIndex] = nil end
 		if e.body and not e.body:isDestroyed() then
 			local x, y = ship.body:getPosition()
 			local cx, cy = e.body:getPosition()

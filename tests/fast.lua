@@ -82,7 +82,7 @@ return function(game)
   local saved=require('src.persistence').copy(npc)
   local hx,hy=Sat.home(u,hub)
   if npc.ship.hold then local h=Hold.deserialize(npc.ship.hold);Hold.take(h,F,Hold.count(h,F));npc.ship.hold=Hold.serialize(h);npc.ship.cargo=Hold.totals(h) else npc.ship.cargo[F]=0 end
-  npc.ship.fuelCharge=0;npc.task=nil;npc.action=nil;npc.nextHubAt=nil
+  npc.ship.fuelCharge=0;npc.task=nil;npc.action=nil;npc.nextHubAt=nil;npc.service=nil
   npc.state,npc.area='idle','neptune'
   npc.node=Fields.neptune.buoyIds[1] or Fields.neptune.holdingId
   local clock=u.clock
@@ -99,6 +99,67 @@ return function(game)
   assert(served()>before,'hub did not serve the NPC: '..tostring(npc.lastAction and npc.lastAction.status)..' '..tostring(npc.lastAction and npc.lastAction.reason)..' '..tostring(npc.action and npc.action.phase))
   assert((npc.ship.cargo[F] or 0)>0,'NPC left the hub without fuel')
   for k in pairs(npc) do npc[k]=nil end;for k,v in pairs(saved) do npc[k]=v end
+ end
+ -- a hub's two berths are claimed one each; a third ship finds none free
+ do
+  local Actions,Jobs=require('src.npc_actions'),require('src.sat_jobs')
+  local ships,saved={},{}
+  for _,r in pairs(u.npcs) do if #ships<3 and r.ship and r.state~='dead' and r.state~='escaped' then ships[#ships+1]=r;saved[r]=require('src.persistence').copy(r) end end
+  local got={}
+  for k,r in ipairs(ships) do
+   r.task,r.action,r.state,r.area,r.node=nil,nil,'idle','neptune',Fields.neptune.holdingId or (Fields.neptune.buoyIds or {})[1]
+   local ctx={u=u,r=r,clock=u.clock,game={universe=u}}
+   local spec=Jobs.freeBerth(ctx,hub,'hubservice')
+   got[k]=spec and spec.target.berth
+   if spec then Actions.request(ctx,spec).fromJob=true;Actions.step(ctx) end
+  end
+  assert(got[1] and got[2] and got[1]~=got[2],'two ships could not take both hub berths')
+  assert(got[3]==nil,'a third ship got a berth on a full hub')
+  for _,r in ipairs(ships) do
+   if r.action then Actions.cancel({u=u,r=r,clock=u.clock,game={universe=u}},'test') end
+   for k in pairs(r) do r[k]=nil end;for k,v in pairs(saved[r]) do r[k]=v end
+  end
+ end
+ -- a hub refuel's canister and restock come out of the trade station's stock
+ do
+  local Jobs,Tasks,Actions,Stock=require('src.sat_jobs'),require('src.tasks'),require('src.npc_actions'),require('src.stockpile')
+  local source,here=Jobs.places('neptune')
+  Stock.add(u,source,F,40)
+  local shelfBefore=Stock.count(u,Sat.shelf(hub),F)
+  for _,i in ipairs({1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}) do Stock.take(u,Sat.shelf(hub),F,1) end
+  local stationBefore=Stock.count(u,source,F)
+  hub.fuelAt=u.clock-Sat.fuelLife*0.9;Sat.fuel(u,hub)
+  local offer=Jobs.post(u,hub,'satrefuel')
+  local npc
+  for _,r in pairs(u.npcs) do if r.ship and not r.ship.hold and r.state~='dead' and r.state~='escaped' then npc=r;break end end
+  local saved=require('src.persistence').copy(npc)
+  local t=require('src.persistence').copy(offer);t.phase='prepare'
+  npc.task,npc.action=nil,nil
+  assert(Tasks.definitions.satrefuel.prepare(u,npc,t,source,u.clock),'hub refuel job could not load at its station')
+  assert(Stock.count(u,source,F)<stationBefore,'the canisters did not come out of the station')
+  npc.task=t;npc.state,npc.node,npc.area='idle',here,require('src.locations').get(here).area
+  local clock=u.clock
+  for _=1,2000 do
+   local ctx={u=u,r=npc,clock=clock,game={universe=u}}
+   if not npc.action then local spec=Tasks.definitions.satrefuel.nextAction(ctx);if not spec then break end;Actions.request(ctx,spec).fromJob=true end
+   Actions.step(ctx);clock=clock+5
+  end
+  assert(hub.fuel==1,'hub was not refuelled')
+  assert(Stock.count(u,Sat.shelf(hub),F)>shelfBefore-20,'hub shelf was not restocked from the hauler')
+  for k in pairs(npc) do npc[k]=nil end;for k,v in pairs(saved) do npc[k]=v end
+  Jobs.clear(u,hub.id)
+ end
+ -- a ship never waits on a hub with an empty tank
+ do
+  local Jobs=require('src.sat_jobs')
+  local r;for _,o in pairs(u.npcs) do if o.ship and o.state~='dead' then r=o;break end end
+  local saved=require('src.persistence').copy(r)
+  r.ship.cargo[F]=0;r.ship.fuelCharge=0
+  if r.ship.hold then local Hold=require('src.inventory.hold');local h=Hold.deserialize(r.ship.hold);Hold.take(h,F,Hold.count(h,F));r.ship.hold=Hold.serialize(h);r.ship.cargo=Hold.totals(h) end
+  local c=require('src.reactor_fuel').condition(r)
+  assert(c=='empty' or c=='stranded','drained ship still has fuel: '..tostring(c))
+  assert(not Jobs.holdForHub(r,u.clock),'empty ship held off its station visit for a hub')
+  for k in pairs(r) do r[k]=nil end;for k,v in pairs(saved) do r[k]=v end
  end
  hub.fuelAt=u.clock-Sat.fuelLife*2;Sat.fuel(u,hub)
  assert(not Sat.hubWorking(u,hub),'dry hub still works')
