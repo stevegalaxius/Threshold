@@ -1,6 +1,7 @@
 -- Made in the Shipyard (F2), Icons tab. Art for missile_s: a short banded crate.
 icon {
 	id = "icon_missile_s", item = "missile_s",
+	paint = "Cargo Blue",   -- primary paint: a preset from src/paint.lua, or { r, g, b }
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
 		{ name = "crate", x = 0, y = 0, z = 0, w = 2, d = 1, h = 0.7 },
 		{ name = "band", x = 0.9, y = -0.02, z = -0.02, w = 0.2, d = 1.04, h = 0.74, shade = 0.6 },

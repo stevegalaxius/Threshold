@@ -21,7 +21,7 @@ Export.FOLDER = "mods/shipyard/data"
 Export.AUTOSAVE = "shipyard/_autosave.lua"
 
 -- The fields a part can carry in a data file, in the order they're written.
-Export.PART_FIELDS = { "name", "shape", "shade", "fill", "tint", "color", "paint", "mirror", "layer", "under", "collide", "sensor", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
+Export.PART_FIELDS = { "name", "shape", "shade", "fill", "tint", "color", "paint", "mirror", "layer", "badge", "under", "collide", "sensor", "cargo", "core", "coreSide", "breakable", "armor", "mass", "explode", "lights", "dock", "dockBoth", "dockRunway", "dockHeading", "dockX", "dockY", "dockWidth", "dockDepth", "dockCapture", "dockWall", "role", "rotor", "barrel" }
 -- Editor-only fields (kept in the autosave, never in an export).
 local EDITOR_FIELDS = { "hidden", "locked" }
 
@@ -110,6 +110,7 @@ function Export.cleanPart(part, editor)
 	if out.breakable == true then out.breakable = nil end
 	if out.mirror == false then out.mirror = nil end
 	if out.cargo == false then out.cargo = nil end
+	if out.badge == false then out.badge = nil end
 	if out.core == false then out.core = nil end
 	if out.role == "" then out.role = nil end
 	if out.name == "" then out.name = nil end
@@ -214,14 +215,14 @@ end
 
 -- An item icon (the Icons tab): just the art, keyed by its item.
 function Export.iconDef(design)
-	local def = { id = design.id, item = design.item, w = design.w, h = design.h, parts = {},
+	local def = { id = design.id, item = design.item, w = design.w, h = design.h, paint = design.paint, parts = {},
 		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil,
 		boxView = design.boxes and #design.boxes > 0 and design.boxView and copy(design.boxView) or nil }
 	for _, part in ipairs(design.parts) do
 		if part.fromBox then goto continue end
 		local p = Export.cleanPart(part)
 		-- only what an icon draws with
-		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, fill = p.fill, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer, under = p.under })
+		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, fill = p.fill, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer, badge = p.badge, under = p.under })
 		::continue::
 	end
 	return def
@@ -231,7 +232,7 @@ end
 function Export.fromIcon(item)
 	local ic = data.icons[item]
 	local def = data.items[item]
-	local design = { id = ic.id, item = item, w = ic.w, h = ic.h, name = (def and def.name or item) .. " icon", kind = "icon",
+	local design = { id = ic.id, item = item, w = ic.w, h = ic.h, paint = ic.paint, name = (def and def.name or item) .. " icon", kind = "icon",
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
 	design.boxes = ic.boxes and copy(ic.boxes) or nil
 	design.boxView = ic.boxView and copy(ic.boxView) or nil
@@ -290,6 +291,7 @@ local function iconSource(design)
 	local item = data.items[def.item]
 	local out = { "-- Made in the Shipyard (F2), Icons tab." .. (item and (" Art for " .. item.name .. ".") or ""), "icon {",
 		("\tid = %q, item = %q,"):format(def.id, def.item) }
+	if def.paint then table.insert(out, "\tpaint = " .. serialize(def.paint, "\t") .. ",   -- primary paint: a preset from src/paint.lua, or { r, g, b }") end
 	if def.w and def.h then table.insert(out, ("\tw = %d, h = %d,   -- the item's grid size (cells); also its size in space"):format(def.w, def.h)) end
 	if def.boxes then
 		table.insert(out, "\tboxes = {   -- 3/4 view blocks in cells: x across, y depth, z up")

@@ -555,6 +555,16 @@ local function iconSections(E, d)
 	local w, h = Icons.footprint(d.item)
 	Slab.Text("item: " .. (item and item.name or tostring(d.item)) .. "  (" .. tostring(d.item) .. ")")
 	Slab.Text(("footprint %d x %d cells (%d x %d units)"):format(w, h, w * Icons.CELL, h * Icons.CELL), { Color = GREY })
+	-- primary paint, as on ships: a factory preset (unpainted boxes and parts wear it)
+	Slab.Text("paint"); Slab.SameLine()
+	local Paint = require("src.paint")
+	local popts = { { label = "bare metal", value = false } }
+	for _, pr in ipairs(Paint.PRESETS) do popts[#popts + 1] = { label = pr.name, value = pr.name } end
+	combo("yard_icon_paint", type(d.paint) == "string" and d.paint or (d.paint and "custom" or "bare metal"), popts, function(v)
+		E.pushUndo()
+		d.paint = v or nil
+		if d.boxes then Icons.syncBoxes(d) end
+	end, 160)
 	Slab.Text("The box is the hold footprint; draw the", { Color = GREY })
 	Slab.Text("outline inside it.", { Color = GREY })
 	-- the item's grid size, which is also its size in space
@@ -1536,6 +1546,7 @@ local function boxWindow(E)
 	Slab.Text("Layer")
 	local lopts = {}
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
+	table.insert(lopts, { label = "glass", value = "glass" })   -- icon boxes only: see-through, tints what's behind
 	combo("yard_boxlayer" .. i, b.layer or "hull", lopts, function(l) E.pushUndo(); b.layer = l ~= "hull" and l or nil end, 140)
 	Slab.Text("hull: dark fill and outline. detail: flat", { Color = GREY })
 	Slab.Text("fill, no outline. glow: bright, additive.", { Color = GREY })
@@ -1671,7 +1682,12 @@ local function partWindow(E)
 	Slab.Text("Layer")
 	local lopts = {}
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
+	if E.design.kind == "icon" then table.insert(lopts, { label = "glass", value = "glass" }) end
 	combo("yard_layer" .. i, p.layer or "hull", lopts, function(l) E.pushUndo(); p.layer = l ~= "hull" and l or nil end, 140)
+	end
+	if E.design.kind == "icon" then
+		-- a badge: drawn in the hold only, so a generic crate can say what is in it
+		check(E, p.badge == true, "Badge (hold only, hidden in space)", function(v) p.badge = v or nil end)
 	end
 
 	if E.design.kind == "station" then

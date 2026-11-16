@@ -930,12 +930,14 @@ function Canvas.draw(E)
 					local fillCol = wreck and { pc[1] * 0.12, pc[2] * 0.12, pc[3] * 0.12 } or { pc[1] * (q.fill or 0.22), pc[2] * (q.fill or 0.22), pc[3] * (q.fill or 0.22) }
 					if q.layer == "glow" then fillCol = wreck and { 0.05, 0.05, 0.05 } or pc end
 					if q.layer == "detail" then fillCol = wreck and fillCol or { pc[1] * 0.5, pc[2] * 0.5, pc[3] * 0.5 } end
+					-- glass (icons): a dark see-through tint, as src/icons.lua draws it
+					if q.layer == "glass" and not wreck then fillCol = { pc[1] * 0.45, pc[2] * 0.45, pc[3] * 0.45, 0.75 } end
 					if E.preview == "collision" and q.collide == false then fillCol = { 0.15, 0.15, 0.15, 0.4 } end
 					lg.setColor(fillCol)
 					if q.layer == "glow" and not wreck then lg.setBlendMode("add") end
 					for _, t in ipairs(tris) do lg.polygon("fill", t) end
 					lg.setBlendMode("alpha")
-					if q.layer == nil or q.layer == "hull" then
+					if q.layer == nil or q.layer == "hull" or q.layer == "glass" then
 						lg.setColor(wreck and { pc[1] * 0.35, pc[2] * 0.35, pc[3] * 0.35 } or pc)
 						lg.setLineWidth(1.5 / v.zoom)
 						lg.polygon("line", s)
@@ -1323,7 +1325,7 @@ function Canvas.drawIconPreview(E)
 	end
 	local fw, fh = Icons.footprint(d.item, d)
 	local item = data.items[d.item] or {}
-	local c = HUD.itemColor(item) or { 1, 1, 1 }
+	local c = Icons.paint(d)
 	local W, H = 360, 230
 	local x0, y0 = lg.getWidth() - W - 12, lg.getHeight() - H - 34
 	lg.setColor(0.02, 0.025, 0.035, 0.92)

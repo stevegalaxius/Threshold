@@ -33,7 +33,7 @@ local Visual = require("src.weapon_visual")
 local Icons = {}
 
 Icons.CELL = 16      -- art units per hold cell (1 m)
-Icons.WORLD = 0.375  -- world px per art unit in space: 6 px per hold cell (readable, still small beside a 72 px Wisp)
+Icons.WORLD = 0.5  -- world px per art unit in space: 6 px per hold cell (readable, still small beside a 72 px Wisp)
 
 local lg = love.graphics
 
@@ -109,7 +109,7 @@ function Icons.syncBoxes(icon)
 	for _, p in ipairs(icon.parts or {}) do if not p.fromBox then kept[#kept + 1] = p end end
 	local bw, bh = Icons.box(icon.item, icon)
 	local def = data.items[icon.item]
-	local kc = def and require("src.hud").itemColor(def) or nil
+	local kc = Icons.paint(icon)
 	local parts, view = Icons.boxParts(icon.boxes, bw, bh, kc, icon.boxView)
 	if icon.boxes and #icon.boxes > 0 then
 		icon.boxView = view and { math.floor(view[1] * 1000 + 0.5) / 1000, math.floor(view[2] * 1000 + 0.5) / 1000, math.floor(view[3] * 1000 + 0.5) / 1000 }
@@ -200,17 +200,29 @@ function Icons.reach(icon)
 	if icon.reach then return icon.reach end
 	local r = 0
 	for _, p in ipairs(icon.parts or {}) do
+		if p.badge then goto continue end   -- hold only: not part of the shape afloat
 		for k = 1, #(p.shape or {}) - 1, 2 do
 			r = math.max(r, math.sqrt(p.shape[k] ^ 2 + p.shape[k + 1] ^ 2))
 		end
+		::continue::
 	end
 	icon.reach = math.max(r, 4)
 	return icon.reach
 end
 
-local function kindColor(itemDef)
-	local HUD = require("src.hud")
-	return HUD.itemColor(itemDef) or { 0.75, 0.78, 0.82 }
+-- An icon's primary paint, like a ship's: paint = a preset name from
+-- src/paint.lua ("Khaki", "Gunmetal", ...) or { r, g, b }; bare metal if
+-- unset. Not the hold's kind colour, so items don't all look alike.
+function Icons.paint(icon)
+	local Paint = require("src.paint")
+	local p = icon and icon.paint
+	if type(p) == "string" then
+		local pr = Paint.find(p)
+		if pr then return pr.color end
+	elseif type(p) == "table" then
+		return p
+	end
+	return Paint.METAL
 end
 
 -- Just the art, in art units around the current origin, in the game's
@@ -221,7 +233,11 @@ end
 --   hull    dark fill + bright contour (default)
 --   detail  flat darker fill, no contour (bands, seams, panel lines)
 --   glow    filled bright and additive (lights, fuses, hot bits)
+--   glass   see-through: a dark tint over what's behind (dimmed to a
+--           quarter) inside an outline in its colour
 -- col is the primary paint (default: the item's kind colour).
+-- A part with badge = true is a hold-only marker (what's in a generic
+-- crate): drawn in the hold and the editor, left out when space is true.
 local triCache = setmetatable({}, { __mode = "k" })
 local function triangles(shape, fresh)
 	local t = triCache[shape]
@@ -242,19 +258,29 @@ end
 Icons.FILL = 0.22        -- fill brightness, as hulls (src/render.lua)
 
 -- fresh: the parts may have changed since last frame (the editor).
-function Icons.drawArt(icon, col, alpha, lineWidth, fresh)
+function Icons.drawArt(icon, col, alpha, lineWidth, fresh, space)
 	alpha = alpha or 1
 	lineWidth = lineWidth or 1
-	local c = col or kindColor(data.items[icon.item] or {})
+	local c = col or Icons.paint(icon)
 	local paint = { c[1], c[2], c[3] }
 	lg.setLineJoin("bevel")
 	for _, p in ipairs(icon.parts or {}) do
-		if p.shape and #p.shape >= 6 then
+		if p.shape and #p.shape >= 6 and not (space and p.badge) then
 			local layer = p.layer or "hull"
 			local pc = Visual.partColor(p, paint)
 			for _, s in ipairs({ p.shape, p.mirror and mirrored(p.shape) or nil }) do
 				local tris = triangles(s, fresh)
-				if layer == "glow" then
+				if layer == "glass" then
+					if tris then
+						-- mostly opaque and darker than its edge: what's behind shows
+						-- through dimmed, never brighter than the glass's own outline
+						lg.setColor(pc[1] * 0.45, pc[2] * 0.45, pc[3] * 0.45, alpha * 0.75)
+						for _, tri in ipairs(tris) do lg.polygon("fill", tri) end
+					end
+					lg.setColor(pc[1], pc[2], pc[3], alpha)
+					lg.setLineWidth(lineWidth)
+					lg.polygon("line", s)
+				elseif layer == "glow" then
 					lg.setBlendMode("add")
 					lg.setColor(pc[1], pc[2], pc[3], alpha)
 					if tris then for _, tri in ipairs(tris) do lg.polygon("fill", tri) end end
@@ -296,7 +322,7 @@ function Icons.drawInRect(itemId, x, y, w, h, rot, alpha, pad)
 	lg.translate(x + w / 2, y + h / 2)
 	if rot then lg.rotate(math.pi / 2) end
 	lg.scale(s)
-	Icons.drawArt(icon, nil, alpha, 1.5 / s)
+	Icons.drawArt(icon, nil, alpha, 0.5 / s)
 	lg.pop()
 	return true
 end
@@ -311,7 +337,7 @@ function Icons.drawWorld(itemId, x, y, angle, alpha, lineWidth)
 	lg.rotate(angle or 0)
 	local k = Icons.worldScale(itemId)
 	lg.scale(k)
-	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / k)
+	Icons.drawArt(icon, nil, alpha, (lineWidth or 1) / k, nil, true)
 	lg.pop()
 	return true
 end
