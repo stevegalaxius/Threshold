@@ -1,25 +1,14 @@
--- Made in the Shipyard (F2), Icons tab. Art for Gun M: an autocannon with a vented heat jacket and ammo drum.
+-- Made in the Shipyard (F2), Icons tab. Art for Gun M: its retail box.
 icon {
 	id = "icon_gun_m_base", item = "gun_m_base",
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
-		{ name = "ammo drum", x = -0.05, y = -0.15, z = 0.05, w = 0.72, d = 0.2, h = 0.465, shade = 0.7 },
-		{ name = "mount ring", x = 0.25, y = 0.1, z = -0.18, w = 0.72, d = 0.4, h = 0.18, color = { 0.3, 0.31, 0.34 } },
-		{ name = "receiver", x = 0, y = 0, z = 0, w = 1.6, d = 0.6, h = 0.62 },
-		{ name = "receiver cap", x = 0.05, y = 0.05, z = 0.62, w = 0.96, d = 0.5, h = 0.08, shade = 0.75 },
-		{ name = "panel seam", x = 0.56, y = -0.01, z = 0.05, w = 0.03, d = 0.01, h = 0.52, shade = 0.5, layer = "detail" },
-		{ name = "vent", x = 0.88, y = -0.01, z = 0.341, w = 0.48, d = 0.01, h = 0.05, color = { 0.3, 0.31, 0.34 }, layer = "detail" },
-		{ name = "vent", x = 0.88, y = -0.01, z = 0.217, w = 0.48, d = 0.01, h = 0.05, color = { 0.3, 0.31, 0.34 }, layer = "detail" },
-		{ name = "sight", x = 0.24, y = 0.24, z = 0.7, w = 0.25, d = 0.12, h = 0.1, color = { 0.3, 0.31, 0.34 } },
-		{ name = "mantlet", x = 1.6, y = 0.06, z = 0.093, w = 0.16, d = 0.48, h = 0.434, shade = 0.85 },
-		{ name = "top rail", x = 0.16, y = 0.21, z = 0.7, w = 1.28, d = 0.05, h = 0.04, color = { 0.3, 0.31, 0.34 } },
-		{ name = "recoil sleeve", x = 1.76, y = 0.18, z = 0.19, w = 0.45, d = 0.24, h = 0.24, color = { 0.3, 0.31, 0.34 } },
-		{ name = "barrel", x = 1.76, y = 0.2, z = 0.21, w = 1.8, d = 0.2, h = 0.2, color = { 0.52, 0.54, 0.58 } },
-		{ name = "heat jacket", x = 2.3, y = 0.17, z = 0.18, w = 0.72, d = 0.26, h = 0.26, color = { 0.68, 0.7, 0.74 } },
-		{ name = "jacket vent", x = 2.38, y = 0.16, z = 0.27, w = 0.09, d = 0.01, h = 0.08, color = { 0.3, 0.31, 0.34 }, layer = "detail" },
-		{ name = "jacket vent", x = 2.578, y = 0.16, z = 0.27, w = 0.09, d = 0.01, h = 0.08, color = { 0.3, 0.31, 0.34 }, layer = "detail" },
-		{ name = "jacket vent", x = 2.776, y = 0.16, z = 0.27, w = 0.09, d = 0.01, h = 0.08, color = { 0.3, 0.31, 0.34 }, layer = "detail" },
-		{ name = "muzzle brake", x = 3.38, y = 0.17, z = 0.18, w = 0.18, d = 0.26, h = 0.26, color = { 0.3, 0.31, 0.34 } },
-		{ name = "ready light", x = 0.12, y = -0.16, z = 0.465, w = 0.07, d = 0.01, h = 0.06, color = { 1, 0.8, 0.3 }, layer = "glow" },
+		{ name = "box", x = 0, y = 0, z = 0, w = 3.4, d = 0.4, h = 0.75 },
+		{ name = "end flap", x = 3.22, y = -0.005, z = 0, w = 0.18, d = 0.405, h = 0.75, shade = 0.7 },
+		{ name = "brand stripe", x = 0, y = -0.01, z = 0.585, w = 3.22, d = 0.01, h = 0.075, shade = 0.55, layer = "detail" },
+		{ name = "print body", x = 0.408, y = -0.01, z = 0.21, w = 1.02, d = 0.01, h = 0.21, color = { 0.95, 0.95, 0.92 }, layer = "detail" },
+		{ name = "print barrel", x = 1.428, y = -0.01, z = 0.277, w = 1.088, d = 0.01, h = 0.075, color = { 0.95, 0.95, 0.92 }, layer = "detail" },
+		{ name = "size pip", x = 3.04, y = -0.01, z = 0.09, w = 0.08, d = 0.01, h = 0.08, color = { 1, 0.85, 0.4 }, layer = "glow" },
+		{ name = "size pip", x = 2.9, y = -0.01, z = 0.09, w = 0.08, d = 0.01, h = 0.08, color = { 1, 0.85, 0.4 }, layer = "glow" },
 	},
 	parts = {},
 }
