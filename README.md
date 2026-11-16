@@ -42,7 +42,7 @@ file) onto `love.exe`.
 - Docked, the left side of the cargo screen shows your ship's equipment on the hull outline. Drag a module from the hold or storage onto a slot (or double-click it) to fit it; the old one goes back where the new one came from. The panel shows top speed, acceleration, turn, spare power and mass before and after. Refitting only works docked, and a Cargo Pod with cargo in it can't be pulled. You can't launch without a reactor and an engine or thrusters (side jets push you forward when there's no engine). Modules never wear out, and each one fitted to a wreck has a 50% chance to survive as loot.
 - Wrecks and drills: drill a wreck apart (instead of shooting it) and it gives up Salvaged hull alloy, a fixed amount per hull however many pieces it breaks into. Salvagers carry drills: they strip wrecks, drill the hulls apart and sell the lot.
 - Looting: tap E with the cursor on a wreck or a cargo container in tractor range to open it next to your hold, then drag, Ctrl-click or right-click to take things, or press Take All. While it's open your tractor beam holds it, matching your speed and pulling it back in when it drifts past about half the beam's range; the pull has a limit, so burn away hard and it slips out of reach and the window closes. Cargo containers (8 x 4 inside) drift in every field, and a Hauler carries its cargo packed in them, so its wreck holds loaded containers: double-click one to open it, or move the whole thing if your hold has room. Shooting a container apart spills its contents. Hold E on a floating container to tow it (slowly); if your hold has room for its 8 x 5 shape it's reeled in and stowed, cargo and all (a Wisp's hold doesn't, an Anvil's just does).
-- Three hulls (Wisp, Anvil, Bastion) with slot layouts and hull bonuses, plus 20 catalog modules with strict size matching.
+- 32 hulls (`data/ships/`, drones and the cargo pod included) with slot layouts, and catalog modules with strict size matching (`data/modules.lua`).
 - Fast projectiles: guns reach about 1,000 px and artillery 2,000 to 3,000 px. Lasers run on power instead of ammo, and missiles are guided. Artillery shells and missiles have a proximity fuse, so they burst near an enemy, on contact, or at the end of their range. Every round is an item in the hold.
 - Hulls can be built from several polygons (`parts` in data/hulls.lua), each shaded or tinted apart from the ship's colour. Its wreck stays whole, but each part besides the biggest can be shot off, breaking away as its own small wreck with its share of the loot. The Hauler is the first.
 - Knockback, recoil and ram damage. Ram damage scales with impact force, so heavy ships hit harder. Each hull also has its own impact speed below which a bump does it no harm (`ramSpeed`): a Wisp takes damage from about 100 px/s, an Anvil 170, a Hauler 200 and a Bastion 250.
@@ -221,7 +221,8 @@ While they're being built, `Dark.DEBUG_CHARTED` lists them all as already found;
 
 - Combat NPCs and background asteroids still regenerate; highway debris is transient. Station traders persist.
 - The art is placeholder outlines, and there's no audio.
-- Field repair items aren't in yet, pending their design.
+
+For what is built and what's still to build, see [docs/status.md](docs/status.md).
 
 ## Local map
 
@@ -309,11 +310,9 @@ An empty strip mine leaves its haulers docked until miners deliver enough ore;
 elapsed time alone never refills station stock. Competing haulers cannot load
 ore already taken by another ship, and a lost shipment is not refunded.
 
-Mars dispatch workers run the supplies-out/ore-back moon circuit. Workers already
-travelling elsewhere finish their current assignment and can take a return trip
-to Mars. The outward supply manifests still use placeholder scrap; other planets'
-dispatch trade remains a prototype. Industrial consumption, prices, and player
-contracts remain future work.
+Mars haulers take this work off the shared Tasks board like every other freight
+order (see below); industry, prices and player contracts are now built
+(docs/industry.md, docs/player-contracts.md).
 
 Station stock, loaded cargo, and task reservations survive online/offline changes
 and save/load. Existing miner deposits are immediately available to haulers.
@@ -329,25 +328,15 @@ Debug travel is available in **F1 → Teleport and destinations**: filter areas 
 
 A role-neutral task board in `src/tasks.lua` owns available work and exclusive
 reservations. Task definitions specify eligible roles, requirements, selection
-scores, preparation, route planning and completion. NPC records retain their
-fixed role, current task and last outcome; the board and tasks survive save/load.
+scores, preparation, route planning and completion. NPC records keep their
+current task and last outcome; the board and tasks survive save/load.
 Death releases a reservation, and idle workers retry after ten seconds.
 
-`src/transport.lua` supplies the first task type. One existing local trader per
-eligible planet (apart from Mars's mining workers) becomes a dispatch worker
-at its next docking stop. It chooses available transport work from that station,
-loads five scrap, flies to the mass driver, crosses to the destination planet,
-docks, delivers and chooses again. Tasks favor destinations other than the last
-pickup port, avoiding immediate return trips. Busy manifests remain reserved; completed or abandoned ones become
-available again after 120 seconds.
-
-General dispatch uses authored, recurring manifests with placeholder cargo;
-Mars-moon ore hauling transfers actual miner-produced stock.
-They do not buy from markets, charge fares or calculate profits. A future economy
-can supply requests through `Tasks.post`. Existing local traffic, moon trips and
-Mars mining jobs remain supported. Other roles can register task types with the
-same lifecycle; patrol and raid duties now use it alongside transport. Mars
-mine hauling keeps its existing reservations.
+`src/transport.lua` carries a station's real orders (src/economy.lua) from the
+station that has the goods to the one that wants them. Any NPC with cargo room
+can take them, picked by its preference profile, and the player can take the
+same orders as contracts (docs/player-contracts.md). Mining, salvage, patrol and
+raid duties use the same board; see docs/npc-actions.md.
 
 ## Engine exhaust
 
