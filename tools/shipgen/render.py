@@ -95,8 +95,9 @@ def sheet(kept, path, title):
             draw_ship(d, ship, h, cx, cy, SCALE)
             label = "%s  seed %d" % (h["name"], ship["seed"])
             d.text((x + 8, y + rh - 32), label, fill=(230, 230, 236), font=font)
-            info = "%s · %s · %dx%d · %s%s" % (ship["role"], ship["template"], m["L"], m["W"],
-                                                "sym" if ship["sym"] else ship["asym"], "")
+            hh = ship.get("hull", {})
+            info = "%s · %s · %dx%d · %s · %dt" % (ship["role"], ship["plan"]["brief"], m["L"], m["W"],
+                                                "sym" if ship["sym"] else ship["asym"], hh.get("mass", 0))
             d.text((x + 8, y + rh - 15), info, fill=(140, 146, 160), font=small)
             x += cw
         y += rh
