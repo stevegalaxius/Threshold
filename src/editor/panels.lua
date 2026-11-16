@@ -408,9 +408,16 @@ function fileBrowser(E, cat, builtIn)
 	end
 	Slab.SameLine()
 	if Slab.Button("Save", { Tooltip = "Writes " .. d.id .. ".lua into the folder below.\nSaving over the same id replaces it; saving into another folder moves it." }) then
-		E.pushUndo(); d.folder = (dir == "" and cat == "icon") and "icons" or dir; E.export()
+		E.pushUndo(); d.folder = dir; E.export()
 	end
-	Slab.Text("Saves to " .. Export.path((dir == "" and cat == "icon") and "icons" or dir) .. "/" .. d.id .. ".lua", { Color = GREY })
+	local target = Export.path(dir) .. "/" .. d.id .. ".lua"
+	Slab.Text("Saves to " .. target, { Color = GREY })
+	-- only namesake folders (ships/, stations/, icons/ ...) load into the game
+	if data.inGame(target) then
+		Slab.Text("In the game: this folder loads into the simulation", { Color = { 0.55, 0.85, 0.55 } })
+	else
+		Slab.Text("Workspace: viewable here and in F1, never in the simulation.\nSave into " .. Export.namesake(d) .. "/ to put it in the game.", { Color = { 0.85, 0.75, 0.45 } })
+	end
 
 	-- where you are, and the way up
 	Slab.Text("Folder: " .. (dir == "" and "shipyard" or dir:match("^@") and dir:gsub("^@([^/]+)", "mod %1") or "shipyard/" .. dir))
@@ -446,7 +453,7 @@ function fileBrowser(E, cat, builtIn)
 		if e.folder == dir and (e.dir or c == cat or not c) then
 			shown = shown + 1
 			local label
-			if e.dir then label = "[" .. e.name .. "]"
+			if e.dir then label = "[" .. e.name .. "]" .. (data.inGame(Export.path(e.rel) .. "/x.lua") and "  in game" or "")
 			else
 				local ic = c == "icon" and data.icons[e.id:sub(6)]
 				local def = (ic and { name = (data.items[ic.item] and data.items[ic.item].name or ic.item) .. " icon", source = ic.source }) or data.hulls[e.id] or data.wrecks[e.id] or data.stations[e.id] or data.modules[e.id]
