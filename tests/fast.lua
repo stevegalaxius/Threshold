@@ -221,6 +221,7 @@ return function(game)
  local launch
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
  assert(launch,'no launch job posted')
+ assert(not require('src.tasks').npcMayClaim(u,launch,u.clock),'haulers can take a new launch job before the player sees it')
  -- once the player holds the launch, haulers leave its board job alone
  local def=require('src.tasks').definitions.satlaunch
  assert(def.eligible(u,{},launch,launch.source),'hauler cannot take an open launch job')
@@ -270,6 +271,15 @@ return function(game)
   local ore
   for _,q in pairs(Q.state(u).offers) do if q.kind=='ore_delivery' and q.giver==home then ore=q end end
   assert(ore,'no ore contract at '..home)
+  -- the board is per system: every station in it lists the contract
+  local sys=Q.system(home)
+  for _,area in ipairs(Fields.list) do
+   for _,st in ipairs(L.stations(area,'trade')) do
+    local listed=false
+    for _,q in ipairs(Q.offersInSystem(u,st)) do if q==ore then listed=true end end
+    assert(listed==(Q.system(st)==sys and Q.willOffer(u,home)),'ore contract listing wrong at '..st)
+   end
+  end
   -- the Jobs tab, docked there and in flight
   local Board,View=require('src.player_contracts'),require('src.ui.jobs')
   local station=Board.station;Board.station=function() return home end

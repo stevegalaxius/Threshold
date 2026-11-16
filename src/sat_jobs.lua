@@ -53,7 +53,10 @@ function J.post(u,r,kind)
  if not source then return end
  kind=kind or 'satrefuel'
  -- cargo, not item/amount: the poster provides it, so it reserves no station stock
- return Tasks.post(u,{kind=kind,source=source,target=target,sat=r.id,order=true,cooldown=60,
+ -- listed to the player first (src/sat_quests.lua): haulers may only take
+ -- it once it has gone T.satJobPlayerFirst unclaimed
+ local clock=u.clock or 0
+ return Tasks.post(u,{kind=kind,source=source,target=target,sat=r.id,order=true,cooldown=60,placed=clock,npcClaimAt=clock+require('src.tuning').satJobPlayerFirst,
   cargo={item=J.cargo[kind],amount=1}})
 end
 

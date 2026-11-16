@@ -455,6 +455,7 @@ T.freightListingSeconds=30 -- public listing before NPC reservation
 T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
 T.trunkMinHold=200 -- hold a ship needs to take trunk runs
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
+T.satJobPlayerFirst=600     -- s a satellite launch/refuel job is offered to the player before haulers may take it
 -- Shortage deliveries (src/quests.lua): player-only work generated from
 -- stations that have been short of a good for a while.
 T.questShortageAge=900   -- a shortage must be this old (s) before it is posted
