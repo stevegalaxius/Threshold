@@ -1293,7 +1293,7 @@ function Cargo.keypressed(game, key)
 	end
 	if key == "escape" and Cargo.menu then Cargo.menu = nil; return true end
 	if key == "escape" and game.state ~= "docked" then Cargo.close(game); return true end
-	if key == "e" and Cargo.loot then Cargo.close(game); return true end
+	if key == "e" and Cargo.loot then Cargo.close(game); game.eatTractor = true; return true end
 	if key == "u" and not Cargo.hand then
 		-- use the hovered stack (only from your own hold)
 		local L = layout(game)
