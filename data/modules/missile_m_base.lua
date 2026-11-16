@@ -2,7 +2,8 @@
 module {
 	id = "missile_m_base", name = "Missile Rack M",
 	family = "bay",
-	maker = "Nova Syndicate",
+	maker = "Gilgal Arsenal",
+	description = "A Diwan launch rack for medium hulls, fed from a sealed magazine.",
 	mass = 8,
 	price = 11000,
 	size = "M",

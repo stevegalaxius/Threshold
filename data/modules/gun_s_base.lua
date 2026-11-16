@@ -2,7 +2,8 @@
 module {
 	id = "gun_s_base", name = "Gun S",
 	family = "weapon",
-	maker = "Halcyon Arms",
+	maker = "Zhongke Ordnance",
+	description = "A Zhuhai autocannon, cheap and reliable. Every Mars militia starts with one.",
 	mass = 4,
 	powerDraw = 1,
 	price = 2200,

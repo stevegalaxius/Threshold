@@ -38,6 +38,7 @@ Last checked against `main`: 2026-11-15.
 - Mining against finite resources ([mining-production.md](mining-production.md)).
 - Ammunition, electronics and fuel supply ([ammunition-economy.md](ammunition-economy.md), [electronics-economy.md](electronics-economy.md), [fuel-supply-balance.md](fuel-supply-balance.md)).
 - Merchant houses and fences that sell what raiders bring in (`src/merchants.lua`, `src/dark.lua`).
+- Module factories by faction, with heavy metals, coils and ceramics for engines and reactors ([manufacturing-outputs.md](manufacturing-outputs.md#ship-modules)). Utility pods still restock on a timer.
 
 ### A-Life (NPCs)
 - One shared NPC loop for every job: travel, arrive, stay, decide (`src/npc.lua`).

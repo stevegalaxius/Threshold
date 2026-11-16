@@ -2,7 +2,8 @@
 module {
 	id = "pulse_l_base", name = "Pulse Laser L",
 	family = "weapon",
-	maker = "Nova Syndicate",
+	maker = "Loki Optics",
+	description = "A heavy pulse array. Jove fits it to ships it means to keep.",
 	mass = 30,
 	price = 38000,
 	size = "L",

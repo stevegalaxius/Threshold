@@ -124,6 +124,9 @@ salvage { id = "cryo_crystal", name = "Cryo crystal", volume = 0.25, mass = 0.2,
 salvage { id = "silicon", name = "Silicon", volume = 0.25, mass = 0.25, price = 30, w = 1, h = 1, stack = 4 }
 salvage { id = "industrial_acids", name = "Industrial acids", volume = 0.25, mass = 0.25, price = 40, w = 1, h = 1, stack = 4 }
 salvage { id = "electronics", name = "Electronics", volume = 0.1, mass = 0.05, price = 160, w = 1, h = 1, stack = 10 }
+salvage { id = "heavy_metals", name = "Heavy metals", description = "Dense metal concentrate sorted out of belt regolith at the quarry depots. Coil works buy all they can get.", volume = 0.25, mass = 0.6, price = 60, w = 1, h = 1, stack = 4 }
+salvage { id = "superconducting_coils", name = "Superconducting coils", description = "Heavy-metal windings on an electronic core. Every engine and reactor needs them.", volume = 0.25, mass = 0.3, price = 420, w = 1, h = 1, stack = 4 }
+salvage { id = "thermal_ceramics", name = "Thermal ceramics", description = "Fired silicon tiles cured in acid. Engine nozzles and reactor shielding are lined with them.", volume = 0.25, mass = 0.2, price = 160, w = 1, h = 1, stack = 4 }
 
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
 salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
