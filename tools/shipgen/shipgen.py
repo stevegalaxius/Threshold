@@ -11,11 +11,11 @@ by reason, -v lists them). Keepers are written as Shipyard data files
 under each. A seed always makes the same ship, so `--seeds` regenerates
 just the ones you liked.
 
-By default they go to the save folder's mods/shipyard/data/workspace/shipgen/
-(on Windows %APPDATA%/LOVE/spacegame_proto/...). Workspace ships load as
-drafts: open them in the Shipyard (F2) or fly/park them from the debug menu
-(F1, listed as [workspace]), but the simulation never uses them. Move one out
-of workspace/ in the Shipyard to make it a game hull.
+By default they go to the save folder's mods/shipyard/data/shipgen/ (on
+Windows %APPDATA%/LOVE/spacegame_proto/...). That isn't a namesake folder,
+so they're workspace: open them in the Shipyard (F2) or fly/park them from
+the debug menu (F1, listed as [workspace]), but the simulation never uses
+them. Save one into ships/ in the Shipyard to make it a game hull.
 
 Needs Python 3.8+ and Pillow.
 """
@@ -39,15 +39,16 @@ REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
 
 
 def default_out():
-    """The Shipyard's workspace folder in the game's save folder when it can
-    be found (ships there load as drafts: viewable, never in the
-    simulation; see data.WORKSPACE in src/data.lua), else shipgen_out/."""
+    """mods/shipyard/data/shipgen/ in the game's save folder when it can be
+    found (not a namesake folder, so ships there are workspace: viewable,
+    never in the simulation; see data.NAMESAKE in src/data.lua), else
+    shipgen_out/."""
     roots = [os.environ.get("APPDATA"), os.path.expanduser("~/Library/Application Support"),
              os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")]
     for r in roots:
         save = r and os.path.join(r, "LOVE", "spacegame_proto")
         if save and os.path.isdir(save):
-            return os.path.join(save, "mods", "shipyard", "data", "workspace", "shipgen")
+            return os.path.join(save, "mods", "shipyard", "data", "shipgen")
     return os.path.join(REPO, "shipgen_out")
 
 # hull fields copied from the template as they are
@@ -197,7 +198,7 @@ def main():
     ap.add_argument("--seed", type=int, default=1, help="first seed to try")
     ap.add_argument("--seeds", help="comma list: build exactly these seeds (keeps failures out, says why)")
     ap.add_argument("--out", default=None, help="folder for the .lua files and sheet (default: the save folder's "
-                    "mods/shipyard/data/workspace/shipgen, else shipgen_out/)")
+                    "mods/shipyard/data/shipgen, else shipgen_out/)")
     ap.add_argument("--sheet", default=None, help="contact sheet path (default <out>/sheet_<role>.png)")
     ap.add_argument("--no-files", action="store_true", help="only draw the sheet")
     ap.add_argument("-v", "--verbose", action="store_true")

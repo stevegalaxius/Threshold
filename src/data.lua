@@ -140,15 +140,34 @@ function data.fitLoadout(hull, loadout)
 end
 
 local currentFile = "?"
--- Workspace: hulls in a mod's data/workspace/ folder (the Shipyard's is
--- mods/shipyard/data/workspace/, where tools/shipgen writes) load as drafts.
--- They're in data.hulls, so the Shipyard opens them and the debug menu (F1)
--- can fly or park them, but they carry workspace = true and nothing in the
--- simulation may use them: dealers, factory lineups and enemies that name
--- one fail to load (crossCheck). Moving a file out of workspace/ (the
--- Shipyard's folder picker does it) promotes it to a game hull.
-data.WORKSPACE = "workspace"
+-- Game content and workspace. The base game's data/ is all game content.
+-- In a mod's data folder, only files under a namesake folder (data.NAMESAKE:
+-- mods/shipyard/data/ships/, .../stations/, ...) are game content; every
+-- other file, top level or any other folder, is workspace. That's where the
+-- Shipyard saves by default and where tools/shipgen writes.
+--
+-- Workspace designs (hull, station, wreck, container, prop, satellite, icon)
+-- load with workspace = true so the Shipyard can open them and the debug menu
+-- (F1) can fly or park them, but nothing in the simulation uses them:
+--   - they never replace a game definition with the same id (skipped, with a
+--     warning), and a workspace icon doesn't resize its item's grid cells;
+--   - dealers, factory lineups and enemies that name a workspace hull fail
+--     to load (crossCheck);
+--   - everything else in a workspace file (module, ammo, salvage, item,
+--     enemy, market, site, spawn set, loot table, satellite orbits) is left
+--     out entirely.
+-- Moving a file into its namesake folder puts it in the game.
+data.NAMESAKE = { ships = true, stations = true, wrecks = true, satellites = true, icons = true, modules = true,
+	items = true, enemies = true, markets = true, sites = true, spawn_sets = true, loot_tables = true }
 local workspace = false
+
+-- Is the file at this path (in the save folder or the game) game content?
+function data.inGame(path)
+	local seg = path:match("^mods/[^/]+/data/(.*)$")
+	if not seg then return true end
+	local first, rest = seg:match("^([^/]+)/(.+)$")
+	return first ~= nil and data.NAMESAKE[first] == true and rest ~= nil
+end
 
 local function fail(msg)
 	error(("%s: %s"):format(currentFile, msg), 0)
@@ -162,14 +181,6 @@ local function register(category, kind, def)
 	if type(def) ~= "table" then fail(kind .. " expects a table, like " .. kind .. " { id = ... }") end
 	need(def, "id", kind)
 	need(def, "name", kind)
-	-- Workspace hulls (see data.WORKSPACE) never stand in for a game hull.
-	if category == "hulls" then
-		def.workspace = workspace or nil
-		local old = data.hulls[def.id]
-		if workspace and old and not old.workspace then
-			fail(("workspace hull '%s' has the same id as a game hull (%s); give it its own id"):format(def.id, old.source or "?"))
-		end
-	end
 	if not data[category][def.id] then table.insert(data.list[category], def.id) end
 	def.source = currentFile
 	data[category][def.id] = def
@@ -547,7 +558,7 @@ function api.icon(def)
 	def.source = currentFile
 	-- the icon's footprint (from the editor's size boxes) is the item's grid size
 	local item = data.items[def.item]
-	if item and def.w and def.h then
+	if item and def.w and def.h and not workspace then
 		item.w, item.h = def.w, def.h
 		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
 	end
@@ -631,19 +642,53 @@ local function sandbox()
 	return env
 end
 
+-- What a workspace file may define: designs, kept apart from the game's.
+-- kind -> where a game definition with the same id would be, and its id.
+local DESIGNS = {
+	hull = { "hulls", "id" }, station = { "stations", "id" }, icon = { "icons", "item" },
+	wreck = { "wrecks", "id" }, container = { "wrecks", "id" }, prop = { "wrecks", "id" }, satellite = { "wrecks", "id" },
+}
+local workspaceEnv
+local function workspaceSandbox()
+	if workspaceEnv then return workspaceEnv end
+	local env = sandbox()
+	for kind, fn in pairs(api) do
+		local where = DESIGNS[kind]
+		if where then
+			env[kind] = function(def)
+				local key = type(def) == "table" and def[where[2]]
+				local old = key and data[where[1]][key]
+				if old and not old.workspace then
+					print(("[data] %s: skipped workspace %s '%s'; the game's (%s) keeps that id"):format(currentFile, kind, tostring(key), old.source or "?"))
+					return def
+				end
+				local out = fn(def)
+				def.workspace = true
+				return out
+			end
+		else
+			env[kind] = function()
+				print(("[data] %s: %s left out (workspace; move the file into a namesake folder to load it)"):format(currentFile, kind))
+			end
+		end
+	end
+	workspaceEnv = env
+	return env
+end
+
 local function loadFile(path)
 	currentFile = path
 	local source = love.filesystem.read(path)
 	local chunk, err = loadstring(source, "@" .. path)
 	if not chunk then error(err, 0) end
-	setfenv(chunk, sandbox())
+	workspace = not data.inGame(path)
+	setfenv(chunk, workspace and workspaceSandbox() or sandbox())
 	chunk()
+	workspace = false
 end
 
 local loadFolder
 function loadFolder(folder)
-	local was = workspace
-	if folder:match("^mods/[^/]+/data/" .. data.WORKSPACE .. "$") then workspace = true end
 	local files = love.filesystem.getDirectoryItems(folder)
 	table.sort(files)
 	-- files first, then subfolders (the Shipyard lets you sort designs into folders)
@@ -656,7 +701,6 @@ function loadFolder(folder)
 		local sub = folder .. "/" .. name
 		if love.filesystem.getInfo(sub, "directory") then loadFolder(sub) end
 	end
-	workspace = was
 end
 
 -- The ammo families a weapon chambers (see data.CHAMBERS).
@@ -712,7 +756,7 @@ local function crossCheck()
 	local function noDraft(where, id)
 		local h = data.hulls[id]
 		if h and h.workspace then
-			error(("%s uses workspace hull '%s' (%s); move it out of workspace/ to use it in the game"):format(where, id, h.source or "?"), 0)
+			error(("%s uses workspace hull '%s' (%s); move it into a ships/ folder to use it in the game"):format(where, id, h.source or "?"), 0)
 		end
 	end
 	for name, mk in pairs(data.markets) do

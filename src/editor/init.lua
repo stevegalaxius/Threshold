@@ -622,7 +622,10 @@ function E.export()
 	end)
 	if not ok then say("Not exported: " .. tostring(err)) return end
 	local path, werr = Export.write(E.design)
-	if path then say("Exported to " .. path .. " (loads on restart; Test fly uses it now)") else say("Export failed: " .. tostring(werr)) end
+	if path then
+		local where = data.inGame(Export.path(E.design.folder or "") .. "/x.lua") and "in the game" or "workspace, not in the game"
+		say("Exported to " .. path .. " (" .. where .. "; loads on restart; Test fly uses it now)")
+	else say("Export failed: " .. tostring(werr)) end
 end
 
 -- Saved designs: folders under the export folder, and deleting entries.

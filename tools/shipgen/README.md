@@ -24,14 +24,24 @@ berths on deck, near-duplicates of existing ships or earlier keepers). Keepers a
 `gen_<role>_<seed>.lua` in Shipyard format and drawn on `sheet_<role>.png`, all at one scale with seed
 and template under each. A seed always makes the same ship.
 
-## Workspace
+## Workspace and game content
 
-Ships go to the save folder's `mods/shipyard/data/workspace/shipgen/` (falls back to `shipgen_out/` when
-there's no save folder). Anything under a mod's `data/workspace/` loads as a draft (`workspace = true`):
+In a mod's data folder only namesake folders load into the game: `ships/`, `stations/`, `wrecks/`,
+`satellites/`, `icons/`, `modules/` (and `items/`, `enemies/`, `markets/`, `sites/`, `spawn_sets/`,
+`loot_tables/`). Everything else, the top level and any other folder, is workspace (`data.NAMESAKE` and
+`data.inGame` in `src/data.lua`).
 
-- the Shipyard (F2) lists and opens them like any design;
+shipgen writes to the save folder's `mods/shipyard/data/shipgen/` (falls back to `shipgen_out/`), so its
+ships are workspace:
+
+- the Shipyard (F2) lists and opens them like any design, and says whether the folder you're in is
+  workspace or in the game;
 - the debug menu (F1) lists them last as `[workspace]`, to fly or park in a hangar;
-- the simulation never uses them. A dealer, factory lineup or enemy that names one fails to load, and a
-  workspace hull can't reuse a game hull's id.
+- the simulation never uses them. A workspace design never replaces a game one with the same id (it's
+  skipped with a warning), and a dealer, factory lineup or enemy that names a workspace hull fails to
+  load. Non-design definitions in workspace files (modules, items, enemies, markets...) are left out.
 
-To promote a keeper, move it out of `workspace/` with the Shipyard's folder picker (or by hand).
+To promote a keeper, save it into `ships/` from the Shipyard (or move the file there).
+
+Check a batch loads without starting the game (needs LuaJIT, run from the repo root):
+`luajit tools/shipgen/loadcheck.lua "<save folder>"`
