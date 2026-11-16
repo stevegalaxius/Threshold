@@ -1,14 +1,15 @@
--- Made in the Shipyard (F2), Icons tab. Art for Missile S: its retail box.
+-- Made in the Shipyard (F2), Icons tab. Art for missile_s_base: its retail box, with the missile printed on the front.
 icon {
 	id = "icon_missile_s_base", item = "missile_s_base",
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
 		{ name = "box", x = 0, y = 0, z = 0, w = 2.2, d = 0.35, h = 0.7 },
-		{ name = "end flap", x = 2.02, y = -0.005, z = 0, w = 0.18, d = 0.355, h = 0.7, shade = 0.7 },
-		{ name = "brand stripe", x = 0, y = -0.01, z = 0.546, w = 2.02, d = 0.01, h = 0.07, shade = 0.55, layer = "detail" },
-		{ name = "print missile", x = 0.308, y = -0.01, z = 0.224, w = 1.1, d = 0.01, h = 0.14, color = { 0.95, 0.95, 0.92 }, layer = "detail" },
-		{ name = "print nose", x = 1.408, y = -0.01, z = 0.252, w = 0.176, d = 0.01, h = 0.084, color = { 1, 0.35, 0.25 }, layer = "detail" },
-		{ name = "print fin", x = 0.308, y = -0.01, z = 0.182, w = 0.154, d = 0.01, h = 0.224, color = { 0.95, 0.95, 0.92 }, layer = "detail" },
-		{ name = "size pip", x = 1.84, y = -0.01, z = 0.084, w = 0.08, d = 0.01, h = 0.08, color = { 1, 0.85, 0.4 }, layer = "glow" },
+		{ name = "lid stripe", x = 0, y = -0.01, z = 0.56, w = 2.2, d = 0.01, h = 0.056, shade = 0.55, layer = "detail" },
 	},
-	parts = {},
+	boxView = { 34.195, 1.155, -0.248 },   -- art units per cell, centre x, y (Refit recomputes)
+	parts = {
+		{ name = "print fin", shape = { -33.482, 7.072, -28.968, 7.072, -16.931, 4.386, -16.931, -0.09, -28.968, -2.775, -33.482, -2.775 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print missile", shape = { -30.472, 4.386, 13.161, 4.386, 25.198, 2.148, 13.161, -0.09, -30.472, -0.09 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print band", shape = { -1.885, 4.386, 1.124, 4.386, 1.124, -0.09, -1.885, -0.09 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print warhead", shape = { 13.161, 4.386, 25.198, 2.148, 13.161, -0.09 }, color = { 1, 0.4, 0.3 } },
+	},
 }

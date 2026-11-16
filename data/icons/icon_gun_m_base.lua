@@ -1,14 +1,16 @@
--- Made in the Shipyard (F2), Icons tab. Art for Gun M: its retail box.
+-- Made in the Shipyard (F2), Icons tab. Art for gun_m_base: its retail box, with the gun printed on the front.
 icon {
 	id = "icon_gun_m_base", item = "gun_m_base",
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
 		{ name = "box", x = 0, y = 0, z = 0, w = 3.4, d = 0.4, h = 0.75 },
-		{ name = "end flap", x = 3.22, y = -0.005, z = 0, w = 0.18, d = 0.405, h = 0.75, shade = 0.7 },
-		{ name = "brand stripe", x = 0, y = -0.01, z = 0.585, w = 3.22, d = 0.01, h = 0.075, shade = 0.55, layer = "detail" },
-		{ name = "print body", x = 0.408, y = -0.01, z = 0.21, w = 1.02, d = 0.01, h = 0.21, color = { 0.95, 0.95, 0.92 }, layer = "detail" },
-		{ name = "print barrel", x = 1.428, y = -0.01, z = 0.277, w = 1.088, d = 0.01, h = 0.075, color = { 0.95, 0.95, 0.92 }, layer = "detail" },
-		{ name = "size pip", x = 3.04, y = -0.01, z = 0.09, w = 0.08, d = 0.01, h = 0.08, color = { 1, 0.85, 0.4 }, layer = "glow" },
-		{ name = "size pip", x = 2.9, y = -0.01, z = 0.09, w = 0.08, d = 0.01, h = 0.08, color = { 1, 0.85, 0.4 }, layer = "glow" },
+		{ name = "lid stripe", x = 0, y = -0.01, z = 0.6, w = 3.4, d = 0.01, h = 0.06, shade = 0.55, layer = "detail" },
 	},
-	parts = {},
+	boxView = { 36.018, 1.763, -0.269 },   -- art units per cell, centre x, y (Refit recomputes)
+	parts = {
+		{ name = "print receiver", shape = { -56.152, 6.132, -19.414, 6.132, -19.414, -1.594, -56.152, -1.594 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print drum", shape = { -50.029, 6.132, -31.66, 6.132, -31.66, 8.806, -50.029, 8.806 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print jacket", shape = { -19.414, 5.241, 5.079, 5.241, 5.079, -0.405, -19.414, -0.405 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print barrel", shape = { 5.079, 3.755, 43.042, 3.755, 43.042, 1.081, 5.079, 1.081 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print muzzle", shape = { 43.042, 4.795, 50.389, 4.795, 50.389, 0.041, 43.042, 0.041 }, color = { 0.95, 0.95, 0.9 } },
+	},
 }
