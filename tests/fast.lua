@@ -221,6 +221,17 @@ return function(game)
  local launch
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
  assert(launch,'no launch job posted')
+ -- once the player holds the launch, haulers leave its board job alone
+ local def=require('src.tasks').definitions.satlaunch
+ assert(def.eligible(u,{},launch,launch.source),'hauler cannot take an open launch job')
+ assert(Q.accept(u,posted.id,u.clock,game),'could not accept the launch job')
+ assert(not def.eligible(u,{},launch,launch.source),'hauler took a launch the player holds')
+ Q.abandon(u,posted.id,u.clock,game)
+ -- and a launch a hauler already took isn't offered to the player
+ launch.owner='npc/test'
+ Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.update(u,u.clock,game)
+ for _,q in pairs(Q.state(u).offers) do assert(not (q.kind=='sat_launch' and q.subject==sid),'launch offered while a hauler has it') end
+ launch.owner=nil
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
  print('ok  satellites: hubs, fuel, refuel and replacement jobs')
  -- 6. Jobs: wreck bounties pay whoever clears a ship wreck, ore contracts

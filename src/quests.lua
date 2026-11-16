@@ -274,6 +274,8 @@ function Q.accept(u,id,clock,game)
  local n=0;for _ in pairs(s.active) do n=n+1 end
  if n>=T.questMaxActive then return nil,('You can hold %d jobs at once'):format(T.questMaxActive) end
  if not Q.willOffer(u,q.giver) then return nil,'This station will not work with you' end
+ local site=Q.sites and Q.sites[q.kind]
+ if site and site.busy and site.busy(u,q) then s.offers[id]=nil;return nil,'A hauler has already taken this job' end
  if q.give then
   local p=game and game.player
   if not p or require('src.ship').canFit(p,q.item,1)<1 then return nil,'No room in the hold for the '..(data.items[q.item].name or q.item) end

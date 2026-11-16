@@ -75,6 +75,7 @@ Tasks.register(kind,{
  stay=function() return J.stay end,
  eligible=function(u,r,o,node)
   local s=u.satellites and u.satellites[o.sat]
+  if J.playerHolds(u,kind,o.sat) then return false end
   return s and wanted(kind,s) and L.canonical(node)==L.canonical(o.source) or false
  end,
  feasible=function(u,r,o,node,clock)
@@ -332,6 +333,23 @@ Actions.registerOperation('hubservice',{
 })
 
 -- The job is done (by anyone): drop the NPC orders for it nobody has taken.
+-- The player's station job for the same satellite (src/sat_quests.lua):
+-- while they hold it, haulers leave this board job alone.
+J.quest={satlaunch='sat_launch',satrefuel='sat_refuel'}
+function J.playerHolds(u,kind,sat)
+ for _,q in pairs(u.quests and u.quests.active or {}) do
+  if q.kind==J.quest[kind] and q.subject==sat and not q.used then return true end
+ end
+ return false
+end
+-- A hauler already took this satellite's board job (so the player's
+-- version isn't offered, or accepted, out from under it).
+function J.npcHolds(u,kind,sat)
+ for _,o in pairs(Tasks.state(u).offers) do
+  if o.kind==kind and o.sat==sat and o.owner and o.owner~='player' then return true end
+ end
+ return false
+end
 function J.clear(u,id,kind)
  local offers=Tasks.state(u).offers
  for oid,o in pairs(offers) do
