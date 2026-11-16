@@ -33,7 +33,7 @@ function A.update(u,clock)
  local open,capacity={},{}
  local lanes={};local offers={}
  for _,o in pairs(Tasks.state(u).offers) do
-  if o.order and o.state=='available' and (o.readyAt or 0)<=clock then
+  if o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock then
    local place=L.byId[o.source]
    if place and Transport.available(u,o.source,o.item,o.id)>0 then
     offers[#offers+1]=o

@@ -2627,6 +2627,8 @@ function Game:reap()
 				self:spawnPickup(x, y, "steel_plate", e.steel)
 			end
 			if e.kind == "husk" and e.drilled then events.emit("wreck_cleared", e.lastHitBy, e) end
+			-- drilled or shot apart, a ship wreck pays its system's clearing bounty
+			if e.kind == "husk" then require("src.wreck_bounty").cleared(self, e.lastHitBy, e, self.fieldId) end
 			for _, g in ipairs(e.hold.grids) do
 				for _, st in ipairs(g.stacks) do
 					require('src.wreck_salvage').scatter(self,x,y,st,e.kind=='container' or e.drilled or e.shotSalvage)

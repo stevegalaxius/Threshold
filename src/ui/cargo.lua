@@ -69,6 +69,7 @@ local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
 local IndustryView = require("src.ui.industry")
 local Contracts = require("src.ui.contracts")
+local Jobs = require("src.ui.jobs")
 local Repair = require("src.ui.repair")
 local Station=require("src.ui.station")
 local stats = require("src.stats")
@@ -606,12 +607,13 @@ end
 
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
-local TABS={{id='cargo',label='Storage'},{id='contracts',label='Contracts'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'}}
+-- Contracts is the old freight/quest list, kept for debugging; Jobs is the player's.
+local TABS={{id='cargo',label='Storage'},{id='jobs',label='Jobs'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'},{id='contracts',label='Contracts'}}
 -- The tabs this station offers: Storage, then its services (Game.stationServices).
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='contracts' and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
+ for _,t in ipairs(TABS) do if t.id=='cargo' or (t.id=='contracts' or t.id=='jobs') and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -654,7 +656,7 @@ end
 
 -- In flight the inventory has its own tabs (Inventory, Reputation, Contracts), shown
 -- while nothing is open next to your hold. More screens go in SPACE_TABS.
-local SPACE_TABS={{id='hold',label='Inventory'},{id='reputation',label='Reputation'},{id='contracts',label='Contracts'}}
+local SPACE_TABS={{id='hold',label='Inventory'},{id='jobs',label='Jobs'},{id='reputation',label='Reputation'},{id='contracts',label='Contracts'}}
 Cargo.spaceTab='hold'
 local function spaceTabs(game)
  if game.state=='docked' or Cargo.other or Cargo.loot then return nil end
@@ -980,6 +982,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		end
 		if tabs and Cargo.spaceTab == "reputation" then return true end
   if tabs and Cargo.spaceTab == "contracts" then return Contracts.mousepressed(game,mx,my,button) end
+  if tabs and Cargo.spaceTab == "jobs" then return Jobs.mousepressed(game,mx,my,button) end
 	end
 	if Cargo.shopOpen then
 		Cargo.shopOpen = false
@@ -1035,6 +1038,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			return true
 		end
 		if Cargo.tab == "contracts" then return Contracts.mousepressed(game,mx,my,button) end
+		if Cargo.tab == "jobs" then return Jobs.mousepressed(game,mx,my,button) end
   if Cargo.tab == "industry" then return true end
 		if Cargo.tab == "repair" then
 			local act = Repair.mousepressed(game, mx, my, button)
@@ -1938,6 +1942,11 @@ function Cargo.draw(game)
 			Station.footer('Repairs restore armor at this station\'s rate per point.','Short on credits? Repair fixes as much as you can pay for.')
 			return
 		end
+		if Cargo.tab == "jobs" then
+   Jobs.draw(game)
+   Station.footer('Work posted anywhere in this system, and freight picking up here. NPCs take the same jobs, but not one you hold.', 'Hold up to '..T.questMaxActive..' station jobs and one freight contract \194\183 Collect wreck bounties at any station in the system \194\183 Mouse wheel scrolls')
+   return
+  end
 		if Cargo.tab == "contracts" then
    Contracts.draw(game)
    Station.footer('Global freight orders shared with NPCs. Payment is for delivery; cargo is supplied by the source.', 'Pick up and deliver through this tab · Loaded contracts must be returned to their source to cancel · Mouse wheel scrolls')
@@ -1971,6 +1980,7 @@ function Cargo.draw(game)
 		for _, t in ipairs(stabs) do Station.button(t, t.label, Cargo.spaceTab == t.id) end
 		if Cargo.spaceTab == "reputation" then require("src.ui.reputation").draw(game, sframe) return end
   if Cargo.spaceTab == "contracts" then Contracts.draw(game) return end
+  if Cargo.spaceTab == "jobs" then Jobs.draw(game) return end
 	end
 	drawEquipment(game, L, mx, my)
 
@@ -2286,6 +2296,7 @@ function Cargo.wheelmoved(game,y)
  if game.state=='docked' and Cargo.tab=='shipyard' then Shipyard.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='industry' then IndustryView.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='contracts' or game.state~='docked' and Cargo.spaceTab=='contracts' then Contracts.wheelmoved(game,y) end
+ if game.state=='docked' and Cargo.tab=='jobs' or game.state~='docked' and Cargo.spaceTab=='jobs' then Jobs.wheelmoved(game,y) end
  return true
 end
 Cargo.tabs=TABS

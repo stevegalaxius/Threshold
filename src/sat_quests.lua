@@ -44,6 +44,7 @@ end
 
 Q.site('sat_launch',{
  label='Satellite launch',item='satellite_package',give=true,
+ busy=function(u,q) return J.npcHolds(u,'satlaunch',q.subject) end,
  candidates=function(u)
   local list=candidates(u,function(r) return r.lost end)
   for _,c in ipairs(list) do
@@ -64,6 +65,7 @@ Q.site('sat_launch',{
 
 Q.site('sat_refuel',{
  label='Satellite refuel',item='deuterium_canister',
+ busy=function(u,q) return J.npcHolds(u,'satrefuel',q.subject) end,
  candidates=function(u)
   local list=candidates(u,function(r) return not r.lost and r.fuel and r.fuel<Sat().refuelAt end)
   for _,c in ipairs(list) do

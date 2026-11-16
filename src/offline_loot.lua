@@ -284,6 +284,7 @@ local function take(ctx,target)
     if got>0 then r.ship.hold=Hold.serialize(dest);r.ship.cargo=Hold.totals(dest);Actions.pickedUp(ctx,'steel_plate',got) end
     if source.kind=='combat' then game.universe.alifeWrecks[source.id]=nil else remove(game,source) end
     require('src.events').emit('wreck_cleared',r,source.record)
+    require('src.wreck_bounty').cleared(game,r,source.record,source.kind=='combat' and source.record.area or r.area,source.list)
     return 'done'
    end
    if n>0 then

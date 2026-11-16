@@ -455,6 +455,7 @@ T.freightListingSeconds=30 -- public listing before NPC reservation
 T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
 T.trunkMinHold=200 -- hold a ship needs to take trunk runs
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
+T.satJobPlayerFirst=600     -- s a satellite launch/refuel job is offered to the player before haulers may take it
 -- Shortage deliveries (src/quests.lua): player-only work generated from
 -- stations that have been short of a good for a while.
 T.questShortageAge=900   -- a shortage must be this old (s) before it is posted
@@ -467,8 +468,8 @@ T.questPremium=1.5       -- reward per unit, as a multiple of the station's pric
 T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
 T.questTick=60
 T.questKindMax=2         -- open offers of one kind per station
-T.questCooldown={shortage_delivery=300,rescue=120} -- per station, after posting that kind
-T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,shortage_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questCooldown={shortage_delivery=300,rescue=120,ore_delivery=300} -- per station, after posting that kind
+T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,shortage_delivery=1,ore_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
 T.questStanding=2        -- giver faction standing for a finished job
 T.questFailStanding=1    -- and lost for a failed or abandoned one
 T.rescueMinAge=60        -- stranded this long before a station posts the rescue
@@ -506,6 +507,12 @@ T.alifeGoneLinger=300
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
 T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
+T.wreckBountyBase=80       -- CR a system's trade station pays for each ship wreck cleared (src/wreck_bounty.lua)
+T.wreckBountyPerSteel=4    -- plus this per steel plate in the hull
+T.oreQuestPremium=1.3       -- ore contracts (src/ore_quests.lua) pay this multiple of the station's price
+T.oreQuestMin=5            -- and are only posted for at least this many units short
+T.oreQuestReserve=40       -- ore a drill home always wants on hand, even one that ships it all on
+T.minerOrePay=.6           -- share of the station's ore price an NPC miner is paid on delivery (src/mining.lua)
 
 -- Playable area: every planet map's open space (edge, belts, rings,
 -- station track) is multiplied by mapScale; loose debris, belts and rings

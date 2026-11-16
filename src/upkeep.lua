@@ -165,7 +165,16 @@ function U.plan(r,clock,e)
   local go=L.canonical(prev)==station and {legs={}} or Graph.route(g,prev,station,clock,r.speed)
   local ret=go and Graph.route(g,station,at,clock,r.speed)
   if go and ret then out,back=go,ret;route={at,prev} else crossing=false end
- elseif crossing then crossing=false end
+ elseif crossing then crossing=false
+ elseif not idle and not trip and L.get(prev).kind~='driver' and L.get(prev).kind~='moon_gate' then
+  -- Not far off the node it left, with the station behind it: turn round
+  -- there too, instead of flying on to `at` first and doubling back.
+  local span=math.max(.01,r.arrive-r.depart);local p=math.max(0,math.min(1,(clock-r.depart)/span))
+  local go=L.canonical(prev)==station and {legs={},duration=0} or Graph.route(g,prev,station,clock,r.speed)
+  if go and p*span+go.duration<(1-p)*span+out.duration then
+   out,route,crossing=go,{at,prev},true
+  end
+ end
  if trip then
   for i=2,#trip.out do route[#route+1]=trip.out[i] end
   for i=2,#trip.back do route[#route+1]=trip.back[i] end
