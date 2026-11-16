@@ -510,6 +510,7 @@ T.wreckBountyBase=80       -- CR a system's trade station pays for each ship wre
 T.wreckBountyPerSteel=4    -- plus this per steel plate in the hull
 T.oreQuestPremium=1.3       -- ore contracts (src/ore_quests.lua) pay this multiple of the station's price
 T.oreQuestMin=5            -- and are only posted for at least this many units short
+T.oreQuestReserve=40       -- ore a drill home always wants on hand, even one that ships it all on
 T.minerOrePay=.6           -- share of the station's ore price an NPC miner is paid on delivery (src/mining.lua)
 
 -- Playable area: every planet map's open space (edge, belts, rings,

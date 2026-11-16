@@ -10,7 +10,8 @@
 	on from there.
 
 	A station posts one while its ore stock is under what it keeps in reserve
-	for the freight it supplies (economy.lua E.target with supplier=true).
+	for the freight it supplies (economy.lua E.target with supplier=true),
+	or under T.oreQuestReserve where that reserve is smaller.
 ]]
 local Q=require('src.quests')
 local T=require('src.tuning')
@@ -30,7 +31,10 @@ local function ores(u,st)
  return out
 end
 local function short(u,st,item)
- return require('src.economy').target(u,st,item,true)-Stock.count(u,st,item)
+ -- (a home that ships all its ore straight on, like Phobos to Mars, keeps
+ -- no reserve of its own: it still buys up to T.oreQuestReserve)
+ local want=math.max(require('src.economy').target(u,st,item,true),T.oreQuestReserve)
+ return want-Stock.count(u,st,item)
 end
 local function unit(u,st,item)
  return math.max(1,math.floor(require('src.markets').price(u,st,item)*T.oreQuestPremium+.5))

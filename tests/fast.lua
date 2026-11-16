@@ -267,6 +267,22 @@ return function(game)
   assert(ok,err)
   View.draw(game)
  end
+ -- a freight pickup only bundles freight: a satellite job on the same lane
+ -- is a board order too, with no item
+ do
+  local Tasks=require('src.tasks');local copy=require('src.persistence').copy
+  local t
+  for _,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.order and o.state=='available' then t=o;break end end
+  assert(t,'no freight order on the board')
+  local sat=Tasks.post(u,{kind='satrefuel',source=t.source,target=t.target,sat='test',order=true,cooldown=60,cargo={item='deuterium_canister',amount=1}})
+  local hull
+  for _,n in pairs(u.npcs) do if n.ship and (require('src.data').hulls[n.ship.hull].hold or 0)>0 then hull=n.ship.hull;break end end
+  local r={id='npc/test',ship={hull=hull,loadout={},cargo={}},node=t.source}
+  local job=copy(t);job.phase=nil
+  local ok,err=pcall(Tasks.definitions.transport.prepare,u,r,job,t.source,u.clock)
+  Tasks.state(u).offers[sat.id]=nil
+  assert(ok,'freight bundling tripped on a satellite job: '..tostring(err))
+ end
  print('ok  jobs: wreck bounties, ore contracts and the Jobs tab')
  print('ALL TESTS PASSED')
 end
