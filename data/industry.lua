@@ -52,6 +52,8 @@ end
 recipe('rounds_s',200,1,1);recipe('rounds_m',100,1,1)
 recipe('airburst_s',200,1,3);recipe('airburst_m',100,1,3)
 recipe('shell_s',24,1,2);recipe('shell_m',12,2,3);recipe('shell_l',12,4,6)
+-- Flare charges: a steel casing and a pyrotechnic charge.
+recipe('flare',60,1,1)
 recipe('shot_s',64,1,1);recipe('shot_m',32,2,1);recipe('shot_l',24,4,2)
 -- Guided ammunition: electronics, steel casing and explosive warheads.
 recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l',12,4,4,2,2)

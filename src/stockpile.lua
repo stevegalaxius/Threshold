@@ -31,26 +31,29 @@ function S.definition(st)
  return data.markets[id]
 end
 
--- A station's storefronts are the ones its market data writes (one, or
--- several by category, each with its own description). Goods the station
--- also has to trade (fuel, food, steel, chemicals, munitions and anything
--- its industry makes or uses) are shelved in its first storefront rather
--- than getting a storefront of their own.
+-- A station's storefronts: first the Quartermaster, which shelves what
+-- every station trades (fuel, food, steel, chemicals, munitions, patch
+-- kits, flares and anything its industry makes or uses), then any
+-- storefronts its market data writes by category (shops = { ... }), each
+-- with its own description. A market with a plain sells list has just the
+-- Quartermaster, stocking that list too. Bare markets (satellites) keep
+-- exactly what they list.
+S.QUARTERMASTER={name='Quartermaster',description='Fuel, provisions, munitions and repair supplies.'}
 function S.shops(st)
  local mk=S.definition(st);local cacheKey=S.key(st) or mk
  if S.shopCache[cacheKey] then return S.shopCache[cacheKey] end
- local shops={}
- for _,shop in ipairs(mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}) do shops[#shops+1]=shop end
- if mk and mk.bare then S.shopCache[cacheKey]=shops;return shops end
- if #shops==0 then shops[1]={name='Station stock',description='',sells={}} end
+ if mk and mk.bare then local shops={};for i,shop in ipairs(mk.shops or {}) do shops[i]=shop end;S.shopCache[cacheKey]=shops;return shops end
+ local sells={}
+ local qm={id='quartermaster',name=S.QUARTERMASTER.name,description=S.QUARTERMASTER.description,sells=sells}
+ local shops={qm}
  local listed={}
- for _,shop in ipairs(shops) do for _,e in ipairs(shop.sells or {}) do listed[e[1]]=true end end
- -- the first storefront, copied so the market data stays as written
- local first={};for k,v in pairs(shops[1]) do first[k]=v end
- local sells={};for i,e in ipairs(first.sells or {}) do sells[i]=e end
- first.sells=sells;shops[1]=first
+ for _,shop in ipairs(mk and mk.shops or {}) do
+  shops[#shops+1]=shop
+  for _,e in ipairs(shop.sells or {}) do listed[e[1]]=true end
+ end
  local function shelve(item,n) if item and not listed[item] then listed[item]=true;sells[#sells+1]={item,n or 0} end end
  local function shelveShop(shop) for _,e in ipairs(shop.sells or {}) do shelve(e[1],e[2]) end end
+ if mk and not mk.shops then shelveShop({sells=mk.sells}) end
  shelve(require('src.reactor_fuel').item(),10)
  shelveShop(require('src.food').shop())
  shelveShop(require('src.repair_materials').shop())
@@ -122,10 +125,16 @@ end
 -- Display shelves are rebuilt from stock (src/market.lua).
 function S.foldShops(u,key,r,shops)
  r.shopsFolded=true
- local n=#shops
- local moved={}
- for i,m in pairs(r.shops) do
-  if type(i)=='number' and i>n then
+ local mk=S.definition(key)
+ if mk and mk.bare then return end
+ -- written storefronts used to come first: they move up one, behind the Quartermaster
+ local written=mk and mk.shops and #mk.shops or 0
+ local old,moved=r.shops,{}
+ local new={}
+ for i,m in pairs(old) do
+  if type(i)=='number' and mk and mk.shops and i<=written then
+   new[i+1]=m
+  elseif type(i)=='number' and (i>written or not mk or not mk.shops) and not (i==1 and not (mk and mk.shops)) then
    local stock=m.stock or {}
    if not m.stock and m.hold then
     for _,g in ipairs(m.hold.grids) do for _,s in ipairs(g.stacks) do
@@ -133,9 +142,11 @@ function S.foldShops(u,key,r,shops)
     end end
    end
    for id,c in pairs(stock) do if data.items[id] and c>0 then moved[id]=(moved[id] or 0)+c end end
-   r.shops[i]=nil
+  else
+   new[i]=m       -- a plain market's one storefront is now its Quartermaster
   end
  end
+ r.shops=new
  if not next(moved) then return end
  for id,c in pairs(moved) do
   local j=S.shopFor(key,id)
