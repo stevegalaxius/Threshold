@@ -58,6 +58,8 @@ local function takenKey(q) return q.key or q.kind=='rescue' and 'rescue|'..q.sub
 -- stands; resolve(game,q,clock) settles an active one ('done'/'failed'/nil).
 Q.generators={}
 Q.order={'shortage_delivery','rescue'}
+-- Kinds settled by handing goods over at the giver (Q.deliver).
+Q.deliveries={shortage_delivery=true}
 
 Q.generators.shortage_delivery={
  label='Delivery',
@@ -302,7 +304,7 @@ end
 function Q.deliver(game,id,station)
  local u=game.universe;local s=Q.state(u);local q=s.active[id];local p=game.player
  if not q then return nil,'No such delivery' end
- if q.kind~='shortage_delivery' then return nil,'Not a delivery' end
+ if not Q.deliveries[q.kind] then return nil,'Not a delivery' end
  if station~=q.giver then return nil,'Dock at '..((L.byId[q.giver] or {}).name or q.giver)..' to deliver' end
  local have=p.cargo[q.item] or 0
  local n=math.min(have,q.amount-q.delivered)
@@ -321,4 +323,5 @@ end
 package.loaded['src.quests']=Q -- (the site jobs below require this module)
 require('src.quest_sites')(Q)
 require('src.sat_quests')
+require('src.ore_quests')
 return Q

@@ -223,5 +223,50 @@ return function(game)
  assert(launch,'no launch job posted')
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
  print('ok  satellites: hubs, fuel, refuel and replacement jobs')
+ -- 6. Jobs: wreck bounties pay whoever clears a ship wreck, ore contracts
+ -- go up where drills ship home, and the Jobs tab lays them all out.
+ do
+  local B=require('src.wreck_bounty')
+  local area=game.fieldId;local payer=assert(B.payer(area),'no bounty payer for '..area)
+  local credits=u.credits
+  -- the player drills a real wreck apart
+  local victim
+  for _,e in ipairs(game.entities) do if e.kind=='ship' and e.alifeId and not e.dead then victim=e;break end end
+  assert(victim,'no NPC ship to wreck')
+  local husk=game:spawnHusk(victim,victim.body:getX()+400,victim.body:getY(),0,0,0,0)
+  assert(husk.origin,'ship wreck has no origin')
+  local pieces=0
+  for _,e in ipairs(game.entities) do if e.kind=='husk' and e.origin==husk.origin then pieces=pieces+1;e.dead=true;e.drilled=true;e.lastHitBy=game.player end end
+  run(game,.1)
+  local owed=B.owed(u,payer)
+  assert(owed>0,'clearing a wreck ('..pieces..' pieces) paid no bounty')
+  assert(B.state(u).cleared[payer]==1,'a wreck in pieces paid more than once')
+  -- an NPC clean-up crew is paid into its own credits
+  local npc
+  for _,r in pairs(u.npcs) do if r.ship and r.state~='dead' then npc=r;break end end
+  local before=npc.credits or 0
+  B.cleared(game,npc,{kind='husk',origin={npc='test'},steel=5},area)
+  assert((npc.credits or 0)==before+B.rate(5),'NPC was not paid the wreck bounty')
+  assert(not B.cleared(game,npc,{kind='husk',steel=5},area),'a derelict paid a bounty')
+  assert(B.collect(game,payer) and u.credits==credits+owed,'bounty not collected')
+  -- ore contracts: a drill home short of its ore posts one
+  local Q=require('src.quests');local Mining=require('src.mining')
+  local home,item
+  for _,site in pairs(Mining.state(u).sites) do if site.home and site.item then home,item=L.canonical(site.home),site.item;break end end
+  assert(home,'no drill sites')
+  Stock.take(u,home,item,Stock.count(u,home,item))
+  Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.state(u).active={};Q.update(u,u.clock,game)
+  local ore
+  for _,q in pairs(Q.state(u).offers) do if q.kind=='ore_delivery' and q.giver==home then ore=q end end
+  assert(ore,'no ore contract at '..home)
+  -- the Jobs tab, docked there and in flight
+  local Board,View=require('src.player_contracts'),require('src.ui.jobs')
+  local station=Board.station;Board.station=function() return home end
+  local ok,err=pcall(function() View.draw(game) end)
+  Board.station=station
+  assert(ok,err)
+  View.draw(game)
+ end
+ print('ok  jobs: wreck bounties, ore contracts and the Jobs tab')
  print('ALL TESTS PASSED')
 end
