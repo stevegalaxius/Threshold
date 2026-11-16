@@ -2,6 +2,9 @@
 
 Generates ships in bulk for the Shipyard to finish off. Standalone: Python 3.8+ and Pillow, nothing from the game runs.
 
+On Windows, double-click `tools\shipgen\shipgen.bat` (or run it from a terminal with the same options
+as below). It finds Python, installs Pillow the first time and writes into your save folder.
+
 ```
 python tools/shipgen/shipgen.py                         # 8 of every role into the workspace
 python tools/shipgen/shipgen.py --role hauler -n 24     # 24 haulers
