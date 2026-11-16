@@ -2,15 +2,15 @@
 icon {
 	id = "icon_gun_l_base", item = "gun_l_base",
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
-		{ name = "box", x = 0, y = 0, z = 0, w = 3.6, d = 0.5, h = 1.05 },
-		{ name = "lid stripe", x = 0, y = -0.01, z = 0.84, w = 3.6, d = 0.01, h = 0.084, shade = 0.55, layer = "detail" },
+		{ name = "box", x = 0, y = 0, z = 0, w = 3, d = 0.6, h = 1.37 },
+		{ name = "lid stripe", x = 0, y = -0.01, z = 1.096, w = 3, d = 0.01, h = 0.11, shade = 0.55, layer = "detail" },
 	},
-	boxView = { 42.315, 1.879, -0.368 },   -- art units per cell, centre x, y (Refit recomputes)
+	boxView = { 49.859, 1.595, -0.471 },   -- art units per cell, centre x, y (Refit recomputes)
 	parts = {
-		{ name = "print receiver", shape = { -71.883, 10.175, -27.706, 10.175, -18.566, 8.22, -18.566, -3.51, -71.883, -3.51 }, color = { 0.95, 0.95, 0.9 } },
-		{ name = "print upper barrel", shape = { -18.566, 1.866, 53.032, 1.866, 53.032, -1.066, -18.566, -1.066 }, color = { 0.95, 0.95, 0.9 } },
-		{ name = "print lower barrel", shape = { -18.566, 7.242, 53.032, 7.242, 53.032, 4.31, -18.566, 4.31 }, color = { 0.95, 0.95, 0.9 } },
-		{ name = "print muzzle", shape = { 53.032, 8.22, 62.172, 8.22, 62.172, -2.044, 53.032, -2.044 }, color = { 0.95, 0.95, 0.9 } },
-		{ name = "print mount", shape = { -59.696, 10.175, -33.799, 10.175, -38.369, 14.085, -55.126, 14.085 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print receiver", shape = { -72.021, 15.233, -28.644, 15.233, -19.669, 12.227, -19.669, -5.81, -72.021, -5.81 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print upper barrel", shape = { -19.669, 2.457, 50.632, 2.457, 50.632, -2.052, -19.669, -2.052 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print lower barrel", shape = { -19.669, 10.724, 50.632, 10.724, 50.632, 6.215, -19.669, 6.215 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print muzzle", shape = { 50.632, 12.227, 59.606, 12.227, 59.606, -3.555, 50.632, -3.555 }, color = { 0.95, 0.95, 0.9 } },
+		{ name = "print mount", shape = { -60.055, 15.233, -34.627, 15.233, -39.114, 21.245, -55.568, 21.245 }, color = { 0.95, 0.95, 0.9 } },
 	},
 }
