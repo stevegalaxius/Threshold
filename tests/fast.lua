@@ -210,7 +210,9 @@ return function(game)
  rec.fuelAt=u.clock-Sat.fuelLife;Sat.fuel(u,rec)
  assert(Sat.dry(rec) and rec.dryAt and #Sat.levers(rec).vend==0,'dry satellite still vends')
  assert(Sat.refuel(u,sid,'test') and rec.fuel==1 and not rec.dryAt,'refuel failed')
- Sat.markLost(u,rec)
+ -- left dry, its orbit decays and it comes down: lost, with a launch job
+ rec.fuelAt=u.clock-Sat.fuelLife-Sat.deorbit;rec.seenAt=nil;u.satCheckAt=nil;Sat.tick(u)
+ assert(rec.lost,'neglected satellite never came down')
  -- the same job on the player's station board
  local Q=require('src.quests');Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.update(u,u.clock,game)
  local posted

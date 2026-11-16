@@ -181,6 +181,12 @@ function Sat.tick(universe)
 	end
 	local open = require("src.sat_jobs").open(universe, "satrefuel")
 	for id, r in pairs(all) do
+		-- dry long enough to have come down (on the map now, the physics
+		-- brings it down instead)
+		if not r.lost and Sat.fuel(universe, r) <= 0 and r.dryAt and clock - r.dryAt >= Sat.deorbit
+			and not (r.seenAt and clock - r.seenAt < 5) then
+			Sat.markLost(universe, r)
+		end
 		-- low on its own fuel, or (a hub) its shelf nearly out of canisters
 		local low = not r.lost and (Sat.fuel(universe, r) < Sat.refuelAt or Sat.hubLow(universe, r))
 		if low and not open[id] then
@@ -357,9 +363,12 @@ end
 -- visited), so a bump only pushes it away for a while. A hub's slot is
 -- Sat.hubOffset outward from its trade buoy, so it travels with the buoy.
 -- Dry, it stops correcting: it rides the current wherever it was knocked
--- and sinks Sat.decay px/s, never below Sat.floor of the planet's radius,
--- until a refuel brings it climbing back.
-Sat.hubOffset, Sat.decay, Sat.floor = 1100, 1, 1.15
+-- and its orbit decays, sinking steadily enough to reach the planet
+-- Sat.deorbit seconds after it ran dry. A refuel before then brings it
+-- climbing back; otherwise it burns up in the atmosphere (or hits the
+-- ground) and is lost, and its system posts the launch job for a
+-- replacement (Sat.markLost). Offline, Sat.tick does the same by the clock.
+Sat.hubOffset, Sat.deorbit = 1100, 1800
 Sat.keepGain, Sat.keepMax, Sat.keepBlend = 0.4, 80, 2
 
 -- Where the slot is at `clock`, about the planet (the map's origin).
@@ -381,15 +390,19 @@ function Sat.slotPoint(universe, r, clock)
 end
 function Sat.hubPoint(universe, r) return Sat.slotPoint(universe, r, universe.clock or 0) end
 
+function Sat.planetR(r)
+	local F = require("src.fields")[r.field]
+	return F and F.planetR or 0
+end
+
 -- Where it is offline: on its slot, or (dry) sunk below it by now.
 function Sat.restPoint(universe, r)
 	local x, y = Sat.slotPoint(universe, r, universe.clock or 0)
 	if not x then return end
 	if Sat.dry(r) and r.dryAt then
 		local d = math.max(1, math.sqrt(x * x + y * y))
-		local F = require("src.fields")[r.field]
-		local low = F and F.planetR and F.planetR * Sat.floor or 0
-		local to = math.max(low, d - Sat.decay * math.max(0, (universe.clock or 0) - r.dryAt))
+		local t = math.min(1, math.max(0, (universe.clock or 0) - r.dryAt) / Sat.deorbit)
+		local to = d - (d - Sat.planetR(r)) * t
 		x, y = x / d * to, y / d * to
 	end
 	return x, y
@@ -407,6 +420,7 @@ function Sat.keep(game, dt)
 			local x, y = b:getPosition()
 			local vx, vy = b:getLinearVelocity()
 			local wx, wy, k = vx, vy, math.min(1, dt * Sat.keepBlend)
+			r.seenAt = clock
 			if Sat.fuel(u, r) > 0 then
 				local tx, ty = Sat.slotPoint(u, r, clock)
 				local nx, ny = Sat.slotPoint(u, r, clock + 1)
@@ -418,15 +432,25 @@ function Sat.keep(game, dt)
 					wx, wy = nx - tx + ex, ny - ty + ey
 				end
 			else
-				-- dry: let its radial motion settle into a slow sink
+				-- dry: its radial motion settles into the decay (the
+				-- atmosphere takes over once it's down there)
 				local dx, dy = x - w.x, y - w.y
 				local d = math.max(1, math.sqrt(dx * dx + dy * dy))
 				local ux, uy = dx / d, dy / d
 				local vr = vx * ux + vy * uy
-				local want = d > (game.field.planetR or 0) * Sat.floor and -Sat.decay or 0
+				local alt = r.alt
+				if r.buoy then local sx, sy = Sat.slotPoint(u, r, clock); alt = sx and math.sqrt(sx * sx + sy * sy) or d end
+				local want = -math.max(0, (alt or d) - Sat.planetR(r)) / Sat.deorbit
+				if d <= Sat.planetR(r) + 40 then
+					-- down: burnt up (a planet with no air or solid
+					-- surface to do it, a gas giant's cloud tops)
+					game:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
+					Sat.lost(game, e)
+					game:remove(e)
+				end
 				wx, wy = vx + (want - vr) * ux, vy + (want - vr) * uy
 			end
-			b:setLinearVelocity(vx + (wx - vx) * k, vy + (wy - vy) * k)
+			if not e.removed then b:setLinearVelocity(vx + (wx - vx) * k, vy + (wy - vy) * k) end
 		end
 	end
 end
