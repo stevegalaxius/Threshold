@@ -3,9 +3,9 @@
 Generates ships in bulk for the Shipyard to finish off. Standalone: Python 3.8+ and Pillow, nothing from the game runs.
 
 ```
-python tools/shipgen/shipgen.py                         # 8 of every role into shipgen_out/
+python tools/shipgen/shipgen.py                         # 8 of every role into the workspace
 python tools/shipgen/shipgen.py --role hauler -n 24     # 24 haulers
-python tools/shipgen/shipgen.py --role fighter --seeds 6,9 --out "%APPDATA%/LOVE/spacegame_proto/mods/shipyard/data"
+python tools/shipgen/shipgen.py --role fighter --seeds 6,9  # rebuild just those two
 ```
 
 Roles: fighter, gunship, hauler, heavy, yacht, carrier. Each ship borrows the stats, slot list, loadout,
@@ -24,4 +24,14 @@ berths on deck, near-duplicates of existing ships or earlier keepers). Keepers a
 `gen_<role>_<seed>.lua` in Shipyard format and drawn on `sheet_<role>.png`, all at one scale with seed
 and template under each. A seed always makes the same ship.
 
-Copy the ones you like into the save folder's `mods/shipyard/data/` to fly them or open them in F2.
+## Workspace
+
+Ships go to the save folder's `mods/shipyard/data/workspace/shipgen/` (falls back to `shipgen_out/` when
+there's no save folder). Anything under a mod's `data/workspace/` loads as a draft (`workspace = true`):
+
+- the Shipyard (F2) lists and opens them like any design;
+- the debug menu (F1) lists them last as `[workspace]`, to fly or park in a hangar;
+- the simulation never uses them. A dealer, factory lineup or enemy that names one fails to load, and a
+  workspace hull can't reuse a game hull's id.
+
+To promote a keeper, move it out of `workspace/` with the Shipyard's folder picker (or by hand).

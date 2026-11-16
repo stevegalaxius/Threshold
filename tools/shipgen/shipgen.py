@@ -11,9 +11,11 @@ by reason, -v lists them). Keepers are written as Shipyard data files
 under each. A seed always makes the same ship, so `--seeds` regenerates
 just the ones you liked.
 
-To try ships in the game or refine them in the Shipyard (F2), copy their
-.lua files into the save folder's mods/shipyard/data/ (on Windows,
-%APPDATA%/LOVE/spacegame_proto/mods/shipyard/data/) or pass that as --out.
+By default they go to the save folder's mods/shipyard/data/workspace/shipgen/
+(on Windows %APPDATA%/LOVE/spacegame_proto/...). Workspace ships load as
+drafts: open them in the Shipyard (F2) or fly/park them from the debug menu
+(F1, listed as [workspace]), but the simulation never uses them. Move one out
+of workspace/ in the Shipyard to make it a game hull.
 
 Needs Python 3.8+ and Pillow.
 """
@@ -34,6 +36,19 @@ import render  # noqa: E402
 import validate  # noqa: E402
 
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
+
+
+def default_out():
+    """The Shipyard's workspace folder in the game's save folder when it can
+    be found (ships there load as drafts: viewable, never in the
+    simulation; see data.WORKSPACE in src/data.lua), else shipgen_out/."""
+    roots = [os.environ.get("APPDATA"), os.path.expanduser("~/Library/Application Support"),
+             os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")]
+    for r in roots:
+        save = r and os.path.join(r, "LOVE", "spacegame_proto")
+        if save and os.path.isdir(save):
+            return os.path.join(save, "mods", "shipyard", "data", "workspace", "shipgen")
+    return os.path.join(REPO, "shipgen_out")
 
 # hull fields copied from the template as they are
 COPY = ["class", "drag", "mount", "paints", "spoolTime", "turnSpeed", "turnResponse", "turretTurn", "bonuses",
@@ -181,12 +196,14 @@ def main():
     ap.add_argument("-n", "--count", type=int, default=8, help="keepers wanted per role")
     ap.add_argument("--seed", type=int, default=1, help="first seed to try")
     ap.add_argument("--seeds", help="comma list: build exactly these seeds (keeps failures out, says why)")
-    ap.add_argument("--out", default=os.path.join(REPO, "shipgen_out"), help="folder for the .lua files and sheet")
+    ap.add_argument("--out", default=None, help="folder for the .lua files and sheet (default: the save folder's "
+                    "mods/shipyard/data/workspace/shipgen, else shipgen_out/)")
     ap.add_argument("--sheet", default=None, help="contact sheet path (default <out>/sheet_<role>.png)")
     ap.add_argument("--no-files", action="store_true", help="only draw the sheet")
     ap.add_argument("-v", "--verbose", action="store_true")
     a = ap.parse_args()
 
+    a.out = a.out or default_out()
     templates = load_templates()
     for t in templates.values():
         t["_area"] = tpl_area(t)
@@ -227,6 +244,7 @@ def main():
         kept_all += kept
         if kept and len(roles) > 1:
             render.sheet(kept, os.path.join(a.out, "sheet_%s.png" % role), role)
+    print("ships in:", a.out)
     if kept_all:
         path = a.sheet or os.path.join(a.out, "sheet_%s.png" % (a.role if len(roles) == 1 else "all"))
         render.sheet(kept_all, path, a.role)

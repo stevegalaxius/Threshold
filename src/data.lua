@@ -140,6 +140,15 @@ function data.fitLoadout(hull, loadout)
 end
 
 local currentFile = "?"
+-- Workspace: hulls in a mod's data/workspace/ folder (the Shipyard's is
+-- mods/shipyard/data/workspace/, where tools/shipgen writes) load as drafts.
+-- They're in data.hulls, so the Shipyard opens them and the debug menu (F1)
+-- can fly or park them, but they carry workspace = true and nothing in the
+-- simulation may use them: dealers, factory lineups and enemies that name
+-- one fail to load (crossCheck). Moving a file out of workspace/ (the
+-- Shipyard's folder picker does it) promotes it to a game hull.
+data.WORKSPACE = "workspace"
+local workspace = false
 
 local function fail(msg)
 	error(("%s: %s"):format(currentFile, msg), 0)
@@ -153,6 +162,14 @@ local function register(category, kind, def)
 	if type(def) ~= "table" then fail(kind .. " expects a table, like " .. kind .. " { id = ... }") end
 	need(def, "id", kind)
 	need(def, "name", kind)
+	-- Workspace hulls (see data.WORKSPACE) never stand in for a game hull.
+	if category == "hulls" then
+		def.workspace = workspace or nil
+		local old = data.hulls[def.id]
+		if workspace and old and not old.workspace then
+			fail(("workspace hull '%s' has the same id as a game hull (%s); give it its own id"):format(def.id, old.source or "?"))
+		end
+	end
 	if not data[category][def.id] then table.insert(data.list[category], def.id) end
 	def.source = currentFile
 	data[category][def.id] = def
@@ -625,6 +642,8 @@ end
 
 local loadFolder
 function loadFolder(folder)
+	local was = workspace
+	if folder:match("^mods/[^/]+/data/" .. data.WORKSPACE .. "$") then workspace = true end
 	local files = love.filesystem.getDirectoryItems(folder)
 	table.sort(files)
 	-- files first, then subfolders (the Shipyard lets you sort designs into folders)
@@ -637,6 +656,7 @@ function loadFolder(folder)
 		local sub = folder .. "/" .. name
 		if love.filesystem.getInfo(sub, "directory") then loadFolder(sub) end
 	end
+	workspace = was
 end
 
 -- The ammo families a weapon chambers (see data.CHAMBERS).
@@ -688,6 +708,23 @@ function data.modulesFor(slot)
 end
 
 local function crossCheck()
+	-- workspace hulls stay out of the simulation
+	local function noDraft(where, id)
+		local h = data.hulls[id]
+		if h and h.workspace then
+			error(("%s uses workspace hull '%s' (%s); move it out of workspace/ to use it in the game"):format(where, id, h.source or "?"), 0)
+		end
+	end
+	for name, mk in pairs(data.markets) do
+		for _, id in ipairs(mk.dealer and mk.dealer.hulls or {}) do noDraft(("%s: market '%s' dealer"):format(mk.source, name), id) end
+	end
+	for id, e in pairs(data.enemies) do noDraft(("enemy '%s'"):format(id), e.hull) end
+	local okInd, ind = pcall(require, "data.industry")
+	if okInd and type(ind) == "table" then
+		for maker, hulls in pairs(ind.lineups or {}) do
+			for _, id in ipairs(hulls) do noDraft(("data/industry.lua: lineup '%s'"):format(maker), id) end
+		end
+	end
 	for name, mk in pairs(data.markets) do
 		for _, id in ipairs(mk.ships or {}) do
 			if not data.hulls[id] or data.hulls[id].playable == false then
