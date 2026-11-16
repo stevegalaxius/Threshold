@@ -29,9 +29,9 @@ local berthOffsetFor
 
 Sat.kinds = {
 	passive = { design = "sat_passive", dock = "none", actions = {} },
-	-- the trade-buoy hub: not in any orbit mix, one rides every trade buoy
-	-- (Sat.hubs). A mini station for ships passing through.
-	hub = { design = "trade_hub", dock = "anyone", actions = { "vend" },
+	-- a hub: a larger satellite with a shop, a mini station for ships
+	-- passing through (placed per planet: data/satellite_orbits.lua, hubs)
+	hub = { design = "sat_hub", dock = "anyone", actions = { "vend" },
 		vend = { "deuterium_canister", "rounds_s", "rounds_m", "shell_s", "patch_kit" } },
 }
 -- Kinds that used to orbit on their own: their records become the slot's
@@ -78,6 +78,14 @@ function Sat.layout(fieldId, field)
 		out[n] = { id = ("%s_sat_%02d"):format(fieldId, n), n = n, kind = kind,
 			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
 			name = ("%s sat %02d"):format(def.names or field.name or fieldId, n) }
+	end
+	-- hubs: their own slots (ids <field>_hub_<n>), mid-band, after the mix,
+	-- so adding hubs never reshuffles a field's other satellites
+	for n = 1, def.hubs or 0 do
+		local f = 0.3 + rng:random() * 0.3
+		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub",
+			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
+			name = ("%s trade hub%s"):format(def.names or field.name or fieldId, (def.hubs or 0) > 1 and (" " .. n) or "") }
 	end
 	return out
 end
@@ -168,12 +176,10 @@ function Sat.tick(universe)
 			end
 		end
 	end
-	Sat.ensureHubs(universe)
 	local open = require("src.sat_jobs").open(universe, "satrefuel")
 	for id, r in pairs(all) do
 		-- low on its own fuel, or (a hub) its shelf nearly out of canisters
-		local low = not r.lost and (Sat.fuel(universe, r) < Sat.refuelAt or r.hub
-			and require("src.stockpile").available(universe, r.hub, require("src.reactor_fuel").item()) < Sat.hubLowStock)
+		local low = not r.lost and (Sat.fuel(universe, r) < Sat.refuelAt or Sat.hubLow(universe, r))
 		if low and not open[id] then
 			require("src.sat_jobs").post(universe, r, "satrefuel")
 		end
@@ -240,130 +246,49 @@ function Sat.populate(game)
 		end
 		if e then Sat.adopt(e, r) end
 	end
-	Sat.hubs(game)
-end
-
--- Trade-buoy hubs: every trade buoy on the map is a hub satellite. The buoy
--- entity itself is the satellite (it already rides the buoy's track and
--- draws its prop, data/wrecks/trade_hub.lua), so it just gets a record.
-function Sat.hubId(locationId) return "hub:" .. locationId end
--- Records for every trade buoy in the system, loaded or not, so ships
--- passing an unvisited map's buoys are served too.
-function Sat.ensureHubs(universe)
-	local all, Fields, L = store(universe), require("src.fields"), require("src.locations")
-	for _, area in ipairs(Fields.list) do
-		for _, loc in ipairs(Fields[area].buoyIds or {}) do
-			local id = Sat.hubId(loc)
-			if not all[id] then
-				local place = L.byId[loc]
-				all[id] = { id = id, field = area, kind = "hub", design = "trade_hub", hub = loc,
-					name = place and place.name and (Fields[area].name .. " " .. place.name:lower()) or "Trade hub" }
-			end
-		end
-	end
-end
--- The hub is launched beside its buoy (the buoy itself is unchanged),
--- Sat.hubOffset further out from the planet, into a free orbit: a physical
--- satellite like the rest, of data/wrecks/trade_hub.lua, that drifts, can
--- be bumped and shot, and is saved with the area. Destroyed, it gets a
--- launch job like any satellite, and the replacement goes up by its buoy.
-Sat.hubOffset = 1100
-function Sat.hubs(game)
-	local u = game.universe
-	Sat.ensureHubs(u)
-	local present = {}
-	for _, e in ipairs(game.entities) do
-		if e.sat and e.hubOf and not e.removed then present[e.sat] = e end
-		if e.sat and not e.hubOf and not e.removed and e.kind ~= "buoy" and e.sat:match("^hub:") then present[e.sat] = e end
-		if e.kind == "buoy" and e.sat then e.sat, e.name = nil, nil end -- builds before the hub had its own body
-	end
-	for _, b in ipairs(game.entities) do
-		if b.kind == "buoy" and b.locationId and not b.removed then
-			local r = Sat.get(u, Sat.hubId(b.locationId))
-			if r and data.wrecks[r.design] then
-				local e = present[r.id]
-				if not e and not r.lost then
-					local x, y = Sat.hubPosition(game, b.locationId)
-					local w = game.well
-					local cx, cy = w and w.x or 0, w and w.y or 0
-					local alt, a = math.sqrt((x - cx) ^ 2 + (y - cy) ^ 2), math.atan2(y - cy, x - cx)
-					-- launched at its buoy's angular rate, so it keeps company
-					local bvx, bvy = require("src.locations").velocity(b.locationId, u.clock)
-					local k = alt / math.max(1, alt - Sat.hubOffset)
-					e = game:spawnWreck(r.design, x, y, a + math.pi / 2, bvx * k, bvy * k)
-					if e then r.spawnedAt = u.clock or 0 end
-				end
-				if e then
-					Sat.adopt(e, r)
-					e.hubOf = b.locationId
-				end
-			end
-		end
-	end
-end
-function Sat.hubPosition(game, locationId)
-	local x, y = require("src.locations").position(locationId, game.universe.clock)
-	local d = math.max(1, math.sqrt(x * x + y * y))
-	return x + x / d * Sat.hubOffset, y + y / d * Sat.hubOffset
-end
--- The hub's live body for a buoy node, if its map is loaded.
-function Sat.hubEntity(game, node)
-	local id = Sat.hubId(node)
-	for _, e in ipairs(game.entities or {}) do
-		if e.sat == id and e.hubOf and not e.removed and e.body and not e.body:isDestroyed() then return e end
-	end
-end
-
--- The hub at a buoy node, working (fuelled) or not; nil if there's none yet.
-function Sat.hubAt(universe, node)
-	return node and Sat.get(universe, Sat.hubId(node))
 end
 
 -- NPCs and hubs ---------------------------------------------------------------
 --
--- A working hub is a service stop for NPC upkeep (src/upkeep.lua), like a
--- small station: a ship short of fuel or ammunition can pick it, fly there,
--- lock on at one of its Sat.hubBerths berths and take what it needs off the
--- hub's shelf (src/supplies.lua; the buoy's own stockpile). A full hub is
--- skipped like a full station. Every ship served burns a little of the
--- hub's own fuel (Sat.hubServeCost), so busy hubs ask for refuels sooner;
--- the refuel hauler restocks the shelf too. No repairs at a hub.
-Sat.hubBerths, Sat.hubServeCost, Sat.hubLowStock = 2, 0.02, 4
+-- A working hub (kind "hub") sells fuel and supplies off its own shelf to the
+-- player and NPCs alike. An NPC short of fuel or ammunition (src/upkeep.lua's
+-- needs) with a working hub nearby flies out to it with the same work action
+-- the refuel haulers use (src/sat_jobs.lua, operation "hubservice"), holds on
+-- its berth, buys what it needs and carries on. One ship at a time, like any
+-- satellite berth. Each ship served burns a little of the hub's own fuel
+-- (Sat.hubServeCost), so busy hubs ask for refuels sooner, and a hub low on
+-- canisters gets a refuel job too; that hauler restocks the shelf. No repairs.
+Sat.hubServeCost, Sat.hubLowStock = 0.02, 4
 
-function Sat.hubWorking(universe, node)
-	local r = universe and Sat.hubAt(universe, node)
-	return r and not r.lost and Sat.fuel(universe, r) > 0 or false
-end
+-- Its shelf, as the stockpile sees it (the same key the docked screen uses).
+function Sat.shelf(r) return { key = "sat:" .. r.id, marketId = "sat:" .. r.kind } end
 
--- Ships at (or locked on to) the hub now, other than `except`.
-function Sat.hubOccupancy(universe, node, except)
-	local n = 0
-	for _, o in pairs(universe.npcs or {}) do
-		if o ~= except and o.state == "docked" and o.node == node then n = n + 1 end
-	end
-	return n
-end
-function Sat.hubRoom(universe, node, except)
-	return Sat.hubWorking(universe, node) and Sat.hubOccupancy(universe, node, except) < Sat.hubBerths
+function Sat.hubWorking(universe, r)
+	return r and r.kind == "hub" and not r.lost and Sat.fuel(universe, r) > 0 or false
 end
 
 -- A ship was served: the hub's own fuel pays for it.
-function Sat.hubServed(universe, node)
-	local r = Sat.hubAt(universe, node)
-	if not r then return end
+function Sat.hubServed(universe, r)
 	Sat.fuel(universe, r)
 	r.fuel = math.max(0, r.fuel - Sat.hubServeCost)
 	if r.fuel <= 0 and not r.dryAt then r.dryAt = universe.clock or 0 end
 	r.served = (r.served or 0) + 1
 end
 
+-- Low on canisters to sell.
+function Sat.hubLow(universe, r)
+	return r.kind == "hub" and require("src.stockpile").available(universe, Sat.shelf(r),
+		require("src.reactor_fuel").item()) < Sat.hubLowStock
+end
+
 -- The refuel hauler also restocks the shelf: each listed good back up to
 -- at least half its listed amount.
 function Sat.restockHub(universe, r)
-	if not r.hub then return end
+	if r.kind ~= "hub" then return end
 	local Stock, Shapes = require("src.stockpile"), require("src.inventory.shapes")
-	for i, shop in ipairs(Stock.shops(r.hub)) do
-		local stock = Stock.stock(universe, r.hub, i)
+	local shelf = Sat.shelf(r)
+	for i, shop in ipairs(Stock.shops(shelf)) do
+		local stock = Stock.stock(universe, shelf, i)
 		for _, e in ipairs(shop.sells or {}) do
 			local _, _, cap = Shapes.of(e[1])
 			local want = math.floor(e[2] * cap / 2)
@@ -372,32 +297,26 @@ function Sat.restockHub(universe, r)
 	end
 end
 
--- Online: a live NPC on a service visit to this hub reaches the buoy. Lock
--- it on at a free berth; false if there's none (it flies on, and its
--- upkeep finds somewhere else).
-function Sat.npcDock(game, e, stop)
-	local u = game.universe
-	local r = e.alifeId and u.npcs[e.alifeId]
-	if not r or e.dockState or not stop.hubOf or not Sat.hubRoom(u, stop.hubOf, r) then return false end
-	local taken = {}
-	for _, o in ipairs(game.entities) do
-		local ds = o ~= e and not o.dead and not o.removed and o.dockState
-		if ds and ds.station and ds.station.entity == stop and ds.satSide then taken[ds.satSide] = true end
+-- The nearest working hub on a map to (x, y). Hubs are only placed where
+-- markets are sparse, so any hub on the same map is worth the trip.
+function Sat.nearestHub(universe, area, x, y)
+	local best, bestD
+	for _, r in pairs(store(universe)) do
+		if r.field == area and Sat.hubWorking(universe, r) then
+			local hx, hy = Sat.home(universe, r)
+			if hx then
+				local d = (hx - x) ^ 2 + (hy - y) ^ 2
+				if not bestD or d < bestD then best, bestD = r, d end
+			end
+		end
 	end
-	local lx = stop.body:getLocalPoint(e.body:getPosition())
-	local side = lx < 0 and -1 or 1
-	if taken[side] then side = -side end
-	if taken[side] then return false end
-	local st = Sat.station(game, stop)
-	local bx, by = berthOffsetFor(stop, e, side)
-	e.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by }, satSide = side }
-	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireTertiary = false, false, false
-	return true
+	return best
 end
 
 -- Tag a husk as this satellite.
 function Sat.adopt(e, r)
 	e.sat, e.name = r.id, r.name
+	e.hubBerths = r.kind == "hub" or nil
 	if e.body and not e.body:isDestroyed() then
 		e.body:setAngularVelocity(0)
 		e.body:setAngularDamping(2)
@@ -450,22 +369,17 @@ end
 
 -- Where things are, for NPC work out at a satellite (src/sat_jobs.lua) ------
 
--- The live husk (or hub buoy) of a satellite on the loaded map.
+-- The live husk of a satellite on the loaded map.
 function Sat.entity(game, id)
 	for _, e in ipairs(game.entities or {}) do
 		if e.sat == id and not e.removed and not e.dead and e.body and not e.body:isDestroyed() then return e end
 	end
 end
 
--- Its home position: a hub rides its buoy's track; an orbiting satellite
--- its seeded layout slot, about the planet (the map's origin).
+-- Its home position: its seeded layout slot, about the planet (the map's
+-- origin). Online, Sat.entity gives where it has actually drifted to.
 function Sat.home(universe, r, game)
 	local L = require("src.locations")
-	if r.hub then
-		local x, y = L.position(r.hub, universe.clock or 0)
-		local d = math.max(1, math.sqrt(x * x + y * y))
-		return x + x / d * Sat.hubOffset, y + y / d * Sat.hubOffset
-	end
 	if not r.alt then
 		local Fields = require("src.fields")
 		for _, slot in ipairs(Sat.layout(r.field, Fields[r.field])) do
@@ -522,9 +436,7 @@ function Sat.station(game, e)
 	end
 	e.satStation = e.satStation or {}
 	local st = e.satStation
-	-- a hub's shelf is its buoy's stock, shared with ships served there
-	st.sat, st.key, st.name, st.body, st.entity = r.id, r.hub or ("sat:" .. r.id), r.name, e.body, e
-	st.locationId = r.hub
+	st.sat, st.key, st.name, st.body, st.entity = r.id, "sat:" .. r.id, r.name, e.body, e
 	st.marketId = "sat:" .. r.kind
 	st.def = { services = services, marketId = st.marketId, repairRate = 2 }
 	return st
@@ -532,12 +444,11 @@ end
 
 -- Where the berth is, in the satellite's frame: off the side of the bus the
 -- ship came from.
--- side: -1 or 1, which berth; nil picks the one nearer the ship. A hub
--- (on a trade buoy) has a berth pad off each docking arm; a satellite's
--- berths are either side of the bus.
+-- side: -1 or 1, which berth; nil picks the one nearer the ship. A hub has
+-- a berth pad off each docking arm; other satellites, either side of the bus.
 local function berthOffset(e, ship, side)
 	local lx, ly = e.body:getLocalPoint(ship.body:getPosition())
-	if e.hubOf then
+	if e.hubBerths then
 		side = side or (lx < 0 and -1 or 1)
 		return side * (340 + (ship.halfLength or 40) + 30), 0
 	end
@@ -552,21 +463,10 @@ function Sat.request(game, e)
 	if not r or not p or p.dead or p.dockState then return false end
 	local held = e.satHeld
 	local npcOn = held and held.alifeRecord and held.alifeRecord.action and held.alifeRecord.action.operation == "satservice"
-	if not e.hubOf and held and held ~= p and not held.dead and not held.removed and (held.dockState or npcOn) then game:toast("BERTH OCCUPIED", 1.4); return false end
+	if held and held ~= p and not held.dead and not held.removed and (held.dockState or npcOn) then game:toast("BERTH OCCUPIED", 1.4); return false end
 	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
 	local st = Sat.station(game, e)
 	local side
-	if e.hubOf then
-		local taken = {}
-		for _, o in ipairs(game.entities) do
-			local ds = o ~= p and not o.dead and not o.removed and o.dockState
-			if ds and ds.station and ds.station.entity == e and ds.satSide then taken[ds.satSide] = true end
-		end
-		local lx = e.body:getLocalPoint(p.body:getPosition())
-		side = lx < 0 and -1 or 1
-		if taken[side] then side = -side end
-		if taken[side] then game:toast("BERTHS OCCUPIED", 1.4); return false end
-	end
 	local bx, by = berthOffset(e, p, side)
 	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by }, satSide = side }
 	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
@@ -607,7 +507,6 @@ function Sat.updateDock(game, ship, dt)
 		if d < 30 and (vx - fvx) ^ 2 + (vy - fvy) ^ 2 < 60 ^ 2 then
 			ds.phase, ds.done, ds.t = "done", true, 0
 			if ship == game.player then game.state = "docked" end
-			if ship.alifeId then Sat.npcDocked(game, ship, st) end
 			require("src.events").emit("dock", ship, st)
 		end
 	else
@@ -615,39 +514,7 @@ function Sat.updateDock(game, ship, dt)
 		b:setPosition(wx, wy)
 		b:setLinearVelocity(fvx, fvy)
 		b:setAngularVelocity(sb:getAngularVelocity())
-		if ship.alifeId and Sat.npcDeparts(game, ship, st) then return end
 	end
-end
-
--- Online NPC on the hub's berth: the same docked visit as a station's
--- (src/upkeep.lua), off the hub's shelf.
-function Sat.npcDocked(game, e, st)
-	local u = game.universe
-	local r = u.npcs[e.alifeId]
-	if not r then return end
-	local node = st.locationId
-	r.state, r.node, r.dockedAt, r.nextDecisionAt = "docked", node, u.clock, nil
-	require("src.npc_repair").begin(r, node, u.clock, require("src.tuning").alifeStay, u)
-	require("src.supplies").online(game, e)
-end
-function Sat.npcDeparts(game, e, st)
-	local u = game.universe
-	local r = u.npcs[e.alifeId]
-	local Upkeep = require("src.upkeep")
-	local short = r and r.service and Upkeep.isStation(r, st.locationId) and Upkeep.hubShort(r, u)
-	if not short and r and r.service and Upkeep.isStation(r, st.locationId) and not Upkeep.canDepart(game, e, r) then return false end
-	local A = require("src.alife")
-	A.capture(game, e, false)
-	Sat.undock(game, e)
-	if short then
-		Upkeep.abandonHub(r, u.clock, e)
-		A.bindRoute(game, e, r)
-	elseif r then
-		if r.service then r.index = #r.route; Upkeep.passed(r, #r.route) end
-		r.state, r.node, r.untilTime, r.nextDecisionAt = "idle", st.locationId, u.clock, nil
-		A.bindRoute(game, e, r)
-	end
-	return true
 end
 
 -- Launch from a satellite berth: a gentle push away from the bus.

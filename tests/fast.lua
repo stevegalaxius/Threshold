@@ -64,24 +64,44 @@ return function(game)
 
  -- 5. Satellites: fuel runs down offline, a hauler's refuel job tops it up.
  local Sat=require('src.satellites')
- Sat.ensureHubs(u)
  for _,r in pairs(u.satellites) do assert(not Sat.retired[r.kind],'retired satellite kind still in orbit: '..r.id) end
- -- every trade buoy is a hub, and a ship passing one is served from it
- local hubNode,hub
- for _,area in ipairs(Fields.list) do
-  for _,loc in ipairs(Fields[area].buoyIds or {}) do hubNode=hubNode or loc;assert(Sat.hubAt(u,loc),'no hub at '..loc) end
- end
- assert(hubNode,'no trade buoys')
- hub=Sat.hubAt(u,hubNode);Sat.refuel(u,hub.id,'test')
- -- a working hub is an upkeep stop with its own shelf; a dry one isn't
- require('src.supplies').universe=u
+ -- hubs: placed per planet as their own satellite kind
+ local hub
+ for _,slot in ipairs(Sat.layout('neptune',Fields.neptune)) do if slot.kind=='hub' then hub=Sat.record(u,slot,'neptune');Sat.refuel(u,hub.id,'test') end end
+ assert(hub and hub.kind=='hub','Neptune has no hub satellite')
+ for _,slot in ipairs(Sat.layout('earth',Fields.earth)) do assert(slot.kind~='hub','Earth should have no hub') end
+ Sat.refuel(u,hub.id,'test')
  local F=require('src.reactor_fuel').item()
- assert(require('src.supplies').supports(hubNode),'working hub is not a service stop')
- local listed=false;for _,id in ipairs(require('src.upkeep').stops(require('src.locations').get(hubNode).area)) do if id==hubNode then listed=true end end
- assert(listed,'hub missing from upkeep stops')
- assert(require('src.stockpile').count(u,hubNode,F)>0,'hub shelf opens without fuel')
+ assert(require('src.stockpile').count(u,Sat.shelf(hub),F)>0,'hub shelf opens without fuel')
+ -- an NPC short of fuel near it flies out, holds on the berth and buys
+ do
+  local Actions=require('src.npc_actions');local Hold=require('src.inventory.hold')
+  local npc
+  -- (a ship with a plain cargo list: a grid hold may be packed full)
+  for _,r in pairs(u.npcs) do if r.ship and not r.ship.hold and r.state~='dead' and r.state~='escaped' then npc=r;break end end
+  local saved=require('src.persistence').copy(npc)
+  local hx,hy=Sat.home(u,hub)
+  if npc.ship.hold then local h=Hold.deserialize(npc.ship.hold);Hold.take(h,F,Hold.count(h,F));npc.ship.hold=Hold.serialize(h);npc.ship.cargo=Hold.totals(h) else npc.ship.cargo[F]=0 end
+  npc.ship.fuelCharge=0;npc.task=nil;npc.action=nil;npc.nextHubAt=nil
+  npc.state,npc.area='idle','neptune'
+  npc.node=Fields.neptune.buoyIds[1] or Fields.neptune.holdingId
+  local clock=u.clock
+  -- (it goes to whichever hub is nearest: count them all)
+  local function served() local n=0;for _,r in pairs(u.satellites) do if r.kind=='hub' then n=n+(r.served or 0) end end;return n end
+  local before=served()
+  local ctx={u=u,r=npc,clock=clock,game={universe=u}}
+  assert(require('src.upkeep').need(npc)=='fuel','drained NPC does not need fuel')
+  assert(require('src.sat_jobs').hubVisit(ctx),'NPC short of fuel ignored the hub')
+  for _=1,2000 do
+   if not npc.action then break end
+   clock=clock+5;Actions.step({u=u,r=npc,clock=clock,game={universe=u}})
+  end
+  assert(served()>before,'hub did not serve the NPC: '..tostring(npc.lastAction and npc.lastAction.status)..' '..tostring(npc.lastAction and npc.lastAction.reason)..' '..tostring(npc.action and npc.action.phase))
+  assert((npc.ship.cargo[F] or 0)>0,'NPC left the hub without fuel')
+  for k in pairs(npc) do npc[k]=nil end;for k,v in pairs(saved) do npc[k]=v end
+ end
  hub.fuelAt=u.clock-Sat.fuelLife*2;Sat.fuel(u,hub)
- assert(not require('src.supplies').supports(hubNode),'dry hub still serves')
+ assert(not Sat.hubWorking(u,hub),'dry hub still works')
  Sat.refuel(u,hub.id,'test')
  -- a hauler takes a refuel job and flies out to the satellite (offline)
  local Tasks=require('src.tasks');local Actions=require('src.npc_actions')
@@ -90,7 +110,7 @@ return function(game)
  assert(npc,'no NPC for the refuel job')
  local Jobs=require('src.sat_jobs')
  local sat
- for id,r in pairs(u.satellites) do if not r.hub and not r.lost and Jobs.places(r.field) then sat=r;break end end
+ for id,r in pairs(u.satellites) do if r.kind~='hub' and not r.lost and Jobs.places(r.field) then sat=r;break end end
  sat.fuelAt=u.clock-Sat.fuelLife*0.9;Sat.fuel(u,sat)
  local offer=Jobs.post(u,sat,'satrefuel')
  local _,here=Jobs.places(sat.field)
@@ -109,7 +129,7 @@ return function(game)
  npc.task,npc.state,npc.node,npc.action=savedTask,savedState,savedNode,savedAction
  Jobs.clear(u,sat.id)
  local sid
- for id,r in pairs(u.satellites or {}) do if not r.lost and not r.hub and r.field~=game.fieldId then sid=id;break end end
+ for id,r in pairs(u.satellites or {}) do if not r.lost and r.kind~='hub' and r.field~=game.fieldId then sid=id;break end end
  if not sid then
   for id,r in pairs(u.satellites or {}) do if not r.lost then sid=id;break end end
  end

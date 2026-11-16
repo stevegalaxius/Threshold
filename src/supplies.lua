@@ -28,8 +28,6 @@ function S.fuelShop()
 end
 function S.supports(node)
  local place=node and L.byId[node]
- -- a trade buoy's hub, while it has power (src/satellites.lua)
- if place and place.kind=='buoy' then return S.universe and require('src.satellites').hubWorking(S.universe,node) or false end
  return place and place.kind=='station' and L.stationServices(node).market or false
 end
 local profiles={}
@@ -115,7 +113,7 @@ local function fill(r,e,h,cargo,u,key)
   if n>0 and (id==Fuel.item() or require('src.ammunition').byItem[id]) and u and key then
    -- a spent canister is gone: new empties only come from Mars
    assert(require('src.stockpile').take(u,key,id,n),'supply stock changed during refill')
-   require('src.economy').consume(u,key,id,n)
+   require('src.economy').consume(u,type(key)=='table' and key.key or key,id,n)
   end
  end
  return added
@@ -139,7 +137,15 @@ function S.refill(r,node,u)
  u=u or S.universe
  local n=fill(r,nil,h,r.ship.cargo,u,u and L.canonical(node))
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
- if n>0 and u and L.byId[node].kind=='buoy' then require('src.satellites').hubServed(u,node) end
+ return n
+end
+-- Off a satellite's shelf (a hub, src/satellites.lua): the same reserve
+-- targets, out of that shelf's stock. shelf = { key, marketId }.
+function S.refillFrom(r,shelf,u)
+ local h=r.ship.hold and Hold.deserialize(r.ship.hold)
+ r.ship.cargo=h and Hold.totals(h) or r.ship.cargo or {}
+ local n=fill(r,nil,h,r.ship.cargo,u,shelf)
+ if h and n>0 then r.ship.hold=Hold.serialize(h) end
  return n
 end
 function S.online(game,e)
@@ -149,7 +155,6 @@ function S.online(game,e)
  if not game.stationServices(ds.station).market then return end
  local n=fill(r,e,e.hold,e.cargo,game.universe,L.canonical(ds.station.key))
  ds.supplied=true
- if n>0 and ds.station.sat and ds.station.locationId then require('src.satellites').hubServed(game.universe,ds.station.locationId) end
  if n>0 then
   Ship.updateMass(e)
   r.ship.cargo=require('src.persistence').copy(e.cargo)

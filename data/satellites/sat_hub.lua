@@ -1,9 +1,8 @@
--- Trade-buoy hub: the larger satellite that sits on every trade buoy
--- (src/satellites.lua, kind "hub"). A mini station for ships passing
--- through: fuel and supplies off its shelf, docking for the player.
--- Edit freely in the Shipyard.
-prop {
-	id = "trade_hub", name = "Trade hub",
+-- Hub satellite (src/satellites.lua, kind "hub"): a larger satellite with a
+-- shop, a mini station for ships passing through. Fuel and supplies off its
+-- shelf; a berth pad off each docking arm. Edit freely in the Shipyard.
+satellite {
+	id = "sat_hub", name = "Hub satellite",
 	armor = 900, mass = 12000,
 	parts = {
 		{ name = "hub", shape = { 138.58, 57.4, 57.4, 138.58, -57.4, 138.58, -138.58, 57.4, -138.58, -57.4, -57.4, -138.58, 57.4, -138.58, 138.58, -57.4 }, color = { 0.3, 0.31, 0.35 }, core = true, lights = { { x = -90, y = -40, size = 4 }, { x = -60, y = -40, size = 4 }, { x = -30, y = -40, size = 4 }, { x = 30, y = -40, size = 4 }, { x = 60, y = -40, size = 4 }, { x = 90, y = -40, size = 4 }, { x = -90, y = 40, size = 4 }, { x = -60, y = 40, size = 4 }, { x = -30, y = 40, size = 4 }, { x = 30, y = 40, size = 4 }, { x = 60, y = 40, size = 4 }, { x = 90, y = 40, size = 4 } } },

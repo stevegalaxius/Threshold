@@ -49,7 +49,8 @@ local function wanted(kind,s)
  if s.lost then return false end
  local Sat=require('src.satellites')
  if (s.fuel or 1)<Sat.refuelAt then return true end
- return s.hub and require('src.stockpile').available(Supplies(),s.hub,'deuterium_canister')<Sat.hubLowStock or false
+ local u=Supplies()
+ return u and Sat.hubLow(u,s) or false
 end
 for _,kind in ipairs({'satrefuel','satlaunch'}) do
 Tasks.register(kind,{
@@ -169,6 +170,91 @@ Actions.registerOperation('satservice',{
   return service(ctx,target,dt,a)
  end,
  missing=function() return 'failed','satellite gone' end,
+})
+
+-- Hub visits: an NPC short of fuel or supplies, deciding what to do next
+-- at a route node, with a working hub nearer than any station that could
+-- serve it, flies out to the hub, holds on the berth and buys off its shelf
+-- (src/satellites.lua). Called from N.decide before ordinary upkeep; true
+-- when the visit has started (or is still under way). Otherwise upkeep's
+-- usual station visit takes over.
+J.hubStay=15
+-- The working hub nearer to the ship than any station that could serve
+-- it, or nil.
+function J.preferredHub(ctx)
+ local r=ctx.r;local Sat=require('src.satellites')
+ local x,y=Actions.actorPosition(ctx);if not x then return end
+ local hub=Sat.nearestHub(ctx.u,r.area,x,y);if not hub then return end
+ local hx,hy=Sat.home(ctx.u,hub,ctx.game)
+ local hd=(hx-x)^2+(hy-y)^2
+ for _,id in ipairs(L.stations(r.area)) do
+  if require('src.supplies').supports(id) then
+   local sx,sy=L.position(id,ctx.clock)
+   if (sx-x)^2+(sy-y)^2<hd then return end
+  end
+ end
+ return hub
+end
+-- From upkeep's planning mid-leg: a hub is the better stop, so don't book a
+-- station visit now; the ship takes the hub at its next node (J.hubVisit).
+function J.holdForHub(r,clock,e)
+ if (r.hubCheckAt or 0)>clock then return r.hubHeld or false end
+ r.hubCheckAt=clock+10
+ local u=require('src.supplies').universe
+ r.hubHeld=u and J.preferredHub({u=u,r=r,clock=clock,e=e,game=e and e.alifeGame or {universe=u}})~=nil or false
+ return r.hubHeld
+end
+function J.hubVisit(ctx)
+ local r=ctx.r;local Sat=require('src.satellites')
+ if r.action and r.action.operation=='hubservice' then return true end
+ if r.action and not Actions.definitions[r.action.kind].route then return false end
+ if r.service or r.state~='idle' or not r.area or (r.nextHubAt or 0)>ctx.clock then return false end
+ local need=require('src.upkeep').need(r,ctx.e)
+ if need~='fuel' and need~='supplies' then return false end
+ r.nextHubAt=ctx.clock+120
+ local hub=J.preferredHub(ctx);if not hub then return false end
+ local spec={kind='work',operation='hubservice',target={provider='satellite',id=hub.id}}
+ local target=Actions.targets.satellite.resolve(ctx,spec.target)
+ if not target or not Actions.available(ctx,target) then return false end
+ local a=Actions.request(ctx,spec);a.fromJob=true
+ r.taskStatus='stopping at '..(hub.name or 'a hub')
+ Actions.step(ctx)
+ return true
+end
+local function shop(ctx,target)
+ local Sat=require('src.satellites')
+ if not Sat.hubWorking(ctx.u,target.sat) then return 0 end
+ local n=require('src.supplies').refillFrom(ctx.r,Sat.shelf(target.sat),ctx.u)
+ if n>0 then Sat.hubServed(ctx.u,target.sat) end
+ return n
+end
+local function hubHold(ctx,target,dt,a)
+ local other=ctx.e and target.entity and target.entity.satHeld
+ if other and other~=ctx.e and other.dockState and not other.dead then return 'running' end
+ a.held=(a.held or 0)+dt
+ if ctx.e and target.entity then target.entity.satHeld=ctx.e end
+ if a.held<J.hubStay then return 'running' end
+ if ctx.e and target.entity and target.entity.satHeld==ctx.e then target.entity.satHeld=nil end
+ if ctx.e then Actions.recordOperation(ctx,function() shop(ctx,target);return 'done' end) else shop(ctx,target) end
+ return 'done'
+end
+Actions.registerOperation('hubservice',{
+ distance=function() return 0 end,
+ inRange=function(ctx,target)
+  local x,y=ctx.e.body:getPosition()
+  return (x-target.x)^2+(y-target.y)^2<(target.entity and 120 or 400)^2
+ end,
+ offline=hubHold,
+ online=function(ctx,target,dt,a)
+  local e=ctx.e;local vx,vy=e.body:getLinearVelocity()
+  ctx.AI.driveVelocity(e,target.vx or 0,target.vy or 0,(target.vx or 0)-vx,(target.vy or 0)-vy,e.def.ai.throttle)
+  if target.entity then
+   local ex,ey=target.entity.body:getPosition()
+   e.intent.aimX,e.intent.aimY=ex,ey
+  end
+  return hubHold(ctx,target,dt,a)
+ end,
+ missing=function() return 'failed','hub gone' end,
 })
 
 -- The job is done (by anyone): drop the NPC orders for it nobody has taken.
