@@ -25,7 +25,13 @@ Every candidate goes through `validate.py` and is dropped if it fails any check 
 connected, hidden parts, size vs. its class, fill, balance, slots on hull, clear exhaust, lights,
 berths on deck, near-duplicates of existing ships or earlier keepers). Keepers are written as
 `gen_<role>_<seed>.lua` in Shipyard format and drawn on `sheet_<role>.png`, all at one scale with seed
-and template under each. A seed always makes the same ship.
+and template under each.
+
+Runs never overwrite anything. Each run writes to its own `batch_<date>_<time>/` folder inside the
+shipgen folder (`--batch name` to name it). Before generating, it scans the whole Shipyard folder for
+generated ids, wherever you've moved or edited them, and carries on after the highest seed per role, so
+every new ship gets a new id. Ships already on disk also count for the near-duplicate check. A seed
+always makes the same ship; `--seeds 4,9` builds exactly those, skipping any that already exist.
 
 ## Workspace and game content
 
