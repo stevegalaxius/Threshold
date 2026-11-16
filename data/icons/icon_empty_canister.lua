@@ -1,15 +1,17 @@
--- Made in the Shipyard (F2), Icons tab. Art for Empty canister: a scuffed, uncapped bottle with an open neck.
+-- Made in the Shipyard (F2), Icons tab. Art for Empty canister: an upright gas canister, dark and cold inside.
 icon {
 	id = "icon_empty_canister", item = "empty_canister",
+	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
+		{ name = "foot", x = 0.05, y = 0.03, z = 0, w = 0.9, d = 0.44, h = 0.08, color = { 0.36, 0.37, 0.4 } },
+		{ name = "base cap", x = 0, y = 0, z = 0.08, w = 1, d = 0.5, h = 0.3, color = { 0.5, 0.5, 0.5 } },
+		{ name = "base rim", x = -0.02, y = -0.02, z = 0.34, w = 1.04, d = 0.54, h = 0.05, color = { 0.62, 0.62, 0.64 } },
+		{ name = "body", x = 0.07, y = 0.03, z = 0.39, w = 0.86, d = 0.44, h = 0.78, color = { 0.2, 0.21, 0.24 } },
+		{ name = "body top", x = 0.07, y = 0.03, z = 1.17, w = 0.86, d = 0.44, h = 0.01, color = { 0.32, 0.33, 0.36 } },
+		{ name = "top rim", x = -0.02, y = -0.02, z = 1.18, w = 1.04, d = 0.54, h = 0.05, color = { 0.62, 0.62, 0.64 } },
+		{ name = "top cap", x = 0, y = 0, z = 1.23, w = 1, d = 0.5, h = 0.3, color = { 0.5, 0.5, 0.5 } },
+		{ name = "shoulder", x = 0.2, y = 0.07, z = 1.53, w = 0.6, d = 0.36, h = 0.08, color = { 0.62, 0.62, 0.64 } },
+		{ name = "neck", x = 0.4, y = 0.17, z = 1.61, w = 0.2, d = 0.16, h = 0.14, color = { 0.36, 0.37, 0.4 } },
+	},
 	parts = {
-		{ name = "bottle", shape = { -4, -3.8, -4, 5.6, -3.76, 6.15, -3.06, 6.63, -2, 6.99, -0.69, 7.18, 0.69, 7.18, 2, 6.99, 3.06, 6.63, 3.76, 6.15, 4, 5.6, 4, -3.8, 3.92, -4.45, 3.68, -5.06, 3.3, -5.58, 2.8, -5.98, 2.22, -6.23, 1.6, -6.32, -1.6, -6.3, -2.22, -6.23, -2.8, -5.98, -3.3, -5.58, -3.68, -5.06, -3.92, -4.45 }, color = { 0.6, 0.62, 0.66 } },
-		{ name = "sheen", shape = { -2.9, -3.5, -2.1, -4.2, -2.1, 5.9, -2.9, 5.4 }, color = { 0.22, 0.22, 0.24 }, layer = "glow" },
-		{ name = "shoulder seam", shape = { -4, -3.8, -3.7, -3.34, -2.83, -2.95, -1.53, -2.69, 0, -2.6, 1.53, -2.69, 2.83, -2.95, 3.7, -3.34, 4, -3.8, 4, -3.3, 3.7, -2.84, 2.83, -2.45, 1.53, -2.19, 0, -2.1, -1.53, -2.19, -2.83, -2.45, -3.7, -2.84, -4, -3.3, -4, -3.3 }, color = { 0.48, 0.5, 0.53 }, layer = "detail" },
-		{ name = "neck", shape = { -1.3, -7.4, 1.3, -7.4, 1.3, -6, -1.3, -6 }, color = { 0.5, 0.52, 0.57 } },
-		{ name = "open mouth", shape = { 1.3, -7.4, 1.05, -7.14, 0.4, -6.97, -0.4, -6.97, -1.05, -7.14, -1.3, -7.4, -1.05, -7.66, -0.4, -7.83, 0.4, -7.83, 1.05, -7.66 }, color = { 0.1, 0.1, 0.12 } },
-		{ name = "scuff", shape = { 1.2, 1.5, 2.8, 0.9, 3.1, 1.4, 1.6, 2.1 }, color = { 0.4, 0.4, 0.42 }, layer = "detail" },
-		{ name = "scuff", shape = { -1, 3.6, 0.6, 3.3, 0.4, 3.8 }, color = { 0.4, 0.4, 0.42 }, layer = "detail" },
-		{ name = "empty tag", shape = { 2.6, -4.8, 5.2, -3.6, 4.4, -1.8, 1.9, -3.1 }, color = { 0.85, 0.82, 0.6 } },
-		{ name = "tag string", shape = { 1.1, -6.1, 2.6, -4.6, 2.3, -4.3, 0.8, -5.8 }, color = { 0.6, 0.55, 0.4 }, layer = "detail" },
 	},
 }
