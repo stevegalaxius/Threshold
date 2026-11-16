@@ -1214,11 +1214,15 @@ local function drawHusk(game, h)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(h.body:getAngle())
-	-- a working satellite (src/satellites.lua) is lit and in full colour
+	-- a working satellite (src/satellites.lua) is lit and in full colour;
+	-- one out of fuel is dimmer, with most of its windows dark
 	if h.sat and not h.part then
-		HullShape.draw(h.hull, h.color, function(c) return c end,
-			function(c) return { min(1, c[1] * 1.25), min(1, c[2] * 1.25), min(1, c[3] * 1.25) } end, outline(1), h.partsLeft)
-		HullShape.drawLights(h.hull, game.time, 1 / game.camera.zoom, h.partsLeft)
+		local r = game.universe and game.universe.satellites and game.universe.satellites[h.sat]
+		local dry = r and r.fuel and r.fuel <= 0
+		local k = dry and 0.7 or 1.25
+		HullShape.draw(h.hull, h.color, function(c) return dry and { c[1] * 0.7, c[2] * 0.7, c[3] * 0.7 } or c end,
+			function(c) return { min(1, c[1] * k), min(1, c[2] * k), min(1, c[3] * k) } end, outline(1), h.partsLeft)
+		HullShape.drawLights(h.hull, game.time, 1 / game.camera.zoom, h.partsLeft, nil, nil, dry and { damage = 0.85 } or nil)
 		lg.pop()
 		return
 	end

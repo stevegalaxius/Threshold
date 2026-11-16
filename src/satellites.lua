@@ -9,7 +9,8 @@
 
 	and the universe keeps one record per satellite (universe.satellites):
 
-	  { id, field, kind, name, owner, dock, actions, vend, lost }
+	  { id, field, kind, name, owner, dock, actions, vend, lost,
+	    fuel, fuelAt, dryAt }
 
 	The record is the truth for what the satellite is and what it allows; the
 	husk is only where it is. Two levers, read through Sat.levers:
@@ -92,71 +93,80 @@ end
 function Sat.get(universe, id) return universe and universe.satellites and universe.satellites[id] end
 
 -- What it allows right now: the quest override if there is one, else its kind's.
+-- Out of fuel it still docks, but its shelf is shut until it's refuelled.
 function Sat.levers(r)
 	local K = Sat.kinds[r.kind] or Sat.kinds.passive
-	-- failed: closed until someone repairs it (a quest that
-	-- opened it to the player still gets them in)
-	if r.broken then
-		return { dock = r.dock == "player" and "player" or "none", actions = r.actions or {}, vend = {} }
-	end
 	return {
 		dock = r.dock or K.dock,
 		actions = r.actions or K.actions,
-		vend = r.vend or K.vend,
+		vend = Sat.dry(r) and {} or (r.vend or K.vend),
 	}
 end
 
--- NPCs and satellites ------------------------------------------------------
+-- Fuel ---------------------------------------------------------------------
 --
--- Satellites wear out while you're away (Sat.wear, a slow roll from the
--- A-Life director), and the satellite's
--- system posts a one-off "satrepair" job on the task board (src/sat_jobs.lua)
--- that ordinary haulers take. A broken satellite refuses docking and sells
--- nothing until the repair job is done.
+-- Every satellite burns station-keeping fuel: r.fuel runs 1 -> 0 over
+-- Sat.fuelLife game seconds. It's worked out from elapsed time when looked
+-- at (Sat.fuel), so nothing steps per frame. Below Sat.refuelAt its system
+-- posts a "satrefuel" job (src/sat_jobs.lua) that ordinary haulers take as
+-- part of their usual work; the player can take the same job from the
+-- station board. One open job per satellite, no other limit.
+--
+-- Running dry is soft: the satellite goes to low power (dim lights, shelf
+-- shut, "Low power" on its tooltip) but is never lost, and r.dryAt says how
+-- long it has been neglected for anything bigger (the director) to read.
+-- Refuelling brings it straight back.
+Sat.fuelLife, Sat.refuelAt, Sat.checkEvery = 2400, 1 / 3, 30
 
--- Knock a satellite out and post its repair job. Returns true if it broke.
-function Sat.knockOut(universe, id, clock, by)
+function Sat.fuel(universe, r)
+	local clock = universe and universe.clock or 0
+	if r.broken then r.broken, r.brokenAt, r.brokenBy, r.fuel = nil, nil, nil, 0 end -- old saves
+	if r.fuel == nil or r.fuelAt == nil then r.fuel, r.fuelAt = r.fuel or 1, clock end
+	local f = math.max(0, r.fuel - math.max(0, clock - r.fuelAt) / Sat.fuelLife)
+	if f <= 0 and r.fuel > 0 then r.dryAt = r.fuelAt + r.fuel * Sat.fuelLife end
+	r.fuel, r.fuelAt = f, clock
+	if f <= 0 and not r.dryAt then r.dryAt = clock end
+	return f
+end
+
+-- Out of fuel, as of the last look.
+function Sat.dry(r) return r.fuel ~= nil and r.fuel <= 0 and not r.lost end
+
+function Sat.refuel(universe, id, by)
 	local r = Sat.get(universe, id)
-	if not r or r.lost or r.broken then return false end
-	r.broken, r.brokenAt, r.brokenBy = true, clock or universe.clock or 0, by
-	require("src.events").emit("sat_knocked_out", id, by)
-	require("src.sat_jobs").post(universe, r)
+	if not r or r.lost then return false end
+	Sat.fuel(universe, r)
+	r.fuel, r.fuelAt, r.dryAt = 1, universe.clock or 0, nil
+	require("src.events").emit("sat_refuelled", id, by)
+	require("src.sat_jobs").clear(universe, id, "satrefuel")
 	return true
 end
 
-function Sat.fix(universe, id, by)
-	local r = Sat.get(universe, id)
-	if not r or not r.broken then return false end
-	r.broken, r.brokenAt, r.brokenBy, r.hp = nil, nil, nil, nil
-	require("src.events").emit("sat_repaired", id, by)
-	require("src.sat_jobs").clear(universe, id)
-	return true
-end
-
--- Wear: every Sat.wearEvery game seconds one random working satellite may
--- fail (Sat.wearChance), unless its field is the loaded map or that field
--- already has Sat.maxBroken down. Called from the A-Life director; one
--- pick per roll, never a per-step scan.
-Sat.wearEvery, Sat.wearChance, Sat.maxBroken = 120, 0.5, 3
-function Sat.wear(universe, game, roll)
+-- Called from the A-Life director: every Sat.checkEvery game seconds, bring
+-- each satellite's fuel up to date and post refuel jobs for the low ones.
+function Sat.tick(universe)
 	local all, clock = universe and universe.satellites, universe and universe.clock
-	if not all or not clock then return false end
-	if not universe.satWearAt or universe.satWearAt > clock + Sat.wearEvery then universe.satWearAt = clock + Sat.wearEvery end
-	if clock < universe.satWearAt then return false end
-	universe.satWearAt = clock + Sat.wearEvery
-	if (roll or love.math.random()) >= Sat.wearChance then return false end
-	local pick, n = nil, 0
-	for id, r in pairs(all) do
-		if not r.lost and not r.broken and not (game and game.fieldId == r.field) then
-			n = n + 1
-			if love.math.random(n) == 1 then pick = r end
+	if not all or not clock then return end
+	if universe.satCheckAt and clock < universe.satCheckAt and universe.satCheckAt <= clock + Sat.checkEvery then return end
+	universe.satCheckAt = clock + Sat.checkEvery
+	if not universe.satFuelV then
+		-- saves from before fuel: drop the retired repair work
+		universe.satFuelV = 1
+		local offers = require("src.tasks").state(universe).offers
+		for oid, o in pairs(offers) do if o.kind == "satrepair" then offers[oid] = nil end end
+		local qs = universe.quests
+		if qs then
+			for _, list in ipairs({ qs.offers or {}, qs.active or {} }) do
+				for qid, q in pairs(list) do if q.kind == "sat_repair" then list[qid] = nil end end
+			end
 		end
 	end
-	if not pick then return false end
-	local down = 0
-	for _, r in pairs(all) do if r.field == pick.field and r.broken then down = down + 1 end end
-	if down >= Sat.maxBroken then return false end
-	return Sat.knockOut(universe, pick.id, clock, "wear")
+	local open = require("src.sat_jobs").open(universe, "satrefuel")
+	for id, r in pairs(all) do
+		if not r.lost and Sat.fuel(universe, r) < Sat.refuelAt and not open[id] then
+			require("src.sat_jobs").post(universe, r, "satrefuel")
+		end
+	end
 end
 
 -- Quest scripting: open a satellite up (or change what it offers) and
@@ -238,7 +248,8 @@ end
 -- now). The replacement keeps the id, name and kind, so quests still find it.
 function Sat.markLost(universe, r)
 	if r.lost then return end
-	r.lost, r.broken = true, nil
+	r.lost = true
+	require("src.sat_jobs").clear(universe, r.id, "satrefuel")
 	require("src.sat_jobs").post(universe, r, "satlaunch")
 end
 
@@ -247,9 +258,10 @@ end
 function Sat.relaunch(universe, id, by)
 	local r = Sat.get(universe, id)
 	if not r or not r.lost then return false end
-	r.lost, r.broken, r.hp, r.spawnedAt, r.brokenAt, r.brokenBy = nil, nil, nil, nil, nil, nil
+	r.lost, r.hp, r.spawnedAt = nil, nil, nil
+	r.fuel, r.fuelAt, r.dryAt = 1, universe.clock or 0, nil
 	require("src.events").emit("sat_launched", id, by)
-	require("src.sat_jobs").clear(universe, id)
+	require("src.sat_jobs").clear(universe, id, "satlaunch")
 	return true
 end
 

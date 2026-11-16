@@ -62,7 +62,7 @@ return function(game)
  assert(stations>0,'no trade stations')
  print('ok  economy: 1h across '..stations..' stations')
 
- -- 5. Satellites: one fails offline, a hauler's repair job fixes it.
+ -- 5. Satellites: fuel runs down offline, a hauler's refuel job tops it up.
  local Sat=require('src.satellites')
  local sid
  for id,r in pairs(u.satellites or {}) do if not r.lost and r.field~=game.fieldId then sid=id;break end end
@@ -71,12 +71,20 @@ return function(game)
  end
  assert(sid,'no satellite records')
  local rec=u.satellites[sid]
- assert(Sat.knockOut(u,sid,u.clock,'test'),'knock out failed')
- assert(Sat.levers(rec).dock=='none','broken satellite still docks')
+ Sat.refuel(u,sid,'test')
+ rec.fuelAt=u.clock-Sat.fuelLife*0.8;u.satCheckAt=nil
+ Sat.tick(u)
+ assert(rec.fuel>0 and rec.fuel<Sat.refuelAt,'fuel did not drain')
  local job
- for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satrepair' and o.sat==sid then job=o end end
- assert(job,'no repair job posted')
- assert(Sat.fix(u,sid,'test') and not rec.broken,'repair failed')
+ for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satrefuel' and o.sat==sid then job=o end end
+ assert(job,'no refuel job posted')
+ u.satCheckAt=nil;Sat.tick(u)
+ local n=0
+ for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satrefuel' and o.sat==sid then n=n+1 end end
+ assert(n==1,'refuel job posted twice')
+ rec.fuelAt=u.clock-Sat.fuelLife;Sat.fuel(u,rec)
+ assert(Sat.dry(rec) and rec.dryAt and #Sat.levers(rec).vend==0,'dry satellite still vends')
+ assert(Sat.refuel(u,sid,'test') and rec.fuel==1 and not rec.dryAt,'refuel failed')
  Sat.markLost(u,rec)
  -- the same job on the player's station board
  local Q=require('src.quests');Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.update(u,u.clock,game)
@@ -87,6 +95,6 @@ return function(game)
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
  assert(launch,'no launch job posted')
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
- print('ok  satellites: wear, repair and replacement jobs')
+ print('ok  satellites: fuel, refuel and replacement jobs')
  print('ALL TESTS PASSED')
 end
