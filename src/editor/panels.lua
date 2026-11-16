@@ -497,9 +497,27 @@ local function boxSection(E, d)
 	if d.boxes and Slab.Button("Refit boxes to footprint", { Tooltip = "Scale and centre the boxes to fill the footprint again (adding or removing boxes keeps the scale)" }) then
 		E.pushUndo(); d.boxView = nil
 	end
+	if d.boxes and #d.boxes > 1 then
+		Slab.Text("Lower in the list draws on top", { Color = GREY })
+		if E.boxSel and d.boxes[E.boxSel] then
+			local function btn(label, how, tip)
+				if Slab.Button(label .. "##box", { W = 64, H = 20, Tooltip = tip }) then E.restackBox(how) end
+			end
+			btn("To back", "back", "Draw this box first, under the others (Shift+[)")
+			Slab.SameLine()
+			btn("Back", "backward", "One step further back ([)")
+			Slab.SameLine()
+			btn("Forward", "forward", "One step further forward (])")
+			Slab.SameLine()
+			btn("To front", "front", "Draw this box last, over the others (Shift+])")
+		else
+			Slab.Text("Select a box to change its order", { Color = GREY })
+		end
+	end
 	for i, bx in ipairs(d.boxes or {}) do
+		local tag = (bx.layer and bx.layer ~= "hull") and ("  [" .. bx.layer .. "]") or ""
 		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
-			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1)) then E.boxSel, E.faceSel, E.sel, E.multi = i, nil, nil, {} end
+			.. ("  %g x %g x %g"):format(bx.w or 1, bx.d or 1, bx.h or 1) .. tag) then E.boxSel, E.faceSel, E.sel, E.multi = i, nil, nil, {} end
 	end
 	if d.boxes and #d.boxes == 0 then d.boxes = nil end
 	Icons.syncBoxes(d)
@@ -600,6 +618,14 @@ local function iconSections(E, d)
 		end
 	end
 	primitiveOptions(E)
+	if E.tool == "select" then
+		Slab.Text("Shift-click adds a part or point", { Color = GREY })
+		Slab.Text("Drag on empty space to box select:")
+		if E.boxMode == "lights" then E.boxMode = "parts" end
+		combo("yard_iboxmode", E.boxMode == "points" and "points of the selected part" or "parts", {
+			{ label = "parts", value = "parts" }, { label = "points of the selected part", value = "points" },
+		}, function(v) E.boxMode = v end)
+	end
 	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
 	Slab.Text("grid"); Slab.SameLine()
 	local gopts = {}
@@ -613,7 +639,18 @@ local function iconSections(E, d)
 		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
 		Slab.SameLine()
 		local tags = (p.paint and ("  (" .. p.paint .. ")") or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
-		if Slab.TextSelectable(((E.sel == i) and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then E.sel, E.vsel, E.multi, E.boxSel, E.faceSel = i, nil, {}, nil, nil end
+			.. (p.under and "  (under boxes)" or "")
+		local picked = E.sel == i or (E.multi and E.multi[i])
+		if Slab.TextSelectable((picked and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then
+			-- shift-click in the list adds to the selection, as on the canvas
+			if love.keyboard.isDown("lshift", "rshift") and E.sel and E.sel ~= i then
+				E.multi = E.multi or {}
+				if E.multi[i] then E.multi[i] = nil else E.multi[i] = true end
+				E.vsel, E.boxSel, E.faceSel = nil, nil, nil
+			else
+				E.sel, E.vsel, E.multi, E.boxSel, E.faceSel = i, nil, {}, nil, nil
+			end
+		end
 		::nextPart::
 	end
 end
@@ -1496,6 +1533,12 @@ local function boxWindow(E)
 	slider(E, "yard_light" .. i, b.light or 0, 0, 1, function(v) b.light = v > 0.001 and v or nil end)
 	Slab.Text("Shade (below 1 darkens)")
 	colourControls(E, b, i)
+	Slab.Text("Layer")
+	local lopts = {}
+	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
+	combo("yard_boxlayer" .. i, b.layer or "hull", lopts, function(l) E.pushUndo(); b.layer = l ~= "hull" and l or nil end, 140)
+	Slab.Text("hull: dark fill and outline. detail: flat", { Color = GREY })
+	Slab.Text("fill, no outline. glow: bright, additive.", { Color = GREY })
 	Slab.Separator()
 	if Slab.Button("Copy box") then
 		E.pushUndo()

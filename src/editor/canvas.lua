@@ -457,7 +457,7 @@ local function pressed(E, sx, sy, button)
 	E.vsel = nil
 	local shift = love.keyboard.isDown("lshift", "rshift")
 	E.multi = E.multi or {}
-	if i and shift then
+	if i and shift and not E.design.parts[i].fromBox then
 		-- shift-click adds a part to the selection, or takes it out
 		if i == E.sel then
 			E.sel = next(E.multi); if E.sel then E.multi[E.sel] = nil end

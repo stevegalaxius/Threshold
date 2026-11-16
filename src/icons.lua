@@ -45,7 +45,8 @@ local lg = love.graphics
 	icon's drawn parts, in list order (later boxes draw on top), and the lot is scaled to fill
 	the footprint. A box is the item's kind colour (the hold background's)
 	unless it sets shade (below 1: darker), light (0..1: towards white) or
-	color { r, g, b }. Optional per box: name, and
+	color { r, g, b }. Optional per box: name, layer ("detail" or "glow",
+	as for parts), and
 	open = true (no top face, for an open carton), hide = { front = true,
 	side = true, top = true } to leave faces out. ]]
 Icons.DEPTH = 0.315    -- screen x and -y per unit of depth
@@ -78,7 +79,7 @@ function Icons.boxParts(boxes, bw, bh, kc, view)
 				color = { kc[1] + (1 - kc[1]) * t, kc[2] + (1 - kc[2]) * t, kc[3] + (1 - kc[3]) * t }
 			end
 			faces[#faces + 1] = { name = (b.name or "box") .. " " .. kind, shape = shape, color = color, paint = b.paint or (not b.color and "primary" or nil), shade = b.shade, tint = b.tint,
-				fill = Icons.FACE[kind], fromBox = true, box = bi, face = kind }
+				fill = Icons.FACE[kind], layer = b.layer, fromBox = true, box = bi, face = kind }
 		end
 		face("front", { { bx, by, bz }, { X, by, bz }, { X, by, Z }, { bx, by, Z } })
 		face("side", { { X, by, bz }, { X, Y, bz }, { X, Y, Z }, { X, by, Z } })
@@ -113,7 +114,12 @@ function Icons.syncBoxes(icon)
 	if icon.boxes and #icon.boxes > 0 then
 		icon.boxView = view and { math.floor(view[1] * 1000 + 0.5) / 1000, math.floor(view[2] * 1000 + 0.5) / 1000, math.floor(view[3] * 1000 + 0.5) / 1000 }
 	end
-	for _, p in ipairs(kept) do parts[#parts + 1] = p end
+	-- drawn parts go over the boxes, in list order, except those marked
+	-- under = true, which go beneath them
+	local under = {}
+	for _, p in ipairs(kept) do if p.under then under[#under + 1] = p end end
+	for i = #under, 1, -1 do table.insert(parts, 1, under[i]) end
+	for _, p in ipairs(kept) do if not p.under then parts[#parts + 1] = p end end
 	icon.parts = parts
 	icon.reach = nil
 	return icon

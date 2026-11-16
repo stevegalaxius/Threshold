@@ -387,6 +387,83 @@ function E.selectedParts()
 	return out
 end
 
+-- Icons: restack the selected drawn parts among the other drawn parts.
+-- Going back past the first drawn part puts them under the boxes; coming
+-- forward again brings them back over.
+function E.restackIcon(how, sel)
+	local d = E.design
+	local parts = d.parts
+	local picked, isSel = {}, {}
+	for _, i in ipairs(sel) do if not parts[i].fromBox then picked[#picked + 1] = parts[i]; isSel[parts[i]] = true end end
+	if #picked == 0 then return end
+	-- drawn parts in draw order: the ones under the boxes, then the rest
+	local drawn = {}
+	for _, p in ipairs(parts) do if not p.fromBox and p.under then drawn[#drawn + 1] = p end end
+	local nUnder = #drawn
+	for _, p in ipairs(parts) do if not p.fromBox and not p.under then drawn[#drawn + 1] = p end end
+	local rest, before = {}, 0
+	local restUnder = 0
+	local seenFirst = false
+	for i, p in ipairs(drawn) do
+		if isSel[p] then seenFirst = true
+		else
+			rest[#rest + 1] = p
+			if not seenFirst then before = before + 1 end
+			if i <= nUnder then restUnder = restUnder + 1 end
+		end
+	end
+	local wasUnder = picked[1].under and true or false
+	local at, under = before, wasUnder
+	if how == "back" then at, under = 0, (d.boxes ~= nil)
+	elseif how == "front" then at, under = #rest, false
+	elseif how == "backward" then
+		-- at the bottom of the over-the-box parts: step under the boxes
+		if not wasUnder and before == restUnder and d.boxes then under, at = true, restUnder
+		else at = before - 1 end
+	elseif how == "forward" then
+		if wasUnder and before == restUnder then under, at = false, restUnder
+		else at = before + 1 end
+	else
+		at = math.floor(tonumber(how) or 1) - 1
+	end
+	if under then at = math.max(0, math.min(restUnder, at)) else at = math.max(restUnder, math.min(#rest, at)) end
+	local out = {}
+	for i = 1, at do out[#out + 1] = rest[i] end
+	for _, p in ipairs(picked) do out[#out + 1] = p end
+	for i = at + 1, #rest do out[#out + 1] = rest[i] end
+	local changed = (under ~= wasUnder)
+	for i = 1, #out do if out[i] ~= drawn[i] then changed = true break end end
+	if not changed then return end
+	E.pushUndo()
+	for _, p in ipairs(picked) do p.under = under or nil end
+	-- the list keeps box faces out of it; syncBoxes puts them back in place
+	for i = #parts, 1, -1 do parts[i] = nil end
+	for i, p in ipairs(out) do parts[i] = p end
+	require("src.icons").syncBoxes(d)
+	E.sel, E.multi = nil, {}
+	for i, p in ipairs(d.parts) do
+		if isSel[p] then if not E.sel then E.sel = i else E.multi[i] = true end end
+	end
+	E.vsel, E.vmulti = nil, {}
+	return true
+end
+
+-- Icons: move the selected box in the box list (later boxes draw on top).
+function E.restackBox(how)
+	local d = E.design
+	local i, boxes = E.boxSel, d.boxes
+	if not (i and boxes and boxes[i]) or #boxes < 2 then return end
+	local to = how == "back" and 1 or how == "front" and #boxes or how == "backward" and i - 1 or i + 1
+	to = math.max(1, math.min(#boxes, to))
+	if to == i then return end
+	E.pushUndo()
+	local b = table.remove(boxes, i)
+	table.insert(boxes, to, b)
+	E.boxSel = to
+	require("src.icons").syncBoxes(d)
+	return true
+end
+
 -- Restack the selected parts as one block, keeping their order among
 -- themselves. how: "back" / "front" (to the ends of the list), "backward" /
 -- "forward" (one place past the nearest unselected part), or a number, the
@@ -395,6 +472,9 @@ function E.restack(how)
 	local parts = E.design.parts
 	local sel = E.selectedParts()
 	if #sel == 0 or #sel == #parts then return end
+	-- an icon's box faces aren't in the stack: they're placed by their box
+	-- (E.restackBox), and drawn parts order among themselves
+	if E.design.kind == "icon" then return E.restackIcon(how, sel) end
 	local picked, isSel = {}, {}
 	for _, i in ipairs(sel) do picked[#picked + 1] = parts[i]; isSel[i] = true end
 	local rest = {}
@@ -759,7 +839,8 @@ function Editor.keypressed(key)
 	elseif key == "l" then E.tool = "light"; E.drawing = nil
 	elseif key == "g" then E.snap = not E.snap
 	elseif key == "[" or key == "]" then
-		if shift then E.restack(key == "[" and "back" or "front") else E.restack(key == "[" and "backward" or "forward") end
+		local how = shift and (key == "[" and "back" or "front") or (key == "[" and "backward" or "forward")
+		if E.design.kind == "icon" and E.boxSel and not E.sel then E.restackBox(how) else E.restack(how) end
 	elseif key == "m" and E.sel then
 		E.pushUndo()
 		local p = E.design.parts[E.sel]
