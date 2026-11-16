@@ -79,11 +79,14 @@ function Sat.layout(fieldId, field)
 			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
 			name = ("%s sat %02d"):format(def.names or field.name or fieldId, n) }
 	end
-	-- hubs: their own slots (ids <field>_hub_<n>), mid-band, after the mix,
+	-- hubs: their own slots (ids <field>_hub_<n>), after the mix,
 	-- so adding hubs never reshuffles a field's other satellites
 	for n = 1, def.hubs or 0 do
 		local f = 0.3 + rng:random() * 0.3
-		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub",
+		-- each hub keeps station by one of the field's trade buoys, where the
+		-- routes already pass (Sat.hubPoint); none left: a plain slot
+		local buoys = require("src.fields")[fieldId] and require("src.fields")[fieldId].buoyIds or {}
+		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub", buoy = buoys[n],
 			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
 			name = ("%s trade hub%s"):format(def.names or field.name or fieldId, (def.hubs or 0) > 1 and (" " .. n) or "") }
 	end
@@ -96,7 +99,7 @@ function Sat.record(universe, slot, fieldId)
 	local r = all[slot.id]
 	if not r then
 		local K = Sat.kinds[slot.kind]
-		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, owner = slot.owner }
+		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, owner = slot.owner, buoy = slot.buoy }
 		all[slot.id] = r
 		r.design = K.design
 	elseif Sat.retired[r.kind] and r.kind ~= slot.kind then
@@ -234,11 +237,28 @@ function Sat.populate(game)
 		r.retiredHusk = nil
 		-- a satellite saved in this area but not restored was destroyed
 		if not e and not r.lost and r.spawnedAt and saved and (saved.capturedAt or 0) >= r.spawnedAt then Sat.markLost(game.universe, r) end
+		r.buoy = r.buoy or slot.buoy
+		r.alt = r.alt or slot.alt
+		if not r.rate and not r.buoy and game.currentSpeed then
+			-- first visit: learn the current's turn rate at its altitude, and
+			-- phase the slot so it's where it is now (an old save's satellite
+			-- where it was left, a new one at its seeded angle)
+			r.rate = game:currentSpeed(r.alt) / math.max(1, r.alt)
+			local a = r.angle or slot.angle
+			if e and e.body and not e.body:isDestroyed() then
+				local ex, ey = e.body:getPosition()
+				a = math.atan2(ey - cy, ex - cx)
+			end
+			r.angle = a - r.rate * (game.universe.clock or 0)
+		end
 		if not e and not r.lost and data.wrecks[r.design] then
-			local x, y = cx + math.cos(slot.angle) * slot.alt, cy + math.sin(slot.angle) * slot.alt
-			local v = game.currentSpeed and game:currentSpeed(slot.alt) or 0
-			e = game:spawnWreck(r.design, x, y, slot.angle + math.pi / 2,
-				-math.sin(slot.angle) * v, math.cos(slot.angle) * v)
+			local x, y = Sat.restPoint(game.universe, r)
+			local nx, ny = Sat.slotPoint(game.universe, r, (game.universe.clock or 0) + 1)
+			local sx, sy = Sat.slotPoint(game.universe, r, game.universe.clock or 0)
+			if x then
+				local vx, vy = nx - sx, ny - sy
+				e = game:spawnWreck(r.design, cx + x, cy + y, math.atan2(y, x) + math.pi / 2, vx, vy)
+			end
 			if e then
 				r.spawnedAt = game.universe.clock or 0
 				game:stepOutOfStations(e)
@@ -329,6 +349,88 @@ function Sat.adopt(e, r)
 	end
 end
 
+-- Station-keeping -------------------------------------------------------------
+--
+-- What the fuel is for. A fuelled satellite holds its slot: its own
+-- altitude, and its place along the orbit (the slot's angle, turning at the
+-- current's rate there, r.rate, learnt the first time the field is
+-- visited), so a bump only pushes it away for a while. A hub's slot is
+-- Sat.hubOffset outward from its trade buoy, so it travels with the buoy.
+-- Dry, it stops correcting: it rides the current wherever it was knocked
+-- and sinks Sat.decay px/s, never below Sat.floor of the planet's radius,
+-- until a refuel brings it climbing back.
+Sat.hubOffset, Sat.decay, Sat.floor = 1100, 1, 1.15
+Sat.keepGain, Sat.keepMax, Sat.keepBlend = 0.4, 80, 2
+
+-- Where the slot is at `clock`, about the planet (the map's origin).
+function Sat.slotPoint(universe, r, clock)
+	if r.buoy then
+		local x, y = require("src.locations").position(r.buoy, clock)
+		local d = math.max(1, math.sqrt(x * x + y * y))
+		return x + x / d * Sat.hubOffset, y + y / d * Sat.hubOffset
+	end
+	if not r.alt then
+		local Fields = require("src.fields")
+		for _, slot in ipairs(Sat.layout(r.field, Fields[r.field])) do
+			if slot.id == r.id then r.alt, r.angle = slot.alt, slot.angle end
+		end
+		if not r.alt then return end
+	end
+	local a = r.angle + (r.rate or 0) * clock
+	return math.cos(a) * r.alt, math.sin(a) * r.alt
+end
+function Sat.hubPoint(universe, r) return Sat.slotPoint(universe, r, universe.clock or 0) end
+
+-- Where it is offline: on its slot, or (dry) sunk below it by now.
+function Sat.restPoint(universe, r)
+	local x, y = Sat.slotPoint(universe, r, universe.clock or 0)
+	if not x then return end
+	if Sat.dry(r) and r.dryAt then
+		local d = math.max(1, math.sqrt(x * x + y * y))
+		local F = require("src.fields")[r.field]
+		local low = F and F.planetR and F.planetR * Sat.floor or 0
+		local to = math.max(low, d - Sat.decay * math.max(0, (universe.clock or 0) - r.dryAt))
+		x, y = x / d * to, y / d * to
+	end
+	return x, y
+end
+
+-- Every step, for each satellite on the map (Game:update, after the current).
+function Sat.keep(game, dt)
+	local u, w = game.universe, game.well
+	if not u or not w or dt <= 0 then return end
+	local clock = u.clock or 0
+	for _, e in ipairs(game.entities) do
+		local r = e.sat and not e.removed and not e.dead and Sat.get(u, e.sat)
+		local b = r and e.body
+		if b and not b:isDestroyed() and b:getType() == "dynamic" then
+			local x, y = b:getPosition()
+			local vx, vy = b:getLinearVelocity()
+			local wx, wy, k = vx, vy, math.min(1, dt * Sat.keepBlend)
+			if Sat.fuel(u, r) > 0 then
+				local tx, ty = Sat.slotPoint(u, r, clock)
+				local nx, ny = Sat.slotPoint(u, r, clock + 1)
+				if tx then
+					tx, ty, nx, ny = tx + w.x, ty + w.y, nx + w.x, ny + w.y
+					local ex, ey = (tx - x) * Sat.keepGain, (ty - y) * Sat.keepGain
+					local m = math.sqrt(ex * ex + ey * ey)
+					if m > Sat.keepMax then ex, ey = ex / m * Sat.keepMax, ey / m * Sat.keepMax end
+					wx, wy = nx - tx + ex, ny - ty + ey
+				end
+			else
+				-- dry: let its radial motion settle into a slow sink
+				local dx, dy = x - w.x, y - w.y
+				local d = math.max(1, math.sqrt(dx * dx + dy * dy))
+				local ux, uy = dx / d, dy / d
+				local vr = vx * ux + vy * uy
+				local want = d > (game.field.planetR or 0) * Sat.floor and -Sat.decay or 0
+				wx, wy = vx + (want - vr) * ux, vy + (want - vr) * uy
+			end
+			b:setLinearVelocity(vx + (wx - vx) * k, vy + (wy - vy) * k)
+		end
+	end
+end
+
 -- Mark destroyed satellites: called when a husk with a sat id dies.
 function Sat.lost(game, e)
 	local r = e.sat and Sat.get(game.universe, e.sat)
@@ -385,17 +487,10 @@ end
 -- Its home position: its seeded layout slot, about the planet (the map's
 -- origin). Online, Sat.entity gives where it has actually drifted to.
 function Sat.home(universe, r, game)
-	local L = require("src.locations")
-	if not r.alt then
-		local Fields = require("src.fields")
-		for _, slot in ipairs(Sat.layout(r.field, Fields[r.field])) do
-			if slot.id == r.id then r.alt, r.angle = slot.alt, slot.angle end
-		end
-		if not r.alt then return end
-	end
+	local x, y = Sat.restPoint(universe, r)
+	if not x then return end
 	local w = game and game.fieldId == r.field and game.well
-	local cx, cy = w and w.x or 0, w and w.y or 0
-	return cx + math.cos(r.angle) * r.alt, cy + math.sin(r.angle) * r.alt
+	return (w and w.x or 0) + x, (w and w.y or 0) + y
 end
 
 -- The berth beside a satellite for `ship`, in world space, with the
