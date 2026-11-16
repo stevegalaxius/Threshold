@@ -33,7 +33,7 @@ local Visual = require("src.weapon_visual")
 local Icons = {}
 
 Icons.CELL = 16      -- art units per hold cell (1 m)
-Icons.WORLD = 0.375  -- world px per art unit in space: 6 px per hold cell (readable, still small beside a 72 px Wisp)
+Icons.WORLD = 0.5  -- world px per art unit in space: 6 px per hold cell (readable, still small beside a 72 px Wisp)
 
 local lg = love.graphics
 
@@ -312,7 +312,7 @@ function Icons.drawInRect(itemId, x, y, w, h, rot, alpha, pad)
 	lg.translate(x + w / 2, y + h / 2)
 	if rot then lg.rotate(math.pi / 2) end
 	lg.scale(s)
-	Icons.drawArt(icon, nil, alpha, 1.5 / s)
+	Icons.drawArt(icon, nil, alpha, 0.5 / s)
 	lg.pop()
 	return true
 end
