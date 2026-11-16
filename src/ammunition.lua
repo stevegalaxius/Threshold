@@ -1,7 +1,7 @@
 -- Factory time is measured in batches; ingredients are whole cargo units.
 local A={products={},recipes={},byItem={}}
 for _,c in ipairs(require('data.industry').recipes) do
- if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' then A.products[#A.products+1]=c.item;A.recipes[#A.recipes+1]=c;A.byItem[c.item]=c end
+ if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' or c.group=='pyrotechnics' then A.products[#A.products+1]=c.item;A.recipes[#A.recipes+1]=c;A.byItem[c.item]=c end
 end
 function A.shop()
  local sells={};for _,id in ipairs(A.products) do sells[#sells+1]={id,1} end

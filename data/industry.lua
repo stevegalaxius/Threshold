@@ -52,8 +52,9 @@ end
 recipe('rounds_s',200,1,1);recipe('rounds_m',100,1,1)
 recipe('airburst_s',200,1,3);recipe('airburst_m',100,1,3)
 recipe('shell_s',24,1,2);recipe('shell_m',12,2,3);recipe('shell_l',12,4,6)
--- Flare charges: a steel casing and a pyrotechnic charge.
-recipe('flare',60,1,1)
+-- Flare charges: a steel casing and a pyrotechnic charge, made at the
+-- Diwan chemical works on Titan (Abaddon).
+recipe('flare',60,1,1,nil,nil,'pyrotechnics')
 recipe('shot_s',64,1,1);recipe('shot_m',32,2,1);recipe('shot_l',24,4,2)
 -- Guided ammunition: electronics, steel casing and explosive warheads.
 recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l',12,4,4,2,2)
@@ -116,6 +117,7 @@ D.facilities={
  electronics={policy='profit',recipes={'make_electronics'}},
  chemicals={policy='profit',openingInputs={nitrates=.5},recipes={'make_fertilizer','make_explosives'}},
  ammunition={policy='profit',recipes={}},
+ pyrotechnics={policy='profit',recipes={}},
  -- Electronics come a long way to Saturn, so keep a longer input buffer.
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
@@ -127,7 +129,7 @@ for maker,hulls in pairs(D.lineups) do
  D.facilities[maker..'_assembly']={policy='orders',recipes=r}
 end
 for _,c in ipairs(D.recipes) do
- if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' then local f=D.facilities[c.group].recipes;f[#f+1]=c.id end
+ if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' or c.group=='pyrotechnics' then local f=D.facilities[c.group].recipes;f[#f+1]=c.id end
  if not c.group and c.id~='grow_food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end
  if c.market==nil then c.market=true end
 end
