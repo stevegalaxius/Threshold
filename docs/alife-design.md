@@ -1,6 +1,6 @@
 # A-Life: design intent
 
-Revised draft, 2026-11-04. Merges the original design doc and the expanded "layers and arbiter" draft, and is checked against `main` (after PR #37/#38). Sections marked **Open** need your call.
+Design intent for the NPC simulation. Last checked against `main` on 2026-11-15. For what is built and what's still to build across the whole game, see [status.md](status.md).
 
 ## The idea
 
@@ -62,7 +62,9 @@ Population replenishment counts birth templates, independently of current work.
 
 ## Economy
 
-The economy is **deliberately placeholder** for now: transport jobs move `scrap x5` that is created at pickup and deleted at delivery. The goal is still for NPC hauling and mining to move real station stock and prices. The parts already exist (mining stock for each node, markets for each station), but they aren't connected yet.
+Built. NPC hauling and mining move real station stock, and prices and shortages
+come from that stock (`src/economy.lua`, `src/stockpile.lua`). See
+[industry.md](industry.md) and [mining-production.md](mining-production.md).
 
 ## Fights and wrecks
 
@@ -70,10 +72,18 @@ When hostile records share a graph segment, the fight is rolled with dice instea
 
 ## Reputation
 
-- **Disposition:** one number per NPC from -100 to 100 that drifts back to 0. Archetypes map it to behaviour: wary means flee, hostile means attack, friendly means discounts, warnings or backup.
-- **Heat:** one number per node, raised by witnessed attacks and cooling slowly. Guards read heat plus their own disposition.
-- Today's station grudges (online-only, unsaved) should become node heat. The system is undeveloped and needs its own design pass.
-- Only witnesses are affected. Helping (supplies, returned cargo, cleared hazards, sparing a fleeing ship) raises disposition, and each kind of help starts from a state the simulation already produces.
+Built in `src/reputation.lua`, as three saved numbers (-100 to 100) that drift
+back to rest on the universe clock, so they work offline too:
+
+- **Standing** per faction.
+- **Heat** per node, raised by attacks and kept local.
+- **Goodwill** per NPC.
+
+An NPC's attitude to the player is goodwill + its faction's standing - local heat.
+
+Still open: the station grudges (`src/game.lua`) are online-only, unsaved, and
+ignore damage from trader-styled ships. They should become node heat, or get an
+offline twin (principle 2).
 
 ## The fifth faction (not built)
 
@@ -95,7 +105,7 @@ Player tasks are generated from the live simulation, in the style of Call of the
 2. **Economy:** flows that are wrong, such as stock piling up at a site, a price gap nobody is closing, or a station short of something. This waits on the economy being real.
 3. **Director:** player attention. If nothing has reached the player for a while (`last_interaction_clock`), it nudges the offline simulation toward them, for example by routing a pirate at a nearby trader. It never spawns anything from nothing.
 
-**Arbiter.** It picks which layer speaks each cycle, so the player gets variety instead of five of the same task in a row. Each layer has its own cooldown, director events come first when they fire, and the same layer doesn't speak twice in a row unless nothing else is eligible. The cooldowns are tuning numbers in `src/tuning.lua`.
+**Picker.** It picks which layer speaks each cycle, so the player gets variety instead of five of the same task in a row. Each layer has its own cooldown, director events come first when they fire, and the same layer doesn't speak twice in a row unless nothing else is eligible. The cooldowns are tuning numbers in `src/tuning.lua`.
 
 **What the simulation must provide.** These also keep later world-changing quests possible:
 
@@ -104,26 +114,30 @@ Player tasks are generated from the live simulation, in the style of Call of the
 - **Events out:** arrivals, deaths, fights and dockings are emitted on `src/events.lua` for online and offline records alike.
 - **Fight outcomes:** a `fight_log` on records says who fled, who died and what dropped, so a task can tell whether its subject survived.
 
-Build this after fights and wrecks exist (build step 3), because before that there is nothing interesting to generate from.
+Status: fights, wrecks, the fight log and the event bus exist. One generator is built (shortage deliveries, `src/quests.lua`). The layers and the picker are not. (`src/arbiter.lua` is a different thing: it sets population targets.)
 
 ---
 
-## Where the docs and the code disagree
+## Built vs. not built
 
-| Topic | Docs say | Code does | Note |
-|---|---|---|---|
-| Online band | 7,000 / 8,000 px, same as debris | `T.alifeNear/Far = 18000/22000`, separate from debris (7,000/6,000) | Code looks deliberate, so the doc should follow the code |
-| Courier role | Couriers use mass drivers between planets | No courier role. Traders cross planets via drivers and moon gates | Resolved: folded into trader |
-| Factions on records | Affiliation independent of work | `affiliation` and scoped `authorizations` on NPC records | Police authority is distinct from affiliation |
-| Disposition / heat | Specced | Not built. The only grudges are weak-keyed, online-only station grudges (`game.lua:958`, `:1845`) | Station grudges break principle 2 (no offline twin) |
-| Task generation (layers / arbiter) | Specced | Not built. `src/events.lua` is only an event bus, and the board only carries NPC work | Planned |
-| Instances | Fifth-faction sites as sub-graphs | `Fields[area].instance` flag exists, and population skips instances | Fifth faction not built yet |
-| Online cap | About 12 ships | No cap found | Worth adding |
-| Online vs offline pirate prey | Same rules | Online `security.lua` picks prey by `ai.style=="trader"`, offline `encounters.lua` also targets miners and patrols | Audit item. Check whether PR #37 fully closed it |
-| Fight log | `fight_log` on records | Not built | Needed for task generation |
-
-| Job board scope | All NPC work uses task handlers; player access planned | Board supports freight, mining, salvage, patrol and raid; police duties require authorization. Players can accept global sourced freight orders at stations. | See [Player contracts](player-contracts.md); other NPC duties need player completion/reward definitions |
+| Part | State | Where |
+|---|---|---|
+| Records, online/offline bands | Built. `T.alifeNear/Far = 18000/22000`, separate from debris | `src/alife.lua`, `src/tuning.lua` |
+| One shared controller for every job | Built | `src/npc.lua`, [npc-actions.md](npc-actions.md) |
+| Shared Tasks board (freight, mining, salvage, patrol, raid) | Built. Police duties need authorization | `src/tasks.lua` |
+| Affiliation and scoped authorizations on records | Built | `src/npc_access.lua` |
+| Real economy | Built | `src/economy.lua` |
+| Rolled offline fights, wreck records, `fight_log` | Built | `src/encounters.lua`, `src/simulation_history.lua` |
+| Same pirate prey online and offline | Built | `src/security.lua`, `src/encounters.lua` |
+| Standing, heat, goodwill | Built | `src/reputation.lua` |
+| Player access to the board | Freight only | [player-contracts.md](player-contracts.md) |
+| Station grudges as heat (offline twin) | Not built | `src/game.lua` |
+| Cap on ships online (about 12) | Not built | |
+| Task generation layers and picker | One generator (shortage quests) | `src/quests.lua` |
+| Director attention nudge | Not built. The director only keeps stock up to date | `src/director.lua` |
+| Fifth faction | Not built. The dark grids are a separate thing | |
 
 ## Open questions
 
-- Design pass on heat and disposition, starting from the current station grudges.
+- Station grudges: turn them into node heat, or keep them as their own thing with an offline twin?
+- Which task generation layer to build after shortage quests.
