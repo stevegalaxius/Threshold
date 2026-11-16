@@ -14,6 +14,9 @@
 	                  called once per quest tick; each candidate is one job
 	  open(u, q)      does the job still need doing? (else the offer is
 	                  withdrawn, or an accepted one fails: someone else did it)
+	  busy(u, q)      optional: an NPC is already doing it. Not offered, and
+	                  not accepted, while so; once you hold the job, the
+	                  NPC side leaves it to you (src/sat_jobs.lua)
 	  where(game, q)  -> x, y, range, label while you're on q.area's map
 	  apply(game, q)  the item was used at the site: do the work
 
@@ -36,12 +39,12 @@ return function(Q)
      list[c.giver]=list[c.giver] or {};table.insert(list[c.giver],c)
     end
    end,
-   keep=function(u,q) return def.open(u,q) end,
+   keep=function(u,q) return def.open(u,q) and not (def.busy and def.busy(u,q)) end,
    propose=function(u,st,clock,ctx)
     local out={}
     for _,c in ipairs(list[st] or {}) do
      local key=kind..'|'..c.subject
-     if not ctx.taken[key] then
+     if not ctx.taken[key] and not (def.busy and def.busy(u,{subject=c.subject,area=c.area})) then
       out[#out+1]={kind=kind,giver=st,area=c.area,subject=c.subject,key=key,item=def.item,give=def.give or nil,
        amount=1,unit=c.reward,title=c.title,detail=c.detail}
      end
