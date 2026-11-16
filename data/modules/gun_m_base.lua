@@ -2,7 +2,8 @@
 module {
 	id = "gun_m_base", name = "Gun M",
 	family = "weapon",
-	maker = "Brute Industries",
+	maker = "Zhongke Ordnance",
+	description = "A mid-weight Zhongke cannon with a rifled barrel cut on Phobos.",
 	mass = 10,
 	powerDraw = 2,
 	price = 6500,

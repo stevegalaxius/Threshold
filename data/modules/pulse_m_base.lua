@@ -2,7 +2,8 @@
 module {
 	id = "pulse_m_base", name = "Pulse Laser M",
 	family = "weapon",
-	maker = "Nova Syndicate",
+	maker = "Loki Optics",
+	description = "A pulse lance with a capacitor bank tuned on Io.",
 	mass = 12,
 	price = 14000,
 	size = "M",

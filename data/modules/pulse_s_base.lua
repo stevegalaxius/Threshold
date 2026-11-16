@@ -2,7 +2,8 @@
 module {
 	id = "pulse_s_base", name = "Pulse Laser S",
 	family = "weapon",
-	maker = "Halcyon Arms",
+	maker = "Loki Optics",
+	description = "A Jovian pulse laser that fires in short, precise flashes.",
 	mass = 5,
 	price = 5200,
 	size = "S",

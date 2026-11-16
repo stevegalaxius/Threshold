@@ -2,7 +2,8 @@
 module {
 	id = "missile_l_base", name = "Missile Rack L",
 	family = "bay",
-	maker = "Ferrous Collective",
+	maker = "Gilgal Arsenal",
+	description = "Gilgal's heavy rack: torpedoes and big missiles out of one armored mouth.",
 	mass = 18,
 	price = 26000,
 	size = "L",

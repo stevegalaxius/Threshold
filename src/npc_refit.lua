@@ -76,8 +76,14 @@ function M.dock(r,node,u,clock,roll)
   for k,v in pairs(t.m) do if v>(ref[k] or 0) then ref[k]=v end end
  end
  local now=F.score(role,trials[1].m,ref,danger);local best
+ -- faction pilots lean towards their own faction's weapons (src/faction_gear.lua)
+ local Gear=require('src.faction_gear');local faction=Gear.faction(r)
+ local function leaning(t)
+  if not faction then return 0 end
+  return ((Gear.prefersModule(faction,t.to) and 1 or 0)-(Gear.prefersModule(faction,t.from) and 1 or 0))*Gear.refitBonus
+ end
  for k=2,#trials do
-  local t=trials[k];t.fit=F.score(role,t.m,ref,danger)
+  local t=trials[k];t.fit=F.score(role,t.m,ref,danger)+leaning(t)
   if not best or t.fit>best.fit or t.fit==best.fit and t.cost<best.cost then best=t end
  end
  if not best or best.fit-now<tier.refitMargin then return end

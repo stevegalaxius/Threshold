@@ -2,7 +2,8 @@
 module {
 	id = "artillery_s_base", name = "Artillery S",
 	family = "weapon",
-	maker = "Ferrous Collective",
+	maker = "Zhongke Ordnance",
+	description = "A light shell mortar for lobbing explosives over rock.",
 	mass = 6,
 	powerDraw = 1,
 	price = 3400,

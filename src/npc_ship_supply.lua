@@ -85,6 +85,12 @@ function S.generated(u,policy,roll,area)
  local danger
  if policy.role then danger=select(2,require('src.ship_fit').rank(u,area,policy.role,choices,stock,policy.sharpness))
  else for _,c in ipairs(choices) do c.weight=c.base end end
+ -- a faction's own pilots favor its makers' hulls (src/faction_gear.lua)
+ local faction=policy.faction=='$owner' and area and require('src.npc_access').owner(area) or policy.faction
+ if faction and faction~='$owner' then
+  local Gear=require('src.faction_gear')
+  for _,c in ipairs(choices) do if Gear.prefersHull(faction,c.hull) then c.weight=c.weight*Gear.hullWeight end end
+ end
  for _,c in ipairs(choices) do total=total+c.weight end
  if total<=0 then return end
  local pick=(roll or random)()*total;local choice=choices[#choices]

@@ -77,6 +77,27 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Heaven-Ladder (`station:mars_3`) | `press_canisters` | adaptive | 12000 | press_canisters |
 | Heaven-Ladder (`station:mars_3`) | `roll_steel` | adaptive | 480 | roll_steel |
 | Heaven-Ladder (`station:mars_3`) | `shipworks` | fixed | 10 | assemble_hull_frames |
+| Terminator Station (`station:mercury_1`) | `roll_steel` | adaptive | 480 | roll_steel |
+| Terminator Station (`station:mercury_1`) | `shipworks` | fixed | 10 | assemble_hull_frames |
+| Ceres Quarry Depot (`station:ceres_quarry_1`) | `roll_steel` | adaptive | 120 | roll_steel |
+| Ceres Quarry Depot (`station:ceres_quarry_1`) | `shipworks` | fixed | 3 | assemble_hull_frames |
+| Quarry Ore Depot (`station:quarry_1`) | `roll_steel` | adaptive | 120 | roll_steel |
+| Quarry Ore Depot (`station:quarry_1`) | `shipworks` | fixed | 3 | assemble_hull_frames |
+| Lumen Fabrication (`station:ring_2`) | `electronics` | profit | 12 | make_electronics |
+| Valhalla Port (`station:callisto_1`) | `farm` | fixed | 640 | grow_food |
+| UAE-9 (`station:titania_1`) | `process_nitrates` | adaptive | 80 | process_nitrates |
+| UAE-9 (`station:titania_1`) | `chemicals` | profit | 160 | make_fertilizer, make_explosives |
+| Uruk Station (`station:ganymede_2`) | `make_medical` | adaptive | 8 | make_medical |
+| Gilgal Arsenal (`station:titan_3`) | `launchers_works` | profit | 2 | missile launchers S/M/L |
+| The Star-Breaking Mine (`station:phobos_1`) | `guns_works` | profit | 2 | guns and artillery S/M/L |
+| Ashgrove Drone Foundry (`station:earth_4`) | `bays_works` | profit | 2 | drone bays S/M/L |
+| Loki Laboratory (`station:io_2`) | `lasers_works` | profit | 2 | beam and pulse lasers S/M/L |
+| Ceres Dock (`station:belt_1`) | `drills_works` | profit | 2 | drills S/M/L |
+| UAE-7 (`station:uranus_2`), Brute Industries Shipyard (`station:mercury_3`) | `engines_works` | profit | 1 each | engines S/M/L |
+| Ceres Dock (`station:belt_1`), Abaddon (`station:titan_2`) | `reactors_works` | profit | 1 each | reactors S/M/L |
+| Lumen Fabrication (`station:ring_2`), Station Beta (`station:mars_2`) | `coil_works` | profit | 8 each | make_superconducting_coils |
+| Pele Works (`station:io_1`), Haephestus Logistics (`station:mercury_2`) | `ceramic_works` | profit | 8 each | make_thermal_ceramics |
+| Ceres Quarry Depot (`station:ceres_quarry_1`), Quarry Ore Depot (`station:quarry_1`) | `metal_extraction` | fixed | 24 each | extract_heavy_metals |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Terminator Station (`station:mercury_1`) | `silicon_refinery` | fixed | 12 | refine_silicon |
 | Haephestus Logistics (`station:mercury_2`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
@@ -99,3 +120,11 @@ Negative capacity entries are consumption, not manufacturing output. Food is als
 
 Finished ships include the dealership-selected trim, paint and fitted modules. Modules are not yet separately consumed by ship assembly. Opening dealer inventory is seeded world stock; subsequent manufactured ships require recipe inputs and processing time. Output requires a real free bay or berth within the sales-lot limit. Dealers cannot occupy the bottom quarter of the hangar or the two largest exterior berths, which remain available to guests. Blocked output consumes no frames and banks no replacement work.
 
+
+## Ship modules
+
+Every module except utility pods is manufactured (`data/industry.lua` `D.moduleLines`). Each faction makes one weapon line: the Diwan launchers, Zhuhai guns and artillery, the Estates drone bays, Jove lasers, Ceres drills. Engines and reactors are built at two works each from superconducting coils (heavy metals and electronics) and thermal ceramics (silicon and acids), each made at two stations; reactors also take one deuterium canister. Heavy metals are extracted at the two belt quarry depots.
+
+Inputs follow each module's mass and price: one steel plate per 4 t, one electronics per 2,500 CR (engines and reactors take coils in place of part of it), and one processing unit per 10,000 CR, half a unit at least. A works stores four of each module.
+
+A station whose market data lists a module keeps that many on its shelf as a reserve target (`reserve.service = 'listed'`, `src/reserves.lua`), filled by freight from the works instead of the timed restock. Faction pilots lean towards their faction's weapon line when refitting and their faction's makers' hulls when arriving (`src/faction_gear.lua`). Ships still roll out of the yards with modules fitted; assembly doesn't consume modules.

@@ -2,7 +2,8 @@
 module {
 	id = "artillery_l_base", name = "Artillery L",
 	family = "weapon",
-	maker = "Ferrous Collective",
+	maker = "Zhongke Ordnance",
+	description = "A long gun built to crack stations. Phobos ships them under tarps.",
 	mass = 34,
 	powerDraw = 3,
 	price = 24000,

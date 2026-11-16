@@ -124,6 +124,55 @@ D.facilities={
  farm={policy='fixed',recipes={'grow_food'}},
  shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }
+-- Ship modules ----------------------------------------------------------
+-- Each kind of module comes from one faction's works (D.moduleLines);
+-- engines and reactors from two works each. A module is market cargo like
+-- ammunition: the works stocks it, freight carries it to every station whose
+-- market lists it, and those listings are the shelves' targets
+-- (reserve service 'listed', src/reserves.lua).
+-- Belt depots extract heavy metals like Mercury refines silicon; coils and
+-- ceramics are the intermediates engines and reactors are built from.
+D.recipes[#D.recipes+1]={id='extract_heavy_metals',group='resources',item='heavy_metals',opening=0,cap=192}
+D.recipes[#D.recipes+1]={id='make_superconducting_coils',group='coils',item='superconducting_coils',opening=0,cap=64,
+ inputs={{item='heavy_metals',n=2},{item='electronics',n=1}}}
+D.recipes[#D.recipes+1]={id='make_thermal_ceramics',group='ceramics',item='thermal_ceramics',opening=0,cap=64,
+ inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}}
+-- Inputs per module, from its mass and list price the way ship parts are:
+-- one steel plate per 4 t, one electronics per 2,500 CR, and an hour of
+-- works time per 10,000 CR (half an hour at least).
+--   { module, mass, price [, coils, ceramics, deuterium] }
+D.moduleLines={
+ launchers={maker='Gilgal Arsenal',modules={{'missile_s_base',3,4000},{'missile_m_base',8,11000},{'missile_l_base',18,26000}}},
+ guns={maker='Zhongke Ordnance',modules={{'gun_s_base',4,2200},{'gun_m_base',10,6500},{'gun_l_base',24,15000},
+  {'artillery_s_base',6,3400},{'artillery_m_base',16,9000},{'artillery_l_base',34,24000}}},
+ bays={maker='Ashgrove Foundry',modules={{'drone_s_base',6,7000},{'drone_m_base',14,18000},{'drone_l_base',30,40000}}},
+ lasers={maker='Loki Optics',modules={{'beam_s_base',6,6000},{'beam_m_base',14,16000},{'beam_l_base',32,42000},
+  {'pulse_s_base',5,5200},{'pulse_m_base',12,14000},{'pulse_l_base',30,38000}}},
+ drills={maker='Ceres Concern',modules={{'drill_s_base',6,3500},{'drill_m_base',14,9000},{'drill_l_base',34,24000}}},
+ engines={modules={{'flit_engine',6,3000,1,1},{'mule_engine',16,9000,2,2},{'cinder_drive',40,26000,4,4}}},
+ reactors={modules={{'ember_reactor',5,2500,1,1,1},{'kiln_reactor',14,8000,2,2,1},{'forge_reactor',32,21000,4,4,1}}},
+}
+-- fixed order, so recipe lists come out the same every run
+D.moduleLineOrder={'launchers','guns','bays','lasers','drills','engines','reactors'}
+for _,line in ipairs(D.moduleLineOrder) do
+ local def,ids=D.moduleLines[line],{}
+ for i,m in ipairs(def.modules) do
+  local id,mass,price,coils,ceramics,fuel=m[1],m[2],m[3],m[4],m[5],m[6]
+  local inputs={{item='steel_plate',n=math.max(1,math.floor(mass/4+.5))}}
+  local electronics=math.max(coils and 0 or 1,math.floor(price/2500+.5)-(coils or 0)*2)
+  if electronics>0 then inputs[#inputs+1]={item='electronics',n=electronics} end
+  if coils then inputs[#inputs+1]={item='superconducting_coils',n=coils} end
+  if ceramics then inputs[#inputs+1]={item='thermal_ceramics',n=ceramics} end
+  if fuel then inputs[#inputs+1]={item='deuterium_canister',n=fuel} end
+  D.recipes[#D.recipes+1]={id='make_'..id,group=line,item=id,cap=4,time=math.max(.5,price/10000),
+   reserve={service='listed',excludeProducers=true},inputs=inputs}
+  ids[i]='make_'..id
+ end
+ D.facilities[line..'_works']={policy='profit',recipes=ids}
+end
+D.facilities.metal_extraction={policy='fixed',recipes={'extract_heavy_metals'}}
+D.facilities.coil_works={policy='profit',recipes={'make_superconducting_coils'}}
+D.facilities.ceramic_works={policy='profit',recipes={'make_thermal_ceramics'}}
 for maker,hulls in pairs(D.lineups) do
  local r={};for i,h in ipairs(hulls) do r[i]='assemble_'..h end
  D.facilities[maker..'_assembly']={policy='orders',recipes=r}
