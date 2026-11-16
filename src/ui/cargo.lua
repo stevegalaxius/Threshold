@@ -1667,7 +1667,7 @@ end
 
 -- A satellite under the cursor: its name, kind, owner and whether it's
 -- working, so you can tell one from another without docking.
-local SAT_KIND = { passive = "Relay satellite", fuel = "Fuel buoy", vendor = "Vending satellite" }
+local SAT_KIND = { passive = "Relay satellite", hub = "Trade hub: fuel and supplies" }
 function Cargo.drawSatTooltip(game)
 	local Sat = require("src.satellites")
 	local hit = hoveredInRange(game, function(e) return e.sat end)

@@ -28,10 +28,14 @@ local Sat = {}
 
 Sat.kinds = {
 	passive = { design = "sat_passive", dock = "none", actions = {} },
-	fuel = { design = "sat_fuel_buoy", dock = "anyone", actions = { "vend" }, vend = { "deuterium_canister" } },
-	vendor = { design = "sat_vendor", dock = "anyone", actions = { "vend" },
-		vend = { "rounds_s", "rounds_m", "shell_s", "patch_kit", "deuterium_canister" } },
+	-- the trade-buoy hub: not in any orbit mix, one rides every trade buoy
+	-- (Sat.hubs). A mini station for ships passing through.
+	hub = { design = "trade_hub", dock = "anyone", actions = { "vend" },
+		vend = { "deuterium_canister", "rounds_s", "rounds_m", "shell_s", "patch_kit" } },
 }
+-- Kinds that used to orbit on their own: their records become the slot's
+-- new kind and the old husk is taken away (Sat.populate).
+Sat.retired = { fuel = true, vendor = true }
 
 local function copy(t)
 	if type(t) ~= "table" then return t end
@@ -86,6 +90,8 @@ function Sat.record(universe, slot, fieldId)
 		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, owner = slot.owner }
 		all[slot.id] = r
 		r.design = K.design
+	elseif Sat.retired[r.kind] and r.kind ~= slot.kind then
+		r.kind, r.design, r.dock, r.actions, r.vend, r.retiredHusk = slot.kind, Sat.kinds[slot.kind].design, nil, nil, nil, true
 	end
 	return r
 end
@@ -161,6 +167,7 @@ function Sat.tick(universe)
 			end
 		end
 	end
+	Sat.ensureHubs(universe)
 	local open = require("src.sat_jobs").open(universe, "satrefuel")
 	for id, r in pairs(all) do
 		if not r.lost and Sat.fuel(universe, r) < Sat.refuelAt and not open[id] then
@@ -213,6 +220,8 @@ function Sat.populate(game)
 	for _, slot in ipairs(Sat.layout(game.fieldId, game.field)) do
 		local r = Sat.record(game.universe, slot, game.fieldId)
 		local e = present[slot.id]
+		if e and r.retiredHusk then game:remove(e); e = nil end
+		r.retiredHusk = nil
 		-- a satellite saved in this area but not restored was destroyed
 		if not e and not r.lost and r.spawnedAt and saved and (saved.capturedAt or 0) >= r.spawnedAt then Sat.markLost(game.universe, r) end
 		if not e and not r.lost and data.wrecks[r.design] then
@@ -227,6 +236,56 @@ function Sat.populate(game)
 		end
 		if e then Sat.adopt(e, r) end
 	end
+	Sat.hubs(game)
+end
+
+-- Trade-buoy hubs: every trade buoy on the map is a hub satellite. The buoy
+-- entity itself is the satellite (it already rides the buoy's track and
+-- draws its prop, data/wrecks/trade_hub.lua), so it just gets a record.
+function Sat.hubId(locationId) return "hub:" .. locationId end
+-- Records for every trade buoy in the system, loaded or not, so ships
+-- passing an unvisited map's buoys are served too.
+function Sat.ensureHubs(universe)
+	local all, Fields, L = store(universe), require("src.fields"), require("src.locations")
+	for _, area in ipairs(Fields.list) do
+		for _, loc in ipairs(Fields[area].buoyIds or {}) do
+			local id = Sat.hubId(loc)
+			if not all[id] then
+				local place = L.byId[loc]
+				all[id] = { id = id, field = area, kind = "hub", design = "trade_hub", hub = loc,
+					name = place and place.name and (Fields[area].name .. " " .. place.name:lower()) or "Trade hub" }
+			end
+		end
+	end
+end
+function Sat.hubs(game)
+	Sat.ensureHubs(game.universe)
+	for _, e in ipairs(game.entities) do
+		if e.kind == "buoy" and e.locationId and not e.removed then
+			local r = Sat.get(game.universe, Sat.hubId(e.locationId))
+			if r then e.sat, e.name = r.id, r.name end
+		end
+	end
+end
+
+-- A ship passing a trade buoy tops up its fuel and ammunition off the hub's
+-- shelf, if the hub has power. Each ship served burns a little of the hub's
+-- own fuel (Sat.hubServeCost), so busy hubs need refuelling sooner.
+Sat.hubServeCost = 0.01
+function Sat.serve(universe, ship, node)
+	local r = Sat.hubAt(universe, node)
+	if not r or Sat.fuel(universe, r) <= 0 then return 0 end
+	local n = require("src.supplies").refillAtHub(ship)
+	if n > 0 then
+		r.fuel = math.max(0, r.fuel - Sat.hubServeCost)
+		r.served = (r.served or 0) + 1
+	end
+	return n
+end
+
+-- The hub at a buoy node, working (fuelled) or not; nil if there's none yet.
+function Sat.hubAt(universe, node)
+	return Sat.get(universe, Sat.hubId(node))
 end
 
 -- Tag a husk as this satellite.

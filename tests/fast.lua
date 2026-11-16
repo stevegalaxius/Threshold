@@ -64,8 +64,24 @@ return function(game)
 
  -- 5. Satellites: fuel runs down offline, a hauler's refuel job tops it up.
  local Sat=require('src.satellites')
+ Sat.ensureHubs(u)
+ for _,r in pairs(u.satellites) do assert(not Sat.retired[r.kind],'retired satellite kind still in orbit: '..r.id) end
+ -- every trade buoy is a hub, and a ship passing one is served from it
+ local hubNode,hub
+ for _,area in ipairs(Fields.list) do
+  for _,loc in ipairs(Fields[area].buoyIds or {}) do hubNode=hubNode or loc;assert(Sat.hubAt(u,loc),'no hub at '..loc) end
+ end
+ assert(hubNode,'no trade buoys')
+ hub=Sat.hubAt(u,hubNode);Sat.refuel(u,hub.id,'test')
+ local npc
+ for _,r in pairs(u.npcs or {}) do if r.ship and r.ship.cargo and not r.dead then npc=r;break end end
+ if npc then
+  local F=require('src.reactor_fuel').item();npc.ship.cargo[F]=0
+  if npc.ship.hold then local Hold=require('src.inventory.hold');local h=Hold.deserialize(npc.ship.hold);Hold.take(h,F,Hold.count(h,F));npc.ship.hold=Hold.serialize(h) end
+  assert(Sat.serve(u,npc,hubNode)>0 and hub.fuel<1,'hub did not serve a passing ship')
+ end
  local sid
- for id,r in pairs(u.satellites or {}) do if not r.lost and r.field~=game.fieldId then sid=id;break end end
+ for id,r in pairs(u.satellites or {}) do if not r.lost and not r.hub and r.field~=game.fieldId then sid=id;break end end
  if not sid then
   for id,r in pairs(u.satellites or {}) do if not r.lost then sid=id;break end end
  end
@@ -95,6 +111,6 @@ return function(game)
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
  assert(launch,'no launch job posted')
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
- print('ok  satellites: fuel, refuel and replacement jobs')
+ print('ok  satellites: hubs, fuel, refuel and replacement jobs')
  print('ALL TESTS PASSED')
 end

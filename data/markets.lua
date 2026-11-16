@@ -224,4 +224,7 @@ market { id = "sat:fuel", station = "Fuel buoy", bare = true, shops = { { name =
 market { id = "sat:vendor", station = "Vending satellite", bare = true, shops = { { name = "Vending", description = "", sells = {
 	{ "rounds_s", 4 }, { "rounds_m", 3 }, { "shell_s", 2 }, { "patch_kit", 3 }, { "deuterium_canister", 3 },
 } } } }
+market { id = "sat:hub", station = "Trade hub", bare = true, shops = { { name = "Hub stores", description = "Fuel and ammunition for ships passing through.", sells = {
+	{ "deuterium_canister", 8 }, { "rounds_s", 4 }, { "rounds_m", 3 }, { "shell_s", 2 }, { "patch_kit", 3 },
+} } } }
 market { id = "sat:passive", station = "Satellite", bare = true, sells = {} }
