@@ -190,7 +190,8 @@ function S.stock(u,st,i)
    if S.shopFor(key,'food_crate')==i then stock.food_crate=require('src.food').initial(key) end
    if S.shopFor(key,'fertilizer')==i then stock.fertilizer=require('src.food').initialFertilizer(key) end
   end
-  local initial=require('src.industry').initial(key)
+  -- (stations only: a satellite's shelf opens with its part-stocked list)
+  local initial=L.byId[key] and L.byId[key].kind=='station' and require('src.industry').initial(key) or {}
   for item,n in pairs(initial) do if S.shopFor(key,item)==i then stock[item]=n end end
   if S.shopFor(key,'explosives')==i then stock.explosives=nil end
   m.stock=stock

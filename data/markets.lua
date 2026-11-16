@@ -221,9 +221,13 @@ market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer 
 } }
 
 -- Satellites (src/satellites.lua): small fixed vending lists, no extra
--- shops (bare). The fuel buoy sells fuel, the vending sat ammo and patches.
+-- shops (bare). The hub sells fuel and supplies; fuel and vendor are retired
+-- kinds, kept so old saves still open.
 market { id = "sat:fuel", station = "Fuel buoy", bare = true, shops = { { name = "Fuel", description = "", sells = { { "deuterium_canister", 6 } } } } }
 market { id = "sat:vendor", station = "Vending satellite", bare = true, shops = { { name = "Vending", description = "", sells = {
 	{ "rounds_s", 4 }, { "rounds_m", 3 }, { "shell_s", 2 }, { "patch_kit", 3 }, { "deuterium_canister", 3 },
+} } } }
+market { id = "sat:hub", station = "Trade hub", bare = true, shops = { { name = "Hub stores", description = "Fuel and ammunition for ships passing through.", sells = {
+	{ "deuterium_canister", 8 }, { "rounds_s", 4 }, { "rounds_m", 3 }, { "shell_s", 2 }, { "patch_kit", 3 },
 } } } }
 market { id = "sat:passive", station = "Satellite", bare = true, sells = {} }

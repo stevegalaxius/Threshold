@@ -12,21 +12,27 @@
 	  band   = { inner, outer } as fractions of the way from the surface
 	           (0) to the map's edge (1); default { 0.08, 0.85 }
 	  names  = name prefix for the satellites ("Earth" -> "Earth sat 07")
+	  hubs   = how many hub satellites (kind "hub") on top of the mix: put
+	           them where ships need a stop between stations
 	}
 
 	Kinds (Sat.kinds in src/satellites.lua) give each one its design and
 	its default levers:
 	  passive  closed: dock = "none", no actions. Quests open them.
-	  fuel     a fuel buoy: dock = "anyone", vend = { "fuel" }
-	  vendor   a vending sat: dock = "anyone", vend = ammo and supplies
+	  hub      a mini station: dock = "anyone", fuel and supplies shelf.
+	           Placed with hubs = n, not through the mix.
 
 	Every satellite gets a stable id (<field>_sat_<n>) so quests can name it.
 ]]
 
-local common = { passive = 10, fuel = 2, vendor = 2 }
+-- Hubs go to the quiet edges, where there's no market station at all:
+-- Neptune and Pluto. (The hub kind is meant to be reused, for instances
+-- and the like: add hubs = n wherever one should be.)
+local hubs = { neptune = 2, pluto = 1 }
+local common = { passive = 1 }
 for _, f in ipairs({ "mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune" }) do
-	satellites { field = f, count = { 12, 20 }, mix = common }
+	satellites { field = f, count = { 12, 20 }, mix = common, hubs = hubs[f] }
 end
 for _, f in ipairs({ "luna", "io", "europa", "ganymede", "callisto", "titan", "enceladus", "titania", "triton", "pluto" }) do
-	satellites { field = f, count = { 4, 8 }, mix = { passive = 6, fuel = 1, vendor = 1 } }
+	satellites { field = f, count = { 4, 8 }, mix = { passive = 1 }, hubs = hubs[f] }
 end

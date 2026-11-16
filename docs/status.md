@@ -20,7 +20,7 @@ Last checked against `main`: 2026-11-15.
 - Planets, moons, moon gates and mass driver lanes on an orbital clock (`src/fields.lua`, `src/transit.lua`).
 - Dark grids: Milliways, the Shoals, Cordelia and Antichthon (`src/dark.lua`).
 - Instanced sites with acceleration gates (`data/sites.lua`, `src/sites.lua`).
-- Satellites with repair and launch jobs, and wear over time (`src/satellites.lua`, `src/sat_jobs.lua`).
+- Satellites burn fuel over time; NPC haulers (or the player) take refuel and launch jobs, and the fuel is station-keeping: a fuelled satellite (or hub) holds its altitude and place on the orbit (hubs beside a trade buoy) and recovers from bumps, while a dry one drops to low power, drifts, and its orbit decays until it burns up about 30 minutes later, which posts the replacement launch job (`src/satellites.lua`, `src/sat_jobs.lua`).
 - Persistence for named areas: wrecks, containers and loose cargo (`src/persistence.lua`, `src/loose.lua`).
 - Saves of the whole universe (`src/world.lua` `Game:saveState`).
 

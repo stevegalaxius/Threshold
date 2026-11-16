@@ -277,6 +277,8 @@ function N.decide(u,r,node,at,game)
  if j.complete then j.complete(ctx) end
  if L.get(node).kind=='station' then Supplies.refill(r,node) end
  -- Upkeep (fuel, repair, supplies) comes before work, from any state.
+ -- A hub satellite nearby serves fuel and supplies on the spot.
+ if require('src.sat_jobs').hubVisit(ctx) then return true end
  local Upkeep=require('src.upkeep')
  if r.state=='docked' then r.state='idle';r.node=node end
  if Upkeep.plan(r,at) then return true end

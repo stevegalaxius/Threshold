@@ -135,6 +135,9 @@ function U.plan(r,clock,e)
   if U.shortOfFuel(r,e,g,at,clock) then need='fuel' end
  end
  if not need then return false end
+ -- a hub satellite nearer than any station: take it at the next node
+ -- instead of booking a station visit (src/sat_jobs.lua)
+ if need~='repair' and not idle and require('src.sat_jobs').holdForHub(r,clock,e) then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
   if serves(need,id) and canDock(r,e,id,clock) then

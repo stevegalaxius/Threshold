@@ -9,7 +9,8 @@
 
 	and the universe keeps one record per satellite (universe.satellites):
 
-	  { id, field, kind, name, owner, dock, actions, vend, lost }
+	  { id, field, kind, name, owner, dock, actions, vend, lost,
+	    fuel, fuelAt, dryAt }
 
 	The record is the truth for what the satellite is and what it allows; the
 	husk is only where it is. Two levers, read through Sat.levers:
@@ -24,13 +25,18 @@
 local data = require("src.data")
 
 local Sat = {}
+local berthOffsetFor
 
 Sat.kinds = {
 	passive = { design = "sat_passive", dock = "none", actions = {} },
-	fuel = { design = "sat_fuel_buoy", dock = "anyone", actions = { "vend" }, vend = { "deuterium_canister" } },
-	vendor = { design = "sat_vendor", dock = "anyone", actions = { "vend" },
-		vend = { "rounds_s", "rounds_m", "shell_s", "patch_kit", "deuterium_canister" } },
+	-- a hub: a larger satellite with a shop, a mini station for ships
+	-- passing through (placed per planet: data/satellite_orbits.lua, hubs)
+	hub = { design = "sat_hub", dock = "anyone", actions = { "vend" },
+		vend = { "deuterium_canister", "rounds_s", "rounds_m", "shell_s", "patch_kit" } },
 }
+-- Kinds that used to orbit on their own: their records become the slot's
+-- new kind and the old husk is taken away (Sat.populate).
+Sat.retired = { fuel = true, vendor = true }
 
 local function copy(t)
 	if type(t) ~= "table" then return t end
@@ -73,6 +79,17 @@ function Sat.layout(fieldId, field)
 			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
 			name = ("%s sat %02d"):format(def.names or field.name or fieldId, n) }
 	end
+	-- hubs: their own slots (ids <field>_hub_<n>), after the mix,
+	-- so adding hubs never reshuffles a field's other satellites
+	for n = 1, def.hubs or 0 do
+		local f = 0.3 + rng:random() * 0.3
+		-- each hub keeps station by one of the field's trade buoys, where the
+		-- routes already pass (Sat.hubPoint); none left: a plain slot
+		local buoys = require("src.fields")[fieldId] and require("src.fields")[fieldId].buoyIds or {}
+		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub", buoy = buoys[n],
+			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
+			name = ("%s trade hub%s"):format(def.names or field.name or fieldId, (def.hubs or 0) > 1 and (" " .. n) or "") }
+	end
 	return out
 end
 
@@ -82,9 +99,11 @@ function Sat.record(universe, slot, fieldId)
 	local r = all[slot.id]
 	if not r then
 		local K = Sat.kinds[slot.kind]
-		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, owner = slot.owner }
+		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, owner = slot.owner, buoy = slot.buoy }
 		all[slot.id] = r
 		r.design = K.design
+	elseif Sat.retired[r.kind] and r.kind ~= slot.kind then
+		r.kind, r.design, r.dock, r.actions, r.vend, r.retiredHusk = slot.kind, Sat.kinds[slot.kind].design, nil, nil, nil, true
 	end
 	return r
 end
@@ -92,71 +111,88 @@ end
 function Sat.get(universe, id) return universe and universe.satellites and universe.satellites[id] end
 
 -- What it allows right now: the quest override if there is one, else its kind's.
+-- Out of fuel it still docks, but its shelf is shut until it's refuelled.
 function Sat.levers(r)
 	local K = Sat.kinds[r.kind] or Sat.kinds.passive
-	-- failed: closed until someone repairs it (a quest that
-	-- opened it to the player still gets them in)
-	if r.broken then
-		return { dock = r.dock == "player" and "player" or "none", actions = r.actions or {}, vend = {} }
-	end
 	return {
 		dock = r.dock or K.dock,
 		actions = r.actions or K.actions,
-		vend = r.vend or K.vend,
+		vend = Sat.dry(r) and {} or (r.vend or K.vend),
 	}
 end
 
--- NPCs and satellites ------------------------------------------------------
+-- Fuel ---------------------------------------------------------------------
 --
--- Satellites wear out while you're away (Sat.wear, a slow roll from the
--- A-Life director), and the satellite's
--- system posts a one-off "satrepair" job on the task board (src/sat_jobs.lua)
--- that ordinary haulers take. A broken satellite refuses docking and sells
--- nothing until the repair job is done.
+-- Every satellite burns station-keeping fuel: r.fuel runs 1 -> 0 over
+-- Sat.fuelLife game seconds. It's worked out from elapsed time when looked
+-- at (Sat.fuel), so nothing steps per frame. Below Sat.refuelAt its system
+-- posts a "satrefuel" job (src/sat_jobs.lua) that ordinary haulers take as
+-- part of their usual work; the player can take the same job from the
+-- station board. One open job per satellite, no other limit.
+--
+-- Running dry is soft: the satellite goes to low power (dim lights, shelf
+-- shut, "Low power" on its tooltip) but is never lost, and r.dryAt says how
+-- long it has been neglected for anything bigger (the director) to read.
+-- Refuelling brings it straight back.
+Sat.fuelLife, Sat.refuelAt, Sat.checkEvery = 2400, 1 / 3, 30
 
--- Knock a satellite out and post its repair job. Returns true if it broke.
-function Sat.knockOut(universe, id, clock, by)
+function Sat.fuel(universe, r)
+	local clock = universe and universe.clock or 0
+	if r.broken then r.broken, r.brokenAt, r.brokenBy, r.fuel = nil, nil, nil, 0 end -- old saves
+	if r.fuel == nil or r.fuelAt == nil then r.fuel, r.fuelAt = r.fuel or 1, clock end
+	local f = math.max(0, r.fuel - math.max(0, clock - r.fuelAt) / Sat.fuelLife)
+	if f <= 0 and r.fuel > 0 then r.dryAt = r.fuelAt + r.fuel * Sat.fuelLife end
+	r.fuel, r.fuelAt = f, clock
+	if f <= 0 and not r.dryAt then r.dryAt = clock end
+	return f
+end
+
+-- Out of fuel, as of the last look.
+function Sat.dry(r) return r.fuel ~= nil and r.fuel <= 0 and not r.lost end
+
+function Sat.refuel(universe, id, by)
 	local r = Sat.get(universe, id)
-	if not r or r.lost or r.broken then return false end
-	r.broken, r.brokenAt, r.brokenBy = true, clock or universe.clock or 0, by
-	require("src.events").emit("sat_knocked_out", id, by)
-	require("src.sat_jobs").post(universe, r)
+	if not r or r.lost then return false end
+	Sat.fuel(universe, r)
+	r.fuel, r.fuelAt, r.dryAt = 1, universe.clock or 0, nil
+	require("src.events").emit("sat_refuelled", id, by)
+	require("src.sat_jobs").clear(universe, id, "satrefuel")
 	return true
 end
 
-function Sat.fix(universe, id, by)
-	local r = Sat.get(universe, id)
-	if not r or not r.broken then return false end
-	r.broken, r.brokenAt, r.brokenBy, r.hp = nil, nil, nil, nil
-	require("src.events").emit("sat_repaired", id, by)
-	require("src.sat_jobs").clear(universe, id)
-	return true
-end
-
--- Wear: every Sat.wearEvery game seconds one random working satellite may
--- fail (Sat.wearChance), unless its field is the loaded map or that field
--- already has Sat.maxBroken down. Called from the A-Life director; one
--- pick per roll, never a per-step scan.
-Sat.wearEvery, Sat.wearChance, Sat.maxBroken = 120, 0.5, 3
-function Sat.wear(universe, game, roll)
+-- Called from the A-Life director: every Sat.checkEvery game seconds, bring
+-- each satellite's fuel up to date and post refuel jobs for the low ones.
+function Sat.tick(universe)
 	local all, clock = universe and universe.satellites, universe and universe.clock
-	if not all or not clock then return false end
-	if not universe.satWearAt or universe.satWearAt > clock + Sat.wearEvery then universe.satWearAt = clock + Sat.wearEvery end
-	if clock < universe.satWearAt then return false end
-	universe.satWearAt = clock + Sat.wearEvery
-	if (roll or love.math.random()) >= Sat.wearChance then return false end
-	local pick, n = nil, 0
-	for id, r in pairs(all) do
-		if not r.lost and not r.broken and not (game and game.fieldId == r.field) then
-			n = n + 1
-			if love.math.random(n) == 1 then pick = r end
+	if not all or not clock then return end
+	if universe.satCheckAt and clock < universe.satCheckAt and universe.satCheckAt <= clock + Sat.checkEvery then return end
+	universe.satCheckAt = clock + Sat.checkEvery
+	if not universe.satFuelV then
+		-- saves from before fuel: drop the retired repair work
+		universe.satFuelV = 1
+		local offers = require("src.tasks").state(universe).offers
+		for oid, o in pairs(offers) do if o.kind == "satrepair" then offers[oid] = nil end end
+		local qs = universe.quests
+		if qs then
+			for _, list in ipairs({ qs.offers or {}, qs.active or {} }) do
+				for qid, q in pairs(list) do if q.kind == "sat_repair" then list[qid] = nil end end
+			end
 		end
 	end
-	if not pick then return false end
-	local down = 0
-	for _, r in pairs(all) do if r.field == pick.field and r.broken then down = down + 1 end end
-	if down >= Sat.maxBroken then return false end
-	return Sat.knockOut(universe, pick.id, clock, "wear")
+	local open = require("src.sat_jobs").open(universe, "satrefuel")
+	for id, r in pairs(all) do
+		-- dry long enough to have come down (on the map now, the physics
+		-- brings it down instead)
+		if not r.lost and Sat.fuel(universe, r) <= 0 and r.dryAt and clock - r.dryAt >= Sat.deorbit
+			and not (r.seenAt and clock - r.seenAt < 5) then
+			Sat.markLost(universe, r)
+		end
+		-- low on its own fuel, or (a hub) its shelf nearly out of canisters
+		local low = not r.lost and (Sat.fuel(universe, r) < Sat.refuelAt or Sat.hubLow(universe, r))
+		if low and not open[id] then
+			require("src.sat_jobs").post(universe, r, "satrefuel")
+		end
+	end
 end
 
 -- Quest scripting: open a satellite up (or change what it offers) and
@@ -203,13 +239,32 @@ function Sat.populate(game)
 	for _, slot in ipairs(Sat.layout(game.fieldId, game.field)) do
 		local r = Sat.record(game.universe, slot, game.fieldId)
 		local e = present[slot.id]
+		if e and r.retiredHusk then game:remove(e); e = nil end
+		r.retiredHusk = nil
 		-- a satellite saved in this area but not restored was destroyed
 		if not e and not r.lost and r.spawnedAt and saved and (saved.capturedAt or 0) >= r.spawnedAt then Sat.markLost(game.universe, r) end
+		r.buoy = r.buoy or slot.buoy
+		r.alt = r.alt or slot.alt
+		if not r.rate and not r.buoy and game.currentSpeed then
+			-- first visit: learn the current's turn rate at its altitude, and
+			-- phase the slot so it's where it is now (an old save's satellite
+			-- where it was left, a new one at its seeded angle)
+			r.rate = game:currentSpeed(r.alt) / math.max(1, r.alt)
+			local a = r.angle or slot.angle
+			if e and e.body and not e.body:isDestroyed() then
+				local ex, ey = e.body:getPosition()
+				a = math.atan2(ey - cy, ex - cx)
+			end
+			r.angle = a - r.rate * (game.universe.clock or 0)
+		end
 		if not e and not r.lost and data.wrecks[r.design] then
-			local x, y = cx + math.cos(slot.angle) * slot.alt, cy + math.sin(slot.angle) * slot.alt
-			local v = game.currentSpeed and game:currentSpeed(slot.alt) or 0
-			e = game:spawnWreck(r.design, x, y, slot.angle + math.pi / 2,
-				-math.sin(slot.angle) * v, math.cos(slot.angle) * v)
+			local x, y = Sat.restPoint(game.universe, r)
+			local nx, ny = Sat.slotPoint(game.universe, r, (game.universe.clock or 0) + 1)
+			local sx, sy = Sat.slotPoint(game.universe, r, game.universe.clock or 0)
+			if x then
+				local vx, vy = nx - sx, ny - sy
+				e = game:spawnWreck(r.design, cx + x, cy + y, math.atan2(y, x) + math.pi / 2, vx, vy)
+			end
 			if e then
 				r.spawnedAt = game.universe.clock or 0
 				game:stepOutOfStations(e)
@@ -219,12 +274,184 @@ function Sat.populate(game)
 	end
 end
 
+-- NPCs and hubs ---------------------------------------------------------------
+--
+-- A working hub (kind "hub") sells fuel and supplies off its own shelf to the
+-- player and NPCs alike. An NPC short of fuel or ammunition (src/upkeep.lua's
+-- needs) with a working hub nearby flies out to it with the same work action
+-- the refuel haulers use (src/sat_jobs.lua, operation "hubservice"), holds on
+-- its berth, buys what it needs and carries on. One ship at a time, like any
+-- satellite berth. Each ship served burns a little of the hub's own fuel
+-- (Sat.hubServeCost), so busy hubs ask for refuels sooner, and a hub low on
+-- canisters gets a refuel job too; that hauler restocks the shelf. No repairs.
+Sat.hubServeCost, Sat.hubLowStock = 0.02, 4
+
+-- Its shelf, as the stockpile sees it (the same key the docked screen uses).
+function Sat.shelf(r) return { key = "sat:" .. r.id, marketId = "sat:" .. r.kind } end
+
+function Sat.hubWorking(universe, r)
+	return r and r.kind == "hub" and not r.lost and Sat.fuel(universe, r) > 0 or false
+end
+
+-- A ship was served: the hub's own fuel pays for it.
+function Sat.hubServed(universe, r)
+	Sat.fuel(universe, r)
+	r.fuel = math.max(0, r.fuel - Sat.hubServeCost)
+	if r.fuel <= 0 and not r.dryAt then r.dryAt = universe.clock or 0 end
+	r.served = (r.served or 0) + 1
+end
+
+-- Low on canisters to sell.
+function Sat.hubLow(universe, r)
+	return r.kind == "hub" and require("src.stockpile").available(universe, Sat.shelf(r),
+		require("src.reactor_fuel").item()) < Sat.hubLowStock
+end
+
+-- What a hub's shelf is short of: each listed good up to half its listed
+-- amount. The refuel hauler brings it from its trade station's stock
+-- (src/sat_jobs.lua) and Sat.stockHub puts it on the shelf.
+function Sat.hubShortfall(universe, r)
+	local out = {}
+	if r.kind ~= "hub" then return out end
+	local Stock, Shapes = require("src.stockpile"), require("src.inventory.shapes")
+	local shelf = Sat.shelf(r)
+	for i, shop in ipairs(Stock.shops(shelf)) do
+		local stock = Stock.stock(universe, shelf, i)
+		for _, e in ipairs(shop.sells or {}) do
+			local _, _, cap = Shapes.of(e[1])
+			local want = math.floor(e[2] * cap / 2) - (stock and stock[e[1]] or 0)
+			if want > 0 then out[e[1]] = want end
+		end
+	end
+	return out
+end
+function Sat.stockHub(universe, r, item, n)
+	if r.kind ~= "hub" or n <= 0 then return end
+	require("src.stockpile").add(universe, Sat.shelf(r), item, n)
+end
+
+-- The nearest working hub on a map to (x, y). Hubs are only placed where
+-- markets are sparse, so any hub on the same map is worth the trip.
+function Sat.nearestHub(universe, area, x, y)
+	local best, bestD
+	for _, r in pairs(store(universe)) do
+		if r.field == area and Sat.hubWorking(universe, r) then
+			local hx, hy = Sat.home(universe, r)
+			if hx then
+				local d = (hx - x) ^ 2 + (hy - y) ^ 2
+				if not bestD or d < bestD then best, bestD = r, d end
+			end
+		end
+	end
+	return best
+end
+
 -- Tag a husk as this satellite.
 function Sat.adopt(e, r)
 	e.sat, e.name = r.id, r.name
 	if e.body and not e.body:isDestroyed() then
 		e.body:setAngularVelocity(0)
 		e.body:setAngularDamping(2)
+	end
+end
+
+-- Station-keeping -------------------------------------------------------------
+--
+-- What the fuel is for. A fuelled satellite holds its slot: its own
+-- altitude, and its place along the orbit (the slot's angle, turning at the
+-- current's rate there, r.rate, learnt the first time the field is
+-- visited), so a bump only pushes it away for a while. A hub's slot is
+-- Sat.hubOffset outward from its trade buoy, so it travels with the buoy.
+-- Dry, it stops correcting: it rides the current wherever it was knocked
+-- and its orbit decays, sinking steadily enough to reach the planet
+-- Sat.deorbit seconds after it ran dry. A refuel before then brings it
+-- climbing back; otherwise it burns up in the atmosphere (or hits the
+-- ground) and is lost, and its system posts the launch job for a
+-- replacement (Sat.markLost). Offline, Sat.tick does the same by the clock.
+Sat.hubOffset, Sat.deorbit = 1100, 1800
+Sat.keepGain, Sat.keepMax, Sat.keepBlend = 0.4, 80, 2
+
+-- Where the slot is at `clock`, about the planet (the map's origin).
+function Sat.slotPoint(universe, r, clock)
+	if r.buoy then
+		local x, y = require("src.locations").position(r.buoy, clock)
+		local d = math.max(1, math.sqrt(x * x + y * y))
+		return x + x / d * Sat.hubOffset, y + y / d * Sat.hubOffset
+	end
+	if not r.alt then
+		local Fields = require("src.fields")
+		for _, slot in ipairs(Sat.layout(r.field, Fields[r.field])) do
+			if slot.id == r.id then r.alt, r.angle = slot.alt, slot.angle end
+		end
+		if not r.alt then return end
+	end
+	local a = r.angle + (r.rate or 0) * clock
+	return math.cos(a) * r.alt, math.sin(a) * r.alt
+end
+function Sat.hubPoint(universe, r) return Sat.slotPoint(universe, r, universe.clock or 0) end
+
+function Sat.planetR(r)
+	local F = require("src.fields")[r.field]
+	return F and F.planetR or 0
+end
+
+-- Where it is offline: on its slot, or (dry) sunk below it by now.
+function Sat.restPoint(universe, r)
+	local x, y = Sat.slotPoint(universe, r, universe.clock or 0)
+	if not x then return end
+	if Sat.dry(r) and r.dryAt then
+		local d = math.max(1, math.sqrt(x * x + y * y))
+		local t = math.min(1, math.max(0, (universe.clock or 0) - r.dryAt) / Sat.deorbit)
+		local to = d - (d - Sat.planetR(r)) * t
+		x, y = x / d * to, y / d * to
+	end
+	return x, y
+end
+
+-- Every step, for each satellite on the map (Game:update, after the current).
+function Sat.keep(game, dt)
+	local u, w = game.universe, game.well
+	if not u or not w or dt <= 0 then return end
+	local clock = u.clock or 0
+	for _, e in ipairs(game.entities) do
+		local r = e.sat and not e.removed and not e.dead and Sat.get(u, e.sat)
+		local b = r and e.body
+		if b and not b:isDestroyed() and b:getType() == "dynamic" then
+			local x, y = b:getPosition()
+			local vx, vy = b:getLinearVelocity()
+			local wx, wy, k = vx, vy, math.min(1, dt * Sat.keepBlend)
+			r.seenAt = clock
+			if Sat.fuel(u, r) > 0 then
+				local tx, ty = Sat.slotPoint(u, r, clock)
+				local nx, ny = Sat.slotPoint(u, r, clock + 1)
+				if tx then
+					tx, ty, nx, ny = tx + w.x, ty + w.y, nx + w.x, ny + w.y
+					local ex, ey = (tx - x) * Sat.keepGain, (ty - y) * Sat.keepGain
+					local m = math.sqrt(ex * ex + ey * ey)
+					if m > Sat.keepMax then ex, ey = ex / m * Sat.keepMax, ey / m * Sat.keepMax end
+					wx, wy = nx - tx + ex, ny - ty + ey
+				end
+			else
+				-- dry: its radial motion settles into the decay (the
+				-- atmosphere takes over once it's down there)
+				local dx, dy = x - w.x, y - w.y
+				local d = math.max(1, math.sqrt(dx * dx + dy * dy))
+				local ux, uy = dx / d, dy / d
+				local vr = vx * ux + vy * uy
+				local alt = r.alt
+				if r.buoy then local sx, sy = Sat.slotPoint(u, r, clock); alt = sx and math.sqrt(sx * sx + sy * sy) or d end
+				local want = -math.max(0, (alt or d) - Sat.planetR(r)) / Sat.deorbit
+				if d <= Sat.planetR(r) + 40 then
+					-- down: burnt up (a planet with no air or solid
+					-- surface to do it, a gas giant's cloud tops)
+					game:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
+					Sat.lost(game, e)
+					game:remove(e)
+				end
+				wx, wy = vx + (want - vr) * ux, vy + (want - vr) * uy
+			end
+			if not e.removed then b:setLinearVelocity(vx + (wx - vx) * k, vy + (wy - vy) * k) end
+		end
 	end
 end
 
@@ -238,7 +465,8 @@ end
 -- now). The replacement keeps the id, name and kind, so quests still find it.
 function Sat.markLost(universe, r)
 	if r.lost then return end
-	r.lost, r.broken = true, nil
+	r.lost = true
+	require("src.sat_jobs").clear(universe, r.id, "satrefuel")
 	require("src.sat_jobs").post(universe, r, "satlaunch")
 end
 
@@ -247,9 +475,10 @@ end
 function Sat.relaunch(universe, id, by)
 	local r = Sat.get(universe, id)
 	if not r or not r.lost then return false end
-	r.lost, r.broken, r.hp, r.spawnedAt, r.brokenAt, r.brokenBy = nil, nil, nil, nil, nil, nil
+	r.lost, r.hp, r.spawnedAt = nil, nil, nil
+	r.fuel, r.fuelAt, r.dryAt = 1, universe.clock or 0, nil
 	require("src.events").emit("sat_launched", id, by)
-	require("src.sat_jobs").clear(universe, id)
+	require("src.sat_jobs").clear(universe, id, "satlaunch")
 	return true
 end
 
@@ -268,6 +497,85 @@ function Sat.damage(game, e, amount)
 		game:spark(e.body:getX(), e.body:getY(), 24, { 1, 0.7, 0.35 })
 		game:explode(e.body:getX(), e.body:getY(), (e.radius or 100) * 0.3, 0, 0)
 	end
+end
+
+-- Where things are, for NPC work out at a satellite (src/sat_jobs.lua) ------
+
+-- The live husk of a satellite on the loaded map.
+function Sat.entity(game, id)
+	for _, e in ipairs(game.entities or {}) do
+		if e.sat == id and not e.removed and not e.dead and e.body and not e.body:isDestroyed() then return e end
+	end
+end
+
+-- Its home position: its seeded layout slot, about the planet (the map's
+-- origin). Online, Sat.entity gives where it has actually drifted to.
+function Sat.home(universe, r, game)
+	local x, y = Sat.restPoint(universe, r)
+	if not x then return end
+	local w = game and game.fieldId == r.field and game.well
+	return (w and w.x or 0) + x, (w and w.y or 0) + y
+end
+
+-- The berth beside a satellite for `ship`, in world space, with the
+-- berth's velocity (it turns and drifts with the satellite).
+function Sat.berthPoint(e, ship, i)
+	local bx, by = berthOffsetFor(e, ship, i)
+	local x, y = e.body:getWorldPoint(bx, by)
+	local vx, vy = e.body:getLinearVelocityFromWorldPoint(x, y)
+	return x, y, vx, vy
+end
+
+-- Berths -------------------------------------------------------------------
+--
+-- A satellite's berths come from its design: every part ticked "Docking
+-- module" in the editor has one berth, just off that part's outer side
+-- (away from the satellite's centre). No runway, no tractor zone: a ship
+-- locks on and is pulled to the berth. A design without one can't be
+-- docked at. Each berth is claimed on its own: an NPC through its work
+-- action's claim on the berth record (r.berths[i], saved with the
+-- satellite), the player through the live husk's e.berthHeld[i] while
+-- locked on. Neither takes a berth the other holds.
+local dockCache = setmetatable({}, { __mode = "k" })
+-- The design's docking parts: { cx, cy (part centre), ux, uy (outward),
+-- reach (how far the part extends that way from its centre) }.
+function Sat.docks(def)
+	if not def then return {} end
+	if dockCache[def] then return dockCache[def] end
+	local out = {}
+	for _, part in ipairs(def.parts or {}) do
+		if part.dock and part.shape then
+			local sh, cx, cy, n = part.shape, 0, 0, #part.shape / 2
+			for k = 1, #sh, 2 do cx, cy = cx + sh[k], cy + sh[k + 1] end
+			cx, cy = cx / n, cy / n
+			local d = math.sqrt(cx * cx + cy * cy)
+			local ux, uy = d > 1 and cx / d or 0, d > 1 and cy / d or 1
+			local reach = 0
+			for k = 1, #sh, 2 do reach = math.max(reach, (sh[k] - cx) * ux + (sh[k + 1] - cy) * uy) end
+			out[#out + 1] = { cx = cx, cy = cy, ux = ux, uy = uy, reach = reach }
+		end
+	end
+	dockCache[def] = out
+	return out
+end
+function Sat.berthCount(r) return #Sat.docks(data.wrecks[r.design]) end
+function Sat.berth(r, i)
+	r.berths = r.berths or {}
+	r.berths[i] = r.berths[i] or {}
+	return r.berths[i]
+end
+-- The live player on berth i, if any.
+function Sat.playerOn(e, i)
+	local p = e and e.berthHeld and e.berthHeld[i]
+	if p and not p.dead and not p.removed and p.dockState and p.dockState.station and p.dockState.station.entity == e then return p end
+	if e and e.berthHeld then e.berthHeld[i] = nil end
+end
+-- An NPC's live claim on berth i.
+function Sat.npcOn(universe, r, i)
+	local b = r.berths and r.berths[i]
+	local owner = b and b.actionOwner and universe.npcs and universe.npcs[b.actionOwner]
+	local a = owner and owner.action
+	return owner and owner.state ~= "dead" and a and not a.pausedAt and a.key == b.actionKey or false
 end
 
 -- Docking ------------------------------------------------------------------
@@ -313,23 +621,43 @@ end
 
 -- Where the berth is, in the satellite's frame: off the side of the bus the
 -- ship came from.
-local function berthOffset(e, ship)
-	local lx, ly = e.body:getLocalPoint(ship.body:getPosition())
-	local side = ly < 0 and -1 or 1
-	return 0, side * ((e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40)
+-- side: -1 or 1, which berth; nil picks the one nearer the ship. A hub has
+-- a berth pad off each docking arm; other satellites, either side of the bus.
+-- Berth i, in the satellite's frame: off the outer side of its docking
+-- part, far enough out for this ship's hull.
+local function berthOffset(e, ship, i)
+	local d = Sat.docks(e.hull)[i or 1]
+	-- (no docking module: a service ship holds just off the bus)
+	if not d then return 0, (e.radius or 300) * 0.25 + (ship.halfLength or 40) + 40 end
+	local out = d.reach + (ship.halfLength or 40) + 30
+	return d.cx + d.ux * out, d.cy + d.uy * out
 end
+berthOffsetFor = berthOffset
 
 function Sat.request(game, e)
 	local r = Sat.get(game.universe, e.sat)
 	local p = game.player
 	if not r or not p or p.dead or p.dockState then return false end
-	if e.satHeld and e.satHeld ~= p and not e.satHeld.dead and e.satHeld.dockState then game:toast("BERTH OCCUPIED", 1.4); return false end
+	-- the nearest free berth: neither an NPC's nor already the player's
+	local count = Sat.berthCount(r)
+	if count == 0 then game:toast("NO BERTH", 1.4); return false end
+	local free, best
+	for i = 1, count do
+		if not Sat.playerOn(e, i) and not Sat.npcOn(game.universe, r, i) then
+			local bx, by = e.body:getWorldPoint(berthOffset(e, p, i))
+			local px, py = p.body:getPosition()
+			local d = (bx - px) ^ 2 + (by - py) ^ 2
+			if not best or d < best then free, best = i, d end
+		end
+	end
+	if not free then game:toast("BERTH OCCUPIED", 1.4); return false end
 	if not Sat.permits(game, r, p) then game:toast("DOCKING REFUSED", 1.6); return false end
 	local st = Sat.station(game, e)
-	local bx, by = berthOffset(e, p)
-	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by } }
+	local bx, by = berthOffset(e, p, free)
+	p.dockState = { station = st, phase = "tractor", t = 0, satBerth = { bx, by }, satBerthIndex = free }
 	p.intent.firePrimary, p.intent.fireSecondary, p.intent.fireTertiary = false, false, false
-	e.satHeld = p
+	e.berthHeld = e.berthHeld or {}
+	e.berthHeld[free] = p
 	game:toast("TRACTOR LOCK", 1.4)
 	return true
 end
@@ -353,7 +681,8 @@ function Sat.updateDock(game, ship, dt)
 		local dx, dy = wx - x, wy - y
 		local d = math.sqrt(dx * dx + dy * dy)
 		if d > (e.radius or 300) * 2.5 then
-			ship.dockState, ship.dockCooldown, e.satHeld = nil, 3, nil
+			if e.berthHeld and ds.satBerthIndex then e.berthHeld[ds.satBerthIndex] = nil end
+			ship.dockState, ship.dockCooldown = nil, 3
 			game:toast("TRACTOR LOST", 1.4)
 			return
 		end
@@ -382,7 +711,7 @@ function Sat.undock(game, ship)
 	local e = ds and ds.station.entity
 	ship.dockState, ship.dockCooldown = nil, 2
 	if e then
-		e.satHeld = nil
+		if e.berthHeld and ds.satBerthIndex then e.berthHeld[ds.satBerthIndex] = nil end
 		if e.body and not e.body:isDestroyed() then
 			local x, y = ship.body:getPosition()
 			local cx, cy = e.body:getPosition()

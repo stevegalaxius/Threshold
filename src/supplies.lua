@@ -113,7 +113,7 @@ local function fill(r,e,h,cargo,u,key)
   if n>0 and (id==Fuel.item() or require('src.ammunition').byItem[id]) and u and key then
    -- a spent canister is gone: new empties only come from Mars
    assert(require('src.stockpile').take(u,key,id,n),'supply stock changed during refill')
-   require('src.economy').consume(u,key,id,n)
+   require('src.economy').consume(u,type(key)=='table' and key.key or key,id,n)
   end
  end
  return added
@@ -136,6 +136,15 @@ function S.refill(r,node,u)
  r.ship.cargo=h and Hold.totals(h) or r.ship.cargo or {}
  u=u or S.universe
  local n=fill(r,nil,h,r.ship.cargo,u,u and L.canonical(node))
+ if h and n>0 then r.ship.hold=Hold.serialize(h) end
+ return n
+end
+-- Off a satellite's shelf (a hub, src/satellites.lua): the same reserve
+-- targets, out of that shelf's stock. shelf = { key, marketId }.
+function S.refillFrom(r,shelf,u)
+ local h=r.ship.hold and Hold.deserialize(r.ship.hold)
+ r.ship.cargo=h and Hold.totals(h) or r.ship.cargo or {}
+ local n=fill(r,nil,h,r.ship.cargo,u,shelf)
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
  return n
 end

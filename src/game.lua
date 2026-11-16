@@ -993,6 +993,7 @@ function Game:planetImpacts()
 			self:spawnInfallingAsteroid(radius, o.debris)
 		elseif o.kind == "husk" or o.kind == "container" then
 			self:addEffect({ kind = "explosion", x = x, y = y, r = 120, life = 0.4, t = 0, dust = true })
+			if o.sat then require("src.satellites").lost(self, o) end
 			self:remove(o)
 		end
 	end
@@ -2053,6 +2054,7 @@ function Game:step(dt)
 	self:updateALife()
 	self:applyBoundary()
 	self:applyCurrent(dt)
+	require("src.satellites").keep(self, dt)
 	self:applySurfacePull()
 	self:updateDockExits(dt)
 	self:updateLane(dt)

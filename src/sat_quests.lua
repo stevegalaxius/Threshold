@@ -3,7 +3,7 @@
 -- gets there first does it.
 --   sat_launch  a destroyed satellite: take the satellite package the job
 --               gives you to the old satellite's spot and use it there
---   sat_repair  a failed satellite: use a hull patch kit beside it
+--   sat_refuel  a satellite low on fuel: use a deuterium canister beside it
 local Q=require('src.quests')
 local T=require('src.tuning')
 local J=require('src.sat_jobs')
@@ -62,20 +62,20 @@ Q.site('sat_launch',{
  end,
 })
 
-Q.site('sat_repair',{
- label='Satellite repair',item='patch_kit',
+Q.site('sat_refuel',{
+ label='Satellite refuel',item='deuterium_canister',
  candidates=function(u)
-  local list=candidates(u,function(r) return r.broken and not r.lost end)
+  local list=candidates(u,function(r) return not r.lost and r.fuel and r.fuel<Sat().refuelAt end)
   for _,c in ipairs(list) do
-   c.title='Repair '..c.name
-   c.detail='bring a hull patch kit · use it beside the satellite in '..planet(c.area)..' orbit'
+   c.title='Refuel '..c.name
+   c.detail='bring a deuterium canister · use it beside the satellite in '..planet(c.area)..' orbit'
   end
   return list
  end,
- open=function(u,q) local r=record(u,q);return r and r.broken and not r.lost or false end,
+ open=function(u,q) local r=record(u,q);return r and not r.lost and (r.fuel or 1)<Sat().refuelAt or false end,
  where=function(game,q)
   local e=husk(game,q.subject)
   if e then local x,y=e.body:getPosition();return x,y,(e.radius or 300)+800,e.name end
  end,
- apply=function(game,q) Sat().fix(game.universe,q.subject,'player') end,
+ apply=function(game,q) Sat().refuel(game.universe,q.subject,'player') end,
 })

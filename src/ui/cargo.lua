@@ -1667,7 +1667,7 @@ end
 
 -- A satellite under the cursor: its name, kind, owner and whether it's
 -- working, so you can tell one from another without docking.
-local SAT_KIND = { passive = "Relay satellite", fuel = "Fuel buoy", vendor = "Vending satellite" }
+local SAT_KIND = { passive = "Relay satellite", hub = "Hub satellite: fuel and supplies" }
 function Cargo.drawSatTooltip(game)
 	local Sat = require("src.satellites")
 	local hit = hoveredInRange(game, function(e) return e.sat end)
@@ -1678,8 +1678,10 @@ function Cargo.drawSatTooltip(game)
 	if r.owner then local place = require("src.locations").byId[r.owner]
 		lines[#lines + 1] = { "Owner: " .. (place and place.name or tostring(r.owner)), HUD.DIM } end
 	local lv = Sat.levers(r)
-	lines[#lines + 1] = r.broken and { "Out of service", { 1, 0.45, 0.35 } }
-		or { lv.dock == "none" and "No docking" or "Docking open", HUD.AQUA }
+	local fuel = Sat.fuel(game.universe, r)
+	lines[#lines + 1] = { lv.dock == "none" and "No docking" or "Docking open", HUD.AQUA }
+	lines[#lines + 1] = fuel <= 0 and { "Low power: out of fuel", { 1, 0.45, 0.35 } }
+		or { ("Fuel %d%%"):format(math.floor(fuel * 100 + 0.5)), fuel < Sat.refuelAt and { 1, 0.8, 0.35 } or HUD.DIM }
 	hoverCard(lines)
 end
 

@@ -1174,6 +1174,48 @@ local function drawTractor(game)
 	end
 end
 
+-- The same beam, for ships held at a satellite berth (src/satellites.lua):
+-- from the satellite's docking module to the ship while it's pulled in,
+-- fainter once it's moored. NPCs on a satellite work action (a refuel, a
+-- hub visit) are held the same way.
+local function satBeam(x1, y1, x2, y2, faint)
+	local c = COLORS.laser
+	lg.setColor(c[1], c[2], c[3], faint and 0.15 or 0.25)
+	lg.setLineWidth(faint and 5 or 6)
+	lg.line(x1, y1, x2, y2)
+	lg.setColor(c[1], c[2], c[3], faint and 0.45 or 0.7)
+	lg.setLineWidth(faint and 1 or 1.5)
+	lg.line(x1, y1, x2, y2)
+end
+local function dockPoint(sat, i)
+	local d = require("src.satellites").docks(sat.hull)[i or 1]
+	if d then return sat.body:getWorldPoint(d.cx, d.cy) end
+	return sat.body:getPosition()
+end
+local function drawSatBeams(game)
+	local Sat = require("src.satellites")
+	for _, e in ipairs(game.entities) do
+		if e.kind == "ship" and not e.dead and e.body then
+			local ds = e.dockState
+			local sat, i, faint
+			if ds and ds.station and ds.station.sat and ds.station.entity then
+				sat, i, faint = ds.station.entity, ds.satBerthIndex, ds.done
+			else
+				local r = e.alifeId and game.universe.npcs[e.alifeId]
+				local a = r and r.action
+				if a and (a.operation == "satservice" or a.operation == "hubservice") and a.phase == "working" then
+					sat, i, faint = Sat.entity(game, a.target.id), a.target.berth, true
+				end
+			end
+			if sat and sat.body and not sat.body:isDestroyed() then
+				local sx, sy = dockPoint(sat, i)
+				local x, y = e.body:getPosition()
+				satBeam(sx, sy, x, y, faint)
+			end
+		end
+	end
+end
+
 -- Cargo containers: a corrugated box, brighter when it has cargo in it.
 local function drawContainer(game, e)
 	local x, y = e.body:getPosition()
@@ -1214,11 +1256,15 @@ local function drawHusk(game, h)
 	lg.push()
 	lg.translate(x, y)
 	lg.rotate(h.body:getAngle())
-	-- a working satellite (src/satellites.lua) is lit and in full colour
+	-- a working satellite (src/satellites.lua) is lit and in full colour;
+	-- one out of fuel is dimmer, with most of its windows dark
 	if h.sat and not h.part then
-		HullShape.draw(h.hull, h.color, function(c) return c end,
-			function(c) return { min(1, c[1] * 1.25), min(1, c[2] * 1.25), min(1, c[3] * 1.25) } end, outline(1), h.partsLeft)
-		HullShape.drawLights(h.hull, game.time, 1 / game.camera.zoom, h.partsLeft)
+		local r = game.universe and game.universe.satellites and game.universe.satellites[h.sat]
+		local dry = r and r.fuel and r.fuel <= 0
+		local k = dry and 0.7 or 1.25
+		HullShape.draw(h.hull, h.color, function(c) return dry and { c[1] * 0.7, c[2] * 0.7, c[3] * 0.7 } or c end,
+			function(c) return { min(1, c[1] * k), min(1, c[2] * k), min(1, c[3] * k) } end, outline(1), h.partsLeft)
+		HullShape.drawLights(h.hull, game.time, 1 / game.camera.zoom, h.partsLeft, nil, nil, dry and { damage = 0.85 } or nil)
 		lg.pop()
 		return
 	end
@@ -1700,6 +1746,7 @@ function Render.world(game, overlay, boundaryAngle)
 	require("src.mining").draw(game,screenPx)
 	drawLootHover(game)
 	drawTractor(game)
+	drawSatBeams(game)
 	for _,e in ipairs(game.entities) do
 		local target=e.tractorTarget
 		if not e.isPlayer and not e.dead and e.intent and e.intent.tractor and target and target.count>0 then
