@@ -6,7 +6,6 @@ icon {
 		{ name = "box", x = 0, y = 0, z = 0, w = 3, d = 0.6, h = 1.072 },
 		{ name = "lid stripe", x = 0, y = -0.01, z = 0.857, w = 3, d = 0.01, h = 0.086, shade = 0.55, layer = "detail" },
 	},
-	boxView = { 39.824, 1.595, -0.389 },   -- art units per cell, centre x, y (Refit recomputes)
 	parts = {
 	},
 }
