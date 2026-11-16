@@ -145,7 +145,12 @@ Tasks.register(kind,{
   if L.canonical(node)~=L.canonical(t.target) or not t.serviced then return false end
   -- (the cargo was spent out at the satellite; if the job turned out not to
   -- be needed, the hauler keeps it)
-  if t.done then r.credits=(r.credits or 0)+J.pay end
+  if t.done then
+   r.credits=(r.credits or 0)+J.pay
+   -- (the player's own satellite: the player pays the fee)
+   local s=u.satellites and u.satellites[t.sat]
+   if s then require('src.satellites').bill(u,s,J.pay) end
+  end
   return true
  end,
 })

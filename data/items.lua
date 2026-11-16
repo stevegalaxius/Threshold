@@ -142,9 +142,11 @@ salvage { id = "empty_canister", name = "Empty canister", volume = 0.25, mass = 
 salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, mass = 0.1, price = 40, w = 1, h = 1, stack = 4 }
 -- Reactor fuel: ice from Ceres, cracked into deuterium and sealed in a
 -- canister there (src/commodities.lua). Every ship's reactor burns it.
--- A stand-in for a whole satellite: replacement-launch jobs hand you one,
--- and you use it at the old satellite's spot (src/sat_quests.lua).
-salvage { id = "satellite_package", name = "Satellite package", description = "A folded replacement satellite. Use it at the job site to launch it.",
-	volume = 1, mass = 1, price = 1, w = 2, h = 2, stack = 1,
-	use = { label = "Launch satellite", cast = 3, effects = { { "quest", item = "satellite_package" } } } }
+-- A folded satellite. Replacement-launch jobs hand you one to use at the
+-- old satellite's spot (src/sat_quests.lua); one you buy (logistics
+-- stations) puts up a satellite of your own wherever you use it in orbit
+-- (src/satellites.lua, Sat.deploy).
+salvage { id = "satellite_package", name = "Satellite package", description = "A folded relay satellite. Use it in orbit to put it up as your own: it earns while it has fuel. Use it at a launch job's site to replace a lost one.",
+	volume = 1, mass = 1, price = 12000, w = 2, h = 2, stack = 1,
+	use = { label = "Launch satellite", cast = 3, effects = { { "deploy_satellite" }, { "quest", item = "satellite_package" } } } }
 salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 60, w = 1, h = 1, stack = 4 }

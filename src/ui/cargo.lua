@@ -1679,7 +1679,10 @@ function Cargo.drawSatTooltip(game)
 	if not r then return end
 	local lines = { { r.name or hit.name or "Satellite", HUD.INK or { 1, 1, 1 } },
 		{ SAT_KIND[r.kind] or "Satellite", HUD.DIM } }
-	if r.owner then local place = require("src.locations").byId[r.owner]
+	if r.owner == "player" then
+		lines[#lines + 1] = { ("Yours: %d cr/h while fuelled, %d earned"):format(Sat.income, r.earned or 0), HUD.AQUA }
+		if (r.spent or 0) > 0 then lines[#lines + 1] = { ("Refuel fees paid: %d"):format(r.spent), HUD.DIM } end
+	elseif r.owner then local place = require("src.locations").byId[r.owner]
 		lines[#lines + 1] = { "Owner: " .. (place and place.name or tostring(r.owner)), HUD.DIM } end
 	local lv = Sat.levers(r)
 	local fuel = Sat.fuel(game.universe, r)
