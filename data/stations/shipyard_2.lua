@@ -1,6 +1,6 @@
 -- Made in the Shipyard (F2).
 station {
-	id = "shipyard_2", name = "Industrial Shipyard",
+	id = "shipyard_2", name = "Industrial Shipard",
 	berths = {
 		{ heading = 270, size = 200, x = -100, y = -868 },
 		{ heading = 270, size = 200, x = 350, y = -868 },

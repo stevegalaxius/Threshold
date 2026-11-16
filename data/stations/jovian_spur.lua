@@ -1,18 +1,21 @@
--- Station design (habitat). Open and edit in the Shipyard (F2).
+-- Made in the Shipyard (F2).
 station {
-	id = "jovian_spur", name = "Accord spur", role = "habitat",
-	services = { "market", "shipyard", "hangar", "repair" },
-	color = { 0.62, 0.62, 0.58 },
-	rotors = {
-		radar = { over = true, spin = 0.7, x = 300, y = -20 },
-	},
+	id = "jovian_spur", name = "Accord spur",
 	berths = {
-		{ heading = 270, size = 120, x = -1060, y = -254 },
-		{ heading = 90, size = 120, x = -1060, y = 636 },
-		{ heading = 270, size = 120, x = -724, y = -411 },
-		{ heading = 90, size = 120, x = 76, y = 435 },
-		{ heading = 270, size = 120, x = 540, y = -510 },
-		{ heading = 90, size = 120, x = 876, y = 231 },
+		{ heading = 270, size = 200, x = 124, y = -603 },
+		{ heading = 90, size = 200, x = -244, y = 323 },
+		{ heading = 270, size = 200, x = 828, y = -702 },
+		{ heading = 90, size = 200, x = 540, y = 471 },
+	},
+	color = { 0.62, 0.62, 0.58 },
+	role = "habitat",
+	rotors = { radar = { over = true, spin = 0.7, x = 300, y = -20 } },
+	services = { "market", "shipyard", "hangar", "repair" },
+	turrets = {
+		{ heading = 190, module = "missile_m_base", x = -1888, y = -320 },
+		{ heading = 154, module = "missile_m_base", x = -1312, y = 640 },
+		{ heading = 194, module = "drone_m_base", x = -1312, y = -336 },
+		{ heading = 162, module = "drone_m_base", x = -1920, y = 640 },
 	},
 	parts = {
 		{ name = "spine -1300", shape = { -1288, 238, -488, -22, -512, -98, -1312, 162 }, shade = 0.6 },
@@ -41,7 +44,7 @@ station {
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -956, y = 96 },
 		} },
 		{ name = "band 1", shape = { -1180, 14, -940, 14, -940, 34, -1180, 34 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
-		{ name = "deck 2", shape = { -1140, 112, -980, 112, -980, 112, -980, 344, -1012, 376, -1108, 376, -1140, 344, -1140, 112 }, shade = 0.95, tint = { -0.02, -0.02, 0 }, lights = {
+		{ name = "deck 2", shape = { -1140, 112, -980, 112, -980, 112, -980, 344, -1012, 376, -1108, 376, -1140, 344 }, shade = 0.95, tint = { -0.02, -0.02, 0 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -1068, y = 196 },
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = -1108, y = 244 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -1068, y = 244 },
@@ -49,7 +52,7 @@ station {
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -1028, y = 340 },
 		} },
 		{ name = "band 2", shape = { -1132, 234, -988, 234, -988, 254, -1132, 254 }, shade = 0.7, tint = { -0.02, -0.02, 0 }, layer = "detail", collide = false },
-		{ name = "collar 2", shape = { -1116, 372, -1004, 372, -1004, 372, -1004, 442, -1028, 466, -1092, 466, -1116, 442, -1116, 372 }, shade = 0.9, tint = { -0.02, -0.02, 0 } },
+		{ name = "collar 2", shape = { -1116, 372, -1004, 372, -1004, 372, -1004, 442, -1028, 466, -1092, 466, -1116, 442 }, shade = 0.9, tint = { -0.02, -0.02, 0 } },
 		{ name = "deck 3", shape = { -772, -241, -676, -241, -644, -209, -644, 23, -644, 23, -804, 23, -804, 23, -804, -209 }, shade = 0.95, tint = { 0.02, 0.06, -0.02 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -732, y = -205 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -692, y = -205 },
@@ -61,13 +64,13 @@ station {
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = -692, y = -61 },
 		} },
 		{ name = "band 3", shape = { -796, -119, -652, -119, -652, -99, -796, -99 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
-		{ name = "deck 4", shape = { -804, 3, -644, 3, -644, 3, -644, 179, -684, 219, -764, 219, -804, 179, -804, 3 }, shade = 0.85, tint = { 0.02, 0.06, -0.02 }, lights = {
+		{ name = "deck 4", shape = { -804, 3, -644, 3, -644, 3, -644, 179, -684, 219, -764, 219, -804, 179 }, shade = 0.85, tint = { 0.02, 0.06, -0.02 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -772, y = 38 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = -772, y = 182 },
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -692, y = 182 },
 		} },
 		{ name = "band 4", shape = { -796, 101, -652, 101, -652, 121, -796, 121 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
-		{ name = "collar 4", shape = { -756, 215, -692, 215, -692, 215, -692, 285, -716, 309, -732, 309, -756, 285, -756, 215 }, shade = 0.9, tint = { 0.02, 0.06, -0.02 } },
+		{ name = "collar 4", shape = { -756, 215, -692, 215, -692, 215, -692, 285, -716, 309, -732, 309, -756, 285 }, shade = 0.9, tint = { 0.02, 0.06, -0.02 } },
 		{ name = "deck 5", shape = { -324, -254, -196, -254, -156, -214, -156, -38, -156, -38, -364, -38, -364, -38, -364, -214 }, shade = 0.95, tint = { 0.1, 0.06, -0.08 }, lights = {
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -332, y = -170 },
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -292, y = -170 },
@@ -83,15 +86,23 @@ station {
 		} },
 		{ name = "band 5", shape = { -356, -156, -164, -156, -164, -136, -356, -136 }, shade = 0.7, tint = { 0.1, 0.06, -0.08 }, layer = "detail", collide = false },
 		{ name = "collar 5", shape = { -309, -344, -211, -344, -187, -320, -187, -250, -187, -250, -333, -250, -333, -250, -333, -320 }, shade = 0.9, tint = { 0.1, 0.06, -0.08 } },
-		{ name = "deck 6", shape = { -340, -58, -180, -58, -180, -58, -180, 78, -212, 110, -308, 110, -340, 78, -340, -58 }, shade = 1.05, tint = { -0.04, 0.03, 0.06 }, lights = {
+		{ name = "deck 6", shape = { -340, -58, -180, -58, -180, -58, -180, 78, -212, 110, -308, 110, -340, 78 }, shade = 1.05, tint = { -0.04, 0.03, 0.06 }, lights = {
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -228, y = -22 },
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = -268, y = 26 },
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -308, y = 74 },
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = -268, y = 74 },
 		} },
 		{ name = "band 6", shape = { -332, 16, -188, 16, -188, 36, -332, 36 }, shade = 0.7, tint = { -0.04, 0.03, 0.06 }, layer = "detail", collide = false },
-		{ name = "mast 6", shape = { -240, 110, -216, 110, -216, 310, -240, 310 }, shade = 0.8, layer = "detail", collide = false, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.73, rate = 0.5, size = 6, x = -228, y = 310 },
+		{ name = "mast 6", shape = { -272, 110, -248, 110, -248, 310, -272, 310 }, shade = 0.8, layer = "detail", collide = false, lights = {
+			{
+				color = { 1, 0.35, 0.3 },
+				kind = "strobe",
+				phase = 0.73,
+				rate = 0.5,
+				size = 6,
+				x = -260,
+				y = 310,
+			},
 		} },
 		{ name = "deck 7", shape = { -20, -285, 172, -285, 204, -253, 204, -21, 204, -21, -52, -21, -52, -21, -52, -253 }, shade = 0.85, tint = { -0.02, -0.02, 0 }, lights = {
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = -20, y = -249 },
@@ -106,15 +117,23 @@ station {
 		{ name = "band 7", shape = { -44, -163, 196, -163, 196, -143, -44, -143 }, shade = 0.7, tint = { -0.02, -0.02, 0 }, layer = "detail", collide = false },
 		{ name = "collar 7", shape = { 10, -375, 142, -375, 166, -351, 166, -281, 166, -281, -14, -281, -14, -281, -14, -351 }, shade = 0.9, tint = { -0.02, -0.02, 0 } },
 		{ name = "mast 7", shape = { 115, -695, 139, -695, 139, -375, 115, -375 }, shade = 0.8, layer = "detail", collide = false, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.72, rate = 0.5, size = 6, x = 127, y = -695 },
+			{
+				color = { 1, 0.35, 0.3 },
+				kind = "strobe",
+				phase = 0.72,
+				rate = 0.5,
+				size = 6,
+				x = 127,
+				y = -695,
+			},
 		} },
-		{ name = "deck 8", shape = { -4, -41, 156, -41, 156, -41, 156, 143, 124, 175, 28, 175, -4, 143, -4, -41 }, shade = 0.95, tint = { 0.02, 0.06, -0.02 }, lights = {
+		{ name = "deck 8", shape = { -4, -41, 156, -41, 156, -41, 156, 143, 124, 175, 28, 175, -4, 143 }, shade = 0.95, tint = { 0.02, 0.06, -0.02 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 68, y = 43 },
 			{ color = { 0.75, 1, 0.65 }, kind = "window", size = 6, x = 108, y = 43 },
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = 28, y = 91 },
 		} },
 		{ name = "band 8", shape = { 4, 57, 148, 57, 148, 77, 4, 77 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
-		{ name = "collar 8", shape = { 32, 171, 120, 171, 120, 171, 120, 241, 96, 265, 56, 265, 32, 241, 32, 171 }, shade = 0.9, tint = { 0.02, 0.06, -0.02 } },
+		{ name = "collar 8", shape = { 32, 171, 120, 171, 120, 171, 120, 241, 96, 265, 56, 265, 32, 241 }, shade = 0.9, tint = { 0.02, 0.06, -0.02 } },
 		{ name = "deck 9", shape = { 436, -250, 644, -250, 668, -226, 668, -82, 668, -82, 412, -82, 412, -82, 412, -226 }, shade = 0.85, tint = { 0.02, 0.06, -0.02 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 444, y = -214 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 484, y = -214 },
@@ -132,7 +151,7 @@ station {
 		} },
 		{ name = "band 9", shape = { 420, -176, 660, -176, 660, -156, 420, -156 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
 		{ name = "collar 9", shape = { 494, -340, 586, -340, 610, -316, 610, -246, 610, -246, 470, -246, 470, -246, 470, -316 }, shade = 0.9, tint = { 0.02, 0.06, -0.02 } },
-		{ name = "deck 10", shape = { 436, -102, 644, -102, 644, -102, 644, 130, 612, 162, 468, 162, 436, 130, 436, -102 }, shade = 0.85, tint = { 0.08, 0.02, -0.05 }, lights = {
+		{ name = "deck 10", shape = { 436, -102, 644, -102, 644, -102, 644, 130, 612, 162, 468, 162, 436, 130 }, shade = 0.85, tint = { 0.08, 0.02, -0.05 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 468, y = -66 },
 			{ color = { 1, 0.6, 0.35 }, kind = "window", size = 6, x = 468, y = 30 },
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = 508, y = 30 },
@@ -142,9 +161,9 @@ station {
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = 588, y = 126 },
 		} },
 		{ name = "band 10", shape = { 444, 20, 636, 20, 636, 40, 444, 40 }, shade = 0.7, tint = { 0.08, 0.02, -0.05 }, layer = "detail", collide = false },
-		{ name = "collar 10", shape = { 498, 158, 582, 158, 582, 158, 582, 228, 558, 252, 522, 252, 498, 228, 498, 158 }, shade = 0.9, tint = { 0.08, 0.02, -0.05 } },
-		{ name = "mast 10", shape = { 486, 252, 510, 252, 510, 572, 486, 572 }, shade = 0.8, layer = "detail", collide = false, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.23, rate = 0.5, size = 6, x = 498, y = 572 },
+		{ name = "collar 10", shape = { 498, 158, 582, 158, 582, 158, 582, 228, 558, 252, 522, 252, 498, 228 }, shade = 0.9, tint = { 0.08, 0.02, -0.05 } },
+		{ name = "mast 10", shape = { 526, 252, 550, 252, 550, 572, 526, 572 }, shade = 0.8, layer = "detail", collide = false, lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.23, rate = 0.5, size = 6, x = 538, y = 572 },
 		} },
 		{ name = "deck 11", shape = { 772, -399, 980, -399, 1004, -375, 1004, -183, 1004, -183, 748, -183, 748, -183, 748, -375 }, shade = 0.85, tint = { -0.02, -0.02, 0 }, lights = {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 860, y = -314 },
@@ -157,9 +176,17 @@ station {
 		{ name = "band 11", shape = { 756, -301, 996, -301, 996, -281, 756, -281 }, shade = 0.7, tint = { -0.02, -0.02, 0 }, layer = "detail", collide = false },
 		{ name = "collar 11", shape = { 849, -489, 903, -489, 927, -465, 927, -395, 927, -395, 825, -395, 825, -395, 825, -465 }, shade = 0.9, tint = { -0.02, -0.02, 0 } },
 		{ name = "mast 11", shape = { 813, -689, 837, -689, 837, -489, 813, -489 }, shade = 0.8, layer = "detail", collide = false, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.04, rate = 0.5, size = 6, x = 825, y = -689 },
+			{
+				color = { 1, 0.35, 0.3 },
+				kind = "strobe",
+				phase = 0.04,
+				rate = 0.5,
+				size = 6,
+				x = 825,
+				y = -689,
+			},
 		} },
-		{ name = "deck 12", shape = { 748, -203, 1004, -203, 1004, -203, 1004, 29, 972, 61, 780, 61, 748, 29, 748, -203 }, shade = 0.85, tint = { -0.04, 0.03, 0.06 }, lights = {
+		{ name = "deck 12", shape = { 748, -203, 1004, -203, 1004, -203, 1004, 29, 972, 61, 780, 61, 748, 29 }, shade = 0.85, tint = { -0.04, 0.03, 0.06 }, lights = {
 			{ color = { 0.6, 0.9, 1 }, kind = "window", size = 6, x = 780, y = -118 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 820, y = -118 },
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 900, y = -118 },
@@ -174,17 +201,19 @@ station {
 			{ color = { 1, 0.82, 0.5 }, kind = "window", size = 6, x = 940, y = 26 },
 		} },
 		{ name = "band 12", shape = { 756, -81, 996, -81, 996, -61, 756, -61 }, shade = 0.7, tint = { -0.04, 0.03, 0.06 }, layer = "detail", collide = false },
-		{ name = "west dock", dock = true, dockHeading = 180, shape = { -1572, 50, -1388, 50, -1340, 98, -1340, 302, -1388, 350, -1572, 350, -1620, 302, -1620, 98 }, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 7, x = -1610, y = 80 },
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 7, x = -1610, y = 320 },
-		} },
-		{ name = "east dock", dock = true, dockHeading = 0, shape = { 1188, -410, 1372, -410, 1420, -362, 1420, -158, 1372, -110, 1188, -110, 1140, -158, 1140, -362 }, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 7, x = 1410, y = -380 },
-			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 7, x = 1410, y = -140 },
-		} },
-		{ name = "audit radar", shape = { 150, -35, 450, -35, 430, -5, 170, -5 }, shade = 1.25, layer = "detail", collide = false, rotor = "radar", lights = {
+		{ name = "west dock", shape = { -1988, 34, -1804, 34, -1756, 82, -1756, 286, -1804, 334, -1988, 334, -2036, 286, -2036, 82 }, lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 7, x = -2026, y = 64 },
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", rate = 0.625, size = 7, x = -2026, y = 304 },
+		}, dock = true, dockHeading = 180 },
+		{ name = "audit radar", shape = { 150, -35, 450, -35, 430, -5, 170, -5 }, shade = 1.25, layer = "detail", collide = false, lights = {
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.5, size = 7, x = 160, y = -20 },
 			{ color = { 0.4, 1, 0.5 }, kind = "strobe", rate = 1.5, size = 7, x = 440, y = -20 },
-		} },
+		}, rotor = "radar" },
+		{ name = "joint 300 copy", shape = { 1095, -330, 1185, -330, 1210, -305, 1210, -215, 1185, -190, 1095, -190, 1070, -215, 1070, -305 }, shade = 0.8 },
+		{ name = "part 46", shape = { -1920, -352, -1296, -352, -1280, -336, -1280, 656, -1296, 672, -1920, 672, -1936, 656, -1936, -336 } },
+		{ name = "band 1 copy", shape = { -1900, -170, -1324, -170, -1324, -150, -1900, -150 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
+		{ name = "band 1 copy copy", shape = { -1900, 38, -1324, 38, -1324, 58, -1900, 58 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
+		{ name = "band 1 copy copy copy", shape = { -1900, 254, -1324, 254, -1324, 274, -1900, 274 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
+		{ name = "band 1 copy copy copy copy", shape = { -1900, 470, -1324, 470, -1324, 490, -1900, 490 }, shade = 0.7, tint = { 0.02, 0.06, -0.02 }, layer = "detail", collide = false },
 	},
 }

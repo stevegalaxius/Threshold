@@ -2,23 +2,17 @@
 station {
 	id = "city_2", name = "Cloud city (size 2)",
 	berths = {
-		{ heading = 270, size = 150, x = -1312, y = 144 },
-		{ heading = 270, size = 150, x = -1056, y = 144 },
-		{ heading = 270, size = 150, x = -800, y = 144 },
-		{ heading = 270, size = 150, x = -544, y = 144 },
-		{ heading = 270, size = 150, x = 1296, y = 144 },
-		{ heading = 270, size = 150, x = 1040, y = 144 },
-		{ heading = 270, size = 150, x = 784, y = 144 },
-		{ heading = 270, size = 150, x = 528, y = 144 },
-		{ heading = 270, size = 200, x = -1920, y = 64 },
-		{ heading = 270, size = 200, x = -1616, y = 64 },
-		{ heading = 270, size = 200, x = 1632, y = 96 },
-		{ heading = 270, size = 200, x = 1920, y = 96 },
+		{ heading = 270, size = 200, x = -2592, y = 96 },
+		{ heading = 270, size = 200, x = -2320, y = 96 },
+		{ heading = 270, size = 200, x = 2304, y = 96 },
+		{ heading = 270, size = 200, x = 2592, y = 96 },
+		{ heading = 270, size = 200, x = -2048, y = 96 },
+		{ heading = 270, size = 200, x = 2016, y = 96 },
 	},
 	color = { 0.55, 0.63, 0.74 },
 	haze = -252,
 	parts = {
-		{ name = "tunnel", shape = { -1456, -192, 1456, -192, 1456, 336, -1456, 336 }, shade = 0.35, layer = "detail", collide = false },
+		{ name = "tunnel", shape = { -1456, -192, 1456, -192, 1456, 336, -1456, 336 }, shade = 0.87, collide = false },
 		{ name = "roof 1", shape = { -1136, -544, 1136, -544, 1456, -352, 1456, -192, -1456, -192, -1456, -352 }, lights = {
 			{ kind = "window", size = 16, x = -1056, y = -432 },
 			{ kind = "window", size = 16, x = -944, y = -432 },
@@ -36,6 +30,8 @@ station {
 			{ kind = "window", size = 16, x = 624, y = -432 },
 			{ kind = "window", size = 16, x = 736, y = -432 },
 			{ kind = "window", size = 16, x = 960, y = -432 },
+			{ kind = "strobe", phase = 0, rate = 1, size = 12, x = -1448, y = -352 },
+			{ kind = "strobe", phase = 0, rate = 1, size = 12, x = 1448, y = -352 },
 		} },
 		{ name = "level 2", shape = { -948, -832, 948, -832, 1048, -772, 1048, -536, -1048, -536, -1048, -772 }, lights = {
 			{ kind = "window", size = 16, x = -868, y = -720 },
@@ -64,8 +60,10 @@ station {
 			{ kind = "window", size = 16, x = 321, y = -1008 },
 			{ kind = "window", size = 16, x = 433, y = -1008 },
 		} },
-		{ name = "collar 4", shape = { -96, -1296, 96, -1296, 192, -1238, 192, -1104, -192, -1104, -192, -1238 } },
-		{ name = "mast 5", shape = { -40, -3376, 40, -3376, 40, -1280, -40, -1280 } },
+		{ name = "collar 4", shape = { -96, -1296, 96, -1296, 192, -1238, 192, -1104, -192, -1104, -192, -1238 }, layer = "detail", collide = false },
+		{ name = "mast 5", shape = { -40, -3376, 40, -3376, 40, -1280, -40, -1280 }, layer = "detail", collide = false, lights = {
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0, rate = 1, size = 24, x = 0, y = -2320 },
+		} },
 		{ name = "deck 7", shape = { -2720, 336, 2720, 336, 3360, 720, 2240, 1392, -2240, 1392, -3360, 720 }, lights = {
 			{ kind = "window", size = 16, x = -2160, y = 448 },
 			{ kind = "window", size = 16, x = -2048, y = 448 },
@@ -167,6 +165,8 @@ station {
 			{ kind = "window", size = 16, x = 1872, y = 1024 },
 			{ kind = "window", size = 16, x = 1984, y = 1024 },
 			{ kind = "window", size = 16, x = 2096, y = 1024 },
+			{ kind = "strobe", phase = 0, rate = 1, size = 12, x = -3344, y = 720 },
+			{ kind = "strobe", phase = 0, rate = 1, size = 12, x = 3344, y = 720 },
 		} },
 		{ name = "deck band", shape = { -3040, 824, 3040, 824, 3040, 904, -3040, 904 }, shade = 0.75, layer = "detail", collide = false },
 		{ name = "collar 8", shape = { -1280, 1376, 1280, 1376, 1280, 1584, 480, 2064, -480, 2064, -1280, 1584 }, lights = {
@@ -245,11 +245,10 @@ station {
 			{ kind = "window", size = 16, x = 288, y = 8928 },
 		} },
 		{ name = "stalk band", shape = { -144, 2064, 144, 2064, 144, 9248, -144, 9248 }, shade = 0.75, layer = "detail", collide = false },
-		{ name = "clamp", shape = { 2336, 336, 2336, 256, 2720, 256, 2720, 336 }, shade = 0.5, collide = false, dock = true, dockRunway = 1456, dockHeading = -90 },
-		{ name = "clamp copy", shape = { -2720, 336, -2720, 256, -2336, 256, -2336, 336 }, shade = 0.5, collide = false, dock = true, dockRunway = 1456, dockHeading = -90 },
-		{ name = "clamp copy copy", shape = { -184, 376, -184, 296, 200, 296, 200, 376 }, shade = 0.5, collide = false, dock = true, dockRunway = 418, dockHeading = -90 },
+		{ name = "clamp copy copy", shape = { -1448, 336, -1448, -192, -1064, -192, -1064, 336 }, collide = false, dock = true, dockRunway = 600, dockHeading = 180 },
 		{ name = "beacon", shape = { -8, -3384, 8, -3384, 8, -3368, -8, -3368 }, layer = "detail", collide = false, lights = {
-			{ color = { 1, 0.35, 0.3 }, kind = "nav", size = 24, x = 0, y = -3376 },
+			{ color = { 1, 0.35, 0.3 }, kind = "strobe", phase = 0.33, rate = 1, size = 24, x = 0, y = -3376 },
 		} },
+		{ name = "clamp copy copy copy", shape = { 1072, 336, 1072, -192, 1456, -192, 1456, 336 }, collide = false, dock = true, dockRunway = 600, dockHeading = 0 },
 	},
 }

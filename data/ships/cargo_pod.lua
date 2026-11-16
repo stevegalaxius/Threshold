@@ -1,4 +1,4 @@
--- A surface shuttle (src/shuttles.lua): a cargo-container-sized pod with an
+-- A cargo-container-sized pod with an
 -- engine on the back, lifting a crate or two from the surface to its station.
 hull {
 	id = "cargo_pod", name = "Cargo Pod", maker = "Ferrous Collective", class = "pod", playable = false, mount = "fixed",

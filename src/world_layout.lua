@@ -9,9 +9,7 @@ W.stations = {
 	-- each system's logistics hub by rocket: it appears there, not at the
 	-- station that used to make it. Every system has one (the Ring's is Ring Station
 	-- itself; small moons go through their customs depot instead), so every cross-system trade goes hub to hub.
-	-- surface=true marks a facility down on the planet or moon: while the player
-	-- is in its area, what it makes comes up by shuttle (src/shuttles.lua)
-	-- instead of appearing in the station's stock.
+	-- surface=true marks a facility down on the planet or moon.
 	mercury = {
 		{ id = "station:mercury_1", facilities={burn_hydrogen={capacity=-12}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
 		{ id = "station:mercury_2", facilities={silicon_refinery={capacity=24,surface=true},burn_hydrogen={capacity=-12}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
