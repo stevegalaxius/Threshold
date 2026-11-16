@@ -37,6 +37,8 @@ local function cargo(r,item,amount)
   r.ship.cargo[item]=(r.ship.cargo[item] or 0)+amount
  end
 end
+-- Put amount of item into (or, negative, out of) an NPC record's hold.
+Transport.carry=cargo
 function Transport.route(source,target,clock)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b or source==target then return end
