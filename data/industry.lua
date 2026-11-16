@@ -58,6 +58,10 @@ recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l'
 recipe('torp_s',4,4,8,2,2);recipe('torp_m',2,6,12,3,3);recipe('torp_l',1,8,16,4,4)
 -- Drones: mostly electronics in a steel frame, no warhead.
 recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe('drone_l',1,4,0,4,4,'drones')
+-- Hull patch kits: steel and an acid-cured sealant, made at the munitions
+-- works alongside ammunition and stocked at every station the same way.
+D.recipes[#D.recipes+1]={reserve={service='supplies',stacks=2,excludeProducers=true},id='make_patch_kit',item='patch_kit',batch=8,cap=64,group='ammunition',
+ inputs={{item='steel_plate',n=1},{item='industrial_acids',n=1}}}
 -- Finished ships are typed outputs delivered to dealer inventory, not cargo.
 -- Factory lineups: each maker's assembly hall builds its own three hulls.
 -- Hull frames per ship (also its assembly time), roughly one per 25k of
