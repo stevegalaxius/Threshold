@@ -176,6 +176,9 @@ market { id = "market:ring_1", station = "Ring Station", dealer = { name = "Ring
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },
 } }
+market { id = "market:ring_2", station = "Lumen Fabrication", sells = {   -- electronics fab
+	{ "electronics", 4 }, { "silicon", 2 }, { "industrial_acids", 2 }, { "nav_computer", 1 },
+} }
 market { id = "market:quarry_1", station = "Quarry Ore Depot", sells = {   -- drill crews' supply
 	{ "iron_ore", 4 },
 	{ "rounds_s", 4 }, { "tug_beam", 1 }, { "hold_pod_s", 2 }, { "mule_engine", 1 },

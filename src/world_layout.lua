@@ -11,7 +11,7 @@ W.stations = {
 	-- itself; small moons go through their customs depot instead), so every cross-system trade goes hub to hub.
 	-- surface=true marks a facility down on the planet or moon.
 	mercury = {
-		{ id = "station:mercury_1", facilities={burn_hydrogen={capacity=-12}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
+		{ id = "station:mercury_1", facilities={burn_hydrogen={capacity=-12},roll_steel={capacity=480},shipworks={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
 		{ id = "station:mercury_2", facilities={silicon_refinery={capacity=24,surface=true},burn_hydrogen={capacity=-12}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
 		{ id = "station:mercury_3", facilities={brute_assembly={capacity=2}}, marketId = "market:mercury_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Brute Industries Shipyard", layout = "shipyard_1" },
 	},
@@ -114,6 +114,8 @@ W.stations = {
 	},
 	ring = {
 		{ id = "station:ring_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.04, primary = true, name = "Ring Station", marketId = "market:ring_1", layout = "ring_horseshoe", hub = true },
+		-- An electronics fab off Ring Station: silicon and acids in, boards out.
+		{ id = "station:ring_2", position = { x = 7000, y = -2500 }, facilities={electronics={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.03, marketId = "market:ring_2", name = "Lumen Fabrication", layout = "utility_exchange" },
 	},
 	-- Dark stations (src/dark.lua): pirate-run, off the public charts.
 	-- The Shoals has no planet: its three stations slowly circle their common
@@ -133,10 +135,10 @@ W.stations = {
 		{ id = "station:cordelia_1", facilities={ice_wells={capacity=600},crack_ice={capacity=600},water_melter={capacity=160}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },
 	},
 	ceres_quarry = {
-		{ id = "station:ceres_quarry_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
+		{ id = "station:ceres_quarry_1", facilities={roll_steel={capacity=120},shipworks={capacity=3}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
 	},
 	quarry = {
-		{ id = "station:quarry_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
+		{ id = "station:quarry_1", facilities={roll_steel={capacity=120},shipworks={capacity=3}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:quarry_1", name = "Quarry Ore Depot", layout = "jovian_works" },
 	},
 	station = {
 		{ id = "station:station_1", services = { "market", "shipyard", "hangar" }, spin = 0.04, phase = -0.8, primary = true, name = "Hub Station", marketId = "market:venus_1", wheel = { 1400, 160 }, hub = true },

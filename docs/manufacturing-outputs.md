@@ -77,6 +77,13 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Heaven-Ladder (`station:mars_3`) | `press_canisters` | adaptive | 12000 | press_canisters |
 | Heaven-Ladder (`station:mars_3`) | `roll_steel` | adaptive | 480 | roll_steel |
 | Heaven-Ladder (`station:mars_3`) | `shipworks` | fixed | 10 | assemble_hull_frames |
+| Terminator Station (`station:mercury_1`) | `roll_steel` | adaptive | 480 | roll_steel |
+| Terminator Station (`station:mercury_1`) | `shipworks` | fixed | 10 | assemble_hull_frames |
+| Ceres Quarry Depot (`station:ceres_quarry_1`) | `roll_steel` | adaptive | 120 | roll_steel |
+| Ceres Quarry Depot (`station:ceres_quarry_1`) | `shipworks` | fixed | 3 | assemble_hull_frames |
+| Quarry Ore Depot (`station:quarry_1`) | `roll_steel` | adaptive | 120 | roll_steel |
+| Quarry Ore Depot (`station:quarry_1`) | `shipworks` | fixed | 3 | assemble_hull_frames |
+| Lumen Fabrication (`station:ring_2`) | `electronics` | profit | 12 | make_electronics |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Terminator Station (`station:mercury_1`) | `silicon_refinery` | fixed | 12 | refine_silicon |
 | Haephestus Logistics (`station:mercury_2`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
