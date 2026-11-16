@@ -3,8 +3,8 @@
 	its satellite work: src/sat_jobs.lua J.places) pays a standing bounty for
 	every ship wreck cleared out of that system. Whoever clears it is paid:
 	an NPC clean-up crew straight into its own credits (on top of whatever it
-	sells the loot for: src/salvager.lua), the player into a tab at that
-	station, collected from the Jobs screen when docked there.
+	sells the loot for: src/salvager.lua), the player into a tab with that
+	station, collected from the Jobs screen at any station in its system.
 
 	"Cleared" means the wreck is gone: drilled apart or shot apart, online
 	(Game reap) or offline (src/offline_loot.lua strips it). Only wrecks of

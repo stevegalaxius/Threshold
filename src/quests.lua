@@ -261,6 +261,25 @@ function Q.offersAt(u,station)
  table.sort(out,function(a,b) return a.unit*a.amount>b.unit*b.amount or a.unit*a.amount==b.unit*b.amount and a.id<b.id end)
  return out
 end
+-- The system a station is in: its planet (a moon's station counts in its
+-- planet's system).
+function Q.system(station)
+ local place=L.byId[station];if not place then return end
+ local m=Fields.moons[place.area]
+ return m and m.parent or place.area
+end
+-- The Jobs board: offers from every station in this station's system.
+function Q.offersInSystem(u,station)
+ local out={};local sys=Q.system(station)
+ for _,q in pairs(Q.state(u).offers) do
+  if Q.system(q.giver)==sys and Q.willOffer(u,q.giver) then out[#out+1]=q end
+ end
+ table.sort(out,function(a,b)
+  if (a.giver==station)~=(b.giver==station) then return a.giver==station end
+  return a.unit*a.amount>b.unit*b.amount or a.unit*a.amount==b.unit*b.amount and a.id<b.id
+ end)
+ return out
+end
 function Q.active(u)
  local out={}
  for _,q in pairs(Q.state(u).active) do out[#out+1]=q end

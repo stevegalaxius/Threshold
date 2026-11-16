@@ -1944,7 +1944,7 @@ function Cargo.draw(game)
 		end
 		if Cargo.tab == "jobs" then
    Jobs.draw(game)
-   Station.footer('Work for this station and the global freight board. NPCs take the same jobs: whoever gets there first does it.', 'Hold up to '..T.questMaxActive..' station jobs and one freight contract \194\183 Wreck bounties are paid where you collect them \194\183 Mouse wheel scrolls')
+   Station.footer('Work posted anywhere in this system, and freight picking up here. NPCs take the same jobs, but not one you hold.', 'Hold up to '..T.questMaxActive..' station jobs and one freight contract \194\183 Collect wreck bounties at any station in the system \194\183 Mouse wheel scrolls')
    return
   end
 		if Cargo.tab == "contracts" then
