@@ -31,44 +31,38 @@ function S.definition(st)
  return data.markets[id]
 end
 
+-- A station's storefronts are the ones its market data writes (one, or
+-- several by category, each with its own description). Goods the station
+-- also has to trade (fuel, food, steel, chemicals, munitions and anything
+-- its industry makes or uses) are shelved in its first storefront rather
+-- than getting a storefront of their own.
 function S.shops(st)
  local mk=S.definition(st);local cacheKey=S.key(st) or mk
  if S.shopCache[cacheKey] then return S.shopCache[cacheKey] end
- local shops={};local supplied,fueled,food,steel,chemicals=false,false,false,false,false
- local ammo=false
- local fuel=require('src.reactor_fuel').item()
- local existing=mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}
- for _,shop in ipairs(existing) do
-  shops[#shops+1]=shop;supplied=supplied or shop.id=='supplies'
-  fueled=fueled or not shop.unlimited and S.lists(shop,fuel)
-  food=food or not shop.unlimited and S.lists(shop,'food_crate')
-  steel=steel or not shop.unlimited and S.lists(shop,'steel_plate')
-  chemicals=chemicals or not shop.unlimited and S.lists(shop,'nitrates') and S.lists(shop,'explosives')
-  ammo=ammo or shop.id=='ammunition'
- end
+ local shops={}
+ for _,shop in ipairs(mk and mk.shops or {{name='Station stock',description='',sells=mk and mk.sells or {}}}) do shops[#shops+1]=shop end
  if mk and mk.bare then S.shopCache[cacheKey]=shops;return shops end
- if not food then shops[#shops+1]=require('src.food').shop() end
- if not steel then shops[#shops+1]=require('src.repair_materials').shop() end
- if not chemicals then shops[#shops+1]=require('data.industry').shops.chemicals end
- if not ammo then shops[#shops+1]=require('src.ammunition').shop() end
- -- Any new industry good gets a real shelf without changing market code.
- local missing,seen={},{}
+ if #shops==0 then shops[1]={name='Station stock',description='',sells={}} end
+ local listed={}
+ for _,shop in ipairs(shops) do for _,e in ipairs(shop.sells or {}) do listed[e[1]]=true end end
+ -- the first storefront, copied so the market data stays as written
+ local first={};for k,v in pairs(shops[1]) do first[k]=v end
+ local sells={};for i,e in ipairs(first.sells or {}) do sells[i]=e end
+ first.sells=sells;shops[1]=first
+ local function shelve(item,n) if item and not listed[item] then listed[item]=true;sells[#sells+1]={item,n or 0} end end
+ local function shelveShop(shop) for _,e in ipairs(shop.sells or {}) do shelve(e[1],e[2]) end end
+ shelve(require('src.reactor_fuel').item(),10)
+ shelveShop(require('src.food').shop())
+ shelveShop(require('src.repair_materials').shop())
+ shelveShop(require('data.industry').shops.chemicals)
+ shelveShop(require('src.ammunition').shop())
+ -- any new industry good gets a real shelf without changing market code
  for _,recipe in ipairs(require('src.commodities').list) do
-  local entries={}
-  if recipe.storefront==false then goto continue end
-  for _,output in ipairs(require('src.commodities').outputs(recipe)) do entries[#entries+1]=output.item end
-  for _,input in ipairs(require('src.commodities').inputs(recipe)) do entries[#entries+1]=input.item end
-  for _,item in ipairs(entries) do
-   local listed=false
-   for _,shop in ipairs(shops) do if not shop.unlimited and S.lists(shop,item) then listed=true;break end end
-   if not listed and not seen[item] then missing[#missing+1]={item,0};seen[item]=true end
+  if recipe.storefront~=false then
+   for _,output in ipairs(require('src.commodities').outputs(recipe)) do shelve(output.item) end
+   for _,input in ipairs(require('src.commodities').inputs(recipe)) do shelve(input.item) end
   end
-  ::continue::
  end
- if #missing>0 then shops[#shops+1]={id='industry',name='Industrial goods',sells=missing} end
- -- the real fuel storefront, unless a shop here already stocks fuel
- if not fueled then shops[#shops+1]=require('src.supplies').fuelShop() end
- if not supplied then shops[#shops+1]=require('src.supplies').shop() end
  S.shopCache[cacheKey]=shops
  return shops
 end
@@ -123,11 +117,40 @@ local function shelfCount(hold,id)
  return n
 end
 
+-- Saves from when every category had its own storefront: stock kept by a
+-- storefront that no longer exists moves to the one that now shelves it.
+-- Display shelves are rebuilt from stock (src/market.lua).
+function S.foldShops(u,key,r,shops)
+ r.shopsFolded=true
+ local n=#shops
+ local moved={}
+ for i,m in pairs(r.shops) do
+  if type(i)=='number' and i>n then
+   local stock=m.stock or {}
+   if not m.stock and m.hold then
+    for _,g in ipairs(m.hold.grids) do for _,s in ipairs(g.stacks) do
+     if not s.resale and not s.inner then stock[s.id]=(stock[s.id] or 0)+s.n end
+    end end
+   end
+   for id,c in pairs(stock) do if data.items[id] and c>0 then moved[id]=(moved[id] or 0)+c end end
+   r.shops[i]=nil
+  end
+ end
+ if not next(moved) then return end
+ for id,c in pairs(moved) do
+  local j=S.shopFor(key,id)
+  local m=r.shops[j]
+  if m and m.stock then m.stock[id]=(m.stock[id] or 0)+c
+  else r.pendingFold=r.pendingFold or {};r.pendingFold[id]=(r.pendingFold[id] or 0)+c end
+ end
+end
+
 -- Shop i's stock table, seeded the first time. nil for an unlimited shop.
 function S.stock(u,st,i)
  local key=S.key(st);local shops=S.shops(type(st)=='table' and st or key)
  local shop=shops[i];if not shop or shop.unlimited then return nil end
  local r=S.record(u,key);r.shops=r.shops or {}
+ if not r.shopsFolded then S.foldShops(u,key,r,shops) end
  local m=r.shops[i];if not m then m={next={}};r.shops[i]=m end
  if not m.stock then
   local stock={}
@@ -160,6 +183,12 @@ function S.stock(u,st,i)
   for item,n in pairs(initial) do if S.shopFor(key,item)==i then stock[item]=n end end
   if S.shopFor(key,'explosives')==i then stock.explosives=nil end
   m.stock=stock
+  if r.pendingFold then
+   for id,c in pairs(r.pendingFold) do
+    if S.shopFor(key,id)==i then stock[id]=(stock[id] or 0)+c;r.pendingFold[id]=nil end
+   end
+   if not next(r.pendingFold) then r.pendingFold=nil end
+  end
   -- fold in the old per-station logistics stock once
   local legacy=u.mining and u.mining.stock and u.mining.stock[key]
   if legacy and next(legacy) then
