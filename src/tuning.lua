@@ -186,6 +186,7 @@ T.siteFare = 200   -- a site that names no fare of its own (data/sites.lua)
 
 -- Orbits: seconds of game clock for Earth's year (the other planets keep
 -- their real years relative to it).
+T.pickupInstant = 50 -- px from the hull: within this, E takes an item aboard at once
 T.pickupDrag = 1.5 -- shared by live pickups and unloaded orbital catch-up
 T.yearLength = 7200
 

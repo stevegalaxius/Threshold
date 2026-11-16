@@ -12,7 +12,9 @@ function Tractor.pull(game,ship,pickup,dt)
  local want=math.min(600,d*4);local blend=math.min(1,dt*8)
  pickup.vx=pickup.vx+(vx+dx/d*want-pickup.vx)*blend
  pickup.vy=pickup.vy+(vy+dy/d*want-pickup.vy)*blend
- if edge<12 then
+ -- close in, the player's beam takes it aboard at once, rather than
+ -- dragging it into the hull first
+ if edge<12 or (ship.isPlayer and edge<(require('src.tuning').pickupInstant or 50)) then
   local n=Ship.addCargo(ship,pickup.item,pickup.count)
   if n>0 then
    pickup.count=pickup.count-n
