@@ -117,7 +117,6 @@ def check(ship, others=()):
     problems = []
     parts = expand(ship["parts"])
     hull = [p for p in parts if p.get("layer") is None and p.get("collide") is not False]
-    tpl = ship["tpl"]
 
     for i, p in enumerate(parts):
         if not geom.is_simple(p["poly"]):
@@ -156,10 +155,12 @@ def check(ship, others=()):
 
     x0, y0, x1, y1 = geom.bounds([p["poly"] for p in hull])
     L, W = x1 - x0, y1 - y0
-    if not (0.8 * tpl["_L"] <= L <= 1.2 * tpl["_L"]):
-        problems.append("size: length %.0f vs %s's %.0f" % (L, tpl["id"], tpl["_L"]))
-    if not (0.7 * tpl["_W"] <= W <= 1.45 * tpl["_W"] + 8):
-        problems.append("size: width %.0f vs %s's %.0f" % (W, tpl["id"], tpl["_W"]))
+    lo, hi = ship["L_range"]
+    if not (lo * 0.9 <= L <= hi * 1.1):
+        problems.append("size: length %.0f outside %s's %d..%d" % (L, ship["role"], lo, hi))
+    alo, ahi = ship["aspect"]
+    if not (alo * 0.75 <= W / L <= ahi * 1.4):
+        problems.append("size: width %.0f is %.2f of its length (%s: %.2f..%.2f)" % (W, W / L, ship["role"], alo, ahi))
     area = count(union) / RES / RES
     fill = area / (L * W)
     if not (0.32 <= fill <= 0.88):
@@ -212,6 +213,7 @@ def check(ship, others=()):
     score += 30 * math.exp(-((math.log(max(1.0, complexity)) - math.log(9)) / 0.7) ** 2)
     score += 20 * math.exp(-((pieces - 9) / 5) ** 2)
     score += 20 * (1 - min(1, abs(cy) / (0.06 * W + 1)))
-    metrics = {"L": L, "W": W, "area": area, "fill": fill, "complexity": complexity, "pieces": pieces,
+    cargo_area = sum(geom.area(p["poly"]) for p in hull if p.get("cargo"))
+    metrics = {"cargo_area": cargo_area, "L": L, "W": W, "area": area, "fill": fill, "complexity": complexity, "pieces": pieces,
                "score": round(score, 1), "sig": sig, "cx": cx, "cy": cy}
     return problems, metrics

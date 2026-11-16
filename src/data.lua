@@ -157,7 +157,7 @@ local currentFile = "?"
 --     enemy, market, site, spawn set, loot table, satellite orbits) is left
 --     out entirely.
 -- Moving a file into its namesake folder puts it in the game.
-data.NAMESAKE = { ships = true, stations = true, wrecks = true, satellites = true, icons = true, modules = true,
+data.NAMESAKE = { ships = true, stations = true, wrecks = true, satellites = true, icons = true, modules = true, weapons = true,
 	items = true, enemies = true, markets = true, sites = true, spawn_sets = true, loot_tables = true }
 local workspace = false
 

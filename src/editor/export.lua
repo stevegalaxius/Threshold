@@ -9,7 +9,7 @@
 
 	Exports go to the save folder, mods/shipyard/data/<folder>/<id>.lua,
 	which src/data.lua loads after the base game. Only files in a namesake
-	folder (ships/, stations/, wrecks/, satellites/, icons/, modules/; see
+	folder (ships/, stations/, wrecks/, satellites/, icons/, weapons/, modules/; see
 	data.NAMESAKE) are game content, and reusing an id there replaces the
 	game's. Everywhere else is workspace: it loads for viewing but never
 	reaches the simulation. The working design autosaves to
@@ -365,7 +365,7 @@ Export.path = full
 -- The namesake folder a design belongs in to be game content.
 function Export.namesake(design)
 	local k = design.kind
-	if k == "icon" then return "icons" elseif k == "weapon" then return "modules" elseif k == "station" then return "stations"
+	if k == "icon" then return "icons" elseif k == "weapon" then return "weapons" elseif k == "station" then return "stations"
 	elseif k == "satellite" then return "satellites" elseif k == "wreck" or k == "container" or k == "prop" then return "wrecks" end
 	return "ships"
 end

@@ -32,6 +32,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import design  # noqa: E402
 import geom  # noqa: E402
 import generate  # noqa: E402
 import luatable  # noqa: E402
@@ -54,9 +55,13 @@ def default_out():
             return os.path.join(save, "mods", "shipyard", "data", "shipgen")
     return os.path.join(REPO, "shipgen_out")
 
-# hull fields copied from the template as they are
-COPY = ["class", "drag", "mount", "paints", "spoolTime", "turnSpeed", "turnResponse", "turretTurn", "bonuses",
-        "helm", "compartments", "loadout", "variants", "tags", "playable"]
+def load_modules():
+    mods = {}
+    for f in [os.path.join(REPO, "data", "modules.lua")] + sorted(glob.glob(os.path.join(REPO, "data", "modules", "*.lua"))):
+        for name, m in luatable.read_calls(open(f, encoding="utf-8").read()):
+            if name == "module":
+                mods[m["id"]] = m
+    return mods
 
 
 def load_templates():
@@ -105,31 +110,23 @@ def recentre(ship):
         b["y"] += dy
 
 
-def tpl_area(tpl):
-    hull = [p for p in validate.expand(tpl["_parts"]) if p.get("layer") is None]
-    R = validate.Raster(hull)
-    return validate.count(R.mask([p["poly"] for p in hull])) / validate.RES ** 2
-
-
-def stats(ship, metrics, tpl):
-    """The template's stats, scaled to the new hull's size."""
-    k = max(0.75, min(1.35, metrics["area"] / tpl["_area"]))
-    lk = max(0.8, min(1.25, metrics["L"] / tpl["_L"]))
-    h = {}
-    for f in COPY:
-        if f in tpl:
-            h[f] = tpl[f]
-    h["mass"] = round(tpl["mass"] * k)
-    h["armor"] = round(tpl["armor"] * k / 5) * 5
-    h["hold"] = max(1, round(tpl["hold"] * k))
-    if "price" in tpl:
-        h["price"] = round(tpl["price"] * k ** 0.5 / 500) * 500
-    for f in ("sideThrust", "retroThrust"):
-        if f in tpl:
-            h[f] = round(tpl[f] * k)
-    if "turn" in tpl:
-        h["turn"] = round(tpl["turn"] * k * lk * lk)
-    return h
+def describe(ship):
+    fam = lambda f: [s for s in ship["slots"] if s["family"] == f]
+    bits = []
+    lo = ship["hull"]["loadout"]
+    weapons = [lo[i] for i, s in enumerate(ship["slots"]) if s["family"] in ("hardpoint", "bay") and lo[i]]
+    if weapons:
+        names = {}
+        for w in weapons:
+            k = w.replace("_base", "").replace("_", " ")
+            names[k] = names.get(k, 0) + 1
+        bits.append(", ".join("%d %s" % (n, k) for k, n in names.items()))
+    else:
+        bits.append("unarmed")
+    e = fam("engine")
+    bits.append("%d %s engine%s" % (len(e), e[0]["size"], "s" if len(e) > 1 else ""))
+    bits.append("%d m3 hold" % ship["hull"]["hold"])
+    return ", ".join(bits)
 
 
 def r1(v):
@@ -137,12 +134,12 @@ def r1(v):
 
 
 def to_hull(ship, metrics):
-    tpl = ship["tpl"]
     sid = "gen_%s_%d" % (ship["role"], ship["seed"])
     h = {"id": sid, "name": ship["name"]}
-    h.update(stats(ship, metrics, tpl))
+    h.update(ship["hull"])
     h["maker"] = "Shipgen"
-    h["description"] = "Generated %s, seed %d, flying %s's stats and fit." % (ship["role"], ship["seed"], tpl.get("name", tpl["id"]))
+    p = ship["plan"]
+    h["description"] = "%s %s %s: %s." % ("An" if p["brief"][0] in "aeiou" else "A", p["brief"], ship["role"], describe(ship))
     slots = []
     for s in ship["slots"]:
         s = dict(s)
@@ -176,8 +173,8 @@ ORDER = ["id", "name", "armor", "berths", "bonuses", "class", "compartments", "d
 
 
 def hull_source(h, ship, metrics):
-    lines = ["-- Made by tools/shipgen (role %s, seed %d, after %s, score %.0f). Base hull: %s" % (
-        ship["role"], ship["seed"], ship["template"], metrics["score"], ship["template"]), "hull {"]
+    lines = ["-- Made by tools/shipgen (role %s, seed %d, %s brief, score %.0f)" % (
+        ship["role"], ship["seed"], ship["plan"]["brief"], metrics["score"]), "hull {"]
     lines.append('\tid = %s, name = %s,' % (luatable.write(h["id"]), luatable.write(h["name"])))
     for k in ORDER[2:]:
         if k in h:
@@ -223,11 +220,15 @@ def next_seed(found, role):
     return max(seeds) + 1 if seeds else 1
 
 
-def make(role, seed, templates, keepers):
+def make(role, seed, templates, keepers, modules=None, yardstick=None):
+    import random
     ship = generate.build(seed, role, templates)
     recentre(ship)
     generate.add_lights(ship)
     problems, metrics = validate.check(ship, keepers)
+    if metrics:
+        design.finish(ship, metrics, modules, random.Random("stats:%s:%d" % (role, seed)))
+        problems += design.balance(ship["perf"], yardstick)
     return ship, problems, metrics
 
 
@@ -254,8 +255,9 @@ def main():
     found = scan_existing(scan_root) if os.path.isdir(scan_root) else {}
     a.out = os.path.join(root, a.batch or time.strftime("batch_%Y-%m-%d_%H%M%S"))
     templates = load_templates()
-    for t in templates.values():
-        t["_area"] = tpl_area(t)
+    modules = load_modules()
+    yardstick = [design.perf_of(t, modules) for t in templates.values()
+                 if t.get("playable") is not False and "price" in t and t.get("loadout")]
     roles = list(generate.ROLES) if a.role == "all" else a.role.split(",")
     existing = [(tid, validate.signature({"parts": t["_parts"]})) for tid, t in templates.items()]
     existing += [(i, sig) for i, (_, sig) in found.items() if sig is not None]
@@ -278,7 +280,7 @@ def main():
                     print("  %s already exists (%s), skipped" % (sid, found[sid][0]))
                 continue
             tried += 1
-            ship, problems, metrics = make(role, s, templates, keepers)
+            ship, problems, metrics = make(role, s, templates, keepers, modules, yardstick)
             if problems:
                 for p in set(q.split(":")[0] for q in problems):
                     fails[p] += 1

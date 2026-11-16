@@ -3,10 +3,9 @@
 A ship is kitbashed from a few kinds of block, the way the hand-made hulls
 are: a spine of sections from engines to nose, things hung off its sides
 (wings, pods, cargo racks, sponsons, fins, decks), then engines, a cockpit,
-paint, lights and detail panels. Each ship takes its stats, slot list and
-loadout from the existing hull of its role closest in size, so it flies and
-fits like something already balanced; only the slot positions move, onto
-the new geometry.
+paint, lights and detail panels. design.py plans the slots first (how many
+engines, weapons, bays) and works out the stats and loadout afterwards from
+the finished geometry.
 """
 
 import math
@@ -14,16 +13,9 @@ import random
 
 import geom
 
-# Existing hulls each role borrows stats, slots and loadout from.
-ROLES = {
-    "fighter": ["briggs_stiletto", "intaki_wisp", "briggs_dagger", "estates_whisper", "amw_sprint"],
-    "gunship": ["brute_anvil", "estates_rapier", "intaki_praetor", "diwan_cherubim"],
-    "hauler": ["ferrous_pony", "redfu_crane", "mack_mustang", "redfu_pelican", "ferrous_mule",
-               "mack_burro", "redfu_gila", "ferrous_bison", "mack_longhorn"],
-    "heavy": ["brute_nautilus", "estates_bastion", "intaki_archangel", "diwan_seraph"],
-    "yacht": ["amw_wayfarer", "amw_sprint_fat"],
-    "carrier": ["ferrous_bison_carrier"],
-}
+from design import ROLE_SPEC, plan as plan_ship
+
+ROLES = ROLE_SPEC
 
 SYLL_A = ["Ar", "Bel", "Cor", "Dra", "Ev", "Fal", "Gar", "Hel", "Ir", "Jav", "Kes", "Lor", "Mar",
           "Nyx", "Or", "Pel", "Quil", "Ros", "Sab", "Tor", "Ul", "Var", "Wex", "Yar", "Zen"]
@@ -75,13 +67,14 @@ def build(seed, role, templates):
     """One ship as a dict of hull fields plus 'parts' with raw polygons
     (validate.py and write_hull turn it into a data file)."""
     rng = random.Random("%s:%d" % (role, seed))
-    tid = rng.choice([t for t in ROLES[role] if t in templates])
-    tpl = templates[tid]
-    L = tpl["_L"] * rng.uniform(0.88, 1.12)
-    W = max(tpl["_W"] * rng.uniform(0.85, 1.2), L * 0.14)
-    slots = [dict(s) for s in tpl["slots"]]
-    fam = lambda f: [s for s in slots if s["family"] == f]
-    n_eng, n_hard, n_bay = len(fam("engine")), len(fam("hardpoint")), len(fam("bay"))
+    spec = ROLE_SPEC[role]
+    brief = plan_ship(rng, role)
+    L = rng.uniform(*spec["L"])
+    W = max(L * rng.uniform(*spec["aspect"]), 14)
+    n_eng, n_hard, n_bay = brief["n_eng"], brief["n_hard"], brief["n_bay"]
+    slots = ([{"family": "hardpoint"} for _ in range(n_hard)] + [{"family": "bay"} for _ in range(n_bay)] +
+             [{"family": "engine"} for _ in range(n_eng)] + [{"family": "reactor"}] +
+             [{"family": "utility"} for _ in range(brief["n_util"])])
 
     style = {
         "chamfer": rng.choice([0.0, 0.15, 0.3, 0.5]),     # share of a section's half-width cut off its corners
@@ -264,9 +257,7 @@ def build(seed, role, templates):
             mounts.append((x0, x1))
         return made, mounts
 
-    berth_w = None
-    if tpl.get("berths"):
-        berth_w = max(bb.get("maxWidth", 44) for bb in tpl["berths"])
+    berth_w = 44 if role == "carrier" else None
     plan = side_plan()
     mounts = {-1: [], 1: []}
     side_parts = []
@@ -421,10 +412,10 @@ def build(seed, role, templates):
 
     # --- berths on decks -----------------------------------------------------
     berths = None
-    if tpl.get("berths"):
+    if role == "carrier":
         decks = [m for m in all_mounts if len(m) == 3 and m[2] == "deck"]
         spans = [m for m in all_mounts if len(m) == 2]
-        size = tpl["berths"][0].get("size", 56)
+        size = 56
         berths = []
         for (dx, dy, _), (x0, x1) in zip(decks, spans):
             n = max(1, int((x1 - x0) // (size * 1.9)))
@@ -433,9 +424,9 @@ def build(seed, role, templates):
                 berths.append({"x": bx, "y": dy, "heading": 0, "size": size, "maxWidth": berth_w})
 
     return {
-        "seed": seed, "role": role, "template": tid, "tpl": tpl,
+        "seed": seed, "role": role, "plan": brief, "L_range": spec["L"], "aspect": spec["aspect"],
         "parts": b.parts, "slots": slots, "berths": berths,
-        "sym": sym, "asym": asym_kind, "profile": prof_kind, "style": style, "plan": plan,
+        "sym": sym, "asym": asym_kind, "profile": prof_kind, "style": style, "sides": plan,
         "name": ship_name(rng),
     }
 

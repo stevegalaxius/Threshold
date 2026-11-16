@@ -14,7 +14,7 @@ mods/
 ```
 
 The namesake folders are `ships/`, `stations/`, `wrecks/`, `satellites/`,
-`icons/`, `modules/`, `items/`, `enemies/`, `markets/`, `sites/`,
+`icons/`, `weapons/`, `modules/`, `items/`, `enemies/`, `markets/`, `sites/`,
 `spawn_sets/` and `loot_tables/` (`data.NAMESAKE` in `src/data.lua`).
 Everything else is **workspace**. Designs there (hulls, stations, wrecks,
 containers, props, satellites and icons) load so the Shipyard can open them
