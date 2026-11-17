@@ -168,4 +168,32 @@ function M.hull(r,node,u,clock,margin)
  require('src.simulation_history').note(u,'npc_ship_traded',clock or u.clock,r.area,{r.id},trade,node)
  return trade
 end
+-- The same refit for a live NPC ship docked in the scene you're flying
+-- in, once per docking (src/npc_repair.lua). The record is brought up to
+-- date from the ship first; a new module is fitted to the live ship, and a
+-- new hull replaces it: the old ship stays where it was parked, now on the
+-- dealer lot, and the new one wakes docked at the same station.
+function M.online(game,e,r,st)
+ local A=require('src.alife')
+ A.capture(game,e,false)
+ if r.state~='docked' or not r.ship then return end
+ local u=game.universe;local node=st.locationId or st.key
+ r.refitVisit=nil   -- (the docking itself is the once-per-visit guard here)
+ local old=r.ship
+ old.bay,old.mooring=e.bay,e.parkingMooring
+ local result=M.dock(r,node,u,u.clock)
+ old.bay,old.mooring=nil,nil
+ if not result then return end
+ if result.slot then
+  e.loadout=require('src.persistence').copy(r.ship.loadout)
+  require('src.ship').refit(e)
+  e.armor=math.min(e.armor,e.stats.armor)
+  return result
+ end
+ -- a whole new ship
+ if r.docking then r.docking.mooring=nil end
+ game:remove(e,true)
+ A.wake(game,r)
+ return result
+end
 return M

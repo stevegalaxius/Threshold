@@ -54,6 +54,8 @@ function R.online(game,e,dt)
   e.dockState.shopped=true
   local st=e.dockState.station
   require('src.npc_shopping').visit(game.universe,r,st.key or st.locationId,game.universe.clock,e,true)
+  -- modules or a whole ship off the lot, as offline (src/npc_refit.lua)
+  if require('src.npc_refit').online(game,e,r,st) and e.removed then return end
  end
  require('src.supplies').online(game,e)
  if game.stationServices(e.dockState.station).repair then

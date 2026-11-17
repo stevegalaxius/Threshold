@@ -683,7 +683,9 @@ Docked NPCs shopping for a refit (`src/npc_refit.lua`) also look at the
 station's ship lot: if a ship there scores clearly better for their job by the
 same fit scoring (`src/ship_fit.lua`) and they can afford it with their old
 ship traded in, they buy it, and the old ship goes on that lot for anyone,
-the player included, to buy.
+the player included, to buy. This runs for NPCs docked in the live scene too:
+a module goes onto the live ship, and a new hull replaces it at the dock while
+the old one stays parked on the lot.
 Leaving Market or Shipyard returns the staged goods and ship offers. No prices or economic simulation
 rules were replaced.
 
