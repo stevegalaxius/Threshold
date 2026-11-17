@@ -138,7 +138,7 @@ local function drawList(game, L, mx, my)
 		end
 		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.08)
 		lg.line(r.x + 6, r.y + r.h + 0.5, r.x + r.w - 6, r.y + r.h + 0.5)
-		local paint = Paint.preset(lot.paint)
+		local paint = (lot.color or Paint.preset(lot.paint))
 		Hangar.drawHull(hull, r.x + 6, r.y + 8, 70, r.h - 16, false, paint, 1)
 		lg.setFont(HUD.font(16))
 		lg.setColor(HUD.INK)
@@ -209,7 +209,7 @@ local function drawDetail(game, L, mx, my)
 	local lot = L.lot
 	if not lot then return end
 	local hull = data.hulls[lot.hull]
-	local paint = Paint.preset(lot.paint)
+	local paint = (lot.color or Paint.preset(lot.paint))
 	local p = game.player
 
 	-- left: identity, hull, paint, stock fit
@@ -220,12 +220,12 @@ local function drawDetail(game, L, mx, my)
 	lg.print(hull.name, x, y)
 	y = Sheet.outline(hull, paint, x, y + 30, w, 108)
 	Sheet.label("Paint", x, L.paintY - 17)
-	local c = Paint.preset(lot.paint)
+	local c = (lot.color or Paint.preset(lot.paint))
 	lg.setColor(c[1], c[2], c[3])
 	lg.rectangle("fill", x, L.paintY, 26, 26, 4, 4)
 	lg.setFont(HUD.font(14))
 	lg.setColor(HUD.INK)
-	lg.print(lot.paint, x + 36, L.paintY + 5)
+	lg.print(lot.color and lot.color.name or lot.paint, x + 36, L.paintY + 5)
 	y = Sheet.paragraph(Sheet.description(hull), x, L.paintY + 36, w, 4) + 8
 	y = Sheet.label(("%s fit \194\183 %d slots"):format(lot.trimName or lot.trim, #hull.slots), x, y)
 	Sheet.slots(hull, lot.loadout, x, y, w, D.y + D.h - PAD)

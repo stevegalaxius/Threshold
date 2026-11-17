@@ -449,7 +449,7 @@ function Game:shipBuyProblem(st, lot, tradeIn)
   local owned=false;for _,rec in ipairs(self:stationParkingRecord(st).hangar) do if rec==tradeIn then owned=true end end
   if not owned then return 'NO SUCH SHIP' end
  end
-	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
+	local credit = tradeIn and math.max(0, Game.shipSellPrice(tradeIn) - require("src.berth_rent").owed(tradeIn)) or 0
 	if self.universe.credits + credit < lot.price then return "NOT ENOUGH CREDITS" end
 	if not self:purchaseParking(st,lot,tradeIn) then return "NO SUITABLE FREE PARKING" end
 	return nil
@@ -474,12 +474,13 @@ function Game:buyShip(st, lot, opts)
   return nil,'NO SUITABLE FREE PARKING'
  end
  if tradeIndex then table.remove(list,tradeIndex) end
- local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.paint and require('src.paint').preset(lot.paint) or nil})
+ local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.color or lot.paint and require('src.paint').preset(lot.paint) or nil})
  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,parking)
  list[#list+1]=rec
  require('src.dealers').take(self.universe,st,lot.id)
-	local credit = tradeIn and Game.shipSellPrice(tradeIn) or 0
+	local credit = tradeIn and math.max(0, Game.shipSellPrice(tradeIn) - require("src.berth_rent").owed(tradeIn)) or 0
 	self.universe.credits = self.universe.credits + credit - lot.price
+	if tradeIn then tradeIn.lease = nil; require("src.dealers").resell(self.universe, st, tradeIn) end
 	if tradeIn then events.emit("sellship", tradeIn, st) end
 	events.emit("buyship", rec, st)
 	return rec
@@ -492,9 +493,13 @@ function Game:sellShip(st, i)
 	local rec = list[i]
 	if not rec then return nil, "NO SUCH SHIP" end
 	if rec.carried and next(rec.carried) then return nil, "UNLOAD ITS BERTHS FIRST" end
-	local paid = Game.shipSellPrice(rec)
+	-- unpaid berth rent comes out of the sale
+	local paid = math.max(0, Game.shipSellPrice(rec) - require("src.berth_rent").owed(rec))
 	table.remove(list, i)
 	self.universe.credits = self.universe.credits + paid
+	rec.lease = nil
+	-- the station puts it straight up for sale on its own lot
+	require("src.dealers").resell(self.universe, st, rec)
 	events.emit("sellship", rec, st)
 	return paid
 end

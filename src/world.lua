@@ -343,6 +343,10 @@ function Game:flyFromHangar(i)
 	local list = self:hangar(st)
 	local rec = list[i]
 	if not rec then return false end
+ local Rent=require('src.berth_rent')
+ if not Rent.settle(self.universe,rec) then
+  self:toast(('SETTLE BERTH RENT FIRST (%d CR OWED)'):format(Rent.owed(rec)),1.6);return false
+ end
  local old=Ship.record(p)
  local oldParking={bay=p.bay,mooring=p.parkingMooring}
  if not oldParking.bay and not oldParking.mooring then
