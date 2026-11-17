@@ -46,8 +46,6 @@ function R.advance(r,clock,node,u)
  end
  r.repairAt=at;r.patrolRepairAt=nil
  require('src.npc_refit').dock(r,node,u,at)
- -- (ship lots: trade up, or sell up and leave the system)
- require('src.npc_ship_trade').dock(u,r,node,at)
 end
 function R.online(game,e,dt)
  local r=e.alifeId and game.universe.npcs[e.alifeId]

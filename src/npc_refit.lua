@@ -45,6 +45,9 @@ local function shelfHas(u,node,id)
 end
 
 local function keeps(r,hull,loadout)
+ return M.keeps(r,hull,loadout)
+end
+function M.keeps(r,hull,loadout)
  local T=r.populationGroup and require('src.npc_templates')[r.populationGroup]
  local need=T and T.purchase and T.purchase.requires or {}
  local s=require('src.stats').compute(hull,loadout)
@@ -66,6 +69,9 @@ function M.dock(r,node,u,clock,roll)
  if (r.credits or 0)<M.minCredits or roll()>tier.refitChance then return end
  local role=r.populationGroup
  if not (role and F.profiles[role]) then return end
+ -- a whole new ship off the lot first; its old one goes up for sale
+ local traded=M.hull(r,node,u,clock,tier.refitMargin)
+ if traded then return traded end
  local hull=data.hulls[r.ship.hull];if not hull then return end
  local stock=shelf(u,node)
  -- and any player stall's modules here, at its price (src/npc_shopping.lua)
@@ -127,5 +133,39 @@ function M.dock(r,node,u,clock,roll)
  r.lastRefit=swap
  require('src.simulation_history').note(u,'npc_refit',clock or u.clock,r.area,{r.id},swap,node)
  return swap
+end
+-- Trade the whole ship in for one on this station's dealer lot when one
+-- scores better for the job by more than margin (the same fit scoring the
+-- module refit and arrivals use). Its hold has to be empty, so nothing is
+-- lost in the swap. The old ship goes on the lot (Dealers.resell) at the
+-- player's trade-in price. Returns the trade, or nil.
+function M.hull(r,node,u,clock,margin)
+ local D=require('src.dealers');local def=D.def(node)
+ if not def or def.service then return end
+ local role=r.populationGroup
+ local Hold=require('src.inventory.hold')
+ local h=r.ship.hold and Hold.deserialize(r.ship.hold)
+ for _,n in pairs(h and Hold.totals(h) or r.ship.cargo or {}) do if n>0 then return end end
+ local credit=require('src.game').shipSellPrice(r.ship)
+ local budget=(r.credits or 0)+credit-M.minCredits
+ local choices={{hull=r.ship.hull,loadout=r.ship.loadout,price=0,key='0 current'}}
+ for _,lot in ipairs(D.lots(u,node)) do
+  local hull=data.hulls[lot.hull]
+  if hull and lot.price<=budget and keeps(r,hull,lot.loadout) then
+   choices[#choices+1]={hull=lot.hull,loadout=lot.loadout,price=lot.price,lot=lot,key=('1 %08d'):format(lot.id)}
+  end
+ end
+ if #choices<2 then return end
+ local best=F.best(u,r.area,role,choices)
+ if not best.lot or best.fit-choices[1].fit<(margin or 0) then return end
+ local old=r.ship
+ D.resell(u,node,old)
+ D.take(u,node,best.lot.id)
+ r.ship=D.ship(best.lot);r.ship.armor=best.lot.armor
+ r.credits=(r.credits or 0)+credit-best.lot.price
+ local trade={from=old.hull,to=best.lot.hull,price=best.lot.price,credit=credit,fit=best.fit,was=choices[1].fit,clock=clock}
+ r.lastShipTrade=trade
+ require('src.simulation_history').note(u,'npc_ship_traded',clock or u.clock,r.area,{r.id},trade,node)
+ return trade
 end
 return M
