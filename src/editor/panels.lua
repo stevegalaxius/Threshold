@@ -12,7 +12,11 @@ local HullShape = require("src.hullshape")
 local Panels = {}
 -- Module inventory items are generated after authored item files load.
 function Panels.iconItems()
- local ids={};for id in pairs(data.items) do ids[#ids+1]=id end
+ local ids={}
+ for id,item in pairs(data.items) do
+  -- Lookup aliases point at the canonical definition, whose id differs.
+  if id==item.id then ids[#ids+1]=id end
+ end
  table.sort(ids,function(a,b)
   local an,bn=data.items[a].name or a,data.items[b].name or b
   return an<bn or an==bn and a<b

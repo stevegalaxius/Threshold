@@ -4,6 +4,10 @@ return function(game)
  local Export=require('src.editor.export')
  local listed={};for _,id in ipairs(require('src.editor.panels').iconItems()) do listed[id]=true end
  assert(listed.ember_reactor and listed.flit_engine and listed.steel_plate,'icon picker omits generated module items')
+ local data=require('src.data')
+ for old,current in pairs(data.renamedModules) do if data.items[old] and data.items[current] then
+  assert(not listed[old] and listed[current],'icon picker exposes a deprecated alias: '..old)
+ end end
  for _,shape in ipairs(M.shapes) do
   local parts=M.parts({{primitive=shape,material='metal',w=1,d=1,h=1}},16,16)
   assert(#parts>0,'empty primitive '..shape)
