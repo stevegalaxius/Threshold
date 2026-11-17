@@ -69,7 +69,7 @@ local function start(r,clock,index)
    -- Two nodes in different regions with no direct lane between them (a
    -- one-way route wrapping round to its start, say). Route there properly
    -- through the gates and drivers instead of crashing.
-   local path=Graph.itinerary(leg.from,leg.to,clock)
+   local path=Graph.live(leg.from,leg.to,clock)
    assert(path and #path>1,'invalid inter-region journey '..tostring(leg.from)..' -> '..tostring(leg.to))
    print(('A-Life: %s rerouted %s -> %s'):format(tostring(r.id),leg.from,leg.to))
    r.route=path;r.onRoundTrip=nil;r.tripRoute=nil
@@ -313,6 +313,51 @@ local function journeyPoint(r,p,clock)
  return Graph.withSpread(x,y,p,r.spread)
 end
 A.journeyPoint=journeyPoint
+
+-- Rough flight time along a node list, for comparing two ways to one place.
+local function pathTime(path,clock,speed)
+ local t=0
+ for i=2,#(path or {}) do
+  local a,b=L.get(path[i-1]),L.get(path[i])
+  if a.area==b.area then t=t+Graph.length(graph(a.area),{from=path[i-1],to=path[i]},clock)/speed
+  else local lane=Graph.transit(path[i-1],path[i],clock);t=t+(lane and lane.length or 0)/speed end
+ end
+ return t
+end
+A.pathTime=pathTime
+
+-- Send a ship that is part-way along a leg somewhere new. It used to always
+-- finish the leg first, so a ship re-tasked just after leaving a station or
+-- buoy flew on to the node ahead of it and then doubled back past where it
+-- started. Now it goes on or turns round, whichever reaches `target` first;
+-- `x,y` is where it is now (the live ship), or its track point offline.
+-- Returns false (route untouched) when there is no way to `target`.
+function A.redirect(r,target,clock,x,y)
+ local leg=edge(r);local prev,dest=leg.from,leg.to
+ local onward=Graph.live(dest,target,clock)
+ local back
+ local a,b=L.byId[prev],L.byId[dest]
+ -- (a leg into or off a crossing is no place to turn round)
+ if r.state=='travel' and not r.encounter and a and b and a.area==r.area and b.area==r.area
+  and a.kind~='driver' and a.kind~='moon_gate' and b.kind~='driver' and b.kind~='moon_gate' then
+  back=Graph.live(prev,target,clock)
+ end
+ if not onward and not back then return false end
+ local p=progress(r,clock);local span=math.max(.01,r.arrive-r.depart);local speed=r.speed or 600
+ if back and (not onward or p*span+pathTime(back,clock,speed)<(1-p)*span+pathTime(onward,clock,speed)) then
+  if not x then x,y=A.trackPoint(r,clock) end
+  r.route={dest};for _,id in ipairs(back) do r.route[#r.route+1]=id end;r.index=2
+  local q=math.min(.99,1-p)
+  local duration=math.max(.1,Graph.length(graph(r.area),{from=dest,to=prev},clock)/speed)
+  r.depart=clock-q*duration;r.arrive=r.depart+duration
+  r.pose=nil;r.offset=nil
+  if x then local bx,by=journeyPoint(r,q,clock);r.offset={x=x-bx,y=y-by,progress=q} end
+ else
+  r.route={prev};for _,id in ipairs(onward) do r.route[#r.route+1]=id end;r.index=2
+ end
+ require('src.queue').leg(r)
+ return true
+end
 
 -- Repair already-saved moon itineraries too. Rebase the same ship's current
 -- leg at its existing position rather than retaining a stale driver detour.
@@ -1102,7 +1147,7 @@ function A.install(Game)
    -- the economy's minute update, a piece a step (src/economy.lua)
    if not self.sideScene then require('src.economy').pump(self.universe) end
    -- shared background work, a little a step (src/director.lua)
-   if not self.sideScene then require('src.director').update(self.universe);require('src.satellites').tick(self.universe) end
+   if not self.sideScene then require('src.director').update(self.universe);require('src.satellites').tick(self.universe);require('src.stalls').tick(self.universe,self) end
    -- the rest of this tick's chores, one a step
    if self.alifeStage then self:alifeChore(clock) end
    return

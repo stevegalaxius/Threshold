@@ -77,19 +77,19 @@
 -- ammo and little power. damage is per second; rockDamage multiplies it
 -- against asteroids, and drilled rock drops ore when it breaks.
 module {
-	id = "drill_s_base", name = "Drill S", maker = "Ferrous Collective", family = "weapon", size = "S",
+	id = "drill_s_base", name = "Drill S", maker = "Ceres Concern", description = "A Ceres prospecting drill. Every belt miner learns on one.", family = "weapon", size = "S",
 	mass = 6, price = 3500,
 	weapon = { kind = "drill", damage = 12, rockDamage = 12, powerPerSecond = 4, extendTime = 0.35 },
 }
 
 module {
-	id = "drill_m_base", name = "Drill M", maker = "Ferrous Collective", family = "weapon", size = "M",
+	id = "drill_m_base", name = "Drill M", maker = "Ceres Concern", description = "A rock-biter with a cooled head, made at Ceres Dock for working crews.", family = "weapon", size = "M",
 	mass = 14, price = 9000,
 	weapon = { kind = "drill", damage = 25, rockDamage = 14, powerPerSecond = 8, extendTime = 0.45 },
 }
 
 module {
-	id = "drill_l_base", name = "Drill L", maker = "Brute Industries", family = "weapon", size = "L",
+	id = "drill_l_base", name = "Drill L", maker = "Ceres Concern", description = "A deep-core drill. Ceres Concern rents them out to quarries by the hour.", family = "weapon", size = "L",
 	mass = 34, price = 24000,
 	weapon = { kind = "drill", damage = 50, rockDamage = 16, powerPerSecond = 15, extendTime = 0.6 },
 }
@@ -98,19 +98,19 @@ module {
 -- powerPerSecond are per second; easier to keep on target than a pulse
 -- laser, so a little less damage for the power.
 module {
-	id = "beam_s_base", name = "Beam Laser S", maker = "Halcyon Arms", family = "weapon", size = "S",
+	id = "beam_s_base", name = "Beam Laser S", maker = "Loki Optics", description = "A Jovian cutting beam ground on Io. It has no magazine and never runs dry.", family = "weapon", size = "S",
 	mass = 6, price = 6000,
 	weapon = { kind = "laser", beam = true, damage = 40, powerPerSecond = 30, range = 3000, gimbal = 12 },
 }
 
 module {
-	id = "beam_m_base", name = "Beam Laser M", maker = "Nova Syndicate", family = "weapon", size = "M",
+	id = "beam_m_base", name = "Beam Laser M", maker = "Loki Optics", description = "A continuous beam with a cooled lens train from the Loki Laboratory.", family = "weapon", size = "M",
 	mass = 14, price = 16000,
 	weapon = { kind = "laser", beam = true, damage = 85, powerPerSecond = 60, range = 3600, gimbal = 12 },
 }
 
 module {
-	id = "beam_l_base", name = "Beam Laser L", maker = "Halcyon Arms", family = "weapon", size = "L",
+	id = "beam_l_base", name = "Beam Laser L", maker = "Loki Optics", description = "Loki's furnace beam. Its draw dims a small ship's lights.", family = "weapon", size = "L",
 	mass = 32, price = 42000,
 	weapon = { kind = "laser", beam = true, damage = 150, powerPerSecond = 100, range = 4400, gimbal = 10 },
 }
@@ -124,19 +124,19 @@ module {
 
 
 module {
-	id = "drone_s_base", name = "Drone Bay S", maker = "Nova Syndicate", family = "bay", size = "S",
+	id = "drone_s_base", name = "Drone Bay S", maker = "Ashgrove Foundry", description = "An Estates drone cradle. Ashgrove sends a set of hand-tuned drones with each one.", family = "bay", size = "S",
 	mass = 6, price = 7000,
 	weapon = { kind = "drone", fireRate = 0.4, recoil = 100, control = 1 },
 }
 
 module {
-	id = "drone_m_base", name = "Drone Bay M", maker = "Nova Syndicate", family = "bay", size = "M",
+	id = "drone_m_base", name = "Drone Bay M", maker = "Ashgrove Foundry", description = "A hive bay with launch and recovery rails, built to Estates tolerances.", family = "bay", size = "M",
 	mass = 14, price = 18000,
 	weapon = { kind = "drone", fireRate = 0.3, recoil = 200, control = 2 },
 }
 
 module {
-	id = "drone_l_base", name = "Drone Bay L", maker = "Nova Syndicate", family = "bay", size = "L",
+	id = "drone_l_base", name = "Drone Bay L", maker = "Ashgrove Foundry", description = "A carrier deck from Ashgrove's long halls. It turns any hull into a mothership.", family = "bay", size = "L",
 	mass = 30, price = 40000,
 	weapon = { kind = "drone", fireRate = 0.2, recoil = 400, control = 4 },
 }
@@ -147,24 +147,24 @@ module {
 -- width: nozzle half-width; length: full-throttle plume length.
 -- afterburnScale multiplies length while boosting; flicker is fractional jitter.
 -- damage is exhaust damage per second at full throttle (zero disables it).
-module { id = "flit_engine", name = "Flit Engine", maker = "Halcyon Arms", family = "engine", size = "S",
+module { id = "flit_engine", name = "Flit Engine", maker = "Bowman Atmospherics", description = "A small Bowman drive with superconducting coils and ceramic-lined nozzles, wound at Uranus.", family = "engine", size = "S",
  mass = 6, powerDraw = 2, thrust = 420, turn = 250, price = 3000,
  exhaust = { width = 5, length = 30, color = {1,.6,.25}, coreColor = {1,.92,.65},
   glowColor = {1,.35,.08}, afterburnScale = 2.2, flicker = .15, damage = 30 } }
-module { id = "mule_engine", name = "Mule Engine", maker = "Brute Industries", family = "engine", size = "M",
+module { id = "mule_engine", name = "Mule Engine", maker = "Brute Industries", description = "A Mercury workhorse drive. Brute builds it heavy and bolts it down.", family = "engine", size = "M",
  mass = 16, powerDraw = 4, thrust = 900, turn = 800, price = 9000,
  exhaust = { width = 10, length = 45, color = {1,.55,.18}, coreColor = {1,.9,.6},
   glowColor = {1,.3,.06}, afterburnScale = 2.2, flicker = .12, damage = 50 } }
-module { id = "cinder_drive", name = "Cinder Drive", maker = "Nova Syndicate", family = "engine", size = "L",
+module { id = "cinder_drive", name = "Cinder Drive", maker = "Bowman Atmospherics", description = "Bowman's big drive. It runs hot enough that its nozzles are more ceramic than steel.", family = "engine", size = "L",
  mass = 40, powerDraw = 8, thrust = 2000, turn = 2500, price = 26000,
  exhaust = { width = 20, length = 60, color = {1,.45,.12}, coreColor = {1,.85,.5},
   glowColor = {1,.22,.04}, afterburnScale = 2.5, flicker = .18, damage = 80 } }
 
 -- Reactors ----------------------------------------------------------------------
 
-module { id = "ember_reactor", name = "Ember Reactor", maker = "Halcyon Arms",       family = "reactor", size = "S", mass = 5,  powerOut = 20, powerCap = 60,  price = 2500 }
-module { id = "kiln_reactor",  name = "Kiln Reactor",  maker = "Ferrous Collective", family = "reactor", size = "M", mass = 14, powerOut = 40, powerCap = 140, price = 8000 }
-module { id = "forge_reactor", name = "Forge Reactor", maker = "Estates Military",   family = "reactor", size = "L", mass = 32, powerOut = 75, powerCap = 280, price = 21000 }
+module { id = "ember_reactor", name = "Ember Reactor", maker = "Ceres Concern", description = "A compact Ceres reactor that ships with its first deuterium charge already loaded.",       family = "reactor", size = "S", mass = 5,  powerOut = 20, powerCap = 60,  price = 2500 }
+module { id = "kiln_reactor",  name = "Kiln Reactor",  maker = "Ceres Concern", description = "A mid-sized Ceres Dock reactor in a ceramic-shielded casing.", family = "reactor", size = "M", mass = 14, powerOut = 40, powerCap = 140, price = 8000 }
+module { id = "forge_reactor", name = "Forge Reactor", maker = "Abaddon Works", description = "A Diwan heavy reactor from Abaddon, rated for capital-class draw.", family = "reactor", size = "L", mass = 32, powerOut = 75, powerCap = 280, price = 21000 }
 
 
 -- Utility -----------------------------------------------------------------------

@@ -58,6 +58,8 @@ local function takenKey(q) return q.key or q.kind=='rescue' and 'rescue|'..q.sub
 -- stands; resolve(game,q,clock) settles an active one ('done'/'failed'/nil).
 Q.generators={}
 Q.order={'shortage_delivery','rescue'}
+-- Kinds settled by handing goods over at the giver (Q.deliver).
+Q.deliveries={shortage_delivery=true}
 
 Q.generators.shortage_delivery={
  label='Delivery',
@@ -259,6 +261,25 @@ function Q.offersAt(u,station)
  table.sort(out,function(a,b) return a.unit*a.amount>b.unit*b.amount or a.unit*a.amount==b.unit*b.amount and a.id<b.id end)
  return out
 end
+-- The system a station is in: its planet (a moon's station counts in its
+-- planet's system).
+function Q.system(station)
+ local place=L.byId[station];if not place then return end
+ local m=Fields.moons[place.area]
+ return m and m.parent or place.area
+end
+-- The Jobs board: offers from every station in this station's system.
+function Q.offersInSystem(u,station)
+ local out={};local sys=Q.system(station)
+ for _,q in pairs(Q.state(u).offers) do
+  if Q.system(q.giver)==sys and Q.willOffer(u,q.giver) then out[#out+1]=q end
+ end
+ table.sort(out,function(a,b)
+  if (a.giver==station)~=(b.giver==station) then return a.giver==station end
+  return a.unit*a.amount>b.unit*b.amount or a.unit*a.amount==b.unit*b.amount and a.id<b.id
+ end)
+ return out
+end
 function Q.active(u)
  local out={}
  for _,q in pairs(Q.state(u).active) do out[#out+1]=q end
@@ -272,6 +293,8 @@ function Q.accept(u,id,clock,game)
  local n=0;for _ in pairs(s.active) do n=n+1 end
  if n>=T.questMaxActive then return nil,('You can hold %d jobs at once'):format(T.questMaxActive) end
  if not Q.willOffer(u,q.giver) then return nil,'This station will not work with you' end
+ local site=Q.sites and Q.sites[q.kind]
+ if site and site.busy and site.busy(u,q) then s.offers[id]=nil;return nil,'A hauler has already taken this job' end
  if q.give then
   local p=game and game.player
   if not p or require('src.ship').canFit(p,q.item,1)<1 then return nil,'No room in the hold for the '..(data.items[q.item].name or q.item) end
@@ -302,7 +325,7 @@ end
 function Q.deliver(game,id,station)
  local u=game.universe;local s=Q.state(u);local q=s.active[id];local p=game.player
  if not q then return nil,'No such delivery' end
- if q.kind~='shortage_delivery' then return nil,'Not a delivery' end
+ if not Q.deliveries[q.kind] then return nil,'Not a delivery' end
  if station~=q.giver then return nil,'Dock at '..((L.byId[q.giver] or {}).name or q.giver)..' to deliver' end
  local have=p.cargo[q.item] or 0
  local n=math.min(have,q.amount-q.delivered)
@@ -321,4 +344,5 @@ end
 package.loaded['src.quests']=Q -- (the site jobs below require this module)
 require('src.quest_sites')(Q)
 require('src.sat_quests')
+require('src.ore_quests')
 return Q

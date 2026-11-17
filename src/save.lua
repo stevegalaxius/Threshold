@@ -117,7 +117,7 @@ end
 -- Items taken out of the game: a save that still holds them drops them
 -- (hold stacks, cargo counts, stock), so it loads instead of failing on an
 -- unknown item.
-Save.RETIRED = { salvage_kit = true, overdrive_cell = true }
+Save.RETIRED = { salvage_kit = true, overdrive_cell = true, martian_ore = true }
 function Save.dropRetired(state)
 	local seen = {}
 	local function walk(t, key)

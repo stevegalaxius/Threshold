@@ -21,6 +21,8 @@ Last checked against `main`: 2026-11-15.
 - Dark grids: Milliways, the Shoals, Cordelia and Antichthon (`src/dark.lua`).
 - Instanced sites with acceleration gates (`data/sites.lua`, `src/sites.lua`).
 - Satellites burn fuel over time; NPC haulers (or the player) take refuel and launch jobs, and the fuel is station-keeping: a fuelled satellite (or hub) holds its altitude and place on the orbit (hubs beside a trade buoy) and recovers from bumps, while a dry one drops to low power, drifts, and its orbit decays until it burns up about 30 minutes later, which posts the replacement launch job (`src/satellites.lua`, `src/sat_jobs.lua`).
+- Your own satellites: buy a satellite package (12,000 cr, at the logistics stations) and use it in orbit to put up a relay satellite of your own. You need Friendly standing with the planet's faction (unclaimed space needs none), and up to 3 can be up at once. While it's fuelled it earns 2,400 cr/h. You pay the 900 cr fee when a hauler refuels it, and if it's neglected it comes down and is gone (`Sat.deploy`, `Sat.earn` in `src/satellites.lua`).
+- Market stalls: rent a stall in any station market (Friendly standing, 150 cr/h), stock it from your hold with anything, and pick one price tag (Cheap, Fair or Premium). NPCs shop it once per docking (`src/npc_shopping.lua`): needs (fuel, ammo, flares) when it's Cheap or the house shelf is out, module upgrades through the refit check, and a few wants by temperament. Unpaid rent closes it and moves the stock to your storage there (`src/stalls.lua`, `src/ui/stall.lua`).
 - Persistence for named areas: wrecks, containers and loose cargo (`src/persistence.lua`, `src/loose.lua`).
 - Saves of the whole universe (`src/world.lua` `Game:saveState`).
 
@@ -38,6 +40,7 @@ Last checked against `main`: 2026-11-15.
 - Mining against finite resources ([mining-production.md](mining-production.md)).
 - Ammunition, electronics and fuel supply ([ammunition-economy.md](ammunition-economy.md), [electronics-economy.md](electronics-economy.md), [fuel-supply-balance.md](fuel-supply-balance.md)).
 - Merchant houses and fences that sell what raiders bring in (`src/merchants.lua`, `src/dark.lua`).
+- Module factories by faction, with heavy metals, coils and ceramics for engines and reactors ([manufacturing-outputs.md](manufacturing-outputs.md#ship-modules)). Utility pods still restock on a timer.
 
 ### A-Life (NPCs)
 - One shared NPC loop for every job: travel, arrive, stay, decide (`src/npc.lua`).

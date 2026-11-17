@@ -1611,6 +1611,64 @@ local function drawRange(game)
 	lg.circle("line", x, y, reach, 96)
 end
 
+-- Job sites (src/quest_sites.lua): a glowing fence round the spot where an
+-- active job's item has to be used. Only the player's view draws it: it is
+-- not an object in the world, NPCs never see it. It brightens once you're
+-- inside, where using the item counts.
+local function drawJobSites(game)
+	local p = game.player
+	if not game.universe or not p or p.dead or not p.body then return end
+	local sites = require("src.quests").markers(game)
+	if #sites == 0 then return end
+	local px, py = p.body:getPosition()
+	local t = game.time or 0
+	local HUD = require("src.hud")
+	lg.setBlendMode("add")
+	for _, m in ipairs(sites) do
+		local R = m.range
+		local inside = (px - m.x) ^ 2 + (py - m.y) ^ 2 <= R * R
+		local pulse = 0.5 + 0.5 * sin(t * 2.2)
+		local a = inside and 1 or 0.65
+		-- the fence: a soft band just inside the line, then the line itself
+		local band = max(R * 0.05, 18 * screenPx)
+		for i = 1, 6 do
+			local f = i / 6
+			lg.setColor(0.35, 1, 0.55, (0.05 + 0.04 * pulse) * (1 - f) * a)
+			lg.setLineWidth(band / 6 * 1.4)
+			lg.circle("line", m.x, m.y, R - band * f, 160)
+		end
+		lg.setColor(0.55, 1, 0.65, (0.55 + 0.35 * pulse) * a)
+		lg.setLineWidth(max(2, 2.5 * screenPx))
+		lg.circle("line", m.x, m.y, R, 160)
+		-- dashes running round it, so it reads as a boundary and not an orbit
+		local dashes, spin = 48, t * 0.05
+		lg.setColor(0.75, 1, 0.8, 0.6 * a)
+		lg.setLineWidth(max(3, 5 * screenPx))
+		for i = 0, dashes - 1 do
+			local a0 = spin + i * 2 * pi / dashes
+			lg.arc("line", "open", m.x, m.y, R + band * 0.35, a0, a0 + pi / dashes * 0.8, 6)
+		end
+		-- the spot itself: a pulsing beacon
+		lg.setColor(0.4, 1, 0.6, 0.25 + 0.25 * pulse)
+		glowAt(m.x, m.y, max(R * 0.08, 60 * screenPx) * (0.8 + 0.4 * pulse))
+		lg.setColor(0.8, 1, 0.85, 0.9)
+		glowAt(m.x, m.y, max(R * 0.015, 10 * screenPx))
+	end
+	lg.setBlendMode("alpha")
+	-- once inside, a line under the site's own label says it counts here
+	for _, m in ipairs(sites) do
+		if (px - m.x) ^ 2 + (py - m.y) ^ 2 <= m.range * m.range then
+			local text = "In range \194\183 use the " .. ((data.items[m.quest.item] or {}).name or "job item") .. " from your hold (U)"
+			lg.push(); lg.translate(m.x, m.y); lg.scale(screenPx)
+			local font = HUD.font(14); lg.setFont(font)
+			local w = font:getWidth(text)
+			lg.setColor(0, 0, 0, 0.55); lg.rectangle("fill", -w / 2 - 8, 40, w + 16, 22, 4, 4)
+			lg.setColor(0.6, 1, 0.7, 1); lg.print(text, -w / 2, 43)
+			lg.pop()
+		end
+	end
+end
+
 -- A field's world drawn at (px, py), as seen from outside its map.
 local function drawFieldWorld(game, F, px, py)
 	if not F or not F.planetR then return end
@@ -1658,6 +1716,7 @@ function Render.world(game, overlay, boundaryAngle)
 		drawLane(game)
 	end
 	drawRange(game)
+	if not overlay then drawJobSites(game) end
 	drawPredicted(game)
 	drawPickups(game)
 	drawDecoys(game)

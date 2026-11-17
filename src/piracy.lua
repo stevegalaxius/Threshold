@@ -135,12 +135,12 @@ local function next(c)
  local base=duty.base or Homes.get(r)
  if duty.phase=='escape' then
   if L.canonical(c.node)~=L.canonical(base) then
-   local path=itinerary(c.node,base,clock)
+   local path=G.live(c.node,base,clock)
    if path then return {route=path} end
   end
   P.unload(u,r)
   Supplies.refill(r,base)
-  local path=itinerary(base,duty.origin,clock)
+  local path=G.live(base,duty.origin,clock)
   if path and #path>1 then
    duty.phase='redeploy';r.taskStatus='returning to hunting grounds'
    return {route=path}
@@ -149,7 +149,7 @@ local function next(c)
  -- Back where it set out (or no way back): rejoin the raid network.
  local area=L.get(c.node).area
  local rally=L.rally(area,c.node,clock)
- local path=rally and itinerary(c.node,rally,clock)
+ local path=rally and G.live(c.node,rally,clock)
  r.piracy=nil;Tasks.release(u,r,'completed',clock);r.taskWorker=true;r.taskStatus=nil;r.area=area
  require('src.security').ensureRaids(u,area)
  if path and #path>1 then return {route=path} end

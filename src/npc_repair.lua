@@ -31,6 +31,8 @@ function R.begin(r,node,at,minimum,u)
 end
 function R.advance(r,clock,node,u)
  if r.state~='docked' or r.ship.armor==0 then return end
+ -- (a player's stall first: a Cheap one undercuts the house refill)
+ require('src.npc_shopping').visit(u,r,node,clock)
  require('src.supplies').refill(r,node,u)
  -- A ship waiting for its next job search is still parked and repairing.
  local at=math.min(clock,math.max(r.untilTime or clock,r.nextDecisionAt or 0))
@@ -48,6 +50,11 @@ end
 function R.online(game,e,dt)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  if not r or e.dead or e.removed or not e.dockState or not e.dockState.done then return end
+ if not e.dockState.shopped then
+  e.dockState.shopped=true
+  local st=e.dockState.station
+  require('src.npc_shopping').visit(game.universe,r,st.key or st.locationId,game.universe.clock,e,true)
+ end
  require('src.supplies').online(game,e)
  if game.stationServices(e.dockState.station).repair then
   local st=e.dockState.station

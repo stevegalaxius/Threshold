@@ -120,7 +120,7 @@ local function arriveFromEdge(game,r,area,clock)
   -- starting right at a corridor's mouth is already the map edge
   if not driver then r.arrivedFrom=entry;return true end
   path={entry,entry}   -- at a driver: still come in off its lane
- else path=G.itinerary(entry,S,clock) end
+ else path=G.live(entry,S,clock) end
  if not path or #path<2 then return false,'no route '..entry..' -> '..S end
  if driver then
   -- a driver's gun sits inside the map: come in off its lane instead,

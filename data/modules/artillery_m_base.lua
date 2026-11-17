@@ -2,7 +2,8 @@
 module {
 	id = "artillery_m_base", name = "Artillery M",
 	family = "weapon",
-	maker = "Brute Industries",
+	maker = "Zhongke Ordnance",
+	description = "Medium artillery on a recoil sled. Slow, heavy, and hard to argue with.",
 	mass = 16,
 	powerDraw = 2,
 	price = 9000,

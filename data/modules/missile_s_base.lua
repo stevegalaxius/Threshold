@@ -2,7 +2,8 @@
 module {
 	id = "missile_s_base", name = "Missile Rack S",
 	family = "bay",
-	maker = "Halcyon Arms",
+	maker = "Gilgal Arsenal",
+	description = "A light Diwan launch rack. Gilgal builds them by the hundred and blesses every one.",
 	mass = 3,
 	price = 4000,
 	size = "S",

@@ -219,13 +219,13 @@ function N.beginRoute(ctx,action)
  if not L.byId[target] then return false end
  if r.route and r.route[#r.route]==target and (r.state=='travel' or r.state=='transit') then return true end
  local moving=r.state=='travel' or r.state=='transit'
- local from=moving and r.route[r.index] or r.node or r.route[r.index]
- local route=G.itinerary(from,target,ctx.clock);if not route then return false end
  if moving then
-  local previous=r.route[(r.index-2)%#r.route+1]
-  r.route={previous};for _,id in ipairs(route) do r.route[#r.route+1]=id end;r.index=2
-  require('src.queue').leg(r)
+  -- on or turn round, whichever is the shorter way (src/alife.lua)
+  local x,y;if ctx.e and ctx.e.body and not ctx.e.body:isDestroyed() then x,y=ctx.e.body:getPosition() end
+  if not require('src.alife').redirect(r,target,ctx.clock,x,y) then return false end
  else
+  local from=r.node or r.route[r.index]
+  local route=G.live(from,target,ctx.clock);if not route then return false end
   ctx.startingAction=true;go(r,route,ctx.clock,ctx);ctx.startingAction=nil
  end
  if ctx.e then require('src.alife').bindRoute(ctx.game,ctx.e,r) end
@@ -235,15 +235,16 @@ end
 function N.travel(game,r,target,clock)
  local ctx=N.context(game,r,clock,game.alifeOnline and game.alifeOnline[r.id])
  if ctx.e then require('src.alife').capture(game,ctx.e,false) end
- local from=r.state=='travel' and r.route[r.index] or r.node or r.route[r.index]
- local route=G.itinerary(from,target,clock)
- if not route then return false end
  if r.state=='travel' then
+  local x,y;if ctx.e and ctx.e.body and not ctx.e.body:isDestroyed() then x,y=ctx.e.body:getPosition() end
+  if not require('src.alife').redirect(r,target,clock,x,y) then return false end
   Actions.cancel(ctx,'new destination')
-  local previous=r.route[(r.index-2)%#r.route+1]
-  r.route={previous};for _,id in ipairs(route) do r.route[#r.route+1]=id end;r.index=2
-  require('src.queue').leg(r);N.routeAction(ctx)
- else go(r,route,clock,ctx) end
+  N.routeAction(ctx)
+ else
+  local route=G.live(r.node or r.route[r.index],target,clock)
+  if not route then return false end
+  go(r,route,clock,ctx)
+ end
  if ctx.e then require('src.alife').bindRoute(game,ctx.e,r) end
  return true
 end
@@ -252,7 +253,7 @@ end
 local function returnHome(r,node,at,ctx)
  local home=require('src.npc_home').get(r,ctx.u)
  if not home or home==node then return false end
- local route=G.itinerary(node,home,at,true)
+ local route=G.live(node,home,at,true)
  if not route then r.taskStatus='waiting for a route home';return false end
  Trace.note(r,at,'npc','no work at '..node..' -> returning home to '..home)
  r.taskStatus='returning home';r.waitingHomeBerth=nil

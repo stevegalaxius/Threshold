@@ -2,7 +2,8 @@
 module {
 	id = "gun_l_base", name = "Gun L",
 	family = "weapon",
-	maker = "Brute Industries",
+	maker = "Zhongke Ordnance",
+	description = "A twin-breech heavy gun. Zhongke rates it for a hundred thousand rounds.",
 	mass = 24,
 	powerDraw = 4,
 	price = 15000,

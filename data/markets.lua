@@ -37,25 +37,25 @@ market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   
 } }
 -- Logistics hubs: trunk-freight terminals, one per hubbed planet system.
 market { id = "market:belt_3", station = "Ceres Logistics", sells = {
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:jupiter_3", station = "Jovian Logistics", sells = {
-	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:uranus_3", station = "Uranian Logistics", sells = {
-	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:mars_4", station = "Zhuhai Logistics", sells = {
-	{ "shell_m", 4 }, { "missile_s", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "shell_m", 4 }, { "missile_s", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:triton_3", station = "Triton Logistics", sells = {
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:venus_4", station = "Venus Logistics", sells = {
-	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 -- Moon customs: each moon's exports leave, and its imports arrive, here.
 market { id = "market:io_3", station = "Io Customs", sells = {
@@ -75,7 +75,6 @@ market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Red
 	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
 } }
 market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
-	{ "martian_ore", 8 },
 	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
 } }
 market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
@@ -175,6 +174,9 @@ market { id = "market:ring_1", station = "Ring Station", dealer = { name = "Ring
 	{ "iron_ore", 4 },
 	{ "rounds_s", 6 }, { "rounds_m", 4 }, { "shell_s", 3 }, { "gun_s_base", 2 },
 	{ "hold_pod_s", 2 }, { "cargo_container", 3 }, { "nav_computer", 1 },
+} }
+market { id = "market:ring_2", station = "Lumen Fabrication", sells = {   -- electronics fab
+	{ "electronics", 4 }, { "silicon", 2 }, { "industrial_acids", 2 }, { "nav_computer", 1 },
 } }
 market { id = "market:quarry_1", station = "Quarry Ore Depot", sells = {   -- drill crews' supply
 	{ "iron_ore", 4 },

@@ -221,7 +221,204 @@ return function(game)
  local launch
  for _,o in pairs(require('src.tasks').state(u).offers) do if o.kind=='satlaunch' and o.sat==sid then launch=o end end
  assert(launch,'no launch job posted')
+ assert(not require('src.tasks').npcMayClaim(u,launch,u.clock),'haulers can take a new launch job before the player sees it')
+ -- once the player holds the launch, haulers leave its board job alone
+ local def=require('src.tasks').definitions.satlaunch
+ assert(def.eligible(u,{},launch,launch.source),'hauler cannot take an open launch job')
+ assert(Q.accept(u,posted.id,u.clock,game),'could not accept the launch job')
+ assert(not def.eligible(u,{},launch,launch.source),'hauler took a launch the player holds')
+ Q.abandon(u,posted.id,u.clock,game)
+ -- and a launch a hauler already took isn't offered to the player
+ launch.owner='npc/test'
+ Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.update(u,u.clock,game)
+ for _,q in pairs(Q.state(u).offers) do assert(not (q.kind=='sat_launch' and q.subject==sid),'launch offered while a hauler has it') end
+ launch.owner=nil
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
- print('ok  satellites: hubs, fuel, refuel and replacement jobs')
+ -- the player's own: a package used in orbit, with standing, up to the cap
+ do
+  local Rep=require('src.reputation');local U=require('src.item_use');local Hold=require('src.inventory.hold')
+  game:loadField('earth');run(game,1)
+  local p,w,R=game.player,game.well,game.field.planetR
+  local function give() if p.hold then Hold.add(p.hold,'satellite_package',1);p.cargo=Hold.totals(p.hold) else p.cargo.satellite_package=1 end end
+  p.dockState=nil;game.state='playing';p.body:setPosition(w.x+R*1.8,w.y);give()
+  local f=Rep.ofArea('earth');Rep.addStanding(u,f,-100)
+  local ok,why=U.can(game,p,'satellite_package')
+  assert(not ok and why:match('authorities'),'deployed without standing: '..tostring(why))
+  Rep.addStanding(u,f,200)
+  assert(U.begin(game,p,'satellite_package'),'could not deploy');run(game,4)
+  local mine=Sat.mine(u);assert(#mine==1 and mine[1].owner=='player','no satellite of the player\'s own')
+  local r=mine[1];r.paidAt=u.clock-3600;local c0=u.credits;u.satCheckAt=nil;Sat.tick(u)
+  assert(u.credits-c0==Sat.income,'income: '..(u.credits-c0))
+  for i=2,Sat.playerCap do local r2=Sat.deploy(game,(function() p.body:setPosition(w.x-R*(1.5+i*0.3),w.y+i*900);return p end)());assert(r2,'deploy '..i) end
+  p.body:setPosition(w.x,w.y-R*2.5);local _,full=Sat.canDeploy(game,p);assert(full and full:match('already'),'no cap')
+  Sat.markLost(u,r);assert(not u.satellites[r.id] and #Sat.mine(u)==Sat.playerCap-1,'lost satellite not cleared')
+  for _,x in ipairs(Sat.mine(u)) do Sat.markLost(u,x) end
+ end
+ print('ok  satellites: hubs, fuel, refuel and replacement jobs, your own')
+
+ -- 5b. Market stalls: rent one, stock it, and NPCs docking there buy from it.
+ do
+  local Stall=require('src.stalls');local Shop=require('src.npc_shopping');local Hold=require('src.inventory.hold');local Rep=require('src.reputation')
+  local k='station:earth_1'
+  Rep.addStanding(u,Rep.ofNode(k),-200)
+  assert(not Stall.canRent(u,k),'rented without standing')
+  Rep.addStanding(u,Rep.ofNode(k),300);u.credits=50000
+  local s=assert(Stall.open(u,k),'could not rent')
+  local h=Hold.new({{key='hull',name='x',w=10,h=10}})
+  Hold.add(h,'patch_kit',6);Hold.add(h,'rounds_m',60);Hold.add(h,'iron_ore',5);Stall.stock(s,h,'iron_ore',5)
+  assert(Stall.stock(s,h,'patch_kit',6)==6 and Stall.stock(s,h,'rounds_m',60)==60,'stocking failed')
+  Stall.setTag(s,'cheap')
+  local c0=u.credits
+  for _,r in pairs(u.npcs) do
+   if r.ship and r.state~='dead' and not r.ship.hold then
+    r.credits=3000;r.dockedAt=(r.dockedAt or 0)+1
+    for i,v in pairs(r.ship.cargo or {}) do r.ship.cargo[i]=math.floor(v*.3) end
+    Shop.visit(u,r,k,u.clock)
+   end
+  end
+  assert(u.credits>c0 and #s.ledger>0,'no NPC bought from the stall')
+  u.credits=0;s.paidTo=u.clock-1;Stall.tick(u,nil)
+  assert(not Stall.get(u,k),'stall stayed open with rent unpaid')
+  assert(Hold.count(u.stations[k].storage,'iron_ore')==5,'closed stall lost its stock')
+ end
+ print('ok  market stalls: rent, stock, NPC shopping, rent lapse')
+
+ -- Routing: no route doubles back. Gates used to join only their nearest
+ -- node (a trader bound for Triton flew out to Neptune's far buoy first),
+ -- stations just over 120 degrees apart went the long way round, and drill
+ -- sites, drivers and gates were used as waypoints.
+ do
+  local G=require('src.travelgraph')
+  local function d(a,b) return (b-a+math.pi)%(2*math.pi)-math.pi end
+  for _,area in ipairs(Fields.list) do
+   local f=Fields[area];local graph=G.build(area)
+   for clock=0,1800,300 do
+    local function bearing(id) local x,y=G.position(graph,id,clock);return math.atan2(y,x) end
+    for _,a in ipairs(f.locations) do for _,b in ipairs(f.locations) do
+     if a~=b and a.kind~='mining_site' and b.kind~='mining_site' then
+      local r=assert(G.route(graph,a.id,b.id,clock,600),'no route '..a.id..' -> '..b.id)
+      local ids={r.start};for _,leg in ipairs(r.legs) do ids[#ids+1]=leg.edge.to end
+      local turned=0
+      for i=2,#ids do
+       local k=L.get(ids[i]).kind
+       assert(i==#ids or (k~='moon_gate' and k~='driver' and k~='mining_site') or r.through,'route passes through '..ids[i]..': '..table.concat(ids,' > '))
+       turned=turned+math.abs(d(bearing(ids[i-1]),bearing(ids[i])))
+      end
+      local extra=turned-math.abs(d(bearing(ids[1]),bearing(ids[#ids])))
+      assert(extra<.6,('detour of %.2f rad at %d: %s'):format(extra,clock,table.concat(ids,' > ')))
+     end
+    end end
+   end
+  end
+ end
+ -- A ship just out of earth_1 for earth_2 that is sent to earth_4 (back
+ -- past earth_1) turns round where it is, instead of flying on to earth_2
+ -- and doubling back, and doesn't jump doing it.
+ do
+  local A,G=require('src.alife'),require('src.travelgraph')
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  local keep=require('src.persistence').copy(r)
+  r.state='travel';r.area='earth';r.encounter=nil;r.speed=600
+  r.route={'station:earth_1','station:earth_2'};r.index=2
+  local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_2'},0)/600
+  r.depart=-.1*span;r.arrive=r.depart+span
+  local x,y=A.trackPoint(r,0)
+  assert(A.redirect(r,'station:earth_4',0),'no way to earth_4')
+  assert(r.route[r.index]=='station:earth_1','flew on to '..r.route[r.index]..' before turning: '..table.concat(r.route,' > '))
+  local xx,yy=A.trackPoint(r,0)
+  assert(math.abs(x-xx)+math.abs(y-yy)<1,'ship jumped turning round')
+  for k in pairs(r) do r[k]=nil end;for k,v in pairs(keep) do r[k]=v end
+ end
+ -- A repair stop past the node it was heading for: the ship rejoins its
+ -- route at the station instead of coming back to that node first.
+ do
+  local U,G,Repairs=require('src.upkeep'),require('src.travelgraph'),require('src.npc_repair')
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  local keep=require('src.persistence').copy(r)
+  r.state='travel';r.area='earth';r.encounter=nil;r.worldRecovery=nil;r.waitingForHome=nil;r.driverState=nil
+  r.service=nil;r.nextServiceAt=nil;r.speed=600
+  r.route={'station:earth_1','station:earth_4','earth/trade_buoy_b','station:earth_3'};r.index=2
+  local clock=game.universe.clock
+  local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_4'},clock)/600
+  r.depart=clock-.9*span;r.arrive=r.depart+span
+  local need,supports=U.need,Repairs.supports
+  U.need=function() return 'repair' end;Repairs.supports=function(id) return id=='station:earth_3' end
+  local ok=U.plan(r,clock)
+  U.need,Repairs.supports=need,supports
+  assert(ok and r.service,'no repair visit planned')
+  assert(r.route[#r.route]=='station:earth_3' and r.service.saved.index==4,'repair visit doubles back: '..table.concat(r.route,' > '))
+  for k in pairs(r) do r[k]=nil end;for k,v in pairs(keep) do r[k]=v end
+ end
+ print('ok  routing: no detours, turns round when re-tasked, repair stops rejoin')
+ -- 6. Jobs: wreck bounties pay whoever clears a ship wreck, ore contracts
+ -- go up where drills ship home, and the Jobs tab lays them all out.
+ do
+  local B=require('src.wreck_bounty')
+  local area=game.fieldId;local payer=assert(B.payer(area),'no bounty payer for '..area)
+  local credits=u.credits
+  -- the player drills a real wreck apart
+  local victim
+  for _,e in ipairs(game.entities) do if e.kind=='ship' and e.alifeId and not e.dead then victim=e;break end end
+  assert(victim,'no NPC ship to wreck')
+  local husk=game:spawnHusk(victim,victim.body:getX()+400,victim.body:getY(),0,0,0,0)
+  assert(husk.origin,'ship wreck has no origin')
+  local pieces=0
+  for _,e in ipairs(game.entities) do if e.kind=='husk' and e.origin==husk.origin then pieces=pieces+1;e.dead=true;e.drilled=true;e.lastHitBy=game.player end end
+  run(game,.1)
+  local owed=B.owed(u,payer)
+  assert(owed>0,'clearing a wreck ('..pieces..' pieces) paid no bounty')
+  assert(B.state(u).cleared[payer]==1,'a wreck in pieces paid more than once')
+  -- an NPC clean-up crew is paid into its own credits
+  local npc
+  for _,r in pairs(u.npcs) do if r.ship and r.state~='dead' then npc=r;break end end
+  local before=npc.credits or 0
+  B.cleared(game,npc,{kind='husk',origin={npc='test'},steel=5},area)
+  assert((npc.credits or 0)==before+B.rate(5),'NPC was not paid the wreck bounty')
+  assert(not B.cleared(game,npc,{kind='husk',steel=5},area),'a derelict paid a bounty')
+  assert(B.collect(game,payer) and u.credits==credits+owed,'bounty not collected')
+  -- ore contracts: a drill home short of its ore posts one
+  local Q=require('src.quests');local Mining=require('src.mining')
+  local home,item
+  for _,site in pairs(Mining.state(u).sites) do if site.home and site.item then home,item=L.canonical(site.home),site.item;break end end
+  assert(home,'no drill sites')
+  Stock.take(u,home,item,Stock.count(u,home,item))
+  Q.state(u).next=0;Q.state(u).offers={};Q.state(u).cooldown={};Q.state(u).active={};Q.update(u,u.clock,game)
+  local ore
+  for _,q in pairs(Q.state(u).offers) do if q.kind=='ore_delivery' and q.giver==home then ore=q end end
+  assert(ore,'no ore contract at '..home)
+  -- the board is per system: every station in it lists the contract
+  local sys=Q.system(home)
+  for _,area in ipairs(Fields.list) do
+   for _,st in ipairs(L.stations(area,'trade')) do
+    local listed=false
+    for _,q in ipairs(Q.offersInSystem(u,st)) do if q==ore then listed=true end end
+    assert(listed==(Q.system(st)==sys and Q.willOffer(u,home)),'ore contract listing wrong at '..st)
+   end
+  end
+  -- the Jobs tab, docked there and in flight
+  local Board,View=require('src.player_contracts'),require('src.ui.jobs')
+  local station=Board.station;Board.station=function() return home end
+  local ok,err=pcall(function() View.draw(game) end)
+  Board.station=station
+  assert(ok,err)
+  View.draw(game)
+ end
+ -- a freight pickup only bundles freight: a satellite job on the same lane
+ -- is a board order too, with no item
+ do
+  local Tasks=require('src.tasks');local copy=require('src.persistence').copy
+  local t
+  for _,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.order and o.state=='available' then t=o;break end end
+  assert(t,'no freight order on the board')
+  local sat=Tasks.post(u,{kind='satrefuel',source=t.source,target=t.target,sat='test',order=true,cooldown=60,cargo={item='deuterium_canister',amount=1}})
+  local hull
+  for _,n in pairs(u.npcs) do if n.ship and (require('src.data').hulls[n.ship.hull].hold or 0)>0 then hull=n.ship.hull;break end end
+  local r={id='npc/test',ship={hull=hull,loadout={},cargo={}},node=t.source}
+  local job=copy(t);job.phase=nil
+  local ok,err=pcall(Tasks.definitions.transport.prepare,u,r,job,t.source,u.clock)
+  Tasks.state(u).offers[sat.id]=nil
+  assert(ok,'freight bundling tripped on a satellite job: '..tostring(err))
+ end
+ print('ok  jobs: wreck bounties, ore contracts and the Jobs tab')
  print('ALL TESTS PASSED')
 end

@@ -8,6 +8,7 @@
 	Cost: one check per ship per visit, slots x stocked modules stat passes.
 ]]
 local data=require('src.data')
+local L=require('src.locations')
 local F=require('src.ship_fit')
 local Rank=require('src.npc_rank')
 local M={}
@@ -27,6 +28,20 @@ local function shelf(u,node)
   end
  end
  return out
+end
+
+local function shelfHas(u,node,id)
+ local Stock=require('src.stockpile')
+ local ok,shops=pcall(Stock.shops,node)
+ for i,shop in ipairs(ok and shops or {}) do
+  for _,e in ipairs(shop.sells or {}) do
+   if e[1]==id then
+    local okC,n=pcall(Stock.available,u,node,id,i)
+    if shop.unlimited or (okC and n or 0)>0 then return true end
+   end
+  end
+ end
+ return false
 end
 
 local function keeps(r,hull,loadout)
@@ -52,7 +67,11 @@ function M.dock(r,node,u,clock,roll)
  local role=r.populationGroup
  if not (role and F.profiles[role]) then return end
  local hull=data.hulls[r.ship.hull];if not hull then return end
- local stock=shelf(u,node);if not next(stock) then return end
+ local stock=shelf(u,node)
+ -- and any player stall's modules here, at its price (src/npc_shopping.lua)
+ local offers,stall=require('src.npc_shopping').offers(u,node)
+ for id in pairs(offers or {}) do stock[id]=true end
+ if not next(stock) then return end
  local base=r.ship.loadout;local trials={{loadout=base}}
  for i,slot in ipairs(hull.slots) do
   local cur=base[i] and data.modules[base[i]]
@@ -62,9 +81,13 @@ function M.dock(r,node,u,clock,roll)
     local lo={};for k,v in ipairs(base) do lo[k]=v end
     for k=#base+1,#hull.slots do lo[k]=false end
     lo[i]=id
-    local cost=(m.price or 0)-(cur and (cur.price or 0)*M.resale or 0)
+    -- the house's price unless only a stall has it, or the stall's is lower
+    local price,fromStall=m.price or 0,false
+    local house=shelfHas(u,node,id)
+    if offers and offers[id] and (not house or offers[id]<price) then price,fromStall=offers[id],true end
+    local cost=price-(cur and (cur.price or 0)*M.resale or 0)
     if cost<=(r.credits or 0) and keeps(r,hull,lo) then
-     trials[#trials+1]={loadout=lo,slot=i,to=id,from=base[i],cost=math.max(0,cost)}
+     trials[#trials+1]={loadout=lo,slot=i,to=id,from=base[i],cost=math.max(0,cost),stall=fromStall}
     end
    end
   end
@@ -76,11 +99,27 @@ function M.dock(r,node,u,clock,roll)
   for k,v in pairs(t.m) do if v>(ref[k] or 0) then ref[k]=v end end
  end
  local now=F.score(role,trials[1].m,ref,danger);local best
+ -- faction pilots lean towards their own faction's weapons (src/faction_gear.lua)
+ local Gear=require('src.faction_gear');local faction=Gear.faction(r)
+ local function leaning(t)
+  if not faction then return 0 end
+  return ((Gear.prefersModule(faction,t.to) and 1 or 0)-(Gear.prefersModule(faction,t.from) and 1 or 0))*Gear.refitBonus
+ end
  for k=2,#trials do
-  local t=trials[k];t.fit=F.score(role,t.m,ref,danger)
+  local t=trials[k];t.fit=F.score(role,t.m,ref,danger)+leaning(t)
   if not best or t.fit>best.fit or t.fit==best.fit and t.cost<best.cost then best=t end
  end
- if not best or best.fit-now<tier.refitMargin then return end
+ -- a Premium stall's module has to be a clearer improvement
+ local margin=tier.refitMargin
+ if best and best.stall and stall then margin=margin*require('src.stalls').byTag[stall.tag].factor^4 end
+ if not best or best.fit-now<margin then return end
+ if best.stall then
+  -- bought off the player's stall: its stock and the player's takings
+  local paid=require('src.stalls').sell(u,L.canonical(node),best.to,1,r,clock)
+  if paid<=0 then return end
+  local cur=best.from and data.modules[best.from]
+  best.cost=math.max(0,paid-(cur and (cur.price or 0)*M.resale or 0))
+ end
  r.ship.loadout=best.loadout;r.credits=r.credits-best.cost
  local maximum=require('src.stats').compute(hull,best.loadout).armor
  r.ship.armor=math.min(r.ship.armor or maximum,maximum)

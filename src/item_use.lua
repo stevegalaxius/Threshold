@@ -350,4 +350,14 @@ U.effect("quest", {
 	apply = function(game, e, a) require("src.quests").useAt(game, e, a.item) end,
 })
 
+-- Put up a satellite of the player's own, here in orbit (src/satellites.lua,
+-- Sat.deploy). A job's own use of the same package ("quest") wins at its site.
+U.effect("deploy_satellite", {
+	check = function(game, e) return require("src.satellites").canDeploy(game, e) end,
+	apply = function(game, e)
+		local r, why = require("src.satellites").deploy(game, e)
+		if r then game:toast("SATELLITE DEPLOYED", 2) elseif why then game:toast(why:upper(), 2) end
+	end,
+})
+
 return U
