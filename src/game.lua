@@ -236,7 +236,7 @@ function Game:loadField(id, opts)
 	end
 	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
 	self.world:setCallbacks(function(...) self:beginContact(...) end)
-	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
+	self.sleepers, self.sleepTick, self.sleepCursor = {}, T.sleepEvery, nil   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.pickupBodies = {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
@@ -427,8 +427,6 @@ end
 function Game:updateSleepers()
 	local w = self.well
 	self.sleepTick = (self.sleepTick or 0) + 1
-	if self.sleepTick <= T.sleepEvery then return end
-	self.sleepTick = 0
 	local p = self.player
 	local px, py
 	if p and not p.dead then px, py = p.body:getPosition() else px, py = self.camera.x, self.camera.y end
@@ -440,53 +438,69 @@ function Game:updateSleepers()
 	local cam = self.camera
 	local cx, cy, hw, hh = 0, 0, -1, -1
 	if cam and cam.zoom and love.graphics then
-		local w, h = love.graphics.getDimensions()
+		local sw, sh = love.graphics.getDimensions()
 		local z = max(cam.zoom, 0.01)
 		cx, cy = cam.x or px, cam.y or py
-		hw, hh = w / (2 * z) + T.sleepViewMargin, h / (2 * z) + T.sleepViewMargin
+		hw, hh = sw / (2 * z) + T.sleepViewMargin, sh / (2 * z) + T.sleepViewMargin
 		-- (near the player's own circle already covers it)
 		if hw * hw + hh * hh < near2 then hw, hh = -1, -1 end
 	end
 	local m2 = T.sleepViewMargin
-	local function inView(x, y, extra)
-		return math.abs(x - cx) < hw + extra and math.abs(y - cy) < hh + extra
-	end
-	-- wake the ones the player is coming up on
-	local sl, keep = self.sleepers, {}
-	for _, e in ipairs(sl) do
+	local abs = math.abs
+	-- Wake the ones the player is coming up on. A slice of them each step,
+	-- so each is still looked at once every T.sleepEvery + 1 steps, but
+	-- the work is spread out instead of landing on one step as a hitch
+	-- (a ringed planet has over ten thousand). The first step after a map
+	-- is made or handed over looks at all of them.
+	local sl = self.sleepers
+	local n = #sl
+	local count = self.sleepCursor and math.ceil(n / (T.sleepEvery + 1)) or n
+	local i = self.sleepCursor or 1
+	while count > 0 and n > 0 do
+		count = count - 1
+		if i > n then i = 1 end
+		local e = sl[i]
+		local wake, x, y, a = false
 		if not e.removed then
-			local x, y, a
 			if e.sleep.still then x, y, a = e.body.x, e.body.y, e.sleep.a else x, y, a = self:sleeperPos(e) end
-			if (x - px) ^ 2 + (y - py) ^ 2 < near2 or inView(x, y, 0) then
-				local o = e.sleep
-				e.sleep = nil
-				self:debrisBody(e, x, y, e.body.a, o.spin)
-				if o.r then
-					local v = o.rate * o.r
-					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
-				elseif e.drift then
-					-- (made still, set moving when it wakes: a lane's rock
-					-- drifting onto the road)
-					e.body:setLinearVelocity(e.drift[1], e.drift[2])
-					e.drift = nil
-				else
-					e.body:setLinearVelocity(o.vx, o.vy)
-				end
-				table.insert(self.entities, e)
+			wake = (x - px) ^ 2 + (y - py) ^ 2 < near2 or (abs(x - cx) < hw and abs(y - cy) < hh)
+		end
+		if e.removed or wake then
+			-- out of the list: the last one takes its place (and is looked
+			-- at next)
+			sl[i] = sl[n]; sl[n] = nil; n = n - 1
+		else
+			i = i + 1
+		end
+		if wake then
+			local o = e.sleep
+			e.sleep = nil
+			self:debrisBody(e, x, y, e.body.a, o.spin)
+			if o.r then
+				local v = o.rate * o.r
+				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+			elseif e.drift then
+				-- (made still, set moving when it wakes: a lane's rock
+				-- drifting onto the road)
+				e.body:setLinearVelocity(e.drift[1], e.drift[2])
+				e.drift = nil
 			else
-				keep[#keep + 1] = e
+				e.body:setLinearVelocity(o.vx, o.vy)
 			end
+			table.insert(self.entities, e)
 		end
 	end
-	self.sleepers = keep
-	-- and put the far ones to sleep
+	self.sleepCursor = i
+	-- and, every T.sleepEvery + 1 steps, put the far ones to sleep
+	if self.sleepTick <= T.sleepEvery then return end
+	self.sleepTick = 0
 	local awake = {}
 	for _, e in ipairs(self.entities) do
 		local slept = false
 		if e.kind == "asteroid" and not e.giant and not e.miningId and not e.dead and not e.removed and not e.reentry then
 			local b = e.body
 			local x, y = b:getPosition()
-			if (x - px) ^ 2 + (y - py) ^ 2 > far2 and not inView(x, y, m2) then
+			if (x - px) ^ 2 + (y - py) ^ 2 > far2 and not (abs(x - cx) < hw + m2 and abs(y - cy) < hh + m2) then
 				local vx, vy = b:getLinearVelocity()
 				if w then
 					local dx, dy = x - w.x, y - w.y
@@ -500,7 +514,7 @@ function Game:updateSleepers()
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
 				b:destroy()
-				keep[#keep + 1] = e
+				sl[#sl + 1] = e
 				slept = true
 			end
 		end
