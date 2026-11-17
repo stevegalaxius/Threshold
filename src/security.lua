@@ -12,6 +12,7 @@ local Homes=require('src.npc_home')
 local NPC=require('src.npc')
 local Access=require('src.npc_access')
 local S={}
+local policeWanted
 local function route(source,target,clock)
  if source==target then return {source,source} end
  local path=G.route(G.build(L.get(source).area),source,target,clock)
@@ -138,6 +139,8 @@ local function create(game,area,role,node,clock,start)
  require('src.personality').ensure(r)
  Homes.choose(u,r)
  u.npcs[r.id]=r
+ -- police serve in their system's battlegroup (src/squads.lua)
+ if role=='patrol' then require('src.squads').enlist(game,r,true) end
  NPC.advance(r,clock,u,game)
  return r
 end
@@ -173,6 +176,13 @@ function S.spawnPirate(game,area,nearPlayer) return Population.spawn(game,area,'
 function S.pirateCount(u,area) return Population.count(u,area,'pirate') end
 function S.updateSpawns(game,clock) return Population.update(game,clock) end
 
+-- Police per system: a flagship plus every squad slot of its battlegroup.
+policeWanted=function(u,area)
+ local owner=Access.owner(area)
+ if not owner or not Fields[area].alifeSecurity then return 0 end
+ return require('src.squads').desired(u,'police',area,owner)
+end
+S.policeWanted=policeWanted
 function S.seed(game,start)
  local u=game.universe
  local state=Tasks.state(u);state.securityAreas=state.securityAreas or {}
@@ -182,7 +192,7 @@ function S.seed(game,start)
   if f.alifeSecurity and not state.securityAreas[area] then
    state.securityAreas[area]=true
    for _,role in ipairs({'patrol','pirate'}) do
-    local count=role=='patrol' and not Access.owner(area) and 0 or f.alifeSecurity[role]
+    local count=role=='patrol' and policeWanted(u,area) or f.alifeSecurity[role]
     for i=1,count do
      local node=f.buoyIds[(i-1)%#f.buoyIds+1]
      local r=create(game,area,role,node,u.clock,start)
@@ -251,6 +261,8 @@ function S.hostile(game,e,o)
  if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
  if o==e.aggressor then return true end
  local r=e.alifeRecord
+ -- whoever shoots a squadmate or the flagship answers to the whole group
+ if r and (r.squad or r.battlegroup) and require('src.squads').attackedAlly(game,e,o) then return true end
  local grant=Access.policeGrant(r,game.fieldId)
  if grant and o.isPlayer then
   local Rep=require('src.reputation')
@@ -271,6 +283,13 @@ function S.target(game,e)
  local record=game.universe.npcs[e.alifeId]
  if game.time<(e.securityThink or 0) then return S.hostile(game,e,e.combatTarget) and e.combatTarget or nil end
  e.securityThink=game.time+T.securityThink
+ -- a squad ship shoots at what its leader shoots at
+ local shared=require('src.squads').sharedTarget(game,e,S.hostile)
+ if shared then
+  e.combatTarget=shared;e.lock=shared
+  if record then record.targetId=shared.alifeId or shared.isPlayer and 'player' or nil end
+  return shared
+ end
  local x,y=e.body:getPosition()
  local best,bestRank,bestDistance=nil,-1,T.securityRange^2
  for _,o in ipairs(game.entities) do
@@ -372,7 +391,8 @@ for _,role in ipairs({'pirate','patrol'}) do
     for _,id in ipairs(S.bases(area)) do n=n+S.berths(u,id) end
     return n
    end
-   return Access.owner(area) and f.alifeSecurity and f.alifeSecurity.patrol
+   local u=Population.universe;if not u then return Access.owner(area) and f.alifeSecurity and f.alifeSecurity.patrol end
+   return policeWanted(u,area)
   end,
   -- a raider belongs to the base that launched it, wherever it hunts
   where=role=='pirate' and function(r) local home=r.homeStation and L.byId[r.homeStation];return home and home.area or r.home end or nil,
@@ -399,4 +419,6 @@ for _,role in ipairs({'pirate','patrol'}) do
   provision=role=='pirate' and function(game,r) return Supplies.refill(r,r.homeStation,game.universe) end or nil,
  })
 end
+-- squad tasks must be registered before a save's tasks are resolved
+require('src.squads')
 return S

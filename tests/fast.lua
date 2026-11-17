@@ -62,6 +62,56 @@ return function(game)
  assert(stations>0,'no trade stations')
  print('ok  economy: 1h across '..stations..' stations')
 
+ -- Squads: police serve in battlegroups of flagship + squads; a squad
+ -- elects a new leader when its leader dies, and answers a call for help.
+ do
+  local Squads=require('src.squads');local T=require('src.tuning')
+  local state=Squads.state(u)
+  local squads,members=0,0
+  for id,q in pairs(state.squads) do
+   squads=squads+1
+   local leaderIn=false
+   for _,mid in ipairs(q.members) do
+    local m=u.npcs[mid];members=members+1
+    assert(m and m.squad==id,'squad '..id..' lists '..mid..' which is not in it')
+    if mid==q.leader then leaderIn=true end
+   end
+   assert(leaderIn,'squad '..id..' leader is not a member')
+  end
+  assert(squads>0,'no police squads formed')
+  local q;for _,id in ipairs((function() local t={};for id in pairs(state.squads) do t[#t+1]=id end;table.sort(t);return t end)()) do
+   if #state.squads[id].members>=2 then q=state.squads[id];break end end
+  if q then
+   local old=u.npcs[q.leader];local saved=old.state
+   old.state='dead';u.squadsNext=nil
+   Squads.update(game,u.clock)
+   assert(q.leader~=old.id and u.npcs[q.leader].squad==q.id,'no new leader after the leader died')
+   old.state=saved;old.squad=nil
+   Squads.enlist(game,old,false)
+   local g=Squads.group(u,q.group);local spare
+   for _,id in ipairs(g.squads) do local o=state.squads[id];if o and o.goal=='patrol' then spare=o;break end end
+   if spare then
+    local node=u.npcs[spare.leader].node or Fields[g.system].buoyIds[1]
+    assert(Squads.call(game,g,node,u.clock,'test',1)==1,'call for help sent nobody')
+    for _,id in ipairs(g.squads) do local o=state.squads[id];if o and o.goal=='respond' then o.goal='patrol';o.respond=nil end end
+   end
+  end
+  -- military yards: hidden from buyers, stocked for their faction's police
+  local Dealers=require('src.dealers')
+  for _,faction in ipairs({'estates','diwan'}) do
+   local yard=Dealers.serviceYard(faction)
+   assert(yard,'no military yard for '..faction)
+   Dealers.state(u,yard)
+   assert(#Dealers.lots(u,yard)==0,faction..' military yard lot is on sale')
+   local before=#Dealers.lots(u,yard,true)
+   assert(before>0,faction..' military yard has no ships')
+   local ship=require('src.npc_ship_supply').fromYard(u,faction,{requires={armed=true}})
+   assert(ship and #Dealers.lots(u,yard,true)==before-1,faction..' police could not draw a ship from the yard')
+  end
+  local flags=0;for _,g in pairs(state.groups) do if g.flagship then flags=flags+1 end end
+  print(('ok  squads: %d squads, %d police in them, %d flagships'):format(squads,members,flags))
+ end
+
  -- 5. Satellites: fuel runs down offline, a hauler's refuel job tops it up.
  local Sat=require('src.satellites')
  for _,r in pairs(u.satellites) do assert(not Sat.retired[r.kind],'retired satellite kind still in orbit: '..r.id) end

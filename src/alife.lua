@@ -1248,12 +1248,37 @@ function A.install(Game)
   self:alifeSweepStep(self.alifeSweep.per)
   Encounters.syncOnline(self)
   Encounters.update(self,clock)
+  require('src.squads').update(self,clock)
   Encounters.materialize(self,px,py,clock)
   require("src.simulation_history").update(self)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end
 require('src.ship_delivery')   -- ship haulers: their population and task
+-- Faction couriers: freight in the faction's own hulls, kept apart from its police.
+Population.register('courier',{
+ target=function(f,area)
+  local owner=require('src.npc_access').owner(area)
+  local fleets=require('src.npc_templates').courier.purchase.fleets
+  return f.alifeSecurity and owner and fleets[owner] and L.station(area,'trade') and T.couriersPerSystem or 0
+ end,
+ -- couriers roam like traders: the whole fleet stays within the sum of targets
+ budget=function()
+  local n=0
+  for _,area in ipairs(Fields.list) do n=n+Population.target(area,'courier') end
+  return n
+ end,
+ nodes=function(game,area)
+  local f=Fields[area]
+  return #f.buoyIds>0 and f.buoyIds or f.stationIds
+ end,
+ create=function(game,area,node,clock)
+  local r=A.createTrader(game,area,game.universe.nextNpcId+1,'courier')
+  local owner=r.affiliation
+  if owner then r.label=owner:sub(1,1):upper()..owner:sub(2)..' Logistics' end
+  return r
+ end,
+})
 Population.register('trader',{
  -- the area's base, plus whatever the arbiter says its open hauls need
  target=function(f,area) return L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) end,

@@ -43,6 +43,11 @@ N.controller={name='npc',
    if plan then return plan end
   end
   if (r.nextTaskAt or 0)>clock then return {wait=r.nextTaskAt-clock} end
+  -- squad ships take their work from the squad, not the board (src/squads.lua)
+  if r.squad and not r.task then
+   local plan=require('src.squads').plan(c)
+   if plan then return plan end
+  end
   if not r.task then
    local tick=math.floor((u.clock or clock)/T.alifeLocalTick)
    local budget=searches[u]
