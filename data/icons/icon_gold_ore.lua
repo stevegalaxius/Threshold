@@ -1,24 +1,9 @@
--- Made in the Shipyard (F2), Icons tab. Art for Gold ore: a pile of rubble.
+-- Made in the Shipyard (F2), Icons tab. Art for Gold ore.
 icon {
 	id = "icon_gold_ore", item = "gold_ore",
-	parts = {
-		{ name = "chunk 1 side", shape = { 2.09, 1.96, 0.25, 0.94, 0.25, -5.19, 2.09, -4.68 }, color = { 0.95, 0.76, 0.30 }, fill = 0.16 },
-		{ name = "chunk 1 front", shape = { -3.39, 1.07, -4.39, 2.41, -4.39, -2.19, -3.39, -3.94 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 1 front", shape = { -4.39, 2.41, -1.16, 2.50, -1.16, -4.25, -4.39, -2.19 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 1 front", shape = { -1.16, 2.50, 2.09, 1.96, 2.09, -4.68, -1.16, -4.25 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 1 top", shape = { 2.09, -4.68, 0.25, -5.19, -3.39, -3.94, -4.39, -2.19, -1.16, -4.25 }, color = { 0.95, 0.76, 0.30 }, fill = 0.34 },
-		{ name = "chunk 2 side", shape = { 7.28, 1.81, 7.50, 1.25, 7.50, -2.14, 7.28, -1.90 }, color = { 0.95, 0.76, 0.30 }, fill = 0.16 },
-		{ name = "chunk 2 front", shape = { 2.34, 2.42, 5.57, 2.52, 5.57, -1.42, 2.34, -3.19 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 2 side", shape = { 5.57, 2.52, 7.28, 1.81, 7.28, -1.90, 5.57, -1.42 }, color = { 0.95, 0.76, 0.30 }, fill = 0.16 },
-		{ name = "chunk 2 top", shape = { 7.28, -1.90, 7.50, -2.14, 3.60, -3.56, 2.34, -3.19, 5.57, -1.42 }, color = { 0.95, 0.76, 0.30 }, fill = 0.34 },
-		{ name = "chunk 3 side", shape = { -2.38, 3.79, -4.82, 3.47, -4.82, 0.11, -2.38, -0.32 }, color = { 0.95, 0.76, 0.30 }, fill = 0.16 },
-		{ name = "chunk 3 front", shape = { -7.21, 3.65, -7.50, 4.30, -7.50, 1.81, -7.21, 1.31 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 3 front", shape = { -7.50, 4.30, -5.79, 4.60, -5.79, 1.00, -7.50, 1.81 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 3 front", shape = { -5.79, 4.60, -2.38, 3.79, -2.38, -0.32, -5.79, 1.00 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 3 top", shape = { -2.38, -0.32, -4.82, 0.11, -7.21, 1.31, -7.50, 1.81, -5.79, 1.00 }, color = { 0.95, 0.76, 0.30 }, fill = 0.34 },
-		{ name = "chunk 4 side", shape = { 5.00, 4.05, 3.83, 3.20, 3.83, -1.52, 5.00, -0.11 }, color = { 0.95, 0.76, 0.30 }, fill = 0.16 },
-		{ name = "chunk 4 front", shape = { -3.50, 4.57, 0.09, 5.19, 0.09, -0.20, -3.50, -1.81 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 4 front", shape = { 0.09, 5.19, 5.00, 4.05, 5.00, -0.11, 0.09, -0.20 }, color = { 0.95, 0.76, 0.30 }, fill = 0.24 },
-		{ name = "chunk 4 top", shape = { 5.00, -0.11, 3.83, -1.52, -1.32, -2.13, -3.50, -1.81, 0.09, -0.20 }, color = { 0.95, 0.76, 0.30 }, fill = 0.34 },
+	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
+		{ color = { 0.43, 0.29, 0.17 }, d = 0.8, h = 0.8, material = "painted", name = "ore", primitive = "rock", w = 1, },
+		{ color = { 1, 0.7, 0.2 }, d = 0.4, h = 0.45, material = "metal", name = "gold seam", primitive = "rock", w = 0.4, x = 0.2, y = -0.05, z = 0.3, },
 	},
+	boxView = { 17.3585, 0.666679, -0.364953 },   -- art units per cell, centre x, y (Refit recomputes)
 }

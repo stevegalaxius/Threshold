@@ -317,7 +317,7 @@ function love.wheelmoved(x, y)
 	if Debug.blocksMouse() then return end
 	if Pause.isOpen() then return end
 	if LocalMap.wheelmoved(game, y) then return end
-	if Cargo.wheelmoved(game,y) then return end
+	if Cargo.wheelmoved(game,y,x) then return end
 	if y > 0 then game.camera:zoomBy(1.1) elseif y < 0 then game.camera:zoomBy(1 / 1.1) end
 end
 

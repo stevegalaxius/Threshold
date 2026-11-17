@@ -13,6 +13,7 @@ return function(game)
 
  -- 1. Content: every map loads and runs a second without crashing.
  -- This is the check for station, layout and data edits.
+ require("tests.icon_model")(game)
  local g=fresh()
  for _,id in ipairs(Fields.list) do
   local ok,err=xpcall(function() g:loadField(id);run(g,1) end,debug.traceback)
