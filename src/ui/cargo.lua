@@ -2307,6 +2307,7 @@ function Cargo.wheelmoved(game,y)
  if game.state=='docked' and Cargo.tab=='industry' then IndustryView.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='contracts' or game.state~='docked' and Cargo.spaceTab=='contracts' then Contracts.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='jobs' or game.state~='docked' and Cargo.spaceTab=='jobs' then Jobs.wheelmoved(game,y) end
+ if game.state=='docked' and Cargo.tab=='stall' and StallView.wheelmoved then StallView.wheelmoved(game,y) end
  return true
 end
 Cargo.tabs=TABS

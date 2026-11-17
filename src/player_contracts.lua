@@ -33,7 +33,8 @@ local function detach(game,r,changed)
 end
 local function supported(o)
  -- Standing mining/salvage/police duties do not yet define player rewards.
- return o.kind=='transport' and o.order and (o.stocked or o.mine) and L.byId[o.source] and L.byId[o.target]
+ -- (not a buy order of the player's own: src/buy_orders.lua)
+ return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and L.byId[o.source] and L.byId[o.target]
 end
 local function access(game,o)
  local A=require('src.npc_access');local p=game.player
