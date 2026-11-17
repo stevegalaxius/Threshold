@@ -1,13 +1,24 @@
 -- Part of the fast content check: geometry, export and actual GPU depth.
-return function()
+return function(game)
  local M,Icons=require('src.icon_model'),require('src.icons')
  local Export=require('src.editor.export')
+ local listed={};for _,id in ipairs(require('src.editor.panels').iconItems()) do listed[id]=true end
+ assert(listed.ember_reactor and listed.flit_engine and listed.steel_plate,'icon picker omits generated module items')
  for _,shape in ipairs(M.shapes) do
   local parts=M.parts({{primitive=shape,material='metal',w=1,d=1,h=1}},16,16)
   assert(#parts>0,'empty primitive '..shape)
  end
  local boxes={{name='rear',primitive='box',material='painted',color={.8,.2,.1},w=1,d=1,h=1},
   {name='front',primitive='cylinder',material='metal',x=.3,y=-.2,z=.1,w=.7,d=.7,h=.7}}
+ if game then
+  local Cargo,Hold=require('src.ui.cargo'),require('src.inventory.hold')
+  local oldHold,oldState,oldOpen,oldTab=game.player.hold,game.state,Cargo.open,Cargo.tab
+  game.player.hold=Hold.new({{key='wide-test',w=30,h=20}});game.state='playing';Cargo.open=true;Cargo.tab='cargo';Cargo.panX=0
+  local first=Cargo.layout(game);assert(first.cs==64 and first.overflowX>0,'wide inventory shrinks instead of panning')
+  Cargo.wheelmoved(game,0,-3);local second=Cargo.layout(game)
+  assert(second.cs==64 and second.grids[1].x<first.grids[1].x,'horizontal inventory pan does not move hit targets')
+  game.player.hold=oldHold;game.state=oldState;Cargo.open=oldOpen;Cargo.tab=oldTab;Cargo.panX=0;Cargo.panY=0
+ end
  local lg=love.graphics
  local function render(list)
   local parts=M.parts(list,16,16);local c=lg.newCanvas(128,128)

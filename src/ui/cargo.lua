@@ -247,7 +247,7 @@ local function layout(game)
 		return tw, max(th + HEAD + PAD * 2, eh)
 	end
 	-- Cells stay full size where they can: a grid too tall for the screen
-	-- shows fewer rows and scrolls (mouse wheel); only width shrinks cells.
+	-- shows fewer rows and scrolls. Wide layouts pan at the same fixed size.
 	local bodyH = select(4, Station.body())
 	local function fitRows(cs)
 		for _, col in ipairs(cols) do
@@ -258,27 +258,24 @@ local function layout(game)
 				local big
 				for _, side in ipairs(col) do
 					local r = side.rows or side.hold.grids[1].h
-					if r > 4 and (not big or r > (big.rows or big.hold.grids[1].h)) then big = side end
+					if r > 1 and (not big or r > (big.rows or big.hold.grids[1].h)) then big = side end
 				end
 				if not big then break end
 				big.rows = (big.rows or big.hold.grids[1].h) - 1
 			end
 		end
 	end
-	local cs = Station.CELL
-	while cs > 6 do
-		fitRows(cs)
-		local tw, ph = measure(cs)
-		if tw <= sw - 32 and ph <= bodyH then break end   -- grids may use the whole screen width, past the header frame
-		cs = cs - 1
-	end
+ local cs = Station.CELL
+ fitRows(cs)
 
 	local L = { cs = cs, sides = list, grids = {} }
 	local tw, ph = measure(cs)
 	ph = max(ph, select(4, Station.body()))   -- panels reach the footer, like every tab
 	for _, side in ipairs(list) do side.w, side.h = size(side, cs) end
-	local x = floor((sw - tw) / 2)
-	local y = Station.BODY_Y
+ L.overflowX=max(0,tw-sw+32);L.overflowY=max(0,ph-bodyH)
+ Cargo.panX=max(0,min(Cargo.panX or 0,L.overflowX));Cargo.panY=max(0,min(Cargo.panY or 0,L.overflowY))
+ local x=L.overflowX>0 and 16-Cargo.panX or floor((sw-tw)/2)
+ local y=Station.BODY_Y-Cargo.panY
 
 	-- Equipment: the hull outline with numbered hardpoints, then a row per slot.
 	local equipmentWidth=EW
@@ -381,6 +378,7 @@ end
 
 -- Which grid cell is under a screen point.
 local function cellAt(L, mx, my)
+ if my<Station.BODY_Y or my>=lg.getHeight()-28 then return end
 	for _, r in ipairs(L.grids) do
 		local cx, cy = floor((mx - r.x) / L.cs), floor((my - r.y) / L.cs)
 		if cx >= 0 and cy >= 0 and cx < r.g.w and cy < r.g.h and my >= r.vy and my < r.vy + r.vh then return r, cx, cy end
@@ -737,6 +735,7 @@ end
 -- Equipment ------------------------------------------------------------------
 
 local function slotAt(L, mx, my)
+ if my<Station.BODY_Y or my>=lg.getHeight()-28 then return end
 	for _, r in ipairs(L.equip.slots) do
 		if inRect(r, mx, my) then return r end
 		-- or its marker on the hull outline
@@ -2104,7 +2103,9 @@ function Cargo.draw(game)
    end
    lg.print(label,r.x,r.vy-17)
   end
-		lg.setScissor(r.x, r.vy, r.g.w * cs, r.vh)
+		local clipTop=max(Station.BODY_Y,r.vy)
+  local clipBottom=min(sh-28,r.vy+r.vh)
+  lg.setScissor(r.x,clipTop,r.g.w*cs,max(0,clipBottom-clipTop))
 		lg.setColor(0, 0, 0, 0.35)
 		lg.rectangle("fill", r.x, r.y, r.g.w * cs, r.g.h * cs)
 		if r.g.climate then   -- climate-controlled: a cool blue wash
@@ -2142,6 +2143,17 @@ function Cargo.draw(game)
 		end
 	end
 
+ if docked then
+  lg.setColor(.02,.03,.04,1);lg.rectangle('fill',0,0,sw,Station.STATUS_Y)
+  drawTabs(game,mx,my)
+ elseif stabs then
+  local fx,fw=Station.frame()
+  lg.setColor(.02,.03,.04,1);lg.rectangle('fill',0,0,sw,Station.STATUS_Y)
+  Station.panel(fx,12,fw,88)
+  Station.ledgerText(fx,12,game.player.hull.name,Cargo.loot and 'Looting' or 'In flight - dock at a station to refit')
+  lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),fx+fw-340,21,190,'right')
+  lg.setFont(HUD.font(14));for _,t in ipairs(stabs) do Station.button(t,t.label,Cargo.spaceTab==t.id) end
+ end
 	-- Status and help along the bottom.
 	local p = game.player
 	lg.setFont(HUD.font(13))
@@ -2285,15 +2297,26 @@ function Cargo.draw(game)
 			end
 		end
 	end
+ if L.overflowX>0 or L.overflowY>0 then
+  lg.setColor(.02,.03,.04,.96);lg.rectangle('fill',16,sh-28,sw-32,24)
+  lg.setFont(HUD.font(12));lg.setColor(HUD.INK)
+  lg.print(('64 px cells | Shift-wheel: pan sideways (%d / %d) | Alt-wheel: pan vertically | Wheel over grid: scroll rows'):format(Cargo.panX or 0,L.overflowX),24,sh-24)
+ end
 	drawMenu(game)
 end
 
-function Cargo.wheelmoved(game,y)
+function Cargo.wheelmoved(game,y,horizontal)
  if not Cargo.isOpen(game) then return false end
  if Cargo.tab=='cargo' or Cargo.tab=='market' or game.state~='docked' then
   local L=layout(game)
   if L then
    local mx,my=love.mouse.getPosition()
+   if (horizontal or 0)~=0 or love.keyboard.isDown('lshift','rshift') then
+    Cargo.panX=max(0,min(L.overflowX,(Cargo.panX or 0)-((horizontal or 0)~=0 and horizontal or y)*64));return true
+   end
+   if love.keyboard.isDown('lalt','ralt') then
+    Cargo.panY=max(0,min(L.overflowY,(Cargo.panY or 0)-y*64));return true
+   end
    for _,r in ipairs(L.grids) do
     if mx>=r.x and mx<r.x+r.g.w*L.cs+8 and my>=r.vy and my<r.vy+r.vh and r.g.h*L.cs>r.vh+0.5 then
      Cargo.scroll[r.g]=(Cargo.scroll[r.g] or 0)-y*2   -- clamped by the next layout

@@ -1,6 +1,6 @@
 # Parametric icon builder
 
-Open F2 → Icons, then open Steel plates, Iron ore, Deuterium canister, Flit Engine or Ember Reactor to try the examples. Existing polygon artwork remains supported.
+Open F2 → Icons, then open Steel plates, Iron ore, Deuterium canister, Flit Engine or Ember Reactor to try the examples. Existing polygon artwork remains supported. The Icons tab has direct example buttons, and both item selectors include generated module items.
 
 ![Editor with the Ember Reactor example](images/icon-editor.png)
 
@@ -12,6 +12,8 @@ Solids render with an orthographic depth buffer, not list-order face layering. T
 
 The `boxes` list now holds shape parameters as well as legacy boxes. Generated picking faces are omitted from exports; reopening regenerates them. **Turn into parts** is an explicit conversion to ordinary polygon art. **Refit boxes to footprint** recalculates framing; other edits keep the current framing stable.
 
-The editor preview uses 64-pixel cells to judge real inventory readability. This PR does not change the inventory layout or the footprints of existing items. It is a builder trial, with sample art, rather than an inventory redesign.
+Both the editor preview and inventory now use fixed 64-pixel cells. Wide inventory workspaces pan instead of shrinking: use Shift + mouse wheel or horizontal wheel input to move sideways. Use Alt + wheel to pan vertically when the overall workspace is too tall; ordinary wheel over a tall grid scrolls its rows. Oversized workspaces show the navigation hint along the bottom. Item footprints are unchanged.
 
 The existing `love . --test` content check includes a small geometry/export/render check: it renders intersecting solids in reversed list order and requires identical pixels, and round-trips editable parameters through source export. Set `ICON_MODEL_PREVIEW` to an absolute PNG path while running the suite to export a comparison sheet.
+
+![Fixed-size inventory cells](images/inventory-fixed-cells.png)

@@ -10,6 +10,16 @@ local Export = require("src.editor.export")
 local HullShape = require("src.hullshape")
 
 local Panels = {}
+-- Module inventory items are generated after authored item files load.
+function Panels.iconItems()
+ local ids={};for id in pairs(data.items) do ids[#ids+1]=id end
+ table.sort(ids,function(a,b)
+  local an,bn=data.items[a].name or a,data.items[b].name or b
+  return an<bn or an==bn and a<b
+ end)
+ return ids
+end
+
 
 local LAYERS = { "hull", "detail", "glow" }
 local GRIDS = { 1, 2, 4, 8, 16 }
@@ -868,7 +878,7 @@ local function designWindow(E, Editor)
 			if m.weapon then table.insert(openOpts, { label = ("%s  (%s %s, %s)"):format(m.name, m.size, m.weapon.kind, id), value = id }) end
 		end
 	elseif cat == "icon" then
-		for _, id in ipairs(data.list.items) do
+		for _, id in ipairs(Panels.iconItems()) do
 			local it = data.items[id]
 			local w, h = require("src.icons").footprint(id)
 			table.insert(openOpts, { label = ("%s%s  (%s, %dx%d)"):format(data.icons[id] and "* " or "", it.name, it.kind or "?", w, h), value = "item:" .. id })
@@ -885,6 +895,14 @@ local function designWindow(E, Editor)
 			table.insert(openOpts, { label = ("%s  (%s)"):format(data.stations[id].name, id), value = id })
 		end
 	end
+ if cat=='icon' then
+  Slab.Text('Parametric icon examples')
+  for i,e in ipairs({{'Reactor','ember_reactor'},{'Engine','flit_engine'},{'Plates','steel_plate'},{'Ore','iron_ore'},{'Canister','deuterium_canister'},{'Gun','gun_s_base'}}) do
+   if i%2==0 then Slab.SameLine() end
+   if Slab.Button(e[1]..'##icon_example',{W=130}) then E.openIcon(e[2]) end
+  end
+  Slab.Separator()
+ end
 	fileBrowser(E, cat, openOpts)
 	Slab.Separator()
 	Slab.Text(("This design: %s %s"):format(d.kind == "icon" and "an" or "a", d.kind or "hull"))
@@ -899,7 +917,7 @@ local function designWindow(E, Editor)
 		-- re-use this art for another item: pick it, then save
 		Slab.Text("item"); Slab.SameLine()
 		local opts = {}
-		for _, id in ipairs(data.list.items) do
+		for _, id in ipairs(Panels.iconItems()) do
 			local has = data.icons[id] and id ~= d.item and "  (has an icon)" or ""
 			opts[#opts + 1] = { label = (data.items[id].name or id) .. has, value = id }
 		end
