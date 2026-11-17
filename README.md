@@ -679,6 +679,11 @@ Ships you leave parked pay **berth rent** by the hour on the game clock
 on an outside mooring; the ship you fly pays nothing. Unpaid rent runs up as a
 debt that must be settled before the ship can leave, and after 48 hours of
 arrears the station impounds it onto its lot, paying you whatever is left.
+NPCs use the same lots (`src/npc_ship_trade.lua`): once a game day while
+docked at a station with a dealer, an NPC with money to spare may trade its
+ship in for a better one there, and its old ship goes on the lot; an NPC from
+a replenished population group sometimes retires instead, selling its ship
+on the lot and leaving the system.
 Leaving Market or Shipyard returns the staged goods and ship offers. No prices or economic simulation
 rules were replaced.
 
