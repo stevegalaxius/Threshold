@@ -1147,7 +1147,7 @@ function A.install(Game)
    -- the economy's minute update, a piece a step (src/economy.lua)
    if not self.sideScene then require('src.economy').pump(self.universe) end
    -- shared background work, a little a step (src/director.lua)
-   if not self.sideScene then require('src.director').update(self.universe);require('src.satellites').tick(self.universe) end
+   if not self.sideScene then require('src.director').update(self.universe);require('src.satellites').tick(self.universe);require('src.stalls').tick(self.universe,self) end
    -- the rest of this tick's chores, one a step
    if self.alifeStage then self:alifeChore(clock) end
    return

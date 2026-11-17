@@ -256,6 +256,33 @@ return function(game)
  end
  print('ok  satellites: hubs, fuel, refuel and replacement jobs, your own')
 
+ -- 5b. Market stalls: rent one, stock it, and NPCs docking there buy from it.
+ do
+  local Stall=require('src.stalls');local Shop=require('src.npc_shopping');local Hold=require('src.inventory.hold');local Rep=require('src.reputation')
+  local k='station:earth_1'
+  Rep.addStanding(u,Rep.ofNode(k),-200)
+  assert(not Stall.canRent(u,k),'rented without standing')
+  Rep.addStanding(u,Rep.ofNode(k),300);u.credits=50000
+  local s=assert(Stall.open(u,k),'could not rent')
+  local h=Hold.new({{key='hull',name='x',w=10,h=10}})
+  Hold.add(h,'patch_kit',6);Hold.add(h,'rounds_m',60);Hold.add(h,'iron_ore',5);Stall.stock(s,h,'iron_ore',5)
+  assert(Stall.stock(s,h,'patch_kit',6)==6 and Stall.stock(s,h,'rounds_m',60)==60,'stocking failed')
+  Stall.setTag(s,'cheap')
+  local c0=u.credits
+  for _,r in pairs(u.npcs) do
+   if r.ship and r.state~='dead' and not r.ship.hold then
+    r.credits=3000;r.dockedAt=(r.dockedAt or 0)+1
+    for i,v in pairs(r.ship.cargo or {}) do r.ship.cargo[i]=math.floor(v*.3) end
+    Shop.visit(u,r,k,u.clock)
+   end
+  end
+  assert(u.credits>c0 and #s.ledger>0,'no NPC bought from the stall')
+  u.credits=0;s.paidTo=u.clock-1;Stall.tick(u,nil)
+  assert(not Stall.get(u,k),'stall stayed open with rent unpaid')
+  assert(Hold.count(u.stations[k].storage,'iron_ore')==5,'closed stall lost its stock')
+ end
+ print('ok  market stalls: rent, stock, NPC shopping, rent lapse')
+
  -- Routing: no route doubles back. Gates used to join only their nearest
  -- node (a trader bound for Triton flew out to Neptune's far buoy first),
  -- stations just over 120 degrees apart went the long way round, and drill
