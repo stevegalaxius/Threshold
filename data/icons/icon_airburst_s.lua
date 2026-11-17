@@ -1,15 +1,15 @@
--- Made in the Shipyard (F2), Icons tab. Art for airburst_s: an ammo can with a fuse band.
+-- Made in the Shipyard (F2), Icons tab. Art for Airburst Rounds S.
 icon {
 	id = "icon_airburst_s", item = "airburst_s",
 	paint = "Olive Drab",   -- primary paint: a preset from src/paint.lua, or { r, g, b }
 	boxes = {   -- 3/4 view blocks in cells: x across, y depth, z up
-		{ name = "can", x = 0, y = 0, z = 0, w = 1, d = 0.45, h = 0.75 },
-		{ name = "lid", x = -0.03, y = -0.03, z = 0.75, w = 1.06, d = 0.51, h = 0.1, light = 0.25 },
-		{ name = "handle", x = 0.25, y = 0.165, z = 0.85, w = 0.5, d = 0.12, h = 0.04, shade = 0.6 },
-		{ name = "latch", x = 1, y = 0.125, z = 0.5, w = 0.05, d = 0.2, h = 0.32, shade = 0.6 },
-		{ name = "rib", x = 0, y = -0.02, z = 0.6, w = 1, d = 0.02, h = 0.04, shade = 0.6 },
-		{ name = "fuse band", x = 0, y = -0.025, z = 0.35, w = 1, d = 0.02, h = 0.1, light = 0.45 },
-		{ name = "stencil", x = 0.15, y = -0.03, z = 0.12, w = 0.35, d = 0.02, h = 0.18, light = 0.45 },
+		{ d = 0.45, h = 0.75, material = "painted", name = "can", primitive = "box", w = 1, x = 0, y = 0, z = 0, },
+		{ d = 0.51, h = 0.1, light = 0.25, material = "painted", name = "lid", primitive = "box", w = 1.06, x = -0.03, y = -0.03, z = 0.75, },
+		{ d = 0.12, h = 0.04, material = "painted", name = "handle", primitive = "box", shade = 0.6, w = 0.5, x = 0.25, y = 0.165, z = 0.85, },
+		{ d = 0.2, h = 0.32, material = "painted", name = "latch", primitive = "box", shade = 0.6, w = 0.05, x = 1, y = 0.125, z = 0.5, },
+		{ d = 0.02, h = 0.04, material = "painted", name = "rib", primitive = "box", shade = 0.6, w = 1, x = 0, y = -0.02, z = 0.6, },
+		{ d = 0.02, h = 0.1, light = 0.45, material = "painted", name = "fuse band", primitive = "box", w = 1, x = 0, y = -0.025, z = 0.35, },
+		{ d = 0.02, h = 0.18, light = 0.45, material = "painted", name = "stencil", primitive = "box", w = 0.35, x = 0.15, y = -0.03, z = 0.12, },
 	},
-	parts = {},
+	boxView = { 12.2885, 0.570875, -0.30935 },   -- art units per cell, centre x, y (Refit recomputes)
 }

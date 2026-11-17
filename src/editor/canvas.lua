@@ -245,6 +245,15 @@ end
 -- Mouse tools ---------------------------------------------------------------
 
 local function pressed(E, sx, sy, button)
+ if E.design.kind=='icon' then
+  E.sel=nil;E.vsel=nil;E.drawing=nil;E.tool='solid'
+  if button==2 or button==3 then E.drag={kind='pan',sx=sx,sy=sy,vx=E.view.x,vy=E.view.y};return end
+  if button~=1 then return end
+  local x,y=Canvas.toWorld(E,sx,sy);local i=require('src.icon_model').pick(E.design.parts,x,y)
+  E.boxSel=i and E.design.parts[i].box or nil;E.faceSel=nil
+  if i then E.drag={kind='solid',i=E.boxSel,lx=x,ly=y,pushed=false} end
+  return
+ end
 	local wx, wy = Canvas.toWorld(E, sx, sy)
 	if button == 2 and E.tool == "draw" and E.drawing then
 		-- right click while drawing takes the last point back
@@ -524,7 +533,7 @@ end
 -- Moving drags (a light, point, slot, part, berth or turret) only start
 -- once the mouse has gone a few pixels from where it was pressed, so a
 -- click that only means to select never nudges anything.
-local MOVES = { light = true, vertex = true, slot = true, part = true, berthmove = true, turretmove = true }
+local MOVES = { solid=true, light = true, vertex = true, slot = true, part = true, berthmove = true, turretmove = true }
 local DRAG_PX = 4
 
 function Canvas.mousepressed(E, sx, sy, button)
@@ -550,7 +559,16 @@ function Canvas.mousemoved(E, sx, sy)
 	end
 	local wx, wy = Canvas.toWorld(E, sx, sy)
 	local px, py = Canvas.snap(E, wx, wy)
-	if d.kind == "marquee" then
+	if d.kind=='solid' then
+  local b=E.design.boxes[d.i];if not b then return end
+  local k=(E.design.boxView or {1})[1]
+  local dx,dz=(wx-d.lx)/k,-(wy-d.ly)/(.55*k)
+  if math.abs(dx)+math.abs(dz)>1e-8 then
+   if not d.pushed then E.pushUndo();d.pushed=true end
+   b.x=(b.x or 0)+dx;b.z=(b.z or 0)+dz;d.lx,d.ly=wx,wy
+   require('src.icons').syncBoxes(E.design)
+  end
+ elseif d.kind == "marquee" then
 		d.x2, d.y2 = wx, wy
 	elseif d.kind == "rect" or d.kind == "lights" or d.kind == "berth" then
 		d.x2, d.y2 = px, py
@@ -893,9 +911,10 @@ function Canvas.draw(E)
 	local ccx, ccy = 0, 0
 	if corePart and #corePart.shape >= 2 then ccx, ccy = Canvas.centre(corePart.shape) end
 	local spread = (1 - math.cos(love.timer.getTime() * 1.6)) * 0.5 * 40
-	local modelDrawn=false
+	local isIcon=E.design.kind=='icon'
+ if isIcon then require('src.icon_model').draw(E.design.parts,1) end
  for i, p in ipairs(E.design.parts) do
-		if not p.hidden then
+		if not isIcon and not p.hidden then
 			local list = { p }
 			if p.mirror then
 				local twin = {}
@@ -935,9 +954,7 @@ function Canvas.draw(E)
 					-- glass (icons): a dark see-through tint, as src/icons.lua draws it
 					if q.layer == "glass" and not wreck then fillCol = { pc[1] * 0.45, pc[2] * 0.45, pc[3] * 0.45, 0.75 } end
 					if E.preview == "collision" and q.collide == false then fillCol = { 0.15, 0.15, 0.15, 0.4 } end
-					if q.modelFace then
-      if not modelDrawn then require('src.icon_model').draw(E.design.parts,1);modelDrawn=true end
-     else
+
      lg.setColor(fillCol)
 					if q.layer == "glow" and not wreck then lg.setBlendMode("add") end
 					for _, t in ipairs(tris) do lg.polygon("fill", t) end
@@ -947,8 +964,7 @@ function Canvas.draw(E)
 						lg.setLineWidth(1.5 / v.zoom)
 						lg.polygon("line", s)
 					end
-					end
-     if not q.modelFace and q.fromBox and q.box == E.boxSel and (E.faceSel == nil or q.face == E.faceSel) then
+     if q.fromBox and q.box == E.boxSel and (E.faceSel == nil or q.face == E.faceSel) then
 						lg.setColor(1, 1, 1, 0.9)
 						lg.setLineWidth(3 / v.zoom)
 						lg.polygon("line", s)

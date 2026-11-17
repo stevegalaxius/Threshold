@@ -1319,12 +1319,12 @@ end
 -- tag (at the market): { color, frame = draw a frame in that color (whose
 -- it is, on the trade grid) }. Prices are in the tooltip.
 local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
-	local c = item.kind=='ship' and HUD.AQUA or HUD.itemColor(item)
-	lg.setColor(c[1], c[2], c[3], 0.32 * alpha)
-	lg.rectangle("fill", x + 2, y + 2, w - 4, h - 4, 3, 3)
-	lg.setColor(c[1], c[2], c[3], 0.95 * alpha)
-	lg.setLineWidth(1)
-	lg.rectangle("line", x + 2.5, y + 2.5, w - 5, h - 5, 3, 3)
+ local mx,my=love.mouse.getPosition()
+ local hover=alpha>.5 and mx>=x and my>=y and mx<x+w and my<y+h
+ lg.setColor(0,0,0,.45*alpha);lg.rectangle('fill',x+3,y+3,w-4,h-4)
+ lg.setColor(.065,.075,.083,.98*alpha);lg.rectangle('fill',x+1,y+1,w-3,h-3)
+ lg.setColor(hover and .55 or .18,hover and .64 or .21,hover and .70 or .24,(hover and .9 or .7)*alpha)
+ lg.setLineWidth(1);lg.rectangle('line',x+1.5,y+1.5,w-4,h-4)
 	if item.kind ~= 'ship' and item.id then
 		-- the item's drawn art, turned with the stack; the name sits on top
 		require("src.icons").drawInRect(item.id, x, y, w, h, entry and entry.rot, alpha)
@@ -1334,24 +1334,15 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
   local paint=entry and entry.shipRecord and entry.shipRecord.color or Paint.preset(Paint.pool(hull)[1])
   Hangar.drawHull(hull,x+4,y+16,w-8,math.max(4,h-20),entry and entry.rot or false,paint,alpha)
  end
- if cs >= 16 then
-		lg.setFont(HUD.font(cs >= 24 and 11 or 9))
-		lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], alpha)
-		if n > 1 then lg.printf(n, x, y + h - (cs >= 24 and 16 or 13), w - 5, "right") end
-		if w >= cs * 2 and cs >= 22 then
-			-- clipped to the stack, so a long name on a 1-cell-tall stack doesn't spill
-			local sx, sy, sw2, sh2 = lg.getScissor()
-			lg.intersectScissor(x + 2, y + 2, w - 4, h - (n > 1 and 14 or 4))
-			lg.printf(item.name, x + 5, y + 4, w - 10, "left")
-			lg.setScissor(sx, sy, sw2, sh2)
-		end
-	end
-	if tag and tag.frame then
-		lg.setColor(tag.color[1], tag.color[2], tag.color[3], alpha)
-		lg.setLineWidth(2)
-		lg.rectangle("line", x + 1, y + 1, w - 2, h - 2, 3, 3)
-		lg.setLineWidth(1)
-	end
+ if n>1 then
+  local label=tostring(n);lg.setFont(HUD.font(11));local tw=lg.getFont():getWidth(label)
+  lg.setColor(.01,.015,.02,.9*alpha);lg.rectangle('fill',x+w-tw-10,y+h-19,tw+7,16)
+  lg.setColor(.94,.96,.98,alpha);lg.print(label,x+w-tw-7,y+h-18)
+ end
+ if tag and tag.frame then
+  lg.setColor(tag.color[1],tag.color[2],tag.color[3],alpha)
+  lg.rectangle('fill',x+2,y+2,3,h-5) -- trade ownership marker, not a glowing frame
+ end
 end
 
 local MINE, THEIRS = { 0.45, 1, 0.55 }, { 1, 0.72, 0.28 }
@@ -2118,7 +2109,7 @@ function Cargo.draw(game)
    local message=#game:shipyard(st)==0 and 'This station has no ships for sale.\nStored ships can still be sold here.' or 'Ships for sale are in your trade offer.'
    lg.printf(message,r.x+8,r.y+12,r.g.w*cs-16,'left')
   end
-		lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.12)
+		lg.setColor(.18,.22,.25,.45)
 		lg.setLineWidth(1)
 		for cy = 0, r.g.h - 1 do
 			for cx = 0, r.g.w - 1 do lg.rectangle("line", r.x + cx * cs + 0.5, r.y + cy * cs + 0.5, cs - 1, cs - 1) end

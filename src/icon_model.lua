@@ -75,10 +75,7 @@ local function geometry(b)
  end
  return faces
 end
-function M.enabled(boxes)
- for _,b in ipairs(boxes or {}) do if b.primitive or b.material then return true end end
- return false
-end
+function M.enabled(boxes) return boxes and #boxes>0 or false end
 function M.parts(boxes,bw,bh,paint,view)
  local out={};local x0,y0,x1,y1=math.huge,math.huge,-math.huge,-math.huge
  for i,b in ipairs(boxes or {}) do

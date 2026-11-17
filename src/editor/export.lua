@@ -221,13 +221,7 @@ function Export.iconDef(design)
 	local def = { id = design.id, item = design.item, w = design.w, h = design.h, paint = design.paint, parts = {},
 		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil,
 		boxView = design.boxes and #design.boxes > 0 and design.boxView and copy(design.boxView) or nil }
-	for _, part in ipairs(design.parts) do
-		if part.fromBox then goto continue end
-		local p = Export.cleanPart(part)
-		-- only what an icon draws with
-		table.insert(def.parts, { name = p.name, shape = p.shape, shade = p.shade, fill = p.fill, tint = p.tint, color = p.color, paint = p.paint, mirror = p.mirror, layer = p.layer, badge = p.badge, under = p.under })
-		::continue::
-	end
+
 	return def
 end
 
@@ -239,9 +233,7 @@ function Export.fromIcon(item)
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
 	design.boxes = ic.boxes and copy(ic.boxes) or nil
 	design.boxView = ic.boxView and copy(ic.boxView) or nil
-	for _, part in ipairs(ic.parts) do
-		if not part.fromBox then table.insert(design.parts, Export.cleanPart(part)) end
-	end
+
 	if design.boxes then require("src.icons").syncBoxes(design) end
 	return design
 end
@@ -297,14 +289,12 @@ local function iconSource(design)
 	if def.paint then table.insert(out, "\tpaint = " .. serialize(def.paint, "\t") .. ",   -- primary paint: a preset from src/paint.lua, or { r, g, b }") end
 	if def.w and def.h then table.insert(out, ("\tw = %d, h = %d,   -- the item's grid size (cells); also its size in space"):format(def.w, def.h)) end
 	if def.boxes then
-		table.insert(out, "\tboxes = {   -- 3/4 view blocks in cells: x across, y depth, z up")
-		for _, b in ipairs(def.boxes) do table.insert(out, "\t\t" .. serialize(b, "\t\t") .. ",") end
+		table.insert(out, "\tboxes = {   -- editable solids: x across, y depth, z up")
+		for _, b in ipairs(def.boxes) do table.insert(out, "\t\t" .. serialize(b, "\t\t"):gsub("%s*\n%s*", " ") .. ",") end
 		table.insert(out, "\t},")
 		if def.boxView then table.insert(out, ("\tboxView = { %g, %g, %g },   -- art units per cell, centre x, y (Refit recomputes)"):format(def.boxView[1], def.boxView[2], def.boxView[3])) end
 	end
-	table.insert(out, "\tparts = {")
-	for _, part in ipairs(def.parts) do table.insert(out, (partLine(part, "\t\t"))) end
-	table.insert(out, "\t},")
+
 	table.insert(out, "}")
 	return table.concat(out, "\n") .. "\n"
 end
@@ -528,8 +518,8 @@ function Export.autosave(design)
 	love.filesystem.createDirectory("shipyard")
 	local d = { id = design.id, name = design.name, base = design.base, parts = {}, stats = design.stats, slots = design.slots, loadout = design.loadout,
 		kind = design.kind, folder = design.folder, loot = design.loot, color = design.color, haze = design.haze, role = design.role, rotors = design.rotors, berths = design.berths, turrets = design.turrets,hangar=design.hangar, services = design.services, repairRate = design.repairRate, storage = design.storage,
-		module = design.module, muzzles = design.muzzles, item = design.item, w = design.w, h = design.h }
-	for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end
+		module = design.module, muzzles = design.muzzles, item = design.item, w = design.w, h = design.h, boxes=design.boxes,boxView=design.boxView,paint=design.paint }
+	if design.kind~='icon' then for _, part in ipairs(design.parts) do table.insert(d.parts, Export.cleanPart(part, true)) end end
 	love.filesystem.write(Export.AUTOSAVE, "return " .. serialize(d) .. "\n")
 end
 
@@ -540,7 +530,10 @@ function Export.loadAutosave()
 	if not chunk then return nil end
 	setfenv(chunk, {})
 	local ok, d = pcall(chunk)
-	if ok and type(d) == "table" and type(d.parts) == "table" and d.id then return d end
+	if ok and type(d)=='table' and type(d.parts)=='table' and d.id then
+  if d.kind=='icon' then require('src.icons').syncBoxes(d) end
+  return d
+ end
 	return nil
 end
 

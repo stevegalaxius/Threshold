@@ -401,7 +401,11 @@ function fileBrowser(E, cat, builtIn)
 	if dir ~= "" and not Export.isFolder(dir) then E.browseDir, dir = "", "" end
 
 	Slab.Text("Files")
-	if cat == "hull" then
+	if cat=='icon' then
+  love.filesystem.createDirectory(Export.FOLDER..'/icons')
+  if dir=='' then E.browseDir='icons';dir='icons' end
+ end
+ if cat == "hull" then
 		if Slab.Button("New hull", { Tooltip = "A ship you can fly" }) then E.newDesign("hull") end
 	elseif cat == "wreck" then
 		if Slab.Button("New container", { Tooltip = "An object that holds loot, filled from a loot table" }) then E.newDesign("container") end
@@ -507,33 +511,11 @@ local function boxSection(E, d)
 	local shapes={}
  for _,id in ipairs(require('src.icon_model').shapes) do shapes[#shapes+1]={label=id,value=id} end
  combo('yard_newsolid',E.newSolid or 'box',shapes,function(v) E.newSolid=v end,140)
- if Slab.Button("Add shape") then
-		E.pushUndo()
-		d.boxes = d.boxes or {}
-		local fw = d.w or (Icons.footprint(d.item))
-		table.insert(d.boxes, { name = (E.newSolid or "box") .. " " .. (#d.boxes + 1), primitive=E.newSolid or "box", material="metal", x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
-		E.boxSel, E.faceSel, E.sel, E.multi = #d.boxes, nil, nil, {}
-	end
+ if Slab.Button('Add shape') then E.addIconShape(E.newSolid or 'box') end
 	if d.boxes and Slab.Button("Refit boxes to footprint", { Tooltip = "Scale and centre the boxes to fill the footprint again (adding or removing boxes keeps the scale)" }) then
 		E.pushUndo(); d.boxView = nil
 	end
-	if d.boxes and #d.boxes > 1 and not require("src.icon_model").enabled(d.boxes) then
-		Slab.Text("Solids use depth; order affects legacy artwork.", { Color = GREY })
-		if E.boxSel and d.boxes[E.boxSel] then
-			local function btn(label, how, tip)
-				if Slab.Button(label .. "##box", { W = 64, H = 20, Tooltip = tip }) then E.restackBox(how) end
-			end
-			btn("To back", "back", "Draw this box first, under the others (Shift+[)")
-			Slab.SameLine()
-			btn("Back", "backward", "One step further back ([)")
-			Slab.SameLine()
-			btn("Forward", "forward", "One step further forward (])")
-			Slab.SameLine()
-			btn("To front", "front", "Draw this box last, over the others (Shift+])")
-		else
-			Slab.Text("Select a box to change its order", { Color = GREY })
-		end
-	end
+
 	for i, bx in ipairs(d.boxes or {}) do
 		local tag = (bx.layer and bx.layer ~= "hull") and ("  [" .. bx.layer .. "]") or ""
 		if Slab.TextSelectable(((E.boxSel == i) and "> " or "  ") .. (bx.name or ("box " .. i))
@@ -569,122 +551,15 @@ local function primitiveOptions(E)
 end
 
 -- The Icons tab: which item, its footprint, then the art tools.
-local function iconSections(E, d)
-	local Icons = require("src.icons")
-	local item = data.items[d.item]
-	local w, h = Icons.footprint(d.item)
-	Slab.Text("item: " .. (item and item.name or tostring(d.item)) .. "  (" .. tostring(d.item) .. ")")
-	Slab.Text(("footprint %d x %d cells (%d x %d units)"):format(w, h, w * Icons.CELL, h * Icons.CELL), { Color = GREY })
-	-- primary paint, as on ships: a factory preset (unpainted boxes and parts wear it)
-	Slab.Text("paint"); Slab.SameLine()
-	local Paint = require("src.paint")
-	local popts = { { label = "bare metal", value = false } }
-	for _, pr in ipairs(Paint.PRESETS) do popts[#popts + 1] = { label = pr.name, value = pr.name } end
-	combo("yard_icon_paint", type(d.paint) == "string" and d.paint or (d.paint and "custom" or "bare metal"), popts, function(v)
-		E.pushUndo()
-		d.paint = v or nil
-		if d.boxes then Icons.syncBoxes(d) end
-	end, 160)
-	Slab.Text("The box is the hold footprint; draw the", { Color = GREY })
-	Slab.Text("outline inside it.", { Color = GREY })
-	-- the item's grid size, which is also its size in space
-	Slab.Text("size (cells)"); Slab.SameLine()
-	local function size(id, key, other)
-		if Slab.InputNumberDrag(id, d[key] or (key == "w" and w or h), 1, 12, 0.1, { W = 50, Precision = 0 }) then
-			E.pushUndoCoalesced(id)
-			d[key] = math.max(1, math.floor(Slab.GetInputNumber() + 0.5))
-			d[other] = d[other] or (other == "w" and w or h)
-		end
-	end
-	size("yard_iw", "w", "h"); Slab.SameLine(); Slab.Text("x"); Slab.SameLine(); size("yard_ih", "h", "w")
-	local cw, ch = d.w or w, d.h or h
-	Slab.Text(("%d x %d px in space (a Wisp is 72 long)"):format(cw * Icons.CELL * Icons.WORLD, ch * Icons.CELL * Icons.WORLD), { Color = GREY })
-	if item and item.volume and item.stack and cw * ch < item.volume * item.stack - 1e-6 then
-		Slab.Text(("Too small: a stack of %d needs %g cells"):format(item.stack, item.volume * item.stack), { Color = { 1, 0.6, 0.4 } })
-	end
-	if d.w and (d.w ~= w or d.h ~= h) then Slab.Text("Saving the icon sets the item to this size.", { Color = GREY }) end
-	Slab.Text("Paint primary = the item's kind colour.", { Color = GREY })
-	-- art that no longer fits the footprint (the item's w/h changed)
-	local bw, bh = Icons.box(d.item, d)
-	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
-	for _, p in ipairs(d.parts) do
-		for k = 1, #p.shape - 1, 2 do
-			x0, x1 = math.min(x0, p.shape[k]), math.max(x1, p.shape[k])
-			local y = math.abs(p.shape[k + 1])
-			y0, y1 = math.min(y0, p.mirror and -y or p.shape[k + 1]), math.max(y1, p.mirror and y or p.shape[k + 1])
-		end
-	end
-	if x1 > x0 and (x0 < -bw - 0.01 or x1 > bw + 0.01 or y0 < -bh - 0.01 or y1 > bh + 0.01) then
-		Slab.Text("The art spills out of the footprint.", { Color = { 1, 0.6, 0.4 } })
-		if Slab.Button("Fit art to footprint", { Tooltip = "Scales every part (keeping its proportions) so the art fills the box" }) then
-			E.pushUndo()
-   if d.boxes then d.boxView=nil; Icons.syncBoxes(d) else
-			local s = math.min(bw * 2 / (x1 - x0), bh * 2 / (y1 - y0))
-			local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-			for _, p in ipairs(d.parts) do
-				for k = 1, #p.shape - 1, 2 do
-					p.shape[k] = (p.shape[k] - cx) * s
-					p.shape[k + 1] = p.mirror and p.shape[k + 1] * s or (p.shape[k + 1] - cy) * s
-				end
-			end
-   end
-		end
-	end
-	boxSection(E, d)
-	if Slab.Button("Drop some ahead of me", { Tooltip = "Registers the icon now and drops three of the item in front of your ship" }) then E.testFly() end
-	Slab.SameLine()
-	if Slab.Button("Copy source") then E.copySource() end
-	if Slab.Button("Undo") then E.undoStep() end
-	Slab.SameLine()
-	if Slab.Button("Redo") then E.redoStep() end
-
-	Slab.Separator()
-	local tools = { { "select", "Select (V)" }, { "draw", "Polygon (P)" }, { "rect", "Primitive (B)" } }
-	local current = 1
-	if E.tool ~= "select" and E.tool ~= "draw" and E.tool ~= "rect" then E.tool = "select" end
-	for i, t in ipairs(tools) do if E.tool == t[1] then current = i end end
-	for i, t in ipairs(tools) do
-		if Slab.RadioButton(t[2], { Index = i, SelectedIndex = current }) then
-			E.tool = t[1]
-			if t[1] ~= "draw" then E.drawing = nil end
-		end
-	end
-	primitiveOptions(E)
-	if E.tool == "select" then
-		Slab.Text("Shift-click adds a part or point", { Color = GREY })
-		Slab.Text("Drag on empty space to box select:")
-		if E.boxMode == "lights" then E.boxMode = "parts" end
-		combo("yard_iboxmode", E.boxMode == "points" and "points of the selected part" or "parts", {
-			{ label = "parts", value = "parts" }, { label = "points of the selected part", value = "points" },
-		}, function(v) E.boxMode = v end)
-	end
-	if Slab.CheckBox(E.snap, "Snap to grid (G, Alt places freely)") then E.snap = not E.snap end
-	Slab.Text("grid"); Slab.SameLine()
-	local gopts = {}
-	for _, g in ipairs({ 0.5, 1, 2, 4 }) do table.insert(gopts, { label = tostring(g), value = g }) end
-	combo("yard_igrid", tostring(E.grid), gopts, function(g) E.grid = g end, 60)
-	if Slab.Button("Centre view") then E.view.x, E.view.y = 0, 0 end
-	Slab.Text("Parts (lower in the list draws on top)", { Color = GREY })
-	restackControls(E, "yard_ilayer")
-	for i, p in ipairs(d.parts) do
-		if p.fromBox then goto nextPart end
-		Slab.Text(("%2d"):format(i), { Color = { 0.5, 0.5, 0.5 } })
-		Slab.SameLine()
-		local tags = (p.paint and ("  (" .. p.paint .. ")") or "") .. ((p.layer and p.layer ~= "hull") and ("  [" .. p.layer .. "]") or "")
-			.. (p.under and "  (under boxes)" or "")
-		local picked = E.sel == i or (E.multi and E.multi[i])
-		if Slab.TextSelectable((picked and "> " or "  ") .. (p.name or ("part " .. i)) .. tags) then
-			-- shift-click in the list adds to the selection, as on the canvas
-			if love.keyboard.isDown("lshift", "rshift") and E.sel and E.sel ~= i then
-				E.multi = E.multi or {}
-				if E.multi[i] then E.multi[i] = nil else E.multi[i] = true end
-				E.vsel, E.boxSel, E.faceSel = nil, nil, nil
-			else
-				E.sel, E.vsel, E.multi, E.boxSel, E.faceSel = i, nil, {}, nil, nil
-			end
-		end
-		::nextPart::
-	end
+local function iconSections(E,d)
+ E.tool='solid';E.sel=nil;E.vsel=nil;E.multi={};E.drawing=nil
+ Slab.Text('Solid icon editor')
+ Slab.Text('Add a shape, then drag it on the canvas.',{Color=GREY})
+ Slab.Text('Drag: horizontal / height. Depth: inspector.',{Color=GREY})
+ boxSection(E,d)
+ if Slab.Button('Undo') then E.undoStep() end;Slab.SameLine();if Slab.Button('Redo') then E.redoStep() end
+ if Slab.Button('Centre view') then E.fitIconView() end
+ if Slab.Button('Drop some ahead of me') then E.testFly() end
 end
 
 -- The Weapons tab: the module's stats, then the art tools.
@@ -899,7 +774,7 @@ local function designWindow(E, Editor)
   Slab.Text('Parametric icon examples')
   for i,e in ipairs({{'Reactor','ember_reactor'},{'Engine','flit_engine'},{'Plates','steel_plate'},{'Ore','iron_ore'},{'Canister','deuterium_canister'},{'Gun','gun_s_base'}}) do
    if i%2==0 then Slab.SameLine() end
-   if Slab.Button(e[1]..'##icon_example',{W=130}) then E.openIcon(e[2]) end
+   if Slab.Button(e[1],{W=130}) then E.openIcon(e[2]) end
   end
   Slab.Separator()
  end
@@ -1526,99 +1401,44 @@ end
 
 -- The selected icon box (Icons tab), in the Part window's place.
 local function boxWindow(E)
-	local d = E.design
-	local b = d.kind == "icon" and E.boxSel and d.boxes and d.boxes[E.boxSel]
-	if not b then return end
-	local Icons = require("src.icons")
-	local w, h = love.graphics.getWidth(), love.graphics.getHeight()
-	Slab.BeginWindow("yard_part", {
-		Title = "Shape", X = w - 300, Y = 10, W = 290, H = h - 20,
-		AutoSizeWindow = false, AllowResize = true,
-	})
-	local i = "box" .. E.boxSel
-	Slab.Text("name"); Slab.SameLine()
-	textField(E, "yard_bname" .. i, b.name or "", function(t) b.name = t end, 200)
-	Slab.Separator()
-	local shapeOpts={};for _,id in ipairs(require('src.icon_model').shapes) do shapeOpts[#shapeOpts+1]={label=id,value=id} end
- combo('yard_solid_kind',b.primitive or 'box',shapeOpts,function(v) E.pushUndo();b.primitive=v end,140)
- Slab.Text("Size and place (cells)")
-	Slab.Text("x across, y depth, z up", { Color = GREY })
-	local function num(label, key, lo, hi, default)
-		Slab.Text(label); Slab.SameLine()
-		if Slab.InputNumberDrag("yard_box_" .. key, b[key] or default, lo, hi, 0.05, { W = 60, Precision = 2 }) then
-			E.pushUndoCoalesced("yard_box_" .. key)
-			local v = math.floor(Slab.GetInputNumber() * 20 + 0.5) / 20
-			if key == "w" or key == "d" or key == "h" then v = math.max(0.05, v) end
-			b[key] = v
-		end
-	end
-	num("x", "x", -20, 20, 0); Slab.SameLine(); num("y", "y", -20, 20, 0); Slab.SameLine(); num("z", "z", -20, 20, 0)
-	num("w", "w", 0.05, 20, 1); Slab.SameLine(); num("d", "d", 0.05, 20, 1); Slab.SameLine(); num("h", "h", 0.05, 20, 1)
- if b.primitive then
-  num('Rotate X','rx',-180,180,0);num('Rotate Y','ry',-180,180,0);num('Rotate Z','rz',-180,180,0)
-  if b.primitive=='ring' then num('Hole ratio','inner',.1,.9,.62) end
-  if b.primitive=='taper' then num('Tip ratio','taper',.05,1,.55) end
-  local materials={};for _,id in ipairs({'metal','painted','recess','crystal','emissive'}) do materials[#materials+1]={label=id,value=id} end
-  combo('yard_solid_material',b.material or 'painted',materials,function(v) E.pushUndo();b.material=v end,140)
-  num('Contrast','contrast',.1,2,1)
-  num('Glow','glow',0,2,b.material=='emissive' and 1 or 0)
-  Slab.Text('Rotations are degrees, around the local origin.',{Color=GREY})
- end Slab.Text("faces"); Slab.SameLine()
-	for _, f in ipairs({ "front", "side", "top" }) do
-		local shown = not (b.hide and b.hide[f]) and not (f == "top" and b.open)
-		if Slab.CheckBox(shown, f) then
-			E.pushUndo()
-			if f == "top" then b.open = nil end
-			b.hide = b.hide or {}
-			b.hide[f] = shown or nil
-			if not next(b.hide) then b.hide = nil end
-		end
-		Slab.SameLine()
-	end
-	Slab.NewLine()
-	Slab.Text("Click a face and press Delete to hide it.", { Color = GREY })
-	Slab.Separator()
-	Slab.Text("Look")
-	Slab.Text("The item's kind colour unless changed.", { Color = GREY })
-	Slab.Text("Lighten (towards white, same hue)")
-	slider(E, "yard_light" .. i, b.light or 0, 0, 1, function(v) b.light = v > 0.001 and v or nil end)
-	Slab.Text("Shade (below 1 darkens)")
-	colourControls(E, b, i)
-	Slab.Text("Layer")
-	local lopts = {}
-	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
-	table.insert(lopts, { label = "glass", value = "glass" })   -- icon boxes only: see-through, tints what's behind
-	combo("yard_boxlayer" .. i, b.layer or "hull", lopts, function(l) E.pushUndo(); b.layer = l ~= "hull" and l or nil end, 140)
-	Slab.Text("3D shapes: material shading and depth.", { Color = GREY })
-	Slab.Text("fill, no outline. glow: bright, additive.", { Color = GREY })
-	Slab.Separator()
-	if Slab.Button("Copy shape") then
-		E.pushUndo()
-		local c = Export.copy(b); c.name = (b.name or "box") .. " copy"; c.z = (b.z or 0) + (b.h or 1)
-		table.insert(d.boxes, c); E.boxSel, E.faceSel = #d.boxes, nil
-	end
-	Slab.SameLine()
-	if Slab.Button("Turn into parts", { Tooltip = "Replaces this box with its faces as ordinary parts you can move and reshape" }) then
-		E.pushUndo()
-		local faces = {}
-		for _, q in ipairs(d.parts) do
-			if q.fromBox and q.box == E.boxSel then
-				local c = Export.copy(q); c.fromBox, c.box, c.face = nil, nil, nil; c.modelFace,c.depths,c.emission=nil,nil,nil
-				faces[#faces + 1] = c
-			end
-		end
-		table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
-		if #d.boxes == 0 then d.boxes = nil end
-		Icons.syncBoxes(d)
-		for _, c in ipairs(faces) do table.insert(d.parts, c) end
-	end
-	Slab.SameLine()
-	if Slab.Button("Delete shape") then
-		E.pushUndo(); table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
-		if #d.boxes == 0 then d.boxes = nil end
-		Icons.syncBoxes(d)
-	end
-	Slab.EndWindow()
+ local d=E.design;local b=d.kind=='icon' and E.boxSel and d.boxes and d.boxes[E.boxSel]
+ if not b then return end
+ Slab.BeginWindow('yard_part',{Title='Shape',X=love.graphics.getWidth()-300,Y=10,W=290,H=love.graphics.getHeight()-20,AutoSizeWindow=false,AllowResize=true})
+ textField(E,'solid_name',b.name or '',function(t)b.name=t end,230)
+ local shapes={};for _,id in ipairs(require('src.icon_model').shapes) do shapes[#shapes+1]={label=id,value=id} end
+ combo('solid_kind',b.primitive or 'box',shapes,function(v)E.pushUndo();b.primitive=v end,180)
+ local function num(label,key,default,lo,hi)
+  Slab.Text(label);Slab.SameLine()
+  if Slab.InputNumberDrag('solid_'..key,b[key] or default,lo,hi,.05,{W=55,Precision=2}) then
+   E.pushUndoCoalesced('solid_'..key);b[key]=Slab.GetInputNumber()
+  end
+ end
+ Slab.Separator();Slab.Text('Position (cells)')
+ num('X','x',0,-20,20);Slab.SameLine();num('Y','y',0,-20,20);Slab.SameLine();num('Z','z',0,-20,20)
+ Slab.Text('Dimensions')
+ num('W','w',1,.05,20);Slab.SameLine();num('D','d',1,.05,20);Slab.SameLine();num('H','h',1,.05,20)
+ Slab.Text('Rotation (degrees)')
+ num('X','rx',0,-180,180);Slab.SameLine();num('Y','ry',0,-180,180);Slab.SameLine();num('Z','rz',0,-180,180)
+ if b.primitive=='ring' then num('Hole','inner',.62,.1,.9) end
+ if b.primitive=='taper' then num('Tip','taper',.55,.05,1) end
+ Slab.Separator();Slab.Text('Material')
+ local materials={};for _,id in ipairs({'metal','painted','recess','crystal','emissive'}) do materials[#materials+1]={label=id,value=id} end
+ combo('solid_material',b.material or 'painted',materials,function(v)E.pushUndo();b.material=v end,180)
+ num('Contrast','contrast',1,.1,2);num('Glow','glow',b.material=='emissive' and 1 or 0,0,2)
+ local c=b.color or require('src.icon_model').materials[b.material or 'painted'].color or {.6,.7,.8}
+ Slab.Text('Color override')
+ for i,label in ipairs({'R','G','B'}) do
+  if i>1 then Slab.SameLine() end;Slab.Text(label);Slab.SameLine()
+  if Slab.InputNumberDrag('solid_color'..i,c[i],0,1,.01,{W=55,Precision=2}) then
+   E.pushUndoCoalesced('solid_color'..i);b.color={c[1],c[2],c[3]};b.color[i]=Slab.GetInputNumber()
+  end
+ end
+ if Slab.Button('Reset color') then E.pushUndo();b.color=nil end
+ Slab.Separator()
+ if Slab.Button('Duplicate (Ctrl+D)') then E.duplicateSelected() end
+ if Slab.Button('Delete (Del)') then E.deleteSelected() end
+ Slab.Text('Drag to move X / Z. Y sets depth.',{Color=GREY})
+ Slab.EndWindow()
 end
 
 local function partWindow(E)

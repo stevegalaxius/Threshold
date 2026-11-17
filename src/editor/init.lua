@@ -62,7 +62,9 @@ end
 E.say = say
 
 local function snapshot()
-	return Export.copy(E.design)
+	if E.design.kind~='icon' then return Export.copy(E.design) end
+ local d={parts={}};for k,v in pairs(E.design) do if k~='parts' and k~='_boxSignature' then d[k]=Export.copy(v) end end
+ return d
 end
 
 function E.pushUndo()
@@ -85,6 +87,7 @@ function E.undoStep()
 	if not s then return end
 	table.insert(E.redo, snapshot())
 	E.design = s
+ if s.kind=='icon' then require('src.icons').syncBoxes(s) end
 	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
@@ -93,6 +96,7 @@ function E.redoStep()
 	if not s then return end
 	table.insert(E.undo, snapshot())
 	E.design = s
+ if s.kind=='icon' then require('src.icons').syncBoxes(s) end
 	E.sel, E.vsel, E.lastUndoKey = nil, nil, nil; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
@@ -163,34 +167,25 @@ function E.newIcon(item)
 	local def = data.items[item]
 	E.design = { id = "icon_" .. item, name = (def and def.name or item) .. " icon", item = item, kind = "icon",
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
-	-- a starting block the size of the footprint, to reshape
-	local bw, bh = require("src.icons").box(item)
-	E.design.parts[1] = { name = "body", shape = { -bw + 1, -bh + 1, bw - 1, -bh + 1, bw - 1, bh - 1, -bw + 1, bh - 1 }, paint = "primary" }
+ E.design.boxes={};E.tool='solid';E.drawing=nil
+
 	E.fitIconView()
 	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 end
 
 -- Open the icon for an item: its saved one, else a new one.
 function E.openIcon(item)
-	if not data.icons[item] then
-		E.newIcon(item)
-		-- a drone starts from its hull's art (saving it makes it its own)
-		local fromHull = require("src.icons").get(item)
-		if fromHull then
-			E.design.parts = {}
-			for _, p in ipairs(fromHull.parts) do E.design.parts[#E.design.parts + 1] = Export.copy(p) end
-			say("New icon for " .. data.items[item].name .. ", starting from its hull " .. fromHull.hull)
-			return
-		end
-		say("New icon for " .. (data.items[item] and data.items[item].name or item))
-		return
-	end
-	E.design = Export.fromIcon(item)
-	E.design.folder = Export.folderOf(E.design.id)
-	if E.design.folder then E.browseDir = E.design.folder end
-	E.sel, E.vsel, E.undo, E.redo = nil, nil, {}, {}; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
-	E.fitIconView()
-	say("Opened the icon for " .. (data.items[item] and data.items[item].name or item))
+ if not data.icons[item] then E.newIcon(item);return end
+ E.design=Export.fromIcon(item);E.design.folder=Export.folderOf(E.design.id)
+ E.sel,E.vsel,E.boxSel,E.faceSel=nil,nil,nil,nil;E.multi={};E.undo={};E.redo={};E.tool='solid';E.drawing=nil
+ E.fitIconView();say('Opened the icon for '..(data.items[item].name or item))
+end
+
+function E.addIconShape(kind)
+ E.pushUndo();local d=E.design;d.boxes=d.boxes or {}
+ d.boxes[#d.boxes+1]={name=(kind or 'box')..' '..(#d.boxes+1),primitive=kind or 'box',material='metal',w=1,d=1,h=.8}
+ E.boxSel=#d.boxes;E.sel=nil;E.faceSel=nil;E.tool='solid'
+ require('src.icons').syncBoxes(d)
 end
 
 function E.newDesign(kind)
@@ -273,15 +268,7 @@ function E.finishDrawing()
 end
 
 function E.deleteSelected()
-	-- a picked box face (Icons tab): hide that face
-	local b = E.design.kind == "icon" and E.boxSel and E.design.boxes and E.design.boxes[E.boxSel]
-	if b and E.faceSel then
-		E.pushUndo()
-		b.hide = b.hide or {}
-		b.hide[E.faceSel] = true
-		E.faceSel = nil
-		return
-	end
+ local b=E.design.kind=='icon' and E.boxSel and E.design.boxes and E.design.boxes[E.boxSel]
 	-- a picked box with no face picked: delete the box
 	if b then
 		E.pushUndo()
@@ -348,6 +335,11 @@ function E.deleteSelected()
 end
 
 function E.duplicateSelected()
+ if E.design.kind=='icon' then
+  local b=E.boxSel and E.design.boxes[E.boxSel];if not b then return end
+  E.pushUndo();local c=Export.copy(b);c.name=(c.name or 'shape')..' copy';c.x=(c.x or 0)+.15;c.z=(c.z or 0)+.15
+  E.design.boxes[#E.design.boxes+1]=c;E.boxSel=#E.design.boxes;require('src.icons').syncBoxes(E.design);return
+ end
 	if not E.sel then return end
 	E.pushUndo()
 	local list = Canvas.selection(E)
@@ -833,6 +825,15 @@ function Editor.keypressed(key)
 	if typing() then return true end
 	local ctrl = love.keyboard.isDown("lctrl", "rctrl", "lgui", "rgui")
 	local shift = love.keyboard.isDown("lshift", "rshift")
+ if E.design.kind=='icon' then
+  if ctrl and key=='z' then if shift then E.redoStep() else E.undoStep() end
+  elseif ctrl and key=='y' then E.redoStep()
+  elseif ctrl and key=='d' then E.duplicateSelected()
+  elseif key=='delete' or key=='backspace' then E.deleteSelected()
+  elseif key=='n' then E.addIconShape(E.newSolid or 'box')
+  elseif key=='escape' then E.boxSel=nil end
+  return true
+ end
 	if ctrl and key == "z" then if shift then E.redoStep() else E.undoStep() end
 	elseif ctrl and key == "y" then E.redoStep()
 	elseif ctrl and key == "d" then E.duplicateSelected()
