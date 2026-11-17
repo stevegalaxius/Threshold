@@ -492,20 +492,23 @@ end
 local function boxSection(E, d)
 	local Icons = require("src.icons")
 	Slab.Separator()
-	Slab.Text("Boxes (3/4 crate view)")
-	Slab.Text("Pick one to edit it in the Box window.", { Color = GREY })
-	if Slab.Button("Add box") then
+	Slab.Text("Parametric shapes")
+	Slab.Text("Pick a shape to edit its parameters.", { Color = GREY })
+	local shapes={}
+ for _,id in ipairs(require('src.icon_model').shapes) do shapes[#shapes+1]={label=id,value=id} end
+ combo('yard_newsolid',E.newSolid or 'box',shapes,function(v) E.newSolid=v end,140)
+ if Slab.Button("Add shape") then
 		E.pushUndo()
 		d.boxes = d.boxes or {}
 		local fw = d.w or (Icons.footprint(d.item))
-		table.insert(d.boxes, { name = "box " .. (#d.boxes + 1), x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
+		table.insert(d.boxes, { name = (E.newSolid or "box") .. " " .. (#d.boxes + 1), primitive=E.newSolid or "box", material="metal", x = 0, y = 0, z = 0, w = fw, d = 1, h = 0.8 })
 		E.boxSel, E.faceSel, E.sel, E.multi = #d.boxes, nil, nil, {}
 	end
 	if d.boxes and Slab.Button("Refit boxes to footprint", { Tooltip = "Scale and centre the boxes to fill the footprint again (adding or removing boxes keeps the scale)" }) then
 		E.pushUndo(); d.boxView = nil
 	end
-	if d.boxes and #d.boxes > 1 then
-		Slab.Text("Lower in the list draws on top", { Color = GREY })
+	if d.boxes and #d.boxes > 1 and not require("src.icon_model").enabled(d.boxes) then
+		Slab.Text("Solids use depth; order affects legacy artwork.", { Color = GREY })
 		if E.boxSel and d.boxes[E.boxSel] then
 			local function btn(label, how, tip)
 				if Slab.Button(label .. "##box", { W = 64, H = 20, Tooltip = tip }) then E.restackBox(how) end
@@ -605,6 +608,7 @@ local function iconSections(E, d)
 		Slab.Text("The art spills out of the footprint.", { Color = { 1, 0.6, 0.4 } })
 		if Slab.Button("Fit art to footprint", { Tooltip = "Scales every part (keeping its proportions) so the art fills the box" }) then
 			E.pushUndo()
+   if d.boxes then d.boxView=nil; Icons.syncBoxes(d) else
 			local s = math.min(bw * 2 / (x1 - x0), bh * 2 / (y1 - y0))
 			local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
 			for _, p in ipairs(d.parts) do
@@ -613,6 +617,7 @@ local function iconSections(E, d)
 					p.shape[k + 1] = p.mirror and p.shape[k + 1] * s or (p.shape[k + 1] - cy) * s
 				end
 			end
+   end
 		end
 	end
 	boxSection(E, d)
@@ -1509,14 +1514,16 @@ local function boxWindow(E)
 	local Icons = require("src.icons")
 	local w, h = love.graphics.getWidth(), love.graphics.getHeight()
 	Slab.BeginWindow("yard_part", {
-		Title = "Box", X = w - 300, Y = 10, W = 290, H = h - 20,
+		Title = "Shape", X = w - 300, Y = 10, W = 290, H = h - 20,
 		AutoSizeWindow = false, AllowResize = true,
 	})
 	local i = "box" .. E.boxSel
 	Slab.Text("name"); Slab.SameLine()
 	textField(E, "yard_bname" .. i, b.name or "", function(t) b.name = t end, 200)
 	Slab.Separator()
-	Slab.Text("Size and place (cells)")
+	local shapeOpts={};for _,id in ipairs(require('src.icon_model').shapes) do shapeOpts[#shapeOpts+1]={label=id,value=id} end
+ combo('yard_solid_kind',b.primitive or 'box',shapeOpts,function(v) E.pushUndo();b.primitive=v end,140)
+ Slab.Text("Size and place (cells)")
 	Slab.Text("x across, y depth, z up", { Color = GREY })
 	local function num(label, key, lo, hi, default)
 		Slab.Text(label); Slab.SameLine()
@@ -1529,7 +1536,16 @@ local function boxWindow(E)
 	end
 	num("x", "x", -20, 20, 0); Slab.SameLine(); num("y", "y", -20, 20, 0); Slab.SameLine(); num("z", "z", -20, 20, 0)
 	num("w", "w", 0.05, 20, 1); Slab.SameLine(); num("d", "d", 0.05, 20, 1); Slab.SameLine(); num("h", "h", 0.05, 20, 1)
-	Slab.Text("faces"); Slab.SameLine()
+ if b.primitive then
+  num('Rotate X','rx',-180,180,0);num('Rotate Y','ry',-180,180,0);num('Rotate Z','rz',-180,180,0)
+  if b.primitive=='ring' then num('Hole ratio','inner',.1,.9,.62) end
+  if b.primitive=='taper' then num('Tip ratio','taper',.05,1,.55) end
+  local materials={};for _,id in ipairs({'metal','painted','recess','crystal','emissive'}) do materials[#materials+1]={label=id,value=id} end
+  combo('yard_solid_material',b.material or 'painted',materials,function(v) E.pushUndo();b.material=v end,140)
+  num('Contrast','contrast',.1,2,1)
+  num('Glow','glow',0,2,b.material=='emissive' and 1 or 0)
+  Slab.Text('Rotations are degrees, around the local origin.',{Color=GREY})
+ end Slab.Text("faces"); Slab.SameLine()
 	for _, f in ipairs({ "front", "side", "top" }) do
 		local shown = not (b.hide and b.hide[f]) and not (f == "top" and b.open)
 		if Slab.CheckBox(shown, f) then
@@ -1555,10 +1571,10 @@ local function boxWindow(E)
 	for _, l in ipairs(LAYERS) do table.insert(lopts, { label = l, value = l }) end
 	table.insert(lopts, { label = "glass", value = "glass" })   -- icon boxes only: see-through, tints what's behind
 	combo("yard_boxlayer" .. i, b.layer or "hull", lopts, function(l) E.pushUndo(); b.layer = l ~= "hull" and l or nil end, 140)
-	Slab.Text("hull: dark fill and outline. detail: flat", { Color = GREY })
+	Slab.Text("3D shapes: material shading and depth.", { Color = GREY })
 	Slab.Text("fill, no outline. glow: bright, additive.", { Color = GREY })
 	Slab.Separator()
-	if Slab.Button("Copy box") then
+	if Slab.Button("Copy shape") then
 		E.pushUndo()
 		local c = Export.copy(b); c.name = (b.name or "box") .. " copy"; c.z = (b.z or 0) + (b.h or 1)
 		table.insert(d.boxes, c); E.boxSel, E.faceSel = #d.boxes, nil
@@ -1569,7 +1585,7 @@ local function boxWindow(E)
 		local faces = {}
 		for _, q in ipairs(d.parts) do
 			if q.fromBox and q.box == E.boxSel then
-				local c = Export.copy(q); c.fromBox, c.box, c.face = nil, nil, nil
+				local c = Export.copy(q); c.fromBox, c.box, c.face = nil, nil, nil; c.modelFace,c.depths,c.emission=nil,nil,nil
 				faces[#faces + 1] = c
 			end
 		end
@@ -1579,7 +1595,7 @@ local function boxWindow(E)
 		for _, c in ipairs(faces) do table.insert(d.parts, c) end
 	end
 	Slab.SameLine()
-	if Slab.Button("Delete box") then
+	if Slab.Button("Delete shape") then
 		E.pushUndo(); table.remove(d.boxes, E.boxSel); E.boxSel, E.faceSel = nil, nil
 		if #d.boxes == 0 then d.boxes = nil end
 		Icons.syncBoxes(d)

@@ -115,6 +115,7 @@ function Canvas.partAt(E, x, y)
 	for i = #parts, 1, -1 do
 		local p = parts[i]
 		if not p.hidden and not p.locked then
+			if p.modelFace then return require('src.icon_model').pick(parts,x,y) end
 			if inside(p.shape, x, y) then return i end
 			if p.mirror and inside(Canvas.reflected(p.shape), x, y) then return i end
 		end
@@ -892,7 +893,8 @@ function Canvas.draw(E)
 	local ccx, ccy = 0, 0
 	if corePart and #corePart.shape >= 2 then ccx, ccy = Canvas.centre(corePart.shape) end
 	local spread = (1 - math.cos(love.timer.getTime() * 1.6)) * 0.5 * 40
-	for i, p in ipairs(E.design.parts) do
+	local modelDrawn=false
+ for i, p in ipairs(E.design.parts) do
 		if not p.hidden then
 			local list = { p }
 			if p.mirror then
@@ -933,7 +935,10 @@ function Canvas.draw(E)
 					-- glass (icons): a dark see-through tint, as src/icons.lua draws it
 					if q.layer == "glass" and not wreck then fillCol = { pc[1] * 0.45, pc[2] * 0.45, pc[3] * 0.45, 0.75 } end
 					if E.preview == "collision" and q.collide == false then fillCol = { 0.15, 0.15, 0.15, 0.4 } end
-					lg.setColor(fillCol)
+					if q.modelFace then
+      if not modelDrawn then require('src.icon_model').draw(E.design.parts,1);modelDrawn=true end
+     else
+     lg.setColor(fillCol)
 					if q.layer == "glow" and not wreck then lg.setBlendMode("add") end
 					for _, t in ipairs(tris) do lg.polygon("fill", t) end
 					lg.setBlendMode("alpha")
@@ -942,7 +947,8 @@ function Canvas.draw(E)
 						lg.setLineWidth(1.5 / v.zoom)
 						lg.polygon("line", s)
 					end
-					if q.fromBox and q.box == E.boxSel and (E.faceSel == nil or q.face == E.faceSel) then
+					end
+     if not q.modelFace and q.fromBox and q.box == E.boxSel and (E.faceSel == nil or q.face == E.faceSel) then
 						lg.setColor(1, 1, 1, 0.9)
 						lg.setLineWidth(3 / v.zoom)
 						lg.polygon("line", s)
@@ -962,6 +968,13 @@ function Canvas.draw(E)
 		end
 	end
 
+ if E.design.kind=='icon' and E.boxSel then
+  local x0,y0,x1,y1=math.huge,math.huge,-math.huge,-math.huge
+  for _,p in ipairs(E.design.parts) do if p.modelFace and p.box==E.boxSel then
+   for k=1,#p.shape,2 do x0,y0,x1,y1=math.min(x0,p.shape[k]),math.min(y0,p.shape[k+1]),math.max(x1,p.shape[k]),math.max(y1,p.shape[k+1]) end
+  end end
+  if x0<x1 then lg.setColor(1,.8,.35,.8);lg.setLineWidth(1.5/v.zoom);lg.rectangle('line',x0,y0,x1-x0,y1-y0) end
+ end
 	drawWeapons(true)
 	lg.pop()
 
@@ -1326,22 +1339,22 @@ function Canvas.drawIconPreview(E)
 	local fw, fh = Icons.footprint(d.item, d)
 	local item = data.items[d.item] or {}
 	local c = Icons.paint(d)
-	local W, H = 360, 230
-	local x0, y0 = lg.getWidth() - W - 12, lg.getHeight() - H - 34
+	local W, H = math.max(360,fw*64+24), fh*64+160
+	local x0, y0 = math.max(330,lg.getWidth() - W - 312), lg.getHeight() - H - 34
 	lg.setColor(0.02, 0.025, 0.035, 0.92)
 	lg.rectangle("fill", x0, y0, W, H, 4, 4)
 	lg.setColor(1, 1, 1, 0.25)
 	lg.rectangle("line", x0 + 0.5, y0 + 0.5, W - 1, H - 1, 4, 4)
 	lg.setColor(1, 1, 1, 0.6)
-	lg.print("Preview: hold", x0 + 8, y0 + 6)
+	lg.print("Preview: fixed 64 px cells", x0 + 8, y0 + 6)
 	-- hold stacks, as the cargo screen draws them
 	local x = x0 + 8
-	for _, cs in ipairs({ 22, 34 }) do
+	for _, cs in ipairs({ 64 }) do
 		local w, h = fw * cs, fh * cs
 		if x + w > x0 + W - 8 then break end
-		lg.setColor(c[1], c[2], c[3], 0.32)
+		lg.setColor(.035,.05,.06,1)
 		lg.rectangle("fill", x + 2, y0 + 26, w - 4, h - 4, 3, 3)
-		lg.setColor(c[1], c[2], c[3], 0.95)
+		lg.setColor(.18,.24,.28,1)
 		lg.rectangle("line", x + 2.5, y0 + 26.5, w - 5, h - 5, 3, 3)
 		local bw, bh = Icons.box(d.item, d)
 		local s = math.min((w - 6) / (bw * 2), (h - 6) / (bh * 2))

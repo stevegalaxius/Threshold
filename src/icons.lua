@@ -58,6 +58,7 @@ local function project(x, y, z)
 end
 
 function Icons.boxParts(boxes, bw, bh, kc, view)
+	if require("src.icon_model").enabled(boxes) then return require("src.icon_model").parts(boxes,bw,bh,kc,view) end
 	local list = boxes or {}
 	local faces = {}
 	local x0, x1, y0, y1 = math.huge, -math.huge, math.huge, -math.huge
@@ -105,6 +106,9 @@ end
 -- Replace an icon's box faces (parts marked fromBox) with fresh ones built
 -- from its boxes. own: the icon or editor design (w, h win over the item's).
 function Icons.syncBoxes(icon)
+ if not data.items[icon.item] then return icon end -- module items are created after icon files
+ local signature=require('src.save').encode({boxes=icon.boxes,view=icon.boxView,paint=icon.paint,w=icon.w,h=icon.h,item=icon.item})
+ if icon._boxSignature==signature then return icon end
 	local kept = {}
 	for _, p in ipairs(icon.parts or {}) do if not p.fromBox then kept[#kept + 1] = p end end
 	local bw, bh = Icons.box(icon.item, icon)
@@ -122,6 +126,7 @@ function Icons.syncBoxes(icon)
 	for _, p in ipairs(kept) do if not p.under then parts[#parts + 1] = p end end
 	icon.parts = parts
 	icon.reach = nil
+ icon._boxSignature=require("src.save").encode({boxes=icon.boxes,view=icon.boxView,paint=icon.paint,w=icon.w,h=icon.h,item=icon.item})
 	return icon
 end
 
@@ -165,7 +170,10 @@ end
 -- (for a drone) the drone's hull.
 function Icons.get(item)
 	local own = data.icons and data.icons[item]
-	if own then return own end
+	if own then
+  if own.boxes and not own._runtimeSynced then Icons.syncBoxes(own);own._runtimeSynced=true end
+  return own
+ end
 	local h = hullOf(data.items[item])
 	if not h then return nil end
 	local d = derived[item]
@@ -264,8 +272,11 @@ function Icons.drawArt(icon, col, alpha, lineWidth, fresh, space)
 	local c = col or Icons.paint(icon)
 	local paint = { c[1], c[2], c[3] }
 	lg.setLineJoin("bevel")
-	for _, p in ipairs(icon.parts or {}) do
-		if p.shape and #p.shape >= 6 and not (space and p.badge) then
+	local modelDrawn=false
+ for _, p in ipairs(icon.parts or {}) do
+  if p.modelFace then
+   if not modelDrawn then require('src.icon_model').draw(icon.parts,alpha);modelDrawn=true end
+  elseif p.shape and #p.shape >= 6 and not (space and p.badge) then
 			local layer = p.layer or "hull"
 			local pc = Visual.partColor(p, paint)
 			for _, s in ipairs({ p.shape, p.mirror and mirrored(p.shape) or nil }) do
