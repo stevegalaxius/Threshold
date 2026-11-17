@@ -7,9 +7,12 @@
 	parts are the editor's own copies, with only the fields a data file
 	holds (no tris, area or centre: HullShape.prepare adds those).
 
-	Exports go to the save folder, mods/shipyard/data/<id>.lua, which
-	src/data.lua already loads after the base game (reusing an id
-	replaces that hull). The working design autosaves to
+	Exports go to the save folder, mods/shipyard/data/<folder>/<id>.lua,
+	which src/data.lua loads after the base game. Only files in a namesake
+	folder (ships/, stations/, wrecks/, satellites/, icons/, weapons/, modules/; see
+	data.NAMESAKE) are game content, and reusing an id there replaces the
+	game's. Everywhere else is workspace: it loads for viewing but never
+	reaches the simulation. The working design autosaves to
 	shipyard/_autosave.lua there too.
 ]]
 
@@ -358,6 +361,14 @@ local function full(rel)
 	return rel == "" and Export.FOLDER or (Export.FOLDER .. "/" .. rel)
 end
 Export.path = full
+
+-- The namesake folder a design belongs in to be game content.
+function Export.namesake(design)
+	local k = design.kind
+	if k == "icon" then return "icons" elseif k == "weapon" then return "weapons" elseif k == "station" then return "stations"
+	elseif k == "satellite" then return "satellites" elseif k == "wreck" or k == "container" or k == "prop" then return "wrecks" end
+	return "ships"
+end
 
 function Export.isFolder(rel)
 	return love.filesystem.getInfo(full(rel), "directory") ~= nil

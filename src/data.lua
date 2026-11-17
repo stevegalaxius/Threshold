@@ -140,6 +140,34 @@ function data.fitLoadout(hull, loadout)
 end
 
 local currentFile = "?"
+-- Game content and workspace. The base game's data/ is all game content.
+-- In a mod's data folder, only files under a namesake folder (data.NAMESAKE:
+-- mods/shipyard/data/ships/, .../stations/, ...) are game content; every
+-- other file, top level or any other folder, is workspace. That's where the
+-- Shipyard saves by default and where tools/shipgen writes.
+--
+-- Workspace designs (hull, station, wreck, container, prop, satellite, icon)
+-- load with workspace = true so the Shipyard can open them and the debug menu
+-- (F1) can fly or park them, but nothing in the simulation uses them:
+--   - they never replace a game definition with the same id (skipped, with a
+--     warning), and a workspace icon doesn't resize its item's grid cells;
+--   - dealers, factory lineups and enemies that name a workspace hull fail
+--     to load (crossCheck);
+--   - everything else in a workspace file (module, ammo, salvage, item,
+--     enemy, market, site, spawn set, loot table, satellite orbits) is left
+--     out entirely.
+-- Moving a file into its namesake folder puts it in the game.
+data.NAMESAKE = { ships = true, stations = true, wrecks = true, satellites = true, icons = true, modules = true, weapons = true,
+	items = true, enemies = true, markets = true, sites = true, spawn_sets = true, loot_tables = true }
+local workspace = false
+
+-- Is the file at this path (in the save folder or the game) game content?
+function data.inGame(path)
+	local seg = path:match("^mods/[^/]+/data/(.*)$")
+	if not seg then return true end
+	local first, rest = seg:match("^([^/]+)/(.+)$")
+	return first ~= nil and data.NAMESAKE[first] == true and rest ~= nil
+end
 
 local function fail(msg)
 	error(("%s: %s"):format(currentFile, msg), 0)
@@ -530,7 +558,7 @@ function api.icon(def)
 	def.source = currentFile
 	-- the icon's footprint (from the editor's size boxes) is the item's grid size
 	local item = data.items[def.item]
-	if item and def.w and def.h then
+	if item and def.w and def.h and not workspace then
 		item.w, item.h = def.w, def.h
 		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
 	end
@@ -614,13 +642,49 @@ local function sandbox()
 	return env
 end
 
+-- What a workspace file may define: designs, kept apart from the game's.
+-- kind -> where a game definition with the same id would be, and its id.
+local DESIGNS = {
+	hull = { "hulls", "id" }, station = { "stations", "id" }, icon = { "icons", "item" },
+	wreck = { "wrecks", "id" }, container = { "wrecks", "id" }, prop = { "wrecks", "id" }, satellite = { "wrecks", "id" },
+}
+local workspaceEnv
+local function workspaceSandbox()
+	if workspaceEnv then return workspaceEnv end
+	local env = sandbox()
+	for kind, fn in pairs(api) do
+		local where = DESIGNS[kind]
+		if where then
+			env[kind] = function(def)
+				local key = type(def) == "table" and def[where[2]]
+				local old = key and data[where[1]][key]
+				if old and not old.workspace then
+					print(("[data] %s: skipped workspace %s '%s'; the game's (%s) keeps that id"):format(currentFile, kind, tostring(key), old.source or "?"))
+					return def
+				end
+				local out = fn(def)
+				def.workspace = true
+				return out
+			end
+		else
+			env[kind] = function()
+				print(("[data] %s: %s left out (workspace; move the file into a namesake folder to load it)"):format(currentFile, kind))
+			end
+		end
+	end
+	workspaceEnv = env
+	return env
+end
+
 local function loadFile(path)
 	currentFile = path
 	local source = love.filesystem.read(path)
 	local chunk, err = loadstring(source, "@" .. path)
 	if not chunk then error(err, 0) end
-	setfenv(chunk, sandbox())
+	workspace = not data.inGame(path)
+	setfenv(chunk, workspace and workspaceSandbox() or sandbox())
 	chunk()
+	workspace = false
 end
 
 local loadFolder
@@ -688,6 +752,23 @@ function data.modulesFor(slot)
 end
 
 local function crossCheck()
+	-- workspace hulls stay out of the simulation
+	local function noDraft(where, id)
+		local h = data.hulls[id]
+		if h and h.workspace then
+			error(("%s uses workspace hull '%s' (%s); move it into a ships/ folder to use it in the game"):format(where, id, h.source or "?"), 0)
+		end
+	end
+	for name, mk in pairs(data.markets) do
+		for _, id in ipairs(mk.dealer and mk.dealer.hulls or {}) do noDraft(("%s: market '%s' dealer"):format(mk.source, name), id) end
+	end
+	for id, e in pairs(data.enemies) do noDraft(("enemy '%s'"):format(id), e.hull) end
+	local okInd, ind = pcall(require, "data.industry")
+	if okInd and type(ind) == "table" then
+		for maker, hulls in pairs(ind.lineups or {}) do
+			for _, id in ipairs(hulls) do noDraft(("data/industry.lua: lineup '%s'"):format(maker), id) end
+		end
+	end
 	for name, mk in pairs(data.markets) do
 		for _, id in ipairs(mk.ships or {}) do
 			if not data.hulls[id] or data.hulls[id].playable == false then

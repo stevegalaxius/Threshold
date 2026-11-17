@@ -48,13 +48,16 @@ end
 local function shipSection(game)
 	local p = game.player
 	Slab.Text("Hull (launches a fresh ship)")
-	local opts = {}
+	local opts, drafts = {}, {}
 	for _, id in ipairs(data.list.hulls) do
 		local h = data.hulls[id]
-		if h.playable ~= false then
-			table.insert(opts, { label = ("%s  -  %s, %s"):format(h.name, h.maker, h.class), value = id })
+		if h.workspace then   -- drafts last, marked, so they can be flown and checked
+			table.insert(drafts, { label = ("[workspace] %s  -  %s"):format(h.name, id), value = id })
+		elseif h.playable ~= false then
+			table.insert(opts, { label = ("%s  -  %s, %s"):format(h.name, h.maker or "?", h.class or "?"), value = id })
 		end
 	end
+	for _, o in ipairs(drafts) do table.insert(opts, o) end
 	local current = data.hulls[game.playerHull]
 	combo("dbg_hull", current.name, opts, function(id) game:spawnPlayer(id) end)
 	if Slab.Button("Relaunch ship") then game:spawnPlayer() end
