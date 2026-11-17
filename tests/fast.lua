@@ -337,6 +337,33 @@ return function(game)
   assert(Hold.count(u.stations[k].storage,'iron_ore')==5,'closed stall lost its stock')
  end
  print('ok  market stalls: rent, stock, NPC shopping, rent lapse')
+ -- 5c. Buy orders: the player pays up front, the order goes on the freight
+ -- board, a delivery lands in their storage, a cancel refunds the rest.
+ do
+  local B=require('src.buy_orders');local Tasks=require('src.tasks');local Hold=require('src.inventory.hold')
+  local k='station:earth_1';u.credits=100000
+  local cat=B.catalogue(u,k,u.clock);assert(#cat>0,'nothing on offer to order')
+  local item=cat[1];local c0=u.credits
+  local o=assert(B.place(u,item,4,k,'storage',u.clock),'order refused')
+  assert(u.credits==c0-o.unit*o.amount,'order not paid up front')
+  local t=Tasks.state(u).offers[o.taskId]
+  assert(t and t.kind=='transport' and t.stocked and t.playerOrder==o.id and t.target==k,'order not on the freight board')
+  assert(B.status(u,o)=='open','new order not open')
+  local before=Hold.count(require('src.stalls').storage(u,k),item)
+  Tasks.state(u).offers[o.taskId]=nil
+  B.delivered(u,o.id,k,item,1,u.clock)
+  assert(Hold.count(require('src.stalls').storage(u,k),item)==before+1,'delivery not in storage')
+  assert(not o.done and Tasks.state(u).offers[o.taskId],'rest of a part delivery not reposted')
+  local c1=u.credits
+  assert(B.cancel(u,o),'cancel refused')
+  assert(u.credits==c1+(o.amount-1)*o.unit and o.done=='cancelled' and not Tasks.state(u).offers[o.taskId],'cancel did not refund the rest')
+  -- the whole amount in closes it
+  local o2=assert(B.place(u,item,1,k,'storage',u.clock))
+  Tasks.state(u).offers[o2.taskId]=nil
+  B.delivered(u,o2.id,k,item,1,u.clock);assert(o2.done=='delivered','full delivery not done')
+  u.buyOrders=nil
+ end
+ print('ok  buy orders: escrow, freight board, delivery, cancel refund')
 
  -- Routing: no route doubles back. Gates used to join only their nearest
  -- node (a trader bound for Triton flew out to Neptune's far buoy first),

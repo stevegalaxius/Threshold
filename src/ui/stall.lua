@@ -12,7 +12,7 @@ local HUD, Station = require("src.hud"), require("src.ui.station")
 local Stall = require("src.stalls")
 local Hold = require("src.inventory.hold")
 local Icons = require("src.icons")
-local View = {}
+local View = { pane = "stall", pick = nil, qty = 10, deliver = "storage", catScroll = 0 }
 local lg = love.graphics
 
 local GOLD = { 1, 0.82, 0.45 }
@@ -65,9 +65,13 @@ function View.layout(game)
 	for i, r in ipairs(Sat.mine(u)) do
 		f.sats[i] = { r = r, x = x + 340 - 14 - 112, y = satTop + (i - 1) * 46 - 3, w = 112, h = 22 }
 	end
-	f.main = { x = x + 352, y = y, w = w - 352, h = h }
+	-- the main column has two panes: the stall and buy orders
+	f.panes = { { id = "stall", label = "Market stall", x = x + 352, y = y, w = 160, h = 32 },
+		{ id = "orders", label = "Buy orders", x = x + 352 + 168, y = y, w = 160, h = 32 } }
+	f.main = { x = x + 352, y = y + 40, w = w - 352, h = h - 40 }
 	f.stall = k and Stall.get(u, k)
 	local m = f.main
+	if View.pane == "orders" then return View.ordersLayout(game, f) end
 	if not f.stall then
 		f.can, f.why = Stall.canRent(u, k)
 		f.rent = { x = m.x + 24, y = m.y + 200, w = 220, h = 40 }
@@ -158,11 +162,148 @@ local function drawTile(t, s, mx, my)
 	if t.side == "stall" then text(t.x, t.y + t.h - 19, t.w, HUD.credits(Stall.price(s, t.id)), 11, GOLD, "center") end
 end
 
+
+-- Buy orders ---------------------------------------------------------------
+local Orders = require("src.buy_orders")
+local cache = {}
+-- (the catalogue and quotes look across every station: worked out every
+-- few seconds of game time, not every frame)
+local function cached(key, clock, fn)
+	local c = cache[key]
+	local bucket = math.floor((clock or 0) / 5)
+	if c and c.at == bucket then return c.v end
+	local v = fn()
+	cache[key] = { at = bucket, v = v }
+	return v
+end
+local STATUS = { open = { "On the board", GOLD }, hauling = { "Hauler carrying it", GOOD },
+	delivered = { "Delivered", HUD.DIM }, cancelled = { "Cancelled", HUD.DIM } }
+
+function View.ordersLayout(game, f)
+	local u, m = game.universe, f.main
+	local clock = u.clock or 0
+	f.orders = true
+	f.cat = cached("cat|" .. tostring(f.k), clock, function() return Orders.catalogue(u, f.k, clock) end)
+	local half = math.floor((m.w - 48) / 2)
+	f.left, f.right = { x = m.x + 16, y = m.y + 36, w = half }, { x = m.x + 32 + half, y = m.y + 36, w = half }
+	-- item tiles
+	local T2, G2 = 58, 6
+	local cols = math.max(1, math.floor((half + G2) / (T2 + G2)))
+	local rows = math.max(1, math.floor((m.h - 36 - 24 - 190) / (T2 + G2)))
+	local maxScroll = math.max(0, math.ceil(#f.cat / cols) - rows)
+	View.catScroll = math.max(0, math.min(View.catScroll, maxScroll))
+	f.picks = {}
+	for i = 1, cols * rows do
+		local id = f.cat[i + View.catScroll * cols]
+		if not id then break end
+		local c, r = (i - 1) % cols, math.floor((i - 1) / cols)
+		f.picks[#f.picks + 1] = { id = id, x = f.left.x + c * (T2 + G2), y = f.left.y + 24 + r * (T2 + G2), w = T2, h = T2 }
+	end
+	local by = f.left.y + 24 + rows * (T2 + G2) + 30
+	f.formY = by
+	f.steps = {}
+	for i, d in ipairs({ -10, -1, 1, 10 }) do
+		local bx = f.left.x + (i <= 2 and (i - 1) * 46 or 150 + (i - 3) * 46)
+		f.steps[i] = { d = d, label = (d > 0 and "+" or "") .. d, x = bx, y = by, w = 40, h = 28 }
+	end
+	f.dest = { { id = "storage", label = "To storage", x = f.left.x, y = by + 38, w = 120, h = 28 },
+		{ id = "stall", label = "To my stall", x = f.left.x + 126, y = by + 38, w = 120, h = 28 } }
+	f.post = { x = f.left.x, y = by + 118, w = 180, h = 34 }
+	-- the quote for what's picked
+	if View.pick then
+		f.quote = cached(("q|%s|%s|%d"):format(tostring(f.k), View.pick, View.qty), clock, function()
+			local src = Orders.source(u, View.pick, View.qty, f.k, clock)
+			if not src then return false end
+			local n = math.min(View.qty, src.have)
+			local unit, goods, freight = Orders.quote(u, View.pick, n, src.id, f.k, clock)
+			return { src = src.id, n = n, unit = unit, goods = goods, freight = freight }
+		end)
+	end
+	-- your orders
+	f.rows = {}
+	for i, o in ipairs(Orders.list(u)) do
+		local ry = f.right.y + 24 + (i - 1) * 52
+		if ry + 48 > m.y + m.h then break end
+		f.rows[#f.rows + 1] = { o = o, y = ry, cancel = { x = f.right.x + f.right.w - 90, y = ry + 10, w = 84, h = 26 } }
+	end
+	return f
+end
+
+local function drawOrders(game, f, mx, my)
+	local u, m = game.universe, f.main
+	card(m.x, m.y, m.w, m.h, ("BUY ORDERS · %d of %d open · NPC haulers bring the goods here from wherever they're spare"):format(#Orders.open(u), Orders.max))
+	text(f.left.x, f.left.y, f.left.w, "NEW ORDER · pick a good", 12, GOLD)
+	for _, t in ipairs(f.picks) do
+		local hot, sel = inside(t, mx, my), View.pick == t.id
+		lg.setColor(1, 1, 1, (hot or sel) and 0.14 or 0.05); lg.rectangle("fill", t.x, t.y, t.w, t.h, 5, 5)
+		lg.setColor(sel and GOLD or HUD.DIM); lg.rectangle("line", t.x + 0.5, t.y + 0.5, t.w - 1, t.h - 1, 5, 5)
+		if not Icons.drawInRect(t.id, t.x + 4, t.y + 4, t.w - 8, t.h - 8, nil, 1, 3) then
+			text(t.x + 2, t.y + 16, t.w - 4, itemName(t.id), 9, HUD.DIM, "center")
+		end
+	end
+	if #f.picks == 0 then text(f.left.x, f.left.y + 30, f.left.w, "Nothing to spare anywhere right now.", 13, HUD.DIM) end
+	local hover
+	for _, t in ipairs(f.picks) do if inside(t, mx, my) then hover = t.id end end
+	local name = hover or View.pick
+	text(f.left.x, f.formY - 24, f.left.w, name and (itemName(name) .. " · list " .. HUD.credits(Stall.list(name))) or "Mouse wheel scrolls the goods.", 13, name and HUD.INK or HUD.DIM)
+	for _, b in ipairs(f.steps) do Station.button(b, b.label, false, View.pick ~= nil) end
+	text(f.left.x + 92, f.formY + 5, 58, tostring(View.qty), 16, HUD.INK, "center")
+	local hasStall = Stall.get(u, f.k) ~= nil
+	if View.deliver == "stall" and not hasStall then View.deliver = "storage" end
+	for _, b in ipairs(f.dest) do Station.button(b, b.label, View.deliver == b.id, b.id == "storage" or hasStall) end
+	local q = f.quote
+	if View.pick and q then
+		local place = L.byId[q.src]
+		text(f.left.x, f.formY + 74, f.left.w, ("%d from %s%s"):format(q.n, place and place.name or q.src, q.n < View.qty and " (all it has spare)" or ""), 12, HUD.DIM)
+		text(f.left.x, f.formY + 94, f.left.w, ("%s each (goods %s + freight %s) · paid now %s"):format(HUD.credits(q.unit),
+			HUD.credits(math.floor(q.goods / q.n)), HUD.credits(math.ceil(q.freight / q.n)), HUD.credits(q.unit * q.n)), 12, (u.credits or 0) >= q.unit * q.n and HUD.INK or HUD.WARN)
+	elseif View.pick then
+		text(f.left.x, f.formY + 74, f.left.w, "No station can send any right now.", 12, HUD.WARN)
+	end
+	Station.button(f.post, "Post order", false, View.pick ~= nil and q and (u.credits or 0) >= q.unit * q.n)
+	-- your orders
+	text(f.right.x, f.right.y, f.right.w, "YOUR ORDERS", 12, GOLD)
+	if #f.rows == 0 then text(f.right.x, f.right.y + 30, f.right.w, "None yet. Pick a good, set how many and post it: NPC haulers deliver it.", 12, HUD.DIM) end
+	for _, row in ipairs(f.rows) do
+		local o = row.o
+		local st = Orders.status(u, o)
+		lg.setColor(1, 1, 1, 0.05); lg.rectangle("fill", f.right.x, row.y, f.right.w, 46, 5, 5)
+		Icons.drawInRect(o.item, f.right.x + 4, row.y + 4, 38, 38, nil, 1, 3)
+		local to = L.byId[o.target]
+		text(f.right.x + 50, row.y + 4, f.right.w - 150, ("%s ×%d%s"):format(itemName(o.item), o.amount, o.delivered > 0 and o.delivered < o.amount and (" (" .. o.delivered .. " in)") or ""), 13)
+		text(f.right.x + 50, row.y + 24, f.right.w - 150, ((STATUS[st] or { st })[1]) .. " · to " .. (o.deliver == "stall" and "stall" or "storage") .. " at " .. (to and to.name or o.target), 11, (STATUS[st] or {})[2] or HUD.DIM)
+		if st == "open" then Station.button(row.cancel, "Cancel", false, true) end
+	end
+end
+
+function View.ordersClick(game, f, mx, my, button)
+	local u = game.universe
+	if button ~= 1 then return true end
+	for _, t in ipairs(f.picks) do if inside(t, mx, my) then View.pick = t.id end end
+	for _, b in ipairs(f.steps) do if inside(b, mx, my) then View.qty = math.max(1, math.min(500, View.qty + b.d)) end end
+	for _, b in ipairs(f.dest) do if inside(b, mx, my) then View.deliver = b.id end end
+	if inside(f.post, mx, my) and View.pick then
+		local o, why = Orders.place(u, View.pick, View.qty, f.k, View.deliver, u.clock)
+		cache = {}
+		game:toast(o and ("ORDER POSTED: %d %s"):format(o.amount, itemName(o.item):upper()) or (why or ""):upper(), 2.5)
+	end
+	for _, row in ipairs(f.rows) do
+		if inside(row.cancel, mx, my) and Orders.status(u, row.o) == "open" then
+			local ok, why = Orders.cancel(u, row.o)
+			cache = {}
+			game:toast(ok and "ORDER CANCELLED: REFUNDED" or (why or ""):upper(), 2)
+		end
+	end
+	return true
+end
+
 function View.draw(game)
 	local f = View.layout(game)
 	local u = game.universe
 	local mx, my = love.mouse.getPosition()
 	drawSide(game, f)
+	for _, p in ipairs(f.panes) do Station.button(p, p.label, View.pane == p.id, true) end
+	if f.orders then drawOrders(game, f, mx, my); return end
 	local m = f.main
 	if not f.stall then
 		card(m.x, m.y, m.w, 270, "MARKET STALL")
@@ -231,7 +372,9 @@ function View.mousepressed(game, mx, my, button)
 				return true
 			end
 		end
+		for _, p in ipairs(f.panes) do if inside(p, mx, my) then View.pane = p.id; return true end end
 	end
+	if f.orders then return View.ordersClick(game, f, mx, my, button) end
 	if not f.stall then
 		if button == 1 and inside(f.rent, mx, my) then
 			local s, why = Stall.open(u, f.k)
@@ -257,5 +400,7 @@ function View.mousepressed(game, mx, my, button)
 	end
 	return true
 end
-function View.wheelmoved(game, y) end
+function View.wheelmoved(game, y)
+	if View.pane == "orders" then View.catScroll = View.catScroll - y end
+end
 return View
