@@ -295,6 +295,7 @@ T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC wakin
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
 T.npcArrivalWidth = 4000     -- px across (and half that deep) the band driver arrivals spread over, by id
 T.sleepFar, T.sleepNear, T.sleepEvery = 7000, 6000, 12
+T.sleepViewMargin = 1000   -- px past the screen's edge that debris is kept awake (zoomed out)
 -- Cloud-city launches: how long the city's beam carries a departing NPC up
 -- out of the cloud-top pull at most (Game:cloudClimbing), in seconds.
 T.cloudClimbTime = 60

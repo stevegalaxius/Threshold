@@ -1771,11 +1771,39 @@ function Render.world(game, overlay, boundaryAngle)
 		local ix, iy = max(ax - hw, 0), max(ay - hh, 0)
 		nearest, furthest = sqrt(ix * ix + iy * iy), sqrt((ax + hw) ^ 2 + (ay + hh) ^ 2)
 	end
+	-- and which way round from the well the screen lies (ac, give or take
+	-- span): with the well off screen, debris circling at the right
+	-- distance but on another bearing can't be on it either. Only its angle
+	-- is worked out for that, not where it is (a ring is thousands of rocks,
+	-- nearly all of them round the other way).
+	local ac, span
+	if well and nearest > 0 then
+		local atan2 = math.atan2
+		ac = atan2(cy - well.y, cx - well.x)
+		span = 0
+		for _, c in ipairs({ { -hw, -hh }, { hw, -hh }, { -hw, hh }, { hw, hh } }) do
+			local d = (atan2(cy + c[2] - well.y, cx + c[1] - well.x) - ac + pi) % (2 * pi) - pi
+			if d < 0 then d = -d end
+			if d > span then span = d end
+		end
+		span = span + 0.01
+	end
+	local now, twoPi = game.time, 2 * pi
 	for _, e in ipairs(game.sleepers or {}) do
 		local o = e.sleep
 		-- (most of it, past a map's edge and down a lane, never moves)
 		if o.still then debris(e, e.body.x, e.body.y)
-		elseif not (nearest and o.r and (o.r < nearest or o.r > furthest)) then debris(e, game:sleeperPos(e)) end
+		elseif not (nearest and o.r and (o.r < nearest or o.r > furthest)) then
+			if ac and o.r then
+				local d = (o.a + o.rate * (now - o.t) - ac + pi) % twoPi - pi
+				if d < span and d > -span then
+					local a = o.a + o.rate * (now - o.t)
+					debris(e, well.x + cos(a) * o.r, well.y + sin(a) * o.r)
+				end
+			else
+				debris(e, game:sleeperPos(e))
+			end
+		end
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" and not e.giant and e.line then

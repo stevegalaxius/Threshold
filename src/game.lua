@@ -236,7 +236,7 @@ function Game:loadField(id, opts)
 	end
 	self.world = opts.prepared and opts.prepared.world or love.physics.newWorld(0, 0, true)
 	self.world:setCallbacks(function(...) self:beginContact(...) end)
-	self.sleepers, self.sleepTick = {}, T.sleepEvery   -- first step sorts them
+	self.sleepers, self.sleepTick, self.sleepCursor = {}, T.sleepEvery, nil   -- first step sorts them
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.pickupBodies = {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
@@ -424,51 +424,99 @@ function Game:sleeperPos(e)
 	return w.x + cos(a) * o.r, w.y + sin(a) * o.r, a
 end
 
+-- Is any ship's body within r (plus a little) of (x, y)?
+function Game:shipNear(x, y, r)
+	r = r + 60
+	local hit = false
+	self.world:queryBoundingBox(x - r, y - r, x + r, y + r, function(fixture)
+		local o = fixture:getUserData()
+		if o and o.kind == "ship" and not fixture:isSensor() then hit = true; return false end
+		return true
+	end)
+	return hit
+end
+
 function Game:updateSleepers()
 	local w = self.well
 	self.sleepTick = (self.sleepTick or 0) + 1
-	if self.sleepTick <= T.sleepEvery then return end
-	self.sleepTick = 0
 	local p = self.player
 	local px, py
 	if p and not p.dead then px, py = p.body:getPosition() else px, py = self.camera.x, self.camera.y end
 	local far2, near2 = T.sleepFar ^ 2, T.sleepNear ^ 2
-	-- wake the ones the player is coming up on
-	local sl, keep = self.sleepers, {}
-	for _, e in ipairs(sl) do
+	-- Zoomed out, the screen reaches past sleepNear: what's on it is kept
+	-- awake too (with T.sleepViewMargin to spare, and that again before it
+	-- sleeps), so shots and traffic out there hit real rock. Only the
+	-- screen's rectangle counts, so zooming out costs no more than it shows.
+	local cam = self.camera
+	local cx, cy, hw, hh = 0, 0, -1, -1
+	if cam and cam.zoom and love.graphics then
+		local sw, sh = love.graphics.getDimensions()
+		local z = max(cam.zoom, 0.01)
+		cx, cy = cam.x or px, cam.y or py
+		hw, hh = sw / (2 * z) + T.sleepViewMargin, sh / (2 * z) + T.sleepViewMargin
+		-- (near the player's own circle already covers it)
+		if hw * hw + hh * hh < near2 then hw, hh = -1, -1 end
+	end
+	local m2 = T.sleepViewMargin
+	local abs = math.abs
+	-- Wake the ones the player is coming up on. A slice of them each step,
+	-- so each is still looked at once every T.sleepEvery + 1 steps, but
+	-- the work is spread out instead of landing on one step as a hitch
+	-- (a ringed planet has over ten thousand). The first step after a map
+	-- is made or handed over looks at all of them.
+	local sl = self.sleepers
+	local n = #sl
+	local count = self.sleepCursor and math.ceil(n / (T.sleepEvery + 1)) or n
+	local i = self.sleepCursor or 1
+	while count > 0 and n > 0 do
+		count = count - 1
+		if i > n then i = 1 end
+		local e = sl[i]
+		local wake, x, y, a = false
 		if not e.removed then
-			local x, y, a
 			if e.sleep.still then x, y, a = e.body.x, e.body.y, e.sleep.a else x, y, a = self:sleeperPos(e) end
-			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
-				local o = e.sleep
-				e.sleep = nil
-				self:debrisBody(e, x, y, e.body.a, o.spin)
-				if o.r then
-					local v = o.rate * o.r
-					e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
-				elseif e.drift then
-					-- (made still, set moving when it wakes: a lane's rock
-					-- drifting onto the road)
-					e.body:setLinearVelocity(e.drift[1], e.drift[2])
-					e.drift = nil
-				else
-					e.body:setLinearVelocity(o.vx, o.vy)
-				end
-				table.insert(self.entities, e)
+			wake = (x - px) ^ 2 + (y - py) ^ 2 < near2 or (abs(x - cx) < hw and abs(y - cy) < hh)
+			-- not right on top of a ship (traffic passing through it while
+			-- it slept): it would wake inside the hull and wreck it. It
+			-- tries again next time round, once the ship's clear.
+			if wake and self:shipNear(x, y, e.radius) then wake = false end
+		end
+		if e.removed or wake then
+			-- out of the list: the last one takes its place (and is looked
+			-- at next)
+			sl[i] = sl[n]; sl[n] = nil; n = n - 1
+		else
+			i = i + 1
+		end
+		if wake then
+			local o = e.sleep
+			e.sleep = nil
+			self:debrisBody(e, x, y, e.body.a, o.spin)
+			if o.r then
+				local v = o.rate * o.r
+				e.body:setLinearVelocity(-sin(a) * v, cos(a) * v)
+			elseif e.drift then
+				-- (made still, set moving when it wakes: a lane's rock
+				-- drifting onto the road)
+				e.body:setLinearVelocity(e.drift[1], e.drift[2])
+				e.drift = nil
 			else
-				keep[#keep + 1] = e
+				e.body:setLinearVelocity(o.vx, o.vy)
 			end
+			table.insert(self.entities, e)
 		end
 	end
-	self.sleepers = keep
-	-- and put the far ones to sleep
+	self.sleepCursor = i
+	-- and, every T.sleepEvery + 1 steps, put the far ones to sleep
+	if self.sleepTick <= T.sleepEvery then return end
+	self.sleepTick = 0
 	local awake = {}
 	for _, e in ipairs(self.entities) do
 		local slept = false
 		if e.kind == "asteroid" and not e.giant and not e.miningId and not e.dead and not e.removed and not e.reentry then
 			local b = e.body
 			local x, y = b:getPosition()
-			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
+			if (x - px) ^ 2 + (y - py) ^ 2 > far2 and not (abs(x - cx) < hw + m2 and abs(y - cy) < hh + m2) then
 				local vx, vy = b:getLinearVelocity()
 				if w then
 					local dx, dy = x - w.x, y - w.y
@@ -482,7 +530,7 @@ function Game:updateSleepers()
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
 				b:destroy()
-				keep[#keep + 1] = e
+				sl[#sl + 1] = e
 				slept = true
 			end
 		end
@@ -2281,7 +2329,11 @@ function Game:resolveContacts()
 end
 
 -- Closest thing hit along a segment, ignoring one team.
-function Game:raycast(x1, y1, x2, y2, ignoreTeam)
+-- sides: also look into the maps alive beside this one (src/transit.lua),
+-- whose rock is drawn past the edge but lives in its own physics world; a
+-- hit there carries scene (and lx, ly, the hit in that scene's own
+-- coordinates) so Game:damageHit lands it on the right map.
+function Game:raycast(x1, y1, x2, y2, ignoreTeam, sides)
 	-- Box2D asserts on a segment its float32 maths sees as zero length (a
 	-- shot that barely moved this step), and on NaN
 	local ls = (x2 - x1) ^ 2 + (y2 - y1) ^ 2
@@ -2293,7 +2345,29 @@ function Game:raycast(x1, y1, x2, y2, ignoreTeam)
 		best = { entity = e, x = x, y = y, nx = xn, ny = yn, fraction = fraction }
 		return fraction
 	end)
+	if sides and (self.trip or self.trail or self.laneStage) then
+		for _, side in ipairs(self:sideScenes()) do
+			local scene, ox, oy = side.scene, side.x, side.y
+			if scene.world and not scene.released then
+				local sb
+				scene.world:rayCast(x1 - ox, y1 - oy, x2 - ox, y2 - oy, function(fixture, x, y, xn, yn, fraction)
+					local e = fixture:getUserData()
+					if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
+					sb = { entity = e, x = x + ox, y = y + oy, lx = x, ly = y, nx = xn, ny = yn, fraction = fraction, scene = scene }
+					return fraction
+				end)
+				if sb and (not best or sb.fraction < best.fraction) then best = sb end
+			end
+		end
+	end
 	return best
+end
+
+-- Damage what a raycast hit, on whichever map it belongs to.
+function Game:damageHit(hit, amount, source, cause)
+	local scene = hit.scene
+	if scene then return scene:damage(hit.entity, amount, source, cause, hit.lx, hit.ly) end
+	return self:damage(hit.entity, amount, source, cause, hit.x, hit.y)
 end
 
 -- cause: gun, artillery, laser, missile, splash or ram (passed on to listeners)

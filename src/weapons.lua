@@ -153,7 +153,7 @@ local function fire(game, e, slot, dt)
 		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
 		local reach = Weapons.drillLength(e, w) * slot.extend
 		local ex, ey = wx + ddx * reach, wy + ddy * reach
-		local hit = game:raycast(wx, wy, ex, ey, e.team)
+		local hit = game:raycast(wx, wy, ex, ey, e.team, true)
 		slot.drillHit = nil
 		if hit then
 			local t = hit.entity
@@ -161,7 +161,7 @@ local function fire(game, e, slot, dt)
 			-- drills bite rock and wreck hulls alike (a drilled wreck yields steel plates)
 			local cuts = rock or t.kind == "husk"
 			if cuts then t.drilled = true end
-			game:damage(t, w.damage * dt * (cuts and (w.rockDamage or 1) or 1), e, "drill", hit.x, hit.y)
+			game:damageHit(hit, w.damage * dt * (cuts and (w.rockDamage or 1) or 1), e, "drill")
 			slot.drillHit = { hit.x, hit.y }
 			-- a steady spray of sparks and grit while it bites
 			slot.sparkT = (slot.sparkT or 0) - dt
@@ -201,13 +201,13 @@ local function fire(game, e, slot, dt)
 				or (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0))
 			local bx, by = cos(a), sin(a)
 			local ex, ey = wx + bx * w.range, wy + by * w.range
-			local hit = game:raycast(wx, wy, ex, ey, e.team)
+			local hit = game:raycast(wx, wy, ex, ey, e.team, true)
 			if hit then
 				ex, ey = hit.x, hit.y
 				-- damage falls off with the drawn fade: full out to 40% of
 				-- range, then down to nothing at max range
 				local t = math.sqrt((hit.x - wx) ^ 2 + (hit.y - wy) ^ 2) / w.range
-				game:damage(hit.entity, damage * math.min(1, (1 - t) / 0.6), e, "laser", hit.x, hit.y)
+				game:damageHit(hit, damage * math.min(1, (1 - t) / 0.6), e, "laser")
 				if not beam then game:spark(hit.x, hit.y, 8, spark)
 				elseif love.math.random() < dt * 20 then game:spark(hit.x, hit.y, 3, spark) end
 			end
@@ -560,7 +560,7 @@ function Weapons.updateProjectiles(game, dt)
 		-- The fixed fuse ends flight exactly here, even on a long update.
 		local travel = p.airburst and min(dt,max(0,p.life)) or dt
 		local nx, ny = p.x + p.vx * travel, p.y + p.vy * travel
-		local hit = game:raycast(p.x, p.y, nx, ny, p.team)
+		local hit = game:raycast(p.x, p.y, nx, ny, p.team, true)
 		local done = false
 
 		if hit then
@@ -573,8 +573,8 @@ function Weapons.updateProjectiles(game, dt)
 				local dmg = p.damage
 				-- gun rounds lose punch the further they've flown
 				if p.maxLife then dmg = dmg * (1 - T.gunFalloff * (1 - p.life / p.maxLife)) end
-				game:damage(hit.entity, dmg, p.owner, p.kind, hit.x, hit.y)
-				if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.x, hit.y) end
+				game:damageHit(hit, dmg, p.owner, p.kind)
+				if hit.entity.kind == "ship" and not hit.entity.driverProtected then hit.entity.body:applyLinearImpulse(p.vx / sp * k, p.vy / sp * k, hit.lx or hit.x, hit.ly or hit.y) end
 				game:spark(hit.x, hit.y, 4, { 1, 0.85, 0.5 })
 			end
 			done = true
