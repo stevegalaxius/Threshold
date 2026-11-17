@@ -115,6 +115,14 @@ local function details(game)
  for _,grant in ipairs(r.authorizations or {}) do
   Slab.Text(('Authority: %s / %s / %s'):format(grant.kind,tostring(grant.issuer),tostring(grant.jurisdiction)))
  end
+ do
+  local Squads=require('src.squads');local q=Squads.of(game.universe,r)
+  if r.flagship then Slab.Text('Battlegroup: '..tostring(r.battlegroup)..'  (flagship)') end
+  if q then
+   Slab.Text(('Squad: %s  %s  %d/%d  goal %s%s'):format(q.id,q.leader==r.id and 'leader' or 'member of '..tostring(q.leader),
+    #Squads.members(game.universe,q),q.size,q.goal,q.respond and (' -> '..q.respond.node) or ''))
+  end
+ end
  Slab.Text('Driven by: '..Trace.controller(game,r,e))
  Slab.Text(('State: %s in %s   status: %s'):format(r.state,r.area or 'transit',tostring(r.taskStatus)))
  if r.state=='docked' or r.state=='idle' then

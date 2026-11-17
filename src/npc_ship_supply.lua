@@ -22,7 +22,7 @@ function S.weight(u,hull)
  return weight
 end
 function S.wholesale(u,key,state,def,clock)
- if not def.assembly then return end
+ if not def.assembly or def.service then return end
  local interval=config().wholesaleHours*3600
  state.wholesaleAt=state.wholesaleAt or clock+interval
  if clock<state.wholesaleAt then return end
@@ -116,8 +116,16 @@ function S.generated(u,policy,roll,area)
 end
 function S.acquire(u,area,policy,roll)
  roll=roll or random
- -- A faction with its own service fleet issues those hulls directly.
- local fleet=policy.fleets and policy.fleets[require('src.npc_access').owner(area) or '']
+ -- A faction with its own service fleet issues those hulls: off its
+ -- military yard's lot when it has one (no ship there, no new recruit),
+ -- otherwise made on the spot.
+ local owner=require('src.npc_access').owner(area)
+ local fleet=policy.fleets and policy.fleets[owner or '']
+ if fleet and require('src.dealers').serviceYard(owner) then
+  local ship,acq=S.fromYard(u,owner,policy)
+  if ship then return ship,acq end
+  return nil
+ end
  if fleet then
   local p={};for k,v in pairs(policy) do p[k]=v end;p.hulls=fleet
   local ship,acq=S.generated(u,p,roll,area)
@@ -128,6 +136,34 @@ function S.acquire(u,area,policy,roll)
   if candidate then return require('src.dealers').ship(candidate.lot),{source='used',candidate=candidate} end
  end
  return S.generated(u,policy,roll,area)
+end
+-- Take a finished hull for `faction` off its military yard. policy.hulls
+-- narrows the choice (a flagship asks for its one hull); policy.requires
+-- and minCargo are checked as for any purchase. The best fit for the role
+-- goes first, by armour when there's no role.
+function S.fromYard(u,faction,policy)
+ local D=require('src.dealers')
+ local key=D.serviceYard(faction);if not key then return end
+ local want;if policy.hulls then want={};for _,id in ipairs(policy.hulls) do want[id]=true end end
+ local best,bestArmor
+ for _,lot in ipairs(D.lots(u,key,true)) do
+  local hull=data.hulls[lot.hull]
+  local ok=hull and (not want or want[lot.hull])
+  if ok then
+   local stats=require('src.stats').compute(hull,lot.loadout)
+   if (stats.hold or 0)<(policy.minCargo or 0) then ok=false end
+   local caps=require('src.npc_access').capabilities({ship={hull=lot.hull,loadout=lot.loadout}})
+   for name in pairs(policy.requires or {}) do if not caps[name] then ok=false end end
+   -- (police keep the heavy hull for the flagship: smallest first)
+   local rank=-(hull.armor or 0)
+   if ok and (not best or rank>bestArmor or rank==bestArmor and lot.id<best.id) then best,bestArmor=lot,rank end
+  end
+ end
+ if not best then return end
+ D.take(u,key,best.id)
+ local ship=D.ship(best)
+ require('src.simulation_history').note(u,'npc_ship_issued',u.clock,nil,{},{station=key,hull=best.hull,lot=best.id},key)
+ return ship,{source='yard',station=key,hull=best.hull,price=0,lot=best.id}
 end
 function S.complete(u,r,acquisition,policy)
  if policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
