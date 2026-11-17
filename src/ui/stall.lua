@@ -58,6 +58,13 @@ function View.layout(game)
 	local st, k = here(game)
 	local f = { x = x, y = y, w = w, h = h, st = st, k = k, tiles = {}, tags = {} }
 	f.side = { x = x, y = y, w = 340 }
+	-- each satellite's refuel order button (drawSide's rows)
+	f.sats = {}
+	local Sat = require("src.satellites")
+	local satTop = y + 144 + 104 + 36
+	for i, r in ipairs(Sat.mine(u)) do
+		f.sats[i] = { r = r, x = x + 340 - 14 - 112, y = satTop + (i - 1) * 46 - 3, w = 112, h = 22 }
+	end
 	f.main = { x = x + 352, y = y, w = w - 352, h = h }
 	f.stall = k and Stall.get(u, k)
 	local m = f.main
@@ -119,15 +126,24 @@ local function drawSide(game, f)
 	-- your satellites
 	local Sat = require("src.satellites")
 	local mine = Sat.mine(u)
-	local hh = 44 + math.max(1, #mine) * 46
+	local hh = 40 + math.max(1, #mine) * 46
 	card(s.x, cy, s.w, hh, ("YOUR SATELLITES · %d of %d"):format(#mine, Sat.playerCap))
 	if #mine == 0 then text(s.x + 14, cy + 38, s.w - 28, "None up. Buy a satellite package at a logistics station and use it in orbit.", 12, HUD.DIM) end
+	local J = require("src.sat_jobs")
 	for i, r in ipairs(mine) do
 		local ry = cy + 36 + (i - 1) * 46
 		local fuel = Sat.fuel(u, r)
 		local F = require("src.fields")[r.field]
-		text(s.x + 14, ry, s.w - 28, (F and F.name or r.field) .. " · " .. HUD.credits(r.earned or 0) .. " earned", 13)
+		text(s.x + 14, ry, s.w - 140, (F and F.name or r.field) .. " · " .. HUD.credits(r.earned or 0), 13)
 		bar(s.x + 14, ry + 22, s.w - 28, 8, fuel, fuel <= 0 and HUD.WARN or fuel < Sat.refuelAt and GOLD or HUD.AQUA)
+		-- refuel: send a hauler (a board job), or how that's going
+		local b = f.sats[i]
+		local o = J.offer(u, "satrefuel", r.id)
+		if o and o.owner then text(b.x - 20, b.y + 3, b.w + 20, "Hauler on the way", 11, GOOD, "right")
+		elseif o and (o.npcClaimAt or 0) <= (u.clock or 0) then text(b.x - 20, b.y + 3, b.w + 20, "Job posted", 11, GOLD, "right")
+		elseif fuel < 0.95 then
+			Station.button(b, "Send hauler", false, (u.credits or 0) >= J.pay)
+		else text(b.x - 20, b.y + 3, b.w + 20, "Full", 11, HUD.DIM, "right") end
 	end
 end
 
@@ -203,6 +219,19 @@ end
 function View.mousepressed(game, mx, my, button)
 	local f = View.layout(game)
 	local u = game.universe
+	-- satellites: send a hauler to refuel one
+	if button == 1 then
+		for _, b in ipairs(f.sats) do
+			if inside(b, mx, my) then
+				local J = require("src.sat_jobs")
+				if not J.offer(u, "satrefuel", b.r.id) or (J.offer(u, "satrefuel", b.r.id).npcClaimAt or 0) > (u.clock or 0) then
+					local ok, why = require("src.satellites").orderRefuel(u, b.r.id)
+					game:toast(ok and ("REFUEL JOB POSTED: " .. HUD.credits(J.pay) .. " WHEN IT'S DONE") or (why or ""):upper(), 2.5)
+				end
+				return true
+			end
+		end
+	end
 	if not f.stall then
 		if button == 1 and inside(f.rent, mx, my) then
 			local s, why = Stall.open(u, f.k)

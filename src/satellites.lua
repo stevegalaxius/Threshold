@@ -154,7 +154,7 @@ function Sat.refuel(universe, id, by)
 	local r = Sat.get(universe, id)
 	if not r or r.lost then return false end
 	Sat.fuel(universe, r)
-	r.fuel, r.fuelAt, r.dryAt = 1, universe.clock or 0, nil
+	r.fuel, r.fuelAt, r.dryAt, r.refuelOrdered = 1, universe.clock or 0, nil, nil
 	require("src.events").emit("sat_refuelled", id, by)
 	require("src.sat_jobs").clear(universe, id, "satrefuel")
 	return true
@@ -282,6 +282,23 @@ function Sat.earn(universe, r)
 		universe.credits = (universe.credits or 0) + n
 		r.earned = (r.earned or 0) + n
 	end
+end
+
+-- The player sends for a hauler to refuel one of theirs now (the Manage
+-- tab), whatever its fuel: its refuel job goes on the board (or the one
+-- already there opens to haulers at once), and the player pays the
+-- hauler's fee when it's done (Sat.bill). Returns true, or false and why.
+function Sat.orderRefuel(universe, id)
+	local r = Sat.get(universe, id)
+	if not r or r.lost or r.owner ~= "player" then return false, "Not your satellite" end
+	if Sat.fuel(universe, r) >= 0.95 then return false, "Its tank is already full" end
+	local J = require("src.sat_jobs")
+	if (universe.credits or 0) < J.pay then return false, "Not enough credits for the hauler's fee" end
+	r.refuelOrdered = true
+	local o = J.offer(universe, "satrefuel", id)
+	if o then o.npcClaimAt = math.min(o.npcClaimAt or 0, universe.clock or 0)
+	elseif not J.post(universe, r, "satrefuel") then r.refuelOrdered = nil; return false, "No station nearby can send a hauler" end
+	return true
 end
 
 -- A hauler refuelled one of the player's: the player pays its fee (what

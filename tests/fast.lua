@@ -251,6 +251,11 @@ return function(game)
   assert(u.credits-c0==Sat.income,'income: '..(u.credits-c0))
   for i=2,Sat.playerCap do local r2=Sat.deploy(game,(function() p.body:setPosition(w.x-R*(1.5+i*0.3),w.y+i*900);return p end)());assert(r2,'deploy '..i) end
   p.body:setPosition(w.x,w.y-R*2.5);local _,full=Sat.canDeploy(game,p);assert(full and full:match('already'),'no cap')
+  -- sending a hauler from the Manage tab: its refuel job, open to NPCs at once
+  r.fuelAt=u.clock-Sat.fuelLife*.3;u.credits=5000
+  assert(Sat.orderRefuel(u,r.id),'refuel order refused')
+  local o=require('src.sat_jobs').offer(u,'satrefuel',r.id)
+  assert(o and (o.npcClaimAt or 0)<=u.clock,'ordered refuel not open to haulers')
   Sat.markLost(u,r);assert(not u.satellites[r.id] and #Sat.mine(u)==Sat.playerCap-1,'lost satellite not cleared')
   for _,x in ipairs(Sat.mine(u)) do Sat.markLost(u,x) end
  end
