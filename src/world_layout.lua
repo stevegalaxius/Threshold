@@ -26,6 +26,8 @@ W.stations = {
 		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace"  },
 		{ id = "station:earth_3", facilities={ferrous_assembly={capacity=2}}, marketId = "market:earth_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Ferrous Collective Shipyard", layout = "shipyard_1" },
 		{ id = "station:earth_4", facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:earth_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
+		-- the Estates' military yards: builds its police and courier hulls (data/industry.lua serviceLineups)
+		{ id = "station:earth_5", uses = { military = true }, facilities={estates_assembly={capacity=2}}, marketId = "market:earth_5", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 2.35, name = "Estates Naval Yards", layout = "shipyard_2" },
 	},
 	
 	luna = {
@@ -82,6 +84,8 @@ W.stations = {
 		{ id = "station:saturn_1", facilities={skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
 		{ id = "station:saturn_2", facilities={skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
 		{ id = "station:saturn_3", facilities={water_wells={capacity=320}}, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
+		-- the Diwan's military yards
+		{ id = "station:saturn_4", uses = { military = true }, facilities={diwan_assembly={capacity=2}}, marketId = "market:saturn_4", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 0.9, name = "Diwan Military Yards", layout = "diwan_works" },
 	},
 	enceladus = {
 		{ id = "station:enceladus_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },

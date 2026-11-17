@@ -212,17 +212,20 @@ function D.frameTarget(u,key)
  for _,input in ipairs(C.inputs(recipe)) do if input.item==D.FRAME then return math.ceil(input.n) end end
  return 0
 end
-function D.lots(u, st)
+-- A military yard (dealer.service = faction) builds for its faction's own
+-- police and couriers: its lot is never for sale. includeService reads it.
+function D.lots(u, st, includeService)
  -- Sale stock is physically parked at the primary anchor, not cloned at
  -- every access point that shares the station's market.
  local id=type(st)=='table' and (st.locationId or st.key) or st
  if require('src.locations').canonical(id)~=id then return {} end
+ if not includeService then local def=D.def(id);if def and def.service then return {} end end
 	local s = D.state(u, st)
 	return s and s.lots or {}
 end
 
 function D.find(u, st, id)
-	for i, lot in ipairs(D.lots(u, st)) do if lot.id == id then return lot, i end end
+	for i, lot in ipairs(D.lots(u, st, true)) do if lot.id == id then return lot, i end end
 end
 
 -- Take a ship off the lot (it's been sold).
@@ -235,6 +238,16 @@ end
 function D.ship(lot)
  return {hull=lot.hull,loadout=copy(lot.loadout),cargo=copy(lot.cargo),armor=lot.armor,
   color=Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
+end
+-- The military yard that builds a faction's service hulls, if it has one.
+function D.serviceYard(faction)
+ if not faction then return end
+ for _,area in ipairs(require('src.fields').list) do
+  for _,key in ipairs(require('src.locations').stations(area,'military')) do
+   local def=D.def(key)
+   if def and def.service==faction then return key end
+  end
+ end
 end
 function D.purchaseCandidate(u,area,policy,usedOnly)
  local L=require('src.locations');local best,options=nil,{}

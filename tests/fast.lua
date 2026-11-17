@@ -96,6 +96,18 @@ return function(game)
     for _,id in ipairs(g.squads) do local o=state.squads[id];if o and o.goal=='respond' then o.goal='patrol';o.respond=nil end end
    end
   end
+  -- military yards: hidden from buyers, stocked for their faction's police
+  local Dealers=require('src.dealers')
+  for _,faction in ipairs({'estates','diwan'}) do
+   local yard=Dealers.serviceYard(faction)
+   assert(yard,'no military yard for '..faction)
+   Dealers.state(u,yard)
+   assert(#Dealers.lots(u,yard)==0,faction..' military yard lot is on sale')
+   local before=#Dealers.lots(u,yard,true)
+   assert(before>0,faction..' military yard has no ships')
+   local ship=require('src.npc_ship_supply').fromYard(u,faction,{requires={armed=true}})
+   assert(ship and #Dealers.lots(u,yard,true)==before-1,faction..' police could not draw a ship from the yard')
+  end
   local flags=0;for _,g in pairs(state.groups) do if g.flagship then flags=flags+1 end end
   print(('ok  squads: %d squads, %d police in them, %d flagships'):format(squads,members,flags))
  end

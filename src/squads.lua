@@ -193,6 +193,14 @@ end
 -- Give a freshly built ship the flagship's hull.
 local function refit(u,r,hull,area)
  local Supply=require('src.npc_ship_supply')
+ -- a faction with a military yard needs a finished one on its lot
+ local owner=require('src.npc_access').owner(area)
+ if require('src.dealers').serviceYard(owner) then
+  local ship=Supply.fromYard(u,owner,{hulls={hull}})
+  if not ship then return false end
+  r.ship=ship
+  return true
+ end
  local policy={};for k,v in pairs(require('src.npc_templates').patrol.purchase) do policy[k]=v end
  policy.hulls={hull};policy.budget=math.huge;policy.fleets=nil
  local ship=Supply.generated(u,policy,nil,area)

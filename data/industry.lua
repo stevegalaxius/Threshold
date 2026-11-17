@@ -101,11 +101,26 @@ D.assemblyParts={mack_mustang={electronics=13,steel=7},
  intaki_wisp={electronics=12,steel=2},
  intaki_praetor={electronics=22,steel=7},
  intaki_archangel={electronics=38,steel=16}}
-for _,hulls in pairs(D.lineups) do for _,hull in ipairs(hulls) do
+-- Military yards: each faction's own service hulls, built for its police
+-- and couriers (src/npc_ship_supply.lua takes them off the yard's lot).
+-- Kept apart from D.lineups so they never reach a public dealer or an
+-- ordinary buyer.
+D.serviceLineups={
+ estates={'estates_whisper','estates_rapier','estates_bastion'},
+ diwan={'diwan_cherubim','diwan_seraph'},
+}
+D.assemblyFrames.estates_whisper,D.assemblyFrames.estates_rapier,D.assemblyFrames.estates_bastion=1,2,4
+D.assemblyFrames.diwan_cherubim,D.assemblyFrames.diwan_seraph=2,4
+D.assemblyParts.estates_whisper={electronics=12,steel=1}
+D.assemblyParts.estates_rapier={electronics=16,steel=6}
+D.assemblyParts.estates_bastion={electronics=38,steel=15}
+D.assemblyParts.diwan_cherubim={electronics=25,steel=6}
+D.assemblyParts.diwan_seraph={electronics=36,steel=9}
+for _,set in ipairs({D.lineups,D.serviceLineups}) do for _,hulls in pairs(set) do for _,hull in ipairs(hulls) do
  local n=D.assemblyFrames[hull];local parts=D.assemblyParts[hull]
  D.recipes[#D.recipes+1]={id='assemble_'..hull,group='ship_assembly',market=false,storefront=false,stockless=true,time=n,
   inputs={{item='hull_frame',n=n},{item='electronics',n=parts.electronics},{item='steel_plate',n=parts.steel}},outputs={{kind='ship',hull=hull,n=1}}}
-end end
+end end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.facilities={
  water={policy='fixed',recipes={'use_water'}},
@@ -173,10 +188,10 @@ end
 D.facilities.metal_extraction={policy='fixed',recipes={'extract_heavy_metals'}}
 D.facilities.coil_works={policy='profit',recipes={'make_superconducting_coils'}}
 D.facilities.ceramic_works={policy='profit',recipes={'make_thermal_ceramics'}}
-for maker,hulls in pairs(D.lineups) do
+for _,set in ipairs({D.lineups,D.serviceLineups}) do for maker,hulls in pairs(set) do
  local r={};for i,h in ipairs(hulls) do r[i]='assemble_'..h end
  D.facilities[maker..'_assembly']={policy='orders',recipes=r}
-end
+end end
 for _,c in ipairs(D.recipes) do
  if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' or c.group=='pyrotechnics' then local f=D.facilities[c.group].recipes;f[#f+1]=c.id end
  if not c.group and c.id~='grow_food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end

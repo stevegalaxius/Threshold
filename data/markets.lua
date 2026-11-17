@@ -216,6 +216,15 @@ market { id = "market:mercury_3", station = "Brute Industries Shipyard", dealer 
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
 
+-- Military yards: service = the faction whose police and couriers draw
+-- their ships from this lot. Nobody else can buy from it.
+market { id = "market:earth_5", station = "Estates Naval Yards", dealer = { name = "Estates Naval Yards", hulls = { "estates_whisper", "estates_rapier", "estates_bastion" }, lots = 8, assembly = "estates_assembly", service = "estates" }, sells = {
+ { "cargo_container", 2 }, { "nav_computer", 1 },
+} }
+market { id = "market:saturn_4", station = "Diwan Military Yards", dealer = { name = "Diwan Military Yards", hulls = { "diwan_cherubim", "diwan_seraph" }, lots = 8, assembly = "diwan_assembly", service = "diwan" }, sells = {
+ { "cargo_container", 2 }, { "nav_computer", 1 },
+} }
+
 market { id = "market:earth_3", station = "Ferrous Collective Shipyard", dealer = { name = "Ferrous Collective Works", hulls = { "ferrous_pony", "ferrous_mule", "ferrous_bison", "ferrous_bison_carrier" }, lots = 7, assembly = "ferrous_assembly" }, sells = {
  { "cargo_container", 2 }, { "nav_computer", 1 },
 } }
