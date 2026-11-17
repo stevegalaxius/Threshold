@@ -22,6 +22,6 @@ The existing `love . --test` content check includes a small geometry/export/rend
 
 ## Material surfaces
 
-Material choice changes shading even when a part has an explicit color override. Metal has a strong directional reflection band and dark shadows; painted surfaces are matte with a smaller light/dark range; recess suppresses reflected light; crystal has bright grazing edges and sharper facet highlights. Emissive remains self-lit with a halo. These are shared presets, with no additional editor controls.
+Material choice changes shading even when a part has an explicit color override. Metal has a strong directional reflection band and dark shadows; reflections blend toward the part’s own pigment with bounded intensity, rather than adding white until it clips; painted surfaces are matte with a smaller light/dark range; recess suppresses reflected light; crystal has bright grazing edges and sharper facet highlights. Emissive remains self-lit with a halo. These are shared presets, with no additional editor controls.
 
 ![Same geometry and gray color under each material](images/icon-materials.png)

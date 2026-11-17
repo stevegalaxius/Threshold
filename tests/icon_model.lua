@@ -46,6 +46,12 @@ return function(game)
  for _,pair in ipairs({{'metal','painted'},{'metal','crystal'},{'painted','recess'},{'painted','crystal'}}) do
   assert(difference(samples[pair[1]],samples[pair[2]])>.025,'material response disappears under a color override: '..table.concat(pair,' / '))
  end
+ -- High-contrast, tinted metal must retain color instead of clipping white.
+ local tinted=M.parts({{primitive='cylinder',material='metal',color={.7,.45,.2},contrast=2,w=1,d=1,h=1}},16,16)
+ for _,f in ipairs(tinted) do
+  assert(f.color[1]<=.84 and f.color[2]<=.84 and f.color[3]<=.84,'metal highlights clip to white')
+  assert(f.color[1]>f.color[2] and f.color[2]>f.color[3],'metal reflection bleaches the base color')
+ end
  local a=render(boxes);local b=render({boxes[2],boxes[1]})
  assert(a:getString()==b:getString(),'solid overlap depends on list order')
  local visible=false;for y=0,127 do for x=0,127 do local _,_,_,alpha=a:getPixel(x,y);if alpha>0 then visible=true;break end end end

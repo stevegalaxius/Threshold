@@ -3,10 +3,10 @@
 local M={}
 -- Surface response is independent of the artist's base-color override.
 M.materials={
- metal={color={.64,.72,.78},ambient=.08,diffuse=.62,specular=2.1,shininess=8,rim=.20},
+ metal={color={.64,.72,.78},ambient=.08,diffuse=.62,specular=2.1,shininess=8,rim=.20,maxLight=.84},
  painted={ambient=.48,diffuse=.30,specular=.03,shininess=8,rim=0},
  recess={color={.12,.17,.20},ambient=.08,diffuse=.24,specular=0,rim=0},
- crystal={color={.32,.67,.78},ambient=.12,diffuse=.58,specular=1.8,shininess=12,rim=1.25},
+ crystal={color={.32,.67,.78},ambient=.12,diffuse=.58,specular=1.8,shininess=12,rim=1.25,maxLight=.94},
  emissive={color={.10,.95,.76},ambient=1,diffuse=0,specular=0,rim=0,glow=1},
 }
 M.shapes={'box','bevel','cylinder','taper','ring','wedge','rock'}
@@ -97,8 +97,17 @@ function M.parts(boxes,bw,bh,paint,view)
    local half=math.max(0,nx*(-.11)-ny*.804+nz*.584)
    local highlight=(material.specular or 0)*half^(material.shininess or 8)
    local rim=(material.rim or 0)*(1-facing)^3
+   -- Blend toward a brighter version of the same pigment instead of
+   -- adding white and clipping. Reflection strength approaches its limit
+   -- smoothly, so neighboring pieces retain their material color.
+   local reflection=1-math.exp(-(highlight+rim))
+   local ceiling=material.maxLight or 1
    local color={}
-   for k=1,3 do color[k]=math.min(1,base[k]*brightness+highlight+rim) end
+   for k=1,3 do
+    local body=math.min(ceiling,base[k]*brightness)
+    local reflected=math.min(ceiling,base[k]*1.2+.04)
+    color[k]=body*(1-reflection)+reflected*reflection
+   end
    local shape,depths={},{}
    for _,p in ipairs(f.points) do
     local x,y=p[1]+p[2]*.315,-p[3]*.55-p[2]*.315
