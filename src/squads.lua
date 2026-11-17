@@ -466,8 +466,18 @@ local function whereIs(r) return r.node or (r.route and r.route[r.index]) end
 function S.update(game,clock)
  local u=game.universe
  if clock<(u.squadsNext or 0) then return end
- u.squadsNext=clock+T.squadTick
+ local paidFor=clock-(u.squadsPaid or clock)
+ u.squadsNext=clock+T.squadTick;u.squadsPaid=clock
  local state=S.state(u)
+ -- police are on the faction's payroll: a wage for the time served
+ if paidFor>0 then
+  local wage=T.policeWage*paidFor/3600
+  for _,r in pairs(u.npcs) do
+   if alive(r) and r.battlegroup and (r.squad or r.flagship) then
+    r.credits=(r.credits or 0)+wage;r.wageEarnings=(r.wageEarnings or 0)+wage
+   end
+  end
+ end
  -- ships with no squad yet (and ones saved before squads existed)
  local ids={}
  -- (a squad id it no longer belongs to counts as none)
