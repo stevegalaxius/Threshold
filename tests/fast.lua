@@ -234,7 +234,59 @@ return function(game)
  for _,q in pairs(Q.state(u).offers) do assert(not (q.kind=='sat_launch' and q.subject==sid),'launch offered while a hauler has it') end
  launch.owner=nil
  assert(Sat.relaunch(u,sid,'test') and not rec.lost,'relaunch failed')
- print('ok  satellites: hubs, fuel, refuel and replacement jobs')
+ -- the player's own: a package used in orbit, with standing, up to the cap
+ do
+  local Rep=require('src.reputation');local U=require('src.item_use');local Hold=require('src.inventory.hold')
+  game:loadField('earth');run(game,1)
+  local p,w,R=game.player,game.well,game.field.planetR
+  local function give() if p.hold then Hold.add(p.hold,'satellite_package',1);p.cargo=Hold.totals(p.hold) else p.cargo.satellite_package=1 end end
+  p.dockState=nil;game.state='playing';p.body:setPosition(w.x+R*1.8,w.y);give()
+  local f=Rep.ofArea('earth');Rep.addStanding(u,f,-100)
+  local ok,why=U.can(game,p,'satellite_package')
+  assert(not ok and why:match('authorities'),'deployed without standing: '..tostring(why))
+  Rep.addStanding(u,f,200)
+  assert(U.begin(game,p,'satellite_package'),'could not deploy');run(game,4)
+  local mine=Sat.mine(u);assert(#mine==1 and mine[1].owner=='player','no satellite of the player\'s own')
+  local r=mine[1];r.paidAt=u.clock-3600;local c0=u.credits;u.satCheckAt=nil;Sat.tick(u)
+  assert(u.credits-c0==Sat.income,'income: '..(u.credits-c0))
+  for i=2,Sat.playerCap do local r2=Sat.deploy(game,(function() p.body:setPosition(w.x-R*(1.5+i*0.3),w.y+i*900);return p end)());assert(r2,'deploy '..i) end
+  p.body:setPosition(w.x,w.y-R*2.5);local _,full=Sat.canDeploy(game,p);assert(full and full:match('already'),'no cap')
+  -- sending a hauler from the Manage tab: its refuel job, open to NPCs at once
+  r.fuelAt=u.clock-Sat.fuelLife*.3;u.credits=5000
+  assert(Sat.orderRefuel(u,r.id),'refuel order refused')
+  local o=require('src.sat_jobs').offer(u,'satrefuel',r.id)
+  assert(o and (o.npcClaimAt or 0)<=u.clock,'ordered refuel not open to haulers')
+  Sat.markLost(u,r);assert(not u.satellites[r.id] and #Sat.mine(u)==Sat.playerCap-1,'lost satellite not cleared')
+  for _,x in ipairs(Sat.mine(u)) do Sat.markLost(u,x) end
+ end
+ print('ok  satellites: hubs, fuel, refuel and replacement jobs, your own')
+
+ -- 5b. Market stalls: rent one, stock it, and NPCs docking there buy from it.
+ do
+  local Stall=require('src.stalls');local Shop=require('src.npc_shopping');local Hold=require('src.inventory.hold');local Rep=require('src.reputation')
+  local k='station:earth_1'
+  Rep.addStanding(u,Rep.ofNode(k),-200)
+  assert(not Stall.canRent(u,k),'rented without standing')
+  Rep.addStanding(u,Rep.ofNode(k),300);u.credits=50000
+  local s=assert(Stall.open(u,k),'could not rent')
+  local h=Hold.new({{key='hull',name='x',w=10,h=10}})
+  Hold.add(h,'patch_kit',6);Hold.add(h,'rounds_m',60);Hold.add(h,'iron_ore',5);Stall.stock(s,h,'iron_ore',5)
+  assert(Stall.stock(s,h,'patch_kit',6)==6 and Stall.stock(s,h,'rounds_m',60)==60,'stocking failed')
+  Stall.setTag(s,'cheap')
+  local c0=u.credits
+  for _,r in pairs(u.npcs) do
+   if r.ship and r.state~='dead' and not r.ship.hold then
+    r.credits=3000;r.dockedAt=(r.dockedAt or 0)+1
+    for i,v in pairs(r.ship.cargo or {}) do r.ship.cargo[i]=math.floor(v*.3) end
+    Shop.visit(u,r,k,u.clock)
+   end
+  end
+  assert(u.credits>c0 and #s.ledger>0,'no NPC bought from the stall')
+  u.credits=0;s.paidTo=u.clock-1;Stall.tick(u,nil)
+  assert(not Stall.get(u,k),'stall stayed open with rent unpaid')
+  assert(Hold.count(u.stations[k].storage,'iron_ore')==5,'closed stall lost its stock')
+ end
+ print('ok  market stalls: rent, stock, NPC shopping, rent lapse')
 
  -- Routing: no route doubles back. Gates used to join only their nearest
  -- node (a trader bound for Triton flew out to Neptune's far buoy first),

@@ -37,25 +37,25 @@ market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   
 } }
 -- Logistics hubs: trunk-freight terminals, one per hubbed planet system.
 market { id = "market:belt_3", station = "Ceres Logistics", sells = {
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:jupiter_3", station = "Jovian Logistics", sells = {
-	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:uranus_3", station = "Uranian Logistics", sells = {
-	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "airburst_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:mars_4", station = "Zhuhai Logistics", sells = {
-	{ "shell_m", 4 }, { "missile_s", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "shell_m", 4 }, { "missile_s", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:triton_3", station = "Triton Logistics", sells = {
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:venus_4", station = "Venus Logistics", sells = {
-	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
-	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
+	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
 -- Moon customs: each moon's exports leave, and its imports arrive, here.
 market { id = "market:io_3", station = "Io Customs", sells = {

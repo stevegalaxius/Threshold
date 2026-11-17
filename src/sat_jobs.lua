@@ -56,7 +56,8 @@ function J.post(u,r,kind)
  -- listed to the player first (src/sat_quests.lua): haulers may only take
  -- it once it has gone T.satJobPlayerFirst unclaimed
  local clock=u.clock or 0
- return Tasks.post(u,{kind=kind,source=source,target=target,sat=r.id,order=true,cooldown=60,placed=clock,npcClaimAt=clock+require('src.tuning').satJobPlayerFirst,
+ -- (one the owner ordered goes straight to the haulers)
+ return Tasks.post(u,{kind=kind,source=source,target=target,sat=r.id,order=true,cooldown=60,placed=clock,npcClaimAt=clock+(r.refuelOrdered and 0 or require('src.tuning').satJobPlayerFirst),
   cargo={item=J.cargo[kind],amount=1}})
 end
 
@@ -64,6 +65,8 @@ end
 local function wanted(kind,s)
  if kind=='satlaunch' then return s.lost end
  if s.lost then return false end
+ -- the owner sent for a hauler (Sat.orderRefuel), however full it is
+ if s.refuelOrdered then return true end
  local Sat=require('src.satellites')
  if (s.fuel or 1)<Sat.refuelAt then return true end
  local u=Supplies()
@@ -145,7 +148,12 @@ Tasks.register(kind,{
   if L.canonical(node)~=L.canonical(t.target) or not t.serviced then return false end
   -- (the cargo was spent out at the satellite; if the job turned out not to
   -- be needed, the hauler keeps it)
-  if t.done then r.credits=(r.credits or 0)+J.pay end
+  if t.done then
+   r.credits=(r.credits or 0)+J.pay
+   -- (the player's own satellite: the player pays the fee)
+   local s=u.satellites and u.satellites[t.sat]
+   if s then require('src.satellites').bill(u,s,J.pay) end
+  end
   return true
  end,
 })
@@ -360,6 +368,10 @@ function J.clear(u,id,kind)
  end
 end
 -- Satellite ids with a job of this kind still on the board (taken or not).
+-- This satellite's open refuel job, if any.
+function J.offer(u,kind,sat)
+ for _,o in pairs(Tasks.state(u).offers) do if o.kind==kind and o.sat==sat then return o end end
+end
 function J.open(u,kind)
  local out={}
  for _,o in pairs(Tasks.state(u).offers) do if o.kind==kind and o.sat then out[o.sat]=true end end

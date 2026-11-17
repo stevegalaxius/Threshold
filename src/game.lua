@@ -1542,8 +1542,13 @@ function Game:updateDockedShip(e, dt)
 	local record=e.alifeRecord
 	local ready=record and self.universe.clock>=require('src.npc').readyAt(record)
 	 or not record and ds.stay and ds.t>=ds.stay
-	if ready and not self:launchBlocker(e) then
-		if not e.alifeId or self:traderCanDepart(e,ds.station) then self:undockShip(e)
+	if ready then
+		local blocker = self:launchBlocker(e)
+		if not blocker then
+			if not e.alifeId or self:traderCanDepart(e,ds.station) then self:undockShip(e)
+			end
+		else
+			self:clearRunway(e, blocker)
 		end
 	end
 end
@@ -1578,6 +1583,51 @@ function Game:launchBlocker(e)
 			local x, y = o.body:getPosition()
 			local r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance
 			if (x - wx)^2 + (y - wy)^2 < r * r then return o end
+		end
+	end
+end
+
+-- Something sitting on the runway: the station's tractor beam pushes it
+-- off to the side (the nearer side) until the launch point is clear. Not
+-- a ship that's on its own way in to dock: that one is about to land.
+-- e is the docked ship waiting to leave. Moved by Game:updateRunwayPush.
+function Game:clearRunway(e, o)
+	if not o or o.dockState or o.runwayPush then return end
+	local wx, wy, _, ox, oy = launchPose(e)
+	o.runwayPush = { x = wx, y = wy, ox = ox, oy = oy, t = 0, leaving = e,
+		r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance }
+	if o == self.player then self:toast("STATION TRACTOR: CLEARING THE RUNWAY", 1.6) end
+end
+Game.runwayPushSpeed, Game.runwayPushTime = 160, 8
+function Game:updateRunwayPush(dt)
+	for _, o in ipairs(self.entities) do
+		local p = o.runwayPush
+		if p then
+			local b = o.body
+			local x, y
+			if b and not o.dead and not o.removed and not b:isDestroyed() then x, y = b:getPosition() end
+			-- the launch point rides with the station while the ship waits
+			local le = p.leaving
+			local sb = le and le.dockState and le.dockState.station and le.dockState.station.body
+			if sb then p.x, p.y, _, p.ox, p.oy = launchPose(le) end
+			local d2 = x and (x - p.x) ^ 2 + (y - p.y) ^ 2
+			p.t = p.t + dt
+			if not x or o.dockState or p.t > Game.runwayPushTime or d2 > (p.r + 60) ^ 2 then
+				o.runwayPush = nil
+			else
+				-- sideways off the runway, the side it's already on, and a
+				-- little outward along it
+				local nx, ny = -p.oy, p.ox
+				local s = (x - p.x) * nx + (y - p.y) * ny >= 0 and 1 or -1
+				local vx, vy = b:getLinearVelocity()
+				-- relative to the station (its runway moves with it)
+				local fx, fy = 0, 0
+				if sb then fx, fy = sb:getLinearVelocityFromWorldPoint(p.x, p.y) end
+				local tx = fx + nx * s * Game.runwayPushSpeed + p.ox * 40
+				local ty = fy + ny * s * Game.runwayPushSpeed + p.oy * 40
+				local k = math.min(1, dt * 3)
+				b:setLinearVelocity(vx + (tx - vx) * k, vy + (ty - vy) * k)
+			end
 		end
 	end
 end
@@ -1659,7 +1709,13 @@ function Game:undock()
 		self:toast("LAUNCHED", 1)
 		return
 	end
-	if self:launchBlocker(p) then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6) return end
+	local blocker = self:launchBlocker(p)
+	if blocker then
+		-- (one on its way in to dock waits; anything else is pushed clear)
+		if blocker.dockState then self:toast("CAN'T LAUNCH: TRAFFIC ON THE RUNWAY", 1.6)
+		else self:clearRunway(p, blocker); self:toast("CLEARING THE RUNWAY: LAUNCH AGAIN IN A MOMENT", 1.6) end
+		return
+	end
 	self:undockShip(p)
 	self.state = "playing"
 	self:toast("LAUNCHED", 1)
@@ -2057,6 +2113,7 @@ function Game:step(dt)
 	require("src.satellites").keep(self, dt)
 	self:applySurfacePull()
 	self:updateDockExits(dt)
+	self:updateRunwayPush(dt)
 	self:updateLane(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)

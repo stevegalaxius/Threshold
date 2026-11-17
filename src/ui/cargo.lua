@@ -70,6 +70,7 @@ local Shipyard = require("src.ui.shipyard")
 local IndustryView = require("src.ui.industry")
 local Contracts = require("src.ui.contracts")
 local Jobs = require("src.ui.jobs")
+local StallView = require("src.ui.stall")
 local Repair = require("src.ui.repair")
 local Station=require("src.ui.station")
 local stats = require("src.stats")
@@ -608,12 +609,12 @@ end
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
 -- Contracts is the old freight/quest list, kept for debugging; Jobs is the player's.
-local TABS={{id='cargo',label='Storage'},{id='jobs',label='Jobs'},{id='market',label='Market'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'},{id='contracts',label='Contracts'}}
+local TABS={{id='cargo',label='Storage'},{id='jobs',label='Jobs'},{id='market',label='Market'},{id='stall',label='Manage'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'},{id='contracts',label='Contracts'}}
 -- The tabs this station offers: Storage, then its services (Game.stationServices).
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or (t.id=='contracts' or t.id=='jobs') and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
+ for _,t in ipairs(TABS) do if t.id=='cargo' or (t.id=='contracts' or t.id=='jobs') and not (st and st.sat) or t.id=='stall' and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -1039,6 +1040,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		end
 		if Cargo.tab == "contracts" then return Contracts.mousepressed(game,mx,my,button) end
 		if Cargo.tab == "jobs" then return Jobs.mousepressed(game,mx,my,button) end
+		if Cargo.tab == "stall" then return StallView.mousepressed(game,mx,my,button) end
   if Cargo.tab == "industry" then return true end
 		if Cargo.tab == "repair" then
 			local act = Repair.mousepressed(game, mx, my, button)
@@ -1679,7 +1681,10 @@ function Cargo.drawSatTooltip(game)
 	if not r then return end
 	local lines = { { r.name or hit.name or "Satellite", HUD.INK or { 1, 1, 1 } },
 		{ SAT_KIND[r.kind] or "Satellite", HUD.DIM } }
-	if r.owner then local place = require("src.locations").byId[r.owner]
+	if r.owner == "player" then
+		lines[#lines + 1] = { ("Yours: %d cr/h while fuelled, %d earned"):format(Sat.income, r.earned or 0), HUD.AQUA }
+		if (r.spent or 0) > 0 then lines[#lines + 1] = { ("Refuel fees paid: %d"):format(r.spent), HUD.DIM } end
+	elseif r.owner then local place = require("src.locations").byId[r.owner]
 		lines[#lines + 1] = { "Owner: " .. (place and place.name or tostring(r.owner)), HUD.DIM } end
 	local lv = Sat.levers(r)
 	local fuel = Sat.fuel(game.universe, r)
@@ -1942,6 +1947,11 @@ function Cargo.draw(game)
 			Station.footer('Repairs restore armor at this station\'s rate per point.','Short on credits? Repair fixes as much as you can pay for.')
 			return
 		end
+		if Cargo.tab == "stall" then
+   StallView.draw(game)
+   Station.footer('Station management: your standing, ships, storage and satellites, and your market stall here.', 'NPCs who dock here shop your stall alongside the house shelves \194\183 Cheap sells fast, Premium slowly \194\183 Unpaid rent closes the stall and moves its stock to your storage here')
+   return
+  end
 		if Cargo.tab == "jobs" then
    Jobs.draw(game)
    Station.footer('Work posted anywhere in this system, and freight picking up here. NPCs take the same jobs, but not one you hold.', 'Hold up to '..T.questMaxActive..' station jobs and one freight contract \194\183 Collect wreck bounties at any station in the system \194\183 Mouse wheel scrolls')

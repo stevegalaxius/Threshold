@@ -154,7 +154,7 @@ function Sat.refuel(universe, id, by)
 	local r = Sat.get(universe, id)
 	if not r or r.lost then return false end
 	Sat.fuel(universe, r)
-	r.fuel, r.fuelAt, r.dryAt = 1, universe.clock or 0, nil
+	r.fuel, r.fuelAt, r.dryAt, r.refuelOrdered = 1, universe.clock or 0, nil, nil
 	require("src.events").emit("sat_refuelled", id, by)
 	require("src.sat_jobs").clear(universe, id, "satrefuel")
 	return true
@@ -181,6 +181,7 @@ function Sat.tick(universe)
 	end
 	local open = require("src.sat_jobs").open(universe, "satrefuel")
 	for id, r in pairs(all) do
+		if r.owner == "player" and not r.lost then Sat.earn(universe, r) end
 		-- dry long enough to have come down (on the map now, the physics
 		-- brings it down instead)
 		if not r.lost and Sat.fuel(universe, r) <= 0 and r.dryAt and clock - r.dryAt >= Sat.deorbit
@@ -193,6 +194,121 @@ function Sat.tick(universe)
 			require("src.sat_jobs").post(universe, r, "satrefuel")
 		end
 	end
+end
+
+-- The player's own satellites --------------------------------------------------
+--
+-- A satellite package (data/items.lua), used in orbit away from any job
+-- site, puts up a basic satellite of the player's own right there
+-- (Sat.deploy): the planet's owners must think well enough of the player
+-- (Sat.deployRep, standing with the area's faction; unclaimed space needs
+-- no one's leave), and the player may have Sat.playerCap up at once. It's
+-- an ordinary satellite after that: it burns fuel and keeps station, posts
+-- refuel jobs for haulers (the player pays the hauler's fee, Sat.bill), and
+-- if it's neglected it comes down and is gone. While it's fuelled it earns
+-- Sat.income credits an hour (Sat.earn, every Sat.tick; r.earned is the
+-- running total).
+Sat.playerCap, Sat.deployRep, Sat.income = 3, 15, 2400
+Sat.minGap = 600   -- from any other satellite
+
+function Sat.mine(universe)
+	local out = {}
+	for _, r in pairs(store(universe)) do
+		if r.placed and r.owner == "player" and not r.lost then out[#out + 1] = r end
+	end
+	table.sort(out, function(a, b) return a.id < b.id end)
+	return out
+end
+
+-- Whether the player may put one up here, now; false and why if not.
+function Sat.canDeploy(game, ship)
+	local u = game.universe
+	if game.preview or not u or not game.field or game.field.transit or not game.well then return false, "Not in orbit" end
+	if ship ~= game.player then return false, "Not your ship" end
+	if ship.dockState then return false, "Undock first" end
+	if #Sat.mine(u) >= Sat.playerCap then return false, ("You already have %d satellites up"):format(Sat.playerCap) end
+	local Rep = require("src.reputation")
+	local f = Rep.ofArea(game.fieldId)
+	if f and Rep.standing(u, f) < Sat.deployRep then return false, "The local authorities won't allow it (need Friendly standing)" end
+	local w = game.well
+	local x, y = ship.body:getPosition()
+	local d = math.sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
+	if d < (game.field.planetR or 0) * 1.25 then return false, "Too low: climb higher first" end
+	if game.arenaRadius and d > game.arenaRadius - 600 then return false, "Too far out for an orbit" end
+	for _, e in ipairs(game.entities) do
+		if e.sat and not e.removed and e.body then
+			local ex, ey = e.body:getPosition()
+			if (ex - x) ^ 2 + (ey - y) ^ 2 < Sat.minGap ^ 2 then return false, "Too close to another satellite" end
+		end
+	end
+	return true
+end
+
+-- Put one up where the player's ship is. Returns its record.
+function Sat.deploy(game, ship)
+	local ok, why = Sat.canDeploy(game, ship)
+	if not ok then return nil, why end
+	local u, w = game.universe, game.well
+	local all = store(u)
+	u.satSeq = (u.satSeq or 0) + 1
+	local id = ("player_sat_%d"):format(u.satSeq)
+	local x, y = ship.body:getPosition()
+	local alt = math.sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
+	local rate = game:currentSpeed(alt) / math.max(1, alt)
+	local clock = u.clock or 0
+	local Fields = require("src.fields")
+	local planet = Fields[game.fieldId] and Fields[game.fieldId].name or game.fieldId
+	local r = { id = id, field = game.fieldId, kind = "passive", design = Sat.kinds.passive.design,
+		name = ("Your %s satellite %d"):format(planet, u.satSeq), owner = "player", placed = true,
+		alt = alt, rate = rate, angle = math.atan2(y - w.y, x - w.x) - rate * clock,
+		fuel = 1, fuelAt = clock, paidAt = clock, earned = 0 }
+	all[id] = r
+	Sat.populate(game)
+	require("src.events").emit("sat_deployed", id, "player")
+	return r
+end
+
+-- Income: Sat.income an hour for the fuelled time since it was last paid.
+function Sat.earn(universe, r)
+	local clock = universe.clock or 0
+	local from = r.paidAt or clock
+	local to = clock
+	Sat.fuel(universe, r)
+	if r.dryAt then to = math.min(to, r.dryAt) end
+	r.paidAt = clock
+	local n = math.floor(math.max(0, to - from) * Sat.income / 3600 + (r.carry or 0))
+	r.carry = math.max(0, (to - from) * Sat.income / 3600 + (r.carry or 0) - n)
+	if n > 0 then
+		universe.credits = (universe.credits or 0) + n
+		r.earned = (r.earned or 0) + n
+	end
+end
+
+-- The player sends for a hauler to refuel one of theirs now (the Manage
+-- tab), whatever its fuel: its refuel job goes on the board (or the one
+-- already there opens to haulers at once), and the player pays the
+-- hauler's fee when it's done (Sat.bill). Returns true, or false and why.
+function Sat.orderRefuel(universe, id)
+	local r = Sat.get(universe, id)
+	if not r or r.lost or r.owner ~= "player" then return false, "Not your satellite" end
+	if Sat.fuel(universe, r) >= 0.95 then return false, "Its tank is already full" end
+	local J = require("src.sat_jobs")
+	if (universe.credits or 0) < J.pay then return false, "Not enough credits for the hauler's fee" end
+	r.refuelOrdered = true
+	local o = J.offer(universe, "satrefuel", id)
+	if o then o.npcClaimAt = math.min(o.npcClaimAt or 0, universe.clock or 0)
+	elseif not J.post(universe, r, "satrefuel") then r.refuelOrdered = nil; return false, "No station nearby can send a hauler" end
+	return true
+end
+
+-- A hauler refuelled one of the player's: the player pays its fee (what
+-- they have, at most).
+function Sat.bill(universe, r, amount)
+	if r.owner ~= "player" then return 0 end
+	local paid = math.min(amount, math.max(0, universe.credits or 0))
+	universe.credits = (universe.credits or 0) - paid
+	r.spent = (r.spent or 0) + paid
+	return paid
 end
 
 -- Quest scripting: open a satellite up (or change what it offers) and
@@ -236,7 +352,16 @@ function Sat.populate(game)
 	local saved = game.universe.areas and game.universe.areas[game.fieldId]
 	local w = game.well
 	local cx, cy = w and w.x or 0, w and w.y or 0
-	for _, slot in ipairs(Sat.layout(game.fieldId, game.field)) do
+	local slots = Sat.layout(game.fieldId, game.field)
+	-- and the ones the player put up here (Sat.deploy): their records are
+	-- their slots
+	local mine = {}
+	for _, r in pairs(store(game.universe)) do
+		if r.placed and r.field == game.fieldId and not r.lost then mine[#mine + 1] = r end
+	end
+	table.sort(mine, function(a, b) return a.id < b.id end)
+	for _, r in ipairs(mine) do slots[#slots + 1] = { id = r.id, kind = r.kind, alt = r.alt, angle = r.angle, name = r.name } end
+	for _, slot in ipairs(slots) do
 		local r = Sat.record(game.universe, slot, game.fieldId)
 		local e = present[slot.id]
 		if e and r.retiredHusk then game:remove(e); e = nil end
@@ -466,6 +591,13 @@ end
 function Sat.markLost(universe, r)
 	if r.lost then return end
 	r.lost = true
+	if r.placed then
+		-- one the player put up: gone, no replacement (that's another package)
+		require("src.sat_jobs").clear(universe, r.id, "satrefuel")
+		store(universe)[r.id] = nil
+		require("src.events").emit("sat_lost", r.id, "player")
+		return
+	end
 	require("src.sat_jobs").clear(universe, r.id, "satrefuel")
 	require("src.sat_jobs").post(universe, r, "satlaunch")
 end

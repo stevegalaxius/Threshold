@@ -357,7 +357,12 @@ function N.departOnline(game,e,station)
  if e.hold and r.ship.hold then e.hold=require('src.inventory.hold').deserialize(r.ship.hold,function(id) return data.items[id]~=nil end)
  elseif e.hold then require('src.inventory.hold').sync(e.hold,e.cargo) end
  require('src.ship').updateMass(e)
- if r.state~='travel' and r.state~='transit' then r.state='docked';return false end
+ -- work right off this station that it doesn't dock for (a satellite job
+ -- whose hauler loads here and flies out to the satellite): it holds
+ -- outside, so it leaves now rather than sitting docked until its stay
+ -- runs out
+ local holdsOutside=r.state=='idle' and not N.docksAt(r,node)
+ if r.state~='travel' and r.state~='transit' and not holdsOutside then r.state='docked';return false end
  e.npcDeparture=true
  return true
 end

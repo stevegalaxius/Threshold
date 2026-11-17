@@ -16,7 +16,7 @@ local function candidates(u,want)
  for id,r in pairs(u.satellites or {}) do
   if want(r) then
    local giver=J.places(r.field)
-   if giver then out[#out+1]={giver=giver,area=r.field,subject=id,reward=J.pay,name=r.name or id} end
+   if giver then out[#out+1]={giver=giver,area=r.field,subject=id,reward=r.owner=='player' and 0 or J.pay,name=r.name or id} end
   end
  end
  return out
