@@ -306,7 +306,7 @@ function E.update(game,clock)
    for _,xid in ipairs(ids) do
     local x=records[xid];local f=x.encounter;local v=f and records[f.target]
     if Access.raiding(x) and f and not f.support and v and not Access.raiding(v) and x.area==p.area
-     and (close(p,x,clock) or close(p,v,clock)) then
+     and (close(p,x,clock) or close(p,v,clock) or require('src.squads').allied(u,p,v)) then
      p.encounter={target=x.id,support=true,progress=fraction(p,clock),nextAt=clock,round=0,seed=f.seed}
      p.targetId=x.id;p.taskStatus='defending '..v.id
      require('src.alife_trace').note(p,clock,'encounter','joined the fight against '..x.id..' to defend '..v.id)
@@ -333,6 +333,8 @@ function E.update(game,clock)
     for _,b in ipairs(group) do
      if (not Access.raiding(b)) and not b.encounter and close(a,b,clock) then
       local odds=E.odds(a,b)-(Access.defending(b,b.area) and 1 or 0)
+      -- a ship with its squad around it is a worse bet
+      odds=odds-require('src.squads').alliesHere(u,b)*T.squadOddsPenalty
       -- cargo its home station is short of is worth a worse fight
       local Piracy=require('src.piracy');if Piracy.wants(u,Piracy.home(a),b) then odds=odds+T.raidShortageBias end
       if not best or odds>best then target,best=b,odds end

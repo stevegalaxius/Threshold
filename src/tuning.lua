@@ -232,6 +232,18 @@ T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per
 T.aiBoostCruise, T.aiBoostStopMargin = 3, 1800
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
+-- Squads and battlegroups (src/squads.lua)
+T.squadTick = 2              -- s between squad upkeep passes
+T.squadSweepHold = 20        -- s a squad holds at each stop of its beat
+T.squadRespondCount = 2      -- squads sent when a flagship calls
+T.squadRespondTime = 180     -- s a called squad stays on the call
+T.squadRespondHold = 30      -- s it holds at the call point before checking again
+T.squadRegroupArmor = 0.4    -- leader armour share below which the squad goes home
+T.squadRegroupStay = 120     -- s a regrouping squad waits at home for recruits
+T.squadRegroupTries = 3      -- waits before it goes back out under strength
+T.squadHitMemory = 8         -- s a hit on a live ship counts as 'under attack'
+T.flagshipRebuild = 1800     -- s before a lost flagship is replaced
+T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the area
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
