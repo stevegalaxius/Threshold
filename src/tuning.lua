@@ -243,6 +243,7 @@ T.squadRegroupStay = 120     -- s a regrouping squad waits at home for recruits
 T.squadRegroupTries = 3      -- waits before it goes back out under strength
 T.squadHitMemory = 8         -- s a hit on a live ship counts as 'under attack'
 T.flagshipRebuild = 1800     -- s before a lost flagship is replaced
+T.couriersPerSystem = 1      -- faction couriers per owned planet with a service fleet
 T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the area
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
@@ -285,6 +286,7 @@ T.population = {
  pirate={minDelay=180,maxDelay=300},
  trader={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
+ courier={minDelay=240,maxDelay=420},
  miner={minDelay=180,maxDelay=300},
  ship_hauler={minDelay=240,maxDelay=420},
 }
