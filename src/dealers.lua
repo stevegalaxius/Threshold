@@ -235,9 +235,39 @@ function D.take(u, st, id)
 	if i then return table.remove(s.lots, i) end
 end
 
+-- A ship the player sold (or lost to unpaid rent) goes on this station's
+-- lot as it is: same fit, paint and wear, parked where it already sits.
+-- Its hold stays with the station. Priced like a used ship off its
+-- condition. A station with no dealer, or a military yard, just scraps it.
+-- Returns the lot, or nil.
+function D.resell(u, st, rec)
+ local def=D.def(st)
+ if not def or def.service then return nil end
+ local s=D.state(u,st);local hull=data.hulls[rec.hull]
+ if not s or not hull then return nil end
+ local full=require('src.stats').compute(hull,rec.loadout or hull.loadout).armor
+ local condition=full>0 and math.max(0.1,math.min(1,(rec.armor or full)/full)) or 1
+ local markup=require('data.industry').usedShips.markup or 1
+ -- (an NPC's ship arrives from outside: find it a space; no space, no sale)
+ local bay,mooring=rec.bay,rec.mooring
+ if not bay and not mooring then
+  local key=require('src.stockpile').key(st)
+  local spot=require('src.dealer_parking').plan(u,key,rec.hull,1,'outside')[1]
+  if not spot then return nil end
+  bay,mooring=spot.bay,spot.mooring
+ end
+ s.serial=(s.serial or 0)+1
+ local lot={id=s.serial,hull=rec.hull,dealerStock=true,used=true,resold=true,trim='used',trimName='Used',
+  loadout=copy(rec.loadout or hull.loadout),color=rec.color and copy(rec.color) or nil,paint=Paint.pool(hull)[1],
+  armor=rec.armor or full,condition=condition,price=D.price(hull,rec.loadout or hull.loadout,markup*condition),
+  cargo={[require('src.reactor_fuel').item()]=2},bay=bay,mooring=mooring}
+ s.lots[#s.lots+1]=lot
+ return lot
+end
+
 function D.ship(lot)
  return {hull=lot.hull,loadout=copy(lot.loadout),cargo=copy(lot.cargo),armor=lot.armor,
-  color=Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
+  color=lot.color or Paint.preset(lot.paint),fuelCharge=0,fuelInitialized=true}
 end
 -- The military yard that builds a faction's service hulls, if it has one.
 function D.serviceYard(faction)

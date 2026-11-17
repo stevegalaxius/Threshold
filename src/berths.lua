@@ -95,6 +95,7 @@ function B.load(game, st, i)
 	local list = game:hangar(st)
 	local rec = list[i]
 	if not rec then return false, "NO SUCH SHIP" end
+	if not require("src.berth_rent").settle(game.universe, rec) then return false, "SETTLE BERTH RENT FIRST" end
 	if B.count(p.hull) == 0 then return false, "YOUR SHIP HAS NO BERTHS" end
 	local slot = B.free(p, rec.hull)
 	if not slot then return false, "NO BERTH FITS THAT SHIP" end

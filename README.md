@@ -672,6 +672,20 @@ right-clicked into the same offer as goods. Ship sales include installed modules
 cargo and containers; the active ship must be stored by switching ships before
 it can be sold. Ownership changes only when the trade completes. Parking is
 checked for the entire offer, including space released by sold ships.
+A ship you sell (or trade in) goes onto that station's dealer lot as it is,
+same fit, paint and wear, priced as a used ship off its condition.
+Ships you leave parked pay **berth rent** by the hour on the game clock
+(`src/berth_rent.lua`): a rate per hangar cell, dearer in an interior bay than
+on an outside mooring; the ship you fly pays nothing. Unpaid rent runs up as a
+debt that must be settled before the ship can leave, and after 48 hours of
+arrears the station impounds it onto its lot, paying you whatever is left.
+Docked NPCs shopping for a refit (`src/npc_refit.lua`) also look at the
+station's ship lot: if a ship there scores clearly better for their job by the
+same fit scoring (`src/ship_fit.lua`) and they can afford it with their old
+ship traded in, they buy it, and the old ship goes on that lot for anyone,
+the player included, to buy. This runs for NPCs docked in the live scene too:
+a module goes onto the live ship, and a new hull replaces it at the dock while
+the old one stays parked on the lot.
 Leaving Market or Shipyard returns the staged goods and ship offers. No prices or economic simulation
 rules were replaced.
 

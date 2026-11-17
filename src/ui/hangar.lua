@@ -372,7 +372,18 @@ local function drawCard(game, L, mx, my, sel)
 
 	lg.setFont(HUD.font(13))
 	lg.setColor(HUD.DIM)
-	lg.printf("Parked: " .. game:shipParkingLabel(L.station, owner), x, L.fly.y - 18, w)
+	local parked = "Parked: " .. game:shipParkingLabel(L.station, owner)
+	if not flying then
+		-- berth rent (src/berth_rent.lua): what this space costs an hour
+		local Rent = require("src.berth_rent")
+		local rate = owner.lease and owner.lease.rate or Rent.rate(hull.id, owner.bay ~= nil)
+		parked = parked .. (" \194\183 %s/h"):format(HUD.credits(rate))
+		if Rent.owed(owner) > 0 then
+			lg.setColor(HUD.WARN)
+			parked = parked .. (" \194\183 %s owed"):format(HUD.credits(Rent.owed(owner)))
+		end
+	end
+	lg.printf(parked, x, L.fly.y - 18, w)
 
 	local busy = h ~= nil
 	local canMove = owner.bay and game:mooringFit(L.station, hull.id, owner)
