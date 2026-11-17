@@ -1,12 +1,13 @@
 -- Parametric icon solids. Source parameters stay editable; projected faces
 -- support editor picking, while cached depth-tested renders handle overlap.
 local M={}
+-- Surface response is independent of the artist's base-color override.
 M.materials={
- metal={color={.64,.72,.78},ambient=.24,diffuse=.72},
- painted={ambient=.30,diffuse=.62},
- recess={color={.12,.17,.20},ambient=.20,diffuse=.48},
- crystal={color={.32,.67,.78},ambient=.22,diffuse=.78},
- emissive={color={.10,.95,.76},ambient=1,diffuse=0,glow=1},
+ metal={color={.64,.72,.78},ambient=.08,diffuse=.62,specular=2.1,shininess=8,rim=.20},
+ painted={ambient=.48,diffuse=.30,specular=.03,shininess=8,rim=0},
+ recess={color={.12,.17,.20},ambient=.08,diffuse=.24,specular=0,rim=0},
+ crystal={color={.32,.67,.78},ambient=.12,diffuse=.58,specular=1.8,shininess=12,rim=1.25},
+ emissive={color={.10,.95,.76},ambient=1,diffuse=0,specular=0,rim=0,glow=1},
 }
 M.shapes={'box','bevel','cylinder','taper','ring','wedge','rock'}
 local function normalize(x,y,z)
@@ -90,14 +91,21 @@ function M.parts(boxes,bw,bh,paint,view)
    local diffuse=math.max(0,-nx*.45-ny*.55+nz*.70)
    local contrast=b.contrast or 1
    local brightness=math.max(.08,math.min(1.4,material.ambient+(diffuse-.35)*material.diffuse*contrast+.35*material.diffuse))
-   local color=base
+   -- Fixed camera/key light for the icon's oblique projection. Metal has
+   -- a broad reflection, paint is matte, and crystal catches grazing light.
+   local facing=math.max(0,math.min(1,nx*.264-ny*.836+nz*.479))
+   local half=math.max(0,nx*(-.11)-ny*.804+nz*.584)
+   local highlight=(material.specular or 0)*half^(material.shininess or 8)
+   local rim=(material.rim or 0)*(1-facing)^3
+   local color={}
+   for k=1,3 do color[k]=math.min(1,base[k]*brightness+highlight+rim) end
    local shape,depths={},{}
    for _,p in ipairs(f.points) do
     local x,y=p[1]+p[2]*.315,-p[3]*.55-p[2]*.315
     shape[#shape+1]=x;shape[#shape+1]=y;depths[#depths+1]=-.315*p[1]+p[2]-.573*p[3]
     x0,y0,x1,y1=math.min(x0,x),math.min(y0,y),math.max(x1,x),math.max(y1,y)
    end
-   out[#out+1]={name=(b.name or b.primitive or 'box')..' '..f.tag,shape=shape,depths=depths,color=color,fill=brightness,
+   out[#out+1]={name=(b.name or b.primitive or 'box')..' '..f.tag,shape=shape,depths=depths,color=color,emissionColor=base,fill=1,
     fromBox=true,box=i,face=f.tag,modelFace=true,emission=b.glow or material.glow or (b.layer=='glow' and 1 or 0)}
   end end
  end
@@ -166,7 +174,7 @@ function M.draw(parts,alpha)
   local function render(target,glow)
    lg.setCanvas({target,depthstencil=depth});lg.clear(0,0,0,0,0,1);lg.setDepthMode('less',true);lg.setShader(depthShader)
    for _,f in ipairs(parts) do if f.modelFace then
-    local vertices={};local c=f.color;local v=glow and f.emission or f.fill
+    local vertices={};local c=glow and f.emissionColor or f.color;local v=glow and f.emission or f.fill
     for j=2,#f.shape/2-1 do for _,i in ipairs({1,j,j+1}) do
      vertices[#vertices+1]={(f.shape[i*2-1]-x0+margin)*unit,(f.shape[i*2]-y0+margin)*unit,f.depths[i]/maxDepth*.8,c[1]*v,c[2]*v,c[3]*v,1}
     end end

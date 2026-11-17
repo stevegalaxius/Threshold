@@ -26,6 +26,22 @@ return function(game)
   M.draw(parts,1);lg.setCanvas(old);lg.pop()
   local pixels=c:newImageData();c:release();return pixels
  end
+ -- The same geometry and explicit color must still read as different surfaces.
+ local samples={}
+ for _,material in ipairs({'metal','painted','recess','crystal'}) do
+  samples[material]=render({{primitive='cylinder',material=material,color={.55,.55,.55},w=1,d=1,h=1}})
+ end
+ local function difference(a,b)
+  local total,count=0,0
+  for y=0,127 do for x=0,127 do
+   local ar,ag,ab,aa=a:getPixel(x,y);local br,bg,bb,ba=b:getPixel(x,y)
+   if aa>.9 and ba>.9 then total=total+(math.abs(ar-br)+math.abs(ag-bg)+math.abs(ab-bb))/3;count=count+1 end
+  end end
+  return total/math.max(1,count)
+ end
+ for _,pair in ipairs({{'metal','painted'},{'metal','crystal'},{'painted','recess'},{'painted','crystal'}}) do
+  assert(difference(samples[pair[1]],samples[pair[2]])>.025,'material response disappears under a color override: '..table.concat(pair,' / '))
+ end
  local a=render(boxes);local b=render({boxes[2],boxes[1]})
  assert(a:getString()==b:getString(),'solid overlap depends on list order')
  local visible=false;for y=0,127 do for x=0,127 do local _,_,_,alpha=a:getPixel(x,y);if alpha>0 then visible=true;break end end end

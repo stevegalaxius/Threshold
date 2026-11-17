@@ -19,3 +19,9 @@ Inventory items now have square, neutral dark backings, quiet borders, hover hig
 The existing `love . --test` content check includes a small geometry/export/render check: it renders intersecting solids in reversed list order and requires identical pixels, and round-trips editable parameters through source export. Set `ICON_MODEL_PREVIEW` to an absolute PNG path while running the suite to export a comparison sheet.
 
 ![Fixed-size inventory cells](images/inventory-fixed-cells.png)
+
+## Material surfaces
+
+Material choice changes shading even when a part has an explicit color override. Metal has a strong directional reflection band and dark shadows; painted surfaces are matte with a smaller light/dark range; recess suppresses reflected light; crystal has bright grazing edges and sharper facet highlights. Emissive remains self-lit with a halo. These are shared presets, with no additional editor controls.
+
+![Same geometry and gray color under each material](images/icon-materials.png)
