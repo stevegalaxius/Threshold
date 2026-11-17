@@ -433,13 +433,31 @@ function Game:updateSleepers()
 	local px, py
 	if p and not p.dead then px, py = p.body:getPosition() else px, py = self.camera.x, self.camera.y end
 	local far2, near2 = T.sleepFar ^ 2, T.sleepNear ^ 2
+	-- Zoomed out, the screen reaches past sleepNear: what's on it is kept
+	-- awake too (with T.sleepViewMargin to spare, and that again before it
+	-- sleeps), so shots and traffic out there hit real rock. Only the
+	-- screen's rectangle counts, so zooming out costs no more than it shows.
+	local cam = self.camera
+	local cx, cy, hw, hh = 0, 0, -1, -1
+	if cam and cam.zoom and love.graphics then
+		local w, h = love.graphics.getDimensions()
+		local z = max(cam.zoom, 0.01)
+		cx, cy = cam.x or px, cam.y or py
+		hw, hh = w / (2 * z) + T.sleepViewMargin, h / (2 * z) + T.sleepViewMargin
+		-- (near the player's own circle already covers it)
+		if hw * hw + hh * hh < near2 then hw, hh = -1, -1 end
+	end
+	local m2 = T.sleepViewMargin
+	local function inView(x, y, extra)
+		return math.abs(x - cx) < hw + extra and math.abs(y - cy) < hh + extra
+	end
 	-- wake the ones the player is coming up on
 	local sl, keep = self.sleepers, {}
 	for _, e in ipairs(sl) do
 		if not e.removed then
 			local x, y, a
 			if e.sleep.still then x, y, a = e.body.x, e.body.y, e.sleep.a else x, y, a = self:sleeperPos(e) end
-			if (x - px) ^ 2 + (y - py) ^ 2 < near2 then
+			if (x - px) ^ 2 + (y - py) ^ 2 < near2 or inView(x, y, 0) then
 				local o = e.sleep
 				e.sleep = nil
 				self:debrisBody(e, x, y, e.body.a, o.spin)
@@ -468,7 +486,7 @@ function Game:updateSleepers()
 		if e.kind == "asteroid" and not e.giant and not e.miningId and not e.dead and not e.removed and not e.reentry then
 			local b = e.body
 			local x, y = b:getPosition()
-			if (x - px) ^ 2 + (y - py) ^ 2 > far2 then
+			if (x - px) ^ 2 + (y - py) ^ 2 > far2 and not inView(x, y, m2) then
 				local vx, vy = b:getLinearVelocity()
 				if w then
 					local dx, dy = x - w.x, y - w.y
@@ -2281,7 +2299,11 @@ function Game:resolveContacts()
 end
 
 -- Closest thing hit along a segment, ignoring one team.
-function Game:raycast(x1, y1, x2, y2, ignoreTeam)
+-- sides: also look into the maps alive beside this one (src/transit.lua),
+-- whose rock is drawn past the edge but lives in its own physics world; a
+-- hit there carries scene (and lx, ly, the hit in that scene's own
+-- coordinates) so Game:damageHit lands it on the right map.
+function Game:raycast(x1, y1, x2, y2, ignoreTeam, sides)
 	-- Box2D asserts on a segment its float32 maths sees as zero length (a
 	-- shot that barely moved this step), and on NaN
 	local ls = (x2 - x1) ^ 2 + (y2 - y1) ^ 2
@@ -2293,7 +2315,29 @@ function Game:raycast(x1, y1, x2, y2, ignoreTeam)
 		best = { entity = e, x = x, y = y, nx = xn, ny = yn, fraction = fraction }
 		return fraction
 	end)
+	if sides and (self.trip or self.trail or self.laneStage) then
+		for _, side in ipairs(self:sideScenes()) do
+			local scene, ox, oy = side.scene, side.x, side.y
+			if scene.world and not scene.released then
+				local sb
+				scene.world:rayCast(x1 - ox, y1 - oy, x2 - ox, y2 - oy, function(fixture, x, y, xn, yn, fraction)
+					local e = fixture:getUserData()
+					if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
+					sb = { entity = e, x = x + ox, y = y + oy, lx = x, ly = y, nx = xn, ny = yn, fraction = fraction, scene = scene }
+					return fraction
+				end)
+				if sb and (not best or sb.fraction < best.fraction) then best = sb end
+			end
+		end
+	end
 	return best
+end
+
+-- Damage what a raycast hit, on whichever map it belongs to.
+function Game:damageHit(hit, amount, source, cause)
+	local scene = hit.scene
+	if scene then return scene:damage(hit.entity, amount, source, cause, hit.lx, hit.ly) end
+	return self:damage(hit.entity, amount, source, cause, hit.x, hit.y)
 end
 
 -- cause: gun, artillery, laser, missile, splash or ram (passed on to listeners)
