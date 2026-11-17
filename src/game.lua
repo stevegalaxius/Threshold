@@ -424,6 +424,18 @@ function Game:sleeperPos(e)
 	return w.x + cos(a) * o.r, w.y + sin(a) * o.r, a
 end
 
+-- Is any ship's body within r (plus a little) of (x, y)?
+function Game:shipNear(x, y, r)
+	r = r + 60
+	local hit = false
+	self.world:queryBoundingBox(x - r, y - r, x + r, y + r, function(fixture)
+		local o = fixture:getUserData()
+		if o and o.kind == "ship" and not fixture:isSensor() then hit = true; return false end
+		return true
+	end)
+	return hit
+end
+
 function Game:updateSleepers()
 	local w = self.well
 	self.sleepTick = (self.sleepTick or 0) + 1
@@ -464,6 +476,10 @@ function Game:updateSleepers()
 		if not e.removed then
 			if e.sleep.still then x, y, a = e.body.x, e.body.y, e.sleep.a else x, y, a = self:sleeperPos(e) end
 			wake = (x - px) ^ 2 + (y - py) ^ 2 < near2 or (abs(x - cx) < hw and abs(y - cy) < hh)
+			-- not right on top of a ship (traffic passing through it while
+			-- it slept): it would wake inside the hull and wreck it. It
+			-- tries again next time round, once the ship's clear.
+			if wake and self:shipNear(x, y, e.radius) then wake = false end
 		end
 		if e.removed or wake then
 			-- out of the list: the last one takes its place (and is looked
