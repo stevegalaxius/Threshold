@@ -1212,6 +1212,12 @@ local function drawSatBeams(game)
 				local x, y = e.body:getPosition()
 				satBeam(sx, sy, x, y, faint)
 			end
+			-- a station's tractor pushing it off the runway
+			local push = e.runwayPush
+			if push then
+				local x, y = e.body:getPosition()
+				satBeam(push.x, push.y, x, y, false)
+			end
 		end
 	end
 end
