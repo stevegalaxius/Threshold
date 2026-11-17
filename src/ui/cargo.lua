@@ -609,12 +609,12 @@ end
 -- The station screen's tabs: folder tabs on top of the window, centred
 -- over it. The window is the panels of whichever tab is showing.
 -- Contracts is the old freight/quest list, kept for debugging; Jobs is the player's.
-local TABS={{id='cargo',label='Storage'},{id='jobs',label='Jobs'},{id='market',label='Market'},{id='stall',label='Stall'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'},{id='contracts',label='Contracts'}}
+local TABS={{id='cargo',label='Storage'},{id='jobs',label='Jobs'},{id='market',label='Market'},{id='stall',label='Manage'},{id='shipyard',label='Shipyard'},{id='hangar',label='Hangar'},{id='repair',label='Repair'},{id='industry',label='Industry'},{id='contracts',label='Contracts'}}
 -- The tabs this station offers: Storage, then its services (Game.stationServices).
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or (t.id=='contracts' or t.id=='jobs') and not (st and st.sat) or t.id=='stall' and have.market and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
+ for _,t in ipairs(TABS) do if t.id=='cargo' or (t.id=='contracts' or t.id=='jobs') and not (st and st.sat) or t.id=='stall' and not (st and st.sat) or have[t.id] or t.id=='industry' and IndustryView.has(st) then out[#out+1]=t end end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -1949,7 +1949,7 @@ function Cargo.draw(game)
 		end
 		if Cargo.tab == "stall" then
    StallView.draw(game)
-   Station.footer('Your stall in this market: NPCs who dock here shop it alongside the house shelves.', 'Cheap sells fast, Premium slowly \194\183 A ship that has run out pays any tag \194\183 Unpaid rent closes the stall and moves its stock to your storage here')
+   Station.footer('Station management: your standing, ships, storage and satellites, and your market stall here.', 'NPCs who dock here shop your stall alongside the house shelves \194\183 Cheap sells fast, Premium slowly \194\183 Unpaid rent closes the stall and moves its stock to your storage here')
    return
   end
 		if Cargo.tab == "jobs" then
