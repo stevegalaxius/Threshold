@@ -2,8 +2,8 @@
 --   Fuel      the real one: reactor fuel from the station's own stock, which
 --             NPCs refuel from and src/economy.lua keeps ordered up.
 --   Supplies  the debug fallback: unlimited fuel, ammunition and flares,
---             for the player only. NPCs never draw on it (an NPC running dry
---             at an empty station gets a small emergency issue instead).
+--             for the player only. NPCs never draw on it: they buy fuel,
+--             ammunition and flares off the station's stock at its price.
 local data,Stats=require('src.data'),require('src.stats')
 local Hold,Ship=require('src.inventory.hold'),require('src.ship')
 local L,T=require('src.locations'),require('src.tuning')
@@ -89,8 +89,31 @@ local function fuelAvailable(u,key)
  if not u or not key then return math.huge end
  return require('src.stockpile').available(u,key,Fuel.item())
 end
+-- What a unit costs here: the station's own quote, or a satellite shelf's
+-- list price.
+local function unitPrice(u,key,id)
+ if type(key)=='table' then return data.items[id].price or 0 end
+ return require('src.markets').price(u,key,id)
+end
+-- NPCs pay for what they take, like the player, down to a small reserve.
+-- Fuel is the one exception: a ship that can't pay still gets enough to
+-- leave (its credits stop at 0), so nobody is stranded at a dock.
+local function charge(r,u,key,id,n)
+ local p=unitPrice(u,key,id)
+ local cost=n*p
+ r.credits=math.max(0,(r.credits or 0)-cost);r.suppliesSpent=(r.suppliesSpent or 0)+cost
+ require('src.economy').ledger(u,type(key)=='table' and key.key or key,'sold',cost,id)
+end
+local function affordable(r,u,key,id,missing)
+ if id==Fuel.item() then return missing end
+ local p=unitPrice(u,key,id)
+ if p<=0 then return missing end
+ return math.min(missing,math.floor(math.max(0,(r.credits or 0)-T.npcSupplyReserve)/p))
+end
 local function fill(r,e,h,cargo,u,key)
  local added=0
+ -- at a real shelf, pick each gun's ammo from what's on sale first
+ if u and key then require('src.npc_refit').ammo(r,u,key,e) end
  local targets=S.targets(r,e);local order={}
  for id in pairs(targets) do order[#order+1]=id end
  table.sort(order,function(a,b)
@@ -106,6 +129,7 @@ local function fill(r,e,h,cargo,u,key)
   elseif require('src.ammunition').byItem[id] and u and key then
    missing=math.min(missing,require('src.stockpile').available(u,key,id))
   end
+  if u and key and (id==Fuel.item() or require('src.ammunition').byItem[id]) then missing=affordable(r,u,key,id,missing) end
   if missing==0 then n=0
   elseif h then n=Hold.add(h,id,missing,{pristine=true})
   else n=math.min(missing,room(r,e,nil,id)) end
@@ -114,6 +138,7 @@ local function fill(r,e,h,cargo,u,key)
    -- a spent canister is gone: new empties only come from Mars
    assert(require('src.stockpile').take(u,key,id,n),'supply stock changed during refill')
    require('src.economy').consume(u,type(key)=='table' and key.key or key,id,n)
+   charge(r,u,key,id,n)
   end
  end
  return added
