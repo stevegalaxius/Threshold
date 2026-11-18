@@ -420,7 +420,7 @@ T.miningScan=.5
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',1250
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',1750
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
