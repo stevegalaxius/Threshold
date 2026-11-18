@@ -153,7 +153,10 @@ Tasks.register(kind,{
    r.credits=(r.credits or 0)+require('src.accounts').pay(u,t.target,J.pay,'freight')
    -- (the player's own satellite: the player pays the fee)
    local s=u.satellites and u.satellites[t.sat]
-   if s then require('src.satellites').bill(u,s,J.pay) end
+   if s then
+    local billed=require('src.satellites').bill(u,s,J.pay)
+    require('src.accounts').receive(u,t.target,billed,'sold','satellite service')
+   end
   end
   return true
  end,

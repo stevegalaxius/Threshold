@@ -271,9 +271,14 @@ function M.update(u,clock,pause)
   end
  end
 end
--- Someone (the player, a faction, a quest) puts credits into a house.
-function M.bailout(u,id,credits)
- local rec=M.state(u).houses[id];if not rec or credits<=0 then return false end
+-- Someone puts credits into a house: from = 'player' (the player's own
+-- credits) or an account (a station, or 'faction:<id>'). It moves what the
+-- payer has; nobody bails a house out with money that isn't there.
+function M.bailout(u,id,credits,from)
+ local rec=M.state(u).houses[id];if not rec or credits<=0 or not from then return false end
+ if from=='player' then credits=math.min(credits,math.max(0,u.credits or 0));u.credits=u.credits-credits
+ else credits=require('src.accounts').pay(u,from,credits) end
+ if credits<=0 then return false end
  rec.credits=rec.credits+credits;rec.lastSale=u.clock
  require('src.economy').ledger(u,id,'bailout',credits)
  return true

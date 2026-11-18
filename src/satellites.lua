@@ -278,6 +278,9 @@ function Sat.earn(universe, r)
 	r.paidAt = clock
 	local n = math.floor(math.max(0, to - from) * Sat.income / 3600 + (r.carry or 0))
 	r.carry = math.max(0, (to - from) * Sat.income / 3600 + (r.carry or 0) - n)
+	-- (the area's trade station pays for the service, out of its account)
+	local payer = r.field and require("src.locations").station(r.field, "trade")
+	if n > 0 and payer then n = require("src.accounts").pay(universe, payer, n, "bought", "satellite service") end
 	if n > 0 then
 		universe.credits = (universe.credits or 0) + n
 		r.earned = (r.earned or 0) + n

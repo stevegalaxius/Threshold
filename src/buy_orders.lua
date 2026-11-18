@@ -126,6 +126,12 @@ function B.place(u, item, n, target, deliver, clock)
 	local o = { id = "buy/" .. s.next, item = item, amount = n, delivered = 0, target = target, deliver = deliver or "storage",
 		source = src.id, unit = unit, placed = clock }
 	u.credits = u.credits - unit * n
+	-- the goods are bought from the source station; the freight goes to the
+	-- target station, which pays the hauler on delivery (src/transport.lua)
+	local _, goods, freight = B.quote(u, item, n, src.id, target, clock)
+	local Accounts = require("src.accounts")
+	Accounts.receive(u, src.id, goods, "sold", item)
+	Accounts.receive(u, target, math.max(0, unit * n - goods), "freight prepaid", item)
 	local t = offer(u, o, n, src.id, clock)
 	o.taskId = t.id
 	table.insert(s.list, 1, o)
