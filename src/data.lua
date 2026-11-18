@@ -13,9 +13,9 @@
 ]]
 
 local data = {
-	hulls = {}, modules = {}, items = {}, enemies = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {}, satellites = {},
+	hulls = {}, modules = {}, items = {}, enemies = {}, npcProfiles = {}, markets = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {}, satellites = {},
 	-- definition order, so menus list things the way the data files do
-	list = { hulls = {}, modules = {}, items = {}, enemies = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {} },
+	list = { hulls = {}, modules = {}, items = {}, enemies = {}, npcProfiles = {}, wrecks = {}, stations = {}, lootTables = {}, spawnSets = {}, sites = {}, icons = {} },
 }
 
 -- Slot families. A hardpoint takes a gun, artillery piece or laser; a bay
@@ -598,6 +598,13 @@ function api.market(def)
 	data.markets[def.id or def.location] = def
 end
 
+-- How a persistent NPC flies and fights, picked by its job
+-- (src/npc_profile.lua). The same shape as an enemy, minus waves.
+function api.npc_profile(def)
+	register("npcProfiles", "npc_profile", def)
+	need(def, "hull", "npc_profile"); need(def, "ai", "npc_profile")
+end
+
 function api.enemy(def)
 	register("enemies", "enemy", def)
 	need(def, "hull", "enemy"); need(def, "ai", "enemy")
@@ -856,10 +863,12 @@ local function crossCheck()
 			end
 		end
 	end
-	for id, e in pairs(data.enemies) do
-		local h = data.hulls[e.hull]
-		if not h then error(("enemy '%s' uses unknown hull '%s'"):format(id, e.hull), 0) end
-		checkLoadout("enemy '" .. id .. "'", h, e.loadout or h.loadout)
+	for _, kind in ipairs({ "enemies", "npcProfiles" }) do
+		for id, e in pairs(data[kind]) do
+			local h = data.hulls[e.hull]
+			if not h then error(("%s '%s' uses unknown hull '%s'"):format(kind, id, e.hull), 0) end
+			checkLoadout(kind .. " '" .. id .. "'", h, e.loadout or h.loadout)
+		end
 	end
 	for id, m in pairs(data.modules) do
 		if m.weapon and not data.LASERS[m.weapon.kind] and m.weapon.kind ~= "drill" and not data.ammoFor(m) then
@@ -941,24 +950,32 @@ function data.load()
 	end
 	addModuleItems()
 	-- enemy loadouts were written against the hull files' slot order
-	for _, e in pairs(data.enemies) do
-		local h = data.hulls[e.hull]
-		if h and h.slotRemap and e.loadout and not e.slotsSorted then
-			e.loadout, e.slotsSorted = data.permuteSlots(e.loadout, h.slotRemap), true
+	for _, kind in ipairs({ "enemies", "npcProfiles" }) do
+		for _, e in pairs(data[kind]) do
+			local h = data.hulls[e.hull]
+			if h and h.slotRemap and e.loadout and not e.slotsSorted then
+				e.loadout, e.slotsSorted = data.permuteSlots(e.loadout, h.slotRemap), true
+			end
 		end
 	end
 	-- Enemy loadouts name modules by slot number, which breaks whenever a
 	-- hull is redesigned. Fit each one to its hull by what fits where
 	-- (data.fitLoadout keeps modules already in a fitting slot and moves the
 	-- rest); a module with no room left is dropped with a warning, not a crash.
-	for id, e in pairs(data.enemies) do
+	for id, e in pairs(data.enemies) do e.fitKind = "enemy" end
+	for id, e in pairs(data.npcProfiles) do e.fitKind = "npc_profile" end
+	local fitting = {}
+	for id, e in pairs(data.enemies) do fitting[#fitting + 1] = { id, e } end
+	for id, e in pairs(data.npcProfiles) do fitting[#fitting + 1] = { id, e } end
+	for _, pair in ipairs(fitting) do
+		local id, e = pair[1], pair[2]
 		local h = data.hulls[e.hull]
 		if h and e.loadout then
 			local fitted, want, have = data.fitLoadout(h, e.loadout), {}, {}
 			for _, m in pairs(e.loadout) do if m and data.modules[m] then want[m] = (want[m] or 0) + 1 end end
 			for _, m in pairs(fitted) do have[m] = (have[m] or 0) + 1 end
 			for m, n in pairs(want) do
-				if (have[m] or 0) < n then print(("[data] enemy '%s': no room for %s on %s, left off"):format(id, m, e.hull)) end
+				if (have[m] or 0) < n then print(("[data] " .. e.fitKind .. " '%s': no room for %s on %s, left off"):format(id, m, e.hull)) end
 			end
 			for i = 1, #h.slots do if fitted[i] == nil then fitted[i] = false end end
 			e.loadout = fitted

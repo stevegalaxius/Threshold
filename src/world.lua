@@ -408,7 +408,7 @@ local function known(id) return data.items[id] ~= nil end
 
 -- NPC records keep their ship as plain ids. Renamed hulls and modules take
 -- their new ids, modules follow a hull whose slots moved, and an engine or
--- reactor slot an older build emptied takes the archetype's part again, so
+-- reactor slot an older build emptied takes its profile's part again, so
 -- the ship isn't left drifting with fuel it can't burn.
 local function repairNpcShip(r)
 	local s = r and r.ship
@@ -420,7 +420,7 @@ local function repairNpcShip(r)
 		if data.renamedModules[id] then s.loadout[i] = data.renamedModules[id] end
 	end
 	s.loadout = data.fitLoadout(hull, s.loadout)
-	local preset = data.enemies[r.archetype]
+	local preset = require('src.npc_profile').of(r)
 	local want = preset and data.fitLoadout(hull, preset.loadout or hull.loadout) or {}
 	for i, slot in ipairs(hull.slots) do
 		if not s.loadout[i] and (slot.family == "engine" or slot.family == "reactor") and want[i] then

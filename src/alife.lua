@@ -160,18 +160,17 @@ end
 
 function A.createTrader(game,area,i,group)
  local u,f=game.universe,Fields[area]
- local kinds={'freighter','packhorse_trader','runner_trader'}
- local kind=kinds[(i-1)%#kinds+1]
- local def=data.enemies[kind]; local hull=data.hulls[def.hull]
+ local def=data.npcProfiles.hauler; local hull=data.hulls[def.hull]
  u.nextNpcId=u.nextNpcId+1
  local id='npc/'..u.nextNpcId
  local loadout=copy(def.loadout or hull.loadout)
  local stats=Stats.compute(hull,loadout)
- local r={id=id,area=area,home=area,archetype=kind,
-  route=copy(f.traderRoute),speed=NPC.cruise(kind),
+ local r={id=id,area=area,home=area,aiProfile='hauler',
+  route=copy(f.traderRoute),
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
+ r.speed=NPC.cruise(r.ship)
  require('src.npc_templates').apply(r,group or 'hauler',area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)
@@ -246,7 +245,7 @@ function A.seed(game)
  if not game.preview then
   Transport.seed(u)
   -- Upgrade one existing local trader per eligible planet, without moving it
-  -- or changing its fixed archetype. Work starts at its next docking stop.
+  -- or changing its flight profile. Work starts at its next docking stop.
   for _,area in ipairs(Fields.list) do
    if area~='mars' and Fields[area].driverId and L.station(area,'trade') then
     local worker
@@ -264,8 +263,9 @@ function A.seed(game)
    require('src.npc_templates').migrate(r) -- job/network on older saves
    require('src.personality').ensure(r)
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
-   -- every NPC flies at the shared cruise speed (older saves kept per-hull speeds)
-   if r.archetype then r.speed=NPC.cruise(r.archetype) end
+   require('src.npc_profile').migrate(r)
+   -- every NPC flies at the shared cruise speed, nudged by its own ship
+   if not r.garrison then r.speed=NPC.cruise(r.ship) end
   end
   Homes.seed(u)
   Population.schedule(game,u.clock)
@@ -843,8 +843,8 @@ function A.wake(game,r)
  local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,loads=s.loads,cargo=s.cargo,
   hold=s.hold and Hold.deserialize(s.hold,function(id) return data.items[id]~=nil end),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,power=r.power,
-  armor=s.armor,color=copy(s.color),team=data.enemies[r.archetype].team,
-  enemy=data.enemies[r.archetype],x=exact and exact.x or p.x,y=exact and exact.y or p.y,
+  armor=s.armor,color=copy(s.color),team=require('src.npc_profile').of(r).team,
+  enemy=require('src.npc_profile').of(r),x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
  e.npcCruise=r.speed

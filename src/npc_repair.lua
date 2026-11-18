@@ -23,7 +23,7 @@ end
 function R.stay(r,node,minimum,u)
  if not R.supports(node) then return minimum end
  local missing=R.maximum(r)-(r.ship.armor or R.maximum(r))
- return math.max(minimum,u and Plates.duration(u,node,missing,T.npcRepairPerSecond) or missing/(T.npcRepairPerSecond*Plates.emergency))
+ return math.max(minimum,u and Plates.duration(u,node,missing,T.npcRepairPerSecond) or missing/T.npcRepairPerSecond)
 end
 function R.begin(r,node,at,minimum,u)
  r.repairAt=at;r.patrolRepairAt=nil

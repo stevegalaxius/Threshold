@@ -21,7 +21,8 @@ function C.load()
   for _,entry in ipairs(entries) do
    for id,installation in pairs(entry.facilities or {}) do
     local def=assert(require('data.industry').facilities[installation.type or id],'unknown facility '..id)
-    for _,recipe in ipairs(def.recipes) do
+    -- (a line may make only some of its facility's recipes: src/industry.lua)
+    for _,recipe in ipairs(installation.recipes or def.recipes) do
      local c=assert(C.byId[recipe],'unknown recipe '..recipe)
      c.factory=def.policy=='profit' or c.factory
      c.adaptive=def.policy=='adaptive'

@@ -23,7 +23,7 @@ end
 local function sourceHold(game,wreck)
  if not wreck.lootHold then
   local s=wreck.ship;local hull=data.hulls[s.hull]
-  local actor={hull=hull,loadout=s.loadout,cargo=s.cargo or {},stats=Stats.compute(hull,s.loadout),def=data.enemies[wreck.archetype],
+  local actor={hull=hull,loadout=s.loadout,cargo=s.cargo or {},stats=Stats.compute(hull,s.loadout),def=require('src.npc_profile').of(wreck),
    hold=s.hold and Hold.deserialize(s.hold)}
   if actor.hold then actor.cargo=Hold.totals(actor.hold) end
   wreck.lootHold=Hold.serialize(game.huskHold(actor));wreck.salvagedSlots=actor.salvagedSlots

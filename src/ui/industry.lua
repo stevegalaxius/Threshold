@@ -1,8 +1,9 @@
 --[[
 	The Industry tab of the station screen, at stations with installed
 	facilities (src/world_layout.lua facilities, src/industry.lua). One
-	card per installation: its capacity and policy, then each recipe with
-	its share of the capacity, what it's doing now (Industry.status),
+	card per production line: its capacity and policy, whether it is a
+	shared line (one capacity split across several products) or a line of
+	its own, then each recipe with its share of the capacity, what it's doing now (Industry.status),
 	what it needs (available / on hand) and what it makes (stock / room
 	and the local price, or the ship and where it goes).
 
@@ -62,7 +63,9 @@ local function cards(game, st)
 	for _, id in ipairs(ids) do
 		local inst = I.installations(key)[id]
 		local def = I.definition(id, inst)
-		local card = { id = id, capacity = inst.capacity, policy = POLICY[def.policy] or def.policy, recipes = {} }
+		local shared = #def.recipes > 1
+		local card = { id = id, name = inst.name, capacity = inst.capacity, policy = POLICY[def.policy] or def.policy, recipes = {},
+			shared = shared, kind = shared and ("Shared line \194\183 %d products"):format(#def.recipes) or "Own line" }
 		for _, rid in ipairs(def.recipes) do
 			local c = C.byId[rid]
 			if c then
@@ -93,7 +96,7 @@ local function cards(game, st)
 end
 
 local function cardHeight(card)
-	local h = 44
+	local h = 58
 	for _, r in ipairs(card.recipes) do h = h + 46 + #r.lines * 18 + 8 end
 	return h
 end
@@ -122,17 +125,20 @@ function View.draw(game, mx, my)
 		local cx, cy, ch = x + (k - 1) * (cw + GAP), colY[k], cardHeight(card)
 		Station.panel(cx, cy, cw, ch)
 		lg.setFont(HUD.font(18)); lg.setColor(HUD.INK)
-		lg.print((card.id:gsub("_", " "):gsub("^%l", string.upper)), cx + PAD, cy + 10)
-		lg.setFont(HUD.font(13)); lg.setColor(HUD.DIM)
-		lg.printf(("%s \194\183 %g units / hour"):format(card.policy, card.capacity), cx, cy + 14, cw - PAD, "right")
-		local ry = cy + 44
+		lg.print(card.name or (card.id:gsub("_", " "):gsub("^%l", string.upper)), cx + PAD, cy + 10)
+		lg.setFont(HUD.font(13)); lg.setColor(card.shared and WAIT or GOOD)
+		lg.print(card.kind, cx + PAD, cy + 31)
+		lg.setColor(HUD.DIM)
+		lg.printf(("%s \194\183 %g units / hour%s"):format(card.policy, card.capacity, card.shared and " shared" or ""), cx, cy + 14, cw - PAD, "right")
+		local ry = cy + 58
 		for _, r in ipairs(card.recipes) do
 			lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.08)
 			lg.rectangle("fill", cx + 8, ry - 4, cw - 16, 46 + #r.lines * 18, 4, 4)
 			lg.setFont(HUD.font(15)); lg.setColor(HUD.INK)
 			lg.print(r.name, cx + PAD, ry)
 			lg.setFont(HUD.font(12)); lg.setColor(HUD.DIM)
-			lg.printf(("%d%% of capacity \194\183 %g h per batch"):format(floor(r.share * 100 + 0.5), r.time), cx, ry + 2, cw - PAD, "right")
+			lg.printf((card.shared and "%d%% of the shared capacity \194\183 %g h per batch" or "full capacity \194\183 %g h per batch"):format(
+				card.shared and floor(r.share * 100 + 0.5) or r.time, r.time), cx, ry + 2, cw - PAD, "right")
 			-- share bar
 			lg.setColor(0, 0, 0, 0.35); lg.rectangle("fill", cx + PAD, ry + 21, cw - PAD * 2, 3)
 			lg.setColor(HUD.AQUA); lg.rectangle("fill", cx + PAD, ry + 21, (cw - PAD * 2) * min(1, max(0, r.share)), 3)

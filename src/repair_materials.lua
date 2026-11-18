@@ -1,7 +1,8 @@
 -- One steel plate supplies a batch of armor repairs. The station retains
--- unused material between ships and across online/offline updates.
+-- unused material between ships and across online/offline updates. No
+-- steel, no repairs: a ship leaves with what the station's plates covered.
 local L=require('src.locations')
-local P={item='steel_plate',points=100,floor=8,emergency=.25}
+local P={item='steel_plate',points=100,floor=8}
 function P.supports(key)
  local place=L.byId[L.canonical(key)]
  return place and place.kind=='station' and L.stationServices(place.id).repair or false
@@ -15,8 +16,7 @@ function P.available(u,key)
  return S.available(u,key,P.item)*P.points+(S.record(u,key).repairMaterial or 0)
 end
 function P.duration(u,key,missing,rate)
- local normal=math.min(missing,P.available(u,key))
- return normal/rate+(missing-normal)/(rate*P.emergency)
+ return math.min(missing,P.available(u,key))/rate
 end
 function P.restore(u,key,missing,seconds,rate)
  if missing<=1e-7 or seconds<=0 then return 0 end
@@ -31,7 +31,6 @@ function P.restore(u,key,missing,seconds,rate)
   require('src.economy').consume(u,key,P.item,spent)
  end
  record.repairMaterial=math.max(0,credit+spent*P.points-funded)
- local emergency=math.min(missing-funded,math.max(0,seconds-funded/rate)*rate*P.emergency)
- return funded+emergency
+ return funded
 end
 return P

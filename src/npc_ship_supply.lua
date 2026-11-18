@@ -1,5 +1,7 @@
--- Fleet supply is an abstract wider market. Physical used lots remain shared
--- with the player; factory output influences new arrivals without capping them.
+-- Fleet supply: an arriving NPC buys a real ship off a lot in its region
+-- (new or used, the same lots the player buys from), or a faction pilot is
+-- issued one off its military yard. No lot, no arrival: ships are never
+-- made on the spot. (S.generated remains for previews and debug tools.)
 local data=require('src.data')
 local S={}
 local function config() return require('data.industry').npcShips end
@@ -21,7 +23,11 @@ function S.weight(u,hull)
  end
  return weight
 end
+-- Factory showrooms used to sell unsold ships 'wholesale' into the abstract
+-- market. With arrivals buying from lots, unsold ships just wait for a
+-- buyer (a full showroom stops the line), so this is off.
 function S.wholesale(u,key,state,def,clock)
+ if true then return end
  if not def.assembly or def.service then return end
  local interval=config().wholesaleHours*3600
  state.wholesaleAt=state.wholesaleAt or clock+interval
@@ -126,16 +132,9 @@ function S.acquire(u,area,policy,roll)
   if ship then return ship,acq end
   return nil
  end
- if fleet then
-  local p={};for k,v in pairs(policy) do p[k]=v end;p.hulls=fleet
-  local ship,acq=S.generated(u,p,roll,area)
-  if ship then return ship,acq end
- end
- if roll()<config().usedChance then
-  local candidate=require('src.dealers').purchaseCandidate(u,area,policy,true)
-  if candidate then return require('src.dealers').ship(candidate.lot),{source='used',candidate=candidate} end
- end
- return S.generated(u,policy,roll,area)
+ local candidate=require('src.dealers').purchaseCandidate(u,area,policy,false)
+ if candidate then return require('src.dealers').ship(candidate.lot),{source='used',candidate=candidate} end
+ return nil
 end
 -- Take a finished hull for `faction` off its military yard. policy.hulls
 -- narrows the choice (a flagship asks for its one hull); policy.requires
@@ -171,10 +170,10 @@ function S.complete(u,r,acquisition,policy)
   assert(require('src.dealers').buyForNpc(u,r,acquisition.candidate,policy),'arrival ship sale changed during creation')
   r.shipAcquisition.source='used'
  else
+  -- issued off a faction yard: the faction pays, the pilot starts with
+  -- the same pocket money as anyone
   r.shipAcquisition=acquisition
-  r.credits=(r.credits or 0)+policy.budget-acquisition.price
-  require('src.simulation_history').note(u,'npc_ship_generated',u.clock,r.area,{r.id},
-   {hull=r.ship.hull,price=acquisition.price,weight=acquisition.weight,fit=acquisition.fit})
+  r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
  end
 end
 return S

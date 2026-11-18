@@ -12,10 +12,8 @@
 	  * a dealer wants a delivery for each hull on its list it has no lot
 	    of, sourced from any shipyard with that hull on its lot
 
-	A dealer with a delivery posted holds off conjuring that ship from
-	nowhere (its old restock) for T.shipDeliveryPatience game hours; if no
-	hauler has taken it by then, the restock goes ahead, so a world with no
-	haulers still keeps its lots stocked.
+	Deliveries are the only way a dealer that doesn't build ships restocks
+	(past its opening stock): nothing is conjured if no hauler comes.
 ]]
 local Tasks = require("src.tasks")
 local L = require("src.locations")

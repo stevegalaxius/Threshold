@@ -1402,7 +1402,7 @@ function Game:updateDocking(dt)
 			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
-			local trader = e.def and e.def.ai.style == "trader" or (e.alifeId and e.route ~= nil)
+			local trader = e.def and e.def.ai.style == "civilian" or (e.alifeId and e.route ~= nil)
 			if (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
@@ -2381,7 +2381,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	-- (nor from a station's own drones, whose strays can clip it)
 	if e and e.grudge and source and source.kind == "ship" and amount > 0 and cause ~= "ram"
 		and not (source.drone and source.owner and source.owner.kind == "station")
-		and not (source.def and source.def.ai and source.def.ai.style == "trader") then
+		and not (source.def and source.def.ai and source.def.ai.style == "civilian") then
 		e.grudge[source] = self.time
 	end
 	-- the player's aggression is remembered: heat at a station it shoots,

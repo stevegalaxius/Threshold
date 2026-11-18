@@ -604,7 +604,7 @@ function AI.think(game, e, dt)
    return require('src.npc').thinkWork(game,e,dt,AI)
   end
  else
-  if ai.style=='trader' then return trade(game,e,dt) end
+  if ai.style=='civilian' then return trade(game,e,dt) end
   target=pickTarget(game,e,x,y)
  end
  e.aiCombat=target and not target.dead
@@ -689,7 +689,7 @@ function AI.think(game, e, dt)
 	-- Self-preservation: a badly damaged ship backs off to well past its
 	-- preferred range and fights from there.
 	local hurt = e.armor < e.stats.armor * 0.35
-	local style = (hurt or ai.style=="trader") and "kite" or ai.style
+	local style = (hurt or ai.style=="civilian") and "kite" or ai.style
 
 	-- Where it wants to go, in world space.
 	local r = hurt and ai.range * 1.8 or ai.range

@@ -34,9 +34,11 @@ local profiles={}
 function S.targets(r,e)
  local ship=r.ship;local hull=e and e.hull or data.hulls[ship.hull]
  local loadout=e and e.loadout or ship.loadout or hull.loadout
- local key=(r.archetype or '')..':'..#data.list.items
+ local key=(r.aiProfile or r.archetype or '')..':'..#data.list.items
  for i=1,#hull.slots do key=key..'/'..tostring(loadout[i])..':'..tostring((e and e.loads or ship.loads or {})[i]) end
- local preset=data.enemies[r.archetype] or {}
+ -- an explicit reserve (a garrison's enemy preset) wins; everyone else
+ -- carries what its own guns need
+ local preset=r.archetype and data.enemies[r.archetype] or {}
  local reserve=r.ammoReserve or preset.ammoReserve
  if not reserve and profiles[key] then return profiles[key] end
  local rates,targets,salvo={},{},{}

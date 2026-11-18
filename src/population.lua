@@ -200,7 +200,9 @@ function P.spawn(game,area,role,nearPlayer)
  game.arrivalShip=nil
  if not r then return nil,'No starting work for '..role..'.' end
  Supply.complete(game.universe,r,acquisition,policy)
- if def.provision then def.provision(game,r) else require('src.supplies').provision(r) end
+ -- (arrivals come with what was aboard the lot: they buy the rest at
+ -- their first dock, like anyone)
+ if def.provision then def.provision(game,r) end
  local A=require('src.alife')
  r.spawnedAt=clock
  local edge,why=false,'debug arrival'

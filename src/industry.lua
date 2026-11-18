@@ -29,7 +29,26 @@ function I.initial(key)
  end
  return out
 end
-function I.definition(id,installation) return assert(D.facilities[installation.type or id],'unknown facility '..id) end
+-- A station's installations are its production lines. One installation
+-- shares its capacity across every recipe its facility type makes; a
+-- station that wants separate lines installs the type more than once under
+-- different ids, each with type = the facility and recipes = the ones that
+-- line makes (its own full capacity), e.g.
+--   chemicals_fertilizer = { type = 'chemicals', recipes = { 'make_fertilizer' }, capacity = 160 }
+local lines=setmetatable({},{__mode='k'})
+function I.definition(id,installation)
+ local def=assert(D.facilities[installation.type or id],'unknown facility '..id)
+ if not installation.recipes then return def end
+ local line=lines[installation]
+ if line then return line end
+ local allowed={};for _,r in ipairs(def.recipes) do allowed[r]=true end
+ for _,r in ipairs(installation.recipes) do assert(allowed[r],('line %s: %s is not made by %s'):format(id,r,installation.type or id)) end
+ line=setmetatable({recipes=installation.recipes},{__index=def})
+ lines[installation]=line
+ return line
+end
+-- Does this line share its capacity across several recipes?
+function I.shared(id,installation) return #I.definition(id,installation).recipes>1 end
 function I.state(u,key,id)
  u.facilities=u.facilities or {};local k=key..'|'..id
  if not u.facilities[k] then

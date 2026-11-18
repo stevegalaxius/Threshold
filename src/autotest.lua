@@ -428,7 +428,7 @@ function A.update(game, dt)
 		A.boxesBefore = boxes
 		game:eject(w, "cargo_container", 1)
 		for _, e in ipairs(game.entities) do
-			if e.kind == "ship" and e.def and e.def.id == "freighter" then
+			if e.kind == "ship" and e.alifeId and e.def and e.def.id == "hauler" then
 				-- Haulers spawn empty, so load one container as a job would.
 				local H = require("src.inventory.hold")
 				local item = require("src.data").items.cargo_container

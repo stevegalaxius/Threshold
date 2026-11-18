@@ -126,15 +126,16 @@ end
 
 local function create(game,area,role,node,clock,start)
  local u=game.universe
- local archetype=require('src.npc_templates')[role].archetype
- local def=data.enemies[archetype];local hull=data.hulls[def.hull]
+ local profile=require('src.npc_profile').forJob(require('src.npc_templates')[role].job)
+ local def=data.npcProfiles[profile];local hull=data.hulls[def.hull]
  local loadout=copy(def.loadout or hull.loadout)
  local stats=Stats.compute(hull,loadout)
  u.nextNpcId=u.nextNpcId+1
- local r={id='npc/'..u.nextNpcId,home=area,area=area,archetype=archetype,
-  speed=NPC.cruise(archetype),spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
-  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor}}
+ local r={id='npc/'..u.nextNpcId,home=area,area=area,aiProfile=profile,
+  spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
+  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
+ r.speed=NPC.cruise(r.ship)
  require('src.npc_templates').apply(r,role,area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)
@@ -334,8 +335,8 @@ end
 -- out to the hunting grounds with the most prey for the fewest raiders. So a
 -- base that fences a lot of fuel launches more; one starved of it stops.
 local function fuelFor()
- local def=data.enemies[require('src.npc_templates').pirate.archetype]
- local need=Supplies.targets({archetype=def.id,ship={hull=def.hull,loadout=def.loadout or data.hulls[def.hull].loadout}})
+ local def=data.npcProfiles.raider
+ local need=Supplies.targets({aiProfile=def.id,ship={hull=def.hull,loadout=def.loadout or data.hulls[def.hull].loadout}})
  return math.max(1,need[require('src.reactor_fuel').item()] or 1)
 end
 function S.berths(u,station)

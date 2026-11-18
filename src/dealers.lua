@@ -112,9 +112,12 @@ function D.rollUsed(def,state)
  local policy=require('data.industry').usedShips
  local pool=policy.presets
  if policy.rarePresets and rand(1000)<=(policy.rareChance or 0)*1000 then pool=policy.rarePresets end
- local preset=data.enemies[pool[rand(#pool)]]
- local lot=D.roll({hulls={preset.hull},trims={'stock'},markup=policy.markup},state,preset.hull)
- lot.loadout=copy(preset.loadout or data.hulls[preset.hull].loadout)
+ -- a hull id (stock fit), or an NPC profile id (its hull and fit)
+ local pick=pool[rand(#pool)]
+ local profile=data.npcProfiles[pick]
+ local hull=profile and profile.hull or pick
+ local lot=D.roll({hulls={hull},trims={'stock'},markup=policy.markup},state,hull)
+ lot.loadout=copy(profile and profile.loadout or data.hulls[hull].loadout)
  lot.used=true;lot.condition=policy.minCondition+(policy.maxCondition-policy.minCondition)*rand(1000)/1000
  lot.trimName='Used';lot.price=D.price(data.hulls[lot.hull],lot.loadout,policy.markup*lot.condition)
  local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
@@ -159,7 +162,10 @@ function D.update(u,key,clock)
  local SD=require('src.ship_delivery')
  -- (the board of ship deliveries, refreshed every ten game minutes)
  if clock>=(u.shipDeliveryRefresh or 0) then u.shipDeliveryRefresh=clock+600;SD.refresh(u,clock) end
- if D.buildsShips(key) then return end
+ -- Past its opening stock, a lot only gets ships that exist: a factory's
+ -- output (D.output), a hauler's delivery (src/ship_delivery.lua) or a
+ -- ship sold to it (D.resell). It never makes ships up.
+ if true then return end
  local policy=require('data.industry').usedShips
  local step=(def.restock or policy.intervalHours)*HOUR
  s.next=s.next or clock+step
@@ -305,7 +311,10 @@ function D.buyForNpc(u,r,candidate,policy)
  if lot~=candidate.lot then return false end
  D.take(u,candidate.station,lot.id)
  r.shipAcquisition={station=candidate.station,lot=lot.id,price=lot.price,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}
- r.credits=(r.credits or 0)+policy.budget-lot.price
+ -- the budget only caps what it can buy; the price goes to the station,
+ -- and the pilot starts with pocket money, not the change from a budget
+ r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
+ require('src.economy').ledger(u,candidate.station,'sold',lot.price,'ship:'..lot.hull)
  require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=lot.price,lot=lot.id},candidate.station)
  return true
 end

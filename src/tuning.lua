@@ -247,6 +247,7 @@ T.flagshipRebuild = 1800     -- s before a lost flagship is replaced
 T.couriersPerSystem = 1      -- faction couriers per owned planet with a service fleet
 T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the area
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
+T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
 T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
@@ -259,7 +260,8 @@ T.raidShortageBias=.25
 -- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
 T.pirateBerths={max=6,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
-T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
+T.npcCruise,T.npcCruiseSpread=650,.15
+T.npcCruiseReferenceHull='ferrous_mule' -- the hull that cruises at exactly T.npcCruise (stock fit)
 T.directLinkAngle=math.pi*.8 -- NPCs fly straight (round the planet) between nodes up to this far apart (at 2/3 pi,
 -- two stations just past it with nothing between went the long way round);
 -- kept well short of half the planet, where 'which way round' flips frame to frame
