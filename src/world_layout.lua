@@ -77,7 +77,7 @@ W.stations = {
 	},
 	callisto = {
 		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port" },
-		{ id = "station:callisto_2", facilities={chemicals={capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station" },
+		{ id = "station:callisto_2", facilities={chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station" },
 		{ id = "station:callisto_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:callisto_3", name = "Callisto Customs", layout = "customs_1", customs = true },
 	},
 	saturn = {
@@ -93,11 +93,11 @@ W.stations = {
 	},
 	titan = {
 		{ id = "station:titan_1", food = {use=64}, facilities={use_medical={capacity=-4},produce_nitrates={capacity=340,surface=true},farm={capacity=960}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },
-		{ id = "station:titan_2", facilities={reactors_works={capacity=1},chemicals={capacity=320},pyrotechnics={capacity=24}}, services = { "market", "shipyard", "hangar" }, marketId = "market:titan_2", spin = -0.05, phase = 2.3415926535897933, name = "Abaddon", layout = "diwan_works"   },
-		{ id = "station:titan_3", facilities={launchers_works={capacity=2},guided_munitions={capacity=48}}, marketId = "market:titan_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Gilgal Arsenal", layout = "diwan_works" },
+		{ id = "station:titan_2", facilities={reactors_works={capacity=1},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=320},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=320},pyrotechnics={capacity=24}}, services = { "market", "shipyard", "hangar" }, marketId = "market:titan_2", spin = -0.05, phase = 2.3415926535897933, name = "Abaddon", layout = "diwan_works"   },
+		{ id = "station:titan_3", facilities={launchers_works={capacity=2},guided_missiles={type='guided_munitions',name='Missile line',recipes={'make_missile_s','make_missile_m','make_missile_l'},capacity=48},guided_torpedoes={type='guided_munitions',name='Torpedo line',recipes={'make_torp_s','make_torp_m','make_torp_l'},capacity=48}}, marketId = "market:titan_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Gilgal Arsenal", layout = "diwan_works" },
 	},
 	titania = {
-		{ id = "station:titania_1", facilities={ice_wells={capacity=600,surface=true},process_nitrates={capacity=80},chemicals={capacity=160}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
+		{ id = "station:titania_1", facilities={ice_wells={capacity=600,surface=true},process_nitrates={capacity=80},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
 	},
 	uranus = {
 		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=60}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
@@ -128,7 +128,7 @@ W.stations = {
 	-- lap every 30 minutes.
 	shoals = {
 		{ id = "station:shoals_1", position = { x = 0, y = -13000, rate = T_SHOALS }, facilities={roll_steel={capacity=240},press_canisters={capacity=600},water_melter={capacity=160}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
-		{ id = "station:shoals_2", facilities={ammunition={capacity=12},process_nitrates={capacity=80},chemicals={capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
+		{ id = "station:shoals_2", facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=12},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=12},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=12},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=12},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=12},process_nitrates={capacity=80},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
 		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -11258, y = 6500, rate = T_SHOALS }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
 	},
 	-- Antichthon: the pirates' hydroponics farm, on Earth's orbit behind the Sun.
@@ -156,7 +156,7 @@ W.stations = {
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
 W.defaults={marketId='market:venus_1',waterUse=16,foodUse=32,foodReserveHours=4}
-W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammunition={capacity=24},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
+W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=24},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=24},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=24},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=24},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=24},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
 W.aliases={
