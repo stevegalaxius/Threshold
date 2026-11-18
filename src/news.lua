@@ -230,18 +230,22 @@ local function template(o,kind,seed)
 end
 local function pct(ratio) return ('%+d%%'):format(math.floor((ratio-1)*100+.5)) end
 
--- Put a story in the feed. Fills in id, clock and a headline from the
--- outlet's templates when none is given. Returns the story.
+-- A story's headline. Authored ones (quests, notices) carry their own;
+-- the rest are filled from the outlet's templates each time they're read,
+-- so edits to data/outlets.lua show up in stories already printed.
+function N.headline(st)
+ if st.headline then return st.headline end
+ local vars={good=st.good and itemName(st.good),station=st.station and placeName(st.station),
+  area=st.area and areaName(st.area),pct=st.reported and pct(st.reported),who=st.who,faction=factionName(st.faction)}
+ return fill(template(st.outlet,st.kind,st.pick or 0),vars)
+end
+-- Put a story in the feed. Fills in id and clock. Returns the story.
 function N.publish(u,st)
  local s=N.state(u)
  s.nextId=s.nextId+1
  st.id='story/'..s.nextId;st.clock=st.clock or u.clock or 0
  st.faction=st.faction or (st.station and Rep().ofNode(st.station))
- if not st.headline then
-  local vars={good=st.good and itemName(st.good),station=st.station and placeName(st.station),
-   area=st.area and areaName(st.area),pct=st.reported and pct(st.reported),who=st.who,faction=factionName(st.faction)}
-  st.headline=fill(template(st.outlet,st.kind,s.nextId),vars)
- end
+ st.pick=st.pick or s.nextId
  s.stories[#s.stories+1]=st
  while #s.stories>N.T.keep do table.remove(s.stories,1) end
  N.tell(u,st)
@@ -576,7 +580,7 @@ function N.tell(u,st)
  local reading=false
  for _,o in ipairs(N.reading(u,key)) do if o==st.outlet then reading=true end end
  if not (reading or st.notice) then return end
- require('src.notify').post(u,{kind=st.notice and 'subscription' or 'news',title=Outlets.outlets[st.outlet].name,text=st.headline})
+ require('src.notify').post(u,{kind=st.notice and 'subscription' or 'news',title=Outlets.outlets[st.outlet].name,text=N.headline(st)})
 end
 
 ---------------------------------------------------------------- subscriptions

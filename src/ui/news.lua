@@ -80,7 +80,7 @@ function View.draw(game)
    if st.notice then tags[#tags+1]='notice' end
    lg.print(table.concat(tags,'  \194\183  '),x+120,ry+6)
    lg.setFont(HUD.font(15));lg.setColor(st.subject=='player' and HUD.WARN or HUD.INK)
-   lg.printf(st.headline or '',x+18,ry+24,w-40,'left')
+   lg.printf(News.headline(st),x+18,ry+24,w-40,'left')
   end
   ry=ry+rowH
  end
