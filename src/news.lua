@@ -312,9 +312,22 @@ local function playerWho(u,named)
  return hull and ('an unknown '..hull) or 'unknown raiders'
 end
 
+-- Deeds are kept once, in s.deeds, and stories point at them by id, so
+-- every story about one deed shares one record of who has heard (and a
+-- save, which copies tables apart, can't split it).
+local function findDeed(s,id)
+ if not id then return nil end
+ for i=#s.deeds,1,-1 do if s.deeds[i].id==id then return s.deeds[i] end end
+end
+local function addDeed(s,deed)
+ s.nextDeed=(s.nextDeed or 0)+1;deed.id=s.nextDeed
+ s.deeds[#s.deeds+1]=deed
+ while #s.deeds>60 do table.remove(s.deeds,1) end
+ return deed
+end
 -- Apply a story about a player deed to every faction that reads it.
 local function report(u,st)
- local deed=st.deed;if not deed or not st.named then return end
+ local deed=findDeed(N.state(u),st.deedId);if not deed or not st.named then return end
  deed.applied=deed.applied or {}
  local weight=st.secondhand and N.T.secondhandWeight or 1
  local mood=N.mood(u,st.outlet)
@@ -356,8 +369,7 @@ end
 function N.deed(u,deed)
  local s=N.state(u)
  deed.clock=u.clock or 0
- s.deeds[#s.deeds+1]=deed
- while #s.deeds>40 do table.remove(s.deeds,1) end
+ addDeed(s,deed)
  -- the victim's paper takes it personally
  local o=N.ofFaction(deed.faction)
  if o and deed.delta<0 then N.addStanding(u,o,deed.delta*.5) end
@@ -378,7 +390,7 @@ local function deedStories(u,s,clock)
      any=true
      local named=rng(u)<naming(u,o,true)
      report(u,N.publish(u,{outlet=o,kind=deed.delta<0 and 'killed' or 'praise',area=deed.area,faction=deed.faction,
-      who=playerWho(u,named),named=named,subject='player',deed=deed}))
+      who=playerWho(u,named),named=named,subject='player',deedId=deed.id}))
     end
    end
    -- nobody's beat: the everywhere outlets may still hear of it
@@ -387,13 +399,13 @@ local function deedStories(u,s,clock)
      if Outlets.outlets[o].everywhere and rng(u)<N.T.secondhandOdds then
       local named=rng(u)<naming(u,o,false)
       report(u,N.publish(u,{outlet=o,kind=deed.delta<0 and 'killed' or 'praise',area=deed.area,faction=deed.faction,
-       who=playerWho(u,named),named=named,subject='player',deed=deed,secondhand=true}))
+       who=playerWho(u,named),named=named,subject='player',deedId=deed.id,secondhand=true}))
      end
     end
    end
   end
  end
- for i=#s.deeds,1,-1 do if clock-s.deeds[i].clock>N.T.storyLife then table.remove(s.deeds,i) end end
+ for i=#s.deeds,1,-1 do if clock-s.deeds[i].clock>N.T.storyLife*1.5 then table.remove(s.deeds,i) end end
 end
 
 -- NPC killings of faction ships on an outlet's beat. If the killer flew
@@ -414,7 +426,7 @@ local function deathStories(u,s,o,since,clock)
    local st={outlet=o,kind='killed',area=e.area,faction=f,fact=e.id}
    if blame then
     st.who=playerWho(u,true);st.named=true;st.subject='player';st.blamed=true
-    st.deed={faction=f,delta=N.T.blameHit,area=e.area,clock=clock}
+    st.deedId=addDeed(s,{faction=f,delta=N.T.blameHit,area=e.area,clock=clock,printed=true,blamed=true}).id
    else
     local hd=hull and require('src.data').hulls[hull]
     st.who=hd and ('a '..hd.name) or 'raiders'
@@ -438,7 +450,7 @@ local function copyStories(u,s,o,clock)
     local odds=d.everywhere and .8 or N.T.secondhandOdds
     if rng(u)<odds then
      local c={outlet=o,kind=st.kind,area=st.area,station=st.station,good=st.good,faction=st.faction,
-      secondhand=true,from=st.outlet,subject=st.subject,deed=st.deed,blamed=st.blamed}
+      secondhand=true,from=st.outlet,subject=st.subject,deedId=st.deedId,blamed=st.blamed}
      if st.reported then c.reported=spin(o,st.good,st.reported,st.station) end
      if st.kind=='shortage' or st.kind=='glut' then
       if c.reported then c.kind=c.reported>=1 and 'shortage' or 'glut' end
