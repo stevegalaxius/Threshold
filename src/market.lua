@@ -379,6 +379,9 @@ function Game:completeTrade(st, trade)
 	end
 	u.credits = u.credits + get - pay
 	p.cargo = Hold.totals(p.hold)
+	local sold = {}
+	for _, s in ipairs(selling) do if not ShipEntry.item(s.id) then sold[s.id] = (sold[s.id] or 0) + s.n end end
+	events.emit("trade", st, sold)
 	Ship.updateMass(p)
  for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end
  for _,rec in ipairs(records) do events.emit("buyship",rec,st) end

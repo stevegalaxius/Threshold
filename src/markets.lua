@@ -18,9 +18,14 @@ function C.floats(key,item)
  return C.items[item] or (key~=nil and require('src.dark').isDarkNode(key)) or false
 end
 function C.state(u) u.markets=u.markets or {prices={},bids={}};return u.markets end
+-- The quoted price: the stock-driven multiplier, times what the news has
+-- done to it here (src/news.lua: speculation on stories, quest shocks).
+local News=require('src.news')
 function C.price(u,key,item)
- local s=C.state(u);local prices=s.prices[L.canonical(key)]
+ key=L.canonical(key)
+ local s=C.state(u);local prices=s.prices[key]
  local multiplier=prices and prices[item] or 1
+ if u.news then multiplier=multiplier*News.factor(u,key,item) end
  return math.floor(require('src.data').items[item].price*multiplier*100+.5)/100
 end
 -- Where a station sits in its system's supply chain bends its price:
