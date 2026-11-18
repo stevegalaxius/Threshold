@@ -73,7 +73,7 @@ function Repair.draw(game, mx, my)
 	local available=P.available(game.universe,st.key or st.locationId)
 	lg.setFont(HUD.font(11))
 	lg.print(('Steel on hand: %.1f plates | 1 plate / %d armor | %s'):format(available/P.points,P.points,
-	 available>0 and 'normal repair speed' or 'emergency repairs at quarter speed'),L.x+PAD,L.y+35)
+	 available>0 and 'repairs available' or 'no steel: no repairs until a delivery'),L.x+PAD,L.y+35)
 
 	local total = 0
 	for _, r in ipairs(L.rows) do
