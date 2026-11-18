@@ -172,7 +172,7 @@ function A.createTrader(game,area,i,group)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
- require('src.npc_templates').apply(r,group or 'trader',area)
+ require('src.npc_templates').apply(r,group or 'hauler',area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)
  -- Every trader works the dispatch board (transport jobs to other regions,
@@ -1279,9 +1279,14 @@ Population.register('courier',{
   return r
  end,
 })
-Population.register('trader',{
- -- the area's base, plus whatever the arbiter says its open hauls need
- target=function(f,area) return L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) end,
+local function berths(area) return require('src.ship_delivery').berthsWanted(area) end
+Population.register('hauler',{
+ -- the area's base, plus whatever the arbiter says its open hauls need,
+ -- plus a ship-delivery hauler where a shipyard sells new ships
+ target=function(f,area)
+  local n=L.station(area,'trade') and f.alifeTraders and f.alifeTraders+require('src.arbiter').extraTraders(area) or 0
+  return n+berths(area)
+ end,
  -- the whole fleet stays within the areas' bases plus the arbiter's extras,
  -- however the free agents have spread out
  budget=function()
@@ -1289,8 +1294,17 @@ Population.register('trader',{
   for _,area in ipairs(Fields.list) do
    local f=Fields[area]
    if not f.instance and not f.transit and L.station(area,'trade') and f.alifeTraders then n=n+f.alifeTraders+require('src.arbiter').extraTraders(area) end
+   if not f.instance and not f.transit then n=n+berths(area) end
   end
   return n
+ end,
+ -- the next arrival flies a berth hull while the area is short of one
+ purchase=function(game,area)
+  local Templates=require('src.npc_templates')
+  if berths(area)>require('src.ship_delivery').berthHaulers(game.universe,area) then
+   game.arrivalBerths=true;return Templates.berthPurchase
+  end
+  game.arrivalBerths=nil;return Templates.purchase('hauler')
  end,
  nodes=function(game,area)
   local f=Fields[area]
@@ -1299,6 +1313,7 @@ Population.register('trader',{
  create=function(game,area,node,clock)
   local u=game.universe
   local r=A.createTrader(game,area,u.nextNpcId+1)
+  if game.arrivalBerths then r.workProfile='ship_hauler';game.arrivalBerths=nil end
   -- Keep one dispatch worker available when its previous ship was lost.
   if area~='mars' and Fields[area].driverId then
    local dispatch=false

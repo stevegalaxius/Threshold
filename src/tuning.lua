@@ -286,11 +286,10 @@ T.alifeWreckLifetime = 1800
 T.population = {
  -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
  pirate={minDelay=180,maxDelay=300},
- trader={minDelay=180,maxDelay=300},
+ hauler={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  courier={minDelay=240,maxDelay=420},
  miner={minDelay=180,maxDelay=300},
- ship_hauler={minDelay=240,maxDelay=420},
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail

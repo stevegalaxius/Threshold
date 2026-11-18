@@ -5,7 +5,8 @@
 
 	Everything here reads the data, so new hull designs need no edits:
 	  * a hauler is any NPC whose hull has berths (capability "berths");
-	    the ship_hauler population buys whichever such hull it can afford
+	    a hauler bought for delivery (workProfile ship_hauler) buys whichever
+	    such hull it can afford
 	  * a delivery fits a hauler when some free berth of its hull takes the
 	    ship's hull (Berths.fits: length and width)
 	  * a dealer wants a delivery for each hull on its list it has no lot
@@ -199,27 +200,27 @@ Tasks.register("ship_delivery", {
 	end,
 })
 
--- The hauler population: one per area that has a shipyard building ships
--- for sale, while any shop sells what they build.
-require("src.population").register("ship_hauler", {
-	target = function(f, area)
-		if not L.station(area, "trade") then return 0 end
-		local factories, shops = stations()
-		if #shops == 0 then return 0 end
-		for _, key in ipairs(factories) do
-			if L.byId[key] and L.byId[key].area == area then return 1 end
-		end
-		return 0
-	end,
-	nodes = function(game, area)
-		local f = require("src.fields")[area]
-		return #f.buoyIds > 0 and f.buoyIds or f.stationIds
-	end,
-	create = function(game, area, node, clock)
-		local u = game.universe
-		local r = require("src.alife").createTrader(game, area, u.nextNpcId + 1, "ship_hauler")
-		return r
-	end,
-})
+-- Ship-delivery berths an area wants among its haulers: one where a
+-- shipyard builds ships for sale, while any shop sells what they build.
+-- (The hauler population in src/alife.lua adds these to its target and
+-- buys a berth hull for the next arrival while they're missing.)
+function SD.berthsWanted(area)
+	if not L.station(area, "trade") then return 0 end
+	local factories, shops = stations()
+	if #shops == 0 then return 0 end
+	for _, key in ipairs(factories) do
+		if L.byId[key] and L.byId[key].area == area then return 1 end
+	end
+	return 0
+end
+-- Haulers homed here working ship delivery.
+function SD.berthHaulers(u, area)
+	local n = 0
+	for _, r in pairs(u.npcs or {}) do
+		if r.populationGroup == "hauler" and r.workProfile == "ship_hauler" and r.home == area
+			and r.state ~= "dead" and r.state ~= "escaped" then n = n + 1 end
+	end
+	return n
+end
 
 return SD

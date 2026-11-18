@@ -9,7 +9,10 @@
 -- Salvage is board work any hauler can take (workProfile 'scavenger' is a
 -- hauler's temperament, not a job), so there is no salvager population.
 local Templates={
- trader={job='hauler',network='white',purchase={role='trader',budget=300000,minCargo=4,requires={cargo=true}},label='Trader',
+ -- Haulers: the civilian freight fleet. They carry what the board offers
+ -- (freight, salvage, satellite runs); one flying a hull with berths
+ -- moves new ships to dealer lots too (src/ship_delivery.lua).
+ hauler={job='hauler',network='white',purchase={role='hauler',budget=300000,minCargo=4,requires={cargo=true}},label='Hauler',
   -- temperament: most haulers prefer freight, some prefer sweeping wrecks
   profiles={{'freight_regular',4},{'scavenger',1}},homePurpose='trade',mobile=true},
  miner={job='miner',network='white',purchase={role='miner',budget=150000,requires={cargo=true,drill=true}},label='Miner',profile='industrial',homePurpose='mining'},
@@ -22,17 +25,24 @@ local Templates={
 -- Faction couriers: the faction's own errand runners. Same service hulls
 -- and colours as its police, but ordinary freight work, so police never
 -- haul and the faction still moves its own goods.
-Templates.courier={job='hauler',network='white',purchase={role='trader',budget=300000,minCargo=4,requires={cargo=true},faction='$owner',
+Templates.courier={job='hauler',network='white',purchase={role='hauler',budget=300000,minCargo=4,requires={cargo=true},faction='$owner',
  fleets=Templates.patrol.purchase.fleets},label='Faction Courier',profile='freight_regular',homePurpose='trade',mobile=true,affiliation='$owner'}
--- Ship haulers buy any hull with berths (src/berths.lua) and move new
--- ships from the shipyards to dealer lots (src/ship_delivery.lua).
-Templates.ship_hauler={job='hauler',network='white',purchase={role='trader',budget=400000,requires={berths=true}},label='Ship Hauler',
- profile='ship_hauler',homePurpose='trade',mobile=true}
+-- A hauler bought for ship delivery: any hull with berths (src/berths.lua),
+-- and a temperament for moving ships. Same population, same label.
+Templates.berthPurchase={role='hauler',budget=400000,requires={berths=true}}
 Templates.JOBS={hauler=true,miner=true,raider=true,guard=true}
 Templates.NETWORKS={white=true,dark=true}
 -- Older saves: the retired salvager group becomes a scavenging hauler.
-Templates.RETIRED={salvager={group='trader',profile='scavenger'}}
+Templates.RETIRED={salvager={group='hauler',profile='scavenger'},
+ trader={group='hauler'},ship_hauler={group='hauler',profile='ship_hauler'}}
 function Templates.purchase(name) return assert(Templates[name]).purchase end
+-- What a ship has to be able to do for this NPC's work: a ship-delivery
+-- hauler needs berths, not a hold.
+function Templates.purchaseFor(r)
+ if r.workProfile=='ship_hauler' then return Templates.berthPurchase end
+ local t=Templates[r.populationGroup]
+ return t and t.purchase
+end
 -- Deterministic temperament pick from a template's weighted profiles.
 local function profileFor(t,id)
  if not t.profiles then return t.profile end

@@ -48,11 +48,11 @@ local function keeps(r,hull,loadout)
  return M.keeps(r,hull,loadout)
 end
 function M.keeps(r,hull,loadout)
- local T=r.populationGroup and require('src.npc_templates')[r.populationGroup]
- local need=T and T.purchase and T.purchase.requires or {}
+ local P=r.populationGroup and require('src.npc_templates').purchaseFor(r)
+ local need=P and P.requires or {}
  local s=require('src.stats').compute(hull,loadout)
  if s.thrust<=0 or s.powerOut<=0 then return false end
- if T and T.purchase.minCargo and s.hold<T.purchase.minCargo then return false end
+ if P and P.minCargo and s.hold<P.minCargo then return false end
  local caps=require('src.npc_access').capabilities({ship={hull=hull.id,loadout=loadout}})
  for name in pairs(need) do if not caps[name] then return false end end
  return true

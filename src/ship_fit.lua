@@ -16,7 +16,7 @@ local SIZE={S=1,M=2,L=4}
 
 -- What each job values. Weights are relative; missing stats count zero.
 F.profiles={
- trader  ={hold=1,   armor=.3, agility=.3, firepower=.1},
+ hauler  ={hold=1,   armor=.3, agility=.3, firepower=.1},
  miner   ={drill=1,  hold=.6, armor=.2},
  salvager={hold=.6,  firepower=.5, armor=.4, agility=.2},
  patrol  ={firepower=1, armor=.6, agility=.5},
@@ -50,7 +50,7 @@ function F.metrics(hull,loadout)
 end
 
 local function weights(role,danger)
- local p=F.profiles[role] or F.profiles.trader;local w={}
+ local p=F.profiles[role] or F.profiles.hauler;local w={}
  for k,v in pairs(p) do w[k]=v end
  for k,v in pairs(F.dangerWeights) do w[k]=(w[k] or 0)+v*(danger or 0) end
  return w
