@@ -227,6 +227,7 @@ function N.publish(u,st)
  local s=N.state(u)
  s.nextId=s.nextId+1
  st.id='story/'..s.nextId;st.clock=st.clock or u.clock or 0
+ st.faction=st.faction or (st.station and Rep().ofNode(st.station))
  if not st.headline then
   local vars={good=st.good and itemName(st.good),station=st.station and placeName(st.station),
    area=st.area and areaName(st.area),pct=st.reported and pct(st.reported),who=st.who,faction=factionName(st.faction)}
