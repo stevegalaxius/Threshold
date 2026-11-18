@@ -981,7 +981,7 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		for _, t in ipairs(tabs or {}) do
 			if inRect(t, mx, my) then Cargo.spaceTab = t.id; return true end
 		end
-		if tabs and Cargo.spaceTab == "reputation" then return true end
+		if tabs and Cargo.spaceTab == "reputation" then return require("src.ui.reputation").mousepressed(game, mx, my, button) end
   if tabs and Cargo.spaceTab == "news" then return NewsView.mousepressed(game,mx,my,button) end
   if tabs and Cargo.spaceTab == "contracts" then return Contracts.mousepressed(game,mx,my,button) end
   if tabs and Cargo.spaceTab == "jobs" then return Jobs.mousepressed(game,mx,my,button) end
@@ -1952,7 +1952,7 @@ function Cargo.draw(game)
   end
 		if Cargo.tab == "news" then
    NewsView.draw(game)
-   Station.footer('What the papers carried here are saying. Every outlet leans toward what its owner sells.', 'Stories move prices here for a while \194\183 Subscribe to read an outlet anywhere \194\183 In flight you see what you received at your last dock \194\183 Mouse wheel scrolls')
+   Station.footer('What the papers carried here are saying. Every outlet leans toward what its owner sells.', 'Stories move prices here for a while \194\183 Subscribe on the Reputation screen to read an outlet anywhere \194\183 Mouse wheel scrolls')
    return
   end
 		if Cargo.tab == "contracts" then

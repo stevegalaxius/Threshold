@@ -11,7 +11,8 @@
 	            then it prints a rumour with nothing behind it.
 	  coverage  a station carries its owner's outlet plus any outlet read
 	            everywhere (the Beltway). The player can subscribe to more.
-	            In flight the feed is what was received at the last dock.
+	            Docked or in flight, you read what's carried where you are
+	            (the station, or the system you're flying in).
 	  prices    a story nudges the price of its good at the stations in its
 	            area that carry the outlet: speculation. The nudges decay and
 	            are capped at T.nudgeCap together. Markets.price reads them,
@@ -63,7 +64,7 @@ local function Rep() return require('src.reputation') end
 function N.state(u)
  local s=u.news
  if not s then
-  s={stories={},nextId=0,nudges={},shocks={},outlets={},subs={},deeds={},feed={}}
+  s={stories={},nextId=0,nudges={},shocks={},outlets={},subs={},deeds={}}
   u.news=s
  end
  return s
@@ -504,35 +505,28 @@ end
 
 ---------------------------------------------------------------- the player's view
 
--- Outlets the player can read right now: the docked station's, plus
--- subscriptions. In flight, what was received at the last dock.
-function N.reading(u,nodeId)
- local s=N.state(u);local out,seen={},{}
- local base=nodeId and N.carried(nodeId) or s.feed.outlets or {}
- for _,o in ipairs(base) do if not seen[o] then seen[o]=true;out[#out+1]=o end end
+-- Outlets the player can read right now: what's carried at the station
+-- they're docked at (nodeId) or in the system they're flying in (area),
+-- plus subscriptions.
+function N.reading(u,nodeId,area)
+ local out,seen={},{}
+ for _,o in ipairs(N.carried(nodeId,area)) do if not seen[o] then seen[o]=true;out[#out+1]=o end end
  for _,o in ipairs(Outlets.order) do if N.subscribed(u,o) and not seen[o] then seen[o]=true;out[#out+1]=o end end
  return out
 end
--- The feed, newest first: stories from the outlets read, live while
--- docked, frozen at the last sync in flight. Tips from friendly outlets
--- always come through.
-function N.feed(u,nodeId,limit)
+-- The feed, newest first: stories from the outlets read. Tips from
+-- friendly outlets always come through.
+function N.feed(u,nodeId,area,limit)
  local s=N.state(u);local clock=u.clock or 0
- local reading={};for _,o in ipairs(N.reading(u,nodeId)) do reading[o]=true end
- local upto=nodeId and clock or (s.feed.at or -1)
+ local reading={};for _,o in ipairs(N.reading(u,nodeId,area)) do reading[o]=true end
  local out={}
  for i=#s.stories,1,-1 do
   local st=s.stories[i]
   if clock-st.clock>N.T.storyLife then break end
-  if st.clock<=upto and (reading[st.outlet] or st.tip) then out[#out+1]=st end
+  if reading[st.outlet] or st.tip then out[#out+1]=st end
   if limit and #out>=limit then break end
  end
  return out
-end
--- Docking (or locking on to a hub) syncs the feed.
-function N.sync(u,nodeId,area)
- local s=N.state(u)
- s.feed={outlets=N.carried(nodeId,area),at=u.clock or 0,node=nodeId}
 end
 function N.subscribe(u,o)
  if not Outlets.outlets[o] then return false,'No such outlet' end
@@ -572,13 +566,6 @@ function N.listen(game)
  if N.listening then return end
  local events=require('src.events')
  N.listening=true
- events.on('dock',function(e,st)
-  local g=N.game
-  if g and g.universe and e and e.isPlayer and st then
-   local key=st.key or st.locationId
-   if key and L().byId[key] then N.sync(g.universe,key) else N.sync(g.universe,nil,g.fieldId) end
-  end
- end)
  events.on('trade',function(st,sold)
   local g=N.game
   if g and g.universe and st then N.onTrade(g.universe,require('src.stockpile').key(st),sold) end
