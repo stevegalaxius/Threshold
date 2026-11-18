@@ -8,6 +8,8 @@
 --   SOAK_NEWS_PLAYER=1  a scripted player: a faction ship killed out of
 --                       sight every 3 h, and 40 units sold into a running
 --                       shortage story every hour, to watch standing move
+--   SOAK_PROFILE=1      sample where the time goes (LuaJIT's profiler) and
+--                       print the top functions and call sites at the end
 -- With the news on, each hour also prints a news line: stories by outlet
 -- and kind, price nudges and how many sit at the cap, reported standing,
 -- outlet standing, the saved size and News.update timing.
@@ -149,6 +151,17 @@ return function(game)
   say('    standing (witnessed/reported): '..table.concat(o,' ')..' | outlets: '..table.concat(q,' '))
   nt.time,nt.max,nt.calls=0,0,0
  end
+ -- the profiler: counts samples by function and by a short call stack
+ local prof
+ if os.getenv('SOAK_PROFILE') then
+  local P=require('jit.profile')
+  prof={fn={},stack={},n=0,P=P}
+  P.start('fi2',function(th,samples,vmstate)
+   prof.n=prof.n+samples
+   local f=P.dumpstack(th,'pl',1);prof.fn[f]=(prof.fn[f] or 0)+samples
+   local st=P.dumpstack(th,'pl;',-6);prof.stack[st]=(prof.stack[st] or 0)+samples
+  end)
+ end
  local first=stockTotals()
  local made0=require('src.persistence').copy(u.economyStats or {})
  local t0=os.clock()
@@ -187,6 +200,15 @@ return function(game)
   fuelSpent=fuelSpent+(r.fuelSpent or 0);supplies=supplies+(r.suppliesSpent or 0)
  end
  say(('npc earnings %.0f, fuel bought %.0f (%.0f%%), all supplies %.0f'):format(earned,fuelSpent,earned>0 and 100*fuelSpent/earned or 0,supplies))
+ if prof then
+  prof.P.stop()
+  local function top(t,k)
+   local a={} for x,v in pairs(t) do a[#a+1]={x,v} end table.sort(a,function(p,q) return p[2]>q[2] end)
+   for i=1,math.min(k,#a) do say(('  %5.1f%%  %s'):format(100*a[i][2]/math.max(1,prof.n),a[i][1])) end
+  end
+  say(('profile: %d samples; top functions'):format(prof.n));top(prof.fn,40)
+  say('top call stacks (innermost last)');top(prof.stack,30)
+ end
  if os.getenv('SOAK_SAVE') then require('src.save').write(os.getenv('SOAK_SAVE'),game:saveState());say('saved '..os.getenv('SOAK_SAVE')) end
  if fh then fh:close() end
 end
