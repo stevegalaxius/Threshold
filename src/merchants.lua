@@ -113,7 +113,7 @@ local function buy(u,h,rec,site,item,clock)
  local before=0;for _,w in pairs(rec.stock) do before=before+(w[item] or 0) end
  rec.cost[item]=((rec.cost[item] or 0)*before+unit*n)/(before+n)
  rec.credits=rec.credits-cost;hold(rec,site,item,n);rec.deals=rec.deals+1
- E.ledger(u,site,'sold',cost,item);E.ledger(u,h.id,'spent',cost,item)
+ require('src.accounts').receive(u,site,cost,'sold',item);E.ledger(u,h.id,'spent',cost,item)
  require('src.simulation_history').note(u,'merchant_bought',clock,L.byId[site].area,{},{house=h.id,item=item,amount=n,price=unit},site)
  return true
 end
@@ -161,8 +161,10 @@ local function sell(u,h,rec,target,item,clock)
     end
    end
    if n>=1 then
+    -- the buying station pays out of its account (an empty one pays less)
+    income=require('src.accounts').pay(u,target,income,'bought',item)
     rec.credits=rec.credits+income;rec.deals=rec.deals+1;rec.lastSale=clock
-    E.ledger(u,target,'bought',income,item);E.ledger(u,h.id,'earned',income,item)
+    E.ledger(u,h.id,'earned',income,item)
     require('src.simulation_history').note(u,'merchant_sold',clock,L.byId[target].area,{},{house=h.id,item=item,amount=n,price=unit,from=site},target)
     return true
    end
@@ -205,7 +207,7 @@ local function intake(u,h,rec,site,item,clock)
  local before=0;for _,w in pairs(rec.stock) do before=before+(w[item] or 0) end
  rec.cost[item]=((rec.cost[item] or 0)*before+unit*n)/(before+n)
  Tasks.post(u,offer);rec.open=(rec.open or 0)+1
- E.ledger(u,site,'sold',cost,item);E.ledger(u,h.id,'spent',cost,item);E.ledger(u,h.id,'freight',fee,item)
+ require('src.accounts').receive(u,site,cost,'sold',item);E.ledger(u,h.id,'spent',cost,item);E.ledger(u,h.id,'freight',fee,item)
  require('src.simulation_history').note(u,'merchant_intake',clock,L.byId[site].area,{},{house=h.id,item=item,amount=n,price=unit,to=hub},site)
  return true
 end
@@ -269,9 +271,14 @@ function M.update(u,clock,pause)
   end
  end
 end
--- Someone (the player, a faction, a quest) puts credits into a house.
-function M.bailout(u,id,credits)
- local rec=M.state(u).houses[id];if not rec or credits<=0 then return false end
+-- Someone puts credits into a house: from = 'player' (the player's own
+-- credits) or an account (a station, or 'faction:<id>'). It moves what the
+-- payer has; nobody bails a house out with money that isn't there.
+function M.bailout(u,id,credits,from)
+ local rec=M.state(u).houses[id];if not rec or credits<=0 or not from then return false end
+ if from=='player' then credits=math.min(credits,math.max(0,u.credits or 0));u.credits=u.credits-credits
+ else credits=require('src.accounts').pay(u,from,credits) end
+ if credits<=0 then return false end
  rec.credits=rec.credits+credits;rec.lastSale=u.clock
  require('src.economy').ledger(u,id,'bailout',credits)
  return true

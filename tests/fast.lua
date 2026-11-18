@@ -67,7 +67,7 @@ return function(game)
  -- the cap, and reports alone can't make a faction hostile.
  do
   local News,Rep=require('src.news'),require('src.reputation')
-  local saved=u.news;u.news=nil
+  local saved,clock0=u.news,u.clock;u.news=nil
   for clock=start,start+3600,News.T.tick do u.clock=clock;News.update(u,clock,game) end
   local n=#News.state(u).stories
   assert(n>0,'an hour of news printed nothing')
@@ -80,7 +80,7 @@ return function(game)
   local savedRep=require('src.persistence').copy(u.reputation)
   for h=1,30 do u.clock=u.clock+3600;for _=1,5 do Rep.addReported(u,'estates',-20) end end
   assert(not Rep.hostile(Rep.standing(u,'estates')),'reports alone made the Estates hostile')
-  u.reputation=savedRep;u.news=saved
+  u.reputation=savedRep;u.news=saved;u.clock=clock0
   print(('ok  news: %d stories in an hour'):format(n))
  end
 

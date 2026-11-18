@@ -39,6 +39,7 @@ function S.sell(game,r,node,clock)
  end
  if h then r.ship.hold=Hold.serialize(h);cargo=Hold.totals(h) end
  r.ship.cargo=cargo;r.salvageCargo={};r.salvageUntil=nil;r.salvageReturn=nil;r.salvageGoal=nil
+ total=require('src.accounts').pay(game.universe,node,total,'bought')
  r.credits=(r.credits or 0)+total;r.salvageEarnings=(r.salvageEarnings or 0)+total
  r.salvageSales=r.salvageSales or {}
  for id,n in pairs(sold) do r.salvageSales[id]=(r.salvageSales[id] or 0)+n end

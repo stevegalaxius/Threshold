@@ -150,6 +150,7 @@ function P.sell(u, r, node)
 		end
 	end
 	if total <= 0 then return 0 end
+	total = require('src.accounts').pay(u, node, total, 'bought')
 	if r.ship.hold then
 		local h = Hold.deserialize(r.ship.hold, function(id) return data.items[id] ~= nil end)
 		Hold.sync(h, cargo); r.ship.hold = Hold.serialize(h)

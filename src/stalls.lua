@@ -68,6 +68,7 @@ function Stall.open(u, st)
 	if not ok then return nil, why end
 	local clock = u.clock or 0
 	u.credits = u.credits - Stall.rent
+	require("src.accounts").receive(u, key(st), Stall.rent, "sold", "stall rent")
 	local s = { tag = "fair", stock = {}, paidTo = clock + 3600, ledger = {}, earned = 0, rentPaid = Stall.rent, openedAt = clock }
 	store(u)[key(st)] = s
 	return s
@@ -166,6 +167,7 @@ function Stall.tick(u, game)
 		while (s.paidTo or clock) <= clock do
 			if (u.credits or 0) < Stall.rent then closing[#closing + 1] = k; break end
 			u.credits = u.credits - Stall.rent
+			require("src.accounts").receive(u, k, Stall.rent, "sold", "stall rent")
 			s.rentPaid = (s.rentPaid or 0) + Stall.rent
 			s.paidTo = (s.paidTo or clock) + 3600
 		end

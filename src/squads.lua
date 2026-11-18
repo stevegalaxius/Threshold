@@ -469,8 +469,11 @@ function S.update(game,clock)
  -- police are on the faction's payroll: a wage for the time served
  if paidFor>0 then
   local wage=T.policeWage*paidFor/3600
+  local Accounts=require('src.accounts')
   for _,r in pairs(u.npcs) do
    if alive(r) and r.battlegroup and (r.squad or r.flagship) then
+    local g=state.groups[r.battlegroup]
+    local wage=Accounts.factionPay(u,g and g.faction,wage)
     r.credits=(r.credits or 0)+wage;r.wageEarnings=(r.wageEarnings or 0)+wage
    end
   end

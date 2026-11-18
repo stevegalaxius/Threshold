@@ -89,8 +89,8 @@ function P.unload(u,r)
  for id,n in pairs(sold) do paid=paid+Markets.price(u,base,id)*(1-T.marketSpread)*T.pirateFenceRate*n end
  paid=math.floor(paid+.5)
  if next(sold) then
+  paid=require('src.accounts').pay(u,base,paid,'fenced')
   r.credits=(r.credits or 0)+paid
-  require('src.economy').ledger(u,base,'fenced',paid)
   require('src.simulation_history').note(u,'pirate_fenced',u.clock or 0,L.byId[base] and L.byId[base].area,{r.id},{station=base,goods=sold,paid=paid},base)
  end
  return sold,paid

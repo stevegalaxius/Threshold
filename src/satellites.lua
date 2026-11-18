@@ -12,6 +12,9 @@
 	  { id, field, kind, name, owner, dock, actions, vend, lost,
 	    fuel, fuelAt, dryAt }
 
+	  owner is set only on the player's own ("player"); every other
+	  satellite answers to whoever holds its planet (Sat.faction).
+
 	The record is the truth for what the satellite is and what it allows; the
 	husk is only where it is. Two levers, read through Sat.levers:
 
@@ -76,7 +79,7 @@ function Sat.layout(fieldId, field)
 		end
 		local f = band[1] + rng:random() * (band[2] - band[1])
 		out[n] = { id = ("%s_sat_%02d"):format(fieldId, n), n = n, kind = kind,
-			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
+			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2,
 			name = ("%s sat %02d"):format(def.names or field.name or fieldId, n) }
 	end
 	-- hubs: their own slots (ids <field>_hub_<n>), after the mix,
@@ -87,7 +90,7 @@ function Sat.layout(fieldId, field)
 		-- routes already pass (Sat.hubPoint); none left: a plain slot
 		local buoys = require("src.fields")[fieldId] and require("src.fields")[fieldId].buoyIds or {}
 		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub", buoy = buoys[n],
-			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2, owner = def.owner,
+			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2,
 			name = ("%s trade hub%s"):format(def.names or field.name or fieldId, (def.hubs or 0) > 1 and (" " .. n) or "") }
 	end
 	return out
@@ -99,7 +102,7 @@ function Sat.record(universe, slot, fieldId)
 	local r = all[slot.id]
 	if not r then
 		local K = Sat.kinds[slot.kind]
-		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, owner = slot.owner, buoy = slot.buoy }
+		r = { id = slot.id, field = fieldId, kind = slot.kind, name = slot.name, buoy = slot.buoy }
 		all[slot.id] = r
 		r.design = K.design
 	elseif Sat.retired[r.kind] and r.kind ~= slot.kind then
@@ -109,6 +112,22 @@ function Sat.record(universe, slot, fieldId)
 end
 
 function Sat.get(universe, id) return universe and universe.satellites and universe.satellites[id] end
+
+-- The faction a satellite answers to: whoever holds its planet (nil in
+-- unclaimed space). Not authored per satellite: it follows the area.
+function Sat.faction(r)
+	return r and r.field and require("src.npc_access").owner(r.field) or nil
+end
+-- Whose money a satellite runs on: its planet's faction account
+-- ('faction:<id>'), not any one station's. That pays the player's income,
+-- buys the hauler runs and banks a hub's shelf sales. Unclaimed space
+-- falls back to the area's trade station, and nil if there's none.
+function Sat.account(r)
+	if not r then return nil end
+	local f = Sat.faction(r)
+	if f then return "faction:" .. f end
+	return r.field and require("src.locations").station(r.field, "trade") or nil
+end
 
 -- What it allows right now: the quest override if there is one, else its kind's.
 -- Out of fuel it still docks, but its shelf is shut until it's refuelled.
@@ -278,6 +297,9 @@ function Sat.earn(universe, r)
 	r.paidAt = clock
 	local n = math.floor(math.max(0, to - from) * Sat.income / 3600 + (r.carry or 0))
 	r.carry = math.max(0, (to - from) * Sat.income / 3600 + (r.carry or 0) - n)
+	-- (the planet's faction pays for the service, out of its account)
+	local payer = Sat.account(r)
+	if n > 0 then n = payer and require("src.accounts").pay(universe, payer, n, "bought", "satellite service") or 0 end
 	if n > 0 then
 		universe.credits = (universe.credits or 0) + n
 		r.earned = (r.earned or 0) + n
@@ -726,10 +748,10 @@ function Sat.permits(game, r, ship)
 	local player = ship == game.player
 	if L.dock == "anyone" then return true end
 	if L.dock == "player" then return player end
-	if L.dock == "rep" and player and r.owner then
-		return (require("src.reputation").standing(game.universe, r.owner) or 0) >= (r.minRep or 10)
+	if L.dock == "rep" and player and Sat.faction(r) then
+		return (require("src.reputation").standing(game.universe, Sat.faction(r)) or 0) >= (r.minRep or 10)
 	end
-	if L.dock == "owner" then return not player and ship.faction ~= nil and ship.faction == r.owner end
+	if L.dock == "owner" then return not player and ship.faction ~= nil and ship.faction == Sat.faction(r) end
 	return false
 end
 

@@ -74,6 +74,7 @@ function B.cleared(game,who,record,area,list)
  end
  local r=who and (who.alifeId and (u.npcs or {})[who.alifeId] or who.ship and who.id and who)
  if r then
+  pay=require('src.accounts').pay(u,station,pay,'bounty')
   r.credits=(r.credits or 0)+pay;r.bountyEarnings=(r.bountyEarnings or 0)+pay
   return pay
  end
@@ -108,6 +109,8 @@ function B.collect(game,station)
  if pay<=0 then return nil,'No bounty owed here' end
  if not require('src.quests').willOffer(u,station) then return nil,'This station will not pay you' end
  local n=s.cleared[station] or 0
+ if not require('src.accounts').canPay(u,station,pay) then return nil,'The station can\'t pay its bounties right now' end
+ require('src.accounts').pay(u,station,pay,'bounty')
  u.credits=u.credits+pay;s.owed[station]=nil;s.cleared[station]=nil
  return true,('Bounty collected: %d CR for %d wreck%s'):format(pay,n,n==1 and '' or 's')
 end

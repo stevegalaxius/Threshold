@@ -291,9 +291,13 @@ function E.update(game,clock)
       E.finish(u,a,b,clock,nil,nil,'surrendered')
       loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
       require('src.piracy').returnRecord(game,winner)
+      -- some raiders leave no witnesses: the robbed ship is lost
+      if random(fight)<T.pirateScuttleChance then wreck(u,loser,clock) end
      else
       E.finish(u,a,b,clock,loser)
       require('src.alife_trace').note(loser,clock,'encounter','broke off vs '..winner.id)
+      -- a broken ship doesn't always get away
+      if random(fight)<T.offlineBreakKill then wreck(u,loser,clock) end
      end
     end
    end
