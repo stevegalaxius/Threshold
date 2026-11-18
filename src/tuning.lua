@@ -247,6 +247,7 @@ T.flagshipRebuild = 1800     -- s before a lost flagship is replaced
 T.couriersPerSystem = 1      -- faction couriers per owned planet with a service fleet
 T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the area
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
+T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
 T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000

@@ -208,11 +208,8 @@ local function refit(u,r,hull,area)
   r.ship=ship
   return true
  end
- local policy={};for k,v in pairs(require('src.npc_templates').patrol.purchase) do policy[k]=v end
- policy.hulls={hull};policy.budget=math.huge;policy.fleets=nil
- local ship=Supply.generated(u,policy,nil,area)
- if not ship then return false end
- r.ship=ship
+ -- no yard: the faction fields no flagship (ships aren't made on the spot)
+ do return false end
  return true
 end
 -- The squad's members fly at the pace of its slowest ship.

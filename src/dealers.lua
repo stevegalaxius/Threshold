@@ -162,10 +162,10 @@ function D.update(u,key,clock)
  local SD=require('src.ship_delivery')
  -- (the board of ship deliveries, refreshed every ten game minutes)
  if clock>=(u.shipDeliveryRefresh or 0) then u.shipDeliveryRefresh=clock+600;SD.refresh(u,clock) end
- if D.buildsShips(key) then return end
- -- a used exchange only sells what's been sold to it (NPC trade-ins, the
- -- player's sales) after its opening ship: it never makes ships up
- if def.usedOnly then return end
+ -- Past its opening stock, a lot only gets ships that exist: a factory's
+ -- output (D.output), a hauler's delivery (src/ship_delivery.lua) or a
+ -- ship sold to it (D.resell). It never makes ships up.
+ if true then return end
  local policy=require('data.industry').usedShips
  local step=(def.restock or policy.intervalHours)*HOUR
  s.next=s.next or clock+step
@@ -311,7 +311,10 @@ function D.buyForNpc(u,r,candidate,policy)
  if lot~=candidate.lot then return false end
  D.take(u,candidate.station,lot.id)
  r.shipAcquisition={station=candidate.station,lot=lot.id,price=lot.price,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}
- r.credits=(r.credits or 0)+policy.budget-lot.price
+ -- the budget only caps what it can buy; the price goes to the station,
+ -- and the pilot starts with pocket money, not the change from a budget
+ r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
+ require('src.economy').ledger(u,candidate.station,'sold',lot.price,'ship:'..lot.hull)
  require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=lot.price,lot=lot.id},candidate.station)
  return true
 end
