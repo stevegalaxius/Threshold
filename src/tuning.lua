@@ -259,7 +259,8 @@ T.raidShortageBias=.25
 -- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
 T.pirateBerths={max=6,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
-T.npcCruise,T.npcCruiseReference,T.npcCruiseSpread=650,700,.15
+T.npcCruise,T.npcCruiseSpread=650,.15
+T.npcCruiseReferenceHull='ferrous_mule' -- the hull that cruises at exactly T.npcCruise (stock fit)
 T.directLinkAngle=math.pi*.8 -- NPCs fly straight (round the planet) between nodes up to this far apart (at 2/3 pi,
 -- two stations just past it with nothing between went the long way round);
 -- kept well short of half the planet, where 'which way round' flips frame to frame

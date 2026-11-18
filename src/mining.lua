@@ -92,13 +92,14 @@ function M.create(game,area,clock)
   available=Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
  end
  local home=available.source
- local def=data.enemies.miner_packhorse;local hull=data.hulls[def.hull]
+ local def=data.npcProfiles.miner;local hull=data.hulls[def.hull]
  u.nextNpcId=u.nextNpcId+1
- local r={id='npc/'..u.nextNpcId,archetype='miner_packhorse',home=area,area=area,
+ local r={id='npc/'..u.nextNpcId,aiProfile='miner',home=area,area=area,
   base=home,node=home,route={home,home},index=1,
-  state='idle',speed=require('src.npc').cruise('miner_packhorse'),spread=0,
+  state='idle',spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
+ r.speed=require('src.npc').cruise(r.ship)
  require('src.npc_templates').apply(r,'miner',area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)

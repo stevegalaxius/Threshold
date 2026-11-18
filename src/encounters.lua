@@ -224,7 +224,7 @@ local function wreck(u,r,clock)
  u.alifeWrecks=u.alifeWrecks or {}
  u.alifeWrecks[r.id]={id=r.id,label=r.label,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
   progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
-  ship=copy(r.ship),archetype=r.archetype}
+  ship=copy(r.ship),archetype=r.archetype,aiProfile=r.aiProfile}
  r.state='dead';r.ship.armor=0
  require('src.alife_trace').note(r,clock,'encounter','destroyed'..(fight and (' by '..fight.target) or ''))
  History.death(u,r,clock,r.area,fight and fight.target)
@@ -427,7 +427,7 @@ function E.materialize(game,px,py,clock)
     local ship=Ship.new(game,{hull=s.hull,loadout=copy(s.loadout),cargo=copy(s.cargo),
      hold=s.hold and Hold.deserialize(s.hold,function(item)return data.items[item]~=nil end),
      fuelCharge=s.fuelCharge,fuelInitialized=true,
-     color=copy(s.color),enemy=data.enemies[w.archetype]})
+     color=copy(s.color),enemy=require('src.npc_profile').of(w)})
     -- Both sides of an offline fight wreck at the same point on the lane;
     -- spawned on top of each other (or of a rock), Box2D flings them apart.
     -- Step out to clear space first.

@@ -65,7 +65,7 @@ function G.recruit(game, inst, pocket, enemy, x, y, tag)
 	local clock = u.clock or 0
 	local r = {
 		id = "npc/" .. u.nextNpcId, area = field, home = inst.home, archetype = enemy,
-		speed = require("src.npc").cruise(enemy), spread = 0,
+		speed = require("src.npc").cruise({ hull = def.hull, loadout = loadout }), spread = 0,
 		route = {}, index = 1, state = "garrison", untilTime = clock,
 		ship = { hull = def.hull, loadout = loadout, cargo = copy(def.cargo or {}), armor = Stats.compute(hull, loadout).armor },
 		garrison = { site = inst.id, pocket = pocket, field = field, x = x, y = y, tag = tag },

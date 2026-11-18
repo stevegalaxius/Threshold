@@ -69,12 +69,23 @@ N.controller={name='npc',
 }
 
 -- Speed -----------------------------------------------------------------------
--- One cruise speed for every NPC. Hulls only nudge it (±15%), so a pirate,
--- a hauler and a salvager crossing the same region take about the same time.
-function N.cruise(archetype)
- local def=archetype and data.enemies[archetype]
- local own=def and def.ai and def.ai.cruise or T.npcCruise
- local factor=math.max(1-T.npcCruiseSpread,math.min(1+T.npcCruiseSpread,own/T.npcCruiseReference))
+-- One cruise speed for every NPC. The ship only nudges it (±15%), by how
+-- its thrust-to-mass compares with the reference hull's, so a pirate, a
+-- hauler and a salvager crossing the same region take about the same time.
+local reference
+local function agility(hull,loadout)
+ local s=require('src.stats').compute(hull,loadout or hull.loadout)
+ return (s.thrust or 0)/math.max(1,s.mass or 1)
+end
+function N.cruise(ship)
+ local hull=ship and data.hulls[ship.hull]
+ if not hull then return T.npcCruise end
+ if not reference then
+  local ref=data.hulls[T.npcCruiseReferenceHull]
+  reference=ref and agility(ref) or 0
+ end
+ if reference<=0 then return T.npcCruise end
+ local factor=math.max(1-T.npcCruiseSpread,math.min(1+T.npcCruiseSpread,agility(hull,ship.loadout)/reference))
  return T.npcCruise*factor
 end
 -- The live ship's cruise, for onscreen steering.

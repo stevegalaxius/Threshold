@@ -199,9 +199,9 @@ for _,c in ipairs(D.recipes) do
 end
 D.inputHours=.5 -- reorder at thirty minutes, refill toward one hour
 D.shops={chemicals={id='chemicals',name='Chemicals',description='Nitrates, agricultural fertilizer and industrial explosives.',sells={{'nitrates',1},{'fertilizer',1},{'explosives',1}}}}
-D.usedShips={lots=2,intervalHours=16,markup=.85,minCondition=.7,maxCondition=.95,presets={'runner_trader','packhorse_trader','freighter','longhorn_hauler','miner_packhorse','salvager_packhorse','patrol_wisp','pirate_wisp'},
+D.usedShips={lots=2,intervalHours=16,markup=.85,minCondition=.7,maxCondition=.95,presets={'ferrous_pony','ferrous_mule','ferrous_bison','mack_longhorn','miner','police','raider'},
  -- Decommissioned police hulls: rarely, a used lot is one of these.
- rarePresets={'surplus_estates','surplus_diwan'},rareChance=.04}
+ rarePresets={'estates_whisper','diwan_cherubim'},rareChance=.04}
 D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1,wholesaleHours=2}
 D.dealerParking={guestHangarFraction=.25,guestBerths=2}
 -- Fuel-chain throughput supports the original 2,500-energy canister. The

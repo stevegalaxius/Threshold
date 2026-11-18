@@ -112,9 +112,12 @@ function D.rollUsed(def,state)
  local policy=require('data.industry').usedShips
  local pool=policy.presets
  if policy.rarePresets and rand(1000)<=(policy.rareChance or 0)*1000 then pool=policy.rarePresets end
- local preset=data.enemies[pool[rand(#pool)]]
- local lot=D.roll({hulls={preset.hull},trims={'stock'},markup=policy.markup},state,preset.hull)
- lot.loadout=copy(preset.loadout or data.hulls[preset.hull].loadout)
+ -- a hull id (stock fit), or an NPC profile id (its hull and fit)
+ local pick=pool[rand(#pool)]
+ local profile=data.npcProfiles[pick]
+ local hull=profile and profile.hull or pick
+ local lot=D.roll({hulls={hull},trims={'stock'},markup=policy.markup},state,hull)
+ lot.loadout=copy(profile and profile.loadout or data.hulls[hull].loadout)
  lot.used=true;lot.condition=policy.minCondition+(policy.maxCondition-policy.minCondition)*rand(1000)/1000
  lot.trimName='Used';lot.price=D.price(data.hulls[lot.hull],lot.loadout,policy.markup*lot.condition)
  local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
