@@ -57,6 +57,7 @@ function R.draw(game,f)
   local c=MOOD_COLOR[mood]
   bar(bx,y,bw,v,c)
   lg.setColor(c);lg.printf(('%s  %+d'):format(mood:sub(1,1):upper()..mood:sub(2),math.floor(v+.5)),bx+bw+10,y+4,80,'left')
+  if News.subscribed(u,o) then lg.setFont(HUD.font(12));lg.setColor(HUD.DIM);lg.printf('subscribed',f.x+f.w-110,y+6,96,'right') end
   y=y+44
  end
 end

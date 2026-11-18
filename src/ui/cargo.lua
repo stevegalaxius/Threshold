@@ -1952,7 +1952,7 @@ function Cargo.draw(game)
   end
 		if Cargo.tab == "news" then
    NewsView.draw(game)
-   Station.footer('What the papers carried here are saying. Every outlet leans toward what its owner sells.', 'Stories move prices here for a while \194\183 Mouse wheel scrolls')
+   Station.footer('What the papers carried here are saying. Every outlet leans toward what its owner sells.', 'Stories move prices here for a while \194\183 Subscribe at a paper\'s press desk to read it in flight \194\183 Mouse wheel scrolls')
    return
   end
 		if Cargo.tab == "contracts" then

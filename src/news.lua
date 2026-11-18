@@ -10,7 +10,13 @@
 	            outlet's story, later, with its own spin stacked on. Now and
 	            then it prints a rumour with nothing behind it.
 	  coverage  a station carries its owner's outlet plus any outlet read
-	            everywhere (the Beltway).
+	            everywhere (the Beltway). Docked, you read what the station carries;
+	            in flight, only the papers you subscribe to.
+	  subs      a subscription is taken out at a paper's press desk (any
+	            station its owner runs), is refused while the paper is
+	            hostile to you, and is a standing order: T.subscribeFee
+	            every hour out of your credits until you cancel, can't
+	            pay, or the paper turns on you.
 	            Docked or in flight, you read what's carried where you are
 	            (the station, or the system you're flying in).
 	  prices    a story nudges the price of its good at the stations in its
@@ -46,6 +52,7 @@ N.T={
  shortRatio=1.35,     -- a price this far over list is a shortage story
  glutRatio=.7,        -- and this far under, a glut story
  shortAge=1800,       -- or a shortage left unserved this long
+ subscribeFee=150,    -- credits per hour of universe clock, per paper
  standingDecay=2,     -- outlet standing, points per hour toward 0
  friendly=25,hostile=-25,
  smearOdds=.08,praiseOdds=.08, -- per run, from a hostile / friendly outlet
@@ -63,9 +70,10 @@ local function Rep() return require('src.reputation') end
 function N.state(u)
  local s=u.news
  if not s then
-  s={stories={},nextId=0,nudges={},shocks={},outlets={},deeds={}}
+  s={stories={},nextId=0,nudges={},shocks={},outlets={},deeds={},subs={}}
   u.news=s
  end
+ s.subs=s.subs or {}
  return s
 end
 
@@ -99,6 +107,8 @@ local function carries(nodeId,o)
  for _,id in ipairs(N.carried(nodeId)) do if id==o then return true end end
  return false
 end
+-- The paper whose press desk is at this station: its owner's, if any.
+function N.desk(nodeId) return nodeId and N.ofFaction(Rep().ofNode(nodeId)) or nil end
 -- Factions that read an outlet: its owner, and everyone if it's read
 -- everywhere.
 local function readers(o)
@@ -497,29 +507,32 @@ function N.update(u,clock,game)
  local since=s.lastTick or clock-N.T.tick
  s.lastTick=clock;s.nextTick=clock+N.T.tick
  prune(s.nudges,clock);prune(s.shocks,clock)
+ N.bill(u,s,clock)
  deedStories(u,s,clock)
  for _,o in ipairs(Outlets.order) do run(u,s,o,since,clock) end
 end
 
 ---------------------------------------------------------------- the player's view
 
--- Outlets the player can read right now: what's carried at the station
--- they're docked at (nodeId) or in the system they're flying in (area).
-function N.reading(u,nodeId,area)
+-- Outlets the player can read right now: docked (nodeId), what the
+-- station carries plus their subscriptions; in flight, only their
+-- subscriptions.
+function N.reading(u,nodeId)
  local out,seen={},{}
- for _,o in ipairs(N.carried(nodeId,area)) do if not seen[o] then seen[o]=true;out[#out+1]=o end end
+ if nodeId then for _,o in ipairs(N.carried(nodeId)) do seen[o]=true;out[#out+1]=o end end
+ for _,o in ipairs(Outlets.order) do if N.subscribed(u,o) and not seen[o] then seen[o]=true;out[#out+1]=o end end
  return out
 end
--- The feed, newest first: stories from the outlets read. Tips from
--- friendly outlets always come through.
-function N.feed(u,nodeId,area,limit)
+-- The feed, newest first: stories from the outlets read (tips from a
+-- friendly one among them), and notices meant for the player alone.
+function N.feed(u,nodeId,limit)
  local s=N.state(u);local clock=u.clock or 0
- local reading={};for _,o in ipairs(N.reading(u,nodeId,area)) do reading[o]=true end
+ local reading={};for _,o in ipairs(N.reading(u,nodeId)) do reading[o]=true end
  local out={}
  for i=#s.stories,1,-1 do
   local st=s.stories[i]
   if clock-st.clock>N.T.storyLife then break end
-  if reading[st.outlet] or st.tip then out[#out+1]=st end
+  if reading[st.outlet] or st.notice then out[#out+1]=st end
   if limit and #out>=limit then break end
  end
  return out
@@ -545,6 +558,45 @@ function N.onTrade(u,key,sold)
   -- the owner's own shortage, story or not
   local o=N.ofFaction(Rep().ofNode(key))
   if o and E.shortageAge(u,key,item,clock)>0 then N.addStanding(u,o,math.min(3,n/40)) end
+ end
+end
+
+---------------------------------------------------------------- subscriptions
+
+function N.subscribed(u,o) return N.state(u).subs[o]~=nil end
+-- Can the player subscribe to o here? Returns ok, or nil and why not.
+function N.canSubscribe(u,o,nodeId)
+ if N.subscribed(u,o) then return nil,'Already subscribed' end
+ if N.desk(nodeId)~=o then return nil,'Subscribe at the paper\'s own press desk' end
+ if N.mood(u,o)=='hostile' then return nil,Outlets.outlets[o].name..' won\'t take your money' end
+ if (u.credits or 0)<N.T.subscribeFee then return nil,'Not enough credits' end
+ return true
+end
+-- Take out a subscription at the press desk: the first hour is paid now.
+function N.subscribe(u,o,nodeId)
+ local ok,why=N.canSubscribe(u,o,nodeId)
+ if not ok then return false,why end
+ u.credits=u.credits-N.T.subscribeFee
+ N.state(u).subs[o]={since=u.clock or 0,paidUntil=(u.clock or 0)+3600}
+ return true
+end
+function N.cancel(u,o) N.state(u).subs[o]=nil end
+local function notice(u,o,text) N.publish(u,{outlet=o,kind='notice',notice=true,headline=text}) end
+-- Bill every subscription that's due; lapse the ones you can't pay or
+-- whose paper has turned on you.
+function N.bill(u,s,clock)
+ for _,o in ipairs(Outlets.order) do
+  local sub=s.subs[o]
+  while sub and clock>=sub.paidUntil do
+   local name=Outlets.outlets[o].name
+   if N.mood(u,o)=='hostile' then
+    s.subs[o]=nil;sub=nil;notice(u,o,name..' has cancelled your subscription')
+   elseif (u.credits or 0)<N.T.subscribeFee then
+    s.subs[o]=nil;sub=nil;notice(u,o,'Your subscription to '..name..' lapsed: not enough credits')
+   else
+    u.credits=u.credits-N.T.subscribeFee;sub.paidUntil=sub.paidUntil+3600
+   end
+  end
  end
 end
 
