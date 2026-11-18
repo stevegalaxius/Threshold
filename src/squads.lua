@@ -49,11 +49,18 @@ function S.state(u)
 end
 function S.get(u,id) return id and S.state(u).squads[id] end
 function S.group(u,id) return id and S.state(u).groups[id] end
-function S.of(u,r) return r and S.get(u,r.squad) end
+-- A ship's squad, only if the squad still lists it: a squad id the ship
+-- kept from an older save (when squads weren't saved) may now belong to
+-- another group's squad, and following that leader drags it off its beat.
+function S.of(u,r)
+ local q=r and S.get(u,r.squad)
+ if not q or q.group~=r.battlegroup then return end
+ for _,id in ipairs(q.members) do if id==r.id then return q end end
+end
 function S.isLeader(u,r) local q=S.of(u,r);return q~=nil and q.leader==r.id end
 function S.members(u,q)
  local out={}
- for _,id in ipairs(q.members) do local m=u.npcs[id];if alive(m) then out[#out+1]=m end end
+ for _,id in ipairs(q.members) do local m=u.npcs[id];if alive(m) and m.squad==q.id then out[#out+1]=m end end
  return out
 end
 local function armorFraction(r)
@@ -459,12 +466,33 @@ local function whereIs(r) return r.node or (r.route and r.route[r.index]) end
 function S.update(game,clock)
  local u=game.universe
  if clock<(u.squadsNext or 0) then return end
- u.squadsNext=clock+T.squadTick
+ local paidFor=clock-(u.squadsPaid or clock)
+ u.squadsNext=clock+T.squadTick;u.squadsPaid=clock
  local state=S.state(u)
+ -- police are on the faction's payroll: a wage for the time served
+ if paidFor>0 then
+  local wage=T.policeWage*paidFor/3600
+  for _,r in pairs(u.npcs) do
+   if alive(r) and r.battlegroup and (r.squad or r.flagship) then
+    r.credits=(r.credits or 0)+wage;r.wageEarnings=(r.wageEarnings or 0)+wage
+   end
+  end
+ end
  -- ships with no squad yet (and ones saved before squads existed)
  local ids={}
+ -- (a squad id it no longer belongs to counts as none)
  for id,r in pairs(u.npcs) do
+  if r.squad and not S.of(u,r) then
+   r.squad=nil
+   -- and stop following that squad's leader
+   if r.task and r.task.kind:match('^squad_') then Tasks.release(u,r,'left squad',clock) end
+  end
   if alive(r) and r.populationGroup=='patrol' and not r.squad and not r.flagship then ids[#ids+1]=id end
+  -- a flagship its group lost track of (older saves) takes command again
+  if alive(r) and r.flagship and r.battlegroup then
+   local g=state.groups[r.battlegroup]
+   if g and not alive(u.npcs[g.flagship or '']) then g.flagship=r.id end
+  end
  end
  table.sort(ids)
  for _,id in ipairs(ids) do S.enlist(game,u.npcs[id],false) end

@@ -234,6 +234,7 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 -- Squads and battlegroups (src/squads.lua)
 T.squadTick = 2              -- s between squad upkeep passes
+T.policeWage = 1200          -- credits an hour each police ship is paid by its faction
 T.squadSweepHold = 20        -- s a squad holds at each stop of its beat
 T.squadRespondCount = 2      -- squads sent when a flagship calls
 T.squadRespondTime = 180     -- s a called squad stays on the call
@@ -246,6 +247,7 @@ T.flagshipRebuild = 1800     -- s before a lost flagship is replaced
 T.couriersPerSystem = 1      -- faction couriers per owned planet with a service fleet
 T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the area
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
+T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
@@ -284,11 +286,10 @@ T.alifeWreckLifetime = 1800
 T.population = {
  -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
  pirate={minDelay=180,maxDelay=300},
- trader={minDelay=180,maxDelay=300},
+ hauler={minDelay=180,maxDelay=300},
  patrol={minDelay=180,maxDelay=300},
  courier={minDelay=240,maxDelay=420},
  miner={minDelay=180,maxDelay=300},
- ship_hauler={minDelay=240,maxDelay=420},
 }
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail

@@ -761,7 +761,7 @@ function Fields.configureLocations(area)
     end
     F.tradeHome,F.miningHome=home('trade'),home('mining')
     local population=F.navigation.population or {}
-    F.alifeTraders=F.tradeHome and not F.surfaceMine and (population.trader~=nil and population.trader or F.traderPopulation) or nil
+    F.alifeTraders=F.tradeHome and not F.surfaceMine and (population.hauler~=nil and population.hauler or population.trader~=nil and population.trader or F.traderPopulation) or nil
 
 	-- The Heaven-Ladder (Mars): one station with four elevator anchors as its
 	-- access points, each a location (and a travel-graph node) of its own.

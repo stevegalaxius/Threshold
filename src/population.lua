@@ -188,11 +188,12 @@ function P.spawn(game,area,role,nearPlayer)
   if not x then return nil,'No clear space for an NPC arrival.' end
  end
  local Rank=require('src.npc_rank')
- local policy=Rank.policy(require('src.npc_templates').purchase(role),Rank.roll())
+ local base=def.purchase and def.purchase(game,area) or require('src.npc_templates').purchase(role)
+ local policy=Rank.policy(base,Rank.roll())
  local Supply=require('src.npc_ship_supply')
  local ship,acquisition=Supply.acquire(game.universe,area,policy)
  -- a poor rank that can afford nothing arrives as proficient instead
- if not ship and policy.rank=='rookie' then policy=Rank.policy(require('src.npc_templates').purchase(role),'proficient');ship,acquisition=Supply.acquire(game.universe,area,policy) end
+ if not ship and policy.rank=='rookie' then policy=Rank.policy(base,'proficient');ship,acquisition=Supply.acquire(game.universe,area,policy) end
  if not ship then return nil,'No suitable manufactured hull within acquisition budget.' end
  game.arrivalShip=ship
  local r=def.create(game,area,node,clock)

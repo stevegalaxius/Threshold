@@ -303,7 +303,7 @@ W.navigation={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+1*math.pi*2/3},
   {id='trade_buoy_c', phase=-.8+math.pi/2+2*math.pi*2/3},
- }, corridor='buoys', population={trader=0}},
+ }, corridor='buoys', population={hauler=0}},
  saturn={buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},
@@ -312,7 +312,7 @@ W.navigation={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+1*math.pi*2/3},
   {id='trade_buoy_c', phase=-.8+math.pi/2+2*math.pi*2/3},
- }, corridor='buoys', population={trader=0}},
+ }, corridor='buoys', population={hauler=0}},
  neptune={buoys={
   {id='trade_buoy_a', phase=-.8+math.pi/2},
   {id='trade_buoy_b', phase=-.8+math.pi/2+math.pi},

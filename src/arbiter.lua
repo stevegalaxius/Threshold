@@ -51,7 +51,7 @@ function A.update(u,clock)
   open[lane.area]=(open[lane.area] or 0)+work
  end
  for _,r in pairs(u.npcs or {}) do
-  if r.populationGroup=='trader' and r.state~='dead' and r.state~='escaped' then
+  if r.populationGroup=='hauler' and r.state~='dead' and r.state~='escaped' then
    local task=r.task or r.suspendedTask
    local area=task and L.byId[task.source] and L.byId[task.source].area or r.area or r.home
    if area then

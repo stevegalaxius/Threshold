@@ -48,11 +48,11 @@ local function keeps(r,hull,loadout)
  return M.keeps(r,hull,loadout)
 end
 function M.keeps(r,hull,loadout)
- local T=r.populationGroup and require('src.npc_templates')[r.populationGroup]
- local need=T and T.purchase and T.purchase.requires or {}
+ local P=r.populationGroup and require('src.npc_templates').purchaseFor(r)
+ local need=P and P.requires or {}
  local s=require('src.stats').compute(hull,loadout)
  if s.thrust<=0 or s.powerOut<=0 then return false end
- if T and T.purchase.minCargo and s.hold<T.purchase.minCargo then return false end
+ if P and P.minCargo and s.hold<P.minCargo then return false end
  local caps=require('src.npc_access').capabilities({ship={hull=hull.id,loadout=loadout}})
  for name in pairs(need) do if not caps[name] then return false end end
  return true
@@ -133,6 +133,46 @@ function M.dock(r,node,u,clock,roll)
  r.lastRefit=swap
  require('src.simulation_history').note(u,'npc_refit',clock or u.clock,r.area,{r.id},swap,node)
  return swap
+end
+-- Ammo for each gun, chosen at the shelf before restocking: a gun keeps
+-- what it loads while it has enough aboard or the station has it, else it
+-- switches to the cheapest round it takes that this station has in stock.
+-- (Runs on every docking at a market; it costs nothing until bought.)
+function M.ammo(r,u,key,e)
+ local ship=r.ship;if not ship then return end
+ local loadout=e and e.loadout or ship.loadout or {}
+ local loads=e and e.loads or ship.loads or {}
+ local cargo=e and e.cargo or ship.cargo or {}
+ local Stock=require('src.stockpile');local T=require('src.tuning')
+ local function stocked(id) local ok,n=pcall(Stock.available,u,key,id);return ok and (n or 0)>0 end
+ local function price(id)
+  if type(key)=='table' then return data.items[id].price or 0 end
+  return require('src.markets').price(u,key,id)
+ end
+ local changed=false
+ for i,id in pairs(loadout) do
+  local m=id and data.modules[id];local w=m and m.weapon
+  if w and w.kind~='laser' and w.kind~='drill' then
+   local opts=data.ammoOptions(m)
+   if #opts>1 then
+    local cur=opts[1]
+    for _,o in ipairs(opts) do if o==loads[i] then cur=o end end
+    local low=(cargo[cur] or 0)<(data.items[cur].stack or 1)*T.npcAmmoThreshold
+    if low and not stocked(cur) then
+     local best
+     for _,o in ipairs(opts) do
+      if o~=cur and stocked(o) and (not best or price(o)<price(best)) then best=o end
+     end
+     if best then loads[i]=best;changed=true end
+    end
+   end
+  end
+ end
+ if changed then
+  ship.loads=require('src.persistence').copy(loads)
+  if e then e.loads=loads;require('src.ship').refit(e) end
+ end
+ return changed
 end
 -- Trade the whole ship in for one on this station's dealer lot when one
 -- scores better for the job by more than margin (the same fit scoring the
