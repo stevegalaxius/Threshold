@@ -149,14 +149,18 @@ Tasks.register(kind,{
   -- (the cargo was spent out at the satellite; if the job turned out not to
   -- be needed, the hauler keeps it)
   if t.done then
-   -- the station that posted the run pays for it
-   r.credits=(r.credits or 0)+require('src.accounts').pay(u,t.target,J.pay,'freight')
-   -- (the player's own satellite: the player pays the fee)
+   -- the satellite's owner pays the hauler: the player for their own
+   -- (Sat.bill), else the planet's faction (Sat.account)
+   local Sat=require('src.satellites')
    local s=u.satellites and u.satellites[t.sat]
-   if s then
-    local billed=require('src.satellites').bill(u,s,J.pay)
-    require('src.accounts').receive(u,t.target,billed,'sold','satellite service')
+   local paid
+   if s and s.owner=='player' then
+    paid=Sat.bill(u,s,J.pay)
+    require('src.economy').ledger(u,t.target,'freight',paid,'satellite service')
+   else
+    paid=require('src.accounts').pay(u,Sat.account(s),J.pay,'freight')
    end
+   r.credits=(r.credits or 0)+paid
   end
   return true
  end,

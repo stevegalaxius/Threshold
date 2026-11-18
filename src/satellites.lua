@@ -110,6 +110,21 @@ end
 
 function Sat.get(universe, id) return universe and universe.satellites and universe.satellites[id] end
 
+-- Whose money a satellite runs on: a faction's account ('faction:<id>'),
+-- not any one station's. One the layout gives an owner faction uses that
+-- faction; the rest (the player's included) belong to the planet's: the
+-- faction holding the area pays the player's income, buys the hauler runs
+-- and banks a hub's shelf sales. Unclaimed space falls back to the area's
+-- trade station, and nil if there's none.
+function Sat.account(r)
+	if not r then return nil end
+	local Rep = require("src.reputation")
+	if r.owner and r.owner ~= "player" and Rep.FACTIONS[r.owner] then return "faction:" .. r.owner end
+	local f = r.field and require("src.npc_access").owner(r.field)
+	if f then return "faction:" .. f end
+	return r.field and require("src.locations").station(r.field, "trade") or nil
+end
+
 -- What it allows right now: the quest override if there is one, else its kind's.
 -- Out of fuel it still docks, but its shelf is shut until it's refuelled.
 function Sat.levers(r)
@@ -278,9 +293,9 @@ function Sat.earn(universe, r)
 	r.paidAt = clock
 	local n = math.floor(math.max(0, to - from) * Sat.income / 3600 + (r.carry or 0))
 	r.carry = math.max(0, (to - from) * Sat.income / 3600 + (r.carry or 0) - n)
-	-- (the area's trade station pays for the service, out of its account)
-	local payer = r.field and require("src.locations").station(r.field, "trade")
-	if n > 0 and payer then n = require("src.accounts").pay(universe, payer, n, "bought", "satellite service") end
+	-- (the planet's faction pays for the service, out of its account)
+	local payer = Sat.account(r)
+	if n > 0 then n = payer and require("src.accounts").pay(universe, payer, n, "bought", "satellite service") or 0 end
 	if n > 0 then
 		universe.credits = (universe.credits or 0) + n
 		r.earned = (r.earned or 0) + n
