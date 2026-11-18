@@ -51,6 +51,12 @@ return function(Game)
 -- Mass drivers ----------------------------------------------------------------
 
 -- Passage to another planet: a base fare plus a little per AU.
+-- A fare goes to the area's trade station, which runs the driver.
+function Game:payDriverFare(fare)
+	local key = require("src.locations").station(self.fieldId, "trade")
+	if key then require("src.accounts").receive(self.universe, key, fare, "sold", "driver fare") end
+end
+
 function Game:driverFare(to)
 	local au = Fields.distance(self.fieldId, to, self.universe.clock)
 	return math.floor((T.driverFare + T.driverFarePerAU * au) / 10 + 0.5) * 10
@@ -129,6 +135,7 @@ function Game:fireDriver(to)
 		return false
 	end
 	self.universe.credits = self.universe.credits - fare
+	self:payDriverFare(fare)
 	self.driverMenu = nil
 	p.launch = { driver = menu.driver, to = to, t = 0 }
 	p.driverProtected=true;menu.driver.driverShip=p
@@ -150,6 +157,7 @@ function Game:fireDriverToSite(instId)
 		return false
 	end
 	self.universe.credits = self.universe.credits - fare
+	self:payDriverFare(fare)
 	self.driverMenu = nil
 	p.launch = { driver = menu.driver, to = instId, site = true, t = 0 }
 	p.driverProtected=true;menu.driver.driverShip=p

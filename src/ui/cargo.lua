@@ -1955,7 +1955,7 @@ function Cargo.draw(game)
   if Cargo.tab == "industry" then
 			IndustryView.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
-			Station.footer('What this station makes, what it is waiting on, and where its output goes.','Shares move with the facility policy  \194\183  Inputs arrive by freight  \194\183  Mouse wheel scrolls')
+			Station.footer('What this station makes, what it is waiting on, and where its output goes.  \194\183  '..Station.funds(game),'Shares move with the facility policy  \194\183  Inputs arrive by freight  \194\183  Mouse wheel scrolls')
 			return
 		end
 		if Cargo.tab == "shipyard" then
@@ -2163,7 +2163,7 @@ function Cargo.draw(game)
   if selected and not Cargo.hand and r.side.market and not stockMatch(selected) then selected=nil end
   local problem=docked and Ship.launchProblem(p)
   local title=problem and ("Can't launch: "..problem) or ('Mass %.0f t'):format(p.body:getMass())
-  local details=hint
+  local details=market and ((hint and hint~='' and hint..'  \194\183  ' or '')..Station.funds(game)) or hint
   if selected then
    local item=itemFor(selected.id);title=item.name
    details=('%d units • %d × %d cells'):format(selected.n,selected.w,selected.h)

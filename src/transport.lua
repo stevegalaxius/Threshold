@@ -354,8 +354,8 @@ Tasks.register('transport',{
    elseif line.mine or line.stocked then J.deliver(u,station,line.item,line.amount) end
    if line.intake then require('src.merchants').received(u,line.intake,station,line.item,line.amount) end
    require('src.economy').stat(u,'hauled',line.item,line.amount)
-   local payment=charge.payment;total=total+line.amount
-   require('src.economy').ledger(u,station,'freight',payment,line.item)
+   local payment=require('src.accounts').pay(u,station,charge.payment,'freight',line.item);total=total+line.amount
+   paid=paid-(charge.payment-payment)
    if (line.premiumPerUnit or 0)>0 then require('src.economy').ledger(u,station,'premium',math.floor(line.amount*line.premiumPerUnit),line.item) end
    require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
     {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,premiumPerUnit=line.premiumPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)

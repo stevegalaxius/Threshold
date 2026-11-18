@@ -8,7 +8,6 @@
 	  field  = field id (a planet or moon)
 	  count  = how many, or { min, max } (rolled once per field, seeded)
 	  mix    = { kind = weight, ... }   kinds below
-	  owner  = who owns them (a faction or station id; nil: nobody)
 	  band   = { inner, outer } as fractions of the way from the surface
 	           (0) to the map's edge (1); default { 0.08, 0.85 }
 	  names  = name prefix for the satellites ("Earth" -> "Earth sat 07")
@@ -23,6 +22,8 @@
 	           Placed with hubs = n, not through the mix.
 
 	Every satellite gets a stable id (<field>_sat_<n>) so quests can name it.
+	Who they belong to isn't set here: they answer to whoever holds the
+	planet (Sat.faction), and the player's own are the player's.
 ]]
 
 -- Hubs go to the quiet edges, where there's no market station at all:

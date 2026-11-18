@@ -29,6 +29,18 @@ function S.body()
  local y=S.BODY_Y
  return x,y,w,math.max(320,love.graphics.getHeight()-y-16)
 end
+-- What the docked station has to pay with (src/accounts.lua).
+function S.funds(game)
+ local p=game.player;local st=p and p.dockState and p.dockState.station
+ if not st then return '' end
+ local A=require('src.accounts');local key=require('src.stockpile').key(st)
+ if not key then return '' end
+ local id=A.of(key);local n=HUD.credits(math.floor(A.balance(game.universe,key)))
+ if id:match('^faction:') then
+  local f=id:sub(9);return ('Run by %s%s \194\183 faction funds %s'):format(f:sub(1,1):upper(),f:sub(2),n)
+ end
+ return 'Station funds '..n
+end
 -- The status ledger, under the header, the same on every tab.
 function S.footer(title,details,warn)
  local x,w=S.frame()

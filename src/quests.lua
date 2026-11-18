@@ -149,10 +149,10 @@ local function settle(u,q,status,clock,game,text)
  local faction=rep().ofNode(q.giver)
  if status=='done' then
   if q.kind=='rescue' then
-   local pay=q.unit*q.amount;u.credits=u.credits+pay;q.paid=pay
+   local pay=require('src.accounts').pay(u,q.giver,q.unit*q.amount,'quest');u.credits=u.credits+pay;q.paid=pay
    rep().addGoodwill(u,(u.npcs or {})[q.subject],rep().T.goodwillRescue)
   end
-  if Q.sites and Q.sites[q.kind] then local pay=q.unit*q.amount;u.credits=u.credits+pay;q.paid=pay end
+  if Q.sites and Q.sites[q.kind] then local pay=require('src.accounts').pay(u,q.giver,q.unit*q.amount,'quest');u.credits=u.credits+pay;q.paid=pay end
   rep().addStanding(u,faction,T.questStanding)
   require('src.events').emit('quest_completed',q)
  else
@@ -336,7 +336,7 @@ function Q.deliver(game,id,station)
  else p.cargo[q.item]=have-n;if p.cargo[q.item]<=0 then p.cargo[q.item]=nil end end
  Ship.updateMass(p)
  Stock.add(u,q.giver,q.item,n)
- local pay=n*q.unit
+ local pay=require('src.accounts').pay(u,q.giver,n*q.unit,'quest')
  u.credits=u.credits+pay;q.delivered=q.delivered+n;q.paid=(q.paid or 0)+pay
  if q.delivered>=q.amount then settle(u,q,'done',u.clock,game) end
  return true,('Delivered %d: paid %d CR'):format(n,pay)

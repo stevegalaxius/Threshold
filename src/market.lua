@@ -149,7 +149,9 @@ function Game:updateRepairs(st)
   local budget=order.rate>0 and self.universe.credits/order.rate or order.remaining
   local points=require('src.repair_materials').restore(self.universe,key,math.min(missing,order.remaining,budget),elapsed,T.npcRepairPerSecond)
   owner.armor=math.min(maximum,(owner.armor or maximum)+points)
-  self.universe.credits=math.max(0,self.universe.credits-points*order.rate)
+  local charged=math.min(self.universe.credits,points*order.rate)
+  self.universe.credits=self.universe.credits-charged
+  require('src.accounts').receive(self.universe,key,charged,'sold','repair')
   order.remaining=math.max(0,order.remaining-points)
   if order.remaining<1e-6 or maximum-owner.armor<1e-6 or budget<=points+1e-6 then owner.repairOrder=nil end
  end
@@ -323,6 +325,8 @@ function Game:tradeProblem(st, trade)
 	if #buying + #selling == 0 then return "NOTHING ON THE TABLE" end
 	local get, pay = Game.tradeTotals(trade)
 	if self.universe.credits + get < pay then return "NOT ENOUGH CREDITS" end
+	-- the station pays for what it buys out of its own account
+	if get > pay and not require('src.accounts').canPay(self.universe, Stock.key(st), get - pay) then return "THE STATION CAN'T AFFORD THAT" end
 	local th, ts = Hold.clone(self.player.hold), Hold.clone(self:stationStorage(st))
 	for _, s in ipairs(buying) do
 		if not ShipEntry.item(s.id) and not deliver(s, th, ts) then return "NO ROOM" end
@@ -378,6 +382,8 @@ function Game:completeTrade(st, trade)
 		for i = #g.stacks, 1, -1 do Grid.remove(g, g.stacks[i]) end
 	end
 	u.credits = u.credits + get - pay
+	local Accounts = require('src.accounts')
+	if pay > get then Accounts.receive(u, Stock.key(st), pay - get, 'sold') else Accounts.pay(u, Stock.key(st), get - pay, 'bought') end
 	p.cargo = Hold.totals(p.hold)
 	Ship.updateMass(p)
  for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end
@@ -480,6 +486,9 @@ function Game:buyShip(st, lot, opts)
  require('src.dealers').take(self.universe,st,lot.id)
 	local credit = tradeIn and math.max(0, Game.shipSellPrice(tradeIn) - require("src.berth_rent").owed(tradeIn)) or 0
 	self.universe.credits = self.universe.credits + credit - lot.price
+	local Accounts = require("src.accounts")
+	if lot.price > credit then Accounts.receive(self.universe, Stock.key(st), lot.price - credit, "sold", "ship:" .. lot.hull)
+	else Accounts.pay(self.universe, Stock.key(st), credit - lot.price, "bought") end
 	if tradeIn then tradeIn.lease = nil; require("src.dealers").resell(self.universe, st, tradeIn) end
 	if tradeIn then events.emit("sellship", tradeIn, st) end
 	events.emit("buyship", rec, st)
@@ -495,6 +504,8 @@ function Game:sellShip(st, i)
 	if rec.carried and next(rec.carried) then return nil, "UNLOAD ITS BERTHS FIRST" end
 	-- unpaid berth rent comes out of the sale
 	local paid = math.max(0, Game.shipSellPrice(rec) - require("src.berth_rent").owed(rec))
+	if not require("src.accounts").canPay(self.universe, Stock.key(st), paid) then return nil, "THE STATION CAN'T AFFORD IT" end
+	require("src.accounts").pay(self.universe, Stock.key(st), paid, "bought", "ship:" .. rec.hull)
 	table.remove(list, i)
 	self.universe.credits = self.universe.credits + paid
 	rec.lease = nil

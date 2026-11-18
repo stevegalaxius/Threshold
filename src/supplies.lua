@@ -104,7 +104,14 @@ local function charge(r,u,key,id,n)
  local p=unitPrice(u,key,id)
  local cost=n*p
  r.credits=math.max(0,(r.credits or 0)-cost);r.suppliesSpent=(r.suppliesSpent or 0)+cost
- require('src.economy').ledger(u,type(key)=='table' and key.key or key,'sold',cost,id)
+ if type(key)=='table' then
+  -- a satellite hub's shelf: the takings go to whoever runs the satellite
+  local Sat=require('src.satellites')
+  local sat=Sat.get(u,(key.key or ''):match('^sat:(.+)$'))
+  local acct=sat and Sat.account(sat)
+  if acct then require('src.accounts').receive(u,acct,cost) end
+  require('src.economy').ledger(u,key.key,'sold',cost,id)
+ else require('src.accounts').receive(u,key,cost,'sold',id) end
 end
 local function affordable(r,u,key,id,missing)
  if id==Fuel.item() then return missing end

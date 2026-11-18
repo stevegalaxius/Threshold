@@ -314,7 +314,7 @@ function D.buyForNpc(u,r,candidate,policy)
  -- the budget only caps what it can buy; the price goes to the station,
  -- and the pilot starts with pocket money, not the change from a budget
  r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
- require('src.economy').ledger(u,candidate.station,'sold',lot.price,'ship:'..lot.hull)
+ require('src.accounts').receive(u,candidate.station,lot.price,'sold','ship:'..lot.hull)
  require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=lot.price,lot=lot.id},candidate.station)
  return true
 end
