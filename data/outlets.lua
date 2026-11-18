@@ -30,7 +30,7 @@ D.outlets = {
 		agenda = { food_crate = 1, medical_supplies = 1, electronics = -1 },
 		lean = .5, rumour = .03, hush = "soften", smear = .3,
 		templates = {
-			shortage = { "{station} society frets over scarce {good}", "{good} grows dear at {station}: {pct}" },
+			shortage = { "{station} society frets over scarce {good}", "{good} prices climb at {station}: {pct}" },
 			glut = { "A surfeit of {good} at {station}, {pct}" },
 			killed = { "{faction} vessel lost near {area}; {who} sought", "Tragedy off {area}: {who} blamed" },
 			praise = { "A credit to the Inner Worlds: {who} at {area}" },
