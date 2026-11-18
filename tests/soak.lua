@@ -8,6 +8,12 @@
 --   SOAK_NEWS_PLAYER=1  a scripted player: a faction ship killed out of
 --                       sight every 3 h, and 40 units sold into a running
 --                       shortage story every hour, to watch standing move
+--   SOAK_FAST=1         no physics: every ship goes off-screen and A-Life
+--                       advances the records by clock (every SOAK_STEP
+--                       seconds, default 2, as off-screen ships are in
+--                       play), with the minute chores (drills, arrivals,
+--                       the economy, quests, news) run as A-Life runs them.
+--                       Nothing happens on the parked map itself.
 --   SOAK_PROFILE=1      sample where the time goes (LuaJIT's profiler) and
 --                       print the top functions and call sites at the end
 -- With the news on, each hour also prints a news line: stories by outlet
@@ -162,15 +168,34 @@ return function(game)
    local st=P.dumpstack(th,'pl;',-6);prof.stack[st]=(prof.stack[st] or 0)+samples
   end)
  end
+ -- the fast mode: the records only, by clock
+ local fast=os.getenv('SOAK_FAST')=='1'
+ local fstep=tonumber(os.getenv('SOAK_STEP') or '') or 2
+ local Encounters,Squads,History=require('src.encounters'),require('src.squads'),require('src.simulation_history')
+ local Director,Sats,Stalls,Rent=require('src.director'),require('src.satellites'),require('src.stalls'),require('src.berth_rent')
+ if fast then game:captureALife(true);game.alifeOnline={} end
+ local function fastMinute()
+  local base=u.clock
+  for c=base+fstep,base+60,fstep do
+   u.clock=c
+   for id,r in pairs(u.npcs or {}) do game:alifeVisit(id,r,c,nil,nil,true,true) end
+   Encounters.update(game,c);Squads.update(game,c);History.update(game)
+  end
+  u.clock=base+60
+  game.alifeStage=1
+  while game.alifeStage and game.alifeStage<=4 do game:alifeChore(u.clock,true) end
+  game.alifeStage=nil
+  Director.update(u);Sats.tick(u);Stalls.tick(u,game);Rent.tick(u,game)
+ end
  local first=stockTotals()
  local made0=require('src.persistence').copy(u.economyStats or {})
  local t0=os.clock()
  local steps=math.floor(3600/dt)
- say(('soak: %d h at dt=%.4f on %s, %d trade stations, news %s'):format(hours,dt,game.fieldId,#stations,newsOn and (scripted and 'on, scripted player' or 'on') or 'off'))
+ say(('soak: %d h at dt=%.4f on %s, %d trade stations, news %s%s'):format(hours,dt,game.fieldId,#stations,newsOn and (scripted and 'on, scripted player' or 'on') or 'off',fast and (', FAST (no physics, records every %gs)'):format(fstep) or ''))
  sample(0,0)
  for h=1,hours do
   local per=math.floor(steps/60)
-  local ok,err=xpcall(function() for m=1,60 do for _=1,per do game:step(dt) end newsMinute(h,m) end end,debug.traceback)
+  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else for _=1,per do game:step(dt) end end newsMinute(h,m) end end,debug.traceback)
   if not ok then say('CRASH in hour '..h..': '..tostring(err));break end
   sample(h,os.clock()-t0)
   newsSample(h)
