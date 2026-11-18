@@ -10,7 +10,7 @@
 	            outlet's story, later, with its own spin stacked on. Now and
 	            then it prints a rumour with nothing behind it.
 	  coverage  a station carries its owner's outlet plus any outlet read
-	            everywhere (the Beltway). The player can subscribe to more.
+	            everywhere (the Beltway).
 	            Docked or in flight, you read what's carried where you are
 	            (the station, or the system you're flying in).
 	  prices    a story nudges the price of its good at the stations in its
@@ -54,7 +54,6 @@ N.T={
  blameHit=-5,
  secondhandWeight=.6, -- a copied deed weighs this much of a first-hand one
  rivalPraise=.25,     -- an outlet's owner warms to you for hitting its rivals
- subscribeCost=500,subscribeTime=3600,
 }
 
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -64,7 +63,7 @@ local function Rep() return require('src.reputation') end
 function N.state(u)
  local s=u.news
  if not s then
-  s={stories={},nextId=0,nudges={},shocks={},outlets={},subs={},deeds={}}
+  s={stories={},nextId=0,nudges={},shocks={},outlets={},deeds={}}
   u.news=s
  end
  return s
@@ -86,7 +85,7 @@ for _,id in ipairs(Outlets.order) do local f=Outlets.outlets[id].owner;if f and 
 function N.ofFaction(f) return f and owned[f] or nil end
 
 -- Outlets a station (or satellite) carries: its owner's, plus the ones
--- read everywhere. Not the player's subscriptions.
+-- read everywhere.
 function N.carried(nodeId,area)
  local out={}
  local mine=N.ofFaction(nodeId and Rep().ofNode(nodeId) or Rep().ofArea(area))
@@ -100,7 +99,6 @@ local function carries(nodeId,o)
  for _,id in ipairs(N.carried(nodeId)) do if id==o then return true end end
  return false
 end
-function N.subscribed(u,o) return (N.state(u).subs[o] or 0)>(u.clock or 0) end
 -- Factions that read an outlet: its owner, and everyone if it's read
 -- everywhere.
 local function readers(o)
@@ -506,12 +504,10 @@ end
 ---------------------------------------------------------------- the player's view
 
 -- Outlets the player can read right now: what's carried at the station
--- they're docked at (nodeId) or in the system they're flying in (area),
--- plus subscriptions.
+-- they're docked at (nodeId) or in the system they're flying in (area).
 function N.reading(u,nodeId,area)
  local out,seen={},{}
  for _,o in ipairs(N.carried(nodeId,area)) do if not seen[o] then seen[o]=true;out[#out+1]=o end end
- for _,o in ipairs(Outlets.order) do if N.subscribed(u,o) and not seen[o] then seen[o]=true;out[#out+1]=o end end
  return out
 end
 -- The feed, newest first: stories from the outlets read. Tips from
@@ -527,14 +523,6 @@ function N.feed(u,nodeId,area,limit)
   if limit and #out>=limit then break end
  end
  return out
-end
-function N.subscribe(u,o)
- if not Outlets.outlets[o] then return false,'No such outlet' end
- if (u.credits or 0)<N.T.subscribeCost then return false,'Not enough credits' end
- u.credits=u.credits-N.T.subscribeCost
- local s=N.state(u)
- s.subs[o]=math.max(s.subs[o] or 0,u.clock or 0)+N.T.subscribeTime
- return true
 end
 
 ---------------------------------------------------------------- the player's trades

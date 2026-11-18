@@ -1,6 +1,6 @@
 -- The News tab (docked and in flight): what the outlets you can read are
 -- printing. Docked, that's what the station carries; in flight, what's
--- carried in the system you're in; plus your subscriptions. Nothing here
+-- carried in the system you're in. Nothing here
 -- is the truth (src/news.lua). Your standing with each outlet is on the
 -- Reputation screen.
 local News=require('src.news')
