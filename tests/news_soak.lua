@@ -3,8 +3,12 @@
 --   NEWS_SOAK_OUT=path   also write the report to a file
 --   NEWS_SOAK_FULL=1     also run the full game (A-Life, flight) for
 --                        NEWS_SOAK_FULL_HOURS (default 6) with news on
--- Runs the economy offline twice from the same fresh universe, once with
--- the news and once without, and compares them hour by hour: what the
+--   NEWS_SOAK_STEP=10    seconds between A-Life record visits
+-- Runs the world twice from the same fresh universe, once with the news
+-- and once without, with no physics: every ship is put off-screen and
+-- A-Life advances the records (trading, hauling, fights) while the
+-- economy, quests and news run their minute chores. It compares the two
+-- runs hour by hour: what the
 -- papers print, how far stories push prices, whether NPC traders chase
 -- them, whether shortages get better or worse. It also plays a scripted
 -- player (kills out of sight, trades into stories) to watch standing
@@ -20,6 +24,12 @@ return function(game)
  local Rep=require('src.reputation')
  local Save=require('src.save')
  local data=require('src.data')
+ local Encounters=require('src.encounters')
+ local Squads=require('src.squads')
+ local History=require('src.simulation_history')
+ local Director,Sats=require('src.director'),require('src.satellites')
+ local Stalls,Rent=require('src.stalls'),require('src.berth_rent')
+ local step=tonumber(os.getenv('NEWS_SOAK_STEP') or '') or 10
  local hours=tonumber(os.getenv('NEWS_SOAK_HOURS') or '') or 48
  local out=os.getenv('NEWS_SOAK_OUT')
  local fh=out and io.open(out,'w')
@@ -32,16 +42,22 @@ return function(game)
   local g=Game.new();g.autosaveOff=true;g:loadField(Fields.start)
   for _=1,60 do g:step(1/60) end
   require('src.supplies').universe=g.universe
+  -- every ship off-screen, so the records carry on with no physics
+  g:captureALife(true);g.alifeOnline={}
   return g
  end
 
  -- one offline run; withNews=false turns the papers off entirely
  local function run(withNews,label,player)
-  News.update=withNews and realUpdate or function() end
+  local stats={hours={},label=label,newsTime=0,newsMax=0,newsCalls=0}
+  News.update=withNews and function(...)
+   local t0=love.timer.getTime();realUpdate(...)
+   local dt=love.timer.getTime()-t0
+   stats.newsTime=stats.newsTime+dt;stats.newsMax=math.max(stats.newsMax,dt);stats.newsCalls=stats.newsCalls+1
+  end or function() end
   News.factor=withNews and realFactor or function() return 1 end
   local g=fresh();local u=g.universe
   math.randomseed(1234);if love and love.math then love.math.setRandomSeed(1234) end
-  local stats={hours={},label=label,newsTime=0,newsMax=0,newsCalls=0}
   local priceCalls=0;local realPrice=Markets.price
   Markets.price=function(...) priceCalls=priceCalls+1;return realPrice(...) end
   local start=u.clock
@@ -52,12 +68,19 @@ return function(game)
    local hs={stories={},kinds={},rumour=0,second=0,player=0,named=0,blamed=0,quest=0}
    for m=1,60 do
     local clock=start+(h-1)*3600+m*60
+    -- the records, every step seconds through this minute
+    for c=clock-60+step,clock,step do
+     u.clock=c
+     for id,r in pairs(u.npcs or {}) do g:alifeVisit(id,r,c,nil,nil,true,true) end
+     Encounters.update(g,c);Squads.update(g,c);History.update(g)
+    end
     u.clock=clock
-    Econ.update(u,clock)
-    local t0=love.timer.getTime()
-    News.update(u,clock,g)
-    local dt=love.timer.getTime()-t0
-    stats.newsTime=stats.newsTime+dt;stats.newsMax=math.max(stats.newsMax,dt);stats.newsCalls=stats.newsCalls+1
+    -- the minute chores: drills, arrivals, the board, the economy,
+    -- quests and news (src/alife.lua), and the shared background work
+    g.alifeStage=1
+    while g.alifeStage and g.alifeStage<=4 do g:alifeChore(clock,true) end
+    g.alifeStage=nil
+    Director.update(u);Sats.tick(u);Stalls.tick(u,g);Rent.tick(u,g)
     -- the scripted player: a kill out of sight every few hours, and
     -- selling into whatever story is running at a station
     if player and withNews then
@@ -101,6 +124,12 @@ return function(game)
    hs.shortages,hs.priceDev,hs.priceHi=shortages,ratioN>0 and ratioSum/ratioN or 0,hi
    local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
    hs.bought,hs.sold,hs.freight=lh.bought or 0,lh.sold or 0,lh.freight or 0
+   -- the ships: alive, jobs in hand, deaths this hour
+   local alive,claimed,died=0,0,0
+   for _,r in pairs(u.npcs or {}) do if r.state~='dead' and r.state~='escaped' then alive=alive+1 end end
+   for _,o in pairs(require('src.tasks').state(u).offers) do if o.state~='available' then claimed=claimed+1 end end
+   died=#History.recent(u,{kind='npc_died',since=start+(h-1)*3600},1000)
+   hs.alive,hs.claimed,hs.died=alive,claimed,died
    -- standing
    hs.rep={};for _,f in ipairs(Rep.ORDER) do hs.rep[f]={w=Rep.witnessed(u,f),r=Rep.reported(u,f)} end
    hs.outlets={};for _,o in ipairs(News.order) do hs.outlets[o]=News.standing(u,o) end
@@ -125,13 +154,13 @@ return function(game)
  local on=run(true,'news',true)
  say(('wall %.0fs'):format(os.clock()-wall))
  say('')
- say('h | stories by outlet | kinds | rumour 2nd-hand about-you(named,blamed) | nudged capped meanDev min..max | shortages on/off | priceDev on/off | >=1.8x on/off | bought on/off | sold on/off | stories kept, nudges, save bytes | price calls on/off')
+ say('h | stories by outlet | kinds | rumour 2nd-hand about-you(named,blamed) | nudged capped meanDev min..max | shortages on/off | priceDev on/off | >=1.8x on/off | bought on/off | sold on/off | stories kept, nudges, save bytes | price calls on/off | ships alive, jobs held, deaths on/off')
  for h=1,hours do
   local a,b=on.hours[h],off.hours[h]
-  say(('h%02d | %s | %s | %d %d %d(%d,%d) | %d %d %.3f %.2f..%.2f | %d/%d | %.3f/%.3f | %d/%d | %.0f/%.0f | %.0f/%.0f | %d %d %d | %d/%d'):format(h,
+  say(('h%02d | %s | %s | %d %d %d(%d,%d) | %d %d %.3f %.2f..%.2f | %d/%d | %.3f/%.3f | %d/%d | %.0f/%.0f | %.0f/%.0f | %d %d %d | %d/%d | %d/%d %d/%d %d/%d'):format(h,
    kv(a.stories),kv(a.kinds),a.rumour,a.second,a.player,a.named,a.blamed,
    a.nudged,a.capped,a.meanDev,a.minF,a.maxF,a.shortages,b.shortages,a.priceDev,b.priceDev,a.priceHi,b.priceHi,
-   a.bought,b.bought,a.sold,b.sold,a.storyCount,a.nudgeEntries,a.saveBytes,a.priceCalls,b.priceCalls))
+   a.bought,b.bought,a.sold,b.sold,a.storyCount,a.nudgeEntries,a.saveBytes,a.priceCalls,b.priceCalls,a.alive,b.alive,a.claimed,b.claimed,a.died,b.died))
  end
  say('')
  say('standing (witnessed/reported) every 6 h with the scripted player:')
