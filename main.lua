@@ -121,7 +121,7 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	-- Test run: love . --test (tests/fast.lua, about half a minute).
-	local suites = { ["--test"] = "tests.fast" }
+	local suites = { ["--test"] = "tests.fast", ["--soak"] = "tests.soak" }
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
  end
