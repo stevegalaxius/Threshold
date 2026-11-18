@@ -113,10 +113,10 @@ end
 function Transport.payment(t) return Transport.invoice(t).total end
 -- What a station-to-station delivery's goods cost the buyer: the seller's
 -- live price, plus T.hubMarkup when the seller is a logistics hub.
+local function isHub(key) local p=L.byId[L.canonical(key)];return p and p.hub end
 function Transport.goodsPrice(u,source,item)
  local unit=require('src.markets').price(u,source,item)
- local place=L.byId[L.canonical(source)]
- if place and place.hub then unit=unit*(1+T.hubMarkup) end
+ if isHub(source) then unit=unit*(1+T.hubMarkup) end
  return unit
 end
 function Transport.settleGoods(u,line,buyer)

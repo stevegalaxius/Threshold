@@ -149,4 +149,4 @@ salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, m
 salvage { id = "satellite_package", name = "Satellite package", description = "A folded relay satellite. Use it in orbit to put it up as your own: it earns while it has fuel. Use it at a launch job's site to replace a lost one.",
 	volume = 1, mass = 1, price = 12000, w = 2, h = 2, stack = 1,
 	use = { label = "Launch satellite", cast = 3, effects = { { "deploy_satellite" }, { "quest", item = "satellite_package" } } } }
-salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 60, w = 1, h = 1, stack = 4 }
+salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 130, w = 1, h = 1, stack = 4 }
