@@ -23,26 +23,6 @@ function S.weight(u,hull)
  end
  return weight
 end
--- Factory showrooms used to sell unsold ships 'wholesale' into the abstract
--- market. With arrivals buying from lots, unsold ships just wait for a
--- buyer (a full showroom stops the line), so this is off.
-function S.wholesale(u,key,state,def,clock)
- if true then return end
- if not def.assembly or def.service then return end
- local interval=config().wholesaleHours*3600
- state.wholesaleAt=state.wholesaleAt or clock+interval
- if clock<state.wholesaleAt then return end
- -- One sale per observed interval, never a catch-up purge of the showroom.
- state.wholesaleAt=clock+interval
- for i,lot in ipairs(state.lots) do
-  if not lot.used and clock-(lot.manufacturedAt or 0)>=interval then
-   table.remove(state.lots,i)
-   require('src.simulation_history').note(u,'ship_wholesale',clock,nil,{},
-    {station=key,hull=lot.hull,lot=lot.id},key)
-   return
-  end
- end
-end
 local function fitted(hull,policy,u,area,stock)
  local D=require('src.dealers');local loadout={}
  for i,id in ipairs(hull.loadout) do loadout[i]=id end

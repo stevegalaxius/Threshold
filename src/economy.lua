@@ -60,7 +60,7 @@ function E.stat(u,kind,item,n)
  local t=u.economyStats[kind] or {};u.economyStats[kind]=t
  t[item]=(t[item] or 0)+n
 end
--- Station credits. Budgets are unlimited, but every credit a station pays
+-- Station credits (src/accounts.lua). Every credit a station pays
 -- out (freight, buying from players) or takes in (selling to players) is
 -- counted, per station and per game hour, so pay rates can be tuned
 -- against the money they create. kind: 'freight', 'premium' (the scarcity

@@ -117,6 +117,7 @@ function H.finish(u,a,b,clock,reason,fled)
 end
 function H.death(u,r,clock,area,killer)
  if r.deathOutcomeId then return end
+ u.shipsLost=(u.shipsLost or 0)+1
  r.deathKiller=killer
  -- Reaping may release the task before logging death; retain the activity
  -- at death so cleanup cannot erase crime/rescue consequences.

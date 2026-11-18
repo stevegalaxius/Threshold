@@ -104,6 +104,7 @@ local function charge(r,u,key,id,n)
  local p=unitPrice(u,key,id)
  local cost=n*p
  r.credits=math.max(0,(r.credits or 0)-cost);r.suppliesSpent=(r.suppliesSpent or 0)+cost
+ if id==Fuel.item() then r.fuelSpent=(r.fuelSpent or 0)+cost end
  if type(key)=='table' then
   -- a satellite hub's shelf: the takings go to whoever runs the satellite
   local Sat=require('src.satellites')

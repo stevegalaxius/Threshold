@@ -158,7 +158,6 @@ end
 -- Scheduled by industry, never by UI/read access.
 function D.update(u,key,clock)
  local s,def=D.state(u,key);if not s then return end
- require('src.npc_ship_supply').wholesale(u,key,s,def,clock)
  local SD=require('src.ship_delivery')
  -- (the board of ship deliveries, refreshed every ten game minutes)
  if clock>=(u.shipDeliveryRefresh or 0) then u.shipDeliveryRefresh=clock+600;SD.refresh(u,clock) end

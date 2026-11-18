@@ -249,7 +249,9 @@ T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the a
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.stationOpeningCredits=60000 -- what a station's account opens with (src/accounts.lua)
 T.factionOpeningCredits=2000000 -- and a faction's
-T.factionTax=.1 -- share of a station's takings paid to its faction
+T.factionTax=.25 -- share of a station's takings paid to its faction
+T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
+T.hubMarkup=.3 -- a logistics hub sells on what it imports at this markup (src/transport.lua)
 T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
 T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
@@ -261,7 +263,7 @@ T.pirateFenceRate=.6
 T.raidShortageBias=.25
 -- Pirate berths (security.lua S.berths): a dark base with a shipyard keeps as
 -- many raiders as its fuel stock covers, fuelReserves full reserves each, up to max
-T.pirateBerths={max=6,fuelReserves=2}
+T.pirateBerths={max=10,fuelReserves=2}
 -- One NPC cruise speed; hulls vary it by at most npcCruiseSpread either way.
 T.npcCruise,T.npcCruiseSpread=650,.15
 T.npcCruiseReferenceHull='ferrous_mule' -- the hull that cruises at exactly T.npcCruise (stock fit)
@@ -287,6 +289,11 @@ T.distressRange, T.distressRetry, T.distressWindow, T.distressShare = 20000, 30,
 T.distressMinSpare = 3   -- units of fuel a helper must be able to spare
 T.offlineStationAccuracy = 0.5   -- turret hit chance offline
 T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0.3
+-- Ship losses: the chance a robbed civilian is destroyed anyway, and the
+-- chance any other side that breaks off a fight doesn't get away. Lost
+-- ships are replaced from the shipyards, which is what keeps ships,
+-- modules and ammo selling.
+T.pirateScuttleChance, T.offlineBreakKill = 0.5, 0.5
 T.alifeWreckLifetime = 1800
 T.population = {
  -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
@@ -407,13 +414,13 @@ T.mineWorkAltitude=1500
 T.mineWorkSide=1100
 T.minersPerArea,T.minerLoad,T.miningChunkDamping=3,36,1.1
 T.miningOrbitDamping=1.1
-T.miningScan,T.miningOfflineEvery=.5,12
+T.miningScan=.5
 
 -- Bounded saved observations; quiet physical fights end after this interval.
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',1750
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
