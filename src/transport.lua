@@ -1,6 +1,7 @@
 -- Transport tasks: carry a station's order (src/economy.lua) from the
 -- station that has the goods to the one that wants them. The destination
--- commissions the shipment; its operating budget is unlimited for now.
+-- commissions the shipment: it pays the courier, then buys the goods from
+-- the source (src/accounts.lua).
 local Tasks=require('src.tasks')
 local Fields=require('src.fields')
 local L=require('src.locations')
@@ -110,6 +111,21 @@ function Transport.invoice(t)
  return bill
 end
 function Transport.payment(t) return Transport.invoice(t).total end
+-- What a station-to-station delivery's goods cost the buyer: the seller's
+-- live price, plus T.hubMarkup when the seller is a logistics hub.
+function Transport.goodsPrice(u,source,item)
+ local unit=require('src.markets').price(u,source,item)
+ local place=L.byId[L.canonical(source)]
+ if place and place.hub then unit=unit*(1+T.hubMarkup) end
+ return unit
+end
+function Transport.settleGoods(u,line,buyer)
+ local Accounts=require('src.accounts')
+ local value=math.floor(Transport.goodsPrice(u,line.source,line.item)*line.amount+.5)
+ local paid=Accounts.pay(u,buyer,value,'bought',line.item)
+ Accounts.receive(u,line.source,paid,'sold',line.item)
+ return paid
+end
 -- Upgrade unclaimed economy listings; accepted contracts retain their quote.
 function Transport.refreshOffers(u,clock)
  for _,o in pairs(Tasks.state(u).offers) do
@@ -356,6 +372,9 @@ Tasks.register('transport',{
    require('src.economy').stat(u,'hauled',line.item,line.amount)
    local payment=require('src.accounts').pay(u,station,charge.payment,'freight',line.item);total=total+line.amount
    paid=paid-(charge.payment-payment)
+   -- an economy order is a sale: the buyer pays the seller for the goods
+   -- (after the courier), and a hub sells on at a markup
+   if line.layoutScope=='economy' and not line.playerOrder and not line.intake then Transport.settleGoods(u,line,station) end
    if (line.premiumPerUnit or 0)>0 then require('src.economy').ledger(u,station,'premium',math.floor(line.amount*line.premiumPerUnit),line.item) end
    require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
     {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,premiumPerUnit=line.premiumPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)

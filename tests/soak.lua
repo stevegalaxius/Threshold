@@ -87,7 +87,7 @@ return function(game)
   say('    unpaid: '..table.concat(o,' '))
   local byG={} for _,r in pairs(u.npcs or {}) do if r.state~='dead' then local g=r.populationGroup or '?';byG[g]=(byG[g] or 0)+(r.credits or 0) end end
   local gg={} for k,v in pairs(byG) do gg[#gg+1]=k..'='..math.floor(v) end table.sort(gg)
-  say('    npc credits: '..table.concat(gg,' '))
+  say('    npc credits: '..table.concat(gg,' ')..(' | ships lost %d'):format(u.shipsLost or 0))
  end
  local first=stockTotals()
  local made0=require('src.persistence').copy(u.economyStats or {})
@@ -109,6 +109,17 @@ return function(game)
   local function d(kind) return ((s[kind] or {})[k] or 0)-((made0[kind] or {})[k] or 0) end
   say(('%s %d %d %.0f %.0f %.0f'):format(k,first[k] or 0,last[k] or 0,d('made'),d('used'),d('hauled')))
  end
+ -- what the economy made, valued at list price, and fuel's share of it
+ local value,fuel=0,0
+ for _,k in ipairs(items) do
+  local made=((s.made or {})[k] or 0)-((made0.made or {})[k] or 0)
+  local v=made*(data.items[k].price or 0);value=value+v
+  if k==require('src.reactor_fuel').item() then fuel=v end
+ end
+ say(('output value %.0f, fuel %.0f (%.0f%%)'):format(value,fuel,value>0 and 100*fuel/value or 0))
+ local dead,costs=0,0
+ for _,r in pairs(u.npcs or {}) do if r.state=='dead' then dead=dead+1 end;costs=costs+(r.runningCosts or 0) end
+ say(('ships lost %d, running costs paid %.0f'):format(u.shipsLost or 0,costs))
  if os.getenv('SOAK_SAVE') then require('src.save').write(os.getenv('SOAK_SAVE'),game:saveState());say('saved '..os.getenv('SOAK_SAVE')) end
  if fh then fh:close() end
 end

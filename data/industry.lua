@@ -202,7 +202,7 @@ D.shops={chemicals={id='chemicals',name='Chemicals',description='Nitrates, agric
 D.usedShips={lots=2,intervalHours=16,markup=.85,minCondition=.7,maxCondition=.95,presets={'ferrous_pony','ferrous_mule','ferrous_bison','mack_longhorn','miner','police','raider'},
  -- Decommissioned police hulls: rarely, a used lot is one of these.
  rarePresets={'estates_whisper','diwan_cherubim'},rareChance=.04}
-D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1,wholesaleHours=2}
+D.npcShips={usedChance=.2,productionHalfLifeHours=12,baselineWeight=1}
 D.dealerParking={guestHangarFraction=.25,guestBerths=2}
 -- Fuel-chain throughput supports the original 2,500-energy canister. The
 -- half-hour input buffer starts logistics; ongoing stock still needs freight.
@@ -210,5 +210,5 @@ D.facilities.press_canisters.openingInputs={iron_ore=.5}
 D.facilities.skim_deuterium.openingInputs={empty_canister=.5}
 D.facilities.crack_ice.openingInputs={water_ice=.5,empty_canister=.5}
 D.reserves={deuterium_canister={service='supplies',minimum=120,openingMultiplier=2},steel_plate={service='repair',minimum=8,openingMultiplier=2}}
-D.consumption={food={recipe='grow_food',facility='farm',item='food_crate',reserveHours=4,transition=3600,minOutput=.5}}
+D.consumption={food={recipe='grow_food',facility='farm',item='food_crate',reserveHours=4,transition=3600,minOutput=.25}}
 return D

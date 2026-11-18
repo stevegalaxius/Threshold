@@ -1,6 +1,7 @@
 -- Food is an operating cost, not a population simulation. Rates are crates
 -- per game hour; farms turn delivered fertilizer into food.
 local L=require('src.locations')
+local T=require('src.tuning')
 local policy=require('data.industry').consumption.food
 local recipe=require('src.commodities').byId[policy.recipe]
 local F={item=policy.item,fertilizer=recipe.inputs[1].item,yield=1/recipe.inputs[1].n,transition=policy.transition,minOutput=policy.minOutput,cap=recipe.cap}
@@ -60,6 +61,11 @@ function F.flow(u,key,m,dt)
  local remaining=have+made-eaten
  m.stock[F.item]=remaining+reserved>0 and remaining+reserved or nil
  E.consume(u,key,F.item,eaten)
+ -- the station's residents buy their meals: money from outside the
+ -- trade network, and what lets a habitat pay for its food freight
+ if eaten>0 and T.residentFoodPay>0 then
+  require('src.accounts').receive(u,key,eaten*require('src.markets').price(u,key,F.item)*T.residentFoodPay,'sold','residents')
+ end
  local record=require('src.stockpile').record(u,key)
  local state=record.food or {output=1};record.food=state
  -- Integrate the supplied part first, then the time spent without food.
