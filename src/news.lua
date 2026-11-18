@@ -249,6 +249,7 @@ function N.publish(u,st)
  s.stories[#s.stories+1]=st
  while #s.stories>N.T.keep do table.remove(s.stories,1) end
  N.tell(u,st)
+ require('src.events').emit('news_published',require('src.persistence').copy(st))
  if st.good and st.reported and st.area and not st.tip then
   nudge(u,st.area,st.outlet,st.good,clamp((st.reported-1)*N.T.nudgeScale,-N.T.nudgeCap,N.T.nudgeCap),st.id)
  end
@@ -515,6 +516,105 @@ function N.update(u,clock,game)
  N.bill(u,s,clock)
  deedStories(u,s,clock)
  for _,o in ipairs(Outlets.order) do run(u,s,o,since,clock) end
+end
+
+---------------------------------------------------------------- quest hooks
+--[[
+	For quests (src/quests.lua) and authored story arcs. Conditions and
+	effects are plain tables, so they can sit in quest data and be saved.
+
+	  News.find(u, filter, limit)  stories, newest first. filter fields:
+	      outlet, kind, good, station, area, faction, since (clock),
+	      within (seconds back), about='player', named, rumour, secondhand
+	  News.check(u, cond)  is the condition true now? cond is one of:
+	      { story = filter }                      a story like this exists
+	      { standing = { outlet=, min=, max= } }  your standing with an outlet
+	      { mood = { outlet=, is='friendly'|'neutral'|'hostile' } }
+	      { named = { within=, outlet= } }        you were named in print
+	      { factor = { station=, good=, min=, max= } }  news price multiplier
+	      { subscribed = outlet }
+	      { all = {cond...} } { any = {cond...} } { none = {cond...} }
+	  News.apply(u, effect, ctx)  do it. effect is one of, or a list of:
+	      { publish = { outlet=, headline=, kind=, good=, station=, area=,
+	                    about='player', reported= } }   an authored story
+	      { shock = { where=, good=, size=, duration=, outlet=, headline= } }
+	      { outletStanding = { outlet=, by= } }
+	      { standing = { faction=, by= } }   witnessed: quests may make a
+	                                         faction hostile, news can't
+	      { reported = { faction=, by= } }   as if read: capped and floored
+	      { notify = { title=, text=, icon=, kind= } }
+	  The events bus gets 'news_published' (a copy of each story) for
+	  scripts that want to wait on one.
+]]
+
+local function matches(st,f,clock)
+ if f.outlet and st.outlet~=f.outlet then return false end
+ if f.kind and st.kind~=f.kind then return false end
+ if f.good and st.good~=f.good then return false end
+ if f.station and st.station~=f.station then return false end
+ if f.area and st.area~=f.area then return false end
+ if f.faction and st.faction~=f.faction then return false end
+ if f.since and st.clock<f.since then return false end
+ if f.within and clock-st.clock>f.within then return false end
+ if f.about=='player' and st.subject~='player' then return false end
+ if f.named~=nil and (st.named or false)~=f.named then return false end
+ if f.rumour~=nil and (st.rumour or false)~=f.rumour then return false end
+ if f.secondhand~=nil and (st.secondhand or false)~=f.secondhand then return false end
+ return true
+end
+function N.find(u,f,limit)
+ local s=N.state(u);local clock=u.clock or 0;local out={}
+ f=f or {}
+ for i=#s.stories,1,-1 do
+  local st=s.stories[i]
+  if matches(st,f,clock) then out[#out+1]=st;if limit and #out>=limit then break end end
+ end
+ return out
+end
+
+function N.check(u,c)
+ if not c then return true end
+ if c.all then for _,x in ipairs(c.all) do if not N.check(u,x) then return false end end return true end
+ if c.any then for _,x in ipairs(c.any) do if N.check(u,x) then return true end end return false end
+ if c.none then for _,x in ipairs(c.none) do if N.check(u,x) then return false end end return true end
+ if c.story then return #N.find(u,c.story,1)>0 end
+ if c.standing then
+  local v=N.standing(u,c.standing.outlet)
+  return v>=(c.standing.min or -math.huge) and v<=(c.standing.max or math.huge)
+ end
+ if c.mood then return N.mood(u,c.mood.outlet)==c.mood.is end
+ if c.named then return #N.find(u,{about='player',named=true,within=c.named.within,outlet=c.named.outlet},1)>0 end
+ if c.factor then
+  local v=N.factor(u,c.factor.station,c.factor.good)
+  return v>=(c.factor.min or -math.huge) and v<=(c.factor.max or math.huge)
+ end
+ if c.subscribed then return N.subscribed(u,c.subscribed) end
+ error('unknown news condition')
+end
+
+function N.apply(u,e,ctx)
+ if not e then return end
+ if e[1] then for _,x in ipairs(e) do N.apply(u,x,ctx) end return end
+ if e.publish then
+  local p=e.publish
+  local place=p.station and L().byId[p.station]
+  local st={outlet=p.outlet,kind=p.kind or 'quest',headline=p.headline,good=p.good,station=p.station,
+   area=p.area or (place and place.area),reported=p.reported,quest=true}
+  if p.about=='player' then st.subject='player';st.named=true end
+  return N.publish(u,st)
+ end
+ if e.shock then
+  local x=e.shock
+  return N.shock(u,x.where,x.good,x.size,x.duration,x.headline and {outlet=x.outlet,headline=x.headline} or nil)
+ end
+ if e.outletStanding then return N.addStanding(u,e.outletStanding.outlet,e.outletStanding.by) end
+ if e.standing then return Rep().addStanding(u,e.standing.faction,e.standing.by) end
+ if e.reported then return Rep().addReported(u,e.reported.faction,e.reported.by) end
+ if e.notify then
+  local n={};for k,v in pairs(e.notify) do n[k]=v end
+  return require('src.notify').post(u,n)
+ end
+ error('unknown news effect')
 end
 
 ---------------------------------------------------------------- the player's view

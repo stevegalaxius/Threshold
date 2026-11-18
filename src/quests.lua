@@ -18,6 +18,11 @@
 
 	Later generators (rescue, bounty, wreck recovery, escort) post the same
 	record shape: kind, giver, item/amount or subject, reward, expiry.
+
+	News hooks (src/news.lua, News.check / News.apply), on any quest record:
+	  q.news       a condition: the offer is withdrawn once it's false
+	  q.onDone     effects when it's completed (stories, shocks, standing)
+	  q.onFailed   effects when it fails
 ]]
 local L=require('src.locations')
 local Fields=require('src.fields')
@@ -154,9 +159,11 @@ local function settle(u,q,status,clock,game,text)
   end
   if Q.sites and Q.sites[q.kind] then local pay=require('src.accounts').pay(u,q.giver,q.unit*q.amount,'quest');u.credits=u.credits+pay;q.paid=pay end
   rep().addStanding(u,faction,T.questStanding)
+  if q.onDone then require('src.news').apply(u,q.onDone,{quest=q,game=game}) end
   require('src.events').emit('quest_completed',q)
  else
   rep().addStanding(u,faction,-T.questFailStanding)
+  if q.onFailed then require('src.news').apply(u,q.onFailed,{quest=q,game=game}) end
   require('src.events').emit('quest_failed',q)
  end
  if game and game.toast and q.kind=='rescue' then
@@ -229,7 +236,7 @@ function Q.update(u,clock,game)
  end
  for id,q in pairs(s.offers) do
   local g=Q.generators[q.kind]
-  if clock>q.expires or not g or not g.keep(u,q,clock) then s.offers[id]=nil
+  if clock>q.expires or not g or not g.keep(u,q,clock) or q.news and not require('src.news').check(u,q.news) then s.offers[id]=nil
   else
    ctx.taken[takenKey(q)]=true
    ctx.perStation[q.giver]=(ctx.perStation[q.giver] or 0)+1
