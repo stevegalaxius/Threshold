@@ -3246,6 +3246,7 @@ function Game:frame(dt, aimX, aimY)
 		t.t = t.t + dt
 		if t.t >= t.life then table.remove(self.toasts, j) end
 	end
+	require("src.notify").update(dt)
 	self:followCamera(dt, aimX, aimY)
 end
 

@@ -244,6 +244,7 @@ function N.publish(u,st)
  end
  s.stories[#s.stories+1]=st
  while #s.stories>N.T.keep do table.remove(s.stories,1) end
+ N.tell(u,st)
  if st.good and st.reported and st.area and not st.tip then
   nudge(u,st.area,st.outlet,st.good,clamp((st.reported-1)*N.T.nudgeScale,-N.T.nudgeCap,N.T.nudgeCap),st.id)
  end
@@ -559,6 +560,23 @@ function N.onTrade(u,key,sold)
   local o=N.ofFaction(Rep().ofNode(key))
   if o and E.shortageAge(u,key,item,clock)>0 then N.addStanding(u,o,math.min(3,n/40)) end
  end
+end
+
+-- Stories the player should hear about straight away (one naming them, a
+-- notice about their subscription) go to their notifications too, if
+-- they can read that paper right now.
+function N.tell(u,st)
+ if not (st.notice or st.subject=='player' and st.named) then return end
+ local g=N.game
+ local key
+ if g and g.state=='docked' and g.player and g.player.dockState and g.player.dockState.station then
+  key=require('src.stockpile').key(g.player.dockState.station)
+  if not L().byId[key] then key=nil end
+ end
+ local reading=false
+ for _,o in ipairs(N.reading(u,key)) do if o==st.outlet then reading=true end end
+ if not (reading or st.notice) then return end
+ require('src.notify').post(u,{kind=st.notice and 'subscription' or 'news',title=Outlets.outlets[st.outlet].name,text=st.headline})
 end
 
 ---------------------------------------------------------------- subscriptions

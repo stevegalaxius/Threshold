@@ -497,7 +497,7 @@ function Game:saveState()
 		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites),
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
 		arbiter = Persistence.copy(u.arbiter), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts),
-		news = Persistence.copy(u.news) }
+		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications) }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -536,6 +536,8 @@ function Game:loadState(state)
 	self.universe.piracy = Persistence.copy(state.piracy)
 	self.universe.reputation = Persistence.copy(state.reputation)
 	self.universe.news = Persistence.copy(state.news)
+	self.universe.notifications = Persistence.copy(state.notifications)
+	require("src.notify").clear()
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext
 	self.universe.simulationHistory = Persistence.copy(state.simulationHistory)
