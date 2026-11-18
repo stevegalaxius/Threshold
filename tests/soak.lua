@@ -117,9 +117,14 @@ return function(game)
   if k==require('src.reactor_fuel').item() then fuel=v end
  end
  say(('output value %.0f, fuel %.0f (%.0f%%)'):format(value,fuel,value>0 and 100*fuel/value or 0))
- local dead,costs=0,0
- for _,r in pairs(u.npcs or {}) do if r.state=='dead' then dead=dead+1 end;costs=costs+(r.runningCosts or 0) end
- say(('ships lost %d, running costs paid %.0f'):format(u.shipsLost or 0,costs))
+ say(('ships lost %d'):format(u.shipsLost or 0))
+ -- what NPC pilots earned, and the share of it that went on fuel
+ local earned,fuelSpent,supplies=0,0,0
+ for _,r in pairs(u.npcs or {}) do
+  for _,k in ipairs({'freightEarnings','miningEarnings','wageEarnings','salvageEarnings','bountyEarnings','rareEarnings'}) do earned=earned+(r[k] or 0) end
+  fuelSpent=fuelSpent+(r.fuelSpent or 0);supplies=supplies+(r.suppliesSpent or 0)
+ end
+ say(('npc earnings %.0f, fuel bought %.0f (%.0f%%), all supplies %.0f'):format(earned,fuelSpent,earned>0 and 100*fuelSpent/earned or 0,supplies))
  if os.getenv('SOAK_SAVE') then require('src.save').write(os.getenv('SOAK_SAVE'),game:saveState());say('saved '..os.getenv('SOAK_SAVE')) end
  if fh then fh:close() end
 end

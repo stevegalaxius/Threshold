@@ -250,14 +250,6 @@ T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.stationOpeningCredits=60000 -- what a station's account opens with (src/accounts.lua)
 T.factionOpeningCredits=2000000 -- and a faction's
 T.factionTax=.25 -- share of a station's takings paid to its faction
--- NPC running costs (src/npc_costs.lua), paid to the home station: crew
--- credits an hour, a share of the ship's price an hour, and the share of
--- savings over npcSavings spent ashore an hour; charged every npcCostTick s
-T.npcCrewWage=150
-T.npcMaintenanceShare=.002
-T.npcSavings=5000
-T.npcShoreLeave=.3
-T.npcCostTick=300
 T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
 T.hubMarkup=.3 -- a logistics hub sells on what it imports at this markup (src/transport.lua)
 T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
@@ -428,7 +420,7 @@ T.miningScan=.5
 T.historyLimit,T.historyQuietTime=256,5
 
 -- Inventory-fuel prototype. One unit provides this much electrical energy.
-T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',2500
+T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',1250
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
