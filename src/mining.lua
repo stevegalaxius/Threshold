@@ -49,7 +49,7 @@ Tasks.register('mine',{
   end
   Jobs.deliver(u,node,t.item,n);require('src.economy').stat(u,'made',t.item,n)
   -- the home station buys the ore it was sent for, at its own price
-  local pay=math.floor(require('src.markets').price(u,node,t.item)*n*T.minerOrePay+.5)
+  local pay=require('src.accounts').pay(u,node,math.floor(require('src.markets').price(u,node,t.item)*n*T.minerOrePay+.5),'bought',t.item)
   r.credits=(r.credits or 0)+pay;r.miningEarnings=(r.miningEarnings or 0)+pay
   cargo[t.item]=(cargo[t.item] or 0)-n
   if cargo[t.item]<=0 then cargo[t.item]=nil end

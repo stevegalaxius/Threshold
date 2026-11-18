@@ -113,6 +113,7 @@ function Rent.tick(u, game)
 				if (u.credits or 0) >= l.rate + (l.owed or 0) then
 					Rent.settle(u, rec)
 					u.credits = u.credits - l.rate
+					require("src.accounts").receive(u, h.key, l.rate, "sold", "rent")
 					l.paid = (l.paid or 0) + l.rate
 				elseif (l.owed or 0) < l.rate * Rent.graceHours then
 					-- (a long clock jump stops at the impound line, not past it)

@@ -189,10 +189,9 @@ Tasks.register("ship_delivery", {
 		carried[t.berth] = nil
 		if not next(carried) then r.ship.carried = nil end
 		mirror(game, r)
-		local pay = payment(t, clock)
+		local pay = require("src.accounts").pay(u, station, payment(t, clock), "freight")
 		r.credits = (r.credits or 0) + pay
 		r.freightEarnings = (r.freightEarnings or 0) + pay
-		require("src.economy").ledger(u, station, "freight", pay)
 		t.settled = true
 		return true
 	end,
