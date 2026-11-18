@@ -133,7 +133,7 @@ local function create(game,area,role,node,clock,start)
  u.nextNpcId=u.nextNpcId+1
  local r={id='npc/'..u.nextNpcId,home=area,area=area,aiProfile=profile,
   spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
-  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo),armor=stats.armor}}
+  ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
  r.speed=NPC.cruise(r.ship)
  require('src.npc_templates').apply(r,role,area)
