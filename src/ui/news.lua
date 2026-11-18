@@ -1,6 +1,6 @@
 -- The News tab (docked and in flight): what the outlets you can read are
--- printing, what each outlet thinks of you, and the prices you've seen
--- with your own eyes. Nothing here is the truth (src/news.lua).
+-- printing, and what each outlet thinks of you. Nothing here is the truth
+-- (src/news.lua).
 local News=require('src.news')
 local L=require('src.locations')
 local HUD,Station=require('src.hud'),require('src.ui.station')
@@ -16,7 +16,6 @@ local function here(game)
  local key=require('src.stockpile').key(st)
  return L.byId[key] and key or nil
 end
-local function placeName(id) return L.byId[id] and L.byId[id].name or id end
 local function ago(u,t)
  local m=math.floor(math.max(0,(u.clock or 0)-t)/60)
  if m<1 then return 'just now' end
@@ -83,29 +82,6 @@ function View.draw(game)
    Station.button(b,'Subscribe '..HUD.credits(News.T.subscribeCost),false,(u.credits or 0)>=News.T.subscribeCost)
   end
   oy=oy+48
- end
- -- prices you've seen, for the goods in the news
- local py=y+oh+12;local ph=y+h-py
- if ph>80 then
-  Station.panel(sx,py,sideW,ph)
-  lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print('Prices you\'ve seen',sx+16,py+12)
-  local goods,seen={},{}
-  for _,st in ipairs(feed) do if st.good and not seen[st.good] then seen[st.good]=true;goods[#goods+1]=st.good end end
-  local ly=py+40
-  lg.setFont(HUD.font(12))
-  if #goods==0 then lg.setColor(HUD.DIM);lg.printf('Prices for goods in the news show here once you\'ve docked where they\'re sold.',sx+16,ly,sideW-32,'left') end
-  local items=require('src.data').items
-  for _,g in ipairs(goods) do
-   if ly>py+ph-36 then break end
-   lg.setColor(HUD.INK);lg.print(items[g] and items[g].name or g,sx+16,ly);ly=ly+18
-   local list=News.seen(u,g)
-   if #list==0 then lg.setColor(HUD.DIM);lg.print('  never seen',sx+16,ly);ly=ly+18 end
-   for i=1,math.min(2,#list) do
-    local e=list[i]
-    lg.setColor(HUD.DIM);lg.print(('  %s: %s  (%s)'):format(placeName(e.key),HUD.credits(math.floor(e.p+.5)),ago(u,e.t)),sx+16,ly);ly=ly+18
-   end
-   ly=ly+4
-  end
  end
 end
 

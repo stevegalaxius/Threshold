@@ -25,8 +25,6 @@
 	  deeds     what the player did out of a faction's sight
 	            (src/reputation.lua). It reaches that faction only as
 	            reported, through Rep.addReported (floored and rate-capped).
-	  price log where the player has seen what. The only "truth" the
-	            player has is their own memory of the shelves.
 
 	All of it runs on the universe clock, so it works offline. State lives
 	in u.news.
@@ -56,7 +54,6 @@ N.T={
  secondhandWeight=.6, -- a copied deed weighs this much of a first-hand one
  rivalPraise=.25,     -- an outlet's owner warms to you for hitting its rivals
  subscribeCost=500,subscribeTime=3600,
- logKeep=24,          -- price-log entries kept per station
 }
 
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -66,7 +63,7 @@ local function Rep() return require('src.reputation') end
 function N.state(u)
  local s=u.news
  if not s then
-  s={stories={},nextId=0,nudges={},shocks={},outlets={},subs={},deeds={},prices={},feed={},drift={}}
+  s={stories={},nextId=0,nudges={},shocks={},outlets={},subs={},deeds={},feed={}}
   u.news=s
  end
  return s
@@ -531,33 +528,11 @@ function N.feed(u,nodeId,limit)
  end
  return out
 end
--- Docking (or locking on to a hub) syncs the feed and logs the prices
--- seen on the shelf.
+-- Docking (or locking on to a hub) syncs the feed.
 function N.sync(u,nodeId,area)
  local s=N.state(u)
  s.feed={outlets=N.carried(nodeId,area),at=u.clock or 0,node=nodeId}
- if nodeId then N.logPrices(u,nodeId) end
 end
-function N.logPrices(u,key)
- local Markets=require('src.markets');local s=N.state(u)
- if not L().byId[key] then return end
- local log={}
- for _,item in ipairs(Markets.products) do
-  log[item]={p=Markets.price(u,key,item),t=u.clock or 0}
- end
- s.prices[key]=log
-end
--- What the player remembers of one good: { key, p, t } per station seen,
--- newest first.
-function N.seen(u,item)
- local out={}
- for key,log in pairs(N.state(u).prices) do
-  local e=log[item];if e then out[#out+1]={key=key,p=e.p,t=e.t} end
- end
- table.sort(out,function(a,b) return a.t>b.t end)
- return out
-end
-
 function N.subscribe(u,o)
  if not Outlets.outlets[o] then return false,'No such outlet' end
  if (u.credits or 0)<N.T.subscribeCost then return false,'Not enough credits' end
