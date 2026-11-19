@@ -98,6 +98,9 @@ function N.state(u)
   u.news=s
  end
  s.subs=s.subs or {}
+ -- saves from before keep was cut to 80 hold more: trim them here, or the
+ -- first story printed trims the list under a loop walking it
+ while #s.stories>N.T.keep do table.remove(s.stories,1) end
  return s
 end
 
