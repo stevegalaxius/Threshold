@@ -8,12 +8,20 @@
 	faction T.factionTax of what it takes in, and police wages come out of
 	the faction's account.
 
-	A.pay never goes below zero: it pays what the account holds and returns
-	that, so an empty station pays haulers, miners and sellers less (or
-	nothing) until it sells something. A.receive banks income. Both write
-	the ledger (src/economy.lua) as before.
+	Nobody goes broke: A.pay always pays in full. A station pays down to
+	T.stationFloor, its faction covers the rest down to T.factionFloor, and
+	past that the faction's home economy (outside the game) sends the
+	money; an independent station's backers do the same. What came from
+	outside is tallied in u.accountSubsidy so a soak can see the leak.
+	A.receive banks income. Both write the ledger (src/economy.lua).
+
+	Each faction's surplus or deficit is what quests and world state read
+	instead of bankruptcy: A.flow(u, faction) is its takings and spending
+	per hour, its own stations included, as a rolling average over
+	T.factionFlowHours. An independent station is its own party, by id.
 
 	  u.accounts = { [account id] = credits }   ('station:x' or 'faction:y')
+	  u.factionFlow = { [party] = { income, spending, at } }
 ]]
 local L=require('src.locations')
 local T=require('src.tuning')
@@ -52,19 +60,66 @@ function A.balance(u,key)
  if s[id]==nil then s[id]=opening(id) end
  return s[id]
 end
--- Pay out up to n; returns what was paid.
+-- Who a transaction's money belongs to: the station's faction, or the
+-- station itself when it has none.
+local function party(key,id)
+ local f=id:match('^faction:(.+)')
+ if f then return f end
+ return owner(L.canonical(key)) or id
+end
+local function decay(rec,clock)
+ local k=2^(-math.max(0,clock-rec.at)/(T.factionFlowHours*3600))
+ rec.income,rec.spending,rec.at=rec.income*k,rec.spending*k,clock
+end
+local function track(u,key,id,field,n)
+ local p=party(key,id)
+ local flows=u.factionFlow or {};u.factionFlow=flows
+ local rec=flows[p] or {income=0,spending=0,at=u.clock or 0};flows[p]=rec
+ decay(rec,u.clock or 0)
+ rec[field]=rec[field]+n
+end
+-- { income, spending, net } in credits per hour, rolling. net < 0 is a
+-- deficit the faction's home economy is covering.
+function A.flow(u,p)
+ local rec=u.factionFlow and u.factionFlow[p]
+ if not rec then return {income=0,spending=0,net=0} end
+ decay(rec,u.clock or 0)
+ -- an exponential sum holds about halfLife/ln2 hours of flow
+ local hours=T.factionFlowHours/math.log(2)
+ local i,s=rec.income/hours,rec.spending/hours
+ return {income=i,spending=s,net=i-s}
+end
+function A.parties(u) local out={} for p in pairs(u.factionFlow or {}) do out[#out+1]=p end table.sort(out) return out end
+local function floor(id) return id:match('^faction:') and T.factionFloor or T.stationFloor end
+-- Take up to n from an account without going below its floor.
+local function draw(s,id,n)
+ local take=math.max(0,math.min(n,s[id]-floor(id)))
+ s[id]=s[id]-take
+ return take
+end
+-- Pay n in full; returns n.
 function A.pay(u,key,n,kind,item)
  if not key or not n or n<=0 then return 0 end
  local s=A.state(u);local id=A.of(key)
- local paid=math.min(n,A.balance(u,key))
- s[id]=s[id]-paid
- if paid<n then
-  local short=u.accountShort or {};u.accountShort=short;short[id]=(short[id] or 0)+(n-paid)
+ A.balance(u,key)
+ local rest=n-draw(s,id,n)
+ if rest>0 and not id:match('^faction:') then
+  local f=owner(L.canonical(key))
+  if f then
+   local fid='faction:'..f;if s[fid]==nil then s[fid]=opening(fid) end
+   rest=rest-draw(s,fid,rest)
+   if rest>0 then id=fid end
+  end
  end
- if kind then require('src.economy').ledger(u,key,kind,paid,item) end
- return paid
+ if rest>0 then
+  local sub=u.accountSubsidy or {};u.accountSubsidy=sub;sub[id]=(sub[id] or 0)+rest
+ end
+ track(u,key,A.of(key),'spending',n)
+ if kind then require('src.economy').ledger(u,key,kind,n,item) end
+ return n
 end
-function A.canPay(u,key,n) return A.balance(u,key)>=(n or 0) end
+-- Every account can pay (A.pay above); kept for callers that ask.
+function A.canPay(u,key,n) return true end
 -- Bank n; a station that isn't faction-run passes its tax up.
 function A.receive(u,key,n,kind,item)
  if not key or not n or n<=0 then return 0 end
@@ -80,6 +135,7 @@ function A.receive(u,key,n,kind,item)
   end
  end
  s[id]=s[id]+n-tax
+ track(u,key,id,'income',n)
  if kind then require('src.economy').ledger(u,key,kind,n,item) end
  return n
 end
