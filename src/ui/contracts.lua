@@ -55,7 +55,23 @@ function View.layout(game)
  return out
 end
 -- Pieces the Jobs screen (src/ui/jobs.lua) draws with too.
+local function purpose(o) return o.purpose=='work' and 'commute' or 'visit' end
+local function drawPassengerActive(game,f,t)
+ local r=f.activeRect;Station.panel(r.x,r.y,r.w,r.h)
+ text(r.x+14,r.y+12,r.w-220,('ACTIVE PASSENGER CONTRACT · party of %d (%s)'):format(t.party,purpose(t)),16,HUD.AQUA)
+ text(r.x+14,r.y+40,r.w-230,name(t.source)..' to '..name(t.target),13)
+ local pickup=t.phase=='pickup'
+ local detail=pickup and 'Collect the party at the pickup station: they need '..t.party..' free climate seats.' or 'Fly the party to the destination aboard your current ship.'
+ if not pickup and (game.player.cargo.passengers or 0)<t.party then detail='Passengers missing.' end
+ text(r.x+14,r.y+83,r.w-230,detail,13,HUD.DIM)
+ local d=t.fareDetail or {}
+ text(r.x+14,r.y+111,r.w-230,('%s locked on acceptance · base %s · comfort +%d%% · speed +%d%% · %.2f AU'):format(HUD.credits(t.fare or 0),HUD.credits(d.base or 0),math.floor((d.comfortShare or 0)*100+.5),math.floor((d.speedShare or 0)*100+.5),t.routeAU or 0),13)
+ local destination=pickup and t.source or t.target
+ Station.button(f.advance,pickup and 'Board party' or 'Drop off & collect',false,f.here==destination)
+ Station.button(f.cancel,'Cancel contract',false,f.here~=nil)
+end
 function View.drawActive(game,f,t)
+ if t.kind=='passenger' then return drawPassengerActive(game,f,t) end
  local r=f.activeRect;Station.panel(r.x,r.y,r.w,r.h)
  text(r.x+14,r.y+12,r.w-220,'ACTIVE CONTRACT · '..t.amount..' '..item(t.item),16,HUD.AQUA)
  text(r.x+14,r.y+40,r.w-230,name(t.source)..' to '..name(t.target),13)
@@ -102,7 +118,18 @@ function View.drawQuest(game,f,row)
   Station.button(row.button,site and 'Accept job' or q.kind=='rescue' and 'Accept rescue' or 'Accept delivery',false,f.quests<T.questMaxActive)
  end
 end
+local function drawPassenger(game,f,row)
+ local clock=game.universe.clock
+ local o,q=row.offer,row.quote;Station.panel(row.x,row.y,row.w,row.h)
+ local P=require('src.passengers')
+ text(row.x+14,row.y+10,row.w-220,('PASSENGERS · %s to %s · party of %d (%s)'):format(name(o.source),name(o.target),o.party,purpose(o)),14)
+ local yours=q and ('%s for your ship (comfort +%d%%, speed +%d%%)'):format(HUD.credits(q.payment),math.floor(q.detail.comfortShare*100+.5),math.floor(q.detail.speedShare*100+.5)) or row.why
+ text(row.x+14,row.y+34,row.w-225,('Needs %d climate seats · base %s, up to %s with comfort and speed · %.2f AU · withdrawn in %dm'):format(o.party,HUD.credits(math.floor(P.baseFare(o)+.5)),HUD.credits(P.maxFare(o)),o.routeAU or 0,math.max(0,math.ceil(((o.expires or clock)-clock)/60))),13,HUD.DIM)
+ text(row.x+14,row.y+58,row.w-225,yours..' · the fare locks when you accept',13,q and HUD.INK or HUD.DIM)
+ Station.button(row.button,q and 'Accept passengers' or 'Unavailable',false,q~=nil and not f.active)
+end
 function View.drawFreight(game,f,row)
+ if row.offer.kind=='passenger' then return drawPassenger(game,f,row) end
  local clock=game.universe.clock
  local o,q=row.offer,row.quote;Station.panel(row.x,row.y,row.w,row.h)
  text(row.x+14,row.y+10,row.w-220,name(o.source)..' to '..name(o.target),14)

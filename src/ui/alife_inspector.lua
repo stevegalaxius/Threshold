@@ -189,6 +189,26 @@ local function details(game)
   local last=r.lastTask
   Slab.Text('Job: none'..(last and ('   last: %s %s at %.0fs'):format(last.kind,tostring(last.status),last.clock) or ''))
  end
+ do -- passengers and residential storage (src/passengers.lua)
+  local P=require('src.passengers');local u=game.universe
+  local status=P.status(r)
+  if status then Slab.Text('Passengers: '..status..(r.resident and (' at '..place(r.resident)) or '')) end
+  if t and t.kind=='passenger' and t.fare then
+   local d=t.fareDetail or {}
+   Slab.Text(('Fare: %d cr locked (base %d, comfort +%.0f%%, speed +%.0f%%)'):format(t.fare,d.base or 0,(d.comfortShare or 0)*100,(d.speedShare or 0)*100))
+  elseif not r.task then
+   local here=r.node or r.station
+   local best
+   for _,o in ipairs(P.offers(u,function(o)return o.state=='available' end)) do
+    if here and o.source==here then best=o;break end
+    best=best or o
+   end
+   if best then
+    local why=P.whyNot(u,r,best,here)
+    Slab.Text(('Passenger contract %s > %s (party %d): %s'):format(place(best.source),place(best.target),best.party,why or 'can accept'))
+   end
+  end
+ end
  local cargo=e and e.cargo or r.ship.cargo or {}
  local items={}
  for id,n in pairs(cargo) do if n>0 then items[#items+1]=('%s x%d'):format(data.items[id] and data.items[id].name or id,n) end end
