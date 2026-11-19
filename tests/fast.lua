@@ -68,9 +68,13 @@ return function(game)
  do
   local News,Rep=require('src.news'),require('src.reputation')
   local saved,clock0=u.news,u.clock;u.news=nil
-  for clock=start,start+3600,News.T.tick do u.clock=clock;News.flush(u,clock,game) end
+  for clock=start,start+3600,30 do u.clock=clock;News.flush(u,clock,game) end
   local n=#News.state(u).stories
   assert(n>0,'an hour of news printed nothing')
+  -- a live feed: headlines go out at many different times, not in one batch
+  local times={};for _,st in ipairs(News.state(u).stories) do times[st.clock]=true end
+  local distinct=0;for _ in pairs(times) do distinct=distinct+1 end
+  assert(n<3 or distinct>=math.min(n,4),('%d stories at only %d times'):format(n,distinct))
   for key,items in pairs(News.state(u).nudges) do
    for item in pairs(items) do
     local f=News.factor(u,key,item)
@@ -81,7 +85,7 @@ return function(game)
   for h=1,30 do u.clock=u.clock+3600;for _=1,5 do Rep.addReported(u,'estates',-20) end end
   assert(not Rep.hostile(Rep.standing(u,'estates')),'reports alone made the Estates hostile')
   u.reputation=savedRep;u.news=saved;u.clock=clock0
-  print(('ok  news: %d stories in an hour'):format(n))
+  print(('ok  news: %d stories in an hour, at %d different times'):format(n,distinct))
   -- the News tab draws (docked or not) without error; NEWS_SHOT=1 also
   -- saves a picture of it to the save folder as news_tab.png
   local View=require('src.ui.news')
@@ -89,7 +93,7 @@ return function(game)
   local canvas=love.graphics.newCanvas(cw,ch)
   love.graphics.setCanvas(canvas);love.graphics.clear(.05,.06,.08,1)
   u.news=nil
-  for clock=clock0,clock0+3*News.T.tick,News.T.tick do u.clock=clock;News.flush(u,clock,game) end
+  for clock=clock0,clock0+3*News.T.tick,30 do u.clock=clock;News.flush(u,clock,game) end
   -- read every paper, so both columns have something in them
   for _,o in ipairs(News.order) do News.state(u).subs[o]={since=u.clock,paidUntil=u.clock+3600} end
   View.draw(game)

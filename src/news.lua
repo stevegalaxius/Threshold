@@ -49,7 +49,10 @@ local Outlets=require('data.outlets')
 local N={}
 
 N.T={
- tick=600,            -- seconds of universe clock between outlet runs
+ tick=600,            -- seconds between the chores (bills, your deeds, pruning)
+ runMean=600,         -- an outlet's next run comes this long after its last, on average,
+ runMin=90,runMax=1800, -- at random (a live feed, not a clock), within these
+ burstMin=40,burstMax=240, -- a run's later headlines go live this much apart
  storyLife=2*3600,    -- a story stays in the feed this long
  nudgeLife=2*3600,    -- a story's price nudge decays to nothing over this
  nudgeScale=.35,      -- nudge = (reported ratio - 1) * this
@@ -88,6 +91,12 @@ N.T={
 }
 
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
+-- the papers' own dice, saved with them
+local function rng(u)
+ local s=N.state(u)
+ s.seed=((s.seed or 12345)*1103515245+12345)%2147483648
+ return s.seed/2147483648
+end
 local function L() return require('src.locations') end
 local function Rep() return require('src.reputation') end
 
@@ -288,11 +297,16 @@ function N.publish(u,st)
  local s=N.state(u)
  s.nextId=s.nextId+1
  st.id='story/'..s.nextId;st.clock=st.clock or u.clock or 0
+ -- a run's second and later headlines go live a few minutes apart
+ if s.burst then
+  st.clock=st.clock+s.burst
+  s.burst=s.burst+N.T.burstMin+rng(u)*(N.T.burstMax-N.T.burstMin)
+ end
  st.faction=st.faction or (st.station and Rep().ofNode(st.station))
  st.pick=st.pick or s.nextId
  s.stories[#s.stories+1]=st
  while #s.stories>N.T.keep do table.remove(s.stories,1) end
- N.tell(u,st)
+ if st.clock>(u.clock or 0) then st.held=true else N.tell(u,st) end
  require('src.events').emit('news_published',require('src.persistence').copy(st))
  if st.good and st.reported and st.area and not st.tip then
   local w=st.quest and 1 or N.T.hype*(st.secondhand and .5 or 1)
@@ -527,11 +541,6 @@ local function naming(u,o,firsthand)
  return p
 end
 
-local function rng(u)
- local s=N.state(u)
- s.seed=((s.seed or 12345)*1103515245+12345)%2147483648
- return s.seed/2147483648
-end
 
 ---------------------------------------------------------------- deeds
 
@@ -729,37 +738,80 @@ local function run(u,s,o,since,clock)
  end
 end
 
--- Run every outlet when it's due. Cheap between runs: a clock compare.
--- Spread out: the tick's start does the bills and deeds, then each call
--- after runs the next outlet, so no one call does all six.
+-- Each outlet runs on its own random clock, so headlines trickle in like
+-- a live feed; a run's later headlines go live minutes apart (s.burst).
+-- The chores (bills, your deeds) keep a fixed tick nobody sees.
+local function nextRun(u)
+ local g=-N.T.runMean*math.log(1-rng(u))
+ return clamp(g,N.T.runMin,N.T.runMax)
+end
+-- Headlines timed for now or earlier: ping them.
+local function release(u,s,clock)
+ local n=0
+ for i=#s.stories,1,-1 do
+  local st=s.stories[i]
+  if st.held and st.clock<=clock then st.held=nil;N.tell(u,st) end
+  n=n+1;if n>=24 then break end
+ end
+end
+local function burst(s,f,...) s.burst=0;local ok,err=pcall(f,...);s.burst=nil;if not ok then error(err,0) end end
+function N.due(u,clock)
+ local s=N.state(u);s.due=s.due or {}
+ local best
+ for _,o in ipairs(Outlets.order) do
+  if not s.due[o] then s.due[o]=clock+rng(u)*nextRun(u) end
+  if s.due[o]<=clock and (not best or s.due[o]<s.due[best]) then best=o end
+ end
+ return best
+end
+-- Cheap between runs: a few clock compares. At most one outlet a call.
 function N.update(u,clock,game)
  local s=N.state(u)
  if game and game.player and game.player.hull then
   s.playerHull=game.player.hull.name;s.playerHullId=game.player.hull.id
  end
- local q=s.queue
- if q then
-  local o=table.remove(q.left,1)
-  if o then run(u,s,o,q.since,clock) end
-  if #q.left==0 then s.queue=nil end
+ s.queue=nil  -- from older saves
+ release(u,s,clock)
+ if clock>=(s.nextTick or 0) then
+  s.nextTick=clock+N.T.tick
+  prune(s.nudges,clock);prune(s.shocks,clock)
+  -- a story past its life can't be copied any more: drop who copied it
+  for _,st in ipairs(s.stories) do if st.copies and clock-st.clock>N.T.storyLife then st.copies=nil end end
+  while s.deaths and s.deaths[1] and clock-s.deaths[1].clock>N.T.storyLife do table.remove(s.deaths,1) end
+  N.bill(u,s,clock)
+  burst(s,deedStories,u,s,clock)
   return
  end
- if clock<(s.nextTick or 0) then return end
- local since=s.lastTick or clock-N.T.tick
- s.lastTick=clock;s.nextTick=clock+N.T.tick
- prune(s.nudges,clock);prune(s.shocks,clock)
- -- a story past its life can't be copied any more: drop who copied it
- for _,st in ipairs(s.stories) do if st.copies and clock-st.clock>N.T.storyLife then st.copies=nil end end
- while s.deaths and s.deaths[1] and clock-s.deaths[1].clock>N.T.storyLife do table.remove(s.deaths,1) end
- N.bill(u,s,clock)
- deedStories(u,s,clock)
- local left={};for i,o in ipairs(Outlets.order) do left[i]=o end
- s.queue={since=since,left=left}
+ local o=N.due(u,clock)
+ if not o then return end
+ s.lastRun=s.lastRun or {}
+ local since=s.lastRun[o] or clock-N.T.runMean
+ s.lastRun[o]=clock;s.due[o]=clock+nextRun(u)
+ burst(s,run,u,s,o,since,clock)
 end
 -- Everything due now, at once (tests).
 function N.flush(u,clock,game)
  N.update(u,clock,game)
- while N.state(u).queue do N.update(u,clock,game) end
+ for _=1,#Outlets.order do
+  if not N.due(u,clock) then break end
+  N.update(u,clock,game)
+ end
+end
+-- Debug: run an outlet now, or post a test headline that pings you
+-- whatever you're reading.
+function N.runNow(u,o)
+ local s=N.state(u);s.due=s.due or {}
+ o=o or Outlets.order[1+math.floor(rng(u)*#Outlets.order)]
+ s.due[o]=u.clock or 0
+ return o
+end
+function N.testPost(u)
+ local o=Outlets.order[1+math.floor(rng(u)*#Outlets.order)]
+ local d=Outlets.outlets[o]
+ local st=N.publish(u,{outlet=o,kind='lost',area=d.beat[1],victim='Test Ship',who='a raider'})
+ -- it pings you even docked, or from a paper you don't read
+ if N.lastTold~=st then require('src.notify').post(u,{kind='news',title=d.name,text=N.headline(st)}) end
+ return st
 end
 
 ---------------------------------------------------------------- quest hooks
@@ -881,7 +933,7 @@ function N.feed(u,nodeId,limit)
  for i=#s.stories,1,-1 do
   local st=s.stories[i]
   if clock-st.clock>N.T.storyLife then break end
-  if reading[st.outlet] or st.notice then out[#out+1]=st end
+  if st.clock<=clock and (reading[st.outlet] or st.notice) then out[#out+1]=st end
   if limit and #out>=limit then break end
  end
  return out
@@ -939,6 +991,7 @@ function N.tell(u,st)
  for _,o in ipairs(N.reading(u,key)) do if o==st.outlet then reading=true end end
  if not (reading or st.notice) then return end
  require('src.notify').post(u,{kind=st.notice and 'subscription' or 'news',title=Outlets.outlets[st.outlet].name,text=N.headline(st)})
+ N.lastTold=st
 end
 
 ---------------------------------------------------------------- subscriptions
