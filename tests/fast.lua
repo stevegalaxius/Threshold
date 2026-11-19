@@ -68,7 +68,7 @@ return function(game)
  do
   local News,Rep=require('src.news'),require('src.reputation')
   local saved,clock0=u.news,u.clock;u.news=nil
-  for clock=start,start+3600,News.T.tick do u.clock=clock;News.update(u,clock,game) end
+  for clock=start,start+3600,News.T.tick do u.clock=clock;News.flush(u,clock,game) end
   local n=#News.state(u).stories
   assert(n>0,'an hour of news printed nothing')
   for key,items in pairs(News.state(u).nudges) do

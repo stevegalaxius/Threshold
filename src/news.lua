@@ -48,7 +48,13 @@ N.T={
  secondhandDelay=1200,-- a copied story prints this long after the original
  secondhandOdds=.5,
  perTick=1,           -- price stories an outlet prints per run, at most
- keep=160,            -- stories kept in the save
+ priceGap=1800,       -- and at least this long between them
+ copyGap=3600,        -- an outlet copies another's story at most this often
+ copyJuice=.45,       -- and only if it moves the price this much, or is about
+                      -- a deed, or the good is on the copier's agenda
+ offAgenda=1.5,       -- a good off the outlet's agenda needs this much more
+                      -- deviation (or this much longer unserved) to print
+ keep=80,             -- stories kept in the save
  shortRatio=1.35,     -- a price this far over list is a shortage story
  glutRatio=.7,        -- and this far under, a glut story
  shortAge=1800,       -- or a shortage left unserved this long
@@ -60,6 +66,9 @@ N.T={
  blameOdds=.25,       -- an NPC's kill pinned on the player (same hull class)
  blameHit=-5,
  secondhandWeight=.6, -- a copied deed weighs this much of a first-hand one
+ nameBase=.25,        -- first-hand: odds of naming you = this + smear*(1-this)
+ hitDelta=-5,         -- shooting a faction ship out of its sight, once per ship
+ spinFloor=.5,spinCeil=1.6, -- spin keeps a move between these multiples of the truth
  rivalPraise=.25,     -- an outlet's owner warms to you for hitting its rivals
 }
 
@@ -152,13 +161,29 @@ local function sumNudges(list,clock)
  end
  return v
 end
+-- Story nudges on one good at one station: the strongest counts in full,
+-- each next one half as much again, so a pile of copies of one story
+-- doesn't run the price to the cap.
+local scratch={}
+local function stackNudges(list,clock)
+ local n=0
+ for _,x in ipairs(list) do
+  local left=1-(clock-x.t)/x.life
+  if left>0 then n=n+1;scratch[n]=x.v*left end
+ end
+ for i=n+1,#scratch do scratch[i]=nil end
+ table.sort(scratch,function(a,b) return math.abs(a)>math.abs(b) end)
+ local v,w=0,1
+ for i=1,n do v=v+scratch[i]*w;w=w*.5 end
+ return v
+end
 -- The news's multiplier on a station's price for a good. Story nudges are
 -- capped together; quest shocks are not.
 function N.factor(u,key,item)
  local s=u.news;if not s then return 1 end
  local clock=u.clock or 0;local f=1
  local k=s.nudges[key];local list=k and k[item]
- if list then f=1+clamp(sumNudges(list,clock),-N.T.nudgeCap,N.T.nudgeCap) end
+ if list then f=1+clamp(stackNudges(list,clock),-N.T.nudgeCap,N.T.nudgeCap) end
  k=s.shocks[key];list=k and k[item]
  if list then f=f*math.max(.05,1+sumNudges(list,clock)) end
  return f
@@ -251,7 +276,8 @@ function N.publish(u,st)
  N.tell(u,st)
  require('src.events').emit('news_published',require('src.persistence').copy(st))
  if st.good and st.reported and st.area and not st.tip then
-  nudge(u,st.area,st.outlet,st.good,clamp((st.reported-1)*N.T.nudgeScale,-N.T.nudgeCap,N.T.nudgeCap),st.id)
+  local v=(st.reported-1)*N.T.nudgeScale*(st.secondhand and .5 or 1)
+  nudge(u,st.area,st.outlet,st.good,clamp(v,-N.T.nudgeCap,N.T.nudgeCap),st.id)
  end
  return st
 end
@@ -271,6 +297,14 @@ local function spin(o,item,ratio,nodeId)
  elseif dev>0 and f and Rep().FACTIONS[f] and Rep().FACTIONS[f].major and f~=d.owner then
   dev=dev*(1+d.lean*.5)
  end
+ -- however it leans, the printed move stays near the real one, so a
+ -- reader who knows the paper can still learn something from it
+ local real=ratio-1
+ if real~=0 then
+  local lo,hi=real*N.T.spinFloor,real*N.T.spinCeil
+  if lo>hi then lo,hi=hi,lo end
+  dev=clamp(dev,lo,hi)
+ end
  return 1+dev
 end
 
@@ -278,7 +312,7 @@ local function recentAbout(s,o,key,item,since)
  for i=#s.stories,1,-1 do
   local st=s.stories[i]
   if st.clock<since then break end
-  if st.outlet==o and st.station==key and st.good==item then return true end
+  if (o==nil or st.outlet==o) and st.station==key and st.good==item then return true end
  end
  return false
 end
@@ -288,14 +322,24 @@ local function priceFacts(u,o,clock)
  local Markets=require('src.markets');local E=require('src.economy')
  local prices=Markets.state(u).prices;local d=Outlets.outlets[o]
  local out={}
+ -- what the papers have been on about lately: each story makes the same
+ -- good less interesting for a while, so one good can't fill the feed
+ local s=N.state(u);local seen={}
+ for i=#s.stories,1,-1 do
+  local st=s.stories[i];if clock-st.clock>N.T.storyLife then break end
+  if st.good then seen[st.good]=(seen[st.good] or 0)+1 end
+ end
+ local hi,lo,age=N.T.shortRatio,N.T.glutRatio,N.T.shortAge
  for _,area in ipairs(d.beat) do
   for _,key in ipairs(L().stations(area,'trade')) do
    local p=prices[key]
    if p then
     for item,ratio in pairs(p) do
-     local short=E.shortageAge(u,key,item,clock)>=N.T.shortAge
-     if ratio>=N.T.shortRatio or ratio<=N.T.glutRatio or short then
-      local score=math.abs(ratio-1)*(1+math.abs(d.agenda[item] or 0))+(short and .2 or 0)
+     local on=(d.agenda[item] or 0)~=0
+     local m=on and 1 or N.T.offAgenda
+     local short=E.shortageAge(u,key,item,clock)>=age*m
+     if ratio>=1+(hi-1)*m or ratio<=1-(1-lo)*m or short then
+      local score=(math.abs(ratio-1)*(1+math.abs(d.agenda[item] or 0))+(short and .2 or 0))/(1+(seen[item] or 0))
       out[#out+1]={key=key,area=area,item=item,ratio=math.max(ratio,short and 1.1 or 0),score=score}
      end
     end
@@ -349,7 +393,8 @@ local function report(u,st)
 end
 
 local function naming(u,o,firsthand)
- local d=Outlets.outlets[o];local p=d.smear*(firsthand and 1 or .5)
+ local d=Outlets.outlets[o]
+ local p=firsthand and N.T.nameBase+d.smear*(1-N.T.nameBase) or d.smear*.5
  local mood=N.mood(u,o)
  if mood=='hostile' then p=p+.3 elseif mood=='friendly' then p=p-.3 end
  return p
@@ -415,12 +460,15 @@ local function deathStories(u,s,o,since,clock)
  local printed=0
  for _,e in ipairs(H.recent(u,{kind='npc_died',since=since},40)) do
   if printed>=1 then break end
+  -- the entry carries the victim's faction and the killer's hull; the
+  -- records themselves are usually pruned by the time the papers look
+  local res=e.result or {}
   local victim=u.npcs and u.npcs[e.participants[1]]
-  local killer=e.result and e.result.killer
-  local f=victim and Rep().ofRecord(victim)
+  local killer=res.killer
+  local f=res.faction or victim and Rep().ofRecord(victim)
   if f and killer and killer~='player' and e.area and N.covers(o,e.area) then
    local k=u.npcs and u.npcs[killer]
-   local hull=k and k.ship and k.ship.hull
+   local hull=res.killerHull or k and k.ship and k.ship.hull
    local playerHull=s.playerHullId
    local blame=hull and playerHull and hull==playerHull and rng(u)<N.T.blameOdds*(d.smear+.2)
    local st={outlet=o,kind='killed',area=e.area,faction=f,fact=e.id}
@@ -436,14 +484,21 @@ local function deathStories(u,s,o,since,clock)
  end
 end
 
+local function juicy(st,d)
+ if st.deedId or st.kind=='killed' or st.rumour then return true end
+ if st.good and (d.agenda[st.good] or 0)~=0 then return true end
+ return st.reported and math.abs(st.reported-1)>=N.T.copyJuice
+end
 local function copyStories(u,s,o,clock)
  local d=Outlets.outlets[o];local copied=0
+ s.lastCopy=s.lastCopy or {}
+ if clock-(s.lastCopy[o] or -math.huge)<N.T.copyGap then return end
  for i=#s.stories,1,-1 do
   local st=s.stories[i]
   if clock-st.clock>N.T.storyLife then break end
   if copied>=1 then break end
   if st.outlet~=o and not st.secondhand and not st.tip and not st.quest and st.area and not N.covers(o,st.area)
-   and clock-st.clock>=N.T.secondhandDelay then
+   and clock-st.clock>=N.T.secondhandDelay and juicy(st,d) then
    st.copies=st.copies or {}
    if not st.copies[o] then
     st.copies[o]=true
@@ -460,7 +515,7 @@ local function copyStories(u,s,o,clock)
        c.named=st.named and rng(u)<.7 or false
        c.who=playerWho(u,c.named)
       else c.who=st.who end
-      report(u,N.publish(u,c));copied=copied+1
+      report(u,N.publish(u,c));copied=copied+1;s.lastCopy[o]=clock
      end
     end
    end
@@ -475,8 +530,8 @@ local function run(u,s,o,since,clock)
  local printed=0
  local mood=N.mood(u,o)
  for _,fact in ipairs(priceFacts(u,o,clock)) do
-  if printed>=N.T.perTick then break end
-  if not recentAbout(s,o,fact.key,fact.item,clock-N.T.storyLife) then
+  if printed>=N.T.perTick or clock-((s.lastPrice or {})[o] or -math.huge)<N.T.priceGap then break end
+  if not recentAbout(s,nil,fact.key,fact.item,clock-N.T.storyLife) then
    if mood=='friendly' then
     N.publish(u,{outlet=o,kind='tip',tip=true,area=fact.area,station=fact.key,good=fact.item,reported=fact.ratio,real=fact.ratio,
      headline=('Tip: %s at %s is really %s'):format(itemName(fact.item),placeName(fact.key),pct(fact.ratio))})
@@ -486,6 +541,7 @@ local function run(u,s,o,since,clock)
     N.publish(u,{outlet=o,kind=r>=1 and 'shortage' or 'glut',area=fact.area,station=fact.key,good=fact.item,
      real=fact.ratio,reported=r})
     printed=printed+1
+    s.lastPrice=s.lastPrice or {};s.lastPrice[o]=clock
    end
   end
  end
@@ -516,18 +572,35 @@ local function run(u,s,o,since,clock)
 end
 
 -- Run every outlet when it's due. Cheap between runs: a clock compare.
+-- Spread out: the tick's start does the bills and deeds, then each call
+-- after runs the next outlet, so no one call does all six.
 function N.update(u,clock,game)
  local s=N.state(u)
  if game and game.player and game.player.hull then
   s.playerHull=game.player.hull.name;s.playerHullId=game.player.hull.id
  end
+ local q=s.queue
+ if q then
+  local o=table.remove(q.left,1)
+  if o then run(u,s,o,q.since,clock) end
+  if #q.left==0 then s.queue=nil end
+  return
+ end
  if clock<(s.nextTick or 0) then return end
  local since=s.lastTick or clock-N.T.tick
  s.lastTick=clock;s.nextTick=clock+N.T.tick
  prune(s.nudges,clock);prune(s.shocks,clock)
+ -- a story past its life can't be copied any more: drop who copied it
+ for _,st in ipairs(s.stories) do if st.copies and clock-st.clock>N.T.storyLife then st.copies=nil end end
  N.bill(u,s,clock)
  deedStories(u,s,clock)
- for _,o in ipairs(Outlets.order) do run(u,s,o,since,clock) end
+ local left={};for i,o in ipairs(Outlets.order) do left[i]=o end
+ s.queue={since=since,left=left}
+end
+-- Everything due now, at once (tests).
+function N.flush(u,clock,game)
+ N.update(u,clock,game)
+ while N.state(u).queue do N.update(u,clock,game) end
 end
 
 ---------------------------------------------------------------- quest hooks
@@ -667,7 +740,10 @@ function N.onTrade(u,key,sold)
    local st=s.stories[i]
    if clock-st.clock>N.T.storyLife then break end
    if st.station==key and st.good==item and st.kind=='shortage' and not st.tip and not st.quest then
-    local hyped=st.rumour or (st.reported or 1)-(st.real or 1)>.3
+    -- hype is selling into a story that isn't true: a rumour, or a
+    -- shortage the station doesn't really have now
+    local now=(require('src.markets').state(u).prices[key] or {})[item] or 1
+    local hyped=st.rumour or now<1.15 and E.shortageAge(u,key,item,clock)<=0
     if hyped and n>=20 then N.addStanding(u,st.outlet,-math.min(10,n/10))
     elseif not hyped then N.addStanding(u,st.outlet,math.min(5,n/20)) end
    end

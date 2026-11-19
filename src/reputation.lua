@@ -71,7 +71,7 @@ Rep.T = {
 	standingPerKill = -15,  -- killing one of its patrols
 	standingPirateKill = 3, -- killing a pirate in its space
 	goodwillPerHit = -20,   -- the ship you shot
-	reportedDecay = 4,      -- news is forgotten twice as fast as deeds
+	reportedDecay = 1.5,    -- what you read of someone fades a little slower than what you saw
 	reportedFloor = -49,    -- reports alone stop short of Hostile
 	reportedCap = 10,       -- most reported standing can move per hour, per faction
 }
@@ -215,7 +215,13 @@ function Rep.shipHit(u, r, area)
 	Rep.addGoodwill(u, r, Rep.T.goodwillPerHit)
 	local f = Rep.ofRecord(r)
 	if not f then return end
-	if area == nil or seen(f, area) then Rep.addStanding(u, f, Rep.T.standingPerHit) end
+	if area == nil or seen(f, area) then Rep.addStanding(u, f, Rep.T.standingPerHit)
+	elseif r and not r.newsHit then
+		-- out of its sight: a deed the papers may pick up, once per ship
+		r.newsHit = true
+		local News = require("src.news")
+		News.deed(u, { faction = f, delta = News.T.hitDelta, area = area, kind = "hit", witnessed = false })
+	end
 end
 -- The player killed an NPC; area is where it happened.
 function Rep.shipKilled(u, r, area)
