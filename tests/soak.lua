@@ -155,11 +155,11 @@ return function(game)
   -- this hour's deaths, as the papers see them: area, killer, faction,
   -- and which outlets cover that area
   local dd={}
-  for _,e in ipairs(require('src.simulation_history').recent(u,{kind='npc_died',since=since},50)) do
+  for _,e in ipairs(News.state(u).deaths or {}) do if e.clock>since then
    local cov={} for _,x in ipairs(News.order) do if News.covers(x,e.area) then cov[#cov+1]=x end end
    local r=e.result or {}
    dd[#dd+1]=('%s killer=%s faction=%s covered=%s'):format(tostring(e.area),tostring(r.killer),tostring(r.faction),#cov>0 and table.concat(cov,',') or 'none')
-  end
+  end end
   if #dd>0 then say('    deaths: '..table.concat(dd,' | ')) end
   local o={} for _,f in ipairs(Rep.ORDER) do o[#o+1]=('%s %.0f/%.0f'):format(f,Rep.witnessed(u,f),Rep.reported(u,f)) end
   local q={} for _,x in ipairs(News.order) do q[#q+1]=('%s %.0f'):format(x,News.standing(u,x)) end

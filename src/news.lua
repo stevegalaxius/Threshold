@@ -458,10 +458,20 @@ end
 -- what the player flies, a careless outlet may pin it on the player.
 -- A faction's dead always make its beat's papers, as loudly as they
 -- like; independents (most ships) one a run, with nobody's standing on it.
+-- Deaths as they happen (src/simulation_history.lua H.death), kept here:
+-- the shared history log turns over in minutes, the papers look every ten.
+function N.onDeath(u,e)
+ local s=N.state(u);s.deaths=s.deaths or {}
+ s.deaths[#s.deaths+1]={id=e.id,clock=e.clock,area=e.area,participants={e.participants[1]},result=e.result}
+ while #s.deaths>80 do table.remove(s.deaths,1) end
+end
 local function deathStories(u,s,o,since,clock)
- local H=require('src.simulation_history');local d=Outlets.outlets[o]
+ local d=Outlets.outlets[o]
  local printed=0
- for _,e in ipairs(H.recent(u,{kind='npc_died',since=since},40)) do
+ local list=s.deaths or {}
+ for i=#list,1,-1 do
+  local e=list[i]
+  if e.clock<since then break end
   -- the entry carries the victim's faction and the killer's hull; the
   -- records themselves are usually pruned by the time the papers look
   local res=e.result or {}
@@ -608,6 +618,7 @@ function N.update(u,clock,game)
  prune(s.nudges,clock);prune(s.shocks,clock)
  -- a story past its life can't be copied any more: drop who copied it
  for _,st in ipairs(s.stories) do if st.copies and clock-st.clock>N.T.storyLife then st.copies=nil end end
+ while s.deaths and s.deaths[1] and clock-s.deaths[1].clock>N.T.storyLife do table.remove(s.deaths,1) end
  N.bill(u,s,clock)
  deedStories(u,s,clock)
  local left={};for i,o in ipairs(Outlets.order) do left[i]=o end
