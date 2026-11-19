@@ -191,13 +191,23 @@ function A.seed(game)
  Reconcile.prepare(game,start)
  -- All populations exist before visiting their regions. Do not refill departed
  -- or dead traders when an area is loaded.
+ -- The fleet is a fixed size (T.fleet, src/arbiter.lua): a new world starts
+ -- with every area's share, and a save from before (or from a smaller
+ -- T.fleet) is topped up to it once. After that, losses are replaced by
+ -- arrivals buying ships off the lots, as before.
+ u.fleetSeeded=u.fleetSeeded or {}
+ local function count(area) return require('src.population').count(u,area,'hauler') end
  for _,area in ipairs(Fields.list) do
   local f=Fields[area]
-  if f.alifeTraders and L.station(area,'trade') and not u.npcAreas[area] then
-   u.npcAreas[area]=true
-   for i=1,f.alifeTraders do
+  local fresh=f.alifeTraders and L.station(area,'trade') and not u.npcAreas[area]
+  local topUp=f.alifeTraders and L.station(area,'trade') and not f.instance and not f.transit and (u.fleetSeeded[area] or 0)<T.fleet.hauler
+  if fresh or topUp then
+   local want=f.alifeTraders+require('src.arbiter').extraTraders(area)
+   local from=fresh and 1 or count(area)+1
+   u.npcAreas[area]=true;u.fleetSeeded[area]=T.fleet.hauler
+   for i=from,want do
     local r=A.createTrader(game,area,i)
-    local elapsed=(r.arrive-r.depart)*i/(f.alifeTraders+1)
+    local elapsed=(r.arrive-r.depart)*i/(want+1)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if r.taskWorker then -- start docked, where work is handed out
      r.route=copy(f.traderRoute);r.onRoundTrip=nil;r.tripDestination=nil;r.tripRoute=nil

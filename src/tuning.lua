@@ -298,6 +298,10 @@ T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0
 -- modules and ammo selling.
 T.pirateScuttleChance, T.offlineBreakKill = 0.5, 0.5
 T.alifeWreckLifetime = 1800
+-- The fixed fleet (src/arbiter.lua): haulers and miners across the whole
+-- system. With ~46 police, the pirate bases' launches and a few couriers,
+-- about 300 ships fly.
+T.fleet = { hauler = 190, miner = 45 }
 T.population = {
  -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
  pirate={minDelay=180,maxDelay=300},
