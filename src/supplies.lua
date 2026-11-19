@@ -102,8 +102,10 @@ end
 -- leave (its credits stop at 0), so nobody is stranded at a dock.
 local function charge(r,u,key,id,n)
  local p=unitPrice(u,key,id)
- local cost=n*p
- r.credits=math.max(0,(r.credits or 0)-cost);r.suppliesSpent=(r.suppliesSpent or 0)+cost
+ -- (fuel goes out even to a ship that can't pay; the station banks only
+ -- what it was actually paid, or it was minting the rest)
+ local cost=math.min(n*p,math.max(0,r.credits or 0))
+ r.credits=(r.credits or 0)-cost;r.suppliesSpent=(r.suppliesSpent or 0)+cost
  if id==Fuel.item() then r.fuelSpent=(r.fuelSpent or 0)+cost end
  if type(key)=='table' then
   -- a satellite hub's shelf: the takings go to whoever runs the satellite

@@ -52,7 +52,7 @@ return function(game)
  end
  local watch={'deuterium_canister','steel_plate','flare'}
  for _,id in ipairs({'ammo_kinetic','missile','ammo_small','slug'}) do if data.items[id] then watch[#watch+1]=id end end
- local function sumShort() local n=0 for _,v in pairs(u.accountShort or {}) do n=n+v end return n end
+ local function sumShort() local n=0 for _,v in pairs(u.accountSubsidy or {}) do n=n+v end return n end
  local sample
  sample=function(h,wall)
   local groups,alive,credits,broke,cr={},0,0,0,{}
@@ -73,7 +73,7 @@ return function(game)
   local kk={} for k,v in pairs(kinds) do kk[#kk+1]=k..'='..v end table.sort(kk)
   local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
   local gg={} for k,v in pairs(groups) do gg[#gg+1]=k..'='..v end table.sort(gg)
-  say(('h%02d wall=%.0fs npcs=%d [%s] npcCr=%.0f med=%.0f broke=%d | stations=%.0f low=%d faction=%.0f short=%.0f | houses=%.0f insolv=%d | player=%.0f | ledger freight=%.0f bought=%.0f sold=%.0f | tasks open=%d claimed=%d [%s] | zero %s')
+  say(('h%02d wall=%.0fs npcs=%d [%s] npcCr=%.0f med=%.0f broke=%d | stations=%.0f low=%d faction=%.0f subsidy=%.0f | houses=%.0f insolv=%d | player=%.0f | ledger freight=%.0f bought=%.0f sold=%.0f | tasks open=%d claimed=%d [%s] | zero %s')
    :format(h,wall,alive,table.concat(gg,' '),credits,med,broke,st,lowSt,fa,sumShort(),houses,insolvent,u.credits or 0,
    lh.freight or 0,lh.bought or 0,lh.sold or 0,open,claimed,table.concat(kk,' '),zeroes(watch)))
  end
@@ -96,11 +96,15 @@ return function(game)
   say(('    sold: %s'):format(top(lh,'sold',6)))
   say(('    bought: %s'):format(top(lh,'bought',6)))
   say(('    freight: %s'):format(top(lh,'freight',4)))
-  -- who can't pay (unpaid this hour, by account) and who holds the money
-  local sh={} for id,v in pairs(u.accountShort or {}) do local d=v-(lastShort[id] or 0);if d>0 then sh[#sh+1]={id,d} end;lastShort[id]=v end
+  -- who needed outside money this hour, by account, and what it holds
+  local sh={} for id,v in pairs(u.accountSubsidy or {}) do local d=v-(lastShort[id] or 0);if d>0 then sh[#sh+1]={id,d} end;lastShort[id]=v end
   table.sort(sh,function(a,b) return a[2]>b[2] end)
   local o={} for i=1,math.min(6,#sh) do o[i]=sh[i][1]..'='..math.floor(sh[i][2])..'(has '..math.floor((u.accounts or {})[sh[i][1]] or 0)..')' end
-  say('    unpaid: '..table.concat(o,' '))
+  say('    subsidy: '..table.concat(o,' '))
+  -- each faction's rolling surplus (+) or deficit (-), credits per hour
+  local Acc=require('src.accounts');local fl={}
+  for _,p in ipairs(Acc.parties(u)) do local f=Acc.flow(u,p);if not p:match('^station:') or math.abs(f.net)>=1000 then fl[#fl+1]=p:gsub('^station:','')..'='..math.floor(f.net) end end
+  say('    flow/h: '..table.concat(fl,' '))
   local byG={} for _,r in pairs(u.npcs or {}) do if r.state~='dead' then local g=r.populationGroup or '?';byG[g]=(byG[g] or 0)+(r.credits or 0) end end
   local gg={} for k,v in pairs(byG) do gg[#gg+1]=k..'='..math.floor(v) end table.sort(gg)
   say('    npc credits: '..table.concat(gg,' ')..(' | ships lost %d'):format(u.shipsLost or 0))

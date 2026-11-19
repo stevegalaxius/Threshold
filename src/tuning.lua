@@ -249,12 +249,17 @@ T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the a
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.stationOpeningCredits=60000 -- what a station's account opens with (src/accounts.lua)
 T.factionOpeningCredits=2000000 -- and a faction's
-T.factionTax=.25 -- share of a station's takings paid to its faction
+T.factionFlowHours=6 -- half-life of a faction's rolling surplus/deficit (src/accounts.lua A.flow)
+T.stationFloor,T.factionFloor=20000,500000 -- accounts pay down to these; past them the faction, then its home economy, pays (src/accounts.lua)
+T.factionTax=.35 -- share of a station's takings paid to its faction (stations piled up money while their factions ran down at .25)
 T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
+T.dockFeePerCell,T.dockFeeMin=10,40 -- docking fee per hangar cell the hull takes, and the least (src/docking_fee.lua)
+T.resaleMargin=.1 -- a station prices goods it bought in at least this much over their landed cost (src/markets.lua)
 T.hubMarkup=.3 -- a logistics hub sells on what it imports at this markup (src/transport.lua)
 T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
+T.npcSavings=8000 -- over this an NPC refits or trades up its ship more readily (src/npc_refit.lua)
 T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
-T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
+T.npcAmmoThreshold,T.npcAmmoSeconds=.2,10 -- seek supplies below 20%; fallback reserve = 10s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 -- Fencing (piracy.lua): share of its home station's bid a pirate gets for stolen goods
@@ -295,6 +300,10 @@ T.offlineCivilianBreak, T.offlinePirateBreak, T.offlinePatrolBreak = 0.6, 0.4, 0
 -- modules and ammo selling.
 T.pirateScuttleChance, T.offlineBreakKill = 0.5, 0.5
 T.alifeWreckLifetime = 1800
+-- The fixed fleet (src/arbiter.lua): haulers and miners across the whole
+-- system. With ~46 police, the pirate bases' launches and a few couriers,
+-- about 300 ships fly.
+T.fleet = { hauler = 190, miner = 45 }
 T.population = {
  -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
  pirate={minDelay=180,maxDelay=300},

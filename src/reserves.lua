@@ -2,7 +2,19 @@
 local R={policies={}}
 for item,policy in pairs(require('data.industry').reserves) do R.policies[item]=policy end
 for _,recipe in ipairs(require('data.industry').recipes) do if recipe.reserve then R.policies[recipe.item]=recipe.reserve end end
+-- (fixed by the layout: remembered per layout, as the economy asks it for
+-- every good at every station several times a minute)
+local memo,memoIndex={},nil
+local minimum
 function R.minimum(key,item)
+ local C=require('src.commodities')
+ if C.index==nil or memoIndex~=C.index then C.makes('',''); memo,memoIndex={},C.index end
+ local k=tostring(key)..'|'..item
+ local v=memo[k]
+ if v==nil then v=minimum(key,item);if require('src.locations').byId[key] then memo[k]=v end end
+ return v
+end
+minimum=function(key,item)
  local policy=R.policies[item];if not policy then return 0 end
  local L=require('src.locations');local place=L.byId[key]
  if not place then return 0 end
@@ -14,11 +26,7 @@ function R.minimum(key,item)
   policy={minimum=n*require('src.data').items[item].stack,excludeProducers=policy.excludeProducers}
  elseif policy.service and not L.stationServices(key)[policy.service] then return 0 end
  if policy.excludeProducers then
-  for _,c in ipairs(require('src.commodities').list) do
-   if (c.make[key] or 0)>0 then
-    for _,o in ipairs(require('src.commodities').outputs(c)) do if o.item==item then return 0 end end
-   end
-  end
+  if require('src.commodities').makes(key,item) then return 0 end
  end
  return policy.minimum or (policy.stacks or 0)*require('src.data').items[item].stack
 end

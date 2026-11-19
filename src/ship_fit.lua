@@ -34,18 +34,23 @@ function F.metrics(hull,loadout)
  local s=require('src.stats').compute(hull,loadout)
  local m={hold=s.hold or 0,armor=s.armor or 0,firepower=0,drill=0,
   agility=(s.thrust or 0)/math.max(1,s.mass or 1)}
+ local drillPower=0
  for i in ipairs(hull.slots) do
   local mod=loadout[i] and data.modules[loadout[i]]
   local w=mod and mod.weapon
   if w then
    local size=SIZE[mod.size or 'S'] or 1
-   if w.kind=='drill' then m.drill=m.drill+size
+   if w.kind=='drill' then
+    m.drill=m.drill+(w.damage or 0)*(w.rockDamage or 1)
+    drillPower=drillPower+(w.powerPerSecond or 0)
    else
     local mult=w.kind=='missile' and s.mult.missileDamage or s.mult.primaryDamage*s.mult.primaryFireRate
     m.firepower=m.firepower+size*mult
    end
   end
  end
+ -- Rock cut per second, held to what the reactor can feed the drills.
+ if drillPower>0 then m.drill=m.drill*math.min(1,math.max(0,s.powerNet or 0)/drillPower) end
  return m
 end
 
@@ -99,7 +104,7 @@ end
 -- choices: { {hull=id, loadout=, base=weight?}, ... }. Each gets .fit (0..1)
 -- and .weight (fit relative to the best, sharpened, times regional bias
 -- and any base weight such as factory output).
-function F.rank(u,area,role,choices,stock,sharpness)
+function F.rank(u,area,role,choices,stock,sharpness,noLots)
  local danger=F.danger(u,area);local ref={}
  for _,c in ipairs(choices) do
   c.metrics=F.metrics(data.hulls[c.hull],c.loadout)
@@ -107,7 +112,7 @@ function F.rank(u,area,role,choices,stock,sharpness)
  end
  local best=0
  for _,c in ipairs(choices) do c.fit=F.score(role,c.metrics,ref,danger);best=math.max(best,c.fit) end
- local here=regionalHulls(u,area)
+ local here=noLots and {} or regionalHulls(u,area)
  for _,c in ipairs(choices) do
   local rel=best>0 and c.fit/best or 1
   c.weight=rel^(sharpness or F.sharpness)*(c.base or 1)*(here[c.hull] and F.localHull or 1)*scarcity(c.loadout,stock)

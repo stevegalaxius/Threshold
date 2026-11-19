@@ -477,6 +477,13 @@ return function(game)
   -- the player drills a real wreck apart
   local victim
   for _,e in ipairs(game.entities) do if e.kind=='ship' and e.alifeId and not e.dead then victim=e;break end end
+  -- (none in sight: wake one of this map's records rather than rely on
+  -- where the traffic happens to be)
+  if not victim then
+   local ids={};for id,r in pairs(u.npcs) do if r.area==game.fieldId and r.state~='docked' and r.state~='dead' and r.state~='escaped' and r.state~='transit' and not (game.alifeOnline or {})[id] then ids[#ids+1]=id end end
+   table.sort(ids)
+   for _,id in ipairs(ids) do local e=require('src.alife').wake(game,u.npcs[id]);if e and not e.dead then victim=e;break end end
+  end
   assert(victim,'no NPC ship to wreck')
   local husk=game:spawnHusk(victim,victim.body:getX()+400,victim.body:getY(),0,0,0,0)
   assert(husk.origin,'ship wreck has no origin')

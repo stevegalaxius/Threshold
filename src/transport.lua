@@ -374,7 +374,10 @@ Tasks.register('transport',{
    paid=paid-(charge.payment-payment)
    -- an economy order is a sale: the buyer pays the seller for the goods
    -- (after the courier), and a hub sells on at a markup
-   if line.layoutScope=='economy' and not line.playerOrder and not line.intake then Transport.settleGoods(u,line,station) end
+   if line.layoutScope=='economy' and not line.playerOrder and not line.intake then
+    local goods=Transport.settleGoods(u,line,station)
+    require('src.markets').landed(u,station,line.item,line.amount,goods+payment)
+   end
    if (line.premiumPerUnit or 0)>0 then require('src.economy').ledger(u,station,'premium',math.floor(line.amount*line.premiumPerUnit),line.item) end
    require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
     {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,premiumPerUnit=line.premiumPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)

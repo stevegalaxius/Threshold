@@ -172,15 +172,24 @@ local function adjust(u,unmet,all)
 end
 -- One planning snapshot per station and phase of the minute update.
 local planning
+-- Outside the update, plans are remembered for one clock reading: a fast
+-- step asks for the same station's plan for every ship it moves.
+local loose=setmetatable({},{__mode='k'})
 local function inputPlan(u,key)
- if not planning or planning.u~=u then return require('src.industry').inputPlan(u,key) end
+ if not planning or planning.u~=u then
+  local c=loose[u]
+  if not c or c.clock~=u.clock then c={clock=u.clock,plans={}};loose[u]=c end
+  local plan=c.plans[key]
+  if not plan then plan=require('src.industry').inputPlan(u,key);c.plans[key]=plan end
+  return plan
+ end
  local plan=planning.stations[key]
  if not plan then plan=require('src.industry').inputPlan(u,key);planning.stations[key]=plan end
  return plan
 end
 local function capacityUse(u,key,item)
  local n=item==Food.item and Food.rates(key) or 0
- for _,c in ipairs(C.list) do if c.item==item then n=n+(c.use[key] or 0) end end
+ for _,c in ipairs(C.byItem(item)) do n=n+(c.use[key] or 0) end
  return n+(inputPlan(u,key).rates[item] or 0)
 end
 local function serviceUse(u,key,item)
@@ -202,8 +211,7 @@ local memo
 local function makesNow(key,item)
  local place=L.byId[key];if not place then return false end
  if item==Food.item then local _,make=Food.rates(key);return make>0 end
- for _,c in ipairs(C.list) do for _,output in ipairs(C.outputs(c)) do if output.item==item and (c.make[key] or 0)>0 then return true end end end
- return false
+ return C.makes(key,item)
 end
 local function makes(key,item)
  if not memo then return makesNow(key,item) end
@@ -220,10 +228,22 @@ local function makes(key,item)
  local set=makers[item]
  return set~=nil and set[key]==true
 end
+local target
 function E.target(u,key,item,supplier)
+ -- (inside an update phase the answer can't change: remembered per phase)
+ if planning and planning.u==u then
+  local t=planning.targets;if not t then t={};planning.targets=t end
+  local k=key..'|'..item..(supplier and '|s' or '')
+  local v=t[k]
+  if v==nil then v=target(u,key,item,supplier);t[k]=v end
+  return v
+ end
+ return target(u,key,item,supplier)
+end
+target=function(u,key,item,supplier)
  local use=serviceUse(u,key,item)
  if item==Food.item then use=math.max(use,Food.rates(key)) end
- for _,c in ipairs(C.list) do if c.item==item then use=math.max(use,c.use[key] or 0) end end
+ for _,c in ipairs(C.byItem(item)) do use=math.max(use,c.use[key] or 0) end
  local want=use*(supplier and E.reserveHours or E.hours)+(inputPlan(u,key).buffers[item] or 0)
  if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
  local floor=E.floor[item]
@@ -424,7 +444,7 @@ local function run(u,clock,pause)
  planning={u=u,stations={}}
  require('src.markets').update(u,clock,all,committed,pause)
  pause()
- planning.stations={}
+ planning.stations={};planning.targets=nil
  hubPlan=nil
  local wants=hubWants(u,all,pause)
  hubPlan=wants
@@ -456,12 +476,20 @@ local function run(u,clock,pause)
   -- twice that is spare (a mine, a quarry, a hub that collected stock).
   local spare,buyers={},{}
   local participants=item==Food.item and inhabited or all
+  -- what each source has promised to freight of this good (as
+  -- Transport.reserved with open orders), summed in one pass over the
+  -- board: asked station by station it was the slowest part of the update
+  local promised={}
+  for _,o in pairs(state.offers) do
+   if o.item==item and o.order and o.source and not o.loaded then promised[o.source]=(promised[o.source] or 0)+(o.amount or 0) end
+  end
   for _,s in ipairs(participants) do
    pause(true)
-   local have=math.max(0,Stock.count(u,s,item)-Transport.reserved(u,s,item,nil,true))
+   local count=Stock.count(u,s,item)
+   local have=math.max(0,count-(promised[s] or 0))
    local producer=makes(s,item)
    local want=hubTarget(u,s,item,producer)
-   E.shortage(u,s,item,Stock.count(u,s,item),want,clock)
+   E.shortage(u,s,item,count,want,clock)
    local level=producer and want or want*2
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)

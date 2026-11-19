@@ -1,24 +1,26 @@
 --[[
-	The simulation arbiter: decides how many of each kind of NPC the world
-	should have, from what the world needs right now, instead of a fixed
-	count per area. Population (src/population.lua) asks it for targets: it
-	spawns arrivals while an area is under its target, and simply doesn't
-	replace losses while it's over.
+	The simulation arbiter: how many haulers and miners each area keeps.
 
-	Traders follow estimated hold-load travel time, grouped by route so mixed
-	cargo does not inflate fleet demand. Idle and returning capacity offsets
-	the backlog. Targets rise gradually and decay without deleting ships.
+	The fleet is a fixed size (T.fleet), not sized to demand: a fleet that
+	grew with the freight backlog fed itself (more haulers burn more fuel,
+	which needs more ore and canisters, which is more freight) and swung
+	between ~170 and ~350 ships as tuning moved the economy across the line.
+	Population (src/population.lua) spawns arrivals while an area is under
+	its share and doesn't replace losses while it's over.
 
-	Miners follow ore. Whatever ore buyers wanted that no station could
-	supply (u.economyUnmet, src/economy.lua) asks for one more miner per
-	A.orePerMiner units at every area whose drills dig that ore, up to
-	A.maxExtraMiners, rising and decaying the same way.
+	  haulers  T.fleet.hauler shared over the trade areas in proportion to
+	           their authored base (alifeTraders); an area never gets less
+	           than its base
+	  miners   T.fleet.miner shared over the mining areas by drill count,
+	           never less than T.minersPerArea
 
+	A.update still reads the freight board each minute for the debug panel
+	(work waiting against idle and busy ships), but it sets no targets.
 	Plain data in u.arbiter; works the same offline.
 ]]
 local L=require('src.locations')
 local Tasks=require('src.tasks')
-local A={tick=60,maxExtra=40,decay=1/300,orePerMiner=100,maxExtraMiners=24,universe=nil}
+local A={tick=60,universe=nil}
 
 function A.state(u) u.arbiter=u.arbiter or {extra={},next=0};return u.arbiter end
 
@@ -79,58 +81,62 @@ function A.update(u,clock)
  end
  local areas={}
  for area in pairs(open) do areas[area]=true end
- for area in pairs(s.extra) do areas[area]=true end
  for area in pairs(capacity) do areas[area]=true end
  s.freight={}
  for area in pairs(areas) do
   local c=capacity[area] or {idle=0,busy=0,idleCapacity=0,busyCapacity=0}
-  -- Clear a ten-minute backlog with usable idle ships; busy ships receive
-  -- conservative credit discounted by their remaining phase. Existing extras count toward the target.
-  local have=s.extra[area] or 0
   local shortage=math.max(0,(open[area] or 0)/600-c.idleCapacity-c.busyCapacity)
-  local base=require('src.fields')[area].alifeTraders or 0
-  local pending=math.max(0,base+have-(c.present or 0))
-  local want=math.min(A.maxExtra,shortage>0 and math.max(0,math.ceil(have+shortage-pending)) or math.max(0,have-c.idle*.5))
-  if not open[area] then want=0 end
-  local v=want>have and math.min(want,have+dt/60) or math.max(want,have-dt*A.decay)
-  s.extra[area]=v>0 and v or nil
-  s.freight[area]={work=open[area] or 0,idle=c.idle,busy=c.busy,shortage=shortage,target=v}
- end
- -- miners: unmet ore, by the areas that dig each kind
- s.miners=s.miners or {}
- local unmet=u.economyUnmet or {}
- local digs={}
- for _,site in pairs(require('src.jobs').state(u).sites or {}) do
-  if site.item then digs[site.area]=digs[site.area] or {};digs[site.area][site.item]=true end
- end
- local mareas={}
- for area in pairs(digs) do mareas[area]=true end
- for area in pairs(s.miners) do mareas[area]=true end
- for area in pairs(mareas) do
-  local short=0
-  for item in pairs(digs[area] or {}) do short=short+(unmet[item] or 0) end
-  local want=math.min(A.maxExtraMiners,math.ceil(short/A.orePerMiner))
-  local have=s.miners[area] or 0
-  local v=want>=have and want or math.max(want,have-dt*A.decay)
-  s.miners[area]=v>0 and v or nil
+  s.freight[area]={work=open[area] or 0,idle=c.idle,busy=c.busy,shortage=shortage,target=A.extraTraders(area)}
  end
 end
+-- Shares of a fixed total by weight, whole ships, largest remainders first
+-- (ties by area id), never under each area's floor.
+local function share(total,weights,floors)
+ local sum=0;local list={}
+ for area,w in pairs(weights) do sum=sum+w;list[#list+1]=area end
+ table.sort(list)
+ local out,rest,given={},{},0
+ for _,area in ipairs(list) do
+  local exact=sum>0 and total*weights[area]/sum or 0
+  out[area]=math.floor(exact);given=given+out[area];rest[#rest+1]={area=area,f=exact-out[area]}
+ end
+ table.sort(rest,function(a,b) return a.f>b.f or a.f==b.f and a.area<b.area end)
+ for i=1,math.max(0,total-given) do local e=rest[(i-1)%math.max(1,#rest)+1];if e then out[e.area]=out[e.area]+1 end end
+ for _,area in ipairs(list) do out[area]=math.max(out[area],floors[area] or 0) end
+ return out
+end
+local plan
+local function fleet()
+ local T=require('src.tuning')
+ if plan and plan.hauler==T.fleet.hauler and plan.miner==T.fleet.miner then return plan end
+ local Fields=require('src.fields')
+ local hw,hf,mw,mf={},{},{},{}
+ for _,area in ipairs(Fields.list) do
+  local f=Fields[area]
+  if not f.instance and not f.transit then
+   if L.station(area,'trade') and (f.alifeTraders or 0)>0 then hw[area]=f.alifeTraders;hf[area]=f.alifeTraders end
+   if #(f.drillIds or {})>0 and L.station(area,'mining') then mw[area]=#f.drillIds;mf[area]=T.minersPerArea end
+  end
+ end
+ plan={hauler=T.fleet.hauler,miner=T.fleet.miner,haulers=share(T.fleet.hauler,hw,hf),miners=share(T.fleet.miner,mw,mf),bases=hf}
+ return plan
+end
+-- Miners an area keeps over T.minersPerArea.
 function A.extraMiners(area)
- local u=A.universe;if not u or not u.arbiter or not u.arbiter.miners then return 0 end
- return math.floor(u.arbiter.miners[area] or 0)
+ local n=fleet().miners[area];if not n then return 0 end
+ return math.max(0,n-require('src.tuning').minersPerArea)
 end
-
--- Extra traders this area should have over its base.
+-- Haulers an area keeps over its authored base.
 function A.extraTraders(area)
- local u=A.universe;if not u or not u.arbiter then return 0 end
- return math.floor(u.arbiter.extra[area] or 0)
+ local p=fleet();local n=p.haulers[area];if not n then return 0 end
+ return math.max(0,n-(p.bases[area] or 0))
 end
 function A.panel(game,Slab)
  local u=game.universe;local s=A.state(u);local keys={}
  for area in pairs(s.freight or {}) do keys[#keys+1]=area end;table.sort(keys)
  for _,area in ipairs(keys) do
   local f=s.freight[area]
-  Slab.Text(('%s: %.1f ship-min waiting | %d usable idle, %d hauling | %.1f extra target'):format(area,f.work/60,f.idle,f.busy,f.target))
+  Slab.Text(('%s: %.1f ship-min waiting | %d usable idle, %d hauling | %d extra (fixed)'):format(area,f.work/60,f.idle,f.busy,f.target))
  end
  for item,n in pairs(u.economyUnmet or {}) do
   if n>0 then Slab.Text(('No surplus production: %s %.0f'):format(item,n)) end

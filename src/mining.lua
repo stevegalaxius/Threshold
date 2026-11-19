@@ -154,10 +154,18 @@ function M.seed(game)
      state.sites[id].angle=math.atan2(hy-s.y,hx-s.x)+pi
     end
    end
-   if not f.instance and L.station(area,'mining') and not state.seeded[area] then
-    state.seeded[area]=true
-    for _=1,T.minersPerArea do
-     M.create(game,area,u.clock)
+   -- the area's fixed share of T.fleet.miner (src/arbiter.lua): all of it
+   -- in a new world, and a save from before is topped up to it once
+   if not f.instance and L.station(area,'mining') and (not state.seeded[area] or (state.fleetSeeded or {})[area]~=T.fleet.miner) then
+    local want=T.minersPerArea+require('src.arbiter').extraMiners(area)
+    local have=state.seeded[area] and require('src.population').count(u,area,'miner') or 0
+    state.seeded[area]=true;state.fleetSeeded=state.fleetSeeded or {};state.fleetSeeded[area]=T.fleet.miner
+    for _=have+1,want do
+     local ship,policy=require('src.npc_ship_supply').seed(u,area,'miner')
+     game.arrivalShip=ship
+     local r=M.create(game,area,u.clock)
+     game.arrivalShip=nil
+     require('src.npc_ship_supply').settle(r,policy)
     end
    end
   end

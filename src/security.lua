@@ -196,7 +196,13 @@ function S.seed(game,start)
     local count=role=='patrol' and policeWanted(u,area) or f.alifeSecurity[role]
     for i=1,count do
      local node=f.buoyIds[(i-1)%#f.buoyIds+1]
+     -- the same choice of hull and fit an arrival makes (src/npc_ship_supply.lua)
+     local Supply=require('src.npc_ship_supply')
+     local ship,policy=Supply.seed(u,area,role)
+     game.arrivalShip=ship
      local r=create(game,area,role,node,u.clock,start)
+     game.arrivalShip=nil
+     Supply.settle(r,policy)
      if r.state=='travel' then
       local elapsed=(r.arrive-r.depart)*(role=='pirate' and .65 or .15+i*.2)
       r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed

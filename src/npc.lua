@@ -183,7 +183,10 @@ local function visitStay(r,node)
  return (work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
 end
 function N.beginDocked(r,node,at,u,minimum)
+ -- (once a visit: a ship already docked here that docks again pays nothing)
+ local again=r.state=='docked' and r.node==node
  r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil;r.dockedAt=at
+ if u and not again then require('src.docking_fee').npc(u,r,node) end
  require('src.prospect').sell(u,r,node)
  Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
 end
