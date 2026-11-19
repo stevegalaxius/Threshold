@@ -657,7 +657,7 @@ return function(game)
   local fallen=0
   for _,c in ipairs(crew) do if c~=victim and c.state=='dead' then fallen=fallen+1
    local w=gu.alifeWrecks and gu.alifeWrecks[c.id]
-   assert(w and w.area==Sites.fieldId(inst.id,1) and w.worldPosition,'site death left no wreck in its pocket')
+   assert(w and w.area:sub(1,#Sites.fieldId(inst.id,1)-1)==Sites.fieldId(inst.id,1):sub(1,-2) and w.worldPosition,'site death left no wreck in its pocket')
   end end
   for _,h in ipairs(hunters) do if h.state=='dead' then fallen=fallen+1
    assert(gu.alifeWrecks and gu.alifeWrecks[h.id],'dead hunter left no wreck')
@@ -694,7 +694,22 @@ return function(game)
     require('src.supplies').provision(h);W.beginAssault(gu,h)
    end
    local armor=0;for _,c in ipairs(W.crew(gu,site.id)) do armor=armor+c.ship.armor end
-   g:enterSite(site.id);run(g,2)
+   -- the approach: a gate home and a gate in that asks first
+   g:enterSite(site.id);run(g,1)
+   local home,gatein
+   for _,e in ipairs(g.entities) do if e.gate then if e.gate.to=='exit' then home=e elseif e.warning then gatein=e end end end
+   assert(home and g:gateOpen(home),'no open gate home on the approach')
+   assert(gatein and gatein.gate.to==2,'no warning gate in on the approach')
+   g.driverMenu={driver=gatein,warning=true}
+   assert(g:engageGate() and g.player.launch and g.player.launch.to==2,'engaging the gate in did not fire')
+   g.player.launch=nil;g.player.driverProtected=nil;gatein.driverShip=nil
+   -- into the crew's pocket (as the gate in would take you)
+   local field=Sites.fieldId(site.id,2);local f=require('src.fields')[field]
+   g:loadField(field,{player=require('src.ship').record(g.player),at={x=f.spawn[1],y=f.spawn[2],angle=-math.pi/2,vx=0,vy=0}})
+   run(g,2)
+   local out
+   for _,e in ipairs(g.entities) do if e.gate and e.gate.to=='exit' then out=e end end
+   assert(out and not g:gateOpen(out),'the way out is open with the crew still there')
    local live={hunter=0,enemy=0}
    for _,e in ipairs(g.entities) do
     if e.kind=='ship' and e.siteHunter then live.hunter=live.hunter+1 end

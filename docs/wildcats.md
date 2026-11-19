@@ -4,6 +4,15 @@ Wildcat sites are the instanced sites (`data/sites.lua`, `src/sites.lua`) as the
 appear in normal play. They open on their own, raid the planet they orbit, and
 close once their crew is gone. The code is in `src/wildcats.lua`.
 
+## Layout
+
+Every wildcat site opens on an approach pocket: a few rocks, a return gate beside you as you
+arrive (back to the planet), and the gate in. The gate in asks first: a popup
+(`src/ui/gate_warning.lua`) shows the template's `warning` text and that there's no way back.
+Past it, the crew's pockets have no way out until the whole crew is beaten: the deepest pocket's
+return gate has `unlock = "site"`. Sites from before this layout (`Sites.LAYOUT`) are finished on
+load and close once you're out of them.
+
 ## The cycle
 
 1. **A site opens.** Sites are sized to the population: wildcat crews plus bounty hunters make up

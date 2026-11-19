@@ -64,10 +64,19 @@ end
 
 -- Put every saved site's fields back (after loading a save). Sites from
 -- before wildcat crews (no inst.crew) close: their garrisons are gone.
+-- Bumped when wild templates change shape (2: an approach pocket first).
+Sites.LAYOUT = 2
 function Sites.restore(u)
 	for _, inst in pairs(Sites.list(u)) do Sites.register(inst) end
 	for _, inst in pairs(Sites.list(u)) do
-		if not inst.crew and Sites.hasCrew(inst) then Sites.close(u, inst) end
+		local def = Sites.template(inst)
+		-- (a wild site from before approaches: its crew sits in the wrong pockets)
+		if not inst.crew and Sites.hasCrew(inst) then Sites.close(u, inst)
+		elseif def and def.wild and inst.layout ~= Sites.LAYOUT and not inst.done then
+			-- (a wild site from before approaches: its crew sits in the wrong
+			-- pockets. It's finished, and closes once you're not in it.)
+			inst.done = true
+		end
 	end
 end
 
@@ -92,7 +101,7 @@ function Sites.spawn(u, templateId, opts)
 	local life = opts.lifetime or def.lifetime
 	local inst = { id = id, template = templateId, home = home, bearing = random() * pi * 2,
 		spawned = u.clock or 0, expires = life and (u.clock or 0) + life or nil,
-		discovered = opts.discovered or not def.hidden, pockets = {}, hoard = {} }
+		discovered = opts.discovered or not def.hidden, pockets = {}, hoard = {}, layout = Sites.LAYOUT }
 	Sites.list(u)[id] = inst
 	Sites.register(inst)
 	-- its wildcat crew, rolled once (src/wildcats.lua)
@@ -334,7 +343,7 @@ function builders.gate(game, pc, ctx)
 		q.x, q.y = cos(a) * d, sin(a) * d
 		pc = q
 	end
-	game:spawnSiteGate(ctx.inst, ctx.n, pc)
+	return game:spawnSiteGate(ctx.inst, ctx.n, pc)
 end
 
 function Sites.builders() return builders end
@@ -347,8 +356,12 @@ function Sites.build(game, inst, n)
 	local exit = false
 	for _, pc in ipairs(pk.pieces or {}) do
 		local b = builders[pc.type]
-		if b then b(game, pc, ctx) end
-		if pc.type == "gate" and pc.to == "exit" then exit = true end
+		local made = b and b(game, pc, ctx)
+		if pc.type == "gate" and pc.to == "exit" then
+			exit = true
+			-- (pocket 1's way home goes beside you as you arrive: Game:updateSites)
+			if n == 1 and type(made) == "table" then made.autoExit = true end
+		end
 	end
 	if n == 1 and not exit then
 		local sx, sy = game.field.spawn[1], game.field.spawn[2]
@@ -398,6 +411,7 @@ function Game:spawnSiteGate(inst, n, pc)
 	local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body, angle = a,
 		radius = T.gateRadius, barrel = barrel, hw = T.gateHalfWidth, zone = T.gateZone, zoneWidth = T.gateZoneWidth,
 		color = def.color, site = inst.id, pocket = n, unlock = pc.unlock,
+		warning = pc.warning and (def.warning or "No way back through this gate until every hostile beyond it is beaten.") or nil,
 		gate = { site = inst.id, pocket = n, to = pc.to },
 		name = pc.name or (pc.to == "exit" and "Return gate" or "Acceleration gate") }
 	body:setUserData(g)
@@ -413,6 +427,11 @@ function Game:gateOpen(g)
 	if u == "clear" then
 		if state.cleared then return true end
 		return false, "CLEAR THE HOSTILES"
+	end
+	if u == "site" then
+		local inst = Sites.list(self.universe)[g.site]
+		if not inst or inst.done or require("src.wildcats").posted(self.universe, g.site) == 0 then return true end
+		return false, "BEAT THE WHOLE CREW"
 	end
 	if type(u) == "table" and u.kill then
 		for _, e in ipairs(self.entities) do
@@ -537,6 +556,7 @@ function Game:updateSites(dt)
 			end
 		end
 	end
+	if not state.cleared and (Sites.template(inst).pockets[n] or {}).approach then state.cleared = true end
 	if not state.cleared then
 		local left = require("src.wildcats").held(self.universe, self.fieldId)
 		for _, e in ipairs(self.entities) do
