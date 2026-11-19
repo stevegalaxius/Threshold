@@ -32,7 +32,8 @@ D.outlets = {
 		templates = {
 			shortage = { "{station} society frets over scarce {good}", "{good} prices climb at {station}: {pct}" },
 			glut = { "A surfeit of {good} at {station}, {pct}" },
-			killed = { "{faction} vessel lost near {area}; {who} sought", "Tragedy off {area}: {who} blamed" },
+			killed = { "{faction} vessel lost near {area}; {who} sought", "Tragedy off {area}: {who} blamed", "Grief and fury near {area}: {faction} crew slain, {who} at large" },
+			lost = { "Independent {victim} lost near {area}", "Lawlessness near {area}: {victim} destroyed by {who}" },
 			praise = { "A credit to the Inner Worlds: {who} at {area}" },
 			smear = { "Questions raised over the conduct of {who}" },
 		},
@@ -45,7 +46,8 @@ D.outlets = {
 		templates = {
 			shortage = { "{faction} mismanagement empties {station} of {good}", "{good} {pct} at {station}: who profits?" },
 			glut = { "Mars industry floods {station} with {good}, {pct}" },
-			killed = { "Foreign provocation near {area}: {who} strikes {faction} ship", "{who} attacks {faction} shipping off {area}" },
+			killed = { "Foreign provocation near {area}: {who} strikes {faction} ship", "{who} attacks {faction} shipping off {area}", "{faction} crew butchered near {area}: is {who} working for someone?" },
+			lost = { "Unprotected {victim} destroyed near {area}: who will guard the people?", "{who} preys on {victim} off {area}" },
 			praise = { "Independent captain {who} defies blockade at {area}" },
 			smear = { "{who}: agent of foreign interests?" },
 		},
@@ -58,7 +60,8 @@ D.outlets = {
 		templates = {
 			shortage = { "{good} at {station} {pct} on list", "Supply note: {station} short of {good} ({pct})" },
 			glut = { "{good} at {station} {pct} on list; carriers advised" },
-			killed = { "Freight loss off {area}: one {faction} hull, {who} reported" },
+			killed = { "Freight loss off {area}: one {faction} hull, {who} reported", "{faction} hull and crew written off near {area}; {who} named in the claim" },
+			lost = { "Hull loss near {area}: independent {victim}, {who} reported", "Premiums up near {area} after {victim} goes down" },
 			praise = { "Carrier {who} credited with clean run at {area}" },
 			smear = { "Underwriters wary of {who}" },
 		},
@@ -71,7 +74,8 @@ D.outlets = {
 		templates = {
 			shortage = { "Thirst at {station}: {good} {pct}", "The faithless go without: {good} {pct} at {station}" },
 			glut = { "Waste at {station}: {good} {pct}" },
-			killed = { "An outrage near {area}: {who} sheds {faction} blood", "{who} will answer for {area}" },
+			killed = { "An outrage near {area}: {who} sheds {faction} blood", "{who} will answer for {area}", "Mourning for the {faction} dead off {area}; {who} cursed in every chapel" },
+			lost = { "A {victim} lost near {area}; the Courier prays for its crew", "{who} strikes again near {area}: a {victim} burns" },
 			praise = { "The Courier honours {who} for conduct at {area}" },
 			smear = { "The Courier has not forgotten {who}" },
 		},
@@ -84,7 +88,8 @@ D.outlets = {
 		templates = {
 			shortage = { "{good} CRISIS: {station} shelves bare!", "PANIC at {station} as {good} soars {pct}!" },
 			glut = { "{good} CRASH at {station}: {pct}!" },
-			killed = { "BLOODBATH off {area}! {who} guns down {faction} crew", "MASSACRE near {area}: {who} on the loose" },
+			killed = { "BLOODBATH off {area}! {who} guns down {faction} crew", "MASSACRE near {area}: {who} on the loose", "{faction} CREW BLOWN TO PIECES off {area}! Is {who} next door?" },
+			lost = { "FIREBALL near {area}! {victim} vaporised by {who}", "DEATH LANE: another {victim} gone near {area}" },
 			praise = { "HERO {who} saves the day at {area}!" },
 			smear = { "WHO IS {who}? The captain everyone's talking about" },
 		},
@@ -97,7 +102,8 @@ D.outlets = {
 		templates = {
 			shortage = { "{faction} can't feed {station}: {good} {pct}", "Easy money: {good} {pct} at {station}" },
 			glut = { "{good} going cheap at {station} ({pct}), help yourself" },
-			killed = { "Another {faction} tub sent down off {area}. Drinks on {who}", "{who} takes a bite out of {faction} near {area}" },
+			killed = { "Another {faction} tub sent down off {area}. Drinks on {who}", "{who} takes a bite out of {faction} near {area}", "{faction} bleeds near {area} and {who} sends its regards" },
+			lost = { "Tough luck for a {victim} near {area}", "{who} picks off a {victim} near {area}: salvage, anyone?" },
 			praise = { "Raise a glass to {who}", "{who}: one of ours" },
 			smear = { "{who} is a company snitch", "Don't dock next to {who}" },
 		},
@@ -108,6 +114,7 @@ D.default = {
 	shortage = { "{good} short at {station} ({pct})" },
 	glut = { "{good} cheap at {station} ({pct})" },
 	killed = { "{faction} ship lost near {area}; {who} blamed" },
+	lost = { "{victim} lost near {area}; {who} blamed" },
 	praise = { "{who} praised for conduct at {area}" },
 	smear = { "Concern over {who}" },
 }

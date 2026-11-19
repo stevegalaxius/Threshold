@@ -261,7 +261,8 @@ local function pct(ratio) return ('%+d%%'):format(math.floor((ratio-1)*100+.5)) 
 function N.headline(st)
  if st.headline then return st.headline end
  local vars={good=st.good and itemName(st.good),station=st.station and placeName(st.station),
-  area=st.area and areaName(st.area),pct=st.reported and pct(st.reported),who=st.who,faction=factionName(st.faction)}
+  area=st.area and areaName(st.area),pct=st.reported and pct(st.reported),who=st.who,faction=factionName(st.faction),
+  victim=st.victim or 'ship'}
  return fill(template(st.outlet,st.kind,st.pick or 0),vars)
 end
 -- Put a story in the feed. Fills in id and clock. Returns the story.
@@ -455,18 +456,31 @@ end
 
 -- NPC killings of faction ships on an outlet's beat. If the killer flew
 -- what the player flies, a careless outlet may pin it on the player.
+-- A faction's dead always make its beat's papers, as loudly as they
+-- like; independents (most ships) one a run, with nobody's standing on it.
 local function deathStories(u,s,o,since,clock)
  local H=require('src.simulation_history');local d=Outlets.outlets[o]
  local printed=0
  for _,e in ipairs(H.recent(u,{kind='npc_died',since=since},40)) do
-  if printed>=1 then break end
   -- the entry carries the victim's faction and the killer's hull; the
   -- records themselves are usually pruned by the time the papers look
   local res=e.result or {}
   local victim=u.npcs and u.npcs[e.participants[1]]
   local killer=res.killer
   local f=res.faction or victim and Rep().ofRecord(victim)
-  if f and killer and killer~='player' and e.area and N.covers(o,e.area) then
+  local vh=res.hull or victim and victim.ship and victim.ship.hull
+  local vd=vh and require('src.data').hulls[vh]
+  if not f and killer and killer~='player' and e.area and N.covers(o,e.area) and printed==0 then
+   -- an independent: a story, no standing
+   local k=u.npcs and u.npcs[killer]
+   local hull=res.killerHull or k and k.ship and k.ship.hull
+   local hd=hull and require('src.data').hulls[hull]
+   local blame=hull and s.playerHullId and hull==s.playerHullId and rng(u)<N.T.blameOdds*(d.smear+.2)
+   N.publish(u,{outlet=o,kind='lost',area=e.area,fact=e.id,victim=vd and vd.name or 'trader',
+    who=blame and playerWho(u,true) or hd and ('a '..hd.name) or 'a raider',
+    named=blame or nil,subject=blame and 'player' or nil,blamed=blame or nil})
+   printed=printed+1
+  elseif f and killer and killer~='player' and e.area and N.covers(o,e.area) then
    local k=u.npcs and u.npcs[killer]
    local hull=res.killerHull or k and k.ship and k.ship.hull
    local playerHull=s.playerHullId
@@ -474,18 +488,20 @@ local function deathStories(u,s,o,since,clock)
    local st={outlet=o,kind='killed',area=e.area,faction=f,fact=e.id}
    if blame then
     st.who=playerWho(u,true);st.named=true;st.subject='player';st.blamed=true
-    st.deedId=addDeed(s,{faction=f,delta=N.T.blameHit,area=e.area,clock=clock,printed=true,blamed=true}).id
+    -- at home the faction saw who really did it; away, it has only the papers
+    st.deedId=addDeed(s,{faction=f,delta=N.T.blameHit,area=e.area,clock=clock,printed=true,blamed=true,
+     witnessed=Rep().ofArea(e.area)==f}).id
    else
     local hd=hull and require('src.data').hulls[hull]
-    st.who=hd and ('a '..hd.name) or 'raiders'
+    st.who=hd and ('a '..hd.name) or 'a raider'
    end
-   report(u,N.publish(u,st));printed=printed+1
+   report(u,N.publish(u,st))
   end
  end
 end
 
 local function juicy(st,d)
- if st.deedId or st.kind=='killed' or st.rumour then return true end
+ if st.deedId or st.kind=='killed' or st.kind=='lost' or st.rumour then return true end
  if st.good and (d.agenda[st.good] or 0)~=0 then return true end
  return st.reported and math.abs(st.reported-1)>=N.T.copyJuice
 end
@@ -505,7 +521,7 @@ local function copyStories(u,s,o,clock)
     local odds=d.everywhere and .8 or N.T.secondhandOdds
     if rng(u)<odds then
      local c={outlet=o,kind=st.kind,area=st.area,station=st.station,good=st.good,faction=st.faction,
-      secondhand=true,from=st.outlet,subject=st.subject,deedId=st.deedId,blamed=st.blamed}
+      secondhand=true,from=st.outlet,subject=st.subject,deedId=st.deedId,blamed=st.blamed,victim=st.victim}
      if st.reported then c.reported=spin(o,st.good,st.reported,st.station) end
      if st.kind=='shortage' or st.kind=='glut' then
       if c.reported then c.kind=c.reported>=1 and 'shortage' or 'glut' end

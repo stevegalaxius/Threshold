@@ -126,7 +126,7 @@ function H.death(u,r,clock,area,killer)
  -- who it flew for and what killed it, kept on the entry: the records
  -- are pruned minutes later and readers (src/news.lua) come by less often
  local k=killer and killer~='player' and u.npcs and u.npcs[killer]
- local entry=append(u,'npc_died',clock,area,{r.id},{killer=killer,faction=r.affiliation,
+ local entry=append(u,'npc_died',clock,area,{r.id},{killer=killer,faction=r.affiliation,hull=r.ship and r.ship.hull,
   killerHull=k and k.ship and k.ship.hull or nil},nil,r.node)
  r.deathOutcomeId=entry.id
  return entry
