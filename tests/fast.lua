@@ -466,7 +466,8 @@ return function(game)
  -- and doubling back, and doesn't jump doing it.
  do
   local A,G=require('src.alife'),require('src.travelgraph')
-  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  -- (not a wildcat: they patch up at their site, not at stations)
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
   local keep=require('src.persistence').copy(r)
   r.state='travel';r.area='earth';r.encounter=nil;r.speed=600
   r.route={'station:earth_1','station:earth_2'};r.index=2
@@ -483,7 +484,8 @@ return function(game)
  -- route at the station instead of coming back to that node first.
  do
   local U,G,Repairs=require('src.upkeep'),require('src.travelgraph'),require('src.npc_repair')
-  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  -- (not a wildcat: they patch up at their site, not at stations)
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
   local keep=require('src.persistence').copy(r)
   r.state='travel';r.area='earth';r.encounter=nil;r.worldRecovery=nil;r.waitingForHome=nil;r.driverState=nil
   r.service=nil;r.nextServiceAt=nil;r.speed=600
@@ -630,6 +632,8 @@ return function(game)
    require('src.supplies').provision(h)
    assert(W.beginAssault(gu,h),'assault refused')
   end
+  -- (other hunters may take the bounty meanwhile: the test follows its own)
+  local function ours() for _,h in ipairs(hunters) do if h.assault and h.state~='dead' then return true end end end
   local armor0=0;for _,c in ipairs(crew) do if c.state~='dead' then armor0=armor0+c.ship.armor end end
   local clock=gu.clock
   -- (long enough for a hunter to give up: T.hunterAssaultTime)
@@ -637,12 +641,15 @@ return function(game)
   for _=1,math.ceil(TT.hunterAssaultTime*1.5/TT.offlineCombatTick) do
    clock=clock+TT.offlineCombatTick;gu.clock=clock
    W.tick(g,clock)
-   if inst.done or #W.hunters(gu,inst.id)==0 then break end
+   if inst.done or not ours() then break end
   end
   local dead,armor1=0,0
   for _,c in ipairs(crew) do if c.state=='dead' then dead=dead+1 else armor1=armor1+c.ship.armor end end
   assert(armor1<armor0,'the hunters did no damage')
-  assert(inst.done or #W.hunters(gu,inst.id)==0,'the fight never ended')
+  if not (inst.done or not ours()) then
+   local why={};for _,h in ipairs(hunters) do why[#why+1]=h.id..' '..tostring(h.state)..' pocket '..tostring(h.assault and h.assault.pocket)..' since '..tostring(h.assault and h.assault.since) end
+   error('the fight never ended at '..gu.clock..': '..table.concat(why,'; '))
+  end
   -- everyone killed in the fight left a saved wreck in the pocket
   local fallen=0
   for _,c in ipairs(crew) do if c~=victim and c.state=='dead' then fallen=fallen+1

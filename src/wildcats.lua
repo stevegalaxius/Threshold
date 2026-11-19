@@ -765,16 +765,26 @@ function W.tick(game,clock)
  for id,inst in pairs(sites(u)) do
   if not inst.done and inst.crew then
    local hunters=W.hunters(u,id)
-   if #hunters>0 then
-    local n=hunters[1].assault.pocket
+   -- each pocket with hunters in it fights its own round; hunters in a
+   -- pocket that's already beaten move on to the next
+   local by,pockets,onward={},{},{}
+   for _,h in ipairs(hunters) do
+    local n=h.assault.pocket
+    if not by[n] then by[n]={};pockets[#pockets+1]=n end
+    table.insert(by[n],h)
+   end
+   table.sort(pockets)
+   for _,n in ipairs(pockets) do
     local field=fieldId(id,n)
-    if not W.held(u,field) then advanceAssault(game,u,inst,hunters)
+    if not W.held(u,field) then
+     for _,h in ipairs(by[n]) do onward[#onward+1]=h end
     elseif game.fieldId~=field then
      local away={}
-     for _,h in ipairs(hunters) do if not online[h.id] and h.assault.pocket==n then away[#away+1]=h end end
-     if #away>0 then assaultRound(game,u,inst,n,away,clock) end
+     for _,h in ipairs(by[n]) do if not online[h.id] then away[#away+1]=h end end
+     if #away>0 and not inst.done then assaultRound(game,u,inst,n,away,clock) end
     end
    end
+   if #onward>0 and not inst.done then advanceAssault(game,u,inst,onward) end
    if not inst.done and W.posted(u,id)==0 then
     -- every post is empty (the crew died out, at the hands of hunters,
     -- patrols or you): the site is done
