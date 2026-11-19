@@ -148,6 +148,34 @@ return function(game)
    local ship=require('src.npc_ship_supply').fromYard(u,faction,{requires={armed=true}})
    assert(ship and #Dealers.lots(u,yard,true)==before-1,faction..' police could not draw a ship from the yard')
   end
+  -- a hull trade-in carries the old hold's cargo into the new ship
+  do
+   local Refit=require('src.npc_refit');local copy=require('src.persistence').copy
+   local npc
+   for _,r in pairs(u.npcs) do if r.populationGroup=='hauler' and r.ship and r.state~='dead' then npc=r;break end end
+   local saved=copy(npc);local traded
+   for _,area in ipairs(require('src.fields').list) do
+    for _,key in ipairs(require('src.locations').stations(area,'trade')) do
+     if not traded and #Dealers.lots(u,key)>0 then
+      local before=copy(npc.ship.cargo or {});before.steel_plate=(before.steel_plate or 0)
+      local Hold=require('src.inventory.hold')
+      if npc.ship.hold then local h=Hold.deserialize(npc.ship.hold);Hold.add(h,'steel_plate',1);npc.ship.hold=Hold.serialize(h);npc.ship.cargo=Hold.totals(h)
+      else npc.ship.cargo.steel_plate=before.steel_plate+1 end
+      before.steel_plate=before.steel_plate+1
+      npc.credits=1e7;npc.area=area
+      -- (stripped of its modules, so any lot ship scores better)
+      local lo={};for i in ipairs(require("src.data").hulls[npc.ship.hull].slots) do lo[i]=false end
+      npc.ship.loadout=lo
+      for _=1,20 do if not traded then traded=Refit.hull(npc,key,u,u.clock,-1e9) end end
+      if traded then
+       for id,n in pairs(before) do assert((npc.ship.cargo[id] or 0)>=n,'trade-in lost '..id..' ('..(npc.ship.cargo[id] or 0)..' of '..n..')') end
+      else npc.ship=copy(saved.ship) end
+     end
+    end
+   end
+   assert(traded,'no hauler hull trade-in happened')
+   for k in pairs(npc) do npc[k]=nil end;for k,v in pairs(saved) do npc[k]=v end
+  end
   local flags=0;for _,g in pairs(state.groups) do if g.flagship then flags=flags+1 end end
   print(('ok  squads: %d squads, %d police in them, %d flagships'):format(squads,members,flags))
  end
