@@ -360,6 +360,23 @@ local function regionSection(game)
  end
 end
 
+-- The news feed: post a test headline (it pings you), or run an outlet now.
+local function newsSection(game)
+	local u = game.universe
+	local News = require("src.news")
+	if Slab.Button("Send a test notification") then News.testPost(u) end
+	if Slab.Button("Run a random outlet now") then News.runNow(u) end
+	local s = News.state(u)
+	local clock = u.clock or 0
+	for _, o in ipairs(News.order) do
+		local due = s.due and s.due[o]
+		Slab.Text(("%s: next run %s"):format(News.outlets[o].name, due and ("in %ds"):format(math.max(0, due - clock)) or "not set"))
+	end
+	local held = 0
+	for _, st in ipairs(s.stories) do if st.held then held = held + 1 end end
+	Slab.Text(("Headlines waiting to go live: %d"):format(held))
+end
+
 local function locationSection(game)
 	Slab.Text(("Universe clock: %.1f"):format(game.universe.clock))
 	for _, place in ipairs(Locations.list(game.fieldId)) do
@@ -389,6 +406,7 @@ function Debug.update(dt, game)
 		section("dbg_flight", "Flight and catch", flightSection, game)
 		section("dbg_lane", "Transit lane (highway)", laneSection, game)
 		if Slab.Button("A-Life debug window (F6)") then Debug.toggleALife() end
+		section("dbg_news", "News feed", newsSection, game)
 		section("dbg_locations", "Location IDs and positions", locationSection, game)
 		section("dbg_spawn", "Spawn and arena", spawnSection, game)
 		Slab.EndWindow()
