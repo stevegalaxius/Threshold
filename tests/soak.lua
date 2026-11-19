@@ -152,6 +152,15 @@ return function(game)
   say(('    news: stories %d [%s] [%s] copies %d about-you %d named %d | nudged %d capped %d | kept %d save %dB | update %.2f ms mean %.1f worst')
    :format(total,kv(byO),kv(byK),second,mine,named,nudged,capped,#s.stories,#require('src.save').encode(u.news or {}),
    1000*nt.time/math.max(1,nt.calls),1000*nt.max))
+  -- this hour's deaths, as the papers see them: area, killer, faction,
+  -- and which outlets cover that area
+  local dd={}
+  for _,e in ipairs(require('src.simulation_history').recent(u,{kind='npc_died',since=since},50)) do
+   local cov={} for _,x in ipairs(News.order) do if News.covers(x,e.area) then cov[#cov+1]=x end end
+   local r=e.result or {}
+   dd[#dd+1]=('%s killer=%s faction=%s covered=%s'):format(tostring(e.area),tostring(r.killer),tostring(r.faction),#cov>0 and table.concat(cov,',') or 'none')
+  end
+  if #dd>0 then say('    deaths: '..table.concat(dd,' | ')) end
   local o={} for _,f in ipairs(Rep.ORDER) do o[#o+1]=('%s %.0f/%.0f'):format(f,Rep.witnessed(u,f),Rep.reported(u,f)) end
   local q={} for _,x in ipairs(News.order) do q[#q+1]=('%s %.0f'):format(x,News.standing(u,x)) end
   say('    standing (witnessed/reported): '..table.concat(o,' ')..' | outlets: '..table.concat(q,' '))
