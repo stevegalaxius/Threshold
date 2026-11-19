@@ -668,10 +668,23 @@ end
 -- An offline wreck inside a site: no wreck record (the pocket keeps its
 -- own), but the death is logged and paid like any other.
 local function kill(u,r,clock,killer)
+ -- it wrecks where it was fighting, in its pocket: the same saved wreck an
+ -- offline lane fight leaves (src/encounters.lua), so arriving after the
+ -- fight finds the husks you'd have seen if you'd watched it
+ local spot=r.garrison or r.assault
+ local w
+ if spot and spot.x then
+  u.alifeWrecks=u.alifeWrecks or {}
+  w={id=r.id,label=r.label,area=fieldId(spot.site,spot.pocket),worldPosition={x=spot.x,y=spot.y},
+   clock=clock,expires=clock+T.alifeWreckLifetime,ship=copy(r.ship),archetype=r.archetype,aiProfile=r.aiProfile}
+  u.alifeWrecks[r.id]=w
+ end
  r.state='dead';r.ship.armor=0;r.garrison=nil;r.assault=nil
  trace(r,clock,'destroyed'..(killer and (' by '..killer) or ''))
- require('src.simulation_history').death(u,r,clock,r.area,killer)
+ local History=require('src.simulation_history')
+ History.death(u,r,clock,r.area,killer)
  W.death(u,r,killer)
+ if w then w.historyWreckId=History.wreck(u,r,clock,r.area) end
  Tasks.release(u,r,'destroyed',clock)
 end
 

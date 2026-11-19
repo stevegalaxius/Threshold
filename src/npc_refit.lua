@@ -222,7 +222,8 @@ function M.hull(r,node,u,clock,margin)
  local D=require('src.dealers');local def=D.def(node)
  if not def or def.service then return end
  local role=M.role(r);if not role then return end
- local credit=require('src.game').shipSellPrice(r.ship)
+ -- (the hull and its fit only: the cargo moves across, it isn't sold)
+ local credit=require('src.game').shipSellPrice({hull=r.ship.hull,loadout=r.ship.loadout})
  local budget=(r.credits or 0)+credit-M.minCredits
  local choices={{hull=r.ship.hull,loadout=r.ship.loadout,price=0,key='0 current'}}
  for _,lot in ipairs(D.lots(u,node)) do

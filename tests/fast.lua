@@ -641,6 +641,15 @@ return function(game)
   for _,c in ipairs(crew) do if c.state=='dead' then dead=dead+1 else armor1=armor1+c.ship.armor end end
   assert(armor1<armor0,'the hunters did no damage')
   assert(inst.done or #W.hunters(gu,inst.id)==0,'the fight never ended')
+  -- everyone killed in the fight left a saved wreck in the pocket
+  local fallen=0
+  for _,c in ipairs(crew) do if c~=victim and c.state=='dead' then fallen=fallen+1
+   local w=gu.alifeWrecks and gu.alifeWrecks[c.id]
+   assert(w and w.area==Sites.fieldId(inst.id,1) and w.worldPosition,'site death left no wreck in its pocket')
+  end end
+  for _,h in ipairs(hunters) do if h.state=='dead' then fallen=fallen+1
+   assert(gu.alifeWrecks and gu.alifeWrecks[h.id],'dead hunter left no wreck')
+  end end
   -- save and load keep the site and its crew
   local live=#W.crew(gu,inst.id)
   assert(Save.write('test',g:saveState()),'save failed')
