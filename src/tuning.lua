@@ -257,7 +257,7 @@ T.hubMarkup=.3 -- a logistics hub sells on what it imports at this markup (src/t
 T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
 T.npcSavings=8000 -- over this an NPC refits or trades up its ship more readily (src/npc_refit.lua)
 T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
-T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
+T.npcAmmoThreshold,T.npcAmmoSeconds=.2,10 -- seek supplies below 20%; fallback reserve = 10s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000
 T.pirateRetreatHealth,T.pirateRest=.35,30
 -- Fencing (piracy.lua): share of its home station's bid a pirate gets for stolen goods

@@ -212,6 +212,7 @@ function A.seed(game)
     local r=A.createTrader(game,area,i)
     game.arrivalShip=nil
     if policy and policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
+    require('src.supplies').provision(r) -- magazines full from the start
     local elapsed=(r.arrive-r.depart)*i/(want+1)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if r.taskWorker then -- start docked, where work is handed out

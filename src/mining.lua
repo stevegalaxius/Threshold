@@ -166,6 +166,7 @@ function M.seed(game)
      local r=M.create(game,area,u.clock)
      game.arrivalShip=nil
      if r and policy and policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
+     if r then require('src.supplies').provision(r) end
     end
    end
   end

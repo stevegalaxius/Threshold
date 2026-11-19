@@ -131,9 +131,7 @@ D.facilities={
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},
  chemicals={policy='profit',openingInputs={nitrates=.5},recipes={'make_fertilizer','make_explosives'}},
- -- The works sit at Mars (steel) and the Shoals (explosives), each a long
- -- haul from the other input: keep hours of it, not the half hour default.
- ammunition={policy='profit',inputHours=3,recipes={}},
+ ammunition={policy='profit',recipes={}},
  pyrotechnics={policy='profit',recipes={}},
  -- Electronics come a long way to Saturn, so keep a longer input buffer.
  guided_munitions={policy='profit',inputHours=3,recipes={}},
