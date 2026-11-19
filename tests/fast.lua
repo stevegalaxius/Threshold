@@ -630,6 +630,9 @@ return function(game)
   for _,h in ipairs(hunters) do
    h.task={id='test/'..h.id,kind='site_bounty',site=inst.id,target=Fields.mars.driverId}
    require('src.supplies').provision(h)
+   -- (off the scene first, as W.tick does when a hunter reaches the driver)
+   local e=g.alifeOnline and g.alifeOnline[h.id]
+   if e then require('src.alife').capture(g,e,false);g:remove(e,true);g.alifeOnline[h.id]=nil end
    assert(W.beginAssault(gu,h),'assault refused')
   end
   -- (other hunters may take the bounty meanwhile: the test follows its own)

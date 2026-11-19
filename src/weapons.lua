@@ -463,7 +463,8 @@ end
 
 local function steerMissile(game, p, dt)
 	local t = p.target
-	if t and t.dead then p.target, t = nil, nil end
+	-- (gone from the scene too: a ship that warped out or was taken off it)
+	if t and (t.dead or t.removed or (t.body and t.body:isDestroyed())) then p.target, t = nil, nil end
 	-- a guided missile whose target died picks the nearest other one
 	if not t and p.guided and p.kind == "missile" and not p.decoyed then
 		p.retarget = (p.retarget or 0) - dt
@@ -522,7 +523,7 @@ local function updateFlares(game, dt)
 	end
 	for _, p in ipairs(game.projectiles) do
 		local t = p.target
-		if p.kind == "missile" and t and t.kind == "ship" and not t.dead and not p.decoyed and hasFlarePod(t) then
+		if p.kind == "missile" and t and t.kind == "ship" and not t.dead and not t.removed and not p.decoyed and hasFlarePod(t) then
 			local tx, ty = t.body:getPosition()
 			if (tx - p.x) ^ 2 + (ty - p.y) ^ 2 < FLARE_RANGE * FLARE_RANGE then
 				if (t.flareCooldown or 0) <= game.time and (t.cargo.flare or 0) > 0 then
