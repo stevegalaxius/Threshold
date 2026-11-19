@@ -5,7 +5,9 @@
 local W={profiles={
  freight_regular={transport=9,salvage=1,mine=1,patrol=1,satrefuel=1,satlaunch=1},
  scavenger={transport=1,salvage=9,mine=1,patrol=1,satrefuel=3,satlaunch=3},
- industrial={transport=1,salvage=1,mine=9,patrol=1,satrefuel=3,satlaunch=3},
+ -- miners: the drills' ore is all of the system's iron and ice, so digging
+ -- wins about 9 cycles in 10 (at mine=9 with sat jobs at 3 it was half)
+ industrial={transport=1,salvage=1,mine=40,patrol=1,satrefuel=1,satlaunch=1},
  local_police={transport=0,salvage=0,mine=0,patrol=9}, -- police never take civilian work
  raider={transport=0,salvage=1,mine=1,raid=9}, -- too criminal to haul freight; dark-access haulers smuggle
  generalist={transport=1,salvage=1,mine=1,patrol=1,satrefuel=1,satlaunch=1},

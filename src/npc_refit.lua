@@ -66,7 +66,14 @@ function M.dock(r,node,u,clock,roll)
  r.refitVisit=visit
  Rank.experience(r,1)
  local tier=Rank.get(r);roll=roll or love.math.random
- if (r.credits or 0)<M.minCredits or roll()>tier.refitChance then return end
+ -- savings burn a hole in the pocket: a pilot holding more than
+ -- T.npcSavings looks every visit and settles for a smaller improvement,
+ -- the more it holds (this is where NPC money goes back to the stations)
+ local T=require('src.tuning')
+ local rich=(r.credits or 0)>T.npcSavings
+ local chance=rich and 1 or tier.refitChance
+ if (r.credits or 0)<M.minCredits or roll()>chance then return end
+ if rich then tier=setmetatable({refitMargin=tier.refitMargin*T.npcSavings/r.credits},{__index=tier}) end
  local role=r.populationGroup
  if not (role and F.profiles[role]) then return end
  -- a whole new ship off the lot first; its old one goes up for sale
@@ -127,6 +134,9 @@ function M.dock(r,node,u,clock,roll)
   best.cost=math.max(0,paid-(cur and (cur.price or 0)*M.resale or 0))
  end
  r.ship.loadout=best.loadout;r.credits=r.credits-best.cost
+ -- the house's module: the station banks what the pilot paid (a stall's
+ -- takings went to the player above)
+ if not best.stall and best.cost>0 then require('src.accounts').receive(u,node,best.cost,'sold','module:'..best.to) end
  local maximum=require('src.stats').compute(hull,best.loadout).armor
  r.ship.armor=math.min(r.ship.armor or maximum,maximum)
  local swap={slot=best.slot,from=best.from,to=best.to,cost=best.cost,fit=best.fit,was=now,clock=clock}
@@ -203,6 +213,10 @@ function M.hull(r,node,u,clock,margin)
  D.take(u,node,best.lot.id)
  r.ship=D.ship(best.lot);r.ship.armor=best.lot.armor
  r.credits=(r.credits or 0)+credit-best.lot.price
+ -- the dealer banks the sale and pays the trade-in out of its own account
+ local Accounts=require('src.accounts')
+ Accounts.receive(u,node,best.lot.price,'sold','ship:'..best.lot.hull)
+ Accounts.pay(u,node,credit,'bought','ship:'..old.hull)
  local trade={from=old.hull,to=best.lot.hull,price=best.lot.price,credit=credit,fit=best.fit,was=choices[1].fit,clock=clock}
  r.lastShipTrade=trade
  require('src.simulation_history').note(u,'npc_ship_traded',clock or u.clock,r.area,{r.id},trade,node)

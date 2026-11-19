@@ -249,10 +249,13 @@ T.squadOddsPenalty = 0.15    -- raider's odds lost per ally of its prey in the a
 T.npcRepairThreshold,T.npcRepairPerSecond=.7,4
 T.stationOpeningCredits=60000 -- what a station's account opens with (src/accounts.lua)
 T.factionOpeningCredits=2000000 -- and a faction's
-T.factionTax=.25 -- share of a station's takings paid to its faction
+T.factionTax=.35 -- share of a station's takings paid to its faction (stations piled up money while their factions ran down at .25)
 T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
+T.dockFeePerCell,T.dockFeeMin=10,40 -- docking fee per hangar cell the hull takes, and the least (src/docking_fee.lua)
+T.resaleMargin=.1 -- a station prices goods it bought in at least this much over their landed cost (src/markets.lua)
 T.hubMarkup=.3 -- a logistics hub sells on what it imports at this markup (src/transport.lua)
 T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
+T.npcSavings=8000 -- over this an NPC refits or trades up its ship more readily (src/npc_refit.lua)
 T.npcSupplyReserve=200 -- credits an NPC keeps back when buying ammo and flares
 T.npcAmmoThreshold,T.npcAmmoSeconds=.2,30 -- seek supplies below 20%; fallback reserve = 30s of fire
 T.pirateLootUnits,T.pirateLootTime,T.pirateLootRange=5,25,3000

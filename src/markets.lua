@@ -18,10 +18,20 @@ function C.floats(key,item)
  return C.items[item] or (key~=nil and require('src.dark').isDarkNode(key)) or false
 end
 function C.state(u) u.markets=u.markets or {prices={},bids={}};return u.markets end
+-- A station never sells a good it bought in for less than it paid for it
+-- landed (goods and freight, C.landed) plus T.resaleMargin, fixed-price
+-- goods like fuel included: hubs passing fuel on at list price after
+-- paying the freight to bring it were where the factions' money went.
+-- (Up to T.priceCrisisMax times list.)
 function C.price(u,key,item)
- local s=C.state(u);local prices=s.prices[L.canonical(key)]
+ key=L.canonical(key)
+ local s=C.state(u);local prices=s.prices[key]
  local multiplier=prices and prices[item] or 1
- return math.floor(require('src.data').items[item].price*multiplier*100+.5)/100
+ local list=require('src.data').items[item].price
+ local p=list*multiplier
+ local basis=C.basis(u,key,item)
+ if basis then p=math.max(p,math.min(list*T.priceCrisisMax,basis*(1+T.resaleMargin))) end
+ return math.floor(p*100+.5)/100
 end
 -- Where a station sits in its system's supply chain bends its price:
 --  crisis   a shortage left unserved past T.priceCrisisHours may climb
@@ -31,15 +41,22 @@ end
 --  landed   a station that imports through its system's hub never prices
 --           the good below the hub's price plus the local freight to bring
 --           it over, so goods get dearer the further they travel.
-local function makes(key,item)
- for _,recipe in ipairs(require('src.commodities').list) do
-  if (recipe.make[key] or 0)>0 then
-   for _,output in ipairs(require('src.commodities').outputs(recipe)) do if output.item==item then return true end end
-  end
- end
- return false
-end
+local function makes(key,item) return require('src.commodities').makes(key,item) end
 local hubs={}   -- station -> its hub (fixed by the world layout)
+-- What a unit of a good cost this station landed, averaged over its stock
+-- (nil until it has bought some in). Kept on the stockpile record.
+function C.basis(u,key,item)
+ local b=require('src.stockpile').record(u,L.canonical(key)).basis
+ return b and b[item]
+end
+function C.landed(u,key,item,amount,cost)
+ if not amount or amount<=0 or not cost or cost<=0 then return end
+ local S=require('src.stockpile');key=L.canonical(key)
+ local r=S.record(u,key);r.basis=r.basis or {}
+ local held=math.max(0,S.count(u,key,item)-amount)
+ local old=r.basis[item] or cost/amount
+ r.basis[item]=(old*held+cost)/(held+amount)
+end
 function C.shape(u,key,item,target,want,clock,state)
  local E=require('src.economy')
  if want>0 and E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 then
@@ -92,12 +109,7 @@ function C.update(u,clock,stations,inbound,pause)
     target=ratio<1 and 2-ratio or math.max(.5,1-.5*(ratio-1))
    else
     -- No local use means no scarcity premium, including an empty factory shelf.
-    local reference=0
-    for _,recipe in ipairs(require('src.commodities').list) do
-     for _,output in ipairs(require('src.commodities').outputs(recipe)) do
-      if output.item==item then reference=reference+(recipe.make[key] or 0)*output.n end
-     end
-    end
+    local reference=require('src.commodities').output(key,item)
     target=math.max(.5,1-have/math.max(1,reference*2))
    end
    target=C.shape(u,key,item,target,want,clock,state)

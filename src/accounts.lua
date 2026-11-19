@@ -3,7 +3,7 @@
 
 	Every station keeps its own account, opened with T.stationOpeningCredits,
 	except the ones its faction runs directly (a military yard, a logistics
-	hub, or a layout entry with funding = 'faction'), which pay and take in through their
+	hub, a moon's customs house, or a layout entry with funding = 'faction'), which pay and take in through their
 	faction's account (T.factionOpeningCredits). A station also pays its
 	faction T.factionTax of what it takes in, and police wages come out of
 	the faction's account.
@@ -28,8 +28,9 @@ function A.factionRun(key)
  local place=L.byId[key]
  if not place then return false end
  if place.funding=='faction' then return true end
- -- a logistics hub is its faction's own depot, stocked for the whole system
- if place.hub then return true end
+ -- a logistics hub is its faction's own depot, stocked for the whole system,
+ -- and a moon's customs house its depot for the moon: both only pass goods on
+ if place.hub or place.customs then return true end
  local def=require('src.dealers').def(key)
  return def~=nil and def.service~=nil
 end

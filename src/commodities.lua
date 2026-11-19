@@ -33,8 +33,31 @@ function C.load()
    end
   end
  end
+ C.index=nil
 end
 C.load()
+-- Indexes the economy asks for thousands of times a minute, built once per
+-- layout (C.load clears them): the recipes whose main good is an item, and
+-- the stations that make an item (any output, make rate > 0).
+local function index()
+ local ix=C.index
+ if ix then return ix end
+ ix={byItem={},makers={},output={}};C.index=ix
+ for _,c in ipairs(C.list) do
+  if c.item then local l=ix.byItem[c.item] or {};ix.byItem[c.item]=l;l[#l+1]=c end
+  for _,o in ipairs(c.outputs or {{item=c.item}}) do if o.item then
+   local set=ix.makers[o.item] or {};ix.makers[o.item]=set
+   local out=ix.output[o.item] or {};ix.output[o.item]=out
+   for key,rate in pairs(c.make) do if rate>0 then set[key]=true end;out[key]=(out[key] or 0)+rate*(o.n or c.batch or 1) end
+  end end
+ end
+ return ix
+end
+local none={}
+function C.byItem(item) return index().byItem[item] or none end
+-- Units of item a station's recipes make an hour at their authored rates.
+function C.output(key,item) local t=index().output[item];return t and t[key] or 0 end
+function C.makes(key,item) local set=index().makers[item];return set~=nil and set[key]==true end
 -- A commodity's inputs, whether it lists one (input) or several (inputs).
 function C.inputs(c) return c.inputs or (c.input and {c.input}) or {} end
 function C.outputs(c) return c.outputs or {{item=c.item,n=c.batch or 1,cap=c.cap}} end
