@@ -17,13 +17,26 @@ W.stations = {
 	},
 	venus = {
 		{ id = "station:venus_1", facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},acid_works={capacity=16,surface=true},electronics={capacity=12}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
-		{ id = "station:venus_2", food = {use=64}, facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},farm={capacity=640}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
+		{ id = "station:venus_2", food = {use=64}, facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},farm={capacity=640}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace",
+		  residential = { population = 3000, storage = 8, routes = {
+			{ to = "station:venus_1", kind = "work", weight = 3 },
+			{ to = "station:venus_3", kind = "work", weight = 2 },
+			{ to = "station:earth_2", kind = "visit", weight = 1 } } } },
 		{ id = "station:venus_3", facilities={amw_assembly={capacity=2}}, marketId = "market:venus_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 4.4, name = "Angelmaschinenwerft Atelier", layout = "shipyard_1" },
 		{ id = "station:venus_4", services = { "market", "hangar", "repair" }, spin = -0.04, phase = 1.0, marketId = "market:venus_4", name = "Venus Logistics", layout = "customs_1", hub = true },
 	},
 	earth = {
 		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},electronics={capacity=12},make_medical={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
-		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace"  },
+		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace",
+		  -- residential (src/passengers.lua): commuters to the system's workplaces,
+		  -- visitors to the Moon and the long run to Venus, and berth-free storage
+		  -- for idle ships that live here
+		  residential = { population = 4000, storage = 10, routes = {
+			{ to = "station:earth_1", kind = "work", weight = 3 },
+			{ to = "station:earth_3", kind = "work", weight = 2 },
+			{ to = "station:earth_4", kind = "work", weight = 1 },
+			{ to = "station:luna_2", kind = "visit", weight = 2 },
+			{ to = "station:venus_2", kind = "visit", weight = 1 } } } },
 		{ id = "station:earth_3", facilities={ferrous_assembly={capacity=2}}, marketId = "market:earth_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Ferrous Collective Shipyard", layout = "shipyard_1" },
 		{ id = "station:earth_4", facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:earth_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
 		-- the Estates' military yards: builds its police and courier hulls (data/industry.lua serviceLineups)
@@ -32,7 +45,11 @@ W.stations = {
 	
 	luna = {
 		{ id = "station:luna_1", facilities={silicon_refinery={capacity=64,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
-		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
+		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace",
+		  residential = { population = 2000, storage = 6, routes = {
+			{ to = "station:luna_1", kind = "work", weight = 2 },
+			{ to = "station:earth_1", kind = "work", weight = 1 },
+			{ to = "station:earth_2", kind = "visit", weight = 2 } } } },
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={redfu_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },

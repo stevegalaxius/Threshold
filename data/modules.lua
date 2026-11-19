@@ -171,7 +171,7 @@ module { id = "forge_reactor", name = "Forge Reactor", maker = "Abaddon Works", 
 
 module { id = "hold_pod_s", name = "Cargo Pod",     maker = "Ferrous Collective", family = "utility", size = "any", mass = 2, hold = 16, price = 1200 }
 -- A sealed, heated pod: the only place delicate cargo (medical supplies) can ride.
-module { id = "climate_pod_s", name = "Climate Pod", maker = "Ferrous Collective", family = "utility", size = "any", mass = 3, hold = 8, climate = true, price = 4500 }
+module { id = "climate_pod_s", name = "Climate Pod", maker = "Ferrous Collective", family = "utility", size = "any", mass = 3, hold = 8, climate = true, comfort = 0.3, price = 4500 }
 module { id = "flare_pod",  name = "Flare Pod",     maker = "Estates Military",   family = "utility", size = "any", mass = 2, powerDraw = 1, flares = true, price = 3000 }
 module { id = "tug_beam",   name = "Tug Beam",      maker = "Halcyon Arms",       family = "utility", size = "any", mass = 3, powerDraw = 2, tractorRange = 220, tractorPower = 1, price = 3500 }
 

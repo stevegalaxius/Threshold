@@ -11,6 +11,7 @@ local Hold = require('src.inventory.hold')
 local copy = require('src.persistence').copy
 local Tasks=require('src.tasks')
 local Transport=require('src.transport')
+require('src.passengers')   -- registers the passenger task kind
 local Security=require('src.security')
 local Piracy=require("src.piracy")
 local Repairs=require('src.npc_repair')
@@ -1133,7 +1134,8 @@ function A.install(Game)
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
      -- Existing records must become physical when nearby, even on-screen
      -- (for example after teleporting). Population handles new spawn placement.
-     if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
+     -- (a ship stored inside a residential station has no body: src/passengers.lua)
+     if not r.resident and (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
     end
    end
  end
@@ -1187,6 +1189,7 @@ function A.install(Game)
    require('src.supplies').universe=self.universe
    require('src.queue').universe=self.universe
    require('src.arbiter').update(self.universe,clock)
+   require('src.passengers').update(self.universe,clock)
    return
   end
   if stage==4 then

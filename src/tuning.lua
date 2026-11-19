@@ -568,5 +568,35 @@ T.mapDensity = 0.3
 
 -- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).
 T.taskChoosePerTick = 4
+
+-- Residential stations and passenger contracts (src/passengers.lua).
+-- Demand is a rule, not a population: a station's open passenger
+-- contracts (accepted ones still waiting for pickup included) are capped
+-- at population / passengerResidentsPerContract, between 1 and
+-- passengerMaxOutstanding. Each station posts at most one contract per
+-- passengerInterval, staggered by station.
+T.passengerInterval=300
+T.passengerResidentsPerContract=1000
+T.passengerMaxOutstanding=6
+T.passengerExpiry=1800      -- an unaccepted contract is withdrawn after this
+T.passengerMaxParty=8       -- largest party (one climate cell a passenger)
+T.passengerReturnShare=.4   -- share of workplace trips that run back home
+-- Fare: per passenger, base + perAU x route AU, then a comfort premium
+-- (up to passengerComfortMax at comfort 1) and a speed incentive (up to
+-- passengerSpeedMax for the fastest cruise, scaled by the share of the
+-- journey the ship's own speed actually shortens: driver legs take the same
+-- time for everyone). Both lock when the contract is accepted.
+T.passengerFareBase=60
+T.passengerFarePerAU=40
+T.passengerComfortMax=.4
+T.passengerSpeedMax=.25
+T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
+T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
+-- Resident storage: idle NPCs at a residential home wait inside, off the
+-- berths. They look for work every residentRetry seconds (staggered by id),
+-- and a reserved job that can't get a berth to leave within
+-- residentDepartWait is released.
+T.residentRetry=30
+T.residentDepartWait=180
 return T
 

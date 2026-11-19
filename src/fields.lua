@@ -743,6 +743,8 @@ function Fields.configureLocations(area)
         place.reserves=entry.reserves
         -- a logistics hub: its planet's depot and trunk-freight terminal
         place.hub=entry.hub
+        -- residential: passenger demand and resident storage (src/passengers.lua)
+        place.residential=entry.residential
         -- a moon's customs: the one way its goods leave and arrive
         place.customs=entry.customs
         place.primary,place.uses=entry.primary,{trade=true,mining=true,patrol=true}

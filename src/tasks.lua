@@ -53,6 +53,8 @@ function Tasks.release(u,r,reason,clock)
  if o and o.owner==r.id then
   o.owner=nil;o.manifestRoot=nil;o.loaded=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
  end
+ local def=Tasks.definitions[t.kind]
+ if def and def.release then def.release(u,r,t,reason,clock) end
  r.lastTask={id=t.id,kind=t.kind,status=reason,clock=clock}
  r.task=nil;r.suspendedTask=nil;r.suspendedTaskStatus=nil
 end

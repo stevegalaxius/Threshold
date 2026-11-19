@@ -7,7 +7,7 @@ hull {
 	drag = 0.22,
 	hold = 90,
 	-- couriers carry a small climate hold for medical runs
-	compartments = { { kind = "climate", 2, 2, name = "Climate hold" } },
+	compartments = { { kind = "climate", 2, 2, name = "Climate hold", comfort = 0.5 } },
 	loadout = { false, "flit_engine", "ember_reactor", "hold_pod_s", "nav_computer" },
 	maker = "Ferrous Collective",
 	turnResponse = 0.3,

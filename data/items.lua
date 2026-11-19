@@ -134,6 +134,10 @@ salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price =
 -- compartment: a hull's climate hold or a fitted Climate Pod.
 salvage { id = "medical_supplies", name = "Medical supplies", delicate = true, volume = 0.25, mass = 0.1, price = 320, w = 1, h = 1, stack = 4,
 	description = "Vaccines, blood and tissue cultures. Spoils outside a climate-controlled hold." }
+-- Passengers ride in climate cells only, one to a cell (src/passengers.lua).
+-- They are a contract's party, never market goods.
+salvage { id = "passengers", name = "Passengers", delicate = true, passengers = true, volume = 1, mass = 0.1, price = 0, w = 1, h = 1, stack = 1,
+	description = "A travelling party. Seated in a climate-controlled hold; the more comfortable the seats, the better the fare." }
 salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 30, w = 1, h = 1, stack = 4 }
 salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
 salvage { id = "explosives", name = "Explosives", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
