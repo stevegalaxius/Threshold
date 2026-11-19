@@ -18,6 +18,8 @@
 	Quests and random events read the same log with
 	simulation_history.recent(u, { kind, node, area, participant, since }).
 	Civilian scavenging emits salvage_sale(npcId, stationId, itemCounts, credits).
+	The news emits news_published(story), a copy of each story printed
+	(src/news.lua), and the market trade(station, sold) when the player sells.
 	Keep this list small and stable: it's going to be the modding API.
 ]]
 

@@ -26,8 +26,13 @@ R.goods=goods
 
 local function name(e) return (e.def and e.def.name or 'PIRATE'):upper() end
 
-local function announce(game,pirate,target,text)
- if target.isPlayer then game:toast(text,2.5,nil,true) end
+-- To the player: a notification (src/notify.lua), one per demand, that
+-- updates in place as the countdown runs and the outcome comes in.
+local function announce(game,pirate,target,text,title)
+ if not target.isPlayer then return end
+ local who=pirate.def and pirate.def.name or 'Pirate'
+ require('src.notify').post(game.universe,{kind='robbery',title=title or (who..' demand'),text=text,
+  key='robbery:'..tostring(pirate.alifeId or pirate)})
 end
 
 local function isGood(id)
@@ -58,18 +63,18 @@ function R.consider(game,pirate,target)
    Handover.close(d)
    require('src.alife_trace').entity(game,pirate,'robbery',('paid %d by %s -> spared'):format(d.paid,tostring(target.alifeId or 'player')))
    pirate.combatTarget,pirate.lock=nil,nil
-   announce(game,pirate,target,name(pirate)..': WISE CHOICE. MOVE ALONG.')
+   announce(game,pirate,target,'"Wise choice. Move along."','Robbed: '..d.paid..' cargo taken')
    return false
   end
   if Handover.expired(game,d) then
    d.refused=true
    require('src.alife_trace').entity(game,pirate,'robbery',tostring(target.alifeId or 'player')..' did not pay -> attack')
-   announce(game,pirate,target,name(pirate)..': YOU WERE WARNED.')
+   announce(game,pirate,target,'"You were warned." They\'re opening fire.','Robbery refused')
    return true
   end
   if target.isPlayer and game.time>=(d.nag or 0) then
    d.nag=game.time+3
-   announce(game,pirate,target,('%s: JETTISON %d CARGO  %ds'):format(name(pirate),d.amount-d.paid,math.ceil(d.deadline-game.time)))
+   announce(game,pirate,target,('Jettison %d more cargo: %ds left'):format(d.amount-d.paid,math.ceil(d.deadline-game.time)))
   end
   return false
  end
@@ -78,7 +83,7 @@ function R.consider(game,pirate,target)
  if have==0 then pirate.spared[target]=game.time+T.robberySpare;return false end
  if target.asked then return true end   -- already handing something over to someone
  d=Handover.open(game,'robbery',pirate,target,math.max(1,math.ceil(have*T.robberyShare)),T.robberyWindow,isGood)
- announce(game,pirate,target,('%s: JETTISON %d CARGO OR BE FIRED UPON'):format(name(pirate),d.amount))
+ announce(game,pirate,target,('"Jettison %d cargo or be fired upon."'):format(d.amount))
  require('src.alife_trace').entity(game,pirate,'robbery',('demanded %d from %s'):format(d.amount,tostring(target.alifeId or 'player')))
  require('src.alife_trace').entity(game,target,'robbery',('%s demanded %d cargo'):format(tostring(pirate.alifeId),d.amount))
  return false

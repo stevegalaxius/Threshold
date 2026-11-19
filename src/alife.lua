@@ -1180,6 +1180,7 @@ function A.install(Game)
    else require('src.economy').spread(self.universe,clock) end
    self.universe.playerDocked=require('src.player_contracts').station(self)
    require('src.quests').update(self.universe,clock,self);require('src.quests').watch(self,clock)
+   require('src.news').update(self.universe,clock,self)
    return
   end
   local records=self.universe.npcs or {}

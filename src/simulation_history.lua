@@ -123,8 +123,15 @@ function H.death(u,r,clock,area,killer)
  -- at death so cleanup cannot erase crime/rescue consequences.
  local work=r.task or r.lastTask
  r.deathOutlaw=r.piracy~=nil or work and (work.kind=='raid' or work.kind=='fence') or false
- local entry=append(u,'npc_died',clock,area,{r.id},{killer=killer},nil,r.node)
+ -- who it flew for and what killed it, kept on the entry: the records
+ -- are pruned minutes later and readers (src/news.lua) come by less often
+ local k=killer and killer~='player' and u.npcs and u.npcs[killer]
+ local entry=append(u,'npc_died',clock,area,{r.id},{killer=killer,faction=r.affiliation,hull=r.ship and r.ship.hull,
+  killerHull=k and k.ship and k.ship.hull or nil},nil,r.node)
  r.deathOutcomeId=entry.id
+ -- the shared log holds a few minutes of a busy world; the papers keep
+ -- their own list of the dead, so none drop out before they're printed
+ require('src.news').onDeath(u,entry)
  return entry
 end
 function H.wreck(u,r,clock,area)

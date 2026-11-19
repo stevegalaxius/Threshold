@@ -106,10 +106,8 @@ return function(game)
   say('    npc credits: '..table.concat(gg,' ')..(' | ships lost %d'):format(u.shipsLost or 0))
  end
  -- the news: off, or measured
- local okNews,News=pcall(require,'src.news')
- if not okNews then News={update=function() end,factor=function() return 1 end} end
- local Rep,Markets=require('src.reputation'),require('src.markets')
- local newsOn=okNews and os.getenv('SOAK_NEWS')~='0'
+ local News,Rep,Markets=require('src.news'),require('src.reputation'),require('src.markets')
+ local newsOn=os.getenv('SOAK_NEWS')~='0'
  local scripted=newsOn and os.getenv('SOAK_NEWS_PLAYER')=='1'
  local realUpdate=News.update
  local nt={time=0,max=0,calls=0}
@@ -146,14 +144,26 @@ return function(game)
    if st.secondhand then second=second+1 end
    if st.subject=='player' then mine=mine+1;if st.named then named=named+1 end end
   end
+  local tick,wire={},0
+  for _,x in ipairs(News.order) do local n=0 for _,l in pairs(News.tickerOf(u,x).lines) do n=n+1;if l.wire then wire=wire+1 end end tick[x]=n end
   local nudged,capped=0,0
   for _,key in ipairs(stations) do for _,item in ipairs(Markets.products) do
    local f=News.factor(u,key,item)
    if f~=1 then nudged=nudged+1;if math.abs(f-1)>=News.T.nudgeCap-.005 then capped=capped+1 end end
   end end
-  say(('    news: stories %d [%s] [%s] copies %d about-you %d named %d | nudged %d capped %d | kept %d save %dB | update %.2f ms mean %.1f worst')
+  say('    ticker lines: '..kv(tick)..(' (wire %d)'):format(wire))
+  say(('    news: headlines %d [%s] [%s] copies %d about-you %d named %d | nudged %d capped %d | kept %d save %dB | update %.2f ms mean %.1f worst')
    :format(total,kv(byO),kv(byK),second,mine,named,nudged,capped,#s.stories,#require('src.save').encode(u.news or {}),
    1000*nt.time/math.max(1,nt.calls),1000*nt.max))
+  -- this hour's deaths, as the papers see them: area, killer, faction,
+  -- and which outlets cover that area
+  local dd={}
+  for _,e in ipairs(News.state(u).deaths or {}) do if e.clock>since then
+   local cov={} for _,x in ipairs(News.order) do if News.covers(x,e.area) then cov[#cov+1]=x end end
+   local r=e.result or {}
+   dd[#dd+1]=('%s killer=%s faction=%s covered=%s'):format(tostring(e.area),tostring(r.killer),tostring(r.faction),#cov>0 and table.concat(cov,',') or 'none')
+  end end
+  if #dd>0 then say('    deaths: '..table.concat(dd,' | ')) end
   local o={} for _,f in ipairs(Rep.ORDER) do o[#o+1]=('%s %.0f/%.0f'):format(f,Rep.witnessed(u,f),Rep.reported(u,f)) end
   local q={} for _,x in ipairs(News.order) do q[#q+1]=('%s %.0f'):format(x,News.standing(u,x)) end
   say('    standing (witnessed/reported): '..table.concat(o,' ')..' | outlets: '..table.concat(q,' '))
