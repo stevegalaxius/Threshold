@@ -480,7 +480,8 @@ local function deathStories(u,s,o,since,clock)
   local f=res.faction or victim and Rep().ofRecord(victim)
   local vh=res.hull or victim and victim.ship and victim.ship.hull
   local vd=vh and require('src.data').hulls[vh]
-  if not f and killer and killer~='player' and e.area and N.covers(o,e.area) and printed==0 then
+  -- (a death with no killer on record is still news: 'a raider')
+  if not f and killer~='player' and e.area and N.covers(o,e.area) and printed==0 then
    -- an independent: a story, no standing
    local k=u.npcs and u.npcs[killer]
    local hull=res.killerHull or k and k.ship and k.ship.hull
@@ -490,7 +491,7 @@ local function deathStories(u,s,o,since,clock)
     who=blame and playerWho(u,true) or hd and ('a '..hd.name) or 'a raider',
     named=blame or nil,subject=blame and 'player' or nil,blamed=blame or nil})
    printed=printed+1
-  elseif f and killer and killer~='player' and e.area and N.covers(o,e.area) then
+  elseif f and killer~='player' and e.area and N.covers(o,e.area) then
    local k=u.npcs and u.npcs[killer]
    local hull=res.killerHull or k and k.ship and k.ship.hull
    local playerHull=s.playerHullId
