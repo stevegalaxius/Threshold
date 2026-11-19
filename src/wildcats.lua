@@ -8,7 +8,7 @@
 	is ever recruited from the NPC pool, and the crew never grows.
 
 	  r.wildcat   { site, pocket, x, y, tag, nextSortie, out, homing,
-	                fencing, hullSince }   who it is, kept for life
+	                fencing }   who it is, kept for life
 	  r.garrison  { site, pocket, field, x, y, tag }   set while it is at its
 	                post in the site; A-Life treats it as parked there
 
@@ -22,7 +22,7 @@
 	           to the driver and returns to its post. Stolen cargo goes on
 	           the site's hoard (inst.hoard).
 	  fence    when the hoard passes T.hoardFenceAt, one wildcat carries it
-	           to the nearest dark station and sells it there
+	           to a dark station and sells it there
 	           (src/piracy.lua fencing), so it turns up as shadow stock.
 	           While docked it trades a worn hull in on the used lot and
 	           flies back in a new one.
@@ -139,7 +139,7 @@ function W.recruit(u,inst,n,x,y,tag)
  local clock=u.clock or 0
  u.nextNpcId=(u.nextNpcId or 0)+1
  local r={id='npc/'..u.nextNpcId,home=inst.home,aiProfile='raider',spread=0,ship=ship,
-  wildcat={site=inst.id,pocket=n,x=x,y=y,tag=tag or nil,hullSince=clock},
+  wildcat={site=inst.id,pocket=n,x=x,y=y,tag=tag or nil},
   spawnedAt=clock,spawnOrigin='wildcat'}
  r.speed=require('src.npc').cruise(r.ship)
  require('src.npc_templates').apply(r,'wildcat',inst.home)
@@ -278,19 +278,17 @@ end
 
 -- Out and home ---------------------------------------------------------------
 
--- The nearest dark station that buys stolen goods, reachable from `from`.
+-- A dark station that buys stolen goods, reachable from `from`: any of
+-- them, picked at random, so the hoard isn't always sold at the same one.
 local function fenceFor(u,home,from,clock)
- local Sites=require('src.sites')
- local hx,hy=Sites.mapPosition(u,home,clock)
- local best,bestD
+ local out={}
  for _,area in ipairs(require('src.dark').areas()) do
   for _,id in ipairs(require('src.security').bases(area)) do
-   local x,y=Sites.mapPosition(u,area,clock)
-   local d=hx and x and (x-hx)^2+(y-hy)^2 or 0
-   if (not best or d<bestD) and require('src.travelgraph').live(from,id,clock) then best,bestD=id,d end
+   if require('src.travelgraph').live(from,id,clock) then out[#out+1]=id end
   end
  end
- return best
+ table.sort(out)
+ return out[1] and out[math.floor(random()*#out)+1]
 end
 
 -- Off the post and out of the site through its planet's mass driver.
@@ -319,7 +317,7 @@ function W.sortie(game,r)
  return true
 end
 
--- Out to sell the hoard at the nearest dark station.
+-- Out to sell the hoard at a dark station.
 function W.fenceRun(game,r,inst)
  local u=game.universe;local clock=u.clock or 0
  local driver=driverOf(r.home);if not driver then return false end
@@ -382,45 +380,12 @@ function W.arrive(u,r)
  trace(r,clock,('back at its post%s'):format(got>0 and (' with '..got..' stolen') or ''))
 end
 
--- At the fence (src/piracy.lua, after unloading): trade a worn hull in on
--- the used lot and fly on in a new one.
+-- At the fence (src/piracy.lua, after unloading): the same docked shop
+-- every NPC does (src/npc_refit.lua), so a wildcat with the money can
+-- swap its hull for a better one off this station's used lot.
 function W.atFence(u,r,base)
  if not r.wildcat then return end
- local clock=u.clock or 0
- local full=maxArmor(r)
- local old=clock-(r.wildcat.hullSince or 0)>=T.wildcatHullLife
- local worn=(r.ship.armor or full)<full*T.wildcatTradeInWear
- if not (old or worn) then return end
- local D=require('src.dealers')
- local rec={hull=r.ship.hull,loadout=copy(r.ship.loadout),armor=r.ship.armor,color=r.ship.color and copy(r.ship.color)}
- local lot=D.resell(u,base,rec)
- if not lot then return end
- local Rank=require('src.npc_rank')
- local policy=Rank.policy(require('src.npc_templates').purchase('pirate'),r.rank or 'proficient')
- local ship=require('src.npc_ship_supply').generated(u,policy,nil,L.get(base).area,true)
- if not ship then
-  -- (no new hull to be had: it buys its old one straight back)
-  D.take(u,base,lot.id);return
- end
- local Accounts=require('src.accounts')
- local value=math.floor((lot.price or 0)*T.wildcatTradeInShare)
- value=Accounts.pay(u,base,value,'bought')
- local price=require('src.dealers').price(data.hulls[ship.hull],ship.loadout,1)
- local paid=math.min(r.credits+value,price)
- r.credits=math.max(0,(r.credits or 0)+value-paid)
- Accounts.receive(u,base,paid,'sold','ship:'..ship.hull)
- -- the hold's goods (ammo, fuel) move over to the new ship
- local cargo=r.ship.cargo or {}
- r.ship=ship
- local h=r.ship.hold and Hold.deserialize(r.ship.hold)
- for id,n in pairs(cargo) do
-  if h then Hold.add(h,id,n) else r.ship.cargo[id]=(r.ship.cargo[id] or 0)+n end
- end
- if h then r.ship.hold=Hold.serialize(h);r.ship.cargo=Hold.totals(h) end
- r.speed=require('src.npc').cruise(r.ship)
- r.wildcat.hullSince=clock
- require('src.simulation_history').note(u,'npc_ship_purchased',clock,L.get(base).area,{r.id},{station=base,hull=ship.hull,price=paid,traded=rec.hull},base)
- trace(r,clock,('traded its %s in at %s for a new %s'):format(rec.hull,base,ship.hull))
+ require('src.npc_refit').dock(r,base,u,u.clock or 0)
 end
 
 -- The fence run is over (src/piracy.lua): head back to the site.

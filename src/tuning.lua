@@ -323,9 +323,6 @@ T.wildcatIdleHome = 120      -- s a wildcat out raiding waits with no raid to ta
 T.wildcatSortieHealth = 0.8   -- share of armour a wildcat wants before it goes out
 T.wildcatPatchRate = 0.5      -- share of full armour patched per hour at the site
 T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that send one wildcat to fence it
-T.wildcatHullLife = 8*3600    -- s a wildcat flies a hull before trading it in at the fence
-T.wildcatTradeInWear = 0.5    -- or sooner, when its armour is under this share
-T.wildcatTradeInShare = 0.5   -- what the lot pays for the old hull, as a share of its price there
 -- Bounties: robberies and kills by a site's wildcats before its system's
 -- paying station posts a bounty; each wildcat is then worth this much to
 -- whoever lands the last hit (plus a little per point of its hull's armour)

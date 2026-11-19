@@ -141,8 +141,8 @@ local function next(c)
    if path then return {route=path} end
   end
   P.unload(u,r)
-  Supplies.refill(r,base)
   if r.wildcat then require('src.wildcats').atFence(u,r,base) end
+  Supplies.refill(r,base)
   local path=G.live(base,duty.origin,clock)
   if path and #path>1 then
    duty.phase='redeploy';r.taskStatus='returning to hunting grounds'

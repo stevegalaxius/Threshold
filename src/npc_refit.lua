@@ -44,6 +44,14 @@ local function shelfHas(u,node,id)
  return false
 end
 
+-- The fit profile a ship is scored by: its group's, or for a group with
+-- none of its own (wildcats, bounty hunters) the role it buys ships as.
+function M.role(r)
+ local g=r.populationGroup
+ if g and F.profiles[g] then return g end
+ local P=g and require('src.npc_templates').purchaseFor(r)
+ return P and F.profiles[P.role] and P.role or nil
+end
 local function keeps(r,hull,loadout)
  return M.keeps(r,hull,loadout)
 end
@@ -74,8 +82,8 @@ function M.dock(r,node,u,clock,roll)
  local chance=rich and 1 or tier.refitChance
  if (r.credits or 0)<M.minCredits or roll()>chance then return end
  if rich then tier=setmetatable({refitMargin=tier.refitMargin*T.npcSavings/r.credits},{__index=tier}) end
- local role=r.populationGroup
- if not (role and F.profiles[role]) then return end
+ local role=M.role(r)
+ if not role then return end
  -- a whole new ship off the lot first; its old one goes up for sale
  local traded=M.hull(r,node,u,clock,tier.refitMargin)
  if traded then return traded end
@@ -192,7 +200,7 @@ end
 function M.hull(r,node,u,clock,margin)
  local D=require('src.dealers');local def=D.def(node)
  if not def or def.service then return end
- local role=r.populationGroup
+ local role=M.role(r);if not role then return end
  local Hold=require('src.inventory.hold')
  local h=r.ship.hold and Hold.deserialize(r.ship.hold)
  for _,n in pairs(h and Hold.totals(h) or r.ship.cargo or {}) do if n>0 then return end end

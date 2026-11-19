@@ -22,11 +22,12 @@ close once their crew is gone. The code is in `src/wildcats.lua`.
    `T.wildcatSortieTime`. What it stole goes on the site's hoard (`inst.hoard`). At its post it
    patches its hull (`T.wildcatPatchRate`) and rearms.
 5. **The hoard is fenced.** Once the hoard reaches `T.hoardFenceAt`, one wildcat carries it to the
-   nearest dark station and sells it there through the usual fencing, so it turns up as shadow-market
+   a dark station (any one it can reach, picked at random) and sells it there through the usual fencing, so it turns up as shadow-market
    stock. Wildcats are raiders, so Milliways and the other dark raiders leave them alone. They are
    never Milliways and never move Milliways standing.
-6. **Hulls are cycled.** At the fence, a wildcat whose hull is old (`T.wildcatHullLife`) or worn
-   (`T.wildcatTradeInWear`) sells it to that station's used lot and flies back in a new one.
+6. **Hulls are cycled.** At the fence a wildcat runs the same docked refit as every NPC
+   (`src/npc_refit.lua`): if it can afford a better ship on that station's used lot, it trades its
+   own in. Wildcats and hunters are scored by the role they buy ships as (pirate, patrol).
 7. **A bounty is posted.** The system's paying station (the one that pays the wreck bounty) counts
    what a site's wildcats rob or kill. After `T.bountyLosses` it posts a bounty. The site is
    discovered for everyone, so it shows on the mass driver, and `T.bountySlots` `site_bounty`
