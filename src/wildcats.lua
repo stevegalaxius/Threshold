@@ -130,7 +130,7 @@ end
 -- A new wildcat for pocket n of a site, at (x, y): a rolled raider hull.
 function W.recruit(u,inst,n,x,y,tag)
  local Supply=require('src.npc_ship_supply')
- local ship,policy=Supply.seed(u,inst.home,'pirate')
+ local ship,policy=Supply.seed(u,inst.home,'wildcat')
  if not ship then
   local def=data.npcProfiles.raider;local hull=data.hulls[def.hull]
   local loadout=copy(def.loadout or hull.loadout)

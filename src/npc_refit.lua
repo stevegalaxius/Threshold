@@ -225,6 +225,10 @@ function M.hull(r,node,u,clock,margin)
  -- (the hull and its fit only: the cargo moves across, it isn't sold)
  local credit=require('src.game').shipSellPrice({hull=r.ship.hull,loadout=r.ship.loadout})
  local budget=(r.credits or 0)+credit-M.minCredits
+ -- no more than its role would ever spend on a ship, at its rank (a rich
+ -- wildcat still doesn't fly a raid boss's hull)
+ local P=require('src.npc_templates').purchaseFor(r)
+ if P and P.budget then budget=math.min(budget,Rank.policy(P,r.rank or 'proficient').budget) end
  local choices={{hull=r.ship.hull,loadout=r.ship.loadout,price=0,key='0 current'}}
  for _,lot in ipairs(D.lots(u,node)) do
   local hull=data.hulls[lot.hull]
