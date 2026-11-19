@@ -34,6 +34,16 @@ local function fitted(hull,policy,u,area,stock)
    local function has()
     return require('src.npc_access').capabilities({ship={hull=hull.id,loadout=loadout}})[capability]
    end
+   -- A miner works rock with every drill it carries (src/npc_operations.lua),
+   -- so it fills each hardpoint that takes one; bays keep their weapons.
+   if capability=='drill' then
+    for i,slot in ipairs(hull.slots) do
+     local id='drill_'..slot.size:lower()..'_base'
+     if data.modules[id] and u and area then id=require('src.availability').regionalFit(u,area,{slots={slot}},{id},stock)[1] end
+     local module=id and data.modules[id]
+     if module and module.weapon and module.weapon.kind=='drill' and data.fits(slot,module) then loadout[i]=id end
+    end
+   end
    if not has() then
     local installed=false
     for i,slot in ipairs(hull.slots) do
@@ -53,15 +63,15 @@ local function fitted(hull,policy,u,area,stock)
  for name in pairs(policy.requires or {}) do if not capabilities[name] then return end end
  return loadout,price
 end
-function S.generated(u,policy,roll,area)
+function S.generated(u,policy,roll,area,seeding)
  local choices,total={},0
- local stock=area and require('src.availability').modules(u,area)
+ local stock=area and not seeding and require('src.availability').modules(u,area)
  local ids={}
  if policy.hulls then for _,id in ipairs(policy.hulls) do ids[#ids+1]=id end
  else for _,lineup in pairs(require('data.industry').lineups) do for _,id in ipairs(lineup) do ids[#ids+1]=id end end end
  table.sort(ids)
  for _,id in ipairs(ids) do
-  local loadout,price=fitted(data.hulls[id],policy,u,area,stock)
+  local loadout,price=fitted(data.hulls[id],policy,u,not seeding and area or nil,stock)
   if loadout then
    choices[#choices+1]={hull=id,loadout=loadout,price=price,base=S.weight(u,id)}
   end
@@ -69,7 +79,7 @@ function S.generated(u,policy,roll,area)
  -- Role fit decides; factory output, regional lots, local stock and recent
  -- danger shade it (src/ship_fit.lua). Nothing here consumes stock.
  local danger
- if policy.role then danger=select(2,require('src.ship_fit').rank(u,area,policy.role,choices,stock,policy.sharpness))
+ if policy.role then danger=select(2,require('src.ship_fit').rank(u,area,policy.role,choices,stock,policy.sharpness,seeding))
  else for _,c in ipairs(choices) do c.weight=c.base end end
  -- a faction's own pilots favor its makers' hulls (src/faction_gear.lua)
  local faction=policy.faction=='$owner' and area and require('src.npc_access').owner(area) or policy.faction
@@ -108,8 +118,24 @@ function S.seed(u,area,role)
  local Templates=require('src.npc_templates');local Rank=require('src.npc_rank')
  local base=Templates.purchase(role);if not base then return end
  local policy=Rank.policy(base,Rank.roll())
- local ship=S.generated(u,policy,nil,area)
+ -- a faction's police and couriers fly its own service hulls
+ local owner=require('src.npc_access').owner(area)
+ local fleet=policy.fleets and policy.fleets[owner or '']
+ if fleet then policy.hulls=fleet end
+ -- The world was running before the game began: what a dealer happens to
+ -- have on its lot or shelf this minute doesn't decide what it flies.
+ local ship=S.generated(u,policy,nil,area,true)
  return ship,policy
+end
+-- A seeded pilot set up like an arrival: its rank, its pocket money and
+-- full magazines (src/supplies.lua). r may be nil when creation failed.
+function S.settle(r,policy)
+ if not r then return end
+ if policy and policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
+ r.shipAcquisition=r.shipAcquisition or {source='seeded'}
+ r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
+ require('src.supplies').provision(r)
+ return r
 end
 function S.acquire(u,area,policy,roll)
  roll=roll or random
