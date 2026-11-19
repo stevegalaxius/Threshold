@@ -117,6 +117,8 @@ end
 -- Plan a visit if one is due. Only while travelling within a region, and
 -- never mid-fight or during a reconciliation.
 function U.plan(r,clock,e)
+ -- wildcats patch up and rearm at their site, never at a station (src/wildcats.lua)
+ if r.wildcat and not r.wildcat.fencing then return false end
  local u=Supplies.universe
  if r.service or not (r.state=='travel' or r.state=='idle') or not r.area or not r.route or not r.route[r.index] then return false end
  if r.state=='idle' and not r.node then return false end

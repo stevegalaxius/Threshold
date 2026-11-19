@@ -315,10 +315,11 @@ T.population = {
 }
 -- Wildcat sites (src/sites.lua Sites.tick, src/wildcats.lua)
 T.siteSpawnFirst = 600        -- s into a new world before the first wildcat site may open
-T.siteSpawnEvery = 1800       -- s between tries to open one (give or take 30%)
-T.sitesPerPlanet, T.sitesMax = 1, 8
+T.siteSpawnEvery = 2700       -- s between tries to open one (give or take 30%)
+T.sitesPerPlanet, T.sitesMax = 1, 6
 T.wildcatSortieEvery = 900    -- s between a posted wildcat's raids (give or take 40%)
 T.wildcatSortieTime = 900     -- s a wildcat raids before heading home empty-handed
+T.wildcatIdleHome = 120      -- s a wildcat out raiding waits with no raid to take before heading home
 T.wildcatSortieHealth = 0.8   -- share of armour a wildcat wants before it goes out
 T.wildcatPatchRate = 0.5      -- share of full armour patched per hour at the site
 T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that send one wildcat to fence it
@@ -331,9 +332,10 @@ T.wildcatTradeInShare = 0.5   -- what the lot pays for the old hull, as a share 
 T.bountyLosses = 3
 T.bountyPerHead, T.bountyPerArmor = 600, 1
 T.bountySlots = 3             -- hunters the board sends at one site at once
-T.huntersPerSystem = 2        -- bounty hunters per owned system with a trade station
+T.huntersPerSystem = 3        -- bounty hunters per owned system with a trade station
 T.hunterReadyHealth = 0.8     -- share of armour a hunter wants before it takes a bounty
 T.hunterBreakKill = 0.3       -- chance a hunter that breaks inside a site doesn't get out
+T.hunterAssaultTime = 1800    -- s a hunter stays inside a site before it gives up and pulls out
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing

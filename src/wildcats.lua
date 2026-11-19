@@ -70,6 +70,11 @@ local function maxArmor(r)
  return hull and Stats.compute(hull,r.ship.loadout).armor or 1
 end
 local function driverOf(area) return Fields[area] and Fields[area].driverId end
+-- The planet an area belongs to (a moon's or a dark grid's parent).
+local function systemOf(area)
+ local m=area and Fields.moons and Fields.moons[area]
+ return m and m.parent or area
+end
 local function trace(r,clock,what) require('src.alife_trace').note(r,clock,'wildcat',what) end
 
 -- Crew -------------------------------------------------------------------------
@@ -141,7 +146,6 @@ function W.recruit(u,inst,n,x,y,tag)
  require('src.personality').ensure(r)
  require('src.npc_home').choose(u,r)
  Supply.settle(r,policy)
- r.credits=0
  post(r,inst,clock)
  -- the first sorties are staggered, so a new site doesn't empty at once
  r.wildcat.nextSortie=clock+T.wildcatSortieEvery*(.3+random())
@@ -445,10 +449,13 @@ local function postedAdvance(r,clock,u,game)
  local full=maxArmor(r)
  local last=r.wildcat.patchedAt or clock
  r.wildcat.patchedAt=clock
- if r.ship.armor<full and not (game and game.alifeOnline and game.alifeOnline[r.id]) then
+ -- (not while hunters are inside: a fight wears a crew down over trips)
+ if r.ship.armor<full and #W.hunters(u,g.site)==0 and not (game and game.alifeOnline and game.alifeOnline[r.id]) then
   r.ship.armor=math.min(full,r.ship.armor+full*T.wildcatPatchRate*math.max(0,clock-last)/3600)
  end
  if not game or clock<(r.wildcat.nextSortie or 0) then return true end
+ -- the site's stores rearm whoever is at a post between fights
+ if #W.hunters(u,g.site)==0 then require('src.supplies').provision(r) end
  r.wildcat.nextSortie=clock+T.wildcatSortieEvery*(.6+.8*random())
  -- nobody leaves while the site is under attack or someone is in this pocket
  if game.fieldId==g.field or #W.hunters(u,g.site)>0 then return true end
@@ -482,7 +489,12 @@ local function outAdvance(r,clock,u,game)
  local full=maxArmor(r)
  if clock>=(w.out or clock)+T.wildcatSortieTime or (r.ship.armor or full)<full*T.pirateRetreatHealth then
   W.goHome(game,r,'sortie over')
- end
+ elseif not r.task and not r.piracy and (r.state=='idle' or r.state=='docked') then
+  -- nothing to raid here right now: it waits a little, then goes home
+  -- (never off to some station of its own: its site is its home)
+  w.idleSince=w.idleSince or clock
+  if clock-w.idleSince>=T.wildcatIdleHome then w.idleSince=nil;W.goHome(game,r,'no prey') end
+ else w.idleSince=nil end
 end
 
 -- Called from A-Life (src/alife.lua A.advance). True: handled, skip the
@@ -629,7 +641,7 @@ local function assaultSpot(u,inst,n,r)
 end
 local function enterPocket(u,r,inst,n)
  local x,y=assaultSpot(u,inst,n,r)
- r.assault={site=inst.id,pocket=n,x=x,y=y}
+ r.assault={site=inst.id,pocket=n,x=x,y=y,since=r.assault and r.assault.since or u.clock or 0}
  r.area=fieldId(inst.id,n);r.state='assault'
  r.route={};r.index=1;r.node=nil;r.transit=nil;r.encounter=nil
  r.pose,r.offset,r.savedOnline,r.docking,r.action=nil,nil,nil,nil,nil
@@ -720,7 +732,10 @@ local function assaultRound(game,u,inst,n,hunters,clock)
   if target.ship.armor<=0 then kill(u,target,clock,last) end
  end
  for _,h in ipairs(hunters) do
-  if alive(h) and h.ship.armor<=maxArmor(h)*E.breakPoint(h) then
+  -- out of ammunition, or in there too long: it pulls out while it can
+  if alive(h) and (E.profile(h).dps<=0 or clock-(h.assault.since or clock)>=T.hunterAssaultTime) then
+   W.endAssault(game,u,h,E.profile(h).dps<=0 and 'out of ammunition' or 'gave up')
+  elseif alive(h) and h.ship.armor<=maxArmor(h)*E.breakPoint(h) then
    -- a hunter that breaks pulls out; it doesn't always make it
    if roll(fight)<T.hunterBreakKill then
     kill(u,h,clock,crew[1] and crew[1].id)
@@ -806,6 +821,9 @@ Tasks.register('site_bounty',{
  eligible=function(u,r,o,node,clock)
   local inst=sites(u)[o.site]
   if not inst or inst.done or not inst.bounty then return false end
+  -- hunters work their own system's bounties
+  if systemOf(r.home)~=systemOf(inst.home) then return false end
+  if require('src.encounters').profile(r).dps<=0 then return false end
   return (r.ship.armor or 0)>=maxArmor(r)*T.hunterReadyHealth
  end,
  feasible=function(u,r,o,node,clock) return require('src.travelgraph').live(node,o.target,clock)~=nil end,
@@ -850,8 +868,9 @@ Population.register('hunter',{
   require('src.personality').ensure(r)
   require('src.npc_home').choose(u,r)
   r.taskWorker=true
+  -- (no first decision here: the arrival's ship sale is completed after
+  -- create returns, and a refit at its first stop could take that lot)
   u.npcs[r.id]=r
-  require('src.npc').advance(r,clock,u,game)
   return r
  end,
 })

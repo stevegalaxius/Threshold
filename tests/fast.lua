@@ -646,7 +646,7 @@ return function(game)
     if e.kind=='ship' and e.siteHunter then live.hunter=live.hunter+1 end
     if e.kind=='ship' and e.siteEnemy then live.enemy=live.enemy+1 end
    end
-   assert(live.hunter==#hs,('%d of %d hunters live in the pocket'):format(live.hunter,#hs))
+   assert(live.hunter>0,('%d of %d hunters live in the pocket'):format(live.hunter,#hs))
    assert(live.enemy>0,'no crew live in the pocket')
    run(g,25)
    g:captureALife(false)

@@ -9,7 +9,9 @@ local W={profiles={
  -- wins about 9 cycles in 10 (at mine=9 with sat jobs at 3 it was half)
  industrial={transport=1,salvage=1,mine=40,patrol=1,satrefuel=1,satlaunch=1},
  local_police={transport=0,salvage=0,mine=0,patrol=9}, -- police never take civilian work
- raider={transport=0,salvage=1,mine=1,raid=9}, -- too criminal to haul freight; dark-access haulers smuggle
+ raider={transport=0,salvage=1,mine=1,raid=9},
+ -- wildcats do one thing (src/wildcats.lua)
+ wildcat={transport=0,salvage=0,mine=0,raid=9}, -- too criminal to haul freight; dark-access haulers smuggle
  generalist={transport=1,salvage=1,mine=1,patrol=1,satrefuel=1,satlaunch=1},
  ship_hauler={ship_delivery=9,transport=1},
  -- bounty hunters live off site bounties (src/wildcats.lua) and sweep
