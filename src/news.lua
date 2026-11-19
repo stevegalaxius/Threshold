@@ -464,9 +464,14 @@ function N.tickerLines(u,o)
   return a.item<b.item end)
  return out
 end
--- A ticker line as text: "WATER  Titan 3  +22%".
+-- A ticker line as text: the price the outlet says the station is
+-- asking, and the good's list price beside it ("WATER  Titan 3  114 cr
+-- (list 93)"). The figure is the outlet's claim, spin and all, not the
+-- news's own nudge on top.
 function N.tickerText(line)
- return ('%s  %s  %s'):format(itemName(line.item):upper(),placeName(line.key),pct(line.reported))
+ local d=require('src.data').items[line.item];local list=d and d.price or 0
+ if list<=0 then return ('%s  %s  %s'):format(itemName(line.item):upper(),placeName(line.key),pct(line.reported)) end
+ return ('%s  %s  %d cr  (list %d)'):format(itemName(line.item):upper(),placeName(line.key),math.floor(list*line.reported+.5),list)
 end
 
 local function playerWho(u,named)
