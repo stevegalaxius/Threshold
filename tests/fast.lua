@@ -82,6 +82,20 @@ return function(game)
   assert(not Rep.hostile(Rep.standing(u,'estates')),'reports alone made the Estates hostile')
   u.reputation=savedRep;u.news=saved;u.clock=clock0
   print(('ok  news: %d stories in an hour'):format(n))
+  -- the News tab draws (docked or not) without error; NEWS_SHOT=1 also
+  -- saves a picture of it to the save folder as news_tab.png
+  local View=require('src.ui.news')
+  local cw,ch=love.graphics.getDimensions()
+  local canvas=love.graphics.newCanvas(cw,ch)
+  love.graphics.setCanvas(canvas);love.graphics.clear(.05,.06,.08,1)
+  u.news=nil
+  for clock=clock0,clock0+3*News.T.tick,News.T.tick do u.clock=clock;News.flush(u,clock,game) end
+  -- read every paper, so both columns have something in them
+  for _,o in ipairs(News.order) do News.state(u).subs[o]={since=u.clock,paidUntil=u.clock+3600} end
+  View.draw(game)
+  love.graphics.setCanvas()
+  if os.getenv('NEWS_SHOT') then canvas:newImageData():encode('png','news_tab.png');print('    saved news_tab.png to '..love.filesystem.getSaveDirectory()) end
+  u.news=saved;u.clock=clock0
  end
 
  -- Squads: police serve in battlegroups of flagship + squads; a squad
