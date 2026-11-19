@@ -3,8 +3,9 @@
 	NPC traders) only see what the outlets print about it, and every outlet
 	leans toward what its owner sells (data/outlets.lua).
 
-	  ticker    each outlet's market feed: every price on its beat that's
-	            off list, spun by its agenda, refreshed every d.refresh runs.
+	  ticker    each outlet's market feed: the biggest price moves on its
+	            beat (T.tickerLines), spun by its agenda, refreshed every
+	            d.refresh runs.
 	            What it won't show (its owner's own shortages, for some) is
 	            simply missing. Off its beat it carries wire lines pulled
 	            from other outlets' tickers, stale and spun again. Terse,
@@ -25,8 +26,9 @@
 	            pay, or the paper turns on you.
 	            Docked or in flight, you read what's carried where you are
 	            (the station, or the system you're flying in).
-	  prices    a ticker line nudges the price of its good at its station
-	            while it's on the ticker, and a headline adds hype on top
+	  prices    a ticker line nudges the price of its good at its station by
+	            its spin (printed minus real) while it's listed, and a
+	            headline adds hype on top
 	            (stations in the area that carry the outlet): speculation. The nudges decay and
 	            are capped at T.nudgeCap together. Markets.price reads them,
 	            so NPC traders (src/merchants.lua) react to the news for the
@@ -56,12 +58,14 @@ N.T={
  secondhandOdds=.5,
  perTick=1,           -- price headlines an outlet promotes per run, at most
  priceGap=3600,       -- and at least this long between them
- tickerMin=.1,        -- a price this far off list makes the ticker
+ tickerMin=.2,        -- a price this far off list makes the ticker
+ tickerLines=12,      -- an outlet lists this many of its own, biggest first
  wireGap=3600,        -- an outlet pulls other outlets' ticker lines this often
  wireLines=4,         -- this many (twice that if it's read everywhere)
  wireMin=.25,         -- of moves at least this big
  hype=.5,             -- a price headline nudges this much on top of its ticker line
- tickerScale=.15,     -- a ticker line's nudge = (reported ratio - 1) * this
+ tickerScale=.35,     -- a ticker line's nudge = (reported - real) * this: the
+                      -- market already has the truth, the spin is speculation
  copyGap=7200,        -- an outlet copies another's story at most this often
  copyJuice=.6,        -- and only if it moves the price this much, or is about
                       -- a deed, or the good is on the copier's agenda
@@ -354,23 +358,31 @@ local function refreshTicker(u,s,o,clock)
  t.next=clock+(d.refresh or 1)*N.T.tick-1
  local Markets=require('src.markets');local E=require('src.economy')
  local prices=Markets.state(u).prices;local seen={}
+ local traded={};for _,item in ipairs(Markets.products or {}) do traded[item]=true end
+ local cand={}
  for _,area in ipairs(d.beat) do
   for _,key in ipairs(L().stations(area,'trade')) do
    for item,ratio in pairs(prices[key] or {}) do
-    local short=E.shortageAge(u,key,item,clock)>=N.T.shortAge
-    if math.abs(ratio-1)>=N.T.tickerMin or short then
-     local real=math.max(ratio,short and 1.1 or 0)
-     local r=spin(o,item,real,key)
-     if r and math.abs(r-1)>=.05 then
-      local k=key..'|'..item
-      local line=t.lines[k] or {key=key,item=item,area=area,since=clock};t.lines[k]=line
-      line.reported,line.real,line.clock,line.rumour=r,real,clock,nil
-      seen[k]=true
-      holdNudge(u,o,key,item,clamp((r-1)*N.T.tickerScale,-N.T.nudgeCap,N.T.nudgeCap),clock)
+    if traded[item] then
+     local short=E.shortageAge(u,key,item,clock)>=N.T.shortAge
+     if math.abs(ratio-1)>=N.T.tickerMin or short then
+      local real=math.max(ratio,short and 1.1 or 0)
+      local r=spin(o,item,real,key)
+      if r and math.abs(r-1)>=.05 then
+       cand[#cand+1]={key=key,item=item,area=area,r=r,real=real,score=math.abs(r-1)*(1+math.abs(d.agenda[item] or 0))}
+      end
      end
     end
    end
   end
+ end
+ table.sort(cand,function(a,b) if a.score~=b.score then return a.score>b.score end return a.key..a.item<b.key..b.item end)
+ for i=1,math.min(#cand,N.T.tickerLines) do
+  local c=cand[i];local k=c.key..'|'..c.item
+  local line=t.lines[k] or {key=c.key,item=c.item,area=c.area,since=clock};t.lines[k]=line
+  line.reported,line.real,line.clock,line.rumour=c.r,c.real,clock,nil
+  seen[k]=true
+  holdNudge(u,o,c.key,c.item,clamp((c.r-c.real)*N.T.tickerScale,-N.T.nudgeCap,N.T.nudgeCap),clock)
  end
  for k,line in pairs(t.lines) do
   if line.wire then
@@ -689,7 +701,7 @@ local function run(u,s,o,since,clock)
     -- and a ticker line to match, held for the story's life
     local t=N.tickerOf(u,o)
     t.lines[key..'|'..item]={key=key,item=item,area=area,reported=st.reported,clock=clock,since=clock,rumour=true,holdUntil=clock+N.T.storyLife}
-    holdNudge(u,o,key,item,clamp((st.reported-1)*N.T.tickerScale,-N.T.nudgeCap,N.T.nudgeCap),clock)
+    holdNudge(u,o,key,item,clamp((st.reported-1)*N.T.tickerScale,-N.T.nudgeCap,N.T.nudgeCap),clock)  -- all of a rumour is spin
    end
   end
  end
