@@ -1,7 +1,8 @@
 -- Fleet supply: an arriving NPC buys a real ship off a lot in its region
 -- (new or used, the same lots the player buys from), or a faction pilot is
--- issued one off its military yard. No lot, no arrival: ships are never
--- made on the spot. (S.generated remains for previews and debug tools.)
+-- issued one off its military yard. When no lot has a ship for the job,
+-- the pilot arrives in one bought elsewhere (S.generated, the same choice
+-- seeding makes), so losses are replaced and the fleet keeps its size.
 local data=require('src.data')
 local S={}
 local function config() return require('data.industry').npcShips end
@@ -23,23 +24,25 @@ function S.weight(u,hull)
  end
  return weight
 end
-local function fitted(hull,policy,u,area,stock)
- local D=require('src.dealers');local loadout={}
- for i,id in ipairs(hull.loadout) do loadout[i]=id end
- -- Fit from what the arrival region actually stocks (src/availability.lua).
- if u and area then loadout=require('src.availability').regionalFit(u,area,hull,loadout,stock) end
- -- Capability requests select compatible equipment, independent of maker.
+-- Fit loadout (changed in place) for the job's capabilities: a drill in
+-- every hardpoint that takes one for a miner (it works rock with every drill
+-- it carries, src/npc_operations.lua; bays keep their weapons), a gun where
+-- an armed job has none. Equipment is chosen by what it does, not by maker,
+-- from what the region stocks when u and area are given. Returns loadout,
+-- or nil when the hull can't do the job.
+local function install(hull,policy,loadout,u,area,stock)
+ local function regional(slot,id)
+  if data.modules[id] and u and area then id=require('src.availability').regionalFit(u,area,{slots={slot}},{id},stock)[1] end
+  return id
+ end
  for _,capability in ipairs({'drill','armed'}) do
   if (policy.requires or {})[capability] then
    local function has()
     return require('src.npc_access').capabilities({ship={hull=hull.id,loadout=loadout}})[capability]
    end
-   -- A miner works rock with every drill it carries (src/npc_operations.lua),
-   -- so it fills each hardpoint that takes one; bays keep their weapons.
    if capability=='drill' then
     for i,slot in ipairs(hull.slots) do
-     local id='drill_'..slot.size:lower()..'_base'
-     if data.modules[id] and u and area then id=require('src.availability').regionalFit(u,area,{slots={slot}},{id},stock)[1] end
+     local id=regional(slot,'drill_'..slot.size:lower()..'_base')
      local module=id and data.modules[id]
      if module and module.weapon and module.weapon.kind=='drill' and data.fits(slot,module) then loadout[i]=id end
     end
@@ -47,20 +50,48 @@ local function fitted(hull,policy,u,area,stock)
    if not has() then
     local installed=false
     for i,slot in ipairs(hull.slots) do
-     local id=(capability=='drill' and 'drill_' or 'gun_')..slot.size:lower()..'_base'
-     local module=data.modules[id]
-     if module and u and area then id=require('src.availability').regionalFit(u,area,{slots={slot}},{id},stock)[1];module=data.modules[id] end
+     local id=regional(slot,(capability=='drill' and 'drill_' or 'gun_')..slot.size:lower()..'_base')
+     local module=id and data.modules[id]
      if module and data.fits(slot,module) then loadout[i]=id;installed=true;break end
     end
     if not installed or not has() then return end
    end
   end
  end
+ return loadout
+end
+local function usable(hull,policy,loadout,price)
  local stats=require('src.stats').compute(hull,loadout)
- local price=D.price(hull,loadout)
- if price>policy.budget or stats.thrust<=0 or stats.powerOut<=0 or stats.hold<(policy.minCargo or 0) then return end
+ if price>policy.budget or stats.thrust<=0 or stats.powerOut<=0 or stats.hold<(policy.minCargo or 0) then return false end
  local capabilities=require('src.npc_access').capabilities({ship={hull=hull.id,loadout=loadout}})
- for name in pairs(policy.requires or {}) do if not capabilities[name] then return end end
+ for name in pairs(policy.requires or {}) do if not capabilities[name] then return false end end
+ return true
+end
+local function fitted(hull,policy,u,area,stock)
+ local loadout={}
+ for i,id in ipairs(hull.loadout) do loadout[i]=id end
+ -- Fit from what the arrival region actually stocks (src/availability.lua).
+ if u and area then loadout=require('src.availability').regionalFit(u,area,hull,loadout,stock) end
+ if not install(hull,policy,loadout,u,area,stock) then return end
+ local price=require('src.dealers').price(hull,loadout)
+ if not usable(hull,policy,loadout,price) then return end
+ return loadout,price
+end
+-- A lot's ship as the dealer would refit it for the job before the sale:
+-- the modules it adds are charged at list price on top of the lot price
+-- (what it takes out stays with the dealer). Returns loadout, price, or
+-- nil when even refitted it can't do the job within the budget.
+function S.refit(u,area,lot,policy,stock)
+ local hull=data.hulls[lot.hull];if not hull then return end
+ local loadout={}
+ for i=1,#hull.slots do loadout[i]=lot.loadout[i] or false end
+ if not install(hull,policy,loadout,u,area,stock) then return end
+ local price=lot.price
+ for i in ipairs(hull.slots) do
+  local id=loadout[i]
+  if id and id~=lot.loadout[i] then price=price+(data.modules[id].price or 0) end
+ end
+ if not usable(hull,policy,loadout,price) then return end
  return loadout,price
 end
 function S.generated(u,policy,roll,area,seeding)
@@ -150,7 +181,22 @@ function S.acquire(u,area,policy,roll)
   return nil
  end
  local candidate=require('src.dealers').purchaseCandidate(u,area,policy,false)
- if candidate then return require('src.dealers').ship(candidate.lot),{source='used',candidate=candidate} end
+ if candidate then
+  local ship=require('src.dealers').ship(candidate.lot)
+  if candidate.loadout then
+   -- the refit keeps the lot's wear: armor in the same share of full
+   local Stats,hull=require('src.stats'),data.hulls[ship.hull]
+   local before=math.max(1,Stats.compute(hull,ship.loadout).armor or 1)
+   ship.loadout=require('src.persistence').copy(candidate.loadout)
+   ship.armor=Stats.compute(hull,ship.loadout).armor*math.min(1,(ship.armor or before)/before)
+  end
+  return ship,{source='used',candidate=candidate}
+ end
+ -- No lot here has a ship for the job: the pilot flies in with one bought
+ -- elsewhere, chosen as at seeding, so the fleet holds its fixed size
+ -- (T.fleet) instead of shrinking with every loss.
+ local ship,acq=S.generated(u,policy,roll,area,true)
+ if ship then acq.source='arrived';return ship,acq end
  return nil
 end
 -- Take a finished hull for `faction` off its military yard. policy.hulls

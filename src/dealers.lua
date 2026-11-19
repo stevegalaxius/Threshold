@@ -285,15 +285,23 @@ function D.serviceYard(faction)
  end
 end
 function D.purchaseCandidate(u,area,policy,usedOnly)
- local L=require('src.locations');local best,options=nil,{}
+ local L=require('src.locations');local best,options,stock=nil,{},nil
  for _,key in ipairs(L.stations(area)) do
   for _,lot in ipairs(D.lots(u,key)) do
    local r={ship=D.ship(lot)};local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
    local capabilities=require('src.npc_access').capabilities(r);local eligible=(not usedOnly or lot.used) and lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
    if (stats.hold or 0)<(policy.minCargo or 0) then eligible=false end
+   local loadout,price=lot.loadout,lot.price
    for capability in pairs(policy.requires or {}) do if not capabilities[capability] then eligible=false end end
+   -- a hull that can't do the job as it stands, the dealer refits for it
+   -- (a miner's drills) and charges the added modules
+   if not eligible and policy.role and not usedOnly and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0 then
+    stock=stock or require('src.availability').modules(u,area)
+    loadout,price=require('src.npc_ship_supply').refit(u,area,lot,policy,stock)
+    eligible=loadout~=nil
+   end
    if eligible then
-    if policy.role then options[#options+1]={station=key,lot=lot,hull=lot.hull,loadout=lot.loadout,price=lot.price,key=key..'/'..tostring(lot.id)}
+    if policy.role then options[#options+1]={station=key,lot=lot,hull=lot.hull,loadout=loadout,price=price,refit=loadout~=lot.loadout or nil,key=key..'/'..tostring(lot.id)}
     elseif not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station then best={station=key,lot=lot} end
    end
   end
@@ -301,7 +309,8 @@ function D.purchaseCandidate(u,area,policy,usedOnly)
  -- A buyer with a job takes the best ship for it, not the cheapest.
  if policy.role and #options>0 then
   local pick=require('src.ship_fit').best(u,area,policy.role,options)
-  best={station=pick.station,lot=pick.lot,fit=pick.fit,danger=require('src.ship_fit').danger(u,area)}
+  best={station=pick.station,lot=pick.lot,fit=pick.fit,danger=require('src.ship_fit').danger(u,area),
+   loadout=pick.refit and pick.loadout or nil,price=pick.price}
  end
  return best
 end
@@ -309,12 +318,13 @@ function D.buyForNpc(u,r,candidate,policy)
  local lot=D.find(u,candidate.station,candidate.lot.id)
  if lot~=candidate.lot then return false end
  D.take(u,candidate.station,lot.id)
- r.shipAcquisition={station=candidate.station,lot=lot.id,price=lot.price,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}
+ local price=candidate.price or lot.price
+ r.shipAcquisition={station=candidate.station,lot=lot.id,price=price,refit=candidate.loadout and true or nil,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}
  -- the budget only caps what it can buy; the price goes to the station,
  -- and the pilot starts with pocket money, not the change from a budget
  r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
- require('src.accounts').receive(u,candidate.station,lot.price,'sold','ship:'..lot.hull)
- require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=lot.price,lot=lot.id},candidate.station)
+ require('src.accounts').receive(u,candidate.station,price,'sold','ship:'..lot.hull)
+ require('src.simulation_history').note(u,'npc_ship_purchased',u.clock,r.area,{r.id},{station=candidate.station,hull=lot.hull,price=price,lot=lot.id},candidate.station)
  return true
 end
 
