@@ -478,7 +478,45 @@ end
 
 -- A posted wildcat or a hunter inside a site comes online: it fights as a
 -- site ship (src/ai.lua pickTarget), not on a route.
+-- Is x, y clear of rock and structure for a ship of half-length m?
+local function rockFree(game,x,y,m)
+ if not game:areaObjectClear(x,y,m) then return false end
+ for _,o in ipairs(game.entities) do
+  local k=o.kind
+  if (k=='asteroid' or k=='structure' or k=='station' or k=='planet') and o.body then
+   local ox,oy=o.body:getPosition();ox,oy=ox+(o.cx or 0),oy+(o.cy or 0)
+   if (ox-x)^2+(oy-y)^2<((o.radius or 0)+m)^2 then return false end
+  end
+ end
+ return true
+end
+-- A site ship that comes up inside a rock is moved to clear space nearby
+-- (posts and assault spots are picked offline, where the rocks aren't
+-- known, and rocks drift); its post or spot moves with it.
+local function unstick(game,e,r)
+ local x,y=e.body:getPosition()
+ local m=(e.halfLength or e.hull and e.hull.radius or 60)+80
+ if rockFree(game,x,y,m) then return end
+ for i=1,40 do
+  local a,d=random()*math.pi*2,200+i*60
+  local nx,ny=x+math.cos(a)*d,y+math.sin(a)*d
+  if rockFree(game,nx,ny,m) then
+   e.body:setPosition(nx,ny)
+   local g=r.garrison or r.assault
+   if g then g.x,g.y=nx,ny end
+   if r.garrison then r.wildcat.x,r.wildcat.y=nx,ny end
+   return
+  end
+ end
+end
+function W.unstick(game)
+ for _,e in ipairs(game.entities) do
+  local r=e.kind=='ship' and e.alifeId and game.universe.npcs[e.alifeId]
+  if r and (r.garrison or r.assault) and e.body and not e.dead and not e.removed then unstick(game,e,r) end
+ end
+end
 function W.woke(game,e,r)
+ if (r.garrison or r.assault) and e.body then unstick(game,e,r) end
  if r.garrison then
   e.team=2;e.aggro=false
   e.siteEnemy,e.siteTag=true,r.garrison.tag or nil

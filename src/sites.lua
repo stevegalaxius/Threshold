@@ -352,7 +352,8 @@ function Sites.build(game, inst, n)
 	end
 	if n == 1 and not exit then
 		local sx, sy = game.field.spawn[1], game.field.spawn[2]
-		game:spawnSiteGate(inst, n, { to = "exit", x = sx + 900, y = sy + 300 })
+		local g = game:spawnSiteGate(inst, n, { to = "exit", x = sx + 900, y = sy + 300 })
+		g.autoExit = true
 	end
 end
 
@@ -502,6 +503,7 @@ function Game:updateSites(dt)
 	-- finished and expired sites close once you're out of them (not on the
 	-- lane, where turning back would need the pocket you left)
 	if not siteId then
+		self.siteSettled = nil
 		if not self.field.transit and self.sitesPrunedIn ~= self.fieldId then
 			self.sitesPrunedIn = self.fieldId
 			Sites.prune(self.universe, self.fieldId, self)
@@ -513,6 +515,28 @@ function Game:updateSites(dt)
 	if not inst then return end
 	local state = inst.pockets[n] or {}
 	inst.pockets[n] = state
+	if self.siteSettled ~= self.fieldId and self.player and not self.player.dead then
+		self.siteSettled = self.fieldId
+		-- nobody comes up inside a rock (rocks may be laid after they woke)
+		require("src.wildcats").unstick(self)
+		-- the way home is where you came in: off the driver you arrive on
+		-- the far side from the planet's bearing, not at the map's spawn
+		local px, py = self.player.body:getPosition()
+		for _, g in ipairs(self.entities) do
+			if g.autoExit then
+				local gx, gy = g.body:getPosition()
+				if (gx - px) ^ 2 + (gy - py) ^ 2 > 3000 ^ 2 then
+					local d = math.sqrt(px * px + py * py)
+					local ux, uy = d > 0 and px / d or 0, d > 0 and py / d or 1
+					-- beside you, a little further in, pointing back out
+					local bx, by = px - ux * 700 - uy * 900, py - uy * 700 + ux * 900
+					local a = math.atan2(by, bx)
+					g.angle = a
+					g.body:setPosition(bx + math.cos(a) * g.barrel / 2, by + math.sin(a) * g.barrel / 2)
+				end
+			end
+		end
+	end
 	if not state.cleared then
 		local left = require("src.wildcats").held(self.universe, self.fieldId)
 		for _, e in ipairs(self.entities) do
