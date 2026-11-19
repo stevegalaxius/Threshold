@@ -88,7 +88,7 @@ site {
 
 -- One pocket: a wildcat camp in a rock field.
 site {
-	id = "wildcat_nest", name = "Wildcat nest", kind = "nest", wild = true, hidden = true,
+	id = "wildcat_nest", name = "Wildcat nest", kind = "nest", wild = true,
 	color = { 1, 0.75, 0.3 }, home = { "earth", "mars", "venus", "belt" },
 	pockets = {
 		{ name = "Nest", radius = 18000, spawn = { 0, 7800 },
@@ -102,7 +102,7 @@ site {
 
 -- Two pockets: a guarded field, then a gate that opens once it's quiet.
 site {
-	id = "smugglers_hollow", name = "Smugglers' hollow", kind = "dungeon", wild = true, hidden = true,
+	id = "smugglers_hollow", name = "Smugglers' hollow", kind = "dungeon", wild = true,
 	color = { 1, 0.6, 0.25 }, home = { "belt", "mars" },
 	pockets = {
 		{ name = "Hollow mouth", radius = 21000, spawn = { 0, 9000 },
@@ -123,7 +123,7 @@ site {
 
 -- Four pockets: a picket, a yard, the warden with the vault key, the vault.
 site {
-	id = "iron_vault", name = "Iron vault", kind = "raid", wild = true, hidden = true,
+	id = "iron_vault", name = "Iron vault", kind = "raid", wild = true,
 	color = { 1, 0.3, 0.3 }, home = { "saturn", "jupiter", "uranus" }, fare = 600,
 	pockets = {
 		{ name = "Picket", radius = 24000, spawn = { 0, 10500 },

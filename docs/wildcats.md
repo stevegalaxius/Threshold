@@ -6,10 +6,12 @@ close once their crew is gone. The code is in `src/wildcats.lua`.
 
 ## The cycle
 
-1. **A site opens.** Every `T.siteSpawnEvery` (30 min, give or take 30%) `Sites.tick` may open a
-   `wild` template near a planet that has a mass driver, police and a paying station
-   (`Sites.homes`). The caps are `T.sitesPerPlanet` per planet and `T.sitesMax` in all. A new site
-   is hidden: it isn't on the driver yet.
+1. **A site opens.** Sites are sized to the population: wildcat crews plus bounty hunters make up
+   about `T.siteShare` (15%) of the living NPCs. On the first look (a new world, or a save with
+   none) `Sites.tick` opens enough at once; after that it opens one every `T.siteSpawnEvery`
+   (2 min, give or take 30%) while crews are short. A site is a `wild` template near a planet that
+   has a mass driver, police and a paying station (`Sites.homes`). The caps are
+   `T.sitesPerPlanet` per planet and `T.sitesMax` in all. Sites are on the driver from the start.
 2. **Its crew is rolled once.** Each `enemies` piece gives `crew = { min, max }` wildcats. Each one
    is an A-Life record flying a hull rolled the way a pirate's is (`npc_ship_supply.seed`), with
    the raider combat profile. A crew never recruits from the NPC pool and never grows. Damage, ammo
@@ -29,8 +31,7 @@ close once their crew is gone. The code is in `src/wildcats.lua`.
    (`src/npc_refit.lua`): if it can afford a better ship on that station's used lot, it trades its
    own in. Wildcats and hunters are scored by the role they buy ships as (pirate, patrol).
 7. **A bounty is posted.** The system's paying station (the one that pays the wreck bounty) counts
-   what a site's wildcats rob or kill. After `T.bountyLosses` it posts a bounty. The site is
-   discovered for everyone, so it shows on the mass driver, and `T.bountySlots` `site_bounty`
+   what a site's wildcats rob or kill. After `T.bountyLosses` it posts a bounty, and `T.bountySlots` `site_bounty`
    offers go on the board.
 8. **Kills are paid.** Once a site has a bounty, each of its wildcats is worth `W.perHead` to
    whoever lands the last hit, wherever it dies. An NPC is paid into its credits. The player's pay

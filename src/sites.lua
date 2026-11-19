@@ -123,7 +123,7 @@ end
 -- Wildcat sites come and go on their own (src/wildcats.lua): every
 -- T.siteSpawnEvery one may open near a planet with traffic and a station
 -- to pay for it, up to T.sitesPerPlanet each and T.sitesMax in all. They
--- open hidden: a bounty puts them on the driver.
+-- open on the driver from the start.
 function Sites.wildTemplates()
 	local out = {}
 	for _, id in ipairs(data.list.sites) do if data.sites[id].wild then out[#out + 1] = id end end
@@ -139,6 +139,17 @@ function Sites.homes()
 	end
 	return out
 end
+-- How many more wildcats the sites need for their share of the population.
+function Sites.shortfall(u)
+	local living, wild = 0, 0
+	for _, r in pairs(u.npcs or {}) do
+		if r.state ~= "dead" and r.state ~= "escaped" then
+			living = living + 1
+			if r.wildcat or r.populationGroup == "hunter" then wild = wild + 1 end
+		end
+	end
+	return math.ceil(T.siteShare * living) - wild
+end
 function Sites.tick(game, clock)
 	local u = game.universe
 	if game.preview or game.sideScene then return end
@@ -146,20 +157,35 @@ function Sites.tick(game, clock)
 		u.sitePruneNext = clock + 30
 		Sites.prune(u, game.fieldId, game)
 	end
-	if not u.siteSpawnNext then u.siteSpawnNext = clock + T.siteSpawnFirst; return end
-	if clock < u.siteSpawnNext then return end
-	u.siteSpawnNext = clock + T.siteSpawnEvery * (0.7 + 0.6 * random())
-	local open, per = 0, {}
-	for _, inst in pairs(Sites.list(u)) do
-		local def = Sites.template(inst)
-		if def and def.wild and not inst.done then open = open + 1; per[inst.home] = (per[inst.home] or 0) + 1 end
+	-- (a save from before sites were public: show its hidden ones)
+	if not u.sitesPublic then
+		u.sitesPublic = true
+		for _, inst in pairs(Sites.list(u)) do
+			local def = Sites.template(inst)
+			if def and def.wild and not inst.done then inst.discovered = true end
+		end
 	end
-	if open >= T.sitesMax then return end
-	local homes = {}
-	for _, area in ipairs(Sites.homes()) do if (per[area] or 0) < T.sitesPerPlanet then homes[#homes + 1] = area end end
-	local wild = Sites.wildTemplates()
-	if #homes == 0 or #wild == 0 then return end
-	return Sites.spawn(u, wild[random(#wild)], { home = homes[random(#homes)] })
+	if clock < (u.siteSpawnNext or 0) then return end
+	-- the first look (a new world or a save without them) fills the share
+	-- at once; after that one site at a time
+	local burst = u.siteSpawnNext == nil and T.sitesMax or 1
+	u.siteSpawnNext = clock + T.siteSpawnEvery * (0.7 + 0.6 * random())
+	local made
+	for _ = 1, burst do
+		if Sites.shortfall(u) <= 0 then break end
+		local open, per = 0, {}
+		for _, inst in pairs(Sites.list(u)) do
+			local def = Sites.template(inst)
+			if def and def.wild and not inst.done then open = open + 1; per[inst.home] = (per[inst.home] or 0) + 1 end
+		end
+		if open >= T.sitesMax then break end
+		local homes = {}
+		for _, area in ipairs(Sites.homes()) do if (per[area] or 0) < T.sitesPerPlanet then homes[#homes + 1] = area end end
+		local wild = Sites.wildTemplates()
+		if #homes == 0 or #wild == 0 then break end
+		made = Sites.spawn(u, wild[random(#wild)], { home = homes[random(#homes)] }) or made
+	end
+	return made
 end
 
 function Sites.timeLeft(u, inst)

@@ -588,7 +588,7 @@ return function(game)
   local inst=Sites.spawn(gu,'wildcat_nest',{home='mars'})
   local crew=W.crew(gu,inst.id)
   assert(#crew>=3 and #crew<=5,'nest crew '..#crew)
-  assert(not inst.discovered,'a wild site opens hidden')
+  assert(inst.discovered,'a wild site opens off the driver')
   for _,r in ipairs(crew) do
    assert(r.garrison and r.wildcat and r.populationGroup=='wildcat','crew not posted')
    assert(r.ship and require('src.data').hulls[r.ship.hull],'crew hull')
@@ -632,8 +632,10 @@ return function(game)
   end
   local armor0=0;for _,c in ipairs(crew) do if c.state~='dead' then armor0=armor0+c.ship.armor end end
   local clock=gu.clock
-  for _=1,600 do
-   clock=clock+require('src.tuning').offlineCombatTick;gu.clock=clock
+  -- (long enough for a hunter to give up: T.hunterAssaultTime)
+  local TT=require('src.tuning')
+  for _=1,math.ceil(TT.hunterAssaultTime*1.5/TT.offlineCombatTick) do
+   clock=clock+TT.offlineCombatTick;gu.clock=clock
    W.tick(g,clock)
    if inst.done or #W.hunters(gu,inst.id)==0 then break end
   end
@@ -660,9 +662,14 @@ return function(game)
   end
   -- a site opens on its own
   assert(#Sites.homes()>0,'no planet can host a wildcat site')
-  gu.siteSpawnNext=gu.clock
+  -- a save with too few fills its share at once
+  gu.siteSpawnNext=nil
   local new=Sites.tick(g,gu.clock)
-  assert(new and Sites.template(new).wild and #W.crew(gu,new.id)>0,'no site opened on its own')
+  assert(not new or Sites.template(new).wild and #W.crew(gu,new.id)>0,'a site opened with no crew')
+  local open=0;for _,i in pairs(Sites.list(gu)) do if Sites.template(i).wild and not i.done then open=open+1 end end
+  assert(Sites.shortfall(gu)<=0 or open>=require('src.tuning').sitesMax or open>=#Sites.homes()*require('src.tuning').sitesPerPlanet,
+   'sites short of their share after the first look ('..Sites.shortfall(gu)..' wildcats short, '..open..' open)')
+  print(('ok  wildcats: %d sites open on the first look, %d wildcats short of the share'):format(open,math.max(0,Sites.shortfall(gu))))
   -- warp into a site mid-fight: hunters and crew come up as live ships and
   -- go at each other
   do

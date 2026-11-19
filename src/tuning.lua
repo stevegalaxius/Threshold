@@ -314,9 +314,12 @@ T.population = {
  hunter={minDelay=300,maxDelay=600},
 }
 -- Wildcat sites (src/sites.lua Sites.tick, src/wildcats.lua)
-T.siteSpawnFirst = 600        -- s into a new world before the first wildcat site may open
-T.siteSpawnEvery = 2700       -- s between tries to open one (give or take 30%)
-T.sitesPerPlanet, T.sitesMax = 1, 6
+-- Sized to the population: wildcat crews plus bounty hunters make up about
+-- T.siteShare of the living NPCs. Short of that, a site opens every
+-- T.siteSpawnEvery; a world (or save) with none gets its share at once.
+T.siteShare = 0.15
+T.siteSpawnEvery = 120        -- s between new sites while crews are short of their share
+T.sitesPerPlanet, T.sitesMax = 3, 16
 T.wildcatSortieEvery = 900    -- s between a posted wildcat's raids (give or take 40%)
 T.wildcatSortieTime = 900     -- s a wildcat raids before heading home empty-handed
 T.wildcatIdleHome = 120      -- s a wildcat out raiding waits with no raid to take before heading home
