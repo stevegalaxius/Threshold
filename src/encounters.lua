@@ -231,6 +231,7 @@ local function wreck(u,r,clock,killer)
  r.state='dead';r.ship.armor=0
  require('src.alife_trace').note(r,clock,'encounter','destroyed'..(killer and (' by '..killer) or ''))
  History.death(u,r,clock,r.area,killer)
+ require('src.wildcats').death(u,r,killer)
  u.alifeWrecks[r.id].historyWreckId=History.wreck(u,r,clock,r.area)
  Tasks.release(u,r,'destroyed',clock)
 end
@@ -289,6 +290,7 @@ function E.update(game,clock)
      local winner=loser==a and b or a
      if Access.civilian(loser) and Access.raiding(winner) then
       surrender(game,winner,loser)
+      if winner.wildcat then require('src.wildcats').harm(u,winner) end
       require('src.alife_trace').note(loser,clock,'encounter','broke, surrendered cargo to '..winner.id)
       require('src.alife_trace').note(winner,clock,'encounter','robbed '..loser.id..' -> heading home')
       E.finish(u,a,b,clock,nil,nil,'surrendered')

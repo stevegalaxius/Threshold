@@ -12,7 +12,8 @@
 	not authored derelicts or satellites. A wreck that broke into pieces is
 	paid once, when its last piece goes.
 
-	Saved state: u.wreckBounty = { owed = {[station]=credits}, cleared = {[station]=n} }
+	Saved state: u.wreckBounty = { owed = {[station]=credits}, cleared = {[station]=n},
+	  heads = {[station]=n} }   (heads: wildcat bounties, src/wildcats.lua, paid into the same tab)
 ]]
 local T=require('src.tuning')
 local L=require('src.locations')
@@ -109,9 +110,14 @@ function B.collect(game,station)
  if pay<=0 then return nil,'No bounty owed here' end
  if not require('src.quests').willOffer(u,station) then return nil,'This station will not pay you' end
  local n=s.cleared[station] or 0
+ local heads=s.heads and s.heads[station] or 0
  if not require('src.accounts').canPay(u,station,pay) then return nil,'The station can\'t pay its bounties right now' end
  require('src.accounts').pay(u,station,pay,'bounty')
  u.credits=u.credits+pay;s.owed[station]=nil;s.cleared[station]=nil
- return true,('Bounty collected: %d CR for %d wreck%s'):format(pay,n,n==1 and '' or 's')
+ if s.heads then s.heads[station]=nil end
+ local parts={}
+ if n>0 then parts[#parts+1]=('%d wreck%s'):format(n,n==1 and '' or 's') end
+ if heads>0 then parts[#parts+1]=('%d wildcat%s'):format(heads,heads==1 and '' or 's') end
+ return true,('Bounty collected: %d CR for %s'):format(pay,table.concat(parts,' and '))
 end
 return B

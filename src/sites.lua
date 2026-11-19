@@ -62,9 +62,22 @@ function Sites.unregister(inst)
 	for n = 1, def and #def.pockets or 0 do Fields[Sites.fieldId(inst.id, n)] = nil end
 end
 
--- Put every saved site's fields back (after loading a save).
+-- Put every saved site's fields back (after loading a save). Sites from
+-- before wildcat crews (no inst.crew) close: their garrisons are gone.
 function Sites.restore(u)
 	for _, inst in pairs(Sites.list(u)) do Sites.register(inst) end
+	for _, inst in pairs(Sites.list(u)) do
+		if not inst.crew and Sites.hasCrew(inst) then Sites.close(u, inst) end
+	end
+end
+
+-- Does a template put a crew in it (any enemies piece)?
+function Sites.hasCrew(inst)
+	local def = Sites.template(type(inst) == "table" and inst or { template = inst })
+	for _, pk in ipairs(def and def.pockets or {}) do
+		for _, pc in ipairs(pk.pieces or {}) do if pc.type == "enemies" then return true end end
+	end
+	return false
 end
 
 -- A new site from template `templateId`. opts: home, lifetime, discovered.
@@ -79,15 +92,17 @@ function Sites.spawn(u, templateId, opts)
 	local life = opts.lifetime or def.lifetime
 	local inst = { id = id, template = templateId, home = home, bearing = random() * pi * 2,
 		spawned = u.clock or 0, expires = life and (u.clock or 0) + life or nil,
-		discovered = opts.discovered or not def.hidden, pockets = {} }
+		discovered = opts.discovered or not def.hidden, pockets = {}, hoard = {} }
 	Sites.list(u)[id] = inst
 	Sites.register(inst)
+	-- its wildcat crew, rolled once (src/wildcats.lua)
+	require("src.wildcats").roll(u, inst)
 	return inst
 end
 
 -- Close a site: its fields and saved pockets go.
 function Sites.close(u, inst, game)
-	if game then require("src.garrison").disband(game, inst.id, "site closed") end
+	require("src.wildcats").disband(u, inst.id, game)
 	Sites.unregister(inst)
 	for n = 1, #(Sites.template(inst) or { pockets = {} }).pockets do
 		if u.areas then u.areas[Sites.fieldId(inst.id, n)] = nil end
@@ -95,13 +110,56 @@ function Sites.close(u, inst, game)
 	Sites.list(u)[inst.id] = nil
 end
 
--- Close expired sites, except the one you're in (it closes once you leave).
-function Sites.prune(u, here)
+-- Close expired and finished sites, except the one you're in (it closes
+-- once you leave).
+function Sites.prune(u, here, game)
 	local inside = Sites.of(here)
 	for id, inst in pairs(Sites.list(u)) do
 		local gone = not Sites.template(inst) or (inst.expires and (u.clock or 0) >= inst.expires) or inst.done
-		if gone and id ~= inside then Sites.close(u, inst) end
+		if gone and id ~= inside then Sites.close(u, inst, game) end
 	end
+end
+
+-- Wildcat sites come and go on their own (src/wildcats.lua): every
+-- T.siteSpawnEvery one may open near a planet with traffic and a station
+-- to pay for it, up to T.sitesPerPlanet each and T.sitesMax in all. They
+-- open hidden: a bounty puts them on the driver.
+function Sites.wildTemplates()
+	local out = {}
+	for _, id in ipairs(data.list.sites) do if data.sites[id].wild then out[#out + 1] = id end end
+	return out
+end
+function Sites.homes()
+	local out = {}
+	local Dark = require("src.dark")
+	for _, area in ipairs(Fields.list) do
+		local f = Fields[area]
+		if Fields.orbits[area] and not Dark.isDarkArea(area) and f.driverId and f.alifeSecurity
+			and require("src.wreck_bounty").payer(area) then out[#out + 1] = area end
+	end
+	return out
+end
+function Sites.tick(game, clock)
+	local u = game.universe
+	if game.preview or game.sideScene then return end
+	if clock >= (u.sitePruneNext or 0) then
+		u.sitePruneNext = clock + 30
+		Sites.prune(u, game.fieldId, game)
+	end
+	if not u.siteSpawnNext then u.siteSpawnNext = clock + T.siteSpawnFirst; return end
+	if clock < u.siteSpawnNext then return end
+	u.siteSpawnNext = clock + T.siteSpawnEvery * (0.7 + 0.6 * random())
+	local open, per = 0, {}
+	for _, inst in pairs(Sites.list(u)) do
+		local def = Sites.template(inst)
+		if def and def.wild and not inst.done then open = open + 1; per[inst.home] = (per[inst.home] or 0) + 1 end
+	end
+	if open >= T.sitesMax then return end
+	local homes = {}
+	for _, area in ipairs(Sites.homes()) do if (per[area] or 0) < T.sitesPerPlanet then homes[#homes + 1] = area end end
+	local wild = Sites.wildTemplates()
+	if #homes == 0 or #wild == 0 then return end
+	return Sites.spawn(u, wild[random(#wild)], { home = homes[random(#homes)] })
 end
 
 function Sites.timeLeft(u, inst)
@@ -205,20 +263,14 @@ function builders.station(game, pc, ctx)
 	if pc.name then st.name = pc.name end
 end
 
--- Site enemies are real A-Life NPCs (src/garrison.lua): the pocket keeps
--- whoever survived your last visit and tops each group back up with new
--- recruits, and they come online through A-Life like any other NPC.
+-- Site enemies are the site's wildcat crew (src/wildcats.lua), rolled
+-- when it spawned: whoever is at their posts in this pocket comes online
+-- through A-Life like any other NPC. Nobody new is placed here.
 function builders.enemies(game, pc, ctx)
-	if ctx.state.cleared then return end
-	local function place()
-		local x, y
-		for _ = 1, 20 do
-			x, y = around(pc, game)
-			if game:isClear(x, y, 150) then break end
-		end
-		return x, y
+	if ctx.n and not ctx.settled then
+		ctx.settled = true
+		require("src.wildcats").settle(game, ctx.inst, ctx.n)
 	end
-	require("src.garrison").muster(game, ctx.inst, ctx.n, pc, place)
 end
 
 function builders.containers(game, pc, ctx)
@@ -375,6 +427,28 @@ function Game:findGate(gate)
 	end
 end
 
+-- The site's hoard, in cargo containers round the middle of this pocket.
+function Game:dropHoard(inst)
+	local left = {}
+	for id, n in pairs(inst.hoard or {}) do if n > 0 then left[id] = n end end
+	inst.hoard = {}
+	for _ = 1, 12 do
+		if not next(left) then break end
+		local x, y
+		for _ = 1, 20 do
+			local a, d = random() * pi * 2, 600 + random() * 1800
+			x, y = cos(a) * d, sin(a) * d
+			if self:isClear(x, y, 200) then break end
+		end
+		local e = self:spawnContainer(x, y, "cargo_container", false)
+		local before = {}
+		for id, n in pairs(left) do before[id] = n end
+		left = require("src.inventory.hold").fill(e.hold, before, { random = random })
+		e.loot = require("src.inventory.hold").totals(e.hold)
+		self:containerMass(e)
+	end
+end
+
 -- Into a site's first pocket, fired off a mass driver on `bearing` (else
 -- straight there: the debug warp).
 function Game:enterSite(instId, bearing)
@@ -402,7 +476,7 @@ function Game:updateSites(dt)
 	if not siteId then
 		if not self.field.transit and self.sitesPrunedIn ~= self.fieldId then
 			self.sitesPrunedIn = self.fieldId
-			Sites.prune(self.universe, self.fieldId)
+			Sites.prune(self.universe, self.fieldId, self)
 		end
 		return
 	end
@@ -412,7 +486,7 @@ function Game:updateSites(dt)
 	local state = inst.pockets[n] or {}
 	inst.pockets[n] = state
 	if not state.cleared then
-		local left = require("src.garrison").held(self.universe, self.fieldId)
+		local left = require("src.wildcats").held(self.universe, self.fieldId)
 		for _, e in ipairs(self.entities) do
 			if left then break end
 			if e.kind == "ship" and e.siteEnemy and not e.dead and not e.removed then left = true end
@@ -420,6 +494,12 @@ function Game:updateSites(dt)
 		if not left then
 			state.cleared = true
 			self:toast("POCKET CLEAR", 1.6)
+			-- the last of the crew died here: the hoard is yours
+			if inst.crew and not inst.done and require("src.wildcats").posted(self.universe, siteId) == 0 then
+				self:dropHoard(inst)
+				require("src.wildcats").cleared(self, self.universe, inst, "player")
+				self:toast("SITE CLEARED", 2.5)
+			end
 		end
 	end
 

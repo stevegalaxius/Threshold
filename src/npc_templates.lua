@@ -2,7 +2,7 @@
 -- $owner and $area are resolved from the spawn location, without faction cases.
 --
 -- Every NPC has two fixed fields, set once at spawn and kept for life:
---   job      what it does: hauler, miner, raider or guard
+--   job      what it does: hauler, miner, raider, guard or hunter
 --   network  which economy it lives in: 'white' (the public market) or
 --            'dark' (the pirate shadow economy around dark grids)
 -- A smuggler is a dark hauler, a pirate a dark raider; no extra roles.
@@ -21,6 +21,12 @@ local Templates={
   fleets={estates={'estates_whisper','estates_rapier','estates_bastion'},diwan={'diwan_cherubim','diwan_seraph'}}},label='Faction Police',profile='local_police',homePurpose='trade',affiliation='$owner',
   authorizations={{kind='police',issuer='$owner',jurisdiction='$area'}}},
  pirate={job='raider',network='dark',purchase={role='pirate',budget=150000,requires={armed=true}},label='Raider',profile='raider',homePurpose='pirateBase',roamingHome=true},
+ -- Wildcats: the crews of instanced sites (src/wildcats.lua). Raiders on
+ -- the dark network, but no population: a site rolls its crew once.
+ wildcat={job='raider',network='dark',purchase={role='pirate',budget=150000,requires={armed=true}},label='Wildcat',profile='raider',homePurpose='pirateBase',roamingHome=true},
+ -- Bounty hunters: armed freelancers who take site bounties off the
+ -- board, and sweep wrecks when there are none (src/wildcats.lua).
+ hunter={job='hunter',network='white',purchase={role='patrol',budget=200000,requires={armed=true}},label='Bounty Hunter',profile='bounty_hunter',homePurpose='trade',mobile=true},
 }
 -- Faction couriers: the faction's own errand runners. Same service hulls
 -- and colours as its police, but ordinary freight work, so police never
@@ -30,7 +36,7 @@ Templates.courier={job='hauler',network='white',purchase={role='hauler',budget=3
 -- A hauler bought for ship delivery: any hull with berths (src/berths.lua),
 -- and a temperament for moving ships. Same population, same label.
 Templates.berthPurchase={role='hauler',budget=400000,requires={berths=true}}
-Templates.JOBS={hauler=true,miner=true,raider=true,guard=true}
+Templates.JOBS={hauler=true,miner=true,raider=true,guard=true,hunter=true}
 Templates.NETWORKS={white=true,dark=true}
 -- Older saves: the retired salvager group becomes a scavenging hauler.
 Templates.RETIRED={salvager={group='hauler',profile='scavenger'},

@@ -40,6 +40,27 @@ end
 -- Who an AI ship fights: enemies go for the player; drones go for the
 -- nearest ship on another team.
 local function pickTarget(game, e, x, y)
+	-- Inside a site: wildcats at their posts fight the player and any
+	-- bounty hunters in the pocket; hunters fight the wildcats (src/wildcats.lua).
+	if e.siteEnemy or e.siteHunter then
+		local best, bestD = nil, math.huge
+		for _, o in ipairs(game.entities) do
+			if o ~= e and o.kind == "ship" and not o.dead and not o.removed and not o.dockState then
+				local foe
+				if e.siteHunter then foe = o.siteEnemy else foe = o.siteHunter or o.isPlayer end
+				if foe then
+					local ox, oy = o.body:getPosition()
+					local d = (ox - x) ^ 2 + (oy - y) ^ 2
+					if d < bestD then best, bestD = o, d end
+				end
+			end
+		end
+		if not best then return nil end
+		if e.siteEnemy and not e.aggro then
+			if bestD < T.aggroRange ^ 2 or e.lastHitTime then e.aggro = true else return nil end
+		end
+		return best
+	end
 	if not e.drone then
 		local p = game.player
 		if not p or p.dead or p.dockState then return nil end
@@ -568,7 +589,7 @@ function AI.think(game, e, dt)
 	it.thrust, it.strafe = 0, 0
 	local record=e.alifeId and game.universe.npcs[e.alifeId]
 	-- a site garrison fights like the enemy it flies as, until its duty ends
-	if record and record.garrison then record=nil end
+	if record and (record.garrison or record.assault) then record=nil end
  if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
   local x,y=e.body:getPosition();local a=e.body:getAngle()
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100

@@ -230,6 +230,7 @@ function Rep.shipKilled(u, r, area)
 		local witnessed = seen(f, area)
 		if witnessed then Rep.addStanding(u, f, Rep.T.standingPerKill) end
 		if area then require("src.news").deed(u, { faction = f, delta = Rep.T.standingPerKill, area = area, witnessed = witnessed }) end
+	elseif r and r.wildcat then Rep.addStanding(u, Rep.ofArea(r.home), Rep.T.standingPirateKill)
 	elseif r and (r.deathOutlaw or require("src.npc_access").raiding(r)) then Rep.addStanding(u, Rep.ofArea(area), Rep.T.standingPirateKill) end
 end
 

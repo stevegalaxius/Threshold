@@ -97,6 +97,8 @@ function P.unload(u,r)
 end
 function P.returnRecord(game,r)
  if r.piracy then return true end
+ -- a wildcat takes its loot back to its site (src/wildcats.lua)
+ if r.wildcat then return require('src.wildcats').goHome(game,r,'loot') end
  local A=require('src.alife')
  if r.encounter then require('src.encounters').finish(game.universe,r,game.universe.npcs[r.encounter.target],game.universe.clock,r) end
  local base=Homes.get(r)
@@ -140,12 +142,15 @@ local function next(c)
   end
   P.unload(u,r)
   Supplies.refill(r,base)
+  if r.wildcat then require('src.wildcats').atFence(u,r,base) end
   local path=G.live(base,duty.origin,clock)
   if path and #path>1 then
    duty.phase='redeploy';r.taskStatus='returning to hunting grounds'
    return {route=path}
   end
  end
+ -- a wildcat's fence run is over: back to its site
+ if r.wildcat and r.wildcat.fencing then return require('src.wildcats').fenced(c) end
  -- Back where it set out (or no way back): rejoin the raid network.
  local area=L.get(c.node).area
  local rally=L.rally(area,c.node,clock)
