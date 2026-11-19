@@ -3,6 +3,22 @@
 -- prints one line of economy numbers per game hour, then a closing table
 -- of how each good's stock moved. Read it for drift: money piling up or
 -- draining, stock running to zero or to the cap, idle ships, broke stations.
+--   SOAK_NEWS=0         run with the news off (no stories, no price nudges),
+--                       to compare against a run with it on
+--   SOAK_NEWS_PLAYER=1  a scripted player: a faction ship killed out of
+--                       sight every 3 h, and 40 units sold into a running
+--                       shortage story every hour, to watch standing move
+--   SOAK_FAST=1         no physics: every ship goes off-screen and A-Life
+--                       advances the records by clock (every SOAK_STEP
+--                       seconds, default 2, as off-screen ships are in
+--                       play), with the minute chores (drills, arrivals,
+--                       the economy, quests, news) run as A-Life runs them.
+--                       Nothing happens on the parked map itself.
+--   SOAK_PROFILE=1      sample where the time goes (LuaJIT's profiler) and
+--                       print the top functions and call sites at the end
+-- With the news on, each hour also prints a news line: stories by outlet
+-- and kind, price nudges and how many sit at the cap, reported standing,
+-- outlet standing, the saved size and News.update timing.
 return function(game)
  local Fields=require('src.fields')
  local L=require('src.locations')
@@ -89,16 +105,124 @@ return function(game)
   local gg={} for k,v in pairs(byG) do gg[#gg+1]=k..'='..math.floor(v) end table.sort(gg)
   say('    npc credits: '..table.concat(gg,' ')..(' | ships lost %d'):format(u.shipsLost or 0))
  end
+ -- the news: off, or measured
+ local News,Rep,Markets=require('src.news'),require('src.reputation'),require('src.markets')
+ local newsOn=os.getenv('SOAK_NEWS')~='0'
+ local scripted=newsOn and os.getenv('SOAK_NEWS_PLAYER')=='1'
+ local realUpdate=News.update
+ local nt={time=0,max=0,calls=0}
+ if newsOn then
+  News.update=function(...)
+   local t0=love.timer.getTime();realUpdate(...)
+   local d=love.timer.getTime()-t0;nt.time=nt.time+d;nt.max=math.max(nt.max,d);nt.calls=nt.calls+1
+  end
+ else
+  News.update=function() end;News.factor=function() return 1 end
+ end
+ local rng=love.math.newRandomGenerator(99)
+ local deedAreas={'belt','mars','earth','saturn','jupiter','milliways','venus','titan'}
+ local function newsMinute(h,m)
+  if not scripted then return end
+  if m==30 and h%3==0 then
+   local area=deedAreas[1+math.floor(rng:random()*#deedAreas)]
+   Rep.shipKilled(u,{affiliation=({'estates','zhuhai','diwan','jove'})[1+math.floor(rng:random()*4)]},area)
+  end
+  if m==45 then
+   local list=News.find(u,{kind='shortage',within=1800},5)
+   local st=list[1+math.floor(rng:random()*math.max(1,#list))]
+   if st and st.station then News.onTrade(u,st.station,{[st.good]=40}) end
+  end
+ end
+ local function kv(t) local o={} for k,v in pairs(t) do o[#o+1]=k..'='..v end table.sort(o) return table.concat(o,' ') end
+ local function newsSample(h)
+  if not newsOn then return end
+  local s=News.state(u);local since=u.clock-3600
+  local byO,byK,second,mine,named,total={},{},0,0,0,0
+  for i=#s.stories,1,-1 do
+   local st=s.stories[i];if st.clock<=since then break end
+   total=total+1;byO[st.outlet]=(byO[st.outlet] or 0)+1;byK[st.kind]=(byK[st.kind] or 0)+1
+   if st.secondhand then second=second+1 end
+   if st.subject=='player' then mine=mine+1;if st.named then named=named+1 end end
+  end
+  local tick,wire={},0
+  for _,x in ipairs(News.order) do local n=0 for _,l in pairs(News.tickerOf(u,x).lines) do n=n+1;if l.wire then wire=wire+1 end end tick[x]=n end
+  local nudged,capped=0,0
+  for _,key in ipairs(stations) do for _,item in ipairs(Markets.products) do
+   local f=News.factor(u,key,item)
+   if f~=1 then nudged=nudged+1;if math.abs(f-1)>=News.T.nudgeCap-.005 then capped=capped+1 end end
+  end end
+  say('    ticker lines: '..kv(tick)..(' (wire %d)'):format(wire))
+  say(('    news: headlines %d [%s] [%s] copies %d about-you %d named %d | nudged %d capped %d | kept %d save %dB | update %.2f ms mean %.1f worst')
+   :format(total,kv(byO),kv(byK),second,mine,named,nudged,capped,#s.stories,#require('src.save').encode(u.news or {}),
+   1000*nt.time/math.max(1,nt.calls),1000*nt.max))
+  -- this hour's deaths, as the papers see them: area, killer, faction,
+  -- and which outlets cover that area
+  local dd={}
+  for _,e in ipairs(News.state(u).deaths or {}) do if e.clock>since then
+   local cov={} for _,x in ipairs(News.order) do if News.covers(x,e.area) then cov[#cov+1]=x end end
+   local r=e.result or {}
+   dd[#dd+1]=('%s killer=%s faction=%s covered=%s'):format(tostring(e.area),tostring(r.killer),tostring(r.faction),#cov>0 and table.concat(cov,',') or 'none')
+  end end
+  if #dd>0 then say('    deaths: '..table.concat(dd,' | ')) end
+  local o={} for _,f in ipairs(Rep.ORDER) do o[#o+1]=('%s %.0f/%.0f'):format(f,Rep.witnessed(u,f),Rep.reported(u,f)) end
+  local q={} for _,x in ipairs(News.order) do q[#q+1]=('%s %.0f'):format(x,News.standing(u,x)) end
+  say('    standing (witnessed/reported): '..table.concat(o,' ')..' | outlets: '..table.concat(q,' '))
+  nt.time,nt.max,nt.calls=0,0,0
+ end
+ -- the profiler: counts samples by function and by a short call stack
+ local prof
+ if os.getenv('SOAK_PROFILE') then
+  local P=require('jit.profile')
+  prof={fn={},stack={},n=0,P=P}
+  P.start('fi2',function(th,samples,vmstate)
+   prof.n=prof.n+samples
+   local f=P.dumpstack(th,'pl',1);prof.fn[f]=(prof.fn[f] or 0)+samples
+   local st=P.dumpstack(th,'pl;',-6);prof.stack[st]=(prof.stack[st] or 0)+samples
+  end)
+ end
+ -- the fast mode: the records only, by clock
+ local fast=os.getenv('SOAK_FAST')=='1'
+ local fstep=tonumber(os.getenv('SOAK_STEP') or '') or 2
+ local Encounters,Squads,History=require('src.encounters'),require('src.squads'),require('src.simulation_history')
+ local Director,Sats,Stalls,Rent=require('src.director'),require('src.satellites'),require('src.stalls'),require('src.berth_rent')
+ if fast then game:captureALife(true);game.alifeOnline={} end
+ -- where the fast mode's time goes, by part (stage1 drills, stage2
+ -- arrivals, stage3 the board and arbiter, stage4 economy, quests, news)
+ local ft={visits=0,encounters=0,history=0,background=0}
+ local function fastMinute()
+  local base=u.clock;local clk=os.clock;local t
+  for c=base+fstep,base+60,fstep do
+   u.clock=c
+   t=clk();for id,r in pairs(u.npcs or {}) do game:alifeVisit(id,r,c,nil,nil,true,true) end;ft.visits=ft.visits+clk()-t
+   t=clk();Encounters.update(game,c);Squads.update(game,c);ft.encounters=ft.encounters+clk()-t
+   t=clk();History.update(game);ft.history=ft.history+clk()-t
+  end
+  u.clock=base+60
+  game.alifeStage=1
+  while game.alifeStage and game.alifeStage<=4 do
+   local st=game.alifeStage;t=clk();game:alifeChore(u.clock,true);ft['stage'..st]=(ft['stage'..st] or 0)+clk()-t
+  end
+  game.alifeStage=nil
+  t=clk();Director.update(u);Sats.tick(u);Stalls.tick(u,game);Rent.tick(u,game);ft.background=ft.background+clk()-t
+ end
  local first=stockTotals()
  local made0=require('src.persistence').copy(u.economyStats or {})
  local t0=os.clock()
  local steps=math.floor(3600/dt)
- say(('soak: %d h at dt=%.4f on %s, %d trade stations'):format(hours,dt,game.fieldId,#stations))
+ say(('soak: %d h at dt=%.4f on %s, %d trade stations, news %s%s'):format(hours,dt,game.fieldId,#stations,newsOn and (scripted and 'on, scripted player' or 'on') or 'off',fast and (', FAST (no physics, records every %gs)'):format(fstep) or ''))
  sample(0,0)
  for h=1,hours do
-  local ok,err=xpcall(function() for _=1,steps do game:step(dt) end end,debug.traceback)
+  local per=math.floor(steps/60)
+  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else for _=1,per do game:step(dt) end end newsMinute(h,m) end end,debug.traceback)
   if not ok then say('CRASH in hour '..h..': '..tostring(err));break end
   sample(h,os.clock()-t0)
+  newsSample(h)
+  if fast then
+   local o={} for k,v in pairs(ft) do o[#o+1]={k,v} end table.sort(o,function(a,b) return a[2]>b[2] end)
+   local q={} for i,x in ipairs(o) do q[i]=('%s %.1fs'):format(x[1],x[2]) end
+   say('    fast time: '..table.concat(q,' '))
+   for k in pairs(ft) do ft[k]=0 end
+  end
  end
  local last=stockTotals()
  local items={} for k in pairs(data.items) do if (first[k] or 0)>0 or (last[k] or 0)>0 then items[#items+1]=k end end
@@ -125,6 +249,15 @@ return function(game)
   fuelSpent=fuelSpent+(r.fuelSpent or 0);supplies=supplies+(r.suppliesSpent or 0)
  end
  say(('npc earnings %.0f, fuel bought %.0f (%.0f%%), all supplies %.0f'):format(earned,fuelSpent,earned>0 and 100*fuelSpent/earned or 0,supplies))
+ if prof then
+  prof.P.stop()
+  local function top(t,k)
+   local a={} for x,v in pairs(t) do a[#a+1]={x,v} end table.sort(a,function(p,q) return p[2]>q[2] end)
+   for i=1,math.min(k,#a) do say(('  %5.1f%%  %s'):format(100*a[i][2]/math.max(1,prof.n),a[i][1])) end
+  end
+  say(('profile: %d samples; top functions'):format(prof.n));top(prof.fn,40)
+  say('top call stacks (innermost last)');top(prof.stack,30)
+ end
  if os.getenv('SOAK_SAVE') then require('src.save').write(os.getenv('SOAK_SAVE'),game:saveState());say('saved '..os.getenv('SOAK_SAVE')) end
  if fh then fh:close() end
 end

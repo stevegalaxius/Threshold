@@ -219,15 +219,18 @@ local function coveringStation(a,b,clock)
  return node,node and E.stationDps(node) or 0
 end
 E.coveringStation=coveringStation
-local function wreck(u,r,clock)
+-- killer: who did it, when the fight is already over (a scuttle, a ship
+-- caught breaking off); otherwise the fight's other side.
+local function wreck(u,r,clock,killer)
  local fight=r.encounter
+ killer=killer or fight and fight.target
  u.alifeWrecks=u.alifeWrecks or {}
  u.alifeWrecks[r.id]={id=r.id,label=r.label,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
   progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
   ship=copy(r.ship),archetype=r.archetype,aiProfile=r.aiProfile}
  r.state='dead';r.ship.armor=0
- require('src.alife_trace').note(r,clock,'encounter','destroyed'..(fight and (' by '..fight.target) or ''))
- History.death(u,r,clock,r.area,fight and fight.target)
+ require('src.alife_trace').note(r,clock,'encounter','destroyed'..(killer and (' by '..killer) or ''))
+ History.death(u,r,clock,r.area,killer)
  u.alifeWrecks[r.id].historyWreckId=History.wreck(u,r,clock,r.area)
  Tasks.release(u,r,'destroyed',clock)
 end
@@ -292,12 +295,12 @@ function E.update(game,clock)
       loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
       require('src.piracy').returnRecord(game,winner)
       -- some raiders leave no witnesses: the robbed ship is lost
-      if random(fight)<T.pirateScuttleChance then wreck(u,loser,clock) end
+      if random(fight)<T.pirateScuttleChance then wreck(u,loser,clock,winner.id) end
      else
       E.finish(u,a,b,clock,loser)
       require('src.alife_trace').note(loser,clock,'encounter','broke off vs '..winner.id)
       -- a broken ship doesn't always get away
-      if random(fight)<T.offlineBreakKill then wreck(u,loser,clock) end
+      if random(fight)<T.offlineBreakKill then wreck(u,loser,clock,winner.id) end
      end
     end
    end

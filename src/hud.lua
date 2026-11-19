@@ -88,6 +88,7 @@ local function drawStatus(game)
 	local lines = weaponLines(p)
 	local ph = 130 + #lines * 18
 	local x, y, pw = 16, h - ph - 16, 330
+	HUD.statusTop = y
 	panel(x, y, pw, ph)
 
 	local s = p.stats
@@ -749,7 +750,9 @@ function HUD.draw(game, aimX, aimY, uiOpen)
 	drawTopBar(game)
 	drawDeath(game)
 	if uiOpen then return end            -- the cargo screen covers the rest; main draws toasts on top of it
+	HUD.statusTop = nil
 	drawStatus(game)
+	require("src.notify").draw(game, (HUD.statusTop or lg.getHeight() - 16) - 10)
 	drawCast(game)
 	drawHelp()
 	drawToasts(game)

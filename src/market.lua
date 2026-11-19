@@ -385,6 +385,9 @@ function Game:completeTrade(st, trade)
 	local Accounts = require('src.accounts')
 	if pay > get then Accounts.receive(u, Stock.key(st), pay - get, 'sold') else Accounts.pay(u, Stock.key(st), get - pay, 'bought') end
 	p.cargo = Hold.totals(p.hold)
+	local sold = {}
+	for _, s in ipairs(selling) do if not ShipEntry.item(s.id) then sold[s.id] = (sold[s.id] or 0) + s.n end end
+	events.emit("trade", st, sold)
 	Ship.updateMass(p)
  for rec in pairs(plan.sold) do events.emit("sellship",rec,st) end
  for _,rec in ipairs(records) do events.emit("buyship",rec,st) end

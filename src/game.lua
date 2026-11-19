@@ -69,7 +69,7 @@ function Game.new(opts)
 	self.trip = opts.trip
 
 	self:loadField(opts.field or Fields.start)
-	if not opts.preview then require("src.reputation").listen(self) end
+	if not opts.preview then require("src.reputation").listen(self); require("src.news").listen(self) end
 	return self
 end
 
@@ -2389,7 +2389,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e and source and source.isPlayer and amount > 0 and cause ~= "ram" and e ~= source then
 		local Rep = require("src.reputation")
 		if e.kind == "station" and e.weapons then Rep.stationHit(self.universe, e.key or e.locationId)
-		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId]) end
+		elseif e.kind == "ship" and e.alifeId then Rep.shipHit(self.universe, self.universe.npcs[e.alifeId], self.fieldId) end
 	end
 	-- remember who starts shooting at other ships (stations answer it)
 	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
@@ -3246,6 +3246,7 @@ function Game:frame(dt, aimX, aimY)
 		t.t = t.t + dt
 		if t.t >= t.life then table.remove(self.toasts, j) end
 	end
+	require("src.notify").update(dt)
 	self:followCamera(dt, aimX, aimY)
 end
 

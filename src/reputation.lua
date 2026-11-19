@@ -8,6 +8,12 @@
 	  heat      per node      u.reputation.heat[nodeId]   (local, stays put)
 	  goodwill  per NPC       record.goodwill
 
+	Standing has two parts. What a faction saw for itself (in its own
+	space) is counted straight away. What it only read about comes in
+	through the news (src/news.lua) as reported standing: a separate,
+	faster-fading number, rate-capped per hour, that can never push a
+	faction past Wary on its own. Rep.standing is the sum.
+
 	What an NPC (or a station) thinks of the player is
 	    goodwill + standing(its faction) - heat(its node)
 	read through Rep.attitude, and turned into a tier by Rep.tier.
@@ -65,6 +71,9 @@ Rep.T = {
 	standingPerKill = -15,  -- killing one of its patrols
 	standingPirateKill = 3, -- killing a pirate in its space
 	goodwillPerHit = -20,   -- the ship you shot
+	reportedDecay = 1.5,    -- what you read of someone fades a little slower than what you saw
+	reportedFloor = -49,    -- reports alone stop short of Hostile
+	reportedCap = 10,       -- most reported standing can move per hour, per faction
 }
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
@@ -73,6 +82,7 @@ local function store(u)
 	u.reputation = u.reputation or { standing = {}, heat = {} }
 	local s = u.reputation
 	s.standing, s.heat = s.standing or {}, s.heat or {}
+	s.reported, s.drift = s.reported or {}, s.drift or {}
 	return s
 end
 
@@ -110,9 +120,19 @@ function Rep.ofRecord(r) return r and r.affiliation or nil end
 
 ---------------------------------------------------------------- reads
 
-function Rep.standing(u, f)
+-- What the faction saw itself.
+function Rep.witnessed(u, f)
 	if not f then return 0 end
 	return now(store(u).standing[f], Rep.T.standingDecay, u.clock or 0)
+end
+-- What it read in the news.
+function Rep.reported(u, f)
+	if not f then return 0 end
+	return now(store(u).reported[f], Rep.T.reportedDecay, u.clock or 0)
+end
+function Rep.standing(u, f)
+	if not f then return 0 end
+	return clamp(Rep.witnessed(u, f) + Rep.reported(u, f), -100, 100)
 end
 function Rep.heat(u, nodeId)
 	if not nodeId then return 0 end
@@ -151,6 +171,27 @@ function Rep.addStanding(u, f, by)
 	local s = store(u)
 	s.standing[f] = bump(s.standing[f], Rep.T.standingDecay, u.clock or 0, by, -100, 100)
 end
+-- A story reached faction f (src/news.lua). Capped per hour, and never
+-- pushes the total under reportedFloor by itself. Returns what landed.
+function Rep.addReported(u, f, by, storyId)
+	if not f or not Rep.FACTIONS[f] or by == 0 then return 0 end
+	local s, clock = store(u), u.clock or 0
+	local hour = math.floor(clock / 3600)
+	local d = s.drift[f]
+	if not d or d.hour ~= hour then d = { hour = hour, n = 0 }; s.drift[f] = d end
+	local room = Rep.T.reportedCap - d.n
+	if room <= 0 then return 0 end
+	by = clamp(by, -room, room)
+	local w, r = Rep.witnessed(u, f), Rep.reported(u, f)
+	if by < 0 then
+		local lowest = math.min(r, Rep.T.reportedFloor - w)  -- never deeper than it already is
+		by = math.max(by, lowest - r)
+		if by >= 0 then return 0 end
+	end
+	d.n = d.n + math.abs(by)
+	s.reported[f] = { v = clamp(r + by, -100, 100), t = clock, story = storyId }
+	return by
+end
 function Rep.addHeat(u, nodeId, by)
 	if not nodeId or by == 0 then return end
 	local s = store(u)
@@ -166,15 +207,29 @@ function Rep.stationHit(u, nodeId)
 	Rep.addHeat(u, nodeId, Rep.T.heatPerHit)
 	Rep.addStanding(u, Rep.ofNode(nodeId), Rep.T.standingPerHit)
 end
--- The player shot an NPC (record r, at node or area).
-function Rep.shipHit(u, r)
+-- A faction watches its own space: what happens there it sees. Anywhere
+-- else it only hears about it if the news prints it (src/news.lua).
+local function seen(f, area) return area ~= nil and Rep.ofArea(area) == f end
+-- The player shot an NPC (record r) in area.
+function Rep.shipHit(u, r, area)
 	Rep.addGoodwill(u, r, Rep.T.goodwillPerHit)
-	Rep.addStanding(u, Rep.ofRecord(r), Rep.T.standingPerHit)
+	local f = Rep.ofRecord(r)
+	if not f then return end
+	if area == nil or seen(f, area) then Rep.addStanding(u, f, Rep.T.standingPerHit)
+	elseif r and not r.newsHit then
+		-- out of its sight: a deed the papers may pick up, once per ship
+		r.newsHit = true
+		local News = require("src.news")
+		News.deed(u, { faction = f, delta = News.T.hitDelta, area = area, kind = "hit", witnessed = false })
+	end
 end
 -- The player killed an NPC; area is where it happened.
 function Rep.shipKilled(u, r, area)
 	local f = Rep.ofRecord(r)
-	if f then Rep.addStanding(u, f, Rep.T.standingPerKill)
+	if f then
+		local witnessed = seen(f, area)
+		if witnessed then Rep.addStanding(u, f, Rep.T.standingPerKill) end
+		if area then require("src.news").deed(u, { faction = f, delta = Rep.T.standingPerKill, area = area, witnessed = witnessed }) end
 	elseif r and (r.deathOutlaw or require("src.npc_access").raiding(r)) then Rep.addStanding(u, Rep.ofArea(area), Rep.T.standingPirateKill) end
 end
 
@@ -187,7 +242,9 @@ function Rep.onOutcome(u, e)
 	if e.kind == "rescued" and e.result and e.result.rescuer == "player" then
 		local victim = u.npcs and u.npcs[e.participants[1]]
 		Rep.addGoodwill(u, victim, Rep.T.goodwillRescue)
-		Rep.addStanding(u, e.node and Rep.ofNode(e.node) or Rep.ofArea(e.area), Rep.T.standingRescue)
+		local f = e.node and Rep.ofNode(e.node) or Rep.ofArea(e.area)
+		Rep.addStanding(u, f, Rep.T.standingRescue)
+		require("src.news").addStanding(u, require("src.news").ofFaction(f), 3)
 	end
 end
 -- Hook the listener once per game (the universe can be swapped on load).
@@ -211,7 +268,7 @@ function Rep.summary(u)
 	local out = {}
 	for _, f in ipairs(Rep.ORDER) do
 		local v = Rep.standing(u, f)
-		out[#out + 1] = { id = f, name = Rep.FACTIONS[f].name, major = Rep.FACTIONS[f].major, value = v, tier = Rep.tierName(v) }
+		out[#out + 1] = { id = f, name = Rep.FACTIONS[f].name, major = Rep.FACTIONS[f].major, value = v, tier = Rep.tierName(v), reported = Rep.reported(u, f) }
 	end
 	return out
 end
