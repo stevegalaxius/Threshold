@@ -48,9 +48,9 @@ N.T={
  secondhandDelay=1200,-- a copied story prints this long after the original
  secondhandOdds=.5,
  perTick=1,           -- price stories an outlet prints per run, at most
- priceGap=1800,       -- and at least this long between them
- copyGap=3600,        -- an outlet copies another's story at most this often
- copyJuice=.45,       -- and only if it moves the price this much, or is about
+ priceGap=3600,       -- and at least this long between them
+ copyGap=7200,        -- an outlet copies another's story at most this often
+ copyJuice=.6,        -- and only if it moves the price this much, or is about
                       -- a deed, or the good is on the copier's agenda
  offAgenda=1.5,       -- a good off the outlet's agenda needs this much more
                       -- deviation (or this much longer unserved) to print
