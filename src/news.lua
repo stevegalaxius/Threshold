@@ -3,12 +3,18 @@
 	NPC traders) only see what the outlets print about it, and every outlet
 	leans toward what its owner sells (data/outlets.lua).
 
-	  stories   each outlet tick picks a few facts from its beat (prices and
-	            shortages from src/markets.lua and src/economy.lua, deaths
-	            and the player's deeds), spins the numbers by its agenda and
-	            prints a headline. Off its beat it can only copy another
-	            outlet's story, later, with its own spin stacked on. Now and
-	            then it prints a rumour with nothing behind it.
+	  ticker    each outlet's market feed: every price on its beat that's
+	            off list, spun by its agenda, refreshed every d.refresh runs.
+	            What it won't show (its owner's own shortages, for some) is
+	            simply missing. Off its beat it carries wire lines pulled
+	            from other outlets' tickers, stale and spun again. Terse,
+	            no headline, no ping: you see it if you open it.
+	  headlines the few stories an outlet pushes: deaths, the player's
+	            deeds, rumours, and the ticker lines its editor promotes
+	            (its agenda goods, a rival's trouble, a big enough move;
+	            d.appetite is how big). Which lines become headlines is the
+	            bias you can see; the ticker is where the rest is buried.
+	            Off its beat it can only copy another outlet's headline.
 	  coverage  a station carries its owner's outlet plus any outlet read
 	            everywhere (the Beltway). Docked, you read what the station carries;
 	            in flight, only the papers you subscribe to.
@@ -19,8 +25,9 @@
 	            pay, or the paper turns on you.
 	            Docked or in flight, you read what's carried where you are
 	            (the station, or the system you're flying in).
-	  prices    a story nudges the price of its good at the stations in its
-	            area that carry the outlet: speculation. The nudges decay and
+	  prices    a ticker line nudges the price of its good at its station
+	            while it's on the ticker, and a headline adds hype on top
+	            (stations in the area that carry the outlet): speculation. The nudges decay and
 	            are capped at T.nudgeCap together. Markets.price reads them,
 	            so NPC traders (src/merchants.lua) react to the news for the
 	            cost of a table lookup. Big swings are quest-only
@@ -47,13 +54,17 @@ N.T={
  nudgeCap=.3,         -- all story nudges on one good at one station, together
  secondhandDelay=1200,-- a copied story prints this long after the original
  secondhandOdds=.5,
- perTick=1,           -- price stories an outlet prints per run, at most
+ perTick=1,           -- price headlines an outlet promotes per run, at most
  priceGap=3600,       -- and at least this long between them
+ tickerMin=.1,        -- a price this far off list makes the ticker
+ wireGap=3600,        -- an outlet pulls other outlets' ticker lines this often
+ wireLines=4,         -- this many (twice that if it's read everywhere)
+ wireMin=.25,         -- of moves at least this big
+ hype=.5,             -- a price headline nudges this much on top of its ticker line
+ tickerScale=.15,     -- a ticker line's nudge = (reported ratio - 1) * this
  copyGap=7200,        -- an outlet copies another's story at most this often
  copyJuice=.6,        -- and only if it moves the price this much, or is about
                       -- a deed, or the good is on the copier's agenda
- offAgenda=1.5,       -- a good off the outlet's agenda needs this much more
-                      -- deviation (or this much longer unserved) to print
  keep=80,             -- stories kept in the save
  shortRatio=1.35,     -- a price this far over list is a shortage story
  glutRatio=.7,        -- and this far under, a glut story
@@ -277,7 +288,8 @@ function N.publish(u,st)
  N.tell(u,st)
  require('src.events').emit('news_published',require('src.persistence').copy(st))
  if st.good and st.reported and st.area and not st.tip then
-  local v=(st.reported-1)*N.T.nudgeScale*(st.secondhand and .5 or 1)
+  local w=st.quest and 1 or N.T.hype*(st.secondhand and .5 or 1)
+  local v=(st.reported-1)*N.T.nudgeScale*w
   nudge(u,st.area,st.outlet,st.good,clamp(v,-N.T.nudgeCap,N.T.nudgeCap),st.id)
  end
  return st
@@ -318,37 +330,128 @@ local function recentAbout(s,o,key,item,since)
  return false
 end
 
--- Price facts on an outlet's beat, biggest (and most on-agenda) first.
-local function priceFacts(u,o,clock)
+---------------------------------------------------------------- the ticker
+
+-- A ticker line holds its own nudge, refreshed while it's listed and left
+-- to decay once it's dropped.
+local function holdNudge(u,o,key,item,v,clock)
+ if v==0 or not carries(key,o) then return end
+ local s=N.state(u);local src=o..':ticker'
+ s.nudges[key]=s.nudges[key] or {}
+ local list=s.nudges[key][item] or {};s.nudges[key][item]=list
+ for _,n in ipairs(list) do if n.src==src then n.v,n.t=v,clock;return end end
+ list[#list+1]={v=v,t=clock,life=N.T.nudgeLife,src=src}
+end
+function N.tickerOf(u,o)
+ local s=N.state(u);s.ticker=s.ticker or {}
+ local t=s.ticker[o];if not t then t={lines={},next=0};s.ticker[o]=t end
+ return t
+end
+-- Refresh an outlet's ticker from its beat, when it's due.
+local function refreshTicker(u,s,o,clock)
+ local d=Outlets.outlets[o];local t=N.tickerOf(u,o)
+ if clock<t.next then return end
+ t.next=clock+(d.refresh or 1)*N.T.tick-1
  local Markets=require('src.markets');local E=require('src.economy')
- local prices=Markets.state(u).prices;local d=Outlets.outlets[o]
- local out={}
- -- what the papers have been on about lately: each story makes the same
- -- good less interesting for a while, so one good can't fill the feed
- local s=N.state(u);local seen={}
- for i=#s.stories,1,-1 do
-  local st=s.stories[i];if clock-st.clock>N.T.storyLife then break end
-  if st.good then seen[st.good]=(seen[st.good] or 0)+1 end
- end
- local hi,lo,age=N.T.shortRatio,N.T.glutRatio,N.T.shortAge
+ local prices=Markets.state(u).prices;local seen={}
  for _,area in ipairs(d.beat) do
   for _,key in ipairs(L().stations(area,'trade')) do
-   local p=prices[key]
-   if p then
-    for item,ratio in pairs(p) do
-     local on=(d.agenda[item] or 0)~=0
-     local m=on and 1 or N.T.offAgenda
-     local short=E.shortageAge(u,key,item,clock)>=age*m
-     if ratio>=1+(hi-1)*m or ratio<=1-(1-lo)*m or short then
-      local score=(math.abs(ratio-1)*(1+math.abs(d.agenda[item] or 0))+(short and .2 or 0))/(1+(seen[item] or 0))
-      out[#out+1]={key=key,area=area,item=item,ratio=math.max(ratio,short and 1.1 or 0),score=score}
+   for item,ratio in pairs(prices[key] or {}) do
+    local short=E.shortageAge(u,key,item,clock)>=N.T.shortAge
+    if math.abs(ratio-1)>=N.T.tickerMin or short then
+     local real=math.max(ratio,short and 1.1 or 0)
+     local r=spin(o,item,real,key)
+     if r and math.abs(r-1)>=.05 then
+      local k=key..'|'..item
+      local line=t.lines[k] or {key=key,item=item,area=area,since=clock};t.lines[k]=line
+      line.reported,line.real,line.clock,line.rumour=r,real,clock,nil
+      seen[k]=true
+      holdNudge(u,o,key,item,clamp((r-1)*N.T.tickerScale,-N.T.nudgeCap,N.T.nudgeCap),clock)
      end
     end
    end
   end
  end
- table.sort(out,function(a,b) if a.score~=b.score then return a.score>b.score end return a.key..a.item<b.key..b.item end)
+ for k,line in pairs(t.lines) do
+  if line.wire then
+   if clock-line.clock>N.T.storyLife then t.lines[k]=nil end
+  elseif not seen[k] and not (line.holdUntil and line.holdUntil>clock) then t.lines[k]=nil end
+ end
+end
+-- Pull other outlets' bigger lines from off this one's beat, spun again.
+local function pullWire(u,s,o,clock)
+ local d=Outlets.outlets[o];local t=N.tickerOf(u,o)
+ if clock<(t.nextWire or 0) then return end
+ t.nextWire=clock+N.T.wireGap
+ local pool={}
+ for _,x in ipairs(Outlets.order) do
+  if x~=o then
+   for k,line in pairs(N.tickerOf(u,x).lines) do
+    if not line.wire and not line.rumour and not N.covers(o,line.area) and math.abs(line.reported-1)>=N.T.wireMin then
+     pool[#pool+1]={k=k,line=line,from=x}
+    end
+   end
+  end
+ end
+ table.sort(pool,function(a,b)
+  local da,db=math.abs(a.line.reported-1),math.abs(b.line.reported-1)
+  if da~=db then return da>db end return a.k<b.k end)
+ local n=N.T.wireLines*(d.everywhere and 2 or 1);local taken=0
+ for _,p in ipairs(pool) do
+  if taken>=n then break end
+  local k='wire|'..p.k
+  if not t.lines[k] then
+   local r=spin(o,p.line.item,p.line.reported,p.line.key)
+   if r then
+    t.lines[k]={key=p.line.key,item=p.line.item,area=p.line.area,reported=r,real=p.line.real,clock=p.line.clock,since=clock,wire=p.from}
+    taken=taken+1
+   end
+  end
+ end
+end
+
+-- How much this outlet's editor wants a ticker line as a headline: its
+-- agenda goods and a rival's troubles, big moves; its owner's own
+-- trouble never (that stays buried in the ticker). Each recent headline
+-- about the same good makes it less interesting.
+local function promotable(u,s,o,clock)
+ local d=Outlets.outlets[o];local t=N.tickerOf(u,o)
+ local recent={}
+ for i=#s.stories,1,-1 do
+  local st=s.stories[i];if clock-st.clock>N.T.storyLife then break end
+  if st.good then recent[st.good]=(recent[st.good] or 0)+1 end
+ end
+ local out={}
+ for k,line in pairs(t.lines) do
+  if not line.wire and not line.rumour then
+   local dev=line.reported-1;local a=d.agenda[line.item] or 0
+   local f=Rep().ofNode(line.key)
+   local score=math.abs(dev)
+   if a*dev>0 then score=score*2 end
+   if dev>0 and f==d.owner and a<=0 then score=0 end
+   if dev>0 and f and f~=d.owner and Rep().FACTIONS[f] and Rep().FACTIONS[f].major then score=score*1.5 end
+   score=score/(1+(recent[line.item] or 0))
+   if score>=(d.appetite or .5) then out[#out+1]={k=k,line=line,score=score} end
+  end
+ end
+ table.sort(out,function(a,b) if a.score~=b.score then return a.score>b.score end return a.k<b.k end)
  return out
+end
+
+-- An outlet's ticker for the player: first-hand lines by station, then
+-- wire lines. Each { key, item, area, reported, clock, wire=from? }.
+function N.tickerLines(u,o)
+ local out={}
+ for _,line in pairs(N.tickerOf(u,o).lines) do out[#out+1]=line end
+ table.sort(out,function(a,b)
+  if (a.wire~=nil)~=(b.wire~=nil) then return a.wire==nil end
+  if a.key~=b.key then return a.key<b.key end
+  return a.item<b.item end)
+ return out
+end
+-- A ticker line as text: "WATER  Titan 3  +22%".
+function N.tickerText(line)
+ return ('%s  %s  %s'):format(itemName(line.item):upper(),placeName(line.key),pct(line.reported))
 end
 
 local function playerWho(u,named)
@@ -556,20 +659,21 @@ local function run(u,s,o,since,clock)
  local d=Outlets.outlets[o]
  local printed=0
  local mood=N.mood(u,o)
- for _,fact in ipairs(priceFacts(u,o,clock)) do
+ refreshTicker(u,s,o,clock)
+ pullWire(u,s,o,clock)
+ -- the editor's pick from the ticker, at most one an hour
+ for _,c in ipairs(promotable(u,s,o,clock)) do
   if printed>=N.T.perTick or clock-((s.lastPrice or {})[o] or -math.huge)<N.T.priceGap then break end
-  if not recentAbout(s,nil,fact.key,fact.item,clock-N.T.storyLife) then
+  local line=c.line
+  if not recentAbout(s,nil,line.key,line.item,clock-N.T.storyLife) then
    if mood=='friendly' then
-    N.publish(u,{outlet=o,kind='tip',tip=true,area=fact.area,station=fact.key,good=fact.item,reported=fact.ratio,real=fact.ratio,
-     headline=('Tip: %s at %s is really %s'):format(itemName(fact.item),placeName(fact.key),pct(fact.ratio))})
+    N.publish(u,{outlet=o,kind='tip',tip=true,area=line.area,station=line.key,good=line.item,reported=line.real,real=line.real,
+     headline=('Tip: %s at %s is really %s'):format(itemName(line.item),placeName(line.key),pct(line.real))})
    end
-   local r=spin(o,fact.item,fact.ratio,fact.key)
-   if r then
-    N.publish(u,{outlet=o,kind=r>=1 and 'shortage' or 'glut',area=fact.area,station=fact.key,good=fact.item,
-     real=fact.ratio,reported=r})
-    printed=printed+1
-    s.lastPrice=s.lastPrice or {};s.lastPrice[o]=clock
-   end
+   N.publish(u,{outlet=o,kind=line.reported>=1 and 'shortage' or 'glut',area=line.area,station=line.key,good=line.item,
+    real=line.real,reported=line.reported})
+   printed=printed+1
+   s.lastPrice=s.lastPrice or {};s.lastPrice[o]=clock
   end
  end
  -- a rumour: an agenda good talked up where nothing's wrong with it
@@ -581,7 +685,11 @@ local function run(u,s,o,since,clock)
   if #goods>0 and #stations>0 then
    local key=stations[1+math.floor(rng(u)*#stations)];local item=goods[1+math.floor(rng(u)*#goods)]
    if not recentAbout(s,o,key,item,clock-N.T.storyLife) then
-    N.publish(u,{outlet=o,kind='shortage',area=area,station=key,good=item,real=nil,rumour=true,reported=1.4+rng(u)*.4})
+    local st=N.publish(u,{outlet=o,kind='shortage',area=area,station=key,good=item,real=nil,rumour=true,reported=1.4+rng(u)*.4})
+    -- and a ticker line to match, held for the story's life
+    local t=N.tickerOf(u,o)
+    t.lines[key..'|'..item]={key=key,item=item,area=area,reported=st.reported,clock=clock,since=clock,rumour=true,holdUntil=clock+N.T.storyLife}
+    holdNudge(u,o,key,item,clamp((st.reported-1)*N.T.tickerScale,-N.T.nudgeCap,N.T.nudgeCap),clock)
    end
   end
  end
@@ -776,6 +884,14 @@ function N.onTrade(u,key,sold)
     elseif not hyped then N.addStanding(u,st.outlet,math.min(5,n/20)) end
    end
   end
+  -- the tickers: dumping into a line that isn't true is a small embarrassment
+  local now=(require('src.markets').state(u).prices[key] or {})[item] or 1
+  for _,x in ipairs(Outlets.order) do
+   local line=N.tickerOf(u,x).lines[key..'|'..item]
+   if line and line.reported>1.15 and n>=20 and (line.rumour or now<1.15 and E.shortageAge(u,key,item,clock)<=0) then
+    N.addStanding(u,x,-math.min(5,n/20))
+   end
+  end
   -- the owner's own shortage, story or not
   local o=N.ofFaction(Rep().ofNode(key))
   if o and E.shortageAge(u,key,item,clock)>0 then N.addStanding(u,o,math.min(3,n/40)) end
@@ -786,13 +902,16 @@ end
 -- notice about their subscription) go to their notifications too, if
 -- they can read that paper right now.
 function N.tell(u,st)
- if not (st.notice or st.subject=='player' and st.named) then return end
  local g=N.game
  local key
  if g and g.state=='docked' and g.player and g.player.dockState and g.player.dockState.station then
   key=require('src.stockpile').key(g.player.dockState.station)
   if not L().byId[key] then key=nil end
  end
+ local aboutYou=st.notice or st.subject=='player' and st.named
+ -- headlines ping you in flight from the papers you read; docked you've
+ -- the feed in front of you, so only the ones about you
+ if not aboutYou and (key or not g or not g.player) then return end
  local reading=false
  for _,o in ipairs(N.reading(u,key)) do if o==st.outlet then reading=true end end
  if not (reading or st.notice) then return end

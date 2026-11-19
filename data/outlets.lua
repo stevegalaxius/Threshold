@@ -13,6 +13,10 @@
 	  hush      own-faction shortages: 'suppress' never prints them,
 	            'soften' prints them at half size
 	  smear     how readily it names people (0..1); tabloids name everyone
+	  refresh   news runs (10 min each) between ticker updates: a slow,
+	            careful outlet's figures lag
+	  appetite  how big (and how on-message) a ticker line must be before
+	            the editor makes it a headline; low = everything's a headline
 	  outlaw    a pirate sheet: attacks on the factions are heroics, and
 	            it warms to whoever does them
 	  templates headline sets by story kind; {good} {station} {area}
@@ -28,7 +32,7 @@ D.outlets = {
 		name = "Inner Worlds Gazette", short = "Gazette", owner = "estates",
 		beat = { "mercury", "venus", "earth", "luna", "station" },
 		agenda = { food_crate = 1, medical_supplies = 1, electronics = -1 },
-		lean = .5, rumour = .03, hush = "soften", smear = .3,
+		lean = .5, rumour = .03, hush = "soften", smear = .3, refresh = 2, appetite = .5,
 		templates = {
 			shortage = { "{station} society frets over scarce {good}", "{good} prices climb at {station}: {pct}" },
 			glut = { "A surfeit of {good} at {station}, {pct}" },
@@ -42,7 +46,7 @@ D.outlets = {
 		name = "Red Signal", short = "Signal", owner = "zhuhai",
 		beat = { "mars", "phobos", "deimos" },
 		agenda = { electronics = 1, steel_plate = 1, food_crate = -1 },
-		lean = .6, rumour = .04, hush = "suppress", smear = .5,
+		lean = .6, rumour = .04, hush = "suppress", smear = .5, refresh = 1, appetite = .45,
 		templates = {
 			shortage = { "{faction} mismanagement empties {station} of {good}", "{good} {pct} at {station}: who profits?" },
 			glut = { "Mars industry floods {station} with {good}, {pct}" },
@@ -56,7 +60,7 @@ D.outlets = {
 		name = "Jovian Ledger", short = "Ledger", owner = "jove",
 		beat = { "jupiter", "io", "europa", "ganymede", "callisto" },
 		agenda = { deuterium_canister = 1, hydrogen_canister = 1, steel_plate = -1 },
-		lean = .3, rumour = .02, hush = "soften", smear = .2,
+		lean = .3, rumour = .02, hush = "soften", smear = .2, refresh = 3, appetite = 1.2,
 		templates = {
 			shortage = { "{good} at {station} {pct} on list", "Supply note: {station} short of {good} ({pct})" },
 			glut = { "{good} at {station} {pct} on list; carriers advised" },
@@ -70,7 +74,7 @@ D.outlets = {
 		name = "Diwan Courier", short = "Courier", owner = "diwan",
 		beat = { "saturn", "enceladus", "titan" },
 		agenda = { water_ice = 1, water = 1, silicon = -1 },
-		lean = .5, rumour = .03, hush = "soften", smear = .4,
+		lean = .5, rumour = .03, hush = "soften", smear = .4, refresh = 2, appetite = .5,
 		templates = {
 			shortage = { "Thirst at {station}: {good} {pct}", "The faithless go without: {good} {pct} at {station}" },
 			glut = { "Waste at {station}: {good} {pct}" },
@@ -84,7 +88,7 @@ D.outlets = {
 		name = "Beltway", short = "Beltway", owner = "ceres", hidden = "ceres", everywhere = true,
 		beat = { "belt", "ceres_quarry", "quarry" },
 		agenda = { iron_ore = 1, heavy_metals = 1, silicon = 1 },
-		lean = 1, rumour = .08, hush = "suppress", smear = .8,
+		lean = 1, rumour = .08, hush = "suppress", smear = .8, refresh = 1, appetite = .25,
 		templates = {
 			shortage = { "{good} CRISIS: {station} shelves bare!", "PANIC at {station} as {good} soars {pct}!" },
 			glut = { "{good} CRASH at {station}: {pct}!" },
@@ -98,7 +102,7 @@ D.outlets = {
 		name = "The Black Sheet", short = "Black Sheet", owner = "milliways", outlaw = true,
 		beat = { "milliways", "shoals", "cordelia", "antichthon" },
 		agenda = { explosives = 1, electronics = 1, medical_supplies = 1, food_crate = -1 },
-		lean = .8, rumour = .06, hush = "suppress", smear = .6,
+		lean = .8, rumour = .06, hush = "suppress", smear = .6, refresh = 1, appetite = .35,
 		templates = {
 			shortage = { "{faction} can't feed {station}: {good} {pct}", "Easy money: {good} {pct} at {station}" },
 			glut = { "{good} going cheap at {station} ({pct}), help yourself" },

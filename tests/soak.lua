@@ -144,12 +144,15 @@ return function(game)
    if st.secondhand then second=second+1 end
    if st.subject=='player' then mine=mine+1;if st.named then named=named+1 end end
   end
+  local tick,wire={},0
+  for _,x in ipairs(News.order) do local n=0 for _,l in pairs(News.tickerOf(u,x).lines) do n=n+1;if l.wire then wire=wire+1 end end tick[x]=n end
   local nudged,capped=0,0
   for _,key in ipairs(stations) do for _,item in ipairs(Markets.products) do
    local f=News.factor(u,key,item)
    if f~=1 then nudged=nudged+1;if math.abs(f-1)>=News.T.nudgeCap-.005 then capped=capped+1 end end
   end end
-  say(('    news: stories %d [%s] [%s] copies %d about-you %d named %d | nudged %d capped %d | kept %d save %dB | update %.2f ms mean %.1f worst')
+  say('    ticker lines: '..kv(tick)..(' (wire %d)'):format(wire))
+  say(('    news: headlines %d [%s] [%s] copies %d about-you %d named %d | nudged %d capped %d | kept %d save %dB | update %.2f ms mean %.1f worst')
    :format(total,kv(byO),kv(byK),second,mine,named,nudged,capped,#s.stories,#require('src.save').encode(u.news or {}),
    1000*nt.time/math.max(1,nt.calls),1000*nt.max))
   -- this hour's deaths, as the papers see them: area, killer, faction,

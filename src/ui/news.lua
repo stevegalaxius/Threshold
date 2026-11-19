@@ -3,8 +3,10 @@
 -- subscriptions; in flight, only your subscriptions. A station run by a
 -- paper's owner has that paper's press desk, where you subscribe or
 -- cancel. Nothing here is the truth (src/news.lua). Your standing with
--- each outlet is on the Reputation screen. The Messages section is the
--- history of your notifications (src/notify.lua).
+-- each outlet is on the Reputation screen. Headlines are what the outlets
+-- push; the Ticker is each one's market feed, where the rest is buried.
+-- The Messages section is the history of your notifications
+-- (src/notify.lua).
 local News=require('src.news')
 local L=require('src.locations')
 local HUD,Station=require('src.hud'),require('src.ui.station')
@@ -51,12 +53,13 @@ function View.draw(game)
   y=y+dh+8;h=h-dh-8
  end
  Station.panel(x,y,w,h)
- -- Headlines | Messages
- for i,sec in ipairs({{'headlines','Headlines'},{'messages','Messages'}}) do
-  local b={x=x+w-14-(3-i)*128,y=y+10,w=120,h=28,section=sec[1]}
+ -- Headlines | Ticker | Messages
+ for i,sec in ipairs({{'headlines','Headlines'},{'ticker','Ticker'},{'messages','Messages'}}) do
+  local b={x=x+w-14-(4-i)*128,y=y+10,w=120,h=28,section=sec[1]}
   View.buttons[#View.buttons+1]=b;Station.button(b,sec[2],View.section==sec[1],true)
  end
  if View.section=='messages' then return View.drawMessages(game,x,y,w,h) end
+ if View.section=='ticker' then return View.drawTicker(game,x,y,w,h,key) end
  local feed=News.feed(u,key)
  lg.setFont(HUD.font(16));lg.setColor(HUD.INK)
  lg.print('Headlines',x+16,y+12)
@@ -89,6 +92,45 @@ function View.draw(game)
   lg.setFont(HUD.font(13));lg.setColor(HUD.DIM)
   lg.printf(#names>0 and 'Nothing in the papers right now.' or 'No news without a paper.',x+16,top+8,w-32,'left')
  end
+end
+
+-- Each outlet's market feed: its own beat first, then wire lines.
+function View.drawTicker(game,x,y,w,h,key)
+ local u=game.universe
+ lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.print('Ticker',x+16,y+12)
+ lg.setFont(HUD.font(12));lg.setColor(HUD.DIM)
+ lg.print("Each outlet's market feed, spun its own way. Wire lines are other outlets' figures, passed on late.",x+16,y+36)
+ local rows={}
+ for _,o in ipairs(News.reading(u,key)) do
+  local lines=News.tickerLines(u,o)
+  rows[#rows+1]={head=o,n=#lines}
+  for _,line in ipairs(lines) do rows[#rows+1]={line=line,o=o} end
+ end
+ local rowH=22;local top,bottom=y+64,y+h-8
+ View.scroll=math.max(0,math.min(View.scroll,math.max(0,#rows*rowH-(bottom-top))))
+ lg.setScissor(x,top,w,bottom-top)
+ local ry=top-View.scroll
+ for _,r in ipairs(rows) do
+  if ry+rowH>=top and ry<=bottom then
+   if r.head then
+    local d=News.outlets[r.head]
+    lg.setFont(HUD.font(13));lg.setColor(View.OUTLET_COLOR[r.head] or HUD.INK)
+    lg.print(d.name:upper()..(r.n==0 and '   (nothing listed)' or ''),x+16,ry+3)
+   else
+    local line=r.line
+    lg.setFont(HUD.font(13))
+    lg.setColor(line.wire and HUD.DIM or HUD.INK)
+    lg.print(News.tickerText(line),x+32,ry+3)
+    lg.setColor(HUD.DIM)
+    local tag=ago(u,line.clock)
+    if line.wire then tag=tag..'  \194\183  via '..(News.outlets[line.wire] and News.outlets[line.wire].short or line.wire) end
+    lg.printf(tag,x,ry+3,w-20,'right')
+   end
+  end
+  ry=ry+rowH
+ end
+ lg.setScissor()
+ if #rows==0 then lg.setFont(HUD.font(13));lg.setColor(HUD.DIM);lg.print('No ticker without a paper.',x+16,top+8) end
 end
 
 -- Your notifications, newest first.
