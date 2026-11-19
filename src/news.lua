@@ -453,6 +453,9 @@ end
 -- An outlet's ticker for the player: first-hand lines by station, then
 -- wire lines. Each { key, item, area, reported, clock, wire=from? }.
 function N.tickerLines(u,o)
+ -- never filled yet (a new game, an old save): fill it now, not at the
+ -- outlet's next run
+ if N.tickerOf(u,o).next==0 then refreshTicker(u,N.state(u),o,u.clock or 0) end
  local out={}
  for _,line in pairs(N.tickerOf(u,o).lines) do out[#out+1]=line end
  table.sort(out,function(a,b)
