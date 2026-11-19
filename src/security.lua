@@ -197,6 +197,7 @@ function S.seed(game,start)
     for i=1,count do
      local node=f.buoyIds[(i-1)%#f.buoyIds+1]
      local r=create(game,area,role,node,u.clock,start)
+     Supplies.provision(r) -- magazines full from the start, like every other ship
      if r.state=='travel' then
       local elapsed=(r.arrive-r.depart)*(role=='pirate' and .65 or .15+i*.2)
       r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
