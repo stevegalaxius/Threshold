@@ -161,7 +161,11 @@ function M.seed(game)
     local have=state.seeded[area] and require('src.population').count(u,area,'miner') or 0
     state.seeded[area]=true;state.fleetSeeded=state.fleetSeeded or {};state.fleetSeeded[area]=T.fleet.miner
     for _=have+1,want do
-     M.create(game,area,u.clock)
+     local ship,policy=require('src.npc_ship_supply').seed(u,area,'miner')
+     game.arrivalShip=ship
+     local r=M.create(game,area,u.clock)
+     game.arrivalShip=nil
+     if r and policy and policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
     end
    end
   end

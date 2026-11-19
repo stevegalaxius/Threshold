@@ -100,6 +100,17 @@ function S.generated(u,policy,roll,area)
  end
  return ship,{source='generated',hull=ship.hull,price=choice.price,weight=choice.weight,fit=choice.fit,danger=danger}
 end
+-- A ship for a pilot the world starts with (src/alife.lua, src/mining.lua
+-- seeding): the same role, budget and rank roll an arrival uses, and the
+-- same choice of hull and fit (S.generated), made on the spot since no
+-- shipyard has built anything yet. Returns ship, policy.
+function S.seed(u,area,role)
+ local Templates=require('src.npc_templates');local Rank=require('src.npc_rank')
+ local base=Templates.purchase(role);if not base then return end
+ local policy=Rank.policy(base,Rank.roll())
+ local ship=S.generated(u,policy,nil,area)
+ return ship,policy
+end
 function S.acquire(u,area,policy,roll)
  roll=roll or random
  -- A faction with its own service fleet issues those hulls: off its

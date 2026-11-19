@@ -206,7 +206,12 @@ function A.seed(game)
    local from=fresh and 1 or count(area)+1
    u.npcAreas[area]=true;u.fleetSeeded[area]=T.fleet.hauler
    for i=from,want do
+    -- a hull and fit picked the way an arrival's is, not every one a Mule
+    local ship,policy=require('src.npc_ship_supply').seed(u,area,'hauler')
+    game.arrivalShip=ship
     local r=A.createTrader(game,area,i)
+    game.arrivalShip=nil
+    if policy and policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
     local elapsed=(r.arrive-r.depart)*i/(want+1)
     r.depart,r.arrive=r.depart-elapsed,r.arrive-elapsed
     if r.taskWorker then -- start docked, where work is handed out
