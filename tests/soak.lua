@@ -174,18 +174,24 @@ return function(game)
  local Encounters,Squads,History=require('src.encounters'),require('src.squads'),require('src.simulation_history')
  local Director,Sats,Stalls,Rent=require('src.director'),require('src.satellites'),require('src.stalls'),require('src.berth_rent')
  if fast then game:captureALife(true);game.alifeOnline={} end
+ -- where the fast mode's time goes, by part (stage1 drills, stage2
+ -- arrivals, stage3 the board and arbiter, stage4 economy, quests, news)
+ local ft={visits=0,encounters=0,history=0,background=0}
  local function fastMinute()
-  local base=u.clock
+  local base=u.clock;local clk=os.clock;local t
   for c=base+fstep,base+60,fstep do
    u.clock=c
-   for id,r in pairs(u.npcs or {}) do game:alifeVisit(id,r,c,nil,nil,true,true) end
-   Encounters.update(game,c);Squads.update(game,c);History.update(game)
+   t=clk();for id,r in pairs(u.npcs or {}) do game:alifeVisit(id,r,c,nil,nil,true,true) end;ft.visits=ft.visits+clk()-t
+   t=clk();Encounters.update(game,c);Squads.update(game,c);ft.encounters=ft.encounters+clk()-t
+   t=clk();History.update(game);ft.history=ft.history+clk()-t
   end
   u.clock=base+60
   game.alifeStage=1
-  while game.alifeStage and game.alifeStage<=4 do game:alifeChore(u.clock,true) end
+  while game.alifeStage and game.alifeStage<=4 do
+   local st=game.alifeStage;t=clk();game:alifeChore(u.clock,true);ft['stage'..st]=(ft['stage'..st] or 0)+clk()-t
+  end
   game.alifeStage=nil
-  Director.update(u);Sats.tick(u);Stalls.tick(u,game);Rent.tick(u,game)
+  t=clk();Director.update(u);Sats.tick(u);Stalls.tick(u,game);Rent.tick(u,game);ft.background=ft.background+clk()-t
  end
  local first=stockTotals()
  local made0=require('src.persistence').copy(u.economyStats or {})
@@ -199,6 +205,12 @@ return function(game)
   if not ok then say('CRASH in hour '..h..': '..tostring(err));break end
   sample(h,os.clock()-t0)
   newsSample(h)
+  if fast then
+   local o={} for k,v in pairs(ft) do o[#o+1]={k,v} end table.sort(o,function(a,b) return a[2]>b[2] end)
+   local q={} for i,x in ipairs(o) do q[i]=('%s %.1fs'):format(x[1],x[2]) end
+   say('    fast time: '..table.concat(q,' '))
+   for k in pairs(ft) do ft[k]=0 end
+  end
  end
  local last=stockTotals()
  local items={} for k in pairs(data.items) do if (first[k] or 0)>0 or (last[k] or 0)>0 then items[#items+1]=k end end
