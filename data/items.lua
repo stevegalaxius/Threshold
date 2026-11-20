@@ -127,12 +127,6 @@ salvage { id = "electronics", name = "Electronics", volume = 0.1, mass = 0.05, p
 salvage { id = "heavy_metals", name = "Heavy metals", description = "Dense metal concentrate sorted out of belt regolith at the quarry depots. Coil works buy all they can get.", volume = 0.25, mass = 0.6, price = 60, w = 1, h = 1, stack = 4 }
 salvage { id = "superconducting_coils", name = "Superconducting coils", description = "Heavy-metal windings on an electronic core. Every engine and reactor needs them.", volume = 0.25, mass = 0.3, price = 420, w = 1, h = 1, stack = 4 }
 salvage { id = "thermal_ceramics", name = "Thermal ceramics", description = "Fired silicon tiles cured in acid. Engine nozzles and reactor shielding are lined with them.", volume = 0.25, mass = 0.2, price = 160, w = 1, h = 1, stack = 4 }
--- Saturn's materials (the Diwan): the fibers, resins and silicones every
--- factory builds with. Hull frames and module housings wait on Saturn.
-salvage { id = "industrial_fibers", name = "Industrial fibers", description = "Nitrate-derived aramid tow spun at Zebulun's Bounty from the Saturn moons' nitrates. Laid up into composites.", volume = 0.25, mass = 0.1, price = 120, w = 1, h = 1, stack = 4 }
-salvage { id = "polymers", name = "Polymers", description = "Resins and plastics cracked from Saturn's skimmed hydrogen at Shiloh. The matrix that binds composites.", volume = 0.25, mass = 0.15, price = 90, w = 1, h = 1, stack = 4 }
-salvage { id = "siloxanes", name = "Siloxanes", description = "Silicone oils and sealants from Shiloh, made from imported silicon. Patch kits and medical supplies are made with them.", volume = 0.25, mass = 0.2, price = 110, w = 1, h = 1, stack = 4 }
-salvage { id = "composites", name = "Composite panels", description = "Industrial fiber laid up in polymer resin at Zebulun's Bounty. Every hull frame and module housing is built from them.", volume = 0.25, mass = 0.15, price = 300, w = 1, h = 1, stack = 4 }
 
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
 salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }

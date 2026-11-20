@@ -18,7 +18,7 @@ local D={recipes={
  -- skimming deuterium straight from a gas giant's air: just canisters
  {id='skim_deuterium',market=false,item='deuterium_canister',cap=4000,input={item='empty_canister',n=1}},
  -- welding hull frames for a manufacturer's dealer lot (src/dealers.lua)
- {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=36,inputs={{item='steel_plate',n=4},{item='composites',n=1}}},
+ {id='assemble_hull_frames',item='hull_frame',group='shipworks',market=false,storefront=false,opening=0,cap=36,input={item='steel_plate',n=6}},
  -- Refined local resources: abstract station extraction, no extra ore chain.
  -- Water: every station drinks it (world_layout defaults.waterUse); Ceres
  -- melts ice for it, and the ice moons pump it straight from their oceans.
@@ -29,7 +29,7 @@ local D={recipes={
  {id='produce_acids',group='resources',item='industrial_acids',opening=0,cap=128},
  -- Medical supplies: made at Earth from electronics and water, used up
  -- by the far stations; delicate, so only climate holds carry them.
- {id='make_medical',item='medical_supplies',opening=0,batch=4,cap=128,inputs={{item='electronics',n=1},{item='water',n=1},{item='siloxanes',n=1}}},
+ {id='make_medical',item='medical_supplies',opening=0,batch=4,cap=128,inputs={{item='electronics',n=1},{item='water',n=1}}},
  {id='use_medical',market=false,item='medical_supplies',cap=96},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
@@ -61,10 +61,10 @@ recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l'
 recipe('torp_s',4,4,8,2,2);recipe('torp_m',2,6,12,3,3);recipe('torp_l',1,8,16,4,4)
 -- Drones: mostly electronics in a steel frame, no warhead.
 recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe('drone_l',1,4,0,4,4,'drones')
--- Hull patch kits: steel and a siloxane sealant, made at the munitions
+-- Hull patch kits: steel and an acid-cured sealant, made at the munitions
 -- works alongside ammunition and stocked at every station the same way.
 D.recipes[#D.recipes+1]={reserve={service='supplies',stacks=2,excludeProducers=true},id='make_patch_kit',item='patch_kit',batch=8,cap=64,group='ammunition',
- inputs={{item='steel_plate',n=1},{item='siloxanes',n=1}}}
+ inputs={{item='steel_plate',n=1},{item='industrial_acids',n=1}}}
 -- Finished ships are typed outputs delivered to dealer inventory, not cargo.
 -- Factory lineups: each maker's assembly hall builds its own three hulls.
 -- Hull frames per ship (also its assembly time), roughly one per 25k of
@@ -137,7 +137,7 @@ D.facilities={
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
  farm={policy='fixed',recipes={'grow_food'}},
- shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5,composites=.5},recipes={'assemble_hull_frames'}},
+ shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }
 -- Ship modules ----------------------------------------------------------
 -- Each kind of module comes from one faction's works (D.moduleLines);
@@ -152,21 +152,8 @@ D.recipes[#D.recipes+1]={id='make_superconducting_coils',group='coils',item='sup
  inputs={{item='heavy_metals',n=2},{item='electronics',n=1}}}
 D.recipes[#D.recipes+1]={id='make_thermal_ceramics',group='ceramics',item='thermal_ceramics',opening=0,cap=64,
  inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}}
--- Saturn's materials (the Diwan). Zebulun's Bounty spins industrial fibers
--- from the moons' nitrates and lays them in polymer resin into composite
--- panels; Shiloh cracks skimmed hydrogen into polymers and makes siloxanes
--- from imported silicon. Composites go into every hull frame
--- and module housing; siloxanes into patch kits and medical supplies.
-D.recipes[#D.recipes+1]={id='make_industrial_fibers',group='fibers',item='industrial_fibers',opening=0,cap=64,
- inputs={{item='nitrates',n=2}}}
-D.recipes[#D.recipes+1]={id='make_polymers',group='polymers',item='polymers',opening=0,cap=64,
- inputs={{item='hydrogen_canister',n=1}}}
-D.recipes[#D.recipes+1]={id='make_siloxanes',group='siloxanes',item='siloxanes',opening=0,cap=128,
- inputs={{item='silicon',n=2}}}
-D.recipes[#D.recipes+1]={id='make_composites',group='composites',item='composites',opening=0,cap=64,
- inputs={{item='industrial_fibers',n=1},{item='polymers',n=1}}}
 -- Inputs per module, from its mass and list price the way ship parts are:
--- one composite panel per 12 t of housing (at least one), one steel plate per 4 t, one electronics per 2,500 CR, and an hour of
+-- one steel plate per 4 t, one electronics per 2,500 CR, and an hour of
 -- works time per 10,000 CR (half an hour at least).
 --   { module, mass, price [, coils, ceramics, deuterium] }
 D.moduleLines={
@@ -186,7 +173,7 @@ for _,line in ipairs(D.moduleLineOrder) do
  local def,ids=D.moduleLines[line],{}
  for i,m in ipairs(def.modules) do
   local id,mass,price,coils,ceramics,fuel=m[1],m[2],m[3],m[4],m[5],m[6]
-  local inputs={{item='steel_plate',n=math.max(1,math.floor(mass/4+.5))},{item='composites',n=math.max(1,math.floor(mass/12+.5))}}
+  local inputs={{item='steel_plate',n=math.max(1,math.floor(mass/4+.5))}}
   local electronics=math.max(coils and 0 or 1,math.floor(price/2500+.5)-(coils or 0)*2)
   if electronics>0 then inputs[#inputs+1]={item='electronics',n=electronics} end
   if coils then inputs[#inputs+1]={item='superconducting_coils',n=coils} end
@@ -201,14 +188,6 @@ end
 D.facilities.metal_extraction={policy='fixed',recipes={'extract_heavy_metals'}}
 D.facilities.coil_works={policy='profit',recipes={'make_superconducting_coils'}}
 D.facilities.ceramic_works={policy='profit',recipes={'make_thermal_ceramics'}}
--- The fiber line feeds the composite works beside it, and a profit plant
--- only answers other stations' bids: it runs at its rated pace instead.
-D.facilities.fiber_works={policy='fixed',recipes={'make_industrial_fibers'}}
-D.facilities.polymer_works={policy='profit',recipes={'make_polymers'}}
-D.facilities.siloxane_works={policy='profit',recipes={'make_siloxanes'}}
--- Fiber and resin come in from other stations: a longer buffer keeps
--- their orders big enough for a hauler to take (T.orderMinLoad).
-D.facilities.composite_works={policy='profit',inputHours=3,recipes={'make_composites'}}
 for _,set in ipairs({D.lineups,D.serviceLineups}) do for maker,hulls in pairs(set) do
  local r={};for i,h in ipairs(hulls) do r[i]='assemble_'..h end
  D.facilities[maker..'_assembly']={policy='orders',recipes=r}
