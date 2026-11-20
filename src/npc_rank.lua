@@ -13,7 +13,7 @@
 local R={}
 R.order={'rookie','proficient','elite','veteran'}
 R.tiers={
- rookie    ={name='Rookie',    budget=.6, sharpness=1.5,refitChance=.3,refitMargin=.15,nerve=-.1, xp=0},
+ rookie    ={name='Rookie',    budget=.8, sharpness=1.5,refitChance=.3,refitMargin=.15,nerve=-.1, xp=0},
  proficient={name='Proficient',budget=1,  sharpness=4,  refitChance=.6,refitMargin=.08,nerve=0,   xp=10},
  elite     ={name='Elite',     budget=1.5,sharpness=6,  refitChance=.9,refitMargin=.04,nerve=.05, xp=30},
  veteran   ={name='Veteran',   budget=2,  sharpness=8,  refitChance=1, refitMargin=.02,nerve=.1,  xp=60},
