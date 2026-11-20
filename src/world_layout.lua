@@ -34,7 +34,7 @@ W.stations = {
 		{ id = "station:luna_1", facilities={silicon_refinery={capacity=64,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
 		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 		-- residential (src/passengers.lua): housing only, no industry or ship sales
-		{ id = "station:luna_3", services = { "market", "hangar" }, spin = 0.04, phase = 5.5, name = "Tranquility Commons", layout = "estates_quadrangle",
+		{ id = "station:luna_3", services = { "market", "hangar" }, spin = 0.04, phase = 3.9, name = "Tranquility Commons", layout = "estates_quadrangle",
 		  residential = { population = 3000, homes = 8, routes = {
 			{ to = "station:luna_1", kind = "work", weight = 3 },
 			{ to = "station:luna_2", kind = "work", weight = 1 },
