@@ -57,7 +57,15 @@ local function pickTarget(game, e, x, y)
 		end
 		if not best then return nil end
 		if e.siteEnemy and not e.aggro then
-			if bestD < T.aggroRange ^ 2 or e.lastHitTime then e.aggro = true else return nil end
+			if bestD < T.aggroRange ^ 2 or e.lastHitTime then
+				-- one of a group comes under fire or spots you: its whole group comes
+				e.aggro = true
+				if e.siteGroup then
+					for _, o in ipairs(game.entities) do
+						if o.siteGroup == e.siteGroup and not o.dead and not o.removed then o.aggro = true end
+					end
+				end
+			else return nil end
 		end
 		return best
 	end
@@ -661,6 +669,7 @@ function AI.think(game, e, dt)
 			if d > keep then it.aimX, it.aimY = ox, oy end
 			it.thrust, it.strafe = Ship.toLocal(e, sx * 0.8, sy * 0.8)
 		end
+		if e.siteEnemy or e.siteHunter then AI.siteIdle(game, e, dt, x, y) end
 		return
 	end
 
@@ -803,6 +812,36 @@ function AI.think(game, e, dt)
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
 	it.fireSecondary = it.firePrimary
 	it.fireTertiary = it.firePrimary
+end
+
+-- A site ship with nobody to fight (src/wildcats.lua) doesn't sit dead
+-- still: it drifts between spots near its post (or where it came in),
+-- slowly, round the rocks, settling for a while at each.
+function AI.siteIdle(game, e, dt, x, y)
+	local it = e.intent
+	local r = e.alifeId and game.universe.npcs[e.alifeId]
+	local hx, hy
+	if r then hx, hy = require("src.wildcats").point(r) end
+	if not hx then hx, hy = e.homeX or x, e.homeY or y end
+	e.homeX, e.homeY = hx, hy
+	e.wanderWait = (e.wanderWait or love.math.random() * 4) - dt
+	if not e.wanderX or e.wanderWait <= 0 then
+		local a, d = love.math.random() * math.pi * 2, T.siteWander * (0.3 + 0.7 * love.math.random())
+		e.wanderX, e.wanderY = hx + cos(a) * d, hy + sin(a) * d
+		e.wanderWait = T.siteWanderPause * (0.6 + 0.8 * love.math.random())
+	end
+	local mx, my, d = norm(e.wanderX - x, e.wanderY - y)
+	local vx, vy = e.body:getLinearVelocity()
+	if d < 120 then
+		-- there: drift to a stop and look about
+		local sx, sy = steerVelocity(0, 0, vx, vy)
+		it.thrust, it.strafe = Ship.toLocal(e, sx * 0.5, sy * 0.5)
+		return
+	end
+	local want = min(T.siteWanderSpeed, d * 0.5)
+	local nmx, nmy, scale = Nav.steer(game, e, mx, my, want, 0, 0, { brake = brakeAccel(e) })
+	it.aimX, it.aimY = x + nmx * 400, y + nmy * 400
+	AI.driveVelocity(e, nmx * want * scale, nmy * want * scale, nmx, nmy, 0.6)
 end
 
 -- A pirate waiting on a robbery demand keeps its guns quiet.

@@ -100,6 +100,9 @@ T.fieldContainers = 6
 T.starterHull = "intaki_wisp"
 -- Level enemies leave you alone until you come this close (or shoot them).
 T.aggroRange = 2600
+-- Site ships with nothing to fight drift round their post (src/ai.lua AI.siteIdle)
+T.siteWander, T.siteWanderSpeed, T.siteWanderPause = 900, 160, 9
+T.siteGroupSize = 3            -- wildcats per group: one aggroing brings the group
 -- Mass drivers (src/transit.lua): the capture ring's radius, seconds to
 -- line up and to fire, the speed you leave and arrive at, how long after
 -- arriving before a driver will take you again, and the fare in credits

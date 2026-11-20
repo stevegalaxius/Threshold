@@ -515,11 +515,23 @@ function W.unstick(game)
   if r and (r.garrison or r.assault) and e.body and not e.dead and not e.removed then unstick(game,e,r) end
  end
 end
+-- Which group a posted wildcat fights with: its pocket's crew in id
+-- order, split into threes (a piece's crew are recruited together, so a
+-- group holds posts near each other). One of a group aggroing brings the
+-- rest (src/ai.lua).
+local function groupOf(u,r)
+ local g=r.garrison
+ local crew=W.members(u,g.field)
+ for i,o in ipairs(crew) do
+  if o==r then return g.field..'/'..math.floor((i-1)/T.siteGroupSize) end
+ end
+end
 function W.woke(game,e,r)
  if (r.garrison or r.assault) and e.body then unstick(game,e,r) end
  if r.garrison then
   e.team=2;e.aggro=false
   e.siteEnemy,e.siteTag=true,r.garrison.tag or nil
+  e.siteGroup=groupOf(game.universe,r)
   e.route=nil
   return true
  end
