@@ -1137,8 +1137,7 @@ function A.install(Game)
      local threshold=r.savedOnline and r.pose and math.abs(r.pose.clock-clock)<.001 and T.alifeFar or T.alifeNear
      -- Existing records must become physical when nearby, even on-screen
      -- (for example after teleporting). Population handles new spawn placement.
-     -- (a ship stored inside a residential station has no body: src/passengers.lua)
-     if not r.resident and (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
+     if (x-px)^2+(y-py)^2<threshold^2 then A.wake(self,r) end
     end
    end
  end

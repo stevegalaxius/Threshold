@@ -44,10 +44,10 @@ function View.layout(game)
  for _,q in ipairs(active) do entries[#entries+1]={quest=q,active=true,h=84} end
  if not t and #active==0 then note('Nothing held. Take a job below.') end
  if here then
-  -- a residential station explains itself: storage, routes, its contracts
+  -- a residential station explains itself: homes, routes, its contracts
   local P=require('src.passengers');local c=P.config(here)
   if c then
-   head(('RESIDENTIAL STATION · %s · population about %d · resident ships stored %d of %d'):format(name(here),c.population or 0,#P.residents(u,here),c.storage or 0))
+   head(('RESIDENTIAL STATION · %s · population about %d · home to %d of %d ships'):format(name(here),c.population or 0,#P.residents(u,here),c.homes or 0))
    local dest={}
    for _,route in ipairs(c.routes or {}) do dest[#dest+1]=name(route.to)..(route.kind=='work' and ' (work)' or ' (visit)') end
    note('Passenger destinations: '..table.concat(dest,', '))

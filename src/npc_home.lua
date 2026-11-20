@@ -31,8 +31,8 @@ function H.choose(u,r)
  -- trade stations are the fallback (src/passengers.lua)
  local Passengers=require('src.passengers')
  local function vacant(id)
-  local storage=Passengers.storage(id)
-  return storage>0 and (counts[id] or 0)<storage
+  local homes=Passengers.homes(id)
+  return homes>0 and (counts[id] or 0)<homes
  end
  local function select(localOnly)
   local best,count,full,res

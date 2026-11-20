@@ -74,7 +74,6 @@ function R.begin(u,r,clock,start)
  if not keep then Tasks.release(u,r,'world layout changed',clock) end
  require('src.npc_actions').cancel({u=u,r=r,clock=clock},'world layout changed')
  r.encounter,r.targetId,r.job=nil,nil,nil
- r.resident,r.departWaitSince=nil,nil
  r.tripRoute,r.onRoundTrip,r.tripDestination,r.tradeHome=nil,nil,nil,nil
  if keep then r.taskWorker=true end
  r.driverState,r.cityExit,r.docking,r.repairReturn=nil,nil,nil,nil

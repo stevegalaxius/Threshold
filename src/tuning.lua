@@ -623,11 +623,5 @@ T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
--- Resident storage: idle NPCs at a residential home wait inside, off the
--- berths. They look for work every residentRetry seconds (staggered by id),
--- and a reserved job that can't get a berth to leave within
--- residentDepartWait is released.
-T.residentRetry=30
-T.residentDepartWait=180
 return T
 

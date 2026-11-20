@@ -189,10 +189,10 @@ local function details(game)
   local last=r.lastTask
   Slab.Text('Job: none'..(last and ('   last: %s %s at %.0fs'):format(last.kind,tostring(last.status),last.clock) or ''))
  end
- do -- passengers and residential storage (src/passengers.lua)
+ do -- passengers and residential homes (src/passengers.lua)
   local P=require('src.passengers');local u=game.universe
   local status=P.status(r)
-  if status then Slab.Text('Passengers: '..status..(r.resident and (' at '..place(r.resident)) or '')) end
+  if status then Slab.Text('Passengers: '..status) end
   if t and t.kind=='passenger' and t.fare then
    local d=t.fareDetail or {}
    Slab.Text(('Fare: %d cr locked (base %d, comfort +%.0f%%, speed +%.0f%%)'):format(t.fare,d.base or 0,(d.comfortShare or 0)*100,(d.speedShare or 0)*100))

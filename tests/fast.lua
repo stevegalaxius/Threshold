@@ -638,29 +638,17 @@ return function(game)
   assert(Tasks.arrive(u,r,job.target,u.clock),'passenger delivery failed')
   assert((r.credits or 0)==fare and (r.ship.cargo.passengers or 0)==0 and not Tasks.state(u).offers[job.id],'delivery settled wrong')
   u.npcs[r.id]=nil
-  -- resident storage: save/load, departure and death free the place
+  -- residential homes: new ships prefer one with homes to spare, park in
+  -- its berths like anywhere else, and the home survives a save
   local home=homes[1]
-  local n=require('src.npc_home')
-  local victim
-  for _,x in pairs(u.npcs) do if x.state=='docked' and not x.task and x.ship then victim=x;break end end
-  assert(victim,'no idle NPC to store')
-  local saved={homeStation=victim.homeStation,state=victim.state,node=victim.node}
-  victim.homeStation=home
-  assert(P.store(u,victim,home,false),'could not store a resident')
-  local before=#P.residents(u,home)
+  local living=#P.residents(u,home)
+  assert(living>0,'no ship chose a residential home')
+  local any=P.residents(u,home)[1]
   local Save=require('src.save')
   assert(Save.write('test_res',game:saveState()))
   local g2=fresh();g2:loadState(assert(Save.read('test_res')));Save.delete('test_res')
-  assert(#P.residents(g2.universe,home)==before,'resident storage lost on save/load')
-  assert(g2.universe.npcs[victim.id].resident==home,'stored NPC lost its place')
-  victim.state='dead'
-  assert(#P.residents(u,home)==before-1,'a dead resident still holds storage')
-  victim.state='docked'
-  -- departing with a reserved job clears storage
-  victim.task={kind='passenger',id='x'}
-  assert(P.depart(u,victim,home,u.clock) or victim.departWaitSince,'departure neither left nor queued')
-  victim.task=nil;victim.resident=nil;victim.departWaitSince=nil
-  victim.homeStation,victim.state,victim.node=saved.homeStation,saved.state,saved.node
+  assert(g2.universe.npcs[any.id].homeStation==home,'residential home lost on save/load')
+  assert(require('src.dock_room').capacity(home,any.ship.hull)>0,'residential home has no berth for its ship')
   -- the player: quote, accept and drop off through the Jobs board
   local Board=require('src.player_contracts')
   local pj=P.post(u,homes[1],u.clock);pj.party=1;pj.amount=1
@@ -678,7 +666,7 @@ return function(game)
   end
   Board.station=station
   local okDraw,err=pcall(function() require('src.ui.jobs').draw(game) end);assert(okDraw,err)
-  print(('ok  passengers: %d homes, demand capped, fares %d vs %d, controller, storage, player%s'):format(#homes,fy,fh,q and '' or ' ('..why..')'))
+  print(('ok  passengers: %d homes, demand capped, fares %d vs %d, controller, homes, player%s'):format(#homes,fy,fh,q and '' or ' ('..why..')'))
  end
  -- Wildcat sites: a crew rolled once, raids and back, a bounty after
  -- three losses paid per kill, hunters clearing it offline, save/load,

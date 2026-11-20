@@ -7,9 +7,8 @@
 --     workplaces (and back), and visits to other residential stations. How
 --     many are open at once is a rule on its population, not a simulation
 --     of people: no residents, salaries or schedules are kept.
---   * It stores idle ships whose home it is, inside the station and off its
---     berths. They keep looking for work while stored and leave when a job
---     is worth taking (src/npc.lua).
+--   * It is a preferred home for idle ships. They park in its berths like
+--     at any home, and leave when work turns up (src/npc.lua).
 --
 -- A contract is an ordinary offer on the shared task board (src/tasks.lua),
 -- kind 'passenger': players take it from the Jobs tab
@@ -307,53 +306,25 @@ function P.whyNot(u,r,o,station)
  return nil
 end
 
--- Resident storage ---------------------------------------------------------------
+-- Residential homes ----------------------------------------------------------------
+-- Ships that live here, parked in its berths like at any home. `homes` is
+-- how many the station takes before new ships look elsewhere for a home
+-- (src/npc_home.lua); berths still decide who can actually dock.
 function P.residents(u,id)
  local list={}
  for _,r in pairs(u.npcs or {}) do
-  if r.resident==id and r.state~='dead' and r.state~='escaped' then list[#list+1]=r end
+  if r.homeStation==id and r.state~='dead' and r.state~='escaped' then list[#list+1]=r end
  end
  table.sort(list,function(a,b)return a.id<b.id end)
  return list
 end
-function P.storage(id) local c=P.config(id);return c and c.storage or 0 end
-function P.vacancy(u,id) return math.max(0,P.storage(id)-#P.residents(u,id)) end
--- Seconds until a stored ship next looks for work, spread by id.
-function P.retry(r) return T.residentRetry*(.75+.5*(hash(tostring(r.id))%1000)/1000) end
--- Store an idle ship at its residential home (offline only: a ship on screen
--- stays in its berth). True if it is stored now.
-function P.store(u,r,node,online)
- if r.resident==node then return true end
- if online or r.task or not P.config(node) or r.homeStation~=node then return false end
- if P.vacancy(u,node)<=0 then return false end
- r.resident=node;r.departWaitSince=nil
- r.state='docked';r.node=node;r.waitingHomeBerth=nil
- r.taskStatus='stored at home'
- require('src.alife_trace').note(r,u.clock or 0,'npc','stored at residential home '..node)
- return true
-end
--- A stored ship with a reserved job leaves when a berth is free to leave
--- from. False keeps it stored: still waiting, or the job given back.
-function P.depart(u,r,node,at)
- if require('src.dock_room').room(u,r,node) then
-  r.resident=nil;r.departWaitSince=nil
-  require('src.alife_trace').note(r,at,'npc','leaving residential storage for '..tostring(r.task and r.task.kind))
-  return true
- end
- r.departWaitSince=r.departWaitSince or at
- if at-r.departWaitSince>=T.residentDepartWait then
-  r.departWaitSince=nil
-  Tasks.release(u,r,'no berth to depart from',at)
-  r.taskStatus='stored at home'
- else
-  r.taskStatus='waiting to depart'
- end
- return false
-end
+function P.homes(id) local c=P.config(id);return c and c.homes or 0 end
 -- Passenger-side state for debug views.
 function P.status(r)
- if r.resident then return r.departWaitSince and 'waiting to depart' or 'stored at home' end
  local t=r.task
+ if not t and P.config(r.homeStation) and r.node==r.homeStation then
+  return r.waitingHomeBerth and 'waiting for a home berth' or (r.state=='docked' and 'parked at residential home' or nil)
+ end
  if t and t.kind=='passenger' then
   return t.phase=='delivery' and ('carrying %d passengers'):format(t.party or 0) or 'travelling to pickup'
  end

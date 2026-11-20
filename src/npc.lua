@@ -204,10 +204,6 @@ function N.arrive(r,node,at,u,game)
   Supplies.refill(r,node)
   N.beginDocked(r,node,at,u,stay)
   if not r.task and r.homeStation==node then r.taskStatus='idle at home' end
- elseif not r.task and r.homeStation==node and not (game and game.alifeOnline and game.alifeOnline[r.id])
-  and require('src.passengers').store(u,r,node,false) then
-  -- home is residential with room inside: no berth needed
-  r.untilTime=at+stay
  else
   r.state='idle';r.untilTime=at+stay
   if not r.task and r.homeStation==node then r.waitingHomeBerth=true;r.taskStatus='waiting for home parking' end
@@ -224,7 +220,6 @@ local function go(r,route,at,ctx)
  local x,y=Actions.actorPosition(ctx)
  if not ctx.startingAction then Actions.cancel(ctx,'new route') end
  r.nextDecisionAt=nil
- r.resident,r.departWaitSince=nil,nil   -- leaving: out of residential storage
  if #route==1 then route={route[1],route[1]} end
  r.route=route;r.index=1;r.offset=nil;r.pose=nil
  deps.start(r,at,2)
@@ -285,7 +280,6 @@ local function returnHome(r,node,at,ctx)
  return go(r,route,at,ctx)
 end
 local function idleState(u,r,node)
- if r.resident==node then return 'docked' end   -- stored inside (src/passengers.lua)
  return L.get(node).kind=='station' and N.docksAt(r,node)
   and require('src.dock_room').room(u,r,node) and 'docked' or 'idle'
 end
@@ -310,14 +304,6 @@ function N.decide(u,r,node,at,game)
  if Upkeep.plan(r,at) then return true end
  local plan=j.next(ctx)
  if plan and plan.route then
-  -- a stored resident leaves only with its job reserved and a berth free
-  -- to leave from; otherwise it waits inside (or gives the job back)
-  local Passengers=require('src.passengers')
-  if r.resident and r.task and not Passengers.depart(u,r,node,at) then
-   r.state='docked';r.node=node
-   defer(u,r,at,r.task and 10 or Passengers.retry(r))
-   return true
-  end
   r.stuckSince=nil;r.waitingHomeBerth=nil
   if #plan.route<=1 or (#plan.route==2 and plan.route[1]==plan.route[2]) then
    -- work right here: hold (or stay docked) for its duration
@@ -338,14 +324,6 @@ function N.decide(u,r,node,at,game)
  if not r.task then
   local home=require('src.npc_home').get(r,u)
   if at-r.stuckSince>=T.npcIdleHomeDelay and returnHome(r,node,at,ctx) then return true end
-  -- at a residential home: wait inside, off the berths, looking for work
-  -- every so often (staggered)
-  local Passengers=require('src.passengers')
-  if home==node and Passengers.store(u,r,node,ctx.e~=nil) then
-   r.state='docked'
-   defer(u,r,at,Passengers.retry(r))
-   return false
-  end
   r.waitingHomeBerth=home==node and not require('src.dock_room').room(u,r,node) or nil
   if home==node then r.taskStatus=r.waitingHomeBerth and 'waiting for home parking' or 'idle at home' end
  end

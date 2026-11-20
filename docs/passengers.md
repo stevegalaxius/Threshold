@@ -2,7 +2,10 @@
 
 Code: `src/passengers.lua`. Config: `residential = { population, storage, routes }` on a station in `src/world_layout.lua`. Housing is its own capability: it grants no industry, market or ship sales.
 
-Authored set: Elysium (Earth: commutes to Jita, Ferrous Shipyard and Ashgrove; visits to Apollo Heritage on the Moon and to Cloudline on Venus), Cloudline (Venus: Hub Station and the AMW Atelier; visits to Elysium) and The Apollo Heritage Foundation (Luna: Thule Prime and Jita; visits to Elysium).
+Authored set: two new housing-only stations and Ring Station.
+- Tranquility Commons (Luna, `estates_quadrangle`): commutes to Thule Prime, Apollo Heritage and Jita; visits to Hakka Tulou.
+- Hakka Tulou Habitat (Mars, `zhuhai_tulou`): commutes to Mars's shipyards and Zhuhai Logistics; visits to Ring Station and Tranquility Commons. The visits are the interplanetary runs.
+- Ring Station (the Ring): keeps its market and yard, and adds commutes to Lumen Fabrication and visits to Hakka Tulou.
 
 ## Contracts
 
@@ -20,14 +23,10 @@ Authored set: Elysium (Earth: commutes to Jita, Ferrous Shipyard and Ashgrove; v
 - Speed incentive: up to +25%. It is computed from the ship's NPC cruise speed, which is already capped at ±15% of the reference hull, and only counts the flown share of the journey. Mass-driver legs take everyone the same time, so raw top speed earns nothing extra.
 - The fare is locked on acceptance (`t.fare`, `t.fareDetail`), so a refit afterwards does not change it.
 
-## Resident storage
+## Residential homes
 
-- An idle NPC whose home is a residential station with free storage waits inside the station instead of in a berth (`r.resident`). This only happens offline; a ship on screen keeps its berth. Stored ships do not count toward `src/dock_room.lua` and are never woken into the scene.
-- The existing 60 s idle grace period before going home is unchanged, and NPCs never need to visit home between jobs.
-- Stored ships check for work every ~30 s, staggered by id. A job is reserved before the ship departs. If no berth frees up within 180 s, the job is released ("waiting to depart" in F6).
-- Storage is counted from the records themselves, so it survives save/load and frees automatically on departure or death.
-- When a home is chosen, residential stations with spare storage are preferred. Homes that already exist are never redistributed.
+Ships living at a residential station park in its berths, like at any other home. `homes` caps how many new ships choose it: when a home is picked, residential stations with homes to spare come first. Established homes are never redistributed. The idle grace period, home return and work search are all unchanged.
 
-F6 shows the passenger status (stored at home, waiting to depart, travelling to pickup, carrying N passengers), the locked fare, and why an NPC can't take the nearest passenger contract.
+F6 shows the passenger status (parked at residential home, waiting for a home berth, travelling to pickup, carrying N passengers), the locked fare, and why an NPC can't take the nearest passenger contract.
 
 Short check: `/mnt/project-files/notes/passenger_probe.lua` (run it in place of tests/fast.lua).

@@ -48,8 +48,7 @@ end
 local function docked(u,id,except)
  local key=id;local byHull={};local total=0
  for _,o in pairs(u.npcs or {}) do
-  -- (stored residents wait inside, off the berths: src/passengers.lua)
-  if o~=except and o.state=='docked' and not o.resident then
+  if o~=except and o.state=='docked' then
    local at=o.node or (o.route and o.route[o.index])
    if at and L.byId[at] and at==key then
     local h=o.ship and o.ship.hull or '?'
