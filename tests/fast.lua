@@ -148,6 +148,34 @@ return function(game)
    local ship=require('src.npc_ship_supply').fromYard(u,faction,{requires={armed=true}})
    assert(ship and #Dealers.lots(u,yard,true)==before-1,faction..' police could not draw a ship from the yard')
   end
+  -- a hull trade-in carries the old hold's cargo into the new ship
+  do
+   local Refit=require('src.npc_refit');local copy=require('src.persistence').copy
+   local npc
+   for _,r in pairs(u.npcs) do if r.populationGroup=='hauler' and r.ship and r.state~='dead' then npc=r;break end end
+   local saved=copy(npc);local traded
+   for _,area in ipairs(require('src.fields').list) do
+    for _,key in ipairs(require('src.locations').stations(area,'trade')) do
+     if not traded and #Dealers.lots(u,key)>0 then
+      local before=copy(npc.ship.cargo or {});before.steel_plate=(before.steel_plate or 0)
+      local Hold=require('src.inventory.hold')
+      if npc.ship.hold then local h=Hold.deserialize(npc.ship.hold);Hold.add(h,'steel_plate',1);npc.ship.hold=Hold.serialize(h);npc.ship.cargo=Hold.totals(h)
+      else npc.ship.cargo.steel_plate=before.steel_plate+1 end
+      before.steel_plate=before.steel_plate+1
+      npc.credits=1e7;npc.area=area
+      -- (stripped of its modules, so any lot ship scores better)
+      local lo={};for i in ipairs(require("src.data").hulls[npc.ship.hull].slots) do lo[i]=false end
+      npc.ship.loadout=lo
+      for _=1,20 do if not traded then traded=Refit.hull(npc,key,u,u.clock,-1e9) end end
+      if traded then
+       for id,n in pairs(before) do assert((npc.ship.cargo[id] or 0)>=n,'trade-in lost '..id..' ('..(npc.ship.cargo[id] or 0)..' of '..n..')') end
+      else npc.ship=copy(saved.ship) end
+     end
+    end
+   end
+   assert(traded,'no hauler hull trade-in happened')
+   for k in pairs(npc) do npc[k]=nil end;for k,v in pairs(saved) do npc[k]=v end
+  end
   local flags=0;for _,g in pairs(state.groups) do if g.flagship then flags=flags+1 end end
   print(('ok  squads: %d squads, %d police in them, %d flagships'):format(squads,members,flags))
  end
@@ -438,7 +466,8 @@ return function(game)
  -- and doubling back, and doesn't jump doing it.
  do
   local A,G=require('src.alife'),require('src.travelgraph')
-  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  -- (not a wildcat: they patch up at their site, not at stations)
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
   local keep=require('src.persistence').copy(r)
   r.state='travel';r.area='earth';r.encounter=nil;r.speed=600
   r.route={'station:earth_1','station:earth_2'};r.index=2
@@ -455,7 +484,8 @@ return function(game)
  -- route at the station instead of coming back to that node first.
  do
   local U,G,Repairs=require('src.upkeep'),require('src.travelgraph'),require('src.npc_repair')
-  local r;for _,n in pairs(game.universe.npcs) do if n.ship then r=n;break end end
+  -- (not a wildcat: they patch up at their site, not at stations)
+  local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
   local keep=require('src.persistence').copy(r)
   r.state='travel';r.area='earth';r.encounter=nil;r.worldRecovery=nil;r.waitingForHome=nil;r.driverState=nil
   r.service=nil;r.nextServiceAt=nil;r.speed=600
@@ -549,5 +579,151 @@ return function(game)
   assert(ok,'freight bundling tripped on a satellite job: '..tostring(err))
  end
  print('ok  jobs: wreck bounties, ore contracts and the Jobs tab')
+ -- Wildcat sites: a crew rolled once, raids and back, a bounty after
+ -- three losses paid per kill, hunters clearing it offline, save/load,
+ -- and a site opening on its own.
+ do
+  local Sites,W=require('src.sites'),require('src.wildcats')
+  local Tasks=require('src.tasks')
+  local g=fresh();g:loadField('earth');run(g,1)
+  local gu=g.universe
+  local inst=Sites.spawn(gu,'wildcat_nest',{home='mars'})
+  local crew=W.crew(gu,inst.id)
+  assert(#crew>=3 and #crew<=5,'nest crew '..#crew)
+  assert(inst.discovered,'a wild site opens off the driver')
+  for _,r in ipairs(crew) do
+   assert(r.garrison and r.wildcat and r.populationGroup=='wildcat','crew not posted')
+   assert(r.ship and require('src.data').hulls[r.ship.hull],'crew hull')
+  end
+  -- out raiding round Mars and home again with loot for the hoard
+  local r=crew[1]
+  assert(W.sortie(g,r),'sortie failed')
+  assert(not r.garrison and r.area=='mars' and r.wildcat.out,'not out on Mars')
+  r.ship.cargo=r.ship.cargo or {};r.ship.cargo.steel_plate=(r.ship.cargo.steel_plate or 0)+6
+  if r.ship.hold then local Hold=require('src.inventory.hold');local h=Hold.deserialize(r.ship.hold);Hold.add(h,'steel_plate',6);r.ship.hold=Hold.serialize(h) end
+  r.stolenCargo={steel_plate=6}
+  W.goHome(g,r,'test')
+  assert(r.task and r.task.kind=='wildcat_home','not heading home')
+  r.state='idle';r.node=r.task.target
+  W.tick(g,gu.clock)
+  assert(r.garrison,'not back at its post')
+  assert((inst.hoard.steel_plate or 0)==6,'hoard got '..tostring(inst.hoard.steel_plate))
+  -- three losses: a bounty, on the driver, with hunter slots on the board
+  for _=1,3 do W.harm(gu,r) end
+  assert(inst.bounty and inst.discovered,'no bounty after three losses')
+  local slots=0
+  for _,o in pairs(Tasks.state(gu).offers) do if o.kind=='site_bounty' and o.site==inst.id then slots=slots+1 end end
+  assert(slots==require('src.tuning').bountySlots,'bounty slots '..slots)
+  -- the player's kill is owed at the paying station
+  local B=require('src.wreck_bounty')
+  local station=inst.bounty.station
+  local before=B.owed(gu,station)
+  local victim=crew[2];victim.state='dead'
+  local pay=W.death(gu,victim,'player')
+  assert(pay and B.owed(gu,station)==before+pay,'player bounty not owed')
+  -- hunters: two armed records go in and fight it out offline
+  local hunters={}
+  for _,o in pairs(gu.npcs) do
+   if #hunters<3 and o.state~='dead' and require('src.npc_access').capabilities(o).armed and not o.wildcat and not o.squad then hunters[#hunters+1]=o end
+  end
+  assert(#hunters>0,'no armed record to hunt with')
+  for _,h in ipairs(hunters) do
+   h.task={id='test/'..h.id,kind='site_bounty',site=inst.id,target=Fields.mars.driverId}
+   require('src.supplies').provision(h)
+   -- (off the scene first, as W.tick does when a hunter reaches the driver)
+   local e=g.alifeOnline and g.alifeOnline[h.id]
+   if e then require('src.alife').capture(g,e,false);g:remove(e,true);g.alifeOnline[h.id]=nil end
+   assert(W.beginAssault(gu,h),'assault refused')
+  end
+  -- (other hunters may take the bounty meanwhile: the test follows its own)
+  local function ours() for _,h in ipairs(hunters) do if h.assault and h.state~='dead' then return true end end end
+  local armor0=0;for _,c in ipairs(crew) do if c.state~='dead' then armor0=armor0+c.ship.armor end end
+  local clock=gu.clock
+  -- (long enough for a hunter to give up: T.hunterAssaultTime)
+  local TT=require('src.tuning')
+  for _=1,math.ceil(TT.hunterAssaultTime*1.5/TT.offlineCombatTick) do
+   clock=clock+TT.offlineCombatTick;gu.clock=clock
+   W.tick(g,clock)
+   if inst.done or not ours() then break end
+  end
+  local dead,armor1=0,0
+  for _,c in ipairs(crew) do if c.state=='dead' then dead=dead+1 else armor1=armor1+c.ship.armor end end
+  assert(armor1<armor0,'the hunters did no damage')
+  if not (inst.done or not ours()) then
+   local why={};for _,h in ipairs(hunters) do why[#why+1]=h.id..' '..tostring(h.state)..' pocket '..tostring(h.assault and h.assault.pocket)..' since '..tostring(h.assault and h.assault.since) end
+   error('the fight never ended at '..gu.clock..': '..table.concat(why,'; '))
+  end
+  -- everyone killed in the fight left a saved wreck in the pocket
+  local fallen=0
+  for _,c in ipairs(crew) do if c~=victim and c.state=='dead' then fallen=fallen+1
+   local w=gu.alifeWrecks and gu.alifeWrecks[c.id]
+   assert(w and w.area:sub(1,#Sites.fieldId(inst.id,1)-1)==Sites.fieldId(inst.id,1):sub(1,-2) and w.worldPosition,'site death left no wreck in its pocket')
+  end end
+  for _,h in ipairs(hunters) do if h.state=='dead' then fallen=fallen+1
+   assert(gu.alifeWrecks and gu.alifeWrecks[h.id],'dead hunter left no wreck')
+  end end
+  -- save and load keep the site and its crew
+  local live=#W.crew(gu,inst.id)
+  assert(Save.write('test',g:saveState()),'save failed')
+  local g2=fresh();g2:loadState(assert(Save.read('test')));Save.delete('test')
+  if not inst.done then
+   assert(Sites.list(g2.universe)[inst.id],'site lost on load')
+   assert(#W.crew(g2.universe,inst.id)==live,'crew changed on load')
+  end
+  -- a site opens on its own
+  assert(#Sites.homes()>0,'no planet can host a wildcat site')
+  -- a save with too few fills its share at once
+  gu.siteSpawnNext=nil
+  local new=Sites.tick(g,gu.clock)
+  assert(not new or Sites.template(new).wild and #W.crew(gu,new.id)>0,'a site opened with no crew')
+  local open=0;for _,i in pairs(Sites.list(gu)) do if Sites.template(i).wild and not i.done then open=open+1 end end
+  assert(Sites.shortfall(gu)<=0 or open>=require('src.tuning').sitesMax or open>=#Sites.homes()*require('src.tuning').sitesPerPlanet,
+   'sites short of their share after the first look ('..Sites.shortfall(gu)..' wildcats short, '..open..' open)')
+  print(('ok  wildcats: %d sites open on the first look, %d wildcats short of the share'):format(open,math.max(0,Sites.shortfall(gu))))
+  -- warp into a site mid-fight: hunters and crew come up as live ships and
+  -- go at each other
+  do
+   local site=Sites.spawn(gu,'wildcat_nest',{home='mars',discovered=true})
+   for _=1,3 do W.harm(gu,W.crew(gu,site.id)[1]) end
+   local hs={}
+   for _,o in pairs(gu.npcs) do
+    if #hs<2 and o.state~='dead' and o.state~='escaped' and not o.assault and require('src.npc_access').capabilities(o).armed and not o.wildcat and not o.squad then hs[#hs+1]=o end
+   end
+   for _,h in ipairs(hs) do
+    h.task={id='test2/'..h.id,kind='site_bounty',site=site.id,target=Fields.mars.driverId}
+    require('src.supplies').provision(h);W.beginAssault(gu,h)
+   end
+   local armor=0;for _,c in ipairs(W.crew(gu,site.id)) do armor=armor+c.ship.armor end
+   -- the approach: a gate home and a gate in that asks first
+   g:enterSite(site.id);run(g,1)
+   local home,gatein
+   for _,e in ipairs(g.entities) do if e.gate then if e.gate.to=='exit' then home=e elseif e.warning then gatein=e end end end
+   assert(home and g:gateOpen(home),'no open gate home on the approach')
+   assert(gatein and gatein.gate.to==2,'no warning gate in on the approach')
+   g.driverMenu={driver=gatein,warning=true}
+   assert(g:engageGate() and g.player.launch and g.player.launch.to==2,'engaging the gate in did not fire')
+   g.player.launch=nil;g.player.driverProtected=nil;gatein.driverShip=nil
+   -- into the crew's pocket (as the gate in would take you)
+   local field=Sites.fieldId(site.id,2);local f=require('src.fields')[field]
+   g:loadField(field,{player=require('src.ship').record(g.player),at={x=f.spawn[1],y=f.spawn[2],angle=-math.pi/2,vx=0,vy=0}})
+   run(g,2)
+   local out
+   for _,e in ipairs(g.entities) do if e.gate and e.gate.to=='exit' then out=e end end
+   assert(out and not g:gateOpen(out),'the way out is open with the crew still there')
+   local live={hunter=0,enemy=0}
+   for _,e in ipairs(g.entities) do
+    if e.kind=='ship' and e.siteHunter then live.hunter=live.hunter+1 end
+    if e.kind=='ship' and e.siteEnemy then live.enemy=live.enemy+1 end
+   end
+   assert(live.hunter>0,('%d of %d hunters live in the pocket'):format(live.hunter,#hs))
+   assert(live.enemy>0,'no crew live in the pocket')
+   run(g,25)
+   g:captureALife(false)
+   local after=0;for _,c in ipairs(W.crew(gu,site.id)) do after=after+c.ship.armor end
+   assert(after<armor or site.done,'no fight in the pocket')
+   print(('ok  wildcats: warped in on %d hunters and %d crew mid-fight'):format(live.hunter,live.enemy))
+  end
+  print(('ok  wildcats: crew of %d, raid and home, bounty, %d dead after the hunters%s'):format(#crew,dead,inst.done and ', site cleared' or ''))
+ end
  print('ALL TESTS PASSED')
 end

@@ -64,6 +64,8 @@ function R.consider(game,pirate,target)
    require('src.alife_trace').entity(game,pirate,'robbery',('paid %d by %s -> spared'):format(d.paid,tostring(target.alifeId or 'player')))
    pirate.combatTarget,pirate.lock=nil,nil
    announce(game,pirate,target,'"Wise choice. Move along."','Robbed: '..d.paid..' cargo taken')
+   local wc=pirate.alifeId and game.universe.npcs[pirate.alifeId]
+   if wc and wc.wildcat then require('src.wildcats').harm(game.universe,wc) end
    return false
   end
   if Handover.expired(game,d) then

@@ -2731,11 +2731,12 @@ function Game:reap()
 			e.removed = true
 		elseif e.fleeing and not e.dead and e.body:getX() ^ 2 + e.body:getY() ^ 2 > (self.arenaRadius + 600) ^ 2 then
 			-- A fleeing enemy that made it well past the edge is gone for good;
-			-- a garrison NPC that runs lives on, out in the world.
+			-- a wildcat that runs regroups at its post; a hunter gives up
+			-- on the site (src/wildcats.lua)
 			local r = e.alifeId and self.universe.npcs and self.universe.npcs[e.alifeId]
-			if r and r.garrison then
+			if r and (r.garrison or r.assault) then
 				ALife.capture(self, e, false)
-				require("src.garrison").release(self, r, "fled")
+				require("src.wildcats").fled(self, r)
 				if self.alifeOnline then self.alifeOnline[e.alifeId] = nil end
 			else
 				ALife.detach(self,e,"escaped")
@@ -2791,6 +2792,8 @@ function Game:reap()
 				ALife.capture(self, e, false); ALife.detach(self,e,"dead")
 				local r=self.universe.npcs[e.alifeId]
 				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
+				local owed = r and require("src.wildcats").death(self.universe,r,History.entityId(e.lastHitBy))
+				if owed then self:toast(("WILDCAT BOUNTY: %d CR"):format(owed), 2) end
 				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
 			end
 			local x, y = e.body:getPosition()
@@ -3191,7 +3194,7 @@ function Game:clearEnemies()
 		if e.kind == "ship" and e.team == 2 then self:remove(e) end
 	end
 	self.projectiles = {}
-	for _, r in ipairs(require("src.garrison").members(self.universe, self.fieldId)) do r.state = "dead" end
+	for _, r in ipairs(require("src.wildcats").members(self.universe, self.fieldId)) do r.state = "dead" end
 end
 
 -- Visual effects (don't affect the simulation) -------------------------------

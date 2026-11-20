@@ -10,20 +10,27 @@
 	  home     = planet id or { ... } (picked at random when spawned)
 	  lifetime = game-clock seconds before it closes (nil: never)
 	  hidden   = true             off the orrery until discovered
+	  wild     = true             a wildcat site: spawns on its own near a
+	                              planet with traffic and closes once its
+	                              crew is gone (src/wildcats.lua)
 	  fare     = cr to be fired there (else T.siteFare)
+	  warning  = text on the popup at a gate with warning = true
 	  pockets  = {
 	    { name, radius = map radius, spawn = { x, y } where you arrive,
 	      pieces = {
 	        { type = "rocks", count = n, minD = d }
 	        { type = "giant", x, y, r }                 a huge rock
 	        { type = "station", station = id, x, y, spin, name }   dockable
-	        { type = "enemies", groups = { { enemy, n }, ... }, x, y, r,
-	          tag = "boss" }                            spawned until cleared
+	        { type = "enemies", crew = { min, max }, x, y, r,
+	          tag = "boss" }                            wildcat posts, rolled once
+	                                                    when the site spawns
 	        { type = "containers", item = crate id | container = object id,
 	          count = { min, max }, loot = table id, x, y, r }
 	        { type = "spawnSet", id = set id, minD = d }
 	        { type = "gate", to = pocket number | "exit", x, y, name,
-	          unlock = nil | "clear" | { kill = tag } | { item = id } }
+	          unlock = nil | "clear" | "site" (the whole crew beaten)
+	                 | { kill = tag } | { item = id },
+	          warning = true (asks first, with the site's warning) }
 	      } },
 	  },
 	}
@@ -82,57 +89,94 @@ site {
 	},
 }
 
--- Two pockets: a guarded field, then a gate that opens once it's quiet.
+-- A wildcat site's first pocket: a few rocks, the gate home beside you,
+-- and the gate in (with the site's warning) ahead.
+local function approach(name)
+	return { name = name, radius = 14000, spawn = { 0, 6000 }, approach = true,
+		pieces = {
+			{ type = "rocks", count = 120, minD = 3000 },
+			{ type = "gate", to = "exit", x = 900, y = 6300 },
+			{ type = "gate", to = 2, x = 0, y = -6000, warning = true },
+		} }
+end
+
+-- Wildcat sites open on an approach: a quiet pocket with a gate back to
+-- the planet and the gate in. The gate in warns you first (its text is
+-- the template's `warning`): past it there's no way out until the whole
+-- crew is beaten, when the deepest pocket's return gate opens.
+
+-- A wildcat camp in a rock field.
 site {
-	id = "smugglers_hollow", name = "Smugglers' hollow", kind = "dungeon",
-	color = { 1, 0.6, 0.25 }, home = { "belt", "mars" }, lifetime = 1800,
+	id = "wildcat_nest", name = "Wildcat nest", kind = "nest", wild = true,
+	color = { 1, 0.75, 0.3 }, home = { "earth", "mars", "venus", "belt" },
+	warning = "Drive plumes and hot reactor signatures behind the gate: a wildcat camp, dug in among the rocks. Whoever runs it has spiked the gate behind you.",
 	pockets = {
-		{ name = "Hollow mouth", radius = 21000, spawn = { 0, 9000 },
+		approach("Nest approach"),
+		{ name = "Nest", radius = 18000, spawn = { 0, 7800 },
 			pieces = {
-				{ type = "rocks", count = 540, minD = 2400 },
-				{ type = "enemies", groups = { { "swarmer", 3 }, { "gunner", 2 } }, x = 0, y = -3600, r = 1800 },
-				{ type = "gate", to = 2, x = 0, y = -11400, unlock = "clear" },
-			} },
-		{ name = "Hollow cache", radius = 18000, spawn = { 0, 7800 },
-			pieces = {
-				{ type = "giant", x = 0, y = -1800, r = 900 },
-				{ type = "enemies", groups = { { "gunner", 2 }, { "interceptor", 1 } }, x = 0, y = -6600, r = 1200 },
-				{ type = "containers", item = "cargo_container", count = { 2, 3 }, loot = "site_cache", x = 0, y = -7200, r = 700 },
-				{ type = "gate", to = "exit", x = 6600, y = 6600 },
+				{ type = "rocks", count = 420, minD = 2400 },
+				{ type = "giant", x = 0, y = -1500, r = 900 },
+				{ type = "enemies", crew = { 3, 5 }, x = 0, y = -3600, r = 2200 },
+				{ type = "gate", to = "exit", x = 6600, y = 6600, unlock = "site" },
 			} },
 	},
 }
 
--- Four pockets: a picket, a yard, the warden with the vault key, the vault.
+-- A guarded field, then a gate that opens once it's quiet.
 site {
-	id = "iron_vault", name = "Iron vault", kind = "raid",
-	color = { 1, 0.3, 0.3 }, home = { "saturn", "jupiter", "uranus" }, lifetime = 3600, fare = 600,
+	id = "smugglers_hollow", name = "Smugglers' hollow", kind = "dungeon", wild = true,
+	color = { 1, 0.6, 0.25 }, home = { "belt", "mars" },
+	warning = "The gate's transponder answers with a smugglers' handshake. Two chambers of hollowed rock beyond, and somebody's cache at the back of it. The way out is at the far end.",
 	pockets = {
+		approach("Hollow approach"),
+		{ name = "Hollow mouth", radius = 21000, spawn = { 0, 9000 },
+			pieces = {
+				{ type = "rocks", count = 540, minD = 2400 },
+				{ type = "enemies", crew = { 3, 4 }, x = 0, y = -3600, r = 1800 },
+				{ type = "gate", to = 3, x = 0, y = -11400, unlock = "clear" },
+			} },
+		{ name = "Hollow cache", radius = 18000, spawn = { 0, 7800 },
+			pieces = {
+				{ type = "giant", x = 0, y = -1800, r = 900 },
+				{ type = "enemies", crew = { 2, 3 }, x = 0, y = -6600, r = 1200 },
+				{ type = "containers", item = "cargo_container", count = { 2, 3 }, loot = "site_cache", x = 0, y = -7200, r = 700 },
+				{ type = "gate", to = "exit", x = 6600, y = 6600, unlock = "site" },
+			} },
+	},
+}
+
+-- A picket, a yard, the warden with the vault key, the vault.
+site {
+	id = "iron_vault", name = "Iron vault", kind = "raid", wild = true,
+	color = { 1, 0.3, 0.3 }, home = { "saturn", "jupiter", "uranus" }, fare = 600,
+	warning = "An armoured gate chain, four links deep, and a picket already turning to meet you. Whatever the warden keeps in the vault, the only gate home is inside it.",
+	pockets = {
+		approach("Vault approach"),
 		{ name = "Picket", radius = 24000, spawn = { 0, 10500 },
 			pieces = {
 				{ type = "rocks", count = 360, minD = 3600 },
-				{ type = "enemies", groups = { { "gunner", 3 }, { "interceptor", 2 } }, x = 0, y = -3000, r = 2000 },
-				{ type = "gate", to = 2, x = 0, y = -13500, unlock = "clear" },
+				{ type = "enemies", crew = { 4, 5 }, x = 0, y = -3000, r = 2000 },
+				{ type = "gate", to = 3, x = 0, y = -13500, unlock = "clear" },
 			} },
 		{ name = "Breaker yard", radius = 24000, spawn = { 0, 10500 },
 			pieces = {
 				{ type = "rocks", count = 720, minD = 2700 },
-				{ type = "enemies", groups = { { "brawler", 2 }, { "sniper", 1 }, { "swarmer", 4 } }, x = 0, y = -4500, r = 2500 },
+				{ type = "enemies", crew = { 4, 6 }, x = 0, y = -4500, r = 2500 },
 				{ type = "containers", item = "cargo_container", count = { 1, 2 }, loot = "site_cache", x = 9000, y = 0, r = 800 },
-				{ type = "gate", to = 3, x = 0, y = -14400, unlock = "clear" },
+				{ type = "gate", to = 4, x = 0, y = -14400, unlock = "clear" },
 			} },
 		{ name = "Warden's post", radius = 21000, spawn = { 0, 9000 },
 			pieces = {
 				{ type = "giant", x = 0, y = 0, r = 1200 },
-				{ type = "enemies", groups = { { "brawler", 1 } }, x = 0, y = -7200, r = 300, tag = "warden" },
-				{ type = "enemies", groups = { { "gunner", 2 } }, x = 0, y = -7800, r = 900 },
+				{ type = "enemies", crew = { 1, 1 }, x = 0, y = -7200, r = 300, tag = "warden" },
+				{ type = "enemies", crew = { 2, 2 }, x = 0, y = -7800, r = 900 },
 				{ type = "containers", container = "derelict_tug", count = 1, loot = "warden_key", x = 7200, y = -7200, r = 200 },
-				{ type = "gate", to = 4, x = 0, y = -12600, unlock = { item = "vault_key" } },
+				{ type = "gate", to = 5, x = 0, y = -12600, unlock = { item = "vault_key" } },
 			} },
 		{ name = "The vault", radius = 15000, spawn = { 0, 7200 },
 			pieces = {
 				{ type = "containers", item = "cargo_container", count = { 3, 4 }, loot = "vault_hoard", x = 0, y = -2400, r = 900 },
-				{ type = "gate", to = "exit", x = 0, y = -9000 },
+				{ type = "gate", to = "exit", x = 0, y = -9000, unlock = "site" },
 			} },
 	},
 }

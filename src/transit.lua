@@ -165,6 +165,18 @@ function Game:fireDriverToSite(instId)
 	return true
 end
 
+-- Go through a warning gate after all (src/ui/gate_warning.lua).
+function Game:engageGate()
+	local menu, p = self.driverMenu, self.player
+	if not (menu and menu.warning) or not p or p.dead then return false end
+	local g = menu.driver
+	self.driverMenu = nil
+	p.launch = { driver = g, to = g.gate.to, gate = true, t = 0 };p.driverProtected = true
+	g.driverShip = p
+	self:toast("GATE LOCK", 1.2)
+	return true
+end
+
 -- Back out of the targeting window: you drift free of the ring.
 function Game:closeDriverMenu()
 	local p = self.player
@@ -409,7 +421,10 @@ function Game:updateDriverTractor(p, dt)
 	vx, vy = vx - gvx, vy - gvy
 	if lx > -120 and math.abs(ly) < 120 and vx * vx + vy * vy < 250 ^ 2 then
 		p.driverTractor = nil
-		if p==self.player and g.gate then
+		if p==self.player and g.gate and g.warning then
+		 -- a gate in to a wildcat site asks first (src/ui/gate_warning.lua)
+		 self.driverMenu = { driver = g, warning = true }
+		elseif p==self.player and g.gate then
 		 -- an acceleration gate has one target: no window, it just fires
 		 p.launch={driver=g,to=g.gate.to,gate=true,t=0};p.driverProtected=true
 		 self:toast("GATE LOCK", 1.2)

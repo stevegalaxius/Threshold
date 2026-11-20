@@ -145,6 +145,8 @@ end
 
 function Orrery.draw(game)
 	if not game.driverMenu then return end
+	-- a site's gate in asks first instead (src/ui/gate_warning.lua)
+	if game.driverMenu.warning then return require("src.ui.gate_warning").draw(game) end
 	local L = layout(game)
 	local mx, my = love.mouse.getPosition()
 	local hot = hovered(L, mx, my)
@@ -293,6 +295,7 @@ local function choose(game, it)
 end
 
 function Orrery.mousepressed(game, mx, my, button)
+	if game.driverMenu and game.driverMenu.warning then return require("src.ui.gate_warning").mousepressed(game, mx, my, button) end
 	if not game.driverMenu or (button ~= 1 and button ~= 2) then return false end
 	local L = layout(game)
 	if button == 2 then
@@ -312,6 +315,7 @@ function Orrery.mousepressed(game, mx, my, button)
 end
 
 function Orrery.keypressed(game, key)
+	if game.driverMenu and game.driverMenu.warning then return require("src.ui.gate_warning").keypressed(game, key) end
 	if not game.driverMenu then return false end
 	if key == "escape" then game:closeDriverMenu() return true end
 	for _, it in ipairs(layout(game).items) do
