@@ -96,8 +96,8 @@ W.stations = {
 		{ id = "station:callisto_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:callisto_3", name = "Callisto Customs", layout = "customs_1", customs = true },
 	},
 	saturn = {
-		{ id = "station:saturn_1", facilities={skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
-		{ id = "station:saturn_2", facilities={skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
+		{ id = "station:saturn_1", facilities={skim_hydrogen={capacity=10},fiber_works={capacity=16},composite_works={capacity=16}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
+		{ id = "station:saturn_2", facilities={skim_hydrogen={capacity=24},polymer_works={capacity=16},siloxane_works={capacity=16}}, services = { "market", "shipyard", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
 		{ id = "station:saturn_3", facilities={water_wells={capacity=320}}, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
 		-- the Diwan's military yards
 		{ id = "station:saturn_4", orbit = 2, uses = { military = true }, facilities={diwan_assembly={capacity=2}}, marketId = "market:saturn_4", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 0.9, name = "Diwan Military Yards", layout = "diwan_works" },

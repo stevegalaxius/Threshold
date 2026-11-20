@@ -14,7 +14,7 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | `assemble_ferrous_bison` | 3 Hull frame | 1 Bison → dealer inventory | 3 | Available dealer parking and lot limit |
 | `assemble_ferrous_mule` | 2 Hull frame | 1 Mule → dealer inventory | 2 | Available dealer parking and lot limit |
 | `assemble_ferrous_runner` | 1 Hull frame | 1 Runner → dealer inventory | 1 | Available dealer parking and lot limit |
-| `assemble_hull_frames` | 6 Steel plates | 1 Hull frame | 1 | 36 Hull frame |
+| `assemble_hull_frames` | 4 Steel plates, 1 Composite panels | 1 Hull frame | 1 | 36 Hull frame |
 | `assemble_intaki_archangel` | 4 Hull frame | 1 Archangel → dealer inventory | 4 | Available dealer parking and lot limit |
 | `assemble_intaki_praetor` | 3 Hull frame | 1 Praetor → dealer inventory | 3 | Available dealer parking and lot limit |
 | `assemble_intaki_wisp` | 1 Hull frame | 1 Wisp → dealer inventory | 1 | Available dealer parking and lot limit |
@@ -25,7 +25,11 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | `grow_food` | 0.05 Fertilizer | 1 Food crate | 1 | 4000 Food crate |
 | `make_airburst_m` | 1 Steel plates, 3 Explosives | 100 Airburst Rounds M | 1 | 800 Airburst Rounds M |
 | `make_airburst_s` | 1 Steel plates, 3 Explosives | 200 Airburst Rounds S | 1 | 1600 Airburst Rounds S |
+| `make_composites` | 1 Industrial fibers, 1 Polymers | 1 Composite panels | 1 | 64 Composite panels |
 | `make_electronics` | 2 Silicon, 1 Industrial acids | 8 Electronics | 1 | 256 Electronics |
+| `make_industrial_fibers` | 2 Nitrates | 1 Industrial fibers | 1 | 64 Industrial fibers |
+| `make_polymers` | 1 Hydrogen canister | 1 Polymers | 1 | 64 Polymers |
+| `make_siloxanes` | 2 Silicon | 1 Siloxanes | 1 | 128 Siloxanes |
 | `make_explosives` | 2 Nitrates | 1 Explosives | 1 | 720 Explosives |
 | `make_fertilizer` | 1 Nitrates | 1 Fertilizer | 1 | 480 Fertilizer |
 | `make_missile_l` | 4 Steel plates, 4 Explosives, 2 Electronics | 12 Missile L | 2 | 96 Missile L |
@@ -97,13 +101,17 @@ Capacities below are rated processing units per game hour. Recipes in one instal
 | Ceres Dock (`station:belt_1`), Abaddon (`station:titan_2`) | `reactors_works` | profit | 1 each | reactors S/M/L |
 | Lumen Fabrication (`station:ring_2`), Station Beta (`station:mars_2`) | `coil_works` | profit | 8 each | make_superconducting_coils |
 | Pele Works (`station:io_1`), Haephestus Logistics (`station:mercury_2`) | `ceramic_works` | profit | 8 each | make_thermal_ceramics |
+| Zebulun's Bounty (`station:saturn_1`) | `fiber_works` | fixed | 16 | make_industrial_fibers |
+| Shiloh (`station:saturn_2`) | `polymer_works` | profit | 16 | make_polymers |
+| Shiloh (`station:saturn_2`) | `siloxane_works` | profit | 16 | make_siloxanes |
+| Zebulun's Bounty (`station:saturn_1`) | `composite_works` | profit | 16 | make_composites |
 | Ceres Quarry Depot (`station:ceres_quarry_1`), Quarry Ore Depot (`station:quarry_1`) | `metal_extraction` | fixed | 24 each | extract_heavy_metals |
 | Terminator Station (`station:mercury_1`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Terminator Station (`station:mercury_1`) | `silicon_refinery` | fixed | 12 | refine_silicon |
 | Haephestus Logistics (`station:mercury_2`) | `burn_hydrogen` | adaptive | -12 | burn_hydrogen |
 | Brute Industries Shipyard (`station:mercury_3`) | `brute_assembly` | orders | 2 | assemble_brute_runt, assemble_brute_anvil, assemble_brute_nautilus |
 | Zebulun's Bounty (`station:saturn_1`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
-| Shiloh (`station:saturn_2`) | `skim_hydrogen` | adaptive | 10 | skim_hydrogen |
+| Shiloh (`station:saturn_2`) | `skim_hydrogen` | adaptive | 24 | skim_hydrogen |
 | Ephraim's Bounty (`station:titan_1`) | `farm` | fixed | 960 | grow_food |
 | Ephraim's Bounty (`station:titan_1`) | `produce_nitrates` | adaptive | 120 | produce_nitrates |
 | Abaddon (`station:titan_2`) | `chemicals` | profit | 160 | make_fertilizer, make_explosives |
