@@ -40,6 +40,43 @@ end
 -- Who an AI ship fights: enemies go for the player; drones go for the
 -- nearest ship on another team.
 local function pickTarget(game, e, x, y)
+	-- Inside a site: wildcats at their posts fight the player and any
+	-- bounty hunters in the pocket; hunters fight the wildcats (src/wildcats.lua).
+	if e.siteEnemy or e.siteHunter then
+		local best, bestD = nil, math.huge
+		for _, o in ipairs(game.entities) do
+			if o ~= e and o.kind == "ship" and not o.dead and not o.removed and not o.dockState then
+				local foe
+				if e.siteHunter then foe = o.siteEnemy else foe = o.siteHunter or o.isPlayer end
+				if foe then
+					local ox, oy = o.body:getPosition()
+					local d = (ox - x) ^ 2 + (oy - y) ^ 2
+					if d < bestD then best, bestD = o, d end
+				end
+			end
+		end
+		if not best then return nil end
+		if e.siteEnemy and not e.aggro then
+			-- what it can see: a long cone ahead of its nose, and only close
+			-- by all round (sensors, or the sound of a drive at its back)
+			local seen = bestD < T.siteNearSense ^ 2
+			if not seen and bestD < T.siteSightRange ^ 2 then
+				local bx, by = best.body:getPosition()
+				local off = wrap(atan2(by - y, bx - x) - e.body:getAngle())
+				seen = math.abs(off) < T.siteSightCone
+			end
+			if seen or e.lastHitTime then
+				-- one of a group comes under fire or spots you: its whole group comes
+				e.aggro = true
+				if e.siteGroup then
+					for _, o in ipairs(game.entities) do
+						if o.siteGroup == e.siteGroup and not o.dead and not o.removed then o.aggro = true end
+					end
+				end
+			else return nil end
+		end
+		return best
+	end
 	if not e.drone then
 		local p = game.player
 		if not p or p.dead or p.dockState then return nil end
@@ -568,7 +605,7 @@ function AI.think(game, e, dt)
 	it.thrust, it.strafe = 0, 0
 	local record=e.alifeId and game.universe.npcs[e.alifeId]
 	-- a site garrison fights like the enemy it flies as, until its duty ends
-	if record and record.garrison then record=nil end
+	if record and (record.garrison or record.assault) then record=nil end
  if record and Fuel.observe(game.universe,record,game.universe.clock,e)=='stranded' then
   local x,y=e.body:getPosition();local a=e.body:getAngle()
   it.aimX,it.aimY=x+cos(a)*100,y+sin(a)*100
@@ -640,6 +677,7 @@ function AI.think(game, e, dt)
 			if d > keep then it.aimX, it.aimY = ox, oy end
 			it.thrust, it.strafe = Ship.toLocal(e, sx * 0.8, sy * 0.8)
 		end
+		if e.siteEnemy or e.siteHunter then AI.siteIdle(game, e, dt, x, y) end
 		return
 	end
 
@@ -782,6 +820,40 @@ function AI.think(game, e, dt)
 	it.firePrimary = not burning and e.burstClock < burstOn and facing
 	it.fireSecondary = it.firePrimary
 	it.fireTertiary = it.firePrimary
+end
+
+-- A site ship with nobody to fight (src/wildcats.lua) doesn't sit dead
+-- still: it drifts between spots near its post (or where it came in),
+-- slowly, round the rocks, settling for a while at each.
+function AI.siteIdle(game, e, dt, x, y)
+	local it = e.intent
+	local r = e.alifeId and game.universe.npcs[e.alifeId]
+	local hx, hy
+	if r then hx, hy = require("src.wildcats").point(r) end
+	if not hx then hx, hy = e.homeX or x, e.homeY or y end
+	e.homeX, e.homeY = hx, hy
+	e.wanderWait = (e.wanderWait or love.math.random() * 4) - dt
+	if not e.wanderX or e.wanderWait <= 0 then
+		local a, d = love.math.random() * math.pi * 2, T.siteWander * (0.3 + 0.7 * love.math.random())
+		e.wanderX, e.wanderY = hx + cos(a) * d, hy + sin(a) * d
+		e.wanderWait = T.siteWanderPause * (0.6 + 0.8 * love.math.random())
+	end
+	local mx, my, d = norm(e.wanderX - x, e.wanderY - y)
+	local vx, vy = e.body:getLinearVelocity()
+	if d < 120 then
+		-- there: drift to a stop and look about, its sight cone sweeping
+		local sx, sy = steerVelocity(0, 0, vx, vy)
+		it.thrust, it.strafe = Ship.toLocal(e, sx * 0.5, sy * 0.5)
+		e.lookAngle = (e.lookAngle or e.body:getAngle()) + (e.lookTurn or 0.35) * dt
+		if love.math.random() < dt * 0.15 then e.lookTurn = -(e.lookTurn or 0.35) end
+		it.aimX, it.aimY = x + cos(e.lookAngle) * 400, y + sin(e.lookAngle) * 400
+		return
+	end
+	e.lookAngle = nil
+	local want = min(T.siteWanderSpeed, d * 0.5)
+	local nmx, nmy, scale = Nav.steer(game, e, mx, my, want, 0, 0, { brake = brakeAccel(e) })
+	it.aimX, it.aimY = x + nmx * 400, y + nmy * 400
+	AI.driveVelocity(e, nmx * want * scale, nmy * want * scale, nmx, nmy, 0.6)
 end
 
 -- A pirate waiting on a robbery demand keeps its guns quiet.

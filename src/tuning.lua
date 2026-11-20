@@ -100,6 +100,13 @@ T.fieldContainers = 6
 T.starterHull = "intaki_wisp"
 -- Level enemies leave you alone until you come this close (or shoot them).
 T.aggroRange = 2600
+-- Site ships with nothing to fight drift round their post (src/ai.lua AI.siteIdle)
+T.siteWander, T.siteWanderSpeed, T.siteWanderPause = 900, 160, 9
+-- What an idle site ship sees (src/ai.lua pickTarget): out to
+-- T.siteSightRange inside a cone of +-T.siteSightCone radians off its
+-- nose, and T.siteNearSense all round.
+T.siteSightRange, T.siteSightCone, T.siteNearSense = 4200, 0.8, 1200
+T.siteGroupSize = 3            -- wildcats per group: one aggroing brings the group
 -- Mass drivers (src/transit.lua): the capture ring's radius, seconds to
 -- line up and to fire, the speed you leave and arrive at, how long after
 -- arriving before a driver will take you again, and the fare in credits
@@ -311,7 +318,31 @@ T.population = {
  patrol={minDelay=180,maxDelay=300},
  courier={minDelay=240,maxDelay=420},
  miner={minDelay=180,maxDelay=300},
+ hunter={minDelay=300,maxDelay=600},
 }
+-- Wildcat sites (src/sites.lua Sites.tick, src/wildcats.lua)
+-- Sized to the population: wildcat crews plus bounty hunters make up about
+-- T.siteShare of the living NPCs. Short of that, a site opens every
+-- T.siteSpawnEvery; a world (or save) with none gets its share at once.
+T.siteShare = 0.15
+T.siteSpawnEvery = 120        -- s between new sites while crews are short of their share
+T.sitesPerPlanet, T.sitesMax = 3, 16
+T.wildcatSortieEvery = 900    -- s between a posted wildcat's raids (give or take 40%)
+T.wildcatSortieTime = 900     -- s a wildcat raids before heading home empty-handed
+T.wildcatIdleHome = 120      -- s a wildcat out raiding waits with no raid to take before heading home
+T.wildcatSortieHealth = 0.8   -- share of armour a wildcat wants before it goes out
+T.wildcatPatchRate = 0.5      -- share of full armour patched per hour at the site
+T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that send one wildcat to fence it
+-- Bounties: robberies and kills by a site's wildcats before its system's
+-- paying station posts a bounty; each wildcat is then worth this much to
+-- whoever lands the last hit (plus a little per point of its hull's armour)
+T.bountyLosses = 3
+T.bountyPerHead, T.bountyPerArmor = 600, 1
+T.bountySlots = 3             -- hunters the board sends at one site at once
+T.huntersPerSystem = 3        -- bounty hunters per owned system with a trade station
+T.hunterReadyHealth = 0.8     -- share of armour a hunter wants before it takes a bounty
+T.hunterBreakKill = 0.3       -- chance a hunter that breaks inside a site doesn't get out
+T.hunterAssaultTime = 1800    -- s a hunter stays inside a site before it gives up and pulls out
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing

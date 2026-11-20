@@ -4,6 +4,8 @@
 --                  deliveries, rescues, satellite work, ore), this one first
 --   Wreck bounty   what this system pays for clearing wrecks, and your tab
 --                  with it, collected at any station here (src/wreck_bounty.lua)
+--   Site bounties  wildcat sites this system has put a price on, paid per
+--                  kill into the same tab (src/wildcats.lua)
 --   Freight board  freight shared with NPCs that picks up in this system,
 --                  wherever it goes
 --                  (src/player_contracts.lua)
@@ -61,6 +63,20 @@ function View.layout(game)
    head('WRECK BOUNTY')
    entries[#entries+1]={bounty=areas,h=84}
   end
+  -- wildcat sites this system's station has put a price on (src/wildcats.lua)
+  local W=require('src.wildcats')
+  local posted={}
+  for _,inst in pairs(require('src.sites').list(u)) do
+   if inst.bounty and not inst.done and Q.system(inst.bounty.station)==Q.system(here) then posted[#posted+1]=inst end
+  end
+  table.sort(posted,function(a,b) return a.id<b.id end)
+  if #posted>0 then
+   head(('SITE BOUNTIES · %d posted in the %s system · paid per wildcat to whoever lands the last hit'):format(#posted,sysName))
+   for _,inst in ipairs(posted) do
+    local crew=W.crew(u,inst.id);local each=crew[1] and W.perHead(crew[1]) or require('src.tuning').bountyPerHead
+    note(('%s off %s · %d wildcat%s left · about %s each · on the mass driver · %d hunter%s inside'):format(require('src.sites').name(inst),areaName(inst.home),#crew,#crew==1 and '' or 's',HUD.credits(each),#W.hunters(u,inst.id),#W.hunters(u,inst.id)==1 and '' or 's'))
+   end
+  end
   head(('FREIGHT BOARD · %d picking up in the %s system · pickups at this station are held for you %ds before NPCs'):format(#freight,sysName,T.playerFirstLookSeconds))
   for _,o in ipairs(freight) do entries[#entries+1]={offer=o,h=104} end
   if #freight==0 then note('No unclaimed freight picks up in this system right now. NPCs use this same board.') end
@@ -73,7 +89,7 @@ function View.layout(game)
  table.sort(elsewhere)
  if #elsewhere>0 then
   head('BOUNTIES TO COLLECT ELSEWHERE')
-  for _,st in ipairs(elsewhere) do note(('%s system · %s for %d wrecks · from %s'):format(areaName(Q.system(st)),HUD.credits(Bounty.owed(u,st)),Bounty.state(u).cleared[st] or 0,name(st))) end
+  for _,st in ipairs(elsewhere) do note(('%s system · %s for %d wrecks, %d wildcats · from %s'):format(areaName(Q.system(st)),HUD.credits(Bounty.owed(u,st)),Bounty.state(u).cleared[st] or 0,(Bounty.state(u).heads or {})[st] or 0,name(st))) end
  end
  local total=0;for _,e in ipairs(entries) do total=total+e.h end
  local top,bottom=y+4,y+h

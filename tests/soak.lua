@@ -73,6 +73,20 @@ return function(game)
   local kk={} for k,v in pairs(kinds) do kk[#kk+1]=k..'='..v end table.sort(kk)
   local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
   local gg={} for k,v in pairs(groups) do gg[#gg+1]=k..'='..v end table.sort(gg)
+  -- wildcat sites: open (bountied), crew posted/out, hoard, hunters in/out, cleared
+  do
+   local open,bountied,posted,out,hoard,cleared,hin,hall,fenced=0,0,0,0,0,u.sitesCleared or 0,0,0,0
+   for _,inst in pairs(u.sites or {}) do if inst.crew then
+    open=open+1;if inst.bounty then bountied=bountied+1 end
+    for _,n in pairs(inst.hoard or {}) do hoard=hoard+n end
+   end end
+   for _,r in pairs(u.npcs or {}) do if r.state~='dead' and r.state~='escaped' then
+    if r.wildcat then if r.garrison then posted=posted+1 else out=out+1 end end
+    if r.populationGroup=='hunter' then hall=hall+1;if r.assault then hin=hin+1 end end
+   end end
+   local W=require('src.wildcats')
+   say(('    sites open=%d bountied=%d cleared=%d | wildcats posted=%d out=%d hoard=%d | hunters=%d inside=%d | bounties paid npc=%d'):format(open,bountied,cleared,posted,out,hoard,hall,hin,u.siteBountiesPaid or 0))
+  end
   say(('h%02d wall=%.0fs npcs=%d [%s] npcCr=%.0f med=%.0f broke=%d | stations=%.0f low=%d faction=%.0f subsidy=%.0f | houses=%.0f insolv=%d | player=%.0f | ledger freight=%.0f bought=%.0f sold=%.0f | tasks open=%d claimed=%d [%s] | zero %s')
    :format(h,wall,alive,table.concat(gg,' '),credits,med,broke,st,lowSt,fa,sumShort(),houses,insolvent,u.credits or 0,
    lh.freight or 0,lh.bought or 0,lh.sold or 0,open,claimed,table.concat(kk,' '),zeroes(watch)))
@@ -198,7 +212,7 @@ return function(game)
   for c=base+fstep,base+60,fstep do
    u.clock=c
    t=clk();for id,r in pairs(u.npcs or {}) do game:alifeVisit(id,r,c,nil,nil,true,true) end;ft.visits=ft.visits+clk()-t
-   t=clk();Encounters.update(game,c);Squads.update(game,c);ft.encounters=ft.encounters+clk()-t
+   t=clk();Encounters.update(game,c);Squads.update(game,c);require('src.wildcats').tick(game,c);ft.encounters=ft.encounters+clk()-t
    t=clk();History.update(game);ft.history=ft.history+clk()-t
   end
   u.clock=base+60

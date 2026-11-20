@@ -319,7 +319,7 @@ local function planetField(o)
 	local field
 	field = {
 		name = name,
-		stationTrack = sd, surfaceMine = o.surfaceMine, city = o.city, cityScale = o.cityScale, traderPopulation = o.traders or 5,
+		stationTrack = sd, stationTrack2 = o.track2 and R + depth * o.track2, surfaceMine = o.surfaceMine, city = o.city, cityScale = o.cityScale, traderPopulation = o.traders or 5,
 		planetR = R, gas = o.gas, hue = hue, rocky = o.rocky, landable = o.landable, lumpy = o.lumpy, maria = o.maria, parent = o.parent,
 		mix = o.mix or MIX.inner,
 		rings = o.gas and bands or nil,
@@ -568,10 +568,10 @@ Fields.mercury = planetField({ name = "Mercury", R = 5700, depth = 15000, rocky 
 	density = 0.07, mix = { junk = 3, sat = 2, rock = 5 }, belt = 1.1,
 	enemies = { { "gunner", 2 }, { "swarmer", 2 } } })
 Fields.venus = planetField({ name = "Venus", R = 14300, depth = 18000,
-	density = 0.1, mix = MIX.inner, belt = 1.1,
+	density = 0.1, mix = MIX.inner, belt = 1.1, track2 = 0.8,   -- second station orbit, out past the belt
 	enemies = { { "gunner", 2 }, { "swarmer", 3 } } })
 Fields.earth = planetField({ name = "Earth", R = 15000, depth = 18000,
-	density = 0.1, mix = MIX.inner, belt = 1.1,
+	density = 0.1, mix = MIX.inner, belt = 1.1, track2 = 0.8,   -- second station orbit, out past the belt
 	enemies = { { "brawler", 2 }, { "sniper", 2 }, { "gunner", 2 } } })
 Fields.mars = planetField({ name = "Mars", R = 7500, depth = 17000, hue = { 0.85, 0.38, 0.24 },   -- rust red
 	density = 0.005, mix = { junk = 7, sat = 5, rock = 1 },
@@ -597,6 +597,7 @@ Fields.jupiter = planetField({ name = "Jupiter", R = 45000, depth = 22000, gas =
 Fields.saturn = planetField({ name = "Saturn", R = 45000, depth = 34000, gas = true,
 	hue = { 0.9, 0.8, 0.55 },
 	density = 0.08, mix = { ice = 6, rock = 4 }, track = 0.71,   -- in the Cassini division
+	track2 = 0.2,   -- second station orbit, inside the faint C ring
 	-- C ring (faint), B ring (dense, the odd big chunk), the Cassini
 	-- division, then the A ring (medium)
 	-- (stretched x1.617 from the surface so the A ring meets the edge)
@@ -683,10 +684,13 @@ function Fields.configureLocations(area)
     F.navigation=WorldLayout.navigation[area] or {}
     local entries={}
     for _,entry in ipairs(WorldLayout.stations[area] or {}) do if entry.enabled~=false then entries[#entries+1]=entry end end
-    local orbitCount=0
-    for _,entry in ipairs(entries) do if not entry.adapter and (not entry.motion or entry.motion.type=='orbit') then orbitCount=orbitCount+1 end end
+    -- A planet can have a second station orbit (track2): entries with
+    -- orbit=2 ride it, and each orbit spaces its own stations evenly.
+    local function orbitOf(entry) return (entry.orbit==2 and F.stationTrack2) and 2 or 1 end
+    local orbitCount={0,0}
+    for _,entry in ipairs(entries) do if not entry.adapter and (not entry.motion or entry.motion.type=='orbit') then local k=orbitOf(entry);orbitCount[k]=orbitCount[k]+1 end end
     F.stations={}
-    local orbitIndex=0
+    local orbitIndex={0,0}
     for i,entry in ipairs(entries) do
         local id=assert(entry.id,'station needs a stable id')
         local motion,spin=entry.motion,entry.spin
@@ -717,10 +721,12 @@ function Fields.configureLocations(area)
                 upPeriod=T.cityDriftUp,acrossPeriod=T.cityDriftAcrossPeriod,phase=area=='jupiter' and .7 or 2.1}
             layout=entry.layout or 'city_'..(F.cityScale or 1)
         elseif F.stationTrack and (not motion or motion.type=='orbit') then
-            orbitIndex=orbitIndex+1
-            motion=motion or {type='orbit',radius=entry.radius or F.stationTrack,surface=F.planetR,
-                phase=entry.phase or -.8+(orbitIndex-1)*pi*2/math.max(1,orbitCount)}
-            spin=spin or (orbitIndex==1 and .05 or -.05)
+            local k=orbitOf(entry)
+            orbitIndex[k]=orbitIndex[k]+1
+            local n=orbitIndex[k]
+            motion=motion or {type='orbit',radius=entry.radius or (k==2 and F.stationTrack2 or F.stationTrack),surface=F.planetR,
+                phase=entry.phase or -.8+(n-1)*pi*2/math.max(1,orbitCount[k])}
+            spin=spin or (n==1 and .05 or -.05)
         else
             motion=motion or {type='fixed',x=0,y=0};spin=spin or .04
         end

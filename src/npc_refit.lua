@@ -44,6 +44,14 @@ local function shelfHas(u,node,id)
  return false
 end
 
+-- The fit profile a ship is scored by: its group's, or for a group with
+-- none of its own (wildcats, bounty hunters) the role it buys ships as.
+function M.role(r)
+ local g=r.populationGroup
+ if g and F.profiles[g] then return g end
+ local P=g and require('src.npc_templates').purchaseFor(r)
+ return P and F.profiles[P.role] and P.role or nil
+end
 local function keeps(r,hull,loadout)
  return M.keeps(r,hull,loadout)
 end
@@ -74,8 +82,8 @@ function M.dock(r,node,u,clock,roll)
  local chance=rich and 1 or tier.refitChance
  if (r.credits or 0)<M.minCredits or roll()>chance then return end
  if rich then tier=setmetatable({refitMargin=tier.refitMargin*T.npcSavings/r.credits},{__index=tier}) end
- local role=r.populationGroup
- if not (role and F.profiles[role]) then return end
+ local role=M.role(r)
+ if not role then return end
  -- a whole new ship off the lot first; its old one goes up for sale
  local traded=M.hull(r,node,u,clock,tier.refitMargin)
  if traded then return traded end
@@ -184,25 +192,47 @@ function M.ammo(r,u,key,e)
  end
  return changed
 end
+-- What's aboard r's ship, moved into a hold for hull/loadout, plus what
+-- the lot ship already carries (extra: its fuel) as far as it fits. nil
+-- when the ship's own cargo doesn't all fit.
+function M.moveHold(r,hull,loadout,extra)
+ local Hold=require('src.inventory.hold')
+ local actor={hull=hull,loadout=loadout,stats=require('src.stats').compute(hull,loadout)}
+ local layout=require('src.ship').holdLayout(actor)
+ local h
+ if r.ship.hold then
+  local left
+  h,left=Hold.relayout(Hold.deserialize(r.ship.hold),layout)
+  if next(left) then return end
+ else
+  h=Hold.new(layout,true)
+  for id,n in pairs(r.ship.cargo or {}) do
+   if n>0 and Hold.add(h,id,n)~=n then return end
+  end
+ end
+ for id,n in pairs(extra or {}) do Hold.add(h,id,n) end
+ return h
+end
 -- Trade the whole ship in for one on this station's dealer lot when one
 -- scores better for the job by more than margin (the same fit scoring the
--- module refit and arrivals use). Its hold has to be empty, so nothing is
--- lost in the swap. The old ship goes on the lot (Dealers.resell) at the
+-- module refit and arrivals use). Its cargo moves into the new hold, so
+-- a lot ship whose hold can't take it all isn't a choice. The old ship goes on the lot (Dealers.resell) at the
 -- player's trade-in price. Returns the trade, or nil.
 function M.hull(r,node,u,clock,margin)
  local D=require('src.dealers');local def=D.def(node)
  if not def or def.service then return end
- local role=r.populationGroup
- local Hold=require('src.inventory.hold')
- local h=r.ship.hold and Hold.deserialize(r.ship.hold)
- for _,n in pairs(h and Hold.totals(h) or r.ship.cargo or {}) do if n>0 then return end end
- local credit=require('src.game').shipSellPrice(r.ship)
+ local role=M.role(r);if not role then return end
+ -- (the hull and its fit only: the cargo moves across, it isn't sold)
+ local credit=require('src.game').shipSellPrice({hull=r.ship.hull,loadout=r.ship.loadout})
  local budget=(r.credits or 0)+credit-M.minCredits
+ -- (no role cap: the purchase budget only limits the hull an NPC starts
+ -- in; one that has earned the money can trade up to anything on the lot)
  local choices={{hull=r.ship.hull,loadout=r.ship.loadout,price=0,key='0 current'}}
  for _,lot in ipairs(D.lots(u,node)) do
   local hull=data.hulls[lot.hull]
-  if hull and lot.price<=budget and keeps(r,hull,lot.loadout) then
-   choices[#choices+1]={hull=lot.hull,loadout=lot.loadout,price=lot.price,lot=lot,key=('1 %08d'):format(lot.id)}
+  local hold=hull and lot.price<=budget and keeps(r,hull,lot.loadout) and M.moveHold(r,hull,lot.loadout,lot.cargo)
+  if hold then
+   choices[#choices+1]={hull=lot.hull,loadout=lot.loadout,price=lot.price,lot=lot,hold=hold,key=('1 %08d'):format(lot.id)}
   end
  end
  if #choices<2 then return end
@@ -212,6 +242,10 @@ function M.hull(r,node,u,clock,margin)
  D.resell(u,node,old)
  D.take(u,node,best.lot.id)
  r.ship=D.ship(best.lot);r.ship.armor=best.lot.armor
+ -- everything aboard moves across to the new hold
+ local Hold=require('src.inventory.hold')
+ if old.hold then r.ship.hold=Hold.serialize(best.hold) end
+ r.ship.cargo=Hold.totals(best.hold)
  r.credits=(r.credits or 0)+credit-best.lot.price
  -- the dealer banks the sale and pays the trade-in out of its own account
  local Accounts=require('src.accounts')

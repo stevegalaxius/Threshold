@@ -272,6 +272,7 @@ function A.seed(game)
     if worker then worker.taskWorker=true end
    end
   end
+  require('src.wildcats').migrate(u)
   Security.seed(game,start)
   Mining.seed(game)
   Salvager.seed(game)
@@ -299,7 +300,7 @@ function A.advance(r,clock,u,game)
  if fuelStatus=='stranded' and Fuel.needsPropulsion(r) then return end
  if r.waitingForHome then return end
  if r.state=='dead' or r.state=='escaped' then return end
- if r.garrison and require('src.garrison').advance(r,clock,u,game) then return end
+ if (r.wildcat or r.assault) and require('src.wildcats').advance(r,clock,u,game) then return end
  -- Upkeep comes before every job: a due service visit owns the ship.
  if not r.service then Upkeep.plan(r,clock) end
  if r.service then require('src.npc_actions').pause({u=u,game=game,r=r,clock=clock},'service') end
@@ -466,12 +467,12 @@ end
 
 function A.point(r,clock)
  local x,y=A.trackPoint(r,clock)
- if not x or r.garrison or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
+ if not x or r.garrison or r.assault or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
  local sx,sy=A.spread(r)
  return x+sx,y+sy
 end
 function A.trackPoint(r,clock)
- if r.garrison then return require('src.garrison').point(r) end
+ if r.garrison or r.assault then return require('src.wildcats').point(r) end
  local ax,ay=require('src.npc_actions').position(r,clock)
  if ax then return ax,ay end
  if r.state=='transit' then return nil end
@@ -617,10 +618,12 @@ function A.capture(game,e,remote)
  end
  r.ship=shipRecord(e); r.power=e.power;r.fuelClock=clock
  Fuel.observe(game.universe,r,clock,e)
- if r.garrison then
-  -- it holds the post where it was left
+ if r.garrison or r.assault then
+  -- it holds the spot where it was left (a site post, or a hunter's place
+  -- in the fight)
   local x,y=e.body:getPosition()
-  r.garrison.x,r.garrison.y=x,y;r.pose=nil
+  local g=r.garrison or r.assault
+  g.x,g.y=x,y;r.pose=nil
   return
  end
  if r.waitingForHome then
@@ -884,8 +887,8 @@ function A.wake(game,r)
    r.laneOffset=lane.n*lane.dir
    r.transit.departure=nil
   end
- elseif r.garrison then
-  require('src.garrison').woke(game,e,r)
+ elseif r.garrison or r.assault then
+  require('src.wildcats').woke(game,e,r)
  else
   bindRoute(game,e,r)
   if exact and r.cityExit then
@@ -1190,6 +1193,7 @@ function A.install(Game)
    require('src.queue').universe=self.universe
    require('src.arbiter').update(self.universe,clock)
    require('src.passengers').update(self.universe,clock)
+   require('src.sites').tick(self,clock)
    return
   end
   if stage==4 then
@@ -1268,6 +1272,7 @@ function A.install(Game)
   Encounters.syncOnline(self)
   Encounters.update(self,clock)
   require('src.squads').update(self,clock)
+  require('src.wildcats').tick(self,clock)
   Encounters.materialize(self,px,py,clock)
   require("src.simulation_history").update(self)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
