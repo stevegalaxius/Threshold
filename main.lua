@@ -122,6 +122,18 @@ function love.load(args)
 	game = Game.new()
 	-- Test run: love . --test (tests/fast.lua, about half a minute).
 	local suites = { ["--test"] = "tests.fast", ["--soak"] = "tests.soak" }
+	-- Economy model (src/economy_model.lua): --econmodel prints it, --econcapture
+	-- measures the service demand it uses (data/economy_baseline.lua).
+	for _, a in ipairs(args or {}) do
+		if a == "--econmodel" or a == "--econcapture" then
+			game.autosaveOff = true
+			local M = require("src.economy_model")
+			local ok, err = xpcall(function() if a == "--econmodel" then M.run(game) else M.capture(game) end end, debug.traceback)
+			if not ok then print(err) end
+			love.event.quit(ok and 0 or 1)
+			return
+		end
+	end
  for _,a in ipairs(args or {}) do
   if a=='--industrycatalogue' then print(require('src.industry_catalogue').markdown());love.event.quit();return end
  end

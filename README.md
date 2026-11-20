@@ -1002,6 +1002,10 @@ F6 shows the current action, target, phase and pause/failure reason. See
 [Adding NPC jobs and actions](docs/npc-actions.md) for the extension contracts.
 
 
+## Economy model
+
+`love . --econmodel` prints what the economy must make and haul, and where it's short, from the data files in about a second. Run it before changing recipes, facilities or stations. See docs/economy-model.md.
+
 ## Tests
 
 `love . --test` runs the whole suite (`tests/fast.lua`) in about half a minute: every map loads and runs for a second, ten seconds of play on the starting map, a save/load round trip, and one simulated hour of markets. Keep it that small; don't add long soak tests to it.
