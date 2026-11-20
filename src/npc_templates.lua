@@ -24,8 +24,8 @@ local Templates={
  -- Wildcats: the crews of instanced sites (src/wildcats.lua). Raiders on
  -- the dark network, but no population: a site rolls its crew once.
  wildcat={job='raider',network='dark',purchase={role='pirate',budget=60000,requires={armed=true}},label='Wildcat',profile='wildcat',homePurpose='pirateBase',roamingHome=true},
- -- (wildcats are small-time: a proficient one can't reach a 70k hull, a
- -- veteran or elite now and then can)
+ -- (wildcats start small-time: a proficient one can't reach a 70k hull, a
+ -- veteran or elite now and then can; a rich one trades up at the fence)
  -- Bounty hunters: armed freelancers who take site bounties off the
  -- board, and sweep wrecks when there are none (src/wildcats.lua).
  hunter={job='hunter',network='white',purchase={role='patrol',budget=200000,requires={armed=true}},label='Bounty Hunter',profile='bounty_hunter',homePurpose='trade'},
