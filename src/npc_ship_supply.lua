@@ -216,8 +216,10 @@ function S.fromYard(u,faction,policy)
    if (stats.hold or 0)<(policy.minCargo or 0) then ok=false end
    local caps=require('src.npc_access').capabilities({ship={hull=lot.hull,loadout=lot.loadout}})
    for name in pairs(policy.requires or {}) do if not caps[name] then ok=false end end
-   -- (police keep the heavy hull for the flagship: smallest first)
+   -- (police keep the heavy hull for the flagship: smallest first, and a
+   -- hull over the pilot's rank budget only when nothing else is there)
    local rank=-(hull.armor or 0)
+   if ok and policy.budget and D.price(hull,lot.loadout)>policy.budget then rank=rank-1e9 end
    if ok and (not best or rank>bestArmor or rank==bestArmor and lot.id<best.id) then best,bestArmor=lot,rank end
   end
  end
