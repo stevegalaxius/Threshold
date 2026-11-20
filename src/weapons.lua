@@ -464,7 +464,7 @@ end
 local function steerMissile(game, p, dt)
 	local t = p.target
 	-- (gone from the scene too: a ship that warped out or was taken off it)
-	if t and (t.dead or t.removed or (t.body and t.body:isDestroyed())) then p.target, t = nil, nil end
+	if t and (t.dead or t.removed or (t.body and t.body.isDestroyed and t.body:isDestroyed())) then p.target, t = nil, nil end
 	-- a guided missile whose target died picks the nearest other one
 	if not t and p.guided and p.kind == "missile" and not p.decoyed then
 		p.retarget = (p.retarget or 0) - dt
@@ -533,7 +533,7 @@ local function updateFlares(game, dt)
 					for k = 1, 3 do
 						local a = love.math.random() * math.pi * 2
 						local d = { kind = "decoy", x = tx, y = ty, vx = vx * 0.5 + cos(a) * 250, vy = vy * 0.5 + sin(a) * 250, life = FLARE_LIFE }
-						d.body = { getPosition = function() return d.x, d.y end }
+						d.body = { getPosition = function() return d.x, d.y end, isDestroyed = function() return d.dead == true end }
 						table.insert(game.decoys, d)
 						t.lastFlares = d
 					end
