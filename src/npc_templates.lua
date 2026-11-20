@@ -12,15 +12,15 @@ local Templates={
  -- Haulers: the civilian freight fleet. They carry what the board offers
  -- (freight, salvage, satellite runs); one flying a hull with berths
  -- moves new ships to dealer lots too (src/ship_delivery.lua).
- hauler={job='hauler',network='white',purchase={role='hauler',budget=300000,minCargo=4,requires={cargo=true}},label='Hauler',
+ hauler={job='hauler',network='white',purchase={role='hauler',budget=75000,minCargo=4,requires={cargo=true}},label='Hauler',
   -- temperament: most haulers prefer freight, some prefer sweeping wrecks
   profiles={{'freight_regular',4},{'scavenger',1}},homePurpose='trade',mobile=true},
- miner={job='miner',network='white',purchase={role='miner',budget=150000,requires={cargo=true,drill=true}},label='Miner',profile='industrial',homePurpose='mining'},
+ miner={job='miner',network='white',purchase={role='miner',budget=75000,requires={cargo=true,drill=true}},label='Miner',profile='industrial',homePurpose='mining'},
  patrol={job='guard',network='white',purchase={role='patrol',budget=150000,requires={armed=true},faction='$owner',
   -- Faction police fly their own service hulls, never bought off a lot.
   fleets={estates={'estates_whisper','estates_rapier','estates_bastion'},diwan={'diwan_cherubim','diwan_seraph'}}},label='Faction Police',profile='local_police',homePurpose='trade',affiliation='$owner',
   authorizations={{kind='police',issuer='$owner',jurisdiction='$area'}}},
- pirate={job='raider',network='dark',purchase={role='pirate',budget=150000,requires={armed=true}},label='Raider',profile='raider',homePurpose='pirateBase',roamingHome=true},
+ pirate={job='raider',network='dark',purchase={role='pirate',budget=75000,requires={armed=true}},label='Raider',profile='raider',homePurpose='pirateBase',roamingHome=true},
  -- Wildcats: the crews of instanced sites (src/wildcats.lua). Raiders on
  -- the dark network, but no population: a site rolls its crew once.
  wildcat={job='raider',network='dark',purchase={role='pirate',budget=60000,requires={armed=true}},label='Wildcat',profile='wildcat',homePurpose='pirateBase',roamingHome=true},
@@ -28,7 +28,7 @@ local Templates={
  -- veteran or elite now and then can; a rich one trades up at the fence)
  -- Bounty hunters: armed freelancers who take site bounties off the
  -- board, and sweep wrecks when there are none (src/wildcats.lua).
- hunter={job='hunter',network='white',purchase={role='patrol',budget=200000,requires={armed=true}},label='Bounty Hunter',profile='bounty_hunter',homePurpose='trade'},
+ hunter={job='hunter',network='white',purchase={role='patrol',budget=90000,requires={armed=true}},label='Bounty Hunter',profile='bounty_hunter',homePurpose='trade'},
 }
 -- Faction couriers: the faction's own errand runners. Same service hulls
 -- and colours as its police, but ordinary freight work, so police never
@@ -38,6 +38,11 @@ Templates.courier={job='hauler',network='white',purchase={role='hauler',budget=3
 -- A hauler bought for ship delivery: any hull with berths (src/berths.lua),
 -- and a temperament for moving ships. Same population, same label.
 Templates.berthPurchase={role='hauler',budget=400000,requires={berths=true}}
+-- Ship budgets (at proficient; src/npc_rank.lua scales them: rookie .8,
+-- elite 1.5, veteran 2) keep the top hulls rare: at 75k a rookie flies
+-- something under 60k, a proficient pilot a Bison, Longhorn or Nautilus at
+-- most, and only an elite one (112k) can reach an Archangel. Faction
+-- fleets (patrol, couriers) fly their own service hulls.
 Templates.JOBS={hauler=true,miner=true,raider=true,guard=true,hunter=true}
 Templates.NETWORKS={white=true,dark=true}
 -- Older saves: the retired salvager group becomes a scavenging hauler.
