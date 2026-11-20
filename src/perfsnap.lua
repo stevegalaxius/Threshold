@@ -20,13 +20,42 @@ local function sizes(root, prefix, out, depth, seen)
 	end
 end
 
--- Asked for from a key press; taken at the end of the next draw so the
--- draw-call numbers are that frame's, not an empty one's.
-function S.snap() S.pending = true end
+-- Asked for from a key press. For the next two seconds LuaJIT's sampling
+-- profiler records where the time goes (the "hot:" line, by source line,
+-- percent of samples); the snapshot is then taken at the end of a draw so
+-- the draw-call numbers are that frame's, not an empty one's.
+local PROFILE_SECONDS = 2
+function S.snap()
+	if S.profiling then return end
+	local ok, prof = pcall(require, "jit.profile")
+	S.samples, S.total = {}, 0
+	if ok then
+		prof.start("li1", function(thread, n)
+			local key = prof.dumpstack(thread, "pl", 1)
+			S.samples[key] = (S.samples[key] or 0) + n
+			S.total = S.total + n
+		end)
+		S.prof = prof
+	end
+	S.profiling = love.timer.getTime()
+end
+
+local function hot()
+	local list = {}
+	for k, n in pairs(S.samples or {}) do list[#list + 1] = { k, n } end
+	table.sort(list, function(a, b) return a[2] > b[2] end)
+	local out = {}
+	for i = 1, math.min(20, #list) do
+		out[i] = ("%s %.0f%%"):format(list[i][1], list[i][2] * 100 / math.max(1, S.total))
+	end
+	return table.concat(out, "  ")
+end
 
 function S.afterDraw(game)
-	if not S.pending or not game then return end
-	S.pending = nil
+	if not S.profiling or not game then return end
+	if love.timer.getTime() - S.profiling < PROFILE_SECONDS then return end
+	S.profiling = nil
+	if S.prof then S.prof.stop(); S.prof = nil end
 	local st = love.graphics.getStats()
 	local w = game.world
 	local kinds = {}
@@ -39,11 +68,11 @@ function S.afterDraw(game)
 	table.sort(big, function(a, b) return a[2] > b[2] end)
 	local top = {}
 	for i = 1, math.min(15, #big) do top[i] = big[i][1] .. "=" .. big[i][2] end
-	local line = ("[t=%.0f] fps=%d frameMs=%.2f luaKB=%.0f draws=%d canvases=%d images=%d texMB=%.1f bodies=%d contacts=%d entities=%d %s\n  big: %s\n"):format(
+	local line = ("[t=%.0f] fps=%d frameMs=%.2f luaKB=%.0f draws=%d canvases=%d images=%d texMB=%.1f bodies=%d contacts=%d entities=%d %s\n  big: %s\n  hot: %s\n"):format(
 		game.time or 0, love.timer.getFPS(), love.timer.getAverageDelta() * 1000, collectgarbage("count"),
 		st.drawcalls, st.canvases, st.images, st.texturememory / 2 ^ 20,
 		w and w:getBodyCount() or -1, w and w:getContactCount() or -1, #(game.entities or {}),
-		table.concat(ks, " "), table.concat(top, " "))
+		table.concat(ks, " "), table.concat(top, " "), hot())
 	print(line)
 	S.dump(game)
 	love.filesystem.append("perf_log.txt", line)
