@@ -57,7 +57,15 @@ local function pickTarget(game, e, x, y)
 		end
 		if not best then return nil end
 		if e.siteEnemy and not e.aggro then
-			if bestD < T.aggroRange ^ 2 or e.lastHitTime then
+			-- what it can see: a long cone ahead of its nose, and only close
+			-- by all round (sensors, or the sound of a drive at its back)
+			local seen = bestD < T.siteNearSense ^ 2
+			if not seen and bestD < T.siteSightRange ^ 2 then
+				local bx, by = best.body:getPosition()
+				local off = wrap(atan2(by - y, bx - x) - e.body:getAngle())
+				seen = math.abs(off) < T.siteSightCone
+			end
+			if seen or e.lastHitTime then
 				-- one of a group comes under fire or spots you: its whole group comes
 				e.aggro = true
 				if e.siteGroup then
@@ -833,11 +841,15 @@ function AI.siteIdle(game, e, dt, x, y)
 	local mx, my, d = norm(e.wanderX - x, e.wanderY - y)
 	local vx, vy = e.body:getLinearVelocity()
 	if d < 120 then
-		-- there: drift to a stop and look about
+		-- there: drift to a stop and look about, its sight cone sweeping
 		local sx, sy = steerVelocity(0, 0, vx, vy)
 		it.thrust, it.strafe = Ship.toLocal(e, sx * 0.5, sy * 0.5)
+		e.lookAngle = (e.lookAngle or e.body:getAngle()) + (e.lookTurn or 0.35) * dt
+		if love.math.random() < dt * 0.15 then e.lookTurn = -(e.lookTurn or 0.35) end
+		it.aimX, it.aimY = x + cos(e.lookAngle) * 400, y + sin(e.lookAngle) * 400
 		return
 	end
+	e.lookAngle = nil
 	local want = min(T.siteWanderSpeed, d * 0.5)
 	local nmx, nmy, scale = Nav.steer(game, e, mx, my, want, 0, 0, { brake = brakeAccel(e) })
 	it.aimX, it.aimY = x + nmx * 400, y + nmy * 400

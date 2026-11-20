@@ -102,6 +102,10 @@ T.starterHull = "intaki_wisp"
 T.aggroRange = 2600
 -- Site ships with nothing to fight drift round their post (src/ai.lua AI.siteIdle)
 T.siteWander, T.siteWanderSpeed, T.siteWanderPause = 900, 160, 9
+-- What an idle site ship sees (src/ai.lua pickTarget): out to
+-- T.siteSightRange inside a cone of +-T.siteSightCone radians off its
+-- nose, and T.siteNearSense all round.
+T.siteSightRange, T.siteSightCone, T.siteNearSense = 4200, 0.8, 1200
 T.siteGroupSize = 3            -- wildcats per group: one aggroing brings the group
 -- Mass drivers (src/transit.lua): the capture ring's radius, seconds to
 -- line up and to fire, the speed you leave and arrive at, how long after
