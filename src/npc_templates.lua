@@ -16,7 +16,7 @@ local Templates={
   -- temperament: most haulers prefer freight, some prefer sweeping wrecks
   profiles={{'freight_regular',4},{'scavenger',1}},homePurpose='trade',mobile=true},
  miner={job='miner',network='white',purchase={role='miner',budget=75000,requires={cargo=true,drill=true}},label='Miner',profile='industrial',homePurpose='mining'},
- patrol={job='guard',network='white',purchase={role='patrol',budget=150000,requires={armed=true},faction='$owner',
+ patrol={job='guard',network='white',purchase={role='patrol',budget=80000,requires={armed=true},faction='$owner',
   -- Faction police fly their own service hulls, never bought off a lot.
   fleets={estates={'estates_whisper','estates_rapier','estates_bastion'},diwan={'diwan_cherubim','diwan_seraph'}}},label='Faction Police',profile='local_police',homePurpose='trade',affiliation='$owner',
   authorizations={{kind='police',issuer='$owner',jurisdiction='$area'}}},

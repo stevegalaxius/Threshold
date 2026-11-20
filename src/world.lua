@@ -498,7 +498,7 @@ function Game:saveState()
 		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId, discovered = Persistence.copy(u.discovered),
 		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites),
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
-		arbiter = Persistence.copy(u.arbiter), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts),
+		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts),
 		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications) }
 	local p = self.player
 	if p and not p.dead then
@@ -564,6 +564,7 @@ function Game:loadState(state)
 	self.universe.merchants = Persistence.copy(state.merchants)
 	self.universe.industry = Persistence.copy(state.industry)
 	self.universe.arbiter = Persistence.copy(state.arbiter)
+	self.universe.fleetSeeded = Persistence.copy(state.fleetSeeded)
 	self.universe.squads = Persistence.copy(state.squads)
 	self.universe.accounts = Persistence.copy(state.accounts)
 	self.universe.satWearAt = state.satWearAt

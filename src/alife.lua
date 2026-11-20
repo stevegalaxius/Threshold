@@ -197,7 +197,16 @@ function A.seed(game)
  -- T.fleet) is topped up to it once. After that, losses are replaced by
  -- arrivals buying ships off the lots, as before.
  u.fleetSeeded=u.fleetSeeded or {}
- local function count(area) return require('src.population').count(u,area,'hauler') end
+ -- Count an area's haulers by home, not by where they are now: free agents
+ -- roam, and counting only those present topped every area back up on each
+ -- load while its own ships were away (the fleet grew by ~100 per load).
+ local function count(area)
+  local n=0
+  for _,r in pairs(u.npcs) do
+   if r.populationGroup=='hauler' and r.home==area and r.state~='dead' and r.state~='escaped' then n=n+1 end
+  end
+  return n
+ end
  for _,area in ipairs(Fields.list) do
   local f=Fields[area]
   local fresh=f.alifeTraders and L.station(area,'trade') and not u.npcAreas[area]
