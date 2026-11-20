@@ -11,6 +11,7 @@ local Hold = require('src.inventory.hold')
 local copy = require('src.persistence').copy
 local Tasks=require('src.tasks')
 local Transport=require('src.transport')
+require('src.passengers')   -- registers the passenger task kind
 local Security=require('src.security')
 local Piracy=require("src.piracy")
 local Repairs=require('src.npc_repair')
@@ -1190,6 +1191,7 @@ function A.install(Game)
    require('src.supplies').universe=self.universe
    require('src.queue').universe=self.universe
    require('src.arbiter').update(self.universe,clock)
+   require('src.passengers').update(self.universe,clock)
    require('src.sites').tick(self,clock)
    return
   end

@@ -579,6 +579,95 @@ return function(game)
   assert(ok,'freight bundling tripped on a satellite job: '..tostring(err))
  end
  print('ok  jobs: wreck bounties, ore contracts and the Jobs tab')
+
+ -- Passengers: residential demand stays capped and expires; a fast,
+ -- comfortable ship earns more than a pod hauler, within the bounds; a
+ -- contract runs through the shared controller; resident storage survives
+ -- a save and frees on departure or death; and the player can take one.
+ do
+  local P,Tasks,T=require('src.passengers'),require('src.tasks'),require('src.tuning')
+  local data,copy=require('src.data'),require('src.persistence').copy
+  local homes=P.stations()
+  assert(#homes>=3,'expected the authored residential stations')
+  local clock0=u.clock
+  for clock=clock0,clock0+4*3600,60 do
+   u.clock=clock;P.update(u,clock)
+   for _,id in ipairs(homes) do assert(P.outstanding(u,id)<=P.cap(id),'passenger demand over cap at '..id) end
+  end
+  local any,au,ret=nil,false,false
+  for _,o in ipairs(P.offers(u)) do
+   any=o
+   assert(o.party>=1 and o.party<=T.passengerMaxParty,'party size out of range')
+   assert(o.expires>u.clock-1,'expired offer still on the board')
+   if (o.routeAU or 0)>0 then au=true end
+   if o.target==o.home then ret=true end
+  end
+  assert(any,'no passenger contracts posted')
+  assert(au,'no interplanetary passenger contract posted')
+  assert(ret,'no return trips posted')
+  -- expiry: an hour later nothing old is left unaccepted
+  local later=u.clock+T.passengerExpiry+1
+  for _,o in ipairs(P.offers(u)) do if o.state=='available' then o.expires=u.clock end end
+  P.update(u,later)
+  for _,o in ipairs(P.offers(u)) do assert(o.state~='available' or o.posted>=later-1,'stale passenger offer survived expiry') end
+  u.clock=later
+  -- fares: Wayfarer (comfortable bay) vs a hauler with a Climate Pod
+  local o=P.offers(u)[1] or P.post(u,homes[1],u.clock)
+  local probe=copy(o);probe.party=4
+  local yacht={hull='amw_wayfarer',loadout=data.hulls.amw_wayfarer.loadout}
+  local mule=data.hulls.ferrous_mule;local pod=copy(mule.loadout or {})
+  local fitted=false
+  for i,slot in ipairs(mule.slots or {}) do if slot.family=='utility' and not fitted then pod[i]='climate_pod_s';fitted=true end end
+  local hauler={hull='ferrous_mule',loadout=pod}
+  assert(P.seatCount(hauler)>=4,'pod hauler should seat the party')
+  local fy,dy=P.fare(probe,yacht);local fh=P.fare(probe,hauler)
+  assert(fy and fh and fy>fh,('a comfortable fast ship should out-earn the pod hauler (%s vs %s)'):format(tostring(fy),tostring(fh)))
+  assert(fy<=P.maxFare(probe) and fh>=math.floor(P.baseFare(probe)),'fare outside its bounds')
+  assert(dy.speedShare<=T.passengerSpeedMax and dy.comfortShare<=T.passengerComfortMax,'fare premium over its cap')
+  assert(P.fare(probe,{hull='ferrous_mule',loadout=mule.loadout})==nil,'a ship without climate seats got a fare')
+  -- the shared controller: an NPC Wayfarer takes, boards, delivers
+  local job=P.post(u,homes[1],u.clock);job.party=2;job.amount=2
+  local r={id='npc/passenger_test',workProfile='freight_regular',ship={hull='amw_wayfarer',loadout=copy(yacht.loadout),cargo={}},node=job.source,state='docked',area=L.get(job.source).area}
+  u.npcs[r.id]=r
+  for id,x in pairs(Tasks.state(u).offers) do if x~=job and x.state=='available' then x.readyAt=(x.readyAt or 0)+1e9;x._held=true end end
+  local t=Tasks.choose(u,r,job.source,u.clock)
+  for _,x in pairs(Tasks.state(u).offers) do if x._held then x.readyAt=x.readyAt-1e9;x._held=nil end end
+  assert(t and t.kind=='passenger' and t.id==job.id,'NPC did not take the passenger contract')
+  assert(t.phase=='delivery' and (r.ship.cargo.passengers or 0)==2,'party not aboard after pickup')
+  local fare=t.fare;r.ship.loadout={}   -- refitting after accepting can't reprice it
+  assert(Tasks.arrive(u,r,job.target,u.clock),'passenger delivery failed')
+  assert((r.credits or 0)==fare and (r.ship.cargo.passengers or 0)==0 and not Tasks.state(u).offers[job.id],'delivery settled wrong')
+  u.npcs[r.id]=nil
+  -- residential homes: new ships prefer one with homes to spare, park in
+  -- its berths like anywhere else, and the home survives a save
+  local home=homes[1]
+  local living=#P.residents(u,home)
+  assert(living>0,'no ship chose a residential home')
+  local any=P.residents(u,home)[1]
+  local Save=require('src.save')
+  assert(Save.write('test_res',game:saveState()))
+  local g2=fresh();g2:loadState(assert(Save.read('test_res')));Save.delete('test_res')
+  assert(g2.universe.npcs[any.id].homeStation==home,'residential home lost on save/load')
+  assert(require('src.dock_room').capacity(home,any.ship.hull)>0,'residential home has no berth for its ship')
+  -- the player: quote, accept and drop off through the Jobs board
+  local Board=require('src.player_contracts')
+  local pj=P.post(u,homes[1],u.clock);pj.party=1;pj.amount=1
+  local station=Board.station;Board.station=function() return pj.source end
+  local q,why=Board.quote(game,pj)
+  if q then
+   local ok,msg=Board.accept(game,pj.id);assert(ok,msg)
+   assert(Board.active(game).fare==q.payment,'player fare not locked at the quoted price')
+   Board.station=function() return pj.target end
+   local credits=u.credits
+   local done,m2=Board.advance(game);assert(done,m2)
+   assert(u.credits==credits+q.payment,'player not paid the locked fare')
+  else
+   assert(why,'no reason given for an unavailable passenger contract')
+  end
+  Board.station=station
+  local okDraw,err=pcall(function() require('src.ui.jobs').draw(game) end);assert(okDraw,err)
+  print(('ok  passengers: %d homes, demand capped, fares %d vs %d, controller, homes, player%s'):format(#homes,fy,fh,q and '' or ' ('..why..')'))
+ end
  -- Wildcat sites: a crew rolled once, raids and back, a bounty after
  -- three losses paid per kill, hunters clearing it offline, save/load,
  -- and a site opening on its own.

@@ -44,6 +44,17 @@ function View.layout(game)
  for _,q in ipairs(active) do entries[#entries+1]={quest=q,active=true,h=84} end
  if not t and #active==0 then note('Nothing held. Take a job below.') end
  if here then
+  -- a residential station explains itself: homes, routes, its contracts
+  local P=require('src.passengers');local c=P.config(here)
+  if c then
+   head(('RESIDENTIAL STATION · %s · population about %d · home to %d of %d ships'):format(name(here),c.population or 0,#P.residents(u,here),c.homes or 0))
+   local dest={}
+   for _,route in ipairs(c.routes or {}) do dest[#dest+1]=name(route.to)..(route.kind=='work' and ' (work)' or ' (visit)') end
+   note('Passenger destinations: '..table.concat(dest,', '))
+   local open=P.offers(u,function(o)return o.home==here end)
+   local avail=0;for _,o in ipairs(open) do if o.state=='available' then avail=avail+1 end end
+   note(('%d passenger contracts out of %d at most · %d open to accept · parties ride in climate seats; comfort and speed raise the fare'):format(#open,P.cap(here),avail))
+  end
   head(('SYSTEM JOBS · %d offered in the %s system'):format(#offers,sysName))
   for _,q in ipairs(offers) do entries[#entries+1]={quest=q,h=84} end
   if #offers==0 then note('No station in this system has jobs posted right now.') end

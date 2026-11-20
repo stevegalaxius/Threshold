@@ -40,6 +40,8 @@ local function cargo(r,item,amount)
 end
 -- Put amount of item into (or, negative, out of) an NPC record's hold.
 Transport.carry=cargo
+-- How many of item an NPC record's hold has room for (climate rules included).
+Transport.room=room
 function Transport.route(source,target,clock)
  local a,b=L.byId[source],L.byId[target]
  if not a or not b or source==target then return end

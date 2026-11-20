@@ -34,6 +34,7 @@ end
 local function supported(o)
  -- Standing mining/salvage/police duties do not yet define player rewards.
  -- (not a buy order of the player's own: src/buy_orders.lua)
+ if o.kind=='passenger' then return L.byId[o.source] and L.byId[o.target] and true or false end
  return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and L.byId[o.source] and L.byId[o.target]
 end
 local function access(game,o)
@@ -46,7 +47,17 @@ function C.quote(game,o)
  local u=game.universe
  if not o or not supported(o) then return nil,'Not a player contract' end
  if o.state~='available' or (o.readyAt or 0)>u.clock then return nil,'Job no longer available' end
- if not access(game,o) then return nil,'Requirements not met' end
+ if not access(game,o) then return nil,o.kind=='passenger' and 'Needs a climate-controlled hold' or 'Requirements not met' end
+ if o.kind=='passenger' then
+  -- the fare this ship would lock in now, and its parts
+  local P=require('src.passengers');local p=game.player
+  local ship={hull=p.hull.id,loadout=p.loadout}
+  local seats=P.seatCount(ship)
+  if seats<o.party then return nil,('Party of %d: %d climate seats aboard'):format(o.party,seats) end
+  if Ship.canFit(p,P.item,o.party)<o.party then return nil,'Clear your climate hold for the party' end
+  local fare,detail=P.fare(o,ship)
+  return {amount=o.party,payment=fare,detail=detail,routeAU=o.routeAU,passenger=true}
+ end
  local amount=math.min(o.amount,Ship.canFit(game.player,o.item,o.amount),Transport.available(u,o.source,o.item,o.id))
  amount=math.floor(amount)
  if amount<1 then return nil,'No cargo space or available stock' end
@@ -78,6 +89,13 @@ function C.accept(game,id)
  local r=attach(game);local def=Tasks.definitions[t.kind]
  if not def.eligible(u,r,t,here,u.clock) then detach(game,r);return nil,'This freight order is no longer eligible' end
  if not def.feasible(u,r,t,here,u.clock) then detach(game,r);return nil,'No route to pickup or delivery' end
+ if t.kind=='passenger' then
+  local ok=def.prepare(u,r,t,here,u.clock)
+  if not ok then detach(game,r);return nil,'The party does not fit aboard' end
+  o.owner=r.id;o.state='reserved';r.task=t
+  detach(game,r,true)
+  return true,('Contract accepted at %s: '):format(require('src.hud').credits(t.fare))..(t.phase=='delivery' and 'party aboard' or 'collect the party at the pickup')
+ end
  -- Explicitly accept the displayed amount; do not bundle other offers.
  local amount=o.amount;o.amount=t.amount
  local ok=def.prepare(u,r,t,here,u.clock)
@@ -95,9 +113,20 @@ function C.advance(game)
  if not here or not t then return nil,'No active contract at this station' end
  local destination=t.phase=='pickup' and t.source or t.target
  if here~=destination then return nil,t.phase=='pickup' and 'Dock at the pickup station' or 'Dock at the delivery station' end
+ if t.kind=='passenger' and t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Clear your climate hold for the party' end
  if t.phase=='delivery' and (game.player.cargo[t.item] or 0)<t.amount then return nil,'Cargo missing: replace it before delivery' end
  if t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Make room for the contracted cargo first' end
  local r=attach(game);local clock=game.universe.clock
+ if t.kind=='passenger' then
+  if t.phase=='pickup' then
+   local ok=require('src.passengers').board(game.universe,r,t);detach(game,r,ok)
+   return ok,ok and 'Party aboard' or 'Clear your climate hold for the party'
+  end
+  local fare=t.fare or 0
+  local done=Tasks.arrive(game.universe,r,here,clock,game)
+  detach(game,r,done)
+  return done,done and ('Passengers delivered: paid '..fare..' CR') or 'Passengers missing'
+ end
  if t.phase=='pickup' then
   local ok=Transport.load(game.universe,r,t);detach(game,r,ok)
   return ok,ok and 'Contract cargo loaded' or 'Pickup stock is unavailable'
@@ -110,6 +139,17 @@ end
 function C.cancel(game)
  local here=C.station(game);local t=C.active(game)
  if not here or not t then return nil,'Dock at a station to cancel your contract' end
+ if t.kind=='passenger' then
+  -- the party gets off here, unpaid
+  local p=game.player;local n=math.min(t.party or 0,p.cargo.passengers or 0)
+  if n>0 then
+   if p.hold then Hold.take(p.hold,'passengers',n);p.cargo=Hold.totals(p.hold) else p.cargo.passengers=p.cargo.passengers-n end
+   Ship.updateMass(p)
+  end
+  if t.phase=='delivery' then Tasks.state(game.universe).offers[t.id]=nil end
+  Tasks.release(game.universe,owner(game.universe),'cancelled',game.universe.clock)
+  return true,t.phase=='delivery' and 'Contract cancelled: the party got off here' or 'Contract cancelled'
+ end
  if t.phase=='delivery' then
   if here~=t.source then return nil,'Return the cargo to its source to cancel' end
   if (game.player.cargo[t.item] or 0)<t.amount then return nil,'Replace missing cargo before returning it' end
