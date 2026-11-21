@@ -204,9 +204,8 @@ function love.update(dt)
 		else
 			camAimX, camAimY = intent.aimX, intent.aimY
 		end
-	else
-		camAimX, camAimY = intent.aimX, intent.aimY
 	end
+	if autotest then camAimX, camAimY = intent.aimX, intent.aimY end
 	lastIntent = intent
 	game:setPlayerIntent(intent)
 
