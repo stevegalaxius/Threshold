@@ -223,6 +223,82 @@ return function(game)
   game.alifeStage=nil
   t=clk();Director.update(u);Sats.tick(u);Stalls.tick(u,game);Rent.tick(u,game);ft.background=ft.background+clk()-t
  end
+ -- Who died, doing what, carrying what, and to whom; and what the freight
+-- fleet did with its time. Printed each hour and summed at the end.
+ local lossLog,lossAll={},{}
+ local tripLog={jobs={},trips=0,volume=0,vols={}}
+ do
+  local death=History.death
+  History.death=function(u_,r,clock,area,killer,...)
+   if r and not r.deathOutcomeId then
+    local work=r.task or r.lastTask
+    local k=killer and killer~='player' and u_.npcs and u_.npcs[killer]
+    local hold=0;for item,n in pairs(r.ship and r.ship.cargo or {}) do hold=hold+n*((data.items[item] or {}).volume or 1) end
+    local e={role=r.populationGroup or '?',task=work and work.kind or 'idle',area=tostring(area),
+     killer=killer=='player' and 'player' or k and (k.populationGroup or '?') or (killer and 'other' or 'none'),cargo=hold}
+    lossLog[#lossLog+1]=e;lossAll[#lossAll+1]=e
+   end
+   return death(u_,r,clock,area,killer,...)
+  end
+  local Tasks=require('src.tasks');local choose=Tasks.choose;local seen=setmetatable({},{__mode='k'})
+  Tasks.choose=function(u_,r,...)
+   local t=choose(u_,r,...)
+   if t and seen[r]~=t then
+    seen[r]=t
+    local k=(r.populationGroup or '?')..':'..t.kind;tripLog.jobs[k]=(tripLog.jobs[k] or 0)+1
+    if t.kind=='transport' then
+     local v=0;for _,l in ipairs(t.manifest or {t}) do v=v+(l.amount or 0)*((data.items[l.item] or {}).volume or 1) end
+     tripLog.trips=tripLog.trips+1;tripLog.volume=tripLog.volume+v;tripLog.vols[#tripLog.vols+1]=v
+    end
+   end
+   return t
+  end
+ end
+ local function tally(list,field)
+  local c={} for _,e in ipairs(list) do c[e[field]]=(c[e[field]] or 0)+1 end
+  local o={} for k,v in pairs(c) do o[#o+1]={k,v} end table.sort(o,function(a,b) return a[2]>b[2] or a[2]==b[2] and a[1]<b[1] end)
+  local q={} for _,x in ipairs(o) do q[#q+1]=x[1]..'='..x[2] end return table.concat(q,' ')
+ end
+ local function lossLine(tag,list)
+  if #list==0 then say(tag..' none');return end
+  local cargo=0 for _,e in ipairs(list) do cargo=cargo+e.cargo end
+  for _,e in ipairs(list) do e.roleTask=e.role..':'..e.task;e.matchup=e.killer..'>'..e.role end
+  say(('%s %d | victim %s | doing %s | killer>victim %s | where %s | cargo lost %.0f m3'):format(tag,#list,tally(list,'role'),tally(list,'roleTask'),tally(list,'matchup'),tally(list,'area'),cargo))
+ end
+ local function freightLine()
+  local v=tripLog.vols;table.sort(v)
+  local function q(f) return v[math.max(1,math.floor(#v*f))] or 0 end
+  local o={} for k,n in pairs(tripLog.jobs) do o[#o+1]={k,n} end table.sort(o,function(a,b) return a[2]>b[2] or a[2]==b[2] and a[1]<b[1] end)
+  local j={} for i=1,math.min(10,#o) do j[i]=o[i][1]..'='..o[i][2] end
+  say(('    freight: %d runs, %.0f m3, per run p25 %.1f p50 %.1f p75 %.1f m3 | jobs taken %s'):format(tripLog.trips,tripLog.volume,q(.25),q(.5),q(.75),table.concat(j,' ')))
+  tripLog={jobs={},trips=0,volume=0,vols={}}
+ end
+ -- Who is broke (under 100 cr), by role, and what each role earned this
+-- hour from freight and salvage, with what it spent on fuel and supplies.
+ local lastEarn=setmetatable({},{__mode='k'})
+ local function walletLine()
+  local g={}
+  for _,r in pairs(u.npcs or {}) do
+   local grp=r.populationGroup or '?'
+   local e=g[grp] or {n=0,broke=0,freight=0,salvage=0,spent=0,credits=0,brokeDoing={}};g[grp]=e
+   local c=r.credits or 0;e.n=e.n+1;e.credits=e.credits+c
+   local last=lastEarn[r] or {f=0,s=0,x=0}
+   local f,sv,x=r.freightEarnings or 0,r.salvageEarnings or 0,(r.fuelSpent or 0)+(r.suppliesSpent or 0)
+   e.freight=e.freight+math.max(0,f-last.f);e.salvage=e.salvage+math.max(0,sv-last.s);e.spent=e.spent+math.max(0,x-last.x)
+   lastEarn[r]={f=f,s=sv,x=x}
+   if c<100 then e.broke=e.broke+1;local k=r.task and r.task.kind or 'idle';e.brokeDoing[k]=(e.brokeDoing[k] or 0)+1 end
+  end
+  local o={} for k in pairs(g) do o[#o+1]=k end table.sort(o)
+  local q={}
+  for _,k in ipairs(o) do local e=g[k]
+   local d={} for kk,n in pairs(e.brokeDoing) do d[#d+1]=kk..'='..n end table.sort(d)
+   q[#q+1]=('%s %d broke of %d (mean %.0f cr, freight +%.0f, salvage +%.0f, fuel and supplies -%.0f%s)'):format(k,e.broke,e.n,e.credits/math.max(1,e.n),e.freight,e.salvage,e.spent,#d>0 and ('; broke doing '..table.concat(d,',')) or '')
+  end
+  say('    wallets: '..table.concat(q,' | '))
+ end
+ -- the full event log (tests/soak_log.lua), when SOAK_LOG names a file
+ local SoakLog=require('tests.soak_log')
+ if os.getenv('SOAK_LOG') then SoakLog.start(game,os.getenv('SOAK_LOG')) end
  local first=stockTotals()
  local made0=require('src.persistence').copy(u.economyStats or {})
  local t0=os.clock()
@@ -231,10 +307,13 @@ return function(game)
  sample(0,0)
  for h=1,hours do
   local per=math.floor(steps/60)
-  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else for _=1,per do game:step(dt) end end newsMinute(h,m) end end,debug.traceback)
+  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else for _=1,per do game:step(dt) end end newsMinute(h,m) SoakLog.minute() end end,debug.traceback)
   if not ok then say('CRASH in hour '..h..': '..tostring(err));break end
   sample(h,os.clock()-t0)
   newsSample(h)
+  lossLine('    losses:',lossLog);lossLog={}
+  freightLine()
+  walletLine()
   if fast then
    local o={} for k,v in pairs(ft) do o[#o+1]={k,v} end table.sort(o,function(a,b) return a[2]>b[2] end)
    local q={} for i,x in ipairs(o) do q[i]=('%s %.1fs'):format(x[1],x[2]) end
@@ -260,6 +339,8 @@ return function(game)
  end
  say(('output value %.0f, fuel %.0f (%.0f%%)'):format(value,fuel,value>0 and 100*fuel/value or 0))
  say(('ships lost %d'):format(u.shipsLost or 0))
+ lossLine('losses, all hours:',lossAll)
+ SoakLog.finish()
  -- what NPC pilots earned, and the share of it that went on fuel
  local earned,fuelSpent,supplies=0,0,0
  for _,r in pairs(u.npcs or {}) do

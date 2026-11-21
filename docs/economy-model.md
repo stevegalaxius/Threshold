@@ -75,3 +75,27 @@ them wait for hours. That is what the `lot` check catches.
 
 The baseline comes from the first hours of a new game. Re-capture it when
 service demand changes a lot (new fuel use, a bigger fleet).
+
+## Soak event log
+
+A soak can write everything it saw to a file, so one long run answers later
+questions without another one:
+
+```
+SOAK_LOG=soak.jsonl SOAK_FAST=1 SOAK_HOURS=2 xvfb-run -a love . --soak
+python3 tools/soaklog/report.py soak.jsonl                    # every section
+python3 tools/soaklog/report.py soak.jsonl --item composites  # one good
+python3 tools/soaklog/report.py soak.jsonl --section money    # one section
+```
+
+The log (`tests/soak_log.lua`) is one JSON object a line: every order posted,
+every job taken (with the run's m3, the ship's hold and how long the order
+waited), every order that left the board untaken, deliveries and other world
+events, and every death with the victim's role, task and cargo and the
+killer's role. Every 10 game minutes it also writes each NPC's credits and
+earning and spending counters, each station's stock, target and price per
+good, and each factory's status.
+
+The report's sections: freight runs and bay fill, orders by good, deliveries,
+shortages (with stock over time for `--item`), factories waiting on inputs,
+NPC money by role (and who is broke and what they're doing), and deaths.
