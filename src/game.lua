@@ -3282,12 +3282,23 @@ function Game:followCamera(dt, aimX, aimY)
 		self.camera:follow(x, y, x, y, dt)
 	elseif p and not p.dead then
 		self:updateComputers(dt)
-		local x, y = self:pilotedShip().body:getPosition()
-		if p.catching then
-			-- coming in hot: look down the line at the rings ahead
-			local vx, vy = p.body:getLinearVelocity()
-			x, y = x + vx * 0.25, y + vy * 0.25
-			self.camera:follow(x, y, x, y, dt)
+		local ship = self:pilotedShip()
+		local x, y = ship.body:getPosition()
+		if p.launch or p.runup or p.coasting or p.catching then
+			-- carried by a driver (launching, on the run-up, coasting the
+			-- lane or coming in to the catch): one rule for all of it, look
+			-- down the line ahead. The follow lags its target by v/8, so a
+			-- target v/4 out leaves the view v/8 ahead of the ship, held
+			-- within a fixed share of the screen so it never runs off.
+			local vx, vy = ship.body:getLinearVelocity()
+			self.camera:follow(x + vx * 0.25, y + vy * 0.25, x + vx * 0.25, y + vy * 0.25, dt)
+			local w, h = love.graphics.getDimensions()
+			local cap = 0.3 * min(w, h) / max(self.camera.zoom, 0.01)
+			local dx, dy = self.camera.x - x, self.camera.y - y
+			local d = sqrt(dx * dx + dy * dy)
+			if d > cap then
+				self.camera.x, self.camera.y = x + dx * cap / d, y + dy * cap / d
+			end
 		else
 			self.camera:follow(x, y, aimX or x, aimY or y, dt)
 		end

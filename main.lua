@@ -30,6 +30,7 @@ local accumulator = 0
 local game
 local autotest
 local lastIntent = { aimX = 0, aimY = 0 }
+local camAimX, camAimY, camAimHeld  -- what the camera leads toward (see love.update)
 
 --[[
 	Render interpolation. Physics steps at a fixed 120 Hz, so a frame can
@@ -187,14 +188,24 @@ function love.update(dt)
 	else
 		intent = Input.read(game, Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game), Debug.blocksKeyboard() or LocalMap.isOpen(game) or Traffic.isOpen(game))
 		-- With the cargo screen up the mouse is busy, so hold the aim
-		-- straight ahead instead of chasing the cursor.
+		-- straight ahead instead of chasing the cursor. The camera keeps
+		-- the lead it had when the screen opened, so the view doesn't jump.
 		local p = game.player
 		if (Cargo.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game)) and p and not p.dead then
 			local x, y = p.body:getPosition()
 			local a = p.body:getAngle()
 			intent.aimX, intent.aimY = x + math.cos(a) * 700, y + math.sin(a) * 700
+			local held = camAimHeld or { 0, 0 }
+			camAimX, camAimY = x + held[1], y + held[2]
+		elseif p and not p.dead and intent.aimX then
+			local x, y = p.body:getPosition()
+			camAimHeld = { intent.aimX - x, intent.aimY - y }
+			camAimX, camAimY = intent.aimX, intent.aimY
+		else
+			camAimX, camAimY = intent.aimX, intent.aimY
 		end
 	end
+	if autotest then camAimX, camAimY = intent.aimX, intent.aimY end
 	lastIntent = intent
 	game:setPlayerIntent(intent)
 
@@ -213,11 +224,12 @@ function love.update(dt)
 			local shift=game.inputTranslation
 			if intent.aimX then intent.aimX=intent.aimX+shift.x end
 			if intent.aimY then intent.aimY=intent.aimY+shift.y end
+			if camAimX then camAimX, camAimY = camAimX + shift.x, camAimY + shift.y end
 		end
 		accumulator = accumulator - STEP
 	end
 	interpolate(game, accumulator / STEP)
-	game:frame(dt, intent.aimX, intent.aimY)
+	game:frame(dt, camAimX, camAimY)
 	Cargo.update(game)
 	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game))
 
