@@ -53,6 +53,7 @@ JSON* writes `econ_model.json` to the LÖVE save directory for the viewer.
 | `pool` | a facility needs more than its rated capacity |
 | `buffer` | spare capacity takes over 6 hours to fill the stock stations want |
 | `fleet` | lanes need more than 60% of all hauler hold out at once |
+| `trips` | steady flow takes more than 60% of the haulers' time, counting each order as a trip of its own |
 | `freight` | hauling a unit pays more than the unit is worth |
 | `slow` | a single trip takes over 2 hours |
 | `lot` | a lane's orders pay under a quarter of the typical lane per hour flown: lots of tiny orders that crowd the freight board |
@@ -62,7 +63,12 @@ only as an estimate.
 Anything it calls short is short however the game plays. Anything it calls
 fine can still go wrong in the timing, so keep soaking the changes that pass.
 
-The fleet's limit is trips, not hold. The freight board ranks orders by how
+The fleet's limit is trips, not hold. In one trace every hauler was busy
+while hauling 4 to 8 m3 a trip in holds of about 226 m3. Orders are now sized
+to be worth a run: at least `T.orderMinFreight` of pay (`E.minOrder`, so cheap
+bulk moves in bigger lots than compact valuable goods), up to `T.orderMaxVolume`,
+and a source waits until it can spare that much. Only a bare shelf of food,
+water or fuel takes a part load. The freight board ranks orders by how
 long their shortage has gone unserved, so a board full of small orders keeps
 the whole fleet busy carrying a few units at a time while the orders behind
 them wait for hours. That is what the `lot` check catches.

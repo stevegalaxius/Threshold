@@ -406,7 +406,7 @@ function M.build(opts)
    for item,n in pairs(f.items) do
     local g=good(item)
     local tgt=math.max(E.target(u,f.target,item) or 0,plan.want[f.target] and plan.want[f.target][item] or 0)
-    local cap=math.max(1,math.floor((trunk and T.trunkLot or 30)/g.volume))
+    local cap=math.max(1,math.floor((trunk and T.trunkLot or T.orderMaxVolume)/g.volume))
     -- a buyer below target orders up to max(2x target, target + its lot)
     local lot=math.max(1,math.min(cap,math.max(tgt,E.orderLot(u,f.target,item))))
     local q=Tr.quote({source=f.source,target=f.target,item=item,amount=lot},clock)
@@ -418,6 +418,24 @@ function M.build(opts)
   end
   table.sort(rates)
   m.medianPayPerHour=rates[math.max(1,math.floor(#rates/2))] or 0
+  -- 5a'. trips: the fleet's limit is trips as much as hold. Each order is
+  -- a trip of its own (a lane's lots are counted apart; a hauler that
+  -- takes two on one lane only helps), no bigger than a typical hold, and
+  -- takes the round trip plus docking (src/transport.lua Transport.duration)
+  local avgHold=fleet.haulers>0 and fleet.hold/fleet.haulers or 0
+  local trips,tripHours=0,0
+  for _,f in ipairs(m.flows) do
+   f.trips=0
+   for item,n in pairs(f.items) do local lot=f.lots[item] if lot then
+    local g=good(item)
+    local load=math.max(g.volume,avgHold>0 and math.min(lot.volume,avgHold) or lot.volume)
+    local t=n*g.volume/load
+    f.trips=f.trips+t
+   end end
+   f.tripHours=f.trips*(f.hours*2+.1)
+   trips=trips+f.trips;tripHours=tripHours+f.tripHours
+  end
+  fleet.trips,fleet.tripHours,fleet.avgHold=trips,tripHours,avgHold
  end
 
  -- 5b. stock buffers: every station keeps hours of what it uses on hand
@@ -484,6 +502,15 @@ function M.build(opts)
   fleet.load=load
   if load>.6 then issue('fleet',load>1 and 3 or 2,('the lanes need %.0f m3 of hold out at all times; haulers have %.0f (%.0f%%)'):format(need,fleet.hold,load*100)) end
  end
+ if fleet.haulers>0 and fleet.tripHours then
+  local busy=fleet.tripHours/fleet.haulers
+  fleet.tripLoad=busy
+  if busy>.6 then
+   local worst=m.flows[1]
+   for _,f in ipairs(m.flows) do if (f.tripHours or 0)>(worst.tripHours or 0) then worst=f end end
+   issue('trips',busy>.9 and 3 or 2,('steady flow alone takes %.0f trips an hour, %.0f%% of the %d haulers\' time; busiest lane %s>%s at %.0f trips/h'):format(fleet.trips,busy*100,fleet.haulers,(worst.source:gsub('station:','')),(worst.target:gsub('station:','')),worst.trips or 0))
+  end
+ end
  table.sort(m.issues,function(a,b) return a.severity>b.severity or a.severity==b.severity and a.text<b.text end)
  return m
 end
@@ -516,6 +543,7 @@ function M.report(m)
  say('')
  local fl=m.fleet
  say('Fleet: %d haulers with %.0f m3 of hold; lanes need %.0f m3 out at all times%s',fl.haulers or 0,fl.hold or 0,fl.need or 0,fl.load and (' (%.0f%%)'):format(fl.load*100) or '')
+ if fl.trips then say('Trips: steady flow takes %.0f trips an hour (%.0f hauler-hours, %.0f%% of the fleet; typical hold %.0f m3)',fl.trips,fl.tripHours,(fl.tripLoad or 0)*100,fl.avgHold or 0) end
  return out
 end
 
@@ -582,6 +610,7 @@ function M.panel(game,Slab)
  Slab.Text(('%s demand, built %.0f min ago of game time in %.0f ms'):format(v.live and 'Live' or 'Baseline',age,v.ms or 0))
  local fl=m.fleet
  if fl and fl.hold and fl.hold>0 then Slab.Text(('Haulers %d, hold %.0f m3; lanes keep %.0f m3 out (%.0f%%)'):format(fl.haulers,fl.hold,fl.need,(fl.load or 0)*100)) end
+ if fl and fl.trips then Slab.Text(('Trips %.0f an hour, %.0f%% of the haulers\' time'):format(fl.trips,(fl.tripLoad or 0)*100)) end
  local red,amber,grey={1,.45,.4},{1,.75,.3},{.7,.75,.8}
  Slab.Separator()
  Slab.Text('Issues',{Color={1,1,1}})

@@ -364,13 +364,18 @@ E.hubWants=hubWants
 -- A station's measured service use of an item (units an hour, fading as it
 -- goes stale): what src/economy_model.lua reads in live mode.
 function E.serviceRate(u,key,item) return serviceUse(u,key,item) end
--- The smallest order worth posting for a good: T.orderMinVolume, at least
--- T.orderMinLoad units and at most one ordinary 30 m3 lot. A buyer's order
+-- The smallest order worth posting for a good: one that pays a hauler at
+-- least T.orderMinFreight over an AU, so cheap bulk (ore, ice) ships in big
+-- lots and compact valuable goods in smaller ones; at least T.orderMinLoad
+-- units and at most one ordinary lot (T.orderMaxVolume). A buyer's order
 -- tops it up by a lot (E.orderLot): T.orderLotHours of its own use
 -- (production inputs and service), never under the minimum.
+local function orderCap(vol) return math.max(1,math.floor(T.orderMaxVolume/vol)) end
 function E.minOrder(item)
- local vol=require('src.data').items[item].volume
- return math.min(math.max(1,math.floor(30/vol)),math.max(T.orderMinLoad,math.ceil(T.orderMinVolume/vol)))
+ local d=require('src.data').items[item]
+ local per=d.volume*(T.freightCreditsPerM3+T.freightCreditsPerM3AU)+(d.price or 0)*T.freightValueShare
+ local n=math.ceil(math.max(0,T.orderMinFreight-T.freightHandling)/math.max(.01,per))
+ return math.min(orderCap(d.volume),math.max(T.orderMinLoad,n))
 end
 -- What a buyer orders up to once it falls below its target (want): twice
 -- the target, or the target and a lot on top. A maker keeps its target.
@@ -381,7 +386,7 @@ end
 function E.orderLot(u,key,item)
  local vol=require('src.data').items[item].volume
  local rate=capacityUse(u,key,item)+serviceUse(u,key,item)
- return math.min(math.max(1,math.floor(30/vol)),math.max(E.minOrder(item),math.ceil(rate*T.orderLotHours)))
+ return math.min(orderCap(vol),math.max(E.minOrder(item),math.ceil(rate*T.orderLotHours)))
 end
 -- The hub that serves a station's planet system, if it has one.
 function E.hubFor(id)
@@ -542,11 +547,11 @@ local function run(u,clock,pause)
    -- a source waits until it can spare a full lot (E.orderLot) before it
    -- ships: a trickle of spare stock posted every minute filled the board
    -- with orders of a few cubic metres. Food, water and fuel take any part
-   -- load as before.
+   -- load once their shelf is bare.
    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
    -- (the gate is the volume floor alone: waiting for hours of use would
    -- leave a steady consumer dry while its supplier saves the lot up)
-   local minLot=critical and T.orderMinLoad or E.minOrder(item)
+   local minLot=(critical and Stock.count(u,c,item)==0) and T.orderMinLoad or E.minOrder(item)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
@@ -581,7 +586,7 @@ local function run(u,clock,pause)
     end
     -- hub to hub is a trunk run: a bulk lot for a big freighter
     local trunk=hubPlan.kind[best]~=nil and hubPlan.kind[c]~=nil and root(L.byId[best].area)~=root(L.byId[c].area)
-    local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or 30)/require('src.data').items[item].volume)),short,spare[best])
+    local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or T.orderMaxVolume)/require('src.data').items[item].volume)),short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     local production=capacityUse(u,c,item)>0
