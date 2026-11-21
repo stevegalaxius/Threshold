@@ -581,9 +581,9 @@ local function run(u,clock,pause)
     for _,s in ipairs(participants) do
      -- hub to hub is a trunk run: it waits until the exporter can spare
      -- T.trunkMinOrders ordinary lots (at most a trunk lot), unless the
-     -- importing hub is bare with nothing on the way
+     -- importing hub is under half full
      local need=minLot
-     if entry.fill>0 and hubPlan.kind[s] and hubPlan.kind[c] and root(L.byId[s].area)~=root(L.byId[c].area) then
+     if entry.fill>=.5 and hubPlan.kind[s] and hubPlan.kind[c] and root(L.byId[s].area)~=root(L.byId[c].area) then
       need=math.min(math.floor(T.trunkLot/require('src.data').items[item].volume),minLot*T.trunkMinOrders)
      end
      if s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
