@@ -467,6 +467,8 @@ T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
 T.orderLotHours=4   -- a buyer orders at least this many hours of its own use at once
 T.orderMinFreight=800 -- and an order pays a hauler at least this over an AU (E.minOrder)
 T.orderMaxVolume=60  -- cubic metres in one ordinary (not hub-to-hub) order
+T.freightMinRun=60    -- m3 of freight at a pickup, bound for one area, before haulers fly it
+T.freightMaxWait=600  -- seconds an order waits for a fuller load before any hauler takes it
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 -- scarcity premium (src/transport.lua): the share of the source-to-target
 -- price gap the destination adds to freight pay, growing by 1x per
@@ -526,6 +528,7 @@ T.freightHandling=200 -- once per shipment; partial orders earn a proportional s
 T.freightListingSeconds=30 -- public listing before NPC reservation
 T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
 T.trunkMinHold=200 -- hold a ship needs to take trunk runs
+T.trunkMinOrders=4 -- a trunk run waits for this many ordinary order lots (E.minOrder)
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
 T.satJobPlayerFirst=600     -- s a satellite launch/refuel job is offered to the player before haulers may take it
 -- Shortage deliveries (src/quests.lua): player-only work generated from

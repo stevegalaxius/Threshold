@@ -555,7 +555,14 @@ local function run(u,clock,pause)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
-     if s~=c and spare[s]>=math.min(minLot,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
+     -- hub to hub is a trunk run: it waits until the exporter can spare
+     -- T.trunkMinOrders ordinary lots (at most a trunk lot), unless the
+     -- importing hub is bare with nothing on the way
+     local need=minLot
+     if entry.fill>0 and hubPlan.kind[s] and hubPlan.kind[c] and root(L.byId[s].area)~=root(L.byId[c].area) then
+      need=math.min(math.floor(T.trunkLot/require('src.data').items[item].volume),minLot*T.trunkMinOrders)
+     end
+     if s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
