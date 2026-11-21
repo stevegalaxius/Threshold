@@ -551,7 +551,10 @@ local function run(u,clock,pause)
    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
    -- (the gate is the volume floor alone: waiting for hours of use would
    -- leave a steady consumer dry while its supplier saves the lot up)
-   local minLot=(critical and Stock.count(u,c,item)==0) and T.orderMinLoad or E.minOrder(item)
+   -- Any bare shelf takes a part load too: a slow maker that can never
+   -- spare a whole lot (composites, siloxanes, a small ice well) would
+   -- otherwise hold its stock while every buyer sits empty.
+   local minLot=Stock.count(u,c,item)==0 and T.orderMinLoad or E.minOrder(item)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do

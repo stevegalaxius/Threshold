@@ -7,7 +7,8 @@
 
 	  order       a board offer posted: id, kind, and for freight src, dst,
 	              item, n, m3, scope, trunk, urgency, house
-	  take        an NPC took a job: npc, role, kind, id, at; for freight
+	  mined       a miner unloaded at home: station, item, n
+  take        an NPC took a job: npc, role, kind, id, at; for freight
 	              src, dst, lines, stops, m3 and the ship's hold
 	  gone        an order left the board without being taken (expired or
 	              withdrawn): id, item, n, age
@@ -109,6 +110,15 @@ function L.start(game,path)
     credits=r.credits})
   end
   return death(u_,r,clock,area,killer,...)
+ end
+ -- what the miners bring home (src/mining.lua delivers, then counts it made)
+ local E=require('src.economy');local Jobs=require('src.jobs')
+ local deliver,stat,last=Jobs.deliver,E.stat,nil
+ Jobs.deliver=function(u_,node,item,n,...) if u_==u and n and n>0 then last={node,item,n} end return deliver(u_,node,item,n,...) end
+ E.stat=function(u_,kind,item,n,...)
+  if u_==u and kind=='made' and last and last[2]==item and last[3]==n then emit('mined',{station=last[1],item=item,n=n}) end
+  last=nil
+  return stat(u_,kind,item,n,...)
  end
  -- every other world event
  require('src.events').on('simulation_outcome',function(e)

@@ -7,136 +7,139 @@ return {
 
  service={
   ["station:antichthon_1"]={
-   ["deuterium_canister"]=5,
+   ["deuterium_canister"]=3.667,
    ["food_crate"]=31.67,
   },
   ["station:belt_1"]={
-   ["deuterium_canister"]=19.67,
-   ["food_crate"]=31.67,
-  },
-  ["station:belt_2"]={
    ["deuterium_canister"]=35.67,
    ["food_crate"]=31.67,
   },
-  ["station:belt_3"]={
-   ["deuterium_canister"]=98.67,
-   ["food_crate"]=31.67,
-  },
-  ["station:callisto_1"]={
-   ["deuterium_canister"]=13.67,
-   ["food_crate"]=63.67,
-  },
-  ["station:callisto_2"]={
-   ["deuterium_canister"]=27.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:callisto_3"]={
-   ["deuterium_canister"]=20.33,
-   ["food_crate"]=15,
-  },
-  ["station:ceres_quarry_1"]={
-   ["deuterium_canister"]=30.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:cordelia_1"]={
-   ["deuterium_canister"]=56.67,
-   ["food_crate"]=31.67,
-   ["steel_plate"]=0.3333,
-  },
-  ["station:deimos_1"]={
-   ["deuterium_canister"]=2.667,
-   ["food_crate"]=31.67,
-  },
-  ["station:earth_1"]={
-   ["deuterium_canister"]=96,
-   ["food_crate"]=45.33,
-  },
-  ["station:earth_2"]={
-   ["deuterium_canister"]=49.33,
-   ["food_crate"]=63.67,
-  },
-  ["station:earth_3"]={
-   ["deuterium_canister"]=4.333,
-   ["food_crate"]=31.67,
-  },
-  ["station:earth_4"]={
-   ["deuterium_canister"]=1.333,
-   ["food_crate"]=31.67,
-  },
-  ["station:earth_5"]={
-   ["deuterium_canister"]=0.3333,
-   ["food_crate"]=31.67,
-  },
-  ["station:enceladus_1"]={
-   ["deuterium_canister"]=12.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:enceladus_2"]={
-   ["deuterium_canister"]=17.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:europa_1"]={
-   ["deuterium_canister"]=80,
-   ["food_crate"]=31.67,
-  },
-  ["station:europa_2"]={
-   ["deuterium_canister"]=26.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:europa_3"]={
-   ["deuterium_canister"]=48.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:ganymede_1"]={
+  ["station:belt_2"]={
    ["deuterium_canister"]=9,
    ["food_crate"]=31.67,
   },
-  ["station:ganymede_2"]={
-   ["deuterium_canister"]=19.67,
+  ["station:belt_3"]={
+   ["deuterium_canister"]=68.33,
    ["food_crate"]=31.67,
   },
-  ["station:ganymede_3"]={
-   ["deuterium_canister"]=19,
+  ["station:callisto_1"]={
+   ["deuterium_canister"]=18.67,
+   ["food_crate"]=63.67,
+  },
+  ["station:callisto_2"]={
+   ["deuterium_canister"]=28.33,
    ["food_crate"]=31.67,
   },
-  ["station:io_1"]={
-   ["deuterium_canister"]=9.333,
+  ["station:callisto_3"]={
+   ["deuterium_canister"]=35.67,
+   ["food_crate"]=23.67,
+  },
+  ["station:ceres_quarry_1"]={
+   ["deuterium_canister"]=55.33,
    ["food_crate"]=31.67,
   },
-  ["station:io_2"]={
-   ["deuterium_canister"]=7.667,
-   ["food_crate"]=31.67,
-  },
-  ["station:io_3"]={
-   ["deuterium_canister"]=18,
-   ["food_crate"]=31.67,
-  },
-  ["station:jupiter_1"]={
-   ["deuterium_canister"]=25,
-   ["food_crate"]=31.67,
-  },
-  ["station:jupiter_2"]={
-   ["deuterium_canister"]=36.67,
-   ["food_crate"]=31.67,
-  },
-  ["station:jupiter_3"]={
-   ["deuterium_canister"]=79.67,
-   ["food_crate"]=30.33,
-  },
-  ["station:luna_1"]={
-   ["deuterium_canister"]=58.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:luna_2"]={
+  ["station:cordelia_1"]={
    ["deuterium_canister"]=37,
    ["food_crate"]=31.67,
   },
+  ["station:deimos_1"]={
+   ["deuterium_canister"]=5.667,
+   ["food_crate"]=31.67,
+  },
+  ["station:earth_1"]={
+   ["deuterium_canister"]=91.67,
+   ["food_crate"]=87.33,
+  },
+  ["station:earth_2"]={
+   ["deuterium_canister"]=68.33,
+   ["food_crate"]=63.67,
+   ["missile_l"]=4,
+   ["missile_s"]=6.667,
+  },
+  ["station:earth_3"]={
+   ["deuterium_canister"]=4,
+   ["food_crate"]=31.67,
+  },
+  ["station:earth_4"]={
+   ["deuterium_canister"]=6,
+   ["food_crate"]=31.67,
+  },
+  ["station:earth_5"]={
+   ["deuterium_canister"]=5,
+   ["food_crate"]=31.67,
+  },
+  ["station:enceladus_1"]={
+   ["deuterium_canister"]=22,
+   ["food_crate"]=31.67,
+  },
+  ["station:enceladus_2"]={
+   ["deuterium_canister"]=20,
+   ["food_crate"]=31.67,
+  },
+  ["station:europa_1"]={
+   ["deuterium_canister"]=17.33,
+   ["food_crate"]=31.67,
+  },
+  ["station:europa_2"]={
+   ["deuterium_canister"]=30,
+   ["food_crate"]=31.67,
+  },
+  ["station:europa_3"]={
+   ["deuterium_canister"]=42,
+   ["food_crate"]=31.67,
+   ["steel_plate"]=0.3333,
+  },
+  ["station:ganymede_1"]={
+   ["deuterium_canister"]=10,
+   ["food_crate"]=31.67,
+  },
+  ["station:ganymede_2"]={
+   ["deuterium_canister"]=30,
+   ["food_crate"]=31.67,
+  },
+  ["station:ganymede_3"]={
+   ["deuterium_canister"]=27.67,
+   ["food_crate"]=31.67,
+  },
+  ["station:io_1"]={
+   ["deuterium_canister"]=5,
+   ["food_crate"]=31.67,
+  },
+  ["station:io_2"]={
+   ["deuterium_canister"]=14.33,
+   ["food_crate"]=31.67,
+  },
+  ["station:io_3"]={
+   ["deuterium_canister"]=25,
+   ["food_crate"]=31.67,
+  },
+  ["station:jupiter_1"]={
+   ["deuterium_canister"]=24.33,
+   ["food_crate"]=31.67,
+   ["rounds_s"]=16.67,
+  },
+  ["station:jupiter_2"]={
+   ["deuterium_canister"]=37.33,
+   ["food_crate"]=31.67,
+  },
+  ["station:jupiter_3"]={
+   ["deuterium_canister"]=86.67,
+   ["food_crate"]=25,
+  },
+  ["station:luna_1"]={
+   ["deuterium_canister"]=58.67,
+   ["food_crate"]=31.67,
+  },
+  ["station:luna_2"]={
+   ["deuterium_canister"]=33.67,
+   ["food_crate"]=31.67,
+  },
   ["station:luna_3"]={
-   ["deuterium_canister"]=2.333,
+   ["deuterium_canister"]=0.6667,
    ["food_crate"]=31.67,
   },
   ["station:mars_1"]={
-   ["deuterium_canister"]=5,
+   ["deuterium_canister"]=3.667,
    ["food_crate"]=31.67,
   },
   ["station:mars_2"]={
@@ -144,153 +147,147 @@ return {
    ["food_crate"]=31.67,
   },
   ["station:mars_3"]={
-   ["deuterium_canister"]=15.33,
+   ["deuterium_canister"]=14.33,
    ["food_crate"]=95.67,
   },
   ["station:mars_4"]={
-   ["deuterium_canister"]=75,
+   ["deuterium_canister"]=81.33,
    ["food_crate"]=31.67,
   },
   ["station:mars_5"]={
-   ["deuterium_canister"]=72.33,
+   ["deuterium_canister"]=59.67,
    ["food_crate"]=31.67,
   },
   ["station:mercury_1"]={
-   ["deuterium_canister"]=53,
+   ["deuterium_canister"]=49.67,
    ["food_crate"]=31.67,
   },
   ["station:mercury_2"]={
-   ["deuterium_canister"]=38.67,
-   ["food_crate"]=26.33,
-   ["shell_s"]=4,
+   ["deuterium_canister"]=44,
+   ["food_crate"]=31.67,
   },
   ["station:mercury_3"]={
-   ["deuterium_canister"]=20,
+   ["deuterium_canister"]=17.67,
    ["food_crate"]=31.67,
   },
   ["station:phobos_1"]={
-   ["deuterium_canister"]=3,
+   ["deuterium_canister"]=4.667,
    ["food_crate"]=31.67,
   },
   ["station:pluto_1"]={
-   ["deuterium_canister"]=51.33,
+   ["deuterium_canister"]=25.67,
    ["food_crate"]=31.67,
-   ["rounds_m"]=16.67,
-   ["steel_plate"]=0.6667,
   },
   ["station:quarry_1"]={
-   ["deuterium_canister"]=38.33,
+   ["deuterium_canister"]=19,
    ["food_crate"]=31.67,
-   ["steel_plate"]=0.3333,
   },
   ["station:ring_1"]={
-   ["deuterium_canister"]=3,
+   ["deuterium_canister"]=4,
    ["food_crate"]=31.67,
   },
   ["station:ring_2"]={
-   ["deuterium_canister"]=3,
+   ["deuterium_canister"]=2,
    ["food_crate"]=31.67,
   },
   ["station:saturn_1"]={
-   ["deuterium_canister"]=37,
+   ["deuterium_canister"]=65.67,
    ["food_crate"]=31.67,
   },
   ["station:saturn_2"]={
-   ["deuterium_canister"]=22.67,
+   ["deuterium_canister"]=29.33,
    ["food_crate"]=31.67,
   },
   ["station:saturn_3"]={
-   ["deuterium_canister"]=87.67,
-   ["food_crate"]=13,
+   ["deuterium_canister"]=116.3,
+   ["food_crate"]=20,
   },
   ["station:saturn_4"]={
-   ["deuterium_canister"]=36.33,
+   ["deuterium_canister"]=51.33,
    ["food_crate"]=31.67,
   },
   ["station:shoals_1"]={
-   ["deuterium_canister"]=11,
+   ["deuterium_canister"]=6.333,
    ["food_crate"]=31.67,
   },
   ["station:shoals_2"]={
-   ["deuterium_canister"]=3.333,
+   ["deuterium_canister"]=1,
    ["food_crate"]=31.67,
   },
   ["station:shoals_3"]={
-   ["deuterium_canister"]=9.667,
+   ["deuterium_canister"]=5,
    ["food_crate"]=31.67,
-   ["rounds_s"]=16.67,
-   ["steel_plate"]=0.3333,
   },
   ["station:titan_1"]={
-   ["deuterium_canister"]=19.33,
+   ["deuterium_canister"]=41,
    ["food_crate"]=63.67,
   },
   ["station:titan_2"]={
-   ["deuterium_canister"]=3,
+   ["deuterium_canister"]=11,
    ["food_crate"]=31.67,
   },
   ["station:titan_3"]={
-   ["deuterium_canister"]=6,
+   ["deuterium_canister"]=7,
    ["food_crate"]=31.67,
   },
   ["station:titania_1"]={
-   ["deuterium_canister"]=71.33,
+   ["deuterium_canister"]=80,
    ["food_crate"]=31.67,
   },
   ["station:triton_1"]={
-   ["deuterium_canister"]=5.667,
+   ["deuterium_canister"]=2,
    ["food_crate"]=31.67,
-   ["rounds_m"]=10,
   },
   ["station:triton_3"]={
-   ["deuterium_canister"]=9,
+   ["deuterium_canister"]=7.333,
    ["food_crate"]=31.67,
   },
   ["station:uranus_1"]={
-   ["deuterium_canister"]=88.67,
+   ["deuterium_canister"]=128.7,
    ["food_crate"]=31.67,
   },
   ["station:uranus_2"]={
-   ["deuterium_canister"]=27.33,
+   ["deuterium_canister"]=33,
    ["food_crate"]=31.67,
   },
   ["station:uranus_3"]={
-   ["deuterium_canister"]=64,
+   ["deuterium_canister"]=44.67,
    ["food_crate"]=31.67,
-   ["steel_plate"]=0.3333,
+   ["steel_plate"]=1,
   },
   ["station:venus_1"]={
-   ["deuterium_canister"]=54,
+   ["deuterium_canister"]=71,
    ["food_crate"]=31.67,
   },
   ["station:venus_2"]={
-   ["deuterium_canister"]=27,
+   ["deuterium_canister"]=38.33,
    ["food_crate"]=63.67,
+   ["rounds_s"]=33.33,
   },
   ["station:venus_3"]={
-   ["deuterium_canister"]=14.33,
+   ["deuterium_canister"]=20.67,
    ["food_crate"]=31.67,
   },
   ["station:venus_4"]={
-   ["deuterium_canister"]=29,
-   ["food_crate"]=25,
+   ["deuterium_canister"]=40.33,
+   ["food_crate"]=27.33,
   },
  },
  ships={
 
  },
  minedAt={
+  ["station:belt_1"]={
+   ["water_ice"]=332.3,
+  },
   ["station:ceres_quarry_1"]={
-   ["iron_ore"]=13,
+   ["iron_ore"]=197.3,
   },
   ["station:phobos_1"]={
    ["iron_ore"]=12,
   },
   ["station:quarry_1"]={
-   ["iron_ore"]=318.3,
-  },
-  ["station:shoals_1"]={
-   ["iron_ore"]=98,
+   ["iron_ore"]=147,
   },
  },
 }

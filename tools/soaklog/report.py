@@ -79,6 +79,18 @@ def deliveries(ev, item=None):
     for it, (n, amt, pay) in sorted(by.items(), key=lambda kv: -kv[1][2])[:20]:
         print('  %-22s %5d drops %9.0f units %10.0f cr' % (it, n, amt, pay))
 
+def mined(ev, item=None):
+    section('Mined (what miners brought home, per hour)')
+    end = max((r['t'] for rs in ev.values() for r in rs), default=0) or 1
+    by = collections.Counter()
+    for r in ev['mined']:
+        if not item or r.get('item') == item:
+            by[(r.get('station'), r.get('item'))] += r.get('n') or 0
+    if not by:
+        print('  none'); return
+    for (st, it), n in by.most_common(20):
+        print('  %-28s %-14s %8.0f/h' % (st, it, n * 3600 / end))
+
 def shortages(ev, item=None):
     section('Shortages (station snapshots under half their target, and empty)')
     stock = ev['stock']
@@ -181,7 +193,7 @@ def deaths(ev, item=None):
     c = collections.Counter('%s>%s' % (r.get('killerRole'), r.get('role')) for r in d)
     print('  killer>victim %s' % ', '.join('%s %d' % kv for kv in c.most_common(10)))
 
-SECTIONS = {'freight': freight, 'orders': orders, 'deliveries': deliveries, 'shortages': shortages, 'plants': plants, 'money': money, 'deaths': deaths}
+SECTIONS = {'freight': freight, 'orders': orders, 'deliveries': deliveries, 'mined': mined, 'shortages': shortages, 'plants': plants, 'money': money, 'deaths': deaths}
 
 def main():
     ap = argparse.ArgumentParser()
