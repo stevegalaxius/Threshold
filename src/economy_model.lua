@@ -42,6 +42,7 @@
 local M={}
 
 local function hours(s) return s/3600 end
+local function fmtN(n) return n>=10 and ('%.0f'):format(n) or ('%.1f'):format(n) end
 
 -- Every installation in the world layout, with its pool of processing units.
 local function installations()
@@ -156,7 +157,19 @@ function M.build(opts)
    if use>0 then demand(id,Food.item,use,'eaten') end
   end
  end
- if base then
+ -- service demand: measured live from the running economy (opts.live),
+ -- or from the captured baseline
+ if opts.live and opts.universe then
+  local uu=opts.universe
+  for id,p in pairs(L.byId) do
+   if p.kind=='station' and not p.accessOf then
+    for item in pairs(data.items) do
+     if item~=Food.item then local n=E.serviceRate(uu,id,item);if n>0.01 then demand(id,item,n,'service') end end
+    end
+   end
+  end
+  m.live=true
+ elseif base then
   for st,items in pairs(base.service or {}) do
    for item,n in pairs(items) do if item~=Food.item then demand(st,item,n,'service') end end
   end
@@ -375,6 +388,38 @@ function M.build(opts)
  fleet.need=need
  m.fleet=fleet
 
+ -- 5a. order sizes: the economy reorders a good when a station drops
+ -- below its target, so a lane's typical order is about one target's
+ -- worth (src/economy.lua; a trunk lot between hubs). What that order pays
+ -- per hour of flying, against every other lane's, says whether haulers
+ -- will ever pick it up: a tiny lot of a compact good sits on the board.
+ local Tr=require('src.transport')
+ local rates={}
+ if u then
+  -- hubs and moon customs stock for their stations (src/economy.lua hubWants)
+  local all={}
+  for _,area in ipairs(require('src.fields').list) do for _,st in ipairs(L.stations(area,'trade')) do all[#all+1]=st end end
+  local plan=E.hubWants(u,all)
+  for _,f in ipairs(m.flows) do
+   f.lots={}
+   local trunk=f.kind=='trunk'
+   for item,n in pairs(f.items) do
+    local g=good(item)
+    local tgt=math.max(E.target(u,f.target,item) or 0,plan.want[f.target] and plan.want[f.target][item] or 0)
+    local cap=math.max(1,math.floor((trunk and T.trunkLot or 30)/g.volume))
+    -- a buyer below target orders up to max(2x target, target + its lot)
+    local lot=math.max(1,math.min(cap,math.max(tgt,E.orderLot(u,f.target,item))))
+    local q=Tr.quote({source=f.source,target=f.target,item=item,amount=lot},clock)
+    local pay=Tr.payment(q)
+    local perHour=pay/math.max(.1,f.hours*2)
+    f.lots[item]={lot=lot,pay=pay,perHour=perHour,volume=lot*g.volume}
+    rates[#rates+1]=perHour
+   end
+  end
+  table.sort(rates)
+  m.medianPayPerHour=rates[math.max(1,math.floor(#rates/2))] or 0
+ end
+
  -- 5b. stock buffers: every station keeps hours of what it uses on hand
  -- (src/economy.lua E.target). Starting short of that is a one-off demand
  -- on top of the steady flow; spare capacity has to fill it.
@@ -410,6 +455,22 @@ function M.build(opts)
    if f.share>1 and f.n>.5 then over=over+1;moved=moved+f.n;if not worst or f.share>worst.share then worst=f end end
   end
   if worst then issue('freight',1,('%s: %d lane%s (%.0f/h) cost more to haul than the goods are worth; worst %s at %.0f%%'):format(g.name,over,over>1 and 's' or '',moved,worst.lane:gsub('station:',''),worst.share*100),item) end
+ end
+ local floor_=(m.medianPayPerHour or 0)*.25
+ local thin={}
+ for _,f in ipairs(m.flows) do
+  for item,l in pairs(f.lots or {}) do
+   if l.perHour<floor_ and f.hours>.25 then
+    local k=item;thin[k]=thin[k] or {n=0,worst=nil,units=0}
+    local t=thin[k];t.n=t.n+1;t.units=t.units+f.items[item]
+    if not t.worst or l.perHour<t.worst.perHour then t.worst={perHour=l.perHour,lot=l.lot,pay=l.pay,lane=f.source..'>'..f.target,hours=f.hours} end
+   end
+  end
+ end
+ for item,t in pairs(thin) do
+  local w=t.worst
+  issue('lot',t.units>5 and 2 or 1,('%s: %d lane%s (%.0f/h) order lots too small to be worth flying; worst %s, %s units for %.0f cr over %.1f h each way (%.0f cr/h, typical %.0f)'):format(
+   good(item).name,t.n,t.n>1 and 's' or '',t.units,w.lane:gsub('station:',''),fmtN(w.lot),w.pay,w.hours,w.perHour,m.medianPayPerHour),item,w.lane)
  end
  for _,f in ipairs(m.flows) do
   if f.hours>2 then
@@ -490,6 +551,70 @@ function M.run(game)
   print('wrote '..path)
  end
  return m
+end
+
+-- In-game: the A-Life debug suite (F6) shows the model of the running
+-- universe. Live mode reads service demand from the economy's own measured
+-- rates instead of the baseline, so it follows the game as it plays.
+M.view={live=true}
+function M.panel(game,Slab)
+ local v=M.view
+ local function rebuild(live)
+  v.live=live
+  local t=os.clock()
+  v.model=M.build({universe=game.universe,clock=game.universe.clock,live=live})
+  v.at,v.ms=game.universe.clock,(os.clock()-t)*1000
+ end
+ if Slab.Button('Model live demand') then rebuild(true) end
+ Slab.SameLine()
+ if Slab.Button('Model baseline demand') then rebuild(false) end
+ if v.model then
+  Slab.SameLine()
+  if Slab.Button('Save JSON') then
+   love.filesystem.write('econ_model.json',json(v.model))
+   v.saved=love.filesystem.getSaveDirectory()..'/econ_model.json'
+  end
+ end
+ if v.saved then Slab.Text('Saved '..v.saved..' (open it in tools/econmodel/viewer.html)') end
+ local m=v.model
+ if not m then Slab.Text('Build the model to see what the economy has to make and haul, and where it falls short.');return end
+ local age=(game.universe.clock-(v.at or 0))/60
+ Slab.Text(('%s demand, built %.0f min ago of game time in %.0f ms'):format(v.live and 'Live' or 'Baseline',age,v.ms or 0))
+ local fl=m.fleet
+ if fl and fl.hold and fl.hold>0 then Slab.Text(('Haulers %d, hold %.0f m3; lanes keep %.0f m3 out (%.0f%%)'):format(fl.haulers,fl.hold,fl.need,(fl.load or 0)*100)) end
+ local red,amber,grey={1,.45,.4},{1,.75,.3},{.7,.75,.8}
+ Slab.Separator()
+ Slab.Text('Issues',{Color={1,1,1}})
+ for i,iss in ipairs(m.issues) do
+  if i>14 then Slab.Text(('  ... %d more'):format(#m.issues-14),{Color=grey});break end
+  Slab.Text('  '..iss.text,{Color=iss.severity==3 and red or iss.severity==2 and amber or grey})
+ end
+ Slab.Separator()
+ Slab.Text('Tightest goods (needed against capacity)',{Color={1,1,1}})
+ local gs={};for _,g in pairs(m.goods) do if g.required>0 then gs[#gs+1]=g end end
+ table.sort(gs,function(a,b) return a.load>b.load end)
+ for i=1,math.min(16,#gs) do local g=gs[i]
+  local at={};for st,n in pairs(g.makers) do at[#at+1]={(m.stations[st] or {}).name or st,n} end
+  table.sort(at,function(a,b) return a[2]>b[2] end)
+  local where=at[1] and (' top: %s %.0f'):format(at[1][1],at[1][2]) or ''
+  Slab.Text(('  %-22s %4.0f%%  %7.1f / %7.1f per h  stock %s/%s%s'):format(g.name,g.load*100,g.required,g.capacity,
+   g.stock and ('%.0f'):format(g.stock) or '?',g.buffer and ('%.0f'):format(g.buffer) or '?',where),{Color=g.load>1 and red or g.load>.85 and amber or nil})
+ end
+ Slab.Separator()
+ Slab.Text('Busiest facilities',{Color={1,1,1}})
+ local ps={};for _,p in ipairs(m.pools) do if p.used>0 then ps[#ps+1]=p end end
+ table.sort(ps,function(a,b) return a.load>b.load end)
+ for i=1,math.min(10,#ps) do local p=ps[i]
+  Slab.Text(('  %4.0f%%  %s at %s (%s)'):format(p.load*100,p.id,(m.stations[p.station] or {}).name or p.station,p.policy),{Color=p.load>1 and red or p.load>.85 and amber or nil})
+ end
+ Slab.Separator()
+ Slab.Text('Busiest lanes (hold kept out, round trip)',{Color={1,1,1}})
+ for i=1,math.min(10,#m.flows) do local f=m.flows[i]
+  local items={};for item,n in pairs(f.items) do items[#items+1]={m.goods[item].name,n} end
+  table.sort(items,function(a,b) return a[2]>b[2] end)
+  Slab.Text(('  %5.0f m3  %s -> %s, %.1f h: %s'):format(f.holdHours,(m.stations[f.source] or {}).name or f.source,(m.stations[f.target] or {}).name or f.target,f.hours,
+   items[1] and ('%s %.0f/h'):format(items[1][1],items[1][2]) or ''))
+ end
 end
 
 -- Play some fast hours and write what the model can't derive: service

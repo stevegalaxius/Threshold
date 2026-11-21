@@ -16,6 +16,13 @@ browse it: goods, facility load, freight lanes, a system map, and a comparison
 of two models (for example main against a branch). Issues new in the second
 model are marked.
 
+In the game, the A-Life debug suite (F6) has an **Economy model** section.
+*Model live demand* runs the model on the running game, with the service
+demand its stations are measuring now; *Model baseline demand* uses the
+captured baseline instead. It lists the issues, the tightest goods with their
+stock against buffer, the busiest facilities and the busiest lanes. *Save
+JSON* writes `econ_model.json` to the LÖVE save directory for the viewer.
+
 ## What it computes
 
 1. **Final demand**: what stations use up for their own sake. That's the
@@ -34,6 +41,9 @@ model are marked.
    round trip, which is compared with the haulers' total hold.
 5. **Buffers**: the stock stations want on hand (`E.target`) against what
    they hold, and how long spare capacity takes to close the gap.
+6. **Order lots**: on each lane, the order a buyer places when it runs low
+   (its target, or `E.orderLot`: `T.orderLotHours` of its own use) and what
+   that order pays per hour of flying, against the median lane.
 
 ## Issues it flags
 
@@ -45,10 +55,17 @@ model are marked.
 | `fleet` | lanes need more than 60% of all hauler hold out at once |
 | `freight` | hauling a unit pays more than the unit is worth |
 | `slow` | a single trip takes over 2 hours |
+| `lot` | a lane's orders pay under a quarter of the typical lane per hour flown: lots of tiny orders that crowd the freight board |
 
-It's a capacity model, not a simulation: no prices, timing or order sizes.
+It's a capacity model, not a simulation: no prices or timing, and order sizes
+only as an estimate.
 Anything it calls short is short however the game plays. Anything it calls
 fine can still go wrong in the timing, so keep soaking the changes that pass.
+
+The fleet's limit is trips, not hold. The freight board ranks orders by how
+long their shortage has gone unserved, so a board full of small orders keeps
+the whole fleet busy carrying a few units at a time while the orders behind
+them wait for hours. That is what the `lot` check catches.
 
 The baseline comes from the first hours of a new game. Re-capture it when
 service demand changes a lot (new fuel use, a bigger fleet).

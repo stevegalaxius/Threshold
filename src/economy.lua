@@ -302,6 +302,13 @@ end
 -- One plan per update: hubs[root]=station, want[hub][item] and kind
 -- [hub][item] ('import' or 'export'), and made[root][item].
 local hubPlan
+-- What a hub or moon customs keeps for one of its stations: the station's
+-- target and room for the lot it orders (E.orderLot) on top.
+local function memberWant(u,s,item)
+ local n=E.target(u,s,item,false)
+ if n>0 and not makes(s,item) then n=n+E.orderLot(u,s,item) end
+ return n
+end
 local function hubWants(u,all,pause)
  local plan={hubs={},want={},kind={},made={},u=u}
  for _,s in ipairs(all) do
@@ -330,7 +337,7 @@ local function hubWants(u,all,pause)
    if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*4,'export'
    else
     local n=0
-    for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+E.target(u,s,item,false) end end
+    for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+memberWant(u,s,item) end end
     if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
    end
   end
@@ -342,7 +349,7 @@ local function hubWants(u,all,pause)
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
    local n=0
    for _,s in ipairs(all) do
-    if s~=h and hubRoot(L.byId[s].area)==r then n=n+E.target(u,s,item,false) end
+    if s~=h and hubRoot(L.byId[s].area)==r then n=n+memberWant(u,s,item) end
    end
    imported[r]=n;total=total+n
   end end
@@ -354,6 +361,18 @@ local function hubWants(u,all,pause)
  return plan
 end
 E.hubWants=hubWants
+-- A station's measured service use of an item (units an hour, fading as it
+-- goes stale): what src/economy_model.lua reads in live mode.
+function E.serviceRate(u,key,item) return serviceUse(u,key,item) end
+-- The smallest order a buyer places for a good: T.orderLotHours of its own
+-- use (production inputs and service), at least T.orderMinLoad units and at
+-- most one ordinary 30 m3 lot.
+function E.orderLot(u,key,item)
+ local vol=require('src.data').items[item].volume
+ local rate=capacityUse(u,key,item)+serviceUse(u,key,item)
+ local floor=math.max(T.orderMinLoad,math.ceil(T.orderMinVolume/vol))
+ return math.min(math.max(1,math.floor(30/vol)),math.max(floor,math.ceil(rate*T.orderLotHours)))
+end
 -- The hub that serves a station's planet system, if it has one.
 function E.hubFor(id)
  local p=L.byId[id];if not p then return end
@@ -490,7 +509,9 @@ local function run(u,clock,pause)
    local producer=makes(s,item)
    local want=hubTarget(u,s,item,producer)
    E.shortage(u,s,item,count,want,clock)
-   local level=producer and want or want*2
+   -- (a buyer orders up to a full lot over its target: a few hours of its
+   -- own use, so the fleet moves the same goods in fewer, fuller trips)
+   local level=(producer or want<=0) and want or math.max(want*2,want+E.orderLot(u,s,item))
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
    spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or level)
@@ -506,10 +527,16 @@ local function run(u,clock,pause)
   for _,entry in ipairs(buyers) do
    local c,short=entry.c,entry.left or entry.short;local need=entry.need
    local darkBuyer=Dark.isDarkNode(c)
+   -- a source waits until it can spare a full lot (E.orderLot) before it
+   -- ships: a trickle of spare stock posted every minute filled the board
+   -- with orders of a few cubic metres. Food, water and fuel take any part
+   -- load as before.
+   local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
+   local minLot=critical and T.orderMinLoad or E.orderLot(u,c,item)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
-     if s~=c and spare[s]>=math.min(T.orderMinLoad,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
+     if s~=c and spare[s]>=math.min(minLot,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
@@ -543,7 +570,6 @@ local function run(u,clock,pause)
     local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or 30)/require('src.data').items[item].volume)),short,spare[best])
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
-    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,

@@ -464,6 +464,8 @@ T.reactorFuelItem,T.reactorFuelEnergy='deuterium_canister',1750
 T.idleDrain=0.5  -- share of modules' standing powerDraw a ship actually pulls
 T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
+T.orderLotHours=4   -- a buyer orders at least this many hours of its own use at once
+T.orderMinVolume=8  -- and at least this many cubic metres (src/economy.lua E.orderLot)
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 -- scarcity premium (src/transport.lua): the share of the source-to-target
 -- price gap the destination adds to freight pay, growing by 1x per
