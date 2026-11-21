@@ -158,7 +158,29 @@ function Transport.beginScan(u,still)
  scan={u=u,clock=u.clock,still=still};return true
 end
 function Transport.endScan() scan=nil end
-function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil end end
+function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil;scan.loads=nil end end
+-- The open freight at a pickup bound for one area, in cubic metres: what a
+-- hauler could fill its bay with there (prepare's milk run).
+function Transport.loadAt(u,source,area)
+ local loads=scan and scan.u==u and scan.clock==u.clock and scan.loads
+ if scan and scan.u==u and scan.clock==u.clock and not loads then
+  loads={};scan.loads=loads
+  for _,o in pairs(Tasks.state(u).offers) do
+   if o.kind=='transport' and o.order and o.state=='available' and o.item and o.source and L.byId[o.target] then
+    local k=o.source..'|'..L.byId[o.target].area
+    loads[k]=(loads[k] or 0)+(o.amount or 0)*(data.items[o.item] and data.items[o.item].volume or 1)
+   end
+  end
+ end
+ if loads then return loads[source..'|'..area] or 0 end
+ local v=0
+ for _,o in pairs(Tasks.state(u).offers) do
+  if o.kind=='transport' and o.order and o.state=='available' and o.item and o.source==source and L.byId[o.target] and L.byId[o.target].area==area then
+   v=v+(o.amount or 0)*(data.items[o.item] and data.items[o.item].volume or 1)
+  end
+ end
+ return v
+end
 local none={}
 local function ordersFrom(u,source,item)
  if not scan or scan.u~=u or scan.clock~=u.clock or source==nil or item==nil then return nil end
@@ -272,6 +294,11 @@ Tasks.register('transport',{
   -- Once released, they must not let an empty strip mine generate more cargo.
   if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return false end
   if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
+  -- a hauler waits for a load: an order is taken once the freight at its
+  -- pickup for that area fills T.freightMinRun, it has waited
+  -- T.freightMaxWait, or a shelf of food, water or fuel is nearly bare
+  if o.order and not r.player and (o.urgency or 0)<2.5 and clock-(o.placed or clock)<T.freightMaxWait
+   and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
   return room(r,o.item,need)>=need
@@ -316,12 +343,23 @@ Tasks.register('transport',{
   if t.order then
    local offers=Tasks.state(u).offers
    local candidates={t};local others={}
+   -- A full bay: every open order at this pickup for the same drop-off, or
+   -- for another station in the same area (a milk run: dropped off in
+   -- turn, the first drop-off's orders first).
+   local area=L.byId[t.target] and L.byId[t.target].area
+   local capabilities=require('src.npc_access').capabilities(r)
    for _,o in pairs(offers) do
     -- (freight only: satellite jobs are board orders too, carrying no item)
     if o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
-     and not r.player and o.source==t.source and o.target==t.target then others[#others+1]=o end
+     and not r.player and o.source==t.source and o.item
+     and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
+     and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
    end
-   table.sort(others,function(a,b)return a.id<b.id end)
+   table.sort(others,function(a,b)
+    local sa,sb=a.target==t.target,b.target==t.target
+    if sa~=sb then return sa end
+    if a.target~=b.target then return a.target<b.target end
+    return a.id<b.id end)
    for _,o in ipairs(others) do candidates[#candidates+1]=o end
    local saved=require('src.persistence').copy(r.ship)
    local manifest={};local planned={}
@@ -363,9 +401,16 @@ Tasks.register('transport',{
    local count=(r.ship.cargo or {})[line.item] or 0
    if count<required[line.item] then Tasks.release(u,r,'cargo lost',clock);return false end
   end
-  local invoice=Transport.invoice(t);local paid,total=invoice.total,0
+  -- (a milk run's invoice is made once, at the first drop-off, and each
+  -- stop is paid its own lines)
+  local invoice=t.invoice or Transport.invoice(t);t.invoice=invoice
+  local paid,total=0,0
+  local here,later={},{}
   for _,charge in ipairs(invoice.lines) do
-   local line=charge.task
+   if charge.task.target==nil or charge.task.target==station then here[#here+1]=charge else later[#later+1]=charge end
+  end
+  for _,charge in ipairs(here) do
+   local line=charge.task;paid=paid+charge.payment
    cargo(r,line.item,-line.amount)
    -- (a player's buy order goes to their storage or stall: src/buy_orders.lua)
    if line.playerOrder then require('src.buy_orders').delivered(u,line.playerOrder,station,line.item,line.amount,clock)
@@ -386,9 +431,16 @@ Tasks.register('transport',{
    if line.id~=t.id then Tasks.state(u).offers[line.id]=nil end
   end
   local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total
-  r.lastDestination=station;r.lastOrigin=t.source
   r.credits=(r.credits or 0)+paid
   r.freightEarnings=(r.freightEarnings or 0)+paid
+  if #later>0 then
+   -- on to the next drop-off with what's left aboard
+   local manifest,lines_={},{}
+   for _,charge in ipairs(later) do manifest[#manifest+1]=charge.task;lines_[#lines_+1]=charge end
+   invoice.lines=lines_;t.manifest=manifest;t.target=manifest[1].target;t.route=nil
+   return false
+  end
+  r.lastDestination=station;r.lastOrigin=t.source
   t.settled=true
 
   return true

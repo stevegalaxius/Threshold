@@ -1,0 +1,232 @@
+<title>Threshold Economy Model</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: a freight-dispatch console. Summary strip, then issues, then goods / facilities / lanes as tabs; a detail drawer for one good. */
+:root{
+ --bg:#f3f5f7;--panel:#ffffff;--ink:#16202a;--muted:#5c6b7a;--line:#d7dee5;--accent:#1f6f8b;--accent-soft:#d9ecf2;
+ --ok:#2f7d4f;--warn:#b7791f;--bad:#c0392b;--bar:#e6ebef;
+ --f-display:"Space Grotesk",system-ui,sans-serif;--f-body:"IBM Plex Sans",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+ --bg:#0f161d;--panel:#16212b;--ink:#e3eaf0;--muted:#8fa1b2;--line:#263543;--accent:#5fb4d2;--accent-soft:#183544;
+ --ok:#5cc28a;--warn:#e0a84a;--bad:#ee6b5c;--bar:#22303d;color-scheme:dark}}
+:root[data-theme="dark"]{
+ --bg:#0f161d;--panel:#16212b;--ink:#e3eaf0;--muted:#8fa1b2;--line:#263543;--accent:#5fb4d2;--accent-soft:#183544;
+ --ok:#5cc28a;--warn:#e0a84a;--bad:#ee6b5c;--bar:#22303d;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:end;justify-content:space-between}
+h1{font-family:var(--f-display);font-weight:600;font-size:24px;margin:0;letter-spacing:-.01em}
+h2{font-family:var(--f-display);font-weight:600;font-size:16px;margin:0}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 0}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button,input[type=search]{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button:hover{border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.file{border:1px dashed var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;color:var(--muted)}
+label.file input{display:none}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:grid;gap:2px;min-width:0}
+.tile .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-family:var(--f-mono);font-size:22px;font-variant-numeric:tabular-nums}
+.tile .n{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:10px;min-width:0}
+.issues{list-style:none;margin:0;padding:0;display:grid;gap:4px;max-height:340px;overflow:auto}
+.issues li{display:grid;grid-template-columns:auto 70px 1fr;gap:10px;align-items:baseline;padding:5px 8px;border-radius:5px}
+.issues li:hover{background:var(--accent-soft)}
+.sev{width:9px;height:9px;border-radius:50%;display:inline-block;transform:translateY(1px)}
+.s3{background:var(--bad)}.s2{background:var(--warn)}.s1{background:var(--muted)}
+.kind{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.issues .new{font-size:11px;color:var(--bad);font-weight:600;margin-left:6px}
+.issues .gone{text-decoration:line-through;color:var(--muted)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 12px;color:var(--muted)}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:500;cursor:pointer;user-select:none}
+td.num,th.num{text-align:right;font-family:var(--f-mono);font-size:13px}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--accent-soft)}
+tr.sel{background:var(--accent-soft)}
+.loadbar{display:flex;align-items:center;gap:8px;min-width:150px}
+.loadbar .track{flex:1;height:8px;background:var(--bar);border-radius:4px;overflow:hidden;position:relative}
+.loadbar .fill{height:100%;background:var(--ok)}
+.loadbar .fill.warn{background:var(--warn)}.loadbar .fill.bad{background:var(--bad)}
+.loadbar span{font-family:var(--f-mono);font-size:12px;width:52px;text-align:right}
+.delta{font-family:var(--f-mono);font-size:12px}
+.up{color:var(--bad)}.down{color:var(--ok)}
+.detail{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.detail h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-weight:500}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:13px}
+.kv .r{font-family:var(--f-mono);text-align:right}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;cursor:pointer;background:var(--panel)}
+.chip:hover{border-color:var(--accent)}
+.map svg{width:100%;height:auto;display:block}
+.map text{fill:var(--ink);font-family:var(--f-body);font-size:11px}
+.map .lbl2{fill:var(--muted);font-size:10px;font-family:var(--f-mono)}
+.note{color:var(--muted);font-size:12px;max-width:70ch}
+.empty{color:var(--muted);padding:20px;text-align:center}
+</style>
+
+<div class="wrap">
+ <header>
+  <div>
+   <h1>Threshold Economy Model</h1>
+   <p class="sub" id="sub">What the economy must make, where, and what has to be hauled, from the data files.</p>
+  </div>
+  <div class="controls">
+   <label for="snap" class="kind">Model</label><select id="snap"></select>
+   <label for="base" class="kind">Compare with</label><select id="base"></select>
+   <label class="file">Load JSON…<input type="file" id="file" accept=".json,application/json" multiple></label>
+  </div>
+ </header>
+
+ <section class="strip" id="strip"></section>
+
+ <section class="panel">
+  <h2>Issues</h2>
+  <ul class="issues" id="issues"></ul>
+ </section>
+
+ <section class="panel">
+  <div class="tabs" role="tablist">
+   <button role="tab" id="tab-goods" aria-selected="true" data-tab="goods">Goods</button>
+   <button role="tab" id="tab-pools" aria-selected="false" data-tab="pools">Facilities</button>
+   <button role="tab" id="tab-lanes" aria-selected="false" data-tab="lanes">Lanes</button>
+   <button role="tab" id="tab-map" aria-selected="false" data-tab="map">System map</button>
+  </div>
+  <div id="view-goods">
+   <div class="controls" style="margin-bottom:8px"><input type="search" id="q" placeholder="Filter goods" aria-label="Filter goods"><label class="kind"><input type="checkbox" id="active" checked> Only goods in use</label></div>
+   <div class="scroll"><table id="goods"></table></div>
+  </div>
+  <div id="view-pools" hidden><div class="scroll"><table id="pools"></table></div></div>
+  <div id="view-lanes" hidden><div class="scroll"><table id="lanes"></table></div></div>
+  <div id="view-map" class="map" hidden><div class="scroll" id="mapbox"></div><p class="note">Trunk runs between systems, drawn by the hold they keep on the lane (volume an hour times the round trip). Hover a line for its cargo.</p></div>
+ </section>
+
+ <section class="panel" id="detailPanel" hidden>
+  <h2 id="dTitle"></h2>
+  <div class="detail" id="detail"></div>
+ </section>
+
+ <p class="note">Load is required production against rated capacity. A capacity model, not a simulation: anything over 100% is short however the economy plays, anything under can still go wrong in the timing. Generate a model with <code>love . --econmodel</code> and <code>ECON_OUT=model.json</code>.</p>
+</div>
+
+<script id="embedded" type="application/json">{}</script>
+<script>
+const snaps={};let cur=null,base=null,tab='goods',sortKey='load',sortDir=-1,selGood=null;
+try{const e=JSON.parse(document.getElementById('embedded').textContent);for(const k in e)snaps[k]=e[k]}catch(err){}
+const $=id=>document.getElementById(id);
+const fmt=(v,d=1)=>v==null||isNaN(v)?'–':Math.abs(v)>=1000?Math.round(v).toLocaleString():(+v).toFixed(d);
+const pct=v=>v==null?'–':Math.round(v*100)+'%';
+const sname=(m,id)=>(m.stations&&m.stations[id]&&m.stations[id].name)||String(id).replace('station:','');
+const cls=v=>v>1.001?'bad':v>.85?'warn':'';
+function bar(v){const w=Math.min(100,(v||0)*100);return `<div class="loadbar"><div class="track"><div class="fill ${cls(v)}" style="width:${w}%"></div></div><span>${pct(v)}</span></div>`}
+function delta(a,b){if(b==null||a==null)return'';const d=a-b;if(Math.abs(d)<.005)return'<span class="delta">·</span>';return `<span class="delta ${d>0?'up':'down'}">${d>0?'+':''}${Math.round(d*100)}</span>`}
+function fillSelects(){
+ const names=Object.keys(snaps);
+ $('snap').innerHTML=names.map(n=>`<option>${n}</option>`).join('');
+ $('base').innerHTML='<option value="">nothing</option>'+names.map(n=>`<option>${n}</option>`).join('');
+ if(names.length){$('snap').value=names[names.length-1];if(names.length>1)$('base').value=names[0]}
+}
+function render(){
+ cur=snaps[$('snap').value];base=$('base').value?snaps[$('base').value]:null;if(base===cur)base=null;
+ if(!cur){$('strip').innerHTML='<div class="empty">Load a model JSON to begin.</div>';return}
+ const m=cur;
+ $('sub').textContent=(m.baseline?`Service demand from ${m.baseline.note}. `:'No baseline: service demand and ship sales left out. ')+'Rated capacities from the world layout.';
+ const iss=m.issues||[],bad=iss.filter(i=>i.severity==3).length,warn=iss.filter(i=>i.severity==2).length;
+ const pools=(m.pools||[]).slice().sort((a,b)=>b.load-a.load);
+ const goods=Object.values(m.goods||{}).filter(g=>g.required>0);
+ goods.sort((a,b)=>b.load-a.load);
+ const fl=m.fleet||{};
+ const tiles=[
+  ['Critical issues',bad,`${warn} warnings, ${iss.length-bad-warn} notes`],
+  ['Busiest facility',pools[0]?pct(pools[0].load):'–',pools[0]?`${pools[0].id} at ${sname(m,pools[0].station)}`:''],
+  ['Tightest good',goods[0]?pct(goods[0].load):'–',goods[0]?goods[0].name:''],
+  ['Fleet hold on lanes',fl.load!=null?pct(fl.load):'–',`${fmt(fl.need,0)} of ${fmt(fl.hold,0)} m³ across ${fl.haulers||0} haulers`],
+ ];
+ $('strip').innerHTML=tiles.map(t=>`<div class="tile"><span class="k">${t[0]}</span><span class="v">${t[1]}</span><span class="n">${t[2]}</span></div>`).join('');
+ // issues, with what's new against the comparison
+ const baseSet=new Set((base&&base.issues||[]).map(i=>i.text));
+ const curSet=new Set(iss.map(i=>i.text));
+ let rows=iss.map(i=>`<li data-item="${i.item||''}"><span class="sev s${i.severity}"></span><span class="kind">${i.kind}</span><span>${i.text}${base&&!baseSet.has(i.text)?'<span class="new">NEW</span>':''}</span></li>`);
+ if(base)rows=rows.concat((base.issues||[]).filter(i=>!curSet.has(i.text)&&i.severity>1).map(i=>`<li><span class="sev s${i.severity}"></span><span class="kind">${i.kind}</span><span class="gone">${i.text}</span></li>`));
+ $('issues').innerHTML=rows.join('')||'<li class="empty">No issues.</li>';
+ $('issues').querySelectorAll('li[data-item]').forEach(li=>{if(li.dataset.item)li.style.cursor='pointer';li.onclick=()=>{if(li.dataset.item)showGood(li.dataset.item)}});
+ renderGoods();renderPools();renderLanes();renderMap();if(selGood)showGood(selGood,true);
+}
+function renderGoods(){
+ const m=cur,q=$('q').value.toLowerCase(),only=$('active').checked;
+ let gs=Object.values(m.goods||{}).filter(g=>(!only||g.required>0||g.final>0)&&(!q||g.name.toLowerCase().includes(q)||g.item.includes(q)));
+ const key={name:g=>g.name,final:g=>g.final,required:g=>g.required,capacity:g=>g.capacity,load:g=>g.load,makers:g=>Object.keys(g.makers||{}).length}[sortKey]||(g=>g.load);
+ gs.sort((a,b)=>{const x=key(a),y=key(b);return(x<y?-1:x>y?1:0)*sortDir});
+ const bg=base&&base.goods||{};
+ const head=`<thead><tr><th data-k="name">Good</th><th class="num" data-k="final">Final use /h</th><th class="num" data-k="required">Needed /h</th><th class="num" data-k="capacity">Capacity /h</th><th data-k="load">Load</th>${base?'<th class="num">Δ pts</th>':''}<th data-k="makers">Made at</th></tr></thead>`;
+ const body=gs.map(g=>{const mk=Object.entries(g.makers||{}).sort((a,b)=>b[1]-a[1]);const b=bg[g.item];
+  return `<tr data-item="${g.item}" class="${g.item===selGood?'sel':''}"><td>${g.name}</td><td class="num">${fmt(g.final)}</td><td class="num">${fmt(g.required)}</td><td class="num">${g.capacity?fmt(g.capacity):(g.external?'mined':'–')}</td><td>${bar(g.load)}</td>${base?`<td class="num">${delta(g.load,b&&b.load)}</td>`:''}<td>${mk.slice(0,3).map(([s,n])=>`${sname(m,s)} ${fmt(n,0)}`).join(', ')}${mk.length>3?` +${mk.length-3}`:''}</td></tr>`}).join('');
+ $('goods').innerHTML=head+'<tbody>'+body+'</tbody>';
+ $('goods').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;sortDir=sortKey===k?-sortDir:-1;sortKey=k;renderGoods()});
+ $('goods').querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>showGood(tr.dataset.item));
+}
+function poolKey(p){return p.station+'|'+p.id}
+function renderPools(){
+ const m=cur;const bp={};(base&&base.pools||[]).forEach(p=>bp[poolKey(p)]=p);
+ const ps=(m.pools||[]).filter(p=>p.used>0).sort((a,b)=>b.load-a.load);
+ $('pools').innerHTML=`<thead><tr><th>Facility</th><th>Station</th><th>Policy</th><th class="num">Units /h</th><th class="num">Used /h</th><th>Load</th>${base?'<th class="num">Δ pts</th>':''}<th>Makes</th></tr></thead><tbody>`+
+ ps.map(p=>{const made=Object.entries(p.recipes||{}).filter(([r,x])=>x.made>0).map(([r,x])=>`${r.replace(/^(make_|assemble_)/,'')} ${fmt(x.made)}`).join(', ');const b=bp[poolKey(p)];
+  return `<tr><td>${p.id}</td><td>${sname(m,p.station)}</td><td class="kind">${p.policy}</td><td class="num">${fmt(p.capacity)}</td><td class="num">${fmt(p.used)}</td><td>${bar(p.load)}</td>${base?`<td class="num">${delta(p.load,b&&b.load)}</td>`:''}<td>${made}</td></tr>`}).join('')+'</tbody>';
+}
+function laneItems(m,f){return Object.entries(f.items||{}).sort((a,b)=>b[1]-a[1]).map(([i,n])=>`${(m.goods[i]||{}).name||i} ${fmt(n)}`).join(', ')}
+function renderLanes(){
+ const m=cur;const fs=(m.flows||[]).slice().sort((a,b)=>b.holdHours-a.holdHours).slice(0,150);
+ $('lanes').innerHTML=`<thead><tr><th>From</th><th>To</th><th>Kind</th><th class="num">Trip h</th><th class="num">m³ /h</th><th class="num">Hold kept</th><th class="num">Pay /h</th><th>Cargo /h</th></tr></thead><tbody>`+
+ fs.map(f=>`<tr><td>${sname(m,f.source)}</td><td>${sname(m,f.target)}</td><td class="kind">${f.kind}</td><td class="num">${fmt(f.hours,2)}</td><td class="num">${fmt(f.volume)}</td><td class="num">${fmt(f.holdHours,0)}</td><td class="num">${fmt(f.pay,0)}</td><td>${laneItems(m,f)}</td></tr>`).join('')+'</tbody>';
+}
+// systems in rough sun-out order for the map ring
+const ORDER=['mercury','venus','earth','mars','belt','ring','shoals','jupiter','saturn','uranus','neptune','dark'];
+function renderMap(){
+ const m=cur;const sys={};
+ Object.values(m.stations||{}).forEach(s=>{sys[s.system]=sys[s.system]||{n:0};sys[s.system].n++});
+ const names=Object.keys(sys).sort((a,b)=>{const ia=ORDER.indexOf(a),ib=ORDER.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b)});
+ const W=760,H=520,cx=W/2,cy=H/2,R=200;const pos={};
+ names.forEach((n,i)=>{const a=-Math.PI/2+i/names.length*Math.PI*2;pos[n]=[cx+Math.cos(a)*R,cy+Math.sin(a)*R]});
+ const edges={};
+ (m.flows||[]).filter(f=>f.kind==='trunk').forEach(f=>{const a=(m.stations[f.source]||{}).system,b=(m.stations[f.target]||{}).system;if(!a||!b||a===b)return;const k=a+'>'+b;const e=edges[k]=edges[k]||{a,b,h:0,v:0,items:{}};e.h+=f.holdHours;e.v+=f.volume;for(const i in f.items)e.items[i]=(e.items[i]||0)+f.items[i]});
+ const es=Object.values(edges);const max=Math.max(1,...es.map(e=>e.h));
+ let svg=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Trunk freight between systems"><defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--accent)"/></marker></defs>`;
+ es.sort((a,b)=>a.h-b.h).forEach(e=>{const[x1,y1]=pos[e.a],[x2,y2]=pos[e.b];const mx=(x1+x2)/2+(y2-y1)*.12,my=(y1+y2)/2-(x2-x1)*.12;const w=1+7*Math.sqrt(e.h/max);
+  const items=Object.entries(e.items).sort((p,q)=>q[1]-p[1]).slice(0,5).map(([i,n])=>`${(m.goods[i]||{}).name||i} ${fmt(n)}/h`).join(', ');
+  svg+=`<path d="M${x1},${y1}Q${mx},${my} ${x2},${y2}" fill="none" stroke="var(--accent)" stroke-opacity="${.25+.6*e.h/max}" stroke-width="${w}" marker-end="url(#ar)"><title>${e.a} → ${e.b}: ${fmt(e.h,0)} m³ held, ${fmt(e.v)} m³/h. ${items}</title></path>`});
+ names.forEach(n=>{const[x,y]=pos[n];svg+=`<circle cx="${x}" cy="${y}" r="16" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/><text x="${x}" y="${y+30}" text-anchor="middle">${n}</text><text class="lbl2" x="${x}" y="${y+4}" text-anchor="middle">${sys[n].n}</text>`});
+ svg+='</svg>';$('mapbox').innerHTML=svg;
+}
+function showGood(item,keep){
+ const m=cur,g=(m.goods||{})[item];if(!g)return;selGood=item;$('detailPanel').hidden=false;
+ $('dTitle').textContent=`${g.name} · ${pct(g.load)} of capacity`;
+ const list=(o,f)=>Object.entries(o||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span>${f(k)}</span><span class="r">${fmt(v)}</span>`).join('')||'<span class="note">none</span><span></span>';
+ const inputs={};(m.pools||[]).forEach(p=>Object.values(p.recipes||{}).forEach(r=>{if(r.outs&&r.outs[item])for(const i in r.ins)inputs[i]=1}));
+ const feeds=Object.keys(g.feeds||{});
+ const fr=(g.freight||[]).slice().sort((a,b)=>b.share-a.share).slice(0,6).map(f=>`<span>${f.lane.replace(/station:/g,'')}</span><span class="r">${pct(f.share)}</span>`).join('')||'<span class="note">no hauling</span><span></span>';
+ const b=base&&base.goods&&base.goods[item];
+ $('detail').innerHTML=`
+ <div><h3>Balance per hour</h3><div class="kv"><span>Final use</span><span class="r">${fmt(g.final)}</span><span>Needed incl. inputs</span><span class="r">${fmt(g.required)}</span><span>Rated capacity</span><span class="r">${fmt(g.capacity)}</span><span>Mined</span><span class="r">${fmt(g.externalUsed||0)}</span><span>Nothing makes</span><span class="r">${fmt(g.unsourced||0)}</span>${b?`<span>Load in comparison</span><span class="r">${pct(b.load)}</span>`:''}</div>
+  <h3 style="margin-top:12px">Used for</h3><div class="kv">${list(g.why,k=>k)}</div></div>
+ <div><h3>Made at</h3><div class="kv">${list(g.makers,k=>sname(m,k))}</div></div>
+ <div><h3>Taken at</h3><div class="kv">${list(g.takers,k=>sname(m,k))}</div></div>
+ <div><h3>Made from</h3><div class="chips">${Object.keys(inputs).map(i=>`<span class="chip" data-i="${i}">${(m.goods[i]||{}).name||i}</span>`).join('')||'<span class="note">extracted or mined</span>'}</div>
+  <h3 style="margin-top:12px">Goes into</h3><div class="chips">${feeds.map(i=>`<span class="chip" data-i="${i}">${(m.goods[i]||{}).name||i}</span>`).join('')||'<span class="note">final use only</span>'}</div>
+  <h3 style="margin-top:12px">Freight against price</h3><div class="kv">${fr}</div></div>`;
+ $('detail').querySelectorAll('.chip').forEach(c=>c.onclick=()=>showGood(c.dataset.i));
+ if(tab==='goods')renderGoods();
+ if(!keep)$('detailPanel').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute('aria-selected',x===b));['goods','pools','lanes','map'].forEach(t=>$('view-'+t).hidden=t!==tab)});
+$('snap').onchange=render;$('base').onchange=render;$('q').oninput=renderGoods;$('active').onchange=renderGoods;
+$('file').onchange=async e=>{for(const f of e.target.files){try{snaps[f.name.replace(/\.json$/,'')]=JSON.parse(await f.text())}catch(err){$("sub").textContent=f.name+" is not a model JSON: "+err.message}}fillSelects();render()};
+// Published beside models.json ({"name":"file.json"}), the page loads those; opened as a file, use Load JSON.
+(async()=>{try{const r=await fetch('models.json');if(r.ok){const idx=await r.json();for(const[n,f]of Object.entries(idx)){const x=await fetch(f);if(x.ok)snaps[n]=await x.json()}}}catch(e){}fillSelects();render()})();
+</script>

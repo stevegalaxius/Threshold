@@ -100,9 +100,10 @@ local function buy(u,h,rec,site,item,clock)
  -- only with somewhere to sell it: a glut everywhere (ammo nobody fires)
  -- is dead money, not a bargain
  if (M.peak[item] or 0)<price*(1+T.merchantMargin)*(1+T.marketSpread)/(1-T.marketSpread) then return end
- -- only what the station holds over its own target: a house buys up a
- -- glut, it doesn't strip a shelf bare
- local spare=S.available(u,site,item)-E.target(u,site,item)
+ -- only what the station holds well over its own target (as intake): a
+ -- house buys up a glut. Buying a factory's every batch as it came off
+ -- the line starved the freight the economy plans through the hubs.
+ local spare=S.available(u,site,item)-math.max(E.target(u,site,item)*2,E.lot or 120)
  local n=math.min(h.lot,spare,h.hold-held(rec,site,item))
  local unit=price*(1+T.marketSpread)
  n=math.min(n,math.floor(rec.credits/math.max(.01,unit)))
@@ -136,10 +137,16 @@ local function sell(u,h,rec,target,item,clock)
  -- above twice the target, so the band between keeps a house from
  -- pulling a shelf down and selling it straight back.
  local want=E.target(u,target,item)
- local short=math.max(0,want-S.count(u,target,item))
- if short<1 then return end
+ local count=S.count(u,target,item)
+ if want-count<1 then return end
+ -- (and, like the station's own orders, up to its order level: a few
+ -- hours of its use, not just the units it is short this minute)
+ local short=math.max(0,E.orderLevel(u,target,item,want,false)-count)
  for _,site in ipairs(sites(h)) do
   local n=math.min(held(rec,site,item),h.lot,short)
+  -- a freight sale is at least an order worth flying (E.minOrder); only a
+  -- sale on the spot may be smaller
+  if site~=target and n<math.min(E.minOrder(item),short) then n=0 end
   if n>=1 then
    local income=math.floor(n*unit+.5)
    if site==target then
