@@ -32,59 +32,7 @@ local autotest
 local lastIntent = { aimX = 0, aimY = 0 }
 local camAimX, camAimY, camAimHeld  -- what the camera leads toward (see love.update)
 
---[[
-	Render interpolation. Physics steps at a fixed 120 Hz, so a frame can
-	land 1 or 2 steps after the last one and a moving ship jumps unevenly
-	against the smooth camera (a one-pixel shimmer when zoomed in). Each
-	frame, bodies are put where they'd be between their last two steps
-	(alpha = leftover time / STEP) for the camera and drawing, then put
-	back exactly before the next physics step.
-]]
--- Each remember is numbered, so a body that only joined during the step
--- (sleeping debris woken as the player comes near, still carrying the
--- position it was remembered at before it slept) isn't drawn between that
--- stale spot and where it really is.
-local lerpTick = 0
-local function remember(g)
-	lerpTick = lerpTick + 1
-	for _, e in ipairs(g.entities) do
-		local b = e.body
-		if b and not b:isDestroyed() then
-			e.lerpX, e.lerpY = b:getPosition()
-			e.lerpA = b:getAngle()
-			e.lerpTick = lerpTick
-		else
-			e.lerpX = nil
-		end
-	end
-end
-
-local function interpolate(g, alpha)
-	for _, e in ipairs(g.entities) do
-		local b = e.body
-		if e.lerpX and e.lerpTick == lerpTick and b and not b:isDestroyed() then
-			local x, y = b:getPosition()
-			local a = b:getAngle()
-			e.realX, e.realY, e.realA = x, y, a
-			local da = (a - e.lerpA + math.pi) % (2 * math.pi) - math.pi
-			b:setTransform(e.lerpX + (x - e.lerpX) * alpha, e.lerpY + (y - e.lerpY) * alpha, a - da * (1 - alpha))
-			e.shownX, e.shownY = b:getPosition()
-		else
-			e.realX = nil
-		end
-	end
-end
-
-local function restore(g)
-	for _, e in ipairs(g.entities) do
-		if e.realX and e.body and not e.body:isDestroyed() then
-			-- unless something moved it since (a teleport, a respawn)
-			local x, y = e.body:getPosition()
-			if x == e.shownX and y == e.shownY then e.body:setTransform(e.realX, e.realY, e.realA) end
-		end
-		e.realX = nil
-	end
-end
+local Pose = require("src.render_pose")
 
 function love.load(args)
 	-- Headless test runs: print an error and quit instead of showing the
@@ -166,6 +114,7 @@ function love.quit()
 end
 
 function love.update(dt)
+	Pose.beginFrame()
 	dt = math.min(dt, 1 / 15)
 	require("src.worker").update()   -- answers from the background thread
 	Debug.update(dt, game)
@@ -209,10 +158,9 @@ function love.update(dt)
 	lastIntent = intent
 	game:setPlayerIntent(intent)
 
-	restore(game)
 	accumulator = accumulator + dt * T.timeScale
 	while accumulator >= STEP do
-		remember(game)
+		Pose.remember(game)
 		local before=game.inputTranslation
 		game:step(STEP)
 		if game.resetClock then
@@ -228,7 +176,7 @@ function love.update(dt)
 		end
 		accumulator = accumulator - STEP
 	end
-	interpolate(game, accumulator / STEP)
+	Pose.interpolate(game, accumulator / STEP)
 	game:frame(dt, camAimX, camAimY)
 	Cargo.update(game)
 	love.mouse.setVisible(Debug.blocksMouse() or Cargo.isOpen(game) or Orrery.isOpen(game) or LocalMap.isOpen(game) or Traffic.isOpen(game))
@@ -350,6 +298,7 @@ end
 do
 	local update, draw = love.update, love.draw
 	function love.update(dt)
+	Pose.beginFrame()
 		if Intro.blocking() then Intro.update(math.min(dt, 1 / 15)) return end
 		update(dt)
 		Intro.update(math.min(dt, 1 / 15))

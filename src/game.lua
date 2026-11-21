@@ -1,3 +1,4 @@
+local DebrisView = require("src.sleeping_debris_view")
 --[[
 	The flight-toy arena: one Box2D world, a flat list of entities (ships
 	and asteroids), and lists of projectiles, pickups and effects. Systems
@@ -482,6 +483,7 @@ function Game:updateSleepers()
 			if wake and self:shipNear(x, y, e.radius) then wake = false end
 		end
 		if e.removed or wake then
+			DebrisView.remove(sl, e)
 			-- out of the list: the last one takes its place (and is looked
 			-- at next)
 			sl[i] = sl[n]; sl[n] = nil; n = n - 1
@@ -530,7 +532,9 @@ function Game:updateSleepers()
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
 				b:destroy()
+				e.previousBody = nil
 				sl[#sl + 1] = e
+				DebrisView.add(sl, e)
 				slept = true
 			end
 		end
@@ -682,6 +686,7 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 		end
 		self.sleepers = self.sleepers or {}
 		table.insert(self.sleepers, e)
+		DebrisView.add(self.sleepers, e)
 		return e
 	end
 	self:debrisBody(e, x, y, angle, spin)
@@ -3271,6 +3276,7 @@ function Game:ageEffects(dt)
 	end
 end
 
+local Pose = require("src.render_pose")
 function Game:followCamera(dt, aimX, aimY)
 	local p = self.player
 	local follow = self.debugFollow
@@ -3278,12 +3284,12 @@ function Game:followCamera(dt, aimX, aimY)
 	if follow then
 		-- F6 inspector: watch an NPC
 		if p and not p.dead then self:updateComputers(dt) end
-		local x, y = follow.body:getPosition()
+		local x, y = Pose.position(follow)
 		self.camera:follow(x, y, x, y, dt)
 	elseif p and not p.dead then
 		self:updateComputers(dt)
 		local ship = self:pilotedShip()
-		local x, y = ship.body:getPosition()
+		local x, y = Pose.position(ship)
 		if p.launch or p.runup or p.coasting or p.catching then
 			-- carried by a driver (launching, on the run-up, coasting the
 			-- lane or coming in to the catch): one rule for all of it, look
@@ -3304,7 +3310,7 @@ function Game:followCamera(dt, aimX, aimY)
 		end
 	elseif self.playerHusk and not self.playerHusk.removed then
 		-- Death screen: watch your own wreck drift.
-		local hx, hy = self.playerHusk.body:getPosition()
+		local hx, hy = self.Pose.position(playerHusk)
 		self.camera:follow(hx, hy, hx, hy, dt)
 	elseif self.deathX then
 		self.camera:follow(self.deathX, self.deathY, self.deathX, self.deathY, dt)

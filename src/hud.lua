@@ -1,3 +1,4 @@
+local Pose = require("src.render_pose")
 --[[
 	Heads-up display: armor, power, weapons with ammo counts, hold, kills
 	info, pickup messages, off-screen enemy markers and the aim reticle.
@@ -183,7 +184,7 @@ local function destinations(game)
 	for _, e in ipairs(game.entities) do
 		local nextRing = e.kind == "catchring" and game.player and game.player.catching and game:nextCatchRing() == e
 		if e.body and not e.body:isDestroyed() and (e.kind == "driver" or nextRing or (e.kind == "station" and e.dock)) then
-			local x, y = e.body:getPosition()
+			local x, y = Pose.position(e)
 			out[#out + 1] = {
 				label = nextRing and ("Braking ring " .. e.index) or e.kind == "driver" and (e.gate and e.name or "Mass driver") or e.name,
 				x = x, y = y, radius = e.radius or e.ringR or 0,
@@ -207,7 +208,7 @@ local function planetsOf(game)
 	local out = {}
 	for _, e in ipairs(game.entities) do
 		if e.kind == "planet" and e.body and not e.body:isDestroyed() and e.radius then
-			local x, y = e.body:getPosition()
+			local x, y = Pose.position(e)
 			out[#out + 1] = { x = x, y = y, r = e.radius }
 		end
 	end
@@ -260,8 +261,8 @@ local function drawStrip(game)
 	local w = lg.getWidth()
 	local sw, sh = 440, 26
 	local x0, y0 = max(412, (w - sw) / 2), 12
-	local px, py = p.body:getPosition()
-	local nose = p.body:getAngle()
+	local px, py = Pose.position(p)
+	local nose = Pose.angle(p)
 	local function rel(a) return (a - nose + math.pi) % (2 * math.pi) - math.pi end
 	local function sx(a) return x0 + sw / 2 + rel(a) / STRIP_SPAN * sw end
 	panel(x0, y0, sw, sh)
@@ -443,7 +444,7 @@ local function drawOffscreen(game)
 	local fnt = lg.getFont()
 	local planets = planetsOf(game)
 	local px, py = cam.x, cam.y
-	if game.player and game.player.body and not game.player.body:isDestroyed() then px, py = game.player.body:getPosition() end
+	if game.player and game.player.body and not game.player.body:isDestroyed() then px, py = Pose.position(game.player) end
 	local placed = {}
 	-- nudge a label down/up until it clears the ones already drawn
 	local function place(lx, ly, lw, dir)
@@ -495,7 +496,7 @@ local function drawOffscreen(game)
 	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" and e.team == 2 and not e.dead and e.aggro then
-			local sx, sy = cam:toScreen(e.body:getPosition())
+			local sx, sy = cam:toScreen(Pose.position(e))
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)
 				local m = 26
@@ -629,7 +630,7 @@ local function drawTrip(game)
 	local trip, lane, p = game.trip, game.lane, game.player
 	if not trip or not lane or not p or p.dead then return end
 	local w = lg.getWidth()
-	local s = game:toLane(p.body:getPosition())
+	local s = game:toLane(Pose.position(p))
 	local frac = math.max(0, math.min(1, (s + lane.half) / (lane.half * 2)))
 	local bw = 360
 	lg.setFont(font(13))
@@ -666,11 +667,11 @@ drawScanTip = function(game, mx, my)
 	local sc = p and not p.dead and game:computer(p, "scanner")
 	if not sc then return end
 	local wx, wy = game.camera:toWorld(mx, my)
-	local px, py = p.body:getPosition()
+	local px, py = Pose.position(p)
 	local target
 	for _, e in ipairs(game.entities) do
 		if (e.kind == "husk" or e.kind == "container") and not e.dead and e.hold and not e.sat then
-			local ex, ey = e.body:getPosition()
+			local ex, ey = Pose.position(e)
 			if (ex - wx) ^ 2 + (ey - wy) ^ 2 < (e.radius + 20) ^ 2 and (ex - px) ^ 2 + (ey - py) ^ 2 < sc.radarRange ^ 2 then target = e end
 		end
 	end
