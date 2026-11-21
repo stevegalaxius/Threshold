@@ -232,8 +232,14 @@ end
 function S.complete(u,r,acquisition,policy)
  if policy.rank then r.rank=policy.rank;r.rankXp=require('src.npc_rank').tiers[policy.rank].xp end
  if acquisition.source=='used' then
-  assert(require('src.dealers').buyForNpc(u,r,acquisition.candidate,policy),'arrival ship sale changed during creation')
-  r.shipAcquisition.source='used'
+  if require('src.dealers').buyForNpc(u,r,acquisition.candidate,policy) then
+   r.shipAcquisition.source='used'
+  else
+   -- the lot sold while the pilot was being created: they arrive in the
+   -- same hull bought elsewhere, as when no lot has one
+   r.shipAcquisition={source='arrived',hull=r.ship and r.ship.hull,price=0}
+   r.credits=(r.credits or 0)+require('src.tuning').npcStartingCredits
+  end
  else
   -- issued off a faction yard: the faction pays, the pilot starts with
   -- the same pocket money as anyone

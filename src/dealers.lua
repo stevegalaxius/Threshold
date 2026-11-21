@@ -315,8 +315,10 @@ function D.purchaseCandidate(u,area,policy,usedOnly)
  return best
 end
 function D.buyForNpc(u,r,candidate,policy)
+ -- (by id and hull: a lot list rebuilt while the pilot was created holds
+ -- new tables for the same ships)
  local lot=D.find(u,candidate.station,candidate.lot.id)
- if lot~=candidate.lot then return false end
+ if not lot or lot.hull~=candidate.lot.hull then return false end
  D.take(u,candidate.station,lot.id)
  local price=candidate.price or lot.price
  r.shipAcquisition={station=candidate.station,lot=lot.id,price=price,refit=candidate.loadout and true or nil,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}
