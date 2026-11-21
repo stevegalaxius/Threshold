@@ -125,6 +125,41 @@ def shortages(ev, item=None):
                     g = r['goods'][item]; n += g[0]; tg += g[1]
             print('    %6s %8.0f / %.0f' % (hours(t), n, tg))
 
+def starved(ev, item=None):
+    section('Starved: empty over 10 minutes with a target (consecutive snapshots), and why')
+    stock = ev['stock']
+    times = sorted(set(r['t'] for r in stock))
+    runs = collections.defaultdict(int); worst = {}
+    prev = {}
+    for t in times:
+        cur = {}
+        for r in stock:
+            if r['t'] != t:
+                continue
+            for it, (n, tg, price) in (r.get('goods') or {}).items():
+                if tg > 0 and n <= 0 and (not item or it == item):
+                    cur[(r['station'], it)] = prev.get((r['station'], it), 0) + 1
+        for k, v in cur.items():
+            if v >= 2:
+                worst[k] = max(worst.get(k, 0), v)
+        prev = cur
+    if not worst:
+        print('  none'); return
+    why = {}
+    for r in ev['blocked']:
+        why[(r.get('station'), r.get('item'))] = r
+    real = hauling = 0
+    for (st, it), v in sorted(worst.items(), key=lambda kv: -kv[1])[:40]:
+        b = why.get((st, it))
+        if b is None:
+            reason = 'no blocked record (orders placed but not delivered)'
+        elif (b.get('elsewhere') or 0) <= 0:
+            reason = 'nothing anywhere: real shortage'; real += 1
+        else:
+            reason = 'held back: %.0f elsewhere, need %.2f' % (b.get('elsewhere'), b.get('need') or 0); hauling += 1
+        print('  %-26s %-20s %4d min  %s' % (st.replace('station:', ''), it, (v - 1) * 10, reason))
+    print('  %d starved pairs: %d real shortages, %d held back with stock elsewhere' % (len(worst), real, hauling))
+
 def plants(ev, item=None):
     section('Factories waiting on inputs (status at each snapshot, share of snapshots)')
     st = collections.defaultdict(collections.Counter)
@@ -193,7 +228,7 @@ def deaths(ev, item=None):
     c = collections.Counter('%s>%s' % (r.get('killerRole'), r.get('role')) for r in d)
     print('  killer>victim %s' % ', '.join('%s %d' % kv for kv in c.most_common(10)))
 
-SECTIONS = {'freight': freight, 'orders': orders, 'deliveries': deliveries, 'mined': mined, 'shortages': shortages, 'plants': plants, 'money': money, 'deaths': deaths}
+SECTIONS = {'freight': freight, 'orders': orders, 'deliveries': deliveries, 'mined': mined, 'shortages': shortages, 'starved': starved, 'plants': plants, 'money': money, 'deaths': deaths}
 
 def main():
     ap = argparse.ArgumentParser()

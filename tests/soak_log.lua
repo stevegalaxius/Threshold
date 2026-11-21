@@ -23,7 +23,10 @@
 	              target and price (goods with either)
 	  plant       every LOG_EVERY seconds, each factory installation:
 	              policy, recipe mix and status
-	  counts      every LOG_EVERY seconds: docked/undocked and other
+	  blocked     every LOG_EVERY seconds, each buyer still short after the
+              economy's update: station, item, need, have, elsewhere
+              (what other stations held of it)
+  counts      every LOG_EVERY seconds: docked/undocked and other
 	              high-volume history kinds, only counted
 ]]
 local L={}
@@ -159,6 +162,10 @@ local function snapshot()
    emit('plant',{station=st,facility=id,policy=def.policy,capacity=inst.capacity,mix=state and state.mix,status=status})
   end
  end end
+ -- buyers the economy left short after its last update, and how much of
+ -- the good other stations held (0: a real shortage, not a hauling one)
+ for _,b in pairs(u.economyBlocked or {}) do emit('blocked',b) end
+ u.economyBlocked=nil
  emit('counts',{history=counted})
  counted={}
 end
