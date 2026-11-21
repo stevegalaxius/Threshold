@@ -142,6 +142,9 @@ function M.build(opts)
      pool.recipes[r]={outs=outs,ins=ins,made=0}
      for item,n in pairs(outs) do
       local g=good(item);g.capacity=g.capacity+inst.capacity*n
+      -- what the cheapest way to make a unit costs in inputs at list price
+      local cost=0;for input,k in pairs(ins) do cost=cost+k/n*((data.items[input] or {}).price or 0) end
+      if next(ins) and (not g.recipeCost or cost<g.recipeCost) then g.recipeCost=cost end
       makersOf[item]=makersOf[item] or {}
       table.insert(makersOf[item],{pool=pool,recipe=r,per=n})
      end
@@ -489,6 +492,9 @@ function M.build(opts)
   if (g.unsourced or 0)>0.01 then issue('source',3,('%s: %.1f/h used that nothing makes or mines'):format(g.name,g.unsourced),item) end
   if (g.unrouted or 0)>0.01 then issue('route',2,('%s: %.1f/h has no hub to travel through'):format(g.name,g.unrouted),item) end
   g.load=g.capacity>0 and g.made/g.capacity or 0
+  -- the price rule: a recipe sells at (inputs + its work) x T.priceMargin,
+  -- so at list prices every recipe earns at least its inputs back
+  if g.recipeCost and g.price>0 and g.recipeCost*require('src.tuning').priceMargin>g.price*1.001 then issue('price',2,('%s: list price %.0f is under its inputs x margin (%.0f)'):format(g.name,g.price,g.recipeCost*require('src.tuning').priceMargin),item) end
   -- a new world opens at equilibrium: nothing starts short of its target
   if opts.opening and (g.buffer or 0)-(g.stock or 0)>math.max(1,.02*(g.buffer or 0)) then issue('start',3,('%s: a new game opens with %.0f on hand against %.0f wanted'):format(g.name,g.stock,g.buffer),item) end
   if (g.fillHours or 0)>6 then issue('buffer',g.fillHours>24 and 2 or 1,('%s: stations want %.0f on hand and hold %.0f; spare capacity takes %s to fill the gap'):format(g.name,g.buffer,g.stock,g.fillHours==math.huge and 'forever' or ('%.0f h'):format(g.fillHours)),item) end

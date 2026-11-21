@@ -42,37 +42,37 @@ ammo { id = "rounds_m", name = "Solid Rounds M", shortName = "Solid M", default 
 -- default 0.6 x splash), so a stream of near misses still does damage. Less
 -- per hit than solid rounds and a little slower and shorter-ranged, but far
 -- more forgiving to aim.
-ammo { id = "airburst_s", name = "Airburst Rounds S", shortName = "Airburst S", maker = "Halcyon Arms", family = "gun", size = "S", volume = 0.02, mass = 0.02, price = 4, w = 1, h = 1, stack = 50,
+ammo { id = "airburst_s", name = "Airburst Rounds S", shortName = "Airburst S", maker = "Halcyon Arms", family = "gun", size = "S", volume = 0.02, mass = 0.02, price = 5, w = 1, h = 1, stack = 50,
  shot = { damage = 8, splash = 80, fuse = 50, speed = 4000, range = 5000, knockback = 10, airburst = true } }
-ammo { id = "airburst_m", name = "Airburst Rounds M", shortName = "Airburst M", maker = "Brute Industries", family = "gun", size = "M", volume = 0.04, mass = 0.04, price = 8, w = 1, h = 1, stack = 25,
+ammo { id = "airburst_m", name = "Airburst Rounds M", shortName = "Airburst M", maker = "Brute Industries", family = "gun", size = "M", volume = 0.04, mass = 0.04, price = 10, w = 1, h = 1, stack = 25,
  shot = { damage = 24, splash = 105, fuse = 65, speed = 4200, range = 5800, knockback = 18, airburst = true } }
 
-ammo { id = "shell_s", name = "Explosive Shells S", shortName = "Explosive S", default = true,    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 25, w = 1, h = 1, stack = 6,
+ammo { id = "shell_s", name = "Explosive Shells S", shortName = "Explosive S", default = true,    maker = "Ferrous Collective", family = "artillery", size = "S", volume = 0.15, mass = 0.12, price = 30, w = 1, h = 1, stack = 6,
 	shot = { damage = 45, splash = 60, speed = 6200, range = 9000, knockback = 6000 } }
-ammo { id = "shell_m", name = "Explosive Shells M", shortName = "Explosive M", default = true,  maker = "Brute Industries",   family = "artillery", size = "M", volume = 0.30, mass = 0.25, price = 50, w = 1, h = 1, stack = 3,
+ammo { id = "shell_m", name = "Explosive Shells M", shortName = "Explosive M", default = true,  maker = "Brute Industries",   family = "artillery", size = "M", volume = 0.30, mass = 0.25, price = 100, w = 1, h = 1, stack = 3,
 	shot = { damage = 90, splash = 90, speed = 6500, range = 10400, knockback = 12000 } }
-ammo { id = "shell_l", name = "Explosive Shells L", shortName = "Explosive L", default = true,  maker = "Ferrous Collective", family = "artillery", size = "L", volume = 0.60, mass = 0.50, price = 110, w = 2, h = 1, stack = 3,
+ammo { id = "shell_l", name = "Explosive Shells L", shortName = "Explosive L", default = true,  maker = "Ferrous Collective", family = "artillery", size = "L", volume = 0.60, mass = 0.50, price = 200, w = 2, h = 1, stack = 3,
 	shot = { damage = 180, splash = 130, speed = 6800, range = 13000, knockback = 26000 } }
 
 ammo { id = "shot_s", name = "Scatter Shells S", shortName = "Scatter S", maker = "Halcyon Arms",    family = "artillery", size = "S", volume = 0.06, mass = 0.05, price = 8, w = 1, h = 1, stack = 16,
 	shot = { damage = 9, pellets = 6, pelletSpread = 7, speed = 5400, range = 3000, knockback = 120 } }
-ammo { id = "shot_m", name = "Scatter Shells M", shortName = "Scatter M", maker = "Brute Industries",  family = "artillery", size = "M", volume = 0.12, mass = 0.10, price = 18, w = 1, h = 1, stack = 8,
+ammo { id = "shot_m", name = "Scatter Shells M", shortName = "Scatter M", maker = "Brute Industries",  family = "artillery", size = "M", volume = 0.12, mass = 0.10, price = 25, w = 1, h = 1, stack = 8,
 	shot = { damage = 16, pellets = 7, pelletSpread = 6, speed = 5600, range = 3600, knockback = 220 } }
-ammo { id = "shot_l", name = "Scatter Shells L", shortName = "Scatter L", maker = "Brute Industries", family = "artillery", size = "L", volume = 0.25, mass = 0.20, price = 40, w = 2, h = 1, stack = 6,
+ammo { id = "shot_l", name = "Scatter Shells L", shortName = "Scatter L", maker = "Brute Industries", family = "artillery", size = "L", volume = 0.25, mass = 0.20, price = 65, w = 2, h = 1, stack = 6,
 	shot = { damage = 28, pellets = 8, pelletSpread = 5, speed = 5800, range = 4200, knockback = 400 } }
 
-ammo { id = "missile_s", name = "Missile S", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.08, mass = 0.06, price = 15, w = 2, h = 1, stack = 20,
+ammo { id = "missile_s", name = "Missile S", maker = "Halcyon Arms",     family = "missile",   size = "S", volume = 0.08, mass = 0.06, price = 18, w = 2, h = 1, stack = 20,
 	shot = { armTime = 1.0, damage = 14, splash = 35, speed = 6100, range = 12600, knockback = 5000, accel = 2200, turnRate = 5 } }
-ammo { id = "missile_m", name = "Missile M",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 0.15, mass = 0.12, price = 40, w = 3, h = 1, stack = 12,
+ammo { id = "missile_m", name = "Missile M",  maker = "Nova Syndicate",   family = "missile",   size = "M", volume = 0.15, mass = 0.12, price = 65, w = 3, h = 1, stack = 12,
 	shot = { armTime = 1.8, damage = 45, splash = 55, speed = 5000, range = 13000, knockback = 10000, accel = 1800, turnRate = 4 } }
-ammo { id = "missile_l", name = "Missile L", maker = "Ferrous Collective", family = "missile", size = "L", volume = 0.40, mass = 0.30, price = 120, w = 3, h = 1, stack = 6,
+ammo { id = "missile_l", name = "Missile L", maker = "Ferrous Collective", family = "missile", size = "L", volume = 0.40, mass = 0.30, price = 200, w = 3, h = 1, stack = 6,
 	shot = { armTime = 3.0, damage = 120, splash = 90, speed = 3900, range = 13400, knockback = 20000, accel = 1300, turnRate = 2.8 } }
 
-ammo { id = "torp_s", name = "Torpedo S",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 600, w = 2, h = 1, stack = 1,
+ammo { id = "torp_s", name = "Torpedo S",      maker = "Brute Industries",   family = "torpedo", size = "S", volume = 1.2, mass = 1.0, price = 850, w = 2, h = 1, stack = 1,
 	shot = { armTime = 5, recoil = 2, damage = 220, splash = 80, speed = 9500, turnRate = 0.5, range = 12400, knockback = 15000 } }
-ammo { id = "torp_m", name = "Torpedo M",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 1400, w = 3, h = 1, stack = 1,
+ammo { id = "torp_m", name = "Torpedo M",   maker = "Brute Industries",   family = "torpedo", size = "M", volume = 2.5, mass = 2.2, price = 2500, w = 3, h = 1, stack = 1,
 	shot = { armTime = 8, recoil = 2, damage = 500, splash = 130, speed = 8500, turnRate = 0.4, range = 12800, knockback = 35000 } }
-ammo { id = "torp_l", name = "Torpedo L", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 3200, w = 5, h = 1, stack = 1,
+ammo { id = "torp_l", name = "Torpedo L", maker = "Ferrous Collective", family = "torpedo", size = "L", volume = 5.0, mass = 4.5, price = 6600, w = 5, h = 1, stack = 1,
 	shot = { armTime = 12, recoil = 2, damage = 1100, splash = 210, speed = 7500, turnRate = 0.3, range = 13200, knockback = 80000 } }
 
 ammo { id = "drone_s", name = "Drone S",    maker = "Nova Syndicate", family = "drone", size = "S", volume = 4, mass = 3, price = 2500, w = 2, h = 2, stack = 1,
@@ -113,23 +113,23 @@ container { id = "cargo_container", name = "Cargo container", maker = "Ferrous C
 salvage { id = "flare", name = "Flare charge", volume = 0.1, mass = 0.05, price = 20, w = 1, h = 1, stack = 10 }
 
 -- What a mining drill gets out of the rock it breaks (src/game.lua ORE).
-salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 25, w = 1, h = 1, stack = 4 }
-salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 15, w = 1, h = 1, stack = 4 }
+salvage { id = "iron_ore",  name = "Iron ore",  volume = 0.25, mass = 0.3, price = 60, w = 1, h = 1, stack = 4 }
+salvage { id = "water_ice", name = "Water ice", volume = 0.25, mass = 0.22, price = 40, w = 1, h = 1, stack = 4 }
 -- Rare ore: from a vein in a big rock, or a crystal frozen in big ice
 -- (src/rock_chips.lua).
 salvage { id = "gold_ore", name = "Gold ore", volume = 0.25, mass = 0.5, price = 220, w = 1, h = 1, stack = 4 }
 salvage { id = "cryo_crystal", name = "Cryo crystal", volume = 0.25, mass = 0.2, price = 180, w = 1, h = 1, stack = 4 }
 
 -- Industrial inputs and manufactured electronics.
-salvage { id = "silicon", name = "Silicon", volume = 0.25, mass = 0.25, price = 30, w = 1, h = 1, stack = 4 }
-salvage { id = "industrial_acids", name = "Industrial acids", volume = 0.25, mass = 0.25, price = 40, w = 1, h = 1, stack = 4 }
+salvage { id = "silicon", name = "Silicon", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
+salvage { id = "industrial_acids", name = "Industrial acids", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
 salvage { id = "electronics", name = "Electronics", volume = 0.1, mass = 0.05, price = 160, w = 1, h = 1, stack = 10 }
-salvage { id = "heavy_metals", name = "Heavy metals", description = "Dense metal concentrate sorted out of belt regolith at the quarry depots. Coil works buy all they can get.", volume = 0.25, mass = 0.6, price = 60, w = 1, h = 1, stack = 4 }
-salvage { id = "superconducting_coils", name = "Superconducting coils", description = "Heavy-metal windings on an electronic core. Every engine and reactor needs them.", volume = 0.25, mass = 0.3, price = 420, w = 1, h = 1, stack = 4 }
-salvage { id = "thermal_ceramics", name = "Thermal ceramics", description = "Fired silicon tiles cured in acid. Engine nozzles and reactor shielding are lined with them.", volume = 0.25, mass = 0.2, price = 160, w = 1, h = 1, stack = 4 }
+salvage { id = "heavy_metals", name = "Heavy metals", description = "Dense metal concentrate sorted out of belt regolith at the quarry depots. Coil works buy all they can get.", volume = 0.25, mass = 0.6, price = 80, w = 1, h = 1, stack = 4 }
+salvage { id = "superconducting_coils", name = "Superconducting coils", description = "Heavy-metal windings on an electronic core. Every engine and reactor needs them.", volume = 0.25, mass = 0.3, price = 490, w = 1, h = 1, stack = 4 }
+salvage { id = "thermal_ceramics", name = "Thermal ceramics", description = "Fired silicon tiles cured in acid. Engine nozzles and reactor shielding are lined with them.", volume = 0.25, mass = 0.2, price = 270, w = 1, h = 1, stack = 4 }
 
 -- Trade commodities (src/commodities.lua): made at some stations, used up at others.
-salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
+salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
 -- Delicate cargo (delicate = true) only rides in a climate-controlled
 -- compartment: a hull's climate hold or a fitted Climate Pod.
 salvage { id = "medical_supplies", name = "Medical supplies", delicate = true, volume = 0.25, mass = 0.1, price = 320, w = 1, h = 1, stack = 4,
@@ -138,12 +138,12 @@ salvage { id = "medical_supplies", name = "Medical supplies", delicate = true, v
 -- They are a contract's party, never market goods.
 salvage { id = "passengers", name = "Passengers", delicate = true, passengers = true, volume = 1, mass = 0.1, price = 0, w = 1, h = 1, stack = 1,
 	description = "A travelling party. Seated in a climate-controlled hold; the more comfortable the seats, the better the fare." }
-salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 30, w = 1, h = 1, stack = 4 }
-salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 20, w = 1, h = 1, stack = 4 }
-salvage { id = "explosives", name = "Explosives", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
-salvage { id = "fertilizer", name = "Fertilizer", volume = 0.25, mass = 0.25, price = 40, w = 1, h = 1, stack = 4 }
-salvage { id = "empty_canister", name = "Empty canister", volume = 0.25, mass = 0.08, price = 15, w = 1, h = 1, stack = 4 }
-salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, mass = 0.1, price = 40, w = 1, h = 1, stack = 4 }
+salvage { id = "food_crate", name = "Food crate", volume = 0.25, mass = 0.2, price = 40, w = 1, h = 1, stack = 4 }
+salvage { id = "nitrates", name = "Nitrates", volume = 0.25, mass = 0.25, price = 60, w = 1, h = 1, stack = 4 }
+salvage { id = "explosives", name = "Explosives", volume = 0.25, mass = 0.25, price = 175, w = 1, h = 1, stack = 4 }
+salvage { id = "fertilizer", name = "Fertilizer", volume = 0.25, mass = 0.25, price = 95, w = 1, h = 1, stack = 4 }
+salvage { id = "empty_canister", name = "Empty canister", volume = 0.25, mass = 0.08, price = 45, w = 1, h = 1, stack = 4 }
+salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, mass = 0.1, price = 75, w = 1, h = 1, stack = 4 }
 -- Reactor fuel: ice from Ceres, cracked into deuterium and sealed in a
 -- canister there (src/commodities.lua). Every ship's reactor burns it.
 -- A folded satellite. Replacement-launch jobs hand you one to use at the
@@ -153,4 +153,4 @@ salvage { id = "hydrogen_canister", name = "Hydrogen canister", volume = 0.25, m
 salvage { id = "satellite_package", name = "Satellite package", description = "A folded relay satellite. Use it in orbit to put it up as your own: it earns while it has fuel. Use it at a launch job's site to replace a lost one.",
 	volume = 1, mass = 1, price = 12000, w = 2, h = 2, stack = 1,
 	use = { label = "Launch satellite", cast = 3, effects = { { "deploy_satellite" }, { "quest", item = "satellite_package" } } } }
-salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 90, w = 1, h = 1, stack = 4 }
+salvage { id = "deuterium_canister", name = "Deuterium canister", volume = 0.25, mass = 0.15, price = 130, w = 1, h = 1, stack = 4 }
