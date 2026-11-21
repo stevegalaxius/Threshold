@@ -7,7 +7,8 @@
 
 	  order       a board offer posted: id, kind, and for freight src, dst,
 	              item, n, m3, scope, trunk, urgency, house
-	  take        an NPC took a job: npc, role, kind, id, at; for freight
+	  mined       a miner unloaded at home: station, item, n
+  take        an NPC took a job: npc, role, kind, id, at; for freight
 	              src, dst, lines, stops, m3 and the ship's hold
 	  gone        an order left the board without being taken (expired or
 	              withdrawn): id, item, n, age
@@ -22,7 +23,10 @@
 	              target and price (goods with either)
 	  plant       every LOG_EVERY seconds, each factory installation:
 	              policy, recipe mix and status
-	  counts      every LOG_EVERY seconds: docked/undocked and other
+	  blocked     every LOG_EVERY seconds, each buyer still short after the
+              economy's update: station, item, need, have, elsewhere
+              (what other stations held of it)
+  counts      every LOG_EVERY seconds: docked/undocked and other
 	              high-volume history kinds, only counted
 ]]
 local L={}
@@ -110,6 +114,15 @@ function L.start(game,path)
   end
   return death(u_,r,clock,area,killer,...)
  end
+ -- what the miners bring home (src/mining.lua delivers, then counts it made)
+ local E=require('src.economy');local Jobs=require('src.jobs')
+ local deliver,stat,last=Jobs.deliver,E.stat,nil
+ Jobs.deliver=function(u_,node,item,n,...) if u_==u and n and n>0 then last={node,item,n} end return deliver(u_,node,item,n,...) end
+ E.stat=function(u_,kind,item,n,...)
+  if u_==u and kind=='made' and last and last[2]==item and last[3]==n then emit('mined',{station=last[1],item=item,n=n}) end
+  last=nil
+  return stat(u_,kind,item,n,...)
+ end
  -- every other world event
  require('src.events').on('simulation_outcome',function(e)
   if QUIET[e.kind] then counted[e.kind]=(counted[e.kind] or 0)+1;return end
@@ -149,6 +162,10 @@ local function snapshot()
    emit('plant',{station=st,facility=id,policy=def.policy,capacity=inst.capacity,mix=state and state.mix,status=status})
   end
  end end
+ -- buyers the economy left short after its last update, and how much of
+ -- the good other stations held (0: a real shortage, not a hauling one)
+ for _,b in pairs(u.economyBlocked or {}) do emit('blocked',b) end
+ u.economyBlocked=nil
  emit('counts',{history=counted})
  counted={}
 end

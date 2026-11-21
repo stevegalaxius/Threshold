@@ -466,7 +466,7 @@ T.turnDrain=0.25 -- share of the main-drive load that turning alone costs
 T.orderMinLoad=10   -- the smallest part of a goods order a hauler will take
 T.orderLotHours=4   -- a buyer orders at least this many hours of its own use at once
 T.orderMinFreight=800 -- and an order pays a hauler at least this over an AU (E.minOrder)
-T.orderMaxVolume=60  -- cubic metres in one ordinary (not hub-to-hub) order
+T.orderMaxVolume=200 -- cubic metres in one ordinary (not hub-to-hub) order: a median hauler's hold
 T.agendaMaxJobs=4     -- most jobs one NPC holds at once (src/npc_agenda.lua)
 T.agendaHoldPerJob=80 -- m3 of hold per extra job it may hold
 T.freightMinRun=60    -- m3 of freight at a pickup, bound for one area, before haulers fly it
@@ -528,8 +528,8 @@ T.freightValueShare=.05
 T.freightCreditsPerM3AU=6 -- additional credits per cubic metre per route AU
 T.freightHandling=200 -- once per shipment; partial orders earn a proportional share
 T.freightListingSeconds=30 -- public listing before NPC reservation
-T.trunkLot=150     -- cubic metres per hub-to-hub trunk order
-T.trunkMinHold=200 -- hold a ship needs to take trunk runs
+T.trunkLot=250     -- cubic metres per hub-to-hub trunk order: a full load for a trunk freighter
+T.trunkMinHold=250 -- hold a ship needs to take trunk runs
 T.trunkMinOrders=4 -- a trunk run waits for this many ordinary order lots (E.minOrder)
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
 T.satJobPlayerFirst=600     -- s a satellite launch/refuel job is offered to the player before haulers may take it
@@ -602,7 +602,15 @@ T.freeStationDrift = { 0.022, 0.03, 0.018 }
 T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
 T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
 T.fenceStock = 300 -- m3 of each dark surplus good a fence keeps in its back room to sell on
-T.darkAccessShare = 0.3 -- white haulers and miners who also work the dark grids (raiders always do)
+-- Dark runners (src/dark_runners.lua): white haulers who sign on with
+-- Milliways while dark freight goes unclaimed, and quit when it dries up.
+T.darkRunnerHome = 'station:pluto_1'
+T.darkRecruitWait = 300   -- s dark orders sit unclaimed before haulers sign on
+T.darkRecruitEvery = 120  -- s between rounds of recruiting
+T.darkRecruitBatch = 4    -- at most this many sign on in a round
+T.darkOrdersPerRunner = 4 -- one more runner for every this many orders waiting
+T.darkRetireIdle = 7200   -- s without dark work before a runner goes straight
+T.darkRunnerMax = 40
 T.mapDensity = 0.3
 
 -- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).

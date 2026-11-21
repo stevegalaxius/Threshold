@@ -74,21 +74,13 @@ end
 function Templates.network(r) return r.network or (Templates[r.populationGroup] or {}).network or 'white' end
 function Templates.isDark(r) return Templates.network(r)=='dark' end
 -- Dark access: who may trade, work and berth on the dark grids. Every dark
--- NPC (raiders) has it; a fixed share of white haulers and miners do too,
--- picked by id so it never changes. Those are the smugglers and wildcat
--- miners who fill the shadow economy's gaps. Guards never get it.
-local function roll(id,salt)
- local seed=salt
- for i=1,#(id or '') do seed=(seed*31+id:byte(i))%2147483647 end
- -- a few Lehmer steps so neighbouring ids (npc/41, npc/42) don't land together
- for _=1,3 do seed=(seed*48271)%2147483647 end
- return seed/2147483647
-end
+-- NPC (raiders) has it, as does anyone born on a dark grid and every hauler
+-- who signed on with the Milliways runners (src/dark_runners.lua). Ordinary
+-- crews go no further than a fence.
 function Templates.darkAccess(r)
  if r.player or Templates.isDark(r) then return true end
- if r.darkAccess~=nil then return r.darkAccess end
- local job=Templates.job(r)
- return (job=='hauler' or job=='miner') and roll(r.id,13)<require('src.tuning').darkAccessShare or false
+ -- born on a dark grid, or signed on with the runners (src/dark_runners.lua)
+ return r.darkAccess==true
 end
 -- Fill job/network on records saved before they existed, and fold retired
 -- groups into their replacement. Safe to call every load.
@@ -106,6 +98,13 @@ function Templates.migrate(r)
   local home=r.homeStation and require('src.locations').byId[r.homeStation]
   r.darkAccess=Templates.darkAccess(r) or (home~=nil and require('src.dark').isDarkArea(home.area))
  end
+ -- (a save from when a fixed share of white crews worked the dark grids:
+ -- only those who live there or signed on keep it)
+ if r.darkAccess and not r.darkRunner and not r.darkAccessV then
+  local home=r.homeStation and require('src.locations').byId[r.homeStation]
+  r.darkAccess=home~=nil and require('src.dark').isDarkArea(home.area) or false
+ end
+ r.darkAccessV=2
  return r
 end
 function Templates.apply(r,name,area)
