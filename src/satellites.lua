@@ -53,6 +53,45 @@ local function store(universe)
 	return universe.satellites
 end
 
+-- Satellites stay out of the station orbits: no slot within Sat.trackClear
+-- of a station track (field.stationTrack, field.stationTrack2), so
+-- stations sweeping round never ram one.
+Sat.trackClear = 2500
+function Sat.tracks(field)
+	local t = {}
+	for _, r in ipairs({ field.stationTrack or false, field.stationTrack2 or false }) do if r then t[#t + 1] = r end end
+	return t
+end
+function Sat.onTrack(field, alt)
+	for _, r in ipairs(Sat.tracks(field)) do if math.abs(alt - r) < Sat.trackClear then return true end end
+	return false
+end
+-- The altitude at fraction u (0..1) of the band [lo, hi] once the
+-- station-track gaps are cut out of it, so the satellites spread evenly
+-- over what's left.
+local function bandAlt(field, lo, hi, u)
+	local cuts = {}
+	for _, r in ipairs(Sat.tracks(field)) do cuts[#cuts + 1] = { r - Sat.trackClear, r + Sat.trackClear } end
+	table.sort(cuts, function(a, b) return a[1] < b[1] end)
+	local segs, at = {}, lo
+	for _, c in ipairs(cuts) do
+		if c[1] > at then segs[#segs + 1] = { at, math.min(c[1], hi) } end
+		at = math.max(at, c[2])
+		if at >= hi then break end
+	end
+	if at < hi then segs[#segs + 1] = { at, hi } end
+	local total = 0
+	for _, sg in ipairs(segs) do total = total + math.max(0, sg[2] - sg[1]) end
+	if total <= 0 then return lo + (hi - lo) * u end
+	local want = u * total
+	for _, sg in ipairs(segs) do
+		local len = math.max(0, sg[2] - sg[1])
+		if want <= len then return sg[1] + want end
+		want = want - len
+	end
+	return segs[#segs][2]
+end
+
 -- A rolled, seeded list of { id, kind, alt, angle } for a field: the same
 -- every time, so a field always has the same satellites.
 function Sat.layout(fieldId, field)
@@ -77,20 +116,20 @@ function Sat.layout(fieldId, field)
 			if r < kw[2] then kind = kw[1]; break end
 			r = r - kw[2]
 		end
-		local f = band[1] + rng:random() * (band[2] - band[1])
+		local alt = bandAlt(field, R + (edge - R) * band[1], R + (edge - R) * band[2], rng:random())
 		out[n] = { id = ("%s_sat_%02d"):format(fieldId, n), n = n, kind = kind,
-			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2,
+			alt = alt, angle = rng:random() * math.pi * 2,
 			name = ("%s sat %02d"):format(def.names or field.name or fieldId, n) }
 	end
 	-- hubs: their own slots (ids <field>_hub_<n>), after the mix,
 	-- so adding hubs never reshuffles a field's other satellites
 	for n = 1, def.hubs or 0 do
-		local f = 0.3 + rng:random() * 0.3
+		local hubAlt = bandAlt(field, R + (edge - R) * 0.3, R + (edge - R) * 0.6, rng:random())
 		-- each hub keeps station by one of the field's trade buoys, where the
 		-- routes already pass (Sat.hubPoint); none left: a plain slot
 		local buoys = require("src.fields")[fieldId] and require("src.fields")[fieldId].buoyIds or {}
 		out[#out + 1] = { id = ("%s_hub_%d"):format(fieldId, n), n = n, kind = "hub", buoy = buoys[n],
-			alt = R + (edge - R) * f, angle = rng:random() * math.pi * 2,
+			alt = hubAlt, angle = rng:random() * math.pi * 2,
 			name = ("%s trade hub%s"):format(def.names or field.name or fieldId, (def.hubs or 0) > 1 and (" " .. n) or "") }
 	end
 	return out
@@ -254,6 +293,7 @@ function Sat.canDeploy(game, ship)
 	local d = math.sqrt((x - w.x) ^ 2 + (y - w.y) ^ 2)
 	if d < (game.field.planetR or 0) * 1.25 then return false, "Too low: climb higher first" end
 	if game.arenaRadius and d > game.arenaRadius - 600 then return false, "Too far out for an orbit" end
+	if Sat.onTrack(game.field, d) then return false, "In the station orbit: move above or below it" end
 	for _, e in ipairs(game.entities) do
 		if e.sat and not e.removed and e.body then
 			local ex, ey = e.body:getPosition()
@@ -391,6 +431,9 @@ function Sat.populate(game)
 		-- a satellite saved in this area but not restored was destroyed
 		if not e and not r.lost and r.spawnedAt and saved and (saved.capturedAt or 0) >= r.spawnedAt then Sat.markLost(game.universe, r) end
 		r.buoy = r.buoy or slot.buoy
+		-- the field's own satellites follow their slot (an old save's one
+		-- left on a station track moves off it, and relearns its rate)
+		if not r.placed and slot.alt and r.alt ~= slot.alt then r.alt, r.rate = slot.alt, nil end
 		r.alt = r.alt or slot.alt
 		if not r.rate and not r.buoy and game.currentSpeed then
 			-- first visit: learn the current's turn rate at its altitude, and
