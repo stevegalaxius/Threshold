@@ -105,7 +105,8 @@ function C.update(u,clock,stations,inbound,pause)
    -- a dark maker prices against the stock it keeps for itself, not its
    -- whole buffer, so a full farm sells cheap and the gap to a hungry
    -- station is what pays the smuggler
-   local want=E.target(u,key,item,dark and not C.items[item] and (makes(key,item) or item==require('src.food').item and select(2,require('src.food').rates(key))>0) or nil)
+   -- (a hub or customs depot wants the stock it holds for its system)
+   local want=E.hubTarget(u,key,item,dark and not C.items[item] and (makes(key,item) or item==require('src.food').item and select(2,require('src.food').rates(key))>0) or nil)
    local coming=(inbound[key..'|'..item] or 0)
    local have=snapshot[key][item]+coming
    local target
@@ -121,8 +122,10 @@ function C.update(u,clock,stations,inbound,pause)
    local alpha=1-math.exp(-dt/C.smooth)
    local top=want>0 and E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 and T.priceCrisisMax or 2
    prices[item]=math.max(T.priceFloor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
-   if bids[item] and want>0 and have<want*2 then
-    bids[item][#bids[item]+1]={target=key,amount=math.ceil(want*2-have),price=C.price(u,key,item)}
+   -- (bid for what the station's next order will be: up to its order level)
+   local level=want>0 and (makes(key,item) and want*2 or E.orderLevel(u,key,item,want,false)) or 0
+   if bids[item] and want>0 and have<level then
+    bids[item][#bids[item]+1]={target=key,amount=math.ceil(level-have),price=C.price(u,key,item)}
    end
   end
  end

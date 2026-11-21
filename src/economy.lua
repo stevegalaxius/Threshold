@@ -364,14 +364,24 @@ E.hubWants=hubWants
 -- A station's measured service use of an item (units an hour, fading as it
 -- goes stale): what src/economy_model.lua reads in live mode.
 function E.serviceRate(u,key,item) return serviceUse(u,key,item) end
--- The smallest order a buyer places for a good: T.orderLotHours of its own
--- use (production inputs and service), at least T.orderMinLoad units and at
--- most one ordinary 30 m3 lot.
+-- The smallest order worth posting for a good: T.orderMinVolume, at least
+-- T.orderMinLoad units and at most one ordinary 30 m3 lot. A buyer's order
+-- tops it up by a lot (E.orderLot): T.orderLotHours of its own use
+-- (production inputs and service), never under the minimum.
+function E.minOrder(item)
+ local vol=require('src.data').items[item].volume
+ return math.min(math.max(1,math.floor(30/vol)),math.max(T.orderMinLoad,math.ceil(T.orderMinVolume/vol)))
+end
+-- What a buyer orders up to once it falls below its target (want): twice
+-- the target, or the target and a lot on top. A maker keeps its target.
+function E.orderLevel(u,key,item,want,producer)
+ if producer or want<=0 then return want end
+ return math.max(want*2,want+E.orderLot(u,key,item))
+end
 function E.orderLot(u,key,item)
  local vol=require('src.data').items[item].volume
  local rate=capacityUse(u,key,item)+serviceUse(u,key,item)
- local floor=math.max(T.orderMinLoad,math.ceil(T.orderMinVolume/vol))
- return math.min(math.max(1,math.floor(30/vol)),math.max(floor,math.ceil(rate*T.orderLotHours)))
+ return math.min(math.max(1,math.floor(30/vol)),math.max(E.minOrder(item),math.ceil(rate*T.orderLotHours)))
 end
 -- The hub that serves a station's planet system, if it has one.
 function E.hubFor(id)
@@ -461,13 +471,15 @@ local function run(u,clock,pause)
  require('src.industry').update(u,clock,inhabited,pause)
  pause()
  planning={u=u,stations={}}
- require('src.markets').update(u,clock,all,committed,pause)
- pause()
- planning.stations={};planning.targets=nil
+ -- (the hub plan first: hubs and customs bid on the market for the stock
+ -- they hold for their systems, so factories make it)
  hubPlan=nil
  local wants=hubWants(u,all,pause)
  hubPlan=wants
  pause()
+ require('src.markets').update(u,clock,all,committed,pause)
+ pause()
+ planning.stations={};planning.targets=nil
  -- Output bins may have filled since these orders were posted. Keep
  -- committed cargo, but release unclaimed excess rather than tying up sources.
  local remaining,availableOrders={},{}
@@ -511,7 +523,7 @@ local function run(u,clock,pause)
    E.shortage(u,s,item,count,want,clock)
    -- (a buyer orders up to a full lot over its target: a few hours of its
    -- own use, so the fleet moves the same goods in fewer, fuller trips)
-   local level=(producer or want<=0) and want or math.max(want*2,want+E.orderLot(u,s,item))
+   local level=E.orderLevel(u,s,item,want,producer)
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
    spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or level)
@@ -532,7 +544,9 @@ local function run(u,clock,pause)
    -- with orders of a few cubic metres. Food, water and fuel take any part
    -- load as before.
    local critical=item==Food.item or item=='water' or item==require('src.reactor_fuel').item()
-   local minLot=critical and T.orderMinLoad or E.orderLot(u,c,item)
+   -- (the gate is the volume floor alone: waiting for hours of use would
+   -- leave a steady consumer dry while its supplier saves the lot up)
+   local minLot=critical and T.orderMinLoad or E.minOrder(item)
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
