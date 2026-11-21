@@ -188,6 +188,10 @@ return function(game)
  local hub
  for _,slot in ipairs(Sat.layout('neptune',Fields.neptune)) do if slot.kind=='hub' then hub=Sat.record(u,slot,'neptune');Sat.refuel(u,hub.id,'test') end end
  assert(hub and hub.kind=='hub','Neptune has no hub satellite')
+ -- no satellite slot sits on a station orbit (either track)
+ for id,F in pairs(Fields) do if type(F)=='table' and F.planetR and require('src.data').satellites[id] then
+  for _,slot in ipairs(Sat.layout(id,F)) do if not slot.buoy then assert(not Sat.onTrack(F,slot.alt),('%s sits on a station orbit of %s (alt %d)'):format(slot.id,id,slot.alt)) end end
+ end end
  for _,slot in ipairs(Sat.layout('earth',Fields.earth)) do assert(slot.kind~='hub','Earth should have no hub') end
  Sat.refuel(u,hub.id,'test')
  local F=require('src.reactor_fuel').item()
