@@ -34,7 +34,13 @@ N.controller={name='npc',
   local t=r.task
   return not t or L.canonical(id)==L.canonical(t.phase=='pickup' and t.source or t.target)
  end,
- complete=function(c) Tasks.arrive(c.u,c.r,L.canonical(c.node),c.clock,c.game) end,
+ complete=function(c)
+  local node=L.canonical(c.node)
+  Tasks.arrive(c.u,c.r,node,c.clock,c.game)
+  -- just loaded at the pickup: fill the spare hold with more jobs on the way
+  local t=c.r.task
+  if t and t.phase=='delivery' and t.source==node then require('src.npc_agenda').extend(c.u,c.r,node,c.clock) end
+ end,
  next=function(c)
   local u,r,node,clock=c.u,c.r,L.canonical(c.node),c.clock
   local work=N.work(r)
@@ -60,6 +66,8 @@ N.controller={name='npc',
   end
   local task=Tasks.choose(u,r,node,clock)
   if not task then return end
+  -- loaded here: fill the spare hold with more jobs on the way
+  if task.phase=='delivery' and node==task.source then require('src.npc_agenda').extend(u,r,node,clock) end
   r.taskWorker=true;r.nextTaskAt=nil
   local route=Tasks.plan(r,node,clock)
   if not route then Tasks.release(u,r,'no route',clock);return end
