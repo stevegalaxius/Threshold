@@ -147,9 +147,15 @@ local function fill(r,e,h,cargo,u,key)
   else n=math.min(missing,room(r,e,nil,id)) end
   if n>0 then cargo[id]=(cargo[id] or 0)+n;added=added+n end
   if n>0 and (id==Fuel.item() or require('src.ammunition').byItem[id]) and u and key then
-   -- a spent canister is gone: new empties only come from Mars
    assert(require('src.stockpile').take(u,key,id,n),'supply stock changed during refill')
    require('src.economy').consume(u,type(key)=='table' and key.key or key,id,n)
+   -- a ship trades its spent canisters in for full ones: the station keeps
+   -- the empties (all but the few lost to wear) for the fillers to take
+   -- back, so the presses only make up losses (T.canisterReturn)
+   if id==Fuel.item() then
+    local back=math.floor(n*T.canisterReturn+.5)
+    if back>0 then require('src.stockpile').add(u,key,T.canisterEmpty,back) end
+   end
    charge(r,u,key,id,n)
   end
  end

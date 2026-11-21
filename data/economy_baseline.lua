@@ -7,311 +7,312 @@ return {
 
  service={
   ["station:antichthon_1"]={
-   ["deuterium_canister"]=7.333,
-   ["food_crate"]=31.67,
-  },
-  ["station:belt_1"]={
-   ["deuterium_canister"]=127.3,
-   ["food_crate"]=31.67,
-  },
-  ["station:belt_2"]={
-   ["deuterium_canister"]=68.67,
-   ["food_crate"]=31.67,
-  },
-  ["station:belt_3"]={
-   ["deuterium_canister"]=131.5,
-   ["food_crate"]=31.67,
-  },
-  ["station:callisto_1"]={
-   ["deuterium_canister"]=159.3,
-   ["food_crate"]=63.67,
-  },
-  ["station:callisto_2"]={
-   ["deuterium_canister"]=141.7,
+   ["deuterium_canister"]=8,
    ["food_crate"]=31.67,
    ["steel_plate"]=0.3333,
   },
+  ["station:belt_1"]={
+   ["deuterium_canister"]=95.67,
+   ["food_crate"]=31.67,
+  },
+  ["station:belt_2"]={
+   ["deuterium_canister"]=61,
+   ["food_crate"]=31.67,
+  },
+  ["station:belt_3"]={
+   ["deuterium_canister"]=147.7,
+   ["food_crate"]=31.67,
+  },
+  ["station:callisto_1"]={
+   ["deuterium_canister"]=147.3,
+   ["food_crate"]=63.67,
+  },
+  ["station:callisto_2"]={
+   ["deuterium_canister"]=129.7,
+   ["food_crate"]=31.67,
+  },
   ["station:callisto_3"]={
-   ["deuterium_canister"]=177,
-   ["food_crate"]=12.67,
+   ["deuterium_canister"]=136,
+   ["food_crate"]=19,
   },
   ["station:ceres_quarry_1"]={
-   ["deuterium_canister"]=157.3,
+   ["deuterium_canister"]=212.3,
    ["food_crate"]=31.67,
   },
   ["station:cordelia_1"]={
-   ["deuterium_canister"]=116,
+   ["deuterium_canister"]=99,
    ["food_crate"]=31.67,
-   ["rounds_s"]=33.33,
-   ["steel_plate"]=1,
   },
   ["station:deimos_1"]={
-   ["deuterium_canister"]=152.3,
+   ["deuterium_canister"]=120.3,
    ["food_crate"]=31.67,
    ["rounds_s"]=16.67,
   },
   ["station:earth_1"]={
-   ["deuterium_canister"]=177,
-   ["food_crate"]=74,
+   ["deuterium_canister"]=164,
+   ["food_crate"]=82.33,
   },
   ["station:earth_2"]={
-   ["deuterium_canister"]=151,
+   ["deuterium_canister"]=129.7,
    ["food_crate"]=63.67,
   },
   ["station:earth_3"]={
-   ["deuterium_canister"]=70.67,
+   ["deuterium_canister"]=61,
    ["food_crate"]=31.67,
-   ["steel_plate"]=0.3333,
   },
   ["station:earth_4"]={
-   ["deuterium_canister"]=55.67,
+   ["deuterium_canister"]=34.33,
    ["food_crate"]=31.67,
   },
   ["station:earth_5"]={
-   ["deuterium_canister"]=39,
+   ["deuterium_canister"]=20.33,
    ["food_crate"]=31.67,
+   ["steel_plate"]=0.3333,
   },
   ["station:enceladus_1"]={
-   ["deuterium_canister"]=135,
+   ["deuterium_canister"]=116.7,
    ["food_crate"]=31.67,
   },
   ["station:enceladus_2"]={
-   ["deuterium_canister"]=127.7,
+   ["deuterium_canister"]=119,
    ["food_crate"]=31.67,
-   ["steel_plate"]=0.3333,
   },
   ["station:europa_1"]={
-   ["deuterium_canister"]=127,
+   ["deuterium_canister"]=120.3,
    ["food_crate"]=31.67,
-   ["steel_plate"]=0.6667,
   },
   ["station:europa_2"]={
-   ["deuterium_canister"]=114,
+   ["deuterium_canister"]=113.7,
    ["food_crate"]=31.67,
   },
   ["station:europa_3"]={
-   ["deuterium_canister"]=115.7,
+   ["deuterium_canister"]=106,
    ["food_crate"]=31.67,
   },
   ["station:ganymede_1"]={
-   ["deuterium_canister"]=130,
+   ["deuterium_canister"]=124.3,
    ["food_crate"]=31.67,
   },
   ["station:ganymede_2"]={
-   ["deuterium_canister"]=113.3,
+   ["deuterium_canister"]=91.67,
    ["food_crate"]=31.67,
   },
   ["station:ganymede_3"]={
-   ["deuterium_canister"]=106.7,
+   ["deuterium_canister"]=92.67,
    ["food_crate"]=31.67,
   },
   ["station:io_1"]={
-   ["deuterium_canister"]=110.3,
+   ["deuterium_canister"]=96.67,
    ["food_crate"]=31.67,
   },
   ["station:io_2"]={
-   ["deuterium_canister"]=80.33,
+   ["deuterium_canister"]=66,
    ["food_crate"]=31.67,
   },
   ["station:io_3"]={
-   ["deuterium_canister"]=76,
+   ["deuterium_canister"]=59,
    ["food_crate"]=31.67,
   },
   ["station:jupiter_1"]={
-   ["deuterium_canister"]=239.3,
+   ["deuterium_canister"]=238.3,
    ["food_crate"]=31.67,
-   ["rounds_s"]=16.67,
   },
   ["station:jupiter_2"]={
-   ["deuterium_canister"]=242.7,
+   ["deuterium_canister"]=193,
    ["food_crate"]=31.67,
   },
   ["station:jupiter_3"]={
-   ["deuterium_canister"]=242.3,
-   ["food_crate"]=13.67,
+   ["deuterium_canister"]=217.7,
+   ["food_crate"]=15.67,
+   ["steel_plate"]=0.3333,
   },
   ["station:luna_1"]={
-   ["deuterium_canister"]=133.3,
-   ["food_crate"]=31.67,
-  },
-  ["station:luna_2"]={
-   ["deuterium_canister"]=113.3,
-   ["food_crate"]=31.67,
-  },
-  ["station:luna_3"]={
-   ["deuterium_canister"]=51.67,
-   ["food_crate"]=31.67,
-  },
-  ["station:mars_1"]={
-   ["deuterium_canister"]=84.33,
-   ["food_crate"]=31.67,
-  },
-  ["station:mars_2"]={
-   ["deuterium_canister"]=82.67,
-   ["food_crate"]=31.67,
-  },
-  ["station:mars_3"]={
-   ["deuterium_canister"]=135.7,
-   ["food_crate"]=95.67,
-  },
-  ["station:mars_4"]={
-   ["deuterium_canister"]=143.3,
-   ["food_crate"]=30,
-  },
-  ["station:mars_5"]={
    ["deuterium_canister"]=114,
    ["food_crate"]=31.67,
   },
+  ["station:luna_2"]={
+   ["deuterium_canister"]=93.67,
+   ["food_crate"]=31.67,
+  },
+  ["station:luna_3"]={
+   ["deuterium_canister"]=38.33,
+   ["food_crate"]=31.67,
+  },
+  ["station:mars_1"]={
+   ["deuterium_canister"]=78.33,
+   ["food_crate"]=31.67,
+   ["shell_s"]=8,
+   ["shot_s"]=5.333,
+  },
+  ["station:mars_2"]={
+   ["deuterium_canister"]=66.67,
+   ["food_crate"]=31.67,
+  },
+  ["station:mars_3"]={
+   ["deuterium_canister"]=121.7,
+   ["food_crate"]=95.67,
+  },
+  ["station:mars_4"]={
+   ["deuterium_canister"]=178.8,
+   ["food_crate"]=31.67,
+  },
+  ["station:mars_5"]={
+   ["deuterium_canister"]=84.67,
+   ["food_crate"]=31.67,
+  },
   ["station:mercury_1"]={
-   ["deuterium_canister"]=105,
+   ["deuterium_canister"]=92.67,
    ["food_crate"]=31.67,
   },
   ["station:mercury_2"]={
-   ["deuterium_canister"]=57,
-   ["food_crate"]=31.67,
+   ["deuterium_canister"]=63,
+   ["food_crate"]=26,
   },
   ["station:mercury_3"]={
-   ["deuterium_canister"]=80,
+   ["deuterium_canister"]=59.67,
    ["food_crate"]=31.67,
   },
   ["station:phobos_1"]={
-   ["deuterium_canister"]=136.7,
+   ["deuterium_canister"]=138.3,
    ["food_crate"]=31.67,
-   ["rounds_s"]=16.67,
-   ["steel_plate"]=0.3333,
   },
   ["station:pluto_1"]={
-   ["deuterium_canister"]=75,
+   ["deuterium_canister"]=67,
    ["food_crate"]=31.67,
   },
   ["station:quarry_1"]={
-   ["deuterium_canister"]=73.67,
+   ["deuterium_canister"]=156.7,
    ["food_crate"]=31.67,
   },
   ["station:ring_1"]={
-   ["deuterium_canister"]=14.67,
+   ["deuterium_canister"]=9,
    ["food_crate"]=31.67,
   },
   ["station:ring_2"]={
-   ["deuterium_canister"]=18.33,
+   ["deuterium_canister"]=10.67,
    ["food_crate"]=31.67,
   },
   ["station:saturn_1"]={
-   ["deuterium_canister"]=161.3,
+   ["deuterium_canister"]=178,
    ["food_crate"]=31.67,
+   ["steel_plate"]=0.3333,
   },
   ["station:saturn_2"]={
-   ["deuterium_canister"]=171,
+   ["deuterium_canister"]=148.3,
    ["food_crate"]=31.67,
-   ["rounds_s"]=16.67,
   },
   ["station:saturn_3"]={
-   ["deuterium_canister"]=152.8,
-   ["food_crate"]=26.33,
+   ["deuterium_canister"]=227.8,
+   ["food_crate"]=24,
   },
   ["station:saturn_4"]={
-   ["deuterium_canister"]=160.7,
+   ["deuterium_canister"]=126,
    ["food_crate"]=31.67,
    ["steel_plate"]=0.3333,
   },
   ["station:shoals_1"]={
-   ["deuterium_canister"]=133,
+   ["deuterium_canister"]=179,
    ["food_crate"]=31.67,
   },
   ["station:shoals_2"]={
-   ["deuterium_canister"]=18.67,
+   ["deuterium_canister"]=48.67,
    ["food_crate"]=31.67,
   },
   ["station:shoals_3"]={
-   ["deuterium_canister"]=38.33,
+   ["deuterium_canister"]=81.67,
    ["food_crate"]=31.67,
+   ["rounds_s"]=33.33,
+   ["steel_plate"]=0.3333,
   },
   ["station:titan_1"]={
-   ["deuterium_canister"]=149,
+   ["deuterium_canister"]=126,
    ["food_crate"]=63.67,
+   ["missile_m"]=6,
+   ["rounds_m"]=16.67,
    ["steel_plate"]=0.3333,
   },
   ["station:titan_2"]={
-   ["deuterium_canister"]=125,
+   ["deuterium_canister"]=92,
    ["food_crate"]=31.67,
   },
   ["station:titan_3"]={
-   ["deuterium_canister"]=95,
+   ["deuterium_canister"]=74.33,
    ["food_crate"]=31.67,
+   ["rounds_m"]=10,
   },
   ["station:titania_1"]={
-   ["deuterium_canister"]=132.7,
+   ["deuterium_canister"]=120.7,
    ["food_crate"]=31.67,
-   ["rounds_s"]=16.67,
+   ["steel_plate"]=0.6667,
   },
   ["station:triton_1"]={
-   ["deuterium_canister"]=13.67,
+   ["deuterium_canister"]=38.33,
    ["food_crate"]=31.67,
+   ["shell_s"]=8,
   },
   ["station:triton_3"]={
    ["deuterium_canister"]=2.667,
    ["food_crate"]=31.67,
   },
   ["station:uranus_1"]={
-   ["deuterium_canister"]=215.7,
+   ["deuterium_canister"]=276.7,
    ["food_crate"]=31.67,
   },
   ["station:uranus_2"]={
-   ["deuterium_canister"]=145.7,
+   ["deuterium_canister"]=127.7,
    ["food_crate"]=31.67,
   },
   ["station:uranus_3"]={
-   ["deuterium_canister"]=189.3,
+   ["deuterium_canister"]=192.7,
    ["food_crate"]=31.67,
    ["steel_plate"]=0.3333,
   },
   ["station:venus_1"]={
-   ["deuterium_canister"]=107,
+   ["deuterium_canister"]=116,
    ["food_crate"]=31.67,
-   ["rounds_s"]=16.67,
   },
   ["station:venus_2"]={
-   ["deuterium_canister"]=88.33,
-   ["food_crate"]=63.67,
+   ["deuterium_canister"]=85.33,
+   ["food_crate"]=63.33,
   },
   ["station:venus_3"]={
-   ["deuterium_canister"]=70.33,
+   ["deuterium_canister"]=63,
    ["food_crate"]=31.67,
   },
   ["station:venus_4"]={
-   ["deuterium_canister"]=70,
-   ["food_crate"]=23.33,
-   ["steel_plate"]=0.6667,
+   ["deuterium_canister"]=80,
+   ["food_crate"]=21.67,
   },
  },
  ships={
-  ["amw_wayfarer_fat"]=0.3333,
+  ["amw_wayfarer"]=0.3333,
   ["brute_nautilus"]=0.3333,
-  ["diwan_seraph"]=0.3333,
+  ["diwan_cherubim"]=0.3333,
   ["estates_bastion"]=0.3333,
-  ["ferrous_mule"]=0.3333,
+  ["ferrous_bison_carrier"]=0.3333,
+  ["intaki_wisp"]=0.3333,
   ["mack_mustang"]=0.3333,
   ["redfu_crane"]=0.3333,
  },
  minedAt={
   ["station:belt_1"]={
-   ["water_ice"]=222.3,
+   ["water_ice"]=346,
   },
   ["station:ceres_quarry_1"]={
-   ["iron_ore"]=464.7,
+   ["iron_ore"]=442.3,
   },
   ["station:deimos_1"]={
-   ["iron_ore"]=883,
+   ["iron_ore"]=852.3,
   },
   ["station:phobos_1"]={
-   ["iron_ore"]=854.7,
+   ["iron_ore"]=770.7,
   },
   ["station:quarry_1"]={
-   ["iron_ore"]=414.7,
+   ["iron_ore"]=478.3,
   },
   ["station:shoals_1"]={
-   ["iron_ore"]=772,
-   ["water_ice"]=341.3,
+   ["iron_ore"]=937.3,
+   ["water_ice"]=379.3,
   },
  },
 }
