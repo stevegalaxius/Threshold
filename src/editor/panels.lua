@@ -1429,7 +1429,10 @@ local function boxWindow(E)
  local materials={};for _,id in ipairs({'metal','painted','recess','crystal','emissive'}) do materials[#materials+1]={label=id,value=id} end
  combo('solid_material',b.material or 'painted',materials,function(v)E.pushUndo();b.material=v end,180)
  num('Contrast','contrast',1,.1,2);num('Glow','glow',b.material=='emissive' and 1 or 0,0,2)
- local c=b.color or require('src.icon_model').materials[b.material or 'painted'].color or {.6,.7,.8}
+ -- With no override, show the colour the box really renders with: the
+ -- material's own, else the item's paint (dimmed for 'secondary').
+ local mat=require('src.icon_model').materials[b.material or 'painted'] or {}
+ local c=b.color or mat.color or require('src.weapon_visual').partColor({paint=b.paint or 'primary'},E.previewPaint())
  Slab.Text('Color override')
  for i,label in ipairs({'R','G','B'}) do
   if i>1 then Slab.SameLine() end;Slab.Text(label);Slab.SameLine()
