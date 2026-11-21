@@ -297,7 +297,8 @@ Tasks.register('transport',{
   -- a hauler waits for a load: an order is taken once the freight at its
   -- pickup for that area fills T.freightMinRun, it has waited
   -- T.freightMaxWait, or a shelf of food, water or fuel is nearly bare
-  if o.order and not r.player and (o.urgency or 0)<2.5 and clock-(o.placed or clock)<T.freightMaxWait
+  -- (a ship already leaving loaded tops up its hold: src/npc_agenda.lua)
+  if o.order and not r.player and not r.agendaFilling and (o.urgency or 0)<2.5 and clock-(o.placed or clock)<T.freightMaxWait
    and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount

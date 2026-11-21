@@ -44,7 +44,10 @@ end
 function Tasks.release(u,r,reason,clock)
  require('src.npc_actions').cancel({u=u,r=r,clock=clock},reason)
  local t=r.task or r.suspendedTask
- if not t then return end
+ if not t then
+  if r.agenda and (r.state=='dead' or r.state=='escaped') then require('src.npc_agenda').dropAll(u,r,reason,clock) end
+  return
+ end
  local o=Tasks.state(u).offers[t.id]
  for _,line in ipairs(t.manifest or {}) do
   local extra=Tasks.state(u).offers[line.id]
@@ -57,6 +60,11 @@ function Tasks.release(u,r,reason,clock)
  if def and def.release then def.release(u,r,t,reason,clock) end
  r.lastTask={id=t.id,kind=t.kind,status=reason,clock=clock}
  r.task=nil;r.suspendedTask=nil;r.suspendedTaskStatus=nil
+ -- the ship is gone: so is every job it held; otherwise the next one it
+ -- carries becomes the active job
+ local Agenda=require('src.npc_agenda')
+ if r.state=='dead' or r.state=='escaped' then Agenda.dropAll(u,r,reason,clock)
+ else Agenda.promote(u,r,r.node or r.station,clock) end
 end
 -- Saves may outlive a task implementation (or be opened on another branch).
 -- Keep its phase, cargo and reservation intact until that implementation returns.
@@ -83,8 +91,7 @@ function Tasks.clean(u,clock)
  for _,r in pairs(u.npcs or {}) do Tasks.resolve(u,r) end
  for _,o in pairs(Tasks.state(u).offers) do
   local r=o.owner=='player' and Tasks.state(u).player or o.owner and (u.npcs or {})[o.owner]
-  local task=r and (r.task or r.suspendedTask)
-  if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not task or task.id~=(o.manifestRoot or o.id)) then
+  if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not require('src.npc_agenda').holds(r,o.manifestRoot or o.id)) then
    if o.loaded then Tasks.state(u).offers[o.id]=nil
    else o.owner=nil;o.manifestRoot=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120) end
   end
@@ -170,6 +177,7 @@ end
 -- Optional scene context lets completion use the normal station-market API.
 function Tasks.arrive(u,r,station,clock,game)
  if not Tasks.resolve(u,r) then return false end
+ require('src.npc_agenda').arrive(u,r,station,clock,game)
  local t=r.task
  if not t then return end
  local def=Tasks.definitions[t.kind]
@@ -177,7 +185,7 @@ function Tasks.arrive(u,r,station,clock,game)
   Tasks.release(u,r,'completed',clock)
   -- a one-off order is filled; standing work goes back on the board
   local o=Tasks.state(u).offers[t.id]
-  if o and o.order then Tasks.state(u).offers[t.id]=nil end
+  if o and o.order and not require('src.npc_agenda').holds(r,t.id) then Tasks.state(u).offers[t.id]=nil end
   return true
  end
 end

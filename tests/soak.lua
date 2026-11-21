@@ -31,6 +31,8 @@ return function(game)
  local fh=out and io.open(out,'w')
  local function say(s) print(s);if fh then fh:write(s,'\n');fh:flush() end end
  game.autosaveOff=true
+ -- SOAK_AGENDA=0: one job per ship, as before the agenda, to compare
+ if os.getenv('SOAK_AGENDA')=='0' then require('src.tuning').agendaMaxJobs=1 end
  game:loadField(os.getenv('SOAK_FIELD') or Fields.start)
  local u=game.universe
  local stations={}
@@ -110,6 +112,17 @@ return function(game)
   say(('    sold: %s'):format(top(lh,'sold',6)))
   say(('    bought: %s'):format(top(lh,'bought',6)))
   say(('    freight: %s'):format(top(lh,'freight',4)))
+  do -- haulers: how many carry a load, and how many jobs at once (src/npc_agenda.lua)
+   local loaded,multi,max,jobs=0,0,0,0
+   for _,r in pairs(u.npcs or {}) do
+    local t=r.task
+    if r.state~='dead' and t and t.kind=='transport' and t.phase=='delivery' then
+     local n=1+#(r.agenda or {});loaded=loaded+1;jobs=jobs+n
+     if n>1 then multi=multi+1 end;if n>max then max=n end
+    end
+   end
+   say(('    haulers loaded=%d holding several=%d jobs/loaded=%.2f max=%d'):format(loaded,multi,loaded>0 and jobs/loaded or 0,max))
+  end
   -- who needed outside money this hour, by account, and what it holds
   local sh={} for id,v in pairs(u.accountSubsidy or {}) do local d=v-(lastShort[id] or 0);if d>0 then sh[#sh+1]={id,d} end;lastShort[id]=v end
   table.sort(sh,function(a,b) return a[2]>b[2] end)
