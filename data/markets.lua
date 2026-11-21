@@ -28,9 +28,20 @@
 	seconds, then it's sold on.
 ]]
 
-market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp" }, lots = 6, restock = 8 }, sells = {   -- general store
+-- Unspecified stations get ordinary supplies, never another station's dealer.
+local generalStore = {
 	{ "rounds_s", 6 }, { "airburst_s", 4 }, { "rounds_m", 4 }, { "airburst_m", 3 }, { "gun_s_base", 2 }, { "flit_engine", 1 },
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 }, { "cargo_container", 2 },
+}
+market { id = "market:general", station = "General store", sells = generalStore }
+market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp" }, lots = 6, restock = 8 }, sells = generalStore }
+
+-- Residential services do not grant ship sales; passenger refits stay available.
+market { id = "market:luna_3", station = "Tranquility Commons", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
+market { id = "market:mars_5", station = "Hakka Tulou Habitat", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
 market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   -- logistics equipment store
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "artillery_s_base", 1 }, { "cinder_drive", 1 }, { "forge_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 },
