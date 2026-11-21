@@ -685,6 +685,7 @@ function M.capture(game)
   if clock%60==0 then Tasks.clean(u,clock);E.update(u,clock);require('src.quests').update(u,clock);require('src.arbiter').update(u,clock);require('src.population').update(game,clock) end
  end
  E.consume,E.stat,Jobs.deliver=consume,stat,deliver
+ do local used,denied=require('src.npc').searchStats(u);print(('board searches: %d made, %d turned away for want of allowance'):format(used,denied)) end
  local function per(t) local o={};for k,v in pairs(t) do o[k]=v/hoursN end return o end
  local lines={'-- Written by love . --econcapture (src/economy_model.lua). Per game hour.','return {'}
  local function ser(t,ind)

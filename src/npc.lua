@@ -24,6 +24,9 @@ function N.install(d) for k,v in pairs(d) do deps[k]=v end end
 -- One decision controller. Task handlers supply execution hooks, not AI loops.
 local searches=setmetatable({},{__mode='k'})
 -- Physical dwell and job-search throttling have independent saved clocks.
+-- Board searches made and turned away for want of allowance (the economy
+-- model reports them: many turned away means the A-Life waits on the board).
+function N.searchStats(u) local b=searches[u];return b and b.used or 0,b and b.denied or 0 end
 function N.readyAt(r) return math.max(r.untilTime or 0,r.nextDecisionAt or 0) end
 local function defer(u,r,at,seconds)
  r.untilTime=r.untilTime or at
@@ -55,14 +58,23 @@ N.controller={name='npc',
    if plan then return plan end
   end
   if not r.task then
-   local tick=math.floor((u.clock or clock)/T.alifeLocalTick)
+   -- The board search allowance is counted in game time: T.taskChoosePerTick
+   -- searches per T.alifeLocalTick, however the clock is stepped. Live play
+   -- steps once a frame and gets one a step (reading the whole board is the
+   -- longest thing a record does, and two in one step was a step you could
+   -- see); a coarse step (the fast soak, the economy capture) gets the
+   -- searches its seconds are worth, not one for the whole universe.
+   local now=u.clock or clock
+   local rate=T.taskChoosePerTick/T.alifeLocalTick
    local budget=searches[u]
-   if not budget or budget.tick~=tick then budget={tick=tick,count=0};searches[u]=budget end
-   if budget.count>=T.taskChoosePerTick then return {wait=2} end
-   -- (and one a step: reading the whole board is the longest thing a
-   -- record does, and two in one step was a step you could see)
-   if budget.clock==u.clock then return {wait=T.alifeLocalTick} end
-   budget.count=budget.count+1;budget.clock=u.clock
+   if not budget then budget={at=now,credit=T.taskChoosePerTick,step=0,used=0,denied=0};searches[u]=budget end
+   if budget.at~=now then
+    local dt=math.max(0,now-budget.at)
+    budget.credit=math.min(math.max(T.taskChoosePerTick,dt*rate),budget.credit+dt*rate)
+    budget.at=now;budget.step=0;budget.stepMax=math.max(1,math.floor(dt*rate))
+   end
+   if budget.credit<1 or budget.step>=(budget.stepMax or 1) then budget.denied=budget.denied+1;return {wait=T.alifeLocalTick} end
+   budget.credit=budget.credit-1;budget.step=budget.step+1;budget.used=budget.used+1
   end
   local task=Tasks.choose(u,r,node,clock)
   if not task then return end
