@@ -355,7 +355,21 @@ local function hubWants(u,all,pause)
   end end
   for r,h in pairs(plan.hubs) do
    if imported[r] then plan.want[h][item],plan.kind[h][item]=imported[r],'import'
-   else plan.want[h][item],plan.kind[h][item]=total,'export' end
+   else
+    -- a system that makes the good exports it, unless its own makers
+    -- can't cover its other stations: then the hub imports the gap (a
+    -- small well that its own plants drink dry, a maker that's down)
+    local short,spare=0,0
+    for _,s in ipairs(all) do
+     if s~=h and hubRoot(L.byId[s].area)==r then
+      local n=Stock.count(u,s,item)
+      if makes(s,item) then spare=spare+math.max(0,n-E.target(u,s,item,true))
+      else short=short+math.max(0,memberWant(u,s,item)-n) end
+     end
+    end
+    if short>spare then plan.want[h][item],plan.kind[h][item]=short-spare,'import'
+    else plan.want[h][item],plan.kind[h][item]=total,'export' end
+   end
   end
  end
  return plan
@@ -493,8 +507,15 @@ local function run(u,clock,pause)
  for _,entry in ipairs(availableOrders) do
   local o=entry.o;local k=o.target..'|'..o.item
   if remaining[k]==nil then
+   -- (the same level the order was posted to, or every order a buyer
+   -- placed over twice its target was withdrawn a minute later; a fence
+   -- keeps T.fenceStock m3 of dark goods it has no target for)
    local producer=makes(o.target,o.item);local want=hubTarget(u,o.target,o.item,producer)
-   remaining[k]=math.max(0,want*(producer and 1 or 2)-Stock.count(u,o.target,o.item)-(committed[k] or 0))
+   local level=producer and want or E.orderLevel(u,o.target,o.item,want,false)
+   if Dark.isFence(o.target) and o.source and Dark.isDarkNode(o.source) then
+    level=math.max(level,math.floor(T.fenceStock/require('src.data').items[o.item].volume))
+   end
+   remaining[k]=math.max(0,level-Stock.count(u,o.target,o.item)-(committed[k] or 0))
   end
   local amount=math.min(o.amount,remaining[k])
   if amount<=0 then state.offers[entry.id]=nil else o.amount=amount;remaining[k]=remaining[k]-amount end
@@ -615,7 +636,8 @@ local function run(u,clock,pause)
   -- passes above sell it on into the white network.
   for _,f in ipairs(fences) do if spare[f]~=nil then
    local vol=require('src.data').items[item].volume
-   local lot=math.max(1,math.floor(T.trunkLot/vol))
+   -- ordinary lots for any runner, not bulk trunk runs nobody took
+   local lot=math.max(1,math.floor(T.orderMaxVolume/vol))
    local room=math.floor(T.fenceStock/vol)-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
    while room>=math.min(T.orderMinLoad,lot) do
     local best,most
@@ -632,8 +654,7 @@ local function run(u,clock,pause)
     -- a full bulk load per run
     local n=math.min(lot,room,most)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
-     layoutScope=E.scope,order=true,priority=0,urgency=0,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
-     trunk=true,requires={capabilities={'cargo','bulk'}}},clock,u))
+     layoutScope=E.scope,order=true,priority=0,urgency=1,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
     spare[best]=spare[best]-n;room=room-n
    end
   end end
@@ -655,6 +676,7 @@ function E.update(u,clock)
  if clock<(u.economyNext or 0) then return end
  u.economyNext=clock+E.tick
  run(u,clock)
+ require('src.dark_runners').update(u,clock)
 end
 -- The same update a piece a step. All at once it was the longest step of
 -- every minute by far (every good at every station): a hitch you could set
@@ -677,6 +699,7 @@ function E.spread(u,clock)
  if spreading[u] then return E.pump(u) end
  if clock<(u.economyNext or 0) then return end
  u.economyNext=clock+E.tick
+ require('src.dark_runners').update(u,clock)
  -- A piece ends at each station or good, and sooner (pause(true), asked
  -- inside the long loops) once it has done real work: planned a route or
  -- caught up a few stations' production. Counted, not timed, so the same

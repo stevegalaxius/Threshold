@@ -602,7 +602,15 @@ T.freeStationDrift = { 0.022, 0.03, 0.018 }
 T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
 T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
 T.fenceStock = 300 -- m3 of each dark surplus good a fence keeps in its back room to sell on
-T.darkAccessShare = 0.3 -- white haulers and miners who also work the dark grids (raiders always do)
+-- Dark runners (src/dark_runners.lua): white haulers who sign on with
+-- Milliways while dark freight goes unclaimed, and quit when it dries up.
+T.darkRunnerHome = 'station:pluto_1'
+T.darkRecruitWait = 300   -- s dark orders sit unclaimed before haulers sign on
+T.darkRecruitEvery = 120  -- s between rounds of recruiting
+T.darkRecruitBatch = 4    -- at most this many sign on in a round
+T.darkOrdersPerRunner = 4 -- one more runner for every this many orders waiting
+T.darkRetireIdle = 7200   -- s without dark work before a runner goes straight
+T.darkRunnerMax = 40
 T.mapDensity = 0.3
 
 -- Idle NPCs that may look for a new job in one simulation tick (src/alife.lua).
