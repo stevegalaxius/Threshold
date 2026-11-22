@@ -193,9 +193,9 @@ function M.draw(parts,alpha)
    x0,y0,x1,y1=math.min(x0,f.shape[k]),math.min(y0,f.shape[k+1]),math.max(x1,f.shape[k]),math.max(y1,f.shape[k+1])
    maxDepth=math.max(maxDepth,math.abs(f.depths[(k+1)/2]))
   end end end
-  local margin=5;-- Rasterize at exactly the cargo cell density (Station.CELL px per
-  -- hold cell), so hold stacks and the editor preview draw it 1:1.
-  local unit=require('src.ui.station').CELL/require('src.icons').CELL;local w,h=math.ceil((x1-x0+10)*unit),math.ceil((y1-y0+10)*unit)
+  local margin=5;-- Rasterize at 47 px per hold cell (a 50 px cell less a 1.5 px inset
+  -- each side), so hold stacks and the editor preview draw it 1:1.
+  local unit=(require('src.ui.station').CELL-3)/require('src.icons').CELL;local w,h=math.ceil((x1-x0+10)*unit),math.ceil((y1-y0+10)*unit)
   local solid,emission=lg.newCanvas(w,h),lg.newCanvas(w,h)
   local depth=lg.newCanvas(w,h,{format='depth24'});local oldCanvas=lg.getCanvas()
   lg.push('all');lg.origin();lg.setScissor();lg.setBlendMode('alpha');lg.setColor(1,1,1)

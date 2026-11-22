@@ -18,9 +18,9 @@ return function(game)
   local Cargo,Hold=require('src.ui.cargo'),require('src.inventory.hold')
   local oldHold,oldState,oldOpen,oldTab=game.player.hold,game.state,Cargo.open,Cargo.tab
   game.player.hold=Hold.new({{key='wide-test',w=30,h=20}});game.state='playing';Cargo.open=true;Cargo.tab='cargo';Cargo.panX=0
-  local first=Cargo.layout(game);assert(first.cs==64 and first.overflowX>0,'wide inventory shrinks instead of panning')
+  local first=Cargo.layout(game);assert(first.cs==require('src.ui.station').CELL and first.overflowX>0,'wide inventory shrinks instead of panning')
   Cargo.wheelmoved(game,0,-3);local second=Cargo.layout(game)
-  assert(second.cs==64 and second.grids[1].x<first.grids[1].x,'horizontal inventory pan does not move hit targets')
+  assert(second.cs==require('src.ui.station').CELL and second.grids[1].x<first.grids[1].x,'horizontal inventory pan does not move hit targets')
   game.player.hold=oldHold;game.state=oldState;Cargo.open=oldOpen;Cargo.tab=oldTab;Cargo.panX=0;Cargo.panY=0
  end
  local lg=love.graphics
