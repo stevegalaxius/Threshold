@@ -60,6 +60,7 @@ local function progress(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
 local function start(r,clock,index)
+ r.dockSupplies=nil
  r.nextDecisionAt=nil
  r.index=index; r.depart=clock
  local leg=edge(r)

@@ -209,8 +209,8 @@ function N.arrive(r,node,at,u,game)
  -- (a station with no place left for this hull: it holds off outside for
  -- the visit instead of docking on top of the ships already there)
  if L.get(node).kind=='station' and N.docksAt(r,node) and require('src.dock_room').room(u,r,node) then
-  Supplies.refill(r,node)
   N.beginDocked(r,node,at,u,stay)
+  Supplies.docked(r,node,u)
   if not r.task and r.homeStation==node then r.taskStatus='idle at home' end
  else
   r.state='idle';r.untilTime=at+stay
@@ -303,7 +303,7 @@ function N.decide(u,r,node,at,game)
  if ctx.e then ctx.AI=require('src.ai') end
  if N.runActions(ctx) then return true end
  if j.complete then j.complete(ctx) end
- if L.get(node).kind=='station' then Supplies.refill(r,node) end
+ if r.state=='docked' then Supplies.docked(r,node,u) end
  -- Upkeep (fuel, repair, supplies) comes before work, from any state.
  -- A hub satellite nearby serves fuel and supplies on the spot.
  if require('src.sat_jobs').hubVisit(ctx) then return true end
