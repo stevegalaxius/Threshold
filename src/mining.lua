@@ -443,7 +443,11 @@ function M.nextAction(ctx)
  if t.phase=='delivery' or r.state~='idle' or r.node~=t.target then return end
  local cargo=ctx.e and ctx.e.cargo or r.ship.cargo
  local free=ctx.e and Ship.canFit(ctx.e,t.item,1) or Operations.room(r,t.item)
- if (cargo[t.item] or 0)-(t.retainedCargo or 0)>=T.minerLoad or free<=0 then
+ -- a miner heads home with a full hold, or with what it has once the
+ -- drill has had nothing for it for T.minerIdleReturn seconds
+ local carried=(cargo[t.item] or 0)-(t.retainedCargo or 0)
+ if free<=0 or carried>0 and t.idleSince and ctx.clock-t.idleSince>=T.minerIdleReturn then
+  t.idleSince=nil
   M.returnHome(ctx.game,r);return
  end
  if r.action and r.action.kind=='work' then return r.action end
@@ -468,7 +472,8 @@ function M.nextAction(ctx)
    end
   end
  end
- if not best then return {kind='hold',key='resource-wait/'..r.resourceScanAt,target={provider='location',id=t.target},untilTime=r.resourceScanAt} end
+ if not best then t.idleSince=t.idleSince or ctx.clock;return {kind='hold',key='resource-wait/'..r.resourceScanAt,target={provider='location',id=t.target},untilTime=r.resourceScanAt} end
+ t.idleSince=nil
  local kind=M.state(ctx.u).resources[best].kind
  return {kind='work',operation=kind=='loot' and 'collect' or 'drill',target={provider='resource',id=best,expected=kind}}
 end

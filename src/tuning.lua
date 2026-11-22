@@ -452,7 +452,10 @@ T.drillThrowMin,T.drillThrowMax,T.drillSpread=450,1150,.12
 T.miningSettleTime=3
 T.mineWorkAltitude=1500
 T.mineWorkSide=1100
-T.minersPerArea,T.minerLoad,T.miningChunkDamping=3,36,1.1
+T.minersPerArea,T.miningChunkDamping=3,1.1
+-- a miner fills its hold before heading home, unless the drill has had no
+-- rock for it this long (src/mining.lua)
+T.minerIdleReturn=120
 T.miningOrbitDamping=1.1
 T.miningScan=.5
 

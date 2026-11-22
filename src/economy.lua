@@ -320,6 +320,12 @@ local function hubWants(u,all,pause)
   local r=hubRoot(L.byId[s].area);plan.made[r]=plan.made[r] or {}
   for _,item in ipairs(goods()) do if makes(s,item) then plan.made[r][item]=true end end
  end
+ -- the drills count as making their ore: a system that mines a good
+ -- exports it like one that makes it, instead of every hub importing it
+ for _,site in pairs(require('src.mining').state(u).sites or {}) do
+  local home=site.home and L.byId[site.home]
+  if home and site.item then local r=hubRoot(home.area);plan.made[r]=plan.made[r] or {};plan.made[r][site.item]=true end
+ end
  for _,h in pairs(plan.hubs) do plan.want[h],plan.kind[h]={},{} end
  -- moon customs: the depot every good leaving or reaching a moon goes
  -- through (on to its planet's hub). It holds what the moon imports for
