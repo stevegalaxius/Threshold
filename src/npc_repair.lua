@@ -15,7 +15,7 @@ function R.supports(node)
  if not place or place.kind~='station' then return false end
  return L.stationServices(node).repair or false
 end
-function R.maximum(r) return Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).armor end
+function R.maximum(r) return Stats.fitted(data.hulls[r.ship.hull],r.ship.loadout).armor end
 function R.needs(r,armor,maximum)
  maximum=maximum or R.maximum(r)
  return (armor or r.ship.armor or maximum)<maximum*T.npcRepairThreshold
@@ -33,7 +33,7 @@ function R.advance(r,clock,node,u)
  if r.state~='docked' or r.ship.armor==0 then return end
  -- (a player's stall first: a Cheap one undercuts the house refill)
  require('src.npc_shopping').visit(u,r,node,clock)
- require('src.supplies').refill(r,node,u)
+ require('src.supplies').docked(r,node,u)
  -- A ship waiting for its next job search is still parked and repairing.
  local at=math.min(clock,math.max(r.untilTime or clock,r.nextDecisionAt or 0))
  if R.supports(node) then

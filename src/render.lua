@@ -1,3 +1,5 @@
+local DebrisView = require("src.sleeping_debris_view")
+local Pose = require("src.render_pose")
 --[[
 	Draws the world. All placeholder art: ships are their hull outlines,
 	asteroids are polygons. The real look (photo collage and drawn art,
@@ -88,7 +90,7 @@ function Render.background(cam, area, game)
 	local toward, arrived
 	if game and game.lane and game.trip and game.player and game.player.body and not game.player.body:isDestroyed() then
 		toward = game.trip.to
-		local s = game:toLane(game.player.body:getPosition())
+		local s = game:toLane(Pose.position(game.player))
 		local v0, v1 = game:shotLaunch(), T.laneEntrySpeed
 		arrived = v0 > v1 and 1 - (game:shotSpeed(s) - v1) / (v0 - v1) or 0
 		arrived = max(0, min(1, arrived)) ^ 2   -- (faint while you're still fast, most of it in the last stretch)
@@ -151,7 +153,7 @@ end
 local function drawReentry(e, size)
 	local h = e.reentry
 	if not h then return end
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	local dx, dy = e.reentryX, e.reentryY
 	local flick = 0.85 + love.math.random() * 0.3
 	lg.setBlendMode("add")
@@ -187,17 +189,19 @@ local RARE_LOOK = {
 	cryo_crystal = { fill = { 0.47, 0.27, 0.63 }, line = { 0.78, 0.6, 1 } },
 }
 local RockChips = require("src.rock_chips")
-local function drawAsteroid(e,time)
+local function drawAsteroid(e,time, drawX, drawY)
  if e.exhaustHit and e.verts and time and time-e.exhaustHit<.3 then
-  local x,y=e.body:getPosition()
-  lg.push('all');lg.translate(x,y);lg.rotate(e.body:getAngle())
+  local x,y=drawX,drawY
+  if not x then x,y=Pose.position(e) end
+  lg.push('all');lg.translate(x,y);lg.rotate(Pose.angle(e))
   lg.setColor(1,.35,.05,math.max(0,1-(time-e.exhaustHit)/.3))
   lg.setLineWidth(outline(5));lg.polygon('line',e.verts);lg.pop()
  end
 	drawReentry(e, e.radius)
-	local x, y = e.body:getPosition()
+	local x, y = drawX, drawY
+	if not x then x, y = Pose.position(e) end
 	if not e.giant and e.verts and e.debris ~= "sat" and not e.reentry then
-		local s, a = e.shade, e.body:getAngle()
+		local s, a = e.shade, Pose.angle(e)
 		local f, l = e.fill or ROCK_FILL, e.line or ROCK_LINE
 		local k = 1 + outline(2) / (e.radius * 0.8)
 		local c, sn = cos(a), sin(a)
@@ -296,7 +300,7 @@ local function drawAsteroid(e,time)
 	end
 	lg.push()
 	lg.translate(x, y)
-	lg.rotate(e.body:getAngle())
+	lg.rotate(Pose.angle(e))
 	local s = e.shade
 	if e.giant then
 		lg.setColor(0.2 * s, 0.19 * s, 0.21 * s)
@@ -360,7 +364,7 @@ local function drawAsteroid(e,time)
 		if e.verts then
 			lg.push()
 			lg.translate(x, y)
-			lg.rotate(e.body:getAngle())
+			lg.rotate(Pose.angle(e))
 			lg.polygon("fill", e.verts)
 			lg.pop()
 		else
@@ -375,10 +379,10 @@ local function drawStructure(game, e)
 	-- coordinates, so draw them through its body's transform
 	local moving = e.body:getType() ~= "static"
 	if moving then
-		local bx, by = e.body:getPosition()
+		local bx, by = Pose.position(e)
 		lg.push()
 		lg.translate(bx, by)
-		lg.rotate(e.body:getAngle())
+		lg.rotate(Pose.angle(e))
 	end
 	local fill = (e.role == "hub") and { 0.2, 0.23, 0.28 } or (e.role == "ladder" or e.role == "tether") and { 0.26, 0.17, 0.13 } or { 0.16, 0.18, 0.22 }
 	lg.setColor(fill)
@@ -426,10 +430,10 @@ local TURRET = { S = 4, M = 6, L = 9 }   -- turret base radius
 -- A wheel station: smooth ring, spokes and hub, with lit windows along
 -- the ring that turn with it.
 local function drawStation(game, e)
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	lg.push()
 	lg.translate(x, y)
-	lg.rotate(e.body:getAngle())
+	lg.rotate(Pose.angle(e))
 	-- the layout's parts (src/stations.lua), then their windows and beacons
 	local col = e.def.color or { 0.55, 0.63, 0.74 }
 	local function dark(c) return { c[1] * 0.37, c[2] * 0.37, c[3] * 0.37 } end
@@ -443,7 +447,7 @@ local function drawStation(game, e)
 				local parts = e.def.rotorParts[r.name]
 				lg.push()
 				lg.translate(r.x, r.y)
-				lg.rotate(r.body:getAngle() - core)
+				lg.rotate(Pose.angle(r) - core)
 				HullShape.draw(e.def, col, dark, same, outline(2), parts, r.x, r.y)
 				HullShape.drawLights(e.def, game.time, screenPx, parts, r.x, r.y)
 				lg.pop()
@@ -595,7 +599,7 @@ local function drawStation(game, e)
     function(c)return c end,outline(1.5))
    weapons.drawLoadout(hull,loadout,tint,dark,outline(1.5),true)
    lg.pop()
-   if forSale[rec] then forSaleSign(pose.x,pose.y,data.hulls[rec.hull],e.body:getAngle()) end
+   if forSale[rec] then forSaleSign(pose.x,pose.y,data.hulls[rec.hull],Pose.angle(e)) end
   end
  end
 	lg.pop()
@@ -607,10 +611,10 @@ local function drawCity(game, e)
 	drawStation(game, e)
 	local w = game.well
 	local c = w and w.planet and w.planet.hue or { 0.85, 0.65, 0.45 }
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	lg.push()
 	lg.translate(x, y)
-	lg.rotate(e.body:getAngle())
+	lg.rotate(Pose.angle(e))
 	for _, p in ipairs(e.def.parts) do
 		local depth = (p.cy - e.cloudY) / 3000
 		if depth > 0 and p.tris and (p.layer or "hull") == "hull" then
@@ -623,12 +627,12 @@ end
 
 -- A navigation buoy uses its F2 prop, or the original beacon when unassigned.
 local function drawBuoy(game, e)
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
  local def=e.propId and data.wrecks[e.propId]
  if def then
   local scale=e.propScale or 1
   local col=def.color or {.55,.63,.74}
-  lg.push();lg.translate(x,y);lg.rotate(e.body:getAngle());lg.scale(scale)
+  lg.push();lg.translate(x,y);lg.rotate(Pose.angle(e));lg.scale(scale)
   HullShape.draw(def,col,function(c)return {c[1]*.37,c[2]*.37,c[3]*.37} end,
    function(c)return c end,outline(2)/scale)
   HullShape.drawLights(def,game.time,screenPx/scale)
@@ -651,8 +655,14 @@ end
 
 -- Mass drivers: a capture ring at the breech and a rail running outward,
 -- with lights chasing along it in the direction it fires.
+local function drawBreech(e)
+	local x, y = Pose.position(e)
+	local h = (e.barrel or T.driverBarrel) / 2
+	return x - cos(e.angle) * h, y - sin(e.angle) * h
+end
+
 local function drawDriver(game, e)
-	local x, y = game:driverBreech(e)
+	local x, y = drawBreech(e)
 	local p = e.driverShip or game.player
 	local busy = p and not p.dead and ((p.launch and p.launch.driver==e) or (p.driverTractor and p.driverTractor.driver==e) or (game.driverMenu and game.driverMenu.driver == e))
 	-- a site's acceleration gate (src/sites.lua) is the same machine, smaller,
@@ -756,7 +766,7 @@ end
 -- passed ones dimmed, joined by a faint guide line in to the driver. The
 -- player's predicted path runs from the nose while inbound.
 local function drawCatchRing(game, e)
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	local p = game.player
 	local inbound = p and not p.dead and p.catching
 	local nextRing = inbound and game:nextCatchRing()
@@ -778,7 +788,7 @@ end
 local function drawPredicted(game)
 	local p = game.player
 	if not p or p.dead or not p.catching then return end
-	local x, y = p.body:getPosition()
+	local x, y = Pose.position(p)
 	local vx, vy = p.body:getLinearVelocity()
 	lg.setColor(1, 0.85, 0.4, 0.45)
 	lg.setLineWidth(outline(2))
@@ -797,7 +807,7 @@ local function drawLaneBuff(e)
 	local K = e.laneKick
 	local buff = e.driverProtected and 1 or K and max(0, 1 - K.t / T.laneKickTime) or e.laneFade
 	if not buff or buff <= 0 or (e.dockState and e.dockState.done and not e.dockState.berth) then return end
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	local size = e.halfLength
 	local hot = 0
 	local flick = (0.85 + love.math.random() * 0.3) * buff
@@ -942,7 +952,7 @@ end
 local cloudBands = {}
 local viewX, viewY, viewW, viewH
 local function drawPlanet(game, e)
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	local R, c = e.radius, e.hue
 	-- nothing of it on screen (its drift rings reach R + 6000, a gas giant's
 	-- own rings further): most of a map is out of sight of its planet, and
@@ -1060,8 +1070,8 @@ local function drawShip(game, e)
 	if e.dockState and e.dockState.done and not e.dockState.berth then return end
 	drawReentry(e, e.halfLength)
 	drawLaneBuff(e)
-	local x, y = e.body:getPosition()
-	local a = e.body:getAngle()
+	local x, y = Pose.position(e)
+	local a = Pose.angle(e)
 	local hull = e.hull
 	local col = e.color
 	local dark = { col[1] * 0.22, col[2] * 0.22, col[3] * 0.22 }
@@ -1141,12 +1151,12 @@ end
 local function drawTractor(game)
 	local p = game.player
 	if not p or p.dead then return end
-	local x, y = p.body:getPosition()
+	local x, y = Pose.position(p)
 	local c = COLORS.laser
 	local held = game.looting
 	if held and not held.removed and not p.intent.tractor then
 		-- holding what you're looting: a fainter beam
-		local tx, ty = held.body:getPosition()
+		local tx, ty = Pose.position(held)
 		lg.setColor(c[1], c[2], c[3], 0.15)
 		lg.setLineWidth(5)
 		lg.line(x, y, tx, ty)
@@ -1161,7 +1171,7 @@ local function drawTractor(game)
 	lg.circle("line", x, y, Ship.tractorRange(p) + p.hull.radius, 64)
 	local k = p.tractorTarget
 	if not k and p.towTarget and not p.towTarget.removed then
-		local tx, ty = p.towTarget.body:getPosition()
+		local tx, ty = Pose.position(p.towTarget)
 		k = { x = tx, y = ty }
 	end
 	if k then
@@ -1189,8 +1199,8 @@ local function satBeam(x1, y1, x2, y2, faint)
 end
 local function dockPoint(sat, i)
 	local d = require("src.satellites").docks(sat.hull)[i or 1]
-	if d then return sat.body:getWorldPoint(d.cx, d.cy) end
-	return sat.body:getPosition()
+	if d then return Pose.point(sat, d.cx, d.cy) end
+	return Pose.position(sat)
 end
 local function drawSatBeams(game)
 	local Sat = require("src.satellites")
@@ -1209,13 +1219,13 @@ local function drawSatBeams(game)
 			end
 			if sat and sat.body and not sat.body:isDestroyed() then
 				local sx, sy = dockPoint(sat, i)
-				local x, y = e.body:getPosition()
+				local x, y = Pose.position(e)
 				satBeam(sx, sy, x, y, faint)
 			end
 			-- a station's tractor pushing it off the runway
 			local push = e.runwayPush
 			if push then
-				local x, y = e.body:getPosition()
+				local x, y = Pose.position(e)
 				satBeam(push.x, push.y, x, y, false)
 			end
 		end
@@ -1224,10 +1234,10 @@ end
 
 -- Cargo containers: a corrugated box, brighter when it has cargo in it.
 local function drawContainer(game, e)
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	lg.push()
 	lg.translate(x, y)
-	lg.rotate(e.body:getAngle())
+	lg.rotate(Pose.angle(e))
 	local c = COLORS.container
 	local full = next(e.loot) ~= nil
 	local w, h = e.w, e.h
@@ -1249,7 +1259,7 @@ end
 local function drawLootHover(game)
 	local e = game.hoverLoot
 	if not e or e.removed then return end
-	local x, y = e.body:getPosition()
+	local x, y = Pose.position(e)
 	lg.setColor(1, 1, 1, 0.55)
 	lg.setLineWidth(outline(1.5))
 	lg.circle("line", x, y, e.radius + 8, 48)
@@ -1258,10 +1268,10 @@ end
 -- Husks: the dead ship's outline, burnt dark, with a faint glow of its
 -- paint and the odd flicker of fire.
 local function drawHusk(game, h)
-	local x, y = h.body:getPosition()
+	local x, y = Pose.position(h)
 	lg.push()
 	lg.translate(x, y)
-	lg.rotate(h.body:getAngle())
+	lg.rotate(Pose.angle(h))
 	-- a working satellite (src/satellites.lua) is lit and in full colour;
 	-- one out of fuel is dimmer, with most of its windows dark
 	if h.sat and not h.part then
@@ -1288,8 +1298,8 @@ end
 
 -- A mining drill: a shaft out of the nose with a spinning bit at the tip.
 local function drawDrill(game, e, w)
-	local wx, wy = Ship.hardpoint(e, w.slot)
-	local a = e.body:getAngle() + (w.aim or 0)
+	local wx, wy = Pose.point(e, w.slot.x or 0, w.slot.y or 0)
+	local a = Pose.angle(e) + (w.aim or 0)
 	local reach = (w.w.length or e.halfLength * 2) * w.extend
 	-- it shudders while it bites into something
 	if w.drillHit then
@@ -1611,7 +1621,7 @@ local function drawRange(game)
 		if not w.bay then reach = max(reach, w.ammo and data.items[w.ammo].shot.range or w.w.range or 0) end
 	end
 	if reach <= 0 then return end
-	local x, y = p.body:getPosition()
+	local x, y = Pose.position(p)
 	lg.setColor(0.6, 0.95, 1, 0.07)
 	lg.setLineWidth(1)
 	lg.circle("line", x, y, reach, 96)
@@ -1626,7 +1636,7 @@ local function drawJobSites(game)
 	if not game.universe or not p or p.dead or not p.body then return end
 	local sites = require("src.quests").markers(game)
 	if #sites == 0 then return end
-	local px, py = p.body:getPosition()
+	local px, py = Pose.position(p)
 	local t = game.time or 0
 	local HUD = require("src.hud")
 	lg.setBlendMode("add")
@@ -1732,12 +1742,12 @@ function Render.world(game, overlay, boundaryAngle)
 	local hw, hh = sw / 2 / cam.zoom + 300, sh / 2 / cam.zoom + 300
 	local cx, cy = cam.x, cam.y
 	local function visible(e)
-		local x,y=e.body:getPosition()
+		local x,y=Pose.position(e)
 		local radius=e.radius or 0
 		if e.kind=='structure' then
 			-- Structures store their polygon centre in body-local coordinates,
 			-- including static ladder pieces whose body itself is at (0,0).
-			x,y=e.body:getWorldPoint(e.cx,e.cy)
+			x,y=Pose.point(e, e.cx,e.cy)
 		elseif e.kind=='station' then radius=stationDrawRadius(e)
 		elseif e.kind=='ship' then radius=e.halfLength+e.hull.radius end
 		return math.abs(x-cx)<hw+radius and math.abs(y-cy)<hh+radius
@@ -1746,7 +1756,7 @@ function Render.world(game, overlay, boundaryAngle)
 		return math.abs(x - cx) < hw + reach and math.abs(y - cy) < hh + reach
 	end
 	local function near(e, reach)
-		local x, y = e.body:getPosition()
+		local x, y = Pose.position(e)
 		return nearPoint(x, y, reach)
 	end
 	-- sleeping debris: where its orbit has carried it
@@ -1758,8 +1768,7 @@ function Render.world(game, overlay, boundaryAngle)
 			if e.radius < dotR and not e.reentry and not (e.exhaustHit and game.time-e.exhaustHit<.3) then
 				dots[#dots + 1] = x; dots[#dots + 1] = y
 			else
-				e.body:setPosition(x, y)
-				drawAsteroid(e,game.time)
+				drawAsteroid(e, game.time, x, y)
 			end
 		end
 	end
@@ -1789,11 +1798,9 @@ function Render.world(game, overlay, boundaryAngle)
 		span = span + 0.01
 	end
 	local now, twoPi = game.time, 2 * pi
-	for _, e in ipairs(game.sleepers or {}) do
+	local function moving(e)
 		local o = e.sleep
-		-- (most of it, past a map's edge and down a lane, never moves)
-		if o.still then debris(e, e.body.x, e.body.y)
-		elseif not (nearest and o.r and (o.r < nearest or o.r > furthest)) then
+		if not e.removed and not (nearest and o.r and (o.r < nearest or o.r > furthest)) then
 			if ac and o.r then
 				local d = (o.a + o.rate * (now - o.t) - ac + pi) % twoPi - pi
 				if d < span and d > -span then
@@ -1805,9 +1812,12 @@ function Render.world(game, overlay, boundaryAngle)
 			end
 		end
 	end
+	if game.sleepers then
+		DebrisView.visit(game.sleepers, cx, cy, hw, hh, nearest, furthest, debris, moving)
+	end
 	for _, e in ipairs(game.entities) do
 		if e.kind == "asteroid" and not e.giant and e.line then
-			local x, y = e.body:getPosition()
+			local x, y = Pose.position(e)
 			if math.abs(x - cx) < hw and math.abs(y - cy) < hh then
 				if e.radius < dotR and not e.reentry and not (e.exhaustHit and game.time-e.exhaustHit<.3) then
 					dots[#dots + 1] = x; dots[#dots + 1] = y
@@ -1825,7 +1835,7 @@ function Render.world(game, overlay, boundaryAngle)
 		-- (the rest, too, only when some of it could be on screen)
 		elseif e.kind == "buoy" then if near(e, 1500) then drawBuoy(game, e) end
 		elseif e.kind == "driver" then
-			local bx, by = game:driverBreech(e)
+			local bx, by = drawBreech(e)
 			if nearPoint(bx, by, (e.barrel or T.driverBarrel) + (e.zone or T.driverZone) + 400) then drawDriver(game, e) end
 		elseif e.kind == "catchring" then if near(e, (e.radius or 0) + 400) then drawCatchRing(game, e) end
 		elseif e.kind == "husk" then if near(e, 1200) then drawHusk(game, e) end
@@ -1843,7 +1853,7 @@ function Render.world(game, overlay, boundaryAngle)
 	for _,e in ipairs(game.entities) do
 		local target=e.tractorTarget
 		if not e.isPlayer and not e.dead and e.intent and e.intent.tractor and target and target.count>0 then
-			local x,y=e.body:getPosition()
+			local x,y=Pose.position(e)
 			lg.setColor(.35,.8,1,.6);lg.setLineWidth(screenPx*1.5);lg.line(x,y,target.x,target.y)
 		end
 	end

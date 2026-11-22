@@ -159,7 +159,6 @@ function H.observe(u,clock)
  s.observedAt=clock
  for id,r in pairs(u.npcs or {}) do
   local seen=r.seen
-  local now={state=r.state,area=r.area,node=r.node}
   if seen and r.state~='dead' and r.state~='escaped' then
    if seen.state=='docked' and r.state~='docked' then
     append(u,'undocked',clock,seen.area,{id},{label=r.label},nil,seen.node)
@@ -172,7 +171,9 @@ function H.observe(u,clock)
     append(u,'arrived',clock,r.area,{id},{label=r.label,from=seen.area},nil,r.node)
    end
   end
-  r.seen=now
+  seen=seen or {}
+  seen.state,seen.area,seen.node=r.state,r.area,r.node
+  r.seen=seen
  end
 end
 -- Observe physical AI without steering it. A quiet interval ends an engagement;

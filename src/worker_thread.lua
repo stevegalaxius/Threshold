@@ -2,6 +2,7 @@
 -- answer back. Everything it knows it loaded itself from the game's files.
 local inbox, outbox = ...
 require("love.filesystem")
+require("love.data")
 require("love.math")
 require("love.timer")
 local jobs = require("src.worker_jobs")

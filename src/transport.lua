@@ -12,12 +12,13 @@ local J=require('src.jobs')
 local T=require('src.tuning')
 local Personality=require('src.personality')
 local Transport={}
+local scan
 local function hold(r)
  local h=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
  if h then h.climateRules=true end   -- a ship's hold: delicate cargo only in climate grids
  return h
 end
-local function room(r,item,amount)
+local function measureRoom(r,item,amount)
  local h=hold(r)
  if h then return Hold.room(h,item,amount) end
  if data.items[item].delicate then
@@ -27,6 +28,21 @@ local function room(r,item,amount)
  local used=0
  for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
  return math.max(0,math.floor(((data.hulls[r.ship.hull].hold or 0)-used)/data.items[item].volume))
+end
+-- Eligibility and scoring repeatedly ask about the same cargo on an
+-- unchanged ship. Keep exact room results for this read-only board scan.
+local function room(r,item,amount)
+ if not scan or not scan.still or not amount then return measureRoom(r,item,amount) end
+ local rooms=scan.rooms
+ if not rooms or rooms.actor~=r then rooms={actor=r};scan.rooms=rooms end
+ local byAmount=rooms[item]
+ if not byAmount then byAmount={};rooms[item]=byAmount end
+ local available=byAmount[amount]
+ if available==nil then
+  available=measureRoom(r,item,amount)
+  byAmount[amount]=available
+ end
+ return available
 end
 local function cargo(r,item,amount)
  local h=hold(r)
@@ -148,7 +164,6 @@ end
 -- one step. While a scan is open (Transport.beginScan .. endScan, around a
 -- stretch that only reads the board), the orders are sorted by source and
 -- good once and each question reads just its own few.
-local scan
 -- (true if this call opened it: only the one that opened it closes it. A
 -- scan never outlives the instant it was opened in, and Tasks.post, the one
 -- way an order joins the board, has it sorted again: Transport.rescan)
@@ -158,7 +173,7 @@ function Transport.beginScan(u,still)
  scan={u=u,clock=u.clock,still=still};return true
 end
 function Transport.endScan() scan=nil end
-function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil;scan.loads=nil end end
+function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil;scan.loads=nil;scan.rooms=nil end end
 -- The open freight at a pickup bound for one area, in cubic metres: what a
 -- hauler could fill its bay with there (prepare's milk run).
 function Transport.loadAt(u,source,area)

@@ -1,3 +1,4 @@
+local DebrisView = require("src.sleeping_debris_view")
 --[[
 	The flight-toy arena: one Box2D world, a flat list of entities (ships
 	and asteroids), and lists of projectiles, pickups and effects. Systems
@@ -213,7 +214,7 @@ function Game:loadField(id, opts)
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
-	self.alifeNext, self.alifeRemoteNext, self.alifeStage = nil, nil, nil
+	self.alifeNext, self.alifeRemoteSlot, self.alifeStage = nil, nil, nil
 	if not opts.skipCapture then self:captureArea() end
 	-- Side scenes the trip kept (the planet behind the lane, the one built
 	-- ahead) go with the lane, unless one is the map being adopted.
@@ -482,6 +483,7 @@ function Game:updateSleepers()
 			if wake and self:shipNear(x, y, e.radius) then wake = false end
 		end
 		if e.removed or wake then
+			DebrisView.remove(sl, e)
 			-- out of the list: the last one takes its place (and is looked
 			-- at next)
 			sl[i] = sl[n]; sl[n] = nil; n = n - 1
@@ -530,7 +532,9 @@ function Game:updateSleepers()
 				-- costs Box2D a little every step, and there are thousands)
 				e.body = setmetatable({ x = x, y = y, a = b:getAngle() }, Ghost)
 				b:destroy()
+				e.previousBody = nil
 				sl[#sl + 1] = e
+				DebrisView.add(sl, e)
 				slept = true
 			end
 		end
@@ -682,6 +686,7 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 		end
 		self.sleepers = self.sleepers or {}
 		table.insert(self.sleepers, e)
+		DebrisView.add(self.sleepers, e)
 		return e
 	end
 	self:debrisBody(e, x, y, angle, spin)
@@ -1182,10 +1187,12 @@ function Game:updateRotors()
 	local ladder = self.ladder
 	if ladder then
 		local a = (ladder.spin * clock) % (pi * 2)
+		local c, s = cos(a), sin(a)
+		local x = ladder.cx - (ladder.cx * c - ladder.cy * s)
+		local y = ladder.cy - (ladder.cx * s + ladder.cy * c)
 		for _, e in ipairs(ladder.segments) do
 			if not e.removed then
-				e.body:setPosition(ladder.cx - (ladder.cx * cos(a) - ladder.cy * sin(a)), ladder.cy - (ladder.cx * sin(a) + ladder.cy * cos(a)))
-				e.body:setAngle(a)
+				e.body:setTransform(x, y, a)
 				e.body:setAngularVelocity(ladder.spin)
 			end
 		end
@@ -2103,11 +2110,23 @@ function Game:setPlayerIntent(intent)
 	for k, v in pairs(intent) do p.intent[k] = v end
 end
 
-function Game:step(dt)
+local function markStep(sample, section)
+	local now = love.timer.getTime()
+	sample[section] = (now - (sample.last or sample.start)) * 1000
+	sample.last = now
+end
+
+function Game:step(dt, sample)
 	-- one stamp per step: per-step caches (src/local_navigation.lua) key on it
 	self.navStamp = (self.navStamp or 0) + 1
 
-	if self.flight then self:updateFlight(dt); self:updateALife(); return end
+	if self.flight then
+		self:updateFlight(dt)
+		if sample then markStep(sample, "flight") end
+		self:updateALife(nil,sample)
+		if sample then markStep(sample, "alife") end
+		return
+	end
 	self.time = self.time + dt
 	if self.universe and not self.sideScene then self.universe.clock = self.universe.clock + dt end
 
@@ -2154,8 +2173,11 @@ function Game:step(dt)
 
 	self:updateRotors()
 	self:updateStationGuns(dt)
+	if sample then markStep(sample, "ships_and_station_guns") end
 	self:updateSleepers()
-	self:updateALife()
+	if sample then markStep(sample, "sleepers") end
+	self:updateALife(nil,sample)
+	if sample then markStep(sample, "alife") end
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	require("src.satellites").keep(self, dt)
@@ -2173,16 +2195,21 @@ function Game:step(dt)
 	self:updateCities(dt)
 	self:updateTow(dt)
 	self:updateLootHold(dt)
+	if sample then markStep(sample, "navigation_and_world") end
 	self.world:update(dt)
+	if sample then markStep(sample, "box2d") end
 	require("src.exhaust_damage").update(self,dt)
+	if sample then markStep(sample, "exhaust") end
 	self:planetImpacts()
 	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
+	if sample then markStep(sample, "contacts_and_cleanup") end
 	if self.sideScene then return end
 	self:stepSides(dt)
+	if sample then markStep(sample, "side_scenes") end
 	self:updateCover(dt)
 	-- Into a lane: seamless (src/transit.lua), unless the launch had to cut
 	-- short because something solid was dead ahead, which hides behind the
@@ -3271,6 +3298,7 @@ function Game:ageEffects(dt)
 	end
 end
 
+local Pose = require("src.render_pose")
 function Game:followCamera(dt, aimX, aimY)
 	local p = self.player
 	local follow = self.debugFollow
@@ -3278,12 +3306,12 @@ function Game:followCamera(dt, aimX, aimY)
 	if follow then
 		-- F6 inspector: watch an NPC
 		if p and not p.dead then self:updateComputers(dt) end
-		local x, y = follow.body:getPosition()
+		local x, y = Pose.position(follow)
 		self.camera:follow(x, y, x, y, dt)
 	elseif p and not p.dead then
 		self:updateComputers(dt)
 		local ship = self:pilotedShip()
-		local x, y = ship.body:getPosition()
+		local x, y = Pose.position(ship)
 		if p.launch or p.runup or p.coasting or p.catching then
 			-- carried by a driver (launching, on the run-up, coasting the
 			-- lane or coming in to the catch): one rule for all of it, look
@@ -3304,7 +3332,7 @@ function Game:followCamera(dt, aimX, aimY)
 		end
 	elseif self.playerHusk and not self.playerHusk.removed then
 		-- Death screen: watch your own wreck drift.
-		local hx, hy = self.playerHusk.body:getPosition()
+		local hx, hy = self.Pose.position(playerHusk)
 		self.camera:follow(hx, hy, hx, hy, dt)
 	elseif self.deathX then
 		self.camera:follow(self.deathX, self.deathY, self.deathX, self.deathY, dt)
