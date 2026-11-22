@@ -7,6 +7,7 @@ M.materials={
  painted={ambient=.48,diffuse=.30,specular=.03,shininess=8,rim=0},
  recess={color={.12,.17,.20},ambient=.08,diffuse=.24,specular=0,rim=0},
  crystal={color={.32,.67,.78},ambient=.12,diffuse=.58,specular=1.8,shininess=12,rim=1.25,maxLight=.94},
+ glass={color={.70,.86,.92},ambient=.22,diffuse=.40,specular=2.4,shininess=16,rim=.9,maxLight=1,opacity=.38},
  emissive={color={.10,.95,.76},ambient=1,diffuse=0,specular=0,rim=0,glow=1},
 }
 M.shapes={'box','bevel','cylinder','taper','ring','wedge','rock'}
@@ -90,7 +91,15 @@ function M.parts(boxes,bw,bh,paint,view)
    local nx,ny,nz=normalize(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)
    local diffuse=math.max(0,-nx*.45-ny*.55+nz*.70)
    local contrast=b.contrast or 1
-   local brightness=math.max(.08,math.min(1.4,material.ambient+(diffuse-.35)*material.diffuse*contrast+.35*material.diffuse))
+   local brightness=material.ambient+(diffuse-.35)*material.diffuse*contrast+.35*material.diffuse
+   -- Explicit face separation for the fixed oblique view: tops read
+   -- brightest, fronts at body tone, right-hand sides clearly darker, so
+   -- adjoining faces of one solid never merge into a single slab.
+   if material.diffuse>0 then
+    local shade=.60+.52*math.max(0,nz)+.40*math.max(0,-ny)
+    brightness=brightness*(1+(math.min(1.15,shade)-1)*contrast)
+   end
+   brightness=math.max(.08,math.min(1.4,brightness))
    -- Fixed camera/key light for the icon's oblique projection. Metal has
    -- a broad reflection, paint is matte, and crystal catches grazing light.
    local facing=math.max(0,math.min(1,nx*.264-ny*.836+nz*.479))
@@ -104,10 +113,18 @@ function M.parts(boxes,bw,bh,paint,view)
    local ceiling=material.maxLight or 1
    local color={}
    for k=1,3 do
-    local body=math.min(ceiling,base[k]*brightness)
-    local reflected=math.min(ceiling,base[k]*1.2+.04)
+    local body=base[k]*brightness
+    local reflected=base[k]*1.2+.04
     color[k]=body*(1-reflection)+reflected*reflection
    end
+   -- Push the result away from its own grey so overrides stay vivid after
+   -- shading, then scale (not clip) under the material's ceiling so the
+   -- hue survives bright faces.
+   local sat=b.saturation or (b.color and 1.35 or 1)
+   local grey=color[1]*.299+color[2]*.587+color[3]*.114
+   for k=1,3 do color[k]=math.max(0,grey+(color[k]-grey)*sat) end
+   local top=math.max(color[1],color[2],color[3])
+   if top>ceiling then for k=1,3 do color[k]=color[k]*ceiling/top end end
    local shape,depths={},{}
    for _,p in ipairs(f.points) do
     local x,y=p[1]+p[2]*.315,-p[3]*.55-p[2]*.315
@@ -115,7 +132,7 @@ function M.parts(boxes,bw,bh,paint,view)
     x0,y0,x1,y1=math.min(x0,x),math.min(y0,y),math.max(x1,x),math.max(y1,y)
    end
    out[#out+1]={name=(b.name or b.primitive or 'box')..' '..f.tag,shape=shape,depths=depths,color=color,emissionColor=base,fill=1,
-    fromBox=true,box=i,face=f.tag,modelFace=true,emission=b.glow or material.glow or (b.layer=='glow' and 1 or 0)}
+    fromBox=true,box=i,face=f.tag,modelFace=true,opacity=b.opacity or material.opacity,emission=b.glow or material.glow or (b.layer=='glow' and 1 or 0)}
   end end
  end
  if #out==0 then return out,view end
@@ -182,14 +199,27 @@ function M.draw(parts,alpha)
   lg.push('all');lg.origin();lg.setScissor();lg.setBlendMode('alpha');lg.setColor(1,1,1)
   local function render(target,glow)
    lg.setCanvas({target,depthstencil=depth});lg.clear(0,0,0,0,0,1);lg.setDepthMode('less',true);lg.setShader(depthShader)
-   for _,f in ipairs(parts) do if f.modelFace then
-    local vertices={};local c=glow and f.emissionColor or f.color;local v=glow and f.emission or f.fill
+   local function face(f)
+    local vertices={};local c=glow and f.emissionColor or f.color;local v=glow and f.emission or f.fill;local a=f.opacity or 1
     for j=2,#f.shape/2-1 do for _,i in ipairs({1,j,j+1}) do
-     vertices[#vertices+1]={(f.shape[i*2-1]-x0+margin)*unit,(f.shape[i*2]-y0+margin)*unit,f.depths[i]/maxDepth*.8,c[1]*v,c[2]*v,c[3]*v,1}
+     vertices[#vertices+1]={(f.shape[i*2-1]-x0+margin)*unit,(f.shape[i*2]-y0+margin)*unit,f.depths[i]/maxDepth*.8,c[1]*v,c[2]*v,c[3]*v,a}
     end end
     local mesh=lg.newMesh({{'VertexPosition','float',2},{'FaceDepth','float',1},{'VertexColor','float',4}},vertices,'triangles','static')
     lg.draw(mesh);mesh:release()
+   end
+   -- Opaque faces first with depth writes; then see-through faces far to
+   -- near, depth-tested but not written, so glass shows what is behind it.
+   local clear={}
+   for _,f in ipairs(parts) do if f.modelFace then
+    if (f.opacity or 1)<1 then clear[#clear+1]=f else face(f) end
    end end
+   if not glow and #clear>0 then
+    local function mean(f) local s=0;for _,d in ipairs(f.depths) do s=s+d end;return s/#f.depths end
+    table.sort(clear,function(a,b) return mean(a)>mean(b) end)
+    lg.setDepthMode('less',false)
+    for _,f in ipairs(clear) do face(f) end
+    lg.setDepthMode('less',true)
+   end
   end
   render(solid,false);render(emission,true);lg.setDepthMode();lg.setShader(blurShader)
   local temp,halo=lg.newCanvas(w,h),lg.newCanvas(w,h)

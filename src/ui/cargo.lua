@@ -1328,19 +1328,23 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
  lg.setColor(.065,.075,.083,.98*alpha);lg.rectangle('fill',x+1,y+1,w-3,h-3)
  lg.setColor(hover and .55 or .18,hover and .64 or .21,hover and .70 or .24,(hover and .9 or .7)*alpha)
  lg.setLineWidth(1);lg.rectangle('line',x+1.5,y+1.5,w-4,h-4)
+	-- Stacks reserve a thin band along the bottom for the count, so the
+	-- number never sits on top of the art.
+	local band=(n>1) and 11 or 0
 	if item.kind ~= 'ship' and item.id then
-		-- the item's drawn art, turned with the stack; the name sits on top
-		require("src.icons").drawInRect(item.id, x, y, w, h, entry and entry.rot, alpha)
+		require("src.icons").drawInRect(item.id, x, y, w, h-band, entry and entry.rot, alpha)
 	end
 	if item.kind=='ship' then
   local Paint=require('src.paint');local hull=data.hulls[item.hull]
   local paint=entry and entry.shipRecord and entry.shipRecord.color or Paint.preset(Paint.pool(hull)[1])
-  Hangar.drawHull(hull,x+4,y+16,w-8,math.max(4,h-20),entry and entry.rot or false,paint,alpha)
+  Hangar.drawHull(hull,x+4,y+16,w-8,math.max(4,h-20-band),entry and entry.rot or false,paint,alpha)
  end
  if n>1 then
-  local label=tostring(n);lg.setFont(HUD.font(11));local tw=lg.getFont():getWidth(label)
-  lg.setColor(.01,.015,.02,.9*alpha);lg.rectangle('fill',x+w-tw-10,y+h-19,tw+7,16)
-  lg.setColor(.94,.96,.98,alpha);lg.print(label,x+w-tw-7,y+h-18)
+  local label=tostring(n);lg.setFont(HUD.font(10));local f=lg.getFont();local tw=f:getWidth(label)
+  local by=y+h-band-3
+  lg.setColor(.02,.03,.035,.85*alpha);lg.rectangle('fill',x+2,by,w-5,band)
+  lg.setColor(.30,.36,.40,.6*alpha);lg.line(x+2,by+.5,x+w-3,by+.5)
+  lg.setColor(.88,.92,.95,alpha);lg.print(label,math.floor(x+w-tw-6),math.floor(by+(band-f:getHeight())/2+1))
  end
  if tag and tag.frame then
   lg.setColor(tag.color[1],tag.color[2],tag.color[3],alpha)
@@ -2300,7 +2304,7 @@ function Cargo.draw(game)
  if L.overflowX>0 or L.overflowY>0 then
   lg.setColor(.02,.03,.04,.96);lg.rectangle('fill',16,sh-28,sw-32,24)
   lg.setFont(HUD.font(12));lg.setColor(HUD.INK)
-  lg.print(('64 px cells | Shift-wheel: pan sideways (%d / %d) | Alt-wheel: pan vertically | Wheel over grid: scroll rows'):format(Cargo.panX or 0,L.overflowX),24,sh-24)
+  lg.print(('%d px cells | Shift-wheel: pan sideways (%d / %d) | Alt-wheel: pan vertically | Wheel over grid: scroll rows'):format(Station.CELL,Cargo.panX or 0,L.overflowX),24,sh-24)
  end
 	drawMenu(game)
 end
@@ -2312,10 +2316,10 @@ function Cargo.wheelmoved(game,y,horizontal)
   if L then
    local mx,my=love.mouse.getPosition()
    if (horizontal or 0)~=0 or love.keyboard.isDown('lshift','rshift') then
-    Cargo.panX=max(0,min(L.overflowX,(Cargo.panX or 0)-((horizontal or 0)~=0 and horizontal or y)*64));return true
+    Cargo.panX=max(0,min(L.overflowX,(Cargo.panX or 0)-((horizontal or 0)~=0 and horizontal or y)*Station.CELL));return true
    end
    if love.keyboard.isDown('lalt','ralt') then
-    Cargo.panY=max(0,min(L.overflowY,(Cargo.panY or 0)-y*64));return true
+    Cargo.panY=max(0,min(L.overflowY,(Cargo.panY or 0)-y*Station.CELL));return true
    end
    for _,r in ipairs(L.grids) do
     if mx>=r.x and mx<r.x+r.g.w*L.cs+8 and my>=r.vy and my<r.vy+r.vh and r.g.h*L.cs>r.vh+0.5 then
