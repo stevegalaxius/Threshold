@@ -11,12 +11,28 @@ function Tasks.state(u)
  u.tasks=u.tasks or {offers={},nextId=0}
  return u.tasks
 end
+-- Derived from the authoritative board. Keep reserved offers indexed so a
+-- release is visible immediately, and compact deleted entries during cleanup.
+local searchIndexes=setmetatable({},{__mode='k'})
+local function indexOffer(index,o,id)
+ local bucket=index[o.kind]
+ if not bucket then bucket={};index[o.kind]=bucket end
+ bucket[id]=o
+end
+local function buildSearchIndex(offers)
+ local index={}
+ for id,o in pairs(offers) do indexOffer(index,o,id) end
+ searchIndexes[offers]=index
+ return index
+end
 function Tasks.post(u,offer)
  assert(Tasks.definitions[offer.kind],'unknown task kind')
  local state=Tasks.state(u)
  state.nextId=state.nextId+1
  local o=copy(offer);o.id='task/'..state.nextId;o.state='available'
  state.offers[o.id]=o
+ local index=searchIndexes[state.offers]
+ if index then indexOffer(index,o,o.id) end
  local Transport=package.loaded['src.transport'];if Transport then Transport.rescan() end
  return o
 end
@@ -89,13 +105,15 @@ function Tasks.resolve(u,r)
 end
 function Tasks.clean(u,clock)
  for _,r in pairs(u.npcs or {}) do Tasks.resolve(u,r) end
- for _,o in pairs(Tasks.state(u).offers) do
+ local offers=Tasks.state(u).offers
+ for _,o in pairs(offers) do
   local r=o.owner=='player' and Tasks.state(u).player or o.owner and (u.npcs or {})[o.owner]
   if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not require('src.npc_agenda').holds(r,o.manifestRoot or o.id)) then
-   if o.loaded then Tasks.state(u).offers[o.id]=nil
+   if o.loaded then offers[o.id]=nil
    else o.owner=nil;o.manifestRoot=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120) end
   end
  end
+ if searchIndexes[offers] then buildSearchIndex(offers) end
 end
 -- Orders placed at the station the player is docked at are held for the
 -- player for T.playerFirstLookSeconds before NPCs may reserve them.
@@ -108,28 +126,21 @@ end
 function Tasks.choose(u,r,station,clock)
  if not Tasks.resolve(u,r) then return end
  if r.task then return r.task end
- Tasks.clean(u,clock)
- -- Cheap checks and scores for everything on the board; the costly check
--- (feasible: route planning) runs only on the best few, in score order.
  local list,ranks={},{}
  local capabilities=Access.capabilities(r)
- -- (nothing below changes which orders exist until the list is built)
+ local offers=Tasks.state(u).offers
+ local index=searchIndexes[offers] or buildSearchIndex(offers)
  local Transport=require('src.transport');local opened=Transport.beginScan(u,true)
- local kinds={}
- for _,o in pairs(Tasks.state(u).offers) do
-  local def=Tasks.definitions[o.kind]
-  -- (whether this NPC does this kind of work at all is the same for every
-  -- offer of the kind: asked once, it drops most of a long board at a glance)
-  local does=kinds[o.kind]
-  if does==nil then
-   does=def~=nil and Access.eligible(r,def,capabilities) and (Work.weight(r,o.kind) or 1)>0 or false
-   kinds[o.kind]=does
-  end
-  if does and o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock)
-   and Access.eligible(r,o,capabilities)
-   and def.eligible(u,r,o,station,clock) then
-   if ranks[o.kind]==nil then ranks[o.kind]=Work.rank(r,o.kind) end
-   list[#list+1]={o=o,preference=ranks[o.kind],v=def.score and def.score(u,r,o,station,clock) or 0}
+ for kind,bucket in pairs(index) do
+  local def=Tasks.definitions[kind]
+  if def and Access.eligible(r,def,capabilities) and (Work.weight(r,kind) or 1)>0 then
+   for id,o in pairs(bucket) do
+    if offers[id]==o and o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock)
+     and Access.eligible(r,o,capabilities) and def.eligible(u,r,o,station,clock) then
+     if ranks[kind]==nil then ranks[kind]=Work.rank(r,kind) end
+     list[#list+1]={o=o,preference=ranks[kind],v=def.score and def.score(u,r,o,station,clock) or 0}
+    end
+   end
   end
  end
  if opened then Transport.endScan() end
