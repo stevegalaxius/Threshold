@@ -73,7 +73,11 @@ function D.helper(game,e,dt,AI)
  local req=e.asked
  if not req or req.kind~='distress' then return false end
  local asker=req.asker
- if req.closed or Handover.gone(asker) or asker.fuelStatus~='stranded' and req.paid>0 or Handover.expired(game,req) then
+ -- (an asker that has since docked refuels at the station: flying fuel
+ -- to its berth or the hangar door just circled the station)
+ local r0=asker and asker.alifeId and game.universe.npcs[asker.alifeId]
+ if req.closed or Handover.gone(asker) or asker.dockState or e.dockState
+  or r0 and r0.fuelStatus~='stranded' or Handover.expired(game,req) then
   Handover.close(req);return false
  end
  local x,y=e.body:getPosition();local ax,ay=asker.body:getPosition()
@@ -108,7 +112,7 @@ local function take(e,n)
 end
 -- For a stranded offline record. Returns true if it got fuel.
 function D.advance(game,r,clock)
- if r.fuelStatus~='stranded' or not r.area or not game then r.distress=nil;return false end
+ if r.fuelStatus~='stranded' or not r.area or not game or r.state=='docked' then r.distress=nil;return false end
  local u=game.universe
  local A=require('src.alife');local x,y=A.point(r,clock)
  -- loose fuel floating near it

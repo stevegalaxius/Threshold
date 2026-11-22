@@ -1131,7 +1131,16 @@ function A.install(Game)
   for id,e in pairs(self.alifeOnline or {}) do
    A.capture(self,e,detach)
    local r=self.universe.npcs and self.universe.npcs[id]
-   if not detach and r then r.savedOnline=true end
+   if not detach and r then
+    r.savedOnline=true
+    -- A fight between two live ships is held only on the bodies (aggressor,
+    -- combatTarget: the encounter record ends once both are onscreen), so a
+    -- save dropped it and the ships woke up at peace. Keep who it was
+    -- fighting for Encounters.syncOnline to hand back on wake.
+    local foe=e.combatTarget or e.aggressor
+    r.liveFight=foe and not foe.dead and not foe.removed and (foe.alifeId or foe.isPlayer)
+     and {target=foe.alifeId or 'player',clock=self.universe.clock} or nil
+   end
    if detach then
     if not e.removed then self:remove(e,true) end
     self.alifeOnline[id]=nil
