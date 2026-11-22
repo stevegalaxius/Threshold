@@ -382,6 +382,8 @@ function A.redirect(r,target,clock,x,y)
   r.route={prev};for _,id in ipairs(onward) do r.route[#r.route+1]=id end;r.index=2
  end
  require('src.queue').leg(r)
+ -- (where it turned round: a ship already inside the line waits there)
+ if r.queue and x and r.route[1]==dest then r.queue.turnX,r.queue.turnY=x,y end
  return true
 end
 
@@ -498,7 +500,18 @@ function A.trackPoint(r,clock)
   local hx,hy=Q.holdPoint(r,clock)
   local nx,ny=L.position(r.route[r.index],clock)
   local x,y=journeyPoint(r,p,clock)
-  if clock>=r.arrive or (x-nx)^2+(y-ny)^2<=(hx-nx)^2+(hy-ny)^2 then return hx,hy end
+  if r.offset then
+   -- same faded offset as the moving case, so the line check uses where
+   -- the ship actually is
+   local fade=math.max(0,math.min(1,(1-p)/math.max(.001,1-r.offset.progress)))
+   x,y=x+r.offset.x*fade,y+r.offset.y*fade
+  end
+  local hold=(hx-nx)^2+(hy-ny)^2
+  -- a ship that turned round already inside the line (just out of the
+  -- station) waits where it turned, instead of jumping out to the line
+  local q=r.queue
+  if q.turnX and (q.turnX-nx)^2+(q.turnY-ny)^2<=hold then return q.turnX,q.turnY end
+  if clock>=r.arrive or (x-nx)^2+(y-ny)^2<=hold then return hx,hy end
   return x,y
  end
  local x,y=journeyPoint(r,p,clock)

@@ -475,7 +475,9 @@ return function(game)
   -- (not a wildcat: they patch up at their site, not at stations)
   local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
   local keep=require('src.persistence').copy(r)
-  r.state='travel';r.area='earth';r.encounter=nil;r.speed=600
+  -- (a plain ship on the move: whatever dock or driver queue the record
+  -- was waiting in belongs to its old route)
+  r.state='travel';r.area='earth';r.encounter=nil;r.speed=600;r.queue=nil
   r.route={'station:earth_1','station:earth_2'};r.index=2
   local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_2'},0)/600
   r.depart=-.1*span;r.arrive=r.depart+span
@@ -815,7 +817,9 @@ return function(game)
    run(g,25)
    g:captureALife(false)
    local after=0;for _,c in ipairs(W.crew(gu,site.id)) do after=after+c.ship.armor end
-   assert(after<armor or site.done,'no fight in the pocket')
+   -- the crew can win clean: a dead hunter counts as a fight too
+   local killed=false;for _,h in ipairs(hs) do if h.state=='dead' then killed=true end end
+   assert(after<armor or site.done or killed,'no fight in the pocket')
    print(('ok  wildcats: warped in on %d hunters and %d crew mid-fight'):format(live.hunter,live.enemy))
   end
   print(('ok  wildcats: crew of %d, raid and home, bounty, %d dead after the hunters%s'):format(#crew,dead,inst.done and ', site cleared' or ''))
