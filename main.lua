@@ -114,7 +114,7 @@ function love.quit()
 	end
 end
 
-function love.update(dt)
+function love.update(dt, trace)
 	Pose.beginFrame()
 	dt = math.min(dt, 1 / 15)
 	require("src.worker").update()   -- answers from the background thread
@@ -160,10 +160,13 @@ function love.update(dt)
 	game:setPlayerIntent(intent)
 
 	accumulator = accumulator + dt * T.timeScale
+	if trace then trace.accumulator = accumulator * 1000 end
 	while accumulator >= STEP do
 		Pose.remember(game)
 		local before=game.inputTranslation
+		local start = trace and love.timer.getTime()
 		game:step(STEP)
+		if trace then trace.steps[#trace.steps + 1] = (love.timer.getTime() - start) * 1000 end
 		if game.resetClock then
 			-- a level was just loaded: don't catch up on the time it took
 			game.resetClock = nil
@@ -299,10 +302,10 @@ do
 	local update, draw = love.update, love.draw
 	function love.update(dt)
 		if Intro.blocking() then Intro.update(math.min(dt, 1 / 15)) return end
-		local start = PerfSnap.profiling and love.timer.getTime()
-		update(dt)
+		local trace = PerfSnap.profiling and PerfSnap.beginUpdate(dt)
+		update(dt, trace)
 		Intro.update(math.min(dt, 1 / 15))
-		if start then PerfSnap.updated(start) end
+		if trace then trace.update = (love.timer.getTime() - trace.start) * 1000 end
 	end
 	function love.draw()
 		if Intro.blocking() then Intro.draw() return end

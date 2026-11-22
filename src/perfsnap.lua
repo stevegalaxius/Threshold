@@ -37,13 +37,15 @@ end
 
 -- Match each update and draw with the start of the following update so
 -- present, frame pacing, and event handling are included in the interval.
-function S.updated(start)
+function S.beginUpdate(dt)
+	local start = love.timer.getTime()
 	local previous = S.previous
 	if previous and previous.draw then
 		previous.frame = (start - previous.start) * 1000
 		S.frames[#S.frames + 1] = previous
 	end
-	S.previous = { start = start, update = (love.timer.getTime() - start) * 1000 }
+	S.previous = { start = start, rawDelta = dt * 1000, steps = {} }
+	return S.previous
 end
 
 function S.presented(start)
@@ -71,12 +73,19 @@ function S.afterDraw(game, start)
 	line = line .. ("  field=%s sleepers=%d entities=%d canvases=%d images=%d texMB=%.1f f7=%s\n"):format(
 		game.fieldId or "?", #(game.sleepers or {}), #game.entities, st.canvases, st.images,
 		st.texturememory / 2 ^ 20, tostring(require("src.profiler").on))
-	local trace = { line, "frame_ms,update_ms,draw_ms,present_ms,other_ms" }
+	local trace = { line, "frame_ms,update_ms,draw_ms,present_ms,other_ms,raw_dt_ms,loop_accumulator_ms,step_count,step_total_ms,update_outside_steps_ms,step_times_ms" }
 	local intervals = {}
 	for i, f in ipairs(S.frames) do
 		intervals[i] = f.frame
-		trace[#trace + 1] = ("%.3f,%.3f,%.3f,%.3f,%.3f"):format(
-			f.frame, f.update, f.draw, f.present or 0, f.frame - f.update - f.draw - (f.present or 0))
+		local durations, total = {}, 0
+		for j, elapsed in ipairs(f.steps) do
+			durations[j] = ("%.3f"):format(elapsed)
+			total = total + elapsed
+		end
+		trace[#trace + 1] = ("%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%d,%.3f,%.3f,%s"):format(
+			f.frame, f.update, f.draw, f.present or 0, f.frame - f.update - f.draw - (f.present or 0),
+			f.rawDelta, f.accumulator and ("%.3f"):format(f.accumulator) or "", #durations, total,
+			f.update - total, table.concat(durations, " "))
 	end
 	table.sort(intervals)
 	if #intervals > 0 then
