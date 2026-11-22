@@ -186,8 +186,8 @@ function M.draw(parts,alpha)
  local lg=love.graphics;local key
  for _,p in ipairs(parts) do if p.modelFace then key=p;break end end
  if not key then return end
- -- Render the cache at the exact on-screen pixel density (multisampled)
- -- and draw it 1:1, instead of one big render squashed by filtering.
+ -- Render the cache at the exact on-screen pixel density 
+ -- and draw it 1:1 with nearest filtering (crisp, no smoothing), instead of one big render squashed by filtering.
  local ax,ay=lg.transformPoint(0,0);local bx,by=lg.transformPoint(1,0)
  local px=math.max(.25,math.floor(math.sqrt((bx-ax)^2+(by-ay)^2)*4+.5)/4)
  local byUnit=cache[key];if not byUnit then byUnit={n=0};cache[key]=byUnit end
@@ -200,9 +200,8 @@ function M.draw(parts,alpha)
    maxDepth=math.max(maxDepth,math.abs(f.depths[(k+1)/2]))
   end end end
   local margin=5;local unit=math.min(px,2000/math.max(x1-x0+10,y1-y0+10));local w,h=math.ceil((x1-x0+10)*unit),math.ceil((y1-y0+10)*unit)
-  local msaa=math.min(4,love.graphics.getSystemLimits().canvasmsaa or 0)
-  local solid,emission=lg.newCanvas(w,h,{msaa=msaa}),lg.newCanvas(w,h,{msaa=msaa})
-  local depth=lg.newCanvas(w,h,{format='depth24',msaa=msaa});local oldCanvas=lg.getCanvas()
+  local solid,emission=lg.newCanvas(w,h),lg.newCanvas(w,h)
+  local depth=lg.newCanvas(w,h,{format='depth24'});local oldCanvas=lg.getCanvas()
   lg.push('all');lg.origin();lg.setScissor();lg.setBlendMode('alpha');lg.setColor(1,1,1)
   local function render(target,glow)
    lg.setCanvas({target,depthstencil=depth});lg.clear(0,0,0,0,0,1);lg.setDepthMode('less',true);lg.setShader(depthShader)
@@ -233,6 +232,7 @@ function M.draw(parts,alpha)
   lg.setCanvas(temp);lg.clear();blurShader:send('stepSize',{2/w,0});lg.draw(emission)
   lg.setCanvas(halo);lg.clear();blurShader:send('stepSize',{0,2/h});lg.draw(temp)
   lg.setCanvas(oldCanvas);lg.pop();depth:release();emission:release();temp:release()
+  solid:setFilter('nearest','nearest')
   entry={solid=solid,halo=halo,x=x0-margin,y=y0-margin,scale=1/unit};byUnit[px]=entry;byUnit.n=byUnit.n+1
  end
  lg.push('all');lg.setColor(alpha or 1,alpha or 1,alpha or 1,alpha or 1);lg.setBlendMode('alpha','premultiplied');lg.draw(entry.solid,entry.x,entry.y,0,entry.scale)
