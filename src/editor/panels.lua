@@ -602,7 +602,14 @@ local function itemSection(E, d)
 		end
 		Slab.SameLine(); Slab.Text("cells", { Color = GREY })
 		for _, k in ipairs(ITEM_TEXT) do
-			if item[k] ~= nil or st[k] ~= nil or k == "name" then
+			if k == "description" then
+				-- always offered, as a wrapping box: the hold's hover text
+				Slab.Text("description")
+				if Slab.Input("yard_item_description", { Text = get(k) or "", W = 280, H = 70, MultiLine = true, MultiLineW = 270, ReturnOnText = true }) then
+					E.pushUndoCoalesced("yard_item_description")
+					local t = Slab.GetInputText(); set(k, t)
+				end
+			elseif item[k] ~= nil or st[k] ~= nil or k == "name" then
 				Slab.Text(k); Slab.SameLine()
 				textField(E, "yard_item_" .. k, get(k), function(t) set(k, t) end, 200)
 			end
