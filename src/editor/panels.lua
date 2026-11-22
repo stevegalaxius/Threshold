@@ -554,9 +554,101 @@ local function primitiveOptions(E)
 	end
 end
 
+-- The Icons tab's item design: grid size, the item's numbers (saved in the
+-- icon file as stats and laid over data/items.lua) and the price rule.
+local ITEM_TEXT = { "name", "shortName", "description", "maker" }
+local function sortedNumbers(t)
+	local keys = {}
+	for k, v in pairs(t or {}) do
+		if type(v) == "number" and k ~= "w" and k ~= "h" then table.insert(keys, k) end
+	end
+	table.sort(keys, function(a, b)
+		local order = { price = 1, stack = 2, volume = 3, mass = 4 }
+		local oa, ob = order[a] or 9, order[b] or 9
+		if oa ~= ob then return oa < ob end
+		return a < b
+	end)
+	return keys
+end
+
+local function itemSection(E, d)
+	local item = data.items[d.item]
+	if not item then return end
+	local Icons = require("src.icons")
+	local st = d.itemStats or {}
+	local function get(k) if st[k] ~= nil then return st[k] end return item[k] end
+	local function getShot(k) if st.shot and st.shot[k] ~= nil then return st.shot[k] end return item.shot and item.shot[k] end
+	local function set(k, v) d.itemStats = d.itemStats or {}; d.itemStats[k] = v end
+	local function setShot(k, v) d.itemStats = d.itemStats or {}; d.itemStats.shot = d.itemStats.shot or {}; d.itemStats.shot[k] = v end
+	local function num(id, label, value, lo, step, prec, onSet)
+		Slab.Text(label); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag(id, value or 0, lo, nil, step, { W = 90, Precision = prec }) then
+			E.pushUndoCoalesced(id); onSet(Slab.GetInputNumber())
+		end
+	end
+	Slab.Text("Item: " .. (get("name") or d.item)); Slab.SameLine()
+	if Slab.Button(E.itemOpen == false and "show" or "hide", { W = 44, H = 18 }) then E.itemOpen = E.itemOpen == false end
+	if E.itemOpen ~= false then
+		Slab.Text(("%s (%s)"):format(d.item, item.kind or "?"), { Color = GREY })
+		-- grid size: the cells a stack covers in the hold
+		local w, h = Icons.footprint(d.item, d)
+		Slab.Text("grid"); Slab.SameLine({ Pad = 4 })
+		if Slab.InputNumberDrag("yard_item_w", w, 1, 12, 1, { W = 50, Precision = 0 }) then
+			E.pushUndoCoalesced("yard_item_w"); d.w, d.h = math.max(1, math.floor(Slab.GetInputNumber() + 0.5)), h; E.fitIconView()
+		end
+		Slab.SameLine(); Slab.Text("x"); Slab.SameLine()
+		if Slab.InputNumberDrag("yard_item_h", h, 1, 12, 1, { W = 50, Precision = 0 }) then
+			E.pushUndoCoalesced("yard_item_h"); d.w, d.h = w, math.max(1, math.floor(Slab.GetInputNumber() + 0.5)); E.fitIconView()
+		end
+		Slab.SameLine(); Slab.Text("cells", { Color = GREY })
+		for _, k in ipairs(ITEM_TEXT) do
+			if item[k] ~= nil or st[k] ~= nil or k == "name" then
+				Slab.Text(k); Slab.SameLine()
+				textField(E, "yard_item_" .. k, get(k), function(t) set(k, t) end, 200)
+			end
+		end
+		local keys = sortedNumbers(item)
+		for k in pairs(st) do if type(st[k]) == "number" and item[k] == nil then table.insert(keys, k) end end
+		for _, k in ipairs(keys) do
+			local prec = (k == "stack" or k == "price") and 0 or 3
+			num("yard_item_n_" .. k, k, get(k), 0, prec == 0 and 1 or 0.01, prec, function(v)
+				if k == "stack" then v = math.max(1, math.floor(v + 0.5)) elseif prec == 0 then v = math.floor(v + 0.5) end
+				set(k, v)
+			end)
+		end
+		if item.shot then
+			Slab.Text("shot", { Color = GREY })
+			for _, k in ipairs(sortedNumbers(item.shot)) do
+				num("yard_item_s_" .. k, "  " .. k, getShot(k), 0, 0.1, 2, function(v) setShot(k, v) end)
+			end
+		end
+		-- a stack never holds more volume than its cells
+		local vol, stack = get("volume"), get("stack") or 1
+		if vol and w * h < vol * stack - 1e-6 then
+			Slab.Text(("%d cells hold less than %g m3 x %d"):format(w * h, vol, stack), { Color = { 1, 0.55, 0.3 } })
+		end
+		-- the price rule: (inputs) x margin <= list price, for this item and what's made from it
+		local rows, margin = require("src.item_margins").check(d.item, get("price") or 0)
+		if #rows > 0 then
+			Slab.Text(("Recipes (price >= inputs x %.2f)"):format(margin), { Color = GREY })
+			for _, r in ipairs(rows) do
+				local name = (data.items[r.output] or {}).name or r.output
+				Slab.Text(("%s %s: %s %.0f, needs %.0f"):format(r.ok and "ok " or "LOW", r.recipe, name, r.price, r.need),
+					{ Color = r.ok and { 0.55, 0.8, 0.55 } or { 1, 0.45, 0.35 },
+					  Tooltip = r.makes and "Makes this item" or "Uses this item as an input" })
+			end
+		end
+		if d.itemStats and Slab.Button("Reset stats to items.lua", { Tooltip = "Drop this icon's stat changes (restart to reload the original numbers)" }) then
+			E.pushUndo(); d.itemStats = nil
+		end
+		Slab.Separator()
+	end
+end
+
 -- The Icons tab: which item, its footprint, then the art tools.
 local function iconSections(E,d)
  E.tool='solid';E.sel=nil;E.vsel=nil;E.multi={};E.drawing=nil
+ itemSection(E,d)
  Slab.Text('Solid icon editor')
  Slab.Text('Add a shape, then drag it on the canvas.',{Color=GREY})
  Slab.Text('Drag: horizontal / height. Depth: inspector.',{Color=GREY})

@@ -220,7 +220,8 @@ end
 function Export.iconDef(design)
 	local def = { id = design.id, item = design.item, w = design.w, h = design.h, paint = design.paint, parts = {},
 		boxes = design.boxes and #design.boxes > 0 and copy(design.boxes) or nil,
-		boxView = design.boxes and #design.boxes > 0 and design.boxView and copy(design.boxView) or nil }
+		boxView = design.boxes and #design.boxes > 0 and design.boxView and copy(design.boxView) or nil,
+		stats = design.itemStats and next(design.itemStats) and copy(design.itemStats) or nil }
 
 	return def
 end
@@ -233,6 +234,7 @@ function Export.fromIcon(item)
 		base = data.list.hulls[1], parts = {}, slots = {}, stats = {} }
 	design.boxes = ic.boxes and copy(ic.boxes) or nil
 	design.boxView = ic.boxView and copy(ic.boxView) or nil
+	design.itemStats = ic.stats and copy(ic.stats) or nil
 
 	if design.boxes then require("src.icons").syncBoxes(design) end
 	return design
@@ -288,6 +290,14 @@ local function iconSource(design)
 		("\tid = %q, item = %q,"):format(def.id, def.item) }
 	if def.paint then table.insert(out, "\tpaint = " .. serialize(def.paint, "\t") .. ",   -- primary paint: a preset from src/paint.lua, or { r, g, b }") end
 	if def.w and def.h then table.insert(out, ("\tw = %d, h = %d,   -- the item's grid size (cells); also its size in space"):format(def.w, def.h)) end
+	if def.stats then
+		table.insert(out, "\tstats = {   -- the item's numbers, laid over data/items.lua")
+		local keys = {}
+		for k in pairs(def.stats) do table.insert(keys, k) end
+		table.sort(keys)
+		for _, k in ipairs(keys) do table.insert(out, "\t\t" .. k .. " = " .. serialize(def.stats[k], "\t\t"):gsub("%s*\n%s*", " ") .. ",") end
+		table.insert(out, "\t},")
+	end
 	if def.boxes then
 		table.insert(out, "\tboxes = {   -- editable solids: x across, y depth, z up")
 		for _, b in ipairs(def.boxes) do table.insert(out, "\t\t" .. serialize(b, "\t\t"):gsub("%s*\n%s*", " ") .. ",") end
