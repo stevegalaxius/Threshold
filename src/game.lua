@@ -3338,7 +3338,7 @@ function Game:followCamera(dt, aimX, aimY)
 		end
 	elseif self.playerHusk and not self.playerHusk.removed then
 		-- Death screen: watch your own wreck drift.
-		local hx, hy = self.Pose.position(playerHusk)
+		local hx, hy = Pose.position(self.playerHusk)
 		self.camera:follow(hx, hy, hx, hy, dt)
 	elseif self.deathX then
 		self.camera:follow(self.deathX, self.deathY, self.deathX, self.deathY, dt)
