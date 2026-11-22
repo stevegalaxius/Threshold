@@ -132,7 +132,7 @@ function L.start(game,path)
 end
 
 local COUNTERS={'freightEarnings','salvageEarnings','miningEarnings','rareEarnings','wageEarnings','bountyEarnings',
- 'fuelSpent','suppliesSpent','dockFees','jobsStarted'}
+ 'fuelSpent','suppliesSpent','restSpend','jobsStarted'}
 local function snapshot()
  local E=require('src.economy');local Stock=require('src.stockpile');local Markets=require('src.markets')
  local Loc=require('src.locations');local Fields=require('src.fields');local I=require('src.industry')

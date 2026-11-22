@@ -34,6 +34,9 @@ function A.limit(r)
  local n=1+math.floor(hold/T.agendaHoldPerJob)
  local p=require('src.personality').ensure(r)
  if (p.ambition or .5)>.65 then n=n+1 elseif (p.ambition or .5)<.3 then n=n-1 end
+ -- a tired crew takes on less (src/crew_fatigue.lua)
+ local Fatigue=require('src.crew_fatigue')
+ if Fatigue.exhausted(r) then return 1 elseif not Fatigue.exempt(r) and (r.fatigue or 0)>=Fatigue.threshold(r) then n=n-1 end
  return math.max(1,math.min(T.agendaMaxJobs,n))
 end
 

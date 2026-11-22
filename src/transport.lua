@@ -343,6 +343,13 @@ Tasks.register('transport',{
   age=math.max(age,math.max(0,clock-(o.placed or o.readyAt or clock)))
   -- a timid trader shies from long interplanetary runs (open space, pirates)
   local risk=(o.routeAU or 0)*T.freightRiskPerAU*(1-aggression)
+  -- a tired crew would rather finish near home, where it rests
+  -- (src/crew_fatigue.lua)
+  local Fatigue=require('src.crew_fatigue')
+  if r.homeStation and Fatigue.level(r)>=Fatigue.threshold(r)*T.fatigueHomeward then
+   local function system(key) local p=L.byId[L.canonical(key)];local a=p and p.area;return a and Fields.moons[a] and Fields.moons[a].parent or a end
+   if system(o.target)~=system(r.homeStation) then risk=risk+T.fatigueAwayPenalty*Fatigue.level(r) end
+  end
   -- each trader reads the board a little differently, so a fleet doesn't
   -- all chase the single best-paying job into one dock queue
   local h=0;local key=tostring(r.id)..tostring(o.id)

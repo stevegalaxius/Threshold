@@ -37,7 +37,7 @@ local function footprint(hullId)
 	return math.max(1, w * h)
 end
 
--- Hangar cells a hull takes (src/docking_fee.lua prices docking by it too).
+-- Hangar cells a hull takes (src/crew_fatigue.lua prices shore leave by it too).
 Rent.footprint = footprint
 
 -- Credits an hour for a ship of hullId, inside a bay or out on a mooring.

@@ -1,13 +1,15 @@
 --[[
-	The Industry tab of the station screen, at stations with installed
-	facilities (src/world_layout.lua facilities, src/industry.lua). One
+	The Industry pane of the station screen's Manage tab (src/ui/stall.lua),
+	at stations with installed production facilities (src/world_layout.lua
+	facilities, src/industry.lua). Station services (food, water) are on
+	the Services pane instead (src/ui/services.lua). One
 	card per production line: its capacity and policy, whether it is a
 	shared line (one capacity split across several products) or a line of
 	its own, then each recipe with its share of the capacity, what it's doing now (Industry.status),
 	what it needs (available / on hand) and what it makes (stock / room
 	and the local price, or the ship and where it goes).
 
-	Read-only. src/ui/cargo.lua owns the tabs.
+	Read-only. src/ui/stall.lua owns the panes.
 ]]
 
 local data = require("src.data")
@@ -32,8 +34,11 @@ end
 
 function View.has(st)
 	if not st then return false end
-	local I = require("src.industry")
-	return next(I.installations(require("src.stockpile").key(st))) ~= nil
+	local I, Services = require("src.industry"), require("src.station_needs")
+	for id in pairs(I.installations(require("src.stockpile").key(st))) do
+		if not Services.isService(id) then return true end
+	end
+	return false
 end
 
 local function itemName(id) return data.items[id] and data.items[id].name or id end
@@ -57,7 +62,8 @@ local function cards(game, st)
 	local I, C, S = require("src.industry"), require("src.commodities"), require("src.stockpile")
 	local u, key = game.universe, S.key(st)
 	local ids = {}
-	for id in pairs(I.installations(key)) do ids[#ids + 1] = id end
+	local Services = require("src.station_needs")
+	for id in pairs(I.installations(key)) do if not Services.isService(id) then ids[#ids + 1] = id end end
 	table.sort(ids)
 	local out = {}
 	for _, id in ipairs(ids) do
@@ -101,10 +107,12 @@ local function cardHeight(card)
 	return h
 end
 
-function View.draw(game, mx, my)
+-- Drawn into the rectangle given (the Manage tab's pane), or the station
+-- screen's whole body.
+function View.draw(game, mx, my, x, y, w, h)
 	local st = station(game)
 	if not st then return end
-	local x, y, w, h = Station.body()
+	if not x then x, y, w, h = Station.body() end
 	local list = cards(game, st)
 	if #list == 0 then
 		Station.panel(x, y, w, h)

@@ -52,6 +52,12 @@ function E.finish(u,a,b,clock,retreat,handoff,outcome)
   local reason=outcome or retreat and 'retreated' or (a.state=='dead' or b.state=='dead') and 'death' or 'disengaged'
   History.finish(u,a.id,b.id,clock,reason,retreat and retreat.id)
  end
+ -- (a fight tires the crew: src/crew_fatigue.lua)
+ if not handoff then
+  local Fatigue=require('src.crew_fatigue')
+  if a then Fatigue.fought(a,clock) end
+  if b then Fatigue.fought(b,clock) end
+ end
  resume(a,clock)
  if b then resume(b,clock) end
  -- patrols that joined this fight go back to their duties
@@ -276,6 +282,8 @@ function E.update(game,clock)
     if Access.raiding(a) and not Access.raiding(b) then db=db+shot elseif Access.raiding(b) and not Access.raiding(a) then da=da+shot end
    end
    a.ship.armor=math.max(0,a.ship.armor-db);b.ship.armor=math.max(0,b.ship.armor-da)
+   local Fatigue=require('src.crew_fatigue')
+   Fatigue.hurt(a,clock,db/maxArmor(a));Fatigue.hurt(b,clock,da/maxArmor(b))
    fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
    b.encounter.round=fight.round;b.encounter.nextAt=fight.nextAt
    if a.ship.armor<=0 then wreck(u,a,clock) end

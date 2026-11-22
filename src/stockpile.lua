@@ -268,6 +268,8 @@ function S.flow(u,key,i,m)
   S.flowed=S.flowed+1
   local Food,C,I=require('src.food'),require('src.commodities'),require('src.industry')
   Food.flow(u,key,shops[S.shopFor(key,Food.item)],dt)
+  -- station services: water, with what resting crews drink (src/station_needs.lua)
+  if place.uses and place.uses.trade then require('src.station_needs').flowWater(u,key,shops[S.shopFor(key,'water')],dt) end
   if place.uses and place.uses.trade then
    local jobs,inputs={},{}
    for _,c in ipairs(C.list) do
@@ -276,7 +278,7 @@ function S.flow(u,key,i,m)
     -- Ship assembly and consumption have separate executors. Scaling a
     -- ship recipe here would select a hull and plan parking just to skip it.
     local rate=0
-    if not c.stockless and not c.consumption then rate=C.rate(c,key) end
+    if not c.stockless and not c.consumption and not c.service then rate=C.rate(c,key) end
     if rate~=0 then rate=rate*I.scale(u,key,c) end
     if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
     if rate~=0 then

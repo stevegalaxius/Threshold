@@ -3,7 +3,8 @@
 
 	Rank shapes what a ship spawns with (budget, how carefully it picks a
 	hull), how well it refits (src/npc_refit.lua) and how bravely it fights
-	(src/personality.lua). Veteran is never rolled at spawn, only earned.
+	(src/personality.lua) and how fast its crew tires (endurance,
+	src/crew_fatigue.lua). Veteran is never rolled at spawn, only earned.
 
 	R.roll(roll)        -> rank id for a new arrival
 	R.get(r)            -> tier table for a record (rookie if unset)
@@ -13,10 +14,10 @@
 local R={}
 R.order={'rookie','proficient','elite','veteran'}
 R.tiers={
- rookie    ={name='Rookie',    budget=.8, sharpness=1.5,refitChance=.3,refitMargin=.15,nerve=-.1, xp=0},
- proficient={name='Proficient',budget=1,  sharpness=4,  refitChance=.6,refitMargin=.08,nerve=0,   xp=10},
- elite     ={name='Elite',     budget=1.5,sharpness=6,  refitChance=.9,refitMargin=.04,nerve=.05, xp=30},
- veteran   ={name='Veteran',   budget=2,  sharpness=8,  refitChance=1, refitMargin=.02,nerve=.1,  xp=60},
+ rookie    ={name='Rookie',    budget=.8, sharpness=1.5,refitChance=.3,refitMargin=.15,nerve=-.1, xp=0, endurance=1.2},
+ proficient={name='Proficient',budget=1,  sharpness=4,  refitChance=.6,refitMargin=.08,nerve=0,   xp=10, endurance=1},
+ elite     ={name='Elite',     budget=1.5,sharpness=6,  refitChance=.9,refitMargin=.04,nerve=.05, xp=30, endurance=.85},
+ veteran   ={name='Veteran',   budget=2,  sharpness=8,  refitChance=1, refitMargin=.02,nerve=.1,  xp=60, endurance=.7},
 }
 -- Spawn odds (veteran is earned only).
 R.spawn={{'rookie',.55},{'proficient',.35},{'elite',.10}}

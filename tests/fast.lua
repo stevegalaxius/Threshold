@@ -411,6 +411,49 @@ return function(game)
   assert(Hold.count(u.stations[k].storage,'iron_ore')==5,'closed stall lost its stock')
  end
  print('ok  market stalls: rent, stock, NPC shopping, rent lapse')
+ -- 5d. Shore leave: crews tire underway the same online and offline, rest
+ -- at a station for a price paid to its account, and eat and drink there.
+ do
+  local Fatigue=require('src.crew_fatigue');local Needs=require('src.station_needs')
+  local Accounts=require('src.accounts');local Repairs=require('src.npc_repair')
+  local copy=require('src.persistence').copy
+  local base
+  for _,r in pairs(u.npcs) do
+   if r.ship and r.homeStation and r.state~='dead' and not r.squad and not r.wildcat and r.workProfile=='freight_regular' then base=r;break end
+  end
+  assert(base,'no hauler to test shore leave on')
+  local a,b=copy(base),copy(base)
+  for _,r in ipairs({a,b}) do r.state='travel';r.transit=nil;r.rest=nil;r.fatigue=.1;r.fatigueAt=0 end
+  Fatigue.settle(a,600)
+  for t=10,600,10 do Fatigue.settle(b,t) end
+  assert(math.abs(a.fatigue-b.fatigue)<1e-9 and a.fatigue>.1,'fatigue depends on the step: '..a.fatigue..' vs '..b.fatigue)
+  -- tired enough: upkeep books shore leave
+  local home=require('src.locations').canonical(base.homeStation)
+  local r=copy(base);r.id='shore_leave_test';r.squad=nil;r.rest=nil
+  r.fatigue=.9;r.fatigueAt=u.clock;r.credits=5000;r.restSpend=0
+  assert(Fatigue.needs(r),'a tired crew does not want rest')
+  local need=require('src.upkeep').need(r)
+  assert(need=='rest' or need=='fuel' or need=='repair' or need=='supplies','upkeep missed the rest need: '..tostring(need))
+  -- the stay, its pay, and what the crew eats
+  r.service={station=home,need='rest',saved={route={home,home},index=1}}
+  r.state='docked';r.node=home
+  u.npcs[r.id]=r
+  local before,food=Accounts.balance(u,home),Needs.use(u,home,'food')
+  Repairs.begin(r,home,u.clock,60,u)
+  assert(r.rest and r.rest.stop>u.clock,'no shore leave began')
+  local paid=5000-r.credits
+  assert(paid>0 and r.restSpend==paid,'shore leave was not paid for')
+  assert(Accounts.balance(u,home)>before,'the station was not paid')
+  assert(Fatigue.resting(u,home)>=1 and Needs.use(u,home,'food')>food,'resting crews do not eat')
+  Fatigue.settle(r,r.rest.stop)
+  assert(not r.rest and r.fatigue<.05,'rest left the crew at '..r.fatigue)
+  -- a broke crew still rests, less
+  r.fatigue=.9;r.fatigueAt=u.clock;r.credits=0;r.rest=nil
+  Repairs.begin(r,home,u.clock,60,u)
+  assert(r.restSpend==paid and r.rest.to>.3 and r.rest.to<.9,'a broke crew rested wrongly')
+  u.npcs[r.id]=nil
+ end
+ print('ok  shore leave: tiring is step-independent, rest is paid to the station, resting crews eat')
  -- 5c. Buy orders: the player pays up front, the order goes on the freight
  -- board, a delivery lands in their storage, a cancel refunds the rest.
  do
