@@ -561,7 +561,17 @@ local function trade(game, e, dt)
 		-- (A Gila sinking below a cloud city lit it only once the hull was
 		-- buckling.)
 		local deep=w and w.gas and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius and ux*(x-w.x)+uy*(y-w.y)>0
-		local boosting=deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
+		-- Round a station there is traffic (and often the player) on the
+		-- approach: inside T.aiStationSlowRange of a dock it comes in at no
+		-- more than T.aiStationSpeed, with no burner. Braking late from full
+		-- burn, it reached the runway at 1,000-1,800 px/s, far too fast to
+		-- steer round a ship in its way.
+		local nearDock = stop.dock and stop.body and d < T.aiStationSlowRange
+		local boosting=not nearDock and (deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing))
+		if nearDock then
+			local slow = T.aiStationSpeed + (cruise - T.aiStationSpeed) * max(0, d - T.aiStationSlowRange * .5) / (T.aiStationSlowRange * .5)
+			want = min(want, max(T.aiStationSpeed, slow))
+		end
 		if boosting then
 			-- On a long clear leg, cruise near what the hull can really do
 			-- rather than a little over the base cruise speed.

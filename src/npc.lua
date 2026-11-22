@@ -290,6 +290,10 @@ end
 
 -- Idle ships have a persistent base rather than an endless local circuit.
 local function returnHome(r,node,at,ctx)
+ -- a wildcat's home is its site, never an NPC home station
+ if r.wildcat then
+  return ctx.game and ctx.game.universe and require('src.wildcats').goHome(ctx.game,r,'no prey') or false
+ end
  local home=require('src.npc_home').get(r,ctx.u)
  if not home or home==node then return false end
  local route=G.live(node,home,at,true)
