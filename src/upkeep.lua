@@ -243,6 +243,7 @@ end
 -- ship had just arrived there at `at`.
 function U.finish(r,at)
  local s=r.service;if not s then return end
+ require('src.crew_fatigue').settle(r,at)
  r.route=s.saved.route;r.index=s.saved.index;r.service=nil
  require('src.alife_trace').note(r,at,'upkeep','service done at '..s.station..(U.need(r) and (', still needs '..U.need(r)) or '')..' -> back to role')
  if s.saved.idle then

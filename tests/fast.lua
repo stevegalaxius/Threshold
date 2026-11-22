@@ -447,10 +447,10 @@ return function(game)
   assert(Fatigue.resting(u,home)>=1 and Needs.use(u,home,'food')>food,'resting crews do not eat')
   Fatigue.settle(r,r.rest.stop)
   assert(not r.rest and r.fatigue<.05,'rest left the crew at '..r.fatigue)
-  -- a broke crew still rests, less
+  -- a broke crew still rests, without paying
   r.fatigue=.9;r.fatigueAt=u.clock;r.credits=0;r.rest=nil
   Repairs.begin(r,home,u.clock,60,u)
-  assert(r.restSpend==paid and r.rest.to>.3 and r.rest.to<.9,'a broke crew rested wrongly')
+  assert(r.restSpend==paid and r.credits==0 and r.rest.to==0,'a broke crew rested wrongly')
   u.npcs[r.id]=nil
  end
  print('ok  shore leave: tiring is step-independent, rest is paid to the station, resting crews eat')

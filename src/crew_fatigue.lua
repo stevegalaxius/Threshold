@@ -83,7 +83,8 @@ function F.settle(r,clock)
  if not at or clock<=at then return r.fatigue end
  local rest=r.rest
  if rest then
-  if r.state=='docked' and r.node and L.canonical(r.node)==rest.node then
+  -- (docked, or just stood down at that dock to decide what's next)
+  if (r.state=='docked' or r.state=='idle') and r.node and L.canonical(r.node)==rest.node then
    -- shore leave: straight down to what the stay pays for
    local span=math.max(1e-6,rest.stop-rest.start)
    local p=clamp((clock-rest.start)/span)
@@ -91,9 +92,12 @@ function F.settle(r,clock)
    if clock>=rest.stop then r.fatigue=rest.to;r.rest=nil end
    return r.fatigue
   end
-  -- left before the stay was up: keep what it got, as of when it left
-  local p=clamp((math.min(at,rest.stop)-rest.start)/math.max(1e-6,rest.stop-rest.start))
+  -- off the dock: the rest it got (all of it, unless it left early), then
+  -- the time since, by its present state
+  local stopped=math.max(at,math.min(clock,rest.stop))
+  local p=clamp((stopped-rest.start)/math.max(1e-6,rest.stop-rest.start))
   r.fatigue=rest.from+(rest.to-rest.from)*p;r.rest=nil
+  at=stopped
  end
  if F.exempt(r) then return r.fatigue end
  r.fatigue=clamp(r.fatigue+rate(r)*(clock-at))
@@ -168,7 +172,7 @@ function F.rate(u,id,r)
  local room=r and r.ship and require('src.dock_room').capacity(id,r.ship.hull) or 4
  if room==math.huge then room=8 end
  local crowd=1+T.restCrowding*math.min(2,F.resting(u,id)/math.max(1,room))
- local size=math.max(1,cells(r)/4)
+ local size=math.sqrt(math.max(1,cells(r)/4))
  local home=r and r.homeStation and L.canonical(r.homeStation)==id and T.restHomePrice or 1
  return base*crowd*size*home
 end
@@ -192,9 +196,10 @@ function F.cost(u,r,id,travel)
 end
 
 -- Shore leave starts: work out the stay, take the pay. Returns seconds.
--- A crew that can't pay for all of it stays as long anyway but sleeps
--- aboard for the part it couldn't pay, which rests it less
--- (T.restUnpaidShare): it comes back sooner rather than never resting.
+-- A crew always rests fully; one that can't pay for all of it pays what
+-- it can spare (above T.restReserve), and the station takes the loss. (A
+-- broke crew that only half rested came straight back for more, and soon
+-- half the fleet was asleep.)
 function F.begin(u,r,id,at)
  id=L.canonical(id)
  F.settle(r,at)
@@ -206,9 +211,7 @@ function F.begin(u,r,id,at)
   require('src.accounts').receive(u,id,paid,'sold','shore_leave')
  end
  local covered=price>0 and math.min(1,paid/price) or 1
- local share=covered+(1-covered)*T.restUnpaidShare
- local from=r.fatigue or 0
- r.rest={node=id,from=from,to=math.max(0,from*(1-share)),start=at,stop=at+stay}
+ r.rest={node=id,from=r.fatigue or 0,to=0,start=at,stop=at+stay}
  r.restsTaken=(r.restsTaken or 0)+1
  if r.homeStation and L.canonical(r.homeStation)==id and covered>=1 then
   r.homeRests=(r.homeRests or 0)+1

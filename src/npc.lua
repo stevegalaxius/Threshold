@@ -307,6 +307,8 @@ end
 -- the ship has started moving (or was given something to wait for).
 function N.decide(u,r,node,at,game)
  if at<N.readyAt(r) then return false end
+ -- (fatigue first, while the record still says how it spent the time)
+ require('src.crew_fatigue').settle(r,at)
  r.nextDecisionAt=nil
  local j=N.controller;if not j then return false end
  local ctx=N.context(game or {universe=u},r,at,game and game.alifeOnline and game.alifeOnline[r.id],nil,nil,u)
