@@ -144,7 +144,7 @@ function G.itinerary(source,target,clock,exact)
   plans[key]=entry
  elseif clock>entry.soft and not entry.asked and not staleMap then
   local Worker=require('src.worker')
-  if Worker.active() then
+  if Worker.active("route") then
    entry.asked=true
    local table_=plans
    Worker.ask('route',{source,target,clock,exact or false,G.versionOf(source,target)},function(path)

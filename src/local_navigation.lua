@@ -280,7 +280,7 @@ function Nav.waypoint(game,e,gx,gy,options)
  -- a step did. The ship heads straight for now (its steering still keeps
  -- it off things) and takes the path when it comes back, a few frames on.
  local Worker=require('src.worker')
- if Worker.active() then
+ if Worker.active("path") then
   local ask={}
   e.pathAsk=ask
   local ignore,surface=options.ignore,options.allowSurface

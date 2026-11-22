@@ -1,5 +1,5 @@
 --[[
-	One background thread for work the game can wait a moment for.
+	Two dedicated background threads for work the game can wait a moment for.
 
 	The rule: a job is a function in src/worker_jobs.lua that takes plain
 	data (numbers, strings, booleans, tables of them) and returns plain
@@ -19,7 +19,14 @@
 	returns, so everything works the same without one, only slower. A job
 	that fails in the thread is run again here, where its error shows.
 ]]
-local W = { pending = {}, nextId = 0, waiting = 0 }
+local W = { waiting = 0 }
+local navigation = { pending = {}, nextId = 0 }
+local routes = { pending = {}, nextId = 0 }
+local workers = { navigation, routes }
+
+local function workerFor(name)
+ return name == "route" and routes or navigation
+end
 
 local function jobs() return require("src.worker_jobs") end
 local function here(name, args)
@@ -27,56 +34,72 @@ local function here(name, args)
 end
 
 function W.start()
-	if W.thread or W.failed or not love.thread then return end
-	W.inbox, W.outbox = love.thread.newChannel(), love.thread.newChannel()
-	W.thread = love.thread.newThread("src/worker_thread.lua")
-	W.thread:start(W.inbox, W.outbox)
+ if not love.thread then return end
+ for _, worker in ipairs(workers) do
+  if not worker.thread and not worker.failed then
+   worker.inbox, worker.outbox = love.thread.newChannel(), love.thread.newChannel()
+   worker.thread = love.thread.newThread("src/worker_thread.lua")
+   worker.thread:start(worker.inbox, worker.outbox)
+  end
+ end
 end
 
-function W.active() return W.thread ~= nil end
+function W.active(name) return workerFor(name).thread ~= nil end
 
--- Stop asking the thread: what it still owes is done here instead.
+local function stop(worker, reason)
+ if not worker.thread then return end
+ worker.inbox:push("quit")
+ worker.thread = nil
+ worker.failed = reason or true
+ local pending = worker.pending
+ worker.pending = {}
+ for _, job in pairs(pending) do
+  W.waiting = W.waiting - 1
+  job.done(here(job.name, job.args))
+ end
+end
+
 function W.stop(reason)
-	if not W.thread then return end
-	W.inbox:push("quit")
-	W.thread = nil
-	W.failed = reason or true
-	local owed = W.pending
-	W.pending, W.waiting = {}, 0
-	for _, p in pairs(owed) do p.done(here(p.name, p.args)) end
+ for _, worker in ipairs(workers) do stop(worker, reason) end
 end
 
 function W.ask(name, args, done)
-	assert(jobs()[name], "unknown worker job " .. tostring(name))
-	if not W.thread then done(here(name, args)) return end
-	W.nextId = W.nextId + 1
-	W.pending[W.nextId] = { name = name, args = args, done = done }
-	W.waiting = W.waiting + 1
-	W.inbox:push({ id = W.nextId, name = name, args = args, n = args.n or #args })
+ assert(jobs()[name], "unknown worker job " .. tostring(name))
+ local worker = workerFor(name)
+ if not worker.thread then done(here(name, args)) return end
+ worker.nextId = worker.nextId + 1
+ local id = worker.nextId
+ worker.pending[id] = { name = name, args = args, done = done }
+ W.waiting = W.waiting + 1
+ worker.inbox:push({ id = id, name = name, args = args, n = args.n or #args })
+end
+
+local function update(worker)
+ if not worker.thread then return end
+ local err = worker.thread:getError()
+ if err then
+  print("worker thread stopped: " .. tostring(err))
+  stop(worker, err)
+  return
+ end
+ while worker.thread do
+  local answer = worker.outbox:pop()
+  if not answer then break end
+  local job = worker.pending[answer.id]
+  if job then
+   worker.pending[answer.id] = nil
+   W.waiting = W.waiting - 1
+   if answer.ok then job.done(answer.result)
+   else
+    print(("worker job %s failed, run on the main thread: %s"):format(job.name, tostring(answer.error)))
+    job.done(here(job.name, job.args))
+   end
+  end
+ end
 end
 
 function W.update()
-	if not W.thread then return end
-	local err = W.thread:getError()
-	if err then
-		print("worker thread stopped: " .. tostring(err))
-		W.stop(err)
-		return
-	end
-	while true do
-		local answer = W.outbox:pop()
-		if not answer then break end
-		local p = W.pending[answer.id]
-		if p then
-			W.pending[answer.id] = nil
-			W.waiting = W.waiting - 1
-			if answer.ok then p.done(answer.result)
-			else
-				print(("worker job %s failed, run on the main thread: %s"):format(p.name, tostring(answer.error)))
-				p.done(here(p.name, p.args))
-			end
-		end
-	end
+ for _, worker in ipairs(workers) do update(worker) end
 end
 
 return W

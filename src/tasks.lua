@@ -2,6 +2,16 @@
 local copy=require('src.persistence').copy
 local Work=require('src.work_preferences')
 local Access=require('src.npc_access')
+local Locations=require('src.locations')
+local Fields=require('src.fields')
+local freightLimit=12
+local rejectedFreight=setmetatable({},{__mode="k"})
+local function pickupSystem(node)
+ local place=Locations.byId[node]
+ local area=place and place.area
+ local moon=area and Fields.moons[area]
+ return moon and moon.parent or area
+end
 local Tasks={definitions={},feasibleTries=4}
 function Tasks.register(kind,definition)
  assert(not Tasks.definitions[kind],'duplicate task kind')
@@ -15,12 +25,20 @@ end
 -- release is visible immediately, and compact deleted entries during cleanup.
 local searchIndexes=setmetatable({},{__mode='k'})
 local function indexOffer(index,o,id)
- local bucket=index[o.kind]
- if not bucket then bucket={};index[o.kind]=bucket end
+ if o.kind=='transport' then
+  local system=pickupSystem(o.source)
+  if not system then return end
+  local freight=index.freight
+  if not freight[system] then freight[system]={} end
+  freight[system][id]=o
+  return
+ end
+ local bucket=index.kinds[o.kind]
+ if not bucket then bucket={};index.kinds[o.kind]=bucket end
  bucket[id]=o
 end
 local function buildSearchIndex(offers)
- local index={}
+ local index={kinds={},freight={}}
  for id,o in pairs(offers) do indexOffer(index,o,id) end
  searchIndexes[offers]=index
  return index
@@ -123,6 +141,52 @@ function Tasks.npcMayClaim(u,o,clock)
  if o.order and here and o.source==here and clock<(o.placed or 0)+require('src.tuning').playerFirstLookSeconds then return false end
  return true
 end
+local function available(u,offers,id,o,clock)
+ return offers[id]==o and o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock)
+end
+
+local function freightShortlist(u,r,station,clock,offers,index,capabilities)
+ local system=pickupSystem(station)
+ local shortlist={}
+ local rejected=rejectedFreight[r]
+ if not rejected or clock<rejected.at or clock-rejected.at>=30 then
+  rejected={at=clock};rejectedFreight[r]=rejected
+ end
+ local function collect(bucket,limit)
+  for id,o in pairs(bucket or {}) do
+   if not rejected[id] and available(u,offers,id,o,clock) and Access.eligible(r,o,capabilities) then
+    local tier=o.source==station and 2 or pickupSystem(o.source)==system and 1 or 0
+    local score=(o.urgency or o.priority or 0)*10000+math.max(0,clock-(o.placed or clock))*100
+     +(o.creditsPerUnit or 0)*o.amount/(1+(o.routeAU or 0))
+    local i=#shortlist+1
+    while i>1 do
+     local prev=shortlist[i-1]
+     if tier<prev.tier or tier==prev.tier and (score<prev.score or score==prev.score and id>prev.id) then break end
+     i=i-1
+    end
+    if i<=limit then
+     table.insert(shortlist,i,{id=id,o=o,tier=tier,score=score})
+     if #shortlist>limit then shortlist[limit+1]=nil end
+    end
+   end
+  end
+ end
+ local expanded=r.stuckSince and clock-r.stuckSince>=60
+ collect(index.freight[system],expanded and freightLimit-4 or freightLimit)
+ -- An idle ship periodically looks beyond its system, one market per retry.
+ if expanded then
+  local markets={}
+  for _,area in ipairs(Fields.list) do
+   if area~=system and index.freight[area] then markets[#markets+1]=area end
+  end
+  if #markets>0 then
+   r.freightSearchIndex=(r.freightSearchIndex or 0)%#markets+1
+   collect(index.freight[markets[r.freightSearchIndex]],freightLimit)
+  end
+ end
+ return shortlist
+end
+
 function Tasks.choose(u,r,station,clock)
  if not Tasks.resolve(u,r) then return end
  if r.task then return r.task end
@@ -131,11 +195,21 @@ function Tasks.choose(u,r,station,clock)
  local offers=Tasks.state(u).offers
  local index=searchIndexes[offers] or buildSearchIndex(offers)
  local Transport=require('src.transport');local opened=Transport.beginScan(u,true)
- for kind,bucket in pairs(index) do
+ local freight=Tasks.definitions.transport
+ if freight and Access.eligible(r,freight,capabilities) and (Work.weight(r,'transport') or 1)>0 then
+  for _,entry in ipairs(freightShortlist(u,r,station,clock,offers,index,capabilities)) do
+   local o=entry.o
+   if freight.eligible(u,r,o,station,clock) then
+    if ranks.transport==nil then ranks.transport=Work.rank(r,'transport') end
+    list[#list+1]={o=o,preference=ranks.transport,tier=entry.tier,v=freight.score(u,r,o,station,clock)}
+   else rejectedFreight[r][entry.id]=true end
+  end
+ end
+ for kind,bucket in pairs(index.kinds) do
   local def=Tasks.definitions[kind]
   if def and Access.eligible(r,def,capabilities) and (Work.weight(r,kind) or 1)>0 then
    for id,o in pairs(bucket) do
-    if offers[id]==o and o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock)
+    if available(u,offers,id,o,clock)
      and Access.eligible(r,o,capabilities) and def.eligible(u,r,o,station,clock) then
      if ranks[kind]==nil then ranks[kind]=Work.rank(r,kind) end
      list[#list+1]={o=o,preference=ranks[kind],v=def.score and def.score(u,r,o,station,clock) or 0}
@@ -146,6 +220,7 @@ function Tasks.choose(u,r,station,clock)
  if opened then Transport.endScan() end
  table.sort(list,function(a,b)
   if a.preference~=b.preference then return a.preference>b.preference end
+  if (a.tier or 0)~=(b.tier or 0) then return (a.tier or 0)>(b.tier or 0) end
   return a.v>b.v or a.v==b.v and a.o.id<b.o.id
  end)
  -- Within the same four-check budget, try the leading offer of each kind
@@ -165,6 +240,7 @@ function Tasks.choose(u,r,station,clock)
     tries=tries+1
     local def=Tasks.definitions[kind]
     if not def.feasible or def.feasible(u,r,o,station,clock) then best=o;break end
+    if kind=='transport' then rejectedFreight[r][o.id]=true end
     if tries>=Tasks.feasibleTries then break end
    end
   end
@@ -174,7 +250,11 @@ function Tasks.choose(u,r,station,clock)
  local t=copy(best);t.phase='prepare';t.assigned=clock;t.state=nil
  -- Prepare may reject a task (e.g. a full grid hold). Never reserve failed work.
  local def=Tasks.definitions[t.kind]
- if def.prepare and not def.prepare(u,r,t,station,clock) then return end
+ if def.prepare and not def.prepare(u,r,t,station,clock) then
+  if t.kind=='transport' then rejectedFreight[r][best.id]=true end
+  return
+ end
+ rejectedFreight[r]=nil
  best.owner=r.id;best.state='reserved'
  r.jobsStarted=(r.jobsStarted or 0)+1
  r.task=t;r.taskStatus=nil
