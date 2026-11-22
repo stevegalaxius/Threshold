@@ -87,6 +87,18 @@ local function pickTarget(game, e, x, y)
 		end
 		return p
 	end
+	-- An NPC ship's drones fight its fight: whoever their owner is after,
+	-- and nobody else. (Picking the nearest ship of another team had them
+	-- going for the player, or anyone, while their owner fought someone else.)
+	local own = e.owner
+	if own and own.kind == "ship" and not own.isPlayer then
+		if own.dead or own.removed or not own.body or own.body:isDestroyed() then return nil end
+		for _, t in ipairs({ own.aiFightTarget, own.combatTarget, own.aggressor }) do
+			if t and not t.dead and not t.removed and t.body and not t.body:isDestroyed() and not t.dockState
+				and t ~= e and t.owner ~= own then return t end
+		end
+		return nil
+	end
 	-- a station's drones go for whatever the station would shoot, and
 	-- look as far as its drone bays launch at
 	local st = e.owner and e.owner.kind == "station" and e.owner
@@ -599,6 +611,7 @@ AI.trade=trade
 
 function AI.think(game, e, dt)
 	e.recoveryWeapon,e.recoveryTarget=nil,nil
+	e.aiFightTarget=nil
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
@@ -645,6 +658,7 @@ function AI.think(game, e, dt)
   target=pickTarget(game,e,x,y)
  end
  e.aiCombat=target and not target.dead
+ e.aiFightTarget=e.aiCombat and target or nil
  if record and target then require('src.npc_actions').pause({u=game.universe,game=game,r=record,e=e,clock=game.universe.clock},'combat') end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then

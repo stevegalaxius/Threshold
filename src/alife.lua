@@ -1127,9 +1127,37 @@ function A.install(Game)
   end
   bindRoute(self,e,r)
  end
+ -- Drones an online ship has out are entities of their own, not in any
+ -- record: a save, or the ship leaving the map, lost them (the launch had
+ -- already taken them from the hold). Count them back into its record:
+ -- for a save only the record (the live drones fly on), when detaching
+ -- into the hold itself, and the drones go.
+ local function stowDrones(game,e,r,detach)
+  local Hold=require('src.inventory.hold')
+  for _,d in ipairs(game.entities) do
+   if d.drone and d.owner==e and d.itemId and not d.dead and not d.removed then
+    local wear=d.stats and d.stats.armor>0 and 1-d.armor/d.stats.armor or 0
+    local s={id=d.itemId,n=1,wear=wear>0.005 and wear or nil}
+    local ship=r.ship
+    if ship.hold then
+     local h=Hold.deserialize(ship.hold)
+     local placed=Hold.placeStack(h,s)
+     if not placed then
+      -- (no free cell: onto a stack of the same drones)
+      for _,g in ipairs(h.grids) do for _,st in ipairs(g.stacks) do
+       if not placed and st.id==d.itemId and not st.inner then st.n=st.n+1;placed=true end end end
+     end
+     if placed then ship.hold=Hold.serialize(h);ship.cargo=Hold.totals(h) end
+    else ship.cargo=ship.cargo or {};ship.cargo[d.itemId]=(ship.cargo[d.itemId] or 0)+1 end
+    if detach then d.recalled=true end
+   end
+  end
+ end
  function Game:captureALife(detach)
   for id,e in pairs(self.alifeOnline or {}) do
    A.capture(self,e,detach)
+   do local r=self.universe.npcs and self.universe.npcs[id]
+    if r and r.ship and not e.dead and not e.removed then stowDrones(self,e,r,detach) end end
    local r=self.universe.npcs and self.universe.npcs[id]
    if not detach and r then
     r.savedOnline=true
