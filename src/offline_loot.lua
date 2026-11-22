@@ -36,13 +36,16 @@ local function cargoMass(hold)
  return mass
 end
 local function recipient(r)
- local hull=data.hulls[r.ship.hull]
- local actor={hull=hull,loadout=r.ship.loadout,cargo=r.ship.cargo or {},stats=Stats.compute(hull,r.ship.loadout)}
- if r.ship.hold then actor.hold=Hold.deserialize(r.ship.hold);actor.hold.climateRules=true else
-  actor.hold=Hold.new(Ship.holdLayout(actor),true)
-  for id,n in pairs(actor.cargo) do if Hold.add(actor.hold,id,n)~=n then return end end
+ if r.ship.hold then
+  local hold=Hold.deserialize(r.ship.hold)
+  hold.climateRules=true
+  return hold
  end
- return actor.hold
+ local hull=data.hulls[r.ship.hull]
+ local actor={hull=hull,loadout=r.ship.loadout,stats=Stats.compute(hull,r.ship.loadout)}
+ local hold=Hold.new(Ship.holdLayout(actor),true)
+ for id,n in pairs(r.ship.cargo or {}) do if Hold.add(hold,id,n)~=n then return end end
+ return hold
 end
 local function candidates(game,r,clock)
  local result={}
@@ -181,7 +184,11 @@ end})
 function O.find(ctx)
  local r,game=ctx.r,world(ctx)
  local prof=Scavenge.profile(r);if not prof then return end
- local dest=recipient(r);if not dest then return end
+ local sources
+ if not ctx.e then
+  sources=candidates(game,r,ctx.clock)
+  if #sources==0 then return end
+ end
  local x,y=Actions.actorPosition(ctx);if not x then return end
  local best=Scavenge.range(prof)^2;local selected
  local function consider(source)
@@ -222,9 +229,14 @@ function O.find(ctx)
    end
   end
  else
-  for _,source in ipairs(candidates(game,r,ctx.clock)) do
-   if (source.x-x)^2+(source.y-y)^2<best
-    and (canTake(game,dest,source) or clearable(prof,source) and bare(game,source)) then consider(source) end
+  local dest
+  for _,source in ipairs(sources) do
+   if (source.x-x)^2+(source.y-y)^2<best and not Actions.sinking(r,source.x,source.y)
+    and Actions.available(ctx,source) then
+    dest=dest or recipient(r)
+    if not dest then return end
+    if canTake(game,dest,source) or clearable(prof,source) and bare(game,source) then consider(source) end
+   end
   end
  end
  return selected
