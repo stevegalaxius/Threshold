@@ -187,6 +187,15 @@ local function inputPlan(u,key)
  if not plan then plan=require('src.industry').inputPlan(u,key);planning.stations[key]=plan end
  return plan
 end
+-- Materialize one station's inputs per slice before targets start reading
+-- them across the whole network. Market allocation starts a new snapshot.
+local function preparePlans(u,stations,pause)
+ planning={u=u,stations={}}
+ for _,key in ipairs(stations) do
+  inputPlan(u,key)
+  pause()
+ end
+end
 local function capacityUse(u,key,item)
  local n=item==Food.item and Food.rates(key) or 0
  for _,c in ipairs(C.byItem(item)) do n=n+(c.use[key] or 0) end
@@ -352,6 +361,7 @@ local function hubWants(u,all,pause)
     if s~=h and hubRoot(L.byId[s].area)==r then n=n+memberWant(u,s,item) end
    end
    imported[r]=n;total=total+n
+   if pause then pause() end
   end end
   for r,h in pairs(plan.hubs) do
    if imported[r] then plan.want[h][item],plan.kind[h][item]=imported[r],'import'
@@ -369,6 +379,7 @@ local function hubWants(u,all,pause)
     end
     if short>spare then plan.want[h][item],plan.kind[h][item]=short-spare,'import'
     else plan.want[h][item],plan.kind[h][item]=total,'export' end
+    if pause then pause() end
    end
   end
  end
@@ -473,12 +484,12 @@ local function run(u,clock,pause)
  -- count what's ordered or on the way; an order nobody has taken in
  -- E.expire seconds is withdrawn, to be placed again from wherever the
  -- stock is now
- local inbound,committed={},{}
+ local committed={}
  for id,o in pairs(state.offers) do
   if o.layoutScope==E.scope then
    if o.state=='available' and clock-(o.placed or clock)>E.expire then state.offers[id]=nil
    else
-    local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount
+    local k=o.target..'|'..o.item
     if o.state~='available' then committed[k]=(committed[k] or 0)+o.amount end
    end
   end
@@ -489,7 +500,7 @@ local function run(u,clock,pause)
  local inhabited=stations(true)
  require('src.industry').update(u,clock,inhabited,pause)
  pause()
- planning={u=u,stations={}}
+ preparePlans(u,inhabited,pause)
  -- (the hub plan first: hubs and customs bid on the market for the stock
  -- they hold for their systems, so factories make it)
  hubPlan=nil
@@ -498,29 +509,50 @@ local function run(u,clock,pause)
  pause()
  require('src.markets').update(u,clock,all,committed,pause)
  pause()
- planning.stations={};planning.targets=nil
+ preparePlans(u,inhabited,pause)
  -- Output bins may have filled since these orders were posted. Keep
  -- committed cargo, but release unclaimed excess rather than tying up sources.
- local remaining,availableOrders={},{}
- for id,o in pairs(state.offers) do if o.layoutScope==E.scope and o.state=='available' then availableOrders[#availableOrders+1]={id=id,o=o} end end
+ local levels,groups={},{}
+ for _,o in pairs(state.offers) do
+  if o.layoutScope==E.scope and o.state=='available' then
+   local k=o.target..'|'..o.item
+   if levels[k]==nil then
+    levels[k]=0;groups[#groups+1]={key=k,target=o.target,item=o.item}
+   end
+  end
+ end
+ table.sort(groups,function(a,b)return a.key<b.key end)
+ for i,g in ipairs(groups) do
+  if (i-1)%8==0 then pause() end
+  local producer=makes(g.target,g.item);local want=hubTarget(u,g.target,g.item,producer)
+  levels[g.key]=E.orderLevel(u,g.target,g.item,want,producer)
+ end
+ pause()
+ -- Claims, split loads and deliveries can arrive while targets are being
+ -- calculated. Apply the limits in one pass over the current freight board.
+ local remaining,availableOrders,claimed={},{},{}
+ for id,o in pairs(state.offers) do if o.layoutScope==E.scope then
+  local k=o.target..'|'..o.item
+  if levels[k]~=nil then
+   if o.state=='available' then availableOrders[#availableOrders+1]={id=id,o=o,key=k}
+   else claimed[k]=(claimed[k] or 0)+o.amount end
+  end
+ end end
  table.sort(availableOrders,function(a,b)return tostring(a.id)<tostring(b.id) end)
  for _,entry in ipairs(availableOrders) do
-  local o=entry.o;local k=o.target..'|'..o.item
+  local o,k=entry.o,entry.key
   if remaining[k]==nil then
-   -- (the same level the order was posted to, or every order a buyer
-   -- placed over twice its target was withdrawn a minute later; a fence
-   -- keeps T.fenceStock m3 of dark goods it has no target for)
-   local producer=makes(o.target,o.item);local want=hubTarget(u,o.target,o.item,producer)
-   local level=producer and want or E.orderLevel(u,o.target,o.item,want,false)
+   local level=levels[k]
    if Dark.isFence(o.target) and o.source and Dark.isDarkNode(o.source) then
     level=math.max(level,math.floor(T.fenceStock/require('src.data').items[o.item].volume))
    end
-   remaining[k]=math.max(0,level-Stock.count(u,o.target,o.item)-(committed[k] or 0))
+   remaining[k]=math.max(0,level-Stock.count(u,o.target,o.item)-(claimed[k] or 0))
   end
   local amount=math.min(o.amount,remaining[k])
   if amount<=0 then state.offers[entry.id]=nil else o.amount=amount;remaining[k]=remaining[k]-amount end
  end
- inbound={}
+ pause()
+ local inbound={}
  for _,o in pairs(state.offers) do if o.layoutScope==E.scope then
   local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount
  end end
@@ -540,8 +572,9 @@ local function run(u,clock,pause)
   for _,o in pairs(state.offers) do
    if o.item==item and o.order and o.source and not o.loaded then promised[o.source]=(promised[o.source] or 0)+(o.amount or 0) end
   end
-  for _,s in ipairs(participants) do
-   pause(true)
+  -- Cached routes and current stock can still hide costly dealer target checks.
+  for i,s in ipairs(participants) do
+   pause(i%8~=0)
    local count=Stock.count(u,s,item)
    local have=math.max(0,count-(promised[s] or 0))
    local producer=makes(s,item)
