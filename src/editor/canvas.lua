@@ -1355,17 +1355,18 @@ function Canvas.drawIconPreview(E)
 	local fw, fh = Icons.footprint(d.item, d)
 	local item = data.items[d.item] or {}
 	local c = Icons.paint(d)
-	local W, H = math.max(360,fw*64+24), fh*64+160
+	local CS = require("src.ui.station").CELL
+	local W, H = math.max(360,fw*CS+24), fh*CS+160
 	local x0, y0 = math.max(330,lg.getWidth() - W - 312), lg.getHeight() - H - 34
 	lg.setColor(0.02, 0.025, 0.035, 0.92)
 	lg.rectangle("fill", x0, y0, W, H, 4, 4)
 	lg.setColor(1, 1, 1, 0.25)
 	lg.rectangle("line", x0 + 0.5, y0 + 0.5, W - 1, H - 1, 4, 4)
 	lg.setColor(1, 1, 1, 0.6)
-	lg.print("Preview: fixed 64 px cells", x0 + 8, y0 + 6)
+	lg.print(("Preview: %d px cells (as in cargo)"):format(CS), x0 + 8, y0 + 6)
 	-- hold stacks, as the cargo screen draws them
 	local x = x0 + 8
-	for _, cs in ipairs({ 64 }) do
+	for _, cs in ipairs({ CS }) do
 		local w, h = fw * cs, fh * cs
 		if x + w > x0 + W - 8 then break end
 		lg.setColor(.035,.05,.06,1)
