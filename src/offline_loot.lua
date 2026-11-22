@@ -186,7 +186,9 @@ function O.find(ctx)
  local best=Scavenge.range(prof)^2;local selected
  local function consider(source)
   local spec=descriptor(source,ctx.r.area)
-  local target=Actions.resolve(ctx,{target=spec})
+  local target
+  if source.record and source.kind~="pickups" then target=sourceTarget(ctx,source)
+  else target=Actions.resolve(ctx,{target=spec}) end
   -- A broken-off piece can cover the centre of the wreck it came from.
   -- Recover the occluding piece first instead of claiming an unreachable core.
   if ctx.e and target and target.entity and target.entity.kind=='husk' then
@@ -221,7 +223,8 @@ function O.find(ctx)
   end
  else
   for _,source in ipairs(candidates(game,r,ctx.clock)) do
-   if canTake(game,dest,source) or clearable(prof,source) and bare(game,source) then consider(source) end
+   if (source.x-x)^2+(source.y-y)^2<best
+    and (canTake(game,dest,source) or clearable(prof,source) and bare(game,source)) then consider(source) end
   end
  end
  return selected

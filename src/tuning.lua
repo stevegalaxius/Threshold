@@ -224,6 +224,7 @@ T.alifeWakeSpeed=1
 T.alifeGateExit = 2000  -- online ships fly beyond the existing moon gate before transfer
 T.alifeSpread = 1500  -- persistent cross-track variation, fading at destinations
 T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
+T.alifeSweepBudget = 0.00075 -- wall seconds before deferring the rest of an offline batch
 T.alifeSweepStep = 1 / 120 -- offline record visits are spread over the tick in steps this long (see Game:updateALife)
 T.securityThink, T.securityRange = 0.5, 6000
 T.aiSteerEvery, T.aiClearance = 0.2, 12

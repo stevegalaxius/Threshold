@@ -26,9 +26,9 @@ function F.remaining(e)
  return (e.fuelCharge or 0)+(e.cargo[F.item()] or 0)*T.reactorFuelEnergy
 end
 local labels={normal='normal',low='low reactor fuel',empty='fuel empty; capacitor available',stranded='stranded: no reactor fuel or power'}
-function F.condition(r,e)
+function F.condition(r,e,stats)
  local ship=e or r.ship
- local stats=e and e.stats or Stats.compute(data.hulls[ship.hull],ship.loadout)
+ stats=stats or e and e.stats or Stats.compute(data.hulls[ship.hull],ship.loadout)
  local fuel=F.remaining(ship)
  local power=e and e.power or r.power or stats.powerCap
  if fuel<=1e-6 then return power<=1e-6 and 'stranded' or 'empty' end
@@ -48,9 +48,9 @@ function F.needsPropulsion(r)
  return r.state~='docked' and not r.driverState
   and not (r.state=='transit' and r.transit and r.transit.kind=='driver')
 end
-function F.observe(u,r,clock,e)
+function F.observe(u,r,clock,e,stats)
  if not r or r.state=='dead' or r.state=='escaped' or e and e.dead then return end
- local status=F.condition(r,e)
+ local status=F.condition(r,e,stats)
  local previous=r.fuelStatus
  -- Pause timed idle duties, too; a fuel stop must not complete a patrol or
  -- discard an assignment simply because its ordinary wait timer elapsed.
@@ -77,6 +77,10 @@ local function burn(e,need)
  local generated=0
  while need>1e-9 do
   if (e.fuelCharge or 0)<=1e-9 then
+   if e.recordHold and not e.hold then
+    e.hold=Hold.deserialize(e.recordHold)
+    e.cargo=Hold.totals(e.hold)
+   end
    local n=e.cargo[F.item()] or 0
    if n<1 then break end
    if e.hold and Hold.take(e.hold,F.item(),1)~=1 then break end
@@ -135,13 +139,24 @@ function F.advance(r,clock,u)
  if r.state=='docked' then return F.observe(u,r,clock) end -- dockside maintenance, no flight load
  -- Offline travel is billed at the AI's average throttle while it flies a
  -- leg (measured from live flights), not a full burn the whole way.
- local scale=F.withRecord(r,function(e,s)return F.step(e,s,seconds,moving and T.npcTravelThrottle) end)
+ local ship=r.ship
+ local stats=Stats.compute(data.hulls[ship.hull],ship.loadout)
+ -- Most steps spend only existing reactor charge. Load the cargo grid
+ -- only when burn opens a new fuel unit.
+ local actor={cargo=ship.cargo or {},fuelCharge=ship.fuelCharge,
+  recordHold=ship.hold,power=r.power or stats.powerCap}
+ local scale=F.step(actor,stats,seconds,moving and T.npcTravelThrottle)
+ ship.fuelCharge=actor.fuelCharge
+ if actor.hold then
+  ship.hold=Hold.serialize(actor.hold);ship.cargo=actor.cargo
+ end
+ r.power=actor.power
  if moving and scale<1 then
   -- Freeze abstract route progress for the time propulsion could not be powered.
   local delay=seconds*(1-scale)
   r.depart=(r.depart or clock)+delay;r.arrive=(r.arrive or clock)+delay
   if positioning and action.arriveAt and not action.pausedAt then action.started=action.started+delay;action.arriveAt=action.arriveAt+delay end
  end
- return F.observe(u,r,clock)
+ return F.observe(u,r,clock,nil,stats)
 end
 return F

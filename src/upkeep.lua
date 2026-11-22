@@ -96,13 +96,14 @@ function U.shortOfFuel(r,e,g,at,clock)
  local have=Fuel.remaining(ship)
  local full=(Supplies.targets(r,e)[Fuel.item()] or 0)*T.reactorFuelEnergy
  if have>=full then return false end
- local best
+ local stops,best={}
  for _,id in ipairs(L.stations(r.area)) do
   if Supplies.supports(id) then
-   local go=id==L.canonical(at) and {duration=0} or Graph.route(g,at,id,clock,r.speed)
-   if go and (not best or go.duration<best) then best=go.duration end
+   if id==L.canonical(at) then best=0;break end
+   stops[#stops+1]=id
   end
  end
+ best=best or Graph.nearestDuration(g,at,stops,clock,r.speed)
  if not best then
   local _,trip=U.neighbourStop(r.area,at,clock,Supplies.supports,r.speed)
   if not trip then return false end

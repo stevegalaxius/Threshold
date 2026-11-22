@@ -1131,12 +1131,22 @@ function A.install(Game)
   end
  end
 
- -- one record's offline visit (see updateALife)
+ -- Give remote records stable phases across the remote update interval.
+ local function remoteDue(game,id,r,slot)
+  local phase=game.alifeRemotePhases[r]
+  if not phase then
+   phase=0
+   for i=1,#id do phase=(phase*31+id:byte(i))%65521 end
+   game.alifeRemotePhases[r]=phase
+  end
+  return slot%game.alifeRemoteSlots==phase%game.alifeRemoteSlots
+ end
+ -- One record's offline visit (see updateALife).
  function Game:alifeVisit(id,r,clock,px,py,remote,force)
    -- (a record the map ahead has woken is that map's: src/transit.lua)
    if not self.alifeOnline[id] and not (self.sideOwns and self:sideOwns(id)) then
     local localArea=r.area==self.fieldId and not self.lane and not self.flight
-    if localArea or A.laneDirection(self,r) or remote then A.advance(r,clock,self.universe,self) end
+    if localArea or A.laneDirection(self,r) or force or remoteDue(self,id,r,remote) then A.advance(r,clock,self.universe,self) end
     local lane=A.laneSample(self,r,clock)
     local egress=A.egressSample(self,r,clock)
     localArea=r.area==self.fieldId and not self.lane and not self.flight
@@ -1158,10 +1168,17 @@ function A.install(Game)
   local px,py
   if self.player and not self.player.dead and self.player.body and not self.player.body:isDestroyed() then px,py=self.player.body:getPosition() end
   local ids,n=sweep.ids,0
+  -- A visit owns its state changes until it returns. Carry remaining visits
+  -- forward if one uses the sweep's share of the frame.
+  local deadline=not sweep.force and love.timer.getTime()+T.alifeSweepBudget
   while sweep.i<=#ids and n<count do
    local id=ids[sweep.i];sweep.i=sweep.i+1
    local r=records[id]
-   if r then n=n+1;self:alifeVisit(id,r,clock,px,py,sweep.remote,sweep.force) end
+   if r then
+    n=n+1
+    self:alifeVisit(id,r,clock,px,py,sweep.remote,sweep.force)
+    if deadline and love.timer.getTime()>=deadline then break end
+   end
   end
   if sweep.i>#ids then self.alifeSweep=nil end
  end
@@ -1286,14 +1303,20 @@ function A.install(Game)
   -- track, and woken if it has come near. Hundreds of records all at once
   -- made one step in every 60 a long one, a visible hitch, so the visits
   -- are spread over the steps until the next tick. (force: all now.)
-  local remoteDue=force or clock>=(self.alifeRemoteNext or 0)
+  self.alifeRemotePhases=self.alifeRemotePhases or setmetatable({},{__mode="k"})
+  self.alifeRemoteSlots=math.max(1,math.floor(T.alifeRemoteTick/T.alifeLocalTick+.5))
   local sweep=self.alifeSweep
-  if sweep then self:alifeSweepStep(math.huge) end -- finish the last one first
+  if sweep then
+   if not force then return end -- the regular step handler drains any backlog
+   self.alifeSweep=nil -- a forced sweep visits the current records below
+  end
   local ids={}
   for id in pairs(records) do ids[#ids+1]=id end
-  self.alifeSweep={ids=ids,i=1,remote=remoteDue,force=force,per=force and math.huge or math.max(1,math.ceil(#ids*T.alifeSweepStep/T.alifeLocalTick))}
+  self.alifeRemoteSlot=(self.alifeRemoteSlot or 0)+1
+  -- Leave room in the tick for slices interrupted by the time budget.
+  local per=math.max(1,math.ceil(#ids*T.alifeSweepStep/(T.alifeLocalTick*.75)))
+  self.alifeSweep={ids=ids,i=1,remote=self.alifeRemoteSlot,force=force,per=force and math.huge or per}
   self:alifeSweepStep(self.alifeSweep.per)
-  if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end
 require('src.ship_delivery')   -- ship haulers: their population and task

@@ -319,9 +319,10 @@ function G.neighbours(graph,id,clock)
  return result
 end
 
-function G.route(graph,from,to,clock,speed,exact)
+local function searchRoute(graph,from,to,clock,speed,exact,nearest)
  assert(speed==nil or speed>0,'travel speed must be positive')
- local starts, goals=graph.destinations[from],graph.destinations[to]
+ local starts=graph.destinations[from]
+ local goals=nearest and to or graph.destinations[to]
  if exact and starts and goals then starts,goals={from},{to} end
  if not starts or not goals then return nil,'destination is outside this local graph' end
  local s=snapshot(graph,clock)
@@ -354,14 +355,30 @@ function G.route(graph,from,to,clock,speed,exact)
     and (not L.get(edge.to).radial or goalSet[edge.to]) then
     local nextCost=cost+legLength(graph,s,edge)/(speed or 600)
     if not dist[edge.to] or nextCost<dist[edge.to] then
-     dist[edge.to]=nextCost; prev[edge.to]={edge=edge,duration=nextCost-cost}
+     dist[edge.to]=nextCost
+     if not nearest then prev[edge.to]={edge=edge,duration=nextCost-cost} end
     end
    end
   end
  end
+ if nearest then return dist[finish] end
  local legs,at={},finish
  while prev[at] do table.insert(legs,1,prev[at]); at=prev[at].edge.from end
  return {from=from,to=to,start=at,finish=finish,legs=legs,duration=dist[finish],plannedAt=clock,through=through or nil}
+end
+
+function G.route(graph,from,to,clock,speed,exact)
+ return searchRoute(graph,from,to,clock,speed,exact)
+end
+
+-- A single search to the first reachable destination, for range estimates.
+function G.nearestDuration(graph,from,destinations,clock,speed)
+ local goals={}
+ for _,to in ipairs(destinations) do
+  for _,id in ipairs(graph.destinations[to] or {}) do goals[#goals+1]=id end
+ end
+ if #goals==0 then return end
+ return searchRoute(graph,from,goals,clock,speed,false,true)
 end
 
 local function samplePoint(graph,route,elapsed,clock)
