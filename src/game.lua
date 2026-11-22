@@ -1187,10 +1187,12 @@ function Game:updateRotors()
 	local ladder = self.ladder
 	if ladder then
 		local a = (ladder.spin * clock) % (pi * 2)
+		local c, s = cos(a), sin(a)
+		local x = ladder.cx - (ladder.cx * c - ladder.cy * s)
+		local y = ladder.cy - (ladder.cx * s + ladder.cy * c)
 		for _, e in ipairs(ladder.segments) do
 			if not e.removed then
-				e.body:setPosition(ladder.cx - (ladder.cx * cos(a) - ladder.cy * sin(a)), ladder.cy - (ladder.cx * sin(a) + ladder.cy * cos(a)))
-				e.body:setAngle(a)
+				e.body:setTransform(x, y, a)
 				e.body:setAngularVelocity(ladder.spin)
 			end
 		end

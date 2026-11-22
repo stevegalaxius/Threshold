@@ -32,6 +32,7 @@ local autotest
 local lastIntent = { aimX = 0, aimY = 0 }
 local camAimX, camAimY, camAimHeld  -- what the camera leads toward (see love.update)
 
+local PerfSnap = require("src.perfsnap")
 local Pose = require("src.render_pose")
 
 function love.load(args)
@@ -216,7 +217,6 @@ function love.draw()
 	if game.state ~= "docked" then Orrery.draw(game) end
 	Pause.draw(game)
 	Debug.draw()
-	require("src.perfsnap").afterDraw(game)
 end
 
 local function relaunch()
@@ -239,7 +239,7 @@ function love.keypressed(key)
 	if LocalMap.isOpen(game) and LocalMap.keypressed(game, key) then return end
 	if Orrery.keypressed(game, key) then return end
 	if LocalMap.keypressed(game, key) then return end
-	if key == "f8" then require("src.perfsnap").snap(); return end
+	if key == "f8" then PerfSnap.snap(game); return end
 	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
@@ -298,10 +298,11 @@ end
 do
 	local update, draw = love.update, love.draw
 	function love.update(dt)
-	Pose.beginFrame()
 		if Intro.blocking() then Intro.update(math.min(dt, 1 / 15)) return end
+		local start = PerfSnap.profiling and love.timer.getTime()
 		update(dt)
 		Intro.update(math.min(dt, 1 / 15))
+		if start then PerfSnap.updated(start) end
 	end
 	function love.draw()
 		if Intro.blocking() then Intro.draw() return end
@@ -318,7 +319,36 @@ end
 do
 	local draw = love.draw
 	function love.draw()
+		local start = PerfSnap.profiling and love.timer.getTime()
 		draw()
 		local P = require("src.profiler"); P.frame(); P.draw()
+		if start then PerfSnap.afterDraw(game, start) end
+	end
+end
+
+-- LÖVE 11.5 sleeps after present even when VSync already paces the window.
+-- At 144 Hz that extra millisecond consumes part of the next 6.94 ms frame.
+function love.run()
+	if love.load then love.load(love.arg.parseGameArguments(arg), arg) end
+	love.timer.step()
+	return function()
+		love.event.pump()
+		for name, a, b, c, d, e, f in love.event.poll() do
+			if name == "quit" and (not love.quit or not love.quit()) then return a or 0 end
+			love.handlers[name](a, b, c, d, e, f)
+		end
+		love.update(love.timer.step())
+		local active = love.graphics.isActive()
+		if active then
+			love.graphics.origin()
+			love.graphics.clear(love.graphics.getBackgroundColor())
+			love.draw()
+			local start = PerfSnap.profiling and love.timer.getTime()
+			love.graphics.present()
+			if start then PerfSnap.presented(start) end
+		end
+		if not active or not love.window.hasFocus() or love.window.getVSync() == 0 then
+			love.timer.sleep(0.001)
+		end
 	end
 end
