@@ -1165,19 +1165,23 @@ function A.install(Game)
   end
   if sweep.i>#ids then self.alifeSweep=nil end
  end
- function Game:updateALife(force)
+ function Game:updateALife(force,sample)
   if self.preview then return end
   self.alifeActiveArea=self.fieldId
   self.alifeOnline=self.alifeOnline or {}
   local clock=self.universe.clock
   if not force and clock<(self.alifeNext or 0) then
+   local started=sample and love.timer.getTime()
    if self.alifeSweep then self:alifeSweepStep(self.alifeSweep.per) end
+   if sample then sample.npc_sweep=(love.timer.getTime()-started)*1000;started=love.timer.getTime() end
    -- the economy's minute update, a piece a step (src/economy.lua)
    if not self.sideScene then require('src.economy').pump(self.universe) end
+   if sample then sample.economy_pump=(love.timer.getTime()-started)*1000;started=love.timer.getTime() end
    -- shared background work, a little a step (src/director.lua)
    if not self.sideScene then require('src.director').update(self.universe);require('src.satellites').tick(self.universe);require('src.stalls').tick(self.universe,self);require('src.berth_rent').tick(self.universe,self) end
+   if sample then sample.station_maintenance=(love.timer.getTime()-started)*1000 end
    -- the rest of this tick's chores, one a step
-   if self.alifeStage then self:alifeChore(clock) end
+   if self.alifeStage then self:alifeChore(clock,false,sample) end
    return
   end
   self.alifeNext=clock+T.alifeLocalTick
@@ -1188,11 +1192,23 @@ function A.install(Game)
   -- a step of its own, the tick's step first. (force: all now.)
   self.alifeStage=1
   if force then while self.alifeStage do self:alifeChore(clock,true) end
-  else self:alifeChore(clock) end
+  else self:alifeChore(clock,false,sample) end
  end
- function Game:alifeChore(clock,force)
+ function Game:alifeChore(clock,force,sample)
   local stage=self.alifeStage
-  self.alifeStage=stage<5 and stage+1 or nil
+  self.alifeStage=stage<7 and stage+1 or nil
+  if sample then sample.alife_stage=stage end
+  if stage==7 then require("src.simulation_history").update(self);return end
+  if stage==6 then
+   local px,py
+   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
+   Encounters.syncOnline(self)
+   Encounters.update(self,clock)
+   require('src.squads').update(self,clock)
+   require('src.wildcats').tick(self,clock)
+   Encounters.materialize(self,px,py,clock)
+   return
+  end
   if stage==1 then Mining.update(self) return end
   if stage==2 then Population.update(self,clock) return end
   if stage==3 then
@@ -1277,12 +1293,6 @@ function A.install(Game)
   for id in pairs(records) do ids[#ids+1]=id end
   self.alifeSweep={ids=ids,i=1,remote=remoteDue,force=force,per=force and math.huge or math.max(1,math.ceil(#ids*T.alifeSweepStep/T.alifeLocalTick))}
   self:alifeSweepStep(self.alifeSweep.per)
-  Encounters.syncOnline(self)
-  Encounters.update(self,clock)
-  require('src.squads').update(self,clock)
-  require('src.wildcats').tick(self,clock)
-  Encounters.materialize(self,px,py,clock)
-  require("src.simulation_history").update(self)
   if clock>=(self.alifeRemoteNext or 0) then self.alifeRemoteNext=clock+T.alifeRemoteTick end
  end
 end

@@ -3,18 +3,18 @@ local S = {}
 local sections = { "ships_and_station_guns", "sleepers", "alife", "navigation_and_world",
 	"box2d", "exhaust", "contacts_and_cleanup", "side_scenes", "flight", "remainder" }
 
--- Asked for from a key press. For the next two seconds LuaJIT's sampling
+-- Asked for from a key press. During capture LuaJIT's sampling
 -- profiler records where the time goes (the "hot:" line, by source line,
 -- percent of samples); the snapshot is then taken at the end of a draw so
 -- the draw-call numbers are that frame's, not an empty one's.
-local PROFILE_SECONDS = 2
-function S.snap(game)
+function S.snap(game, extended)
 	if S.profiling then return end
 	local ok, prof = pcall(require, "jit.profile")
 	S.samples, S.total = {}, 0
 	S.frames = {}
 	S.previous = nil
-	game:toast("Sampling frame times for 2 seconds", 2)
+	S.seconds = extended and 15 or 2
+	game:toast(("Sampling frame times for %d seconds"):format(S.seconds), 2)
 	if ok then
 		prof.start("li1", function(thread, n)
 			local key = prof.dumpstack(thread, "pl", 1)
@@ -57,7 +57,7 @@ end
 function S.afterDraw(game, start)
 	local now = love.timer.getTime()
 	if S.previous then S.previous.draw = (now - start) * 1000 end
-	if now - S.profiling < PROFILE_SECONDS then return end
+	if now - S.profiling < S.seconds then return end
 	S.profiling = nil
 	if S.prof then S.prof.stop(); S.prof = nil end
 	local st = love.graphics.getStats()
@@ -75,7 +75,7 @@ function S.afterDraw(game, start)
 	line = line .. ("  field=%s sleepers=%d entities=%d canvases=%d images=%d texMB=%.1f f7=%s\n"):format(
 		game.fieldId or "?", #(game.sleepers or {}), #game.entities, st.canvases, st.images,
 		st.texturememory / 2 ^ 20, tostring(require("src.profiler").on))
-	local trace = { line, "frame_ms,update_ms,draw_ms,present_ms,other_ms,raw_dt_ms,loop_accumulator_ms,step_count,step_total_ms,update_outside_steps_ms,step_times_ms," .. table.concat(sections, "_ms,") .. "_ms" }
+	local trace = { line, "alife_stage: 0=none 1=mining 2=population 3=board 4=economy/quests/news 5=NPC synchronization 6=encounters/squads/wildcats 7=history", "frame_ms,update_ms,draw_ms,present_ms,other_ms,raw_dt_ms,loop_accumulator_ms,step_count,step_total_ms,update_outside_steps_ms,step_times_ms," .. table.concat(sections, "_ms,") .. "_ms,npc_sweep_ms,economy_pump_ms,station_maintenance_ms,alife_stage" }
 	local intervals = {}
 	for i, f in ipairs(S.frames) do
 		intervals[i] = f.frame
@@ -94,6 +94,15 @@ function S.afterDraw(game, start)
 					elapsed = sample.total - ((sample.last or sample.start) - sample.start) * 1000
 				end
 				values[j] = ("%.3f"):format(elapsed)
+			end
+			columns[#columns + 1] = table.concat(values, " ")
+		end
+		-- These are nested within alife_ms. The stage identifies the work
+		-- remaining after the sweep, economy and station maintenance.
+		for _, field in ipairs({"npc_sweep","economy_pump","station_maintenance","alife_stage"}) do
+			local values = {}
+			for j, sample in ipairs(f.steps) do
+				values[j] = (field == "alife_stage" and "%d" or "%.3f"):format(sample[field] or 0)
 			end
 			columns[#columns + 1] = table.concat(values, " ")
 		end

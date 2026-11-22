@@ -2123,7 +2123,7 @@ function Game:step(dt, sample)
 	if self.flight then
 		self:updateFlight(dt)
 		if sample then markStep(sample, "flight") end
-		self:updateALife()
+		self:updateALife(nil,sample)
 		if sample then markStep(sample, "alife") end
 		return
 	end
@@ -2176,7 +2176,7 @@ function Game:step(dt, sample)
 	if sample then markStep(sample, "ships_and_station_guns") end
 	self:updateSleepers()
 	if sample then markStep(sample, "sleepers") end
-	self:updateALife()
+	self:updateALife(nil,sample)
 	if sample then markStep(sample, "alife") end
 	self:applyBoundary()
 	self:applyCurrent(dt)

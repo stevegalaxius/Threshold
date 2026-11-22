@@ -245,7 +245,7 @@ function love.keypressed(key)
 	if LocalMap.isOpen(game) and LocalMap.keypressed(game, key) then return end
 	if Orrery.keypressed(game, key) then return end
 	if LocalMap.keypressed(game, key) then return end
-	if key == "f8" then PerfSnap.snap(game); return end
+	if key == "f8" then PerfSnap.snap(game, love.keyboard.isDown("lshift", "rshift")); return end
 	if Cargo.keypressed(game, key) then return end
 	if game.state == "docked" and (key == "e" or key == "return" or key == "kpenter") then game:undock(); return end
 	if key == "escape" then Pause.toggle(game)
