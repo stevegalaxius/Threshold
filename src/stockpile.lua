@@ -257,10 +257,13 @@ function S.flow(u,key,i,m)
    for _,c in ipairs(C.list) do
     -- (only the recipes this station runs: asking how hard it runs each
     -- of the others was most of the cost of catching a station up)
-    local rate=C.rate(c,key)
+    -- Ship assembly and consumption have separate executors. Scaling a
+    -- ship recipe here would select a hull and plan parking just to skip it.
+    local rate=0
+    if not c.stockless and not c.consumption then rate=C.rate(c,key) end
     if rate~=0 then rate=rate*I.scale(u,key,c) end
     if rate>0 and not c.foodIndependent then rate=rate*Food.output(u,key) end
-    if rate~=0 and not c.stockless and not c.consumption then
+    if rate~=0 then
      local shop=shops[S.shopFor(key,c.item)];shop.recipes=shop.recipes or {}
      local progress=shop.recipes[c.id] or {carry=0};shop.recipes[c.id]=progress
      local requested=math.floor((progress.carry or 0)+math.abs(rate)*dt/3600/(c.time or 1)+1e-9)
