@@ -59,6 +59,7 @@ for _,kind in ipairs({'patrol','raid'}) do
   requires={capabilities={'armed'}},
   docks=function(r,id) return kind=='patrol' and r.task.dock and L.canonical(id)==L.canonical(r.task.target) end,
   stay=function(r) return r.task.duration or T.patrolInspect end,
+  localPickup=true,
   eligible=function(u,r,o,node,clock)
    -- A multi-buoy raid should travel, rather than reserve a minute of waiting
    -- at its current buoy. Driver-only regions still have a holding duty.

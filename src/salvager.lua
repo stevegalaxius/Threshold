@@ -110,6 +110,7 @@ Tasks.register('salvage',{
   end
   if done then S.returnRecord(game,r,false) end
  end,
+ localPickup=true,
  eligible=function(u,r,o,node)
   -- (salvage is taken where it's posted: most of a long board ends here)
   if node~=o.source then return false end

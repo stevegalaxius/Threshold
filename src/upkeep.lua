@@ -91,7 +91,7 @@ function U.shortOfFuel(r,e,g,at,clock)
  local ship=e or r.ship
  local hull=e and e.hull or require('src.data').hulls[ship.hull]
  if not hull then return false end
- local s=e and e.stats or require('src.stats').compute(hull,ship.loadout)
+ local s=e and e.stats or require('src.stats').fitted(hull,ship.loadout)
  if (s.powerOut or 0)<=0 then return false end
  local have=Fuel.remaining(ship)
  local full=(Supplies.targets(r,e)[Fuel.item()] or 0)*T.reactorFuelEnergy

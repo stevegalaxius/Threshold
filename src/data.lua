@@ -184,6 +184,9 @@ local function register(category, kind, def)
 	if not data[category][def.id] then table.insert(data.list[category], def.id) end
 	def.source = currentFile
 	data[category][def.id] = def
+	if category == "hulls" or category == "modules" or category == "items" then
+		data.fittingRevision = (data.fittingRevision or 0) + 1
+	end
 	return def
 end
 

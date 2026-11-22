@@ -55,6 +55,30 @@ function stats.compute(hull, loadout)
 	return s
 end
 
+-- Offline fuel, repair and supply decisions read the same fitted stats.
+-- Keep these read-only values separate from mutable live ship stats.
+local fittings = setmetatable({}, { __mode = "k" })
+local emptyLoadout = {}
+function stats.fitted(hull, loadout)
+	loadout = loadout or emptyLoadout
+	local entry = fittings[loadout]
+	if entry and entry.hull == hull and entry.slots == #hull.slots and entry.revision == data.fittingRevision then
+		local unchanged = true
+		for i = 1, entry.slots do
+			if entry.modules[i] ~= loadout[i] then
+				unchanged = false
+				break
+			end
+		end
+		if unchanged then return entry.stats end
+	end
+	local modules = {}
+	for i = 1, #hull.slots do modules[i] = loadout[i] end
+	local result = stats.compute(hull, loadout)
+	fittings[loadout] = { hull = hull, slots = #hull.slots, modules = modules, stats = result, revision = data.fittingRevision }
+	return result
+end
+
 -- Mass and volume of what's in a hold.
 function stats.cargo(cargo)
 	local volume, mass = 0, 0

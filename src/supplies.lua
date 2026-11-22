@@ -30,23 +30,34 @@ function S.supports(node)
  local place=node and L.byId[node]
  return place and place.kind=='station' and L.stationServices(node).market or false
 end
-local profiles={}
+local copy=require('src.persistence').copy
+-- Cargo and fitting tables may be edited in place or replaced on capture.
+local function same(a,b)
+ if a==b then return true end
+ if a then for k,v in pairs(a) do if not b or b[k]~=v then return false end end end
+ if b then for k in pairs(b) do if not a or a[k]==nil then return false end end end
+ return true
+end
+
+local profiles=setmetatable({}, {__mode='k'})
 function S.targets(r,e)
  local ship=r.ship;local hull=e and e.hull or data.hulls[ship.hull]
  local loadout=e and e.loadout or ship.loadout or hull.loadout
- local key=(r.aiProfile or r.archetype or '')..':'..#data.list.items
- for i=1,#hull.slots do key=key..'/'..tostring(loadout[i])..':'..tostring((e and e.loads or ship.loads or {})[i]) end
- -- an explicit reserve (a garrison's enemy preset) wins; everyone else
- -- carries what its own guns need
- local preset=r.archetype and data.enemies[r.archetype] or {}
- local reserve=r.ammoReserve or preset.ammoReserve
- if not reserve and profiles[key] then return profiles[key] end
+ local loads=e and e.loads or ship.loads
+ local fitting=Stats.fitted(hull,loadout)
+ local powerOut=e and e.stats and e.stats.powerOut or fitting.powerOut
+ local preset=r.archetype and data.enemies[r.archetype]
+ local reserve=r.ammoReserve or preset and preset.ammoReserve
+ local defaults=preset and preset.cargo
+ local entry=profiles[r]
+ if entry and entry.fitting==fitting and entry.powerOut==powerOut and entry.itemCount==#data.list.items
+  and same(entry.loads,loads) and same(entry.reserve,reserve) and same(entry.defaults,defaults) then return entry.targets end
  local rates,targets,salvo={},{},{}
  for index,id in pairs(loadout) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w and w.kind~='laser' and w.kind~='drill' then
    local ammo=data.ammoFor(m)
-   local pick=(e and e.loads or ship.loads or {})[index]
+   local pick=loads and loads[index]
    if pick then for _,option in ipairs(data.ammoOptions(m)) do if option==pick then ammo=pick;break end end end
    if ammo then rates[ammo]=(rates[ammo] or 0)+(w.fireRate or 1) end
    if ammo and w.capacity then
@@ -57,21 +68,21 @@ function S.targets(r,e)
   if m and m.flares then rates.flare=1 end
  end
  for id,rate in pairs(rates) do
-  local amount=reserve and reserve[id] or preset.cargo and preset.cargo[id]
+  local amount=reserve and reserve[id] or defaults and defaults[id]
   local fallback=math.ceil(rate*T.npcAmmoSeconds)
   -- guided munitions fire in salvos: carry a few magazines, not 30 s of
   -- continuous fire (75 medium missiles a rack)
   if salvo[id] then fallback=math.min(fallback,salvo[id]*T.npcMissileSalvos) end
   targets[id]=math.max(0,amount or math.max(data.items[id].stack or 1,fallback))
  end
- local stats=e and e.stats or Stats.compute(hull,loadout)
- if stats.powerOut>0 then targets[Fuel.item()]=math.max(1,math.ceil(stats.powerOut*T.reactorFuelReserveSeconds/T.reactorFuelEnergy)) end
- if not reserve then profiles[key]=targets end
+ if powerOut>0 then targets[Fuel.item()]=math.max(1,math.ceil(powerOut*T.reactorFuelReserveSeconds/T.reactorFuelEnergy)) end
+ profiles[r]={fitting=fitting,powerOut=powerOut,itemCount=#data.list.items,loads=copy(loads),
+  reserve=copy(reserve),defaults=copy(defaults),targets=targets}
  return targets
 end
 local function room(r,e,h,id)
  if h then return Hold.room(h,id,1,{pristine=true}) end
- local stats=e and e.stats or Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
+ local stats=e and e.stats or Stats.fitted(data.hulls[r.ship.hull],r.ship.loadout)
  local cargo=e and e.cargo or r.ship.cargo or {};local used=0
  for item,n in pairs(cargo) do used=used+data.items[item].volume*n end
  return math.max(0,math.floor((stats.hold-used)/data.items[id].volume+.000001))
@@ -173,7 +184,6 @@ function S.provision(r)
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
  return n
 end
-local copy=require('src.persistence').copy
 function S.refill(r,node,u,e)
  if not S.supports(node) then return 0 end
  u=u or S.universe
@@ -191,14 +201,6 @@ function S.refill(r,node,u,e)
  local n,retry,creditLimited=fill(r,nil,h,r.ship.cargo,u,u and L.canonical(node))
  if h and n>0 then r.ship.hold=Hold.serialize(h) end
  return n,retry,creditLimited
-end
-
--- Cargo and fitting tables may be edited in place or replaced on capture.
-local function same(a,b)
- if a==b then return true end
- if a then for k,v in pairs(a) do if not b or b[k]~=v then return false end end end
- if b then for k in pairs(b) do if not a or a[k]==nil then return false end end end
- return true
 end
 
 function S.docked(r,node,u,e)

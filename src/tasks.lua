@@ -33,12 +33,19 @@ local function indexOffer(index,o,id)
   freight[system][id]=o
   return
  end
- local bucket=index.kinds[o.kind]
- if not bucket then bucket={};index.kinds[o.kind]=bucket end
+ local kinds=index.kinds
+ local def=Tasks.definitions[o.kind]
+ if def and def.localPickup and o.source then
+  local station=Locations.canonical(o.source)
+  kinds=index.byStation[station]
+  if not kinds then kinds={};index.byStation[station]=kinds end
+ end
+ local bucket=kinds[o.kind]
+ if not bucket then bucket={};kinds[o.kind]=bucket end
  bucket[id]=o
 end
 local function buildSearchIndex(offers)
- local index={kinds={},freight={}}
+ local index={kinds={},freight={},byStation={}}
  for id,o in pairs(offers) do indexOffer(index,o,id) end
  searchIndexes[offers]=index
  return index
@@ -205,18 +212,23 @@ function Tasks.choose(u,r,station,clock)
    else rejectedFreight[r][entry.id]=true end
   end
  end
- for kind,bucket in pairs(index.kinds) do
-  local def=Tasks.definitions[kind]
-  if def and Access.eligible(r,def,capabilities) and (Work.weight(r,kind) or 1)>0 then
-   for id,o in pairs(bucket) do
-    if available(u,offers,id,o,clock)
-     and Access.eligible(r,o,capabilities) and def.eligible(u,r,o,station,clock) then
-     if ranks[kind]==nil then ranks[kind]=Work.rank(r,kind) end
-     list[#list+1]={o=o,preference=ranks[kind],v=def.score and def.score(u,r,o,station,clock) or 0}
+ local function collect(kinds)
+  if not kinds then return end
+  for kind,bucket in pairs(kinds) do
+   local def=Tasks.definitions[kind]
+   if def and Access.eligible(r,def,capabilities) and (Work.weight(r,kind) or 1)>0 then
+    for id,o in pairs(bucket) do
+     if available(u,offers,id,o,clock)
+      and Access.eligible(r,o,capabilities) and def.eligible(u,r,o,station,clock) then
+      if ranks[kind]==nil then ranks[kind]=Work.rank(r,kind) end
+      list[#list+1]={o=o,preference=ranks[kind],v=def.score and def.score(u,r,o,station,clock) or 0}
+     end
     end
    end
   end
  end
+ collect(index.kinds)
+ collect(index.byStation[Locations.canonical(station)])
  if opened then Transport.endScan() end
  table.sort(list,function(a,b)
   if a.preference~=b.preference then return a.preference>b.preference end

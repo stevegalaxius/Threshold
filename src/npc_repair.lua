@@ -15,7 +15,7 @@ function R.supports(node)
  if not place or place.kind~='station' then return false end
  return L.stationServices(node).repair or false
 end
-function R.maximum(r) return Stats.compute(data.hulls[r.ship.hull],r.ship.loadout).armor end
+function R.maximum(r) return Stats.fitted(data.hulls[r.ship.hull],r.ship.loadout).armor end
 function R.needs(r,armor,maximum)
  maximum=maximum or R.maximum(r)
  return (armor or r.ship.armor or maximum)<maximum*T.npcRepairThreshold

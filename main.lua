@@ -6,6 +6,12 @@
 	at any frame rate; drawing happens once per frame.
 ]]
 
+-- A busy simulation fills LuaJIT's default trace cache and recompiles hot
+-- paths after each flush. Both limits are ceilings, allocated as needed.
+if jit and jit.status() then
+	require("jit.opt").start("maxtrace=16384", "maxmcode=32768")
+end
+
 io.stdout:setvbuf("no")  -- print() shows up immediately in the console
 love.graphics.setDefaultFilter("nearest", "nearest")
 

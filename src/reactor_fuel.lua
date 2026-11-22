@@ -16,7 +16,7 @@ function F.initialize(ship)
   n=Hold.add(ship.hold,F.item(),n)
   ship.cargo=Hold.totals(ship.hold)
  else
-  local s=Stats.compute(type(ship.hull)=='table' and ship.hull or data.hulls[ship.hull],ship.loadout)
+  local s=Stats.fitted(type(ship.hull)=='table' and ship.hull or data.hulls[ship.hull],ship.loadout)
   local volume=Stats.cargo(ship.cargo)
   n=math.min(n,math.max(0,math.floor((s.hold-volume)/data.items[F.item()].volume)))
   ship.cargo[F.item()]=(ship.cargo[F.item()] or 0)+n
@@ -28,7 +28,7 @@ end
 local labels={normal='normal',low='low reactor fuel',empty='fuel empty; capacitor available',stranded='stranded: no reactor fuel or power'}
 function F.condition(r,e,stats)
  local ship=e or r.ship
- stats=stats or e and e.stats or Stats.compute(data.hulls[ship.hull],ship.loadout)
+ stats=stats or e and e.stats or Stats.fitted(data.hulls[ship.hull],ship.loadout)
  local fuel=F.remaining(ship)
  local power=e and e.power or r.power or stats.powerCap
  if fuel<=1e-6 then return power<=1e-6 and 'stranded' or 'empty' end
@@ -140,7 +140,7 @@ function F.advance(r,clock,u)
  -- Offline travel is billed at the AI's average throttle while it flies a
  -- leg (measured from live flights), not a full burn the whole way.
  local ship=r.ship
- local stats=Stats.compute(data.hulls[ship.hull],ship.loadout)
+ local stats=Stats.fitted(data.hulls[ship.hull],ship.loadout)
  -- Most steps spend only existing reactor charge. Load the cargo grid
  -- only when burn opens a new fuel unit.
  local actor={cargo=ship.cargo or {},fuelCharge=ship.fuelCharge,

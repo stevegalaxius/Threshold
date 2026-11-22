@@ -79,6 +79,7 @@ Tasks.register(kind,{
  -- at the satellite (nextAction)
  docks=function() return false end,
  stay=function() return J.stay end,
+ localPickup=true,
  eligible=function(u,r,o,node)
   local s=u.satellites and u.satellites[o.sat]
   if J.playerHolds(u,kind,o.sat) then return false end

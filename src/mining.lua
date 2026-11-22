@@ -24,6 +24,7 @@ function M.sellRare(u,r,node,cargo) return require('src.prospect').sell(u,r,node
 Tasks.register('mine',{
  requires={capabilities={'cargo','drill'}},
  docks=function(r,id) return L.canonical(id)==L.canonical(r.task.source) end,
+ localPickup=true,
  eligible=function(u,r,o,node)
   if o.source~=node or not M.state(u).sites[o.target] then return false end
   if r.ship.hold then return Hold.room(Hold.deserialize(r.ship.hold),o.item,1)>0 end
