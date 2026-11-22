@@ -58,7 +58,7 @@ recipe('flare',60,1,1,nil,nil,'pyrotechnics')
 recipe('shot_s',64,1,1);recipe('shot_m',32,2,1);recipe('shot_l',24,4,2)
 -- Guided ammunition: electronics, steel casing and explosive warheads.
 recipe('missile_s',40,1,1,1,1);recipe('missile_m',20,2,2,1,1);recipe('missile_l',12,4,4,2,2)
-recipe('torp_s',4,4,8,2,2);recipe('torp_m',2,6,12,3,3);recipe('torp_l',1,8,16,4,4)
+recipe('torp_s',4,1,2,1,2);recipe('torp_m',2,2,3,1,3);recipe('torp_l',1,2,3,2,4)
 -- Drones: mostly electronics in a steel frame, no warhead.
 recipe('drone_s',4,2,0,2,2,'drones');recipe('drone_m',2,3,0,3,3,'drones');recipe('drone_l',1,4,0,4,4,'drones')
 -- Hull patch kits: steel and an acid-cured sealant, made at the munitions
