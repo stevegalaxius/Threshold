@@ -28,6 +28,8 @@
 	What it flags
 	  pool over 100%     a facility can't make what's asked of it
 	  no source          something is used that nothing makes or mines
+	  start              a new game opens with a good short of its target
+	                     (--econmodel only: a new world opens at equilibrium)
 	  input short        a recipe's inputs exceed what can be made of them
 	  fleet load         hold-hours an hour the lanes need, vs the fleet
 	  freight share      freight pay per unit against the good's price:
@@ -140,6 +142,9 @@ function M.build(opts)
      pool.recipes[r]={outs=outs,ins=ins,made=0}
      for item,n in pairs(outs) do
       local g=good(item);g.capacity=g.capacity+inst.capacity*n
+      -- what the cheapest way to make a unit costs in inputs at list price
+      local cost=0;for input,k in pairs(ins) do cost=cost+k/n*((data.items[input] or {}).price or 0) end
+      if next(ins) and (not g.recipeCost or cost<g.recipeCost) then g.recipeCost=cost end
       makersOf[item]=makersOf[item] or {}
       table.insert(makersOf[item],{pool=pool,recipe=r,per=n})
      end
@@ -174,6 +179,20 @@ function M.build(opts)
    for item,n in pairs(items) do if item~=Food.item then demand(st,item,n,'service') end end
   end
  end
+ -- canister return (src/supplies.lua): fuel sold at a station leaves its
+ -- empties there, on offer to the fillers like a mine's output
+ local returned={};local Tn=require('src.tuning')
+ do
+  local fuel=require('src.reactor_fuel').item()
+  local src=opts.live and opts.universe and nil or (base and base.service)
+  if opts.live and opts.universe then
+   for id,p in pairs(L.byId) do if p.kind=='station' and not p.accessOf then
+    local n=E.serviceRate(opts.universe,id,fuel);if n>0.01 then returned[id]=n*Tn.canisterReturn end
+   end end
+  elseif src then
+   for st,items in pairs(src) do if (items[fuel] or 0)>0 then returned[st]=items[fuel]*Tn.canisterReturn end end
+  end
+ end
  -- ships sold: each assembly hall's share of its hulls' sales
  local shipDemand={}
  if base then for hull,n in pairs(base.ships or {}) do shipDemand[hull]=n end end
@@ -206,12 +225,20 @@ function M.build(opts)
  -- at the maker. Mined goods (the baseline) cover what they can first,
  -- nearest first the same way. Cycles stop after enough rounds.
  local Wsys=function(st) return station(st).system end
+ -- the dark grids are a closed economy: a dark station serves only dark
+ -- stations and a white one only white (src/dark.lua)
+ local Dark=require('src.dark')
+ local function side(st) return Dark.isDarkNode(st) end
  local spare={}   -- maker -> units of output it can still make
  for item,list in pairs(makersOf) do for _,mk in ipairs(list) do spare[mk]=mk.pool.capacity*mk.per end end
  local mines={}   -- item -> { station -> units an hour left }
  if base then for st,items in pairs(base.minedAt or {}) do for item,n in pairs(items) do
   mines[item]=mines[item] or {};mines[item][st]=n;good(item).external=(good(item).external or 0)+n
  end end end
+ for st,n in pairs(returned) do
+  local item=Tn.canisterEmpty
+  mines[item]=mines[item] or {};mines[item][st]=(mines[item][st] or 0)+n;good(item).external=(good(item).external or 0)+n
+ end
  -- Fixed plants (policy 'fixed') run at their rated pace whatever anyone
  -- wants, until their own storage fills: shipworks welding frames, the
  -- wells, the farms. Their output is on offer like a mine's, and their
@@ -241,7 +268,7 @@ function M.build(opts)
   if mm then
    for pass=1,2 do for st,have in pairs(mm) do
     if left<=0 then break end
-    if have>0 and (pass==2 or Wsys(st)==Wsys(taker)) then
+    if have>0 and side(st)==side(taker) and (pass==2 or Wsys(st)==Wsys(taker)) then
      local k=math.min(have,left);mm[st]=have-k;left=left-k
      g.externalUsed=(g.externalUsed or 0)+k
      g.makers[st]=(g.makers[st] or 0)+k
@@ -276,7 +303,7 @@ function M.build(opts)
    local pick,cap={},0
    for _,mk in ipairs(makers) do
     local room=pass<3 and math.max(0,spare[mk]) or mk.pool.capacity*mk.per
-    if room>0 and (pass~=1 or Wsys(mk.pool.station)==Wsys(taker)) then pick[#pick+1]={mk,room};cap=cap+room end
+    if room>0 and side(mk.pool.station)==side(taker) and (pass~=1 or Wsys(mk.pool.station)==Wsys(taker)) then pick[#pick+1]={mk,room};cap=cap+room end
    end
    if cap>0 and pass==2 then
     -- anyone's spare: nearest first, as the freight board picks
@@ -465,6 +492,11 @@ function M.build(opts)
   if (g.unsourced or 0)>0.01 then issue('source',3,('%s: %.1f/h used that nothing makes or mines'):format(g.name,g.unsourced),item) end
   if (g.unrouted or 0)>0.01 then issue('route',2,('%s: %.1f/h has no hub to travel through'):format(g.name,g.unrouted),item) end
   g.load=g.capacity>0 and g.made/g.capacity or 0
+  -- the price rule: a recipe sells at (inputs + its work) x T.priceMargin,
+  -- so at list prices every recipe earns at least its inputs back
+  if g.recipeCost and g.price>0 and g.recipeCost*require('src.tuning').priceMargin>g.price*1.001 then issue('price',2,('%s: list price %.0f is under its inputs x margin (%.0f)'):format(g.name,g.price,g.recipeCost*require('src.tuning').priceMargin),item) end
+  -- a new world opens at equilibrium: nothing starts short of its target
+  if opts.opening and (g.buffer or 0)-(g.stock or 0)>math.max(1,.02*(g.buffer or 0)) then issue('start',3,('%s: a new game opens with %.0f on hand against %.0f wanted'):format(g.name,g.stock,g.buffer),item) end
   if (g.fillHours or 0)>6 then issue('buffer',g.fillHours>24 and 2 or 1,('%s: stations want %.0f on hand and hold %.0f; spare capacity takes %s to fill the gap'):format(g.name,g.buffer,g.stock,g.fillHours==math.huge and 'forever' or ('%.0f h'):format(g.fillHours)),item) end
   -- lanes where hauling a unit pays more than the unit is worth: a buyer
   -- short of it can't price it high enough to cover the trip
@@ -571,7 +603,7 @@ end
 M.json=json
 
 function M.run(game)
- local m=M.build({universe=game.universe,clock=game.universe and game.universe.clock or 0})
+ local m=M.build({universe=game.universe,clock=game.universe and game.universe.clock or 0,opening=true})
  for _,line in ipairs(M.report(m)) do print(line) end
  local path=os.getenv('ECON_OUT')
  if path then
@@ -685,6 +717,7 @@ function M.capture(game)
   if clock%60==0 then Tasks.clean(u,clock);E.update(u,clock);require('src.quests').update(u,clock);require('src.arbiter').update(u,clock);require('src.population').update(game,clock) end
  end
  E.consume,E.stat,Jobs.deliver=consume,stat,deliver
+ do local used,denied=require('src.npc').searchStats(u);print(('board searches: %d made, %d turned away for want of allowance'):format(used,denied)) end
  local function per(t) local o={};for k,v in pairs(t) do o[k]=v/hoursN end return o end
  local lines={'-- Written by love . --econcapture (src/economy_model.lua). Per game hour.','return {'}
  local function ser(t,ind)

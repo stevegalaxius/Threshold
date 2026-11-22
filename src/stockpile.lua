@@ -156,6 +156,7 @@ function S.foldShops(u,key,r,shops)
  end
 end
 
+local opening={} -- stations being stocked to target right now (no re-entry)
 -- Shop i's stock table, seeded the first time. nil for an unlimited shop.
 function S.stock(u,st,i)
  local key=S.key(st);local shops=S.shops(type(st)=='table' and st or key)
@@ -195,6 +196,21 @@ function S.stock(u,st,i)
   for item,n in pairs(initial) do if S.shopFor(key,item)==i then stock[item]=n end end
   if S.shopFor(key,'explosives')==i then stock.explosives=nil end
   m.stock=stock
+  -- A new world opens at equilibrium: every good a trade station keeps a
+  -- target of is on hand at that target, so no buffer has to be filled
+  -- while the economy is already running (src/economy_model.lua flags any
+  -- good that opens short).
+  if not m.hold and L.byId[key] and L.byId[key].kind=='station' and not opening[key] then
+   opening[key]=true
+   local E=require('src.economy')
+   for _,item in ipairs(E.goods and E.goods() or {}) do
+    if S.shopFor(key,item)==i then
+     local want=E.target(u,key,item) or 0
+     if want>(stock[item] or 0) then stock[item]=want end
+    end
+   end
+   opening[key]=nil
+  end
   if r.pendingFold then
    for id,c in pairs(r.pendingFold) do
     if S.shopFor(key,id)==i then stock[id]=(stock[id] or 0)+c;r.pendingFold[id]=nil end

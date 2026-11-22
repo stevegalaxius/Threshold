@@ -144,7 +144,10 @@ function M.seed(game)
        elseif not offer.owner then Tasks.state(u).offers[offerId]=nil end
       end
      end
-     for _=count+1,(#specs==1 and T.minersPerArea or 1) do
+     -- enough mine jobs for the area's whole miner share (src/arbiter.lua),
+     -- spread over its drills, so every miner it keeps can find work
+     local crew=T.minersPerArea+require('src.arbiter').extraMiners(area)
+     for _=count+1,math.max(1,math.ceil(crew/#specs)) do
       Tasks.post(u,{kind='mine',source=site.home,target=id,area=area,item=site.item,cooldown=0})
      end
     end

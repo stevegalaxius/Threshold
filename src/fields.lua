@@ -454,8 +454,9 @@ local SHOALS = {
 	channel = { 9500, 16500 },     -- the cleared ring the stations travel
 	orbit = 13000,                 -- where they ride in it
 	lane = 1800,                   -- half-width of the driver's way in
-	core = { n = 3, d = 4200, r = { 1100, 1400 } },
-	wall = { n = 5, d = 24000, r = { 1300, 1800 } },
+	-- the drill rocks: an outer wall only (a dark grid mines for itself);
+	-- the first `ice` of them are ice
+	wall = { n = 5, d = 24000, r = { 1300, 1800 }, ice = 2 },
 }
 Fields.shoalsShape = SHOALS
 Fields.shoals = {
@@ -505,7 +506,7 @@ Fields.shoals = {
 }
 do
 	local f, rng = Fields.shoals, love.math.newRandomGenerator(4471)
-	for _, ring in ipairs({ SHOALS.core, SHOALS.wall }) do
+	for _, ring in ipairs({ SHOALS.wall }) do
 		for k = 0, ring.n - 1 do
 			local a = k / ring.n * pi * 2 + 0.35 + rng:random() * 0.4
 			-- keep the outer wall's drill rocks out of the driver's lane
@@ -513,7 +514,7 @@ do
 			local off = (a - (-pi / 2 + .6) + pi) % (2 * pi) - pi
 			if ring == SHOALS.wall and math.abs(off) < 0.3 then a = a + (off >= 0 and 0.3 or -0.3) end
 			local d = ring.d * (0.9 + rng:random() * 0.2)
-			f.miningAsteroids[#f.miningAsteroids + 1] = { x = cos(a) * d, y = sin(a) * d, radius = ring.r[1] + rng:random() * (ring.r[2] - ring.r[1]) }
+			f.miningAsteroids[#f.miningAsteroids + 1] = { x = cos(a) * d, y = sin(a) * d, radius = ring.r[1] + rng:random() * (ring.r[2] - ring.r[1]), ore = k < (ring.ice or 0) and "ice" or nil }
 		end
 	end
 end

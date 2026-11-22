@@ -310,7 +310,7 @@ T.alifeWreckLifetime = 1800
 -- The fixed fleet (src/arbiter.lua): haulers and miners across the whole
 -- system. With ~46 police, the pirate bases' launches and a few couriers,
 -- about 300 ships fly.
-T.fleet = { hauler = 190, miner = 45 }
+T.fleet = { hauler = 190, miner = 55 }
 T.population = {
  -- pirates have no per-region target: dark bases launch them (T.pirateBerths)
  pirate={minDelay=180,maxDelay=300},
@@ -491,9 +491,15 @@ T.marketSpread=.05
 -- station prices (src/markets.lua): never under priceFloor; up to
 -- priceCrisisMax once a shortage has gone priceCrisisHours unserved;
 -- makers sell makerDiscount under their stock-based price
-T.priceFloor=.5
+-- The price rule: a good's list price is (inputs + the recipe's work) x
+-- T.priceMargin (src/economy_model.lua flags a recipe whose inputs alone
+-- outprice it). A station's price never falls under cost plus 10%
+-- (priceFloor = 1.10 / priceMargin of list), and climbs to about three
+-- times cost (priceCrisisMax) once a shortage goes unserved.
+T.priceMargin=1.35
+T.priceFloor=1.10/1.35
 T.priceCrisisHours=2
-T.priceCrisisMax=3
+T.priceCrisisMax=2.2
 T.makerDiscount=.1
 -- merchant houses (src/merchants.lua): how often they trade; a house
 -- under merchantBankrupt of its capital that has sold nothing for
@@ -639,5 +645,9 @@ T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
+-- Canister return (src/supplies.lua): a ship refuelling trades its spent
+-- canisters in, and the station keeps this share of them as empties for the
+-- crackers and skimmers to refill; the presses only make up the rest.
+T.canisterReturn=0.9
+T.canisterEmpty='empty_canister'
 return T
-
