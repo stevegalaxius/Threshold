@@ -146,7 +146,7 @@ function Icons.drawInRect(itemId, x, y, w, h, rot, alpha, pad)
 	local icon = Icons.get(itemId)
 	if not icon then return false end
 	local bw, bh = Icons.box(itemId)
-	pad = pad or 3
+	pad = pad or 1.5
 	local aw, ah = w - pad * 2, h - pad * 2
 	if rot then aw, ah = ah, aw end
 	local s = math.min(aw / (bw * 2), ah / (bh * 2))
