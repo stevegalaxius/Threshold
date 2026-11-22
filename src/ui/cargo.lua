@@ -1328,23 +1328,23 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
  lg.setColor(.065,.075,.083,.98*alpha);lg.rectangle('fill',x+1,y+1,w-3,h-3)
  lg.setColor(hover and .55 or .18,hover and .64 or .21,hover and .70 or .24,(hover and .9 or .7)*alpha)
  lg.setLineWidth(1);lg.rectangle('line',x+1.5,y+1.5,w-4,h-4)
-	-- Stacks reserve a thin band along the bottom for the count, so the
-	-- number never sits on top of the art.
-	local band=(n>1) and 11 or 0
 	if item.kind ~= 'ship' and item.id then
-		require("src.icons").drawInRect(item.id, x, y, w, h-band, entry and entry.rot, alpha)
+		-- the item's drawn art, turned with the stack; the name sits on top
+		require("src.icons").drawInRect(item.id, x, y, w, h, entry and entry.rot, alpha)
 	end
 	if item.kind=='ship' then
   local Paint=require('src.paint');local hull=data.hulls[item.hull]
   local paint=entry and entry.shipRecord and entry.shipRecord.color or Paint.preset(Paint.pool(hull)[1])
-  Hangar.drawHull(hull,x+4,y+16,w-8,math.max(4,h-20-band),entry and entry.rot or false,paint,alpha)
+  Hangar.drawHull(hull,x+4,y+16,w-8,math.max(4,h-20),entry and entry.rot or false,paint,alpha)
  end
  if n>1 then
-  local label=tostring(n);lg.setFont(HUD.font(10));local f=lg.getFont();local tw=f:getWidth(label)
-  local by=y+h-band-3
-  lg.setColor(.02,.03,.035,.85*alpha);lg.rectangle('fill',x+2,by,w-5,band)
-  lg.setColor(.30,.36,.40,.6*alpha);lg.line(x+2,by+.5,x+w-3,by+.5)
-  lg.setColor(.88,.92,.95,alpha);lg.print(label,math.floor(x+w-tw-6),math.floor(by+(band-f:getHeight())/2+1))
+  -- Small digits tucked into the corner with a 1 px outline instead of a
+  -- filled box, so only the glyph strokes themselves cover the art.
+  local label=tostring(n);lg.setFont(HUD.font(9));local f=lg.getFont()
+  local tx,ty=math.floor(x+w-f:getWidth(label)-4),math.floor(y+h-f:getHeight()-3)
+  lg.setColor(0,0,0,.9*alpha)
+  for ox=-1,1 do for oy=-1,1 do if ox~=0 or oy~=0 then lg.print(label,tx+ox,ty+oy) end end end
+  lg.setColor(.92,.95,.98,alpha);lg.print(label,tx,ty)
  end
  if tag and tag.frame then
   lg.setColor(tag.color[1],tag.color[2],tag.color[3],alpha)
