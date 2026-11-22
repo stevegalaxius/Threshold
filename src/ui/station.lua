@@ -2,7 +2,7 @@
 local HUD=require('src.hud')
 local S={}
 -- Fixed inventory cell size; oversized workspaces pan instead of shrinking.
-S.CELL=50
+S.CELL=64
 -- One frame for every station tab (and the in-flight inventory), so the
 -- header and tab row never move when the tab changes.
 function S.frameW()
