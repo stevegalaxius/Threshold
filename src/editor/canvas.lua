@@ -1369,10 +1369,8 @@ function Canvas.drawIconPreview(E)
 	for _, cs in ipairs({ CS }) do
 		local w, h = fw * cs, fh * cs
 		if x + w > x0 + W - 8 then break end
-		lg.setColor(.035,.05,.06,1)
-		lg.rectangle("fill", x + 2, y0 + 26, w - 4, h - 4, 3, 3)
-		lg.setColor(.18,.24,.28,1)
-		lg.rectangle("line", x + 2.5, y0 + 26.5, w - 5, h - 5, 3, 3)
+		lg.setColor(.065,.075,.083,.98)
+		lg.rectangle("fill", x + 1, y0 + 25, w - 2, h - 2)
 		local bw, bh = Icons.box(d.item, d)
 		local s = math.min((w - 3) / (bw * 2), (h - 3) / (bh * 2))
 		lg.push()

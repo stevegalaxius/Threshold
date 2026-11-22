@@ -1324,12 +1324,9 @@ end
 local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
  local mx,my=love.mouse.getPosition()
  local hover=alpha>.5 and mx>=x and my>=y and mx<x+w and my<y+h
- lg.setColor(0,0,0,.45*alpha);lg.rectangle('fill',x+3,y+3,w-4,h-4)
- -- Frame symmetric about the cell centre, same as the Shipyard preview,
- -- so the art sits the same distance from every edge in both.
- lg.setColor(.065,.075,.083,.98*alpha);lg.rectangle('fill',x+2,y+2,w-4,h-4)
- lg.setColor(hover and .55 or .18,hover and .64 or .21,hover and .70 or .24,(hover and .9 or .7)*alpha)
- lg.setLineWidth(1);lg.rectangle('line',x+2.5,y+2.5,w-5,h-5)
+ -- No frame: a plain cell background, with an outline only on hover.
+ lg.setColor(.065,.075,.083,.98*alpha);lg.rectangle('fill',x+1,y+1,w-2,h-2)
+ if hover then lg.setColor(.55,.64,.70,.9*alpha);lg.setLineWidth(1);lg.rectangle('line',x+.5,y+.5,w-1,h-1) end
 	if item.kind ~= 'ship' and item.id then
 		-- the item's drawn art, turned with the stack; the name sits on top
 		require("src.icons").drawInRect(item.id, x, y, w, h, entry and entry.rot, alpha)
