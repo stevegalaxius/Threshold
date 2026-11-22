@@ -816,7 +816,9 @@ return function(game)
    run(g,25)
    g:captureALife(false)
    local after=0;for _,c in ipairs(W.crew(gu,site.id)) do after=after+c.ship.armor end
-   assert(after<armor or site.done,'no fight in the pocket')
+   -- the crew can win clean: a dead hunter counts as a fight too
+   local killed=false;for _,h in ipairs(hs) do if h.state=='dead' then killed=true end end
+   assert(after<armor or site.done or killed,'no fight in the pocket')
    print(('ok  wildcats: warped in on %d hunters and %d crew mid-fight'):format(live.hunter,live.enemy))
   end
   print(('ok  wildcats: crew of %d, raid and home, bounty, %d dead after the hunters%s'):format(#crew,dead,inst.done and ', site cleared' or ''))
