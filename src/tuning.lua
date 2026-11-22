@@ -238,6 +238,7 @@ T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when somethi
 T.npcStationClearance=250  -- px beyond a station hull (plus the ship's half length) that traffic routes around
 T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per px out; marker distance beyond the hull
 T.aiBoostCruise, T.aiBoostStopMargin = 3, 1800
+T.aiStationSlowRange, T.aiStationSpeed = 5000, 450  -- dock approach: no burner inside this range, easing down to this speed by half of it
 T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 -- Squads and battlegroups (src/squads.lua)
