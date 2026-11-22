@@ -575,7 +575,7 @@ function E.category()
 end
 
 function E.switchCategory(cat)
-	E.byCategory[E.category()] = { design = E.design, undo = E.undo, redo = E.redo, view = { x = E.view.x, y = E.view.y, zoom = E.view.zoom } }
+	E.byCategory[E.category()] = { design = E.design, undo = E.undo, redo = E.redo, view = { x = E.view.x, y = E.view.y, zoom = E.view.zoom }, browseDir = E.browseDir }
 	local saved = E.byCategory[cat]
 	E.sel, E.vsel, E.lsel, E.slotSel, E.drawing = nil, nil, nil, nil, nil; E.bsel, E.tsel, E.multi = nil, nil, {}; E.lmulti, E.vmulti = {}, {}
 	if saved then
@@ -587,6 +587,14 @@ function E.switchCategory(cat)
 		E.view.zoom = cat == "station" and 0.25 or (cat == "weapon" and 12 or 3)
 		if cat == "icon" then E.fitIconView() end
 	end
+	-- each tab browses (and saves into) its own folder: where you left it,
+	-- else the open design's folder, else the tab's namesake folder
+	E.browseDir = (saved and saved.browseDir) or E.design.folder or Export.namesake(E.design)
+	if not Export.isFolder(E.browseDir) then
+		E.browseDir = Export.namesake(E.design)
+		love.filesystem.createDirectory(Export.FOLDER .. "/" .. E.browseDir)
+	end
+	E.confirmDelete = nil
 	if E.tool == "berth" and cat ~= "station" and cat ~= "hull" then E.tool = "select" end
 	if (E.tool == "turret" or E.tool == "pivot") and cat ~= "station" then E.tool = "select" end
 	if E.tool == "muzzle" and cat ~= "weapon" then E.tool = "select" end

@@ -548,6 +548,22 @@ local function prepareIcon(def)
 		local v = def[f]
 		if v ~= nil and (type(v) ~= "number" or v < 1 or v % 1 ~= 0) then fail(("icon '%s': %s should be a whole number of cells"):format(def.id, f)) end
 	end
+	-- stats: the item's numbers set in the Shipyard (price, stack, mass ...,
+	-- and shot = { damage ... } for ammo), laid over data/items.lua
+	if def.stats ~= nil then
+		if type(def.stats) ~= "table" then fail(("icon '%s': stats should be a table"):format(def.id)) end
+		for k, v in pairs(def.stats) do
+			if k == "shot" then
+				if type(v) ~= "table" then fail(("icon '%s': stats.shot should be a table"):format(def.id)) end
+				for sk, sv in pairs(v) do
+					if type(sv) ~= "number" and type(sv) ~= "boolean" then fail(("icon '%s': stats.shot.%s should be a number"):format(def.id, sk)) end
+				end
+			elseif k == "id" or k == "kind" or k == "w" or k == "h" then fail(("icon '%s': stats can't set %s"):format(def.id, k))
+			elseif type(v) ~= "number" and type(v) ~= "string" and type(v) ~= "boolean" then fail(("icon '%s': stats.%s should be a number or text"):format(def.id, k)) end
+		end
+		if def.stats.price ~= nil and (type(def.stats.price) ~= "number" or def.stats.price < 0) then fail(("icon '%s': price should be 0 or more"):format(def.id)) end
+		if def.stats.stack ~= nil and (type(def.stats.stack) ~= "number" or def.stats.stack < 1 or def.stats.stack % 1 ~= 0) then fail(("icon '%s': stack should be a whole number, 1 or more"):format(def.id)) end
+	end
 	def.reach = nil
 	if def.boxes then require("src.icons").syncBoxes(def) end
 	return def
@@ -560,6 +576,15 @@ function api.icon(def)
 	local item = data.items[def.item]
 	if item and def.w and def.h and not workspace then
 		item.w, item.h = def.w, def.h
+		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
+	end
+	if item and def.stats and not workspace then
+		for k, v in pairs(def.stats) do
+			if k == "shot" then
+				item.shot = item.shot or {}
+				for sk, sv in pairs(v) do item.shot[sk] = sv end
+			else item[k] = v end
+		end
 		if package.loaded["src.inventory.shapes"] then package.loaded["src.inventory.shapes"].reset() end
 	end
 	if not data.icons[def.item] then table.insert(data.list.icons, def.item) end
