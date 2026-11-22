@@ -2110,11 +2110,23 @@ function Game:setPlayerIntent(intent)
 	for k, v in pairs(intent) do p.intent[k] = v end
 end
 
-function Game:step(dt)
+local function markStep(sample, section)
+	local now = love.timer.getTime()
+	sample[section] = (now - (sample.last or sample.start)) * 1000
+	sample.last = now
+end
+
+function Game:step(dt, sample)
 	-- one stamp per step: per-step caches (src/local_navigation.lua) key on it
 	self.navStamp = (self.navStamp or 0) + 1
 
-	if self.flight then self:updateFlight(dt); self:updateALife(); return end
+	if self.flight then
+		self:updateFlight(dt)
+		if sample then markStep(sample, "flight") end
+		self:updateALife()
+		if sample then markStep(sample, "alife") end
+		return
+	end
 	self.time = self.time + dt
 	if self.universe and not self.sideScene then self.universe.clock = self.universe.clock + dt end
 
@@ -2161,8 +2173,11 @@ function Game:step(dt)
 
 	self:updateRotors()
 	self:updateStationGuns(dt)
+	if sample then markStep(sample, "ships_and_station_guns") end
 	self:updateSleepers()
+	if sample then markStep(sample, "sleepers") end
 	self:updateALife()
+	if sample then markStep(sample, "alife") end
 	self:applyBoundary()
 	self:applyCurrent(dt)
 	require("src.satellites").keep(self, dt)
@@ -2180,16 +2195,21 @@ function Game:step(dt)
 	self:updateCities(dt)
 	self:updateTow(dt)
 	self:updateLootHold(dt)
+	if sample then markStep(sample, "navigation_and_world") end
 	self.world:update(dt)
+	if sample then markStep(sample, "box2d") end
 	require("src.exhaust_damage").update(self,dt)
+	if sample then markStep(sample, "exhaust") end
 	self:planetImpacts()
 	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
 	self:reap()
+	if sample then markStep(sample, "contacts_and_cleanup") end
 	if self.sideScene then return end
 	self:stepSides(dt)
+	if sample then markStep(sample, "side_scenes") end
 	self:updateCover(dt)
 	-- Into a lane: seamless (src/transit.lua), unless the launch had to cut
 	-- short because something solid was dead ahead, which hides behind the

@@ -1,5 +1,7 @@
 -- F8 records a short frame timing trace and Lua sampling profile.
 local S = {}
+local sections = { "ships_and_station_guns", "sleepers", "alife", "navigation_and_world",
+	"box2d", "exhaust", "contacts_and_cleanup", "side_scenes", "flight", "remainder" }
 
 -- Asked for from a key press. For the next two seconds LuaJIT's sampling
 -- profiler records where the time goes (the "hot:" line, by source line,
@@ -73,19 +75,32 @@ function S.afterDraw(game, start)
 	line = line .. ("  field=%s sleepers=%d entities=%d canvases=%d images=%d texMB=%.1f f7=%s\n"):format(
 		game.fieldId or "?", #(game.sleepers or {}), #game.entities, st.canvases, st.images,
 		st.texturememory / 2 ^ 20, tostring(require("src.profiler").on))
-	local trace = { line, "frame_ms,update_ms,draw_ms,present_ms,other_ms,raw_dt_ms,loop_accumulator_ms,step_count,step_total_ms,update_outside_steps_ms,step_times_ms" }
+	local trace = { line, "frame_ms,update_ms,draw_ms,present_ms,other_ms,raw_dt_ms,loop_accumulator_ms,step_count,step_total_ms,update_outside_steps_ms,step_times_ms," .. table.concat(sections, "_ms,") .. "_ms" }
 	local intervals = {}
 	for i, f in ipairs(S.frames) do
 		intervals[i] = f.frame
 		local durations, total = {}, 0
-		for j, elapsed in ipairs(f.steps) do
+		for j, sample in ipairs(f.steps) do
+			local elapsed = sample.total
 			durations[j] = ("%.3f"):format(elapsed)
 			total = total + elapsed
+		end
+		local columns = {}
+		for _, section in ipairs(sections) do
+			local values = {}
+			for j, sample in ipairs(f.steps) do
+				local elapsed = sample[section] or 0
+				if section == "remainder" then
+					elapsed = sample.total - ((sample.last or sample.start) - sample.start) * 1000
+				end
+				values[j] = ("%.3f"):format(elapsed)
+			end
+			columns[#columns + 1] = table.concat(values, " ")
 		end
 		trace[#trace + 1] = ("%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%d,%.3f,%.3f,%s"):format(
 			f.frame, f.update, f.draw, f.present or 0, f.frame - f.update - f.draw - (f.present or 0),
 			f.rawDelta, f.accumulator and ("%.3f"):format(f.accumulator) or "", #durations, total,
-			f.update - total, table.concat(durations, " "))
+			f.update - total, table.concat(durations, " ")) .. "," .. table.concat(columns, ",")
 	end
 	table.sort(intervals)
 	if #intervals > 0 then

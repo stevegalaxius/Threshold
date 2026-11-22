@@ -164,9 +164,12 @@ function love.update(dt, trace)
 	while accumulator >= STEP do
 		Pose.remember(game)
 		local before=game.inputTranslation
-		local start = trace and love.timer.getTime()
-		game:step(STEP)
-		if trace then trace.steps[#trace.steps + 1] = (love.timer.getTime() - start) * 1000 end
+		local sample = trace and { start = love.timer.getTime() }
+		game:step(STEP, sample)
+		if sample then
+			sample.total = (love.timer.getTime() - sample.start) * 1000
+			trace.steps[#trace.steps + 1] = sample
+		end
 		if game.resetClock then
 			-- a level was just loaded: don't catch up on the time it took
 			game.resetClock = nil
