@@ -266,7 +266,9 @@ function M.build(opts)
   -- mined supply, own system first
   local mm=mines[item]
   if mm then
-   for pass=1,2 do for st,have in pairs(mm) do
+   -- (in station order, so the model comes out the same every run)
+   local order={};for st in pairs(mm) do order[#order+1]=st end;table.sort(order)
+   for pass=1,2 do for _,st in ipairs(order) do local have=mm[st]
     if left<=0 then break end
     if have>0 and side(st)==side(taker) and (pass==2 or Wsys(st)==Wsys(taker)) then
      local k=math.min(have,left);mm[st]=have-k;left=left-k
@@ -491,7 +493,9 @@ function M.build(opts)
  for item,g in pairs(m.goods) do
   if (g.unsourced or 0)>0.01 then issue('source',3,('%s: %.1f/h used that nothing makes or mines'):format(g.name,g.unsourced),item) end
   if (g.unrouted or 0)>0.01 then issue('route',2,('%s: %.1f/h has no hub to travel through'):format(g.name,g.unrouted),item) end
-  g.load=g.capacity>0 and g.made/g.capacity or 0
+  -- load is what the economy draws on, not what fixed plants turn out:
+  -- a farm or a well runs flat out whether or not anyone wants it all
+  g.load=g.capacity>0 and ((g.forced or 0)>0 and math.min(g.made,g.required) or g.made)/g.capacity or 0
   -- the price rule: a recipe sells at (inputs + its work) x T.priceMargin,
   -- so at list prices every recipe earns at least its inputs back
   if g.recipeCost and g.price>0 and g.recipeCost*require('src.tuning').priceMargin>g.price*1.001 then issue('price',2,('%s: list price %.0f is under its inputs x margin (%.0f)'):format(g.name,g.price,g.recipeCost*require('src.tuning').priceMargin),item) end
@@ -558,7 +562,7 @@ function M.report(m)
  say('')
  say('%-26s %9s %9s %9s %6s  %s','good','final/h','needed/h','cap/h','load','made at')
  local goods={};for _,g in pairs(m.goods) do goods[#goods+1]=g end
- table.sort(goods,function(a,b) return a.load>b.load end)
+ table.sort(goods,function(a,b) if a.load~=b.load then return a.load>b.load end return a.name<b.name end)
  for _,g in ipairs(goods) do
   local at={};for st,n in pairs(g.makers) do at[#at+1]=('%s %.0f'):format((m.stations[st] or {}).name or st,n) end
   table.sort(at)
