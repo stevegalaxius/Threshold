@@ -372,7 +372,8 @@ return function(game)
   local mine=Sat.mine(u);assert(#mine==1 and mine[1].owner=='player','no satellite of the player\'s own')
   local r=mine[1];r.paidAt=u.clock-3600;local c0=u.credits;u.satCheckAt=nil;Sat.tick(u)
   assert(u.credits-c0==Sat.income,'income: '..(u.credits-c0))
-  for i=2,Sat.playerCap do local r2=Sat.deploy(game,(function() p.body:setPosition(w.x-R*(1.5+i*0.3),w.y+i*900);return p end)());assert(r2,'deploy '..i) end
+  -- (below the station orbit: a deploy on a track is refused)
+  for i=2,Sat.playerCap do local r2=Sat.deploy(game,(function() p.body:setPosition(w.x-R*(1.3+i*0.1),w.y+i*900);return p end)());assert(r2,'deploy '..i) end
   p.body:setPosition(w.x,w.y-R*2.5);local _,full=Sat.canDeploy(game,p);assert(full and full:match('already'),'no cap')
   -- sending a hauler from the Manage tab: its refuel job, open to NPCs at once
   r.fuelAt=u.clock-Sat.fuelLife*.3;u.credits=5000
