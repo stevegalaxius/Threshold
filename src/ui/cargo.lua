@@ -1340,11 +1340,11 @@ local function drawStack(item, n, x, y, w, h, cs, alpha, tag, entry)
  if n>1 then
   -- Small digits tucked into the corner with a 1 px outline instead of a
   -- filled box, so only the glyph strokes themselves cover the art.
-  local label=tostring(n);lg.setFont(HUD.font(9));local f=lg.getFont()
-  local tx,ty=math.floor(x+w-f:getWidth(label)-4),math.floor(y+h-f:getHeight()-3)
+  local label=tostring(n);lg.setFont(HUD.font(13));local f=lg.getFont()
+  local tx,ty=math.floor(x+w-f:getWidth(label)-5),math.floor(y+h-f:getHeight()-2)
   lg.setColor(0,0,0,.9*alpha)
   for ox=-1,1 do for oy=-1,1 do if ox~=0 or oy~=0 then lg.print(label,tx+ox,ty+oy) end end end
-  lg.setColor(.92,.95,.98,alpha);lg.print(label,tx,ty)
+  lg.setColor(1,1,1,alpha);lg.print(label,tx,ty)
  end
  if tag and tag.frame then
   lg.setColor(tag.color[1],tag.color[2],tag.color[3],alpha)
