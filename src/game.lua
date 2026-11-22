@@ -1674,12 +1674,18 @@ function Game:updateRunwayPush(dt)
 				-- little outward along it
 				local nx, ny = -p.oy, p.ox
 				local s = (x - p.x) * nx + (y - p.y) * ny >= 0 and 1 or -1
+				-- A ship lying against the hull beside the door (a stranded
+				-- one drifts there) was pushed sideways into the hull for
+				-- ever, and the ship waiting to launch waited with it. Against
+				-- the station, the beam pushes it out along the runway instead.
+				local side, out = Game.runwayPushSpeed, 40
+				if sb and o.body:isTouching(sb) then side, out = 0, Game.runwayPushSpeed end
 				local vx, vy = b:getLinearVelocity()
 				-- relative to the station (its runway moves with it)
 				local fx, fy = 0, 0
 				if sb then fx, fy = sb:getLinearVelocityFromWorldPoint(p.x, p.y) end
-				local tx = fx + nx * s * Game.runwayPushSpeed + p.ox * 40
-				local ty = fy + ny * s * Game.runwayPushSpeed + p.oy * 40
+				local tx = fx + nx * s * side + p.ox * out
+				local ty = fy + ny * s * side + p.oy * out
 				local k = math.min(1, dt * 3)
 				b:setLinearVelocity(vx + (tx - vx) * k, vy + (ty - vy) * k)
 			end
