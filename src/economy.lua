@@ -690,11 +690,15 @@ local function run(u,clock,pause)
    entry.left=short
   end
   end
-  -- A buyer short for T.unmetShortageAge counts as unmet even with spare
+  -- A consumer short for T.unmetShortageAge counts as unmet even with spare
   -- stock elsewhere: stock that isn't arriving is no use to it, so its
   -- makers aren't throttled to the floor while it starves.
   for _,entry in ipairs(buyers) do
-   if not entry.unmet and E.shortageAge(u,entry.c,item,clock)>=T.unmetShortageAge then
+   -- (real consumers only: a hub's or customs house's want is a buffer
+   -- summed over its whole system, and counting it as unmet ran the
+   -- steel and ammunition lines flat out for stock nobody burns)
+   local buffer=hubPlan.kind[entry.c] and hubPlan.kind[entry.c][item]
+   if not entry.unmet and not buffer and E.shortageAge(u,entry.c,item,clock)>=T.unmetShortageAge then
     unmet[item]=(unmet[item] or 0)+math.max(0,entry.need)
    end
   end
