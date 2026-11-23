@@ -479,7 +479,7 @@ Tasks.register('transport',{
    local payment
    if line.trade then
     -- the trader sells to the station at its price today
-    local value=Transport.tradeValue(u,line,station)
+    local value=Transport.tradeValue(u,line,station);line.tradeValue=value
     require('src.accounts').pay(u,station,value,'bought',line.item)
     require('src.markets').landed(u,station,line.item,line.amount,value)
     paid=paid-charge.payment+value;payment=0;total=total+line.amount
@@ -497,7 +497,7 @@ Tasks.register('transport',{
    end
    if (line.premiumPerUnit or 0)>0 then require('src.economy').ledger(u,station,'premium',math.floor(line.amount*line.premiumPerUnit),line.item) end
    require('src.simulation_history').note(u,'freight_delivered',clock,L.byId[station].area,{r.id},
-    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,premiumPerUnit=line.premiumPerUnit,handling=charge.handling,payment=payment,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
+    {taskId=line.id,source=line.source,target=line.target,item=line.item,amount=line.amount,routeAU=line.routeAU,creditsPerUnit=line.creditsPerUnit,premiumPerUnit=line.premiumPerUnit,handling=charge.handling,payment=payment,trade=line.trade,tradeCost=line.tradeCost,tradeValue=line.tradeValue,commodityBuyPrice=line.commodityBuyPrice,commoditySellPrice=line.commoditySellPrice},station)
    if line.id~=t.id then Tasks.state(u).offers[line.id]=nil end
   end
   local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total
