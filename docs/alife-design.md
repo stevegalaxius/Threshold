@@ -114,7 +114,7 @@ Player tasks are generated from the live simulation, in the style of Call of the
 - **Events out:** arrivals, deaths, fights and dockings are emitted on `src/events.lua` for online and offline records alike.
 - **Fight outcomes:** a `fight_log` on records says who fled, who died and what dropped, so a task can tell whether its subject survived.
 
-Status: fights, wrecks, the fight log and the event bus exist. One generator is built (shortage deliveries, `src/quests.lua`). The layers and the picker are not. (`src/arbiter.lua` is a different thing: it sets population targets.)
+Status: fights, wrecks, the fight log and the event bus exist. The station-job generators are rescues, satellite and site jobs and ore contracts (`src/quests.lua`, `src/ore_quests.lua`). Shortages are not one: they post freight orders on the shared board, which the player takes like any hauler. The layers and the picker are not. (`src/arbiter.lua` is a different thing: it sets population targets.)
 
 ---
 
@@ -133,11 +133,11 @@ Status: fights, wrecks, the fight log and the event bus exist. One generator is 
 | Player access to the board | Freight only | [player-contracts.md](player-contracts.md) |
 | Station grudges as heat (offline twin) | Not built | `src/game.lua` |
 | Cap on ships online (about 12) | Not built | |
-| Task generation layers and picker | One generator (shortage quests) | `src/quests.lua` |
+| Task generation layers and picker | Rescues, satellite and site jobs, ore contracts | `src/quests.lua` |
 | Director attention nudge | Not built. The director only keeps stock up to date | `src/director.lua` |
 | Fifth faction | Not built. The dark grids are a separate thing | |
 
 ## Open questions
 
 - Station grudges: turn them into node heat, or keep them as their own thing with an offline twin?
-- Which task generation layer to build after shortage quests.
+- Which task generation layer to build after these.

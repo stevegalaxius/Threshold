@@ -33,7 +33,7 @@ Last checked against `main`: 2026-11-15.
 - Hangars, berths and ship hauling (`src/berths.lua`).
 - Dealers, used lots and new-ship deliveries ([used-ships.md](used-ships.md)).
 - Freight contracts on the shared board ([player-contracts.md](player-contracts.md)).
-- Shortage delivery quests (`src/quests.lua`).
+- Station jobs: rescues, satellite and site jobs, ore contracts (`src/quests.lua`).
 - Reputation: standing per faction, heat per node and goodwill per NPC (`src/reputation.lua`).
 
 ### Simulated economy
@@ -64,7 +64,7 @@ Last checked against `main`: 2026-11-15.
 - **A cap on ships online.** The design calls for about 12. There's no cap in the code.
 
 ### Designed, not built
-- **Task generation layers** (simulation, economy, director) and a picker that rotates between them. Only the shortage quests exist ([alife-design.md](alife-design.md#task-generation)).
+- **Task generation layers** (simulation, economy, director) and a picker that rotates between them. Only the station-job generators exist ([alife-design.md](alife-design.md#task-generation)).
 - **The director's attention nudge.** Steering offline events toward the player when things have been quiet.
 - **The fifth faction.** The hidden hand that reaches the player through instanced sites.
 - **Rewards and completion for other board work.** The player can only take freight off the board so far.
