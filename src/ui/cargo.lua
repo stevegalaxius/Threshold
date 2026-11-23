@@ -78,6 +78,19 @@ local T = require("src.tuning")
 local Cargo = { scroll = setmetatable({}, { __mode = "k" }), open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
 -- Under the station's name: who runs it, what kind of place it is, the
 -- system it's in, and how they regard you.
+-- What a station is for, by its most defining role.
+local function stationRole(st,id,place)
+ local uses=place.uses or {}
+ if uses.pirateBase then return 'Pirate base' end
+ if uses.fence or require('src.dark').isDarkNode(id) then return 'Dark station' end
+ local dealer=require('src.dealers').def(id)
+ if uses.military or dealer and dealer.service then return 'Military' end
+ if place.hub then return 'Logistics hub' end
+ if place.customs then return 'Customs house' end
+ if place.residential then return 'Residential' end
+ if require('src.ui.industry').has(st) then return 'Industrial' end
+ return 'Trade station'
+end
 local function stationLine(game,st)
  if st.sat then return 'Satellite' end
  local L=require('src.locations');local Rep=require('src.reputation')
@@ -85,8 +98,7 @@ local function stationLine(game,st)
  if not place then return '' end
  local parts={}
  local f=Rep.ofNode(id);if f and Rep.FACTIONS[f] then parts[#parts+1]=Rep.FACTIONS[f].name end
- local kind=require('src.crew_fatigue').kind(id).name
- parts[#parts+1]=({residential='Residential',dark='Dark station',depot='Faction depot'})[kind] or 'Trade station'
+ parts[#parts+1]=stationRole(st,id,place)
  local sys=require('src.quests').system(id);local F=sys and require('src.fields')[sys]
  if F and F.name then parts[#parts+1]=F.name..' system' end
  parts[#parts+1]='Standing: '..Rep.tierName(Rep.stationAttitude(game.universe,id))
