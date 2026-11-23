@@ -1872,7 +1872,7 @@ end
 function drawTabs(game,mx,my)
  local p=game.player;local st=p.dockState.station;local f=Cargo.workspace(game)
  Station.panel(f.x,12,f.w,88)
- Station.ledgerText(f.x,12,st.name,st.sat and 'Satellite berth' or game:shipParkingLabel(st,p)..'  \194\183  '..require('src.food').label(game.universe,st.key or st.locationId))
+ Station.ledgerText(f.x,12,st.name,st.sat and 'Your ship: satellite berth' or 'Your ship: '..game:shipParkingLabel(st,p))
  lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,21,190,'right')
  Station.button({x=f.x+f.w-130,y=24,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))

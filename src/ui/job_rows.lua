@@ -139,11 +139,6 @@ function View.drawFreight(game,f,row)
   note={q.limit=='stock' and ('Only %d of the %d ordered are in stock; the rest stays on the board.'):format(amount,o.amount)
    or ('Your hold takes %d of the %d ordered; the rest stays on the board.'):format(amount,o.amount)}
  end
- local hold=o.source==f.here and (o.placed or 0)+T.playerFirstLookSeconds-clock
- if hold and hold>0 then
-  local s=('NPCs can take it in %s.'):format(minutes(hold))
-  note=note and {note[1]..' '..s} or {s,GOOD}
- end
  footer(row,f,q,note)
  Station.button(row.button,q and 'Accept freight' or 'Unavailable',false,q~=nil and not f.active)
 end

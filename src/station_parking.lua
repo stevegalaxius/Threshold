@@ -154,7 +154,7 @@ return function(Game)
  end
  function Game:shipParkingLabel(st,owner)
   local i=owner==self.player and owner.parkingMooring or owner.mooring
-  if i then return 'Berth '..i end
-  return owner.bay and 'Interior hangar' or 'Awaiting allocation'
+  if i then return 'Outside, berth '..i end
+  return owner.bay and 'Inside, in the hangar' or 'No berth assigned'
  end
 end
