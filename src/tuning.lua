@@ -688,10 +688,15 @@ T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
 -- Price-driven goods (prototype; src/economy.lua, src/markets.lua). For
 -- these, one local signal runs everything: a station's price floats with
 -- its own stock plus what is on its way; a maker runs by how full its own
--- output shelf is (T.makerShelfHours of its rated output), not by any
+-- output shelf is (T.makerShelfLots lots), not by any
 -- system-wide tally; and freight is posted only where the buyer's price
 -- beats the source's price plus the haul. Set an entry to nil to put the
 -- good back on the planner.
 T.priceDriven={deuterium_canister=true}
-T.makerShelfHours=2
+T.makerShelfLots=4
+-- a hub or customs house is just big storage: its price for a price-driven
+-- good moves this fraction as far as an ordinary station's, so the spread
+-- from maker to hub to consumer stays open; a consumer short of a
+-- price-driven good may bid up to T.priceCrisisMax at once
+T.hubPriceBand=.3
 return T

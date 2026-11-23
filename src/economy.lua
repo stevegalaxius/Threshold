@@ -152,7 +152,7 @@ local function adjust(u,unmet,all)
     -- price-driven: the only signal is this plant's own output shelf. An
     -- empty shelf runs it at up to E.scaleMax, a full one at E.scaleMin,
     -- easing E.scaleStep a minute toward that (no system tallies)
-    local shelf=math.max(E.lot*2,math.min((c.make[key] or 0)*T.makerShelfHours,(c.cap or math.huge)*.9))
+    local shelf=math.min(E.lot*T.makerShelfLots,(c.cap or math.huge)*.9)
     local fill=math.min(1,have/shelf)
     local goal=E.scaleMin+(E.scaleMax-E.scaleMin)*(1-fill)^2
     v=v<goal and math.min(goal,v*(1+E.scaleStep)) or math.max(goal,v*(1-E.scaleStep))
@@ -489,6 +489,9 @@ local function hubTarget(u,key,item,supplier)
  return E.target(u,key,item,supplier)
 end
 E.hubTarget=hubTarget
+-- Is this station's want for the good a hub or customs buffer (during the
+-- economy update, when the hub plan is set)?
+function E.isBuffer(key,item) return hubPlan~=nil and hubPlan.kind[key]~=nil and hubPlan.kind[key][item]~=nil end
 
 -- Shortage lifetime belongs to the destination, not a replaceable offer.
 function E.shortageAge(u,key,item,clock)
