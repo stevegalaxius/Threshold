@@ -65,6 +65,9 @@ market { id = "market:mars_4", station = "Zhuhai Logistics", sells = {
 market { id = "market:triton_3", station = "Triton Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
+market { id = "market:venus_2", station = "Cloudline Station", sells = {
+	{ "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
 market { id = "market:venus_4", station = "Venus Logistics", sells = {
 	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }

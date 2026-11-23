@@ -33,10 +33,9 @@ local D={recipes={
  {id='use_medical',market=false,item='medical_supplies',cap=96},
  {id='make_electronics',group='electronics',item='electronics',opening=0,batch=8,cap=256,
   inputs={{item='silicon',n=2},{item='industrial_acids',n=1}}},
- -- Ice: the ice moons cut it from their crusts (abstract extraction, like
- -- the water wells), and Venus's terraforming works swallow it by the ton
+ -- Ice moons cut ice from their crusts. Terraforming takes tanked water.
  {id='cut_ice',group='resources',item='water_ice',opening=0,cap=1600},
- {id='use_ice',market=false,item='water_ice',cap=400},
+ {id='terraform_water',market=false,item='water',cap=400},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}
@@ -124,6 +123,7 @@ end end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
 D.facilities={
  water={policy='fixed',recipes={'use_water'}},
+ terraform_water={policy='fixed',recipes={'terraform_water'}},
  water_melter={policy='fixed',recipes={'melt_water'}},
  water_wells={policy='fixed',recipes={'pump_water'}},
  ice_wells={policy='fixed',recipes={'cut_ice'}},
