@@ -162,6 +162,14 @@ function Transport.trustedValue(u,r,key)
  if rep<=T.courierBanRep then return 0 end
  return T.courierTrustValue*2^(rep/T.courierTrustDoubling)
 end
+-- how many units of an order a courier is trusted to carry (math.huge for
+-- a trade run, which the trader owns)
+function Transport.trustedUnits(u,r,o)
+ if o.trade or not o.item then return math.huge end
+ local price=Transport.goodsPrice(u,o.source,o.item)
+ if price<=0 then return math.huge end
+ return math.floor(Transport.trustedValue(u,r,o.target)/price)
+end
 -- Trade runs: an NPC trader buys a price-driven good at the source and
 -- sells it at the destination, keeping the spread and carrying the risk
 -- (lost cargo is its own loss). No courier fee; the player can't take one
@@ -369,10 +377,12 @@ Tasks.register('transport',{
    and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
-  -- a courier is trusted with only so much of someone else's cargo
-  if not o.trade and o.order and o.item then
-   local value=Transport.goodsPrice(u,o.source,o.item)*need
-   if value>Transport.trustedValue(u,r,o.target) then return false end
+  -- a courier is trusted with only so much of someone else's cargo: it
+  -- takes the part of a valuable order it's trusted with, or none
+  if o.order then
+   local trusted=Transport.trustedUnits(u,r,o)
+   if trusted<1 then return false end
+   need=math.min(need,trusted)
   end
   -- a trade run: a trader only, who can pay for the cargo and sees a spread
   if o.trade then
@@ -461,7 +471,7 @@ Tasks.register('transport',{
    local saved=require('src.persistence').copy(r.ship)
    local manifest={};local planned={}
    for _,o in ipairs(candidates) do
-    local n=math.min(o.amount,room(r,o.item,o.amount),Transport.available(u,o.source,o.item,o.id)-(planned[o.item] or 0))
+    local n=math.min(o.amount,room(r,o.item,o.amount),Transport.available(u,o.source,o.item,o.id)-(planned[o.item] or 0),Transport.trustedUnits(u,r,o))
     if n>0 then
      local line=require('src.persistence').copy(o);line.amount=n
      Transport.quote(line,clock,u);manifest[#manifest+1]=line;planned[o.item]=(planned[o.item] or 0)+n
