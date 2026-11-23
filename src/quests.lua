@@ -5,19 +5,14 @@
 	reserves or owns a Tasks board offer, so the freight board's churn can't
 	make it disappear.
 
-	First generator, shortage deliveries: a trade station that has been short
-	of a good for T.questShortageAge (economy.lua records when each shortage
-	began) posts a delivery for up to T.questMaxVolume of it, paying
-	T.questPremium of its price plus up to T.questAgeBonus more as the
-	shortage ages. Delivered goods go into station stock, so the economy's
-	own order trim cancels matching freight on its next tick. Partial
-	deliveries pay pro rata. A shortage is only posted while some other
-	station holds spare stock of the good, so it can always be sourced.
-	Once accepted, a delivery holds until its
-	deadline even if the shortage clears.
+	The board only carries work the freight board can't express: rescues,
+	satellite and site jobs, ore contracts (src/ore_quests.lua). A station
+	short of goods posts freight orders on the shared board (src/economy.lua),
+	which the player takes like any NPC hauler; it posts no separate
+	player-only delivery for them.
 
-	Later generators (rescue, bounty, wreck recovery, escort) post the same
-	record shape: kind, giver, item/amount or subject, reward, expiry.
+	Every generator posts the same record shape: kind, giver, item/amount
+	or subject, reward, expiry.
 
 	News hooks (src/news.lua, News.check / News.apply), on any quest record:
 	  q.news       a condition: the offer is withdrawn once it's false
@@ -41,57 +36,17 @@ local function stations()
  return list
 end
 local function price(u,key,item) return require('src.markets').price(u,key,item) end
-function Q.unitReward(u,key,item,age)
- local bonus=T.questAgeBonus*math.min(1,math.max(0,age-T.questShortageAge)/3600)
- return math.max(1,math.floor(price(u,key,item)*(T.questPremium+bonus)+.5))
-end
--- Somewhere else must hold more than it needs, or the player could never
--- fill the delivery (the economy records goods nobody makes as shortages too).
-local function sourced(u,E,list,st,item,n)
- for _,s in ipairs(list) do
-  if s~=st and Stock.count(u,s,item)-E.target(u,s,item)>=n then return true end
- end
- return false
-end
-local function shortageKey(q) return q.giver..'|'..q.item end
 -- What makes two quests the same job: a site job's own key, else by kind.
-local function takenKey(q) return q.key or q.kind=='rescue' and 'rescue|'..q.subject or shortageKey(q) end
+local function takenKey(q) return q.key or q.kind=='rescue' and 'rescue|'..q.subject or q.giver..'|'..q.item end
 
 -- Generators ---------------------------------------------------------------
 -- Each one proposes candidate quests for a station; the arbiter below picks
 -- which get posted. keep(u,q,clock) says whether an unaccepted offer still
 -- stands; resolve(game,q,clock) settles an active one ('done'/'failed'/nil).
 Q.generators={}
-Q.order={'shortage_delivery','rescue'}
+Q.order={'rescue'}
 -- Kinds settled by handing goods over at the giver (Q.deliver).
-Q.deliveries={shortage_delivery=true}
-
-Q.generators.shortage_delivery={
- label='Delivery',
- keep=function(u,q,clock)
-  local E=require('src.economy')
-  -- Short flickers in the shortage record don't withdraw it; a refilled shelf does.
-  if Stock.count(u,q.giver,q.item)>=E.target(u,q.giver,q.item) then return false end
-  q.unit=Q.unitReward(u,q.giver,q.item,E.shortageAge(u,q.giver,q.item,clock))
-  return true
- end,
- propose=function(u,st,clock,ctx)
-  local E=require('src.economy');local out={}
-  for item,since in pairs(Stock.record(u,st).shortages or {}) do
-   local age=clock-since
-   if age>=T.questShortageAge and data.items[item] and not ctx.taken[st..'|'..item] then
-    local short=E.target(u,st,item)-Stock.count(u,st,item)
-    local cap=math.max(1,math.floor(T.questMaxVolume/math.max(.001,data.items[item].volume)))
-    local amount=math.min(short,cap)
-    if amount>=1 and sourced(u,E,ctx.stations,st,item,math.min(amount,T.orderMinLoad)) then
-     out[#out+1]={kind='shortage_delivery',giver=st,item=item,amount=amount,unit=Q.unitReward(u,st,item,age),age=age}
-    end
-   end
-  end
-  table.sort(out,function(a,b) return a.age>b.age or a.age==b.age and a.item<b.item end)
-  return out
- end,
-}
+Q.deliveries={}
 
 -- Rescue: a real stranded record. The station nearest it posts the job;
 -- it pays when the ship is no longer stranded while you are beside it, and
@@ -226,7 +181,10 @@ function Q.update(u,clock,game)
   local g=Q.generators[q.kind]
   local status,text
   if g and g.resolve and game then status,text=g.resolve(game,q,clock) end
-  if status then settle(u,q,status,clock,game,text)
+  -- (a kind since retired, like the old shortage deliveries: dropped
+  -- from a loaded save without a penalty)
+  if not g then s.active[id]=nil
+  elseif status then settle(u,q,status,clock,game,text)
   elseif clock>q.deadline then settle(u,q,'failed',clock,game)
   else ctx.taken[takenKey(q)]=true end
  end

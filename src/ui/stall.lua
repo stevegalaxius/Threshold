@@ -1,4 +1,7 @@
 -- The Manage tab: your business at this station on one screen.
+--   panes   Market stall, Buy orders, Industry (production lines, where
+--           the station has any: src/ui/industry.lua) and Services (food,
+--           water and shore leave: src/ui/services.lua)
 --   left    This station (its standing toward you, what that unlocks,
 --           whether it's home), your ships and storage here, and your
 --           satellites wherever they are
@@ -65,10 +68,18 @@ function View.layout(game)
 	for i, r in ipairs(Sat.mine(u)) do
 		f.sats[i] = { r = r, x = x + 340 - 14 - 112, y = satTop + (i - 1) * 46 - 3, w = 112, h = 22 }
 	end
-	-- the main column has two panes: the stall and buy orders
-	f.panes = { { id = "stall", label = "Market stall", x = x + 352, y = y, w = 160, h = 32 },
-		{ id = "orders", label = "Buy orders", x = x + 352 + 168, y = y, w = 160, h = 32 } }
+	-- the main column's panes: the stall, buy orders, the station's
+	-- industry (where it has any) and its services
+	local ids = { { "stall", "Market stall" }, { "orders", "Buy orders" } }
+	if require("src.ui.industry").has(st) then ids[#ids + 1] = { "industry", "Industry" } end
+	if require("src.ui.services").has(st) then ids[#ids + 1] = { "services", "Services" } end
+	f.panes = {}
+	for i, p in ipairs(ids) do f.panes[i] = { id = p[1], label = p[2], x = x + 352 + (i - 1) * 140, y = y, w = 132, h = 32 } end
+	local offered = false
+	for _, p in ipairs(f.panes) do if p.id == View.pane then offered = true end end
+	if not offered then View.pane = "stall" end
 	f.main = { x = x + 352, y = y + 40, w = w - 352, h = h - 40 }
+	if View.pane == "industry" or View.pane == "services" then f.view = View.pane; return f end
 	f.stall = k and Stall.get(u, k)
 	local m = f.main
 	if View.pane == "orders" then return View.ordersLayout(game, f) end
@@ -305,6 +316,10 @@ function View.draw(game)
 	for _, p in ipairs(f.panes) do Station.button(p, p.label, View.pane == p.id, true) end
 	if f.orders then drawOrders(game, f, mx, my); return end
 	local m = f.main
+	if f.view then
+		require(f.view == "industry" and "src.ui.industry" or "src.ui.services").draw(game, mx, my, m.x, m.y, m.w, m.h)
+		return
+	end
 	if not f.stall then
 		card(m.x, m.y, m.w, 270, "MARKET STALL")
 		text(m.x + 24, m.y + 44, m.w - 48, "Rent a stall in this market", 20, HUD.INK)
@@ -375,6 +390,7 @@ function View.mousepressed(game, mx, my, button)
 		for _, p in ipairs(f.panes) do if inside(p, mx, my) then View.pane = p.id; return true end end
 	end
 	if f.orders then return View.ordersClick(game, f, mx, my, button) end
+	if f.view then return true end
 	if not f.stall then
 		if button == 1 and inside(f.rent, mx, my) then
 			local s, why = Stall.open(u, f.k)
@@ -402,5 +418,6 @@ function View.mousepressed(game, mx, my, button)
 end
 function View.wheelmoved(game, y)
 	if View.pane == "orders" then View.catScroll = View.catScroll - y end
+	if View.pane == "industry" then require("src.ui.industry").wheelmoved(game, y) end
 end
 return View

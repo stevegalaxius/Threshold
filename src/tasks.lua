@@ -197,6 +197,8 @@ end
 function Tasks.choose(u,r,station,clock)
  if not Tasks.resolve(u,r) then return end
  if r.task then return r.task end
+ -- an exhausted crew takes nothing new until it has had shore leave
+ if require('src.crew_fatigue').exhausted(r) then r.taskStatus='needs shore leave';return end
  local list,ranks={},{}
  local capabilities=Access.capabilities(r)
  local offers=Tasks.state(u).offers

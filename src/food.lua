@@ -34,6 +34,8 @@ end
 -- Production and consumption stay separate, including at a surplus producer.
 function F.flow(u,key,m,dt)
  local use,make=F.rates(key)
+ -- crews on shore leave here eat too (src/station_needs.lua)
+ use=use+require('src.station_needs').residentUse(u,key,'food')
  local reserved=require('src.stockpile').reserved(u,key,F.item)
  local have=math.max(0,(m.stock[F.item] or 0)-reserved)
  local function units(rate,field)

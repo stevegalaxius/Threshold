@@ -1,6 +1,6 @@
 # Player contracts
 
-Dock at any station and open **Contracts**. The global freight list reads the same offers as NPC task selection; it does not generate separate player jobs. Available pickups at the current station sort first. Scroll for the rest. Newly generated freight is visible to players immediately; NPCs can reserve it after a 30-second game-time listing window, including when bundling other orders. This provides a chance to accept work without guaranteeing a permanent backlog.
+Dock at any station and open **Jobs**, then **Freight**. The freight list reads the same offers as NPC task selection; it does not generate separate player jobs. It lists pickups in this station's system. Jobs it can't take yet say why (hold size, climate control, an authorization, or an active contract). Newly generated freight is visible to players immediately; NPCs can reserve it after a 30-second game-time listing window, including when bundling other orders. This provides a chance to accept work without guaranteeing a permanent backlog.
 
 Each row shows source, destination, cargo quantity/volume, delivery payment and quoted route distance in AU. The accepted quantity is limited to available source stock and space in the current ship’s actual grid hold. For a partial load, the row shows the load versus the full order quantity. The remainder stays on the shared board for other workers. Acceptance takes just the selected order, without NPC-style automatic bundling of other goods on the route.
 
@@ -20,7 +20,7 @@ Only one player contract may be active at a time:
 2. Fly to the destination with the goods aboard the current ship, then use **Deliver & collect**. This transfers actual cargo into station stock and pays the existing freight quote into the player’s credits. The shared settlement records the delivery in simulation history and freight statistics.
 3. Before pickup, **Cancel contract** releases the reservation. After pickup, return the required cargo to the source and use **Return & cancel**. Missing cargo must be replaced before delivery or return. Goods in station storage or a different ship must first be moved into the current ship.
 
-In flight, open the inventory with Tab and select **Contracts** to read the active assignment. Acceptance and cargo handling require completed station docking. Jobs are rechecked on acceptance, so a stale screen cannot steal an offer already reserved by an NPC.
+In flight, open the inventory with Tab and select **Jobs** to read the active assignment. Acceptance and cargo handling require completed station docking. Jobs are rechecked on acceptance, so a stale screen cannot steal an offer already reserved by an NPC.
 
 The owner/task lives in `universe.tasks.player`, alongside the normal offers. Cargo remains in the actual player ship rather than a second saved inventory. Existing task saving includes the contract; cleanup recognizes player ownership, and the normal economy preserves accepted orders. Completion uses the same transport loading, stock and payment code as NPC freight.
 

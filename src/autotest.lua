@@ -542,8 +542,12 @@ function A.update(game, dt)
 		shot("12a_shipyard")
 	end) end
 	if t >= 35.715 then once("industry_tab", function()
-		require("src.ui.cargo").tab = "industry"
+		require("src.ui.cargo").tab = "stall"
+		require("src.ui.stall").pane = "industry"
 		shot("12c_industry")
+		require("src.ui.stall").pane = "services"
+		shot("12d_services")
+		require("src.ui.stall").pane = "stall"
 	end) end
 	if t >= 35.73 then once("shipyard_lot_done", function() require("src.ui.cargo").tab = "hangar" end) end
 	if t >= 35.75 then once("hangar_cargo", function()

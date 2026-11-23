@@ -262,7 +262,30 @@ T.factionFlowHours=6 -- half-life of a faction's rolling surplus/deficit (src/ac
 T.stationFloor,T.factionFloor=20000,500000 -- accounts pay down to these; past them the faction, then its home economy, pays (src/accounts.lua)
 T.factionTax=.35 -- share of a station's takings paid to its faction (stations piled up money while their factions ran down at .25)
 T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
-T.dockFeePerCell,T.dockFeeMin=10,40 -- docking fee per hangar cell the hull takes, and the least (src/docking_fee.lua)
+-- Crew fatigue and shore leave (src/crew_fatigue.lua). Fatigue runs 0..1.
+T.fatigueRate=.035          -- fatigue a minute underway (about 20 min from rested to the soft limit)
+T.fatigueTransit=1.5        -- times that on an interplanetary crossing
+T.fatigueFight=.05          -- added per fight
+T.fatigueDamage=.1          -- added per whole hull's worth of armor lost
+T.fatigueSoft=.7            -- a captain of middling ambition books shore leave here
+T.fatigueAmbitionSpread=.3  -- ambition 0..1 moves that by -/+ half this
+T.fatigueHard=.95           -- past this, no new jobs until it has rested
+T.restSecondsPerFatigue=260 -- seconds of shore leave a whole unit of fatigue takes (at an ordinary station)
+T.restMinStay,T.restMaxStay=60,600
+T.restBaseRate=60           -- credits a minute at an ordinary station, for a hull of 4 hangar cells or fewer (bigger hulls pay by the square root of their size)
+T.restCrowding=.5           -- price rises this much as resting crews fill the station's places
+T.restResidentialPrice,T.restResidentialSpeed=.6,1.5
+T.restDepotPrice,T.restDepotSpeed=1.3,.7 -- faction-run depots (hubs, customs houses)
+T.restDarkPrice=1.8
+T.restHomePrice,T.restHomeSpeed=.5,1.2 -- at the ship's own home station
+T.restHomeLoyalty=.5        -- how much a timid captain favours resting at home over a nearer station
+T.restTimeValue=.6          -- credits a second of travel to a rest stop is worth, at middling ambition
+T.restReserve=200           -- credits a crew keeps back rather than spend on shore leave
+T.restHomeXp=1              -- rank experience for a full rest at home (src/npc_rank.lua)
+T.fatigueHomeward=.8        -- from this share of its rest threshold a crew favours jobs ending in its home system
+T.fatigueAwayPenalty=.5     -- how much a job ending away from home loses, at full fatigue (src/transport.lua)
+T.restFoodPerCrew=.5        -- food crates a game hour each resting crew eats (src/station_needs.lua)
+T.restWaterPerCrew=.3       -- water tanks a game hour each resting crew drinks
 T.resaleMargin=.1 -- a station prices goods it bought in at least this much over their landed cost (src/markets.lua)
 T.hubMarkup=.3 -- a logistics hub sells on what it imports at this markup (src/transport.lua)
 T.npcStartingCredits=2000 -- what an arriving NPC has left after buying its ship
@@ -545,20 +568,17 @@ T.trunkMinHold=250 -- hold a ship needs to take trunk runs
 T.trunkMinOrders=4 -- a trunk run waits for this many ordinary order lots (E.minOrder)
 T.playerFirstLookSeconds=180 -- orders placed at the station you're docked at wait this long for you before NPCs may take them
 T.satJobPlayerFirst=600     -- s a satellite launch/refuel job is offered to the player before haulers may take it
--- Shortage deliveries (src/quests.lua): player-only work generated from
--- stations that have been short of a good for a while.
-T.questShortageAge=900   -- a shortage must be this old (s) before it is posted
-T.questSlots=3           -- open shortage deliveries per station
-T.questMaxActive=3       -- deliveries the player can hold at once
-T.questOfferLife=1800    -- an unaccepted delivery is withdrawn after this
-T.questDeadline=3600     -- time to deliver once accepted
-T.questMaxVolume=60      -- m3 asked for in one delivery
-T.questPremium=1.5       -- reward per unit, as a multiple of the station's price
-T.questAgeBonus=.5       -- extra multiple for a shortage an hour old or more
+-- Station jobs (src/quests.lua): player work the shared freight board
+-- can't express (rescues, satellite and site jobs, ore contracts).
+T.questSlots=3           -- open station jobs per station
+T.questMaxActive=3       -- station jobs the player can hold at once
+T.questOfferLife=1800    -- an unaccepted job is withdrawn after this
+T.questDeadline=3600     -- time to finish once accepted
+T.questMaxVolume=60      -- m3 asked for in one ore contract
 T.questTick=60
 T.questKindMax=2         -- open offers of one kind per station
-T.questCooldown={shortage_delivery=300,rescue=120,ore_delivery=300} -- per station, after posting that kind
-T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,shortage_delivery=1,ore_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
+T.questCooldown={rescue=120,ore_delivery=300} -- per station, after posting that kind
+T.questWeights={rescue=2,sat_launch=2,sat_refuel=2,ore_delivery=1} -- default order when the arbiter can choose; a location's questWeights overrides
 T.questStanding=2        -- giver faction standing for a finished job
 T.questFailStanding=1    -- and lost for a failed or abandoned one
 T.rescueMinAge=60        -- stranded this long before a station posts the rescue

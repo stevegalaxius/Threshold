@@ -27,6 +27,11 @@ function R.stay(r,node,minimum,u)
 end
 function R.begin(r,node,at,minimum,u)
  r.repairAt=at;r.patrolRepairAt=nil
+ -- a rest stop: shore leave sets the stay (and takes its pay) once a visit
+ if u and r.service and r.service.need=='rest' and L.canonical(node)==r.service.station
+  and not (r.rest and r.rest.node==r.service.station and at<r.rest.stop) then
+  minimum=math.max(minimum or 0,require('src.crew_fatigue').begin(u,r,node,at))
+ end
  r.untilTime=at+R.stay(r,node,minimum,u)
 end
 function R.advance(r,clock,node,u)

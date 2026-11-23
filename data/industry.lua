@@ -22,7 +22,7 @@ local D={recipes={
  -- Refined local resources: abstract station extraction, no extra ore chain.
  -- Water: every station drinks it (world_layout defaults.waterUse); Ceres
  -- melts ice for it, and the ice moons pump it straight from their oceans.
- {id='use_water',market=false,item='water',cap=200},
+ {id='use_water',market=false,service='water',item='water',cap=200},   -- (a station service: src/station_services.lua runs it)
  {id='melt_water',item='water',opening=0,cap=1200,input={item='water_ice',n=1}},
  {id='pump_water',group='resources',item='water',opening=0,cap=1200},
  {id='refine_silicon',group='resources',item='silicon',opening=0,cap=192},

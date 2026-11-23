@@ -2,7 +2,7 @@
 --
 -- Roles (trader, courier, patrol, pirate, salvager, miner, and whatever comes
 -- next) only describe their duties. Upkeep watches the needs every ship has
--- (reactor fuel, hull, ammunition) and, when one is due, takes the ship over
+-- (reactor fuel, hull, ammunition, and the crew's rest: src/crew_fatigue.lua) and, when one is due, takes the ship over
 -- with a service visit: out to the nearest station in the region that can
 -- serve it, dock, refit, and back to the node the role was heading to. Then it
 -- hands the untouched role state back as if the ship had just arrived there.
@@ -28,10 +28,12 @@ function U.need(r,e)
  if fuel~='normal' and fuel~='stranded' then return 'fuel' end
  if Repairs.needs(r,e and e.armor,e and e.stats.armor) then return 'repair' end
  if Supplies.needs(r,e) then return 'supplies' end
+ if require('src.crew_fatigue').needs(r) then return 'rest' end
  return nil
 end
 local function serves(need,station)
  if need=='repair' then return Repairs.supports(station) end
+ if need=='rest' then return require('src.crew_fatigue').serves(station) end
  return Supplies.supports(station)
 end
 U.serves=serves
@@ -132,6 +134,7 @@ function U.plan(r,clock,e)
  local prev=not idle and r.route[r.index-1]
  if not idle and (not prev or L.get(prev).area~=r.area) then return false end
  local g=deps.graph(r.area)
+ require('src.crew_fatigue').settle(r,clock)
  local need=U.need(r,e)
  if not need and (r.fuelRangeCheckAt or 0)<=clock then
   r.fuelRangeCheckAt=clock+T.npcFuelRangeCheck
@@ -140,13 +143,15 @@ function U.plan(r,clock,e)
  if not need then return false end
  -- a hub satellite nearer than any station: take it at the next node
  -- instead of booking a station visit (src/sat_jobs.lua)
- if need~='repair' and not idle and require('src.sat_jobs').holdForHub(r,clock,e) then return false end
+ if need~='repair' and need~='rest' and not idle and require('src.sat_jobs').holdForHub(r,clock,e) then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
   if serves(need,id) and canDock(r,e,id,clock) then
    local go=id==L.canonical(at) and {legs={},duration=0} or Graph.route(g,at,id,clock,r.speed)
    local ret=go and (#go.legs==0 and {legs={}} or Graph.route(g,id,at,clock,r.speed))
-   if ret and (not best or go.duration<best) then best,out,back,station=go.duration,go,ret,id end
+   -- (shore leave weighs the price and home as well as the trip)
+   local score=ret and (need=='rest' and require('src.crew_fatigue').cost(u,r,id,go.duration) or go.duration)
+   if ret and (not best or score<best) then best,out,back,station=score,go,ret,id end
   end
  end
  local trip -- node lists out and back, for a stop in a neighbouring region
@@ -238,6 +243,7 @@ end
 -- ship had just arrived there at `at`.
 function U.finish(r,at)
  local s=r.service;if not s then return end
+ require('src.crew_fatigue').settle(r,at)
  r.route=s.saved.route;r.index=s.saved.index;r.service=nil
  require('src.alife_trace').note(r,at,'upkeep','service done at '..s.station..(U.need(r) and (', still needs '..U.need(r)) or '')..' -> back to role')
  if s.saved.idle then
@@ -327,7 +333,8 @@ end
 function U.label(r)
  local s=r.service;if not s then return nil end
  local place=L.byId[s.station]
- local what=s.need=='fuel' and 'refuel' or s.need=='repair' and 'repair' or 'resupply'
+ if s.need=='rest' and r.rest and r.state=='docked' then return require('src.crew_fatigue').label(r) end
+ local what=s.need=='fuel' and 'refuel' or s.need=='repair' and 'repair' or s.need=='rest' and 'take shore leave' or 'resupply'
  return ('heading to %s at %s'):format(what,place and place.name or s.station)
 end
 return U

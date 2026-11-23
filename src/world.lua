@@ -102,8 +102,6 @@ end
 -- autosaves.
 function Game:playerDocked(st)
 	self:givePlayerBay(st)
-	local fee = require("src.docking_fee").player(self.universe, st.key, self.player and self.player.hull and self.player.hull.id)
-	if fee > 0 and self.toast then self:toast(("DOCKING FEE %d CR"):format(fee), 1.5) end
 	self.universe.home = { field = self.fieldId, key = st.key, name = st.name }
 	self:autosave()
 end

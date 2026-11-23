@@ -503,9 +503,18 @@ end
 
 -- Apply fn(x, y) -> x, y to every point of the selected part.
 function E.transformSelected(fn, reverse)
-	local p = E.sel and E.design.parts[E.sel]
-	if not p then return end
+	local list = require("src.editor.canvas").selection(E)
+	if #list == 0 then return end
 	E.pushUndo()
+	-- every selected part, one undo step
+	for _, i in ipairs(list) do
+		local p = E.design.parts[i]
+		if p and p.shape then E.transformPart(p, fn, reverse) end
+	end
+	E.vsel = nil
+end
+
+function E.transformPart(p, fn, reverse)
 	local s, out = p.shape, {}
 	for k = 1, #s, 2 do
 		local x, y = fn(s[k], s[k + 1])
@@ -522,7 +531,6 @@ function E.transformSelected(fn, reverse)
 		local x, y = fn(l.x, l.y)
 		l.x, l.y = math.floor(x + 0.5), math.floor(y + 0.5)
 	end
-	E.vsel = nil
 end
 
 -- Make the selected part symmetric about the spine: keep its points on

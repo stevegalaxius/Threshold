@@ -1746,18 +1746,26 @@ local function partWindow(E)
 	if Slab.Button("Flip sides") then E.transformSelected(function(x, y) return x, -y end, true) end
 	if Slab.Button("Rotate 90") then E.transformSelected(function(x, y) return -y, x end) end
 	Slab.SameLine()
+	-- the centre of everything selected, so a group turns and scales as one
+	local function selCentre()
+		local all = {}
+		for _, i in ipairs(Canvas.selection(E)) do
+			for _, v in ipairs(E.design.parts[i].shape or {}) do all[#all + 1] = v end
+		end
+		return Canvas.centre(#all > 0 and all or p.shape)
+	end
 	if Slab.Button("Rotate 15") then
 		local c, s = math.cos(math.pi / 12), math.sin(math.pi / 12)
-		local cx, cy = Canvas.centre(p.shape)
+		local cx, cy = selCentre()
 		E.transformSelected(function(x, y) return cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c end)
 	end
 	if Slab.Button("Scale -10%") then
-		local cx, cy = Canvas.centre(p.shape)
+		local cx, cy = selCentre()
 		E.transformSelected(function(x, y) return cx + (x - cx) * 0.9, cy + (y - cy) * 0.9 end)
 	end
 	Slab.SameLine()
 	if Slab.Button("Scale +10%") then
-		local cx, cy = Canvas.centre(p.shape)
+		local cx, cy = selCentre()
 		E.transformSelected(function(x, y) return cx + (x - cx) * 1.1, cy + (y - cy) * 1.1 end)
 	end
 	if Slab.Button("Symmetrize about the spine") then E.symmetrizeSelected() end
