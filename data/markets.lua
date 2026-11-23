@@ -34,13 +34,20 @@ local generalStore = {
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 }, { "cargo_container", 2 },
 }
 market { id = "market:general", station = "General store", sells = generalStore }
-market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp" }, lots = 6, restock = 8 }, sells = generalStore }
-
 -- Residential services do not grant ship sales; passenger refits stay available.
+market { id = "market:venus_1", station = "Hub Station", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
 market { id = "market:luna_3", station = "Tranquility Commons", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
 market { id = "market:mars_5", station = "Hakka Tulou Habitat", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
+market { id = "market:mercury_5", station = "Daybreak Commons", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
+market { id = "market:saturn_2", station = "Shiloh", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
 market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   -- logistics equipment store
@@ -62,8 +69,15 @@ market { id = "market:mars_4", station = "Zhuhai Logistics", sells = {
 market { id = "market:triton_3", station = "Triton Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
+market { id = "market:venus_2", station = "Cloudline Station", sells = {
+	{ "hold_pod_s", 1 }, { "cargo_container", 2 },
+} }
 market { id = "market:venus_4", station = "Venus Logistics", sells = {
 	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
+} }
+-- Specialized shelves take their stock from production and freight.
+market { id = "market:saturn_1", station = "Zebulun's Bounty", sells = {
+	{ "food_crate", 0 }, { "fertilizer", 0 },
 } }
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
@@ -81,16 +95,20 @@ market { id = "market:ganymede_3", station = "Ganymede Customs", sells = {
 market { id = "market:callisto_3", station = "Callisto Customs", sells = {
 	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
-market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Red Furnace Shipyard", hulls = { "redfu_crane", "redfu_pelican", "redfu_gila" }, lots = 6, assembly = "redfu_assembly", markup = 0.95 }, sells = {   -- artillery
-	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
-	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
+market { id = "market:mars_1", station = "Red Furnace Shipyard", dealer = { name = "Red Furnace Shipyard", hulls = { "redfu_crane", "redfu_pelican", "redfu_gila" }, lots = 6, assembly = "redfu_assembly", markup = 0.90, trims = { "stripped", "stock" } }, sells = {
+	{ "mule_engine", 1 },
 } }
-market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
-	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
+market { id = "market:mars_3", station = "Heaven-Ladder", sells = {
+	{ "gun_s_base", 0 }, { "gun_m_base", 0 }, { "gun_l_base", 0 },
+	{ "artillery_s_base", 0 }, { "artillery_m_base", 0 }, { "artillery_l_base", 0 },
+	{ "iron_ore", 4 }, { "water_ice", 4 },
 } }
-market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
+market { id = "market:mars_2", station = "Zhongke Intelligent Manufacturing", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "missile_s_base", 2 }, { "missile_m_base", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
+} }
+market { id = "market:mars_mine", station = "Mars mining supplies", sells = {
+	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 },
 } }
 market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy weapons
 	{ name = "Kinetic armory", description = "Guns, artillery, solid and airburst rounds, explosive and scatter shells.", sells = {
@@ -103,7 +121,8 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 		{ "beam_s_base", 2 }, { "beam_m_base", 1 }, { "beam_l_base", 1 },
 	} },
 } }
-market { id = "market:earth_2", station = "Orbital Two", sells = {   -- capital gear
+market { id = "market:earth_2", station = "Elysium", sells = {   -- passenger fittings and capital gear
+	{ "climate_pod_s", 1 },
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
 	{ "torp_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },
@@ -137,7 +156,7 @@ market { id = "market:titan_2", station = "Huygens Station", sells = {
 market { id = "market:titan_3", station = "Gilgal Arsenal", sells = {   -- Diwan missile works
 	{ "missile_s_base", 1 }, { "missile_m_base", 1 }, { "guidance_computer", 1 },
 } }
-market { id = "market:earth_4", station = "Ashgrove Drone Foundry", sells = {   -- Estates drone works
+market { id = "market:mercury_4", station = "Ashgrove Drone Foundry", sells = {   -- Estates drone works
 	{ "drone_s_base", 1 }, { "drone_m_base", 1 },
 } }
 market { id = "market:triton_1", station = "Cipango Station", sells = {   -- frontier outpost

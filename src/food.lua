@@ -1,15 +1,17 @@
 -- Food is an operating cost, not a population simulation. Rates are crates
--- per game hour; farms turn delivered fertilizer into food.
+-- per game hour. Farms use fertilizer and surface deliveries arrive as crates.
 local L=require('src.locations')
 local T=require('src.tuning')
 local policy=require('data.industry').consumption.food
-local recipe=require('src.commodities').byId[policy.recipe]
-local F={item=policy.item,fertilizer=recipe.inputs[1].item,yield=1/recipe.inputs[1].n,transition=policy.transition,minOutput=policy.minOutput,cap=recipe.cap}
+local recipes=require('src.commodities').byId
+local farm,surface=recipes[policy.recipe],recipes.receive_surface_food
+local F={item=policy.item,fertilizer=farm.inputs[1].item,yield=1/farm.inputs[1].n,transition=policy.transition,minOutput=policy.minOutput,cap=farm.cap}
 function F.rates(key)
  local place=L.byId[L.canonical(key)]
  if not place or place.kind~='station' then return 0,0 end
  local spec=place.food or {}
- return spec.use or require('src.world_layout').defaults.foodUse or 32,((place.facilities or {})[policy.facility] or {}).capacity or 0
+ local recipe=surface.make[place.id] and surface or farm
+ return spec.use or require('src.world_layout').defaults.foodUse or 32,recipe.make[place.id] or 0,recipe
 end
 function F.initial(key)
  local use,make=F.rates(key)
@@ -19,8 +21,8 @@ function F.shop()
  return {id='food',name='Food supplies',description='Station provisions and agricultural freight.',sells={{F.item,1},{F.fertilizer,1}}}
 end
 function F.fertilizerUse(key)
- local _,make=F.rates(key)
- return make/F.yield
+ key=L.canonical(key)
+ return (farm.make[key] or 0)/F.yield
 end
 function F.initialFertilizer(key)
  local use=F.fertilizerUse(key)
@@ -33,7 +35,7 @@ end
 -- Called by stockpile catch-up with the actual food shop, once per interval.
 -- Production and consumption stay separate, including at a surplus producer.
 function F.flow(u,key,m,dt)
- local use,make=F.rates(key)
+ local use,make,recipe=F.rates(key)
  -- crews on shore leave here eat too (src/station_needs.lua)
  use=use+require('src.station_needs').residentUse(u,key,'food')
  local reserved=require('src.stockpile').reserved(u,key,F.item)
@@ -48,12 +50,14 @@ function F.flow(u,key,m,dt)
  local Stock=require('src.stockpile')
  local made,short=0,0
  if make>0 then
-  local recipe=require('src.commodities').byId[policy.recipe]
   m.recipes=m.recipes or {};local progress=m.recipes[recipe.id] or {carry=0,credit={}};m.recipes[recipe.id]=progress
-  local credit=(progress.credit and progress.credit[F.fertilizer] or 0)*F.yield
-  local fertilizer=Stock.available(u,key,F.fertilizer)
-  made=require('src.industry').flow(u,key,recipe,m,dt,make,math.max(0,F.cap-have-reserved+wanted))
-  local active=math.min(dt,(credit+fertilizer*F.yield)/make*3600)
+  local active=dt
+  if recipe==farm then
+   local credit=(progress.credit and progress.credit[F.fertilizer] or 0)*F.yield
+   local fertilizer=Stock.available(u,key,F.fertilizer)
+   active=math.min(dt,(credit+fertilizer*F.yield)/make*3600)
+  end
+  made=require('src.industry').flow(u,key,recipe,m,dt,make,math.max(0,recipe.cap-have-reserved+wanted))
   local net=make-use
   if net<0 then short=math.max(0,active-have/-net*3600) end
   local left=math.max(0,have+net*active)

@@ -11,27 +11,41 @@ W.stations = {
 	-- itself; small moons go through their customs depot instead), so every cross-system trade goes hub to hub.
 	-- surface=true marks a facility down on the planet or moon.
 	mercury = {
-		{ id = "station:mercury_1", facilities={burn_hydrogen={capacity=-12},roll_steel={capacity=480},shipworks={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
-		{ id = "station:mercury_2", facilities={ceramic_works={capacity=8},silicon_refinery={capacity=24,surface=true},burn_hydrogen={capacity=-12}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
+		{ id = "station:mercury_1", facilities={roll_steel={capacity=480},shipworks={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
+		{ id = "station:mercury_2", facilities={ceramic_works={capacity=8},silicon_refinery={capacity=24,surface=true}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
 		{ id = "station:mercury_3", facilities={engines_works={capacity=1},brute_assembly={capacity=2}}, marketId = "market:mercury_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Brute Industries Shipyard", layout = "shipyard_1" },
+		{ id = "station:mercury_4", facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
+		{ id = "station:mercury_5", marketId = "market:mercury_5", services = { "market", "hangar" }, spin = 0.04, name = "Daybreak Commons", layout = "estates_chandelier",
+		  residential = { population = 3000, homes = 4, routes = {
+			{ to = "station:mercury_1", kind = "work", weight = 3 },
+			{ to = "station:mercury_2", kind = "work", weight = 2 },
+			{ to = "station:mercury_3", kind = "work", weight = 2 },
+			{ to = "station:mercury_4", kind = "work", weight = 3 } } } },
 	},
 	venus = {
-		{ id = "station:venus_1", facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},acid_works={capacity=16,surface=true},electronics={capacity=12}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station" },
-		{ id = "station:venus_2", food = {use=64}, facilities={burn_hydrogen={capacity=-60},use_ice={capacity=-240},farm={capacity=640}}, services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
+		{ id = "station:venus_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:venus_1", name = "Hub Station",
+		  residential = { population = 3000, homes = 7, routes = {
+			{ to = "station:venus_2", kind = "work", weight = 3 },
+			{ to = "station:venus_3", kind = "work", weight = 1 },
+			{ to = "station:venus_4", kind = "work", weight = 2 } } } },
+		{ id = "station:venus_2", food = {use=64}, facilities={burn_hydrogen={capacity=-120},terraform_water={name="Terraforming water intake",capacity=-480},farm={capacity=640}}, marketId = "market:venus_2", services = { "market", "hangar" }, spin = -0.05, phase = 2.3415926535897933, name = "Cloudline Station", layout = "estates_palace"   },
 		{ id = "station:venus_3", facilities={amw_assembly={capacity=2}}, marketId = "market:venus_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 4.4, name = "Angelmaschinenwerft Atelier", layout = "shipyard_1" },
-		{ id = "station:venus_4", orbit = 2, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 1.0, marketId = "market:venus_4", name = "Venus Logistics", layout = "customs_1", hub = true },
+		{ id = "station:venus_4", orbit = 2, facilities={acid_works={capacity=72,surface=true}}, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 1.0, marketId = "market:venus_4", name = "Venus Logistics", layout = "customs_1", hub = true },
 	},
 	earth = {
-		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},electronics={capacity=12},make_medical={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
-		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace"  },
+		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},make_medical={capacity=8},surface_food={name="Surface food terminal",capacity=960,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
+		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, services = { "market", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace",
+		  residential = { population = 5000, homes = 8, routes = {
+			{ to = "station:earth_1", kind = "work", weight = 4 },
+			{ to = "station:earth_3", kind = "work", weight = 3 },
+			{ to = "station:earth_5", kind = "work", weight = 1 } } } },
 		{ id = "station:earth_3", facilities={ferrous_assembly={capacity=2}}, marketId = "market:earth_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Ferrous Collective Shipyard", layout = "shipyard_1" },
-		{ id = "station:earth_4", orbit = 2, facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:earth_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
 		-- the Estates' military yards: builds its police and courier hulls (data/industry.lua serviceLineups)
 		{ id = "station:earth_5", orbit = 2, uses = { military = true }, facilities={estates_assembly={capacity=2}}, marketId = "market:earth_5", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 2.35, name = "Estates Naval Yards", layout = "shipyard_2" },
 	},
 	
 	luna = {
-		{ id = "station:luna_1", facilities={silicon_refinery={capacity=64,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
+		{ id = "station:luna_1", facilities={silicon_refinery={capacity=128,surface=true},electronics={capacity=48}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:luna_1", name = "Thule Prime", layout = "estates_palace"   },
 		{ id = "station:luna_2", services = { "market", "shipyard", "hangar" }, marketId = "market:luna_2", spin = -0.05, phase = 2.3415926535897933, name = "The Apollo Heritage Foundation", layout = "estates_palace"   },
 		-- residential (src/passengers.lua): housing only, no industry or ship sales
 		{ id = "station:luna_3", marketId = "market:luna_3", services = { "market", "hangar" }, spin = 0.04, phase = 3.9, name = "Tranquility Commons", layout = "estates_quadrangle",
@@ -58,10 +72,10 @@ W.stations = {
 			{ to = "station:luna_3", kind = "visit", weight = 1 } } } },
 	},
 	phobos = {
-		{ id = "station:phobos_1", facilities={guns_works={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
+		{ id = "station:phobos_1", marketId = "market:mars_mine", services = { "market", "hangar", "repair" }, primary = true, name = "The Star-Breaking Mine", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
 	},
 	deimos = {
-		{ id = "station:deimos_1", services = { "market", "shipyard", "hangar", "repair" }, primary = true, name = "The Moon-Swallowing Yard", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
+		{ id = "station:deimos_1", marketId = "market:mars_mine", services = { "market", "hangar", "repair" }, primary = true, name = "The Moon-Swallowing Yard", adapter = "surface_mine", layout = "zhuhai_strip_mine" },
 	},
 	
 	belt = {
@@ -70,42 +84,47 @@ W.stations = {
 		{ id = "station:belt_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:belt_3", name = "Ceres Logistics", layout = "customs_1", hub = true },
 	},
 	jupiter = {
-		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
-		{ id = "station:jupiter_2", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "caliphate_chemworks" },
+		{ id = "station:jupiter_1", facilities={skim_deuterium={capacity=4800},skim_hydrogen={capacity=20}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "Olympus", adapter = "cloud" },
+		{ id = "station:jupiter_2", services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:jupiter_2", name = "Kyrakos", layout = "jovian_shipyard" },
 		{ id = "station:jupiter_3", facilities={use_medical={capacity=-4}}, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 2.3415926535897933, marketId = "market:jupiter_3", name = "Jovian Logistics", layout = "customs_1", hub = true },
 				
 	},
 
 	io = {
-		{ id = "station:io_1", facilities={ceramic_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works" },
-		{ id = "station:io_2", facilities={lasers_works={capacity=2}}, services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory" },
+		{ id = "station:io_1", facilities={ceramic_works={capacity=8},acid_works={capacity=16,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:io_1", name = "Pele Works", layout = "jovian_works" },
+		{ id = "station:io_2", facilities={lasers_works={capacity=2}}, services = { "market", "hangar", "repair" }, marketId = "market:io_2", spin = -0.05, phase = 2.3415926535897933, name = "Loki Laboratory", layout = "jovian_observatory" },
 		{ id = "station:io_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
 	},
 	europa = {
-		{ id = "station:europa_1", facilities={water_wells={capacity=320,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station" },
-		{ id = "station:europa_2", facilities={ice_wells={capacity=600,surface=true},water_melter={capacity=200}}, services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station" },
+		{ id = "station:europa_1", facilities={water_wells={capacity=320,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station", layout = "jovian_stack" },
+		{ id = "station:europa_2", facilities={ice_wells={capacity=600,surface=true},water_melter={capacity=260}}, services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station", layout = "jovian_works" },
 		{ id = "station:europa_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:europa_3", name = "Europa Customs", layout = "customs_1", customs = true },
 	},
 	ganymede = {
-		{ id = "station:ganymede_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio" },
-		{ id = "station:ganymede_2", facilities={make_medical={capacity=8}}, services = { "market", "hangar", "repair" }, marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station" },
+		{ id = "station:ganymede_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio", layout = "jovian_works" },
+		{ id = "station:ganymede_2", facilities={make_medical={capacity=8}}, services = { "market", "hangar", "repair" }, marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station", layout = "jovian_dingus" },
 		{ id = "station:ganymede_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:ganymede_3", name = "Ganymede Customs", layout = "customs_1", customs = true },
 	},
 	callisto = {
-		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port" },
-		{ id = "station:callisto_2", facilities={chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station" },
+		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
+		{ id = "station:callisto_2", facilities={chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station", layout = "jovian_works" },
 		{ id = "station:callisto_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:callisto_3", name = "Callisto Customs", layout = "customs_1", customs = true },
 	},
 	saturn = {
-		{ id = "station:saturn_1", facilities={skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
-		{ id = "station:saturn_2", facilities={skim_hydrogen={capacity=10}}, services = { "market", "shipyard", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
-		{ id = "station:saturn_3", facilities={water_wells={capacity=320}}, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
+		{ id = "station:saturn_1", facilities={farm={capacity=240}}, marketId = "market:saturn_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
+		{ id = "station:saturn_2", marketId = "market:saturn_2", services = { "market", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter",
+		  residential = { population = 3000, homes = 6, routes = {
+			{ to = "station:saturn_1", kind = "work", weight = 3 },
+			{ to = "station:saturn_3", kind = "work", weight = 3 },
+			{ to = "station:saturn_4", kind = "work", weight = 1 } } } },
+		-- Atmospheric collectors deliver Saturn's hydrogen to the logistics hub.
+		{ id = "station:saturn_3", facilities={skim_hydrogen={capacity=20,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
 		-- the Diwan's military yards
 		{ id = "station:saturn_4", orbit = 2, uses = { military = true }, facilities={diwan_assembly={capacity=2}}, marketId = "market:saturn_4", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 0.9, name = "Diwan Military Yards", layout = "diwan_works" },
 	},
 	enceladus = {
 		{ id = "station:enceladus_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
-		{ id = "station:enceladus_2", facilities={ice_wells={capacity=600,surface=true},water_melter={capacity=200}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
+		{ id = "station:enceladus_2", facilities={ice_wells={capacity=600,surface=true},water_wells={capacity=320,surface=true},water_melter={capacity=260}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
 	},
 	titan = {
 		{ id = "station:titan_1", food = {use=64}, facilities={use_medical={capacity=-4},produce_nitrates={capacity=340,surface=true},farm={capacity=960}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },
@@ -116,8 +135,8 @@ W.stations = {
 		{ id = "station:titania_1", facilities={ice_wells={capacity=600,surface=true},process_nitrates={capacity=80},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
 	},
 	uranus = {
-		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=140}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
-		{ id = "station:uranus_2", facilities={engines_works={capacity=1},skim_deuterium={capacity=2400},skim_hydrogen={capacity=60}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
+		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=4800},skim_hydrogen={capacity=200}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
+		{ id = "station:uranus_2", facilities={engines_works={capacity=1}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
 		{ id = "station:uranus_3", services = { "market", "hangar", "repair" }, spin = -0.04, phase = 2.3415926535897933, marketId = "market:uranus_3", name = "Uranian Logistics", layout = "customs_1", hub = true },
 		},
 	triton = {
@@ -156,7 +175,7 @@ W.stations = {
 		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
 	},
 	cordelia = {
-		{ id = "station:cordelia_1", facilities={skim_deuterium={capacity=700}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },
+		{ id = "station:cordelia_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },
 	},
 	ceres_quarry = {
 		{ id = "station:ceres_quarry_1", facilities={metal_extraction={capacity=24},roll_steel={capacity=120},shipworks={capacity=3}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:ceres_quarry_1", name = "Ceres Quarry Depot", layout = "jovian_works" },
@@ -176,10 +195,12 @@ W.stations = {
 -- IDs are "<home area>_<n>" slugs, assigned once. They never change when a
 -- station is renamed, retuned or moved; markets reuse their station's slug.
 W.defaults={marketId='market:general',waterUse=16,foodUse=32,foodReserveHours=4}
-W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=24},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=24},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=24},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=24},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=24},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
+W.specials={heavenLadder={area='mars',id='station:mars_3',name='Heaven-Ladder',marketId='market:mars_3',food={use=96},facilities={ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=24},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=24},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=24},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=24},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=24},guns_works={capacity=2},press_canisters={capacity=12000},roll_steel={capacity=480},shipworks={capacity=10}},
  access={'station:mars_3','access:mars_3_2','access:mars_3_3','access:mars_3_4'}}}
 -- Read-only compatibility aliases for saves from before independent station IDs.
 W.aliases={
+ ["station:earth_4"]="station:mercury_4",
+ ["market:earth_4"]="market:mercury_4",
  ["phobos/strip_mine"]="station:phobos_1",
  ["deimos/strip_mine"]="station:deimos_1",
  ["mercury/terminator_station"]="station:mercury_1",

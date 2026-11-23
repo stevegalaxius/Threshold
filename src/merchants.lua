@@ -46,7 +46,7 @@ M.houses={
   warehouses={'station:triton_3'},buyBelow=.7,sellAbove=1.8,lot=120,hold=600,reach='any',capital=400000},
  {id='house:estates',faction='estates',name='Venusian Trust',
   -- old money: patient hoarders, big positions, sell late and only at home
-  warehouses={'station:venus_1'},buyBelow=.8,sellAbove=1.6,lot=200,hold=1200,reach='own',capital=900000},
+  warehouses={'station:venus_4'},buyBelow=.8,sellAbove=1.6,lot=200,hold=1200,reach='own',capital=900000},
  {id='house:zhuhai',faction='zhuhai',name='Zhuhai Mandate Trading',
   -- Mars's state traders: thin margins, fast turnover, buy raw goods cheap
   -- and sell into shortages anywhere

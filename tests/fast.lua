@@ -510,7 +510,7 @@ return function(game)
    end
   end
  end
- -- A ship just out of earth_1 for earth_2 that is sent to earth_4 (back
+ -- A ship just out of earth_1 for earth_2 that is sent to the outbound buoy (back
  -- past earth_1) turns round where it is, instead of flying on to earth_2
  -- and doubling back, and doesn't jump doing it.
  do
@@ -525,7 +525,7 @@ return function(game)
   local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_2'},0)/600
   r.depart=-.1*span;r.arrive=r.depart+span
   local x,y=A.trackPoint(r,0)
-  assert(A.redirect(r,'station:earth_4',0),'no way to earth_4')
+  assert(A.redirect(r,'earth/trade_buoy_b',0),'no way to the outbound buoy')
   assert(r.route[r.index]=='station:earth_1','flew on to '..r.route[r.index]..' before turning: '..table.concat(r.route,' > '))
   local xx,yy=A.trackPoint(r,0)
   assert(math.abs(x-xx)+math.abs(y-yy)<1,'ship jumped turning round')
@@ -540,9 +540,9 @@ return function(game)
   local keep=require('src.persistence').copy(r)
   r.state='travel';r.area='earth';r.encounter=nil;r.worldRecovery=nil;r.waitingForHome=nil;r.driverState=nil
   r.service=nil;r.nextServiceAt=nil;r.speed=600
-  r.route={'station:earth_1','station:earth_4','earth/trade_buoy_b','station:earth_3'};r.index=2
+  r.route={'station:earth_1','station:earth_5','earth/trade_buoy_b','station:earth_3'};r.index=2
   local clock=game.universe.clock
-  local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_4'},clock)/600
+  local span=G.length(G.build('earth'),{from='station:earth_1',to='station:earth_5'},clock)/600
   r.depart=clock-.9*span;r.arrive=r.depart+span
   local need,supports=U.need,Repairs.supports
   U.need=function() return 'repair' end;Repairs.supports=function(id) return id=='station:earth_3' end

@@ -251,7 +251,7 @@ function E.target(u,key,item,supplier)
 end
 target=function(u,key,item,supplier)
  local use=serviceUse(u,key,item)
- if item==Food.item then use=math.max(use,Food.rates(key)) end
+ if item==Food.item then use=math.max(use,(Food.rates(key))) end
  for _,c in ipairs(C.byItem(item)) do use=math.max(use,c.use[key] or 0) end
  local want=use*(supplier and E.reserveHours or E.hours)+(inputPlan(u,key).buffers[item] or 0)
  if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
