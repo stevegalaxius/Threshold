@@ -65,6 +65,13 @@ market { id = "market:triton_3", station = "Triton Logistics", sells = {
 market { id = "market:venus_4", station = "Venus Logistics", sells = {
 	{ "rounds_s", 4 }, { "shell_s", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
+-- Specialized shelves take their stock from production and freight.
+market { id = "market:saturn_1", station = "Zebulun's Bounty", sells = {
+	{ "food_crate", 0 }, { "fertilizer", 0 },
+} }
+market { id = "market:saturn_2", station = "Shiloh", sells = {
+	{ "hydrogen_canister", 0 }, { "empty_canister", 0 },
+} }
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },
 } }
