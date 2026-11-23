@@ -2,6 +2,7 @@
 local L=require('src.locations')
 local T=require('src.tuning')
 local C={items={},products={},smooth=600}
+for item in pairs(T.priceDriven or {}) do C.products[#C.products+1]=item;C.items[item]=true end
 for _,recipe in ipairs(require('data.industry').recipes) do
  if recipe.market then
   for _,o in ipairs(require('src.commodities').outputs(recipe)) do

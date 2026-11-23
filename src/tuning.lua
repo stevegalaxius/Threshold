@@ -685,4 +685,13 @@ T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
+-- Price-driven goods (prototype; src/economy.lua, src/markets.lua). For
+-- these, one local signal runs everything: a station's price floats with
+-- its own stock plus what is on its way; a maker runs by how full its own
+-- output shelf is (T.makerShelfHours of its rated output), not by any
+-- system-wide tally; and freight is posted only where the buyer's price
+-- beats the source's price plus the haul. Set an entry to nil to put the
+-- good back on the planner.
+T.priceDriven={deuterium_canister=true}
+T.makerShelfHours=2
 return T

@@ -148,6 +148,15 @@ local function adjust(u,unmet,all)
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
+   if T.priceDriven[c.item] then
+    -- price-driven: the only signal is this plant's own output shelf. An
+    -- empty shelf runs it at up to E.scaleMax, a full one at E.scaleMin,
+    -- easing E.scaleStep a minute toward that (no system tallies)
+    local shelf=math.max(E.lot*2,math.min((c.make[key] or 0)*T.makerShelfHours,(c.cap or math.huge)*.9))
+    local fill=math.min(1,have/shelf)
+    local goal=E.scaleMin+(E.scaleMax-E.scaleMin)*(1-fill)^2
+    v=v<goal and math.min(goal,v*(1+E.scaleStep)) or math.max(goal,v*(1-E.scaleStep))
+   else
    -- some plants answer to the whole system's price of what they make
    -- (crack_ice: the universal price of fuel), not to their own shelf
    local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
@@ -167,6 +176,7 @@ local function adjust(u,unmet,all)
     if have<math.min(E.lot*T.unmetShelfLots,(c.cap or math.huge)*.9) then v=v*(1+E.scaleStep) else v=v*(1-E.scaleStep) end
    -- stock piling up here slows it while the system is comfortable
    elseif have>=E.lot*2 then v=v*(1-E.scaleStep) end
+   end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
   end
   end
@@ -657,7 +667,10 @@ local function run(u,clock,pause)
         score=Chemicals.price(u,s,item)+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
         if crossing>0 then score=score*(1+T.darkCrossingMarkup) end
        end
-       if not bestScore or score<bestScore then best,bestScore=s,score end
+       -- a price-driven good moves only where it pays: the buyer's price
+       -- must beat the source's price plus the haul (score, landed cost)
+       local pays=not T.priceDriven[item] or score<Chemicals.price(u,c,item)
+       if pays and (not bestScore or score<bestScore) then best,bestScore=s,score end
       end
      end
     end
