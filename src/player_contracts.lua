@@ -37,17 +37,33 @@ local function supported(o)
  if o.kind=='passenger' then return L.byId[o.source] and L.byId[o.target] and true or false end
  return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and L.byId[o.source] and L.byId[o.target]
 end
+-- What a ship needs for each capability an offer can require (src/npc_access.lua).
+local NEEDS={cargo='a cargo hold',climate='a climate-controlled hold',berths='ship berths',drill='a mining drill',armed='weapons'}
+local function needs(name)
+ if name=='bulk' then return ('a bulk hold (%d m3 or more)'):format(require('src.tuning').trunkMinHold) end
+ return NEEDS[name] or name
+end
+-- Can the player's ship take offer o? false and why not, if it can't.
 local function access(game,o)
  local A=require('src.npc_access');local p=game.player
  local r={ship={hull=p.hull.id,loadout=p.loadout}}
  local caps=A.capabilities(r)
- return A.eligible(r,o,caps) and A.eligible(r,Tasks.definitions[o.kind],caps)
+ if A.eligible(r,o,caps) and A.eligible(r,Tasks.definitions[o.kind],caps) then return true end
+ local missing,seen={},{}
+ local function add(s) if not seen[s] then seen[s]=true;missing[#missing+1]=s end end
+ for _,req in ipairs({o.requires,Tasks.definitions[o.kind] and Tasks.definitions[o.kind].requires}) do
+  for _,name in ipairs(req and req.capabilities or {}) do if not caps[name] then add(needs(name)) end end
+  if req and req.authorization then add(req.authorization..' authorization') end
+ end
+ if #missing==0 and A.darkOffer and A.darkOffer(o) then return false,'Dark-side freight: needs contacts there' end
+ return false,#missing>0 and ('Needs '..table.concat(missing,' and ')) or 'Requirements not met'
 end
 function C.quote(game,o)
  local u=game.universe
  if not o or not supported(o) then return nil,'Not a player contract' end
  if o.state~='available' or (o.readyAt or 0)>u.clock then return nil,'Job no longer available' end
- if not access(game,o) then return nil,o.kind=='passenger' and 'Needs a climate-controlled hold' or 'Requirements not met' end
+ local ok,why=access(game,o)
+ if not ok then return nil,why end
  if o.kind=='passenger' then
   -- the fare this ship would lock in now, and its parts
   local P=require('src.passengers');local p=game.player

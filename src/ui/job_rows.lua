@@ -1,3 +1,6 @@
+-- The Jobs screen's rows (src/ui/jobs.lua): your active freight or
+-- passenger contract, a station job, a freight or passenger offer, and
+-- what a click on one of them does. (It was once its own Contracts screen.)
 local Board=require('src.player_contracts')
 local L=require('src.locations')
 local HUD,Station=require('src.hud'),require('src.ui.station')
@@ -11,50 +14,6 @@ local function text(x,y,w,s,size,color)
  lg.setFont(HUD.font(size or 14));lg.setColor(color or HUD.INK);lg.printf(s,x,y,w)
 end
 local function inside(r,x,y) return x>=r.x and y>=r.y and x<r.x+r.w and y<r.y+r.h end
-function View.layout(game)
- local x,y,w,h=Station.body();local t=Board.active(game);local here=Board.station(game)
- local out={x=x,y=y,w=w,h=h,active=t,here=here,rows={}}
- local top=y+12
- if t then
-  out.activeRect={x=x,y=top,w=w,h=146}
-  out.advance={x=x+w-190,y=top+16,w=174,h=34}
-  out.cancel={x=x+w-190,y=top+62,w=174,h=30}
-  top=top+158
- else
-  top=top+48
- end
- out.listY=top+38
- do
-  local u=game.universe;local Q=require('src.quests')
-  local entries={}
-  local active,offers=Q.active(u),here and Q.offersAt(u,here) or {}
-  out.quests=#active;out.questOffers=#offers
-  for _,q in ipairs(active) do entries[#entries+1]={quest=q,active=true,h=84} end
-  for _,q in ipairs(offers) do entries[#entries+1]={quest=q,h=84} end
-  local list=here and Board.list(game) or {};out.count=#list
-  if here then entries[#entries+1]={header=true,h=36} end
-  for _,o in ipairs(list) do entries[#entries+1]={offer=o,h=104} end
-  local total=0;for _,e in ipairs(entries) do total=total+e.h end
-  local bottom=y+h
-  View.scroll=math.max(0,math.min(View.scroll,math.max(0,total-(bottom-out.listY))))
-  local ry=out.listY-View.scroll
-  for _,e in ipairs(entries) do
-   if ry>=out.listY and ry+e.h<=bottom then
-    if e.offer then
-     local q,why=Board.quote(game,e.offer)
-     out.rows[#out.rows+1]={offer=e.offer,quote=q,why=why,x=x,y=ry,w=w,h=96,button={x=x+w-190,y=ry+48,w=174,h=32}}
-    elseif e.quest then
-     local row={quest=e.quest,active=e.active,x=x,y=ry,w=w,h=76,button={x=x+w-190,y=ry+8,w=174,h=30}}
-     if e.active then row.abandon={x=x+w-190,y=ry+42,w=174,h=26} end
-     out.rows[#out.rows+1]=row
-    else out.rows[#out.rows+1]={header=true,y=ry} end
-   end
-   ry=ry+e.h
-  end
- end
- return out
-end
--- Pieces the Jobs screen (src/ui/jobs.lua) draws with too.
 local function purpose(o) return o.purpose=='work' and 'commute' or 'visit' end
 local function drawPassengerActive(game,f,t)
  local r=f.activeRect;Station.panel(r.x,r.y,r.w,r.h)
@@ -141,7 +100,8 @@ function View.drawFreight(game,f,row)
  if hold and hold>0 then details=details..(' · held for you %ds'):format(math.ceil(hold)) end
  text(row.x+14,row.y+53,row.w-225,details,13,HUD.DIM)
  Station.button(row.button,q and 'Accept freight' or 'Unavailable',false,q~=nil and not f.active)
- if not q then text(row.x+row.w-205,row.y+12,190,row.why,12,HUD.DIM) end
+ if not q and row.why then text(row.x+14,row.y+73,row.w-225,row.why,13,HUD.WARN)
+ elseif q and f.active then text(row.x+14,row.y+73,row.w-225,'Finish your active contract first: one freight contract at a time.',13,HUD.DIM) end
 end
 -- A click on the active contract or a quest/freight row; nil if it hit none.
 function View.click(game,f,x,y)
@@ -158,31 +118,4 @@ function View.click(game,f,x,y)
  end
 end
 View.text,View.inside=text,inside
-function View.draw(game)
- local f=View.layout(game);local t=f.active
- if t then View.drawActive(game,f,t)
- else
-  Station.panel(f.x,f.y,f.w,48)
-  text(f.x+14,f.y+14,f.w-28,'No active freight contract. Accept one freight job at a time.',14,HUD.DIM)
- end
- if not f.here and f.quests==0 then
-  text(f.x+14,f.y+(t and 172 or 65),f.w-28,'Dock at any station to browse the global board and handle cargo.',14,HUD.DIM)
-  return
- end
- text(f.x+14,f.listY-28,f.w-28,('STATION JOBS · %d held · %d offered here'):format(f.quests,f.questOffers),14,HUD.DIM)
- for _,row in ipairs(f.rows) do
-  if row.header then
-   text(f.x+14,row.y+10,f.w-28,('GLOBAL FREIGHT BOARD · %d available · pickups here are held for you %ds before NPCs'):format(f.count,T.playerFirstLookSeconds),14,HUD.DIM)
-  elseif row.quest then View.drawQuest(game,f,row)
-  else View.drawFreight(game,f,row) end
- end
- if f.here and f.count==0 and f.quests+f.questOffers==0 then text(f.x+14,f.listY+12,f.w-28,'No unclaimed freight orders right now. NPCs use this same board.',14,HUD.DIM) end
-end
-function View.mousepressed(game,x,y,button)
- if button~=1 then return true end
- local ok,message=View.click(game,View.layout(game),x,y)
- if message then game:toast(message,2.5) end
- return true
-end
-function View.wheelmoved(game,y) View.scroll=View.scroll-y*104 end
 return View

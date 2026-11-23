@@ -1,102 +1,127 @@
--- The Jobs tab: every piece of work the player can take, in one list.
---   Your jobs      the freight contract and station jobs you hold
---   System jobs    what every station in this system offers (src/quests.lua:
---                  deliveries, rescues, satellite work, ore), this one first
---   Wreck bounty   what this system pays for clearing wrecks, and your tab
---                  with it, collected at any station here (src/wreck_bounty.lua)
---   Site bounties  wildcat sites this system has put a price on, paid per
---                  kill into the same tab (src/wildcats.lua)
---   Freight board  freight shared with NPCs that picks up in this system,
---                  wherever it goes
---                  (src/player_contracts.lua)
--- Rows are drawn and clicked with the Contracts screen's pieces
--- (src/ui/contracts.lua), which stays as a debug view of the same records.
+-- The Jobs tab: every piece of work the player can take, in four panes
+-- picked with the buttons along the top (each shows how many it holds):
+--   Your jobs      the freight or passenger contract and station jobs you
+--                  hold, and bounties you're owed at other stations
+--   Station jobs   what every station in this system offers (src/quests.lua:
+--                  deliveries, rescues, satellite work, ore), and a
+--                  residential station's passenger demand
+--   Freight        freight shared with NPCs that picks up in this system,
+--                  wherever it goes (src/player_contracts.lua)
+--   Bounties       this system's wreck bounty and your tab with it
+--                  (src/wreck_bounty.lua), and wildcat sites it has put a
+--                  price on (src/wildcats.lua)
+-- Rows are drawn and clicked by src/ui/job_rows.lua. A row half off the
+-- bottom is drawn clipped rather than dropped.
 local Board=require('src.player_contracts')
 local Bounty=require('src.wreck_bounty')
-local Contracts=require('src.ui.contracts')
+local Rows=require('src.ui.job_rows')
 local L=require('src.locations')
 local HUD,Station=require('src.hud'),require('src.ui.station')
 local T=require('src.tuning')
-local View={scroll=0}
-local text,inside=Contracts.text,Contracts.inside
+local View={scroll=0,pane=nil}
+local text,inside=Rows.text,Rows.inside
 local function name(id) return L.byId[id] and L.byId[id].name or id end
 local function areaName(id) local F=require('src.fields')[id];return F and F.name or id end
 
-function View.layout(game)
- local x,y,w,h=Station.body();local u=game.universe;local Q=require('src.quests')
- local here=Board.station(game);local t=Board.active(game)
- local f={x=x,y=y,w=w,h=h,here=here,active=t,rows={}}
+-- The four panes' entries, in order.
+local PANES={{id='yours',label='Your jobs'},{id='station',label='Station jobs'},{id='freight',label='Freight'},{id='bounties',label='Bounties'}}
+local function entries(game,f)
+ local u=game.universe;local Q=require('src.quests')
+ local here,t=f.here,f.active
+ local out={yours={},station={},freight={},bounties={}}
+ local count={yours=0,station=0,freight=0,bounties=0}
+ local function head(pane,label) local e=out[pane];e[#e+1]={header=label,h=34} end
+ local function note(pane,s) local e=out[pane];e[#e+1]={note=s,h=30} end
+ local function add(pane,entry) local e=out[pane];e[#e+1]=entry;count[pane]=count[pane]+1 end
  local active,offers=Q.active(u),here and Q.offersInSystem(u,here) or {}
  local sysName=here and areaName(Q.system(here))
- local payer=here and Bounty.payer(L.get(here).area)
- f.payer=payer
- local freight={}
- if here then
-  local sys=Q.system(here)
-  for _,o in ipairs(Board.list(game)) do if Q.system(o.source)==sys then freight[#freight+1]=o end end
- end
- f.quests,f.questOffers,f.count=#active,#offers,#freight
- local entries={}
- local function head(label) entries[#entries+1]={header=label,h=34} end
- local function note(s) entries[#entries+1]={note=s,h=30} end
- head(('YOUR JOBS · %d of %d held%s'):format(#active,T.questMaxActive,t and ' · 1 freight contract' or ''))
- if t then entries[#entries+1]={activeFreight=t,h=158} end
- for _,q in ipairs(active) do entries[#entries+1]={quest=q,active=true,h=84} end
- if not t and #active==0 then note('Nothing held. Take a job below.') end
- if here then
-  -- a residential station explains itself: homes, routes, its contracts
-  local P=require('src.passengers');local c=P.config(here)
-  if c then
-   head(('RESIDENTIAL STATION · %s · population about %d · home to %d of %d ships'):format(name(here),c.population or 0,#P.residents(u,here),c.homes or 0))
-   local dest={}
-   for _,route in ipairs(c.routes or {}) do dest[#dest+1]=name(route.to)..(route.kind=='work' and ' (work)' or ' (visit)') end
-   note('Passenger destinations: '..table.concat(dest,', '))
-   local open=P.offers(u,function(o)return o.home==here end)
-   local avail=0;for _,o in ipairs(open) do if o.state=='available' then avail=avail+1 end end
-   note(('%d passenger contracts out of %d at most · %d open to accept · parties ride in climate seats; comfort and speed raise the fare'):format(#open,P.cap(here),avail))
-  end
-  head(('SYSTEM JOBS · %d offered in the %s system'):format(#offers,sysName))
-  for _,q in ipairs(offers) do entries[#entries+1]={quest=q,h=84} end
-  if #offers==0 then note('No station in this system has jobs posted right now.') end
-  local areas=payer and Bounty.areas(payer) or {}
-  if #areas>0 or payer and Bounty.owed(u,payer)>0 then
-   head('WRECK BOUNTY')
-   entries[#entries+1]={bounty=areas,h=84}
-  end
-  -- wildcat sites this system's station has put a price on (src/wildcats.lua)
-  local W=require('src.wildcats')
-  local posted={}
-  for _,inst in pairs(require('src.sites').list(u)) do
-   if inst.bounty and not inst.done and Q.system(inst.bounty.station)==Q.system(here) then posted[#posted+1]=inst end
-  end
-  table.sort(posted,function(a,b) return a.id<b.id end)
-  if #posted>0 then
-   head(('SITE BOUNTIES · %d posted in the %s system · paid per wildcat to whoever lands the last hit'):format(#posted,sysName))
-   for _,inst in ipairs(posted) do
-    local crew=W.crew(u,inst.id);local each=crew[1] and W.perHead(crew[1]) or require('src.tuning').bountyPerHead
-    note(('%s off %s · %d wildcat%s left · about %s each · on the mass driver · %d hunter%s inside'):format(require('src.sites').name(inst),areaName(inst.home),#crew,#crew==1 and '' or 's',HUD.credits(each),#W.hunters(u,inst.id),#W.hunters(u,inst.id)==1 and '' or 's'))
-   end
-  end
-  head(('FREIGHT BOARD · %d picking up in the %s system · pickups at this station are held for you %ds before NPCs'):format(#freight,sysName,T.playerFirstLookSeconds))
-  for _,o in ipairs(freight) do entries[#entries+1]={offer=o,h=104} end
-  if #freight==0 then note('No unclaimed freight picks up in this system right now. NPCs use this same board.') end
- else
-  note('Dock at a station to see its jobs, wreck bounty and the freight board.')
- end
- -- Bounties you're owed elsewhere, so you know where to collect.
+ f.quests,f.questOffers=#active,#offers
+ -- Your jobs
+ head('yours',('%d of %d station jobs held · %s'):format(#active,T.questMaxActive,t and 'one freight contract' or 'no freight contract'))
+ if t then add('yours',{activeFreight=t,h=158}) end
+ for _,q in ipairs(active) do add('yours',{quest=q,active=true,h=84}) end
+ if not t and #active==0 then note('yours','Nothing held. Take a station job or a freight contract from the other panes.') end
  local elsewhere={}
  for st,n in pairs(Bounty.state(u).owed) do if st~=f.payer and n>0 then elsewhere[#elsewhere+1]=st end end
  table.sort(elsewhere)
  if #elsewhere>0 then
-  head('BOUNTIES TO COLLECT ELSEWHERE')
-  for _,st in ipairs(elsewhere) do note(('%s system · %s for %d wrecks, %d wildcats · from %s'):format(areaName(Q.system(st)),HUD.credits(Bounty.owed(u,st)),Bounty.state(u).cleared[st] or 0,(Bounty.state(u).heads or {})[st] or 0,name(st))) end
+  head('yours','BOUNTIES TO COLLECT ELSEWHERE')
+  for _,st in ipairs(elsewhere) do note('yours',('%s system · %s for %d wrecks, %d wildcats · from %s'):format(areaName(Q.system(st)),HUD.credits(Bounty.owed(u,st)),Bounty.state(u).cleared[st] or 0,(Bounty.state(u).heads or {})[st] or 0,name(st))) end
  end
- local total=0;for _,e in ipairs(entries) do total=total+e.h end
- local top,bottom=y+4,y+h
+ if not here then
+  for _,pane in ipairs({'station','freight','bounties'}) do note(pane,'Dock at a station to see what its system offers.') end
+  return out,count
+ end
+ -- Station jobs
+ head('station',('%d offered in the %s system'):format(#offers,sysName))
+ for _,q in ipairs(offers) do add('station',{quest=q,h=84}) end
+ if #offers==0 then note('station','No station in this system has jobs posted right now.') end
+ local P=require('src.passengers');local c=P.config(here)
+ if c then
+  head('station',('RESIDENTIAL · %s · population about %d · home to %d of %d ships'):format(name(here),c.population or 0,#P.residents(u,here),c.homes or 0))
+  local dest={}
+  for _,route in ipairs(c.routes or {}) do dest[#dest+1]=name(route.to)..(route.kind=='work' and ' (work)' or ' (visit)') end
+  note('station','Passengers travel to '..table.concat(dest,', '))
+  local open=P.offers(u,function(o)return o.home==here end)
+  local avail=0;for _,o in ipairs(open) do if o.state=='available' then avail=avail+1 end end
+  note('station',('%d passenger contracts out (at most %d) · %d open: find them under Freight'):format(#open,P.cap(here),avail))
+ end
+ -- Freight
+ local sys=Q.system(here)
+ local freight={}
+ for _,o in ipairs(Board.list(game)) do if Q.system(o.source)==sys then freight[#freight+1]=o end end
+ f.count=#freight
+ head('freight',('%d picking up in the %s system · pickups here are held for you %ds before NPCs take them'):format(#freight,sysName,T.playerFirstLookSeconds))
+ for _,o in ipairs(freight) do add('freight',{offer=o,h=104}) end
+ if #freight==0 then note('freight','No unclaimed freight picks up in this system right now. NPCs use this same board.') end
+ -- Bounties
+ local payer=f.payer
+ local areas=payer and Bounty.areas(payer) or {}
+ if #areas>0 or payer and Bounty.owed(u,payer)>0 then
+  head('bounties','WRECK BOUNTY')
+  add('bounties',{bounty=areas,h=84})
+ end
+ local W=require('src.wildcats')
+ local posted={}
+ for _,inst in pairs(require('src.sites').list(u)) do
+  if inst.bounty and not inst.done and Q.system(inst.bounty.station)==sys then posted[#posted+1]=inst end
+ end
+ table.sort(posted,function(a,b) return a.id<b.id end)
+ if #posted>0 then
+  head('bounties',('SITE BOUNTIES · %d in the %s system · paid per wildcat to whoever lands the last hit'):format(#posted,sysName))
+  for _,inst in ipairs(posted) do
+   local crew=W.crew(u,inst.id);local each=crew[1] and W.perHead(crew[1]) or T.bountyPerHead
+   count.bounties=count.bounties+1
+   note('bounties',('%s off %s · %d wildcat%s left · about %s each · on the mass driver · %d hunter%s inside'):format(require('src.sites').name(inst),areaName(inst.home),#crew,#crew==1 and '' or 's',HUD.credits(each),#W.hunters(u,inst.id),#W.hunters(u,inst.id)==1 and '' or 's'))
+  end
+ end
+ if #out.bounties==0 then note('bounties','No bounties posted in this system.') end
+ return out,count
+end
+
+function View.layout(game)
+ local x,y,w,h=Station.body()
+ local here=Board.station(game);local t=Board.active(game)
+ local f={x=x,y=y,w=w,h=h,here=here,active=t,rows={}}
+ f.payer=here and Bounty.payer(L.get(here).area)
+ local lists,count=entries(game,f)
+ -- the pane: as picked, or your jobs when you hold any, else the first with something in it
+ if not View.pane then
+  View.pane='freight'
+  for _,p in ipairs(PANES) do if count[p.id]>0 then View.pane=p.id;break end end
+ end
+ f.panes={}
+ for i,p in ipairs(PANES) do
+  f.panes[i]={id=p.id,label=('%s (%d)'):format(p.label,count[p.id]),x=x+(i-1)*178,y=y,w=170,h=32}
+ end
+ local list=lists[View.pane]
+ local total=0;for _,e in ipairs(list) do total=total+e.h end
+ local top,bottom=y+44,y+h
+ f.top,f.bottom=top,bottom
  View.scroll=math.max(0,math.min(View.scroll,math.max(0,total-(bottom-top))))
  local ry=top-View.scroll
- for _,e in ipairs(entries) do
-  if ry>=top and ry+e.h<=bottom then
+ for _,e in ipairs(list) do
+  if ry+e.h>top and ry<bottom then
    if e.activeFreight then
     f.activeRect={x=x,y=ry,w=w,h=146}
     f.advance={x=x+w-190,y=ry+16,w=174,h=34}
@@ -135,22 +160,28 @@ end
 
 function View.draw(game)
  local f=View.layout(game)
+ for _,p in ipairs(f.panes) do Station.button(p,p.label,View.pane==p.id,true) end
+ love.graphics.setScissor(f.x,f.top,f.w+2,f.bottom-f.top)
  for _,row in ipairs(f.rows) do
-  if row.activeFreight then Contracts.drawActive(game,f,f.active)
-  elseif row.quest then Contracts.drawQuest(game,f,row)
-  elseif row.offer then Contracts.drawFreight(game,f,row)
+  if row.activeFreight then Rows.drawActive(game,f,f.active)
+  elseif row.quest then Rows.drawQuest(game,f,row)
+  elseif row.offer then Rows.drawFreight(game,f,row)
   elseif row.bounty then drawBounty(game,f,row)
   elseif row.header then text(f.x+14,row.y+10,f.w-28,row.header,14,HUD.DIM)
   elseif row.note then text(f.x+14,row.y+6,f.w-28,row.note,13,HUD.DIM) end
  end
+ love.graphics.setScissor()
 end
 function View.mousepressed(game,x,y,button)
  if button~=1 then return true end
  local f=View.layout(game);local ok,message
+ for _,p in ipairs(f.panes) do if inside(p,x,y) then View.pane=p.id;View.scroll=0;return true end end
+ -- (the part of the list scrolled out of view can't be clicked)
+ if y<f.top or y>=f.bottom then return true end
  for _,row in ipairs(f.rows) do
   if row.collect and inside(row.collect,x,y) then ok,message=Bounty.collect(game,f.payer) end
  end
- if not message then ok,message=Contracts.click(game,f,x,y) end
+ if not message then ok,message=Rows.click(game,f,x,y) end
  if message then game:toast(message,2.5) end
  return true
 end
