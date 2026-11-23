@@ -54,6 +54,30 @@ local function cargo(r,item,amount)
   r.ship.cargo[item]=(r.ship.cargo[item] or 0)+amount
  end
 end
+-- Trial packing for a manifest: one hold unpacked once and filled in
+-- place, never written back to the ship. (Fitting each line by copying the
+-- whole ship and re-serialising its hold made garbage enough to stall a
+-- frame for a docked hauler choosing freight.)
+local function fitter(r)
+ local h=hold(r);local extra={}
+ local f={}
+ function f.room(item,amount)
+  if h then return Hold.room(h,item,amount) end
+  if data.items[item].delicate then
+   local space=require('src.ship').climateSpace(data.hulls[r.ship.hull],r.ship.loadout)
+   return math.max(0,math.floor(space/data.items[item].volume))
+  end
+  local used=0
+  for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
+  for id,n in pairs(extra) do used=used+data.items[id].volume*n end
+  return math.max(0,math.floor(((data.hulls[r.ship.hull].hold or 0)-used)/data.items[item].volume))
+ end
+ function f.add(item,n)
+  if h then local totals=Hold.totals(h);totals[item]=(totals[item] or 0)+n;Hold.sync(h,totals)
+  else extra[item]=(extra[item] or 0)+n end
+ end
+ return f
+end
 -- Put amount of item into (or, negative, out of) an NPC record's hold.
 Transport.carry=cargo
 -- How many of item an NPC record's hold has room for (climate rules included).
@@ -323,13 +347,12 @@ function Transport.usable(u,r,o,clock)
  return math.min(data.hulls[r.ship.hull].hold or 0,room(r,o.item,1000000)*data.items[o.item].volume)
 end
 function Transport.load(u,r,t)
- local saved=require('src.persistence').copy(r.ship);local totals={}
+ local fit=fitter(r);local totals={}
  for _,line in ipairs(lines(t)) do
-  if room(r,line.item,line.amount)<line.amount
-   or ((line.mine or line.stocked) and Transport.available(u,line.source,line.item,t.id)<line.amount+(totals[line.item] or 0)) then r.ship=saved;return false end
-  cargo(r,line.item,line.amount);totals[line.item]=(totals[line.item] or 0)+line.amount
+  if fit.room(line.item,line.amount)<line.amount
+   or ((line.mine or line.stocked) and Transport.available(u,line.source,line.item,t.id)<line.amount+(totals[line.item] or 0)) then return false end
+  fit.add(line.item,line.amount);totals[line.item]=(totals[line.item] or 0)+line.amount
  end
- r.ship=saved
  local cost=0
  for _,line in ipairs(lines(t)) do if line.trade then cost=cost+Transport.tradeCost(u,line) end end
  if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then return false end
@@ -471,17 +494,17 @@ Tasks.register('transport',{
     if a.target~=b.target then return a.target<b.target end
     return a.id<b.id end)
    for _,o in ipairs(others) do candidates[#candidates+1]=o end
-   local saved=require('src.persistence').copy(r.ship)
+   local fit=fitter(r)
    local manifest={};local planned={}
    for _,o in ipairs(candidates) do
-    local n=math.min(o.amount,room(r,o.item,o.amount),Transport.available(u,o.source,o.item,o.id)-(planned[o.item] or 0),Transport.trustedUnits(u,r,o))
+    local n=math.min(o.amount,Transport.available(u,o.source,o.item,o.id)-(planned[o.item] or 0),Transport.trustedUnits(u,r,o))
+    if n>0 then n=math.min(n,fit.room(o.item,o.amount)) end
     if n>0 then
      local line=require('src.persistence').copy(o);line.amount=n
      Transport.quote(line,clock,u);manifest[#manifest+1]=line;planned[o.item]=(planned[o.item] or 0)+n
-     cargo(r,line.item,n) -- reserve grid space while fitting the other lines
+     fit.add(line.item,n) -- reserve grid space while fitting the other lines
     end
    end
-   r.ship=saved
    if #manifest==0 or manifest[1].id~=t.id then return false end
    t.manifest=manifest;t.amount=manifest[1].amount
    for _,line in ipairs(manifest) do
