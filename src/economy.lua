@@ -692,7 +692,7 @@ local function run(u,clock,pause)
        local Chemicals=require('src.markets')
        if Chemicals.items[item] or Chemicals.floats(c,item) then
         local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[s])
-        score=Chemicals.price(u,s,item)+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
+        score=(T.priceDriven[item] and Transport.goodsPrice(u,s,item) or Chemicals.price(u,s,item))+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
         if crossing>0 then score=score*(1+T.darkCrossingMarkup) end
        end
        -- a price-driven good moves only where it pays: the buyer's price
