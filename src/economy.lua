@@ -505,7 +505,9 @@ local function routed(plan,s,c,item)
 end
 local function hubTarget(u,key,item,supplier)
  local plan=hubPlan
- if plan and plan.u==u and plan.want[key] then
+ -- (a hub or customs house holds a price-driven good only to pass it on:
+ -- it never buys for its members as a consumer would)
+ if plan and plan.u==u and plan.want[key] and not T.priceDriven[item] then
   return math.max(plan.want[key][item] or 0,E.target(u,key,item,supplier))
  end
  return E.target(u,key,item,supplier)
