@@ -383,6 +383,24 @@ function E.update(game,clock)
 end
 function E.syncOnline(game)
  local p=game.player
+ -- a live fight carried through a save (A.capture's r.liveFight): pick it
+ -- back up once both ships are on the map, or forget it
+ for id,e in pairs(game.alifeOnline) do
+  local r=game.universe.npcs[id];local f=r and r.liveFight
+  if f then
+   local foe=f.target=='player' and p or game.alifeOnline[f.target]
+   local rec=f.target~='player' and game.universe.npcs[f.target]
+   if foe and not foe.dead and not foe.removed then
+    r.liveFight=nil
+    if not e.combatTarget and not e.aggressor then
+     e.aggressor,e.combatTarget,e.securityThink=foe,foe,game.time+T.securityThink
+    end
+   elseif game.universe.clock-(f.clock or 0)>T.alifeStay or f.target=='player' and not p
+    or rec and (rec.state=='dead' or rec.state=='escaped' or rec.area~=game.fieldId) or not rec and f.target~='player' then
+    r.liveFight=nil
+   end
+  end
+ end
  for id,e in pairs(game.alifeOnline) do
   local r=game.universe.npcs[id]
   local other=r.encounter and game.universe.npcs[r.encounter.target]

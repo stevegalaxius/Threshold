@@ -87,6 +87,18 @@ local function pickTarget(game, e, x, y)
 		end
 		return p
 	end
+	-- An NPC ship's drones fight its fight: whoever their owner is after,
+	-- and nobody else. (Picking the nearest ship of another team had them
+	-- going for the player, or anyone, while their owner fought someone else.)
+	local own = e.owner
+	if own and own.kind == "ship" and not own.isPlayer then
+		if own.dead or own.removed or not own.body or own.body:isDestroyed() then return nil end
+		for _, t in ipairs({ own.aiFightTarget, own.combatTarget, own.aggressor }) do
+			if t and not t.dead and not t.removed and t.body and not t.body:isDestroyed() and not t.dockState
+				and t ~= e and t.owner ~= own then return t end
+		end
+		return nil
+	end
 	-- a station's drones go for whatever the station would shoot, and
 	-- look as far as its drone bays launch at
 	local st = e.owner and e.owner.kind == "station" and e.owner
@@ -549,7 +561,17 @@ local function trade(game, e, dt)
 		-- (A Gila sinking below a cloud city lit it only once the hull was
 		-- buckling.)
 		local deep=w and w.gas and sqrt((x-w.x)^2+(y-w.y)^2)<w.radius and ux*(x-w.x)+uy*(y-w.y)>0
-		local boosting=deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing)
+		-- Round a station there is traffic (and often the player) on the
+		-- approach: inside T.aiStationSlowRange of a dock it comes in at no
+		-- more than T.aiStationSpeed, with no burner. Braking late from full
+		-- burn, it reached the runway at 1,000-1,800 px/s, far too fast to
+		-- steer round a ship in its way.
+		local nearDock = stop.dock and stop.body and d < T.aiStationSlowRange
+		local boosting=not nearDock and (deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing))
+		if nearDock then
+			local slow = T.aiStationSpeed + (cruise - T.aiStationSpeed) * max(0, d - T.aiStationSlowRange * .5) / (T.aiStationSlowRange * .5)
+			want = min(want, max(T.aiStationSpeed, slow))
+		end
 		if boosting then
 			-- On a long clear leg, cruise near what the hull can really do
 			-- rather than a little over the base cruise speed.
@@ -599,6 +621,7 @@ AI.trade=trade
 
 function AI.think(game, e, dt)
 	e.recoveryWeapon,e.recoveryTarget=nil,nil
+	e.aiFightTarget=nil
 	local it = e.intent
 	local ai = e.def.ai
 	it.firePrimary, it.fireSecondary, it.fireTertiary, it.boost = false, false, false, false
@@ -645,6 +668,7 @@ function AI.think(game, e, dt)
   target=pickTarget(game,e,x,y)
  end
  e.aiCombat=target and not target.dead
+ e.aiFightTarget=e.aiCombat and target or nil
  if record and target then require('src.npc_actions').pause({u=game.universe,game=game,r=record,e=e,clock=game.universe.clock},'combat') end
 	if target and not target.dead then e.idleTime = 0 end
 	if not target or target.dead then

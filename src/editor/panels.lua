@@ -1525,7 +1525,7 @@ local function boxWindow(E)
  if b.primitive=='ring' then num('Hole','inner',.62,.1,.9) end
  if b.primitive=='taper' then num('Tip','taper',.55,.05,1) end
  Slab.Separator();Slab.Text('Material')
- local materials={};for _,id in ipairs({'metal','painted','recess','crystal','emissive'}) do materials[#materials+1]={label=id,value=id} end
+ local materials={};for _,id in ipairs({'metal','painted','recess','crystal','glass','emissive'}) do materials[#materials+1]={label=id,value=id} end
  combo('solid_material',b.material or 'painted',materials,function(v)E.pushUndo();b.material=v end,180)
  num('Contrast','contrast',1,.1,2);num('Glow','glow',b.material=='emissive' and 1 or 0,0,2)
  -- With no override, show the colour the box really renders with: the
@@ -1539,6 +1539,7 @@ local function boxWindow(E)
    E.pushUndoCoalesced('solid_color'..i);b.color={c[1],c[2],c[3]};b.color[i]=Slab.GetInputNumber()
   end
  end
+ num('Saturation','saturation',b.color and 1.35 or 1,0,2.5)
  if Slab.Button('Reset color') then E.pushUndo();b.color=nil end
  Slab.Separator()
  if Slab.Button('Duplicate (Ctrl+D)') then E.duplicateSelected() end
