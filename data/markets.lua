@@ -43,6 +43,9 @@ market { id = "market:luna_3", station = "Tranquility Commons", sells = {
 market { id = "market:mars_5", station = "Hakka Tulou Habitat", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
+market { id = "market:saturn_2", station = "Shiloh", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
 market { id = "market:mercury_2", station = "Haephestus Logistics", sells = {   -- logistics equipment store
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "artillery_s_base", 1 }, { "cinder_drive", 1 }, { "forge_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 },
 } }
@@ -68,9 +71,6 @@ market { id = "market:venus_4", station = "Venus Logistics", sells = {
 -- Specialized shelves take their stock from production and freight.
 market { id = "market:saturn_1", station = "Zebulun's Bounty", sells = {
 	{ "food_crate", 0 }, { "fertilizer", 0 },
-} }
-market { id = "market:saturn_2", station = "Shiloh", sells = {
-	{ "hydrogen_canister", 0 }, { "empty_canister", 0 },
 } }
 market { id = "market:saturn_3", station = "Saturn Logistics", sells = {
 	{ "rounds_m", 4 }, { "shell_m", 3 }, { "hold_pod_s", 1 }, { "cargo_container", 2 }, { "satellite_package", 4 },

@@ -98,9 +98,13 @@ W.stations = {
 	},
 	saturn = {
 		{ id = "station:saturn_1", facilities={farm={capacity=240}}, marketId = "market:saturn_1", services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, name = "Zebulun's Bounty", layout = "diwan_court"   },
-		-- Atmospheric collectors deliver Saturn’s hydrogen to Shiloh for export.
-		{ id = "station:saturn_2", facilities={skim_hydrogen={capacity=20,surface=true}}, marketId = "market:saturn_2", services = { "market", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter"   },
-		{ id = "station:saturn_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
+		{ id = "station:saturn_2", marketId = "market:saturn_2", services = { "market", "hangar", "repair" }, spin = -0.05, phase = 2.3415926535897933, name = "Shiloh", layout = "diwan_quarter",
+		  residential = { population = 3000, homes = 6, routes = {
+			{ to = "station:saturn_1", kind = "work", weight = 3 },
+			{ to = "station:saturn_3", kind = "work", weight = 3 },
+			{ to = "station:saturn_4", kind = "work", weight = 1 } } } },
+		-- Atmospheric collectors deliver Saturn's hydrogen to the logistics hub.
+		{ id = "station:saturn_3", facilities={skim_hydrogen={capacity=20,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:saturn_3", name = "Saturn Logistics", layout = "customs_1", hub = true },
 		-- the Diwan's military yards
 		{ id = "station:saturn_4", orbit = 2, uses = { military = true }, facilities={diwan_assembly={capacity=2}}, marketId = "market:saturn_4", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 0.9, name = "Diwan Military Yards", layout = "diwan_works" },
 	},
