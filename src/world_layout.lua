@@ -116,8 +116,8 @@ W.stations = {
 		{ id = "station:titania_1", facilities={ice_wells={capacity=600,surface=true},process_nitrates={capacity=80},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titania_1", name = "UAE-9" },
 	},
 	uranus = {
-		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=2400},skim_hydrogen={capacity=140}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
-		{ id = "station:uranus_2", facilities={engines_works={capacity=1},skim_deuterium={capacity=2400},skim_hydrogen={capacity=60}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
+		{ id = "station:uranus_1", facilities={skim_deuterium={capacity=4800},skim_hydrogen={capacity=200}}, services = { "market", "shipyard", "hangar" }, primary = true, name = "UAE-4", marketId = "market:uranus_1", adapter = "cloud" },
+		{ id = "station:uranus_2", facilities={engines_works={capacity=1}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:uranus_2", name = "UAE-7", layout = "caliphate_chemworks" },
 		{ id = "station:uranus_3", services = { "market", "hangar", "repair" }, spin = -0.04, phase = 2.3415926535897933, marketId = "market:uranus_3", name = "Uranian Logistics", layout = "customs_1", hub = true },
 		},
 	triton = {
