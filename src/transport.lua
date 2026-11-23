@@ -355,9 +355,13 @@ Tasks.register('transport',{
   local h=0;local key=tostring(r.id)..tostring(o.id)
   for i=1,#key do h=(h*31+key:byte(i))%1000003 end
   local taste=1+T.freightScoreJitter*((h%1000)/500-1)
-  return (o.order and 1000000 or 0)+(o.urgency or o.priority or 0)*10000
-   +age*100+math.min(T.freightScoreCap,reward*100*taste*(1-math.min(.9,risk)))*(0.5+ambition)
-   -(station~=o.source and 50*(1-ambition) or 0)
+  -- need (urgency and shortage age) against pay, weighed by personality:
+  -- an ambitious trader chases the rate, a steady one the oldest shortage.
+  -- Both are capped so neither swamps the other; the empty run to a pickup
+  -- elsewhere is already in the rate (Transport.duration).
+  local need=math.min(T.freightNeedCap,(o.urgency or o.priority or 0)*10000+age*100)
+  return (o.order and 1000000 or 0)+need*(1.5-ambition)
+   +math.min(T.freightScoreCap,reward*100*taste*(1-math.min(.9,risk)))*(0.5+ambition)
  end,
  prepare=function(u,r,t,station,clock)
   Transport.quote(t,clock,u)

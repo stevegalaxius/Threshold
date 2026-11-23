@@ -513,6 +513,15 @@ T.freightPremiumCap=2
 -- freightScoreCap/100, varied per trader by +-freightScoreJitter, and cut
 -- by freightRiskPerAU per AU of interplanetary route for timid traders
 T.freightScoreCap=20000
+-- urgency*10000 + shortage age*100 tops out here (about ten minutes of
+-- shortage), so pay stays in the race; see the transport score
+T.freightNeedCap=60000
+-- The freight board's shared shortlist (src/tasks.lua): rebuilt this often,
+-- holding this many orders per system for haulers there and showing this
+-- many of each other system's best to everyone else
+T.freightCacheSeconds=5
+T.freightCacheLocal=16
+T.freightCacheRemote=3
 T.freightScoreJitter=.1
 T.freightRiskPerAU=.05
 -- market goods trade at the station's live price +- this share

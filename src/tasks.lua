@@ -4,7 +4,8 @@ local Work=require('src.work_preferences')
 local Access=require('src.npc_access')
 local Locations=require('src.locations')
 local Fields=require('src.fields')
-local freightLimit=12
+-- transport offers whose pickup maps to no system still go on the board
+local UNMAPPED='_unmapped'
 local rejectedFreight=setmetatable({},{__mode="k"})
 local function pickupSystem(node)
  local place=Locations.byId[node]
@@ -26,8 +27,7 @@ end
 local searchIndexes=setmetatable({},{__mode='k'})
 local function indexOffer(index,o,id)
  if o.kind=='transport' then
-  local system=pickupSystem(o.source)
-  if not system then return end
+  local system=pickupSystem(o.source) or UNMAPPED
   local freight=index.freight
   if not freight[system] then freight[system]={} end
   freight[system][id]=o
@@ -152,43 +152,51 @@ local function available(u,offers,id,o,clock)
  return offers[id]==o and o.state=='available' and (o.readyAt or 0)<=clock and Tasks.npcMayClaim(u,o,clock)
 end
 
+-- Freight is ranked once per board refresh, not once per ship. Each system
+-- keeps its best few orders by a ship-independent need-and-value score; a
+-- hauler reads its own system's list and the head of every other system's,
+-- then scores those few for itself (src/transport.lua score). The cost of a
+-- search no longer grows with the board, and every hauler still sees the
+-- most pressing work anywhere.
+local freightCaches=setmetatable({},{__mode='k'})
+local function baseFreightScore(o,clock)
+ return (o.order and 1000000 or 0)+(o.urgency or o.priority or 0)*10000+math.max(0,clock-(o.placed or clock))*100
+  +(o.creditsPerUnit or 0)*(o.amount or 0)/(1+(o.routeAU or 0))
+end
+local function freightCache(u,offers,index,clock)
+ local T=require('src.tuning')
+ local cache=freightCaches[offers]
+ if cache and cache.index==index and clock>=cache.at and clock-cache.at<T.freightCacheSeconds then return cache end
+ cache={at=clock,index=index,lists={}}
+ for system,bucket in pairs(index.freight) do
+  local list={}
+  for id,o in pairs(bucket) do
+   if available(u,offers,id,o,clock) then list[#list+1]={id=id,o=o,score=baseFreightScore(o,clock)} end
+  end
+  table.sort(list,function(a,b) return a.score>b.score or a.score==b.score and a.id<b.id end)
+  for i=#list,T.freightCacheLocal+1,-1 do list[i]=nil end
+  cache.lists[system]=list
+ end
+ freightCaches[offers]=cache
+ return cache
+end
 local function freightShortlist(u,r,station,clock,offers,index,capabilities)
- local system=pickupSystem(station)
+ local T=require('src.tuning')
+ local system=pickupSystem(station) or UNMAPPED
  local shortlist={}
  local rejected=rejectedFreight[r]
  if not rejected or clock<rejected.at or clock-rejected.at>=30 then
   rejected={at=clock};rejectedFreight[r]=rejected
  end
- local function collect(bucket,limit)
-  for id,o in pairs(bucket or {}) do
+ for area,list in pairs(freightCache(u,offers,index,clock).lists) do
+  local limit=area==system and T.freightCacheLocal or T.freightCacheRemote
+  local n=0
+  for _,entry in ipairs(list) do
+   if n>=limit then break end
+   local id,o=entry.id,entry.o
    if not rejected[id] and available(u,offers,id,o,clock) and Access.eligible(r,o,capabilities) then
-    local tier=o.source==station and 2 or pickupSystem(o.source)==system and 1 or 0
-    local score=(o.urgency or o.priority or 0)*10000+math.max(0,clock-(o.placed or clock))*100
-     +(o.creditsPerUnit or 0)*o.amount/(1+(o.routeAU or 0))
-    local i=#shortlist+1
-    while i>1 do
-     local prev=shortlist[i-1]
-     if tier<prev.tier or tier==prev.tier and (score<prev.score or score==prev.score and id>prev.id) then break end
-     i=i-1
-    end
-    if i<=limit then
-     table.insert(shortlist,i,{id=id,o=o,tier=tier,score=score})
-     if #shortlist>limit then shortlist[limit+1]=nil end
-    end
+    n=n+1;shortlist[#shortlist+1]={id=id,o=o}
    end
-  end
- end
- local expanded=r.stuckSince and clock-r.stuckSince>=60
- collect(index.freight[system],expanded and freightLimit-4 or freightLimit)
- -- An idle ship periodically looks beyond its system, one market per retry.
- if expanded then
-  local markets={}
-  for _,area in ipairs(Fields.list) do
-   if area~=system and index.freight[area] then markets[#markets+1]=area end
-  end
-  if #markets>0 then
-   r.freightSearchIndex=(r.freightSearchIndex or 0)%#markets+1
-   collect(index.freight[markets[r.freightSearchIndex]],freightLimit)
   end
  end
  return shortlist
@@ -210,7 +218,7 @@ function Tasks.choose(u,r,station,clock)
    local o=entry.o
    if freight.eligible(u,r,o,station,clock) then
     if ranks.transport==nil then ranks.transport=Work.rank(r,'transport') end
-    list[#list+1]={o=o,preference=ranks.transport,tier=entry.tier,v=freight.score(u,r,o,station,clock)}
+    list[#list+1]={o=o,preference=ranks.transport,v=freight.score(u,r,o,station,clock)}
    else rejectedFreight[r][entry.id]=true end
   end
  end
@@ -234,7 +242,6 @@ function Tasks.choose(u,r,station,clock)
  if opened then Transport.endScan() end
  table.sort(list,function(a,b)
   if a.preference~=b.preference then return a.preference>b.preference end
-  if (a.tier or 0)~=(b.tier or 0) then return (a.tier or 0)>(b.tier or 0) end
   return a.v>b.v or a.v==b.v and a.o.id<b.o.id
  end)
  -- Within the same four-check budget, try the leading offer of each kind
