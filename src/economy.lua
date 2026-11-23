@@ -651,7 +651,7 @@ local function run(u,clock,pause)
      local anywhere=false
      for _,s in ipairs(participants) do if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then anywhere=true;break end end
      -- counted against its target, not the reorder level
-     if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
+     if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short));entry.unmet=true end
      break
     end
     -- hub to hub is a trunk run: a bulk lot for a big freighter
@@ -672,6 +672,14 @@ local function run(u,clock,pause)
    end
    entry.left=short
   end
+  end
+  -- A buyer short for T.unmetShortageAge counts as unmet even with spare
+  -- stock elsewhere: stock that isn't arriving is no use to it, so its
+  -- makers aren't throttled to the floor while it starves.
+  for _,entry in ipairs(buyers) do
+   if not entry.unmet and E.shortageAge(u,entry.c,item,clock)>=T.unmetShortageAge then
+    unmet[item]=(unmet[item] or 0)+math.max(0,entry.need)
+   end
   end
   -- Fences: each keeps T.fenceStock m3 of every good the dark stations
   -- have over what they need, bought from the one with most to spare. Its

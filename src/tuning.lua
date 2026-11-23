@@ -498,7 +498,8 @@ T.orderMinFreight=800 -- and an order pays a hauler at least this over an AU (E.
 T.orderMaxVolume=200 -- cubic metres in one ordinary (not hub-to-hub) order: a median hauler's hold
 T.agendaMaxJobs=4     -- most jobs one NPC holds at once (src/npc_agenda.lua)
 T.agendaHoldPerJob=80 -- m3 of hold per extra job it may hold
-T.freightMinRun=60    -- m3 of freight at a pickup, bound for one area, before haulers fly it
+T.freightMinRun=12    -- m3 of freight at a pickup, bound for one area, before haulers fly it
+T.unmetShortageAge=300 -- s a buyer stays short before its makers count it as unmet, spare stock elsewhere or not (src/economy.lua)
 T.freightMaxWait=600  -- seconds an order waits for a fuller load before any hauler takes it
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 -- scarcity premium (src/transport.lua): the share of the source-to-target
