@@ -117,7 +117,8 @@ market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy we
 		{ "beam_s_base", 2 }, { "beam_m_base", 1 }, { "beam_l_base", 1 },
 	} },
 } }
-market { id = "market:earth_2", station = "Orbital Two", sells = {   -- capital gear
+market { id = "market:earth_2", station = "Elysium", sells = {   -- passenger fittings and capital gear
+	{ "climate_pod_s", 1 },
 	{ "missile_l", 2 }, { "missile_l_base", 1 }, { "torp_m", 2 }, { "missile_m_base", 1 },
 	{ "torp_l", 1 }, { "drone_l", 1 }, { "drone_l_base", 1 },
 	{ "cinder_drive", 1 }, { "kiln_reactor", 1 }, { "hold_pod_s", 1 }, { "forge_reactor", 1 }, { "nav_computer", 2 }, { "fire_computer", 1 }, { "guidance_computer", 1 }, { "drone_uplink", 1 },

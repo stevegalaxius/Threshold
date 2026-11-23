@@ -121,6 +121,7 @@ for _,set in ipairs({D.lineups,D.serviceLineups}) do for _,hulls in pairs(set) d
   inputs={{item='hull_frame',n=n},{item='electronics',n=parts.electronics},{item='steel_plate',n=parts.steel}},outputs={{kind='ship',hull=hull,n=1}}}
 end end end
 D.recipes[#D.recipes+1]={id='grow_food',consumption='food',market=false,item='food_crate',cap=4000,inputs={{item='fertilizer',n=1/20}},foodIndependent=true}
+D.recipes[#D.recipes+1]={id='receive_surface_food',consumption='food',market=false,item='food_crate',cap=8000,foodIndependent=true}
 D.facilities={
  water={policy='fixed',recipes={'use_water'}},
  terraform_water={policy='fixed',recipes={'terraform_water'}},
@@ -137,6 +138,7 @@ D.facilities={
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
  farm={policy='fixed',recipes={'grow_food'}},
+ surface_food={policy='fixed',recipes={'receive_surface_food'}},
  shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }
 -- Ship modules ----------------------------------------------------------
@@ -194,7 +196,7 @@ for _,set in ipairs({D.lineups,D.serviceLineups}) do for maker,hulls in pairs(se
 end end
 for _,c in ipairs(D.recipes) do
  if c.group=='ammunition' or c.group=='guided_munitions' or c.group=='drones' or c.group=='pyrotechnics' then local f=D.facilities[c.group].recipes;f[#f+1]=c.id end
- if not c.group and c.id~='grow_food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end
+ if not c.group and c.consumption~='food' then D.facilities[c.id]={policy='adaptive',recipes={c.id}} end
  if c.market==nil then c.market=true end
 end
 D.inputHours=.5 -- reorder at thirty minutes, refill toward one hour

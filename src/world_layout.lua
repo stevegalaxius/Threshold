@@ -33,8 +33,12 @@ W.stations = {
 		{ id = "station:venus_4", orbit = 2, facilities={acid_works={capacity=72,surface=true}}, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 1.0, marketId = "market:venus_4", name = "Venus Logistics", layout = "customs_1", hub = true },
 	},
 	earth = {
-		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},make_medical={capacity=8}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
-		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=960}}, services = { "market", "shipyard", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace"  },
+		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},make_medical={capacity=8},surface_food={name="Surface food terminal",capacity=3200,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
+		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, services = { "market", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace",
+		  residential = { population = 5000, homes = 8, routes = {
+			{ to = "station:earth_1", kind = "work", weight = 4 },
+			{ to = "station:earth_3", kind = "work", weight = 3 },
+			{ to = "station:earth_5", kind = "work", weight = 1 } } } },
 		{ id = "station:earth_3", facilities={ferrous_assembly={capacity=2}}, marketId = "market:earth_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Ferrous Collective Shipyard", layout = "shipyard_1" },
 		-- the Estates' military yards: builds its police and courier hulls (data/industry.lua serviceLineups)
 		{ id = "station:earth_5", orbit = 2, uses = { military = true }, facilities={estates_assembly={capacity=2}}, marketId = "market:earth_5", services = { "market", "hangar", "repair" }, spin = 0.03, phase = 2.35, name = "Estates Naval Yards", layout = "shipyard_2" },

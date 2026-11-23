@@ -82,12 +82,13 @@ local Cargo = { scroll = setmetatable({}, { __mode = "k" }), open = false, loot 
 local function stationRole(st,id,place)
  local uses=place.uses or {}
  if uses.pirateBase then return 'Pirate base' end
- if uses.fence or require('src.dark').isDarkNode(id) then return 'Dark station' end
+ if require('src.dark').isDarkNode(id) then return 'Dark station' end
  local dealer=require('src.dealers').def(id)
  if uses.military or dealer and dealer.service then return 'Military' end
  if place.hub then return 'Logistics hub' end
  if place.customs then return 'Customs house' end
  if place.residential then return 'Residential' end
+ if uses.fence then return 'Dark station' end
  if require('src.ui.industry').has(st) then return 'Industrial' end
  return 'Trade station'
 end
