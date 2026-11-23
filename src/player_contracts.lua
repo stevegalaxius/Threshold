@@ -74,13 +74,14 @@ function C.quote(game,o)
   local fare,detail=P.fare(o,ship)
   return {amount=o.party,payment=fare,detail=detail,routeAU=o.routeAU,passenger=true}
  end
- local amount=math.min(o.amount,Ship.canFit(game.player,o.item,o.amount),Transport.available(u,o.source,o.item,o.id))
- amount=math.floor(amount)
+ local fit,stock=Ship.canFit(game.player,o.item,o.amount),Transport.available(u,o.source,o.item,o.id)
+ local amount=math.floor(math.min(o.amount,fit,stock))
+ local limit=amount<o.amount and (stock<fit and 'stock' or 'hold') or nil
  if amount<1 then return nil,'No cargo space or available stock' end
  Transport.quote(o,u.clock,u)
  local t=copy(o);t.amount=amount
  local bill=Transport.invoice(t)
- return {amount=amount,payment=bill.total,routeAU=t.routeAU,volume=bill.volume,handling=bill.handling}
+ return {amount=amount,limit=limit,payment=bill.total,routeAU=t.routeAU,volume=bill.volume,handling=bill.handling}
 end
 function C.list(game)
  local out={}

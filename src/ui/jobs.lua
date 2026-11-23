@@ -1,9 +1,9 @@
 -- The Jobs tab: every piece of work the player can take, in four panes
 -- picked with the buttons along the top (each shows how many it holds):
---   Your jobs      the freight or passenger contract and station jobs you
+--   Your jobs      the freight or passenger contract and requests you
 --                  hold, and bounties you're owed at other stations
---   Station jobs   what every station in this system offers (src/quests.lua:
---                  deliveries, rescues, satellite work, ore), and a
+--   Requests       work the stations of this system post for you alone
+--                  (src/quests.lua: rescues, satellite and site work, ore), and a
 --                  residential station's passenger demand
 --   Freight        freight shared with NPCs that picks up in this system,
 --                  wherever it goes (src/player_contracts.lua)
@@ -24,7 +24,7 @@ local function name(id) return L.byId[id] and L.byId[id].name or id end
 local function areaName(id) local F=require('src.fields')[id];return F and F.name or id end
 
 -- The four panes' entries, in order.
-local PANES={{id='yours',label='Your jobs'},{id='station',label='Station jobs'},{id='freight',label='Freight'},{id='bounties',label='Bounties'}}
+local PANES={{id='yours',label='Your jobs'},{id='station',label='Requests'},{id='freight',label='Freight'},{id='bounties',label='Bounties'}}
 local function entries(game,f)
  local u=game.universe;local Q=require('src.quests')
  local here,t=f.here,f.active
@@ -37,10 +37,10 @@ local function entries(game,f)
  local sysName=here and areaName(Q.system(here))
  f.quests,f.questOffers=#active,#offers
  -- Your jobs
- head('yours',('%d of %d station jobs held · %s'):format(#active,T.questMaxActive,t and 'one freight contract' or 'no freight contract'))
+ head('yours',('%d of %d requests held · %s'):format(#active,T.questMaxActive,t and 'one freight contract' or 'no freight contract'))
  if t then add('yours',{activeFreight=t,h=158}) end
- for _,q in ipairs(active) do add('yours',{quest=q,active=true,h=84}) end
- if not t and #active==0 then note('yours','Nothing held. Take a station job or a freight contract from the other panes.') end
+ for _,q in ipairs(active) do add('yours',{quest=q,active=true,h=120}) end
+ if not t and #active==0 then note('yours','Nothing held. Take a request or a freight contract from the other panes.') end
  local elsewhere={}
  for st,n in pairs(Bounty.state(u).owed) do if st~=f.payer and n>0 then elsewhere[#elsewhere+1]=st end end
  table.sort(elsewhere)
@@ -52,10 +52,10 @@ local function entries(game,f)
   for _,pane in ipairs({'station','freight','bounties'}) do note(pane,'Dock at a station to see what its system offers.') end
   return out,count
  end
- -- Station jobs
- head('station',('%d offered in the %s system'):format(#offers,sysName))
- for _,q in ipairs(offers) do add('station',{quest=q,h=84}) end
- if #offers==0 then note('station','No station in this system has jobs posted right now.') end
+ -- Requests
+ head('station',('%d posted across the %s system'):format(#offers,sysName))
+ for _,q in ipairs(offers) do add('station',{quest=q,h=100}) end
+ if #offers==0 then note('station','No station in this system has a request posted right now.') end
  local P=require('src.passengers');local c=P.config(here)
  if c then
   head('station',('RESIDENTIAL · %s · population about %d · home to %d of %d ships'):format(name(here),c.population or 0,#P.residents(u,here),c.homes or 0))
@@ -124,12 +124,12 @@ function View.layout(game)
   if ry+e.h>top and ry<bottom then
    if e.activeFreight then
     f.activeRect={x=x,y=ry,w=w,h=146}
-    f.advance={x=x+w-190,y=ry+16,w=174,h=34}
-    f.cancel={x=x+w-190,y=ry+62,w=174,h=30}
+    f.advance={x=x+w-190,y=ry+46,w=174,h=34}
+    f.cancel={x=x+w-190,y=ry+88,w=174,h=30}
     f.rows[#f.rows+1]={activeFreight=true}
    elseif e.quest then
-    local row={quest=e.quest,active=e.active,x=x,y=ry,w=w,h=76,button={x=x+w-190,y=ry+8,w=174,h=30}}
-    if e.active then row.abandon={x=x+w-190,y=ry+42,w=174,h=26} end
+    local row={quest=e.quest,active=e.active,x=x,y=ry,w=w,h=e.active and 112 or 92,button={x=x+w-190,y=ry+44,w=174,h=30}}
+    if e.active then row.abandon={x=x+w-190,y=ry+80,w=174,h=24} end
     f.rows[#f.rows+1]=row
    elseif e.offer then
     local q,why=Board.quote(game,e.offer)
