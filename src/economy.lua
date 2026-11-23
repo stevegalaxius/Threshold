@@ -149,12 +149,23 @@ local function adjust(u,unmet,all)
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
    if T.priceDriven[c.item] then
-    -- price-driven: the only signal is this plant's own output shelf. An
-    -- empty shelf runs it at up to E.scaleMax, a full one at E.scaleMin,
-    -- easing E.scaleStep a minute toward that (no system tallies)
+    -- price-driven: the plant reads only its own sales. It makes what it
+    -- has been selling (outflow, smoothed over T.makerSalesHours) plus
+    -- enough to bring its shelf back to half of T.makerShelfLots lots in
+    -- T.makerRestoreHours, easing E.scaleStep a minute toward that
+    local rated=math.max(1,c.make[key] or 0)
     local shelf=math.min(E.lot*T.makerShelfLots,(c.cap or math.huge)*.9)
-    local fill=math.min(1,have/shelf)
-    local goal=E.scaleMin+(E.scaleMax-E.scaleMin)*(1-fill)^2
+    local now=u.clock or 0
+    if t.salesAt and now>t.salesAt then
+     local dt=now-t.salesAt
+     local made=rated*v*dt/3600
+     local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
+     local a=1-math.exp(-dt/(T.makerSalesHours*3600))
+     t.sales=(t.sales or out)+(out-(t.sales or out))*a
+    end
+    t.salesAt,t.salesHave=now,have
+    local goal=((t.sales or rated)+(shelf/2-have)/T.makerRestoreHours)/rated
+    goal=math.max(E.scaleMin,math.min(E.scaleMax,goal))
     v=v<goal and math.min(goal,v*(1+E.scaleStep)) or math.max(goal,v*(1-E.scaleStep))
    else
    -- some plants answer to the whole system's price of what they make
