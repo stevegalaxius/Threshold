@@ -646,7 +646,7 @@ T.mapScale = 1.5
 T.freeStationDrift = { 0.022, 0.03, 0.018 }
 T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
 T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
-T.fenceStock = 300 -- m3 of each dark surplus good a fence keeps in its back room to sell on
+T.fenceStock = 300 -- most m3 of each good a fence keeps in its back room; it buys only loot pirates sold at dark stations
 -- Dark runners (src/dark_runners.lua): white haulers who sign on with
 -- Milliways while dark freight goes unclaimed, and quit when it dries up.
 T.darkRunnerHome = 'station:pluto_1'

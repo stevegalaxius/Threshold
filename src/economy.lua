@@ -349,7 +349,7 @@ local function hubWants(u,all,pause)
   local made={}
   for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
   for _,item in ipairs(goods()) do
-   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*4,'export'
+   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*2,'export'
    else
     local n=0
     for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+memberWant(u,s,item) end end
@@ -369,6 +369,11 @@ local function hubWants(u,all,pause)
    imported[r]=n;total=total+n
    if pause then pause() end
   end end
+  -- the systems that make it share the export stock between them: each
+  -- exporting hub holds its share of what the importers want, not all of it
+  local exporters=0
+  for r in pairs(plan.hubs) do if not imported[r] then exporters=exporters+1 end end
+  local share=math.ceil(total/math.max(1,exporters))
   for r,h in pairs(plan.hubs) do
    if imported[r] then plan.want[h][item],plan.kind[h][item]=imported[r],'import'
    else
@@ -384,7 +389,7 @@ local function hubWants(u,all,pause)
      end
     end
     if short>spare then plan.want[h][item],plan.kind[h][item]=short-spare,'import'
-    else plan.want[h][item],plan.kind[h][item]=total,'export' end
+    else plan.want[h][item],plan.kind[h][item]=share,'export' end
     if pause then pause() end
    end
   end
@@ -681,10 +686,11 @@ local function run(u,clock,pause)
     unmet[item]=(unmet[item] or 0)+math.max(0,entry.need)
    end
   end
-  -- Fences: each keeps T.fenceStock m3 of every good the dark stations
-  -- have over what they need, bought from the one with most to spare. Its
-  -- stock over its own needs is spare like any white station's, so the
-  -- passes above sell it on into the white network.
+  -- Fences: each buys the loot pirates sold at the dark stations (up to
+  -- T.fenceStock m3 a good), from the one holding most. A dark station's
+  -- own output stays home unless a white buyer is short (pass 2 above).
+  -- A fence's stock over its own needs is spare like any white station's,
+  -- so the passes above sell it on into the white network.
   for _,f in ipairs(fences) do if spare[f]~=nil then
    local vol=require('src.data').items[item].volume
    -- ordinary lots for any runner, not bulk trunk runs nobody took
@@ -694,7 +700,8 @@ local function run(u,clock,pause)
     local best,most
     for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
      local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
-     local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)
+     local loot=(Stock.record(u,s).loot or {})[item] or 0
+     local excess=math.min(loot,spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0))
      if excess>=math.min(T.orderMinLoad,lot) and (not most or excess>most) then
       local k=s..'>'..f
       if reach[k]==nil then reach[k]=reachable(s,f,clock) end
@@ -707,6 +714,8 @@ local function run(u,clock,pause)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
      layoutScope=E.scope,order=true,priority=0,urgency=1,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
     spare[best]=spare[best]-n;room=room-n
+    local loot=Stock.record(u,best).loot;loot[item]=loot[item]-n
+    if loot[item]<=0 then loot[item]=nil end
    end
   end end
   pause()
