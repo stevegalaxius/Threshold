@@ -99,13 +99,19 @@ function E.profile(r)
  local st=Stats.compute(hull,r.ship.loadout)
  local _,cargo=cargoOf(r)
  local dps=0
- for _,id in pairs(r.ship.loadout) do
+ for index,id in pairs(r.ship.loadout) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w and w.kind~='drone' then
    local rate=w.fireRate or 1;local hit=w.damage or 0
    if w.kind~='laser' then
-    local ammo=data.ammoFor(m)
-    if (cargo[ammo] or 0)>0 then hit=data.items[ammo].shot.damage else rate=0 end
+    -- the round this gun is loaded with, else any it can fire that's
+    -- aboard (not only its first option: airburst-only ships read as unarmed)
+    local loads=r.ship.loads;local ammo=loads and loads[index]
+    if not ammo or (cargo[ammo] or 0)<=0 then
+     ammo=nil
+     for _,option in ipairs(data.ammoOptions(m)) do if (cargo[option] or 0)>0 then ammo=option;break end end
+    end
+    if ammo then hit=data.items[ammo].shot.damage else rate=0 end
    else
     local cost=w.powerPerShot or w.powerPerSecond or 0
     if cost>0 then rate=math.min(rate,math.max(0,st.powerNet or st.powerOut or 0)/cost) end
