@@ -347,10 +347,10 @@ T.population = {
  hunter={minDelay=300,maxDelay=600},
 }
 -- Wildcat sites (src/sites.lua Sites.tick, src/wildcats.lua)
--- Sized to the population: wildcat crews plus bounty hunters make up about
--- T.siteShare of the living NPCs. Short of that, a site opens every
+-- Sized to the population: wildcat crews make up about T.siteShare of the
+-- living NPCs (hunters not counted; they follow the wildcats). Short of that, a site opens every
 -- T.siteSpawnEvery; a world (or save) with none gets its share at once.
-T.siteShare = 0.15
+T.siteShare = 0.09
 T.siteSpawnEvery = 120        -- s between new sites while crews are short of their share
 T.sitesPerPlanet, T.sitesMax = 3, 16
 T.wildcatSortieEvery = 900    -- s between a posted wildcat's raids (give or take 40%)
@@ -359,10 +359,11 @@ T.wildcatIdleHome = 120      -- s a wildcat out raiding waits with no raid to ta
 T.wildcatSortieHealth = 0.8   -- share of armour a wildcat wants before it goes out
 T.wildcatPatchRate = 0.5      -- share of full armour patched per hour at the site
 T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that send one wildcat to fence it
--- Bounties: robberies and kills by a site's wildcats before its system's
--- paying station posts a bounty; each wildcat is then worth this much to
--- whoever lands the last hit (plus a little per point of its hull's armour)
-T.bountyLosses = 3
+-- Bounties: every wildcat is worth this much to whoever lands the last hit
+-- (plus a little per point of its hull's armour), paid by its system's
+-- paying station; the player's are paid in one lump every bountyNoticeSeconds
+T.bountyNoticeSeconds = 1200
+T.huntersPerWildcat = 0.5     -- the hunter population follows the wildcats alive
 T.bountyPerHead, T.bountyPerArmor = 6000, 10
 T.bountySlots = 3             -- hunters the board sends at one site at once
 T.huntersPerSystem = 3        -- bounty hunters per owned system with a trade station
