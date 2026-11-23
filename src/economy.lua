@@ -656,7 +656,11 @@ local function run(u,clock,pause)
     end
     -- hub to hub is a trunk run: a bulk lot for a big freighter
     local trunk=hubPlan.kind[best]~=nil and hubPlan.kind[c]~=nil and root(L.byId[best].area)~=root(L.byId[c].area)
-    local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or T.orderMaxVolume)/require('src.data').items[item].volume)),short,spare[best])
+    local vol=require('src.data').items[item].volume
+    local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or T.orderMaxVolume)/vol)),short,spare[best])
+    -- only a lot too big for an ordinary hold needs a bulk freighter: a
+    -- short top-up between hubs is an ordinary order anyone can run
+    if trunk and n*vol<=T.orderMaxVolume then trunk=false end
     -- a bare shelf before a low one
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     local production=capacityUse(u,c,item)>0
