@@ -76,6 +76,22 @@ local stats = require("src.stats")
 local T = require("src.tuning")
 
 local Cargo = { scroll = setmetatable({}, { __mode = "k" }), open = false, loot = nil, tab = "cargo", other = nil, filter = "all", marketLeft = "hold" }
+-- Under the station's name: who runs it, what kind of place it is, the
+-- system it's in, and how they regard you.
+local function stationLine(game,st)
+ if st.sat then return 'Satellite' end
+ local L=require('src.locations');local Rep=require('src.reputation')
+ local id=L.canonical(st.key or st.locationId);local place=L.byId[id]
+ if not place then return '' end
+ local parts={}
+ local f=Rep.ofNode(id);if f and Rep.FACTIONS[f] then parts[#parts+1]=Rep.FACTIONS[f].name end
+ local kind=require('src.crew_fatigue').kind(id).name
+ parts[#parts+1]=({residential='Residential',dark='Dark station',depot='Faction depot'})[kind] or 'Trade station'
+ local sys=require('src.quests').system(id);local F=sys and require('src.fields')[sys]
+ if F and F.name then parts[#parts+1]=F.name..' system' end
+ parts[#parts+1]='Standing: '..Rep.tierName(Rep.stationAttitude(game.universe,id))
+ return table.concat(parts,'  \194\183  ')
+end
 
 local function trading() return Cargo.tab=='market' end
 
@@ -1872,7 +1888,7 @@ end
 function drawTabs(game,mx,my)
  local p=game.player;local st=p.dockState.station;local f=Cargo.workspace(game)
  Station.panel(f.x,12,f.w,88)
- Station.ledgerText(f.x,12,st.name,st.sat and 'Your ship: satellite berth' or 'Your ship: '..game:shipParkingLabel(st,p))
+ Station.ledgerText(f.x,12,st.name,stationLine(game,st))
  lg.setFont(HUD.font(16));lg.setColor(HUD.INK);lg.printf(HUD.credits(game:credits()),f.x+f.w-340,21,190,'right')
  Station.button({x=f.x+f.w-130,y=24,w=116,h=30},'Undock',false)
  lg.setFont(HUD.font(14))
