@@ -44,6 +44,9 @@ market { id = "market:luna_3", station = "Tranquility Commons", sells = {
 market { id = "market:mars_5", station = "Hakka Tulou Habitat", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
+market { id = "market:mercury_5", station = "Daybreak Commons", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
 market { id = "market:saturn_2", station = "Shiloh", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
@@ -148,7 +151,7 @@ market { id = "market:titan_2", station = "Huygens Station", sells = {
 market { id = "market:titan_3", station = "Gilgal Arsenal", sells = {   -- Diwan missile works
 	{ "missile_s_base", 1 }, { "missile_m_base", 1 }, { "guidance_computer", 1 },
 } }
-market { id = "market:earth_4", station = "Ashgrove Drone Foundry", sells = {   -- Estates drone works
+market { id = "market:mercury_4", station = "Ashgrove Drone Foundry", sells = {   -- Estates drone works
 	{ "drone_s_base", 1 }, { "drone_m_base", 1 },
 } }
 market { id = "market:triton_1", station = "Cipango Station", sells = {   -- frontier outpost
