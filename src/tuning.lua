@@ -698,5 +698,7 @@ T.makerShelfLots=4
 -- good moves this fraction as far as an ordinary station's, so the spread
 -- from maker to hub to consumer stays open; a consumer short of a
 -- price-driven good may bid up to T.priceCrisisMax at once
-T.hubPriceBand=.3
+T.hubPriceBand=.5
+-- a price-driven maker's price, from an empty output shelf to a full one
+T.makerPriceEmpty,T.makerPriceFull=1.4,.6
 return T

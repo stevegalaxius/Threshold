@@ -69,7 +69,16 @@ function C.shape(u,key,item,target,want,clock,state)
   local age=E.shortageAge(u,key,item,clock)/(T.priceCrisisHours*3600)
   target=target+(T.priceCrisisMax-2)*math.min(1,age-1)
  end
- if makes(key,item) then return target*(1-T.makerDiscount) end
+ if makes(key,item) then
+  -- a maker of a price-driven good prices by its own output shelf: dear
+  -- when freight has emptied it, cheap when full (src/economy.lua adjust
+  -- runs the plant by the same shelf)
+  if T.priceDriven[item] then
+   local fill=math.min(1,require('src.stockpile').count(u,key,item)/(require('src.economy').lot*T.makerShelfLots))
+   return T.makerPriceEmpty-(T.makerPriceEmpty-T.makerPriceFull)*fill
+  end
+  return target*(1-T.makerDiscount)
+ end
  local hub=hubs[key];if hub==nil then hub=E.hubFor(key) or false;hubs[key]=hub end
  if hub and hub~=key and want>0 then
   local d=require('src.data').items[item]
