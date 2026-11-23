@@ -137,7 +137,10 @@ function C.update(u,clock,stations,inbound,pause)
    target=C.shape(u,key,item,target,want,clock,state)
    local alpha=1-math.exp(-dt/C.smooth)
    local top=want>0 and (E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 or driven and not buffer and have<want) and T.priceCrisisMax or 2
-   prices[item]=math.max(T.priceFloor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
+   -- (a price-driven maker with a full shelf may sell under the usual floor,
+   -- so a far buyer's haul can still pay)
+   local floor=driven and makes(key,item) and T.makerPriceFull or T.priceFloor
+   prices[item]=math.max(floor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
    -- (bid for what the station's next order will be: up to its order level)
    local level=want>0 and (makes(key,item) and want*2 or E.orderLevel(u,key,item,want,false)) or 0
    if bids[item] and want>0 and have<level then
