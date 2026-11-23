@@ -532,6 +532,9 @@ Tasks.register('transport',{
   if carried>0 then Transport.answer(u,r,station,lost>0 and -lost/carried or 1) end
   for _,charge in ipairs(here) do
    local line=charge.task;paid=paid+charge.payment
+   -- a trader is paid the station's price as it docks, before its own
+   -- cargo lands on the shelf and pulls that price down
+   if line.trade then line.tradeValue=Transport.tradeValue(u,line,station) end
    cargo(r,line.item,-line.amount)
    -- (a player's buy order goes to their storage or stall: src/buy_orders.lua)
    if line.playerOrder then require('src.buy_orders').delivered(u,line.playerOrder,station,line.item,line.amount,clock)
@@ -541,7 +544,7 @@ Tasks.register('transport',{
    local payment
    if line.trade then
     -- the trader sells to the station at its price today
-    local value=Transport.tradeValue(u,line,station);line.tradeValue=value
+    local value=line.tradeValue
     require('src.accounts').pay(u,station,value,'bought',line.item)
     require('src.markets').landed(u,station,line.item,line.amount,value)
     paid=paid-charge.payment+value;payment=0;total=total+line.amount
