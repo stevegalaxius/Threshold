@@ -355,7 +355,11 @@ function Transport.load(u,r,t)
  end
  local cost=0
  for _,line in ipairs(lines(t)) do if line.trade then cost=cost+Transport.tradeCost(u,line) end end
- if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then return false end
+ -- a hauler that can't stake the cargo carries it as a courier instead,
+ -- for the usual fee (the buyer pays the seller on delivery)
+ if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then
+  for _,line in ipairs(lines(t)) do line.trade=nil;local o=Tasks.state(u).offers[line.id];if o then o.trade=nil end end
+ end
  for _,line in ipairs(lines(t)) do
   if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
   if line.trade then
@@ -412,10 +416,8 @@ Tasks.register('transport',{
   end
   -- a trade run: a trader only, who can pay for the cargo and sees a spread
   if o.trade then
-   if r.player then return false end
    local line={source=o.source,target=o.target,item=o.item,amount=math.min(o.amount,room(r,o.item,o.amount))}
    if line.amount<need then return false end
-   if (r.credits or 0)-Transport.tradeCost(u,line)<T.tradeReserve then return false end
    if Transport.tradeValue(u,line)<=Transport.tradeCost(u,line) then return false end
   end
   return room(r,o.item,need)>=need
