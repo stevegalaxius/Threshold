@@ -479,6 +479,9 @@ T.miningSettleTime=3
 T.mineWorkAltitude=1500
 T.mineWorkSide=1100
 T.minersPerArea,T.miningChunkDamping=3,1.1
+-- m3 of ore a mining station may hold over its own target before its mine
+-- jobs close until freight takes some away (src/mining.lua)
+T.mineDepotM3=600
 -- a miner fills its hold before heading home, unless the drill has had no
 -- rock for it this long (src/mining.lua)
 T.minerIdleReturn=120

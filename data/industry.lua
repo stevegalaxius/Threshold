@@ -126,7 +126,8 @@ D.facilities={
  water={policy='fixed',recipes={'use_water'}},
  water_melter={policy='fixed',recipes={'melt_water'}},
  water_wells={policy='fixed',recipes={'pump_water'}},
- ice_wells={policy='fixed',recipes={'cut_ice'}},
+ -- adaptive, so ice follows demand instead of piling up at the wells
+ ice_wells={policy='adaptive',recipes={'cut_ice'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
  acid_works={policy='fixed',recipes={'produce_acids'}},
  electronics={policy='profit',recipes={'make_electronics'}},

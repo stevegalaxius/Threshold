@@ -27,6 +27,11 @@ Tasks.register('mine',{
  localPickup=true,
  eligible=function(u,r,o,node)
   if o.source~=node or not M.state(u).sites[o.target] then return false end
+  -- mining follows demand: while the home station already holds
+  -- T.mineDepotM3 of this ore beyond its own target, nobody digs more, and
+  -- miners take other work until freight draws the pile down
+  local over=require('src.stockpile').count(u,o.source,o.item)-require('src.economy').target(u,o.source,o.item)
+  if over*data.items[o.item].volume>=T.mineDepotM3 then return false end
   if r.ship.hold then return Hold.room(Hold.deserialize(r.ship.hold),o.item,1)>0 end
   local used=0
   for id,n in pairs(r.ship.cargo or {}) do used=used+data.items[id].volume*n end
