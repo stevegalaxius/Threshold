@@ -117,6 +117,12 @@ local function charge(r,u,key,id,n)
  -- what it was actually paid, or it was minting the rest)
  local cost=math.min(n*p,math.max(0,r.credits or 0))
  r.credits=(r.credits or 0)-cost;r.suppliesSpent=(r.suppliesSpent or 0)+cost
+ -- a broke hunter's ammo is billed to its system's bounty payer, which
+ -- wants its wildcats dead: real money, not goods given away
+ if r.populationGroup=='hunter' and n*p>cost and type(key)~='table' and require('src.ammunition').byItem[id] then
+  local payer=require('src.wreck_bounty').payer(r.home or r.area)
+  if payer and payer~=key then cost=cost+require('src.accounts').pay(u,payer,n*p-cost,'hunter supply',id) end
+ end
  if id==Fuel.item() then r.fuelSpent=(r.fuelSpent or 0)+cost end
  if type(key)=='table' then
   -- a satellite hub's shelf: the takings go to whoever runs the satellite
