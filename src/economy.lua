@@ -158,12 +158,16 @@ local function adjust(u,unmet,all)
     local now=u.clock or 0
     if t.salesAt and now>t.salesAt then
      local dt=now-t.salesAt
-     local made=rated*v*dt/3600
+     -- what the plant really made (short inputs or a full shelf make less
+     -- than its scale asks for), not rated*scale
+     local total=(u.madeAt or {})[key..'|'..c.item] or 0
+     local made=total-(t.madeTotal or total)
      local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
      local a=1-math.exp(-dt/(T.makerSalesHours*3600))
      t.sales=(t.sales or out)+(out-(t.sales or out))*a
     end
     t.salesAt,t.salesHave=now,have
+    t.madeTotal=(u.madeAt or {})[key..'|'..c.item] or 0
     -- plus what buyers it could have served at a paying price went without
     -- (E.update's missed), worked off over T.makerRestoreHours: sales alone
     -- are capped by the plant's own output, so they never call for more
@@ -713,20 +717,25 @@ local function run(u,clock,pause)
       local Chemicals=require('src.markets')
       local bid=Chemicals.price(u,c,item)
       local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short)
-      local maker,low
+      -- split across every maker that could serve it at a profit, by its
+      -- margin and by the headroom it has left: the cheapest plant alone
+      -- took all of it and ran to E.scaleMax while the others idled
+      local weights,sum={},0
       for _,r in ipairs(C.list) do if r.item==item then for m,rate in pairs(r.make) do
        if rate>0 and m~=c and L.byId[m] then
         local k=m..'>'..c
         if reach[k]==nil then reach[k]=reachable(m,c,clock) end
         if reach[k] then
          local landed=Chemicals.price(u,m,item)+Transport.payment(Transport.quote({source=m,target=c,item=item,amount=amount},clock))/amount
-         if landed<bid and (not low or landed<low) then maker,low=m,landed end
+         local scale=((u.industry or {})[m] or {})[r.id] or 1
+         local w=(bid-landed)*math.max(0,E.scaleMax-scale)
+         if w>0 then weights[m]=(weights[m] or 0)+w;sum=sum+w end
         end
        end
       end end end
-      if maker then
-       local row=missed[maker] or {};missed[maker]=row
-       row[item]=(row[item] or 0)+short
+      for m,w in pairs(weights) do
+       local row=missed[m] or {};missed[m]=row
+       row[item]=(row[item] or 0)+short*w/sum
       end
      end
      break

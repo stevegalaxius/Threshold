@@ -12,6 +12,10 @@ function O.add(u,key,output,batches,c)
   require('src.economy').stat(u,'madeShips',output.hull,batches*output.n)
  else
   require('src.stockpile').add(u,key,output.item,batches*output.n)
+  -- what each station has actually made, for makers that size their run on
+  -- their own sales (E.adjust's price-driven branch)
+  local made=u.madeAt or {};u.madeAt=made
+  local k=key..'|'..output.item;made[k]=(made[k] or 0)+batches*output.n
   require('src.economy').stat(u,'made',output.item,batches*output.n)
  end
 end
