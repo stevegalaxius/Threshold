@@ -129,6 +129,10 @@ local function charge(r,u,key,id,n)
 end
 local function affordable(r,u,key,id,missing)
  if id==Fuel.item() then return missing end
+ -- a bounty hunter rearms on the station's tab, like fuel: a broke hunter
+ -- with empty guns could never earn its way back (charge banks only
+ -- what it actually paid)
+ if r.populationGroup=='hunter' and require('src.ammunition').byItem[id] then return missing end
  local p=unitPrice(u,key,id)
  if p<=0 then return missing end
  return math.min(missing,math.floor(math.max(0,(r.credits or 0)-T.npcSupplyReserve)/p))
