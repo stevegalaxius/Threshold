@@ -244,6 +244,10 @@ function I.allocate(u,clock,stations,market,dt,pause)
         unit=math.max(unit,bid.price-Transport.payment(quote)/bid.amount);demand=demand+bid.amount
        end
       end
+      -- a price-driven good also counts the buyers that went without
+      -- (src/economy.lua missed demand), valued at this station's price
+      local lost=output.item and require('src.tuning').priceDriven[output.item] and ((u.economyMissed or {})[key] or {})[output.item] or 0
+      if lost>0 then demand=demand+lost;unit=math.max(unit,market.price(u,key,output.item)) end
       local short=demand-S.count(u,key,output.item)
       if short<=0 then unit=0 else unmet=unmet+short*unit end
       revenue=revenue+unit*output.n
