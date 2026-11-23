@@ -156,10 +156,12 @@ local function adjust(u,unmet,all)
     elseif ratio<1-T.globalPriceBand or have>=(c.cap or math.huge)*.9 then v=v*(1-E.scaleStep) end
    -- the system is running short: make more, unless its own storage is full
    elseif low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
-   -- Unsupplied demand propagates upstream even while inputs are scarce,
-   -- and before the shelf check: a plant holding a few lots must not slow
-   -- while buyers elsewhere go without
-   elseif (unmet[c.item] or 0)>0 and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+   -- Unsupplied demand propagates upstream even while inputs are scarce.
+   -- While buyers go without, a plant keeps speeding up until its own shelf
+   -- holds T.unmetShelfLots lots (freight isn't taking what it makes), and
+   -- slows past that; otherwise it slows from two lots
+   elseif (unmet[c.item] or 0)>0 then
+    if have<math.min(E.lot*T.unmetShelfLots,(c.cap or math.huge)*.9) then v=v*(1+E.scaleStep) else v=v*(1-E.scaleStep) end
    -- stock piling up here slows it while the system is comfortable
    elseif have>=E.lot*2 then v=v*(1-E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
