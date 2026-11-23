@@ -243,7 +243,7 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 -- Squads and battlegroups (src/squads.lua)
 T.squadTick = 2              -- s between squad upkeep passes
-T.policeWage = 1200          -- credits an hour each police ship is paid by its faction
+T.policeWage = 1500          -- credits an hour each police ship is paid by its faction (covers a patrol's fuel and supplies, about 1,300/h in soaks)
 T.squadSweepHold = 20        -- s a squad holds at each stop of its beat
 T.squadRespondCount = 2      -- squads sent when a flagship calls
 T.squadRespondTime = 180     -- s a called squad stays on the call
