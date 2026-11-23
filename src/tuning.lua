@@ -362,7 +362,7 @@ T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that se
 -- Bounties: every wildcat is worth this much to whoever lands the last hit
 -- (plus a little per point of its hull's armour), paid by its system's
 -- paying station; the player's are paid in one lump every bountyNoticeSeconds
-T.bountyNoticeSeconds = 1200
+T.bountyNoticeSeconds = 300
 T.huntersPerWildcat = 0.5     -- the hunter population follows the wildcats alive
 T.bountyPerHead, T.bountyPerArmor = 6000, 10
 T.bountySlots = 3             -- hunters the board sends at one site at once
