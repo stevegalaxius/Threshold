@@ -131,7 +131,6 @@ function C.advance(game)
  local destination=t.phase=='pickup' and t.source or t.target
  if here~=destination then return nil,t.phase=='pickup' and 'Dock at the pickup station' or 'Dock at the delivery station' end
  if t.kind=='passenger' and t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Clear your climate hold for the party' end
- if t.phase=='delivery' and (game.player.cargo[t.item] or 0)<t.amount then return nil,'Cargo missing: replace it before delivery' end
  if t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Make room for the contracted cargo first' end
  local r=attach(game);local clock=game.universe.clock
  if t.kind=='passenger' then

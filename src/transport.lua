@@ -137,6 +137,31 @@ function Transport.goodsPrice(u,source,item)
  if isHub(source) then unit=unit*(1+T.hubMarkup) end
  return unit
 end
+-- Courier standing: a courier who loses cargo it doesn't own answers for
+-- it with its standing at the buyer's faction, in proportion to the share
+-- of the load lost (a whole load lost or the ship destroyed: all of it).
+-- The player's is their faction standing (src/reputation.lua); an NPC
+-- keeps its own, r.courierRep[faction]. Standing gates how much cargo
+-- value a courier is trusted with (Transport.trustedValue).
+local function buyerFaction(key) return key and require('src.reputation').ofNode(L.canonical(key)) end
+function Transport.courierStanding(u,r,key)
+ local f=buyerFaction(key);if not f then return 0 end
+ if r.player then return require('src.reputation').standing(u,f) end
+ return (r.courierRep or {})[f] or 0
+end
+-- share: 1 for a clean delivery, -x for a share x of the load lost
+function Transport.answer(u,r,key,share)
+ local f=buyerFaction(key);if not f or share==0 then return end
+ local by=share>0 and T.courierRepGain*share or T.courierRepLoss*share
+ if r.player then require('src.reputation').addStanding(u,f,by);return end
+ r.courierRep=r.courierRep or {}
+ r.courierRep[f]=math.max(-100,math.min(100,(r.courierRep[f] or 0)+by))
+end
+function Transport.trustedValue(u,r,key)
+ local rep=Transport.courierStanding(u,r,key)
+ if rep<=T.courierBanRep then return 0 end
+ return T.courierTrustValue*2^(rep/T.courierTrustDoubling)
+end
 -- Trade runs: an NPC trader buys a price-driven good at the source and
 -- sells it at the destination, keeping the spread and carrying the risk
 -- (lost cargo is its own loss). No courier fee; the player can't take one
@@ -311,6 +336,14 @@ function Transport.load(u,r,t)
 end
 Tasks.register('transport',{
  requires={capabilities={'cargo'}},
+ -- a courier job dropped with the cargo aboard (the ship destroyed or
+ -- the job abandoned) loses the whole load
+ release=function(u,r,t,reason,clock)
+  if t.phase~='delivery' or t.settled then return end
+  local carried=0
+  for _,line in ipairs(lines(t)) do if not line.trade then carried=carried+(line.amount or 0) end end
+  if carried>0 then Transport.answer(u,r,t.target,-1) end
+ end,
  plan=function(t,station,clock)
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
   return Transport.route(station,t.target,clock)
@@ -336,6 +369,11 @@ Tasks.register('transport',{
    and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
+  -- a courier is trusted with only so much of someone else's cargo
+  if not o.trade and o.order and o.item then
+   local value=Transport.goodsPrice(u,o.source,o.item)*need
+   if value>Transport.trustedValue(u,r,o.target) then return false end
+  end
   -- a trade run: a trader only, who can pay for the cargo and sees a spread
   if o.trade then
    if r.player then return false end
@@ -454,12 +492,6 @@ Tasks.register('transport',{
    return false
   end
   if station~=t.target then return false end
-  local required={}
-  for _,line in ipairs(lines(t)) do
-   required[line.item]=(required[line.item] or 0)+line.amount
-   local count=(r.ship.cargo or {})[line.item] or 0
-   if count<required[line.item] then Tasks.release(u,r,'cargo lost',clock);return false end
-  end
   -- (a milk run's invoice is made once, at the first drop-off, and each
   -- stop is paid its own lines)
   local invoice=t.invoice or Transport.invoice(t);t.invoice=invoice
@@ -468,6 +500,23 @@ Tasks.register('transport',{
   for _,charge in ipairs(invoice.lines) do
    if charge.task.target==nil or charge.task.target==station then here[#here+1]=charge else later[#later+1]=charge end
   end
+  -- cargo that went missing on the way (robbed, jettisoned) is not
+  -- delivered: what's aboard is, paid pro rata, and a courier answers for
+  -- the rest with its standing at the buyer's faction (Transport.answer)
+  local aboard={};local carried,lost=0,0
+  for _,charge in ipairs(here) do
+   local line=charge.task
+   if aboard[line.item]==nil then aboard[line.item]=(r.ship.cargo or {})[line.item] or 0 end
+   local n=math.max(0,math.min(line.amount,aboard[line.item]))
+   aboard[line.item]=aboard[line.item]-n
+   if not line.trade then carried=carried+line.amount;lost=lost+line.amount-n end
+   if n<line.amount then
+    charge.payment=line.amount>0 and math.floor(charge.payment*n/line.amount) or 0
+    if line.tradeCost then line.tradeCost=math.floor(line.tradeCost*n/math.max(1,line.amount)) end
+    line.amount=n
+   end
+  end
+  if carried>0 then Transport.answer(u,r,station,lost>0 and -lost/carried or 1) end
   for _,charge in ipairs(here) do
    local line=charge.task;paid=paid+charge.payment
    cargo(r,line.item,-line.amount)

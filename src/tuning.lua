@@ -243,7 +243,7 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 -- Squads and battlegroups (src/squads.lua)
 T.squadTick = 2              -- s between squad upkeep passes
-T.policeWage = 1500          -- credits an hour each police ship is paid by its faction (covers a patrol's fuel and supplies, about 1,300/h in soaks)
+T.policeWage = 4500          -- credits an hour each police ship is paid by its faction: a risky job paid near a hauler's earnings, out of faction tax
 T.squadSweepHold = 20        -- s a squad holds at each stop of its beat
 T.squadRespondCount = 2      -- squads sent when a flagship calls
 T.squadRespondTime = 180     -- s a called squad stays on the call
@@ -363,7 +363,7 @@ T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that se
 -- paying station posts a bounty; each wildcat is then worth this much to
 -- whoever lands the last hit (plus a little per point of its hull's armour)
 T.bountyLosses = 3
-T.bountyPerHead, T.bountyPerArmor = 600, 1
+T.bountyPerHead, T.bountyPerArmor = 6000, 10
 T.bountySlots = 3             -- hunters the board sends at one site at once
 T.huntersPerSystem = 3        -- bounty hunters per owned system with a trade station
 T.hunterReadyHealth = 0.8     -- share of armour a hunter wants before it takes a bounty
@@ -630,8 +630,8 @@ T.alifeGoneLinger=300
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
 T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
-T.wreckBountyBase=80       -- CR a system's trade station pays for each ship wreck cleared (src/wreck_bounty.lua)
-T.wreckBountyPerSteel=4    -- plus this per steel plate in the hull
+T.wreckBountyBase=800      -- CR a system's trade station pays for each ship wreck cleared (src/wreck_bounty.lua)
+T.wreckBountyPerSteel=40   -- plus this per steel plate in the hull
 T.oreQuestPremium=1.3       -- ore contracts (src/ore_quests.lua) pay this multiple of the station's price
 T.oreQuestMin=5            -- and are only posted for at least this many units short
 T.oreQuestReserve=40       -- ore a drill home always wants on hand, even one that ships it all on
@@ -702,6 +702,16 @@ T.makerRestoreHours=1   -- and it refills its shelf to half of T.makerShelfLots 
 -- price-driven good may bid up to T.priceCrisisMax at once
 T.hubPriceBand=.5
 -- a price-driven maker's price, from an empty output shelf to a full one
-T.makerPriceEmpty,T.makerPriceFull=1.4,.6
+T.makerPriceEmpty,T.makerPriceFull=1.4,.85
 T.tradeReserve=500 -- credits a trader keeps back after buying a cargo (src/transport.lua)
+-- Courier standing (src/transport.lua Transport.answer): a clean delivery
+-- earns courierRepGain with the buyer's faction; losing cargo costs
+-- courierRepLoss times the share of the load lost. A courier is trusted
+-- with courierTrustValue of cargo at standing 0, doubling every
+-- courierTrustDoubling points, and with none at or below courierBanRep.
+T.courierRepGain=.5
+T.courierRepLoss=10
+T.courierTrustValue=20000
+T.courierTrustDoubling=20
+T.courierBanRep=-40
 return T
