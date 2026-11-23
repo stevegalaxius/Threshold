@@ -142,7 +142,9 @@ function C.update(u,clock,stations,inbound,pause)
    local floor=driven and makes(key,item) and T.makerPriceFull or T.priceFloor
    prices[item]=math.max(floor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
    -- (bid for what the station's next order will be: up to its order level)
-   local level=want>0 and (makes(key,item) and want*2 or E.orderLevel(u,key,item,want,false)) or 0
+   -- (a price-driven good bids only up to its target: bidding to the
+   -- reorder level kept every shelf bidding and its makers at full tilt)
+   local level=want>0 and (makes(key,item) and want*2 or driven and want or E.orderLevel(u,key,item,want,false)) or 0
    if bids[item] and want>0 and have<level then
     bids[item][#bids[item]+1]={target=key,amount=math.ceil(level-have),price=C.price(u,key,item)}
    end
