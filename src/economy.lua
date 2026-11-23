@@ -152,8 +152,11 @@ local function adjust(u,unmet,all)
    -- (crack_ice: the universal price of fuel), not to their own shelf
    local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
    if ratio then
-    if ratio>1+T.globalPriceBand and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
-    elseif ratio<1-T.globalPriceBand or have>=(c.cap or math.huge)*.9 then v=v*(1-E.scaleStep) end
+    -- (and the same shelf limit as unmet demand: a high price that freight
+    -- can't answer from here is no reason to make more here)
+    local full=math.min(E.lot*T.unmetShelfLots,(c.cap or math.huge)*.9)
+    if ratio>1+T.globalPriceBand and have<full then v=v*(1+E.scaleStep)
+    elseif ratio<1-T.globalPriceBand or have>=full then v=v*(1-E.scaleStep) end
    -- the system is running short: make more, unless its own storage is full
    elseif low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
    -- Unsupplied demand propagates upstream even while inputs are scarce.
@@ -624,6 +627,7 @@ local function run(u,clock,pause)
    -- spare a whole lot (composites, siloxanes, a small ice well) would
    -- otherwise hold its stock while every buyer sits empty.
    local minLot=Stock.count(u,c,item)==0 and T.orderMinLoad or E.minOrder(item)
+   local starving=E.shortageAge(u,c,item,clock)>=T.unmetShortageAge
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
@@ -634,6 +638,10 @@ local function run(u,clock,pause)
      if entry.fill>=.5 and hubPlan.kind[s] and hubPlan.kind[c] and root(L.byId[s].area)~=root(L.byId[c].area) then
       need=math.min(math.floor(T.trunkLot/require('src.data').items[item].volume),minLot*T.trunkMinOrders)
      end
+     -- a buyer short for T.unmetShortageAge takes a smaller lot: cheap,
+     -- compact goods (ammunition) have value-based lots bigger than any
+     -- maker's shelf, so otherwise no order was ever posted
+     if starving then need=math.min(need,math.max(T.orderMinLoad,E.lot)) end
      if s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
