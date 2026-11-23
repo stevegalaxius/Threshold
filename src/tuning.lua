@@ -367,6 +367,7 @@ T.bountyPerHead, T.bountyPerArmor = 6000, 10
 T.bountySlots = 3             -- hunters the board sends at one site at once
 T.huntersPerSystem = 3        -- bounty hunters per owned system with a trade station
 T.hunterReadyHealth = 0.8     -- share of armour a hunter wants before it takes a bounty
+T.hunterRangeAU = 12          -- AU a hunter travels for a site bounty (its own system's first)
 T.hunterBreakKill = 0.3       -- chance a hunter that breaks inside a site doesn't get out
 T.hunterAssaultTime = 1800    -- s a hunter stays inside a site before it gives up and pulls out
 T.npcWarpDuration = 1.5

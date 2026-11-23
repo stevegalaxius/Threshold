@@ -854,18 +854,29 @@ end
 
 -- The board ----------------------------------------------------------------------
 
+-- AU between the system a hunter is in (or calls home) and a site's system
+local function hunterDistance(r,inst,clock)
+ local here=systemOf(r.area or r.home);local there=systemOf(inst.home)
+ if not here or not there or here==there then return 0 end
+ return Fields.distance(here,there,clock) or math.huge
+end
+
 Tasks.register('site_bounty',{
  requires={capabilities={'armed'}},
  eligible=function(u,r,o,node,clock)
   local inst=sites(u)[o.site]
   if not inst or inst.done or not inst.bounty then return false end
-  -- hunters work their own system's bounties
-  if systemOf(r.home)~=systemOf(inst.home) then return false end
+  -- hunters go where the bounties are, out to T.hunterRangeAU from where
+  -- they are now (their own system's first: score)
+  if hunterDistance(r,inst,clock)>T.hunterRangeAU then return false end
   if require('src.encounters').profile(r).dps<=0 then return false end
   return (r.ship.armor or 0)>=maxArmor(r)*T.hunterReadyHealth
  end,
  feasible=function(u,r,o,node,clock) return require('src.travelgraph').live(node,o.target,clock)~=nil end,
- score=function(u,r,o,node,clock) return -(o.slot or 0) end,
+ score=function(u,r,o,node,clock)
+  local inst=sites(u)[o.site]
+  return -(inst and hunterDistance(r,inst,clock) or 0)*10-(o.slot or 0)
+ end,
  prepare=function(u,r,t) t.phase='hunting';return true end,
  plan=function(t,node,clock) return require('src.travelgraph').live(node,t.target,clock) end,
  docks=function() return false end,
