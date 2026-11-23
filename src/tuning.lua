@@ -479,6 +479,9 @@ T.miningSettleTime=3
 T.mineWorkAltitude=1500
 T.mineWorkSide=1100
 T.minersPerArea,T.miningChunkDamping=3,1.1
+-- m3 of ore a mining station may hold over its own target before its mine
+-- jobs close until freight takes some away (src/mining.lua)
+T.mineDepotM3=600
 -- a miner fills its hold before heading home, unless the drill has had no
 -- rock for it this long (src/mining.lua)
 T.minerIdleReturn=120
@@ -498,7 +501,9 @@ T.orderMinFreight=800 -- and an order pays a hauler at least this over an AU (E.
 T.orderMaxVolume=200 -- cubic metres in one ordinary (not hub-to-hub) order: a median hauler's hold
 T.agendaMaxJobs=4     -- most jobs one NPC holds at once (src/npc_agenda.lua)
 T.agendaHoldPerJob=80 -- m3 of hold per extra job it may hold
-T.freightMinRun=60    -- m3 of freight at a pickup, bound for one area, before haulers fly it
+T.freightMinRun=12    -- m3 of freight at a pickup, bound for one area, before haulers fly it
+T.unmetShortageAge=300 -- s a buyer stays short before its makers count it as unmet, spare stock elsewhere or not (src/economy.lua)
+T.unmetShelfLots=4    -- lots a plant may hold while answering unmet demand before it slows (src/economy.lua)
 T.freightMaxWait=600  -- seconds an order waits for a fuller load before any hauler takes it
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 -- scarcity premium (src/transport.lua): the share of the source-to-target
@@ -513,6 +518,15 @@ T.freightPremiumCap=2
 -- freightScoreCap/100, varied per trader by +-freightScoreJitter, and cut
 -- by freightRiskPerAU per AU of interplanetary route for timid traders
 T.freightScoreCap=20000
+-- urgency*10000 + shortage age*100 tops out here (about ten minutes of
+-- shortage), so pay stays in the race; see the transport score
+T.freightNeedCap=60000
+-- The freight board's shared shortlist (src/tasks.lua): rebuilt this often,
+-- holding this many orders per system for haulers there and showing this
+-- many of each other system's best to everyone else
+T.freightCacheSeconds=5
+T.freightCacheLocal=16
+T.freightCacheRemote=3
 T.freightScoreJitter=.1
 T.freightRiskPerAU=.05
 -- market goods trade at the station's live price +- this share
@@ -633,7 +647,7 @@ T.mapScale = 1.5
 T.freeStationDrift = { 0.022, 0.03, 0.018 }
 T.darkCrossingAU = 8      -- extra AU the economy counts on a supply run between the white and dark networks
 T.darkCrossingMarkup = 0.5 -- the same, as a price markup, for priced commodities
-T.fenceStock = 300 -- m3 of each dark surplus good a fence keeps in its back room to sell on
+T.fenceStock = 300 -- most m3 of each good a fence keeps in its back room; it buys only loot pirates sold at dark stations
 -- Dark runners (src/dark_runners.lua): white haulers who sign on with
 -- Milliways while dark freight goes unclaimed, and quit when it dries up.
 T.darkRunnerHome = 'station:pluto_1'
@@ -671,9 +685,4 @@ T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
--- Canister return (src/supplies.lua): a ship refuelling trades its spent
--- canisters in, and the station keeps this share of them as empties for the
--- crackers and skimmers to refill; the presses only make up the rest.
-T.canisterReturn=0.9
-T.canisterEmpty='empty_canister'
 return T

@@ -152,14 +152,21 @@ local function adjust(u,unmet,all)
    -- (crack_ice: the universal price of fuel), not to their own shelf
    local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
    if ratio then
-    if ratio>1+T.globalPriceBand and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
-    elseif ratio<1-T.globalPriceBand or have>=(c.cap or math.huge)*.9 then v=v*(1-E.scaleStep) end
+    -- (and the same shelf limit as unmet demand: a high price that freight
+    -- can't answer from here is no reason to make more here)
+    local full=math.min(E.lot*T.unmetShelfLots,(c.cap or math.huge)*.9)
+    if ratio>1+T.globalPriceBand and have<full then v=v*(1+E.scaleStep)
+    elseif ratio<1-T.globalPriceBand or have>=full then v=v*(1-E.scaleStep) end
    -- the system is running short: make more, unless its own storage is full
    elseif low[c.item] and have<(c.cap or math.huge)*.9 then v=v*(1+E.scaleStep)
+   -- Unsupplied demand propagates upstream even while inputs are scarce.
+   -- While buyers go without, a plant keeps speeding up until its own shelf
+   -- holds T.unmetShelfLots lots (freight isn't taking what it makes), and
+   -- slows past that; otherwise it slows from two lots
+   elseif (unmet[c.item] or 0)>0 then
+    if have<math.min(E.lot*T.unmetShelfLots,(c.cap or math.huge)*.9) then v=v*(1+E.scaleStep) else v=v*(1-E.scaleStep) end
    -- stock piling up here slows it while the system is comfortable
-   elseif have>=E.lot*2 then v=v*(1-E.scaleStep)
-   -- Unsupplied demand must propagate upstream even while inputs are scarce.
-   elseif (unmet[c.item] or 0)>0 and have<E.lot then v=v*(1+E.scaleStep) end
+   elseif have>=E.lot*2 then v=v*(1-E.scaleStep) end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
   end
   end
@@ -349,7 +356,7 @@ local function hubWants(u,all,pause)
   local made={}
   for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
   for _,item in ipairs(goods()) do
-   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*4,'export'
+   if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*2,'export'
    else
     local n=0
     for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+memberWant(u,s,item) end end
@@ -369,6 +376,11 @@ local function hubWants(u,all,pause)
    imported[r]=n;total=total+n
    if pause then pause() end
   end end
+  -- the systems that make it share the export stock between them: each
+  -- exporting hub holds its share of what the importers want, not all of it
+  local exporters=0
+  for r in pairs(plan.hubs) do if not imported[r] then exporters=exporters+1 end end
+  local share=math.ceil(total/math.max(1,exporters))
   for r,h in pairs(plan.hubs) do
    if imported[r] then plan.want[h][item],plan.kind[h][item]=imported[r],'import'
    else
@@ -384,7 +396,7 @@ local function hubWants(u,all,pause)
      end
     end
     if short>spare then plan.want[h][item],plan.kind[h][item]=short-spare,'import'
-    else plan.want[h][item],plan.kind[h][item]=total,'export' end
+    else plan.want[h][item],plan.kind[h][item]=share,'export' end
     if pause then pause() end
    end
   end
@@ -615,6 +627,7 @@ local function run(u,clock,pause)
    -- spare a whole lot (composites, siloxanes, a small ice well) would
    -- otherwise hold its stock while every buyer sits empty.
    local minLot=Stock.count(u,c,item)==0 and T.orderMinLoad or E.minOrder(item)
+   local starving=E.shortageAge(u,c,item,clock)>=T.unmetShortageAge
    while short>0 do
     local best,bestScore
     for _,s in ipairs(participants) do
@@ -625,6 +638,10 @@ local function run(u,clock,pause)
      if entry.fill>=.5 and hubPlan.kind[s] and hubPlan.kind[c] and root(L.byId[s].area)~=root(L.byId[c].area) then
       need=math.min(math.floor(T.trunkLot/require('src.data').items[item].volume),minLot*T.trunkMinOrders)
      end
+     -- a buyer short for T.unmetShortageAge takes a smaller lot: cheap,
+     -- compact goods (ammunition) have value-based lots bigger than any
+     -- maker's shelf, so otherwise no order was ever posted
+     if starving then need=math.min(need,math.max(T.orderMinLoad,E.lot)) end
      if s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
@@ -651,7 +668,7 @@ local function run(u,clock,pause)
      local anywhere=false
      for _,s in ipairs(participants) do if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then anywhere=true;break end end
      -- counted against its target, not the reorder level
-     if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short)) end
+     if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short));entry.unmet=true end
      break
     end
     -- hub to hub is a trunk run: a bulk lot for a big freighter
@@ -673,10 +690,23 @@ local function run(u,clock,pause)
    entry.left=short
   end
   end
-  -- Fences: each keeps T.fenceStock m3 of every good the dark stations
-  -- have over what they need, bought from the one with most to spare. Its
-  -- stock over its own needs is spare like any white station's, so the
-  -- passes above sell it on into the white network.
+  -- A consumer short for T.unmetShortageAge counts as unmet even with spare
+  -- stock elsewhere: stock that isn't arriving is no use to it, so its
+  -- makers aren't throttled to the floor while it starves.
+  for _,entry in ipairs(buyers) do
+   -- (real consumers only: a hub's or customs house's want is a buffer
+   -- summed over its whole system, and counting it as unmet ran the
+   -- steel and ammunition lines flat out for stock nobody burns)
+   local buffer=hubPlan.kind[entry.c] and hubPlan.kind[entry.c][item]
+   if not entry.unmet and not buffer and E.shortageAge(u,entry.c,item,clock)>=T.unmetShortageAge then
+    unmet[item]=(unmet[item] or 0)+math.max(0,entry.need)
+   end
+  end
+  -- Fences: each buys the loot pirates sold at the dark stations (up to
+  -- T.fenceStock m3 a good), from the one holding most. A dark station's
+  -- own output stays home unless a white buyer is short (pass 2 above).
+  -- A fence's stock over its own needs is spare like any white station's,
+  -- so the passes above sell it on into the white network.
   for _,f in ipairs(fences) do if spare[f]~=nil then
    local vol=require('src.data').items[item].volume
    -- ordinary lots for any runner, not bulk trunk runs nobody took
@@ -686,7 +716,8 @@ local function run(u,clock,pause)
     local best,most
     for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
      local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
-     local excess=spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0)
+     local loot=(Stock.record(u,s).loot or {})[item] or 0
+     local excess=math.min(loot,spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0))
      if excess>=math.min(T.orderMinLoad,lot) and (not most or excess>most) then
       local k=s..'>'..f
       if reach[k]==nil then reach[k]=reachable(s,f,clock) end
@@ -699,6 +730,8 @@ local function run(u,clock,pause)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=f,item=item,amount=n,stocked=true,
      layoutScope=E.scope,order=true,priority=0,urgency=1,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds},clock,u))
     spare[best]=spare[best]-n;room=room-n
+    local loot=Stock.record(u,best).loot;loot[item]=loot[item]-n
+    if loot[item]<=0 then loot[item]=nil end
    end
   end end
   pause()

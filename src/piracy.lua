@@ -20,6 +20,10 @@ P.route=itinerary
 local function fence(u,base,id,n,sold)
  if n<=0 or not require('src.data').items[id] then return end
  require('src.stockpile').add(u,base,id,n)
+ -- remembered as loot: only stolen goods go on to the fences
+ -- (src/economy.lua), not what the dark stations make for themselves
+ local record=require('src.stockpile').record(u,base);record.loot=record.loot or {}
+ record.loot[id]=(record.loot[id] or 0)+n
  sold[id]=(sold[id] or 0)+n
 end
 local function fenceHold(u,base,inner,sold)
