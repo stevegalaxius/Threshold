@@ -182,7 +182,8 @@ local function surrender(game,pirate,victim)
   local item=data.items[id]
   if n>0 and item and not item.shot and id~=Fuel.item() then
    local k=math.max(1,math.ceil(n*T.robberyShare))
-   if ph then k=Hold.add(ph,id,n) else pc[id]=(pc[id] or 0)+n end
+   -- the pirate takes its share, k, not the victim's whole stack
+   if ph then k=Hold.add(ph,id,k) else pc[id]=(pc[id] or 0)+k end
    if k>0 then
     if vh then Hold.take(vh,id,k) end
     vc[id]=n-k;if vc[id]<=0 then vc[id]=nil end
@@ -297,13 +298,15 @@ function E.update(game,clock)
      local loser=(fa-E.breakPoint(a))<(fb-E.breakPoint(b)) and a or b
      local winner=loser==a and b or a
      if Access.civilian(loser) and Access.raiding(winner) then
-      surrender(game,winner,loser)
+      local taken=surrender(game,winner,loser)
       if winner.wildcat then require('src.wildcats').harm(u,winner) end
       require('src.alife_trace').note(loser,clock,'encounter','broke, surrendered cargo to '..winner.id)
       require('src.alife_trace').note(winner,clock,'encounter','robbed '..loser.id..' -> heading home')
       E.finish(u,a,b,clock,nil,nil,'surrendered')
       loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
-      require('src.piracy').returnRecord(game,winner)
+      -- only a raider with something to sell flies home to fence it;
+      -- one that robbed an empty hold keeps hunting
+      if taken>0 then require('src.piracy').returnRecord(game,winner) end
       -- some raiders leave no witnesses: the robbed ship is lost
       if random(fight)<T.pirateScuttleChance then wreck(u,loser,clock,winner.id) end
      else
