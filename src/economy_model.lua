@@ -179,20 +179,6 @@ function M.build(opts)
    for item,n in pairs(items) do if item~=Food.item then demand(st,item,n,'service') end end
   end
  end
- -- canister return (src/supplies.lua): fuel sold at a station leaves its
- -- empties there, on offer to the fillers like a mine's output
- local returned={};local Tn=require('src.tuning')
- do
-  local fuel=require('src.reactor_fuel').item()
-  local src=opts.live and opts.universe and nil or (base and base.service)
-  if opts.live and opts.universe then
-   for id,p in pairs(L.byId) do if p.kind=='station' and not p.accessOf then
-    local n=E.serviceRate(opts.universe,id,fuel);if n>0.01 then returned[id]=n*Tn.canisterReturn end
-   end end
-  elseif src then
-   for st,items in pairs(src) do if (items[fuel] or 0)>0 then returned[st]=items[fuel]*Tn.canisterReturn end end
-  end
- end
  -- ships sold: each assembly hall's share of its hulls' sales
  local shipDemand={}
  if base then for hull,n in pairs(base.ships or {}) do shipDemand[hull]=n end end
@@ -235,10 +221,6 @@ function M.build(opts)
  if base then for st,items in pairs(base.minedAt or {}) do for item,n in pairs(items) do
   mines[item]=mines[item] or {};mines[item][st]=n;good(item).external=(good(item).external or 0)+n
  end end end
- for st,n in pairs(returned) do
-  local item=Tn.canisterEmpty
-  mines[item]=mines[item] or {};mines[item][st]=(mines[item][st] or 0)+n;good(item).external=(good(item).external or 0)+n
- end
  -- Fixed plants (policy 'fixed') run at their rated pace whatever anyone
  -- wants, until their own storage fills: shipworks welding frames, the
  -- wells, the farms. Their output is on offer like a mine's, and their

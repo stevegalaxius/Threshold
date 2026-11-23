@@ -681,9 +681,4 @@ T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
--- Canister return (src/supplies.lua): a ship refuelling trades its spent
--- canisters in, and the station keeps this share of them as empties for the
--- crackers and skimmers to refill; the presses only make up the rest.
-T.canisterReturn=0.9
-T.canisterEmpty='empty_canister'
 return T
