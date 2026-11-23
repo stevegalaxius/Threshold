@@ -365,17 +365,17 @@ local function hubWants(u,all,pause)
   plan.want[cs],plan.kind[cs]={},{}
   local made={}
   for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
-  for _,item in ipairs(goods()) do
+  for _,item in ipairs(goods()) do if not T.priceDriven[item] then
    if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*2,'export'
    else
     local n=0
     for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+memberWant(u,s,item) end end
     if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
    end
-  end
+  end end
   if pause then pause() end
  end
- for _,item in ipairs(goods()) do
+ for _,item in ipairs(goods()) do if not T.priceDriven[item] then
   if pause then pause() end
   local imported,total={},0
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
@@ -410,7 +410,7 @@ local function hubWants(u,all,pause)
     if pause then pause() end
    end
   end
- end
+ end end
  return plan
 end
 E.hubWants=hubWants
@@ -457,6 +457,9 @@ local function routed(plan,s,c,item)
  -- any dark station; from there the white rules below move them on
  local darkS,darkC=Dark.isDarkNode(s),Dark.isDarkNode(c)
  if darkS and not darkC then return Dark.isFence(c) end
+ -- a price-driven good goes wherever the spread pays for the haul: no hub
+ -- or customs legs (a hub is just a station with its own use)
+ if T.priceDriven[item] then return true end
  local customs=plan.customs or {}
  local cs,cc=customs[as],customs[ac]
  if as==ac then
