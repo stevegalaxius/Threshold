@@ -137,6 +137,16 @@ function Transport.goodsPrice(u,source,item)
  if isHub(source) then unit=unit*(1+T.hubMarkup) end
  return unit
 end
+-- Trade runs: an NPC trader buys a price-driven good at the source and
+-- sells it at the destination, keeping the spread and carrying the risk
+-- (lost cargo is its own loss). No courier fee; the player can't take one
+-- (src/player_contracts.lua), but couriers still carry every other order.
+function Transport.tradeCost(u,line)
+ return math.floor(Transport.goodsPrice(u,line.source,line.item)*line.amount+.5)
+end
+function Transport.tradeValue(u,line,station)
+ return math.floor(require('src.markets').price(u,station or line.target,line.item)*line.amount+.5)
+end
 function Transport.settleGoods(u,line,buyer)
  local Accounts=require('src.accounts')
  local value=math.floor(Transport.goodsPrice(u,line.source,line.item)*line.amount+.5)
@@ -284,8 +294,16 @@ function Transport.load(u,r,t)
   cargo(r,line.item,line.amount);totals[line.item]=(totals[line.item] or 0)+line.amount
  end
  r.ship=saved
+ local cost=0
+ for _,line in ipairs(lines(t)) do if line.trade then cost=cost+Transport.tradeCost(u,line) end end
+ if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then return false end
  for _,line in ipairs(lines(t)) do
   if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
+  if line.trade then
+   local cost=Transport.tradeCost(u,line)
+   require('src.accounts').receive(u,line.source,cost,'sold',line.item)
+   r.credits=(r.credits or 0)-cost;r.tradeSpent=(r.tradeSpent or 0)+cost;line.tradeCost=cost
+  end
   cargo(r,line.item,line.amount)
   local o=Tasks.state(u).offers[line.id];if o then o.loaded=true end
  end
@@ -318,6 +336,14 @@ Tasks.register('transport',{
    and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
+  -- a trade run: a trader only, who can pay for the cargo and sees a spread
+  if o.trade then
+   if r.player then return false end
+   local line={source=o.source,target=o.target,item=o.item,amount=math.min(o.amount,room(r,o.item,o.amount))}
+   if line.amount<need then return false end
+   if (r.credits or 0)-Transport.tradeCost(u,line)<T.tradeReserve then return false end
+   if Transport.tradeValue(u,line)<=Transport.tradeCost(u,line) then return false end
+  end
   return room(r,o.item,need)>=need
    and (not (o.mine or o.stocked) or Transport.available(u,o.source,o.item,o.id)>=need)
  end,
@@ -336,6 +362,11 @@ Tasks.register('transport',{
    -- (a plain quoted listing: the same sum Transport.invoice makes, without
    -- copying the offer to change its amount; this runs for every job read)
    pay=math.floor(amount*o.creditsPerUnit+math.min(o.handlingLimit or 0,amount*(o.handlingPerUnit or 0))+1e-7)
+  end
+  -- a trader earns the spread it sees now, not a fee
+  if o.trade then
+   local line={source=o.source,target=o.target,item=o.item,amount=amount}
+   pay=math.max(0,Transport.tradeValue(u,line)-Transport.tradeCost(u,line))
   end
   local reward=pay/Transport.duration(o,station,clock)
   local p=Personality.ensure(r)
@@ -378,7 +409,7 @@ Tasks.register('transport',{
    local capabilities=require('src.npc_access').capabilities(r)
    for _,o in pairs(offers) do
     -- (freight only: satellite jobs are board orders too, carrying no item)
-    if o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
+    if not t.trade and not o.trade and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
      and not r.player and o.source==t.source and o.item
      and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
      and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
@@ -445,11 +476,22 @@ Tasks.register('transport',{
    elseif line.mine or line.stocked then J.deliver(u,station,line.item,line.amount) end
    if line.intake then require('src.merchants').received(u,line.intake,station,line.item,line.amount) end
    require('src.economy').stat(u,'hauled',line.item,line.amount)
-   local payment=require('src.accounts').pay(u,station,charge.payment,'freight',line.item);total=total+line.amount
+   local payment
+   if line.trade then
+    -- the trader sells to the station at its price today
+    local value=Transport.tradeValue(u,line,station)
+    require('src.accounts').pay(u,station,value,'bought',line.item)
+    require('src.markets').landed(u,station,line.item,line.amount,value)
+    paid=paid-charge.payment+value;payment=0;total=total+line.amount
+    r.tradeEarnings=(r.tradeEarnings or 0)+value
+    require('src.economy').ledger(u,station,'trade margin',value-(line.tradeCost or 0),line.item)
+   else
+   payment=require('src.accounts').pay(u,station,charge.payment,'freight',line.item);total=total+line.amount
    paid=paid-(charge.payment-payment)
+   end
    -- an economy order is a sale: the buyer pays the seller for the goods
    -- (after the courier), and a hub sells on at a markup
-   if line.layoutScope=='economy' and not line.playerOrder and not line.intake then
+   if line.layoutScope=='economy' and not line.trade and not line.playerOrder and not line.intake then
     local goods=Transport.settleGoods(u,line,station)
     require('src.markets').landed(u,station,line.item,line.amount,goods+payment)
    end
@@ -460,7 +502,8 @@ Tasks.register('transport',{
   end
   local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total
   r.credits=(r.credits or 0)+paid
-  r.freightEarnings=(r.freightEarnings or 0)+paid
+  local fees=0;for _,charge in ipairs(here) do if not charge.task.trade then fees=fees+charge.payment end end
+  r.freightEarnings=(r.freightEarnings or 0)+math.min(paid,fees)
   if #later>0 then
    -- on to the next drop-off with what's left aboard
    local manifest,lines_={},{}

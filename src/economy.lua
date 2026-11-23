@@ -753,6 +753,9 @@ local function run(u,clock,pause)
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
      layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     -- a price-driven good is moved by a trader who buys it and sells it
+     -- on (src/transport.lua), not by a courier the buyer pays
+     trade=T.priceDriven[item] or nil,
      trunk=trunk or nil,requires=trunk and {capabilities={'cargo','bulk'}} or nil},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end

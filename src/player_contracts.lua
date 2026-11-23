@@ -35,7 +35,7 @@ local function supported(o)
  -- Standing mining/salvage/police duties do not yet define player rewards.
  -- (not a buy order of the player's own: src/buy_orders.lua)
  if o.kind=='passenger' then return L.byId[o.source] and L.byId[o.target] and true or false end
- return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and L.byId[o.source] and L.byId[o.target]
+ return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and not o.trade and L.byId[o.source] and L.byId[o.target]
 end
 -- What a ship needs for each capability an offer can require (src/npc_access.lua).
 local NEEDS={cargo='a cargo hold',climate='a climate-controlled hold',berths='ship berths',drill='a mining drill',armed='weapons'}

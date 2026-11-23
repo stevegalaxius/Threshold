@@ -703,4 +703,5 @@ T.makerRestoreHours=1   -- and it refills its shelf to half of T.makerShelfLots 
 T.hubPriceBand=.5
 -- a price-driven maker's price, from an empty output shelf to a full one
 T.makerPriceEmpty,T.makerPriceFull=1.4,.6
+T.tradeReserve=500 -- credits a trader keeps back after buying a cargo (src/transport.lua)
 return T
