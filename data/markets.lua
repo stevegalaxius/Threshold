@@ -95,16 +95,20 @@ market { id = "market:ganymede_3", station = "Ganymede Customs", sells = {
 market { id = "market:callisto_3", station = "Callisto Customs", sells = {
 	{ "rounds_m", 2 }, { "hold_pod_s", 1 }, { "cargo_container", 2 },
 } }
-market { id = "market:mars_1", station = "Station Alpha", dealer = { name = "Red Furnace Shipyard", hulls = { "redfu_crane", "redfu_pelican", "redfu_gila" }, lots = 6, assembly = "redfu_assembly", markup = 0.95 }, sells = {   -- artillery
-	{ "shell_s", 6 }, { "shell_m", 4 }, { "artillery_s_base", 2 }, { "artillery_m_base", 1 },
-	{ "torp_s", 3 }, { "missile_s_base", 1 }, { "mule_engine", 1 },
+market { id = "market:mars_1", station = "Red Furnace Shipyard", dealer = { name = "Red Furnace Shipyard", hulls = { "redfu_crane", "redfu_pelican", "redfu_gila" }, lots = 6, assembly = "redfu_assembly", markup = 0.90, trims = { "stripped", "stock" } }, sells = {
+	{ "mule_engine", 1 },
 } }
-market { id = "market:mars_3", station = "Heaven-Ladder", sells = {   -- Mandate bulk freight
-	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 }, { "iron_ore", 4 }, { "water_ice", 4 },
+market { id = "market:mars_3", station = "Heaven-Ladder", sells = {
+	{ "gun_s_base", 0 }, { "gun_m_base", 0 }, { "gun_l_base", 0 },
+	{ "artillery_s_base", 0 }, { "artillery_m_base", 0 }, { "artillery_l_base", 0 },
+	{ "iron_ore", 4 }, { "water_ice", 4 },
 } }
-market { id = "market:mars_2", station = "Station Beta", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
+market { id = "market:mars_2", station = "Zhongke Intelligent Manufacturing", dealer = { name = "Zhongke Intaki Atelier", hulls = { "intaki_wisp", "intaki_praetor", "intaki_archangel" }, lots = 5, assembly = "intaki_assembly", markup = 1.2, trims = { "stock" } }, sells = {   -- missiles and drones
 	{ "missile_s", 4 }, { "missile_m", 3 }, { "missile_s_base", 2 }, { "missile_m_base", 1 },
 	{ "drone_s", 2 }, { "drone_m", 1 }, { "drone_s_base", 1 }, { "drone_m_base", 1 }, { "tug_beam", 1 }, { "flare_pod", 1 }, { "flare", 6 }, { "scanner", 1 },
+} }
+market { id = "market:mars_mine", station = "Mars mining supplies", sells = {
+	{ "drill_s_base", 2 }, { "drill_m_base", 1 }, { "drill_l_base", 1 },
 } }
 market { id = "market:earth_1", station = "Orbital One", shops = {   -- heavy weapons
 	{ name = "Kinetic armory", description = "Guns, artillery, solid and airburst rounds, explosive and scatter shells.", sells = {
