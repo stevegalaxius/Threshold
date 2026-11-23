@@ -694,7 +694,11 @@ T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
 -- system-wide tally; and freight is posted only where the buyer's price
 -- beats the source's price plus the haul. Set an entry to nil to put the
 -- good back on the planner.
-T.priceDriven={deuterium_canister=true}
+-- price-driven goods (src/markets.lua, src/economy.lua): moved by traders
+-- where the spread pays, made to local demand. Ammunition joins deuterium:
+-- hub routing and value-sized lots left home stations bare of it.
+T.priceDriven={deuterium_canister=true,
+ rounds_s=true,rounds_m=true,airburst_s=true,airburst_m=true,shell_s=true,shell_m=true,shell_l=true,shot_s=true,shot_m=true,shot_l=true,missile_s=true,missile_m=true,missile_l=true,torp_s=true,torp_m=true,torp_l=true,drone_s=true,drone_m=true,drone_l=true}
 T.makerShelfLots=4
 T.makerSalesHours=1     -- a price-driven maker's sales are smoothed over this long
 T.makerRestoreHours=1   -- and it refills its shelf to half of T.makerShelfLots over this long
