@@ -33,7 +33,7 @@ W.stations = {
 		{ id = "station:venus_4", orbit = 2, facilities={acid_works={capacity=72,surface=true}}, services = { "market", "hangar", "repair" }, spin = -0.04, phase = 1.0, marketId = "market:venus_4", name = "Venus Logistics", layout = "customs_1", hub = true },
 	},
 	earth = {
-		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},make_medical={capacity=8},surface_food={name="Surface food terminal",capacity=3200,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
+		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},make_medical={capacity=8},surface_food={name="Surface food terminal",capacity=960,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
 		{ id = "station:earth_2", uses = { fence = true }, food = {use=64}, services = { "market", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace",
 		  residential = { population = 5000, homes = 8, routes = {
 			{ to = "station:earth_1", kind = "work", weight = 4 },
@@ -96,8 +96,8 @@ W.stations = {
 		{ id = "station:io_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
 	},
 	europa = {
-		{ id = "station:europa_1", facilities={water_wells={capacity=520,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station", layout = "jovian_stack" },
-		{ id = "station:europa_2", facilities={ice_wells={capacity=400,surface=true}}, services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station", layout = "jovian_works" },
+		{ id = "station:europa_1", facilities={water_wells={capacity=320,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station", layout = "jovian_stack" },
+		{ id = "station:europa_2", facilities={ice_wells={capacity=600,surface=true},water_melter={capacity=200}}, services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station", layout = "jovian_works" },
 		{ id = "station:europa_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:europa_3", name = "Europa Customs", layout = "customs_1", customs = true },
 	},
 	ganymede = {
@@ -124,7 +124,7 @@ W.stations = {
 	},
 	enceladus = {
 		{ id = "station:enceladus_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
-		{ id = "station:enceladus_2", facilities={ice_wells={capacity=400,surface=true},water_wells={capacity=520,surface=true}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
+		{ id = "station:enceladus_2", facilities={ice_wells={capacity=600,surface=true},water_wells={capacity=320,surface=true},water_melter={capacity=200}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
 	},
 	titan = {
 		{ id = "station:titan_1", food = {use=64}, facilities={use_medical={capacity=-4},produce_nitrates={capacity=340,surface=true},farm={capacity=960}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },

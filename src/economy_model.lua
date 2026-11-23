@@ -157,7 +157,7 @@ function M.build(opts)
 
  -- 2. final demand: food, the baseline's service use and ship sales
  for id,p in pairs(L.byId) do
-  if p.kind=='station' and not p.accessOf and p.facilities~=nil then
+  if p.kind=='station' and not p.accessOf then
    local use=Food.rates(id)
    if use>0 then demand(id,Food.item,use,'eaten') end
   end
