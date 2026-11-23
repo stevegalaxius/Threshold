@@ -789,7 +789,10 @@ function W.tick(game,clock)
  local online=game.alifeOnline or {}
  -- every wildcat site is under bounty from the moment it opens
  for _,inst in pairs(sites(u)) do
-  if not inst.bounty and not inst.done and inst.crew and require('src.sites').template(inst).wild then W.postBounty(u,inst) end
+  if not inst.bounty and not inst.done and inst.crew then
+   local def=require('src.sites').template(inst)
+   if def and def.wild then W.postBounty(u,inst) end
+  end
  end
  require('src.wreck_bounty').notice(u,clock)
  -- live ships at the end of a road into a site go through the lane
