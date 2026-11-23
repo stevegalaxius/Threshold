@@ -10,9 +10,9 @@ return function()
    assert(not market or market.id~='market:venus_1' or id=='station:venus_1','Venus market inherited by '..id)
   end
  end
- assert(Dealers.def('station:venus_1').name=='Hub Station Motors','Venus lost its dealer')
- assert(Services.get(nil,L.get('station:venus_1')).shipyard,'Venus dealer has no Shipyard tab')
- for _,id in ipairs({'station:luna_3','station:mars_5'}) do
+ assert(Dealers.def('station:venus_3').name=='Angelmaschinenwerft Atelier','Venus lost its dealer')
+ assert(Services.get(nil,L.get('station:venus_3')).shipyard,'Venus dealer has no Shipyard tab')
+ for _,id in ipairs({'station:venus_1','station:luna_3','station:mars_5'}) do
   assert(not Dealers.def(id),'residential station has a dealership: '..id)
   assert(Stock.definition(id).id=='market:'..id:sub(9),'residential station lacks its own market')
  end

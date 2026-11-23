@@ -34,9 +34,10 @@ local generalStore = {
 	{ "ember_reactor", 1 }, { "hold_pod_s", 1 }, { "climate_pod_s", 1 }, { "cargo_container", 2 },
 }
 market { id = "market:general", station = "General store", sells = generalStore }
-market { id = "market:venus_1", station = "Hub Station", dealer = { name = "Hub Station Motors", hulls = { "ferrous_mule", "mack_mustang", "mack_burro", "intaki_wisp" }, lots = 6, restock = 8 }, sells = generalStore }
-
 -- Residential services do not grant ship sales; passenger refits stay available.
+market { id = "market:venus_1", station = "Hub Station", sells = {
+	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
+} }
 market { id = "market:luna_3", station = "Tranquility Commons", sells = {
 	{ "climate_pod_s", 1 }, { "nav_computer", 1 },
 } }
