@@ -709,6 +709,7 @@ T.makerRestoreHours=1   -- and it refills its shelf to half of T.makerShelfLots 
 T.hubPriceBand=.5
 -- a price-driven maker's price, from an empty output shelf to a full one
 T.makerPriceEmpty,T.makerPriceFull=1.4,.85
+T.tradeCourierAfter=300 -- s a trade run waits for a trader before it's posted as a courier contract
 T.tradeReserve=500 -- credits a trader keeps back after buying a cargo (src/transport.lua)
 -- Courier standing (src/transport.lua Transport.answer): a clean delivery
 -- earns courierRepGain with the buyer's faction; losing cargo costs

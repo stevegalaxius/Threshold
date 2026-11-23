@@ -191,6 +191,9 @@ end
 function Transport.refreshOffers(u,clock)
  for _,o in pairs(Tasks.state(u).offers) do
   if o.kind=='transport' and o.layoutScope=='economy' and o.state=='available' then
+   -- a trade run no trader has taken goes out as a courier contract
+   -- (anyone may haul it, the player too: src/player_contracts.lua)
+   if o.trade and clock-(o.placed or clock)>=T.tradeCourierAfter then o.trade=nil;o.handlingPerUnit=nil end
    local fresh=o.handlingPerUnit==nil
    -- an unclaimed listing follows today's prices, so its premium tracks
    -- the shortage; taking the job freezes the quote
