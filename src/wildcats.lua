@@ -582,7 +582,9 @@ function W.postBounty(u,inst)
  inst.bounty={station=station,postedAt=clock}
  require('src.sites').discover(u,inst)
  local driver=driverOf(inst.home)
- for slot=1,T.bountySlots do
+ -- a big crew draws more hunters: a slot per two wildcats, at least bountySlots
+ local crew=W.posted(u,inst.id)
+ for slot=1,math.max(T.bountySlots,math.ceil(crew/2)) do
   Tasks.post(u,{kind='site_bounty',source=station,target=driver,site=inst.id,slot=slot,cooldown=60})
  end
  news(u,inst,('Bounty posted on the wildcats of %s off %s'):format(siteName(inst),areaName(inst.home)),'posted')
