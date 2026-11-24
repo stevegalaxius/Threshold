@@ -698,7 +698,8 @@ T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
 -- where the spread pays, made to local demand. Ammunition joins deuterium:
 -- hub routing and value-sized lots left home stations bare of it.
 T.priceDriven={deuterium_canister=true,empty_canister=true,
- -- raw goods and intermediates (food to follow)
+ food_crate=true,
+ -- raw goods and intermediates
  iron_ore=true,water=true,water_ice=true,hydrogen_canister=true,nitrates=true,silicon=true,heavy_metals=true,
  steel_plate=true,electronics=true,explosives=true,fertilizer=true,industrial_acids=true,
  medical_supplies=true,thermal_ceramics=true,superconducting_coils=true,patch_kit=true,flare=true,

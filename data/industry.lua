@@ -138,8 +138,8 @@ D.facilities={
  -- Electronics come a long way to Saturn, so keep a longer input buffer.
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
- farm={policy='fixed',recipes={'grow_food'}},
- surface_food={policy='fixed',recipes={'receive_surface_food'}},
+ farm={policy='adaptive',recipes={'grow_food'}},
+ surface_food={policy='adaptive',recipes={'receive_surface_food'}},
  shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }
 -- Ship modules ----------------------------------------------------------

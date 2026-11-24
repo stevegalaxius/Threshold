@@ -48,6 +48,7 @@ function F.flow(u,key,m,dt)
  local wanted=units(use,'foodUseCarry')
  local E=require('src.economy')
  local Stock=require('src.stockpile')
+ if T.priceDriven[F.item] and make>0 then make=make*E.scale(u,key,recipe) end
  local made,short=0,0
  if make>0 then
   m.recipes=m.recipes or {};local progress=m.recipes[recipe.id] or {carry=0,credit={}};m.recipes[recipe.id]=progress

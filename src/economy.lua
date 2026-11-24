@@ -650,9 +650,9 @@ local function run(u,clock,pause)
    local level=E.orderLevel(u,s,item,want,producer)
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
-   -- Keep local fertilizer, medical and water demand covered without
+   -- Keep local fertilizer, medical, water and food demand covered without
    -- holding a full lot off the market.
-   local reserve=(T.priceDriven[item] and producer and item~='fertilizer' and item~='medical_supplies' and item~='water') and E.lot or level
+   local reserve=(T.priceDriven[item] and producer and item~='fertilizer' and item~='medical_supplies' and item~='water' and item~=Food.item) and E.lot or level
    spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or reserve)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
@@ -680,6 +680,7 @@ local function run(u,clock,pause)
    local starving=E.shortageAge(u,c,item,clock)>=T.unmetShortageAge
    while short>0 do
     local best,bestScore
+    local fallback,fallbackBid,fallbackAmount
     for _,s in ipairs(participants) do
      -- hub to hub is a trunk run: it waits until the exporter can spare
      -- T.trunkMinOrders ordinary lots (at most a trunk lot), unless the
@@ -709,11 +710,27 @@ local function run(u,clock,pause)
        end
        -- a price-driven good moves only where it pays: the buyer's price
        -- must beat the source's price plus the haul (score, landed cost)
+       -- An empty buyer can fund the cheapest reachable shipment at
+       -- landed cost when its ordinary stock-based bid is too low.
+       if T.priceDriven[item] and entry.fill==0 and short==entry.short and score>=Chemicals.price(u,c,item) then
+        local volume=require('src.data').items[item].volume
+        local amount=math.min(short,spare[s],math.floor(math.min(30,T.orderMaxVolume)/volume))
+        local quote=Transport.quote({source=s,target=c,item=item,amount=amount},clock)
+        local landed=Transport.goodsPrice(u,s,item)+Transport.payment(quote)/amount
+        if crossing>0 then landed=landed*(1+T.darkCrossingMarkup) end
+        local bid=math.floor(landed*100+1)/100
+        if (not fallbackBid or bid<fallbackBid)
+         and require('src.accounts').spendable(u,c)>=math.ceil(bid*amount) then
+         fallback,fallbackBid,fallbackAmount=s,bid,amount
+        end
+       end
        local pays=not T.priceDriven[item] or score<Chemicals.price(u,c,item)
        if pays and (not bestScore or score<bestScore) then best,bestScore=s,score end
       end
      end
     end
+    local shortageBid
+    if not best and pass==2 and fallback then best,shortageBid=fallback,fallbackBid end
     if not best and pass==1 then break end
     if not best then
      -- only real scarcity counts: spare stock that just can't reach this
@@ -756,6 +773,7 @@ local function run(u,clock,pause)
     local trunk=hubPlan.kind[best]~=nil and hubPlan.kind[c]~=nil and root(L.byId[best].area)~=root(L.byId[c].area)
     local vol=require('src.data').items[item].volume
     local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or T.orderMaxVolume)/vol)),short,spare[best])
+    if shortageBid then n=math.min(n,fallbackAmount) end
     -- only a lot too big for an ordinary hold needs a bulk freighter: a
     -- short top-up between hubs is an ordinary order anyone can run
     if trunk and n*vol<=T.orderMaxVolume then trunk=false end
@@ -763,7 +781,7 @@ local function run(u,clock,pause)
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
-    Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
+    Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,shortageBid=shortageBid,
      layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
      -- a price-driven good is moved by a trader who buys it and sells it
      -- on (src/transport.lua), not by a courier the buyer pays

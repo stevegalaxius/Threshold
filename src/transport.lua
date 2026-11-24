@@ -204,7 +204,12 @@ function Transport.tradeCost(u,line)
  return math.floor(Transport.goodsPrice(u,line.source,line.item)*line.amount+.5)
 end
 function Transport.tradeValue(u,line,station)
- return math.floor(require('src.markets').price(u,station or line.target,line.item)*line.amount+.5)
+ local buyer=station or line.target
+ local price=require('src.markets').price(u,buyer,line.item)
+ if line.shortageBid and line.shortageBid>price then
+  return math.min(math.floor(line.shortageBid*line.amount+.5),math.floor(require('src.accounts').spendable(u,buyer)))
+ end
+ return math.floor(price*line.amount+.5)
 end
 function Transport.settleGoods(u,line,buyer)
  local Accounts=require('src.accounts')
@@ -416,8 +421,8 @@ local function freightTerms(u,r,o,capacity)
  local price=Transport.goodsPrice(u,o.source,o.item)
  local spendable=math.max(0,(r.credits or 0)-T.tradeReserve)
  local units=price>0 and math.min(capacity,math.floor(spendable/price)) or capacity
- local bid=require('src.markets').price(u,o.target,o.item)
- local profit=math.floor(bid*units+.5)-math.floor(price*units+.5)
+ local value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=units,shortageBid=o.shortageBid})
+ local profit=value-math.floor(price*units+.5)
  local courierUnits,fee=0,0
  if o.tradeOptional then
   courierUnits=math.min(capacity,Transport.trustedUnits(u,r,o))
