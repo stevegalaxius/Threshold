@@ -1532,7 +1532,14 @@ function Game:npcDockPoint(e, st, dock, offset)
 	local plan = e.dockPlan
 	if not plan or plan.station ~= st or plan.dock ~= dock or self.time >= plan.refresh then
 		local bay = self:fitsDock(e, dock) and self:hangarFit(st, e.hull.id, e)
-		local berth = not bay and self:freeBerth(st, e)
+		local berth
+		if not bay then
+			if plan and plan.station == st and plan.berth and self:mooringFits(st, plan.berth, e.hull.id, e) then
+				berth = plan.berth
+			else
+				berth = self:freeBerth(st, e)
+			end
+		end
 		local pose = berth and (self:berthPose(st, berth, e.hull.id) or st.def.berths[berth])
 		plan = { station = st, dock = dock, bay = bay, berth = berth, pose = pose, refresh = self.time + 2 }
 		e.dockPlan = plan
@@ -1622,7 +1629,8 @@ function Game:updateGuidedDock(e, ds, dt)
 	if ds.guided ~= "align" and ds.blocked then
 		tx, ty = x, y
 	end
-	local distance, speed2 = guideWithBeam(self, e, st, dt, tx, ty, nose, 260)
+	local speed = ds.guided == "inbound" and min(420, max(100, (lx - door) * .7)) or 260
+	local distance, speed2 = guideWithBeam(self, e, st, dt, tx, ty, nose, speed)
 	if ds.guided == "align" then
 		if distance < 16 and headingError < .05 and speed2 < 35^2 and not ds.blocked then
 			ds.guided, ds.t, ds.checkAt = "inbound", 0, 0

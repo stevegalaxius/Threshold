@@ -107,4 +107,39 @@ return function()
 
 	game.world:destroy()
 	print("ok  docking: continuous tractor, queued arrival, long hauler and runway wreck")
+
+	-- An actual A-Life record waking at the end of its offline leg used to
+	-- start with a legacy tractor state and immediately back out of the dock.
+	local live = Game.new({ preview = true })
+	live.autosaveOff = true
+	local ferrous = live:locationEntity("station:earth_3")
+	live.player.body:setPosition(live.dockWorld(ferrous, 1, 5150, 2300, ferrous.dock))
+	live.player.body:setLinearVelocity(ferrous.body:getLinearVelocity())
+	local clock = live.universe.clock
+	local record = {
+		id = "npc/90000", state = "travel", area = "earth", home = "earth",
+		route = { "station:earth_1", ferrous.locationId }, index = 2,
+		depart = clock - 20, arrive = clock, speed = 600,
+		ship = Ship.record(live.player),
+		action = { kind = "dock", fromJob = true, lastClock = clock,
+			target = { provider = "location", id = ferrous.locationId } },
+	}
+	live.universe.npcs[record.id] = record
+	local incoming = require("src.alife").wake(live, record)
+	local x, y = incoming.body:getPosition()
+	local sx, sy = ferrous.body:getPosition()
+	local clearRadius = AI.hullRadius(ferrous) + incoming.halfLength
+	assert(not incoming.dockState and (x - sx)^2 + (y - sy)^2 > clearRadius^2,
+		"offline arrival woke inside the runway without clearance")
+	for _ = 1, 22*120 do
+		live:step(dt)
+		assert(not incoming.dead and not incoming.removed, "woken arrival was lost")
+		local ds = incoming.dockState
+		assert(not ds or ds.guided ~= "abort", "woken arrival aborted its first approach")
+		if ds and ds.done then break end
+	end
+	assert(incoming.dockState and incoming.dockState.done and record.state == "docked",
+		"woken arrival did not finish docking through the live NPC controller")
+	live.world:destroy()
+	print("ok  docking: offline Ferrous arrival wakes outside and docks in the live simulation")
 end

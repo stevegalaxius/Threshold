@@ -789,7 +789,7 @@ local function clearSpot(game,e,x,y,dx,dy)
  for _=1,20 do
   local blocked=false
   for _,o in ipairs(game.entities) do
-   if o~=e and o.kind=='ship' and not o.dead and not o.removed and o.body and not o.dockState then
+   if o~=e and o.kind=='ship' and not o.dead and not o.removed and o.body and o.body:isActive() then
     local ox,oy=o.body:getPosition()
     local reach=(o.halfLength or 100)+(e.halfLength or 100)+100
     if (ox-x)^2+(oy-y)^2<reach*reach then blocked=true;break end
@@ -1045,11 +1045,17 @@ function A.wake(game,r)
    game:dockInstantly(e,source)
    game:undockShip(e)
   elseif close(destination) and dockingStop(r,leg.to) then
-   local x,y=require('src.ai').stopPoint(destination,e)
+   -- An offline arrival has no runway clearance yet. Wake it outside
+   -- the station and let the normal queue reserve the lane and parking.
+   local dock=require('src.ai').approachDock(e,destination)
+   local x,y=game:npcDockPoint(e,destination,dock,0)
+   local fartherX,fartherY=game:npcDockPoint(e,destination,dock,T.queueGap)
+   local ox,oy=fartherX-x,fartherY-y
+   x,y=clearSpot(game,e,x,y,ox,oy)
    e.body:setPosition(x,y)
-   e.body:setAngle(game.dockAngle(destination,1)+math.pi)
+   e.body:setAngle(math.atan2(-oy,-ox))
    e.body:setLinearVelocity(destination.body:getLinearVelocityFromWorldPoint(x,y))
-   game:beginDocking(e,destination,1)
+   e.body:setAngularVelocity(destination.body:getAngularVelocity())
   elseif close(source) or close(destination) then
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
