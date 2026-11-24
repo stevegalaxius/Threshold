@@ -164,7 +164,7 @@ local function adjust(u,unmet,all)
      local made=total-(t.madeTotal or total)
      local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
      local a=1-math.exp(-dt/(T.makerSalesHours*3600))
-     t.sales=(t.sales or 0)+(out-(t.sales or 0))*a
+     t.sales=(t.sales or out)+(out-(t.sales or out))*a
     end
     t.salesAt,t.salesHave=now,have
     t.madeTotal=(u.madeAt or {})[key..'|'..c.item] or 0
