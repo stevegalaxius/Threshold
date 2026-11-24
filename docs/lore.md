@@ -154,6 +154,5 @@ usable.
 - The export's whole news-outlet table: all six names and editors conflict
   with `data/outlets.lua`. The only keepers are each outlet's "fiction"
   (what it insists is true), which matches how the game already writes them.
-- The "Caliphate"-style, invented-faction, and "Not Yet Developed" lists
-  (Kuiper Belt, Oort Cloud, the Sun, Earth as a place): no content, nothing to
-  keep.
+- The "Key Locations Not Yet Developed" list (Kuiper Belt, Oort Cloud, the
+  Sun, Earth as a place, Mercury politics): no content, nothing to keep.
