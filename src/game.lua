@@ -960,7 +960,7 @@ function Game:applySurfacePull()
 		-- Docked ships ride the station. The tractor approach remains exposed
 		-- until it has actually brought the ship inside or onto its berth.
 		if e.kind == "ship" and not e.dead and not e.removed
-			and (not e.dockState or e.dockState.phase == "tractor")
+			and (not e.dockState or e.dockState.phase == "tractor" or e.dockState.phase == "approach")
 			and not e.launch and not e.runup then
 			local b = e.body
 			if not self:cloudClimbing(e) then
@@ -1383,12 +1383,16 @@ local function playerDockClearance(d)
 	return max(d.capture or 0, d.hw * 1.6)
 end
 
+local function runwayReach(lane)
+	return lane.x2 + lane.runway * 1.15
+end
+
 function Game:inTractorZone(st, x, y)
 	for _, d in ipairs(st.docks or { st.dock }) do
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
-		if lx > d.x2 and lx < d.x2 + d.runway * 1.15 and math.abs(ly) < playerDockClearance(d) then
+		if lx > d.x2 and lx < runwayReach(d) and math.abs(ly) < playerDockClearance(d) then
 			return true, lx, ly, side, d
 		end
 	end
@@ -1577,7 +1581,7 @@ function Game:tryNpcDock(e, st)
 	if not require("src.local_navigation").tractorClear(self, e, x, y, mx, my) then return end
 	self:beginDocking(e, st, 1, dock)
 	local ds = e.dockState
-	ds.guided, ds.berth, ds.mooring = "align", plan.berth, plan.pose
+	ds.phase, ds.guided, ds.berth, ds.mooring = "approach", "align", plan.berth, plan.pose
 	e.bay, e.bayStation = plan.bay or nil, st.locationId or st.key
 	e.dockPlan, e.dockRequest = nil, nil
 end
@@ -1597,6 +1601,18 @@ local function guideWithBeam(game, e, st, dt, tx, ty, nose, speed)
 	return distance, (vx - fvx)^2 + (vy - fvy)^2
 end
 
+-- The ship's autopilot flies the approach with the normal flight controls.
+-- Only the last part, inside the runway, is powered by the station.
+local function flyDockApproach(e, st, dt, wx, wy, heading)
+	local x, y = e.body:getPosition()
+	local vx, vy = st.body:getLinearVelocityFromWorldPoint(x, y)
+	local nx, ny = cos(heading), sin(heading)
+	AI.driveVelocity(e, vx + wx, vy + wy, nx, ny, 1)
+	e.intent.aimX, e.intent.aimY = x + nx * 300, y + ny * 300
+	e.intent.boost = false
+	Ship.fly(e, dt)
+end
+
 function Game:updateGuidedDock(e, ds, dt)
 	local st = ds.station
 	local dock = ds.dock or st.dock
@@ -1604,15 +1620,22 @@ function Game:updateGuidedDock(e, ds, dt)
 	local marker = dockMarker(e, st, lane)
 	local door = ds.mooring and 0 or dock.x2 + e.halfLength + 40
 	local side = ds.side or 1
-	local nose = dockAngle(st, side, lane) + (ds.mooring and 0 or pi)
+	local outward = dockAngle(st, side, lane)
+	local nose = outward + (ds.mooring and 0 or pi)
 	local b = e.body
 	local x, y = b:getPosition()
 	local lx, ly = dockLocal(st, side, x, y, lane)
 	local headingError = math.abs(wrapAngle(nose - b:getAngle()))
-	local target = ds.guided == "inbound" and door or marker
+	local reach = runwayReach(lane)
+	local captureWidth = playerDockClearance(dock)
 
-	-- Recheck the corridor as traffic moves. Brake at the current position
-	-- if the lane becomes occupied, then back out if it stays occupied.
+	-- Restore saves made while the old beam was still pulling from afar.
+	if ds.phase == "tractor" and (ds.guided ~= "inbound" or lx > reach or math.abs(ly) > captureWidth) then
+		ds.phase = "approach"
+	end
+	if ds.t > 45 and ds.guided ~= "abort" then
+		ds.phase, ds.guided, ds.t, ds.checkAt = "approach", "abort", 0, nil
+	end
 	if (ds.checkAt or 0) <= self.time then
 		local gx, gy = dockWorld(st, side, ds.guided == "abort" and marker or door, 0, lane)
 		local sx, sy = x, y
@@ -1622,25 +1645,38 @@ function Game:updateGuidedDock(e, ds, dt)
 		if blocker and blocker.kind == "husk" then self:queueWreckClear(st, blocker) end
 		ds.checkAt = self.time + .2
 	end
-	if ds.t > 45 then
-		ds.guided, target = "abort", marker
-	end
-	local tx, ty = dockWorld(st, side, target, 0, lane)
-	if ds.guided ~= "align" and ds.blocked then
-		tx, ty = x, y
-	end
-	local speed = ds.guided == "inbound" and min(420, max(100, (lx - door) * .7)) or 260
-	local distance, speed2 = guideWithBeam(self, e, st, dt, tx, ty, nose, speed)
-	if ds.guided == "align" then
-		if distance < 16 and headingError < .05 and speed2 < 35^2 and not ds.blocked then
-			ds.guided, ds.t, ds.checkAt = "inbound", 0, 0
-		end
-	elseif ds.guided == "abort" then
-		if distance < 35 and math.abs(lx - marker) < 35 and math.abs(ly) < 35 and speed2 < 50^2 then
+
+	if ds.phase == "approach" then
+		local vx, vy = b:getLinearVelocity()
+		local fx, fy = st.body:getLinearVelocityFromWorldPoint(x, y)
+		local speed2 = (vx - fx)^2 + (vy - fy)^2
+		local lined = math.abs(ly) < (ds.mooring and 35 or min(40, dock.hw * .3))
+		local facingIn = math.abs(wrapAngle(outward + pi - b:getAngle())) < .25
+		if ds.guided == "align" and lined and lx >= marker - 150 and speed2 < 200^2 then
+			ds.guided, ds.checkAt = "inbound", nil
+		elseif ds.guided == "inbound" and lx >= door - 12 and lx <= reach
+			and lined and facingIn and not ds.blocked and speed2 < 240^2 then
+			ds.phase, ds.t = "tractor", 0
+			e.intent.thrust, e.intent.strafe = 0, 0
+			e.mainBurn, e.retroBurn, e.sideBurn, e.foreBurn, e.turnBurn = 0, 0, 0, 0, 0
+			return
+		elseif ds.guided == "abort" and (lx >= marker - 50 or ds.t > 15) then
 			e.bay, e.bayStation, e.dockState, e.dockCooldown = nil, nil, nil, 4
 			e.aiNextPlan = nil
+			return
 		end
-	elseif distance < 12 and headingError < .05 and speed2 < 28^2 and not ds.blocked then
+		local inbound = ds.guided == "inbound"
+		local goal = inbound and max(door, reach - 90) or marker
+		local along = max(-360, min(260, (goal - lx) * .8))
+		if (ds.blocked and ds.guided ~= "align") or (inbound and not lined and lx < reach + 180) then along = 0 end
+		local wx, wy = dockVector(st, side, along, max(-160, min(160, -ly)), lane)
+		return flyDockApproach(e, st, dt, wx, wy, outward + (ds.guided == "abort" and 0 or pi))
+	end
+
+	local tx, ty = dockWorld(st, side, door, 0, lane)
+	if ds.blocked then tx, ty = x, y end
+	local distance, speed2 = guideWithBeam(self, e, st, dt, tx, ty, nose, 220)
+	if distance < 12 and headingError < .05 and speed2 < 28^2 and not ds.blocked then
 		b:setActive(false)
 		if ds.mooring then
 			self:finishDocking(e, ds, st)
@@ -1667,7 +1703,7 @@ function Game:resumeLegacyDock(e)
 	local lx, ly = dockLocal(st, side, x, y, lane)
 	local door = ds.mooring and 0 or dock.x2 + e.halfLength + 40
 	local tx, ty = dockWorld(st, side, door, 0, lane)
-	local lined = lx >= door - 12 and math.abs(ly) <= 20
+	local lined = lx >= door - 12 and lx <= runwayReach(lane) and math.abs(ly) <= 20
 		and math.abs(wrapAngle(nose - b:getAngle())) < .15
 	local reserved = ds.mooring or e.bay
 	if lined and reserved and require("src.local_navigation").tractorClear(self, e, x, y, tx, ty, nose) then
@@ -1697,11 +1733,12 @@ function Game:updateDockedShip(e, dt)
 	local side = ds.side or 1
 	ds.t = ds.t + dt
 
+	if e ~= self.player and (ds.phase == "approach" or ds.phase == "tractor") then
+		ds.guided = ds.guided or "abort"
+		return self:updateGuidedDock(e, ds, dt)
+	end
+
 	if ds.phase == "tractor" then
-		if e ~= self.player then
-			ds.guided = ds.guided or "abort"
-			return self:updateGuidedDock(e, ds, dt)
-		end
 		local x, y = b:getPosition()
 		local lx, ly = dockLocal(st, side, x, y, d)
 		local doorX = d.x2 + e.halfLength + 40
@@ -2715,7 +2752,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
-	if e and (e.invulnerable or e.dockState) then return end
+	if e and (e.invulnerable or e.dockState and e.dockState.phase ~= "approach") then return end
 	-- a hit on a ship riding a carrier's berth damages that ship instead
 	if e and e.carried and amount > 0 and require('src.berths').hit(self, e, amount, hx, hy, source) then return end
 	-- a working satellite takes hits as a whole, like a ship; once it's

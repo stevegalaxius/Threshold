@@ -981,7 +981,7 @@ function A.wake(game,r)
     local dock=e.dockState.dock
     e.dockState=copy(r.docking); e.dockState.station=st;e.dockState.dock=dock
     e.body:setPosition(exact.x,exact.y); e.body:setAngle(exact.a)
-    local tractoring=e.dockState.phase=='tractor'
+    local tractoring=e.dockState.phase=='tractor' or e.dockState.phase=='approach'
     e.body:setActive(tractoring)
     if tractoring then
      e.body:setLinearVelocity(exact.vx,exact.vy)

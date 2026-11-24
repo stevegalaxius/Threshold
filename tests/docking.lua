@@ -44,7 +44,7 @@ return function()
 	assert(game:launchBlocker({dockState={station=station,dock=dock},halfLength=arrival.halfLength}) == wreck,
 		"departure scan missed a wreck ahead of the launch point")
 	local ships = { arrival, waiting }
-	local sawBeam, sawQueue, cleared = false, false, false
+	local sawBeam, sawQueue, cleared, sawApproach = false, false, false, false
 	local dt = 1/120
 	local function simulate(seconds)
 		for i = 1, seconds * 120 do
@@ -74,7 +74,23 @@ return function()
 				local ds = ship.dockState
 				local x, y = ship.body:getPosition()
 				assert((x-before[ship][1])^2 + (y-before[ship][2])^2 < 30^2, "ship jumped during docking")
+				if ds and ds.phase == "approach" then
+					assert(ship.body:isActive(), "approach disabled the ship's physics")
+					if ship.mainBurn > 0 or ship.retroBurn > 0 then sawApproach = true end
+				end
 				if ds and ds.phase == "tractor" then
+					local dock = ds.dock
+					local along, reach
+					if ds.mooring then
+						local a = math.rad(ds.mooring.heading)
+						local lx, ly = station.body:getLocalPoint(x, y)
+						along = (lx - ds.mooring.x)*math.cos(a) + (ly - ds.mooring.y)*math.sin(a)
+						reach = 600*1.15
+					else
+						along = game.dockLocal(station, ds.side, x, y, dock)
+						reach = dock.x2 + dock.runway*1.15
+					end
+					assert(along <= reach + 5, "tractor engaged beyond the local runway")
 					assert(ship.body:isActive(), "tractor disabled the ship's physics")
 					sawBeam = true
 				end
@@ -88,7 +104,7 @@ return function()
 		error("docking did not complete")
 	end
 	simulate(70)
-	assert(sawBeam and sawQueue, "arrival and queue did not exercise tractor clearance")
+	assert(sawApproach and sawBeam and sawQueue, "arrival did not fly the approach before tractor capture")
 	assert(cleared and not wreck.wreckClear and wreck.hold == hold and not wreck.dead,
 		"wreck did not clear with its cargo intact")
 
