@@ -18,8 +18,8 @@ local function hold(r)
  if h then h.climateRules=true end   -- a ship's hold: delicate cargo only in climate grids
  return h
 end
-local function measureRoom(r,item,amount)
- local h=hold(r)
+local function measureRoom(r,item,amount,h)
+ h=h or hold(r)
  if h then return Hold.room(h,item,amount) end
  if data.items[item].delicate then
   local space=require('src.ship').climateSpace(data.hulls[r.ship.hull],r.ship.loadout)
@@ -39,7 +39,9 @@ local function room(r,item,amount)
  if not byAmount then byAmount={};rooms[item]=byAmount end
  local available=byAmount[amount]
  if available==nil then
-  available=measureRoom(r,item,amount)
+  -- (the hold is unpacked once per ship per board scan, not per offer)
+  if rooms.hold==nil then rooms.hold=r.ship.hold and hold(r) or false end
+  available=measureRoom(r,item,amount,rooms.hold or nil)
   byAmount[amount]=available
  end
  return available
