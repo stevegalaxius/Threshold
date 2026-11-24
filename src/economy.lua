@@ -614,9 +614,24 @@ local function run(u,clock,pause)
   if amount<=0 then state.offers[entry.id]=nil else o.amount=amount;remaining[k]=remaining[k]-amount end
  end
  pause()
- local inbound={}
+ local inbound,late={},{}
  for _,o in pairs(state.offers) do if o.layoutScope==E.scope then
-  local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount
+  local k=o.target..'|'..o.item
+  inbound[k]=(inbound[k] or 0)+o.amount
+  if o.state=='reserved' and o.loaded then
+   local eta=(o.loadedAt or clock)+Transport.duration(o,o.source,clock)
+   local pilot=u.npcs and u.npcs[o.owner]
+   if pilot and pilot.route and pilot.arrive then
+    local due=require('src.queue').due(pilot)
+    if pilot.route[pilot.index]==o.target then eta=due
+    else eta=math.max(eta,due) end
+   end
+   if eta>clock then
+    local delayed=late[k] or {amount=0,eta=eta};late[k]=delayed
+    delayed.amount=delayed.amount+o.amount
+    delayed.eta=math.min(delayed.eta,eta)
+   end
+  end
  end end
  -- what buyers wanted that no station could supply, by good
  local unmet={}
@@ -655,7 +670,19 @@ local function run(u,clock,pause)
    local reserve=(T.priceDriven[item] and producer and item~='fertilizer' and item~='medical_supplies' and item~='water' and item~=Food.item) and E.lot or level
    spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or reserve)
    local coming=have+(inbound[s..'|'..item] or 0)
-   if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
+   if want>0 and coming<want then
+    buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want}
+   elseif T.priceDriven[item] and want>0 then
+    local delayed=late[s..'|'..item]
+    if delayed then
+     local usage=math.max(capacityUse(u,s,item),E.rate(u,s,item))
+     local gap=math.min(want,math.ceil(usage*(delayed.eta-clock)/3600)-math.max(0,coming-delayed.amount))
+     if gap>0 then
+      gap=math.min(want,math.max(T.orderMinLoad,gap))
+      buyers[#buyers+1]={c=s,short=gap,need=gap,fill=0,bridgeETA=delayed.eta}
+     end
+    end
+   end
   end
   -- neediest first: the emptiest shelf against its target gets first call
   table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
@@ -676,7 +703,7 @@ local function run(u,clock,pause)
    -- Any bare shelf takes a part load too: a slow maker that can never
    -- spare a whole lot (composites, siloxanes, a small ice well) would
    -- otherwise hold its stock while every buyer sits empty.
-   local minLot=Stock.count(u,c,item)==0 and T.orderMinLoad or E.minOrder(item)
+   local minLot=(entry.bridgeETA or Stock.count(u,c,item)==0) and T.orderMinLoad or E.minOrder(item)
    local starving=E.shortageAge(u,c,item,clock)>=T.unmetShortageAge
    while short>0 do
     local best,bestScore
@@ -693,7 +720,8 @@ local function run(u,clock,pause)
      -- compact goods (ammunition) have value-based lots bigger than any
      -- maker's shelf, so otherwise no order was ever posted
      if starving then need=math.min(need,math.max(T.orderMinLoad,E.lot)) end
-     if s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
+     local early=not entry.bridgeETA or (L.byId[s].area==L.byId[c].area and clock+180<entry.bridgeETA)
+     if early and s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
@@ -742,7 +770,7 @@ local function run(u,clock,pause)
      -- a price-driven maker can't see a sale it never made, so the buyer's
      -- shortfall is charged to the cheapest maker that could reach it at a
      -- paying landed price, whatever that maker has on its shelf
-     if T.priceDriven[item] then
+     if T.priceDriven[item] and not entry.bridgeETA then
       local Chemicals=require('src.markets')
       local bid=Chemicals.price(u,c,item)
       local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short)

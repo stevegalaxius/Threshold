@@ -100,6 +100,13 @@ end
 function A.spendable(u,key)
  return math.max(0,A.balance(u,key)-floor(A.of(key)))
 end
+function A.reserve(u,key,n)
+ if A.spendable(u,key)<n then return false end
+ local balances=A.state(u)
+ local id=A.of(key)
+ balances[id]=balances[id]-n
+ return true
+end
 function A.refund(u,key,n)
  local balance=A.balance(u,key)
  A.state(u)[A.of(key)]=balance+n

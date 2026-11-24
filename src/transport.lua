@@ -206,7 +206,7 @@ end
 function Transport.tradeValue(u,line,station)
  local buyer=station or line.target
  local price=require('src.markets').price(u,buyer,line.item)
- if line.shortageBid and line.shortageBid>price then
+ if line.shortageBid then
   return math.min(math.floor(line.shortageBid*line.amount+.5),math.floor(require('src.accounts').spendable(u,buyer)))
  end
  return math.floor(price*line.amount+.5)
@@ -282,6 +282,24 @@ function Transport.beginScan(u,still)
 end
 function Transport.endScan() scan=nil end
 function Transport.rescan() if scan then scan.groups=nil;scan.stock=nil;scan.loads=nil;scan.rooms=nil end end
+local function releaseFunds(u,line)
+ local amount=(line.reservedPurchase or 0)+(line.reservedFee or 0)+(line.prepaidFee or 0)
+ if amount>0 then require('src.accounts').refund(u,line.target,amount) end
+ line.reservedPurchase,line.reservedFee,line.prepaidFee=nil,nil,nil
+end
+local function reserveFunds(u,t,line)
+ local purchase,fee
+ if t.buyerFunded then
+  purchase=Transport.tradeCost(u,line)
+  fee=Transport.payment(line)
+ elseif line.trade and line.shortageBid then
+  purchase=math.floor(line.shortageBid*line.amount+.5)
+  if purchase<=Transport.tradeCost(u,line) then return false end
+ else return true end
+ if not require('src.accounts').reserve(u,line.target,purchase+(fee or 0)) then return false end
+ line.reservedPurchase,line.reservedFee=purchase,fee
+ return true
+end
 -- The open freight at a pickup bound for one area, in cubic metres: what a
 -- hauler could fill its bay with there (prepare's milk run).
 function Transport.loadAt(u,source,area)
@@ -399,9 +417,12 @@ function Transport.load(u,r,t)
  if t.buyerFunded then
   local line=lines(t)[1]
   local Accounts=require('src.accounts')
-  if Accounts.spendable(u,line.target)<courierCost(u,line) then return false end
-  line.prepaidGoods=Transport.settleGoods(u,line,line.target)
-  line.prepaidFee=Accounts.pay(u,line.target,Transport.payment(line),'freight',line.item)
+  if not line.reservedPurchase and not reserveFunds(u,t,line) then return false end
+  line.prepaidGoods,line.prepaidFee=line.reservedPurchase,line.reservedFee
+  line.reservedPurchase,line.reservedFee=nil,nil
+  Accounts.receive(u,line.source,line.prepaidGoods,'sold',line.item)
+  require('src.economy').ledger(u,line.target,'bought',line.prepaidGoods,line.item)
+
  end
  for _,line in ipairs(lines(t)) do
   if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
@@ -411,7 +432,7 @@ function Transport.load(u,r,t)
    r.credits=(r.credits or 0)-cost;r.tradeSpent=(r.tradeSpent or 0)+cost;line.tradeCost=cost
   end
   cargo(r,line.item,line.amount)
-  local o=Tasks.state(u).offers[line.id];if o then o.loaded=true end
+  local o=Tasks.state(u).offers[line.id];if o then o.loaded=true;o.loadedAt=u.clock end
  end
  t.phase='delivery';return true
 end
@@ -436,13 +457,13 @@ Tasks.register('transport',{
  -- a courier job dropped with the cargo aboard (the ship destroyed or
  -- the job abandoned) loses the whole load
  release=function(u,r,t,reason,clock)
-  if t.phase~='delivery' or t.settled then return end
+  if t.settled then return end
+  for _,line in ipairs(lines(t)) do releaseFunds(u,line) end
+  if t.phase~='delivery' then return end
   local carried=0
   for _,line in ipairs(lines(t)) do if not line.trade then carried=carried+(line.amount or 0) end end
   if carried>0 then Transport.answer(u,r,t.target,-1) end
-  for _,line in ipairs(lines(t)) do
-   if line.prepaidFee then require('src.accounts').refund(u,line.target,line.prepaidFee);line.prepaidFee=nil end
-  end
+
  end,
  plan=function(t,station,clock)
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
@@ -574,6 +595,7 @@ Tasks.register('transport',{
     end
    end
    if #manifest==0 or manifest[1].id~=t.id then return false end
+   if not reserveFunds(u,t,manifest[1]) then return false end
    t.manifest=manifest;t.amount=manifest[1].amount
    for _,line in ipairs(manifest) do
     local o=offers[line.id];o.amount=line.amount;o.owner=r.id;o.state='reserved';o.manifestRoot=t.id
@@ -590,7 +612,12 @@ Tasks.register('transport',{
    return true
   end
   for _,line in ipairs(lines(t)) do
-   local o=Tasks.state(u).offers[line.id];if o then o.owner=nil;o.state='available';o.manifestRoot=nil end
+   releaseFunds(u,line)
+   local o=Tasks.state(u).offers[line.id]
+   if o then
+    o.owner,o.state,o.manifestRoot=nil,'available',nil
+    if o.id==t.id then o.amount=listedAmount end
+   end
   end
   return false
  end,
@@ -621,6 +648,7 @@ Tasks.register('transport',{
    local n=math.max(0,math.min(line.amount,aboard[line.item]))
    aboard[line.item]=aboard[line.item]-n
    if not line.trade then carried=carried+line.amount;lost=lost+line.amount-n end
+   if line.reservedPurchase then line.fundedValue=math.floor(line.reservedPurchase*n/line.amount+.5) end
    if n<line.amount then
     charge.payment=line.amount>0 and math.floor(charge.payment*n/line.amount) or 0
     if line.tradeCost then line.tradeCost=math.floor(line.tradeCost*n/math.max(1,line.amount)) end
@@ -633,7 +661,7 @@ Tasks.register('transport',{
    local line=charge.task;paid=paid+charge.payment
    -- a trader is paid the station's price as it docks, before its own
    -- cargo lands on the shelf and pulls that price down
-   if line.trade then line.tradeValue=Transport.tradeValue(u,line,station) end
+   if line.trade then line.tradeValue=line.fundedValue or Transport.tradeValue(u,line,station) end
    cargo(r,line.item,-line.amount)
    -- (a player's buy order goes to their storage or stall: src/buy_orders.lua)
    if line.playerOrder then require('src.buy_orders').delivered(u,line.playerOrder,station,line.item,line.amount,clock)
@@ -644,7 +672,11 @@ Tasks.register('transport',{
    if line.trade then
     -- the trader sells to the station at its price today
     local value=line.tradeValue
-    require('src.accounts').pay(u,station,value,'bought',line.item)
+    if line.reservedPurchase then
+     require('src.accounts').refund(u,station,line.reservedPurchase-value)
+     line.reservedPurchase=nil
+     require('src.economy').ledger(u,station,'bought',value,line.item)
+    else require('src.accounts').pay(u,station,value,'bought',line.item) end
     require('src.markets').landed(u,station,line.item,line.amount,value)
     paid=paid-charge.payment+value;payment=0;total=total+line.amount
     r.tradeEarnings=(r.tradeEarnings or 0)+value
@@ -655,6 +687,7 @@ Tasks.register('transport',{
     payment=charge.payment
     Accounts.refund(u,station,line.prepaidFee-payment)
     line.prepaidFee=nil
+    require('src.economy').ledger(u,station,'freight',payment,line.item)
    else payment=Accounts.pay(u,station,charge.payment,'freight',line.item) end
    total=total+line.amount
    paid=paid-(charge.payment-payment)
