@@ -117,6 +117,12 @@ local function charge(r,u,key,id,n)
  -- what it was actually paid, or it was minting the rest)
  local cost=math.min(n*p,math.max(0,r.credits or 0))
  r.credits=(r.credits or 0)-cost;r.suppliesSpent=(r.suppliesSpent or 0)+cost
+ -- a broke hunter's ammo is billed to its system's bounty payer, which
+ -- wants its wildcats dead: real money, not goods given away
+ if r.populationGroup=='hunter' and n*p>cost and type(key)~='table' and require('src.ammunition').byItem[id] then
+  local payer=require('src.wreck_bounty').payer(r.home or r.area)
+  if payer and payer~=key then cost=cost+require('src.accounts').pay(u,payer,n*p-cost,'hunter supply',id) end
+ end
  if id==Fuel.item() then r.fuelSpent=(r.fuelSpent or 0)+cost end
  if type(key)=='table' then
   -- a satellite hub's shelf: the takings go to whoever runs the satellite
@@ -129,6 +135,10 @@ local function charge(r,u,key,id,n)
 end
 local function affordable(r,u,key,id,missing)
  if id==Fuel.item() then return missing end
+ -- a bounty hunter rearms on the station's tab, like fuel: a broke hunter
+ -- with empty guns could never earn its way back (charge banks only
+ -- what it actually paid)
+ if r.populationGroup=='hunter' and require('src.ammunition').byItem[id] then return missing end
  local p=unitPrice(u,key,id)
  if p<=0 then return missing end
  return math.min(missing,math.floor(math.max(0,(r.credits or 0)-T.npcSupplyReserve)/p))

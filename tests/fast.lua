@@ -575,9 +575,11 @@ return function(game)
   local pieces=0
   for _,e in ipairs(game.entities) do if e.kind=='husk' and e.origin==husk.origin then pieces=pieces+1;e.dead=true;e.drilled=true;e.lastHitBy=game.player end end
   run(game,.1)
-  local owed=B.owed(u,payer)
+  -- the player's bounty goes on the pending tally, paid out in one lump
+  local recent=B.state(u).recent
+  local owed=recent and recent.by[payer] or 0
   assert(owed>0,'clearing a wreck ('..pieces..' pieces) paid no bounty')
-  assert(B.state(u).cleared[payer]==1,'a wreck in pieces paid more than once')
+  assert(recent.wrecks==1,'a wreck in pieces paid more than once')
   -- an NPC clean-up crew is paid into its own credits
   local npc
   for _,r in pairs(u.npcs) do if r.ship and r.state~='dead' then npc=r;break end end
@@ -585,7 +587,8 @@ return function(game)
   B.cleared(game,npc,{kind='husk',origin={npc='test'},steel=5},area)
   assert((npc.credits or 0)==before+B.rate(5),'NPC was not paid the wreck bounty')
   assert(not B.cleared(game,npc,{kind='husk',steel=5},area),'a derelict paid a bounty')
-  assert(B.collect(game,payer) and u.credits==credits+owed,'bounty not collected')
+  B.notice(u,u.clock+require('src.tuning').bountyNoticeSeconds)
+  assert(u.credits==credits+owed and not B.state(u).recent,'bounty not paid out')
   -- ore contracts: a drill home short of its ore posts one
   local Q=require('src.quests');local Mining=require('src.mining')
   local home,item
@@ -748,19 +751,20 @@ return function(game)
   W.tick(g,gu.clock)
   assert(r.garrison,'not back at its post')
   assert((inst.hoard.steel_plate or 0)==6,'hoard got '..tostring(inst.hoard.steel_plate))
-  -- three losses: a bounty, on the driver, with hunter slots on the board
-  for _=1,3 do W.harm(gu,r) end
-  assert(inst.bounty and inst.discovered,'no bounty after three losses')
+  -- every site is under bounty: on the driver, with hunter slots on the board
+  W.postBounty(gu,inst)
+  assert(inst.bounty and inst.discovered,'no bounty on the site')
   local slots=0
   for _,o in pairs(Tasks.state(gu).offers) do if o.kind=='site_bounty' and o.site==inst.id then slots=slots+1 end end
   assert(slots==require('src.tuning').bountySlots,'bounty slots '..slots)
-  -- the player's kill is owed at the paying station
+  -- the player's kill goes on the pending payout from the paying station
   local B=require('src.wreck_bounty')
   local station=inst.bounty.station
-  local before=B.owed(gu,station)
+  local recent=B.state(gu).recent
+  local before=recent and recent.by[station] or 0
   local victim=crew[2];victim.state='dead'
   local pay=W.death(gu,victim,'player')
-  assert(pay and B.owed(gu,station)==before+pay,'player bounty not owed')
+  assert(pay and B.state(gu).recent.by[station]==before+pay,'player bounty not pending')
   -- hunters: two armed records go in and fight it out offline
   local hunters={}
   for _,o in pairs(gu.npcs) do

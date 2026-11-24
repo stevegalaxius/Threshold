@@ -243,7 +243,7 @@ T.patrolInspect, T.pirateLinger = 10, 60
 T.patrolDockEvery,T.patrolDockStay,T.patrolStandOff=3,45,450
 -- Squads and battlegroups (src/squads.lua)
 T.squadTick = 2              -- s between squad upkeep passes
-T.policeWage = 1200          -- credits an hour each police ship is paid by its faction
+T.policeWage = 4500          -- credits an hour each police ship is paid by its faction: a risky job paid near a hauler's earnings, out of faction tax
 T.squadSweepHold = 20        -- s a squad holds at each stop of its beat
 T.squadRespondCount = 2      -- squads sent when a flagship calls
 T.squadRespondTime = 180     -- s a called squad stays on the call
@@ -347,10 +347,10 @@ T.population = {
  hunter={minDelay=300,maxDelay=600},
 }
 -- Wildcat sites (src/sites.lua Sites.tick, src/wildcats.lua)
--- Sized to the population: wildcat crews plus bounty hunters make up about
--- T.siteShare of the living NPCs. Short of that, a site opens every
+-- Sized to the population: wildcat crews make up about T.siteShare of the
+-- living NPCs (hunters not counted; they follow the wildcats). Short of that, a site opens every
 -- T.siteSpawnEvery; a world (or save) with none gets its share at once.
-T.siteShare = 0.15
+T.siteShare = 0.09
 T.siteSpawnEvery = 120        -- s between new sites while crews are short of their share
 T.sitesPerPlanet, T.sitesMax = 3, 16
 T.wildcatSortieEvery = 900    -- s between a posted wildcat's raids (give or take 40%)
@@ -359,16 +359,18 @@ T.wildcatIdleHome = 120      -- s a wildcat out raiding waits with no raid to ta
 T.wildcatSortieHealth = 0.8   -- share of armour a wildcat wants before it goes out
 T.wildcatPatchRate = 0.5      -- share of full armour patched per hour at the site
 T.hoardFenceAt = 30           -- units of stolen goods on a site's hoard that send one wildcat to fence it
--- Bounties: robberies and kills by a site's wildcats before its system's
--- paying station posts a bounty; each wildcat is then worth this much to
--- whoever lands the last hit (plus a little per point of its hull's armour)
-T.bountyLosses = 3
-T.bountyPerHead, T.bountyPerArmor = 600, 1
+-- Bounties: every wildcat is worth this much to whoever lands the last hit
+-- (plus a little per point of its hull's armour), paid by its system's
+-- paying station; the player's are paid in one lump every bountyNoticeSeconds
+T.bountyNoticeSeconds = 300
+T.huntersPerWildcat = 0.5     -- the hunter population follows the wildcats alive
+T.bountyPerHead, T.bountyPerArmor = 6000, 10
 T.bountySlots = 3             -- hunters the board sends at one site at once
 T.huntersPerSystem = 3        -- bounty hunters per owned system with a trade station
 T.hunterReadyHealth = 0.8     -- share of armour a hunter wants before it takes a bounty
+T.hunterRangeAU = 12          -- AU a hunter travels for a site bounty (its own system's first)
 T.hunterBreakKill = 0.3       -- chance a hunter that breaks inside a site doesn't get out
-T.hunterAssaultTime = 1800    -- s a hunter stays inside a site before it gives up and pulls out
+T.hunterAssaultTime = 3600    -- s a hunter stays inside a site before it gives up and pulls out
 T.npcWarpDuration = 1.5
 T.npcDriverArrivalTime = 20   -- s after leaving a driver lane that an NPC waking up comes in along the rail
 T.npcArrivalBeyondEdge = 1500 -- px past the map edge where an NPC off a driver lane comes in, on its origin planet's bearing
@@ -630,8 +632,8 @@ T.alifeGoneLinger=300
 T.wreckSteelPerTonne = 1 / 40   -- steel plates a drilled wreck yields, per tonne of hull
 T.salvagerCollectTime=180   -- salvage jobs fill the hold (src/scavenge.lua)
 T.salvagerRange,T.salvagerStay=6000,30
-T.wreckBountyBase=80       -- CR a system's trade station pays for each ship wreck cleared (src/wreck_bounty.lua)
-T.wreckBountyPerSteel=4    -- plus this per steel plate in the hull
+T.wreckBountyBase=800      -- CR a system's trade station pays for each ship wreck cleared (src/wreck_bounty.lua)
+T.wreckBountyPerSteel=40   -- plus this per steel plate in the hull
 T.oreQuestPremium=1.3       -- ore contracts (src/ore_quests.lua) pay this multiple of the station's price
 T.oreQuestMin=5            -- and are only posted for at least this many units short
 T.oreQuestReserve=40       -- ore a drill home always wants on hand, even one that ships it all on
@@ -685,4 +687,42 @@ T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
+-- Price-driven goods (prototype; src/economy.lua, src/markets.lua). For
+-- these, one local signal runs everything: a station's price floats with
+-- its own stock plus what is on its way; a maker makes what it has been
+-- selling and refills its own shelf (T.makerShelfLots lots), not by any
+-- system-wide tally; and freight is posted only where the buyer's price
+-- beats the source's price plus the haul. Set an entry to nil to put the
+-- good back on the planner.
+-- price-driven goods (src/markets.lua, src/economy.lua): moved by traders
+-- where the spread pays, made to local demand. Ammunition joins deuterium:
+-- hub routing and value-sized lots left home stations bare of it.
+T.priceDriven={deuterium_canister=true,empty_canister=true,
+ -- raw goods and intermediates (food, water and medical supplies to follow)
+ iron_ore=true,water_ice=true,hydrogen_canister=true,nitrates=true,silicon=true,heavy_metals=true,
+ steel_plate=true,electronics=true,explosives=true,fertilizer=true,industrial_acids=true,
+ thermal_ceramics=true,superconducting_coils=true,patch_kit=true,flare=true,
+ rounds_s=true,rounds_m=true,airburst_s=true,airburst_m=true,shell_s=true,shell_m=true,shell_l=true,shot_s=true,shot_m=true,shot_l=true,missile_s=true,missile_m=true,missile_l=true,torp_s=true,torp_m=true,torp_l=true,drone_s=true,drone_m=true,drone_l=true}
+T.makerShelfLots=4
+T.makerSalesHours=1     -- a price-driven maker's sales are smoothed over this long
+T.makerRestoreHours=1   -- and it refills its shelf to half of T.makerShelfLots over this long
+-- a hub or customs house is just big storage: its price for a price-driven
+-- good moves this fraction as far as an ordinary station's, so the spread
+-- from maker to hub to consumer stays open; a consumer short of a
+-- price-driven good may bid up to T.priceCrisisMax at once
+T.hubPriceBand=.5
+-- a price-driven maker's price, from an empty output shelf to a full one
+T.makerPriceEmpty,T.makerPriceFull=1.4,.85
+T.tradeCourierAfter=300 -- s a trade run waits for a trader before it's posted as a courier contract
+T.tradeReserve=500 -- credits a trader keeps back after buying a cargo (src/transport.lua)
+-- Courier standing (src/transport.lua Transport.answer): a clean delivery
+-- earns courierRepGain with the buyer's faction; losing cargo costs
+-- courierRepLoss times the share of the load lost. A courier is trusted
+-- with courierTrustValue of cargo at standing 0, doubling every
+-- courierTrustDoubling points, and with none at or below courierBanRep.
+T.courierRepGain=.5
+T.courierRepLoss=10
+T.courierTrustValue=20000
+T.courierTrustDoubling=20
+T.courierBanRep=-40
 return T

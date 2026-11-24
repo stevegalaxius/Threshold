@@ -148,6 +148,34 @@ local function adjust(u,unmet,all)
    local t=u.industry[key] or {};u.industry[key]=t
    local v=t[c.id] or 1
    local have=Stock.count(u,key,c.item)
+   if T.priceDriven[c.item] then
+    -- price-driven: the plant reads only its own sales. It makes what it
+    -- has been selling (outflow, smoothed over T.makerSalesHours) plus
+    -- enough to bring its shelf back to half of T.makerShelfLots lots in
+    -- T.makerRestoreHours, easing E.scaleStep a minute toward that
+    local rated=math.max(1,c.make[key] or 0)
+    local shelf=math.min(E.lot*T.makerShelfLots,(c.cap or math.huge)*.9)
+    local now=u.clock or 0
+    if t.salesAt and now>t.salesAt then
+     local dt=now-t.salesAt
+     -- what the plant really made (short inputs or a full shelf make less
+     -- than its scale asks for), not rated*scale
+     local total=(u.madeAt or {})[key..'|'..c.item] or 0
+     local made=total-(t.madeTotal or total)
+     local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
+     local a=1-math.exp(-dt/(T.makerSalesHours*3600))
+     t.sales=(t.sales or out)+(out-(t.sales or out))*a
+    end
+    t.salesAt,t.salesHave=now,have
+    t.madeTotal=(u.madeAt or {})[key..'|'..c.item] or 0
+    -- plus what buyers it could have served at a paying price went without
+    -- (E.update's missed), worked off over T.makerRestoreHours: sales alone
+    -- are capped by the plant's own output, so they never call for more
+    local lost=(u.economyMissed and u.economyMissed[key] or {})[c.item] or 0
+    local goal=((t.sales or rated)+(lost+shelf/2-have)/T.makerRestoreHours)/rated
+    goal=math.max(E.scaleMin,math.min(E.scaleMax,goal))
+    v=v<goal and math.min(goal,v*(1+E.scaleStep)) or math.max(goal,v*(1-E.scaleStep))
+   else
    -- some plants answer to the whole system's price of what they make
    -- (crack_ice: the universal price of fuel), not to their own shelf
    local ratio=c.globalPrice and all and E.priceRatio(u,c.item,all)
@@ -167,6 +195,7 @@ local function adjust(u,unmet,all)
     if have<math.min(E.lot*T.unmetShelfLots,(c.cap or math.huge)*.9) then v=v*(1+E.scaleStep) else v=v*(1-E.scaleStep) end
    -- stock piling up here slows it while the system is comfortable
    elseif have>=E.lot*2 then v=v*(1-E.scaleStep) end
+   end
    t[c.id]=math.max(E.scaleMin,math.min(E.scaleMax,v))
   end
   end
@@ -355,17 +384,17 @@ local function hubWants(u,all,pause)
   plan.want[cs],plan.kind[cs]={},{}
   local made={}
   for _,s in ipairs(all) do if L.byId[s].area==area then for _,item in ipairs(goods()) do if makes(s,item) then made[item]=true end end end end
-  for _,item in ipairs(goods()) do
+  for _,item in ipairs(goods()) do if not T.priceDriven[item] then
    if made[item] then plan.want[cs][item],plan.kind[cs][item]=E.lot*2,'export'
    else
     local n=0
     for _,s in ipairs(all) do if s~=cs and L.byId[s].area==area then n=n+memberWant(u,s,item) end end
     if n>0 then plan.want[cs][item],plan.kind[cs][item]=n,'import' end
    end
-  end
+  end end
   if pause then pause() end
  end
- for _,item in ipairs(goods()) do
+ for _,item in ipairs(goods()) do if not T.priceDriven[item] then
   if pause then pause() end
   local imported,total={},0
   for r,h in pairs(plan.hubs) do if not (plan.made[r] or {})[item] then
@@ -400,7 +429,7 @@ local function hubWants(u,all,pause)
     if pause then pause() end
    end
   end
- end
+ end end
  return plan
 end
 E.hubWants=hubWants
@@ -447,6 +476,9 @@ local function routed(plan,s,c,item)
  -- any dark station; from there the white rules below move them on
  local darkS,darkC=Dark.isDarkNode(s),Dark.isDarkNode(c)
  if darkS and not darkC then return Dark.isFence(c) end
+ -- a price-driven good goes wherever the spread pays for the haul: no hub
+ -- or customs legs (a hub is just a station with its own use)
+ if T.priceDriven[item] then return true end
  local customs=plan.customs or {}
  local cs,cc=customs[as],customs[ac]
  if as==ac then
@@ -473,12 +505,17 @@ local function routed(plan,s,c,item)
 end
 local function hubTarget(u,key,item,supplier)
  local plan=hubPlan
- if plan and plan.u==u and plan.want[key] then
+ -- (a hub or customs house holds a price-driven good only to pass it on:
+ -- it never buys for its members as a consumer would)
+ if plan and plan.u==u and plan.want[key] and not T.priceDriven[item] then
   return math.max(plan.want[key][item] or 0,E.target(u,key,item,supplier))
  end
  return E.target(u,key,item,supplier)
 end
 E.hubTarget=hubTarget
+-- Is this station's want for the good a hub or customs buffer (during the
+-- economy update, when the hub plan is set)?
+function E.isBuffer(key,item) return hubPlan~=nil and hubPlan.kind[key]~=nil and hubPlan.kind[key][item]~=nil end
 
 -- Shortage lifetime belongs to the destination, not a replaceable offer.
 function E.shortageAge(u,key,item,clock)
@@ -576,6 +613,9 @@ local function run(u,clock,pause)
  end end
  -- what buyers wanted that no station could supply, by good
  local unmet={}
+ -- price-driven goods: what each maker could have sold at a paying price
+ -- to buyers that found no stock anywhere (missed[maker][item])
+ local missed={}
  for _,item in ipairs(goods()) do
   -- One rule for every good. A station that makes it keeps E.reserveHours
   -- of its own use and offers the rest. Any other station wants E.hours of
@@ -603,7 +643,8 @@ local function run(u,clock,pause)
    local level=E.orderLevel(u,s,item,want,producer)
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
-   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or level)
+   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0
+    or (T.priceDriven[item] and producer) and E.lot or level)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
   end
@@ -654,10 +695,13 @@ local function run(u,clock,pause)
        local Chemicals=require('src.markets')
        if Chemicals.items[item] or Chemicals.floats(c,item) then
         local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short,spare[s])
-        score=Chemicals.price(u,s,item)+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
+        score=(T.priceDriven[item] and Transport.goodsPrice(u,s,item) or Chemicals.price(u,s,item))+Transport.payment(Transport.quote({source=s,target=c,item=item,amount=amount},clock))/amount-spare[s]*1e-6
         if crossing>0 then score=score*(1+T.darkCrossingMarkup) end
        end
-       if not bestScore or score<bestScore then best,bestScore=s,score end
+       -- a price-driven good moves only where it pays: the buyer's price
+       -- must beat the source's price plus the haul (score, landed cost)
+       local pays=not T.priceDriven[item] or score<Chemicals.price(u,c,item)
+       if pays and (not bestScore or score<bestScore) then best,bestScore=s,score end
       end
      end
     end
@@ -669,6 +713,34 @@ local function run(u,clock,pause)
      for _,s in ipairs(participants) do if s~=c and spare[s]>=math.min(T.orderMinLoad,short) then anywhere=true;break end end
      -- counted against its target, not the reorder level
      if not anywhere then unmet[item]=(unmet[item] or 0)+math.max(0,need-(entry.short-short));entry.unmet=true end
+     -- a price-driven maker can't see a sale it never made, so the buyer's
+     -- shortfall is charged to the cheapest maker that could reach it at a
+     -- paying landed price, whatever that maker has on its shelf
+     if T.priceDriven[item] then
+      local Chemicals=require('src.markets')
+      local bid=Chemicals.price(u,c,item)
+      local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short)
+      -- split across every maker that could serve it at a profit, by its
+      -- margin and by the headroom it has left: the cheapest plant alone
+      -- took all of it and ran to E.scaleMax while the others idled
+      local weights,sum={},0
+      for _,r in ipairs(C.list) do if r.item==item then for m,rate in pairs(r.make) do
+       if rate>0 and m~=c and L.byId[m] then
+        local k=m..'>'..c
+        if reach[k]==nil then reach[k]=reachable(m,c,clock) end
+        if reach[k] then
+         local landed=Chemicals.price(u,m,item)+Transport.payment(Transport.quote({source=m,target=c,item=item,amount=amount},clock))/amount
+         local scale=((u.industry or {})[m] or {})[r.id] or 1
+         local w=(bid-landed)*math.max(0,E.scaleMax-scale)
+         if w>0 then weights[m]=(weights[m] or 0)+w;sum=sum+w end
+        end
+       end
+      end end end
+      for m,w in pairs(weights) do
+       local row=missed[m] or {};missed[m]=row
+       row[item]=(row[item] or 0)+short*w/sum
+      end
+     end
      break
     end
     -- hub to hub is a trunk run: a bulk lot for a big freighter
@@ -684,6 +756,9 @@ local function run(u,clock,pause)
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
      layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
+     -- a price-driven good is moved by a trader who buys it and sells it
+     -- on (src/transport.lua), not by a courier the buyer pays
+     trade=T.priceDriven[item] or nil,
      trunk=trunk or nil,requires=trunk and {capabilities={'cargo','bulk'}} or nil},clock,u))
     spare[best]=spare[best]-n;short=short-n
    end
@@ -737,6 +812,7 @@ local function run(u,clock,pause)
   pause()
  end
  u.economyUnmet=unmet
+ u.economyMissed=missed
  adjust(u,unmet,all)
  hubPlan=nil
  -- the speculators read the prices this update settled (with a planning

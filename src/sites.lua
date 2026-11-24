@@ -149,12 +149,14 @@ function Sites.homes()
 	return out
 end
 -- How many more wildcats the sites need for their share of the population.
+-- (Hunters are counted on their own: they follow the wildcats, so they
+-- must not crowd sites out. src/wildcats.lua hunter budget)
 function Sites.shortfall(u)
 	local living, wild = 0, 0
 	for _, r in pairs(u.npcs or {}) do
 		if r.state ~= "dead" and r.state ~= "escaped" then
-			living = living + 1
-			if r.wildcat or r.populationGroup == "hunter" then wild = wild + 1 end
+			if r.populationGroup ~= "hunter" then living = living + 1 end
+			if r.wildcat then wild = wild + 1 end
 		end
 	end
 	return math.ceil(T.siteShare * living) - wild

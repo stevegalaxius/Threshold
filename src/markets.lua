@@ -2,6 +2,7 @@
 local L=require('src.locations')
 local T=require('src.tuning')
 local C={items={},products={},smooth=600}
+for item in pairs(T.priceDriven or {}) do C.products[#C.products+1]=item;C.items[item]=true end
 for _,recipe in ipairs(require('data.industry').recipes) do
  if recipe.market then
   for _,o in ipairs(require('src.commodities').outputs(recipe)) do
@@ -35,7 +36,7 @@ function C.price(u,key,item)
  local list=require('src.data').items[item].price
  local p=list*multiplier
  local basis=C.basis(u,key,item)
- if basis then p=math.max(p,math.min(list*T.priceCrisisMax,basis*(1+T.resaleMargin))) end
+ if basis and not T.priceDriven[item] then p=math.max(p,math.min(list*T.priceCrisisMax,basis*(1+T.resaleMargin))) end
  return math.floor(p*100+.5)/100
 end
 -- Where a station sits in its system's supply chain bends its price:
@@ -68,7 +69,16 @@ function C.shape(u,key,item,target,want,clock,state)
   local age=E.shortageAge(u,key,item,clock)/(T.priceCrisisHours*3600)
   target=target+(T.priceCrisisMax-2)*math.min(1,age-1)
  end
- if makes(key,item) then return target*(1-T.makerDiscount) end
+ if makes(key,item) then
+  -- a maker of a price-driven good prices by its own output shelf: dear
+  -- when freight has emptied it, cheap when full (src/economy.lua adjust
+  -- runs the plant by the same shelf)
+  if T.priceDriven[item] then
+   local fill=math.min(1,require('src.stockpile').count(u,key,item)/(require('src.economy').lot*T.makerShelfLots))
+   return T.makerPriceEmpty-(T.makerPriceEmpty-T.makerPriceFull)*fill
+  end
+  return target*(1-T.makerDiscount)
+ end
  local hub=hubs[key];if hub==nil then hub=E.hubFor(key) or false;hubs[key]=hub end
  if hub and hub~=key and want>0 then
   local d=require('src.data').items[item]
@@ -113,17 +123,31 @@ function C.update(u,clock,stations,inbound,pause)
    if want>0 then
     local ratio=have/want
     target=ratio<1 and 2-ratio or math.max(.5,1-.5*(ratio-1))
+    -- a price-driven consumer's bid climbs to the crisis cap as its shelf
+    -- (stock plus inbound) empties, so a long haul still pays
+    if T.priceDriven[item] and ratio<1 and not E.isBuffer(key,item) then target=1+(T.priceCrisisMax-1)*(1-ratio) end
    else
     -- No local use means no scarcity premium, including an empty factory shelf.
     local reference=require('src.commodities').output(key,item)
     target=math.max(.5,1-have/math.max(1,reference*2))
    end
+   local driven=T.priceDriven[item]
+   local buffer=driven and E.isBuffer(key,item)
+   if buffer then target=1+(target-1)*T.hubPriceBand end
    target=C.shape(u,key,item,target,want,clock,state)
    local alpha=1-math.exp(-dt/C.smooth)
-   local top=want>0 and E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 and T.priceCrisisMax or 2
-   prices[item]=math.max(T.priceFloor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
+   local top=want>0 and (E.shortageAge(u,key,item,clock)>=T.priceCrisisHours*3600 or driven and not buffer and have<want) and T.priceCrisisMax or 2
+   -- (a price-driven maker with a full shelf may sell under the usual floor,
+   -- so a far buyer's haul can still pay)
+   local floor=driven and makes(key,item) and T.makerPriceFull or T.priceFloor
+   prices[item]=math.max(floor,math.min(top,(prices[item] or 1)+(target-(prices[item] or 1))*alpha))
    -- (bid for what the station's next order will be: up to its order level)
-   local level=want>0 and (makes(key,item) and want*2 or E.orderLevel(u,key,item,want,false)) or 0
+   -- (a price-driven good bids only up to its target: bidding to the
+   -- reorder level kept every shelf bidding and its makers at full tilt)
+   local level=want>0 and (makes(key,item) and want*2 or driven and want or E.orderLevel(u,key,item,want,false)) or 0
+   -- (a bare shelf of a small, slow good bids at least a minimum load, or
+   -- its makers never hear of it)
+   if driven and want>0 and have<=0 then level=math.max(level,T.orderMinLoad) end
    if bids[item] and want>0 and have<level then
     bids[item][#bids[item]+1]={target=key,amount=math.ceil(level-have),price=C.price(u,key,item)}
    end

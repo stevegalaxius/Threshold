@@ -1,10 +1,11 @@
 --[[
 	Wreck-clearing bounties. Each system's trade station (the one that posts
 	its satellite work: src/sat_jobs.lua J.places) pays a standing bounty for
-	every ship wreck cleared out of that system. Whoever clears it is paid:
-	an NPC clean-up crew straight into its own credits (on top of whatever it
-	sells the loot for: src/salvager.lua), the player into a tab with that
-	station, collected from the Jobs screen at any station in its system.
+	every ship wreck cleared out of that system. Whoever clears it is paid
+	straight into their credits: an NPC clean-up crew at once, on top of
+	whatever it sells the loot for (src/salvager.lua), the player in one
+	payout every T.bountyNoticeSeconds (B.payPlayer, B.notice). A tab owed from
+	older saves can still be collected (B.collect).
 
 	"Cleared" means the wreck is gone: drilled apart or shot apart, online
 	(Game reap) or offline (src/offline_loot.lua strips it). Only wrecks of
@@ -67,11 +68,7 @@ function B.cleared(game,who,record,area,list)
  local station=B.payer(area);if not station then return end
  local pay=B.rate(steelOf(record))
  if who and who.isPlayer then
-  local s=B.state(u)
-  s.owed[station]=(s.owed[station] or 0)+pay
-  s.cleared[station]=(s.cleared[station] or 0)+1
-  if game.toast then game:toast(('Wreck cleared: %d CR bounty at %s'):format(pay,(L.byId[station] or {}).name or station),2.5) end
-  return pay
+  return B.payPlayer(u,station,pay,'wreck')
  end
  local r=who and (who.alifeId and (u.npcs or {})[who.alifeId] or who.ship and who.id and who)
  if r then
@@ -104,6 +101,35 @@ function B.count(game,station)
  return n
 end
 
+-- The player's bounties run on a rolling payout window, EVE-style: each
+-- kill or wreck adds to a pending tally per paying station, and every
+-- T.bountyNoticeSeconds the whole tally is paid into their credits at once
+-- (by stations that will still deal with them) with one notice (B.notice).
+-- Nothing to collect at a station.
+function B.payPlayer(u,station,pay,what)
+ if not station or not pay or pay<=0 then return 0 end
+ local s=B.state(u);local t=s.recent or {by={},wrecks=0,heads=0,since=u.clock or 0};s.recent=t
+ t.by[station]=(t.by[station] or 0)+pay
+ if what=='wreck' then t.wrecks=t.wrecks+1 else t.heads=t.heads+1 end
+ return pay
+end
+function B.notice(u,clock)
+ local s=B.state(u);local t=s.recent
+ if not t or clock-t.since<T.bountyNoticeSeconds then return end
+ s.recent=nil
+ local paid=0
+ for station,n in pairs(t.by) do
+  if require('src.quests').willOffer(u,station) then
+   n=require('src.accounts').pay(u,station,n,'bounty');u.credits=(u.credits or 0)+n;paid=paid+n
+  end
+ end
+ if paid<=0 then return end
+ local parts={}
+ if t.heads>0 then parts[#parts+1]=('%d wildcat%s'):format(t.heads,t.heads==1 and '' or 's') end
+ if t.wrecks>0 then parts[#parts+1]=('%d wreck%s cleared'):format(t.wrecks,t.wrecks==1 and '' or 's') end
+ require('src.notify').post(u,{kind='news',title='Bounty payout',
+  text=('+%d CR for %s'):format(math.floor(paid),table.concat(parts,' and '))})
+end
 function B.owed(u,station) return B.state(u).owed[station] or 0 end
 function B.collect(game,station)
  local u=game.universe;local s=B.state(u);local pay=s.owed[station] or 0

@@ -496,7 +496,7 @@ function Game:saveState()
 		sites = Persistence.copy(u.sites), nextSiteId = u.nextSiteId, discovered = Persistence.copy(u.discovered),
 		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites),
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
-		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts),
+		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts), wreckBounty = Persistence.copy(u.wreckBounty), madeAt = Persistence.copy(u.madeAt),
 		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications) }
 	local p = self.player
 	if p and not p.dead then
@@ -565,6 +565,9 @@ function Game:loadState(state)
 	self.universe.fleetSeeded = Persistence.copy(state.fleetSeeded)
 	self.universe.squads = Persistence.copy(state.squads)
 	self.universe.accounts = Persistence.copy(state.accounts)
+	-- bounties earned but not yet paid out, and what each plant has made
+	self.universe.wreckBounty = Persistence.copy(state.wreckBounty)
+	self.universe.madeAt = Persistence.copy(state.madeAt)
 	self.universe.satWearAt = state.satWearAt
 	do -- loose items keep their ids (src/loose.lua); older saves never stored the
 	   -- counter, so start past the highest id already on record

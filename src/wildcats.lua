@@ -31,12 +31,12 @@
 	them alone and the dark stations deal with them. They never belong to
 	Milliways and never touch its standing.
 
-	Bounties: the system's paying station (src/wreck_bounty.lua payer)
-	counts the ships a site's wildcats rob or kill. Past T.bountyLosses it
-	posts a bounty: the site shows on the mass driver for everyone, and
-	each wildcat of that site is worth inst.bounty.perHead to whoever lands
-	the last hit on it, the player (owed at that station, collected on the
-	Jobs tab) or an NPC (paid into its credits).
+	Bounties: every wildcat site is under bounty from the moment it opens,
+	paid by its system's paying station (src/wreck_bounty.lua payer): the
+	site shows on the mass driver for everyone, and each wildcat of that
+	site is worth W.perHead to whoever lands the last hit on it, paid
+	straight into their credits (the player gets a periodic notice:
+	src/wreck_bounty.lua B.notice).
 
 	Hunters: a small population of armed NPCs (template 'hunter') take
 	the bounty off the board ('site_bounty'), fly to the driver and go in.
@@ -582,7 +582,9 @@ function W.postBounty(u,inst)
  inst.bounty={station=station,postedAt=clock}
  require('src.sites').discover(u,inst)
  local driver=driverOf(inst.home)
- for slot=1,T.bountySlots do
+ -- a big crew draws more hunters: a slot per two wildcats, at least bountySlots
+ local crew=W.posted(u,inst.id)
+ for slot=1,math.max(T.bountySlots,math.ceil(crew/2)) do
   Tasks.post(u,{kind='site_bounty',source=station,target=driver,site=inst.id,slot=slot,cooldown=60})
  end
  news(u,inst,('Bounty posted on the wildcats of %s off %s'):format(siteName(inst),areaName(inst.home)),'posted')
@@ -596,7 +598,6 @@ function W.harm(u,r)
  local inst=r and r.wildcat and sites(u)[r.wildcat.site]
  if not inst then return end
  inst.harm=(inst.harm or 0)+1
- if inst.harm>=T.bountyLosses then W.postBounty(u,inst) end
 end
 
 -- A ship died. killer: 'player', an NPC id or nil. Pays a wildcat's bounty
@@ -612,13 +613,7 @@ function W.death(u,r,killer)
  local pay=W.perHead(r)
  inst.bounty.paid=(inst.bounty.paid or 0)+1
  if killer=='player' then
-  local B=require('src.wreck_bounty')
-  local s=B.state(u)
-  s.owed[station]=(s.owed[station] or 0)+pay
-  s.heads=s.heads or {};s.heads[station]=(s.heads[station] or 0)+1
-  require('src.notify').post(u,{kind='news',title='Wildcat bounty',
-   text=('%d CR owed at %s'):format(pay,L.byId[station] and L.byId[station].name or station)})
-  return pay
+  return require('src.wreck_bounty').payPlayer(u,station,pay,'head')
  end
  if k then
   pay=require('src.accounts').pay(u,station,pay,'bounty')
@@ -794,6 +789,14 @@ end
 function W.tick(game,clock)
  local u=game.universe
  local online=game.alifeOnline or {}
+ -- every wildcat site is under bounty from the moment it opens
+ for _,inst in pairs(sites(u)) do
+  if not inst.bounty and not inst.done and inst.crew then
+   local def=require('src.sites').template(inst)
+   if def and def.wild then W.postBounty(u,inst) end
+  end
+ end
+ require('src.wreck_bounty').notice(u,clock)
  -- live ships at the end of a road into a site go through the lane
  for id,r in pairs(u.npcs or {}) do
   if alive(r) and r.task and (r.state=='idle' or r.state=='docked') and r.node
@@ -854,18 +857,29 @@ end
 
 -- The board ----------------------------------------------------------------------
 
+-- AU between the system a hunter is in (or calls home) and a site's system
+local function hunterDistance(r,inst,clock)
+ local here=systemOf(r.area or r.home);local there=systemOf(inst.home)
+ if not here or not there or here==there then return 0 end
+ return Fields.distance(here,there,clock) or math.huge
+end
+
 Tasks.register('site_bounty',{
  requires={capabilities={'armed'}},
  eligible=function(u,r,o,node,clock)
   local inst=sites(u)[o.site]
   if not inst or inst.done or not inst.bounty then return false end
-  -- hunters work their own system's bounties
-  if systemOf(r.home)~=systemOf(inst.home) then return false end
+  -- hunters go where the bounties are, out to T.hunterRangeAU from where
+  -- they are now (their own system's first: score)
+  if hunterDistance(r,inst,clock)>T.hunterRangeAU then return false end
   if require('src.encounters').profile(r).dps<=0 then return false end
   return (r.ship.armor or 0)>=maxArmor(r)*T.hunterReadyHealth
  end,
  feasible=function(u,r,o,node,clock) return require('src.travelgraph').live(node,o.target,clock)~=nil end,
- score=function(u,r,o,node,clock) return -(o.slot or 0) end,
+ score=function(u,r,o,node,clock)
+  local inst=sites(u)[o.site]
+  return -(inst and hunterDistance(r,inst,clock) or 0)*10-(o.slot or 0)
+ end,
  prepare=function(u,r,t) t.phase='hunting';return true end,
  plan=function(t,node,clock) return require('src.travelgraph').live(node,t.target,clock) end,
  docks=function() return false end,
@@ -888,6 +902,13 @@ local Population=require('src.population')
 Population.register('hunter',{
  target=function(f,area)
   return f.alifeSecurity and require('src.npc_access').owner(area) and L.station(area,'trade') and T.huntersPerSystem or 0
+ end,
+ -- the whole hunter population follows the wildcats alive: about
+ -- T.huntersPerWildcat of them, spawned where the system targets allow
+ budget=function()
+  local u=Population.universe;local n=0
+  for _,r in pairs(u and u.npcs or {}) do if r.wildcat and alive(r) then n=n+1 end end
+  return math.ceil(n*T.huntersPerWildcat)
  end,
  nodes=function(game,area) return L.stations(area,'trade') end,
  -- counted at home, wherever it is (inside a site, say)

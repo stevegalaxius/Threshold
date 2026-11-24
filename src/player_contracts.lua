@@ -35,7 +35,7 @@ local function supported(o)
  -- Standing mining/salvage/police duties do not yet define player rewards.
  -- (not a buy order of the player's own: src/buy_orders.lua)
  if o.kind=='passenger' then return L.byId[o.source] and L.byId[o.target] and true or false end
- return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and L.byId[o.source] and L.byId[o.target]
+ return o.kind=='transport' and o.order and (o.stocked or o.mine) and not o.playerOrder and not o.trade and L.byId[o.source] and L.byId[o.target]
 end
 -- What a ship needs for each capability an offer can require (src/npc_access.lua).
 local NEEDS={cargo='a cargo hold',climate='a climate-controlled hold',berths='ship berths',drill='a mining drill',armed='weapons'}
@@ -131,7 +131,6 @@ function C.advance(game)
  local destination=t.phase=='pickup' and t.source or t.target
  if here~=destination then return nil,t.phase=='pickup' and 'Dock at the pickup station' or 'Dock at the delivery station' end
  if t.kind=='passenger' and t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Clear your climate hold for the party' end
- if t.phase=='delivery' and (game.player.cargo[t.item] or 0)<t.amount then return nil,'Cargo missing: replace it before delivery' end
  if t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Make room for the contracted cargo first' end
  local r=attach(game);local clock=game.universe.clock
  if t.kind=='passenger' then
