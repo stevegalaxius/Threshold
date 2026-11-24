@@ -36,7 +36,7 @@ function C.price(u,key,item)
  local list=require('src.data').items[item].price
  local p=list*multiplier
  local basis=C.basis(u,key,item)
- if basis then p=math.max(p,math.min(list*T.priceCrisisMax,basis*(1+T.resaleMargin))) end
+ if basis and not T.priceDriven[item] then p=math.max(p,math.min(list*T.priceCrisisMax,basis*(1+T.resaleMargin))) end
  return math.floor(p*100+.5)/100
 end
 -- Where a station sits in its system's supply chain bends its price:

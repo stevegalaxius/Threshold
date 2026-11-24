@@ -164,7 +164,7 @@ local function adjust(u,unmet,all)
      local made=total-(t.madeTotal or total)
      local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
      local a=1-math.exp(-dt/(T.makerSalesHours*3600))
-     t.sales=(t.sales or out)+(out-(t.sales or out))*a
+     t.sales=(t.sales or 0)+(out-(t.sales or 0))*a
     end
     t.salesAt,t.salesHave=now,have
     t.madeTotal=(u.madeAt or {})[key..'|'..c.item] or 0
@@ -643,7 +643,8 @@ local function run(u,clock,pause)
    local level=E.orderLevel(u,s,item,want,producer)
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
-   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or level)
+   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0
+    or (T.priceDriven[item] and producer) and E.lot or level)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
   end
