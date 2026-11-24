@@ -261,7 +261,7 @@ T.factionOpeningCredits=2000000 -- and a faction's
 T.factionFlowHours=6 -- half-life of a faction's rolling surplus/deficit (src/accounts.lua A.flow)
 T.stationFloor,T.factionFloor=20000,500000 -- accounts pay down to these; past them the faction, then its home economy, pays (src/accounts.lua)
 T.factionTax=.35 -- share of a station's takings paid to its faction (stations piled up money while their factions ran down at .25)
-T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
+T.residentFoodPay=1.5 -- residents pay this multiple of the food list price for what they eat (src/food.lua)
 -- Crew fatigue and shore leave (src/crew_fatigue.lua). Fatigue runs 0..1.
 T.fatigueRate=.035          -- fatigue a minute underway (about 20 min from rested to the soft limit)
 T.fatigueTransit=1.5        -- times that on an interplanetary crossing

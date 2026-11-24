@@ -71,7 +71,7 @@ function F.flow(u,key,m,dt)
  -- the station's residents buy their meals: money from outside the
  -- trade network, and what lets a habitat pay for its food freight
  if eaten>0 and T.residentFoodPay>0 then
-  require('src.accounts').receive(u,key,eaten*require('src.markets').price(u,key,F.item)*T.residentFoodPay,'sold','residents')
+  require('src.accounts').receive(u,key,eaten*require('src.data').items[F.item].price*T.residentFoodPay,'sold','residents')
  end
  local record=require('src.stockpile').record(u,key)
  local state=record.food or {output=1};record.food=state

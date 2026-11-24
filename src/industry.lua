@@ -226,6 +226,7 @@ end
 local function move(v,target,step) return target>v and math.min(target,v+step) or math.max(target,v-step) end
 function I.allocate(u,clock,stations,market,dt,pause)
  local C,S,G,Transport=require('src.commodities'),require('src.stockpile'),require('src.travelgraph'),require('src.transport')
+ local Dark,T,data=require('src.dark'),require('src.tuning'),require('src.data')
  for i,key in ipairs(stations) do
   if pause and i>1 then pause() end
   for id,installation in pairs(I.installations(key)) do
@@ -235,24 +236,43 @@ function I.allocate(u,clock,stations,market,dt,pause)
     for _,recipe in ipairs(def.recipes) do
      if pause then pause() end
      local c=C.byId[recipe];local revenue,cost,unmet=0,0,0
-     for _,output in ipairs(C.outputs(c)) do
-      local unit,demand=0,0
+     for _,input in ipairs(C.inputs(c)) do cost=cost+market.price(u,key,input.item)*input.n end
+     local outputs=C.outputs(c)
+     for _,output in ipairs(outputs) do
+      local value,demand=0,0
+      local driven=T.priceDriven[output.item]
+      local darkSource=Dark.isDarkNode(key)
       for _,bid in ipairs(market.state(u).bids[output.item] or {}) do
        if pause then pause(true) end
-       if bid.target~=key and G.itinerary(key,bid.target,clock) then
-        local quote=Transport.quote({source=key,target=bid.target,item=output.item,amount=bid.amount},clock)
-        unit=math.max(unit,bid.price-Transport.payment(quote)/bid.amount);demand=demand+bid.amount
+       local darkBuyer=Dark.isDarkNode(bid.target)
+       if bid.target~=key and (not driven or not darkSource or darkBuyer or Dark.isFence(bid.target))
+        and G.itinerary(key,bid.target,clock) then
+        local amount=bid.amount
+        local price=bid.price
+        if driven then
+         amount=math.min(amount,math.max(1,math.floor(30/data.items[output.item].volume)))
+         if darkSource~=darkBuyer then price=price/(1+T.darkCrossingMarkup) end
+        end
+        local quote=Transport.quote({source=key,target=bid.target,item=output.item,amount=amount},clock)
+        local unit=price-Transport.payment(quote)/amount
+        -- Most recipes have one output. Multi-output recipes are evaluated
+        -- against their combined revenue below.
+        local minimum=#outputs==1 and cost/output.n or 0
+        if unit>minimum then
+         value=value+unit*bid.amount
+         demand=demand+bid.amount
+        end
        end
       end
-      -- a price-driven good also counts the buyers that went without
-      -- (src/economy.lua missed demand), valued at this station's price
-      local lost=output.item and require('src.tuning').priceDriven[output.item] and ((u.economyMissed or {})[key] or {})[output.item] or 0
-      if lost>0 then demand=demand+lost;unit=math.max(unit,market.price(u,key,output.item)) end
+      -- Market bids already include unserved buyers. Existing goods on
+      -- the shelf can fill those bids before scheduling another batch.
       local short=demand-S.count(u,key,output.item)
-      if short<=0 then unit=0 else unmet=unmet+short*unit end
-      revenue=revenue+unit*output.n
+      if short>0 then
+       local unit=value/demand
+       unmet=unmet+short*unit
+       revenue=revenue+unit*output.n
+      end
      end
-     for _,input in ipairs(C.inputs(c)) do cost=cost+market.price(u,key,input.item)*input.n end
      local profit=(revenue-cost)/(c.time or 1);state.profit[recipe]=profit
      -- Unmet demand as the credits buyers are still waiting to pay for it.
      weight[recipe]=revenue>0 and profit>0 and unmet or 0
