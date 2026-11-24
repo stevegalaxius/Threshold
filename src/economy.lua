@@ -296,7 +296,15 @@ target=function(u,key,item,supplier)
  local use=serviceUse(u,key,item)
  if item==Food.item then use=math.max(use,(Food.rates(key))) end
  for _,c in ipairs(C.byItem(item)) do use=math.max(use,c.use[key] or 0) end
- local want=use*(supplier and E.reserveHours or E.hours)+(inputPlan(u,key).buffers[item] or 0)
+ -- Keep a pickup-and-transit buffer for inputs whose use depends on
+ -- currently allocated production. The buffer cannot shrink to zero
+ -- just because the last batch was blocked by a shortage.
+ local plan=inputPlan(u,key)
+ local want=use*(supplier and E.reserveHours or E.hours)+(plan.buffers[item] or 0)
+ if T.priceDriven[item] and not supplier then
+  local inputRate=math.max(plan.rates[item] or 0,E.rate(u,key,item)-use)
+  want=want+inputRate*T.freightLeadTime/3600
+ end
  if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
@@ -671,7 +679,9 @@ local function run(u,clock,pause)
    spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or reserve)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then
-    buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want}
+    local rate=math.max(capacityUse(u,s,item),E.rate(u,s,item))
+    local lowCover=T.priceDriven[item] and (count==0 or rate>0 and count*3600/rate<=T.freightLeadTime)
+    buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want,lowCover=lowCover}
    elseif T.priceDriven[item] and want>0 then
     local delayed=late[s..'|'..item]
     if delayed then
@@ -679,7 +689,7 @@ local function run(u,clock,pause)
      local gap=math.min(want,math.ceil(usage*(delayed.eta-clock)/3600)-math.max(0,coming-delayed.amount))
      if gap>0 then
       gap=math.min(want,math.max(T.orderMinLoad,gap))
-      buyers[#buyers+1]={c=s,short=gap,need=gap,fill=0,bridgeETA=delayed.eta}
+      buyers[#buyers+1]={c=s,short=gap,need=gap,fill=0,lowCover=true,bridgeETA=delayed.eta}
      end
     end
    end
@@ -703,7 +713,7 @@ local function run(u,clock,pause)
    -- Any bare shelf takes a part load too: a slow maker that can never
    -- spare a whole lot (composites, siloxanes, a small ice well) would
    -- otherwise hold its stock while every buyer sits empty.
-   local minLot=(entry.bridgeETA or Stock.count(u,c,item)==0) and T.orderMinLoad or E.minOrder(item)
+   local minLot=(entry.lowCover or Stock.count(u,c,item)==0) and T.orderMinLoad or E.minOrder(item)
    local starving=E.shortageAge(u,c,item,clock)>=T.unmetShortageAge
    while short>0 do
     local best,bestScore
@@ -740,7 +750,7 @@ local function run(u,clock,pause)
        -- must beat the source's price plus the haul (score, landed cost)
        -- An empty buyer can fund the cheapest reachable shipment at
        -- landed cost when its ordinary stock-based bid is too low.
-       if T.priceDriven[item] and entry.fill==0 and short==entry.short and score>=Chemicals.price(u,c,item) then
+       if T.priceDriven[item] and entry.lowCover and short==entry.short and score>=Chemicals.price(u,c,item) then
         local volume=require('src.data').items[item].volume
         local amount=math.min(short,spare[s],math.floor(math.min(30,T.orderMaxVolume)/volume))
         local quote=Transport.quote({source=s,target=c,item=item,amount=amount},clock)
@@ -809,6 +819,7 @@ local function run(u,clock,pause)
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
+    if entry.lowCover then urgency=math.max(urgency,1.5) end
     Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,shortageBid=shortageBid,
      layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
      -- a price-driven good is moved by a trader who buys it and sells it

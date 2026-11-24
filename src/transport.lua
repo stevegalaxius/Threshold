@@ -442,7 +442,13 @@ local function freightTerms(u,r,o,capacity)
  local price=Transport.goodsPrice(u,o.source,o.item)
  local spendable=math.max(0,(r.credits or 0)-T.tradeReserve)
  local units=price>0 and math.min(capacity,math.floor(spendable/price)) or capacity
- local value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=units,shortageBid=o.shortageBid})
+ local value
+ if o.shortageBid then
+  value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=units,shortageBid=o.shortageBid})
+ else
+  local priceAtDelivery=require('src.markets').expectedTradePrice(u,o.target,o.item,units)
+  value=math.floor(priceAtDelivery*units+.5)
+ end
  local profit=value-math.floor(price*units+.5)
  local courierUnits,fee=0,0
  if o.tradeOptional then

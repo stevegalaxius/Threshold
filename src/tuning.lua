@@ -506,6 +506,7 @@ T.agendaHoldPerJob=80 -- m3 of hold per extra job it may hold
 T.freightMinRun=12    -- m3 of freight at a pickup, bound for one area, before haulers fly it
 T.unmetShortageAge=300 -- s a buyer stays short before its makers count it as unmet, spare stock elsewhere or not (src/economy.lua)
 T.unmetShelfLots=4    -- lots a plant may hold while answering unmet demand before it slows (src/economy.lua)
+T.freightLeadTime=1800 -- stock coverage to allow pickup and transit
 T.freightMaxWait=600  -- seconds an order waits for a fuller load before any hauler takes it
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 -- scarcity premium (src/transport.lua): the share of the source-to-target

@@ -88,6 +88,21 @@ function C.shape(u,key,item,target,want,clock,state)
  end
  return target
 end
+local function stockPrice(ratio,crisis)
+ if ratio>=1 then return math.max(.5,1-.5*(ratio-1)) end
+ return 1+(crisis-1)*(1-ratio)
+end
+function C.expectedTradePrice(u,buyer,item,amount)
+ local current=C.price(u,buyer,item)
+ local state=C.state(u)
+ local snapshot=state.deliveryStock and state.deliveryStock[buyer..'|'..item]
+ if not snapshot or snapshot.want<=0 then return current end
+ -- Prices already react to committed shipments at the next market tick.
+ -- Include this claim too, weighted by how far the market can move en route.
+ local ratio=(snapshot.have+amount)/snapshot.want
+ local projected=stockPrice(ratio,T.priceCrisisMax)*require('src.data').items[item].price
+ return math.min(current,(current+projected)*.5)
+end
 function C.update(u,clock,stations,inbound,pause)
  local S,E=require('src.stockpile'),require('src.economy')
  local state=C.state(u);local dt=state.at and math.max(0,clock-state.at) or E.tick
@@ -100,7 +115,7 @@ function C.update(u,clock,stations,inbound,pause)
   for item in pairs(C.items) do snapshot[key][item]=S.count(u,key,item) end
   if require('src.dark').isDarkNode(key) then for _,item in ipairs(E.goods()) do snapshot[key][item]=S.count(u,key,item) end end
  end
- local bids={}
+ local bids,deliveryStock={},{}
  for _,item in ipairs(C.products) do bids[item]={} end
  for _,key in ipairs(stations) do
   if pause then pause() end
@@ -119,6 +134,7 @@ function C.update(u,clock,stations,inbound,pause)
    local want=E.hubTarget(u,key,item,dark and not C.items[item] and (makes(key,item) or item==require('src.food').item and select(2,require('src.food').rates(key))>0) or nil)
    local coming=(inbound[key..'|'..item] or 0)
    local have=snapshot[key][item]+coming
+   if T.priceDriven[item] and want>0 then deliveryStock[key..'|'..item]={have=have,want=want} end
    local target
    if want>0 then
     local ratio=have/want
@@ -153,7 +169,7 @@ function C.update(u,clock,stations,inbound,pause)
    end
   end
  end
- state.bids=bids;state.at=clock
+ state.bids=bids;state.deliveryStock=deliveryStock;state.at=clock
  if pause then pause() end
  require('src.industry').allocate(u,clock,stations,C,dt,pause)
 end
