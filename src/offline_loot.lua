@@ -134,6 +134,7 @@ local function descriptor(source,area)
 end
 local function sourceTarget(ctx,source)
  local record=source.record
+ if source.kind=='live' and record.wreckClearStation then return nil end
  local x,y=source.x,source.y
  local vx,vy=0,0
  local noSurface=false
@@ -213,7 +214,7 @@ function O.find(ctx)
   end
   local blocked=ctx.e and ctx.e.recoveryBlocked
   if blocked and target and target.entity and (blocked[target.entity] or 0)>ctx.clock then return end
-  if not target or target.done or not Actions.available(ctx,target) or Actions.sinking(ctx.r,target.x,target.y) then return end
+  if not target or target.done or target.entity and target.entity.wreckClearStation or not Actions.available(ctx,target) or Actions.sinking(ctx.r,target.x,target.y) then return end
   local s=target.source
   if s and (s.kind=='combat' or s.record.kind=='husk') and not Wreck.weapon(ctx.e or r.ship) then return end
   local d=(target.x-x)^2+(target.y-y)^2
@@ -332,6 +333,7 @@ end
 local function recoverLive(ctx,target,dt,a)
  local e,object=ctx.e,target.entity
  if not object then return Actions.recordOperation(ctx,function() return take(ctx,target) end) end
+ if object.wreckClearStation then return 'failed','station is clearing the wreck' end
  Ship.ensureGridHold(e)
  e.intent.firePrimary,e.intent.fireSecondary,e.intent.fireTertiary=false,false,false
  e.recoveryWeapon,e.recoveryTarget=nil,nil;e.intent.tractor=false;e.tractorTarget=nil

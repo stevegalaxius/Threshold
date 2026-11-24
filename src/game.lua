@@ -1384,7 +1384,7 @@ function Game:inTractorZone(st, x, y)
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
-		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < (d.capture or d.hw*1.3) then
+		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < math.max(d.capture or 0,d.hw*1.65) then
 			return true, lx, ly, side, d
 		end
 	end
@@ -1403,29 +1403,40 @@ function Game:beginDocking(e, st, side, dock)
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
+-- Approach markers are shared by free-flight steering and the NPC handoff.
+function Game:npcDockMarker(e,st,d)
+ local outer=(st.radius or 0)+(e.halfLength or 100)+T.npcDockMarker-(d.xc or 0)
+ return math.max(d.x2+d.runway*1.5,outer)
+end
+
 function Game:updateDocking(dt)
-	for _, e in ipairs(self.entities) do
-		if e.kind == "ship" and not e.dead and not e.dockState then
-			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
-			-- A-Life patrols and pirates fly the trader route logic when idle, so
-			-- they dock the same way when their route stops at a station.
-			local trader = e.def and e.def.ai.style == "civilian" or (e.alifeId and e.route ~= nil)
-			if (e == self.player or trader) and e.dockCooldown == 0 then
-				local x, y = e.body:getPosition()
-				for _, st in ipairs(self.entities) do
-					-- traders only dock where their route says to
-					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
-						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
-						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						if inZone and not require('src.queue').dockBusy(self,st,dock,e) then
-							self:beginDocking(e, st, side, dock)
-							break
-						end
-					end
-				end
-			end
-		end
-	end
+ local Queue=require('src.queue')
+ for _,e in ipairs(self.entities) do
+  if e.kind=='ship' and not e.dead and not e.dockState then
+   e.dockCooldown=max(0,(e.dockCooldown or 0)-dt)
+   if e.dockCooldown==0 and not (e.launch or e.driverTractor or e.dockExit) then
+    local x,y=e.body:getPosition()
+    if e==self.player then
+     for _,st in ipairs(self.entities) do
+      if st.kind=='station' and not st.removed then
+       local inZone,_,_,side,dock=self:inTractorZone(st,x,y)
+       if inZone and not Queue.dockBusy(self,st,dock,e) then
+        self:beginDocking(e,st,side,dock)
+        break
+       end
+      end
+     end
+    else
+     local stop=e.route and e.route[e.routeIndex or 1]
+     local action=e.alifeRecord and e.alifeRecord.action
+     if stop and stop.kind=='station' and stop.dock and not stop.removed and not e.bayExit
+      and not (action and action.kind=='work' and not action.pausedAt) then
+      self:tryNpcDock(e,stop,x,y)
+     end
+    end
+   end
+  end
+ end
 end
 
 local function wrapAngle(a) return (a + pi) % (2 * pi) - pi end
@@ -1484,6 +1495,40 @@ function Game:finishDocking(e, ds, st)
 	events.emit("dock", e, st)
 end
 
+-- The station takes over outside the hull. Reserve parking before
+-- deactivating the ship's physics body and move in the station's frame.
+function Game:tryNpcDock(e,st,x,y)
+ local d=AI.approachDock(e,st)
+ local lx,ly=dockLocal(st,1,x,y,d)
+ local marker=self:npcDockMarker(e,st,d)
+ if lx<marker-320 or lx>marker+750 or math.abs(ly)>420 then return end
+ local vx,vy=e.body:getLinearVelocity()
+ local svx,svy=st.body:getLinearVelocityFromWorldPoint(x,y)
+ if (vx-svx)^2+(vy-svy)^2>900^2 then return end
+ local q=require('src.queue')
+ if q.holding(self,e,st) or q.dockBusy(self,st,d,e) then return end
+ if (e.dockClearCheckAt or 0)>self.time then return end
+ e.dockClearCheckAt=self.time+.2
+ local mx,my=dockWorld(st,1,marker,0,d)
+ if not require('src.local_navigation').clearDockHandoff(self,e,mx,my) then return end
+ local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
+ local berth=not interior and self:freeBerth(st,e)
+ if not (interior or berth) then
+  e.dockCooldown=3
+  if e.alifeId then require('src.upkeep').rejected(self,e,st) end
+  return
+ end
+ self:beginDocking(e,st,1,d)
+ local ds=e.dockState
+ e.bay,e.bayStation=interior or nil,st.locationId or st.key
+ ds.phase,ds.lx,ds.ly,ds.marker='npcAlign',lx,ly,marker
+ ds.la=wrapAngle(e.body:getAngle()-dockAngle(st,1,d))
+ ds.berth=berth
+ if berth then ds.mooring=self:berthPose(st,berth,e.hull.id) or st.def.berths[berth] end
+ ds.dur=max(1.4,min(4,sqrt((lx-marker)^2+ly^2)/220))
+ e.body:setActive(false)
+end
+
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
@@ -1496,6 +1541,62 @@ function Game:updateDockedShip(e, dt)
 	local side = ds.side or 1
 	ds.t = ds.t + dt
 
+ if ds.phase=='npcAlign' then
+  local f=min(1,ds.t/ds.dur)
+  local blend=f*f*(3-2*f)
+  b:setPosition(dockWorld(st,side,ds.lx+(ds.marker-ds.lx)*blend,ds.ly*(1-blend),d))
+  b:setAngle(dockAngle(st,side,d)+ds.la+wrapAngle(pi-ds.la)*blend)
+  if f>=1 then
+   ds.t=0
+   if ds.berth then
+    -- Reach the berth from outside the station rather than cutting across
+    -- the core from an unrelated dock.
+    local x,y=sb:getLocalPoint(b:getPosition())
+    local berth=ds.mooring
+    ds.phase,ds.lx,ds.ly='npcBerth',x,y
+    ds.fromAngle,ds.toAngle=math.atan2(y,x),math.atan2(berth.y,berth.x)
+    ds.arcRadius=max(sqrt(x*x+y*y),sqrt(berth.x^2+berth.y^2)+(e.halfLength or 100)+80)
+    ds.la=wrapAngle(b:getAngle()-sb:getAngle())
+    local travel=(ds.arcRadius-sqrt(x*x+y*y))+math.abs(wrapAngle(ds.toAngle-ds.fromAngle))*ds.arcRadius
+     +(ds.arcRadius-sqrt(berth.x^2+berth.y^2))
+    ds.dur=max(2,travel/950)
+   else
+    ds.phase='npcRunway'
+    ds.dur=max(1,(ds.marker-d.x2-e.halfLength-40)/650)
+   end
+  end
+  return
+ end
+
+ if ds.phase=='npcRunway' then
+  local f=min(1,ds.t/ds.dur)
+  local blend=f*f*(3-2*f)
+  local doorX=d.x2+e.halfLength+40
+  b:setPosition(dockWorld(st,side,ds.marker+(doorX-ds.marker)*blend,0,d))
+  b:setAngle(dockAngle(st,side,d)+pi)
+  if f>=1 then ds.phase,ds.t,ds.lx,ds.ly,ds.la='pull',0,doorX,0,pi end
+  return
+ end
+
+ if ds.phase=='npcBerth' then
+  local berth=ds.mooring
+  local fromRadius,toRadius=sqrt(ds.lx^2+ds.ly^2),sqrt(berth.x^2+berth.y^2)
+  local outward=ds.arcRadius-fromRadius
+  local turn=wrapAngle(ds.toAngle-ds.fromAngle)
+  local arc=math.abs(turn)*ds.arcRadius
+  local distance=outward+arc+ds.arcRadius-toRadius
+  local f=min(1,ds.t/ds.dur)
+  local travel=distance*f*f*(3-2*f)
+  local radius,angle
+  if travel<outward then radius,angle=fromRadius+travel,ds.fromAngle
+  elseif arc>0 and travel<outward+arc then radius,angle=ds.arcRadius,ds.fromAngle+turn*(travel-outward)/arc
+  else radius,angle=ds.arcRadius-(travel-outward-arc),ds.toAngle end
+  b:setPosition(sb:getWorldPoint(cos(angle)*radius,sin(angle)*radius))
+  b:setAngle(sb:getAngle()+ds.la+wrapAngle(math.rad(berth.heading)-ds.la)*f)
+  if f>=1 then self:finishDocking(e,ds,st) end
+  return
+ end
+
 	if ds.phase == "tractor" then
 		local x, y = b:getPosition()
 		local lx, ly = dockLocal(st, side, x, y, d)
@@ -1505,12 +1606,12 @@ function Game:updateDockedShip(e, dt)
 		-- in toward the door, slowing as it arrives
 		local gap = lx - doorX
 		local inward = -min(260, gap > 0 and max(50, gap * 0.6) or gap * 0.6)
-		local across = -ly * 0.8
+		local across = -ly * 1.2
 		local wx, wy = dockVector(st, side, inward, across, d)
 		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
 		local vx, vy = b:getLinearVelocity()
 		-- the player can slide out of the beam; an NPC is held
-		if e == self.player and (lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2,(d.capture or d.hw*1.3)*1.5)) then
+		if e == self.player and (lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2.6,(d.capture or d.hw*1.3)*1.5)) then
 			e.dockState, e.dockCooldown = nil, 3
 			self:toast("TRACTOR LOST", 1.4)
 			return
@@ -1633,7 +1734,7 @@ function Game:launchBlocker(e)
 	if not e.dockState then return nil end
 	local wx, wy = launchPose(e)
 	for _, o in ipairs(self.entities) do
-		if o ~= e and o.kind == "ship" and not o.dead and not o.removed and o.body
+		if o ~= e and (o.kind == "ship" or o.kind == "husk") and not o.dead and not o.removed and o.body
 			and o.body:isActive() and not (o.dockState and o.dockState.done) then
 			local x, y = o.body:getPosition()
 			local r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance
@@ -1646,6 +1747,59 @@ end
 -- off to the side (the nearer side) until the launch point is clear. Not
 -- a ship that's on its own way in to dock: that one is about to land.
 -- e is the docked ship waiting to leave. Moved by Game:updateRunwayPush.
+-- Push trapped wrecks out in the station's moving frame. The same wreck
+-- body and hold remain available to salvage after clearance.
+function Game:updateStationWrecks(dt)
+ for _,wreck in ipairs(self.entities) do
+  local st=wreck.wreckClearStation
+  if st then
+   if wreck.dead or wreck.removed or st.removed or st.body:isDestroyed() then
+    wreck.wreckClearStation,wreck.wreckClearTime=nil,nil
+   else
+    local x,y=wreck.body:getPosition()
+    local sx,sy=st.body:getPosition()
+    local dx,dy=x-sx,y-sy
+    local distance=sqrt(dx*dx+dy*dy)
+    local clear=(st.radius or 0)+(wreck.radius or wreck.halfLength or 50)+120
+    if distance>=clear and not wreck.body:isTouching(st.body) then
+     wreck.wreckClearStation,wreck.wreckClearTime=nil,nil
+    else
+     if distance<1 then dx,dy,distance=1,0,1 end
+     local vx,vy=wreck.body:getLinearVelocity()
+     local svx,svy=st.body:getLinearVelocityFromWorldPoint(x,y)
+     local gain=min(1,dt*5)
+     local speed=280
+     wreck.body:setLinearVelocity(vx+(svx+dx/distance*speed-vx)*gain,vy+(svy+dy/distance*speed-vy)*gain)
+     wreck.wreckClearTime=(wreck.wreckClearTime or 0)+dt
+     if wreck.wreckClearTime>=8 then
+      -- A concave wall can prevent any physical escape. Find an empty
+      -- recovery point beyond the hull before lifting the wreck there.
+      local radius=(wreck.radius or wreck.halfLength or 50)+40
+      local angle=math.atan2(dy,dx)
+      for i=0,7 do
+       local a=angle+i*math.pi/4
+       local px,py=sx+cos(a)*(clear+radius),sy+sin(a)*(clear+radius)
+       local open=true
+       self.world:queryBoundingBox(px-radius,py-radius,px+radius,py+radius,function(fixture)
+        if not fixture:isSensor() and fixture:getBody()~=wreck.body then open=false;return false end
+        return true
+       end)
+       if open then
+        wreck.body:setPosition(px,py)
+        local fx,fy=st.body:getLinearVelocityFromWorldPoint(px,py)
+        wreck.body:setLinearVelocity(fx+cos(a)*80,fy+sin(a)*80)
+        wreck.wreckClearStation,wreck.wreckClearTime=nil,nil
+        break
+       end
+      end
+      if wreck.wreckClearStation then wreck.wreckClearTime=7 end
+     end
+    end
+   end
+  end
+ end
+end
+
 function Game:clearRunway(e, o)
 	if not o or o.dockState or o.runwayPush then return end
 	local wx, wy, _, ox, oy = launchPose(e)
@@ -2190,6 +2344,7 @@ function Game:step(dt, sample)
 	self:applySurfacePull()
 	self:updateDockExits(dt)
 	self:updateRunwayPush(dt)
+ self:updateStationWrecks(dt)
 	self:updateLane(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)
@@ -2202,12 +2357,12 @@ function Game:step(dt, sample)
 	self:updateTow(dt)
 	self:updateLootHold(dt)
 	if sample then markStep(sample, "navigation_and_world") end
+	self:updateDocking(dt)
 	self.world:update(dt)
 	if sample then markStep(sample, "box2d") end
 	require("src.exhaust_damage").update(self,dt)
 	if sample then markStep(sample, "exhaust") end
 	self:planetImpacts()
-	self:updateDocking(dt)
 	self:resolveContacts()
 	Weapons.updateProjectiles(self, dt)
 	self:updatePickups(dt)
@@ -2306,13 +2461,17 @@ end
 function Game:beginContact(fa, fb, contact)
 	local a, b = fa:getUserData(), fb:getUserData()
 	if not a or not b or not a.body or not b.body or fa:isSensor() or fb:isSensor() then return end
+ -- Queue the cleanup for after the physics step. Even a slow scrape can
+ -- trap a wreck in a rotating fixture.
+ if a.kind=='station' and b.kind=='husk' then b.wreckClearStation=a
+ elseif b.kind=='station' and a.kind=='husk' then a.wreckClearStation=b end
 	local x, y = contact:getPositions()
 	if not x then return end
 	local nx, ny = contact:getNormal()
 	local avx, avy = a.body:getLinearVelocityFromWorldPoint(x, y)
 	local bvx, bvy = b.body:getLinearVelocityFromWorldPoint(x, y)
 	local closing = (avx - bvx) * nx + (avy - bvy) * ny
-	if closing < 0 then closing = -closing end
+	if closing <= 0 then return end
 	local key = a.id < b.id and (a.id * 1000003 + b.id) or (b.id * 1000003 + a.id)
 	local c = self.contacts[key]
 	if not c or closing > c.v then self.contacts[key] = { a = a, b = b, v = closing, x = x, y = y } end
@@ -2339,12 +2498,16 @@ function Game:resolveContacts()
 			local ma, mb = c.a.body:getMass(), c.b.body:getMass()
 			if c.v > self.stats.maxImpactSpeed then self.stats.maxImpactSpeed = c.v end
 			local function hurt(o, m, dv, other)
+    if o.kind=='husk' and o.wreckClearStation==other then return 0 end
 				local over = dv - T.ramGrace
 				if over <= 0 then return 0 end
 				local rock = o.kind == "asteroid" or o.kind == "husk" or o.kind == "container"
 				local tough = (o.kind == "ship" and o.hull.toughness) or 1
 				local mult = rock and T.asteroidImpact or (other.kind == "ship" and other.stats.mult.ramDamage or 1)
 				local dmg = T.ramDamage * m * over * over / tough * mult
+    if o.kind=='ship' and other.kind=='station' then
+     o.stationImpact={station=other.locationId or other.key,speed=dv,phase=o.dockState and o.dockState.phase or 'free flight'}
+    end
 				self:damage(o, dmg, other, "ram", c.x, c.y)
 				return dmg
 			end
@@ -2463,6 +2626,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	if e.isPlayer and T.dev.god then return end
 	e.armor = e.armor - amount
 	e.lastHitBy = source
+ e.lastDamageCause=cause
 	-- a neutral that gets shot remembers who did it, and shoots back
 	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
 	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
@@ -2824,7 +2988,7 @@ function Game:reap()
 			if e.alifeId then
 				ALife.capture(self, e, false); ALife.detach(self,e,"dead")
 				local r=self.universe.npcs[e.alifeId]
-				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
+				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy),e.lastDamageCause,e.lastDamageCause=='ram' and e.lastHitBy and e.lastHitBy.kind=='station' and e.stationImpact or nil) end
 				local owed = r and require("src.wildcats").death(self.universe,r,History.entityId(e.lastHitBy))
 				if owed then self:toast(("WILDCAT BOUNTY: %d CR"):format(owed), 2) end
 				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
@@ -2851,6 +3015,7 @@ function Game:reap()
 			table.remove(self.entities, i)
 			if not e.drone then
 				local husk = self:spawnHusk(e, x, y, a, vx, vy, w)
+    if e.lastDamageCause=='ram' and e.lastHitBy and e.lastHitBy.kind=='station' then husk.wreckClearStation=e.lastHitBy end
 				if e.isPlayer then self.playerHusk = husk end
 				local r=e.alifeId and self.universe.npcs[e.alifeId]
 				if r then husk.historyWreckId=History.wreck(self.universe,r,self.universe.clock,self.fieldId) end

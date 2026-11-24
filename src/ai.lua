@@ -386,25 +386,12 @@ local function trade(game, e, dt)
 			table.remove(route, e.routeIndex); e.routeIndex = 1; return
 		end
 		local sx, sy = stopPoint(stop, e)
-		-- A dock is flown into along its axis: from anywhere else the ship
-		-- first makes for a marker well out on that axis, clear of the hull,
-		-- and only turns in once it's lined up in the cone before the door.
-		-- Straight at the runway, a hauler coming from the side or behind
-		-- swung across the station and into its hull.
-		if stop.dock and stop.body and e.alifeId then
-			local d = approachDock(e, stop)
-			local lx, ly = stop.body:getLocalPoint(x, y)
-			local a = d.a or 0
-			local c, s = cos(a), sin(a)
-			local rx, ry = lx * c + ly * s - (d.xc or 0), -lx * s + ly * c - (d.yc or 0)
-			local lined = rx > d.x2 + 100 and math.abs(ry) < max(d.hw * 1.5, (rx - d.x2) * T.npcDockCone)
-			if not lined then
-				local mx = max(d.x2 + d.runway * 1.5, hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker)
-				local px, py = mx + (d.xc or 0), d.yc or 0
-				sx, sy = stop.body:getWorldPoint(px * c - py * s, px * s + py * c)
-				e.dockMarker = true
-			else e.dockMarker = nil end
-		end
+  -- Stop outside the station. The tower takes over from this marker.
+  if stop.dock and stop.body and not e.isPlayer then
+   local d=approachDock(e,stop)
+   sx,sy=game.dockWorld(stop,1,game:npcDockMarker(e,stop,d),0,d)
+   e.dockMarker=true
+  else e.dockMarker=nil end
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
 		local queued,queuePlace
 		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
@@ -491,15 +478,10 @@ local function trade(game, e, dt)
 				hx, hy = bx + dx * tx - dy * ty, by + dy * tx + dx * ty
 			end
 		end
-		-- Once lined up in the cone it flies in to its own dock, which can sit
-		-- well inside the hull's circle (the Ring Station's is deep in the
-		-- horseshoe): steering round that station there turned it away from
-		-- the door every time and left it circling for ever.
-		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil
-		if not queued then
-			local ox, oy = outOfRunway(game, e, x, y, docking)
-			if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy, docking) end
-		end
+  if not queued then
+   local ox,oy=outOfRunway(game,e,x,y)
+   if ox then hx,hy=ox,oy else hx,hy=aroundStations(game,e,x,y,hx,hy) end
+  end
 		if w and not stop.city and not stop.surfaceMine then
 			local rx,ry=x-w.x,y-w.y;local r=sqrt(rx*rx+ry*ry)
 			local safe=w.radius+min(T.surfacePullRange,w.radius*.5)+500
@@ -566,7 +548,7 @@ local function trade(game, e, dt)
 		-- more than T.aiStationSpeed, with no burner. Braking late from full
 		-- burn, it reached the runway at 1,000-1,800 px/s, far too fast to
 		-- steer round a ship in its way.
-		local nearDock = stop.dock and stop.body and d < T.aiStationSlowRange
+		local nearDock = stop.dock and stop.body and (d < T.aiStationSlowRange or (x-stop.body:getX())^2+(y-stop.body:getY())^2<(hullRadius(stop)+T.aiStationSlowRange)^2)
 		local boosting=not nearDock and (deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing))
 		if nearDock then
 			local slow = T.aiStationSpeed + (cruise - T.aiStationSpeed) * max(0, d - T.aiStationSlowRange * .5) / (T.aiStationSlowRange * .5)

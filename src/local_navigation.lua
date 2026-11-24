@@ -212,6 +212,26 @@ local function primsOf(g,list)
  return keep
 end
 Nav.obstacleGroups=obstacles
+-- The docking tower only takes control if the handoff can reach its
+-- outer marker without sweeping through a hull or through local traffic.
+function Nav.clearDockHandoff(game,e,gx,gy)
+ local x,y=e.body:getPosition()
+ local dx,dy=gx-x,gy-y
+ local radius=max(e.halfLength or 0,e.hull.radius)
+ local groups=obstacles(game,e,sqrt(dx*dx+dy*dy)+radius,nil,true)
+ local minX,maxX=min(x,gx)-radius,max(x,gx)+radius
+ local minY,maxY=min(y,gy)-radius,max(y,gy)+radius
+ for _,group in ipairs(groups) do
+  if group.maxx>=minX and group.minx<=maxX and group.maxy>=minY and group.miny<=maxY then
+   for _,shape in ipairs(primsOf(group,groups)) do
+    if shape.maxx>=minX and shape.minx<=maxX and shape.maxy>=minY and shape.miny<=maxY
+     and Sweep.sweepCircle(x,y,radius,shape,dx,dy,1) then return false end
+   end
+  end
+ end
+ return true
+end
+
 -- Commit to a detour around scenery instead of repeatedly aiming into it.
 -- Dynamic traffic still uses the predictive steering below.
 function Nav.waypoint(game,e,gx,gy,options)
