@@ -20,9 +20,9 @@ local function wrap(a) return (a+pi)%(2*pi)-pi end
 function B.grip(t,near) return min(1,t/1.0)*(.35+.65*near) end
 function B.hold(game,e,o)
  local b=e.body
- local grip=B.grip(o.t,o.near)
+ local grip=o.docking and 1 or B.grip(o.t,o.near)
  local vx,vy=b:getLinearVelocity()
- local k=2.2*grip
+ local k=(o.docking and 4 or 2.2)*grip
  local ax,ay=(o.fvx+o.wx-vx)*k,(o.fvy+o.wy-vy)*k
  if e==game.player then
   local a=sqrt(ax*ax+ay*ay)
@@ -36,7 +36,7 @@ function B.hold(game,e,o)
  -- engine where the beam wants and take away the way out
  if e==game.player then return grip end
  local w=b:getAngularVelocity()
- local turn=wrap(o.nose-b:getAngle())*1.4*grip+(o.spin or 0)
+ local turn=wrap(o.nose-b:getAngle())*(o.docking and 2.6 or 1.4)*grip+(o.spin or 0)
  b:setAngularVelocity(w+(turn-w)*min(1,3*(o.dt or 1/60)))
  return grip
 end

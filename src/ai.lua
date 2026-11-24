@@ -385,30 +385,23 @@ local function trade(game, e, dt)
 			if record and record.route then require("src.alife").bindRoute(game, e, record); return end
 			table.remove(route, e.routeIndex); e.routeIndex = 1; return
 		end
+		-- The station handles the runway. Free flight ends at a point outside
+		-- the hull, even when the ship is already lined up with the door.
 		local sx, sy = stopPoint(stop, e)
-		-- A dock is flown into along its axis: from anywhere else the ship
-		-- first makes for a marker well out on that axis, clear of the hull,
-		-- and only turns in once it's lined up in the cone before the door.
-		-- Straight at the runway, a hauler coming from the side or behind
-		-- swung across the station and into its hull.
-		if stop.dock and stop.body and e.alifeId then
-			local d = approachDock(e, stop)
-			local lx, ly = stop.body:getLocalPoint(x, y)
-			local a = d.a or 0
-			local c, s = cos(a), sin(a)
-			local rx, ry = lx * c + ly * s - (d.xc or 0), -lx * s + ly * c - (d.yc or 0)
-			local lined = rx > d.x2 + 100 and math.abs(ry) < max(d.hw * 1.5, (rx - d.x2) * T.npcDockCone)
-			if not lined then
-				local mx = max(d.x2 + d.runway * 1.5, hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker)
-				local px, py = mx + (d.xc or 0), d.yc or 0
-				sx, sy = stop.body:getWorldPoint(px * c - py * s, px * s + py * c)
-				e.dockMarker = true
-			else e.dockMarker = nil end
+		local queued, queuePlace
+		local Queue = require("src.queue")
+		if e.alifeId then queued, queuePlace = Queue.holding(game, e, stop) end
+		local dock = stop.kind == "station" and stop.dock and approachDock(e, stop)
+		if dock and not e.bayExit then
+			e.dockTarget = stop
+			local busy = Queue.dockBusy(game, stop, dock, e)
+			local hold = queued or busy or (e.dockCooldown or 0) > 0
+			local offset = hold and 900 + 600 * ((queuePlace or 1) - 1) or 0
+			sx, sy = game:npcDockPoint(e, stop, dock, offset)
+			if not hold then e.dockRequest = stop end
+		elseif queued then
+			sx, sy = Queue.holdPoint(queued, game.universe.clock, e.routeIndex, queuePlace)
 		end
-		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
-		local queued,queuePlace
-		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
-		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex,queuePlace) end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway
 		-- rather than flying into the breech, first come first served
@@ -491,15 +484,8 @@ local function trade(game, e, dt)
 				hx, hy = bx + dx * tx - dy * ty, by + dy * tx + dx * ty
 			end
 		end
-		-- Once lined up in the cone it flies in to its own dock, which can sit
-		-- well inside the hull's circle (the Ring Station's is deep in the
-		-- horseshoe): steering round that station there turned it away from
-		-- the door every time and left it circling for ever.
-		local docking = stop.dock and e.alifeId and not e.dockMarker and stop or nil
-		if not queued then
-			local ox, oy = outOfRunway(game, e, x, y, docking)
-			if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy, docking) end
-		end
+		local ox, oy = outOfRunway(game, e, x, y)
+		if ox then hx, hy = ox, oy else hx, hy = aroundStations(game, e, x, y, hx, hy) end
 		if w and not stop.city and not stop.surfaceMine then
 			local rx,ry=x-w.x,y-w.y;local r=sqrt(rx*rx+ry*ry)
 			local safe=w.radius+min(T.surfacePullRange,w.radius*.5)+500
@@ -526,7 +512,7 @@ local function trade(game, e, dt)
 		-- steady pass at a buoy). Measured against the planet's current,
 		-- which is what the stations and buoys ride.
 		local cruise = e.npcCruise or ai.cruise or T.traderCruise
-		local pass = queued and 0 or (stop.dock or stop.inspection or stop.kind=='driver') and 60 or cruise * 0.6
+		local pass = (queued or dock) and 0 or (stop.dock or stop.inspection or stop.kind=='driver') and 60 or cruise * 0.6
 		local sb = stopBrake(game, e, x, y, sx, sy)
 		local want = min(cruise, sqrt(pass * pass + 2 * sb * 0.6 * max(0, d - 150)))
 		-- Steer around things on the way. A hauler turns slowly and coasts
@@ -566,7 +552,9 @@ local function trade(game, e, dt)
 		-- more than T.aiStationSpeed, with no burner. Braking late from full
 		-- burn, it reached the runway at 1,000-1,800 px/s, far too fast to
 		-- steer round a ship in its way.
-		local nearDock = stop.dock and stop.body and d < T.aiStationSlowRange
+		local nearDock = dock and (d < T.aiStationSlowRange
+			or (x - stop.body:getX())^2 + (y - stop.body:getY())^2
+				< (hullRadius(stop) + T.aiStationSlowRange)^2)
 		local boosting=not nearDock and (deep or d>T.aiBoostStopMargin*2 and (not inGravity or climbing))
 		if nearDock then
 			local slow = T.aiStationSpeed + (cruise - T.aiStationSpeed) * max(0, d - T.aiStationSlowRange * .5) / (T.aiStationSlowRange * .5)
@@ -620,6 +608,7 @@ end
 AI.trade=trade
 
 function AI.think(game, e, dt)
+ e.dockRequest, e.dockTarget = nil, nil
 	e.recoveryWeapon,e.recoveryTarget=nil,nil
 	e.aiFightTarget=nil
 	local it = e.intent

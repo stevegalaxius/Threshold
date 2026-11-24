@@ -74,7 +74,7 @@ local function candidates(game,r,clock)
   local px,py
   if game.player and not game.player.dead then px,py=game.player.body:getPosition() end
   for _,o in ipairs(game.entities) do
-   if o.kind=='husk' and o.origin and not o.dead and not o.removed and o~=game.looting and o.body and not o.body:isDestroyed() then
+   if o.kind=='husk' and o.origin and not o.wreckClear and not o.dead and not o.removed and o~=game.looting and o.body and not o.body:isDestroyed() then
     local x,y=o.body:getPosition()
     if not px or (x-px)^2+(y-py)^2>=T.alifeNear^2 then
      o.liveLootId=o.liveLootId or ('live/'..tostring(o.id))
@@ -166,7 +166,7 @@ Actions.registerTarget('loot',{resolve=function(ctx,t)
  if t.source=='live' then
   if t.area~=ctx.r.area or game.fieldId~=t.area then return end
   for _,e in ipairs(game.entities or {}) do
-   if (e.id==t.id or e.liveLootId==t.id) and not e.dead and not e.removed and e.body and not e.body:isDestroyed() then
+   if (e.id==t.id or e.liveLootId==t.id) and not e.wreckClear and not e.dead and not e.removed and e.body and not e.body:isDestroyed() then
     local x,y=e.body:getPosition()
     if not ctx.e and game.player and not game.player.dead then
      local px,py=game.player.body:getPosition()
@@ -225,7 +225,7 @@ function O.find(ctx)
   end
   for _,e in ipairs(game.entities or {}) do
    if not e.dead and not e.removed and e.body and not e.body:isDestroyed() and e~=game.looting then
-    if e.kind=='container' and Loot.canTake(ctx.e,e) or e.kind=='husk' and prof.wrecks and (not prof.clears or e.origin) and (prof.clears or next(e.loot or {})) then
+    if e.kind=='container' and Loot.canTake(ctx.e,e) or e.kind=='husk' and not e.wreckClear and prof.wrecks and (not prof.clears or e.origin) and (prof.clears or next(e.loot or {})) then
      consider({kind='live',id=e.id})
     end
    end

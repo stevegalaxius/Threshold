@@ -212,6 +212,32 @@ local function primsOf(g,list)
  return keep
 end
 Nav.obstacleGroups=obstacles
+-- Sweep the ship's collision spine along a tractor segment. With no heading,
+-- use its turning envelope instead so it can rotate safely at the marker.
+function Nav.tractorClear(game, e, x, y, gx, gy, heading, ignore)
+ local dx,dy=gx-x,gy-y
+ local radius=heading and e.hull.radius+8 or max(e.halfLength,e.hull.radius)+8
+ local first,last=0,0
+ if heading then first,last=e.spine[1],e.spine[2] end
+ local c,s=cos(heading or 0),sin(heading or 0)
+ local reach=sqrt(dx*dx+dy*dy)+e.halfLength+radius
+ local groups=obstacles(game,e,reach,ignore,true)
+ for _,offset in ipairs({first,0,last}) do
+  local sx,sy=x+c*offset,y+s*offset
+  local loX,hiX=min(sx,sx+dx)-radius,max(sx,sx+dx)+radius
+  local loY,hiY=min(sy,sy+dy)-radius,max(sy,sy+dy)+radius
+  for _,g in ipairs(groups) do
+   if not g.virtual and g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
+    for _,o in ipairs(primsOf(g,groups)) do
+     if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY
+      and Sweep.sweepCircle(sx,sy,radius,o,dx,dy,1) then return false, o.owner end
+    end
+   end
+  end
+ end
+ return true
+end
+
 -- Commit to a detour around scenery instead of repeatedly aiming into it.
 -- Dynamic traffic still uses the predictive steering below.
 function Nav.waypoint(game,e,gx,gy,options)
