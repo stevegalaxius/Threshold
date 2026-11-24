@@ -25,5 +25,53 @@ return function()
  local Transport=require('src.transport')
  assert(Transport.route(home,work,0),'Heaven-Ladder commute has no outbound route')
  assert(Transport.route(work,home,0),'Heaven-Ladder commute has no return route')
+ do
+  local game=require('src.game').new()
+  game:loadField('venus')
+  local station
+  for _,e in ipairs(game.entities) do if e.kind=='station' and e.key=='station:venus_3' then station=e;break end end
+  assert(station,'missing manufacturing station')
+  game:dockInstantly(game.player,station)
+  game.state='docked'
+  local Cargo=require('src.ui.cargo')
+  local Hangar=require('src.ui.hangar')
+  local Yard=require('src.ui.shipyard')
+  local Stall=require('src.ui.stall')
+  local function click(r) assert(r);Cargo.mousepressed(game,r.x+r.w/2,r.y+r.h/2,1,{}) end
+  game.universe.credits=1000000
+  assert(Cargo.setTab(game,'shipyard'))
+  Cargo.draw(game)
+  local view=assert(Yard.layout(game))
+  assert(view.lot and view.lot.loadout and view.buy)
+  click(view.buy)
+  assert(Yard.layout(game).order)
+  Cargo.draw(game)
+  click(view.buy)
+  assert(not Yard.layout(game).order)
+  assert(Cargo.setTab(game,'hangar'))
+  Cargo.draw(game)
+  local hangar=Hangar.layout(game)
+  local lot
+  for _,entry in ipairs(hangar.ships) do if entry.dealer then lot=entry;break end end
+  assert(lot,'no parked dealer ship')
+  click(lot)
+  assert(Hangar.sel==lot.owner and Cargo.tab=='hangar')
+  Cargo.draw(game)
+  click(Hangar.layout(game).sell)
+  assert(Hangar.sel~=lot.owner and Cargo.tab=='hangar')
+  assert(Cargo.setTab(game,'stall'))
+  local pane
+  for _,r in ipairs(Stall.layout(game).panes) do if r.id=='orders' then pane=r end end
+  click(pane)
+  Cargo.draw(game)
+  click(Stall.layout(game).shipsTab)
+  Cargo.draw(game)
+  assert(Stall.layout(game).shipRows)
+  click(Stall.layout(game).goodsTab)
+  Cargo.draw(game)
+  assert(Stall.layout(game).picks)
+  Cargo.setTab(game,'cargo')
+  Stall.pane='stall'
+ end
  print('ok  station markets: local Venus dealer, residential shops, Heaven-Ladder commute')
 end

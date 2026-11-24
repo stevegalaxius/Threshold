@@ -211,7 +211,10 @@ end
 function View.ordersLayout(game, f)
 	local u, m = game.universe, f.main
 	local clock = u.clock or 0
-	f.orders = true
+ f.orders=true
+ f.goodsTab={x=m.x+16,y=m.y,w=92,h=28}
+ f.shipsTab={x=m.x+116,y=m.y,w=140,h=28}
+ if View.shipOrders then return shipOrdersLayout(game,f) end
 	f.cat = cached("cat|" .. tostring(f.k), clock, function() return Orders.catalogue(u, f.k, clock) end)
 	local half = math.floor((m.w - 48) / 2)
 	f.left, f.right = { x = m.x + 16, y = m.y + 36, w = half }, { x = m.x + 32 + half, y = m.y + 36, w = half }
@@ -323,7 +326,8 @@ end
 function View.ordersClick(game, f, mx, my, button)
 	local u = game.universe
 	if button ~= 1 then return true end
- if inside(f.orderToggle,mx,my) then View.shipOrders=not View.shipOrders;return true end
+ if inside(f.goodsTab,mx,my) then View.shipOrders=false;return true end
+ if inside(f.shipsTab,mx,my) then View.shipOrders=true;return true end
  if View.shipOrders then
   if f.shipOrder and f.shipOrder.status=='listed' and inside(f.cancelShip,mx,my) then
    local ok,why=ShipDelivery.cancelPlayer(u,f.k)
@@ -367,7 +371,8 @@ function View.draw(game)
 	for _, p in ipairs(f.panes) do Station.button(p, p.label, View.pane == p.id, true) end
 	if f.orders then
   if View.shipOrders then drawShipOrders(game,f,mx,my) else drawOrders(game,f,mx,my) end
-  Station.button(f.orderToggle,View.shipOrders and 'Goods' or 'Ship deliveries',inside(f.orderToggle,mx,my),true)
+  Station.button(f.goodsTab,'Goods',not View.shipOrders,true)
+  Station.button(f.shipsTab,'Ship deliveries',View.shipOrders,true)
   return
  end
 	local m = f.main
