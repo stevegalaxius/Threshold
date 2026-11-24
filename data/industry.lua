@@ -125,8 +125,8 @@ D.recipes[#D.recipes+1]={id='receive_surface_food',consumption='food',market=fal
 D.facilities={
  water={policy='fixed',recipes={'use_water'}},
  terraform_water={policy='fixed',recipes={'terraform_water'}},
- water_melter={policy='fixed',recipes={'melt_water'}},
- water_wells={policy='fixed',recipes={'pump_water'}},
+ water_melter={policy='adaptive',recipes={'melt_water'}},
+ water_wells={policy='adaptive',recipes={'pump_water'}},
  -- adaptive, so ice follows demand instead of piling up at the wells
  ice_wells={policy='adaptive',recipes={'cut_ice'}},
  silicon_refinery={policy='fixed',recipes={'refine_silicon'}},
