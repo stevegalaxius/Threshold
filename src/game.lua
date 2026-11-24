@@ -1650,9 +1650,44 @@ function Game:updateGuidedDock(e, ds, dt)
 	end
 end
 
+local legacyDockPhase = { npcAlign = true, npcRunway = true, npcBerth = true }
+
+-- Old builds saved an in-progress scripted move as an occupied runway.
+-- Continue on the beam if the saved pose is already lined up. Other ships
+-- rejoin from their saved position instead of holding an unusable clearance.
+function Game:resumeLegacyDock(e)
+	local ds = e.dockState
+	if not legacyDockPhase[ds.phase] then return end
+	local st, b = ds.station, e.body
+	local dock = ds.dock or st.dock
+	local lane = ds.mooring and berthRunway(ds.mooring) or dock
+	local side = ds.side or 1
+	local nose = dockAngle(st, side, lane) + (ds.mooring and 0 or pi)
+	local x, y = b:getPosition()
+	local lx, ly = dockLocal(st, side, x, y, lane)
+	local door = ds.mooring and 0 or dock.x2 + e.halfLength + 40
+	local tx, ty = dockWorld(st, side, door, 0, lane)
+	local lined = lx >= door - 12 and math.abs(ly) <= 20
+		and math.abs(wrapAngle(nose - b:getAngle())) < .15
+	local reserved = ds.mooring or e.bay
+	if lined and reserved and require("src.local_navigation").tractorClear(self, e, x, y, tx, ty, nose) then
+		ds.phase, ds.guided, ds.t, ds.checkAt = "tractor", "inbound", 0, nil
+		ds.blocked = nil
+	else
+		self:applyParking(e, nil)
+		e.dockState, e.bayStation, e.aiNextPlan = nil, nil, nil
+		if e.alifeRecord then e.alifeRecord.state, e.alifeRecord.docking = "travel", nil end
+	end
+	b:setActive(true)
+	b:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(x, y))
+	b:setAngularVelocity(st.body:getAngularVelocity())
+	return true
+end
+
 -- One step of a docking ship: tractor it in, pull it inside (or over to a
 -- berth), or wait.
 function Game:updateDockedShip(e, dt)
+ if self:resumeLegacyDock(e) then return end
  if e.dockState.station.sat then return require('src.satellites').updateDock(self,e,dt) end
  if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
  require("src.npc_repair").online(self,e,dt)

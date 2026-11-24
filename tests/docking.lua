@@ -96,6 +96,25 @@ return function()
 	ships = { hauler }
 	simulate(100)
 	assert(hauler.dockState.berth, "long hauler did not use an exterior berth")
+
+	-- Simulate restoring the fields written by a build with scripted berthing.
+	local legacy = hauler.dockState
+	legacy.phase, legacy.done, legacy.guided, legacy.t = "npcBerth", nil, nil, 408
+	local oldX, oldY = hauler.body:getPosition()
+	game:updateDockedShip(hauler, dt)
+	local newX, newY = hauler.body:getPosition()
+	assert(oldX == newX and oldY == newY and hauler.body:isActive(),
+		"restored approach moved the ship or left its body inactive")
+	assert(legacy.phase == "tractor", "aligned legacy arrival did not resume on the beam")
+	simulate(3)
+
+	-- An unaligned legacy arrival must release its reservation immediately.
+	legacy.phase, legacy.done, legacy.guided = "npcAlign", nil, nil
+	hauler.body:setAngle(hauler.body:getAngle() + math.pi/2)
+	game:updateDockedShip(hauler, dt)
+	assert(not hauler.dockState and hauler.body:isActive()
+		and not require("src.queue").dockBusy(game, station, dock),
+		"legacy approach still holds the runway")
 	assert(peak <= T.ramGrace, ("dock impacts reached %.1f px/s"):format(peak))
 	local player = spawn("intaki_wisp", dock.x2 + dock.runway, dock.hw * 1.5, 0)
 	game.player = player
