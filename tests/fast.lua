@@ -14,6 +14,28 @@ return function(game)
  -- 1. Content: every map loads and runs a second without crashing.
  -- This is the check for station, layout and data edits.
  require("tests.icon_model")(game)
+ -- A standoff can fit the ship and still leave a station wall in the way.
+ do
+  local Nav=require('src.local_navigation')
+  local world=love.physics.newWorld()
+  local wall=love.physics.newBody(world,0,0,'static')
+  local obstacle={kind='station',body=wall}
+  love.physics.newFixture(wall,love.physics.newRectangleShape(110,900)):setUserData(obstacle)
+  local actor={body=love.physics.newBody(world,-500,0,'dynamic'),halfLength=20,hull={radius=20}}
+  local scene={world=world,entities={obstacle},time=0}
+  local function sight(x,y)
+   local blocked=false
+   world:rayCast(x,y,100,0,function() blocked=true;return 0 end)
+   return not blocked
+  end
+  assert(not sight(-200,0))
+  assert(Nav.waypoint(scene,actor,-200,0,{cx=100,cy=0,stand=300,sight=sight}))
+  local last=actor.detour.path[#actor.detour.path]
+  assert(sight(last[1],last[2]),'salvage path ends behind the station')
+  actor.detour=nil
+  assert(not Nav.waypoint(scene,actor,-200,0,{cx=100,cy=0,stand=300,sight=function() return false end}),
+   'salvage planned an approach to a completely blocked wreck')
+ end
  require("tests.station_markets")()
  local g=fresh()
  for _,id in ipairs(Fields.list) do

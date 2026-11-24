@@ -211,6 +211,8 @@ function O.find(ctx)
     target=Actions.resolve(ctx,{target=spec})
    end
   end
+  local blocked=ctx.e and ctx.e.recoveryBlocked
+  if blocked and target and target.entity and (blocked[target.entity] or 0)>ctx.clock then return end
   if not target or target.done or not Actions.available(ctx,target) or Actions.sinking(ctx.r,target.x,target.y) then return end
   local s=target.source
   if s and (s.kind=='combat' or s.record.kind=='husk') and not Wreck.weapon(ctx.e or r.ship) then return end
@@ -371,6 +373,16 @@ local function recoverLive(ctx,target,dt,a)
  return 'running'
 end
 Actions.registerOperation('recover',{
+ sight=function(ctx,target,x,y)
+  if target.entity.kind~='husk' then return true end
+  local hit=ctx.game:raycast(x,y,target.x,target.y,ctx.e.team)
+  return not hit or hit.entity==target.entity or hit.entity.kind~='station'
+ end,
+ blocked=function(ctx,target)
+  local e=ctx.e
+  e.recoveryBlocked=e.recoveryBlocked or setmetatable({},{__mode='k'})
+  e.recoveryBlocked[target.entity]=ctx.clock+30
+ end,
  inRange=function(ctx,target,a)
   local e=ctx.e;local object=target.entity
   if not object or object.kind=='container' then
