@@ -156,23 +156,30 @@ local function adjust(u,unmet,all)
     local rated=math.max(1,c.make[key] or 0)
     local shelf=math.min(E.lot*T.makerShelfLots,(c.cap or math.huge)*.9)
     local now=u.clock or 0
-    if t.salesAt and now>t.salesAt then
-     local dt=now-t.salesAt
+    -- A station can run several adaptive recipes during the same tick.
+    t.makerHistory=t.makerHistory or {}
+    local history=t.makerHistory[c.id]
+    if not history then
+     history={sales=rated*v}
+     t.makerHistory[c.id]=history
+    end
+    local total=(u.madeAt or {})[key..'|'..c.item] or 0
+    if history.at and now>history.at then
+     local dt=now-history.at
      -- what the plant really made (short inputs or a full shelf make less
      -- than its scale asks for), not rated*scale
-     local total=(u.madeAt or {})[key..'|'..c.item] or 0
-     local made=total-(t.madeTotal or total)
-     local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
+     local made=total-history.madeTotal
+     local out=math.max(0,made-(have-history.have))*3600/dt
      local a=1-math.exp(-dt/(T.makerSalesHours*3600))
-     t.sales=(t.sales or out)+(out-(t.sales or out))*a
+     history.sales=history.sales+(out-history.sales)*a
     end
-    t.salesAt,t.salesHave=now,have
-    t.madeTotal=(u.madeAt or {})[key..'|'..c.item] or 0
+    history.at,history.have=now,have
+    history.madeTotal=total
     -- plus what buyers it could have served at a paying price went without
     -- (E.update's missed), worked off over T.makerRestoreHours: sales alone
     -- are capped by the plant's own output, so they never call for more
     local lost=(u.economyMissed and u.economyMissed[key] or {})[c.item] or 0
-    local goal=((t.sales or rated)+(lost+shelf/2-have)/T.makerRestoreHours)/rated
+    local goal=(history.sales+(lost+shelf/2-have)/T.makerRestoreHours)/rated
     goal=math.max(E.scaleMin,math.min(E.scaleMax,goal))
     v=v<goal and math.min(goal,v*(1+E.scaleStep)) or math.max(goal,v*(1-E.scaleStep))
    else
@@ -289,7 +296,15 @@ target=function(u,key,item,supplier)
  local use=serviceUse(u,key,item)
  if item==Food.item then use=math.max(use,(Food.rates(key))) end
  for _,c in ipairs(C.byItem(item)) do use=math.max(use,c.use[key] or 0) end
- local want=use*(supplier and E.reserveHours or E.hours)+(inputPlan(u,key).buffers[item] or 0)
+ -- Keep a pickup-and-transit buffer for inputs whose use depends on
+ -- currently allocated production. The buffer cannot shrink to zero
+ -- just because the last batch was blocked by a shortage.
+ local plan=inputPlan(u,key)
+ local want=use*(supplier and E.reserveHours or E.hours)+(plan.buffers[item] or 0)
+ if T.priceDriven[item] and not supplier then
+  local inputRate=math.max(plan.rates[item] or 0,E.rate(u,key,item)-use)
+  want=want+inputRate*T.freightLeadTime/3600
+ end
  if item==require('src.dealers').FRAME then return require('src.dealers').frameTarget(u,key) end
  local floor=E.floor[item]
  if floor and supportsSupplies(key) then want=math.max(want,floor) end
@@ -607,9 +622,24 @@ local function run(u,clock,pause)
   if amount<=0 then state.offers[entry.id]=nil else o.amount=amount;remaining[k]=remaining[k]-amount end
  end
  pause()
- local inbound={}
+ local inbound,late={},{}
  for _,o in pairs(state.offers) do if o.layoutScope==E.scope then
-  local k=o.target..'|'..o.item;inbound[k]=(inbound[k] or 0)+o.amount
+  local k=o.target..'|'..o.item
+  inbound[k]=(inbound[k] or 0)+o.amount
+  if o.state=='reserved' and o.loaded then
+   local eta=(o.loadedAt or clock)+Transport.duration(o,o.source,clock)
+   local pilot=u.npcs and u.npcs[o.owner]
+   if pilot and pilot.route and pilot.arrive then
+    local due=require('src.queue').due(pilot)
+    if pilot.route[pilot.index]==o.target then eta=due
+    else eta=math.max(eta,due) end
+   end
+   if eta>clock then
+    local delayed=late[k] or {amount=0,eta=eta};late[k]=delayed
+    delayed.amount=delayed.amount+o.amount
+    delayed.eta=math.min(delayed.eta,eta)
+   end
+  end
  end end
  -- what buyers wanted that no station could supply, by good
  local unmet={}
@@ -643,10 +673,26 @@ local function run(u,clock,pause)
    local level=E.orderLevel(u,s,item,want,producer)
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
-   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0
-    or (T.priceDriven[item] and producer) and E.lot or level)
+   -- Keep local chemical and essential supply demand covered without
+   -- holding a full lot off the market.
+   local reserve=(T.priceDriven[item] and producer and item~='fertilizer' and item~='explosives' and item~='medical_supplies' and item~='water' and item~=Food.item) and E.lot or level
+   spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or reserve)
    local coming=have+(inbound[s..'|'..item] or 0)
-   if want>0 and coming<want then buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want} end
+   if want>0 and coming<want then
+    local rate=math.max(capacityUse(u,s,item),E.rate(u,s,item))
+    local lowCover=T.priceDriven[item] and (count==0 or rate>0 and count*3600/rate<=T.freightLeadTime)
+    buyers[#buyers+1]={c=s,short=level-coming,need=want-coming,fill=coming/want,lowCover=lowCover}
+   elseif T.priceDriven[item] and want>0 then
+    local delayed=late[s..'|'..item]
+    if delayed then
+     local usage=math.max(capacityUse(u,s,item),E.rate(u,s,item))
+     local gap=math.min(want,math.ceil(usage*(delayed.eta-clock)/3600)-math.max(0,coming-delayed.amount))
+     if gap>0 then
+      gap=math.min(want,math.max(T.orderMinLoad,gap))
+      buyers[#buyers+1]={c=s,short=gap,need=gap,fill=0,lowCover=true,bridgeETA=delayed.eta}
+     end
+    end
+   end
   end
   -- neediest first: the emptiest shelf against its target gets first call
   table.sort(buyers,function(a,b) return a.fill<b.fill or a.fill==b.fill and a.c<b.c end)
@@ -667,10 +713,11 @@ local function run(u,clock,pause)
    -- Any bare shelf takes a part load too: a slow maker that can never
    -- spare a whole lot (composites, siloxanes, a small ice well) would
    -- otherwise hold its stock while every buyer sits empty.
-   local minLot=Stock.count(u,c,item)==0 and T.orderMinLoad or E.minOrder(item)
+   local minLot=(entry.lowCover or Stock.count(u,c,item)==0) and T.orderMinLoad or E.minOrder(item)
    local starving=E.shortageAge(u,c,item,clock)>=T.unmetShortageAge
    while short>0 do
     local best,bestScore
+    local fallback,fallbackBid,fallbackAmount
     for _,s in ipairs(participants) do
      -- hub to hub is a trunk run: it waits until the exporter can spare
      -- T.trunkMinOrders ordinary lots (at most a trunk lot), unless the
@@ -683,7 +730,8 @@ local function run(u,clock,pause)
      -- compact goods (ammunition) have value-based lots bigger than any
      -- maker's shelf, so otherwise no order was ever posted
      if starving then need=math.min(need,math.max(T.orderMinLoad,E.lot)) end
-     if s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
+     local early=not entry.bridgeETA or (L.byId[s].area==L.byId[c].area and clock+180<entry.bridgeETA)
+     if early and s~=c and spare[s]>=math.min(need,short) and (pass==2 or Dark.isDarkNode(s)==darkBuyer) and routed(hubPlan,s,c,item) then
       local k=s..'>'..c
       if reach[k]==nil then reach[k]=reachable(s,c,clock) end
       if reach[k] then
@@ -700,11 +748,27 @@ local function run(u,clock,pause)
        end
        -- a price-driven good moves only where it pays: the buyer's price
        -- must beat the source's price plus the haul (score, landed cost)
+       -- An empty buyer can fund the cheapest reachable shipment at
+       -- landed cost when its ordinary stock-based bid is too low.
+       if T.priceDriven[item] and entry.lowCover and short==entry.short and score>=Chemicals.price(u,c,item) then
+        local volume=require('src.data').items[item].volume
+        local amount=math.min(short,spare[s],math.floor(math.min(30,T.orderMaxVolume)/volume))
+        local quote=Transport.quote({source=s,target=c,item=item,amount=amount},clock)
+        local landed=Transport.goodsPrice(u,s,item)+Transport.payment(quote)/amount
+        if crossing>0 then landed=landed*(1+T.darkCrossingMarkup) end
+        local bid=math.floor(landed*100+1)/100
+        if (not fallbackBid or bid<fallbackBid)
+         and require('src.accounts').spendable(u,c)>=math.ceil(bid*amount) then
+         fallback,fallbackBid,fallbackAmount=s,bid,amount
+        end
+       end
        local pays=not T.priceDriven[item] or score<Chemicals.price(u,c,item)
        if pays and (not bestScore or score<bestScore) then best,bestScore=s,score end
       end
      end
     end
+    local shortageBid
+    if not best and pass==2 and fallback then best,shortageBid=fallback,fallbackBid end
     if not best and pass==1 then break end
     if not best then
      -- only real scarcity counts: spare stock that just can't reach this
@@ -716,7 +780,7 @@ local function run(u,clock,pause)
      -- a price-driven maker can't see a sale it never made, so the buyer's
      -- shortfall is charged to the cheapest maker that could reach it at a
      -- paying landed price, whatever that maker has on its shelf
-     if T.priceDriven[item] then
+     if T.priceDriven[item] and not entry.bridgeETA then
       local Chemicals=require('src.markets')
       local bid=Chemicals.price(u,c,item)
       local amount=math.min(math.max(1,math.floor(30/require('src.data').items[item].volume)),short)
@@ -747,6 +811,7 @@ local function run(u,clock,pause)
     local trunk=hubPlan.kind[best]~=nil and hubPlan.kind[c]~=nil and root(L.byId[best].area)~=root(L.byId[c].area)
     local vol=require('src.data').items[item].volume
     local n=math.min(math.max(1,math.floor((trunk and T.trunkLot or T.orderMaxVolume)/vol)),short,spare[best])
+    if shortageBid then n=math.min(n,fallbackAmount) end
     -- only a lot too big for an ordinary hold needs a bulk freighter: a
     -- short top-up between hubs is an ordinary order anyone can run
     if trunk and n*vol<=T.orderMaxVolume then trunk=false end
@@ -754,7 +819,8 @@ local function run(u,clock,pause)
     local priority=Stock.count(u,c,item)==0 and 1 or 0
     local production=capacityUse(u,c,item)>0
     local urgency=(critical and 3 or production and 2 or 1)*math.max(0,1-entry.fill)
-    Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,
+    if entry.lowCover then urgency=math.max(urgency,1.5) end
+    Tasks.post(u,Transport.quote({kind='transport',source=best,target=c,item=item,amount=n,stocked=true,shortageBid=shortageBid,
      layoutScope=E.scope,order=true,priority=priority,urgency=urgency,cooldown=30,placed=clock,npcClaimAt=clock+T.freightListingSeconds,
      -- a price-driven good is moved by a trader who buys it and sells it
      -- on (src/transport.lua), not by a courier the buyer pays

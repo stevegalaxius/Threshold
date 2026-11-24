@@ -48,6 +48,7 @@ function F.flow(u,key,m,dt)
  local wanted=units(use,'foodUseCarry')
  local E=require('src.economy')
  local Stock=require('src.stockpile')
+ if T.priceDriven[F.item] and make>0 then make=make*E.scale(u,key,recipe) end
  local made,short=0,0
  if make>0 then
   m.recipes=m.recipes or {};local progress=m.recipes[recipe.id] or {carry=0,credit={}};m.recipes[recipe.id]=progress
@@ -70,7 +71,7 @@ function F.flow(u,key,m,dt)
  -- the station's residents buy their meals: money from outside the
  -- trade network, and what lets a habitat pay for its food freight
  if eaten>0 and T.residentFoodPay>0 then
-  require('src.accounts').receive(u,key,eaten*require('src.markets').price(u,key,F.item)*T.residentFoodPay,'sold','residents')
+  require('src.accounts').receive(u,key,eaten*require('src.data').items[F.item].price*T.residentFoodPay,'sold','residents')
  end
  local record=require('src.stockpile').record(u,key)
  local state=record.food or {output=1};record.food=state

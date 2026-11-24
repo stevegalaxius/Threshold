@@ -75,8 +75,10 @@ function C.quote(game,o)
   return {amount=o.party,payment=fare,detail=detail,routeAU=o.routeAU,passenger=true}
  end
  local fit,stock=Ship.canFit(game.player,o.item,o.amount),Transport.available(u,o.source,o.item,o.id)
- local amount=math.floor(math.min(o.amount,fit,stock))
- local limit=amount<o.amount and (stock<fit and 'stock' or 'hold') or nil
+ local trusted=Transport.trustedUnits(u,owner(u),o)
+ if trusted<1 then return nil,"Insufficient courier standing for this cargo" end
+ local amount=math.floor(math.min(o.amount,fit,stock,trusted))
+ local limit=amount<o.amount and (amount==trusted and 'standing' or stock<fit and 'stock' or 'hold') or nil
  if amount<1 then return nil,'No cargo space or available stock' end
  Transport.quote(o,u.clock,u)
  local t=copy(o);t.amount=amount

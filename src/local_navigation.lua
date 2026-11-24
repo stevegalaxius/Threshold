@@ -218,8 +218,9 @@ function Nav.waypoint(game,e,gx,gy,options)
  options=options or {}
  local x,y=e.body:getPosition();local now=game.time or 0
  local old=e.detour
+ local needsSight=options.sight~=nil
  local function distance(ax,ay,bx,by)return sqrt((ax-bx)^2+(ay-by)^2) end
- if old and old.ignore==options.ignore and old.surface==options.allowSurface
+ if old and old.sight==needsSight and old.ignore==options.ignore and old.surface==options.allowSurface
   and distance(gx,gy,old.gx,old.gy)<180 and now<old.expires then
   while old.index<#old.path and distance(x,y,old.path[old.index][1],old.path[old.index][2])<120 do old.index=old.index+1 end
   local point=old.path[old.index]
@@ -244,20 +245,27 @@ function Nav.waypoint(game,e,gx,gy,options)
   return true
  end
  local function save(path,ttl)
-  e.detour={gx=requestedX,gy=requestedY,ignore=options.ignore,surface=options.allowSurface,
+  e.detour={gx=requestedX,gy=requestedY,ignore=options.ignore,surface=options.allowSurface,sight=needsSight,
    path=path,index=1,expires=now+ttl}
   return path[1][1],path[1][2],#path>1
  end
  -- A near-side mining standoff can fall inside the parent asteroid.
  -- Find an accessible point on the same working ring before planning.
- if not clear(gx,gy,gx,gy) and options.stand then
+ local function usable(px,py)
+  return clear(px,py,px,py) and (not options.sight or options.sight(px,py))
+ end
+ if not usable(gx,gy) and options.stand then
   local best
   for i=0,23 do
    local angle=i*pi/12
    local px,py=options.cx+cos(angle)*options.stand,options.cy+sin(angle)*options.stand
-   local cost=distance(x,y,px,py)
-   if (not best or cost<best) and clear(px,py,px,py) then gx,gy,best=px,py,cost end
+   if usable(px,py) then
+    local cost=distance(x,y,px,py)
+    if needsSight and not clear(x,y,px,py) then cost=cost+direct end
+    if not best or cost<best then gx,gy,best=px,py,cost end
+   end
   end
+  if not best and needsSight then return nil end
  end
  if clear(x,y,gx,gy) then return save({{gx,gy}},.8) end
  if not clear(gx,gy,gx,gy) then return save({{gx,gy}},2) end
@@ -287,7 +295,7 @@ function Nav.waypoint(game,e,gx,gy,options)
   Worker.ask('path',{x,y,gx,gy,radius,padding,direct,Path.pack(prims)},function(found)
    if e.pathAsk~=ask or e.dead or e.removed then return end
    e.pathAsk=nil
-   e.detour={gx=requestedX,gy=requestedY,ignore=ignore,surface=surface,
+   e.detour={gx=requestedX,gy=requestedY,ignore=ignore,surface=surface,sight=needsSight,
     path=found.path,index=1,expires=(game.time or 0)+found.ttl}
   end)
   return save({{gx,gy}},1.5)

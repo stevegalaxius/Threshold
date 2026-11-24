@@ -183,7 +183,7 @@ function A.step(ctx)
  return status~='delegate'
 end
 -- One approach/hold controller, used by every interaction and idle action.
-function A.move(ctx,target,stand,keepDistance)
+function A.move(ctx,target,stand,keepDistance,sight)
  local e,AI=ctx.e,ctx.AI
  local x,y=e.body:getPosition();local dx,dy=target.x-x,target.y-y
  local d=math.sqrt(dx*dx+dy*dy);local ux,uy=dx/math.max(1,d),dy/math.max(1,d)
@@ -195,7 +195,8 @@ function A.move(ctx,target,stand,keepDistance)
  end
  local Nav=require('src.local_navigation')
  local gx,gy=target.x-ux*stand,target.y-uy*stand
- local wx,wy=Nav.waypoint(ctx.game,e,gx,gy,{ignore=target.entity,cx=target.x,cy=target.y,stand=stand})
+ local wx,wy=Nav.waypoint(ctx.game,e,gx,gy,{ignore=target.entity,cx=target.x,cy=target.y,stand=stand,sight=sight})
+ if not wx then return false,true end
  local rx,ry=wx-x,wy-y;local leg=math.max(.001,math.sqrt(rx*rx+ry*ry))
  local want=math.min(require('src.npc').liveCruise(e),leg*.8,math.sqrt(2*Nav.brakeAccel(e)*leg))
  local mx,my,scale=Nav.steer(ctx.game,e,rx/leg,ry/leg,want,target.vx or 0,target.vy or 0,
@@ -230,7 +231,17 @@ local function interaction(ctx,a,elapsed,approachOnly)
   freezeRoute(ctx.r,elapsed)
   local keep=a.keepDistance or op and op.keepDistance
   if type(keep)=='function' then keep=keep(ctx,target) end
-  local near=ctx.r.state=='docked' and op.allowDocked or A.move(ctx,target,stand,keep)
+  local near,blocked
+  if ctx.r.state=='docked' then near=op.allowDocked
+  else
+   local sight
+   if op and op.sight and target.entity then sight=function(x,y) return op.sight(ctx,target,x,y) end end
+   near,blocked=A.move(ctx,target,stand,keep,sight)
+  end
+  if blocked then
+   if op and op.blocked then op.blocked(ctx,target) end
+   return 'failed','no clear approach to target'
+  end
   -- Standoff is a steering goal, not an equipment gate. Moving targets and
   -- orbital drag can leave a persistent position error inside usable range.
   if op and op.inRange and not approachOnly then near=op.inRange(ctx,target,a) end
