@@ -205,7 +205,7 @@ function D.buildOrder(u,key)
  return oldest
 end
 
-function D.orderShip(u,st,hullId)
+function D.orderShip(u,st,hullId,paint)
  local state,def=D.state(u,st)
  if not state or not def.assembly or def.service or not D.buildsShips(st) then return nil,'No civilian assembly here' end
  if state.playerOrder then return nil,'Collect or cancel your current order first' end
@@ -213,10 +213,15 @@ function D.orderShip(u,st,hullId)
  local offered=false
  for _,id in ipairs(def.hulls) do if id==hullId then offered=true;break end end
  if not hull or not offered then return nil,'This yard does not build that hull' end
+ local paints=Paint.pool(hull)
+ paint=paint or paints[1]
+ local availablePaint=false
+ for _,name in ipairs(paints) do if name==paint then availablePaint=true;break end end
+ if not availablePaint then return nil,'This paint is not offered for that hull' end
  local price=D.price(hull,hull.loadout,def.markup)
  if u.credits<price then return nil,'Not enough credits' end
  u.credits=u.credits-price
- state.playerOrder={hull=hullId,price=price,at=u.clock}
+ state.playerOrder={hull=hullId,paint=paint,price=price,at=u.clock}
  return state.playerOrder
 end
 
@@ -248,6 +253,7 @@ function D.output(u,key,hull,n)
   local lot=D.roll(def,s,hull,paid)
   if paid then
    order.lot=lot.id
+   lot.paint=order.paint or Paint.pool(data.hulls[hull])[1]
    lot.playerOrder=true
    lot.price=0
   elseif order and order.request and order.hull==hull then s.serviceOrders[order.request]=nil end

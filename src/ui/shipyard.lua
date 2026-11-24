@@ -8,7 +8,7 @@ local Hangar = require("src.ui.hangar")
 
 local Dealers = require("src.dealers")
 
-local Yard = {sel=nil,scroll=0}
+local Yard = {sel=nil,scroll=0,paintByHull={}}
 
 local lg = love.graphics
 local floor, max, min = math.floor, math.max, math.min
@@ -32,7 +32,12 @@ function Yard.layout(game)
  local stock={}
  for i,id in ipairs(def.hulls) do
   local hull=data.hulls[id]
-  stock[i]={id=id,hull=id,loadout=hull.loadout,paint=Paint.pool(hull)[1],trimName='Stock',
+  local order=state.playerOrder
+  local reserved=order and order.hull==id and order
+  local built=reserved and reserved.lot and Dealers.find(game.universe,st,reserved.lot)
+  local paint=reserved and (reserved.paint or built and built.paint or Paint.pool(hull)[1])
+   or Yard.paintByHull[id]
+  stock[i]={id=id,hull=id,loadout=hull.loadout,paint=paint or Paint.pool(hull)[1],trimName='Stock',
    price=Dealers.price(hull,hull.loadout,def.markup)}
  end
  local valid=false
@@ -57,19 +62,21 @@ function Yard.layout(game)
 		end
 	end
 	if not L.lot then return L end
-	-- detail: left column (hull, paint, fit), right column (numbers, parking, buy)
+	-- Detail: hull, paint and fit beside the stats and order controls.
 	local D = L.detail
 	L.lx, L.lw = D.x + PAD, LEFT_W
 	L.rx = D.x + PAD + LEFT_W + 24
 	L.rw = D.x + D.w - PAD - L.rx
 	L.paintY = D.y + 188
 	L.buy = { x = L.rx, y = D.y + D.h - PAD - 34, w = L.rw, h = 34 }
-	L.tiPrev = { x = L.rx, y = L.buy.y - 104, w = 26, h = 24 }
-	L.tiNext = { x = L.rx + L.rw - 26, y = L.tiPrev.y, w = 26, h = 24 }
+ L.paints={}
+ local paints=Paint.pool(data.hulls[L.lot.hull])
+ local cell=math.min(32,math.floor(L.lw/#paints))
+ for i,name in ipairs(paints) do
+  L.paints[i]={name=name,x=L.lx+(i-1)*cell,y=L.paintY,w=cell-5,h=26}
+ end
 	return L
 end
-
--- Where a hull would park here: "inside", "mooring N" or nil.
 
 local function drawList(game, L, mx, my)
 	local P = L.list
@@ -131,13 +138,20 @@ local function drawDetail(game, L, mx, my)
 	lg.print(hull.name, x, y)
 	y = Sheet.outline(hull, paint, x, y + 30, w, 108)
 	Sheet.label("Paint", x, L.paintY - 17)
-	local c = (lot.color or Paint.preset(lot.paint))
-	lg.setColor(c[1], c[2], c[3])
-	lg.rectangle("fill", x, L.paintY, 26, 26, 4, 4)
-	lg.setFont(HUD.font(14))
-	lg.setColor(HUD.INK)
-	lg.print(lot.color and lot.color.name or lot.paint, x + 36, L.paintY + 5)
-	y = Sheet.paragraph(Sheet.description(hull), x, L.paintY + 36, w, 4) + 8
+ local locked=L.order and L.order.hull==lot.hull
+ for _,swatch in ipairs(L.paints) do
+  local color=Paint.preset(swatch.name)
+  lg.setColor(color[1],color[2],color[3],locked and swatch.name~=lot.paint and .35 or 1)
+  lg.rectangle('fill',swatch.x,swatch.y,swatch.w,swatch.h,3,3)
+  if swatch.name==lot.paint or not locked and inRect(swatch,mx,my) then
+   lg.setColor(HUD.INK)
+   lg.rectangle('line',swatch.x,swatch.y,swatch.w,swatch.h,3,3)
+  end
+ end
+ lg.setFont(HUD.font(14))
+ lg.setColor(HUD.INK)
+ lg.print(paint.name or lot.paint,x,L.paintY+30)
+ y=Sheet.paragraph(Sheet.description(hull),x,L.paintY+52,w,4)+8
 	y = Sheet.label(("%s fit \194\183 %d slots"):format(lot.trimName or lot.trim, #hull.slots), x, y)
 	Sheet.slots(hull, lot.loadout, x, y, w, D.y + D.h - PAD)
 
@@ -182,15 +196,21 @@ function Yard.mousepressed(game,mx,my,button)
  for _,row in ipairs(L.rows) do
   if inRect(row,mx,my) then Yard.sel=row.id;return end
  end
- if not L.lot or not inRect(L.buy,mx,my) then return end
+ if not L.lot then return end
  local order=L.order
+ if not order or order.hull~=L.lot.hull then
+  for _,swatch in ipairs(L.paints) do
+   if inRect(swatch,mx,my) then Yard.paintByHull[L.lot.hull]=swatch.name;return end
+  end
+ end
+ if not inRect(L.buy,mx,my) then return end
  if order then
   if order.hull~=L.lot.hull then return end
   if order.lot then return 'collect',order.lot end
   local ok,why=Dealers.cancelShipOrder(game.universe,L.station)
   game:toast(ok and 'BUILD CANCELED. FUNDS RETURNED' or why,1.5)
  elseif game.universe.credits>=L.lot.price then
-  local ok,why=Dealers.orderShip(game.universe,L.station,L.lot.hull)
+  local ok,why=Dealers.orderShip(game.universe,L.station,L.lot.hull,L.lot.paint)
   game:toast(ok and 'BUILD ORDER PLACED' or why,1.5)
  end
 end
