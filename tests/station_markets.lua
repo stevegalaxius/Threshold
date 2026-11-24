@@ -81,16 +81,39 @@ return function()
   click(Hangar.layout(game).sell)
   assert(Hangar.sel~=lot.owner and Cargo.tab=='hangar')
   assert(Cargo.setTab(game,'stall'))
-  local pane
-  for _,r in ipairs(Stall.layout(game).panes) do if r.id=='orders' then pane=r end end
-  click(pane)
-  Cargo.draw(game)
-  click(Stall.layout(game).shipsTab)
-  Cargo.draw(game)
-  assert(Stall.layout(game).shipRows)
-  click(Stall.layout(game).goodsTab)
-  Cargo.draw(game)
-  assert(Stall.layout(game).picks)
+  local function openPane(id)
+   for _,r in ipairs(Stall.layout(game).panes) do
+    if r.id==id then click(r);return Stall.layout(game) end
+   end
+   error('missing Manage pane '..id)
+  end
+  local width,height,flags=love.window.getMode()
+  for _,size in ipairs({{960,540},{1280,720}}) do
+   assert(love.window.setMode(size[1],size[2],flags))
+   local goods=openPane('orders')
+   assert(goods.orders and not goods.deliveries and goods.picks[1])
+   click(goods.picks[1])
+   goods=Stall.layout(game)
+   Cargo.draw(game)
+   local bottom=goods.main.y+goods.main.h
+   assert(goods.post.y+goods.post.h<=bottom)
+   for _,rect in ipairs(goods.picks) do assert(rect.y+rect.h<=goods.formY-24,'goods tiles overlap order form') end
+   local delivery=openPane('deliveries')
+   assert(delivery.deliveries and not delivery.orders)
+   assert(delivery.shipAction.y+delivery.shipAction.h<=bottom)
+   for _,row in ipairs(delivery.shipRows) do
+    assert(row.x+row.w<delivery.shipDetail.x,'ship list overlaps detail')
+    assert(row.y+row.h<=bottom)
+   end
+   if delivery.shipRows[2] then
+    local chosen=delivery.shipRows[2].offer
+    local cash=game.universe.credits
+    click(delivery.shipRows[2])
+    assert(Stall.layout(game).shipQuote==chosen and game.universe.credits==cash,'ship selection should only open its quote')
+   end
+   Cargo.draw(game)
+  end
+  assert(love.window.setMode(width,height,flags))
   Cargo.setTab(game,'cargo')
   Stall.pane='stall'
  end

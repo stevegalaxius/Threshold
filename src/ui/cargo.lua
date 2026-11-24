@@ -1979,7 +1979,13 @@ function Cargo.draw(game)
 		end
 		if Cargo.tab == "stall" then
    StallView.draw(game)
-   Station.footer('Station management: your standing, ships, storage and satellites, your market stall, and the station\'s industry and services.', 'NPCs who dock here shop your stall alongside the house shelves \194\183 Cheap sells fast, Premium slowly \194\183 Unpaid rent closes the stall and moves its stock to your storage here')
+   if StallView.pane=='deliveries' then
+    Station.footer('Ship deliveries','Select a ship to review its fit and quote. An NPC carrier delivers it to this hangar.')
+   elseif StallView.pane=='orders' then
+    Station.footer('Buy orders','NPC haulers bring goods to your storage or market stall.')
+   else
+    Station.footer('Station management','Manage your property, market stall, and station services.')
+   end
    return
   end
 		if Cargo.tab == "jobs" then

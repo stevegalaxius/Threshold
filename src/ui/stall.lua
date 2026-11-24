@@ -15,6 +15,9 @@ local HUD, Station = require("src.hud"), require("src.ui.station")
 local Stall = require("src.stalls")
 local Hold = require("src.inventory.hold")
 local Icons = require("src.icons")
+local Sheet = require("src.ui.shipsheet")
+local Paint = require("src.paint")
+local Dealers = require("src.dealers")
 local View = { pane = "stall", pick = nil, qty = 10, deliver = "storage", catScroll = 0 }
 local lg = love.graphics
 
@@ -70,11 +73,14 @@ function View.layout(game)
 	end
 	-- the main column's panes: the stall, buy orders, the station's
 	-- industry (where it has any) and its services
-	local ids = { { "stall", "Market stall" }, { "orders", "Buy orders" } }
+	local ids = { { "stall", "Market stall" }, { "orders", "Buy orders" }, { "deliveries", "Ship deliveries" } }
 	if require("src.ui.industry").has(st) then ids[#ids + 1] = { "industry", "Industry" } end
 	if require("src.ui.services").has(st) then ids[#ids + 1] = { "services", "Services" } end
 	f.panes = {}
-	for i, p in ipairs(ids) do f.panes[i] = { id = p[1], label = p[2], x = x + 352 + (i - 1) * 140, y = y, w = 132, h = 32 } end
+	local step=math.min(140,math.floor((w-352)/#ids))
+ for i,p in ipairs(ids) do
+  f.panes[i]={id=p[1],label=p[2],x=x+352+(i-1)*step,y=y,w=step-6,h=32}
+ end
 	local offered = false
 	for _, p in ipairs(f.panes) do if p.id == View.pane then offered = true end end
 	if not offered then View.pane = "stall" end
@@ -82,7 +88,11 @@ function View.layout(game)
 	if View.pane == "industry" or View.pane == "services" then f.view = View.pane; return f end
 	f.stall = k and Stall.get(u, k)
 	local m = f.main
-	if View.pane == "orders" then return View.ordersLayout(game, f) end
+	if View.pane=='orders' or View.pane=='deliveries' then
+  f.main.x,f.main.w=x,w
+  if View.pane=='deliveries' then return View.deliveryLayout(game,f) end
+  return View.ordersLayout(game,f)
+ end
 	if not f.stall then
 		f.can, f.why = Stall.canRent(u, k)
 		f.rent = { x = m.x + 24, y = m.y + 200, w = 220, h = 40 }
@@ -192,19 +202,31 @@ local STATUS = { open = { "On the board", GOLD }, hauling = { "Hauler carrying i
 
 local ShipDelivery=require('src.ship_delivery')
 
-local function shipOrdersLayout(game,f)
+function View.deliveryLayout(game,f)
  local m,u=f.main,game.universe
+ f.deliveries=true
  f.shipOrder=ShipDelivery.playerOrder(u,f.k)
  local options=cached('ships|'..f.k,u.clock,function() return ShipDelivery.catalogue(u,f.k,u.clock) end)
- local visible=math.max(1,math.floor((m.h-115)/38))
+ local listW=math.min(350,math.floor(m.w*.36))
+ f.shipList={x=m.x,y=m.y,w=listW,h=m.h}
+ f.shipDetail={x=m.x+listW+12,y=m.y,w=m.w-listW-12,h=m.h}
+ local rowH=48
+ local visible=math.floor((m.h-40)/rowH)
  View.shipScroll=math.max(0,math.min(View.shipScroll or 0,#options-visible))
  f.shipRows={}
- for i=1,visible do
-  local offer=options[i+View.shipScroll]
-  if not offer then break end
-  f.shipRows[i]={offer=offer,x=m.x+16,y=m.y+108+(i-1)*38,w=m.w-32,h=30}
+ if f.shipOrder and (f.shipOrder.status=='listed' or f.shipOrder.status=='in transit') then
+  f.activeDelivery=f.shipOrder
  end
- f.cancelShip={x=m.x+m.w-114,y=m.y+58,w=98,h=28}
+ for i,offer in ipairs(options) do
+  if offer.hull==View.shipPick then f.shipQuote=offer end
+  local index=i-View.shipScroll
+  if index>=1 and index<=visible then
+   f.shipRows[#f.shipRows+1]={offer=offer,x=m.x+8,y=m.y+34+(index-1)*rowH,w=listW-16,h=rowH-4}
+  end
+ end
+ if not f.shipQuote then f.shipQuote=f.shipRows[1] and f.shipRows[1].offer end
+ local detail=f.shipDetail
+ f.shipAction={x=detail.x+14,y=detail.y+detail.h-45,w=detail.w-28,h=31}
  return f
 end
 
@@ -212,16 +234,13 @@ function View.ordersLayout(game, f)
 	local u, m = game.universe, f.main
 	local clock = u.clock or 0
  f.orders=true
- f.goodsTab={x=m.x+16,y=m.y,w=92,h=28}
- f.shipsTab={x=m.x+116,y=m.y,w=140,h=28}
- if View.shipOrders then return shipOrdersLayout(game,f) end
 	f.cat = cached("cat|" .. tostring(f.k), clock, function() return Orders.catalogue(u, f.k, clock) end)
 	local half = math.floor((m.w - 48) / 2)
 	f.left, f.right = { x = m.x + 16, y = m.y + 36, w = half }, { x = m.x + 32 + half, y = m.y + 36, w = half }
 	-- item tiles
-	local T2, G2 = 58, 6
+	local T2, G2 = 48, 6
 	local cols = math.max(1, math.floor((half + G2) / (T2 + G2)))
-	local rows = math.max(1, math.floor((m.h - 36 - 24 - 190) / (T2 + G2)))
+	local rows = math.max(1, math.floor((m.h - 248)/(T2+G2)))
 	local maxScroll = math.max(0, math.ceil(#f.cat / cols) - rows)
 	View.catScroll = math.max(0, math.min(View.catScroll, maxScroll))
 	f.picks = {}
@@ -231,7 +250,7 @@ function View.ordersLayout(game, f)
 		local c, r = (i - 1) % cols, math.floor((i - 1) / cols)
 		f.picks[#f.picks + 1] = { id = id, x = f.left.x + c * (T2 + G2), y = f.left.y + 24 + r * (T2 + G2), w = T2, h = T2 }
 	end
-	local by = f.left.y + 24 + rows * (T2 + G2) + 30
+	local by = m.y+m.h-162
 	f.formY = by
 	f.steps = {}
 	for i, d in ipairs({ -10, -1, 1, 10 }) do
@@ -309,42 +328,80 @@ local function drawOrders(game, f, mx, my)
 end
 
 local function drawShipOrders(game,f,mx,my)
- local order=f.shipOrder
- local active=order and (order.status=='listed' or order.status=='in transit')
- local status=order and data.hulls[order.hull].name..' · '..order.status or 'Choose a ship already for sale. An NPC carrier delivers it to your hangar.'
- text(f.main.x+16,f.main.y+60,f.main.w-133,status,14,HUD.INK)
- if order and order.status=='listed' then Station.button(f.cancelShip,'Cancel',false,true) end
+ local list,detail=f.shipList,f.shipDetail
+ card(list.x,list.y,list.w,list.h,'Ships available for delivery')
+ card(detail.x,detail.y,detail.w,detail.h,'Delivery to '..(L.byId[f.k].name or f.k))
  for _,row in ipairs(f.shipRows) do
   local o=row.offer
-  local name=data.hulls[o.hull].name
-  local label=name..' from '..(L.byId[o.source].name or o.source)..' · '..HUD.credits(o.price+o.fee)
-  Station.button(row,label,inside(row,mx,my),not active and game.universe.credits>=o.price+o.fee)
+  local selected=f.shipQuote==o
+  local hull=data.hulls[o.hull]
+  lg.setColor(1,1,1,selected and .16 or inside(row,mx,my) and .1 or .05)
+  lg.rectangle('fill',row.x,row.y,row.w,row.h,4,4)
+  local lot=Dealers.find(game.universe,o.source,o.lot)
+  local paint=lot and (lot.color or Paint.preset(lot.paint)) or Paint.preset()
+  require('src.ui.hangar').drawHull(hull,row.x+5,row.y+4,48,row.h-8,false,paint,1)
+  text(row.x+59,row.y+5,row.w-67,hull.name,14,selected and GOLD or HUD.INK)
+  text(row.x+59,row.y+23,row.w-67,HUD.credits(o.price+o.fee),12,HUD.DIM)
  end
- if #f.shipRows==0 then text(f.main.x+16,f.main.y+108,f.main.w-32,'No reachable ships for sale.',14,HUD.DIM) end
+ if #f.shipRows==0 then text(list.x+14,list.y+43,list.w-28,'No reachable ships available for delivery.',14,HUD.DIM) end
+ local x,y,w=detail.x+14,detail.y+40,detail.w-28
+ local order=f.activeDelivery
+ if order then
+  text(x,y,w,data.hulls[order.hull].name,20,HUD.INK)
+  text(x,y+32,w,'From '..(L.byId[order.source].name or order.source),13,HUD.DIM)
+  text(x,y+55,w,order.status=='listed' and 'Waiting for pickup' or 'In transit with an NPC carrier',14,GOOD)
+  text(x,y+83,w,'Paid '..HUD.credits(order.price+order.fee),14,HUD.INK)
+  if order.status=='listed' then Station.button(f.shipAction,'Cancel delivery and refund',inside(f.shipAction,mx,my),true) end
+  return
+ end
+ local o=f.shipQuote
+ if f.shipOrder and f.shipOrder.status=='delivered' then
+  text(x,y,w,data.hulls[f.shipOrder.hull].name..' delivered to Hangar.',13,GOOD)
+  y=y+21
+ end
+ if not o then return end
+ local hull=data.hulls[o.hull]
+ local lot=Dealers.find(game.universe,o.source,o.lot)
+ if not lot then text(x,y,w,'This lot is no longer available.',14,HUD.WARN);return end
+ local paint=lot.color or Paint.preset(lot.paint)
+ text(x,y,w,hull.name,20,HUD.INK)
+ text(x,y+28,w,(lot.trimName or 'Stock')..' · '..(paint.name or '')..' · '..hull.class,13,HUD.DIM)
+ local previewW=math.floor(w*.46)
+ Sheet.outline(hull,paint,x,y+49,previewW,79)
+ local fitX,fitW=x+previewW+16,w-previewW-16
+ text(fitX,y+49,fitW,'Equipment',13,GOLD)
+ Sheet.slots(hull,lot.loadout,fitX,y+68,fitW,f.shipAction.y-10)
+ local source=L.byId[o.source]
+ text(x,f.shipAction.y-57,previewW,source.name or o.source,12,HUD.DIM)
+ text(x,f.shipAction.y-29,w,'Hull '..HUD.credits(o.price)..'   +   delivery '..HUD.credits(o.fee),13,HUD.INK)
+ Station.button(f.shipAction,'Order delivery · '..HUD.credits(o.price+o.fee),
+  inside(f.shipAction,mx,my),game.universe.credits>=o.price+o.fee)
+end
+
+local function deliveryClick(game,f,mx,my)
+ local u=game.universe
+ if inside(f.shipAction,mx,my) then
+  local order=f.activeDelivery
+  local ok,why
+  if order and order.status=='listed' then
+   ok,why=ShipDelivery.cancelPlayer(u,f.k)
+   game:toast(ok and 'SHIP ORDER CANCELED. FUNDS RETURNED' or why,2)
+  elseif not order and f.shipQuote and u.credits>=f.shipQuote.price+f.shipQuote.fee then
+   ok,why=ShipDelivery.orderPlayer(u,f.shipQuote)
+   game:toast(ok and 'SHIP DELIVERY POSTED' or why,2)
+  end
+  cache={}
+  return true
+ end
+ for _,row in ipairs(f.shipRows) do
+  if inside(row,mx,my) then View.shipPick=row.offer.hull;break end
+ end
+ return true
 end
 
 function View.ordersClick(game, f, mx, my, button)
 	local u = game.universe
 	if button ~= 1 then return true end
- if inside(f.goodsTab,mx,my) then View.shipOrders=false;return true end
- if inside(f.shipsTab,mx,my) then View.shipOrders=true;return true end
- if View.shipOrders then
-  if f.shipOrder and f.shipOrder.status=='listed' and inside(f.cancelShip,mx,my) then
-   local ok,why=ShipDelivery.cancelPlayer(u,f.k)
-   cache={}
-   game:toast(ok and 'SHIP ORDER CANCELED. FUNDS RETURNED' or why,2)
-   return true
-  end
-  for _,row in ipairs(f.shipRows) do
-   if inside(row,mx,my) then
-    local order,why=ShipDelivery.orderPlayer(u,row.offer)
-    cache={}
-    game:toast(order and 'SHIP DELIVERY POSTED' or why,2)
-    break
-   end
-  end
-  return true
- end
 	for _, t in ipairs(f.picks) do if inside(t, mx, my) then View.pick = t.id end end
 	for _, b in ipairs(f.steps) do if inside(b, mx, my) then View.qty = math.max(1, math.min(500, View.qty + b.d)) end end
 	for _, b in ipairs(f.dest) do if inside(b, mx, my) then View.deliver = b.id end end
@@ -367,14 +424,10 @@ function View.draw(game)
 	local f = View.layout(game)
 	local u = game.universe
 	local mx, my = love.mouse.getPosition()
-	drawSide(game, f)
+ if not f.orders and not f.deliveries then drawSide(game,f) end
 	for _, p in ipairs(f.panes) do Station.button(p, p.label, View.pane == p.id, true) end
-	if f.orders then
-  if View.shipOrders then drawShipOrders(game,f,mx,my) else drawOrders(game,f,mx,my) end
-  Station.button(f.goodsTab,'Goods',not View.shipOrders,true)
-  Station.button(f.shipsTab,'Ship deliveries',View.shipOrders,true)
-  return
- end
+ if f.deliveries then drawShipOrders(game,f,mx,my);return end
+ if f.orders then drawOrders(game,f,mx,my);return end
 	local m = f.main
 	if f.view then
 		require(f.view == "industry" and "src.ui.industry" or "src.ui.services").draw(game, mx, my, m.x, m.y, m.w, m.h)
@@ -437,7 +490,7 @@ function View.mousepressed(game, mx, my, button)
 	local u = game.universe
 	-- satellites: send a hauler to refuel one
 	if button == 1 then
-		for _, b in ipairs(f.sats) do
+		for _, b in ipairs((f.orders or f.deliveries) and {} or f.sats) do
 			if inside(b, mx, my) then
 				local J = require("src.sat_jobs")
 				if not J.offer(u, "satrefuel", b.r.id) or (J.offer(u, "satrefuel", b.r.id).npcClaimAt or 0) > (u.clock or 0) then
@@ -449,7 +502,8 @@ function View.mousepressed(game, mx, my, button)
 		end
 		for _, p in ipairs(f.panes) do if inside(p, mx, my) then View.pane = p.id; return true end end
 	end
-	if f.orders then return View.ordersClick(game, f, mx, my, button) end
+	if f.deliveries then return button~=1 or deliveryClick(game,f,mx,my) end
+ if f.orders then return View.ordersClick(game, f, mx, my, button) end
 	if f.view then return true end
 	if not f.stall then
 		if button == 1 and inside(f.rent, mx, my) then
@@ -477,9 +531,8 @@ function View.mousepressed(game, mx, my, button)
 	return true
 end
 function View.wheelmoved(game, y)
-	if View.pane == "orders" then
-  if View.shipOrders then View.shipScroll=(View.shipScroll or 0)-y else View.catScroll=View.catScroll-y end
- end
+ if View.pane=='orders' then View.catScroll=View.catScroll-y end
+ if View.pane=='deliveries' then View.shipScroll=(View.shipScroll or 0)-y end
 	if View.pane == "industry" then require("src.ui.industry").wheelmoved(game, y) end
 end
 return View
