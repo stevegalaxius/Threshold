@@ -67,7 +67,7 @@ local function fit(proxy,station,hull,owner,prefer)
  end
  return proxy:shipParkingFit(station,hull,owner)
 end
-function P.plan(u,key,hull,count,prefer)
+function P.plan(u,key,hull,count,prefer,playerOwned)
  local proxy,station,roster=context(u,key);if not proxy then return {} end
  local placements={}
  -- A ship already here whose spot no longer works (never assigned one,
@@ -83,7 +83,7 @@ function P.plan(u,key,hull,count,prefer)
   end
  end
  for _=1,count do
-  local owner={hull=hull,dealerStock=true}
+  local owner={hull=hull,dealerStock=not playerOwned}
   local parking=fit(proxy,station,hull,owner,prefer)
   if not parking then break end
   proxy:applyParking(owner,parking);roster[#roster+1]=owner;placements[#placements+1]=parking

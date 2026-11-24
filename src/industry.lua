@@ -65,6 +65,17 @@ end
 function I.job(u,key,id,def)
  local state=I.state(u,key,id)
  local D,C=require('src.dealers'),require('src.commodities')
+ local order=D.buildOrder(u,key)
+ local currentProgress=state.recipes and state.recipes[state.selected]
+ if order and (not currentProgress or (currentProgress.carry or 0)<=0) then
+  for _,recipe in ipairs(def.recipes) do
+   local output=C.byId[recipe].outputs[1]
+   if output.hull==order.hull and D.room(u,key,order.hull,1)>0 then
+    state.selected=recipe
+    return recipe
+   end
+  end
+ end
  -- keep the current job unless nowhere on the lot can take that hull
  local current=state.selected and C.byId[state.selected]
  if current and D.room(u,key,current.outputs[1].hull,1)>0 then return state.selected end

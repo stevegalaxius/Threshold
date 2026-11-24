@@ -67,6 +67,8 @@ local Sheet = require("src.ui.shipsheet")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
+local Manufacturing = require("src.ui.manufacturing")
+local Dealers = require("src.dealers")
 local Jobs = require("src.ui.jobs")
 local NewsView = require("src.ui.news")
 local StallView = require("src.ui.stall")
@@ -643,7 +645,12 @@ local TABS={{id='market',label='Market'},{id='jobs',label='Jobs'},{id='cargo',la
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='jobs' and not (st and st.sat) or t.id=='news' or t.id=='stall' and not (st and st.sat) or have[t.id] then out[#out+1]=t end end
+ local dealer=st and Dealers.def(st)
+ local manufacturing=dealer and dealer.assembly and not dealer.service and Dealers.buildsShips(st)
+ for _,t in ipairs(TABS) do
+  local always=t.id=='cargo' or t.id=='news' or (t.id=='jobs' or t.id=='stall') and not (st and st.sat)
+  if always or t.id=='shipyard' and manufacturing or t.id~='shipyard' and have[t.id] then out[#out+1]=t end
+ end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -667,8 +674,14 @@ function Cargo.setTab(game,id)
   end
   Cargo.filter='all'
  end
+ Cargo.hangarLots=nil
  Cargo.tab=id;Hangar.cancel();Shipyard.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
+local function lotBackButton()
+ local x,y,w=require('src.ui.station').body()
+ return {x=x+w-120,y=y+7,w=110,h=30}
+end
+
 function Cargo.workspace(game)
  local fx,fw=Station.frame()
  if Cargo.tab=='hangar' or Cargo.tab=='shipyard' or Cargo.tab=='repair' then
@@ -1035,6 +1048,18 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 		for _, t in ipairs(tabRects(game)) do
 			if button == 1 and inRect(t, mx, my) then Cargo.setTab(game,t.id);return true end
 		end
+		if Cargo.tab == "hangar" and Cargo.hangarLots then
+   if button==1 and inRect(lotBackButton(),mx,my) then Cargo.hangarLots=nil;return true end
+			local act = Shipyard.mousepressed(game, mx, my, button)
+			if act and act.buy then
+				local st = game.player.dockState.station
+				if act.tradeIn and Cargo.other == act.tradeIn then Cargo.other = nil end
+				local rec, why = game:buyShip(st, act.buy, { paint = act.paint, tradeIn = act.tradeIn })
+				if rec then Cargo.hangarLots=nil;Hangar.sel = rec; game:toast("BOUGHT. PARKED: "..game:shipParkingLabel(st,rec):upper(),1.6)
+				else game:toast(why, 1.4) end
+			end
+			return true
+		end
 		if Cargo.tab == "hangar" then
 			local act = Hangar.mousepressed(game, mx, my, button)
 			if act and act.fly then
@@ -1051,9 +1076,8 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 					game:toast(("SOLD FOR %d CR"):format(paid), 1.4)
 				else game:toast(why, 1.4) end
 			elseif act and act.shop then
-				Cargo.setTab(game, "shipyard")
-				local Yard = require("src.ui.shipyard")
-				Yard.sel = act.shop.id
+				Cargo.hangarLots=true
+    Shipyard.sel=act.shop.id
 			elseif act and (act.load or act.unload) then
 				local B, st = require('src.berths'), game.player.dockState.station
 				local ok, why
@@ -1092,17 +1116,11 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			end
 			return true
 		end
-		if Cargo.tab == "shipyard" then
-			local act = Shipyard.mousepressed(game, mx, my, button)
-			if act and act.buy then
-				local st = game.player.dockState.station
-				if act.tradeIn and Cargo.other == act.tradeIn then Cargo.other = nil end
-				local rec, why = game:buyShip(st, act.buy, { paint = act.paint, tradeIn = act.tradeIn })
-				if rec then Hangar.sel = rec; game:toast("BOUGHT. PARKED: "..game:shipParkingLabel(st,rec):upper(),1.6)
-				else game:toast(why, 1.4) end
-			end
-			return true
-		end
+  if Cargo.tab == "shipyard" then
+   local action,lot=Manufacturing.mousepressed(game,mx,my,button)
+   if action=='collect' then Cargo.setTab(game,'hangar');Cargo.hangarLots=true;Shipyard.sel=lot end
+   return true
+  end
 	end
 	local L = layout(game)
 	if not L then return true end
@@ -1958,6 +1976,13 @@ function Cargo.draw(game)
 	if docked then
 		drawTabs(game, mx, my)
 		if Cargo.tab == "hangar" then
+   if Cargo.hangarLots then
+    Shipyard.draw(game,mx,my)
+    local back=lotBackButton()
+    Station.button(back,'Back to hangar',inRect(back,mx,my),true)
+    Station.footer('Buy a parked ship or trade in one of your stored ships.','Paid builds can be collected from the lot.')
+    return
+   end
 			Hangar.draw(game, mx, my)
 			lg.setFont(HUD.font(14))
 			lg.setColor(HUD.DIM)
@@ -1986,9 +2011,7 @@ function Cargo.draw(game)
    return
   end
 		if Cargo.tab == "shipyard" then
-			Shipyard.draw(game, mx, my)
-			lg.setFont(HUD.font(14))
-			Station.footer('Every ship on the lot is one of a kind: its own trim, paint and fit. Sold ships are gone until the dealer restocks.','Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab')
+			Manufacturing.draw(game,mx,my)
 			return
 		end
 	end
@@ -2344,7 +2367,7 @@ function Cargo.wheelmoved(game,y,horizontal)
   end
  end
  if game.state=='docked' and Cargo.tab=='hangar' then Hangar.wheelmoved(game,y) end
- if game.state=='docked' and Cargo.tab=='shipyard' then Shipyard.wheelmoved(game,y) end
+ if game.state=='docked' and Cargo.tab=='hangar' and Cargo.hangarLots then Shipyard.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='jobs' or game.state~='docked' and Cargo.spaceTab=='jobs' then Jobs.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='news' or game.state~='docked' and Cargo.spaceTab=='news' then NewsView.wheelmoved(game,y) end
  if game.state=='docked' and Cargo.tab=='stall' and StallView.wheelmoved then StallView.wheelmoved(game,y) end

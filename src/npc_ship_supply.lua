@@ -176,7 +176,7 @@ function S.acquire(u,area,policy,roll)
  local owner=require('src.npc_access').owner(area)
  local fleet=policy.fleets and policy.fleets[owner or '']
  if fleet and require('src.dealers').serviceYard(owner) then
-  local ship,acq=S.fromYard(u,owner,policy)
+  local ship,acq=S.fromYard(u,owner,policy,(policy.role or "service").."/"..area)
   if ship then return ship,acq end
   return nil
  end
@@ -203,19 +203,24 @@ end
 -- narrows the choice (a flagship asks for its one hull); policy.requires
 -- and minCargo are checked as for any purchase. The best fit for the role
 -- goes first, by armour when there's no role.
-function S.fromYard(u,faction,policy)
+function S.fromYard(u,faction,policy,request)
  local D=require('src.dealers')
  local key=D.serviceYard(faction);if not key then return end
  local want;if policy.hulls then want={};for _,id in ipairs(policy.hulls) do want[id]=true end end
+ local function fits(id,loadout)
+  local hull=data.hulls[id]
+  if not hull or want and not want[id] then return false end
+  local stats=require('src.stats').compute(hull,loadout)
+  if (stats.hold or 0)<(policy.minCargo or 0) then return false end
+  local caps=require('src.npc_access').capabilities({ship={hull=id,loadout=loadout}})
+  for name in pairs(policy.requires or {}) do if not caps[name] then return false end end
+  return true
+ end
  local best,bestArmor
  for _,lot in ipairs(D.lots(u,key,true)) do
   local hull=data.hulls[lot.hull]
-  local ok=hull and (not want or want[lot.hull])
+  local ok=fits(lot.hull,lot.loadout)
   if ok then
-   local stats=require('src.stats').compute(hull,lot.loadout)
-   if (stats.hold or 0)<(policy.minCargo or 0) then ok=false end
-   local caps=require('src.npc_access').capabilities({ship={hull=lot.hull,loadout=lot.loadout}})
-   for name in pairs(policy.requires or {}) do if not caps[name] then ok=false end end
    -- (police keep the heavy hull for the flagship: smallest first, and a
    -- hull over the pilot's rank budget only when nothing else is there)
    local rank=-(hull.armor or 0)
@@ -223,7 +228,18 @@ function S.fromYard(u,faction,policy)
    if ok and (not best or rank>bestArmor or rank==bestArmor and lot.id<best.id) then best,bestArmor=lot,rank end
   end
  end
- if not best then return end
+ if not best then
+  local def=D.def(key)
+  for _,id in ipairs(def.hulls) do
+   if fits(id,data.hulls[id].loadout) then
+    D.requestService(u,key,request or ('service/'..id),id)
+    break
+   end
+  end
+  return
+ end
+ local state=D.state(u,key)
+ if state.serviceOrders then state.serviceOrders[request or ('service/'..best.hull)]=nil end
  D.take(u,key,best.id)
  local ship=D.ship(best)
  require('src.simulation_history').note(u,'npc_ship_issued',u.clock,nil,{},{station=key,hull=best.hull,lot=best.id},key)

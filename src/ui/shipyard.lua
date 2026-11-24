@@ -279,7 +279,7 @@ local function drawDetail(game, L, mx, my)
 	local label = problem and (problem == "NOT ENOUGH CREDITS" and "Not enough credits"
 			or problem == "NO SUITABLE FREE PARKING" and "No room to park it here" or problem)
 		or (ti and (Yard.confirm and "Click again to trade in & buy" or "Trade in & buy " .. hull.name))
-		or ("Buy " .. hull.name)
+		or ((lot.playerOrder and "Collect " or "Buy ") .. hull.name)
 	Sheet.button(L.buy, label, inRect(L.buy, mx, my), Sheet.GREEN, problem == nil)
 end
 

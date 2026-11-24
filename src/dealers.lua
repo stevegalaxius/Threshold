@@ -86,7 +86,7 @@ end
 
 local function rand(n) return love and love.math and love.math.random(n) or math.random(n) end
 
-function D.roll(def, state, hullId)
+function D.roll(def, state, hullId, stockFit)
 	local hull = data.hulls[hullId or def.hulls[rand(#def.hulls)]]
 	if not hull then return nil end
 	local pool = {}
@@ -95,7 +95,7 @@ function D.roll(def, state, hullId)
 		for _, id in ipairs(def.trims or {}) do if id == t.id then ok = true end end
 		if ok then pool[#pool + 1] = t end
 	end
-	if #pool == 0 then pool = { D.trims(hull)[2] } end
+	if stockFit or def.service or #pool == 0 then pool = { D.trims(hull)[2] } end
 	local trim = pool[rand(#pool)]
 	local paints = Paint.pool(hull)
 	state.serial = (state.serial or 0) + 1
@@ -193,6 +193,49 @@ function D.room(u,key,hull,need)
  if need then cap=math.min(cap,need) end
  return #require('src.dealer_parking').plan(u,key,hull,cap,'outside')
 end
+-- Orders live with the yard so assembly progress and paid reservations save together.
+function D.buildOrder(u,key)
+ local state=D.state(u,key)
+ if not state then return end
+ if state.playerOrder and not state.playerOrder.lot then return state.playerOrder end
+ local oldest
+ for _,order in pairs(state.serviceOrders or {}) do
+  if not oldest or order.at<oldest.at or order.at==oldest.at and order.hull<oldest.hull then oldest=order end
+ end
+ return oldest
+end
+
+function D.orderShip(u,st,hullId)
+ local state,def=D.state(u,st)
+ if not state or not def.assembly or def.service or not D.buildsShips(st) then return nil,'No civilian assembly here' end
+ if state.playerOrder then return nil,'Collect or cancel your current order first' end
+ local hull=data.hulls[hullId]
+ local offered=false
+ for _,id in ipairs(def.hulls) do if id==hullId then offered=true;break end end
+ if not hull or not offered then return nil,'This yard does not build that hull' end
+ local price=D.price(hull,hull.loadout,def.markup)
+ if u.credits<price then return nil,'Not enough credits' end
+ u.credits=u.credits-price
+ state.playerOrder={hull=hullId,price=price,at=u.clock}
+ return state.playerOrder
+end
+
+function D.cancelShipOrder(u,st)
+ local state=D.state(u,st)
+ local order=state and state.playerOrder
+ if not order or order.lot then return nil,'No pending build to cancel' end
+ u.credits=u.credits+order.price
+ state.playerOrder=nil
+ return true
+end
+
+function D.requestService(u,key,request,hull)
+ local state=D.state(u,key)
+ if not state then return end
+ state.serviceOrders=state.serviceOrders or {}
+ if not state.serviceOrders[request] then state.serviceOrders[request]={hull=hull,at=u.clock,request=request} end
+end
+
 function D.output(u,key,hull,n)
  local s,def=D.state(u,key)
  assert(D.room(u,key,hull,n)>=n,'dealer output overflow')
@@ -200,7 +243,17 @@ function D.output(u,key,hull,n)
  local placements=require('src.dealer_parking').plan(u,key,hull,n,'outside')
  assert(#placements==n,'no physical space for manufactured ship')
  for i=1,n do
-  local lot=D.roll(def,s,hull);lot.manufacturedAt=u.clock;lot.bay,lot.mooring=placements[i].bay,placements[i].mooring;s.lots[#s.lots+1]=lot
+  local order=D.buildOrder(u,key)
+  local paid=order and order==s.playerOrder and order.hull==hull
+  local lot=D.roll(def,s,hull,paid)
+  if paid then
+   order.lot=lot.id
+   lot.playerOrder=true
+   lot.price=0
+  elseif order and order.request and order.hull==hull then s.serviceOrders[order.request]=nil end
+  lot.manufacturedAt=u.clock
+  lot.bay,lot.mooring=placements[i].bay,placements[i].mooring
+  s.lots[#s.lots+1]=lot
  end
  require('src.npc_ship_supply').produced(u,key,hull,n)
 end
@@ -288,6 +341,7 @@ function D.purchaseCandidate(u,area,policy,usedOnly)
  local L=require('src.locations');local best,options,stock=nil,{},nil
  for _,key in ipairs(L.stations(area)) do
   for _,lot in ipairs(D.lots(u,key)) do
+   if not lot.playerOrder and not lot.playerDelivery then
    local r={ship=D.ship(lot)};local stats=require('src.stats').compute(data.hulls[lot.hull],lot.loadout)
    local capabilities=require('src.npc_access').capabilities(r);local eligible=(not usedOnly or lot.used) and lot.price<=policy.budget and stats.thrust>0 and stats.powerOut>0 and require('src.reactor_fuel').remaining(r.ship)>0
    if (stats.hold or 0)<(policy.minCargo or 0) then eligible=false end
@@ -304,6 +358,7 @@ function D.purchaseCandidate(u,area,policy,usedOnly)
     if policy.role then options[#options+1]={station=key,lot=lot,hull=lot.hull,loadout=loadout,price=price,refit=loadout~=lot.loadout or nil,key=key..'/'..tostring(lot.id)}
     elseif not best or lot.price<best.lot.price or lot.price==best.lot.price and key<best.station then best={station=key,lot=lot} end
    end
+   end
   end
  end
  -- A buyer with a job takes the best ship for it, not the cheapest.
@@ -318,7 +373,7 @@ function D.buyForNpc(u,r,candidate,policy)
  -- (by id and hull: a lot list rebuilt while the pilot was created holds
  -- new tables for the same ships)
  local lot=D.find(u,candidate.station,candidate.lot.id)
- if not lot or lot.hull~=candidate.lot.hull then return false end
+ if not lot or lot.playerOrder or lot.playerDelivery or lot.hull~=candidate.lot.hull then return false end
  D.take(u,candidate.station,lot.id)
  local price=candidate.price or lot.price
  r.shipAcquisition={station=candidate.station,lot=lot.id,price=price,refit=candidate.loadout and true or nil,budget=policy.budget,used=lot.used or false,fit=candidate.fit,danger=candidate.danger}

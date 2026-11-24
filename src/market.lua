@@ -457,6 +457,7 @@ function Game:purchaseParking(st,lot,tradeIn)
 end
 function Game:shipBuyProblem(st, lot, tradeIn)
 	if not lot or not require("src.dealers").find(self.universe, st, lot.id) then return "NO LONGER FOR SALE" end
+ if lot.playerDelivery then return "RESERVED FOR DELIVERY" end
  if tradeIn then
   local owned=false;for _,rec in ipairs(self:stationParkingRecord(st).hangar) do if rec==tradeIn then owned=true end end
   if not owned then return 'NO SUCH SHIP' end
@@ -489,7 +490,14 @@ function Game:buyShip(st, lot, opts)
  local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.color or lot.paint and require('src.paint').preset(lot.paint) or nil})
  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,parking)
  list[#list+1]=rec
- require('src.dealers').take(self.universe,st,lot.id)
+ local Dealers=require('src.dealers')
+ Dealers.take(self.universe,st,lot.id)
+ if lot.playerOrder then
+  local state=Dealers.state(self.universe,st)
+  local order=state.playerOrder
+  require('src.accounts').receive(self.universe,Stock.key(st),order.price,'sold','ship:'..lot.hull)
+  state.playerOrder=nil
+ end
 	local credit = tradeIn and math.max(0, Game.shipSellPrice(tradeIn) - require("src.berth_rent").owed(tradeIn)) or 0
 	self.universe.credits = self.universe.credits + credit - lot.price
 	local Accounts = require("src.accounts")
