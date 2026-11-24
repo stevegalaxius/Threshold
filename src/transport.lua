@@ -213,20 +213,51 @@ function Transport.settleGoods(u,line,buyer)
  Accounts.receive(u,line.source,paid,'sold',line.item)
  return paid
 end
--- Upgrade unclaimed economy listings; accepted contracts retain their quote.
+local function courierCost(u,o)
+ return math.floor(Transport.goodsPrice(u,o.source,o.item)*o.amount+.5)+Transport.payment(o)
+end
 function Transport.refreshOffers(u,clock)
+ local Accounts=require('src.accounts')
+ local Economy=require('src.economy')
+ local incoming,budget,candidates={},{},{}
  for _,o in pairs(Tasks.state(u).offers) do
-  if o.kind=='transport' and o.layoutScope=='economy' and o.state=='available' then
-   -- After the trader-only window either financing option is available
-   -- (anyone may haul it, the player too: src/player_contracts.lua)
-   if o.trade and clock-(o.placed or clock)>=T.tradeCourierAfter then o.trade=nil;o.tradeOptional=true;o.handlingPerUnit=nil end
-   local fresh=o.handlingPerUnit==nil
-   -- an unclaimed listing follows today's prices, so its premium tracks
-   -- the shortage; taking the job freezes the quote
-   o.creditsPerUnit,o.commodityBuyPrice,o.commoditySellPrice=nil,nil,nil
-   Transport.quote(o,clock,u)
-   if fresh then o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds) end
+  if o.layoutScope=='economy' then
+   if o.state=='available' then candidates[#candidates+1]=o
+   else
+    local key=o.target..'|'..o.item
+    incoming[key]=(incoming[key] or 0)+o.amount
+   end
   end
+ end
+ table.sort(candidates,function(a,b)
+  local x,y=a.placed or 0,b.placed or 0
+  return x<y or x==y and a.id<b.id
+ end)
+ for _,o in ipairs(candidates) do
+  local trader=o.trade or o.tradeOptional
+  local wasOptional=o.tradeOptional
+  local fresh=o.handlingPerUnit==nil
+  o.creditsPerUnit,o.commodityBuyPrice,o.commoditySellPrice=nil,nil,nil
+  Transport.quote(o,clock,u)
+  if trader then
+   o.trade,o.tradeOptional=true,nil
+   local account=Accounts.of(o.target)
+   if budget[account]==nil then budget[account]=Accounts.spendable(u,o.target) end
+   local key=o.target..'|'..o.item
+   if clock-(o.placed or clock)>=T.tradeCourierAfter
+    and J.available(u,o.target,o.item)+(incoming[key] or 0)<Economy.target(u,o.target,o.item) then
+    o.creditsPerUnit=data.items[o.item].volume*(T.freightCreditsPerM3+o.routeAU*T.freightCreditsPerM3AU)
+    o.premiumPerUnit=0
+    local cost=courierCost(u,o)
+    if budget[account]>=cost then
+     budget[account]=budget[account]-cost
+     incoming[key]=(incoming[key] or 0)+o.amount
+     o.trade,o.tradeOptional=nil,true
+     fresh=not wasOptional
+    end
+   end
+  end
+  if fresh then o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds) end
  end
 end
 -- Reservations remain on the board until pickup; loaded cargo is no longer
@@ -360,6 +391,13 @@ function Transport.load(u,r,t)
  -- A reservation keeps its financing terms. Release before taking any stock
  -- if the pilot can no longer fund the purchase at pickup.
  if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then return false end
+ if t.buyerFunded then
+  local line=lines(t)[1]
+  local Accounts=require('src.accounts')
+  if Accounts.spendable(u,line.target)<courierCost(u,line) then return false end
+  line.prepaidGoods=Transport.settleGoods(u,line,line.target)
+  line.prepaidFee=Accounts.pay(u,line.target,Transport.payment(line),'freight',line.item)
+ end
  for _,line in ipairs(lines(t)) do
   if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
   if line.trade then
@@ -397,6 +435,9 @@ Tasks.register('transport',{
   local carried=0
   for _,line in ipairs(lines(t)) do if not line.trade then carried=carried+(line.amount or 0) end end
   if carried>0 then Transport.answer(u,r,t.target,-1) end
+  for _,line in ipairs(lines(t)) do
+   if line.prepaidFee then require('src.accounts').refund(u,line.target,line.prepaidFee);line.prepaidFee=nil end
+  end
  end,
  plan=function(t,station,clock)
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
@@ -487,12 +528,14 @@ Tasks.register('transport',{
   Transport.quote(t,clock,u)
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route then return false end
+  local listedAmount=t.amount
   if t.order then
    local offers=Tasks.state(u).offers
    if t.trade or t.tradeOptional then
     local capacity=math.min(t.amount,room(r,t.item,t.amount),Transport.available(u,t.source,t.item,t.id))
     local units,_,trade=freightTerms(u,r,t,capacity)
     if units<1 then return false end
+    t.buyerFunded=t.tradeOptional and not trade or nil
     t.amount,t.trade,t.tradeOptional=units,trade or nil,nil
    end
    local candidates={t};local others={}
@@ -503,7 +546,7 @@ Tasks.register('transport',{
    local capabilities=require('src.npc_access').capabilities(r)
    for _,o in pairs(offers) do
     -- (freight only: satellite jobs are board orders too, carrying no item)
-    if not t.trade and not o.trade and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
+    if not t.trade and not t.buyerFunded and not o.trade and not o.tradeOptional and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
      and not r.player and o.source==t.source and o.item
      and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
      and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
@@ -532,8 +575,15 @@ Tasks.register('transport',{
    end
   elseif room(r,t.item,t.amount)<t.amount then return false end
   t.phase='pickup'
-  if station~=t.source then return true end
-  if Transport.load(u,r,t) then return true end
+  if station~=t.source or Transport.load(u,r,t) then
+   if t.order and t.trade and listedAmount>t.amount then
+    local remainder=require('src.persistence').copy(Tasks.state(u).offers[t.id])
+    remainder.amount=listedAmount-t.amount
+    remainder.owner,remainder.manifestRoot,remainder.loaded=nil,nil,nil
+    Tasks.post(u,remainder)
+   end
+   return true
+  end
   for _,line in ipairs(lines(t)) do
    local o=Tasks.state(u).offers[line.id];if o then o.owner=nil;o.state='available';o.manifestRoot=nil end
   end
@@ -569,6 +619,7 @@ Tasks.register('transport',{
    if n<line.amount then
     charge.payment=line.amount>0 and math.floor(charge.payment*n/line.amount) or 0
     if line.tradeCost then line.tradeCost=math.floor(line.tradeCost*n/math.max(1,line.amount)) end
+    if line.prepaidGoods then line.prepaidGoods=math.floor(line.prepaidGoods*n/line.amount) end
     line.amount=n
    end
   end
@@ -594,13 +645,19 @@ Tasks.register('transport',{
     r.tradeEarnings=(r.tradeEarnings or 0)+value
     require('src.economy').ledger(u,station,'trade margin',value-(line.tradeCost or 0),line.item)
    else
-   payment=require('src.accounts').pay(u,station,charge.payment,'freight',line.item);total=total+line.amount
+   local Accounts=require('src.accounts')
+   if line.prepaidFee then
+    payment=charge.payment
+    Accounts.refund(u,station,line.prepaidFee-payment)
+    line.prepaidFee=nil
+   else payment=Accounts.pay(u,station,charge.payment,'freight',line.item) end
+   total=total+line.amount
    paid=paid-(charge.payment-payment)
    end
    -- an economy order is a sale: the buyer pays the seller for the goods
    -- (after the courier), and a hub sells on at a markup
    if line.layoutScope=='economy' and not line.trade and not line.playerOrder and not line.intake then
-    local goods=Transport.settleGoods(u,line,station)
+    local goods=line.prepaidGoods or Transport.settleGoods(u,line,station)
     require('src.markets').landed(u,station,line.item,line.amount,goods+payment)
    end
    if (line.premiumPerUnit or 0)>0 then require('src.economy').ledger(u,station,'premium',math.floor(line.amount*line.premiumPerUnit),line.item) end
