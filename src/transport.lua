@@ -217,9 +217,9 @@ end
 function Transport.refreshOffers(u,clock)
  for _,o in pairs(Tasks.state(u).offers) do
   if o.kind=='transport' and o.layoutScope=='economy' and o.state=='available' then
-   -- a trade run no trader has taken goes out as a courier contract
+   -- After the trader-only window either financing option is available
    -- (anyone may haul it, the player too: src/player_contracts.lua)
-   if o.trade and clock-(o.placed or clock)>=T.tradeCourierAfter then o.trade=nil;o.handlingPerUnit=nil end
+   if o.trade and clock-(o.placed or clock)>=T.tradeCourierAfter then o.trade=nil;o.tradeOptional=true;o.handlingPerUnit=nil end
    local fresh=o.handlingPerUnit==nil
    -- an unclaimed listing follows today's prices, so its premium tracks
    -- the shortage; taking the job freezes the quote
@@ -357,11 +357,9 @@ function Transport.load(u,r,t)
  end
  local cost=0
  for _,line in ipairs(lines(t)) do if line.trade then cost=cost+Transport.tradeCost(u,line) end end
- -- a hauler that can't stake the cargo carries it as a courier instead,
- -- for the usual fee (the buyer pays the seller on delivery)
- if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then
-  for _,line in ipairs(lines(t)) do line.trade=nil;local o=Tasks.state(u).offers[line.id];if o then o.trade=nil end end
- end
+ -- A reservation keeps its financing terms. Release before taking any stock
+ -- if the pilot can no longer fund the purchase at pickup.
+ if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then return false end
  for _,line in ipairs(lines(t)) do
   if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
   if line.trade then
@@ -373,6 +371,22 @@ function Transport.load(u,r,t)
   local o=Tasks.state(u).offers[line.id];if o then o.loaded=true end
  end
  t.phase='delivery';return true
+end
+-- Both terms have the same route. Compare the earnings on the quantity
+-- this pilot can finance or is trusted to deliver.
+local function freightTerms(u,r,o,capacity)
+ local price=Transport.goodsPrice(u,o.source,o.item)
+ local spendable=math.max(0,(r.credits or 0)-T.tradeReserve)
+ local units=price>0 and math.min(capacity,math.floor(spendable/price)) or capacity
+ local bid=require('src.markets').price(u,o.target,o.item)
+ local profit=math.floor(bid*units+.5)-math.floor(price*units+.5)
+ local courierUnits,fee=0,0
+ if o.tradeOptional then
+  courierUnits=math.min(capacity,Transport.trustedUnits(u,r,o))
+  fee=math.floor(courierUnits*(o.creditsPerUnit or 0)+math.min(o.handlingLimit or 0,courierUnits*(o.handlingPerUnit or 0))+1e-7)
+ end
+ if not r.player and profit>0 and profit>=fee then return units,profit,true end
+ return courierUnits,fee,false
 end
 Tasks.register('transport',{
  requires={capabilities={'cargo'}},
@@ -411,16 +425,15 @@ Tasks.register('transport',{
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
   -- a courier is trusted with only so much of someone else's cargo: it
   -- takes the part of a valuable order it's trusted with, or none
-  if o.order then
+  if o.order and not o.tradeOptional then
    local trusted=Transport.trustedUnits(u,r,o)
    if trusted<1 then return false end
    need=math.min(need,trusted)
   end
-  -- a trade run: a trader only, who can pay for the cargo and sees a spread
-  if o.trade then
-   local line={source=o.source,target=o.target,item=o.item,amount=math.min(o.amount,room(r,o.item,o.amount))}
-   if line.amount<need then return false end
-   if Transport.tradeValue(u,line)<=Transport.tradeCost(u,line) then return false end
+  if o.trade or o.tradeOptional then
+   local units=freightTerms(u,r,o,math.min(o.amount,room(r,o.item,o.amount)))
+   if units<1 then return false end
+   need=math.min(need,units)
   end
   return room(r,o.item,need)>=need
    and (not (o.mine or o.stocked) or Transport.available(u,o.source,o.item,o.id)>=need)
@@ -433,18 +446,15 @@ Tasks.register('transport',{
   local amount=math.min(o.amount,room(r,o.item,o.amount))
   -- credits per second of the whole job, the empty run to the pickup included
   local pay
-  if o.manifest or o.creditsPerUnit==nil then
+  if o.trade or o.tradeOptional then
+   amount,pay=freightTerms(u,r,o,amount)
+  elseif o.manifest or o.creditsPerUnit==nil then
    local quote=require('src.persistence').copy(o);quote.amount=amount
    pay=Transport.payment(quote)
   else
    -- (a plain quoted listing: the same sum Transport.invoice makes, without
    -- copying the offer to change its amount; this runs for every job read)
    pay=math.floor(amount*o.creditsPerUnit+math.min(o.handlingLimit or 0,amount*(o.handlingPerUnit or 0))+1e-7)
-  end
-  -- a trader earns the spread it sees now, not a fee
-  if o.trade then
-   local line={source=o.source,target=o.target,item=o.item,amount=amount}
-   pay=math.max(0,Transport.tradeValue(u,line)-Transport.tradeCost(u,line))
   end
   local reward=pay/Transport.duration(o,station,clock)
   local p=Personality.ensure(r)
@@ -479,6 +489,12 @@ Tasks.register('transport',{
   if not t.route then return false end
   if t.order then
    local offers=Tasks.state(u).offers
+   if t.trade or t.tradeOptional then
+    local capacity=math.min(t.amount,room(r,t.item,t.amount),Transport.available(u,t.source,t.item,t.id))
+    local units,_,trade=freightTerms(u,r,t,capacity)
+    if units<1 then return false end
+    t.amount,t.trade,t.tradeOptional=units,trade or nil,nil
+   end
    local candidates={t};local others={}
    -- A full bay: every open order at this pickup for the same drop-off, or
    -- for another station in the same area (a milk run: dropped off in
