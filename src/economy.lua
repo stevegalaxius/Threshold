@@ -156,23 +156,30 @@ local function adjust(u,unmet,all)
     local rated=math.max(1,c.make[key] or 0)
     local shelf=math.min(E.lot*T.makerShelfLots,(c.cap or math.huge)*.9)
     local now=u.clock or 0
-    if t.salesAt and now>t.salesAt then
-     local dt=now-t.salesAt
+    -- A station can run several adaptive recipes during the same tick.
+    t.makerHistory=t.makerHistory or {}
+    local history=t.makerHistory[c.id]
+    if not history then
+     history={sales=rated*v}
+     t.makerHistory[c.id]=history
+    end
+    local total=(u.madeAt or {})[key..'|'..c.item] or 0
+    if history.at and now>history.at then
+     local dt=now-history.at
      -- what the plant really made (short inputs or a full shelf make less
      -- than its scale asks for), not rated*scale
-     local total=(u.madeAt or {})[key..'|'..c.item] or 0
-     local made=total-(t.madeTotal or total)
-     local out=math.max(0,made-(have-(t.salesHave or have)))*3600/dt
+     local made=total-history.madeTotal
+     local out=math.max(0,made-(have-history.have))*3600/dt
      local a=1-math.exp(-dt/(T.makerSalesHours*3600))
-     t.sales=(t.sales or out)+(out-(t.sales or out))*a
+     history.sales=history.sales+(out-history.sales)*a
     end
-    t.salesAt,t.salesHave=now,have
-    t.madeTotal=(u.madeAt or {})[key..'|'..c.item] or 0
+    history.at,history.have=now,have
+    history.madeTotal=total
     -- plus what buyers it could have served at a paying price went without
     -- (E.update's missed), worked off over T.makerRestoreHours: sales alone
     -- are capped by the plant's own output, so they never call for more
     local lost=(u.economyMissed and u.economyMissed[key] or {})[c.item] or 0
-    local goal=((t.sales or rated)+(lost+shelf/2-have)/T.makerRestoreHours)/rated
+    local goal=(history.sales+(lost+shelf/2-have)/T.makerRestoreHours)/rated
     goal=math.max(E.scaleMin,math.min(E.scaleMax,goal))
     v=v<goal and math.min(goal,v*(1+E.scaleStep)) or math.max(goal,v*(1-E.scaleStep))
    else
