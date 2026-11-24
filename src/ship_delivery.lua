@@ -25,6 +25,7 @@ local copy = require("src.persistence").copy
 
 local SD = {}
 local HOUR = 3600
+local PICKUP_WINDOW=2*HOUR
 T.shipDeliveryPatience = T.shipDeliveryPatience or 6     -- game hours before a dealer restocks anyway
 T.shipDeliveryRate = T.shipDeliveryRate or 0.03          -- share of the ship's price paid per delivery
 T.shipDeliveryPerAU = T.shipDeliveryPerAU or 1500        -- plus credits per AU of route
@@ -105,14 +106,7 @@ function SD.refresh(u, clock)
 	for id, o in pairs(state.offers) do
 		if o.kind == "ship_delivery" and o.state == "available" and not D.find(u, o.source, o.lot) then state.offers[id] = nil end
 	end
- for _,order in pairs(state.shipPurchases or {}) do
-  if (order.status=='listed' or order.status=='in transit') and not state.offers[order.id] then
-   local lot=D.find(u,order.source,order.lot)
-   if lot and lot.playerDelivery==order.id then lot.playerDelivery=nil end
-   u.credits=u.credits+order.price+order.fee
-   order.status='lost'
-  end
- end
+ SD.updatePlayerOrders(u,clock)
 end
 
 local function payment(o, clock)
@@ -123,11 +117,75 @@ end
 local function playerOrders(u)
  local board=Tasks.state(u)
  board.shipPurchases=board.shipPurchases or {}
- return board.shipPurchases
+ local orders=board.shipPurchases
+ local legacy={}
+ for key,order in pairs(orders) do
+  if key~=order.id then legacy[#legacy+1]={key=key,order=order} end
+ end
+ for _,entry in ipairs(legacy) do
+  local order=entry.order
+  local offer=board.offers[order.id]
+  order.target=entry.key
+  order.pickupBy=(offer and offer.placed or u.clock)+PICKUP_WINDOW
+  orders[entry.key],orders[order.id]=nil,order
+ end
+ return orders
 end
 
-function SD.playerOrder(u,target)
- return playerOrders(u)[target]
+function SD.playerOrders(u,target)
+ local list={}
+ for _,order in pairs(playerOrders(u)) do
+  if order.target==target then list[#list+1]=order end
+ end
+ table.sort(list,function(a,b)
+  return tonumber(a.id:match('%d+$'))>tonumber(b.id:match('%d+$'))
+ end)
+ return list
+end
+
+local function active(order)
+ return order.status=='listed' or order.status=='in transit'
+end
+
+local function incoming(u,target,except)
+ local hulls={}
+ for _,order in ipairs(SD.playerOrders(u,target)) do
+  if order.id~=except and active(order) then hulls[#hulls+1]=order.hull end
+ end
+ return hulls
+end
+
+local function deliveryCarrier(u,offer)
+ local busy={}
+ local board=Tasks.state(u)
+ for _,order in pairs(playerOrders(u)) do
+  local task=board.offers[order.id]
+  if active(order) and task then
+   local id=task.owner or order.carrier
+   if id then busy[id]=true end
+  end
+ end
+ local W=require('src.work_preferences')
+ local Access=require('src.npc_access')
+ local best
+ for id,r in pairs(u.npcs or {}) do
+  local node=r.node or r.route and r.route[r.index]
+  if not busy[id] and r.ship and r.state~='dead' and r.state~='escaped'
+   and not r.service and not r.suspendedTask and not r.worldRecovery
+   and r.fuelStatus~='stranded' and r.fuelStatus~='empty'
+   and L.byId[node] and W.weight(r,'ship_delivery')>0
+   and Berths.free(carrierOf(r),offer.hull) and Access.eligible(r,offer,Access.capabilities(r))
+   and (node==offer.source or G.itinerary(node,offer.source,u.clock)) then
+   if not best or id<best then best=id end
+  end
+ end
+ return best
+end
+
+function SD.hasCarrier(u,quote)
+ local offer=copy(quote)
+ offer.requires={capabilities={'berths'}}
+ return deliveryCarrier(u,offer)~=nil
 end
 
 local function carrierExists(hullId)
@@ -173,8 +231,6 @@ function SD.orderPlayer(u,quote)
  local target=quote.target
  if not L.byId[target] or L.byId[target].kind~='station' then return nil,'No delivery station' end
  local orders=playerOrders(u)
- local current=orders[target]
- if current and (current.status=='listed' or current.status=='in transit') then return nil,'A ship delivery is already open here' end
  local D=Dealers()
  local def=D.def(quote.source)
  local lot=def and not def.service and D.find(u,quote.source,quote.lot)
@@ -183,7 +239,7 @@ function SD.orderPlayer(u,quote)
  offers(u,function(o) if o.source==quote.source and o.lot==quote.lot then promised=true end end)
  if promised then return nil,'That ship is already promised to a delivery' end
  if not carrierExists(lot.hull) then return nil,'No carrier design can transport this hull' end
- if not require('src.dealer_parking').plan(u,target,lot.hull,1,nil,true)[1] then return nil,'No suitable parking at this station' end
+ if not require('src.dealer_parking').plan(u,target,lot.hull,1,nil,true,incoming(u,target))[1] then return nil,'No suitable parking at this station' end
  if not Transport().route(quote.source,target,u.clock) then return nil,'No delivery route' end
  local offer={kind='ship_delivery',source=quote.source,target=target,hull=lot.hull,lot=lot.id,price=lot.price,placed=u.clock}
  local price,fee=lot.price,payment(offer,u.clock)
@@ -191,22 +247,40 @@ function SD.orderPlayer(u,quote)
  offer.requires={capabilities={'berths'}}
  offer.playerDelivery=true
  offer.order=true
+ local carrier=deliveryCarrier(u,offer)
+ if not carrier then return nil,'No compatible NPC carrier is currently available for this pickup' end
  local posted=Tasks.post(u,offer)
  u.credits=u.credits-price-fee
  lot.playerDelivery=posted.id
- orders[target]={id=posted.id,hull=lot.hull,source=offer.source,lot=lot.id,price=price,fee=fee,status='listed'}
- return orders[target]
+ orders[posted.id]={id=posted.id,hull=lot.hull,source=offer.source,target=target,lot=lot.id,price=price,fee=fee,
+  status='listed',pickupBy=u.clock+PICKUP_WINDOW,carrier=carrier}
+ return orders[posted.id]
 end
 
-function SD.cancelPlayer(u,target)
- local order=SD.playerOrder(u,target)
- if not order or order.status~='listed' then return nil,'The ship has already been picked up' end
+local function refundOrder(u,order,status)
  local lot=Dealers().find(u,order.source,order.lot)
  if lot and lot.playerDelivery==order.id then lot.playerDelivery=nil end
  Tasks.state(u).offers[order.id]=nil
  u.credits=u.credits+order.price+order.fee
- order.status='cancelled'
+ order.status=status
+end
+
+function SD.cancelPlayer(u,id)
+ local order=playerOrders(u)[id]
+ if not order or order.status~='listed' then return nil,'The ship has already been picked up' end
+ refundOrder(u,order,'cancelled')
  return true
+end
+
+function SD.updatePlayerOrders(u,clock)
+ local offers=Tasks.state(u).offers
+ for _,order in pairs(playerOrders(u)) do
+  if active(order) and not offers[order.id] then
+   refundOrder(u,order,'lost')
+  elseif order.status=='listed' and order.pickupBy and clock>=order.pickupBy then
+   refundOrder(u,order,'expired')
+  end
+ end
 end
 
 -- Keep a hauler that's flying in the scene in step with its record: its
@@ -227,6 +301,10 @@ local function load(u, r, t)
 	local lot = D.find(u, t.source, t.lot)
 	if not lot or lot.playerDelivery and lot.playerDelivery~=t.id then return false end
  if t.playerDelivery and lot.playerDelivery~=t.id then return false end
+ if t.playerDelivery then
+  local order=playerOrders(u)[t.id]
+  if not order or order.status~='listed' or u.clock>=order.pickupBy then return false end
+ end
 	local slot = Berths.free(carrierOf(r), lot.hull)
 	if not slot then return false end
 	D.take(u, t.source, t.lot)
@@ -235,7 +313,7 @@ local function load(u, r, t)
 	r.ship.carried = r.ship.carried or {}
 	r.ship.carried[slot] = rec
  if t.playerDelivery then
-  local order=SD.playerOrder(u,t.target)
+  local order=playerOrders(u)[t.id]
   order.status='in transit'
   local offer=Tasks.state(u).offers[t.id]
   if offer then offer.loaded=true end
@@ -251,6 +329,10 @@ Tasks.register("ship_delivery", {
 		return Transport().route(station, t.target, clock)
 	end,
 	eligible = function(u, r, o, station, clock)
+  if o.playerDelivery then
+   local order=playerOrders(u)[o.id]
+   if not order or order.status~='listed' or clock>=order.pickupBy then return false end
+  end
 		if station ~= o.source and (r.task or not L.byId[station]) then return false end
 		if not (L.byId[o.source] and L.byId[o.target]) then return false end
 		local lot=Dealers().find(u,o.source,o.lot)
@@ -273,7 +355,7 @@ Tasks.register("ship_delivery", {
 	end,
  release = function(u,r,t)
   if not t.playerDelivery or t.settled or t.phase~='delivery' then return end
-  local order=SD.playerOrder(u,t.target)
+  local order=playerOrders(u)[t.id]
   if order and order.id==t.id and order.status=='in transit' then
    order.status='lost'
    u.credits=u.credits+order.price+order.fee
@@ -292,9 +374,11 @@ Tasks.register("ship_delivery", {
 		local rec = t.berth and carried[t.berth]
 		if not (rec and rec.delivery == t.id) then Tasks.release(u, r, "ship lost", clock) return false end
   if t.playerDelivery then
-   local order=SD.playerOrder(u,station)
+   local order=playerOrders(u)[t.id]
+   if not order or order.status~='in transit' then return false end
    local parking=require('src.dealer_parking').plan(u,station,rec.hull,1,nil,true)[1]
-   if not parking then return false end
+   if not parking then order.waitingParking=true;return false end
+   order.waitingParking=nil
    rec.delivery,rec.lot=nil,nil
    rec.bay,rec.mooring=parking.bay,parking.mooring
    local record=require('src.stockpile').record(u,station)

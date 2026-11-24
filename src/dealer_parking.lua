@@ -67,7 +67,7 @@ local function fit(proxy,station,hull,owner,prefer)
  end
  return proxy:shipParkingFit(station,hull,owner)
 end
-function P.plan(u,key,hull,count,prefer,playerOwned)
+function P.plan(u,key,hull,count,prefer,playerOwned,incoming)
  local proxy,station,roster=context(u,key);if not proxy then return {} end
  local placements={}
  -- A ship already here whose spot no longer works (never assigned one,
@@ -81,6 +81,13 @@ function P.plan(u,key,hull,count,prefer,playerOwned)
    if not parking then return placements end
    proxy:applyParking(owner,parking)
   end
+ end
+ for _,hullId in ipairs(incoming or {}) do
+  local owner={hull=hullId}
+  local parking=fit(proxy,station,hullId,owner,prefer)
+  if not parking then return placements end
+  proxy:applyParking(owner,parking)
+  roster[#roster+1]=owner
  end
  for _=1,count do
   local owner={hull=hull,dealerStock=not playerOwned}
