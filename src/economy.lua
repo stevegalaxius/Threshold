@@ -673,9 +673,9 @@ local function run(u,clock,pause)
    local level=E.orderLevel(u,s,item,want,producer)
    -- a hub's stock is all for passing on: imports to its own system,
    -- exports to other hubs (routed decides which way)
-   -- Keep local fertilizer, medical, water and food demand covered without
+   -- Keep local chemical and essential supply demand covered without
    -- holding a full lot off the market.
-   local reserve=(T.priceDriven[item] and producer and item~='fertilizer' and item~='medical_supplies' and item~='water' and item~=Food.item) and E.lot or level
+   local reserve=(T.priceDriven[item] and producer and item~='fertilizer' and item~='explosives' and item~='medical_supplies' and item~='water' and item~=Food.item) and E.lot or level
    spare[s]=have-((hubPlan.kind[s] and hubPlan.kind[s][item]) and 0 or reserve)
    local coming=have+(inbound[s..'|'..item] or 0)
    if want>0 and coming<want then
