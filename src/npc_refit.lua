@@ -230,7 +230,7 @@ function M.hull(r,node,u,clock,margin)
  local choices={{hull=r.ship.hull,loadout=r.ship.loadout,price=0,key='0 current'}}
  for _,lot in ipairs(D.lots(u,node)) do
   local hull=data.hulls[lot.hull]
-  local hold=hull and lot.price<=budget and keeps(r,hull,lot.loadout) and M.moveHold(r,hull,lot.loadout,lot.cargo)
+  local hold=not lot.playerOrder and not lot.playerDelivery and hull and lot.price<=budget and keeps(r,hull,lot.loadout) and M.moveHold(r,hull,lot.loadout,lot.cargo)
   if hold then
    choices[#choices+1]={hull=lot.hull,loadout=lot.loadout,price=lot.price,lot=lot,hold=hold,key=('1 %08d'):format(lot.id)}
   end

@@ -25,5 +25,97 @@ return function()
  local Transport=require('src.transport')
  assert(Transport.route(home,work,0),'Heaven-Ladder commute has no outbound route')
  assert(Transport.route(work,home,0),'Heaven-Ladder commute has no return route')
+ do
+  local game=require('src.game').new()
+  game:loadField('venus')
+  local station
+  for _,e in ipairs(game.entities) do if e.kind=='station' and e.key=='station:venus_3' then station=e;break end end
+  assert(station,'missing manufacturing station')
+  game:dockInstantly(game.player,station)
+  game.state='docked'
+  local Cargo=require('src.ui.cargo')
+  local Hangar=require('src.ui.hangar')
+  local Yard=require('src.ui.shipyard')
+  local Stall=require('src.ui.stall')
+  local function click(r) assert(r);Cargo.mousepressed(game,r.x+r.w/2,r.y+r.h/2,1,{}) end
+  game.universe.credits=1000000
+  assert(Cargo.setTab(game,'shipyard'))
+  Cargo.draw(game)
+  local Paint=require('src.paint')
+  local view=assert(Yard.layout(game))
+  for _,row in ipairs(view.rows) do
+   if #Paint.pool(require('src.data').hulls[row.id])>1 then click(row);break end
+  end
+  view=Yard.layout(game)
+  assert(#view.paints>1,'manufacturer has no paint choices to exercise')
+  local chosen=view.paints[2].name
+  click(view.paints[2])
+  assert(Yard.layout(game).lot.paint==chosen,'paint click did not update preview')
+  Cargo.draw(game)
+  click(view.buy)
+  local order=assert(Yard.layout(game).order)
+  assert(order.paint==chosen,'ship order lost selected paint')
+  click(view.paints[1])
+  assert(Yard.layout(game).lot.paint==chosen,'paid paint changed after ordering')
+  click(view.buy)
+  assert(not Yard.layout(game).order)
+  click(view.buy)
+  order=assert(Yard.layout(game).order)
+  Dealers.output(game.universe,station.key,order.hull,1)
+  local completed=assert(Dealers.find(game.universe,station,order.lot))
+  assert(completed.paint==chosen,'manufactured lot lost ordered paint')
+  click(view.buy)
+  assert(Hangar.sel==completed and Cargo.tab=='hangar')
+  Cargo.draw(game)
+  click(Hangar.layout(game).sell)
+  assert(Hangar.sel~=completed and Hangar.sel.color.name==chosen,'collected ship lost ordered paint')
+  assert(Cargo.setTab(game,'hangar'))
+  Cargo.draw(game)
+  local hangar=Hangar.layout(game)
+  local lot
+  for _,entry in ipairs(hangar.ships) do if entry.dealer then lot=entry;break end end
+  assert(lot,'no parked dealer ship')
+  click(lot)
+  assert(Hangar.sel==lot.owner and Cargo.tab=='hangar')
+  Cargo.draw(game)
+  click(Hangar.layout(game).sell)
+  assert(Hangar.sel~=lot.owner and Cargo.tab=='hangar')
+  assert(Cargo.setTab(game,'stall'))
+  local function openPane(id)
+   for _,r in ipairs(Stall.layout(game).panes) do
+    if r.id==id then click(r);return Stall.layout(game) end
+   end
+   error('missing Manage pane '..id)
+  end
+  local width,height,flags=love.window.getMode()
+  for _,size in ipairs({{960,540},{1280,720}}) do
+   assert(love.window.setMode(size[1],size[2],flags))
+   local goods=openPane('orders')
+   assert(goods.orders and not goods.deliveries and goods.picks[1])
+   click(goods.picks[1])
+   goods=Stall.layout(game)
+   Cargo.draw(game)
+   local bottom=goods.main.y+goods.main.h
+   assert(goods.post.y+goods.post.h<=bottom)
+   for _,rect in ipairs(goods.picks) do assert(rect.y+rect.h<=goods.formY-24,'goods tiles overlap order form') end
+   local delivery=openPane('deliveries')
+   assert(delivery.deliveries and not delivery.orders)
+   assert(delivery.shipAction.y+delivery.shipAction.h<=bottom)
+   for _,row in ipairs(delivery.shipRows) do
+    assert(row.x+row.w<delivery.shipDetail.x,'ship list overlaps detail')
+    assert(row.y+row.h<=bottom)
+   end
+   if delivery.shipRows[2] then
+    local chosen=delivery.shipRows[2].offer
+    local cash=game.universe.credits
+    click(delivery.shipRows[2])
+    assert(Stall.layout(game).shipQuote==chosen and game.universe.credits==cash,'ship selection should only open its quote')
+   end
+   Cargo.draw(game)
+  end
+  assert(love.window.setMode(width,height,flags))
+  Cargo.setTab(game,'cargo')
+  Stall.pane='stall'
+ end
  print('ok  station markets: local Venus dealer, residential shops, Heaven-Ladder commute')
 end

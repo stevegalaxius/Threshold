@@ -67,6 +67,7 @@ local Sheet = require("src.ui.shipsheet")
 local Game = require("src.game")
 local Hangar = require("src.ui.hangar")
 local Shipyard = require("src.ui.shipyard")
+local Dealers = require("src.dealers")
 local Jobs = require("src.ui.jobs")
 local NewsView = require("src.ui.news")
 local StallView = require("src.ui.stall")
@@ -643,7 +644,12 @@ local TABS={{id='market',label='Market'},{id='jobs',label='Jobs'},{id='cargo',la
 local function offered(game)
  local p=game.player;local st=p and p.dockState and p.dockState.station
  local have=Game.stationServices(st);local out={}
- for _,t in ipairs(TABS) do if t.id=='cargo' or t.id=='jobs' and not (st and st.sat) or t.id=='news' or t.id=='stall' and not (st and st.sat) or have[t.id] then out[#out+1]=t end end
+ local dealer=st and Dealers.def(st)
+ local manufacturing=dealer and dealer.assembly and not dealer.service and Dealers.buildsShips(st)
+ for _,t in ipairs(TABS) do
+  local always=t.id=='cargo' or t.id=='news' or (t.id=='jobs' or t.id=='stall') and not (st and st.sat)
+  if always or t.id=='shipyard' and manufacturing or t.id~='shipyard' and have[t.id] then out[#out+1]=t end
+ end
  return out
 end
 -- Leave a tab this station doesn't offer (after docking somewhere else).
@@ -667,7 +673,7 @@ function Cargo.setTab(game,id)
   end
   Cargo.filter='all'
  end
- Cargo.tab=id;Hangar.cancel();Shipyard.cancel();if id=='hangar' then Hangar.focus(game) end;return true
+ Cargo.tab=id;Hangar.cancel();if id=='hangar' then Hangar.focus(game) end;return true
 end
 function Cargo.workspace(game)
  local fx,fw=Station.frame()
@@ -1050,10 +1056,14 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 					if Cargo.other == rec then Cargo.other = nil end
 					game:toast(("SOLD FOR %d CR"):format(paid), 1.4)
 				else game:toast(why, 1.4) end
-			elseif act and act.shop then
-				Cargo.setTab(game, "shipyard")
-				local Yard = require("src.ui.shipyard")
-				Yard.sel = act.shop.id
+   elseif act and act.buy then
+    local st=game.player.dockState.station
+    local rec,why=game:buyShip(st,act.buy,{tradeIn=act.tradeIn})
+    if rec then
+     if act.tradeIn and Cargo.other==act.tradeIn then Cargo.other=nil end
+     Hangar.focus(game,rec)
+     game:toast(act.buy.playerOrder and 'SHIP COLLECTED' or 'SHIP BOUGHT',1.5)
+    else game:toast(why,1.5) end
 			elseif act and (act.load or act.unload) then
 				local B, st = require('src.berths'), game.player.dockState.station
 				local ok, why
@@ -1092,17 +1102,14 @@ function Cargo.mousepressed(game, mx, my, button, mods)
 			end
 			return true
 		end
-		if Cargo.tab == "shipyard" then
-			local act = Shipyard.mousepressed(game, mx, my, button)
-			if act and act.buy then
-				local st = game.player.dockState.station
-				if act.tradeIn and Cargo.other == act.tradeIn then Cargo.other = nil end
-				local rec, why = game:buyShip(st, act.buy, { paint = act.paint, tradeIn = act.tradeIn })
-				if rec then Hangar.sel = rec; game:toast("BOUGHT. PARKED: "..game:shipParkingLabel(st,rec):upper(),1.6)
-				else game:toast(why, 1.4) end
-			end
-			return true
-		end
+  if Cargo.tab == "shipyard" then
+   local action,lot=Shipyard.mousepressed(game,mx,my,button)
+   if action=='collect' then
+    Cargo.setTab(game,'hangar')
+    Hangar.focus(game,Dealers.find(game.universe,game.player.dockState.station,lot))
+   end
+   return true
+  end
 	end
 	local L = layout(game)
 	if not L then return true end
@@ -1972,7 +1979,13 @@ function Cargo.draw(game)
 		end
 		if Cargo.tab == "stall" then
    StallView.draw(game)
-   Station.footer('Station management: your standing, ships, storage and satellites, your market stall, and the station\'s industry and services.', 'NPCs who dock here shop your stall alongside the house shelves \194\183 Cheap sells fast, Premium slowly \194\183 Unpaid rent closes the stall and moves its stock to your storage here')
+   if StallView.pane=='deliveries' then
+    Station.footer('Ship deliveries','Select a ship to review its fit and quote. An NPC carrier delivers it to this hangar.')
+   elseif StallView.pane=='orders' then
+    Station.footer('Buy orders','NPC haulers bring goods to your storage or market stall.')
+   else
+    Station.footer('Station management','Manage your property, market stall, and station services.')
+   end
    return
   end
 		if Cargo.tab == "jobs" then
@@ -1986,9 +1999,7 @@ function Cargo.draw(game)
    return
   end
 		if Cargo.tab == "shipyard" then
-			Shipyard.draw(game, mx, my)
-			lg.setFont(HUD.font(14))
-			Station.footer('Every ship on the lot is one of a kind: its own trim, paint and fit. Sold ships are gone until the dealer restocks.','Trade in a stored ship to put its value toward the price  \194\183  Sell ships outright from the Hangar tab')
+			Shipyard.draw(game,mx,my)
 			return
 		end
 	end

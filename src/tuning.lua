@@ -236,6 +236,7 @@ T.npcDecisionInterval,T.npcControlInterval,T.npcCombatInterval=1,.2,.1
 T.npcCruiseInterval=1
 T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
 T.npcStationClearance=250  -- px beyond a station hull (plus the ship's half length) that traffic routes around
+T.dockApproachRange=2500  -- inside hull radius + half length + this, an NPC flies its planned dock route (src/dock_approach.lua)
 T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per px out; marker distance beyond the hull
 T.aiBoostCruise, T.aiBoostStopMargin = 3, 1800
 T.aiStationSlowRange, T.aiStationSpeed = 5000, 450  -- dock approach: no burner inside this range, easing down to this speed by half of it
@@ -261,7 +262,7 @@ T.factionOpeningCredits=2000000 -- and a faction's
 T.factionFlowHours=6 -- half-life of a faction's rolling surplus/deficit (src/accounts.lua A.flow)
 T.stationFloor,T.factionFloor=20000,500000 -- accounts pay down to these; past them the faction, then its home economy, pays (src/accounts.lua)
 T.factionTax=.35 -- share of a station's takings paid to its faction (stations piled up money while their factions ran down at .25)
-T.residentFoodPay=1.5 -- residents pay this multiple of the station's food price for what they eat (src/food.lua)
+T.residentFoodPay=1.5 -- residents pay this multiple of the food list price for what they eat (src/food.lua)
 -- Crew fatigue and shore leave (src/crew_fatigue.lua). Fatigue runs 0..1.
 T.fatigueRate=.035          -- fatigue a minute underway (about 20 min from rested to the soft limit)
 T.fatigueTransit=1.5        -- times that on an interplanetary crossing
@@ -506,6 +507,7 @@ T.agendaHoldPerJob=80 -- m3 of hold per extra job it may hold
 T.freightMinRun=12    -- m3 of freight at a pickup, bound for one area, before haulers fly it
 T.unmetShortageAge=300 -- s a buyer stays short before its makers count it as unmet, spare stock elsewhere or not (src/economy.lua)
 T.unmetShelfLots=4    -- lots a plant may hold while answering unmet demand before it slows (src/economy.lua)
+T.freightLeadTime=1800 -- stock coverage to allow pickup and transit
 T.freightMaxWait=600  -- seconds an order waits for a fuller load before any hauler takes it
 T.freightCreditsPerM3=10 -- base payment per cubic metre delivered
 -- scarcity premium (src/transport.lua): the share of the source-to-target
@@ -698,10 +700,11 @@ T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
 -- where the spread pays, made to local demand. Ammunition joins deuterium:
 -- hub routing and value-sized lots left home stations bare of it.
 T.priceDriven={deuterium_canister=true,empty_canister=true,
- -- raw goods and intermediates (food, water and medical supplies to follow)
- iron_ore=true,water_ice=true,hydrogen_canister=true,nitrates=true,silicon=true,heavy_metals=true,
+ food_crate=true,
+ -- raw goods and intermediates
+ iron_ore=true,water=true,water_ice=true,hydrogen_canister=true,nitrates=true,silicon=true,heavy_metals=true,
  steel_plate=true,electronics=true,explosives=true,fertilizer=true,industrial_acids=true,
- thermal_ceramics=true,superconducting_coils=true,patch_kit=true,flare=true,
+ medical_supplies=true,thermal_ceramics=true,superconducting_coils=true,patch_kit=true,flare=true,
  rounds_s=true,rounds_m=true,airburst_s=true,airburst_m=true,shell_s=true,shell_m=true,shell_l=true,shot_s=true,shot_m=true,shot_l=true,missile_s=true,missile_m=true,missile_l=true,torp_s=true,torp_m=true,torp_l=true,drone_s=true,drone_m=true,drone_l=true}
 T.makerShelfLots=4
 T.makerSalesHours=1     -- a price-driven maker's sales are smoothed over this long

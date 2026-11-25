@@ -137,6 +137,7 @@ function View.drawFreight(game,f,row)
  local note
  if q and amount<o.amount then
   note={q.limit=='stock' and ('Only %d of the %d ordered are in stock; the rest stays on the board.'):format(amount,o.amount)
+   or q.limit=='standing' and ('Your standing covers %d of the %d ordered; the rest stays on the board.'):format(amount,o.amount)
    or ('Your hold takes %d of the %d ordered; the rest stays on the board.'):format(amount,o.amount)}
  end
  footer(row,f,q,note)

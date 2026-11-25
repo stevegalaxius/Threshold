@@ -92,7 +92,9 @@ local function layout(game)
 	end
 	for i, rec in ipairs(L.list) do add(rec, rec.hull, rec.bay, i) end
  L.dealerWaiting=0
+ L.lots={}
  for _,lot in ipairs(require('src.dealers').lots(game.universe,st)) do
+  L.lots[lot]=true
   if not lot.bay and not lot.mooring then L.dealerWaiting=L.dealerWaiting+1 end
   add(lot,lot.hull,lot.bay)
   for _,ship in ipairs(L.ships) do if ship.owner==lot then ship.dealer=true end end
@@ -127,7 +129,7 @@ end
 
 local function shipAt(L, mx, my)
 	for _, s in ipairs(L.ships) do
-		if not s.dealer and inRect(s, mx, my) then return s end
+		if inRect(s, mx, my) then return s end
 	end
 end
 
@@ -135,11 +137,12 @@ end
 local function selected(game, L)
 	local sel = Hangar.sel
 	if sel ~= game.player then
-		local here = false
+		local here = L.lots[sel]
 		for _, rec in ipairs(L.list) do if rec == sel then here = true end end
 		if not here then Hangar.sel = game.player end
 	end
 	for _, s in ipairs(L.ships) do if s.owner == Hangar.sel then return s end end
+ if L.lots[Hangar.sel] then return {owner=Hangar.sel,hull=Hangar.sel.hull,dealer=true} end
 	return nil
 end
 
@@ -339,7 +342,7 @@ local function drawCard(game, L, mx, my, sel)
 	local x, w = I.x + PAD, I.w - PAD * 2
 	local y = I.y + 12
 
-	y = Sheet.label(flying and "Active ship" or "Stored ship", x, y)
+	y = Sheet.label(sel and sel.dealer and (owner.playerOrder and "Paid build" or "Dealer ship") or flying and "Active ship" or "Stored ship", x, y)
 	lg.setFont(HUD.font(20))
 	lg.setColor(HUD.INK)
 	lg.print(hull.name, x, y)
@@ -349,7 +352,7 @@ local function drawCard(game, L, mx, my, sel)
 	lg.setColor(HUD.DIM)
 	lg.printf(("%s \194\183 %s \194\183 %d\195\151%d cells"):format(hull.maker, hull.class, fw, fh), x, y, w)
 	y = y + 18
-	local col = flying and p.color or owner.color or p.color
+	local col = flying and p.color or owner.color or owner.paint and require("src.paint").preset(owner.paint) or p.color
 	y = Sheet.outline(hull, col, x, y, w, 58) + 2
 	if col.name then
 		lg.setColor(col[1], col[2], col[3])
@@ -369,6 +372,25 @@ local function drawCard(game, L, mx, my, sel)
 	for i in ipairs(hull.slots) do if loadout[i] then fitted = fitted + 1 end end
 	y = Sheet.label(("Fit \194\183 %d of %d slots"):format(fitted, #hull.slots), x, y)
 	y = Sheet.slots(hull, loadout, x, y, w, L.fly.y - 22) + 4
+
+ if sel and sel.dealer then
+  local ti=not owner.playerOrder and Hangar.tradeIn or nil
+  local credit=ti and math.max(0,game.shipSellPrice(ti)-require('src.berth_rent').owed(ti)) or 0
+  local problem=game:shipBuyProblem(L.station,owner,ti)
+  lg.setFont(HUD.font(13))
+  lg.setColor(HUD.DIM)
+  lg.printf(game:shipParkingLabel(L.station,owner),x,L.fly.y-18,w)
+  lg.printf(owner.playerOrder and 'Paid in full' or
+   (ti and ('Trade in '..data.hulls[ti.hull].name..' · '..HUD.credits(credit)) or 'No trade-in'),x,L.fly.y+7,w,'center')
+  if not owner.playerOrder then
+   Sheet.button(L.cargo,'Previous trade-in',inRect(L.cargo,mx,my),nil,#L.list>0)
+   Sheet.button(L.move,'Next trade-in',inRect(L.move,mx,my),nil,#L.list>0)
+  end
+  local label=problem or (owner.playerOrder and 'Collect ship' or
+   (Hangar.confirmBuy==owner and 'Confirm trade-in' or 'Buy · '..HUD.credits(math.max(0,owner.price-credit))))
+  Sheet.button(L.sell,label,inRect(L.sell,mx,my),Sheet.GREEN,not problem)
+  return
+ end
 
 	lg.setFont(HUD.font(13))
 	lg.setColor(HUD.DIM)
@@ -432,6 +454,22 @@ function Hangar.mousepressed(game, mx, my, button)
 	local parked = owner ~= game.player and listIndex(L, owner)
 	local confirm = Hangar.confirmSell
 	Hangar.confirmSell = nil
+ local buyConfirmation=Hangar.confirmBuy
+ Hangar.confirmBuy=nil
+ if sel and sel.dealer then
+  if not owner.playerOrder and (inRect(L.cargo,mx,my) or inRect(L.move,mx,my)) then
+   local index=listIndex(L,Hangar.tradeIn) or 0
+   local step=inRect(L.cargo,mx,my) and -1 or 1
+   Hangar.tradeIn=L.list[(index+step)%(#L.list+1)]
+   return
+  end
+  if inRect(L.sell,mx,my) then
+   local ti=not owner.playerOrder and Hangar.tradeIn or nil
+   if game:shipBuyProblem(L.station,owner,ti) then return end
+   if ti and buyConfirmation~=owner then Hangar.confirmBuy=owner;return end
+   return {buy=owner,tradeIn=ti}
+  end
+ else
 	if inRect(L.sell, mx, my) then
 		if not parked then return nil end
 		if confirm == owner then return { sell = parked } end
@@ -449,14 +487,14 @@ function Hangar.mousepressed(game, mx, my, button)
 		return { cargo = false }
 	end
 
-	local s = shipAt(L, mx, my)
-	if not s then
-		-- a ship for sale: open it in the Shipyard to buy
-		for _, d in ipairs(L.ships) do
-			if d.dealer and inRect(d, mx, my) then return { shop = d.owner } end
-		end
-		return nil
-	end
+ end
+ local s=shipAt(L,mx,my)
+ if not s then return end
+ if s.dealer then
+  Hangar.sel=s.owner
+  Hangar.tradeIn=nil
+  return
+ end
 	local now = love.timer.getTime()
 	local c = Hangar.lastClick
 	local double = c and c.owner == s.owner and now - c.t < 0.35
@@ -507,7 +545,7 @@ function Hangar.focus(game, ownerToShow)
 	local L = layout(game)
 	if not L then return end
 	local owner = Hangar.sel
-	local valid = owner == game.player or listIndex(L, owner) ~= nil
+	local valid = owner == game.player or L.lots[owner] or listIndex(L, owner) ~= nil
 	if not valid then owner = game.player; Hangar.sel = owner end
 	local index = owner == game.player and owner.parkingMooring or owner.mooring
 	if index then Hangar.scroll = max(0, index - L.visibleRows) end
@@ -522,6 +560,7 @@ end
 -- Drop whatever's in hand (the screen closed or the tab changed).
 function Hangar.cancel()
 	Hangar.hand = nil
+ Hangar.tradeIn,Hangar.confirmBuy=nil,nil
 	Hangar.confirmSell = nil
 end
 

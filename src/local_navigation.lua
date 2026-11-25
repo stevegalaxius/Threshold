@@ -143,8 +143,11 @@ local function bodies(game)
    local r=radiusOf(body,stamp)
    if r then
     local x,y=body:getPosition();local vx,vy=body:getLinearVelocity()
-    groups[#groups+1]={body=body,x=x,y=y,angle=body:getAngle(),vx=vx,vy=vy,loose=body:getType()=='dynamic' or nil,
-     minx=x-r,miny=y-r,maxx=x+r,maxy=y+r,owner=body:getUserData()}
+    local owner=body:getUserData()
+    local scenery=owner and (owner.kind=='station' or owner.kind=='structure')
+    groups[#groups+1]={body=body,x=x,y=y,angle=body:getAngle(),vx=vx,vy=vy,
+     r=r,spin=scenery and body:getAngularVelocity() or 0,scenery=scenery,loose=body:getType()=='dynamic' or nil,
+     minx=x-r,miny=y-r,maxx=x+r,maxy=y+r,owner=owner}
    end
   end
  end
@@ -185,7 +188,7 @@ local function obstacles(game,e,reach,ignore,allowSurface,staticOnly)
  local x,y=e.body:getPosition();local result={}
  local lx,ly,hx,hy=x-reach,y-reach,x+reach,y+reach
  for _,g in ipairs(bodies(game)) do
-  if g.maxx>=lx and g.minx<=hx and g.maxy>=ly and g.miny<=hy and g.body~=e.body and (not staticOnly or not g.loose)
+  if g.maxx>=lx and g.minx<=hx and g.maxy>=ly and g.miny<=hy and g.body~=e.body and (not staticOnly or not g.loose or g.scenery)
    and not g.body:isDestroyed() then result[#result+1]=g end
  end
  result.ignore,result.allowSurface=ignore,allowSurface
@@ -212,14 +215,81 @@ local function primsOf(g,list)
  return keep
 end
 Nav.obstacleGroups=obstacles
+local function segmentClear(geometry, ax, ay, bx, by, radius, touching)
+ local dx,dy=bx-ax,by-ay
+ local loX,hiX=min(ax,bx)-radius,max(ax,bx)+radius
+ local loY,hiY=min(ay,by)-radius,max(ay,by)+radius
+ for _,g in ipairs(geometry) do
+  if g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
+   for _,o in ipairs(primsOf(g,geometry)) do
+    if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY then
+     local hit=Sweep.sweepCircle(ax,ay,radius,o,dx,dy,1)
+     -- A wreck can pull away from a fixture it already touches. The
+     -- destination still has to clear that fixture, and physics stays on.
+     local leaving=touching and o.owner==touching and hit==0
+      and not Sweep.sweepCircle(bx,by,radius,o,0,0,1)
+     if hit and not leaving then return false end
+    end
+   end
+  end
+ end
+ return true
+end
+
+function Nav.towClear(game,e,x,y,gx,gy,radius,station)
+ local reach=sqrt((gx-x)^2+(gy-y)^2)+radius
+ local geometry=obstacles(game,e,reach,nil,true)
+ return segmentClear(geometry,x,y,gx,gy,radius,station)
+end
+
+function Nav.stagingClear(game,e,x,y,radius)
+ local sx,sy=e.body:getPosition()
+ local geometry=obstacles(game,e,sqrt((x-sx)^2+(y-sy)^2)+radius,nil,false,true)
+ return segmentClear(geometry,x,y,x,y,radius)
+end
+
+-- Check the current fixtures directly at wake: a newly created body and
+-- its neighbours need not be in this step's shared navigation index yet.
+function Nav.clearWake(game,e,x,y)
+ local radius=(radiusOf(e.body,game.navStamp) or max(e.halfLength,e.hull.radius))+T.aiClearance
+ local function fits(px,py)
+  local clear=true
+  game.world:queryBoundingBox(px-radius,py-radius,px+radius,py+radius,function(f)
+   local body=f:getBody()
+   if body~=e.body and body:isActive() and not f:isSensor() then
+    local bx,by=body:getPosition()
+    local state={x=bx,y=by,angle=body:getAngle()}
+    for _,o in ipairs(geometryFor(f,body,state)) do
+     if Sweep.sweepCircle(px,py,radius,o,0,0,1) then clear=false;return false end
+    end
+   end
+   return true
+  end)
+  return clear
+ end
+ if fits(x,y) then return x,y end
+ local bearing=math.atan2(y,x)
+ local step=max(100,radius)
+ local distance=step
+ while true do
+  for k=0,15 do
+   local a=bearing+k*pi/8
+   local px,py=x+cos(a)*distance,y+sin(a)*distance
+   if fits(px,py) then return px,py end
+  end
+  distance=distance+max(step,distance/8)
+ end
+end
+
 -- Commit to a detour around scenery instead of repeatedly aiming into it.
 -- Dynamic traffic still uses the predictive steering below.
 function Nav.waypoint(game,e,gx,gy,options)
  options=options or {}
  local x,y=e.body:getPosition();local now=game.time or 0
  local old=e.detour
+ local needsSight=options.sight~=nil
  local function distance(ax,ay,bx,by)return sqrt((ax-bx)^2+(ay-by)^2) end
- if old and old.ignore==options.ignore and old.surface==options.allowSurface
+ if old and old.sight==needsSight and old.ignore==options.ignore and old.surface==options.allowSurface
   and distance(gx,gy,old.gx,old.gy)<180 and now<old.expires then
   while old.index<#old.path and distance(x,y,old.path[old.index][1],old.path[old.index][2])<120 do old.index=old.index+1 end
   local point=old.path[old.index]
@@ -231,33 +301,30 @@ function Nav.waypoint(game,e,gx,gy,options)
  local padding=max(1400,min(5000,direct*.6))
  local geometry=obstacles(game,e,min(24000,direct+padding),options.ignore,options.allowSurface,true)
  local function clear(ax,ay,bx,by)
-  local loX,hiX=min(ax,bx)-radius,max(ax,bx)+radius
-  local loY,hiY=min(ay,by)-radius,max(ay,by)+radius
-  for _,g in ipairs(geometry) do
-   if g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
-    for _,o in ipairs(primsOf(g,geometry)) do
-     if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY
-      and Sweep.sweepCircle(ax,ay,radius,o,bx-ax,by-ay,1) then return false end
-    end
-   end
-  end
-  return true
+  return segmentClear(geometry,ax,ay,bx,by,radius)
  end
  local function save(path,ttl)
-  e.detour={gx=requestedX,gy=requestedY,ignore=options.ignore,surface=options.allowSurface,
+  e.detour={gx=requestedX,gy=requestedY,ignore=options.ignore,surface=options.allowSurface,sight=needsSight,
    path=path,index=1,expires=now+ttl}
   return path[1][1],path[1][2],#path>1
  end
  -- A near-side mining standoff can fall inside the parent asteroid.
  -- Find an accessible point on the same working ring before planning.
- if not clear(gx,gy,gx,gy) and options.stand then
+ local function usable(px,py)
+  return clear(px,py,px,py) and (not options.sight or options.sight(px,py))
+ end
+ if not usable(gx,gy) and options.stand then
   local best
   for i=0,23 do
    local angle=i*pi/12
    local px,py=options.cx+cos(angle)*options.stand,options.cy+sin(angle)*options.stand
-   local cost=distance(x,y,px,py)
-   if (not best or cost<best) and clear(px,py,px,py) then gx,gy,best=px,py,cost end
+   if usable(px,py) then
+    local cost=distance(x,y,px,py)
+    if needsSight and not clear(x,y,px,py) then cost=cost+direct end
+    if not best or cost<best then gx,gy,best=px,py,cost end
+   end
   end
+  if not best and needsSight then return nil end
  end
  if clear(x,y,gx,gy) then return save({{gx,gy}},.8) end
  if not clear(gx,gy,gx,gy) then return save({{gx,gy}},2) end
@@ -287,7 +354,7 @@ function Nav.waypoint(game,e,gx,gy,options)
   Worker.ask('path',{x,y,gx,gy,radius,padding,direct,Path.pack(prims)},function(found)
    if e.pathAsk~=ask or e.dead or e.removed then return end
    e.pathAsk=nil
-   e.detour={gx=requestedX,gy=requestedY,ignore=ignore,surface=surface,
+   e.detour={gx=requestedX,gy=requestedY,ignore=ignore,surface=surface,sight=needsSight,
     path=found.path,index=1,expires=(game.time or 0)+found.ttl}
   end)
   return save({{gx,gy}},1.5)
@@ -310,7 +377,7 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  local x,y=e.body:getPosition();local vx,vy=e.body:getLinearVelocity()
  local speed=sqrt((vx-flowX)^2+(vy-flowY)^2)
  local brake=max(1,options.brake or 100)
- local horizon=min(10,max(2,options.horizon or 4.5)+speed/brake*.4)
+ local horizon=min(15,max(options.horizon or 4.5,speed/brake+T.aiSteerEvery))
  local reach=min(18000,(max(want,speed)+sqrt(vx*vx+vy*vy)+400)*horizon+e.halfLength)
  local geometry=obstacles(game,e,reach,options.ignore,options.allowSurface)
  local a=e.body:getAngle();local c,s=cos(a),sin(a)
@@ -321,7 +388,7 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  -- the current. The collision pushes them apart; steering ignores it meanwhile.
  local overlapping
  for _,g in ipairs(geometry) do
-  if g.loose and x+radius>=g.minx and x-radius<=g.maxx and y+radius>=g.miny and y-radius<=g.maxy then
+  if g.loose and not g.scenery and x+radius>=g.minx and x-radius<=g.maxx and y+radius>=g.miny and y-radius<=g.maxy then
    for _,o in ipairs(primsOf(g,geometry)) do
     if x+radius>=o.minx and x-radius<=o.maxx and y+radius>=o.miny and y-radius<=o.maxy
      and Sweep.sweepCircle(x,y,radius,o,0,0,1)==0 then overlapping=overlapping or {};overlapping[o]=true end
@@ -345,6 +412,46 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
   end
   geometry=near
  end
+ -- Sweep in the rotating obstacle's frame. Between samples the ship's
+ -- straight course becomes a short arc. Bound the chord error using its
+ -- acceleration in that frame, including the translation/rotation term.
+ local function rotatingHit(g,rx,ry,time)
+  local spin=g.spin
+  local rv=sqrt(rx*rx+ry*ry)
+  local reach=sqrt((x-g.x)^2+(y-g.y)^2)+e.halfLength+rv*time
+  local drift=min(2,abs(spin)*time)*g.r
+  local lx,hx=minx+min(0,rx*time)-drift,maxx+max(0,rx*time)+drift
+  local ly,hy=miny+min(0,ry*time)-drift,maxy+max(0,ry*time)+drift
+  local prims
+  for _,o in ipairs(primsOf(g,geometry)) do
+   if o.maxx>=lx and o.minx<=hx and o.maxy>=ly and o.miny<=hy then
+    prims=prims or {};prims[#prims+1]=o
+   end
+  end
+  if not prims then return end
+  local curvature=spin*spin*reach+2*abs(spin)*rv
+  local count=max(1,math.ceil(time*sqrt(curvature/(8*T.aiClearance))))
+  local dt=time/count
+  local pad=curvature*dt*dt/8
+  for step=1,count do
+   local t0,t1=(step-1)*dt,step*dt
+   local c0,s0=cos(spin*t0),sin(spin*t0)
+   local c1,s1=cos(spin*t1),sin(spin*t1)
+   local best
+   for _,off in ipairs(offsets) do
+    local px,py=x+c*off-g.x,y+s*off-g.y
+    local ax,ay=px+rx*t0,py+ry*t0
+    local bx,by=px+rx*t1,py+ry*t1
+    local x0,y0=g.x+c0*ax+s0*ay,g.y-s0*ax+c0*ay
+    local dx,dy=g.x+c1*bx+s1*by-x0,g.y-s1*bx+c1*by-y0
+    for _,o in ipairs(prims) do
+     local hit=Sweep.sweepCircle(x0,y0,radius+pad,o,dx,dy,1)
+     if hit then best=min(best or 1,hit) end
+    end
+   end
+   if best then return t0+best*dt end
+  end
+ end
  local function freeTime(dx,dy,ahead,physicalOnly)
   ahead=ahead or horizon
   local time=ahead
@@ -353,13 +460,18 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
     local rx,ry=dx-g.vx,dy-g.vy
     if maxx+max(0,rx*time)>=g.minx-1e-6 and minx+min(0,rx*time)<=g.maxx+1e-6
      and maxy+max(0,ry*time)>=g.miny-1e-6 and miny+min(0,ry*time)<=g.maxy+1e-6 then
-     for _,o in ipairs(primsOf(g,geometry)) do
-      if not (overlapping and overlapping[o])
+     if g.spin and g.spin~=0 then
+      time=rotatingHit(g,rx,ry,time) or time
+      if time==0 then return 0 end
+     else
+      for _,o in ipairs(primsOf(g,geometry)) do
+       if not (overlapping and overlapping[o])
        and maxx+max(0,rx*time)>=o.minx-1e-6 and minx+min(0,rx*time)<=o.maxx+1e-6
        and maxy+max(0,ry*time)>=o.miny-1e-6 and miny+min(0,ry*time)<=o.maxy+1e-6 then
-       for _,offset in ipairs(offsets) do
-        local hit=Sweep.sweepCircle(x+c*offset,y+s*offset,radius,o,rx,ry,time)
-        if hit and hit<time then time=hit;if time==0 then return 0 end end
+        for _,offset in ipairs(offsets) do
+         local hit=Sweep.sweepCircle(x+c*offset,y+s*offset,radius,o,rx,ry,time)
+         if hit and hit<time then time=hit;if time==0 then return 0 end end
+        end
        end
       end
      end
@@ -393,7 +505,11 @@ function Nav.steer(game,e,ux,uy,want,flowX,flowY,options)
  best.goal=goal;best.want=want;best.distance=options.distance;best.ignore=options.ignore;best.surface=options.allowSurface
  best.danger=1-current/horizon
  best.scale=best.clear and 1 or max(.15,min(.65,best.fraction*.8))
- if best.danger>.7 and speed>100 then best.scale=min(best.scale,.5) end
+ if current<horizon and speed>100 then
+  -- Leave room to shed the velocity we actually have before contact.
+  local brakeTime=speed/brake+T.aiSteerEvery
+  best.scale=min(best.scale,max(.15,current/brakeTime))
+ end
  -- Ships waking together must not all redo avoidance on the same tick.
  -- Give each one a stable phase, keeping the existing maximum refresh age.
  local interval=T.aiSteerEvery
