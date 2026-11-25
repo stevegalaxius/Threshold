@@ -1,5 +1,7 @@
 # PR #83 simulation soak
 
+> Historical report, kept for the measurements. Its 10,000-energy fuel setting was reverted to 2,500 and the ship catalogue and station list have changed since. Don't read it as the current design.
+
 Follow-up: the assembly and timed-delivery bugs were corrected, fuel was restored to 2,500 energy, and the production chain was rebalanced. See [Fuel supply at the original energy value](fuel-supply-balance.md) for the subsequent failed baseline and recovery measurements. The results below remain the historical 10,000-energy run.
 
 Tested revision: `86445a2`. No repository gameplay code or tuning changed during this review.

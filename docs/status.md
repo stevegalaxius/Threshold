@@ -5,14 +5,14 @@ system works. This page only says what exists and what's next. Keep it short:
 when something ships, move its line from **To build** to **Built** and link
 the doc or source file that explains it.
 
-Last checked against `main`: 2026-11-15.
+Last checked against `main`: 2026-11-25.
 
 ## Built
 
 ### Flight, combat and ships
 - Box2D flight with drag, side thrusters and turn response (`src/ship.lua`).
 - Guns, artillery, lasers, missiles, torpedoes and drone launchers (`data/items.lua`, `src/weapons.lua`).
-- 32 hulls (`data/ships/`), including drones and the cargo pod. Slot-matched modules (`data/modules.lua`).
+- 36 hulls (`data/ships/`), including drones and the cargo pod. Slot-matched modules (`data/modules.lua`).
 - Wrecks you can loot or drill for steel, and parts you can shoot off.
 - Patch kits as field repair (`src/item_use.lua`), with Q as the hotkey.
 
@@ -66,7 +66,7 @@ Last checked against `main`: 2026-11-15.
 ### Designed, not built
 - **Task generation layers** (simulation, economy, director) and a picker that rotates between them. Only the station-job generators exist ([alife-design.md](alife-design.md#task-generation)).
 - **The director's attention nudge.** Steering offline events toward the player when things have been quiet.
-- **The fifth faction.** The hidden hand that reaches the player through instanced sites.
+- **A hidden hand behind the sites.** An earlier plan for a fifth faction reaching the player through instanced sites. Dropped as a cult; Milliways may fill the role. Not decided.
 - **Rewards and completion for other board work.** The player can only take freight off the board so far.
 
 ### Waiting on a decision
