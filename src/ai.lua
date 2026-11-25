@@ -574,7 +574,14 @@ local function trade(game, e, dt)
 				end
 			elseif e.alifeId and stop.kind=="moon_gate" then
 				e.alifeDepart=true;it.thrust,it.strafe=0,0;return
-			else e.routeIndex=e.routeIndex%#route+1 end
+			else
+				e.routeIndex=e.routeIndex%#route+1
+				local r=e.alifeRecord
+				if r and require('src.alife').refreshBuoy(r,e.routeIndex,game.universe.clock,x,y) then
+					require('src.alife').bindRoute(game,e,r)
+					return
+				end
+			end
 		end
 		-- The speed it wants: its cruise, but no faster than it can shed
 		-- before the stop (down to a crawl for a station's runway, or a
@@ -646,7 +653,9 @@ local function trade(game, e, dt)
 			want = min(want, cap)
 			if near then
 				local k = max(0, min(1, 1 - gap / 1500))
-				local svx, svy = near.body:getLinearVelocityFromWorldPoint(x, y)
+				-- A passing ship follows the station around its orbit. Its spin
+				-- moves individual fixtures, not the surrounding flight corridor.
+				local svx, svy = near.body:getLinearVelocity()
 				fx0, fy0 = fx0 + (svx - fx0) * k, fy0 + (svy - fy0) * k
 			end
 		end

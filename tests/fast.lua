@@ -36,6 +36,26 @@ return function(game)
   assert(not Nav.waypoint(scene,actor,-200,0,{cx=100,cy=0,stand=300,sight=function() return false end}),
    'salvage planned an approach to a completely blocked wreck')
  end
+ -- A stationary ship in the path of a turning arm has to move even
+ -- though the station centre and the ship have zero relative velocity.
+ do
+  local Nav=require('src.local_navigation')
+  local world=love.physics.newWorld()
+  local station=love.physics.newBody(world,0,0,'kinematic')
+  station:setUserData({kind='station'})
+  love.physics.newFixture(station,love.physics.newRectangleShape(300,0,500,40,0))
+  local actor={body=love.physics.newBody(world,0,450,'dynamic'),halfLength=20,hull={radius=20}}
+  local scene={world=world,time=0}
+  local _,_,_,still=Nav.steer(scene,actor,0,1,80,0,0,{horizon=4})
+  station:setAngularVelocity(.5)
+  actor.navigation=nil
+  local _,_,_,turning=Nav.steer(scene,actor,0,1,80,0,0,{horizon=4})
+  assert(still==0 and turning>0,'steering missed a rotating station arm')
+  local x,y=Nav.clearWake(scene,actor,300,0)
+  assert(x~=300 or y~=0,'offline ship woke in solid scenery')
+  local xx,yy=Nav.clearWake(scene,actor,x,y)
+  assert(xx==x and yy==y,'clear wake position moved')
+ end
  require("tests.station_markets")()
  require("tests.dock_traffic")()
  require("tests.tractor_flow")()
@@ -43,6 +63,17 @@ return function(game)
  for _,id in ipairs(Fields.list) do
   local ok,err=xpcall(function() g:loadField(id);run(g,1) end,debug.traceback)
   assert(ok,('map %s: %s'):format(id,tostring(err)))
+  if id=='jupiter' then
+   local city=assert(g:locationEntity('station:jupiter_1'))
+   local fixture
+   for _,f in ipairs(city.body:getFixtures()) do
+    if not f:isSensor() and f:getShape():getType()=='polygon' then fixture=f;break end
+   end
+   local cx,cy=fixture:getShape():computeMass(1)
+   local x,y=city.body:getWorldPoint(cx,cy)
+   local nx,ny=require('src.local_navigation').clearWake(g,g.player,x,y)
+   assert(fixture:testPoint(x,y) and not fixture:testPoint(nx,ny),'wake inside Olympus hull')
+  end
   assert(#g.entities>0,'map '..id..' has no entities')
  end
  print('ok  content: '..#Fields.list..' maps load')
@@ -554,6 +585,21 @@ return function(game)
   local xx,yy=A.trackPoint(r,0)
   assert(math.abs(x-xx)+math.abs(y-yy)<1,'ship jumped turning round')
   for k in pairs(r) do r[k]=nil end;for k,v in pairs(keep) do r[k]=v end
+ end
+ -- NPC 150's saved Mars leg. Its former buoy has moved behind the ship.
+ do
+  local A=require('src.alife')
+  local clock=25780.866668
+  local goal='access:mars_3_3'
+  local route={'station:mars_2','mars/trade_buoy_b',goal}
+  local r={id='test/mars-hauler',area='mars',route=route,index=2,state='travel',speed=600,
+   action={kind='dock',target={id=goal}},spread=0}
+  local x,y=23775,1422
+  assert(A.refreshBuoy(r,2,clock,x,y) and r.route[2]==goal and #route==3,'stale transit buoy retained')
+  local xx,yy=A.point(r,clock)
+  assert(math.abs(x-xx)+math.abs(y-yy)<1,'shortcut moved the ship during handoff')
+  r.route=route;r.task={target=route[2]}
+  assert(not A.refreshBuoy(r,2,clock,x,y),'skipped an assigned buoy')
  end
  -- A repair stop past the node it was heading for: the ship rejoins its
  -- route at the station instead of coming back to that node first.
