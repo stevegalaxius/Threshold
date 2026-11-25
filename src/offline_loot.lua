@@ -213,6 +213,8 @@ function O.find(ctx)
   end
   local blocked=ctx.e and ctx.e.recoveryBlocked
   if blocked and target and target.entity and (blocked[target.entity] or 0)>ctx.clock then return end
+  -- a wreck the station is still towing off its hull: wait until it's clear
+  if target and target.entity and target.entity.debrisClear then return end
   if not target or target.done or not Actions.available(ctx,target) or Actions.sinking(ctx.r,target.x,target.y) then return end
   local s=target.source
   if s and (s.kind=='combat' or s.record.kind=='husk') and not Wreck.weapon(ctx.e or r.ship) then return end

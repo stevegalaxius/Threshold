@@ -1384,7 +1384,8 @@ function Game:inTractorZone(st, x, y)
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
-		if lx > d.x2 and lx < d.x2 + d.runway and math.abs(ly) < (d.capture or d.hw*1.3) then
+		-- generous: the beam does the fine alignment once it has the ship
+		if lx > d.x2 and lx < d.x2 + d.runway * 1.15 and math.abs(ly) < max(d.capture or 0, d.hw * 1.6) then
 			return true, lx, ly, side, d
 		end
 	end
@@ -1410,14 +1411,23 @@ function Game:updateDocking(dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
 			local trader = e.def and e.def.ai.style == "civilian" or (e.alifeId and e.route ~= nil)
-			if (e == self.player or trader) and e.dockCooldown == 0 then
+			local stop = trader and e ~= self.player and e.route and e.route[e.routeIndex or 1]
+			if stop and e.dockApproach and e.dockApproach.berth and e.dockCooldown == 0 then
+				-- bound for an exterior berth: its own engines bring it to the
+				-- pad (src/dock_approach.lua), and the station settles it on
+				require("src.dock_approach").tryBerth(self, e, stop)
+			elseif e == self.player and e.dockCooldown == 0 and require("src.dock_approach").playerBerth(self, e) then
+				-- settled onto an exterior berth
+			elseif (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
 					-- traders only dock where their route says to
 					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
 						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
 						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						if inZone and not require('src.queue').dockBusy(self,st,dock,e) then
+						-- the player has right of way: NPCs gliding in or out are
+						-- station-flown and don't collide, so they never shut the door
+						if inZone and (e == self.player or not require('src.queue').dockBusy(self,st,dock,e)) then
 							self:beginDocking(e, st, side, dock)
 							break
 						end
@@ -1505,12 +1515,14 @@ function Game:updateDockedShip(e, dt)
 		-- in toward the door, slowing as it arrives
 		local gap = lx - doorX
 		local inward = -min(260, gap > 0 and max(50, gap * 0.6) or gap * 0.6)
-		local across = -ly * 0.8
+		local across = -ly * 1.2
+		-- well off the centre line, line up before going in
+		if math.abs(ly) > d.hw * 0.5 then inward = max(0, inward) end
 		local wx, wy = dockVector(st, side, inward, across, d)
 		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
 		local vx, vy = b:getLinearVelocity()
 		-- the player can slide out of the beam; an NPC is held
-		if e == self.player and (lx > d.x2 + d.runway * 1.2 or math.abs(ly) > math.max(d.hw*2,(d.capture or d.hw*1.3)*1.5)) then
+		if e == self.player and (lx > d.x2 + d.runway * 1.35 or math.abs(ly) > math.max(d.hw*2.4,(d.capture or d.hw*1.6)*1.5)) then
 			e.dockState, e.dockCooldown = nil, 3
 			self:toast("TRACTOR LOST", 1.4)
 			return
@@ -1633,7 +1645,7 @@ function Game:launchBlocker(e)
 	if not e.dockState then return nil end
 	local wx, wy = launchPose(e)
 	for _, o in ipairs(self.entities) do
-		if o ~= e and o.kind == "ship" and not o.dead and not o.removed and o.body
+		if o ~= e and (o.kind == "ship" or o.kind == "husk") and not o.dead and not o.removed and o.body
 			and o.body:isActive() and not (o.dockState and o.dockState.done) then
 			local x, y = o.body:getPosition()
 			local r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance
@@ -1646,6 +1658,43 @@ end
 -- off to the side (the nearer side) until the launch point is clear. Not
 -- a ship that's on its own way in to dock: that one is about to land.
 -- e is the docked ship waiting to leave. Moved by Game:updateRunwayPush.
+-- A wreck that touches a station is towed clear by the station's beam:
+-- outward from the hull until it is well away, wreck and cargo intact, so
+-- it no longer lies on an approach for the next ship to hit.
+function Game:clearDebris(st, husk)
+	if husk.dead or husk.removed or husk.debrisClear or st.city then return end
+	husk.debrisClear = { station = st, t = 0 }
+end
+function Game:updateDebrisClear(dt)
+	local AI = require("src.ai")
+	for _, o in ipairs(self.entities) do
+		local c = o.debrisClear
+		if c then
+			local st, b = c.station, o.body
+			c.t = c.t + dt
+			if o.dead or o.removed or not b or b:isDestroyed() or st.removed or not st.body or st.body:isDestroyed() or c.t > 20 then
+				o.debrisClear = nil
+			else
+				local sb = st.body
+				local x, y = b:getPosition()
+				local dx, dy = x - sb:getX(), y - sb:getY()
+				local r = sqrt(dx * dx + dy * dy)
+				if r > AI.hullRadius(st) + (o.halfLength or 50) + 400 then
+					o.debrisClear = nil
+				else
+					if r < 1 then dx, dy, r = 1, 0, 1 end
+					local fx, fy = sb:getLinearVelocityFromWorldPoint(x, y)
+					local vx, vy = b:getLinearVelocity()
+					local tx, ty = fx + dx / r * 140, fy + dy / r * 140
+					local k = min(1, dt * 2)
+					b:setLinearVelocity(vx + (tx - vx) * k, vy + (ty - vy) * k)
+					b:setAngularVelocity(b:getAngularVelocity() * (1 - k))
+				end
+			end
+		end
+	end
+end
+
 function Game:clearRunway(e, o)
 	if not o or o.dockState or o.runwayPush then return end
 	local wx, wy, _, ox, oy = launchPose(e)
@@ -2190,6 +2239,7 @@ function Game:step(dt, sample)
 	self:applySurfacePull()
 	self:updateDockExits(dt)
 	self:updateRunwayPush(dt)
+	self:updateDebrisClear(dt)
 	self:updateLane(dt)
 	self:updateAtmosphere(dt)
 	self:updateCrush(dt)
@@ -2311,8 +2361,12 @@ function Game:beginContact(fa, fb, contact)
 	local nx, ny = contact:getNormal()
 	local avx, avy = a.body:getLinearVelocityFromWorldPoint(x, y)
 	local bvx, bvy = b.body:getLinearVelocityFromWorldPoint(x, y)
+	-- The normal points from a to b: positive is closing. A separating
+	-- contact (a ship already sliding off) is not a crash.
 	local closing = (avx - bvx) * nx + (avy - bvy) * ny
-	if closing < 0 then closing = -closing end
+	if a.kind == "husk" and b.kind == "station" then self:clearDebris(b, a) end
+	if b.kind == "husk" and a.kind == "station" then self:clearDebris(a, b) end
+	if closing <= 0 then return end
 	local key = a.id < b.id and (a.id * 1000003 + b.id) or (b.id * 1000003 + a.id)
 	local c = self.contacts[key]
 	if not c or closing > c.v then self.contacts[key] = { a = a, b = b, v = closing, x = x, y = y } end
@@ -2346,6 +2400,18 @@ function Game:resolveContacts()
 				local mult = rock and T.asteroidImpact or (other.kind == "ship" and other.stats.mult.ramDamage or 1)
 				local dmg = T.ramDamage * m * over * over / tough * mult
 				self:damage(o, dmg, other, "ram", c.x, c.y)
+				if o.dead and o.kind == "ship" and other.kind == "station" and not o.stationImpact then
+					-- what killed it, for the A-Life trace: a bad approach,
+					-- a launch, or plain flying into the station
+					o.stationImpact = { station = other.locationId or other.key, speed = c.v,
+						phase = o.dockState and o.dockState.phase
+							or o.dockExit and "departure" or "free flight" }
+					local r = o.alifeId and self.universe and self.universe.npcs[o.alifeId]
+					if r then
+						require("src.alife_trace").note(r, self.universe.clock, "death",
+							("rammed %s at %d px/s (%s)"):format(tostring(o.stationImpact.station), c.v, o.stationImpact.phase))
+					end
+				end
 				return dmg
 			end
 			local da = hurt(c.a, ma, speedChange(ma, mb, c.v), c.b)

@@ -236,6 +236,7 @@ T.npcDecisionInterval,T.npcControlInterval,T.npcCombatInterval=1,.2,.1
 T.npcCruiseInterval=1
 T.npcCrowdLook,T.npcCrowdMargin=2,800  -- replan at the combat rate when something solid is within 2 cruise replans of travel (+800px)
 T.npcStationClearance=250  -- px beyond a station hull (plus the ship's half length) that traffic routes around
+T.dockApproachRange=2500  -- inside hull radius + half length + this, an NPC flies its planned dock route (src/dock_approach.lua)
 T.npcDockCone,T.npcDockMarker=.35,700  -- dock approach: lined-up cone width per px out; marker distance beyond the hull
 T.aiBoostCruise, T.aiBoostStopMargin = 3, 1800
 T.aiStationSlowRange, T.aiStationSpeed = 5000, 450  -- dock approach: no burner inside this range, easing down to this speed by half of it

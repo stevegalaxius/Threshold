@@ -964,7 +964,7 @@ function A.wake(game,r)
      if other.removed or other.dead or not other.body or other.body:isDestroyed() or other.dockState then st.overflowLine[other]=nil else n=n+1 end
     end
     st.overflowLine[e]=true
-    local back=T.queueStart+T.queueGap*n
+    local back=math.max(T.queueStart,require('src.ai').hullRadius(st)+e.halfLength+T.npcDockMarker-d)+T.queueGap*n
     x,y=sx+dx/d*(d+back),sy+dy/d*(d+back)
     e.body:setPosition(x,y);e.body:setLinearVelocity(st.body:getLinearVelocityFromWorldPoint(x,y))
     require('src.alife_trace').note(r,game.universe.clock,'wake','no free berth at '..tostring(r.route[r.index])..', holding in line')

@@ -199,6 +199,7 @@ function A.move(ctx,target,stand,keepDistance,sight)
  if not wx then return false,true end
  local rx,ry=wx-x,wy-y;local leg=math.max(.001,math.sqrt(rx*rx+ry*ry))
  local want=math.min(require('src.npc').liveCruise(e),leg*.8,math.sqrt(2*Nav.brakeAccel(e)*leg))
+ want=math.min(want,(AI.stationSpeedCap(ctx.game,e,x,y)))
  local mx,my,scale=Nav.steer(ctx.game,e,rx/leg,ry/leg,want,target.vx or 0,target.vy or 0,
   {ignore=target.entity,brake=Nav.brakeAccel(e),distance=leg})
  AI.driveVelocity(e,(target.vx or 0)+mx*want*scale,(target.vy or 0)+my*want*scale,mx,my,e.def.ai.throttle)
