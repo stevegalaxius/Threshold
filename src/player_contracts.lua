@@ -180,10 +180,13 @@ function C.onWreck(game,ship)
   Tasks.release(game.universe,r,'ship wrecked before pickup',game.universe.clock)
   return 'Contract released · pickup still available'
  end
- -- The carrier's hold becomes wreck salvage. Cargo stored elsewhere
- -- can still be delivered by the replacement ship.
- local item=t.kind=='passenger' and 'passengers' or t.item
- if t.phase=='delivery' and (ship.cargo[item] or 0)>0 then
+ if t.phase~='delivery' then return end
+ if t.kind=='transport' and (ship.cargo[t.item] or 0)>0 then
+  -- The cargo is still in the world. Keep the shipment and its
+  -- settlement open so the replacement ship can recover and deliver it.
+  return 'Freight contract still active · recover cargo from the wreck'
+ end
+ if t.kind=='passenger' and (ship.cargo.passengers or 0)>0 then
   return failLoaded(game,r,'ship wrecked')
  end
 end

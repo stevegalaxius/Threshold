@@ -60,8 +60,8 @@ function View.drawActive(game,f,t)
  local missing=Board.cargoMissing(game)
  local partial=missing and (game.player.cargo[t.item] or 0)>0
  if missing then
-  detail=partial and 'Some cargo is missing. Replace it, deliver what remains, or report the loss.'
-   or 'Cargo missing. Replace it or report the loss.'
+  detail=partial and 'Some cargo is missing. Recover or replace it, deliver what remains, or report the loss.'
+   or 'Cargo missing. Recover or replace it, or report the loss.'
  end
  text(r.x+14,r.y+76,r.w-230,detail,14,HUD.INK)
  text(r.x+14,r.y+108,r.w-230,missing and 'Reporting loss ends the contract without payment and reduces standing.'
