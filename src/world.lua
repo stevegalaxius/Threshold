@@ -271,6 +271,9 @@ function Game:hangarGrid(st, ignore)
 		if Grid.isFree(g, bay.x, bay.y, w, h) then Grid.place(g, { x = bay.x, y = bay.y, w = w, h = h, owner = owner }) end
 	end
 	for _, rec in ipairs(self:stationRoster(st)) do put(rec, rec.hull, rec.bay) end
+	for _, claim in ipairs(require('src.dealer_parking').claims(self.universe, st.locationId or st.key)) do
+		if claim ~= self.ignoredDeliveryParking then put(claim, claim.hull, claim.bay) end
+	end
 	for _,e in ipairs(self.entities) do
 		if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station==st then
 			put(e,e.hull.id,e.bay)

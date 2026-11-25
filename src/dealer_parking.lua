@@ -2,7 +2,7 @@
 -- normal spatial grid, doorway, berth size and hull-clearance checks.
 local P={scenes=setmetatable({},{__mode='k'}),stations={}}
 function P.bind(u,game,station)
- P.scenes[u]=P.scenes[u] or {};P.scenes[u][station.key]=setmetatable({game=game,station=station},{__mode='v'})
+ P.scenes[u]=P.scenes[u] or {};P.scenes[u][station.locationId or station.key]=setmetatable({game=game,station=station},{__mode='v'})
 end
 function P.reserve(st)
  local T=require('src.tuning');local h=st.def.hangar or {}
@@ -23,6 +23,19 @@ function P.bayAllowed(st,bay,w,h)
  local rows=P.reserve(st);local height=(st.def.hangar or {}).h or require('src.tuning').hangarH
  return bay.y+h<=height-rows
 end
+-- A booked hull occupies space on the grid without appearing in the roster
+-- or the scene. Its offer owns the claim for the lifetime of the delivery.
+function P.claims(u,key)
+ local result={}
+ local deliveries,offers=require('src.tasks').offersOfKind(u,'ship_delivery')
+ for id,offer in pairs(deliveries) do
+  if offers[id]==offer and offer.target==key and offer.parking and offer.parking.hull==offer.hull then
+   result[#result+1]=offer.parking
+  end
+ end
+ return result
+end
+
 local function context(u,key)
  local Game,L=require('src.game'),require('src.locations')
  local def=L.stationDefinition(key)
@@ -67,7 +80,7 @@ local function fit(proxy,station,hull,owner,prefer)
  end
  return proxy:shipParkingFit(station,hull,owner)
 end
-function P.plan(u,key,hull,count,prefer,playerOwned,incoming)
+function P.plan(u,key,hull,count,prefer,playerOwned,claim)
  local proxy,station,roster=context(u,key);if not proxy then return {} end
  local placements={}
  -- A ship already here whose spot no longer works (never assigned one,
@@ -82,12 +95,10 @@ function P.plan(u,key,hull,count,prefer,playerOwned,incoming)
    proxy:applyParking(owner,parking)
   end
  end
- for _,hullId in ipairs(incoming or {}) do
-  local owner={hull=hullId}
-  local parking=fit(proxy,station,hullId,owner,prefer)
-  if not parking then return placements end
-  proxy:applyParking(owner,parking)
-  roster[#roster+1]=owner
+ proxy.ignoredDeliveryParking=claim
+ -- Preserve this claim's exact assignment while it remains valid.
+ if claim and proxy:shipParkingValid(station,claim,hull) then
+  return {{bay=claim.bay,mooring=claim.mooring}}
  end
  for _=1,count do
   local owner={hull=hull,dealerStock=not playerOwned}

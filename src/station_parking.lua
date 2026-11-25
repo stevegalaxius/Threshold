@@ -30,6 +30,9 @@ return function(Game)
   return r.moorings
  end
  function Game:mooringTaken(st,index,ignore)
+  for _,claim in ipairs(require('src.dealer_parking').claims(self.universe,st.locationId or st.key)) do
+   if claim~=self.ignoredDeliveryParking and claim.mooring==index then return true end
+  end
   for _,rec in ipairs(self:stationRoster(st)) do
    if rec~=ignore and rec.mooring==index then return true end
   end

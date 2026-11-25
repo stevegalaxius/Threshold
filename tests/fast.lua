@@ -57,6 +57,8 @@ return function(game)
   assert(xx==x and yy==y,'clear wake position moved')
  end
  require("tests.station_markets")()
+ require("tests.freight_recovery")()
+ require("tests.delivery_parking")()
  require("tests.dock_traffic")()
  require("tests.tractor_flow")()
  local g=fresh()

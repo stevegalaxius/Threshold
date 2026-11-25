@@ -39,7 +39,8 @@ N.controller={name='npc',
  end,
  complete=function(c)
   local node=L.canonical(c.node)
-  Tasks.arrive(c.u,c.r,node,c.clock,c.game)
+  local task=c.r.task
+  Tasks.arrive(c.u,c.r,task and task.kind=='ship_delivery' and c.node or node,c.clock,c.game)
   -- just loaded at the pickup: fill the spare hold with more jobs on the way
   local t=c.r.task
   if t and t.phase=='delivery' and t.source==node then require('src.npc_agenda').extend(c.u,c.r,node,c.clock) end
@@ -81,8 +82,15 @@ N.controller={name='npc',
   -- loaded here: fill the spare hold with more jobs on the way
   if task.phase=='delivery' and node==task.source then require('src.npc_agenda').extend(u,r,node,clock) end
   r.taskWorker=true;r.nextTaskAt=nil
-  local route=Tasks.plan(r,node,clock)
-  if not route then Tasks.release(u,r,'no route',clock);return end
+  local route=Tasks.plan(r,task.kind=='ship_delivery' and c.node or node,clock)
+  if not route then
+   if (task.kind=='transport' or task.kind=='ship_delivery') and task.phase=='delivery' then
+    r.taskStatus='waiting for a freight route'
+    return {wait=T.freightStallTime}
+   end
+   Tasks.release(u,r,'no route',clock)
+   return
+  end
   return {route=route,wait=task.duration,dock=task.dock}
  end,
 
@@ -162,6 +170,69 @@ function N.routeAction(ctx)
  local kind=r.state=='idle' and not r.waitingHomeBerth and 'hold' or N.docksAt(r,target) and 'dock' or 'travel'
  Actions.request(ctx,{kind=kind,target={provider='location',id=target},untilTime=N.readyAt(r)})
 end
+-- The offline model progresses by leg deadlines. Watch live legs using
+-- distance to the current stop and the time actually spent trying to fly.
+function N.recoverFreight(ctx)
+ local e,r,clock=ctx.e,ctx.r,ctx.clock
+ local task=r.task
+ if not task or task.kind~='transport' or r.state~='travel' or r.encounter or not e.route then return end
+ if r.action and not Actions.definitions[r.action.kind].route then return end
+ local index=e.routeIndex or 1
+ local stop=e.route[index]
+ local place=stop and not stop.removed and L.byId[stop.locationId]
+ if not place or place.area~=ctx.game.fieldId then return end
+ local x,y=e.body:getPosition()
+ local sx,sy=ctx.AI.stopPoint(stop,e)
+ local distance=math.sqrt((sx-x)^2+(sy-y)^2)
+ local watch=task.freightRecovery
+ if not watch or watch.stop~=stop.locationId or watch.phase~=task.phase
+  or watch.index~=index or distance<watch.distance-T.freightProgressDistance then
+  task.freightRecovery={stop=stop.locationId,index=index,phase=task.phase,distance=distance,at=clock,elapsed=0}
+  r.taskStatus=nil
+  return
+ end
+ local elapsed=clock-watch.at
+ watch.at=clock
+ if elapsed<=0 or elapsed>2*T.npcDecisionInterval or require('src.queue').holding(ctx.game,e,stop)
+  or e.dockApproach and e.dockApproach.stop==stop and e.dockApproach.crossing then return end
+ watch.elapsed=watch.elapsed+elapsed
+ local limit=task.phase=='delivery' and watch.retried and 2*T.freightStallTime or T.freightStallTime
+ if watch.elapsed<limit then return end
+ watch.elapsed=0
+ if task.phase=='pickup' and watch.retried then
+  Tasks.release(ctx.u,r,'pickup stalled',clock)
+  Trace.note(r,clock,'freight','released an uncollected shipment after a stalled retry')
+  local nextTask=r.task
+  local target=nextTask and (nextTask.phase=='pickup' and nextTask.source or nextTask.target)
+  if not target then
+   local best=math.huge
+   for _,id in ipairs(L.stations(place.area)) do
+    if L.canonical(id)~=L.canonical(task.source) and require('src.npc_access').eligible(r,{target=id}) then
+     local px,py=L.position(id,clock)
+     local d=(px-x)^2+(py-y)^2
+     if d<best then target,best=id,d end
+    end
+   end
+  end
+  if target then N.travel(ctx.game,r,target,clock) end
+  return
+ end
+ watch.retried=true
+ e.dockApproach,e.detour,e.pathAsk,e.navigation=nil,nil,nil,nil
+ local target=task.phase=='pickup' and task.source or task.target
+ local replanned=N.travel(ctx.game,r,target,clock)
+ r.taskStatus=replanned and 'retrying stalled freight route' or 'waiting for a freight route'
+ Trace.note(r,clock,'freight',r.taskStatus)
+ -- A replan may itself change the waypoint. Give it a fresh baseline,
+ -- without recording the change as progress made by the ship.
+ local nextIndex=e.routeIndex or 1
+ local nextStop=e.route and e.route[nextIndex]
+ if nextStop then
+  local nx,ny=ctx.AI.stopPoint(nextStop,e)
+  watch.stop,watch.index,watch.distance=nextStop.locationId,nextIndex,math.sqrt((nx-x)^2+(ny-y)^2)
+ end
+end
+
 function N.thinkWork(game,e,dt,AI)
  local r=game.universe.npcs[e.alifeId];if not r then return false end
  e.tractorTarget=nil;e.intent.tractor=false
@@ -170,6 +241,7 @@ function N.thinkWork(game,e,dt,AI)
  if e.alifeEgress or e.driverTractor or e.launch or e.dockState then
   Actions.pause(ctx,'controlled transit');AI.trade(game,e,dt);return true
  end
+ if ctx.decide~=false and not e.dockExit then N.recoverFreight(ctx) end
  if r.action and r.action.completed then Actions.step(ctx) end
  local work=N.work(r)
  if work and work.before and ctx.decide~=false then work.before(ctx) end

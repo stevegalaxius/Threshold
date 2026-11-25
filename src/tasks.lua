@@ -50,6 +50,14 @@ local function buildSearchIndex(offers)
  searchIndexes[offers]=index
  return index
 end
+-- Index only live offers. Some callers delete a completed offer directly,
+-- so consumers must check the authoritative table before using a result.
+function Tasks.offersOfKind(u,kind)
+ local offers=Tasks.state(u).offers
+ local index=searchIndexes[offers] or buildSearchIndex(offers)
+ return index.kinds[kind] or {},offers
+end
+
 function Tasks.post(u,offer)
  assert(Tasks.definitions[offer.kind],'unknown task kind')
  local state=Tasks.state(u)
@@ -135,7 +143,10 @@ function Tasks.clean(u,clock)
   local r=o.owner=='player' and Tasks.state(u).player or o.owner and (u.npcs or {})[o.owner]
   if o.owner and (not r or r.state=='dead' or r.state=='escaped' or not require('src.npc_agenda').holds(r,o.manifestRoot or o.id)) then
    if o.loaded then offers[o.id]=nil
-   else o.owner=nil;o.manifestRoot=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120) end
+   else
+    o.owner=nil;o.manifestRoot=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
+    if o.kind=='ship_delivery' and not o.playerDelivery then o.parking=nil end
+   end
   end
  end
  if searchIndexes[offers] then buildSearchIndex(offers) end

@@ -458,6 +458,13 @@ local function freightTerms(u,r,o,capacity)
  if not r.player and profit>0 and profit>=fee then return units,profit,true end
  return courierUnits,fee,false
 end
+-- Give another pilot a chance to collect a released shipment.
+local function recentlyStalled(r,o,clock)
+ local last=r.lastTask
+ return last and last.id==o.id and last.status=='pickup stalled'
+  and clock-last.clock<3*T.freightStallTime
+end
+
 Tasks.register('transport',{
  requires={capabilities={'cargo'}},
  -- a courier job dropped with the cargo aboard (the ship destroyed or
@@ -476,6 +483,7 @@ Tasks.register('transport',{
   return Transport.route(station,t.target,clock)
  end,
  eligible=function(u,r,o,station,clock)
+  if recentlyStalled(r,o,clock) then return false end
   -- Old reserved manifests may finish, but never issue new placeholder ore.
   if o.item=='martian_ore' then return false end
   -- Work elsewhere means flying there empty first (a pickup leg).
@@ -579,7 +587,7 @@ Tasks.register('transport',{
    for _,o in pairs(offers) do
     -- (freight only: satellite jobs are board orders too, carrying no item)
     if not t.trade and not t.buyerFunded and not o.trade and not o.tradeOptional and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
-     and not r.player and o.source==t.source and o.item
+     and not r.player and not recentlyStalled(r,o,clock) and o.source==t.source and o.item
      and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
      and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
    end
