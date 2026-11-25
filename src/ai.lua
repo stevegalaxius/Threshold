@@ -429,11 +429,30 @@ local function trade(game, e, dt)
 			else e.dockMarker = nil end
 		end
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
-		local queued,queuePlace
-		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
-		-- the line starts clear of the station's hull, whatever its size
-		local lineStart = stop.kind == "station" and stop.body and hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker or nil
-		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex,queuePlace,lineStart) end
+		local queued,queuePlace,runwayBusy
+		local staging
+		if e.alifeId then queued,queuePlace,runwayBusy=require("src.queue").holding(game,e,stop) end
+		if queued then
+			-- Real docks need hull clearance. A station on another map is
+			-- only a route point and uses the queue's default spacing.
+			local lineStart
+			if stop.kind == "station" and stop.body and stop.body.getFixtures then
+				lineStart = hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker
+			end
+			if planned then
+				local slot = max(1, queuePlace - (runwayBusy and 0 or 1))
+				local DA = require("src.dock_approach")
+				local waiting = e.dockStaging
+				local lateral = waiting and waiting.stop == stop and waiting.dock == planned.d
+					and waiting.lateral or (planned.ry * planned.side >= 0 and 1 or -1)
+				e.dockStaging = {stop = stop, dock = planned.d, lateral = lateral}
+				local wx, wy = DA.stagingPoint(game, e, stop, planned.side, planned.d, lateral, slot)
+				if wx then sx, sy, staging = wx, wy, true end
+			end
+			if not staging then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex, queuePlace, lineStart) end
+		else
+			e.dockStaging = nil
+		end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway
 		-- rather than flying into the breech, first come first served
@@ -447,7 +466,7 @@ local function trade(game, e, dt)
 				if o ~= e and o.busyWait == g and not o.dead and (o.busyWaitSince < e.busyWaitSince or o.busyWaitSince == e.busyWaitSince and tostring(o.alifeId) < tostring(e.alifeId)) then place = place + 1 end
 			end
 			queued = record
-			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place, lineStart)
+			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place)
 		else e.busyWait, e.busyWaitSince = nil, nil end
 		if planned and not queued then
 			local DA = require("src.dock_approach")
@@ -465,9 +484,14 @@ local function trade(game, e, dt)
 				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
 				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
 			else
-				local wx, wy, want, nx, ny = DA.steer(game, e, stop, planned.d, brakeAccel(e))
+				local wx, wy, want, nx, ny, _, active = DA.steer(game, e, stop, planned.d, brakeAccel(e))
 				sx, sy = wx, wy
 				approach = { want = want, nx = nx, ny = ny }
+				if active.crossing then
+					sx, sy = x, y
+					staging = true
+					approach.want = 0
+				end
 				e.dockMarker = nil
 			end
 		elseif not planned then e.dockApproach = nil end
@@ -568,7 +592,14 @@ local function trade(game, e, dt)
 				end
 			elseif e.alifeId and stop.kind=="moon_gate" then
 				e.alifeDepart=true;it.thrust,it.strafe=0,0;return
-			else e.routeIndex=e.routeIndex%#route+1 end
+			else
+				e.routeIndex=e.routeIndex%#route+1
+				local r=e.alifeRecord
+				if r and require('src.alife').refreshBuoy(r,e.routeIndex,game.universe.clock,x,y) then
+					require('src.alife').bindRoute(game,e,r)
+					return
+				end
+			end
 		end
 		-- The speed it wants: its cruise, but no faster than it can shed
 		-- before the stop (down to a crawl for a station's runway, or a
@@ -587,7 +618,9 @@ local function trade(game, e, dt)
 			-- Do not carry unrelated orbital drift into the launch.
 			fx0, fy0 = require("src.locations").velocity(stop.locationId,game.universe.clock)
 		end
-		if not gateApproach then
+		if staging then
+			fx0, fy0 = stop.body:getLinearVelocityFromWorldPoint(x, y)
+		elseif not gateApproach then
 			-- Final approach is relative to the stop, not the orbital current.
 			-- Inside its braking distance the ship is slowing for the stop, and
 			-- measured against the current that slow approach can be slower
@@ -638,9 +671,11 @@ local function trade(game, e, dt)
 			-- spins: a ship slow against the current was still swept into)
 			local cap, near, gap = AI.stationSpeedCap(game, e, x, y)
 			want = min(want, cap)
-			if near then
+			if near and not staging then
 				local k = max(0, min(1, 1 - gap / 1500))
-				local svx, svy = near.body:getLinearVelocityFromWorldPoint(x, y)
+				-- A passing ship follows the station around its orbit. Its spin
+				-- moves individual fixtures, not the surrounding flight corridor.
+				local svx, svy = near.body:getLinearVelocity()
 				fx0, fy0 = fx0 + (svx - fx0) * k, fy0 + (svy - fy0) * k
 			end
 		end

@@ -59,10 +59,32 @@ local function progress(r,clock)
  clock=legClock(r,clock)
  return math.max(0,math.min(1,(clock-r.depart)/math.max(.01,r.arrive-r.depart)))
 end
+-- Recheck a transit buoy at departure. Orbiting nodes may have moved
+-- substantially since a multi-region itinerary was drawn up.
+local function bypassBuoy(r,index,clock)
+ local route=r.route
+ if not route or index<2 or index~=#route-1 or r.service or r.encounter then return false end
+ local from,via,to=L.get(route[index-1]),L.get(route[index]),L.get(route[index+1])
+ if via.kind~='buoy' or from.area~=via.area or to.area~=via.area or from.id==to.id
+  or (r.task and (r.task.source==via.id or r.task.target==via.id))
+  or to.kind~='station' or not NPC.docksAt(r,to.id) then return false end
+ local g=graph(via.area)
+ local onward={from=via.id,to=to.id}
+ local viaLength=Graph.length(g,{from=from.id,to=via.id},clock)+Graph.length(g,onward,clock)
+ for _,link in ipairs(Graph.neighbours(g,from.id,clock)) do
+  if link.to==to.id and Graph.length(g,link,clock)<viaLength*.9 then
+   r.route={unpack(route)}
+   table.remove(r.route,index)
+   return true
+  end
+ end
+ return false
+end
 local function start(r,clock,index)
  require('src.crew_fatigue').settle(r,clock)
  r.dockSupplies=nil
  r.nextDecisionAt=nil
+ bypassBuoy(r,index,clock)
  r.index=index; r.depart=clock
  local leg=edge(r)
  local from,to=L.get(leg.from),L.get(leg.to)
@@ -461,14 +483,19 @@ function A.repairApproachRoutes(game)
    end
    if changed then
     local x,y
-    if r.state=='travel' then
+    -- Inserting a marker on a later leg only shifts this leg's index.
+    -- Its clock, offset and region still describe the same journey.
+    if r.state=='travel' and first[r.index]~=map[r.index] then
      if r.pose then x,y=r.pose.x,r.pose.y else x,y=A.point(r,clock) end
     end
-    local index=r.state=='travel' and first[r.index] or map[r.index]
+    local index=x and first[r.index] or map[r.index]
     r.route,r.index=route,index
     if x then
-     local duration=math.max(.1,Graph.length(graph(r.area),edge(r),clock)/r.speed)
-     local p=math.min(.99,Graph.project(graph(r.area),edge(r),x,y,clock))
+     local leg=edge(r)
+     r.area=L.get(leg.to).area
+     local g=graph(r.area)
+     local duration=math.max(.1,Graph.length(g,leg,clock)/r.speed)
+     local p=math.min(.99,Graph.project(g,leg,x,y,clock))
      r.depart=clock-p*duration;r.arrive=r.depart+duration
      local bx,by=journeyPoint(r,p,clock)
      local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
@@ -745,7 +772,7 @@ function A.capture(game,e,remote)
   p=math.min(.99,p)
   if r.encounter then r.encounter.progress=p end
   r.depart=clock-p*duration; r.arrive=r.depart+duration
-  if not remote and known then
+  if known then
    local bx,by=journeyPoint(r,p,clock)
    local sx,sy=A.spread(r);r.offset={x=x-bx-sx,y=y-by-sy,progress=p}
   end
@@ -754,7 +781,7 @@ function A.capture(game,e,remote)
  if not remote then
   local x,y=e.body:getPosition(); local vx,vy=e.body:getLinearVelocity()
   r.pose={x=x,y=y,a=e.body:getAngle(),vx=vx,vy=vy,w=e.body:getAngularVelocity(),clock=clock}
- else r.offset,r.docking=nil,nil end
+ else r.docking=nil end
 end
 
 -- Which side of a station a ship passing it by keeps to: the outer side
@@ -789,7 +816,7 @@ local function clearSpot(game,e,x,y,dx,dy)
  for _=1,20 do
   local blocked=false
   for _,o in ipairs(game.entities) do
-   if o~=e and o.kind=='ship' and not o.dead and not o.removed and o.body and not o.dockState then
+   if o~=e and (o.kind=='ship' or o.kind=='husk') and not o.dead and not o.removed and o.body and o.body:isActive() then
     local ox,oy=o.body:getPosition()
     local reach=(o.halfLength or 100)+(e.halfLength or 100)+100
     if (ox-x)^2+(oy-y)^2<reach*reach then blocked=true;break end
@@ -828,7 +855,24 @@ local function followOrbit(game,e,stop)
  end
 end
 
+-- A loaded or newly reached leg can also be stale. Rebase only near its
+-- departure node, preserving the physical position for the offline track.
+function A.refreshBuoy(r,index,clock,x,y)
+ if r.state~='travel' or index<2 then return false end
+ local via=L.byId[r.route[index]]
+ if not via or via.kind~='buoy' or via.area~=r.area then return false end
+ local sx,sy=L.position(r.route[index-1],clock)
+ if (x-sx)^2+(y-sy)^2>T.queueStart^2*4 or not bypassBuoy(r,index,clock) then return false end
+ r.index,r.depart=index,clock
+ r.arrive=clock+math.max(.1,Graph.length(graph(r.area),edge(r),clock)/r.speed)
+ local dx,dy=A.spread(r)
+ r.offset={x=x-sx-dx,y=y-sy-dy,progress=0}
+ require('src.queue').leg(r)
+ return true
+end
+
 local function bindRoute(game,e,r)
+ A.refreshBuoy(r,r.index,game.universe.clock,e.body:getPosition())
  require('src.queue').invalidate(game)
  e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
  e.team=require('src.npc_access').raiding(r) and 2 or 3
@@ -1036,14 +1080,32 @@ function A.wake(game,r)
    e.body:setAngle(math.atan2(by-oy,bx-ox)+(d==source and math.pi or 0))
   elseif close(source) and dockingStop(r,leg.from) then
    e.routeIndex=(r.index-2)%#r.route+1
-   game:dockInstantly(e,source)
-   game:undockShip(e)
+   if game:dockInstantly(e,source) then
+    if game:launchBlocker(e) then
+     -- Keep the leg already chosen offline, but wait for live clearance.
+     e.dockState.resumeDeparture=r.index
+     r.state,r.index,r.node,r.untilTime='docked',e.routeIndex,source.locationId,game.universe.clock
+    else
+     game:undockShip(e)
+    end
+   else
+    e.routeIndex=r.index
+   end
   elseif close(destination) and dockingStop(r,leg.to) then
-   local x,y=require('src.ai').stopPoint(destination,e)
+   -- A newly visible ship joins the live approach outside the runway.
+   -- Starting the tractor here used to bypass the queue and spawn ships
+   -- on top of an arrival already under the beam.
+   local dock=require('src.ai').approachDock(e,destination)
+   local lx,ly=game.dockLocal(destination,1,e.body:getX(),e.body:getY(),dock)
+   local side=dock.both and lx<0 and -1 or 1
+   local mx,my=require('src.dock_approach').waitPoint(game,e,destination,side,dock,ly*side)
+   local x,y=game.dockWorld(destination,side,mx,my,dock)
+   local ox,oy=game.dockWorld(destination,side,mx+1,my,dock)
+   x,y=clearSpot(game,e,x,y,ox-x,oy-y)
    e.body:setPosition(x,y)
-   e.body:setAngle(game.dockAngle(destination,1)+math.pi)
+   e.body:setAngle(game.dockAngle(destination,side,dock)+math.pi)
    e.body:setLinearVelocity(destination.body:getLinearVelocityFromWorldPoint(x,y))
-   game:beginDocking(e,destination,1)
+   e.body:setAngularVelocity(destination.body:getAngularVelocity())
   elseif close(source) or close(destination) then
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
@@ -1058,6 +1120,14 @@ function A.wake(game,r)
    local tx,ty=L.position(other,game.universe.clock)
    x,y=clearSpot(game,e,x,y,tx-x,ty-y)
    e.body:setPosition(x,y)
+  end
+  if not e.dockState and not e.dockExit then
+   local x,y=e.body:getPosition()
+   local nx,ny=require('src.local_navigation').clearWake(game,e,x,y)
+   if nx~=x or ny~=y then
+    e.body:setPosition(nx,ny)
+    e.body:setLinearVelocity(game:flowAt(nx,ny))
+   end
   end
  end
 
@@ -1177,7 +1247,7 @@ function A.install(Game)
   end
   if detach and self.alifeActiveArea==self.fieldId then
    for _,r in pairs(self.universe.npcs or {}) do
-    if r.area==self.fieldId then r.pose,r.offset,r.docking,r.savedOnline=nil,nil,nil,nil end
+    if r.area==self.fieldId then r.pose,r.docking,r.savedOnline=nil,nil,nil end
    end
    self.alifeActiveArea=nil
   end

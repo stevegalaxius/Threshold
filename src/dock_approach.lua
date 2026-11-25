@@ -64,6 +64,20 @@ function G.waitPoint(game, e, st, side, d, ry)
 	return mx + 200, (ry or 0) >= 0 and lateral or -lateral
 end
 
+-- Hold beside the runway in the station's frame. The slot nearest the
+-- runway is open for the next arrival while the leader is still flying in.
+function G.stagingPoint(game, e, st, side, dock, lateral, slot)
+	local mx, my = G.waitPoint(game, e, st, side, dock, lateral)
+	mx = max(mx, dock.x2 + dock.runway * 1.8 + e.halfLength)
+	mx = mx + (slot - 1) * max(T.queueGap, 2 * e.halfLength + 100)
+	local Nav = require("src.local_navigation")
+	local radius = max(e.halfLength, e.hull.radius) + T.aiClearance
+	for _, y in ipairs({my, -my}) do
+		local xw, yw = game.dockWorld(st, side, mx, y, dock)
+		if Nav.stagingClear(game, e, xw, yw, radius) then return xw, yw end
+	end
+end
+
 -- A berth's pose in the dock's frame: position, the outward heading, and an
 -- approach point straight out from the pad, clear of the hull.
 local function berthGoal(game, e, st, side, d, bd)
@@ -72,15 +86,14 @@ local function berthGoal(game, e, st, side, d, bd)
 	local bx, by = game.dockLocal(st, side, wx, wy, d)
 	local h = math.rad(bd.heading or 0) - (d.a or 0) + (side < 0 and pi or 0)
 	local cx, cy, R = hullCircle(game, e, st, side, d)
-	local reach = (e.halfLength or 100) + 350
-	local ax, ay = bx + cos(h) * reach, by + sin(h) * reach
-	local r = sqrt((ax - cx) ^ 2 + (ay - cy) ^ 2)
-	if r < R then
-		-- the pad faces in toward the hull: come at it from straight out
-		local ux, uy = (ax - cx) / max(1, r), (ay - cy) / max(1, r)
-		ax, ay = cx + ux * R, cy + uy * R
-	end
-	return { mx = ax, my = ay, ex = bx, ey = by, ea = h }
+	local ux, uy = cos(h), sin(h)
+	local dx, dy = bx - cx, by - cy
+	local dot = dx*ux + dy*uy
+	local outward = -dot + sqrt(max(0, dot*dot + R*R - dx*dx - dy*dy))
+	local reach = max((e.halfLength or 100) + 350, outward)
+	return { mx = bx + ux*reach, my = by + uy*reach,
+		ex = bx + ux*130, ey = by + uy*130, ea = h }
+
 end
 
 -- A path, in the dock's frame, from (sx, sy) round the hull to an approach
@@ -95,8 +108,23 @@ local function buildPath(game, e, st, side, d, sx, sy, goal)
 	local pts = { { sx, sy } }
 	local r0 = sqrt((sx - cx) ^ 2 + (sy - cy) ^ 2)
 	local a0 = atan2(sy - cy, sx - cx)
-	local front0 = door and sx > goal.mx - 50 and math.abs(sy) < max(d.hw * 2, (sx - d.x2) * 0.4)
-	if r0 < R and not front0 then
+	local front
+	if door then
+		front = sx > mx - 50 and math.abs(sy) < max(d.hw * 2, (sx - d.x2) * 0.4)
+	else
+		-- Replanning midway down the pad's approach must keep flying in.
+		-- The pad is inside the broad hull circle, so orbiting it again
+		-- would pull the ship back out before it reached the local beam.
+		local ox, oy = cos(goal.ea), sin(goal.ea)
+		local dx, dy = sx - goal.ex, sy - goal.ey
+		local ahead, across = dx*ox + dy*oy, math.abs(dx*oy - dy*ox)
+		front = ahead >= -85 and across < (e.halfLength or 100) + 300
+		if front and across > 125 then
+			local intercept = max(380, ahead)
+			pts[#pts + 1] = { goal.ex + ox*intercept, goal.ey + oy*intercept }
+		end
+	end
+	if r0 < R and not front then
 		-- inside the hull's circle (in a bay, beside a wing): straight out first
 		pts[#pts + 1] = { cx + cos(a0) * R, cy + sin(a0) * R }
 		r0 = R
@@ -104,8 +132,6 @@ local function buildPath(game, e, st, side, d, sx, sy, goal)
 	local rm = sqrt((mx - cx) ^ 2 + (my - cy) ^ 2)
 	local am = atan2(my - cy, mx - cx)
 	local gap = wrap(am - a0)
-	-- Already out in front of the door: straight onto the axis.
-	local front = door and sx > mx - 50 and math.abs(sy) < max(d.hw * 2, (sx - d.x2) * 0.4)
 	if not front and math.abs(gap) > 0.05 then
 		local n = max(4, math.ceil(math.abs(gap) / 0.12))
 		for i = 1, n do
@@ -127,14 +153,14 @@ local function buildPath(game, e, st, side, d, sx, sy, goal)
 			pts[#pts + 1] = { max(goal.ex + 100, min(last[1] - 150, mx)), 0 }
 		end
 	end
-	if door then pts[#pts + 1] = { goal.ex, goal.ey } end
+	pts[#pts + 1] = { goal.ex, goal.ey }
 	local s = 0
 	pts[1].s = 0
 	for i = 2, #pts do
 		s = s + sqrt((pts[i][1] - pts[i - 1][1]) ^ 2 + (pts[i][2] - pts[i - 1][2]) ^ 2)
 		pts[i].s = s
 	end
-	pts.final, pts.ea = door and pts[#pts - 1].s or max(0, s - 400), goal.ea
+	pts.final, pts.ea = door and pts[#pts - 1].s or (front and 0 or max(0, s - 400)), goal.ea
 	return pts, s
 end
 
@@ -227,74 +253,35 @@ function G.steer(game, e, stop, d, brake)
 		nx, ny = st.body:getWorldVector(cos(h + a), sin(h + a))
 	end
 	ap.s, ap.off, ap.want, ap.final = s, off, want, final
+	ap.crossing = nil
+	if s + look >= ap.pts.final then
+		-- Check the join and the lane ahead before aiming into crossing traffic.
+		local goal = final and ap.pts[#ap.pts] or {tx, ty}
+		local gx, gy = game.dockWorld(st, side, goal[1], goal[2], d)
+		ap.crossing = require("src.queue").crossing(game, e, st, gx, gy, max(want, G.finalSpeed))
+	end
 	return wx, wy, want, nx, ny, remaining, ap
 end
 
--- The station settles a ship onto a berth from where it is now: the short
--- winch-on (Game:updateDockedShip "taxi") both NPCs and the player use.
-local function settleOnBerth(game, e, st, side, d, berth, pose)
-	local sb = st.body
-	local x, y = e.body:getPosition()
-	game:beginDocking(e, st, side, d)
-	local ds = e.dockState
-	ds.phase, ds.t, ds.berth, ds.mooring = "taxi", 0, berth, game:berthPose(st, berth, e.hull.id)
-	ds.lx, ds.ly = sb:getLocalPoint(x, y)
-	ds.la = e.body:getAngle() - sb:getAngle()
-	local turn = math.abs(wrap(math.rad(pose.heading or 0) - ds.la))
-	ds.dur = max(1.5, sqrt((pose.x - ds.lx) ^ 2 + (pose.y - ds.ly) ^ 2) / 110, turn / 0.8)
-	e.bay, e.bayStation = nil, st.locationId or st.key
-	e.body:setActive(false)
-end
-
--- A berth-bound ship at its pad and slow enough: the station settles it on.
 function G.tryBerth(game, e, stop)
 	local ap = e.dockApproach
-	if not ap or ap.stop ~= stop or not ap.berth or not ap.pose then return end
-	local sb = stop.body
-	local x, y = e.body:getPosition()
-	-- at the point straight out from the pad, and nearly stopped: the
-	-- ship itself never flies in among the station's structure
-	local gx, gy = game.dockWorld(stop, ap.side, ap.goal.mx, ap.goal.my, ap.dock)
-	if (x - gx) ^ 2 + (y - gy) ^ 2 > 140 ^ 2 then return end
-	local vx, vy = e.body:getLinearVelocity()
-	local fx, fy = sb:getLinearVelocityFromWorldPoint(x, y)
-	if (vx - fx) ^ 2 + (vy - fy) ^ 2 > 90 ^ 2 then return end
-	if not game:mooringFits(stop, ap.berth, e.hull.id, e) then e.dockApproach = nil; return end
-	settleOnBerth(game, e, stop, ap.side, ap.dock, ap.berth, ap.pose)
-	e.dockApproach = nil
+	if ap and ap.stop == stop and ap.berth and ap.pose then
+		return game:tryBerthTractor(e, stop, ap.dock, ap.berth, ap.pose)
+	end
 end
 
--- The player docks on an exterior berth the same way: fly up to a free pad
--- that fits the ship (over it, or just off it, straight out from it), slow
--- down, and the station settles it on.
 function G.playerBerth(game, p)
 	if (p.berthCheckAt or 0) > game.time then return false end
-	p.berthCheckAt = game.time + 0.2
+	p.berthCheckAt = game.time + .15
 	local x, y = p.body:getPosition()
 	for _, st in ipairs(game.entities) do
-		if st.kind == "station" and not st.removed and not st.city and not st.sat and st.body and st.dock
-			and st.def and st.def.berths and #st.def.berths > 0 then
+		if st.kind == "station" and not st.removed and not st.city and st.dock then
 			local sx, sy = st.body:getPosition()
-			local R = require("src.ai").hullRadius(st) + (p.halfLength or 100) + 800
-			if (x - sx) ^ 2 + (y - sy) ^ 2 < R * R then
+			local radius = require("src.ai").hullRadius(st) + 750
+			if (x-sx)^2 + (y-sy)^2 < radius^2 then
 				local berth = game:freeBerth(st, p)
-				local pose = berth and (game:berthPose(st, berth, p.hull.id) or st.def.berths[berth])
-				if pose then
-					local d = st.dock
-					local goal = berthGoal(game, p, st, 1, d, pose)
-					local px, py = st.body:getWorldPoint(pose.x, pose.y)
-					local gx, gy = game.dockWorld(st, 1, goal.mx, goal.my, d)
-					local reach = (p.halfLength or 100) + 200
-					local close = (x - px) ^ 2 + (y - py) ^ 2 < reach * reach
-						or (x - gx) ^ 2 + (y - gy) ^ 2 < reach * reach
-					local vx, vy = p.body:getLinearVelocity()
-					local fx, fy = st.body:getLinearVelocityFromWorldPoint(x, y)
-					if close and (vx - fx) ^ 2 + (vy - fy) ^ 2 < 150 ^ 2 then
-						settleOnBerth(game, p, st, 1, d, berth, pose)
-						game:toast("BERTH TRACTOR LOCK", 1.4)
-						return true
-					end
-				end
+				local pose = berth and game:berthPose(st, berth, p.hull.id)
+				if pose and game:tryBerthTractor(p, st, st.dock, berth, pose) then return true end
 			end
 		end
 	end

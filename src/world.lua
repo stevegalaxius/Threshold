@@ -501,7 +501,7 @@ function Game:saveState()
 	local p = self.player
 	if p and not p.dead then
 		local where
-		if p.dockState and p.dockState.station and not p.dockState.station.sat then
+		if p.dockState and p.dockState.phase ~= "tractor" and p.dockState.station and not p.dockState.station.sat then
 			local ds = p.dockState
 			local dockIndex
 			for i, d in ipairs(ds.station.docks or {}) do if d == ds.dock then dockIndex = i; break end end
