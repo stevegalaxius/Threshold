@@ -431,9 +431,15 @@ local function trade(game, e, dt)
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
 		local queued,queuePlace
 		if e.alifeId then queued,queuePlace=require("src.queue").holding(game,e,stop) end
-		-- the line starts clear of the station's hull, whatever its size
-		local lineStart = stop.kind == "station" and stop.body and hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker or nil
-		if queued then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex,queuePlace,lineStart) end
+		if queued then
+			-- Real docks need hull clearance. A station on another map is
+			-- only a route point and uses the queue's default spacing.
+			local lineStart
+			if stop.kind == "station" and stop.body and stop.body.getFixtures then
+				lineStart = hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker
+			end
+			sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex, queuePlace, lineStart)
+		end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway
 		-- rather than flying into the breech, first come first served
@@ -447,7 +453,7 @@ local function trade(game, e, dt)
 				if o ~= e and o.busyWait == g and not o.dead and (o.busyWaitSince < e.busyWaitSince or o.busyWaitSince == e.busyWaitSince and tostring(o.alifeId) < tostring(e.alifeId)) then place = place + 1 end
 			end
 			queued = record
-			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place, lineStart)
+			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place)
 		else e.busyWait, e.busyWaitSince = nil, nil end
 		if planned and not queued then
 			local DA = require("src.dock_approach")

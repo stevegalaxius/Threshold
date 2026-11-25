@@ -85,6 +85,24 @@ return function()
 	game:updateDockedShip(departing, 1/120)
 	assert(not departing.dockState and departing.routeIndex == 2 and record.state == "travel",
 		"queued departure lost its original leg")
+	-- A queued station stop can still be on another map and have no
+	-- local physics body when the route controller runs.
+	local remote = makeShip()
+	remote.alifeId = "npc/90003"
+	local remoteRecord = {
+		id = remote.alifeId, state = "travel", area = "earth",
+		route = {station.locationId, "station:mars_1"}, index = 2,
+		queue = {key = "station:mars_1", kind = "dock", at = clock, ready = clock + 20},
+	}
+	game.universe.npcs[remote.alifeId] = remoteRecord
+	remote.def = { ai = { style = "civilian", throttle = 1 } }
+	local ALife = require("src.alife")
+	ALife.bindRoute(game, remote, remoteRecord)
+	local remoteStop = remote.route[remote.routeIndex]
+	assert(remoteStop.kind == "station" and not remoteStop.body.getFixtures and Queue.holding(game, remote, remoteStop),
+		"remote station test must exercise queue spacing without a physics body")
+	require("src.ai").trade(game, remote, 1/120)
+	assert(remote.navAim and remote.navAim.stop == remoteStop.locationId, "remote station route lost its queue target")
 	game.world:destroy()
 	print("ok  dock traffic: legacy save release, full departure lane and separate arrivals")
 end
