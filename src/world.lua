@@ -500,7 +500,8 @@ function Game:saveState()
 		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites),
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
 		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts), wreckBounty = Persistence.copy(u.wreckBounty), madeAt = Persistence.copy(u.madeAt),
-		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications) }
+		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications),
+		wreckContractNotice = self.state == "dead" and self.wreckContractNotice or nil }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -658,7 +659,10 @@ function Game:loadState(state)
 	end
 	local st = p and p.dockState and p.dockState.station
 	if st and pl.at.bay and self:hangarFree(st, p, p.hull.id, pl.at.bay) then p.bay = pl.at.bay end
-	if not pl then self.state = "dead" end
+	if not pl then
+		self.state = "dead"
+		self.wreckContractNotice = state.wreckContractNotice
+	end
 end
 
 function Game:saveTo(slot)

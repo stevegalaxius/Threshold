@@ -38,6 +38,8 @@ local function entries(game,f)
  f.quests,f.questOffers=#active,#offers
  -- Your jobs
  head('yours',('%d of %d requests held · %s'):format(#active,T.questMaxActive,t and 'one freight contract' or 'no freight contract'))
+ local loss=Board.lossNotice(game)
+ if loss then add('yours',{note=loss,h=30}) end
  if t then add('yours',{activeFreight=t,h=158}) end
  for _,q in ipairs(active) do add('yours',{quest=q,active=true,h=120}) end
  if not t and #active==0 then note('yours','Nothing held. Take a request or a freight contract from the other panes.') end

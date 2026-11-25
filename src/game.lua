@@ -241,6 +241,7 @@ function Game:loadField(id, opts)
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.pickupBodies = {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
+	self.wreckContractNotice = nil
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	-- arriving on a dark grid puts it on your charts (src/dark.lua)
@@ -3053,6 +3054,7 @@ function Game:reap()
 			if e.isPlayer then
 				self.state = "dead"
 				self.deathTime = self.time
+				self.wreckContractNotice = require("src.player_contracts").onWreck(self, e)
 				self.deathX, self.deathY = x, y
 				self:shake(1)
 				events.emit("death", e)

@@ -111,7 +111,7 @@ function C.accept(game,id)
  if t.kind=='passenger' then
   local ok=def.prepare(u,r,t,here,u.clock)
   if not ok then detach(game,r);return nil,'The party does not fit aboard' end
-  o.owner=r.id;o.state='reserved';r.task=t
+  o.owner=r.id;o.state='reserved';r.task=t;r.contractLoss=nil
   detach(game,r,true)
   return true,('Contract accepted at %s: '):format(require('src.hud').credits(t.fare))..(t.phase=='delivery' and 'party aboard' or 'collect the party at the pickup')
  end
@@ -119,7 +119,7 @@ function C.accept(game,id)
  local amount=o.amount;o.amount=t.amount
  local ok=def.prepare(u,r,t,here,u.clock)
  if not ok then o.amount=amount;detach(game,r);return nil,'Cargo is unavailable or does not fit' end
- o.owner=r.id;o.state='reserved';r.task=t
+ o.owner=r.id;o.state='reserved';r.task=t;r.contractLoss=nil
  if amount>t.amount then
   local remainder=copy(o);remainder.amount=amount-t.amount;remainder.owner=nil;remainder.manifestRoot=nil;remainder.loaded=nil
   Tasks.post(u,remainder)
@@ -149,11 +149,56 @@ function C.advance(game)
   local ok=Transport.load(game.universe,r,t);detach(game,r,ok)
   return ok,ok and 'Contract cargo loaded' or 'Pickup stock is unavailable'
  end
- local payment=Transport.payment(t)
  local done=Tasks.arrive(game.universe,r,here,clock,game)
+ local payment=r.credits or 0
  detach(game,r,done)
  return done,done and ('Delivered: paid '..payment..' CR') or 'Delivery could not be completed'
 end
+local function failLoaded(game,r,reason)
+ local u,t=game.universe,r.task
+ -- Loaded goods already left source inventory. The failed shipment
+ -- must never go back on the board as an available pickup.
+ Tasks.release(u,r,reason,u.clock)
+ Tasks.state(u).offers[t.id]=nil
+ r.contractLoss={kind=t.kind,reason=reason}
+ return C.lossNotice(game)
+end
+
+function C.lossNotice(game)
+ local loss=owner(game.universe).contractLoss
+ if not loss then return end
+ local leg=loss.kind=='passenger' and 'Passenger' or 'Freight'
+ local cause=loss.reason=='ship wrecked' and 'ship wrecked' or 'cargo reported lost'
+ return ('%s contract failed · %s · no payment'):format(leg,cause)
+end
+
+function C.onWreck(game,ship)
+ local r=owner(game.universe)
+ local t=r.task
+ if not t then return end
+ if t.phase=='pickup' then
+  Tasks.release(game.universe,r,'ship wrecked before pickup',game.universe.clock)
+  return 'Contract released · pickup still available'
+ end
+ -- The carrier's hold becomes wreck salvage. Cargo stored elsewhere
+ -- can still be delivered by the replacement ship.
+ local item=t.kind=='passenger' and 'passengers' or t.item
+ if t.phase=='delivery' and (ship.cargo[item] or 0)>0 then
+  return failLoaded(game,r,'ship wrecked')
+ end
+end
+
+function C.cargoMissing(game)
+ local t=C.active(game)
+ return game.player and t and t.kind=='transport' and t.phase=='delivery'
+  and (game.player.cargo[t.item] or 0)<t.amount
+end
+
+function C.reportLoss(game)
+ if not C.station(game) or not C.cargoMissing(game) then return nil,'Dock with missing freight to report a loss' end
+ return true,failLoaded(game,owner(game.universe),'cargo reported lost')
+end
+
 function C.cancel(game)
  local here=C.station(game);local t=C.active(game)
  if not here or not t then return nil,'Dock at a station to cancel your contract' end
