@@ -1202,7 +1202,7 @@ local function dockPoint(sat, i)
 	if d then return Pose.point(sat, d.cx, d.cy) end
 	return Pose.position(sat)
 end
-local function drawSatBeams(game)
+local function drawTractorBeams(game)
 	local Sat = require("src.satellites")
 	for _, e in ipairs(game.entities) do
 		if e.kind == "ship" and not e.dead and e.body then
@@ -1221,6 +1221,21 @@ local function drawSatBeams(game)
 				local sx, sy = dockPoint(sat, i)
 				local x, y = Pose.position(e)
 				satBeam(sx, sy, x, y, faint)
+			end
+			if ds and ds.phase == "tractor" and ds.station.kind == "station" then
+				local st, d = ds.station, ds.dock or ds.station.dock
+				local sx, sy
+				if ds.mooring then
+					local p = ds.mooring
+					local a = math.rad(p.heading or 0)
+					sx, sy = Pose.point(st, p.x - cos(a)*45, p.y - sin(a)*45)
+				else
+					local a = d.a or 0
+					local lx, ly = d.x2 * (ds.side or 1) + (d.xc or 0), d.yc or 0
+					sx, sy = Pose.point(st, lx*cos(a) - ly*sin(a), lx*sin(a) + ly*cos(a))
+				end
+				local x, y = Pose.position(e)
+				satBeam(sx, sy, x, y, false)
 			end
 			-- a station's tractor pushing it off the runway
 			local push = e.runwayPush
@@ -1849,7 +1864,7 @@ function Render.world(game, overlay, boundaryAngle)
 	require("src.mining").draw(game,screenPx)
 	drawLootHover(game)
 	drawTractor(game)
-	drawSatBeams(game)
+	drawTractorBeams(game)
 	for _,e in ipairs(game.entities) do
 		local target=e.tractorTarget
 		if not e.isPlayer and not e.dead and e.intent and e.intent.tractor and target and target.count>0 then

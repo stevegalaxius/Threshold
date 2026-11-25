@@ -38,6 +38,7 @@ return function(game)
  end
  require("tests.station_markets")()
  require("tests.dock_traffic")()
+ require("tests.tractor_flow")()
  local g=fresh()
  for _,id in ipairs(Fields.list) do
   local ok,err=xpcall(function() g:loadField(id);run(g,1) end,debug.traceback)

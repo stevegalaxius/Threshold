@@ -1377,6 +1377,35 @@ local function dockAngle(st, side, d)
 end
 Game.dockWorld, Game.dockAngle, Game.dockLocal = dockWorld, dockAngle, dockLocal
 
+local function tractorSize(d)
+	return d.runway * 1.8, max((d.capture or 0) * 1.5, d.hw * 3.1)
+end
+
+local function berthLane(pose, hull)
+	local a = math.rad(pose.heading or 0)
+	return { a = a, xc = pose.x * cos(a) + pose.y * sin(a), yc = -pose.x * sin(a) + pose.y * cos(a),
+		x2 = 0, runway = 340, hw = min(70, max(45, hull.radius * .65)) }
+end
+
+-- Check the two legs the beam will use: across to the axis, then straight
+-- inward. A wide catch envelope must not grab through a station wall.
+function Game:tractorPathClear(e, st, side, lane, lx, target)
+	local function clear(ax, ay, bx, by)
+		if (ax-bx)^2 + (ay-by)^2 < .01 then return true end
+		local open = true
+		self.world:rayCast(ax, ay, bx, by, function(fixture)
+			if fixture:getBody() == e.body or fixture:isSensor() then return -1 end
+			open = false
+			return 0
+		end)
+		return open
+	end
+	local x, y = e.body:getPosition()
+	local ax, ay = dockWorld(st, side, max(lx, target), 0, lane)
+	local bx, by = dockWorld(st, side, target, 0, lane)
+	return clear(x, y, ax, ay) and clear(ax, ay, bx, by)
+end
+
 -- Station-local position of a point, and whether it's in the tractor zone
 -- (over the runway, in front of the door), and from which side.
 function Game:inTractorZone(st, x, y)
@@ -1384,55 +1413,88 @@ function Game:inTractorZone(st, x, y)
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
-		-- generous: the beam does the fine alignment once it has the ship
-		if lx > d.x2 and lx < d.x2 + d.runway * 1.15 and math.abs(ly) < max(d.capture or 0, d.hw * 1.6) then
+		local reach, width = tractorSize(d)
+		if lx > d.x2 and lx < d.x2 + reach and math.abs(ly) < width then
 			return true, lx, ly, side, d
 		end
 	end
 	return false
 end
 
-function Game:beginDocking(e, st, side, dock)
-	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1, dock = dock or st.dock }
+function Game:beginDocking(e, st, side, dock, berth, pose, bay)
+	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1, dock = dock or st.dock, berth = berth, mooring = pose }
+	e.bay, e.bayStation = bay, st.locationId or st.key
  for i,candidate in ipairs(st.docks or {st.dock}) do if candidate==e.dockState.dock then e.dockState.dockIndex=i end end
 	-- the player keeps the stick while the beam works (like a mass
 	-- driver's): it can be fought, overshot or slid out of
 	if e ~= self.player then
 		e.intent.thrust, e.intent.strafe, e.intent.boost = 0, 0, false
+		e.mainBurn, e.retroBurn, e.sideBurn, e.foreBurn, e.turnBurn = 0, 0, 0, 0, 0
 	end
 	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireTertiary = false, false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
 end
 
+local function relativeDockSpeed2(e, st)
+	local vx, vy = e.body:getLinearVelocity()
+	local fx, fy = st.body:getLinearVelocityFromWorldPoint(e.body:getPosition())
+	return (vx - fx)^2 + (vy - fy)^2
+end
+
+function Game:tryBerthTractor(e, st, dock, berth, pose)
+	local lane = berthLane(pose, e.hull)
+	local lx, ly = dockLocal(st, 1, e.body:getX(), e.body:getY(), lane)
+	local reach, width = tractorSize(lane)
+	if lx < -30 or lx > reach or math.abs(ly) >= width or relativeDockSpeed2(e, st) > 380^2 then return false end
+	if not self:mooringFits(st, berth, e.hull.id, e) or not self:tractorPathClear(e, st, 1, lane, lx, 0) then return false end
+	self:beginDocking(e, st, 1, dock, berth, pose)
+	e.dockApproach = nil
+	return true
+end
+
+function Game:tryHangarTractor(e, st)
+	local x, y = e.body:getPosition()
+	local inZone, lx, _, side, dock = self:inTractorZone(st, x, y)
+	if not inZone or not self:fitsDock(e, dock) or relativeDockSpeed2(e, st) > 550^2 then return false end
+	if require("src.queue").dockBusy(self, st, dock, e) then return false end
+	local door = dock.x2 + e.halfLength + 40
+	if not self:tractorPathClear(e, st, side, dock, lx, door) then return false end
+	local bay = self:hangarFit(st, e.hull.id, e)
+	if not bay then
+		if e.alifeId and not self:freeBerth(st, e) then
+			e.dockCooldown = 4
+			require("src.upkeep").rejected(self, e, st)
+		end
+		return false
+	end
+	self:beginDocking(e, st, side, dock, nil, nil, bay)
+	return true
+end
+
 function Game:updateDocking(dt)
+	local Queue = require("src.queue")
+	local Approach = require("src.dock_approach")
 	for _, e in ipairs(self.entities) do
-		if e.kind == "ship" and not e.dead and not e.dockState then
+		if e.kind == "ship" and not e.dead and not e.removed and not e.dockState then
 			e.dockCooldown = max(0, (e.dockCooldown or 0) - dt)
-			-- A-Life patrols and pirates fly the trader route logic when idle, so
-			-- they dock the same way when their route stops at a station.
-			local trader = e.def and e.def.ai.style == "civilian" or (e.alifeId and e.route ~= nil)
-			local stop = trader and e ~= self.player and e.route and e.route[e.routeIndex or 1]
-			if stop and e.dockApproach and e.dockApproach.stop == stop and e.dockApproach.final then
-				self:clearArrivalDebris(e, stop, e.dockApproach)
-			end
-			if stop and e.dockApproach and e.dockApproach.berth and e.dockCooldown == 0 then
-				-- bound for an exterior berth: its own engines bring it to the
-				-- pad (src/dock_approach.lua), and the station settles it on
-				require("src.dock_approach").tryBerth(self, e, stop)
-			elseif e == self.player and e.dockCooldown == 0 and require("src.dock_approach").playerBerth(self, e) then
-				-- settled onto an exterior berth
-			elseif (e == self.player or trader) and e.dockCooldown == 0 then
-				local x, y = e.body:getPosition()
-				for _, st in ipairs(self.entities) do
-					-- traders only dock where their route says to
-					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
-						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
-						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						-- the player has right of way: NPCs gliding in or out are
-						-- station-flown and don't collide, so they never shut the door
-						if inZone and (e == self.player or not require('src.queue').dockBusy(self,st,dock,e)) then
-							self:beginDocking(e, st, side, dock)
-							break
+			if e.dockCooldown == 0 and not (e.dockExit or e.driverTractor or e.launch or e.ghost) then
+				if e == self.player then
+					if not Approach.playerBerth(self, e) then
+						for _, st in ipairs(self.entities) do
+							if st.kind == "station" and st.dock and not st.removed and self:tryHangarTractor(e, st) then break end
+						end
+					end
+				else
+					local stop = e.route and e.route[e.routeIndex or 1]
+					if stop and stop.kind == "station" and stop.dock and not stop.removed and not e.bayExit then
+						local ap = e.dockApproach
+						if ap and ap.stop == stop and ap.final then self:clearArrivalDebris(e, stop, ap) end
+						if not (e.alifeId and Queue.holding(self, e, stop)) then
+							if ap and ap.stop == stop and ap.berth then
+								Approach.tryBerth(self, e, stop)
+							else
+								self:tryHangarTractor(e, stop)
+							end
 						end
 					end
 				end
@@ -1521,62 +1583,56 @@ function Game:updateDockedShip(e, dt)
 	ds.t = ds.t + dt
 
 	if ds.phase == "tractor" then
+		local lane = ds.mooring and berthLane(ds.mooring, e.hull) or d
+		local reach, width = tractorSize(lane)
 		local x, y = b:getPosition()
-		local lx, ly = dockLocal(st, side, x, y, d)
-		local doorX = d.x2 + e.halfLength + 40
-		local near = 1 - max(0, min(1, (lx - doorX) / d.runway))
-		-- wanted velocity, in the station's frame: onto the centre line and
-		-- in toward the door, slowing as it arrives
-		local gap = lx - doorX
-		local inward = -min(260, gap > 0 and max(50, gap * 0.6) or gap * 0.6)
-		local across = -ly * 1.2
-		-- well off the centre line, line up before going in
-		if math.abs(ly) > d.hw * 0.5 then inward = max(0, inward) end
-		local wx, wy = dockVector(st, side, inward, across, d)
-		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
-		local vx, vy = b:getLinearVelocity()
-		-- the player can slide out of the beam; an NPC is held
-		if e == self.player and (lx > d.x2 + d.runway * 1.35 or math.abs(ly) > math.max(d.hw*2.4,(d.capture or d.hw*1.6)*1.5)) then
-			e.dockState, e.dockCooldown = nil, 3
-			self:toast("TRACTOR LOST", 1.4)
+		local lx, ly = dockLocal(st, side, x, y, lane)
+		local target = ds.mooring and 0 or d.x2 + e.halfLength + 40
+		local function release()
+			self:applyParking(e, nil)
+			e.dockState, e.bayStation, e.dockApproach, e.dockCooldown = nil, nil, nil, 3
+			e.aiNextPlan = nil
+			if e == self.player then self:toast("TRACTOR LOST", 1.4) end
+		end
+		-- Thrust and steering stay live for the player. NPC pilots commit to
+		-- the beam; a blocked lane can still be released by the station.
+		if (e == self.player and (lx > lane.x2 + reach*1.2 or math.abs(ly) > width*1.2))
+			or (e ~= self.player and ds.t > 35) then
+			release()
 			return
 		end
-		-- The beam supports every captured ship against cloud-top gravity.
+		if (ds.checkAt or 0) <= self.time then
+			ds.blocked = not self:tractorPathClear(e, st, side, lane, lx, target)
+			ds.checkAt = self.time + .2
+		end
+		local gap = lx - target
+		local inward = max(-260, min(200, -gap * 1.4))
+		if ds.blocked or math.abs(ly) > lane.hw * .38 then inward = max(0, inward) end
+		local wx, wy = dockVector(st, side, inward, max(-360, min(360, -ly*1.5)), lane)
+		local svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
 		local gx, gy
 		if st.city then gx, gy = self:surfacePullAt(x, y) end
-		require("src.beam").hold(self, e, { t = ds.t, near = near, fvx = svx, fvy = svy, wx = wx, wy = wy,
-			nose = dockAngle(st, side, d) + pi, spin = sb:getAngularVelocity(), gx = gx, gy = gy, dt = dt })
-		-- An NPC the beam can't bring in (wedged on the hull beside the
-		-- runway) held the dock for ever, and the whole queue behind it
-		-- waited. After a while the beam just sets it at the door.
-		if e ~= self.player and ds.t > 20 then
-			x, y = dockWorld(st, side, doorX, 0, d)
-			b:setPosition(x, y)
-			b:setAngle(dockAngle(st, side, d) + pi)
-			svx, svy = sb:getLinearVelocityFromWorldPoint(x, y)
-			b:setLinearVelocity(svx, svy)
-			b:setAngularVelocity(0)
-			lx, ly, vx, vy = doorX, 0, svx, svy
-		end
-		local rvx, rvy = vx - svx, vy - svy
-		if lx <= doorX + 30 and math.abs(ly) < d.hw * 0.4 and rvx * rvx + rvy * rvy < 250 ^ 2 then
-			local interior=self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e)
-			local berth=not interior and self:freeBerth(st,e)
-			e.bay=interior or nil;e.bayStation=st.locationId or st.key
-			if berth then
-    local bd=self:berthPose(st,berth,e.hull.id) or st.def.berths[berth]
-    ds.phase,ds.t,ds.berth,ds.mooring='taxi',0,berth,self:berthPose(st,berth,e.hull.id)
-				ds.lx,ds.ly=sb:getLocalPoint(x,y)
-				ds.la=b:getAngle()-sb:getAngle()
-				ds.dur=max(1.5,min(8,sqrt((bd.x-ds.lx)^2+(bd.y-ds.ly)^2)/220))
-			elseif interior then
-				ds.phase,ds.t='pull',0
-				ds.lx,ds.ly,ds.la=lx,ly,b:getAngle()-dockAngle(st,side,d)
+		local heading = dockAngle(st, side, lane) + (ds.mooring and 0 or pi)
+		require("src.beam").hold(self, e, { station = true, t = ds.t,
+			near = 1 - max(0, min(1, gap / reach)), fvx = svx, fvy = svy, wx = wx, wy = wy,
+			nose = heading, spin = sb:getAngularVelocity(), gx = gx, gy = gy, dt = dt })
+
+		if not ds.blocked and math.abs(gap) < 30 and math.abs(ly) < lane.hw * .28
+			and relativeDockSpeed2(e, st) < 65^2 then
+			if ds.mooring then
+				-- The pad clamps only once the active body has reached it.
+				ds.phase, ds.t, ds.dur = "taxi", 0, 1.5
+				ds.lx, ds.ly = sb:getLocalPoint(x, y)
+				ds.la = b:getAngle() - sb:getAngle()
 			else
-				e.dockState,e.dockCooldown=nil,3
-				if e.alifeId then require('src.upkeep').rejected(self,e,st) end
-				if e==self.player then self:toast('NO SUITABLE FREE BERTH',2) end
-				return
+				-- A tractor state from an old save may not have a reserved bay.
+				e.bay = e.bay or (self:fitsDock(e,d) and self:hangarFit(st,e.hull.id,e))
+				if not e.bay then
+					release()
+					if e == self.player then self:toast("NO SUITABLE FREE BERTH", 2) end
+					return
+				end
+				ds.phase, ds.t, ds.lx, ds.ly, ds.la = "pull", 0, lx, ly, b:getAngle()-heading
 			end
 			b:setActive(false)
 		end
