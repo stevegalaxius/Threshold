@@ -40,7 +40,7 @@ local function entries(game,f)
  head('yours',('%d of %d requests held · %s'):format(#active,T.questMaxActive,t and 'one freight contract' or 'no freight contract'))
  local loss=Board.lossNotice(game)
  if loss then add('yours',{note=loss,h=30}) end
- if t then add('yours',{activeFreight=t,h=158}) end
+ if t then add('yours',{activeFreight=t,h=t.kind=='transport' and t.phase=='delivery' and 199 or 158}) end
  for _,q in ipairs(active) do add('yours',{quest=q,active=true,h=120}) end
  if not t and #active==0 then note('yours','Nothing held. Take a request or a freight contract from the other panes.') end
  local elsewhere={}
@@ -125,9 +125,13 @@ function View.layout(game)
  for _,e in ipairs(list) do
   if ry+e.h>top and ry<bottom then
    if e.activeFreight then
-    f.activeRect={x=x,y=ry,w=w,h=146}
+    f.activeRect={x=x,y=ry,w=w,h=e.h-12}
     f.advance={x=x+w-190,y=ry+46,w=174,h=34}
     f.cancel={x=x+w-190,y=ry+88,w=174,h=30}
+    if e.h>158 then
+     f.returnFreight={x=x+14,y=ry+146,w=174,h=28}
+     f.transferFreight={x=x+198,y=ry+146,w=174,h=28}
+    end
     f.rows[#f.rows+1]={activeFreight=true}
    elseif e.quest then
     local row={quest=e.quest,active=e.active,x=x,y=ry,w=w,h=e.active and 112 or 92,button={x=x+w-190,y=ry+44,w=174,h=30}}

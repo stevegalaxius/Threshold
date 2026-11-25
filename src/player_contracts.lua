@@ -127,9 +127,57 @@ function C.accept(game,id)
  detach(game,r,true)
  return true,t.phase=='delivery' and 'Contract accepted: cargo loaded' or 'Contract accepted: collect cargo at the source'
 end
+function C.finishRecovery(game)
+ local t,station=C.active(game),C.station(game)
+ if not t or not station or t.recoveryStop~=station then return end
+ if (game.player.cargo[t.item] or 0)<=0 then return false,'Recover or replace cargo before unloading' end
+ local r=attach(game)
+ local mode=Transport.unloadRecovery(game.universe,r,t,station,game.universe.clock)
+ local pay=r.credits or 0
+ detach(game,r,mode~=nil)
+ if not mode then return false,'Recovery unavailable here. Choose another stop.' end
+ if mode=='return' then return true,'Freight returned to origin' end
+ return true,pay>0 and ('Freight transferred · paid %d CR'):format(pay) or 'Freight transferred to the station'
+end
+
+function C.chooseRecovery(game,mode)
+ local t,p=C.active(game),game.player
+ if not t or t.kind~='transport' or t.phase~='delivery' or not p or p.dead then return nil,'No loaded freight contract' end
+ if mode=='resume' then
+  t.recoveryStop=nil
+  require('src.hud').navTarget=L.byId[t.target] and L.byId[t.target].name or nil
+  return true,'Delivery resumed'
+ end
+ if (p.cargo[t.item] or 0)<=0 then return nil,'Recover or replace cargo before arranging a handoff' end
+ local u=game.universe
+ local clock=u.clock
+ local px,py=p.body:getPosition()
+ local station
+ if mode=='return' then
+  local origin=Transport.returnStation(t)
+  local from=C.station(game) or L.nearest(game.fieldId,px,py,clock)
+  if Transport.recoveryMode(u,t,origin,clock)=='return' and (from==origin or Transport.route(from,origin,clock))
+   and require('src.dock_room').capacity(origin,p.hull.id)>0 then station=origin end
+ elseif mode=='transfer' then
+  local profile={player=true,ship={hull=p.hull.id}}
+  for _,option in ipairs(Transport.recoveryStops(u,profile,t,game.fieldId,px,py,clock)) do
+   if option.mode=='transfer' then station=option.station;break end
+  end
+ end
+ if not station then return nil,mode=='return' and 'No available route to return this freight' or 'No available freight transfer station in this area' end
+ t.recoveryStop=station
+ if C.station(game)==station then return C.finishRecovery(game) end
+ require('src.hud').navTarget=L.get(station).name
+ return true,('Dock at %s to %s the freight'):format(L.get(station).name,mode)
+end
+
 function C.advance(game)
  local here=C.station(game);local t=C.active(game)
  if not here or not t then return nil,'No active contract at this station' end
+ if t.recoveryStop then
+  if here==t.recoveryStop then return C.finishRecovery(game) end
+  return nil,'Dock at the selected recovery station'
+ end
  local destination=t.phase=='pickup' and t.source or t.target
  if here~=destination then return nil,t.phase=='pickup' and 'Dock at the pickup station' or 'Dock at the delivery station' end
  if t.kind=='passenger' and t.phase=='pickup' and Ship.canFit(game.player,t.item,t.amount)<t.amount then return nil,'Clear your climate hold for the party' end
@@ -217,7 +265,11 @@ function C.cancel(game)
   return true,t.phase=='delivery' and 'Contract cancelled: the party got off here' or 'Contract cancelled'
  end
  if t.phase=='delivery' then
-  if here~=t.source then return nil,'Return the cargo to its source to cancel' end
+  if here~=Transport.returnStation(t) then return nil,'Return the cargo to its origin to cancel' end
+  if Transport.recoveryMode(game.universe,t,here,game.universe.clock)=='return' then
+   t.recoveryStop=here
+   return C.finishRecovery(game)
+  end
   if (game.player.cargo[t.item] or 0)<t.amount then return nil,'Replace missing cargo before returning it' end
   local p=game.player
   if p.hold then assert(Hold.take(p.hold,t.item,t.amount)==t.amount);p.cargo=Hold.totals(p.hold)

@@ -103,6 +103,8 @@ end
 function Game:playerDocked(st)
 	self:givePlayerBay(st)
 	self.universe.home = { field = self.fieldId, key = st.key, name = st.name }
+	local _, message = require("src.player_contracts").finishRecovery(self)
+	if message then self:toast(message, 2.5) end
 	self:autosave()
 end
 

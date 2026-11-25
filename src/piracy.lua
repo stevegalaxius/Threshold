@@ -143,8 +143,14 @@ local function next(c)
   if L.canonical(c.node)~=L.canonical(base) then
    local path=G.live(c.node,base,clock)
    if path then return {route=path} end
+   if duty.freightTheft then return {wait=T.freightStallTime} end
   end
   P.unload(u,r)
+  if duty.freightTheft then
+   r.piracy=nil
+   Tasks.release(u,r,'fenced stolen freight',clock)
+   return {wait=T.pirateRest}
+  end
   if r.wildcat then require('src.wildcats').atFence(u,r,base) end
   Supplies.refill(r,base)
   local path=G.live(base,duty.origin,clock)

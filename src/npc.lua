@@ -35,11 +35,13 @@ end
 N.controller={name='npc',
  docks=function(r,id)
   local t=r.task
-  return not t or L.canonical(id)==L.canonical(t.phase=='pickup' and t.source or t.target)
+  return not t or L.canonical(id)==L.canonical(t.phase=='pickup' and t.source or t.recoveryStop or t.target)
  end,
  complete=function(c)
   local node=L.canonical(c.node)
   local task=c.r.task
+  if task and task.recoveryStop==node and not c.e and c.r.state=='idle'
+   and require('src.dock_room').room(c.u,c.r,node) then N.beginDocked(c.r,node,c.clock,c.u) end
   Tasks.arrive(c.u,c.r,task and task.kind=='ship_delivery' and c.node or node,c.clock,c.game)
   -- just loaded at the pickup: fill the spare hold with more jobs on the way
   local t=c.r.task
@@ -83,6 +85,23 @@ N.controller={name='npc',
   if task.phase=='delivery' and node==task.source then require('src.npc_agenda').extend(u,r,node,clock) end
   r.taskWorker=true;r.nextTaskAt=nil
   local route=Tasks.plan(r,task.kind=='ship_delivery' and c.node or node,clock)
+  if not route and task.kind=='transport' and task.phase=='delivery' then
+   if task.recoveryStop==node then return {wait=T.freightStallTime} end
+   local Transport=require('src.transport')
+   local source=Transport.returnStation(task)
+   local mode=Transport.recoveryMode(u,task,source,clock)
+   if mode=='return' and not (task.recoveryTried and task.recoveryTried[source])
+    and require('src.npc_access').eligible(r,{kind='transport',target=source})
+    and require('src.dock_room').capacity(source,r.ship.hull)>0 then
+    route=Transport.route(node,source,clock)
+    if route then task.recoveryStop=source end
+   end
+   if not route and c.wasDocked and Transport.recoveryMode(u,task,node,clock) then
+    task.recoveryStop=node
+    Transport.unloadRecovery(u,r,task,node,clock)
+    return {wait=T.alifeLocalTick}
+   end
+  end
   if not route then
    if (task.kind=='transport' or task.kind=='ship_delivery') and task.phase=='delivery' then
     r.taskStatus='waiting for a freight route'
@@ -188,7 +207,7 @@ function N.recoverFreight(ctx)
  if not watch or watch.stop~=stop.locationId or watch.phase~=task.phase
   or watch.index~=index or distance<watch.distance-T.freightProgressDistance then
   task.freightRecovery={stop=stop.locationId,index=index,phase=task.phase,distance=distance,at=clock,elapsed=0}
-  r.taskStatus=nil
+  if not task.recoveryStop then r.taskStatus=nil end
   return
  end
  local elapsed=clock-watch.at
@@ -203,7 +222,7 @@ function N.recoverFreight(ctx)
   Tasks.release(ctx.u,r,'pickup stalled',clock)
   Trace.note(r,clock,'freight','released an uncollected shipment after a stalled retry')
   local nextTask=r.task
-  local target=nextTask and (nextTask.phase=='pickup' and nextTask.source or nextTask.target)
+  local target=nextTask and (nextTask.phase=='pickup' and nextTask.source or nextTask.recoveryStop or nextTask.target)
   if not target then
    local best=math.huge
    for _,id in ipairs(L.stations(place.area)) do
@@ -217,9 +236,47 @@ function N.recoverFreight(ctx)
   if target then N.travel(ctx.game,r,target,clock) end
   return
  end
+ if task.phase=='delivery' and watch.retried then
+  local Transport=require('src.transport')
+  if task.recoveryStop then
+   task.recoveryTried=task.recoveryTried or {}
+   task.recoveryTried[task.recoveryStop]=true
+  else
+   local fence=not task.recoveryTried and Transport.freightFence(ctx.u,r,task,stop.locationId,clock,e.cargo or {})
+   if fence and N.travel(ctx.game,r,fence,clock) then
+    Transport.abscond(ctx.u,r,task,fence,clock)
+    N.routeAction(ctx)
+    require('src.alife').bindRoute(ctx.game,e,r)
+    Trace.note(r,clock,'freight','absconded with freight')
+    return
+   end
+  end
+  local source=Transport.returnStation(task)
+  local options=Transport.recoveryStops(ctx.u,r,task,place.area,x,y,clock)
+  if (not task.recoveryTried or not task.recoveryTried[source])
+   and Transport.recoveryMode(ctx.u,task,source,clock)=='return'
+   and require('src.npc_access').eligible(r,{kind='transport',target=source})
+   and require('src.dock_room').capacity(source,r.ship.hull)>0 then
+   table.insert(options,1,{station=source,mode='return'})
+  end
+  local attempted={}
+  for _,option in ipairs(options) do
+   task.recoveryStop=option.station
+   local planned=not attempted[option.station] and N.travel(ctx.game,r,option.station,clock)
+   attempted[option.station]=true
+   if planned then
+    task.freightRecovery=nil
+    e.dockApproach,e.detour,e.pathAsk,e.navigation=nil,nil,nil,nil
+    r.taskStatus=option.mode=='return' and 'returning undelivered freight' or 'transferring stalled freight'
+    Trace.note(r,clock,'freight',r.taskStatus)
+    return
+   end
+  end
+  task.recoveryStop=nil
+ end
  watch.retried=true
  e.dockApproach,e.detour,e.pathAsk,e.navigation=nil,nil,nil,nil
- local target=task.phase=='pickup' and task.source or task.target
+ local target=task.phase=='pickup' and task.source or task.recoveryStop or task.target
  local replanned=N.travel(ctx.game,r,target,clock)
  r.taskStatus=replanned and 'retrying stalled freight route' or 'waiting for a freight route'
  Trace.note(r,clock,'freight',r.taskStatus)
@@ -389,6 +446,7 @@ function N.decide(u,r,node,at,game)
  local j=N.controller;if not j then return false end
  local ctx=N.context(game or {universe=u},r,at,game and game.alifeOnline and game.alifeOnline[r.id],nil,nil,u)
  ctx.node=node
+ ctx.wasDocked=r.state=='docked'
  if ctx.e then ctx.AI=require('src.ai') end
  if N.runActions(ctx) then return true end
  if j.complete then j.complete(ctx) end

@@ -58,6 +58,7 @@ return function(game)
  end
  require("tests.station_markets")()
  require("tests.freight_recovery")()
+ require("tests.loaded_freight")()
  require("tests.delivery_parking")()
  require("tests.player_contract_loss")()
  require("tests.dock_traffic")()
