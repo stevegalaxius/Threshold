@@ -116,12 +116,39 @@ end
 -- Still waiting for its turn at the chokepoint its route is on.
 function Q.waiting(r,clock,game)
  local e=game and game.alifeOnline and game.alifeOnline[r.id]
- if e and r.queue then
+ if e then
   return not not Q.holding(game,e,e.route and e.route[e.routeIndex or 1])
  end
  local q=r.queue
  -- (a turn that came free on time is no wait at all)
  return q and q.ready>(q.at or 0)+.5 and r.route and r.route[r.index] and r.route[r.index]==q.key and clock<q.ready
+end
+
+-- Compare projected motion in the station frame over the next four
+-- seconds. Test closing traffic from every route, including other anchors.
+function Q.crossing(game,e,station,aimX,aimY,speed)
+ local x,y=e.body:getPosition()
+ local dx,dy=aimX-x,aimY-y
+ local distance=math.sqrt(dx*dx+dy*dy)
+ if distance<1 then return false end
+ local horizon=math.min(4,distance/math.max(1,speed))
+ local vx,vy=dx/distance*speed,dy/distance*speed
+ for _,other in ipairs(liveCache(game).ships) do
+  if other~=e and not other.dead and not other.removed and other.body:isActive() then
+   local ox,oy=other.body:getPosition()
+   local rx,ry=ox-x,oy-y
+   local clearance=e.halfLength+other.halfLength+60
+   local ovx,ovy=other.body:getLinearVelocity()
+   local sx,sy=station.body:getLinearVelocityFromWorldPoint(ox,oy)
+   local rvx,rvy=ovx-sx-vx,ovy-sy-vy
+   local closing=-(rx*rvx+ry*rvy)
+   if closing>0 then
+    local t=math.min(horizon,closing/(rvx*rvx+rvy*rvy))
+    if (rx+rvx*t)^2+(ry+rvy*t)^2<clearance^2 then return true end
+   end
+  end
+ end
+ return false
 end
 
 -- Live docks serve the ships actually nearby, not future reservations.
@@ -142,7 +169,6 @@ local function liveLine(game,e,stop,dock)
  local AI=require('src.ai')
  local driver=stop.kind=='driver' and stop.driver
  dock=not driver and (dock or AI.approachDock(e,stop))
- local kind=driver and 'driver' or 'dock'
  local clock=game.universe.clock
  local cache=liveCache(game)
  local resource=driver or dock
@@ -152,7 +178,7 @@ local function liveLine(game,e,stop,dock)
   for id,other in pairs(game.alifeOnline or {}) do
    local r=game.universe.npcs[id];local q=r and r.queue
    local target=other.route and other.route[other.routeIndex or 1]
-   if q and q.kind==kind and q.key==stop.locationId
+   if (not driver or q and q.kind=='driver' and q.key==stop.locationId)
     and not other.dead and not other.removed and not other.dockState and not other.dockExit
     and not other.driverTractor and not other.launch
     and (target==stop or driver and target and target.driver==driver) then
@@ -163,11 +189,15 @@ local function liveLine(game,e,stop,dock)
     -- back in to rejoin at the end, was sent out to its spot again, and
     -- shuttled back and forth through the line for ever.
     local reach=T.queueStart+T.queueGap*4
-    if q.entered then reach=T.queueStart+T.queueGap*(#cache.ships+4) end
+    local booking=q and q.key==stop.locationId and q
+    local entered=booking and booking.entered or other.queueStop==stop and other.queueEntered
+    if entered then reach=T.queueStart+T.queueGap*(#cache.ships+4) end
     if (x-sx)^2+(y-sy)^2<=reach^2 then
-     q.entered=q.entered or clock
-     if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=q.entered,id=id} end
-    else q.entered=nil end
+     entered=entered or clock
+     if booking then booking.entered=entered else other.queueStop,other.queueEntered=stop,entered end
+     if driver or AI.approachDock(other,stop)==dock then line[#line+1]={e=other,at=entered,id=id} end
+    elseif booking then booking.entered=nil
+    elseif other.queueStop==stop then other.queueStop,other.queueEntered=nil,nil end
    end
   end
   table.sort(line,function(a,b) return a.at<b.at or a.at==b.at and a.id<b.id end)
@@ -182,7 +212,7 @@ local function liveLine(game,e,stop,dock)
   if not other.dead and not other.removed and not other.dockState and not other.dockExit
    and not other.driverTractor and not other.launch then
    place=place+1
-   if other==e then return busy or place>1,place end
+   if other==e then return busy or place>1,place,nil,busy end
   end
  end
  return false,1,place,busy
@@ -215,23 +245,11 @@ end
 function Q.holding(game,e,stop)
  local r=e.alifeId and game.universe.npcs[e.alifeId]
  local q=r and r.queue
- if q and stop and (q.kind=='dock' and stop.dock or q.kind=='driver' and stop.driver)
-  and stop.locationId and stop.locationId==q.key then
-  local waiting,place=liveLine(game,e,stop)
+ if r and stop and (stop.dock or q and q.kind=='driver' and stop.driver and stop.locationId==q.key) then
+  local waiting,place,_,busy=liveLine(game,e,stop)
   -- (it joins the new runway's line next tick, when the line is rebuilt)
-  if waiting and stop.docks and shorterRunway(game,e,stop,place) then return r,place end
-  return waiting and r or nil,place
- end
- -- No booking for this dock (it expired, or the visit never booked one):
- -- while another ship is in its beam or coming out of it, wait off the
- -- runway rather than flying on into the door and the hull round it.
- if r and stop and stop.dock and not (q and q.kind=='dock') and not e.dockState then
-  local AI=require('src.ai')
-  local dock=AI.approachDock(e,stop)
-  if Q.dockBusy(game,stop,dock,e) then
-   local sx,sy=AI.stopPoint(stop,e);local x,y=e.body:getPosition()
-   if (x-sx)^2+(y-sy)^2<=(T.queueStart+T.queueGap*4)^2 then return r,1 end
-  end
+  if waiting and stop.docks and shorterRunway(game,e,stop,place) then return r,place,true end
+  return waiting and r or nil,place,busy
  end
  return q and q.ready>(q.at or 0)+.5 and stop and stop.locationId and stop.locationId==q.key and game.universe.clock<q.ready and r or nil
 end
@@ -256,7 +274,7 @@ local function lineStarts(list,key,clock)
 end
 function Q.place(r,clock,game)
  local e=game and game.alifeOnline and game.alifeOnline[r.id]
- if e and r.queue then
+ if e then
   local _,place=Q.holding(game,e,e.route and e.route[e.routeIndex or 1]);return place or 1
  end
  local q=r.queue;if not q then return 1 end

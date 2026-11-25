@@ -85,6 +85,30 @@ return function()
 	game:updateDockedShip(departing, 1/120)
 	assert(not departing.dockState and departing.routeIndex == 2 and record.state == "travel",
 		"queued departure lost its original leg")
+	-- The first ship retains priority while the following ship can fly
+	-- toward a nearby slot outside the beam, even without offline bookings.
+	local Approach = require("src.dock_approach")
+	station.body:setLinearVelocity(0, 0)
+	local stageX, stageY = assert(Approach.stagingPoint(game, b, station, 1, dock, 1, 1))
+	assert(not game:inTractorZone(station, stageX, stageY), "staging spot is inside the tractor zone")
+	a.body:setPosition(game.dockWorld(station, 1, dock.x2 + dock.runway, 0, dock))
+	b.body:setPosition(stageX, stageY)
+	departing.dockExit = nil
+	game:remove(departing)
+	game.universe.clock = clock + 1
+	local waiting, place, busy = Queue.holding(game, b, station)
+	assert(not Queue.holding(game, a, station) and waiting and place == 2 and not busy,
+		"staging changed the live arrival order")
+	require("src.ai").trade(game, b, 1/120)
+	local aim = b.navAim
+	assert((aim.sx-stageX)^2+(aim.sy-stageY)^2 < 1, "next arrival did not steer toward staging")
+
+	-- A passing ship on an unrelated route can cross the final leg.
+	a.body:setPosition(stageX + 200, stageY + 400)
+	a.body:setLinearVelocity(0, -400)
+	assert(Queue.crossing(game, b, station, stageX + 600, stageY, 200), "missed crossing traffic")
+	a.body:setLinearVelocity(0, 400)
+	assert(not Queue.crossing(game, b, station, stageX + 600, stageY, 200), "held for traffic moving away")
 	-- A queued station stop can still be on another map and have no
 	-- local physics body when the route controller runs.
 	local remote = makeShip()

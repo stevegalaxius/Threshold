@@ -1422,6 +1422,7 @@ function Game:inTractorZone(st, x, y)
 end
 
 function Game:beginDocking(e, st, side, dock, berth, pose, bay)
+	e.queueStop, e.queueEntered = nil, nil
 	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1, dock = dock or st.dock, berth = berth, mooring = pose }
 	e.bay, e.bayStation = bay, st.locationId or st.key
  for i,candidate in ipairs(st.docks or {st.dock}) do if candidate==e.dockState.dock then e.dockState.dockIndex=i end end
@@ -1489,7 +1490,7 @@ function Game:updateDocking(dt)
 					if stop and stop.kind == "station" and stop.dock and not stop.removed and not e.bayExit then
 						local ap = e.dockApproach
 						if ap and ap.stop == stop and ap.final then self:clearArrivalDebris(e, stop, ap) end
-						if not (e.alifeId and Queue.holding(self, e, stop)) then
+						if not (ap and ap.stop == stop and ap.crossing) and not (e.alifeId and Queue.holding(self, e, stop)) then
 							if ap and ap.stop == stop and ap.berth then
 								Approach.tryBerth(self, e, stop)
 							else

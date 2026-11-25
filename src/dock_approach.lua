@@ -64,6 +64,20 @@ function G.waitPoint(game, e, st, side, d, ry)
 	return mx + 200, (ry or 0) >= 0 and lateral or -lateral
 end
 
+-- Hold beside the runway in the station's frame. The slot nearest the
+-- runway is open for the next arrival while the leader is still flying in.
+function G.stagingPoint(game, e, st, side, dock, lateral, slot)
+	local mx, my = G.waitPoint(game, e, st, side, dock, lateral)
+	mx = max(mx, dock.x2 + dock.runway * 1.8 + e.halfLength)
+	mx = mx + (slot - 1) * max(T.queueGap, 2 * e.halfLength + 100)
+	local Nav = require("src.local_navigation")
+	local radius = max(e.halfLength, e.hull.radius) + T.aiClearance
+	for _, y in ipairs({my, -my}) do
+		local xw, yw = game.dockWorld(st, side, mx, y, dock)
+		if Nav.stagingClear(game, e, xw, yw, radius) then return xw, yw end
+	end
+end
+
 -- A berth's pose in the dock's frame: position, the outward heading, and an
 -- approach point straight out from the pad, clear of the hull.
 local function berthGoal(game, e, st, side, d, bd)
@@ -239,6 +253,13 @@ function G.steer(game, e, stop, d, brake)
 		nx, ny = st.body:getWorldVector(cos(h + a), sin(h + a))
 	end
 	ap.s, ap.off, ap.want, ap.final = s, off, want, final
+	ap.crossing = nil
+	if s + look >= ap.pts.final then
+		-- Check the join and the lane ahead before aiming into crossing traffic.
+		local goal = final and ap.pts[#ap.pts] or {tx, ty}
+		local gx, gy = game.dockWorld(st, side, goal[1], goal[2], d)
+		ap.crossing = require("src.queue").crossing(game, e, st, gx, gy, max(want, G.finalSpeed))
+	end
 	return wx, wy, want, nx, ny, remaining, ap
 end
 

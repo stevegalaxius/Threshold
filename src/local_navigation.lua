@@ -242,6 +242,12 @@ function Nav.towClear(game,e,x,y,gx,gy,radius,station)
  return segmentClear(geometry,x,y,gx,gy,radius,station)
 end
 
+function Nav.stagingClear(game,e,x,y,radius)
+ local sx,sy=e.body:getPosition()
+ local geometry=obstacles(game,e,sqrt((x-sx)^2+(y-sy)^2)+radius,nil,false,true)
+ return segmentClear(geometry,x,y,x,y,radius)
+end
+
 -- Check the current fixtures directly at wake: a newly created body and
 -- its neighbours need not be in this step's shared navigation index yet.
 function Nav.clearWake(game,e,x,y)
