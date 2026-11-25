@@ -230,6 +230,22 @@ function G.steer(game, e, stop, d, brake)
 	return wx, wy, want, nx, ny, remaining, ap
 end
 
+-- The station settles a ship onto a berth from where it is now: the short
+-- winch-on (Game:updateDockedShip "taxi") both NPCs and the player use.
+local function settleOnBerth(game, e, st, side, d, berth, pose)
+	local sb = st.body
+	local x, y = e.body:getPosition()
+	game:beginDocking(e, st, side, d)
+	local ds = e.dockState
+	ds.phase, ds.t, ds.berth, ds.mooring = "taxi", 0, berth, game:berthPose(st, berth, e.hull.id)
+	ds.lx, ds.ly = sb:getLocalPoint(x, y)
+	ds.la = e.body:getAngle() - sb:getAngle()
+	local turn = math.abs(wrap(math.rad(pose.heading or 0) - ds.la))
+	ds.dur = max(1.5, sqrt((pose.x - ds.lx) ^ 2 + (pose.y - ds.ly) ^ 2) / 110, turn / 0.8)
+	e.bay, e.bayStation = nil, st.locationId or st.key
+	e.body:setActive(false)
+end
+
 -- A berth-bound ship at its pad and slow enough: the station settles it on.
 function G.tryBerth(game, e, stop)
 	local ap = e.dockApproach
@@ -244,16 +260,45 @@ function G.tryBerth(game, e, stop)
 	local fx, fy = sb:getLinearVelocityFromWorldPoint(x, y)
 	if (vx - fx) ^ 2 + (vy - fy) ^ 2 > 90 ^ 2 then return end
 	if not game:mooringFits(stop, ap.berth, e.hull.id, e) then e.dockApproach = nil; return end
-	game:beginDocking(e, stop, ap.side, ap.dock)
-	local ds = e.dockState
-	ds.phase, ds.t, ds.berth, ds.mooring = "taxi", 0, ap.berth, game:berthPose(stop, ap.berth, e.hull.id)
-	ds.lx, ds.ly = sb:getLocalPoint(x, y)
-	ds.la = e.body:getAngle() - sb:getAngle()
-	local turn = math.abs(wrap(math.rad(ap.pose.heading or 0) - ds.la))
-	ds.dur = max(1.5, sqrt((ap.pose.x - ds.lx) ^ 2 + (ap.pose.y - ds.ly) ^ 2) / 110, turn / 0.8)
-	e.bay, e.bayStation = nil, stop.locationId or stop.key
-	e.body:setActive(false)
+	settleOnBerth(game, e, stop, ap.side, ap.dock, ap.berth, ap.pose)
 	e.dockApproach = nil
+end
+
+-- The player docks on an exterior berth the same way: fly up to a free pad
+-- that fits the ship (over it, or just off it, straight out from it), slow
+-- down, and the station settles it on.
+function G.playerBerth(game, p)
+	if (p.berthCheckAt or 0) > game.time then return false end
+	p.berthCheckAt = game.time + 0.2
+	local x, y = p.body:getPosition()
+	for _, st in ipairs(game.entities) do
+		if st.kind == "station" and not st.removed and not st.city and not st.sat and st.body and st.dock
+			and st.def and st.def.berths and #st.def.berths > 0 then
+			local sx, sy = st.body:getPosition()
+			local R = require("src.ai").hullRadius(st) + (p.halfLength or 100) + 800
+			if (x - sx) ^ 2 + (y - sy) ^ 2 < R * R then
+				local berth = game:freeBerth(st, p)
+				local pose = berth and (game:berthPose(st, berth, p.hull.id) or st.def.berths[berth])
+				if pose then
+					local d = st.dock
+					local goal = berthGoal(game, p, st, 1, d, pose)
+					local px, py = st.body:getWorldPoint(pose.x, pose.y)
+					local gx, gy = game.dockWorld(st, 1, goal.mx, goal.my, d)
+					local reach = (p.halfLength or 100) + 200
+					local close = (x - px) ^ 2 + (y - py) ^ 2 < reach * reach
+						or (x - gx) ^ 2 + (y - gy) ^ 2 < reach * reach
+					local vx, vy = p.body:getLinearVelocity()
+					local fx, fy = st.body:getLinearVelocityFromWorldPoint(x, y)
+					if close and (vx - fx) ^ 2 + (vy - fy) ^ 2 < 150 ^ 2 then
+						settleOnBerth(game, p, st, 1, d, berth, pose)
+						game:toast("BERTH TRACTOR LOCK", 1.4)
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
 end
 
 return G

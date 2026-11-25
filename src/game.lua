@@ -1416,6 +1416,8 @@ function Game:updateDocking(dt)
 				-- bound for an exterior berth: its own engines bring it to the
 				-- pad (src/dock_approach.lua), and the station settles it on
 				require("src.dock_approach").tryBerth(self, e, stop)
+			elseif e == self.player and e.dockCooldown == 0 and require("src.dock_approach").playerBerth(self, e) then
+				-- settled onto an exterior berth
 			elseif (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
