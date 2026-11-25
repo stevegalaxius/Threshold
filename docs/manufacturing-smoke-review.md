@@ -1,5 +1,7 @@
 # Manufacturing integration smoke review
 
+> Historical: a review written when ship assembly first landed, when only a few yards built ships. Many yards now assemble ships, and ship modules are manufactured separately (see [manufacturing-outputs.md](manufacturing-outputs.md#ship-modules)). Treat the follow-ups below as out of date.
+
 Ship assembly now uses declared recipes, the shared input/time executor, typed dealer outputs, and the economy's station-independent schedule. Dealer reads initialize/read inventory but do not replenish it.
 
 Checks performed:
