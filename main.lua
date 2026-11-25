@@ -77,7 +77,7 @@ function love.load(args)
 	Debug.init()
 	game = Game.new()
 	-- Test run: love . --test (tests/fast.lua, about half a minute).
-	local suites = { ["--test"] = "tests.fast", ["--soak"] = "tests.soak", ["--dockprobe"] = "tests.dock_probe" }
+	local suites = { ["--test"] = "tests.fast", ["--soak"] = "tests.soak", ["--dockprobe"] = "tests.dock_probe", ["--playerdock"] = "tests.player_dock_probe" }
 	-- Economy model (src/economy_model.lua): --econmodel prints it, --econcapture
 	-- measures the service demand it uses (data/economy_baseline.lua).
 	for _, a in ipairs(args or {}) do

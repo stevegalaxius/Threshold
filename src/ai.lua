@@ -362,15 +362,17 @@ AI.hullRadius = hullRadius
 -- this close to a station: a crawl right at the hull, rising with the gap.
 -- Salvagers chasing a wreck beside a station hit its hull at 800-1,000 px/s.
 function AI.stationSpeedCap(game, e, x, y)
-	local cap = math.huge
+	local cap, near, nearGap = math.huge, nil, math.huge
 	for _, st in ipairs(game.entities) do
 		if st.kind == "station" and not st.removed and st.body and not st.city then
 			local sx, sy = st.body:getPosition()
 			local gap = sqrt((x - sx) ^ 2 + (y - sy) ^ 2) - hullRadius(st) - (e.halfLength or 100)
 			if gap < 1500 then cap = min(cap, 120 + 0.4 * max(0, gap)) end
+			if gap < nearGap then near, nearGap = st, gap end
 		end
 	end
-	return cap
+	-- the speed is meant relative to that station, which moves and turns
+	return cap, nearGap < 1500 and near or nil, nearGap
 end
 
 -- Neutral trader. Flies stop to stop along e.route (helm = "turn" hulls:
@@ -406,6 +408,7 @@ local function trade(game, e, dt)
 		-- and only turns in once it's lined up in the cone before the door.
 		-- Straight at the runway, a hauler coming from the side or behind
 		-- swung across the station and into its hull.
+		local planned, approach
 		if stop.dock and stop.body and e.alifeId then
 			local d = approachDock(e, stop)
 			local lx, ly = stop.body:getLocalPoint(x, y)
@@ -414,14 +417,9 @@ local function trade(game, e, dt)
 			local rx, ry = lx * c + ly * s - (d.xc or 0), -lx * s + ly * c - (d.yc or 0)
 			local lined = rx > d.x2 + 100 and math.abs(ry) < max(d.hw * 1.5, (rx - d.x2) * T.npcDockCone)
 			if not stop.city and not stop.sat then
-				-- The station flies it in from out here (src/dock_glide.lua):
-				-- it never needs to come closer, and waits here if the dock
-				-- is busy rather than nosing in toward the hull.
-				local G = require("src.dock_glide")
-				local side = 1
-				if d.both and rx < 0 then side = -1 end
-				local mx = G.markerX(game, e, stop, side, d) + 200
-				sx, sy = game.dockWorld(stop, side, mx, 0, d)
+				-- planned route round the hull and in (src/dock_approach.lua),
+				-- once we know it isn't waiting in line
+				planned = { d = d, ry = ry, side = (d.both and rx < 0) and -1 or 1 }
 				e.dockMarker = true
 			elseif not lined then
 				local mx = max(d.x2 + d.runway * 1.5, hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker)
@@ -451,6 +449,28 @@ local function trade(game, e, dt)
 			queued = record
 			sx, sy = require("src.queue").holdPoint(record, game.universe.clock, e.routeIndex, place, lineStart)
 		else e.busyWait, e.busyWaitSince = nil, nil end
+		if planned and not queued then
+			local DA = require("src.dock_approach")
+			local bx, by = stop.body:getPosition()
+			local near = (x - bx) ^ 2 + (y - by) ^ 2 < (hullRadius(stop) + (e.halfLength or 100) + T.dockApproachRange) ^ 2
+			local ap = near and DA.plan(game, e, stop, planned.d)
+			if not near then
+				-- still on the way: an ordinary leg to the waiting point,
+				-- going round anything (this station included) in the way
+				e.dockApproach = nil
+				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
+				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
+			elseif not ap.berth and require("src.queue").dockBusy(game, stop, planned.d, e) then
+				-- the dock is in use: wait off to the side of the runway, out of the way
+				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
+				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
+			else
+				local wx, wy, want, nx, ny = DA.steer(game, e, stop, planned.d, brakeAccel(e))
+				sx, sy = wx, wy
+				approach = { want = want, nx = nx, ny = ny }
+				e.dockMarker = nil
+			end
+		elseif not planned then e.dockApproach = nil end
 		local _, _, d = norm(sx - x, sy - y)
 		e.aiApproach=not queued and d<1200 and (stop.dock or stop.driver or stop.kind=='moon_gate')
 		-- Around a planet, follow the arc of the track instead of cutting
@@ -608,8 +628,22 @@ local function trade(game, e, dt)
 			cruise=max(cruise,min(cruise*T.aiBoostCruise,top*.85))
 			want=min(cruise,sqrt(pass*pass+2*sb*.6*max(0,d-150)))
 		end
-		-- slow right down near any station hull, whatever the errand
-		want = min(want, AI.stationSpeedCap(game, e, x, y))
+		if approach then
+			-- on its planned way in: the route sets the pace, and it's clear
+			-- of the hull by construction
+			want, boosting = approach.want, false
+		else
+			-- slow right down near any station hull, whatever the errand,
+			-- measured against that station's own motion (it orbits and
+			-- spins: a ship slow against the current was still swept into)
+			local cap, near, gap = AI.stationSpeedCap(game, e, x, y)
+			want = min(want, cap)
+			if near then
+				local k = max(0, min(1, 1 - gap / 1500))
+				local svx, svy = near.body:getLinearVelocityFromWorldPoint(x, y)
+				fx0, fy0 = fx0 + (svx - fx0) * k, fy0 + (svy - fy0) * k
+			end
+		end
 		local allowSurface=stop.city or stop.surfaceMine and math.abs(wrap(atan2(y,x)-atan2(stop.body:getY(),stop.body:getX())))<.25
 		local wx,wy,detour=Nav.waypoint(game,e,hx,hy,{allowSurface=allowSurface})
 		-- for the A-Life overlay: where it is actually steering, and for which stop
@@ -620,7 +654,10 @@ local function trade(game, e, dt)
 		local mx,my,scale,danger,clear=Nav.steer(game,e,ux,uy,want,fx0,fy0,
 			{brake=brakeAccel(e),horizon=ai.horizon,allowSurface=allowSurface,distance=leg})
 		want=want*scale
-		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, mx, my, ai.throttle)
+		-- on the last straight in it holds the heading for the door or pad
+		local facex, facey = mx, my
+		if approach and approach.nx then facex, facey = approach.nx, approach.ny end
+		AI.driveVelocity(e, fx0 + mx * want, fy0 + my * want, facex, facey, ai.throttle)
 		Nav.boost(e,mx,my,want,deep and math.huge or leg,clear,danger,boosting)
 	end
 	local foe = e.aggressor

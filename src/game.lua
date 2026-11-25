@@ -1411,15 +1411,11 @@ function Game:updateDocking(dt)
 			-- A-Life patrols and pirates fly the trader route logic when idle, so
 			-- they dock the same way when their route stops at a station.
 			local trader = e.def and e.def.ai.style == "civilian" or (e.alifeId and e.route ~= nil)
-			local Glide = require("src.dock_glide")
 			local stop = trader and e ~= self.player and e.route and e.route[e.routeIndex or 1]
-			if e.launchGlide then
-				-- still on its way out under station control
-			elseif stop and stop.kind == "station" and not stop.city and not stop.sat and stop.dock then
-				-- NPCs hand over to the station well outside the hull
-				if e.dockCooldown == 0 and not e.bayExit and not require("src.queue").holding(self, e, stop) then
-					Glide.tryCapture(self, e, stop)
-				end
+			if stop and e.dockApproach and e.dockApproach.berth and e.dockCooldown == 0 then
+				-- bound for an exterior berth: its own engines bring it to the
+				-- pad (src/dock_approach.lua), and the station settles it on
+				require("src.dock_approach").tryBerth(self, e, stop)
 			elseif (e == self.player or trader) and e.dockCooldown == 0 then
 				local x, y = e.body:getPosition()
 				for _, st in ipairs(self.entities) do
@@ -1427,7 +1423,9 @@ function Game:updateDocking(dt)
 					if st.kind == "station" and (not trader or (e.route and e.route[e.routeIndex or 1] == st))
 						and not (trader and e.alifeId and require("src.queue").holding(self, e, st)) then
 						local inZone, _, _, side, dock = self:inTractorZone(st, x, y)
-						if inZone and not require('src.queue').dockBusy(self,st,dock,e) then
+						-- the player has right of way: NPCs gliding in or out are
+						-- station-flown and don't collide, so they never shut the door
+						if inZone and (e == self.player or not require('src.queue').dockBusy(self,st,dock,e)) then
 							self:beginDocking(e, st, side, dock)
 							break
 						end
@@ -1505,8 +1503,6 @@ function Game:updateDockedShip(e, dt)
 	local b, sb = e.body, st.body
 	local side = ds.side or 1
 	ds.t = ds.t + dt
-
-	if ds.phase == "glide" then return require("src.dock_glide").updateArrival(self, e, ds, dt) end
 
 	if ds.phase == "tractor" then
 		local x, y = b:getPosition()
@@ -1764,10 +1760,8 @@ function Game:undockShip(e)
 	if st.city and not bd then
 		e.dockExit = { station = st, dock = d, side = side, t = 0 }
 	end
-	-- NPCs are flown out past the hull by the station, from the door or a berth
-	local glided = e ~= self.player and not (st.city and not bd) and require("src.dock_glide").beginLaunch(self, e, st, d, side, bd)
-	-- (otherwise an NPC leaving a berth inside a bay flies out the way it came in: src/ai.lua)
-	e.bayExit = not glided and bd and e.alifeId and st or nil
+	-- (an NPC leaving a berth inside a bay flies out the way it came in: src/ai.lua)
+	e.bayExit = bd and e.alifeId and st or nil
 	if e.route then e.routeIndex = (e.routeIndex or 1) % #e.route + 1 end
 	if e.alifeId then self:traderUndocked(e, st) end
 	events.emit("undock", e, st)
@@ -2202,8 +2196,6 @@ function Game:step(dt, sample)
 				-- the player flies on under the beam until it's pulled inside
 				if e == self.player and e.dockState.phase == "tractor" then Ship.fly(e, dt) end
 				self:updateDockedShip(e, dt)
-			elseif e.launchGlide then
-				require("src.dock_glide").updateLaunch(self, e, dt)
 			elseif e.dockExit and not e.isPlayer then
 				-- Follow the supported city runway until the entire hull is clear.
 				local a=dockAngle(e.dockExit.station,e.dockExit.side,e.dockExit.dock)
@@ -2410,7 +2402,7 @@ function Game:resolveContacts()
 					-- what killed it, for the A-Life trace: a bad approach,
 					-- a launch, or plain flying into the station
 					o.stationImpact = { station = other.locationId or other.key, speed = c.v,
-						phase = o.dockState and o.dockState.phase or o.launchGlide and "launch"
+						phase = o.dockState and o.dockState.phase
 							or o.dockExit and "departure" or "free flight" }
 					local r = o.alifeId and self.universe and self.universe.npcs[o.alifeId]
 					if r then
@@ -2503,7 +2495,7 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
-	if e and (e.invulnerable or e.dockState or e.launchGlide) then return end
+	if e and (e.invulnerable or e.dockState) then return end
 	-- a hit on a ship riding a carrier's berth damages that ship instead
 	if e and e.carried and amount > 0 and require('src.berths').hit(self, e, amount, hx, hy, source) then return end
 	-- a working satellite takes hits as a whole, like a ship; once it's

@@ -133,8 +133,6 @@ function Q.dockBusy(game,st,dock,e)
    local exit=other.dockExit
    if ds and ds.station==st and (ds.dock or st.dock)==dock and not ds.done
     or exit and exit.station==st and exit.dock==dock then return true end
-   local glide=other.launchGlide
-   if glide and not glide.berth and glide.station==st and glide.dock==dock then return true end
   end
  end
  return false
