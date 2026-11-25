@@ -212,6 +212,33 @@ local function primsOf(g,list)
  return keep
 end
 Nav.obstacleGroups=obstacles
+local function segmentClear(geometry, ax, ay, bx, by, radius, touching)
+ local dx,dy=bx-ax,by-ay
+ local loX,hiX=min(ax,bx)-radius,max(ax,bx)+radius
+ local loY,hiY=min(ay,by)-radius,max(ay,by)+radius
+ for _,g in ipairs(geometry) do
+  if g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
+   for _,o in ipairs(primsOf(g,geometry)) do
+    if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY then
+     local hit=Sweep.sweepCircle(ax,ay,radius,o,dx,dy,1)
+     -- A wreck can pull away from a fixture it already touches. The
+     -- destination still has to clear that fixture, and physics stays on.
+     local leaving=touching and o.owner==touching and hit==0
+      and not Sweep.sweepCircle(bx,by,radius,o,0,0,1)
+     if hit and not leaving then return false end
+    end
+   end
+  end
+ end
+ return true
+end
+
+function Nav.towClear(game,e,x,y,gx,gy,radius,station)
+ local reach=sqrt((gx-x)^2+(gy-y)^2)+radius
+ local geometry=obstacles(game,e,reach,nil,true)
+ return segmentClear(geometry,x,y,gx,gy,radius,station)
+end
+
 -- Commit to a detour around scenery instead of repeatedly aiming into it.
 -- Dynamic traffic still uses the predictive steering below.
 function Nav.waypoint(game,e,gx,gy,options)
@@ -232,17 +259,7 @@ function Nav.waypoint(game,e,gx,gy,options)
  local padding=max(1400,min(5000,direct*.6))
  local geometry=obstacles(game,e,min(24000,direct+padding),options.ignore,options.allowSurface,true)
  local function clear(ax,ay,bx,by)
-  local loX,hiX=min(ax,bx)-radius,max(ax,bx)+radius
-  local loY,hiY=min(ay,by)-radius,max(ay,by)+radius
-  for _,g in ipairs(geometry) do
-   if g.maxx>=loX and g.minx<=hiX and g.maxy>=loY and g.miny<=hiY then
-    for _,o in ipairs(primsOf(g,geometry)) do
-     if o.maxx>=loX and o.minx<=hiX and o.maxy>=loY and o.miny<=hiY
-      and Sweep.sweepCircle(ax,ay,radius,o,bx-ax,by-ay,1) then return false end
-    end
-   end
-  end
-  return true
+  return segmentClear(geometry,ax,ay,bx,by,radius)
  end
  local function save(path,ttl)
   e.detour={gx=requestedX,gy=requestedY,ignore=options.ignore,surface=options.allowSurface,sight=needsSight,

@@ -1412,6 +1412,9 @@ function Game:updateDocking(dt)
 			-- they dock the same way when their route stops at a station.
 			local trader = e.def and e.def.ai.style == "civilian" or (e.alifeId and e.route ~= nil)
 			local stop = trader and e ~= self.player and e.route and e.route[e.routeIndex or 1]
+			if stop and e.dockApproach and e.dockApproach.stop == stop and e.dockApproach.final then
+				self:clearArrivalDebris(e, stop, e.dockApproach)
+			end
 			if stop and e.dockApproach and e.dockApproach.berth and e.dockCooldown == 0 then
 				-- bound for an exterior berth: its own engines bring it to the
 				-- pad (src/dock_approach.lua), and the station settles it on
@@ -1504,6 +1507,17 @@ function Game:updateDockedShip(e, dt)
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local b, sb = e.body, st.body
 	local side = ds.side or 1
+	-- Older saves can restore an approach whose controller was removed.
+	-- Release ownership of the runway and resume flight from the saved pose.
+	if not ds.done and ds.phase ~= "tractor" and ds.phase ~= "taxi" and ds.phase ~= "pull" then
+		self:applyParking(e, nil)
+		e.dockState, e.bayStation, e.dockApproach, e.aiNextPlan = nil, nil, nil, nil
+		if e.alifeRecord then e.alifeRecord.state, e.alifeRecord.docking = "travel", nil end
+		b:setActive(true)
+		b:setLinearVelocity(sb:getLinearVelocityFromWorldPoint(b:getPosition()))
+		b:setAngularVelocity(sb:getAngularVelocity())
+		return
+	end
 	ds.t = ds.t + dt
 
 	if ds.phase == "tractor" then
@@ -1607,12 +1621,16 @@ function Game:updateDockedShip(e, dt)
 	-- trader's departure planning so that only runs when it can actually leave.
 	-- Persistent ships share the record's clocks with offline simulation.
 	local record=e.alifeRecord
-	local ready=record and self.universe.clock>=require('src.npc').readyAt(record)
+	local ready=ds.resumeDeparture or record and self.universe.clock>=require('src.npc').readyAt(record)
 	 or not record and ds.stay and ds.t>=ds.stay
 	if ready then
 		local blocker = self:launchBlocker(e)
 		if not blocker then
-			if not e.alifeId or self:traderCanDepart(e,ds.station) then self:undockShip(e)
+			if ds.resumeDeparture and record then
+				ALife.start(record, self.universe.clock, ds.resumeDeparture)
+				self:undockShip(e)
+			elseif not e.alifeId or self:traderCanDepart(e,ds.station) then
+				self:undockShip(e)
 			end
 		else
 			self:clearRunway(e, blocker)
@@ -1639,56 +1657,119 @@ local function launchPose(e)
 	return wx, wy, dockAngle(st, side, d), ox, oy, 260, nil
 end
 
--- Another flying ship where this one would appear (say one on its tractor
--- approach), or nil when the launch point is clear.
-function Game:launchBlocker(e)
-	if not e.dockState then return nil end
-	local wx, wy = launchPose(e)
-	for _, o in ipairs(self.entities) do
-		if o ~= e and (o.kind == "ship" or o.kind == "husk") and not o.dead and not o.removed and o.body
-			and o.body:isActive() and not (o.dockState and o.dockState.done) then
+-- Test the full departure lane in its moving frame. The round footprint
+-- also covers a long ship's tail while it turns after launch.
+local function laneDistance2(x, y, wx, wy, ox, oy, length)
+	local dx, dy = x - wx, y - wy
+	local along = max(0, min(length, dx*ox + dy*oy))
+	return (dx - along*ox)^2 + (dy - along*oy)^2
+end
+
+local function laneBlocker(game, e, wx, wy, ox, oy, length, wrecksOnly)
+	for _, o in ipairs(game.entities) do
+		if o ~= e and (o.kind == "husk" or not wrecksOnly and o.kind == "ship")
+			and not o.dead and not o.removed and o.body and o.body:isActive() then
 			local x, y = o.body:getPosition()
 			local r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance
-			if (x - wx)^2 + (y - wy)^2 < r * r then return o end
+			if laneDistance2(x, y, wx, wy, ox, oy, length) < r*r then return o end
 		end
 	end
 end
 
--- Something sitting on the runway: the station's tractor beam pushes it
--- off to the side (the nearer side) until the launch point is clear. Not
--- a ship that's on its own way in to dock: that one is about to land.
--- e is the docked ship waiting to leave. Moved by Game:updateRunwayPush.
--- A wreck that touches a station is towed clear by the station's beam:
--- outward from the hull until it is well away, wreck and cargo intact, so
--- it no longer lies on an approach for the next ship to hit.
+function Game:launchBlocker(e)
+	local ds = e.dockState
+	if not ds then return nil end
+	local wx, wy, _, ox, oy = launchPose(e)
+	return laneBlocker(self, e, wx, wy, ox, oy, (ds.dock or ds.station.dock).runway)
+end
+
+function Game:clearArrivalDebris(e, st, approach)
+	if approach.berth or (e.debrisCheckAt or 0) > self.time then return end
+	e.debrisCheckAt = self.time + .5
+	local d, side = approach.dock, approach.side
+	local wx, wy = dockWorld(st, side, d.x2, 0, d)
+	local ox, oy = dockVector(st, side, 1, 0, d)
+	local wreck = laneBlocker(self, e, wx, wy, ox, oy, d.runway * 1.15, true)
+	if wreck then self:clearDebris(st, wreck) end
+end
+
 function Game:clearDebris(st, husk)
-	if husk.dead or husk.removed or husk.debrisClear or st.city then return end
+	if husk.dead or husk.removed or husk.debrisClear or (husk.debrisRetryAt or 0) > self.time then return end
 	husk.debrisClear = { station = st, t = 0 }
 end
+
+-- Pick a clear corridor to a point outside the hull and away from the
+-- runway axes. Check the route again while towing as the scene moves.
+local function findDebrisDestination(game, wreck, c, x, y, radius)
+	local st, sb = c.station, c.station.body
+	local sx, sy = sb:getPosition()
+	local dx, dy = x - sx, y - sy
+	local bearing = math.atan2(dy, dx)
+	local reach = max(sqrt(dx*dx + dy*dy) + 150, AI.hullRadius(st) + radius + 200)
+	local Nav = require("src.local_navigation")
+	for _, turn in ipairs({0, .25, -.25, .5, -.5, .85, -.85, 1.2, -1.2}) do
+		local a = bearing + turn
+		local gx, gy = sx + cos(a)*reach, sy + sin(a)*reach
+		local offRunway = true
+		for _, dock in ipairs(st.docks or {st.dock}) do
+			local lx, ly = dockLocal(st, 1, gx, gy, dock)
+			if (lx >= dock.x2 or dock.both and lx <= -dock.x2) and math.abs(ly) < dock.hw + radius + 120 then
+				offRunway = false
+				break
+			end
+		end
+		if offRunway and c.leaving and c.leaving.dockState and c.leaving.dockState.station == st then
+			local wx, wy, _, ox, oy = launchPose(c.leaving)
+			local d = c.leaving.dockState.dock or st.dock
+			offRunway = laneDistance2(gx, gy, wx, wy, ox, oy, d.runway)
+				> (radius + c.leaving.halfLength + T.launchClearance)^2
+		end
+		if offRunway and Nav.towClear(game, wreck, x, y, gx, gy, radius, st) then
+			return sb:getLocalPoint(gx, gy)
+		end
+	end
+end
+
 function Game:updateDebrisClear(dt)
-	local AI = require("src.ai")
+	local Nav = require("src.local_navigation")
 	for _, o in ipairs(self.entities) do
 		local c = o.debrisClear
 		if c then
 			local st, b = c.station, o.body
 			c.t = c.t + dt
-			if o.dead or o.removed or not b or b:isDestroyed() or st.removed or not st.body or st.body:isDestroyed() or c.t > 20 then
+			if o.dead or o.removed or not b or b:isDestroyed() or st.removed or not st.body or st.body:isDestroyed() then
 				o.debrisClear = nil
+			elseif c.t > 30 then
+				o.debrisClear, o.debrisRetryAt = nil, self.time + 1
 			else
 				local sb = st.body
 				local x, y = b:getPosition()
-				local dx, dy = x - sb:getX(), y - sb:getY()
-				local r = sqrt(dx * dx + dy * dy)
-				if r > AI.hullRadius(st) + (o.halfLength or 50) + 400 then
-					o.debrisClear = nil
+				local radius = max(o.halfLength or 50, o.hull.radius) + 12
+				if (c.checkAt or 0) <= self.time then
+					local gx, gy
+					if c.x then gx, gy = sb:getWorldPoint(c.x, c.y) end
+					if not gx or not Nav.towClear(self, o, x, y, gx, gy, radius, st) then
+						c.x, c.y = findDebrisDestination(self, o, c, x, y, radius)
+					end
+					c.checkAt = self.time + .5
+				end
+				if c.x then
+					local gx, gy = sb:getWorldPoint(c.x, c.y)
+					local dx, dy = gx-x, gy-y
+					local gap = sqrt(dx*dx + dy*dy)
+					if gap < 25 then
+						o.debrisClear = nil
+					else
+						local fx, fy = sb:getLinearVelocityFromWorldPoint(x, y)
+						local vx, vy = b:getLinearVelocity()
+						local speed = min(160, gap)
+						local k = min(1, dt*2)
+						b:setLinearVelocity(vx + (fx + dx/gap*speed - vx)*k, vy + (fy + dy/gap*speed - vy)*k)
+						b:setAngularVelocity(b:getAngularVelocity() * (1 - k))
+					end
 				else
-					if r < 1 then dx, dy, r = 1, 0, 1 end
-					local fx, fy = sb:getLinearVelocityFromWorldPoint(x, y)
-					local vx, vy = b:getLinearVelocity()
-					local tx, ty = fx + dx / r * 140, fy + dy / r * 140
-					local k = min(1, dt * 2)
-					b:setLinearVelocity(vx + (tx - vx) * k, vy + (ty - vy) * k)
-					b:setAngularVelocity(b:getAngularVelocity() * (1 - k))
+					-- No safe route right now. Traffic can request another attempt.
+					o.debrisClear, o.debrisRetryAt = nil, self.time + 1
 				end
 			end
 		end
@@ -1696,9 +1777,18 @@ function Game:updateDebrisClear(dt)
 end
 
 function Game:clearRunway(e, o)
-	if not o or o.dockState or o.runwayPush then return end
+	if not o or o.dockState or o.runwayPush or o.dockExit then return end
+	local ds = e.dockState
+	if o.kind == "husk" then
+		self:clearDebris(ds.station, o)
+		if o.debrisClear and o.debrisClear.station == ds.station and o.debrisClear.leaving ~= e then
+			o.debrisClear.leaving, o.debrisClear.x, o.debrisClear.checkAt = e, nil, nil
+		end
+		return
+	end
 	local wx, wy, _, ox, oy = launchPose(e)
 	o.runwayPush = { x = wx, y = wy, ox = ox, oy = oy, t = 0, leaving = e,
+		length = (ds.dock or ds.station.dock).runway,
 		r = (e.halfLength or 50) + (o.halfLength or 50) + T.launchClearance }
 	if o == self.player then self:toast("STATION TRACTOR: CLEARING THE RUNWAY", 1.6) end
 end
@@ -1714,9 +1804,9 @@ function Game:updateRunwayPush(dt)
 			local le = p.leaving
 			local sb = le and le.dockState and le.dockState.station and le.dockState.station.body
 			if sb then p.x, p.y, _, p.ox, p.oy = launchPose(le) end
-			local d2 = x and (x - p.x) ^ 2 + (y - p.y) ^ 2
+			local d2 = x and laneDistance2(x, y, p.x, p.y, p.ox, p.oy, p.length)
 			p.t = p.t + dt
-			if not x or o.dockState or p.t > Game.runwayPushTime or d2 > (p.r + 60) ^ 2 then
+			if not sb or not x or o.dockState or p.t > Game.runwayPushTime or d2 > (p.r + 60) ^ 2 then
 				o.runwayPush = nil
 			else
 				-- sideways off the runway, the side it's already on, and a

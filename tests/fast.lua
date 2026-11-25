@@ -37,6 +37,7 @@ return function(game)
    'salvage planned an approach to a completely blocked wreck')
  end
  require("tests.station_markets")()
+ require("tests.dock_traffic")()
  local g=fresh()
  for _,id in ipairs(Fields.list) do
   local ok,err=xpcall(function() g:loadField(id);run(g,1) end,debug.traceback)

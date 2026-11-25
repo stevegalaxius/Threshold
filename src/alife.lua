@@ -789,7 +789,7 @@ local function clearSpot(game,e,x,y,dx,dy)
  for _=1,20 do
   local blocked=false
   for _,o in ipairs(game.entities) do
-   if o~=e and o.kind=='ship' and not o.dead and not o.removed and o.body and not o.dockState then
+   if o~=e and (o.kind=='ship' or o.kind=='husk') and not o.dead and not o.removed and o.body and o.body:isActive() then
     local ox,oy=o.body:getPosition()
     local reach=(o.halfLength or 100)+(e.halfLength or 100)+100
     if (ox-x)^2+(oy-y)^2<reach*reach then blocked=true;break end
@@ -1036,14 +1036,32 @@ function A.wake(game,r)
    e.body:setAngle(math.atan2(by-oy,bx-ox)+(d==source and math.pi or 0))
   elseif close(source) and dockingStop(r,leg.from) then
    e.routeIndex=(r.index-2)%#r.route+1
-   game:dockInstantly(e,source)
-   game:undockShip(e)
+   if game:dockInstantly(e,source) then
+    if game:launchBlocker(e) then
+     -- Keep the leg already chosen offline, but wait for live clearance.
+     e.dockState.resumeDeparture=r.index
+     r.state,r.index,r.node,r.untilTime='docked',e.routeIndex,source.locationId,game.universe.clock
+    else
+     game:undockShip(e)
+    end
+   else
+    e.routeIndex=r.index
+   end
   elseif close(destination) and dockingStop(r,leg.to) then
-   local x,y=require('src.ai').stopPoint(destination,e)
+   -- A newly visible ship joins the live approach outside the runway.
+   -- Starting the tractor here used to bypass the queue and spawn ships
+   -- on top of an arrival already under the beam.
+   local dock=require('src.ai').approachDock(e,destination)
+   local lx,ly=game.dockLocal(destination,1,e.body:getX(),e.body:getY(),dock)
+   local side=dock.both and lx<0 and -1 or 1
+   local mx,my=require('src.dock_approach').waitPoint(game,e,destination,side,dock,ly*side)
+   local x,y=game.dockWorld(destination,side,mx,my,dock)
+   local ox,oy=game.dockWorld(destination,side,mx+1,my,dock)
+   x,y=clearSpot(game,e,x,y,ox-x,oy-y)
    e.body:setPosition(x,y)
-   e.body:setAngle(game.dockAngle(destination,1)+math.pi)
+   e.body:setAngle(game.dockAngle(destination,side,dock)+math.pi)
    e.body:setLinearVelocity(destination.body:getLinearVelocityFromWorldPoint(x,y))
-   game:beginDocking(e,destination,1)
+   e.body:setAngularVelocity(destination.body:getAngularVelocity())
   elseif close(source) or close(destination) then
    -- A pass-through station is not a dock. Materialize at its approach rather
    -- than inside its hull when the coarse leg ends at the station centre.
