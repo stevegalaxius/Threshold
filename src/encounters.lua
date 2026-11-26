@@ -15,6 +15,7 @@ local Personality=require('src.personality')
 local Access=require('src.npc_access')
 local Security=require('src.security')
 local Combat=require('src.combat')
+local Aggression=require('src.aggression')
 local E={}
 local function active(r)
  return r and (r.state=='travel' or r.state=='idle') and not r.driverState
@@ -111,6 +112,7 @@ function E.captureLive(game,e)
  local u=game.universe
  local a,b=u.npcs[e.alifeId],u.npcs[foe.alifeId]
  if not active(a) or not active(b) or a.area~=b.area then return end
+ if Access.defending(a,a.area) and not Security.hostile(game,e,foe) then return end
  local clock=u.clock
  if a.encounter then
   if a.encounter.target==b.id then savePose(a,e) end
@@ -379,10 +381,14 @@ local function wreck(u,r,clock,killer)
 end
 -- Resolve the volley before changing hulls, so ships destroyed in this
 -- round still get their shot. A ship can return fire on a supporting patrol.
-local function exchange(u,a,b,fight,clock,support)
+local function exchange(game,a,b,fight,clock,support)
+ local u=game.universe
  local damage,killer,last,participants={},{},{},{a,b}
  local function hit(source,target,amount)
   if amount<=0 then return end
+  local node=target.route[target.index]
+  local entry=Aggression.record(u,source,target.id,target.area,clock,'combat',node)
+  Security.reportRaid(game,u.npcs[source],target,entry)
   local total=(damage[target] or 0)+amount
   damage[target]=total;last[target]=source
   if total>=target.ship.armor and not killer[target] then killer[target]=source end
@@ -468,7 +474,7 @@ function E.update(game,clock)
    while a.encounter and b.encounter and clock>=a.encounter.nextAt do
     local fight=a.encounter
     local clock=fight.nextAt
-    local last=exchange(u,a,b,fight,clock,support)
+    local last=exchange(game,a,b,fight,clock,support)
     fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
     b.encounter.round=fight.round;b.encounter.nextAt=fight.nextAt;b.encounter.seed=fight.seed
     if not active(a) or not active(b) then E.finish(u,a,b,clock)
@@ -509,7 +515,8 @@ function E.update(game,clock)
    for _,xid in ipairs(ids) do
     local x=records[xid];local f=x.encounter;local v=f and records[f.target]
     if f and not f.support and v and x.area==p.area and not Combat.recordsAllied(u,p,x)
-     and (Security.intercepts(u,p,x,p.area,clock) or Access.raiding(x) and not Access.raiding(v))
+     and (Security.intercepts(u,p,x,p.area)
+      or v.encounter and v.encounter.target==x.id and Security.reportedRaid(u,x,v,p.area,clock))
      and (close(p,x,clock) or close(p,v,clock) or require('src.squads').allied(u,p,v)) then
      p.encounter={target=x.id,support=true,progress=fraction(p,clock),nextAt=clock,round=0,seed=f.seed}
      p.targetId=x.id;p.taskStatus='defending '..v.id
@@ -533,7 +540,7 @@ function E.update(game,clock)
    if not p.encounter and fit(p,clock) and Access.defending(p,p.area) and Fuel.condition(p)~='stranded' then
     for _,target in ipairs(group) do
      if target~=p and not target.encounter and close(p,target,clock)
-      and Security.intercepts(u,p,target,p.area,clock) then
+      and Security.intercepts(u,p,target,p.area) then
       begin(p,target,clock)
       History.begin(u,p.id,target.id,clock,p.area,p.id)
       require('src.alife_trace').note(p,clock,'encounter','intercepted '..target.id)
@@ -578,7 +585,8 @@ function E.update(game,clock)
       E.finish(u,a,target,clock,nil,nil,'evaded')
      else
       begin(a,target,clock)
-      Security.reportRaid(game,a,target,clock)
+      local entry=Aggression.record(u,a.id,target.id,target.area,clock,'raid',target.route[target.index])
+      Security.reportRaid(game,a,target,entry)
       require('src.alife_trace').note(a,clock,'encounter','attacked '..target.id)
       require('src.alife_trace').note(target,clock,'encounter','attacked by '..a.id) end
     elseif target then a.offlineEyed={math.floor(clock/T.offlineEngageWindow)} end
@@ -642,7 +650,7 @@ function E.syncOnline(game)
   local r=u.npcs[id];local f=r and r.encounter
   local target=f and f.support and game.alifeOnline[f.target]
   if target and not target.dead and not target.removed then
-   e.aggressor=target;e.combatTarget=target;e.securityThink=game.time+T.securityThink
+   e.combatTarget=target;e.securityThink=game.time+T.securityThink
    resume(r,u.clock)
   end
  end

@@ -745,7 +745,14 @@ local function assaultRound(game,u,inst,n,hunters,clock)
  local fight=inst.fight or {seed=(#inst.id*7919+math.floor(clock))%2147483647}
  inst.fight=fight
  local dealt={}
- local function hit(a,b) dealt[b]=dealt[b] or {}; local d=E.damage(a,T.offlineCombatTick,roll(fight),b);dealt[b][#dealt[b]+1]={a.id,d} end
+ local Aggression=require('src.aggression')
+ local function hit(a,b)
+  local d=E.damage(a,T.offlineCombatTick,roll(fight),b)
+  if d<=0 then return end
+  Aggression.record(u,a.id,b.id,field,clock,'combat')
+  dealt[b]=dealt[b] or {}
+  dealt[b][#dealt[b]+1]={a.id,d}
+ end
  for _,h in ipairs(hunters) do hit(h,crew[1+math.floor(roll(fight)*#crew)%#crew]) end
  for _,c in ipairs(crew) do hit(c,hunters[1+math.floor(roll(fight)*#hunters)%#hunters]) end
  for target,list in pairs(dealt) do

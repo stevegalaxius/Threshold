@@ -2,6 +2,7 @@
 local copy=require('src.persistence').copy
 local T=require('src.tuning')
 local events=require('src.events')
+local Aggression=require('src.aggression')
 local H={}
 function H.state(u)
  u.simulationHistory=u.simulationHistory or {entries={},fights={},nextId=0,nextFightId=0}
@@ -145,10 +146,12 @@ function H.entityId(e)
  e=require('src.combat').controller(e)
  return e and (e.alifeId or e.isPlayer and 'player' or e.kind=='station' and e.locationId or nil)
 end
-function H.hit(game,victim,source)
+function H.hit(game,victim,source,cause,node)
  local a,b=H.entityId(victim),H.entityId(source)
  if a and b and (a~='player' or b~='player') then
-  H.begin(game.universe,a,b,game.universe.clock,game.fieldId,b)
+  local u=game.universe
+  H.begin(u,a,b,u.clock,game.fieldId,b)
+  if cause then return Aggression.record(u,b,a,game.fieldId,u.clock,cause,node) end
  end
 end
 

@@ -4,6 +4,7 @@ return function()
  local Security,Squads=require('src.security'),require('src.squads')
  local data,T=require('src.data'),require('src.tuning')
  local H=require('src.simulation_history')
+ local Aggression=require('src.aggression')
  local game=Game.new({preview=true})
  game.world:destroy()
  game.world=love.physics.newWorld()
@@ -34,6 +35,8 @@ return function()
  E.update(game,u.clock)
  assert(patrol.encounter.round==1 and courier.ship.armor<120 and patrol.ship.cargo[ammo]<120,
   'offline round did not spend ammunition and apply damage')
+ local sharedIncident=Aggression.find(u,patrol.id,courier.id,'earth',u.clock)
+ assert(sharedIncident and sharedIncident.cause=='combat','offline damage did not record an incident')
  local armor,stock=courier.ship.armor,patrol.ship.cargo[ammo]
  local x,y=A.point(patrol,u.clock)
  local observer=Ship.new(game,{hull='intaki_wisp',x=x,y=y+800,grid=true})
@@ -49,6 +52,8 @@ return function()
  local cx,cy=c.body:getPosition()
  assert((px-cx)^2+(py-cy)^2>(p.halfLength+c.halfLength)^2, 'waking put both ships on top of each other')
  game:damage(c,3,p,'laser')
+ assert(Aggression.find(u,patrol.id,courier.id,'earth',u.clock)==sharedIncident and sharedIncident.cause=='laser',
+  'live damage did not update the same incident')
  local liveArmor=c.armor
  p.power=p.power*.4
  p.cargo[ammo]=p.cargo[ammo]-3
@@ -90,17 +95,36 @@ return function()
  local q={id='squad/test',goal='patrol',leader=backup.id,members={backup.id}}
  group.squads={q.id};u.squads.squads[q.id]=q
  backup.squad=q.id
- Security.reportRaid(game,raider,primary,u.clock,node)
+ local entry=Aggression.record(u,raider.id,primary.id,primary.area,u.clock,'raid',node)
+ Security.reportRaid(game,raider,primary,entry)
  assert(q.goal=='respond' and q.respond.node==node,'civilian raid did not dispatch a squad')
+ assert(Security.reportedRaid(u,raider,primary,'earth',u.clock),'raid report lost its victim')
+ assert(not Security.reportedRaid(u,raider,backup,'earth',u.clock),'raid report applied to an unrelated ship')
  raider.task={kind='wildcat_home'}
- assert(Security.intercepts(u,backup,raider,'earth',u.clock), 'returning wildcat lost its raid report')
- assert(not Security.intercepts(u,backup,raider,'earth',u.clock+T.policePursuitTime+1), 'raid report never expired')
+ assert(not Security.intercepts(u,backup,raider,'earth'),'a past raid authorized a new interception')
+ local observerPatrol={kind='ship',alifeRecord=backup}
+ local suspect={kind='ship',alifeRecord=raider,aggressedAt=game.time}
+ local victim={kind='ship',alifeRecord=primary}
+ suspect.aiFightTarget=victim
+ assert(Security.hostile(game,observerPatrol,suspect),'patrol ignored the attack still in progress')
+ suspect.aiFightTarget=nil
+ raider.task={kind='raid'}
+ assert(not Security.hostile(game,observerPatrol,suspect),'patrol chased a wildcat after combat ended')
+ raider.task={kind='wildcat_home'}
+ u.clock=u.clock+T.offlineCombatTick
+ E.update(game,u.clock)
+ assert(not backup.encounter and not raider.encounter,'offline patrol hunted after a raid ended')
  E.begin(primary,raider,u.clock)
- backup.encounter={target=raider.id,support=true,progress=0}
  local damage=E.damage
  E.damage=function(source) return source==backup and 1000 or 0 end
- u.clock=u.clock+T.offlineCombatTick
- local ok,err=pcall(E.update,game,u.clock)
+ local ok,err=pcall(function()
+  u.clock=u.clock+T.offlineCombatTick
+  E.update(game,u.clock)
+  assert(backup.encounter and backup.encounter.support and backup.encounter.target==raider.id,
+   'offline patrol ignored a confirmed attack still in progress')
+  u.clock=u.clock+T.offlineCombatTick
+  E.update(game,u.clock)
+ end)
  E.damage=damage
  assert(ok,err)
  assert(raider.state=='dead' and raider.deathKiller==backup.id, 'offline support kill credited the wrong ship')

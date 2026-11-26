@@ -40,6 +40,7 @@ local Hold = require("src.inventory.hold")
 local Save = require("src.save")
 local Grid = require("src.inventory.grid")
 local Persistence = require("src.persistence")
+local Aggression = require("src.aggression")
 local events = require("src.events")
 
 local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
@@ -494,7 +495,7 @@ function Game:saveState()
 	local state = { field = field, trip = state_trip, kills = self.kills, home = u.home, stations = stations,
 		dealers=Persistence.copy(u.dealers),markets=Persistence.copy(u.markets),facilities=Persistence.copy(u.facilities),
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
-		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
+		simulationHistory = Persistence.copy(u.simulationHistory), aggression=Aggression.snapshot(u), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
@@ -547,6 +548,7 @@ function Game:loadState(state)
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext
 	self.universe.simulationHistory = Persistence.copy(state.simulationHistory)
+	self.universe.aggression = Persistence.copy(state.aggression)
  self.universe.salvage=Persistence.copy(state.salvage)
 	self.universe.pirateSpawns = Persistence.copy(state.pirateSpawns)
 	self.universe.populationSpawns = Persistence.copy(state.populationSpawns)
@@ -561,7 +563,7 @@ function Game:loadState(state)
 	self.universe.quests = Persistence.copy(state.quests)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
-	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
+	for _, r in pairs(self.universe.npcs) do repairNpcShip(r); Aggression.migrate(self.universe,r) end
 	self.universe.nextNpcId = state.nextNpcId or 0
 	self.universe.queues = Persistence.copy(state.queues or {})
 	self.universe.satellites = Persistence.copy(state.satellites or {})

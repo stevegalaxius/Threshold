@@ -12,6 +12,7 @@ local Homes=require('src.npc_home')
 local NPC=require('src.npc')
 local Combat=require("src.combat")
 local Access=require('src.npc_access')
+local Aggression=require("src.aggression")
 local S={}
 local policeWanted
 local function route(source,target,clock)
@@ -266,33 +267,33 @@ Tasks.definitions.raid.before=function(c)
 end
 -- Combat policy comes from current work and scoped authority, never identity.
 function S.prey(o) return o.alifeRecord and Access.civilian(o.alifeRecord) or false end
--- A local raid report outlives the job that caused it. Both simulations
--- use this and the current faction relationship when choosing interceptions.
-function S.intercepts(u,patrol,target,area,clock)
+-- A fresh interception requires faction hostility. A raid report can bring
+-- help to its victim while the attack is still in progress.
+function S.intercepts(u,patrol,target,area)
  if not target or patrol==target or not Access.defending(patrol,area) then return false end
  local Rep=require('src.reputation')
  local grant=Access.policeGrant(patrol,area)
  local owner=Rep.ofArea(area) or grant and grant.issuer
  local faction=Rep.crewFaction(target)
  if faction and (faction==owner or Rep.stance(owner,faction,u)=='friendly') then return false end
- if Rep.hostileToCrew(u,owner,target) then return true end
- local raid=target.lastRaid
- return raid and raid.area==area and clock-raid.clock<T.policePursuitTime or false
+ return Rep.hostileToCrew(u,owner,target)
 end
 
-function S.reportRaid(game,attacker,victim,clock,node)
+function S.reportedRaid(u,attacker,victim,area,clock)
+ local entry=attacker and victim and Aggression.find(u,attacker.id,victim.id,area,clock)
+ return entry and entry.reportedAt~=nil or false
+end
+
+function S.reportRaid(game,attacker,victim,entry)
+ if not entry or entry.dispatched or entry.lastAt<(entry.nextDispatchAt or 0) then return end
  if not attacker or not victim or not Access.civilian(victim)
   or not (Access.raiding(attacker) or attacker.wildcat or attacker.piracy) then return end
  local area=victim.area
- if not area or attacker.area~=area then return end
- local raid=attacker.lastRaid
- if not raid or raid.area~=area or clock-raid.clock>=T.policePursuitTime then
-  raid={area=area};attacker.lastRaid=raid
- end
- raid.clock=clock
- if not raid.alerted then
-  raid.alerted=require('src.squads').civilianDistress(game,victim,clock,node)
- end
+ if not area or attacker.area~=area or entry.area~=area then return end
+ local clock=entry.lastAt
+ entry.reportedAt=entry.reportedAt or clock
+ entry.nextDispatchAt=clock+T.offlineCombatTick
+ entry.dispatched=require('src.squads').civilianDistress(game,victim,clock,entry.node)
 end
 
 function S.hostile(game,e,o)
@@ -312,7 +313,11 @@ function S.hostile(game,e,o)
  end
  if Access.defending(r,game.fieldId) then
   -- Defenders use the same relationship that crews plan around.
-  if S.intercepts(game.universe,r,other,game.fieldId,game.universe.clock) then return true end
+  if S.intercepts(game.universe,r,other,game.fieldId) then return true end
+  local victim=o.aiFightTarget or actor.aiFightTarget
+  if not victim or victim.dead or victim.removed or victim.dockState or victim.fleeing
+   or actor.fleeing then return false end
+  if S.reportedRaid(game.universe,other,Combat.controller(victim).alifeRecord,game.fieldId,game.universe.clock) then return true end
   local lastAttack=o.aggressedAt or actor.aggressedAt
   return Combat.sceneEnemy(o) and lastAttack~=nil and game.time-lastAttack<30
  end

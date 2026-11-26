@@ -17,6 +17,7 @@ local T = require("src.tuning")
 local softBoundary=require("src.soft_boundary")
 local Ship = require("src.ship")
 local Combat = require("src.combat")
+local Aggression = require("src.aggression")
 local HullShape = require("src.hullshape")
 local Stations = require("src.stations")
 local Weapons = require("src.weapons")
@@ -2647,6 +2648,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 		and not (source.drone and source.owner and source.owner.kind == "station")
 		and not (source.def and source.def.ai and source.def.ai.style == "civilian") then
 		e.grudge[source] = self.time
+		local id=e.locationId
+		Aggression.record(self.universe,History.entityId(source),id,self.fieldId,self.universe.clock,cause or "hit",id)
 	end
 	-- the player's aggression is remembered: heat at a station it shoots,
 	-- goodwill with the ship it shoots, standing with their faction
@@ -2690,22 +2693,21 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
 	if source and source.def then amount = amount * T.enemyDamage end   -- difficulty knob
-	if cause ~= "ram" and source and source.kind == "ship" and not Combat.allied(self.universe,source,e) then
-		local attacker=Combat.controller(source).alifeRecord
-		local victim=e.alifeRecord
-		local node=victim and victim.route and victim.route[e.routeIndex or victim.index]
-		require("src.security").reportRaid(self,attacker,victim,self.universe.clock,node)
+	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
+	local opposed = source and not Combat.allied(self.universe,source,e)
+	local victim=e.alifeRecord
+	local node=victim and victim.route and victim.route[e.routeIndex or victim.index]
+	local incident=History.hit(self,e,source,amount>0 and deliberate and opposed and (cause or "hit"),node)
+	if incident and cause ~= "ram" then
+		require("src.security").reportRaid(self,Combat.controller(source).alifeRecord,victim,incident)
 	end
-	History.hit(self,e,source)
 	e.flash = 0.08
 	if e.isPlayer and T.dev.god then return end
 	e.armor = e.armor - amount
 	e.lastHitBy = source
 	-- a neutral that gets shot remembers who did it, and shoots back
 	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
-	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
-	if not e.unpiloted and source and source.kind == "ship" and deliberate
-		and not Combat.allied(self.universe, source, e) then e.aggressor = source end
+	if not e.unpiloted and opposed and source.kind == "ship" and deliberate then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
