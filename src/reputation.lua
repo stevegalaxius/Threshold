@@ -18,7 +18,8 @@
 	    goodwill + standing(its faction) - heat(its node)
 	read through Rep.attitude, and turned into a tier by Rep.tier.
 
-	There are no faction-vs-faction relations and no territory: who owns a
+	The one standing feud between factions is Rep.STANCE: how each major
+	power treats the Milliways cartel (Rep.CARTEL). There is no territory: who owns a
 	node is fixed lore (Rep.FACTIONS / Rep.AREAS / Rep.NODES). Loners have no
 	faction, so only their own goodwill and local heat count.
 ]]
@@ -35,6 +36,33 @@ Rep.FACTIONS = {
 	bowman    = { name = "Bowman Atmospherics" },
 }
 Rep.ORDER = { "estates", "zhuhai", "diwan", "jove", "ceres", "milliways", "bowman" }
+
+-- The cartel and how each major power treats it. Hostile powers' patrols
+-- shoot cartel crews on sight in their own space and keep no fences;
+-- ambivalent ones leave them alone unless they start something, and host
+-- the fences the product is sold through (src/security.lua, src/dark.lua).
+--   Estates: the counterfeits undercut their medicine trade.
+--   Diwan:   the precursors are cooked from Diwan chemistry leaked by its
+--            own people, a sin and a theft at once.
+--   Jove:    a customer is a customer; Kyrakos looks the other way at Callisto.
+--   Zhuhai:  the Mandate can't agree on a crackdown, and the spokes run on stims.
+-- Other code reads this through Rep.stance, so notables and news can use it.
+Rep.CARTEL = "milliways"
+Rep.STANCE = {
+	milliways = { estates = "hostile", diwan = "hostile", jove = "ambivalent", zhuhai = "ambivalent" },
+}
+-- How faction a stands toward faction b (either way round): "hostile",
+-- "ambivalent", or nil for no particular stance.
+function Rep.stance(a, b)
+	if not a or not b then return nil end
+	return (Rep.STANCE[a] and Rep.STANCE[a][b]) or (Rep.STANCE[b] and Rep.STANCE[b][a]) or nil
+end
+-- Does this NPC fly for the cartel? Its runners, its raiders, anyone born
+-- on a dark grid.
+function Rep.cartelCrew(r)
+	if not r then return false end
+	return r.affiliation == Rep.CARTEL or r.darkRunner == true or r.darkAccess == true or r.piracy ~= nil
+end
 
 -- Who owns each area. Lore, not a world variable: nothing changes it.
 Rep.AREAS = {

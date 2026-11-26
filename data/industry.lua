@@ -36,6 +36,17 @@ local D={recipes={
  -- Ice moons cut ice from their crusts. Terraforming takes tanked water.
  {id='cut_ice',group='resources',item='water_ice',opening=0,cap=1600},
  {id='terraform_water',market=false,item='water',cap=400},
+ -- The cartel chain (Milliways). Antichthon grows poppies, Slag Harbor
+ -- cooks precursors from Cinder Works nitrates, Cinder Works' lab makes the product,
+ -- and the fences in tolerant space (Jove, Zhuhai, Triton) sell it on.
+ {id='grow_poppies',item='poppy_latex',cap=120,inputs={{item='fertilizer',n=.25},{item='water',n=.25}}},
+ {id='cook_precursors',item='precursors',batch=2,cap=80,inputs={{item='nitrates',n=1},{item='water',n=1}}},
+ {id='make_opioids',group='drug_lab',item='opioids',batch=4,cap=40,inputs={{item='poppy_latex',n=2},{item='precursors',n=1}}},
+ {id='make_amphetamines',group='drug_lab',item='amphetamines',batch=4,cap=40,inputs={{item='precursors',n=2}}},
+ {id='make_counterfeit_medicine',group='pill_press',item='counterfeit_medicine',batch=4,cap=40,inputs={{item='precursors',n=1},{item='water',n=1}}},
+ {id='use_opioids',market=false,item='opioids',cap=96},
+ {id='use_amphetamines',market=false,item='amphetamines',cap=96},
+ {id='use_counterfeit_medicine',market=false,item='counterfeit_medicine',cap=96},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}
@@ -139,6 +150,8 @@ D.facilities={
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
  farm={policy='adaptive',recipes={'grow_food'}},
+ drug_lab={policy='profit',inputHours=2,recipes={'make_opioids','make_amphetamines'}},
+ pill_press={policy='profit',inputHours=2,recipes={'make_counterfeit_medicine'}},
  surface_food={policy='adaptive',recipes={'receive_surface_food'}},
  shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }

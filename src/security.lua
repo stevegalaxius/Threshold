@@ -278,6 +278,9 @@ function S.hostile(game,e,o)
   return Rep.hostile(Rep.goodwill(u,r)+Rep.standing(u,grant.issuer)-Rep.heat(u,r.node))
  end
  if Access.defending(r,game.fieldId) then
+  -- a power at war with the cartel shoots its crews on sight at home
+  local Rep=require('src.reputation')
+  if o.alifeRecord and Rep.stance(Rep.ofArea(game.fieldId),Rep.CARTEL)=='hostile' and Rep.cartelCrew(o.alifeRecord) then return true end
   return (Access.raiding(o.alifeRecord) or o.alifeRecord and o.alifeRecord.piracy or not o.alifeRecord and o.team==2)
    and o.aggressedAt~=nil and game.time-o.aggressedAt<30
  end

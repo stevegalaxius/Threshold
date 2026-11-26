@@ -134,6 +134,19 @@ salvage { id = "water", name = "Water tank", volume = 0.25, mass = 0.25, price =
 -- compartment: a hull's climate hold or a fitted Climate Pod.
 salvage { id = "medical_supplies", name = "Medical supplies", delicate = true, volume = 0.25, mass = 0.1, price = 320, w = 1, h = 1, stack = 4,
 	description = "Vaccines, blood and tissue cultures. Spoils outside a climate-controlled hold." }
+-- Cartel goods (Milliways, src/reputation.lua Rep.CARTEL): grown at
+-- Antichthon, refined at Slag Harbor, cooked at Cinder Works and sold into
+-- the white network only through a fence.
+salvage { id = "poppy_latex", name = "Poppy latex", volume = 0.25, mass = 0.2, price = 140, w = 1, h = 1, stack = 4,
+	description = "Raw opium latex scored from hydroponic poppies. Worthless until a lab works it." }
+salvage { id = "precursors", name = "Precursor chemicals", volume = 0.25, mass = 0.25, price = 150, w = 1, h = 1, stack = 4,
+	description = "Ephedrine-class intermediates cooked from nitrates. Every lab in the Shoals runs on them." }
+salvage { id = "opioids", name = "Synthetic opioids", volume = 0.05, mass = 0.02, price = 900, w = 1, h = 1, stack = 20,
+	description = "Fentanyl-class painkillers pressed into tablets. A crate is worth a hauler's year." }
+salvage { id = "amphetamines", name = "Amphetamines", volume = 0.1, mass = 0.05, price = 420, w = 1, h = 1, stack = 10,
+	description = "Shift stimulants. Twenty hours awake on a drill line, and the bill comes later." }
+salvage { id = "counterfeit_medicine", name = "Counterfeit medicine", volume = 0.25, mass = 0.1, price = 200, w = 1, h = 1, stack = 4,
+	description = "Antibiotics and anti-radiation tablets in convincing packaging, at a fifth of the real price. Some of them even work." }
 -- Passengers ride in climate cells only, one to a cell (src/passengers.lua).
 -- They are a contract's party, never market goods.
 salvage { id = "passengers", name = "Passengers", delicate = true, passengers = true, volume = 1, mass = 0.1, price = 0, w = 1, h = 1, stack = 1,
