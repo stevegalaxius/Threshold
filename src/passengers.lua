@@ -176,6 +176,8 @@ function P.divert(u,r,t,node,clock)
  if not best then return end
  local fare=P.lock(t,r.ship) or 0
  t.fare=math.floor(fare*T.passengerDivertShare+.5)
+ -- a broken trip costs standing at the destination's faction, half a failure
+ Transport.answer(u,r,t.target,-(1-T.passengerDivertShare))
  t.originalTarget,t.target,t.diverted=t.target,best,true
  return route
 end
@@ -310,6 +312,7 @@ Tasks.register('passenger',{
  release=function(u,r,t,reason,clock)
   if t.phase~='delivery' then return end
   if r.ship then disembark(r,t.party) end
+  if not t.settled and r.state~='dead' and r.state~='escaped' then Transport.answer(u,r,t.target,-1) end
   Tasks.state(u).offers[t.id]=nil
  end,
 })

@@ -591,7 +591,10 @@ function Transport.strand(u,r,t,clock)
      require('src.accounts').receive(u,seller,cost,'sold',line.item)
     end
     own(r,line.item,afford)
-    if n>afford then cargo(r,line.item,-(n-afford)) end
+    if n>afford then
+     cargo(r,line.item,-(n-afford))
+     Transport.answer(u,r,seller,-(n-afford)/n) -- the seller wrote off the rest
+    end
    end
   end
  end
@@ -625,8 +628,10 @@ end
 -- returned: refund the buyer, take the cargo off the ship, end the job.
 -- Never waits, so a loaded prepaid job always ends.
 function Transport.cancelPrepaid(u,r,t,reason,clock)
+ local answered={}
  for _,line in ipairs(lines(t)) do
   if prepaid(t,line) then Transport.unwindPrepaid(u,line) end
+  if not line.trade then answered[line.target]=true end
   if not line.trade then
    local have=(r.ship.cargo or {})[line.item] or 0
    local n=math.min(have,line.amount or 0)
@@ -634,6 +639,8 @@ function Transport.cancelPrepaid(u,r,t,reason,clock)
   end
   Tasks.state(u).offers[line.id]=nil
  end
+ -- an undelivered order costs the courier standing with the buyer, as a release does
+ for destination in pairs(answered) do Transport.answer(u,r,destination,-1) end
  t.settled=true
  Tasks.state(u).offers[t.id]=nil
  Tasks.release(u,r,reason or 'freight cancelled',clock)
