@@ -487,6 +487,11 @@ end
 -- Whether s may sell item to c under hub routing.
 local function routed(plan,s,c,item)
  local as,ac=L.byId[s].area,L.byId[c].area
+ -- the Estates and the Diwan won't trade with the cartel (src/reputation.lua)
+ if require('src.reputation').embargoed(s,c,item) then return false end
+ -- contraband is smuggled to a fence straight from wherever it is: the
+ -- hubs on the way may be a hostile power's
+ if require('src.reputation').CONTRABAND[item] and Dark.isFence(c) then return true end
  -- dark goods enter the white network only at a fence, straight from
  -- any dark station; from there the white rules below move them on
  local darkS,darkC=Dark.isDarkNode(s),Dark.isDarkNode(c)
@@ -858,7 +863,7 @@ local function run(u,clock,pause)
    local room=math.floor(T.fenceStock/vol)-Stock.count(u,f,item)-(inbound[f..'|'..item] or 0)
    while room>=math.min(T.orderMinLoad,lot) do
     local best,most
-    for _,s in ipairs(participants) do if Dark.isDarkNode(s) then
+    for _,s in ipairs(participants) do if Dark.isHaven(L.byId[s].area) then
      local kind=hubPlan.kind[s] and hubPlan.kind[s][item]
      local loot=(Stock.record(u,s).loot or {})[item] or 0
      local excess=math.min(loot,spare[s]-(kind and hubTarget(u,s,item,makes(s,item))*2 or 0))

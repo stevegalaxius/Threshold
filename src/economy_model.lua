@@ -212,9 +212,14 @@ function M.build(opts)
  -- nearest first the same way. Cycles stop after enough rounds.
  local Wsys=function(st) return station(st).system end
  -- the dark grids are a closed economy: a dark station serves only dark
- -- stations and a white one only white (src/dark.lua)
+ -- stations and a white one only white (src/dark.lua), and a power hostile
+ -- to the cartel won't trade with it (src/reputation.lua Rep.embargoed)
  local Dark=require('src.dark')
+ local Rep=require('src.reputation')
  local function side(st) return Dark.isDarkNode(st) end
+ local function serves(from,to,item)
+  return side(from)==side(to) and not Rep.embargoed(from,to,item)
+ end
  local spare={}   -- maker -> units of output it can still make
  for item,list in pairs(makersOf) do for _,mk in ipairs(list) do spare[mk]=mk.pool.capacity*mk.per end end
  local mines={}   -- item -> { station -> units an hour left }
@@ -252,7 +257,7 @@ function M.build(opts)
    local order={};for st in pairs(mm) do order[#order+1]=st end;table.sort(order)
    for pass=1,2 do for _,st in ipairs(order) do local have=mm[st]
     if left<=0 then break end
-    if have>0 and side(st)==side(taker) and (pass==2 or Wsys(st)==Wsys(taker)) then
+    if have>0 and serves(st,taker,item) and (pass==2 or Wsys(st)==Wsys(taker)) then
      local k=math.min(have,left);mm[st]=have-k;left=left-k
      g.externalUsed=(g.externalUsed or 0)+k
      g.makers[st]=(g.makers[st] or 0)+k
@@ -287,7 +292,7 @@ function M.build(opts)
    local pick,cap={},0
    for _,mk in ipairs(makers) do
     local room=pass<3 and math.max(0,spare[mk]) or mk.pool.capacity*mk.per
-    if room>0 and side(mk.pool.station)==side(taker) and (pass~=1 or Wsys(mk.pool.station)==Wsys(taker)) then pick[#pick+1]={mk,room};cap=cap+room end
+    if room>0 and serves(mk.pool.station,taker,item) and (pass~=1 or Wsys(mk.pool.station)==Wsys(taker)) then pick[#pick+1]={mk,room};cap=cap+room end
    end
    if cap>0 and pass==2 then
     -- anyone's spare: nearest first, as the freight board picks

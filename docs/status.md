@@ -5,20 +5,20 @@ system works. This page only says what exists and what's next. Keep it short:
 when something ships, move its line from **To build** to **Built** and link
 the doc or source file that explains it.
 
-Last checked against `main`: 2026-11-15.
+Last checked against `main`: 2026-11-25.
 
 ## Built
 
 ### Flight, combat and ships
 - Box2D flight with drag, side thrusters and turn response (`src/ship.lua`).
 - Guns, artillery, lasers, missiles, torpedoes and drone launchers (`data/items.lua`, `src/weapons.lua`).
-- 32 hulls (`data/ships/`), including drones and the cargo pod. Slot-matched modules (`data/modules.lua`).
+- 36 hulls (`data/ships/`), including drones and the cargo pod. Slot-matched modules (`data/modules.lua`).
 - Wrecks you can loot or drill for steel, and parts you can shoot off.
 - Patch kits as field repair (`src/item_use.lua`), with Q as the hotkey.
 
 ### World
 - Planets, moons, moon gates and mass driver lanes on an orbital clock (`src/fields.lua`, `src/transit.lua`).
-- Dark grids: Milliways, the Shoals, Cordelia and Antichthon (`src/dark.lua`).
+- Cartel grids: Milliways, the Shoals, Cordelia and Antichthon, charted and open (`docs/cartel.md`). The dark-grid system (`src/dark.lua`) is kept but no grid uses it now.
 - Instanced sites with acceleration gates (`data/sites.lua`, `src/sites.lua`).
 - Wildcat sites ([wildcats.md](wildcats.md)): sites open on their own near planets with traffic, crewed by wildcats that raid that planet and pile what they steal on the site's hoard. Losses there get a bounty posted, paid per wildcat to whoever lands the last hit; bounty hunters clear sites offline, and you can warp in on their fight.
 - Satellites burn fuel over time; NPC haulers (or the player) take refuel and launch jobs, and the fuel is station-keeping: a fuelled satellite (or hub) holds its altitude and place on the orbit (hubs beside a trade buoy) and recovers from bumps, while a dry one drops to low power, drifts, and its orbit decays until it burns up about 30 minutes later, which posts the replacement launch job (`src/satellites.lua`, `src/sat_jobs.lua`).
@@ -66,7 +66,7 @@ Last checked against `main`: 2026-11-15.
 ### Designed, not built
 - **Task generation layers** (simulation, economy, director) and a picker that rotates between them. Only the station-job generators exist ([alife-design.md](alife-design.md#task-generation)).
 - **The director's attention nudge.** Steering offline events toward the player when things have been quiet.
-- **The fifth faction.** The hidden hand that reaches the player through instanced sites.
+- **The fifth faction.** Milliways is now a drug cartel on open grids: embargoed by the Estates and the Diwan, traded with by Jove and Zhuhai (`docs/cartel.md`). Cartel hulls, contraband heat and dependency are not built yet.
 - **Rewards and completion for other board work.** The player can only take freight off the board so far.
 
 ### Waiting on a decision

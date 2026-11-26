@@ -257,6 +257,7 @@ function I.allocate(u,clock,stations,market,dt,pause)
        if pause then pause(true) end
        local darkBuyer=Dark.isDarkNode(bid.target)
        if bid.target~=key and (not driven or not darkSource or darkBuyer or Dark.isFence(bid.target))
+        and not require('src.reputation').embargoed(key,bid.target,output.item)
         and G.itinerary(key,bid.target,clock) then
         local amount=bid.amount
         local price=bid.price

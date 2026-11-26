@@ -18,7 +18,8 @@
 	    goodwill + standing(its faction) - heat(its node)
 	read through Rep.attitude, and turned into a tier by Rep.tier.
 
-	There are no faction-vs-faction relations and no territory: who owns a
+	The one standing feud between factions is Rep.STANCE: how each major
+	power treats the Milliways cartel (Rep.CARTEL). There is no territory: who owns a
 	node is fixed lore (Rep.FACTIONS / Rep.AREAS / Rep.NODES). Loners have no
 	faction, so only their own goodwill and local heat count.
 ]]
@@ -35,6 +36,53 @@ Rep.FACTIONS = {
 	bowman    = { name = "Bowman Atmospherics" },
 }
 Rep.ORDER = { "estates", "zhuhai", "diwan", "jove", "ceres", "milliways", "bowman" }
+
+-- The cartel and how each major power treats it. A hostile power embargoes
+-- it (Rep.embargoed: no trade with cartel stations, no contraband in its
+-- markets except through a fence) and its patrols shoot cartel crews on
+-- sight in its own space (src/security.lua). Ambivalent powers trade with
+-- the cartel like anyone else and leave its crews alone unless they start
+-- something.
+--   Estates: the labs run on medicine bought out from under the Garden.
+--   Diwan:   a devout House, and the cartel's brine and chemistry are
+--            smuggled out of its own moons.
+--   Jove:    a customer is a customer; Kyrakos looks the other way.
+--   Zhuhai:  the Mandate can't agree on a crackdown, and the spokes run on stims.
+-- Other code reads this through Rep.stance, so notables and news can use it.
+Rep.CARTEL = "milliways"
+Rep.STANCE = {
+	milliways = { estates = "hostile", diwan = "hostile", jove = "ambivalent", zhuhai = "ambivalent" },
+}
+-- How faction a stands toward faction b (either way round): "hostile",
+-- "ambivalent", or nil for no particular stance.
+function Rep.stance(a, b)
+	if not a or not b then return nil end
+	return (Rep.STANCE[a] and Rep.STANCE[a][b]) or (Rep.STANCE[b] and Rep.STANCE[b][a]) or nil
+end
+-- Does this NPC fly for the cartel? Its raiders, and anyone based at a
+-- cartel station.
+function Rep.cartelCrew(r)
+	if not r then return false end
+	if r.affiliation == Rep.CARTEL or r.piracy ~= nil or r.darkRunner == true then return true end
+	local home = r.homeStation
+	return home ~= nil and Rep.ofNode(require("src.locations").canonical(home)) == Rep.CARTEL
+end
+-- The cartel's product: what a hostile power's market refuses outside a fence.
+Rep.CONTRABAND = { amphetamines = true, fentanyl = true, cannabinoid_moss = true }
+-- Is trade from station s to station c blocked? A power hostile to the
+-- cartel neither buys from nor sells to cartel stations, and buys no
+-- contraband from anyone. Its fences (uses.fence) are the way in.
+function Rep.embargoed(s, c, item)
+	local L = require("src.locations")
+	local Dark = require("src.dark")
+	if Dark.isFence(c) or Dark.isFence(s) then return false end
+	local fs, fc = Rep.ofNode(L.canonical(s)), Rep.ofNode(L.canonical(c))
+	local function hostile(f) return Rep.stance(f, Rep.CARTEL) == "hostile" end
+	if fs == Rep.CARTEL and hostile(fc) then return true end
+	if fc == Rep.CARTEL and hostile(fs) then return true end
+	if item and Rep.CONTRABAND[item] and hostile(fc) then return true end
+	return false
+end
 
 -- Who owns each area. Lore, not a world variable: nothing changes it.
 Rep.AREAS = {

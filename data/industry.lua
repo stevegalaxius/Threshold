@@ -36,6 +36,18 @@ local D={recipes={
  -- Ice moons cut ice from their crusts. Terraforming takes tanked water.
  {id='cut_ice',group='resources',item='water_ice',opening=0,cap=1600},
  {id='terraform_water',market=false,item='water',cap=400},
+ -- Alkalines from ocean brine (Europa, Enceladus).
+ {id='pump_alkalines',group='resources',item='alkalines',opening=0,cap=192},
+ -- The cartel chain (Milliways). Cinder Works' lab makes amphetamines and
+ -- fentanyl analogues from bought medical supplies; Antichthon grows moss
+ -- when it pays. Jove and Zhuhai buy the product openly; the Estates and
+ -- the Diwan only through fences (src/reputation.lua Rep.embargoed).
+ {id='make_amphetamines',group='drug_lab',item='amphetamines',batch=8,cap=40,inputs={{item='nitrates',n=1},{item='alkalines',n=1},{item='medical_supplies',n=1}}},
+ {id='make_fentanyl',group='drug_lab',item='fentanyl',batch=8,cap=40,inputs={{item='industrial_acids',n=1},{item='heavy_metals',n=1},{item='medical_supplies',n=1}}},
+ {id='grow_moss',group='moss_beds',item='cannabinoid_moss',batch=4,cap=40,inputs={{item='fertilizer',n=1},{item='water',n=1}}},
+ {id='use_amphetamines',market=false,item='amphetamines',cap=96},
+ {id='use_fentanyl',market=false,item='fentanyl',cap=96},
+ {id='use_moss',market=false,item='cannabinoid_moss',cap=96},
  -- using hydrogen up (the inner planets' industry)
  {id='burn_hydrogen',market=false,item='hydrogen_canister',cap=60},
 }}
@@ -139,6 +151,10 @@ D.facilities={
  guided_munitions={policy='profit',inputHours=3,recipes={}},
  drones={policy='profit',recipes={}},
  farm={policy='adaptive',recipes={'grow_food'}},
+ drug_lab={policy='profit',inputHours=2,recipes={'make_amphetamines','make_fentanyl'}},
+ -- the moss beds grow only what sells: a profit plant
+ moss_beds={policy='profit',recipes={'grow_moss'}},
+ alkali_works={policy='adaptive',recipes={'pump_alkalines'}},
  surface_food={policy='adaptive',recipes={'receive_surface_food'}},
  shipworks={policy='fixed',openingOutputs={hull_frame=2},openingInputs={steel_plate=.5},recipes={'assemble_hull_frames'}},
 }
