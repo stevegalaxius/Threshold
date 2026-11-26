@@ -116,7 +116,8 @@ N.controller={name='npc',
     return {wait=T.alifeLocalTick}
    end
    if not route and (not allowed or Transport.embargoed(task)) then
-    Tasks.release(u,r,'delivery blocked',clock)
+    if Transport.hasPrepaid(task) then Transport.cancelPrepaid(u,r,task,'delivery blocked',clock)
+    else Tasks.release(u,r,'delivery blocked',clock) end
     r.taskStatus=nil
     return {wait=T.alifeLocalTick}
    end
@@ -292,6 +293,13 @@ function N.recoverFreight(ctx)
    end
   end
   task.recoveryStop=nil
+  -- Nowhere to deliver and nowhere to return: a prepaid load is cancelled
+  -- (buyer refunded, cargo removed) rather than retried forever.
+  if Transport.hasPrepaid(task) and not Access.canStop(r,task.target,ctx.u) then
+   Transport.cancelPrepaid(ctx.u,r,task,'delivery blocked',clock)
+   Trace.note(r,clock,'freight','cancelled prepaid freight: no delivery or return possible')
+   return
+  end
  end
  watch.retried=true
  e.dockApproach,e.detour,e.pathAsk,e.navigation=nil,nil,nil,nil

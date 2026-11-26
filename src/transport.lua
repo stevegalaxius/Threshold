@@ -503,9 +503,11 @@ function Transport.recoveryMode(u,t,station,clock)
  local Stock=require('src.stockpile')
  for _,line in ipairs(lines(t)) do
   -- Prepaid contracts have a separate escrow and settlement.
-  if line.target==station or line.buyerFunded or line.prepaidGoods or line.prepaidFee
-   or line.playerOrder or line.intake or line.house or not (line.stocked or line.mine) then return end
+  if line.target==station or line.playerOrder or line.intake or line.house or not (line.stocked or line.mine) then return end
   if (line.originalSource or line.source)~=station then returning=false end
+  -- Prepaid contracts have a separate escrow: they may only be unwound at
+  -- the seller (Transport.unwindPrepaid), never relayed through a third station.
+  if (line.buyerFunded or t.buyerFunded or line.prepaidGoods or line.prepaidFee) and not returning then return end
   volume=volume+line.amount*data.items[line.item].volume
  end
  if returning then
@@ -540,6 +542,41 @@ function Transport.recoveryStops(u,r,t,area,x,y,clock)
  return options
 end
 
+-- Undo a prepaid sale: the seller hands back what the buyer paid for the
+-- goods and the unused fee escrow goes back to the buyer. The buyer is made
+-- whole even when part of the load was lost on the way.
+function Transport.unwindPrepaid(u,line)
+ local goods=line.prepaidGoods or 0
+ if goods>0 then
+  local Accounts=require('src.accounts')
+  Accounts.pay(u,line.source,goods)
+  Accounts.refund(u,line.target,goods)
+ end
+ line.prepaidGoods=nil
+ releaseFunds(u,line)
+end
+local function prepaid(t,line) return t.buyerFunded or line.buyerFunded or line.prepaidGoods or line.prepaidFee end
+function Transport.hasPrepaid(t)
+ for _,line in ipairs(lines(t)) do if prepaid(t,line) then return true end end
+ return false
+end
+-- Last resort for loaded prepaid freight that can neither be delivered nor
+-- returned: refund the buyer, take the cargo off the ship, end the job.
+-- Never waits, so a loaded prepaid job always ends.
+function Transport.cancelPrepaid(u,r,t,reason,clock)
+ for _,line in ipairs(lines(t)) do
+  if prepaid(t,line) then Transport.unwindPrepaid(u,line) end
+  if not line.trade then
+   local have=(r.ship.cargo or {})[line.item] or 0
+   local n=math.min(have,line.amount or 0)
+   if n>0 then cargo(r,line.item,-n) end
+  end
+  Tasks.state(u).offers[line.id]=nil
+ end
+ t.settled=true
+ Tasks.state(u).offers[t.id]=nil
+ Tasks.release(u,r,reason or 'freight cancelled',clock)
+end
 function Transport.unloadRecovery(u,r,t,station,clock)
  if t.recoveryStop~=station then return end
  local mode=Transport.recoveryMode(u,t,station,clock)
@@ -575,6 +612,7 @@ function Transport.unloadRecovery(u,r,t,station,clock)
    end
    cargo(r,item,-amount)
   end
+  if mode=='return' and prepaid(t,line) then Transport.unwindPrepaid(u,line) end
   if not line.trade then
    local loss=losses[line.target] or {missing=0,total=0}
    loss.missing=loss.missing+line.amount-amount

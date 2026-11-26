@@ -59,12 +59,15 @@ return function()
  crew.ship.cargo={steel_plate=1}
  crew.node,crew.area=node,'shoals'
  crew.task={kind='transport',phase='delivery',id=prepaid.id,source=seller,target=earth,
-  item=prepaid.item,amount=1,order=true,stocked=true,buyerFunded=true,prepaidGoods=100,prepaidFee=15}
+  item=prepaid.item,amount=1,order=true,stocked=true,buyerFunded=true,prepaidGoods=100,prepaidFee=15,
+  recoveryTried={[seller]=true}} -- the seller already refused the return
  NPC.controller.next({u=u,r=crew,node=node,clock=2,wasDocked=true,game=game})
  assert(not crew.task and crew.lastTask.status=='delivery blocked' and not Tasks.state(u).offers[prepaid.id],
   'blocked freight job stayed active or relisted its loaded stock')
- assert(Accounts.balance(u,earth)==balance and Accounts.balance(u,seller)==sellerBalance
-  and crew.ship.cargo.steel_plate==1,'blocked freight did not use existing settlement')
+ -- No delivery and no return: the buyer is refunded goods and fee, and the
+ -- cargo leaves the ship.
+ assert(Accounts.balance(u,earth)==balance+100 and Accounts.balance(u,seller)==sellerBalance-100
+  and (crew.ship.cargo.steel_plate or 0)==0,'blocked prepaid freight was not unwound')
 
  local yard='station:mercury_3'
  local damaged={id='npc/repair-test',affiliation=Rep.CARTEL,state='idle',area='mercury',
