@@ -383,6 +383,22 @@ function Transport.duration(o,station,clock)
  return localTime+(o.routeAU or 0)*120+(station and station~=o.source and 180 or 0)
 end
 local function lines(t) return t.manifest or {t} end
+-- A relay changes custody. The original trade and the station handling
+-- the cargo must both be allowed under the same rules as economy dispatch.
+function Transport.embargoed(t,via)
+ local Rep=require('src.reputation')
+ for _,line in ipairs(lines(t)) do
+  if line.layoutScope=='economy' or line.relay or via then
+   if Rep.embargoed(line.source,line.target,line.item)
+    or line.originalSource and Rep.embargoed(line.originalSource,line.target,line.item)
+    or via and (Rep.embargoed(line.source,via,line.item) or Rep.embargoed(via,line.target,line.item)) then
+    return true
+   end
+  end
+ end
+ return false
+end
+
 -- Whether a route exists, remembered for a while: idle traders weigh every
 -- job on the board, and planning each one in full was a lag spike.
 local reach,reachAt={},nil
@@ -498,7 +514,7 @@ function Transport.recoveryMode(u,t,station,clock)
   end
   return 'return'
  end
- if volume>availableRelayVolume(u,station) then return end
+ if Transport.embargoed(t,station) or volume>availableRelayVolume(u,station) then return end
  for _,line in ipairs(lines(t)) do
   if line.trade or line.relay and line.source~=station or not Transport.route(station,line.target,clock) then return end
  end
@@ -581,7 +597,7 @@ end
 function Transport.freightFence(u,r,t,from,clock,cargoOnboard)
  if r.agenda and #r.agenda>0 then return end
  local Access=require('src.npc_access')
- if not Access.darkAccess(r) then return end
+ if not Access.darkAccess(r) and not require('src.reputation').cartelCrew(r) then return end
  local traits=Personality.ensure(r)
  if traits.ambition<.9 or traits.aggression<.8 then return end
  if Transport.recoveryMode(u,t,Transport.returnStation(t),clock)~='return' then return end
@@ -638,11 +654,12 @@ Tasks.register('transport',{
 
  end,
  plan=function(t,station,clock)
+  if not t.recoveryStop and Transport.embargoed(t) then return end
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
   return Transport.route(station,t.recoveryStop or t.target,clock)
  end,
  eligible=function(u,r,o,station,clock)
-  if recentlyStalled(r,o,clock) then return false end
+  if recentlyStalled(r,o,clock) or Transport.embargoed(o) then return false end
   -- Old reserved manifests may finish, but never issue new placeholder ore.
   if o.item=='martian_ore' then return false end
   -- Work elsewhere means flying there empty first (a pickup leg).
@@ -724,6 +741,7 @@ Tasks.register('transport',{
    +math.min(T.freightScoreCap,reward*100*taste*(1-math.min(.9,risk)))*(0.5+ambition)
  end,
  prepare=function(u,r,t,station,clock)
+  if Transport.embargoed(t) then return false end
   Transport.quote(t,clock,u)
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route then return false end
@@ -746,7 +764,7 @@ Tasks.register('transport',{
    for _,o in pairs(offers) do
     -- (freight only: satellite jobs are board orders too, carrying no item)
     if not t.relay and not o.relay and not t.trade and not t.buyerFunded and not o.trade and not o.tradeOptional and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
-     and not r.player and not recentlyStalled(r,o,clock) and o.source==t.source and o.item
+     and not r.player and not Transport.embargoed(o) and not recentlyStalled(r,o,clock) and o.source==t.source and o.item
      and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
      and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
    end
@@ -809,6 +827,10 @@ Tasks.register('transport',{
     t.recoveryStop=nil
    end
    return false -- recovery settles its own board entries and records its outcome
+  end
+  if Transport.embargoed(t) then
+   if t.phase=='pickup' then Tasks.release(u,r,'freight embargoed',clock) end
+   return false
   end
   Transport.quote(t,clock,u)
   if t.phase=='pickup' then

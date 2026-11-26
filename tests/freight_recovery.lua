@@ -18,7 +18,7 @@ return function()
   local r={id='npc/freight-test',ship=Ship.record(e),state='travel',area='earth',node=target,
    speed=600,depart=u.clock,arrive=u.clock+80,index=2,route=phase=='pickup' and {target,source} or {source,target}}
   r.task={id=offer.id,kind='transport',source=source,target=target,phase=phase,item=offer.item,amount=offer.amount,stocked=true,order=true}
-  if thief then r.darkAccess,r.ambition,r.aggression=true,.96,.95 end
+  if thief then r.homeStation,r.ambition,r.aggression='station:shoals_3',.96,.95 end
   if phase=='delivery' then
    offer.loaded=true
    assert(Hold.add(e.hold,offer.item,offer.amount)==offer.amount)

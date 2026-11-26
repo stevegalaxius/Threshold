@@ -64,6 +64,7 @@ function C.quote(game,o)
  if o.state~='available' or (o.readyAt or 0)>u.clock then return nil,'Job no longer available' end
  local ok,why=access(game,o)
  if not ok then return nil,why end
+ if o.kind=='transport' and Transport.embargoed(o) then return nil,'This shipment is embargoed' end
  if o.kind=='passenger' then
   -- the fare this ship would lock in now, and its parts
   local P=require('src.passengers');local p=game.player
@@ -177,6 +178,10 @@ function C.advance(game)
  if t.recoveryStop then
   if here==t.recoveryStop then return C.finishRecovery(game) end
   return nil,'Dock at the selected recovery station'
+ end
+ if t.kind=='transport' and Transport.embargoed(t) then
+  return nil,t.phase=='pickup' and 'This shipment is embargoed. Cancel the pickup.'
+   or 'This shipment is embargoed. Arrange a return to origin.'
  end
  local destination=t.phase=='pickup' and t.source or t.target
  if here~=destination then return nil,t.phase=='pickup' and 'Dock at the pickup station' or 'Dock at the delivery station' end
