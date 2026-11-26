@@ -33,6 +33,8 @@ function C.price(u,key,item)
  local s=C.state(u);local prices=s.prices[key]
  local multiplier=prices and prices[item] or 1
  if u.news then multiplier=multiplier*News.factor(u,key,item) end
+ -- lasting world-state changes (a leaderless faction's markets: src/worldstate.lua)
+ if u.worldstate then multiplier=multiplier*require('src.worldstate').mul(u,'price',key,item) end
  local list=require('src.data').items[item].price
  local p=list*multiplier
  local basis=C.basis(u,key,item)

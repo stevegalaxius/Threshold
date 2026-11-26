@@ -2132,6 +2132,12 @@ function Game:eject(e, id, count, inner)
 		events.emit("eject", e, id, count)
 		return
 	end
+	-- a VIP pushed out of the hold is an airlock (src/notables.lua): what
+	-- floats away is their body
+	if data.items[id].passengers and id == "vip" and e == self.player then
+		require("src.notables").airlock(self)
+		id = "vip_remains"
+	end
 	require("src.loose").adopt(self, self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
 		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30))
 	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")

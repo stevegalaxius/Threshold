@@ -23,7 +23,7 @@ local G=require('src.travelgraph')
 local T=require('src.tuning')
 local data=require('src.data')
 local Transport=require('src.transport')
-local P={item='passengers'}
+local P={item='passengers',vip='vip'}
 
 -- Configuration ----------------------------------------------------------------
 function P.config(id)
@@ -39,9 +39,12 @@ function P.stations()
  return out
 end
 -- Open contracts this many at once at most: the demand rule.
-function P.cap(id)
+function P.cap(id,u)
  local c=P.config(id);if not c then return 0 end
- return math.max(1,math.min(T.passengerMaxOutstanding,math.floor((c.population or 0)/T.passengerResidentsPerContract+.5)))
+ local n=math.max(1,math.min(T.passengerMaxOutstanding,math.floor((c.population or 0)/T.passengerResidentsPerContract+.5)))
+ -- (a notable's death leaves their seat quieter for good: src/worldstate.lua)
+ if u and u.worldstate then n=math.max(1,math.floor(n*require('src.worldstate').mul(u,'passengers',id)+.5)) end
+ return n
 end
 function P.state(u)
  u.passengers=u.passengers or {next={},seed=7919,posted=0,expired=0,delivered=0,fares=0}
@@ -129,7 +132,7 @@ function P.journey(o,ship)
  return flown*T.npcCruise/math.max(1,N.cruise(ship))+driven
 end
 function P.baseFare(o)
- return (o.party or 0)*(T.passengerFareBase+T.passengerFarePerAU*(o.routeAU or 0))
+ return (o.party or 0)*(T.passengerFareBase+T.passengerFarePerAU*(o.routeAU or 0))*(o.fareMult or 1)
 end
 -- What this ship would be paid for the contract: the base fare (party x
 -- route) with the comfort premium and speed incentive on top, each bounded.
@@ -159,7 +162,7 @@ end
 -- Returns a route, or nil when there is none (the caller releases the job,
 -- which disembarks the party).
 function P.divert(u,r,t,node,clock)
- if t.phase~='delivery' or t.diverted then return end
+ if t.phase~='delivery' or t.diverted or t.notable then return end
  local Access=require('src.npc_access')
  local x,y=L.position(node,clock)
  local best,route,bestD
@@ -180,6 +183,19 @@ function P.divert(u,r,t,node,clock)
  Transport.answer(u,r,t.target,-(1-T.passengerDivertShare))
  t.originalTarget,t.target,t.diverted=t.target,best,true
  return route
+end
+
+-- A notable's ride (src/notables.lua): one seat, item 'vip', a fare
+-- several times a commuter's, and a comfort floor. Not part of any
+-- station's demand cap.
+function P.postVIP(u,n,source,target,clock)
+ if not Transport.route(source,target,clock) then return end
+ local NT=require('data.notables').T
+ local o={kind='passenger',source=source,target=target,purpose='vip',party=1,item=P.vip,amount=1,
+  notable=n.id,vipName=n.name,faction=n.faction,fareMult=NT.fareMult,comfortMin=NT.comfortMin,standingMin=NT.standingMin,
+  requires={capabilities={'climate'}},posted=clock,expires=clock+NT.expiry}
+ routeAU(o,clock)
+ return Tasks.post(u,o)
 end
 
 -- Generation -------------------------------------------------------------------
@@ -231,7 +247,7 @@ function P.update(u,clock)
   st.next[id]=st.next[id] or clock+T.passengerInterval*((hash(id)%1000)/1000)
   if clock>=st.next[id] then
    st.next[id]=clock+T.passengerInterval
-   if P.outstanding(u,id)<P.cap(id) then P.post(u,id,clock) end
+   if P.outstanding(u,id)<P.cap(id,u) then P.post(u,id,clock) end
   end
  end
 end
@@ -244,18 +260,19 @@ local function reachable(a,b,clock)
  if reach[key]==nil then reach[key]=Transport.route(a,b,clock)~=nil or a==b end
  return reach[key]
 end
-local function seated(r) return (r.ship.cargo or {})[P.item] or 0 end
+local function seated(r,t) return (r.ship.cargo or {})[t and t.item or P.item] or 0 end
 -- Seat the party aboard (in the climate grid; src/inventory/hold.lua).
 function P.board(u,r,t)
- if Transport.room(r,P.item,t.party)<t.party then return false end
- Transport.carry(r,P.item,t.party)
+ local item=t.item or P.item
+ if Transport.room(r,item,t.party)<t.party then return false end
+ Transport.carry(r,item,t.party)
  local o=Tasks.state(u).offers[t.id];if o then o.loaded=true end
  t.phase='delivery'
  return true
 end
-local function disembark(r,n)
- n=math.min(n,seated(r))
- if n>0 then Transport.carry(r,P.item,-n) end
+local function disembark(r,n,t)
+ n=math.min(n,seated(r,t))
+ if n>0 then Transport.carry(r,t and t.item or P.item,-n) end
 end
 Tasks.register('passenger',{
  requires={capabilities={'climate'}},
@@ -267,7 +284,8 @@ Tasks.register('passenger',{
   -- work elsewhere means flying there empty first, as for freight
   if station~=o.source and (r.task or not L.byId[station]) then return false end
   if not (L.byId[o.source] and L.byId[o.target]) then return false end
-  return Transport.room(r,P.item,o.party)>=o.party and P.comfort(r.ship,o.party)~=nil
+  local comfort=P.comfort(r.ship,o.party)
+  return Transport.room(r,o.item or P.item,o.party)>=o.party and comfort~=nil and comfort>=(o.comfortMin or 0)
  end,
  feasible=function(u,r,o,station,clock)
   return (station==o.source or reachable(station,o.source,clock)) and reachable(o.source,o.target,clock)
@@ -281,7 +299,7 @@ Tasks.register('passenger',{
  end,
  prepare=function(u,r,t,station,clock)
   if not P.lock(t,r.ship) then return false end
-  if Transport.room(r,P.item,t.party)<t.party then return false end
+  if Transport.room(r,t.item or P.item,t.party)<t.party then return false end
   t.phase='pickup'
   if station==t.source then return P.board(u,r,t) end
   return true
@@ -294,8 +312,8 @@ Tasks.register('passenger',{
    return false
   end
   if station~=t.target then return false end
-  if seated(r)<t.party then Tasks.release(u,r,'passengers missing',clock);return false end
-  disembark(r,t.party)
+  if seated(r,t)<t.party then Tasks.release(u,r,'passengers missing',clock);return false end
+  disembark(r,t.party,t)
   local fare=t.fare or P.lock(t,r.ship) or 0
   r.credits=(r.credits or 0)+fare
   r.passengerEarnings=(r.passengerEarnings or 0)+fare
@@ -305,13 +323,14 @@ Tasks.register('passenger',{
    {taskId=t.id,source=t.source,target=t.target,home=t.home,party=t.party,routeAU=t.routeAU,fare=fare,detail=t.fareDetail},station)
   Tasks.state(u).offers[t.id]=nil
   t.settled=true
+  if t.notable then require('src.notables').delivered(u,t,r,station) end
   return true
  end,
  -- A contract given up with the party aboard ends there: they get off,
  -- unpaid, and the demand it held is free again.
  release=function(u,r,t,reason,clock)
   if t.phase~='delivery' then return end
-  if r.ship then disembark(r,t.party) end
+  if r.ship then disembark(r,t.party,t) end
   if not t.settled and r.state~='dead' and r.state~='escaped' then Transport.answer(u,r,t.target,-1) end
   Tasks.state(u).offers[t.id]=nil
  end,

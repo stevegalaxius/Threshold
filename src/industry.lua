@@ -104,21 +104,28 @@ function I.finished(u,key,recipe)
   end end end
  end
 end
-function I.scale(u,key,c)
+local function rawScale(u,key,c)
  for id,installation in pairs(I.installations(key)) do
   local def=I.definition(id,installation)
   for _,recipe in ipairs(def.recipes) do if recipe==c.id then
    if def.policy=='orders' then
     local selected=I.job(u,key,id,def)
     -- (room for one is all this asks: no need to plan the whole lot full)
-    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull,1)>0 and 1 or 0
+    return selected==recipe and require('src.dealers').room(u,key,c.outputs[1].hull,1)>0 and 1 or 0,id
    end
-   if def.policy=='profit' then return I.state(u,key,id).mix[recipe] or 0 end
-   if def.policy=='adaptive' then return (u.industry and u.industry[key] and u.industry[key][recipe] or 1)/#def.recipes end
-   return 1/#def.recipes
+   if def.policy=='profit' then return I.state(u,key,id).mix[recipe] or 0,id end
+   if def.policy=='adaptive' then return (u.industry and u.industry[key] and u.industry[key][recipe] or 1)/#def.recipes,id end
+   return 1/#def.recipes,id
   end end
  end
  return 0
+end
+-- A facility's share of its capacity, times what the world state has done
+-- to it for good (a magnate's death: src/worldstate.lua).
+function I.scale(u,key,c)
+ local v,id=rawScale(u,key,c)
+ if v>0 and u.worldstate then v=v*require('src.worldstate').mul(u,'output',key,id) end
+ return v
 end
 -- Short operating buffers follow allocated work and actual output room.
 -- Idle profit facilities keep at most a starter batch per input, so missing

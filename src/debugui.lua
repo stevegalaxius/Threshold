@@ -377,6 +377,19 @@ local function newsSection(game)
 	Slab.Text(("Headlines waiting to go live: %d"):format(held))
 end
 
+-- Notables and the world-state ledger (src/notables.lua, src/worldstate.lua).
+local function worldSection(game)
+	local u = game.universe
+	local NB, WS = require("src.notables"), require("src.worldstate")
+	if Slab.Button("Call a summit now") then
+		local sm = NB.state(u).summit
+		if not sm.opens then sm.next = (u.clock or 0) + require("data.notables").summit.lead end
+	end
+	for _, line in ipairs(NB.report(u)) do Slab.Text(line) end
+	Slab.Separator()
+	for _, line in ipairs(WS.report(u, 20)) do Slab.Text(line) end
+end
+
 local function locationSection(game)
 	Slab.Text(("Universe clock: %.1f"):format(game.universe.clock))
 	for _, place in ipairs(Locations.list(game.fieldId)) do
@@ -400,6 +413,7 @@ function Debug.update(dt, game)
 		Slab.Separator()
 		section("dbg_travel", "Teleport and destinations", function(g) require("src.debugtravel").panel(g,Slab) end, game)
 		section("dbg_sites", "Sites (instances)", function(g) require("src.sites").panel(g,Slab) end, game)
+		section("dbg_world", "Notables and world state", worldSection, game)
 		section("dbg_ship", "Ship, modules and hold", shipSection, game)
 		section("dbg_readout", "Handling readout", readout, game)
 		section("dbg_tuning", "Flight tuning", tuningSection)

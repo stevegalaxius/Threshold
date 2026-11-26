@@ -87,7 +87,8 @@ N.T={
  nameBase=.25,        -- first-hand: odds of naming you = this + smear*(1-this)
  hitDelta=-5,         -- shooting a faction ship out of its sight, once per ship
  spinFloor=.5,spinCeil=1.6, -- spin keeps a move between these multiples of the truth
- rivalPraise=.25,     -- an outlet's owner warms to you for hitting its rivals
+ rivalPraise=.25,
+ suspectBoost=.4,     -- a deed with the player the obvious suspect (a VIP who boarded their ship) is this likelier to name them     -- an outlet's owner warms to you for hitting its rivals
 }
 
 local function clamp(v,lo,hi) return math.max(lo,math.min(hi,v)) end
@@ -107,6 +108,7 @@ function N.state(u)
   u.news=s
  end
  s.subs=s.subs or {}
+ N.extraBeats=u.worldstate and require('src.worldstate').beats(u) or nil
  -- saves from before keep was cut to 80 hold more: trim them here, or the
  -- first story printed trims the list under a loop walking it
  while #s.stories>N.T.keep do table.remove(s.stories,1) end
@@ -122,7 +124,16 @@ local beats={}
 for id,o in pairs(Outlets.outlets) do
  beats[id]={};for _,a in ipairs(o.beat) do beats[id][a]=true end
 end
-function N.covers(o,area) return beats[o] and beats[o][area] or false end
+-- (an outlet can take over a dead editor's paper's beat for good:
+-- src/worldstate.lua 'beat' effects, read from the current universe)
+function N.covers(o,area)
+ if beats[o] and beats[o][area] then return true end
+ local took=N.extraBeats and N.extraBeats[o]
+ if took then for from in pairs(took) do if beats[from] and beats[from][area] then return true end end end
+ return false
+end
+-- How much of its reach an outlet has kept (1, or less once its editor is dead).
+function N.reach(u,o) return u.worldstate and require('src.worldstate').mul(u,'outlet_reach',o) or 1 end
 -- The outlet a faction owns (first in order), or nil.
 local owned={}
 for _,id in ipairs(Outlets.order) do local f=Outlets.outlets[id].owner;if f and not owned[f] then owned[f]=id end end
@@ -310,7 +321,7 @@ function N.publish(u,st)
  require('src.events').emit('news_published',require('src.persistence').copy(st))
  if st.good and st.reported and st.area and not st.tip then
   local w=st.quest and 1 or N.T.hype*(st.secondhand and .5 or 1)
-  local v=(st.reported-1)*N.T.nudgeScale*w
+  local v=(st.reported-1)*N.T.nudgeScale*w*N.reach(u,st.outlet)
   nudge(u,st.area,st.outlet,st.good,clamp(v,-N.T.nudgeCap,N.T.nudgeCap),st.id)
  end
  return st
@@ -569,7 +580,7 @@ local function deedStories(u,s,clock)
    for _,o in ipairs(Outlets.order) do
     if N.covers(o,deed.area) then
      any=true
-     local named=rng(u)<naming(u,o,true)
+     local named=rng(u)<naming(u,o,true)+(deed.suspect and N.T.suspectBoost or 0)
      report(u,N.publish(u,{outlet=o,kind=deed.delta<0 and 'killed' or 'praise',area=deed.area,faction=deed.faction,
       who=playerWho(u,named),named=named,subject='player',deedId=deed.id}))
     end
@@ -689,6 +700,9 @@ end
 -- copies of other outlets' stories, and whatever it thinks of you.
 local function run(u,s,o,since,clock)
  local d=Outlets.outlets[o]
+ -- a paper without its editor misses most of its runs
+ local reach=N.reach(u,o)
+ if reach<1 and rng(u)>reach then return end
  local printed=0
  local mood=N.mood(u,o)
  refreshTicker(u,s,o,clock)
