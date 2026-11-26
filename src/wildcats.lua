@@ -278,11 +278,11 @@ end
 
 -- Out and home ---------------------------------------------------------------
 
--- A dark station that buys stolen goods, reachable from `from`: any of
+-- A pirate haven's station that buys stolen goods, reachable from `from`: any of
 -- them, picked at random, so the hoard isn't always sold at the same one.
 local function fenceFor(u,home,from,clock)
  local out={}
- for _,area in ipairs(require('src.dark').areas()) do
+ for _,area in ipairs(require('src.dark').havens()) do
   for _,id in ipairs(require('src.security').bases(area)) do
    if require('src.travelgraph').live(from,id,clock) then out[#out+1]=id end
   end
