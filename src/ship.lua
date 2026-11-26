@@ -42,7 +42,7 @@ end
 	opts.hull     hull id, or a prepared hull table for an isolated preview
 	opts.loadout  module ids by slot (defaults to the hull's loadout)
 	opts.cargo    hold contents { itemId = count } (defaults to the hull's cargo)
-	opts.x, opts.y, opts.angle, opts.team, opts.enemy (enemy definition, for AI ships)
+	opts.x, opts.y, opts.angle, opts.enemy (enemy definition, for AI ships)
 	opts.color    a paint (src/paint.lua); defaults to the enemy's livery, else the hull's factory preset
 	opts.grid     true for a grid hold (the player): items take shapes on a
 	              grid of 1 m3 cells. Other ships just count volume.
@@ -56,7 +56,7 @@ end
 function Ship.new(game, opts)
 	local hull = type(opts.hull)=="table" and opts.hull or assert(data.hulls[opts.hull], "unknown hull " .. tostring(opts.hull))
 	local e = {
-		kind = "ship", id = game:nextId(), team = opts.team or 2,
+		kind = "ship", id = game:nextId(),
 		hull = hull, def = opts.enemy,
 		loadout = copy(opts.loadout or hull.loadout),
 		triggers = copy(opts.triggers or {}),

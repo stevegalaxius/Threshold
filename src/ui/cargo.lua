@@ -1740,7 +1740,7 @@ function Cargo.drawShipTooltip(game)
 		local home = r.home and require("src.locations").byId[r.home]
 		lines[#lines + 1] = { (r.label or "Pilot") .. (home and (" from " .. home.name) or ""), HUD.DIM }
 	end
-	if hit.team == 2 then lines[#lines + 1] = { "Hostile", { 1, 0.45, 0.35 } } end
+	if require("src.combat").hostile(game, game.player, hit) then lines[#lines + 1] = { "Hostile", { 1, 0.45, 0.35 } } end
 	local full = hit.stats and hit.stats.armor or 0
 	if full > 0 then
 		local pct = math.floor(100 * (hit.armor or full) / full + 0.5)

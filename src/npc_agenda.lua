@@ -10,6 +10,7 @@
 -- Agenda jobs are always loaded (phase 'delivery'), so they never need a
 -- pickup leg of their own; a stop where the ship docks for any reason
 -- settles every agenda job bound there.
+local Access=require('src.npc_access')
 local L=require('src.locations')
 local T=require('src.tuning')
 local copy=require('src.persistence').copy
@@ -68,13 +69,17 @@ end
 function A.promote(u,r,station,clock)
  if r.task or not r.agenda or #r.agenda==0 then return end
  local Transport=require('src.transport')
- local best,bestLen
+ local best,bestLen,risk
  for i,a in ipairs(r.agenda) do
-  local route=station and Transport.route(station,a.target,clock)
-  local len=station==a.target and 0 or route and #route or math.huge
-  if not best or len<bestLen then best,bestLen=i,len end
+  if Access.canDock(r,a.target,u) then
+   local route=station and Transport.route(station,a.target,clock)
+   local len=station==a.target and 0 or route and #route or math.huge
+   local exposure=Access.travelRisk(r,station,a.target,u)
+   if not best or exposure<risk or exposure==risk and len<bestLen then best,bestLen,risk=i,len,exposure end
+  end
  end
- local t=table.remove(r.agenda,best)
+ -- A blocked load stays aboard and becomes active for return/transfer.
+ local t=table.remove(r.agenda,best or 1)
  if #r.agenda==0 then r.agenda=nil end
  r.task=t;r.taskStatus=nil;t.route=nil
  local o=Tasks().state(u).offers[t.id]
@@ -134,7 +139,6 @@ function A.extend(u,r,station,clock)
  r.agendaScan=key
  local Tk=Tasks()
  local def=Tk.definitions.transport
- local Access=require('src.npc_access')
  local capabilities=Access.capabilities(r)
  if not Access.eligible(r,def,capabilities) then return 0 end
  local added=0
@@ -143,12 +147,15 @@ function A.extend(u,r,station,clock)
   for _,o in pairs(Tk.state(u).offers) do
    if o.kind=='transport' and o.state=='available' and o.source==station and o.item
     and (o.readyAt or 0)<=clock and Tk.npcMayClaim(u,o,clock)
-    and onTheWay(r,o.target) and Access.eligible(r,o,capabilities)
+    and onTheWay(r,o.target) and Access.eligible(r,o,capabilities,u)
     and A.eligible(def,u,r,o,station,clock) then
-    list[#list+1]={o=o,v=def.score(u,r,o,station,clock)}
+    list[#list+1]={o=o,risk=Access.jobRisk(r,station,o,u),v=def.score(u,r,o,station,clock)}
    end
   end
-  table.sort(list,function(a,b) return a.v>b.v or a.v==b.v and a.o.id<b.o.id end)
+  table.sort(list,function(a,b)
+   if a.risk~=b.risk then return a.risk<b.risk end
+   return a.v>b.v or a.v==b.v and a.o.id<b.o.id
+  end)
   local took
   for i=1,math.min(#list,Tk.feasibleTries) do
    local o=list[i].o

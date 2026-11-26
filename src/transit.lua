@@ -82,7 +82,7 @@ function Game:spawnDrivers()
 			end
 		end
 		local body = love.physics.newBody(self.world, x, y, "kinematic")
-		local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body,
+		local g = { kind = "driver", invulnerable = true, id = self:nextId(), body = body,
 			radius = T.driverRadius, name = Locations.get(id).name, angle = a }
 		body:setUserData(g)
 		table.insert(self.entities, g)
@@ -460,6 +460,7 @@ function Game:updateFlight(dt)
 	if f.t < f.dur then return end
 	self.flight, self.lastFlight = nil, f
 	self.universe.clock = self.universe.clock + T.flightClockPerAU * f.au
+	require('src.encounters').update(self,self.universe.clock)
 	self:loadField(f.to, { player = f.ship, at = { catch = true } })
 end
 
@@ -497,7 +498,7 @@ function Game:spawnCatchRings()
 	for k = 1, math.floor(T.catchRings + 0.5) do
 		local d = k * T.catchSpacing
 		local body = love.physics.newBody(self.world, gx + ox * d, gy + oy * d, "static")
-		local e = { kind = "catchring", invulnerable = true, id = self:nextId(), team = 0, body = body,
+		local e = { kind = "catchring", invulnerable = true, id = self:nextId(), body = body,
 			radius = T.catchRingRadius, index = k, angle = g.angle }
 		body:setUserData(e)
 		table.insert(self.entities, e)
@@ -941,6 +942,7 @@ function Game:prewakeScene(scene, fx, fy)
 			end
 		end
 	end
+	require('src.encounters').syncOnline(scene)
 end
 
 -- Each frame: build on the map at whichever end you're heading for, once
@@ -1594,7 +1596,7 @@ end
 -- the middle. Inside its radius the crush builds with depth.
 function Game:spawnGasGiant(x, y, radius, flow, swirl, hue)
 	local body = love.physics.newBody(self.world, x, y, "static")
-	local e = { kind = "planet", gas = true, invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
+	local e = { kind = "planet", gas = true, invulnerable = true, id = self:nextId(), radius = radius, body = body,
 		hue = hue or { 0.85, 0.65, 0.45 } }
 	body:setUserData(e)
 	table.insert(self.entities, e)
@@ -1660,7 +1662,7 @@ function Game:spawnCloudCity(a, k, locationId, layoutId)
 		if err then error(err) end
 	end
 	local def = data.stations[id]
-	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), team = 0, body = body,
+	local e = { kind = "station", city = true, invulnerable = true, id = self:nextId(), body = body,
 		def = def, key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n), locationId = locationId,
 		name = names and names[n] or "Cloud city", radius = 1680 * k,
 		cloudY = def.haze or (-TH - 60),

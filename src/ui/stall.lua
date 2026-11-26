@@ -201,6 +201,14 @@ local STATUS = { open = { "On the board", GOLD }, hauling = { "Hauler carrying i
 	delivered = { "Delivered", HUD.DIM }, cancelled = { "Cancelled", HUD.DIM } }
 
 local ShipDelivery=require('src.ship_delivery')
+local Tasks=require('src.tasks')
+
+local function reservedParking(u,order)
+ local offer=Tasks.state(u).offers[order.id]
+ local parking=offer and offer.parking
+ if not parking then return end
+ return parking.mooring and ('Berth %d reserved'):format(parking.mooring) or 'Hangar bay reserved'
+end
 
 function View.deliveryLayout(game,f)
  local m,u=f.main,game.universe
@@ -361,7 +369,7 @@ local function drawShipOrders(game,f,mx,my)
  local x,y,w=detail.x+14,detail.y+40,detail.w-28
  local orders=f.shipOrders
  card(orders.x,orders.y,orders.w,orders.h,'Your deliveries')
- local statuses={listed='Waiting for pickup',['in transit']='In transit',delivered='In Hangar',
+ local statuses={listed='Waiting for pickup',['in transit']='In transit',delivered='Delivered',
   cancelled='Canceled and refunded',expired='Pickup expired · refunded',lost='Lost · refunded'}
  if #f.deliveryRows==0 then text(orders.x+10,orders.y+42,orders.w-20,'No deliveries here.',13,HUD.DIM) end
  for _,row in ipairs(f.deliveryRows) do
@@ -370,10 +378,14 @@ local function drawShipOrders(game,f,mx,my)
   lg.rectangle('fill',orders.x+6,row.y,orders.w-12,62,4,4)
   text(orders.x+10,row.y+3,orders.w-20,data.hulls[order.hull].name,14,HUD.INK)
   text(orders.x+10,row.y+19,orders.w-20,order.waitingParking and "Waiting for parking" or statuses[order.status] or order.status,12,HUD.DIM)
+  local parking=reservedParking(game.universe,order)
   if order.status=='listed' then
    Station.button(row.cancel,'Cancel',inside(row.cancel,mx,my),true)
    local remaining=math.max(0,math.ceil((order.pickupBy-game.universe.clock)/60))
-   text(row.cancel.x+82,row.cancel.y+5,orders.w-101,remaining..' min left',11,HUD.DIM)
+   text(row.cancel.x+82,row.cancel.y+1,orders.w-101,remaining..' min left',11,HUD.DIM)
+   if parking then text(row.cancel.x+82,row.cancel.y+13,orders.w-101,parking,11,HUD.AQUA) end
+  elseif order.status=='in transit' and parking then
+   text(orders.x+10,row.y+36,orders.w-20,parking,12,HUD.AQUA)
   end
  end
  local o=f.shipQuote
@@ -409,7 +421,7 @@ local function deliveryClick(game,f,mx,my)
  if inside(f.shipAction,mx,my) and f.shipQuote and f.hasShipCarrier and u.credits>=f.shipQuote.price+f.shipQuote.fee then
   local order,why=ShipDelivery.orderPlayer(u,f.shipQuote)
   cache={}
-  game:toast(order and 'SHIP DELIVERY POSTED' or why,2)
+  game:toast(order and ('Ship delivery posted · '..reservedParking(u,order)) or why,2)
   return true
  end
  for _,row in ipairs(f.shipRows) do

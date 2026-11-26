@@ -1,4 +1,5 @@
 local DebrisView = require("src.sleeping_debris_view")
+local NpcAccess = require("src.npc_access")
 --[[
 	The flight-toy arena: one Box2D world, a flat list of entities (ships
 	and asteroids), and lists of projectiles, pickups and effects. Systems
@@ -15,6 +16,8 @@ local data = require("src.data")
 local T = require("src.tuning")
 local softBoundary=require("src.soft_boundary")
 local Ship = require("src.ship")
+local Combat = require("src.combat")
+local Aggression = require("src.aggression")
 local HullShape = require("src.hullshape")
 local Stations = require("src.stations")
 local Weapons = require("src.weapons")
@@ -83,8 +86,8 @@ end
 function Game:retainField(opts)
 	opts = opts or {}
 	Mining.captureResources(self)
+	self:captureALife(false,true)
 	for id, e in pairs(self.alifeOnline or {}) do
-		ALife.capture(self, e, true)
 		e.alifeId = nil
 		if not (opts.lane and e.cruise) then e.ghost = true; e.cruise = nil else e.ghostCruise = true end
 		self.alifeOnline[id] = nil
@@ -241,6 +244,7 @@ function Game:loadField(id, opts)
 	self.entities, self.projectiles, self.pickups, self.effects, self.contacts = {}, {}, {}, {}, {}
 	self.pickupBodies = {}
 	self.player, self.playerHusk, self.deathX, self.deathY = nil, nil, nil, nil
+	self.wreckContractNotice = nil
 	self.fieldId = id
 	self.field = assert(Fields[id], "unknown field " .. tostring(id))
 	-- arriving on a dark grid puts it on your charts (src/dark.lua)
@@ -307,7 +311,7 @@ function Game:spawnPlayer(hullId, loadout, cargo)
 	local sx, sy = self.field.spawn[1], self.field.spawn[2]
 	local p = Ship.new(self, { hull = self.playerHull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads, cargo = rec.cargo, hold = rec.hold, armor = rec.armor,
 		fuelCharge=rec.fuelCharge, fuelInitialized=rec.fuelInitialized, power=rec.power,
-		team = 1, x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
+		x = sx, y = sy, angle = -pi / 2, color = rec.color, grid = true })
 	p.isPlayer = true
 	p.repairOrder=rec.repairOrder
 	if rec.carried then p.carried=rec.carried;Ship.updateMass(p) end
@@ -329,7 +333,8 @@ function Game:spawnEnemy(id, x, y, opts)
 		local px, py = self.player.body:getPosition()
 		angle = math.atan2(py - y, px - x)
 	end
-	local e = Ship.new(self, { hull = def.hull, loadout = def.loadout, cargo = def.cargo, team = def.team or 2, x = x, y = y, angle = angle, enemy = def })
+	local e = Ship.new(self, { hull = def.hull, loadout = def.loadout, cargo = def.cargo, x = x, y = y, angle = angle, enemy = def })
+	e.scriptedEnemy = true
 	e.aggro = not (opts and opts.idle)
 	table.insert(self.entities, e)
 	return e
@@ -358,7 +363,7 @@ function Game:launchDrone(owner, item, x, y, angle)
 		end
 	end
 	local d = Ship.new(self, {
-		hull = shot.hull, cargo = shot.cargo, team = owner.team, x = x, y = y, angle = angle,
+		hull = shot.hull, cargo = shot.cargo, x = x, y = y, angle = angle,
 		color = owner.color, enemy = { id = item.id, ai = DRONE_AI },
 	})
 	-- drones never expire: they come home once there's nothing to fight
@@ -670,7 +675,7 @@ function Game:spawnAsteroid(x, y, radius, kind, savedVerts, asleep)
 	-- jagged outlines can come out concave: keep their convex hull, so
 	-- every piece is a polygon (never a plain circle)
 	if not love.math.isConvex(verts) then verts = convexHull(verts) end
-	local e = { kind = "asteroid", debris = kind, id = self:nextId(), team = 0, radius = radius, verts = savedVerts or verts,
+	local e = { kind = "asteroid", debris = kind, id = self:nextId(), radius = radius, verts = savedVerts or verts,
 		shade = 0.55 + random() * 0.25, fill = D.fill, line = D.line, blink = random() * 10,
 		hp = radius * radius * T.asteroidToughness * D.tough }
 	if not savedVerts then RockChips.seed(e) end
@@ -744,7 +749,7 @@ function Game:spawnGiantAsteroid(x, y, radius)
 		table.insert(outline, sin(ang) * rr)
 	end
 	local body = love.physics.newBody(self.world, x, y, "static")
-	local e = { kind = "asteroid", giant = true, invulnerable = true, id = self:nextId(), team = 0, radius = radius,
+	local e = { kind = "asteroid", giant = true, invulnerable = true, id = self:nextId(), radius = radius,
 		outline = outline, tris = love.math.triangulate(outline), body = body, shade = 0.6, craters = {} }
 	for _ = 1, 9 do
 		local a, d = random() * pi * 2, random() * radius * 0.6
@@ -774,7 +779,7 @@ end
 -- Only landable mining worlds use terrain contacts that permit soft landings.
 function Game:spawnPlanet(x, y, radius, flow, swirl, rocky, landable)
 	local body = love.physics.newBody(self.world, x, y, "static")
-	local e = { kind = "planet", invulnerable = true, id = self:nextId(), team = 0, radius = radius, body = body,
+	local e = { kind = "planet", invulnerable = true, id = self:nextId(), radius = radius, body = body,
 		hue = { 0.35 + random() * 0.2, 0.45 + random() * 0.2, 0.7 + random() * 0.2 } }
 	e.rock, e.landable = rocky, landable == true
 	local shape
@@ -1106,7 +1111,7 @@ function Game:spawnStation(id, x, y, spin, simulated, locationId)
 	self.stationCount = (self.stationCount or 0) + 1
 	local n = self.stationCount
 	local names = self.field and self.field.stations
-	local e = { kind = "station", invulnerable = true, id = self:nextId(), team = 0, body = body,
+	local e = { kind = "station", invulnerable = true, id = self:nextId(), body = body,
 		def = def, role = def.role,
 		key = ("%s/runtime_station_%d"):format(self.fieldId or "?", n),
 		name = names and names[n] or ((self.field and self.field.name or "") .. " Station " .. n) }
@@ -1252,14 +1257,15 @@ function Game:armStation(e)
 end
 
 -- Would this station shoot at o? Only at aggression: anyone who has shot
--- the station lately, or a hostile (team 2) ship that has lately opened
+-- the station lately, or a raider or scripted enemy that has lately opened
 -- fire on someone else. A pirate just passing by is left alone, which is
 -- also all the offline simulation can know about (it has no stations).
 function Game:stationHostile(st, o)
-	if o.kind ~= "ship" or o.dead or o.removed or o.dockState then return false end
+	if o.kind ~= "ship" or o.dead or o.removed or o.dockState or o.driverProtected or o.unpiloted
+		or Combat.allied(self.universe, st, o) then return false end
 	-- the player: by standing with the owner and local heat (saved, so
 	-- it holds across saves and while you're away, cooling on the clock)
-	if o.isPlayer then
+	if Combat.controller(o).isPlayer then
 		local Rep = require("src.reputation")
 		return Rep.hostile(Rep.stationAttitude(self.universe, st.key or st.locationId))
 	end
@@ -1267,7 +1273,7 @@ function Game:stationHostile(st, o)
 	if o.drone and o.owner and o.owner.kind == "station" then return false end
 	local g = st.grudge and st.grudge[o]
 	if g and self.time - g < GRUDGE_TIME then return true end
-	return o.team == 2 and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
+	return Combat.sceneEnemy(o) and o.aggressedAt ~= nil and self.time - o.aggressedAt < GRUDGE_TIME
 end
 
 function Game:updateStationGuns(dt)
@@ -1422,6 +1428,7 @@ function Game:inTractorZone(st, x, y)
 end
 
 function Game:beginDocking(e, st, side, dock, berth, pose, bay)
+ if e.alifeRecord and not NpcAccess.canStop(e.alifeRecord,st.locationId,self.universe) then return false end
 	e.queueStop, e.queueEntered = nil, nil
 	e.dockState = { station = st, phase = "tractor", t = 0, side = side or 1, dock = dock or st.dock, berth = berth, mooring = pose }
 	e.bay, e.bayStation = bay, st.locationId or st.key
@@ -1434,6 +1441,7 @@ function Game:beginDocking(e, st, side, dock, berth, pose, bay)
 	end
 	e.intent.firePrimary, e.intent.fireSecondary, e.intent.fireTertiary = false, false, false
 	if e == self.player then self:toast("TRACTOR LOCK", 1.4) end
+ return true
 end
 
 local function relativeDockSpeed2(e, st)
@@ -1448,7 +1456,7 @@ function Game:tryBerthTractor(e, st, dock, berth, pose)
 	local reach, width = tractorSize(lane)
 	if lx < -30 or lx > reach or math.abs(ly) >= width or relativeDockSpeed2(e, st) > 380^2 then return false end
 	if not self:mooringFits(st, berth, e.hull.id, e) or not self:tractorPathClear(e, st, 1, lane, lx, 0) then return false end
-	self:beginDocking(e, st, 1, dock, berth, pose)
+	if not self:beginDocking(e, st, 1, dock, berth, pose) then return false end
 	e.dockApproach = nil
 	return true
 end
@@ -1468,8 +1476,7 @@ function Game:tryHangarTractor(e, st)
 		end
 		return false
 	end
-	self:beginDocking(e, st, side, dock, nil, nil, bay)
-	return true
+	return self:beginDocking(e, st, side, dock, nil, nil, bay)
 end
 
 function Game:updateDocking(dt)
@@ -1549,7 +1556,12 @@ function Game:finishDocking(e, ds, st)
 		ds.stay = 30 + random() * 60
   if e.alifeRecord then
    e.alifeRecord.ship.armor=e.armor
-   require('src.npc').beginDocked(e.alifeRecord,st.locationId,self.universe.clock,self.universe)
+   if not require('src.npc').beginDocked(e.alifeRecord,st.locationId,self.universe.clock,self.universe) then
+    -- The ship is already inside the dock. Use the normal launch lane
+    -- without completing the visit or doing station work.
+    e.alifeRecord.untilTime,e.alifeRecord.nextDecisionAt=self.universe.clock,nil
+    return
+   end
    ds.departAt=e.alifeRecord.untilTime
    ds.stay=math.max(0,ds.departAt-self.universe.clock)
   end
@@ -1565,8 +1577,10 @@ end
 function Game:updateDockedShip(e, dt)
  if e.dockState.station.sat then return require('src.satellites').updateDock(self,e,dt) end
  if e==self.player and e.dockState.done then self:updateRepairs(e.dockState.station) end
- require("src.npc_repair").online(self,e,dt)
-	local ds = e.dockState
+ local record=e.alifeRecord
+ local ds=e.dockState
+ local admitted=not record or NpcAccess.canStop(record,ds.station.locationId,self.universe)
+ if admitted then require("src.npc_repair").online(self,e,dt) end
 	local st, d = ds.station, ds.dock or ds.station.dock
 	local b, sb = e.body, st.body
 	local side = ds.side or 1
@@ -1598,7 +1612,7 @@ function Game:updateDockedShip(e, dt)
 		-- Thrust and steering stay live for the player. NPC pilots commit to
 		-- the beam; a blocked lane can still be released by the station.
 		if (e == self.player and (lx > lane.x2 + reach*1.2 or math.abs(ly) > width*1.2))
-			or (e ~= self.player and ds.t > 35) then
+			or not admitted or (e ~= self.player and ds.t > 35) then
 			release()
 			return
 		end
@@ -1982,7 +1996,7 @@ end
 -- fixtures), usually set on a track with setOrbit.
 function Game:spawnBuoy(x, y, locationId)
 	local body = love.physics.newBody(self.world, x, y, "kinematic")
-	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), team = 0, body = body, radius = 24, blink = random() }
+	local e = { kind = "buoy", invulnerable = true, id = self:nextId(), body = body, radius = 24, blink = random() }
 	body:setUserData(e)
 	table.insert(self.entities, e)
 	if locationId then
@@ -2052,7 +2066,7 @@ function Game:addStructure(verts, opts)
 	local r = 0
 	for i = 1, #verts, 2 do r = max(r, sqrt((verts[i] - cx) ^ 2 + (verts[i + 1] - cy) ^ 2)) end
 	local body = love.physics.newBody(self.world, 0, 0, "static")
-	local e = { kind = "structure", invulnerable = true, id = self:nextId(), team = 0, verts = verts,
+	local e = { kind = "structure", invulnerable = true, id = self:nextId(), verts = verts,
 		cx = cx, cy = cy, radius = r, role = opts and opts.role, body = body, blink = random() * 10 }
 	local f = love.physics.newFixture(body, love.physics.newPolygonShape(verts))
 	f:setFriction(0.5)
@@ -2136,7 +2150,7 @@ function Game:spawnContainer(x, y, id, loaded, inner)
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
 	local hold = inner or Hold.new({ { key = "main", name = item.name, w = item.grid[1], h = item.grid[2] } })
 	local e = {
-		kind = "container", id = self:nextId(), team = 0, item = id, body = body, hold = hold,
+		kind = "container", id = self:nextId(), item = id, body = body, hold = hold,
 		w = w, h = h, radius = sqrt(w * w + h * h) / 2, halfLength = w / 2, hp = item.hp,
 	}
 	if loaded then
@@ -2286,7 +2300,7 @@ end
 function Game:enemyCount()
 	local n = 0
 	for _, e in ipairs(self.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead and not e.fleeing then n = n + 1 end
+		if Combat.sceneEnemy(e) and not e.dead and not e.fleeing then n = n + 1 end
 	end
 	return n
 end
@@ -2574,20 +2588,25 @@ function Game:resolveContacts()
 	end
 end
 
--- Closest thing hit along a segment, ignoring one team.
+-- Closest hit along a segment. Weapons pass through allied ships.
 -- sides: also look into the maps alive beside this one (src/transit.lua),
 -- whose rock is drawn past the edge but lives in its own physics world; a
 -- hit there carries scene (and lx, ly, the hit in that scene's own
 -- coordinates) so Game:damageHit lands it on the right map.
-function Game:raycast(x1, y1, x2, y2, ignoreTeam, sides)
+function Game:raycast(x1, y1, x2, y2, source, sides, weapon)
 	-- Box2D asserts on a segment its float32 maths sees as zero length (a
 	-- shot that barely moved this step), and on NaN
 	local ls = (x2 - x1) ^ 2 + (y2 - y1) ^ 2
 	if not (ls > 1e-6) or x1 ~= x1 or y1 ~= y1 then return nil end
+	local function ignored(e)
+		return not e or e.dead or e.podHidden or e == source
+			or (weapon and source and (e == Combat.controller(source)
+				or e.kind == "ship" and Combat.allied(self.universe, source, e)))
+	end
 	local best
 	self.world:rayCast(x1, y1, x2, y2, function(fixture, x, y, xn, yn, fraction)
 		local e = fixture:getUserData()
-		if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
+		if ignored(e) then return -1 end
 		best = { entity = e, x = x, y = y, nx = xn, ny = yn, fraction = fraction }
 		return fraction
 	end)
@@ -2598,7 +2617,7 @@ function Game:raycast(x1, y1, x2, y2, ignoreTeam, sides)
 				local sb
 				scene.world:rayCast(x1 - ox, y1 - oy, x2 - ox, y2 - oy, function(fixture, x, y, xn, yn, fraction)
 					local e = fixture:getUserData()
-					if not e or e.dead or e.podHidden or e.team == ignoreTeam then return -1 end
+					if ignored(e) then return -1 end
 					sb = { entity = e, x = x + ox, y = y + oy, lx = x, ly = y, nx = xn, ny = yn, fraction = fraction, scene = scene }
 					return fraction
 				end)
@@ -2629,6 +2648,8 @@ function Game:damage(e, amount, source, cause, hx, hy)
 		and not (source.drone and source.owner and source.owner.kind == "station")
 		and not (source.def and source.def.ai and source.def.ai.style == "civilian") then
 		e.grudge[source] = self.time
+		local id=e.locationId
+		Aggression.record(self.universe,History.entityId(source),id,self.fieldId,self.universe.clock,cause or "hit",id)
 	end
 	-- the player's aggression is remembered: heat at a station it shoots,
 	-- goodwill with the ship it shoots, standing with their faction
@@ -2639,8 +2660,9 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	-- remember who starts shooting at other ships (stations answer it)
 	if e and e.kind == "ship" and source and source.kind == "ship" and amount > 0
-		and cause ~= "ram" and source.team ~= e.team then
+		and cause ~= "ram" and not Combat.allied(self.universe, source, e) then
 		source.aggressedAt = self.time
+		Combat.controller(source).aggressedAt = self.time
 	end
 	-- Asteroids, husks and containers don't flinch: they soak damage until they break
 	-- apart (in reap).
@@ -2671,15 +2693,21 @@ function Game:damage(e, amount, source, cause, hx, hy)
 	end
 	if not e or e.kind ~= "ship" or e.dead or amount <= 0 then return end
 	if source and source.def then amount = amount * T.enemyDamage end   -- difficulty knob
-	History.hit(self,e,source)
+	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
+	local opposed = source and not Combat.allied(self.universe,source,e)
+	local victim=e.alifeRecord
+	local node=victim and victim.route and victim.route[e.routeIndex or victim.index]
+	local incident=History.hit(self,e,source,amount>0 and deliberate and opposed and (cause or "hit"),node)
+	if incident and cause ~= "ram" then
+		require("src.security").reportRaid(self,Combat.controller(source).alifeRecord,victim,incident)
+	end
 	e.flash = 0.08
 	if e.isPlayer and T.dev.god then return end
 	e.armor = e.armor - amount
 	e.lastHitBy = source
 	-- a neutral that gets shot remembers who did it, and shoots back
 	-- a bump isn't an attack: only a hard ram (a real share of its armour) counts
-	local deliberate = cause ~= "ram" or amount >= (e.stats and e.stats.armor or 0) * T.ramAggroShare
-	if (e.team == 3 or e.alifeId) and source and source.kind == "ship" and source.team ~= e.team and deliberate then e.aggressor = source end
+	if not e.unpiloted and opposed and source.kind == "ship" and deliberate then e.aggressor = source end
 	e.lastHitTime = self.time
 	if e.isPlayer then self:shake(min(0.35, amount / 50)) end
 	events.emit("hit", e, amount, source, cause)
@@ -3040,7 +3068,7 @@ function Game:reap()
 				if r then History.death(self.universe,r,self.universe.clock,self.fieldId,History.entityId(e.lastHitBy)) end
 				local owed = r and require("src.wildcats").death(self.universe,r,History.entityId(e.lastHitBy))
 				if owed then self:toast(("WILDCAT BOUNTY: %d CR"):format(owed), 2) end
-				if r and e.lastHitBy and e.lastHitBy.isPlayer then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
+				if r and History.entityId(e.lastHitBy)=="player" then require("src.reputation").shipKilled(self.universe,r,self.fieldId) end
 			end
 			local x, y = e.body:getPosition()
 			local a = e.body:getAngle()
@@ -3053,6 +3081,7 @@ function Game:reap()
 			if e.isPlayer then
 				self.state = "dead"
 				self.deathTime = self.time
+				self.wreckContractNotice = require("src.player_contracts").onWreck(self, e)
 				self.deathX, self.deathY = x, y
 				self:shake(1)
 				events.emit("death", e)
@@ -3134,7 +3163,7 @@ function Game:spawnHusk(ship, x, y, a, vx, vy, w, preparedHold)
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
 	local hold = preparedHold or huskHold(ship)
 	local h = {
-		kind = "husk", id = self:nextId(), team = 0, hull = hull, color = ship.color,
+		kind = "husk", id = self:nextId(), hull = hull, color = ship.color,
 		spine = ship.spine, noseX = ship.noseX, tailX = ship.tailX, halfLength = ship.halfLength,
 		radius = ship.halfLength, body = body, hold = hold, loot = Hold.totals(hold),
 		hp = ship.stats.armor * T.huskToughness, flicker = random() * 10,
@@ -3224,7 +3253,7 @@ end
 -- Restore exact wreck state without rolling loot or choosing new part shares.
 function Game:restoreHusk(r, hull, hold)
 	local body = love.physics.newBody(self.world, r.x, r.y, "dynamic")
-	local h = { kind = "husk", id = self:nextId(), team = 0, hull = hull, body = body,
+	local h = { kind = "husk", id = self:nextId(), hull = hull, body = body,
 		hold = hold, loot = Hold.totals(hold), color = r.color, spine = r.spine,
 		noseX = r.noseX, tailX = r.tailX, halfLength = r.halfLength, radius = r.radius,
 		hp = r.hp, flicker = r.flicker, placed = r.placed, armorBase = r.armorBase, origin = r.origin,shotSalvage=r.shotSalvage }
@@ -3401,7 +3430,7 @@ function Game:breakOff(h, piece)
 	local kick = 80 + random() * 120
 	local body = love.physics.newBody(self.world, x, y, "dynamic")
 	local bits = {
-		kind = "husk", id = self:nextId(), team = 0, hull = h.hull, part = part, color = h.color,
+		kind = "husk", id = self:nextId(), hull = h.hull, part = part, color = h.color,
 		noseX = part.reach, tailX = -part.reach, halfLength = part.reach, radius = part.reach, body = body,
 		hold = Hold.pack(taken, 4, 3, h.hull.name .. " wreckage", random, stacks), hp = h.armorBase * piece.frac * 0.5,
 		flicker = random() * 10,
@@ -3437,7 +3466,7 @@ end
 function Game:clearEnemies()
 	for i = #self.entities, 1, -1 do
 		local e = self.entities[i]
-		if e.kind == "ship" and e.team == 2 then self:remove(e) end
+		if Combat.sceneEnemy(e) then self:remove(e) end
 	end
 	self.projectiles = {}
 	for _, r in ipairs(require("src.wildcats").members(self.universe, self.fieldId)) do r.state = "dead" end

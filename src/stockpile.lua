@@ -341,7 +341,7 @@ function S.reserved(u,st,id,except)
  local Transport=package.loaded['src.transport']
  if Transport and Transport.scanning(u) then return Transport.reserved(u,key,id,except,false) end
  for _,o in pairs(u.tasks and u.tasks.offers or {}) do
-  if o.order and o.source==key and o.item==id and not o.loaded and o.state~='available'
+  if o.order and o.source==key and o.item==id and not o.relay and not o.loaded and o.state~='available'
    and (not except or o.id~=except and o.manifestRoot~=except) then n=n+o.amount end
  end
  return n

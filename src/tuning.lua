@@ -227,6 +227,7 @@ T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.alifeSweepBudget = 0.00075 -- wall seconds before deferring the rest of an offline batch
 T.alifeSweepStep = 1 / 120 -- offline record visits are spread over the tick in steps this long (see Game:updateALife)
 T.securityThink, T.securityRange = 0.5, 6000
+T.aggressionWindow = 90 -- game seconds to retain recent attacks for local response
 T.aiSteerEvery, T.aiClearance = 0.2, 12
 -- A turn-helm hull slides with no side thrust: past this much speed
 -- error across its route it turns its engines onto the error (px/s), and
@@ -504,6 +505,10 @@ T.orderMinFreight=800 -- and an order pays a hauler at least this over an AU (E.
 T.orderMaxVolume=200 -- cubic metres in one ordinary (not hub-to-hub) order: a median hauler's hold
 T.agendaMaxJobs=4     -- most jobs one NPC holds at once (src/npc_agenda.lua)
 T.agendaHoldPerJob=80 -- m3 of hold per extra job it may hold
+T.freightStallTime=90 -- seconds of live flight without progress before replanning
+T.freightProgressDistance=180 -- px towards the active waypoint
+T.freightRelayVolume=800 -- cubic metres of sealed freight per station
+T.freightRelayShare=.25 -- maximum fraction of the original fee paid at handoff
 T.freightMinRun=12    -- m3 of freight at a pickup, bound for one area, before haulers fly it
 T.unmetShortageAge=300 -- s a buyer stays short before its makers count it as unmet, spare stock elsewhere or not (src/economy.lua)
 T.unmetShelfLots=4    -- lots a plant may hold while answering unmet demand before it slows (src/economy.lua)
@@ -687,6 +692,7 @@ T.passengerFareBase=60
 T.passengerFarePerAU=40
 T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
+T.passengerDivertShare=.5  -- fare share paid when a closed destination diverts the party
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
 -- Price-driven goods (prototype; src/economy.lua, src/markets.lua). For

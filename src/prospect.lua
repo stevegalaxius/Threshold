@@ -126,7 +126,7 @@ Actions.registerOperation('prospect', {
 		local x, y = e.body:getPosition()
 		local angle = e.body:getAngle()
 		local diff = (math.atan2(target.y - y, target.x - x) - angle + math.pi) % (2 * math.pi) - math.pi
-		local hit = ctx.game:raycast(x + math.cos(angle) * e.halfLength, y + math.sin(angle) * e.halfLength, target.x, target.y, e.team)
+		local hit = ctx.game:raycast(x + math.cos(angle) * e.halfLength, y + math.sin(angle) * e.halfLength, target.x, target.y, e)
 		e.intent.aimX, e.intent.aimY = target.x, target.y
 		e.intent.firePrimary = math.abs(diff) < 0.18 and (not hit or hit.entity == rock or rareRock(hit.entity))
 		e.intent.targetDist = nil

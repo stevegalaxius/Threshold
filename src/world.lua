@@ -40,6 +40,7 @@ local Hold = require("src.inventory.hold")
 local Save = require("src.save")
 local Grid = require("src.inventory.grid")
 local Persistence = require("src.persistence")
+local Aggression = require("src.aggression")
 local events = require("src.events")
 
 local sqrt, cos, sin, pi, max = math.sqrt, math.cos, math.sin, math.pi, math.max
@@ -103,6 +104,8 @@ end
 function Game:playerDocked(st)
 	self:givePlayerBay(st)
 	self.universe.home = { field = self.fieldId, key = st.key, name = st.name }
+	local _, message = require("src.player_contracts").finishRecovery(self)
+	if message then self:toast(message, 2.5) end
 	self:autosave()
 end
 
@@ -271,6 +274,9 @@ function Game:hangarGrid(st, ignore)
 		if Grid.isFree(g, bay.x, bay.y, w, h) then Grid.place(g, { x = bay.x, y = bay.y, w = w, h = h, owner = owner }) end
 	end
 	for _, rec in ipairs(self:stationRoster(st)) do put(rec, rec.hull, rec.bay) end
+	for _, claim in ipairs(require('src.dealer_parking').claims(self.universe, st.locationId or st.key)) do
+		if claim ~= self.ignoredDeliveryParking then put(claim, claim.hull, claim.bay) end
+	end
 	for _,e in ipairs(self.entities) do
 		if e.kind=='ship' and not e.dead and not e.removed and e.dockState and e.dockState.station==st then
 			put(e,e.hull.id,e.bay)
@@ -325,7 +331,7 @@ end
 function Game:addToHangar(st, hullId, paintName, loadout)
 	local parking=self:shipParkingFit(st,hullId)
 	if not parking then self:toast("NO SUITABLE FREE PARKING",1.4) return nil end
-	local e = Ship.new(self, { hull = hullId, team = 1, grid = true, loadout = loadout, color = paintName and Paint.preset(paintName) or nil })
+	local e = Ship.new(self, { hull = hullId, grid = true, loadout = loadout, color = paintName and Paint.preset(paintName) or nil })
 	local rec = Ship.record(e)
 	e.body:destroy()
 	self:applyParking(rec,parking)
@@ -489,7 +495,7 @@ function Game:saveState()
 	local state = { field = field, trip = state_trip, kills = self.kills, home = u.home, stations = stations,
 		dealers=Persistence.copy(u.dealers),markets=Persistence.copy(u.markets),facilities=Persistence.copy(u.facilities),
 		credits = u.credits, clock = u.clock, areas = Persistence.copy(u.areas), nextObjectId = u.nextObjectId,
-		simulationHistory = Persistence.copy(u.simulationHistory), salvage=Persistence.copy(u.salvage),
+		simulationHistory = Persistence.copy(u.simulationHistory), aggression=Aggression.snapshot(u), salvage=Persistence.copy(u.salvage),
 		piracy = Persistence.copy(u.piracy), reputation = (require('src.reputation').prune(u) or Persistence.copy(u.reputation)), alifeWrecks = Persistence.copy(u.alifeWrecks), encounterNext = u.encounterNext,
 		worldLayoutSignature=u.worldLayoutSignature,worldLocations=Persistence.copy(u.worldLocations),
         populationSpawns = Persistence.copy(u.populationSpawns), mining = Persistence.copy(u.mining),
@@ -497,7 +503,8 @@ function Game:saveState()
 		tasks = Persistence.copy(u.tasks), quests = Persistence.copy(u.quests), jobs = Persistence.copy(u.jobs), npcs = Persistence.copy(u.npcs), npcAreas = Persistence.copy(u.npcAreas), nextNpcId = u.nextNpcId, queues = Persistence.copy(u.queues), satellites = Persistence.copy(u.satellites),
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
 		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts), wreckBounty = Persistence.copy(u.wreckBounty), madeAt = Persistence.copy(u.madeAt),
-		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications) }
+		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications),
+		wreckContractNotice = self.state == "dead" and self.wreckContractNotice or nil }
 	local p = self.player
 	if p and not p.dead then
 		local where
@@ -541,6 +548,7 @@ function Game:loadState(state)
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext
 	self.universe.simulationHistory = Persistence.copy(state.simulationHistory)
+	self.universe.aggression = Persistence.copy(state.aggression)
  self.universe.salvage=Persistence.copy(state.salvage)
 	self.universe.pirateSpawns = Persistence.copy(state.pirateSpawns)
 	self.universe.populationSpawns = Persistence.copy(state.populationSpawns)
@@ -555,7 +563,7 @@ function Game:loadState(state)
 	self.universe.quests = Persistence.copy(state.quests)
 	self.universe.npcs = Persistence.copy(state.npcs or {})
 	self.universe.npcAreas = Persistence.copy(state.npcAreas or {})
-	for _, r in pairs(self.universe.npcs) do repairNpcShip(r) end
+	for _, r in pairs(self.universe.npcs) do repairNpcShip(r); Aggression.migrate(self.universe,r) end
 	self.universe.nextNpcId = state.nextNpcId or 0
 	self.universe.queues = Persistence.copy(state.queues or {})
 	self.universe.satellites = Persistence.copy(state.satellites or {})
@@ -655,7 +663,10 @@ function Game:loadState(state)
 	end
 	local st = p and p.dockState and p.dockState.station
 	if st and pl.at.bay and self:hangarFree(st, p, p.hull.id, pl.at.bay) then p.bay = pl.at.bay end
-	if not pl then self.state = "dead" end
+	if not pl then
+		self.state = "dead"
+		self.wreckContractNotice = state.wreckContractNotice
+	end
 end
 
 function Game:saveTo(slot)

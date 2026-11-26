@@ -457,6 +457,26 @@ local function underAttack(game,r)
 end
 local function whereIs(r) return r.node or (r.route and r.route[r.index]) end
 
+function S.civilianDistress(game,victim,clock,node)
+ local u=game.universe
+ local state=u.squads
+ if not state or not state.groups then return false end
+ local g=state.groups['bg/police/'..S.system(victim.area)]
+ if not g then return false end
+ local assigned=false
+ for _,area in ipairs(S.systemAreas(g.system,g.faction)) do
+  if area==victim.area then assigned=true;break end
+ end
+ if not assigned then return false end
+ node=node or (victim.route and victim.route[victim.index]) or victim.node
+ local place=L.byId[node]
+ if not place or place.area~=victim.area then return false end
+ if clock<(g.distressUntil or 0) then return false end
+ if S.call(game,g,node,clock,'civilian under attack',1)==0 then return false end
+ g.distressUntil=clock+T.squadRespondTime*.5
+ return true
+end
+
 -- Upkeep ----------------------------------------------------------------------
 -- Runs with the A-Life tick: enlists unassigned ships (older saves too),
 -- drops the dead, re-elects leaders, starts regroups and answers calls.

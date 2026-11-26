@@ -498,7 +498,7 @@ local function drawStation(game, e)
 		end
 		lg.pop()
 	end
-	-- berths: a pad outline with corner ticks, lit green while taken
+	-- Berth lights show occupancy in green and delivery reservations in cyan.
 	local berths = e.def.berths
 	if berths and #berths > 0 then
 		local taken = {}
@@ -511,22 +511,32 @@ local function drawStation(game, e)
    local slot=rec.mooring and record.moorings and record.moorings[rec.mooring]
    if slot and slot.berth then taken[slot.berth]=true end
   end
+		local reserved = {}
+		for _, claim in ipairs(require('src.dealer_parking').claims(game.universe, e.locationId or e.key)) do
+			if claim.mooring then reserved[claim.mooring] = true end
+		end
 		lg.setLineWidth(outline(1.5))
 		for i, b in ipairs(berths) do
 			lg.push()
 			lg.translate(b.x, b.y)
 			lg.rotate(math.rad(b.heading))
 			local L, W = (b.maxLength or b.size * 2) / 2, (b.maxWidth or b.size * 1.1) / 2
-			lg.setColor(0.95, 0.75, 0.25, 0.35)
+			if reserved[i] then
+				lg.setColor(0.35, 0.86, 1, 0.14)
+				lg.rectangle("fill", -L, -W, L * 2, W * 2)
+				lg.setColor(0.35, 0.86, 1, 0.65)
+				lg.line(-L, W, L, -W)
+			else
+				lg.setColor(0.95, 0.75, 0.25, 0.35)
+			end
 			lg.rectangle("line", -L, -W, L * 2, W * 2)
 			local t = min(L, W) * 0.3
-			lg.setColor(0.95, 0.75, 0.25, 0.8)
+			if reserved[i] then lg.setColor(0.35, 0.86, 1, 0.85) else lg.setColor(0.95, 0.75, 0.25, 0.8) end
 			for _, c in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
 				local cx, cy = c[1] * L, c[2] * W
 				lg.line(cx - c[1] * t, cy, cx, cy, cx, cy - c[2] * t)
 			end
-			-- the light at the nose end: green when taken, amber when free
-			lg.setColor(taken[i] and { 0.4, 1, 0.55 } or { 0.95, 0.75, 0.25 })
+			lg.setColor(taken[i] and { 0.4, 1, 0.55 } or reserved[i] and { 0.35, 0.86, 1 } or { 0.95, 0.75, 0.25 })
 			lg.circle("fill", L, 0, max(4, 2.5 * screenPx))
 			lg.pop()
 		end

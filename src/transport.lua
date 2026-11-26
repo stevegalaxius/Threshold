@@ -213,9 +213,10 @@ function Transport.tradeValue(u,line,station)
 end
 function Transport.settleGoods(u,line,buyer)
  local Accounts=require('src.accounts')
- local value=math.floor(Transport.goodsPrice(u,line.source,line.item)*line.amount+.5)
+ local seller=line.originalSource or line.source
+ local value=math.floor(Transport.goodsPrice(u,seller,line.item)*line.amount+.5)
  local paid=Accounts.pay(u,buyer,value,'bought',line.item)
- Accounts.receive(u,line.source,paid,'sold',line.item)
+ Accounts.receive(u,seller,paid,'sold',line.item)
  return paid
 end
 local function courierCost(u,o)
@@ -345,18 +346,22 @@ function Transport.reserved(u,source,item,except,includeOpen)
   local offers=Tasks.state(u).offers
   for _,o in ipairs(group) do
    -- (still on the board, still not loaded: either may have changed since the sort)
-   if offers[o.id]==o and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+(o.amount or 0) end
+   if offers[o.id]==o and not o.relay and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except) and (includeOpen or o.state~='available') then n=n+(o.amount or 0) end
   end
   return n
  end
  for _,o in pairs(Tasks.state(u).offers) do
-  if o.order and o.source==source and o.item==item and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except)
+  if o.order and o.source==source and o.item==item and not o.relay and not o.loaded and (not except or o.id~=except and o.manifestRoot~=except)
    and (includeOpen or o.state~='available') then n=n+(o.amount or 0) end
  end
  return n
 end
 function Transport.scanning(u) return scan~=nil and scan.u==u and scan.clock==u.clock end
 function Transport.available(u,source,item,except)
+ local offer=except and Tasks.state(u).offers[except]
+ if offer and offer.relay and offer.source==source and offer.item==item then
+  return offer.loaded and 0 or offer.amount
+ end
  -- (a trader reading the board asks this once per offer, and most offers
  -- share a source and good: a scan opened as still moves no stock, so
  -- each pair is counted once)
@@ -378,6 +383,22 @@ function Transport.duration(o,station,clock)
  return localTime+(o.routeAU or 0)*120+(station and station~=o.source and 180 or 0)
 end
 local function lines(t) return t.manifest or {t} end
+-- A relay changes custody. The original trade and the station handling
+-- the cargo must both be allowed under the same rules as economy dispatch.
+function Transport.embargoed(t,via)
+ local Rep=require('src.reputation')
+ for _,line in ipairs(lines(t)) do
+  if line.layoutScope=='economy' or line.relay or via then
+   if Rep.embargoed(line.source,line.target,line.item)
+    or line.originalSource and Rep.embargoed(line.originalSource,line.target,line.item)
+    or via and (Rep.embargoed(line.source,via,line.item) or Rep.embargoed(via,line.target,line.item)) then
+    return true
+   end
+  end
+ end
+ return false
+end
+
 -- Whether a route exists, remembered for a while: idle traders weigh every
 -- job on the board, and planning each one in full was a lag spike.
 local reach,reachAt={},nil
@@ -395,7 +416,7 @@ function Transport.usable(u,r,o,clock)
  if require('src.reactor_fuel').remaining(r.ship)<=0 then return 0 end
  if (require('src.work_preferences').weight(r,'transport') or 0)<=0 then return 0 end
  local access=require('src.npc_access');local capabilities=access.capabilities(r)
- if not access.eligible(r,o,capabilities) or not access.eligible(r,Tasks.definitions.transport,capabilities) then return 0 end
+ if not access.eligible(r,o,capabilities,u) or not access.eligible(r,Tasks.definitions.transport,capabilities) then return 0 end
  local station=r.node or r.station
  if not L.byId[station] then return 0 end
  local def=Tasks.definitions.transport
@@ -425,7 +446,7 @@ function Transport.load(u,r,t)
 
  end
  for _,line in ipairs(lines(t)) do
-  if line.mine or line.stocked then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
+  if not line.relay and (line.mine or line.stocked) then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
   if line.trade then
    local cost=Transport.tradeCost(u,line)
    require('src.accounts').receive(u,line.source,cost,'sold',line.item)
@@ -458,6 +479,273 @@ local function freightTerms(u,r,o,capacity)
  if not r.player and profit>0 and profit>=fee then return units,profit,true end
  return courierUnits,fee,false
 end
+-- A relay offer is also the station's sealed freight record until pickup.
+-- Its volume counts against the receiving station's bonded storage.
+local function availableRelayVolume(u,station)
+ local room=T.freightRelayVolume
+ for _,o in pairs(Tasks.state(u).offers) do
+  if o.relay and o.source==station and not o.loaded and data.items[o.item] then
+   room=room-o.amount*data.items[o.item].volume
+  end
+ end
+ return room
+end
+
+function Transport.returnStation(t)
+ return t and (t.originalSource or t.source)
+end
+
+function Transport.recoveryMode(u,t,station,clock)
+ local place=L.byId[station]
+ if not t or t.kind~='transport' or t.phase~='delivery' or not place or place.kind~='station' then return end
+ local returning=true
+ local volume=0
+ local Stock=require('src.stockpile')
+ for _,line in ipairs(lines(t)) do
+  -- Prepaid contracts have a separate escrow and settlement.
+  if line.target==station or line.playerOrder or line.intake or line.house or not (line.stocked or line.mine) then return end
+  if (line.originalSource or line.source)~=station then returning=false end
+  -- Prepaid contracts have a separate escrow: they may only be unwound at
+  -- the seller (Transport.unwindPrepaid), never relayed through a third station.
+  if (line.buyerFunded or t.buyerFunded or line.prepaidGoods or line.prepaidFee) and not returning then return end
+  volume=volume+line.amount*data.items[line.item].volume
+ end
+ if returning then
+  for _,line in ipairs(lines(t)) do
+   if not Stock.stock(u,station,Stock.shopFor(station,line.item)) then return end
+  end
+  return 'return'
+ end
+ if Transport.embargoed(t,station) or volume>availableRelayVolume(u,station) then return end
+ for _,line in ipairs(lines(t)) do
+  if line.trade or line.relay and line.source~=station or not Transport.route(station,line.target,clock) then return end
+ end
+ return 'transfer'
+end
+
+function Transport.recoveryStops(u,r,t,area,x,y,clock)
+ local options={}
+ for _,station in ipairs(L.stations(area)) do
+  if not (t.recoveryTried and t.recoveryTried[station])
+   and require('src.npc_access').canDock(r,station,u)
+   and require('src.dock_room').capacity(station,r.ship.hull)>0 then
+   local mode=Transport.recoveryMode(u,t,station,clock)
+   if mode then
+    local px,py=L.position(station,clock)
+    options[#options+1]={station=station,mode=mode,distance=(px-x)^2+(py-y)^2}
+   end
+  end
+ end
+ table.sort(options,function(a,b)
+  return a.distance<b.distance or a.distance==b.distance and a.station<b.station
+ end)
+ return options
+end
+
+-- Undo a prepaid sale: the seller hands back what the buyer paid for the
+-- goods and the unused fee escrow goes back to the buyer. The buyer is made
+-- whole even when part of the load was lost on the way.
+function Transport.unwindPrepaid(u,line)
+ local goods=line.prepaidGoods or 0
+ if goods>0 then
+  local Accounts=require('src.accounts')
+  Accounts.pay(u,line.source,goods)
+  Accounts.refund(u,line.target,goods)
+ end
+ line.prepaidGoods=nil
+ releaseFunds(u,line)
+end
+local function prepaid(t,line) return t.buyerFunded or line.buyerFunded or line.prepaidGoods or line.prepaidFee end
+function Transport.hasPrepaid(t)
+ for _,line in ipairs(lines(t)) do if prepaid(t,line) then return true end end
+ return false
+end
+-- Cargo the hauler itself owns: bought trade goods, or a stranded load it
+-- had to pay the seller for. Sold at the next station that lists the item
+-- (Transport.sellOwned, on every dock).
+local function own(r,item,n)
+ if n<=0 then return end
+ r.ownedCargo=r.ownedCargo or {}
+ r.ownedCargo[item]=(r.ownedCargo[item] or 0)+n
+end
+-- A loaded job that ends without delivery or return. Seller-owned goods
+-- (stocked or mined, not prepaid) are bought from the seller at its price,
+-- as far as the hauler's credits go; the rest is written off and taken off
+-- the ship. Bought trade goods were the hauler's already.
+function Transport.strand(u,r,t,clock)
+ if r.player or r.state=='dead' or r.state=='escaped' then return end
+ local aboard={}
+ for _,line in ipairs(lines(t)) do
+  local have=aboard[line.item] or math.max(0,((r.ship.cargo or {})[line.item] or 0)-((r.ownedCargo or {})[line.item] or 0))
+  local n=math.min(have,line.amount or 0)
+  aboard[line.item]=have-n
+  if n>0 then
+   if line.trade then own(r,line.item,n)
+   elseif not prepaid(t,line) then
+    local seller=line.originalSource or line.source
+    local unit=Transport.goodsPrice(u,seller,line.item)
+    local afford=unit>0 and math.min(n,math.floor(math.max(0,r.credits or 0)/unit)) or n
+    local cost=math.floor(unit*afford+.5)
+    if cost>0 then
+     r.credits=(r.credits or 0)-cost
+     require('src.accounts').receive(u,seller,cost,'sold',line.item)
+    end
+    own(r,line.item,afford)
+    if n>afford then
+     cargo(r,line.item,-(n-afford))
+     Transport.answer(u,r,seller,-(n-afford)/n) -- the seller wrote off the rest
+    end
+   end
+  end
+ end
+end
+local function buys(station,item)
+ for _,shop in ipairs(require('src.stockpile').shops(station)) do
+  if require('src.stockpile').lists(shop,item) then return true end
+ end
+end
+function Transport.sellOwned(u,r,station)
+ if not r.ownedCargo or r.player then return end
+ local place=L.byId[station]
+ if not place or place.kind~='station' then return end
+ local held=r.task and lines(r.task) or {}
+ for item,n in pairs(r.ownedCargo) do
+  local have=math.min(n,(r.ship.cargo or {})[item] or 0)
+  -- (never sell goods a current job still needs aboard)
+  for _,line in ipairs(held) do if line.item==item and r.task.phase=='delivery' then have=0 end end
+  if have<=0 and ((r.ship.cargo or {})[item] or 0)<=0 then r.ownedCargo[item]=nil
+  elseif have>0 and buys(station,item) then
+   local value=Transport.tradeValue(u,{item=item,amount=have},station)
+   r.credits=(r.credits or 0)+require('src.accounts').pay(u,station,value,'bought',item)
+   J.deliver(u,station,item,have)
+   cargo(r,item,-have)
+   r.ownedCargo[item]=n-have>0 and n-have or nil
+  end
+ end
+ if not next(r.ownedCargo) then r.ownedCargo=nil end
+end
+-- Last resort for loaded prepaid freight that can neither be delivered nor
+-- returned: refund the buyer, take the cargo off the ship, end the job.
+-- Never waits, so a loaded prepaid job always ends.
+function Transport.cancelPrepaid(u,r,t,reason,clock)
+ local answered={}
+ for _,line in ipairs(lines(t)) do
+  if prepaid(t,line) then Transport.unwindPrepaid(u,line) end
+  if not line.trade then answered[line.target]=true end
+  if not line.trade then
+   local have=(r.ship.cargo or {})[line.item] or 0
+   local n=math.min(have,line.amount or 0)
+   if n>0 then cargo(r,line.item,-n) end
+  end
+  Tasks.state(u).offers[line.id]=nil
+ end
+ -- an undelivered order costs the courier standing with the buyer, as a release does
+ for destination in pairs(answered) do Transport.answer(u,r,destination,-1) end
+ t.settled=true
+ Tasks.state(u).offers[t.id]=nil
+ Tasks.release(u,r,reason or 'freight cancelled',clock)
+end
+function Transport.unloadRecovery(u,r,t,station,clock)
+ if t.recoveryStop~=station then return end
+ local mode=Transport.recoveryMode(u,t,station,clock)
+ if not mode then return end
+ local invoice=t.invoice or Transport.invoice(t)
+ local aboard,losses={},{}
+ for _,charge in ipairs(invoice.lines) do
+  local line=charge.task
+  local item=line.item
+  local have=aboard[item] or ((r.ship.cargo or {})[item] or 0)
+  local amount=math.min(line.amount,have)
+  aboard[item]=have-amount
+  if amount>0 then
+   if mode=='return' then
+    assert(J.deliver(u,station,item,amount))
+    if line.trade then
+     local refund=math.min(Transport.tradeValue(u,{item=item,amount=amount},station),
+      math.floor((line.tradeCost or 0)*amount/line.amount))
+     r.credits=(r.credits or 0)+require('src.accounts').pay(u,station,refund,'trade return',item)
+    end
+   else
+    local budget=math.floor(charge.payment*amount/line.amount)
+    local payment=not line.relay and require('src.accounts').pay(u,line.target,math.floor(budget*T.freightRelayShare),'freight',item) or 0
+    r.credits=(r.credits or 0)+payment
+    r.freightEarnings=(r.freightEarnings or 0)+payment
+    -- The replacement inherits the original seller and remaining fee.
+    Tasks.post(u,Transport.quote({kind='transport',order=true,stocked=true,relay=true,
+     layoutScope='freight_recovery',relayScope=line.relayScope or line.layoutScope,originalSource=Transport.returnStation(line),
+     source=station,target=line.target,item=item,amount=amount,
+     creditsPerUnit=(budget-payment)/amount,handlingPerUnit=0,handlingLimit=0,
+     urgency=math.max(1.5,line.urgency or 0),priority=line.priority,placed=clock,npcClaimAt=clock,
+     cooldown=line.cooldown,requires=line.requires},clock,u))
+   end
+   cargo(r,item,-amount)
+  end
+  if mode=='return' and prepaid(t,line) then Transport.unwindPrepaid(u,line) end
+  if not line.trade then
+   local loss=losses[line.target] or {missing=0,total=0}
+   loss.missing=loss.missing+line.amount-amount
+   loss.total=loss.total+line.amount
+   losses[line.target]=loss
+  end
+  Tasks.state(u).offers[line.id]=nil
+ end
+ for destination,loss in pairs(losses) do
+  if loss.missing>0 then Transport.answer(u,r,destination,-loss.missing/loss.total) end
+ end
+ t.settled=true
+ Tasks.state(u).offers[t.id]=nil
+ Tasks.release(u,r,mode=='return' and 'freight returned' or 'freight transferred',clock)
+ return mode
+end
+
+-- Only a pilot with dark contacts, the appetite for the risk, and a
+-- reachable fence turns a failed delivery into theft.
+function Transport.freightFence(u,r,t,from,clock,cargoOnboard)
+ if r.agenda and #r.agenda>0 then return end
+ local Access=require('src.npc_access')
+ if not Access.darkAccess(r) and not require('src.reputation').cartelCrew(r) then return end
+ local traits=Personality.ensure(r)
+ if traits.ambition<.9 or traits.aggression<.8 then return end
+ if Transport.recoveryMode(u,t,Transport.returnStation(t),clock)~='return' then return end
+ local carrying=false
+ for _,line in ipairs(lines(t)) do
+  if line.trade then return end
+  if (cargoOnboard[line.item] or 0)>(r.stolenCargo and r.stolenCargo[line.item] or 0) then carrying=true end
+ end
+ if not carrying then return end
+ for _,station in ipairs(require('src.dark').fences()) do
+  if require('src.npc_access').canDock(r,station,u,'fence')
+   and require('src.dock_room').capacity(station,r.ship.hull)>0 and G.live(from,station,clock) then return station end
+ end
+end
+
+function Transport.abscond(u,r,t,fence,clock)
+ r.stolenCargo=r.stolenCargo or {}
+ local aboard,destinations={},{}
+ for _,line in ipairs(lines(t)) do
+  local have=aboard[line.item] or math.max(0,(r.ship.cargo[line.item] or 0)-(r.stolenCargo[line.item] or 0))
+  local amount=math.min(have,line.amount)
+  aboard[line.item]=have-amount
+  if amount>0 then r.stolenCargo[line.item]=(r.stolenCargo[line.item] or 0)+amount end
+  destinations[line.target]=true
+  Tasks.state(u).offers[line.id]=nil
+ end
+ for destination in pairs(destinations) do Transport.answer(u,r,destination,-1) end
+ t.settled=true
+ Tasks.state(u).offers[t.id]=nil
+ Tasks.release(u,r,'absconded with freight',clock)
+ r.piracy={phase='escape',base=fence,freightTheft=true,started=clock}
+ r.task={id='fence/'..r.id..'/'..clock,kind='fence',target=fence}
+ r.taskStatus='taking stolen freight to a fence'
+end
+
+-- Give another pilot a chance to collect a released shipment.
+local function recentlyStalled(r,o,clock)
+ local last=r.lastTask
+ return last and last.id==o.id and last.status=='pickup stalled'
+  and clock-last.clock<3*T.freightStallTime
+end
+
 Tasks.register('transport',{
  requires={capabilities={'cargo'}},
  -- a courier job dropped with the cargo aboard (the ship destroyed or
@@ -466,16 +754,20 @@ Tasks.register('transport',{
   if t.settled then return end
   for _,line in ipairs(lines(t)) do releaseFunds(u,line) end
   if t.phase~='delivery' then return end
+  if t.relay then Tasks.state(u).offers[t.id]=nil end
+  Transport.strand(u,r,t,clock)
   local carried=0
   for _,line in ipairs(lines(t)) do if not line.trade then carried=carried+(line.amount or 0) end end
   if carried>0 then Transport.answer(u,r,t.target,-1) end
 
  end,
  plan=function(t,station,clock)
+  if not t.recoveryStop and Transport.embargoed(t) then return end
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
-  return Transport.route(station,t.target,clock)
+  return Transport.route(station,t.recoveryStop or t.target,clock)
  end,
  eligible=function(u,r,o,station,clock)
+  if recentlyStalled(r,o,clock) or Transport.embargoed(o) then return false end
   -- Old reserved manifests may finish, but never issue new placeholder ore.
   if o.item=='martian_ore' then return false end
   -- Work elsewhere means flying there empty first (a pickup leg).
@@ -557,10 +849,11 @@ Tasks.register('transport',{
    +math.min(T.freightScoreCap,reward*100*taste*(1-math.min(.9,risk)))*(0.5+ambition)
  end,
  prepare=function(u,r,t,station,clock)
+  if Transport.embargoed(t) then return false end
   Transport.quote(t,clock,u)
   t.route=Transport.route(t.source,t.target,clock)
   if not t.route then return false end
-  local listedAmount=t.amount
+  local listed={}
   if t.order then
    local offers=Tasks.state(u).offers
    if t.trade or t.tradeOptional then
@@ -578,10 +871,10 @@ Tasks.register('transport',{
    local capabilities=require('src.npc_access').capabilities(r)
    for _,o in pairs(offers) do
     -- (freight only: satellite jobs are board orders too, carrying no item)
-    if not t.trade and not t.buyerFunded and not o.trade and not o.tradeOptional and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
-     and not r.player and o.source==t.source and o.item
+    if not t.relay and not o.relay and not t.trade and not t.buyerFunded and not o.trade and not o.tradeOptional and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
+     and not r.player and not Transport.embargoed(o) and not recentlyStalled(r,o,clock) and o.source==t.source and o.item
      and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
-     and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
+     and require('src.npc_access').eligible(r,o,capabilities,u) then others[#others+1]=o end
    end
    table.sort(others,function(a,b)
     local sa,sb=a.target==t.target,b.target==t.target
@@ -604,16 +897,22 @@ Tasks.register('transport',{
    if not reserveFunds(u,t,manifest[1]) then return false end
    t.manifest=manifest;t.amount=manifest[1].amount
    for _,line in ipairs(manifest) do
-    local o=offers[line.id];o.amount=line.amount;o.owner=r.id;o.state='reserved';o.manifestRoot=t.id
+    local o=offers[line.id];listed[o.id]=o.amount
+    o.amount=line.amount;o.owner=r.id;o.state='reserved';o.manifestRoot=t.id
    end
   elseif room(r,t.item,t.amount)<t.amount then return false end
   t.phase='pickup'
   if station~=t.source or Transport.load(u,r,t) then
-   if t.order and t.trade and listedAmount>t.amount then
-    local remainder=require('src.persistence').copy(Tasks.state(u).offers[t.id])
-    remainder.amount=listedAmount-t.amount
-    remainder.owner,remainder.manifestRoot,remainder.loaded=nil,nil,nil
-    Tasks.post(u,remainder)
+   for _,line in ipairs(lines(t)) do
+    local amount=listed[line.id]
+    local o=amount and Tasks.state(u).offers[line.id]
+    -- Buy orders already repost their outstanding balance at settlement.
+    if o and not o.playerOrder and amount>line.amount then
+     local remainder=require('src.persistence').copy(o)
+     remainder.amount=amount-line.amount
+     remainder.owner,remainder.manifestRoot,remainder.loaded,remainder.loadedAt=nil,nil,nil,nil
+     Tasks.post(u,remainder)
+    end
    end
    return true
   end
@@ -622,13 +921,25 @@ Tasks.register('transport',{
    local o=Tasks.state(u).offers[line.id]
    if o then
     o.owner,o.state,o.manifestRoot=nil,'available',nil
-    if o.id==t.id then o.amount=listedAmount end
+    o.amount=listed[o.id] or o.amount
    end
   end
   return false
  end,
  complete=function(u,r,t,station,clock)
   if t.settled then return true end
+  if t.recoveryStop==station then
+   if r.state~='docked' then return false end
+   if not Transport.unloadRecovery(u,r,t,station,clock) then
+    t.recoveryTried=t.recoveryTried or {};t.recoveryTried[station]=true
+    t.recoveryStop=nil
+   end
+   return false -- recovery settles its own board entries and records its outcome
+  end
+  if Transport.embargoed(t) then
+   if t.phase=='pickup' then Tasks.release(u,r,'freight embargoed',clock) end
+   return false
+  end
   Transport.quote(t,clock,u)
   if t.phase=='pickup' then
    if station~=t.source then return false end
@@ -700,7 +1011,7 @@ Tasks.register('transport',{
    end
    -- an economy order is a sale: the buyer pays the seller for the goods
    -- (after the courier), and a hub sells on at a markup
-   if line.layoutScope=='economy' and not line.trade and not line.playerOrder and not line.intake then
+   if (line.layoutScope=='economy' or line.relayScope=='economy') and not line.trade and not line.playerOrder and not line.intake then
     local goods=line.prepaidGoods or Transport.settleGoods(u,line,station)
     require('src.markets').landed(u,station,line.item,line.amount,goods+payment)
    end

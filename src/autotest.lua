@@ -9,6 +9,7 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local Ship = require("src.ship")
+local Combat = require("src.combat")
 local Debug = require("src.debugui")
 local events = require("src.events")
 
@@ -56,7 +57,7 @@ local function nearestEnemy(game)
 	local px, py = p.body:getPosition()
 	local best, bd
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead then
+		if Combat.sceneEnemy(e) and not e.dead then
 			local x, y = e.body:getPosition()
 			local d = (x - px) ^ 2 + (y - py) ^ 2
 			if not bd or d < bd then best, bd = e, d end

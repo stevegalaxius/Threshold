@@ -30,6 +30,7 @@
 ]]
 
 local data = require("src.data")
+local Combat = require("src.combat")
 local Ship = require("src.ship")
 local T = require("src.tuning")
 local events = require("src.events")
@@ -121,10 +122,10 @@ function Weapons.drillLength(e, w)
 	return w.length or e.halfLength * 2
 end
 
-local function nearestTargetTo(game, x, y, team, maxDist)
+local function nearestTargetTo(game, x, y, source, maxDist)
 	local best, bestD = nil, maxDist * maxDist
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= team then
+		if Combat.hostile(game, source, o) then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
 			if d < bestD then best, bestD = o, d end
@@ -153,7 +154,7 @@ local function fire(game, e, slot, dt)
 		slot.extend = min(1, (slot.extend or 0) + dt / (w.extendTime or 0.4))
 		local reach = Weapons.drillLength(e, w) * slot.extend
 		local ex, ey = wx + ddx * reach, wy + ddy * reach
-		local hit = game:raycast(wx, wy, ex, ey, e.team, true)
+		local hit = game:raycast(wx, wy, ex, ey, e, true)
 		slot.drillHit = nil
 		if hit then
 			local t = hit.entity
@@ -201,7 +202,7 @@ local function fire(game, e, slot, dt)
 				or (n > 1 and fan * ((i - 1) / (n - 1) - 0.5) or 0))
 			local bx, by = cos(a), sin(a)
 			local ex, ey = wx + bx * w.range, wy + by * w.range
-			local hit = game:raycast(wx, wy, ex, ey, e.team, true)
+			local hit = game:raycast(wx, wy, ex, ey, e, true, true)
 			if hit then
 				ex, ey = hit.x, hit.y
 				-- damage falls off with the drawn fade: full out to 40% of
@@ -301,7 +302,7 @@ local function fire(game, e, slot, dt)
 	end
 
 	local p = {
-		kind = kind, team = e.team, owner = e,
+		kind = kind, owner = e,
 		x = wx, y = wy, px = wx, py = wy,
 		vx = svx + dx * ws.speed, vy = svy + dy * ws.speed,
 		damage = ws.damage, splash = ws.splash, knockback = (ws.knockback or 0),
@@ -335,8 +336,8 @@ local function fire(game, e, slot, dt)
 		p.maxSpeed, p.accel, p.turnRate = ws.speed, ws.accel, ws.turnRate
 		p.life = ws.range / ws.speed * 1.3
 		p.damage = ws.damage * mult.missileDamage
-		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 600)
-			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e.team, 1000)
+		p.target = (p.guided and Combat.hostile(game, e, e.lock) and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e, 600)
+			or nearestTargetTo(game, wx + dx * 900, wy + dy * 900, e, 1000)
 		p.burst = true
 		p.fuse = (ws.splash or 40) * 0.5
 	elseif kind == "torpedo" then
@@ -346,7 +347,7 @@ local function fire(game, e, slot, dt)
 		p.maxSpeed, p.accel = ws.speed, 0
 		p.turnRate = ws.turnRate or 0
 		p.life = ws.range / ws.speed
-		p.target = (p.guided and e.lock and not e.lock.dead and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e.team, 500)
+		p.target = (p.guided and Combat.hostile(game, e, e.lock) and e.lock) or nearestTargetTo(game, e.intent.aimX, e.intent.aimY, e, 500)
 		p.burst = true
 	end
 
@@ -421,11 +422,11 @@ local function fuseTarget(game, p)
 		return nil
 	end
 	if t then
-		if not t.dead and Ship.distanceTo(t, p.x, p.y) < p.fuse then return t end
+		if Combat.hostile(game, p.owner, t) and Ship.distanceTo(t, p.x, p.y) < p.fuse then return t end
 		return nil
 	end
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= p.team then
+		if Combat.hostile(game, p.owner, o) then
 			if Ship.distanceTo(o, p.x, p.y) < p.fuse then return o end
 		end
 	end
@@ -464,13 +465,14 @@ end
 local function steerMissile(game, p, dt)
 	local t = p.target
 	-- (gone from the scene too: a ship that warped out or was taken off it)
-	if t and (t.dead or t.removed or (t.body and t.body.isDestroyed and t.body:isDestroyed())) then p.target, t = nil, nil end
+	if t and (t.dead or t.removed or (t.body and t.body.isDestroyed and t.body:isDestroyed())
+		or t.kind == "ship" and not Combat.hostile(game, p.owner, t)) then p.target, t = nil, nil end
 	-- a guided missile whose target died picks the nearest other one
 	if not t and p.guided and p.kind == "missile" and not p.decoyed then
 		p.retarget = (p.retarget or 0) - dt
 		if p.retarget <= 0 then
 			p.retarget = 0.25
-			t = nearestTargetTo(game, p.x, p.y, p.team, 3000)
+			t = nearestTargetTo(game, p.x, p.y, p.owner, 3000)
 			p.target = t
 		end
 	end
@@ -561,7 +563,7 @@ function Weapons.updateProjectiles(game, dt)
 		-- The fixed fuse ends flight exactly here, even on a long update.
 		local travel = p.airburst and min(dt,max(0,p.life)) or dt
 		local nx, ny = p.x + p.vx * travel, p.y + p.vy * travel
-		local hit = game:raycast(p.x, p.y, nx, ny, p.team, true)
+		local hit = game:raycast(p.x, p.y, nx, ny, p.owner, true, true)
 		local done = false
 
 		if hit then

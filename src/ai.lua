@@ -22,6 +22,7 @@ local Personality = require("src.personality")
 local data = require("src.data")
 
 local Security=require("src.security")
+local Combat=require("src.combat")
 local Nav=require("src.local_navigation")
 local Fuel=require('src.reactor_fuel')
 local AI = {}
@@ -37,8 +38,7 @@ local function norm(x, y)
 	return x / l, y / l, l
 end
 
--- Who an AI ship fights: enemies go for the player; drones go for the
--- nearest ship on another team.
+-- Scripted encounters and drones use their local target rules.
 local function pickTarget(game, e, x, y)
 	-- Inside a site: wildcats at their posts fight the player and any
 	-- bounty hunters in the pocket; hunters fight the wildcats (src/wildcats.lua).
@@ -87,25 +87,20 @@ local function pickTarget(game, e, x, y)
 		end
 		return p
 	end
-	-- An NPC ship's drones fight its fight: whoever their owner is after,
-	-- and nobody else. (Picking the nearest ship of another team had them
-	-- going for the player, or anyone, while their owner fought someone else.)
+	-- NPC drones follow their owner's current fight. Player and station
+	-- drones can acquire targets on their own.
 	local own = e.owner
 	if own and own.kind == "ship" and not own.isPlayer then
 		if own.dead or own.removed or not own.body or own.body:isDestroyed() then return nil end
-		for _, t in ipairs({ own.aiFightTarget, own.combatTarget, own.aggressor }) do
-			if t and not t.dead and not t.removed and t.body and not t.body:isDestroyed() and not t.dockState
-				and t ~= e and t.owner ~= own then return t end
-		end
+		local target = own.aiFightTarget or own.combatTarget or own.aggressor
+		if Combat.hostile(game, e, target) then return target end
 		return nil
 	end
-	-- a station's drones go for whatever the station would shoot, and
-	-- look as far as its drone bays launch at
 	local st = e.owner and e.owner.kind == "station" and e.owner
 	local reach = st and (game.STATION_DRONE_REACH or 5000) + 1000 or 3000
 	local best, bestD = nil, reach * reach
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and (st and game:stationHostile(st, o) or not st and o.team ~= e.team and o.team ~= 3) then
+		if Combat.hostile(game, e, o) then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
 			if d < bestD then best, bestD = o, d end

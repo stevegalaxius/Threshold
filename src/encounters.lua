@@ -13,9 +13,13 @@ local History=require('src.simulation_history')
 local Fuel=require('src.reactor_fuel')
 local Personality=require('src.personality')
 local Access=require('src.npc_access')
+local Security=require('src.security')
+local Combat=require('src.combat')
+local Aggression=require('src.aggression')
 local E={}
 local function active(r)
- return r and (r.state=='travel' or r.state=='idle') and not r.driverState and r.area~=nil
+ return r and (r.state=='travel' or r.state=='idle') and not r.driverState
+  and r.area~=nil and r.route and r.route[r.index]~=nil
 end
 local function fraction(r,clock)
  if r.encounter then return r.encounter.progress end
@@ -63,17 +67,141 @@ function E.finish(u,a,b,clock,retreat,handoff,outcome)
  -- patrols that joined this fight go back to their duties
  for _,s in pairs(u.npcs or {}) do
   local f=s.encounter
-  if f and f.support and (f.target==a.id or b and f.target==b.id) then resume(s,clock) end
+  if not handoff and f and f.support and (f.target==a.id or b and f.target==b.id) then resume(s,clock) end
  end
  if retreat then retreat.retreatUntil=clock+T.offlineRetreat;retreat.taskStatus='withdrawing after combat' end
 end
-local function begin(a,b,clock)
+local function begin(a,b,clock,previous)
  local seed=((tonumber(a.id:match('%d+$')) or 1)*104729+(tonumber(b.id:match('%d+$')) or 2)*7919+math.floor(clock))%2147483647
- a.encounter={target=b.id,progress=fraction(a,clock),nextAt=clock+T.offlineCombatTick,round=0,seed=seed}
- b.encounter={target=a.id,progress=fraction(b,clock),nextAt=clock+T.offlineCombatTick,round=0,seed=seed}
+ local nextAt=clock+T.offlineCombatTick
+ local round=previous and previous.round or 0
+ seed=previous and previous.seed or seed
+ a.encounter={target=b.id,progress=fraction(a,clock),nextAt=nextAt,round=round,seed=seed}
+ b.encounter={target=a.id,progress=fraction(b,clock),nextAt=nextAt,round=round,seed=seed}
  a.targetId,b.targetId=b.id,a.id
 end
 function E.begin(a,b,clock) begin(a,b,clock) end
+
+-- Use the current fight or a recent attacker. A stale aggressor pointer is
+-- not enough to restart combat when a ship unloads.
+local function opponent(game,e)
+ if not e or e.dead or e.removed or e.fleeing or e.dockState or e.driverProtected then return end
+ local target=e.aiFightTarget or e.combatTarget
+ if not target and e.aggressor and e.lastHitTime and game.time-e.lastHitTime<T.squadHitMemory then target=e.aggressor end
+ target=Combat.controller(target)
+ if target and not target.dead and not target.removed and not target.fleeing and not target.dockState
+  and not target.driverProtected and target.body and not target.body:isDestroyed()
+  and not Combat.allied(game.universe,e,target) then return target end
+end
+
+local function incoming(game,e)
+ for _,other in pairs(game.alifeOnline or {}) do
+  if opponent(game,other)==e then return other end
+ end
+end
+
+local function savePose(r,e)
+ local x,y=e.body:getPosition()
+ local vx,vy=e.body:getLinearVelocity()
+ r.encounter.pose={x=x,y=y,vx=vx,vy=vy,heading=e.body:getAngle(),spin=e.body:getAngularVelocity()}
+end
+
+function E.captureLive(game,e)
+ local foe=opponent(game,e) or incoming(game,e)
+ if not foe or not foe.alifeId or not e.alifeId then return end
+ local u=game.universe
+ local a,b=u.npcs[e.alifeId],u.npcs[foe.alifeId]
+ if not active(a) or not active(b) or a.area~=b.area then return end
+ if Access.defending(a,a.area) and not Security.hostile(game,e,foe) then return end
+ local clock=u.clock
+ if a.encounter then
+  if a.encounter.target==b.id then savePose(a,e) end
+  return
+ end
+ if not game.alifeOnline or game.alifeOnline[b.id]~=foe then return end
+ require('src.alife').capture(game,foe,false)
+ if not active(b) or a.area~=b.area then return end
+ if b.encounter then
+  if b.encounter.support then return end
+  a.encounter={target=b.id,support=true,progress=fraction(a,clock)}
+  a.targetId=b.id
+ else
+  local previous=e.encounterState
+  if not previous or previous.target~=b.id then previous=foe.encounterState end
+  if previous and previous.target~=a.id and previous.target~=b.id then previous=nil end
+  begin(a,b,clock,previous)
+  History.begin(u,a.id,b.id,clock,a.area,a.id)
+  savePose(b,foe)
+ end
+ savePose(a,e)
+end
+
+-- Save mutual engagements first so additional pursuers join the original
+-- fight as support. Take every snapshot before any body is removed.
+function E.captureFights(game,ships)
+ table.sort(ships,function(a,b) return a.alifeId<b.alifeId end)
+ for _,e in ipairs(ships) do
+  local foe=opponent(game,e)
+  if foe and opponent(game,foe)==e then E.captureLive(game,e) end
+ end
+ for _,e in ipairs(ships) do E.captureLive(game,e) end
+end
+
+-- Individual distance checks would peel ships away from a fight whose
+-- other participants are still visible. Traverse the connected engagements
+-- before deciding which physical bodies to unload.
+function E.visibleFights(game,px,py)
+ local links,visible,queue={},{},{}
+ local online=game.alifeOnline or {}
+ for _,e in pairs(online) do
+  local foe=opponent(game,e)
+  if foe and foe.alifeId and online[foe.alifeId]==foe then
+   links[e]=links[e] or {};links[foe]=links[foe] or {}
+   table.insert(links[e],foe);table.insert(links[foe],e)
+  end
+ end
+ for e in pairs(links) do
+  if e.body and not e.body:isDestroyed() then
+   local x,y=e.body:getPosition()
+   if (x-px)^2+(y-py)^2<T.alifeFar^2 then
+    visible[e]=true;queue[#queue+1]=e
+   end
+  end
+ end
+ local i=1
+ while i<=#queue do
+  for _,foe in ipairs(links[queue[i]]) do
+   if not visible[foe] then visible[foe]=true;queue[#queue+1]=foe end
+  end
+  i=i+1
+ end
+ return visible
+end
+
+function E.battlePose(game,r)
+ local f=r.encounter
+ if not f then return end
+ if f.pose then return f.pose end
+ local other=game.universe.npcs[f.target]
+ if not active(other) or other.area~=r.area then return end
+ local A=require('src.alife')
+ local clock=game.universe.clock
+ local x,y=A.point(r,clock)
+ local ox,oy=A.point(other,clock)
+ local dx,dy=ox-x,oy-y
+ local d=math.sqrt(dx*dx+dy*dy)
+ local heading=math.atan2(dy,dx)
+ if d<400 then
+  if d<1 then heading=r.id<other.id and 0 or math.pi end
+  dx,dy=math.cos(heading)*400,math.sin(heading)*400
+  x,y=ox-dx,oy-dy
+ elseif d>T.securityRange*.75 then
+  x,y=ox-dx/d*1200,oy-dy/d*1200
+ end
+ local vx,vy=game:flowAt(x,y)
+ return {x=x,y=y,vx=vx,vy=vy,heading=heading}
+end
+
 local function random(fight)
  fight.seed=((fight.seed or 7193)*48271)%2147483647
  return fight.seed/2147483647
@@ -94,6 +222,13 @@ local function cargoOf(r)
  local hold=r.ship.hold and Hold.deserialize(r.ship.hold,function(id)return data.items[id]~=nil end)
  return hold,hold and Hold.totals(hold) or r.ship.cargo or {}
 end
+local function loadedAmmo(r,index,module,cargo)
+ local ammo=r.ship.loads and r.ship.loads[index]
+ if ammo and data.items[ammo] and (cargo[ammo] or 0)>0 then return ammo end
+ for _,option in ipairs(data.ammoOptions(module)) do
+  if (cargo[option] or 0)>0 then return option end
+ end
+end
 function E.profile(r)
  local hull=data.hulls[r.ship.hull]
  local st=Stats.compute(hull,r.ship.loadout)
@@ -106,11 +241,7 @@ function E.profile(r)
    if w.kind~='laser' then
     -- the round this gun is loaded with, else any it can fire that's
     -- aboard (not only its first option: airburst-only ships read as unarmed)
-    local loads=r.ship.loads;local ammo=loads and loads[index]
-    if not ammo or (cargo[ammo] or 0)<=0 then
-     ammo=nil
-     for _,option in ipairs(data.ammoOptions(m)) do if (cargo[option] or 0)>0 then ammo=option;break end end
-    end
+    local ammo=loadedAmmo(r,index,m,cargo)
     if ammo then hit=data.items[ammo].shot.damage else rate=0 end
    else
     local cost=w.powerPerShot or w.powerPerSecond or 0
@@ -149,24 +280,24 @@ function E.damage(r,seconds,roll,target)
  local st=Stats.compute(data.hulls[r.ship.hull],r.ship.loadout)
  r.power=math.min(st.powerCap,(r.power or st.powerCap)+math.max(0,st.powerNet or 0)*seconds)
  local damage=0
- for _,id in pairs(r.ship.loadout) do
+ r.salvoRound=(r.salvoRound or 0)+1
+ for index,id in pairs(r.ship.loadout) do
   local m=id and data.modules[id];local w=m and m.weapon
   if w and w.kind~='drone' then
    local shots=math.max(1,math.floor((w.fireRate or 1)*seconds))
+   local ammo=w.kind~='laser' and loadedAmmo(r,index,m,cargo)
    -- a missile rack or torpedo tube fires one magazine (its capacity) and
    -- then reloads: offline it gets one salvo every offlineSalvoRounds
    -- rounds, not its fire rate the whole fight (that emptied a ship's
    -- whole missile reserve in every scrap)
    if w.capacity then
-    local ammo=data.ammoFor(m);local size=ammo and data.items[ammo].size
+    local size=ammo and data.items[ammo].size
     local tubes=math.max(1,math.floor(w.capacity/(({S=1,M=2,L=4})[size] or 1)))
-    r.salvoRound=(r.salvoRound or 0)+1
     shots=(r.salvoRound-1)%T.offlineSalvoRounds==0 and math.min(shots,tubes) or 0
    end
    local hit=w.damage or 0
    if w.kind~='laser' then
-    local ammo=data.ammoFor(m)
-    shots=math.min(shots,cargo[ammo] or 0)
+    shots=math.min(shots,ammo and cargo[ammo] or 0)
     if shots>0 then cargo[ammo]=cargo[ammo]-shots;hit=data.items[ammo].shot.damage end
    else
     local cost=w.powerPerShot or w.powerPerSecond or 0
@@ -232,14 +363,14 @@ local function coveringStation(a,b,clock)
  return node,node and E.stationDps(node) or 0
 end
 E.coveringStation=coveringStation
--- killer: who did it, when the fight is already over (a scuttle, a ship
--- caught breaking off); otherwise the fight's other side.
+-- Legacy encounters may only have the opponent ID for attribution.
 local function wreck(u,r,clock,killer)
  local fight=r.encounter
  killer=killer or fight and fight.target
  u.alifeWrecks=u.alifeWrecks or {}
  u.alifeWrecks[r.id]={id=r.id,label=r.label,area=r.area,from=r.route[(r.index-2)%#r.route+1],to=r.route[r.index],
-  progress=fight and fight.progress or fraction(r,clock),clock=clock,expires=clock+T.alifeWreckLifetime,
+  progress=fight and fight.progress or fraction(r,clock),
+  worldPosition=fight and fight.pose and {x=fight.pose.x,y=fight.pose.y},clock=clock,expires=clock+T.alifeWreckLifetime,
   ship=copy(r.ship),archetype=r.archetype,aiProfile=r.aiProfile}
  r.state='dead';r.ship.armor=0
  require('src.alife_trace').note(r,clock,'encounter','destroyed'..(killer and (' by '..killer) or ''))
@@ -248,78 +379,130 @@ local function wreck(u,r,clock,killer)
  u.alifeWrecks[r.id].historyWreckId=History.wreck(u,r,clock,r.area)
  Tasks.release(u,r,'destroyed',clock)
 end
+-- Resolve the volley before changing hulls, so ships destroyed in this
+-- round still get their shot. A ship can return fire on a supporting patrol.
+local function exchange(game,a,b,fight,clock,support)
+ local u=game.universe
+ local damage,killer,last,participants={},{},{},{a,b}
+ local function hit(source,target,amount)
+  if amount<=0 then return end
+  local node=target.route[target.index]
+  local entry=Aggression.record(u,source,target.id,target.area,clock,'combat',node)
+  Security.reportRaid(game,u.npcs[source],target,entry)
+  local total=(damage[target] or 0)+amount
+  damage[target]=total;last[target]=source
+  if total>=target.ship.armor and not killer[target] then killer[target]=source end
+ end
+ local function fire(from,to)
+  hit(from.id,to,E.damage(from,T.offlineCombatTick,random(fight),to))
+ end
+ local function opponentFor(r,main)
+  local helpers=support[r.id]
+  if helpers then
+   local options={main}
+   for _,helper in ipairs(helpers) do
+    if helper.encounter and helper.state~='dead' then options[#options+1]=helper end
+   end
+   if #options>1 then return options[1+math.floor(random(fight)*#options)] end
+  end
+  return main
+ end
+ fire(a,opponentFor(a,b));fire(b,opponentFor(b,a))
+ for _,target in ipairs({a,b}) do
+  for _,helper in ipairs(support[target.id] or {}) do
+   if helper.encounter then
+    participants[#participants+1]=helper
+    fire(helper,target)
+   end
+  end
+ end
+ local station,guns=coveringStation(a,b,clock)
+ if guns>0 then
+  local shot=guns*T.offlineCombatTick*T.offlineStationAccuracy*(.75+.5*random(fight))*T.offlineCombatHit
+  if Access.raiding(a) and not Access.raiding(b) then hit(station,a,shot)
+  elseif Access.raiding(b) and not Access.raiding(a) then hit(station,b,shot) end
+ end
+ local Fatigue=require('src.crew_fatigue')
+ for _,r in ipairs(participants) do
+  local amount=damage[r] or 0
+  r.ship.armor=math.max(0,r.ship.armor-amount)
+  Fatigue.hurt(r,clock,amount/maxArmor(r))
+  if r.ship.armor<=0 then
+   wreck(u,r,clock,killer[r])
+   if r~=a and r~=b then resume(r,clock) end
+  end
+ end
+ return last
+end
+
 function E.update(game,clock)
  local u=game.universe
  if clock<(u.encounterNext or 0) then return end
  u.encounterNext=clock+T.offlineCombatTick
- local records=u.npcs;local online=game.alifeOnline or {}
+ local records=u.npcs
+ local function online(id)
+  return (game.alifeOnline or {})[id] or game.sideOwns and game:sideOwns(id)
+ end
  local ids={};for id in pairs(records) do ids[#ids+1]=id end;table.sort(ids)
  -- End stale fights first. A live counterpart is excluded from dice damage.
  for _,id in ipairs(ids) do
   local a=records[id];local b=a.encounter and records[a.encounter.target]
   if a.encounter and a.encounter.support then
    -- a patrol defending someone: done once the pirate's fight is over
-   if not active(a) or not b or not b.encounter or b.area~=a.area then resume(a,clock) end
+   if not active(a) or not active(b) or not b.encounter or b.area~=a.area
+    or Combat.recordsAllied(u,a,b) then resume(a,clock) end
   else
   if a.encounter and b then History.begin(u,a.id,b.id,clock,a.area) end
-  if a.encounter and (not active(a) or not active(b) or a.area~=b.area) then E.finish(u,a,b,clock) end
+  if a.encounter and (not active(a) or not active(b) or a.area~=b.area
+   or not b.encounter or b.encounter.target~=a.id or Combat.recordsAllied(u,a,b)) then
+   E.finish(u,a,b and b.encounter and b.encounter.target==a.id and b or nil,clock)
+  end
+  end
+ end
+ local support={}
+ for _,id in ipairs(ids) do
+  local r=records[id];local f=r.encounter
+  if f and f.support and not online(id) then
+   support[f.target]=support[f.target] or {}
+   table.insert(support[f.target],r)
   end
  end
  for _,id in ipairs(ids) do
   local a=records[id];local b=a.encounter and records[a.encounter.target]
   if b and a.id<b.id and not a.encounter.support and b.encounter and b.encounter.target==a.id
-   and not online[a.id] and not online[b.id] and clock>=a.encounter.nextAt then
-   local fight=a.encounter
-   -- Simultaneous exchange: neither side loses its shot to iteration order.
-   local da=E.damage(a,T.offlineCombatTick,random(fight),b)
-   local db=E.damage(b,T.offlineCombatTick,random(fight),a)
-   -- patrols that joined fire on the pirate too
-   for _,sid in ipairs(ids) do
-    local s=records[sid];local f=s.encounter
-    if f and f.support and not online[sid] then
-     if f.target==a.id and Access.raiding(a) then db=db+E.damage(s,T.offlineCombatTick,random(fight),a)
-     elseif f.target==b.id and Access.raiding(b) then da=da+E.damage(s,T.offlineCombatTick,random(fight),b) end
-    end
-   end
-   -- a covering station fires on the pirate side
-   local _,guns=coveringStation(a,b,clock)
-   if guns>0 then
-    local roll=random(fight)
-    local shot=guns*T.offlineCombatTick*T.offlineStationAccuracy*(.75+.5*roll)*T.offlineCombatHit
-    if Access.raiding(a) and not Access.raiding(b) then db=db+shot elseif Access.raiding(b) and not Access.raiding(a) then da=da+shot end
-   end
-   a.ship.armor=math.max(0,a.ship.armor-db);b.ship.armor=math.max(0,b.ship.armor-da)
-   local Fatigue=require('src.crew_fatigue')
-   Fatigue.hurt(a,clock,db/maxArmor(a));Fatigue.hurt(b,clock,da/maxArmor(b))
-   fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
-   b.encounter.round=fight.round;b.encounter.nextAt=fight.nextAt
-   if a.ship.armor<=0 then wreck(u,a,clock) end
-   if b.ship.armor<=0 then wreck(u,b,clock) end
-   if not active(a) or not active(b) then E.finish(u,a,b,clock)
-   else
-    local fa,fb=a.ship.armor/maxArmor(a),b.ship.armor/maxArmor(b)
-    local brokeA,brokeB=fa<=E.breakPoint(a),fb<=E.breakPoint(b)
-    if brokeA or brokeB or fight.round>=T.offlineCombatRounds then
-     -- the side further past its breaking point gives way
-     local loser=(fa-E.breakPoint(a))<(fb-E.breakPoint(b)) and a or b
-     local winner=loser==a and b or a
-     if Access.civilian(loser) and Access.raiding(winner) then
-      local taken=surrender(game,winner,loser)
-      if winner.wildcat then require('src.wildcats').harm(u,winner) end
-      require('src.alife_trace').note(loser,clock,'encounter','broke, surrendered cargo to '..winner.id)
-      require('src.alife_trace').note(winner,clock,'encounter','robbed '..loser.id..' -> heading home')
-      E.finish(u,a,b,clock,nil,nil,'surrendered')
-      loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
-      -- only a raider with something to sell flies home to fence it;
-      -- one that robbed an empty hold keeps hunting
-      if taken>0 then require('src.piracy').returnRecord(game,winner) end
-      -- some raiders leave no witnesses: the robbed ship is lost
-      if random(fight)<T.pirateScuttleChance then wreck(u,loser,clock,winner.id) end
-     else
-      E.finish(u,a,b,clock,loser)
-      require('src.alife_trace').note(loser,clock,'encounter','broke off vs '..winner.id)
-      -- a broken ship doesn't always get away
-      if random(fight)<T.offlineBreakKill then wreck(u,loser,clock,winner.id) end
+   and not online(a.id) and not online(b.id) then
+   while a.encounter and b.encounter and clock>=a.encounter.nextAt do
+    local fight=a.encounter
+    local clock=fight.nextAt
+    local last=exchange(game,a,b,fight,clock,support)
+    fight.round=fight.round+1;fight.nextAt=clock+T.offlineCombatTick
+    b.encounter.round=fight.round;b.encounter.nextAt=fight.nextAt;b.encounter.seed=fight.seed
+    if not active(a) or not active(b) then E.finish(u,a,b,clock)
+    else
+     local fa,fb=a.ship.armor/maxArmor(a),b.ship.armor/maxArmor(b)
+     local brokeA,brokeB=fa<=E.breakPoint(a),fb<=E.breakPoint(b)
+     if brokeA or brokeB or fight.round>=T.offlineCombatRounds then
+      -- the side further past its breaking point gives way
+      local loser=(fa-E.breakPoint(a))<(fb-E.breakPoint(b)) and a or b
+      local winner=loser==a and b or a
+      if Access.civilian(loser) and Access.raiding(winner) then
+       local taken=surrender(game,winner,loser)
+       if winner.wildcat then require('src.wildcats').harm(u,winner) end
+       require('src.alife_trace').note(loser,clock,'encounter','broke, surrendered cargo to '..winner.id)
+       require('src.alife_trace').note(winner,clock,'encounter','robbed '..loser.id..' -> heading home')
+       E.finish(u,a,b,clock,nil,nil,'surrendered')
+       loser.retreatUntil=clock+T.offlineRetreat;loser.taskStatus='robbed by pirates'
+       -- only a raider with something to sell flies home to fence it;
+       -- one that robbed an empty hold keeps hunting
+       if taken>0 then require('src.piracy').returnRecord(game,winner) end
+       -- some raiders leave no witnesses: the robbed ship is lost
+       if random(fight)<T.pirateScuttleChance then wreck(u,loser,clock,winner.id) end
+      else
+       E.finish(u,a,b,clock,loser)
+       require('src.alife_trace').note(loser,clock,'encounter','broke off vs '..winner.id)
+       -- a broken ship doesn't always get away
+       if random(fight)<T.offlineBreakKill and last[loser] then wreck(u,loser,clock,last[loser]) end
+      end
      end
     end
    end
@@ -328,10 +511,12 @@ function E.update(game,clock)
  -- A patrol passing a pirate's fight joins it on the victim's side.
  for _,id in ipairs(ids) do
   local p=records[id]
-  if Access.defending(p,p.area) and not p.encounter and not online[id] and fit(p,clock) then
+  if Access.defending(p,p.area) and not p.encounter and not online(id) and fit(p,clock) then
    for _,xid in ipairs(ids) do
     local x=records[xid];local f=x.encounter;local v=f and records[f.target]
-    if Access.raiding(x) and f and not f.support and v and not Access.raiding(v) and x.area==p.area
+    if f and not f.support and v and x.area==p.area and not Combat.recordsAllied(u,p,x)
+     and (Security.intercepts(u,p,x,p.area)
+      or v.encounter and v.encounter.target==x.id and Security.reportedRaid(u,x,v,p.area,clock))
      and (close(p,x,clock) or close(p,v,clock) or require('src.squads').allied(u,p,v)) then
      p.encounter={target=x.id,support=true,progress=fraction(p,clock),nextAt=clock,round=0,seed=f.seed}
      p.targetId=x.id;p.taskStatus='defending '..v.id
@@ -346,18 +531,34 @@ function E.update(game,clock)
  local areas={}
  for _,id in ipairs(ids) do
   local r=records[id]
-  if fit(r,clock) and not r.encounter and not online[id] then
+  if active(r) and (r.retreatUntil or 0)<=clock and not r.encounter and not online(id) then
    local group=areas[r.area] or {};areas[r.area]=group;group[#group+1]=r
   end
  end
  for _,group in pairs(areas) do
+  for _,p in ipairs(group) do
+   if not p.encounter and fit(p,clock) and Access.defending(p,p.area) and Fuel.condition(p)~='stranded' then
+    for _,target in ipairs(group) do
+     if target~=p and not target.encounter and close(p,target,clock)
+      and Security.intercepts(u,p,target,p.area) then
+      begin(p,target,clock)
+      History.begin(u,p.id,target.id,clock,p.area,p.id)
+      require('src.alife_trace').note(p,clock,'encounter','intercepted '..target.id)
+      break
+     end
+    end
+   end
+  end
+ end
+ for _,group in pairs(areas) do
   for _,a in ipairs(group) do
-   if Access.raiding(a) and not a.encounter and not a.piracy and Fuel.condition(a)~='stranded'
+   if Access.raiding(a) and fit(a,clock) and not a.encounter and not a.piracy and Fuel.condition(a)~='stranded'
     and (a.offlineEyed or {})[1]~=math.floor(clock/T.offlineEngageWindow) then
     -- pick the softest prey in reach; patrols only if nothing else
     local target,best
     for _,b in ipairs(group) do
-     if (not Access.raiding(b)) and not b.encounter and close(a,b,clock) then
+     if (not Access.raiding(b)) and fit(b,clock) and not b.encounter and close(a,b,clock)
+      and not Combat.recordsAllied(u,a,b) then
       local odds=E.odds(a,b)-(Access.defending(b,b.area) and 1 or 0)
       -- a ship with its squad around it is a worse bet
       odds=odds-require('src.squads').alliesHere(u,b)*T.squadOddsPenalty
@@ -382,7 +583,10 @@ function E.update(game,clock)
       -- outran: no shots fired; the pirate won't try this pair again this window
       a.offlineEyed={math.floor(clock/T.offlineEngageWindow)}
       E.finish(u,a,target,clock,nil,nil,'evaded')
-     else begin(a,target,clock)
+     else
+      begin(a,target,clock)
+      local entry=Aggression.record(u,a.id,target.id,target.area,clock,'raid',target.route[target.index])
+      Security.reportRaid(game,a,target,entry)
       require('src.alife_trace').note(a,clock,'encounter','attacked '..target.id)
       require('src.alife_trace').note(target,clock,'encounter','attacked by '..a.id) end
     elseif target then a.offlineEyed={math.floor(clock/T.offlineEngageWindow)} end
@@ -410,38 +614,73 @@ function E.syncOnline(game)
    end
   end
  end
+ local u=game.universe
+ if game.lane or game.flight then return end
+ local wake,seen,queue={},{},{}
+ local function add(r)
+  if active(r) and r.area==game.fieldId and not seen[r.id] then
+   seen[r.id]=true;queue[#queue+1]=r
+   if not game.alifeOnline[r.id] and not (game.sideOwns and game:sideOwns(r.id)) then wake[r.id]=r end
+  end
+ end
+ for id in pairs(game.alifeOnline) do
+  local r=u.npcs[id]
+  if r and r.encounter then add(r) end
+ end
+ if #queue==0 then return end
+ local support={}
+ for _,r in pairs(u.npcs) do
+  local f=r.encounter
+  if f and f.support then
+   support[f.target]=support[f.target] or {}
+   table.insert(support[f.target],r)
+  end
+ end
+ local i=1
+ while i<=#queue do
+  local r=queue[i];local f=r.encounter
+  if f then add(u.npcs[f.target]) end
+  for _,helper in ipairs(support[r.id] or {}) do add(helper) end
+  i=i+1
+ end
+ local ids={};for id in pairs(wake) do ids[#ids+1]=id end;table.sort(ids)
+ for _,id in ipairs(ids) do require('src.alife').wake(game,wake[id]) end
+ -- Give support ships their targets before clearing a main pair's records.
  for id,e in pairs(game.alifeOnline) do
-  local r=game.universe.npcs[id]
-  local other=r.encounter and game.universe.npcs[r.encounter.target]
-  if p and not p.dead and active(other) and other.area==game.fieldId and not game.alifeOnline[other.id] then
-   local A=require('src.alife')
-   local x,y=A.point(other,game.universe.clock);local px,py=p.body:getPosition()
-   if (x-px)^2+(y-py)^2<T.alifeFar^2 then A.wake(game,other) end
+  local r=u.npcs[id];local f=r and r.encounter
+  local target=f and f.support and game.alifeOnline[f.target]
+  if target and not target.dead and not target.removed then
+   e.combatTarget=target;e.securityThink=game.time+T.securityThink
+   resume(r,u.clock)
   end
  end
  for id,e in pairs(game.alifeOnline) do
   local r=game.universe.npcs[id]
-  local target=r.encounter and game.alifeOnline[r.encounter.target]
-  if target and not target.dead and not target.removed and r.encounter.support then
-   -- a defending patrol keeps after the pirate onscreen
-   e.aggressor=target;e.combatTarget=target;e.securityThink=game.time+T.securityThink
-   resume(r,game.universe.clock)
-  elseif target and not target.dead and not target.removed then
-   -- Each side marks the other as its aggressor: hostility checks always
-   -- honour an aggressor, so the fight carries on onscreen instead of the
-   -- next target scan quietly dropping it.
-   local other=game.universe.npcs[r.encounter.target]
-   e.aggressor=target;target.aggressor=e
-   if r then e.combatTarget=target;e.securityThink=game.time+T.securityThink end
-   if other then target.combatTarget=e;target.securityThink=game.time+T.securityThink end
-   -- Once both bodies exist, ordinary AI owns the encounter completely.
-   -- Do not leave frozen graph duties behind after a physical disengagement.
-   History.begin(game.universe,r.id,other.id,game.universe.clock,r.area)
-   E.finish(game.universe,r,other,game.universe.clock,nil,true)
+  local f=r and r.encounter
+  local target=f and not f.support and game.alifeOnline[f.target]
+  local other=f and u.npcs[f.target]
+  if target and other and other.encounter and other.encounter.target==id
+   and not target.dead and not target.removed then
+   if Combat.recordsAllied(u,r,other) then
+    E.finish(u,r,other,u.clock)
+   else
+    -- Each side marks the other as its aggressor: hostility checks always
+    -- honour an aggressor, so the fight carries on onscreen instead of the
+    -- next target scan quietly dropping it.
+    e.encounterState={target=f.target,round=f.round,seed=f.seed}
+    target.encounterState={target=r.id,round=f.round,seed=f.seed}
+    e.aggressor=target;target.aggressor=e
+    if r then e.combatTarget=target;e.securityThink=game.time+T.securityThink end
+    if other then target.combatTarget=e;target.securityThink=game.time+T.securityThink end
+    -- Once both bodies exist, ordinary AI owns the encounter completely.
+    -- Do not leave frozen graph duties behind after a physical disengagement.
+    History.begin(game.universe,r.id,other.id,game.universe.clock,r.area)
+    E.finish(game.universe,r,other,game.universe.clock,nil,true)
+   end
   end
  end
 end
-function E.clearSpot(game,x,y,radius,seed)
+function E.clearSpot(game,x,y,radius,seed,ignore)
  local a0=((tonumber(tostring(seed):match('%d+')) or 0)*2.3999632297)%(2*math.pi)
  for ring=0,6 do
   local d=ring*radius*1.5
@@ -450,7 +689,7 @@ function E.clearSpot(game,x,y,radius,seed)
    local cx,cy=x+math.cos(a)*d,y+math.sin(a)*d
    local free=true
    for _,o in ipairs(game.entities) do
-    if o.body and not o.removed and not o.dead and o.body.isDestroyed and not o.body:isDestroyed() then
+    if o~=ignore and o.body and not o.removed and not o.dead and o.body.isDestroyed and not o.body:isDestroyed() then
      local ox,oy=o.body:getPosition();local r=(o.radius or o.halfLength or 50)+radius+40
      if (ox-cx)^2+(oy-cy)^2<r*r then free=false;break end
     end

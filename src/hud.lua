@@ -10,6 +10,7 @@ local Input = require("src.input")
 local Render = require("src.render")
 local T = require("src.tuning")
 local Fields = require("src.fields")
+local Combat = require("src.combat")
 
 local HUD = { showHelp = true }
 
@@ -495,7 +496,7 @@ local function drawOffscreen(game)
 		for _, d in ipairs(destinations(game)) do mark(d.label, d.x, d.y, d.radius, d.col) end
 	end
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead and e.aggro then
+		if Combat.hostile(game, game.player, e) and (not Combat.sceneEnemy(e) or e.aggro or e.combatTarget) then
 			local sx, sy = cam:toScreen(Pose.position(e))
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)
@@ -539,9 +540,13 @@ local function drawDeath(game)
 	lg.setColor(INK[1], INK[2], INK[3], a)
 	local home = game:homeStation()
 	lg.printf(("You ejected in a pod. Hull, modules and hold are in the wreck.\nKills: %d"):format(game.kills), 0, h * 0.36 + 56, w, "center")
+	if game.wreckContractNotice then
+		lg.setColor(WARN[1], WARN[2], WARN[3], a)
+		lg.printf(game.wreckContractNotice, 0, h * 0.36 + 96, w, "center")
+	end
 	lg.setColor(DIM[1], DIM[2], DIM[3], a)
 	lg.printf(home and ("Press R (or Start) to take a new ship at %s"):format(home.name) or "Press R (or Start) to launch a new ship",
-		0, h * 0.36 + 110, w, "center")
+		0, h * 0.36 + (game.wreckContractNotice and 126 or 110), w, "center")
 end
 
 -- Read-only view of the player's grid hold (debug panel: Show hold grid).

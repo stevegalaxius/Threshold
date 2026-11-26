@@ -68,7 +68,7 @@ function A.update(u,clock)
      if size>0 then c.idle=c.idle+1;c.idleCapacity=c.idleCapacity+size end
     elseif task.kind=='transport' then
      c.present=(c.present or 0)+1;c.busy=c.busy+1
-     if not r.suspendedTask and not r.service and r.fuelStatus~='stranded' and r.fuelStatus~='empty' and require('src.reactor_fuel').remaining(r.ship)>0 then
+     if not (task.freightRecovery and task.freightRecovery.retried) and not r.suspendedTask and not r.service and r.fuelStatus~='stranded' and r.fuelStatus~='empty' and require('src.reactor_fuel').remaining(r.ship)>0 then
       local remaining=Transport.duration(task,task.phase=='pickup' and r.node or nil,clock)
       if r.action and r.action.arriveAt then remaining=math.max(remaining,r.action.arriveAt-clock) end
       if task.phase=='pickup' then remaining=remaining+180 end

@@ -28,6 +28,7 @@ local Hold = require("src.inventory.hold")
 local HUD = require("src.hud")
 local Station = require("src.ui.station")
 local Sheet = require("src.ui.shipsheet")
+local Parking = require("src.dealer_parking")
 
 local Hangar = { sel = nil, hand = nil, scroll = 0, confirmSell = nil }
 
@@ -74,6 +75,21 @@ local function layout(game)
 	for i, slot in ipairs(slots) do
 		L.berths[i] = { x = L.moor.x, y = L.moor.y + (i - 1 - Hangar.scroll) * (ROW_H + 6), w = MOOR_W, h = ROW_H,
 			index = i, slot = slot, visible = i > Hangar.scroll and i <= Hangar.scroll + visible }
+	end
+
+	-- An incoming hull owns these cells or this berth as soon as its
+	-- delivery is booked. It stays out of the selectable ship list.
+	L.reservedBays = {}
+	for _, claim in ipairs(Parking.claims(game.universe, st.locationId or st.key)) do
+		if claim.mooring and L.berths[claim.mooring] then
+			L.berths[claim.mooring].claim = claim
+		elseif claim.bay then
+			local w, h = footprint(game, claim.hull, claim.bay.rot)
+			L.reservedBays[#L.reservedBays + 1] = {
+				x = L.gx + claim.bay.x * cs, y = L.gy + claim.bay.y * cs,
+				w = w * cs, h = h * cs, claim = claim,
+			}
+		end
 	end
 
 	local function add(owner, hullId, bay, i)
@@ -206,21 +222,27 @@ local function drawBerths(game, L, mx, my, sel)
 	local p, cs, h = game.player, L.cs, Hangar.hand
 	local B = L.bay
 	Station.panel(B.x, B.y, B.w, B.h)
-	lg.setFont(HUD.font(18))
+	local title = "Hangar · " .. L.station.name
+	local titleFont = HUD.font(18)
+	lg.setFont(titleFont)
 	lg.setColor(HUD.INK)
-	lg.print("Hangar \194\183 " .. L.station.name, B.x + PAD, B.y + 12)
+	lg.print(title, B.x + PAD, B.y + 12)
 
 	local used, inside, freeMoor = 0, 0, 0
 	for _, s in ipairs(L.ships) do
 		if not s.exterior then used = used + (s.w / cs) * (s.h / cs); inside = inside + 1 end
 	end
+	for _, bay in ipairs(L.reservedBays) do used = used + (bay.w / cs) * (bay.h / cs) end
 	for _, row in ipairs(L.berths) do
 		if not row.ship and not game:mooringTaken(L.station, row.index) then freeMoor = freeMoor + 1 end
 	end
-	lg.setFont(HUD.font(14))
+	local usage = ("%d in bay  ·  %d / %d cells  ·  %d of %d berths free"):format(
+		inside, used, L.gridW * L.gridH, freeMoor, #L.berths)
+	local usageFont = HUD.font(14)
+	local usageY = titleFont:getWidth(title) + usageFont:getWidth(usage) + 3 * PAD > B.w and 31 or 15
+	lg.setFont(usageFont)
 	lg.setColor(HUD.DIM)
-	lg.printf(("%d in bay  \194\183  %d / %d cells  \194\183  %d of %d berths free"):format(
-		inside, used, L.gridW * L.gridH, freeMoor, #L.berths), B.x, B.y + 15, B.w - PAD, "right")
+	lg.printf(usage, B.x, B.y + usageY, B.w - PAD, "right")
 
 	Sheet.label(("Interior bay  %d \195\151 %d"):format(L.gridW, L.gridH), L.gx, L.gy - 18)
 	Sheet.label("Outside berths"..(L.dealerWaiting>0 and (" / "..L.dealerWaiting.." for sale awaiting space") or ""), L.moor.x, L.gy - 18)
@@ -231,6 +253,27 @@ local function drawBerths(game, L, mx, my, sel)
 	lg.setColor(HUD.AQUA[1], HUD.AQUA[2], HUD.AQUA[3], 0.1)
 	for cy = 0, L.gridH - 1 do
 		for cx = 0, L.gridW - 1 do lg.rectangle("line", L.gx + cx * cs + 0.5, L.gy + cy * cs + 0.5, cs - 1, cs - 1) end
+	end
+
+	for _, bay in ipairs(L.reservedBays) do
+		local color = HUD.AQUA
+		lg.setColor(color[1], color[2], color[3], 0.18)
+		lg.rectangle("fill", bay.x + 1, bay.y + 1, bay.w - 2, bay.h - 2)
+		lg.setColor(color[1], color[2], color[3], 0.85)
+		lg.rectangle("line", bay.x + 1.5, bay.y + 1.5, bay.w - 3, bay.h - 3)
+		lg.line(bay.x + 2, bay.y + bay.h - 2, bay.x + bay.w - 2, bay.y + 2)
+		tileName(bay, "RESERVED", 1)
+		if inRect(bay, mx, my) then
+			local owner = bay.claim.dealerStock and "Dealer delivery" or "Your delivery"
+			Sheet.label("Reserved · " .. owner .. " · " .. data.hulls[bay.claim.hull].name,
+				L.gx, math.min(L.gy + L.gridH * cs + 4, B.y + B.h - 19))
+		end
+	end
+	if #L.reservedBays > 0 then
+		lg.setFont(HUD.font(13))
+		lg.setColor(HUD.AQUA)
+		local label = L.gridW * cs >= 300 and "Reserved for delivery" or "Reserved"
+		lg.printf(label, L.gx, L.gy - 18, L.gridW * cs, "right")
 	end
 	-- airlock stripe between bay and moorings
 	local A = L.airlock
@@ -247,9 +290,9 @@ local function drawBerths(game, L, mx, my, sel)
 			local taken = game:mooringTaken(L.station, row.index)
 			local small = length > row.slot.length or width > row.slot.width
 			local ok = not taken and not small and game:mooringClear(L.station, row.index, hullId)
-			local status = taken and "visiting ship" or small and "too small" or not ok and "blocked" or "free"
+			local status = row.claim and "Reserved" or taken and "visiting ship" or small and "too small" or not ok and "blocked" or "free"
 			local col = (h and ok) and ACTIVE or HUD.AQUA
-			if h and ok and inRect(row, mx, my) then
+			if row.claim or h and ok and inRect(row, mx, my) then
 				lg.setColor(col[1], col[2], col[3], 0.18)
 				lg.rectangle("fill", row.x, row.y, row.w, row.h, 4, 4)
 			end
@@ -259,10 +302,13 @@ local function drawBerths(game, L, mx, my, sel)
 			lg.setColor(HUD.INK[1], HUD.INK[2], HUD.INK[3], (taken or small) and 0.5 or 1)
 			lg.print(("Berth %d"):format(row.index), row.x + 8, row.y + 6)
 			lg.setFont(HUD.font(13))
-			if taken or not ok then lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.75) else lg.setColor(HUD.DIM) end
+			if row.claim then lg.setColor(HUD.AQUA)
+			elseif taken or not ok then lg.setColor(HUD.WARN[1], HUD.WARN[2], HUD.WARN[3], 0.75) else lg.setColor(HUD.DIM) end
 			lg.printf(status, row.x, row.y + 7, row.w - 8, "right")
 			lg.setColor(HUD.DIM)
-			lg.print(("fits up to %g \195\151 %g"):format(row.slot.length, row.slot.width), row.x + 8, row.y + 25)
+			local description = row.claim and ((row.claim.dealerStock and "Dealer · " or "Your delivery · ") .. data.hulls[row.claim.hull].name)
+				or ("fits up to %g × %g"):format(row.slot.length, row.slot.width)
+			lg.printf(description, row.x + 8, row.y + 25, row.w - 16, "left")
 		end
 	end
 	if L.totalRows > L.visibleRows then

@@ -57,12 +57,26 @@ function View.drawActive(game,f,t)
  right(r.x+14,r.y+10,r.w-28,HUD.credits(bill.total),16,HUD.AQUA)
  text(r.x+14,r.y+48,r.w-230,('%s · %s · %s'):format(from(f,t.source),reach(t),m3(bill.volume)),13)
  local detail=pickup and ('Next: load the cargo at %s.'):format(name(t.source)) or ('Next: deliver it to %s.'):format(name(t.target))
- if not pickup and (game.player.cargo[t.item] or 0)<t.amount then detail='Cargo missing: replace it before delivery or return.' end
+ local missing=Board.cargoMissing(game)
+ local aboard=(game.player.cargo[t.item] or 0)>0
+ local partial=missing and aboard
+ if missing then
+  detail=partial and 'Some cargo is missing. Recover or replace it, deliver what remains, or report the loss.'
+   or 'Cargo missing. Recover or replace it, or report the loss.'
+ end
+ if t.recoveryStop then detail='Recovery stop · '..name(t.recoveryStop)..'. Dock there to unload.' end
  text(r.x+14,r.y+76,r.w-230,detail,14,HUD.INK)
- text(r.x+14,r.y+108,r.w-230,'Paid on delivery. Cancelling after pickup means returning the cargo.',13,HUD.DIM)
- local destination=pickup and t.source or t.target
- Station.button(f.advance,pickup and 'Load cargo' or 'Deliver & collect',false,f.here==destination)
- Station.button(f.cancel,pickup and 'Cancel contract' or 'Return & cancel',false,f.here and (pickup or f.here==t.source))
+ text(r.x+14,r.y+108,r.w-230,missing and 'Reporting loss ends the contract without payment and reduces standing.'
+  or 'Paid on delivery. Cancelling after pickup means returning the cargo.',13,HUD.DIM)
+ local destination=pickup and t.source or t.recoveryStop or t.target
+ Station.button(f.advance,pickup and 'Load cargo' or t.recoveryStop and 'Unload freight' or partial and 'Deliver partial' or 'Deliver & collect',false,
+  f.here==destination and (not missing or aboard))
+ Station.button(f.cancel,missing and 'Report loss' or pickup and 'Cancel contract' or 'Return & cancel',false,
+  f.here and (missing or pickup or f.here==(t.originalSource or t.source)))
+ if f.returnFreight then
+  Station.button(f.returnFreight,t.recoveryStop and 'Resume delivery' or 'Return to origin',false,t.recoveryStop~=nil or aboard)
+  if not t.recoveryStop then Station.button(f.transferFreight,'Transfer freight',false,aboard) end
+ end
 end
 function View.drawQuest(game,f,row)
  local u=game.universe;local clock=u.clock
@@ -133,7 +147,9 @@ function View.drawFreight(game,f,row)
  local volume=amount*data.items[o.item].volume
  text(row.x+14,row.y+10,row.w-230,('%d \195\151 %s to %s'):format(amount,item(o.item),name(o.target)),15)
  right(row.x+14,row.y+10,row.w-28,HUD.credits(payment),16,HUD.AQUA)
- text(row.x+14,row.y+46,row.w-225,('%s · %s · %s'):format(from(f,o.source),reach(o),m3(volume)),13)
+ local route=('%s · %s · %s'):format(from(f,o.source),reach(o),m3(volume))
+ if o.relay then route='Transferred freight · '..route end
+ text(row.x+14,row.y+46,row.w-225,route,13)
  local note
  if q and amount<o.amount then
   note={q.limit=='stock' and ('Only %d of the %d ordered are in stock; the rest stays on the board.'):format(amount,o.amount)
@@ -145,8 +161,19 @@ function View.drawFreight(game,f,row)
 end
 -- A click on the active contract or a quest/freight row; nil if it hit none.
 function View.click(game,f,x,y)
- if f.active and f.advance and inside(f.advance,x,y) then return Board.advance(game) end
- if f.active and f.cancel and inside(f.cancel,x,y) then return Board.cancel(game) end
+ if f.returnFreight and inside(f.returnFreight,x,y) then
+  return Board.chooseRecovery(game,f.active.recoveryStop and 'resume' or 'return')
+ end
+ if f.transferFreight and not f.active.recoveryStop and inside(f.transferFreight,x,y) then
+  return Board.chooseRecovery(game,'transfer')
+ end
+ if f.active and f.advance and inside(f.advance,x,y) then
+  if not Board.cargoMissing(game) or (game.player.cargo[f.active.item] or 0)>0 then return Board.advance(game) end
+ end
+ if f.active and f.cancel and inside(f.cancel,x,y) then
+  if Board.cargoMissing(game) then return Board.reportLoss(game) end
+  return Board.cancel(game)
+ end
  local u=game.universe;local Q=require('src.quests')
  for _,row in ipairs(f.rows) do
   if row.abandon and inside(row.abandon,x,y) then return Q.abandon(u,row.quest.id,u.clock,game) end

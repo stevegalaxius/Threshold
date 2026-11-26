@@ -410,7 +410,7 @@ function Game:spawnSiteGate(inst, n, pc)
 	-- the piece's x, y is the breech; the body sits mid-barrel
 	local body = love.physics.newBody(self.world, x + cos(a) * barrel / 2, y + sin(a) * barrel / 2, "kinematic")
 	local def = Sites.template(inst)
-	local g = { kind = "driver", invulnerable = true, id = self:nextId(), team = 0, body = body, angle = a,
+	local g = { kind = "driver", invulnerable = true, id = self:nextId(), body = body, angle = a,
 		radius = T.gateRadius, barrel = barrel, hw = T.gateHalfWidth, zone = T.gateZone, zoneWidth = T.gateZoneWidth,
 		color = def.color, site = inst.id, pocket = n, unlock = pc.unlock,
 		warning = pc.warning and (def.warning or "No way back through this gate until every hostile beyond it is beaten.") or nil,

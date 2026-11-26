@@ -106,7 +106,9 @@ function P.returnRecord(game,r)
  local A=require('src.alife')
  if r.encounter then require('src.encounters').finish(game.universe,r,game.universe.npcs[r.encounter.target],game.universe.clock,r) end
  local base=Homes.get(r)
- if not base then r.taskStatus='no pirate home station';return false end
+ if not base or not require('src.npc_access').canDock(r,base,game.universe,'fence') then
+  r.taskStatus='no accessible pirate base';return false
+ end
  local source=r.state=='travel' and r.route[r.index] or r.node or r.route[r.index]
  local path=itinerary(source,base,game.universe.clock)
  if not path then r.taskStatus='no route to '..L.get(base).name;return false end
@@ -140,11 +142,18 @@ local function next(c)
  local duty=r.piracy
  local base=duty.base or Homes.get(r)
  if duty.phase=='escape' then
+  if not require('src.npc_access').canStop(r,base,u) then return {wait=T.pirateRest} end
   if L.canonical(c.node)~=L.canonical(base) then
    local path=G.live(c.node,base,clock)
    if path then return {route=path} end
+   if duty.freightTheft then return {wait=T.freightStallTime} end
   end
   P.unload(u,r)
+  if duty.freightTheft then
+   r.piracy=nil
+   Tasks.release(u,r,'fenced stolen freight',clock)
+   return {wait=T.pirateRest}
+  end
   if r.wildcat then require('src.wildcats').atFence(u,r,base) end
   Supplies.refill(r,base)
   local path=G.live(base,duty.origin,clock)

@@ -39,7 +39,8 @@ local function carrierOf(r)
 end
 
 local function offers(u, fn)
-	for _, o in pairs(Tasks.state(u).offers) do if o.kind == "ship_delivery" then fn(o) end end
+	local deliveries,board=Tasks.offersOfKind(u,"ship_delivery")
+ for id,o in pairs(deliveries) do if board[id]==o then fn(o) end end
 end
 
 -- The dealer stations that build ships, and the ones that only sell.
@@ -90,7 +91,7 @@ function SD.refresh(u, clock)
 						for _, l in ipairs(D.lots(u, source)) do
 							if l.hull == hull and not l.playerOrder and not l.playerDelivery and not l.used and not promised[source .. "/" .. tostring(l.id)] then lot = l break end
 						end
-						if lot and Transport().route(source, target, clock) then
+						if lot and G.itinerary(source,target,clock,true) then
 							promised[source .. "/" .. tostring(lot.id)] = true
 							Tasks.post(u, { kind = "ship_delivery", source = source, target = target, hull = hull, lot = lot.id,
 								price = lot.price, placed = clock, cooldown = 120, requires = { capabilities = { "berths" } } })
@@ -147,12 +148,34 @@ local function active(order)
  return order.status=='listed' or order.status=='in transit'
 end
 
-local function incoming(u,target,except)
- local hulls={}
- for _,order in ipairs(SD.playerOrders(u,target)) do
-  if order.id~=except and active(order) then hulls[#hulls+1]=order.hull end
+-- The board holds the parking claim, so cancellation and settlement cannot
+-- leave a second saved reservation behind.
+local function destinationParking(u,offer)
+ local Parking=require('src.dealer_parking')
+ if not offer.playerDelivery and not offer.parking then
+  local stock,def=Dealers().state(u,offer.target)
+  if not stock then return end
+  local used=#stock.lots
+  for _,claim in ipairs(Parking.claims(u,offer.target)) do
+   if claim.dealerStock then used=used+1 end
+  end
+  if used>=(def.lots or 6) then return end
  end
- return hulls
+ local prefer=not offer.playerDelivery and 'outside' or nil
+ local spot=Parking.plan(u,offer.target,offer.hull,1,prefer,offer.playerDelivery,offer.parking)[1]
+ if spot then
+  spot.hull=offer.hull
+  spot.dealerStock=not offer.playerDelivery
+ end
+ return spot
+end
+
+local function reserveParking(u,task)
+ local offer=Tasks.state(u).offers[task.id]
+ if not offer then return end
+ local spot=destinationParking(u,offer)
+ if spot then offer.parking=spot end
+ return spot
 end
 
 local function deliveryCarrier(u,offer)
@@ -174,7 +197,7 @@ local function deliveryCarrier(u,offer)
    and not r.service and not r.suspendedTask and not r.worldRecovery
    and r.fuelStatus~='stranded' and r.fuelStatus~='empty'
    and L.byId[node] and W.weight(r,'ship_delivery')>0
-   and Berths.free(carrierOf(r),offer.hull) and Access.eligible(r,offer,Access.capabilities(r))
+   and Berths.free(carrierOf(r),offer.hull) and Access.eligible(r,offer,Access.capabilities(r),u)
    and (node==offer.source or G.itinerary(node,offer.source,u.clock)) then
    if not best or id<best then best=id end
   end
@@ -211,7 +234,7 @@ function SD.catalogue(u,target,clock)
   for _,lot in ipairs(lots) do
    if compatible[lot.hull]==nil then compatible[lot.hull]=carrierExists(lot.hull) end
    if compatible[lot.hull] and not lot.playerOrder and not lot.playerDelivery and not promised[source..'/'..lot.id] then
-    if route==nil then route=Transport().route(source,target,clock) or false end
+    if route==nil then route=G.itinerary(source,target,clock,true) or false end
     if route then
      local offer={kind='ship_delivery',source=source,target=target,hull=lot.hull,lot=lot.id,price=lot.price,placed=clock}
      offer.fee=payment(offer,clock)
@@ -239,13 +262,14 @@ function SD.orderPlayer(u,quote)
  offers(u,function(o) if o.source==quote.source and o.lot==quote.lot then promised=true end end)
  if promised then return nil,'That ship is already promised to a delivery' end
  if not carrierExists(lot.hull) then return nil,'No carrier design can transport this hull' end
- if not require('src.dealer_parking').plan(u,target,lot.hull,1,nil,true,incoming(u,target))[1] then return nil,'No suitable parking at this station' end
- if not Transport().route(quote.source,target,u.clock) then return nil,'No delivery route' end
+ if not G.itinerary(quote.source,target,u.clock,true) then return nil,'No delivery route' end
  local offer={kind='ship_delivery',source=quote.source,target=target,hull=lot.hull,lot=lot.id,price=lot.price,placed=u.clock}
  local price,fee=lot.price,payment(offer,u.clock)
  if u.credits<price+fee then return nil,'Not enough credits' end
  offer.requires={capabilities={'berths'}}
  offer.playerDelivery=true
+ offer.parking=destinationParking(u,offer)
+ if not offer.parking then return nil,'No suitable parking at this station' end
  offer.order=true
  local carrier=deliveryCarrier(u,offer)
  if not carrier then return nil,'No compatible NPC carrier is currently available for this pickup' end
@@ -279,6 +303,8 @@ function SD.updatePlayerOrders(u,clock)
    refundOrder(u,order,'lost')
   elseif order.status=='listed' and order.pickupBy and clock>=order.pickupBy then
    refundOrder(u,order,'expired')
+  elseif active(order) and not offers[order.id].parking then
+   reserveParking(u,order)
   end
  end
 end
@@ -307,6 +333,7 @@ local function load(u, r, t)
  end
 	local slot = Berths.free(carrierOf(r), lot.hull)
 	if not slot then return false end
+	if not reserveParking(u,t) then return false,"destination parking unavailable" end
 	D.take(u, t.source, t.lot)
 	local rec = D.ship(lot)
 	rec.delivery, rec.lot = t.id, copy(lot)
@@ -315,9 +342,8 @@ local function load(u, r, t)
  if t.playerDelivery then
   local order=playerOrders(u)[t.id]
   order.status='in transit'
-  local offer=Tasks.state(u).offers[t.id]
-  if offer then offer.loaded=true end
  end
+ Tasks.state(u).offers[t.id].loaded=true
 	t.berth, t.phase = slot, "delivery"
 	return true
 end
@@ -325,8 +351,8 @@ end
 Tasks.register("ship_delivery", {
 	requires = { capabilities = { "berths" } },
 	plan = function(t, station, clock)
-		if t.phase == "pickup" then return G.itinerary(station, t.source, clock) end
-		return Transport().route(station, t.target, clock)
+		if t.phase == "pickup" then return G.itinerary(station,t.source,clock,true) end
+		return G.itinerary(station,t.target,clock,true)
 	end,
 	eligible = function(u, r, o, station, clock)
   if o.playerDelivery then
@@ -340,21 +366,29 @@ Tasks.register("ship_delivery", {
 		return Berths.free(carrierOf(r), o.hull) ~= nil
 	end,
 	feasible = function(u, r, o, station, clock)
-		return (station == o.source or G.itinerary(station, o.source, clock) ~= nil) and Transport().route(o.source, o.target, clock) ~= nil
+		return (station == o.source or G.itinerary(station,o.source,clock,true) ~= nil)
+   and G.itinerary(o.source,o.target,clock,true) ~= nil and destinationParking(u,o)~=nil
 	end,
 	score = function(u, r, o, station, clock)
 		local pay = payment(o, clock)
 		return pay / math.max(60, Transport().duration(o, station, clock)) * 100 - (station ~= o.source and 50 or 0)
 	end,
 	prepare = function(u, r, t, station, clock)
-		t.route = Transport().route(t.source, t.target, clock)
+		t.route = G.itinerary(t.source,t.target,clock,true)
 		if not t.route then return false end
 		t.phase = "pickup"
-		if station ~= t.source then return true end
+		t.parking=nil
+		if station ~= t.source then return reserveParking(u,t)~=nil end
 		return load(u, r, t)
 	end,
  release = function(u,r,t)
-  if not t.playerDelivery or t.settled or t.phase~='delivery' then return end
+  local board=Tasks.state(u).offers
+  if not t.playerDelivery then
+   if t.phase=='delivery' then board[t.id]=nil
+   elseif board[t.id] then board[t.id].parking=nil end
+   return
+  end
+  if t.settled or t.phase~='delivery' then return end
   local order=playerOrders(u)[t.id]
   if order and order.id==t.id and order.status=='in transit' then
    order.status='lost'
@@ -366,7 +400,8 @@ Tasks.register("ship_delivery", {
 		if t.settled then return true end
 		if t.phase == "pickup" then
 			if station ~= t.source then return false end
-			if not load(u, r, t) then Tasks.release(u, r, "ship gone", clock) else mirror(game, r) end
+			local loaded,reason=load(u,r,t)
+   if not loaded then Tasks.release(u,r,reason or "ship gone",clock) else mirror(game,r) end
 			return false
 		end
 		if station ~= t.target then return false end
@@ -376,7 +411,7 @@ Tasks.register("ship_delivery", {
   if t.playerDelivery then
    local order=playerOrders(u)[t.id]
    if not order or order.status~='in transit' then return false end
-   local parking=require('src.dealer_parking').plan(u,station,rec.hull,1,nil,true)[1]
+   local parking=reserveParking(u,t)
    if not parking then order.waitingParking=true;return false end
    order.waitingParking=nil
    rec.delivery,rec.lot=nil,nil
@@ -399,8 +434,10 @@ Tasks.register("ship_delivery", {
 		local s = D.state(u, station)
 		local lot = rec.lot or { hull = rec.hull, loadout = rec.loadout, price = t.price }
 		lot.armor = rec.armor or lot.armor
-		local parking = require("src.dealer_parking").plan(u, station, lot.hull, 1, "outside")[1]
+		local parking = reserveParking(u,t)
 		if not parking then return false end   -- no room yet: wait docked
+		s.serial=(s.serial or 0)+1
+		lot.id=s.serial
 		lot.bay, lot.mooring, lot.dealerStock, lot.deliveredAt = parking.bay, parking.mooring, true, clock
 		s.lots[#s.lots + 1] = lot
 		carried[t.berth] = nil

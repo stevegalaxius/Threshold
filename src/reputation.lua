@@ -18,10 +18,9 @@
 	    goodwill + standing(its faction) - heat(its node)
 	read through Rep.attitude, and turned into a tier by Rep.tier.
 
-	The one standing feud between factions is Rep.STANCE: how each major
-	power treats the Milliways cartel (Rep.CARTEL). There is no territory: who owns a
-	node is fixed lore (Rep.FACTIONS / Rep.AREAS / Rep.NODES). Loners have no
-	faction, so only their own goodwill and local heat count.
+	Rep.STANCE supplies starting relationships between factions. A universe
+	can override a pair through Rep.setStance. Territory and station ownership
+	are authored in Rep.AREAS and Rep.NODES.
 ]]
 
 local Rep = {}
@@ -53,20 +52,47 @@ Rep.CARTEL = "milliways"
 Rep.STANCE = {
 	milliways = { estates = "hostile", diwan = "hostile", jove = "ambivalent", zhuhai = "ambivalent" },
 }
--- How faction a stands toward faction b (either way round): "hostile",
--- "ambivalent", or nil for no particular stance.
-function Rep.stance(a, b)
-	if not a or not b then return nil end
-	return (Rep.STANCE[a] and Rep.STANCE[a][b]) or (Rep.STANCE[b] and Rep.STANCE[b][a]) or nil
+-- Relationships are mutual. A universe can override the authored starting
+-- stance without affecting other saves, or clear an override with nil.
+local function pair(a,b)
+	if b<a then return b..':'..a end
+	return a..':'..b
 end
--- Does this NPC fly for the cartel? Its raiders, and anyone based at a
--- cartel station.
-function Rep.cartelCrew(r)
-	if not r then return false end
-	if r.affiliation == Rep.CARTEL or r.piracy ~= nil or r.darkRunner == true then return true end
-	local home = r.homeStation
-	return home ~= nil and Rep.ofNode(require("src.locations").canonical(home)) == Rep.CARTEL
+
+function Rep.stance(a,b,u)
+	if not a or not b or a==b then return nil end
+	local relations=u and u.reputation and u.reputation.factions
+	return (relations and relations[pair(a,b)])
+		or (Rep.STANCE[a] and Rep.STANCE[a][b]) or (Rep.STANCE[b] and Rep.STANCE[b][a]) or nil
 end
+
+function Rep.setStance(u,a,b,stance)
+	assert(a and b and a~=b and Rep.FACTIONS[a] and Rep.FACTIONS[b],'invalid faction pair')
+	assert(stance==nil or stance=='neutral' or stance=='ambivalent' or stance=='hostile' or stance=='friendly','invalid faction stance')
+	u.reputation=u.reputation or {}
+	local rep=u.reputation
+	rep.factions=rep.factions or {}
+	rep.factions[pair(a,b)]=stance
+end
+
+-- Older cartel records identify their allegiance through their base or runner
+-- role. Piracy alone is also used for independent crews such as wildcats.
+function Rep.crewFaction(r)
+	if not r then return end
+	if r.affiliation then return r.affiliation end
+	if r.wildcat then return end
+	local home=r.homeStation
+	if r.darkRunner or home and Rep.ofNode(require('src.locations').canonical(home))==Rep.CARTEL then
+		return Rep.CARTEL
+	end
+end
+
+function Rep.cartelCrew(r) return Rep.crewFaction(r)==Rep.CARTEL end
+
+function Rep.hostileToCrew(u,owner,r)
+	return Rep.stance(owner,Rep.crewFaction(r),u)=='hostile'
+end
+
 -- The cartel's product: what a hostile power's market refuses outside a fence.
 Rep.CONTRABAND = { amphetamines = true, fentanyl = true, cannabinoid_moss = true }
 -- Is trade from station s to station c blocked? A power hostile to the

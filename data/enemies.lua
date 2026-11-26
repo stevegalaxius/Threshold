@@ -14,8 +14,6 @@
 
 	Persistent NPCs don't use these: they fly a profile by job
 	(data/npc_profiles.lua). These are site garrisons and spawned enemies.
-	team         2 = hostile (default), 3 = neutral (never in waves; only
-	             spawned by playing fields)
 	livery       faction paint { primary = { r, g, b }, secondary = { r, g, b }? }
 	             (secondary defaults to a shade of the primary); leave it
 	             out and the ship flies its hull's factory preset

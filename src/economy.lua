@@ -567,6 +567,9 @@ local function run(u,clock,pause)
     local k=o.target..'|'..o.item
     if o.state~='available' then committed[k]=(committed[k] or 0)+o.amount end
    end
+  elseif o.relayScope==E.scope then
+   local k=o.target..'|'..o.item
+   committed[k]=(committed[k] or 0)+o.amount
   end
  end
  local reach={}
@@ -606,10 +609,10 @@ local function run(u,clock,pause)
  -- Claims, split loads and deliveries can arrive while targets are being
  -- calculated. Apply the limits in one pass over the current freight board.
  local remaining,availableOrders,claimed={},{},{}
- for id,o in pairs(state.offers) do if o.layoutScope==E.scope then
+ for id,o in pairs(state.offers) do if o.layoutScope==E.scope or o.relayScope==E.scope then
   local k=o.target..'|'..o.item
   if levels[k]~=nil then
-   if o.state=='available' then availableOrders[#availableOrders+1]={id=id,o=o,key=k}
+   if o.state=='available' and not o.relay then availableOrders[#availableOrders+1]={id=id,o=o,key=k}
    else claimed[k]=(claimed[k] or 0)+o.amount end
   end
  end end
@@ -628,7 +631,7 @@ local function run(u,clock,pause)
  end
  pause()
  local inbound,late={},{}
- for _,o in pairs(state.offers) do if o.layoutScope==E.scope then
+ for _,o in pairs(state.offers) do if o.layoutScope==E.scope or o.relayScope==E.scope then
   local k=o.target..'|'..o.item
   inbound[k]=(inbound[k] or 0)+o.amount
   if o.state=='reserved' and o.loaded then
