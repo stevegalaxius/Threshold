@@ -115,6 +115,11 @@ N.controller={name='npc',
     Transport.unloadRecovery(u,r,task,node,clock)
     return {wait=T.alifeLocalTick}
    end
+   if not route and (not allowed or Transport.embargoed(task)) then
+    Tasks.release(u,r,'delivery blocked',clock)
+    r.taskStatus=nil
+    return {wait=T.alifeLocalTick}
+   end
   end
   if not route then
    if task.phase=='delivery' and (task.kind=='transport' or task.kind=='ship_delivery' or task.kind=='passenger' and not allowed) then

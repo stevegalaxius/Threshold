@@ -47,6 +47,25 @@ return function()
  assert(not Tasks.arrive(u,crew,mars,1,game) and not crew.task and offer.state=='available',
   'a reserved pickup loaded goods for a newly closed destination')
 
+ -- A closed destination can end a load after ordinary recovery runs
+ -- out of options. The existing release settles its unused fee.
+ local Accounts=require('src.accounts')
+ local seller,node='station:shoals_2','station:shoals_1'
+ local prepaid=Tasks.post(u,{kind='transport',source=seller,target=earth,item='steel_plate',
+  amount=1,order=true,stocked=true})
+ prepaid.state,prepaid.owner,prepaid.loaded='reserved',crew.id,true
+ local balance,sellerBalance=Accounts.balance(u,earth),Accounts.balance(u,seller)
+ assert(Accounts.reserve(u,earth,15))
+ crew.ship.cargo={steel_plate=1}
+ crew.node,crew.area=node,'shoals'
+ crew.task={kind='transport',phase='delivery',id=prepaid.id,source=seller,target=earth,
+  item=prepaid.item,amount=1,order=true,stocked=true,buyerFunded=true,prepaidGoods=100,prepaidFee=15}
+ NPC.controller.next({u=u,r=crew,node=node,clock=2,wasDocked=true,game=game})
+ assert(not crew.task and crew.lastTask.status=='delivery blocked' and not Tasks.state(u).offers[prepaid.id],
+  'blocked freight job stayed active or relisted its loaded stock')
+ assert(Accounts.balance(u,earth)==balance and Accounts.balance(u,seller)==sellerBalance
+  and crew.ship.cargo.steel_plate==1,'blocked freight did not use existing settlement')
+
  local yard='station:mercury_3'
  local damaged={id='npc/repair-test',affiliation=Rep.CARTEL,state='idle',area='mercury',
   route={yard,yard},node=yard,index=1,speed=600,ship=require('src.persistence').copy(crew.ship)}

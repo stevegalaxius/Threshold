@@ -103,7 +103,11 @@ function Tasks.release(u,r,reason,clock)
   if extra and extra.owner==r.id then extra.owner=nil;extra.state='available';extra.manifestRoot=nil;extra.loaded=nil;extra.readyAt=clock+(extra.cooldown or 120);if t.phase=='delivery' then Tasks.state(u).offers[line.id]=nil end end
  end
  if o and o.owner==r.id then
-  o.owner=nil;o.manifestRoot=nil;o.loaded=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
+  if t.kind=='transport' and t.phase=='delivery' and o.order then
+   Tasks.state(u).offers[t.id]=nil
+  else
+   o.owner=nil;o.manifestRoot=nil;o.loaded=nil;o.state='available';o.readyAt=clock+(o.cooldown or 120)
+  end
  end
  local def=Tasks.definitions[t.kind]
  if def and def.release then def.release(u,r,t,reason,clock) end
