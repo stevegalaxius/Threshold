@@ -692,6 +692,7 @@ T.passengerFareBase=60
 T.passengerFarePerAU=40
 T.passengerComfortMax=.4
 T.passengerSpeedMax=.25
+T.passengerDivertShare=.5  -- fare share paid when a closed destination diverts the party
 T.passengerPodComfort=.3    -- a Climate Pod with no comfort of its own
 T.passengerHoldComfort=.6   -- a hull's climate compartment with none of its own
 -- Price-driven goods (prototype; src/economy.lua, src/markets.lua). For

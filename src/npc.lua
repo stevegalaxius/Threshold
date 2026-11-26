@@ -122,8 +122,14 @@ N.controller={name='npc',
     return {wait=T.alifeLocalTick}
    end
   end
+  if not route and task.kind=='passenger' and task.phase=='delivery' and not allowed then
+   route=require('src.passengers').divert(u,r,task,node,clock)
+   if route and #route<=1 then Tasks.arrive(u,r,node,clock,c.game);return {wait=T.alifeLocalTick} end
+   if route then r.taskStatus='diverting passengers to a residential station'
+   else Tasks.release(u,r,'destination closed',clock);return {wait=T.alifeLocalTick} end
+  end
   if not route then
-   if task.phase=='delivery' and (task.kind=='transport' or task.kind=='ship_delivery' or task.kind=='passenger' and not allowed) then
+   if task.phase=='delivery' and (task.kind=='transport' or task.kind=='ship_delivery') then
     r.taskStatus=allowed and 'waiting for a freight route' or 'waiting for docking access'
     return {wait=T.freightStallTime}
    end
@@ -377,6 +383,7 @@ function N.beginDocked(r,node,at,u,minimum)
  require('src.crew_fatigue').settle(r,at)
  r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil;r.dockedAt=at
  require('src.prospect').sell(u,r,node)
+ require('src.transport').sellOwned(u,r,node)
  Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
  return true
 end

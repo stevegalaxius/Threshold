@@ -154,6 +154,32 @@ function P.lock(t,ship)
  return fare
 end
 
+-- The destination closed to this ship mid-trip: put the party down at the
+-- nearest residential station it can dock at instead, for part of the fare.
+-- Returns a route, or nil when there is none (the caller releases the job,
+-- which disembarks the party).
+function P.divert(u,r,t,node,clock)
+ if t.phase~='delivery' or t.diverted then return end
+ local Access=require('src.npc_access')
+ local x,y=L.position(node,clock)
+ local best,route,bestD
+ for _,id in ipairs(P.stations()) do
+  if id~=t.target and Access.canStop(r,id,u) and require('src.dock_room').capacity(id,r.ship.hull)>0 then
+   local px,py=L.position(id,clock)
+   local d=(px-x)^2+(py-y)^2
+   if not bestD or d<bestD then
+    local path=id==node and {node} or Transport.route(node,id,clock)
+    if path then best,route,bestD=id,path,d end
+   end
+  end
+ end
+ if not best then return end
+ local fare=P.lock(t,r.ship) or 0
+ t.fare=math.floor(fare*T.passengerDivertShare+.5)
+ t.originalTarget,t.target,t.diverted=t.target,best,true
+ return route
+end
+
 -- Generation -------------------------------------------------------------------
 local function random(st)
  st.seed=(st.seed*48271)%2147483647

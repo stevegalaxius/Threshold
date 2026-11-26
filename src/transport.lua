@@ -560,6 +560,67 @@ function Transport.hasPrepaid(t)
  for _,line in ipairs(lines(t)) do if prepaid(t,line) then return true end end
  return false
 end
+-- Cargo the hauler itself owns: bought trade goods, or a stranded load it
+-- had to pay the seller for. Sold at the next station that lists the item
+-- (Transport.sellOwned, on every dock).
+local function own(r,item,n)
+ if n<=0 then return end
+ r.ownedCargo=r.ownedCargo or {}
+ r.ownedCargo[item]=(r.ownedCargo[item] or 0)+n
+end
+-- A loaded job that ends without delivery or return. Seller-owned goods
+-- (stocked or mined, not prepaid) are bought from the seller at its price,
+-- as far as the hauler's credits go; the rest is written off and taken off
+-- the ship. Bought trade goods were the hauler's already.
+function Transport.strand(u,r,t,clock)
+ if r.player or r.state=='dead' or r.state=='escaped' then return end
+ local aboard={}
+ for _,line in ipairs(lines(t)) do
+  local have=aboard[line.item] or math.max(0,((r.ship.cargo or {})[line.item] or 0)-((r.ownedCargo or {})[line.item] or 0))
+  local n=math.min(have,line.amount or 0)
+  aboard[line.item]=have-n
+  if n>0 then
+   if line.trade then own(r,line.item,n)
+   elseif not prepaid(t,line) then
+    local seller=line.originalSource or line.source
+    local unit=Transport.goodsPrice(u,seller,line.item)
+    local afford=unit>0 and math.min(n,math.floor(math.max(0,r.credits or 0)/unit)) or n
+    local cost=math.floor(unit*afford+.5)
+    if cost>0 then
+     r.credits=(r.credits or 0)-cost
+     require('src.accounts').receive(u,seller,cost,'sold',line.item)
+    end
+    own(r,line.item,afford)
+    if n>afford then cargo(r,line.item,-(n-afford)) end
+   end
+  end
+ end
+end
+local function buys(station,item)
+ for _,shop in ipairs(require('src.stockpile').shops(station)) do
+  if require('src.stockpile').lists(shop,item) then return true end
+ end
+end
+function Transport.sellOwned(u,r,station)
+ if not r.ownedCargo or r.player then return end
+ local place=L.byId[station]
+ if not place or place.kind~='station' then return end
+ local held=r.task and lines(r.task) or {}
+ for item,n in pairs(r.ownedCargo) do
+  local have=math.min(n,(r.ship.cargo or {})[item] or 0)
+  -- (never sell goods a current job still needs aboard)
+  for _,line in ipairs(held) do if line.item==item and r.task.phase=='delivery' then have=0 end end
+  if have<=0 and ((r.ship.cargo or {})[item] or 0)<=0 then r.ownedCargo[item]=nil
+  elseif have>0 and buys(station,item) then
+   local value=Transport.tradeValue(u,{item=item,amount=have},station)
+   r.credits=(r.credits or 0)+require('src.accounts').pay(u,station,value,'bought',item)
+   J.deliver(u,station,item,have)
+   cargo(r,item,-have)
+   r.ownedCargo[item]=n-have>0 and n-have or nil
+  end
+ end
+ if not next(r.ownedCargo) then r.ownedCargo=nil end
+end
 -- Last resort for loaded prepaid freight that can neither be delivered nor
 -- returned: refund the buyer, take the cargo off the ship, end the job.
 -- Never waits, so a loaded prepaid job always ends.
@@ -687,6 +748,7 @@ Tasks.register('transport',{
   for _,line in ipairs(lines(t)) do releaseFunds(u,line) end
   if t.phase~='delivery' then return end
   if t.relay then Tasks.state(u).offers[t.id]=nil end
+  Transport.strand(u,r,t,clock)
   local carried=0
   for _,line in ipairs(lines(t)) do if not line.trade then carried=carried+(line.amount or 0) end end
   if carried>0 then Transport.answer(u,r,t.target,-1) end
