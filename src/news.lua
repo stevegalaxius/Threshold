@@ -108,7 +108,6 @@ function N.state(u)
   u.news=s
  end
  s.subs=s.subs or {}
- N.extraBeats=u.worldstate and require('src.worldstate').beats(u) or nil
  -- saves from before keep was cut to 80 hold more: trim them here, or the
  -- first story printed trims the list under a loop walking it
  while #s.stories>N.T.keep do table.remove(s.stories,1) end
@@ -124,12 +123,32 @@ local beats={}
 for id,o in pairs(Outlets.outlets) do
  beats[id]={};for _,a in ipairs(o.beat) do beats[id][a]=true end
 end
--- (an outlet can take over a dead editor's paper's beat for good:
--- src/worldstate.lua 'beat' effects, read from the current universe)
-function N.covers(o,area)
+-- An outlet's beat in universe u: its authored areas, plus the beats of
+-- papers whose editors died and whose ground it took over for good
+-- (src/worldstate.lua 'beat' effects). Everything that asks what a paper
+-- covers goes through these two, so the takeover is never read around.
+local function took(u,o)
+ local t=u and u.worldstate and require('src.worldstate').beats(u)[o]
+ if not t then return nil end
+ local list={};for from in pairs(t) do list[#list+1]=from end
+ table.sort(list)
+ return list
+end
+function N.beat(u,o)
+ local d=Outlets.outlets[o];local extra=took(u,o)
+ if not extra then return d.beat end
+ local out,seen={},{}
+ for _,a in ipairs(d.beat) do out[#out+1]=a;seen[a]=true end
+ for _,from in ipairs(extra) do
+  for _,a in ipairs(Outlets.outlets[from].beat) do if not seen[a] then out[#out+1]=a;seen[a]=true end end
+ end
+ return out
+end
+function N.covers(u,o,area)
+ assert(type(u)=='table','News.covers(u,outlet,area)')
  if beats[o] and beats[o][area] then return true end
- local took=N.extraBeats and N.extraBeats[o]
- if took then for from in pairs(took) do if beats[from] and beats[from][area] then return true end end end
+ local extra=took(u,o)
+ if extra then for _,from in ipairs(extra) do if beats[from][area] then return true end end end
  return false
 end
 -- How much of its reach an outlet has kept (1, or less once its editor is dead).
@@ -388,7 +407,7 @@ local function refreshTicker(u,s,o,clock)
  local prices=Markets.state(u).prices;local seen={}
  local traded={};for _,item in ipairs(Markets.products or {}) do traded[item]=true end
  local cand={}
- for _,area in ipairs(d.beat) do
+ for _,area in ipairs(N.beat(u,o)) do
   for _,key in ipairs(L().stations(area,'trade')) do
    for item,ratio in pairs(prices[key] or {}) do
     if traded[item] then
@@ -427,7 +446,7 @@ local function pullWire(u,s,o,clock)
  for _,x in ipairs(Outlets.order) do
   if x~=o then
    for k,line in pairs(N.tickerOf(u,x).lines) do
-    if not line.wire and not line.rumour and not N.covers(o,line.area) and math.abs(line.reported-1)>=N.T.wireMin then
+    if not line.wire and not line.rumour and not N.covers(u,o,line.area) and math.abs(line.reported-1)>=N.T.wireMin then
      pool[#pool+1]={k=k,line=line,from=x}
     end
    end
@@ -578,7 +597,7 @@ local function deedStories(u,s,clock)
    deed.printed=true
    local any=false
    for _,o in ipairs(Outlets.order) do
-    if N.covers(o,deed.area) then
+    if N.covers(u,o,deed.area) then
      any=true
      local named=rng(u)<naming(u,o,true)+(deed.suspect and N.T.suspectBoost or 0)
      report(u,N.publish(u,{outlet=o,kind=deed.delta<0 and 'killed' or 'praise',area=deed.area,faction=deed.faction,
@@ -627,7 +646,7 @@ local function deathStories(u,s,o,since,clock)
   local vh=res.hull or victim and victim.ship and victim.ship.hull
   local vd=vh and require('src.data').hulls[vh]
   -- (a death with no killer on record is still news: 'a raider')
-  if not f and killer~='player' and e.area and N.covers(o,e.area) and printed==0 then
+  if not f and killer~='player' and e.area and N.covers(u,o,e.area) and printed==0 then
    -- an independent: a story, no standing
    local k=u.npcs and u.npcs[killer]
    local hull=res.killerHull or k and k.ship and k.ship.hull
@@ -637,7 +656,7 @@ local function deathStories(u,s,o,since,clock)
     who=blame and playerWho(u,true) or hd and ('a '..hd.name) or 'a raider',
     named=blame or nil,subject=blame and 'player' or nil,blamed=blame or nil})
    printed=printed+1
-  elseif f and killer~='player' and e.area and N.covers(o,e.area) then
+  elseif f and killer~='player' and e.area and N.covers(u,o,e.area) then
    local k=u.npcs and u.npcs[killer]
    local hull=res.killerHull or k and k.ship and k.ship.hull
    local playerHull=s.playerHullId
@@ -670,7 +689,7 @@ local function copyStories(u,s,o,clock)
   local st=s.stories[i]
   if clock-st.clock>N.T.storyLife then break end
   if copied>=1 then break end
-  if st.outlet~=o and not st.secondhand and not st.tip and not st.quest and st.area and not N.covers(o,st.area)
+  if st.outlet~=o and not st.secondhand and not st.tip and not st.quest and st.area and not N.covers(u,o,st.area)
    and clock-st.clock>=N.T.secondhandDelay and juicy(st,d) then
    st.copies=st.copies or {}
    if not st.copies[o] then
@@ -726,7 +745,8 @@ local function run(u,s,o,since,clock)
  if rng(u)<d.rumour then
   local goods={};for item,a in pairs(d.agenda) do if a>0 then goods[#goods+1]=item end end
   table.sort(goods)
-  local area=d.beat[1+math.floor(rng(u)*#d.beat)]
+  local beat=N.beat(u,o)
+  local area=beat[1+math.floor(rng(u)*#beat)]
   local stations=L().stations(area,'trade')
   if #goods>0 and #stations>0 then
    local key=stations[1+math.floor(rng(u)*#stations)];local item=goods[1+math.floor(rng(u)*#goods)]

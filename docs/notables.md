@@ -4,12 +4,12 @@ Code: `src/notables.lua`, `src/worldstate.lua`. Data: `data/notables.lua`. Gener
 
 ## The idea
 
-A fixed cast of unique named people, three for each of the four powers and the cartel: a journalist (the editor of the faction's paper), a leader, and a magnate who owns real production lines. They are not pilots and they never respawn. When the player kills one (or hands one over to another faction), the world changes for good, Kenshi-style.
+A fixed cast of unique named people, three for each of the four powers and the cartel: a journalist (the editor of the faction's paper), a leader, and a magnate who owns real production lines. The corporations are smaller: Ceres Concern and Bowman Atmospherics each have a CEO, and the Beltway (Ceres's paper) has an editor. They are not pilots and they never respawn. When the player kills one (or hands one over to another faction), the world changes for good, Kenshi-style.
 
 ## Presence
 
 - **Seat.** Each notable lives at a station. The Jobs tab lists the notables staying where you're docked.
-- **Circuits.** Journalists and magnates ride to the stations on their circuit and back, about every two hours, as **VIP passenger contracts**: a `passenger` offer with item `vip`, one seat, 8 times a single fare, a seat of comfort 0.5 or better, and a standing floor (their staff won't book a captain their faction is wary of). NPC transports take most of them. Nobody takes one in 30 minutes and they go with their own staff, off the board.
+- **Circuits.** Journalists, magnates and CEOs ride to the stations on their circuit and back, about every two hours, as **VIP passenger contracts**: a `passenger` offer with item `vip`, one seat, 8 times a single fare, a seat of comfort 0.5 or better, and a standing floor (their staff won't book a captain their faction is wary of). NPC transports take most of them. Nobody takes one in 30 minutes and they go with their own staff, off the board.
 - **Summits.** Every 3 hours 2 or 3 leaders go to Ring Station (neutral ground). Every 5th summit is a grand one with every living leader. The news announces it 30 minutes ahead, when their VIP runs go up. After the session they ride home.
 
 ## Endings
@@ -25,10 +25,11 @@ All of them go through the ledger as sourced effects, and never revert:
 
 | Role | Lasting | One-off |
 |---|---|---|
-| all | passenger demand at their seat x0.6 (residential seats) | obituaries in every paper (own paper mourns, hostile ones gloat); player deed: journalist -30, leader -50, magnate -40 standing, heat at the seat; factions hostile to them warm to you |
+| all | | obituaries in every paper (own paper mourns, hostile ones gloat); player deed: journalist -30, leader -50, magnate -40 standing, heat at the seat; factions hostile to them warm to you |
 | journalist | their paper keeps 35% of its runs and price influence; a rival paper takes over their beat | |
-| leader | faction markets 5% dearer; authored stance changes (`stances`) | their goods +40% across the faction, fading over 6h |
+| leader | faction markets 5% dearer; police wanted in its systems x0.7; squads hold at each stop half as long; authored stance changes (`stances`) | their goods +40% across the faction, fading over 6h |
 | magnate | their facilities keep 40% of output | their goods +60% at their works, fading over 6h |
+| CEO | the company's police x0.7 and holds halved, like a leader; their facilities keep 40% of output | their goods +60% at their works |
 
 Extra hand-authored effects go in a notable's `extra` list, in the same shape.
 
@@ -38,8 +39,9 @@ The rule: nothing changes the world directly. An event sets a flag (`notable.<id
 
 - `WS.mul(u,'output',station,facility)` in `I.scale`
 - `WS.mul(u,'price',station,item)` in `Markets.price`
-- `WS.mul(u,'passengers',station)` in `P.cap`
-- `WS.mul(u,'outlet_reach',outlet)` and `WS.beats(u)` in the news
+- `WS.mul(u,'outlet_reach',outlet)` in the news; `WS.beats(u)` behind `News.beat(u,o)` and `News.covers(u,o,area)`, the only way any code asks what a paper covers (both take the universe, so nothing reads a stale or global copy)
+- `WS.mul(u,'patrols','faction:<id>')` in `S.policeWanted` (fewer police arrive; the ships already serving stay until lost)
+- `WS.mul(u,'inspections','faction:<id>')` in the squad sweep hold time
 - stance effects call `Rep.setStance`, which is saved with reputation
 
 `where` can be a station, an outlet, or `faction:<id>` (every station the faction owns). `WS.validate` checks every id an effect names. The test runs it over the whole cast, so a renamed station, item or facility fails the build. F1 debug panel, "Notables and world state": where everyone is, the next summit, a button to call one now, every flag, every lasting effect by source, and the log.
@@ -51,8 +53,6 @@ The rule: nothing changes the world directly. An event sets a flag (`notable.<id
 3. VIP runs nobody takes happen off the board (6 of 52 in a 6-hour probe). There are no escorts yet; the faction's patrols could fly an escort or the notable's own staff ship.
 4. Capture counts the same as a death. Ransom, rescue or a return would be quest-layer work.
 5. The leader stance changes are my picks: Zhuhai and Jove crack down on the cartel, the Diwan softens toward it, the cartel's death turns Zhuhai hostile, and the Estates leader's death cuts every Estates facility to 85%.
-6. Passenger demand only drops at residential seats (4 of the 15).
-7. Patrol and inspection density don't change yet: no clean hook in `src/security.lua`/`src/population.lua`.
-8. The rival-beat takeover is read through a module pointer to the current universe, because `News.covers` has no universe argument.
-9. Ceres Concern and Bowman have no notables, and the Beltway has no editor.
-10. The economic ripple was checked for stability only (2 hours with the whole cast dead, no errors). It wasn't measured with the economy check.
+6. Fewer police only shows as losses go unreplaced; serving ships aren't stood down. "Inspection" is the time squads hold at each stop, since there is no player inspection or contraband scan yet.
+7. CEOs don't attend summits.
+8. The economic ripple was checked for stability only (2 hours with the whole cast dead, no errors). It wasn't measured with the economy check.

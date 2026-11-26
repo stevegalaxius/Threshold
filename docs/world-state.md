@@ -12,17 +12,17 @@ Summits at station:ring_1 every 3h; every 5th is a grand summit with every leade
 
 Lord Chancellor of the Chancery. Seat `station:venus_1`, travels only to summits. Flag `notable.estates_leader`. Player deed -50 standing.
 
-- passengers x0.60 at station:venus_1
 - price x1.05 at faction:estates
 - electronics +40% at faction:estates, fading over 6h
 - medical_supplies +40% at faction:estates, fading over 6h
+- patrols x0.70 at faction:estates
+- inspections x0.50 at faction:estates
 - output x0.85 at faction:estates
 
 ### Cressida Hale (journalist)
 
 Editor of the Inner Worlds Gazette. Seat `station:luna_3`, rides to `station:earth_1`, `station:venus_1`. Flag `notable.estates_journalist`. Player deed -30 standing.
 
-- passengers x0.60 at station:luna_3
 - outlet_reach x0.35 at gazette
 - signal takes over gazette's beat
 
@@ -30,7 +30,6 @@ Editor of the Inner Worlds Gazette. Seat `station:luna_3`, rides to `station:ear
 
 Master Founder of Mercury. Seat `station:mercury_1`, rides to `station:venus_1`. Flag `notable.estates_magnate`. Player deed -40 standing.
 
-- passengers x0.60 at station:mercury_1
 - output x0.40 at station:mercury_1 (roll_steel)
 - steel_plate +60% at station:mercury_1, fading over 6h
 - thermal_ceramics +60% at station:mercury_1, fading over 6h
@@ -44,17 +43,17 @@ Master Founder of Mercury. Seat `station:mercury_1`, rides to `station:venus_1`.
 
 Speaker of the Mandate. Seat `station:mars_4`, travels only to summits. Flag `notable.zhuhai_leader`. Player deed -50 standing.
 
-- passengers x0.60 at station:mars_4
 - price x1.05 at faction:zhuhai
 - steel_plate +40% at faction:zhuhai, fading over 6h
 - electronics +40% at faction:zhuhai, fading over 6h
 - zhuhai and milliways become hostile
+- patrols x0.70 at faction:zhuhai
+- inspections x0.50 at faction:zhuhai
 
 ### Lin Meirong (journalist)
 
 Editor of Red Signal. Seat `station:mars_5`, rides to `station:mars_3`. Flag `notable.zhuhai_journalist`. Player deed -30 standing.
 
-- passengers x0.60 at station:mars_5
 - outlet_reach x0.35 at signal
 - gazette takes over signal's beat
 
@@ -62,7 +61,6 @@ Editor of Red Signal. Seat `station:mars_5`, rides to `station:mars_3`. Flag `no
 
 Chairman of the Heaven-Ladder conglomerate. Seat `station:mars_3`, rides to `station:mars_2`. Flag `notable.zhuhai_magnate`. Player deed -40 standing.
 
-- passengers x0.60 at station:mars_3
 - output x0.40 at station:mars_3 (roll_steel)
 - steel_plate +60% at station:mars_3, fading over 6h
 - empty_canister +60% at station:mars_3, fading over 6h
@@ -76,17 +74,17 @@ Chairman of the Heaven-Ladder conglomerate. Seat `station:mars_3`, rides to `sta
 
 Presiding Councillor of the Accord. Seat `station:jupiter_2`, travels only to summits. Flag `notable.jove_leader`. Player deed -50 standing.
 
-- passengers x0.60 at station:jupiter_2
 - price x1.05 at faction:jove
 - deuterium_canister +40% at faction:jove, fading over 6h
 - hydrogen_canister +40% at faction:jove, fading over 6h
 - jove and milliways become hostile
+- patrols x0.70 at faction:jove
+- inspections x0.50 at faction:jove
 
 ### Marisol Achterberg (journalist)
 
 Editor of the Jovian Ledger. Seat `station:callisto_1`, rides to `station:jupiter_2`. Flag `notable.jove_journalist`. Player deed -30 standing.
 
-- passengers x0.60 at station:callisto_1
 - outlet_reach x0.35 at ledger
 - beltway takes over ledger's beat
 
@@ -94,7 +92,6 @@ Editor of the Jovian Ledger. Seat `station:callisto_1`, rides to `station:jupite
 
 Skimmer baron of Olympus. Seat `station:jupiter_1`, rides to `station:jupiter_2`. Flag `notable.jove_magnate`. Player deed -40 standing.
 
-- passengers x0.60 at station:jupiter_1
 - output x0.40 at station:jupiter_1 (skim_deuterium)
 - deuterium_canister +60% at station:jupiter_1, fading over 6h
 
@@ -104,17 +101,17 @@ Skimmer baron of Olympus. Seat `station:jupiter_1`, rides to `station:jupiter_2`
 
 Grand Vizier of the Diwan. Seat `station:saturn_2`, travels only to summits. Flag `notable.diwan_leader`. Player deed -50 standing.
 
-- passengers x0.60 at station:saturn_2
 - price x1.05 at faction:diwan
 - water_ice +40% at faction:diwan, fading over 6h
 - water +40% at faction:diwan, fading over 6h
 - diwan and milliways become ambivalent
+- patrols x0.70 at faction:diwan
+- inspections x0.50 at faction:diwan
 
 ### Tamar Gilad (journalist)
 
 Editor of the Diwan Courier. Seat `station:titan_1`, rides to `station:saturn_2`. Flag `notable.diwan_journalist`. Player deed -30 standing.
 
-- passengers x0.60 at station:titan_1
 - outlet_reach x0.35 at courier
 - ledger takes over courier's beat
 
@@ -122,7 +119,6 @@ Editor of the Diwan Courier. Seat `station:titan_1`, rides to `station:saturn_2`
 
 Mistress of the Enceladus brine works. Seat `station:enceladus_2`, rides to `station:saturn_3`. Flag `notable.diwan_magnate`. Player deed -40 standing.
 
-- passengers x0.60 at station:enceladus_2
 - output x0.40 at station:enceladus_2 (alkali_works)
 - alkalines +60% at station:enceladus_2, fading over 6h
 - nitrates +60% at station:enceladus_2, fading over 6h
@@ -136,18 +132,18 @@ Mistress of the Enceladus brine works. Seat `station:enceladus_2`, rides to `sta
 
 The Proprietor of Milliways. Seat `station:pluto_1`, travels only to summits. Flag `notable.cartel_leader`. Player deed -50 standing.
 
-- passengers x0.60 at station:pluto_1
 - price x1.05 at faction:milliways
 - amphetamines +40% at faction:milliways, fading over 6h
 - fentanyl +40% at faction:milliways, fading over 6h
 - cannabinoid_moss +40% at faction:milliways, fading over 6h
 - milliways and zhuhai become hostile
+- patrols x0.70 at faction:milliways
+- inspections x0.50 at faction:milliways
 
 ### Juno Sable (journalist)
 
 Editor of The Black Sheet. Seat `station:shoals_3`, rides to `station:cordelia_1`. Flag `notable.cartel_journalist`. Player deed -30 standing.
 
-- passengers x0.60 at station:shoals_3
 - outlet_reach x0.35 at blacksheet
 - beltway takes over blacksheet's beat
 
@@ -155,7 +151,41 @@ Editor of The Black Sheet. Seat `station:shoals_3`, rides to `station:cordelia_1
 
 The Chemist of Cinder Works. Seat `station:shoals_2`, rides to `station:shoals_3`. Flag `notable.cartel_magnate`. Player deed -40 standing.
 
-- passengers x0.60 at station:shoals_2
 - output x0.40 at station:shoals_2 (drug_lab)
 - amphetamines +60% at station:shoals_2, fading over 6h
 - fentanyl +60% at station:shoals_2, fading over 6h
+
+## ceres
+
+### Valentina Roux (ceo)
+
+Chief Executive of Ceres Concern. Seat `station:belt_1`, rides to `station:belt_3`. Flag `notable.ceres_ceo`. Player deed -40 standing.
+
+- patrols x0.70 at faction:ceres
+- inspections x0.50 at faction:ceres
+- output x0.40 at station:belt_1 (ice_wells)
+- water_ice +60% at station:belt_1, fading over 6h
+- output x0.40 at station:belt_2 (mack_assembly)
+- water_ice +60% at station:belt_2, fading over 6h
+
+### Desmond Achebe (journalist)
+
+Editor of the Beltway. Seat `station:belt_3`, rides to `station:belt_1`. Flag `notable.ceres_journalist`. Player deed -30 standing.
+
+- outlet_reach x0.35 at beltway
+- ledger takes over beltway's beat
+
+## bowman
+
+### Ingrid Bowman-Tsai (ceo)
+
+Chief Executive of Bowman Atmospherics. Seat `station:uranus_3`, rides to `station:uranus_1`. Flag `notable.bowman_ceo`. Player deed -40 standing.
+
+- patrols x0.70 at faction:bowman
+- inspections x0.50 at faction:bowman
+- output x0.40 at station:uranus_1 (skim_deuterium)
+- deuterium_canister +60% at station:uranus_1, fading over 6h
+- water_ice +60% at station:uranus_1, fading over 6h
+- output x0.40 at station:titania_1 (ice_wells)
+- deuterium_canister +60% at station:titania_1, fading over 6h
+- water_ice +60% at station:titania_1, fading over 6h

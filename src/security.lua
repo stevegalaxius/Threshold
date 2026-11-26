@@ -184,7 +184,11 @@ function S.updateSpawns(game,clock) return Population.update(game,clock) end
 policeWanted=function(u,area)
  local owner=Access.owner(area)
  if not owner or not Fields[area].alifeSecurity then return 0 end
- return require('src.squads').desired(u,'police',area,owner)
+ local n=require('src.squads').desired(u,'police',area,owner)
+ -- a leaderless faction fields fewer police for good (src/worldstate.lua);
+ -- the ships it has serve on, and losses aren't replaced past the new number
+ if u.worldstate then n=math.floor(n*require('src.worldstate').mul(u,'patrols','faction:'..owner)+.5) end
+ return n
 end
 S.policeWanted=policeWanted
 function S.seed(game,start)

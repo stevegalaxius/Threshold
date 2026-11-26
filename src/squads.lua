@@ -337,7 +337,9 @@ local function nextSweep(u,r,q,g,node,clock)
     dock=q.stationVisits%T.patrolDockEvery==0 or (Repairs.needs(r) and Repairs.supports(target))
      or (Supplies.needs(r) and Supplies.supports(target))
    end
-   local t=give(u,r,'squad_sweep',target,clock,dock,dock and Repairs.stay(r,target,T.patrolDockStay) or T.squadSweepHold,
+   -- (how long it holds and looks: shorter once its faction is leaderless, src/worldstate.lua)
+   local hold=T.squadSweepHold*(u.worldstate and require('src.worldstate').mul(u,'inspections','faction:'..g.faction) or 1)
+   local t=give(u,r,'squad_sweep',target,clock,dock,dock and Repairs.stay(r,target,T.patrolDockStay) or hold,
     'sweeping '..L.get(target).area)
    return t
   end

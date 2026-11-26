@@ -42,8 +42,9 @@ return function()
    assert(ok,('%s: bad consequence %s (%s)'):format(n.id,WS.describe(e),tostring(why)))
   end
  end
+ assert(roles.ceres and roles.ceres.ceo and roles.ceres.journalist and roles.bowman and roles.bowman.ceo,'corporations need their CEO and the Beltway its editor')
  for _,f in ipairs({'estates','zhuhai','jove','diwan','milliways'}) do
-  for role in pairs(D.roles) do assert(roles[f] and roles[f][role],f..' has no '..role) end
+  for _,role in ipairs({'journalist','leader','magnate'}) do assert(roles[f] and roles[f][role],f..' has no '..role) end
  end
 
  -- 2. consequences
@@ -67,18 +68,25 @@ return function()
  assert(Rep.standing(u,'zhuhai')<=zstand+D.roles.magnate.deed+1,'witnessed killing cost no standing')
  assert(#News.find(u,{kind='notable'})>=#News.order,'no obituaries printed')
 
- local cap=P.cap('station:mars_5',u)
  assert(NB.kill(u,'zhuhai_journalist',{how='test'}))
- assert(P.cap('station:mars_5',u)<=cap,'seat demand not reduced')
  assert(News.reach(u,'signal')<1,'dead editor\'s paper kept its reach')
- News.state(u)
- assert(News.covers('gazette','mars'),'rival paper did not take over the beat')
+ assert(News.covers(u,'gazette','mars'),'rival paper did not take over the beat')
 
  local price=require('src.markets').price(u,'station:pluto_1','food_crate')
  assert(Rep.stance('zhuhai','milliways',u)=='ambivalent')
  assert(NB.kill(u,'cartel_leader',{how='test'}))
  assert(Rep.stance('zhuhai','milliways',u)=='hostile','leader death did not change the stance')
  assert(require('src.markets').price(u,'station:pluto_1','food_crate')>price,'leaderless markets not dearer')
+ -- a leaderless faction fields fewer police, who look for less long
+ local S=require('src.security')
+ local police=S.policeWanted(u,'earth')
+ assert(police>0,'expected Estates police at Earth')
+ assert(NB.kill(u,'estates_leader',{how='test'}))
+ assert(police==0 or S.policeWanted(u,'earth')<police,('leaderless Estates still want %d police'):format(S.policeWanted(u,'earth')))
+ assert(WS.mul(u,'inspections','faction:estates')<1 and WS.mul(u,'patrols','faction:zhuhai')==1)
+ -- the corporations' CEOs take their company's security with them
+ assert(NB.kill(u,'ceres_ceo',{how='test'}))
+ assert(WS.mul(u,'patrols','faction:ceres')<1 and WS.mul(u,'output','station:belt_1','ice_wells')<1)
 
  -- 3. save round trip
  local state=require('src.persistence').copy(game:saveState())

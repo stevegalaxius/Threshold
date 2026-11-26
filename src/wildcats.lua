@@ -563,7 +563,7 @@ local function news(u,inst,headline,named)
  local N=require('src.news')
  local Outlets=require('data.outlets')
  for _,o in ipairs(Outlets.order) do
-  if N.covers(o,inst.home) then
+  if N.covers(u,o,inst.home) then
    N.publish(u,{outlet=o,kind='site',area=inst.home,headline=headline,fact='site:'..inst.id..':'..named})
   end
  end

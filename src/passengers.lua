@@ -39,12 +39,9 @@ function P.stations()
  return out
 end
 -- Open contracts this many at once at most: the demand rule.
-function P.cap(id,u)
+function P.cap(id)
  local c=P.config(id);if not c then return 0 end
- local n=math.max(1,math.min(T.passengerMaxOutstanding,math.floor((c.population or 0)/T.passengerResidentsPerContract+.5)))
- -- (a notable's death leaves their seat quieter for good: src/worldstate.lua)
- if u and u.worldstate then n=math.max(1,math.floor(n*require('src.worldstate').mul(u,'passengers',id)+.5)) end
- return n
+ return math.max(1,math.min(T.passengerMaxOutstanding,math.floor((c.population or 0)/T.passengerResidentsPerContract+.5)))
 end
 function P.state(u)
  u.passengers=u.passengers or {next={},seed=7919,posted=0,expired=0,delivered=0,fares=0}
@@ -247,7 +244,7 @@ function P.update(u,clock)
   st.next[id]=st.next[id] or clock+T.passengerInterval*((hash(id)%1000)/1000)
   if clock>=st.next[id] then
    st.next[id]=clock+T.passengerInterval
-   if P.outstanding(u,id)<P.cap(id,u) then P.post(u,id,clock) end
+   if P.outstanding(u,id)<P.cap(id) then P.post(u,id,clock) end
   end
  end
 end

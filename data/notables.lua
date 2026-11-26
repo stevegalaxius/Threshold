@@ -9,14 +9,14 @@
 	Placeholder cast. Names, offices and lines are meant to be rewritten.
 
 	  id        unique; world-state flags are 'notable.<id>'
-	  role      journalist | leader | magnate (D.roles has the rules)
+	  role      journalist | leader | magnate | ceo (D.roles has the rules)
 	  faction   a faction id from src/reputation.lua
 	  seat      the station they live at
 	  circuit   stations they ride to and back from (leaders: empty, they
 	            only travel to summits)
 	  outlet    journalist: the paper they edit (data/outlets.lua)
 	  rival     journalist: the outlet that takes over their beat
-	  works     magnate: { { station=, facility= } } the lines they own
+	  works     magnate, ceo: { { station=, facility= } } the lines they own
 	  goods     goods their death shocks (leader: its faction's stations;
 	            magnate: their works)
 	  stances   leader: { { with=faction, to=stance } } relations that
@@ -33,6 +33,9 @@ D.roles = {
 	journalist = { name = "journalist", deed = -30 },
 	leader = { name = "leader", deed = -50 },
 	magnate = { name = "magnate", deed = -40 },
+	-- a corporation's head (Ceres Concern, Bowman): their own works, and
+	-- the company's security, which answers to them
+	ceo = { name = "CEO", deed = -40 },
 }
 
 D.cast = {
@@ -120,6 +123,22 @@ D.cast = {
 	  seat = "station:shoals_2", circuit = { "station:shoals_3" },
 	  works = { { station = "station:shoals_2", facility = "drug_lab" } },
 	  goods = { "amphetamines", "fentanyl" } },
+
+	-- The corporations and the Beltway (smaller: a CEO each, and the Beltway's editor)
+	{ id = "ceres_ceo", role = "ceo", faction = "ceres",
+	  name = "Valentina Roux", office = "Chief Executive of Ceres Concern",
+	  seat = "station:belt_1", circuit = { "station:belt_3" },
+	  works = { { station = "station:belt_1", facility = "ice_wells" }, { station = "station:belt_2", facility = "mack_assembly" } },
+	  goods = { "water_ice" } },
+	{ id = "ceres_journalist", role = "journalist", faction = "ceres",
+	  name = "Desmond Achebe", office = "editor of the Beltway",
+	  seat = "station:belt_3", circuit = { "station:belt_1" },
+	  outlet = "beltway", rival = "ledger" },
+	{ id = "bowman_ceo", role = "ceo", faction = "bowman",
+	  name = "Ingrid Bowman-Tsai", office = "Chief Executive of Bowman Atmospherics",
+	  seat = "station:uranus_3", circuit = { "station:uranus_1" },
+	  works = { { station = "station:uranus_1", facility = "skim_deuterium" }, { station = "station:titania_1", facility = "ice_wells" } },
+	  goods = { "deuterium_canister", "water_ice" } },
 }
 
 D.summit = {
@@ -143,12 +162,13 @@ D.T = {
 	reportedCap = 15,      -- most a rival faction can warm to you for one death
 	-- the role rules
 	outletReach = 0.35,    -- a journalist's paper keeps this share of its reach
-	homeDemand = 0.6,      -- a notable's seat keeps this share of its passenger demand
 	worksOutput = 0.4,     -- a magnate's lines keep this share of their output
 	worksShock = 0.6,      -- their goods spike this much at their works
 	crisisShock = 0.4,     -- a leader's goods spike this much across the faction
 	shockLength = 6 * 3600,
 	leaderPrices = 1.05,   -- a leaderless faction's markets stay this much dearer
+	patrols = 0.7,         -- a leaderless faction (or a headless company) fields this share of its police
+	inspections = 0.5,     -- and they hold at each stop of their beat this share as long
 	heat = 60,             -- heat at their seat for a witnessed killing
 }
 
@@ -157,7 +177,6 @@ D.T = {
 function D.consequences(n)
 	local T, out = D.T, {}
 	local function add(e) out[#out + 1] = e end
-	add({ kind = "mul", target = "passengers", where = n.seat, by = T.homeDemand })
 	if n.role == "journalist" then
 		add({ kind = "mul", target = "outlet_reach", where = n.outlet, by = T.outletReach })
 		if n.rival then add({ kind = "beat", outlet = n.rival, from = n.outlet }) end
@@ -167,7 +186,12 @@ function D.consequences(n)
 			add({ kind = "shock", where = "faction:" .. n.faction, item = item, size = T.crisisShock, duration = T.shockLength })
 		end
 		for _, s in ipairs(n.stances or {}) do add({ kind = "stance", a = n.faction, b = s.with, to = s.to }) end
-	elseif n.role == "magnate" then
+	end
+	if n.role == "leader" or n.role == "ceo" then
+		add({ kind = "mul", target = "patrols", where = "faction:" .. n.faction, by = T.patrols })
+		add({ kind = "mul", target = "inspections", where = "faction:" .. n.faction, by = T.inspections })
+	end
+	if n.role == "magnate" or n.role == "ceo" then
 		for _, w in ipairs(n.works or {}) do
 			add({ kind = "mul", target = "output", where = w.station, sub = w.facility, by = T.worksOutput })
 			for _, item in ipairs(n.goods or {}) do

@@ -8,9 +8,10 @@
 
 	  WS.mul(u,'output',station,facility)   src/industry.lua   I.scale
 	  WS.mul(u,'price',station,item)        src/markets.lua    C.price
-	  WS.mul(u,'passengers',station)        src/passengers.lua P.cap
 	  WS.mul(u,'outlet_reach',outlet)       src/news.lua       runs and nudges
-	  WS.beats(u)                           src/news.lua       N.covers
+	  WS.beats(u)                           src/news.lua       N.beat, N.covers
+	  WS.mul(u,'patrols','faction:<id>')    src/security.lua   police wanted per system
+	  WS.mul(u,'inspections','faction:<id>') src/squads.lua    how long a squad holds at each stop
 
 	So every effect in the game can be traced to the event that caused it
 	(WS.report, the World State debug view), and two events never fight
@@ -30,7 +31,7 @@
 ]]
 local WS = {}
 
-WS.TARGETS = { output = true, price = true, passengers = true, outlet_reach = true }
+WS.TARGETS = { output = true, price = true, outlet_reach = true, patrols = true, inspections = true }
 WS.STANCES = { neutral = true, ambivalent = true, hostile = true, friendly = true }
 
 function WS.state(u)

@@ -24,7 +24,7 @@ local function home() return T.darkRunnerHome end
 local function publish(u,headline,area)
  local News=require('src.news');local Outlets=require('data.outlets')
  for _,o in ipairs(Outlets.order or {}) do
-  if News.covers(o,area) then
+  if News.covers(u,o,area) then
    News.publish(u,{outlet=o,kind='quest',headline=headline,area=area})
   end
  end
