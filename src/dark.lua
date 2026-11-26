@@ -46,6 +46,26 @@ function Dark.isDarkNode(id)
 	return place ~= nil and Dark.isDarkArea(place.area)
 end
 
+-- Is this one of the Milliways cartel's grids (cartel = true)? They are on
+-- the public charts and trade openly, but pirates call them home: raiders
+-- don't raid there and wildcats sell their hoards there.
+function Dark.isCartelArea(area)
+	local F = fields()
+	local o, f = F.orbits[area], F[area]
+	return (o and o.cartel) or (type(f) == "table" and f.cartel) or false
+end
+function Dark.isCartelNode(id)
+	local place = require("src.locations").byId[id]
+	return place ~= nil and Dark.isCartelArea(place.area)
+end
+-- A pirate haven: a dark grid or a cartel one.
+function Dark.isHaven(area) return Dark.isDarkArea(area) or Dark.isCartelArea(area) end
+function Dark.havens()
+	local out = {}
+	for _, area in ipairs(fields().list) do if Dark.isHaven(area) then out[#out + 1] = area end end
+	return out
+end
+
 -- Every dark grid, in list order.
 function Dark.areas()
 	local out = {}

@@ -34,7 +34,7 @@ W.stations = {
 	},
 	earth = {
 		{ id = "station:earth_1", food = {use=96}, facilities={silicon_refinery={capacity=24,surface=true},make_medical={capacity=8},surface_food={name="Surface food terminal",capacity=960,surface=true}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:earth_1", name = "Jita Orbital Logistics", layout = "customs_1", hub = true },
-		{ id = "station:earth_2", food = {use=64}, services = { "market", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace",
+		{ id = "station:earth_2", uses = { fence = true }, facilities={use_fentanyl={capacity=-6},use_moss={capacity=-6}}, food = {use=64}, services = { "market", "hangar" }, marketId = "market:earth_2", spin = -0.05, phase = 1.2943951023931953, name = "Elysium", layout = "estates_palace",
 		  residential = { population = 5000, homes = 8, routes = {
 			{ to = "station:earth_1", kind = "work", weight = 4 },
 			{ to = "station:earth_3", kind = "work", weight = 3 },
@@ -62,7 +62,7 @@ W.stations = {
 		-- the two orbital stations are shipyards, and freight meets here
 		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
 		-- residential: Zhuhai's workforce lives here, not on the shipyards
-		{ id = "station:mars_5", uses = { fence = true }, facilities={use_opioids={capacity=-10},use_amphetamines={capacity=-32},use_counterfeit_medicine={capacity=-14}}, marketId = "market:mars_5", services = { "market", "hangar" }, spin = -0.03, phase = 1.0, name = "Hakka Tulou Habitat", layout = "zhuhai_tulou",
+		{ id = "station:mars_5", facilities={use_amphetamines={capacity=-24},use_moss={capacity=-6}}, marketId = "market:mars_5", services = { "market", "hangar" }, spin = -0.03, phase = 1.0, name = "Hakka Tulou Habitat", layout = "zhuhai_tulou",
 		  residential = { population = 4000, homes = 10, routes = {
 			{ to = "station:mars_3", kind = "work", weight = 4 },
 			{ to = "station:mars_1", kind = "work", weight = 3 },
@@ -96,17 +96,17 @@ W.stations = {
 		{ id = "station:io_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:io_3", name = "Io Customs", layout = "customs_1", customs = true },
 	},
 	europa = {
-		{ id = "station:europa_1", facilities={water_wells={capacity=320,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station", layout = "jovian_stack" },
-		{ id = "station:europa_2", facilities={ice_wells={capacity=600,surface=true},water_melter={capacity=260}}, services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station", layout = "jovian_works" },
+		{ id = "station:europa_1", facilities={water_wells={capacity=360,surface=true},alkali_works={capacity=24,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:europa_1", name = "Conamara Station", layout = "jovian_stack" },
+		{ id = "station:europa_2", facilities={ice_wells={capacity=600,surface=true},water_melter={capacity=300}}, services = { "market", "hangar", "repair" }, marketId = "market:europa_2", spin = -0.05, phase = 2.3415926535897933, name = "Pwyll Station", layout = "jovian_works" },
 		{ id = "station:europa_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:europa_3", name = "Europa Customs", layout = "customs_1", customs = true },
 	},
 	ganymede = {
 		{ id = "station:ganymede_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:ganymede_1", name = "Galileo Regio", layout = "jovian_works" },
-		{ id = "station:ganymede_2", facilities={make_medical={capacity=8}}, services = { "market", "hangar", "repair" }, marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station", layout = "jovian_dingus" },
+		{ id = "station:ganymede_2", facilities={make_medical={capacity=12}}, services = { "market", "hangar", "repair" }, marketId = "market:ganymede_2", spin = -0.05, phase = 2.3415926535897933, name = "Uruk Station", layout = "jovian_dingus" },
 		{ id = "station:ganymede_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:ganymede_3", name = "Ganymede Customs", layout = "customs_1", customs = true },
 	},
 	callisto = {
-		{ id = "station:callisto_1", uses = { fence = true }, food = {use=64}, facilities={farm={capacity=640},use_opioids={capacity=-16},use_amphetamines={capacity=-8},use_counterfeit_medicine={capacity=-12}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
+		{ id = "station:callisto_1", food = {use=64}, facilities={farm={capacity=640},use_fentanyl={capacity=-18},use_amphetamines={capacity=-4},use_moss={capacity=-8}}, services = { "market", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:callisto_1", name = "Valhalla Port", layout = "jovian_freeport" },
 		{ id = "station:callisto_2", facilities={chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, marketId = "market:callisto_2", spin = -0.05, phase = 2.3415926535897933, name = "Asgard Station", layout = "jovian_works" },
 		{ id = "station:callisto_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:callisto_3", name = "Callisto Customs", layout = "customs_1", customs = true },
 	},
@@ -124,7 +124,7 @@ W.stations = {
 	},
 	enceladus = {
 		{ id = "station:enceladus_1", facilities={produce_nitrates={capacity=340,surface=true}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:enceladus_1", name = "Sinai Deep" , layout = "diwan_hall"   },
-		{ id = "station:enceladus_2", facilities={ice_wells={capacity=600,surface=true},water_wells={capacity=320,surface=true},water_melter={capacity=260}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
+		{ id = "station:enceladus_2", facilities={alkali_works={capacity=16,surface=true},ice_wells={capacity=600,surface=true},water_wells={capacity=320,surface=true},water_melter={capacity=260}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:enceladus_2", spin = -0.05, phase = 2.3415926535897933, name = "Rephidim", layout = "diwan_terminal"   },
 	},
 	titan = {
 		{ id = "station:titan_1", food = {use=64}, facilities={use_medical={capacity=-4},produce_nitrates={capacity=340,surface=true},farm={capacity=960}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, marketId = "market:titan_1", name = "Ephraim's Bounty", layout = "diwan_court"   },
@@ -140,7 +140,7 @@ W.stations = {
 		{ id = "station:uranus_3", services = { "market", "hangar", "repair" }, spin = -0.04, phase = 2.3415926535897933, marketId = "market:uranus_3", name = "Uranian Logistics", layout = "customs_1", hub = true },
 		},
 	triton = {
-		{ id = "station:triton_1", uses = { fence = true }, facilities={use_opioids={capacity=-10},use_counterfeit_medicine={capacity=-10}}, services = { "market", "hangar", "repair" }, marketId = "market:triton_1", spin = -0.05, phase = 2.3415926535897933, name = "Neptune's Bounty"   },
+		{ id = "station:triton_1", uses = { fence = true }, facilities={use_moss={capacity=-4}}, services = { "market", "hangar", "repair" }, marketId = "market:triton_1", spin = -0.05, phase = 2.3415926535897933, name = "Neptune's Bounty"   },
 		{ id = "station:triton_3", services = { "market", "hangar", "repair" }, spin = 0.04, phase = -0.8, marketId = "market:triton_3", name = "Triton Logistics", layout = "customs_1", hub = true },
 	
 	},
@@ -166,13 +166,13 @@ W.stations = {
 	-- 13,000 px out and 120 degrees apart (~22,500 px from each other), one
 	-- lap every 30 minutes.
 	shoals = {
-		{ id = "station:shoals_1", position = { x = 0, y = -13000, rate = T_SHOALS }, facilities={cook_precursors={name="Precursor still",capacity=40},roll_steel={capacity=240},press_canisters={capacity=800},water_melter={capacity=240}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
-		{ id = "station:shoals_2", facilities={drug_lab={name='Cartel lab',capacity=24},pill_press={name='Pill press',capacity=12},ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=12},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=12},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=12},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=12},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=12},process_nitrates={capacity=120},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
+		{ id = "station:shoals_1", position = { x = 0, y = -13000, rate = T_SHOALS }, facilities={roll_steel={capacity=240},press_canisters={capacity=800},water_melter={capacity=240}}, services = { "market", "hangar", "repair" }, spin = 0, primary = true, marketId = "market:shoals_1", name = "Slag Harbor", layout = "jovian_works" },
+		{ id = "station:shoals_2", facilities={drug_lab={name='Cartel lab',capacity=10},ammo_solid={type='ammunition',name='Solid rounds line',recipes={'make_rounds_s','make_rounds_m'},capacity=12},ammo_airburst={type='ammunition',name='Airburst rounds line',recipes={'make_airburst_s','make_airburst_m'},capacity=12},ammo_shells={type='ammunition',name='Shell line',recipes={'make_shell_s','make_shell_m','make_shell_l'},capacity=12},ammo_shot={type='ammunition',name='Shot line',recipes={'make_shot_s','make_shot_m','make_shot_l'},capacity=12},ammo_patch={type='ammunition',name='Patch kit line',recipes={'make_patch_kit'},capacity=12},process_nitrates={capacity=120},chemicals_fertilizer={type='chemicals',name='Fertilizer plant',recipes={'make_fertilizer'},capacity=160},chemicals_explosives={type='chemicals',name='Explosives plant',recipes={'make_explosives'},capacity=160}}, services = { "market", "hangar", "repair" }, position = { x = 11258, y = 6500, rate = T_SHOALS }, spin = 0.04, marketId = "market:shoals_2", name = "Cinder Works", layout = "caliphate_chemworks" },
 		{ id = "station:shoals_3", services = { "market", "shipyard", "hangar", "repair" }, position = { x = -11258, y = 6500, rate = T_SHOALS }, spin = -0.05, uses = { pirateBase = true }, marketId = "market:shoals_3", name = "Shoals Freeport", layout = "jovian_freeport" },
 	},
 	-- Antichthon: the pirates' hydroponics farm, on Earth's orbit behind the Sun.
 	antichthon = {
-		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240},grow_poppies={name="Poppy beds",capacity=40}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
+		{ id = "station:antichthon_1", food = {use=32}, facilities={farm={capacity=240},moss_beds={name="Moss beds",capacity=8}}, services = { "market", "hangar", "repair" }, spin = 0.04, primary = true, marketId = "market:antichthon_1", name = "Antichthon Gardens", layout = "estates_manor" },
 	},
 	cordelia = {
 		{ id = "station:cordelia_1", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, primary = true, uses = { pirateBase = true }, marketId = "market:cordelia_1", name = "Cordelia Freeport", layout = "jovian_spur" },

@@ -18,7 +18,7 @@ Last checked against `main`: 2026-11-25.
 
 ### World
 - Planets, moons, moon gates and mass driver lanes on an orbital clock (`src/fields.lua`, `src/transit.lua`).
-- Dark grids: Milliways, the Shoals, Cordelia and Antichthon (`src/dark.lua`), run by the Milliways cartel (`docs/cartel.md`).
+- Cartel grids: Milliways, the Shoals, Cordelia and Antichthon, charted and open (`docs/cartel.md`). The dark-grid system (`src/dark.lua`) is kept but no grid uses it now.
 - Instanced sites with acceleration gates (`data/sites.lua`, `src/sites.lua`).
 - Wildcat sites ([wildcats.md](wildcats.md)): sites open on their own near planets with traffic, crewed by wildcats that raid that planet and pile what they steal on the site's hoard. Losses there get a bounty posted, paid per wildcat to whoever lands the last hit; bounty hunters clear sites offline, and you can warp in on their fight.
 - Satellites burn fuel over time; NPC haulers (or the player) take refuel and launch jobs, and the fuel is station-keeping: a fuelled satellite (or hub) holds its altitude and place on the orbit (hubs beside a trade buoy) and recovers from bumps, while a dry one drops to low power, drifts, and its orbit decays until it burns up about 30 minutes later, which posts the replacement launch job (`src/satellites.lua`, `src/sat_jobs.lua`).
@@ -66,7 +66,7 @@ Last checked against `main`: 2026-11-25.
 ### Designed, not built
 - **Task generation layers** (simulation, economy, director) and a picker that rotates between them. Only the station-job generators exist ([alife-design.md](alife-design.md#task-generation)).
 - **The director's attention nudge.** Steering offline events toward the player when things have been quiet.
-- **The fifth faction.** Milliways is now a drug cartel: hostile to the Estates and the Diwan, tolerated by Jove and Zhuhai (`docs/cartel.md`). Cartel hulls, contraband heat and dependency are not built yet.
+- **The fifth faction.** Milliways is now a drug cartel on open grids: embargoed by the Estates and the Diwan, traded with by Jove and Zhuhai (`docs/cartel.md`). Cartel hulls, contraband heat and dependency are not built yet.
 - **Rewards and completion for other board work.** The player can only take freight off the board so far.
 
 ### Waiting on a decision

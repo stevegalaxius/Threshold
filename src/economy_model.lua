@@ -211,19 +211,14 @@ function M.build(opts)
  -- at the maker. Mined goods (the baseline) cover what they can first,
  -- nearest first the same way. Cycles stop after enough rounds.
  local Wsys=function(st) return station(st).system end
- -- the dark grids keep to themselves as src/economy.lua routes them: a
- -- dark station serves dark stations and the fences (the cartel's goods
- -- reach the white network only there), and a white station serves white
- -- ones, or a dark one short of something no dark station makes
+ -- the dark grids are a closed economy: a dark station serves only dark
+ -- stations and a white one only white (src/dark.lua), and a power hostile
+ -- to the cartel won't trade with it (src/reputation.lua Rep.embargoed)
  local Dark=require('src.dark')
+ local Rep=require('src.reputation')
  local function side(st) return Dark.isDarkNode(st) end
- local darkMade={}
- for item,list in pairs(makersOf) do for _,mk in ipairs(list) do if side(mk.pool.station) then darkMade[item]=true end end end
  local function serves(from,to,item)
-  local df,dt=side(from),side(to)
-  if df==dt then return true end
-  if df then return Dark.isFence(to) end
-  return not darkMade[item]
+  return side(from)==side(to) and not Rep.embargoed(from,to,item)
  end
  local spare={}   -- maker -> units of output it can still make
  for item,list in pairs(makersOf) do for _,mk in ipairs(list) do spare[mk]=mk.pool.capacity*mk.per end end
@@ -358,8 +353,6 @@ function M.build(opts)
    local a,b,n=l[1],l[2],l[3]
    local sa,sb=station(a).system,station(b).system
    if sa==sb then flow(item,a,b,n,'local')
-   -- dark goods go to a fence straight from the dark station (src/economy.lua)
-   elseif Dark.isDarkNode(a) and Dark.isFence(b) then flow(item,a,b,n,'fence')
    else
     local ha,hb=hubOf(sa),hubOf(sb)
     local path={a}

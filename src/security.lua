@@ -381,7 +381,7 @@ function S.huntingGround(u,from,clock)
  local best,score
  for _,area in ipairs(Fields.list) do
   local f=Fields[area]
-  if f.alifeSecurity and raidNodes(f) and not Dark.isDarkArea(area) then
+  if f.alifeSecurity and raidNodes(f) and not Dark.isHaven(area) then
    local rally=L.rally(area,from,clock)
    if rally and G.itinerary(from,rally,clock,true) then
     local root=function(a) local m=Fields.moons[a];return m and m.parent or a end

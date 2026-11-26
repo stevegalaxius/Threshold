@@ -58,12 +58,13 @@ Fields.orbits = {
 	neptune = { au = 30.07, year = 164.8, phase = 4.6, color = { 0.4, 0.55, 1 } },
 	pluto = { au = 39.48, year = 248, phase = 3.8, color = { 0.75, 0.65, 0.6 } },
 	-- dark = true: an unlisted place with its own mass driver (src/dark.lua),
-	-- a driver destination only once found. The Shoals ride the belt's orbit
+	-- a driver destination only once found. cartel = true: one of the
+	-- Milliways cartel's open grids, a pirate haven on the public charts. The Shoals ride the belt's orbit
 	-- halfway between Ceres and Ring Station.
 	-- Antichthon: Earth's orbit, directly opposite it across the Sun, where
 	-- nobody looks. The pirates' hydroponics farm.
-	antichthon = { au = 1.0, year = 1.0, phase = math.pi, dark = true, color = { 0.45, 0.75, 0.45 } },
-	shoals = { au = 2.77, year = 4.6, phase = 3.0 + math.pi / 2, dark = true, color = { 0.75, 0.45, 0.4 } },
+	antichthon = { au = 1.0, year = 1.0, phase = math.pi, cartel = true, color = { 0.45, 0.75, 0.45 } },
+	shoals = { au = 2.77, year = 4.6, phase = 3.0 + math.pi / 2, cartel = true, color = { 0.75, 0.45, 0.4 } },
 }
 
 -- Moons: each is its own small map, reached by flying off the edge of
@@ -96,9 +97,9 @@ Fields.moons = {
 	-- Dark grids (src/dark.lua): unlisted places reached like a moon. Their
 	-- way out from the parent's map only opens once the player has found
 	-- them (Game:spawnMoonGates); NPCs know the way regardless.
-	milliways = { parent = "pluto", period = 0.2, phase = 1.3, gap = 26000, dark = true, color = { 0.85, 0.35, 0.55 } },
+	milliways = { parent = "pluto", period = 0.2, phase = 1.3, gap = 26000, cartel = true, color = { 0.85, 0.35, 0.55 } },
 	-- Cordelia Drift: a pirate freeport in Uranus's inner ring debris
-	cordelia = { parent = "uranus", period = 0.03, phase = 5.0, gap = 20000, dark = true, color = { 0.6, 0.4, 0.75 } },
+	cordelia = { parent = "uranus", period = 0.03, phase = 5.0, gap = 20000, cartel = true, color = { 0.6, 0.4, 0.75 } },
 }
 
 -- The moons of a planet, in a fixed order.
@@ -397,7 +398,7 @@ Fields.ring = {
 -- off the public charts (src/dark.lua) until the player finds it.
 Fields.milliways = {
 	name = "Milliways",
-	dark = true,
+	cartel = true,
 	spawn = { 0, 3200 * T.mapScale },
 	radius = 20000 * T.mapScale,
 	mix = { ice = 7, rock = 3 },
@@ -462,7 +463,7 @@ Fields.shoalsShape = SHOALS
 Fields.shoals = {
 	miningAsteroids = {},
 	name = "The Shoals",
-	dark = true,
+	cartel = true,
 	radius = SHOALS.radius,
 	spawn = { 0, -(SHOALS.channel[1] + 400) },   -- in the channel, inside the stations' track
 	mix = MIX.belt,
@@ -523,7 +524,7 @@ end
 -- farm station in open space, thin rock and ice out to the edge.
 Fields.antichthon = {
 	name = "Antichthon",
-	dark = true,
+	cartel = true,
 	spawn = { 0, 3000 * T.mapScale },
 	radius = 18000 * T.mapScale,
 	mix = { ice = 5, rock = 5 },
@@ -541,7 +542,7 @@ Fields.antichthon = {
 -- freeport in cleared ice, rock and ice out to the edge.
 Fields.cordelia = {
 	name = "Cordelia Drift",
-	dark = true,
+	cartel = true,
 	spawn = { 0, 3000 * T.mapScale },
 	radius = 18000 * T.mapScale,
 	mix = { ice = 6, rock = 4 },
