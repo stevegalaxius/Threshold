@@ -16,6 +16,7 @@ local Graph=require('src.travelgraph')
 local Fuel=require('src.reactor_fuel')
 local Repairs=require('src.npc_repair')
 local Supplies=require('src.supplies')
+local Access=require('src.npc_access')
 local copy=require('src.persistence').copy
 local U={}
 local deps={}
@@ -37,7 +38,8 @@ local function serves(need,station)
  return Supplies.supports(station)
 end
 U.serves=serves
-local function canDock(r,e,id,clock)
+local function canDock(r,e,id,clock,u)
+ if not Access.canDock(r,id,u) then return false end
  if r.serviceRejected and (r.serviceRejected[L.canonical(id)] or 0)>clock then return false end
  local game=e and e.alifeGame
  local st=game and game:locationEntity(id,e.body:getPosition())
@@ -64,9 +66,9 @@ end
 -- The nearest serving station in a neighbouring region, by the in-region
 -- time to the gate that leads there, and the node lists out and back.
 -- Returns station, {out=,back=,duration=} or nil.
-function U.neighbourStop(area,at,clock,ok,speed)
+function U.neighbourStop(area,at,clock,ok,speed,exposure)
  local g=deps.graph(area)
- local best,station,trip
+ local best,station,trip,risk
  for _,other in ipairs(neighbours(area)) do
   for _,id in ipairs(L.stations(other)) do
    if ok(id) then
@@ -77,7 +79,10 @@ function U.neighbourStop(area,at,clock,ok,speed)
      for _,n in ipairs(go) do if L.get(n).area~=area then break end exit=n end
      local leg=exit==at and {duration=0} or Graph.route(g,at,exit,clock,speed or 700)
      local d=leg and leg.duration or math.huge
-     if not best or d<best then best,station,trip=d,id,{out=go,back=ret,duration=d} end
+     local hazard=exposure and exposure(id) or 0
+     if not best or hazard<risk or hazard==risk and d<best then
+      best,station,trip,risk=d,id,{out=go,back=ret,duration=d},hazard
+     end
     end
    end
   end
@@ -89,7 +94,7 @@ end
 -- nearest fuel stop in a big region (the gas giants), so also go when what's
 -- left wouldn't cover the rest of this leg plus that trip, with a margin.
 -- Never when the tank is already as full as a refill would make it.
-function U.shortOfFuel(r,e,g,at,clock)
+function U.shortOfFuel(r,e,g,at,clock,u)
  local ship=e or r.ship
  local hull=e and e.hull or require('src.data').hulls[ship.hull]
  if not hull then return false end
@@ -100,14 +105,14 @@ function U.shortOfFuel(r,e,g,at,clock)
  if have>=full then return false end
  local stops,best={}
  for _,id in ipairs(L.stations(r.area)) do
-  if Supplies.supports(id) then
+  if Supplies.supports(id) and Access.canDock(r,id,u) then
    if id==L.canonical(at) then best=0;break end
    stops[#stops+1]=id
   end
  end
  best=best or Graph.nearestDuration(g,at,stops,clock,r.speed)
  if not best then
-  local _,trip=U.neighbourStop(r.area,at,clock,Supplies.supports,r.speed)
+  local _,trip=U.neighbourStop(r.area,at,clock,function(id) return Supplies.supports(id) and Access.canDock(r,id,u) end,r.speed)
   if not trip then return false end
   -- the far side of the gate is unknown here: count the gate trip twice
   best=trip.duration*2
@@ -119,10 +124,10 @@ end
 
 -- Plan a visit if one is due. Only while travelling within a region, and
 -- never mid-fight or during a reconciliation.
-function U.plan(r,clock,e)
+function U.plan(r,clock,e,u)
  -- wildcats patch up and rearm at their site, never at a station (src/wildcats.lua)
  if r.wildcat and not r.wildcat.fencing then return false end
- local u=Supplies.universe
+ u=u or e and e.alifeGame and e.alifeGame.universe or Supplies.universe
  if r.service or not (r.state=='travel' or r.state=='idle') or not r.area or not r.route or not r.route[r.index] then return false end
  if r.state=='idle' and not r.node then return false end
  if r.encounter or r.worldRecovery or r.waitingForHome or r.driverState then return false end
@@ -138,7 +143,7 @@ function U.plan(r,clock,e)
  local need=U.need(r,e)
  if not need and (r.fuelRangeCheckAt or 0)<=clock then
   r.fuelRangeCheckAt=clock+T.npcFuelRangeCheck
-  if U.shortOfFuel(r,e,g,at,clock) then need='fuel' end
+  if U.shortOfFuel(r,e,g,at,clock,u) then need='fuel' end
  end
  if not need then return false end
  -- a hub satellite nearer than any station: take it at the next node
@@ -146,7 +151,7 @@ function U.plan(r,clock,e)
  if need~='repair' and need~='rest' and not idle and require('src.sat_jobs').holdForHub(r,clock,e) then return false end
  local best,out,back,station
  for _,id in ipairs(L.stations(r.area)) do
-  if serves(need,id) and canDock(r,e,id,clock) then
+  if serves(need,id) and canDock(r,e,id,clock,u) then
    local go=id==L.canonical(at) and {legs={},duration=0} or Graph.route(g,at,id,clock,r.speed)
    local ret=go and (#go.legs==0 and {legs={}} or Graph.route(g,id,at,clock,r.speed))
    -- (shore leave weighs the price and home as well as the trip)
@@ -156,7 +161,8 @@ function U.plan(r,clock,e)
  end
  local trip -- node lists out and back, for a stop in a neighbouring region
  if not out then
-  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) and canDock(r,e,id,clock) end,r.speed)
+  station,trip=U.neighbourStop(r.area,at,clock,function(id) return serves(need,id) and canDock(r,e,id,clock,u) end,r.speed,
+   function(id) return Access.travelRisk(r,at,id,u) end)
   if not station then r.nextServiceAt=clock+T.npcFuelStopRetry
    require('src.alife_trace').note(r,clock,'upkeep','needs '..need..', no station in or next to '..r.area..' can serve it');return false end
  end
@@ -263,19 +269,21 @@ function U.advance(r,clock,u)
  if r.encounter then return true end
  for _=1,64 do
   if r.state=='travel' or r.state=='transit' then
-   local at=require('src.queue').due(r)
+   local at=require('src.queue').due(r,u)
    if clock<at then return true end
    r.offset,r.pose=nil,nil
-   if U.isStation(r,r.route[r.index]) and not r.serviced then
+   if U.isStation(r,r.route[r.index]) and not r.serviced and Access.canDock(r,r.route[r.index],u) then
     r.state='docked';r.node=r.route[r.index];Repairs.begin(r,r.node,at,T.alifeStay,u)
    elseif r.index>=#r.route then
     r.serviced=nil;U.finish(r,at);return false
    else deps.start(r,at,r.index+1) end
   elseif r.state=='docked' then
-   Repairs.advance(r,clock,r.node,u)
-   Fuel.observe(u,r,clock)
-   if clock<r.untilTime then return true end
-   if not U.fuelReady(r) then r.service.waitingFuel=true;return true end
+   if Access.canDock(r,r.node,u) then
+    Repairs.advance(r,clock,r.node,u)
+    Fuel.observe(u,r,clock)
+    if clock<r.untilTime then return true end
+    if not U.fuelReady(r) then r.service.waitingFuel=true;return true end
+   else r.untilTime=clock end
    if r.service.waitingFuel then r.untilTime=clock end
    r.service.waitingFuel=nil
    r.serviced=true
@@ -298,6 +306,7 @@ end
 -- Online dock at the service station: leave once the need is met (or the
 -- station has done what it can).
 function U.canDepart(game,e,r)
+ if not Access.canDock(r,r.service.station,game.universe) then return true end
  -- Repairs can extend this deadline in either representation. Completing a
  -- visit otherwise follows the same saved clock as U.advance, without an
  -- additional live-only timeout that restarts when the body is recreated.
@@ -320,7 +329,7 @@ function U.rejected(game,e,station)
  r.service,r.serviced,r.nextServiceAt=nil,nil,nil
  r.state='idle';r.node=station.locationId;r.route={r.node,r.node};r.index=1;r.untilTime=clock
  require('src.alife_trace').note(r,clock,'upkeep','docking unavailable at '..station.locationId..' -> reconsider service stop')
- U.plan(r,clock,e)
+ U.plan(r,clock,e,game.universe)
  if r.service then r.service.saved=saved
  else
   r.route=saved.route;r.index=saved.index;r.node=saved.node

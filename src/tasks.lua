@@ -205,7 +205,7 @@ local function freightShortlist(u,r,station,clock,offers,index,capabilities)
   for _,entry in ipairs(list) do
    if n>=limit then break end
    local id,o=entry.id,entry.o
-   if not rejected[id] and available(u,offers,id,o,clock) and Access.eligible(r,o,capabilities) then
+   if not rejected[id] and available(u,offers,id,o,clock) and Access.eligible(r,o,capabilities,u) then
     n=n+1;shortlist[#shortlist+1]={id=id,o=o}
    end
   end
@@ -229,7 +229,7 @@ function Tasks.choose(u,r,station,clock)
    local o=entry.o
    if freight.eligible(u,r,o,station,clock) then
     if ranks.transport==nil then ranks.transport=Work.rank(r,'transport') end
-    list[#list+1]={o=o,preference=ranks.transport,v=freight.score(u,r,o,station,clock)}
+    list[#list+1]={o=o,preference=ranks.transport,risk=Access.jobRisk(r,station,o,u),v=freight.score(u,r,o,station,clock)}
    else rejectedFreight[r][entry.id]=true end
   end
  end
@@ -240,9 +240,9 @@ function Tasks.choose(u,r,station,clock)
    if def and Access.eligible(r,def,capabilities) and (Work.weight(r,kind) or 1)>0 then
     for id,o in pairs(bucket) do
      if available(u,offers,id,o,clock)
-      and Access.eligible(r,o,capabilities) and def.eligible(u,r,o,station,clock) then
+      and Access.eligible(r,o,capabilities,u) and def.eligible(u,r,o,station,clock) then
       if ranks[kind]==nil then ranks[kind]=Work.rank(r,kind) end
-      list[#list+1]={o=o,preference=ranks[kind],v=def.score and def.score(u,r,o,station,clock) or 0}
+      list[#list+1]={o=o,preference=ranks[kind],risk=Access.jobRisk(r,station,o,u),v=def.score and def.score(u,r,o,station,clock) or 0}
      end
     end
    end
@@ -253,6 +253,7 @@ function Tasks.choose(u,r,station,clock)
  if opened then Transport.endScan() end
  table.sort(list,function(a,b)
   if a.preference~=b.preference then return a.preference>b.preference end
+  if a.risk~=b.risk then return a.risk<b.risk end
   return a.v>b.v or a.v==b.v and a.o.id<b.o.id
  end)
  -- Within the same four-check budget, try the leading offer of each kind
@@ -299,11 +300,15 @@ function Tasks.plan(r,station,clock)
 end
 -- Optional scene context lets completion use the normal station-market API.
 function Tasks.arrive(u,r,station,clock,game)
- if not Tasks.resolve(u,r) then return false end
+ if not Tasks.resolve(u,r) or not Access.canStop(r,station,u) then return false end
  require('src.npc_agenda').arrive(u,r,station,clock,game)
  local t=r.task
  if not t then return end
  local def=Tasks.definitions[t.kind]
+ if t.phase=='pickup' and not Access.canStop(r,t.target,u) then
+  Tasks.release(u,r,'docking access denied',clock)
+  return false
+ end
  if def.complete(u,r,t,station,clock,game) then
   Tasks.release(u,r,'completed',clock)
   -- a one-off order is filled; standing work goes back on the board

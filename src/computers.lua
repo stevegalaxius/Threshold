@@ -22,6 +22,7 @@
 local data = require("src.data")
 local T = require("src.tuning")
 local Weapons = require("src.weapons")
+local Combat = require("src.combat")
 local Prediction = require("src.collision_prediction")
 
 local sqrt, max, cos, sin = math.sqrt, math.max, math.cos, math.sin
@@ -40,7 +41,7 @@ local function hostileNear(game, e, x, y, within, from, range)
 	local best, bd = nil, within * within
 	local fx, fy = from.body:getPosition()
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= e.team then
+		if Combat.hostile(game, e, o) then
 			local ox, oy = o.body:getPosition()
 			local d = (ox - x) ^ 2 + (oy - y) ^ 2
 			if d < bd and (not range or (ox - fx) ^ 2 + (oy - fy) ^ 2 <= range * range) then best, bd = o, d end
@@ -73,7 +74,7 @@ local function pickLock(game, p, range, angle)
 		return math.abs((math.atan2(oy - y, ox - x) - aim + math.pi) % (2 * math.pi) - math.pi)
 	end
 	local cur = p.lock
-	if cur and not cur.dead then
+	if Combat.hostile(game, p, cur) then
 		local d = off(cur)
 		if d and d < cone * 1.5 then
 			-- only switch for something clearly closer to the aim
@@ -82,13 +83,13 @@ local function pickLock(game, p, range, angle)
 	end
 	local best, bd = nil, cone
 	for _, o in ipairs(game.entities) do
-		if o.kind == "ship" and not o.dead and o.team ~= p.team and o.team ~= 0 then
+		if Combat.hostile(game, p, o) then
 			local d = off(o)
 			if d and d < bd then best, bd = o, d end
 		end
 	end
 	if best then return best end
-	if cur and not cur.dead and off(cur) and off(cur) < math.rad(angle) * 1.5 then return cur end
+	if Combat.hostile(game, p, cur) and off(cur) and off(cur) < math.rad(angle) * 1.5 then return cur end
 	return nil
 end
 

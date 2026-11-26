@@ -238,7 +238,7 @@ function P.install(Game)
 				if data.hulls[s.hull] then
 					local ship = require("src.ship").new(self, { hull = s.hull, loadout = s.loadout, triggers = s.triggers, loads = s.loads,
 						cargo = s.cargo, hold = s.hold and Hold.deserialize(s.hold, known), armor = s.armor, color = s.color,
-						fuelCharge = s.fuelCharge, fuelInitialized = s.fuelInitialized, power = s.power, team = 0,
+						fuelCharge = s.fuelCharge, fuelInitialized = s.fuelInitialized, power = s.power,
 						x = r.x, y = r.y, angle = r.angle })
 					ship.unpiloted, ship.repairOrder, ship.persistenceId = true, s.repairOrder, r.id
 					ship.body:setLinearVelocity(r.vx, r.vy)

@@ -141,7 +141,10 @@ function H.wreck(u,r,clock,area)
  append(u,'wreck_created',clock,area,{r.id},{wreckId=r.historyWreckId})
  return r.historyWreckId
 end
-function H.entityId(e) return e and (e.alifeId or e.isPlayer and 'player') end
+function H.entityId(e)
+ e=require('src.combat').controller(e)
+ return e and (e.alifeId or e.isPlayer and 'player' or e.kind=='station' and e.locationId or nil)
+end
 function H.hit(game,victim,source)
  local a,b=H.entityId(victim),H.entityId(source)
  if a and b and (a~='player' or b~='player') then

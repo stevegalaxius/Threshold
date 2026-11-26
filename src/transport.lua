@@ -416,7 +416,7 @@ function Transport.usable(u,r,o,clock)
  if require('src.reactor_fuel').remaining(r.ship)<=0 then return 0 end
  if (require('src.work_preferences').weight(r,'transport') or 0)<=0 then return 0 end
  local access=require('src.npc_access');local capabilities=access.capabilities(r)
- if not access.eligible(r,o,capabilities) or not access.eligible(r,Tasks.definitions.transport,capabilities) then return 0 end
+ if not access.eligible(r,o,capabilities,u) or not access.eligible(r,Tasks.definitions.transport,capabilities) then return 0 end
  local station=r.node or r.station
  if not L.byId[station] then return 0 end
  local def=Tasks.definitions.transport
@@ -525,7 +525,7 @@ function Transport.recoveryStops(u,r,t,area,x,y,clock)
  local options={}
  for _,station in ipairs(L.stations(area)) do
   if not (t.recoveryTried and t.recoveryTried[station])
-   and require('src.npc_access').eligible(r,{kind='transport',target=station})
+   and require('src.npc_access').canDock(r,station,u)
    and require('src.dock_room').capacity(station,r.ship.hull)>0 then
    local mode=Transport.recoveryMode(u,t,station,clock)
    if mode then
@@ -608,7 +608,8 @@ function Transport.freightFence(u,r,t,from,clock,cargoOnboard)
  end
  if not carrying then return end
  for _,station in ipairs(require('src.dark').fences()) do
-  if require('src.dock_room').capacity(station,r.ship.hull)>0 and G.live(from,station,clock) then return station end
+  if require('src.npc_access').canDock(r,station,u,'fence')
+   and require('src.dock_room').capacity(station,r.ship.hull)>0 and G.live(from,station,clock) then return station end
  end
 end
 
@@ -766,7 +767,7 @@ Tasks.register('transport',{
     if not t.relay and not o.relay and not t.trade and not t.buyerFunded and not o.trade and not o.tradeOptional and o.id~=t.id and o.kind=='transport' and o.order and o.state=='available' and (o.readyAt or 0)<=clock and (r.player or Tasks.npcMayClaim(u,o,clock))
      and not r.player and not Transport.embargoed(o) and not recentlyStalled(r,o,clock) and o.source==t.source and o.item
      and (o.target==t.target or (not t.trunk and not o.trunk and L.byId[o.target] and L.byId[o.target].area==area and Transport.route(t.target,o.target,clock)~=nil))
-     and require('src.npc_access').eligible(r,o,capabilities) then others[#others+1]=o end
+     and require('src.npc_access').eligible(r,o,capabilities,u) then others[#others+1]=o end
    end
    table.sort(others,function(a,b)
     local sa,sb=a.target==t.target,b.target==t.target

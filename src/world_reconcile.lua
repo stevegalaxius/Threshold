@@ -84,6 +84,13 @@ function R.begin(u,r,clock,start)
   return false
  end
  local target=keep and r.task.target or home
+ if not require('src.npc_access').canDock(r,target,u) then
+  -- The normal controller can return the load or wait for access.
+  r.waitingForHome,r.worldRecovery=nil,nil
+  r.state,r.area,r.node='idle',region,node
+  r.route,r.index,r.untilTime={node,node},1,clock
+  return false
+ end
  local path=G.live(node,target,clock)
  if not path then
   r.waitingForHome=true;r.worldRecovery=nil;r.taskStatus='waiting for a route to a home station'
@@ -123,7 +130,10 @@ function R.begin(u,r,clock,start)
 end
 function R.resume(u,r,clock)
  local duty=r.worldRecovery;if not duty then return end
- r.worldRecovery=nil;r.taskStatus=nil;r.node=duty.target;r.state='docked';r.untilTime=clock or u.clock
+ local allowed=require('src.npc_access').canDock(r,duty.target,u)
+ r.worldRecovery,r.taskStatus=nil,nil
+ if allowed then r.node=duty.target;r.state='docked' end
+ r.untilTime=clock or u.clock
 
 end
 function R.prepare(game,start)

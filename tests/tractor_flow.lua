@@ -13,7 +13,7 @@ return function()
 	local dt = 1/120
 	local function shipAt(lx, ly, player, heading)
 		local x, y = game.dockWorld(station, 1, lx, ly, dock)
-		local e = Ship.new(game, { hull = "intaki_wisp", x = x, y = y, angle = heading, team = 3 })
+		local e = Ship.new(game, { hull = "intaki_wisp", x = x, y = y, angle = heading })
 		e.isPlayer = player
 		if player then game.player = e else e.route = {station} end
 		game.entities[#game.entities + 1] = e

@@ -25,8 +25,7 @@ function H.choose(u,r)
    counts[other.homeStation]=(counts[other.homeStation] or 0)+1
   end
  end
- local Access,Dark=require('src.npc_access'),require('src.dark')
- local dark=Access.darkAccess(r)
+ local Access=require('src.npc_access')
  -- a residential station with a home to spare comes first; ordinary
  -- trade stations are the fallback (src/passengers.lua)
  local Passengers=require('src.passengers')
@@ -35,17 +34,19 @@ function H.choose(u,r)
   return homes>0 and (counts[id] or 0)<homes
  end
  local function select(localOnly)
-  local best,count,full,res
+  local best,count,full,res,risk
   for _,place in pairs(L.byId) do
    local parent=L.byId[L.canonical(place.id)]
    if place.kind=='station' and (not localOnly or place.area==region)
-    and parent.uses and parent.uses[purpose] and (dark or not Dark.isDarkArea(place.area)) then
+    and parent.uses and parent.uses[purpose] and Access.canDock(r,place.id,u) then
     local capacity=Room.capacity(place.id,r.ship.hull)
     local n=counts[place.id] or 0;local crowded=n>=capacity
     local v=vacant(place.id)
-    if capacity>0 and (not best or v and not res or v==res and (full and not crowded or full==crowded and (n<count or n==count and place.id<best)))
+    local exposure=Access.travelRisk(r,source,place.id,u)
+    if capacity>0 and (not best or exposure<risk or exposure==risk
+     and (v and not res or v==res and (full and not crowded or full==crowded and (n<count or n==count and place.id<best))))
      and (not source or G.itinerary(source,place.id,u.clock or 0,true)) then
-     best,count,full,res=place.id,n,crowded,v
+     best,count,full,res,risk=place.id,n,crowded,v,exposure
     end
    end
   end

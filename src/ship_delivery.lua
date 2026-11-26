@@ -197,7 +197,7 @@ local function deliveryCarrier(u,offer)
    and not r.service and not r.suspendedTask and not r.worldRecovery
    and r.fuelStatus~='stranded' and r.fuelStatus~='empty'
    and L.byId[node] and W.weight(r,'ship_delivery')>0
-   and Berths.free(carrierOf(r),offer.hull) and Access.eligible(r,offer,Access.capabilities(r))
+   and Berths.free(carrierOf(r),offer.hull) and Access.eligible(r,offer,Access.capabilities(r),u)
    and (node==offer.source or G.itinerary(node,offer.source,u.clock)) then
    if not best or id<best then best=id end
   end

@@ -12,7 +12,7 @@ return function()
 	station.body:setAngularVelocity(0)
 	local dock = station.dock
 	local function makeShip()
-		return Ship.new(game, { hull = "intaki_wisp", x = 0, y = 0, angle = 0, team = 3 })
+		return Ship.new(game, { hull = "intaki_wisp", x = 0, y = 0, angle = 0 })
 	end
 
 	local old = makeShip()

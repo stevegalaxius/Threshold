@@ -9,8 +9,10 @@ pirate loot from them (`Dark.isHaven`).
 
 ## Relations
 
-`Rep.STANCE` in `src/reputation.lua` is the one standing feud between
-factions; read it with `Rep.stance(a, b)`.
+`Rep.STANCE` in `src/reputation.lua` contains the starting relationships.
+NPC port access, patrol targeting, and trip preferences read the current
+relationship through `Rep.stance(a, b, universe)`. `Rep.setStance` changes a
+pair for that save.
 
 | Power | Stance | Why |
 |---|---|---|
@@ -25,9 +27,10 @@ A hostile power:
   sell to cartel stations, and buy no contraband (`Rep.CONTRABAND`) except
   at a fence. Contraband goes to a fence directly, never through a hostile
   power's hub.
-- has its patrols shoot cartel crews on sight in its own space
-  (`Rep.cartelCrew`: raiders and anyone based at a cartel station;
-  `src/security.lua`).
+- has its patrols shoot crews of hostile factions on sight in its own space.
+  Crews check both the port owner and the local power before booking a routine
+  stop. They prefer jobs that avoid hostile grids and can still pass through
+  those grids. A dedicated fence run can call at its designated fence.
 
 ## The chain
 

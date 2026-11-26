@@ -529,14 +529,14 @@ end
 function W.woke(game,e,r)
  if (r.garrison or r.assault) and e.body then unstick(game,e,r) end
  if r.garrison then
-  e.team=2;e.aggro=false
+  e.aggro=false
   e.siteEnemy,e.siteTag=true,r.garrison.tag or nil
   e.siteGroup=groupOf(game.universe,r)
   e.route=nil
   return true
  end
  if r.assault then
-  e.team=3;e.aggro=true;e.siteHunter=true;e.route=nil
+  e.aggro=true;e.siteHunter=true;e.route=nil
   return true
  end
  return false
@@ -608,7 +608,7 @@ function W.death(u,r,killer)
  local k=killer and killer~='player' and u.npcs and u.npcs[killer]
  if k and k.wildcat and not r.wildcat then W.harm(u,k) end
  local inst=r.wildcat and sites(u)[r.wildcat.site]
- if not inst or not inst.bounty or not killer then return end
+ if not inst or not inst.bounty or not (k or killer=='player') then return end
  local station=inst.bounty.station
  local pay=W.perHead(r)
  inst.bounty.paid=(inst.bounty.paid or 0)+1
@@ -749,10 +749,13 @@ local function assaultRound(game,u,inst,n,hunters,clock)
  for _,h in ipairs(hunters) do hit(h,crew[1+math.floor(roll(fight)*#crew)%#crew]) end
  for _,c in ipairs(crew) do hit(c,hunters[1+math.floor(roll(fight)*#hunters)%#hunters]) end
  for target,list in pairs(dealt) do
-  local total,last=0,nil
-  for _,d in ipairs(list) do total=total+d[2];if d[2]>0 then last=d[1] end end
+  local total,killer=0,nil
+  for _,d in ipairs(list) do
+   total=total+d[2]
+   if not killer and d[2]>0 and total>=target.ship.armor then killer=d[1] end
+  end
   target.ship.armor=math.max(0,target.ship.armor-total)
-  if target.ship.armor<=0 then kill(u,target,clock,last) end
+  if target.ship.armor<=0 then kill(u,target,clock,killer) end
  end
  for _,h in ipairs(hunters) do
   -- out of ammunition, or in there too long: it pulls out while it can

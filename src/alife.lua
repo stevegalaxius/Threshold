@@ -335,7 +335,7 @@ function A.advance(r,clock,u,game)
  if r.state=='dead' or r.state=='escaped' then return end
  if (r.wildcat or r.assault) and require('src.wildcats').advance(r,clock,u,game) then return end
  -- Upkeep comes before every job: a due service visit owns the ship.
- if not r.service then Upkeep.plan(r,clock) end
+ if not r.service then Upkeep.plan(r,clock,nil,u) end
  if r.service then require('src.npc_actions').pause({u=u,game=game,r=r,clock=clock},'service') end
  if r.service and Upkeep.advance(r,clock,u) then return end
  local result=NPC.advance(r,clock,u,game)
@@ -506,6 +506,8 @@ function A.repairApproachRoutes(game)
 end
 
 function A.point(r,clock)
+ local pose=r.encounter and r.encounter.pose
+ if pose then return pose.x,pose.y end
  local x,y=A.trackPoint(r,clock)
  if not x or r.garrison or r.assault or r.state=='docked' or (r.action and (r.action.kind=='work' or r.action.kind=='approach')) then return x,y end
  local sx,sy=A.spread(r)
@@ -875,7 +877,6 @@ local function bindRoute(game,e,r)
  A.refreshBuoy(r,r.index,game.universe.clock,e.body:getPosition())
  require('src.queue').invalidate(game)
  e.aiNextPlan,e.aiNextDecision,e.aiLastPlan,e.aiVelocity=nil,nil,nil,nil
- e.team=require('src.npc_access').raiding(r) and 2 or 3
  e.routeIndex=r.index; e.route={}
  e.travelGraph=graph(r.area or game.fieldId)   -- a record between regions flies out on this map
  e.taskWorker=r.taskWorker or r.worldRecovery~=nil
@@ -883,7 +884,7 @@ local function bindRoute(game,e,r)
   local place=L.get(id)
   -- a station with several access points: the one nearest the ship now
   local stop=place.area==game.fieldId and game:locationEntity(id,e.body:getPosition())
-  if stop and place.kind=='station' and not dockingStop(r,id) then
+  if stop and place.kind=='station' and not dockingStop(r,id,game.universe) then
    local station=stop
    local lane=passLane(game,r.route,k)
    stop={kind='waypoint',locationId=id,removed=false,inspection=station.city,body={getPosition=function()
@@ -924,13 +925,14 @@ function A.wake(game,r)
  local s=r.ship
  local lane=A.laneSample(game,r,game.universe.clock)
  local egress=A.egressSample(game,r,game.universe.clock)
- local p=egress or lane or A.sample(r,game.universe.clock)
+ local battle=not egress and not lane and Encounters.battlePose(game,r)
+ local p=egress or lane or battle or A.sample(r,game.universe.clock)
  local exact=r.pose and math.abs(r.pose.clock-game.universe.clock)<.001 and r.pose
  if exact and lane and exact.lane~=game.trip.from..'/'..game.trip.to..'/'..tostring(game.trip.rot) then exact=nil end
  local e=Ship.new(game,{hull=s.hull,loadout=s.loadout,loads=s.loads,cargo=s.cargo,
   hold=s.hold and Hold.deserialize(s.hold,function(id) return data.items[id]~=nil end),
   fuelCharge=s.fuelCharge,fuelInitialized=s.fuelInitialized,power=r.power,
-  armor=s.armor,color=copy(s.color),team=require('src.npc_profile').of(r).team,
+  armor=s.armor,color=copy(s.color),
   enemy=require('src.npc_profile').of(r),x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
@@ -988,7 +990,7 @@ function A.wake(game,r)
   if v>cap then vx,vy=vx/v*cap,vy/v*cap end
  end
  e.body:setLinearVelocity(vx,vy)
- e.body:setAngularVelocity(exact and exact.w or 0)
+ e.body:setAngularVelocity(exact and exact.w or battle and battle.spin or 0)
  table.insert(game.entities,e)
  if r.state=='docked' then
   local st=game:locationEntity(r.route[r.index],p.x,p.y)
@@ -1030,7 +1032,12 @@ function A.wake(game,r)
    e.dockState.departAt=r.untilTime
   end
  end
- if not exact and not lane and r.state=='travel' then
+ if battle then
+  local x,y=e.body:getPosition()
+  x,y=Encounters.clearSpot(game,x,y,e.halfLength,r.id,e)
+  x,y=require('src.local_navigation').clearWake(game,e,x,y)
+  e.body:setPosition(x,y)
+ elseif not exact and not lane and r.state=='travel' then
   -- Local graph nodes name the station as a whole. Physical handoff uses
   -- the existing dock/undock transforms rather than spawning inside its hub.
   local leg=edge(r)
@@ -1078,7 +1085,7 @@ function A.wake(game,r)
    e.body:setPosition(ox,oy)
    local bx,by=game:driverBreech(d)
    e.body:setAngle(math.atan2(by-oy,bx-ox)+(d==source and math.pi or 0))
-  elseif close(source) and dockingStop(r,leg.from) then
+  elseif close(source) and dockingStop(r,leg.from,game.universe) then
    e.routeIndex=(r.index-2)%#r.route+1
    if game:dockInstantly(e,source) then
     if game:launchBlocker(e) then
@@ -1091,7 +1098,7 @@ function A.wake(game,r)
    else
     e.routeIndex=r.index
    end
-  elseif close(destination) and dockingStop(r,leg.to) then
+  elseif close(destination) and dockingStop(r,leg.to,game.universe) then
    -- A newly visible ship joins the live approach outside the runway.
    -- Starting the tractor here used to bypass the queue and spawn ships
    -- on top of an arrival already under the beam.
@@ -1224,21 +1231,22 @@ function A.install(Game)
    end
   end
  end
- function Game:captureALife(detach)
-  for id,e in pairs(self.alifeOnline or {}) do
-   A.capture(self,e,detach)
-   do local r=self.universe.npcs and self.universe.npcs[id]
-    if r and r.ship and not e.dead and not e.removed then stowDrones(self,e,r,detach) end end
+ function Game:captureALife(detach,retain)
+  local ships={}
+  for _,e in pairs(self.alifeOnline or {}) do
+   A.capture(self,e,detach or retain)
+   ships[#ships+1]=e
+  end
+  Encounters.captureFights(self,ships)
+  for _,e in ipairs(ships) do
+   local id=e.alifeId
    local r=self.universe.npcs and self.universe.npcs[id]
-   if not detach and r then
+   if r and r.ship and not e.dead and not e.removed then stowDrones(self,e,r,detach or retain) end
+   if not detach and not retain and r then
     r.savedOnline=true
-    -- A fight between two live ships is held only on the bodies (aggressor,
-    -- combatTarget: the encounter record ends once both are onscreen), so a
-    -- save dropped it and the ships woke up at peace. Keep who it was
-    -- fighting for Encounters.syncOnline to hand back on wake.
-    local foe=e.combatTarget or e.aggressor
-    r.liveFight=foe and not foe.dead and not foe.removed and (foe.alifeId or foe.isPlayer)
-     and {target=foe.alifeId or 'player',clock=self.universe.clock} or nil
+    local foe=e.aiFightTarget or e.combatTarget or e.aggressor
+    r.liveFight=not r.encounter and foe and foe.isPlayer and not foe.dead
+     and {target='player',clock=self.universe.clock} or nil
    end
    if detach then
     if not e.removed then self:remove(e,true) end
@@ -1342,7 +1350,6 @@ function A.install(Game)
    local px,py
    if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
    Encounters.syncOnline(self)
-   Encounters.update(self,clock)
    require('src.squads').update(self,clock)
    require('src.wildcats').tick(self,clock)
    Encounters.materialize(self,px,py,clock)
@@ -1372,6 +1379,8 @@ function A.install(Game)
   A.pruneGone(self.universe,clock,self.alifeOnline)
   local px,py
   if self.player and not self.player.dead then px,py=self.player.body:getPosition() end
+  local unload={}
+  local visible=px and Encounters.visibleFights(self,px,py) or {}
   for id,e in pairs(self.alifeOnline) do
    local x,y
    if not e.removed and e.body and not e.body:isDestroyed() then x,y=e.body:getPosition()
@@ -1415,12 +1424,21 @@ function A.install(Game)
     A.capture(self,e,true)
     if records[id] and records[id].transit then records[id].transit.departure=nil end
     self:remove(e,true);self.alifeOnline[id]=nil
-   elseif not e.driverTractor and not e.launch and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2) then
+   elseif not e.driverTractor and not e.launch
+    and (not px or (x-px)^2+(y-py)^2>T.alifeFar^2 and not visible[e]) then
     A.capture(self,e,false)
-    if not e.removed then self:remove(e,true) end
-    self.alifeOnline[id]=nil
+    unload[#unload+1]=e
    end
   end
+  Encounters.captureFights(self,unload)
+  for _,e in ipairs(unload) do
+   local id=e.alifeId
+   local r=records[id]
+   if r and r.ship then stowDrones(self,e,r,true) end
+   if not e.removed then self:remove(e,true) end
+   self.alifeOnline[id]=nil
+  end
+  Encounters.update(self,clock)
   -- Every offline record is visited once per tick: advanced along its
   -- track, and woken if it has come near. Hundreds of records all at once
   -- made one step in every 60 a long one, a visible hitch, so the visits

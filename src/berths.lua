@@ -223,7 +223,7 @@ function B.throwOff(game, e, rec, b, dead, source)
 	local Ship = require("src.ship")
 	local ship = Ship.new(game, { hull = rec.hull, loadout = rec.loadout, triggers = rec.triggers, loads = rec.loads,
 		cargo = rec.cargo, hold = rec.hold, armor = dead and 0 or rec.armor, color = rec.color, fuelCharge = rec.fuelCharge,
-		fuelInitialized = rec.fuelInitialized, power = rec.power, team = 0, x = x, y = y, angle = a, grid = rec.hold ~= nil })
+		fuelInitialized = rec.fuelInitialized, power = rec.power, x = x, y = y, angle = a, grid = rec.hold ~= nil })
 	local cx, cy = e.body:getPosition()
 	local ox, oy = x - cx, y - cy
 	local d = math.sqrt(ox * ox + oy * oy)

@@ -17,6 +17,7 @@ local Supplies=require('src.supplies')
 local Trace=require('src.alife_trace')
 local Tasks=require('src.tasks')
 local Actions=require('src.npc_actions')
+local Access=require('src.npc_access')
 local N={}
 local deps={}
 function N.install(d) for k,v in pairs(d) do deps[k]=v end end
@@ -84,30 +85,43 @@ N.controller={name='npc',
   -- loaded here: fill the spare hold with more jobs on the way
   if task.phase=='delivery' and node==task.source then require('src.npc_agenda').extend(u,r,node,clock) end
   r.taskWorker=true;r.nextTaskAt=nil
-  local route=Tasks.plan(r,task.kind=='ship_delivery' and c.node or node,clock)
+  local target=task.phase=='pickup' and task.source or task.recoveryStop or task.target
+  local allowed=Access.canStop(r,target,u)
+  if task.phase=='pickup' and not Access.canStop(r,task.target,u) then allowed=false end
+  local route=allowed and Tasks.plan(r,task.kind=='ship_delivery' and c.node or node,clock)
   if not route and task.kind=='transport' and task.phase=='delivery' then
-   if task.recoveryStop==node then return {wait=T.freightStallTime} end
+   if allowed and task.recoveryStop==node then return {wait=T.freightStallTime} end
    local Transport=require('src.transport')
    local source=Transport.returnStation(task)
    local mode=Transport.recoveryMode(u,task,source,clock)
    if mode=='return' and not (task.recoveryTried and task.recoveryTried[source])
-    and require('src.npc_access').eligible(r,{kind='transport',target=source})
+    and Access.canDock(r,source,u)
     and require('src.dock_room').capacity(source,r.ship.hull)>0 then
     route=Transport.route(node,source,clock)
     if route then task.recoveryStop=source end
    end
-   if not route and c.wasDocked and Transport.recoveryMode(u,task,node,clock) then
+   if not route and not allowed then
+    local place=L.byId[node]
+    local x,y=L.position(node,clock)
+    for _,stop in ipairs(Transport.recoveryStops(u,r,task,place.area,x,y,clock)) do
+     if stop.station~=node then
+      route=Transport.route(node,stop.station,clock)
+      if route then task.recoveryStop=stop.station;break end
+     end
+    end
+   end
+   if not route and c.wasDocked and Access.canDock(r,node,u) and Transport.recoveryMode(u,task,node,clock) then
     task.recoveryStop=node
     Transport.unloadRecovery(u,r,task,node,clock)
     return {wait=T.alifeLocalTick}
    end
   end
   if not route then
-   if (task.kind=='transport' or task.kind=='ship_delivery') and task.phase=='delivery' then
-    r.taskStatus='waiting for a freight route'
+   if task.phase=='delivery' and (task.kind=='transport' or task.kind=='ship_delivery' or task.kind=='passenger' and not allowed) then
+    r.taskStatus=allowed and 'waiting for a freight route' or 'waiting for docking access'
     return {wait=T.freightStallTime}
    end
-   Tasks.release(u,r,'no route',clock)
+   Tasks.release(u,r,allowed and 'no route' or 'docking access denied',clock)
    return
   end
   return {route=route,wait=task.duration,dock=task.dock}
@@ -186,7 +200,7 @@ end
 function N.routeAction(ctx)
  local r=ctx.r;local target=r.route and r.route[#r.route]
  if not target then return end
- local kind=r.state=='idle' and not r.waitingHomeBerth and 'hold' or N.docksAt(r,target) and 'dock' or 'travel'
+ local kind=r.state=='idle' and not r.waitingHomeBerth and 'hold' or N.docksAt(r,target,ctx.u) and 'dock' or 'travel'
  Actions.request(ctx,{kind=kind,target={provider='location',id=target},untilTime=N.readyAt(r)})
 end
 -- The offline model progresses by leg deadlines. Watch live legs using
@@ -226,7 +240,7 @@ function N.recoverFreight(ctx)
   if not target then
    local best=math.huge
    for _,id in ipairs(L.stations(place.area)) do
-    if L.canonical(id)~=L.canonical(task.source) and require('src.npc_access').eligible(r,{target=id}) then
+    if L.canonical(id)~=L.canonical(task.source) and Access.canDock(r,id,ctx.u) then
      local px,py=L.position(id,clock)
      local d=(px-x)^2+(py-y)^2
      if d<best then target,best=id,d end
@@ -243,7 +257,7 @@ function N.recoverFreight(ctx)
    task.recoveryTried[task.recoveryStop]=true
   else
    local fence=not task.recoveryTried and Transport.freightFence(ctx.u,r,task,stop.locationId,clock,e.cargo or {})
-   if fence and N.travel(ctx.game,r,fence,clock) then
+   if fence and N.travel(ctx.game,r,fence,clock,'fence') then
     Transport.abscond(ctx.u,r,task,fence,clock)
     N.routeAction(ctx)
     require('src.alife').bindRoute(ctx.game,e,r)
@@ -255,7 +269,7 @@ function N.recoverFreight(ctx)
   local options=Transport.recoveryStops(ctx.u,r,task,place.area,x,y,clock)
   if (not task.recoveryTried or not task.recoveryTried[source])
    and Transport.recoveryMode(ctx.u,task,source,clock)=='return'
-   and require('src.npc_access').eligible(r,{kind='transport',target=source})
+   and Access.canDock(r,source,ctx.u)
    and require('src.dock_room').capacity(source,r.ship.hull)>0 then
    table.insert(options,1,{station=source,mode='return'})
   end
@@ -298,7 +312,20 @@ function N.thinkWork(game,e,dt,AI)
  if e.alifeEgress or e.driverTractor or e.launch or e.dockState then
   Actions.pause(ctx,'controlled transit');AI.trade(game,e,dt);return true
  end
- if ctx.decide~=false and not e.dockExit then N.recoverFreight(ctx) end
+ if ctx.decide~=false and not e.dockExit then
+  local stop=e.route and e.route[e.routeIndex or 1]
+  local place=stop and L.byId[stop.locationId]
+  if place and place.kind=='station' then
+   if stop.kind=='station' and not Access.canStop(r,place.id,ctx.u) then
+    e.dockApproach=nil
+    require('src.queue').dropDock(r,ctx.u)
+    require('src.alife').bindRoute(game,e,r)
+   elseif stop.kind=='waypoint' and N.docksAt(r,place.id,ctx.u) then
+    require('src.alife').bindRoute(game,e,r)
+   end
+  end
+  N.recoverFreight(ctx)
+ end
  if r.action and r.action.completed then Actions.step(ctx) end
  local work=N.work(r)
  if work and work.before and ctx.decide~=false then work.before(ctx) end
@@ -310,7 +337,8 @@ end
 
 -- Docking ---------------------------------------------------------------------
 -- Does the ship stop (dock) at `id`? Shared rules first, then the job's.
-function N.docksAt(r,id)
+function N.docksAt(r,id,u)
+ if not Access.canStop(r,id,u) then return false end
  if r.worldRecovery then return id==r.worldRecovery.target end
  if r.service then return require('src.upkeep').isStation(r,id) end
  local action=r.action
@@ -332,10 +360,12 @@ local function visitStay(r,node)
  return (work and work.stay and work.stay(r,node)) or (j and j.stay and j.stay(r,node)) or T.alifeStay
 end
 function N.beginDocked(r,node,at,u,minimum)
+ if not Access.canStop(r,node,u) then return false end
  require('src.crew_fatigue').settle(r,at)
  r.state='docked';r.node=node;r.area=L.get(node).area;r.nextDecisionAt=nil;r.waitingHomeBerth=nil;r.dockedAt=at
  require('src.prospect').sell(u,r,node)
  Repairs.begin(r,node,at,minimum or visitStay(r,node),u)
+ return true
 end
 function N.arrive(r,node,at,u,game)
  require('src.crew_fatigue').settle(r,at)
@@ -345,19 +375,21 @@ function N.arrive(r,node,at,u,game)
  r.node=node;r.area=L.get(node).area;r.transit=nil
  r.route={node,node};r.index=1
  r.nextDecisionAt=nil
- local stay=visitStay(r,node)
+ local allowed=Access.canStop(r,node,u)
+ local stay=allowed and visitStay(r,node) or 0
  -- (a station with no place left for this hull: it holds off outside for
  -- the visit instead of docking on top of the ships already there)
- if L.get(node).kind=='station' and N.docksAt(r,node) and require('src.dock_room').room(u,r,node) then
+ if L.get(node).kind=='station' and N.docksAt(r,node,u) and require('src.dock_room').room(u,r,node) then
   N.beginDocked(r,node,at,u,stay)
   Supplies.docked(r,node,u)
   if not r.task and r.homeStation==node then r.taskStatus='idle at home' end
  else
   r.state='idle';r.untilTime=at+stay
-  if not r.task and r.homeStation==node then r.waitingHomeBerth=true;r.taskStatus='waiting for home parking' end
+  if allowed and not r.task and r.homeStation==node then r.waitingHomeBerth=true;r.taskStatus='waiting for home parking' end
  end
  if r.action and (r.action.kind=='travel' or r.action.kind=='dock') then
-  Actions.complete({u=u or {},game=game,r=r,clock=at})
+  local ctx={u=u or {},game=game,r=r,clock=at}
+  if allowed then Actions.complete(ctx) else Actions.cancel(ctx,'docking access denied') end
  end
 end
 
@@ -383,7 +415,7 @@ N.go=go
 -- recursively requesting another action. New jobs can request travel/dock.
 function N.beginRoute(ctx,action)
  local r=ctx.r;local target=action.target.id
- if not L.byId[target] then return false end
+ if not L.byId[target] or action.kind=='dock' and not Access.canStop(r,target,ctx.u) then return false end
  if r.route and r.route[#r.route]==target and (r.state=='travel' or r.state=='transit') then return true end
  local moving=r.state=='travel' or r.state=='transit'
  if moving then
@@ -399,7 +431,11 @@ function N.beginRoute(ctx,action)
  return true
 end
 
-function N.travel(game,r,target,clock)
+function N.travel(game,r,target,clock,purpose)
+ local allowed
+ if purpose then allowed=Access.canDock(r,target,game.universe,purpose)
+ else allowed=Access.canStop(r,target,game.universe) end
+ if not allowed then return false end
  local ctx=N.context(game,r,clock,game.alifeOnline and game.alifeOnline[r.id])
  if ctx.e then require('src.alife').capture(game,ctx.e,false) end
  if r.state=='travel' then
@@ -423,7 +459,7 @@ local function returnHome(r,node,at,ctx)
   return ctx.game and ctx.game.universe and require('src.wildcats').goHome(ctx.game,r,'no prey') or false
  end
  local home=require('src.npc_home').get(r,ctx.u)
- if not home or home==node then return false end
+ if not home or home==node or not Access.canDock(r,home,ctx.u) then return false end
  local route=G.live(node,home,at,true)
  if not route then r.taskStatus='waiting for a route home';return false end
  Trace.note(r,at,'npc','no work at '..node..' -> returning home to '..home)
@@ -432,7 +468,7 @@ local function returnHome(r,node,at,ctx)
  return go(r,route,at,ctx)
 end
 local function idleState(u,r,node)
- return L.get(node).kind=='station' and N.docksAt(r,node)
+ return L.get(node).kind=='station' and N.docksAt(r,node,u)
   and require('src.dock_room').room(u,r,node) and 'docked' or 'idle'
 end
 
@@ -450,20 +486,19 @@ function N.decide(u,r,node,at,game)
  if ctx.e then ctx.AI=require('src.ai') end
  if N.runActions(ctx) then return true end
  if j.complete then j.complete(ctx) end
- if r.state=='docked' then Supplies.docked(r,node,u) end
+ if r.state=='docked' and Access.canStop(r,node,u) then Supplies.docked(r,node,u) end
  -- Upkeep (fuel, repair, supplies) comes before work, from any state.
  -- A hub satellite nearby serves fuel and supplies on the spot.
  if require('src.sat_jobs').hubVisit(ctx) then return true end
  local Upkeep=require('src.upkeep')
  if r.state=='docked' then r.state='idle';r.node=node end
- if Upkeep.plan(r,at) then return true end
+ if Upkeep.plan(r,at,nil,u) then return true end
  local plan=j.next(ctx)
  if plan and plan.route then
   r.stuckSince=nil;r.waitingHomeBerth=nil
   if #plan.route<=1 or (#plan.route==2 and plan.route[1]==plan.route[2]) then
    -- work right here: hold (or stay docked) for its duration
-   if plan.dock and L.get(node).kind=='station' then N.beginDocked(r,node,at,u,plan.wait or T.alifeStay)
-   else r.state='idle';r.untilTime=at+(plan.wait or T.patrolInspect) end
+   if not (plan.dock and L.get(node).kind=='station' and N.beginDocked(r,node,at,u,plan.wait or T.alifeStay)) then r.state='idle';r.untilTime=at+(plan.wait or T.patrolInspect) end
    r.node=node;r.route={node,node};r.index=1
    return true
   end
@@ -498,14 +533,15 @@ function N.advance(r,clock,u,game)
   if not r.worldRecovery and N.runActions(ctx) then return end
   if r.state=='travel' or r.state=='transit' then
    -- (a ship queued at a driver or a dock waits its turn at the end of the leg)
-   local at=require('src.queue').due(r)
+   local at=require('src.queue').due(r,u)
    if clock<at then return end
-   if r.index<#r.route and not N.docksAt(r,r.route[r.index]) then deps.start(r,at,r.index+1)
+   if r.index<#r.route and not N.docksAt(r,r.route[r.index],u) then deps.start(r,at,r.index+1)
    else N.arrive(r,r.route[r.index],at,u,game) end
   elseif r.state=='docked' or r.state=='idle' then
    local node=r.node or r.route[r.index]
-   if r.state=='docked' then Repairs.advance(r,clock,node,u) end
+   if r.state=='docked' and Access.canStop(r,node,u) then Repairs.advance(r,clock,node,u) end
    require('src.reactor_fuel').observe(u,r,clock)
+   if r.state=='docked' and not Access.canStop(r,node,u) then r.untilTime,r.nextDecisionAt=clock,nil end
    if clock<N.readyAt(r) then return end
    local at=N.readyAt(r)
    if r.worldRecovery then require('src.world_reconcile').resume(u,r,at) end
@@ -519,6 +555,9 @@ end
 -- the offline loop makes; the live ship then follows the record's new route.
 function N.departOnline(game,e,station)
  local r=game.universe.npcs[e.alifeId]
+ if not Access.canStop(r,station.locationId,game.universe) then
+  r.untilTime,r.nextDecisionAt=game.universe.clock,nil
+ end
  if game.universe.clock<N.readyAt(r) then return false end
  local A=require('src.alife')
  A.capture(game,e,false)
@@ -535,7 +574,7 @@ function N.departOnline(game,e,station)
  -- whose hauler loads here and flies out to the satellite): it holds
  -- outside, so it leaves now rather than sitting docked until its stay
  -- runs out
- local holdsOutside=r.state=='idle' and not N.docksAt(r,node)
+ local holdsOutside=r.state=='idle' and not N.docksAt(r,node,game.universe)
  if r.state~='travel' and r.state~='transit' and not holdsOutside then r.state='docked';return false end
  e.npcDeparture=true
  return true

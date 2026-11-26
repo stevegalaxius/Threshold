@@ -227,6 +227,7 @@ T.alifeLocalTick, T.alifeRemoteTick, T.alifeStay = 0.5, 2, 60
 T.alifeSweepBudget = 0.00075 -- wall seconds before deferring the rest of an offline batch
 T.alifeSweepStep = 1 / 120 -- offline record visits are spread over the tick in steps this long (see Game:updateALife)
 T.securityThink, T.securityRange = 0.5, 6000
+T.policePursuitTime = 90  -- game seconds a local raid report remains actionable
 T.aiSteerEvery, T.aiClearance = 0.2, 12
 -- A turn-helm hull slides with no side thrust: past this much speed
 -- error across its route it turns its engines onto the error (px/s), and

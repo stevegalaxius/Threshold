@@ -204,7 +204,7 @@ function O.find(ctx)
    while target and target.entity and target.entity.kind=='husk' do
     if seen[target.entity] then return end
     seen[target.entity]=true
-    local hit=game:raycast(wx,wy,target.x,target.y,ctx.e.team)
+    local hit=game:raycast(wx,wy,target.x,target.y,ctx.e)
     if not hit or hit.entity==target.entity or hit.entity.kind~='husk' then break end
     if not prof.wrecks or prof.clears and not hit.entity.origin then return end
     spec=descriptor({kind='live',id=hit.entity.id},ctx.r.area)
@@ -346,7 +346,7 @@ local function recoverLive(ctx,target,dt,a)
  local weapon=Wreck.weapon(e)
  if not weapon then return 'failed','no usable wreck-breaking weapon' end
  local wx,wy=Ship.hardpoint(e,weapon.slot)
- local hit=ctx.game:raycast(wx,wy,target.x,target.y,e.team)
+ local hit=ctx.game:raycast(wx,wy,target.x,target.y,e)
  if hit and hit.entity~=object and hit.entity.kind=='husk' then return 'failed','another wreck blocks recovery' end
  ctx.r.taskStatus=weapon.w.kind=='drill' and 'stripping a wreck' or 'shooting a wreck'
  local prof={clears=a.clearWreck}
@@ -377,7 +377,7 @@ end
 Actions.registerOperation('recover',{
  sight=function(ctx,target,x,y)
   if target.entity.kind~='husk' then return true end
-  local hit=ctx.game:raycast(x,y,target.x,target.y,ctx.e.team)
+  local hit=ctx.game:raycast(x,y,target.x,target.y,ctx.e)
   return not hit or hit.entity==target.entity or hit.entity.kind~='station'
  end,
  blocked=function(ctx,target)
@@ -396,7 +396,7 @@ Actions.registerOperation('recover',{
    return Ship.distanceTo(e,target.x,target.y)-(target.radius or 0)<=Ship.tractorRange(e)
   end
   local wx,wy=Ship.hardpoint(e,weapon.slot)
-  local hit=ctx.game:raycast(wx,wy,target.x,target.y,e.team)
+  local hit=ctx.game:raycast(wx,wy,target.x,target.y,e)
   if hit and hit.entity~=object and hit.entity.kind=='husk' then return true end -- release/reselect the obstructed target
   if not hit or hit.entity~=object then return false end
   local reach=weapon.w.kind=='drill' and require('src.weapons').drillLength(e,weapon.w) or require('src.weapons').range(weapon)

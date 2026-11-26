@@ -10,6 +10,7 @@ local copy=require('src.persistence').copy
 local Population=require('src.population')
 local Homes=require('src.npc_home')
 local NPC=require('src.npc')
+local Combat=require("src.combat")
 local Access=require('src.npc_access')
 local S={}
 local policeWanted
@@ -265,27 +266,58 @@ Tasks.definitions.raid.before=function(c)
 end
 -- Combat policy comes from current work and scoped authority, never identity.
 function S.prey(o) return o.alifeRecord and Access.civilian(o.alifeRecord) or false end
+-- A local raid report outlives the job that caused it. Both simulations
+-- use this and the current faction relationship when choosing interceptions.
+function S.intercepts(u,patrol,target,area,clock)
+ if not target or patrol==target or not Access.defending(patrol,area) then return false end
+ local Rep=require('src.reputation')
+ local grant=Access.policeGrant(patrol,area)
+ local owner=Rep.ofArea(area) or grant and grant.issuer
+ local faction=Rep.crewFaction(target)
+ if faction and (faction==owner or Rep.stance(owner,faction,u)=='friendly') then return false end
+ if Rep.hostileToCrew(u,owner,target) then return true end
+ local raid=target.lastRaid
+ return raid and raid.area==area and clock-raid.clock<T.policePursuitTime or false
+end
+
+function S.reportRaid(game,attacker,victim,clock,node)
+ if not attacker or not victim or not Access.civilian(victim)
+  or not (Access.raiding(attacker) or attacker.wildcat or attacker.piracy) then return end
+ local area=victim.area
+ if not area or attacker.area~=area then return end
+ local raid=attacker.lastRaid
+ if not raid or raid.area~=area or clock-raid.clock>=T.policePursuitTime then
+  raid={area=area};attacker.lastRaid=raid
+ end
+ raid.clock=clock
+ if not raid.alerted then
+  raid.alerted=require('src.squads').civilianDistress(game,victim,clock,node)
+ end
+end
+
 function S.hostile(game,e,o)
- if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected then return false end
+ if not o or o==e or o.kind~='ship' or o.dead or o.removed or o.dockState or o.driverProtected or o.unpiloted or o.podHidden
+  or Combat.allied(game.universe,e,o) then return false end
  if o==e.aggressor then return true end
  local r=e.alifeRecord
+ local actor=Combat.controller(o)
+ local other=actor.alifeRecord
  -- whoever shoots a squadmate or the flagship answers to the whole group
  if r and (r.squad or r.battlegroup) and require('src.squads').attackedAlly(game,e,o) then return true end
  local grant=Access.policeGrant(r,game.fieldId)
- if grant and o.isPlayer then
+ if grant and actor.isPlayer then
   local Rep=require('src.reputation')
   local u=game.universe
   return Rep.hostile(Rep.goodwill(u,r)+Rep.standing(u,grant.issuer)-Rep.heat(u,r.node))
  end
  if Access.defending(r,game.fieldId) then
-  -- a power at war with the cartel shoots its crews on sight at home
-  local Rep=require('src.reputation')
-  if o.alifeRecord and Rep.stance(Rep.ofArea(game.fieldId),Rep.CARTEL)=='hostile' and Rep.cartelCrew(o.alifeRecord) then return true end
-  return (Access.raiding(o.alifeRecord) or o.alifeRecord and o.alifeRecord.piracy or not o.alifeRecord and o.team==2)
-   and o.aggressedAt~=nil and game.time-o.aggressedAt<30
+  -- Defenders use the same relationship that crews plan around.
+  if S.intercepts(game.universe,r,other,game.fieldId,game.universe.clock) then return true end
+  local lastAttack=o.aggressedAt or actor.aggressedAt
+  return Combat.sceneEnemy(o) and lastAttack~=nil and game.time-lastAttack<30
  end
  if Access.raiding(r) then
-  return not Access.raiding(o.alifeRecord) and (o.isPlayer or o.alifeRecord~=nil)
+  return not Access.raiding(other) and (actor.isPlayer or other~=nil)
    and not require('src.robbery').isSpared(game,e,o)
  end
  return false

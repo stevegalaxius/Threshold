@@ -360,7 +360,7 @@ function Game:completeTrade(st, trade)
 	local plan=assert(shipPlan(self,st,buying,selling))
  local records={}
  for _,purchase in ipairs(plan.bought) do
-  local e=Ship.new(self,{hull=purchase.hull,team=1,grid=true})
+  local e=Ship.new(self,{hull=purchase.hull,grid=true})
   local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,purchase.parking);records[#records+1]=rec
  end
  local roster=self:stationParkingRecord(st).hangar
@@ -487,7 +487,7 @@ function Game:buyShip(st, lot, opts)
   return nil,'NO SUITABLE FREE PARKING'
  end
  if tradeIndex then table.remove(list,tradeIndex) end
- local e=Ship.new(self,{hull=lot.hull,team=1,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.color or lot.paint and require('src.paint').preset(lot.paint) or nil})
+ local e=Ship.new(self,{hull=lot.hull,grid=true,loadout=lot.loadout,cargo=lot.cargo,armor=lot.armor,color=lot.color or lot.paint and require('src.paint').preset(lot.paint) or nil})
  local rec=Ship.record(e);e.body:destroy();self:applyParking(rec,parking)
  list[#list+1]=rec
  local Dealers=require('src.dealers')

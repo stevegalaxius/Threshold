@@ -3,19 +3,23 @@ return function()
  local NPC,ALife,Tasks=require('src.npc'),require('src.alife'),require('src.tasks')
  local Locations,T=require('src.locations'),require('src.tuning')
  local game=Game.new({preview=true})
- local source,target='station:earth_3','station:earth_1'
  local u=game.universe
  game.fieldId='earth'
  game.alifeOnline={}
  local Hold=require('src.inventory.hold')
  local function run(phase,thief)
+  local source,target='station:earth_3','station:earth_1'
+  if thief then
+   game:loadField('mars')
+   source,target='station:mars_2','station:mars_1'
+  end
   local destination=phase=='pickup' and source or target
   local station=game:locationEntity(destination) or Locations.spawnStation(game,destination)
   station.docks={station.dock}
   local x,y=station.body:getPosition()
-  local e=Ship.new(game,{hull='intaki_wisp',x=x+2000,y=y,team=3,grid=true})
+  local e=Ship.new(game,{hull='intaki_wisp',x=x+2000,y=y,grid=true})
   local offer=Tasks.post(u,{kind='transport',source=source,target=target,item='steel_plate',amount=3,order=true,stocked=true})
-  local r={id='npc/freight-test',ship=Ship.record(e),state='travel',area='earth',node=target,
+  local r={id='npc/freight-test',ship=Ship.record(e),state='travel',area=game.fieldId,node=target,
    speed=600,depart=u.clock,arrive=u.clock+80,index=2,route=phase=='pickup' and {target,source} or {source,target}}
   r.task={id=offer.id,kind='transport',source=source,target=target,phase=phase,item=offer.item,amount=offer.amount,stocked=true,order=true}
   if thief then r.homeStation,r.ambition,r.aggression='station:shoals_3',.96,.95 end
@@ -35,7 +39,7 @@ return function()
    end
   end
   -- A real queue result pauses the timer even while the body is still.
-  local blocker=Ship.new(game,{hull='intaki_wisp',x=x,y=y,team=3})
+  local blocker=Ship.new(game,{hull='intaki_wisp',x=x,y=y})
   blocker.dockExit={station=station,dock=AI.approachDock(e,station)}
   game.entities[#game.entities+1]=blocker
   assert(require('src.queue').holding(game,e,e.route[e.routeIndex]),'test ship failed to join live queue')

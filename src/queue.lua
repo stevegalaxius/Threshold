@@ -48,7 +48,7 @@ function Q.chokepoint(r,index)
   if nextPlace and nextPlace.area~=place.area then return id,'driver',1 end
   return
  end
- if place.kind=='station' and require('src.npc').docksAt(r,id) then
+ if place.kind=='station' and require('src.npc').docksAt(r,id,Q.universe) then
   local key=id
   if Q.docks[key] then return key,'dock',Q.docks[key] end
   -- Access points are separate physical dock queues.
@@ -108,8 +108,22 @@ function Q.hold(key,dt,clock)
 end
 
 -- When the ship's turn comes: the end of its leg, or later if it's queued.
-function Q.due(r)
+function Q.dropDock(r,u)
  local q=r.queue
+ if not q or q.kind~='dock' then return end
+ local list=u and u.queues and u.queues[q.key]
+ for i=list and #list or 0,1,-1 do
+  if list[i].id==r.id then table.remove(list,i) end
+ end
+ r.queue=nil
+end
+
+function Q.due(r,u)
+ local q=r.queue
+ if q and q.kind=='dock' and not require('src.npc_access').canStop(r,q.key,u or Q.universe) then
+  Q.dropDock(r,u or Q.universe)
+  return r.arrive
+ end
  return q and q.ready>r.arrive and q.ready or r.arrive
 end
 

@@ -10,6 +10,7 @@ local Input = require("src.input")
 local Render = require("src.render")
 local T = require("src.tuning")
 local Fields = require("src.fields")
+local Combat = require("src.combat")
 
 local HUD = { showHelp = true }
 
@@ -495,7 +496,7 @@ local function drawOffscreen(game)
 		for _, d in ipairs(destinations(game)) do mark(d.label, d.x, d.y, d.radius, d.col) end
 	end
 	for _, e in ipairs(game.entities) do
-		if e.kind == "ship" and e.team == 2 and not e.dead and e.aggro then
+		if Combat.hostile(game, game.player, e) and (not Combat.sceneEnemy(e) or e.aggro or e.combatTarget) then
 			local sx, sy = cam:toScreen(Pose.position(e))
 			if sx < 0 or sx > w or sy < 0 or sy > h then
 				local a = atan2(sy - cy, sx - cx)

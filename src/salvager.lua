@@ -63,7 +63,17 @@ function S.returnRecord(game,r,maintenance)
  local source=r.route[r.index]
  -- Finish an already committed gate crossing before choosing a local port.
  if L.get(source).kind=='moon_gate' or L.get(source).kind=='driver' then return false end
- local target=L.station(r.area,'trade') or Homes.get(r)
+ local Access=require('src.npc_access')
+ local u=game.universe
+ local target=L.station(r.area,'trade')
+ if not target or not Access.canDock(r,target,u) then
+  target=nil
+  for _,id in ipairs(L.stations(r.area,'trade')) do
+   if Access.canDock(r,id,u) then target=id;break end
+  end
+  local home=Homes.get(r)
+  if not target and Access.canDock(r,home,u) then target=home end
+ end
  local tail=target and G.itinerary(source,target,game.universe.clock)
  if not tail then r.taskStatus='no route to a salvage market';return false end
  require('src.offline_loot').release(game,r,game.universe.clock)
