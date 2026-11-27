@@ -105,7 +105,7 @@ function M.create(game,area,clock)
   state='idle',spread=0,
   ship={hull=def.hull,loadout=copy(def.loadout),cargo={},armor=Stats.compute(hull,def.loadout).armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
- r.speed=require('src.npc').cruise(r.ship)
+ r.speed=require('src.npc').travelSpeed(r.ship)
  require('src.npc_templates').apply(r,'miner',area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)

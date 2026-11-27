@@ -195,7 +195,7 @@ function A.createTrader(game,area,i,group)
   spread=(love.math.random()*2-1)*T.alifeSpread,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
- r.speed=NPC.cruise(r.ship)
+ r.speed=NPC.travelSpeed(r.ship)
  require('src.npc_templates').apply(r,group or 'hauler',area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)
@@ -315,7 +315,7 @@ function A.seed(game)
    if not r.ship.fuelInitialized then Fuel.withRecord(r,function() end);r.fuelClock=u.clock end
    require('src.npc_profile').migrate(r)
    -- every NPC flies at the shared cruise speed, nudged by its own ship
-   if not r.garrison then r.speed=NPC.cruise(r.ship) end
+   if not r.garrison then r.speed=NPC.travelSpeed(r.ship) end
   end
   Homes.seed(u)
   Population.schedule(game,u.clock)
@@ -936,7 +936,7 @@ function A.wake(game,r)
   enemy=require('src.npc_profile').of(r),x=exact and exact.x or p.x,y=exact and exact.y or p.y,
   angle=exact and exact.a or p.heading})
  e.alifeId=r.id
- e.npcCruise=r.speed
+ e.npcCruise=NPC.cruise(r.ship) -- base cruise: the AI boosts it itself on long legs
  if s.carried then e.carried=copy(s.carried);Ship.updateMass(e) end   -- ships on its berths
  Fuel.observe(game.universe,r,game.universe.clock,e)
  e.alifeRecord=r;e.alifeGame=game

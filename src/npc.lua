@@ -161,6 +161,22 @@ function N.cruise(ship)
  local factor=math.max(1-T.npcCruiseSpread,math.min(1+T.npcCruiseSpread,agility(hull,ship.loadout)/reference))
  return T.npcCruise*factor
 end
+-- The speed an NPC actually covers a long leg at. On screen the trader AI
+-- lights the burner on long clear legs and cruises at up to
+-- T.aiBoostCruise x cruise, capped at 85% of the hull's top speed
+-- (src/ai.lua). The off-map simulation must move ships at that same pace,
+-- or a faster hull (or a higher cruise) never shortens a trip off screen.
+function N.travelSpeed(ship)
+ local cruise=N.cruise(ship)
+ local hull=ship and data.hulls[ship.hull]
+ if not hull or not hull.drag or hull.drag<=0 then return cruise end
+ local s=require('src.stats').compute(hull,ship.loadout or hull.loadout)
+ local thrust=math.max(s.thrust or 0,(s.sideThrust or 0)*T.sideScale)*T.FORCE_PER_KN*T.thrustScale
+ local k=hull.drag*T.dragScale
+ if k<=0 then return cruise end
+ local top=math.sqrt(thrust/k)
+ return math.max(cruise,math.min(cruise*T.aiBoostCruise,top*.85))
+end
 -- The live ship's cruise, for onscreen steering.
 function N.liveCruise(e)
  return e.npcCruise or (e.alifeRecord and e.alifeRecord.speed) or (e.def and e.def.ai and e.def.ai.cruise) or T.npcCruise
