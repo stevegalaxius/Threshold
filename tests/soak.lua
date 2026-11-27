@@ -318,9 +318,14 @@ return function(game)
  local steps=math.floor(3600/dt)
  say(('soak: %d h at dt=%.4f on %s, %d trade stations, news %s%s'):format(hours,dt,game.fieldId,#stations,newsOn and (scripted and 'on, scripted player' or 'on') or 'off',fast and (', FAST (no physics, records every %gs)'):format(fstep) or ''))
  sample(0,0)
+ local stepCarry=0
  for h=1,hours do
-  local per=math.floor(steps/60)
-  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else for _=1,per do game:step(dt) end end newsMinute(h,m) SoakLog.minute() end end,debug.traceback)
+  -- Step whole minutes of game time: floor(60/dt) steps fell ~0.9 s short
+  -- each hour at dt=1/60, so the hour index read from u.clock lagged and a
+  -- later hour reported the previous hour's ledger again.
+  local ok,err=xpcall(function() for m=1,60 do if fast then fastMinute() else
+   stepCarry=stepCarry+60/dt;local n=math.floor(stepCarry+1e-6);stepCarry=stepCarry-n
+   for _=1,n do game:step(dt) end end newsMinute(h,m) SoakLog.minute() end end,debug.traceback)
   if not ok then say('CRASH in hour '..h..': '..tostring(err));break end
   sample(h,os.clock()-t0)
   newsSample(h)
