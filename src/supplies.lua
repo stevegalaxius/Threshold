@@ -117,6 +117,8 @@ local function charge(r,u,key,id,n)
  -- what it was actually paid, or it was minting the rest)
  local cost=math.min(n*p,math.max(0,r.credits or 0))
  r.credits=(r.credits or 0)-cost;r.suppliesSpent=(r.suppliesSpent or 0)+cost
+ -- by the job it was bought on, for the soak's per-job net (tests/soak.lua)
+ do local k=r.task and r.task.kind or 'idle';local by=r.suppliesByJob or {};r.suppliesByJob=by;by[k]=(by[k] or 0)+cost end
  -- a broke hunter's ammo is billed to its system's bounty payer, which
  -- wants its wildcats dead: real money, not goods given away
  if r.populationGroup=='hunter' and n*p>cost and type(key)~='table' and require('src.ammunition').byItem[id] then

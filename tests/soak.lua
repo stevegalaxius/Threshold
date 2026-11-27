@@ -312,28 +312,35 @@ return function(game)
  local lastEarn=setmetatable({},{__mode='k'})
  local function walletLine()
   local g={}
-  for _,r in pairs(u.npcs or {}) do
+  local jobs={}
+  for _,r in pairs(u.npcs or {}) do if r.state~='dead' and r.state~='escaped' then
    local grp=r.populationGroup or '?'
-   local e=g[grp] or {n=0,broke=0,freight=0,salvage=0,spent=0,credits=0,trade=0,rest=0,delta=0,brokeDoing={}};g[grp]=e
+   local e=g[grp] or {n=0,broke=0,freight=0,salvage=0,spent=0,credits=0,trade=0,sales=0,rest=0,delta=0,brokeDoing={}};g[grp]=e
    local c=r.credits or 0;e.n=e.n+1;e.credits=e.credits+c
-   local last=lastEarn[r] or {f=0,s=0,x=0,t=0,z=0,c=c}
-   local f,sv,x=r.freightEarnings or 0,r.salvageEarnings or 0,(r.fuelSpent or 0)+(r.suppliesSpent or 0)
-   local tr,z=r.tradeSpent or 0,r.restSpend or 0
+   local f,sv,x=r.freightEarnings or 0,r.salvageEarnings or 0,r.suppliesSpent or 0 -- (fuel is already inside suppliesSpent)
+   local tr,z,ts=r.tradeSpent or 0,r.restSpend or 0,r.tradeEarnings or 0
+   local by={} for k,v in pairs(r.suppliesByJob or {}) do by[k]=v end
+   -- a record first seen this sample is its own baseline: no deltas yet
+   local last=lastEarn[r] or {f=f,s=sv,x=x,t=tr,z=z,c=c,ts=ts,by=by}
+   e.sales=e.sales+math.max(0,ts-last.ts)
+   if grp=='hauler' then for k,v in pairs(by) do jobs[k]=(jobs[k] or 0)+math.max(0,v-(last.by[k] or 0)) end end
    e.trade=e.trade+math.max(0,tr-last.t);e.rest=e.rest+math.max(0,z-last.z);e.delta=e.delta+(c-(last.c or c))
    e.freight=e.freight+math.max(0,f-last.f);e.salvage=e.salvage+math.max(0,sv-last.s);e.spent=e.spent+math.max(0,x-last.x)
-   lastEarn[r]={f=f,s=sv,x=x,t=tr,z=z,c=c}
+   lastEarn[r]={f=f,s=sv,x=x,t=tr,z=z,c=c,ts=ts,by=by}
    if c<100 then e.broke=e.broke+1;local k=r.task and r.task.kind or 'idle';e.brokeDoing[k]=(e.brokeDoing[k] or 0)+1 end
-  end
+  end end
   local o={} for k in pairs(g) do o[#o+1]=k end table.sort(o)
   local q={}
   for _,k in ipairs(o) do local e=g[k]
    local d={} for kk,n in pairs(e.brokeDoing) do d[#d+1]=kk..'='..n end table.sort(d)
    -- other = everything the named lines miss (trade sales, fares, wages,
    -- bounties minus refits, ship buys...): net change minus what is named
-   local other=e.delta-(e.freight+e.salvage-e.spent-e.trade-e.rest)
-   q[#q+1]=('%s %d broke of %d (mean %.0f cr, freight +%.0f, salvage +%.0f, fuel and supplies -%.0f, trade goods -%.0f, shore leave -%.0f, other %+.0f, net %+.0f%s)'):format(k,e.broke,e.n,e.credits/math.max(1,e.n),e.freight,e.salvage,e.spent,e.trade,e.rest,other,e.delta,#d>0 and ('; broke doing '..table.concat(d,',')) or '')
+   local other=e.delta-(e.freight+e.salvage+e.sales-e.spent-e.trade-e.rest)
+   q[#q+1]=('%s %d broke of %d (mean %.0f cr, freight +%.0f, salvage +%.0f, fuel and supplies -%.0f, trade goods -%.0f, trade sales +%.0f, shore leave -%.0f, other %+.0f, net %+.0f%s)'):format(k,e.broke,e.n,e.credits/math.max(1,e.n),e.freight,e.salvage,e.spent,e.trade,e.sales,e.rest,other,e.delta,#d>0 and ('; broke doing '..table.concat(d,',')) or '')
   end
-  say('    wallets: '..table.concat(q,' | '))
+  say('    wallets (alive ships; a ship's first sample is its baseline): '..table.concat(q,' | '))
+  local jj={} for k,v in pairs(jobs) do jj[#jj+1]=k..'='..math.floor(v) end table.sort(jj)
+  say('    hauler supplies by job: '..table.concat(jj,' '))
  end
  -- the full event log (tests/soak_log.lua), when SOAK_LOG names a file
  local SoakLog=require('tests.soak_log')

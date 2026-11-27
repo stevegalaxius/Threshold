@@ -616,7 +616,8 @@ function Transport.sellOwned(u,r,station)
   if have<=0 and ((r.ship.cargo or {})[item] or 0)<=0 then r.ownedCargo[item]=nil
   elseif have>0 and buys(station,item) then
    local value=Transport.tradeValue(u,{item=item,amount=have},station)
-   r.credits=(r.credits or 0)+require('src.accounts').pay(u,station,value,'bought',item)
+   local got=require('src.accounts').pay(u,station,value,'bought',item)
+   r.credits=(r.credits or 0)+got;r.tradeEarnings=(r.tradeEarnings or 0)+got
    J.deliver(u,station,item,have)
    cargo(r,item,-have)
    r.ownedCargo[item]=n-have>0 and n-have or nil
@@ -1024,6 +1025,7 @@ Tasks.register('transport',{
   r.credits=(r.credits or 0)+paid
   local fees=0;for _,charge in ipairs(here) do if not charge.task.trade then fees=fees+charge.payment end end
   r.freightEarnings=(r.freightEarnings or 0)+math.min(paid,fees)
+  r.tradeEarnings=(r.tradeEarnings or 0)+math.max(0,paid-math.min(paid,fees))
   if #later>0 then
    -- on to the next drop-off with what's left aboard
    local manifest,lines_={},{}
