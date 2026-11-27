@@ -462,6 +462,7 @@ function Game:saveState()
 	require("src.mining").captureResources(self)
 	self:captureALife(false)
 	self:captureArea()
+	require("src.comms").capture(self)   -- hails in progress (src/comms.lua)
 	-- the maps alive beside this one (src/transit.lua) are saved as they are
 	for _, side in ipairs(self:sideScenes()) do
 		local scene = side.scene
@@ -506,6 +507,7 @@ function Game:saveState()
 		nextLooseId = u.nextLooseId, merchants = Persistence.copy(u.merchants), industry = Persistence.copy(u.industry),
 		arbiter = Persistence.copy(u.arbiter), fleetSeeded = Persistence.copy(u.fleetSeeded), satWearAt = u.satWearAt, squads = Persistence.copy(u.squads), accounts = Persistence.copy(u.accounts), wreckBounty = Persistence.copy(u.wreckBounty), madeAt = Persistence.copy(u.madeAt),
 		news = Persistence.copy(u.news), notifications = Persistence.copy(u.notifications),
+		comms = Persistence.copy(u.comms), contraband = Persistence.copy(u.contraband),
 		worldstate = Persistence.copy(u.worldstate), notables = Persistence.copy(u.notables),
 		wreckContractNotice = self.state == "dead" and self.wreckContractNotice or nil }
 	local p = self.player
@@ -550,6 +552,9 @@ function Game:loadState(state)
 	self.universe.worldstate = Persistence.copy(state.worldstate)
 	self.universe.notables = Persistence.copy(state.notables)
 	self.universe.notifications = Persistence.copy(state.notifications)
+	self.universe.contraband = Persistence.copy(state.contraband)
+	self.universe.comms = Persistence.copy(state.comms)
+	require("src.comms").load(self)
 	require("src.notify").clear()
 	self.universe.alifeWrecks = Persistence.copy(state.alifeWrecks)
 	self.universe.encounterNext = state.encounterNext

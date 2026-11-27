@@ -116,6 +116,40 @@ function C.update(game)
  end
 end
 
+-- Police scoop a dumped stack up: it leaves space for good.
+function C.scoop(game,pickup)
+ if not pickup or pickup.count<=0 then return end
+ pickup.count=0
+ for i,k in ipairs(game.pickups or {}) do if k==pickup then table.remove(game.pickups,i);break end end
+ if pickup.looseId then
+  require('src.loose').remove(game.universe,pickup.looseId)
+  if game.miningLive then game.miningLive[pickup.looseId]=nil end
+ end
+end
+
+-- Contraband dumped while police are inspecting you counts as found: they
+-- note it (ch.v.dumped) and pull it in. The scan's result fines it like
+-- anything still aboard.
+require('src.events').on('eject',function(e,id,count,pickup)
+ local ch=e.comms
+ if not ch or ch.closed or ch.scriptId~='inspection' or ch.listener~=e then return end
+ if not C.illegal(ch.game.universe,ch.v.faction,id) then return end
+ local v=ch.v
+ v.dumped=v.dumped or {}
+ v.dumped[#v.dumped+1]={id=id,n=count}
+ v.dumpedValue=(v.dumpedValue or 0)+count*(data.items[id].price or 0)
+ C.scoop(ch.game,pickup)
+ if e.isPlayer then ch.game:toast(('PATROL SEIZED THE DUMPED %s'):format(data.items[id].name:upper()),2) end
+end)
+
+-- Is the inspected ship still where the police can scan it?
+function C.inRange(ch)
+ local a,b=ch.speaker,ch.listener
+ if not a.body or not b.body then return true end
+ local x1,y1=a.body:getPosition();local x2,y2=b.body:getPosition()
+ return (x1-x2)^2+(y1-y2)^2<T.inspectLeash^2
+end
+
 function C.inspect(game,police,ship,faction)
  local u=game.universe
  local list,n,value=C.manifest(u,faction,ship)

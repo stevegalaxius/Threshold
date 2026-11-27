@@ -214,7 +214,7 @@ end
 --                vx, vy }, or the field's spawn point
 function Game:loadField(id, opts)
 	opts = opts or {}
-	require("src.comms").reset()   -- conversations hold this map's ships
+	require("src.comms").reset(true)   -- conversations hold this map's ships
 	Mining.unload(self)
 	self.miningNext = nil
 	self:captureALife(true)
@@ -2139,10 +2139,11 @@ function Game:eject(e, id, count, inner)
 		require("src.notables").airlock(self)
 		id = "vip_remains"
 	end
-	require("src.loose").adopt(self, self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
-		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30))
+	local pickup = self:pickupView(x + c * back - s * side, y + s * back + c * side, id, count,
+		vx - c * 90 + (random() - 0.5) * 30, vy - s * 90 + (random() - 0.5) * 30)
+	require("src.loose").adopt(self, pickup)
 	self:toast(("-%d %s"):format(count, data.items[id].name), 1.2, "pickup")
-	events.emit("eject", e, id, count)
+	events.emit("eject", e, id, count, pickup)
 end
 
 -- A cargo container floating in space: a box with a grid hold of its own.

@@ -66,10 +66,47 @@ return function(game)
  ch=Con.inspect(game,police,p,'estates')
  assert(ch.v.units==5 and ch.v.value==5*900,'manifest')
  Comms.choose(ch,1)                                -- Comply
+ assert(ch.node=='scanning','comply should start a scan')
+ game.time=game.time+T.inspectScanTime+.1;Comms.update(game)
  math.random=real
  assert(ch.node=='caught' and (Hold.totals(p.hold).fentanyl or 0)==0,'contraband not seized')
  assert(u.credits==10000-4500 and Rep.standing(u,'estates')<before,'fine or standing')
  Comms.close(ch)
+ -- dumping during an inspection counts as found, and the patrol scoops it up
+ Hold.add(p.hold,'fentanyl',2);p.cargo=Hold.totals(p.hold)
+ ch=Con.inspect(game,police,p,'estates')
+ local pickups=#game.pickups
+ require('src.inventory.hold').take(p.hold,'fentanyl',2);p.cargo=Hold.totals(p.hold)
+ game:eject(p,'fentanyl',2)
+ assert(#game.pickups==pickups and ch.v.dumpedValue==1800,'dumped contraband was not scooped')
+ local credits=u.credits
+ Comms.choose(ch,1);game.time=game.time+T.inspectScanTime+.1;Comms.update(game)
+ assert(ch.node=='caught' and u.credits==credits-1800,'dumped contraband was not fined')
+ Comms.close(ch)
+ -- complying and then flying off is running
+ local px,py=p.body:getPosition()
+ police.body={getPosition=function() return px,py end}
+ ch=Con.inspect(game,police,p,'estates')
+ Comms.choose(ch,1)
+ police.body={getPosition=function() return px+T.inspectLeash+100,py end}
+ Comms.update(game)
+ assert(ch.node=='ran' and Con.wanted(u,'estates'),'leaving mid-scan was not running')
+ u.contraband.wanted={};police.body=nil;police.aggressor=nil
+ -- a pirate's demand takes over an inspection: the patrol goes for the pirate
+ ch=Con.inspect(game,police,p,'estates')
+ local raider=ship('Pirate')
+ local d4=require('src.handover').open(game,'robbery',raider,p,1,T.robberyWindow,function() return true end)
+ d4.channel=Comms.open(game,'robbery',raider,p,{request=d4,amount=1})
+ assert(ch.closed and police.aggressor==raider and p.comms==d4.channel,'police did not turn on the pirate')
+ -- save and restore: the demand comes back on the same ships
+ raider.alifeId='npc/test';game.alifeOnline=game.alifeOnline or {};game.alifeOnline['npc/test']=raider
+ Comms.capture(game)
+ assert(u.comms and #u.comms==1 and u.comms[1].speaker=='npc/test','capture')
+ require('src.handover').close(d4);Comms.reset()
+ Comms.load(game);Comms.update(game)
+ local back=p.comms
+ assert(back and back.scriptId=='robbery' and back.speaker==raider and raider.request and raider.request.channel==back,'restore')
+ require('src.handover').close(raider.request);Comms.reset();game.alifeOnline['npc/test']=nil
  -- running: wanted until it lapses
  ch=Con.inspect(game,police,p,'estates')
  Comms.choose(ch,#Comms.options(ch))

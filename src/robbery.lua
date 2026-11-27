@@ -95,6 +95,18 @@ function R.isSpared(game,pirate,o)
  return t and game.time<t or false
 end
 
+-- A demand saved mid-conversation (src/comms.lua): reopen the request.
+function R.restore(game,ch,saved)
+ local pirate,target=ch.speaker,ch.listener
+ if target.asked or pirate.request then return false end
+ local left=ch.deadline and ch.deadline-game.time or T.robberyWindow
+ local d=Handover.open(game,'robbery',pirate,target,saved.amount,left,isGood)
+ d.paid,d.refused,d.channel=saved.paid or 0,saved.refused,ch
+ if not target.isPlayer then d.answered=true end
+ ch.v={request=d,amount=saved.amount,owed=saved.owed,haggled=saved.haggled}
+ return true
+end
+
 -- The player (or an NPC) hands over what's still owed.
 function R.pay(game,giver,d)
  local _,list=goods(giver)

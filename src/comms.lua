@@ -169,24 +169,32 @@ function Comms.choose(ch,i)
  Comms.go(ch,nextId)
 end
 
-function Comms.close(ch,why)
+-- why: 'ended', 'lost contact', 'replaced' (by: the channel taking over),
+-- 'reset'. The script's onClose(ch, why, by) hears it.
+function Comms.close(ch,why,by)
  if not ch or ch.closed then return end
  ch.closed=true;ch.why=why
  for i,c in ipairs(Comms.channels) do if c==ch then table.remove(Comms.channels,i);break end end
  if ch.speaker and ch.speaker.comms==ch then ch.speaker.comms=nil end
  if ch.listener and ch.listener.comms==ch then ch.listener.comms=nil end
- if ch.script.onClose then ch.script.onClose(ch,why) end
+ if ch.script.onClose then ch.script.onClose(ch,why,by) end
 end
 
 -- Open a conversation. vars: the script's variables (ch.v). Replaces any
 -- channel either ship already has open.
-function Comms.open(game,scriptId,speaker,listener,vars)
- Comms.close(speaker.comms,'replaced');Comms.close(listener.comms,'replaced')
+local function attach(game,scriptId,speaker,listener,vars)
  Comms.nextId=Comms.nextId+1
  local ch={id=Comms.nextId,scriptId=scriptId,script=Comms.script(scriptId),game=game,
   speaker=speaker,listener=listener,v=vars or {},log={},opened=game.time}
+ local old1,old2=speaker.comms,listener.comms
  speaker.comms,listener.comms=ch,ch
  Comms.channels[#Comms.channels+1]=ch
+ Comms.close(old1,'replaced',ch);Comms.close(old2,'replaced',ch)
+ speaker.comms,listener.comms=ch,ch
+ return ch
+end
+function Comms.open(game,scriptId,speaker,listener,vars)
+ local ch=attach(game,scriptId,speaker,listener,vars)
  Comms.go(ch,ch.script.start)
  if not ch.closed and listener.isPlayer then
   require('src.notify').post(game.universe,{kind='comms',title='Incoming hail: '..Comms.factionName(game,speaker)..' '..Comms.nameOf(speaker),
@@ -209,6 +217,7 @@ function Comms.remaining(ch)
 end
 
 function Comms.update(game)
+ Comms.restorePending(game)
  for i=#Comms.channels,1,-1 do
   local ch=Comms.channels[i]
   if ch and not ch.closed then
@@ -219,6 +228,8 @@ function Comms.update(game)
     local node=Comms.node(ch)
     log(ch,'listener','(no answer)')
     Comms.go(ch,node.onTimeout)
+   elseif Comms.node(ch).tick and Comms.node(ch).tick(ch) then
+    Comms.go(ch,Comms.node(ch).tick(ch))
    else
     -- an NPC side answers once per node, through the node's npc rule
     local node=Comms.node(ch)
@@ -233,9 +244,61 @@ function Comms.update(game)
  end
 end
 
-function Comms.reset()
+-- Drop every open conversation (a map change or a load). keepPending
+-- leaves the ones a load is waiting to restore.
+function Comms.reset(keepPending)
  for i=#Comms.channels,1,-1 do Comms.close(Comms.channels[i],'reset') end
  Comms.channels={}
+ if not keepPending then Comms.pending=nil end
+end
+
+-- Saving. A conversation is saved by who is in it (the player, or an A-Life
+-- record id), its script, node, time left and variables. A script with
+-- live references in ch.v gives save(ch) -> plain table and restore(game,
+-- ch, saved) -> false to give up; otherwise ch.v is saved as it is.
+-- Loading keeps them pending until both ships are on the map again (the
+-- A-Life ships come online over the first moments), then reopens them
+-- without re-running the node's enter.
+local function idOf(e) return e.isPlayer and 'player' or e.alifeId end
+local function find(game,id)
+ if id=='player' then return game.player end
+ return game.alifeOnline and game.alifeOnline[id]
+end
+Comms.T.restoreWait=15
+function Comms.capture(game)
+ local out={}
+ for _,ch in ipairs(Comms.channels) do
+  local a,b=idOf(ch.speaker),idOf(ch.listener)
+  if a and b and not ch.endAt then
+   local v=ch.script.save and ch.script.save(ch) or require('src.persistence').copy(ch.v)
+   out[#out+1]={script=ch.scriptId,node=ch.node,speaker=a,listener=b,v=v,log=require('src.persistence').copy(ch.log),
+    left=Comms.remaining(ch),field=game.fieldId}
+  end
+ end
+ for _,saved in ipairs(Comms.pending or {}) do out[#out+1]=saved end
+ game.universe.comms=#out>0 and out or nil
+end
+function Comms.load(game)
+ local u=game.universe
+ Comms.pending=u.comms;u.comms=nil
+ Comms.pendingUntil=nil
+end
+function Comms.restorePending(game)
+ if not Comms.pending then return end
+ Comms.pendingUntil=Comms.pendingUntil or game.time+Comms.T.restoreWait
+ local keep={}
+ for _,saved in ipairs(Comms.pending) do
+  local a,b=find(game,saved.speaker),find(game,saved.listener)
+  if saved.field~=game.fieldId then
+   -- a different map: drop it
+  elseif a and b and not gone(a) and not gone(b) then
+   local ch=attach(game,saved.script,a,b,saved.v)
+   ch.node,ch.log,ch.enteredAt=saved.node,saved.log or {},game.time
+   ch.deadline=saved.left and game.time+saved.left or nil
+   if ch.script.restore and ch.script.restore(game,ch,saved.v)==false then Comms.close(ch,'lost contact') end
+  elseif game.time<Comms.pendingUntil then keep[#keep+1]=saved end
+ end
+ Comms.pending=#keep>0 and keep or nil
 end
 
 return Comms

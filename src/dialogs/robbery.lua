@@ -29,6 +29,12 @@ local function demand(text)
 end
 return {
  start='demand',
+ -- the Handover request holds live ships: save its numbers, reopen it on load
+ save=function(ch)
+  local d=ch.v.request
+  return {amount=d.amount,paid=d.paid,owed=ch.v.owed,haggled=ch.v.haggled,refused=d.refused}
+ end,
+ restore=function(game,ch,saved) return robbery().restore(game,ch,saved) end,
  nodes={
   demand=demand('"{listener.name}, jettison {owed} cargo or be fired upon."'),
   haggled=demand('"Fine. {owed}, and be quick about it."'),
