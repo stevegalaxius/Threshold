@@ -308,7 +308,7 @@ return function(game)
   for _,e in ipairs(list) do e.roleTask=e.role..':'..e.task;e.matchup=e.killer..'>'..e.role end
   say(('%s %d | victim %s | doing %s | killer>victim %s | where %s | cargo lost %.0f m3'):format(tag,#list,tally(list,'role'),tally(list,'roleTask'),tally(list,'matchup'),tally(list,'area'),cargo))
  end
- local hauledLast
+ local hauledLast=0 -- (a fresh universe has hauled nothing: h01 was reading as its own baseline)
  local function freightLine()
   local v=tripLog.vols;table.sort(v)
   local function q(f) return v[math.max(1,math.floor(#v*f))] or 0 end
