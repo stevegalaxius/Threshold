@@ -811,42 +811,46 @@ Tasks.register('transport',{
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
   return Transport.route(station,t.recoveryStop or t.target,clock)
  end,
- eligible=function(u,r,o,station,clock)
-  if recentlyStalled(r,o,clock) or Transport.embargoed(o) then return false end
+ eligible=function(u,r,o,station,clock,why)
+  -- (why: optional table; a soak gets the reason an offer was turned down)
+  local function no(k) if why then why.reason=k end return false end
+  if recentlyStalled(r,o,clock) then return no('stalled here before') end
+  if Transport.embargoed(o) then return no('embargoed') end
   -- Old reserved manifests may finish, but never issue new placeholder ore.
-  if o.item=='martian_ore' then return false end
+  if o.item=='martian_ore' then return no('retired ore') end
   -- Work elsewhere means flying there empty first (a pickup leg).
-  if station~=o.source and (r.task or not L.byId[station]) then return false end
+  if station~=o.source and (r.task or not L.byId[station]) then return no('pickup leg not allowed') end
   local source,target=L.byId[o.source],L.byId[o.target]
-  if not source or not target then return false end
+  if not source or not target then return no('unknown place') end
   local from,to=source.area,target.area
   -- Retired return manifests can remain reserved in old saves until delivery.
   -- Once released, they must not let an empty strip mine generate more cargo.
-  if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return false end
-  if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
+  if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return no('retired mine run') end
+  if o.cap and J.available(u,o.target,o.item)>=o.cap then return no('target at cap') end
   -- a hauler waits for a load: an order is taken once the freight at its
   -- pickup for that area fills T.freightMinRun, it has waited
   -- T.freightMaxWait, or a shelf of food, water or fuel is nearly bare
   -- (a ship already leaving loaded tops up its hold: src/npc_agenda.lua)
   -- (a bare or badly short shelf at the target never waits for a fuller load)
   if o.order and not r.player and not r.agendaFilling and (o.priority or 0)<1 and (o.urgency or 0)<1.5 and clock-(o.placed or clock)<T.freightMaxWait
-   and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
+   and Transport.loadAt(u,o.source,to)<T.freightMinRun then return no('waiting for a fuller load') end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
   -- a courier is trusted with only so much of someone else's cargo: it
   -- takes the part of a valuable order it's trusted with, or none
   if o.order and not o.tradeOptional then
    local trusted=Transport.trustedUnits(u,r,o)
-   if trusted<1 then return false end
+   if trusted<1 then return no('not trusted') end
    need=math.min(need,trusted)
   end
   if o.trade or o.tradeOptional then
    local units=freightTerms(u,r,o,math.min(o.amount,room(r,o.item,o.amount)))
-   if units<1 then return false end
+   if units<1 then return no('trade not worth it or unaffordable') end
    need=math.min(need,units)
   end
-  return room(r,o.item,need)>=need
-   and (not (o.mine or o.stocked) or Transport.available(u,o.source,o.item,o.id)>=need)
+  if room(r,o.item,need)<need then return no('no room in hold') end
+  if (o.mine or o.stocked) and Transport.available(u,o.source,o.item,o.id)<need then return no('stock not at pickup') end
+  return true
  end,
  feasible=function(u,r,o,station,clock)
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)

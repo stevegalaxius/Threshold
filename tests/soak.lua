@@ -343,6 +343,41 @@ return function(game)
     end
    end
   end
+  -- Every jobless hauler, and why the freight on the board isn't its job:
+  -- per hauler, its best outcome; per offer it looked at, the reason it
+  -- turned it down (Tasks.definitions.transport.eligible's why). An idle
+  -- hauler is a list of causes, not spare capacity.
+  do
+   local W=require('src.work_preferences');local def=Tasks.definitions.transport
+   local per,offerWhy,looked={}, {},0
+   local function inc(t,k) t[k]=(t[k] or 0)+1 end
+   local avail={} for id,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.state=='available' then avail[#avail+1]=o end end
+   for _,r in pairs(u.npcs or {}) do
+    if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and not r.task then
+     local node=r.node or r.station
+     if r.state~='docked' and r.state~='idle' then inc(per,'not docked ('..tostring(r.state)..')')
+     elseif not node or not require('src.locations').byId[node] then inc(per,'no port')
+     elseif (W.weight(r,'transport') or 0)<=0 then inc(per,'profile takes no freight')
+     else
+      local ok=0
+      for _,o in ipairs(avail) do
+       looked=looked+1
+       if (o.readyAt or 0)>u.clock or not Tasks.npcMayClaim(u,o,u.clock) then inc(offerWhy,'not claimable yet')
+       else
+        local why={}
+        if def.eligible(u,r,o,node,u.clock,why) then ok=ok+1;inc(offerWhy,'eligible') else inc(offerWhy,why.reason or '?') end
+       end
+      end
+      if #avail==0 then inc(per,'board empty')
+      elseif ok>0 then inc(per,'had eligible freight, status '..tostring(r.taskStatus))
+      else inc(per,'nothing eligible') end
+     end
+    end
+   end
+   local function fmt(t) local o={} for k,v in pairs(t) do o[#o+1]=k..'='..v end table.sort(o) return table.concat(o,', ') end
+   say('    jobless haulers: '..fmt(per))
+   say(('    offers they looked at (%d): '):format(looked)..fmt(offerWhy))
+  end
   local idle,waiting=0,{}
   for _,r in pairs(u.npcs or {}) do
    if r.state~='dead' and r.state~='escaped' and r.populationGroup=='hauler' and not r.task then
