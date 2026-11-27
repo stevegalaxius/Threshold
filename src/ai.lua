@@ -649,10 +649,13 @@ local function trade(game, e, dt)
 			local slow = T.aiStationSpeed + (cruise - T.aiStationSpeed) * max(0, d - T.aiStationSlowRange * .5) / (T.aiStationSlowRange * .5)
 			want = min(want, max(T.aiStationSpeed, slow))
 		end
-		-- The burner only gets it up to cruise sooner: it never cruises above
-		-- it. The off-map simulation (src/alife.lua) moves every NPC at its
-		-- cruise speed, so a live ship that sped up to 3x on a long leg crossed
-		-- the map far faster than the same trip took off screen.
+		if boosting then
+			-- On a long clear leg, cruise near what the hull can really do
+			-- rather than a little over the base cruise speed.
+			local top=Ship.performance(e).topSpeed
+			cruise=max(cruise,min(cruise*T.aiBoostCruise,top*.85))
+			want=min(cruise,sqrt(pass*pass+2*sb*.6*max(0,d-150)))
+		end
 		if approach then
 			-- on its planned way in: the route sets the pace, and it's clear
 			-- of the hull by construction
