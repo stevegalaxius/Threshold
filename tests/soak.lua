@@ -55,6 +55,26 @@ return function(game)
  local watch={'deuterium_canister','steel_plate','flare'}
  for _,id in ipairs({'ammo_kinetic','missile','ammo_small','slug'}) do if data.items[id] then watch[#watch+1]=id end end
  local function sumShort() local n=0 for _,v in pairs(u.accountSubsidy or {}) do n=n+v end return n end
+ local ledgerFrom,ledgerAt,ledgerLast=nil,nil,{}
+ -- The ledger is bucketed by absolute game hour, which needn't line up with
+ -- soak hours: merge every bucket completed since the previous sample (empty
+ -- if none completed) instead of reading one by index, which repeated a
+ -- bucket whenever two samples fell in the same game hour.
+ local function ledgerSince()
+  local cur=math.floor(u.clock/3600)
+  if ledgerAt==cur then return ledgerLast end
+  ledgerAt=cur
+  local from=ledgerFrom or cur-1;ledgerFrom=cur
+  local m={items={}}
+  for hr=from,cur-1 do local b=u.economyLedger and u.economyLedger.hours[hr]
+   if b then for k,v in pairs(b) do
+    if k=='items' then for ik,iv in pairs(v) do m.items[ik]=(m.items[ik] or 0)+iv end
+    else m[k]=(m[k] or 0)+v end
+   end end
+  end
+  ledgerLast=m
+  return m
+ end
  local sample
  sample=function(h,wall)
   local groups,alive,credits,broke,cr={},0,0,0,{}
@@ -73,7 +93,7 @@ return function(game)
    if o.state=='available' then open=open+1;kinds[o.kind]=(kinds[o.kind] or 0)+1 else claimed=claimed+1 end
   end
   local kk={} for k,v in pairs(kinds) do kk[#kk+1]=k..'='..v end table.sort(kk)
-  local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
+  local lh=ledgerSince()
   local gg={} for k,v in pairs(groups) do gg[#gg+1]=k..'='..v end table.sort(gg)
   -- wildcat sites: open (bountied), crew posted/out, hoard, hunters in/out, cleared
   do
@@ -108,7 +128,7 @@ return function(game)
  local lastShort={}
  sample=function(h,wall)
   prevSample(h,wall)
-  local lh=u.economyLedger and u.economyLedger.hours[math.floor(u.clock/3600)-1] or {}
+  local lh=ledgerSince()
   say(('    sold: %s'):format(top(lh,'sold',6)))
   say(('    bought: %s'):format(top(lh,'bought',6)))
   say(('    freight: %s'):format(top(lh,'freight',4)))

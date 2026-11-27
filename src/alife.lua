@@ -947,7 +947,10 @@ function A.wake(game,r)
   e.alifeEgress=true; e.intent=Ship.emptyIntent()
   local entry=r.transit.departure
   e.egressHeading=entry.flightHeading or math.atan2(entry.y,entry.x)
-  e.egressSpeed=math.max(entry.cruiseSpeed or r.transit.speed,r.speed*.6)
+  -- leave the port at base cruise: r.speed (and a transit speed taken from
+  -- it) is the boosted long-leg pace, far too fast beside a station
+  local base=NPC.cruise(r.ship)
+  e.egressSpeed=math.max(math.min(entry.cruiseSpeed or base,base),base*.6)
  elseif lane then
   e.alifeLane=true; e.cruise=true; e.cruiseDir=lane.dir; e.cruiseOffset=lane.n
   e.cruiseSpeed=lane.speed/T.laneFlow
@@ -986,7 +989,7 @@ function A.wake(game,r)
  -- whatever was ahead. Wake no faster than the ship flies.
  local vx,vy=exact and exact.vx or p.vx,exact and exact.vy or p.vy
  if not exact then
-  local v=math.sqrt(vx*vx+vy*vy);local cap=(r.speed or 600)*T.alifeWakeSpeed
+  local v=math.sqrt(vx*vx+vy*vy);local cap=NPC.cruise(r.ship)*T.alifeWakeSpeed -- base cruise; the AI boosts on long legs itself
   if v>cap then vx,vy=vx/v*cap,vy/v*cap end
  end
  e.body:setLinearVelocity(vx,vy)
