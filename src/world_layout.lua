@@ -14,7 +14,7 @@ W.stations = {
 		{ id = "station:mercury_1", facilities={roll_steel={capacity=480},shipworks={capacity=10}}, services = { "market", "shipyard", "hangar" }, spin = 0.05, phase = -0.8, primary = true, name = "Terminator Station", layout = "estates_palace" },
 		{ id = "station:mercury_2", facilities={ceramic_works={capacity=8},silicon_refinery={capacity=24,surface=true}}, marketId = "market:mercury_2", services = { "market", "shipyard", "hangar" }, spin = -0.05, phase = 1.2943951023931953, name = "Haephestus Logistics", layout = "customs_1", hub = true  },
 		{ id = "station:mercury_3", facilities={engines_works={capacity=1},brute_assembly={capacity=2}}, marketId = "market:mercury_3", services = { "market", "shipyard", "hangar", "repair" }, spin = 0.03, phase = 3.3887902047863905, name = "Brute Industries Shipyard", layout = "shipyard_1" },
-		{ id = "station:mercury_4", facilities={bays_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
+		{ id = "station:mercury_4", facilities={bays_works={capacity=2},utility_works={capacity=2},drones={capacity=8}}, marketId = "market:mercury_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, name = "Ashgrove Drone Foundry", layout = "estates_manor" },
 		{ id = "station:mercury_5", marketId = "market:mercury_5", services = { "market", "hangar" }, spin = 0.04, name = "Daybreak Commons", layout = "estates_chandelier",
 		  residential = { population = 3000, homes = 4, routes = {
 			{ to = "station:mercury_1", kind = "work", weight = 3 },
@@ -57,7 +57,7 @@ W.stations = {
 	},
 	mars = {
 		{ id = "station:mars_1", facilities={redfu_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, spin = 0.05, phase = -0.8, primary = true, layout = "shipyard_1", marketId = "market:mars_1", name = "Red Furnace Shipyard" },
-		{ id = "station:mars_2", facilities={coil_works={capacity=8},intaki_assembly={capacity=2},utility_works={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
+		{ id = "station:mars_2", facilities={coil_works={capacity=8},intaki_assembly={capacity=2}}, services = { "market", "shipyard", "hangar", "repair" }, marketId = "market:mars_2", spin = -0.05, phase = 2.3415926535897933, layout = "shipyard_1",   name = "Zhongke Intelligent Manufacturing" },
 		-- Zhuhai's logistics hub: Mars's production is on the Heaven-Ladder,
 		-- the two orbital stations are shipyards, and freight meets here
 		{ id = "station:mars_4", services = { "market", "hangar", "repair" }, spin = 0.04, phase = 4.45, marketId = "market:mars_4", name = "Zhuhai Logistics", layout = "customs_1", hub = true },
