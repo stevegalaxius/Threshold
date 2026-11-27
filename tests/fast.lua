@@ -579,8 +579,14 @@ return function(game)
  -- and doubling back, and doesn't jump doing it.
  do
   local A,G=require('src.alife'),require('src.travelgraph')
-  -- (not a wildcat: they patch up at their site, not at stations)
-  local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
+  -- (not a wildcat: they patch up at their site, not at stations; and not
+  -- cartel crew, whom the Estates won't let dock at Earth. Lowest id
+  -- first, so the pick doesn't depend on table order.)
+  local Rep=require('src.reputation')
+  local r
+  for _,n in pairs(game.universe.npcs) do
+   if n.ship and not n.wildcat and not Rep.cartelCrew(n) and (not r or n.id<r.id) then r=n end
+  end
   local keep=require('src.persistence').copy(r)
   -- (a plain ship on the move: whatever dock or driver queue the record
   -- was waiting in belongs to its old route)
@@ -614,8 +620,14 @@ return function(game)
  -- route at the station instead of coming back to that node first.
  do
   local U,G,Repairs=require('src.upkeep'),require('src.travelgraph'),require('src.npc_repair')
-  -- (not a wildcat: they patch up at their site, not at stations)
-  local r;for _,n in pairs(game.universe.npcs) do if n.ship and not n.wildcat then r=n;break end end
+  -- (not a wildcat: they patch up at their site, not at stations; and not
+  -- cartel crew, whom the Estates won't let dock at Earth. Lowest id
+  -- first, so the pick doesn't depend on table order.)
+  local Rep=require('src.reputation')
+  local r
+  for _,n in pairs(game.universe.npcs) do
+   if n.ship and not n.wildcat and not Rep.cartelCrew(n) and (not r or n.id<r.id) then r=n end
+  end
   local keep=require('src.persistence').copy(r)
   r.state='travel';r.area='earth';r.encounter=nil;r.worldRecovery=nil;r.waitingForHome=nil;r.driverState=nil
   r.service=nil;r.nextServiceAt=nil;r.speed=600
