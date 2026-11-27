@@ -127,6 +127,36 @@ return function()
 		"remote station test must exercise queue spacing without a physics body")
 	require("src.ai").trade(game, remote, 1/120)
 	assert(remote.navAim and remote.navAim.stop == remoteStop.locationId, "remote station route lost its queue target")
+
+	local customs = game:spawnStation("customs_1", 12000, 0, 0, false, "station:earth_1")
+	local first, second = customs.docks[1], customs.docks[2]
+	local function lineShip(id, entered)
+		local ship = makeShip()
+		ship.alifeId = id
+		ship.route = {customs}
+		ship.approach = {stop = customs, dock = first}
+		ship.body:setPosition(game.dockWorld(customs, 1, first.x2 + first.runway * 2, entered * 350, first))
+		game.alifeOnline[id], game.universe.npcs[id] = ship, {}
+		ship.queueStop, ship.queueEntered = customs, clock + entered
+		game.entities[#game.entities + 1] = ship
+		return ship
+	end
+	local leader = lineShip("npc/90004", 1)
+	local follower = lineShip("npc/90005", 2)
+	local third = lineShip("npc/90006", 3)
+	Queue.invalidate(game)
+	assert(Queue.holding(game, third, customs, true) and third.approach.dock == first,
+		"third arrival took the open runway ahead of the second")
+	assert(Queue.holding(game, follower, customs) and follower.approach.dock == first,
+		"reading the queue reassigned a ship")
+	Queue.holding(game, follower, customs, true)
+	assert(follower.approach.dock == second and not Queue.holding(game, follower, customs)
+		and not Queue.holding(game, leader, customs) and Queue.holding(game, third, customs, true)
+		and third.approach.dock == first, "the next arrival did not take the free runway by itself")
+
+	local cx, cy = game.dockWorld(customs, 1, first.x2 + first.runway, 0, first)
+	assert(game:inTractorZone(customs, cx, cy, first) and not game:inTractorZone(customs, cx, cy, second),
+		"the assigned runway used another runway's capture zone")
 	game.world:destroy()
 	print("ok  dock traffic: legacy save release, full departure lane and separate arrivals")
 end

@@ -114,19 +114,20 @@ local function legs(o)
  return flown,(o.routeAU or 0)*120
 end
 -- Speed incentive share (0..1): how much faster than the reference hull
--- this ship cruises (src/npc.lua N.cruise, already capped at +-15%), times
--- the share of the journey that speed can shorten.
+-- this ship really travels (src/npc.lua N.travelSpeed, against the
+-- reference hull): full share at T.passengerSpeedRange faster, times the
+-- share of the journey that speed can shorten.
 function P.speed(o,ship)
  local N=require('src.npc')
- local k=math.max(0,math.min(1,(N.cruise(ship)/T.npcCruise-1)/T.npcCruiseSpread))
+ local k=math.max(0,math.min(1,(N.travelSpeed(ship)/N.referenceTravel()-1)/T.passengerSpeedRange))
  local flown,driven=legs(o)
  return k*flown/math.max(1,flown+driven)
 end
--- Expected seconds for this ship: flown legs scale with its cruise.
+-- Expected seconds for this ship: flown legs scale with its travel speed.
 function P.journey(o,ship)
  local N=require('src.npc')
  local flown,driven=legs(o)
- return flown*T.npcCruise/math.max(1,N.cruise(ship))+driven
+ return flown*N.referenceTravel()/math.max(1,N.travelSpeed(ship))+driven
 end
 function P.baseFare(o)
  return (o.party or 0)*(T.passengerFareBase+T.passengerFarePerAU*(o.routeAU or 0))*(o.fareMult or 1)

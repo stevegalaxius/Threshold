@@ -250,8 +250,11 @@ function Transport.refreshOffers(u,clock)
    local account=Accounts.of(o.target)
    if budget[account]==nil then budget[account]=Accounts.spendable(u,o.target) end
    local key=o.target..'|'..o.item
-   if clock-(o.placed or clock)>=T.tradeCourierAfter
-    and J.available(u,o.target,o.item)+(incoming[key] or 0)<Economy.target(u,o.target,o.item) then
+   -- (why an aged trade run stayed trade-only: counted only while a soak sets Transport.courierSkips)
+   local aged=clock-(o.placed or clock)>=T.tradeCourierAfter
+   local short=aged and J.available(u,o.target,o.item)+(incoming[key] or 0)<Economy.target(u,o.target,o.item)
+   if aged and not short then local k=Transport.courierSkips;if k then k.stocked=(k.stocked or 0)+1 end end
+   if aged and short then
     o.creditsPerUnit=data.items[o.item].volume*(T.freightCreditsPerM3+o.routeAU*T.freightCreditsPerM3AU)
     o.premiumPerUnit=0
     local cost=courierCost(u,o)
@@ -260,7 +263,18 @@ function Transport.refreshOffers(u,clock)
      incoming[key]=(incoming[key] or 0)+o.amount
      o.trade,o.tradeOptional=nil,true
      fresh=not wasOptional
-    end
+    else local k=Transport.courierSkips;if k then k.budget=(k.budget or 0)+1 end end
+   end
+   -- A trade run to a buyer that's already stocked, whose one unit sells
+   -- there for no more than it costs at the source, can never pay: no
+   -- trader takes it, and it holds the seller's stock and the buyer's
+   -- 'incoming' so nothing that pays is posted instead. It comes off the
+   -- board; Economy posts a fresh run if the buyer runs short again. (A
+   -- shortage bid is funded at landed cost and keeps its own price.)
+   if o.trade and aged and not short and not o.shortageBid
+    and require('src.markets').price(u,o.target,o.item)<=Transport.goodsPrice(u,o.source,o.item) then
+    Tasks.state(u).offers[o.id]=nil;fresh=false
+    local k=Transport.courierSkips;if k then k.expired=(k.expired or 0)+1 end
    end
   end
   if fresh then o.npcClaimAt=math.max(o.npcClaimAt or 0,clock+T.freightListingSeconds) end
@@ -423,6 +437,36 @@ function Transport.usable(u,r,o,clock)
  if not def.eligible(u,r,o,station,clock) or not def.feasible(u,r,o,station,clock) then return 0 end
  return math.min(data.hulls[r.ship.hull].hold or 0,room(r,o.item,1000000)*data.items[o.item].volume)
 end
+-- Consignment: a trader short of cash takes the goods on the seller's
+-- credit, up to what the seller's faction trusts it with (the courier
+-- trust, src/transport.lua trustedValue), and pays the seller back out of
+-- the sale. A broke hauler could otherwise never trade its way back. What
+-- it can't repay costs it standing with the seller.
+function Transport.consignLimit(u,r,source)
+ if r.player then return 0 end
+ return Transport.trustedValue(u,r,source)
+end
+-- (cash paid now, credit owed) for a purchase of cost at source
+local function finance(u,r,cost,source)
+ local cash=math.min(cost,math.max(0,(r.credits or 0)-T.tradeReserve))
+ return cash,cost-cash
+end
+-- Pay the seller what a consigned line still owes, as far as the hauler's
+-- credits go; the rest is written off against its standing.
+function Transport.settleConsigned(u,r,line)
+ local owed=line.consigned or 0
+ line.consigned=nil
+ if owed<=0 then return end
+ local seller=line.originalSource or line.source
+ local paid=math.min(owed,math.max(0,r.credits or 0))
+ if paid>0 then
+  r.credits=(r.credits or 0)-paid;r.tradeSpent=(r.tradeSpent or 0)+paid
+  require('src.accounts').receive(u,seller,paid,'sold',line.item)
+ end
+ if paid<owed then Transport.answer(u,r,seller,-(owed-paid)/owed) end
+ local k=Transport.consignTally -- (set only while a soak runs)
+ if k then k.repaid=(k.repaid or 0)+paid;k.unpaid=(k.unpaid or 0)+owed-paid;k.settled=(k.settled or 0)+1 end
+end
 function Transport.load(u,r,t)
  local fit=fitter(r);local totals={}
  for _,line in ipairs(lines(t)) do
@@ -430,11 +474,16 @@ function Transport.load(u,r,t)
    or ((line.mine or line.stocked) and Transport.available(u,line.source,line.item,t.id)<line.amount+(totals[line.item] or 0)) then return false end
   fit.add(line.item,line.amount);totals[line.item]=(totals[line.item] or 0)+line.amount
  end
- local cost=0
- for _,line in ipairs(lines(t)) do if line.trade then cost=cost+Transport.tradeCost(u,line) end end
+ local cost,credit=0,0
+ for _,line in ipairs(lines(t)) do if line.trade then
+  local c=Transport.tradeCost(u,line);cost=cost+c
+  local _,owe=finance(u,r,cost,line.source);credit=math.max(credit,owe)
+ end end
  -- A reservation keeps its financing terms. Release before taking any stock
- -- if the pilot can no longer fund the purchase at pickup.
- if cost>0 and (r.player or (r.credits or 0)-cost<T.tradeReserve) then return false end
+ -- if the pilot can no longer fund the purchase at pickup (cash, or the
+ -- seller's consignment credit for the shortfall).
+ if cost>0 and (r.player and (r.credits or 0)-cost<T.tradeReserve
+  or not r.player and credit>0 and credit>Transport.consignLimit(u,r,lines(t)[1].source)) then return false end
  if t.buyerFunded then
   local line=lines(t)[1]
   local Accounts=require('src.accounts')
@@ -449,8 +498,11 @@ function Transport.load(u,r,t)
   if not line.relay and (line.mine or line.stocked) then assert(require('src.stockpile').take(u,line.source,line.item,line.amount,nil,t.id)) end
   if line.trade then
    local cost=Transport.tradeCost(u,line)
-   require('src.accounts').receive(u,line.source,cost,'sold',line.item)
-   r.credits=(r.credits or 0)-cost;r.tradeSpent=(r.tradeSpent or 0)+cost;line.tradeCost=cost
+   local cash,owe=finance(u,r,cost,line.source)
+   if r.player then cash,owe=cost,0 end
+   if cash>0 then require('src.accounts').receive(u,line.source,cash,'sold',line.item) end
+   r.credits=(r.credits or 0)-cash;r.tradeSpent=(r.tradeSpent or 0)+cash;line.tradeCost=cost
+   line.consigned=owe>0 and owe or nil
   end
   cargo(r,line.item,line.amount)
   local o=Tasks.state(u).offers[line.id];if o then o.loaded=true;o.loadedAt=u.clock end
@@ -461,16 +513,29 @@ end
 -- this pilot can finance or is trusted to deliver.
 local function freightTerms(u,r,o,capacity)
  local price=Transport.goodsPrice(u,o.source,o.item)
- local spendable=math.max(0,(r.credits or 0)-T.tradeReserve)
- local units=price>0 and math.min(capacity,math.floor(spendable/price)) or capacity
- local value
- if o.shortageBid then
-  value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=units,shortageBid=o.shortageBid})
- else
-  local priceAtDelivery=require('src.markets').expectedTradePrice(u,o.target,o.item,units)
-  value=math.floor(priceAtDelivery*units+.5)
+ local cash=math.max(0,(r.credits or 0)-T.tradeReserve)
+ local credit=Transport.consignLimit(u,r,o.source)
+ local function profitAt(n)
+  local value
+  if o.shortageBid then
+   value=Transport.tradeValue(u,{target=o.target,item=o.item,amount=n,shortageBid=o.shortageBid})
+  else
+   value=math.floor(require('src.markets').expectedTradePrice(u,o.target,o.item,n)*n+.5)
+  end
+  return value-math.floor(price*n+.5)
  end
- local profit=value-math.floor(price*units+.5)
+ -- The biggest lot isn't always the best: a large one drives the buyer's
+ -- price down. Weigh the lot cash alone buys, the one consignment credit
+ -- stretches to, and half of that, and take the most profitable. (Sizing
+ -- every lot to the credit limit turned profitable cash trades into
+ -- 'not worth it' and cut delivered freight by a third.)
+ local units,profit=0,-math.huge
+ local most=price>0 and math.min(capacity,math.floor((cash+credit)/price)) or capacity
+ local cashOnly=price>0 and math.min(capacity,math.floor(cash/price)) or capacity
+ for _,n in ipairs({cashOnly,most,math.floor(most/2)}) do
+  if n>=1 then local p=profitAt(n);if p>profit then units,profit=n,p end end
+ end
+ if units<1 then units,profit=0,0 end
  local courierUnits,fee=0,0
  if o.tradeOptional then
   courierUnits=math.min(capacity,Transport.trustedUnits(u,r,o))
@@ -580,7 +645,7 @@ function Transport.strand(u,r,t,clock)
   local n=math.min(have,line.amount or 0)
   aboard[line.item]=have-n
   if n>0 then
-   if line.trade then own(r,line.item,n)
+   if line.trade then own(r,line.item,n);Transport.settleConsigned(u,r,line)
    elseif not prepaid(t,line) then
     local seller=line.originalSource or line.source
     local unit=Transport.goodsPrice(u,seller,line.item)
@@ -616,7 +681,8 @@ function Transport.sellOwned(u,r,station)
   if have<=0 and ((r.ship.cargo or {})[item] or 0)<=0 then r.ownedCargo[item]=nil
   elseif have>0 and buys(station,item) then
    local value=Transport.tradeValue(u,{item=item,amount=have},station)
-   r.credits=(r.credits or 0)+require('src.accounts').pay(u,station,value,'bought',item)
+   local got=require('src.accounts').pay(u,station,value,'bought',item)
+   r.credits=(r.credits or 0)+got;r.tradeEarnings=(r.tradeEarnings or 0)+got
    J.deliver(u,station,item,have)
    cargo(r,item,-have)
    r.ownedCargo[item]=n-have>0 and n-have or nil
@@ -661,8 +727,11 @@ function Transport.unloadRecovery(u,r,t,station,clock)
    if mode=='return' then
     assert(J.deliver(u,station,item,amount))
     if line.trade then
+     -- consigned goods go back against the debt, not as a cash refund
+     local debt=math.floor((line.consigned or 0)*amount/line.amount)
+     if line.consigned then line.consigned=line.consigned-debt;if line.consigned<=0 then line.consigned=nil end end
      local refund=math.min(Transport.tradeValue(u,{item=item,amount=amount},station),
-      math.floor((line.tradeCost or 0)*amount/line.amount))
+      math.max(0,math.floor((line.tradeCost or 0)*amount/line.amount)-debt))
      r.credits=(r.credits or 0)+require('src.accounts').pay(u,station,refund,'trade return',item)
     end
    else
@@ -766,42 +835,46 @@ Tasks.register('transport',{
   if t.phase=='pickup' then return G.itinerary(station,t.source,clock) end
   return Transport.route(station,t.recoveryStop or t.target,clock)
  end,
- eligible=function(u,r,o,station,clock)
-  if recentlyStalled(r,o,clock) or Transport.embargoed(o) then return false end
+ eligible=function(u,r,o,station,clock,why)
+  -- (why: optional table; a soak gets the reason an offer was turned down)
+  local function no(k) if why then why.reason=k end return false end
+  if recentlyStalled(r,o,clock) then return no('stalled here before') end
+  if Transport.embargoed(o) then return no('embargoed') end
   -- Old reserved manifests may finish, but never issue new placeholder ore.
-  if o.item=='martian_ore' then return false end
+  if o.item=='martian_ore' then return no('retired ore') end
   -- Work elsewhere means flying there empty first (a pickup leg).
-  if station~=o.source and (r.task or not L.byId[station]) then return false end
+  if station~=o.source and (r.task or not L.byId[station]) then return no('pickup leg not allowed') end
   local source,target=L.byId[o.source],L.byId[o.target]
-  if not source or not target then return false end
+  if not source or not target then return no('unknown place') end
   local from,to=source.area,target.area
   -- Retired return manifests can remain reserved in old saves until delivery.
   -- Once released, they must not let an empty strip mine generate more cargo.
-  if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return false end
-  if o.cap and J.available(u,o.target,o.item)>=o.cap then return false end
+  if J.isMine(from) and to==J.oreTo and (not (o.mine or o.order) or o.item~=J.item) then return no('retired mine run') end
+  if o.cap and J.available(u,o.target,o.item)>=o.cap then return no('target at cap') end
   -- a hauler waits for a load: an order is taken once the freight at its
   -- pickup for that area fills T.freightMinRun, it has waited
   -- T.freightMaxWait, or a shelf of food, water or fuel is nearly bare
   -- (a ship already leaving loaded tops up its hold: src/npc_agenda.lua)
   -- (a bare or badly short shelf at the target never waits for a fuller load)
   if o.order and not r.player and not r.agendaFilling and (o.priority or 0)<1 and (o.urgency or 0)<1.5 and clock-(o.placed or clock)<T.freightMaxWait
-   and Transport.loadAt(u,o.source,to)<T.freightMinRun then return false end
+   and Transport.loadAt(u,o.source,to)<T.freightMinRun then return no('waiting for a fuller load') end
   -- an order takes whatever part of it this hold can carry
   local need=o.order and math.min(o.amount,T.orderMinLoad) or o.amount
   -- a courier is trusted with only so much of someone else's cargo: it
   -- takes the part of a valuable order it's trusted with, or none
   if o.order and not o.tradeOptional then
    local trusted=Transport.trustedUnits(u,r,o)
-   if trusted<1 then return false end
+   if trusted<1 then return no('not trusted') end
    need=math.min(need,trusted)
   end
   if o.trade or o.tradeOptional then
    local units=freightTerms(u,r,o,math.min(o.amount,room(r,o.item,o.amount)))
-   if units<1 then return false end
+   if units<1 then return no('trade not worth it or unaffordable') end
    need=math.min(need,units)
   end
-  return room(r,o.item,need)>=need
-   and (not (o.mine or o.stocked) or Transport.available(u,o.source,o.item,o.id)>=need)
+  if room(r,o.item,need)<need then return no('no room in hold') end
+  if (o.mine or o.stocked) and Transport.available(u,o.source,o.item,o.id)<need then return no('stock not at pickup') end
+  return true
  end,
  feasible=function(u,r,o,station,clock)
   return (station==o.source or reachable(station,o.source,clock,true)) and reachable(o.source,o.target,clock)
@@ -1022,6 +1095,8 @@ Tasks.register('transport',{
   end
   local state=Tasks.state(u);state.delivered=state.delivered or {};state.delivered[station]=(state.delivered[station] or 0)+total
   r.credits=(r.credits or 0)+paid
+  -- consigned goods: the seller is paid back out of the sale
+  for _,charge in ipairs(here) do if charge.task.consigned then Transport.settleConsigned(u,r,charge.task) end end
   local fees=0;for _,charge in ipairs(here) do if not charge.task.trade then fees=fees+charge.payment end end
   r.freightEarnings=(r.freightEarnings or 0)+math.min(paid,fees)
   if #later>0 then

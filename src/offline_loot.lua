@@ -97,6 +97,32 @@ local function remove(game,source)
  if source.kind=='live' then game:remove(source.record);return end
  if source.list then for i,s in ipairs(source.list) do if s==source.record then table.remove(source.list,i);break end end end
 end
+-- How many pieces of salvage lie in an area (wrecks of ships that died
+-- there, saved objects, loose loot), against how many salvage crews are
+-- already working it. Cached per instant: the salvage board asks per offer.
+local supplyAt,supplyCache
+function O.supply(u,area,clock)
+ if supplyAt~=clock or supplyCache.u~=u then
+  supplyAt,supplyCache=clock,{u=u,count={},crews={}}
+  local c=supplyCache.count
+  for _,w in pairs(u.alifeWrecks or {}) do if clock<w.expires then c[w.area]=(c[w.area] or 0)+1 end end
+  for id,a in pairs(u.areas or {}) do for _,o in ipairs(a.objects or {}) do
+   if (o.kind=='husk' or o.kind=='container') and o.hold then c[id]=(c[id] or 0)+1 end
+  end end
+  for _,record in pairs(Loose.records(u)) do
+   if record.kind=='loot' and not record.site and (record.count or 0)>0 then c[record.area]=(c[record.area] or 0)+1 end
+  end
+  local crews=supplyCache.crews
+  for _,r in pairs(u.npcs or {}) do
+   local t=r.task
+   if r.state~='dead' and t and t.kind=='salvage' and t.target then
+    local L=require('src.locations');local loc=L.get(t.target)
+    if loc then crews[loc.area]=(crews[loc.area] or 0)+1 end
+   end
+  end
+ end
+ return supplyCache.count[area] or 0,supplyCache.crews[area] or 0
+end
 function O.release(game,r,clock)
  Actions.cancel({game=game,u=game.universe,r=r,clock=clock},'collection ended')
 end

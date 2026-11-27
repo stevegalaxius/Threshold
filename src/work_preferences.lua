@@ -26,9 +26,12 @@ function W.weight(r,kind)
  local profile=W.profile(r)
  return r.workWeights and r.workWeights[kind] or profile[kind] or 0
 end
-function W.rank(r,kind)
+-- (scale: a temporary multiplier on the weight, e.g. a broke hauler's pull
+-- towards paid freight: src/tasks.lua)
+function W.rank(r,kind,scale)
  local weight=W.weight(r,kind)
  if not weight then return 0 end
+ weight=weight*(scale or 1)
  if weight<=0 then return -math.huge end
  local key=r.id..'/'..(r.jobsStarted or 0)..'/'..kind
  local seed=7193

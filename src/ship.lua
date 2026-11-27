@@ -312,6 +312,7 @@ function Ship.updateMass(e)
 	e.cargoMass = cargoMass
 	local m = (e.stats.mass + cargoMass) * T.massScale
 	local r = e.hull.spinRadius or e.hull.radius
+	if not e.body or e.body:isDestroyed() then e.massDirty = false; return end
 	e.body:setMassData(0, 0, m, m * r * r * 0.5)
 	e.massDirty = false
 end

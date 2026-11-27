@@ -141,7 +141,7 @@ function W.recruit(u,inst,n,x,y,tag)
  local r={id='npc/'..u.nextNpcId,home=inst.home,aiProfile='raider',spread=0,ship=ship,
   wildcat={site=inst.id,pocket=n,x=x,y=y,tag=tag or nil},
   spawnedAt=clock,spawnOrigin='wildcat'}
- r.speed=require('src.npc').cruise(r.ship)
+ r.speed=require('src.npc').travelSpeed(r.ship)
  require('src.npc_templates').apply(r,'wildcat',inst.home)
  require('src.personality').ensure(r)
  require('src.npc_home').choose(u,r)
@@ -932,7 +932,7 @@ Population.register('hunter',{
    route={node,node},index=1,node=node,state='idle',untilTime=clock,
    ship={hull=def.hull,loadout=loadout,cargo={},armor=Stats.compute(hull,loadout).armor}}
   if game.arrivalShip then r.ship=copy(game.arrivalShip) end
-  r.speed=require('src.npc').cruise(r.ship)
+  r.speed=require('src.npc').travelSpeed(r.ship)
   require('src.npc_templates').apply(r,'hunter',area)
   require('src.personality').ensure(r)
   require('src.npc_home').choose(u,r)

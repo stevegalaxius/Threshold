@@ -138,7 +138,7 @@ local function create(game,area,role,node,clock,start)
   spread=0,route={node,node},index=1,node=node,state='idle',untilTime=clock,
   ship={hull=def.hull,loadout=loadout,cargo=copy(def.cargo or {}),armor=stats.armor}}
  if game.arrivalShip then r.ship=copy(game.arrivalShip) end
- r.speed=NPC.cruise(r.ship)
+ r.speed=NPC.travelSpeed(r.ship)
  require('src.npc_templates').apply(r,role,area)
  require('src.personality').ensure(r)
  Homes.choose(u,r)

@@ -432,7 +432,7 @@ local function trade(game, e, dt)
 		-- not its turn yet at this driver or dock: hold in line (src/queue.lua)
 		local queued,queuePlace,runwayBusy
 		local staging
-		if e.alifeId then queued,queuePlace,runwayBusy=require("src.queue").holding(game,e,stop) end
+		if e.alifeId then queued,queuePlace,runwayBusy=require("src.queue").holding(game,e,stop,true) end
 		if queued then
 			-- Real docks need hull clearance. A station on another map is
 			-- only a route point and uses the queue's default spacing.

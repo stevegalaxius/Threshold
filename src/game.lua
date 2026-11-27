@@ -1415,8 +1415,8 @@ end
 
 -- Station-local position of a point, and whether it's in the tractor zone
 -- (over the runway, in front of the door), and from which side.
-function Game:inTractorZone(st, x, y)
-	for _, d in ipairs(st.docks or { st.dock }) do
+function Game:inTractorZone(st, x, y, dock)
+	for _, d in ipairs(dock and { dock } or st.docks or { st.dock }) do
 		local lx, ly = dockLocal(st, 1, x, y, d)
 		local side = (d.both and lx < 0) and -1 or 1
 		lx, ly = lx * side, ly * side
@@ -1462,9 +1462,9 @@ function Game:tryBerthTractor(e, st, dock, berth, pose)
 	return true
 end
 
-function Game:tryHangarTractor(e, st)
+function Game:tryHangarTractor(e, st, assignedDock)
 	local x, y = e.body:getPosition()
-	local inZone, lx, _, side, dock = self:inTractorZone(st, x, y)
+	local inZone, lx, _, side, dock = self:inTractorZone(st, x, y, assignedDock)
 	if not inZone or not self:fitsDock(e, dock) or relativeDockSpeed2(e, st) > 550^2 then return false end
 	if require("src.queue").dockBusy(self, st, dock, e) then return false end
 	local door = dock.x2 + e.halfLength + 40
@@ -1502,7 +1502,7 @@ function Game:updateDocking(dt)
 							if ap and ap.stop == stop and ap.berth then
 								Approach.tryBerth(self, e, stop)
 							else
-								self:tryHangarTractor(e, stop)
+								self:tryHangarTractor(e, stop, e.alifeId and AI.approachDock(e, stop))
 							end
 						end
 					end
@@ -3066,7 +3066,9 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			local o = e.owner
-			if o and not o.dead and e.itemId then
+			-- an owner that has left the map (handed off, docked away) has a
+			-- destroyed body: the drone is lost with it rather than crashing
+			if o and not o.dead and not o.removed and o.body and not o.body:isDestroyed() and e.itemId then
 				local wear = 1 - e.armor / e.stats.armor
 				local s = { id = e.itemId, n = 1, wear = wear > 0.005 and wear or nil }
 				if not o.hold then
