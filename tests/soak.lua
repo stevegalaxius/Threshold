@@ -60,6 +60,7 @@ return function(game)
  -- flight jumps it), so reading u.economyLedger by u.clock repeated or
  -- skipped hours in physics runs.
  local Economy=require('src.economy')
+ require('src.transport').courierSkips={} -- see brokeFreightLine
  local soakLedger={items={}}
  local rawLedger=Economy.ledger
  Economy.ledger=function(uu,key,kind,n,item)
@@ -337,7 +338,7 @@ return function(game)
    end
   end
   local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
-  local ks=u.courierSkips or {};u.courierSkips=nil
+  local ks=Transport.courierSkips or {};Transport.courierSkips={}
   say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh)'):format(ks.stocked or 0,ks.budget or 0))
   say(('    broke haulers %d: banned by a faction %d, not docked %d | port offers %s'):format(ships,banned,nowhere,table.concat(o,' ')))
  end
