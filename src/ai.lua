@@ -418,7 +418,13 @@ local function trade(game, e, dt)
 				e.dockMarker = true
 			elseif not lined then
 				local mx = max(d.x2 + d.runway * 1.5, hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker)
-				local px, py = mx + (d.xc or 0), d.yc or 0
+				-- each ship its own spot round the marker, inside the cone, so
+				-- a planet-side port's traffic doesn't gather on one point
+				-- off each end of the runway
+				local fa, fb = require("src.queue").spreadOf(e.alifeId)
+				mx = mx + (fa * 0.5 + 0.5) * T.dockWaitSpread
+				local across = fb * min(T.dockWaitSpread * 0.5, (mx - d.x2) * T.npcDockCone * 0.8)
+				local px, py = mx + (d.xc or 0), (d.yc or 0) + across
 				sx, sy = stop.body:getWorldPoint(px * c - py * s, px * s + py * c)
 				e.dockMarker = true
 			else e.dockMarker = nil end
@@ -434,7 +440,10 @@ local function trade(game, e, dt)
 			if stop.kind == "station" and stop.body and stop.body.getFixtures then
 				lineStart = hullRadius(stop) + (e.halfLength or 100) + T.npcDockMarker
 			end
-			if planned then
+			if stop.city and game.well and stop.body then
+				sx, sy = require("src.queue").cityHoldPoint(game, e, stop, queuePlace)
+				staging = true
+			elseif planned then
 				local slot = max(1, queuePlace - (runwayBusy and 0 or 1))
 				local DA = require("src.dock_approach")
 				local waiting = e.dockStaging
@@ -446,7 +455,7 @@ local function trade(game, e, dt)
 			end
 			if not staging then sx, sy = require("src.queue").holdPoint(queued, game.universe.clock, e.routeIndex, queuePlace, lineStart) end
 		else
-			e.dockStaging = nil
+			e.dockStaging, e.cityHold = nil, nil
 		end
 		-- the driver is taken (the player sitting in it, or a ship launching)
 		-- and this one has no turn booked to wait for: line up behind it anyway
@@ -472,11 +481,11 @@ local function trade(game, e, dt)
 				-- still on the way: an ordinary leg to the waiting point,
 				-- going round anything (this station included) in the way
 				e.dockApproach = nil
-				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
+				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side, true)
 				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
 			elseif not ap.berth and require("src.queue").dockBusy(game, stop, planned.d, e) then
 				-- the dock is in use: wait off to the side of the runway, out of the way
-				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side)
+				local wx, wy = DA.waitPoint(game, e, stop, planned.side, planned.d, planned.ry * planned.side, true)
 				sx, sy = game.dockWorld(stop, planned.side, wx, wy, planned.d)
 			else
 				local wx, wy, want, nx, ny, _, active = DA.steer(game, e, stop, planned.d, brakeAccel(e))

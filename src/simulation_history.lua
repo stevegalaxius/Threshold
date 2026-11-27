@@ -152,8 +152,10 @@ function H.hit(game,victim,source,cause,node)
  local a,b=H.entityId(victim),H.entityId(source)
  if a and b and (a~='player' or b~='player') then
   local u=game.universe
+  -- only an attack opens a fight: a bump in a queue isn't one
+  if not cause then return end
   H.begin(u,a,b,u.clock,game.fieldId,b)
-  if cause then return Aggression.record(u,b,a,game.fieldId,u.clock,cause,node) end
+  return Aggression.record(u,b,a,game.fieldId,u.clock,cause,node)
  end
 end
 

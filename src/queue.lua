@@ -202,10 +202,19 @@ local function liveLine(game,e,stop,dock)
     -- that reach, so a ship that got there dropped out of the line, flew
     -- back in to rejoin at the end, was sent out to its spot again, and
     -- shuttled back and forth through the line for ever.
-    local reach=T.queueStart+T.queueGap*4
+    -- Measured from where the line actually starts: a big hull pushes the
+    -- first spot out past queueStart (see the lineStart in src/ai.lua), and
+    -- at Olympus that put the spots outside this reach. A ship sent to its
+    -- spot left the line, came back in, was sent out again, and the whole
+    -- line shuttled on the boundary in a knot.
+    local base=T.queueStart
+    if stop.kind=='station' and stop.body and stop.body.getFixtures then
+     base=math.max(base,AI.hullRadius(stop)+(other.halfLength or 100)+T.npcDockMarker+T.dockWaitSpread)
+    end
+    local reach=base+T.queueGap*4
     local booking=q and q.key==stop.locationId and q
     local entered=booking and booking.entered or other.queueStop==stop and other.queueEntered
-    if entered then reach=T.queueStart+T.queueGap*(#cache.ships+4) end
+    if entered then reach=base+T.queueGap*(#cache.ships+4)+T.queueGap end
     if (x-sx)^2+(y-sy)^2<=reach^2 then
      entered=entered or clock
      if booking then booking.entered=entered else other.queueStop,other.queueEntered=stop,entered end
@@ -309,6 +318,19 @@ end
 -- start (optional): how far out the line begins, at least T.queueStart. A
 -- big station's hull reached past queueStart, so the first ship in line
 -- held with its hull in the station's.
+-- A ship's own fixed spread, two numbers in [-1, 1] from its id: the same
+-- every frame, and consecutive ids far apart (the golden ratio).
+function Q.spreadOf(id)
+ id=tostring(id or '')
+ local n=tonumber(id:match('%d+$')) or 0
+ for i=1,#id do n=n+id:byte(i)*i*7 end
+ return ((n*.618034)%1)*2-1,((n*.754878+.5)%1)*2-1
+end
+
+-- Each ship holds a little to one side of the line, by its own spread:
+-- ships with the same place in two lines (two runways, or two routes in
+-- from the same way) held on the very same spot, nudged each other while
+-- they waited, and a bump between strangers could start a fight.
 function Q.holdPoint(r,clock,index,place,start)
  index=index or r.index
  local id=r.route[index]
@@ -320,7 +342,42 @@ function Q.holdPoint(r,clock,index,place,start)
  if fx and (fx-x)^2+(fy-y)^2>1 then dx,dy=fx-x,fy-y else dx,dy=x,y end -- else: straight out from the planet
  local d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
  local back=math.max(T.queueStart,start or 0)+T.queueGap*((place or Q.place(r,clock))-1)
- return x+dx/d*back,y+dy/d*back
+ -- The planet sits at the origin. A line back towards a stop round the far
+ -- side ran down into it (a port on the surface, like Olympus, with a long
+ -- line), so a line that would end closer in than the stop goes straight
+ -- out from the planet instead.
+ local hx,hy=x+dx/d*back,y+dy/d*back
+ if hx*hx+hy*hy<x*x+y*y then
+  dx,dy=x,y;d=math.sqrt(dx*dx+dy*dy);if d<1 then dx,dy,d=1,0,1 end
+ end
+ local _,side=Q.spreadOf(r.id)
+ local across=side*T.queueGap*T.queueSpread
+ return x+dx/d*back-dy/d*across,y+dy/d*back+dx/d*across
+end
+
+-- Cloud cities (Jupiter, Uranus) sit down in the clouds with a tunnel open
+-- at both ends. A line back along the way in ran across the city, through
+-- the gravity band or into the planet, so their lines work differently:
+-- two rows along an arc above the band, one running out from each end of
+-- the tunnel, first in line nearest the city. A ship keeps the end it
+-- picked when it joined; it drops in when its turn comes.
+function Q.cityHoldPoint(game,e,stop,place)
+ local w=game.well
+ local AI=require('src.ai')
+ local cx,cy=stop.body:getPosition()
+ local ca=math.atan2(cy-w.y,cx-w.x)
+ local x,y=e.body:getPosition()
+ local hold=e.cityHold
+ if not hold or hold.stop~=stop then
+  local off=(math.atan2(y-w.y,x-w.x)-ca+math.pi)%(2*math.pi)-math.pi
+  hold={stop=stop,side=off<0 and -1 or 1};e.cityHold=hold
+ end
+ local a,b=Q.spreadOf(e.alifeId)
+ local R=w.radius+T.surfacePullRange+1000+(a*.5+.5)*T.dockWaitSpread*.5
+ local along=AI.hullRadius(stop)+(e.halfLength or 100)+T.npcDockMarker
+  +T.queueGap*((place or 1)-1)+b*T.queueGap*T.queueSpread*.5
+ local ang=ca+hold.side*along/R
+ return w.x+math.cos(ang)*R,w.y+math.sin(ang)*R
 end
 
 function Q.label(r,clock,game)

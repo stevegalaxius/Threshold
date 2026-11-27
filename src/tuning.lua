@@ -622,6 +622,9 @@ T.npcSpread=220
 -- chokepoint along the way in (px), each after it this much further.
 T.queueService={driver=10,dock=14}
 T.queueStart,T.queueGap=2200,600
+-- How far a ship holds to the side of its line, as a share of queueGap
+-- either way, and how far waiting points by a runway spread out (px).
+T.queueSpread,T.dockWaitSpread=.45,700
 T.npcFuelLow=.5 -- NPCs head to refuel below half their reactor reserve
 -- ...or sooner, when what's left wouldn't cover the rest of the leg plus the
 -- trip to the nearest fuel stop (times the margin, plus slack seconds).
