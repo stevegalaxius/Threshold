@@ -263,6 +263,7 @@ return function(game)
 -- fleet did with its time. Printed each hour and summed at the end.
  local lossLog,lossAll={},{}
  local releaseLog={}
+ local oreLast={}
  local tripLog={jobs={},trips=0,volume=0,vols={}}
  do
   local death=History.death
@@ -365,6 +366,7 @@ return function(game)
    local W=require('src.work_preferences');local def=Tasks.definitions.transport
    local per,offerWhy,looked={}, {},0
    local eligibleOffers={}
+   local oreWhy={}
    local function inc(t,k) t[k]=(t[k] or 0)+1 end
    local avail={} for id,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.state=='available' then avail[#avail+1]=o end end
    for _,r in pairs(u.npcs or {}) do
@@ -381,9 +383,10 @@ return function(game)
        elseif not Tasks.npcMayClaim(u,o,u.clock) then inc(offerWhy,(o.npcClaimAt or 0)>u.clock and 'in its public listing window' or 'held for the player')
        else
         local why={}
-        if not def.eligible(u,r,o,node,u.clock,why) then inc(offerWhy,why.reason or '?')
+        local oreOffer=o.item=='iron_ore'
+        if not def.eligible(u,r,o,node,u.clock,why) then inc(offerWhy,why.reason or '?');if oreOffer then inc(oreWhy,why.reason or '?') end
         elseif not def.feasible(u,r,o,node,u.clock) then inc(offerWhy,'no route')
-        else ok=ok+1;inc(offerWhy,'eligible');eligibleOffers[o.id]=true end
+        else ok=ok+1;inc(offerWhy,'eligible');eligibleOffers[o.id]=true;if oreOffer then inc(oreWhy,'eligible') end end
        end
       end
       if #avail==0 then inc(per,'board empty')
@@ -397,6 +400,26 @@ return function(game)
    local distinct=0 for _ in pairs(eligibleOffers) do distinct=distinct+1 end
    say(('    offers they looked at (%d, %d distinct eligible offers): '):format(looked,distinct)..fmt(offerWhy))
    say('    freight released this hour: '..fmt(releaseLog));releaseLog={}
+   -- iron ore, end to end: made and used this hour, stock where it's mined
+   -- vs elsewhere, the ore on the board, and what miners are doing
+   do
+    local st=u.economyStats or {}
+    local made,used=(st.made or {}).iron_ore or 0,(st.used or {}).iron_ore or 0
+    local dm,du=made-(oreLast.made or 0),used-(oreLast.used or 0);oreLast.made,oreLast.used=made,used
+    local Stock=require('src.stockpile');local L=require('src.locations')
+    local where={}
+    for _,id in ipairs(stations) do local n=Stock.count(u,id,'iron_ore');if n>0 then local a=L.byId[id] and L.byId[id].area or '?';where[a]=(where[a] or 0)+n end end
+    local open,claimed,trade=0,0,0
+    for _,o in pairs(Tasks.state(u).offers) do if o.kind=='transport' and o.item=='iron_ore' then
+     if o.state=='available' then open=open+1 else claimed=claimed+1 end;if o.trade or o.tradeOptional then trade=trade+1 end
+    end end
+    local miners={}
+    for _,r in pairs(u.npcs or {}) do if r.state~='dead' and r.state~='escaped' and r.populationGroup=='miner' then
+     inc(miners,(r.task and (r.task.kind..'/'..tostring(r.task.phase)) or ('none: '..tostring(r.taskStatus))))
+    end end
+    say(('    iron ore: made %.0f used %.0f this hour | stock by area %s | board open %d claimed %d (trade %d) | reasons %s'):format(dm,du,fmt(where),open,claimed,trade,fmt(oreWhy)))
+    say('    miners: '..fmt(miners))
+   end
   end
   local idle,waiting=0,{}
   for _,r in pairs(u.npcs or {}) do
