@@ -3053,7 +3053,9 @@ function Game:reap()
 			e.body:destroy()
 			e.removed = true
 			local o = e.owner
-			if o and not o.dead and e.itemId then
+			-- an owner that has left the map (handed off, docked away) has a
+			-- destroyed body: the drone is lost with it rather than crashing
+			if o and not o.dead and not o.removed and o.body and not o.body:isDestroyed() and e.itemId then
 				local wear = 1 - e.armor / e.stats.armor
 				local s = { id = e.itemId, n = 1, wear = wear > 0.005 and wear or nil }
 				if not o.hold then
