@@ -337,6 +337,12 @@ return function(game)
     end
    end
   end
+  local consigned,owed=0,0
+  for _,r in pairs(u.npcs or {}) do local t=r.task
+   if r.state~='dead' and t and t.kind=='transport' then for _,line in ipairs(t.manifest or {t}) do
+    if line.consigned then consigned=consigned+1;owed=owed+line.consigned end end end
+  end
+  say(('    consignment: %d loads carried on credit, %.0f cr owed to sellers'):format(consigned,owed))
   local o={} for k,v in pairs(why) do o[#o+1]=k..'='..v end table.sort(o)
   local ks=Transport.courierSkips or {};Transport.courierSkips={}
   say(('    aged trade runs kept trade-only this hour: target already stocked %d, buyer short of funds %d (per board refresh)'):format(ks.stocked or 0,ks.budget or 0))

@@ -33,7 +33,12 @@ function S.sell(game,r,node,clock)
    shelf=shelf or game:stationMarket({key=node,locationId=node},1).hold
    if id=='steel_plate' or require('src.markets').items[id] then require('src.stockpile').add(game.universe,node,id,n)
    else Hold.placeStack(shelf,stack) end -- other goods remain ordinary resale
-   total=total+game.sellPrice(stack);sold[id]=n
+   -- a salvager sells at T.npcSalvageRate of the station's price, not the
+   -- player's dump rate (T.sellRate, half): at that rate a salvage run
+   -- barely paid for its own fuel, and broke haulers lived on it
+   local v=game.sellPrice(stack)
+   if T.sellRate>0 then v=math.floor(v/T.sellRate*T.npcSalvageRate) end
+   total=total+v;sold[id]=n
    if h then Hold.take(h,id,n) else cargo[id]=cargo[id]-n end
   end
  end

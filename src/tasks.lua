@@ -232,7 +232,12 @@ function Tasks.choose(u,r,station,clock)
   for _,entry in ipairs(freightShortlist(u,r,station,clock,offers,index,capabilities)) do
    local o=entry.o
    if freight.eligible(u,r,o,station,clock) then
-    if ranks.transport==nil then ranks.transport=Work.rank(r,'transport') end
+    -- a hauler too broke to trade needs paid work, wherever it is posted:
+    -- it leans hard towards freight (a pickup leg) over salvaging in place
+    if ranks.transport==nil then
+     local T=require('src.tuning')
+     ranks.transport=Work.rank(r,'transport',(r.credits or 0)<T.tradeReserve and T.brokeFreightPull or 1)
+    end
     list[#list+1]={o=o,preference=ranks.transport,risk=Access.jobRisk(r,station,o,u),v=freight.score(u,r,o,station,clock)}
    else rejectedFreight[r][entry.id]=true end
   end
